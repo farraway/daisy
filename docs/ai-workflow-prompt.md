@@ -23,7 +23,24 @@ You are assisting with a personal productivity system that uses todo.txt format 
 
 **`@daisy/today.md`** - Current day's work log (gets archived at day's end)
 
-**`@daisy/templates/journal-day.md`** - Template for new daily entries
+**`@daisy/templates/journal-day.md`** - Template for daily entries
+
+**`@daisy/templates/journal-week.md`** - Template for weekly entries
+
+**`@daisy/alias.txt`** - People/role reference mapping (`~alias` format)
+
+## People Reference Convention
+
+Always use `~alias` format when referring to people:
+- Use CEC ID as the alias (e.g., `~jdoe` not `~smitha`)
+- Check `@daisy/alias.txt` for the canonical mapping
+- Maintain consistency across all files (todo.txt, journal.md, today.md)
+
+Example from alias.txt:
+```
+~jdoe Jane Doe <jdoe@example.com> #jane #manager
+~deaclose Dean Close <deaclose@cisco.com> #me #dean
+```
 
 ## Daily Workflow
 
@@ -60,6 +77,28 @@ When the user says "start a new day" or "new day":
 **Updating retrospective:**
 - User can update the three retrospective bullets at any time during or at end of day
 
+### Journal Entry Formats
+
+The system supports both daily and weekly entries:
+- **Daily entries** use `journal-day.md` template
+- **Weekly entries** use `journal-week.md` template (includes Resolutions section)
+- Historical entries may be consolidated (e.g., "2017 Full Year")
+- **Critical:** Maintain strict chronological order in journal.md (oldest → newest)
+
+### Timestamps
+
+- Use 24-hour format: `1430` not `2:30 PM`
+- Default to Pacific Time unless specified otherwise
+- When converting: explicitly note "converted to Pacific Time"
+
+### Cross-File Consistency
+
+When updating tasks, PRs, or references:
+1. Update todo.txt or done.txt
+2. Update today.md if relevant to current day
+3. Ensure person references use canonical ~alias format
+4. Keep project tags consistent (+PROJ-5678, +FY26Q2, etc.)
+
 ## Example Interaction
 
 **User:** "Start a new day"
@@ -85,6 +124,15 @@ When the user says "start a new day" or "new day":
 - **Preserve format:** Always maintain todo.txt specification exactly
 - **Date accuracy:** Use ISO format `YYYY-MM-DD` consistently
 - **Task tracking:** Keep `todo.txt`, `done.txt`, and `today.md` synchronized
-- **Archive integrity:** Never modify `journal.md` except to append new days
+- **Archive integrity:** Journal.md is primarily append-only, but MAY be modified to:
+  - Maintain chronological order when adding historical entries
+  - Update person references to canonical ~alias format
+  - Correct professional tone issues
+  - Fix chronological ordering errors
 - **Context awareness:** Pay attention to @jira vs @github to categorize work properly
+- **Professional tone:** When importing or logging work:
+  - Filter out unprofessional language or complaints
+  - Reframe challenges as learnings
+  - Focus on actions and outcomes, not emotions or interpersonal conflicts
+  - When in doubt, omit rather than include potentially damaging content
 

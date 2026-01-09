@@ -24,11 +24,14 @@ daisy/
 ├── done.txt              # Completed tasks archive
 ├── today.md              # Current day's journal
 ├── journal.md            # Archive of all past days
+├── alias.txt             # People/role aliases (~person format)
+├── perf/                 # Performance reflections and career documentation
 ├── docs/
 │   ├── todotxt.md        # Todo.txt format specification
 │   └── ai-workflow-prompt.md  # Instructions for AI assistants
 └── templates/
-    └── journal-day.md    # Template for daily entries
+    ├── journal-day.md    # Template for daily entries
+    └── journal-week.md   # Template for weekly entries
 ```
 
 ## Todo.txt Format Quick Reference
@@ -55,6 +58,20 @@ daisy/
 - `+WXSA-XXXXX` - Jira ticket keys
 - `+FY26Q2` - Fiscal quarter tags
 - `+repo-name` - Repository names
+
+## People References
+
+Use `~alias` to reference people consistently across all files:
+- `~jdoe` - References Smitha Gubbi (manager)
+- `~deaclose` - References yourself
+
+The `alias.txt` file maintains the mapping:
+```
+~jdoe Jane Doe <jdoe@example.com> #jane #manager
+~deaclose Dean Close <deaclose@cisco.com> #me #dean
+```
+
+This enables consistent cross-referencing and avoids ambiguity (first names, nicknames, etc.)
 
 ## Daily Workflow
 
@@ -111,6 +128,16 @@ AI: [Helps synthesize the day's work]
 * **Misses:** Should have verified architecture before creating PR
 * **What would a Sage do next:** Document architectural findings for team
 ```
+
+## Historical Data Integration
+
+The AI assistant can help populate historical entries from:
+- GitHub commit history
+- Jira completion records
+- Previous task management exports (Wrike, etc.)
+- Calendar/agenda archives
+
+**Key principle:** When importing historical data, maintain professional tone by filtering or reframing informal/unprofessional content.
 
 ## Integration with AI
 
