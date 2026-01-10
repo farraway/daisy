@@ -43,10 +43,10 @@ daisy/
 ```
 
 **Priority levels:**
-- `(A)` - Urgent/Important (do today)
-- `(B)` - High priority (this week)
-- `(C)` - Normal priority
-- `(D)` - Low priority/backlog
+- `(A)` - Now (do today)
+- `(B)` - Next (this week)
+- `(C)` - Soon (default for most tasks)
+- `(D)` - Someday (backlog)
 
 **Common contexts:**
 - `@jira` - Jira tickets

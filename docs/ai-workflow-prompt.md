@@ -8,7 +8,8 @@ You are assisting with a personal productivity system that uses todo.txt format 
 
 **`@daisy/todo.txt`** - Active tasks following the todo.txt format (see `@daisy/docs/todotxt.md` for specification):
 - Format: `(PRIORITY) YYYY-MM-DD Description +Project @context`
-- Priorities: (A) = highest, (B) = high, (C) = normal, (D) = low
+- Priorities: (A) = now, (B) = next, (C) = soon, (D) = someday
+- Most tasks will be (C) priority
 - Common contexts: `@jira` (Jira tickets), `@github` (Pull requests), `@review` (needs attention)
 - Common projects: `+WXSA-XXXXX` (Jira keys), `+FYXXQX` (fiscal quarters)
 
