@@ -13,10 +13,11 @@ You are assisting with a personal productivity system that uses todo.txt format 
 - Common contexts: `@jira` (Jira tickets), `@github` (Pull requests), `@review` (needs attention)
 - Common projects: `+WXSA-XXXXX` (Jira keys), `+FYXXQX` (fiscal quarters)
 
-**`@daisy/done.txt`** - Completed tasks:
+**`@daisy/done.txt`** - Archived completed tasks:
 - Format: `x YYYY-MM-DD YYYY-MM-DD Description +Project @context`
 - First date = completion date, second date = creation date
 - Special context: `@cancelled` for tasks closed without implementation
+- Tasks are only moved here manually by user request or weekly when starting a new week
 
 ### Journal System
 
@@ -43,7 +44,17 @@ Example from alias.txt:
 ~deaclose Dean Close <deaclose@cisco.com> #me #dean
 ```
 
-## Daily Workflow
+## Workflows
+
+### Starting a New Week
+
+When the user says "start a new week":
+
+1. **Archive completed tasks:**
+   - Move all tasks with `x` prefix from `todo.txt` to `done.txt`
+   - Preserves recent history context in done.txt
+
+2. **Follow daily startup process** (see below)
 
 ### Starting a New Day
 
@@ -73,10 +84,19 @@ When the user says "start a new day" or "new day":
 **Completing tasks:**
 - When user says "done [task pattern]", mark the matching task in `today.md`:
   - Change `- [ ]` to `- [x]`
-  - Also move the task from `todo.txt` to `done.txt` with today's date
+  - Mark the task complete in `todo.txt` by adding `x` prefix and completion date, then move it to the end of the file
+  - Format: `x YYYY-MM-DD (PRIORITY) YYYY-MM-DD Description +Project @context`
+  - Tasks remain in `todo.txt` until manually archived or moved during weekly rollover
 
 **Updating retrospective:**
 - User can update the three retrospective bullets at any time during or at end of day
+
+### Archiving Completed Tasks
+
+Tasks marked complete stay in `todo.txt` (moved to end with `x` prefix) to provide recent history context:
+- **Weekly archival:** When starting a new week, move completed tasks from `todo.txt` to `done.txt`
+- **Manual archival:** User can request "archive completed tasks" at any time
+- **Format preserved:** `x YYYY-MM-DD YYYY-MM-DD Description +Project @context`
 
 ### Journal Entry Formats
 
@@ -118,13 +138,15 @@ When updating tasks, PRs, or references:
 
 **You:** 
 1. Mark task in `today.md`: `- [x] Avengers pages must provide valid meeting links +WXSA-18369 +FY26Q2 @jira`
-2. Move from `todo.txt` to `done.txt`: `x 2026-01-06 2025-12-23 Avengers pages must provide valid meeting links +WXSA-18369 +FY26Q2 @jira`
+2. Mark complete in `todo.txt` and move to end: `x 2026-01-06 2025-12-23 Avengers pages must provide valid meeting links +WXSA-18369 +FY26Q2 @jira`
+3. Task remains in `todo.txt` until user requests archival or weekly rollover
 
 ## Key Principles
 
 - **Preserve format:** Always maintain todo.txt specification exactly
 - **Date accuracy:** Use ISO format `YYYY-MM-DD` consistently
 - **Task tracking:** Keep `todo.txt`, `done.txt`, and `today.md` synchronized
+- **Completion workflow:** Completed tasks stay in `todo.txt` (moved to end with `x` prefix) until manually archived or weekly rollover
 - **Archive integrity:** Journal.md is primarily append-only, but MAY be modified to:
   - Maintain chronological order when adding historical entries
   - Update person references to canonical ~alias format

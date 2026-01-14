@@ -20,8 +20,8 @@ When helping with this workflow, read and follow: **`@daisy/docs/ai-workflow-pro
 
 ```
 daisy/
-├── todo.txt              # Active tasks (todo.txt format)
-├── done.txt              # Completed tasks archive
+├── todo.txt              # Active and recently completed tasks (todo.txt format)
+├── done.txt              # Long-term task archive (cleaned up weekly/manually)
 ├── today.md              # Current day's journal
 ├── journal.md            # Archive of all past days
 ├── alias.txt             # People/role aliases (~person format)
@@ -75,6 +75,12 @@ This enables consistent cross-referencing and avoids ambiguity (first names, nic
 
 ## Daily Workflow
 
+### Starting a New Week
+```
+You: "Start a new week"
+AI: [Moves completed tasks from todo.txt to done.txt, then starts new day]
+```
+
 ### Morning
 ```
 You: "Start a new day"
@@ -87,7 +93,7 @@ You: "Log fixed WXSA-15770 bug"
 AI: [Adds timestamped entry to Log section]
 
 You: "Done WXSA-18369"
-AI: [Marks task complete in today.md and moves to done.txt]
+AI: [Marks task complete in today.md and moves to end of todo.txt with 'x' prefix]
 ```
 
 ### Evening
@@ -111,9 +117,9 @@ AI: [Helps synthesize the day's work]
 - [x] Avengers pages must provide valid meeting links +WXSA-18369 +FY26Q2 @jira
 - [ ] Refactor incident creation workflows +WXSA-18322 +FY26Q2 @jira
 
-#### Pull Requests
+#### GitHub PRs
 
-- [x] Update to SOE template (PR#1538 webex-teams-bot) +WXSA-15770 +FY25Q4 @github
+- [x] @git Update to SOE template [PR#1538](https://sqbu-github.cisco.com/Platform-Common/webex-teams-bot/pull/1538) +WXSA-15770 +FY25Q4
 
 #### Log
 
@@ -153,6 +159,7 @@ This system is designed to work seamlessly with AI assistants (like me!). Simply
 - **AI-native** - Designed for AI assistance, not automation scripts
 - **Flexible** - Adapt the system to your workflow, not the other way around
 - **Transparent** - All your data is human-readable plain text
+- **Recent history visible** - Completed tasks stay in todo.txt for context until weekly archival
 
 ## See Also
 
