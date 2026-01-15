@@ -1,45 +1,127 @@
 # Daisy - Personal Productivity System
 
-A lightweight productivity system combining todo.txt task management with daily markdown journaling.
+A lightweight productivity system combining todo.txt task management with daily markdown journaling, designed for AI-assisted workflows.
 
 ## Quick Start
 
-### For AI Assistants
+**👋 New to daisy?** → **[5-Minute Quickstart Guide](docs/quickstart.md)**
 
-When helping with this workflow, read and follow: **`@daisy/docs/ai-workflow-prompt.md`**
+**For AI Assistants:**
+```
+Load @daisy/prompt.md and start a new day
+```
 
-### For Humans
+This single command loads all prompts, archives yesterday, and creates fresh `today.md` with prioritized tasks.
 
-1. Add tasks to `todo.txt` using [todo.txt format](docs/todotxt.md)
-2. Ask your AI assistant to "start a new day"
-3. Work through tasks in `today.md`
-4. Log progress as you go
-5. Fill in retrospective at end of day
+**Alternative commands:**
+- `Load @daisy/prompt.md` - Initialize system only
+- `Load @daisy/prompt.md and start a new week` - Archive completed tasks + new day
+
+**Documentation:**
+- **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes ⭐
+- **[AI Workflow Guide](prompts/daisy.md)** - Complete system specification
+- **[Detailed Examples](docs/examples/daisy.md)** - Interaction walkthroughs
+- **[Test Cases](docs/test-cases.md)** - Validation test cases
+
+**Manual prompt loading (if needed):**
+- **Home-specific:** `@daisy/prompts/work.md` (for work contexts)
+- **Utilities:** `@daisy/prompts/jira.md`, `@daisy/prompts/github.md`, `@daisy/prompts/webex.md`
+- **Reflection:** `@daisy/prompts/retrospective.md`
 
 ## File Structure
 
 ```
 daisy/
-├── todo.txt              # Active and recently completed tasks (todo.txt format)
-├── done.txt              # Long-term task archive (cleaned up weekly/manually)
-├── today.md              # Current day's journal
-├── journal.md            # Archive of all past days
-├── alias.txt             # People/role aliases (~person format)
-├── perf/                 # Performance reflections and career documentation
+├── prompt.md            # Symlink → Active home's bootstrap prompt
+├── journal.md           # Symlink → Active home's journal archive
+├── today.md             # Symlink → Active home's current day journal
+├── tasks/               # Symlink → Active home's task directory
+│   ├── todo.txt         # Active and recently completed tasks
+│   ├── done.txt         # Long-term task archive
+│   └── alias.txt        # People/role aliases (~person format)
+├── home/
+│   ├── work/           # Work home data
+│   │   ├── prompt.md    # Work bootstrap prompt
+│   │   ├── journal/
+│   │   ├── tasks/
+│   │   └── perf/        # Performance reflections
+│   └── personal/        # Personal home (example)
+│       ├── prompt.md
+│       ├── journal/
+│       └── tasks/
+├── prompts/
+│   ├── daisy.md         # Core workflow instructions for AI
+│   ├── work.md         # Work-specific augmentations
+│   ├── jira.md          # JIRA utilities
+│   ├── github.md        # GitHub utilities
+│   ├── webex.md         # Webex API utilities
+│   └── retrospective.md # Reflection guide
 ├── docs/
-│   ├── todotxt.md        # Todo.txt format specification
-│   └── ai-workflow-prompt.md  # Instructions for AI assistants
-└── templates/
-    ├── journal-day.md    # Template for daily entries
-    └── journal-week.md   # Template for weekly entries
+│   ├── quickstart.md    # 5-minute getting started guide
+│   ├── todotxt.md       # Todo.txt format specification
+│   ├── test-cases.md    # Validation test suite
+│   └── examples/
+│       └── daisy.md     # Detailed interaction examples
+├── templates/
+│   ├── journal-day.md   # Template for daily entries
+│   ├── journal-week.md  # Template for weekly entries
+│   └── home/            # Template for new homes
+│       ├── prompt.md    # Bootstrap prompt template
+│       ├── journal/     # Journal directory structure
+│       └── tasks/       # Tasks directory structure
 ```
+
+## Home Switching
+
+The symlinks (`journal.md`, `today.md`, `tasks/`, `prompt.md`) point to the active home's data, enabling easy context switching (e.g., work ↔ personal).
+
+**To switch homes:**
+
+```bash
+ln -sf home/personal/prompt.md prompt.md
+ln -sf home/personal/journal/journal.md journal.md
+ln -sf home/personal/journal/today.md today.md
+ln -sf home/personal/tasks tasks
+```
+
+Each home has its own bootstrap prompt that specifies which prompts to load.
+
+## Creating a New Home
+
+To create a new home (e.g., "sideprojects"):
+
+1. **Copy the template:**
+   ```bash
+   cp -r templates/home home/sideprojects
+   ```
+
+2. **Customize the bootstrap prompt:**
+   - Edit `home/sideprojects/prompt.md`
+   - Replace `[home]` with `sideprojects`
+   - Replace `[Home Name]` with descriptive name
+   - Choose which prompts to load (remove work.md, jira.md if not needed)
+
+3. **Create symlinks:**
+   ```bash
+   ln -sf home/sideprojects/prompt.md prompt.md
+   ln -sf home/sideprojects/journal/journal.md journal.md
+   ln -sf home/sideprojects/journal/today.md today.md
+   ln -sf home/sideprojects/tasks tasks
+   ```
+
+4. **Start using:**
+   ```
+   Load @daisy/prompt.md and start a new day
+   ```
 
 ## Todo.txt Format Quick Reference
 
 ```
-(A) 2026-01-06 High priority task +Project @context
-(B) 2026-01-06 Medium priority task +PROJ-5678 @jira
-(C) 2026-01-06 Normal task @github
+(A) 2026-01-16 High priority task +Project @context
+(B) 2026-01-16 Medium priority task +PROJ-5678 @jira
+2026-01-16 Inbox task (needs prioritization)
+(C) 2026-01-16 Normal task @github
+(D) 2026-01-16 Someday task +backlog
 ```
 
 **Priority levels:**
@@ -47,121 +129,101 @@ daisy/
 - `(B)` - Next (this week)
 - `(C)` - Soon (default for most tasks)
 - `(D)` - Someday (backlog)
+- No priority - Inbox (needs triage)
 
 **Common contexts:**
-- `@jira` - Jira tickets
-- `@github` - Pull requests
+- `@jira` - JIRA tickets
+- `@git` or `@github` - Pull requests
+- `@meeting` - Meetings/calendar items
 - `@review` - Needs attention
-- `@cancelled` - Closed without implementation (done.txt only)
 
 **Common projects:**
 - `+WXSA-XXXXX` - Jira ticket keys
 - `+FY26Q2` - Fiscal quarter tags
 - `+repo-name` - Repository names
 
+See [docs/todotxt.md](docs/todotxt.md) for complete format specification.
+
 ## People References
 
-Use `~alias` to reference people consistently across all files:
-- `~jdoe` - References Smitha Gubbi (manager)
-- `~deaclose` - References yourself
+Use `~alias` to reference people consistently across all files. The alias is defined in `tasks/alias.txt`:
 
-The `alias.txt` file maintains the mapping:
 ```
 ~jdoe Jane Doe <jdoe@example.com> #jane #manager
 ~deaclose Dean Close <deaclose@cisco.com> #me #dean
 ```
 
+**Usage:**
+- In tasks: `(B) 2026-01-16 Review design with ~jdoe @meeting`
+- In logs: `1430 - Met with ~jdoe about architecture`
+- In journal: `Discussed approach with ~jdoe, got approval`
+
 This enables consistent cross-referencing and avoids ambiguity (first names, nicknames, etc.)
-
-## Daily Workflow
-
-### Starting a New Week
-```
-You: "Start a new week"
-AI: [Moves completed tasks from todo.txt to done.txt, then starts new day]
-```
-
-### Morning
-```
-You: "Start a new day"
-AI: [Archives yesterday's work, creates new today.md with your A/B priority tasks]
-```
-
-### During the Day
-```
-You: "Log fixed WXSA-15770 bug"
-AI: [Adds timestamped entry to Log section]
-
-You: "Done WXSA-18369"
-AI: [Marks task complete in today.md and moves to end of todo.txt with 'x' prefix]
-```
-
-### Evening
-```
-You: Update Retrospective section with successes, misses, and next steps
-AI: [Helps synthesize the day's work]
-```
 
 ## Example Daily Entry
 
 ```markdown
-### 2026-01-06 Monday
+### 2026-01-16 Thursday
 
 #### Agenda
 - 0930 Stand-up meeting
-- 1230 Lunch with team
+- 1400 Sprint planning
 - 1530 Code review session
 
-#### Tasks
+#### High-Priority Tasks
+- [x] @jira Complete PROJ-1234 implementation +PROJ-1234 +FY26Q2
+- [ ] @jira Review design doc for PROJ-1235 +PROJ-1235
 
-- [x] Avengers pages must provide valid meeting links +WXSA-18369 +FY26Q2 @jira
-- [ ] Refactor incident creation workflows +WXSA-18322 +FY26Q2 @jira
+#### Task Inbox
+- [ ] Triage new tickets +INBOX
 
 #### GitHub PRs
-
-- [x] @git Update to SOE template [PR#1538](https://sqbu-github.cisco.com/Platform-Common/webex-teams-bot/pull/1538) +WXSA-15770 +FY25Q4
+- [x] @git Review PR#1538 +WXSA-15770
 
 #### Log
-
-* 0930 - New day started
-* 1045 - Investigated WXSA-15770 - discovered bot template never called
-* 1345 - Closed WXSA-15770 as will not implement due to architectural constraints
-* 1530 - Closed PR#1538 and updated Jira
+- 0930 - New day started
+- 1045 - Traced PROJ-1234 to race condition in adapter init
+- 1215 - Met with ~jdoe about approach, decided instance-based pattern
+- 1530 - PR#1545 opened
+- 1600 - PR#1545 merged
 
 #### Retrospective
-
-* **Successes:** Deep-dive investigation saved from implementing dead code
-* **Misses:** Should have verified architecture before creating PR
-* **What would a Sage do next:** Document architectural findings for team
+- **Successes:** Found root cause efficiently, collaborated well with ~jdoe
+- **Misses:** Could have asked for help earlier in debugging
+- **What would a Sage do next:** Document the race condition pattern for team
 ```
 
-## Historical Data Integration
+## Daily Workflow Summary
 
-The AI assistant can help populate historical entries from:
-- GitHub commit history
-- Jira completion records
-- Previous task management exports (Wrike, etc.)
-- Calendar/agenda archives
+For detailed workflow instructions, see the **[Quickstart Guide](docs/quickstart.md)**.
 
-**Key principle:** When importing historical data, maintain professional tone by filtering or reframing informal/unprofessional content.
+**Essential commands:**
+- `start a new day` - Archive yesterday, create fresh today.md
+- `start a new week` - Archive completed tasks, start new day
+- `done [task]` - Mark task complete
+- `log [message]` - Add timestamped entry
+- `check system` - Verify setup and file integrity
 
-## Integration with AI
-
-This system is designed to work seamlessly with AI assistants (like me!). Simply:
-
-1. Attach the relevant files (`todo.txt`, `today.md`, etc.)
-2. Ask for help starting your day, logging work, or completing tasks
-3. The AI follows the workflow defined in `docs/ai-workflow-prompt.md`
+**AI behavior:**
+- Proactively logs discoveries, decisions, milestones
+- Helps with daily retrospective
+- Curates journal archives for utility
+- Maintains format consistency
 
 ## Philosophy
 
-- **Simple text files** - Everything in git-friendly markdown and todo.txt
-- **AI-native** - Designed for AI assistance, not automation scripts
-- **Flexible** - Adapt the system to your workflow, not the other way around
-- **Transparent** - All your data is human-readable plain text
-- **Recent history visible** - Completed tasks stay in todo.txt for context until weekly archival
+- **Plain text** - Git-friendly, searchable, future-proof
+- **AI-native** - Designed for conversational AI assistance
+- **Flexible** - Adapt to your workflow, not vice versa
+- **Reflective** - Daily retrospectives drive continuous improvement
+- **Multi-context** - Switch between work/personal/projects using homes
 
 ## See Also
 
-- [Todo.txt specification](docs/todotxt.md)
-- [AI workflow guide](docs/ai-workflow-prompt.md)
+- **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes ⭐
+- **[AI Workflow Guide](prompts/daisy.md)** - Complete system specification (includes priority system)
+- **[Detailed Examples](docs/examples/daisy.md)** - Interaction walkthroughs
+- **[Test Cases](docs/test-cases.md)** - Validation test cases
+- [Todo.txt Specification](docs/todotxt.md) - Format reference
+- [Work-Specific Workflows](prompts/work.md) - Work conventions
+- [Retrospective Guide](prompts/retrospective.md) - Reflection prompts

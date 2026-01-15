@@ -5,9 +5,17 @@
 - 1230 ...
 - 1530 ...
 
-#### Tasks
+#### High-Priority Tasks
 
 {HIGH_PRIORITY_TASKS}
+
+#### Task Inbox
+
+{TASK_INBOX}
+
+#### GitHub PRs
+
+{GITHUB_TASKS}
 
 #### Log
 
