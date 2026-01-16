@@ -1,0 +1,16 @@
+# Daisy Prompt Includes Template
+# Each line is a prompt name that resolves to $DAISY_ROOT/prompts/{name}.md
+# Lines starting with # are comments and will be ignored
+
+# Core daisy system (always first)
+daisy
+
+# Reflection framework
+retrospective
+
+# Add your home-specific prompts below
+# Examples:
+# cisco
+# jira
+# github
+# webex

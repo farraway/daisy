@@ -1,20 +1,22 @@
 ### {DATE} {DAY}
 
 #### Agenda
-- 0930 Plan Day
+- {TIME} Plan Day
 - 1230 ...
 - 1530 ...
 
-#### High-Priority Tasks
+#### Tasks
 
+**High Priority (A):**
 {HIGH_PRIORITY_TASKS}
 
-#### Task Inbox
+**Next Priority (B):**
+{NEXT_PRIORITY_TASKS}
 
-{TASK_INBOX}
+**Inbox:**
+{INBOX_TASKS}
 
-#### GitHub PRs
-
+**GitHub PRs:**
 {GITHUB_TASKS}
 
 #### Log

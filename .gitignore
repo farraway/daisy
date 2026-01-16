@@ -1,3 +1,9 @@
 /tasks
 /journal.md
 /today.md
+
+# Generated files
+/prompt.md
+
+# Environment and secrets
+.env.sh

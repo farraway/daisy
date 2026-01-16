@@ -2,14 +2,39 @@
 
 Quick reference for common GitHub operations via MCP tools.
 
-## Available Tools
+## Authentication
+
+### Option 1: MCP Server (Recommended)
+Use MCP tools - authentication handled automatically via MCP settings.
+
+### Option 2: Direct API (Fallback when MCP unavailable)
+
+1. Set token in workspace `.env.sh`:
+   ```bash
+   export DAISY_SECRET_GITHUB_TOKEN="your-token"
+   ```
+
+2. Source credentials before API calls:
+   ```bash
+   source .env.sh
+   ```
+
+3. Use in curl commands:
+   ```bash
+   curl -H "Authorization: Bearer $DAISY_SECRET_GITHUB_TOKEN" \
+     "https://api.github.com/..."
+   ```
+
+## Available MCP Tools
 
 - `mcp_aicodinggithub_call_github_graphql_for_query` - Query data (read-only)
 - `mcp_aicodinggithub_call_github_graphql_for_mutation` - Modify data (write)
 - `mcp_aicodinggithub_get_pull_request_diff` - Get PR diff
 - `mcp_aicodinggithub_call_github_restapi_for_search` - Search code/users
 
-## Common Operations
+**Use these MCP tools whenever available. Only use direct API calls below if MCP is unavailable.**
+
+## Common Operations (Direct API Fallback)
 
 ### 1. List My Open PRs
 

@@ -2,7 +2,119 @@
 
 A lightweight productivity system combining todo.txt task management with daily markdown journaling, designed for AI-assisted workflows.
 
-## Quick Start
+## Bootstrap (First-Time Setup)
+
+**New installation?** Follow these steps to get started:
+
+### 1. Clone or Download
+
+```bash
+git clone <repo-url> daisy
+cd daisy
+```
+
+### 2. Set Environment Variables
+
+Add to `~/.zshenv` (or `~/.bashrc`):
+```bash
+export DAISY_ROOT="/path/to/daisy"
+export DAISY_HOME="$DAISY_ROOT/home/default"  # or choose a home
+```
+
+Then reload: `source ~/.zshenv`
+
+### 3. Verify Installation
+
+```bash
+$DAISY_ROOT/scripts/healthcheck.sh
+```
+
+This checks that environment variables are set and all components are healthy.
+
+### 4. Build Your Prompt
+
+**Important:** Daisy uses a prompt composition system. You must build `prompt.md` before using:
+
+```bash
+$DAISY_ROOT/scripts/build-prompt.sh
+```
+
+This reads `$DAISY_HOME/include.txt` and concatenates all prompts into `prompt.md`.
+
+**What this does:**
+- Reads the list of prompts from your active home's `include.txt`
+- Concatenates those prompts into a single `prompt.md` file
+- This generated file is what the AI assistant loads
+
+### 5. Start Using Daisy
+
+In a new AI session:
+```
+Load @daisy/prompt.md and start a new day
+```
+
+The AI will:
+- Load all your configured prompts
+- Archive yesterday's work
+- Create fresh `today.md` with prioritized tasks
+
+---
+
+## Quick Start (After Bootstrap)
+
+## Quick Start (After Bootstrap)
+
+**Already set up?** Quick reference for daily use:
+
+**For AI Assistants:**
+```
+Load @daisy/prompt.md and start a new day
+```
+
+### Maintenance Commands
+
+**Verify system health:**
+```bash
+$DAISY_ROOT/scripts/healthcheck.sh         # Uses cache
+$DAISY_ROOT/scripts/healthcheck.sh --force # Full re-check
+```
+
+**Rebuild prompt after changes:**
+```bash
+$DAISY_ROOT/scripts/build-prompt.sh
+```
+
+Rebuild when:
+- You modify `$DAISY_HOME/include.txt` (add/remove prompts)
+- You edit source prompts in `prompts/`
+- You switch homes
+
+### Documentation
+
+### Optional: API Authentication
+
+For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
+
+1. Copy the template to your workspace:
+   ```bash
+   cp $DAISY_ROOT/templates/env.sh.template .env.sh
+   ```
+
+2. Edit `.env.sh` and fill in your tokens:
+   ```bash
+   export DAISY_SECRET_WEBEX_API_TOKEN="your-token"
+   export DAISY_SECRET_JIRA_API_TOKEN="your-token"
+   export DAISY_SECRET_GITHUB_TOKEN="your-token"
+   ```
+
+3. Verify configuration:
+   ```bash
+   $DAISY_ROOT/scripts/check-secrets.sh
+   ```
+
+**Note:** MCP servers handle authentication automatically. `.env.sh` is only needed as a fallback.
+
+### 5. Start Using Daisy
 
 **👋 New to daisy?** → **[5-Minute Quickstart Guide](docs/quickstart.md)**
 
@@ -32,25 +144,35 @@ This single command loads all prompts, archives yesterday, and creates fresh `to
 
 ```
 daisy/
-├── prompt.md            # Symlink → Active home's bootstrap prompt
+├── prompt.md            # Generated - concatenated prompts
 ├── journal.md           # Symlink → Active home's journal archive
 ├── today.md             # Symlink → Active home's current day journal
 ├── tasks/               # Symlink → Active home's task directory
 │   ├── todo.txt         # Active and recently completed tasks
 │   ├── done.txt         # Long-term task archive
 │   └── alias.txt        # People/role aliases (~person format)
+├── scripts/
+│   ├── healthcheck.sh   # System validation (--force to re-run)
+│   ├── build-prompt.sh  # Generate prompt.md from includes
+│   ├── check-secrets.sh # Verify .env.sh configuration
+│   └── daisy/           # Workflow scripts
+│       ├── new-day.sh   # Start new day
+│       ├── new-week.sh  # Start new week
+│       ├── done.sh      # Mark task complete
+│       └── log.sh       # Add log entry
 ├── home/
 │   ├── work/           # Work home data
-│   │   ├── prompt.md    # Work bootstrap prompt
+│   │   ├── include.txt  # List of prompts to load
 │   │   ├── journal/
 │   │   ├── tasks/
 │   │   └── perf/        # Performance reflections
 │   └── personal/        # Personal home (example)
-│       ├── prompt.md
+│       ├── include.txt
 │       ├── journal/
 │       └── tasks/
 ├── prompts/
 │   ├── daisy.md         # Core workflow instructions for AI
+│   ├── daisy-admin.md   # Internal architecture (for system work)
 │   ├── work.md         # Work-specific augmentations
 │   ├── jira.md          # JIRA utilities
 │   ├── github.md        # GitHub utilities
@@ -63,28 +185,35 @@ daisy/
 │   └── examples/
 │       └── daisy.md     # Detailed interaction examples
 ├── templates/
+│   ├── env.sh.template  # Environment variables template
 │   ├── journal-day.md   # Template for daily entries
 │   ├── journal-week.md  # Template for weekly entries
 │   └── home/            # Template for new homes
-│       ├── prompt.md    # Bootstrap prompt template
+│       ├── include.txt  # Prompts to load
+│       ├── prompt.md    # (deprecated - use include.txt)
 │       ├── journal/     # Journal directory structure
 │       └── tasks/       # Tasks directory structure
 ```
 
 ## Home Switching
 
-The symlinks (`journal.md`, `today.md`, `tasks/`, `prompt.md`) point to the active home's data, enabling easy context switching (e.g., work ↔ personal).
+The symlinks (`journal.md`, `today.md`, `tasks/`) point to the active home's data, enabling easy context switching (e.g., work ↔ personal).
 
 **To switch homes:**
 
 ```bash
-ln -sf home/personal/prompt.md prompt.md
 ln -sf home/personal/journal/journal.md journal.md
 ln -sf home/personal/journal/today.md today.md
 ln -sf home/personal/tasks tasks
 ```
 
-Each home has its own bootstrap prompt that specifies which prompts to load.
+Then rebuild the prompt:
+```bash
+export DAISY_HOME="$DAISY_ROOT/home/personal"
+$DAISY_ROOT/scripts/build-prompt.sh
+```
+
+Each home has an `include.txt` file that specifies which prompts to load.
 
 ## Creating a New Home
 
@@ -95,24 +224,30 @@ To create a new home (e.g., "sideprojects"):
    cp -r templates/home home/sideprojects
    ```
 
-2. **Customize the bootstrap prompt:**
-   - Edit `home/sideprojects/prompt.md`
-   - Replace `[home]` with `sideprojects`
-   - Replace `[Home Name]` with descriptive name
-   - Choose which prompts to load (remove work.md, jira.md if not needed)
+2. **Customize the prompt includes:**
+   - Edit `home/sideprojects/include.txt`
+   - List the prompts you want to load (one per line)
+   - Example:
+     ```
+     daisy
+     retrospective
+     github
+     ```
 
 3. **Create symlinks:**
    ```bash
-   ln -sf home/sideprojects/prompt.md prompt.md
    ln -sf home/sideprojects/journal/journal.md journal.md
    ln -sf home/sideprojects/journal/today.md today.md
    ln -sf home/sideprojects/tasks tasks
    ```
 
-4. **Start using:**
+4. **Build prompt and start using:**
+   ```bash
+   export DAISY_HOME="$DAISY_ROOT/home/sideprojects"
+   $DAISY_ROOT/scripts/build-prompt.sh
    ```
-   Load @daisy/prompt.md and start a new day
-   ```
+   
+   Then load `@daisy/prompt.md` and start a new day
 
 ## Todo.txt Format Quick Reference
 
@@ -221,7 +356,8 @@ For detailed workflow instructions, see the **[Quickstart Guide](docs/quickstart
 ## See Also
 
 - **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes ⭐
-- **[AI Workflow Guide](prompts/daisy.md)** - Complete system specification (includes priority system)
+- **[AI Workflow Guide](prompts/daisy.md)** - User-focused workflows and commands
+- **[Admin Guide](prompts/daisy-admin.md)** - Internal architecture and specifications
 - **[Detailed Examples](docs/examples/daisy.md)** - Interaction walkthroughs
 - **[Test Cases](docs/test-cases.md)** - Validation test cases
 - [Todo.txt Specification](docs/todotxt.md) - Format reference
