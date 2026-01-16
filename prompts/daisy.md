@@ -659,22 +659,41 @@ AI:
 
 **Algorithm:**
 
-1. **Archive yesterday's work:**
+1. **Validate task sync before proceeding:**
+   ```
+   a. Compare tasks in today.md vs todo.txt
+   b. For each incomplete task in today.md (checkbox "- [ ]"):
+      - Search for matching task in todo.txt (case-insensitive substring)
+      - If not found, warn: "⚠️ Task in today.md not found in todo.txt: {task}"
+   c. For each completed task in today.md (checkbox "- [x]"):
+      - Search in todo.txt
+      - If found as active task (no "x " prefix), warn: "⚠️ Completion mismatch: {task}"
+   d. If warnings found:
+      - List all issues
+      - Ask: "Fix sync issues before starting new day? (recommended)"
+      - If user says yes, run sync algorithm
+      - If user says no, continue with warning
+   e. If no issues, continue silently
+   ```
+
+2. **Archive yesterday's work (lossless):**
    ```
    a. Check if today.md exists
-   b. If exists, read entire contents
-   c. Create abridged/curated version:
-      - Keep date heading verbatim
-      - Summarize completed tasks (just titles)
-      - Abridge log section (see Logging section below)
-      - Keep retrospective verbatim
-   d. Append abridged version to journal.md:
-      - Open journal.md in append mode
-      - If journal.md has content, write "\n\n" (two newlines)
-      - Write abridged today.md contents
-      - Write "\n" (one final newline)
-      - Report: "📦 Archived yesterday's work to journal.md"
+   b. If not exists, skip to step 2
+   c. If exists, read entire contents
+   d. Append verbatim to journal.md:
+      - Open journal.md for reading to check if content exists
+      - If journal.md has content, append: "\n---\n\n"
+      - Append entire today.md contents unchanged
+      - Do NOT summarize, abridge, or modify any content
+      - Report: "📦 Archived yesterday to journal.md"
    ```
+   
+   **CRITICAL: Daily archival must be lossless.**
+   - Never summarize completed tasks
+   - Never abridge log entries
+   - Never modify retrospective
+   - Curation happens during weekly review, not daily archival
 
 2. **Delete cancelled tasks:**
    ```
@@ -684,7 +703,7 @@ AI:
    d. Report: "🗑️ Deleted N cancelled tasks" (if N > 0)
    ```
 
-3. **Extract high priority tasks from todo.txt:**
+4. **Extract high priority tasks from todo.txt:**
    ```
    a. Check if tasks/todo.txt exists
    b. If not exists or empty, set high_priority_tasks = []
@@ -701,7 +720,7 @@ AI:
    d. If list empty, set to: ["- [ ] No high priority tasks"]
    ```
 
-4. **Extract inbox tasks from todo.txt:**
+5. **Extract inbox tasks from todo.txt:**
    ```
    a. For each line in todo.txt:
       - Skip if starts with "x ", "z ", or has priority "(A-D)"
@@ -715,7 +734,7 @@ AI:
    b. If list empty, set to: ["- [ ] No inbox tasks"]
    ```
 
-5. **Extract GitHub tasks from todo.txt:**
+6. **Extract GitHub tasks from todo.txt:**
    ```
    a. For each line in todo.txt:
       - Skip if starts with "x " or "z "
@@ -729,7 +748,7 @@ AI:
    b. If list empty, set to: ["- [ ] No GitHub tasks"]
    ```
 
-6. **Create new today.md from template:**
+7. **Create new today.md from template:**
    ```
    a. Read templates/journal-day.md
    b. Get current date/time in Pacific Time
@@ -743,7 +762,7 @@ AI:
    d. Write result to today.md
    ```
 
-7. **Confirm to user:**
+8. **Confirm to user:**
    ```
    Report:
    "✅ New day started: YYYY-MM-DD DayName"
@@ -798,6 +817,266 @@ x 2026-01-15 2026-01-10 Old completed task
 - [ ] @git Review PR#1234 +PROJ-1237
 ```
 
+### Status Command
+
+**User says:** "status" or "show status" or "daisy status"
+
+**Algorithm:**
+```
+1. Detect active home (resolve prompt.md symlink)
+
+2. Count tasks in todo.txt:
+   a. Read tasks/todo.txt
+   b. Count active tasks (not starting with "x " or "z ")
+   c. Count by priority:
+      - high_priority = lines starting with "(A) " or "(B) "
+      - inbox = lines without priority prefix
+      - soon = lines starting with "(C) "
+      - someday = lines starting with "(D) "
+   d. Count completed tasks this week:
+      - Lines starting with "x YYYY-MM-DD" where date >= last Monday
+
+3. Analyze today.md:
+   a. Check if exists
+   b. Count incomplete tasks: lines with "- [ ]"
+   c. Count completed tasks: lines with "- [x]"
+   d. Extract date from first heading (### YYYY-MM-DD DayName)
+
+4. Check for overdue tasks:
+   a. Parse each line in todo.txt for "due:YYYY-MM-DD"
+   b. Compare to today's date
+   c. If due date < today, add to overdue list
+
+5. Run sync validation (same as "start new day" step 1)
+   a. Compare today.md vs todo.txt
+   b. Count mismatches
+
+6. Check journal.md:
+   a. Find last date entry (### YYYY-MM-DD)
+   b. Compare to today's date
+
+7. Report formatted status:
+   📊 Daisy Status ({date} {day})
+   
+   Home: {name}
+   Tasks: {N} active ({high} high-priority, {overdue} overdue)
+   Today: {incomplete} incomplete, {completed} completed
+   Journal: Last entry {last_date}
+   Sync: {status}
+   
+   [If overdue tasks exist:]
+   Overdue tasks:
+   - {task 1}
+   - {task 2}
+   
+   [If sync issues exist:]
+   ⚠️ Sync issues: {N} discrepancies
+   Run "sync tasks" to fix
+```
+
+**Example Interaction:**
+```
+User: status
+
+AI:
+📊 Daisy Status (2026-01-16 Friday)
+
+Home: work
+Tasks: 18 active (5 high-priority, 2 overdue)
+  • (A) priority: 3 tasks
+  • (B) priority: 2 tasks
+  • Inbox: 8 tasks
+  • (C) priority: 5 tasks
+Today: 4 incomplete, 1 completed
+Journal: Last entry 2026-01-15
+Sync: ✅ No issues
+
+Overdue tasks:
+  - Provide ETA to ~vchaudhr (due 2026-01-15)
+  - Submit training certificate (due 2026-01-14)
+
+Completed this week: 12 tasks
+```
+
+### Adding Tasks
+
+**User says:** "add task [description]" or "new task [description]"
+
+**Algorithm:**
+```
+1. Parse user input:
+   a. Extract description after "add task" or "new task"
+   b. Identify @context labels in description
+   c. Identify +PROJECT tags in description
+   d. Check for due:YYYY-MM-DD
+   e. Check for priority hint: "(A)", "(B)", "(C)", "(D)" in description
+
+2. Determine priority:
+   a. If explicit priority in description, use it
+   b. If no priority, ask: "Priority? (A=urgent, B=this week, C=soon, D=someday, or Enter for inbox)"
+   c. Wait for user response
+   d. Default to no priority (inbox) if user just presses Enter
+
+3. Get current date as YYYY-MM-DD
+
+4. Format for todo.txt:
+   a. If priority provided: "({priority}) {date} {description}"
+   b. If no priority: "{date} {description}"
+   c. Preserve all @context and +PROJECT tags
+   d. Preserve due:YYYY-MM-DD if present
+
+5. Add to todo.txt:
+   a. Read tasks/todo.txt
+   b. Find insertion point:
+      - If has priority: after last task with same priority, before next priority
+      - If no priority: after all (B) tasks, before (C) tasks
+   c. Insert new task at correct position
+   d. Write updated todo.txt
+   e. Report: "✅ Added to todo.txt: {formatted_task}"
+
+6. Add to today.md (if high priority):
+   a. If priority is (A) or (B):
+      - Convert to markdown format: "- [ ] @context {description}"
+      - Find appropriate section in today.md
+      - Append to section
+      - Report: "✅ Added to today.md: {formatted_task}"
+   b. If priority is (C), (D), or none:
+      - Report: "ℹ️ Low priority - not added to today.md. Will appear on next 'new day'"
+```
+
+**Example Interactions:**
+
+```
+User: add task Review design doc @jira +PROJ-1235
+
+AI:
+Priority? (A=urgent, B=this week, C=soon, D=someday, or Enter for inbox)
+
+User: B
+
+AI:
+✅ Added to todo.txt: (B) 2026-01-16 Review design doc @jira +PROJ-1235
+✅ Added to today.md: - [ ] @jira Review design doc +PROJ-1235
+```
+
+```
+User: add task (A) Fix production bug @jira +WXSA-18999 due:2026-01-16
+
+AI:
+✅ Added to todo.txt: (A) 2026-01-16 Fix production bug @jira +WXSA-18999 due:2026-01-16
+✅ Added to today.md: - [ ] @jira Fix production bug +WXSA-18999 due:2026-01-16
+⚠️ Due TODAY - high priority!
+```
+
+### Changing Priority
+
+**User says:** "priority [pattern] to [A|B|C|D]" or "change priority [pattern]"
+
+**Algorithm:**
+```
+1. Parse command:
+   a. Extract task pattern (substring to search)
+   b. Extract target priority (A, B, C, D, or none/inbox)
+   c. If target priority not specified, ask: "Change to which priority? (A/B/C/D/none)"
+
+2. Find matching task in todo.txt:
+   a. Read tasks/todo.txt
+   b. Search for active tasks (not starting with "x " or "z ") matching pattern
+   c. If multiple matches:
+      - List all with numbers
+      - Ask: "Which one? (1-N, or provide more specific pattern)"
+      - Wait for user response
+   d. If no match:
+      - Report: "⚠️ No task found matching: {pattern}"
+      - Return
+
+3. Update todo.txt:
+   a. Parse matched task: ^(\([A-D]\) )?({date} )(.*)$
+   b. Extract date (group 2) and description (group 3)
+   c. Remove from current position
+   d. Reformat with new priority:
+      - If target is A/B/C/D: "({priority}) {date} {description}"
+      - If target is "none" or "inbox": "{date} {description}"
+   e. Find new insertion point (among tasks with same priority)
+   f. Insert task at new position
+   g. Write updated todo.txt
+   h. Report: "✅ Updated todo.txt: {old_priority} → {new_priority}"
+
+4. Update today.md (if exists in today.md):
+   a. Read today.md
+   b. Search for matching task line (case-insensitive)
+   c. If found:
+      - Determine old section (High Priority (A), Task Inbox, etc.)
+      - Remove from old section
+      - Determine new section based on new priority:
+        * (A) or (B) → High Priority (A)
+        * None → Task Inbox
+        * (C) or (D) → Not in today.md (remove if present)
+      - If new priority is (A) or (B), add to appropriate section
+      - Write updated today.md
+      - Report: "✅ Updated today.md: moved to {new_section}"
+   d. If not found and new priority is (A) or (B):
+      - Ask: "Task not in today.md. Add it now?"
+      - If yes, convert to markdown and add to appropriate section
+   e. If not found and priority is (C), (D), or none:
+      - Report: "ℹ️ Task will appear in today.md at next 'new day'"
+
+5. Show summary:
+   Task: {description}
+   Priority: {old} → {new}
+   todo.txt: ✅ Updated
+   today.md: ✅ Updated (or ℹ️ Not in today.md)
+```
+
+**Example Interactions:**
+
+```
+User: priority certificate training to A
+
+AI:
+✅ Updated todo.txt: (B) → (A)
+✅ Updated today.md: moved from Next Priority → High Priority
+
+Task: Complete Certificate Tracking & Inventory Monitoring training
+Priority: (B) → (A)
+todo.txt: ✅ Updated
+today.md: ✅ Updated
+```
+
+```
+User: change priority vchaudhr
+
+AI:
+Found task: Provide ETA to ~vchaudhr for CC work
+Current priority: (B)
+Change to which priority? (A/B/C/D/none)
+
+User: A
+
+AI:
+✅ Updated todo.txt: (B) → (A)
+✅ Updated today.md: kept in High Priority (already (B), now (A))
+
+Task: Provide ETA to ~vchaudhr for CC work
+Priority: (B) → (A)
+todo.txt: ✅ Updated
+today.md: ✅ Updated
+```
+
+```
+User: priority old feature to D
+
+AI:
+✅ Updated todo.txt: (C) → (D)
+✅ Removed from today.md: (D) priority not shown in daily view
+
+Task: Implement old feature request
+Priority: (C) → (D)
+todo.txt: ✅ Updated  
+today.md: ✅ Removed
+ℹ️ Someday tasks don't appear in daily journal
+```
+
 ### Logging Work
 
 **AI logs proactively as work progresses:**
@@ -844,12 +1123,14 @@ AI:
 ✅ Logged: 1445 - Traced PROJ-1234 to race condition in adapter init, decided to use instance-based singleton pattern
 ```
 
-**Abridged Archival:**
+**Abridged Archival (Weekly Review Only):**
 
-When archiving yesterday's today.md to journal.md, curate the log section:
+**IMPORTANT:** Abridging only happens during **weekly review**, never during daily archival.
+
+When starting a new week (step 1 of "Starting a New Week" workflow), optionally curate quiet days in journal.md:
 
 ```
-**Goal:** Create useful historical record without verbose minutiae
+**Goal:** Create useful historical record without verbose minutiae (ONLY during weekly review)
 
 **Preserve (never lose):**
 - Stakeholder interactions: "Met with ~person", "~person decided"
