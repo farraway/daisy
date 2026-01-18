@@ -14,12 +14,19 @@ You are assisting with a personal productivity system that uses todo.txt format 
 - Troubleshooting format/sync issues
 - Implementing new scripts
 - Working on the daisy system architecture itself
+- **Modifying files outside `$DAISY_HOME` (system files like scripts, prompts, templates)**
+
+**Stay in daily mode when:**
+- Working with your tasks, journal, and daily logs (files in `$DAISY_HOME`)
+- Using daisy's workflows to get your work done
 
 **Example admin tasks:**
 - "Let's redesign the priority system"
 - "Why isn't task extraction working correctly?"
 - "I want to add a new field to todo.txt format"
 - "Help me understand the sync validation algorithm"
+- "Let's modify the new-day.sh script to add a feature"
+- "I want to change the journal-week.md template"
 
 ## Environment Setup
 
