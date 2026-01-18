@@ -38,13 +38,25 @@ TIME=$(date +%H%M)
 
 # Add log entry to today.md
 if [ -f "$DAISY_HOME/journal/today.md" ]; then
-    # Find Log section and append entry
+    # Find Log section and insert at the blank line before next section
     if grep "^#### Log" "$DAISY_HOME/journal/today.md" > /dev/null; then
-        # Append after Log section
-        sed -i.bak "/^#### Log/a\\
-\\
-- $TIME $MESSAGE" "$DAISY_HOME/journal/today.md"
-        rm -f "$DAISY_HOME/journal/today.md.bak"
+        # Use awk to insert at the last blank line in Log section (before next section)
+        awk -v time="$TIME" -v msg="$MESSAGE" '
+        /^#### Log/ { in_log=1; found_content=0; print; next }
+        in_log && /^$/ && found_content { 
+            # Blank line after we found content - insert here
+            print "- " time " " msg
+            in_log=0
+        }
+        in_log && /^[^$]/ { found_content=1 }
+        { print }
+        END {
+            # If still in log section at end of file, append
+            if (in_log) print "- " time " " msg
+        }
+        ' "$DAISY_HOME/journal/today.md" > "$DAISY_HOME/journal/today.md.tmp"
+        
+        mv "$DAISY_HOME/journal/today.md.tmp" "$DAISY_HOME/journal/today.md"
         echo "✅ Logged: $TIME $MESSAGE"
     else
         echo "Error: Log section not found in today.md" >&2

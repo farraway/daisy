@@ -40,6 +40,62 @@ ok() {
     echo -e "${GREEN}✓${NC} $1"
 }
 
+# Function to check today.md format
+check_today() {
+    local today_file="$DAISY_HOME/journal/today.md"
+    
+    if [ ! -f "$today_file" ]; then
+        return 0  # Skip if file doesn't exist yet
+    fi
+    
+    local found_issues=0
+    
+    # Check for required H4 headings
+    local required_headings=("Agenda" "Tasks" "Log" "Retrospective")
+    for heading in "${required_headings[@]}"; do
+        if ! grep -q "^#### $heading" "$today_file"; then
+            error "today.md missing required heading: #### $heading"
+            found_issues=1
+        fi
+    done
+    
+    # Check blank line after #### Log
+    if ! awk '/^#### Log/ {getline; if ($0 != "") exit 1}' "$today_file"; then
+        error "today.md missing blank line after #### Log"
+        found_issues=1
+    fi
+    
+    # Check blank line before #### Retrospective
+    if ! awk '/^#### Retrospective/ {if (prev != "") exit 1} {prev=$0}' "$today_file"; then
+        error "today.md missing blank line before #### Retrospective"
+        found_issues=1
+    fi
+    
+    # Check no blank lines within log entries (after content starts, before section ends)
+    local blank_violations=$(awk '
+      BEGIN { in_log=0; in_whitespace=0; entries=0; violations=0 }
+      /^#### Log/ { in_log=1; in_whitespace=1; next }
+      in_log && /^#### / && entries > 0 && in_whitespace { violations-- }
+      in_log && /^#### / { exit }
+      in_log && in_whitespace && /^$/ { next }
+      in_log && /^$/ && entries > 0 { in_whitespace=1; violations++; next }
+      in_log && /^$/    { in_whitespace=1; violations++; next }
+      in_log && /^[^$]/ { in_whitespace=0; entries++; next }
+      END { print violations }
+    ' "$today_file")
+    
+    if [ "$blank_violations" -gt 0 ]; then
+        error "today.md has $blank_violations whitespace chunk(s) within log entries"
+        found_issues=1
+    fi
+    
+    if [ $found_issues -eq 0 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Check 1: DAISY_ROOT environment variable
 if [ -z "$DAISY_ROOT" ]; then
     error "DAISY_ROOT not set"
@@ -84,7 +140,13 @@ for dir in "home" "scripts" "prompts" "templates"; do
     fi
 done
 
-# Check 5: Run component health checks
+# Check 5: today.md format validation
+if check_today; then
+    ok "today.md format valid"
+fi
+# Continue even if check_today fails (errors already reported)
+
+# Check 6: Run component health checks
 if [ -d "$DAISY_ROOT/scripts/daisy" ]; then
     for script in "$DAISY_ROOT/scripts/daisy"/*.sh; do
         if [ -f "$script" ] && [ -x "$script" ]; then

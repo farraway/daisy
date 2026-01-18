@@ -329,6 +329,7 @@ If the user explicitly asks to "log this work" after an extended interaction:
 - Separate distinct activities into separate entries
 - Capture both outcomes AND process (not just "did X" but "investigated X, found Y")
 - Log negative results too (dead-ends are valuable knowledge)
+- **Entries must be in chronological order** (oldest first, newest at bottom)
 
 ### Adding Tasks
 
@@ -454,6 +455,7 @@ Verified files: All present
 - **Case-insensitive search:** When matching patterns, ignore case
 - **Use ~alias format:** Always reference people using aliases from alias.txt
 - **Professional tone:** Filter unprofessional content appropriately
+- **Handle healthcheck failures:** When healthcheck fails, show the user the error output and walk them through fixing the specific issues identified
 
 ## Permissions
 
