@@ -115,6 +115,18 @@ All workflows use scripts in `$DAISY_ROOT/scripts/daisy/`. They automatically co
 
 **User says:** "start a new day" or "new day"
 
+**Pre-workflow: Check yesterday's retrospective**
+1. Read current `today.md` and check the Retrospective section
+2. If any of the three questions are incomplete (empty):
+   - Ask: "Yesterday's retrospective is incomplete. Would you like to complete it before starting the new day?"
+   - If yes:
+     - Analyze yesterday's completed tasks and log entries
+     - Suggest content for Successes, Misses, and "What would a Sage do next"
+     - Add the retrospective to `today.md`
+     - Commit with message: "Retrospective: [date]"
+3. If retrospective is complete or user declines, proceed with workflow
+
+**Run the script:**
 ```bash
 $DAISY_ROOT/scripts/daisy/new-day.sh
 ```
@@ -126,6 +138,19 @@ $DAISY_ROOT/scripts/daisy/new-day.sh
 4. Generates new today.md from template with default checklist items
 5. Auto-commits changes
 
+**Post-workflow: Daily setup reminder**
+After the script completes:
+1. Remind user about daily setup tasks in Inbox:
+   - Check calendar for upcoming events
+   - Check that todo.txt is up-to-date
+   - Plan day
+   - Retrospective (end of day)
+2. Ask: "Would you like help with your daily setup?"
+3. If yes, walk through each item:
+   - Help check calendar
+   - Verify todo.txt is current
+   - Help plan priorities for the day
+
 **Example:**
 ```
 📦 Archived yesterday to journal.md
@@ -136,12 +161,32 @@ $DAISY_ROOT/scripts/daisy/new-day.sh
    Inbox tasks: 1
    GitHub tasks: 3
 📝 Committed: New day: 2026-01-17 Saturday (a1b2c3d)
+
+📋 Daily setup checklist:
+   - [ ] Check calendar for upcoming events
+   - [ ] Check that todo.txt is up-to-date
+   - [ ] Plan day
+   - [ ] Retrospective
+
+Would you like help with your daily setup?
 ```
 
 ### Starting a New Week
 
 **User says:** "start a new week" or "new week"
 
+**Pre-workflow: Check yesterday's retrospective**
+1. Read current `today.md` and check the Retrospective section
+2. If any of the three questions are incomplete (empty):
+   - Ask: "Yesterday's retrospective is incomplete. Would you like to complete it before starting the new week?"
+   - If yes:
+     - Analyze yesterday's completed tasks and log entries
+     - Suggest content for Successes, Misses, and "What would a Sage do next"
+     - Add the retrospective to `today.md`
+     - Commit with message: "Retrospective: [date]"
+3. If retrospective is complete or user declines, proceed with workflow
+
+**Run the script:**
 ```bash
 $DAISY_ROOT/scripts/daisy/new-week.sh
 ```
@@ -156,6 +201,26 @@ $DAISY_ROOT/scripts/daisy/new-week.sh
    - Resolutions section (identity-based goals)
    - Extended inbox checklist for weekly startup
 6. Auto-commits changes
+
+**Post-workflow: Weekly setup reminder**
+After the script completes:
+1. Remind user about weekly setup tasks in Inbox:
+   - Retrospective for previous week
+   - Set resolutions for this week
+   - Sync todo.txt with @jira and @github
+   - Zero Email Inboxes
+   - Zero Chat Notifications
+   - Check calendar for upcoming events
+   - Check that todo.txt is up-to-date
+   - Plan day
+   - Retrospective (end of day)
+2. Ask: "Would you like help with your weekly setup?"
+3. If yes, walk through each item:
+   - Help with weekly retrospective (review last week's accomplishments)
+   - Help set identity-based resolutions ("Who would you like to be?")
+   - Assist with JIRA/GitHub sync
+   - Help with inbox zero strategies
+   - Help plan priorities for the week
 
 ### Completing Tasks
 
@@ -200,11 +265,70 @@ $DAISY_ROOT/scripts/daisy/log.sh "Completed PagerDuty migration - all 77 tests p
 📝 Committed: Log: 1145 - Completed PagerDuty migration - all 77 (d3e4f5g)
 ```
 
-**AI should log proactively:**
-- After completing significant work
-- After discoveries or decisions
-- After stakeholder interactions
-- After milestones
+**Proactive Logging Behavior:**
+
+The AI should log work **as it happens**, not just when explicitly asked. Create log entries during the conversation, not after.
+
+**Log immediately when:**
+1. **Stakeholder interactions** - User mentions meetings, discussions, decisions with colleagues
+   - Example: User says "I talked to ~jdoe and she wants..." → Log the interaction
+
+2. **Starting work** - User begins a task or asks for help with implementation
+   - Example: User says "Let's implement X" → Log "Started working on X"
+
+3. **Key discoveries** - Finding root causes, tracing bugs, identifying patterns
+   - Example: "The race condition is in adapter init" → Log the discovery immediately
+
+4. **Design decisions** - Choosing approaches, making architectural choices
+   - Example: After deciding on approach → Log the decision with rationale
+
+5. **Implementations complete** - After writing/modifying code
+   - Example: After editing files → Log "Implemented feature X"
+
+6. **Blockers encountered** - When progress stops due to external factors
+   - Example: "Need review before proceeding" → Log the blocker
+
+7. **Milestones reached** - PRs opened, tests passing, deployments complete
+   - Example: After opening PR → Log "PR#1545 opened"
+
+8. **Context switches** - Moving between tasks
+   - Example: User switches topics → Log context switch
+
+9. **Questions raised** - Uncertainties that need resolution
+   - Example: "Should we do X or Y?" → Log the question
+
+10. **Technical debt identified** - Code that should be refactored or improved
+    - Example: "Found similar pattern in 3 places" → Log refactoring opportunity
+
+11. **Learning moments** - Understanding new APIs, patterns, or legacy code
+    - Example: After explaining how something works → Log the learning
+
+**Catching Up on Logs:**
+
+If the user explicitly asks to "log this work" after an extended interaction:
+1. Review the conversation history
+2. Create **multiple timestamped entries** (not one monolithic entry)
+3. Approximate realistic timestamps based on conversation flow
+4. Cover: what was discussed, decisions made, work completed, blockers identified
+
+**Example catch-up log:**
+```
+- 0930 - Started investigating PROJ-1234 race condition
+- 1015 - Traced issue to shared class variable in adapter init
+- 1130 - Met with ~jdoe, decided on instance-based pattern approach
+- 1245 - Implemented instance-based adapter with thread-local storage
+- 1445 - All 77 tests passing, race condition resolved
+- 1530 - PR#1545 opened for review
+```
+
+**Log Format Guidelines:**
+- Use HHMM format (24-hour, no colons)
+- Keep entries concise but informative
+- Include ~aliases when mentioning people
+- Include +PROJECT or ticket references when relevant
+- Separate distinct activities into separate entries
+- Capture both outcomes AND process (not just "did X" but "investigated X, found Y")
+- Log negative results too (dead-ends are valuable knowledge)
 
 ### Adding Tasks
 
