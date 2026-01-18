@@ -1,26 +1,44 @@
-### {DATE} {DAY}
-
 #### Weekly Retrospective
+
+* **Successes:** 
+* **Misses:** 
+* **What would a Sage do next:** 
+
+---
+
+### {DATE} {DAY}
 
 #### Resolutions
 
 - Who would you like to be?
 
 #### Agenda
-
-- 0930 Plan Week
+- {TIME} Plan Day
 - 1230 ...
 - 1530 ...
 
 #### Tasks
 
-- [ ] Review previous week.
+**Now:**
+{HIGH_PRIORITY_TASKS}
+
+**Next:**
+{NEXT_PRIORITY_TASKS}
+
+**Inbox:**
+- [ ] Retrospective for previous week
 - [ ] Set resolutions for this week.
 - [ ] Sync todo.txt with @jira and @github
 - [ ] Zero Email Inboxes
 - [ ] Zero Chat Notifications
-- [ ] Review Calendar for the week (add tasks/meetings as needed)
-{HIGH_PRIORITY_TASKS}
+- [ ] Check calendar for upcoming events
+- [ ] Check that todo.txt is up-to-date
+- [ ] Plan day
+- [ ] Retrospective
+{INBOX_TASKS}
+
+**GitHub PRs:**
+{GITHUB_TASKS}
 
 #### Log
 

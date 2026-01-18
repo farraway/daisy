@@ -33,24 +33,24 @@ This checks that environment variables are set and all components are healthy.
 
 ### 4. Build Your Prompt
 
-**Important:** Daisy uses a prompt composition system. You must build `prompt.md` before using:
+**Important:** Daisy uses a prompt composition system. You must build `PROMPT.md` before using:
 
 ```bash
 $DAISY_ROOT/scripts/build-prompt.sh
 ```
 
-This reads `$DAISY_HOME/include.txt` and concatenates all prompts into `prompt.md`.
+This reads `$DAISY_HOME/include.txt` and concatenates all prompts into `PROMPT.md`.
 
 **What this does:**
 - Reads the list of prompts from your active home's `include.txt`
-- Concatenates those prompts into a single `prompt.md` file
+- Concatenates those prompts into a single `PROMPT.md` file
 - This generated file is what the AI assistant loads
 
 ### 5. Start Using Daisy
 
 In a new AI session:
 ```
-Load @daisy/prompt.md and start a new day
+Load @daisy/PROMPT.md and start a new day
 ```
 
 The AI will:
@@ -62,13 +62,11 @@ The AI will:
 
 ## Quick Start (After Bootstrap)
 
-## Quick Start (After Bootstrap)
-
 **Already set up?** Quick reference for daily use:
 
 **For AI Assistants:**
 ```
-Load @daisy/prompt.md and start a new day
+Load @daisy/PROMPT.md and start a new day
 ```
 
 ### Maintenance Commands
@@ -120,14 +118,14 @@ For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
 
 **For AI Assistants:**
 ```
-Load @daisy/prompt.md and start a new day
+Load @daisy/PROMPT.md and start a new day
 ```
 
 This single command loads all prompts, archives yesterday, and creates fresh `today.md` with prioritized tasks.
 
 **Alternative commands:**
-- `Load @daisy/prompt.md` - Initialize system only
-- `Load @daisy/prompt.md and start a new week` - Archive completed tasks + new day
+- `Load @daisy/PROMPT.md` - Initialize system only
+- `Load @daisy/PROMPT.md and start a new week` - Archive completed tasks + new day
 
 **Documentation:**
 - **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes ⭐
@@ -144,7 +142,7 @@ This single command loads all prompts, archives yesterday, and creates fresh `to
 
 ```
 daisy/
-├── prompt.md            # Generated - concatenated prompts
+├── PROMPT.md            # Generated - concatenated prompts from include.txt
 ├── journal.md           # Symlink → Active home's journal archive
 ├── today.md             # Symlink → Active home's current day journal
 ├── tasks/               # Symlink → Active home's task directory
@@ -190,7 +188,6 @@ daisy/
 │   ├── journal-week.md  # Template for weekly entries
 │   └── home/            # Template for new homes
 │       ├── include.txt  # Prompts to load
-│       ├── prompt.md    # (deprecated - use include.txt)
 │       ├── journal/     # Journal directory structure
 │       └── tasks/       # Tasks directory structure
 ```
@@ -201,19 +198,24 @@ The symlinks (`journal.md`, `today.md`, `tasks/`) point to the active home's dat
 
 **To switch homes:**
 
+Update your environment variable in `~/.zshenv`:
 ```bash
+export DAISY_HOME="$DAISY_ROOT/home/personal"
+```
+
+Then reload and update symlinks:
+```bash
+source ~/.zshenv
+cd $DAISY_ROOT
 ln -sf home/personal/journal/journal.md journal.md
 ln -sf home/personal/journal/today.md today.md
 ln -sf home/personal/tasks tasks
 ```
 
-Then rebuild the prompt:
+Rebuild the prompt to use the new home's `include.txt`:
 ```bash
-export DAISY_HOME="$DAISY_ROOT/home/personal"
 $DAISY_ROOT/scripts/build-prompt.sh
 ```
-
-Each home has an `include.txt` file that specifies which prompts to load.
 
 ## Creating a New Home
 
@@ -234,20 +236,27 @@ To create a new home (e.g., "sideprojects"):
      github
      ```
 
-3. **Create symlinks:**
+3. **Update environment variable:**
+   - Edit `~/.zshenv` and set:
+     ```bash
+     export DAISY_HOME="$DAISY_ROOT/home/sideprojects"
+     ```
+   - Reload: `source ~/.zshenv`
+
+4. **Create symlinks:**
    ```bash
+   cd $DAISY_ROOT
    ln -sf home/sideprojects/journal/journal.md journal.md
    ln -sf home/sideprojects/journal/today.md today.md
    ln -sf home/sideprojects/tasks tasks
    ```
 
-4. **Build prompt and start using:**
+5. **Build prompt and start using:**
    ```bash
-   export DAISY_HOME="$DAISY_ROOT/home/sideprojects"
    $DAISY_ROOT/scripts/build-prompt.sh
    ```
    
-   Then load `@daisy/prompt.md` and start a new day
+   Then load `@daisy/PROMPT.md` and start a new day
 
 ## Todo.txt Format Quick Reference
 

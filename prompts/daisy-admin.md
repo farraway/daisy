@@ -102,9 +102,9 @@ Final priority = max(task priority, tag minimum priority)
 
 When extracting tasks from `todo.txt` to `today.md`:
 
-1. **High Priority section:** Priority (A) or (B), excluding @git/@github
-2. **Next Priority section:** Priority (B) only, excluding @git/@github (optional subsection)
-3. **Inbox section:** Tasks without priority prefix, excluding @git/@github
+1. **Now section:** Priority (A) tasks, excluding @git/@github
+2. **Next section:** Priority (B) tasks, excluding @git/@github
+3. **Inbox section:** Tasks without priority prefix, excluding @git/@github (includes default checklist items)
 4. **GitHub PRs section:** ALL tasks with @git or @github context, any priority
 
 **Special case:** Tasks with @git/@github always go to GitHub section regardless of priority.
@@ -217,7 +217,7 @@ Tasks moved here during weekly archival to keep `todo.txt` focused on active wor
 
 3. **Changing priority:**
    - Update priority (A)/(B)/(C)/(D) in `todo.txt`
-   - Update section in `today.md` (High Priority, Next Priority, etc.)
+   - Update section in `today.md` (Now, Next, Inbox)
 
 4. **Changing due dates:**
    - Update `due:YYYY-MM-DD` in `todo.txt`
@@ -326,13 +326,17 @@ Used by `new-day.sh` to generate `today.md`:
 
 #### Tasks
 
-**High Priority (A):**
+**Now:**
 {HIGH_PRIORITY_TASKS}
 
-**Next Priority (B):**
+**Next:**
 {NEXT_PRIORITY_TASKS}
 
 **Inbox:**
+- [ ] Check calendar for upcoming events
+- [ ] Check that todo.txt is up-to-date
+- [ ] Plan day
+- [ ] Retrospective
 {INBOX_TASKS}
 
 **GitHub PRs:**
@@ -355,56 +359,90 @@ Used by `new-day.sh` to generate `today.md`:
 - `{TIME}` → HHMM in Pacific Time
 - `{HIGH_PRIORITY_TASKS}` → Priority A tasks as markdown checkboxes
 - `{NEXT_PRIORITY_TASKS}` → Priority B tasks as markdown checkboxes
-- `{INBOX_TASKS}` → No-priority tasks as markdown checkboxes
+- `{INBOX_TASKS}` → No-priority tasks as markdown checkboxes (appended after default checklist)
 - `{GITHUB_TASKS}` → @git/@github tasks as markdown checkboxes
 
 **Subsection formatting:**
-- Use bold text (`**Section:**`) not headings
+- Use bold text (`**Section:**`) not headings (simplified to just "Now" and "Next")
 - Preserve blank line before each subsection
-- If section is empty, omit the subsection entirely
+- Inbox section includes default daily checklist items
+- If section is empty (no extracted tasks), the placeholder is replaced with empty string
 
 ### journal-week.md Template
 
-Used during weekly retrospectives:
+Used by `new-week.sh` to generate `today.md` for week start:
 
 ```markdown
-## Week of {START_DATE}
+#### Weekly Retrospective
 
-### Weekly Summary
+* **Successes:** 
+* **Misses:** 
+* **What would a Sage do next:** 
 
-**Completed:** {N} tasks
-**Key accomplishments:**
-- 
-**Challenges:**
-- 
-**Focus for next week:**
-- 
+---
 
-### Daily Entries
+### {DATE} {DAY}
 
-{CONSOLIDATED_ENTRIES}
+#### Resolutions
 
-### Weekly Retrospective
+- Who would you like to be?
 
-* **What worked well this week:** 
-* **What would I change:** 
-* **Key learnings:** 
-* **Priorities for next week:** 
+#### Agenda
+- {TIME} Plan Day
+- 1230 ...
+- 1530 ...
+
+#### Tasks
+
+**Now:**
+{HIGH_PRIORITY_TASKS}
+
+**Next:**
+{NEXT_PRIORITY_TASKS}
+
+**Inbox:**
+- [ ] Retrospective for previous week
+- [ ] Set resolutions for this week.
+- [ ] Sync todo.txt with @jira and @github
+- [ ] Zero Email Inboxes
+- [ ] Zero Chat Notifications
+- [ ] Check calendar for upcoming events
+- [ ] Check that todo.txt is up-to-date
+- [ ] Plan day
+- [ ] Retrospective
+{INBOX_TASKS}
+
+**GitHub PRs:**
+{GITHUB_TASKS}
+
+#### Log
+
+- {TIME} New day started
+
+#### Retrospective
+
+* **Successes:** 
+* **Misses:** 
+* **What would a Sage do next:** 
 ```
+
+**Key Differences from journal-day.md:**
+- Starts with "Weekly Retrospective" section at top (for previous week)
+- Includes "Resolutions" section (identity-based goal setting)
+- Extended inbox checklist with weekly startup items (email/chat zero-ing, JIRA/GitHub sync)
+- Same task extraction logic and placeholders as daily template
 
 ## Home Management - Detailed Algorithms
 
 ### Detecting Active Home
 
 ```
-1. Check if root/prompt.md symlink exists
-   - If missing, error: "⚠️ No active home. Run home setup."
-2. Resolve symlink to get target path
-   - Example: prompt.md → home/work/prompt.md
-3. Extract home name from path:
-   - Target: home/work/prompt.md → Home: "work"
-4. Read the resolved prompt.md file
-5. Parse "Home Declaration" section to get requirements
+1. Check $DAISY_HOME environment variable
+   - If not set, error: "⚠️ DAISY_HOME not set. Add to ~/.zshenv"
+2. Extract home name from $DAISY_HOME path:
+   - Example: /path/to/daisy/home/work → Home: "work"
+3. Verify home directory exists at $DAISY_HOME
+4. Verify include.txt exists at $DAISY_HOME/include.txt
 ```
 
 ### System Health Check Algorithm
@@ -413,30 +451,29 @@ Used during weekly retrospectives:
 
 ```
 1. Detect active home:
-   a. Check if root/prompt.md exists
-   b. If not: Report "⚠️ No active home detected. prompt.md symlink missing."
-   c. Resolve prompt.md symlink to target path
-   d. Extract home name from path (e.g., home/work/prompt.md → "work")
+   a. Check if $DAISY_HOME is set
+   b. If not: Report "⚠️ No active home. Set DAISY_HOME in ~/.zshenv"
+   c. Extract home name from $DAISY_HOME path
 
-2. Read Home Declaration:
-   a. Read the resolved prompt.md file
-   b. Parse "Home Declaration" section
-   c. Extract "Required Files" list
-   d. Extract "Required Symlinks" list
+2. Verify home structure:
+   a. Check if $DAISY_HOME directory exists
+   b. Check if $DAISY_HOME/include.txt exists
+   c. Check if $DAISY_HOME/tasks/ directory exists
+   d. Check if $DAISY_HOME/journal/ directory exists
 
 3. Verify Required Files:
-   a. For each file in Required Files list:
-      - Check if file exists at declared path
-      - Report: ✅ or ⚠️ Missing: {path}
-   b. Collect missing files into list
+   a. Check $DAISY_HOME/tasks/todo.txt exists
+   b. Check $DAISY_HOME/tasks/done.txt exists
+   c. Check $DAISY_HOME/tasks/alias.txt exists
+   d. Check $DAISY_HOME/journal/journal.md exists
+   e. Check $DAISY_HOME/journal/today.md exists
+   f. Report: ✅ or ⚠️ Missing: {path}
 
 4. Verify Required Symlinks:
-   a. For each symlink in Required Symlinks list:
-      - Check if symlink exists in repo root
-      - Verify symlink points to correct target
-      - Check if target file exists
-      - Report: ✅ {link} → {target} or ⚠️ Issue with {link}
-   b. Collect issues into list
+   a. Check if $DAISY_ROOT/tasks/ symlink exists and points to $DAISY_HOME/tasks/
+   b. Check if $DAISY_ROOT/journal.md symlink exists and points to $DAISY_HOME/journal/journal.md
+   c. Check if $DAISY_ROOT/today.md symlink exists and points to $DAISY_HOME/journal/today.md
+   d. Report: ✅ {link} → {target} or ⚠️ Issue with {link}
 
 5. Validate todo.txt format (if exists):
    a. Read tasks/todo.txt
@@ -453,12 +490,19 @@ Used during weekly retrospectives:
    b. Count lines starting with "z " anywhere (should be 0 after cleanup)
    c. Report: ✅ or ℹ️ {N} completed tasks need archival
 
-7. Final Report:
+7. Verify PROMPT.md is up to date:
+   a. Check if $DAISY_ROOT/PROMPT.md exists
+   b. If missing: Report "⚠️ PROMPT.md not found. Run build-prompt.sh"
+   c. Check modification time of PROMPT.md vs include.txt
+   d. If include.txt is newer: Report "ℹ️ PROMPT.md may be stale. Run build-prompt.sh"
+
+8. Final Report:
    ✅ Home: {name}
    ✅ All required files present
    ✅ All symlinks correct
    ✅ Todo.txt format valid
    ✅ No orphaned tasks
+   ✅ PROMPT.md up to date
    
    OR
    
@@ -467,11 +511,13 @@ Used during weekly retrospectives:
    - Symlink issues: {list}
    - Format issues: {list}
    - Orphaned tasks: {N}
+   - PROMPT.md needs rebuild
    
    Suggestions:
    - Create missing files from templates
-   - Re-run home setup: "switch to {name}"
+   - Fix symlinks: See "Home Switching Algorithm"
    - Archive completed tasks: "start a new week"
+   - Rebuild prompt: $DAISY_ROOT/scripts/build-prompt.sh
 ```
 
 ### Home Switching Algorithm
@@ -480,31 +526,40 @@ Used during weekly retrospectives:
 
 ```
 1. Detect current home:
-   a. Resolve root/prompt.md symlink
-   b. Read current home's prompt.md
-   c. Parse "Required Symlinks" declaration
+   a. Get current $DAISY_HOME value
+   b. Extract home name from path
 
-2. Teardown current home:
-   a. For each symlink declared in current prompt.md:
-      - Remove the symlink from repo root
-   b. Report: "Deactivated home: {current}"
-
-3. Verify target home exists:
-   a. Check if home/{home}/prompt.md exists
+2. Verify target home exists:
+   a. Check if $DAISY_ROOT/home/{home}/ directory exists
    b. If not found, offer: "Home '{home}' not found. Create from template?"
+   c. Verify $DAISY_ROOT/home/{home}/include.txt exists
+   d. Verify $DAISY_ROOT/home/{home}/tasks/ exists
+   e. Verify $DAISY_ROOT/home/{home}/journal/ exists
 
-4. Setup new home:
-   a. Read home/{home}/prompt.md
-   b. Parse "Required Symlinks" declaration
-   c. For each declared symlink:
-      - Create symlink from root to target in home/{home}/
-   d. Report: "✅ Activated home: {home}"
+3. Update environment variable:
+   a. Instruct user: "Add to ~/.zshenv: export DAISY_HOME=\"$DAISY_ROOT/home/{home}\""
+   b. Instruct user: "Then run: source ~/.zshenv"
 
-5. Verify setup:
-   a. Parse "Required Files" declaration from new home's prompt.md
-   b. Check if each file exists at declared path
-   c. If any missing, warn: "⚠️ Missing files: [list]"
-   d. Offer to create missing files from templates
+4. Update symlinks:
+   a. Remove old symlinks:
+      - rm $DAISY_ROOT/tasks
+      - rm $DAISY_ROOT/journal.md
+      - rm $DAISY_ROOT/today.md
+   b. Create new symlinks:
+      - ln -sf home/{home}/tasks tasks
+      - ln -sf home/{home}/journal/journal.md journal.md
+      - ln -sf home/{home}/journal/today.md today.md
+   c. Report: "✅ Activated home: {home}"
+
+5. Rebuild PROMPT.md:
+   a. Run $DAISY_ROOT/scripts/build-prompt.sh
+   b. This reads new home's include.txt and regenerates PROMPT.md
+   c. Report: "✅ Built PROMPT.md for home: {home}"
+
+6. Verify setup:
+   a. Run healthcheck.sh to verify all files present
+   b. If any missing, warn: "⚠️ Missing files: [list]"
+   c. Offer to create missing files from templates
 ```
 
 ### Creating New Home Algorithm
@@ -517,12 +572,27 @@ Used during weekly retrospectives:
 
 2. Copy templates/home/ to home/{name}/
 
-3. Instruct user to customize home/{name}/prompt.md:
-   - Replace all `[home]` with {name}
-   - Replace all `[Home Name]` with descriptive name
-   - Choose which prompts to load (adjust Home-Specific Prompts section)
+3. Instruct user to customize home/{name}/include.txt:
+   - List which prompts to load (one per line)
+   - Common prompts: daisy, retrospective, cisco, jira, github, webex
+   - Example:
+     ```
+     daisy
+     retrospective
+     github
+     ```
 
-4. Ask: "Activate this home now?"
+4. Create required symlinks:
+   a. ln -sf home/{name}/tasks tasks
+   b. ln -sf home/{name}/journal/journal.md journal.md
+   c. ln -sf home/{name}/journal/today.md today.md
+
+5. Set environment variable and build prompt:
+   a. Instruct user: "export DAISY_HOME=\"$DAISY_ROOT/home/{name}\""
+   b. Run $DAISY_ROOT/scripts/build-prompt.sh
+   c. Report: "✅ Created home: {name}"
+
+6. Ask: "Activate this home now?"
    - If yes, follow "Home Switching Algorithm" above
 ```
 
@@ -533,7 +603,7 @@ Used during weekly retrospectives:
 **Command:** "status" or "daisy status"
 
 ```
-1. Detect active home (resolve prompt.md symlink)
+1. Detect active home (check $DAISY_HOME environment variable)
 
 2. Count tasks in todo.txt:
    a. Read tasks/todo.txt
@@ -668,11 +738,12 @@ Used during weekly retrospectives:
    a. Read today.md
    b. Search for matching task line (case-insensitive)
    c. If found:
-      - Determine old section (High Priority, Task Inbox, etc.)
+      - Determine old section (Now, Next, Inbox, etc.)
       - Remove from old section
       - Determine new section based on new priority:
-        * (A) or (B) → High Priority
-        * None → Task Inbox
+        * (A) → Now
+        * (B) → Next
+        * None → Inbox
         * (C) or (D) → Not in today.md (remove if present)
       - If new priority is (A) or (B), add to appropriate section
       - Write updated today.md

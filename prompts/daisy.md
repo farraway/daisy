@@ -6,7 +6,7 @@ You are assisting with a personal productivity system that uses todo.txt format 
 
 ## When to Load Admin Prompt
 
-**For daily productivity work:** Just use this prompt (`daisy.md` via `prompt.md`)
+**For daily productivity work:** Just use this prompt (`daisy.md` via `PROMPT.md`)
 
 **Load `@daisy/prompts/daisy-admin.md` when:**
 - Designing new workflows or modifying existing ones
@@ -38,12 +38,16 @@ $DAISY_ROOT/scripts/healthcheck.sh
 
 The system uses symlinks in the repo root for home switching:
 
-- `prompt.md` → `home/{home}/prompt.md` (bootstrap)
 - `tasks/` → `home/{home}/tasks/` (todo.txt, done.txt, alias.txt)
 - `journal.md` → `home/{home}/journal/journal.md` (archive)
 - `today.md` → `home/{home}/journal/today.md` (current day)
 
 **Important:** These are symbolic links. Always read/write through the symlink to the target file.
+
+**PROMPT.md Generation:**
+- Each home has `home/{home}/include.txt` listing prompts to load
+- Run `$DAISY_ROOT/scripts/build-prompt.sh` to generate `PROMPT.md`
+- This concatenates all prompts listed in `include.txt` into a single file
 
 ### Key Files
 
@@ -74,10 +78,27 @@ The system uses symlinks in the repo root for home switching:
 
 Tasks in `today.md` are organized:
 
-1. **High Priority (A):** Priority A or B tasks
-2. **Next Priority (B):** Priority B tasks 
-3. **Inbox:** Tasks without priority
+1. **Now:** Priority A tasks (urgent, do today)
+2. **Next:** Priority B tasks (important, do this week)
+3. **Inbox:** Tasks without priority (includes default daily checklist items)
 4. **GitHub PRs:** Tasks with @git or @github context
+
+**Default Inbox checklist (daily):**
+- Check calendar for upcoming events
+- Check that todo.txt is up-to-date
+- Plan day
+- Retrospective
+
+**Extended Inbox checklist (weekly):**
+- Retrospective for previous week
+- Set resolutions for this week
+- Sync todo.txt with @jira and @github
+- Zero Email Inboxes
+- Zero Chat Notifications
+- Check calendar for upcoming events
+- Check that todo.txt is up-to-date
+- Plan day
+- Retrospective
 
 ## Common Workflows
 
@@ -95,7 +116,7 @@ $DAISY_ROOT/scripts/daisy/new-day.sh
 1. Archives yesterday's work to journal.md
 2. Deletes cancelled tasks (z prefix)
 3. Extracts priority A, B, and inbox tasks from todo.txt
-4. Generates new today.md from template
+4. Generates new today.md from template with default checklist items
 5. Auto-commits changes
 
 **Example:**
@@ -119,10 +140,15 @@ $DAISY_ROOT/scripts/daisy/new-week.sh
 ```
 
 **What it does:**
-1. Deletes cancelled tasks
-2. Archives completed tasks from todo.txt → done.txt
-3. Commits weekly archival
-4. Calls new-day.sh
+1. Archives yesterday's work to journal.md
+2. Deletes cancelled tasks
+3. Archives completed tasks from todo.txt → done.txt
+4. Extracts priority A, B, and inbox tasks from todo.txt
+5. Generates new today.md using journal-week.md template with:
+   - Weekly retrospective section at top (for previous week)
+   - Resolutions section (identity-based goals)
+   - Extended inbox checklist for weekly startup
+6. Auto-commits changes
 
 ### Completing Tasks
 
@@ -205,7 +231,7 @@ AI:
 **Algorithm:**
 1. Find task by pattern in todo.txt
 2. Update priority and reposition in file
-3. Update section in today.md if present
+3. Update section in today.md if present (Now/Next/Inbox)
 4. Auto-commit
 
 **Example:**
@@ -214,7 +240,7 @@ User: priority certificate training to A
 
 AI:
 ✅ Updated todo.txt: (B) → (A)
-✅ Updated today.md: moved to High Priority
+✅ Updated today.md: moved to Now section
 📝 Committed: Priority: certificate training → A
 ```
 

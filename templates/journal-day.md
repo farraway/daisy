@@ -7,13 +7,17 @@
 
 #### Tasks
 
-**High Priority (A):**
+**Now:**
 {HIGH_PRIORITY_TASKS}
 
-**Next Priority (B):**
+**Next:**
 {NEXT_PRIORITY_TASKS}
 
 **Inbox:**
+- [ ] Check calendar for upcoming events
+- [ ] Check that todo.txt is up-to-date
+- [ ] Plan day
+- [ ] Retrospective
 {INBOX_TASKS}
 
 **GitHub PRs:**
