@@ -7,3 +7,7 @@
 
 # Environment and secrets
 .env.sh
+
+# OS generated files
+.DS_Store
+Thumbs.db
