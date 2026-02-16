@@ -33,25 +33,44 @@ This checks that environment variables are set and all components are healthy.
 
 ### 4. Build Your Prompt
 
-**Important:** Daisy uses a prompt composition system. You must build `PROMPT.md` before using:
+**Important:** Daisy uses a prompt composition system. You must build `AGENTS.md` before using:
 
 ```bash
 $DAISY_ROOT/scripts/build-prompt.sh
 ```
 
-This reads `$DAISY_HOME/include.txt` and concatenates all prompts into `PROMPT.md`.
+This reads `$DAISY_HOME/include.txt` and concatenates all prompts into `AGENTS.md`.
 
 **What this does:**
 - Reads the list of prompts from your active home's `include.txt`
-- Concatenates those prompts into a single `PROMPT.md` file
-- This generated file is what the AI assistant loads
+- Concatenates those prompts into a single `AGENTS.md` file
+- Cursor automatically applies this when editing files within the daisy directory
+- Can also be loaded explicitly from other workspaces via `@daisy/AGENTS.md`
 
-### 5. Start Using Daisy
+### 5. Link Into Your Workspace
+
+Daisy is designed to be symlinked into project workspaces:
+
+```bash
+cd /path/to/your/project
+ln -s /path/to/daisy daisy
+```
+
+Then add the cursor rule so agents discover daisy automatically:
+
+```bash
+mkdir -p .cursor/rules
+ln -s daisy/templates/cursor-rule.md .cursor/rules/daisy.md
+```
+
+### 6. Start Using Daisy
 
 In a new AI session:
 ```
-Load @daisy/PROMPT.md and start a new day
+Read @daisy/AGENTS.md and start a new day
 ```
+
+With the cursor rule installed, agents will automatically know to load daisy when you mention tasks, logging, or other productivity workflows.
 
 The AI will:
 - Load all your configured prompts
@@ -66,7 +85,7 @@ The AI will:
 
 **For AI Assistants:**
 ```
-Load @daisy/PROMPT.md and start a new day
+Read @daisy/AGENTS.md and start a new day
 ```
 
 ### Maintenance Commands
@@ -118,14 +137,14 @@ For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
 
 **For AI Assistants:**
 ```
-Load @daisy/PROMPT.md and start a new day
+Read @daisy/AGENTS.md and start a new day
 ```
 
 This single command loads all prompts, archives yesterday, and creates fresh `today.md` with prioritized tasks.
 
 **Alternative commands:**
-- `Load @daisy/PROMPT.md` - Initialize system only
-- `Load @daisy/PROMPT.md and start a new week` - Archive completed tasks + new day
+- `Read @daisy/AGENTS.md` - Initialize system only
+- `Read @daisy/AGENTS.md and start a new week` - Archive completed tasks + new day
 
 **Documentation:**
 - **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes ⭐
@@ -142,13 +161,14 @@ This single command loads all prompts, archives yesterday, and creates fresh `to
 
 ```
 daisy/
-├── PROMPT.md            # Generated - concatenated prompts from include.txt
+├── AGENTS.md            # Generated - concatenated prompts from include.txt (Cursor auto-applies)
 ├── journal.md           # Symlink → Active home's journal archive
 ├── today.md             # Symlink → Active home's current day journal
 ├── tasks/               # Symlink → Active home's task directory
 │   ├── todo.txt         # Active and recently completed tasks
 │   ├── done.txt         # Long-term task archive
 │   └── alias.txt        # People/role aliases (~person format)
+├── projects/            # Symlink → Active home's project files
 ├── scripts/
 │   ├── healthcheck.sh   # System validation (--force to re-run)
 │   ├── build-prompt.sh  # Generate prompt.md from includes
@@ -163,6 +183,7 @@ daisy/
 │   │   ├── include.txt  # List of prompts to load
 │   │   ├── journal/
 │   │   ├── tasks/
+│   │   ├── projects/    # Project files (goals, context, decisions)
 │   │   └── perf/        # Performance reflections
 │   └── personal/        # Personal home (example)
 │       ├── include.txt
@@ -186,6 +207,7 @@ daisy/
 │   ├── env.sh.template  # Environment variables template
 │   ├── journal-day.md   # Template for daily entries
 │   ├── journal-week.md  # Template for weekly entries
+│   ├── project.md       # Template for project files
 │   └── home/            # Template for new homes
 │       ├── include.txt  # Prompts to load
 │       ├── journal/     # Journal directory structure
@@ -210,6 +232,7 @@ cd $DAISY_ROOT
 ln -sf home/personal/journal/journal.md journal.md
 ln -sf home/personal/journal/today.md today.md
 ln -sf home/personal/tasks tasks
+ln -sf home/personal/projects projects
 ```
 
 Rebuild the prompt to use the new home's `include.txt`:
@@ -249,6 +272,7 @@ To create a new home (e.g., "sideprojects"):
    ln -sf home/sideprojects/journal/journal.md journal.md
    ln -sf home/sideprojects/journal/today.md today.md
    ln -sf home/sideprojects/tasks tasks
+   ln -sf home/sideprojects/projects projects
    ```
 
 5. **Build prompt and start using:**
@@ -256,7 +280,7 @@ To create a new home (e.g., "sideprojects"):
    $DAISY_ROOT/scripts/build-prompt.sh
    ```
    
-   Then load `@daisy/PROMPT.md` and start a new day
+   Then: `Read @daisy/AGENTS.md and start a new day`
 
 ## Todo.txt Format Quick Reference
 

@@ -12,6 +12,55 @@ This document is for:
 - Troubleshooting format or sync issues
 - Understanding the detailed parsing and conversion algorithms
 
+## Task Lifecycle
+
+### State Diagram
+
+```
+  [created] ──(add task)──→ [active in todo.txt]
+                                   │
+                 ┌─────────────────┼─────────────────┐
+                 │                 │                  │
+           (done.sh)        (cancel)           (priority change)
+                 │                 │                  │
+                 ▼                 ▼                  ▼
+        [completed in         [cancelled in      [repositioned in
+         todo.txt]             todo.txt]          todo.txt]
+         "x YYYY-MM-DD..."    "z YYYY-MM-DD..."
+                 │                 │
+                 │            (new-day.sh OR
+                 │             new-week.sh)
+                 │                 │
+                 │                 ▼
+                 │            [DELETED from
+                 │             todo.txt]
+                 │
+            (new-week.sh ONLY)
+                 │
+                 ▼
+        [archived in done.txt]
+         removed from todo.txt
+```
+
+### Lifecycle Rules
+
+1. **Completing ≠ Archiving.** `done.sh` marks a task complete (`x` prefix) but the task stays in `todo.txt`. This is intentional: completed tasks remain visible for the daily retrospective and sync validation. They are only moved to `done.txt` during `new-week.sh`.
+
+2. **Cancelling is soft-delete.** `cancel` marks a task with `z` prefix. The task stays in `todo.txt` until the next `new-day.sh` or `new-week.sh` deletes it permanently.
+
+3. **`done.txt` is a write-once archive.** Tasks flow into `done.txt` during weekly archival and are never modified or moved back. It exists for historical reporting (e.g., "what did I complete last quarter?").
+
+4. **`todo.txt` always reflects current reality.** It contains active tasks, recently completed tasks (awaiting weekly archival), and cancelled tasks (awaiting cleanup). At any point, an agent can determine what the user has accomplished this week by reading completed tasks that haven't been archived yet.
+
+### What Each Script Does and Does NOT Do
+
+| Script | Does | Does NOT |
+|--------|------|----------|
+| `done.sh` | Marks task `x` in todo.txt and `[x]` in today.md, adds log entry | Move task to done.txt, remove from todo.txt |
+| `new-day.sh` | Archives today.md → journal.md, deletes `z` tasks, generates new today.md | Archive completed tasks to done.txt |
+| `new-week.sh` | Everything new-day does PLUS moves `x` tasks from todo.txt → done.txt | — |
+| `log.sh` | Adds timestamped entry to today.md | Modify todo.txt or done.txt |
+
 ## Task Format Specification
 
 ### Active Task Format
@@ -460,6 +509,7 @@ Used by `new-week.sh` to generate `today.md` for week start:
    b. Check if $DAISY_HOME/include.txt exists
    c. Check if $DAISY_HOME/tasks/ directory exists
    d. Check if $DAISY_HOME/journal/ directory exists
+   e. Check if $DAISY_HOME/projects/ directory exists
 
 3. Verify Required Files:
    a. Check $DAISY_HOME/tasks/todo.txt exists
@@ -473,7 +523,8 @@ Used by `new-week.sh` to generate `today.md` for week start:
    a. Check if $DAISY_ROOT/tasks/ symlink exists and points to $DAISY_HOME/tasks/
    b. Check if $DAISY_ROOT/journal.md symlink exists and points to $DAISY_HOME/journal/journal.md
    c. Check if $DAISY_ROOT/today.md symlink exists and points to $DAISY_HOME/journal/today.md
-   d. Report: ✅ {link} → {target} or ⚠️ Issue with {link}
+   d. Check if $DAISY_ROOT/projects/ symlink exists and points to $DAISY_HOME/projects/
+   e. Report: ✅ {link} → {target} or ⚠️ Issue with {link}
 
 5. Validate todo.txt format (if exists):
    a. Read tasks/todo.txt
@@ -490,11 +541,11 @@ Used by `new-week.sh` to generate `today.md` for week start:
    b. Count lines starting with "z " anywhere (should be 0 after cleanup)
    c. Report: ✅ or ℹ️ {N} completed tasks need archival
 
-7. Verify PROMPT.md is up to date:
-   a. Check if $DAISY_ROOT/PROMPT.md exists
-   b. If missing: Report "⚠️ PROMPT.md not found. Run build-prompt.sh"
-   c. Check modification time of PROMPT.md vs include.txt
-   d. If include.txt is newer: Report "ℹ️ PROMPT.md may be stale. Run build-prompt.sh"
+7. Verify AGENTS.md is up to date:
+   a. Check if $DAISY_ROOT/AGENTS.md exists
+   b. If missing: Report "⚠️ AGENTS.md not found. Run build-prompt.sh"
+   c. Check modification time of AGENTS.md vs include.txt
+   d. If include.txt is newer: Report "ℹ️ AGENTS.md may be stale. Run build-prompt.sh"
 
 8. Final Report:
    ✅ Home: {name}
@@ -502,7 +553,7 @@ Used by `new-week.sh` to generate `today.md` for week start:
    ✅ All symlinks correct
    ✅ Todo.txt format valid
    ✅ No orphaned tasks
-   ✅ PROMPT.md up to date
+   ✅ AGENTS.md up to date
    
    OR
    
@@ -511,7 +562,7 @@ Used by `new-week.sh` to generate `today.md` for week start:
    - Symlink issues: {list}
    - Format issues: {list}
    - Orphaned tasks: {N}
-   - PROMPT.md needs rebuild
+   - AGENTS.md needs rebuild
    
    Suggestions:
    - Create missing files from templates
@@ -545,16 +596,18 @@ Used by `new-week.sh` to generate `today.md` for week start:
       - rm $DAISY_ROOT/tasks
       - rm $DAISY_ROOT/journal.md
       - rm $DAISY_ROOT/today.md
+      - rm $DAISY_ROOT/projects
    b. Create new symlinks:
       - ln -sf home/{home}/tasks tasks
       - ln -sf home/{home}/journal/journal.md journal.md
       - ln -sf home/{home}/journal/today.md today.md
+      - ln -sf home/{home}/projects projects
    c. Report: "✅ Activated home: {home}"
 
-5. Rebuild PROMPT.md:
+5. Rebuild AGENTS.md:
    a. Run $DAISY_ROOT/scripts/build-prompt.sh
-   b. This reads new home's include.txt and regenerates PROMPT.md
-   c. Report: "✅ Built PROMPT.md for home: {home}"
+   b. This reads new home's include.txt and regenerates AGENTS.md
+   c. Report: "✅ Built AGENTS.md for home: {home}"
 
 6. Verify setup:
    a. Run healthcheck.sh to verify all files present
@@ -586,6 +639,7 @@ Used by `new-week.sh` to generate `today.md` for week start:
    a. ln -sf home/{name}/tasks tasks
    b. ln -sf home/{name}/journal/journal.md journal.md
    c. ln -sf home/{name}/journal/today.md today.md
+   d. ln -sf home/{name}/projects projects
 
 5. Set environment variable and build prompt:
    a. Instruct user: "export DAISY_HOME=\"$DAISY_ROOT/home/{name}\""
@@ -807,6 +861,158 @@ Format:
 - 1530-1600 - PR#1545 opened, approved by ~jdoe, merged
 ```
 
+## Logging - Design Rationale
+
+### Why "If You Helped DO Something, Log It"
+
+The original design enumerated 11 specific trigger conditions for proactive logging (stakeholder interactions, starting work, key discoveries, design decisions, etc.). In practice, agents would lose track of the list mid-conversation and forget to log.
+
+The simplified rule -- **"if you helped the user DO something, log it"** -- is a principle rather than a checklist. It's easier to remember, harder to miss, and covers the same ground. The distinction between "doing" and "discussing" prevents over-logging while ensuring meaningful work is captured.
+
+### Detailed Logging Triggers (Reference)
+
+These are the specific situations that fall under the "helped DO something" rule. They are reference material for understanding intent, not a checklist for the agent to memorize:
+
+1. **Stakeholder interactions** - User mentions meetings, discussions, decisions with colleagues
+2. **Starting work** - User begins a task or asks for help with implementation
+3. **Key discoveries** - Finding root causes, tracing bugs, identifying patterns
+4. **Design decisions** - Choosing approaches, making architectural choices
+5. **Implementations complete** - After writing/modifying code
+6. **Blockers encountered** - When progress stops due to external factors
+7. **Milestones reached** - PRs opened, tests passing, deployments complete
+8. **Context switches** - Moving between tasks
+9. **Questions raised** - Uncertainties that need resolution
+10. **Technical debt identified** - Code that should be refactored or improved
+11. **Learning moments** - Understanding new APIs, patterns, or legacy code
+
+### Log Audit During Retrospective
+
+The retrospective workflow includes a pre-step that compares completed tasks against log entries. This structural check catches logging gaps that the proactive rule missed. The audit works because:
+
+- Completed tasks are always tracked (done.sh handles this mechanically)
+- Log entries are sometimes missed (depends on agent behavior)
+- The retrospective is a natural checkpoint where gaps can be filled
+
+This creates a safety net: even if the agent forgets to log during the day, the retrospective will surface the gap before the day is archived.
+
+## Project Management - Architecture
+
+### Design Rationale
+
+**Problem:** Projects have context beyond their tasks -- goals, resources, open questions, decisions, stakeholders. The `+PROJECT` tag in todo.txt captures *what to do* but not *why* or *how*. Users end up putting this context in JIRA because JIRA has structure for it, which makes JIRA the management tool rather than the communication tool.
+
+**Solution:** Each active project gets a markdown file in `projects/`. This is where the user thinks and manages their work. JIRA becomes an export target -- a place to push curated status updates outward to the company.
+
+**Key principle:** The project file is the source of truth for the user's understanding of a project. JIRA is the source of truth for the company's understanding.
+
+### Directory Structure
+
+```
+home/{home}/projects/
+├── {project-name}.md          # Active projects
+├── {project-name}.md
+└── _archive/                  # Closed projects
+    └── {project-name}.md
+```
+
+A symlink at the repo root provides convenient access:
+```
+$DAISY_ROOT/projects/ → home/{home}/projects/
+```
+
+### Project File Specification
+
+See `templates/project.md` for the canonical template. Key sections:
+
+| Section | Purpose | When Updated |
+|---------|---------|-------------|
+| Header (tag, JIRA, status, goal) | Quick reference metadata | On creation, on close |
+| Context | Why the project exists, what problem it solves | On creation, rarely changed |
+| Outcomes | Measurable deliverables (checkboxes) | On creation, marked complete as achieved |
+| Resources | Links to docs, code, people | Throughout project lifecycle |
+| Decisions | Timestamped record of choices made and why | When decisions happen |
+| Open Questions | Unresolved uncertainties | Added/removed throughout |
+| Notes | Freeform thinking, research, observations | Throughout project lifecycle |
+
+### Project-Task Linking
+
+Projects and tasks are linked bidirectionally through the `+PROJECT` tag:
+
+- **Tasks → Project:** Tasks in todo.txt carry `+project-name` tags
+- **Project → Tasks:** The project file's `Tag` field identifies which todo.txt tasks belong to it
+- **Aggregation:** The "project status" command pulls all tasks with the matching tag
+
+### Start Project Algorithm
+
+```
+1. Parse project name from user input
+2. Check if projects/{name}.md already exists
+   - If exists: "Project '{name}' already exists. Open it?"
+3. Copy templates/project.md to projects/{name}.md
+4. Fill in known details:
+   a. Tag: +{name} (kebab-case)
+   b. JIRA: ticket key if mentioned
+   c. Status: active
+   d. Started: today's date
+   e. Goal: from conversation context
+5. Ask: "Would you like to create initial tasks for this project?"
+   - If yes, walk through adding tasks with +{name} tag
+6. Commit: "New project: {name}"
+```
+
+### Project Status Algorithm
+
+```
+1. Read projects/{name}.md
+2. Search todo.txt for all lines containing +{name}:
+   a. Count active tasks (no x/z prefix)
+   b. Count completed tasks (x prefix)
+   c. Count cancelled tasks (z prefix)
+3. Search today.md log for entries mentioning +{name} or project name
+4. Extract open questions from project file
+5. Report:
+   - Project metadata (status, goal)
+   - Task summary (active/completed/blocked)
+   - Recent activity from logs
+   - Open questions
+   - Unresolved decisions
+```
+
+### Close Project Algorithm
+
+```
+1. Read projects/{name}.md
+2. Review outcomes:
+   a. For each outcome checkbox, confirm complete or incomplete
+   b. Add completion notes
+3. Add closing section:
+   - Closed: YYYY-MM-DD
+   - Final status: completed | abandoned | superseded
+   - Summary: one-paragraph retrospective
+4. Create projects/_archive/ if it doesn't exist
+5. Move file: projects/{name}.md → projects/_archive/{name}.md
+6. Handle remaining tasks:
+   a. Find active tasks with +{name} in todo.txt
+   b. For each: ask "Cancel, reassign to another project, or keep?"
+7. Commit: "Closed project: {name}"
+```
+
+### JIRA Sync Algorithm
+
+```
+1. Read projects/{name}.md
+2. Extract JIRA ticket key from header
+3. Draft JIRA-appropriate summary:
+   a. Current status (one line)
+   b. Recent progress (bullet points, professional tone)
+   c. Blockers or risks (if any)
+   d. Next steps
+4. Present draft to user for approval
+5. Post as JIRA comment via MCP tools or API
+6. Optionally update JIRA ticket status field
+7. Log: "Synced project {name} status to JIRA {ticket}"
+```
+
 ## Reference - Validation After Modifications
 
 After modifying any file, verify:
@@ -865,8 +1071,11 @@ Current scripts (`new-day.sh`, `new-week.sh`, `done.sh`, `log.sh`) implement bas
 - Task preservation from yesterday's today.md
 - Quiet day consolidation
 - Advanced sync validation
+- Project management commands (start/status/update/close project)
+- JIRA sync from project files
+- Log audit during retrospective
 
-These features are documented here for future implementation.
+These features are documented here for future implementation. Project workflows and log auditing are currently handled by the agent following prompt instructions rather than dedicated scripts.
 
 ## See Also
 

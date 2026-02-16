@@ -1,8 +1,11 @@
+# Symlinks (home-specific, vary per machine)
 /tasks
 /journal.md
 /today.md
+/projects
 
 # Generated files
+/AGENTS.md
 /PROMPT.md
 
 # Environment and secrets
