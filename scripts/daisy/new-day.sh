@@ -4,36 +4,32 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
 # Health check mode
 if [ "$1" = "--healthcheck" ]; then
-    # Verify required files/templates exist
-    if [ -z "$DAISY_ROOT" ]; then
-        echo "Error: DAISY_ROOT not set" >&2
-        exit 1
-    fi
-    
-    if [ -z "$DAISY_HOME" ]; then
-        echo "Error: DAISY_HOME not set" >&2
-        exit 1
-    fi
-    
+    require_env || exit 1
+
     if [ ! -f "$DAISY_ROOT/templates/journal-day.md" ]; then
         echo "Error: Template missing: templates/journal-day.md" >&2
         exit 1
     fi
-    
+
     if [ ! -f "$DAISY_HOME/tasks/todo.txt" ]; then
         echo "Error: todo.txt not found" >&2
         exit 1
     fi
-    
+
     if [ ! -d "$DAISY_HOME/journal" ]; then
         echo "Error: journal directory not found" >&2
         exit 1
     fi
-    
+
     exit 0
 fi
+
+require_env || exit 1
 
 # Run master health check
 if ! "$DAISY_ROOT/scripts/healthcheck.sh" >/dev/null 2>&1; then

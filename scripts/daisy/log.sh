@@ -4,20 +4,22 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
 # Health check mode
 if [ "$1" = "--healthcheck" ]; then
-    if [ -z "$DAISY_HOME" ]; then
-        echo "Error: DAISY_HOME not set" >&2
-        exit 1
-    fi
-    
+    require_env || exit 1
+
     if [ ! -f "$DAISY_HOME/journal/today.md" ]; then
         echo "Error: today.md not found" >&2
         exit 1
     fi
-    
+
     exit 0
 fi
+
+require_env || exit 1
 
 # Run master health check
 if ! "$DAISY_ROOT/scripts/healthcheck.sh" >/dev/null 2>&1; then

@@ -16,10 +16,10 @@ The system uses todo.txt format and daily markdown journals.
 - Troubleshooting format/sync issues
 - Implementing new scripts
 - Working on the daisy system architecture itself
-- **Modifying files outside `$DAISY_HOME` (system files like scripts, prompts, templates)**
+- **Modifying files outside the active home (system files like scripts, prompts, templates)**
 
 **Stay in daily mode when:**
-- Working with your tasks, journal, and daily logs (files in `$DAISY_HOME`)
+- Working with your tasks, journal, and daily logs (files in `.daisy/`)
 - Using daisy's workflows to get your work done
 
 ## Environment Setup
@@ -27,59 +27,55 @@ The system uses todo.txt format and daily markdown journals.
 Add to `~/.zshenv`:
 ```bash
 export DAISY_ROOT="/path/to/daisy"
-export DAISY_HOME="$DAISY_ROOT/home/default"  # or active home
 ```
+
+Initialize Daisy in each workspace:
+```bash
+daisy-init cisco       # or whichever home to use
+```
+
+This creates a `.daisy/` directory with symlinks to the active home's data, installs the Cursor rule, and builds `AGENTS.md`. Different workspaces can use different homes concurrently.
 
 Verify setup:
 ```bash
 $DAISY_ROOT/scripts/healthcheck.sh
 ```
 
-### Workspace Integration
-
-Daisy is typically symlinked into project workspaces as `daisy/`. To have Cursor agents automatically discover daisy, add a cursor rule to each workspace:
-
-```bash
-mkdir -p .cursor/rules
-ln -s daisy/templates/cursor-rule.md .cursor/rules/daisy.md
-```
-
-This tells agents to read `daisy/AGENTS.md` when performing productivity tasks, without you needing to mention it explicitly.
-
 ## File Structure
 
-The system uses symlinks in the repo root for home switching:
+Each workspace has a `.daisy/` directory with symlinks to the active home:
 
-- `tasks/` → `home/{home}/tasks/` (todo.txt, done.txt, alias.txt)
-- `journal.md` → `home/{home}/journal/journal.md` (archive)
-- `today.md` → `home/{home}/journal/today.md` (current day)
-- `projects/` → `home/{home}/projects/` (project files)
+- `.daisy/tasks/` → `daisy/home/{home}/tasks/` (todo.txt, done.txt, alias.txt)
+- `.daisy/journal.md` → `daisy/home/{home}/journal/journal.md` (archive)
+- `.daisy/today.md` → `daisy/home/{home}/journal/today.md` (current day)
+- `.daisy/projects/` → `daisy/home/{home}/projects/` (project files)
+- `.daisy/AGENTS.md` → `daisy/home/{home}/AGENTS.md` (generated prompt)
+- `.daisy/home` → plain text file with the home name (e.g., "work")
 
-**Important:** These are symbolic links. Always read/write through the symlink to the target file.
+**Important:** Always read/write through the `.daisy/` symlinks.
 
 **AGENTS.md Generation:**
 - Each home has `home/{home}/include.txt` listing prompts to load
-- Run `$DAISY_ROOT/scripts/build-prompt.sh` to generate `AGENTS.md`
+- Run `$DAISY_ROOT/scripts/build-prompt.sh [home-name]` to generate `home/{home}/AGENTS.md`
 - Prompts listed without prefix are included in full
 - Prompts prefixed with `~` are lazy-loaded: only their `## Trigger` section is included, directing you to read the full file on demand
-- Cursor automatically applies `AGENTS.md` when editing files within the daisy directory
 
 ### Key Files
 
-**`tasks/todo.txt`** - Active tasks (canonical source of truth)
+**`.daisy/tasks/todo.txt`** - Active tasks (canonical source of truth)
 - Format: `(PRIORITY) YYYY-MM-DD Description +Project @context`
 - Priorities: (A)=now, (B)=next, (C)=soon, (D)=someday
 - No priority = inbox (needs triage)
 
-**`tasks/done.txt`** - Archived completed tasks
+**`.daisy/tasks/done.txt`** - Archived completed tasks
 
-**`tasks/alias.txt`** - People reference mapping (~alias format)
+**`.daisy/tasks/alias.txt`** - People reference mapping (~alias format)
 
-**`journal.md`** - Archive of all past daily entries
+**`.daisy/journal.md`** - Archive of all past daily entries
 
-**`today.md`** - Current day's work log
+**`.daisy/today.md`** - Current day's work log
 
-**`projects/`** - Active project files (one markdown file per project)
+**`.daisy/projects/`** - Active project files (one markdown file per project)
 - Contains goals, context, resources, decisions, and notes
 - See "Project Workflows" section below
 
@@ -284,16 +280,10 @@ Do not log:
 **User says:** "Daisy, switch to [home]"
 
 ```bash
-$DAISY_ROOT/scripts/daisy/switch-home.sh "home-name"
+daisy-init "home-name"
 ```
 
-**What it does:**
-1. Verifies target home exists and has required structure
-2. Removes old symlinks (tasks, journal.md, today.md, projects)
-3. Creates new symlinks pointing to target home
-4. Rebuilds AGENTS.md from target home's include.txt
-
-**Does NOT:** Update `DAISY_HOME` environment variable -- the script reminds the user to do this manually. Run with no arguments to list available homes.
+Re-running `daisy-init` with a different home name replaces the `.daisy/` symlinks. Each workspace independently tracks its own home, so switching in one workspace does not affect others.
 
 ### Creating a New Home
 
@@ -306,8 +296,8 @@ $DAISY_ROOT/scripts/daisy/create-home.sh "home-name" [--activate]
 **What it does:**
 1. Copies `templates/home/` to `home/{name}/`
 2. Creates projects directory with `_archive/`
-3. Shows the default `include.txt` for customization
-4. Optionally activates the new home (runs switch-home.sh)
+3. Builds `AGENTS.md` for the new home
+4. Optionally activates in the current workspace (runs `daisy-init`)
 
 ### Retrospective
 
@@ -332,7 +322,7 @@ $DAISY_ROOT/scripts/daisy/create-home.sh "home-name" [--activate]
 
 ## Project Workflows
 
-Projects are more than a list of tasks -- they have goals, context, resources, open questions, and decisions. Each active project gets a markdown file in `projects/`.
+Projects are more than a list of tasks -- they have goals, context, resources, open questions, and decisions. Each active project gets a markdown file in `.daisy/projects/`.
 
 **Project files are where you think. JIRA is where you communicate progress to the company.**
 
@@ -341,7 +331,7 @@ Projects are more than a list of tasks -- they have goals, context, resources, o
 **User says:** "Daisy, start project [name]" or "new project [name]"
 
 **Algorithm:**
-1. Create `projects/{name}.md` from template (`$DAISY_ROOT/templates/project.md`)
+1. Create `.daisy/projects/{name}.md` from template (`$DAISY_ROOT/templates/project.md`)
 2. Fill in known details (tag, goal, context) from conversation
 3. Optionally create initial tasks in todo.txt with `+PROJECT` tag
 4. Auto-commit
@@ -351,7 +341,7 @@ Projects are more than a list of tasks -- they have goals, context, resources, o
 **User says:** "Daisy, project status [name]" or "Daisy, how's [project] going?"
 
 **Algorithm:**
-1. Read `projects/{name}.md` for goals and open questions
+1. Read `.daisy/projects/{name}.md` for goals and open questions
 2. Find all tasks in todo.txt with matching `+PROJECT` tag
 3. Summarize: active tasks, completed tasks, blockers
 4. Show recent log entries mentioning the project
@@ -376,7 +366,7 @@ Projects are more than a list of tasks -- they have goals, context, resources, o
 **Algorithm:**
 1. Review outcomes in project file -- mark complete/incomplete
 2. Add final summary and closing date
-3. Move file to `projects/_archive/{name}.md`
+3. Move file to `.daisy/projects/_archive/{name}.md`
 4. Mark any remaining `+PROJECT` tasks as cancelled or reassign
 5. Auto-commit
 
@@ -385,7 +375,7 @@ Projects are more than a list of tasks -- they have goals, context, resources, o
 **User says:** "Daisy, sync [project] to JIRA" or "Daisy, update JIRA for [project]"
 
 **Algorithm:**
-1. Read `projects/{name}.md` for current status, recent decisions, blockers
+1. Read `.daisy/projects/{name}.md` for current status, recent decisions, blockers
 2. Draft a JIRA-appropriate summary (professional tone, outcome-focused)
 3. Post as a comment on the linked JIRA ticket
 4. Optionally update JIRA ticket status if appropriate

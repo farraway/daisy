@@ -1,12 +1,5 @@
-# Symlinks (home-specific, vary per machine)
-/tasks
-/journal.md
-/today.md
-/projects
-
-# Generated files
-/AGENTS.md
-/PROMPT.md
+# Per-home generated files
+home/*/AGENTS.md
 
 # Environment and secrets
 .env.sh

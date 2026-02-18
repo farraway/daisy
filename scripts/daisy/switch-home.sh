@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Switch active daisy home
-# Updates symlinks and rebuilds AGENTS.md
+# Switch active daisy home (DEPRECATED - use daisy-init <home> instead)
+# Kept for backward compatibility. Rebuilds AGENTS.md for a home.
 # Usage: switch-home.sh <home-name>
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
 # Health check mode
 if [ "$1" = "--healthcheck" ]; then
-    if [ -z "$DAISY_ROOT" ]; then
-        echo "Error: DAISY_ROOT not set" >&2
-        exit 1
-    fi
+    require_root || exit 1
     if [ ! -d "$DAISY_ROOT/home" ]; then
         echo "Error: home directory not found" >&2
         exit 1
@@ -18,12 +18,10 @@ if [ "$1" = "--healthcheck" ]; then
     exit 0
 fi
 
-# Validate environment
-if [ -z "$DAISY_ROOT" ]; then
-    echo "Error: DAISY_ROOT not set" >&2
-    echo "Add to ~/.zshenv: export DAISY_ROOT=/path/to/daisy" >&2
-    exit 1
-fi
+require_root || exit 1
+
+echo "⚠️  switch-home.sh is deprecated. Use 'daisy-init <home>' in your workspace instead." >&2
+echo "" >&2
 
 # Check for target home argument
 if [ -z "$1" ]; then

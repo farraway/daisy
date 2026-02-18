@@ -4,12 +4,12 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
 # Health check mode
 if [ "$1" = "--healthcheck" ]; then
-    if [ -z "$DAISY_ROOT" ]; then
-        echo "Error: DAISY_ROOT not set" >&2
-        exit 1
-    fi
+    require_root || exit 1
     if [ ! -d "$DAISY_ROOT/templates/home" ]; then
         echo "Error: home template not found at templates/home/" >&2
         exit 1
@@ -17,12 +17,7 @@ if [ "$1" = "--healthcheck" ]; then
     exit 0
 fi
 
-# Validate environment
-if [ -z "$DAISY_ROOT" ]; then
-    echo "Error: DAISY_ROOT not set" >&2
-    echo "Add to ~/.zshenv: export DAISY_ROOT=/path/to/daisy" >&2
-    exit 1
-fi
+require_root || exit 1
 
 # Check for home name argument
 if [ -z "$1" ] || [ "$1" = "--activate" ]; then
@@ -80,12 +75,16 @@ while IFS= read -r line; do
 done < "$TARGET_DIR/include.txt"
 echo ""
 
+# Build AGENTS.md for the new home
+echo "   Building AGENTS.md..."
+"$DAISY_ROOT/scripts/build-prompt.sh" "$NAME"
+
 # Activate if requested
 if [ "$ACTIVATE" = true ]; then
-    echo "   2. Activating home..."
-    "$DAISY_ROOT/scripts/daisy/switch-home.sh" "$NAME"
+    echo "   2. Activating in current workspace..."
+    "$DAISY_ROOT/scripts/daisy-init.sh" "$NAME"
 else
-    echo "   2. To activate: $DAISY_ROOT/scripts/daisy/switch-home.sh $NAME"
+    echo "   2. To use in a workspace: daisy-init $NAME"
 fi
 
 exit 0

@@ -9,6 +9,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/daisy/common.sh"
+
 # Handle --force flag
 if [ "$1" = "--force" ]; then
     unset DAISY_HEALTHCHECK_PASSED
@@ -44,8 +47,8 @@ ok() {
 check_today() {
     local today_file="$DAISY_HOME/journal/today.md"
     
-    if [ ! -f "$today_file" ]; then
-        return 0  # Skip if file doesn't exist yet
+    if [ ! -f "$today_file" ] || [ ! -s "$today_file" ]; then
+        return 0  # Skip if file doesn't exist yet or is empty (pre-first-run)
     fi
     
     local found_issues=0
@@ -97,32 +100,22 @@ check_today() {
 }
 
 # Check 1: DAISY_ROOT environment variable
-if [ -z "$DAISY_ROOT" ]; then
-    error "DAISY_ROOT not set"
+if ! require_root 2>/dev/null; then
+    error "DAISY_ROOT not set or invalid"
     echo "  Add to ~/.zshenv: export DAISY_ROOT=/path/to/daisy" >&2
-    exit 1
-fi
-
-if [ ! -d "$DAISY_ROOT" ]; then
-    error "DAISY_ROOT directory does not exist: $DAISY_ROOT"
     exit 1
 fi
 
 ok "DAISY_ROOT: $DAISY_ROOT"
 
-# Check 2: DAISY_HOME environment variable
-if [ -z "$DAISY_HOME" ]; then
-    error "DAISY_HOME not set"
-    echo "  Add to ~/.zshenv: export DAISY_HOME=\$DAISY_ROOT/home/work" >&2
+# Check 2: DAISY_HOME (via .daisy/home or env var)
+if ! resolve_home 2>/dev/null; then
+    error "Cannot resolve home. No .daisy/home found and DAISY_HOME not set."
+    echo "  Run 'daisy-init <home>' in your workspace, or set DAISY_HOME in ~/.zshenv" >&2
     exit 1
 fi
 
-if [ ! -d "$DAISY_HOME" ]; then
-    error "DAISY_HOME directory does not exist: $DAISY_HOME"
-    exit 1
-fi
-
-ok "DAISY_HOME: $DAISY_HOME"
+ok "DAISY_HOME: $DAISY_HOME (home: $DAISY_HOME_NAME)"
 
 # Check 3: Git repository
 if [ ! -d "$DAISY_ROOT/.git" ]; then

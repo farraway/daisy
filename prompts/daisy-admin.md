@@ -481,17 +481,31 @@ Used by `new-week.sh` to generate `today.md` for week start:
 - Extended inbox checklist with weekly startup items (email/chat zero-ing, JIRA/GitHub sync)
 - Same task extraction logic and placeholders as daily template
 
-## Home Management - Detailed Algorithms
+## Home Management - Architecture
+
+### Per-Workspace Home Resolution
+
+Homes are resolved per-workspace, not globally. Each workspace has a `.daisy/` directory containing:
+- `home` - plain text file with the home name (e.g., "work")
+- Symlinks to the active home's data (tasks/, today.md, journal.md, projects/, AGENTS.md)
+
+**Resolution order** (used by all scripts via `scripts/daisy/common.sh`):
+1. Walk up from `$PWD` looking for `.daisy/home`
+2. Fall back to `$DAISY_HOME` env var
+3. Error if neither exists
+
+This allows different workspaces on the same machine to use different homes concurrently.
 
 ### Detecting Active Home
 
 ```
-1. Check $DAISY_HOME environment variable
-   - If not set, error: "⚠️ DAISY_HOME not set. Add to ~/.zshenv"
-2. Extract home name from $DAISY_HOME path:
-   - Example: /path/to/daisy/home/work → Home: "work"
-3. Verify home directory exists at $DAISY_HOME
-4. Verify include.txt exists at $DAISY_HOME/include.txt
+1. Walk up from $PWD looking for .daisy/home file
+   - If found, read home name from file
+   - Resolve: DAISY_HOME = $DAISY_ROOT/home/{name}
+2. Fall back to $DAISY_HOME environment variable
+3. If neither: error "Cannot resolve home. Run daisy-init <home>"
+4. Verify home directory exists at $DAISY_HOME
+5. Verify include.txt exists at $DAISY_HOME/include.txt
 ```
 
 ### System Health Check Algorithm
@@ -499,10 +513,8 @@ Used by `new-week.sh` to generate `today.md` for week start:
 **Command:** "check system" or "verify setup" or "check home"
 
 ```
-1. Detect active home:
-   a. Check if $DAISY_HOME is set
-   b. If not: Report "⚠️ No active home. Set DAISY_HOME in ~/.zshenv"
-   c. Extract home name from $DAISY_HOME path
+1. Resolve active home (via .daisy/home or $DAISY_HOME)
+   - If neither found: Report error with instructions
 
 2. Verify home structure:
    a. Check if $DAISY_HOME directory exists
@@ -512,107 +524,31 @@ Used by `new-week.sh` to generate `today.md` for week start:
    e. Check if $DAISY_HOME/projects/ directory exists
 
 3. Verify Required Files:
-   a. Check $DAISY_HOME/tasks/todo.txt exists
-   b. Check $DAISY_HOME/tasks/done.txt exists
-   c. Check $DAISY_HOME/tasks/alias.txt exists
-   d. Check $DAISY_HOME/journal/journal.md exists
-   e. Check $DAISY_HOME/journal/today.md exists
-   f. Report: ✅ or ⚠️ Missing: {path}
+   a-e. Check todo.txt, done.txt, alias.txt, journal.md, today.md exist
 
-4. Verify Required Symlinks:
-   a. Check if $DAISY_ROOT/tasks/ symlink exists and points to $DAISY_HOME/tasks/
-   b. Check if $DAISY_ROOT/journal.md symlink exists and points to $DAISY_HOME/journal/journal.md
-   c. Check if $DAISY_ROOT/today.md symlink exists and points to $DAISY_HOME/journal/today.md
-   d. Check if $DAISY_ROOT/projects/ symlink exists and points to $DAISY_HOME/projects/
-   e. Report: ✅ {link} → {target} or ⚠️ Issue with {link}
+4. Validate todo.txt format (if exists)
 
-5. Validate todo.txt format (if exists):
-   a. Read tasks/todo.txt
-   b. For each line:
-      - Skip empty lines
-      - Verify matches active/completed/cancelled format
-      - Check dates are YYYY-MM-DD format
-      - Check priority format (A-D) if present
-   c. Find format violations
-   d. Report: ✅ Format valid or ⚠️ Format issues: {list}
+5. Check for orphaned completed tasks
 
-6. Check for orphaned completed tasks:
-   a. Count lines starting with "x " not at end of active section
-   b. Count lines starting with "z " anywhere (should be 0 after cleanup)
-   c. Report: ✅ or ℹ️ {N} completed tasks need archival
+6. Verify AGENTS.md is up to date:
+   a. Check if $DAISY_HOME/AGENTS.md exists
+   b. If missing: Report "Run: build-prompt.sh {home-name}"
+   c. If include.txt is newer than AGENTS.md: Report stale
 
-7. Verify AGENTS.md is up to date:
-   a. Check if $DAISY_ROOT/AGENTS.md exists
-   b. If missing: Report "⚠️ AGENTS.md not found. Run build-prompt.sh"
-   c. Check modification time of AGENTS.md vs include.txt
-   d. If include.txt is newer: Report "ℹ️ AGENTS.md may be stale. Run build-prompt.sh"
-
-8. Final Report:
-   ✅ Home: {name}
-   ✅ All required files present
-   ✅ All symlinks correct
-   ✅ Todo.txt format valid
-   ✅ No orphaned tasks
-   ✅ AGENTS.md up to date
-   
-   OR
-   
-   ⚠️ Home: {name} - Issues found:
-   - Missing files: {list}
-   - Symlink issues: {list}
-   - Format issues: {list}
-   - Orphaned tasks: {N}
-   - AGENTS.md needs rebuild
-   
-   Suggestions:
-   - Create missing files from templates
-   - Fix symlinks: See "Home Switching Algorithm"
-   - Archive completed tasks: "start a new week"
-   - Rebuild prompt: $DAISY_ROOT/scripts/build-prompt.sh
+7. Final Report with suggestions for any issues found
 ```
 
-### Home Switching Algorithm
+### Home Switching (Per-Workspace)
 
-**Command:** "switch to [home]"
+**Command:** "switch to [home]" or re-run `daisy-init <home>`
 
 ```
-1. Detect current home:
-   a. Get current $DAISY_HOME value
-   b. Extract home name from path
+1. Run: daisy-init <home-name>
+   - This replaces .daisy/ symlinks in the current workspace
+   - Does NOT affect other workspaces
 
-2. Verify target home exists:
-   a. Check if $DAISY_ROOT/home/{home}/ directory exists
-   b. If not found, offer: "Home '{home}' not found. Create from template?"
-   c. Verify $DAISY_ROOT/home/{home}/include.txt exists
-   d. Verify $DAISY_ROOT/home/{home}/tasks/ exists
-   e. Verify $DAISY_ROOT/home/{home}/journal/ exists
-
-3. Update environment variable:
-   a. Instruct user: "Add to ~/.zshenv: export DAISY_HOME=\"$DAISY_ROOT/home/{home}\""
-   b. Instruct user: "Then run: source ~/.zshenv"
-
-4. Update symlinks:
-   a. Remove old symlinks:
-      - rm $DAISY_ROOT/tasks
-      - rm $DAISY_ROOT/journal.md
-      - rm $DAISY_ROOT/today.md
-      - rm $DAISY_ROOT/projects
-   b. Create new symlinks:
-      - ln -sf home/{home}/tasks tasks
-      - ln -sf home/{home}/journal/journal.md journal.md
-      - ln -sf home/{home}/journal/today.md today.md
-      - ln -sf home/{home}/projects projects
-   c. Report: "✅ Activated home: {home}"
-
-5. Rebuild AGENTS.md:
-   a. Run $DAISY_ROOT/scripts/build-prompt.sh
-   b. This reads new home's include.txt and regenerates AGENTS.md
-   c. Report: "✅ Built AGENTS.md for home: {home}"
-
-6. Verify setup:
-   a. Run healthcheck.sh to verify all files present
-   b. If any missing, warn: "⚠️ Missing files: [list]"
-   c. Offer to create missing files from templates
+2. No global env var change needed
+   - Each workspace resolves its own home from .daisy/home
 ```
 
 ### Creating New Home Algorithm
@@ -625,29 +561,14 @@ Used by `new-week.sh` to generate `today.md` for week start:
 
 2. Copy templates/home/ to home/{name}/
 
-3. Instruct user to customize home/{name}/include.txt:
-   - List which prompts to load (one per line)
-   - Common prompts: daisy, retrospective, cisco, jira, github, webex
-   - Example:
-     ```
-     daisy
-     retrospective
-     github
-     ```
+3. Instruct user to customize home/{name}/include.txt
 
-4. Create required symlinks:
-   a. ln -sf home/{name}/tasks tasks
-   b. ln -sf home/{name}/journal/journal.md journal.md
-   c. ln -sf home/{name}/journal/today.md today.md
-   d. ln -sf home/{name}/projects projects
+4. Build AGENTS.md:
+   a. Run $DAISY_ROOT/scripts/build-prompt.sh {name}
+   b. Output: home/{name}/AGENTS.md
 
-5. Set environment variable and build prompt:
-   a. Instruct user: "export DAISY_HOME=\"$DAISY_ROOT/home/{name}\""
-   b. Run $DAISY_ROOT/scripts/build-prompt.sh
-   c. Report: "✅ Created home: {name}"
-
-6. Ask: "Activate this home now?"
-   - If yes, follow "Home Switching Algorithm" above
+5. Ask: "Activate this home in the current workspace?"
+   - If yes, run: daisy-init {name}
 ```
 
 ## Workflow Implementation Details
@@ -915,9 +836,9 @@ home/{home}/projects/
     └── {project-name}.md
 ```
 
-A symlink at the repo root provides convenient access:
+Accessed via workspace symlink:
 ```
-$DAISY_ROOT/projects/ → home/{home}/projects/
+.daisy/projects/ → daisy/home/{home}/projects/
 ```
 
 ### Project File Specification
@@ -1085,11 +1006,21 @@ These features are documented here for future implementation. Project workflows 
 | `new-week.sh` | Archive completed tasks to done.txt + new day |
 | `done.sh` | Mark task complete in todo.txt and today.md |
 | `log.sh` | Add timestamped log entry to today.md |
-| `switch-home.sh` | Update symlinks and rebuild AGENTS.md for a different home |
+| `switch-home.sh` | DEPRECATED - use daisy-init instead |
 | `create-home.sh` | Create new home from template, optionally activate |
-| `build-prompt.sh` | Generate AGENTS.md from include.txt (supports lazy loading) |
+| `build-prompt.sh` | Generate home/{home}/AGENTS.md from include.txt (supports lazy loading) |
+| `daisy-init.sh` | Initialize Daisy in a workspace with a specific home |
+| `daisy/common.sh` | Shared functions (resolve_home, require_env) sourced by all scripts |
 
 ## AGENTS.md Build System
+
+### Per-Home Output
+
+`build-prompt.sh` generates `home/{home}/AGENTS.md` (not the repo root). Each home has its own AGENTS.md. Workspaces access it via `.daisy/AGENTS.md` symlink.
+
+Usage: `$DAISY_ROOT/scripts/build-prompt.sh [home-name]`
+
+If no home-name argument is given, the script resolves the home via `.daisy/home` or `$DAISY_HOME`.
 
 ### Lazy Loading Architecture
 
@@ -1107,7 +1038,6 @@ daisy
 
 # Lazy inclusion (trigger only, full file read on demand)
 ~retrospective
-~github
 ```
 
 ### Adding a ## Trigger Section to a Prompt

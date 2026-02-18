@@ -4,8 +4,6 @@ A lightweight productivity system combining todo.txt task management with daily 
 
 ## Bootstrap (First-Time Setup)
 
-**New installation?** Follow these steps to get started:
-
 ### 1. Clone or Download
 
 ```bash
@@ -13,67 +11,51 @@ git clone <repo-url> daisy
 cd daisy
 ```
 
-### 2. Set Environment Variables
+### 2. Set Environment Variable
 
 Add to `~/.zshenv` (or `~/.bashrc`):
 ```bash
 export DAISY_ROOT="/path/to/daisy"
-export DAISY_HOME="$DAISY_ROOT/home/default"  # or choose a home
 ```
 
 Then reload: `source ~/.zshenv`
 
-### 3. Verify Installation
+### 3. Add `daisy-init` to your PATH
 
 ```bash
-$DAISY_ROOT/scripts/healthcheck.sh
+ln -s $DAISY_ROOT/scripts/daisy-init.sh ~/bin/daisy-init
 ```
 
-This checks that environment variables are set and all components are healthy.
-
-### 4. Build Your Prompt
-
-**Important:** Daisy uses a prompt composition system. You must build `AGENTS.md` before using:
+### 4. Build Prompts for Your Home
 
 ```bash
-$DAISY_ROOT/scripts/build-prompt.sh
+$DAISY_ROOT/scripts/build-prompt.sh cisco    # or whichever home
 ```
 
-This reads `$DAISY_HOME/include.txt` and concatenates all prompts into `AGENTS.md`.
+This generates `home/work/AGENTS.md` from the home's `include.txt`.
 
-**What this does:**
-- Reads the list of prompts from your active home's `include.txt`
-- Concatenates those prompts into a single `AGENTS.md` file
-- Cursor automatically applies this when editing files within the daisy directory
-- Can also be loaded explicitly from other workspaces via `@daisy/AGENTS.md`
-
-### 5. Link Into Your Workspace
-
-Daisy is designed to be symlinked into project workspaces:
+### 5. Initialize Daisy in a Workspace
 
 ```bash
 cd /path/to/your/project
-ln -s /path/to/daisy daisy
+daisy-init cisco
 ```
 
-Then add the cursor rule so agents discover daisy automatically:
-
-```bash
-mkdir -p .cursor/rules
-ln -s daisy/templates/cursor-rule.md .cursor/rules/daisy.md
-```
+This creates:
+- `daisy/` symlink to the shared daisy repo
+- `.daisy/` directory with symlinks to the work home's tasks, journal, and projects
+- `.cursor/rules/daisy.md` so agents automatically discover daisy
+- `.daisy/` and `daisy` entries in `.gitignore`
 
 ### 6. Start Using Daisy
 
-In a new AI session:
+With the cursor rule installed, just say:
 ```
-Read @daisy/AGENTS.md and start a new day
+Daisy, start a new day
 ```
 
-With the cursor rule installed, agents will automatically know to load daisy when you mention tasks, logging, or other productivity workflows.
-
-The AI will:
-- Load all your configured prompts
+The agent will:
+- Read `.daisy/AGENTS.md` automatically
 - Archive yesterday's work
 - Create fresh `today.md` with prioritized tasks
 
@@ -81,32 +63,38 @@ The AI will:
 
 ## Quick Start (After Bootstrap)
 
-**Already set up?** Quick reference for daily use:
+**Already set up?** Quick reference for daily use.
 
-**For AI Assistants:**
+Just address Daisy by name in any initialized workspace:
 ```
-Read @daisy/AGENTS.md and start a new day
+Daisy, start a new day
+Daisy, done [task]
+Daisy, log [message]
+Daisy, what are my tasks?
 ```
 
 ### Maintenance Commands
 
 **Verify system health:**
 ```bash
-$DAISY_ROOT/scripts/healthcheck.sh         # Uses cache
-$DAISY_ROOT/scripts/healthcheck.sh --force # Full re-check
+$DAISY_ROOT/scripts/healthcheck.sh
 ```
 
-**Rebuild prompt after changes:**
+**Rebuild prompt after editing prompts:**
 ```bash
-$DAISY_ROOT/scripts/build-prompt.sh
+$DAISY_ROOT/scripts/build-prompt.sh cisco
 ```
 
-Rebuild when:
-- You modify `$DAISY_HOME/include.txt` (add/remove prompts)
-- You edit source prompts in `prompts/`
-- You switch homes
+**Initialize Daisy in a new workspace:**
+```bash
+cd /path/to/new/project
+daisy-init cisco
+```
 
-### Documentation
+**Switch a workspace to a different home:**
+```bash
+daisy-init personal
+```
 
 ### Optional: API Authentication
 
@@ -117,12 +105,7 @@ For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
    cp $DAISY_ROOT/templates/env.sh.template .env.sh
    ```
 
-2. Edit `.env.sh` and fill in your tokens:
-   ```bash
-   export DAISY_SECRET_WEBEX_API_TOKEN="your-token"
-   export DAISY_SECRET_JIRA_API_TOKEN="your-token"
-   export DAISY_SECRET_GITHUB_TOKEN="your-token"
-   ```
+2. Edit `.env.sh` and fill in your tokens
 
 3. Verify configuration:
    ```bash
@@ -131,156 +114,102 @@ For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
 
 **Note:** MCP servers handle authentication automatically. `.env.sh` is only needed as a fallback.
 
-### 5. Start Using Daisy
-
-**👋 New to daisy?** → **[5-Minute Quickstart Guide](docs/quickstart.md)**
-
-**For AI Assistants:**
-```
-Read @daisy/AGENTS.md and start a new day
-```
-
-This single command loads all prompts, archives yesterday, and creates fresh `today.md` with prioritized tasks.
-
-**Alternative commands:**
-- `Read @daisy/AGENTS.md` - Initialize system only
-- `Read @daisy/AGENTS.md and start a new week` - Archive completed tasks + new day
-
-**Documentation:**
-- **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes ⭐
-- **[AI Workflow Guide](prompts/daisy.md)** - Complete system specification
-- **[Detailed Examples](docs/examples/daisy.md)** - Interaction walkthroughs
-- **[Test Cases](docs/test-cases.md)** - Validation test cases
-
-**Manual prompt loading (if needed):**
-- **Home-specific:** `@daisy/prompts/work.md` (for work contexts)
-- **Utilities:** `@daisy/prompts/jira.md`, `@daisy/prompts/github.md`, `@daisy/prompts/webex.md`
-- **Reflection:** `@daisy/prompts/retrospective.md`
-
 ## File Structure
+
+### Daisy Repo
 
 ```
 daisy/
-├── AGENTS.md            # Generated - concatenated prompts from include.txt (Cursor auto-applies)
-├── journal.md           # Symlink → Active home's journal archive
-├── today.md             # Symlink → Active home's current day journal
-├── tasks/               # Symlink → Active home's task directory
-│   ├── todo.txt         # Active and recently completed tasks
-│   ├── done.txt         # Long-term task archive
-│   └── alias.txt        # People/role aliases (~person format)
-├── projects/            # Symlink → Active home's project files
 ├── scripts/
-│   ├── healthcheck.sh   # System validation (--force to re-run)
-│   ├── build-prompt.sh  # Generate prompt.md from includes
-│   ├── check-secrets.sh # Verify .env.sh configuration
-│   └── daisy/           # Workflow scripts
-│       ├── new-day.sh   # Start new day
-│       ├── new-week.sh  # Start new week
-│       ├── done.sh      # Mark task complete
-│       └── log.sh       # Add log entry
+│   ├── daisy-init.sh       # Initialize daisy in a workspace (symlink to ~/bin)
+│   ├── build-prompt.sh     # Generate home/{home}/AGENTS.md
+│   ├── healthcheck.sh      # System validation
+│   ├── check-secrets.sh    # Verify .env.sh configuration
+│   ├── commit.sh           # Auto-commit helper
+│   └── daisy/              # Workflow scripts
+│       ├── common.sh       # Shared functions (resolve_home, require_env)
+│       ├── new-day.sh      # Start new day
+│       ├── new-week.sh     # Start new week
+│       ├── done.sh         # Mark task complete
+│       ├── log.sh          # Add log entry
+│       ├── create-home.sh  # Create new home from template
+│       └── switch-home.sh  # (deprecated - use daisy-init)
 ├── home/
-│   ├── work/           # Work home data
-│   │   ├── include.txt  # List of prompts to load
+│   ├── work/              # Work home
+│   │   ├── AGENTS.md       # Generated prompt (git-ignored)
+│   │   ├── include.txt     # List of prompts to load
 │   │   ├── journal/
 │   │   ├── tasks/
-│   │   ├── projects/    # Project files (goals, context, decisions)
-│   │   └── perf/        # Performance reflections
-│   └── personal/        # Personal home (example)
+│   │   ├── projects/
+│   │   └── perf/
+│   └── personal/         # Personal home
+│       ├── AGENTS.md
 │       ├── include.txt
 │       ├── journal/
-│       └── tasks/
+│       ├── tasks/
+│       └── projects/
 ├── prompts/
-│   ├── daisy.md         # Core workflow instructions for AI
-│   ├── daisy-admin.md   # Internal architecture (for system work)
-│   ├── work.md         # Work-specific augmentations
-│   ├── jira.md          # JIRA utilities
-│   ├── github.md        # GitHub utilities
-│   ├── webex.md         # Webex API utilities
-│   └── retrospective.md # Reflection guide
-├── docs/
-│   ├── quickstart.md    # 5-minute getting started guide
-│   ├── todotxt.md       # Todo.txt format specification
-│   ├── test-cases.md    # Validation test suite
-│   └── examples/
-│       └── daisy.md     # Detailed interaction examples
+│   ├── daisy.md            # Core workflow instructions for AI
+│   ├── daisy-admin.md      # Internal architecture (for system work)
+│   ├── work.md            # Work-specific augmentations
+│   ├──       # Work internal GitHub Enterprise
+│   ├── github.md           # Public GitHub
+│   ├── jira.md             # JIRA utilities
+│   ├── webex.md            # Webex API utilities
+│   └── retrospective.md    # Reflection guide
 ├── templates/
-│   ├── env.sh.template  # Environment variables template
-│   ├── journal-day.md   # Template for daily entries
-│   ├── journal-week.md  # Template for weekly entries
-│   ├── project.md       # Template for project files
-│   └── home/            # Template for new homes
-│       ├── include.txt  # Prompts to load
-│       ├── journal/     # Journal directory structure
-│       └── tasks/       # Tasks directory structure
+│   ├── cursor-rule.md      # Cursor rule for workspace integration
+│   ├── project.md          # Template for project files
+│   ├── journal-day.md      # Template for daily entries
+│   ├── journal-week.md     # Template for weekly entries
+│   ├── env.sh.template     # Environment variables template
+│   └── home/               # Template for new homes
+└── docs/
+    ├── quickstart.md
+    ├── todotxt.md
+    ├── test-cases.md
+    └── examples/
 ```
 
-## Home Switching
+### Workspace Layout (after `daisy-init cisco`)
 
-The symlinks (`journal.md`, `today.md`, `tasks/`) point to the active home's data, enabling easy context switching (e.g., work ↔ personal).
+```
+workspace/
+├── daisy/                  → $DAISY_ROOT (shared repo)
+├── .daisy/
+│   ├── home                # "work" (plain text)
+│   ├── AGENTS.md           → daisy/home/work/AGENTS.md
+│   ├── tasks/              → daisy/home/work/tasks/
+│   ├── today.md            → daisy/home/work/journal/today.md
+│   ├── journal.md          → daisy/home/work/journal/journal.md
+│   └── projects/           → daisy/home/work/projects/
+├── .cursor/rules/
+│   └── daisy.md            → daisy/templates/cursor-rule.md
+```
 
-**To switch homes:**
+Different workspaces can use different homes concurrently.
 
-Update your environment variable in `~/.zshenv`:
+## Homes
+
+Homes isolate task/journal/project data for different contexts (e.g., work vs personal).
+
+**Create a new home:**
 ```bash
-export DAISY_HOME="$DAISY_ROOT/home/personal"
+$DAISY_ROOT/scripts/daisy/create-home.sh sideprojects
 ```
 
-Then reload and update symlinks:
+**Use it in a workspace:**
 ```bash
-source ~/.zshenv
-cd $DAISY_ROOT
-ln -sf home/personal/journal/journal.md journal.md
-ln -sf home/personal/journal/today.md today.md
-ln -sf home/personal/tasks tasks
-ln -sf home/personal/projects projects
+cd /path/to/project
+daisy-init sideprojects
 ```
 
-Rebuild the prompt to use the new home's `include.txt`:
+**Switch an existing workspace to a different home:**
 ```bash
-$DAISY_ROOT/scripts/build-prompt.sh
+daisy-init personal
 ```
 
-## Creating a New Home
-
-To create a new home (e.g., "sideprojects"):
-
-1. **Copy the template:**
-   ```bash
-   cp -r templates/home home/sideprojects
-   ```
-
-2. **Customize the prompt includes:**
-   - Edit `home/sideprojects/include.txt`
-   - List the prompts you want to load (one per line)
-   - Example:
-     ```
-     daisy
-     retrospective
-     github
-     ```
-
-3. **Update environment variable:**
-   - Edit `~/.zshenv` and set:
-     ```bash
-     export DAISY_HOME="$DAISY_ROOT/home/sideprojects"
-     ```
-   - Reload: `source ~/.zshenv`
-
-4. **Create symlinks:**
-   ```bash
-   cd $DAISY_ROOT
-   ln -sf home/sideprojects/journal/journal.md journal.md
-   ln -sf home/sideprojects/journal/today.md today.md
-   ln -sf home/sideprojects/tasks tasks
-   ln -sf home/sideprojects/projects projects
-   ```
-
-5. **Build prompt and start using:**
-   ```bash
-   $DAISY_ROOT/scripts/build-prompt.sh
-   ```
-   
-   Then: `Read @daisy/AGENTS.md and start a new day`
+Each workspace independently tracks its own home via `.daisy/home`. No global state to manage.
 
 ## Todo.txt Format Quick Reference
 
@@ -299,84 +228,7 @@ To create a new home (e.g., "sideprojects"):
 - `(D)` - Someday (backlog)
 - No priority - Inbox (needs triage)
 
-**Common contexts:**
-- `@jira` - JIRA tickets
-- `@git` or `@github` - Pull requests
-- `@meeting` - Meetings/calendar items
-- `@review` - Needs attention
-
-**Common projects:**
-- `+WXSA-XXXXX` - Jira ticket keys
-- `+FY26Q2` - Fiscal quarter tags
-- `+repo-name` - Repository names
-
 See [docs/todotxt.md](docs/todotxt.md) for complete format specification.
-
-## People References
-
-Use `~alias` to reference people consistently across all files. The alias is defined in `tasks/alias.txt`:
-
-```
-~jdoe Jane Doe <jdoe@example.com> #jane #manager
-~deaclose Dean Close <deaclose@cisco.com> #me #dean
-```
-
-**Usage:**
-- In tasks: `(B) 2026-01-16 Review design with ~jdoe @meeting`
-- In logs: `1430 - Met with ~jdoe about architecture`
-- In journal: `Discussed approach with ~jdoe, got approval`
-
-This enables consistent cross-referencing and avoids ambiguity (first names, nicknames, etc.)
-
-## Example Daily Entry
-
-```markdown
-### 2026-01-16 Thursday
-
-#### Agenda
-- 0930 Stand-up meeting
-- 1400 Sprint planning
-- 1530 Code review session
-
-#### High-Priority Tasks
-- [x] @jira Complete PROJ-1234 implementation +PROJ-1234 +FY26Q2
-- [ ] @jira Review design doc for PROJ-1235 +PROJ-1235
-
-#### Task Inbox
-- [ ] Triage new tickets +INBOX
-
-#### GitHub PRs
-- [x] @git Review PR#1538 +WXSA-15770
-
-#### Log
-- 0930 - New day started
-- 1045 - Traced PROJ-1234 to race condition in adapter init
-- 1215 - Met with ~jdoe about approach, decided instance-based pattern
-- 1530 - PR#1545 opened
-- 1600 - PR#1545 merged
-
-#### Retrospective
-- **Successes:** Found root cause efficiently, collaborated well with ~jdoe
-- **Misses:** Could have asked for help earlier in debugging
-- **What would a Sage do next:** Document the race condition pattern for team
-```
-
-## Daily Workflow Summary
-
-For detailed workflow instructions, see the **[Quickstart Guide](docs/quickstart.md)**.
-
-**Essential commands:**
-- `start a new day` - Archive yesterday, create fresh today.md
-- `start a new week` - Archive completed tasks, start new day
-- `done [task]` - Mark task complete
-- `log [message]` - Add timestamped entry
-- `check system` - Verify setup and file integrity
-
-**AI behavior:**
-- Proactively logs discoveries, decisions, milestones
-- Helps with daily retrospective
-- Curates journal archives for utility
-- Maintains format consistency
 
 ## Philosophy
 
@@ -384,15 +236,12 @@ For detailed workflow instructions, see the **[Quickstart Guide](docs/quickstart
 - **AI-native** - Designed for conversational AI assistance
 - **Flexible** - Adapt to your workflow, not vice versa
 - **Reflective** - Daily retrospectives drive continuous improvement
-- **Multi-context** - Switch between work/personal/projects using homes
+- **Multi-context** - Multiple homes, multiple workspaces, zero interference
 
 ## See Also
 
-- **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes ⭐
+- **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes
 - **[AI Workflow Guide](prompts/daisy.md)** - User-focused workflows and commands
 - **[Admin Guide](prompts/daisy-admin.md)** - Internal architecture and specifications
 - **[Detailed Examples](docs/examples/daisy.md)** - Interaction walkthroughs
-- **[Test Cases](docs/test-cases.md)** - Validation test cases
 - [Todo.txt Specification](docs/todotxt.md) - Format reference
-- [Work-Specific Workflows](prompts/work.md) - Work conventions
-- [Retrospective Guide](prompts/retrospective.md) - Reflection prompts
