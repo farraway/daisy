@@ -1,3 +1,11 @@
+## Trigger
+
+Read the full `daisy/prompts/retrospective.md` when:
+- User says "Daisy, help me with my retrospective"
+- User asks about successes, misses, or "what would a sage do"
+- Starting a new week (weekly retrospective section)
+- User asks for reflection prompts or feels stuck/overwhelmed
+
 # Daily and Weekly Retrospective Guide
 
 This prompt helps structure end-of-day and end-of-week reflections.

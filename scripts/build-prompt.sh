@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Build AGENTS.md by concatenating prompts listed in $DAISY_HOME/include.txt
 # Usage: build-prompt.sh
+#
+# Supports two include modes:
+#   daisy          - Full prompt included in AGENTS.md
+#   ~retrospective - Lazy: only ## Trigger section included, rest loaded on demand
 
 set -e
 
@@ -53,7 +57,18 @@ cat > "$TEMP_FILE" <<EOF
 EOF
 
 # Track included prompts
-INCLUDED_PROMPTS=()
+FULL_PROMPTS=()
+LAZY_PROMPTS=()
+
+# Extract trigger section from a prompt file (everything from ## Trigger to next ## or # heading)
+extract_trigger() {
+    local file="$1"
+    awk '
+        /^## Trigger/ { found=1; next }
+        found && /^#/ { exit }
+        found { print }
+    ' "$file"
+}
 
 # Read include.txt and process each prompt
 while IFS= read -r line || [ -n "$line" ]; do
@@ -61,10 +76,18 @@ while IFS= read -r line || [ -n "$line" ]; do
     [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
     
     # Trim whitespace
-    prompt_name=$(echo "$line" | xargs)
+    line=$(echo "$line" | xargs)
     
     # Skip if empty after trimming
-    [ -z "$prompt_name" ] && continue
+    [ -z "$line" ] && continue
+    
+    # Check for lazy prefix (~)
+    LAZY=false
+    prompt_name="$line"
+    if [[ "$line" =~ ^~ ]]; then
+        LAZY=true
+        prompt_name="${line#\~}"
+    fi
     
     # Resolve prompt path
     prompt_path="$DAISY_ROOT/prompts/${prompt_name}.md"
@@ -80,19 +103,43 @@ while IFS= read -r line || [ -n "$line" ]; do
         continue
     fi
     
-    # Add separator and prompt content
-    echo "" >> "$TEMP_FILE"
-    echo "# ============================================================" >> "$TEMP_FILE"
-    echo "# Prompt: $prompt_name" >> "$TEMP_FILE"
-    echo "# Source: prompts/${prompt_name}.md" >> "$TEMP_FILE"
-    echo "# ============================================================" >> "$TEMP_FILE"
-    echo "" >> "$TEMP_FILE"
-    
-    # Append prompt content
-    cat "$prompt_path" >> "$TEMP_FILE"
-    
-    # Track this prompt
-    INCLUDED_PROMPTS+=("$prompt_name")
+    if [ "$LAZY" = true ]; then
+        # Lazy mode: extract only the ## Trigger section
+        trigger_content=$(extract_trigger "$prompt_path")
+        
+        if [ -z "$trigger_content" ]; then
+            echo "Warning: No ## Trigger section found in $prompt_path" >&2
+            echo "  Include as full prompt instead, or add a ## Trigger section" >&2
+            # Fall back to full inclusion
+            echo "" >> "$TEMP_FILE"
+            echo "# ============================================================" >> "$TEMP_FILE"
+            echo "# Prompt: $prompt_name (WARNING: no trigger section, included in full)" >> "$TEMP_FILE"
+            echo "# Source: prompts/${prompt_name}.md" >> "$TEMP_FILE"
+            echo "# ============================================================" >> "$TEMP_FILE"
+            echo "" >> "$TEMP_FILE"
+            cat "$prompt_path" >> "$TEMP_FILE"
+            FULL_PROMPTS+=("$prompt_name")
+        else
+            echo "" >> "$TEMP_FILE"
+            echo "# ============================================================" >> "$TEMP_FILE"
+            echo "# Prompt: $prompt_name (lazy - read full prompt when triggered)" >> "$TEMP_FILE"
+            echo "# Source: prompts/${prompt_name}.md" >> "$TEMP_FILE"
+            echo "# ============================================================" >> "$TEMP_FILE"
+            echo "" >> "$TEMP_FILE"
+            echo "$trigger_content" >> "$TEMP_FILE"
+            LAZY_PROMPTS+=("$prompt_name")
+        fi
+    else
+        # Full mode: include entire prompt
+        echo "" >> "$TEMP_FILE"
+        echo "# ============================================================" >> "$TEMP_FILE"
+        echo "# Prompt: $prompt_name" >> "$TEMP_FILE"
+        echo "# Source: prompts/${prompt_name}.md" >> "$TEMP_FILE"
+        echo "# ============================================================" >> "$TEMP_FILE"
+        echo "" >> "$TEMP_FILE"
+        cat "$prompt_path" >> "$TEMP_FILE"
+        FULL_PROMPTS+=("$prompt_name")
+    fi
     
 done < "$INCLUDE_FILE"
 
@@ -101,7 +148,12 @@ mv "$TEMP_FILE" "$OUTPUT_FILE"
 
 # Report success
 echo "✅ Built AGENTS.md for home: $HOME_NAME"
-echo "   Included: ${INCLUDED_PROMPTS[*]}"
+if [ ${#FULL_PROMPTS[@]} -gt 0 ]; then
+    echo "   Full: ${FULL_PROMPTS[*]}"
+fi
+if [ ${#LAZY_PROMPTS[@]} -gt 0 ]; then
+    echo "   Lazy: ${LAZY_PROMPTS[*]}"
+fi
 echo "   Output: $OUTPUT_FILE"
 echo "   Size: $(wc -l < "$OUTPUT_FILE") lines"
 

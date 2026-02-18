@@ -1,16 +1,17 @@
 # Daisy Prompt Includes Template
 # Each line is a prompt name that resolves to $DAISY_ROOT/prompts/{name}.md
 # Lines starting with # are comments and will be ignored
+#
+# Prefix with ~ for lazy loading (only ## Trigger section included in AGENTS.md)
+# No prefix = full prompt included in AGENTS.md
 
-# Core daisy system (always first)
+# Core daisy system (always loaded in full)
 daisy
 
-# Reflection framework
-retrospective
+# Lazy-loaded prompts (trigger section only, full prompt read on demand)
+~retrospective
 
 # Add your home-specific prompts below
 # Examples:
-# cisco
-# jira
-# github
-# webex
+# # # ~github
+# 

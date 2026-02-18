@@ -1077,6 +1077,64 @@ Current scripts (`new-day.sh`, `new-week.sh`, `done.sh`, `log.sh`) implement bas
 
 These features are documented here for future implementation. Project workflows and log auditing are currently handled by the agent following prompt instructions rather than dedicated scripts.
 
+**Implemented scripts:**
+
+| Script | Purpose |
+|--------|---------|
+| `new-day.sh` | Archive yesterday, generate new today.md |
+| `new-week.sh` | Archive completed tasks to done.txt + new day |
+| `done.sh` | Mark task complete in todo.txt and today.md |
+| `log.sh` | Add timestamped log entry to today.md |
+| `switch-home.sh` | Update symlinks and rebuild AGENTS.md for a different home |
+| `create-home.sh` | Create new home from template, optionally activate |
+| `build-prompt.sh` | Generate AGENTS.md from include.txt (supports lazy loading) |
+
+## AGENTS.md Build System
+
+### Lazy Loading Architecture
+
+To keep `AGENTS.md` small and save tokens, prompts can be included in two modes:
+
+**Full inclusion** (default): The entire prompt file is embedded in `AGENTS.md`. Used for core prompts that are always needed (e.g., `daisy`).
+
+**Lazy inclusion** (`~` prefix in `include.txt`): Only the `## Trigger` section from the prompt file is embedded. The trigger section tells the agent when to read the full prompt on demand.
+
+### include.txt Format
+
+```
+# Full inclusion (entire file in AGENTS.md)
+daisy
+
+# Lazy inclusion (trigger only, full file read on demand)
+~retrospective
+~github
+```
+
+### Adding a ## Trigger Section to a Prompt
+
+Every lazy-loaded prompt must start with a `## Trigger` section before any other heading:
+
+```markdown
+## Trigger
+
+Read the full `daisy/prompts/{name}.md` when:
+- {condition 1}
+- {condition 2}
+- {condition 3}
+
+# {Prompt Title}
+...rest of prompt...
+```
+
+The `build-prompt.sh` script extracts everything between `## Trigger` and the next heading (`#` or `##`). If no `## Trigger` section is found, the prompt falls back to full inclusion with a warning.
+
+### Token Budget
+
+With lazy loading, the work home `AGENTS.md` is approximately:
+- **~500 lines** (trigger-only mode) vs **~1700 lines** (all-full mode)
+- ~70% reduction in tokens per session
+- Full prompt files are only loaded when their trigger conditions match
+
 ## See Also
 
 - **`@daisy/prompts/daisy.md`** - User-focused workflows

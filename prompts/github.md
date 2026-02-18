@@ -1,190 +1,83 @@
-# GitHub Utilities Quick Reference
+## Trigger
 
-Quick reference for common GitHub operations via MCP tools.
+Read the full `daisy/prompts/github.md` when:
+- User asks to check, review, or create a PR on public GitHub
+- User mentions @git or @github context tasks
+- User asks about PRs, issues, or repositories on github.com
+- User says "check PR", "review PR", or "open PR"
+- Working with GitHub PRs section in today.md
 
-## Authentication
+# GitHub (Public) Quick Reference
 
-### Option 1: MCP Server (Recommended)
-Use MCP tools - authentication handled automatically via MCP settings.
+Quick reference for **github.com** operations via the **github** MCP server.
 
-### Option 2: Direct API (Fallback when MCP unavailable)
+## MCP Server
 
-1. Set token in workspace `.env.sh`:
+Use the **github** MCP server tools for all public GitHub operations. These tools use a `user-github-*` naming convention and handle authentication automatically.
+
+Key tools:
+- `user-github-list_pull_requests` / `user-github-search_pull_requests` - Find PRs
+- `user-github-pull_request_read` - Get PR details, diff, status, reviews, comments
+- `user-github-create_pull_request` / `user-github-update_pull_request` - Manage PRs
+- `user-github-merge_pull_request` - Merge PRs
+- `user-github-pull_request_review_write` - Create/submit reviews
+- `user-github-list_issues` / `user-github-search_issues` - Find issues
+- `user-github-issue_write` / `user-github-issue_read` - Manage issues
+- `user-github-get_file_contents` / `user-github-search_code` - Browse code
+- `user-github-list_commits` / `user-github-get_commit` - Browse commits
+
+### Direct API Fallback
+
+Only when MCP is unavailable:
+
+1. Set token in `.env.sh`:
    ```bash
    export DAISY_SECRET_GITHUB_TOKEN="your-token"
    ```
 
-2. Source credentials before API calls:
-   ```bash
-   source .env.sh
-   ```
-
-3. Use in curl commands:
+2. Use in curl commands:
    ```bash
    curl -H "Authorization: Bearer $DAISY_SECRET_GITHUB_TOKEN" \
      "https://api.github.com/..."
    ```
 
-## Available MCP Tools
+## Common Operations
 
-- `mcp_aicodinggithub_call_github_graphql_for_query` - Query data (read-only)
-- `mcp_aicodinggithub_call_github_graphql_for_mutation` - Modify data (write)
-- `mcp_aicodinggithub_get_pull_request_diff` - Get PR diff
-- `mcp_aicodinggithub_call_github_restapi_for_search` - Search code/users
-
-**Use these MCP tools whenever available. Only use direct API calls below if MCP is unavailable.**
-
-## Common Operations (Direct API Fallback)
-
-### 1. List My Open PRs
-
-```graphql
-query {
-  search(
-    query: "author:@me is:pr is:open repo:Platform-Common/webex-teams-bot"
-    type: ISSUE
-    first: 10
-  ) {
-    issueCount
-    edges {
-      node {
-        ... on PullRequest {
-          number
-          title
-          url
-          createdAt
-          isDraft
-          reviewDecision
-        }
-      }
-    }
-  }
-}
-```
-
-### 2. List PRs Awaiting My Review
-
-```graphql
-query {
-  search(
-    query: "review-requested:@me is:pr is:open repo:Platform-Common/webex-teams-bot"
-    type: ISSUE
-    first: 10
-  ) {
-    issueCount
-    edges {
-      node {
-        ... on PullRequest {
-          number
-          title
-          url
-          author { login }
-        }
-      }
-    }
-  }
-}
-```
-
-### 3. Get PR Status
-
-```graphql
-query {
-  repository(owner: "Platform-Common", name: "webex-teams-bot") {
-    pullRequest(number: 1545) {
-      title
-      state
-      isDraft
-      mergeable
-      reviewDecision
-      statusCheckRollup {
-        state
-      }
-      commits(last: 1) {
-        nodes {
-          commit {
-            statusCheckRollup {
-              contexts(first: 10) {
-                nodes {
-                  ... on CheckRun {
-                    name
-                    conclusion
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-### 4. Add PR Comment
-
-```graphql
-mutation {
-  addComment(input: {
-    subjectId: "PR_NODE_ID"
-    body: "Your comment here"
-  }) {
-    commentEdge {
-      node {
-        id
-        url
-      }
-    }
-  }
-}
-```
-
-**To get PR node ID:**
-```graphql
-query {
-  repository(owner: "Platform-Common", name: "webex-teams-bot") {
-    pullRequest(number: 1545) {
-      id
-    }
-  }
-}
-```
-
-### 5. Request Review
-
-```graphql
-mutation {
-  requestReviews(input: {
-    pullRequestId: "PR_NODE_ID"
-    userIds: ["USER_NODE_ID"]
-  }) {
-    pullRequest {
-      number
-    }
-  }
-}
-```
-
-### 6. Get PR Diff
-
-Use the REST API tool:
-```
-owner: Platform-Common
-repo: webex-teams-bot
-pull_number: 1545
-```
-
-Returns unified diff format.
-
-### 7. Search Code
+### List My Open PRs
 
 ```
-resource: code
-parameters: {
-  "q": "pagerduty adapter language:python repo:Platform-Common/webex-teams-bot",
-  "per_page": 20
-}
+user-github-search_pull_requests
+  query: "author:@me is:open"
+  owner: {owner}
+  repo: {repo}
 ```
+
+### Check PR Status
+
+```
+user-github-pull_request_read
+  method: "get"        # details
+  method: "get_status" # build/check status
+  method: "get_diff"   # diff
+  method: "get_files"  # changed files list
+```
+
+### Create a PR
+
+```
+user-github-create_pull_request
+  owner, repo, title, head, base, body
+```
+
+### Review a PR
+
+For complex reviews with line-level comments:
+1. `user-github-pull_request_review_write` method: "create" (creates pending review)
+2. `user-github-add_comment_to_pending_review` (add line comments)
+3. `user-github-pull_request_review_write` method: "submit_pending" (submit)
+
+For simple reviews:
+- `user-github-pull_request_review_write` with event: "APPROVE" / "REQUEST_CHANGES" / "COMMENT"
 
 ## Workflow Integration
 
@@ -192,107 +85,24 @@ parameters: {
 
 When user opens a PR, add to todo.txt:
 ```
-(C) YYYY-MM-DD @git {PR title} [org/repo/PR#{num}](url) +JIRA-KEY +FY26Q2
+(C) YYYY-MM-DD @git {PR title} [{owner}/{repo}/PR#{num}](url) +PROJECT
 ```
 
 ### Checking PR Status
 
-When user says "check PR 1545":
-1. Query PR status (state, checks, reviews)
-2. Report: "PR#1545: {title} - {state}, checks: {pass/fail}, reviews: {approved/changes requested}"
+When user says "check PR 123":
+1. Use `pull_request_read` with method "get" and "get_status"
+2. Report: state, checks, reviews
 
-### Reviewing PRs
+### When PR is Merged
 
-When user says "review PR 1545":
-1. Get PR diff
-2. Present key changes
-3. Help draft review comments if needed
-
-### Merging PR
-
-When PR is merged:
 1. Mark complete in todo.txt: `x YYYY-MM-DD ...`
-2. Update JIRA with PR link
-3. Log in today.md
-
-## Git Commands Quick Reference
-
-### Common Workflows
-
-**Start new feature:**
-```bash
-git checkout -b fix-wxsa-18425-pagerduty-race
-```
-
-**Commit with JIRA reference:**
-```bash
-git commit -m "PROJ-1234: Fix PagerDuty race condition
-
-- Implement instance-based adapter pattern
-- Add thread safety with locks
-- Update tests"
-```
-
-**Push branch:**
-```bash
-git push -u origin fix-wxsa-18425-pagerduty-race
-```
-
-**Update branch with main:**
-```bash
-git fetch origin
-git rebase origin/main
-```
-
-**Interactive rebase (clean up commits):**
-```bash
-git rebase -i HEAD~3
-```
-
-### Branch Naming Conventions
-
-**Work repos pattern:**
-- `fix-{jira-key}-{short-description}`
-- `feature-{jira-key}-{short-description}`
-- `docs-{jira-key}-{short-description}`
-
-**Examples:**
-- `fix-wxsa-18425-pagerduty-race`
-- `feature-wxsa-18364-cc-escalation`
-- `docs-wxsa-18413-catalog-readme`
-
-## PR Description Template
-
-```markdown
-## Summary
-Brief description of changes
-
-## JIRA
-Closes PROJ-5678
-
-## Changes
-- Change 1
-- Change 2
-- Change 3
-
-## Testing
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing completed
-
-## Screenshots (if applicable)
-...
-
-## Notes for Reviewers
-Any specific areas needing attention
-```
+2. Log in today.md
 
 ## Best Practices
 
-- **Link JIRA in PR** - Use "Closes WXSA-XXXXX" or "Relates to WXSA-XXXXX"
 - **Draft PRs** - Use draft status for work-in-progress
 - **Small PRs** - Easier to review, faster to merge
 - **Descriptive commits** - Include what and why
 - **Clean history** - Rebase/squash before merge if needed
-- **Response to reviews** - Address all comments, respond explicitly
 - **CI/CD green** - Fix all tests before requesting review
