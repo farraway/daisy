@@ -98,7 +98,7 @@ if [ "$ACTIVATE" = true ]; then
     echo "   2. Activating in current workspace..."
     "$DAISY_ROOT/daisy/scripts/daisy-init.sh" "$NAME"
 else
-    echo "   2. To use in a workspace: daisy-init $NAME"
+    echo "   2. To use in a workspace: daisy init $NAME"
 fi
 
 exit 0

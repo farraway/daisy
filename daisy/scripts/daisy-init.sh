@@ -9,8 +9,7 @@
 #
 # Re-running with a different home switches the workspace to that home.
 #
-# Symlink this into your PATH:
-#   ln -s $DAISY_ROOT/daisy/scripts/daisy-init.sh ~/bin/daisy-init
+# Called via `daisy init` (see $DAISY_ROOT/daisy.sh). Can also be invoked directly.
 
 set -e
 

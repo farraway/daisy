@@ -39,7 +39,7 @@ resolve_home() {
     fi
 
     echo "Error: Cannot resolve home. No .daisy/home found and DAISY_HOME not set." >&2
-    echo "  Run 'daisy-init <home>' in your workspace, or set DAISY_HOME in ~/.zshenv" >&2
+    echo "  Run 'daisy init <home>' in your workspace, or set DAISY_HOME in ~/.zshenv" >&2
     return 1
 }
 

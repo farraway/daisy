@@ -11,34 +11,24 @@ git clone <repo-url> daisy
 cd daisy
 ```
 
-### 2. Set Environment Variable
-
-Add to `~/.zshenv` (or `~/.bashrc`):
-```bash
-export DAISY_ROOT="/path/to/daisy"
-```
-
-Then reload: `source ~/.zshenv`
-
-### 3. Add `daisy-init` to your PATH
+### 2. Install
 
 ```bash
-ln -s $DAISY_ROOT/daisy/scripts/daisy-init.sh ~/bin/daisy-init
+./daisy.sh install
 ```
 
-### 4. Build Prompts for Your Home
+This will:
+- Create a `~/bin/daisy` symlink
+- Add `DAISY_ROOT` and `DAISY_HOME` to your shell rc file (`.zshenv`, `.bashrc`, etc.)
+- Interactively select a default home (or create one)
 
-```bash
-$DAISY_ROOT/daisy/scripts/build-prompt.sh cisco    # or whichever home
-```
+Then reload your shell: `source ~/.zshenv` (or open a new terminal).
 
-This generates `home/work/AGENTS.md` from the home's `include.txt`.
-
-### 5. Initialize Daisy in a Workspace
+### 3. Initialize Daisy in a Workspace
 
 ```bash
 cd /path/to/your/project
-daisy-init cisco
+daisy init work
 ```
 
 This creates:
@@ -73,27 +63,20 @@ Daisy, log [message]
 Daisy, what are my tasks?
 ```
 
-### Maintenance Commands
+### CLI Commands
 
-**Verify system health:**
 ```bash
-$DAISY_ROOT/daisy/scripts/healthcheck.sh
-```
-
-**Rebuild prompt after editing prompts:**
-```bash
-$DAISY_ROOT/daisy/scripts/build-prompt.sh cisco
-```
-
-**Initialize Daisy in a new workspace:**
-```bash
-cd /path/to/new/project
-daisy-init cisco
-```
-
-**Switch a workspace to a different home:**
-```bash
-daisy-init personal
+daisy status              # Quick workspace summary
+daisy healthcheck         # System validation
+daisy log Did thing A     # Add log entry (no quoting needed)
+daisy done "task pattern" # Mark task complete
+daisy new-day             # Start a new day
+daisy new-week            # Start a new week
+daisy build work         # Rebuild AGENTS.md after editing prompts
+daisy init work          # Initialize Daisy in a new workspace
+daisy init personal     # Switch workspace to a different home
+daisy clean               # Remove Daisy from the current workspace
+daisy install             # Set up ~/bin/daisy and shell environment
 ```
 
 ### Optional: API Authentication
@@ -109,7 +92,7 @@ For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
 
 3. Verify configuration:
    ```bash
-   $DAISY_ROOT/daisy/scripts/check-secrets.sh
+   daisy healthcheck
    ```
 
 **Note:** MCP servers handle authentication automatically. `.env.sh` is only needed as a fallback.
@@ -121,9 +104,10 @@ For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
 ```
 daisy.000000/                 # Repository root ($DAISY_ROOT)
 ├── AGENTS.md                 # System architecture & internal specs (auto-applied by Cursor)
+├── daisy.sh                  # CLI entry point (symlink to ~/bin/daisy)
 ├── daisy/                    # Distributable system files
 │   ├── scripts/
-│   │   ├── daisy-init.sh     # Initialize daisy in a workspace (symlink to ~/bin)
+│   │   ├── daisy-init.sh     # Initialize daisy in a workspace
 │   │   ├── build-prompt.sh   # Generate home/{home}/AGENTS.md
 │   │   ├── healthcheck.sh    # System validation
 │   │   ├── check-secrets.sh  # Verify .env.sh configuration
@@ -133,8 +117,7 @@ daisy.000000/                 # Repository root ($DAISY_ROOT)
 │   │   ├── new-week.sh       # Start new week
 │   │   ├── done.sh           # Mark task complete
 │   │   ├── log.sh            # Add log entry
-│   │   ├── create-home.sh    # Create new home from template
-│   │   └── switch-home.sh    # (deprecated - use daisy-init)
+│   │   └── create-home.sh    # Create new home from template
 │   ├── templates/
 │   │   ├── cursor-rule.md    # Cursor rule for workspace integration
 │   │   ├── project.md        # Template for project files
@@ -176,7 +159,7 @@ daisy.000000/                 # Repository root ($DAISY_ROOT)
     └── retrospective.md      # Reflection guide
 ```
 
-### Workspace Layout (after `daisy-init cisco`)
+### Workspace Layout (after `daisy init work`)
 
 ```
 workspace/
@@ -198,20 +181,15 @@ Different workspaces can use different homes concurrently.
 
 Homes isolate task/journal/project data for different contexts (e.g., work vs personal).
 
-**Create a new home:**
-```bash
-$DAISY_ROOT/daisy/scripts/create-home.sh sideprojects
-```
-
-**Use it in a workspace:**
+**Create a new home and initialize it in a workspace:**
 ```bash
 cd /path/to/project
-daisy-init sideprojects
+daisy init --new sideprojects
 ```
 
 **Switch an existing workspace to a different home:**
 ```bash
-daisy-init personal
+daisy init personal
 ```
 
 Each workspace independently tracks its own home via `.daisy/home`. No global state to manage.

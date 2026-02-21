@@ -111,7 +111,7 @@ ok "DAISY_ROOT: $DAISY_ROOT"
 # Check 2: DAISY_HOME (via .daisy/home or env var)
 if ! resolve_home 2>/dev/null; then
     error "Cannot resolve home. No .daisy/home found and DAISY_HOME not set."
-    echo "  Run 'daisy-init <home>' in your workspace, or set DAISY_HOME in ~/.zshenv" >&2
+    echo "  Run 'daisy init <home>' in your workspace, or set DAISY_HOME in ~/.zshenv" >&2
     exit 1
 fi
 
@@ -140,7 +140,7 @@ fi
 # Continue even if check_today fails (errors already reported)
 
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh switch-home.sh)
+HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then

@@ -1,5 +1,6 @@
 # Per-home generated files
 home/*/AGENTS.md
+.daisy
 
 # Environment and secrets
 .env.sh

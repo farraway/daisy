@@ -31,7 +31,7 @@ export DAISY_ROOT="/path/to/daisy"
 
 Initialize Daisy in each workspace:
 ```bash
-daisy-init cisco       # or whichever home to use
+daisy init work       # or whichever home to use
 ```
 
 This creates a `.daisy/` directory with symlinks to the active home's data, installs the Cursor rule, and builds `AGENTS.md`. Different workspaces can use different homes concurrently.
@@ -280,10 +280,10 @@ Do not log:
 **User says:** "Daisy, switch to [home]"
 
 ```bash
-daisy-init "home-name"
+daisy init "home-name"
 ```
 
-Re-running `daisy-init` with a different home name replaces the `.daisy/` symlinks. Each workspace independently tracks its own home, so switching in one workspace does not affect others.
+Re-running `daisy init` with a different home name replaces the `.daisy/` symlinks. Each workspace independently tracks its own home, so switching in one workspace does not affect others.
 
 ### Creating a New Home
 
@@ -297,7 +297,7 @@ $DAISY_ROOT/daisy/scripts/create-home.sh "home-name" [--activate]
 1. Copies `daisy/templates/home/` to `home/{name}/`
 2. Creates projects directory with `_archive/`
 3. Builds `AGENTS.md` for the new home
-4. Optionally activates in the current workspace (runs `daisy-init`)
+4. Optionally activates in the current workspace (runs `daisy init`)
 
 ### Retrospective
 

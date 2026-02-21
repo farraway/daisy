@@ -20,7 +20,7 @@ This allows different workspaces on the same machine to use different homes conc
    - If found, read home name from file
    - Resolve: DAISY_HOME = $DAISY_ROOT/home/{name}
 2. Fall back to $DAISY_HOME environment variable
-3. If neither: error "Cannot resolve home. Run daisy-init <home>"
+3. If neither: error "Cannot resolve home. Run 'daisy init <home>'"
 4. Verify home directory exists at $DAISY_HOME
 5. Verify include.txt exists at $DAISY_HOME/include.txt
 ```
@@ -57,10 +57,10 @@ This allows different workspaces on the same machine to use different homes conc
 
 ## Home Switching (Per-Workspace)
 
-**Command:** "switch to [home]" or re-run `daisy-init <home>`
+**Command:** "switch to [home]" or re-run `daisy init <home>`
 
 ```
-1. Run: daisy-init <home-name>
+1. Run: daisy init <home-name>
    - This replaces .daisy/ symlinks in the current workspace
    - Does NOT affect other workspaces
 
@@ -85,15 +85,15 @@ This allows different workspaces on the same machine to use different homes conc
    b. Output: home/{name}/AGENTS.md
 
 5. Ask: "Activate this home in the current workspace?"
-   - If yes, run: daisy-init {name}
+   - If yes, run: daisy init {name}
 ```
 
 ## Related Scripts
 
 | Script | Purpose |
 |--------|---------|
+| `daisy.sh` (repo root) | CLI entry point (`~/bin/daisy`) |
 | `daisy-init.sh` | Initialize/switch home in a workspace |
 | `create-home.sh` | Create new home from template |
 | `common.sh` | Shared home resolution functions |
 | `healthcheck.sh` | System validation |
-| `switch-home.sh` | DEPRECATED - use daisy-init instead |

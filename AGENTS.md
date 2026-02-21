@@ -112,16 +112,16 @@ When referencing people:
 
 | Script | Purpose |
 |--------|---------|
+| `daisy.sh` (repo root) | CLI entry point (`~/bin/daisy`) — dispatches subcommands |
+| `daisy-init.sh` | Initialize Daisy in a workspace with a specific home |
 | `new-day.sh` | Archive yesterday, generate new today.md |
 | `new-week.sh` | Archive completed tasks to done.txt + new day |
 | `done.sh` | Mark task complete in todo.txt and today.md |
 | `log.sh` | Add timestamped log entry to today.md |
 | `create-home.sh` | Create new home from template, optionally activate |
 | `build-prompt.sh` | Generate home/{home}/AGENTS.md from include.txt |
-| `daisy-init.sh` | Initialize Daisy in a workspace with a specific home |
 | `common.sh` | Shared functions (resolve_home, require_env) |
 | `healthcheck.sh` | System validation |
-| `switch-home.sh` | DEPRECATED - use daisy-init instead |
 
 Current scripts do NOT yet implement: priority floor rules, task preservation from yesterday, quiet day consolidation, advanced sync validation, project management commands, JIRA sync from project files, or log audit during retrospective. These are handled by the agent following prompt instructions.
 
