@@ -23,13 +23,13 @@ Then reload: `source ~/.zshenv`
 ### 3. Add `daisy-init` to your PATH
 
 ```bash
-ln -s $DAISY_ROOT/scripts/daisy-init.sh ~/bin/daisy-init
+ln -s $DAISY_ROOT/daisy/scripts/daisy-init.sh ~/bin/daisy-init
 ```
 
 ### 4. Build Prompts for Your Home
 
 ```bash
-$DAISY_ROOT/scripts/build-prompt.sh cisco    # or whichever home
+$DAISY_ROOT/daisy/scripts/build-prompt.sh cisco    # or whichever home
 ```
 
 This generates `home/work/AGENTS.md` from the home's `include.txt`.
@@ -77,12 +77,12 @@ Daisy, what are my tasks?
 
 **Verify system health:**
 ```bash
-$DAISY_ROOT/scripts/healthcheck.sh
+$DAISY_ROOT/daisy/scripts/healthcheck.sh
 ```
 
 **Rebuild prompt after editing prompts:**
 ```bash
-$DAISY_ROOT/scripts/build-prompt.sh cisco
+$DAISY_ROOT/daisy/scripts/build-prompt.sh cisco
 ```
 
 **Initialize Daisy in a new workspace:**
@@ -102,14 +102,14 @@ For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
 
 1. Copy the template to your workspace:
    ```bash
-   cp $DAISY_ROOT/templates/env.sh.template .env.sh
+   cp $DAISY_ROOT/daisy/templates/env.sh.template .env.sh
    ```
 
 2. Edit `.env.sh` and fill in your tokens
 
 3. Verify configuration:
    ```bash
-   $DAISY_ROOT/scripts/check-secrets.sh
+   $DAISY_ROOT/daisy/scripts/check-secrets.sh
    ```
 
 **Note:** MCP servers handle authentication automatically. `.env.sh` is only needed as a fallback.
@@ -119,66 +119,61 @@ For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
 ### Daisy Repo
 
 ```
-daisy/
-├── AGENTS.md               # System architecture & internal specs (auto-applied by Cursor)
-├── scripts/
-│   ├── daisy-init.sh       # Initialize daisy in a workspace (symlink to ~/bin)
-│   ├── build-prompt.sh     # Generate home/{home}/AGENTS.md
-│   ├── healthcheck.sh      # System validation
-│   ├── check-secrets.sh    # Verify .env.sh configuration
-│   ├── commit.sh           # Auto-commit helper
-│   └── daisy/              # Workflow scripts
-│       ├── common.sh       # Shared functions (resolve_home, require_env)
-│       ├── new-day.sh      # Start new day
-│       ├── new-week.sh     # Start new week
-│       ├── done.sh         # Mark task complete
-│       ├── log.sh          # Add log entry
-│       ├── create-home.sh  # Create new home from template
-│       └── switch-home.sh  # (deprecated - use daisy-init)
+daisy.000000/                 # Repository root ($DAISY_ROOT)
+├── AGENTS.md                 # System architecture & internal specs (auto-applied by Cursor)
+├── daisy/                    # Distributable system files
+│   ├── scripts/
+│   │   ├── daisy-init.sh     # Initialize daisy in a workspace (symlink to ~/bin)
+│   │   ├── build-prompt.sh   # Generate home/{home}/AGENTS.md
+│   │   ├── healthcheck.sh    # System validation
+│   │   ├── check-secrets.sh  # Verify .env.sh configuration
+│   │   ├── commit.sh         # Auto-commit helper
+│   │   ├── common.sh         # Shared functions (resolve_home, require_env)
+│   │   ├── new-day.sh        # Start new day
+│   │   ├── new-week.sh       # Start new week
+│   │   ├── done.sh           # Mark task complete
+│   │   ├── log.sh            # Add log entry
+│   │   ├── create-home.sh    # Create new home from template
+│   │   └── switch-home.sh    # (deprecated - use daisy-init)
+│   ├── templates/
+│   │   ├── cursor-rule.md    # Cursor rule for workspace integration
+│   │   ├── project.md        # Template for project files
+│   │   ├── journal-day.md    # Template for daily entries
+│   │   ├── journal-week.md   # Template for weekly entries
+│   │   ├── env.sh.template   # Environment variables template
+│   │   └── home/             # Template for new homes
+│   └── docs/                 # Detailed reference documentation
+│       ├── task-format.md    # Task format regex and conversion rules
+│       ├── task-sync.md      # Bidirectional sync rules
+│       ├── templates.md      # Template placeholder specs
+│       ├── workflows.md      # Status, add task, change priority algorithms
+│       ├── logging.md        # Logging design and archival rules
+│       ├── projects.md       # Project management architecture
+│       ├── home-management.md # Per-workspace home resolution
+│       ├── examples.md       # Interaction walkthroughs
+│       ├── todotxt.md        # Todo.txt format specification
+│       └── test-cases.md     # Validation test cases
 ├── home/
-│   ├── work/              # Work home
-│   │   ├── AGENTS.md       # Generated prompt (git-ignored)
-│   │   ├── include.txt     # List of prompts to load
+│   ├── work/                # Work home
+│   │   ├── AGENTS.md         # Generated prompt (git-ignored)
+│   │   ├── include.txt       # List of prompts to load
 │   │   ├── journal/
 │   │   ├── tasks/
 │   │   ├── projects/
 │   │   └── perf/
-│   └── personal/         # Personal home
+│   └── personal/           # Personal home
 │       ├── AGENTS.md
 │       ├── include.txt
 │       ├── journal/
 │       ├── tasks/
 │       └── projects/
-├── prompts/
-│   ├── daisy.md            # Core workflow instructions for AI
-│   ├── agents-md.md        # Guide for writing AGENTS.md files
-│   ├── work.md            # Work-specific augmentations
-│   ├──       # Work internal GitHub Enterprise
-│   ├── github.md           # Public GitHub
-│   ├── jira.md             # JIRA utilities
-│   ├── webex.md            # Webex API utilities
-│   └── retrospective.md    # Reflection guide
-├── templates/
-│   ├── cursor-rule.md      # Cursor rule for workspace integration
-│   ├── project.md          # Template for project files
-│   ├── journal-day.md      # Template for daily entries
-│   ├── journal-week.md     # Template for weekly entries
-│   ├── env.sh.template     # Environment variables template
-│   └── home/               # Template for new homes
-└── docs/
-    ├── daisy/              # Detailed reference documentation
-    │   ├── task-format.md  # Task format regex and conversion rules
-    │   ├── task-sync.md    # Bidirectional sync rules
-    │   ├── templates.md    # Template placeholder specs
-    │   ├── workflows.md    # Status, add task, change priority algorithms
-    │   ├── logging.md      # Logging design and archival rules
-    │   ├── projects.md     # Project management architecture
-    │   ├── home-management.md  # Per-workspace home resolution
-    │   ├── examples.md     # Interaction walkthroughs
-    │   ├── todotxt.md      # Todo.txt format specification
-    │   └── test-cases.md   # Validation test cases
-    ├── cv/                 # CV/resume management
-    └── transcripts/        # Reference material
+└── prompts/
+    ├── daisy.md              # Core workflow instructions for AI
+    ├── agents-md.md          # Guide for writing AGENTS.md files
+    ├── work.md              # Work-specific augmentations
+    ├──         # Work internal GitHub Enterprise
+    ├── github.md             # Public GitHub
+    └── retrospective.md      # Reflection guide
 ```
 
 ### Workspace Layout (after `daisy-init cisco`)
@@ -205,7 +200,7 @@ Homes isolate task/journal/project data for different contexts (e.g., work vs pe
 
 **Create a new home:**
 ```bash
-$DAISY_ROOT/scripts/daisy/create-home.sh sideprojects
+$DAISY_ROOT/daisy/scripts/create-home.sh sideprojects
 ```
 
 **Use it in a workspace:**
@@ -238,7 +233,7 @@ Each workspace independently tracks its own home via `.daisy/home`. No global st
 - `(D)` - Someday (backlog)
 - No priority - Inbox (needs triage)
 
-See [docs/daisy/todotxt.md](docs/daisy/todotxt.md) for complete format specification.
+See [daisy/docs/todotxt.md](daisy/docs/todotxt.md) for complete format specification.
 
 ## Philosophy
 
@@ -252,5 +247,5 @@ See [docs/daisy/todotxt.md](docs/daisy/todotxt.md) for complete format specifica
 
 - **[AI Workflow Guide](prompts/daisy.md)** - User-focused workflows and commands
 - **[Admin Guide](AGENTS.md)** - Internal architecture and specifications
-- **[Detailed Examples](docs/daisy/examples.md)** - Interaction walkthroughs
-- [Todo.txt Specification](docs/daisy/todotxt.md) - Format reference
+- **[Detailed Examples](daisy/docs/examples.md)** - Interaction walkthroughs
+- [Todo.txt Specification](daisy/docs/todotxt.md) - Format reference

@@ -27,9 +27,9 @@ fi
 require_env || exit 1
 
 # Run master health check
-if ! "$DAISY_ROOT/scripts/healthcheck.sh" >/dev/null 2>&1; then
+if ! "$DAISY_ROOT/daisy/scripts/healthcheck.sh" >/dev/null 2>&1; then
     echo "Error: System health check failed" >&2
-    echo "Run: $DAISY_ROOT/scripts/healthcheck.sh" >&2
+    echo "Run: $DAISY_ROOT/daisy/scripts/healthcheck.sh" >&2
     exit 1
 fi
 
@@ -104,6 +104,6 @@ fi
 echo "✅ Logged completion at $TIME"
 
 # Commit changes
-"$DAISY_ROOT/scripts/commit.sh" "Completed: $SUMMARY"
+"$DAISY_ROOT/daisy/scripts/commit.sh" "Completed: $SUMMARY"
 
 exit 0

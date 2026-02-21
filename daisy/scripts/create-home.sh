@@ -10,8 +10,8 @@ source "$SCRIPT_DIR/common.sh"
 # Health check mode
 if [ "$1" = "--healthcheck" ]; then
     require_root || exit 1
-    if [ ! -d "$DAISY_ROOT/templates/home" ]; then
-        echo "Error: home template not found at templates/home/" >&2
+    if [ ! -d "$DAISY_ROOT/daisy/templates/home" ]; then
+        echo "Error: home template not found at daisy/templates/home/" >&2
         exit 1
     fi
     exit 0
@@ -48,13 +48,13 @@ if [ -d "$TARGET_DIR" ]; then
 fi
 
 # Validate template exists
-if [ ! -d "$DAISY_ROOT/templates/home" ]; then
-    echo "Error: Home template not found at $DAISY_ROOT/templates/home/" >&2
+if [ ! -d "$DAISY_ROOT/daisy/templates/home" ]; then
+    echo "Error: Home template not found at $DAISY_ROOT/daisy/templates/home/" >&2
     exit 1
 fi
 
 # Copy template
-cp -r "$DAISY_ROOT/templates/home" "$TARGET_DIR"
+cp -r "$DAISY_ROOT/daisy/templates/home" "$TARGET_DIR"
 
 # Create projects directory with archive
 mkdir -p "$TARGET_DIR/projects/_archive"
@@ -91,12 +91,12 @@ echo ""
 
 # Build AGENTS.md for the new home
 echo "   Building AGENTS.md..."
-"$DAISY_ROOT/scripts/build-prompt.sh" "$NAME"
+"$DAISY_ROOT/daisy/scripts/build-prompt.sh" "$NAME"
 
 # Activate if requested
 if [ "$ACTIVATE" = true ]; then
     echo "   2. Activating in current workspace..."
-    "$DAISY_ROOT/scripts/daisy-init.sh" "$NAME"
+    "$DAISY_ROOT/daisy/scripts/daisy-init.sh" "$NAME"
 else
     echo "   2. To use in a workspace: daisy-init $NAME"
 fi

@@ -25,7 +25,7 @@ Accessed via workspace symlink:
 
 ## Project File Specification
 
-See `templates/project.md` for the canonical template. Key sections:
+See `daisy/templates/project.md` for the canonical template. Key sections:
 
 | Section | Purpose | When Updated |
 |---------|---------|-------------|
@@ -51,7 +51,7 @@ Projects and tasks are linked bidirectionally through the `+PROJECT` tag:
 1. Parse project name from user input
 2. Check if projects/{name}.md already exists
    - If exists: "Project '{name}' already exists. Open it?"
-3. Copy templates/project.md to projects/{name}.md
+3. Copy daisy/templates/project.md to projects/{name}.md
 4. Fill in known details:
    a. Tag: +{name} (kebab-case)
    b. JIRA: ticket key if mentioned

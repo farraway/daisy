@@ -6,7 +6,7 @@ Homes are resolved per-workspace, not globally. Each workspace has a `.daisy/` d
 - `home` - plain text file with the home name (e.g., "work")
 - Symlinks to the active home's data (tasks/, today.md, journal.md, projects/, AGENTS.md)
 
-**Resolution order** (used by all scripts via `scripts/daisy/common.sh`):
+**Resolution order** (used by all scripts via `daisy/scripts/common.sh`):
 1. Walk up from `$PWD` looking for `.daisy/home`
 2. Fall back to `$DAISY_HOME` env var
 3. Error if neither exists
@@ -76,12 +76,12 @@ This allows different workspaces on the same machine to use different homes conc
 1. Check if home/{name}/ exists
    - If exists, error: "Home '{name}' already exists"
 
-2. Copy templates/home/ to home/{name}/
+2. Copy daisy/templates/home/ to home/{name}/
 
 3. Instruct user to customize home/{name}/include.txt
 
 4. Build AGENTS.md:
-   a. Run $DAISY_ROOT/scripts/build-prompt.sh {name}
+   a. Run $DAISY_ROOT/daisy/scripts/build-prompt.sh {name}
    b. Output: home/{name}/AGENTS.md
 
 5. Ask: "Activate this home in the current workspace?"
@@ -94,6 +94,6 @@ This allows different workspaces on the same machine to use different homes conc
 |--------|---------|
 | `daisy-init.sh` | Initialize/switch home in a workspace |
 | `create-home.sh` | Create new home from template |
-| `daisy/common.sh` | Shared home resolution functions |
+| `common.sh` | Shared home resolution functions |
 | `healthcheck.sh` | System validation |
 | `switch-home.sh` | DEPRECATED - use daisy-init instead |

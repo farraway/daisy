@@ -52,9 +52,9 @@ This document is for:
 
 4. **`todo.txt` always reflects current reality.** Active tasks, recently completed (awaiting weekly archival), and cancelled (awaiting cleanup).
 
-For detailed format specifications (regex patterns, conversion rules, file organization), see [`docs/daisy/task-format.md`](docs/daisy/task-format.md).
+For detailed format specifications (regex patterns, conversion rules, file organization), see [`daisy/docs/task-format.md`](daisy/docs/task-format.md).
 
-For synchronization rules and validation algorithms, see [`docs/daisy/task-sync.md`](docs/daisy/task-sync.md).
+For synchronization rules and validation algorithms, see [`daisy/docs/task-sync.md`](daisy/docs/task-sync.md).
 
 ## CRITICAL: Format Preservation Rules
 
@@ -119,7 +119,7 @@ When referencing people:
 | `create-home.sh` | Create new home from template, optionally activate |
 | `build-prompt.sh` | Generate home/{home}/AGENTS.md from include.txt |
 | `daisy-init.sh` | Initialize Daisy in a workspace with a specific home |
-| `daisy/common.sh` | Shared functions (resolve_home, require_env) |
+| `common.sh` | Shared functions (resolve_home, require_env) |
 | `healthcheck.sh` | System validation |
 | `switch-home.sh` | DEPRECATED - use daisy-init instead |
 
@@ -127,7 +127,7 @@ Current scripts do NOT yet implement: priority floor rules, task preservation fr
 
 ## Testing After Changes
 
-After modifying scripts, templates, or workflow logic, validate against the test cases in [`docs/daisy/test-cases.md`](docs/daisy/test-cases.md). The test cases cover:
+After modifying scripts, templates, or workflow logic, validate against the test cases in [`daisy/docs/test-cases.md`](daisy/docs/test-cases.md). The test cases cover:
 
 - New day/week generation (task extraction, template substitution)
 - Task completion (cross-file consistency)
@@ -142,7 +142,7 @@ Run through the relevant scenarios mentally or by constructing sample inputs. En
 
 `build-prompt.sh` generates `home/{home}/AGENTS.md` (not the repo root). Each home has its own AGENTS.md. Workspaces access it via `.daisy/AGENTS.md` symlink.
 
-Usage: `$DAISY_ROOT/scripts/build-prompt.sh [home-name]`
+Usage: `$DAISY_ROOT/daisy/scripts/build-prompt.sh [home-name]`
 
 If no home-name argument is given, the script resolves the home via `.daisy/home` or `$DAISY_HOME`.
 
@@ -182,7 +182,7 @@ Read the full `daisy/prompts/{name}.md` when:
 ```
 
 3. Add `~{name}` (lazy) or `{name}` (full) to the appropriate `home/{home}/include.txt`
-4. Rebuild: `$DAISY_ROOT/scripts/build-prompt.sh {home-name}`
+4. Rebuild: `$DAISY_ROOT/daisy/scripts/build-prompt.sh {home-name}`
 
 The `build-prompt.sh` script extracts everything between `## Trigger` and the next heading (`#` or `##`). If no `## Trigger` section is found, the prompt falls back to full inclusion with a warning.
 
@@ -197,16 +197,16 @@ With lazy loading, the work home `AGENTS.md` is approximately:
 
 Detailed algorithms, format specifications, and examples have been extracted into focused reference docs:
 
-- [`docs/daisy/task-format.md`](docs/daisy/task-format.md) - Task format regex, conversion rules, file organization
-- [`docs/daisy/task-sync.md`](docs/daisy/task-sync.md) - Bidirectional sync rules, validation algorithm
-- [`docs/daisy/templates.md`](docs/daisy/templates.md) - Template placeholders and formatting rules
-- [`docs/daisy/workflows.md`](docs/daisy/workflows.md) - Status, add task, change priority algorithms
-- [`docs/daisy/logging.md`](docs/daisy/logging.md) - Logging design rationale, triggers, abridged archival
-- [`docs/daisy/projects.md`](docs/daisy/projects.md) - Project management architecture and algorithms
-- [`docs/daisy/home-management.md`](docs/daisy/home-management.md) - Per-workspace home resolution, health checks
-- [`docs/daisy/examples.md`](docs/daisy/examples.md) - Complete interaction walkthroughs
-- [`docs/daisy/todotxt.md`](docs/daisy/todotxt.md) - Todo.txt format specification
-- [`docs/daisy/test-cases.md`](docs/daisy/test-cases.md) - Validation test cases (run after system changes)
+- [`daisy/docs/task-format.md`](daisy/docs/task-format.md) - Task format regex, conversion rules, file organization
+- [`daisy/docs/task-sync.md`](daisy/docs/task-sync.md) - Bidirectional sync rules, validation algorithm
+- [`daisy/docs/templates.md`](daisy/docs/templates.md) - Template placeholders and formatting rules
+- [`daisy/docs/workflows.md`](daisy/docs/workflows.md) - Status, add task, change priority algorithms
+- [`daisy/docs/logging.md`](daisy/docs/logging.md) - Logging design rationale, triggers, abridged archival
+- [`daisy/docs/projects.md`](daisy/docs/projects.md) - Project management architecture and algorithms
+- [`daisy/docs/home-management.md`](daisy/docs/home-management.md) - Per-workspace home resolution, health checks
+- [`daisy/docs/examples.md`](daisy/docs/examples.md) - Complete interaction walkthroughs
+- [`daisy/docs/todotxt.md`](daisy/docs/todotxt.md) - Todo.txt format specification
+- [`daisy/docs/test-cases.md`](daisy/docs/test-cases.md) - Validation test cases (run after system changes)
 
 ## See Also
 

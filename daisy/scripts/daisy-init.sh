@@ -10,7 +10,7 @@
 # Re-running with a different home switches the workspace to that home.
 #
 # Symlink this into your PATH:
-#   ln -s $DAISY_ROOT/scripts/daisy-init.sh ~/bin/daisy-init
+#   ln -s $DAISY_ROOT/daisy/scripts/daisy-init.sh ~/bin/daisy-init
 
 set -e
 
@@ -50,7 +50,7 @@ if [ "$CREATE_NEW" = true ]; then
         echo "Error: Home '$HOME_NAME' already exists at $HOME_DIR" >&2
         exit 1
     fi
-    "$DAISY_ROOT/scripts/daisy/create-home.sh" "$HOME_NAME"
+    "$DAISY_ROOT/daisy/scripts/create-home.sh" "$HOME_NAME"
 fi
 
 # Validate home exists
@@ -150,7 +150,7 @@ if [ -L "$RULE_FILE" ] || [ -e "$RULE_FILE" ]; then
     fi
 else
     mkdir -p "$RULES_DIR"
-    ln -s "$DAISY_ROOT/templates/cursor-rule.md" "$RULE_FILE"
+    ln -s "$DAISY_ROOT/daisy/templates/cursor-rule.md" "$RULE_FILE"
     echo "  ✓ Installed Cursor rule"
 fi
 
@@ -231,7 +231,7 @@ fi
 
 if [ ! -f "$HOME_DIR/AGENTS.md" ]; then
     echo "  Building AGENTS.md..."
-    DAISY_HOME="$HOME_DIR" "$DAISY_ROOT/scripts/build-prompt.sh" "$HOME_NAME"
+    DAISY_HOME="$HOME_DIR" "$DAISY_ROOT/daisy/scripts/build-prompt.sh" "$HOME_NAME"
 fi
 
 echo ""

@@ -6,7 +6,7 @@ echo ""
 
 if [ ! -f ".env.sh" ]; then
     echo "❌ .env.sh not found in workspace"
-    echo "   Copy template: cp \$DAISY_ROOT/templates/env.sh.template .env.sh"
+    echo "   Copy template: cp \$DAISY_ROOT/daisy/templates/env.sh.template .env.sh"
     exit 1
 fi
 

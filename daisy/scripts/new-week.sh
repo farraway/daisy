@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/common.sh"
 if [ "$1" = "--healthcheck" ]; then
     require_env || exit 1
 
-    if [ ! -f "$DAISY_ROOT/templates/journal-week.md" ]; then
+    if [ ! -f "$DAISY_ROOT/daisy/templates/journal-week.md" ]; then
         echo "Error: Template missing: templates/journal-week.md" >&2
         exit 1
     fi
@@ -32,9 +32,9 @@ fi
 require_env || exit 1
 
 # Run master health check
-if ! "$DAISY_ROOT/scripts/healthcheck.sh" >/dev/null 2>&1; then
+if ! "$DAISY_ROOT/daisy/scripts/healthcheck.sh" >/dev/null 2>&1; then
     echo "Error: System health check failed" >&2
-    echo "Run: $DAISY_ROOT/scripts/healthcheck.sh" >&2
+    echo "Run: $DAISY_ROOT/daisy/scripts/healthcheck.sh" >&2
     exit 1
 fi
 
@@ -121,7 +121,7 @@ DAY=$(date +%A)
 TIME=$(date +%H%M)
 
 # Generate new today.md from WEEKLY template
-TEMPLATE=$(cat "$DAISY_ROOT/templates/journal-week.md")
+TEMPLATE=$(cat "$DAISY_ROOT/daisy/templates/journal-week.md")
 
 # Replace placeholders
 TEMPLATE="${TEMPLATE//\{DATE\}/$DATE}"
@@ -174,6 +174,6 @@ echo "   Inbox tasks: ${#inbox_tasks[@]}"
 echo "   GitHub tasks: ${#github_tasks[@]}"
 
 # Commit changes
-"$DAISY_ROOT/scripts/commit.sh" "New week: $DATE $DAY"
+"$DAISY_ROOT/daisy/scripts/commit.sh" "New week: $DATE $DAY"
 
 exit 0

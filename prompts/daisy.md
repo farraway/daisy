@@ -38,7 +38,7 @@ This creates a `.daisy/` directory with symlinks to the active home's data, inst
 
 Verify setup:
 ```bash
-$DAISY_ROOT/scripts/healthcheck.sh
+$DAISY_ROOT/daisy/scripts/healthcheck.sh
 ```
 
 ## File Structure
@@ -56,7 +56,7 @@ Each workspace has a `.daisy/` directory with symlinks to the active home:
 
 **AGENTS.md Generation:**
 - Each home has `home/{home}/include.txt` listing prompts to load
-- Run `$DAISY_ROOT/scripts/build-prompt.sh [home-name]` to generate `home/{home}/AGENTS.md`
+- Run `$DAISY_ROOT/daisy/scripts/build-prompt.sh [home-name]` to generate `home/{home}/AGENTS.md`
 - Prompts listed without prefix are included in full
 - Prompts prefixed with `~` are lazy-loaded: only their `## Trigger` section is included, directing you to read the full file on demand
 
@@ -128,7 +128,7 @@ Tasks in `today.md` are organized:
 
 ## Common Workflows
 
-All workflows use scripts in `$DAISY_ROOT/scripts/daisy/`. They automatically commit changes with descriptive messages.
+All workflows use scripts in `$DAISY_ROOT/daisy/scripts/`. They automatically commit changes with descriptive messages.
 
 ### Starting a New Day
 
@@ -137,7 +137,7 @@ All workflows use scripts in `$DAISY_ROOT/scripts/daisy/`. They automatically co
 **Pre-workflow:** Check yesterday's retrospective. If incomplete, offer to help complete it before proceeding.
 
 ```bash
-$DAISY_ROOT/scripts/daisy/new-day.sh
+$DAISY_ROOT/daisy/scripts/new-day.sh
 ```
 
 **What it does:**
@@ -158,7 +158,7 @@ $DAISY_ROOT/scripts/daisy/new-day.sh
 **Pre-workflow:** Same as new day -- check yesterday's retrospective first.
 
 ```bash
-$DAISY_ROOT/scripts/daisy/new-week.sh
+$DAISY_ROOT/daisy/scripts/new-week.sh
 ```
 
 **What it does (everything new-day does, PLUS):**
@@ -172,7 +172,7 @@ $DAISY_ROOT/scripts/daisy/new-week.sh
 **User says:** "Daisy, done [pattern]" or "done [pattern]"
 
 ```bash
-$DAISY_ROOT/scripts/daisy/done.sh "pattern"
+$DAISY_ROOT/daisy/scripts/done.sh "pattern"
 ```
 
 **What it does:**
@@ -189,7 +189,7 @@ $DAISY_ROOT/scripts/daisy/done.sh "pattern"
 **User says:** "Daisy, log [message]" or "log [message]"
 
 ```bash
-$DAISY_ROOT/scripts/daisy/log.sh "message"
+$DAISY_ROOT/daisy/scripts/log.sh "message"
 ```
 
 **What it does:**
@@ -290,11 +290,11 @@ Re-running `daisy-init` with a different home name replaces the `.daisy/` symlin
 **User says:** "Daisy, create home [name]"
 
 ```bash
-$DAISY_ROOT/scripts/daisy/create-home.sh "home-name" [--activate]
+$DAISY_ROOT/daisy/scripts/create-home.sh "home-name" [--activate]
 ```
 
 **What it does:**
-1. Copies `templates/home/` to `home/{name}/`
+1. Copies `daisy/templates/home/` to `home/{name}/`
 2. Creates projects directory with `_archive/`
 3. Builds `AGENTS.md` for the new home
 4. Optionally activates in the current workspace (runs `daisy-init`)
@@ -331,7 +331,7 @@ Projects are more than a list of tasks -- they have goals, context, resources, o
 **User says:** "Daisy, start project [name]" or "new project [name]"
 
 **Algorithm:**
-1. Create `.daisy/projects/{name}.md` from template (`$DAISY_ROOT/templates/project.md`)
+1. Create `.daisy/projects/{name}.md` from template (`$DAISY_ROOT/daisy/templates/project.md`)
 2. Fill in known details (tag, goal, context) from conversation
 3. Optionally create initial tasks in todo.txt with `+PROJECT` tag
 4. Auto-commit
@@ -403,6 +403,6 @@ Scripts require `git_write` permission for auto-commits. User approves once, the
 
 - **`@daisy/AGENTS.md`** - Internal architecture and detailed specifications
 - **`@daisy/prompts/retrospective.md`** - Reflection framework
-- **`@daisy/docs/daisy/examples.md`** - Complete interaction examples
-- **`@daisy/docs/daisy/todotxt.md`** - Full todo.txt format specification
-- **`@daisy/templates/project.md`** - Project file template
+- **`@daisy/daisy/docs/examples.md`** - Complete interaction examples
+- **`@daisy/daisy/docs/todotxt.md`** - Full todo.txt format specification
+- **`@daisy/daisy/templates/project.md`** - Project file template

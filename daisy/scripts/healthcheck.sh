@@ -10,7 +10,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/daisy/common.sh"
+source "$SCRIPT_DIR/common.sh"
 
 # Handle --force flag
 if [ "$1" = "--force" ]; then
@@ -126,7 +126,7 @@ fi
 ok "Git repository: $(cd "$DAISY_ROOT" && git rev-parse --short HEAD)"
 
 # Check 4: Required directories
-for dir in "home" "scripts" "prompts" "templates"; do
+for dir in "home" "daisy/scripts" "prompts" "daisy/templates"; do
     if [ ! -d "$DAISY_ROOT/$dir" ]; then
         error "Missing directory: $dir"
         ERRORS=$((ERRORS + 1))
@@ -140,21 +140,19 @@ fi
 # Continue even if check_today fails (errors already reported)
 
 # Check 6: Run component health checks
-if [ -d "$DAISY_ROOT/scripts/daisy" ]; then
-    for script in "$DAISY_ROOT/scripts/daisy"/*.sh; do
-        if [ -f "$script" ] && [ -x "$script" ]; then
-            script_name=$(basename "$script")
-            if "$script" --healthcheck >/dev/null 2>&1; then
-                ok "Component: $script_name"
-            else
-                error "Component: $script_name failed health check"
-                # Run again to show error message
-                "$script" --healthcheck 2>&1 | sed 's/^/  /' >&2
-                ERRORS=$((ERRORS + 1))
-            fi
+HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh switch-home.sh)
+for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
+    script="$DAISY_ROOT/daisy/scripts/$script_name"
+    if [ -f "$script" ] && [ -x "$script" ]; then
+        if "$script" --healthcheck >/dev/null 2>&1; then
+            ok "Component: $script_name"
+        else
+            error "Component: $script_name failed health check"
+            "$script" --healthcheck 2>&1 | sed 's/^/  /' >&2
+            ERRORS=$((ERRORS + 1))
         fi
-    done
-fi
+    fi
+done
 
 # Summary
 echo ""

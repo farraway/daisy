@@ -1,6 +1,6 @@
 # Template Specifications
 
-The template files live at `templates/journal-day.md` and `templates/journal-week.md`. This document describes the placeholder substitution system and formatting rules.
+The template files live at `daisy/templates/journal-day.md` and `daisy/templates/journal-week.md`. This document describes the placeholder substitution system and formatting rules.
 
 ## journal-day.md Template
 

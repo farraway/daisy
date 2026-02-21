@@ -51,7 +51,7 @@ if [ ! -d "$TARGET_DIR" ]; then
         echo "  $(basename "$dir")" >&2
     done
     echo "" >&2
-    echo "To create a new home: $DAISY_ROOT/scripts/daisy/create-home.sh $TARGET" >&2
+    echo "To create a new home: $DAISY_ROOT/daisy/scripts/create-home.sh $TARGET" >&2
     exit 1
 fi
 
@@ -96,7 +96,7 @@ ln -sf "home/$TARGET/journal/today.md" today.md
 ln -sf "home/$TARGET/projects" projects
 
 # Rebuild AGENTS.md
-DAISY_HOME="$TARGET_DIR" "$DAISY_ROOT/scripts/build-prompt.sh"
+DAISY_HOME="$TARGET_DIR" "$DAISY_ROOT/daisy/scripts/build-prompt.sh"
 
 # Report
 if [ -n "$CURRENT_NAME" ]; then
