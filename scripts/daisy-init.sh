@@ -71,6 +71,13 @@ TARGET="$(cd "$TARGET" && pwd)"
 echo "Initializing Daisy in: $TARGET"
 echo "  Home: $HOME_NAME"
 
+# --- git init ---
+
+if [ ! -d "$TARGET/.git" ]; then
+    git init "$TARGET" >/dev/null 2>&1
+    echo "  ✓ Initialized git repository"
+fi
+
 # --- daisy/ symlink to repo ---
 
 if [ -e "$TARGET/daisy" ]; then
@@ -149,19 +156,75 @@ fi
 
 # --- .gitignore ---
 
-if [ -f "$TARGET/.gitignore" ]; then
-    if ! grep -qx ".daisy/" "$TARGET/.gitignore" 2>/dev/null; then
-        echo "" >> "$TARGET/.gitignore"
-        echo "# Daisy workspace config (per-machine)" >> "$TARGET/.gitignore"
-        echo ".daisy/" >> "$TARGET/.gitignore"
-        echo "daisy" >> "$TARGET/.gitignore"
-        echo "  ✓ Added .daisy/ and daisy to .gitignore"
+GITIGNORE="$TARGET/.gitignore"
+DAISY_IGNORE_ENTRIES=(".daisy/" "daisy" ".cursor/rules/daisy.md")
+GITIGNORE_CHANGED=false
+
+if [ ! -f "$GITIGNORE" ]; then
+    touch "$GITIGNORE"
+    echo "  ✓ Created .gitignore"
+fi
+
+NEED_HEADER=true
+for entry in "${DAISY_IGNORE_ENTRIES[@]}"; do
+    if ! grep -qxF "$entry" "$GITIGNORE" 2>/dev/null; then
+        if [ "$NEED_HEADER" = true ]; then
+            echo "" >> "$GITIGNORE"
+            echo "# Daisy workspace config (per-machine)" >> "$GITIGNORE"
+            NEED_HEADER=false
+        fi
+        echo "$entry" >> "$GITIGNORE"
+        GITIGNORE_CHANGED=true
     fi
-elif [ -d "$TARGET/.git" ]; then
-    echo "# Daisy workspace config (per-machine)" > "$TARGET/.gitignore"
-    echo ".daisy/" >> "$TARGET/.gitignore"
-    echo "daisy" >> "$TARGET/.gitignore"
-    echo "  ✓ Created .gitignore with .daisy/ and daisy"
+done
+
+if [ "$GITIGNORE_CHANGED" = true ]; then
+    echo "  ✓ Added daisy paths to .gitignore"
+fi
+
+# --- .cursorignore ---
+
+CURSORIGNORE="$TARGET/.cursorignore"
+CURSOR_NEGATE_ENTRIES=("!.daisy/" "!daisy" "!.cursor/rules/daisy.md")
+CURSORIGNORE_CHANGED=false
+
+if [ ! -f "$CURSORIGNORE" ]; then
+    touch "$CURSORIGNORE"
+fi
+
+NEED_HEADER=true
+for entry in "${CURSOR_NEGATE_ENTRIES[@]}"; do
+    if ! grep -qxF "$entry" "$CURSORIGNORE" 2>/dev/null; then
+        if [ "$NEED_HEADER" = true ]; then
+            echo "" >> "$CURSORIGNORE"
+            echo "# Allow Cursor to index daisy paths (gitignored but needed for agent context)" >> "$CURSORIGNORE"
+            NEED_HEADER=false
+        fi
+        echo "$entry" >> "$CURSORIGNORE"
+        CURSORIGNORE_CHANGED=true
+    fi
+done
+
+if [ "$CURSORIGNORE_CHANGED" = true ]; then
+    echo "  ✓ Configured .cursorignore to index daisy paths"
+fi
+
+# --- Git identity ---
+
+GITCONFIG_FILE="$HOME_DIR/gitconfig"
+if [ -f "$GITCONFIG_FILE" ]; then
+    GIT_NAME=$(grep '^name=' "$GITCONFIG_FILE" | cut -d= -f2-)
+    GIT_EMAIL=$(grep '^email=' "$GITCONFIG_FILE" | cut -d= -f2-)
+
+    if [ -n "$GIT_NAME" ] && [ -n "$GIT_EMAIL" ]; then
+        git -C "$TARGET" config --local user.name "$GIT_NAME"
+        git -C "$TARGET" config --local user.email "$GIT_EMAIL"
+        echo "  ✓ Set local git identity: $GIT_NAME <$GIT_EMAIL>"
+    else
+        echo "  ⚠ home/$HOME_NAME/gitconfig is incomplete (need both name and email)"
+    fi
+else
+    echo "  ⚠ No gitconfig found for home '$HOME_NAME' (git identity not configured)"
 fi
 
 # --- Build AGENTS.md if missing ---

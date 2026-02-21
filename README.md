@@ -120,6 +120,7 @@ For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable:
 
 ```
 daisy/
+├── AGENTS.md               # System architecture & internal specs (auto-applied by Cursor)
 ├── scripts/
 │   ├── daisy-init.sh       # Initialize daisy in a workspace (symlink to ~/bin)
 │   ├── build-prompt.sh     # Generate home/{home}/AGENTS.md
@@ -150,7 +151,7 @@ daisy/
 │       └── projects/
 ├── prompts/
 │   ├── daisy.md            # Core workflow instructions for AI
-│   ├── daisy-admin.md      # Internal architecture (for system work)
+│   ├── agents-md.md        # Guide for writing AGENTS.md files
 │   ├── work.md            # Work-specific augmentations
 │   ├──       # Work internal GitHub Enterprise
 │   ├── github.md           # Public GitHub
@@ -242,6 +243,6 @@ See [docs/todotxt.md](docs/todotxt.md) for complete format specification.
 
 - **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes
 - **[AI Workflow Guide](prompts/daisy.md)** - User-focused workflows and commands
-- **[Admin Guide](prompts/daisy-admin.md)** - Internal architecture and specifications
+- **[Admin Guide](AGENTS.md)** - Internal architecture and specifications
 - **[Detailed Examples](docs/examples/daisy.md)** - Interaction walkthroughs
 - [Todo.txt Specification](docs/todotxt.md) - Format reference

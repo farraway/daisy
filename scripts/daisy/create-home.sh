@@ -59,6 +59,20 @@ cp -r "$DAISY_ROOT/templates/home" "$TARGET_DIR"
 # Create projects directory with archive
 mkdir -p "$TARGET_DIR/projects/_archive"
 
+# Prompt for git identity
+echo ""
+echo "Git identity for home '$NAME':"
+read -rp "  Name: " GIT_NAME
+read -rp "  Email: " GIT_EMAIL
+
+if [ -n "$GIT_NAME" ] && [ -n "$GIT_EMAIL" ]; then
+    printf 'name=%s\nemail=%s\n' "$GIT_NAME" "$GIT_EMAIL" > "$TARGET_DIR/gitconfig"
+    echo "  ✓ Saved git identity to home/$NAME/gitconfig"
+else
+    echo "  ⚠ Skipped (both name and email required). Edit home/$NAME/gitconfig later."
+fi
+
+echo ""
 echo "✅ Created home: $NAME"
 echo "   Location: $TARGET_DIR"
 echo ""

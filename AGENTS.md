@@ -1,8 +1,8 @@
 # Daisy - System Architecture & Internal Specifications
 
-This document contains the detailed internal specifications for the daisy productivity system.
+This is the AGENTS.md for the daisy repository itself. It is auto-applied by Cursor when editing files within the daisy directory, providing system-level context for modifying the daisy productivity system (Mode 4: meta work).
 
-**For user-focused workflows, see `@daisy/prompts/daisy.md`**
+**For user-facing workflows (Modes 1-3), see `prompts/daisy.md` (loaded via per-home AGENTS.md).**
 
 ## Purpose
 
