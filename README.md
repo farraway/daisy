@@ -166,18 +166,19 @@ daisy/
 │   ├── env.sh.template     # Environment variables template
 │   └── home/               # Template for new homes
 └── docs/
-    ├── quickstart.md
-    ├── todotxt.md
-    ├── test-cases.md
-    └── daisy/              # Detailed reference documentation
-        ├── task-format.md  # Task format regex and conversion rules
-        ├── task-sync.md    # Bidirectional sync rules
-        ├── templates.md    # Template placeholder specs
-        ├── workflows.md    # Status, add task, change priority algorithms
-        ├── logging.md      # Logging design and archival rules
-        ├── projects.md     # Project management architecture
-        ├── home-management.md  # Per-workspace home resolution
-        └── examples.md     # Interaction walkthroughs
+    ├── daisy/              # Detailed reference documentation
+    │   ├── task-format.md  # Task format regex and conversion rules
+    │   ├── task-sync.md    # Bidirectional sync rules
+    │   ├── templates.md    # Template placeholder specs
+    │   ├── workflows.md    # Status, add task, change priority algorithms
+    │   ├── logging.md      # Logging design and archival rules
+    │   ├── projects.md     # Project management architecture
+    │   ├── home-management.md  # Per-workspace home resolution
+    │   ├── examples.md     # Interaction walkthroughs
+    │   ├── todotxt.md      # Todo.txt format specification
+    │   └── test-cases.md   # Validation test cases
+    ├── cv/                 # CV/resume management
+    └── transcripts/        # Reference material
 ```
 
 ### Workspace Layout (after `daisy-init cisco`)
@@ -237,7 +238,7 @@ Each workspace independently tracks its own home via `.daisy/home`. No global st
 - `(D)` - Someday (backlog)
 - No priority - Inbox (needs triage)
 
-See [docs/todotxt.md](docs/todotxt.md) for complete format specification.
+See [docs/daisy/todotxt.md](docs/daisy/todotxt.md) for complete format specification.
 
 ## Philosophy
 
@@ -249,8 +250,7 @@ See [docs/todotxt.md](docs/todotxt.md) for complete format specification.
 
 ## See Also
 
-- **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes
 - **[AI Workflow Guide](prompts/daisy.md)** - User-focused workflows and commands
 - **[Admin Guide](AGENTS.md)** - Internal architecture and specifications
 - **[Detailed Examples](docs/daisy/examples.md)** - Interaction walkthroughs
-- [Todo.txt Specification](docs/todotxt.md) - Format reference
+- [Todo.txt Specification](docs/daisy/todotxt.md) - Format reference

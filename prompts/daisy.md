@@ -404,5 +404,5 @@ Scripts require `git_write` permission for auto-commits. User approves once, the
 - **`@daisy/AGENTS.md`** - Internal architecture and detailed specifications
 - **`@daisy/prompts/retrospective.md`** - Reflection framework
 - **`@daisy/docs/daisy/examples.md`** - Complete interaction examples
-- **`@daisy/docs/todotxt.md`** - Full todo.txt format specification
+- **`@daisy/docs/daisy/todotxt.md`** - Full todo.txt format specification
 - **`@daisy/templates/project.md`** - Project file template

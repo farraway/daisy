@@ -125,6 +125,17 @@ When referencing people:
 
 Current scripts do NOT yet implement: priority floor rules, task preservation from yesterday, quiet day consolidation, advanced sync validation, project management commands, JIRA sync from project files, or log audit during retrospective. These are handled by the agent following prompt instructions.
 
+## Testing After Changes
+
+After modifying scripts, templates, or workflow logic, validate against the test cases in [`docs/daisy/test-cases.md`](docs/daisy/test-cases.md). The test cases cover:
+
+- New day/week generation (task extraction, template substitution)
+- Task completion (cross-file consistency)
+- Priority changes (repositioning in todo.txt and today.md)
+- Sync validation
+
+Run through the relevant scenarios mentally or by constructing sample inputs. Ensure output matches expected formats.
+
 ## AGENTS.md Build System
 
 ### Per-Home Output
@@ -194,8 +205,9 @@ Detailed algorithms, format specifications, and examples have been extracted int
 - [`docs/daisy/projects.md`](docs/daisy/projects.md) - Project management architecture and algorithms
 - [`docs/daisy/home-management.md`](docs/daisy/home-management.md) - Per-workspace home resolution, health checks
 - [`docs/daisy/examples.md`](docs/daisy/examples.md) - Complete interaction walkthroughs
+- [`docs/daisy/todotxt.md`](docs/daisy/todotxt.md) - Todo.txt format specification
+- [`docs/daisy/test-cases.md`](docs/daisy/test-cases.md) - Validation test cases (run after system changes)
 
 ## See Also
 
 - **`prompts/daisy.md`** - User-focused workflows (loaded via per-home AGENTS.md)
-- **`docs/todotxt.md`** - Full todo.txt format specification
