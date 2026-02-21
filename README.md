@@ -169,7 +169,15 @@ daisy/
     ├── quickstart.md
     ├── todotxt.md
     ├── test-cases.md
-    └── examples/
+    └── daisy/              # Detailed reference documentation
+        ├── task-format.md  # Task format regex and conversion rules
+        ├── task-sync.md    # Bidirectional sync rules
+        ├── templates.md    # Template placeholder specs
+        ├── workflows.md    # Status, add task, change priority algorithms
+        ├── logging.md      # Logging design and archival rules
+        ├── projects.md     # Project management architecture
+        ├── home-management.md  # Per-workspace home resolution
+        └── examples.md     # Interaction walkthroughs
 ```
 
 ### Workspace Layout (after `daisy-init cisco`)
@@ -244,5 +252,5 @@ See [docs/todotxt.md](docs/todotxt.md) for complete format specification.
 - **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes
 - **[AI Workflow Guide](prompts/daisy.md)** - User-focused workflows and commands
 - **[Admin Guide](AGENTS.md)** - Internal architecture and specifications
-- **[Detailed Examples](docs/examples/daisy.md)** - Interaction walkthroughs
+- **[Detailed Examples](docs/daisy/examples.md)** - Interaction walkthroughs
 - [Todo.txt Specification](docs/todotxt.md) - Format reference

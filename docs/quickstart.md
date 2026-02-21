@@ -216,7 +216,7 @@ That's all you need to remember. The AI handles the rest.
 
 ### Full Documentation
 - **Complete workflows:** `prompts/daisy.md` - All algorithms and specifications
-- **Examples:** `docs/examples/daisy.md` - Detailed interaction examples
+- **Examples:** `docs/daisy/examples.md` - Detailed interaction examples
 - **Todo.txt format:** `docs/todotxt.md` - Format specification
 
 ---
@@ -243,7 +243,7 @@ That's all you need to remember. The AI handles the rest.
 - Has @git/@github? Goes to GitHub PRs section
 
 **Want to see how it all works:**
-- Read `docs/examples/daisy.md` for detailed walkthroughs
+- Read `docs/daisy/examples.md` for detailed walkthroughs
 - Read `prompts/daisy.md` for complete specifications
 
 ---
