@@ -326,6 +326,16 @@ Projects are more than a list of tasks -- they have goals, context, resources, o
 
 **Project files are where you think. JIRA is where you communicate progress to the company.**
 
+### Recognizing Project References
+
+Any `+name` mention in conversation refers to the Daisy project at `.daisy/projects/{name}.md`. This is the **FIRST** thing to check -- before JIRA, GitHub, or any external system.
+
+**+tag triggers:** When the user mentions `+website`, "the +website project", "check +website", "how's +website", "what's in +website", or any similar phrasing containing a `+name` tag, immediately read `.daisy/projects/{name}.md` and summarize it. Do NOT search JIRA, GitHub, or the filesystem first.
+
+**Listing projects:** When the user asks "list my projects", "what projects do I have?", or similar, list the files in `.daisy/projects/` (excluding `_archive/`). Show each project name (filename without `.md`) and its goal line if easily available.
+
+**Fallback:** If `.daisy/projects/{name}.md` does not exist, tell the user ("There's no project file for +{name} yet") and offer to create one. Do not silently fall back to searching JIRA, GitHub, or other external systems.
+
 ### Starting a Project
 
 **User says:** "Daisy, start project [name]" or "new project [name]"
