@@ -140,13 +140,9 @@ echo "  ✓ Created .daisy/ with symlinks for home: $HOME_NAME"
 RULES_DIR="$TARGET/.cursor/rules"
 mkdir -p "$RULES_DIR"
 
-declare -A CURSOR_RULES=(
-    ["daisy.md"]="cursor-rule.md"
-    ["daisy-logging.md"]="cursor-rule-logging.md"
-)
-
-for RULE_NAME in "${!CURSOR_RULES[@]}"; do
-    TEMPLATE="${CURSOR_RULES[$RULE_NAME]}"
+for RULE_PAIR in "daisy.md:cursor-rule.md" "daisy-logging.md:cursor-rule-logging.md"; do
+    RULE_NAME="${RULE_PAIR%%:*}"
+    TEMPLATE="${RULE_PAIR##*:}"
     RULE_FILE="$RULES_DIR/$RULE_NAME"
     if [ -L "$RULE_FILE" ] || [ -e "$RULE_FILE" ]; then
         if [ -L "$RULE_FILE" ]; then
