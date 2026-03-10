@@ -140,27 +140,19 @@ echo "  ✓ Created .daisy/ with symlinks for home: $HOME_NAME"
 RULES_DIR="$TARGET/.cursor/rules"
 mkdir -p "$RULES_DIR"
 
-for RULE_PAIR in "daisy.md:cursor-rule.md" "daisy-logging.md:cursor-rule-logging.md"; do
+for RULE_PAIR in "daisy.mdc:cursor-rule.mdc" "daisy-logging.mdc:cursor-rule-logging.mdc"; do
     RULE_NAME="${RULE_PAIR%%:*}"
     TEMPLATE="${RULE_PAIR##*:}"
     RULE_FILE="$RULES_DIR/$RULE_NAME"
-    if [ -L "$RULE_FILE" ] || [ -e "$RULE_FILE" ]; then
-        if [ -L "$RULE_FILE" ]; then
-            echo "  ✓ Cursor rule $RULE_NAME already installed"
-        else
-            echo "  ⚠ .cursor/rules/$RULE_NAME exists but is not a symlink"
-            echo "    Remove it and re-run if you want to update."
-        fi
-    else
-        ln -s "$DAISY_ROOT/daisy/templates/$TEMPLATE" "$RULE_FILE"
-        echo "  ✓ Installed Cursor rule: $RULE_NAME"
-    fi
+    rm -f "$RULE_FILE"
+    cp "$DAISY_ROOT/daisy/templates/$TEMPLATE" "$RULE_FILE"
+    echo "  ✓ Installed Cursor rule: $RULE_NAME"
 done
 
 # --- .gitignore ---
 
 GITIGNORE="$TARGET/.gitignore"
-DAISY_IGNORE_ENTRIES=(".daisy/" "daisy" ".cursor/rules/daisy.md" ".cursor/rules/daisy-logging.md")
+DAISY_IGNORE_ENTRIES=(".daisy/" "daisy" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc")
 GITIGNORE_CHANGED=false
 
 if [ ! -f "$GITIGNORE" ]; then
@@ -188,7 +180,7 @@ fi
 # --- .cursorignore ---
 
 CURSORIGNORE="$TARGET/.cursorignore"
-CURSOR_NEGATE_ENTRIES=("!.daisy/" "!daisy" "!.cursor/rules/daisy.md" "!.cursor/rules/daisy-logging.md")
+CURSOR_NEGATE_ENTRIES=("!.daisy/" "!daisy" "!.cursor/rules/daisy.mdc" "!.cursor/rules/daisy-logging.mdc")
 CURSORIGNORE_CHANGED=false
 
 if [ ! -f "$CURSORIGNORE" ]; then
