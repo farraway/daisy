@@ -111,6 +111,7 @@ Tasks in `today.md` are organized:
 
 **Default Inbox checklist (daily):**
 - Check calendar for upcoming events
+- Workout
 - Check that todo.txt is up-to-date
 - Plan day
 - Retrospective
@@ -122,6 +123,7 @@ Tasks in `today.md` are organized:
 - Zero Email Inboxes
 - Zero Chat Notifications
 - Check calendar for upcoming events
+- Workout
 - Check that todo.txt is up-to-date
 - Plan day
 - Retrospective

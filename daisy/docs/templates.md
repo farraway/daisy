@@ -24,6 +24,7 @@ Used by `new-day.sh` to generate `today.md`:
 
 **Inbox:**
 - [ ] Check calendar for upcoming events
+- [ ] Workout
 - [ ] Check that todo.txt is up-to-date
 - [ ] Plan day
 - [ ] Retrospective
@@ -99,6 +100,7 @@ Used by `new-week.sh` to generate `today.md` for week start:
 - [ ] Zero Email Inboxes
 - [ ] Zero Chat Notifications
 - [ ] Check calendar for upcoming events
+- [ ] Workout
 - [ ] Check that todo.txt is up-to-date
 - [ ] Plan day
 - [ ] Retrospective

@@ -32,6 +32,7 @@
 - [ ] Zero Email Inboxes
 - [ ] Zero Chat Notifications
 - [ ] Check calendar for upcoming events
+- [ ] Workout
 - [ ] Check that todo.txt is up-to-date
 - [ ] Plan day
 - [ ] Retrospective
