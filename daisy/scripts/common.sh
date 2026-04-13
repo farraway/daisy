@@ -5,13 +5,13 @@
 #   source "$SCRIPT_DIR/common.sh"
 
 # Resolve DAISY_HOME for the current workspace.
-# 1. Walk up from $PWD looking for .daisy/home
-# 2. Fall back to $DAISY_HOME env var
+# 1. Walk up from $PWD looking for .daisy/home (authoritative)
+# 2. Fall back to $DAISY_HOME env var (convenience default, warns)
 # 3. Error if neither exists
 #
 # Sets: DAISY_HOME, DAISY_HOME_NAME
 resolve_home() {
-    # Walk up directory tree looking for .daisy/home
+    # Walk up directory tree looking for .daisy/home — this is the authoritative source
     local dir="$PWD"
     while [ "$dir" != "/" ]; do
         if [ -f "$dir/.daisy/home" ]; then
@@ -31,9 +31,14 @@ resolve_home() {
         dir=$(dirname "$dir")
     done
 
-    # Fall back to DAISY_HOME env var
+    # Fall back to DAISY_HOME env var — warn so silent wrong-home bugs are visible
     if [ -n "$DAISY_HOME" ]; then
+        if [ ! -d "$DAISY_HOME" ]; then
+            echo "Error: DAISY_HOME does not exist: $DAISY_HOME" >&2
+            return 1
+        fi
         DAISY_HOME_NAME=$(basename "$DAISY_HOME")
+        echo "⚠️  No .daisy/home found; falling back to \$DAISY_HOME ($DAISY_HOME_NAME)" >&2
         export DAISY_HOME DAISY_HOME_NAME
         return 0
     fi

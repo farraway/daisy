@@ -68,8 +68,9 @@ if [ -f "$DAISY_HOME/tasks/todo.txt" ]; then
     # Extract completed tasks
     grep "^x " "$DAISY_HOME/tasks/todo.txt" >> "$DAISY_HOME/tasks/done.txt" || true
     
-    # Count completed tasks
-    completed_count=$(grep -c "^x " "$DAISY_HOME/tasks/todo.txt" || echo "0")
+    # Count completed tasks — grep -c exits 1 on no match, so suppress
+    completed_count=$(grep -c "^x " "$DAISY_HOME/tasks/todo.txt" || true)
+    completed_count=${completed_count:-0}
     
     # Keep only active tasks
     grep -v "^x " "$DAISY_HOME/tasks/todo.txt" > "$DAISY_HOME/tasks/todo.txt.tmp" || true
