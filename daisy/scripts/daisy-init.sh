@@ -149,10 +149,17 @@ for RULE_PAIR in "daisy.mdc:cursor-rule.mdc" "daisy-logging.mdc:cursor-rule-logg
     echo "  ✓ Installed Cursor rule: $RULE_NAME"
 done
 
+# --- Claude command ---
+
+CLAUDE_COMMANDS_DIR="$TARGET/.claude/commands"
+mkdir -p "$CLAUDE_COMMANDS_DIR"
+cp "$DAISY_ROOT/daisy/templates/claude-command.md" "$CLAUDE_COMMANDS_DIR/daisy.md"
+echo "  ✓ Installed Claude command: daisy"
+
 # --- .gitignore ---
 
 GITIGNORE="$TARGET/.gitignore"
-DAISY_IGNORE_ENTRIES=(".daisy/" "daisy" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc")
+DAISY_IGNORE_ENTRIES=(".daisy/" "daisy" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc" ".claude/commands/daisy.md")
 GITIGNORE_CHANGED=false
 
 if [ ! -f "$GITIGNORE" ]; then
@@ -232,3 +239,4 @@ fi
 echo ""
 echo "Done. Daisy is ready in this workspace."
 echo "Start a Cursor session and say: \"Daisy, start a new day\""
+echo "Or use /daisy in Claude Code: \"/daisy start a new day\""

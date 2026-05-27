@@ -34,7 +34,7 @@ Initialize Daisy in each workspace:
 daisy init work       # or whichever home to use
 ```
 
-This creates a `.daisy/` directory with symlinks to the active home's data, installs the Cursor rule, and builds `AGENTS.md`. Different workspaces can use different homes concurrently.
+This creates a `.daisy/` directory with symlinks to the active home's data, installs the Cursor rule and Claude `/daisy` command, and builds `AGENTS.md`. Different workspaces can use different homes concurrently.
 
 Verify setup:
 ```bash

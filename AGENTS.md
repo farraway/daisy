@@ -1,6 +1,6 @@
 # Daisy - System Architecture & Internal Specifications
 
-This is the AGENTS.md for the daisy repository itself. It is auto-applied by Cursor when editing files within the daisy directory, providing system-level context for modifying the daisy productivity system (Mode 4: meta work).
+This is the AGENTS.md for the daisy repository itself. It is auto-applied by Cursor and Claude Code when editing files within the daisy directory, providing system-level context for modifying the daisy productivity system (Mode 4: meta work).
 
 **For user-facing workflows (Modes 1-3), see `prompts/daisy.md` (loaded via per-home AGENTS.md).**
 
