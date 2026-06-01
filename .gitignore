@@ -8,3 +8,9 @@ home/*/AGENTS.md
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Daisy workspace config (per-machine)
+.daisy/
+.cursor/rules/daisy.mdc
+.cursor/rules/daisy-logging.mdc
+.claude/commands/daisy.md

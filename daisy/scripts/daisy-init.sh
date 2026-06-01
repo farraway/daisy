@@ -77,28 +77,6 @@ if [ ! -d "$TARGET/.git" ]; then
     echo "  ✓ Initialized git repository"
 fi
 
-# --- daisy/ symlink to repo ---
-
-if [ -e "$TARGET/daisy" ]; then
-    if [ -L "$TARGET/daisy" ]; then
-        EXISTING="$(readlink "$TARGET/daisy")"
-        if [ "$EXISTING" = "$DAISY_ROOT" ]; then
-            echo "  ✓ daisy/ symlink already exists"
-        else
-            echo "  ⚠ daisy/ symlink exists but points to: $EXISTING" >&2
-            echo "    Expected: $DAISY_ROOT" >&2
-            echo "    Remove it and re-run if you want to update." >&2
-            exit 1
-        fi
-    else
-        echo "Error: $TARGET/daisy exists and is not a symlink" >&2
-        exit 1
-    fi
-else
-    ln -s "$DAISY_ROOT" "$TARGET/daisy"
-    echo "  ✓ Created daisy/ → $DAISY_ROOT"
-fi
-
 # --- .daisy/ directory with home config and symlinks ---
 
 DAISY_DIR="$TARGET/.daisy"
@@ -120,20 +98,25 @@ mkdir -p "$DAISY_DIR"
 # Write home config
 echo "$HOME_NAME" > "$DAISY_DIR/home"
 
-# Create symlinks (relative, so they work if workspace moves)
+# Create absolute symlinks pointing directly to $DAISY_ROOT
 cd "$DAISY_DIR"
-for link in AGENTS.md tasks today.md journal.md projects; do
+for link in tasks today.md journal.md projects; do
     rm -f "$link"
 done
+rm -f AGENTS.md  # may be symlink (old) or file (new) — always regenerate below
 
-ln -s "../daisy/home/$HOME_NAME/AGENTS.md" AGENTS.md
-ln -s "../daisy/home/$HOME_NAME/tasks" tasks
-ln -s "../daisy/home/$HOME_NAME/journal/today.md" today.md
-ln -s "../daisy/home/$HOME_NAME/journal/journal.md" journal.md
-ln -s "../daisy/home/$HOME_NAME/projects" projects
+ln -s "$DAISY_ROOT/home/$HOME_NAME/tasks" tasks
+ln -s "$DAISY_ROOT/home/$HOME_NAME/journal/today.md" today.md
+ln -s "$DAISY_ROOT/home/$HOME_NAME/journal/journal.md" journal.md
+ln -s "$DAISY_ROOT/home/$HOME_NAME/projects" projects
 cd "$TARGET"
 
-echo "  ✓ Created .daisy/ with symlinks for home: $HOME_NAME"
+echo "  ✓ Created .daisy/ symlinks for home: $HOME_NAME"
+
+# Generate AGENTS.md into the workspace
+DAISY_HOME="$HOME_DIR" "$DAISY_ROOT/daisy/scripts/build-prompt.sh" \
+    --output "$DAISY_DIR/AGENTS.md" "$HOME_NAME"
+echo "  ✓ Generated .daisy/AGENTS.md"
 
 # --- Cursor rules ---
 
@@ -159,7 +142,7 @@ echo "  ✓ Installed Claude command: daisy"
 # --- .gitignore ---
 
 GITIGNORE="$TARGET/.gitignore"
-DAISY_IGNORE_ENTRIES=(".daisy/" "daisy" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc" ".claude/commands/daisy.md")
+DAISY_IGNORE_ENTRIES=(".daisy/" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc" ".claude/commands/daisy.md")
 GITIGNORE_CHANGED=false
 
 if [ ! -f "$GITIGNORE" ]; then
@@ -187,7 +170,7 @@ fi
 # --- .cursorignore ---
 
 CURSORIGNORE="$TARGET/.cursorignore"
-CURSOR_NEGATE_ENTRIES=("!.daisy/" "!daisy" "!.cursor/rules/daisy.mdc" "!.cursor/rules/daisy-logging.mdc")
+CURSOR_NEGATE_ENTRIES=("!.daisy/" "!.cursor/rules/daisy.mdc" "!.cursor/rules/daisy-logging.mdc")
 CURSORIGNORE_CHANGED=false
 
 if [ ! -f "$CURSORIGNORE" ]; then
@@ -227,13 +210,6 @@ if [ -f "$GITCONFIG_FILE" ]; then
     fi
 else
     echo "  ⚠ No gitconfig found for home '$HOME_NAME' (git identity not configured)"
-fi
-
-# --- Build AGENTS.md if missing ---
-
-if [ ! -f "$HOME_DIR/AGENTS.md" ]; then
-    echo "  Building AGENTS.md..."
-    DAISY_HOME="$HOME_DIR" "$DAISY_ROOT/daisy/scripts/build-prompt.sh" "$HOME_NAME"
 fi
 
 echo ""

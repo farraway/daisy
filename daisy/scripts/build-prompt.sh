@@ -18,6 +18,13 @@ source "$SCRIPT_DIR/common.sh"
 
 require_root
 
+# Parse --output flag
+OUTPUT_OVERRIDE=""
+if [ "$1" = "--output" ]; then
+    OUTPUT_OVERRIDE="$2"
+    shift 2
+fi
+
 # Resolve which home to build for
 if [ -n "$1" ]; then
     DAISY_HOME_NAME="$1"
@@ -38,8 +45,8 @@ if [ ! -f "$INCLUDE_FILE" ]; then
     exit 1
 fi
 
-# Output file (per-home)
-OUTPUT_FILE="$DAISY_HOME/AGENTS.md"
+# Output file: explicit --output, else per-home default
+OUTPUT_FILE="${OUTPUT_OVERRIDE:-$DAISY_HOME/AGENTS.md}"
 
 # Temporary file for building
 TEMP_FILE="$(mktemp)"
@@ -97,8 +104,11 @@ while IFS= read -r line || [ -n "$line" ]; do
         prompt_name="${line#\~}"
     fi
 
-    # Resolve prompt path
-    prompt_path="$DAISY_ROOT/prompts/${prompt_name}.md"
+    # Resolve prompt path: home-specific first, then root
+    prompt_path="$DAISY_HOME/prompts/${prompt_name}.md"
+    if [ ! -f "$prompt_path" ]; then
+        prompt_path="$DAISY_ROOT/prompts/${prompt_name}.md"
+    fi
 
     # Check if prompt exists
     if [ ! -f "$prompt_path" ]; then
