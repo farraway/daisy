@@ -139,10 +139,39 @@ mkdir -p "$CLAUDE_COMMANDS_DIR"
 cp "$DAISY_ROOT/daisy/templates/claude-command.md" "$CLAUDE_COMMANDS_DIR/daisy.md"
 echo "  ✓ Installed Claude command: daisy"
 
+# --- Claude Code permissions ---
+
+CLAUDE_SETTINGS="$TARGET/.claude/settings.local.json"
+DAISY_ALLOW=(
+    "Read(.daisy/**)"
+    "Edit(.daisy/**)"
+    "Write(.daisy/**)"
+    "Bash($DAISY_ROOT/daisy/scripts/*)"
+    "Read($DAISY_ROOT/**)"
+    "Edit($DAISY_ROOT/**)"
+    "Write($DAISY_ROOT/**)"
+)
+
+if command -v jq >/dev/null 2>&1; then
+    mkdir -p "$(dirname "$CLAUDE_SETTINGS")"
+    existing='{}'
+    [ -f "$CLAUDE_SETTINGS" ] && existing=$(cat "$CLAUDE_SETTINGS")
+    updated="$existing"
+    for rule in "${DAISY_ALLOW[@]}"; do
+        updated=$(echo "$updated" | jq \
+            --arg r "$rule" \
+            '.permissions.allow //= [] | if (.permissions.allow | index($r)) == null then .permissions.allow += [$r] else . end')
+    done
+    echo "$updated" | jq '.' > "$CLAUDE_SETTINGS"
+    echo "  ✓ Configured .claude/settings.local.json with Daisy permissions"
+else
+    echo "  ⚠ jq not available — skipping Claude Code permissions (add manually)"
+fi
+
 # --- .gitignore ---
 
 GITIGNORE="$TARGET/.gitignore"
-DAISY_IGNORE_ENTRIES=(".daisy/" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc" ".claude/commands/daisy.md")
+DAISY_IGNORE_ENTRIES=(".daisy/" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc" ".claude/commands/daisy.md" ".claude/settings.local.json")
 GITIGNORE_CHANGED=false
 
 if [ ! -f "$GITIGNORE" ]; then

@@ -142,7 +142,30 @@ cmd_clean() {
         fi
     fi
 
-    # 5. Remove Daisy entries from .cursorignore
+    # 5. Remove Daisy permissions from .claude/settings.local.json
+    if [ -f ".claude/settings.local.json" ] && command -v jq >/dev/null 2>&1; then
+        daisy_rules_json=$(printf '%s\n' \
+            "Read(.daisy/**)" "Edit(.daisy/**)" "Write(.daisy/**)" \
+            "Bash($DAISY_ROOT/daisy/scripts/*)" \
+            "Read($DAISY_ROOT/**)" "Edit($DAISY_ROOT/**)" "Write($DAISY_ROOT/**)" \
+            | jq -R . | jq -s .)
+        updated=$(jq --argjson rules "$daisy_rules_json" '
+            if .permissions.allow then
+                .permissions.allow |= map(select(. as $r | $rules | index($r) | not))
+            else . end
+        ' ".claude/settings.local.json")
+        remaining=$(echo "$updated" | jq '(.permissions.allow // []) | length')
+        top_keys=$(echo "$updated" | jq 'keys | length')
+        if [ "$remaining" -eq 0 ] && [ "$top_keys" -le 1 ]; then
+            rm -f ".claude/settings.local.json"
+            echo "  ✓ Removed .claude/settings.local.json"
+        else
+            echo "$updated" | jq '.' > ".claude/settings.local.json"
+            echo "  ✓ Removed Daisy permissions from .claude/settings.local.json"
+        fi
+    fi
+
+    # 6. Remove Daisy entries from .cursorignore
     if [ -f ".cursorignore" ]; then
         local cleaned=false
         for line in "# Allow Cursor to index daisy paths (gitignored but needed for agent context)" "!.daisy/" "!.cursor/rules/daisy.md"; do
@@ -163,7 +186,7 @@ cmd_clean() {
         fi
     fi
 
-    # 6. Unset local git identity if it matches the home's gitconfig
+    # 7. Unset local git identity if it matches the home's gitconfig
     local gitconfig="$DAISY_ROOT/home/$home_name/gitconfig"
     if [ -f "$gitconfig" ] && [ -d ".git" ]; then
         local cfg_name cfg_email local_name local_email
