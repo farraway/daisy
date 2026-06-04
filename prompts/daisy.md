@@ -74,6 +74,9 @@ Each workspace has a `.daisy/` directory with absolute symlinks to the active ho
 - `.daisy/AGENTS.md` → `~/.daisy/home/{home}/AGENTS.md` (generated prompt)
 - `.daisy/home` → plain text file with the home name (e.g., "work")
 
+Home-specific prompt overrides live in `~/.daisy/home/{home}/prompts/`. A prompt file
+placed here fully replaces the shared version of the same name for that home.
+
 **Important:** Always read/write through the `.daisy/` symlinks.
 
 **AGENTS.md Generation:**
@@ -81,6 +84,7 @@ Each workspace has a `.daisy/` directory with absolute symlinks to the active ho
 - Run `$DAISY_ROOT/daisy/scripts/build-prompt.sh [home-name]` to generate `home/{home}/AGENTS.md`
 - Prompts listed without prefix are included in full
 - Prompts prefixed with `~` are lazy-loaded: only their `## Trigger` section is included, directing you to read the full file on demand
+- The build script resolves prompts from `home/{home}/prompts/` first, then `$DAISY_ROOT/prompts/` — home prompts fully override shared ones of the same name
 
 ### Key Files
 

@@ -25,12 +25,6 @@ Focus on:
 - Positive interactions or collaborations
 - Efficient processes followed
 
-**Examples:**
-- "Deep-dive investigation saved from implementing dead code"
-- "Pair programming session accelerated understanding of legacy system"
-- "Proactive communication prevented merge conflict"
-- "Test-driven approach caught edge case early"
-
 ### 2. Misses
 **What could have been better?**
 
@@ -60,13 +54,6 @@ The "Sage" framework encourages:
 - **Self-care** - When to rest and recharge?
 
 This question shifts from "what must I do?" to "what would be most valuable?"
-
-**Examples:**
-- "Document architectural findings for team knowledge base"
-- "Schedule pairing session with ~colleague to share context"
-- "Refactor duplicated logic before it spreads further"
-- "Block focus time tomorrow for complex problem"
-- "Take morning to recharge before starting next sprint"
 
 ## Weekly Retrospective Format
 
@@ -115,48 +102,6 @@ Then derive specific resolutions from that identity:
 - To be a proactive documenter: "Write ADR for every significant architectural choice"
 - To ship confidently: "Expand test coverage to 80% before deploying"
 - To unblock others: "Respond to all code reviews within 24 hours"
-
-## Reflection Prompts by Situation
-
-### After Completing a Major Project
-
-- What was the hardest part? How did you overcome it?
-- What would you do differently if starting over?
-- What did you learn about your strengths and weaknesses?
-- What systems or skills developed through this work?
-- How did you grow as an engineer or professional?
-
-### After Missing a Deadline or Goal
-
-- What factors were within your control? What weren't?
-- What did you learn about estimation or planning?
-- How could you have communicated the risk earlier?
-- What support or resources would have helped?
-- How will you approach similar situations differently?
-
-### After a Difficult Interaction
-
-- What was the underlying need or concern (yours and theirs)?
-- What assumptions did you make?
-- How could you have communicated more clearly?
-- What can you learn about this person's working style?
-- What boundaries or norms need to be established?
-
-### When Feeling Stuck or Unmotivated
-
-- What's actually draining your energy?
-- What would you work on if you had complete freedom?
-- When was the last time you felt energized? What were you doing?
-- What small win could you achieve today?
-- Who could you talk to for perspective?
-
-### When Feeling Overwhelmed
-
-- What can you delegate or defer?
-- What's actually urgent vs. just loud?
-- What's the minimum viable version?
-- Who can you ask for help?
-- What would you tell a friend in this situation?
 
 ## Integration with Daisy System
 

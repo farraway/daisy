@@ -26,21 +26,6 @@ Key tools:
 - `user-github-get_file_contents` / `user-github-search_code` - Browse code
 - `user-github-list_commits` / `user-github-get_commit` - Browse commits
 
-### Direct API Fallback
-
-Only when MCP is unavailable:
-
-1. Set token in `.env.sh`:
-   ```bash
-   export DAISY_SECRET_GITHUB_TOKEN="your-token"
-   ```
-
-2. Use in curl commands:
-   ```bash
-   curl -H "Authorization: Bearer $DAISY_SECRET_GITHUB_TOKEN" \
-     "https://api.github.com/..."
-   ```
-
 ## Common Operations
 
 ### List My Open PRs
