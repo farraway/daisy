@@ -10,6 +10,7 @@ daisy
 
 # Lazy-loaded prompts (trigger section only, full prompt read on demand)
 ~retrospective
+~plan
 
 # Add your home-specific prompts below
 # Examples:
