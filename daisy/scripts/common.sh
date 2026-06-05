@@ -31,21 +31,21 @@ resolve_home() {
         dir=$(dirname "$dir")
     done
 
-    # Fall back to DAISY_DEFAULT env var (default home name) — warn so silent wrong-home bugs are visible
-    if [ -n "$DAISY_DEFAULT" ]; then
-        DAISY_HOME_NAME="$DAISY_DEFAULT"
+    # Fall back to DAISY_DEFAULT_HOME env var (default home name) — warn so silent wrong-home bugs are visible
+    if [ -n "$DAISY_DEFAULT_HOME" ]; then
+        DAISY_HOME_NAME="$DAISY_DEFAULT_HOME"
         DAISY_HOME="$DAISY_ROOT/home/$DAISY_HOME_NAME"
         if [ ! -d "$DAISY_HOME" ]; then
             echo "Error: Home '$DAISY_HOME_NAME' not found at $DAISY_HOME" >&2
             return 1
         fi
-        echo "⚠️  No .daisy/home found; falling back to \$DAISY_DEFAULT ($DAISY_HOME_NAME)" >&2
+        echo "⚠️  No .daisy/home found; falling back to \$DAISY_DEFAULT_HOME ($DAISY_HOME_NAME)" >&2
         export DAISY_HOME DAISY_HOME_NAME
         return 0
     fi
 
-    echo "Error: Cannot resolve home. No .daisy/home found and DAISY_DEFAULT not set." >&2
-    echo "  Run 'daisy init <home>' in your workspace, or set DAISY_DEFAULT=<name> in ~/.zshenv" >&2
+    echo "Error: Cannot resolve home. No .daisy/home found and DAISY_DEFAULT_HOME not set." >&2
+    echo "  Run 'daisy init <home>' in your workspace, or set DAISY_DEFAULT_HOME=<name> in ~/.zshenv" >&2
     return 1
 }
 

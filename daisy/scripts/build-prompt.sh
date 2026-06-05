@@ -123,7 +123,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 
     if [ "$LAZY" = true ]; then
         # Lazy mode: extract only the ## Trigger section
-        trigger_content=$(extract_trigger "$prompt_path")
+        trigger_content=$(extract_trigger "$prompt_path" | sed "s|\$DAISY_ROOT|${DAISY_ROOT}|g")
 
         if [ -z "$trigger_content" ]; then
             echo "Warning: No ## Trigger section found in $prompt_path" >&2
@@ -134,7 +134,7 @@ while IFS= read -r line || [ -n "$line" ]; do
             echo "# Source: prompts/${prompt_name}.md" >> "$TEMP_FILE"
             echo "# ============================================================" >> "$TEMP_FILE"
             echo "" >> "$TEMP_FILE"
-            cat "$prompt_path" >> "$TEMP_FILE"
+            sed "s|\$DAISY_ROOT|${DAISY_ROOT}|g" "$prompt_path" >> "$TEMP_FILE"
             FULL_PROMPTS+=("$prompt_name")
         else
             echo "" >> "$TEMP_FILE"
@@ -154,7 +154,7 @@ while IFS= read -r line || [ -n "$line" ]; do
         echo "# Source: prompts/${prompt_name}.md" >> "$TEMP_FILE"
         echo "# ============================================================" >> "$TEMP_FILE"
         echo "" >> "$TEMP_FILE"
-        cat "$prompt_path" >> "$TEMP_FILE"
+        sed "s|\$DAISY_ROOT|${DAISY_ROOT}|g" "$prompt_path" >> "$TEMP_FILE"
         FULL_PROMPTS+=("$prompt_name")
     fi
 

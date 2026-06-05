@@ -351,10 +351,10 @@ cmd_install() {
     local root_line home_line
     if [ "$is_fish" = true ]; then
         root_line="set -gx DAISY_ROOT \"$DAISY_ROOT\""
-        home_line="set -gx DAISY_DEFAULT \"$selected_home\""
+        home_line="set -gx DAISY_DEFAULT_HOME \"$selected_home\""
     else
         root_line="export DAISY_ROOT=\"$DAISY_ROOT\""
-        home_line="export DAISY_DEFAULT=\"$selected_home\""
+        home_line="export DAISY_DEFAULT_HOME=\"$selected_home\""
     fi
 
     if [ -f "$rc_file" ] && grep -q 'DAISY_ROOT' "$rc_file" 2>/dev/null; then
@@ -378,19 +378,19 @@ cmd_install() {
             echo "  ✓ Updated DAISY_ROOT (was: $current_root)"
         fi
 
-        # Update DAISY_DEFAULT line
+        # Update DAISY_DEFAULT_HOME line
         if [ -n "$selected_home" ]; then
-            if grep -q 'DAISY_DEFAULT' "$rc_file" 2>/dev/null; then
+            if grep -q 'DAISY_DEFAULT_HOME' "$rc_file" 2>/dev/null; then
                 if [ "$is_fish" = true ]; then
-                    sed -i.bak "s|set -gx DAISY_DEFAULT .*|$home_line|" "$rc_file"
+                    sed -i.bak "s|set -gx DAISY_DEFAULT_HOME .*|$home_line|" "$rc_file"
                 else
-                    sed -i.bak "s|export DAISY_DEFAULT=.*|$home_line|" "$rc_file"
+                    sed -i.bak "s|export DAISY_DEFAULT_HOME=.*|$home_line|" "$rc_file"
                 fi
                 rm -f "${rc_file}.bak"
-                echo "  ✓ Updated DAISY_DEFAULT to: $selected_home"
+                echo "  ✓ Updated DAISY_DEFAULT_HOME to: $selected_home"
             else
                 echo "$home_line" >> "$rc_file"
-                echo "  ✓ Added DAISY_DEFAULT: $selected_home"
+                echo "  ✓ Added DAISY_DEFAULT_HOME: $selected_home"
             fi
         fi
     else
@@ -401,7 +401,7 @@ cmd_install() {
             echo "$root_line"
             [ -n "$selected_home" ] && echo "$home_line"
         } >> "$rc_file"
-        echo "  ✓ Added DAISY_ROOT and DAISY_DEFAULT to $rc_file"
+        echo "  ✓ Added DAISY_ROOT and DAISY_DEFAULT_HOME to $rc_file"
     fi
 
     echo ""
