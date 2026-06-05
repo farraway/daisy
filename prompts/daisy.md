@@ -1,6 +1,6 @@
 ## Trigger
 
-Read the full `~/.daisy/prompts/daisy.md` when executing any Daisy workflow
+Read the full `$DAISY_ROOT/prompts/daisy.md` when executing any Daisy workflow
 (new day, new week, complete task, priority change, project management, etc.)
 
 **Daisy — Personal Productivity System**
@@ -13,7 +13,7 @@ Key files in `.daisy/`:
 - `tasks/alias.txt` — people references; use `~alias` notation
 - `projects/` — one file per active project; referenced with `+project` notation
 
-Scripts: `~/.daisy/daisy/scripts/<name>.sh` (log.sh, done.sh, new-day.sh, new-week.sh)
+Scripts: `$DAISY_ROOT/daisy/scripts/<name>.sh` (log.sh, done.sh, new-day.sh, new-week.sh)
 
 For read-only requests (show tasks, read today's log), work directly from the files.
 Load the full prompt for any write operation or workflow.
@@ -67,14 +67,14 @@ $DAISY_ROOT/daisy/scripts/healthcheck.sh
 
 Each workspace has a `.daisy/` directory with absolute symlinks to the active home:
 
-- `.daisy/tasks/` → `~/.daisy/home/{home}/tasks/` (todo.txt, done.txt, alias.txt)
-- `.daisy/journal.md` → `~/.daisy/home/{home}/journal/journal.md` (archive)
-- `.daisy/today.md` → `~/.daisy/home/{home}/journal/today.md` (current day)
-- `.daisy/projects/` → `~/.daisy/home/{home}/projects/` (project files)
-- `.daisy/AGENTS.md` → `~/.daisy/home/{home}/AGENTS.md` (generated prompt)
+- `.daisy/tasks/` → `$DAISY_ROOT/home/{home}/tasks/` (todo.txt, done.txt, alias.txt)
+- `.daisy/journal.md` → `$DAISY_ROOT/home/{home}/journal/journal.md` (archive)
+- `.daisy/today.md` → `$DAISY_ROOT/home/{home}/journal/today.md` (current day)
+- `.daisy/projects/` → `$DAISY_ROOT/home/{home}/projects/` (project files)
+- `.daisy/AGENTS.md` → `$DAISY_ROOT/home/{home}/AGENTS.md` (generated prompt)
 - `.daisy/home` → plain text file with the home name (e.g., "work")
 
-Home-specific prompt overrides live in `~/.daisy/home/{home}/prompts/`. A prompt file
+Home-specific prompt overrides live in `$DAISY_ROOT/home/{home}/prompts/`. A prompt file
 placed here fully replaces the shared version of the same name for that home.
 
 **Important:** Always read/write through the `.daisy/` symlinks.

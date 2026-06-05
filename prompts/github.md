@@ -1,6 +1,6 @@
 ## Trigger
 
-Read the full `~/.daisy/prompts/github.md` when:
+Read the full `$DAISY_ROOT/prompts/github.md` when:
 - User asks to check, review, or create a PR on public GitHub
 - User mentions @git or @github context tasks
 - User asks about PRs, issues, or repositories on github.com
