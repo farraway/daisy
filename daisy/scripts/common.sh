@@ -25,7 +25,8 @@ resolve_home() {
                 echo "Error: Home '$DAISY_HOME_NAME' not found at $DAISY_HOME" >&2
                 return 1
             fi
-            export DAISY_HOME DAISY_HOME_NAME
+            DAISY_WORKSPACE="$dir"
+            export DAISY_HOME DAISY_HOME_NAME DAISY_WORKSPACE
             return 0
         fi
         dir=$(dirname "$dir")

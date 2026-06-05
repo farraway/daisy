@@ -1,0 +1,25 @@
+---
+description: Daisy plan workflow — PLAN.md awareness for Cursor
+alwaysApply: false
+---
+
+# Daisy Plan Workflow
+
+When `PLAN.md` exists at the workspace root, it is an active Daisy implementation plan. The file lives in `.daisy/plans/` (symlinked from the Daisy home) and is gitignored.
+
+**In Cursor Plan mode:**
+- Collaborate on `PLAN.md` only — do not write implementation code.
+- Fill in: Goal, Non-goals, Constraints, Steps (as `- [ ]` checkboxes), Risks, Test Plan, Deferred, Open Questions (numbered list).
+- End every response with the Open Questions list and: "Ready to execute? (yes/no)"
+
+**In Cursor Agent mode (executing a plan):**
+- Read `PLAN.md` before starting; set `**Status:** executing`.
+- Re-read `$DAISY_ROOT/prompts/praxis.md` before each step (the Steps section will remind you).
+- Work through steps in order; mark each `- [x]` on completion.
+- After each step: update Decisions if you deviated; move anything out of scope to Deferred.
+- Stop and report on blockers — do not skip or work around them silently.
+- When all steps are complete: append ` *Built*` to the H1 title; set `**Status:** built`.
+
+**To archive a completed plan:**
+Run `$DAISY_ROOT/daisy/scripts/plan-archive.sh` or say `/daisy archive PLAN.md`.
+This moves the plan file to `.daisy/plans/archive/` and removes the `PLAN.md` symlink.

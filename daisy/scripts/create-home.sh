@@ -59,6 +59,9 @@ cp -r "$DAISY_ROOT/daisy/templates/home" "$TARGET_DIR"
 # Create projects directory with archive
 mkdir -p "$TARGET_DIR/projects/_archive"
 
+# Create plans directory with archive
+mkdir -p "$TARGET_DIR/plans/archive"
+
 # Prompt for git identity
 echo ""
 echo "Git identity for home '$NAME':"

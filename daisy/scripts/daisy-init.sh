@@ -89,7 +89,7 @@ if [ -d "$DAISY_DIR" ] && [ -f "$DAISY_DIR/home" ]; then
     else
         echo "  ↻ Switching home: $OLD_HOME → $HOME_NAME"
         # Remove old symlinks
-        rm -f "$DAISY_DIR/AGENTS.md" "$DAISY_DIR/tasks" "$DAISY_DIR/today.md" "$DAISY_DIR/journal.md" "$DAISY_DIR/projects"
+        rm -f "$DAISY_DIR/AGENTS.md" "$DAISY_DIR/tasks" "$DAISY_DIR/today.md" "$DAISY_DIR/journal.md" "$DAISY_DIR/projects" "$DAISY_DIR/plans"
     fi
 fi
 
@@ -100,7 +100,7 @@ echo "$HOME_NAME" > "$DAISY_DIR/home"
 
 # Create absolute symlinks pointing directly to $DAISY_ROOT
 cd "$DAISY_DIR"
-for link in tasks today.md journal.md projects; do
+for link in tasks today.md journal.md projects plans; do
     rm -f "$link"
 done
 rm -f AGENTS.md  # may be symlink (old) or file (new) — always regenerate below
@@ -109,6 +109,7 @@ ln -s "$DAISY_ROOT/home/$HOME_NAME/tasks" tasks
 ln -s "$DAISY_ROOT/home/$HOME_NAME/journal/today.md" today.md
 ln -s "$DAISY_ROOT/home/$HOME_NAME/journal/journal.md" journal.md
 ln -s "$DAISY_ROOT/home/$HOME_NAME/projects" projects
+ln -s "$DAISY_ROOT/home/$HOME_NAME/plans" plans
 cd "$TARGET"
 
 echo "  ✓ Created .daisy/ symlinks for home: $HOME_NAME"
@@ -123,7 +124,7 @@ echo "  ✓ Generated .daisy/AGENTS.md"
 RULES_DIR="$TARGET/.cursor/rules"
 mkdir -p "$RULES_DIR"
 
-for RULE_PAIR in "daisy.mdc:cursor-rule.mdc" "daisy-logging.mdc:cursor-rule-logging.mdc"; do
+for RULE_PAIR in "daisy.mdc:cursor-rule.mdc" "daisy-logging.mdc:cursor-rule-logging.mdc" "daisy-plan.mdc:cursor-rule-plan.mdc"; do
     RULE_NAME="${RULE_PAIR%%:*}"
     TEMPLATE="${RULE_PAIR##*:}"
     RULE_FILE="$RULES_DIR/$RULE_NAME"
@@ -171,7 +172,7 @@ fi
 # --- .gitignore ---
 
 GITIGNORE="$TARGET/.gitignore"
-DAISY_IGNORE_ENTRIES=(".daisy/" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc" ".claude/commands/daisy.md" ".claude/settings.local.json")
+DAISY_IGNORE_ENTRIES=(".daisy/" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc" ".cursor/rules/daisy-plan.mdc" ".claude/commands/daisy.md" ".claude/settings.local.json" "PLAN.md")
 GITIGNORE_CHANGED=false
 
 if [ ! -f "$GITIGNORE" ]; then
@@ -199,7 +200,7 @@ fi
 # --- .cursorignore ---
 
 CURSORIGNORE="$TARGET/.cursorignore"
-CURSOR_NEGATE_ENTRIES=("!.daisy/" "!.cursor/rules/daisy.mdc" "!.cursor/rules/daisy-logging.mdc")
+CURSOR_NEGATE_ENTRIES=("!.daisy/" "!.cursor/rules/daisy.mdc" "!.cursor/rules/daisy-logging.mdc" "!PLAN.md")
 CURSORIGNORE_CHANGED=false
 
 if [ ! -f "$CURSORIGNORE" ]; then
