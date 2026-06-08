@@ -89,7 +89,7 @@ if [ -d "$DAISY_DIR" ] && [ -f "$DAISY_DIR/home" ]; then
     else
         echo "  ↻ Switching home: $OLD_HOME → $HOME_NAME"
         # Remove old symlinks
-        rm -f "$DAISY_DIR/AGENTS.md" "$DAISY_DIR/tasks" "$DAISY_DIR/today.md" "$DAISY_DIR/journal.md" "$DAISY_DIR/projects" "$DAISY_DIR/plans"
+        rm -f "$DAISY_DIR/AGENTS.md" "$DAISY_DIR/tasks" "$DAISY_DIR/today.md" "$DAISY_DIR/journal.md" "$DAISY_DIR/projects" "$DAISY_DIR/plans" "$DAISY_DIR/feedback.md"
     fi
 fi
 
@@ -100,7 +100,7 @@ echo "$HOME_NAME" > "$DAISY_DIR/home"
 
 # Create absolute symlinks pointing directly to $DAISY_ROOT
 cd "$DAISY_DIR"
-for link in tasks today.md journal.md projects plans; do
+for link in tasks today.md journal.md projects plans feedback.md; do
     rm -f "$link"
 done
 rm -f AGENTS.md  # may be symlink (old) or file (new) — always regenerate below
@@ -110,6 +110,7 @@ ln -s "$DAISY_ROOT/home/$HOME_NAME/journal/today.md" today.md
 ln -s "$DAISY_ROOT/home/$HOME_NAME/journal/journal.md" journal.md
 ln -s "$DAISY_ROOT/home/$HOME_NAME/projects" projects
 ln -s "$DAISY_ROOT/home/$HOME_NAME/plans" plans
+ln -s "$DAISY_ROOT/home/$HOME_NAME/feedback/feedback.md" feedback.md
 cd "$TARGET"
 
 echo "  ✓ Created .daisy/ symlinks for home: $HOME_NAME"
@@ -147,10 +148,6 @@ DAISY_ALLOW=(
     "Read(.daisy/**)"
     "Edit(.daisy/**)"
     "Write(.daisy/**)"
-    "Bash($DAISY_ROOT/daisy/scripts/*)"
-    "Read($DAISY_ROOT/**)"
-    "Edit($DAISY_ROOT/**)"
-    "Write($DAISY_ROOT/**)"
 )
 
 if command -v jq >/dev/null 2>&1; then

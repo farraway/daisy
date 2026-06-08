@@ -7,6 +7,13 @@ Read the full `$DAISY_ROOT/prompts/github.md` when:
 - User says "check PR", "review PR", or "open PR"
 - Working with GitHub PRs section in today.md
 
+## Rules
+
+1. **Use `user-github-*` tools for public GitHub.** Never use `mcp_aicodinggithub_*` tools for github.com — those connect to an internal GitHub Enterprise instance.
+2. **Add a task when a PR is opened.** Create a todo.txt entry with `@git` context: `(C) YYYY-MM-DD @git {title} [{owner}/{repo}/PR#{num}](url) +PROJECT`.
+3. **Mark complete and log when a PR is merged.** Mark the `@git` task done in todo.txt and log the merge in today.md.
+4. **Never merge without green CI.** Fix all failing checks before requesting review or merging.
+
 # GitHub (Public) Quick Reference
 
 Quick reference for **github.com** operations via the **github** MCP server.

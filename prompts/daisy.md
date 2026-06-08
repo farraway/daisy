@@ -105,6 +105,23 @@ placed here fully replaces the shared version of the same name for that home.
 - Contains goals, context, resources, decisions, and notes
 - See "Project Workflows" section below
 
+## Rules
+
+1. **todo.txt is canonical.** It is the single source of truth for all tasks; when todo.txt and today.md disagree, todo.txt wins.
+2. **Bidirectional sync.** Any task change must update both `todo.txt` AND `today.md`.
+3. **Strip priority on completion.** Completed (`x`) and cancelled (`z`) tasks must never have a priority prefix.
+4. **Completion ≠ archival.** Marking a task done keeps it in `todo.txt`; it only moves to `done.txt` during "new week".
+5. **Cancelled tasks are soft-deleted.** They stay in `todo.txt` with a `z` prefix until the next "new day" or "new week" removes them.
+6. **Proactive logging.** If you helped the user DO something (not just discuss), log it immediately using `log.sh`.
+7. **Log entries are chronological.** Oldest first, newest at the bottom of the Log section.
+8. **Projects are checked first.** When the user references `+name`, read `.daisy/projects/{name}.md` before checking JIRA, GitHub, or the filesystem.
+9. **JIRA sync is one-way.** The project file is the source of truth; JIRA is for communicating progress outward, not pulling data in.
+10. **Use ~alias for people.** Always reference people using aliases from `tasks/alias.txt`; never use bare names or emails.
+11. **Case-insensitive pattern matching.** When finding tasks by pattern, ignore case.
+12. **Preserve format exactly.** Follow todo.txt and today.md format specs; never reorder fields, change date format, or add/remove blank lines.
+13. **Load AGENTS.md for system work.** When modifying scripts, prompts, or templates (files outside the active home), load `@daisy/AGENTS.md` first.
+14. **Handle healthcheck failures.** Show the full error output and walk the user through fixing each identified issue.
+
 ## Task Lifecycle
 
 Tasks move through these states:

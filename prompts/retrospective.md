@@ -6,6 +6,16 @@ Read the full `$DAISY_ROOT/prompts/retrospective.md` when:
 - Starting a new week (weekly retrospective section)
 - User asks for reflection prompts or feels stuck/overwhelmed
 
+## Rules
+
+1. **Audit the log before the retrospective.** Compare completed tasks in today.md against log entries; surface gaps and offer to generate catch-up entries before proceeding.
+2. **Frame misses constructively.** Reframe "wasted time on X" as "underestimated complexity of X — learned Y"; never use self-critical language.
+3. **Be specific, not vague.** "Added 15 integration tests" is more useful than "improved testing".
+4. **The Sage question is strategic, not tactical.** Shift from "what must I do?" to "what would be most valuable?".
+5. **Weekly resolutions are identity-based.** Ask "who do I want to be?" and derive specific commitments from that identity; do not just list tasks.
+6. **The journal is for the user, not performance reviews.** Prioritize honest reflection over polished narrative.
+7. **Be forward-looking.** Every retrospective entry should inform a next action, not just record what happened.
+
 # Daily and Weekly Retrospective Guide
 
 This prompt helps structure end-of-day and end-of-week reflections.

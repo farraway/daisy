@@ -70,6 +70,8 @@ Commands:
   new-day                      Start a new day
   new-week                     Start a new week
   build [home]                 Rebuild AGENTS.md for a home
+  feedback [--workflow <n>]    Record a prompt failure for optimization
+  optimize [--workflow <n>]    Run prompt learning loop on collected feedback
   install                      Set up ~/bin/daisy symlink and shell environment
   help                         Show this help
 
@@ -144,6 +146,7 @@ cmd_clean() {
 
     # 5. Remove Daisy permissions from .claude/settings.local.json
     if [ -f ".claude/settings.local.json" ] && command -v jq >/dev/null 2>&1; then
+        # Current local rules (post-install permissions split) + legacy rules for old workspaces
         daisy_rules_json=$(printf '%s\n' \
             "Read(.daisy/**)" "Edit(.daisy/**)" "Write(.daisy/**)" \
             "Bash($DAISY_ROOT/daisy/scripts/*)" \
@@ -404,6 +407,31 @@ cmd_install() {
         echo "  ✓ Added DAISY_ROOT and DAISY_DEFAULT_HOME to $rc_file"
     fi
 
+    # 5. Claude Code global permissions
+    local global_claude_settings="$HOME/.claude/settings.json"
+    local daisy_global_allow=(
+        "Read($DAISY_ROOT/**)"
+        "Edit($DAISY_ROOT/**)"
+        "Write($DAISY_ROOT/**)"
+        "Bash($DAISY_ROOT/daisy/scripts/*)"
+    )
+
+    if command -v jq >/dev/null 2>&1; then
+        mkdir -p "$(dirname "$global_claude_settings")"
+        local existing='{}'
+        [ -f "$global_claude_settings" ] && existing=$(cat "$global_claude_settings")
+        local updated="$existing"
+        for rule in "${daisy_global_allow[@]}"; do
+            updated=$(echo "$updated" | jq \
+                --arg r "$rule" \
+                '.permissions.allow //= [] | if (.permissions.allow | index($r)) == null then .permissions.allow += [$r] else . end')
+        done
+        echo "$updated" | jq '.' > "$global_claude_settings"
+        echo "  ✓ Configured ~/.claude/settings.json with Daisy permissions"
+    else
+        echo "  ⚠ jq not available — skipping Claude Code permissions (add manually)"
+    fi
+
     echo ""
     echo "Done. To activate, run:"
     echo "  source $rc_file"
@@ -463,6 +491,16 @@ case "$COMMAND" in
             "$SCRIPTS/build-prompt.sh" --output "$WORKSPACE_ROOT/.daisy/AGENTS.md"
             popd > /dev/null
         fi
+        ;;
+    feedback)
+        require_workspace
+        "$SCRIPTS/feedback.sh" "$@"
+        popd > /dev/null
+        ;;
+    optimize)
+        require_workspace
+        "$SCRIPTS/optimize.sh" "$@"
+        popd > /dev/null
         ;;
     help|--help|-h)
         show_help

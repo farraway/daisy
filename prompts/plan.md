@@ -12,6 +12,17 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 
 ---
 
+## Rules
+
+1. **No implementation during plan mode.** During `/daisy plan`, only edit `PLAN.md`; do not write any implementation code until the user confirms the plan is ready.
+2. **Collaborate until confirmed.** End every planning response with the Open Questions list and "Ready to execute? (yes/no)"; do not proceed to execution without confirmation.
+3. **Read praxis.md before each step.** During `/daisy execute`, read `$DAISY_ROOT/prompts/praxis.md` as the quality guide before implementing each step.
+4. **Check off steps immediately.** After completing each step, mark it `- [x]` in `PLAN.md` before moving on.
+5. **Stop and report when blocked.** Do not skip steps or work around blockers silently; surface them explicitly.
+6. **Out-of-scope work goes to Deferred.** When a need surfaces outside the current step, add it to Deferred — do not implement it partially or silently drop it.
+7. **Log execution summary.** After completing all steps, log a summary to `today.md` via `log.sh`.
+8. **Warn before archiving incomplete plans.** If `**Status:**` is not `built`, confirm with the user before archiving.
+
 # Daisy — Plan Workflow
 
 Plans are durable implementation artifacts. A plan is developed collaboratively before any code is written, executed step by step with `praxis.md` as a quality guide, and archived when complete. The plan file is the contract between planning and execution.

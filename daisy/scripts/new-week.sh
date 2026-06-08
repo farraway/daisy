@@ -177,4 +177,18 @@ echo "   GitHub tasks: ${#github_tasks[@]}"
 # Commit changes
 "$DAISY_ROOT/daisy/scripts/commit.sh" "New week: $DATE $DAY"
 
+# Prompt optimization nudge
+FEEDBACK_FILE="$DAISY_HOME/feedback/feedback.md"
+if [ -f "$FEEDBACK_FILE" ]; then
+    FEEDBACK_COUNT=$(grep -c "^## [0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}" "$FEEDBACK_FILE" 2>/dev/null || true)
+    LAST_OPT_FILE="$DAISY_HOME/feedback/.last-optimized"
+    if [ "${FEEDBACK_COUNT:-0}" -ge 3 ]; then
+        LAST_OPT=""
+        [ -f "$LAST_OPT_FILE" ] && LAST_OPT=$(cat "$LAST_OPT_FILE")
+        echo ""
+        echo "💡 Prompt optimization: $FEEDBACK_COUNT feedback entries collected${LAST_OPT:+ (last run: $LAST_OPT)}"
+        echo "   Run 'daisy optimize' to improve your prompts."
+    fi
+fi
+
 exit 0

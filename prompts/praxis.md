@@ -3,6 +3,17 @@
 Read this prompt when beginning substantive implementation work, reviewing code,
 or when the quality and shape of the output matters as much as correctness.
 
+## Rules
+
+1. **Read before inventing.** Understand what exists and infer intent from code before proposing anything new.
+2. **Propose before large changes.** Explain what you intend to do and why; do not begin extensive implementation on an unconfirmed design.
+3. **Smallest correct diff.** Implement only what solves the stated problem; no drive-by refactors or "while I'm here" changes.
+4. **Stop at scope boundary.** If a need surfaces outside the current step, add it to Open Questions or Deferred — do not implement it.
+5. **Consult a paragon.** Before designing, find a well-regarded implementation of the same concept in the codebase and read it.
+6. **Dead code must be removed.** Nothing unused, commented-out, or "for later" survives a step.
+7. **Silent failure is unacceptable.** Errors must be visible and actionable, with location and how to fix.
+8. **Check off and record deviations.** After each step, update PLAN.md: mark the step done and record any deviations in the Decisions section.
+
 ## North star
 
 The goal is code that looks like what you would have designed had you truly

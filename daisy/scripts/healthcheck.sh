@@ -154,6 +154,22 @@ for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     fi
 done
 
+# Check 7: Feedback stats
+FEEDBACK_FILE="$DAISY_HOME/feedback/feedback.md"
+if [ -f "$FEEDBACK_FILE" ]; then
+    FEEDBACK_COUNT=$(grep -c "^## [0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}" "$FEEDBACK_FILE" 2>/dev/null || true)
+    LAST_OPT_FILE="$DAISY_HOME/feedback/.last-optimized"
+    if [ -f "$LAST_OPT_FILE" ]; then
+        LAST_OPT=$(cat "$LAST_OPT_FILE")
+        ok "Feedback: $FEEDBACK_COUNT entries (last optimized: $LAST_OPT)"
+    else
+        ok "Feedback: $FEEDBACK_COUNT entries (never optimized)"
+    fi
+    if [ "${FEEDBACK_COUNT:-0}" -ge 20 ]; then
+        warn "Feedback has $FEEDBACK_COUNT entries — consider running 'daisy optimize'"
+    fi
+fi
+
 # Summary
 echo ""
 if [ $ERRORS -eq 0 ]; then
