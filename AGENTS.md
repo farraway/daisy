@@ -118,6 +118,8 @@ When referencing people:
 | `new-week.sh` | Archive completed tasks to done.txt + new day |
 | `done.sh` | Mark task complete in todo.txt and today.md |
 | `log.sh` | Add timestamped log entry to today.md |
+| `feedback.sh` | Record a prompt failure with workflow tag and description |
+| `optimize.sh` | LLM-driven prompt optimization loop (train/test split, diff, approval) |
 | `create-home.sh` | Create new home from template, optionally activate |
 | `build-prompt.sh` | Generate home/{home}/AGENTS.md from include.txt |
 | `common.sh` | Shared functions (resolve_home, require_env) |

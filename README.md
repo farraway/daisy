@@ -75,6 +75,8 @@ daisy new-week            # Start a new week
 daisy build work         # Rebuild AGENTS.md after editing prompts
 daisy init work          # Initialize Daisy in a new workspace
 daisy init personal     # Switch workspace to a different home
+daisy feedback "message"  # Record a prompt failure for optimization
+daisy optimize            # Run prompt learning loop on collected feedback
 daisy clean               # Remove Daisy from the current workspace
 daisy install             # Set up ~/bin/daisy and shell environment
 ```
@@ -117,6 +119,8 @@ daisy.000000/                 # Repository root ($DAISY_ROOT)
 │   │   ├── new-week.sh       # Start new week
 │   │   ├── done.sh           # Mark task complete
 │   │   ├── log.sh            # Add log entry
+│   │   ├── feedback.sh       # Record prompt failures for optimization
+│   │   ├── optimize.sh       # Run LLM-driven prompt optimization loop
 │   │   └── create-home.sh    # Create new home from template
 │   ├── templates/
 │   │   ├── cursor-rule.md    # Cursor rule for workspace integration
@@ -125,6 +129,7 @@ daisy.000000/                 # Repository root ($DAISY_ROOT)
 │   │   ├── journal-week.md   # Template for weekly entries
 │   │   ├── env.sh.template   # Environment variables template
 │   │   └── home/             # Template for new homes
+│   │       └── feedback/     # Feedback log (per-home)
 │   └── docs/                 # Detailed reference documentation
 │       ├── task-format.md    # Task format regex and conversion rules
 │       ├── task-sync.md      # Bidirectional sync rules
@@ -156,7 +161,12 @@ daisy.000000/                 # Repository root ($DAISY_ROOT)
     ├── work.md              # Work-specific augmentations
     ├──         # Work internal GitHub Enterprise
     ├── github.md             # Public GitHub
-    └── retrospective.md      # Reflection guide
+    ├── retrospective.md      # Reflection guide
+    └── evals/                # Eval prompts for prompt optimization loop
+        ├── new-day.md
+        ├── task-done.md
+        ├── logging.md
+        └── retrospective.md
 ```
 
 ### Workspace Layout (after `daisy init work`)
@@ -170,7 +180,8 @@ workspace/
 │   ├── tasks/              → daisy/home/work/tasks/
 │   ├── today.md            → daisy/home/work/journal/today.md
 │   ├── journal.md          → daisy/home/work/journal/journal.md
-│   └── projects/           → daisy/home/work/projects/
+│   ├── projects/           → daisy/home/work/projects/
+│   └── feedback.md         → daisy/home/work/feedback/feedback.md
 ├── .cursor/rules/
 │   └── daisy.md            → daisy/templates/cursor-rule.md
 ```
