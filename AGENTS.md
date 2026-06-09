@@ -60,6 +60,12 @@ After modifying scripts or workflow logic, validate against [`daisy/docs/test-ca
 
 ---
 
+## Development Heuristics
+
+**Prototype manually before automating.** When adding a new workflow or modifying a complex script, do the operation by hand first — no scripts, no automation. The manual run reveals hidden constraints and invariants that are invisible in the abstract. Only after understanding what a correct manual execution looks like should you codify it into a script or prompt rule. This is especially true for multi-file operations (new-day, new-week) and sync workflows.
+
+---
+
 ## AGENTS.md Build System
 
 `build-prompt.sh` generates `home/{home}/AGENTS.md` from `home/{home}/include.txt`. Workspaces access it via `.daisy/AGENTS.md` symlink.

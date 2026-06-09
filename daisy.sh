@@ -72,6 +72,7 @@ Commands:
   build [home]                 Rebuild AGENTS.md for a home
   feedback [--workflow <n>]    Record a prompt failure for optimization
   optimize [--workflow <n>]    Run prompt learning loop on collected feedback
+  eval [<case>] [--record]     List, display, or record an eval case result
   install                      Set up ~/bin/daisy symlink and shell environment
   help                         Show this help
 
@@ -500,6 +501,11 @@ case "$COMMAND" in
     optimize)
         require_workspace
         "$SCRIPTS/optimize.sh" "$@"
+        popd > /dev/null
+        ;;
+    eval)
+        require_workspace
+        "$SCRIPTS/eval.sh" "$@"
         popd > /dev/null
         ;;
     help|--help|-h)

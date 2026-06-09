@@ -66,6 +66,7 @@ Priorities: (A) now, (B) next, (C) soon, (D) someday, none = inbox.
 12. **Preserve format exactly.** Follow todo.txt and today.md format specs; never reorder fields, change date format, or add/remove blank lines.
 13. **Load AGENTS.md for system work.** When modifying scripts, prompts, or templates, load `@daisy/AGENTS.md` first.
 14. **Handle healthcheck failures.** Show the full error output and walk the user through fixing each identified issue.
+15. **Proactive feedback capture.** When you make a mistake that requires mid-session correction, offer to record it: "Want me to log that as a feedback entry? (`daisy feedback --workflow <name> \"<description>\"`)" — the learning loop only works if failures are captured at the moment they occur.
 
 ## Common Workflows
 

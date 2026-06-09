@@ -74,4 +74,6 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
    - **Next:** the step to resume from, and any known sub-state
    - **Unknown:** context that cannot be reconstructed from artifacts
 7. Ask: **"Ready to resume from Step N? (yes/no)"** — do not proceed without confirmation.
-8. On confirmation: read `$DAISY_ROOT/prompts/praxis.md`, update `**Status:** executing`, then continue from the identified step.
+   If "Uncertain" items are significant (multiple unverifiable steps, or a prior session with a correction history), also offer: "Alternatively, I can compact what's confirmed into a fresh context — say 'compact' to replan from here instead of continuing in-place."
+8. If the user says "compact": summarise confirmed work into a Research handoff (exact files changed, decisions made, constraints discovered), write it into the `## Research` section of PLAN.md, reset unchecked steps to reflect remaining work, update `**Status:**` to `planning`, and ask: **"Research summary confirmed — proceed to replan? (yes/no)"**
+9. On confirmation to resume: read `$DAISY_ROOT/prompts/praxis.md`, update `**Status:** executing`, then continue from the identified step.

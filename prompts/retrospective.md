@@ -31,6 +31,8 @@ Read the full `$DAISY_ROOT/prompts/retrospective.md` when:
 
 ## Weekly: Identity-Based Resolutions
 
+**Complexity check** — Has anything in your work grown complex enough that you no longer fully understand it? Name it. Then decide: explore it manually before automating further, or schedule time to untangle it.
+
 Instead of "what do I want to do?", ask "who do I want to be?" Then derive specific commitments from that identity.
 
 *Example:* "Someone who proactively documents decisions" → "Write an ADR for every significant architectural choice this week."
