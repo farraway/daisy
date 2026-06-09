@@ -160,3 +160,147 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
 
 5. Commit changes (call commit.sh)
 ```
+
+## New Day
+
+**Command:** "Daisy, start a new day" or "new day"
+
+**Pre-workflow:** Check yesterday's retrospective in today.md. If the Retrospective section is incomplete, offer to complete it before proceeding.
+
+```
+1. Call new-day.sh
+   What it does:
+   a. Archives yesterday's today.md content to journal.md
+   b. Deletes tasks with "z" prefix from todo.txt (cancelled tasks)
+   c. Reads todo.txt and extracts:
+      - Priority A tasks → Now section
+      - Priority B tasks → Next section
+      - No-priority tasks → Inbox section
+      - (C) and (D) tasks are NOT carried into today.md
+   d. Generates new today.md from journal-day.md template
+   e. Auto-commits
+
+   Does NOT archive completed tasks to done.txt.
+   Completed tasks (x prefix) stay in todo.txt until new-week.sh.
+```
+
+**Post-workflow:** Remind about daily inbox checklist:
+- Check calendar for upcoming events
+- Workout
+- Check that todo.txt is up-to-date
+- Plan day
+- Retrospective
+
+---
+
+## New Week
+
+**Command:** "Daisy, start a new week" or "new week"
+
+**Pre-workflow:** Same as New Day — check yesterday's retrospective first.
+
+```
+1. Call new-week.sh
+   What it does (everything new-day does, PLUS):
+   a. Archives completed tasks (x prefix) from todo.txt → done.txt
+      (This is the ONLY workflow that moves tasks to done.txt)
+   b. Uses journal-week.md template, which adds:
+      - Weekly retrospective section
+      - Resolutions section
+      - Extended inbox checklist
+```
+
+**Post-workflow:** Remind about weekly inbox checklist:
+- Retrospective for previous week
+- Set resolutions for this week
+- Sync todo.txt with @jira and @github
+- Zero Email Inboxes
+- Zero Chat Notifications
+- Check calendar, workout, check todo.txt, plan day, retrospective
+
+---
+
+## Complete Task
+
+**Command:** "Daisy, done [pattern]" or "done [pattern]"
+
+```
+1. Find task by pattern in todo.txt (case-insensitive)
+   - If multiple matches: list them and ask which one
+   - If no match: report "No task found matching: {pattern}"
+
+2. Mark complete in today.md:
+   - Change "- [ ]" to "- [x]" on the matching line
+
+3. Mark complete in todo.txt:
+   - Strip priority prefix (e.g., "(A) ")
+   - Add "x YYYY-MM-DD " prefix
+
+4. Add log entry with timestamp
+
+5. Commit changes (call done.sh "pattern")
+
+NOTE: The completed task stays in todo.txt (marked with "x" prefix)
+until the next new-week.sh archives it to done.txt.
+```
+
+---
+
+## Cancel Task
+
+**Command:** "Daisy, cancel [pattern]"
+
+```
+1. Find task by pattern (case-insensitive)
+
+2. Mark cancelled in today.md:
+   - Change "- [ ]" to "- [z]" on the matching line
+
+3. Mark cancelled in todo.txt:
+   - Strip priority prefix
+   - Add "z YYYY-MM-DD " prefix
+
+4. Auto-commit
+
+NOTE: Cancelled tasks are soft-deleted. They remain in todo.txt
+with the "z" prefix until the next new-day.sh or new-week.sh
+deletes them.
+```
+
+---
+
+## Sync Validation
+
+**Command:** "Daisy, sync tasks" or "Daisy, check sync"
+
+```
+1. Read today.md task lines (- [ ], - [x], - [z])
+2. Read todo.txt active tasks
+3. Compare:
+   a. Priority mismatches: task in Now section but not (A) in todo.txt
+   b. Completion mismatches: task marked [x] in today.md but not "x" in todo.txt
+   c. Missing tasks: (A) or (B) tasks in todo.txt not in today.md
+4. Report discrepancies
+5. Offer to fix automatically
+```
+
+---
+
+## Home Switching
+
+**Command:** "Daisy, switch to [home]"
+
+```
+1. Run: daisy init <home-name>
+   - Replaces .daisy/ symlinks in the current workspace to point to the new home
+   - Does not affect other workspaces
+   - Each workspace independently tracks its own home via .daisy/home
+
+2. Verify switch: read .daisy/home to confirm new home name
+```
+
+To create a new home from scratch:
+```
+daisy create-home <home-name> [--activate]
+```
+This copies daisy/templates/home/ to home/{name}/ and optionally runs daisy init.

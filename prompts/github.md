@@ -16,22 +16,19 @@ Read the full `$DAISY_ROOT/prompts/github.md` when:
 
 # GitHub (Public) Quick Reference
 
-Quick reference for **github.com** operations via the **github** MCP server.
+Use the **github** MCP server (`user-github-*` tools) for all public GitHub operations.
 
-## MCP Server
+## Key Tools
 
-Use the **github** MCP server tools for all public GitHub operations. These tools use a `user-github-*` naming convention and handle authentication automatically.
-
-Key tools:
-- `user-github-list_pull_requests` / `user-github-search_pull_requests` - Find PRs
-- `user-github-pull_request_read` - Get PR details, diff, status, reviews, comments
-- `user-github-create_pull_request` / `user-github-update_pull_request` - Manage PRs
-- `user-github-merge_pull_request` - Merge PRs
-- `user-github-pull_request_review_write` - Create/submit reviews
-- `user-github-list_issues` / `user-github-search_issues` - Find issues
-- `user-github-issue_write` / `user-github-issue_read` - Manage issues
-- `user-github-get_file_contents` / `user-github-search_code` - Browse code
-- `user-github-list_commits` / `user-github-get_commit` - Browse commits
+- `user-github-list_pull_requests` / `user-github-search_pull_requests` — find PRs
+- `user-github-pull_request_read` — details, diff, status, reviews, comments
+- `user-github-create_pull_request` / `user-github-update_pull_request` — manage PRs
+- `user-github-merge_pull_request` — merge PRs
+- `user-github-pull_request_review_write` — create/submit reviews
+- `user-github-list_issues` / `user-github-search_issues` — find issues
+- `user-github-issue_write` / `user-github-issue_read` — manage issues
+- `user-github-get_file_contents` / `user-github-search_code` — browse code
+- `user-github-list_commits` / `user-github-get_commit` — browse commits
 
 ## Common Operations
 
@@ -64,37 +61,13 @@ user-github-create_pull_request
 ### Review a PR
 
 For complex reviews with line-level comments:
-1. `user-github-pull_request_review_write` method: "create" (creates pending review)
-2. `user-github-add_comment_to_pending_review` (add line comments)
-3. `user-github-pull_request_review_write` method: "submit_pending" (submit)
+1. `user-github-pull_request_review_write` method: "create"
+2. `user-github-add_comment_to_pending_review`
+3. `user-github-pull_request_review_write` method: "submit_pending"
 
 For simple reviews:
 - `user-github-pull_request_review_write` with event: "APPROVE" / "REQUEST_CHANGES" / "COMMENT"
 
-## Workflow Integration
+## Full Reference
 
-### Creating PR Task
-
-When user opens a PR, add to todo.txt:
-```
-(C) YYYY-MM-DD @git {PR title} [{owner}/{repo}/PR#{num}](url) +PROJECT
-```
-
-### Checking PR Status
-
-When user says "check PR 123":
-1. Use `pull_request_read` with method "get" and "get_status"
-2. Report: state, checks, reviews
-
-### When PR is Merged
-
-1. Mark complete in todo.txt: `x YYYY-MM-DD ...`
-2. Log in today.md
-
-## Best Practices
-
-- **Draft PRs** - Use draft status for work-in-progress
-- **Small PRs** - Easier to review, faster to merge
-- **Descriptive commits** - Include what and why
-- **Clean history** - Rebase/squash before merge if needed
-- **CI/CD green** - Fix all tests before requesting review
+For workflow integration patterns and best practices, see [`daisy/docs/github.md`](daisy/docs/github.md).
