@@ -4,6 +4,10 @@
 **Created:** {YYYY-MM-DD HH:MM}
 **Status:** planning
 
+## Research
+
+(what already exists; essential vs. accidental complexity)
+
 ## Goal
 
 ## Non-goals
@@ -19,6 +23,8 @@
 ## Risks
 
 ## Test Plan
+
+## Decisions
 
 ## Deferred
 

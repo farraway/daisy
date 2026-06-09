@@ -13,6 +13,7 @@ or when the quality and shape of the output matters as much as correctness.
 6. **Dead code must be removed.** Nothing unused, commented-out, or "for later" survives a step.
 7. **Silent failure is unacceptable.** Errors must be visible and actionable, with location and how to fix.
 8. **Check off and record deviations.** After each step, update PLAN.md: mark the step done and record any deviations in the Decisions section.
+9. **Distinguish essential from accidental complexity.** Before implementing, ask: is this complexity inherent to the problem, or an artifact of the current approach? Do not preserve or extend accidental complexity.
 
 ## North Star
 
@@ -35,7 +36,7 @@ wrong.
 
 **Post (after each step):** audit the change as if reviewing someone else's pull request.
 
-- **Fit** — does the solution match the problem's natural seams?
+- **Fit** — does the solution match the problem's natural seams? Does it address essential complexity without adding accidental complexity?
 - **Naming** — consistent, accurate, neither vague nor over-specific?
 - **Size** — functions and modules readable without scrolling; split when responsibility has clearly diverged.
 - **Boundaries** — logic lives at the right layer; nothing leaking across concerns.

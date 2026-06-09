@@ -111,6 +111,10 @@ The build script extracts everything between `## Trigger` and the next `#` or `#
 - [`daisy/docs/examples.md`](daisy/docs/examples.md) — Complete interaction walkthroughs
 - [`daisy/docs/todotxt.md`](daisy/docs/todotxt.md) — Todo.txt format specification
 - [`daisy/docs/test-cases.md`](daisy/docs/test-cases.md) — Validation test cases
+- [`daisy/docs/resources/prompt-learning-loop.md`](daisy/docs/resources/prompt-learning-loop.md) — Arize talk: feedback loops, rules-section optimization, eval co-evolution
+- [`daisy/docs/resources/infinite-software-crisis.md`](daisy/docs/resources/infinite-software-crisis.md) — Netflix/Nations: simple vs easy, essential vs accidental complexity, three-phase approach
+- [`daisy/docs/resources/progressive-disclosure.md`](daisy/docs/resources/progressive-disclosure.md) — Developers Digest: lazy-load context on demand, tools as files, memory as markdown; validates Daisy's existing lazy loading architecture
+- [`daisy/docs/resources/agents-in-complex-codebases.md`](daisy/docs/resources/agents-in-complex-codebases.md) — HumanLayer/Horthy: context quality over quantity, RPI calibration, step granularity, intentional compaction on repeated corrections
 
 ## See Also
 
