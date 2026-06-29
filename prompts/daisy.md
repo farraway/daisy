@@ -57,7 +57,7 @@ Priorities: (A) now, (B) next, (C) soon, (D) someday, none = inbox.
 3. **Strip priority on completion.** Completed (`x`) and cancelled (`z`) tasks must never have a priority prefix.
 4. **Completion ≠ archival.** Marking a task done keeps it in `todo.txt`; it only moves to `done.txt` during "new week".
 5. **Cancelled tasks are soft-deleted.** They stay in `todo.txt` with a `z` prefix until the next "new day" or "new week" removes them.
-6. **Proactive logging.** If you helped the user DO something (not just discuss), log it immediately using `log.sh`.
+6. **Proactive logging.** If you helped the user DO something (not just discuss), log it immediately using `log.sh` — do not wait until the end of the session. Log before the session closes, not after all steps complete.
 7. **Log entries are chronological.** Oldest first, newest at the bottom of the Log section.
 8. **Projects are checked first.** When the user references `+name`, read `.daisy/projects/{name}.md` before checking JIRA, GitHub, or the filesystem.
 9. **JIRA sync is one-way.** The project file is the source of truth; JIRA is for communicating progress outward.
@@ -66,8 +66,11 @@ Priorities: (A) now, (B) next, (C) soon, (D) someday, none = inbox.
 12. **Preserve format exactly.** Follow todo.txt and today.md format specs; never reorder fields, change date format, or add/remove blank lines.
 13. **Load AGENTS.md for system work.** When modifying scripts, prompts, or templates, load `@daisy/AGENTS.md` first.
 14. **Handle healthcheck failures.** Show the full error output and walk the user through fixing each identified issue.
-15. **Proactive feedback capture.** When you make a mistake that requires mid-session correction, offer to record it: "Want me to log that as a feedback entry? (`daisy feedback --workflow <name> \"<description>\"`)" — the learning loop only works if failures are captured at the moment they occur.
-
+15. **Proactive feedback capture.** When you make a mistake that requires mid-session correction, offer to record it: "Want me to log that as a feedback entry? (`daisy feedback --workflow <name> "<description>"`)" — the learning loop only works if failures are captured at the moment they occur.
+16. **Resolve symlinks before writing.** Never write to `.daisy/` symlink paths directly. Always run `readlink -f <path>` first and write to the resolved real path (e.g. `~/.daisy/home/{home}/journal/today.md`, `~/.daisy/home/{home}/tasks/todo.txt`).
+17. **Never prepend DAISY_ROOT inline.** `DAISY_ROOT` is already exported in the shell environment. Do not prepend it as an inline variable (e.g. `DAISY_ROOT=... script.sh`) — doing so breaks Claude Code permission matching and causes unnecessary user prompts.
+18. **Scope /daisy archive to /daisy plans only.** The `/daisy archive` command only applies to plans created via `/daisy plan`. If a plan was created by Claude's native plan mode (stored in `~/.claude/plans/`), there is nothing to archive in Daisy — do not attempt it.
+19. **Retrospective suggestions are neutral.** Never diagnose blockers or imply failure when reviewing rolling or stale tasks. Use neutral reframes only (e.g. "Consider re-evaluating task priorities — some tasks have been in the Now state for multiple days.").
 ## Common Workflows
 
 All workflows use scripts in `$DAISY_ROOT/daisy/scripts/`. Scripts auto-commit on completion.

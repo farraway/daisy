@@ -158,4 +158,13 @@ echo "   GitHub tasks: ${#github_tasks[@]}"
 # Commit changes
 "$DAISY_ROOT/daisy/scripts/commit.sh" "New day: $DATE $DAY"
 
+# Prompt optimization nudge
+NEW_FEEDBACK=$("$DAISY_ROOT/daisy/scripts/optimize.sh" --list 2>/dev/null || true)
+if [ -n "$NEW_FEEDBACK" ]; then
+    echo ""
+    echo "💡 New feedback since last optimize run:"
+    echo "$NEW_FEEDBACK"
+    echo "   Run 'daisy optimize' to improve your prompts."
+fi
+
 exit 0

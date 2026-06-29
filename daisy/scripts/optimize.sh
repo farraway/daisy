@@ -5,8 +5,9 @@
 #
 # Usage:
 #   daisy optimize [--workflow <name>] [--dry-run]
+#   daisy optimize --list   # print entries added since last optimize run
 #
-# Requires: ANTHROPIC_API_KEY, jq, curl
+# Requires: ANTHROPIC_API_KEY, jq, curl (not required for --list)
 #
 # Called via `daisy optimize` (see $DAISY_ROOT/daisy.sh).
 
@@ -26,6 +27,7 @@ fi
 
 WORKFLOW=""
 DRY_RUN=false
+LIST_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -37,9 +39,13 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --list)
+            LIST_MODE=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1" >&2
-            echo "Usage: daisy optimize [--workflow <name>] [--dry-run]" >&2
+            echo "Usage: daisy optimize [--workflow <name>] [--dry-run] [--list]" >&2
             exit 1
             ;;
     esac
@@ -49,6 +55,42 @@ done
 
 require_root || exit 1
 require_env || exit 1
+
+# --- List mode: print feedback entries added since last optimize run ---
+
+if [ "$LIST_MODE" = true ]; then
+    FEEDBACK_FILE="$DAISY_HOME/feedback/feedback.md"
+    LAST_OPT_FILE="$DAISY_HOME/feedback/.last-optimized"
+
+    [ -f "$FEEDBACK_FILE" ] || exit 0
+
+    # Build a comparable timestamp string (YYYYMMDDHHMM) from .last-optimized
+    CUTOFF=""
+    if [ -f "$LAST_OPT_FILE" ]; then
+        # File contains: "YYYY-MM-DD HHMM workflow"
+        RAW=$(awk '{print $1, $2}' "$LAST_OPT_FILE")   # "YYYY-MM-DD HHMM"
+        CUTOFF=$(echo "$RAW" | tr -d ' -')              # "YYYYMMDDHHMM"
+    fi
+
+    # Print entries whose header timestamp is strictly after the cutoff
+    awk -v cutoff="$CUTOFF" '
+        /^## [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{4}/ {
+            if (entry != "") {
+                if (cutoff == "" || entry_ts > cutoff) { print entry; print "" }
+            }
+            date_part = $2; gsub(/-/, "", date_part)
+            entry_ts = date_part $3
+            entry = $0
+            next
+        }
+        entry != "" { entry = entry "\n" $0 }
+        END {
+            if (entry != "" && (cutoff == "" || entry_ts > cutoff)) print entry
+        }
+    ' "$FEEDBACK_FILE"
+
+    exit 0
+fi
 
 if ! command -v jq >/dev/null 2>&1; then
     echo "Error: jq is required for prompt optimization. Install with: brew install jq" >&2
