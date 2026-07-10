@@ -8,7 +8,7 @@ alwaysApply: true
 After completing any action that changes files, runs commands, or produces an outcome (not just discussion), log it via:
 
 ```bash
-$DAISY_ROOT/daisy/scripts/log.sh "concise description of what was done"
+daisy log "concise description of what was done"
 ```
 
 See `.daisy/AGENTS.md` for log format guidelines (HHMM timestamps, ~aliases, +PROJECT tags, chronological order).

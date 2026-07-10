@@ -148,6 +148,7 @@ DAISY_ALLOW=(
     "Read(.daisy/**)"
     "Edit(.daisy/**)"
     "Write(.daisy/**)"
+    "Bash(daisy:*)"
 )
 
 if command -v jq >/dev/null 2>&1; then
@@ -155,6 +156,12 @@ if command -v jq >/dev/null 2>&1; then
     existing='{}'
     [ -f "$CLAUDE_SETTINGS" ] && existing=$(cat "$CLAUDE_SETTINGS")
     updated="$existing"
+    # Heal existing workspaces: remove the legacy raw-scripts grant superseded by Bash(daisy:*)
+    updated=$(echo "$updated" | jq --arg r "Bash($DAISY_ROOT/daisy/scripts/*)" '
+        if .permissions.allow then
+            .permissions.allow |= map(select(. != $r))
+        else . end
+    ')
     for rule in "${DAISY_ALLOW[@]}"; do
         updated=$(echo "$updated" | jq \
             --arg r "$rule" \

@@ -77,6 +77,7 @@ Every command also accepts `--help`/`-h` as its sole argument to print its own u
 
 ```bash
 daisy build [home]           # Rebuild AGENTS.md for a home
+daisy check-secrets           # Check which secrets/tokens are configured
 daisy clean [-f]              # Remove Daisy from the current workspace
 daisy done "task pattern"     # Mark task complete
 daisy eval [<case>]           # List, display, or record an eval case result
@@ -91,6 +92,8 @@ daisy log Did thing A          # Add log entry (no quoting needed)
 daisy new-day                 # Start a new day
 daisy new-week                # Start a new week
 daisy optimize [--workflow <n>] # Run prompt learning loop on collected feedback
+daisy plan-archive             # Archive the active Daisy plan
+daisy plan-new "<description>" # Create a new Daisy plan and symlink PLAN.md
 daisy projects [--archived]   # List active or archived projects
 daisy rotate                  # Rotate journal.md into archive window files (automatic; rarely needed by hand)
 daisy status                  # Quick workspace summary

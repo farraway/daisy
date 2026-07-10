@@ -62,6 +62,7 @@ Usage: daisy <command> [args...]
 
 Commands:
   build [home]                 Rebuild AGENTS.md for a home
+  check-secrets                Check which secrets/tokens are configured
   clean [-f]                   Remove Daisy from the current workspace
   done <pattern>               Mark a task as complete
   eval [<case>] [--record]     List, display, or record an eval case result
@@ -75,6 +76,8 @@ Commands:
   new-day                      Start a new day
   new-week                     Start a new week
   optimize [--workflow <n>]    Run prompt learning loop on collected feedback
+  plan-archive                 Archive the active Daisy plan
+  plan-new <description>       Create a new Daisy plan and symlink PLAN.md
   projects [--archived]        List active or archived projects with paths
   rotate                       Rotate journal.md into archive window files
   status                       Show quick workspace summary
@@ -450,7 +453,7 @@ cmd_install() {
         "Read($DAISY_ROOT/**)"
         "Edit($DAISY_ROOT/**)"
         "Write($DAISY_ROOT/**)"
-        "Bash($DAISY_ROOT/daisy/scripts/*)"
+        "Bash(daisy:*)"
     )
 
     if command -v jq >/dev/null 2>&1; then
@@ -458,6 +461,12 @@ cmd_install() {
         local existing='{}'
         [ -f "$global_claude_settings" ] && existing=$(cat "$global_claude_settings")
         local updated="$existing"
+        # Heal existing installs: remove the legacy raw-scripts grant superseded by Bash(daisy:*)
+        updated=$(echo "$updated" | jq --arg r "Bash($DAISY_ROOT/daisy/scripts/*)" '
+            if .permissions.allow then
+                .permissions.allow |= map(select(. != $r))
+            else . end
+        ')
         for rule in "${daisy_global_allow[@]}"; do
             updated=$(echo "$updated" | jq \
                 --arg r "$rule" \
@@ -566,6 +575,21 @@ case "$COMMAND" in
     rotate)
         require_workspace
         "$SCRIPTS/rotate.sh" "$@"
+        popd > /dev/null
+        ;;
+    check-secrets)
+        require_workspace
+        "$SCRIPTS/check-secrets.sh" "$@"
+        popd > /dev/null
+        ;;
+    plan-new)
+        require_workspace
+        "$SCRIPTS/plan-new.sh" "$@"
+        popd > /dev/null
+        ;;
+    plan-archive)
+        require_workspace
+        "$SCRIPTS/plan-archive.sh" "$@"
         popd > /dev/null
         ;;
     help|--help|-h)

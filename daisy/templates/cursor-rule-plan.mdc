@@ -21,5 +21,5 @@ When `PLAN.md` exists at the workspace root, it is an active Daisy implementatio
 - When all steps are complete: append ` *Built*` to the H1 title; set `**Status:** built`.
 
 **To archive a completed plan:**
-Run `$DAISY_ROOT/daisy/scripts/plan-archive.sh` or say `/daisy archive PLAN.md`.
+Run `daisy plan-archive` or say `/daisy archive PLAN.md`.
 This moves the plan file to `.daisy/plans/archive/` and removes the `PLAN.md` symlink.

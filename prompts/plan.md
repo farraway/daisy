@@ -34,7 +34,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 
 ## /daisy plan \<description\> [+project]
 
-1. Call `$DAISY_ROOT/daisy/scripts/plan-new.sh "<description>" ["+project"]`
+1. Call `daisy plan-new "<description>" ["+project"]`
 2. Enter plan mode — only edit `PLAN.md`; do not write implementation code.
 3. **Research phase:** Read what already exists relevant to the task. Identify: (a) what already solves part of this, (b) what's essential to the problem (inherent) vs. accidental (artifact of current approach). Write findings into the `## Research` section of `PLAN.md`. Ask: **"Research summary confirmed — proceed to planning? (yes/no)"**
 4. Scaffold plan sections from conversation context: fill in Goal, Non-goals, Constraints; leave Steps as placeholder checkboxes.
@@ -55,7 +55,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 ## /daisy archive PLAN.md
 
 1. Warn if `**Status:**` is not `built` — confirm the user wants to archive anyway.
-2. Call `$DAISY_ROOT/daisy/scripts/plan-archive.sh`
+2. Call `daisy plan-archive`
 3. Log the archive event to `today.md` via `daisy log`.
 
 ## /daisy resume PLAN.md
