@@ -61,24 +61,60 @@ show_help() {
 Usage: daisy <command> [args...]
 
 Commands:
-  init [--new] <home> [path]   Initialize Daisy in a workspace
+  build [home]                 Rebuild AGENTS.md for a home
   clean [-f]                   Remove Daisy from the current workspace
-  status                       Show quick workspace summary
-  healthcheck [--force]        Run system health check
-  log <message...>             Add a log entry to today.md
   done <pattern>               Mark a task as complete
+  eval [<case>] [--record]     List, display, or record an eval case result
+  feedback [--workflow <n>]    Record a prompt failure for optimization
+  files                        Show resolved real paths for every home file
+  healthcheck [--force]        Run system health check
+  help                         Show this help
+  init [--new] <home> [path]   Initialize Daisy in a workspace
+  install                      Set up ~/bin/daisy symlink and shell environment
+  log <message...>             Add a log entry to today.md
   new-day                      Start a new day
   new-week                     Start a new week
-  build [home]                 Rebuild AGENTS.md for a home
-  feedback [--workflow <n>]    Record a prompt failure for optimization
   optimize [--workflow <n>]    Run prompt learning loop on collected feedback
-  eval [<case>] [--record]     List, display, or record an eval case result
-  install                      Set up ~/bin/daisy symlink and shell environment
-  help                         Show this help
+  projects [--archived]        List active or archived projects with paths
+  rotate                       Rotate journal.md into archive window files
+  status                       Show quick workspace summary
+
+  Every command also accepts --help/-h (as the sole argument) to print its usage.
 
 Environment:
   DAISY_ROOT    Path to the daisy repository (required)
 EOF
+}
+
+# --- built-in: per-command help ---
+#
+# Every `daisy <command>` supports `--help`/`-h` when passed as the sole
+# argument (checked in the dispatch section below, before any command runs).
+# Help text is read from each script's own header comment rather than
+# authored separately here.
+
+show_command_help() {
+    local cmd="$1"
+    local script=""
+
+    case "$cmd" in
+        build) script="build-prompt.sh" ;;
+        init) script="daisy-init.sh" ;;
+        status|clean|install|help) script="" ;;
+        *) script="${cmd}.sh" ;;
+    esac
+
+    if [ -n "$script" ] && [ -f "$SCRIPTS/$script" ]; then
+        awk '
+            NR==1 { next }
+            /^#/ { sub(/^# ?/, ""); print; next }
+            { exit }
+        ' "$SCRIPTS/$script"
+        return
+    fi
+
+    # Built-ins with no standalone script: fall back to their show_help() line.
+    show_help | grep -E "^  ${cmd}[[:space:]]" || show_help
 }
 
 # --- built-in: clean ---
@@ -446,6 +482,15 @@ cmd_install() {
 
 shift 2>/dev/null || true
 
+# --help/-h as the sole remaining argument works uniformly for every command,
+# without ever invoking it for real. Deliberately not a scan across all
+# arguments — that would misfire on legitimate free-text content (e.g. a log
+# message that happens to mention "--help").
+if [ "$#" -eq 1 ] && { [ "$1" = "--help" ] || [ "$1" = "-h" ]; }; then
+    show_command_help "$COMMAND"
+    exit 0
+fi
+
 case "$COMMAND" in
     install)
         cmd_install "$@"
@@ -506,6 +551,21 @@ case "$COMMAND" in
     eval)
         require_workspace
         "$SCRIPTS/eval.sh" "$@"
+        popd > /dev/null
+        ;;
+    files)
+        require_workspace
+        "$SCRIPTS/files.sh" "$@"
+        popd > /dev/null
+        ;;
+    projects)
+        require_workspace
+        "$SCRIPTS/projects.sh" "$@"
+        popd > /dev/null
+        ;;
+    rotate)
+        require_workspace
+        "$SCRIPTS/rotate.sh" "$@"
         popd > /dev/null
         ;;
     help|--help|-h)

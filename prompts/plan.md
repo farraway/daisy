@@ -50,13 +50,13 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 5. After each step: update Decisions (if any) and Deferred (if scope surfaced).
 6. Stop and report if blocked; do not skip steps or work around blockers silently.
 7. On all steps complete: append ` *Built*` to the H1 title; update `**Status:** built`.
-8. Log execution summary to `today.md` via `$DAISY_ROOT/daisy/scripts/log.sh`.
+8. Log execution summary to `today.md` via `daisy log`.
 
 ## /daisy archive PLAN.md
 
 1. Warn if `**Status:**` is not `built` — confirm the user wants to archive anyway.
 2. Call `$DAISY_ROOT/daisy/scripts/plan-archive.sh`
-3. Log the archive event to `today.md` via `$DAISY_ROOT/daisy/scripts/log.sh`.
+3. Log the archive event to `today.md` via `daisy log`.
 
 ## /daisy resume PLAN.md
 

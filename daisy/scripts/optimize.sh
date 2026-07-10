@@ -20,6 +20,10 @@ source "$SCRIPT_DIR/common.sh"
 if [ "$1" = "--healthcheck" ]; then
     require_root || exit 1
     require_env || exit 1
+    if [ ! -d "$DAISY_HOME/feedback" ]; then
+        echo "Error: feedback directory not found (needed for feedback.md and archive.md)" >&2
+        exit 1
+    fi
     exit 0
 fi
 
@@ -60,33 +64,20 @@ require_env || exit 1
 
 if [ "$LIST_MODE" = true ]; then
     FEEDBACK_FILE="$DAISY_HOME/feedback/feedback.md"
-    LAST_OPT_FILE="$DAISY_HOME/feedback/.last-optimized"
 
     [ -f "$FEEDBACK_FILE" ] || exit 0
 
-    # Build a comparable timestamp string (YYYYMMDDHHMM) from .last-optimized
-    CUTOFF=""
-    if [ -f "$LAST_OPT_FILE" ]; then
-        # File contains: "YYYY-MM-DD HHMM workflow"
-        RAW=$(awk '{print $1, $2}' "$LAST_OPT_FILE")   # "YYYY-MM-DD HHMM"
-        CUTOFF=$(echo "$RAW" | tr -d ' -')              # "YYYYMMDDHHMM"
-    fi
-
-    # Print entries whose header timestamp is strictly after the cutoff
-    awk -v cutoff="$CUTOFF" '
+    # Everything in feedback.md is unprocessed by construction — a real
+    # optimize run archives entries it used (see below), so there's no
+    # cutoff left to compare against; just show what's currently pending.
+    awk '
         /^## [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{4}/ {
-            if (entry != "") {
-                if (cutoff == "" || entry_ts > cutoff) { print entry; print "" }
-            }
-            date_part = $2; gsub(/-/, "", date_part)
-            entry_ts = date_part $3
+            if (entry != "") { print entry; print "" }
             entry = $0
             next
         }
         entry != "" { entry = entry "\n" $0 }
-        END {
-            if (entry != "" && (cutoff == "" || entry_ts > cutoff)) print entry
-        }
+        END { if (entry != "") print entry }
     ' "$FEEDBACK_FILE"
 
     exit 0
@@ -116,16 +107,20 @@ if [ ! -f "$FEEDBACK_FILE" ]; then
 fi
 
 # --- Parse feedback entries from feedback.md ---
-# Entries start with "## YYYY-MM-DD HHMM"
-
-mapfile -t ALL_ENTRIES < <(awk '
+# Entries start with "## YYYY-MM-DD HHMM". Records are NUL-delimited, not
+# newline-delimited: `mapfile` (no -d) splits on every newline byte in its
+# input, including the ones *inside* a multi-line entry — a plain
+# `print entry` would silently fragment each entry into one array element
+# per line, not one element per entry. NUL never appears in the source text,
+# so it's a safe record separator here.
+mapfile -d '' -t ALL_ENTRIES < <(awk '
     /^## [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{4}/ {
-        if (entry != "") print entry
+        if (entry != "") printf "%s%c", entry, 0
         entry = $0
         next
     }
     entry != "" { entry = entry "\n" $0 }
-    END { if (entry != "") print entry }
+    END { if (entry != "") printf "%s%c", entry, 0 }
 ' "$FEEDBACK_FILE")
 
 if [ ${#ALL_ENTRIES[@]} -eq 0 ]; then
@@ -361,6 +356,67 @@ echo "  Rebuilding AGENTS.md..."
 "$DAISY_ROOT/daisy/scripts/build-prompt.sh" "$DAISY_HOME_NAME" 2>/dev/null || \
     "$DAISY_ROOT/daisy/scripts/build-prompt.sh" --output "$DAISY_HOME/AGENTS.md" "$DAISY_HOME_NAME"
 echo "  ✓ AGENTS.md rebuilt"
+
+# --- Archive processed feedback entries ---
+# Entries actually used to train this run's Rules rewrite move out of
+# feedback.md into feedback/archive.md — membership in TRAIN_ENTRIES, not
+# just "in scope for this run". TEST_ENTRIES (the held-out 20%) were never
+# fed to the LLM, so archiving them would silently lose guidance that was
+# never incorporated. (A prior version of this logic archived everything in
+# scope, TEST included — fixed 2026-07-10.) This also naturally handles
+# workflow scoping for free: a scoped run's TRAIN_ENTRIES already excludes
+# non-matching-workflow entries, since ENTRIES was filtered before the split.
+
+ARCHIVE_FILE="$DAISY_HOME/feedback/archive.md"
+if [ ! -f "$ARCHIVE_FILE" ]; then
+    TEMPLATE_ARCHIVE="$DAISY_ROOT/daisy/templates/home/feedback/archive.md"
+    if [ -f "$TEMPLATE_ARCHIVE" ]; then
+        cp "$TEMPLATE_ARCHIVE" "$ARCHIVE_FILE"
+    else
+        printf '# Feedback Archive\n\nEntries already folded into a prompt'"'"'s ## Rules section by `daisy optimize`.\n\n---\n' > "$ARCHIVE_FILE"
+    fi
+fi
+
+TO_ARCHIVE=()
+TO_KEEP=()
+for entry in "${ALL_ENTRIES[@]}"; do
+    is_trained=false
+    for trained in "${TRAIN_ENTRIES[@]}"; do
+        if [ "$entry" = "$trained" ]; then
+            is_trained=true
+            break
+        fi
+    done
+    if [ "$is_trained" = true ]; then
+        TO_ARCHIVE+=("$entry")
+    else
+        TO_KEEP+=("$entry")
+    fi
+done
+
+if [ ${#TO_ARCHIVE[@]} -gt 0 ]; then
+    {
+        for entry in "${TO_ARCHIVE[@]}"; do
+            echo ""
+            echo "$entry"
+        done
+    } >> "$ARCHIVE_FILE"
+
+    # Rewrite feedback.md: keep its header (everything before the first
+    # entry) plus only the entries not archived.
+    {
+        awk '/^## [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{4}/ { exit } { print }' "$FEEDBACK_FILE"
+        for entry in "${TO_KEEP[@]}"; do
+            echo ""
+            echo "$entry"
+        done
+    } > "${FEEDBACK_FILE}.tmp"
+    mv "${FEEDBACK_FILE}.tmp" "$FEEDBACK_FILE"
+
+    COUNT=${#TO_ARCHIVE[@]}
+    NOUN="entries"; [ "$COUNT" -eq 1 ] && NOUN="entry"
+    echo "  ✓ Archived $COUNT $NOUN to $ARCHIVE_FILE"
+fi
 
 # --- Record optimization event ---
 

@@ -17,9 +17,9 @@ The new entry must appear in the `#### Log` section — not in Tasks, Agenda, or
 
 ### 2. Entry format
 
-The entry must follow: `- HHMM - <message>`
+The entry must follow: `- HHMM <message>`
 - Time is 4-digit 24-hour format (no colons): `1430`, not `14:30` or `2:30 PM`
-- Two spaces after the dash before the message
+- One space after the time before the message (no second dash — verified against `log.sh`'s actual output and every real entry in this home's journal)
 - No trailing blank lines between log entries
 
 ### 3. Chronological order

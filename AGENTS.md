@@ -43,18 +43,28 @@ When modifying any Daisy data files, preserve EXACT formatting.
 |--------|---------|
 | `daisy.sh` (repo root) | CLI entry point — dispatches subcommands |
 | `daisy-init.sh` | Initialize Daisy in a workspace with a specific home |
-| `new-day.sh` | Archive yesterday, generate new today.md |
-| `new-week.sh` | Archive completed tasks to done.txt + new day |
+| `new-day.sh` | Archive yesterday, generate new today.md, rotate journal.md |
+| `new-week.sh` | Archive completed tasks to done.txt + new day, rotate journal.md |
+| `rotate.sh` | Archive journal.md day-blocks into rolling/closed window files |
 | `done.sh` | Mark task complete in todo.txt and today.md |
 | `log.sh` | Add timestamped log entry to today.md |
 | `feedback.sh` | Record a prompt failure with workflow tag and description |
-| `optimize.sh` | LLM-driven prompt optimization loop (train/test split, diff, approval) |
+| `optimize.sh` | LLM-driven prompt optimization loop (train/test split, diff, approval, archives used entries) |
+| `eval.sh` | List, display, or record eval case results for the optimize loop |
 | `create-home.sh` | Create new home from template, optionally activate |
 | `build-prompt.sh` | Generate home/{home}/AGENTS.md from include.txt |
 | `common.sh` | Shared functions (resolve_home, require_env) |
+| `commit.sh` | Git commit helper — stages and commits changes under home/ |
+| `check-secrets.sh` | Report which API tokens/secrets are configured in .env.sh |
 | `healthcheck.sh` | System validation |
+| `files.sh` | Report resolved real paths for every per-home file/directory |
+| `projects.sh` | List active or archived projects with resolved paths |
+| `plan-new.sh` | Create a new Daisy plan file, symlink as PLAN.md |
+| `plan-archive.sh` | Archive the active Daisy plan, remove the PLAN.md symlink |
 
-Scripts do NOT yet implement: priority floor rules, task preservation from yesterday, quiet day consolidation, advanced sync validation, project management commands, JIRA sync, or log audit during retrospective. These are handled by the agent following prompt instructions.
+**Documentation policy:** every script in `daisy/scripts/` must have a row in this table, and — if it implements the `--healthcheck` contract — a corresponding entry in `healthcheck.sh`'s `HEALTHCHECK_SCRIPTS` array. `healthcheck.sh` includes an automated drift check for the table half of this; there is no automated check for the array half beyond that same script list (see `daisy/scripts/healthcheck.sh`).
+
+Scripts do NOT yet implement: priority floor rules, task preservation from yesterday, quiet day consolidation, advanced sync validation, JIRA sync, or log audit during retrospective. These are handled by the agent following prompt instructions.
 
 After modifying scripts or workflow logic, validate against [`daisy/docs/test-cases.md`](daisy/docs/test-cases.md).
 
@@ -70,7 +80,7 @@ After modifying scripts or workflow logic, validate against [`daisy/docs/test-ca
 
 `build-prompt.sh` generates `home/{home}/AGENTS.md` from `home/{home}/include.txt`. Workspaces access it via `.daisy/AGENTS.md` symlink.
 
-Usage: `$DAISY_ROOT/daisy/scripts/build-prompt.sh [home-name]`
+Usage: `daisy build [home-name]`
 
 ### Lazy Loading Architecture
 
@@ -95,7 +105,7 @@ personal
 
 1. Create `prompts/{name}.md` with a `## Trigger` section as the first heading
 2. Add `~{name}` (lazy) or `{name}` (full) to `home/{home}/include.txt`
-3. Rebuild: `$DAISY_ROOT/daisy/scripts/build-prompt.sh {home-name}`
+3. Rebuild: `daisy build {home-name}`
 
 The build script extracts everything between `## Trigger` and the next `#` or `##` heading for lazy stubs. If no `## Trigger` is found, falls back to full inclusion with a warning.
 

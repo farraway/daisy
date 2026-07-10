@@ -81,7 +81,7 @@ This allows different workspaces on the same machine to use different homes conc
 3. Instruct user to customize home/{name}/include.txt
 
 4. Build AGENTS.md:
-   a. Run $DAISY_ROOT/daisy/scripts/build-prompt.sh {name}
+   a. Run `daisy build {name}`
    b. Output: home/{name}/AGENTS.md
 
 5. Ask: "Activate this home in the current workspace?"

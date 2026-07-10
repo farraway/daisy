@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Check which secrets are configured
+# Check which secrets/tokens are configured in the workspace's .env.sh.
+# Usage: check-secrets.sh
 
 echo "Checking Daisy environment configuration..."
 echo ""

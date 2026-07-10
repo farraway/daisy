@@ -48,6 +48,10 @@ if [ -f "$DAISY_HOME/journal/today.md" ]; then
     echo "📦 Archived yesterday to journal.md"
 fi
 
+# Rotate journal.md (keeps only the last 5 day-blocks; distributes the rest
+# into rolling/closed window files)
+"$DAISY_ROOT/daisy/scripts/rotate.sh"
+
 # Delete cancelled tasks
 cancelled_count=0
 if [ -f "$DAISY_HOME/tasks/todo.txt" ]; then

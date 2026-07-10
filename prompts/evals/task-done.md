@@ -30,7 +30,7 @@ The corresponding task in today.md must:
 ### 3. Log entry
 
 A log entry must have been added to the Log section of today.md:
-- Format: `- HHMM - <description>` (24-hour time, no colons)
+- Format: `- HHMM <description>` (24-hour time, no colons, no second dash)
 - The description should reference the completed task
 
 ### 4. No other modifications

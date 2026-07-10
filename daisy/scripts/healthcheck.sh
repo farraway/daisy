@@ -99,6 +99,26 @@ check_today() {
     fi
 }
 
+# Function to check journal rotation state (warn-only, mirrors check_today())
+check_journal_rotation() {
+    local journal="$DAISY_HOME/journal/journal.md"
+    [ -f "$journal" ] || return 0
+
+    local count
+    count=$(grep -c '^### [0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}' "$journal" 2>/dev/null) || count=0
+    if [ "$count" -gt 5 ]; then
+        warn "journal.md has $count day-blocks (expected ≤ 5) — run 'daisy rotate', or check that new-day/new-week are invoking it"
+    fi
+
+    local f
+    for f in "$DAISY_HOME"/journal/journal-[0-9]*.md; do
+        [ -f "$f" ] || continue
+        if ! grep -q '^## Table of Contents' "$f" || ! grep -q '^## Summary' "$f"; then
+            warn "$(basename "$f") is missing TOC/Summary front matter"
+        fi
+    done
+}
+
 # Check 1: DAISY_ROOT environment variable
 if ! require_root 2>/dev/null; then
     error "DAISY_ROOT not set or invalid"
@@ -139,8 +159,11 @@ if check_today; then
 fi
 # Continue even if check_today fails (errors already reported)
 
+# Check 5b: journal rotation state (warn-only — never fails overall healthcheck)
+check_journal_rotation
+
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh)
+HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh feedback.sh optimize.sh eval.sh files.sh projects.sh rotate.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then
@@ -151,6 +174,14 @@ for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
             "$script" --healthcheck 2>&1 | sed 's/^/  /' >&2
             ERRORS=$((ERRORS + 1))
         fi
+    fi
+done
+
+# Check 6b: AGENTS.md Script Reference table drift (warn-only)
+for script_path in "$DAISY_ROOT"/daisy/scripts/*.sh; do
+    script_name=$(basename "$script_path")
+    if ! grep -q "\`$script_name\`" "$DAISY_ROOT/AGENTS.md"; then
+        warn "$script_name is missing from AGENTS.md's Script Reference table"
     fi
 done
 
