@@ -49,7 +49,7 @@ This allows different workspaces on the same machine to use different homes conc
 
 6. Verify AGENTS.md is up to date:
    a. Check if $DAISY_HOME/AGENTS.md exists
-   b. If missing: Report "Run: build-prompt.sh {home-name}"
+   b. If missing: Report "Run: daisy build {home-name}"
    c. If include.txt is newer than AGENTS.md: Report stale
 
 7. Final Report with suggestions for any issues found
