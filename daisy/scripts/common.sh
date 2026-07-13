@@ -4,6 +4,14 @@
 #   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #   source "$SCRIPT_DIR/common.sh"
 
+# Bash >= 5.2 defaults 'patsub_replacement' to on, which makes '&' in the
+# replacement side of ${var//pattern/replacement} mean "the matched text"
+# (sed-style). Every script that builds today.md by substituting task text
+# into a template via this construct silently corrupts any '&' in a task
+# description unless this is off. No-op (with the harmless error suppressed)
+# on bash < 5.2, which doesn't have the option.
+shopt -u patsub_replacement 2>/dev/null || true
+
 # Resolve DAISY_HOME for the current workspace.
 # 1. Walk up from $PWD looking for .daisy/home (authoritative)
 # 2. Fall back to $DAISY_HOME env var (convenience default, warns)
