@@ -58,8 +58,10 @@ When modifying any Daisy data files, preserve EXACT formatting.
 | `check-secrets.sh` | Report which API tokens/secrets are configured in .env.sh |
 | `healthcheck.sh` | System validation |
 | `files.sh` | Report resolved real paths for every per-home file/directory |
+| `list.sh` | List active prompts (with trigger summary) and installed skills (with description) |
 | `projects.sh` | List active or archived projects with resolved paths |
-| `plan-new.sh` | Create a new Daisy plan file, symlink as PLAN.md |
+| `plan-new.sh` | Create a new Daisy plan file, symlink as PLAN.md (or, with `--spec`, an unregistered draft in the working directory) |
+| `plan-pickup.sh` | Promote a local spec draft (from `plan-new.sh --spec`) into a tracked plan |
 | `plan-archive.sh` | Archive the active Daisy plan, remove the PLAN.md symlink |
 
 **Documentation policy:** every script in `daisy/scripts/` must have a row in this table, and — if it implements the `--healthcheck` contract — a corresponding entry in `healthcheck.sh`'s `HEALTHCHECK_SCRIPTS` array. `healthcheck.sh` includes an automated drift check for the table half of this; there is no automated check for the array half beyond that same script list (see `daisy/scripts/healthcheck.sh`).
@@ -81,6 +83,11 @@ After modifying scripts or workflow logic, validate against [`daisy/docs/test-ca
 `build-prompt.sh` generates `home/{home}/AGENTS.md` from `home/{home}/include.txt`. Workspaces access it via `.daisy/AGENTS.md` symlink.
 
 Usage: `daisy build [home-name]`
+
+`include.txt` is prompts-only. Skills (`skills/`) have no manifest — every
+skill in the merged root+home set always installs at `daisy init`; see
+[`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md) for why
+these are different systems.
 
 ### Lazy Loading Architecture
 
@@ -109,10 +116,25 @@ personal
 
 The build script extracts everything between `## Trigger` and the next `#` or `##` heading for lazy stubs. If no `## Trigger` is found, falls back to full inclusion with a warning.
 
+### Creating a New Skill
+
+Before creating either a prompt or a skill, apply the portability test in
+[`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md): would
+this behave identically to a bare agent that never loaded Daisy's persona? If
+yes, it's a skill, not a prompt.
+
+1. Create `skills/{name}/SKILL.md` with `name`/`description` frontmatter (plus
+   `disable-model-invocation: true` if it should only ever be invoked by name)
+2. No manifest entry needed — every skill under `skills/` (root, then home,
+   home overriding root by name) installs automatically at `daisy init`
+3. Re-run `daisy init` in any workspace that should pick it up — skills are
+   copied, not symlinked, so this is the only way to refresh one
+
 ---
 
 ## Reference Documentation
 
+- [`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md) — The hat/skill distinction, the portability test, worked examples
 - [`daisy/docs/task-format.md`](daisy/docs/task-format.md) — Task format regex, conversion rules, file organization
 - [`daisy/docs/task-sync.md`](daisy/docs/task-sync.md) — Bidirectional sync rules, validation algorithm
 - [`daisy/docs/templates.md`](daisy/docs/templates.md) — Template placeholders and formatting rules

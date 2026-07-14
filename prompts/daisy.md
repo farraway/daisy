@@ -15,6 +15,8 @@ Key files in `.daisy/`:
 
 Scripts: `/home/dean/.daisy/daisy/scripts/<name>.sh` (log.sh, done.sh, new-day.sh, new-week.sh)
 
+Run `daisy list` to see every active prompt and installed skill for this workspace, with a one-line trigger/description each — the discovery surface for what's available without loading it all up front.
+
 For read-only requests (show tasks, read today's log), work directly from the files.
 Load the full prompt for any write operation or workflow.
 
@@ -134,6 +136,7 @@ Do not log pure Q&A or discussion (unless a decision results).
 ## See Also
 
 - **`@daisy/AGENTS.md`** — Internal architecture and detailed specifications
+- **`daisy/docs/prompts-vs-skills.md`** — The hat/skill distinction, for adding new capabilities
 - **`daisy/docs/workflows.md`** — Detailed workflow algorithms
 - **`daisy/docs/logging.md`** — Logging design and abridged archival
 - **`daisy/docs/projects.md`** — Project management architecture

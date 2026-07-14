@@ -141,6 +141,59 @@ mkdir -p "$CLAUDE_COMMANDS_DIR"
 cp "$DAISY_ROOT/daisy/templates/claude-command.md" "$CLAUDE_COMMANDS_DIR/daisy.md"
 echo "  ✓ Installed Claude command: daisy"
 
+# --- Skills ---
+# Merged set: root skills, then home skills overriding root by name.
+# Copied (not symlinked) so a workspace's skill set is a point-in-time
+# snapshot, refreshed only by re-running `daisy init`. Only the specific
+# skill-named subdirectories/files below are touched — anything else already
+# in .claude/skills/ or .cursor/rules/ (unrelated, user-managed) is left alone.
+
+SKILLS_CLAUDE_DIR="$TARGET/.claude/skills"
+SKILLS_CURSOR_DIR="$TARGET/.cursor/rules"
+mkdir -p "$SKILLS_CLAUDE_DIR" "$SKILLS_CURSOR_DIR"
+
+declare -A SKILL_SRC
+# find, not a one-level glob — vendored skills nest under skills/vendor/<source>/<name>/.
+# The skill's name is always the immediate parent directory of its SKILL.md,
+# regardless of how deep that directory sits.
+while IFS= read -r -d '' skill_md; do
+    dir="$(dirname "$skill_md")"
+    SKILL_SRC["$(basename "$dir")"]="$dir/"
+done < <(find "$DAISY_ROOT/skills" -name SKILL.md -print0 2>/dev/null)
+while IFS= read -r -d '' skill_md; do
+    dir="$(dirname "$skill_md")"
+    SKILL_SRC["$(basename "$dir")"]="$dir/"
+done < <(find "$HOME_DIR/skills" -name SKILL.md -print0 2>/dev/null)
+
+SKILL_COUNT=0
+for name in "${!SKILL_SRC[@]}"; do
+    src="${SKILL_SRC[$name]}"
+
+    # Claude Code: copy the full skill directory (SKILL.md plus any sibling
+    # reference files) so nothing a skill discloses to gets left behind.
+    rm -rf "${SKILLS_CLAUDE_DIR:?}/$name"
+    cp -r "$src" "$SKILLS_CLAUDE_DIR/$name"
+
+    # Cursor has no workspace-scoped skills directory, so deliver the same
+    # skill as a pointer rule — same "Read X when Y" pattern cursor-rule.mdc
+    # already uses to deliver .daisy/AGENTS.md.
+    desc=$(awk -F': ' '/^description:/{ $1=""; sub(/^ /, ""); print; exit }' "$src/SKILL.md")
+    desc="${desc%\"}"; desc="${desc#\"}"
+    cat > "$SKILLS_CURSOR_DIR/$name.mdc" <<EOF
+---
+description: $desc
+alwaysApply: false
+---
+
+# $name
+
+Read \`.claude/skills/$name/SKILL.md\` when: $desc
+EOF
+
+    SKILL_COUNT=$((SKILL_COUNT + 1))
+done
+echo "  ✓ Installed $SKILL_COUNT skill(s) into .claude/skills/ and .cursor/rules/"
+
 # --- Claude Code permissions ---
 
 CLAUDE_SETTINGS="$TARGET/.claude/settings.local.json"
@@ -177,6 +230,9 @@ fi
 
 GITIGNORE="$TARGET/.gitignore"
 DAISY_IGNORE_ENTRIES=(".daisy/" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc" ".cursor/rules/daisy-plan.mdc" ".claude/commands/daisy.md" ".claude/settings.local.json" "PLAN.md")
+for name in "${!SKILL_SRC[@]}"; do
+    DAISY_IGNORE_ENTRIES+=(".claude/skills/$name/" ".cursor/rules/$name.mdc")
+done
 GITIGNORE_CHANGED=false
 
 if [ ! -f "$GITIGNORE" ]; then

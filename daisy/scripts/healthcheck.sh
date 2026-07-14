@@ -146,12 +146,34 @@ fi
 ok "Git repository: $(cd "$DAISY_ROOT" && git rev-parse --short HEAD)"
 
 # Check 4: Required directories
-for dir in "home" "daisy/scripts" "prompts" "daisy/templates"; do
+for dir in "home" "daisy/scripts" "prompts" "daisy/templates" "skills"; do
     if [ ! -d "$DAISY_ROOT/$dir" ]; then
         error "Missing directory: $dir"
         ERRORS=$((ERRORS + 1))
     fi
 done
+
+# Check 4b: Installed skill drift (warn-only) — a workspace's .claude/skills/*
+# entry with no matching source anywhere under $DAISY_ROOT/skills/ or
+# $DAISY_HOME/skills/ means the skill was removed/renamed upstream since the
+# last `daisy init`. Sources may nest (e.g. skills/vendor/<source>/<name>/),
+# so this matches by SKILL.md's containing-directory basename, not a fixed
+# one-level path — same resolution `daisy-init.sh` uses to install them.
+if [ -n "$DAISY_WORKSPACE" ] && [ -d "$DAISY_WORKSPACE/.claude/skills" ]; then
+    KNOWN_SKILL_NAMES=" "
+    while IFS= read -r -d '' skill_md; do
+        KNOWN_SKILL_NAMES+="$(basename "$(dirname "$skill_md")") "
+    done < <(find "$DAISY_ROOT/skills" "$DAISY_HOME/skills" -name SKILL.md -print0 2>/dev/null)
+
+    for dir in "$DAISY_WORKSPACE"/.claude/skills/*/; do
+        [ -d "$dir" ] || continue
+        skill_name=$(basename "$dir")
+        case "$KNOWN_SKILL_NAMES" in
+            *" $skill_name "*) ;;
+            *) warn "Installed skill '$skill_name' has no matching source in skills/ — stale from a removed/renamed skill; re-run 'daisy init' or remove .claude/skills/$skill_name manually" ;;
+        esac
+    done
+fi
 
 # Check 5: today.md format validation
 if check_today; then
@@ -163,7 +185,7 @@ fi
 check_journal_rotation
 
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh feedback.sh optimize.sh eval.sh files.sh projects.sh rotate.sh)
+HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh projects.sh rotate.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then

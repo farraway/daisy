@@ -72,12 +72,14 @@ Commands:
   help                         Show this help
   init [--new] <home> [path]   Initialize Daisy in a workspace
   install                      Set up ~/bin/daisy symlink and shell environment
+  list                         List active prompts and installed skills
   log <message...>             Add a log entry to today.md
   new-day                      Start a new day
   new-week                     Start a new week
   optimize [--workflow <n>]    Run prompt learning loop on collected feedback
   plan-archive                 Archive the active Daisy plan
-  plan-new <description>       Create a new Daisy plan and symlink PLAN.md
+  plan-new [--spec] <desc>     Create a new Daisy plan (or unregistered spec draft)
+  plan-pickup <path>           Promote a local spec draft into a tracked plan
   projects [--archived]        List active or archived projects with paths
   rotate                       Rotate journal.md into archive window files
   status                       Show quick workspace summary
@@ -567,6 +569,11 @@ case "$COMMAND" in
         "$SCRIPTS/files.sh" "$@"
         popd > /dev/null
         ;;
+    list)
+        require_workspace
+        "$SCRIPTS/list.sh" "$@"
+        popd > /dev/null
+        ;;
     projects)
         require_workspace
         "$SCRIPTS/projects.sh" "$@"
@@ -585,6 +592,11 @@ case "$COMMAND" in
     plan-new)
         require_workspace
         "$SCRIPTS/plan-new.sh" "$@"
+        popd > /dev/null
+        ;;
+    plan-pickup)
+        require_workspace
+        "$SCRIPTS/plan-pickup.sh" "$@"
         popd > /dev/null
         ;;
     plan-archive)

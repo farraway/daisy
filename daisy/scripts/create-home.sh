@@ -65,6 +65,9 @@ mkdir -p "$TARGET_DIR/plans/archive"
 # Create feedback directory
 mkdir -p "$TARGET_DIR/feedback"
 
+# Create skills directory
+mkdir -p "$TARGET_DIR/skills"
+
 # Prompt for git identity
 echo ""
 echo "Git identity for home '$NAME':"

@@ -34,8 +34,11 @@ fi
 # Navigate to repo and commit
 cd "$DAISY_ROOT" || exit 1
 
-# Check if there are changes to commit
-if git diff --quiet HEAD home 2>/dev/null && git diff --cached --quiet home 2>/dev/null; then
+# Check if there are changes to commit. `git diff` alone only sees changes
+# to already-tracked files — a brand-new untracked file (e.g. a freshly
+# picked-up plan) wouldn't show, and this would silently no-op. `git status
+# --porcelain` catches untracked files too.
+if [ -z "$(git status --porcelain -- home)" ]; then
     echo "No changes to commit in home/" >&2
     exit 0
 fi

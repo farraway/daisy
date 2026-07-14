@@ -1,10 +1,7 @@
-## Trigger
-
-Read the full `daisy/prompts/agents-md.md` when:
-- User asks to create an AGENTS.md file for a project
-- User asks to improve, review, or update an existing AGENTS.md
-- User asks "what should go in AGENTS.md?" or similar
-- Setting up a new repository and the user wants agent guidance configured
+---
+name: agents-md
+description: Write or review an AGENTS.md file for a project. Use when the user asks to create, improve, or review an AGENTS.md, asks "what should go in AGENTS.md?", or is setting up a new repository and wants agent guidance configured.
+---
 
 # Writing Effective AGENTS.md Files
 
