@@ -71,7 +71,8 @@ Commands:
   healthcheck [--force]        Run system health check
   help                         Show this help
   init [--new] <home> [path]   Initialize Daisy in a workspace
-  install                      Set up ~/bin/daisy symlink and shell environment
+  install [--refresh]          Set up daisy + root skills; --refresh re-runs
+                                only symlink/skills/permissions, no prompts
   list                         List active prompts and installed skills
   log <message...>             Add a log entry to today.md
   new-day                      Start a new day
@@ -314,12 +315,23 @@ detect_shell_rc() {
 }
 
 cmd_install() {
+    # --refresh re-runs only the non-interactive steps (symlink, skills,
+    # permissions) — for repeat runs after a root skill changes. Plain
+    # `install` is the one-time interactive bootstrap (also selects a
+    # default home and writes shell rc) and assumes a real terminal.
+    local refresh=false
+    [ "$1" = "--refresh" ] && refresh=true
+
     local rc_file
     rc_file=$(detect_shell_rc)
     local is_fish=false
     [ "$(basename "$SHELL")" = "fish" ] && is_fish=true
 
-    echo "Installing Daisy..."
+    if [ "$refresh" = true ]; then
+        echo "Refreshing Daisy..."
+    else
+        echo "Installing Daisy..."
+    fi
     echo "  DAISY_ROOT: $DAISY_ROOT"
     echo ""
 
@@ -351,105 +363,121 @@ cmd_install() {
         echo "  ✓ Created ~/bin/daisy → $target"
     fi
 
-    # 3. Select default home
-    local homes=()
-    for dir in "$DAISY_ROOT"/home/*/; do
-        [ -d "$dir" ] && homes+=("$(basename "$dir")")
-    done
+    # 3. Install root skills
+    local skills_claude_dir="$HOME/.claude/skills"
+    mkdir -p "$skills_claude_dir"
+    local skill_count=0
+    while IFS= read -r -d '' skill_md; do
+        local skill_dir skill_name
+        skill_dir="$(dirname "$skill_md")"
+        skill_name="$(basename "$skill_dir")"
+        rm -rf "${skills_claude_dir:?}/$skill_name"
+        cp -r "$skill_dir" "$skills_claude_dir/$skill_name"
+        skill_count=$((skill_count + 1))
+    done < <(find "$DAISY_ROOT/skills" -name SKILL.md -print0 2>/dev/null)
+    echo "  ✓ Installed $skill_count skill(s) into $skills_claude_dir"
 
     local selected_home=""
-    if [ ${#homes[@]} -eq 0 ]; then
-        echo ""
-        echo "No homes found. Creating one now..."
-        read -rp "  Home name: " selected_home
-        if [ -z "$selected_home" ]; then
-            echo "  Skipped home creation." >&2
-        else
-            "$SCRIPTS/create-home.sh" "$selected_home"
-        fi
-    elif [ ${#homes[@]} -eq 1 ]; then
-        selected_home="${homes[0]}"
-        echo "  Using only available home: $selected_home"
-    else
-        echo ""
-        echo "Available homes:"
-        local i=1
-        for h in "${homes[@]}"; do
-            echo "  $i) $h"
-            i=$((i + 1))
+    if [ "$refresh" = false ]; then
+        # 4. Select default home
+        local homes=()
+        for dir in "$DAISY_ROOT"/home/*/; do
+            [ -d "$dir" ] && homes+=("$(basename "$dir")")
         done
-        echo ""
-        read -rp "Select default home [1]: " choice
-        choice="${choice:-1}"
-        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#homes[@]} ]; then
-            selected_home="${homes[$((choice - 1))]}"
-        else
-            echo "  Invalid selection." >&2
-            exit 1
-        fi
-    fi
 
-    # 4. Write shell environment
-    echo ""
-    echo "  Shell config: $rc_file"
-
-    local root_line home_line
-    if [ "$is_fish" = true ]; then
-        root_line="set -gx DAISY_ROOT \"$DAISY_ROOT\""
-        home_line="set -gx DAISY_DEFAULT_HOME \"$selected_home\""
-    else
-        root_line="export DAISY_ROOT=\"$DAISY_ROOT\""
-        home_line="export DAISY_DEFAULT_HOME=\"$selected_home\""
-    fi
-
-    if [ -f "$rc_file" ] && grep -q 'DAISY_ROOT' "$rc_file" 2>/dev/null; then
-        # Update existing DAISY_ROOT line
-        local current_root
-        if [ "$is_fish" = true ]; then
-            current_root=$(grep 'DAISY_ROOT' "$rc_file" | grep -oE '"[^"]*"' | head -1 | tr -d '"')
-        else
-            current_root=$(grep 'DAISY_ROOT=' "$rc_file" | grep -oE '"[^"]*"' | head -1 | tr -d '"')
-        fi
-
-        if [ "$current_root" = "$DAISY_ROOT" ]; then
-            echo "  ✓ DAISY_ROOT already set correctly"
-        else
-            if [ "$is_fish" = true ]; then
-                sed -i.bak "s|set -gx DAISY_ROOT .*|$root_line|" "$rc_file"
+        if [ ${#homes[@]} -eq 0 ]; then
+            echo ""
+            echo "No homes found. Creating one now..."
+            read -rp "  Home name: " selected_home
+            if [ -z "$selected_home" ]; then
+                echo "  Skipped home creation." >&2
             else
-                sed -i.bak "s|export DAISY_ROOT=.*|$root_line|" "$rc_file"
+                "$SCRIPTS/create-home.sh" "$selected_home"
             fi
-            rm -f "${rc_file}.bak"
-            echo "  ✓ Updated DAISY_ROOT (was: $current_root)"
+        elif [ ${#homes[@]} -eq 1 ]; then
+            selected_home="${homes[0]}"
+            echo "  Using only available home: $selected_home"
+        else
+            echo ""
+            echo "Available homes:"
+            local i=1
+            for h in "${homes[@]}"; do
+                echo "  $i) $h"
+                i=$((i + 1))
+            done
+            echo ""
+            read -rp "Select default home [1]: " choice
+            choice="${choice:-1}"
+            if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#homes[@]} ]; then
+                selected_home="${homes[$((choice - 1))]}"
+            else
+                echo "  Invalid selection." >&2
+                exit 1
+            fi
         fi
 
-        # Update DAISY_DEFAULT_HOME line
-        if [ -n "$selected_home" ]; then
-            if grep -q 'DAISY_DEFAULT_HOME' "$rc_file" 2>/dev/null; then
+        # 5. Write shell environment
+        echo ""
+        echo "  Shell config: $rc_file"
+
+        local root_line home_line
+        if [ "$is_fish" = true ]; then
+            root_line="set -gx DAISY_ROOT \"$DAISY_ROOT\""
+            home_line="set -gx DAISY_DEFAULT_HOME \"$selected_home\""
+        else
+            root_line="export DAISY_ROOT=\"$DAISY_ROOT\""
+            home_line="export DAISY_DEFAULT_HOME=\"$selected_home\""
+        fi
+
+        if [ -f "$rc_file" ] && grep -q 'DAISY_ROOT' "$rc_file" 2>/dev/null; then
+            # Update existing DAISY_ROOT line
+            local current_root
+            if [ "$is_fish" = true ]; then
+                current_root=$(grep 'DAISY_ROOT' "$rc_file" | grep -oE '"[^"]*"' | head -1 | tr -d '"')
+            else
+                current_root=$(grep 'DAISY_ROOT=' "$rc_file" | grep -oE '"[^"]*"' | head -1 | tr -d '"')
+            fi
+
+            if [ "$current_root" = "$DAISY_ROOT" ]; then
+                echo "  ✓ DAISY_ROOT already set correctly"
+            else
                 if [ "$is_fish" = true ]; then
-                    sed -i.bak "s|set -gx DAISY_DEFAULT_HOME .*|$home_line|" "$rc_file"
+                    sed -i.bak "s|set -gx DAISY_ROOT .*|$root_line|" "$rc_file"
                 else
-                    sed -i.bak "s|export DAISY_DEFAULT_HOME=.*|$home_line|" "$rc_file"
+                    sed -i.bak "s|export DAISY_ROOT=.*|$root_line|" "$rc_file"
                 fi
                 rm -f "${rc_file}.bak"
-                echo "  ✓ Updated DAISY_DEFAULT_HOME to: $selected_home"
-            else
-                echo "$home_line" >> "$rc_file"
-                echo "  ✓ Added DAISY_DEFAULT_HOME: $selected_home"
+                echo "  ✓ Updated DAISY_ROOT (was: $current_root)"
             fi
+
+            # Update DAISY_DEFAULT_HOME line
+            if [ -n "$selected_home" ]; then
+                if grep -q 'DAISY_DEFAULT_HOME' "$rc_file" 2>/dev/null; then
+                    if [ "$is_fish" = true ]; then
+                        sed -i.bak "s|set -gx DAISY_DEFAULT_HOME .*|$home_line|" "$rc_file"
+                    else
+                        sed -i.bak "s|export DAISY_DEFAULT_HOME=.*|$home_line|" "$rc_file"
+                    fi
+                    rm -f "${rc_file}.bak"
+                    echo "  ✓ Updated DAISY_DEFAULT_HOME to: $selected_home"
+                else
+                    echo "$home_line" >> "$rc_file"
+                    echo "  ✓ Added DAISY_DEFAULT_HOME: $selected_home"
+                fi
+            fi
+        else
+            # Append fresh block
+            {
+                echo ""
+                echo "# daisy"
+                echo "$root_line"
+                [ -n "$selected_home" ] && echo "$home_line"
+            } >> "$rc_file"
+            echo "  ✓ Added DAISY_ROOT and DAISY_DEFAULT_HOME to $rc_file"
         fi
-    else
-        # Append fresh block
-        {
-            echo ""
-            echo "# daisy"
-            echo "$root_line"
-            [ -n "$selected_home" ] && echo "$home_line"
-        } >> "$rc_file"
-        echo "  ✓ Added DAISY_ROOT and DAISY_DEFAULT_HOME to $rc_file"
     fi
 
-    # 5. Claude Code global permissions
+    # 6. Claude Code global permissions
     local global_claude_settings="$HOME/.claude/settings.json"
     local daisy_global_allow=(
         "Read($DAISY_ROOT/**)"
@@ -481,12 +509,16 @@ cmd_install() {
     fi
 
     echo ""
-    echo "Done. To activate, run:"
-    echo "  source $rc_file"
-    echo ""
-    echo "Then initialize Daisy in a workspace:"
-    echo "  cd /path/to/project"
-    echo "  daisy init ${selected_home:-<home>}"
+    if [ "$refresh" = true ]; then
+        echo "Done."
+    else
+        echo "Done. To activate, run:"
+        echo "  source $rc_file"
+        echo ""
+        echo "Then initialize Daisy in a workspace:"
+        echo "  cd /path/to/project"
+        echo "  daisy init ${selected_home:-<home>}"
+    fi
 }
 
 # --- subcommand dispatch ---

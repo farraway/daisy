@@ -14,5 +14,7 @@ daisy
 
 # Add your home-specific prompts below
 # Examples:
-# # # ~github
-# 
+# ~work
+# ~jira
+# ~github
+# ~webex

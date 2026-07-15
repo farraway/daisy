@@ -123,12 +123,43 @@ Before creating either a prompt or a skill, apply the portability test in
 this behave identically to a bare agent that never loaded Daisy's persona? If
 yes, it's a skill, not a prompt.
 
-1. Create `skills/{name}/SKILL.md` with `name`/`description` frontmatter (plus
-   `disable-model-invocation: true` if it should only ever be invoked by name)
-2. No manifest entry needed — every skill under `skills/` (root, then home,
-   home overriding root by name) installs automatically at `daisy init`
-3. Re-run `daisy init` in any workspace that should pick it up — skills are
-   copied, not symlinked, so this is the only way to refresh one
+1. Create `skills/{name}/SKILL.md` with `name`/`description`/
+   `short_description` frontmatter (plus `disable-model-invocation: true` if
+   it should only ever be invoked by name). `short_description` is a
+   separate, ≤50 char, standalone-sufficient summary — `daisy list` prints
+   it by default; `description` is never shortened, since Claude Code
+   surfaces it verbatim for model-invocation matching.
+2. No manifest entry needed. Root skills (`skills/`) install to
+   `~/.claude/skills/` via `daisy install`; home skills
+   (`home/{home}/skills/`) install to the workspace's `.claude/skills/` via
+   `daisy init` — separate targets, no install-time merge. `daisy list`
+   consolidates both for display, with workspace/home entries overriding
+   root/user entries of the same name.
+3. Re-run `daisy install` (root skill) or `daisy init` (home skill) in any
+   workspace that should pick it up — skills are copied, not symlinked, so
+   this is the only way to refresh one
+
+### Adopting a Skill from Reference
+
+Reference material staged at `daisy/docs/resources/mattpo-skills/{name}/`
+(or any future reference source) is not a skill until adopted:
+
+1. Copy the whole directory — `cp -r daisy/docs/resources/mattpo-skills/{name}
+   skills/{name}` — this carries the source's `NOTICE.md` along
+   automatically.
+2. Copy `LICENSE` alongside: `cp daisy/docs/resources/mattpo-skills/LICENSE
+   skills/{name}/LICENSE`.
+3. Fix the copied `NOTICE.md`'s license line from `../LICENSE` to
+   `./LICENSE` — the original pointed at one shared file one level up;
+   once `LICENSE` is copied in as a same-level sibling, the old relative
+   path dangles. `NOTICE.md` needs no other edits — it's the sole
+   provenance record for an adopted skill, no separate `attribution:`
+   frontmatter.
+4. Add `short_description` frontmatter to `SKILL.md` (see above).
+5. Re-run `daisy install` to deliver it.
+
+The reference source itself is never modified or deleted by adoption — copy
+*from* it, always.
 
 ---
 

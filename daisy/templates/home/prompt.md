@@ -65,7 +65,7 @@ These define the core daisy system and are home-agnostic:
 
 Customize this section based on your needs. Examples:
 
-3. **`@daisy/prompts/work.md`** - For work contexts (professional tone, GitHub patterns)
+3. **`@daisy/prompts/work.md`** - For work context (professional tone, JIRA/GitHub patterns)
 4. **`@daisy/prompts/jira.md`** - If using JIRA (requires MCP server)
 5. **`@daisy/prompts/github.md`** - If managing repos (git commands, PR workflows)
 6. **`@daisy/prompts/webex.md`** - If using Webex (API operations, conversation summaries)

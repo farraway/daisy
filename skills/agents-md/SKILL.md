@@ -1,6 +1,7 @@
 ---
 name: agents-md
 description: Write or review an AGENTS.md file for a project. Use when the user asks to create, improve, or review an AGENTS.md, asks "what should go in AGENTS.md?", or is setting up a new repository and wants agent guidance configured.
+short_description: Write or review an AGENTS.md file
 ---
 
 # Writing Effective AGENTS.md Files

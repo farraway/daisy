@@ -85,8 +85,8 @@ daisy feedback "message"      # Record a prompt failure for optimization
 daisy files                   # Show resolved real paths for every home file
 daisy healthcheck [--force]   # System validation
 daisy help                    # Show command list
-daisy init work               # Initialize Daisy in a new workspace
-daisy init personal          # Switch workspace to a different home
+daisy init work                # Initialize Daisy in a new workspace
+daisy init quiteclose          # Switch workspace to a different home
 daisy install                 # Set up ~/bin/daisy and shell environment
 daisy log Did thing A          # Add log entry (no quoting needed)
 daisy new-day                 # Start a new day

@@ -142,24 +142,21 @@ cp "$DAISY_ROOT/daisy/templates/claude-command.md" "$CLAUDE_COMMANDS_DIR/daisy.m
 echo "  ✓ Installed Claude command: daisy"
 
 # --- Skills ---
-# Merged set: root skills, then home skills overriding root by name.
-# Copied (not symlinked) so a workspace's skill set is a point-in-time
-# snapshot, refreshed only by re-running `daisy init`. Only the specific
-# skill-named subdirectories/files below are touched — anything else already
-# in .claude/skills/ or .cursor/rules/ (unrelated, user-managed) is left alone.
+# Home skills only — root skills install separately via `daisy install`
+# (user-level, ~/.claude/skills/), not per-workspace. Copied (not symlinked)
+# so a workspace's skill set is a point-in-time snapshot, refreshed only by
+# re-running `daisy init`. Only the specific skill-named subdirectories/files
+# below are touched — anything else already in .claude/skills/ or
+# .cursor/rules/ (unrelated, user-managed) is left alone.
 
 SKILLS_CLAUDE_DIR="$TARGET/.claude/skills"
 SKILLS_CURSOR_DIR="$TARGET/.cursor/rules"
 mkdir -p "$SKILLS_CLAUDE_DIR" "$SKILLS_CURSOR_DIR"
 
 declare -A SKILL_SRC
-# find, not a one-level glob — vendored skills nest under skills/vendor/<source>/<name>/.
-# The skill's name is always the immediate parent directory of its SKILL.md,
-# regardless of how deep that directory sits.
-while IFS= read -r -d '' skill_md; do
-    dir="$(dirname "$skill_md")"
-    SKILL_SRC["$(basename "$dir")"]="$dir/"
-done < <(find "$DAISY_ROOT/skills" -name SKILL.md -print0 2>/dev/null)
+# find, not a one-level glob — a home's skills could nest, matching root's
+# discovery convention. The skill's name is always the immediate parent
+# directory of its SKILL.md, regardless of how deep that directory sits.
 while IFS= read -r -d '' skill_md; do
     dir="$(dirname "$skill_md")"
     SKILL_SRC["$(basename "$dir")"]="$dir/"

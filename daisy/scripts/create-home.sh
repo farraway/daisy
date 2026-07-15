@@ -88,7 +88,7 @@ echo ""
 echo "📋 Next steps:"
 echo "   1. Edit $TARGET_DIR/include.txt to choose which prompts to load"
 echo "      Common prompts: daisy, retrospective, github"
-echo "      Work-specific: see prompt.md for examples"
+echo "      Work-specific: add your own under this home's prompts/ directory"
 echo ""
 
 # Show current include.txt contents
