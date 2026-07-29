@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy healthcheck` — do not execute this file directly.
 # Master health check for daisy system
 # Validates global environment and runs all component health checks
 # Exit 0 = healthy, Exit 1 = issues found
@@ -119,6 +120,44 @@ check_journal_rotation() {
     done
 }
 
+# Function to check publication hygiene — everything outside top-level home/
+# and .git/ is published verbatim (dz-meta migrate.sh), so no system file may
+# contain identifying terms. Terms are derived from this machine at runtime
+# (a hardcoded list would itself leak): real home names, $USER, the repo's
+# git identity, and literal $HOME paths. Generic placeholder home names are
+# exempt — they aren't identifying. daisy/templates/home/ is published, so
+# only the top-level home/ is filtered, not every dir named "home".
+# See AGENTS.md "Publication Hygiene".
+check_publication_hygiene() {
+    local terms=() term name dir matches failed=0
+    local placeholders=" work personal example testhome "
+
+    for dir in "$DAISY_ROOT"/home/*/; do
+        [ -d "$dir" ] || continue
+        name=$(basename "$dir")
+        case "$placeholders" in
+            *" $name "*) ;;
+            *) terms+=("$name") ;;
+        esac
+    done
+    [ -n "${USER:-}" ] && terms+=("$USER")
+    term=$(git -C "$DAISY_ROOT" config user.name 2>/dev/null || true)
+    [ -n "$term" ] && terms+=("$term")
+    term=$(git -C "$DAISY_ROOT" config user.email 2>/dev/null || true)
+    [ -n "$term" ] && terms+=("$term")
+    [ -n "${HOME:-}" ] && [ "$HOME" != "/" ] && terms+=("$HOME/")
+
+    for term in "${terms[@]}"; do
+        matches=$(grep -rliwF --exclude-dir=.git -- "$term" "$DAISY_ROOT" 2>/dev/null \
+            | grep -v "^$DAISY_ROOT/home/" || true)
+        [ -z "$matches" ] && continue
+        error "Publication hygiene: '$term' appears in publishable file(s) — everything outside home/ publishes verbatim (see AGENTS.md: Publication Hygiene)"
+        echo "$matches" | sed "s|^$DAISY_ROOT/|    |" >&2
+        failed=1
+    done
+    return $failed
+}
+
 # Check 1: DAISY_ROOT environment variable
 if ! require_root 2>/dev/null; then
     error "DAISY_ROOT not set or invalid"
@@ -175,6 +214,28 @@ if [ -n "$DAISY_WORKSPACE" ] && [ -d "$DAISY_WORKSPACE/.claude/skills" ]; then
     done
 fi
 
+# Check 4c: Root-installed skill drift (warn-only) — `daisy install` copies
+# $DAISY_ROOT/skills/* into $HOME/.claude/skills (machine-wide, not
+# per-workspace). Resolved via $HOME, never a literal `~`, so the hermetic
+# test fixture can override it. `daisy install --update` prunes this itself
+# on every run; this check catches drift for installs that predate the prune
+# or ran outside the CLI.
+if [ -d "$HOME/.claude/skills" ]; then
+    ROOT_SKILL_NAMES=" "
+    while IFS= read -r -d '' skill_md; do
+        ROOT_SKILL_NAMES+="$(basename "$(dirname "$skill_md")") "
+    done < <(find "$DAISY_ROOT/skills" -name SKILL.md -print0 2>/dev/null)
+
+    for dir in "$HOME/.claude/skills"/*/; do
+        [ -d "$dir" ] || continue
+        skill_name=$(basename "$dir")
+        case "$ROOT_SKILL_NAMES" in
+            *" $skill_name "*) ;;
+            *) warn "Root-installed skill '$skill_name' has no matching source in \$DAISY_ROOT/skills — stale from a removed skill; re-run 'daisy install --update' or remove $HOME/.claude/skills/$skill_name manually" ;;
+        esac
+    done
+fi
+
 # Check 5: today.md format validation
 if check_today; then
     ok "today.md format valid"
@@ -185,7 +246,7 @@ fi
 check_journal_rotation
 
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh projects.sh rotate.sh)
+HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh projects.sh rotate.sh test.sh tasks.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then
@@ -198,6 +259,12 @@ for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
         fi
     fi
 done
+
+# Check 6c: Publication hygiene — identifying terms in the publishable tree
+if check_publication_hygiene; then
+    ok "Publication hygiene: no identifying terms outside home/"
+fi
+# Continue even if it fails (errors already reported)
 
 # Check 6b: AGENTS.md Script Reference table drift (warn-only)
 for script_path in "$DAISY_ROOT"/daisy/scripts/*.sh; do

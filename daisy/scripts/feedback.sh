@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy feedback` — do not execute this file directly.
 # Record a Daisy failure for prompt optimization.
 # Usage:
 #   daisy feedback [--workflow <name>] "<description>"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy new-day` — do not execute this file directly.
 # Start a new day - archives yesterday and creates new today.md
 # Usage: new-day.sh
 
@@ -160,7 +161,7 @@ echo "   Inbox tasks: ${#inbox_tasks[@]}"
 echo "   GitHub tasks: ${#github_tasks[@]}"
 
 # Commit changes
-"$DAISY_ROOT/daisy/scripts/commit.sh" "New day: $DATE $DAY"
+daisy commit --home "New day: $DATE $DAY"
 
 # Prompt optimization nudge
 NEW_FEEDBACK=$("$DAISY_ROOT/daisy/scripts/optimize.sh" --list 2>/dev/null || true)

@@ -35,8 +35,13 @@ The numbers cited:
 Daisy's lazy loading system (`~` prefix in `include.txt`) implements the core progressive disclosure pattern exactly:
 
 - `~daisy` → only the `## Trigger` stub is embedded in AGENTS.md; full prompt loads on demand
-- `~retrospective`, `~github`, `~plan`, `~css-best-practices`, `~js-best-practices` — same
-- The generated `home/{home}/AGENTS.md` for the quiteclose home is 138 lines — lean
+- `~retrospective`, `~github`, `~plan`, `~socrates` — same
+- The generated `home/{home}/AGENTS.md` for a live home is 130 lines — lean
+
+The 2026-07 two-layer split took this further: craft capabilities (`css`,
+`js`, `tdd`, `git`, `agents-md`) became skills, which cost nothing at all
+until the agent reaches for one — a rung below lazy stubs on the same
+ladder.
 
 The build pipeline (`build-prompt.sh`) extracts only the `## Trigger` section for lazy stubs. This is the correct pattern. The resource confirms this design is sound and is what the industry is converging on.
 

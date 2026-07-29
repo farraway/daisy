@@ -1,6 +1,6 @@
 # GitHub (Public) — Reference
 
-Reference for github.com operations via the GitHub MCP server. For the AI agent's operational rules, see `prompts/github.md`.
+Reference for github.com operations via the GitHub MCP server. For the AI agent's operational rules, see `prompts/github.md`. For resolving merge and rebase conflicts, see the `git` skill.
 
 ---
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy plan-pickup` — do not execute this file directly.
 # Promote a local, unregistered spec (`{slug}_PLAN.md`, from `plan-new.sh
 # --spec`) into a real Daisy-tracked plan: copy it into $DAISY_HOME/plans/
 # using the standard timestamp+slug naming, symlink it as PLAN.md. Purely
@@ -78,6 +79,6 @@ echo "✅ Picked up: $(basename "$SPEC_PATH") → $FILENAME"
 echo "   Linked as: $DAISY_WORKSPACE/PLAN.md"
 echo "   Original left in place at: $SPEC_PATH"
 
-"$DAISY_ROOT/daisy/scripts/commit.sh" "Pick up plan: $FILENAME"
+daisy commit --home "Pick up plan: $FILENAME"
 
 exit 0

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy optimize` — do not execute this file directly.
 # Run the prompt learning optimization loop.
 # Reads collected feedback, generates an improved ## Rules section via LLM,
 # shows a diff, and applies the change on approval.
@@ -182,7 +183,7 @@ resolve_prompt_file() {
         plan)
             echo "$DAISY_ROOT/prompts/plan.md"
             ;;
-        github)
+        github|git)
             echo "$DAISY_ROOT/prompts/github.md"
             ;;
         *)

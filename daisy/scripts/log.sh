@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy log` — do not execute this file directly.
 # Add a log entry to today.md
 # Usage: log.sh "log message"
 
@@ -73,6 +74,6 @@ fi
 SUMMARY=$(echo "$MESSAGE" | cut -c1-60)
 
 # Commit changes
-"$DAISY_ROOT/daisy/scripts/commit.sh" "Log: $TIME - $SUMMARY"
+daisy commit --home "Log: $TIME - $SUMMARY"
 
 exit 0

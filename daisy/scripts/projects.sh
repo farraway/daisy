@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy projects` — do not execute this file directly.
 # List active or archived projects, each with its resolved real path.
 # Usage:
 #   projects.sh              # list active projects (excludes _archive/)

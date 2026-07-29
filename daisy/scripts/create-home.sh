@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: internal helper, called by `daisy install` — not its own `daisy` subcommand.
 # Create a new daisy home from template
 # Usage: create-home.sh <home-name> [--activate]
 

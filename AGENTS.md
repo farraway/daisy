@@ -37,6 +37,34 @@ When modifying any Daisy data files, preserve EXACT formatting.
 
 ---
 
+## Publication Hygiene
+
+Everything outside `home/` and `.git/` is published verbatim to public
+mirrors (see the dz-meta workspace's `migrate.sh` — a wholesale rsync with
+no sanitization pass). Treat every system file — scripts, prompts, docs,
+templates, skills, tests, dotfiles — as already public.
+
+**Never write into system files:** real home names, the OS username, real
+people's names or emails, employers, or absolute paths under `$HOME`.
+
+**Use the standard substitutes:**
+- `$DAISY_ROOT`-relative paths, never `/home/{user}/...`
+- Placeholder home names: `work`, `personal`, `example` in docs; `testhome`
+  in test fixtures
+- `Jane Doe <jane@example.net>` for identities in examples
+- `~alias` notation for people
+
+Real names belong only in `home/{name}/`, which the sync excludes wholesale.
+
+`daisy healthcheck` enforces this with a scan of the publishable tree for
+identifying terms derived from the machine at runtime (home directory names,
+`$USER`, the repo's git identity, literal `$HOME` paths) — never from a
+hardcoded list, which would itself leak. The scan is a net, not the
+standard: it cannot catch personal *content* that contains no known term.
+Write system files as if they were already public.
+
+---
+
 ## Script Reference
 
 | Script | Purpose |
@@ -60,9 +88,11 @@ When modifying any Daisy data files, preserve EXACT formatting.
 | `files.sh` | Report resolved real paths for every per-home file/directory |
 | `list.sh` | List active prompts (with trigger summary) and installed skills (with description) |
 | `projects.sh` | List active or archived projects with resolved paths |
+| `tasks.sh` | Search todo.txt/done.txt (read-only); `--all\|--done\|--todo [pattern]` |
 | `plan-new.sh` | Create a new Daisy plan file, symlink as PLAN.md (or, with `--spec`, an unregistered draft in the working directory) |
 | `plan-pickup.sh` | Promote a local spec draft (from `plan-new.sh --spec`) into a tracked plan |
 | `plan-archive.sh` | Archive the active Daisy plan, remove the PLAN.md symlink |
+| `test.sh` | Run the hermetic `daisy/tests/` suite (`daisy/tests/run.sh`) |
 
 **Documentation policy:** every script in `daisy/scripts/` must have a row in this table, and — if it implements the `--healthcheck` contract — a corresponding entry in `healthcheck.sh`'s `HEALTHCHECK_SCRIPTS` array. `healthcheck.sh` includes an automated drift check for the table half of this; there is no automated check for the array half beyond that same script list (see `daisy/scripts/healthcheck.sh`).
 
@@ -104,7 +134,7 @@ personal
 # Lazy inclusion (trigger only)
 ~daisy
 ~retrospective
-~github
+~git
 ~plan
 ```
 
@@ -118,10 +148,17 @@ The build script extracts everything between `## Trigger` and the next `#` or `#
 
 ### Creating a New Skill
 
-Before creating either a prompt or a skill, apply the portability test in
-[`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md): would
-this behave identically to a bare agent that never loaded Daisy's persona? If
-yes, it's a skill, not a prompt.
+Before creating either a prompt or a skill, apply the coupling criterion in
+[`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md): does
+this capability need to know the user's situation (projects, journal, tasks,
+plan state), or only the artifact in front of it? Situated → prompt;
+artifact-only → skill. Where a capability is a hybrid, find the seam at
+which situational knowledge stops being needed and split there.
+
+Placement does not decide ownership. A Daisy-authored skill stays
+feedback-owned — the craft layer is where it runs, not who refines it. Only
+skills carrying `LICENSE`/`NOTICE.md` track an upstream source and must stay
+outside the feedback loop's write path.
 
 1. Create `skills/{name}/SKILL.md` with `name`/`description`/
    `short_description` frontmatter (plus `disable-model-invocation: true` if
@@ -165,7 +202,7 @@ The reference source itself is never modified or deleted by adoption — copy
 
 ## Reference Documentation
 
-- [`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md) — The hat/skill distinction, the portability test, worked examples
+- [`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md) — The hat/skill distinction, the ownership-of-evolution criterion, worked examples
 - [`daisy/docs/task-format.md`](daisy/docs/task-format.md) — Task format regex, conversion rules, file organization
 - [`daisy/docs/task-sync.md`](daisy/docs/task-sync.md) — Bidirectional sync rules, validation algorithm
 - [`daisy/docs/templates.md`](daisy/docs/templates.md) — Template placeholders and formatting rules

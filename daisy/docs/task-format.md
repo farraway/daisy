@@ -144,6 +144,21 @@ Where:
 - No contexts in body → Just description (no context prefix)
 - Context in middle of description → Move all contexts to front
 
+## Pattern Matching (`daisy done`, `daisy tasks`)
+
+Both commands match a `pattern` argument as a **case-insensitive literal
+substring** (`grep -F -i`) — never a regex. A pattern containing `.`, `*`,
+`[`, or `/` matches only that literal text, not "any character" or a
+character class. This matters because `+PROJECT` tags are exactly the kind
+of pattern these commands exist to match, and their common punctuation
+(`-`, sometimes `/`) must not be reinterpreted.
+
+`daisy done` resolves against todo.txt's **active** lines only (`x`/`z`
+records are excluded before matching, not filtered from the results
+afterward) and requires exactly one match — zero or multiple both refuse
+without touching any file. `daisy tasks` has no such requirement; it lists
+every matching line from the file(s) selected by `--all`/`--done`/`--todo`.
+
 ## File Organization
 
 ### todo.txt Structure

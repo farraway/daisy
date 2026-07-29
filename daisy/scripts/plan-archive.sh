@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy plan-archive` — do not execute this file directly.
 # Archive the active Daisy plan: move plan file to archive/, remove PLAN.md symlink.
 # Usage: plan-archive.sh
 
@@ -45,6 +46,6 @@ rm "$PLAN_LINK"
 echo "✅ Archived: $FILENAME"
 
 # Commit
-"$DAISY_ROOT/daisy/scripts/commit.sh" "Archive plan: $FILENAME"
+daisy commit --home "Archive plan: $FILENAME"
 
 exit 0

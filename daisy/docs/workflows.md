@@ -191,6 +191,10 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
 - Plan day
 - Retrospective
 
+These Inbox items live only in today.md, not todo.txt — check them off
+directly (`- [ ]` → `- [x]`), not via `daisy done`, which refuses anything
+absent from todo.txt.
+
 ---
 
 ## New Week
@@ -218,30 +222,54 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
 - Zero Chat Notifications
 - Check calendar, workout, check todo.txt, plan day, retrospective
 
+As with New Day, these are Inbox items in today.md — check them off
+directly, not via `daisy done`.
+
 ---
 
 ## Complete Task
 
-**Command:** "Daisy, done [pattern]" or "done [pattern]"
+**Command:** "Daisy, done [pattern]" or "done [pattern]" (`daisy done "pattern"`)
 
 ```
-1. Find task by pattern in todo.txt (case-insensitive)
-   - If multiple matches: list them and ask which one
-   - If no match: report "No task found matching: {pattern}"
+1. Resolve exactly one task from todo.txt's active lines (case-insensitive
+   literal substring — not a regex; a "/", ".", or "[" in the pattern
+   matches itself):
+   - No match: refuse — "No task found matching: {pattern}", exit non-zero,
+     nothing touched.
+   - Multiple matches: refuse — list every candidate (numbered), exit
+     non-zero, nothing touched. Relay the candidates to the user and re-run
+     with a more specific pattern.
+   - Historical "x"/"z" lines are never candidates and are never touched,
+     even if they also match the pattern.
+   Inbox-only items (e.g. "workout") are not in todo.txt, so they refuse
+   too — see the note below.
 
-2. Mark complete in today.md:
-   - Change "- [ ]" to "- [x]" on the matching line
+2. Complete in todo.txt by whole-line identity (never by re-matching the
+   pattern): strip the priority prefix, add "x YYYY-MM-DD " (creation date
+   preserved), move the line to the bottom.
 
-3. Mark complete in todo.txt:
-   - Strip priority prefix (e.g., "(A) ")
-   - Add "x YYYY-MM-DD " prefix
+3. Complete in today.md by exact whole-line equality against the resolved
+   description ("- [ ] {description}" → "- [x] {description}"). Absent from
+   today.md is a warning, not a failure — the todo.txt completion still
+   proceeds.
 
-4. Add log entry with timestamp
+4. Journal via `daisy log "Done: {description}"`, then commit
+   (`daisy commit --home`). The log call commits first, so the trailing
+   commit call normally no-ops; if journaling fails, that trailing commit is
+   what actually saves the todo.txt/today.md edits, and the run still exits
+   non-zero to report the partial state.
 
-5. Commit changes (call done.sh "pattern")
+5. On success: one summary line, "✅ Done: {description} (commit {hash})".
+   The exit code is the contract — 0 only when todo.txt was updated and
+   committed; non-zero otherwise, with the reason on stderr.
 
-NOTE: The completed task stays in todo.txt (marked with "x" prefix)
-until the next new-week.sh archives it to done.txt.
+NOTE: The completed task stays in todo.txt (marked with "x" prefix) until
+the next new-week.sh archives it to done.txt.
+
+NOTE: Inbox items ("Workout", "Plan day", "Retrospective", etc.) exist only
+in today.md, not todo.txt, so `daisy done` refuses them by design — they are
+checked off manually (or by new-day/new-week), not via this command.
 ```
 
 ---

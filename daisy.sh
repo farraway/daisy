@@ -64,6 +64,8 @@ Commands:
   build [home]                 Rebuild AGENTS.md for a home
   check-secrets                Check which secrets/tokens are configured
   clean [-f]                   Remove Daisy from the current workspace
+  commit --home|--not-home <message>
+                                Commit changes, scoped to home data or everything else
   done <pattern>               Mark a task as complete
   eval [<case>] [--record]     List, display, or record an eval case result
   feedback [--workflow <n>]    Record a prompt failure for optimization
@@ -71,7 +73,7 @@ Commands:
   healthcheck [--force]        Run system health check
   help                         Show this help
   init [--new] <home> [path]   Initialize Daisy in a workspace
-  install [--refresh]          Set up daisy + root skills; --refresh re-runs
+  install [--update]           Set up daisy + root skills; --update re-runs
                                 only symlink/skills/permissions, no prompts
   list                         List active prompts and installed skills
   log <message...>             Add a log entry to today.md
@@ -84,6 +86,9 @@ Commands:
   projects [--archived]        List active or archived projects with paths
   rotate                       Rotate journal.md into archive window files
   status                       Show quick workspace summary
+  tasks [--all|--done|--todo] [pattern]
+                                Search todo.txt/done.txt (read-only)
+  test [name-substring]        Run the hermetic daisy/scripts test suite
 
   Every command also accepts --help/-h (as the sole argument) to print its usage.
 
@@ -132,6 +137,7 @@ cmd_clean() {
     fi
 
     require_workspace
+    source "$SCRIPTS/common.sh"
 
     local home_name="unknown"
     if [ -f ".daisy/home" ]; then
@@ -149,25 +155,59 @@ cmd_clean() {
         esac
     fi
 
+    # Discover this workspace's installed skill names the same way
+    # daisy-init.sh does, so removal can't drift from installation.
+    local skill_names=()
+    while IFS= read -r -d '' skill_md; do
+        skill_names+=("$(basename "$(dirname "$skill_md")")")
+    done < <(find "$DAISY_ROOT/home/$home_name/skills" -name SKILL.md -print0 2>/dev/null)
+
     # 1. Remove .daisy/ directory
     if [ -d ".daisy" ]; then
         rm -rf ".daisy"
         echo "  ✓ Removed .daisy/"
     fi
 
-    # 2. Remove Cursor rule symlink
-    if [ -L ".cursor/rules/daisy.md" ]; then
-        rm -f ".cursor/rules/daisy.md"
-        echo "  ✓ Removed Cursor rule"
-        # Remove empty .cursor/rules/ if we created it
+    # 2. Remove Cursor rule files
+    local cursor_rules_removed=false
+    for rule_name in "${DAISY_CURSOR_RULE_FILES[@]}"; do
+        if [ -f ".cursor/rules/$rule_name" ]; then
+            rm -f ".cursor/rules/$rule_name"
+            cursor_rules_removed=true
+        fi
+    done
+    if [ "$cursor_rules_removed" = true ]; then
+        echo "  ✓ Removed Cursor rules"
         rmdir ".cursor/rules" 2>/dev/null || true
         rmdir ".cursor" 2>/dev/null || true
     fi
 
-    # 4. Remove Daisy entries from .gitignore
+    # 3. Remove Claude command
+    if [ -f "$DAISY_CLAUDE_COMMAND_FILE" ]; then
+        rm -f "$DAISY_CLAUDE_COMMAND_FILE"
+        echo "  ✓ Removed Claude command"
+        rmdir ".claude/commands" 2>/dev/null || true
+    fi
+
+    # 4. Remove installed skills
+    if [ ${#skill_names[@]} -gt 0 ]; then
+        for name in "${skill_names[@]}"; do
+            rm -rf ".claude/skills/$name"
+            rm -f ".cursor/rules/$name.mdc"
+        done
+        echo "  ✓ Removed ${#skill_names[@]} skill(s) from .claude/skills/ and .cursor/rules/"
+        rmdir ".cursor/rules" 2>/dev/null || true
+        rmdir ".cursor" 2>/dev/null || true
+    fi
+
+    # 5. Remove Daisy entries from .gitignore
     if [ -f ".gitignore" ]; then
+        local gitignore_entries=("${DAISY_GITIGNORE_BASE_ENTRIES[@]}")
+        for name in "${skill_names[@]}"; do
+            gitignore_entries+=(".claude/skills/$name/" ".cursor/rules/$name.mdc")
+        done
         local cleaned=false
-        for line in "# Daisy workspace config (per-machine)" ".daisy/" ".cursor/rules/daisy.md"; do
+        for line in "# Daisy workspace config (per-machine)" "${gitignore_entries[@]}"; do
             if grep -qxF "$line" ".gitignore" 2>/dev/null; then
                 grep -vxF "$line" ".gitignore" > ".gitignore.tmp"
                 mv ".gitignore.tmp" ".gitignore"
@@ -187,11 +227,12 @@ cmd_clean() {
         fi
     fi
 
-    # 5. Remove Daisy permissions from .claude/settings.local.json
+    # 6. Remove Daisy permissions from .claude/settings.local.json
     if [ -f ".claude/settings.local.json" ] && command -v jq >/dev/null 2>&1; then
-        # Current local rules (post-install permissions split) + legacy rules for old workspaces
+        # Current local rules (aligned with DAISY_ALLOW_BASE) + legacy rules for old workspaces
         daisy_rules_json=$(printf '%s\n' \
-            "Read(.daisy/**)" "Edit(.daisy/**)" "Write(.daisy/**)" \
+            "${DAISY_ALLOW_BASE[@]}" \
+            "Write(.daisy/**)" \
             "Bash($DAISY_ROOT/daisy/scripts/*)" \
             "Read($DAISY_ROOT/**)" "Edit($DAISY_ROOT/**)" "Write($DAISY_ROOT/**)" \
             | jq -R . | jq -s .)
@@ -211,10 +252,10 @@ cmd_clean() {
         fi
     fi
 
-    # 6. Remove Daisy entries from .cursorignore
+    # 7. Remove Daisy entries from .cursorignore
     if [ -f ".cursorignore" ]; then
         local cleaned=false
-        for line in "# Allow Cursor to index daisy paths (gitignored but needed for agent context)" "!.daisy/" "!.cursor/rules/daisy.md"; do
+        for line in "# Allow Cursor to index daisy paths (gitignored but needed for agent context)" "${DAISY_CURSORIGNORE_BASE_ENTRIES[@]}"; do
             if grep -qxF "$line" ".cursorignore" 2>/dev/null; then
                 grep -vxF "$line" ".cursorignore" > ".cursorignore.tmp"
                 mv ".cursorignore.tmp" ".cursorignore"
@@ -232,7 +273,7 @@ cmd_clean() {
         fi
     fi
 
-    # 7. Unset local git identity if it matches the home's gitconfig
+    # 8. Unset local git identity if it matches the home's gitconfig
     local gitconfig="$DAISY_ROOT/home/$home_name/gitconfig"
     if [ -f "$gitconfig" ] && [ -d ".git" ]; then
         local cfg_name cfg_email local_name local_email
@@ -300,6 +341,16 @@ cmd_status() {
         echo "Backlog: $total_pending tasks in todo.txt"
     fi
 
+    # Show the active plan if PLAN.md is a symlink to a tracked Daisy plan
+    if [ -L "PLAN.md" ]; then
+        local plan_path plan_title
+        plan_path=$(readlink -f "PLAN.md")
+        plan_title=$(head -1 "$plan_path" | sed 's/^#\+ *//')
+        echo ""
+        echo "Plan:   $plan_title"
+        echo "        $plan_path"
+    fi
+
     popd > /dev/null
 }
 
@@ -315,20 +366,30 @@ detect_shell_rc() {
 }
 
 cmd_install() {
-    # --refresh re-runs only the non-interactive steps (symlink, skills,
+    # --update re-runs only the non-interactive steps (symlink, skills,
     # permissions) — for repeat runs after a root skill changes. Plain
     # `install` is the one-time interactive bootstrap (also selects a
     # default home and writes shell rc) and assumes a real terminal.
-    local refresh=false
-    [ "$1" = "--refresh" ] && refresh=true
+    local update=false
+    [ "$1" = "--update" ] && update=true
 
     local rc_file
     rc_file=$(detect_shell_rc)
     local is_fish=false
     [ "$(basename "$SHELL")" = "fish" ] && is_fish=true
 
-    if [ "$refresh" = true ]; then
-        echo "Refreshing Daisy..."
+    if [ "$update" = false ] && [ -L "$HOME/bin/daisy" ]; then
+        local existing_target
+        existing_target=$(readlink "$HOME/bin/daisy")
+        if [ "$existing_target" = "$DAISY_ROOT/daisy.sh" ]; then
+            echo "Error: Daisy is already installed." >&2
+            echo "Run 'daisy install --update' to re-apply symlink/skills/permissions." >&2
+            exit 1
+        fi
+    fi
+
+    if [ "$update" = true ]; then
+        echo "Updating Daisy..."
     else
         echo "Installing Daisy..."
     fi
@@ -367,18 +428,44 @@ cmd_install() {
     local skills_claude_dir="$HOME/.claude/skills"
     mkdir -p "$skills_claude_dir"
     local skill_count=0
+    local source_names=()
     while IFS= read -r -d '' skill_md; do
         local skill_dir skill_name
         skill_dir="$(dirname "$skill_md")"
         skill_name="$(basename "$skill_dir")"
+        source_names+=("$skill_name")
         rm -rf "${skills_claude_dir:?}/$skill_name"
         cp -r "$skill_dir" "$skills_claude_dir/$skill_name"
         skill_count=$((skill_count + 1))
     done < <(find "$DAISY_ROOT/skills" -name SKILL.md -print0 2>/dev/null)
     echo "  ✓ Installed $skill_count skill(s) into $skills_claude_dir"
 
+    # Prune skills previously installed here that no longer exist in
+    # $DAISY_ROOT/skills — otherwise a deleted source skill's copy lingers
+    # in $skills_claude_dir forever.
+    local pruned_count=0
+    for installed_dir in "$skills_claude_dir"/*/; do
+        [ -d "$installed_dir" ] || continue
+        local installed_name found
+        installed_name="$(basename "$installed_dir")"
+        found=false
+        for name in "${source_names[@]}"; do
+            if [ "$name" = "$installed_name" ]; then
+                found=true
+                break
+            fi
+        done
+        if [ "$found" = false ]; then
+            rm -rf "${skills_claude_dir:?}/$installed_name"
+            pruned_count=$((pruned_count + 1))
+        fi
+    done
+    if [ "$pruned_count" -gt 0 ]; then
+        echo "  ✓ Pruned $pruned_count stale skill(s) from $skills_claude_dir"
+    fi
+
     local selected_home=""
-    if [ "$refresh" = false ]; then
+    if [ "$update" = false ]; then
         # 4. Select default home
         local homes=()
         for dir in "$DAISY_ROOT"/home/*/; do
@@ -480,9 +567,8 @@ cmd_install() {
     # 6. Claude Code global permissions
     local global_claude_settings="$HOME/.claude/settings.json"
     local daisy_global_allow=(
-        "Read($DAISY_ROOT/**)"
-        "Edit($DAISY_ROOT/**)"
-        "Write($DAISY_ROOT/**)"
+        "Read(/$DAISY_ROOT/**)"
+        "Edit(/$DAISY_ROOT/**)"
         "Bash(daisy:*)"
     )
 
@@ -491,12 +577,23 @@ cmd_install() {
         local existing='{}'
         [ -f "$global_claude_settings" ] && existing=$(cat "$global_claude_settings")
         local updated="$existing"
-        # Heal existing installs: remove the legacy raw-scripts grant superseded by Bash(daisy:*)
-        updated=$(echo "$updated" | jq --arg r "Bash($DAISY_ROOT/daisy/scripts/*)" '
-            if .permissions.allow then
-                .permissions.allow |= map(select(. != $r))
-            else . end
-        ')
+        # Heal existing installs: remove the legacy raw-scripts grant superseded by Bash(daisy:*),
+        # and the single-slash Read/Edit rules superseded by the //-absolute forms above. A
+        # single leading slash anchors at the settings file's own directory (~/.claude/ for user
+        # settings), not the filesystem root, so those old rules silently matched nothing.
+        for legacy in \
+            "Bash($DAISY_ROOT/daisy/scripts/*)" \
+            "Read($DAISY_ROOT/**)" \
+            "Edit($DAISY_ROOT/**)" \
+            "Read(//$DAISY_ROOT/**)" \
+            "Edit(//$DAISY_ROOT/**)"
+        do
+            updated=$(echo "$updated" | jq --arg r "$legacy" '
+                if .permissions.allow then
+                    .permissions.allow |= map(select(. != $r))
+                else . end
+            ')
+        done
         for rule in "${daisy_global_allow[@]}"; do
             updated=$(echo "$updated" | jq \
                 --arg r "$rule" \
@@ -509,7 +606,7 @@ cmd_install() {
     fi
 
     echo ""
-    if [ "$refresh" = true ]; then
+    if [ "$update" = true ]; then
         echo "Done."
     else
         echo "Done. To activate, run:"
@@ -611,6 +708,11 @@ case "$COMMAND" in
         "$SCRIPTS/projects.sh" "$@"
         popd > /dev/null
         ;;
+    tasks)
+        require_workspace
+        "$SCRIPTS/tasks.sh" "$@"
+        popd > /dev/null
+        ;;
     rotate)
         require_workspace
         "$SCRIPTS/rotate.sh" "$@"
@@ -634,6 +736,18 @@ case "$COMMAND" in
     plan-archive)
         require_workspace
         "$SCRIPTS/plan-archive.sh" "$@"
+        popd > /dev/null
+        ;;
+    commit)
+        require_workspace
+        source "$SCRIPTS/common.sh"
+        require_env || { popd > /dev/null; exit 1; }
+        "$SCRIPTS/commit.sh" "$@"
+        popd > /dev/null
+        ;;
+    test)
+        require_workspace
+        "$SCRIPTS/test.sh" "$@"
         popd > /dev/null
         ;;
     help|--help|-h)

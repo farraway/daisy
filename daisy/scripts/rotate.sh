@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy rotate` — do not execute this file directly.
 # Archive journal.md day-blocks into rolling/closed window files, logrotate-style.
 #
 # journal.md always retains only its last 5 day-blocks; everything older is

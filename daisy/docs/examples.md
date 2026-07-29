@@ -481,26 +481,26 @@ Each workspace independently tracks its own home. To use a different home, re-ru
 
 **User:**
 ```
-Daisy, switch to quiteclose
+Daisy, switch to personal
 ```
 
 **AI executes:**
 ```bash
-daisy init quiteclose
+daisy init personal
 ```
 
 **AI Response:**
 ```
-✅ Switched to quiteclose home
+✅ Switched to personal home
 
 .daisy/ symlinks updated:
-- tasks/   → daisy/home/quiteclose/tasks/
-- today.md → daisy/home/quiteclose/journal/today.md
-- journal.md → daisy/home/quiteclose/journal/journal.md
-- projects/ → daisy/home/quiteclose/projects/
-- AGENTS.md → daisy/home/quiteclose/AGENTS.md
+- tasks/   → daisy/home/personal/tasks/
+- today.md → daisy/home/personal/journal/today.md
+- journal.md → daisy/home/personal/journal/journal.md
+- projects/ → daisy/home/personal/projects/
+- AGENTS.md → daisy/home/personal/AGENTS.md
 
-Local git identity set: QuiteClose <dean@quiteclose.net>
+Local git identity set: Jane Doe <jane@example.net>
 
 Other workspaces are unaffected.
 ```

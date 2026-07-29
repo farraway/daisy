@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy eval` — do not execute this file directly.
 # Display and record Daisy eval cases.
 # Usage:
 #   daisy eval                              # list available eval cases

@@ -1,18 +1,31 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy commit` — do not execute this file directly.
 # Daisy git commit helper
-# Commits changes to the active home directory
-# Usage: commit.sh "commit message"
+# Commits changes scoped to either the active home's data or everything else
+# Usage: commit.sh --home|--not-home "commit message"
 
 set -e
 
-# Check for commit message
-if [ -z "$1" ]; then
+usage() {
+    echo "Usage: commit.sh --home|--not-home \"commit message\"" >&2
+}
+
+MODE="$1"
+MESSAGE="$2"
+
+case "$MODE" in
+    --home|--not-home) ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
+
+if [ -z "$MESSAGE" ]; then
     echo "Error: Commit message required" >&2
-    echo "Usage: commit.sh \"commit message\"" >&2
+    usage
     exit 1
 fi
-
-MESSAGE="$1"
 
 # Validate environment (quick check)
 if [ -z "$DAISY_ROOT" ]; then
@@ -31,6 +44,18 @@ if [ ! -d "$DAISY_ROOT/.git" ]; then
     exit 1
 fi
 
+if [ "$MODE" = "--home" ]; then
+    if [ -z "$DAISY_HOME_NAME" ]; then
+        echo "Error: DAISY_HOME_NAME not set" >&2
+        exit 1
+    fi
+    PATHSPEC=(-- "home/$DAISY_HOME_NAME")
+    SCOPE_LABEL="home/$DAISY_HOME_NAME"
+else
+    PATHSPEC=(-- . ":!home")
+    SCOPE_LABEL="everything except home/"
+fi
+
 # Navigate to repo and commit
 cd "$DAISY_ROOT" || exit 1
 
@@ -38,13 +63,13 @@ cd "$DAISY_ROOT" || exit 1
 # to already-tracked files — a brand-new untracked file (e.g. a freshly
 # picked-up plan) wouldn't show, and this would silently no-op. `git status
 # --porcelain` catches untracked files too.
-if [ -z "$(git status --porcelain -- home)" ]; then
-    echo "No changes to commit in home/" >&2
+if [ -z "$(git status --porcelain "${PATHSPEC[@]}")" ]; then
+    echo "No changes to commit in $SCOPE_LABEL" >&2
     exit 0
 fi
 
 # Stage and commit
-git add home || {
+git add "${PATHSPEC[@]}" || {
     echo "Error: Failed to stage changes" >&2
     exit 1
 }

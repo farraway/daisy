@@ -33,8 +33,11 @@ Plans are durable implementation artifacts. A plan is developed collaboratively 
    - Add a Plans section (or append to it) with:
      ../plans/{filename} — status: in progress
 
-6. End every response with the numbered Open Questions list and:
-   "Ready to execute? (yes/no)"
+6. Present the numbered Open Questions list via AskUserQuestion
+   (the client's native Q&A UI), including a final question
+   equivalent to "Ready to execute?"; fall back to prose ending in
+   "Ready to execute? (yes/no)" only when AskUserQuestion is
+   unavailable.
 ```
 
 Collaborate on the plan until the user confirms it is ready. Use the plan phase to surface risks, open questions, and scope boundaries — especially distinguishing essential from accidental complexity before any implementation begins. Do not implement anything.
@@ -44,6 +47,11 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
 ## /daisy execute PLAN.md
 
 ```
+0. Run `daisy files` and use the resolved "active plan" real path
+   for every write below — PLAN.md at the workspace root is a
+   symlink, and writing through it fails with "Refusing to write
+   through symlink".
+
 1. Read PLAN.md; confirm at least one unchecked "- [ ]" step exists.
 
 2. Update "**Status:** executing" in the frontmatter block.
@@ -69,6 +77,11 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
 8. Log execution summary to today.md via:
    daisy log
 ```
+
+**Fixture isolation:** if a step live-tests a script that auto-commits (or
+otherwise mutates) a home, never run it against a real, in-use home.
+Use `daisy test`'s hermetic fixture, or an isolated
+`daisy init --new <fixture-home>`, and tear it down afterward.
 
 ---
 

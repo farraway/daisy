@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy build` — do not execute this file directly.
 # Build AGENTS.md for a home by concatenating prompts listed in include.txt
 # Usage: build-prompt.sh [home-name]
 #

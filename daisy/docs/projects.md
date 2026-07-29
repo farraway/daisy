@@ -67,9 +67,11 @@ Projects and tasks are linked bidirectionally through the `+PROJECT` tag:
 
 ```
 1. Read projects/{name}.md
-2. Search todo.txt for all lines containing +{name}:
+2. Aggregate tasks tagged +{name}: `daisy tasks --all +{name}`
    a. Count active tasks (no x/z prefix)
-   b. Count completed tasks (x prefix)
+   b. Count completed tasks (x prefix — includes not-yet-rotated todo.txt
+      lines and everything already archived to done.txt, since --all
+      searches both)
    c. Count cancelled tasks (z prefix)
 3. Search today.md log for entries mentioning +{name} or project name
 4. Extract open questions from project file
@@ -80,6 +82,11 @@ Projects and tasks are linked bidirectionally through the `+PROJECT` tag:
    - Open questions
    - Unresolved decisions
 ```
+
+`daisy tasks` is the query surface for step 2 — read-only, and the only
+supported way to aggregate a project's tasks. Progress is not duplicated
+into project files; `todo.txt`/`done.txt` are the single source of truth and
+already carry `+tags` verbatim.
 
 ## Close Project Algorithm
 

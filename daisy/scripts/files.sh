@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy files` — do not execute this file directly.
 # Report the home name, workspace root, and resolved real paths for every
 # per-home file/directory — the single source of truth for "where does X
 # actually live," independent of whether a given .daisy/ symlink exists.
@@ -60,7 +61,7 @@ echo "Plans:"
 printf '  %-12s %s\n' "plans/" "$(readlink -f "$DAISY_HOME/plans")"
 printf '  %-12s %s\n' "archive/" "$(readlink -f "$DAISY_HOME/plans/archive")"
 if [ -n "$DAISY_WORKSPACE" ] && [ -L "$DAISY_WORKSPACE/PLAN.md" ]; then
-    printf '  %-12s %s\n' "active plan" "$(readlink -f "$DAISY_WORKSPACE/PLAN.md")"
+    printf '  %-12s %s\n' "current plan" "$(readlink -f "$DAISY_WORKSPACE/PLAN.md")"
 fi
 echo ""
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: sourced by other daisy scripts — not executed directly, no `daisy` command.
 # Shared functions for daisy scripts
 # Source this at the top of each script:
 #   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,3 +77,47 @@ require_env() {
     require_root || return 1
     resolve_home || return 1
 }
+
+# --- Shared workspace-install artifact lists ---
+# Single source of truth for what `daisy-init.sh` installs into a workspace,
+# so `cmd_clean` (daisy.sh) can't silently drift out of sync with it again.
+
+DAISY_CURSOR_RULE_FILES=(
+    "daisy.mdc"
+    "daisy-logging.mdc"
+    "daisy-plan.mdc"
+)
+
+# Names that used to be current (pre-.mdc-rename, or names later dropped from
+# DAISY_CURSOR_RULE_FILES) and must be swept from .cursor/rules/ on init —
+# daisy-init.sh only ever writes the names above, so a name that left this
+# list stays behind forever otherwise.
+DAISY_CURSOR_RULE_OBSOLETE=(
+    "daisy.md"
+    "daisy-logging.md"
+)
+
+DAISY_CLAUDE_COMMAND_FILE=".claude/commands/daisy.md"
+
+DAISY_ALLOW_BASE=(
+    "Read(.daisy/**)"
+    "Edit(.daisy/**)"
+    "Bash(daisy:*)"
+)
+
+DAISY_GITIGNORE_BASE_ENTRIES=(
+    ".daisy/"
+    ".cursor/rules/daisy.mdc"
+    ".cursor/rules/daisy-logging.mdc"
+    ".cursor/rules/daisy-plan.mdc"
+    ".claude/commands/daisy.md"
+    ".claude/settings.local.json"
+    "PLAN.md"
+)
+
+DAISY_CURSORIGNORE_BASE_ENTRIES=(
+    "!.daisy/"
+    "!.cursor/rules/daisy.mdc"
+    "!.cursor/rules/daisy-logging.mdc"
+    "!PLAN.md"
+)

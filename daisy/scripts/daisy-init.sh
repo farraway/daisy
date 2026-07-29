@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy init` — do not execute this file directly.
 # Initialize Daisy in a workspace with a specific home.
 # Creates .daisy/ directory with symlinks to the home's data.
 #
@@ -18,6 +19,8 @@ if [ -z "$DAISY_ROOT" ]; then
     echo "Add to ~/.zshenv:  export DAISY_ROOT=\"/path/to/daisy\"" >&2
     exit 1
 fi
+
+source "$DAISY_ROOT/daisy/scripts/common.sh"
 
 # Parse arguments
 CREATE_NEW=false
@@ -125,20 +128,32 @@ echo "  ✓ Generated .daisy/AGENTS.md"
 RULES_DIR="$TARGET/.cursor/rules"
 mkdir -p "$RULES_DIR"
 
-for RULE_PAIR in "daisy.mdc:cursor-rule.mdc" "daisy-logging.mdc:cursor-rule-logging.mdc" "daisy-plan.mdc:cursor-rule-plan.mdc"; do
-    RULE_NAME="${RULE_PAIR%%:*}"
-    TEMPLATE="${RULE_PAIR##*:}"
+for RULE_NAME in "${DAISY_CURSOR_RULE_FILES[@]}"; do
+    TEMPLATE="cursor-rule${RULE_NAME#daisy}"
     RULE_FILE="$RULES_DIR/$RULE_NAME"
     rm -f "$RULE_FILE"
     cp "$DAISY_ROOT/daisy/templates/$TEMPLATE" "$RULE_FILE"
     echo "  ✓ Installed Cursor rule: $RULE_NAME"
 done
 
+# Sweep obsolete rule names left behind by a prior .md → .mdc rename or a
+# name later dropped from DAISY_CURSOR_RULE_FILES — daisy-init.sh only ever
+# writes the current names, so nothing else removes these.
+OBSOLETE_SWEPT=0
+for OBSOLETE_NAME in "${DAISY_CURSOR_RULE_OBSOLETE[@]}"; do
+    OBSOLETE_FILE="$RULES_DIR/$OBSOLETE_NAME"
+    if [ -f "$OBSOLETE_FILE" ]; then
+        rm -f "$OBSOLETE_FILE"
+        OBSOLETE_SWEPT=$((OBSOLETE_SWEPT + 1))
+        echo "  ✓ Removed obsolete Cursor rule: $OBSOLETE_NAME"
+    fi
+done
+
 # --- Claude command ---
 
-CLAUDE_COMMANDS_DIR="$TARGET/.claude/commands"
-mkdir -p "$CLAUDE_COMMANDS_DIR"
-cp "$DAISY_ROOT/daisy/templates/claude-command.md" "$CLAUDE_COMMANDS_DIR/daisy.md"
+CLAUDE_COMMAND_PATH="$TARGET/$DAISY_CLAUDE_COMMAND_FILE"
+mkdir -p "$(dirname "$CLAUDE_COMMAND_PATH")"
+cp "$DAISY_ROOT/daisy/templates/claude-command.md" "$CLAUDE_COMMAND_PATH"
 echo "  ✓ Installed Claude command: daisy"
 
 # --- Skills ---
@@ -191,15 +206,30 @@ EOF
 done
 echo "  ✓ Installed $SKILL_COUNT skill(s) into .claude/skills/ and .cursor/rules/"
 
+# Sweep skill .mdc stubs (and .claude/skills/ copies) whose home skill no
+# longer exists in $HOME_DIR/skills — otherwise a deleted skill's pointer
+# rule and copy linger in the workspace forever after the next `daisy init`.
+SKILL_STUB_SWEPT=0
+for MDC_FILE in "$SKILLS_CURSOR_DIR"/*.mdc; do
+    [ -f "$MDC_FILE" ] || continue
+    STUB_NAME="$(basename "$MDC_FILE" .mdc)"
+    case " ${DAISY_CURSOR_RULE_FILES[*]} " in
+        *" $STUB_NAME.mdc "*) continue ;;  # core rule, not a skill stub
+    esac
+    if [ -z "${SKILL_SRC[$STUB_NAME]+x}" ]; then
+        rm -f "$MDC_FILE"
+        rm -rf "${SKILLS_CLAUDE_DIR:?}/$STUB_NAME"
+        SKILL_STUB_SWEPT=$((SKILL_STUB_SWEPT + 1))
+    fi
+done
+if [ "$SKILL_STUB_SWEPT" -gt 0 ]; then
+    echo "  ✓ Swept $SKILL_STUB_SWEPT stale skill stub(s) from .claude/skills/ and .cursor/rules/"
+fi
+
 # --- Claude Code permissions ---
 
 CLAUDE_SETTINGS="$TARGET/.claude/settings.local.json"
-DAISY_ALLOW=(
-    "Read(.daisy/**)"
-    "Edit(.daisy/**)"
-    "Write(.daisy/**)"
-    "Bash(daisy:*)"
-)
+DAISY_ALLOW=("${DAISY_ALLOW_BASE[@]}")
 
 if command -v jq >/dev/null 2>&1; then
     mkdir -p "$(dirname "$CLAUDE_SETTINGS")"
@@ -226,7 +256,7 @@ fi
 # --- .gitignore ---
 
 GITIGNORE="$TARGET/.gitignore"
-DAISY_IGNORE_ENTRIES=(".daisy/" ".cursor/rules/daisy.mdc" ".cursor/rules/daisy-logging.mdc" ".cursor/rules/daisy-plan.mdc" ".claude/commands/daisy.md" ".claude/settings.local.json" "PLAN.md")
+DAISY_IGNORE_ENTRIES=("${DAISY_GITIGNORE_BASE_ENTRIES[@]}")
 for name in "${!SKILL_SRC[@]}"; do
     DAISY_IGNORE_ENTRIES+=(".claude/skills/$name/" ".cursor/rules/$name.mdc")
 done
@@ -257,7 +287,7 @@ fi
 # --- .cursorignore ---
 
 CURSORIGNORE="$TARGET/.cursorignore"
-CURSOR_NEGATE_ENTRIES=("!.daisy/" "!.cursor/rules/daisy.mdc" "!.cursor/rules/daisy-logging.mdc" "!PLAN.md")
+CURSOR_NEGATE_ENTRIES=("${DAISY_CURSORIGNORE_BASE_ENTRIES[@]}")
 CURSORIGNORE_CHANGED=false
 
 if [ ! -f "$CURSORIGNORE" ]; then

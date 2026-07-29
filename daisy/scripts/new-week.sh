@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy new-week` — do not execute this file directly.
 # Start a new week - archives completed tasks and starts new day with weekly template
 # Usage: new-week.sh
 
@@ -179,7 +180,7 @@ echo "   Inbox tasks: ${#inbox_tasks[@]}"
 echo "   GitHub tasks: ${#github_tasks[@]}"
 
 # Commit changes
-"$DAISY_ROOT/daisy/scripts/commit.sh" "New week: $DATE $DAY"
+daisy commit --home "New week: $DATE $DAY"
 
 # Prompt optimization nudge
 NEW_FEEDBACK=$("$DAISY_ROOT/daisy/scripts/optimize.sh" --list 2>/dev/null || true)

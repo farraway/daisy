@@ -1,26 +1,25 @@
 ---
 name: agents-md
-description: Write or review an AGENTS.md file for a project. Use when the user asks to create, improve, or review an AGENTS.md, asks "what should go in AGENTS.md?", or is setting up a new repository and wants agent guidance configured.
-short_description: Write or review an AGENTS.md file
+description: AGENTS.md authoring — the README for coding agents. Use when the user asks to create, review, improve, or update an AGENTS.md file, asks what belongs in one, or is setting up agent guidance for a repository.
+short_description: Write and review AGENTS.md files
 ---
 
-# Writing Effective AGENTS.md Files
+AGENTS.md is a **README for coding agents** — a dedicated, predictable place
+for the context and instructions agents need to work on a project. It is an
+open standard supported by Cursor, Codex, Gemini CLI, Aider, and others; see
+[agents.md](https://agents.md/) for the full specification.
 
-AGENTS.md is a **README for coding agents** -- a dedicated, predictable place to provide the context and instructions AI coding agents need to work on a project. It is an open standard supported by Cursor, Codex, Gemini CLI, Aider, and many others.
+README.md is for humans. AGENTS.md complements it with the precise,
+sometimes tedious detail agents need — build steps, test commands, style
+conventions, project-specific constraints — that would clutter a README or
+doesn't concern human contributors.
 
-See [agents.md](https://agents.md/) for the full specification and examples.
+## Recommended sections
 
-## Purpose
+Include what helps an agent work; none of these are mandatory.
 
-README.md is for humans. AGENTS.md complements it with the precise, sometimes detailed context agents need: build steps, test commands, code style conventions, and project-specific constraints that would clutter a README or aren't relevant to human contributors.
-
-## Recommended Sections
-
-Not all sections are required. Include what helps an agent work effectively.
-
-### Setup Commands
-
-How to install dependencies, start dev servers, run builds. Be explicit about package managers and tool versions.
+**Setup commands** — installing dependencies, dev servers, builds. Be
+explicit about package managers and tool versions.
 
 ```markdown
 ## Setup commands
@@ -30,9 +29,7 @@ How to install dependencies, start dev servers, run builds. Be explicit about pa
 - Build: `pnpm build`
 ```
 
-### Code Style
-
-Conventions the agent should follow. Be specific -- agents follow explicit rules well.
+**Code style** — conventions to follow. Agents apply explicit rules well.
 
 ```markdown
 ## Code style
@@ -43,9 +40,8 @@ Conventions the agent should follow. Be specific -- agents follow explicit rules
 - Error handling: use Result types, not try/catch
 ```
 
-### Testing Instructions
-
-How to run tests, what framework is used, expectations for new code.
+**Testing instructions** — how to run tests, the framework, expectations for
+new code.
 
 ```markdown
 ## Testing instructions
@@ -55,9 +51,7 @@ How to run tests, what framework is used, expectations for new code.
 - All tests must pass before committing
 ```
 
-### PR / Commit Instructions
-
-Format expectations for commits and pull requests.
+**PR / commit instructions** — format expectations.
 
 ```markdown
 ## PR instructions
@@ -66,9 +60,7 @@ Format expectations for commits and pull requests.
 - Squash commits before merging
 ```
 
-### Security Considerations
-
-Constraints the agent must respect.
+**Security considerations** — constraints the agent must respect.
 
 ```markdown
 ## Security
@@ -77,13 +69,14 @@ Constraints the agent must respect.
 - Sanitize user input before database queries
 ```
 
-### Architecture Notes
+**Architecture notes** — high-level structure, data flow, or design
+decisions. Keep it concise; link to deeper docs.
 
-High-level context that helps the agent understand the codebase structure, data flow, or design decisions. Keep this concise -- link to deeper docs if needed.
+## Nested AGENTS.md for monorepos
 
-## Nested AGENTS.md for Monorepos
-
-Place an AGENTS.md in each package or subdirectory that needs its own instructions. The nearest AGENTS.md to the file being edited takes precedence. This lets each subproject ship tailored instructions while the root AGENTS.md provides project-wide defaults.
+Place an AGENTS.md in each package that needs its own instructions. The
+nearest one to the file being edited wins, so each subproject ships tailored
+guidance while the root provides project-wide defaults.
 
 ```
 repo/
@@ -95,19 +88,27 @@ repo/
 │       └── AGENTS.md      # Backend-specific (API conventions, DB patterns)
 ```
 
-## Writing Guidelines
+## Writing guidelines
 
-**Be imperative and specific.** Agents follow explicit instructions well. Vague guidance produces vague results.
+**Be imperative and specific.** Vague guidance produces vague results.
 
 - Good: "Use `pnpm test --filter api` to run API tests"
 - Bad: "Make sure to test your changes"
 
-**Keep it current.** Treat AGENTS.md as living documentation. Update it when build commands, conventions, or architecture change.
+**Include what you'd tell a new teammate on day one** — build and test
+commands, deployment steps, naming conventions, security gotchas, how the
+codebase is organized.
 
-**Don't duplicate the README.** AGENTS.md is for agent-specific operational context, not project descriptions or contribution guidelines aimed at humans.
+**Keep it current.** Treat it as living documentation; update it when
+commands, conventions, or architecture change.
 
-**Don't include secrets.** No API keys, tokens, or credentials. Reference environment variables or secret management tools instead.
+**Keep it distinct from the README.** AGENTS.md carries agent-specific
+operational context, not project descriptions or human contribution
+guidelines.
 
-**Don't over-constrain.** Give agents enough guidance to be effective without prescribing every decision. Focus on conventions that matter for consistency.
+**Reference secrets, never embed them.** Point at environment variables or a
+secret manager.
 
-**Include what you'd tell a new teammate on day one.** Build commands, test commands, deployment steps, naming conventions, security gotchas, how the codebase is organized.
+**Leave room for judgment.** Give enough guidance to be effective without
+prescribing every decision; focus on the conventions that matter for
+consistency.

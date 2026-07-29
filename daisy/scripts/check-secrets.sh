@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy check-secrets` — do not execute this file directly.
 # Check which secrets/tokens are configured in the workspace's .env.sh.
 # Usage: check-secrets.sh
 

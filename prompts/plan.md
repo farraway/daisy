@@ -20,7 +20,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 
 1. **Research before scaffolding.** Before filling in PLAN.md sections, read what already exists relevant to the task. Identify what's essential (inherent to the problem) vs. accidental (artifact of the current approach). Confirm the research summary with the user before scaffolding.
 2. **No implementation during plan mode.** During `/daisy plan`, only edit `PLAN.md`; do not write any implementation code until the user confirms the plan is ready.
-3. **Collaborate until confirmed.** End every planning response with the Open Questions list and "Ready to execute? (yes/no)"; do not proceed to execution without confirmation.
+3. **Collaborate until confirmed.** Present the Open Questions list via `AskUserQuestion` (the client's native Q&A UI), including a final question equivalent to "Ready to execute?"; fall back to prose ending in "Ready to execute? (yes/no)" only when `AskUserQuestion` is unavailable. Do not proceed to execution without confirmation.
 4. **Prefer spec-mode when the shape isn't settled yet.** Use `plan spec` instead of `plan` when exploring multiple candidate approaches before committing to one, or when it's not yet clear this deserves a tracked Daisy plan at all. Promote to a real plan with `plan pickup` once a direction is chosen.
 5. **Read praxis.md before each step.** During `/daisy execute`, read `$DAISY_ROOT/prompts/praxis.md` as the quality guide before implementing each step.
 6. **Check off steps immediately.** After completing each step, mark it `- [x]` in `PLAN.md` before moving on.
@@ -34,6 +34,8 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 14. **Surface repeated corrections; do not compound them.** If you have made the same mistake twice on a step, stop. Tell the user what you've tried and why it keeps failing; ask whether to compact what's been learned and start the step fresh. Do not continue correcting in-place — a history of corrections degrades trajectory and primes further failure.
 15. **Resume by verifying state, not assuming it.** When picking up an in-progress plan from a previous session, do not assume completed steps are correct — verify. Check git log, today.md, and spot-check key files. Summarize what is confirmed, what is uncertain, and where work was interrupted. Confirm with the user before continuing.
 16. **Ask before deleting a picked-up spec's original.** `plan-pickup.sh` never deletes the original `{slug}_PLAN.md` itself — after a successful pickup, ask the user whether to delete it now that its content is tracked via the `PLAN.md` symlink, and only run `rm` if they confirm.
+17. **Resolve the real path before writing `PLAN.md`.** `PLAN.md` at the workspace root is a symlink; writing through it fails with "Refusing to write through symlink". Run `daisy files` (it prints the resolved `active plan` path) and write to that real path instead — for every edit during `execute`, `resume`, and `archive`, not just the first.
+18. **Live-test auto-committing scripts only against a hermetic fixture.** Never exercise a script that auto-commits (or otherwise mutates) against a real, in-use home. Use `daisy test`'s fixture harness, or an isolated `daisy init --new <fixture-home>`, and tear it down afterward.
 
 # Daisy — Plan Workflow
 
@@ -61,13 +63,14 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 
 ## /daisy execute PLAN.md
 
+0. Run `daisy files` and use the resolved `active plan` real path for every write below (rule 17) — never write through the `PLAN.md` symlink.
 1. Read `PLAN.md`; confirm at least one unchecked `- [ ]` step exists.
-2. Update `**Status:** executing` in the frontmatter block.
+2. Update `**Status:** executing` in the frontmatter block (write to the resolved real path).
 3. Before each step: read `$DAISY_ROOT/prompts/praxis.md`.
-4. Work through steps in order; mark each `- [x]` in `PLAN.md` after completion.
-5. After each step: update Decisions (if any) and Deferred (if scope surfaced).
+4. Work through steps in order; mark each `- [x]` in `PLAN.md` after completion (write to the resolved real path).
+5. After each step: update Decisions (if any) and Deferred (if scope surfaced) (write to the resolved real path).
 6. Stop and report if blocked; do not skip steps or work around blockers silently.
-7. On all steps complete: append ` *Built*` to the H1 title; update `**Status:** built`.
+7. On all steps complete: append ` *Built*` to the H1 title; update `**Status:** built` (write to the resolved real path).
 8. Log execution summary to `today.md` via `daisy log`.
 
 ## /daisy archive PLAN.md
@@ -78,6 +81,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 
 ## /daisy resume PLAN.md
 
+0. Run `daisy files` and use the resolved `active plan` real path for every write below (rule 17) — never write through the `PLAN.md` symlink.
 1. Read `PLAN.md` fully — note `**Status:**`, completed steps (`[x]`), and the first unchecked step (`[ ]`).
 2. **Verify completed work:**
    - Run `git log --oneline -10` to see recent commits.

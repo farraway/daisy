@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy list` — do not execute this file directly.
 # List active prompts (from include.txt, with a one-line trigger summary) and
 # installed skills (name + description) for the current home and workspace —
 # the on-demand discovery surface for what's available, without paying the

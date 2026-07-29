@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Invocation: run as `daisy plan-new` — do not execute this file directly.
 # Create a new Daisy plan file and symlink it as PLAN.md at the workspace root.
 # With --spec, instead writes an unregistered draft directly to the working
 # directory as {slug}_PLAN.md — no $DAISY_HOME/plans/ copy, no PLAN.md

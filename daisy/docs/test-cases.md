@@ -94,6 +94,16 @@ x 2026-01-16 2026-01-16 Fix critical bug @jira +PROJ-1234
 - ✅ Completion date added (first date)
 - ✅ Creation date preserved (second date)
 - ✅ Description unchanged
+- ✅ Exactly one commit, containing both file edits
+- ✅ Exactly one line of stdout: `✅ Done: {description} (commit {hash})` —
+  no `Logged:`/`Committed:`/`No changes to commit` chatter from the `daisy
+  log`/`daisy commit` sub-calls it makes internally
+- ✅ Matching is case-insensitive literal substring, not regex — `.`, `*`,
+  `[`, `/` in the pattern match themselves
+
+**If the description is absent from today.md** (e.g. an Inbox-only item):
+todo.txt still completes, a warning is printed on stderr, and the run still
+exits 0 and commits.
 
 ---
 
@@ -440,12 +450,11 @@ All systems ready!
 
 ### Setup
 
-**today.md:**
-```markdown
-#### High-Priority Tasks
-- [ ] @jira Fix bug in adapter module
-- [ ] @jira Fix bug in utils module
-- [ ] @jira Review design doc
+**tasks/todo.txt:**
+```
+(A) 2026-01-16 Fix bug in adapter module @jira
+(A) 2026-01-16 Fix bug in utils module @jira
+(B) 2026-01-16 Review design doc @jira
 ```
 
 ### Command
@@ -455,23 +464,26 @@ done bug
 
 ### Expected Behavior
 
+`done.sh` refuses outright — it does not guess or wait interactively, since
+resolution and disambiguation both happen inside the script, not the agent:
+
 ```
 Multiple tasks match "bug":
-1. Fix bug in adapter module
-2. Fix bug in utils module
-
-Which one? (or provide more specific pattern)
+  1) (A) 2026-01-16 Fix bug in adapter module @jira
+  2) (A) 2026-01-16 Fix bug in utils module @jira
 ```
 
-**User responds:** "adapter"
-
-**AI completes:** Task 1 only
+- Exit code: non-zero
+- **todo.txt and today.md are untouched** — no partial completion, no commit
+- The agent relays the numbered candidates to the user, then re-runs `done`
+  with a more specific pattern (e.g. `done adapter`), which resolves to
+  exactly one match and completes normally
 
 **Verification:**
-- ✅ AI detects multiple matches
-- ✅ AI lists options
-- ✅ AI waits for clarification
-- ✅ AI completes correct task after clarification
+- ✅ Both matching tasks listed, numbered
+- ✅ Non-zero exit — an agent trusting the exit code will not report success
+- ✅ No file touched on refusal
+- ✅ A more specific pattern on retry resolves and completes
 
 ---
 
@@ -522,6 +534,48 @@ start a new day
 - ✅ No priority, with @github → GitHub PRs
 - ✅ (C) with @git → GitHub PRs
 - ✅ x and z tasks EXCLUDED from all sections
+
+---
+
+## Test Case 13: Aggregating a Project's Tasks
+
+### Setup
+
+**tasks/todo.txt:**
+```
+(B) 2026-01-16 Design the schema +widgets
+x 2026-01-15 2026-01-10 Draft the proposal +widgets
+(C) 2026-01-16 Unrelated task +other
+```
+
+**tasks/done.txt:**
+```
+x 2026-01-05 2026-01-01 Kickoff meeting +widgets
+```
+
+### Command
+```
+daisy tasks --all +widgets
+```
+
+### Expected Output
+
+```
+(B) 2026-01-16 Design the schema +widgets
+x 2026-01-15 2026-01-10 Draft the proposal +widgets
+x 2026-01-05 2026-01-01 Kickoff meeting +widgets
+```
+
+**Verification:**
+- ✅ Bare lines only — no header, no summary count, no decoration
+- ✅ `+other` excluded — literal substring match on `+widgets`, not a
+  looser tag match
+- ✅ Both todo.txt (active + not-yet-rotated completed) and done.txt lines
+  present under `--all`
+- ✅ Read-only: todo.txt and done.txt are byte-identical after the command,
+  and no commit is produced
+- ✅ No pattern given → every line of the selected file(s)
+- ✅ No matches → nothing on stdout, non-zero exit (grep convention)
 
 ---
 
