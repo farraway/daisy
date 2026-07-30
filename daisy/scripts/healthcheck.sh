@@ -5,21 +5,45 @@
 # Exit 0 = healthy, Exit 1 = issues found
 #
 # Usage:
-#   healthcheck.sh         - Run health check (cached)
+#   healthcheck.sh         - Run health check (cached for $DAISY_HEALTHCHECK_TTL seconds)
 #   healthcheck.sh --force - Force re-run (ignore cache)
+#
+# Caching. A passing run stamps $DAISY_HOME/.healthcheck.ttl with the unix
+# time the result expires; a run inside that window exits 0 without
+# re-checking. The stamp is a file because it has to be: this script always
+# runs as a subprocess (the `daisy` dispatcher, new-day.sh's gate), and a
+# subprocess cannot write to its parent's environment. The previous
+# mechanism exported DAISY_HEALTHCHECK_PASSED=1 one line before exiting,
+# which set a variable in an environment that was discarded on the next
+# statement -- so nothing was ever cached and every check ran every time.
+#
+# The cache fails toward re-running, deliberately. A cached *pass* is the
+# dangerous direction: it can call a tree healthy on a result computed
+# before the tree was edited, and the publication-hygiene scan is a leak
+# check. So a failure clears the stamp, and a corrupt or out-of-range stamp
+# is distrusted rather than honoured.
+#
+# DAISY_HEALTHCHECK_PASSED remains as an explicit external override for
+# callers that have already validated (see tests/cases/17). It only works
+# set from outside; --force outranks it.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-# Handle --force flag
+FORCE=0
 if [ "$1" = "--force" ]; then
-    unset DAISY_HEALTHCHECK_PASSED
+    FORCE=1
 fi
 
-# Check if already validated in this session (cached)
-if [ "$DAISY_HEALTHCHECK_PASSED" = "1" ]; then
+# Seconds a passing result stays valid. 0 disables caching.
+HEALTHCHECK_TTL="${DAISY_HEALTHCHECK_TTL:-300}"
+case "$HEALTHCHECK_TTL" in
+    ''|*[!0-9]*) HEALTHCHECK_TTL=300 ;;
+esac
+
+if [ "$FORCE" = "0" ] && [ "${DAISY_HEALTHCHECK_PASSED:-}" = "1" ]; then
     exit 0
 fi
 
@@ -207,6 +231,37 @@ fi
 
 ok "DAISY_HOME: $DAISY_HOME (home: $DAISY_HOME_NAME)"
 
+# The stamp lives per-home and so can only be consulted once the home is
+# resolved. Checks 1-2 above are a symlink read and an env lookup, and
+# running them unconditionally means a cache can never mask a broken
+# DAISY_ROOT or an unresolvable home.
+HEALTHCHECK_STAMP="$DAISY_HOME/.healthcheck.ttl"
+
+# True when the stamp records an unexpired pass. Anything unparseable, or
+# dated further ahead than the TTL could legitimately produce (a corrupt
+# write, a clock jump, a hand-edit), is treated as no cache at all.
+healthcheck_cached() {
+    [ "$FORCE" = "0" ] || return 1
+    [ "$HEALTHCHECK_TTL" -gt 0 ] || return 1
+    [ -f "$HEALTHCHECK_STAMP" ] || return 1
+
+    local expiry now
+    expiry=$(cat "$HEALTHCHECK_STAMP" 2>/dev/null || true)
+    case "$expiry" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+
+    now=$(date +%s)
+    [ "$now" -lt "$expiry" ] || return 1
+    [ "$expiry" -le "$(( now + HEALTHCHECK_TTL ))" ] || return 1
+    return 0
+}
+
+if healthcheck_cached; then
+    ok "Checks cached — valid for $(( $(cat "$HEALTHCHECK_STAMP") - $(date +%s) ))s (--force to re-run)"
+    exit 0
+fi
+
 # Check 3: Git repository
 if [ ! -d "$DAISY_ROOT/.git" ]; then
     error "DAISY_ROOT is not a git repository"
@@ -325,10 +380,15 @@ fi
 echo ""
 if [ $ERRORS -eq 0 ]; then
     ok "System healthy"
-    # Cache success for this session
-    export DAISY_HEALTHCHECK_PASSED=1
+    # Stamp the pass. Best-effort: a read-only home is not a health failure,
+    # it just means the next run re-checks.
+    if [ "$HEALTHCHECK_TTL" -gt 0 ]; then
+        echo "$(( $(date +%s) + HEALTHCHECK_TTL ))" > "$HEALTHCHECK_STAMP" 2>/dev/null || true
+    fi
     exit 0
 else
     error "$ERRORS issue(s) found"
+    # Never let a stamp outlive the failure it precedes.
+    rm -f "$HEALTHCHECK_STAMP" 2>/dev/null || true
     exit 1
 fi

@@ -7,6 +7,10 @@
 .DS_Store
 Thumbs.db
 
+# Healthcheck cache stamp — rewritten on every passing run, so tracking it
+# would sweep a meaningless timestamp diff into every home/ auto-commit.
+home/*/.healthcheck.ttl
+
 # Daisy workspace config (per-machine)
 .daisy/
 .cursor/rules/daisy.mdc

@@ -141,8 +141,15 @@ daisy healthcheck
 ```
 
 Confirms `DAISY_ROOT`/`DAISY_HOME` resolve correctly, required files exist,
-and every script's own health check passes. Run `daisy healthcheck --force`
-any time to bypass the per-session cache.
+and every script's own health check passes.
+
+A passing result is cached for 300 seconds, so the workflows that gate on it
+(`new-day` and friends) don't re-scan the tree on every invocation. Set
+`DAISY_HEALTHCHECK_TTL` to change the window, or to `0` to disable caching.
+Run `daisy healthcheck --force` to bypass the cache and re-check now — worth
+doing before publishing, since a cached pass reflects the tree as it was
+when the check ran, not as it is. A failing check clears the cache
+immediately.
 
 ### 5. Start Using Daisy
 
