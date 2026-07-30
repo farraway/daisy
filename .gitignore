@@ -6,3 +6,12 @@
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Daisy workspace config (per-machine)
+.daisy/
+.cursor/rules/daisy.mdc
+.cursor/rules/daisy-logging.mdc
+.cursor/rules/daisy-plan.mdc
+.claude/commands/daisy.md
+.claude/settings.local.json
+PLAN.md

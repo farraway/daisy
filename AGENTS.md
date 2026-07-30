@@ -39,10 +39,26 @@ When modifying any Daisy data files, preserve EXACT formatting.
 
 ## Publication Hygiene
 
-Everything outside `home/` and `.git/` is published verbatim to public
-mirrors (see the dz-meta workspace's `migrate.sh` — a wholesale rsync with
-no sanitization pass). Treat every system file — scripts, prompts, docs,
-templates, skills, tests, dotfiles — as already public.
+Every file git would keep — tracked, or untracked but not ignored — outside
+top-level `home/` is published verbatim to public mirrors (see the dz-meta
+workspace's `migrate.sh` — an rsync with no sanitization pass). Treat every
+system file — scripts, prompts, docs, templates, skills, tests, dotfiles —
+as already public.
+
+**`.gitignore` is the publication boundary.** It is the single declaration
+of what does not ship, honoured by both the publisher (`migrate.sh` filters
+its rsync through it) and the checker (`daisy healthcheck`). That is what
+keeps per-machine workspace state (`.daisy/`, `.claude/settings.local.json`,
+`.cursor/rules/daisy*.mdc`) and secrets (`.env.sh`) out of the mirror —
+files that sit inside `$DAISY_ROOT` and would otherwise publish. Two
+consequences:
+
+- Keep ignore rules in `.gitignore`. A global `core.excludesFile` or a
+  `.git/info/exclude` entry would hide a file from the scan that `migrate.sh`
+  still publishes — the one divergence that turns the check into a false
+  negative.
+- Adding a per-machine artifact to `$DAISY_ROOT` means adding it to
+  `.gitignore` in the same change. Until then it is public.
 
 **Never write into system files:** real home names, the OS username, real
 people's names or emails, employers, or absolute paths under `$HOME`.
@@ -56,12 +72,14 @@ people's names or emails, employers, or absolute paths under `$HOME`.
 
 Real names belong only in `home/{name}/`, which the sync excludes wholesale.
 
-`daisy healthcheck` enforces this with a scan of the publishable tree for
-identifying terms derived from the machine at runtime (home directory names,
-`$USER`, the repo's git identity, literal `$HOME` paths) — never from a
-hardcoded list, which would itself leak. The scan is a net, not the
-standard: it cannot catch personal *content* that contains no known term.
-Write system files as if they were already public.
+`daisy healthcheck` enforces this with a scan of the publishable surface —
+`git ls-files --cached --others --exclude-standard`, minus top-level `home/`
+— for identifying terms derived from the machine at runtime (home directory
+names, `$USER`, the repo's git identity, literal `$HOME` paths), never from
+a hardcoded list, which would itself leak. The scan is a net, not the
+standard: it cannot catch personal *content* that contains no known term,
+and it says nothing about a file it considers unpublishable. Write system
+files as if they were already public.
 
 ---
 
