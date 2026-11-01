@@ -229,6 +229,7 @@ The reference source itself is never modified or deleted by adoption — copy
 
 ## Reference Documentation
 
+- [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the agreed command tree, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
 - [`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md) — The hat/skill distinction, the ownership-of-evolution criterion, worked examples
 - [`daisy/docs/task-format.md`](daisy/docs/task-format.md) — Task format regex, conversion rules, file organization
 - [`daisy/docs/task-sync.md`](daisy/docs/task-sync.md) — Bidirectional sync rules, validation algorithm
