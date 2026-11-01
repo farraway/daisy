@@ -175,7 +175,7 @@ for RULE_NAME in "${DAISY_CURSOR_RULE_FILES[@]}"; do
     TEMPLATE="cursor-rule${RULE_NAME#daisy}"
     RULE_FILE="$RULES_DIR/$RULE_NAME"
     rm -f "$RULE_FILE"
-    cp "$DAISY_ROOT/daisy/templates/$TEMPLATE" "$RULE_FILE"
+    cp "$DAISY_ROOT/templates/$TEMPLATE" "$RULE_FILE"
     echo "  ✓ Installed Cursor rule: $RULE_NAME"
 done
 
@@ -196,7 +196,7 @@ done
 
 CLAUDE_COMMAND_PATH="$TARGET/$DAISY_CLAUDE_COMMAND_FILE"
 mkdir -p "$(dirname "$CLAUDE_COMMAND_PATH")"
-cp "$DAISY_ROOT/daisy/templates/claude-command.md" "$CLAUDE_COMMAND_PATH"
+cp "$DAISY_ROOT/templates/claude-command.md" "$CLAUDE_COMMAND_PATH"
 echo "  ✓ Installed Claude command: daisy"
 
 # --- Skills ---

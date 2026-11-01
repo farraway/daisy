@@ -119,13 +119,13 @@ which is everything a root commit takes.
 | `plan-new.sh` | Create a new Daisy plan file, symlink as PLAN.md (or, with `--spec`, an unregistered draft in the working directory) |
 | `plan-pickup.sh` | Promote a local spec draft (from `plan-new.sh --spec`) into a tracked plan |
 | `plan-archive.sh` | Archive the active Daisy plan, remove the PLAN.md symlink |
-| `test.sh` | Run the hermetic `daisy/tests/` suite (`daisy/tests/run.sh`) |
+| `test.sh` | Run the hermetic acceptance suite (`tests/run.sh`) |
 
 **Documentation policy:** every script in `daisy/scripts/` must have a row in this table, and — if it implements the `--healthcheck` contract — a corresponding entry in `healthcheck.sh`'s `HEALTHCHECK_SCRIPTS` array. `healthcheck.sh` includes an automated drift check for the table half of this; there is no automated check for the array half beyond that same script list (see `daisy/scripts/healthcheck.sh`).
 
 Scripts do NOT yet implement: priority floor rules, task preservation from yesterday, quiet day consolidation, advanced sync validation, JIRA sync, or log audit during retrospective. These are handled by the agent following prompt instructions.
 
-After modifying scripts or workflow logic, validate against [`daisy/docs/test-cases.md`](daisy/docs/test-cases.md).
+After modifying scripts or workflow logic, validate against [`docs/test-cases.md`](docs/test-cases.md).
 
 ---
 
@@ -143,7 +143,7 @@ Usage: `daisy build [home-name]`
 
 `include.txt` is prompts-only. Skills (`skills/`) have no manifest — every
 skill in the merged root+home set always installs at `daisy init`; see
-[`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md) for why
+[`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) for why
 these are different systems.
 
 ### Lazy Loading Architecture
@@ -176,7 +176,7 @@ The build script extracts everything between `## Trigger` and the next `#` or `#
 ### Creating a New Skill
 
 Before creating either a prompt or a skill, apply the coupling criterion in
-[`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md): does
+[`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md): does
 this capability need to know the user's situation (projects, journal, tasks,
 plan state), or only the artifact in front of it? Situated → prompt;
 artifact-only → skill. Where a capability is a hybrid, find the seam at
@@ -205,13 +205,13 @@ outside the feedback loop's write path.
 
 ### Adopting a Skill from Reference
 
-Reference material staged at `daisy/docs/resources/mattpo-skills/{name}/`
+Reference material staged at `docs/resources/mattpo-skills/{name}/`
 (or any future reference source) is not a skill until adopted:
 
-1. Copy the whole directory — `cp -r daisy/docs/resources/mattpo-skills/{name}
+1. Copy the whole directory — `cp -r docs/resources/mattpo-skills/{name}
    skills/{name}` — this carries the source's `NOTICE.md` along
    automatically.
-2. Copy `LICENSE` alongside: `cp daisy/docs/resources/mattpo-skills/LICENSE
+2. Copy `LICENSE` alongside: `cp docs/resources/mattpo-skills/LICENSE
    skills/{name}/LICENSE`.
 3. Fix the copied `NOTICE.md`'s license line from `../LICENSE` to
    `./LICENSE` — the original pointed at one shared file one level up;
@@ -230,25 +230,25 @@ The reference source itself is never modified or deleted by adoption — copy
 ## Reference Documentation
 
 - [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the agreed command tree, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
-- [`daisy/docs/prompts-vs-skills.md`](daisy/docs/prompts-vs-skills.md) — The hat/skill distinction, the ownership-of-evolution criterion, worked examples
-- [`daisy/docs/task-format.md`](daisy/docs/task-format.md) — Task format regex, conversion rules, file organization
-- [`daisy/docs/task-sync.md`](daisy/docs/task-sync.md) — Bidirectional sync rules, validation algorithm
-- [`daisy/docs/templates.md`](daisy/docs/templates.md) — Template placeholders and formatting rules
-- [`daisy/docs/workflows.md`](daisy/docs/workflows.md) — All workflow algorithms (new-day, new-week, done, cancel, add, priority, sync, etc.)
-- [`daisy/docs/logging.md`](daisy/docs/logging.md) — Logging design rationale, triggers, abridged archival
-- [`daisy/docs/projects.md`](daisy/docs/projects.md) — Project management architecture and algorithms
-- [`daisy/docs/praxis.md`](daisy/docs/praxis.md) — Implementation quality reference: how we work, anti-patterns, extended guidance
-- [`daisy/docs/retrospective.md`](daisy/docs/retrospective.md) — Retrospective guide and integration workflows
-- [`daisy/docs/plan.md`](daisy/docs/plan.md) — Plan workflow reference
-- [`daisy/docs/github.md`](daisy/docs/github.md) — GitHub operations reference
-- [`daisy/docs/home-management.md`](daisy/docs/home-management.md) — Root and homes as separate repositories, the registry, identities, per-workspace resolution, health checks
-- [`daisy/docs/examples.md`](daisy/docs/examples.md) — Complete interaction walkthroughs
-- [`daisy/docs/todotxt.md`](daisy/docs/todotxt.md) — Todo.txt format specification
-- [`daisy/docs/test-cases.md`](daisy/docs/test-cases.md) — Validation test cases
-- [`daisy/docs/resources/prompt-learning-loop.md`](daisy/docs/resources/prompt-learning-loop.md) — Arize talk: feedback loops, rules-section optimization, eval co-evolution
-- [`daisy/docs/resources/infinite-software-crisis.md`](daisy/docs/resources/infinite-software-crisis.md) — Netflix/Nations: simple vs easy, essential vs accidental complexity, three-phase approach
-- [`daisy/docs/resources/progressive-disclosure.md`](daisy/docs/resources/progressive-disclosure.md) — Developers Digest: lazy-load context on demand, tools as files, memory as markdown; validates Daisy's existing lazy loading architecture
-- [`daisy/docs/resources/agents-in-complex-codebases.md`](daisy/docs/resources/agents-in-complex-codebases.md) — HumanLayer/Horthy: context quality over quantity, RPI calibration, step granularity, intentional compaction on repeated corrections
+- [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) — The hat/skill distinction, the ownership-of-evolution criterion, worked examples
+- [`docs/task-format.md`](docs/task-format.md) — Task format regex, conversion rules, file organization
+- [`docs/task-sync.md`](docs/task-sync.md) — Bidirectional sync rules, validation algorithm
+- [`docs/templates.md`](docs/templates.md) — Template placeholders and formatting rules
+- [`docs/workflows.md`](docs/workflows.md) — All workflow algorithms (new-day, new-week, done, cancel, add, priority, sync, etc.)
+- [`docs/logging.md`](docs/logging.md) — Logging design rationale, triggers, abridged archival
+- [`docs/projects.md`](docs/projects.md) — Project management architecture and algorithms
+- [`docs/praxis.md`](docs/praxis.md) — Implementation quality reference: how we work, anti-patterns, extended guidance
+- [`docs/retrospective.md`](docs/retrospective.md) — Retrospective guide and integration workflows
+- [`docs/plan.md`](docs/plan.md) — Plan workflow reference
+- [`docs/github.md`](docs/github.md) — GitHub operations reference
+- [`docs/home-management.md`](docs/home-management.md) — Root and homes as separate repositories, the registry, identities, per-workspace resolution, health checks
+- [`docs/examples.md`](docs/examples.md) — Complete interaction walkthroughs
+- [`docs/todotxt.md`](docs/todotxt.md) — Todo.txt format specification
+- [`docs/test-cases.md`](docs/test-cases.md) — Validation test cases
+- [`docs/resources/prompt-learning-loop.md`](docs/resources/prompt-learning-loop.md) — Arize talk: feedback loops, rules-section optimization, eval co-evolution
+- [`docs/resources/infinite-software-crisis.md`](docs/resources/infinite-software-crisis.md) — Netflix/Nations: simple vs easy, essential vs accidental complexity, three-phase approach
+- [`docs/resources/progressive-disclosure.md`](docs/resources/progressive-disclosure.md) — Developers Digest: lazy-load context on demand, tools as files, memory as markdown; validates Daisy's existing lazy loading architecture
+- [`docs/resources/agents-in-complex-codebases.md`](docs/resources/agents-in-complex-codebases.md) — HumanLayer/Horthy: context quality over quantity, RPI calibration, step granularity, intentional compaction on repeated corrections
 
 ## See Also
 

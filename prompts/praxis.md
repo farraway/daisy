@@ -67,4 +67,4 @@ wrong.
 
 ## See Also
 
-- [`daisy/docs/praxis.md`](daisy/docs/praxis.md) — Extended guidance: how we work, before/during implementation, anti-patterns
+- [`docs/praxis.md`](docs/praxis.md) — Extended guidance: how we work, before/during implementation, anti-patterns

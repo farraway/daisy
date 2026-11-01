@@ -16,7 +16,7 @@ Go may choose* rather than inventing one.
 
 **Quoted strings.** A string in backticks followed by case numbers in square
 brackets — `` `No task found matching:` [04] `` — is asserted verbatim by
-those cases in `daisy/tests/cases/`; the suite is the authority, this
+those cases in `tests/cases/`; the suite is the authority, this
 document quotes it. Strings without a case number are what the bash prints
 today and are not asserted; Go may reword them.
 
@@ -626,7 +626,7 @@ new home.
 | Field | Value |
 |---|---|
 | Status | as built; at Step 24 runs `go test ./...` then the acceptance suite |
-| Legacy | `daisy test [name-substring]` → `test.sh` (`exec`s `daisy/tests/run.sh`) |
+| Legacy | `daisy test [name-substring]` → `test.sh` (`exec`s `tests/run.sh`) |
 | Usage | `daisy test [filter]`: a case runs when its file name contains the filter |
 | Exit codes | 0 when every case passes; 1 otherwise |
 | Stdout | `PASS  <case>` / `FAIL  <case>  (N assertion(s))` per case, failed assertions indented under it, blank, `N passed, N failed`, `Failed: <names>` when any |

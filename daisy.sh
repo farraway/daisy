@@ -102,7 +102,7 @@ Commands:
                                 Search tasks (read-only). Scope defaults to
                                 this workspace's projects; --all widens it.
                                 --todo/--done pick a file; both by default.
-  test [name-substring]        Run the hermetic daisy/scripts test suite
+  test [name-substring]        Run the hermetic acceptance suite
 
   Every command also accepts --help/-h (as the sole argument) to print its usage.
 

@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/common.sh"
 if [ "$1" = "--healthcheck" ]; then
     require_env || exit 1
 
-    if [ ! -f "$DAISY_ROOT/daisy/templates/journal-day.md" ]; then
+    if [ ! -f "$DAISY_ROOT/templates/journal-day.md" ]; then
         echo "Error: Template missing: templates/journal-day.md" >&2
         exit 1
     fi
@@ -108,7 +108,7 @@ DAY=$(date +%A)
 TIME=$(date +%H%M)
 
 # Generate new today.md from template
-TEMPLATE=$(cat "$DAISY_ROOT/daisy/templates/journal-day.md")
+TEMPLATE=$(cat "$DAISY_ROOT/templates/journal-day.md")
 
 # Replace placeholders
 TEMPLATE="${TEMPLATE//\{DATE\}/$DATE}"

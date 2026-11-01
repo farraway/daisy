@@ -43,4 +43,4 @@ Instead of "what do I want to do?", ask "who do I want to be?" Then derive speci
 
 ## Full Reference
 
-For detailed question prompts, reframing examples, and integration workflows, see [`daisy/docs/retrospective.md`](daisy/docs/retrospective.md).
+For detailed question prompts, reframing examples, and integration workflows, see [`docs/retrospective.md`](docs/retrospective.md).

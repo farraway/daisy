@@ -19,13 +19,13 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-TEMPLATE="$DAISY_ROOT/daisy/templates/home"
+TEMPLATE="$DAISY_ROOT/templates/home"
 
 # Health check mode
 if [ "$1" = "--healthcheck" ]; then
     require_root || exit 1
     if [ ! -d "$TEMPLATE" ]; then
-        echo "Error: home template not found at daisy/templates/home/" >&2
+        echo "Error: home template not found at templates/home/" >&2
         exit 1
     fi
     exit 0
@@ -95,7 +95,7 @@ home_add() {
     fi
     if [ ! -f "$path/include.txt" ]; then
         echo "Error: $path is not a Daisy home (no include.txt)" >&2
-        echo "  A home is a copy of daisy/templates/home/; 'daisy home new' makes one" >&2
+        echo "  A home is a copy of templates/home/; 'daisy home new' makes one" >&2
         exit 1
     fi
     if ! daisy_home_repo_ok "$path"; then

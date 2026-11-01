@@ -152,7 +152,7 @@ check_journal_rotation() {
 # state (.daisy/, .claude/settings.local.json) and secrets (.env.sh) are
 # ignored and therefore out of scope.
 #
-# daisy/templates/home/ is published: exclusions are root-relative paths,
+# templates/home/ is published: exclusions are root-relative paths,
 # not every dir named "home". Symlinks to directories are skipped (the -f
 # test); git publishes a link's text, which this scan does not read. Check 3
 # has already required the root to be a repository, so the ignore rules are
@@ -294,7 +294,7 @@ while IFS=$'\t' read -r name rel; do
 done < <(daisy_homes_under_root)
 
 # Check 4: Required directories
-for dir in "daisy/scripts" "prompts" "daisy/templates" "skills"; do
+for dir in "daisy/scripts" "prompts" "templates" "skills"; do
     if [ ! -d "$DAISY_ROOT/$dir" ]; then
         error "Missing directory: $dir"
         ERRORS=$((ERRORS + 1))

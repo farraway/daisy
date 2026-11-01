@@ -538,7 +538,7 @@ fi
 if [ ${#TRAINED_IDX[@]} -gt 0 ]; then
     ARCHIVE_FILE="$DAISY_HOME/feedback/archive.md"
     if [ ! -f "$ARCHIVE_FILE" ]; then
-        TEMPLATE_ARCHIVE="$DAISY_ROOT/daisy/templates/home/feedback/archive.md"
+        TEMPLATE_ARCHIVE="$DAISY_ROOT/templates/home/feedback/archive.md"
         if [ -f "$TEMPLATE_ARCHIVE" ]; then
             cp "$TEMPLATE_ARCHIVE" "$ARCHIVE_FILE"
         else

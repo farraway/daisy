@@ -77,4 +77,4 @@ For complex reviews with line-level comments:
 For simple reviews:
 - `user-github-pull_request_review_write` with event: "APPROVE" / "REQUEST_CHANGES" / "COMMENT"
 
-Full workflow integration patterns: [`daisy/docs/github.md`](daisy/docs/github.md).
+Full workflow integration patterns: [`docs/github.md`](docs/github.md).

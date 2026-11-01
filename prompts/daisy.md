@@ -83,21 +83,21 @@ Priorities: (A) now, (B) next, (C) soon, (D) someday, none = inbox.
 
 All workflows are invoked via the `daisy` CLI wrapper (e.g. `daisy new-day`), never by calling scripts directly at `$DAISY_ROOT/daisy/scripts/`. Scripts auto-commit on completion.
 
-**New Day:** Pre: check yesterday's retrospective; offer to complete if missing. Call `daisy new-day`. Post: remind about daily inbox checklist. → [`daisy/docs/workflows.md`](daisy/docs/workflows.md)
+**New Day:** Pre: check yesterday's retrospective; offer to complete if missing. Call `daisy new-day`. Post: remind about daily inbox checklist. → [`docs/workflows.md`](docs/workflows.md)
 
-**New Week:** Same pre-step. Call `daisy new-week` (also archives completed tasks to done.txt). Post: remind about weekly inbox checklist. → [`daisy/docs/workflows.md`](daisy/docs/workflows.md)
+**New Week:** Same pre-step. Call `daisy new-week` (also archives completed tasks to done.txt). Post: remind about weekly inbox checklist. → [`docs/workflows.md`](docs/workflows.md)
 
 **Complete Task:** Call `daisy done "pattern"` (case-insensitive). Task stays in todo.txt until new-week.
 
 **Cancel Task** *(agent-performed — no CLI command)***:** Mark `[z]` in today.md, `z YYYY-MM-DD` prefix in todo.txt, auto-commit. Deleted at next new-day/new-week.
 
-**Add Task** *(agent-performed — no CLI command)***:** Parse description for @context/+PROJECT/due:; ask priority if not given; add to todo.txt; add to today.md if A or B; auto-commit. → [`daisy/docs/workflows.md`](daisy/docs/workflows.md)
+**Add Task** *(agent-performed — no CLI command)***:** Parse description for @context/+PROJECT/due:; ask priority if not given; add to todo.txt; add to today.md if A or B; auto-commit. → [`docs/workflows.md`](docs/workflows.md)
 
-**Change Priority** *(agent-performed — no CLI command)***:** Find task, update priority and section in today.md, auto-commit. → [`daisy/docs/workflows.md`](daisy/docs/workflows.md)
+**Change Priority** *(agent-performed — no CLI command)***:** Find task, update priority and section in today.md, auto-commit. → [`docs/workflows.md`](docs/workflows.md)
 
-**Sync / Status / Home:** See [`daisy/docs/workflows.md`](daisy/docs/workflows.md).
+**Sync / Status / Home:** See [`docs/workflows.md`](docs/workflows.md).
 
-**Retrospective:** Run log audit first (compare `[x]` tasks against log entries; offer catch-up entries for gaps). Then load full `retrospective.md`. → [`daisy/docs/retrospective.md`](daisy/docs/retrospective.md)
+**Retrospective:** Run log audit first (compare `[x]` tasks against log entries; offer catch-up entries for gaps). Then load full `retrospective.md`. → [`docs/retrospective.md`](docs/retrospective.md)
 
 ### Logging Work
 
@@ -124,25 +124,25 @@ Do not log pure Q&A or discussion (unless a decision results).
 
 **Fallback:** If `.daisy/projects/{name}.md` does not exist, say so and offer to create it. Do not silently fall back to external systems.
 
-**Start project:** Create `.daisy/projects/{name}.md` from template, fill known details, optionally create initial tasks. → [`daisy/docs/projects.md`](daisy/docs/projects.md)
+**Start project:** Create `.daisy/projects/{name}.md` from template, fill known details, optionally create initial tasks. → [`docs/projects.md`](docs/projects.md)
 
-**Project status:** Read project file + matching `+PROJECT` tasks from todo.txt + recent log mentions. → [`daisy/docs/projects.md`](daisy/docs/projects.md)
+**Project status:** Read project file + matching `+PROJECT` tasks from todo.txt + recent log mentions. → [`docs/projects.md`](docs/projects.md)
 
 **Update project:** Proactively suggest updates when decisions or discoveries happen: add to Decisions, Resources, or Open Questions sections.
 
-**Close project:** Review outcomes, add closing summary, move to `_archive/`, handle remaining tasks. → [`daisy/docs/projects.md`](daisy/docs/projects.md)
+**Close project:** Review outcomes, add closing summary, move to `_archive/`, handle remaining tasks. → [`docs/projects.md`](docs/projects.md)
 
-**JIRA sync:** One-way push. Draft professional status summary from project file, post as JIRA comment. → [`daisy/docs/projects.md`](daisy/docs/projects.md)
+**JIRA sync:** One-way push. Draft professional status summary from project file, post as JIRA comment. → [`docs/projects.md`](docs/projects.md)
 
 ## See Also
 
 - **`@daisy/AGENTS.md`** — Internal architecture and detailed specifications
-- **`daisy/docs/prompts-vs-skills.md`** — The hat/skill distinction, for adding new capabilities
-- **`daisy/docs/workflows.md`** — Detailed workflow algorithms
-- **`daisy/docs/logging.md`** — Logging design and abridged archival
-- **`daisy/docs/projects.md`** — Project management architecture
-- **`daisy/docs/retrospective.md`** — Reflection framework
-- **`daisy/docs/plan.md`** — Plan workflow reference
-- **`daisy/docs/github.md`** — GitHub operations reference
-- **`daisy/docs/examples.md`** — Complete interaction examples
-- **`daisy/docs/todotxt.md`** — Full todo.txt format specification
+- **`docs/prompts-vs-skills.md`** — The hat/skill distinction, for adding new capabilities
+- **`docs/workflows.md`** — Detailed workflow algorithms
+- **`docs/logging.md`** — Logging design and abridged archival
+- **`docs/projects.md`** — Project management architecture
+- **`docs/retrospective.md`** — Reflection framework
+- **`docs/plan.md`** — Plan workflow reference
+- **`docs/github.md`** — GitHub operations reference
+- **`docs/examples.md`** — Complete interaction examples
+- **`docs/todotxt.md`** — Full todo.txt format specification

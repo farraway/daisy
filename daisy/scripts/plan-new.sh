@@ -53,7 +53,7 @@ if [ -z "$SLUG" ]; then
     exit 1
 fi
 
-TEMPLATE="$DAISY_ROOT/daisy/templates/plan.md"
+TEMPLATE="$DAISY_ROOT/templates/plan.md"
 CREATED=$(date '+%Y-%m-%d %H:%M')
 
 if [ ! -f "$TEMPLATE" ]; then

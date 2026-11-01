@@ -1,7 +1,7 @@
 # Daisy - Personal Productivity System
 
 Daisy is a personal productivity system you operate by talking to an AI
-agent. Your tasks live in a plain [todo.txt](daisy/docs/todotxt.md) file,
+agent. Your tasks live in a plain [todo.txt](docs/todotxt.md) file,
 your work log in daily markdown journals, your projects in one markdown file
 each — and an agent (Claude Code, Cursor) reads and maintains all of it for
 you:
@@ -61,7 +61,7 @@ workspaces can share a home at once, and each workspace's own repository
 commits as the identity you bind it with. Home resolution is stateless and
 every mutation ends in a git commit in the home's repository, so concurrent
 sessions interleave in the log instead of fighting over state. See
-[daisy/docs/home-management.md](daisy/docs/home-management.md).
+[docs/home-management.md](docs/home-management.md).
 
 **A feedback loop, not a rulebook.** When the agent gets something wrong,
 `daisy feedback` records it. Periodically, `daisy optimize` has an LLM
@@ -72,9 +72,9 @@ section should not be rewritten from a single data point by accident. Those
 prompts are a living artifact shaped by how the agent actually fails. The
 loop reaches both layers — an entry tagged `prompts/<name>` or
 `skills/<name>` trains that file, and
-[daisy/docs/prompts-vs-skills.md](daisy/docs/prompts-vs-skills.md) explains
+[docs/prompts-vs-skills.md](docs/prompts-vs-skills.md) explains
 why the distinction matters. See also
-[daisy/docs/resources/prompt-learning-loop.md](daisy/docs/resources/prompt-learning-loop.md).
+[docs/resources/prompt-learning-loop.md](docs/resources/prompt-learning-loop.md).
 
 ## Two Layers: Prompts and Skills
 
@@ -101,7 +101,7 @@ fires. Skills cost nothing until the agent reaches for one.
 Where the boundary falls in less obvious cases — hybrids, capabilities that
 hand off to a Daisy workflow, material tracking an upstream source — is
 worked through in
-[daisy/docs/prompts-vs-skills.md](daisy/docs/prompts-vs-skills.md).
+[docs/prompts-vs-skills.md](docs/prompts-vs-skills.md).
 
 ## Install
 
@@ -240,7 +240,7 @@ daisy projects [--archived]   # List active or archived projects
 daisy rotate                  # Rotate journal.md into archive window files (automatic; rarely needed by hand)
 daisy status                  # Quick workspace summary
 daisy tasks [--all] [--todo|--done] [pattern]  # Search this workspace's tasks; --all widens to every project (read-only)
-daisy test [name-substring]   # Run the hermetic daisy/scripts test suite
+daisy test [name-substring]   # Run the hermetic acceptance suite
 ```
 
 ### Working Practices
@@ -250,15 +250,15 @@ Mechanics live in the CLI; these are the design choices behind daily use:
 - **Projects over tickets.** A `+tag` in todo.txt captures *what*; a project
   file in `projects/{name}.md` captures *why* and *how*. External trackers
   receive one-way status pushes; your project file remains the source of
-  truth for your own understanding. See [daisy/docs/projects.md](daisy/docs/projects.md).
+  truth for your own understanding. See [docs/projects.md](docs/projects.md).
 - **Bounded journals.** `new-day`/`new-week` archive `today.md` into
   `journal.md` losslessly; rotation keeps `journal.md` at the last 5 entries
   and distributes the rest into rolling and permanent archive files. See
-  [daisy/docs/logging.md](daisy/docs/logging.md).
+  [docs/logging.md](docs/logging.md).
 - **Plan before large changes.** `/daisy plan` scaffolds Research → Goal →
   Steps → Decisions before any implementation; `/daisy execute` works
   through it step by step; `/daisy resume` picks up an interrupted session
-  from verified state. See [daisy/docs/plan.md](daisy/docs/plan.md).
+  from verified state. See [docs/plan.md](docs/plan.md).
 - **Concurrency by design.** No locks: stateless home resolution plus
   commit-per-mutation lets sessions interleave. Some sort of lock may
   eventually prove useful, but local usage (even with multiple concurrent
@@ -267,7 +267,7 @@ Mechanics live in the CLI; these are the design choices behind daily use:
 ### Optional: API Authentication
 
 For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable,
-copy `$DAISY_ROOT/daisy/templates/env.sh.template` to `.env.sh` in your
+copy `$DAISY_ROOT/templates/env.sh.template` to `.env.sh` in your
 workspace, fill in tokens, and verify with `daisy healthcheck`. MCP servers
 handle authentication automatically; `.env.sh` is only a fallback.
 
@@ -284,27 +284,28 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── AGENTS.md                   # System architecture & internal specs (auto-applied by Cursor/Claude Code)
 ├── README.md                   # This file
 ├── daisy.sh                    # CLI entry point (symlinked to ~/bin/daisy)
-├── daisy/                      # Distributable system files
-│   ├── scripts/                # daisy-init, home, new-day, new-week, rotate, done, log,
-│   │                           # feedback, optimize, eval, build-prompt,
-│   │                           # healthcheck, common, commit, check-secrets, files,
-│   │                           # list, tasks, projects, plan-new, plan-pickup,
-│   │                           # plan-archive, test
-│   ├── templates/
-│   │   ├── journal-day.md      # Daily today.md template
-│   │   ├── journal-week.md     # Weekly today.md template (adds retrospective)
-│   │   ├── project.md          # Template for project files
-│   │   ├── plan.md             # Template for PLAN.md
-│   │   ├── env.sh.template     # Environment variables template
-│   │   ├── cursor-rule.mdc, cursor-rule-logging.mdc, cursor-rule-plan.mdc
-│   │   ├── claude-command.md
-│   │   └── home/               # Template for new homes (copied by `daisy home new`)
-│   └── docs/                   # Detailed reference documentation
-│       ├── task-format.md, task-sync.md, todotxt.md, templates.md
-│       ├── workflows.md, logging.md, projects.md, home-management.md
-│       ├── plan.md, praxis.md, retrospective.md, github.md
-│       ├── prompts-vs-skills.md, examples.md, test-cases.md
-│       └── resources/          # External-talk summaries informing the design
+├── daisy/scripts/              # daisy-init, home, new-day, new-week, rotate, done, log,
+│                               # feedback, optimize, eval, build-prompt,
+│                               # healthcheck, common, commit, check-secrets, files,
+│                               # list, tasks, projects, plan-new, plan-pickup,
+│                               # plan-archive, test
+├── templates/
+│   ├── journal-day.md          # Daily today.md template
+│   ├── journal-week.md         # Weekly today.md template (adds retrospective)
+│   ├── project.md              # Template for project files
+│   ├── plan.md                 # Template for PLAN.md
+│   ├── env.sh.template         # Environment variables template
+│   ├── cursor-rule.mdc, cursor-rule-logging.mdc, cursor-rule-plan.mdc
+│   ├── claude-command.md
+│   └── home/                   # Template for new homes (copied by `daisy home new`)
+├── docs/                       # Detailed reference documentation
+│   ├── cli.md                  # The `daisy` CLI contract
+│   ├── task-format.md, task-sync.md, todotxt.md, templates.md
+│   ├── workflows.md, logging.md, projects.md, home-management.md
+│   ├── plan.md, praxis.md, retrospective.md, github.md
+│   ├── prompts-vs-skills.md, examples.md, test-cases.md
+│   └── resources/              # External-talk summaries informing the design
+├── tests/                      # The acceptance suite (`daisy test`): run.sh, lib/, cases/
 ├── prompts/                    # Situated layer: daisy.md, plan.md, retrospective.md, github.md, ...
 │   └── evals/                  # Eval cases for the optimize loop
 └── skills/                     # Craft layer: css, js, tdd, git, agents-md (see Two Layers)
@@ -319,7 +320,7 @@ daisy/                          # Repository root ($DAISY_ROOT)
 └── homes/{home-name}/          # Where `daisy home new` puts a home by default
 ```
 
-A home is one git repository, created from `daisy/templates/home/`:
+A home is one git repository, created from `templates/home/`:
 
 ```
 {home}/
@@ -380,12 +381,12 @@ different identities, concurrently.
 - `(D)` - Someday (backlog)
 - No priority - Inbox (needs triage)
 
-See [daisy/docs/todotxt.md](daisy/docs/todotxt.md) for complete format specification.
+See [docs/todotxt.md](docs/todotxt.md) for complete format specification.
 
 ## See Also
 
 - **[AI Workflow Guide](prompts/daisy.md)** - User-focused workflows and commands
 - **[Admin Guide](AGENTS.md)** - Internal architecture and specifications
-- **[Prompts vs. Skills](daisy/docs/prompts-vs-skills.md)** - Where the layer boundary falls, and why
-- **[Detailed Examples](daisy/docs/examples.md)** - Interaction walkthroughs
-- [Todo.txt Specification](daisy/docs/todotxt.md) - Format reference
+- **[Prompts vs. Skills](docs/prompts-vs-skills.md)** - Where the layer boundary falls, and why
+- **[Detailed Examples](docs/examples.md)** - Interaction walkthroughs
+- [Todo.txt Specification](docs/todotxt.md) - Format reference
