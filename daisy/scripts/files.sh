@@ -18,7 +18,17 @@ fi
 
 require_env || exit 1
 
-echo "Daisy | home: $DAISY_HOME_NAME | workspace: $DAISY_WORKSPACE"
+echo "Daisy | home: $DAISY_HOME_NAME | identity: $DAISY_IDENTITY_NAME | workspace: $DAISY_WORKSPACE"
+echo ""
+
+daisy_report_drift
+
+echo "Identity:"
+if [ -f "$DAISY_IDENTITY_FILE" ]; then
+    printf '  %-12s %s\n' "$DAISY_IDENTITY_NAME" "$(readlink -f "$DAISY_IDENTITY_FILE")"
+else
+    printf '  %-12s %s  (missing)\n' "$DAISY_IDENTITY_NAME" "$DAISY_IDENTITY_FILE"
+fi
 echo ""
 
 echo "Journal:"
@@ -45,9 +55,12 @@ printf '  %-12s %s\n' "done.txt" "$(readlink -f "$DAISY_HOME/tasks/done.txt")"
 printf '  %-12s %s\n' "alias.txt" "$(readlink -f "$DAISY_HOME/tasks/alias.txt")"
 echo ""
 
+resolve_projects
+
 echo "Projects:"
 printf '  %-12s %s\n' "active" "$(readlink -f "$DAISY_HOME/projects")"
 printf '  %-12s %s\n' "archived" "$(readlink -f "$DAISY_HOME/projects/_archive")"
+printf '  %-12s %s\n' "workspace" "$(daisy_projects_summary)"
 echo ""
 
 echo "Feedback:"

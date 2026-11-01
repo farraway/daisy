@@ -19,3 +19,5 @@ home/*/.healthcheck.ttl
 .claude/commands/daisy.md
 .claude/settings.local.json
 PLAN.md
+.daisy.stage.*
+.daisy.previous.*

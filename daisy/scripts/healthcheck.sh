@@ -146,61 +146,69 @@ check_journal_rotation() {
 
 # Enumerates the publishable surface as NUL-separated DAISY_ROOT-relative
 # paths: git-tracked files plus untracked-but-not-ignored ones, minus the
-# top-level home/. This is exactly what dz-meta's migrate.sh mirrors — it
-# drives its rsync from the same enumeration — so git's ignore rules are the
-# single declaration of what publishes. Per-machine workspace state
-# (.daisy/, .claude/settings.local.json) and secrets (.env.sh) are ignored
-# and therefore out of scope.
+# homes (daisy_root_exclusions: the same list a root commit leaves out).
+# This is exactly what dz-meta's migrate.sh mirrors — it drives its rsync
+# from the same enumeration — so git's ignore rules are the single
+# declaration of what publishes. Per-machine workspace state (.daisy/,
+# .claude/settings.local.json) and secrets (.env.sh) are ignored and
+# therefore out of scope.
 #
-# daisy/templates/home/ is published, so only the top-level home/ is
-# filtered, not every dir named "home". Symlinks to directories are skipped
-# (the -f test): rsync copies the link, not the tree behind it.
-#
-# Without a git repo the ignore rules can't be consulted, so fall back to a
-# full filesystem walk — over-reporting is the safe direction for a leak
-# check.
+# daisy/templates/home/ is published: exclusions are root-relative paths,
+# not every dir named "home". Symlinks to directories are skipped (the -f
+# test): rsync copies the link, not the tree behind it. Check 3 has already
+# required the root to be a repository, so the ignore rules are always
+# available here.
 publishable_files() {
-    local f
-    if [ -d "$DAISY_ROOT/.git" ]; then
-        while IFS= read -r -d '' f; do
-            case "$f" in home/*) continue ;; esac
-            [ -f "$DAISY_ROOT/$f" ] && printf '%s\0' "$f"
-        done < <(git -C "$DAISY_ROOT" ls-files --cached --others \
-            --exclude-standard -z 2>/dev/null)
-    else
-        while IFS= read -r -d '' f; do
-            f="${f#"$DAISY_ROOT"/}"
-            case "$f" in home/*|.git/*) continue ;; esac
-            printf '%s\0' "$f"
-        done < <(find "$DAISY_ROOT" -type f -print0 2>/dev/null)
-    fi
+    local f ex excluded=()
+    mapfile -t excluded < <(daisy_root_exclusions)
+    while IFS= read -r -d '' f; do
+        for ex in "${excluded[@]}"; do
+            case "$f" in "$ex"|"$ex"/*) continue 2 ;; esac
+        done
+        [ -f "$DAISY_ROOT/$f" ] && printf '%s\0' "$f"
+    done < <(git -C "$DAISY_ROOT" ls-files --cached --others \
+        --exclude-standard -z 2>/dev/null)
 }
 
 # Function to check publication hygiene — the publishable surface (see
 # publishable_files) is mirrored verbatim by dz-meta's migrate.sh, so no file
 # in it may contain identifying terms. Terms are derived from this machine at
 # runtime (a hardcoded list would itself leak): real home names, $USER, the
-# repo's git identity, and literal $HOME paths. Generic placeholder home
-# names are exempt — they aren't identifying.
+# git identity of the root and of every registered home's repository, and
+# literal $HOME paths. Generic placeholder home names are exempt — they
+# aren't identifying.
 # See AGENTS.md "Publication Hygiene".
+
+# Adds to the caller's `terms` when non-empty and not already listed. The
+# scan is case-insensitive, so the comparison is too: a term shared by two
+# sources (the root's author and a home's; a home name and its author's
+# login) is scanned, and reported, once.
+add_term() {
+    [ -n "$1" ] || return 0
+    local t
+    for t in "${terms[@]}"; do [ "${t,,}" = "${1,,}" ] && return 0; done
+    terms+=("$1")
+}
+
+git_identity_terms() {
+    add_term "$(git -C "$1" config user.name 2>/dev/null || true)"
+    add_term "$(git -C "$1" config user.email 2>/dev/null || true)"
+}
+
 check_publication_hygiene() {
-    local terms=() term name dir matches failed=0
+    local terms=() term name path matches failed=0
     local placeholders=" work personal example testhome "
 
-    for dir in "$DAISY_ROOT"/home/*/; do
-        [ -d "$dir" ] || continue
-        name=$(basename "$dir")
+    while IFS= read -r name; do
         case "$placeholders" in
             *" $name "*) ;;
-            *) terms+=("$name") ;;
+            *) add_term "$name" ;;
         esac
-    done
-    [ -n "${USER:-}" ] && terms+=("$USER")
-    term=$(git -C "$DAISY_ROOT" config user.name 2>/dev/null || true)
-    [ -n "$term" ] && terms+=("$term")
-    term=$(git -C "$DAISY_ROOT" config user.email 2>/dev/null || true)
-    [ -n "$term" ] && terms+=("$term")
-    [ -n "${HOME:-}" ] && [ "$HOME" != "/" ] && terms+=("$HOME/")
+        path=$(daisy_home_path "$name") && [ -z "$(daisy_home_path_problem "$path")" ] && git_identity_terms "$path"
+    done < <(daisy_homes)
+    add_term "${USER:-}"
+    git_identity_terms "$DAISY_ROOT"
+    [ -n "${HOME:-}" ] && [ "$HOME" != "/" ] && add_term "$HOME/"
 
     for term in "${terms[@]}"; do
         matches=$(publishable_files \
@@ -222,10 +230,10 @@ fi
 
 ok "DAISY_ROOT: $DAISY_ROOT"
 
-# Check 2: DAISY_HOME (via .daisy/home or env var)
-if ! resolve_home 2>/dev/null; then
-    error "Cannot resolve home. No .daisy/home found and DAISY_HOME not set."
-    echo "  Run 'daisy init <home>' in your workspace, or set DAISY_HOME in ~/.zshenv" >&2
+# Check 2: DAISY_HOME (via .daisy/home or DAISY_DEFAULT_HOME, then the
+# registry). resolve_home's own message names the cause and the fix.
+if ! resolve_home; then
+    error "Cannot resolve home for this workspace"
     exit 1
 fi
 
@@ -262,16 +270,32 @@ if healthcheck_cached; then
     exit 0
 fi
 
-# Check 3: Git repository
-if [ ! -d "$DAISY_ROOT/.git" ]; then
+# Check 3: Git repositories — root code commits in the root's, every data
+# mutation (done, log, new-day, plans) in the home's. Without the home's
+# repository each of those would write its files and then fail at the commit.
+if ! daisy_is_repo_root "$DAISY_ROOT"; then
     error "DAISY_ROOT is not a git repository"
+    exit 1
+fi
+if ! daisy_home_repo_ok "$DAISY_HOME"; then
+    error "Home '$DAISY_HOME_NAME' at $DAISY_HOME is not in its own git repository (or the root's)"
+    echo "  Run: git -C $(printf '%q' "$DAISY_HOME") init && git -C $(printf '%q' "$DAISY_HOME") add -A && git -C $(printf '%q' "$DAISY_HOME") commit -m 'New home: $DAISY_HOME_NAME'" >&2
     exit 1
 fi
 
 ok "Git repository: $(cd "$DAISY_ROOT" && git rev-parse --short HEAD)"
 
+# Check 3b: a registered home inside the root repository is the layout
+# before the split. It works — commits are scoped by path — but it is not
+# the intended state, so it is reported until the home moves out. A home
+# under the root's path that is its own repository is not inside it.
+while IFS=$'\t' read -r name rel; do
+    daisy_is_repo_root "$DAISY_ROOT/$rel" && continue
+    warn "Home '$name' lies inside the root repository ($rel) — move it to its own repository and re-register it: daisy home remove $name && daisy home add $name /new/path"
+done < <(daisy_homes_under_root)
+
 # Check 4: Required directories
-for dir in "home" "daisy/scripts" "prompts" "daisy/templates" "skills"; do
+for dir in "daisy/scripts" "prompts" "daisy/templates" "skills"; do
     if [ ! -d "$DAISY_ROOT/$dir" ]; then
         error "Missing directory: $dir"
         ERRORS=$((ERRORS + 1))
@@ -332,7 +356,7 @@ fi
 check_journal_rotation
 
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh create-home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh projects.sh rotate.sh test.sh tasks.sh)
+HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh projects.sh rotate.sh test.sh tasks.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then
@@ -348,7 +372,7 @@ done
 
 # Check 6c: Publication hygiene — identifying terms in the publishable tree
 if check_publication_hygiene; then
-    ok "Publication hygiene: no identifying terms outside home/"
+    ok "Publication hygiene: no identifying terms outside the homes"
 fi
 # Continue even if it fails (errors already reported)
 

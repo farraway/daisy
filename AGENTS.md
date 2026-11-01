@@ -39,24 +39,41 @@ When modifying any Daisy data files, preserve EXACT formatting.
 
 ## Publication Hygiene
 
-Every file git would keep — tracked, or untracked but not ignored — outside
-top-level `home/` is published verbatim to public mirrors (see the dz-meta
-workspace's `migrate.sh` — an rsync with no sanitization pass). Treat every
-system file — scripts, prompts, docs, templates, skills, tests, dotfiles —
-as already public.
+The root repository is public. Every file git would keep in it — tracked,
+or untracked but not ignored — is published verbatim: there is no
+sanitization pass and, once the split is complete (its Step 13 retires the
+interim mirror), no copying step at all; until then a mirror syncs the same
+publishable surface. Treat every system file — scripts, prompts, docs,
+templates, skills, tests, dotfiles — as already public. Personal data lives
+in the homes, which are their own repositories outside `$DAISY_ROOT`; a home
+still under `$DAISY_ROOT/home/` from before the split (Step 11 moves them) is
+left out of root commits and of the scan alike.
+
+**The hygiene scan is the gate.** `daisy healthcheck` scans the publishable
+surface — `git ls-files --cached --others --exclude-standard` in
+`$DAISY_ROOT`, minus `daisy_root_exclusions` (any registered home still
+inside the root, and top-level `home/` while that directory exists) — for
+identifying terms derived from the machine at runtime, never from a
+hardcoded list, which would itself leak: every registered home's name,
+`$USER`, the git identity (`user.name`, `user.email`) of the root's
+repository and of each home's, and literal `$HOME/` paths. Run `daisy
+healthcheck --force` before every root commit; a cached pass reflects the
+tree as it was. The scan is a net, not the standard: it cannot catch
+personal *content* that contains no known term, and it says nothing about a
+file it considers unpublishable. Write system files as if they were already
+public.
 
 **`.gitignore` is the publication boundary.** It is the single declaration
-of what does not ship, honoured by both the publisher (`migrate.sh` filters
-its rsync through it) and the checker (`daisy healthcheck`). That is what
+of what does not ship, honoured by the scan and by git itself. That is what
 keeps per-machine workspace state (`.daisy/`, `.claude/settings.local.json`,
-`.cursor/rules/daisy*.mdc`) and secrets (`.env.sh`) out of the mirror —
-files that sit inside `$DAISY_ROOT` and would otherwise publish. Two
+`.cursor/rules/daisy*.mdc`) and secrets (`.env.sh`) out of the published
+tree — files that sit inside `$DAISY_ROOT` and would otherwise publish. Two
 consequences:
 
 - Keep ignore rules in `.gitignore`. A global `core.excludesFile` or a
-  `.git/info/exclude` entry would hide a file from the scan that `migrate.sh`
-  still publishes — the one divergence that turns the check into a false
-  negative.
+  `.git/info/exclude` entry hides a file from the scan on this machine only,
+  and a clone elsewhere would commit it — the one divergence that turns the
+  check into a false negative.
 - Adding a per-machine artifact to `$DAISY_ROOT` means adding it to
   `.gitignore` in the same change. Until then it is public.
 
@@ -64,22 +81,15 @@ consequences:
 people's names or emails, employers, or absolute paths under `$HOME`.
 
 **Use the standard substitutes:**
-- `$DAISY_ROOT`-relative paths, never `/home/{user}/...`
+- `$DAISY_ROOT`-relative paths, `~` or `$HOME`; never `/home/{user}/...`
 - Placeholder home names: `work`, `personal`, `example` in docs; `testhome`
-  in test fixtures
+  in test fixtures (the scan exempts these four)
 - `Jane Doe <jane@example.net>` for identities in examples
 - `~alias` notation for people
 
-Real names belong only in `home/{name}/`, which the sync excludes wholesale.
-
-`daisy healthcheck` enforces this with a scan of the publishable surface —
-`git ls-files --cached --others --exclude-standard`, minus top-level `home/`
-— for identifying terms derived from the machine at runtime (home directory
-names, `$USER`, the repo's git identity, literal `$HOME` paths), never from
-a hardcoded list, which would itself leak. The scan is a net, not the
-standard: it cannot catch personal *content* that contains no known term,
-and it says nothing about a file it considers unpublishable. Write system
-files as if they were already public.
+Real names belong only in a home — `gitconfig`, `identities/`, the data —
+or in `~/.config/daisy/` and git config: never in the root's own content,
+which is everything a root commit takes.
 
 ---
 
@@ -88,25 +98,25 @@ files as if they were already public.
 | Script | Purpose |
 |--------|---------|
 | `daisy.sh` (repo root) | CLI entry point — dispatches subcommands |
-| `daisy-init.sh` | Initialize Daisy in a workspace with a specific home |
+| `daisy-init.sh` | Bind a workspace to an identity and its home: `.daisy/` links, local git author, agent configuration |
 | `new-day.sh` | Archive yesterday, generate new today.md, rotate journal.md |
 | `new-week.sh` | Archive completed tasks to done.txt + new day, rotate journal.md |
 | `rotate.sh` | Archive journal.md day-blocks into rolling/closed window files |
 | `done.sh` | Mark task complete in todo.txt and today.md |
 | `log.sh` | Add timestamped log entry to today.md |
 | `feedback.sh` | Record a prompt failure with workflow tag and description |
-| `optimize.sh` | LLM-driven prompt optimization loop (train/test split, diff, approval, archives used entries) |
+| `optimize.sh` | LLM-driven prompt optimization loop (groups by workflow tag, diff, approval, archives used entries with provenance) |
 | `eval.sh` | List, display, or record eval case results for the optimize loop |
-| `create-home.sh` | Create new home from template, optionally activate |
-| `build-prompt.sh` | Generate home/{home}/AGENTS.md from include.txt |
-| `common.sh` | Shared functions (resolve_home, require_env) |
-| `commit.sh` | Git commit helper — stages and commits changes under home/ |
+| `home.sh` | Homes registry: list, add, remove, new (create from template, git init, register) |
+| `build-prompt.sh` | Generate a home's AGENTS.md from its include.txt |
+| `common.sh` | Shared functions: homes registry, identities, resolve_home, require_env |
+| `commit.sh` | Git commit helper — `--home` commits the home's repository, `--not-home` the root's minus any home still inside it |
 | `check-secrets.sh` | Report which API tokens/secrets are configured in .env.sh |
 | `healthcheck.sh` | System validation |
 | `files.sh` | Report resolved real paths for every per-home file/directory |
 | `list.sh` | List active prompts (with trigger summary) and installed skills (with description) |
 | `projects.sh` | List active or archived projects with resolved paths |
-| `tasks.sh` | Search todo.txt/done.txt (read-only); `--all\|--done\|--todo [pattern]` |
+| `tasks.sh` | Search todo.txt/done.txt (read-only); `[--all] [--todo\|--done] [pattern]` — scope defaults to the workspace's projects, `--all` widens it |
 | `plan-new.sh` | Create a new Daisy plan file, symlink as PLAN.md (or, with `--spec`, an unregistered draft in the working directory) |
 | `plan-pickup.sh` | Promote a local spec draft (from `plan-new.sh --spec`) into a tracked plan |
 | `plan-archive.sh` | Archive the active Daisy plan, remove the PLAN.md symlink |
@@ -128,7 +138,7 @@ After modifying scripts or workflow logic, validate against [`daisy/docs/test-ca
 
 ## AGENTS.md Build System
 
-`build-prompt.sh` generates `home/{home}/AGENTS.md` from `home/{home}/include.txt`. Workspaces access it via `.daisy/AGENTS.md` symlink.
+`build-prompt.sh` generates a home's `AGENTS.md` from its `include.txt`, resolving each prompt name against the home's `prompts/` and then the root's `prompts/`. `daisy init` builds the same output into the workspace's `.daisy/AGENTS.md`.
 
 Usage: `daisy build [home-name]`
 
@@ -159,7 +169,7 @@ personal
 ### Creating a New Prompt
 
 1. Create `prompts/{name}.md` with a `## Trigger` section as the first heading
-2. Add `~{name}` (lazy) or `{name}` (full) to `home/{home}/include.txt`
+2. Add `~{name}` (lazy) or `{name}` (full) to the home's `include.txt`
 3. Rebuild: `daisy build {home-name}`
 
 The build script extracts everything between `## Trigger` and the next `#` or `##` heading for lazy stubs. If no `## Trigger` is found, falls back to full inclusion with a warning.
@@ -185,8 +195,8 @@ outside the feedback loop's write path.
    it by default; `description` is never shortened, since Claude Code
    surfaces it verbatim for model-invocation matching.
 2. No manifest entry needed. Root skills (`skills/`) install to
-   `~/.claude/skills/` via `daisy install`; home skills
-   (`home/{home}/skills/`) install to the workspace's `.claude/skills/` via
+   `~/.claude/skills/` via `daisy install`; home skills (the home's
+   `skills/`) install to the workspace's `.claude/skills/` via
    `daisy init` — separate targets, no install-time merge. `daisy list`
    consolidates both for display, with workspace/home entries overriding
    root/user entries of the same name.
@@ -231,7 +241,7 @@ The reference source itself is never modified or deleted by adoption — copy
 - [`daisy/docs/retrospective.md`](daisy/docs/retrospective.md) — Retrospective guide and integration workflows
 - [`daisy/docs/plan.md`](daisy/docs/plan.md) — Plan workflow reference
 - [`daisy/docs/github.md`](daisy/docs/github.md) — GitHub operations reference
-- [`daisy/docs/home-management.md`](daisy/docs/home-management.md) — Per-workspace home resolution, health checks
+- [`daisy/docs/home-management.md`](daisy/docs/home-management.md) — Root and homes as separate repositories, the registry, identities, per-workspace resolution, health checks
 - [`daisy/docs/examples.md`](daisy/docs/examples.md) — Complete interaction walkthroughs
 - [`daisy/docs/todotxt.md`](daisy/docs/todotxt.md) — Todo.txt format specification
 - [`daisy/docs/test-cases.md`](daisy/docs/test-cases.md) — Validation test cases

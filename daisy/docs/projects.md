@@ -11,7 +11,7 @@
 ## Directory Structure
 
 ```
-home/{home}/projects/
+{home}/projects/
 ├── {project-name}.md          # Active projects
 ├── {project-name}.md
 └── _archive/                  # Closed projects
@@ -20,7 +20,7 @@ home/{home}/projects/
 
 Accessed via workspace symlink:
 ```
-.daisy/projects/ → daisy/home/{home}/projects/
+.daisy/projects/ → {home}/projects/
 ```
 
 ## Project File Specification
@@ -70,9 +70,12 @@ Projects and tasks are linked bidirectionally through the `+PROJECT` tag:
 2. Aggregate tasks tagged +{name}: `daisy tasks --all +{name}`
    a. Count active tasks (no x/z prefix)
    b. Count completed tasks (x prefix — includes not-yet-rotated todo.txt
-      lines and everything already archived to done.txt, since --all
-      searches both)
+      lines and everything already archived to done.txt, since naming no
+      file filter searches both)
    c. Count cancelled tasks (z prefix)
+   Note: `--all` here means "any project, not just this workspace's" —
+   status can be asked about a project the current workspace is not bound
+   to. Both files are searched because no `--todo`/`--done` filter is given.
 3. Search today.md log for entries mentioning +{name} or project name
 4. Extract open questions from project file
 5. Report:

@@ -24,7 +24,7 @@ assert_not_contains "$RUN_STDOUT" "Component:" \
     "a cached run skips the component checks"
 
 # --force must bypass the stamp and actually look.
-mkdir -p "$FIXTURE_ROOT/home/zebrahome"
+fixture_register_home zebrahome
 echo "this doc mentions zebrahome by name" > "$FIXTURE_ROOT/leak.md"
 
 fixture_run_cli healthcheck
@@ -43,7 +43,7 @@ fixture_run_cli healthcheck
 assert_eq "$RUN_EXIT" "1" "the next uncached run still fails"
 
 rm -f "$FIXTURE_ROOT/leak.md"
-rm -rf "$FIXTURE_ROOT/home/zebrahome"
+fixture_unregister_home zebrahome
 
 fixture_run_cli healthcheck
 assert_eq "$RUN_EXIT" "0" "passes again once the leak is gone"

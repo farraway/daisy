@@ -157,7 +157,8 @@ of pattern these commands exist to match, and their common punctuation
 records are excluded before matching, not filtered from the results
 afterward) and requires exactly one match — zero or multiple both refuse
 without touching any file. `daisy tasks` has no such requirement; it lists
-every matching line from the file(s) selected by `--all`/`--done`/`--todo`.
+every matching line within scope — the workspace's projects unless `--all`
+widens it — from the file(s) selected by `--todo`/`--done` (both by default).
 
 ## File Organization
 

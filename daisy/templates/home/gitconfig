@@ -1,2 +1,6 @@
-name=Your Name
-email=you@example.com
+# The home's default identity: the git author for every workspace bound to
+# this home by its name. Uncomment and fill in name= and email=; sshkey= is
+# optional and pins pushes from those workspaces to one key.
+# name=Your Name
+# email=you@example.com
+# sshkey=~/.ssh/id_ed25519

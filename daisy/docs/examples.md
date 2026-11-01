@@ -494,11 +494,12 @@ daisy init personal
 ✅ Switched to personal home
 
 .daisy/ symlinks updated:
-- tasks/   → daisy/home/personal/tasks/
-- today.md → daisy/home/personal/journal/today.md
-- journal.md → daisy/home/personal/journal/journal.md
-- projects/ → daisy/home/personal/projects/
-- AGENTS.md → daisy/home/personal/AGENTS.md
+- tasks/   → ~/.local/daisy/homes/personal/tasks/
+- today.md → ~/.local/daisy/homes/personal/journal/today.md
+- journal.md → ~/.local/daisy/homes/personal/journal/journal.md
+- projects/ → ~/.local/daisy/homes/personal/projects/
+- plans/ → ~/.local/daisy/homes/personal/plans/
+- feedback.md → ~/.local/daisy/homes/personal/feedback/feedback.md
 
 Local git identity set: Jane Doe <jane@example.net>
 

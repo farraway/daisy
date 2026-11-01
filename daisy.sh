@@ -24,19 +24,25 @@ if [ "$COMMAND" = "install" ]; then
         [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
     done
     DAISY_ROOT="$(cd "$(dirname "$SOURCE")" && pwd)"
+    export DAISY_ROOT  # the scripts install calls (home.sh new) require it
 elif [ -z "$DAISY_ROOT" ]; then
     echo "Error: DAISY_ROOT not set. Run '$0 install' first." >&2
     exit 1
 fi
 
 SCRIPTS="$DAISY_ROOT/daisy/scripts"
+source "$SCRIPTS/common.sh"
 
 # --- workspace root resolution ---
 
+# Echoes the workspace root. Returns 1 when there is none, 2 when a level
+# is a workspace that cannot be read (daisy_workspace_problem, which has
+# already said why).
 find_workspace_root() {
     local dir="$PWD"
     while [ "$dir" != "/" ]; do
-        if [ -d "$dir/.daisy" ]; then
+        daisy_workspace_problem "$dir" && return 2
+        if daisy_is_workspace_dir "$dir"; then
             echo "$dir"
             return 0
         fi
@@ -47,8 +53,10 @@ find_workspace_root() {
 
 require_workspace() {
     WORKSPACE_ROOT=$(find_workspace_root) || {
-        echo "Error: Not in a Daisy workspace (no .daisy/ directory found)" >&2
-        echo "  Run 'daisy init <home>' to initialize this workspace." >&2
+        if [ $? -eq 1 ]; then
+            echo "Error: Not in a Daisy workspace (no .daisy/ directory found)" >&2
+            echo "  Run 'daisy init <identity>' to initialize this workspace." >&2
+        fi
         exit 1
     }
     pushd "$WORKSPACE_ROOT" > /dev/null
@@ -71,8 +79,12 @@ Commands:
   feedback [--workflow <n>]    Record a prompt failure for optimization
   files                        Show resolved real paths for every home file
   healthcheck [--force]        Run system health check
-  help                         Show this help
-  init [--new] <home> [path]   Initialize Daisy in a workspace
+  help [<command>|<skill>]     Show this help, or detail for one command or
+                                skill (skills: full description + rules)
+  home [list|add|remove|new]   Manage the homes registry: which homes exist
+                                on this machine and where each one lives
+  init [--new] <identity> [path]
+                                Bind a workspace to an identity and its home
   install [--update]           Set up daisy + root skills; --update re-runs
                                 only symlink/skills/permissions, no prompts
   list                         List active prompts and installed skills
@@ -86,8 +98,10 @@ Commands:
   projects [--archived]        List active or archived projects with paths
   rotate                       Rotate journal.md into archive window files
   status                       Show quick workspace summary
-  tasks [--all|--done|--todo] [pattern]
-                                Search todo.txt/done.txt (read-only)
+  tasks [--all] [--todo|--done] [pattern]
+                                Search tasks (read-only). Scope defaults to
+                                this workspace's projects; --all widens it.
+                                --todo/--done pick a file; both by default.
   test [name-substring]        Run the hermetic daisy/scripts test suite
 
   Every command also accepts --help/-h (as the sole argument) to print its usage.
@@ -128,6 +142,67 @@ show_command_help() {
     show_help | grep -E "^  ${cmd}[[:space:]]" || show_help
 }
 
+# --- built-in: skill help ---
+#
+# `daisy list` gives one line per skill — enough to know a skill exists, not
+# enough to know whether it applies. This prints the full description, the
+# rules, and an outline of what else is in the file, so an agent can decide
+# without reading SKILL.md off disk itself.
+
+is_command_name() {
+    show_help | grep -qE "^  $1[[:space:]]"
+}
+
+# Best-effort skill lookup for the shadowing note below. `daisy help <cmd>`
+# does not otherwise need a workspace or a resolved home, so failing to find
+# one is not an error here — it just means no note. Runs in a subshell so the
+# cd cannot leak into the caller.
+find_skill_quietly() (
+    local root
+    root=$(find_workspace_root 2>/dev/null) || exit 0
+    cd "$root" 2>/dev/null || exit 0
+    require_env >/dev/null 2>&1 || exit 0
+    resolve_skill_source "$1"
+)
+
+show_skill_help() {
+    local name="$1"
+
+    require_workspace
+    require_env || { popd > /dev/null; exit 1; }
+
+    # An installed copy is what an agent actually loads, so it is the honest
+    # answer; the source is the fallback for a skill not installed here.
+    local skill_md="" dir
+    while IFS= read -r dir; do
+        [ -f "$dir/$name/SKILL.md" ] && skill_md="$dir/$name/SKILL.md"
+    done < <(daisy_installed_skill_dirs)
+    [ -n "$skill_md" ] || skill_md=$(resolve_skill_source "$name")
+
+    if [ -z "$skill_md" ]; then
+        echo "Unknown command or skill: $name" >&2
+        echo "  Run 'daisy help' for commands, 'daisy list' for skills." >&2
+        popd > /dev/null
+        exit 1
+    fi
+
+    echo "$name  ($skill_md)"
+    echo ""
+    awk -F': ' '/^description:/{ $1=""; sub(/^ /, ""); print; exit }' "$skill_md"
+    echo ""
+    awk '
+        /^## Rules/ { found=1; print; next }
+        found && /^## / { exit }
+        found { print }
+    ' "$skill_md"
+
+    local sections
+    sections=$(awk '/^## /{ sub(/^## /, ""); if ($0 != "Rules") printf "%s%s", sep, $0; sep=", " }' "$skill_md")
+    [ -n "$sections" ] && echo "Other sections: $sections"
+
+    popd > /dev/null
+}
+
 # --- built-in: clean ---
 
 cmd_clean() {
@@ -137,16 +212,23 @@ cmd_clean() {
     fi
 
     require_workspace
-    source "$SCRIPTS/common.sh"
 
-    local home_name="unknown"
+    # The home may already be unregistered; clean still removes what it can.
+    # The git identity to unset is what init applied, recorded in
+    # .daisy/gitconfig; a workspace bound before records existed has none,
+    # and the home's own identity file stands in for it.
+    local home_name="" home_dir="" identity_name="" identity_record=""
     if [ -f ".daisy/home" ]; then
         home_name=$(cat ".daisy/home")
+        identity_name=$(daisy_workspace_identity .daisy "$home_name")
+        home_dir=$(daisy_home_dir "$home_name" 2>/dev/null) || home_dir=""
     fi
+    identity_record=$(daisy_identity_record_file .daisy "$home_name" "$identity_name") || identity_record=""
 
     if [ "$force" != true ]; then
         echo "This will remove Daisy from: $WORKSPACE_ROOT"
-        echo "  Home: $home_name"
+        echo "  Home: ${home_name:-unknown}"
+        [ -n "$identity_name" ] && echo "  Identity: $identity_name"
         echo ""
         read -rp "Continue? [y/N] " confirm
         case "$confirm" in
@@ -158,17 +240,53 @@ cmd_clean() {
     # Discover this workspace's installed skill names the same way
     # daisy-init.sh does, so removal can't drift from installation.
     local skill_names=()
-    while IFS= read -r -d '' skill_md; do
-        skill_names+=("$(basename "$(dirname "$skill_md")")")
-    done < <(find "$DAISY_ROOT/home/$home_name/skills" -name SKILL.md -print0 2>/dev/null)
+    if [ -n "$home_dir" ]; then
+        while IFS= read -r -d '' skill_md; do
+            skill_names+=("$(basename "$(dirname "$skill_md")")")
+        done < <(find "$home_dir/skills" -name SKILL.md -print0 2>/dev/null)
+    fi
 
-    # 1. Remove .daisy/ directory
+    # 1. Unset the local git identity where it is still what init applied
+    # (user.name, user.email, core.sshCommand), before the record goes with
+    # .daisy/, and say which keys went. A failed unset stops here: the record
+    # must survive for the retry.
+    if [ -d ".daisy" ]; then
+        local cleared more
+        if ! daisy_is_repo_root .; then
+            echo "  · Local git identity not checked: this workspace is not a repository"
+        elif ! daisy_identity_repo_here .; then
+            echo "  · Local git identity not checked: this is a linked worktree and its config is the main checkout's"
+        else
+            [ -n "$identity_record" ] ||
+                echo "  · No readable .daisy/gitconfig record, and no identity file resolves for home '${home_name:-?}' identity '${identity_name:-?}'; only a key of Daisy's form can be recognised as its"
+            cleared=$(daisy_identity_unset . "$identity_record") || { popd > /dev/null; exit 1; }
+            # A staging directory an interrupted init left holds the record of
+            # what that init applied: reclaim it here, identity and all.
+            while IFS= read -r leftover; do
+                case "$leftover" in */.daisy.stage.*) ;; *) continue ;; esac
+                more=$(daisy_reclaim_stage . "$leftover") || { popd > /dev/null; exit 1; }
+                [ -z "$more" ] || cleared="${cleared:+$cleared, }$more"
+            done < <(daisy_init_leftovers "$WORKSPACE_ROOT")
+            if [ -n "$cleared" ]; then
+                echo "  ✓ Cleared local git identity ($cleared)"
+            else
+                echo "  · Local git identity left as is (nothing matched ${identity_record:-what Daisy writes})"
+            fi
+        fi
+    fi
+
+    # 2. Remove .daisy/ directory, and what an interrupted init swap left
+    #    beside it (a record could otherwise linger untracked and un-ignored)
     if [ -d ".daisy" ]; then
         rm -rf ".daisy"
         echo "  ✓ Removed .daisy/"
     fi
+    while IFS= read -r leftover; do
+        rm -rf "${leftover:?}" || { echo "Error: could not remove $leftover; remove it by hand" >&2; popd > /dev/null; exit 1; }
+        echo "  ✓ Removed $leftover (left by an interrupted init)"
+    done < <(daisy_init_leftovers "$WORKSPACE_ROOT")
 
-    # 2. Remove Cursor rule files
+    # 3. Remove Cursor rule files
     local cursor_rules_removed=false
     for rule_name in "${DAISY_CURSOR_RULE_FILES[@]}"; do
         if [ -f ".cursor/rules/$rule_name" ]; then
@@ -182,14 +300,14 @@ cmd_clean() {
         rmdir ".cursor" 2>/dev/null || true
     fi
 
-    # 3. Remove Claude command
+    # 4. Remove Claude command
     if [ -f "$DAISY_CLAUDE_COMMAND_FILE" ]; then
         rm -f "$DAISY_CLAUDE_COMMAND_FILE"
         echo "  ✓ Removed Claude command"
         rmdir ".claude/commands" 2>/dev/null || true
     fi
 
-    # 4. Remove installed skills
+    # 5. Remove installed skills
     if [ ${#skill_names[@]} -gt 0 ]; then
         for name in "${skill_names[@]}"; do
             rm -rf ".claude/skills/$name"
@@ -200,7 +318,7 @@ cmd_clean() {
         rmdir ".cursor" 2>/dev/null || true
     fi
 
-    # 5. Remove Daisy entries from .gitignore
+    # 6. Remove Daisy entries from .gitignore
     if [ -f ".gitignore" ]; then
         local gitignore_entries=("${DAISY_GITIGNORE_BASE_ENTRIES[@]}")
         for name in "${skill_names[@]}"; do
@@ -227,7 +345,7 @@ cmd_clean() {
         fi
     fi
 
-    # 6. Remove Daisy permissions from .claude/settings.local.json
+    # 7. Remove Daisy permissions from .claude/settings.local.json
     if [ -f ".claude/settings.local.json" ] && command -v jq >/dev/null 2>&1; then
         # Current local rules (aligned with DAISY_ALLOW_BASE) + legacy rules for old workspaces
         daisy_rules_json=$(printf '%s\n' \
@@ -252,7 +370,7 @@ cmd_clean() {
         fi
     fi
 
-    # 7. Remove Daisy entries from .cursorignore
+    # 8. Remove Daisy entries from .cursorignore
     if [ -f ".cursorignore" ]; then
         local cleaned=false
         for line in "# Allow Cursor to index daisy paths (gitignored but needed for agent context)" "${DAISY_CURSORIGNORE_BASE_ENTRIES[@]}"; do
@@ -273,24 +391,6 @@ cmd_clean() {
         fi
     fi
 
-    # 8. Unset local git identity if it matches the home's gitconfig
-    local gitconfig="$DAISY_ROOT/home/$home_name/gitconfig"
-    if [ -f "$gitconfig" ] && [ -d ".git" ]; then
-        local cfg_name cfg_email local_name local_email
-        cfg_name=$(grep '^name=' "$gitconfig" | cut -d= -f2-)
-        cfg_email=$(grep '^email=' "$gitconfig" | cut -d= -f2-)
-        local_name=$(git config --local user.name 2>/dev/null || true)
-        local_email=$(git config --local user.email 2>/dev/null || true)
-
-        if [ -n "$cfg_name" ] && [ "$local_name" = "$cfg_name" ]; then
-            git config --local --unset user.name 2>/dev/null || true
-        fi
-        if [ -n "$cfg_email" ] && [ "$local_email" = "$cfg_email" ]; then
-            git config --local --unset user.email 2>/dev/null || true
-        fi
-        echo "  ✓ Cleared local git identity"
-    fi
-
     echo ""
     echo "Done. Daisy has been removed from this workspace."
     popd > /dev/null
@@ -300,10 +400,12 @@ cmd_clean() {
 
 cmd_status() {
     require_workspace
-    source "$SCRIPTS/common.sh"
     require_env || { popd > /dev/null; exit 1; }
 
-    echo "Daisy | home: $DAISY_HOME_NAME | workspace: $WORKSPACE_ROOT"
+    echo "Daisy | home: $DAISY_HOME_NAME | identity: $DAISY_IDENTITY_NAME | workspace: $WORKSPACE_ROOT"
+    daisy_report_drift
+    resolve_projects
+    echo "Projects: $(daisy_projects_summary)"
     echo ""
 
     local today_file="$DAISY_HOME/journal/today.md"
@@ -468,18 +570,16 @@ cmd_install() {
     if [ "$update" = false ]; then
         # 4. Select default home
         local homes=()
-        for dir in "$DAISY_ROOT"/home/*/; do
-            [ -d "$dir" ] && homes+=("$(basename "$dir")")
-        done
+        mapfile -t homes < <(daisy_homes)
 
         if [ ${#homes[@]} -eq 0 ]; then
             echo ""
-            echo "No homes found. Creating one now..."
+            echo "No homes registered. Creating one now..."
             read -rp "  Home name: " selected_home
             if [ -z "$selected_home" ]; then
                 echo "  Skipped home creation." >&2
             else
-                "$SCRIPTS/create-home.sh" "$selected_home"
+                "$SCRIPTS/home.sh" new "$selected_home"
             fi
         elif [ ${#homes[@]} -eq 1 ]; then
             selected_home="${homes[0]}"
@@ -638,6 +738,9 @@ case "$COMMAND" in
     init)
         exec "$SCRIPTS/daisy-init.sh" "$@"
         ;;
+    home)
+        "$SCRIPTS/home.sh" "$@"
+        ;;
     clean)
         cmd_clean "$@"
         ;;
@@ -740,7 +843,6 @@ case "$COMMAND" in
         ;;
     commit)
         require_workspace
-        source "$SCRIPTS/common.sh"
         require_env || { popd > /dev/null; exit 1; }
         "$SCRIPTS/commit.sh" "$@"
         popd > /dev/null
@@ -751,7 +853,20 @@ case "$COMMAND" in
         popd > /dev/null
         ;;
     help|--help|-h)
-        show_help
+        if [ "$#" -eq 0 ]; then
+            show_help
+        elif is_command_name "$1"; then
+            show_command_help "$1"
+            # Say so when a skill of the same name exists but is unreachable
+            # this way, rather than leaving it looking absent.
+            if [ -n "$(find_skill_quietly "$1")" ]; then
+                echo ""
+                echo "Note: a skill named '$1' also exists; the command name takes precedence."
+                echo "  Read it with: daisy list, or open its SKILL.md directly."
+            fi
+        else
+            show_skill_help "$1"
+        fi
         ;;
     *)
         echo "Unknown command: $COMMAND" >&2

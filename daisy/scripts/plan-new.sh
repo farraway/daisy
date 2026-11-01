@@ -37,8 +37,21 @@ fi
 # Strip leading + from project tag if present
 PROJECT="${PROJECT_TAG#\+}"
 
-# Generate slug: replace non-alphanumeric characters with hyphens, preserve case
+# Generate slug: replace non-alphanumeric characters with hyphens, preserve
+# case, and cap the length. Filenames are limited to 255 bytes, and the slug
+# is the only unbounded part of one — uncapped, an ordinary description made
+# the script die on the filesystem rather than say anything useful. 100 leaves
+# ample room for the timestamp, project and suffix; the timestamp already
+# carries uniqueness, so truncation costs readability, not correctness.
+SLUG_MAX=100
 SLUG=$(printf '%s' "$DESCRIPTION" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/-\+-/-/g' | sed 's/^-//;s/-$//')
+SLUG=$(printf '%s' "$SLUG" | cut -c "1-$SLUG_MAX" | sed 's/-$//')
+
+if [ -z "$SLUG" ]; then
+    echo "Error: description produced an empty slug" >&2
+    echo "Descriptions need at least one letter or digit." >&2
+    exit 1
+fi
 
 TEMPLATE="$DAISY_ROOT/daisy/templates/plan.md"
 CREATED=$(date '+%Y-%m-%d %H:%M')
@@ -70,6 +83,16 @@ else
         FILENAME="${TIMESTAMP}.${SLUG}.plan.md"
     fi
     PLAN_FILE="$DAISY_HOME/plans/$FILENAME"
+fi
+
+# The slug is capped, but a long +project can still overrun the limit. Say so
+# in terms of what the caller can change, rather than letting the shell report
+# a filesystem error after every input has already been validated.
+if [ "$(printf '%s' "$FILENAME" | wc -c)" -ge 255 ]; then
+    echo "Error: plan filename would be $(printf '%s' "$FILENAME" | wc -c | tr -d ' ') bytes; the limit is 255" >&2
+    echo "  $FILENAME" >&2
+    echo "Shorten the project tag (the description is already truncated to $SLUG_MAX characters)." >&2
+    exit 1
 fi
 
 # Populate template via awk

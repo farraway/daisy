@@ -7,7 +7,7 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
 **Command:** "status" or "daisy status"
 
 ```
-1. Detect active home (check $DAISY_HOME environment variable)
+1. Resolve the active home and identity (.daisy/home and .daisy/identity, via the registry)
 
 2. Count tasks in todo.txt:
    a. Read tasks/todo.txt
@@ -316,19 +316,24 @@ deletes them.
 
 ## Home Switching
 
-**Command:** "Daisy, switch to [home]"
+**Command:** "Daisy, switch to [home]" or "switch to [identity]"
 
 ```
-1. Run: daisy init <home-name>
+1. Run: daisy init <identity>
+   - <identity> is a registered home's name or an identities/<id> file in one home
    - Replaces .daisy/ symlinks in the current workspace to point to the new home
+   - Unsets the previous identity from the workspace repo's git config, applies the new one
    - Does not affect other workspaces
-   - Each workspace independently tracks its own home via .daisy/home
+   - Each workspace independently tracks its own home via .daisy/home (and .daisy/identity)
 
-2. Verify switch: read .daisy/home to confirm new home name
+2. Verify switch: `daisy status` prints the home and identity in its header
 ```
 
 To create a new home from scratch:
 ```
-daisy create-home <home-name> [--activate]
+daisy home new <name> [path]
 ```
-This copies daisy/templates/home/ to home/{name}/ and optionally runs daisy init.
+This copies daisy/templates/home/ to the path (default `~/.local/daisy/homes/<name>`),
+makes it a git repository with a first commit, and registers it in
+`~/.config/daisy/homes`. `daisy init --new <name>` does the same and then binds
+the current workspace. See `daisy/docs/home-management.md`.

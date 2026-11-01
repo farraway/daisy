@@ -30,6 +30,19 @@ while [ "$1" = "--workflow" ] || [ "$1" = "-w" ]; do
     shift
 done
 
+# A tag naming no file is refused here rather than guessed at later. Nothing
+# used to check it, so `daisy-write`, `daisy-scripts` and the literal
+# `new-day, new-week` all reached the archive and trained daisy.md by
+# accident, through optimize's "Unknown workflow" fallback.
+if [ -n "$WORKFLOW" ] && ! resolve_workflow_target "$WORKFLOW" >/dev/null; then
+    echo "Error: workflow '$WORKFLOW' names no prompt or skill" >&2
+    echo "  Qualify the target, e.g. --workflow prompts/daisy or --workflow skills/git." >&2
+    echo "" >&2
+    echo "  Available:" >&2
+    list_workflow_targets | sed 's/^/    /' >&2
+    exit 1
+fi
+
 # Get message from args or stdin
 if [ $# -gt 0 ]; then
     MESSAGE="$*"
@@ -39,7 +52,10 @@ else
     echo "Usage: daisy feedback [--workflow <name>] \"<description>\"" >&2
     echo "  or:  echo \"<description>\" | daisy feedback [--workflow <name>]" >&2
     echo "" >&2
-    echo "Workflows: daisy, new-day, new-week, done, log, plan, retrospective, project, github, jira" >&2
+    # Generated, not hardcoded: the list this replaced offered `jira` (no
+    # prompt, no skill, no arm) and omitted every skill.
+    echo "Workflows:" >&2
+    list_workflow_targets | sed 's/^/  /' >&2
     exit 1
 fi
 

@@ -20,7 +20,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 
 1. **Research before scaffolding.** Before filling in PLAN.md sections, read what already exists relevant to the task. Identify what's essential (inherent to the problem) vs. accidental (artifact of the current approach). Confirm the research summary with the user before scaffolding.
 2. **No implementation during plan mode.** During `/daisy plan`, only edit `PLAN.md`; do not write any implementation code until the user confirms the plan is ready.
-3. **Collaborate until confirmed.** Present the Open Questions list via `AskUserQuestion` (the client's native Q&A UI), including a final question equivalent to "Ready to execute?"; fall back to prose ending in "Ready to execute? (yes/no)" only when `AskUserQuestion` is unavailable. Do not proceed to execution without confirmation.
+3. **Collaborate until confirmed.** Present the Open Questions list via `AskUserQuestion` (the client's native Q&A UI), including a final question equivalent to "Ready to execute?"; fall back to prose ending in "Ready to execute? (yes/no)" only when `AskUserQuestion` is unavailable. Precede the question with the plan summary required by rule 19. Do not proceed to execution without confirmation.
 4. **Prefer spec-mode when the shape isn't settled yet.** Use `plan spec` instead of `plan` when exploring multiple candidate approaches before committing to one, or when it's not yet clear this deserves a tracked Daisy plan at all. Promote to a real plan with `plan pickup` once a direction is chosen.
 5. **Read praxis.md before each step.** During `/daisy execute`, read `$DAISY_ROOT/prompts/praxis.md` as the quality guide before implementing each step.
 6. **Check off steps immediately.** After completing each step, mark it `- [x]` in `PLAN.md` before moving on.
@@ -32,10 +32,11 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 12. **Calibrate process to task complexity.** Skip the plan workflow for simple, contained changes (a one-liner, a rename, a config tweak) — just do them directly. Use one research pass + plan for single-file features. Use full RPI with human checkpoints for cross-file or cross-repo work. Reserve multiple research iterations for complex refactors.
 13. **Steps must name files; complex steps show code.** Every step should identify the specific files (and line ranges where known) that will change. For non-trivial changes, include a brief before/after code snippet. Vague steps ("refactor auth module") give the agent nothing to anchor on — and an error in the plan is an error in every line that follows from it.
 14. **Surface repeated corrections; do not compound them.** If you have made the same mistake twice on a step, stop. Tell the user what you've tried and why it keeps failing; ask whether to compact what's been learned and start the step fresh. Do not continue correcting in-place — a history of corrections degrades trajectory and primes further failure.
-15. **Resume by verifying state, not assuming it.** When picking up an in-progress plan from a previous session, do not assume completed steps are correct — verify. Check git log, today.md, and spot-check key files. Summarize what is confirmed, what is uncertain, and where work was interrupted. Confirm with the user before continuing.
+15. **Resume by verifying state, not assuming it.** When picking up an in-progress plan from a previous session, do not assume completed steps are correct — verify. Check git log, today.md, and spot-check key files. Summarize what is confirmed, what is uncertain, and where work was interrupted. Present the plan summary required by rule 19 alongside that verification, then confirm with the user before continuing.
 16. **Ask before deleting a picked-up spec's original.** `plan-pickup.sh` never deletes the original `{slug}_PLAN.md` itself — after a successful pickup, ask the user whether to delete it now that its content is tracked via the `PLAN.md` symlink, and only run `rm` if they confirm.
 17. **Resolve the real path before writing `PLAN.md`.** `PLAN.md` at the workspace root is a symlink; writing through it fails with "Refusing to write through symlink". Run `daisy files` (it prints the resolved `active plan` path) and write to that real path instead — for every edit during `execute`, `resume`, and `archive`, not just the first.
 18. **Live-test auto-committing scripts only against a hermetic fixture.** Never exercise a script that auto-commits (or otherwise mutates) against a real, in-use home. Use `daisy test`'s fixture harness, or an isolated `daisy init --new <fixture-home>`, and tear it down afterward.
+19. **Show the plan before asking for approval.** Every readiness question — `/daisy plan`'s "Ready to execute?" and `/daisy resume`'s "Ready to resume from Step N?" — must be immediately preceded, in the same response, by a summary the user can answer from without opening the file. In this order: (1) the plan name and its metadata (created date, status); (2) one line on what the plan accomplishes; (3) every step, one line each, optionally followed by a sentence or two on what it entails and any constraint on it — every step, not an abridged selection; (4) risks, each with its mitigation; (5) open questions. A question the user must open a file to answer defeats the point of asking it.
 
 # Daisy — Plan Workflow
 
@@ -76,8 +77,9 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 ## /daisy archive PLAN.md
 
 1. Warn if `**Status:**` is not `built` — confirm the user wants to archive anyway.
-2. Call `daisy plan-archive`
-3. Log the archive event to `today.md` via `daisy log`.
+2. **Rehome the Deferred list.** For each item under `## Deferred`, verify it against the code before moving it — some will already be done. Move the live ones into the project file's `## Deferred` section (creating it if absent), with the context that makes them intelligible; strike through and date any found already resolved. Then they live in one mutable place instead of being copied into the next plan, which is how a fixed item rode four consecutive plans looking more overdue each time. An item becomes a `todo.txt` task when it is scheduled, not before.
+3. Call `daisy plan-archive`
+4. Log the archive event to `today.md` via `daisy log`.
 
 ## /daisy resume PLAN.md
 

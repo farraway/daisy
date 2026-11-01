@@ -107,8 +107,11 @@ LOG_OUTPUT=$(daisy log "Done: $DESCRIPTION" 2>&1)
 LOG_STATUS=$?
 set -e
 
-COMMIT_OUTPUT=$(daisy commit --home "Completed: $DESCRIPTION" 2>&1) || true
-COMMIT_HASH=$(git -C "$DAISY_ROOT" rev-parse --short HEAD)
+if COMMIT_OUTPUT=$(daisy commit --home "Completed: $DESCRIPTION" 2>&1); then
+    COMMIT_HASH=$(git -C "$DAISY_HOME" rev-parse --short HEAD)
+else
+    COMMIT_HASH="not committed"
+fi
 
 # --- Output contract: exit code is authoritative, one summary line on success ---
 if [ "$TODAY_UPDATED" -eq 0 ]; then
@@ -116,7 +119,11 @@ if [ "$TODAY_UPDATED" -eq 0 ]; then
 fi
 
 if [ "$LOG_STATUS" -ne 0 ]; then
-    echo "Error: journal entry failed — todo.txt and today.md are committed ($COMMIT_HASH), but nothing was recorded in today.md's #### Log section" >&2
+    if [ "$COMMIT_HASH" = "not committed" ]; then
+        echo "Error: journal entry failed — todo.txt and today.md are edited but NOT committed, and nothing was recorded in today.md's #### Log section" >&2
+    else
+        echo "Error: journal entry failed — todo.txt and today.md are committed ($COMMIT_HASH), but nothing was recorded in today.md's #### Log section" >&2
+    fi
     echo "$LOG_OUTPUT" >&2
     echo "$COMMIT_OUTPUT" >&2
     exit 1

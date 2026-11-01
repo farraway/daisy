@@ -6,7 +6,7 @@
 # case pins the boundary so the ignore-awareness can't degrade into a blanket
 # suppression.
 
-mkdir -p "$FIXTURE_ROOT/home/zebrahome"
+fixture_register_home zebrahome
 printf 'ignored-leak.md\nper-machine/\n' > "$FIXTURE_ROOT/.gitignore"
 
 echo "this doc mentions zebrahome by name" > "$FIXTURE_ROOT/ignored-leak.md"

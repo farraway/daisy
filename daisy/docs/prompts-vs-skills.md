@@ -80,17 +80,26 @@ about being a skill makes a capability upstream-owned.
 **This creates an obligation.** Because placement follows runtime coupling,
 the feedback loop has to follow content wherever coupling puts it. Four
 capabilities the user actively refines now live in the craft layer, and
-`daisy optimize` currently reaches only prompts — so extending it to skills
-is a requirement this architecture created, not an optional enhancement.
+`daisy optimize` reached only prompts — so extending it to skills was a
+requirement this architecture created, not an optional enhancement. Done
+2026-08-17: `--workflow <skill-name>` resolves that skill's source
+`SKILL.md` and rewrites its `## Rules`, subject to the two constraints
+below.
 
 Two constraints on that work, recorded here because they shape it:
 
-- **There is no rewrite anchor yet.** `optimize` resolves a prompt file and
-  rewrites its `## Rules` section. The migrated skills have no such section
-  — those preambles were removed as duplication of the body sections they
-  restated. Extending the loop therefore requires deciding what it rewrites
-  in a skill: a `## Rules` convention for Daisy-authored skills, a
-  whole-body pass, or an overlay leaving the skill intact.
+- **The rewrite anchor is `## Rules`** (decided 2026-08-17). `optimize`
+  resolves a skill's source `SKILL.md` and rewrites its `## Rules` section,
+  exactly as it does for a prompt. The alternatives were a whole-body pass
+  (no convention to maintain, but every run can restructure the whole skill,
+  and the diffs stop being reviewable) and a non-destructive overlay (safest,
+  but a second file to load and a new precedence rule to explain). The
+  `## Rules` convention keeps one mental model across both layers and bounds
+  the blast radius to a section. Its cost is real: the migrated skills had
+  their preambles removed as duplication, so a Daisy-authored skill that
+  wants to be in the loop re-introduces one. A skill with no `## Rules`
+  section gets one inserted before its first `##` heading rather than
+  having the generated rules silently discarded.
 - **Coverage is per-skill, not blanket.** A skill carrying `LICENSE` and
   `NOTICE.md` tracks an upstream source; rewriting Daisy's copy from local
   feedback would fork it and make future sync a reconciliation problem.

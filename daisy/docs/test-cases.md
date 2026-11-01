@@ -571,7 +571,8 @@ x 2026-01-05 2026-01-01 Kickoff meeting +widgets
 - ✅ `+other` excluded — literal substring match on `+widgets`, not a
   looser tag match
 - ✅ Both todo.txt (active + not-yet-rotated completed) and done.txt lines
-  present under `--all`
+  present, since no `--todo`/`--done` filter is given; `--all` is what puts
+  `+widgets` in scope from a workspace not bound to it
 - ✅ Read-only: todo.txt and done.txt are byte-identical after the command,
   and no commit is produced
 - ✅ No pattern given → every line of the selected file(s)

@@ -55,20 +55,25 @@ The agent is never trusted with format-critical mechanics, and scripts are
 never asked to make judgment calls.
 
 **Multiple contexts, concurrent use.** A "home" is one context's data —
-tasks, journal, projects. One machine can run separate personal and work
-homes, and several workspaces can share a home at once. Home resolution is
-stateless and every mutation ends in a git commit, so concurrent sessions
-interleave in the log instead of fighting over state. See
+tasks, journal, projects — in its own git repository, separate from Daisy's
+code. One machine can run separate personal and work homes, several
+workspaces can share a home at once, and each workspace's own repository
+commits as the identity you bind it with. Home resolution is stateless and
+every mutation ends in a git commit in the home's repository, so concurrent
+sessions interleave in the log instead of fighting over state. See
 [daisy/docs/home-management.md](daisy/docs/home-management.md).
 
 **A feedback loop, not a rulebook.** When the agent gets something wrong,
 `daisy feedback` records it. Periodically, `daisy optimize` has an LLM
-rewrite the relevant prompt's rules from the accumulated feedback — trained
-on an 80/20 split, shown as a diff, applied only on approval. Those prompts
-are a living artifact shaped by how the agent actually fails. The loop
-reaches prompts today; extending it to cover skills is outstanding work, and
+rewrite the relevant prompt's rules from the accumulated feedback — every
+entry in a group trains, shown as a diff, applied only on approval. A group
+of fewer than two entries is skipped unless you pass `--force`: a rules
+section should not be rewritten from a single data point by accident. Those
+prompts are a living artifact shaped by how the agent actually fails. The
+loop reaches both layers — an entry tagged `prompts/<name>` or
+`skills/<name>` trains that file, and
 [daisy/docs/prompts-vs-skills.md](daisy/docs/prompts-vs-skills.md) explains
-why that matters. See also
+why the distinction matters. See also
 [daisy/docs/resources/prompt-learning-loop.md](daisy/docs/resources/prompt-learning-loop.md).
 
 ## Two Layers: Prompts and Skills
@@ -115,8 +120,11 @@ cd daisy
 
 This will:
 - Create a `~/bin/daisy` symlink
+- Install the root skills into `~/.claude/skills/`
+- Select a default home from the registry (`~/.config/daisy/homes`), or
+  create and register one with `daisy home new` when none exists — a home is
+  its own git repository, by default at `~/.local/daisy/homes/<name>`
 - Add `DAISY_ROOT` and `DAISY_DEFAULT_HOME` to your shell rc file (`.zshenv`, `.bashrc`, etc.)
-- Interactively select a default home (or create one)
 - Configure Claude Code permissions for `daisy` and `$DAISY_ROOT`
 
 Then reload your shell: `source ~/.zshenv` (or open a new terminal).
@@ -128,8 +136,15 @@ cd /path/to/your/project
 daisy init work
 ```
 
-This creates:
-- `.daisy/` directory with symlinks to that home's tasks, journal, and projects
+`work` is an identity: a registered home's name (its default identity, from
+the home's `gitconfig`), or the name of an `identities/<id>` file in exactly
+one registered home. The workspace binds to that home, and the workspace's
+own repository commits as that identity. `daisy init --new <name>` creates and registers
+the home first. This creates:
+- `.daisy/` directory with symlinks to that home's tasks, journal, projects,
+  plans and feedback
+- The identity's `user.name`/`user.email` (and SSH key, if it has one) in the
+  workspace repository's local git config
 - Per-tool agent configuration so agents automatically discover Daisy — see
   [Supported AI Tools](#supported-ai-tools)
 - `.daisy/` entries in `.gitignore`
@@ -140,8 +155,9 @@ This creates:
 daisy healthcheck
 ```
 
-Confirms `DAISY_ROOT`/`DAISY_HOME` resolve correctly, required files exist,
-and every script's own health check passes.
+Confirms `DAISY_ROOT` is set, the home resolves through the registry and
+is in a git repository, required files exist, no published file carries an
+identifying term, and every script's own health check passes.
 
 A passing result is cached for 300 seconds, so the workflows that gate on it
 (`new-day` and friends) don't re-scan the tree on every invocation. Set
@@ -170,7 +186,7 @@ The agent will:
 | Tool | Daisy configuration | Invocation |
 |------|--------------------|------------|
 | Claude Code | `.claude/commands/daisy.md` (`/daisy` command), `.claude/settings.local.json` (permissions) | `/daisy <request>` |
-| Cursor | `.cursor/rules/daisy.md`, `.cursorignore` entries | Address Daisy in chat: `Daisy, <request>` |
+| Cursor | `.cursor/rules/daisy.mdc` (plus `daisy-logging.mdc`, `daisy-plan.mdc`), `.cursorignore` entries | Address Daisy in chat: `Daisy, <request>` |
 
 Craft-layer skills are installed once per machine, to `~/.claude/skills/`, by
 `daisy install` — which is why they keep working in repositories that were
@@ -199,16 +215,19 @@ Every command also accepts `--help`/`-h` as its sole argument to print its own u
 daisy build [home]            # Rebuild AGENTS.md for a home
 daisy check-secrets           # Check which secrets/tokens are configured
 daisy clean [-f]              # Remove Daisy from the current workspace
-daisy commit "message"        # Stage and commit changes under home/
+daisy commit --home "msg"     # Commit the home's repository (--not-home: the root's)
 daisy done "task pattern"     # Mark task complete
 daisy eval [<case>]           # List, display, or record an eval case result
 daisy feedback "message"      # Record a prompt failure for optimization
 daisy files                   # Show resolved real paths for every home file
 daisy healthcheck [--force]   # System validation
-daisy help                    # Show command list
-daisy init work               # Initialize Daisy in a new workspace
-daisy init personal           # Switch workspace to a different home
-daisy install                 # Set up ~/bin/daisy and shell environment
+daisy help [<command>]        # Show command list, or one command's usage
+daisy home list               # Registered homes and where each lives
+daisy home new <name> [path]  # Create a home (own git repo) and register it
+daisy home add <name> <path>  # Register an existing home; `remove` unregisters
+daisy init <identity>         # Bind the workspace to an identity and its home
+daisy init personal           # Re-run to switch home or identity
+daisy install [--update]      # Set up ~/bin/daisy, root skills, shell environment
 daisy list                    # List active prompts and installed skills
 daisy log Did thing A         # Add log entry (no quoting needed)
 daisy new-day                 # Start a new day
@@ -220,7 +239,7 @@ daisy plan-pickup <path>      # Promote a spec draft into a tracked plan
 daisy projects [--archived]   # List active or archived projects
 daisy rotate                  # Rotate journal.md into archive window files (automatic; rarely needed by hand)
 daisy status                  # Quick workspace summary
-daisy tasks [--all|--done|--todo] "+project"  # Search todo.txt/done.txt (read-only)
+daisy tasks [--all] [--todo|--done] [pattern]  # Search this workspace's tasks; --all widens to every project (read-only)
 daisy test [name-substring]   # Run the hermetic daisy/scripts test suite
 ```
 
@@ -254,6 +273,10 @@ handle authentication automatically; `.env.sh` is only a fallback.
 
 ## File Structure
 
+Daisy's code and your data are separate git repositories: the root holds
+the code and is published as it is; each home holds one context's data and
+lives wherever you put it. The root finds homes by name through a registry.
+
 ### Daisy Repo
 
 ```
@@ -262,8 +285,8 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── README.md                   # This file
 ├── daisy.sh                    # CLI entry point (symlinked to ~/bin/daisy)
 ├── daisy/                      # Distributable system files
-│   ├── scripts/                # daisy-init, new-day, new-week, rotate, done, log,
-│   │                           # feedback, optimize, eval, build-prompt, create-home,
+│   ├── scripts/                # daisy-init, home, new-day, new-week, rotate, done, log,
+│   │                           # feedback, optimize, eval, build-prompt,
 │   │                           # healthcheck, common, commit, check-secrets, files,
 │   │                           # list, tasks, projects, plan-new, plan-pickup,
 │   │                           # plan-archive, test
@@ -275,48 +298,74 @@ daisy/                          # Repository root ($DAISY_ROOT)
 │   │   ├── env.sh.template     # Environment variables template
 │   │   ├── cursor-rule.mdc, cursor-rule-logging.mdc, cursor-rule-plan.mdc
 │   │   ├── claude-command.md
-│   │   └── home/               # Template for new homes (tasks/, journal/, feedback/, projects/, plans/)
+│   │   └── home/               # Template for new homes (copied by `daisy home new`)
 │   └── docs/                   # Detailed reference documentation
 │       ├── task-format.md, task-sync.md, todotxt.md, templates.md
 │       ├── workflows.md, logging.md, projects.md, home-management.md
 │       ├── plan.md, praxis.md, retrospective.md, github.md
 │       ├── prompts-vs-skills.md, examples.md, test-cases.md
 │       └── resources/          # External-talk summaries informing the design
-├── home/
-│   ├── {home-name}/            # One directory per home
-│   │   ├── AGENTS.md           # Generated prompt (git-ignored; rebuild with `daisy build`)
-│   │   ├── include.txt         # Which prompts load into AGENTS.md, and how
-│   │   ├── prompts/            # Home-specific prompt augmentations
-│   │   ├── journal/            # today.md, journal.md, rotated archive files
-│   │   ├── tasks/              # todo.txt, done.txt, alias.txt
-│   │   ├── projects/           # One file per active project, plus _archive/
-│   │   ├── feedback/           # feedback.md, archive.md
-│   │   └── plans/              # PLAN.md history, plus archive/
 ├── prompts/                    # Situated layer: daisy.md, plan.md, retrospective.md, github.md, ...
 │   └── evals/                  # Eval cases for the optimize loop
 └── skills/                     # Craft layer: css, js, tdd, git, agents-md (see Two Layers)
 ```
+
+### Per-Machine State and Homes
+
+```
+~/.config/daisy/                # $DAISY_CONFIG
+└── homes                       # The registry: name=/absolute/path, one home per line
+~/.local/daisy/                 # $DAISY_LOCAL
+└── homes/{home-name}/          # Where `daisy home new` puts a home by default
+```
+
+A home is one git repository, created from `daisy/templates/home/`:
+
+```
+{home}/
+├── .gitignore                  # AGENTS.md and the healthcheck stamp
+├── AGENTS.md                   # Generated prompt (rebuild with `daisy build`)
+├── include.txt                 # Which prompts load into AGENTS.md, and how
+├── prompt.md                   # Legacy, from before include.txt; nothing reads it
+├── gitconfig                   # The home's default identity: name=, email=, optional sshkey=
+├── identities/                 # Optional: further identities of this home, one file each (same format)
+├── prompts/                    # Optional, yours to add: home prompts shadow the root's by name
+├── skills/                     # Home-specific skills, installed into each workspace
+├── journal/                    # today.md, journal.md, rotated archive files
+├── tasks/                      # todo.txt, done.txt, alias.txt
+├── projects/                   # One file per active project, plus _archive/
+├── feedback/                   # feedback.md, archive.md
+└── plans/                      # PLAN.md history, plus archive/
+```
+
+Homes created before the split live under `$DAISY_ROOT/home/` and are
+registered there; they keep working, and `daisy healthcheck` reports each
+one that is not yet its own git repository.
 
 ### Workspace Layout (after `daisy init work`)
 
 ```
 workspace/
 ├── .daisy/
-│   ├── home                 # "work" (plain text)
+│   ├── home                 # "work" (plain text): the home's registered name
+│   ├── identity             # only when the identity is not the home's default
+│   ├── gitconfig            # the identity init applied; clean unsets against it
 │   ├── AGENTS.md            # generated prompt for this home
-│   ├── tasks/                → daisy/home/work/tasks/
-│   ├── today.md              → daisy/home/work/journal/today.md
-│   ├── journal.md            → daisy/home/work/journal/journal.md
-│   ├── projects/             → daisy/home/work/projects/
-│   └── plans/                → daisy/home/work/plans/
+│   ├── tasks/                → {home}/tasks/
+│   ├── today.md              → {home}/journal/today.md
+│   ├── journal.md            → {home}/journal/journal.md
+│   ├── projects/             → {home}/projects/
+│   ├── plans/                → {home}/plans/
+│   └── feedback.md           → {home}/feedback/feedback.md
 ├── .cursor/rules/
-│   └── daisy.md
+│   └── daisy.mdc, daisy-logging.mdc, daisy-plan.mdc
 └── PLAN.md                   → .daisy/plans/{current}.plan.md (only while a plan is active)
 ```
 
-Run `daisy files` any time to print every one of these paths, fully resolved, for the active home.
+Run `daisy files` any time to print every one of these paths, fully resolved, for the active home and identity.
 
-Different workspaces can use different homes concurrently.
+Different workspaces can use different homes, or the same home under
+different identities, concurrently.
 
 ## Todo.txt Format Quick Reference
 
