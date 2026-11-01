@@ -333,7 +333,7 @@ EOF
 }
 
 # Matching todo.txt for seed_today_basic — same descriptions verbatim so a
-# done.sh resolution against todo.txt can key the today.md edit by exact
+# a `daisy done` resolution against todo.txt can key the today.md edit by exact
 # whole-line match.
 seed_todo_basic() {
     fixture_write_todo <<'EOF'
@@ -351,7 +351,7 @@ seed_basic() {
 }
 
 # A small done.txt for `daisy tasks` cases — historical completions with
-# +tags intact, as done.sh (post-fix) produces them.
+# +tags intact, as `daisy done` produces them.
 seed_done_basic() {
     fixture_write_done <<'EOF'
 x 2026-07-01 2026-06-01 Ship the old widget +daisy

@@ -6,21 +6,27 @@ package commands
 
 import (
 	"io"
+	"slices"
 
 	"daisy/internal/env"
 	"daisy/internal/ops"
 )
 
-// Context is what a command runs with. Args are the positional arguments
-// left after the cli parsed the command's flags.
+// Context is what a command runs with. Flags are the command's own flags
+// the cli found leading its arguments, in order; Args are the positional
+// arguments after them.
 type Context struct {
 	Ops    ops.Ops
 	Env    env.Env
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+	Flags  []string
 	Args   []string
 }
+
+// Flag: the flag was given.
+func (c *Context) Flag(name string) bool { return slices.Contains(c.Flags, name) }
 
 // readOnly runs the command under ops.ReadOnly: the usage text's promise
 // becomes a checked invariant.

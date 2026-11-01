@@ -1,4 +1,4 @@
-# Test Plan #18: `done.sh --healthcheck` — exits 0 with files present, 1
+# Test Plan #18: `daisy done --healthcheck` — exits 0 with files present, 1
 # without.
 
 fixture_run done --healthcheck

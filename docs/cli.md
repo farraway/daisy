@@ -182,15 +182,16 @@ API call: `EDITOR`, `TMPDIR`, `ANTHROPIC_API_KEY`, `DAISY_OPTIMIZE_MODEL`,
 `DAISY_OPTIMIZE_RESPONSE_FILE` (the suite's LLM stub). Nothing else.
 
 **`--healthcheck` hook.** The scripts listed in `healthcheck.sh`'s
-`HEALTHCHECK_SCRIPTS` (`new-day`, `new-week`, `done`, `log`, `home`,
-`feedback`, `optimize`, `eval`, `files`, `list`, `plan-pickup`, `projects`,
-`rotate`, `test`, `tasks`) accept `--healthcheck` as the sole argument:
-check their own preconditions, print nothing on success, exit 0; else a
-one-line `Error: …` on stderr, exit 1. Two cases pin it from outside
-(`done --healthcheck` [18], `tasks --healthcheck` [30]). Go runs the same
-checks inside `healthcheck` and keeps the flag on those two commands at
-least, so 18 and 30 pass unchanged *(decided, D30, Step 18; the flag is
-hidden from the help text)*.
+`HEALTHCHECK_SCRIPTS` (`new-day`, `new-week`, `home`, `feedback`,
+`optimize`, `eval`, `files`, `list`, `plan-pickup`, `rotate`, `test`) and
+the Go commands listed in its `HEALTHCHECK_COMMANDS` (`done`, `log`,
+`tasks`, `projects`, asked through the binary) accept `--healthcheck` as the
+sole argument: check their own preconditions, print nothing on success,
+exit 0; else a one-line `Error: …` on stderr, exit 1. Two cases pin it from
+outside (`done --healthcheck` [18], `tasks --healthcheck` [30]). In the
+binary the hook is a per-command `Health` function in the `cli` table,
+hidden from the help text; `healthcheck` runs the same checks in-process at
+Step 24 *(decided, D30, Step 18; built in Step 18)*.
 
 **`Ops` wrappers.** `ReadOnly` for `status`, `files`, `list`, `projects`,
 `tasks`, `help` and the briefing form of `optimize` (agreed, Architecture),
@@ -204,7 +205,8 @@ repository, as that repository's own git config — never in the root (case
 repository's commit count and `git status --porcelain` are unchanged).
 As built, the committing commands are `done`, `log`, `new-day`, `new-week`,
 `plan pickup`, `plan archive`, `commit` and `home new` (the new home's
-first commit); `plan new`, `feedback`, `eval --record` and `optimize` write
+first commit); every mutation the binary makes goes through
+`gitx.Repo.Commit`, one commit per command *(built, Step 18)*; `plan new`, `feedback`, `eval --record` and `optimize` write
 home files without committing them, and the next home commit sweeps them
 up. Architecture adds `optimize apply` to the committing commands (Step
 23). The root is committed only by `commit --not-home` (`--root` after
@@ -345,43 +347,43 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy log <message...>` → `log.sh` (the dispatcher joins the arguments with single spaces: `"$*"`) |
+| Status | as built in Go (Step 18) |
+| Legacy | `daisy log <message...>` → the bash `log` script, deleted in Step 18 (the dispatcher joined the arguments with single spaces: `"$*"`; the binary does the same) |
 | Usage | `daisy log <message...>` |
-| Exit codes | 0; 1 with no message (`Error: Log message required`), when `healthcheck` fails first, when `today.md` is missing (`Error: today.md not found`) or has no `#### Log` section (`Error: Log section not found in today.md`) |
+| Exit codes | 0; 2 with no message — no argument, or only empty ones (usage on stderr; the bash exited 1 with `Error: Log message required`); 1 when `healthcheck` fails first (`Error: System health check failed`, `  Run: daisy healthcheck`), when `today.md` is missing (`Error: today.md not found`) or has no `#### Log` section (`Error: Log section not found in today.md`) |
 | Stdout | `✅ Logged: <HHMM> <message>` then `commit`'s line (`done` suppresses both: not `Logged:` [15]) |
-| Ops | Real |
-| Writes | `journal/today.md`: inserts `- HHMM message` at the first blank line after the `#### Log` section's first entry, or appends at end of file when none follows. As built the scan does not stop at the next `####` heading: when the Log section's last entry abuts the next heading with no blank line, the entry lands at the first blank line of a later section (healthcheck Check 5 requires the blank line that prevents this) |
-| Commits | home, once: `Log: <HHMM> - <first 60 chars>` (case 72; case 71 pins that with the home still inside the root repository the commit holds only the home's file) |
-| Cases | none of its own; cases 71/72 (`commit`'s) and 76/78 (`init`'s) run it |
+| Ops | Real; the health check is the bash `healthcheck.sh` run through `Ops.Exec` until Step 24 |
+| Writes | `journal/today.md`: appends `- HHMM message` to the `#### Log` section — the lines from the heading to the next heading of any level or the end of the file — after its last non-blank line, so blank lines before the next heading stay; a section with no entries is written in the template's shape (heading, blank line, entry, blank line before the next heading), which healthcheck Check 5 requires [80]. *(decided, D33, Step 18: the bash inserted at the first blank line after the section's first entry without stopping at the next heading, so a Log section abutting the next heading sent the entry into a later section)* |
+| Commits | home, once: `Log: <HHMM> - <first 60 characters>` (case 72; case 71 pins that with the home still inside the root repository the commit holds only the home's file) |
+| Cases | 80; cases 71/72 (`commit`'s) and 76/78 (`init`'s) run it |
 
 ### daisy done
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy done <pattern>` → `done.sh` |
+| Status | as built in Go (Step 18) |
+| Legacy | `daisy done <pattern>` → the bash `done` script, deleted in Step 18 |
 | Usage | `daisy done <pattern>` (one argument) |
-| Arguments | `<pattern>`: literal, case-insensitive substring (`.` is not a wildcard [08]; `/` is safe [07]; a leading `-` is a pattern, not a flag — except the sole-argument `--help`/`-h` and `--healthcheck`, which the dispatcher and the hook take first) matched against the active lines of `todo.txt` only (`x `/`z ` lines excluded before matching, cases 05, 06). Missing: `Error: Task pattern required`, exit 1 |
+| Arguments | `<pattern>`: literal, case-insensitive substring (`.` is not a wildcard [08]; `/` is safe [07]; a leading `-` is a pattern, not a flag — except the sole-argument `--help`/`-h` and `--healthcheck`, which the cli takes first) matched against the active lines of `todo.txt` only (`x `/`z ` lines excluded before matching, cases 05, 06). Missing — no argument, or an empty one — or more than one: usage on stderr, exit 2 (the bash exited 1 with `Error: Task pattern required` and ignored extra arguments) |
 | Exit codes | 0 exactly one match completed [01, 02, 05–08, 10–15]; 1 no match [04, 16], several matches [03], an Inbox-only item that is not in `todo.txt` [09], `healthcheck` failing first, or the journal entry failing after the edits [17] |
 | Stdout | success: exactly one non-blank line [15], `✅ Done: <description> (commit <hash>)` — names the task (`Delta target task` [15]) and suppresses the sub-calls' chatter (not `Logged:` [15], `Committed:` [15], `No changes to commit` [15]); nothing with `✅` [16] when nothing completed; no `✅ Done` [17] when journaling failed |
 | Stderr | `No task found matching:` [04] `<pattern>`; `Multiple tasks match "<pattern>":` and each candidate on its own `  N) <line>` (`Shared token Alpha` [03], `Shared token Beta` [03]); `⚠️  Task not found in today.md (may not be in active tasks)` when `todo.txt` is updated but no `- [ ] <description>` line exists (`today.md` [11]; exit still 0); on a journal failure `Error: journal entry failed — …` naming whether the edits were committed, then the sub-calls' output (`Log` [17]). Cases 03, 04, 11, 17 assert on stdout and stderr combined, so the stream is not pinned |
-| Ops | Real |
-| Writes | `tasks/todo.txt`: the one matched line removed and `x <today> <creation date> <description>` appended last, no priority [10]; `journal/today.md`: the first line equal to `- [ ] <description>` becomes `- [x] <description>`, every other byte unchanged [01, 02, 12]; then the log entry `Done: <description>` through `log` |
-| Commits | home, exactly once for the whole completion, holding both files [13]; `log` makes it and the trailing `commit` is a no-op [14]; a failed journal entry still leaves the edits committed [17] |
+| Ops | Real; the health check is the bash `healthcheck.sh` run through `Ops.Exec` until Step 24 |
+| Writes | `tasks/todo.txt`: the one matched line removed and `x <today> <creation date> <description>` appended last, no priority [10] — the line read by `todo.Parse`, so an undated task completes as `x <today> <description>` with one space and its priority dropped (the bash left the priority in the description and wrote two spaces); `journal/today.md`: the first line equal to `- [ ] <description>` becomes `- [x] <description>`, every other byte unchanged [01, 02, 12]; then the log entry `Done: <description>` in-process (no `log` sub-call) |
+| Commits | home, exactly once for the whole completion, holding both files [13, 14], subject `Completed: <description>` *(decided, D33, Step 18: the bash's one commit was `log`'s, `Log: HHMM - Done: …`, and its own `Completed:` commit always found nothing)*; a failed journal entry still leaves the edits committed [17]; a failed commit after a successful completion is an error, exit 1 (the bash printed `(commit not committed)` and exited 0) |
 | Cases | 01-18 |
 
 ### daisy tasks
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy tasks [--all] [--todo\|--done] [pattern]` → `tasks.sh` |
+| Status | as built in Go (Step 18) |
+| Legacy | `daisy tasks [--all] [--todo\|--done] [pattern]` → the bash `tasks` script, deleted in Step 18 |
 | Usage | `daisy tasks [--all] [--todo\|--done] [pattern]` |
-| Arguments | scope: this workspace's projects (`+tag` at a word boundary) by default, `--all` every project [19, 46, 47]; files: both by default [22], `--todo` = `todo.txt` [20], `--done` = `done.txt` [21]; `[pattern]`: literal, case-insensitive substring [24], a leading `-` is a pattern (`-1 point deduction task` [25]) once the three flags above have been consumed — except the sole-argument `--help`/`-h` and `--healthcheck`; flags before the pattern |
-| Exit codes | 0 when at least one line is printed [19–25, 27, 29, 46–48]; 1 when a pattern is given and matches nothing, grep-style, with empty stdout [26] (as built, with no pattern and a scope that matches nothing the bash exits 0 with empty stdout, the pipeline ending in `cat`; unasserted — Go may choose); 1 when none of the selected files exists; a missing `done.txt` alone is not an error [27] |
-| Stdout | the matching lines verbatim and nothing else — no header (`Active projects` [29]), no decoration [29]; every line when no pattern is given [23] |
-| Stderr | when the workspace resolves to no project and `--all` was not given: `⚠️  This workspace resolves to no project; listing every project's tasks.` (`no project` [48]) and `  Bind it by creating .daisy/project, or pass --all to ask for this deliberately.` |
+| Arguments | scope: this workspace's projects by default — a line is in scope when one of its `+tag` words (whitespace-delimited, compared without case) is a workspace project — `--all` every project [19, 46, 47]; files: both by default [22], `--todo` = `todo.txt` [20], `--done` = `done.txt` [21], the last of the two given wins; `[pattern]`: literal, case-insensitive substring [24] (an empty pattern is none), a leading `-` is a pattern (`-1 point deduction task` [25]) once the three flags above have been consumed — except the sole-argument `--help`/`-h` and `--healthcheck`; flags before the pattern; a second positional is a usage error, exit 2 |
+| Exit codes | 0 when at least one line is printed [19–25, 27, 29, 46–48], and with no pattern whatever the scope matched; 1 when a pattern is given and matches nothing, with empty stdout [26] and `No tasks match: <pattern>` on stderr; 1 when none of the selected files exists (`Error: no task file to search: …`); a missing `done.txt` alone is not an error [27] |
+| Stdout | the matching lines verbatim and nothing else — no header (`Active projects` [29]), no decoration [29], blank lines skipped; every task line when no pattern is given [23] |
+| Stderr | when the workspace resolves to no project and `--all` was not given: `⚠️  This workspace resolves to no project; listing every project's tasks.` (`no project` [48]) and `  Bind it by creating .daisy/project, or pass --all to ask for this deliberately.`; the `.daisy/project` typo warnings, as `status` prints them |
 | Ops | ReadOnly (`todo.txt` and `done.txt` byte-identical and no commit after a query [28]) |
 | Writes | none |
 | Commits | none |
@@ -391,11 +393,11 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy projects [--archived]` → `projects.sh` |
+| Status | as built in Go (Step 18) |
+| Legacy | `daisy projects [--archived]` → the bash `projects` script, deleted in Step 18 |
 | Usage | `daisy projects [--archived]` |
-| Exit codes | 0; 1 outside a workspace |
-| Stdout | `Active projects:` (or `Archived projects:` for `projects/_archive/`) then `  %-30s <real path>` per `*.md`; `Active projects: none` when there are none |
+| Exit codes | 0; 1 outside a workspace; 2 with a positional argument |
+| Stdout | `Active projects:` (or `Archived projects:` for `projects/_archive/`) then `  %-30s <real path>` per `*.md` file, in byte order; `Active projects: none` when there are none |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |

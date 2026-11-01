@@ -1,13 +1,14 @@
 // Package cli is the only place that knows argument syntax: the command
-// tree, flag parsing, --help, usage errors (exit 2, usage on stderr) and the
-// fall-through to daisy.sh for commands the binary has not taken over.
+// tree, each command's flags and arity, --help, the --healthcheck hook,
+// usage errors (exit 2, usage on stderr) and the fall-through to daisy.sh
+// for commands the binary has not taken over.
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"daisy/internal/commands"
@@ -50,27 +51,50 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 		writeUsage(stdout, cmd)
 		return OK
 	}
-
-	fs := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	if err := fs.Parse(rest); err != nil {
-		return usageError(stderr, cmd, err.Error())
-	}
-	if fs.NArg() > 0 {
-		return usageError(stderr, cmd, fmt.Sprintf("unexpected argument: %s", fs.Arg(0)))
+	c := &commands.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr}
+	if len(rest) == 1 && rest[0] == "--healthcheck" && cmd.Health != nil {
+		return invoke(c, cmd, cmd.Health)
 	}
 
-	c := &commands.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: fs.Args()}
+	c.Flags, c.Args = splitArgs(cmd.Flags, rest)
+	if len(c.Args) < cmd.Min {
+		return usageError(stderr, cmd, "missing argument")
+	}
+	if cmd.Max != Unbounded && len(c.Args) > cmd.Max {
+		return usageError(stderr, cmd, fmt.Sprintf("unexpected argument: %s", c.Args[cmd.Max]))
+	}
+	return invoke(c, cmd, cmd.Run)
+}
+
+// splitArgs: the command's flags are the known words leading its
+// arguments; the first other word, dashes or not, starts the positionals
+// (`tasks --todo "-1 point"` searches for `-1 point`). An empty word is no
+// argument: `done ""` is a missing pattern, not one that matches every task.
+func splitArgs(known, args []string) (flags, positional []string) {
+	for len(args) > 0 && slices.Contains(known, args[0]) {
+		flags, args = append(flags, args[0]), args[1:]
+	}
+	for _, a := range args {
+		if a != "" {
+			positional = append(positional, a)
+		}
+	}
+	return flags, positional
+}
+
+// invoke resolves the workspace when the command needs one and runs fn;
+// the error it returns is the message for stderr.
+func invoke(c *commands.Context, cmd Command, fn func(*commands.Context) error) int {
 	if cmd.Workspace {
-		e, err := env.Resolve(o)
+		e, err := env.Resolve(c.Ops)
 		if err != nil {
-			fmt.Fprintln(stderr, err)
+			fmt.Fprintln(c.Stderr, err)
 			return Failure
 		}
 		c.Env = e
 	}
-	if err := cmd.Run(c); err != nil {
-		fmt.Fprintln(stderr, err)
+	if err := fn(c); err != nil {
+		fmt.Fprintln(c.Stderr, err)
 		return Failure
 	}
 	return OK

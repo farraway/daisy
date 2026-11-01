@@ -114,3 +114,27 @@ func TestRealWriteFileIsAtomic(t *testing.T) {
 		t.Errorf("temp file left behind: %d entries", len(entries))
 	}
 }
+
+// A child never sees the variables a git hook sets: every git call means
+// the directory's repository and its own author (case 76 pins it through
+// `log`).
+func TestChildrenLoseGitHookVariables(t *testing.T) {
+	t.Setenv("GIT_AUTHOR_NAME", "Hook Author")
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "user.name")
+	t.Setenv("GIT_DIR", "/nowhere/.git")
+	t.Setenv("DAISY_KEEP_ME", "yes")
+	out, _, err := ops.Real().Exec(t.TempDir(), "sh", "-c", `echo "[$GIT_AUTHOR_NAME][$GIT_CONFIG_COUNT][$GIT_CONFIG_KEY_0][$GIT_DIR][$DAISY_KEEP_ME]"`)
+	if err != nil || strings.TrimSpace(string(out)) != "[][][][][yes]" {
+		t.Errorf("child environment: %q %v", out, err)
+	}
+	var buf strings.Builder
+	p, err := ops.Real().Start(t.TempDir(), "sh", nil, &buf, nil, "-c", `echo "[$GIT_AUTHOR_NAME]"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Wait()
+	if strings.TrimSpace(buf.String()) != "[]" {
+		t.Errorf("Start child environment: %q", buf.String())
+	}
+}

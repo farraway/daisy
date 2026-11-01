@@ -756,16 +756,6 @@ case "$COMMAND" in
         "$SCRIPTS/healthcheck.sh" "$@"
         popd > /dev/null
         ;;
-    log)
-        require_workspace
-        "$SCRIPTS/log.sh" "$*"
-        popd > /dev/null
-        ;;
-    done)
-        require_workspace
-        "$SCRIPTS/done.sh" "$@"
-        popd > /dev/null
-        ;;
     new-day)
         require_workspace
         "$SCRIPTS/new-day.sh" "$@"
@@ -808,16 +798,6 @@ case "$COMMAND" in
     list)
         require_workspace
         "$SCRIPTS/list.sh" "$@"
-        popd > /dev/null
-        ;;
-    projects)
-        require_workspace
-        "$SCRIPTS/projects.sh" "$@"
-        popd > /dev/null
-        ;;
-    tasks)
-        require_workspace
-        "$SCRIPTS/tasks.sh" "$@"
         popd > /dev/null
         ;;
     rotate)

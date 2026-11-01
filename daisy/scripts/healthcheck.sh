@@ -355,7 +355,7 @@ fi
 check_journal_rotation
 
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh done.sh log.sh home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh projects.sh rotate.sh test.sh tasks.sh)
+HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh rotate.sh test.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then
@@ -366,6 +366,22 @@ for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
             "$script" --healthcheck 2>&1 | sed 's/^/  /' >&2
             ERRORS=$((ERRORS + 1))
         fi
+    fi
+done
+
+# Commands the Go binary has taken over answer `--healthcheck` themselves:
+# this root's binary when it is built, else `daisy` on PATH (the suite's
+# fixture root has no bin/; the binary on PATH is the one under test).
+DAISY_BIN="$DAISY_ROOT/bin/daisy"
+[ -x "$DAISY_BIN" ] || DAISY_BIN=daisy
+HEALTHCHECK_COMMANDS=(done log tasks projects)
+for cmd in "${HEALTHCHECK_COMMANDS[@]}"; do
+    if "$DAISY_BIN" "$cmd" --healthcheck >/dev/null 2>&1; then
+        ok "Component: $cmd"
+    else
+        error "Component: $cmd failed health check"
+        "$DAISY_BIN" "$cmd" --healthcheck 2>&1 | sed 's/^/  /' >&2
+        ERRORS=$((ERRORS + 1))
     fi
 done
 

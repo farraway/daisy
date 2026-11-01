@@ -105,7 +105,10 @@ arguments. Dependency rule: `cli → commands → {domain packages} → ops`;
 nothing above `ops` calls `os`, `os/exec` or `time.Now` itself. `make build`
 writes `bin/daisy` (gitignored); `daisy test` builds it first and drives the
 suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
--race`) runs before every root commit. Ported so far: `status`, `files`.
+-race`) runs before every root commit. Ported so far: `status`, `files`,
+`log`, `done`, `tasks`, `projects` (`internal/todo`, `internal/journal` and
+`internal/gitx` behind them); their scripts are gone and `healthcheck.sh`
+asks them for `--healthcheck` through the binary.
 
 ## Script Reference
 
@@ -116,8 +119,6 @@ suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
 | `new-day.sh` | Archive yesterday, generate new today.md, rotate journal.md |
 | `new-week.sh` | Archive completed tasks to done.txt + new day, rotate journal.md |
 | `rotate.sh` | Archive journal.md day-blocks into rolling/closed window files |
-| `done.sh` | Mark task complete in todo.txt and today.md |
-| `log.sh` | Add timestamped log entry to today.md |
 | `feedback.sh` | Record a prompt failure with workflow tag and description |
 | `optimize.sh` | LLM-driven prompt optimization loop (groups by workflow tag, diff, approval, archives used entries with provenance) |
 | `eval.sh` | List, display, or record eval case results for the optimize loop |
@@ -129,14 +130,12 @@ suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
 | `healthcheck.sh` | System validation |
 | `files.sh` | Report resolved real paths for every per-home file/directory |
 | `list.sh` | List active prompts (with trigger summary) and installed skills (with description) |
-| `projects.sh` | List active or archived projects with resolved paths |
-| `tasks.sh` | Search todo.txt/done.txt (read-only); `[--all] [--todo\|--done] [pattern]` — scope defaults to the workspace's projects, `--all` widens it |
 | `plan-new.sh` | Create a new Daisy plan file, symlink as PLAN.md (or, with `--spec`, an unregistered draft in the working directory) |
 | `plan-pickup.sh` | Promote a local spec draft (from `plan-new.sh --spec`) into a tracked plan |
 | `plan-archive.sh` | Archive the active Daisy plan, remove the PLAN.md symlink |
 | `test.sh` | Run the hermetic acceptance suite (`tests/run.sh`) |
 
-**Documentation policy:** every script in `daisy/scripts/` must have a row in this table, and — if it implements the `--healthcheck` contract — a corresponding entry in `healthcheck.sh`'s `HEALTHCHECK_SCRIPTS` array. `healthcheck.sh` includes an automated drift check for the table half of this; there is no automated check for the array half beyond that same script list (see `daisy/scripts/healthcheck.sh`).
+**Documentation policy:** every script in `daisy/scripts/` must have a row in this table, and — if it implements the `--healthcheck` contract — a corresponding entry in `healthcheck.sh`'s `HEALTHCHECK_SCRIPTS` array (a ported Go command that answers `--healthcheck` is listed in `HEALTHCHECK_COMMANDS` instead). `healthcheck.sh` includes an automated drift check for the table half of this; there is no automated check for the array half beyond that same script list (see `daisy/scripts/healthcheck.sh`).
 
 Scripts do NOT yet implement: priority floor rules, task preservation from yesterday, quiet day consolidation, advanced sync validation, JIRA sync, or log audit during retrospective. These are handled by the agent following prompt instructions.
 

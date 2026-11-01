@@ -28,4 +28,4 @@ esac
 # script invoked directly would take it for a task pattern and exit 1.
 fixture_run done --help
 assert_eq "$RUN_EXIT" "0" "fixture_run goes through the daisy dispatcher"
-assert_contains "$RUN_STDOUT" "Mark a task as complete" "and the dispatcher printed the command's help"
+assert_contains "$RUN_STDOUT" "Mark a task" "and the command's help was printed"

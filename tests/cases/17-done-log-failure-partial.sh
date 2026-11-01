@@ -2,7 +2,7 @@
 # today.md still committed; partial state reported explicitly; exits
 # non-zero; sub-call error text preserved.
 #
-# today.md missing `#### Log` also fails the master healthcheck that done.sh
+# today.md missing `#### Log` also fails the master healthcheck that `daisy done`
 # runs up front — so to reach the actually-interesting failure (edits happen,
 # *then* journaling fails), this simulates the real-world path where the
 # master healthcheck was already cached as passed earlier in the same shell

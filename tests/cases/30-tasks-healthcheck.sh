@@ -1,4 +1,4 @@
-# Test Plan #30: `tasks.sh --healthcheck` — exits 0 with tasks dir present,
+# Test Plan #30: `daisy tasks --healthcheck` — exits 0 with tasks dir present,
 # 1 without.
 
 fixture_run tasks --healthcheck

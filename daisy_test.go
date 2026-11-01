@@ -252,16 +252,16 @@ func TestFallThrough(t *testing.T) {
 		},
 	}
 	var out bytes.Buffer
-	code := daisy.Run(o, strings.NewReader(""), &out, io.Discard, []string{"log", "a", "b c", "--help"})
+	code := daisy.Run(o, strings.NewReader(""), &out, io.Discard, []string{"rotate", "a", "b c", "--help"})
 	if code != 7 {
 		t.Errorf("exit %d", code)
 	}
-	if strings.Join(got, "|") != m.root+"/daisy.sh|log|a|b c|--help" || gotDir != m.ws || gotStdout != &out {
+	if strings.Join(got, "|") != m.root+"/daisy.sh|rotate|a|b c|--help" || gotDir != m.ws || gotStdout != &out {
 		t.Errorf("started %v in %q with stdout %v", got, gotDir, gotStdout)
 	}
 	// `help <name>` (a command of either side, or a skill) and a legacy
 	// command's own --help fall through too
-	for _, args := range [][]string{{"help", "done"}, {"help", "status"}, {"done", "--help"}, {"home", "list"}} {
+	for _, args := range [][]string{{"help", "done"}, {"help", "status"}, {"rotate", "--help"}, {"home", "list"}} {
 		got = nil
 		daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, args)
 		if strings.Join(got, "|") != m.root+"/daisy.sh|"+strings.Join(args, "|") {
@@ -290,7 +290,7 @@ func TestFallThrough(t *testing.T) {
 	delete(m.vars, "DAISY_ROOT")
 	o.ExecutableFn = func() (string, error) { return "", io.ErrUnexpectedEOF }
 	var errb bytes.Buffer
-	if code := daisy.Run(o, strings.NewReader(""), io.Discard, &errb, []string{"log", "x"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT not set") {
+	if code := daisy.Run(o, strings.NewReader(""), io.Discard, &errb, []string{"rotate"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT not set") {
 		t.Errorf("exit %d err %q", code, errb.String())
 	}
 }
@@ -307,8 +307,8 @@ func TestFallThroughRunsDaisySh(t *testing.T) {
 	os.Chmod(filepath.Join(m.root, "daisy.sh"), 0o755)
 	t.Setenv("DAISY_ROOT", m.root)
 	var out, errb bytes.Buffer
-	code := daisy.Run(ops.Real(), strings.NewReader(""), &out, &errb, []string{"log", "--flag"})
-	if code != 3 || out.String() != "args: log --flag\n" || errb.String() != "root: "+m.root+"\n" {
+	code := daisy.Run(ops.Real(), strings.NewReader(""), &out, &errb, []string{"rotate", "--flag"})
+	if code != 3 || out.String() != "args: rotate --flag\n" || errb.String() != "root: "+m.root+"\n" {
 		t.Errorf("exit %d out %q err %q", code, out.String(), errb.String())
 	}
 }

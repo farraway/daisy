@@ -15,7 +15,7 @@ Key files in `.daisy/`:
 - `tasks/alias.txt` — people references; use `~alias` notation
 - `projects/` — one file per active project; referenced with `+project` notation
 
-Scripts: `$DAISY_ROOT/daisy/scripts/<name>.sh` (log.sh, done.sh, new-day.sh, new-week.sh)
+Commands: `daisy log`, `daisy done`, `daisy new-day`, `daisy new-week` (see `daisy help`)
 
 Run `daisy list` to see every active prompt and installed skill for this workspace, with a one-line trigger/description each — the discovery surface for what's available without loading it all up front.
 
@@ -101,7 +101,7 @@ All workflows are invoked via the `daisy` CLI wrapper (e.g. `daisy new-day`), ne
 
 ### Logging Work
 
-Call `log.sh "message"`.
+Call `daisy log "message"`.
 
 **Proactive logging rule:** If you helped the user DO something (not just discuss), log it. The journal is the user's memory — gaps in the log are gaps in their record.
 

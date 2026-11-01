@@ -28,7 +28,7 @@ These are the specific situations that fall under the "helped DO something" rule
 
 The retrospective workflow includes a pre-step that compares completed tasks against log entries. This structural check catches logging gaps that the proactive rule missed. The audit works because:
 
-- Completed tasks are always tracked (done.sh handles this mechanically)
+- Completed tasks are always tracked (`daisy done` handles this mechanically)
 - Log entries are sometimes missed (depends on agent behavior)
 - The retrospective is a natural checkpoint where gaps can be filled
 

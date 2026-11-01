@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -22,6 +23,7 @@ func (real) FS() FS { return realFS{} }
 func (real) Exec(dir, name string, args ...string) ([]byte, []byte, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
+	cmd.Env = childEnv()
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()
@@ -31,11 +33,35 @@ func (real) Exec(dir, name string, args ...string) ([]byte, []byte, error) {
 func (real) Start(dir, name string, stdin io.Reader, stdout, stderr io.Writer, args ...string) (Process, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
+	cmd.Env = childEnv()
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdin, stdout, stderr
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	return realProcess{cmd}, nil
+}
+
+// childEnv is the environment a child gets: ours, less the variables with
+// which a git hook points git at its own repository or author. Every git
+// call Daisy makes means that directory's repository and that repository's
+// configured author; inherited from a hook, these would redirect it.
+func childEnv() []string {
+	var env []string
+	for _, kv := range os.Environ() {
+		key, _, _ := strings.Cut(kv, "=")
+		if hookVars[key] || strings.HasPrefix(key, "GIT_CONFIG_KEY_") || strings.HasPrefix(key, "GIT_CONFIG_VALUE_") {
+			continue
+		}
+		env = append(env, kv)
+	}
+	return env
+}
+
+var hookVars = map[string]bool{
+	"GIT_DIR": true, "GIT_WORK_TREE": true, "GIT_COMMON_DIR": true, "GIT_INDEX_FILE": true, "GIT_OBJECT_DIRECTORY": true,
+	"GIT_AUTHOR_NAME": true, "GIT_AUTHOR_EMAIL": true, "GIT_AUTHOR_DATE": true,
+	"GIT_COMMITTER_NAME": true, "GIT_COMMITTER_EMAIL": true, "GIT_COMMITTER_DATE": true,
+	"GIT_CONFIG_PARAMETERS": true, "GIT_CONFIG_COUNT": true,
 }
 
 type realProcess struct{ cmd *exec.Cmd }

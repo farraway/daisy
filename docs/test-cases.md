@@ -464,8 +464,8 @@ done bug
 
 ### Expected Behavior
 
-`done.sh` refuses outright — it does not guess or wait interactively, since
-resolution and disambiguation both happen inside the script, not the agent:
+`daisy done` refuses outright — it does not guess or wait interactively, since
+resolution and disambiguation both happen inside the command, not the agent:
 
 ```
 Multiple tasks match "bug":

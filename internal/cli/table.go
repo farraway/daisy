@@ -2,17 +2,27 @@ package cli
 
 import "daisy/internal/commands"
 
+// Unbounded is a Max for a command that takes any number of arguments.
+const Unbounded = -1
+
 // Command is one line of `daisy help` and, when Run is set, the function
 // behind it. A command without Run is still the bash's: the binary execs
 // $DAISY_ROOT/daisy.sh for it. Usage is the line as printed, Help the
-// description beside it.
+// description beside it. Flags are the words the command takes as flags
+// when they lead its arguments; the first other word starts the
+// positionals, dashes included, of which there are Min to Max. Health, when
+// set, answers `<command> --healthcheck` (hidden from the help): the
+// command's own precondition check, run by `daisy healthcheck`.
 type Command struct {
 	Group     string
 	Name      string // the first word: what the user types
 	Usage     string
 	Help      string
 	Workspace bool // needs a resolved workspace before it runs
+	Flags     []string
+	Min, Max  int
 	Run       func(*commands.Context) error
+	Health    func(*commands.Context) error
 }
 
 // table is the one source of the help text: the agreed groups and order,
@@ -29,10 +39,10 @@ var table = []Command{
 
 	{Group: "Day", Name: "new-day", Usage: "new-day", Help: "Start a new day"},
 	{Group: "Day", Name: "new-week", Usage: "new-week", Help: "Start a new week"},
-	{Group: "Day", Name: "log", Usage: "log <message...>", Help: "Add a log entry to today.md"},
-	{Group: "Day", Name: "done", Usage: "done <pattern>", Help: "Mark a task complete"},
-	{Group: "Day", Name: "tasks", Usage: "tasks [--all] [--todo|--done] [pattern]", Help: "Search tasks (read-only)"},
-	{Group: "Day", Name: "projects", Usage: "projects [--archived]", Help: "List active or archived projects"},
+	{Group: "Day", Name: "log", Usage: "log <message...>", Help: "Add a log entry to today.md", Workspace: true, Min: 1, Max: Unbounded, Run: commands.Log, Health: commands.LogHealth},
+	{Group: "Day", Name: "done", Usage: "done <pattern>", Help: "Mark a task complete", Workspace: true, Min: 1, Max: 1, Run: commands.Done, Health: commands.DoneHealth},
+	{Group: "Day", Name: "tasks", Usage: "tasks [--all] [--todo|--done] [pattern]", Help: "Search tasks (read-only)", Workspace: true, Flags: []string{"--all", "--todo", "--done"}, Max: 1, Run: commands.Tasks, Health: commands.TasksHealth},
+	{Group: "Day", Name: "projects", Usage: "projects [--archived]", Help: "List active or archived projects", Workspace: true, Flags: []string{"--archived"}, Run: commands.Projects, Health: commands.ProjectsHealth},
 	{Group: "Day", Name: "rotate", Usage: "rotate", Help: "Rotate journal.md into window files"},
 
 	{Group: "Plans", Name: "plan-new", Usage: "plan-new [--spec] <description> [+project]", Help: "Create a plan (or an unregistered spec draft)"},
