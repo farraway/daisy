@@ -338,10 +338,6 @@ A home is one git repository, created from `daisy/templates/home/`:
 └── plans/                      # PLAN.md history, plus archive/
 ```
 
-Homes created before the split live under `$DAISY_ROOT/home/` and are
-registered there; they keep working, and `daisy healthcheck` reports each
-one that is not yet its own git repository.
-
 ### Workspace Layout (after `daisy init work`)
 
 ```

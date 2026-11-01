@@ -21,3 +21,6 @@ home/*/.healthcheck.ttl
 PLAN.md
 .daisy.stage.*
 .daisy.previous.*
+.claude/skills/gitea/
+.cursor/rules/gitea.mdc
+.cursorignore

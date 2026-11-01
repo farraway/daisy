@@ -39,36 +39,35 @@ When modifying any Daisy data files, preserve EXACT formatting.
 
 ## Publication Hygiene
 
-The root repository is public. Every file git would keep in it — tracked,
-or untracked but not ignored — is published verbatim: there is no
-sanitization pass and, once the split is complete (its Step 13 retires the
-interim mirror), no copying step at all; until then a mirror syncs the same
-publishable surface. Treat every system file — scripts, prompts, docs,
+The root repository is public: pushing it to its remote publishes it.
+Every file git would keep in it — tracked, or untracked but not ignored —
+is published verbatim: there is no mirror, no copying step and no
+sanitization pass. Treat every system file — scripts, prompts, docs,
 templates, skills, tests, dotfiles — as already public. Personal data lives
-in the homes, which are their own repositories outside `$DAISY_ROOT`; a home
-still under `$DAISY_ROOT/home/` from before the split (Step 11 moves them) is
-left out of root commits and of the scan alike.
+in the homes, each its own repository; a registered home that still lies
+inside the root repository (Check 3b reports it) is left out of root
+commits and of the scan alike.
 
 **The hygiene scan is the gate.** `daisy healthcheck` scans the publishable
 surface — `git ls-files --cached --others --exclude-standard` in
-`$DAISY_ROOT`, minus `daisy_root_exclusions` (any registered home still
-inside the root, and top-level `home/` while that directory exists) — for
-identifying terms derived from the machine at runtime, never from a
+`$DAISY_ROOT`, minus `daisy_root_exclusions` (a registered home placed
+inside the root, and a top-level `home/` directory should one exist) —
+for identifying terms derived from the machine at runtime, never from a
 hardcoded list, which would itself leak: every registered home's name,
 `$USER`, the git identity (`user.name`, `user.email`) of the root's
-repository and of each home's, and literal `$HOME/` paths. Run `daisy
-healthcheck --force` before every root commit; a cached pass reflects the
-tree as it was. The scan is a net, not the standard: it cannot catch
-personal *content* that contains no known term, and it says nothing about a
-file it considers unpublishable. Write system files as if they were already
-public.
+repository and of each usable home's, and literal `$HOME/` paths. Run `daisy healthcheck --force` before every root commit;
+it is the only gate between the tree and the public remote, and a cached
+pass reflects the tree as it was. The scan is a net, not the standard: it
+cannot catch personal *content* that contains no known term, and it says
+nothing about a file it considers unpublishable. Write system files as if
+they were already public.
 
 **`.gitignore` is the publication boundary.** It is the single declaration
 of what does not ship, honoured by the scan and by git itself. That is what
-keeps per-machine workspace state (`.daisy/`, `.claude/settings.local.json`,
-`.cursor/rules/daisy*.mdc`) and secrets (`.env.sh`) out of the published
-tree — files that sit inside `$DAISY_ROOT` and would otherwise publish. Two
-consequences:
+keeps per-machine workspace state (`.daisy/`, `.cursorignore`,
+`.claude/settings.local.json`, `.cursor/rules/daisy*.mdc`) and secrets
+(`.env.sh`) out of the published tree — files that sit inside `$DAISY_ROOT`
+and would otherwise publish. Two consequences:
 
 - Keep ignore rules in `.gitignore`. A global `core.excludesFile` or a
   `.git/info/exclude` entry hides a file from the scan on this machine only,

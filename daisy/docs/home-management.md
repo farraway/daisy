@@ -26,11 +26,6 @@ Two per-machine directories, both overridable by environment variable:
 | `DAISY_CONFIG` | `~/.config/daisy` | Configuration: the `homes` registry |
 | `DAISY_LOCAL` | `~/.local/daisy` | Data: `homes/<name>/` is the location `daisy home new` offers by default |
 
-An install whose homes still sit under `$DAISY_ROOT/home/` from before the
-split keeps working — the registry points there, `daisy commit --not-home`
-leaves those directories out of root commits, and `daisy healthcheck`
-warns (Check 3b) about each home that is not yet its own git repository.
-
 ## The Registry: `daisy home`
 
 | Command | Effect |

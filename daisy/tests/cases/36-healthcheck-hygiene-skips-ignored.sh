@@ -1,7 +1,7 @@
-# Check 6c scope: the publishable surface is what `migrate.sh` actually
-# mirrors — git-tracked files plus untracked-but-not-ignored ones. A
+# Check 6c scope: the publishable surface is what a push of the root
+# publishes — git-tracked files plus untracked-but-not-ignored ones. A
 # git-ignored file (per-machine workspace state, .env.sh secrets) never
-# reaches the mirror, so naming an identifying term in one is not a leak and
+# reaches the remote, so naming an identifying term in one is not a leak and
 # must not fail the healthcheck. Case 35 covers the positive direction; this
 # case pins the boundary so the ignore-awareness can't degrade into a blanket
 # suppression.

@@ -1,5 +1,5 @@
-# Check 6c: daisy healthcheck must fail when a publishable file (outside
-# top-level home/) contains an identifying term — here, the name of a real
+# Check 6c: daisy healthcheck must fail when a publishable file contains an
+# identifying term — here, the name of a real
 # registered home. Terms are derived at runtime, so the test registers its
 # own distinctively-named home in the fixture rather than referencing any
 # real name.

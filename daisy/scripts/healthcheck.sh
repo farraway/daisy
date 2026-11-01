@@ -147,17 +147,16 @@ check_journal_rotation() {
 # Enumerates the publishable surface as NUL-separated DAISY_ROOT-relative
 # paths: git-tracked files plus untracked-but-not-ignored ones, minus the
 # homes (daisy_root_exclusions: the same list a root commit leaves out).
-# This is exactly what dz-meta's migrate.sh mirrors — it drives its rsync
-# from the same enumeration — so git's ignore rules are the single
-# declaration of what publishes. Per-machine workspace state (.daisy/,
-# .claude/settings.local.json) and secrets (.env.sh) are ignored and
-# therefore out of scope.
+# This is what a push of the root repository publishes, so git's ignore
+# rules are the single declaration of what publishes. Per-machine workspace
+# state (.daisy/, .claude/settings.local.json) and secrets (.env.sh) are
+# ignored and therefore out of scope.
 #
 # daisy/templates/home/ is published: exclusions are root-relative paths,
 # not every dir named "home". Symlinks to directories are skipped (the -f
-# test): rsync copies the link, not the tree behind it. Check 3 has already
-# required the root to be a repository, so the ignore rules are always
-# available here.
+# test); git publishes a link's text, which this scan does not read. Check 3
+# has already required the root to be a repository, so the ignore rules are
+# always available here.
 publishable_files() {
     local f ex excluded=()
     mapfile -t excluded < <(daisy_root_exclusions)
@@ -171,12 +170,12 @@ publishable_files() {
 }
 
 # Function to check publication hygiene — the publishable surface (see
-# publishable_files) is mirrored verbatim by dz-meta's migrate.sh, so no file
-# in it may contain identifying terms. Terms are derived from this machine at
-# runtime (a hardcoded list would itself leak): real home names, $USER, the
-# git identity of the root and of every registered home's repository, and
-# literal $HOME paths. Generic placeholder home names are exempt — they
-# aren't identifying.
+# publishable_files) is published verbatim by every push of the root
+# repository, so no file in it may contain identifying terms. Terms are
+# derived from this machine at runtime (a hardcoded list would itself leak):
+# real home names, $USER, the git identity of the root and of every
+# registered home's repository, and literal $HOME paths. Generic placeholder
+# home names are exempt — they aren't identifying.
 # See AGENTS.md "Publication Hygiene".
 
 # Adds to the caller's `terms` when non-empty and not already listed. The
@@ -214,7 +213,7 @@ check_publication_hygiene() {
         matches=$(publishable_files \
             | (cd "$DAISY_ROOT" && xargs -0 -r grep -liwF -- "$term") 2>/dev/null || true)
         [ -z "$matches" ] && continue
-        error "Publication hygiene: '$term' appears in publishable file(s) — the publishable surface mirrors verbatim (see AGENTS.md: Publication Hygiene)"
+        error "Publication hygiene: '$term' appears in publishable file(s) — the publishable surface publishes verbatim (see AGENTS.md: Publication Hygiene)"
         echo "$matches" | sed 's|^|    |' >&2
         failed=1
     done
