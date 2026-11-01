@@ -11,7 +11,7 @@
 # Caching. A passing run stamps $DAISY_HOME/.healthcheck.ttl with the unix
 # time the result expires; a run inside that window exits 0 without
 # re-checking. The stamp is a file because it has to be: this script always
-# runs as a subprocess (the `daisy` dispatcher, new-day.sh's gate), and a
+# runs as a subprocess (the `daisy` dispatcher, the day commands' gate), and a
 # subprocess cannot write to its parent's environment. The previous
 # mechanism exported DAISY_HEALTHCHECK_PASSED=1 one line before exiting,
 # which set a variable in an environment that was discarded on the next
@@ -355,7 +355,7 @@ fi
 check_journal_rotation
 
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(new-day.sh new-week.sh home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh rotate.sh test.sh)
+HEALTHCHECK_SCRIPTS=(home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh test.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then
@@ -374,7 +374,7 @@ done
 # fixture root has no bin/; the binary on PATH is the one under test).
 DAISY_BIN="$DAISY_ROOT/bin/daisy"
 [ -x "$DAISY_BIN" ] || DAISY_BIN=daisy
-HEALTHCHECK_COMMANDS=(done log tasks projects)
+HEALTHCHECK_COMMANDS=(done log tasks projects new-day new-week rotate)
 for cmd in "${HEALTHCHECK_COMMANDS[@]}"; do
     if "$DAISY_BIN" "$cmd" --healthcheck >/dev/null 2>&1; then
         ok "Component: $cmd"

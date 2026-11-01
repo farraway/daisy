@@ -168,7 +168,7 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
 **Pre-workflow:** Check yesterday's retrospective in today.md. If the Retrospective section is incomplete, offer to complete it before proceeding.
 
 ```
-1. Call new-day.sh
+1. Call `daisy new-day`
    What it does:
    a. Archives yesterday's today.md content to journal.md
    b. Deletes tasks with "z" prefix from todo.txt (cancelled tasks)
@@ -181,7 +181,7 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
    e. Auto-commits
 
    Does NOT archive completed tasks to done.txt.
-   Completed tasks (x prefix) stay in todo.txt until new-week.sh.
+   Completed tasks (x prefix) stay in todo.txt until `daisy new-week`.
 ```
 
 **Post-workflow:** Remind about daily inbox checklist:
@@ -204,7 +204,7 @@ absent from todo.txt.
 **Pre-workflow:** Same as New Day — check yesterday's retrospective first.
 
 ```
-1. Call new-week.sh
+1. Call `daisy new-week`
    What it does (everything new-day does, PLUS):
    a. Archives completed tasks (x prefix) from todo.txt → done.txt
       (This is the ONLY workflow that moves tasks to done.txt)
@@ -265,7 +265,7 @@ directly, not via `daisy done`.
    committed; non-zero otherwise, with the reason on stderr.
 
 NOTE: The completed task stays in todo.txt (marked with "x" prefix) until
-the next new-week.sh archives it to done.txt.
+the next `daisy new-week` archives it to done.txt.
 
 NOTE: Inbox items ("Workout", "Plan day", "Retrospective", etc.) exist only
 in today.md, not todo.txt, so `daisy done` refuses them by design — they are
@@ -291,7 +291,7 @@ checked off manually (or by new-day/new-week), not via this command.
 4. Auto-commit
 
 NOTE: Cancelled tasks are soft-deleted. They remain in todo.txt
-with the "z" prefix until the next new-day.sh or new-week.sh
+with the "z" prefix until the next `daisy new-day` or `daisy new-week`
 deletes them.
 ```
 

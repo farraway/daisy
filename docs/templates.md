@@ -4,7 +4,7 @@ The template files live at `templates/journal-day.md` and `templates/journal-wee
 
 ## journal-day.md Template
 
-Used by `new-day.sh` to generate `today.md`:
+Used by `daisy new-day` to generate `today.md`:
 
 ```markdown
 ### {DATE} {DAY}
@@ -63,7 +63,7 @@ Used by `new-day.sh` to generate `today.md`:
 
 ## journal-week.md Template
 
-Used by `new-week.sh` to generate `today.md` for week start:
+Used by `daisy new-week` to generate `today.md` for week start:
 
 ```markdown
 #### Weekly Retrospective

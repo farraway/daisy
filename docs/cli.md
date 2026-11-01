@@ -182,10 +182,10 @@ API call: `EDITOR`, `TMPDIR`, `ANTHROPIC_API_KEY`, `DAISY_OPTIMIZE_MODEL`,
 `DAISY_OPTIMIZE_RESPONSE_FILE` (the suite's LLM stub). Nothing else.
 
 **`--healthcheck` hook.** The scripts listed in `healthcheck.sh`'s
-`HEALTHCHECK_SCRIPTS` (`new-day`, `new-week`, `home`, `feedback`,
-`optimize`, `eval`, `files`, `list`, `plan-pickup`, `rotate`, `test`) and
-the Go commands listed in its `HEALTHCHECK_COMMANDS` (`done`, `log`,
-`tasks`, `projects`, asked through the binary) accept `--healthcheck` as the
+`HEALTHCHECK_SCRIPTS` (`home`, `feedback`, `optimize`, `eval`, `files`,
+`list`, `plan-pickup`, `test`) and the Go commands listed in its
+`HEALTHCHECK_COMMANDS` (`done`, `log`, `tasks`, `projects`, `new-day`,
+`new-week`, `rotate`, asked through the binary) accept `--healthcheck` as the
 sole argument: check their own preconditions, print nothing on success,
 exit 0; else a one-line `Error: …` on stderr, exit 1. Two cases pin it from
 outside (`done --healthcheck` [18], `tasks --healthcheck` [30]). In the
@@ -319,29 +319,29 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built; the `optimize --list` nudge at the end goes with `--list` (decided, D30, Step 23) |
-| Legacy | `daisy new-day` → `new-day.sh` |
-| Usage | `daisy new-day` |
-| Exit codes | 0; 1 when `healthcheck` fails first (`Error: System health check failed` on stderr), or when a step fails |
-| Stdout | `📦 Archived yesterday to journal.md` (when `today.md` existed), `rotate`'s line, `🗑️  Deleted N cancelled task(s)` (when any), `✅ New day started: <YYYY-MM-DD> <Day>`, `   High priority tasks: N`, `   Next priority tasks: N`, `   Inbox tasks: N`, `   GitHub tasks: N`, then `commit`'s line. Bash then prints `💡 New feedback since last optimize run:` and the pending entries; this block is removed at Step 23 — the New Week workflow runs `daisy optimize` itself |
-| Ops | Real |
-| Writes | `journal/journal.md` (appends `today.md` after a `---` separator when non-empty), the rotation window files (see `rotate`), `tasks/todo.txt` (drops `z ` lines), `journal/today.md` from `templates/journal-day.md` (`{DATE}`, `{DAY}`, `{TIME}`, `{HIGH_PRIORITY_TASKS}` = `(A)`, `{NEXT_PRIORITY_TASKS}` = `(B)`, `{INBOX_TASKS}` = no priority, `{GITHUB_TASKS}` = any active line containing `@git`/`@github`, whatever its priority, decided before the priority branches; `(C)`/`(D)` lines without such a tag are not carried) |
-| Commits | home, once: `New day: <date> <day>` (case 72) |
-| Cases | none of its own; case 72 (`commit`'s) runs it |
+| Status | as built in Go (Step 19); the `optimize --list` nudge at the end goes with `--list` (decided, D30, Step 23) |
+| Legacy | `daisy new-day` → the bash `new-day` script, deleted in Step 19 |
+| Usage | `daisy new-day` (no argument; any is usage on stderr, exit 2 — the bash ignored them) |
+| Exit codes | 0; 1 when `healthcheck` fails first (`Error: System health check failed` on stderr), when `templates/journal-day.md` or `tasks/todo.txt` is missing, when the journal cannot be rotated (`rotate`'s refusal), or when the commit fails. A refusal writes nothing: every write is decided before the first is made (the bash had appended `today.md` to `journal.md` before a rotate refusal, so the next run archived it twice) |
+| Stdout | `📦 Archived yesterday to journal.md` (when `today.md` existed) [81], `rotate`'s line [81], `🗑️  Deleted N cancelled task(s)` (when any) [81], `✅ New day started: <YYYY-MM-DD> <Day>` [81], `   High priority tasks: N` [81], `   Next priority tasks: N`, `   Inbox tasks: N`, `   GitHub tasks: N` [81], then `commit`'s `📝 Committed: …` line (git's own commit summary, which the bash let through, is not printed). Then, when `optimize.sh --list` prints pending feedback, a blank line, `💡 New feedback since last optimize run:`, the entries and `   Run 'daisy optimize' to improve your prompts.`; this block is removed at Step 23 — the New Week workflow runs `daisy optimize` itself |
+| Ops | Real; the health check is the bash `healthcheck.sh` and the nudge `optimize.sh --list`, both through `Ops.Exec` |
+| Writes | the rotation window files and `journal/journal.md` (see `rotate`; `today.md` is appended after a `---` separator when the journal is non-empty, and rotated with it); `tasks/todo.txt` without its `z ` lines [81], every line newline-terminated; `journal/today.md` from `templates/journal-day.md`: `{DATE}`, `{DAY}`, `{TIME}`, then `{HIGH_PRIORITY_TASKS}` = `(A)` [81], `{NEXT_PRIORITY_TASKS}` = `(B)` [81], `{INBOX_TASKS}` = dated without priority [81], `{GITHUB_TASKS}` = any open line containing `@git`/`@github`, whatever its priority, decided before the priority branches [81]; `(C)`/`(D)` lines without such a tag are not carried [81]; each carried line loses its priority and creation date when it has a date, and is carried whole otherwise. A task's text is written as it is (bash 5.2's pattern substitution replaced an `&` in it with the placeholder's name) |
+| Commits | home, once: `New day: <date> <day>` [72, 81] |
+| Cases | 81; case 72 (`commit`'s) runs it |
 
 ### daisy new-week
 
 | Field | Value |
 |---|---|
-| Status | as built; nudge removed as for `new-day` (decided, D30, Step 23) |
-| Legacy | `daisy new-week` → `new-week.sh` |
-| Usage | `daisy new-week` |
-| Exit codes | as `new-day` |
-| Stdout | as `new-day`, plus `📦 Archived N completed task(s) to done.txt` (when any) and `✅ New week started: <date> <day>` |
+| Status | as built in Go (Step 19); nudge removed as for `new-day` (decided, D30, Step 23) |
+| Legacy | `daisy new-week` → the bash `new-week` script, deleted in Step 19 |
+| Usage | `daisy new-week` (no argument) |
+| Exit codes | as `new-day`; the template is `templates/journal-week.md` |
+| Stdout | as `new-day`, plus `📦 Archived N completed task(s) to done.txt` (when any) [82] after the cancelled line, and `✅ New week started: <date> <day>` [82] |
 | Ops | Real |
-| Writes | as `new-day`, plus `tasks/done.txt` (appends the `x ` lines of `todo.txt`, which are then removed from it); `today.md` from `templates/journal-week.md` |
-| Commits | home, once: `New week: <date> <day>` |
-| Cases | none |
+| Writes | as `new-day`, plus `tasks/done.txt`: the `x ` lines of `todo.txt` appended [82] (after a newline when `done.txt` lacked a final one and something is archived — the bash glued the first onto its last line; with nothing archived the file is left as it was) and removed from `todo.txt` [82]; `today.md` from `templates/journal-week.md` [82] |
+| Commits | home, once: `New week: <date> <day>` [82] |
+| Cases | 82 |
 
 ### daisy log
 
@@ -407,15 +407,15 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy rotate` → `rotate.sh` (also run by `new-day` and `new-week`) |
-| Usage | `daisy rotate` |
-| Exit codes | 0, also when `journal.md` is missing, empty or holds five day-blocks or fewer (nothing written); 1 when `journal.md` has non-blank content before its first `### YYYY-MM-DD` heading or a block does not start with one (`Error: rotate.sh: …` on stderr, nothing written) |
-| Stdout | `✅ Rotated N day-block(s); journal.md retains its last 5` when anything moved; nothing otherwise |
+| Status | as built in Go (Step 19); byte-identical to the bash on a copy of a real journal over 33 `new-day`/`new-week` runs across a month and a year boundary, and on 270 synthetic journals (D34) |
+| Legacy | `daisy rotate` → the bash `rotate` script, deleted in Step 19 (also run by `new-day` and `new-week`, in-process in Go) |
+| Usage | `daisy rotate` (no argument) |
+| Exit codes | 0, also when `journal.md` is missing, empty or holds five day-blocks or fewer (nothing written, nothing printed) [83]; 1 when `journal.md` has non-blank content before its first `### YYYY-MM-DD` heading (`Error: rotate: journal.md has non-blank content before its first '### YYYY-MM-DD' heading — aborting, nothing written` on stderr [83]), when the month-to-date or year-to-date window holds no day-block (`Error: rotate: <file> has no '### YYYY-MM-DD' day-block …`; the bash died part-way there, with the last-14 window already written), or when a block would move and a rolling window is not a regular file (`Error: rotate: <file> is not a regular file …`; the bash appended through a link, then replaced it with a file). Nothing is written on either refusal [83] |
+| Stdout | `✅ Rotated N day-block(s); journal.md retains its last 5` when anything moved [83]; nothing otherwise [83] |
 | Ops | Real |
-| Writes | `journal/journal.md` keeps its last five `### YYYY-MM-DD` blocks; each older block is appended to all three rolling files — `journal-<YYYYMMDD>-last14.md` (which then drops its oldest block beyond 14), `journal-<YYYYMMDD>-mtd.md` and `journal-<YYYYMMDD>-ytd.md`, each named by the full date of its first block — and the month and year files close into `journal-YYYYMM.md` / `journal-YYYY.md` at the calendar boundaries, so a block is in the last-14 window and in exactly one month and one year file (as built; the plan's Step 19 text says "exactly one window file", which does not describe the bash — see D30); each window file carries `# <label>`, `## Table of Contents`, `## Summary`. Step 19's claim is byte equality with `rotate.sh` on a real journal at three dates |
-| Commits | none of its own (`new-day`/`new-week` commit) |
-| Cases | none |
+| Writes | `journal/journal.md` keeps its last five `### YYYY-MM-DD` blocks [81, 83]; a block runs to the next such heading, less its trailing blank lines and one trailing `---`, so a preamble before a heading (new-week's Weekly Retrospective) stays with the block before it. Each older block, oldest first, is appended to all three rolling files — `journal-<YYYYMMDD>-last14.md` (which then drops its oldest block beyond 14 and takes the date of its new first block), `journal-<YYYYMMDD>-mtd.md` and `journal-<YYYYMMDD>-ytd.md`, each named by the full date of its first block [83] — and a month or year window whose first block is of another period than the incoming one closes first into `journal-YYYYMM.md` / `journal-YYYY.md` [83] (replacing a file of that name). So every rotated block is in exactly one month file and one year file, and in the last-14 window while it is among the fourteen most recently rotated (D34 restates Step 19's "exactly one window file" so) *(decided, D34, Step 19)*. Each window file carries `# <label>`, `## Table of Contents` (one date per block), `## Summary` (`N entries, <first> to <last>.` [83]), `---`, then its blocks separated by `---` |
+| Commits | none of its own [83] (`new-day`/`new-week` commit) |
+| Cases | 83 |
 
 ## Plans
 

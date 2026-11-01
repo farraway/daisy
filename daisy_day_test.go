@@ -93,8 +93,9 @@ func (m *machine) read(t *testing.T, rel string) string {
 	return string(b)
 }
 
-// dayOps is the Fake for log and done: the clock pinned, and the bash health
-// check (a script the temp root does not have) answered by healthOK.
+// dayOps is the Fake for the day commands: the clock pinned, the bash
+// health check (a script the temp root does not have) answered by healthOK,
+// and optimize --list (new-day's nudge) answering that nothing is pending.
 func (m *machine) dayOps(cwd string, healthOK bool) *ops.Fake {
 	return &ops.Fake{
 		GetenvFn: func(k string) string { return m.vars[k] },
@@ -109,6 +110,9 @@ func (m *machine) dayOps(cwd string, healthOK bool) *ops.Fake {
 					return nil, nil, nil
 				}
 				return nil, []byte("✗ broken"), errors.New("exit status 1")
+			}
+			if strings.HasSuffix(name, "/daisy/scripts/optimize.sh") {
+				return nil, nil, nil // no pending feedback
 			}
 			return ops.Real().Exec(dir, name, args...)
 		},
@@ -285,13 +289,13 @@ func TestDoneJournalFailureStillCommits(t *testing.T) {
 	}
 }
 
-// Through Run with every git call scripted: one `git commit` per done and
-// per log, and the commit lands in the home's repository.
+// Through Run with every git call scripted: one `git commit` per done, log,
+// new-day and new-week, and the commit lands in the home's repository.
 func TestOneCommitPerMutationScripted(t *testing.T) {
 	m := newMachine(t)
 	m.seed(t)
 	homeReal, _ := filepath.EvalSymlinks(m.home)
-	for _, args := range [][]string{{"done", "Delta"}, {"log", "a line"}} {
+	for _, args := range [][]string{{"done", "Delta"}, {"log", "a line"}, {"new-day"}, {"new-week"}} {
 		m.seed(t)
 		var calls []string
 		o := m.dayOps(m.ws, true)

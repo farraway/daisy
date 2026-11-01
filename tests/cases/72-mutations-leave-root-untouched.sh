@@ -1,8 +1,8 @@
 # Every Daisy data mutation commits in the home's repository and never in the
 # root's. With the home as its own repository, `done`, `log` and `new-day`
 # each produce exactly one commit there, and the root repository's history
-# does not move. (new-day runs the health check and `daisy commit` through
-# PATH, so this also proves the fixture is honoured end to end.)
+# does not move. (new-day runs the fixture root's health check before it
+# writes, so this also proves the fixture is honoured end to end.)
 
 seed_basic
 root_before=$(git -C "$FIXTURE_ROOT" rev-list --count HEAD)

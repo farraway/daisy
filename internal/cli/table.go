@@ -37,13 +37,13 @@ var table = []Command{
 	{Group: "Workspace", Name: "list", Usage: "list", Help: "Active prompts and installed skills"},
 	{Group: "Workspace", Name: "help", Usage: "help [<command>|<skill>]", Help: "This help, or detail for one command or skill"},
 
-	{Group: "Day", Name: "new-day", Usage: "new-day", Help: "Start a new day"},
-	{Group: "Day", Name: "new-week", Usage: "new-week", Help: "Start a new week"},
+	{Group: "Day", Name: "new-day", Usage: "new-day", Help: "Start a new day", Workspace: true, Run: commands.NewDay, Health: commands.NewDayHealth},
+	{Group: "Day", Name: "new-week", Usage: "new-week", Help: "Start a new week", Workspace: true, Run: commands.NewWeek, Health: commands.NewWeekHealth},
 	{Group: "Day", Name: "log", Usage: "log <message...>", Help: "Add a log entry to today.md", Workspace: true, Min: 1, Max: Unbounded, Run: commands.Log, Health: commands.LogHealth},
 	{Group: "Day", Name: "done", Usage: "done <pattern>", Help: "Mark a task complete", Workspace: true, Min: 1, Max: 1, Run: commands.Done, Health: commands.DoneHealth},
 	{Group: "Day", Name: "tasks", Usage: "tasks [--all] [--todo|--done] [pattern]", Help: "Search tasks (read-only)", Workspace: true, Flags: []string{"--all", "--todo", "--done"}, Max: 1, Run: commands.Tasks, Health: commands.TasksHealth},
 	{Group: "Day", Name: "projects", Usage: "projects [--archived]", Help: "List active or archived projects", Workspace: true, Flags: []string{"--archived"}, Run: commands.Projects, Health: commands.ProjectsHealth},
-	{Group: "Day", Name: "rotate", Usage: "rotate", Help: "Rotate journal.md into window files"},
+	{Group: "Day", Name: "rotate", Usage: "rotate", Help: "Rotate journal.md into window files", Workspace: true, Run: commands.Rotate, Health: commands.RotateHealth},
 
 	{Group: "Plans", Name: "plan-new", Usage: "plan-new [--spec] <description> [+project]", Help: "Create a plan (or an unregistered spec draft)"},
 	{Group: "Plans", Name: "plan-pickup", Usage: "plan-pickup <path>", Help: "Promote a spec draft into a tracked plan"},

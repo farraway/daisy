@@ -106,9 +106,10 @@ nothing above `ops` calls `os`, `os/exec` or `time.Now` itself. `make build`
 writes `bin/daisy` (gitignored); `daisy test` builds it first and drives the
 suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
 -race`) runs before every root commit. Ported so far: `status`, `files`,
-`log`, `done`, `tasks`, `projects` (`internal/todo`, `internal/journal` and
-`internal/gitx` behind them); their scripts are gone and `healthcheck.sh`
-asks them for `--healthcheck` through the binary.
+`log`, `done`, `tasks`, `projects`, `new-day`, `new-week`, `rotate`
+(`internal/todo`, `internal/journal` and `internal/gitx` behind them);
+their scripts are gone and `healthcheck.sh` asks them for `--healthcheck`
+through the binary.
 
 ## Script Reference
 
@@ -116,9 +117,6 @@ asks them for `--healthcheck` through the binary.
 |--------|---------|
 | `daisy.sh` (repo root) | CLI entry point — dispatches subcommands |
 | `daisy-init.sh` | Bind a workspace to an identity and its home: `.daisy/` links, local git author, agent configuration |
-| `new-day.sh` | Archive yesterday, generate new today.md, rotate journal.md |
-| `new-week.sh` | Archive completed tasks to done.txt + new day, rotate journal.md |
-| `rotate.sh` | Archive journal.md day-blocks into rolling/closed window files |
 | `feedback.sh` | Record a prompt failure with workflow tag and description |
 | `optimize.sh` | LLM-driven prompt optimization loop (groups by workflow tag, diff, approval, archives used entries with provenance) |
 | `eval.sh` | List, display, or record eval case results for the optimize loop |

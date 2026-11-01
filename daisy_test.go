@@ -25,6 +25,7 @@ func newMachine(t *testing.T) *machine {
 	m := &machine{root: t.TempDir(), config: t.TempDir(), local: t.TempDir(), ws: t.TempDir(), vars: map[string]string{}}
 	m.home = filepath.Join(t.TempDir(), "testhome")
 	copyTree(t, "templates/home", m.home)
+	copyTree(t, "templates", filepath.Join(m.root, "templates"))
 	writeFile(t, filepath.Join(m.home, "gitconfig"), "name=Fixture Author\nemail=fixture@example.invalid\n")
 	writeFile(t, filepath.Join(m.config, "homes"), "testhome="+m.home+"\n")
 	writeFile(t, filepath.Join(m.ws, ".daisy", "home"), "testhome\n")
@@ -252,16 +253,16 @@ func TestFallThrough(t *testing.T) {
 		},
 	}
 	var out bytes.Buffer
-	code := daisy.Run(o, strings.NewReader(""), &out, io.Discard, []string{"rotate", "a", "b c", "--help"})
+	code := daisy.Run(o, strings.NewReader(""), &out, io.Discard, []string{"feedback", "a", "b c", "--help"})
 	if code != 7 {
 		t.Errorf("exit %d", code)
 	}
-	if strings.Join(got, "|") != m.root+"/daisy.sh|rotate|a|b c|--help" || gotDir != m.ws || gotStdout != &out {
+	if strings.Join(got, "|") != m.root+"/daisy.sh|feedback|a|b c|--help" || gotDir != m.ws || gotStdout != &out {
 		t.Errorf("started %v in %q with stdout %v", got, gotDir, gotStdout)
 	}
 	// `help <name>` (a command of either side, or a skill) and a legacy
 	// command's own --help fall through too
-	for _, args := range [][]string{{"help", "done"}, {"help", "status"}, {"rotate", "--help"}, {"home", "list"}} {
+	for _, args := range [][]string{{"help", "done"}, {"help", "status"}, {"feedback", "--help"}, {"home", "list"}} {
 		got = nil
 		daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, args)
 		if strings.Join(got, "|") != m.root+"/daisy.sh|"+strings.Join(args, "|") {
@@ -290,7 +291,7 @@ func TestFallThrough(t *testing.T) {
 	delete(m.vars, "DAISY_ROOT")
 	o.ExecutableFn = func() (string, error) { return "", io.ErrUnexpectedEOF }
 	var errb bytes.Buffer
-	if code := daisy.Run(o, strings.NewReader(""), io.Discard, &errb, []string{"rotate"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT not set") {
+	if code := daisy.Run(o, strings.NewReader(""), io.Discard, &errb, []string{"feedback"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT not set") {
 		t.Errorf("exit %d err %q", code, errb.String())
 	}
 }
@@ -307,8 +308,8 @@ func TestFallThroughRunsDaisySh(t *testing.T) {
 	os.Chmod(filepath.Join(m.root, "daisy.sh"), 0o755)
 	t.Setenv("DAISY_ROOT", m.root)
 	var out, errb bytes.Buffer
-	code := daisy.Run(ops.Real(), strings.NewReader(""), &out, &errb, []string{"rotate", "--flag"})
-	if code != 3 || out.String() != "args: rotate --flag\n" || errb.String() != "root: "+m.root+"\n" {
+	code := daisy.Run(ops.Real(), strings.NewReader(""), &out, &errb, []string{"feedback", "--flag"})
+	if code != 3 || out.String() != "args: feedback --flag\n" || errb.String() != "root: "+m.root+"\n" {
 		t.Errorf("exit %d out %q err %q", code, out.String(), errb.String())
 	}
 }

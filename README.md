@@ -287,11 +287,10 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── cmd/daisy/main.go           # The binary: bin/daisy (symlinked to ~/bin/daisy); `make build`
 ├── daisy.go, internal/         # Run, and the Go packages behind it (ops, env, cli, commands, ...)
 ├── daisy.sh                    # Bash entry point; the binary falls through to it for commands not yet ported
-├── daisy/scripts/              # daisy-init, home, new-day, new-week, rotate, done, log,
-│                               # feedback, optimize, eval, build-prompt,
-│                               # healthcheck, common, commit, check-secrets, files,
-│                               # list, tasks, projects, plan-new, plan-pickup,
-│                               # plan-archive, test
+├── daisy/scripts/              # daisy-init, home, feedback, optimize, eval,
+│                               # build-prompt, healthcheck, common, commit,
+│                               # check-secrets, files, list, plan-new,
+│                               # plan-pickup, plan-archive, test
 ├── templates/
 │   ├── journal-day.md          # Daily today.md template
 │   ├── journal-week.md         # Weekly today.md template (adds retrospective)

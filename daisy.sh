@@ -756,16 +756,6 @@ case "$COMMAND" in
         "$SCRIPTS/healthcheck.sh" "$@"
         popd > /dev/null
         ;;
-    new-day)
-        require_workspace
-        "$SCRIPTS/new-day.sh" "$@"
-        popd > /dev/null
-        ;;
-    new-week)
-        require_workspace
-        "$SCRIPTS/new-week.sh" "$@"
-        popd > /dev/null
-        ;;
     build)
         if [ -n "$1" ]; then
             "$SCRIPTS/build-prompt.sh" "$@"
@@ -798,11 +788,6 @@ case "$COMMAND" in
     list)
         require_workspace
         "$SCRIPTS/list.sh" "$@"
-        popd > /dev/null
-        ;;
-    rotate)
-        require_workspace
-        "$SCRIPTS/rotate.sh" "$@"
         popd > /dev/null
         ;;
     check-secrets)

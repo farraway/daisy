@@ -12,6 +12,9 @@ import (
 func (c *Context) todayFile() string { return filepath.Join(c.Env.Home, "journal", "today.md") }
 func (c *Context) todoFile() string  { return filepath.Join(c.Env.Home, "tasks", "todo.txt") }
 func (c *Context) doneFile() string  { return filepath.Join(c.Env.Home, "tasks", "done.txt") }
+func (c *Context) journalFile() string {
+	return filepath.Join(c.Env.Home, "journal", "journal.md")
+}
 
 // preflight runs the system health check before a mutation, as the bash
 // did; it is the bash health check until the step that ports it. A cached
