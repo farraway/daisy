@@ -483,7 +483,7 @@ cmd_install() {
     if [ "$update" = false ] && [ -L "$HOME/bin/daisy" ]; then
         local existing_target
         existing_target=$(readlink "$HOME/bin/daisy")
-        if [ "$existing_target" = "$DAISY_ROOT/daisy.sh" ]; then
+        if [ "$existing_target" = "$DAISY_ROOT/bin/daisy" ]; then
             echo "Error: Daisy is already installed." >&2
             echo "Run 'daisy install --update' to re-apply symlink/skills/permissions." >&2
             exit 1
@@ -504,9 +504,13 @@ cmd_install() {
         echo "  ✓ Created ~/bin"
     fi
 
-    # 2. Symlink ~/bin/daisy
-    local target="$DAISY_ROOT/daisy.sh"
+    # 2. Symlink ~/bin/daisy to the binary. `make build` writes it; until
+    # then the link dangles, which is said rather than hidden.
+    local target="$DAISY_ROOT/bin/daisy"
     local link="$HOME/bin/daisy"
+    if [ ! -x "$target" ]; then
+        echo "  ⚠ $target is not built yet; run 'make build' in $DAISY_ROOT" >&2
+    fi
 
     if [ -L "$link" ]; then
         local existing

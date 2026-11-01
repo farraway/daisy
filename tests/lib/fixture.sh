@@ -42,14 +42,17 @@ fixture_setup() {
     FIXTURE_LOCAL=$(mktemp -d)
     FIXTURE_WORKSPACE=$(mktemp -d)
 
-    # `daisy` (the scripts), `templates` and `tests` are symlinked: they are
-    # the code under test, which nothing writes, and copying `tests` would
-    # copy this suite into itself. `prompts` and `skills` are *copied*:
+    # `daisy.sh`, `daisy` (the scripts), `templates` and `tests` are
+    # symlinked: they are the code under test, which nothing writes, and
+    # copying `tests` would copy this suite into itself. The binary on PATH
+    # execs $DAISY_ROOT/daisy.sh for every command it has not taken over, so
+    # the fixture root must carry the entry point. `prompts` and `skills` are *copied*:
     # symlinked, DAISY_ROOT/prompts was literally the repo's, so any applying
     # case whose workflow resolved to a shared prompt rewrote the real file.
     # Cases avoided that by convention alone, and the unknown-workflow
     # fallback routes anything unrecognised to prompts/daisy.md. 148K and
     # ~4ms per fixture, against a git init already paid for here.
+    ln -s "$REAL_DAISY_ROOT/daisy.sh" "$FIXTURE_ROOT/daisy.sh"
     ln -s "$REAL_DAISY_ROOT/daisy" "$FIXTURE_ROOT/daisy"
     ln -s "$REAL_DAISY_ROOT/templates" "$FIXTURE_ROOT/templates"
     ln -s "$REAL_DAISY_ROOT/tests" "$FIXTURE_ROOT/tests"

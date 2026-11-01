@@ -115,14 +115,19 @@ name` [77] exits 1) *(decided, D30: Architecture says only "exit 2 and
 usage on bad args")*.
 
 **Unknown command.** Bash: `Unknown command: <name>`, a blank line and the
-help text, all on stderr, exit 1. Same text, exit 2 *(decided, D30, Step
-17)*. Not asserted.
+help text, all on stderr, exit 1. Same text, exit 2 *(decided, D30; built in
+Step 17: the binary knows every command of either side, so an unknown name
+never reaches the bash)*. Not asserted.
 
 **`--help` / `-h`.** As the sole argument of any command prints that
 command's usage on stdout and exits 0 without running it; the bash reads it
-from the script's header comment. `daisy`, `daisy help`, `daisy --help`,
-`daisy -h` print the help: as built the flat `Commands:` list of `show_help`,
-the agreed tree above from Step 17. *The four forms and the sole-argument
+from the script's header comment, the binary from the `cli` table (`Usage:
+daisy <usage>`, blank, the description). `daisy`, `daisy help`, `daisy --help`,
+`daisy -h` print the help: as built the flat `Commands:` list of `show_help`;
+from Step 17 the tree, in the agreed groups and order, each command under the
+name this build answers to (so `plan-new` until Step 22, `home` on one line,
+no `identity list` or `swarm` until they exist) — the tree never names a
+command the binary does not run. *The four forms and the sole-argument
 rule are as built and kept (decided, D30: Architecture does not mention
 them).*
 
@@ -164,7 +169,12 @@ applied identity nothing claims (naming the author, `Pelican Moorhen` [79]).
 A clean binding prints nothing on stderr (asserted empty in 76, 77, 79).
 
 **Environment read.** `DAISY_ROOT` (required; the bash dispatcher exits 1
-with `Error: DAISY_ROOT not set.` without it), `DAISY_CONFIG`,
+with `Error: DAISY_ROOT not set.` without it; the binary, for a command it
+runs itself, with `Error: DAISY_ROOT not set` and the `~/.zshenv` line to
+add; for every command it has not taken over the binary execs
+`$DAISY_ROOT/daisy.sh`, or without `DAISY_ROOT` the `daisy.sh` beside
+itself, so `install` still bootstraps and the bash prints its own error for
+the rest), `DAISY_CONFIG`,
 `DAISY_LOCAL`, `DAISY_DEFAULT_HOME`, `HOME`, `USER`, `DAISY_HEALTHCHECK_TTL`,
 `DAISY_HEALTHCHECK_PASSED` (see `healthcheck`), `SHELL` (`install` picks the
 rc file by it). As built only, gone at Step 23 with the edit branch and the
@@ -243,10 +253,10 @@ and that `init` in a subdirectory of a linked worktree is allowed.
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy status` → built in to `daisy.sh` (`cmd_status`) |
+| Status | ported (Step 17): Go, as built |
+| Legacy | `daisy status` → built in to `daisy.sh` (`cmd_status`), kept for `~/bin/daisy` links not yet switched to the binary |
 | Usage | `daisy status` |
-| Exit codes | 0; 1 outside a workspace or when the home does not resolve (`cannot be a home` [68], `not registered` [68]) |
+| Exit codes | 0; 1 outside a workspace or when the home does not resolve (`cannot be a home` [68], `not registered` [68]); 2 with any argument (the bash ignored them) |
 | Stdout | line 1 `Daisy \| home: <home> \| identity: <identity> \| workspace: <path>` (asserted below; `home: second` [68], `workspace: ` [78]); `Projects: <+tags> (from .daisy/project)` / `(from directory name)` or `Projects: (none)` (`+chessgrid` [45]); blank; `Tasks:  N pending, N completed today`, `Log:    N entries`, `Backlog: N tasks in todo.txt`; `Plan:   <title>` and its path when `PLAN.md` is a symlink; or `  No today.md — run 'daisy new-day' to start.` |
 | Stderr | drift warnings (Common behaviour); empty on a clean binding |
 | Ops | ReadOnly |
@@ -261,10 +271,10 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy files` → `files.sh` |
+| Status | ported (Step 17): Go, as built |
+| Legacy | `daisy files` → `files.sh`, kept as `status`'s is |
 | Usage | `daisy files` |
-| Exit codes | 0 (a project that does not exist is not fatal, case 44); 1 outside a workspace |
+| Exit codes | 0 (a project that does not exist is not fatal, case 44); 1 outside a workspace; 2 with any argument |
 | Stdout | the same first line as `status` (`identity: testhome` [76], `identity: pelicanmoor` [77]); sections `Identity:` (the resolved identity file: the home's `gitconfig` [76] or `identities/pelicanmoor` [77], ` (missing)` when absent), `Journal:`, `Tasks:`, `Projects:` (`workspace` row: `+chessgrid` [43] `(from ` `directory name` [43] `)`, `+chessgrid +jobsearch` [43] in file order, `+jobsearch` [42] `(from ` `.daisy/project` [42] `)`, or `(none)` (`none` [44])), `Feedback:`, `Plans:` (with `current plan` when `PLAN.md` is a link), `Prompts:`; each row `  %-12s <real path>`; last `AGENTS.md:    <real path>` (`%-14s`) |
 | Stderr | empty when the convention default matches nothing (asserted `""`, case 44); a declared project with no file is named (`typoed-name` [44]); drift warnings |
 | Ops | ReadOnly |
@@ -291,7 +301,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built |
+| Status | as built; the tree (`daisy`, `daisy help`, `--help`, `-h`) is the binary's from Step 17, rendered from the `cli` table under the names this build answers to (legacy spellings until each rename's step); `help <name>` is the bash's until Step 20 |
 | Legacy | `daisy help [<command>\|<skill>]` → built in to `daisy.sh` (`show_help`, `show_command_help`, `show_skill_help`) |
 | Usage | `daisy help [<command>\|<skill>]`; `daisy`, `daisy --help`, `daisy -h` are `daisy help` |
 | Exit codes | 0; 1 for a name that is neither (`Unknown command or skill: <name>` and `Run 'daisy help' for commands, 'daisy list' for skills.` on stderr); the skill form needs a workspace |
@@ -507,7 +517,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | as built; the symlink target becomes `$DAISY_ROOT/bin/daisy` (agreed, Step 17) |
+| Status | as built; the symlink target is `$DAISY_ROOT/bin/daisy` from Step 17 (`make build` writes it; `install` warns when it is not built yet) |
 | Legacy | `daisy install [--update]` → built in to `daisy.sh` (`cmd_install`); the only command that derives `DAISY_ROOT` from its own location instead of the environment |
 | Usage | `daisy install [--update]`: `--update` re-runs the symlink, root skills and permissions only; plain `install` is the interactive bootstrap (default home, shell rc) and refuses when already installed (`Error: Daisy is already installed.`, exit 1) |
 | Exit codes | 0 [31]; 1 already installed, `~/bin/daisy` exists and is not a symlink, an invalid home selection |

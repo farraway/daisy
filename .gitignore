@@ -24,3 +24,6 @@ PLAN.md
 .claude/skills/gitea/
 .cursor/rules/gitea.mdc
 .cursorignore
+
+# The Go binary; `make build` writes it, `daisy install` links ~/bin/daisy to it
+bin/

@@ -199,6 +199,7 @@ mv "$child/.daisy.aside" "$child/.daisy"
 root2="$FIXTURE_LOCAL/home2/.daisy"
 mkdir -p "$root2" "$FIXTURE_LOCAL/home2/bin"
 ln -s "$FIXTURE_ROOT/daisy" "$root2/daisy"
+ln -s "$FIXTURE_ROOT/daisy.sh" "$root2/daisy.sh"
 RUN_STDERR=$(cd "$FIXTURE_LOCAL/home2/bin" && DAISY_ROOT="$root2" daisy status 2>&1 >/dev/null); RUN_EXIT=$?
 assert_eq "$RUN_EXIT" "1" "status beside the Daisy root finds no workspace"
 assert_contains "$RUN_STDERR" "Not in a Daisy workspace" "and says so"

@@ -115,11 +115,12 @@ cd daisy
 ### 2. Install
 
 ```bash
+make build        # the Go binary, bin/daisy (Go 1.27, standard library only)
 ./daisy.sh install
 ```
 
 This will:
-- Create a `~/bin/daisy` symlink
+- Create a `~/bin/daisy` symlink to `bin/daisy`
 - Install the root skills into `~/.claude/skills/`
 - Select a default home from the registry (`~/.config/daisy/homes`), or
   create and register one with `daisy home new` when none exists — a home is
@@ -283,7 +284,9 @@ lives wherever you put it. The root finds homes by name through a registry.
 daisy/                          # Repository root ($DAISY_ROOT)
 ├── AGENTS.md                   # System architecture & internal specs (auto-applied by Cursor/Claude Code)
 ├── README.md                   # This file
-├── daisy.sh                    # CLI entry point (symlinked to ~/bin/daisy)
+├── cmd/daisy/main.go           # The binary: bin/daisy (symlinked to ~/bin/daisy); `make build`
+├── daisy.go, internal/         # Run, and the Go packages behind it (ops, env, cli, commands, ...)
+├── daisy.sh                    # Bash entry point; the binary falls through to it for commands not yet ported
 ├── daisy/scripts/              # daisy-init, home, new-day, new-week, rotate, done, log,
 │                               # feedback, optimize, eval, build-prompt,
 │                               # healthcheck, common, commit, check-secrets, files,

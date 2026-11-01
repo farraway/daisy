@@ -92,6 +92,21 @@ which is everything a root commit takes.
 
 ---
 
+## The Go port
+
+`daisy` is becoming a Go binary, one command at a time (the plan's Phase D).
+`cmd/daisy/main.go` is `os.Exit(daisy.Run(ops.Real(), …))` and nothing else;
+`daisy.go` is `Run`; `internal/ops` is every side effect in one value
+(`Real`, `ReadOnly`, `Fake`); `internal/env` resolves root, registry,
+workspace, home, identity and projects; `internal/cli` is the command table
+(the help text is rendered from it) and the fall-through: a command the
+binary has not taken over execs `$DAISY_ROOT/daisy.sh` with the same
+arguments. Dependency rule: `cli → commands → {domain packages} → ops`;
+nothing above `ops` calls `os`, `os/exec` or `time.Now` itself. `make build`
+writes `bin/daisy` (gitignored); `daisy test` builds it first and drives the
+suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
+-race`) runs before every root commit. Ported so far: `status`, `files`.
+
 ## Script Reference
 
 | Script | Purpose |
