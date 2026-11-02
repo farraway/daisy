@@ -278,6 +278,7 @@ The reference source itself is never modified or deleted by adoption — copy
 ## Reference Documentation
 
 - [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the command tree as built, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
+- [`docs/swarm.md`](docs/swarm.md) — The swarm's specification (agreed, built in Steps 27–30): `swarm.json`, the label lifecycle and trigger rule, the comment marker, the member container and its image (`images/member/Dockerfile`), the credential rule, the provider and forge seams, the five `swarm` verbs, the merge gate
 - [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) — The hat/skill distinction, the ownership-of-evolution criterion, worked examples
 - [`docs/task-format.md`](docs/task-format.md) — Task format regex, conversion rules, file organization
 - [`docs/task-sync.md`](docs/task-sync.md) — Bidirectional sync rules, validation algorithm

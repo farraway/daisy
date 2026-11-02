@@ -291,6 +291,7 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── cmd/daisy/                  # main.go, the binary: bin/daisy (symlinked to ~/bin/daisy); `make build`; the functional tests
 ├── internal/                   # The Go packages behind it (ops, env, cli, commands, ...)
 ├── Makefile                    # build, check (gofmt, vet, tidy, go test -race), test (`daisy test`)
+├── images/member/Dockerfile    # The swarm's member image (docs/swarm.md; built at Step 28)
 ├── templates/
 │   ├── journal-day.md          # Daily today.md template
 │   ├── journal-week.md         # Weekly today.md template (adds retrospective)
@@ -302,6 +303,7 @@ daisy/                          # Repository root ($DAISY_ROOT)
 │   └── home/                   # Template for new homes (copied by `daisy home new`)
 ├── docs/                       # Detailed reference documentation
 │   ├── cli.md                  # The `daisy` CLI contract
+│   ├── swarm.md                # The swarm's specification
 │   ├── task-format.md, task-sync.md, todotxt.md, templates.md
 │   ├── workflows.md, logging.md, projects.md, home-management.md
 │   ├── plan.md, praxis.md, retrospective.md, github.md

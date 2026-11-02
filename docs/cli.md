@@ -9,8 +9,8 @@ under, the files it may write and the commits it makes.
 pins it; since Step 24 every command is Go and the bash (`daisy.sh` and
 `daisy/scripts/*.sh`) is deleted, so a `Legacy` row is history: the bash
 form a command replaced. Every entry is `as built (Step N)`, the step
-that built it, except `swarm`, which is `agreed (Steps 26–30)`: decided in
-the plan and not yet built. `decided (D30, …)` marks a point the plan's
+that built it, except `swarm`, which is `agreed (Steps 27–30)`: decided in
+the plan, specified in [docs/swarm.md](swarm.md), and not yet built. `decided (D30, …)` marks a point the plan's
 Architecture left open that this document settled, recorded in the plan's
 D30. Where the bash has no
 explicit exit code or message for a situation the entry says *unspecified;
@@ -34,7 +34,7 @@ entries cross-reference it in prose.
 `daisy --help` as built, rendered from the `cli` table; `daisy
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm apply`, `swarm status`, `swarm
-pause`, `swarm resume`) is agreed for Steps 26–30 and joins the table when
+pause`, `swarm resume`) is agreed for Steps 27–30 and joins the table when
 it is built; the tree never names a command the binary does not run.
 
 ```
@@ -599,7 +599,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | agreed (Steps 26–30); specified in `docs/swarm.md` (Step 26), not here |
+| Status | agreed (Steps 27–30); specified in [docs/swarm.md](swarm.md) (Step 26), not here: `swarm.json`, the lifecycle, the member container, both seams, and each verb's reads, writes, output and exit codes |
 | Legacy | none |
 | Usage | `swarm init [--defaults]`, `swarm apply [--once]`, `swarm status`, `swarm pause`, `swarm resume` — the five lines the `Swarm` group adds to the help when built, and nothing more |
 | Cases | none |
