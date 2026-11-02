@@ -17,25 +17,22 @@ import (
 // into ~/.claude/skills (pruning copies whose source is gone), grants
 // Daisy's permissions in ~/.claude/settings.json and, unless --update,
 // writes the DAISY_ROOT line to the shell's rc file. It does not build:
-// `make build` writes the binary. The root is $DAISY_ROOT, else the root
-// this binary was built in (bin/daisy under it), so a shell with nothing
-// set can bootstrap.
+// `make build` writes the binary. The root is the one this binary was
+// built in (bin/daisy under it), so a shell with nothing set can bootstrap;
+// a $DAISY_ROOT naming another root is refused before any write.
 func Install(c *Context) error {
 	fs := c.Ops.FS()
+	update := c.Flag("--update")
 	root, err := installRoot(c.Ops)
 	if err != nil {
 		return err
 	}
-	update := c.Flag("--update")
 	home := c.Ops.Getenv("HOME")
 	if home == "" {
 		return errors.New("Error: HOME is not set; install writes under it")
 	}
 	link, target := filepath.Join(home, "bin", "daisy"), filepath.Join(root, "bin", "daisy")
 	existing, linkErr := fs.Readlink(link)
-	if !update && linkErr == nil && existing == target {
-		return errors.New("Error: Daisy is already installed.\nRun 'daisy install --update' to re-apply symlink/skills/permissions.")
-	}
 	if exists(fs, link) && linkErr != nil {
 		return errors.New("  ⚠ ~/bin/daisy exists but is not a symlink. Remove it and re-run.")
 	}
@@ -55,6 +52,11 @@ func Install(c *Context) error {
 	rc, rcContent, rcMessage, err := planRC(c.Ops, home, root)
 	if err != nil && !update {
 		return err
+	}
+	// Installed is the link and the rc line both naming this root: a moved
+	// root installed only with --update still needs its rc line written.
+	if !update && linkErr == nil && existing == target && rcContent == nil {
+		return errors.New("Error: Daisy is already installed.\nRun 'daisy install --update' to re-apply symlink/skills/permissions.")
 	}
 
 	if update {
@@ -130,24 +132,35 @@ func Install(c *Context) error {
 	return nil
 }
 
-// installRoot is $DAISY_ROOT, else the root holding this binary.
+// installRoot is the root holding this binary, <exe>/../.. resolved through
+// links. $DAISY_ROOT, when set, must name that root: a stale export would
+// otherwise send the install, and ~/bin/daisy, to a root other than the
+// binary that was run. The fix printed is plain install, which also writes
+// the rc line the stale export came from.
 func installRoot(o ops.Ops) (string, error) {
-	if o.Getenv("DAISY_ROOT") != "" {
-		return env.Root(o)
-	}
+	set := o.Getenv("DAISY_ROOT")
 	exe, err := o.Executable()
 	if err != nil {
+		if set != "" {
+			return "", fmt.Errorf("Error: DAISY_ROOT is %s and the binary's own path is unknown (%v), so install cannot check that it is this binary's root", set, err)
+		}
 		return "", fmt.Errorf("Error: DAISY_ROOT is not set and the binary's own path is unknown: %v", err)
 	}
 	root := filepath.Dir(filepath.Dir(env.RealPath(o.FS(), exe)))
+	if set != "" {
+		if env.RealPath(o.FS(), set) != root {
+			return "", fmt.Errorf("Error: DAISY_ROOT is %s, but this binary (%s) is in %s\n  Install the binary's root:  DAISY_ROOT=%s %s/bin/daisy install  (or unset DAISY_ROOT; install writes the rc line)\n  Install DAISY_ROOT's root:  %s/bin/daisy install\n  Refused again in a new shell: another file exports it (grep -n DAISY_ROOT ~/.zshenv ~/.zshrc ~/.zprofile ~/.bashrc ~/.bash_profile ~/.profile ~/.config/fish/config.fish)", set, exe, root, root, root, set)
+		}
+		return env.Root(o)
+	}
 	if fi, err := o.FS().Stat(filepath.Join(root, "templates")); err != nil || !fi.IsDir() {
-		return "", fmt.Errorf("Error: DAISY_ROOT is not set and %s is not in a Daisy root's bin/\n  Run it as <root>/bin/daisy install, or set DAISY_ROOT", exe)
+		return "", fmt.Errorf("Error: DAISY_ROOT is not set and %s is not in a Daisy root's bin/\n  Run it as <root>/bin/daisy install", exe)
 	}
 	return root, nil
 }
 
 // installSkills copies every root skill and prunes installed copies whose
-// source is gone.
+// source is gone, sparing Claude Code's own directory.
 func installSkills(c *Context, root, dir string) error {
 	fs := c.Ops.FS()
 	if err := fs.MkdirAll(dir, 0o755); err != nil {
@@ -166,7 +179,7 @@ func installSkills(c *Context, root, dir string) error {
 	pruned := 0
 	entries, _ := fs.ReadDir(dir)
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".") || sources[e.Name()] != "" {
+		if strings.HasPrefix(e.Name(), ".") || sources[e.Name()] != "" || e.Name() == skill.ClaudeCodeSynced {
 			continue
 		}
 		if fi, err := fs.Stat(filepath.Join(dir, e.Name())); err == nil && fi.IsDir() {
@@ -183,10 +196,14 @@ func installSkills(c *Context, root, dir string) error {
 }
 
 // planRC is the shell's rc file and, when it must change, its new content
-// and what to say: the DAISY_ROOT line updated in place or a block appended.
+// and what to say: the DAISY_ROOT lines updated in place or a block
+// appended. One pattern finds the lines both to check and to rewrite (an
+// export at the start of a line, not a comment), so
+// what is called stale is rewritten and a second run finds it right; a
+// later stale line is the one the shell keeps, so every line must be right.
 func planRC(o ops.Ops, home, root string) (rc string, content []byte, message string, err error) {
 	shell := filepath.Base(o.Getenv("SHELL"))
-	line, pattern := "export DAISY_ROOT=\""+root+"\"", regexp.MustCompile(`export DAISY_ROOT=.*`)
+	line, pattern := "export DAISY_ROOT=\""+root+"\"", regexp.MustCompile(`^(\s*)export DAISY_ROOT=(.*)`)
 	switch shell {
 	case "zsh":
 		rc = filepath.Join(home, ".zshenv")
@@ -194,7 +211,7 @@ func planRC(o ops.Ops, home, root string) (rc string, content []byte, message st
 		rc = filepath.Join(home, ".bashrc")
 	case "fish":
 		rc = filepath.Join(home, ".config", "fish", "config.fish")
-		line, pattern = "set -gx DAISY_ROOT \""+root+"\"", regexp.MustCompile(`set -gx DAISY_ROOT .*`)
+		line, pattern = "set -gx DAISY_ROOT \""+root+"\"", regexp.MustCompile(`^(\s*)set -gx DAISY_ROOT (.*)`)
 	default:
 		rc = filepath.Join(home, ".profile")
 	}
@@ -203,29 +220,31 @@ func planRC(o ops.Ops, home, root string) (rc string, content []byte, message st
 		return rc, nil, "", fmt.Errorf("Error: cannot read %s: %v", rc, readErr)
 	}
 	text := string(data)
-	if !strings.Contains(text, "DAISY_ROOT") {
+	lines := strings.Split(text, "\n")
+	found, stale, current := false, false, ""
+	for i, l := range lines {
+		loc := pattern.FindStringSubmatchIndex(l)
+		if loc == nil {
+			continue
+		}
+		found = true
+		value := strings.TrimSpace(l[loc[4]:loc[5]])
+		if q := regexp.MustCompile(`"[^"]*"`).FindString(value); q != "" {
+			value = strings.Trim(q, `"`)
+		}
+		if value != root && !stale {
+			stale, current = true, value
+		}
+		lines[i] = l[loc[2]:loc[3]] + line
+	}
+	if !found {
 		if text != "" && !strings.HasSuffix(text, "\n") {
 			text += "\n"
 		}
 		return rc, []byte(text + "\n# daisy\n" + line + "\n"), "  ✓ Added DAISY_ROOT to " + rc, nil
 	}
-	current := ""
-	for _, l := range strings.Split(text, "\n") {
-		if strings.Contains(l, "DAISY_ROOT") && (shell == "fish" || strings.Contains(l, "DAISY_ROOT=")) {
-			if q := regexp.MustCompile(`"[^"]*"`).FindString(l); q != "" {
-				current = strings.Trim(q, `"`)
-			}
-			break
-		}
-	}
-	if current == root {
+	if !stale {
 		return rc, nil, "  ✓ DAISY_ROOT already set correctly", nil
-	}
-	lines := strings.Split(text, "\n")
-	for i, l := range lines {
-		if loc := pattern.FindStringIndex(l); loc != nil {
-			lines[i] = l[:loc[0]] + line
-		}
 	}
 	return rc, []byte(strings.Join(lines, "\n")), "  ✓ Updated DAISY_ROOT (was: " + current + ")", nil
 }

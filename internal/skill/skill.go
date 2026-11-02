@@ -13,6 +13,12 @@ import (
 	"daisy/internal/ops"
 )
 
+// ClaudeCodeSynced is the directory in ~/.claude/skills where Claude Code's
+// own skill sync writes, recreating it minutes after it is removed. It is
+// not Daisy's: install never prunes it and the health check never calls it
+// stale.
+const ClaudeCodeSynced = "synced"
+
 // SourceDirs are where Daisy keeps skills: the root's, then the home's.
 func SourceDirs(root, home string) []string {
 	return []string{filepath.Join(root, "skills"), filepath.Join(home, "skills")}

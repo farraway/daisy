@@ -578,3 +578,18 @@ func TestShellQuote(t *testing.T) {
 		}
 	}
 }
+
+// Check 4c: a root-installed skill with no source warns, but synced, where
+// Claude Code's own skill sync writes, is not Daisy's and never does.
+func TestSkillDriftSparesSynced(t *testing.T) {
+	m := newMachine(t)
+	m.write(filepath.Join(m.uhome, ".claude", "skills", "synced", "abc", "SKILL.md"), "Claude Code's\n")
+	m.write(filepath.Join(m.uhome, ".claude", "skills", "old-skill", "SKILL.md"), "stale\n")
+	_, _, errs := m.run(health.Options{Force: true})
+	if !strings.Contains(errs, "Root-installed skill 'old-skill'") {
+		t.Errorf("no warning for the stale skill: %q", errs)
+	}
+	if strings.Contains(errs, "'synced'") {
+		t.Errorf("synced warned as stale: %q", errs)
+	}
+}

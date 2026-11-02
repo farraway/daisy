@@ -106,6 +106,8 @@ func (m *machine) pinned(t *testing.T, cwd string, args ...string) (int, string,
 		GetenvFn: func(k string) string { return m.vars[k] },
 		GetwdFn:  func() (string, error) { return cwd, nil },
 		NowFn:    func() time.Time { return time.Date(2026, 11, 1, 9, 30, 0, 0, time.UTC) },
+		// The binary is the root's own, as `make build` leaves it.
+		ExecutableFn: func() (string, error) { return filepath.Join(m.root, "bin", "daisy"), nil },
 	}
 	var out, errb bytes.Buffer
 	code := cli.Run(o, strings.NewReader(""), &out, &errb, args)
@@ -311,10 +313,101 @@ func TestInstall(t *testing.T) {
 	// A moved root: the rc line is replaced in place.
 	other := t.TempDir()
 	os.MkdirAll(filepath.Join(other, "templates"), 0o755)
-	m.vars["DAISY_ROOT"] = other
+	m.root, m.vars["DAISY_ROOT"] = other, other
 	m.pinned(t, m.ws, "install")
 	if rc, _ := os.ReadFile(filepath.Join(home, ".zshenv")); string(rc) != "export PATH=x\n\n# daisy\nexport DAISY_ROOT=\""+other+"\"\n" {
 		t.Errorf("rc after a move %q", rc)
+	}
+}
+
+// install --update prunes a copy whose source is gone and leaves synced,
+// where Claude Code's own skill sync writes, as it found it.
+func TestInstallPrunesStaleSparesSynced(t *testing.T) {
+	m := newMachine(t)
+	home := m.vars["HOME"]
+	writeFile(t, filepath.Join(m.root, "skills", "s", "SKILL.md"), "---\nname: s\n---\n")
+	writeFile(t, filepath.Join(home, ".claude", "skills", "old-skill", "SKILL.md"), "stale\n")
+	writeFile(t, filepath.Join(home, ".claude", "skills", "synced", "abc", "SKILL.md"), "Claude Code's\n")
+	code, out, errs := m.pinned(t, m.ws, "install", "--update")
+	if code != 0 || !strings.Contains(out, "Pruned 1 stale skill(s)") {
+		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	if _, err := os.Lstat(filepath.Join(home, ".claude", "skills", "old-skill")); err == nil {
+		t.Error("old-skill survived the prune")
+	}
+	if b, _ := os.ReadFile(filepath.Join(home, ".claude", "skills", "synced", "abc", "SKILL.md")); string(b) != "Claude Code's\n" {
+		t.Errorf("synced was not left as it was: %q", b)
+	}
+}
+
+// Plain install is "already installed" only when the link and the rc line
+// both name this root. The link right but the rc line naming another root
+// (a moved root installed only with --update): it writes the rc line, the
+// fix a root-mismatch refusal prints; and the other way round.
+func TestInstallRewritesAStaleRcLine(t *testing.T) {
+	m := newMachine(t)
+	home := m.vars["HOME"]
+	m.vars["SHELL"] = "/bin/zsh"
+	writeFile(t, filepath.Join(home, ".zshenv"), "export DAISY_ROOT=\"/old\"\n")
+	if code, _, errs := m.pinned(t, m.ws, "install", "--update"); code != 0 {
+		t.Fatalf("update: exit %d err %q", code, errs)
+	}
+	code, out, errs := m.pinned(t, m.ws, "install")
+	if rc, _ := os.ReadFile(filepath.Join(home, ".zshenv")); code != 0 || string(rc) != "export DAISY_ROOT=\""+m.root+"\"\n" {
+		t.Errorf("exit %d out %q err %q rc %q", code, out, errs, rc)
+	}
+	// And the other way: the rc line right, the link naming another root.
+	link := filepath.Join(home, "bin", "daisy")
+	os.Remove(link)
+	os.Symlink("/old/bin/daisy", link)
+	if code, _, errs := m.pinned(t, m.ws, "install"); code != 0 {
+		t.Errorf("stale link: exit %d err %q", code, errs)
+	}
+	if l, _ := os.Readlink(link); l != filepath.Join(m.root, "bin", "daisy") {
+		t.Errorf("link %q", l)
+	}
+	// A stale export below the right line wins in the shell: not installed.
+	writeFile(t, filepath.Join(home, ".zshenv"), "export DAISY_ROOT=\""+m.root+"\"\n\texport DAISY_ROOT=\"/old\"\n")
+	code, out, errs = m.pinned(t, m.ws, "install")
+	if rc, _ := os.ReadFile(filepath.Join(home, ".zshenv")); code != 0 || string(rc) != "export DAISY_ROOT=\""+m.root+"\"\n\texport DAISY_ROOT=\""+m.root+"\"\n" || !strings.Contains(out, "(was: /old)") {
+		t.Errorf("second line stale: exit %d out %q err %q rc %q", code, out, errs, rc)
+	}
+	// The lines checked are the lines rewritten, so install converges: a
+	// comment or a line using $DAISY_ROOT is neither (fish too), and an
+	// unquoted right line is right.
+	for _, c := range []struct{ shell, rc, text string }{
+		{"/bin/zsh", ".zshenv", "# DAISY_ROOT=\"/old\" until the move\nexport DAISY_ROOT=\"" + m.root + "\"\n"},
+		{"/bin/zsh", ".zshenv", "export DAISY_ROOT=" + m.root + "\n"},
+		{"/bin/zsh", ".zshenv", "# export DAISY_ROOT=\"/old\"\nif true; then\n  export DAISY_ROOT=\"" + m.root + "\"\nfi\n"},
+		{"/usr/bin/fish", ".config/fish/config.fish", "set -gx DAISY_ROOT \"" + m.root + "\"\nset -gx PATH $DAISY_ROOT/bin $PATH\n"},
+	} {
+		m.vars["SHELL"] = c.shell
+		writeFile(t, filepath.Join(home, c.rc), c.text)
+		if code, out, errs := m.pinned(t, m.ws, "install"); code != 1 || !strings.Contains(errs, "already installed") {
+			t.Errorf("%s %q: exit %d out %q err %q", c.shell, c.text, code, out, errs)
+		}
+	}
+}
+
+// A $DAISY_ROOT naming another root than the binary's: install and install
+// --update exit 1 naming both, and HOME is left as it was.
+func TestInstallRefusesAnotherRoot(t *testing.T) {
+	m := newMachine(t)
+	home := m.vars["HOME"]
+	m.vars["SHELL"] = "/bin/zsh"
+	writeFile(t, filepath.Join(home, ".zshenv"), "export PATH=x\n")
+	stale := t.TempDir()
+	os.MkdirAll(filepath.Join(stale, "templates"), 0o755)
+	m.vars["DAISY_ROOT"] = stale
+	before := tree(t, home)
+	for _, args := range [][]string{{"install"}, {"install", "--update"}} {
+		code, out, errs := m.pinned(t, m.ws, args...)
+		if code != 1 || out != "" || !strings.Contains(errs, stale) || !strings.Contains(errs, "DAISY_ROOT="+m.root+" "+m.root+"/bin/daisy install  (") {
+			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)
+		}
+	}
+	if d := diffTrees(before, tree(t, home)); len(d) > 0 {
+		t.Errorf("HOME changed:\n%s", strings.Join(d, "\n"))
 	}
 }
 
