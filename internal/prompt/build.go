@@ -7,22 +7,15 @@ import (
 	"strings"
 	"time"
 
+	"daisy/internal/env"
 	"daisy/internal/ops"
 )
 
-// Lookup is the prompt file a name stands for: the home's prompts/ first,
-// then the root's. When neither holds a regular file of that name, path is
-// the root's, the last place looked, and ok is false. The path is joined
-// as the shell joined it, not cleaned: a root given as `/r/` is looked in
-// as `/r//prompts/`, and `x/../a` needs an `x`.
+// Lookup is the prompt file a name stands for, by env.Lookup: the home's
+// prompts/ first, then the root's. A name with `/` or `..` is joined as it
+// is: `x/../a` needs an `x`.
 func Lookup(fs ops.FS, home, root, name string) (path string, ok bool) {
-	for _, dir := range []string{home, root} {
-		path = dir + "/prompts/" + name + ".md"
-		if fi, err := fs.Stat(path); err == nil && fi.Mode().IsRegular() {
-			return path, true
-		}
-	}
-	return path, false
+	return env.Lookup(fs, home, root, "prompts/"+name+".md")
 }
 
 // Trigger is the prompt's `## Trigger` section, heading excluded: the lines

@@ -336,29 +336,29 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 19): Go; the `optimize --list` nudge removed with `--list` (D30, built in Step 23) |
+| Status | as built (Step 19): Go; the `optimize --list` nudge removed with `--list` (D30, built in Step 23); the template resolved home-first (D48, Step 36) |
 | Legacy | `daisy new-day` → the bash `new-day` script, deleted in Step 19 |
 | Usage | `daisy new-day` (no argument; any is usage on stderr, exit 2 — the bash ignored them) |
-| Exit codes | 0; 1 when `healthcheck` fails first (`Error: System health check failed` on stderr), when `templates/journal-day.md` or `tasks/todo.txt` is missing, when the journal cannot be rotated (`rotate`'s refusal), or when the commit fails. A refusal writes nothing: every write is decided before the first is made (the bash had appended `today.md` to `journal.md` before a rotate refusal, so the next run archived it twice) |
+| Exit codes | 0; 1 when `healthcheck` fails first (`Error: System health check failed` on stderr), when `tasks/todo.txt` is missing, when neither `<home>/templates/journal-day.md` nor `$DAISY_ROOT/templates/journal-day.md` is a file (`Error: Template missing: journal-day.md` [87] and `  Looked for: <home>/templates/journal-day.md, then <root>/templates/journal-day.md` [87]; the `--healthcheck` hook checks the same resolution), when the journal cannot be rotated (`rotate`'s refusal), or when the commit fails. A refusal writes nothing: every write is decided before the first is made (the bash had appended `today.md` to `journal.md` before a rotate refusal, so the next run archived it twice) |
 | Stdout | `📦 Archived yesterday to journal.md` (when `today.md` existed) [81], `rotate`'s line [81], `🗑️  Deleted N cancelled task(s)` (when any) [81], `✅ New day started: <YYYY-MM-DD> <Day>` [81], `   High priority tasks: N` [81], `   Next priority tasks: N`, `   Inbox tasks: N`, `   GitHub tasks: N` [81], then `commit`'s `📝 Committed: …` line (git's own commit summary, which the bash let through, is not printed). Nothing follows the commit line: the pending-feedback nudge went with `optimize --list` at Step 23 — the New Week workflow runs `daisy optimize` itself |
 | Ops | Real; the health check runs in-process first (`internal/health`, output discarded; a cached pass or `DAISY_HEALTHCHECK_PASSED=1` skips it), since Step 24, and then — never skipped — the home must be its own repository, before anything is written |
-| Writes | the rotation window files and `journal/journal.md` (see `rotate`; `today.md` is appended after a `---` separator when the journal is non-empty, and rotated with it); `tasks/todo.txt` without its `z ` lines [81], every line newline-terminated; `journal/today.md` from `templates/journal-day.md`: `{DATE}`, `{DAY}`, `{TIME}`, then `{HIGH_PRIORITY_TASKS}` = `(A)` [81], `{NEXT_PRIORITY_TASKS}` = `(B)` [81], `{INBOX_TASKS}` = dated without priority [81], `{GITHUB_TASKS}` = any open line containing `@git`/`@github`, whatever its priority, decided before the priority branches [81]; `(C)`/`(D)` lines without such a tag are not carried [81]; each carried line loses its priority and creation date when it has a date, and is carried whole otherwise. A task's text is written as it is (bash 5.2's pattern substitution replaced an `&` in it with the placeholder's name) |
+| Writes | the rotation window files and `journal/journal.md` (see `rotate`; `today.md` is appended after a `---` separator when the journal is non-empty, and rotated with it); `tasks/todo.txt` without its `z ` lines [81], every line newline-terminated; `journal/today.md` from the template, the home's `templates/journal-day.md` when it is a file, else the root's [87] (the order `prompt build` looks up prompts in): `{DATE}`, `{DAY}`, `{TIME}`, then `{HIGH_PRIORITY_TASKS}` = `(A)` [81], `{NEXT_PRIORITY_TASKS}` = `(B)` [81], `{INBOX_TASKS}` = dated without priority [81], `{GITHUB_TASKS}` = any open line containing `@git`/`@github`, whatever its priority, decided before the priority branches [81]; `(C)`/`(D)` lines without such a tag are not carried [81]; each carried line loses its priority and creation date when it has a date, and is carried whole otherwise. A task's text is written as it is (bash 5.2's pattern substitution replaced an `&` in it with the placeholder's name) |
 | Commits | home, once: `New day: <date> <day>` [72, 81] |
-| Cases | 81; case 72 (`commit`'s) runs it |
+| Cases | 81, 87; case 72 (`commit`'s) runs it |
 
 ### daisy new-week
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 19): Go; nudge removed as for `new-day` (D30, built in Step 23) |
+| Status | as built (Step 19): Go; nudge removed as for `new-day` (D30, built in Step 23); the template resolved home-first as for `new-day` (D48, Step 36) |
 | Legacy | `daisy new-week` → the bash `new-week` script, deleted in Step 19 |
 | Usage | `daisy new-week` (no argument) |
-| Exit codes | as `new-day`; the template is `templates/journal-week.md` |
+| Exit codes | as `new-day`; the template is `journal-week.md`, the home's `templates/` first, then the root's [87] |
 | Stdout | as `new-day`, plus `📦 Archived N completed task(s) to done.txt` (when any) [82] after the cancelled line, and `✅ New week started: <date> <day>` [82] |
 | Ops | Real |
-| Writes | as `new-day`, plus `tasks/done.txt`: the `x ` lines of `todo.txt` appended [82] (after a newline when `done.txt` lacked a final one and something is archived — the bash glued the first onto its last line; with nothing archived the file is left as it was) and removed from `todo.txt` [82]; `today.md` from `templates/journal-week.md` [82] |
+| Writes | as `new-day`, plus `tasks/done.txt`: the `x ` lines of `todo.txt` appended [82] (after a newline when `done.txt` lacked a final one and something is archived — the bash glued the first onto its last line; with nothing archived the file is left as it was) and removed from `todo.txt` [82]; `today.md` from `templates/journal-week.md` [82], the home's before the root's |
 | Commits | home, once: `New week: <date> <day>` [82] |
-| Cases | 82 |
+| Cases | 82; case 87 (`new-day`'s) runs its template refusal |
 
 ### daisy log
 

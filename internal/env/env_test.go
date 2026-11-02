@@ -572,3 +572,40 @@ func TestRootExclusions(t *testing.T) {
 		t.Errorf("through a link %q", got)
 	}
 }
+
+// Lookup is the one home-first rule: the home's file first, then the
+// root's; in neither, the root's path, the last place looked, and false.
+func TestLookupHomeThenRoot(t *testing.T) {
+	const rel = "templates/journal-day.md"
+	for _, tc := range []struct {
+		name       string
+		home, root bool
+		want       string // "home", "root"
+		ok         bool
+	}{
+		{"home only", true, false, "home", true},
+		{"root only", false, true, "root", true},
+		{"both: the home's", true, true, "home", true},
+		{"neither: the root's, not found", false, false, "root", false},
+	} {
+		home, root := t.TempDir(), t.TempDir()
+		for dir, has := range map[string]bool{home: tc.home, root: tc.root} {
+			if has {
+				os.MkdirAll(filepath.Join(dir, "templates"), 0o755)
+				os.WriteFile(filepath.Join(dir, rel), []byte(dir), 0o644)
+			}
+		}
+		want := map[string]string{"home": home, "root": root}[tc.want] + "/" + rel
+		if got, ok := env.Lookup(ops.Real().FS(), home, root, rel); got != want || ok != tc.ok {
+			t.Errorf("%s: %q %v, want %q %v", tc.name, got, ok, want, tc.ok)
+		}
+	}
+	// a directory of the name is no file: passed over for the root's
+	home, root := t.TempDir(), t.TempDir()
+	os.MkdirAll(filepath.Join(home, rel), 0o755)
+	os.MkdirAll(filepath.Join(root, "templates"), 0o755)
+	os.WriteFile(filepath.Join(root, rel), nil, 0o644)
+	if got, ok := env.Lookup(ops.Real().FS(), home, root, rel); got != root+"/"+rel || !ok {
+		t.Errorf("home directory: %q %v", got, ok)
+	}
+}

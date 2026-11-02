@@ -2,6 +2,8 @@
 
 The template files live at `templates/journal-day.md` and `templates/journal-week.md`. This document describes the placeholder substitution system and formatting rules.
 
+A home may carry its own copy of either under `<home>/templates/` (`daisy home new` creates the empty directory). `new-day` and `new-week` read the home's file when it exists and the root's otherwise, the same order `prompt build` looks up prompts in; the `--healthcheck` hooks check the same resolution, and with neither the refusal names both paths. A home's copy is the place for a line that names something personal, a calendar for instance, which the published root must not carry. It is used whole: a later change to the root's template does not reach a home that carries its own.
+
 ## journal-day.md Template
 
 Used by `daisy new-day` to generate `today.md`:

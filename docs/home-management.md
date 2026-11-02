@@ -10,7 +10,9 @@ Daisy is two kinds of repository:
 - **A home**: one context's data — `journal/`, `tasks/`, `projects/`,
   `plans/`, `feedback/` — plus the configuration that shapes the agent for
   that context: `include.txt`, `skills/`, an optional `prompts/` whose files
-  shadow the root's by name, and its identities (`gitconfig`, `identities/`). A home is its own git repository and lives
+  shadow the root's by name, a `templates/` whose `journal-day.md` and
+  `journal-week.md`, when present, `new-day` and `new-week` use in place of
+  the root's (see [templates.md](templates.md)), and its identities (`gitconfig`, `identities/`). A home is its own git repository and lives
   wherever you put it; every Daisy mutation (`log`, `done`, `new-day`, plans)
   ends in one commit there, except `plan new`, `feedback`, `eval
   --record` and `rotate` run by hand, whose writes the next commit takes (`daisy commit <message>`

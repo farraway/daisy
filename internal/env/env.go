@@ -244,6 +244,21 @@ func WorkspaceIdentity(fs ops.FS, daisyDir, homeName string) string {
 
 var nameShape = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
+// Lookup is the file rel names, the home's first, then the root's: the
+// one rule by which a home's prompts and templates shadow the root's. When
+// neither holds a regular file there, path is the root's, the last place
+// looked, and ok is false. The path is joined as the shell joined it, not
+// cleaned: a root given as `/r/` is looked in as `/r//<rel>`.
+func Lookup(fs ops.FS, home, root, rel string) (path string, ok bool) {
+	for _, dir := range []string{home, root} {
+		path = dir + "/" + rel
+		if isFile(fs, path) {
+			return path, true
+		}
+	}
+	return path, false
+}
+
 // NameOK: a home or identity name is a registry key and a file name, never a path.
 func NameOK(s string) bool { return nameShape.MatchString(s) }
 

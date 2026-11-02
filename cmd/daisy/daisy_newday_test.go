@@ -180,7 +180,7 @@ func TestNewDayRefusals(t *testing.T) {
 	}
 
 	os.Remove(filepath.Join(m.root, "templates", "journal-week.md"))
-	if code, _, errs := runWith(m.at(now), "new-week"); code != 1 || errs != "Error: Template missing: templates/journal-week.md\n" {
+	if code, _, errs := runWith(m.at(now), "new-week"); code != 1 || errs != templateMissing(m, "journal-week.md") {
 		t.Errorf("no template: exit %d err %q", code, errs)
 	}
 	os.Remove(filepath.Join(m.home, "tasks", "todo.txt"))
@@ -258,8 +258,57 @@ func TestDayHealthcheckHooks(t *testing.T) {
 		}
 	}
 	os.Remove(filepath.Join(m.root, "templates", "journal-day.md"))
-	if code, _, errs := runWith(m.dayOps(m.ws, true), "new-day", "--healthcheck"); code != 1 || errs != "Error: Template missing: templates/journal-day.md\n" {
+	if code, _, errs := runWith(m.dayOps(m.ws, true), "new-day", "--healthcheck"); code != 1 || errs != templateMissing(m, "journal-day.md") {
 		t.Errorf("no template: exit %d err %q", code, errs)
+	}
+}
+
+// templateMissing is the refusal naming both places a template is looked
+// for, the home's first.
+func templateMissing(m *machine, name string) string {
+	return "Error: Template missing: " + name + "\n  Looked for: " + m.home + "/templates/" + name + ", then " + m.root + "/templates/" + name + "\n"
+}
+
+// A home's template is used in place of the root's: the new today.md is
+// the root's as today with the one line the home changed. With the root's
+// gone the home's still serves, the health hook included.
+func TestNewDayHomeTemplate(t *testing.T) {
+	const rootLine, homeLine = "- [ ] Check calendar for upcoming events\n", "- [ ] Check calendar for upcoming events (Home calendar)\n"
+	for _, cmd := range []string{"new-day", "new-week"} {
+		m := newMachine(t)
+		m.seed(t)
+		writeFile(t, filepath.Join(m.home, "tasks", "done.txt"), "")
+		m.initHomeRepo(t)
+		name := map[string]string{"new-day": "journal-day.md", "new-week": "journal-week.md"}[cmd]
+		root := m.template(t, name)
+		if strings.Count(root, rootLine) != 1 {
+			t.Fatalf("%s: the root's template has no single calendar line", name)
+		}
+		writeFile(t, filepath.Join(m.home, "templates", name), strings.Replace(root, rootLine, homeLine, 1))
+		now := time.Date(2026, 8, 3, 9, 0, 0, 0, time.Local)
+		carried := journal.Carry(strings.Split(m.read(t, "tasks/todo.txt"), "\n"))
+
+		if code, _, errs := runWith(m.at(now), cmd); code != 0 || errs != "" {
+			t.Fatalf("%s: exit %d stderr %q", cmd, code, errs)
+		}
+		if got, want := m.read(t, "journal/today.md"), strings.Replace(journal.Fill(root, now, carried), rootLine, homeLine, 1); got != want {
+			t.Errorf("%s: today.md is not the root's with the home's line:\n%s", cmd, got)
+		}
+
+		os.Remove(filepath.Join(m.root, "templates", name))
+		if code, out, errs := runWith(m.dayOps(m.ws, true), cmd, "--healthcheck"); code != 0 || out != "" || errs != "" {
+			t.Errorf("%s --healthcheck, the home's template only: exit %d out %q err %q", cmd, code, out, errs)
+		}
+		if code, _, errs := runWith(m.at(now.Add(time.Hour)), cmd); code != 0 || errs != "" {
+			t.Errorf("%s, the home's template only: exit %d err %q", cmd, code, errs)
+		}
+		if got := m.read(t, "journal/today.md"); !strings.Contains(got, homeLine) {
+			t.Errorf("%s, the home's template only: today.md:\n%s", cmd, got)
+		}
+		os.Remove(filepath.Join(m.home, "templates", name))
+		if code, _, errs := runWith(m.dayOps(m.ws, true), cmd, "--healthcheck"); code != 1 || errs != templateMissing(m, name) {
+			t.Errorf("%s --healthcheck, neither: exit %d err %q", cmd, code, errs)
+		}
 	}
 }
 

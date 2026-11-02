@@ -8,13 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"daisy/internal/env"
 	"daisy/internal/journal"
 	"daisy/internal/todo"
 )
 
 // start is what differs between a new day and a new week.
 type start struct {
-	template string // under $DAISY_ROOT/templates
+	template string // under templates/, the home's or else the root's
 	noun     string // "day" or "week"
 	archive  bool   // move todo.txt's completed lines to done.txt
 }
@@ -41,9 +42,13 @@ func startDay(c *Context, s start) error {
 		return err
 	}
 	fsys := c.Ops.FS()
-	tpl, err := fsys.ReadFile(filepath.Join(c.Env.Root, "templates", s.template))
+	path, err := dayTemplate(c, s)
 	if err != nil {
-		return fmt.Errorf("Error: Template missing: templates/%s", s.template)
+		return err
+	}
+	tpl, err := fsys.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("Error: cannot read %s: %v", path, err)
 	}
 	b, err := fsys.ReadFile(c.todoFile())
 	if err != nil {
@@ -156,11 +161,23 @@ var (
 )
 
 func startHealth(c *Context, s start, last func() error) error {
-	if fi, err := c.Ops.FS().Stat(filepath.Join(c.Env.Root, "templates", s.template)); err != nil || !fi.Mode().IsRegular() {
-		return fmt.Errorf("Error: Template missing: templates/%s", s.template)
+	if _, err := dayTemplate(c, s); err != nil {
+		return err
 	}
 	if err := requireFiles(c, c.todoFile()); err != nil {
 		return err
 	}
 	return last()
+}
+
+// dayTemplate is the path of s's template: the home's templates/ first, then
+// the root's, as a home's prompts shadow the root's. The refusal names both
+// places looked.
+func dayTemplate(c *Context, s start) (string, error) {
+	rel := "templates/" + s.template
+	path, ok := env.Lookup(c.Ops.FS(), c.Env.Home, c.Env.Root, rel)
+	if !ok {
+		return "", fmt.Errorf("Error: Template missing: %s\n  Looked for: %s/%s, then %s", s.template, c.Env.Home, rel, path)
+	}
+	return path, nil
 }

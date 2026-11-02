@@ -335,6 +335,7 @@ A home is one git repository, created from `templates/home/`:
 ├── identities/                 # Optional: further identities of this home, one file each (same format)
 ├── prompts/                    # Optional, yours to add: home prompts shadow the root's by name
 ├── skills/                     # Home-specific skills, installed into each workspace
+├── templates/                  # Optional journal-day.md, journal-week.md: used in place of the root's
 ├── journal/                    # today.md, journal.md, rotated archive files
 ├── tasks/                      # todo.txt, done.txt, alias.txt
 ├── projects/                   # One file per active project, plus _archive/
