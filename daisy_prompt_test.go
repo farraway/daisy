@@ -220,8 +220,8 @@ func TestHelpForABashCommandFallsThrough(t *testing.T) {
 			return fakeProcess{}, nil
 		},
 	}
-	daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, []string{"help", "feedback"})
-	if strings.Join(got, "|") != m.root+"/daisy.sh|feedback|--help" {
+	daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, []string{"help", "check-secrets"})
+	if strings.Join(got, "|") != m.root+"/daisy.sh|check-secrets|--help" {
 		t.Errorf("started %v", got)
 	}
 }
@@ -231,7 +231,7 @@ func TestHelpForABashCommandFallsThrough(t *testing.T) {
 func TestHelpAgreesForEveryGoCommand(t *testing.T) {
 	m := newMachine(t)
 	_, tree, _ := m.run(t, m.ws)
-	for _, name := range []string{"status", "files", "list", "new-day", "new-week", "log", "done", "tasks", "projects", "rotate", "prompt build"} {
+	for _, name := range []string{"status", "files", "list", "new-day", "new-week", "log", "done", "tasks", "projects", "rotate", "prompt build", "feedback", "optimize", "optimize apply", "eval"} {
 		words := strings.Fields(name)
 		_, viaHelp, _ := m.run(t, m.ws, append([]string{"help"}, words...)...)
 		code, viaFlag, _ := m.run(t, m.ws, append(words, "--help")...)

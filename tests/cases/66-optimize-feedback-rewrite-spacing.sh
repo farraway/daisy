@@ -1,66 +1,82 @@
-# Test Plan #66: the feedback.md an optimize run leaves behind has one blank
-# line before each surviving entry, matching the file it was parsed from.
-#
-# Entries are parsed carrying the blank line that preceded the next heading,
-# and the rewrite loop prefixes each with its own `echo ""` — so every
-# boundary gained a line, including the one after the header. Stable rather
-# than accreting (entries are re-parsed each run), so this is cosmetic; it is
-# pinned because nothing pinned this file's shape at all, which is why the
-# drift was invisible.
+# Test Plan #66: the feedback.md an apply leaves behind has one blank line
+# before each surviving entry, matching the file it was parsed from, and
+# the archive gains each entry followed by its provenance, one blank line
+# apart — byte for byte.
 
-mkdir -p "$(fixture_home_dir)/prompts"
-cat > "$(fixture_home_dir)/prompts/widgetflow.md" <<'EOF'
+fixture_write_home_prompt widgetflow <<'PR'
 ## Rules
 
 1. Measure before cutting.
-EOF
+PR
 
-fixture_write_feedback <<'EOF'
+fixture_write_feedback <<'FB'
 # Feedback Log
 
 ---
 
 ## 2026-08-01 1000
-**Workflow:** widgetflow
+**Workflow:** prompts/widgetflow
 
 Trained one.
 
 ## 2026-08-02 1100
-**Workflow:** widgetflow
+**Workflow:** loneflow
+
+Survivor, naming no file.
+
+## 2026-08-03 1200
+**Workflow:** prompts/widgetflow
 
 Trained two.
 
-## 2026-08-03 1200
-**Workflow:** loneflow
-
-Survivor, below the floor.
-
 ## 2026-08-04 1300
-**Workflow:** otherflow
+**Workflow:** plan
 
 Second survivor.
-EOF
+FB
+archive_before=$(cat "$(fixture_home_dir)/feedback/archive.md"; echo .)
 
-fixture_stub_llm_response "## Rules
+proposal=$(fixture_write_proposal rules.md <<'RU'
+## Rules
 
-1. Measure twice before cutting."
-
-fixture_run_with_input "y" optimize
+1. Measure twice before cutting.
+RU
+)
+fixture_run_cli optimize apply --workflow prompts/widgetflow --rules "$proposal" --yes
 
 assert_eq "$RUN_EXIT" "0" "the run applies"
-
-# Byte-for-byte: the header, then each untrained entry separated by exactly
-# one blank line — the same shape the entries were read from.
-assert_text_eq "$(fixture_read_feedback)" "# Feedback Log
+printf '%s' "# Feedback Log
 
 ---
 
-## 2026-08-03 1200
+## 2026-08-02 1100
 **Workflow:** loneflow
 
-Survivor, below the floor.
+Survivor, naming no file.
 
 ## 2026-08-04 1300
-**Workflow:** otherflow
+**Workflow:** plan
 
-Second survivor." "the rewritten feedback.md keeps its original spacing"
+Second survivor.
+" > "$FIXTURE_WORKSPACE/expected-feedback.md"
+cmp -s "$(fixture_home_dir)/feedback/feedback.md" "$FIXTURE_WORKSPACE/expected-feedback.md"
+assert_eq "$?" "0" "the rewritten feedback.md keeps its original spacing, byte for byte"
+
+today=$(date +%Y-%m-%d)
+printf '%s' "${archive_before%.}
+## 2026-08-01 1000
+**Workflow:** prompts/widgetflow
+
+Trained one.
+
+**Addressed by:** \`daisy optimize\` $today — \`prompts/widgetflow.md\` (rules)
+
+## 2026-08-03 1200
+**Workflow:** prompts/widgetflow
+
+Trained two.
+
+**Addressed by:** \`daisy optimize\` $today — \`prompts/widgetflow.md\` (rules)
+" > "$FIXTURE_WORKSPACE/expected-archive.md"
+cmp -s "$(fixture_home_dir)/feedback/archive.md" "$FIXTURE_WORKSPACE/expected-archive.md"
+assert_eq "$?" "0" "the archive gains each entry and its provenance, byte for byte"

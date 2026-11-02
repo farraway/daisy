@@ -102,25 +102,6 @@ func Field(doc []byte, key string) (string, bool) {
 	return "", false
 }
 
-// Rules is the `## Rules` section, heading included, up to the next `## `
-// heading; nil when there is none.
-func Rules(doc []byte) []string {
-	var out []string
-	found := false
-	for _, line := range lines(doc) {
-		switch {
-		case strings.HasPrefix(line, "## Rules"):
-			found = true
-		case found && strings.HasPrefix(line, "## "):
-			return out
-		}
-		if found {
-			out = append(out, line)
-		}
-	}
-	return out
-}
-
 // Sections are the titles of the `## ` headings other than Rules, in order.
 func Sections(doc []byte) []string {
 	var out []string

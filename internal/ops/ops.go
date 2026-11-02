@@ -67,3 +67,13 @@ type Ops interface {
 	// trailing newline.
 	Prompt(r io.Reader, w io.Writer, question string) (string, error)
 }
+
+// IsTerminal: r is a terminal, as `[ -t 0 ]` asks — a file the terminal
+// driver answers for, not merely a character device (/dev/null is one
+// and no terminal). A command asks before prompting on r or before
+// waiting for piped input that will not come. A reader that is not a file
+// is no terminal.
+func IsTerminal(r io.Reader) bool {
+	f, ok := r.(interface{ Fd() uintptr })
+	return ok && isatty(f.Fd())
+}

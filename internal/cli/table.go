@@ -16,8 +16,9 @@ const Unbounded = -1
 // is what the user types, one word or a noun and its verb (`prompt
 // build`). Usage is the line as printed, Help the description beside it.
 // Flags are the words the command takes as flags when they lead its
-// arguments; the first other word starts the positionals, dashes
-// included, of which there are Min to Max. Health, when
+// arguments, Values those of them that take the next word as a value; the
+// first other word starts the positionals, dashes included, of which
+// there are Min to Max. Health, when
 // set, answers `<command> --healthcheck` (hidden from the help): the
 // command's own precondition check, run by `daisy healthcheck`.
 type Command struct {
@@ -27,6 +28,7 @@ type Command struct {
 	Help      string
 	Workspace bool // needs a resolved workspace before it runs
 	Flags     []string
+	Values    []string
 	Min, Max  int
 	Run       func(*commands.Context) error
 	Health    func(*commands.Context) error
@@ -64,9 +66,10 @@ var table = []Command{
 
 	{Group: "Prompts and skills", Name: "prompt build", Usage: "prompt build [<home>]", Help: "Rebuild AGENTS.md", Max: 1, Run: commands.PromptBuild},
 	{Group: "Prompts and skills", Name: "install", Usage: "install [--update]", Help: "~/bin/daisy, root skills, permissions", Flags: []string{"--update"}, Run: commands.Install},
-	{Group: "Prompts and skills", Name: "feedback", Usage: "feedback [--workflow <n>] <text>", Help: "Record a prompt failure for optimization"},
-	{Group: "Prompts and skills", Name: "optimize", Usage: "optimize [--workflow <n>] [--dry-run] [--force]", Help: "Run the prompt learning loop on collected feedback"},
-	{Group: "Prompts and skills", Name: "eval", Usage: "eval [<case>] [--record]", Help: "List, display, or record an eval case result"},
+	{Group: "Prompts and skills", Name: "feedback", Usage: "feedback [--workflow <n>] <text>", Help: "Record a prompt failure for optimization", Workspace: true, Values: []string{"--workflow", "-w"}, Max: Unbounded, Run: commands.Feedback, Health: commands.FeedbackHealth},
+	{Group: "Prompts and skills", Name: "optimize", Usage: "optimize [--workflow <n>]", Help: "Briefing: pending entries per target, current rules, rewrite flags", Workspace: true, Values: []string{"--workflow", "-w"}, Run: commands.Optimize, Health: commands.OptimizeHealth},
+	{Group: "Prompts and skills", Name: "optimize apply", Usage: "optimize apply --workflow <n> (--rules|--rewrite) <file> [--yes]", Help: "Apply a proposal: diff, approve, archive, commit", Workspace: true, Flags: []string{"--yes"}, Values: []string{"--workflow", "-w", "--rules", "--rewrite"}, Run: commands.OptimizeApply},
+	{Group: "Prompts and skills", Name: "eval", Usage: "eval [<case>] [--record]", Help: "List, display, or record an eval case result", Workspace: true, Flags: []string{"--record"}, Max: 3, Run: commands.Eval, Health: commands.EvalHealth},
 
 	{Group: "System", Name: "commit", Usage: "commit --home|--not-home <message>", Help: "Commit the home repo (or everything else)"},
 	{Group: "System", Name: "healthcheck", Usage: "healthcheck [--force]", Help: "Run the system health check"},
@@ -77,15 +80,17 @@ var table = []Command{
 // groups in display order.
 var groups = []string{"Workspace", "Day", "Plans", "Homes and identities", "Prompts and skills", "System"}
 
-// match is the command args name and the arguments after its name.
+// match is the command args name and the arguments after its name: the
+// longest name that leads args (`optimize apply` before `optimize`).
 func match(args []string) (cmd Command, rest []string, ok bool) {
+	best := 0
 	for _, c := range table {
 		words := strings.Fields(c.Name)
-		if len(args) >= len(words) && slices.Equal(args[:len(words)], words) {
-			return c, args[len(words):], true
+		if len(words) > best && len(args) >= len(words) && slices.Equal(args[:len(words)], words) {
+			cmd, rest, ok, best = c, args[len(words):], true, len(words)
 		}
 	}
-	return Command{}, nil, false
+	return cmd, rest, ok
 }
 
 // noun is the commands named `<word> <verb>`; none when word is no noun.

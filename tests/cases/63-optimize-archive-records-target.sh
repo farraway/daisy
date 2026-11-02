@@ -1,75 +1,60 @@
-# Test Plan #63: an archived entry records which file absorbed it. Entries
-# archived by optimize carried no provenance at all — the hand-applied ones
-# have an "Addressed by:" line only because it was typed by hand — so the
-# archive could say an entry was folded in but never where.
-#
-# Two groups writing to two different targets, in one run: the record is
-# per-entry, and a provenance line that names the wrong file is worse than
-# none. The archive pass runs once at the top level and knows only flat
-# indices into ALL_ENTRIES, so this is the assertion that the per-cycle fact
-# actually survives the trip out of run_cycle.
+# Test Plan #63: an archived entry records which file absorbed it and how:
+# `**Addressed by:** `daisy optimize` <date> — `<target>` (rules|rewrite)`.
+# Two targets, applied one after the other: the record is per entry, and a
+# provenance line that names the wrong file is worse than none.
 
-mkdir -p "$(fixture_home_dir)/prompts"
 for wf in widgetflow gadgetflow; do
-    cat > "$(fixture_home_dir)/prompts/$wf.md" <<'EOF'
+    fixture_write_home_prompt "$wf" <<'PR'
 ## Rules
 
 1. Measure before cutting.
-EOF
+PR
 done
 
-fixture_write_feedback <<'EOF'
+fixture_write_feedback <<'FB'
 # Feedback Log
 
 ---
 
 ## 2026-08-01 1000
-**Workflow:** widgetflow
+**Workflow:** prompts/widgetflow
 
 Widget guidance was wrong once.
 
 ## 2026-08-02 1100
-**Workflow:** widgetflow
-
-Widget guidance was wrong again.
-
-## 2026-08-03 1200
-**Workflow:** gadgetflow
+**Workflow:** prompts/gadgetflow
 
 Gadget guidance was wrong once.
 
-## 2026-08-04 1300
-**Workflow:** gadgetflow
+## 2026-08-03 1200
+**Workflow:** prompts/widgetflow
 
-Gadget guidance was wrong again.
-EOF
+Widget guidance was wrong again.
+FB
 
-fixture_stub_llm_response "## Rules
+proposal=$(fixture_write_proposal rules.md <<'RU'
+## Rules
 
-1. Measure twice before cutting."
+1. Measure twice before cutting.
+RU
+)
+fixture_run_cli optimize apply --workflow prompts/widgetflow --rules "$proposal" --yes
+assert_eq "$RUN_EXIT" "0" "the first target applies"
+fixture_run_cli optimize apply --workflow prompts/gadgetflow --rewrite "$proposal" --yes
+assert_eq "$RUN_EXIT" "0" "the second target applies"
 
-# One `y` per group — two groups clear the floor, so the prompt is reached
-# twice and each answer must be its own line of stdin.
-fixture_run_with_input "y
-y" optimize
-
-assert_eq "$RUN_EXIT" "0" "both groups apply"
-
-# The provenance line follows its entry's body, so read the lines after it
-# rather than searching the archive as a whole.
+today=$(date +%Y-%m-%d)
 provenance_for() {
     grep -A3 -- "$1" "$(fixture_home_dir)/feedback/archive.md" | grep -- "Addressed by"
 }
-
-widget=$(provenance_for "Widget guidance was wrong once.")
-assert_contains "$widget" "**Addressed by:** \`daisy optimize\`" "the archived entry carries provenance"
-assert_contains "$widget" "— \`prompts/widgetflow.md\` ## Rules" "naming the file that absorbed it, relative to the home"
-assert_not_contains "$widget" "gadgetflow" "and not the other group's target"
-
-gadget=$(provenance_for "Gadget guidance was wrong once.")
-assert_contains "$gadget" "— \`prompts/gadgetflow.md\` ## Rules" "the other group records its own target"
-assert_not_contains "$gadget" "widgetflow" "and not the first group's target"
-
-# Both entries of a group get the line, not just the first.
-assert_contains "$(provenance_for 'Widget guidance was wrong again.')" \
-    "— \`prompts/widgetflow.md\` ## Rules" "every trained entry is annotated"
+assert_eq "$(provenance_for 'Widget guidance was wrong once.')" \
+    "**Addressed by:** \`daisy optimize\` $today — \`prompts/widgetflow.md\` (rules)" \
+    "the archived entry names the file that absorbed it, relative to the home"
+assert_eq "$(provenance_for 'Widget guidance was wrong again.')" \
+    "**Addressed by:** \`daisy optimize\` $today — \`prompts/widgetflow.md\` (rules)" \
+    "every entry of the target is annotated"
+assert_eq "$(provenance_for 'Gadget guidance was wrong once.')" \
+    "**Addressed by:** \`daisy optimize\` $today — \`prompts/gadgetflow.md\` (rewrite)" \
+    "the other target records its own file and mode"
+assert_contains "$(cat "$(fixture_home_dir)/feedback/.last-optimized")" "prompts/gadgetflow" \
+    "the last apply is recorded for healthcheck"

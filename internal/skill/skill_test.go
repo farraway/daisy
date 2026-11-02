@@ -79,18 +79,6 @@ func TestField(t *testing.T) {
 	}
 }
 
-// The Rules section runs from its heading to the next `## ` heading; `# `
-// and `### ` lines are inside it, as the bash's help printed it.
-func TestRules(t *testing.T) {
-	doc := []byte("# T\n## Rules\n\n1. a\n### sub\n# top\n## Next\nx\n")
-	if got, want := Rules(doc), []string{"## Rules", "", "1. a", "### sub", "# top"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("got %q", got)
-	}
-	if got := Rules([]byte("# T\n## Other\n")); got != nil {
-		t.Errorf("got %q", got)
-	}
-}
-
 // Sections: the `## ` headings other than Rules, in order.
 func TestSections(t *testing.T) {
 	doc := []byte("## Rules\n## Worked example\n### not\n##nospace\n## Rules for x\n")

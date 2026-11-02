@@ -83,14 +83,16 @@ capabilities the user actively refines now live in the craft layer, and
 `daisy optimize` reached only prompts — so extending it to skills was a
 requirement this architecture created, not an optional enhancement. Done
 2026-08-17: `--workflow <skill-name>` resolves that skill's source
-`SKILL.md` and rewrites its `## Rules`, subject to the two constraints
-below.
+`SKILL.md`, which `daisy optimize` briefs and `daisy optimize apply`
+writes, subject to the two constraints below.
 
 Two constraints on that work, recorded here because they shape it:
 
 - **The rewrite anchor is `## Rules`** (decided 2026-08-17). `optimize`
-  resolves a skill's source `SKILL.md` and rewrites its `## Rules` section,
-  exactly as it does for a prompt. The alternatives were a whole-body pass
+  resolves a skill's source `SKILL.md` and `optimize apply --rules`
+  replaces its `## Rules` section with the rules the agent proposed,
+  exactly as for a prompt; past ten rules the file is flagged for a
+  whole-file rewrite (`--rewrite`), which is the loop's other mode. The alternatives were a whole-body pass
   (no convention to maintain, but every run can restructure the whole skill,
   and the diffs stop being reviewable) and a non-destructive overlay (safest,
   but a second file to load and a new precedence rule to explain). The
@@ -98,9 +100,9 @@ Two constraints on that work, recorded here because they shape it:
   the blast radius to a section. Its cost is real: the migrated skills had
   their preambles removed as duplication, so a Daisy-authored skill that
   wants to be in the loop re-introduces one. A skill with no `## Rules`
-  section gets one inserted before its first `##` heading rather than
-  having the generated rules silently discarded.
-- **Coverage is per-skill, not blanket.** A skill carrying `LICENSE` and
+  section gets one inserted before its first `##` heading other than the
+  Trigger rather than having the proposed rules silently discarded.
+- **Coverage is per-skill, not blanket.** A skill carrying `LICENSE` or
   `NOTICE.md` tracks an upstream source; rewriting Daisy's copy from local
   feedback would fork it and make future sync a reconciliation problem.
   Vendored skills stay outside the loop's write path. Track them; don't

@@ -1,6 +1,7 @@
 package ops_test
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -223,6 +224,33 @@ func TestRealWriteFileHonoursTheUmask(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 		} else if fi.Mode().Perm() != want {
 			t.Errorf("%s: mode %v, want %v", name, fi.Mode().Perm(), want)
+		}
+	}
+}
+
+// IsTerminal is `[ -t 0 ]`: /dev/null is a character device but no
+// terminal (review pass 1, F5); a pipe and a reader that is no file are none.
+func TestIsTerminal(t *testing.T) {
+	null, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer null.Close()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	for name, in := range map[string]io.Reader{"/dev/null": null, "a pipe": r, "a string": strings.NewReader("")} {
+		if ops.IsTerminal(in) {
+			t.Errorf("%s is a terminal", name)
+		}
+	}
+	if tty, err := os.Open("/dev/tty"); err == nil {
+		defer tty.Close()
+		if !ops.IsTerminal(tty) {
+			t.Error("/dev/tty is no terminal")
 		}
 	}
 }

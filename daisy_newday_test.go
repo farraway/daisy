@@ -1,7 +1,6 @@
 package daisy_test
 
 import (
-	"errors"
 	"maps"
 	"os"
 	"path"
@@ -193,29 +192,6 @@ func TestNewDayRefusals(t *testing.T) {
 	}
 	if m.commits(t) != "1" {
 		t.Errorf("a refusal committed: %s commits", m.commits(t))
-	}
-}
-
-// The optimize nudge: the pending feedback optimize.sh --list prints,
-// after the commit; nothing when it prints nothing or cannot run.
-func TestNewDayFeedbackNudge(t *testing.T) {
-	m := newMachine(t)
-	m.seed(t)
-	m.initHomeRepo(t)
-	o := m.at(time.Date(2026, 7, 29, 8, 5, 0, 0, time.Local))
-	inner := o.ExecFn
-	o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
-		if strings.HasSuffix(name, "/daisy/scripts/optimize.sh") {
-			if dir != m.ws || strings.Join(args, " ") != "--list" {
-				return nil, nil, errors.New("unexpected optimize call")
-			}
-			return []byte("## 2026-07-28 1200\nAn entry\n\n"), nil, errors.New("exit status 1")
-		}
-		return inner(dir, name, args...)
-	}
-	_, out, _ := runWith(o, "new-day")
-	if !strings.HasSuffix(out, ")\n\n💡 New feedback since last optimize run:\n## 2026-07-28 1200\nAn entry\n   Run 'daisy optimize' to improve your prompts.\n") {
-		t.Errorf("stdout:\n%s", out)
 	}
 }
 

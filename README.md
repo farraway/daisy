@@ -64,11 +64,13 @@ sessions interleave in the log instead of fighting over state. See
 [docs/home-management.md](docs/home-management.md).
 
 **A feedback loop, not a rulebook.** When the agent gets something wrong,
-`daisy feedback` records it. Periodically, `daisy optimize` has an LLM
-rewrite the relevant prompt's rules from the accumulated feedback — every
-entry in a group trains, shown as a diff, applied only on approval. A group
-of fewer than two entries is skipped unless you pass `--force`: a rules
-section should not be rewritten from a single data point by accident. Those
+`daisy feedback` records it. At New Week, `daisy optimize` briefs the agent
+in your session: each prompt or skill with pending feedback, its entries and
+its current rules, and every one whose rules have grown past ten, flagged
+for a rewrite. The agent proposes new rules (or a rewrite) in the
+conversation; `daisy optimize apply` shows the diff, writes what you
+approve, archives the entries it addressed and commits — no API key, no
+second model. Those
 prompts are a living artifact shaped by how the agent actually fails. The
 loop reaches both layers — an entry tagged `prompts/<name>` or
 `skills/<name>` trains that file, and
@@ -216,7 +218,7 @@ daisy check-secrets           # Check which secrets/tokens are configured
 daisy clean [-f]              # Remove Daisy from the current workspace
 daisy commit --home "msg"     # Commit the home's repository (--not-home: the root's)
 daisy done "task pattern"     # Mark task complete
-daisy eval [<case>]           # List, display, or record an eval case result
+daisy eval [<case>] [--record] # List, display, or record an eval case result
 daisy feedback "message"      # Record a prompt failure for optimization
 daisy files                   # Show resolved real paths for every home file
 daisy healthcheck [--force]   # System validation
@@ -232,7 +234,8 @@ daisy list                    # List active prompts and installed skills
 daisy log Did thing A         # Add log entry (no quoting needed)
 daisy new-day                 # Start a new day
 daisy new-week                # Start a new week
-daisy optimize [--workflow <n>] # Run prompt learning loop on collected feedback
+daisy optimize [--workflow <n>] # Brief the agent: pending feedback per target, rewrite flags
+daisy optimize apply --workflow <n> --rules <file> # Apply an approved proposal (or --rewrite <file>)
 daisy plan archive            # Archive the active Daisy plan
 daisy plan new "<description>" # Create a new Daisy plan and symlink PLAN.md
 daisy plan pickup <path>      # Promote a spec draft into a tracked plan
@@ -287,8 +290,7 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── cmd/daisy/main.go           # The binary: bin/daisy (symlinked to ~/bin/daisy); `make build`
 ├── daisy.go, internal/         # Run, and the Go packages behind it (ops, env, cli, commands, ...)
 ├── daisy.sh                    # Bash entry point; the binary falls through to it for commands not yet ported
-├── daisy/scripts/              # feedback, optimize, eval,
-│                               # healthcheck, common, commit, check-secrets,
+├── daisy/scripts/              # healthcheck, common, commit, check-secrets,
 │                               # files, test
 ├── templates/
 │   ├── journal-day.md          # Daily today.md template
@@ -308,7 +310,7 @@ daisy/                          # Repository root ($DAISY_ROOT)
 │   └── resources/              # External-talk summaries informing the design
 ├── tests/                      # The acceptance suite (`daisy test`): run.sh, lib/, cases/
 ├── prompts/                    # Situated layer: daisy.md, plan.md, retrospective.md, github.md, ...
-│   └── evals/                  # Eval cases for the optimize loop
+│   └── evals/                  # Eval cases for the feedback loop (`daisy eval`)
 └── skills/                     # Craft layer: css, js, tdd, git, agents-md (see Two Layers)
 ```
 

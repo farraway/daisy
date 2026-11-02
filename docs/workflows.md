@@ -212,6 +212,20 @@ absent from todo.txt.
       - Weekly retrospective section
       - Resolutions section
       - Extended inbox checklist
+2. Call `daisy optimize` (read-only): the briefing lists each target with
+   pending feedback — its path, the entries, its current ## Rules and the
+   rule count — and flags every active prompt or skill whose ## Rules holds
+   more than 10 rules for a whole-file rewrite.
+3. For each pending target, propose a ## Rules section folding the entries
+   in; for each flagged target, offer a rewrite whose body absorbs the
+   rules. One entry can be enough: the threshold is judgement, not a count.
+4. Apply what the user approves:
+   `daisy optimize apply --workflow <target> --rules <file> --yes`
+   (`--rewrite <file>` for a rewrite). It shows the diff, writes the target,
+   moves the target's entries to feedback/archive.md with an
+   **Addressed by:** line, rebuilds AGENTS.md and commits the home once. A
+   target under $DAISY_ROOT is left uncommitted for the root commit (run
+   `daisy healthcheck --force` first), as `apply` says.
 ```
 
 **Post-workflow:** Remind about weekly inbox checklist:

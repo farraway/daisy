@@ -57,10 +57,7 @@ Commands not yet in the binary (bin/daisy help lists every command):
   check-secrets                Check which secrets/tokens are configured
   commit --home|--not-home <message>
                                 Commit changes, scoped to home data or everything else
-  eval [<case>] [--record]     List, display, or record an eval case result
-  feedback [--workflow <n>]    Record a prompt failure for optimization
   healthcheck [--force]        Run system health check
-  optimize [--workflow <n>]    Run prompt learning loop on collected feedback
   test [name-substring]        Run the hermetic acceptance suite
 
   Every command also accepts --help/-h (as the sole argument) to print its usage.
@@ -173,21 +170,6 @@ case "$COMMAND" in
     healthcheck)
         require_workspace
         "$SCRIPTS/healthcheck.sh" "$@"
-        popd > /dev/null
-        ;;
-    feedback)
-        require_workspace
-        "$SCRIPTS/feedback.sh" "$@"
-        popd > /dev/null
-        ;;
-    optimize)
-        require_workspace
-        "$SCRIPTS/optimize.sh" "$@"
-        popd > /dev/null
-        ;;
-    eval)
-        require_workspace
-        "$SCRIPTS/eval.sh" "$@"
         popd > /dev/null
         ;;
     files)

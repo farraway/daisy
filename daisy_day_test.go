@@ -93,9 +93,8 @@ func (m *machine) read(t *testing.T, rel string) string {
 	return string(b)
 }
 
-// dayOps is the Fake for the day commands: the clock pinned, the bash
-// health check (a script the temp root does not have) answered by healthOK,
-// and optimize --list (new-day's nudge) answering that nothing is pending.
+// dayOps is the Fake for the day commands: the clock pinned, and the bash
+// health check (a script the temp root does not have) answered by healthOK.
 func (m *machine) dayOps(cwd string, healthOK bool) *ops.Fake {
 	return &ops.Fake{
 		GetenvFn: func(k string) string { return m.vars[k] },
@@ -110,9 +109,6 @@ func (m *machine) dayOps(cwd string, healthOK bool) *ops.Fake {
 					return nil, nil, nil
 				}
 				return nil, []byte("✗ broken"), errors.New("exit status 1")
-			}
-			if strings.HasSuffix(name, "/daisy/scripts/optimize.sh") {
-				return nil, nil, nil // no pending feedback
 			}
 			return ops.Real().Exec(dir, name, args...)
 		},

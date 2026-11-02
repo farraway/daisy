@@ -178,16 +178,17 @@ error; `install` alone finds its root without it, from the binary's own
 path, Step 21), `DAISY_CONFIG`,
 `DAISY_LOCAL`, `DAISY_DEFAULT_HOME`, `HOME`, `USER`, `DAISY_HEALTHCHECK_TTL`,
 `DAISY_HEALTHCHECK_PASSED` (see `healthcheck`), `SHELL` (`install` picks the
-rc file by it). As built only, gone at Step 23 with the edit branch and the
-API call: `EDITOR`, `TMPDIR`, `ANTHROPIC_API_KEY`, `DAISY_OPTIMIZE_MODEL`,
-`DAISY_OPTIMIZE_RESPONSE_FILE` (the suite's LLM stub). Nothing else.
+rc file by it). Nothing else: `optimize` holds no API key and reads no
+model or editor setting (Step 23, D12).
 
 **`--healthcheck` hook.** The scripts listed in `healthcheck.sh`'s
-`HEALTHCHECK_SCRIPTS` (`feedback`, `optimize`, `eval`, `files`, `test`)
+`HEALTHCHECK_SCRIPTS` (`files`, `test`)
 and the Go commands listed in its `HEALTHCHECK_COMMANDS` (`done`, `log`,
 `tasks`, `projects`, `new-day`, `new-week`, `rotate`, `list`, `home new` —
 the template is there —, `plan new` — `plans/` and `templates/plan.md` —,
-`plan pickup` — `plans/` —, `plan archive` — `plans/archive/` —, asked
+`plan pickup` — `plans/` —, `plan archive` — `plans/archive/` —,
+`feedback`, `eval` — the workspace and its home resolve —, `optimize` —
+the home's `feedback/` —, asked
 through the binary) accept `--healthcheck` as the
 sole argument: check their own preconditions, print nothing on success,
 exit 0; else a one-line `Error: …` on stderr, exit 1. Two cases pin it from
@@ -197,25 +198,27 @@ hidden from the help text; `healthcheck` runs the same checks in-process at
 Step 24 *(decided, D30, Step 18; built in Step 18)*.
 
 **`Ops` wrappers.** `ReadOnly` for `status`, `files`, `list`, `projects`,
-`tasks`, `help` and the briefing form of `optimize` (agreed, Architecture),
+`tasks`, `help` and the briefing, `optimize` (Step 23),
 and for `check-secrets`, `home list` and `identity list` (decided, D30);
 `Real` for everything else, `eval` included (one wrapper per command;
-`--record` writes) and `healthcheck`, because a pass writes the TTL stamp.
+`--record` writes), `optimize apply`, and `healthcheck`, because a pass
+writes the TTL stamp.
 
 **Commits.** A command that commits does so exactly once, in the home's
 repository, as that repository's own git config — never in the root (case
 72: `done`, `log` and `new-day` add one home commit each and the root
 repository's commit count and `git status --porcelain` are unchanged).
 As built, the committing commands are `done`, `log`, `new-day`, `new-week`,
-`plan pickup`, `plan archive`, `commit` and `home new` (the new home's
-first commit); every mutation of an existing home the binary makes goes through
+`plan pickup`, `plan archive`, `optimize apply` *(Step 23)*, `commit`
+and `home new` (the new home's first commit); every mutation of an
+existing home the binary makes goes through
 `gitx.Repo.Commit`, one commit per command *(built, Step 18)*, and `home
 new` makes the new repository's first commit with its own `git init`,
-`add -A`, `commit` *(Step 21)*; `plan new`, `feedback`, `eval --record` and `optimize` write
-home files without committing them, and the next home commit sweeps them
-up. Architecture adds `optimize apply` to the committing commands (Step
-23). The root is committed only by `commit --not-home` (`--root` after
-Step 24).
+`add -A`, `commit` *(Step 21)*; `plan new`, `feedback` and `eval --record`
+write home files without committing them, and the next home commit sweeps
+them up *(decided, D37 for `plan new`, D38 for the other two)*. The root
+is committed only by `commit --not-home` (`--root` after Step 24):
+`optimize apply` writes a root target and leaves it for that commit.
 
 ## Workspace
 
@@ -312,7 +315,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 | Legacy | `daisy help [<command>\|<skill>]` → built in to `daisy.sh` (`show_help`, `show_command_help` and the skill lookup, the last removed in Step 20); since Step 20 `daisy.sh` keeps `show_help` lines and `show_command_help` only for the commands still in bash, which answer their own `--help` |
 | Usage | `daisy help [<command>\|<skill>]`; `daisy`, `daisy --help`, `daisy -h` are `daisy help` |
 | Exit codes | 0; 1 for a name that is neither (`Unknown command or skill: <name>` and `Run 'daisy help' for commands, 'daisy list' for skills.` on stderr; the bash died silently there) or outside a workspace for a skill; 2 for surplus words |
-| Stdout | no argument: the tree. A command name (its words: `help prompt build`): exactly what `daisy <command> --help` prints — `Usage: daisy <usage>`, blank, the description, from the table for a Go command; the script header through `daisy.sh` for a command still in bash — then, when a skill of that name exists (installed or source; none looked up outside a workspace), a note — the command's help, not the skill's (not `Collide politely` [52]), and the word `skill` [52]: blank, `Note: a skill named '<name>' also exists; the command name takes precedence.`, `  Read it with: daisy list, or open its SKILL.md directly.` A noun (`help prompt`): the usage of each of its commands. A skill name: `<name>  (<SKILL.md path>)`, blank, the full `description:` value (`when to stop making them` [51]; the line after `description: `, `: ` inside it kept), blank, the `## Rules` section up to the next `## ` heading (`Measure before cutting` [51]), `Other sections: <H2 titles>` joined by `, ` (`Worked example` [51]). The installed copy (workspace over user) is preferred over the source (home over root) |
+| Stdout | no argument: the tree. A command name (its words: `help prompt build`): exactly what `daisy <command> --help` prints — `Usage: daisy <usage>`, blank, the description, from the table for a Go command; the script header through `daisy.sh` for a command still in bash — then, when a skill of that name exists (installed or source; none looked up outside a workspace), a note — the command's help, not the skill's (not `Collide politely` [52]), and the word `skill` [52]: blank, `Note: a skill named '<name>' also exists; the command name takes precedence.`, `  Read it with: daisy list, or open its SKILL.md directly.` A noun (`help prompt`): the usage of each of its commands. A skill name: `<name>  (<SKILL.md path>)`, blank, the full `description:` value (`when to stop making them` [51]; the line after `description: `, `: ` inside it kept), blank, the `## Rules` section up to the next `#` or `##` heading, `optimize`'s boundary (`Measure before cutting` [51]; until Step 23 an `# ` heading and what followed it to the next `## ` were printed as rules), `Other sections: <H2 titles>` joined by `, ` (`Worked example` [51]). The installed copy (workspace over user) is preferred over the source (home over root) |
 | Ops | ReadOnly (the skill lookup and the note); a bash command's help is the fall-through's |
 | Writes | none |
 | Commits | none |
@@ -324,12 +327,12 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 19); the `optimize --list` nudge at the end goes with `--list` (decided, D30, Step 23) |
+| Status | as built in Go (Step 19); the `optimize --list` nudge removed with `--list` (D30, built in Step 23) |
 | Legacy | `daisy new-day` → the bash `new-day` script, deleted in Step 19 |
 | Usage | `daisy new-day` (no argument; any is usage on stderr, exit 2 — the bash ignored them) |
 | Exit codes | 0; 1 when `healthcheck` fails first (`Error: System health check failed` on stderr), when `templates/journal-day.md` or `tasks/todo.txt` is missing, when the journal cannot be rotated (`rotate`'s refusal), or when the commit fails. A refusal writes nothing: every write is decided before the first is made (the bash had appended `today.md` to `journal.md` before a rotate refusal, so the next run archived it twice) |
-| Stdout | `📦 Archived yesterday to journal.md` (when `today.md` existed) [81], `rotate`'s line [81], `🗑️  Deleted N cancelled task(s)` (when any) [81], `✅ New day started: <YYYY-MM-DD> <Day>` [81], `   High priority tasks: N` [81], `   Next priority tasks: N`, `   Inbox tasks: N`, `   GitHub tasks: N` [81], then `commit`'s `📝 Committed: …` line (git's own commit summary, which the bash let through, is not printed). Then, when `optimize.sh --list` prints pending feedback, a blank line, `💡 New feedback since last optimize run:`, the entries and `   Run 'daisy optimize' to improve your prompts.`; this block is removed at Step 23 — the New Week workflow runs `daisy optimize` itself |
-| Ops | Real; the health check is the bash `healthcheck.sh` and the nudge `optimize.sh --list`, both through `Ops.Exec` |
+| Stdout | `📦 Archived yesterday to journal.md` (when `today.md` existed) [81], `rotate`'s line [81], `🗑️  Deleted N cancelled task(s)` (when any) [81], `✅ New day started: <YYYY-MM-DD> <Day>` [81], `   High priority tasks: N` [81], `   Next priority tasks: N`, `   Inbox tasks: N`, `   GitHub tasks: N` [81], then `commit`'s `📝 Committed: …` line (git's own commit summary, which the bash let through, is not printed). Nothing follows the commit line: the pending-feedback nudge went with `optimize --list` at Step 23 — the New Week workflow runs `daisy optimize` itself |
+| Ops | Real; the health check is the bash `healthcheck.sh`, through `Ops.Exec` |
 | Writes | the rotation window files and `journal/journal.md` (see `rotate`; `today.md` is appended after a `---` separator when the journal is non-empty, and rotated with it); `tasks/todo.txt` without its `z ` lines [81], every line newline-terminated; `journal/today.md` from `templates/journal-day.md`: `{DATE}`, `{DAY}`, `{TIME}`, then `{HIGH_PRIORITY_TASKS}` = `(A)` [81], `{NEXT_PRIORITY_TASKS}` = `(B)` [81], `{INBOX_TASKS}` = dated without priority [81], `{GITHUB_TASKS}` = any open line containing `@git`/`@github`, whatever its priority, decided before the priority branches [81]; `(C)`/`(D)` lines without such a tag are not carried [81]; each carried line loses its priority and creation date when it has a date, and is carried whole otherwise. A task's text is written as it is (bash 5.2's pattern substitution replaced an `&` in it with the placeholder's name) |
 | Commits | home, once: `New day: <date> <day>` [72, 81] |
 | Cases | 81; case 72 (`commit`'s) runs it |
@@ -338,7 +341,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 19); nudge removed as for `new-day` (decided, D30, Step 23) |
+| Status | as built in Go (Step 19); nudge removed as for `new-day` (D30, built in Step 23) |
 | Legacy | `daisy new-week` → the bash `new-week` script, deleted in Step 19 |
 | Usage | `daisy new-week` (no argument) |
 | Exit codes | as `new-day`; the template is `templates/journal-week.md` |
@@ -538,47 +541,48 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy feedback [--workflow <n>] <text>` → `feedback.sh` |
-| Usage | `daisy feedback [--workflow <n>] <text...>`; `echo <text> \| daisy feedback [--workflow <n>]`; `-w` is accepted for `--workflow` (kept, unasserted) |
-| Arguments | `<n>`: `prompts/<name>`, `skills/<name>`, or a bare name resolved as a prompt, a skill, or an alias for `prompts/daisy` (`new-day`, `new-week`, `done`, `log`, `add`, `priority`, `cancel`, `status`, `sync`, `project`, `projects`, `home`); a tag that names no file is refused before anything is written [67] |
-| Exit codes | 0 recorded [67]; 1 for an unresolvable workflow [67], no message (usage and the workflow list on stderr), an empty message, a missing `feedback/feedback.md` |
-| Stdout | `  ✓ Feedback recorded (workflow: <n>, <YYYY-MM-DD HH:MM>)`, `  File: <path>` |
-| Stderr | `Error: workflow '<n>' names no prompt or skill` (`names no prompt or skill` [67]), `  Qualify the target, e.g. --workflow prompts/daisy or --workflow skills/git.`, `  Available:` and every target (`prompts/daisy` [67], `skills/git` [67]) |
+| Status | as built in Go (Step 23); the bash's bytes but where D38 says |
+| Legacy | `daisy feedback [--workflow <n>] <text>` → `feedback.sh`, deleted in Step 23 |
+| Usage | `daisy feedback [--workflow <n>] <text...>`; `echo <text> \| daisy feedback [--workflow <n>]`; `-w` is `--workflow` (the last given wins); the words are joined by one space; piped text loses its trailing newlines |
+| Arguments | `<n>`: `prompts/<name>`, `skills/<name>`, or a bare name resolved as a prompt (the home's, then the root's), a skill source (the home's over the root's), or an alias for `prompts/daisy` — the home's over the root's, as for `daisy` — (`new-day`, `new-week`, `done`, `log`, `add`, `priority`, `cancel`, `status`, `sync`, `project`, `projects`, `home`); a name holding `/` names nothing; a tag that names no file is refused before anything is written [67] |
+| Exit codes | 0 recorded [67]; 1 for an unresolvable workflow [67], no message on a terminal (usage and the workflow list on stderr), an empty message (`feedback ""` included: an empty word is a message given, so stdin is not read), a missing `feedback/feedback.md`; 2 for `--workflow` without a value |
+| Stdout | `  ✓ Feedback recorded (workflow: <n>, <YYYY-MM-DD HH:MM>)` (no `workflow: …, ` without one), `  File: <path>` |
+| Stderr | `Error: workflow '<n>' names no prompt or skill` (`names no prompt or skill` [67]), `  Qualify the target, e.g. --workflow prompts/daisy or --workflow skills/git.`, `  Available:` and every target, byte order (`prompts/daisy` [67], `skills/git` [67]) |
 | Ops | Real |
-| Writes | appends to `feedback/feedback.md`: blank, `## <YYYY-MM-DD HHMM>`, `**Workflow:** <n>` (`**Workflow:** skills/git` [67]) when given, blank, the text; nothing on refusal (byte-identical, case 67) |
-| Commits | none (as built) |
-| Cases | 67 |
+| Writes | appends to `feedback/feedback.md` (through a link, atomically): blank, `## <YYYY-MM-DD HHMM>`, `**Workflow:** <n>` (`**Workflow:** skills/git` [67]) when given, blank, the text; nothing on refusal (byte-identical, case 67) |
+| Commits | none (decided, D38: the entry is swept up by the next home commit, as for `plan new`) |
+| Cases | 67; `TestFeedback` |
 
 ### daisy optimize
 
 | Field | Value |
 |---|---|
-| Status | as built for the bash loop (cases 38–41, 56–64 pin it); agreed redesign at Step 23 (D12): no API key, the briefing, `apply` |
-| Legacy | `daisy optimize [--workflow <n>] [--dry-run] [--force] [--list]` → `optimize.sh` (`-w` for `--workflow`, kept) |
-| Usage (agreed) | `daisy optimize [--workflow <n>]` prints the briefing; `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` applies text the agent proposed. `--dry-run`, `--force`, `--list`, the 2-entry floor, `EDITOR` and the `y/N/e` prompt go with the API call |
-| Briefing (agreed) | under `ReadOnly`: for each target with pending entries, the target path, the entries, its current `## Rules` section and rule count; for every active prompt or skill whose `## Rules` holds more than 10 rules, a rewrite flag, pending entries or not; `Nothing pending` and exit 0 otherwise. Grouping as built: entries group by `**Workflow:**` header, an unheadered entry is `daisy`'s (`[daisy]` [41]); `--workflow <n>` scopes to entries declaring it (`1 entry` [40]); a target that is a skill resolves to its `SKILL.md` (`skills/widgetcraft/SKILL.md` [49]); a `vendored` [50] skill (carries `LICENSE`/`NOTICE.md`) is refused with the reason and the run continues. Exact briefing wording: unspecified; Go may choose. Step 23 rewrites cases 38–41 and 56–64 to it before any Go |
-| Apply (agreed) | `--rules <file>` replaces the target's `## Rules` section only — the section ends at the next `#` or `##` heading, an `###` is inside it, and replacing the rules with themselves changes nothing (case 53, `extract_rules_section`/`replace_rules_section`; `# Document Title` [53, 58], `## Next Section` [53] and `Body text` [53, 58] survive); `--rewrite <file>` replaces the whole file. Both show the diff and ask through `Ops.Prompt` unless `--yes`. On approval: write the target (`Updated ` [58] `<path>`), move the target's pending entries from `feedback.md` to `archive.md` with the provenance line `**Addressed by:**` [63] `` `daisy optimize` <date> — `<target>` (rules\|rewrite)`` (as built: `## Rules` [63] after the target; the target named relative to the home, or `$DAISY_ROOT/…` for a shared file), each entry of the group annotated [63]; `feedback.md` keeps its header and the untrained entries with their original spacing, byte for byte (case 66); rebuild `AGENTS.md`; commit the home. A target under `$DAISY_ROOT/prompts/` or `skills/` is written and left for `daisy commit --root`, and the run says so (wording unspecified). Declining: `Cancelled` [59], nothing written, feedback and archive byte-identical [59]; EOF on the prompt is not a failure, exit 0, and says `EOF` [64] |
-| Exit codes | 0 (including nothing pending, a declined apply, EOF); 1 when `feedback/feedback.md` does not exist (`Error: No feedback file found at <path>`); 1 for a bad option (bash: `Unknown option: <x>`; agreed exit 2), a target file that does not exist, an apply whose file cannot be read. As built only: 1 when the LLM call fails (`credit balance is too low` [61] passed through, naming the workflow `widgetflow` [61]) or returns an `Empty response` [61], with nothing written and nothing archived [61]; 1 without `ANTHROPIC_API_KEY` [57] once a group reaches the LLM |
-| Stdout (as built) | `Found N entries across N workflow(s)` (or `for workflow '<n>'`); per group `[<wf>] N entries` (`[plan]` [38, 41, 50], `[retrospective]` [38]), `  Target: <path>` (`Target: ` [57]) (never `prompts/daisy.md` [38] for a headered group), `  Skipped — below the 2-entry floor.` (`Skipped` [39, 40, 62], `2-entry floor` [39, 62]) with the `--force` [62] hint, or `running anyway` [62] with `--force`; `  Entries: N` (`Entries: 2` [56]) and no `Test:` [56] / `Train:` [56] split; the diff block; `dry-run` [57] note writing nothing [57]; `Apply these changes to <file>? [y/N/e(edit)] `; `  ✓ Updated <path>`; `Rebuilding AGENTS.md...`; `  ✓ Archived N entries to <archive>`; `Done. Run 'daisy feedback' to continue collecting failures for the next cycle.` |
-| Ops | briefing ReadOnly; `apply` Real |
-| Writes | `apply` only: the target prompt or `SKILL.md` (a home file, or a root file left uncommitted), `feedback/feedback.md`, `feedback/archive.md`, the home's `AGENTS.md`, `feedback/.last-optimized` (as built; `healthcheck` Check 7 reads it). The suite's fixture copies `prompts/` and `skills/` so an applying run writes the fixture's copy, never the repository's (case 65) |
-| Commits | as built: none (the bash `optimize` writes the target and the archive and leaves them for the next home commit). Agreed (Step 23): `apply` with a home target commits the home once; a root target: none (`daisy commit --root` is the user's) |
-| Cases | 38, 39, 40, 41, 49, 50, 53, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66 |
+| Status | as built in Go (Step 23): the redesign agreed in D12 — no API key; the briefing and `apply` |
+| Legacy | `daisy optimize [--workflow <n>] [--dry-run] [--force] [--list]` → `optimize.sh`, deleted in Step 23 with the 2-entry floor, `--force`, `--dry-run`, `--list`, `EDITOR` and the `y/N/e` prompt |
+| Usage | `daisy optimize [--workflow <n>]` prints the briefing; `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` applies text the agent proposed (`-w` is `--workflow`; `<file>` is the working directory's when relative) |
+| Targets | entries group by the file their `**Workflow:**` tag resolves to (as `feedback` resolves it), in order of first appearance; two tags naming one file are one target (`[prompts/plan] 2 entries` [38]); an unheadered entry is `prompts/daisy`'s (`[prompts/daisy] 1 entry` [41]); `--workflow <n>` scopes to the target `<n>` names (`[prompts/plan] 1 entry` [40]; one naming nothing is refused, exit 1 [40]); a skill resolves to its source `SKILL.md` (`Target: <home>/skills/widgetcraft/SKILL.md` [49]); a tag naming no file is a group of its own, briefed with the reason (`[daisy-write] 1 entry` [67], `names no prompt or skill` [67]) and never defaulted to daisy.md |
+| Rules | the `## Rules` section runs from its heading (`## Rules`, or `## Rules` and more after a space — `skills/tdd`'s `## Rules of the loop` — as the bash's `/^## Rules/` read it, bounded at the word; closing `#`s allowed) to the next `#` or `##` heading; an `###` is inside it [53]; Daisy reads ATX headings, LF or CRLF line ends (up to three spaces, one to six `#`, then a space, a tab or the line's end) and fenced code (three or more backticks or tildes, a backtick fence's info string holding no backtick — "```x``` …" is inline code — closed only by a run of the same character at least as long, then only spaces or tabs); a line in a fence is no heading. Other markdown (setext headings, containers, HTML blocks) is not read: where a section, the target's or a proposal's, holds a line of only `=` or `-` straight after a non-blank line other than a heading (to another reader, perhaps a setext underline; a list item above is no exception), `apply --rules` refuses, naming the line and the file, rather than guess where the section ends; a blank line above it makes it a thematic break. So does a fence opened in the target's section and never closed (the section would run to the end of the file), or, without a section, a fence left open at the end of the file when no `## ` heading other than the Trigger precedes it (the rules would be appended inside it); the briefing prints the refusal under the target (`--rules refused: …`) (D38). A rule is a list item at the left margin (`N. `, `- `, `* `) outside a fence (`Rules: 2` [53]). `daisy help <skill>` prints the same section |
+| Briefing | under `ReadOnly` [57]. `Pending feedback: N entries for N targets (<feedback.md>)` [38], or `Nothing pending in <feedback.md>` [56]; per target `[<label>] N entries` [38], `Target: <path>` [38], `Rules: N` [39, 56] (`Rules: N — more than 10: rewrite flagged` [56]; `Rules: none …`), `--- entries ---` and each entry as written, `--- current ## Rules ---` and the section [39, 53], `--- end ---`; a vendored skill (carries `LICENSE`/`NOTICE.md`) is listed with the reason (`vendored` [50]) and its entries stay pending; then `Rewrite flagged (more than 10 rules, nothing pending):` and `[<label>] rewrite flagged: N rules` [56] for every active target over 10 rules (the prompts `include.txt` names, in its order, then every skill source by name; 10 is not flagged [56]); then how to apply (`daisy optimize apply --workflow <label> --rules` [39], `--rewrite` [56]). No floor: one entry is briefed (`Skipped` [39] and `floor` [39] absent) |
+| Apply | `--rules <file>`: the file must be one `## Rules` section — its first non-blank line the heading (`must begin with` [61]), no other `#`/`##` heading outside a fence (named with its line, `## Another Section` [61]), no fence left open; and the result must read back as the section written, so nothing after it is swallowed; it replaces the target's section, keeping the blank lines between the section and the next heading as they were, so replacing the rules with themselves changes nothing, byte for byte [53]; `# Document Title` [53, 58], `## Next Section` [53] and `Body text` [53, 58] survive; a target without a section gets one before its first `## ` heading other than the Trigger, or at the end. `--rewrite <file>`: the file, byte for byte [60]; an empty one is refused. Both print the unified diff (`-1. Measure before cutting.` [58], `+2. Cut once.` [58]) and ask `Apply these changes to <label>? [y/N] ` [58] on stderr through `Ops.Prompt`, unless `--yes` (never asks [60]). `y`/`yes` (any case) applies; anything else is `Cancelled` [59]; EOF is `Cancelled — no answer on stdin (EOF); nothing written.` (`EOF` [64]); any other failure to read the answer is `Error: cannot read the answer: …`, exit 1, nothing written. The writes are computed from what was read before the question: if the target, `feedback.md` or `archive.md` changed while it waited (an entry recorded meanwhile), the apply is refused, exit 1, nothing written. Applied: the target (`  ✓ Updated ` [58] `<path>`), the target's pending entries — every tag naming it [58] — moved from `feedback.md` to `archive.md`, each followed one blank line down by `**Addressed by:** `` `daisy optimize` `` <YYYY-MM-DD> — `` `<target>` `` (rules\|rewrite)` [63], `<target>` relative to the home or `$DAISY_ROOT/…` [62]; `feedback.md` keeps its header and the other entries, one blank line apart, byte for byte [66]; `feedback/.last-optimized` gets `<YYYY-MM-DD HHMM> <label>` [63]; for a prompt, the home's `AGENTS.md` and the workspace's `.daisy/AGENTS.md` are rebuilt from the prompts as written (for a skill, the run says `daisy install --update` [49] and `daisy init` propagate it); the home is committed once [58, 60, 62]. A root target is written and left uncommitted [62], and the run says to run `daisy healthcheck --force` [62] and then `daisy commit --not-home` [62] (`--root` after Step 24). Applying text already there with nothing pending: `Nothing to apply: …`, exit 0 |
+| Exit codes | 0 (nothing pending, a briefing, an applied, declined or EOF apply, nothing to apply); 1 when `feedback/feedback.md` does not exist (`Error: No feedback file found at <path>` and the `mkdir -p … && touch …` that makes it), a target the briefing cannot read (printed in its place, the errors after the briefing, `The briefing above is incomplete.`), a file changed during the question, `archive.md` absent with no template to start it from when entries are to move, a workflow naming no file [40, 61] (`names no prompt or skill`), a vendored target on `apply` [50], a proposal that cannot be read (`cannot read` [61]) or is not one rules section [61], the home not a repository, a write or the AGENTS.md build failing (every write taken back: `Nothing was applied.`), the commit failing (the files written, the `daisy commit --home` to run printed), a target `--rules` cannot write (the open-fence and setext refusals of the Rules row, naming the target); 2 for a usage error [57, 61]: `--dry-run`, `--force`, `--list` [57] or any argument to the briefing, bare `optimize apply` [61], no `--workflow`, neither or both of `--rules`/`--rewrite`, a value flag without a value (an empty word, or one of the command's own flags, is none) [61], a stray word [61] |
+| Ops | briefing `ReadOnly` [57]; `apply` Real |
+| Writes | `apply` only, every refusal before the first write and a failed write taking back the ones before it: the target prompt or `SKILL.md`, `feedback/feedback.md`, `feedback/archive.md` (started from `templates/home/feedback/archive.md` when absent; no template is an error when entries are to move), `feedback/.last-optimized` (`healthcheck` Check 7 reads it), the home's `AGENTS.md` and the workspace's `.daisy/AGENTS.md`. The suite's fixture copies `prompts/` and `skills/` so an applying run writes the fixture's copy, never the repository's (case 65) |
+| Commits | `apply`: the home, once, `Optimize <label> (rules\|rewrite)` [58]; never the root [58, 62] |
+| Cases | 38, 39, 40, 41, 49, 50, 53, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66; `TestOptimizeApplyApproval`, `TestOptimizeApplyArchivesAndCommitsOnce`, `TestOptimizeApplyRollsBack`, `TestOptimizeUsage`, `TestOptimizeBriefing` |
 
 ### daisy eval
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy eval [<case>] [--record]` → `eval.sh` |
-| Usage | `daisy eval` lists the cases in `$DAISY_ROOT/prompts/evals/*.md`; `daisy eval <case>` prints one; `daisy eval --record <case> pass\|fail ["notes"]` records a result (the agreed help line `eval [<case>] [--record]` abbreviates this form). With no notes and a terminal, asks `Notes (optional): ` |
-| Exit codes | 0; 1 for a missing evals directory, an unknown case (`Error: Eval case not found: <case>`), a result other than `pass`/`fail`, `--record` without a case |
-| Stdout | list: `No eval cases found in <dir>` (exit 0) or `Available eval cases:`, `  %-20s  <H1 title>` per file, the usage lines; one case: the file, then `  Record result: daisy eval --record <case> pass\|fail "notes"`; record: `  ✓ Recorded <result> for eval '<case>' (<YYYY-MM-DD HH:MM>)`, `  File: <path>` |
+| Status | as built in Go (Step 23); the bash's bytes but where D38 says |
+| Legacy | `daisy eval [<case>] [--record]` → `eval.sh`, deleted in Step 23 |
+| Usage | `daisy eval` lists the cases in `$DAISY_ROOT/prompts/evals/*.md`; `daisy eval <case>` prints one; `daisy eval --record <case> pass\|fail ["notes"]` records a result (the agreed help line `eval [<case>] [--record]` abbreviates this form; `--record` leads). With no notes and a terminal, asks `Notes (optional): ` through `Ops.Prompt` |
+| Exit codes | 0; 1 for a missing evals directory, an unknown case (`Error: Eval case not found: <case>`; a name holding `/` is none), a result other than `pass`/`fail`, `--record` without a case (its usage line); 2 for a second word without `--record` or a fourth with it |
+| Stdout | list: `No eval cases found in <dir>` (exit 0) or `Available eval cases:`, `  %-20s  <H1 title>` per regular `*.md` file in byte order, the two usage lines; one case: the file, then `  Record result: daisy eval --record <case> pass\|fail "notes"`; record: `  ✓ Recorded <result> for eval '<case>' (<YYYY-MM-DD HH:MM>)`, `  File: <path>` |
 | Ops | Real (decided, D30: one wrapper per command; `--record` writes) |
 | Writes | `--record`: `$DAISY_HOME/feedback/eval/results.md` (created with a header), appending `## <YYYY-MM-DD HHMM>`, `**Case:**`, `**Result:**`, the notes |
-| Commits | none |
-| Cases | none |
+| Commits | none (decided, D38, as `feedback`) |
+| Cases | none; `TestEval` |
 
 ## Swarm
 

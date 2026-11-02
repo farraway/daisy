@@ -30,15 +30,9 @@ func PromptBuild(c *Context) error {
 	if err != nil {
 		return err
 	}
-	b, err := prompt.Build(c.Ops.FS(), prompt.Spec{
-		Root: e.Root, HomeName: e.HomeName, Home: e.Home,
-		Output: output, Rebuild: rebuild, Built: c.Ops.Now(),
-	})
+	b, err := buildAgents(c, e, output, rebuild)
 	if err != nil {
 		return err
-	}
-	for _, w := range b.Warnings {
-		fmt.Fprintln(c.Stderr, w)
 	}
 	if err := c.Ops.FS().WriteFile(output, b.Text, 0o644); err != nil {
 		return fmt.Errorf("Error: %v", err)
@@ -52,6 +46,22 @@ func PromptBuild(c *Context) error {
 	}
 	fmt.Fprintf(c.Stdout, "   Output: %s\n   Size: %d lines\n", output, bytes.Count(b.Text, []byte("\n")))
 	return nil
+}
+
+// buildAgents builds e's AGENTS.md for output, saying its warnings on
+// stderr; rebuild is the command the header names.
+func buildAgents(c *Context, e env.Env, output, rebuild string) (prompt.Built, error) {
+	b, err := prompt.Build(c.Ops.FS(), prompt.Spec{
+		Root: e.Root, HomeName: e.HomeName, Home: e.Home,
+		Output: output, Rebuild: rebuild, Built: c.Ops.Now(),
+	})
+	if err != nil {
+		return b, err
+	}
+	for _, w := range b.Warnings {
+		fmt.Fprintln(c.Stderr, w)
+	}
+	return b, nil
 }
 
 // List prints the home's prompts, each with its trigger's first line or

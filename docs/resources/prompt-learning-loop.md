@@ -1,7 +1,7 @@
 # Build a Prompt Learning Loop
 
 **Source:** SallyAnn DeLucia & Fuad Ali, Arize — AI Engineer World's Fair workshop
-**Applied in Daisy:** Session 2026-05-xx — implemented `feedback.sh`, `optimize.sh`, eval infrastructure
+**Applied in Daisy:** Session 2026-05-xx — implemented `feedback.sh`, `optimize.sh`, eval infrastructure; 2026-11 the loop moved into the agent session (no API call) and the CLI to Go
 
 ---
 
@@ -73,9 +73,8 @@ Evals grabbed off the shelf and never improved will give unreliable signal. The 
 
 | Component | Location |
 |---|---|
-| Failure collection | `daisy/scripts/feedback.sh` → `home/{home}/feedback/feedback.md` |
-| Optimization loop | `daisy/scripts/optimize.sh` — patches `## Rules` of a named prompt file |
-| Eval cases | `home/{home}/feedback/eval/` |
-| Usage | `daisy feedback --workflow <name> "<description>"` then `daisy optimize <prompt-name>` |
+| Failure collection | `daisy feedback --workflow <target> "<description>"` → the home's `feedback/feedback.md` |
+| Optimization loop | `daisy optimize` briefs the agent in session (pending entries per target, its `## Rules`, rewrite flags past 10 rules); the agent proposes; `daisy optimize apply --workflow <target> --rules\|--rewrite <file>` writes what is approved and archives the entries |
+| Eval cases | `$DAISY_ROOT/prompts/evals/` (`daisy eval`); results in the home's `feedback/eval/results.md` (`daisy eval --record`) |
 
-The `## Rules` section in each prompt file is the target. Every prompt should have one; optimize.sh expects it.
+The `## Rules` section in each prompt or skill is the target of a `--rules` proposal; a file without one gets one.

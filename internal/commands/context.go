@@ -13,8 +13,8 @@ import (
 )
 
 // Context is what a command runs with. Flags are the command's own flags
-// the cli found leading its arguments, in order; Args are the positional
-// arguments after them.
+// the cli found leading its arguments, in order, and Values those that
+// took a value; Args are the positional arguments after them.
 type Context struct {
 	Ops    ops.Ops
 	Env    env.Env
@@ -22,11 +22,39 @@ type Context struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Flags  []string
+	Values []Value
 	Args   []string
+	// EmptyWords: positional words were given and some were empty, which
+	// the cli drops from Args (`feedback ""` is an empty message, not
+	// none).
+	EmptyWords bool
 }
+
+// Value is a value flag as given: `--workflow plan`.
+type Value struct{ Flag, Value string }
 
 // Flag: the flag was given.
 func (c *Context) Flag(name string) bool { return slices.Contains(c.Flags, name) }
+
+// Value is the value of the last of the named flags given (a flag and its
+// short form are one flag), and whether one was.
+func (c *Context) Value(names ...string) (string, bool) {
+	v, ok := "", false
+	for _, f := range c.Values {
+		if slices.Contains(names, f.Flag) {
+			v, ok = f.Value, true
+		}
+	}
+	return v, ok
+}
+
+// UsageError is a command's own usage error: the cli prints it with the
+// command's usage and exits 2, as for one it finds itself. For a rule the
+// table cannot state (`optimize apply` takes --rules or --rewrite, not
+// both).
+type UsageError string
+
+func (u UsageError) Error() string { return string(u) }
 
 // readOnly runs the command under ops.ReadOnly: the usage text's promise
 // becomes a checked invariant.

@@ -141,18 +141,7 @@ func startDay(c *Context, s start) error {
 		return err
 	}
 	reportCommit(c, message, hash, committed)
-	nudge(c)
 	return nil
-}
-
-// nudge prints the feedback waiting for `daisy optimize`, as optimize
-// --list reports it; a failure to ask is no reason to fail the day.
-func nudge(c *Context) {
-	script := filepath.Join(c.Env.Root, "daisy", "scripts", "optimize.sh")
-	out, _, _ := c.Ops.Exec(c.Env.Workspace, script, "--list")
-	if pending := strings.TrimRight(string(out), "\n"); pending != "" {
-		fmt.Fprintf(c.Stdout, "\n💡 New feedback since last optimize run:\n%s\n   Run 'daisy optimize' to improve your prompts.\n", pending)
-	}
 }
 
 // NewDayHealth and NewWeekHealth: the template, todo.txt, and the journal

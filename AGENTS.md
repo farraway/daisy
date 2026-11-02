@@ -108,10 +108,11 @@ suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
 -race`) runs before every root commit. Ported so far: `status`, `files`,
 `log`, `done`, `tasks`, `projects`, `new-day`, `new-week`, `rotate`,
 `prompt build`, `list`, `help`, `init`, `clean`, `install`, `home
-list|add|remove|new`, `identity list` and `plan new|pickup|archive`
+list|add|remove|new`, `identity list`, `plan new|pickup|archive`,
+`feedback`, `eval` and `optimize` with `optimize apply`
 (`internal/todo`, `internal/journal`, `internal/gitx`, `internal/prompt`,
 `internal/skill`, `internal/identity`, `internal/settings`,
-`internal/workspace` and `internal/plan` behind them);
+`internal/workspace`, `internal/plan` and `internal/feedback` behind them);
 their scripts are gone, `healthcheck.sh` asks them for `--healthcheck`
 through the binary, and a script that needs one calls the binary
 (`daisy_bin` in `common.sh`).
@@ -121,9 +122,6 @@ through the binary, and a script that needs one calls the binary
 | Script | Purpose |
 |--------|---------|
 | `daisy.sh` (repo root) | CLI entry point — dispatches subcommands |
-| `feedback.sh` | Record a prompt failure with workflow tag and description |
-| `optimize.sh` | LLM-driven prompt optimization loop (groups by workflow tag, diff, approval, archives used entries with provenance) |
-| `eval.sh` | List, display, or record eval case results for the optimize loop |
 | `common.sh` | Shared functions: homes registry, identities, resolve_home, require_env |
 | `commit.sh` | Git commit helper — `--home` commits the home's repository, `--not-home` the root's minus any home still inside it |
 | `check-secrets.sh` | Report which API tokens/secrets are configured in .env.sh |

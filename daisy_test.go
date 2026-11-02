@@ -253,15 +253,15 @@ func TestFallThrough(t *testing.T) {
 		},
 	}
 	var out bytes.Buffer
-	code := daisy.Run(o, strings.NewReader(""), &out, io.Discard, []string{"feedback", "a", "b c", "--help"})
+	code := daisy.Run(o, strings.NewReader(""), &out, io.Discard, []string{"commit", "a", "b c", "--help"})
 	if code != 7 {
 		t.Errorf("exit %d", code)
 	}
-	if strings.Join(got, "|") != m.root+"/daisy.sh|feedback|a|b c|--help" || gotDir != m.ws || gotStdout != &out {
+	if strings.Join(got, "|") != m.root+"/daisy.sh|commit|a|b c|--help" || gotDir != m.ws || gotStdout != &out {
 		t.Errorf("started %v in %q with stdout %v", got, gotDir, gotStdout)
 	}
 	// a legacy command's own --help falls through too
-	for _, args := range [][]string{{"feedback", "--help"}, {"eval", "x"}} {
+	for _, args := range [][]string{{"commit", "--help"}, {"healthcheck", "x"}} {
 		got = nil
 		daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, args)
 		if strings.Join(got, "|") != m.root+"/daisy.sh|"+strings.Join(args, "|") {
@@ -272,14 +272,14 @@ func TestFallThrough(t *testing.T) {
 	m.vars["DAISY_ROOT"] = m.root
 	o.GetwdFn = func() (string, error) { return "", io.ErrUnexpectedEOF }
 	got, gotDir = nil, "unset"
-	daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, []string{"eval"})
-	if strings.Join(got, "|") != m.root+"/daisy.sh|eval" || gotDir != "" {
+	daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, []string{"check-secrets"})
+	if strings.Join(got, "|") != m.root+"/daisy.sh|check-secrets" || gotDir != "" {
 		t.Errorf("lost cwd: started %v in %q", got, gotDir)
 	}
 	o.GetwdFn = func() (string, error) { return m.ws, nil }
 	delete(m.vars, "DAISY_ROOT")
 	var errb bytes.Buffer
-	if code := daisy.Run(o, strings.NewReader(""), io.Discard, &errb, []string{"feedback"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT not set") {
+	if code := daisy.Run(o, strings.NewReader(""), io.Discard, &errb, []string{"check-secrets"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT not set") {
 		t.Errorf("exit %d err %q", code, errb.String())
 	}
 }
@@ -290,14 +290,22 @@ func (p fakeProcess) Wait() (int, error) { return p.code, nil }
 func (p fakeProcess) Kill() error        { return nil }
 
 // Daisy's own daisy.sh really is run for a legacy command, through Real.
+// Real reads the process's environment and working directory, so every
+// variable the binary resolves from, and the cwd, are the temp machine's:
+// were the command ported (feedback was, at Step 23), it would otherwise
+// write to whatever home the developer's checkout is bound to.
 func TestFallThroughRunsDaisySh(t *testing.T) {
 	m := newMachine(t)
 	writeFile(t, filepath.Join(m.root, "daisy.sh"), "#!/bin/sh\necho \"args: $*\"\necho \"root: $DAISY_ROOT\" >&2\nexit 3\n")
 	os.Chmod(filepath.Join(m.root, "daisy.sh"), 0o755)
-	t.Setenv("DAISY_ROOT", m.root)
+	for k, v := range m.vars {
+		t.Setenv(k, v)
+	}
+	t.Setenv("DAISY_DEFAULT_HOME", "")
+	t.Chdir(m.ws)
 	var out, errb bytes.Buffer
-	code := daisy.Run(ops.Real(), strings.NewReader(""), &out, &errb, []string{"feedback", "--flag"})
-	if code != 3 || out.String() != "args: feedback --flag\n" || errb.String() != "root: "+m.root+"\n" {
+	code := daisy.Run(ops.Real(), strings.NewReader(""), &out, &errb, []string{"check-secrets", "--flag"})
+	if code != 3 || out.String() != "args: check-secrets --flag\n" || errb.String() != "root: "+m.root+"\n" {
 		t.Errorf("exit %d out %q err %q", code, out.String(), errb.String())
 	}
 }

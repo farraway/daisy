@@ -7,6 +7,7 @@ import (
 
 	"daisy/internal/env"
 	"daisy/internal/ops"
+	"daisy/internal/prompt"
 	"daisy/internal/skill"
 )
 
@@ -32,7 +33,7 @@ func skillHelp(c *Context) error {
 		fmt.Fprintln(c.Stdout, d)
 	}
 	fmt.Fprintln(c.Stdout)
-	for _, line := range skill.Rules(doc) {
+	for _, line := range prompt.Rules(doc) {
 		fmt.Fprintln(c.Stdout, line)
 	}
 	if s := skill.Sections(doc); len(s) > 0 {

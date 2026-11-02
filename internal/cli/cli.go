@@ -5,6 +5,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -55,7 +56,11 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 		return invoke(c, cmd, cmd.Health)
 	}
 
-	c.Flags, c.Args = splitArgs(cmd, rest)
+	flags, values, positional, empty, err := splitArgs(cmd, rest)
+	if err != nil {
+		return usageError(stderr, cmd, err.Error())
+	}
+	c.Flags, c.Values, c.Args, c.EmptyWords = flags, values, positional, empty
 	if cmd.Max != Unbounded && emptyBefore(cmd, rest) {
 		return usageError(stderr, cmd, "empty argument")
 	}
@@ -73,7 +78,7 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 // note when a skill has the same name; a noun's is its commands' usages;
 // any other single name is a skill's, which needs the workspace.
 func help(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) int {
-	_, words := splitArgs(Command{}, args)
+	_, _, words, _, _ := splitArgs(Command{}, args)
 	helpCmd, _, _ := match([]string{"help"})
 	c := &commands.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: words}
 	switch cmd, rest, ok := match(words); {
@@ -124,19 +129,43 @@ func nounOnly(stdout, stderr io.Writer, args []string, group []Command) int {
 }
 
 // splitArgs: the command's flags are the known words leading its
-// arguments; the first other word, dashes or not, starts the positionals
-// (`tasks --todo "-1 point"` searches for `-1 point`). An empty word is no
-// argument: `done ""` is a missing pattern, not one that matches every task.
-func splitArgs(cmd Command, args []string) (flags, positional []string) {
-	for len(args) > 0 && slices.Contains(cmd.Flags, args[0]) {
-		flags, args = append(flags, args[0]), args[1:]
-	}
+// arguments, a value flag taking the word after it as its value; the first
+// other word, dashes or not, starts the positionals (`tasks --todo "-1
+// point"` searches for `-1 point`). An empty word is no argument: `done ""`
+// is a missing pattern, not one that matches every task; empty says one
+// was dropped. A value flag without a value, or with an empty one, is a
+// usage error.
+func splitArgs(cmd Command, args []string) (flags []string, values []commands.Value, positional []string, empty bool, err error) {
+	args, flags, values, err = leading(cmd, args)
 	for _, a := range args {
 		if a != "" {
 			positional = append(positional, a)
+		} else {
+			empty = true
 		}
 	}
-	return flags, positional
+	return flags, values, positional, empty, err
+}
+
+// leading takes the flags and value flags off the front of args.
+func leading(cmd Command, args []string) (rest, flags []string, values []commands.Value, err error) {
+	for len(args) > 0 {
+		switch {
+		case slices.Contains(cmd.Flags, args[0]):
+			flags, args = append(flags, args[0]), args[1:]
+		case slices.Contains(cmd.Values, args[0]):
+			// The value is the next word, unless that is one of the
+			// command's own flags: `--rules --yes` is a missing value,
+			// not a file named --yes.
+			if len(args) < 2 || args[1] == "" || slices.Contains(cmd.Flags, args[1]) || slices.Contains(cmd.Values, args[1]) {
+				return nil, nil, nil, fmt.Errorf("%s needs a value", args[0])
+			}
+			values, args = append(values, commands.Value{Flag: args[0], Value: args[1]}), args[2:]
+		default:
+			return args, flags, values, nil
+		}
+	}
+	return nil, flags, values, nil
 }
 
 // emptyBefore: an empty word comes before a given one. A command whose
@@ -144,9 +173,7 @@ func splitArgs(cmd Command, args []string) (flags, positional []string) {
 // (`plan new "" +proj` as the description `+proj`), so that is a usage
 // error; for a command taking any number of words the places do not matter.
 func emptyBefore(cmd Command, args []string) bool {
-	for len(args) > 0 && slices.Contains(cmd.Flags, args[0]) {
-		args = args[1:]
-	}
+	args, _, _, _ = leading(cmd, args)
 	empty := false
 	for _, a := range args {
 		if a == "" {
@@ -170,6 +197,10 @@ func invoke(c *commands.Context, cmd Command, fn func(*commands.Context) error) 
 		c.Env = e
 	}
 	if err := fn(c); err != nil {
+		var u commands.UsageError
+		if errors.As(err, &u) {
+			return usageError(c.Stderr, cmd, string(u))
+		}
 		fmt.Fprintln(c.Stderr, err)
 		return Failure
 	}

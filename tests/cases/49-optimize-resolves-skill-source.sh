@@ -6,7 +6,7 @@
 
 skill_dir="$(fixture_home_dir)/skills/widgetcraft"
 mkdir -p "$skill_dir"
-cat > "$skill_dir/SKILL.md" <<'EOF'
+cat > "$skill_dir/SKILL.md" <<'SK'
 ---
 name: widgetcraft
 description: Making widgets well.
@@ -15,9 +15,9 @@ description: Making widgets well.
 ## Rules
 
 1. Measure before cutting.
-EOF
+SK
 
-fixture_write_feedback <<'EOF'
+fixture_write_feedback <<'FB'
 # Feedback Log
 
 ---
@@ -26,10 +26,24 @@ fixture_write_feedback <<'EOF'
 **Workflow:** widgetcraft
 
 Widget guidance was wrong.
-EOF
+FB
 
-fixture_run_without_api_key optimize --dry-run
+fixture_run optimize
 
-assert_eq "$RUN_EXIT" "0" "run succeeds"
-assert_contains "$RUN_STDOUT" "skills/widgetcraft/SKILL.md" "skill source resolved as the target"
-assert_not_contains "$RUN_STDERR" "Unknown workflow" "a known skill is not an unknown workflow"
+assert_eq "$RUN_EXIT" "0" "the briefing succeeds"
+assert_contains "$RUN_STDOUT" "[skills/widgetcraft] 1 entry" "a bare skill name is the skill's target"
+assert_contains "$RUN_STDOUT" "Target: $skill_dir/SKILL.md" "skill source resolved as the target"
+assert_not_contains "$RUN_STDOUT" "names no prompt or skill" "a known skill is not an unknown workflow"
+
+proposal=$(fixture_write_proposal rules.md <<'RU'
+## Rules
+
+1. Measure twice before cutting.
+RU
+)
+fixture_run_cli optimize apply --workflow skills/widgetcraft --rules "$proposal" --yes
+
+assert_eq "$RUN_EXIT" "0" "applying to a skill succeeds"
+assert_contains "$(cat "$skill_dir/SKILL.md")" "1. Measure twice before cutting." "the source SKILL.md is written"
+assert_contains "$(cat "$skill_dir/SKILL.md")" "name: widgetcraft" "its frontmatter survives"
+assert_contains "$RUN_STDOUT" "daisy install --update" "the run says installed copies are stale"
