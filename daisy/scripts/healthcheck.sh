@@ -355,7 +355,7 @@ fi
 check_journal_rotation
 
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(feedback.sh optimize.sh eval.sh files.sh plan-pickup.sh test.sh)
+HEALTHCHECK_SCRIPTS=(feedback.sh optimize.sh eval.sh files.sh test.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then
@@ -372,7 +372,7 @@ done
 # Commands the Go binary has taken over answer `--healthcheck` themselves.
 DAISY_BIN=$(daisy_bin)
 # An entry may be a noun and its verb, split into words for the call.
-HEALTHCHECK_COMMANDS=(done log tasks projects new-day new-week rotate list "home new")
+HEALTHCHECK_COMMANDS=(done log tasks projects new-day new-week rotate list "home new" "plan new" "plan pickup" "plan archive")
 for cmd in "${HEALTHCHECK_COMMANDS[@]}"; do
     # shellcheck disable=SC2086  # the words are meant to split
     if "$DAISY_BIN" $cmd --healthcheck >/dev/null 2>&1; then

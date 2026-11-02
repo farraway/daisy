@@ -61,9 +61,6 @@ Commands not yet in the binary (bin/daisy help lists every command):
   feedback [--workflow <n>]    Record a prompt failure for optimization
   healthcheck [--force]        Run system health check
   optimize [--workflow <n>]    Run prompt learning loop on collected feedback
-  plan-archive                 Archive the active Daisy plan
-  plan-new [--spec] <desc>     Create a new Daisy plan (or unregistered spec draft)
-  plan-pickup <path>           Promote a local spec draft into a tracked plan
   test [name-substring]        Run the hermetic acceptance suite
 
   Every command also accepts --help/-h (as the sole argument) to print its usage.
@@ -201,21 +198,6 @@ case "$COMMAND" in
     check-secrets)
         require_workspace
         "$SCRIPTS/check-secrets.sh" "$@"
-        popd > /dev/null
-        ;;
-    plan-new)
-        require_workspace
-        "$SCRIPTS/plan-new.sh" "$@"
-        popd > /dev/null
-        ;;
-    plan-pickup)
-        require_workspace
-        "$SCRIPTS/plan-pickup.sh" "$@"
-        popd > /dev/null
-        ;;
-    plan-archive)
-        require_workspace
-        "$SCRIPTS/plan-archive.sh" "$@"
         popd > /dev/null
         ;;
     commit)

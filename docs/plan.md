@@ -11,7 +11,7 @@ Plans are durable implementation artifacts. A plan is developed collaboratively 
 ## /daisy plan \<description\> [+project]
 
 ```
-1. Call daisy plan-new "<description>" ["+project"]
+1. Call daisy plan new "<description>" ["+project"]
 
 2. Enter plan mode — only edit PLAN.md during this phase;
    do not write implementation code.
@@ -91,7 +91,7 @@ Use `daisy test`'s hermetic fixture, or an isolated
 1. Warn if "**Status:**" is not "built" — confirm the user
    wants to archive anyway.
 
-2. Call daisy plan-archive
+2. Call daisy plan archive
 
 3. Log the archive event to today.md via:
    daisy log

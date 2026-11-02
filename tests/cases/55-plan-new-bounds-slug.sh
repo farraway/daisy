@@ -1,4 +1,4 @@
-# Test Plan #55: plan-new bounds the filename slug. It built the slug from the
+# Test Plan #55: `plan new` bounds the filename slug. It built the slug from the
 # whole description with no cap, so an ordinary-length description overran the
 # 255-byte filename limit and the script died with a raw "File name too long"
 # from the shell — after validating its inputs, and with no actionable message
@@ -6,7 +6,7 @@
 
 long_desc="fix four defects surfaced by the previous session namely that plan archive leaves dead project links and a nonexistent daisy add command appears in the rules and the optimize floor strands entries at small n and dry run previews a different sample than the apply does"
 
-fixture_run plan-new "$long_desc" "+testproj"
+fixture_run_cli plan new "$long_desc" "+testproj"
 
 assert_eq "$RUN_EXIT" "0" "a long description does not fail the run"
 assert_not_contains "$RUN_STDERR" "File name too long" "no raw filesystem error"
@@ -20,7 +20,7 @@ assert_contains "$created" "fix-four-defects" "the slug stays readable from its 
 
 # Spec mode builds ${SLUG}_PLAN.md from the same slug, so it inherits the cap.
 rm -f "$FIXTURE_WORKSPACE/PLAN.md"
-fixture_run plan-new --spec "$long_desc"
+fixture_run_cli plan new --spec "$long_desc"
 assert_eq "$RUN_EXIT" "0" "spec mode also survives a long description"
 assert_not_contains "$RUN_STDERR" "File name too long" "spec mode raises no raw filesystem error"
 
@@ -29,7 +29,7 @@ assert_not_contains "$RUN_STDERR" "File name too long" "spec mode raises no raw 
 # on the filesystem after every input has been validated (praxis rule 7).
 rm -f "$FIXTURE_WORKSPACE"/*_PLAN.md
 long_project=$(printf 'p%.0s' $(seq 1 250))
-fixture_run plan-new "a short description" "+$long_project"
+fixture_run_cli plan new "a short description" "+$long_project"
 
 assert_eq "$RUN_EXIT" "1" "an unrepresentable filename is refused"
 assert_contains "$RUN_STDERR" "the limit is 255" "the message names the limit"

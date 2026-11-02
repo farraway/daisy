@@ -233,9 +233,9 @@ daisy log Did thing A         # Add log entry (no quoting needed)
 daisy new-day                 # Start a new day
 daisy new-week                # Start a new week
 daisy optimize [--workflow <n>] # Run prompt learning loop on collected feedback
-daisy plan-archive            # Archive the active Daisy plan
-daisy plan-new "<description>" # Create a new Daisy plan and symlink PLAN.md
-daisy plan-pickup <path>      # Promote a spec draft into a tracked plan
+daisy plan archive            # Archive the active Daisy plan
+daisy plan new "<description>" # Create a new Daisy plan and symlink PLAN.md
+daisy plan pickup <path>      # Promote a spec draft into a tracked plan
 daisy projects [--archived]   # List active or archived projects
 daisy prompt build [<home>]   # Rebuild AGENTS.md (a home's, or this workspace's)
 daisy rotate                  # Rotate journal.md into archive window files (automatic; rarely needed by hand)
@@ -289,8 +289,7 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── daisy.sh                    # Bash entry point; the binary falls through to it for commands not yet ported
 ├── daisy/scripts/              # feedback, optimize, eval,
 │                               # healthcheck, common, commit, check-secrets,
-│                               # files, plan-new, plan-pickup, plan-archive,
-│                               # test
+│                               # files, test
 ├── templates/
 │   ├── journal-day.md          # Daily today.md template
 │   ├── journal-week.md         # Weekly today.md template (adds retrospective)

@@ -30,7 +30,11 @@ func CopyTree(fsys FS, src, dst string) error {
 		if err != nil {
 			return err
 		}
-		return fsys.WriteFile(dst, b, fi.Mode().Perm())
+		// `cp -a` keeps the mode exactly; WriteFile applies the umask.
+		if err := fsys.WriteFile(dst, b, fi.Mode().Perm()); err != nil {
+			return err
+		}
+		return fsys.Chmod(dst, fi.Mode().Perm())
 	case fi.IsDir():
 		if err := fsys.Mkdir(dst, 0o700); err != nil {
 			return err
@@ -51,13 +55,11 @@ func CopyTree(fsys FS, src, dst string) error {
 
 // Rewrite replaces the content of path atomically, keeping what the file
 // is: a symlink's target is written (a file kept in dotfiles stays a
-// link) and an existing file keeps its mode; a new file gets perm.
+// link); the mode is WriteFile's rule (an existing file keeps its own, a
+// new file gets perm under the umask).
 func Rewrite(fsys FS, path string, data []byte, perm fs.FileMode) error {
 	if real, err := fsys.EvalSymlinks(path); err == nil {
 		path = real
-	}
-	if fi, err := fsys.Stat(path); err == nil {
-		perm = fi.Mode().Perm()
 	}
 	return fsys.WriteFile(path, data, perm)
 }

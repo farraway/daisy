@@ -4,11 +4,11 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 - User invokes `/daisy plan`, `/daisy execute`, `/daisy archive`, `/daisy resume`, `/daisy plan spec`, or `/daisy plan pickup`
 - User says "Daisy, plan ...", "Daisy, execute ...", "Daisy, archive ...", "Daisy, spec out ...", or "Daisy, pick up ..."
 - `PLAN.md` exists at the workspace root and any plan-related work is in progress
-- A `{slug}_PLAN.md` draft exists in the working directory
+- A `{slug}_PLAN.md` draft exists at the workspace root
 
 **Plan workflow:**
 - `plan <description> [+project]` → create PLAN.md, enter collaborative planning mode
-- `plan spec <description> [+project]` → create an unregistered draft (`{slug}_PLAN.md`) directly in the working directory — no `$DAISY_HOME/plans/` copy, no `PLAN.md` symlink. Multiple drafts can coexist while deciding which (if any) to pursue.
+- `plan spec <description> [+project]` → create an unregistered draft (`{slug}_PLAN.md`) directly at the workspace root — no `$DAISY_HOME/plans/` copy, no `PLAN.md` symlink. Multiple drafts can coexist while deciding which (if any) to pursue.
 - `plan pickup <path>` → promote a local spec draft into a tracked plan: copies it into `$DAISY_HOME/plans/`, creates the `PLAN.md` symlink
 - `execute PLAN.md` → implement the plan step by step with praxis.md as quality guide
 - `archive PLAN.md` → move completed plan to archive
@@ -33,7 +33,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 13. **Steps must name files; complex steps show code.** Every step should identify the specific files (and line ranges where known) that will change. For non-trivial changes, include a brief before/after code snippet. Vague steps ("refactor auth module") give the agent nothing to anchor on — and an error in the plan is an error in every line that follows from it.
 14. **Surface repeated corrections; do not compound them.** If you have made the same mistake twice on a step, stop. Tell the user what you've tried and why it keeps failing; ask whether to compact what's been learned and start the step fresh. Do not continue correcting in-place — a history of corrections degrades trajectory and primes further failure.
 15. **Resume by verifying state, not assuming it.** When picking up an in-progress plan from a previous session, do not assume completed steps are correct — verify. Check git log, today.md, and spot-check key files. Summarize what is confirmed, what is uncertain, and where work was interrupted. Present the plan summary required by rule 19 alongside that verification, then confirm with the user before continuing.
-16. **Ask before deleting a picked-up spec's original.** `plan-pickup.sh` never deletes the original `{slug}_PLAN.md` itself — after a successful pickup, ask the user whether to delete it now that its content is tracked via the `PLAN.md` symlink, and only run `rm` if they confirm.
+16. **Ask before deleting a picked-up spec's original.** `daisy plan pickup` never deletes the original `{slug}_PLAN.md` itself — after a successful pickup, ask the user whether to delete it now that its content is tracked via the `PLAN.md` symlink, and only run `rm` if they confirm.
 17. **Resolve the real path before writing `PLAN.md`.** `PLAN.md` at the workspace root is a symlink; writing through it fails with "Refusing to write through symlink". Run `daisy files` (it prints the resolved `active plan` path) and write to that real path instead — for every edit during `execute`, `resume`, and `archive`, not just the first.
 18. **Live-test auto-committing scripts only against a hermetic fixture.** Never exercise a script that auto-commits (or otherwise mutates) against a real, in-use home. Use `daisy test`'s fixture harness, or an isolated `daisy home new <fixture-home>` and `daisy init <fixture-home>`, and tear it down afterward.
 19. **Show the plan before asking for approval.** Every readiness question — `/daisy plan`'s "Ready to execute?" and `/daisy resume`'s "Ready to resume from Step N?" — must be immediately preceded, in the same response, by a summary the user can answer from without opening the file. In this order: (1) the plan name and its metadata (created date, status); (2) one line on what the plan accomplishes; (3) every step, one line each, optionally followed by a sentence or two on what it entails and any constraint on it — every step, not an abridged selection; (4) risks, each with its mitigation; (5) open questions. A question the user must open a file to answer defeats the point of asking it.
@@ -42,7 +42,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 
 ## /daisy plan \<description\> [+project]
 
-1. Call `daisy plan-new "<description>" ["+project"]`
+1. Call `daisy plan new "<description>" ["+project"]`
 2. Enter plan mode — only edit `PLAN.md`; do not write implementation code.
 3. **Research phase:** Read what already exists relevant to the task. Identify: (a) what already solves part of this, (b) what's essential to the problem (inherent) vs. accidental (artifact of current approach). Write findings into the `## Research` section of `PLAN.md`. Ask: **"Research summary confirmed — proceed to planning? (yes/no)"**
 4. Scaffold plan sections from conversation context: fill in Goal, Non-goals, Constraints; leave Steps as placeholder checkboxes.
@@ -51,14 +51,14 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 
 ## /daisy plan spec \<description\> [+project]
 
-1. Call `daisy plan-new --spec "<description>" ["+project"]` — writes `{slug}_PLAN.md` directly to the working directory. No `PLAN.md` symlink is created and nothing is registered in `$DAISY_HOME/plans/` yet.
+1. Call `daisy plan new --spec "<description>" ["+project"]` — writes `{slug}_PLAN.md` directly to the workspace root. No `PLAN.md` symlink is created and nothing is registered in `$DAISY_HOME/plans/` yet.
 2. Same collaborative planning discipline as `/daisy plan` (rules 1–3) — only edit the draft file, research before scaffolding, end with Open Questions.
 3. Multiple specs can coexist in the same directory (each has its own `{slug}_PLAN.md`) — useful for sketching more than one candidate approach before choosing.
 4. When a direction is chosen, promote it: `/daisy plan pickup <path-to-spec>`.
 
 ## /daisy plan pickup \<path\>
 
-1. Call `daisy plan-pickup "<path>"` — copies the spec into `$DAISY_HOME/plans/` with the standard timestamp+slug filename and creates the `PLAN.md` symlink. The original file at `<path>` is left untouched by the script.
+1. Call `daisy plan pickup "<path>"` — copies the spec into `$DAISY_HOME/plans/` with the standard timestamp+slug filename and creates the `PLAN.md` symlink. The original file at `<path>` is left untouched by the command.
 2. Ask the user: **"Delete the original spec file now that it's tracked? (yes/no)"** Run `rm <path>` only if they confirm (rule 16).
 3. From here the plan behaves like any other — proceed with `/daisy execute` when ready.
 
@@ -78,7 +78,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 
 1. Warn if `**Status:**` is not `built` — confirm the user wants to archive anyway.
 2. **Rehome the Deferred list.** For each item under `## Deferred`, verify it against the code before moving it — some will already be done. Move the live ones into the project file's `## Deferred` section (creating it if absent), with the context that makes them intelligible; strike through and date any found already resolved. Then they live in one mutable place instead of being copied into the next plan, which is how a fixed item rode four consecutive plans looking more overdue each time. An item becomes a `todo.txt` task when it is scheduled, not before.
-3. Call `daisy plan-archive`
+3. Call `daisy plan archive`
 4. Log the archive event to `today.md` via `daisy log`.
 
 ## /daisy resume PLAN.md

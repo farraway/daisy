@@ -108,10 +108,10 @@ suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
 -race`) runs before every root commit. Ported so far: `status`, `files`,
 `log`, `done`, `tasks`, `projects`, `new-day`, `new-week`, `rotate`,
 `prompt build`, `list`, `help`, `init`, `clean`, `install`, `home
-list|add|remove|new` and `identity list` (`internal/todo`,
-`internal/journal`, `internal/gitx`, `internal/prompt`, `internal/skill`,
-`internal/identity`, `internal/settings` and `internal/workspace` behind
-them);
+list|add|remove|new`, `identity list` and `plan new|pickup|archive`
+(`internal/todo`, `internal/journal`, `internal/gitx`, `internal/prompt`,
+`internal/skill`, `internal/identity`, `internal/settings`,
+`internal/workspace` and `internal/plan` behind them);
 their scripts are gone, `healthcheck.sh` asks them for `--healthcheck`
 through the binary, and a script that needs one calls the binary
 (`daisy_bin` in `common.sh`).
@@ -129,9 +129,6 @@ through the binary, and a script that needs one calls the binary
 | `check-secrets.sh` | Report which API tokens/secrets are configured in .env.sh |
 | `healthcheck.sh` | System validation |
 | `files.sh` | Report resolved real paths for every per-home file/directory |
-| `plan-new.sh` | Create a new Daisy plan file, symlink as PLAN.md (or, with `--spec`, an unregistered draft in the working directory) |
-| `plan-pickup.sh` | Promote a local spec draft (from `plan-new.sh --spec`) into a tracked plan |
-| `plan-archive.sh` | Archive the active Daisy plan, remove the PLAN.md symlink |
 | `test.sh` | Run the hermetic acceptance suite (`tests/run.sh`) |
 
 **Documentation policy:** every script in `daisy/scripts/` must have a row in this table, and — if it implements the `--healthcheck` contract — a corresponding entry in `healthcheck.sh`'s `HEALTHCHECK_SCRIPTS` array (a ported Go command that answers `--healthcheck` is listed in `HEALTHCHECK_COMMANDS` instead). `healthcheck.sh` includes an automated drift check for the table half of this; there is no automated check for the array half beyond that same script list (see `daisy/scripts/healthcheck.sh`).

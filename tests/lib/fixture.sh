@@ -175,7 +175,7 @@ fixture_command() {
     case "$1" in
         build-prompt) echo "prompt build" ;;
         check-secrets|commit|done|eval|feedback|files|healthcheck|list|log|\
-        new-day|new-week|optimize|plan-archive|plan-new|plan-pickup|projects|\
+        new-day|new-week|optimize|projects|\
         rotate|tasks|test)
             echo "$1" ;;
         *)  echo "fixture_command: no daisy command stands for script '$1'" >&2

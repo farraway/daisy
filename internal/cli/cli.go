@@ -56,6 +56,9 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 	}
 
 	c.Flags, c.Args = splitArgs(cmd, rest)
+	if cmd.Max != Unbounded && emptyBefore(cmd, rest) {
+		return usageError(stderr, cmd, "empty argument")
+	}
 	if len(c.Args) < cmd.Min {
 		return usageError(stderr, cmd, "missing argument")
 	}
@@ -134,6 +137,25 @@ func splitArgs(cmd Command, args []string) (flags, positional []string) {
 		}
 	}
 	return flags, positional
+}
+
+// emptyBefore: an empty word comes before a given one. A command whose
+// arguments have places would read the later word in the empty one's
+// (`plan new "" +proj` as the description `+proj`), so that is a usage
+// error; for a command taking any number of words the places do not matter.
+func emptyBefore(cmd Command, args []string) bool {
+	for len(args) > 0 && slices.Contains(cmd.Flags, args[0]) {
+		args = args[1:]
+	}
+	empty := false
+	for _, a := range args {
+		if a == "" {
+			empty = true
+		} else if empty {
+			return true
+		}
+	}
+	return false
 }
 
 // invoke resolves the workspace when the command needs one and runs fn;

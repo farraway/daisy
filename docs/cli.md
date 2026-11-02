@@ -88,9 +88,7 @@ System
 | Legacy (`daisy.sh` today) | Agreed | Step |
 |---|---|---|
 | `daisy build [home]` | `daisy prompt build [<home>]` | 20 |
-| `daisy plan-new [--spec] <desc> [+project]` | `daisy plan new [--spec] <description> [+project]` | 22 |
-| `daisy plan-pickup <path>` | `daisy plan pickup <path>` | 22 |
-| `daisy plan-archive` | `daisy plan archive` | 22 |
+| `plan` and its verb as one hyphenated word, three bash scripts | `daisy plan new [--spec] <description> [+project]`, `daisy plan pickup <path>`, `daisy plan archive` | 22 |
 | `daisy commit --home <message>` | `daisy commit <message>` | 24 |
 | `daisy commit --not-home <message>` | `daisy commit --root <message>` | 24 |
 | `daisy init --new <home>` | removed: `daisy home new <home>`, then `daisy init <home>` | 21 |
@@ -106,7 +104,10 @@ this table keeps its name and every flag the suite asserts.
 
 **Exit codes.** `Run` returns 0 on success, 1 on failure, 2 on a usage
 error (unknown command, unknown flag, missing or surplus positional
-argument), with the command's usage on stderr. The bash exits 1 for usage
+argument, and — for a command whose arguments have places, every one but
+`log` — an empty word before a given one, `Error: empty argument`, so that
+`plan new "" +proj` is not the description `+proj` *(D37, Step 22)*), with
+the command's usage on stderr. The bash exits 1 for usage
 errors too; no case asserts a usage exit code, so 2 is free to take
 *(agreed, Step 17)*. A value the command refuses — an unknown identity, an
 invalid name, an ambiguous pattern, no match — is a failure, exit 1, as the
@@ -125,8 +126,8 @@ from the script's header comment, the binary from the `cli` table (`Usage:
 daisy <usage>`, blank, the description). `daisy`, `daisy help`, `daisy --help`,
 `daisy -h` print the help: as built the flat `Commands:` list of `show_help`;
 from Step 17 the tree, in the agreed groups and order, each command under the
-name this build answers to (so `plan-new` until Step 22, `home new`, `home
-add`, `home list` and `home remove` one row each, no `swarm` until it exists) — the tree never names a
+name this build answers to (`plan new`, `plan pickup`, `plan archive`,
+`home new`, `home add`, `home list` and `home remove` one row each, no `swarm` until it exists) — the tree never names a
 command the binary does not run. *The four forms and the sole-argument
 rule are as built and kept (decided, D30: Architecture does not mention
 them).*
@@ -182,10 +183,11 @@ API call: `EDITOR`, `TMPDIR`, `ANTHROPIC_API_KEY`, `DAISY_OPTIMIZE_MODEL`,
 `DAISY_OPTIMIZE_RESPONSE_FILE` (the suite's LLM stub). Nothing else.
 
 **`--healthcheck` hook.** The scripts listed in `healthcheck.sh`'s
-`HEALTHCHECK_SCRIPTS` (`feedback`, `optimize`, `eval`, `files`,
-`plan-pickup`, `test`) and the Go commands listed in its
-`HEALTHCHECK_COMMANDS` (`done`, `log`, `tasks`, `projects`, `new-day`,
-`new-week`, `rotate`, `list`, `home new` — the template is there —, asked
+`HEALTHCHECK_SCRIPTS` (`feedback`, `optimize`, `eval`, `files`, `test`)
+and the Go commands listed in its `HEALTHCHECK_COMMANDS` (`done`, `log`,
+`tasks`, `projects`, `new-day`, `new-week`, `rotate`, `list`, `home new` —
+the template is there —, `plan new` — `plans/` and `templates/plan.md` —,
+`plan pickup` — `plans/` —, `plan archive` — `plans/archive/` —, asked
 through the binary) accept `--healthcheck` as the
 sole argument: check their own preconditions, print nothing on success,
 exit 0; else a one-line `Error: …` on stderr, exit 1. Two cases pin it from
@@ -426,42 +428,42 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | agreed rename (Step 22); behaviour as built |
-| Legacy | `daisy plan-new [--spec] <desc> [project-tag]` → `plan-new.sh` |
+| Status | ported (Step 22): Go (`internal/plan`); byte-identical to the bash's output and plan file but where the bash was wrong (D37) |
+| Legacy | `plan` and `new` as one hyphenated word → its bash script, deleted in Step 22 |
 | Usage | `daisy plan new [--spec] <description> [+project]` |
-| Arguments | `<description>`: required (`Error: Description required`, exit 1); slugged (`[^a-zA-Z0-9]` → `-`, runs collapsed, trimmed, at most 100 characters, `fix-four-defects` [55] stays readable); `[+project]`: leading `+` optional, stripped |
-| Exit codes | 0 [55]; 1 when `PLAN.md` already exists (`Error: PLAN.md already exists in this workspace`), or with `--spec` when `<slug>_PLAN.md` does, when the slug is empty, or when the filename would reach 255 bytes: `the limit is 255` [55] and `Shorten the project tag` [55] on stderr, never the shell's `File name too long` [55] |
-| Stdout | `✅ Plan created: <filename>`, `   Linked as: <ws>/PLAN.md`, and `  ✓ Added PLAN.md to .gitignore` / `  ✓ Created .gitignore with PLAN.md` when it was not ignored; `--spec`: `✅ Spec created: <slug>_PLAN.md`, `   Location: <path>`, `   Not registered with Daisy — promote later with: daisy plan pickup <path>` (renamed from `plan-pickup`), and the `*_PLAN.md` gitignore line |
+| Arguments | `<description>`: required — none, or only empty words, is usage on stderr, exit 2 (the bash exited 1 with `Error: Description required`); slugged (every run of bytes other than ASCII letters and digits → one `-`, trimmed, cut to at most 100 bytes and trimmed again, `fix-four-defects` [55] stays readable; the bash's `sed` kept the locale's letters, so `café` stayed `café` and 100 characters could be 200 bytes, and slugged each line of a multi-line description apart — Go's slug is ASCII whatever the locale, and a newline is one more hyphen); taken literally into the H1 (the bash's `awk -v` turned `\t` and `\\` into a tab and a backslash); `[+project]`: leading `+` optional, stripped; a third word is usage, exit 2 (the bash ignored it) |
+| Exit codes | 0 [55]; 1 when `PLAN.md` already exists — as a dangling link too (`Error: PLAN.md already exists in this workspace`; the bash wrote the plan file, then failed at `ln`) —, or with `--spec` when `<slug>_PLAN.md` does, when the slug is empty (`Error: description produced an empty slug`), when the project holds `/` or a NUL (`cannot be part of a file name`; the bash failed at the write) — with `--spec` too, where it names no file yet but `plan pickup` would refuse it, when the plan file already exists (two plans named in the same second; the bash overwrote it), when `templates/plan.md` is missing, when `.gitignore` cannot be read, or when the filename would reach 255 bytes: `the limit is 255` [55] and `Shorten the project tag` [55] on stderr, never the shell's `File name too long` [55]. Every refusal is decided before the first write; a failed write takes back the plan file and link already made (`Nothing was created.`) |
+| Stdout | `  ✓ Added PLAN.md to .gitignore` / `  ✓ Created .gitignore with PLAN.md` when it was not ignored, then `✅ Plan created: <filename>`, `   Linked as: <ws>/PLAN.md`; `--spec`: the `*_PLAN.md` gitignore line, then `✅ Spec created: <slug>_PLAN.md`, `   Location: <path>`, `   Not registered with Daisy — promote later with: daisy plan pickup <path>` |
 | Ops | Real |
-| Writes | `$DAISY_HOME/plans/<yymmddHHMMSS>.<project>.<slug>.plan.md` (no project: `<ts>.<slug>.plan.md`) from `templates/plan.md` (`{Description}{project_suffix}`, `**Project:** +{project}`, `{YYYY-MM-DD HH:MM}`, `$DAISY_ROOT` filled); the relative symlink `<ws>/PLAN.md` → `.daisy/plans/<filename>`; `<ws>/.gitignore` gains `PLAN.md`. `--spec`: `<ws>/<slug>_PLAN.md` only, `.gitignore` gains `*_PLAN.md`, nothing under the home |
-| Commits | none (as built: the plan file is committed by the next home commit) |
+| Writes | `$DAISY_HOME/plans/<yymmddHHMMSS>.<project>.<slug>.plan.md` (no project: `<ts>.<slug>.plan.md`) from `templates/plan.md`, line by line: the `{Description}{project_suffix}` line becomes `# <description>` (` — +<project>` added when there is one), the `**Project:** +{project}` line names the project or goes, the first `{YYYY-MM-DD HH:MM}` on a line becomes the time, and on any other line every `$DAISY_ROOT` the root; the relative symlink `<ws>/PLAN.md` → `.daisy/plans/<filename>`; `<ws>/.gitignore` gains a `PLAN.md` line (on a line of its own: the bash appended it to a last line without a newline), written through a link. `--spec`: `<ws>/<slug>_PLAN.md` only, `.gitignore` gains `*_PLAN.md`, nothing under the home |
+| Commits | none (decided, D37: the plan file is committed by the next home commit, `plan pickup`'s and `plan archive`'s included) |
 | Cases | 55 |
 
 ### daisy plan pickup
 
 | Field | Value |
 |---|---|
-| Status | agreed rename (Step 22); behaviour as built |
-| Legacy | `daisy plan-pickup <path>` → `plan-pickup.sh` |
-| Usage | `daisy plan pickup <path>` |
-| Exit codes | 0; 1 with no path, a missing file (`Error: File not found: <path>`), an existing `PLAN.md`, or no `# <Description>` H1 in the file |
-| Stdout | `✅ Picked up: <basename> → <filename>`, `   Linked as: <ws>/PLAN.md`, `   Original left in place at: <path>`, then `commit`'s line |
+| Status | ported (Step 22): Go (`internal/plan`) |
+| Legacy | `plan` and `pickup` as one hyphenated word → its bash script, deleted in Step 22 |
+| Usage | `daisy plan pickup <path>` (a relative path is the working directory's; the bash's was the workspace root's) |
+| Exit codes | 0; 2 with no path or a second one; 1 for a path that is not a regular file (`Error: File not found: <path>`), an existing `PLAN.md` (a dangling link included), no `# <Description>` H1 in the file (`Could not find a '# {Description}' header`), an empty slug, a project holding `/` or a NUL, a filename of 255 bytes or more (`the limit is 255` — the bash did not bound the slug here, so a long H1 died on the filesystem), an existing plan file of that name, or a home not in its own git repository (checked before the first write; the bash copied and linked, then failed at the commit); a failed link takes back the copy; a failed commit leaves the plan picked up and says so |
+| Stdout | `✅ Picked up: <basename> → <filename>`, `   Linked as: <ws>/PLAN.md`, `   Original left in place at: <path>`, then `commit`'s line (`📝 Committed: <message> (<hash>)`; git's own commit summary, which the bash let through, is not printed) |
 | Ops | Real |
-| Writes | copies the spec to `$DAISY_HOME/plans/<ts>.<project>.<slug>.plan.md` (description and `— +project` read from the H1), links `PLAN.md`; never touches the original |
+| Writes | copies the spec (its mode under the umask, as `cp`) to `$DAISY_HOME/plans/<ts>.<project>.<slug>.plan.md` (description and project read from the first `# ` line, split at its last ` — +`; the slug as `plan new`'s, capped), links `PLAN.md`; never touches the original |
 | Commits | home, once: `Pick up plan: <filename>` |
-| Cases | none |
+| Cases | none (`TestPlanPickup`) |
 
 ### daisy plan archive
 
 | Field | Value |
 |---|---|
-| Status | agreed rename (Step 22); behaviour as built |
-| Legacy | `daisy plan-archive` → `plan-archive.sh` |
-| Usage | `daisy plan archive` |
-| Exit codes | 0 [54]; 1 when `PLAN.md` does not exist, is not a symlink (`not a Daisy plan`), or its target is missing (`The symlink may be broken…`) |
+| Status | ported (Step 22): Go (`internal/plan`) |
+| Legacy | `plan` and `archive` as one hyphenated word → its bash script, deleted in Step 22 |
+| Usage | `daisy plan archive` (any argument: usage, exit 2; the bash ignored them) |
+| Exit codes | 0 [54]; 1 when `PLAN.md` does not exist, is not a symlink (`not a Daisy plan`), its target is not in `plans/` (`The symlink may be broken…`), `plans/archive/<filename>` already exists (the bash's `mv` replaced it), a project file cannot be read, or the home is not in its own git repository — each decided before the first write; 1 when a write fails, with the move, the link and every project file put back (`Nothing was archived.`, or which undo failed); a failed commit leaves the plan archived and says so |
 | Stdout | `✅ Archived: <filename>`; `  ✓ Repointed links in N project file(s)` when any (`project file` [54]); then `commit`'s line |
 | Ops | Real |
-| Writes | moves `plans/<filename>` to `plans/archive/<filename>`, removes `<ws>/PLAN.md`; in every `projects/*.md` and `projects/_archive/*.md` rewrites `../plans/<filename>` to `../plans/archive/` [54] `<filename>`, leaving unrelated project files byte-identical [54] |
+| Writes | moves `plans/<filename>` to `plans/archive/<filename>`, removes `<ws>/PLAN.md`; in every regular `projects/*.md` and `projects/_archive/*.md` (not dotfiles, as the glob) rewrites each literal `../plans/<filename>` to `../plans/archive/` [54] `<filename>`, written through a link (the bash's `sed -i` replaced a linked project file with a copy), leaving unrelated project files byte-identical [54] |
 | Commits | home, once: `Archive plan: <filename>` |
 | Cases | 54 |
 

@@ -1,5 +1,5 @@
 # Test Plan #54: archiving a plan repoints the project-file links that named
-# it. plan-archive is the only place that knows both the old and the new path
+# it. `plan archive` is the only place that knows both the old and the new path
 # at the moment they change, so it is the only place that can fix the links
 # without scanning for them. Three links were repaired by hand before this
 # was mechanised (260729134724, 260817140134, 260728121456).
@@ -31,7 +31,7 @@ other_before=$(cat "$home/projects/other.md")
 
 ln -s "$home/plans/$plan" "$FIXTURE_WORKSPACE/PLAN.md"
 
-fixture_run plan-archive
+fixture_run_cli plan archive
 
 assert_eq "$RUN_EXIT" "0" "archive succeeds"
 assert_contains "$(cat "$home/projects/testproj.md")" "../plans/archive/$plan" "the link is repointed at the archive"

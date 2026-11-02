@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -131,21 +133,29 @@ func (realFS) RemoveAll(path string) error                  { return os.RemoveAl
 func (realFS) Rename(oldpath, newpath string) error         { return os.Rename(oldpath, newpath) }
 
 // WriteFile writes to a sibling temp file and renames it over name, so a
-// reader never sees a half-written file.
+// reader never sees a half-written file. One rule for the mode: a file that
+// exists keeps its mode exactly (as a shell's `>` or `>>` keeps it); a new
+// file gets perm under the umask (as `>` or `cp` makes one).
 func (realFS) WriteFile(name string, data []byte, perm os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(name), "."+filepath.Base(name)+".*")
+	keep := false
+	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
+		perm, keep = fi.Mode().Perm(), true
+	}
+	tmp, err := createSibling(name, perm)
 	if err != nil {
-		return err
+		return fmt.Errorf("writing %s: %w", name, err)
 	}
 	cleanup := func(err error) error {
 		tmp.Close()
 		os.Remove(tmp.Name())
 		return fmt.Errorf("writing %s: %w", name, err)
 	}
-	if _, err := tmp.Write(data); err != nil {
-		return cleanup(err)
+	if keep {
+		if err := tmp.Chmod(perm); err != nil {
+			return cleanup(err)
+		}
 	}
-	if err := tmp.Chmod(perm); err != nil {
+	if _, err := tmp.Write(data); err != nil {
 		return cleanup(err)
 	}
 	if err := tmp.Close(); err != nil {
@@ -156,4 +166,18 @@ func (realFS) WriteFile(name string, data []byte, perm os.FileMode) error {
 		return fmt.Errorf("writing %s: %w", name, err)
 	}
 	return nil
+}
+
+// createSibling creates `.<base>.<random>` beside name, exclusively, with
+// perm under the umask.
+func createSibling(name string, perm os.FileMode) (*os.File, error) {
+	dir, base := filepath.Dir(name), filepath.Base(name)
+	for range 100 {
+		p := filepath.Join(dir, "."+base+"."+strconv.FormatUint(rand.Uint64(), 36))
+		f, err := os.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
+		if !errors.Is(err, os.ErrExist) {
+			return f, err
+		}
+	}
+	return nil, errors.New("no free temporary name")
 }

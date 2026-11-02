@@ -52,9 +52,9 @@ var table = []Command{
 	{Group: "Day", Name: "projects", Usage: "projects [--archived]", Help: "List active or archived projects", Workspace: true, Flags: []string{"--archived"}, Run: commands.Projects, Health: commands.ProjectsHealth},
 	{Group: "Day", Name: "rotate", Usage: "rotate", Help: "Rotate journal.md into window files", Workspace: true, Run: commands.Rotate, Health: commands.RotateHealth},
 
-	{Group: "Plans", Name: "plan-new", Usage: "plan-new [--spec] <description> [+project]", Help: "Create a plan (or an unregistered spec draft)"},
-	{Group: "Plans", Name: "plan-pickup", Usage: "plan-pickup <path>", Help: "Promote a spec draft into a tracked plan"},
-	{Group: "Plans", Name: "plan-archive", Usage: "plan-archive", Help: "Archive the active plan"},
+	{Group: "Plans", Name: "plan new", Usage: "plan new [--spec] <description> [+project]", Help: "Create a plan (or an unregistered spec draft)", Workspace: true, Flags: []string{"--spec"}, Min: 1, Max: 2, Run: commands.PlanNew, Health: commands.PlanNewHealth},
+	{Group: "Plans", Name: "plan pickup", Usage: "plan pickup <path>", Help: "Promote a spec draft into a tracked plan", Workspace: true, Min: 1, Max: 1, Run: commands.PlanPickup, Health: commands.PlanPickupHealth},
+	{Group: "Plans", Name: "plan archive", Usage: "plan archive", Help: "Archive the active plan", Workspace: true, Run: commands.PlanArchive, Health: commands.PlanArchiveHealth},
 
 	{Group: "Homes and identities", Name: "home new", Usage: "home new <name> [path]", Help: "Create a home; prompts for identity and location", Min: 1, Max: 2, Run: commands.HomeNew, Health: commands.HomeNewHealth},
 	{Group: "Homes and identities", Name: "home add", Usage: "home add <name> <path>", Help: "Register an existing home", Min: 2, Max: 2, Run: commands.HomeAdd},

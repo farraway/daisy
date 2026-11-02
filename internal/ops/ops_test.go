@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"daisy/internal/ops"
@@ -186,5 +187,42 @@ func TestMkdirIsExclusive(t *testing.T) {
 	}
 	if fi, _ := os.Stat(d); fi.Mode().Perm() != 0o755 {
 		t.Errorf("mode %v", fi.Mode())
+	}
+}
+
+// One mode rule for every write: a new file gets perm under the umask, as
+// `>` and `cp` make one; an existing file keeps its mode exactly, as `>`
+// and `>>` keep it (WriteFile and Rewrite alike); CopyTree copies modes
+// exactly, as `cp -a` (Step 22, D37).
+func TestRealWriteFileHonoursTheUmask(t *testing.T) {
+	old := syscall.Umask(0o077)
+	defer syscall.Umask(old)
+	dir := t.TempDir()
+	fs := ops.Real().FS()
+	if err := fs.WriteFile(filepath.Join(dir, "new"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wide := filepath.Join(dir, "wide")
+	os.WriteFile(wide, []byte("x"), 0o666)
+	os.Chmod(wide, 0o666)
+	if err := ops.Rewrite(fs, wide, []byte("y"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.CopyTree(fs, wide, filepath.Join(dir, "copy")); err != nil {
+		t.Fatal(err)
+	}
+	kept := filepath.Join(dir, "kept")
+	os.WriteFile(kept, []byte("x"), 0o644)
+	os.Chmod(kept, 0o644) // the umask applied to the fixture too
+	if err := fs.WriteFile(kept, []byte("y"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]os.FileMode{"new": 0o600, "wide": 0o666, "copy": 0o666, "kept": 0o644} {
+		fi, err := os.Stat(filepath.Join(dir, name))
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+		} else if fi.Mode().Perm() != want {
+			t.Errorf("%s: mode %v, want %v", name, fi.Mode().Perm(), want)
+		}
 	}
 }
