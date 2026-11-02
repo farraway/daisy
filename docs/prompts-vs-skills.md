@@ -162,7 +162,7 @@ seam, as in the `git` example.
 
 A **situated layer** that knows the user — `personal`, `daisy`, `plan`,
 `retrospective`, `socrates`, `github` — and a **craft layer** that knows the
-work — `agents-md`, `css`, `js`, `tdd`, `git`, `writing-great-skills`.
+work — `agents-md`, `css`, `js`, `tdd`, `git`.
 `praxis` sits with the prompts: mostly portable implementation guidance, but
 its step-tracking rule writes `PLAN.md`.
 

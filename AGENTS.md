@@ -67,11 +67,15 @@ nothing about a file it considers unpublishable. Write system files as if
 they were already public.
 
 **`.gitignore` is the publication boundary.** It is the single declaration
-of what does not ship, honoured by the scan and by git itself. That is what
-keeps per-machine workspace state (`.daisy/`, `.cursorignore`,
-`.claude/settings.local.json`, `.cursor/rules/daisy*.mdc`) and secrets
-(`.env.sh`) out of the published tree — files that sit inside `$DAISY_ROOT`
-and would otherwise publish. Two consequences:
+of what does not ship, honoured by the scan and by git itself. Every line
+in it names its cause — what writes that path under the root: the binary
+`make build` writes (`bin/`), OS artifacts, secrets (`.env.sh`, which
+`check-secrets` reads in a workspace), and the block `daisy init` writes
+when the root is itself bound as a workspace (`.daisy/`, its stage and
+previous names, `.cursorignore`, `.claude/settings.local.json`,
+`.claude/commands/daisy.md`, `.cursor/rules/daisy*.mdc`, `PLAN.md`, and the
+bound home's skills) — files that sit inside `$DAISY_ROOT` and would
+otherwise publish. A line without a cause goes. Two consequences:
 
 - Keep ignore rules in `.gitignore`. A global `core.excludesFile` or a
   `.git/info/exclude` entry hides a file from the scan on this machine only,

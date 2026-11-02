@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -519,4 +521,207 @@ func TestCoreRulesAreInitsOwnFiles(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(rules, "myskill.mdc")); !strings.Contains(string(b), "Read `.claude/skills/myskill/SKILL.md`") {
 		t.Errorf("myskill.mdc is %q", b)
 	}
+}
+
+// recordingFS notes every path a command writes (successfully), a directory with a
+// trailing slash: files, links, directories made one at a time (a stage, a
+// skill's copy) and rename targets (the swap). MkdirAll's parents are not
+// writes of a path git could publish, so they are not noted.
+type recordingFS struct {
+	ops.FS
+	written []string
+}
+
+func (r *recordingFS) note(p string) {
+	if fi, err := os.Lstat(p); err == nil && fi.IsDir() {
+		p += "/"
+	}
+	r.written = append(r.written, p)
+}
+
+func (r *recordingFS) WriteFile(name string, data []byte, perm os.FileMode) error {
+	err := r.FS.WriteFile(name, data, perm)
+	if err == nil {
+		r.note(name)
+	}
+	return err
+}
+
+func (r *recordingFS) Mkdir(path string, perm os.FileMode) error {
+	err := r.FS.Mkdir(path, perm)
+	if err == nil {
+		r.note(path)
+	}
+	return err
+}
+
+func (r *recordingFS) Symlink(oldname, newname string) error {
+	err := r.FS.Symlink(oldname, newname)
+	if err == nil {
+		r.note(newname)
+	}
+	return err
+}
+
+func (r *recordingFS) Rename(oldpath, newpath string) error {
+	err := r.FS.Rename(oldpath, newpath)
+	if err == nil {
+		r.note(newpath)
+	}
+	return err
+}
+
+// ignoredBy is the paths of rel (relative to a repository) that the one
+// ignore line entry matches, as git reads it.
+func ignoredBy(t *testing.T, entry string, rel []string) []string {
+	t.Helper()
+	probe := t.TempDir()
+	gitIn(t, probe, "init", "-q", "--template=") // no info/exclude of the machine's
+	writeFile(t, filepath.Join(probe, ".gitignore"), entry+"\n")
+	cmd := exec.Command("git", "-C", probe, "-c", "core.excludesFile=/dev/null", "check-ignore", "--no-index", "--stdin")
+	cmd.Stdin = strings.NewReader(strings.Join(rel, "\n") + "\n")
+	out, err := cmd.Output()
+	if err != nil && cmd.ProcessState.ExitCode() != 1 { // 1: nothing matched
+		t.Fatalf("check-ignore %q: %v", entry, err)
+	}
+	return strings.Fields(string(out))
+}
+
+// The block init writes into .gitignore is exactly what Daisy writes into
+// a workspace, both ways: every path init (run twice, so .daisy/ is moved
+// aside and a stage swapped in), and `plan new` after it, writes there
+// but .gitignore itself is ignored by the block; and every entry of the
+// block ignores at least one of those paths — PLAN.md only because `plan
+// new` links it — and no broader: an entry is a written path, or a name
+// with a trailing * standing for exactly the suffix of the names init
+// generates beside .daisy/, and none ignores a user's own file. Every
+// .cursorignore line re-includes an entry of the block.
+func TestInitIgnoresWhatItWrites(t *testing.T) {
+	m := initMachine(t)
+	ws := t.TempDir()
+	gitIn(t, ws, "init", "-q")
+	rec := &recordingFS{FS: ops.Real().FS()}
+	var block []byte // .gitignore as init left it, before plan new runs
+	for i, args := range [][]string{{"init", "testhome"}, {"init", "testhome"}, {"plan", "new", "Ship it"}} {
+		o := withFS{&ops.Fake{
+			GetenvFn: func(k string) string { return m.vars[k] },
+			GetwdFn:  func() (string, error) { return ws, nil },
+			NowFn:    func() time.Time { return time.Date(2026, 11, 1, 9, 30, i, 0, time.UTC) },
+		}, rec}
+		if args[0] == "plan" {
+			b, err := os.ReadFile(filepath.Join(ws, ".gitignore"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			block = b
+		}
+		if code, _, errs := runWith(o, args...); code != 0 {
+			t.Fatalf("%v: exit %d: %s", args, code, errs)
+		}
+	}
+
+	var written []string
+	seen := map[string]bool{}
+	for _, p := range rec.written {
+		rel, err := filepath.Rel(ws, p)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, "../") || rel == ".gitignore" || seen[rel] || seen[rel+"/"] {
+			continue // outside the workspace (the home), or the file the user commits
+		}
+		if strings.HasSuffix(p, "/") {
+			rel += "/"
+		}
+		seen[rel] = true
+		written = append(written, rel)
+	}
+	for _, want := range []string{".daisy/", "PLAN.md", ".cursorignore", ".claude/skills/myskill/"} {
+		if !seen[want] {
+			t.Fatalf("no %s among the paths written: %v", want, written)
+		}
+	}
+	var stage, previous bool
+	for _, p := range written {
+		stage = stage || strings.HasPrefix(p, ".daisy.stage.")
+		previous = previous || strings.HasPrefix(p, ".daisy.previous.")
+	}
+	if !stage || !previous {
+		t.Fatalf("init made no stage (%v) or set no .daisy/ aside (%v): %v", stage, previous, written)
+	}
+
+	// plan new adds PLAN.md to .gitignore when it is missing: the block
+	// must already hold it.
+	if b, _ := os.ReadFile(filepath.Join(ws, ".gitignore")); string(b) != string(block) {
+		t.Fatalf("plan new changed the .gitignore init wrote:\n%s\n→\n%s", block, b)
+	}
+	b := block
+	lines := splitNonEmpty(string(b))
+	if len(lines) < 2 || lines[0] != "# Daisy workspace config (per-machine)" {
+		t.Fatalf(".gitignore is not one Daisy block:\n%s", b)
+	}
+	entries := lines[1:]
+	for _, e := range entries {
+		if len(ignoredBy(t, e, written)) == 0 {
+			t.Errorf("the entry %q ignores nothing Daisy writes into the workspace (%v)", e, written)
+		}
+		// No broader than its cause: a path Daisy writes, or a name Daisy
+		// writes with a trailing * for its generated suffix.
+		if lit, glob := strings.CutSuffix(e, "*"); strings.Contains(lit, "*") || !(glob && generatedSuffix(lit, ignoredBy(t, e, written)) || !glob && seen[e]) {
+			t.Errorf("the entry %q is not a path Daisy writes, nor such a name ending in *", e)
+		}
+	}
+	// And so it ignores nothing of the user's beside Daisy's own files.
+	user := []string{"README.md", "src/main.go", "plan.md", "OTHER_PLAN.txt", ".daisyrc", ".daisy.bak", ".env.sh",
+		".claude/settings.json", ".claude/commands/other.md", ".claude/skills/other/SKILL.md", ".cursor/rules/user.mdc", ".cursor/rules/docs.mdc", ".claude/commands/deploy.md", ".cursor/mcp.json", "Procfile", ".claude/skills/my-notes/SKILL.md", ".daisy.sample", ".daisy.plan.md"}
+	if hit := ignoredBy(t, strings.Join(entries, "\n"), user); len(hit) > 0 {
+		t.Errorf("the block ignores the user's own %v", hit)
+	}
+	ignored := map[string]bool{}
+	for _, p := range ignoredBy(t, strings.Join(entries, "\n"), written) {
+		ignored[p] = true
+	}
+	for _, p := range written {
+		if !ignored[p] {
+			t.Errorf("%s is written into the workspace and not ignored by the block %v", p, entries)
+		}
+	}
+
+	c, err := os.ReadFile(filepath.Join(ws, ".cursorignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cl := splitNonEmpty(string(c))
+	if len(cl) < 2 || cl[0] != "# Allow Cursor to index daisy paths (gitignored but needed for agent context)" {
+		t.Fatalf(".cursorignore is not one Daisy block:\n%s", c)
+	}
+	for _, l := range cl[1:] {
+		if !strings.HasPrefix(l, "!") || !slices.Contains(entries, l[1:]) {
+			t.Errorf(".cursorignore line %q re-includes no entry of the .gitignore block", l)
+		}
+	}
+}
+
+func splitNonEmpty(s string) []string {
+	var out []string
+	for _, l := range strings.Split(s, "\n") {
+		if l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// generatedName is the names init generates beside .daisy/ (env's
+// leftover shape), its fixed part and its generated suffix: the one place
+// a * in the block stands for a suffix.
+var generatedName = regexp.MustCompile(`^(\.daisy\.previous\.)[0-9]+(?:/|$)|^(\.daisy\.stage\.)[A-Za-z0-9]{6}(?:/|$)`)
+
+// generatedSuffix: paths is not empty and each is a generated name whose
+// fixed part is lit, so lit + "*" stands for exactly the generated suffix.
+func generatedSuffix(lit string, paths []string) bool {
+	for _, p := range paths {
+		m := generatedName.FindStringSubmatch(p)
+		if m == nil || m[1]+m[2] != lit {
+			return false
+		}
+	}
+	return len(paths) > 0
 }

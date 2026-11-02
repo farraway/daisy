@@ -21,10 +21,10 @@ if [ -d "$stale_dir" ]; then
     ASSERT_FAILURES=$((ASSERT_FAILURES + 1))
 fi
 
-# A real source skill (writing-great-skills ships in $DAISY_ROOT/skills) must
+# A real source skill (testing ships in $DAISY_ROOT/skills) must
 # still be installed — pruning must not remove current skills.
-real_skill_dir="$FIXTURE_HOME_OVERRIDE/.claude/skills/writing-great-skills"
+real_skill_dir="$FIXTURE_HOME_OVERRIDE/.claude/skills/testing"
 if [ ! -d "$real_skill_dir" ]; then
-    echo "    ASSERT FAILED: current skill 'writing-great-skills' was not installed"
+    echo "    ASSERT FAILED: current skill 'testing' was not installed"
     ASSERT_FAILURES=$((ASSERT_FAILURES + 1))
 fi
