@@ -8,15 +8,15 @@ seed_basic
 root_before=$(git -C "$FIXTURE_ROOT" rev-list --count HEAD)
 home_before=$(fixture_commit_count)
 
-fixture_run done "Delta target"
+fixture_run_cli done "Delta target"
 assert_eq "$RUN_EXIT" "0" "done succeeds"
 assert_eq "$(fixture_commit_count)" "$((home_before + 1))" "done: one commit in the home repository"
 
-fixture_run log "A log line"
+fixture_run_cli log "A log line"
 assert_eq "$RUN_EXIT" "0" "log succeeds"
 assert_eq "$(fixture_commit_count)" "$((home_before + 2))" "log: one commit in the home repository"
 
-fixture_run new-day
+fixture_run_cli new-day
 assert_eq "$RUN_EXIT" "0" "new-day succeeds"
 assert_eq "$(fixture_commit_count)" "$((home_before + 3))" "new-day: one commit in the home repository"
 

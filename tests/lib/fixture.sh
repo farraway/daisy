@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Invocation: sourced by tests/run.sh and test cases — not executed directly.
 # Builds and tears down a hermetic fixture for one test case: its own
-# DAISY_ROOT (a temp dir with the real scripts, templates and tests symlinked
-# in and the prompts/skills trees copied, its own git repo), its own home (a fresh
-# testhome outside the root, its own git repo), its own homes registry
+# DAISY_ROOT (a temp dir with the real templates, prompts, skills and
+# AGENTS.md copied in and tests symlinked, its own git repo), its own home (a
+# fresh testhome outside the root, its own git repo), its own homes registry
 # (DAISY_CONFIG) and data dir (DAISY_LOCAL), plus its own workspace dir. No
 # test may reach a real home — see feedback.md (2026-07-17). Every case
-# drives Daisy through `daisy` on PATH (fixture_run, fixture_run_cli), never
-# a script.
+# drives Daisy through `daisy` on PATH (fixture_run_cli), the binary under
+# test; nothing under the root but tests/ is bash.
 
 REAL_DAISY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 
@@ -45,29 +45,29 @@ fixture_setup() {
     FIXTURE_LOCAL=$(mktemp -d)
     FIXTURE_WORKSPACE=$(mktemp -d)
 
-    # `daisy.sh`, `daisy` (the scripts), `templates` and `tests` are
-    # symlinked: they are the code under test, which nothing writes, and
-    # copying `tests` would copy this suite into itself. The binary on PATH
-    # execs $DAISY_ROOT/daisy.sh for every command it has not taken over, so
-    # the fixture root must carry the entry point. `prompts` and `skills` are *copied*:
+    # `prompts`, `skills`, `templates` and `AGENTS.md` (whose Command
+    # Reference the health check compares with the cli table) are *copied*:
     # symlinked, DAISY_ROOT/prompts was literally the repo's, so any applying
     # case whose workflow resolved to a shared prompt rewrote the real file
-    # (case 65). 148K and ~4ms per fixture, against a git init already paid
-    # for here.
-    ln -s "$REAL_DAISY_ROOT/daisy.sh" "$FIXTURE_ROOT/daisy.sh"
-    ln -s "$REAL_DAISY_ROOT/daisy" "$FIXTURE_ROOT/daisy"
-    ln -s "$REAL_DAISY_ROOT/templates" "$FIXTURE_ROOT/templates"
-    ln -s "$REAL_DAISY_ROOT/tests" "$FIXTURE_ROOT/tests"
+    # (case 65). `tests` is symlinked — copying it would copy this suite into
+    # itself — for the `test` component's runner; its link text is the real
+    # root's path, under $HOME, which the hygiene scan reads as published,
+    # so the fixture's own .git/info/exclude keeps that plumbing off the
+    # surface (not .gitignore, which cases rewrite).
+    cp -r "$REAL_DAISY_ROOT/templates" "$FIXTURE_ROOT/templates"
     cp -r "$REAL_DAISY_ROOT/prompts" "$FIXTURE_ROOT/prompts"
     cp -r "$REAL_DAISY_ROOT/skills" "$FIXTURE_ROOT/skills"
+    cp "$REAL_DAISY_ROOT/AGENTS.md" "$FIXTURE_ROOT/AGENTS.md"
 
     # Not "Daisy Test": healthcheck's publication-hygiene scan derives its
     # search terms from the repo's git identity and matches them
     # case-insensitively, so that name collides with the literal command
     # `daisy test` in prompts/plan.md. Invisible while the shared trees were
-    # symlinked (publishable_files skipped them); a real failure once they
+    # symlinked (the scan skipped them); a real failure once they
     # are copied. The identity must not be Daisy vocabulary.
     git init -q "$FIXTURE_ROOT"
+    echo "/tests" >> "$FIXTURE_ROOT/.git/info/exclude"
+    ln -s "$REAL_DAISY_ROOT/tests" "$FIXTURE_ROOT/tests"
     git -C "$FIXTURE_ROOT" config user.name "Fixture Author"
     git -C "$FIXTURE_ROOT" config user.email "fixture@example.invalid"
     git -C "$FIXTURE_ROOT" add -A
@@ -133,22 +133,6 @@ fixture_teardown() {
     fixture_teardown_home_override
 }
 
-# The `daisy` command words that stand for each script the cases were
-# written against — the one place the suite knows a script's name. A rename
-# (the Renames table in docs/cli.md) changes the entry here, not the cases;
-# the words are split at the call site so an entry may be several.
-fixture_command() {
-    case "$1" in
-        build-prompt) echo "prompt build" ;;
-        check-secrets|commit|done|eval|feedback|files|healthcheck|list|log|\
-        new-day|new-week|optimize|projects|\
-        rotate|tasks|test)
-            echo "$1" ;;
-        *)  echo "fixture_command: no daisy command stands for script '$1'" >&2
-            return 1 ;;
-    esac
-}
-
 # Runs `daisy "$@"` (the installed entry point) inside the fixture
 # workspace, capturing stdout/stderr/exit code into RUN_STDOUT/RUN_STDERR/
 # RUN_EXIT. HOME is the override when a case set one (install, healthcheck,
@@ -161,18 +145,6 @@ fixture_run_cli() {
     RUN_EXIT=$?
     RUN_STDERR=$(cat "$err_file")
     rm -f "$err_file"
-}
-
-# Runs the daisy command that stands for a script, by name: `fixture_run done
-# <pattern>` is `daisy done <pattern>`. An unknown name is a fault in the
-# case, not a failing assertion, so it stops the run (after the teardown
-# run.sh would otherwise have done).
-fixture_run() {
-    local script="$1"; shift
-    local words
-    words=$(fixture_command "$script") || { fixture_teardown; exit 1; }
-    # shellcheck disable=SC2086  # the words are meant to split
-    fixture_run_cli $words "$@"
 }
 
 # Like fixture_run_cli, but supplies stdin — for a command that asks

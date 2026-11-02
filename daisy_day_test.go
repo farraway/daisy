@@ -93,25 +93,20 @@ func (m *machine) read(t *testing.T, rel string) string {
 	return string(b)
 }
 
-// dayOps is the Fake for the day commands: the clock pinned, and the bash
-// health check (a script the temp root does not have) answered by healthOK.
+// dayOps is the Fake for the day commands: the clock pinned, and the
+// in-process health check passed by DAISY_HEALTHCHECK_PASSED when healthOK;
+// otherwise it runs for real, and fails, since the temp root is no
+// repository.
 func (m *machine) dayOps(cwd string, healthOK bool) *ops.Fake {
 	return &ops.Fake{
-		GetenvFn: func(k string) string { return m.vars[k] },
-		GetwdFn:  func() (string, error) { return cwd, nil },
-		NowFn:    func() time.Time { return time.Date(2026, 7, 28, 14, 23, 0, 0, time.Local) },
-		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
-			if strings.HasSuffix(name, "/daisy/scripts/healthcheck.sh") {
-				if dir != m.ws && dir != cwd {
-					return nil, nil, errors.New("health check run outside the workspace: " + dir)
-				}
-				if healthOK {
-					return nil, nil, nil
-				}
-				return nil, []byte("✗ broken"), errors.New("exit status 1")
+		GetenvFn: func(k string) string {
+			if k == "DAISY_HEALTHCHECK_PASSED" && healthOK {
+				return "1"
 			}
-			return ops.Real().Exec(dir, name, args...)
+			return m.vars[k]
 		},
+		GetwdFn: func() (string, error) { return cwd, nil },
+		NowFn:   func() time.Time { return time.Date(2026, 7, 28, 14, 23, 0, 0, time.Local) },
 	}
 }
 
@@ -291,6 +286,7 @@ func TestOneCommitPerMutationScripted(t *testing.T) {
 	m := newMachine(t)
 	m.seed(t)
 	homeReal, _ := filepath.EvalSymlinks(m.home)
+	os.MkdirAll(filepath.Join(m.home, ".git"), 0o755) // the scripted repository's git directory
 	for _, args := range [][]string{{"done", "Delta"}, {"log", "a line"}, {"new-day"}, {"new-week"}} {
 		m.seed(t)
 		var calls []string
@@ -302,8 +298,14 @@ func TestOneCommitPerMutationScripted(t *testing.T) {
 			calls = append(calls, dir+": git "+strings.Join(args, " "))
 			switch args[0] {
 			case "rev-parse":
-				if args[1] == "--show-toplevel" {
+				switch args[1] {
+				case "--show-toplevel":
 					return []byte(homeReal + "\n"), nil, nil
+				case "--path-format=absolute":
+					if dir != m.home {
+						return nil, nil, errors.New("not a repository")
+					}
+					return []byte(homeReal + "/.git\n"), nil, nil
 				}
 				return []byte("abc1234\n"), nil, nil
 			case "status":

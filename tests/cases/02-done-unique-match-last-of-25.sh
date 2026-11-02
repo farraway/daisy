@@ -42,7 +42,7 @@ EOF
 
 before=$(fixture_read_today)
 
-fixture_run done "Delta target"
+fixture_run_cli done "Delta target"
 
 after=$(fixture_read_today | strip_log_section)
 expected=$(printf '%s\n' "$before" | strip_log_section | sed 's/^- \[ \] Delta target task +daisy$/- [x] Delta target task +daisy/')

@@ -1,6 +1,6 @@
 # Daisy - System Architecture & Internal Specifications
 
-This AGENTS.md is for **Mode 4: meta work** — modifying the Daisy system itself (scripts, prompts, templates). It is auto-applied by Cursor and Claude Code when editing files in this directory.
+This AGENTS.md is for **Mode 4: meta work** — modifying the Daisy system itself (the Go binary, prompts, templates). It is auto-applied by Cursor and Claude Code when editing files in this directory.
 
 **For user-facing workflows (Modes 1–3), see `prompts/daisy.md` (loaded via per-home AGENTS.md).**
 
@@ -42,20 +42,24 @@ When modifying any Daisy data files, preserve EXACT formatting.
 The root repository is public: pushing it to its remote publishes it.
 Every file git would keep in it — tracked, or untracked but not ignored —
 is published verbatim: there is no mirror, no copying step and no
-sanitization pass. Treat every system file — scripts, prompts, docs,
+sanitization pass. Treat every system file — code, prompts, docs,
 templates, skills, tests, dotfiles — as already public. Personal data lives
-in the homes, each its own repository; a registered home that still lies
-inside the root repository (Check 3b reports it) is left out of root
-commits and of the scan alike.
+in the homes, each its own repository — never the root's, which Daisy
+refuses; untracked files under a registered home placed inside the root's
+directory are left out of root commits and of the scan alike.
 
 **The hygiene scan is the gate.** `daisy healthcheck` scans the publishable
 surface — `git ls-files --cached --others --exclude-standard` in
-`$DAISY_ROOT`, minus `daisy_root_exclusions` (a registered home placed
-inside the root, and a top-level `home/` directory should one exist) —
-for identifying terms derived from the machine at runtime, never from a
+`$DAISY_ROOT`, an untracked file under a registered home placed inside the
+root excepted (`env.RootExclusions`, the list a root commit leaves out); a file is its
+content, a symlink its link text (what git publishes), every path its
+name, and a file staged differently from the worktree its staged blob — for
+identifying terms derived from the machine at runtime, never from a
 hardcoded list, which would itself leak: every registered home's name,
 `$USER`, the git identity (`user.name`, `user.email`) of the root's
-repository and of each usable home's, and literal `$HOME/` paths. Run `daisy healthcheck --force` before every root commit;
+repository and of each usable home's, and literal `$HOME/` paths. A term
+is matched without case, as a whole word at each of its edges that is a
+letter, digit or `_` (so `$HOME/` is found inside a longer path). Run `daisy healthcheck --force` before every root commit;
 it is the only gate between the tree and the public remote, and a cached
 pass reflects the tree as it was. The scan is a net, not the standard: it
 cannot catch personal *content* that contains no known term, and it says
@@ -94,52 +98,82 @@ which is everything a root commit takes.
 
 ## The Go port
 
-`daisy` is becoming a Go binary, one command at a time (the plan's Phase D).
-`cmd/daisy/main.go` is `os.Exit(daisy.Run(ops.Real(), …))` and nothing else;
-`daisy.go` is `Run`; `internal/ops` is every side effect in one value
-(`Real`, `ReadOnly`, `Fake`); `internal/env` resolves root, registry,
-workspace, home, identity and projects; `internal/cli` is the command table
-(the help text is rendered from it) and the fall-through: a command the
-binary has not taken over execs `$DAISY_ROOT/daisy.sh` with the same
-arguments. Dependency rule: `cli → commands → {domain packages} → ops`;
-nothing above `ops` calls `os`, `os/exec` or `time.Now` itself. `make build`
-writes `bin/daisy` (gitignored); `daisy test` builds it first and drives the
-suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
--race`) runs before every root commit. Ported so far: `status`, `files`,
-`log`, `done`, `tasks`, `projects`, `new-day`, `new-week`, `rotate`,
-`prompt build`, `list`, `help`, `init`, `clean`, `install`, `home
-list|add|remove|new`, `identity list`, `plan new|pickup|archive`,
-`feedback`, `eval` and `optimize` with `optimize apply`
-(`internal/todo`, `internal/journal`, `internal/gitx`, `internal/prompt`,
-`internal/skill`, `internal/identity`, `internal/settings`,
-`internal/workspace`, `internal/plan` and `internal/feedback` behind them);
-their scripts are gone, `healthcheck.sh` asks them for `--healthcheck`
-through the binary, and a script that needs one calls the binary
-(`daisy_bin` in `common.sh`).
+`daisy` is a Go binary; no bash under the root runs but the acceptance
+suite (`tests/`). `cmd/daisy/main.go` is `os.Exit(daisy.Run(ops.Real(),
+…))` and nothing else; `daisy.go` is `Run`; `internal/ops` is every side
+effect in one value (`Real`, `ReadOnly`, `Fake`); `internal/env` resolves
+root, registry, workspace, home, identity and projects, and reads
+`.env.sh` without running it; `internal/cli` is the command table, from
+which the help and the Command Reference below are rendered;
+`internal/commands` is one function per command; the domain packages
+behind them are `internal/todo`, `internal/journal`, `internal/gitx`,
+`internal/prompt`, `internal/skill`, `internal/identity`,
+`internal/settings`, `internal/workspace`, `internal/plan`,
+`internal/feedback` and `internal/health` (the health check, its TTL
+stamp and the publication scan). Dependency rule: `cli → commands →
+{domain packages} → ops`; nothing above `ops` calls `os`, `os/exec` or
+`time.Now` itself. Each command's `--healthcheck` hook is a `Health`
+function in the table; `daisy healthcheck` runs them in-process as its
+`Component:` lines, and `log`, `done`, `new-day` and `new-week` run the
+whole check in-process before they write. `make build` writes `bin/daisy`
+(gitignored); `daisy test` builds it, runs `go test ./...`, then drives
+the suite through it (`make test` is `daisy test`); `make check` (gofmt,
+vet, `go mod tidy -diff`, `go test -race`) runs before every root commit.
 
-## Script Reference
+## Command Reference
 
-| Script | Purpose |
-|--------|---------|
-| `daisy.sh` (repo root) | CLI entry point — dispatches subcommands |
-| `common.sh` | Shared functions: homes registry, identities, resolve_home, require_env |
-| `commit.sh` | Git commit helper — `--home` commits the home's repository, `--not-home` the root's minus any home still inside it |
-| `check-secrets.sh` | Report which API tokens/secrets are configured in .env.sh |
-| `healthcheck.sh` | System validation |
-| `files.sh` | Report resolved real paths for every per-home file/directory |
-| `test.sh` | Run the hermetic acceptance suite (`tests/run.sh`) |
+Generated from the `cli` table: edit the table in `internal/cli/table.go`,
+then replace the block below with the output of `daisy help --markdown`.
+`daisy healthcheck` warns when the two differ, and `go test` fails.
 
-**Documentation policy:** every script in `daisy/scripts/` must have a row in this table, and — if it implements the `--healthcheck` contract — a corresponding entry in `healthcheck.sh`'s `HEALTHCHECK_SCRIPTS` array (a ported Go command that answers `--healthcheck` is listed in `HEALTHCHECK_COMMANDS` instead). `healthcheck.sh` includes an automated drift check for the table half of this; there is no automated check for the array half beyond that same script list (see `daisy/scripts/healthcheck.sh`).
+<!-- BEGIN command reference: generated by `daisy help --markdown`; edit the cli table, not this block -->
+| Group | Command | What it does |
+|---|---|---|
+| Workspace | `daisy init <identity> [path]` | Bind a workspace to an identity and its home |
+| Workspace | `daisy clean [-f]` | Remove Daisy from this workspace |
+| Workspace | `daisy status` | Home, identity, projects, today's counts, active plan |
+| Workspace | `daisy files` | Resolved real paths for every home file |
+| Workspace | `daisy list` | Active prompts and installed skills |
+| Workspace | `daisy help [<command>\|<skill>\|--markdown]` | This help, detail for one command or skill, or the Command Reference |
+| Day | `daisy new-day` | Start a new day |
+| Day | `daisy new-week` | Start a new week |
+| Day | `daisy log <message...>` | Add a log entry to today.md |
+| Day | `daisy done <pattern>` | Mark a task complete |
+| Day | `daisy tasks [--all] [--todo\|--done] [pattern]` | Search tasks (read-only) |
+| Day | `daisy projects [--archived]` | List active or archived projects |
+| Day | `daisy rotate` | Rotate journal.md into window files |
+| Plans | `daisy plan new [--spec] <description> [+project]` | Create a plan (or an unregistered spec draft) |
+| Plans | `daisy plan pickup <path>` | Promote a spec draft into a tracked plan |
+| Plans | `daisy plan archive` | Archive the active plan |
+| Homes and identities | `daisy home new <name> [path]` | Create a home; prompts for identity and location |
+| Homes and identities | `daisy home add <name> <path>` | Register an existing home |
+| Homes and identities | `daisy home list` | Registered homes and where they live |
+| Homes and identities | `daisy home remove <name>` | Unregister a home; its files stay where they are |
+| Homes and identities | `daisy identity list` | Identities across registered homes |
+| Prompts and skills | `daisy prompt build [<home>]` | Rebuild AGENTS.md |
+| Prompts and skills | `daisy install [--update]` | ~/bin/daisy, root skills, permissions |
+| Prompts and skills | `daisy feedback [--workflow <n>] <text>` | Record a prompt failure for optimization |
+| Prompts and skills | `daisy optimize [--workflow <n>]` | Briefing: pending entries per target, current rules, rewrite flags |
+| Prompts and skills | `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` | Apply a proposal: diff, approve, archive, commit |
+| Prompts and skills | `daisy eval [<case>] [--record]` | List, display, or record an eval case result |
+| System | `daisy commit [--root] <message>` | Commit the home repo (or the root repo) |
+| System | `daisy healthcheck [--force]` | Run the system health check |
+| System | `daisy check-secrets` | Check which secrets/tokens are configured |
+| System | `daisy test [filter]` | Run go test, then the hermetic acceptance suite |
+<!-- END command reference -->
 
-Scripts do NOT yet implement: priority floor rules, task preservation from yesterday, quiet day consolidation, advanced sync validation, JIRA sync, or log audit during retrospective. These are handled by the agent following prompt instructions.
+`docs/cli.md` is the contract behind each row: arguments, exit codes,
+output, the `Ops` wrapper, writes and commits.
 
-After modifying scripts or workflow logic, validate against [`docs/test-cases.md`](docs/test-cases.md).
+Commands do NOT yet implement: priority floor rules, task preservation from yesterday, quiet day consolidation, advanced sync validation, JIRA sync, or log audit during retrospective. These are handled by the agent following prompt instructions.
+
+After modifying commands or workflow logic, validate against [`docs/test-cases.md`](docs/test-cases.md).
 
 ---
 
 ## Development Heuristics
 
-**Prototype manually before automating.** When adding a new workflow or modifying a complex script, do the operation by hand first — no scripts, no automation. The manual run reveals hidden constraints and invariants that are invisible in the abstract. Only after understanding what a correct manual execution looks like should you codify it into a script or prompt rule. This is especially true for multi-file operations (new-day, new-week) and sync workflows.
+**Prototype manually before automating.** When adding a new workflow or modifying a complex command, do the operation by hand first — no commands, no automation. The manual run reveals hidden constraints and invariants that are invisible in the abstract. Only after understanding what a correct manual execution looks like should you codify it into a command or prompt rule. This is especially true for multi-file operations (new-day, new-week) and sync workflows.
 
 ---
 

@@ -7,7 +7,7 @@ fixture_write_todo <<'EOF'
 EOF
 seed_today_basic
 
-fixture_run done "version 1.0"
+fixture_run_cli done "version 1.0"
 
 assert_eq "$RUN_EXIT" "0" "literal '.' pattern resolves uniquely rather than multi-matching '1X0' as a regex would"
 today=$(date +%Y-%m-%d)

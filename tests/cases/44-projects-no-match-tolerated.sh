@@ -5,7 +5,7 @@
 
 fixture_workspace_named "nosuchthing.260101"
 
-fixture_run files
+fixture_run_cli files
 assert_eq "$RUN_EXIT" "0" "no match is not an error"
 assert_contains "$RUN_STDOUT" "none" "reports that nothing is bound"
 assert_eq "$RUN_STDERR" "" "an unmatched convention default warns about nothing"
@@ -14,6 +14,6 @@ fixture_write_project_binding <<'EOF'
 typoed-name
 EOF
 
-fixture_run files
+fixture_run_cli files
 assert_eq "$RUN_EXIT" "0" "a declared project that does not exist is still not fatal"
 assert_contains "$RUN_STDERR" "typoed-name" "the unknown declared project is named"

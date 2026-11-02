@@ -4,7 +4,7 @@
 seed_basic
 commits_before=$(fixture_commit_count)
 
-fixture_run done "Delta target"
+fixture_run_cli done "Delta target"
 
 assert_eq "$RUN_EXIT" "0" "resolves and completes"
 assert_eq "$(fixture_commit_count)" "$((commits_before + 1))" "exactly one commit for the whole completion"

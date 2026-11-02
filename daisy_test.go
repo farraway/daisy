@@ -2,7 +2,6 @@ package daisy_test
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -237,75 +236,7 @@ func TestHelpForms(t *testing.T) {
 	}
 }
 
-// Everything the binary has not taken over execs $DAISY_ROOT/daisy.sh with
-// the same arguments and the caller's streams, and returns its exit code.
-func TestFallThrough(t *testing.T) {
-	m := newMachine(t)
-	var got []string
-	var gotDir string
-	var gotStdout io.Writer
-	o := &ops.Fake{
-		GetenvFn: func(k string) string { return m.vars[k] },
-		GetwdFn:  func() (string, error) { return m.ws, nil },
-		StartFn: func(dir, name string, stdin io.Reader, stdout, stderr io.Writer, args ...string) (ops.Process, error) {
-			gotDir, got, gotStdout = dir, append([]string{name}, args...), stdout
-			return fakeProcess{code: 7}, nil
-		},
-	}
-	var out bytes.Buffer
-	code := daisy.Run(o, strings.NewReader(""), &out, io.Discard, []string{"commit", "a", "b c", "--help"})
-	if code != 7 {
-		t.Errorf("exit %d", code)
-	}
-	if strings.Join(got, "|") != m.root+"/daisy.sh|commit|a|b c|--help" || gotDir != m.ws || gotStdout != &out {
-		t.Errorf("started %v in %q with stdout %v", got, gotDir, gotStdout)
-	}
-	// a legacy command's own --help falls through too
-	for _, args := range [][]string{{"commit", "--help"}, {"healthcheck", "x"}} {
-		got = nil
-		daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, args)
-		if strings.Join(got, "|") != m.root+"/daisy.sh|"+strings.Join(args, "|") {
-			t.Errorf("%v started %v", args, got)
-		}
-	}
-	// A cwd the shell has lost is the child's problem, not a refusal here.
-	m.vars["DAISY_ROOT"] = m.root
-	o.GetwdFn = func() (string, error) { return "", io.ErrUnexpectedEOF }
-	got, gotDir = nil, "unset"
-	daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, []string{"check-secrets"})
-	if strings.Join(got, "|") != m.root+"/daisy.sh|check-secrets" || gotDir != "" {
-		t.Errorf("lost cwd: started %v in %q", got, gotDir)
-	}
-	o.GetwdFn = func() (string, error) { return m.ws, nil }
-	delete(m.vars, "DAISY_ROOT")
-	var errb bytes.Buffer
-	if code := daisy.Run(o, strings.NewReader(""), io.Discard, &errb, []string{"check-secrets"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT not set") {
-		t.Errorf("exit %d err %q", code, errb.String())
-	}
-}
-
 type fakeProcess struct{ code int }
 
 func (p fakeProcess) Wait() (int, error) { return p.code, nil }
 func (p fakeProcess) Kill() error        { return nil }
-
-// Daisy's own daisy.sh really is run for a legacy command, through Real.
-// Real reads the process's environment and working directory, so every
-// variable the binary resolves from, and the cwd, are the temp machine's:
-// were the command ported (feedback was, at Step 23), it would otherwise
-// write to whatever home the developer's checkout is bound to.
-func TestFallThroughRunsDaisySh(t *testing.T) {
-	m := newMachine(t)
-	writeFile(t, filepath.Join(m.root, "daisy.sh"), "#!/bin/sh\necho \"args: $*\"\necho \"root: $DAISY_ROOT\" >&2\nexit 3\n")
-	os.Chmod(filepath.Join(m.root, "daisy.sh"), 0o755)
-	for k, v := range m.vars {
-		t.Setenv(k, v)
-	}
-	t.Setenv("DAISY_DEFAULT_HOME", "")
-	t.Chdir(m.ws)
-	var out, errb bytes.Buffer
-	code := daisy.Run(ops.Real(), strings.NewReader(""), &out, &errb, []string{"check-secrets", "--flag"})
-	if code != 3 || out.String() != "args: check-secrets --flag\n" || errb.String() != "root: "+m.root+"\n" {
-		t.Errorf("exit %d out %q err %q", code, out.String(), errb.String())
-	}
-}

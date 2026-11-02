@@ -343,11 +343,11 @@ func OptimizeApply(c *Context) error {
 
 	message := fmt.Sprintf("Optimize %s (%s)", t.Label, mode)
 	if inRoot(c.Env, t.Path) && string(after) != string(before) {
-		fmt.Fprintf(c.Stdout, "  %s is in the root repository, which is published as it is pushed: review it, run 'daisy healthcheck --force', then commit it with:\n    daisy commit --not-home \"%s\"\n", t.Path, message)
+		fmt.Fprintf(c.Stdout, "  %s is in the root repository, which is published as it is pushed: review it, run 'daisy healthcheck --force', then commit it with:\n    daisy commit --root \"%s\"\n", t.Path, message)
 	}
 	hash, committed, err := repo.Commit(c.Ops, message)
 	if err != nil {
-		return fmt.Errorf("%v\nThe files are written but NOT committed; run: daisy commit --home \"%s\"", err, message)
+		return fmt.Errorf("%v\nThe files are written but NOT committed; run: daisy commit \"%s\"", err, message)
 	}
 	reportCommit(c, message, hash, committed)
 	return nil

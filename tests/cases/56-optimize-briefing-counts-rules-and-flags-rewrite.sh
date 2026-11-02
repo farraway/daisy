@@ -18,7 +18,7 @@ fixture_write_feedback <<'FB'
 ---
 FB
 
-fixture_run optimize
+fixture_run_cli optimize
 
 assert_eq "$RUN_EXIT" "0" "nothing pending is not an error"
 assert_contains "$RUN_STDOUT" "Nothing pending" "and says so"
@@ -42,7 +42,7 @@ Ten-flow guidance was wrong.
 Eleven-flow guidance was wrong.
 FB
 
-fixture_run optimize
+fixture_run_cli optimize
 
 assert_contains "$RUN_STDOUT" "[prompts/tenflow] 1 entry" "a pending target is briefed"
 assert_contains "$RUN_STDOUT" "Rules: 10

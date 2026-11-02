@@ -12,9 +12,9 @@ source "$TESTS_DIR/lib/fixture.sh"
 source "$TESTS_DIR/lib/assert.sh"
 
 # The cases drive `daisy` on PATH, so it must be this root's binary: a stale
-# ~/bin/daisy left pointing at another checkout, or at daisy.sh, would run
-# that code against these cases and say nothing. `daisy test` builds the
-# binary and puts it first on PATH before running this.
+# ~/bin/daisy left pointing at another checkout would run that code against
+# these cases and say nothing. `daisy test` builds the binary and puts it
+# first on PATH before running this.
 DAISY_ON_PATH=$(readlink -f "$(command -v daisy)" 2>/dev/null) || DAISY_ON_PATH=""
 if [ "$DAISY_ON_PATH" != "$REAL_DAISY_ROOT/bin/daisy" ]; then
     echo "Error: 'daisy' on PATH is ${DAISY_ON_PATH:-not found}, not $REAL_DAISY_ROOT/bin/daisy" >&2

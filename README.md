@@ -15,7 +15,7 @@ you:
 ```
 
 Every file is plain text in a git repository. Every change the system makes
-is a commit. There is no database, no daemon, no app — just files, scripts,
+is a commit. There is no database, no daemon, no app — just files, one CLI,
 and prompts.
 
 ## What You Get
@@ -44,14 +44,14 @@ years. No tool lock-in — delete Daisy and your data remains legible.
 **AI-native, not AI-flavored.** Most productivity tools added an assistant
 to a GUI. Daisy inverts this: the *agent is the interface*, and the system
 is designed for it — file formats with strict, machine-checkable invariants;
-workflows as scripts the agent invokes; instructions compiled per-context.
+workflows as commands the agent invokes; instructions compiled per-context.
 You talk; the agent runs `daisy new-day`, edits todo.txt, commits.
 
-**Scripts for mechanism, instructions for judgment.** Anything that must be
-exact (archiving a day, rotating journals, marking tasks done) is a shell
-script with tests. Anything that requires judgment (what to log, how to
+**Commands for mechanism, instructions for judgment.** Anything that must be
+exact (archiving a day, rotating journals, marking tasks done) is a `daisy`
+command with tests. Anything that requires judgment (what to log, how to
 prioritize, when to ask) lives in the prompts and skills described below.
-The agent is never trusted with format-critical mechanics, and scripts are
+The agent is never trusted with format-critical mechanics, and commands are
 never asked to make judgment calls.
 
 **Multiple contexts, concurrent use.** A "home" is one context's data —
@@ -159,7 +159,7 @@ daisy healthcheck
 
 Confirms `DAISY_ROOT` is set, the home resolves through the registry and
 is in a git repository, required files exist, no published file carries an
-identifying term, and every script's own health check passes.
+identifying term, and every command's own health check passes.
 
 A passing result is cached for 300 seconds, so the workflows that gate on it
 (`new-day` and friends) don't re-scan the tree on every invocation. Set
@@ -216,13 +216,14 @@ Every command also accepts `--help`/`-h` as its sole argument to print its own u
 ```bash
 daisy check-secrets           # Check which secrets/tokens are configured
 daisy clean [-f]              # Remove Daisy from the current workspace
-daisy commit --home "msg"     # Commit the home's repository (--not-home: the root's)
+daisy commit "msg"            # Commit the home's repository (--root "msg": the root's)
 daisy done "task pattern"     # Mark task complete
 daisy eval [<case>] [--record] # List, display, or record an eval case result
 daisy feedback "message"      # Record a prompt failure for optimization
 daisy files                   # Show resolved real paths for every home file
 daisy healthcheck [--force]   # System validation
 daisy help [<command>|<skill>] # Show command list, one command's usage, or a skill's detail
+daisy help --markdown         # Print the Command Reference block for AGENTS.md
 daisy home list               # Registered homes and where each lives
 daisy home new <name> [path]  # Create a home (own git repo) and register it
 daisy home add <name> <path>  # Register an existing home; `remove` unregisters
@@ -244,7 +245,7 @@ daisy prompt build [<home>]   # Rebuild AGENTS.md (a home's, or this workspace's
 daisy rotate                  # Rotate journal.md into archive window files (automatic; rarely needed by hand)
 daisy status                  # Quick workspace summary
 daisy tasks [--all] [--todo|--done] [pattern]  # Search this workspace's tasks; --all widens to every project (read-only)
-daisy test [name-substring]   # Run the hermetic acceptance suite
+daisy test [filter]           # Build, run go test, then the hermetic acceptance suite
 ```
 
 ### Working Practices
@@ -289,9 +290,7 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── README.md                   # This file
 ├── cmd/daisy/main.go           # The binary: bin/daisy (symlinked to ~/bin/daisy); `make build`
 ├── daisy.go, internal/         # Run, and the Go packages behind it (ops, env, cli, commands, ...)
-├── daisy.sh                    # Bash entry point; the binary falls through to it for commands not yet ported
-├── daisy/scripts/              # healthcheck, common, commit, check-secrets,
-│                               # files, test
+├── Makefile                    # build, check (gofmt, vet, tidy, go test -race), test (`daisy test`)
 ├── templates/
 │   ├── journal-day.md          # Daily today.md template
 │   ├── journal-week.md         # Weekly today.md template (adds retrospective)

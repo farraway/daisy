@@ -5,8 +5,10 @@ plan, and under it one entry per command with its arguments, flags, exit
 codes, the stdout and stderr the bash acceptance suite asserts, the `Ops`
 wrapper it runs under, the files it may write and the commits it makes.
 
-**Status of each entry.** `as built` describes `daisy.sh` and
-`daisy/scripts/*.sh` as the suite pins them today. `agreed (Step N)` is a
+**Status of each entry.** `as built` describes the binary as the suite
+pins it; since Step 24 every command is Go and the bash (`daisy.sh` and
+`daisy/scripts/*.sh`) is deleted, so a `Legacy` row is history: the bash
+form a command replaced. `agreed (Step N)` is a
 change the plan's Architecture or Decisions text has decided; the named
 step makes it. `decided (D30, Step N)` is a point Architecture left open
 that this document settles, recorded in the plan's D30 for review; the
@@ -17,10 +19,10 @@ Go may choose* rather than inventing one.
 **Quoted strings.** A string in backticks followed by case numbers in square
 brackets — `` `No task found matching:` [04] `` — is asserted verbatim by
 those cases in `tests/cases/`; the suite is the authority, this
-document quotes it. Strings without a case number are what the bash prints
-today and are not asserted; Go may reword them.
+document quotes it. Strings without a case number are what the bash printed
+and are not asserted; Go may reword them.
 
-**Mapping rule.** Every `daisy.sh` command names exactly one entry (its
+**Mapping rule.** Every command the bash had names exactly one entry (its
 `Legacy` row); every case file names exactly one entry (its `Cases` row). A
 case that runs several commands belongs to the command its name pins —
 case 72 (`done`, `log`, `new-day`, root untouched) is `commit`'s; cases
@@ -41,7 +43,8 @@ Workspace
   status                            Home, identity, projects, today's counts, active plan
   files                             Resolved real paths for every home file
   list                              Active prompts and installed skills
-  help [<command>|<skill>]          This help, or detail for one command or skill
+  help [<command>|<skill>|--markdown]
+                                    This help, detail for one command or skill, or the Command Reference
 
 Day
   new-day | new-week                Start a new day / week
@@ -85,7 +88,7 @@ System
 
 ## Renames
 
-| Legacy (`daisy.sh` today) | Agreed | Step |
+| Legacy (the bash) | Agreed | Step |
 |---|---|---|
 | `daisy build [home]` | `daisy prompt build [<home>]` | 20 |
 | `plan` and its verb as one hyphenated word, three bash scripts | `daisy plan new [--spec] <description> [+project]`, `daisy plan pickup <path>`, `daisy plan archive` | 22 |
@@ -134,18 +137,21 @@ them).*
 
 **Workspace.** Most commands run inside a workspace: the nearest ancestor of
 the working directory holding a `.daisy/` directory that is not the Daisy
-root. Outside one the bash dispatcher prints `Not in a Daisy workspace` [78]
+root. Outside one the command prints `Not in a Daisy workspace` [78]
 `(no .daisy/ directory found)` and `Run 'daisy init <identity>' to initialize
 this workspace.` on stderr and exits 1. A directory whose binding is broken
 is refused rather than walked past, exit 1, stderr naming the fault and
 `daisy init` [78] as the repair: `.daisy` `not a directory` [78],
 `symlink` [78], a leftover `.daisy.previous.4242` [78] from an interrupted
 init, or `.daisy/` with no `home` file. Commands that need no workspace:
-`install`, `init`, `home`, `help` (tree or command), `prompt build <home>`.
-`test` and `check-secrets` are dispatched through the workspace check today
-although their scripts read only the root (`test`) or the workspace's
-`.env.sh` (`check-secrets`); Go keeps the requirement for `check-secrets`
-(it reads a workspace file) and drops it for `test` *(decided, D30, Step 24)*.
+`install`, `init`, `home`, `help` (tree or command), `prompt build <home>`,
+and `test`, whose bash dispatcher required one although the script read
+only the root *(decided, D30; built in Step 24)*. `healthcheck` needs one
+but resolves it itself, after `✓ DAISY_ROOT`, so outside one it prints the
+refusal and then `✗ Cannot resolve home for this workspace` (the bash
+dispatcher refused before the check began). `check-secrets` keeps the requirement — it reads the workspace's
+`.env.sh` — but needs only the workspace, not a resolvable home, as the
+bash.
 
 **Home resolution.** `.daisy/home` names the home; the name is looked up in
 the registry `$DAISY_CONFIG/homes` (default `~/.config/daisy/homes`). Errors,
@@ -154,9 +160,10 @@ the fix `daisy home add second` [68] (the name substituted); a registry
 path with a problem — `Error: Home '<name>' is registered at <path>, which
 <problem>`, the problem being `is ` `not an absolute path` [68], `does not
 exist`, `is the Daisy root` [68] `; the root ` `cannot be a home` [68] or
-`contains the Daisy root` [68] `; the root cannot be inside a home`. With no workspace, `DAISY_DEFAULT_HOME` is a fallback
-that warns on stderr (`⚠️  No .daisy/home found; falling back to
-$DAISY_DEFAULT_HOME (<name>)`). The identity is `.daisy/identity`, else the
+`contains the Daisy root` [68] `; the root cannot be inside a home`. With no
+workspace there is no home: the bash's default-home fallback, which nothing
+reachable through `daisy` read since Step 20, is deleted with the bash
+(Step 24). The identity is `.daisy/identity`, else the
 home's name; a value that is not a name is refused: `not an identity
 name` [77], exit 1.
 
@@ -169,33 +176,30 @@ bound identity file that is not a complete identity (naming the file), an
 applied identity nothing claims (naming the author, `Pelican Moorhen` [79]).
 A clean binding prints nothing on stderr (asserted empty in 76, 77, 79).
 
-**Environment read.** `DAISY_ROOT` (required; the bash dispatcher exits 1
-with `Error: DAISY_ROOT not set.` without it; the binary, for a command it
-runs itself, with `Error: DAISY_ROOT not set` and the `~/.zshenv` line to
-add; for every command it has not taken over the binary execs
-`$DAISY_ROOT/daisy.sh`, and without `DAISY_ROOT` refuses with the same
-error; `install` alone finds its root without it, from the binary's own
-path, Step 21), `DAISY_CONFIG`,
-`DAISY_LOCAL`, `DAISY_DEFAULT_HOME`, `HOME`, `USER`, `DAISY_HEALTHCHECK_TTL`,
-`DAISY_HEALTHCHECK_PASSED` (see `healthcheck`), `SHELL` (`install` picks the
-rc file by it). Nothing else: `optimize` holds no API key and reads no
+**Environment read.** `DAISY_ROOT` (required: without it a command exits 1
+with `Error: DAISY_ROOT not set` and the `~/.zshenv` line to add;
+`install` alone finds its root without it, from the binary's own path,
+Step 21), `DAISY_CONFIG`, `DAISY_LOCAL`, `HOME`, `USER`,
+`DAISY_HEALTHCHECK_TTL`, `DAISY_HEALTHCHECK_PASSED` (see `healthcheck`),
+`SHELL` (`install` picks the rc file by it), `PATH` (`test` puts the
+root's `bin/` first on it for the suite), and the variables `check-secrets`
+reports when `.env.sh` does not assign them. Nothing else: `optimize` holds no API key and reads no
 model or editor setting (Step 23, D12).
 
-**`--healthcheck` hook.** The scripts listed in `healthcheck.sh`'s
-`HEALTHCHECK_SCRIPTS` (`files`, `test`)
-and the Go commands listed in its `HEALTHCHECK_COMMANDS` (`done`, `log`,
-`tasks`, `projects`, `new-day`, `new-week`, `rotate`, `list`, `home new` —
-the template is there —, `plan new` — `plans/` and `templates/plan.md` —,
-`plan pickup` — `plans/` —, `plan archive` — `plans/archive/` —,
-`feedback`, `eval` — the workspace and its home resolve —, `optimize` —
-the home's `feedback/` —, asked
-through the binary) accept `--healthcheck` as the
-sole argument: check their own preconditions, print nothing on success,
-exit 0; else a one-line `Error: …` on stderr, exit 1. Two cases pin it from
-outside (`done --healthcheck` [18], `tasks --healthcheck` [30]). In the
-binary the hook is a per-command `Health` function in the `cli` table,
-hidden from the help text; `healthcheck` runs the same checks in-process at
-Step 24 *(decided, D30, Step 18; built in Step 18)*.
+**`--healthcheck` hook.** The commands with a `Health` function in the
+`cli` table — `list`, `new-day`, `new-week`, `log`, `done`, `tasks`,
+`projects`, `rotate`, `plan new` (`plans/` and `templates/plan.md`), `plan
+pickup` (`plans/`), `plan archive` (`plans/archive/`), `home new` (the
+template), `feedback` and `eval` (the workspace and its home resolve),
+`optimize` (the home's `feedback/`) and `test` (`tests/run.sh` is there
+and executable) — accept `--healthcheck` as the sole argument: check their
+own preconditions, print nothing on success, exit 0; else a one-line
+`Error: …` on stderr, exit 1. The hook is hidden from the help text. Two
+cases pin it from outside (`done --healthcheck` [18], `tasks
+--healthcheck` [30]). `healthcheck` calls the same functions in-process,
+in table order, as its `Component: <command>` lines (the bash ran the
+binary once per command and `files.sh`/`test.sh` as scripts; `files` has
+no hook) *(decided, D30, Step 18; in-process since Step 24)*.
 
 **`Ops` wrappers.** `ReadOnly` for `status`, `files`, `list`, `projects`,
 `tasks`, `help` and the briefing, `optimize` (Step 23),
@@ -217,8 +221,8 @@ new` makes the new repository's first commit with its own `git init`,
 `add -A`, `commit` *(Step 21)*; `plan new`, `feedback` and `eval --record`
 write home files without committing them, and the next home commit sweeps
 them up *(decided, D37 for `plan new`, D38 for the other two)*. The root
-is committed only by `commit --not-home` (`--root` after Step 24):
-`optimize apply` writes a root target and leaves it for that commit.
+is committed only by `commit --root`: `optimize apply` writes a root
+target and leaves it for that commit.
 
 ## Workspace
 
@@ -264,7 +268,7 @@ and that `init` in a subdirectory of a linked worktree is allowed.
 | Field | Value |
 |---|---|
 | Status | ported (Step 17): Go, as built |
-| Legacy | `daisy status` → built in to `daisy.sh` (`cmd_status`), kept for `~/bin/daisy` links not yet switched to the binary |
+| Legacy | `daisy status` → built in to `daisy.sh` (`cmd_status`), deleted in Step 24 |
 | Usage | `daisy status` |
 | Exit codes | 0; 1 outside a workspace or when the home does not resolve (`cannot be a home` [68], `not registered` [68]); 2 with any argument (the bash ignored them) |
 | Stdout | line 1 `Daisy \| home: <home> \| identity: <identity> \| workspace: <path>` (asserted below; `home: second` [68], `workspace: ` [78]); `Projects: <+tags> (from .daisy/project)` / `(from directory name)` or `Projects: (none)` (`+chessgrid` [45]); blank; `Tasks:  N pending, N completed today`, `Log:    N entries`, `Backlog: N tasks in todo.txt`; `Plan:   <title>` and its path when `PLAN.md` is a symlink; or `  No today.md — run 'daisy new-day' to start.` |
@@ -282,7 +286,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 | Field | Value |
 |---|---|
 | Status | ported (Step 17): Go, as built |
-| Legacy | `daisy files` → `files.sh`, kept as `status`'s is |
+| Legacy | `daisy files` → `files.sh`, deleted in Step 24 with its `--healthcheck` hook (it checked only that the home resolves; `files` has none) |
 | Usage | `daisy files` |
 | Exit codes | 0 (a project that does not exist is not fatal, case 44); 1 outside a workspace; 2 with any argument |
 | Stdout | the same first line as `status` (`identity: testhome` [76], `identity: pelicanmoor` [77]); sections `Identity:` (the resolved identity file: the home's `gitconfig` [76] or `identities/pelicanmoor` [77], ` (missing)` when absent), `Journal:`, `Tasks:`, `Projects:` (`workspace` row: `+chessgrid` [43] `(from ` `directory name` [43] `)`, `+chessgrid +jobsearch` [43] in file order, `+jobsearch` [42] `(from ` `.daisy/project` [42] `)`, or `(none)` (`none` [44])), `Feedback:`, `Plans:` (with `current plan` when `PLAN.md` is a link), `Prompts:`; each row `  %-12s <real path>`; last `AGENTS.md:    <real path>` (`%-14s`) |
@@ -311,12 +315,12 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 20): Go. The tree (`daisy`, `daisy help`, `--help`, `-h`) is rendered from the `cli` table under the names this build answers to (legacy spellings until each rename's step) |
-| Legacy | `daisy help [<command>\|<skill>]` → built in to `daisy.sh` (`show_help`, `show_command_help` and the skill lookup, the last removed in Step 20); since Step 20 `daisy.sh` keeps `show_help` lines and `show_command_help` only for the commands still in bash, which answer their own `--help` |
-| Usage | `daisy help [<command>\|<skill>]`; `daisy`, `daisy --help`, `daisy -h` are `daisy help` |
+| Status | ported (Step 20): Go. The tree (`daisy`, `daisy help`, `--help`, `-h`) is rendered from the `cli` table; so, since Step 24, is AGENTS.md's Command Reference (`--markdown`) |
+| Legacy | `daisy help [<command>\|<skill>]` → built in to `daisy.sh` (`show_help`, `show_command_help` and the skill lookup), deleted in Step 24 |
+| Usage | `daisy help [<command>\|<skill>\|--markdown]`; `daisy`, `daisy --help`, `daisy -h` are `daisy help` |
 | Exit codes | 0; 1 for a name that is neither (`Unknown command or skill: <name>` and `Run 'daisy help' for commands, 'daisy list' for skills.` on stderr; the bash died silently there) or outside a workspace for a skill; 2 for surplus words |
-| Stdout | no argument: the tree. A command name (its words: `help prompt build`): exactly what `daisy <command> --help` prints — `Usage: daisy <usage>`, blank, the description, from the table for a Go command; the script header through `daisy.sh` for a command still in bash — then, when a skill of that name exists (installed or source; none looked up outside a workspace), a note — the command's help, not the skill's (not `Collide politely` [52]), and the word `skill` [52]: blank, `Note: a skill named '<name>' also exists; the command name takes precedence.`, `  Read it with: daisy list, or open its SKILL.md directly.` A noun (`help prompt`): the usage of each of its commands. A skill name: `<name>  (<SKILL.md path>)`, blank, the full `description:` value (`when to stop making them` [51]; the line after `description: `, `: ` inside it kept), blank, the `## Rules` section up to the next `#` or `##` heading, `optimize`'s boundary (`Measure before cutting` [51]; until Step 23 an `# ` heading and what followed it to the next `## ` were printed as rules), `Other sections: <H2 titles>` joined by `, ` (`Worked example` [51]). The installed copy (workspace over user) is preferred over the source (home over root) |
-| Ops | ReadOnly (the skill lookup and the note); a bash command's help is the fall-through's |
+| Stdout | no argument: the tree. A command name (its words: `help prompt build`): exactly what `daisy <command> --help` prints — `Usage: daisy <usage>`, blank, the description, from the table — then, when a skill of that name exists (installed or source; none looked up outside a workspace), a note — the command's help, not the skill's (not `Collide politely` [52]), and the word `skill` [52]: blank, `Note: a skill named '<name>' also exists; the command name takes precedence.`, `  Read it with: daisy list, or open its SKILL.md directly.` A noun (`help prompt`): the usage of each of its commands. A skill name: `<name>  (<SKILL.md path>)`, blank, the full `description:` value (`when to stop making them` [51]; the line after `description: `, `: ` inside it kept), blank, the `## Rules` section up to the next `#` or `##` heading, `optimize`'s boundary (`Measure before cutting` [51]; until Step 23 an `# ` heading and what followed it to the next `## ` were printed as rules), `Other sections: <H2 titles>` joined by `, ` (`Worked example` [51]). The installed copy (workspace over user) is preferred over the source (home over root). `--markdown` as the only word: the Command Reference block for AGENTS.md — the BEGIN marker line, a `\| Group \| Command \| What it does \|` table with one row per table command in table order (each usage in backticks after `daisy `, `\|` escaped), the END marker line — which `healthcheck` compares with the root's AGENTS.md (6b) |
+| Ops | ReadOnly (the skill lookup and the note) |
 | Writes | none |
 | Commits | none |
 | Cases | 51, 52 |
@@ -332,7 +336,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 | Usage | `daisy new-day` (no argument; any is usage on stderr, exit 2 — the bash ignored them) |
 | Exit codes | 0; 1 when `healthcheck` fails first (`Error: System health check failed` on stderr), when `templates/journal-day.md` or `tasks/todo.txt` is missing, when the journal cannot be rotated (`rotate`'s refusal), or when the commit fails. A refusal writes nothing: every write is decided before the first is made (the bash had appended `today.md` to `journal.md` before a rotate refusal, so the next run archived it twice) |
 | Stdout | `📦 Archived yesterday to journal.md` (when `today.md` existed) [81], `rotate`'s line [81], `🗑️  Deleted N cancelled task(s)` (when any) [81], `✅ New day started: <YYYY-MM-DD> <Day>` [81], `   High priority tasks: N` [81], `   Next priority tasks: N`, `   Inbox tasks: N`, `   GitHub tasks: N` [81], then `commit`'s `📝 Committed: …` line (git's own commit summary, which the bash let through, is not printed). Nothing follows the commit line: the pending-feedback nudge went with `optimize --list` at Step 23 — the New Week workflow runs `daisy optimize` itself |
-| Ops | Real; the health check is the bash `healthcheck.sh`, through `Ops.Exec` |
+| Ops | Real; the health check runs in-process first (`internal/health`, output discarded; a cached pass or `DAISY_HEALTHCHECK_PASSED=1` skips it), since Step 24, and then — never skipped — the home must be its own repository, before anything is written |
 | Writes | the rotation window files and `journal/journal.md` (see `rotate`; `today.md` is appended after a `---` separator when the journal is non-empty, and rotated with it); `tasks/todo.txt` without its `z ` lines [81], every line newline-terminated; `journal/today.md` from `templates/journal-day.md`: `{DATE}`, `{DAY}`, `{TIME}`, then `{HIGH_PRIORITY_TASKS}` = `(A)` [81], `{NEXT_PRIORITY_TASKS}` = `(B)` [81], `{INBOX_TASKS}` = dated without priority [81], `{GITHUB_TASKS}` = any open line containing `@git`/`@github`, whatever its priority, decided before the priority branches [81]; `(C)`/`(D)` lines without such a tag are not carried [81]; each carried line loses its priority and creation date when it has a date, and is carried whole otherwise. A task's text is written as it is (bash 5.2's pattern substitution replaced an `&` in it with the placeholder's name) |
 | Commits | home, once: `New day: <date> <day>` [72, 81] |
 | Cases | 81; case 72 (`commit`'s) runs it |
@@ -360,9 +364,9 @@ and `home: testhome | identity: pelicanmoor` [77].
 | Usage | `daisy log <message...>` |
 | Exit codes | 0; 2 with no message — no argument, or only empty ones (usage on stderr; the bash exited 1 with `Error: Log message required`); 1 when `healthcheck` fails first (`Error: System health check failed`, `  Run: daisy healthcheck`), when `today.md` is missing (`Error: today.md not found`) or has no `#### Log` section (`Error: Log section not found in today.md`) |
 | Stdout | `✅ Logged: <HHMM> <message>` then `commit`'s line (`done` suppresses both: not `Logged:` [15]) |
-| Ops | Real; the health check is the bash `healthcheck.sh` run through `Ops.Exec` until Step 24 |
+| Ops | Real; the health check runs in-process first, as for `new-day` (the bash's `healthcheck.sh` through `Ops.Exec` until Step 24) |
 | Writes | `journal/today.md`: appends `- HHMM message` to the `#### Log` section — the lines from the heading to the next heading of any level or the end of the file — after its last non-blank line, so blank lines before the next heading stay; a section with no entries is written in the template's shape (heading, blank line, entry, blank line before the next heading), which healthcheck Check 5 requires [80]. *(decided, D33, Step 18: the bash inserted at the first blank line after the section's first entry without stopping at the next heading, so a Log section abutting the next heading sent the entry into a later section)* |
-| Commits | home, once: `Log: <HHMM> - <first 60 characters>` (case 72; case 71 pins that with the home still inside the root repository the commit holds only the home's file) |
+| Commits | home, once: `Log: <HHMM> - <first 60 characters>` (case 72; case 71 pins that a home inside the root repository is refused before anything is written) |
 | Cases | 80; cases 71/72 (`commit`'s) and 76/78 (`init`'s) run it |
 
 ### daisy done
@@ -376,7 +380,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 | Exit codes | 0 exactly one match completed [01, 02, 05–08, 10–15]; 1 no match [04, 16], several matches [03], an Inbox-only item that is not in `todo.txt` [09], `healthcheck` failing first, or the journal entry failing after the edits [17] |
 | Stdout | success: exactly one non-blank line [15], `✅ Done: <description> (commit <hash>)` — names the task (`Delta target task` [15]) and suppresses the sub-calls' chatter (not `Logged:` [15], `Committed:` [15], `No changes to commit` [15]); nothing with `✅` [16] when nothing completed; no `✅ Done` [17] when journaling failed |
 | Stderr | `No task found matching:` [04] `<pattern>`; `Multiple tasks match "<pattern>":` and each candidate on its own `  N) <line>` (`Shared token Alpha` [03], `Shared token Beta` [03]); `⚠️  Task not found in today.md (may not be in active tasks)` when `todo.txt` is updated but no `- [ ] <description>` line exists (`today.md` [11]; exit still 0); on a journal failure `Error: journal entry failed — …` naming whether the edits were committed, then the sub-calls' output (`Log` [17]). Cases 03, 04, 11, 17 assert on stdout and stderr combined, so the stream is not pinned |
-| Ops | Real; the health check is the bash `healthcheck.sh` run through `Ops.Exec` until Step 24 |
+| Ops | Real; the health check runs in-process first, as for `new-day` (the bash's `healthcheck.sh` through `Ops.Exec` until Step 24) |
 | Writes | `tasks/todo.txt`: the one matched line removed and `x <today> <creation date> <description>` appended last, no priority [10] — the line read by `todo.Parse`, so an undated task completes as `x <today> <description>` with one space and its priority dropped (the bash left the priority in the description and wrote two spaces); `journal/today.md`: the first line equal to `- [ ] <description>` becomes `- [x] <description>`, every other byte unchanged [01, 02, 12]; then the log entry `Done: <description>` in-process (no `log` sub-call) |
 | Commits | home, exactly once for the whole completion, holding both files [13, 14], subject `Completed: <description>` *(decided, D33, Step 18: the bash's one commit was `log`'s, `Log: HHMM - Done: …`, and its own `Completed:` commit always found nothing)*; a failed journal entry still leaves the edits committed [17]; a failed commit after a successful completion is an error, exit 1 (the bash printed `(commit not committed)` and exited 0) |
 | Cases | 01-18 |
@@ -479,7 +483,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 | Status | ported (Step 21): Go, four rows of the `cli` table (`home` is a noun, D35) |
 | Legacy | `daisy home [list\|add\|remove\|new]` → the bash `home` script, deleted in Step 21 |
 | Usage | `daisy home list`, `daisy home add <name> <path>`, `daisy home remove <name>`, `daisy home new <name> [path]`; bare `daisy home` or another verb: exit 2 listing the four usages (bare `daisy home` was `home list` in bash) |
-| Exit codes | `list`: 0 [68] (69 and 70 run it and assert stdout only). `add`: 0 registered [68]; 1 when the name is `already registered` [68], invalid (`bad=name`, case 68), the path is not a directory [68], has a path problem (`Error: <path> <problem>`: the root itself — `cannot be a home` [68] — or a directory containing it, `contains the Daisy root; …`, which case 68 pins through a registry line and `status`, not through `home add`; the path is already resolved here, so the other two problems cannot arise), has no `include.txt` [68], is `not in its own git repository` [70] (or the root's), or nothing under it can be staged. `remove`: 0 [68]; 1 for an unregistered name [68]. `new`: 0 created [69]; 1 when the name is registered (nothing written, case 69) or the location `already exists` [69]; 1 when any step after the first write fails — the copy is removed: `was removed and nothing is registered` [70] on stderr; 1 when a prompt gets EOF |
+| Exit codes | `list`: 0 [68] (69 and 70 run it and assert stdout only). `add`: 0 registered [68]; 1 when the name is `already registered` [68], invalid (`bad=name`, case 68), the path is not a directory [68], has a path problem (`Error: <path> <problem>`: the root itself — `cannot be a home` [68] — or a directory containing it, `contains the Daisy root; …`, which case 68 pins through a registry line and `status`, not through `home add`; the path is already resolved here, so the other two problems cannot arise), has no `include.txt` [68], is `not in its own git repository` [70] (the root's is not one, since Step 24), or nothing under it can be staged. `remove`: 0 [68]; 1 for an unregistered name [68]. `new`: 0 created [69]; 1 when the name is registered (nothing written, case 69) or the location `already exists` [69]; 1 when any step after the first write fails — the copy is removed: `was removed and nothing is registered` [70] on stderr; 1 when a prompt gets EOF |
 | Stdout | `list`: `%-14s %s` name and path per home (`testhome` [68] and its path [68, 69]; ` (missing)` when the directory is gone); no homes: `No homes registered in <registry>` on stderr, exit 0. `add`: `✓ Registered home '<name>' at <path>`. `remove`: `✓ Unregistered home '<name>' (its files at <path> are untouched)`. `new`: the prompts `  Location [<default>]: ` (only without `[path]`), `Git identity for home '<name>':`, `  Name: `, `  Email: ` through `Ops.Prompt` (the questions on stderr); `  ✓ Saved git identity to <path>/gitconfig` or `  ⚠ Skipped (both name and email required)…`; `  ✓ Initialized git repository with first commit`; `✅ Created home: <name>`, `   Location: <path>`, `📋 Next steps:` … `daisy init <name>` |
 | Stderr | the errors above, each with its fix on a second line (`include.txt` [68] names what a home must contain); `add` refusing a non-repository says `not in its own git repository` [70] |
 | Ops | `list` ReadOnly; `add`, `remove`, `new` Real (decided, D30) |
@@ -527,7 +531,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 21): Go; non-interactive in both forms (the bash asked for a default home and wrote `DAISY_DEFAULT_HOME`, which nothing reachable through `daisy` reads) |
+| Status | ported (Step 21): Go; non-interactive in both forms (the bash asked for a default home and wrote a variable naming it, which nothing reads since Step 24) |
 | Legacy | `daisy install [--update]` → built in to `daisy.sh`, deleted in Step 21 |
 | Usage | `daisy install [--update]`: `--update` re-applies the symlink, root skills and permissions; plain `install` also writes the shell rc line and refuses when already installed (`Error: Daisy is already installed.`, exit 1). The root is `$DAISY_ROOT`, else the root whose `bin/daisy` is running (`Ops.Executable()`, links resolved), so `<root>/bin/daisy install` bootstraps a shell with nothing set. It does not build: `make build` writes the binary, and `install` warns when it is not built yet |
 | Exit codes | 0 [31]; 1 already installed, `~/bin/daisy` exists and is not a symlink, `~/.claude/settings.json` is not a JSON object (decided before any write), `HOME` unset, no `DAISY_ROOT` and the binary not under a root's `bin/` |
@@ -563,8 +567,8 @@ new home.
 | Targets | entries group by the file their `**Workflow:**` tag resolves to (as `feedback` resolves it), in order of first appearance; two tags naming one file are one target (`[prompts/plan] 2 entries` [38]); an unheadered entry is `prompts/daisy`'s (`[prompts/daisy] 1 entry` [41]); `--workflow <n>` scopes to the target `<n>` names (`[prompts/plan] 1 entry` [40]; one naming nothing is refused, exit 1 [40]); a skill resolves to its source `SKILL.md` (`Target: <home>/skills/widgetcraft/SKILL.md` [49]); a tag naming no file is a group of its own, briefed with the reason (`[daisy-write] 1 entry` [67], `names no prompt or skill` [67]) and never defaulted to daisy.md |
 | Rules | the `## Rules` section runs from its heading (`## Rules`, or `## Rules` and more after a space — `skills/tdd`'s `## Rules of the loop` — as the bash's `/^## Rules/` read it, bounded at the word; closing `#`s allowed) to the next `#` or `##` heading; an `###` is inside it [53]; Daisy reads ATX headings, LF or CRLF line ends (up to three spaces, one to six `#`, then a space, a tab or the line's end) and fenced code (three or more backticks or tildes, a backtick fence's info string holding no backtick — "```x``` …" is inline code — closed only by a run of the same character at least as long, then only spaces or tabs); a line in a fence is no heading. Other markdown (setext headings, containers, HTML blocks) is not read: where a section, the target's or a proposal's, holds a line of only `=` or `-` straight after a non-blank line other than a heading (to another reader, perhaps a setext underline; a list item above is no exception), `apply --rules` refuses, naming the line and the file, rather than guess where the section ends; a blank line above it makes it a thematic break. So does a fence opened in the target's section and never closed (the section would run to the end of the file), or, without a section, a fence left open at the end of the file when no `## ` heading other than the Trigger precedes it (the rules would be appended inside it); the briefing prints the refusal under the target (`--rules refused: …`) (D38). A rule is a list item at the left margin (`N. `, `- `, `* `) outside a fence (`Rules: 2` [53]). `daisy help <skill>` prints the same section |
 | Briefing | under `ReadOnly` [57]. `Pending feedback: N entries for N targets (<feedback.md>)` [38], or `Nothing pending in <feedback.md>` [56]; per target `[<label>] N entries` [38], `Target: <path>` [38], `Rules: N` [39, 56] (`Rules: N — more than 10: rewrite flagged` [56]; `Rules: none …`), `--- entries ---` and each entry as written, `--- current ## Rules ---` and the section [39, 53], `--- end ---`; a vendored skill (carries `LICENSE`/`NOTICE.md`) is listed with the reason (`vendored` [50]) and its entries stay pending; then `Rewrite flagged (more than 10 rules, nothing pending):` and `[<label>] rewrite flagged: N rules` [56] for every active target over 10 rules (the prompts `include.txt` names, in its order, then every skill source by name; 10 is not flagged [56]); then how to apply (`daisy optimize apply --workflow <label> --rules` [39], `--rewrite` [56]). No floor: one entry is briefed (`Skipped` [39] and `floor` [39] absent) |
-| Apply | `--rules <file>`: the file must be one `## Rules` section — its first non-blank line the heading (`must begin with` [61]), no other `#`/`##` heading outside a fence (named with its line, `## Another Section` [61]), no fence left open; and the result must read back as the section written, so nothing after it is swallowed; it replaces the target's section, keeping the blank lines between the section and the next heading as they were, so replacing the rules with themselves changes nothing, byte for byte [53]; `# Document Title` [53, 58], `## Next Section` [53] and `Body text` [53, 58] survive; a target without a section gets one before its first `## ` heading other than the Trigger, or at the end. `--rewrite <file>`: the file, byte for byte [60]; an empty one is refused. Both print the unified diff (`-1. Measure before cutting.` [58], `+2. Cut once.` [58]) and ask `Apply these changes to <label>? [y/N] ` [58] on stderr through `Ops.Prompt`, unless `--yes` (never asks [60]). `y`/`yes` (any case) applies; anything else is `Cancelled` [59]; EOF is `Cancelled — no answer on stdin (EOF); nothing written.` (`EOF` [64]); any other failure to read the answer is `Error: cannot read the answer: …`, exit 1, nothing written. The writes are computed from what was read before the question: if the target, `feedback.md` or `archive.md` changed while it waited (an entry recorded meanwhile), the apply is refused, exit 1, nothing written. Applied: the target (`  ✓ Updated ` [58] `<path>`), the target's pending entries — every tag naming it [58] — moved from `feedback.md` to `archive.md`, each followed one blank line down by `**Addressed by:** `` `daisy optimize` `` <YYYY-MM-DD> — `` `<target>` `` (rules\|rewrite)` [63], `<target>` relative to the home or `$DAISY_ROOT/…` [62]; `feedback.md` keeps its header and the other entries, one blank line apart, byte for byte [66]; `feedback/.last-optimized` gets `<YYYY-MM-DD HHMM> <label>` [63]; for a prompt, the home's `AGENTS.md` and the workspace's `.daisy/AGENTS.md` are rebuilt from the prompts as written (for a skill, the run says `daisy install --update` [49] and `daisy init` propagate it); the home is committed once [58, 60, 62]. A root target is written and left uncommitted [62], and the run says to run `daisy healthcheck --force` [62] and then `daisy commit --not-home` [62] (`--root` after Step 24). Applying text already there with nothing pending: `Nothing to apply: …`, exit 0 |
-| Exit codes | 0 (nothing pending, a briefing, an applied, declined or EOF apply, nothing to apply); 1 when `feedback/feedback.md` does not exist (`Error: No feedback file found at <path>` and the `mkdir -p … && touch …` that makes it), a target the briefing cannot read (printed in its place, the errors after the briefing, `The briefing above is incomplete.`), a file changed during the question, `archive.md` absent with no template to start it from when entries are to move, a workflow naming no file [40, 61] (`names no prompt or skill`), a vendored target on `apply` [50], a proposal that cannot be read (`cannot read` [61]) or is not one rules section [61], the home not a repository, a write or the AGENTS.md build failing (every write taken back: `Nothing was applied.`), the commit failing (the files written, the `daisy commit --home` to run printed), a target `--rules` cannot write (the open-fence and setext refusals of the Rules row, naming the target); 2 for a usage error [57, 61]: `--dry-run`, `--force`, `--list` [57] or any argument to the briefing, bare `optimize apply` [61], no `--workflow`, neither or both of `--rules`/`--rewrite`, a value flag without a value (an empty word, or one of the command's own flags, is none) [61], a stray word [61] |
+| Apply | `--rules <file>`: the file must be one `## Rules` section — its first non-blank line the heading (`must begin with` [61]), no other `#`/`##` heading outside a fence (named with its line, `## Another Section` [61]), no fence left open; and the result must read back as the section written, so nothing after it is swallowed; it replaces the target's section, keeping the blank lines between the section and the next heading as they were, so replacing the rules with themselves changes nothing, byte for byte [53]; `# Document Title` [53, 58], `## Next Section` [53] and `Body text` [53, 58] survive; a target without a section gets one before its first `## ` heading other than the Trigger, or at the end. `--rewrite <file>`: the file, byte for byte [60]; an empty one is refused. Both print the unified diff (`-1. Measure before cutting.` [58], `+2. Cut once.` [58]) and ask `Apply these changes to <label>? [y/N] ` [58] on stderr through `Ops.Prompt`, unless `--yes` (never asks [60]). `y`/`yes` (any case) applies; anything else is `Cancelled` [59]; EOF is `Cancelled — no answer on stdin (EOF); nothing written.` (`EOF` [64]); any other failure to read the answer is `Error: cannot read the answer: …`, exit 1, nothing written. The writes are computed from what was read before the question: if the target, `feedback.md` or `archive.md` changed while it waited (an entry recorded meanwhile), the apply is refused, exit 1, nothing written. Applied: the target (`  ✓ Updated ` [58] `<path>`), the target's pending entries — every tag naming it [58] — moved from `feedback.md` to `archive.md`, each followed one blank line down by `**Addressed by:** `` `daisy optimize` `` <YYYY-MM-DD> — `` `<target>` `` (rules\|rewrite)` [63], `<target>` relative to the home or `$DAISY_ROOT/…` [62]; `feedback.md` keeps its header and the other entries, one blank line apart, byte for byte [66]; `feedback/.last-optimized` gets `<YYYY-MM-DD HHMM> <label>` [63]; for a prompt, the home's `AGENTS.md` and the workspace's `.daisy/AGENTS.md` are rebuilt from the prompts as written (for a skill, the run says `daisy install --update` [49] and `daisy init` propagate it); the home is committed once [58, 60, 62]. A root target is written and left uncommitted [62], and the run says to run `daisy healthcheck --force` [62] and then `daisy commit --root` [62]. Applying text already there with nothing pending: `Nothing to apply: …`, exit 0 |
+| Exit codes | 0 (nothing pending, a briefing, an applied, declined or EOF apply, nothing to apply); 1 when `feedback/feedback.md` does not exist (`Error: No feedback file found at <path>` and the `mkdir -p … && touch …` that makes it), a target the briefing cannot read (printed in its place, the errors after the briefing, `The briefing above is incomplete.`), a file changed during the question, `archive.md` absent with no template to start it from when entries are to move, a workflow naming no file [40, 61] (`names no prompt or skill`), a vendored target on `apply` [50], a proposal that cannot be read (`cannot read` [61]) or is not one rules section [61], the home not a repository, a write or the AGENTS.md build failing (every write taken back: `Nothing was applied.`), the commit failing (the files written, the `daisy commit <message>` to run printed), a target `--rules` cannot write (the open-fence and setext refusals of the Rules row, naming the target); 2 for a usage error [57, 61]: `--dry-run`, `--force`, `--list` [57] or any argument to the briefing, bare `optimize apply` [61], no `--workflow`, neither or both of `--rules`/`--rewrite`, a value flag without a value (an empty word, or one of the command's own flags, is none) [61], a stray word [61] |
 | Ops | briefing `ReadOnly` [57]; `apply` Real |
 | Writes | `apply` only, every refusal before the first write and a failed write taking back the ones before it: the target prompt or `SKILL.md`, `feedback/feedback.md`, `feedback/archive.md` (started from `templates/home/feedback/archive.md` when absent; no template is an error when entries are to move), `feedback/.last-optimized` (`healthcheck` Check 7 reads it), the home's `AGENTS.md` and the workspace's `.daisy/AGENTS.md`. The suite's fixture copies `prompts/` and `skills/` so an applying run writes the fixture's copy, never the repository's (case 65) |
 | Commits | `apply`: the home, once, `Optimize <label> (rules\|rewrite)` [58]; never the root [58, 62] |
@@ -601,28 +605,28 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | as built for `--home`/`--not-home`; agreed `commit <message>` / `commit --root <message>` at Step 24 (no aliases) |
-| Legacy | `daisy commit --home\|--not-home <message>` → `commit.sh` (the dispatcher requires a workspace and a resolved home first) |
-| Usage | `daisy commit <message>` (the home: `--home` today); `daisy commit --root <message>` (the root: `--not-home` today). Missing mode: the usage line on stderr, exit 1; missing message: `Error: Commit message required` and the usage line, exit 1. Step 24 rewrites case 73's `--not-home` to `--root` (decided, D30: the case passes the flag itself) |
-| Exit codes | 0 committed [71, 73] or nothing to commit [73]; 1 when the home is not in its own repository (`Error: Home '<name>' at <path> is not in its own git repository (or the root's)`, `  Run: git -C <path> init`), the root is not a repository, or `git add`/`git commit` fails |
-| Stdout | `📝 Committed: <message> (<short hash>)` |
-| Stderr | `No changes to commit` [73] ` in <scope>` (scope `home '<name>'`, `root`, or `root (excluding <paths>)`), exit 0 |
+| Status | ported (Step 24): Go (`internal/gitx`, `env.RootExclusions`); renamed from `--home`/`--not-home`, no aliases |
+| Legacy | `daisy commit --home\|--not-home <message>` → `commit.sh`, deleted in Step 24 |
+| Usage | `daisy commit <message>` (the home); `daisy commit --root <message>` (the root). One message word: none, a second, or one starting with `-` (so the removed `--home`/`--not-home`, alone or before a message [73], is never a message) is usage on stderr, exit 2 — the bash exited 1 and ignored a surplus word. Case 73 passes `--root` itself (decided, D30) |
+| Exit codes | 0 committed [73] or nothing to commit [73]; 1 outside a workspace or when the home does not resolve (both forms, as the bash dispatcher required), when the home is not its own repository — the root's included [71] (`Error: Home '<name>' at <path> is not in its own git repository` and the same `  Run: …` fix as `healthcheck`'s), the root is not a repository (`Error: DAISY_ROOT is not a git repository`), or `git add`/`git commit` fails; 2 for a usage error [73] |
+| Stdout | `📝 Committed: <message> (<short hash>)` — only that: git's own `[branch hash] message` summary, which `commit.sh` let through, is not printed (as `log` and the other committing commands) |
+| Stderr | `No changes to commit` [73] ` in <scope>` (scope `home '<name>'`, `root`, or `root (excluding <paths>)` [73]), exit 0 |
 | Ops | Real |
 | Writes | nothing but the repository |
-| Commits | home: `git -C $DAISY_HOME add -- .` and one commit; while the home is a subdirectory of the root's repository the commit is path-scoped to it, so a pre-staged root change stays staged (case 71: the commit holds `home/zebranest/journal/today.md` [71], not `code.txt` [71]); root: the root repository minus `daisy_root_exclusions` (every registered home inside it, and a top-level `home/` while it exists), as `:(exclude,literal)` pathspecs on `add` and, while anything is excluded, on `commit` (case 73: `code.txt` [73] committed, `zebranest` [73] and `stray` [73] not, the home's change left staged); with nothing excluded a bare `git commit` that also takes pre-staged changes (`more.txt` [73]). The root commit is the publication gate's subject: `daisy healthcheck --force` before it |
+| Commits | home: `gitx.HomeRepo` and `Repo.Commit` (the one commit `log`, `done` and the rest make): `add -- .` and one bare commit in the home's own repository — a home inside the root's repository is refused [71] (until Step 24 its commit was path-scoped into the root's history, which a push publishes); root: the root repository minus `env.RootExclusions` (every usable registered home whose resolved directory lies inside the root), as `:(exclude,literal)` pathspecs on `status`, `add` and, while anything is excluded, `commit` (case 73: `code.txt` [73] committed, `zebranest` [73] not, the home's change left staged); a top-level `home/` is root content like any other (`home/stray/note.txt` [73] committed; the bash excluded it as the pre-split layout until Step 24); with nothing excluded a bare `git commit` that also takes pre-staged changes (`more.txt` [73]). The root commit is the publication gate's subject: `daisy healthcheck --force` before it |
 | Cases | 71, 72, 73 |
 
 ### daisy healthcheck
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy healthcheck [--force]` → `healthcheck.sh` (also run silently first by `done`, `log`, `new-day`, `new-week`) |
-| Usage | `daisy healthcheck [--force]` |
-| Caching | a passing run writes the unix expiry time to `$DAISY_HOME/.healthcheck.ttl`; a run within `DAISY_HEALTHCHECK_TTL` seconds (default 300; `0` disables) exits 0 after Checks 1–2 without re-checking (no `Component:` [37] lines) and honours the stamp even over a new leak [37]; `--force` ignores it [37]; a failure removes the stamp [37]; a corrupt or too-far-ahead stamp is no cache [37]; `DAISY_HEALTHCHECK_PASSED=1` in the environment short-circuits unless `--force` [37] |
-| Exit codes | 0 healthy [00, 34, 35, 36, 37, 74, 75] — warn-only checks never fail it [34, 74]; 1 on any error: `DAISY_ROOT` unset or not a repository, the home unresolvable, the home `not in its own git repository` [74] (or a foreign one [74]; the fix `git -C ` [74] `<path> init && … commit` printed), a missing required directory, `today.md` format faults, a component hook failing, a publication-hygiene hit [35, 36, 37, 75] |
-| Stdout | one `✓ <check>` line per pass: `DAISY_ROOT:`, `DAISY_HOME:`, `Git repository: <hash>`, `today.md format valid`, `Component: <script>` (`Component:` [37]) per hook, `Publication hygiene: no identifying terms outside the homes`, `Feedback: N entries (last optimized: …\|never optimized)`, `System healthy`; cached: `Checks cached — valid for Ns (--force to re-run)` |
-| Stderr | `✗ <error>` and `⚠ <warning>` lines. Hygiene (Check 6c): `Publication hygiene: 'zebrahome'` [35, 37] / `Publication hygiene: 'Zebra Quillfeather'` [75] ` appears in publishable file(s) — …` then each file indented (`leak.md` [35, 75], `public-leak.md` [36]); terms are every registered home's name (placeholders `work`, `personal`, `example`, `testhome` exempt), `$USER`, the root repository's `user.name`/`user.email` and each usable home's, and `$HOME/`; the surface is `git ls-files --cached --others --exclude-standard` in the root minus `daisy_root_exclusions`, regular files only — an ignored file is never reported (`ignored-leak.md` [36] absent) and an untracked, unignored one is [36]. Warnings: `Root-installed skill 'definitely-not-a-real-skill' has no matching source` [34] (Check 4c), `Installed skill '<name>' has no matching source in skills/` (4b), `Home 'zebranest' lies inside the root repository` [74] (3b; absent when no home is inside, `lies inside` [74]), `journal.md has N day-blocks (expected ≤ 5)` and `<window file> is missing TOC/Summary front matter` (5b), `<script>.sh is missing from AGENTS.md's Script Reference table` (6b; becomes the `cli` table drift check at Step 24), `Feedback has N entries — consider running 'daisy optimize'` (7, at 20 or more); `✗ N issue(s) found` last |
+| Status | ported (Step 24): Go (`internal/health`) |
+| Legacy | `daisy healthcheck [--force]` → `healthcheck.sh`, deleted in Step 24 (it was also run silently first by `done`, `log`, `new-day`, `new-week`, which now call the same check in-process) |
+| Usage | `daisy healthcheck [--force]`; any other word is usage, exit 2 (the bash ignored it) |
+| Caching | a passing run writes the unix expiry time to `$DAISY_HOME/.healthcheck.ttl`; a run within `DAISY_HEALTHCHECK_TTL` seconds (default 300; `0` disables; anything but decimal digits is the default) exits 0 after Checks 1–2 without re-checking (no `Component:` [37] lines) and honours the stamp even over a new leak [37]; `--force` ignores it [37]; a failure removes the stamp [37] — wherever it stops the run, Check 3 included (the bash's early exits left it); a corrupt or too-far-ahead stamp is no cache [37]; `DAISY_HEALTHCHECK_PASSED=1` in the environment short-circuits unless `--force` [37] |
+| Exit codes | 0 healthy [00, 34, 35, 36, 37, 74, 75] — warn-only checks never fail it [34, 74]; 1 on any error: `DAISY_ROOT` unset or not a repository, the home unresolvable, the home `not in its own git repository` [74] — the root's [71] (its tree, or its git directory through a `gitdir:` file, a `.git` link or a linked worktree: the error then ends `(its .git points into the root's)`) or a foreign one [74] (the bash accepted the root's); the fix `git -C ` [74] `<path> init && … commit` printed — preceded, for a home whose `.git` points into the root's, by `rm <home>/.git && git -C <root> worktree prune`, since `git init` there would reinitialise the root's and commit the home into it, and for a `.git` file pointing at no repository (a pruned worktree; `(its .git points at no repository)`) by `rm <home>/.git` — the paths quoted for the shell (as is when every character is safe, which is `printf %q`'s output too; else in single quotes, or `$'…'` for a non-printable byte), a missing required directory (`prompts`, `templates`, `skills`), `today.md` format faults or a `today.md` that exists and cannot be read (the bash failed its format checks there; a missing or empty one passes), a component hook failing, a publication-hygiene hit [35, 36, 37, 75] or a publishable file it cannot read; 2 for a usage error |
+| Stdout | one `✓ <check>` line per pass: `DAISY_ROOT:`, `DAISY_HOME:`, `Git repository: <hash>`, `today.md format valid`, `Component: <command>` (`Component:` [37]) per hook in table order, `Publication hygiene: no identifying terms outside the homes`, `Feedback: N entries (last optimized: …\|never optimized)`, blank, `System healthy`; cached: `Checks cached — valid for Ns (--force to re-run)`. The marks carry the bash's colour codes, whatever the stream is |
+| Stderr | `✗ <error>` and `⚠ <warning>` lines. Hygiene (Check 6c): `Publication hygiene: 'zebrahome'` [35, 37] / `Publication hygiene: 'Zebra Quillfeather'` [75] ` appears in publishable file(s) — …` then each file indented (`leak.md` [35, 75], `public-leak.md` [36]); terms are every registered home's name (placeholders `work`, `personal`, `example`, `testhome` exempt), the git identity of each usable home's repository and of the root's, `$USER` and `$HOME/`, each once without case; the surface is every path the root tracks (`git ls-files --cached`, wherever it lies) and every untracked, unignored one (`--others --exclude-standard`) but those under a registered home inside the root (`env.RootExclusions`) — an ignored file is never reported (`ignored-leak.md` [36] absent) and an untracked, unignored one is [36]; a regular file is read for its content, a symlink for its link text (what git publishes) and, pointing at a file, that file's content (the bash read no link text: Step 13's Deferred item); every path's name; and every file or link entry of the index (`ls-files -s`, any stage; gitlinks skipped) whose object the worktree no longer matches is read by object id (`cat-file blob`), so a staged version — assume-unchanged, skip-worktree, conflicted or not — is scanned as the next commit would publish it (the bash read neither names nor the index); a term matches without case, whole-word at each edge that is a word character, so `$HOME/` is found inside a longer path (`grep -w` required a non-word character after the `/` and missed `$HOME/src`). A failing hook: `Component: <command> failed health check` and its message indented. Warnings: `Root-installed skill 'definitely-not-a-real-skill' has no matching source` [34] (Check 4c), `Installed skill '<name>' has no matching source in skills/` (4b), `journal.md has N day-blocks (expected ≤ 5)` and `<window file> is missing TOC/Summary front matter` (5b), AGENTS.md's Command Reference missing or differing from `daisy help --markdown` (6b, the drift check; the bash checked a script table), `Feedback has N entries — consider running 'daisy optimize'` (7, at 20 or more); `✗ N issue(s) found` last, each issue counted once (the bash counted a failing component and a missing directory twice). The pre-split warning (3b) is gone: the bound home inside the root repository is now Check 3's error [71], and another registered home placed under the root is no warning (`lies inside` [74] absent) |
 | Ops | Real (the stamp) |
 | Writes | `$DAISY_HOME/.healthcheck.ttl` only |
 | Commits | none |
@@ -632,26 +636,29 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy check-secrets` → `check-secrets.sh` |
-| Usage | `daisy check-secrets` |
-| Exit codes | 1 when `<ws>/.env.sh` is missing (`❌ .env.sh not found in workspace` and the copy hint on stdout); otherwise 0 |
-| Stdout | `Checking Daisy environment configuration...`, `Core paths:` (`DAISY_ROOT`, `DAISY_HOME`), `API tokens:` (Webex, Backstage, JIRA, GitHub), each `✅ <name>: <first 8 chars>...` or `⚠️  <name>: Not configured`, `Note: Only showing first 8 characters of tokens for security` |
-| Ops | ReadOnly (decided, D30; the bash `source`s the file, Go parses it) |
+| Status | ported (Step 24): Go; `.env.sh` is parsed (`env.ParseShellEnv`), never run (decided, D30) |
+| Legacy | `daisy check-secrets` → `check-secrets.sh`, deleted in Step 24 |
+| Usage | `daisy check-secrets` (no argument; any is usage, exit 2) |
+| Exit codes | 1 outside a workspace, when `<ws>/.env.sh` is not a file (`❌ .env.sh not found in workspace` and the copy hint on stdout), or when it cannot be read (`Error: cannot read …`); otherwise 0 |
+| Stdout | `Checking Daisy environment configuration...`, `Core paths:` (`DAISY_ROOT`, `DAISY_HOME`), `API tokens:` (Webex, Backstage, JIRA, GitHub), each `✅ <name>: <first 8 characters>...` or `⚠️  <name>: Not configured`, `Note: Only showing first 8 characters of tokens for security`. A value is the file's assignment, else the environment's (as after `source`) |
+| Stderr | `⚠️  .env.sh line N: <why>; it and every line after it are not read` for the first line that is not a plain assignment — a command, a substitution (`$(…)`, a backtick), `${…}` with an operator, a special or positional parameter (`$1`, `$$`, `$?`, `$[…]`), `$'…'`/`$"…"` quoting, an unquoted `~` leading or after `:`, brace expansion in an `export` (`export X={a,b}`), shell syntax, a quote or a line continuation left open, a second word. Reading stops there: what the shell would do with the lines after it (an open quote, a heredoc, an `if`) depends on running it, so nothing after it is assigned. A value shown is that of the lines read, else the environment's; when reading stopped, a line after the stop may have changed it, and the warning says so. The bash ran such a line |
+| Reads | `[export ]NAME=<word>` lines up to the first problem: `'…'` literal; `"…"` and bare words with `\` escapes and `$NAME`/`${NAME}` expanded from the assignments above, else the environment (a `$` before a quote inside `"…"` is literal); a trailing `# comment`; blank lines, comments and a bare `export NAME` (a comment after it allowed) change nothing; trailing blanks after a value are no part of it; CRLF read as LF |
+| Ops | ReadOnly (decided, D30) |
 | Writes | none |
 | Commits | none |
-| Cases | none |
+| Cases | none (`TestCheckSecrets`, `TestParseShellEnv`) |
 
 ### daisy test
 
 | Field | Value |
 |---|---|
-| Status | as built; at Step 24 runs `go test ./...` then the acceptance suite |
-| Legacy | `daisy test [name-substring]` → `test.sh` (`exec`s `tests/run.sh`) |
-| Usage | `daisy test [filter]`: a case runs when its file name contains the filter |
-| Exit codes | 0 when every case passes; 1 otherwise |
-| Stdout | `PASS  <case>` / `FAIL  <case>  (N assertion(s))` per case, failed assertions indented under it, blank, `N passed, N failed`, `Failed: <names>` when any |
-| Ops | Real (the suite builds fixtures) |
-| Writes | temporary fixtures only |
+| Status | ported (Step 24): Go; runs `go test ./...` then the acceptance suite |
+| Legacy | `daisy test [name-substring]` → `test.sh` (built, then `exec`ed `tests/run.sh`), deleted in Step 24 |
+| Usage | `daisy test [filter]`: a case runs when its file name contains the filter; a filter also skips `go test` (it asks for those cases) |
+| Runs | from `$DAISY_ROOT`, wherever it is invoked (no workspace needed, D30): `make -C <root> --silent build`, then `go test ./...`, then `tests/run.sh [filter]` with `<root>/bin` first on `PATH`, each streaming to the terminal; the first that fails ends the run. `make test` is `daisy test` |
+| Exit codes | 0 when every stage passes; 1 when the build fails (`Error: could not build bin/daisy in <root> (see above)`), `go test` fails (`Error: go test failed in <root> (see above); the acceptance suite was not run`) or a case fails; 2 for more than one argument |
+| Stdout | `go test`'s lines; then `PASS  <case>` / `FAIL  <case>  (N assertion(s))` per case, failed assertions indented under it, blank, `N passed, N failed`, `Failed: <names>` when any |
+| Ops | Real (it starts the build, `go test` and the suite, which builds fixtures) |
+| Writes | `bin/daisy`; temporary fixtures only |
 | Commits | none |
-| Cases | none |
+| Cases | none (`TestTestRunsBuildGoTestThenSuite`) |

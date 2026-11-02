@@ -5,7 +5,7 @@ fixture_write_todo <<'EOF'
 (C) 2026-07-20 Task two +other
 EOF
 
-fixture_run tasks --todo
+fixture_run_cli tasks --todo
 
 assert_eq "$RUN_EXIT" "0" "listing succeeds"
 line_count=$(printf '%s\n' "$RUN_STDOUT" | grep -c .)

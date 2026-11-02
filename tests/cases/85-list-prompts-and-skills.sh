@@ -16,7 +16,7 @@ printf -- '---\ndescription: Long: and full.\nshort_description: Short.\n---\n' 
 printf -- '---\ndescription: the workspace copy\n---\n' > "$FIXTURE_WORKSPACE/.claude/skills/both/SKILL.md"
 status_before=$(git -C "$home" status --porcelain)
 
-fixture_run list
+fixture_run_cli list
 assert_eq "$RUN_EXIT" "0" "list exits 0"
 assert_contains "$RUN_STDOUT" "Prompts (testhome):" "names the home"
 assert_contains "$RUN_STDOUT" "  fixfull              (always loaded)" "a full prompt"
@@ -24,7 +24,7 @@ assert_contains "$RUN_STDOUT" "  fixlazy              When a lazy thing happens.
 assert_contains "$RUN_STDOUT" "  fixmissing           (missing: $FIXTURE_ROOT/prompts/fixmissing.md)" "a missing prompt"
 assert_contains "$RUN_STDOUT" "  both                 the workspace copy" "the workspace copy wins"
 assert_contains "$RUN_STDOUT" "  useronly             Short." "the short description"
-fixture_run list --full
+fixture_run_cli list --full
 assert_contains "$RUN_STDOUT" "  useronly             Long: and full." "--full: the description"
 assert_eq "$(git -C "$home" status --porcelain)" "$status_before" "list writes nothing"
 fixture_teardown_home_override

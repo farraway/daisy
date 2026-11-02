@@ -96,8 +96,8 @@ x 2026-01-16 2026-01-16 Fix critical bug @jira +PROJ-1234
 - ✅ Description unchanged
 - ✅ Exactly one commit, containing both file edits
 - ✅ Exactly one line of stdout: `✅ Done: {description} (commit {hash})` —
-  no `Logged:`/`Committed:`/`No changes to commit` chatter from the `daisy
-  log`/`daisy commit` sub-calls it makes internally
+  no `Logged:`/`Committed:`/`No changes to commit` chatter (the Log entry
+  and the one commit are made in-process)
 - ✅ Matching is case-insensitive literal substring, not regex — `.`, `*`,
   `[`, `/` in the pattern match themselves
 

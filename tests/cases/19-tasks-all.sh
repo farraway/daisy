@@ -10,7 +10,7 @@ x 2026-07-01 2026-06-01 Old completed +proj
 x 2026-07-02 2026-06-02 Unrelated +other
 EOF
 
-fixture_run tasks --all +proj
+fixture_run_cli tasks --all +proj
 
 assert_eq "$RUN_EXIT" "0" "matches found"
 assert_contains "$RUN_STDOUT" "Task one +proj" "todo.txt match present"

@@ -40,7 +40,7 @@ x 2026-07-28 2026-07-02 Finished one
 EOF2
 before=$(fixture_commit_count)
 
-fixture_run new-day
+fixture_run_cli new-day
 assert_eq "$RUN_EXIT" "0" "new-day exits 0"
 assert_contains "$RUN_STDOUT" "📦 Archived yesterday to journal.md" "reports the archive"
 assert_contains "$RUN_STDOUT" "✅ Rotated 1 day-block(s); journal.md retains its last 5" "reports the rotation"

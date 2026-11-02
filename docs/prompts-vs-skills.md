@@ -50,7 +50,7 @@ The test is about coupling, so it stays stable as the tooling changes. An
 earlier version of this document decided the split by asking who owned a
 capability's evolution, and rested that on the fact that `daisy optimize`
 only rewrites `## Rules` sections in `prompts/`. That is a property of the
-current script — the feedback loop is intended to reach skills and scripts
+current command — the feedback loop is intended to reach skills and code
 too — so it could not carry the argument for *placement*. Ownership remains
 a live question with a different job, treated as its own axis below.
 

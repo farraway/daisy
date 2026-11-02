@@ -25,7 +25,7 @@ Retrospective workflow did the wrong thing.
 Plan workflow did the wrong thing again.
 FB
 
-fixture_run optimize
+fixture_run_cli optimize
 
 assert_eq "$RUN_EXIT" "0" "the briefing succeeds"
 assert_contains "$RUN_STDOUT" "Pending feedback: 3 entries for 2 targets" "the summary counts entries and targets"

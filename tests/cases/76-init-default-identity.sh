@@ -20,7 +20,7 @@ fixture_run_cli status
 assert_eq "$RUN_EXIT" "0" "status exits 0"
 assert_contains "$RUN_STDOUT" "home: testhome | identity: testhome" "status prints the identity"
 
-fixture_run files
+fixture_run_cli files
 assert_eq "$RUN_EXIT" "0" "files exits 0"
 assert_contains "$RUN_STDOUT" "identity: testhome" "files prints the identity"
 assert_contains "$RUN_STDOUT" "$FIXTURE_HOME/gitconfig" "files resolves the identity to its file"
@@ -151,7 +151,7 @@ assert_eq "$RUN_STDERR" "" "a re-init restores it and status is quiet"
 # override the identity: every Daisy commit is the home's.
 seed_basic
 export GIT_AUTHOR_NAME="Hook Author" GIT_AUTHOR_EMAIL="hook@example.invalid" GIT_COMMITTER_NAME="Hook Author" GIT_COMMITTER_EMAIL="hook@example.invalid"
-fixture_run log "Logged from inside a hook"
+fixture_run_cli log "Logged from inside a hook"
 unset GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
 assert_eq "$RUN_EXIT" "0" "log succeeds under a hook's environment"
 assert_eq "$(git -C "$FIXTURE_HOME" log -1 --format='%an <%ae> %cn')" "Fixture Author <fixture@example.invalid> Fixture Author" \
@@ -160,13 +160,13 @@ assert_eq "$(git -C "$FIXTURE_HOME" log -1 --format='%an <%ae> %cn')" "Fixture A
 # `git -c key=value` reaches hooks as GIT_CONFIG_PARAMETERS (and the
 # GIT_CONFIG_COUNT family): the same class as the author variables.
 export GIT_CONFIG_PARAMETERS="'user.name=Hook Author' 'user.email=hook@example.invalid'"
-fixture_run log "Logged under a hook's -c parameters"
+fixture_run_cli log "Logged under a hook's -c parameters"
 unset GIT_CONFIG_PARAMETERS
 assert_eq "$RUN_EXIT" "0" "log succeeds under GIT_CONFIG_PARAMETERS"
 assert_eq "$(git -C "$FIXTURE_HOME" log -1 --format='%an <%ae>')" "Fixture Author <fixture@example.invalid>" \
     "and the commit carries the home repository's author"
 export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0="Hook Author"
-fixture_run log "Logged under a hook's config count"
+fixture_run_cli log "Logged under a hook's config count"
 unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
 assert_eq "$(git -C "$FIXTURE_HOME" log -1 --format='%an')" "Fixture Author" "likewise under GIT_CONFIG_COUNT"
 

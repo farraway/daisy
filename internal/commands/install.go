@@ -44,6 +44,8 @@ func Install(c *Context) error {
 	if err != nil && exists(fs, settingsPath) {
 		return fmt.Errorf("Error: cannot read %s: %v", settingsPath, err)
 	}
+	// The removed rules are legacy: older installs granted the deleted
+	// bash scripts and wrote the root rules in two other spellings.
 	newSettings, err := settings.Allow(current,
 		[]string{"Read(/" + root + "/**)", "Edit(/" + root + "/**)", "Bash(daisy:*)"},
 		[]string{"Bash(" + root + "/daisy/scripts/*)", "Read(" + root + "/**)", "Edit(" + root + "/**)", "Read(//" + root + "/**)", "Edit(//" + root + "/**)"})

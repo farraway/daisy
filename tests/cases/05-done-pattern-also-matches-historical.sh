@@ -7,7 +7,7 @@ x 2026-07-01 2026-06-01 Ship widget old release +daisy
 EOF
 seed_today_basic
 
-fixture_run done "Ship widget"
+fixture_run_cli done "Ship widget"
 
 assert_eq "$RUN_EXIT" "0" "resolves the sole active match"
 assert_contains "$(fixture_read_todo)" "x 2026-07-01 2026-06-01 Ship widget old release +daisy" "historical x line survives verbatim"

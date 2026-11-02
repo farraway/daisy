@@ -80,7 +80,7 @@ Final priority = max(task priority, tag minimum priority)
 2026-01-15 Task +TODAY            → Treated as (B)
 ```
 
-**Note:** Not yet implemented in scripts. Current scripts use explicit priority only.
+**Note:** Not yet implemented in the CLI. Current commands use explicit priority only.
 
 ## Task Extraction Rules
 
@@ -93,7 +93,7 @@ When extracting tasks from `todo.txt` to `today.md`:
 
 **Special case:** Tasks with @git/@github always go to GitHub section regardless of priority.
 
-**Task preservation:** Any incomplete task in yesterday's today.md should be preserved unless explicitly completed or cancelled. (Not yet implemented in scripts)
+**Task preservation:** Any incomplete task in yesterday's today.md should be preserved unless explicitly completed or cancelled. (Not yet implemented in the CLI)
 
 ## Task-to-Markdown Conversion
 

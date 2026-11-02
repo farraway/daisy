@@ -36,7 +36,7 @@ fixture_write_today <<'EOF'
 * **What would a Sage do next:**
 EOF
 
-fixture_run done "a/b path"
+fixture_run_cli done "a/b path"
 
 assert_eq "$RUN_EXIT" "0" "a pattern containing / resolves without a syntax error"
 assert_not_contains "$RUN_STDERR" "sed:" "no sed delimiter error"

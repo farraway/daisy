@@ -14,7 +14,7 @@ x 2026-07-01 2026-06-01 Old completed +proj
 x 2026-07-02 2026-06-02 Unrelated +other
 EOF
 
-fixture_run tasks
+fixture_run_cli tasks
 
 assert_eq "$RUN_EXIT" "0" "listing succeeds"
 assert_contains "$RUN_STDOUT" "Task one +proj" "workspace project's todo task listed"

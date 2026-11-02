@@ -201,3 +201,23 @@ func realPath(fs ops.FS, p string, depth int) string {
 	}
 	return full
 }
+
+// RootExclusions are the usable registered homes whose directory lies
+// inside the root, root-relative, in registry order: what a root commit
+// leaves out and the publication scan does not read — one list, so the
+// two cannot disagree. Compared resolved, so a symlinked root or home
+// still matches.
+func RootExclusions(fs ops.FS, e Env) []string {
+	root := RealDir(fs, e.Root)
+	if root == "" {
+		return nil
+	}
+	usable, _ := UsableHomes(fs, e.Root, e.HomesFile())
+	var rels []string
+	for _, h := range usable {
+		if rel, ok := strings.CutPrefix(RealDir(fs, h.Path), root+"/"); ok {
+			rels = append(rels, rel)
+		}
+	}
+	return rels
+}

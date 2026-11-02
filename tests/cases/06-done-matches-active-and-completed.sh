@@ -7,7 +7,7 @@ x 2026-07-01 2026-06-01 Refactor gizmo old pass +daisy
 EOF
 seed_today_basic
 
-fixture_run done "Refactor gizmo"
+fixture_run_cli done "Refactor gizmo"
 
 assert_eq "$RUN_EXIT" "0" "resolves the sole active match despite an existing completed line matching too"
 today=$(date +%Y-%m-%d)

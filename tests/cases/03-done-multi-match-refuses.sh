@@ -10,7 +10,7 @@ seed_today_basic
 todo_before=$(fixture_read_todo)
 today_before=$(fixture_read_today)
 
-fixture_run done "Shared token"
+fixture_run_cli done "Shared token"
 
 assert_eq "$RUN_EXIT" "1" "multi-match refuses with non-zero exit"
 assert_eq "$(fixture_read_todo)" "$todo_before" "todo.txt untouched on multi-match"

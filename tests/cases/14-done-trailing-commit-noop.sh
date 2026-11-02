@@ -4,7 +4,7 @@
 seed_basic
 commits_before=$(fixture_commit_count)
 
-fixture_run done "Delta target"
+fixture_run_cli done "Delta target"
 
 assert_eq "$RUN_EXIT" "0" "done exits 0 even though its own trailing commit call finds nothing staged"
-assert_eq "$(fixture_commit_count)" "$((commits_before + 1))" "no second commit from done's own trailing commit --home call"
+assert_eq "$(fixture_commit_count)" "$((commits_before + 1))" "no second commit from a trailing home commit"

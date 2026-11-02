@@ -8,7 +8,7 @@ seed_today_basic
 
 commits_before=$(fixture_commit_count)
 
-fixture_run done "Ghost task"
+fixture_run_cli done "Ghost task"
 
 assert_eq "$RUN_EXIT" "0" "todo.txt-only completion still succeeds"
 today=$(date +%Y-%m-%d)

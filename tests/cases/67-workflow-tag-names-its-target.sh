@@ -23,7 +23,7 @@ target_of() {
 
 An entry.
 FB
-    fixture_run optimize --workflow "$1"
+    fixture_run_cli optimize --workflow "$1"
     if [ "$RUN_EXIT" != 0 ]; then echo "exit $RUN_EXIT"; return; fi
     printf '%s\n' "$RUN_STDOUT" | sed -n 's/^Target: //p' | head -1
 }
@@ -75,7 +75,7 @@ fixture_write_feedback <<'FB'
 
 Hand-written, naming no file.
 FB
-fixture_run optimize
+fixture_run_cli optimize
 assert_eq "$RUN_EXIT" "0" "an unresolvable entry does not fail the briefing"
 assert_contains "$RUN_STDOUT" "[daisy-write] 1 entry" "it is listed under its own tag"
 assert_contains "$RUN_STDOUT" "names no prompt or skill" "with the reason"
@@ -84,7 +84,7 @@ assert_not_contains "$RUN_STDOUT" "[prompts/daisy] 1 entry" "and is not defaulte
 # --- daisy feedback refuses to write one ---
 
 before=$(fixture_read_feedback)
-fixture_run feedback --workflow daisy-write "Should never be recorded."
+fixture_run_cli feedback --workflow daisy-write "Should never be recorded."
 
 assert_eq "$RUN_EXIT" "1" "an unresolvable workflow is refused"
 assert_contains "$RUN_STDERR" "names no prompt or skill" "the refusal says why"
@@ -94,7 +94,7 @@ assert_text_eq "$(fixture_read_feedback)" "$before" "and nothing is appended"
 
 # --- A qualified tag is accepted and written verbatim ---
 
-fixture_run feedback --workflow skills/git "Conflict guidance was wrong."
+fixture_run_cli feedback --workflow skills/git "Conflict guidance was wrong."
 
 assert_eq "$RUN_EXIT" "0" "a qualified workflow is accepted"
 assert_contains "$(fixture_read_feedback)" "**Workflow:** skills/git" \

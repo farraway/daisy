@@ -4,15 +4,15 @@
 
 Daisy is two kinds of repository:
 
-- **The root** (`$DAISY_ROOT`): the code — `daisy.sh`, `daisy/scripts/`,
-  `prompts/`, `skills/`, `templates/`, `docs/`. One git
+- **The root** (`$DAISY_ROOT`): the code — the Go binary's source
+  (`cmd/`, `internal/`), `prompts/`, `skills/`, `templates/`, `docs/`. One git
   repository, published as it is, so it never holds personal data.
 - **A home**: one context's data — `journal/`, `tasks/`, `projects/`,
   `plans/`, `feedback/` — plus the configuration that shapes the agent for
   that context: `include.txt`, `skills/`, an optional `prompts/` whose files
   shadow the root's by name, and its identities (`gitconfig`, `identities/`). A home is its own git repository and lives
   wherever you put it; every Daisy mutation (`log`, `done`, `new-day`, plans)
-  ends in one commit there (`daisy commit --home`).
+  ends in one commit there (`daisy commit <message>` makes one by hand).
 
 The root knows homes only by name, through the **registry**:
 `$DAISY_CONFIG/homes` (default `~/.config/daisy/homes`), one
@@ -31,7 +31,7 @@ Two per-machine directories, both overridable by environment variable:
 | Command | Effect |
 |---|---|
 | `daisy home list` | Each registered name and its path; `(missing)` when the directory is gone |
-| `daisy home add <name> <path>` | Register an existing home; the path is stored resolved and absolute. Refused unless it is an existing directory that is neither the root nor a directory containing it, holds `include.txt`, and is in its own git repository (or the root's) where it can be staged |
+| `daisy home add <name> <path>` | Register an existing home; the path is stored resolved and absolute. Refused unless it is an existing directory that is neither the root nor a directory containing it, holds `include.txt`, and is its own git repository's top, where it can be staged |
 | `daisy home remove <name>` | Unregister; the files are left in place |
 | `daisy home new <name> [path]` | Create a home from `templates/home/` and register it (below) |
 
@@ -54,7 +54,7 @@ with a letter or digit.
 An identity is the git author a workspace's own repository commits as —
 `user.name`, `user.email` and, optionally, the SSH key it pushes with. It
 does not change who commits in the home's repository: Daisy's own commits
-there (`daisy commit --home`) carry that repository's git config, which
+there (`daisy commit` among them) carry that repository's git config, which
 `daisy home new` sets from the default identity. An identity is a file of
 `key=value` lines in a home:
 
@@ -122,8 +122,7 @@ Each workspace has a `.daisy/` directory holding:
   `plans/`, `feedback.md`
 - `project` — optional: the project this workspace is bound to
 
-**Resolution order** (`env.Resolve` in the binary; `resolve_home` in
-`daisy/scripts/common.sh` for the scripts still in bash):
+**Resolution order** (`env.Resolve` in the binary):
 
 1. Walk up from `$PWD` to the nearest workspace: a directory with a `.daisy/`
    that is not the Daisy root itself. Read the name from `.daisy/home`, look
@@ -131,12 +130,8 @@ Each workspace has a `.daisy/` directory holding:
    the root nor containing it). A `.daisy/` without a `home` file is an
    incomplete binding to repair with `daisy init <identity>` or `daisy
    clean`, never a level to walk past.
-2. With no workspace above, the bash scripts fall back to
-   `$DAISY_DEFAULT_HOME` with a warning on stderr; every command reaches
-   them through the dispatcher's workspace check, so the fallback is
-   unreachable through `daisy` and goes with them (Step 24).
-3. Otherwise fail: "Cannot resolve home", naming `daisy init <identity>` as
-   the fix.
+2. With no workspace above, fail: "Not in a Daisy workspace", naming
+   `daisy init <identity>` as the fix. There is no default home.
 
 Resolution is stateless, so different workspaces on one machine use
 different homes, or the same home under different identities, concurrently.
@@ -157,22 +152,24 @@ final step rolls the git config back and removes the stage. Other workspaces are
 
 `daisy healthcheck` verifies, in order: `DAISY_ROOT` is set and valid (1);
 the home resolves for this workspace (2); the root is a git repository and
-the home is in its own repository or the root's — never in some larger
-repository that merely encloses it (3); no registered home still lies inside
-the root repository without being its own repository (3b, a warning); required directories (4),
+the home is its own repository — never the root's or some larger
+repository that merely encloses it (3); required directories (4),
 installed-skill drift (4b, 4c), `today.md` format and journal rotation state
-(5, 5b), each script's own `--healthcheck` (6), and publication hygiene (6c,
-see `AGENTS.md`), whose identifying terms include every registered home's name
-and the git identity of each home's repository. A passing run is cached in
+(5, 5b), each command's own `--healthcheck` hook, called in-process (6),
+publication hygiene (6c, see `AGENTS.md`), whose identifying terms include
+every registered home's name and the git identity of each home's
+repository, and that AGENTS.md's Command Reference is the cli table's (6b, a
+warning). A home inside the root repository is refused: every commit it
+made would land in the published root's history. A passing run is cached in
 `<home>/.healthcheck.ttl` for `DAISY_HEALTHCHECK_TTL` seconds (default 300);
 `--force` re-checks now.
 
-## Related Scripts
+## Related Code
 
-| Script | Purpose |
+| Package | Purpose |
 |--------|---------|
-| `bin/daisy` (`cmd/daisy`, `internal/`) | The CLI (`~/bin/daisy`): `init`, `clean`, `home list\|add\|remove\|new`, `identity list` in `internal/workspace`, `internal/identity`, `internal/env` |
-| `daisy.sh` (repo root) | Bash entry point for the commands not yet ported |
-| `common.sh` | Registry, identity and resolution functions for the scripts still in bash |
-| `commit.sh` | `--home` commits in the home's repository, `--not-home` in the root's |
-| `healthcheck.sh` | System validation, including the checks above |
+| `bin/daisy` (`cmd/daisy`, `internal/`) | The CLI (`~/bin/daisy`); `daisy help` lists every command |
+| `internal/env` | The registry, workspace and home resolution, `.env.sh` reading, the homes a root commit leaves out |
+| `internal/workspace`, `internal/identity` | `init`, `clean`, identities and their drift |
+| `internal/gitx` | The one commit every mutation makes, and `daisy commit [--root]` |
+| `internal/health` | `daisy healthcheck`: the checks above, the TTL stamp, the publication scan |

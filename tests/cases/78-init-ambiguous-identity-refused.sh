@@ -150,7 +150,7 @@ fixture_run_cli status
 assert_eq "$RUN_EXIT" "1" "status in a directory with an interrupted init refuses"
 assert_contains "$RUN_STDERR" ".daisy.previous.4242" "naming the leftover"
 assert_contains "$RUN_STDERR" "daisy init" "and the repair"
-fixture_run log "must not land anywhere"
+fixture_run_cli log "must not land anywhere"
 assert_eq "$RUN_EXIT" "1" "a script run there refuses too"
 FIXTURE_CWD=""
 assert_eq "$(fixture_commit_count)" "$before" "and no commit was made in the parent's home"
@@ -165,7 +165,7 @@ FIXTURE_CWD="$child"
 fixture_run_cli status
 assert_eq "$RUN_EXIT" "1" "status in a directory whose binding lacks .daisy/home refuses"
 assert_contains "$RUN_STDERR" "daisy init" "and names the repair"
-fixture_run log "must not land anywhere either"
+fixture_run_cli log "must not land anywhere either"
 assert_eq "$RUN_EXIT" "1" "a script run there refuses too"
 FIXTURE_CWD=""
 assert_eq "$(fixture_commit_count)" "$before" "and no commit was made in the parent's home"
@@ -199,22 +199,21 @@ mv "$child/.daisy.aside" "$child/.daisy"
 # workspace rather than an incomplete one — and clean there removes nothing.
 root2="$FIXTURE_LOCAL/home2/.daisy"
 mkdir -p "$root2" "$FIXTURE_LOCAL/home2/bin"
-ln -s "$FIXTURE_ROOT/daisy" "$root2/daisy"
-ln -s "$FIXTURE_ROOT/daisy.sh" "$root2/daisy.sh"
+mkdir -p "$root2/templates"
 RUN_STDERR=$(cd "$FIXTURE_LOCAL/home2/bin" && DAISY_ROOT="$root2" daisy status 2>&1 >/dev/null); RUN_EXIT=$?
 assert_eq "$RUN_EXIT" "1" "status beside the Daisy root finds no workspace"
 assert_contains "$RUN_STDERR" "Not in a Daisy workspace" "and says so"
 assert_not_contains "$RUN_STDERR" "incomplete" "without mistaking the root for a binding"
 RUN_STDOUT=$(cd "$FIXTURE_LOCAL/home2/bin" && DAISY_ROOT="$root2" daisy clean -f 2>/dev/null); RUN_EXIT=$?
 assert_eq "$RUN_EXIT" "1" "clean beside the Daisy root refuses"
-[ -e "$root2/daisy" ] && kept=yes || kept=no
+[ -e "$root2/templates" ] && kept=yes || kept=no
 assert_eq "$kept" "yes" "and the root is untouched"
 # Nor may init bind the directory holding the root: its .daisy IS the root,
 # and the swap would move it aside and remove it.
 RUN_STDERR=$(cd "$FIXTURE_LOCAL/home2" && DAISY_ROOT="$root2" daisy init testhome 2>&1 >/dev/null); RUN_EXIT=$?
 assert_eq "$RUN_EXIT" "1" "init refuses the directory whose .daisy is the Daisy root"
 assert_contains "$RUN_STDERR" "Daisy root" "and says why"
-[ -e "$root2/daisy" ] && kept=yes || kept=no
+[ -e "$root2/templates" ] && kept=yes || kept=no
 assert_eq "$kept" "yes" "and the root is still there"
 [ -e "$FIXTURE_LOCAL/home2/.git" ] && repo=yes || repo=no
 assert_eq "$repo" "no" "having written nothing"

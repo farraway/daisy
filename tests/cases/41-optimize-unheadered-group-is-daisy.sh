@@ -18,7 +18,7 @@ An entry with no workflow header at all.
 Plan workflow did the wrong thing.
 FB
 
-fixture_run optimize
+fixture_run_cli optimize
 
 assert_eq "$RUN_EXIT" "0" "the briefing succeeds"
 assert_contains "$RUN_STDOUT" "[prompts/daisy] 1 entry" "the unheadered entry is daisy's"

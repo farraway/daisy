@@ -12,13 +12,13 @@ blocks() { local d; for d in "$@"; do printf '### %s Day\n\nWork on %s\n\n---\n\
 blocks 2026-07-30 2026-07-31 2026-08-01 2026-08-02 2026-08-03 > "$jdir/journal.md"
 before=$(fixture_commit_count)
 
-fixture_run rotate
+fixture_run_cli rotate
 assert_eq "$RUN_EXIT" "0" "five blocks: exit 0"
 assert_eq "$RUN_STDOUT" "" "five blocks: nothing printed"
 assert_eq "$(ls "$jdir" | grep -c 'journal-')" "0" "five blocks: no window written"
 
 blocks 2026-08-04 2026-08-05 2026-08-06 >> "$jdir/journal.md"
-fixture_run rotate
+fixture_run_cli rotate
 assert_eq "$RUN_EXIT" "0" "eight blocks: exit 0"
 assert_eq "$RUN_STDOUT" "✅ Rotated 3 day-block(s); journal.md retains its last 5" "reports three moved"
 assert_eq "$(grep -c '^### ' "$jdir/journal.md")" "5" "journal.md keeps five"
@@ -34,7 +34,7 @@ assert_eq "$(fixture_commit_count)" "$before" "rotate commits nothing"
 printf 'stray note\n\n' | cat - "$jdir/journal.md" > "$jdir/journal.tmp" && mv "$jdir/journal.tmp" "$jdir/journal.md"
 blocks 2026-08-07 >> "$jdir/journal.md"
 journal_before=$(cat "$jdir/journal.md")
-fixture_run rotate
+fixture_run_cli rotate
 assert_eq "$RUN_EXIT" "1" "content before the first heading: exit 1"
 assert_contains "$RUN_STDERR" "non-blank content before its first '### YYYY-MM-DD' heading" "says why"
 assert_eq "$(cat "$jdir/journal.md")" "$journal_before" "and writes nothing"

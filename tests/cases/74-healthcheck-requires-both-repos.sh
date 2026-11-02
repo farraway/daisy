@@ -4,13 +4,13 @@
 # commit, after the files were already written; the check says so first and
 # names the fix. A home with no repository of its own inside some other
 # repository (a dotfiles-managed $HOME) is the same failure in a worse form:
-# every commit would land, silently, in that other repository. A registered home that lies inside the root repository is
-# the pre-split layout: it works, and it is reported as a warning so the
-# tree is not called clean once the homes should have moved out.
+# every commit would land, silently, in that other repository — the root's
+# included (case 71). Another registered home placed inside the root is
+# not this workspace's to check: a root commit and the hygiene scan leave
+# it out, and the pre-split warning about it (Check 3b) is gone.
 
 fixture_run_cli healthcheck --force
 assert_eq "$RUN_EXIT" "0" "healthcheck passes with the home as its own repository"
-assert_not_contains "$RUN_STDERR" "lies inside" "no warning when no home is inside the root"
 
 # The home loses its repository.
 mv "$FIXTURE_HOME/.git" "$FIXTURE_HOME_PARENT/git-aside"
@@ -32,17 +32,18 @@ rm -rf "$FIXTURE_HOME_PARENT/.git"
 fixture_run_cli healthcheck --force
 assert_eq "$RUN_EXIT" "0" "healthcheck passes again with the home's own repository restored"
 
-# A registered home inside the root repository: healthy, with a warning.
+# Another registered home placed under the root's directory as its own
+# repository (untracked by the root): healthy, no warning — a root commit
+# and the scan leave it out. (Tracked by the root, its files would be the
+# root's, published and scanned: TestTrackedUnderAHomeIsScanned.)
 inner="$FIXTURE_ROOT/data/zebranest"
 mkdir -p "$(dirname "$inner")"
 cp -r "$REAL_DAISY_ROOT/templates/home" "$inner"
-git -C "$FIXTURE_ROOT" add -A
-git -C "$FIXTURE_ROOT" commit -q -m "root: a home inside the root"
+git -C "$inner" init -q
 fixture_register_home zebranest "$inner"
 
 fixture_run_cli healthcheck --force
-assert_eq "$RUN_EXIT" "0" "a registered home inside the root is not a failure"
-assert_contains "$RUN_STDERR" "Home 'zebranest' lies inside the root repository" \
-    "but it is warned about by name"
+assert_eq "$RUN_EXIT" "0" "a registered home of its own under the root is not a failure"
+assert_not_contains "$RUN_STDERR" "lies inside" "and not warned about"
 
 fixture_unregister_home zebranest

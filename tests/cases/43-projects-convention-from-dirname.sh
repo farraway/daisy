@@ -5,7 +5,7 @@
 fixture_workspace_named "chessgrid.260807"
 fixture_add_project "chessgrid"
 
-fixture_run files
+fixture_run_cli files
 
 assert_eq "$RUN_EXIT" "0" "files succeeds on the convention path"
 assert_contains "$RUN_STDOUT" "+chessgrid" "project derived from directory name"
@@ -18,5 +18,5 @@ jobsearch
 EOF
 fixture_add_project "jobsearch"
 
-fixture_run files
+fixture_run_cli files
 assert_contains "$RUN_STDOUT" "+chessgrid +jobsearch" "several projects listed in file order"

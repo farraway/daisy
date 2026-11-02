@@ -31,7 +31,7 @@ snapshot() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z
 home_before=$(snapshot "$(fixture_home_dir)")
 root_before=$(snapshot "$FIXTURE_ROOT")
 
-fixture_run optimize
+fixture_run_cli optimize
 assert_eq "$RUN_EXIT" "0" "the briefing succeeds"
 assert_contains "$RUN_STDOUT" "[prompts/widgetflow] 2 entries" "and briefs the target"
 assert_text_eq "$(snapshot "$(fixture_home_dir)")" "$home_before" "the home is byte-identical"
@@ -39,7 +39,7 @@ assert_text_eq "$(snapshot "$FIXTURE_ROOT")" "$root_before" "the root is byte-id
 assert_eq "$(git -C "$(fixture_home_dir)" status --porcelain)" "" "the home's tree is clean"
 
 for flag in --dry-run --force --list; do
-    fixture_run optimize "$flag"
+    fixture_run_cli optimize "$flag"
     assert_eq "$RUN_EXIT" "2" "optimize $flag is a usage error"
     assert_contains "$RUN_STDERR" "Usage: daisy optimize" "optimize $flag prints the usage"
 done

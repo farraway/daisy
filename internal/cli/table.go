@@ -1,19 +1,20 @@
 package cli
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
 	"daisy/internal/commands"
+	"daisy/internal/health"
 )
 
 // Unbounded is a Max for a command that takes any number of arguments.
 const Unbounded = -1
 
-// Command is one line of `daisy help` and, when Run is set, the function
-// behind it. A command without Run is still the bash's: the binary execs
-// $DAISY_ROOT/daisy.sh for it (help is the exception: the cli's own). Name
-// is what the user types, one word or a noun and its verb (`prompt
+// Command is one line of `daisy help` and of AGENTS.md's Command
+// Reference, and Run the function behind it (help alone has none: the
+// cli answers it itself). Name is what the user types, one word or a noun and its verb (`prompt
 // build`). Usage is the line as printed, Help the description beside it.
 // Flags are the words the command takes as flags when they lead its
 // arguments, Values those of them that take the next word as a value; the
@@ -34,17 +35,16 @@ type Command struct {
 	Health    func(*commands.Context) error
 }
 
-// table is the one source of the help text: the agreed groups and order,
-// each command under the name this build answers to. A command keeps its
-// legacy spelling until the step that ports it renames it; the tree
-// therefore always says what this binary does, and nothing it does not.
+// table is the one source of the help text and the Command Reference: the
+// agreed groups and order, each command under the name it answers to, so
+// both always say what this binary does, and nothing it does not.
 var table = []Command{
 	{Group: "Workspace", Name: "init", Usage: "init <identity> [path]", Help: "Bind a workspace to an identity and its home", Min: 1, Max: 2, Run: commands.Init},
 	{Group: "Workspace", Name: "clean", Usage: "clean [-f]", Help: "Remove Daisy from this workspace", Flags: []string{"-f", "--force"}, Run: commands.Clean},
 	{Group: "Workspace", Name: "status", Usage: "status", Help: "Home, identity, projects, today's counts, active plan", Workspace: true, Run: commands.Status},
 	{Group: "Workspace", Name: "files", Usage: "files", Help: "Resolved real paths for every home file", Workspace: true, Run: commands.Files},
 	{Group: "Workspace", Name: "list", Usage: "list", Help: "Active prompts and installed skills", Workspace: true, Flags: []string{"--full"}, Run: commands.List, Health: commands.ListHealth},
-	{Group: "Workspace", Name: "help", Usage: "help [<command>|<skill>]", Help: "This help, or detail for one command or skill"},
+	{Group: "Workspace", Name: "help", Usage: "help [<command>|<skill>|--markdown]", Help: "This help, detail for one command or skill, or the Command Reference"},
 
 	{Group: "Day", Name: "new-day", Usage: "new-day", Help: "Start a new day", Workspace: true, Run: commands.NewDay, Health: commands.NewDayHealth},
 	{Group: "Day", Name: "new-week", Usage: "new-week", Help: "Start a new week", Workspace: true, Run: commands.NewWeek, Health: commands.NewWeekHealth},
@@ -71,10 +71,10 @@ var table = []Command{
 	{Group: "Prompts and skills", Name: "optimize apply", Usage: "optimize apply --workflow <n> (--rules|--rewrite) <file> [--yes]", Help: "Apply a proposal: diff, approve, archive, commit", Workspace: true, Flags: []string{"--yes"}, Values: []string{"--workflow", "-w", "--rules", "--rewrite"}, Run: commands.OptimizeApply},
 	{Group: "Prompts and skills", Name: "eval", Usage: "eval [<case>] [--record]", Help: "List, display, or record an eval case result", Workspace: true, Flags: []string{"--record"}, Max: 3, Run: commands.Eval, Health: commands.EvalHealth},
 
-	{Group: "System", Name: "commit", Usage: "commit --home|--not-home <message>", Help: "Commit the home repo (or everything else)"},
-	{Group: "System", Name: "healthcheck", Usage: "healthcheck [--force]", Help: "Run the system health check"},
-	{Group: "System", Name: "check-secrets", Usage: "check-secrets", Help: "Check which secrets/tokens are configured"},
-	{Group: "System", Name: "test", Usage: "test [filter]", Help: "Run the hermetic acceptance suite"},
+	{Group: "System", Name: "commit", Usage: "commit [--root] <message>", Help: "Commit the home repo (or the root repo)", Workspace: true, Flags: []string{"--root"}, Min: 1, Max: 1, Run: commands.Commit},
+	{Group: "System", Name: "healthcheck", Usage: "healthcheck [--force]", Help: "Run the system health check", Flags: []string{"--force"}, Run: commands.Healthcheck},
+	{Group: "System", Name: "check-secrets", Usage: "check-secrets", Help: "Check which secrets/tokens are configured", Run: commands.CheckSecrets},
+	{Group: "System", Name: "test", Usage: "test [filter]", Help: "Run go test, then the hermetic acceptance suite", Max: 1, Run: commands.Test, Health: commands.TestHealth},
 }
 
 // groups in display order.
@@ -104,5 +104,16 @@ func noun(word string) []Command {
 	return cmds
 }
 
-// bash: the command is still daisy.sh's.
-func (c Command) bash() bool { return c.Run == nil && c.Name != "help" }
+// Reference is AGENTS.md's Command Reference, rendered from the table
+// between the markers the health check finds it by: one row per command,
+// in table order. `daisy help --markdown` prints it.
+func Reference() string {
+	var b strings.Builder
+	b.WriteString(health.ReferenceBegin + "\n")
+	b.WriteString("| Group | Command | What it does |\n|---|---|---|\n")
+	for _, c := range table {
+		fmt.Fprintf(&b, "| %s | `daisy %s` | %s |\n", c.Group, strings.ReplaceAll(c.Usage, "|", "\\|"), strings.ReplaceAll(c.Help, "|", "\\|"))
+	}
+	b.WriteString(health.ReferenceEnd + "\n")
+	return b.String()
+}

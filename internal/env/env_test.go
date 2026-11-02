@@ -542,3 +542,33 @@ func TestRegisterAndUnregister(t *testing.T) {
 		t.Errorf("fresh registry %q", b)
 	}
 }
+
+// RootExclusions are the usable registered homes inside the root, relative
+// to it: what a root commit leaves out and the hygiene scan does not read.
+// A top-level home/ is root content like any other (the pre-split clause
+// is gone), and a home outside the root, or one that cannot be a home, is
+// not listed.
+func TestRootExclusions(t *testing.T) {
+	f := newFx(t)
+	inner := filepath.Join(f.root, "data", "zebranest")
+	f.mkdir(inner)
+	f.mkdir(filepath.Join(f.root, "home", "stray"))
+	f.write(filepath.Join(f.config, "homes"), strings.Join([]string{
+		"testhome=" + f.home,
+		"zebranest=" + inner + "/",
+		"gone=" + filepath.Join(f.root, "missing"),
+		"zebranest=" + filepath.Join(f.root, "second"),
+	}, "\n")+"\n")
+	m := env.Env{Root: f.root, Config: f.config}
+	got := env.RootExclusions(ops.Real().FS(), m)
+	if strings.Join(got, "|") != "data/zebranest" {
+		t.Errorf("exclusions %q", got)
+	}
+	// Through a symlinked root, compared resolved.
+	link := filepath.Join(t.TempDir(), "root")
+	f.link(f.root, link)
+	m.Root = link
+	if got := env.RootExclusions(ops.Real().FS(), m); strings.Join(got, "|") != "data/zebranest" {
+		t.Errorf("through a link %q", got)
+	}
+}

@@ -11,7 +11,7 @@ fixture_write_project_binding <<'EOF'
 jobsearch
 EOF
 
-fixture_run files
+fixture_run_cli files
 
 assert_eq "$RUN_EXIT" "0" "files succeeds with an explicit binding"
 assert_contains "$RUN_STDOUT" "+jobsearch" "explicit project reported"

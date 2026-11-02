@@ -5,6 +5,7 @@
 package commands
 
 import (
+	"errors"
 	"io"
 	"slices"
 
@@ -28,7 +29,22 @@ type Context struct {
 	// the cli drops from Args (`feedback ""` is an empty message, not
 	// none).
 	EmptyWords bool
+	// Components are the cli table's --healthcheck hooks, in table order,
+	// and Reference the Command Reference it renders: what the health
+	// check runs and compares AGENTS.md with.
+	Components []Component
+	Reference  string
 }
+
+// Component is a command's --healthcheck hook under the command's name.
+type Component struct {
+	Name  string
+	Check func(*Context) error
+}
+
+// ErrReported is a failure the command has already explained on its
+// streams: exit 1 with nothing more said.
+var ErrReported = errors.New("failure already reported")
 
 // Value is a value flag as given: `--workflow plan`.
 type Value struct{ Flag, Value string }

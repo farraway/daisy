@@ -1,14 +1,13 @@
 // Package cli is the only place that knows argument syntax: the command
 // tree, each command's flags and arity, --help, the --healthcheck hook,
-// usage errors (exit 2, usage on stderr) and the fall-through to daisy.sh
-// for commands the binary has not taken over.
+// usage errors (exit 2, usage on stderr), and the table rendered as the
+// help and as AGENTS.md's Command Reference.
 package cli
 
 import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -44,14 +43,11 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 		writeTree(stderr)
 		return Usage
 	}
-	if cmd.bash() {
-		return fallThrough(o, stdin, stdout, stderr, args)
-	}
 	if len(rest) == 1 && isHelpFlag(rest[0]) {
 		writeUsage(stdout, cmd)
 		return OK
 	}
-	c := &commands.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr}
+	c := newContext(o, stdin, stdout, stderr)
 	if len(rest) == 1 && rest[0] == "--healthcheck" && cmd.Health != nil {
 		return invoke(c, cmd, cmd.Health)
 	}
@@ -73,14 +69,27 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 	return invoke(c, cmd, cmd.Run)
 }
 
+// newContext is a command's Context before its arguments: the streams,
+// and the table's hooks and Command Reference for the health check.
+func newContext(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer) *commands.Context {
+	c := &commands.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr, Reference: Reference()}
+	for _, cmd := range table {
+		if cmd.Health != nil {
+			c.Components = append(c.Components, commands.Component{Name: cmd.Name, Check: cmd.Health})
+		}
+	}
+	return c
+}
+
 // help answers `daisy help <name>`. A command's help is what its own
-// --help prints (the bash's, for a command still in bash), followed by a
-// note when a skill has the same name; a noun's is its commands' usages;
+// --help prints, followed by a note when a skill has the same name; a
+// noun's is its commands' usages; `--markdown` is the Command Reference;
 // any other single name is a skill's, which needs the workspace.
 func help(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 	_, _, words, _, _ := splitArgs(Command{}, args)
 	helpCmd, _, _ := match([]string{"help"})
-	c := &commands.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: words}
+	c := newContext(o, stdin, stdout, stderr)
+	c.Args = words
 	switch cmd, rest, ok := match(words); {
 	case len(words) == 0:
 		writeTree(stdout)
@@ -88,12 +97,11 @@ func help(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) i
 	case len(words) == 1 && isHelpFlag(words[0]):
 		writeUsage(stdout, helpCmd)
 		return OK
+	case len(words) == 1 && words[0] == "--markdown":
+		io.WriteString(stdout, Reference())
+		return OK
 	case ok && len(rest) > 0:
 		return usageError(stderr, helpCmd, "unexpected argument: "+rest[0])
-	case ok && cmd.bash():
-		code := fallThrough(o, stdin, stdout, stderr, append(strings.Fields(cmd.Name), "--help"))
-		commands.ShadowNote(c, cmd.Name)
-		return code
 	case ok:
 		writeUsage(stdout, cmd)
 		commands.ShadowNote(c, cmd.Name)
@@ -197,6 +205,9 @@ func invoke(c *commands.Context, cmd Command, fn func(*commands.Context) error) 
 		c.Env = e
 	}
 	if err := fn(c); err != nil {
+		if errors.Is(err, commands.ErrReported) {
+			return Failure
+		}
 		var u commands.UsageError
 		if errors.As(err, &u) {
 			return usageError(c.Stderr, cmd, string(u))
@@ -244,30 +255,4 @@ func writeTree(w io.Writer) {
 	b.WriteString("\nEvery command also accepts --help/-h (as the sole argument) to print its usage.\n")
 	b.WriteString("\nEnvironment:\n  DAISY_ROOT    Path to the daisy repository (required)\n")
 	io.WriteString(w, b.String())
-}
-
-// fallThrough runs $DAISY_ROOT/daisy.sh with the same arguments and streams
-// and returns its exit code: every command works at every commit of the
-// port, whichever side of it the command is on.
-func fallThrough(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) int {
-	root, err := env.Root(o)
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return Failure
-	}
-	// A cwd that cannot be read (deleted under the shell) is left to the
-	// child, which inherits the descriptor as the bash did.
-	cwd, _ := o.Getwd()
-	script := filepath.Join(root, "daisy.sh")
-	p, err := o.Start(cwd, script, stdin, stdout, stderr, args...)
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: cannot run %s: %v\n", script, err)
-		return Failure
-	}
-	code, err := p.Wait()
-	if err != nil {
-		fmt.Fprintf(stderr, "Error: %s did not exit normally: %v\n", script, err)
-		return Failure
-	}
-	return code
 }

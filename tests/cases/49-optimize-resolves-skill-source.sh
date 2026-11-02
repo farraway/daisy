@@ -28,7 +28,7 @@ fixture_write_feedback <<'FB'
 Widget guidance was wrong.
 FB
 
-fixture_run optimize
+fixture_run_cli optimize
 
 assert_eq "$RUN_EXIT" "0" "the briefing succeeds"
 assert_contains "$RUN_STDOUT" "[skills/widgetcraft] 1 entry" "a bare skill name is the skill's target"

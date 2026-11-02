@@ -41,7 +41,7 @@ fixture_write_feedback <<'FB'
 Widget guidance was wrong.
 FB
 
-fixture_run optimize
+fixture_run_cli optimize
 assert_contains "$RUN_STDOUT" "### Exceptions" "an H3 is a subsection of the rules, not a boundary"
 assert_contains "$RUN_STDOUT" "2. Cut before nailing." "rules past an H3 subsection are briefed"
 assert_contains "$RUN_STDOUT" "Rules: 2" "and counted"

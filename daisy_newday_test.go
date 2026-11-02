@@ -164,7 +164,7 @@ func TestNewDayRefusals(t *testing.T) {
 	}
 
 	o := m.at(now)
-	o.ExecFn = m.dayOps(m.ws, false).ExecFn
+	o.GetenvFn = m.dayOps(m.ws, false).GetenvFn
 	if code, out, errs := runWith(o, "new-day"); code != 1 || out != "" || errs != "Error: System health check failed\n  Run: daisy healthcheck\n" {
 		t.Errorf("health check: exit %d out %q err %q", code, out, errs)
 	}

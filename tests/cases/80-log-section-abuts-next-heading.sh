@@ -31,7 +31,7 @@ fixture_write_today <<'EOF2'
 EOF2
 
 export DAISY_HEALTHCHECK_PASSED=1
-fixture_run log "Placed at the end of the Log section"
+fixture_run_cli log "Placed at the end of the Log section"
 unset DAISY_HEALTHCHECK_PASSED
 
 assert_eq "$RUN_EXIT" "0" "log exits 0"

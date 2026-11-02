@@ -102,7 +102,7 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
    b. If priority is (C), (D), or none:
       - Report: "Low priority - not added to today.md. Will appear on next 'new day'"
 
-7. Commit changes (call commit.sh)
+7. Commit changes (`daisy commit "<message>"`)
 ```
 
 ## Change Priority
@@ -158,7 +158,7 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
    e. If not found and priority is (C), (D), or none:
       - Report: "Task will appear in today.md at next 'new day'"
 
-5. Commit changes (call commit.sh)
+5. Commit changes (`daisy commit "<message>"`)
 ```
 
 ## New Day
@@ -268,11 +268,11 @@ directly, not via `daisy done`.
    today.md is a warning, not a failure — the todo.txt completion still
    proceeds.
 
-4. Journal via `daisy log "Done: {description}"`, then commit
-   (`daisy commit --home`). The log call commits first, so the trailing
-   commit call normally no-ops; if journaling fails, that trailing commit is
-   what actually saves the todo.txt/today.md edits, and the run still exits
-   non-zero to report the partial state.
+4. Journal `Done: {description}` in today.md's Log section, then commit
+   the home once, the edits and the entry together (`Completed:
+   {description}`). If journaling fails, the commit still saves the
+   todo.txt/today.md edits, and the run exits non-zero to report the
+   partial state.
 
 5. On success: one summary line, "✅ Done: {description} (commit {hash})".
    The exit code is the contract — 0 only when todo.txt was updated and

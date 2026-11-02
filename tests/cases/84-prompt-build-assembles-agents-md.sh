@@ -14,7 +14,7 @@ mkdir -p "$home/prompts"
 printf '# Lazy\n\n## Trigger\n\nWhen lazy.\n\n## Rules\n\n1. Not in AGENTS.md.\n' > "$home/prompts/fixlazy.md"
 before=$(fixture_commit_count)
 
-FIXTURE_CWD="$FIXTURE_ROOT" fixture_run build-prompt testhome
+FIXTURE_CWD="$FIXTURE_ROOT" fixture_run_cli prompt build testhome
 assert_eq "$RUN_EXIT" "0" "a named build exits 0 outside a workspace"
 assert_contains "$RUN_STDOUT" "Built AGENTS.md for home: testhome" "reports the home"
 assert_contains "$RUN_STDOUT" "Full: fixfull" "the full prompt"
@@ -30,7 +30,7 @@ assert_not_contains "$built" "Not in AGENTS.md" "and nothing past the trigger"
 assert_contains "$built" "# ERROR: Prompt 'fixmissing' not found" "an error block for the missing prompt"
 
 rm -f "$FIXTURE_WORKSPACE/.daisy/AGENTS.md"
-fixture_run build-prompt
+fixture_run_cli prompt build
 assert_eq "$RUN_EXIT" "0" "the workspace build exits 0"
 assert_contains "$(cat "$FIXTURE_WORKSPACE/.daisy/AGENTS.md")" "# Output: $FIXTURE_WORKSPACE/.daisy/AGENTS.md" "writes and names the workspace's file"
 assert_eq "$(fixture_commit_count)" "$before" "prompt build commits nothing"

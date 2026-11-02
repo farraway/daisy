@@ -6,7 +6,7 @@ seed_basic
 before_blanks=$(fixture_read_today | grep -c '^$')
 before_total=$(fixture_read_today | wc -l)
 
-fixture_run done "Delta target"
+fixture_run_cli done "Delta target"
 
 after_blanks=$(fixture_read_today | grep -c '^$')
 after_total=$(fixture_read_today | wc -l)

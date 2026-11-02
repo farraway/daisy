@@ -6,7 +6,7 @@ fixture_write_todo <<'EOF'
 (C) 2026-07-20 Task two +proj
 EOF
 
-fixture_run tasks --todo +proj
+fixture_run_cli tasks --todo +proj
 
 assert_eq "$RUN_EXIT" "0" "matches found"
 assert_not_contains "$RUN_STDOUT" "Active projects" "no header text"

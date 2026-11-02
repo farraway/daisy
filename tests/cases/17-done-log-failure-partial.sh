@@ -39,7 +39,7 @@ EOF
 commits_before=$(fixture_commit_count)
 
 export DAISY_HEALTHCHECK_PASSED=1
-fixture_run done "Ship widget without log"
+fixture_run_cli done "Ship widget without log"
 unset DAISY_HEALTHCHECK_PASSED
 
 assert_eq "$RUN_EXIT" "1" "a journaling failure must not be reported as success"

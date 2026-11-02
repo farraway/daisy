@@ -9,6 +9,7 @@ import (
 
 	"daisy/internal/env"
 	"daisy/internal/gitx"
+	"daisy/internal/health"
 	"daisy/internal/identity"
 	"daisy/internal/ops"
 	"daisy/internal/prompt"
@@ -62,8 +63,8 @@ func HomeAdd(c *Context) error {
 	if fi, err := fs.Stat(filepath.Join(real, "include.txt")); err != nil || !fi.Mode().IsRegular() {
 		return fmt.Errorf("Error: %s is not a Daisy home (no include.txt)\n  A home is a copy of templates/home/; 'daisy home new' makes one", real)
 	}
-	if _, ok := gitx.HomeRepo(c.Ops, m.Root, real); !ok {
-		return fmt.Errorf("Error: %s is not in its own git repository (or the root's)\n  Every Daisy mutation commits in the home's repository: run 'git -C %s init' and commit it first", real, real)
+	if _, refusal := gitx.HomeRepo(c.Ops, m.Root, real); refusal != gitx.Accepted {
+		return fmt.Errorf("Error: %s is not in its own git repository%s\n  Every Daisy mutation commits in the home's repository. Run: %s", real, refusal.Why(), refusal.Remedy(m.Root, real, name, health.ShellQuote))
 	}
 	// The staging call every home commit makes, as a dry run: it fails when
 	// the directory is gitignored in its repository.

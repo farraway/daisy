@@ -34,7 +34,7 @@ Vendored skill misbehaved.
 Plan workflow did the wrong thing.
 FB
 
-fixture_run optimize
+fixture_run_cli optimize
 
 assert_eq "$RUN_EXIT" "0" "a vendored target does not fail the briefing"
 assert_contains "$RUN_STDOUT" "[skills/borrowed] 1 entry" "the vendored target is listed"

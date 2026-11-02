@@ -3,7 +3,7 @@
 
 seed_basic
 
-fixture_run done "Delta target"
+fixture_run_cli done "Delta target"
 
 assert_eq "$RUN_EXIT" "0" "resolves and completes"
 today=$(date +%Y-%m-%d)

@@ -29,7 +29,7 @@ fixture_run_cli status
 assert_eq "$RUN_EXIT" "0" "status exits 0 under a named identity"
 assert_contains "$RUN_STDOUT" "home: testhome | identity: pelicanmoor" "status prints home and identity"
 
-fixture_run files
+fixture_run_cli files
 assert_eq "$RUN_EXIT" "0" "files exits 0 under a named identity"
 assert_contains "$RUN_STDOUT" "identity: pelicanmoor" "files prints the identity"
 assert_contains "$RUN_STDOUT" "$FIXTURE_HOME/identities/pelicanmoor" "files resolves the identity to its file"

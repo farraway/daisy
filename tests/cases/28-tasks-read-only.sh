@@ -10,7 +10,7 @@ todo_before=$(fixture_read_todo)
 done_before=$(fixture_read_done)
 commits_before=$(fixture_commit_count)
 
-fixture_run tasks --all +proj
+fixture_run_cli tasks --all +proj
 
 assert_eq "$(fixture_read_todo)" "$todo_before" "todo.txt byte-identical after a tasks query"
 assert_eq "$(fixture_read_done)" "$done_before" "done.txt byte-identical after a tasks query"

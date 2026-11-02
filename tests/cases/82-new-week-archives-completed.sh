@@ -12,7 +12,7 @@ x 2026-07-28 2026-07-03 Finished two +daisy
 EOF2
 before=$(fixture_commit_count)
 
-fixture_run new-week
+fixture_run_cli new-week
 assert_eq "$RUN_EXIT" "0" "new-week exits 0"
 assert_contains "$RUN_STDOUT" "📦 Archived 2 completed task(s) to done.txt" "reports the completed tasks"
 assert_contains "$RUN_STDOUT" "✅ New week started: " "reports the new week"

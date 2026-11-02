@@ -292,7 +292,7 @@ func repointEdits(fsys ops.FS, home, name string) ([]edit, error) {
 func commitPlan(c *Context, repo gitx.Repo, message string) error {
 	hash, committed, err := repo.Commit(c.Ops, message)
 	if err != nil {
-		return fmt.Errorf("%v\nThe plan files are written but NOT committed; run: daisy commit --home \"%s\"", err, message)
+		return fmt.Errorf("%v\nThe plan files are written but NOT committed; run: daisy commit \"%s\"", err, message)
 	}
 	reportCommit(c, message, hash, committed)
 	return nil

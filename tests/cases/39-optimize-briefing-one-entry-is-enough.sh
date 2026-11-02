@@ -30,7 +30,7 @@ fixture_write_feedback <<'FB'
 The only entry there is.
 FB
 
-fixture_run optimize
+fixture_run_cli optimize
 
 assert_eq "$RUN_EXIT" "0" "a single entry is briefed"
 assert_contains "$RUN_STDOUT" "[prompts/widgetflow] 1 entry" "the target is listed"

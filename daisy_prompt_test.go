@@ -1,15 +1,11 @@
 package daisy_test
 
 import (
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
-
-	"daisy"
-	"daisy/internal/ops"
 )
 
 // promptMachine is a machine whose home includes one full and one lazy
@@ -199,7 +195,7 @@ func TestHelpForACommand(t *testing.T) {
 		}
 	}
 	for _, args := range [][]string{{"help", "help"}, {"help", "--help"}, {"-h", "-h"}} {
-		if code, out, _ := m.run(t, m.ws, args...); code != 0 || !strings.HasPrefix(out, "Usage: daisy help [<command>|<skill>]\n\n") {
+		if code, out, _ := m.run(t, m.ws, args...); code != 0 || !strings.HasPrefix(out, "Usage: daisy help [<command>|<skill>|--markdown]\n\n") {
 			t.Errorf("%v: exit %d out %q", args, code, out)
 		}
 	}
@@ -208,30 +204,12 @@ func TestHelpForACommand(t *testing.T) {
 	}
 }
 
-// A command still in bash answers its own help there, as its --help does.
-func TestHelpForABashCommandFallsThrough(t *testing.T) {
-	m := newMachine(t)
-	var got []string
-	o := &ops.Fake{
-		GetenvFn: func(k string) string { return m.vars[k] },
-		GetwdFn:  func() (string, error) { return m.ws, nil },
-		StartFn: func(dir, name string, stdin io.Reader, stdout, stderr io.Writer, args ...string) (ops.Process, error) {
-			got = append([]string{name}, args...)
-			return fakeProcess{}, nil
-		},
-	}
-	daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, []string{"help", "check-secrets"})
-	if strings.Join(got, "|") != m.root+"/daisy.sh|check-secrets|--help" {
-		t.Errorf("started %v", got)
-	}
-}
-
 // Every command the binary runs is in the tree, and `help <command>` and
 // `<command> --help` print the same usage, from the one table.
 func TestHelpAgreesForEveryGoCommand(t *testing.T) {
 	m := newMachine(t)
 	_, tree, _ := m.run(t, m.ws)
-	for _, name := range []string{"status", "files", "list", "new-day", "new-week", "log", "done", "tasks", "projects", "rotate", "prompt build", "feedback", "optimize", "optimize apply", "eval"} {
+	for _, name := range []string{"init", "clean", "status", "files", "list", "help", "new-day", "new-week", "log", "done", "tasks", "projects", "rotate", "plan new", "plan pickup", "plan archive", "home new", "home add", "home list", "home remove", "identity list", "prompt build", "install", "feedback", "optimize", "optimize apply", "eval", "commit", "healthcheck", "check-secrets", "test"} {
 		words := strings.Fields(name)
 		_, viaHelp, _ := m.run(t, m.ws, append([]string{"help"}, words...)...)
 		code, viaFlag, _ := m.run(t, m.ws, append(words, "--help")...)

@@ -6,7 +6,7 @@ fixture_write_todo <<'EOF'
 EOF
 rm -f "$(fixture_home_dir)/tasks/done.txt"
 
-fixture_run tasks --all +proj
+fixture_run_cli tasks --all +proj
 
 assert_eq "$RUN_EXIT" "0" "a missing done.txt is not an error"
 assert_contains "$RUN_STDOUT" "Task one +proj" "todo.txt results still returned"

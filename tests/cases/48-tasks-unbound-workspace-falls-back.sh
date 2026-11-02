@@ -9,7 +9,7 @@ fixture_write_todo <<'EOF'
 (C) 2026-07-20 Task two +other
 EOF
 
-fixture_run tasks
+fixture_run_cli tasks
 
 assert_eq "$RUN_EXIT" "0" "listing succeeds"
 assert_contains "$RUN_STDOUT" "Task one +proj" "unscoped fallback lists everything"

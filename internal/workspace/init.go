@@ -212,6 +212,7 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 	if err != nil && exists(fs, path) {
 		return fmt.Errorf("Error: cannot read %s: %v", path, err)
 	}
+	// The removed rule is legacy: older inits granted the deleted bash scripts.
 	if p.settings, err = settings.Allow(existing, allowRules, []string{"Bash(" + p.m.Root + "/daisy/scripts/*)"}); err != nil {
 		return fmt.Errorf("Error: %s cannot be read as settings: %v\n  Fix or remove it, then re-run 'daisy init %s'", path, err, p.name)
 	}
