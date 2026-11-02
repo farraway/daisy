@@ -1,4 +1,4 @@
-package daisy_test
+package main_test
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"daisy"
+	"daisy/internal/cli"
 	"daisy/internal/ops"
 )
 
@@ -263,7 +263,7 @@ func TestFeedback(t *testing.T) {
 		t.Errorf("feedback.md\n%q", got)
 	}
 	var stdout, stderr bytes.Buffer
-	if code := daisy.Run(l.ops(), strings.NewReader("Piped.\n\n"), &stdout, &stderr, []string{"feedback"}); code != 0 || stdout.String() != "  ✓ Feedback recorded (2026-11-01 09:30)\n  File: "+file+"\n" {
+	if code := cli.Run(l.ops(), strings.NewReader("Piped.\n\n"), &stdout, &stderr, []string{"feedback"}); code != 0 || stdout.String() != "  ✓ Feedback recorded (2026-11-01 09:30)\n  File: "+file+"\n" {
 		t.Errorf("piped: exit %d out %q err %q", code, stdout.String(), stderr.String())
 	}
 	if !strings.HasSuffix(l.read(t, "feedback/feedback.md"), "\n## 2026-11-01 0930\n\nPiped.\n") {
@@ -279,7 +279,7 @@ func TestFeedback(t *testing.T) {
 	// An empty word is an empty message, not a reason to read stdin
 	// (review pass 3, F13).
 	var so, se bytes.Buffer
-	if code := daisy.Run(l.ops(), strings.NewReader("piped\n"), &so, &se, []string{"feedback", ""}); code != 1 || se.String() != "Error: feedback message cannot be empty\n" {
+	if code := cli.Run(l.ops(), strings.NewReader("piped\n"), &so, &se, []string{"feedback", ""}); code != 1 || se.String() != "Error: feedback message cannot be empty\n" {
 		t.Errorf("feedback \"\": exit %d err %q", code, se.String())
 	}
 	if l.read(t, "feedback/feedback.md") != before {

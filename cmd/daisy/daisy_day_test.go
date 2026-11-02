@@ -1,4 +1,4 @@
-package daisy_test
+package main_test
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"daisy"
+	"daisy/internal/cli"
 	"daisy/internal/env"
 	"daisy/internal/ops"
 )
@@ -112,7 +112,7 @@ func (m *machine) dayOps(cwd string, healthOK bool) *ops.Fake {
 
 func runWith(o ops.Ops, args ...string) (code int, stdout, stderr string) {
 	var out, errb bytes.Buffer
-	code = daisy.Run(o, strings.NewReader(""), &out, &errb, args)
+	code = cli.Run(o, strings.NewReader(""), &out, &errb, args)
 	return code, out.String(), errb.String()
 }
 

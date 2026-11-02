@@ -104,6 +104,18 @@ func noun(word string) []Command {
 	return cmds
 }
 
+// Flags is what the command named name takes as flags (its Flags and
+// Values) and whether it answers `--healthcheck`; ok is false for a name
+// the table does not have. The docs test checks prose against it.
+func Flags(name string) (flags []string, health, ok bool) {
+	for _, c := range table {
+		if c.Name == name {
+			return append(slices.Clone(c.Flags), c.Values...), c.Health != nil, true
+		}
+	}
+	return nil, false, false
+}
+
 // Reference is AGENTS.md's Command Reference, rendered from the table
 // between the markers the health check finds it by: one row per command,
 // in table order. `daisy help --markdown` prints it.

@@ -12,7 +12,9 @@ Daisy is two kinds of repository:
   that context: `include.txt`, `skills/`, an optional `prompts/` whose files
   shadow the root's by name, and its identities (`gitconfig`, `identities/`). A home is its own git repository and lives
   wherever you put it; every Daisy mutation (`log`, `done`, `new-day`, plans)
-  ends in one commit there (`daisy commit <message>` makes one by hand).
+  ends in one commit there, except `plan new`, `feedback`, `eval
+  --record` and `rotate` run by hand, whose writes the next commit takes (`daisy commit <message>`
+  makes one by hand).
 
 The root knows homes only by name, through the **registry**:
 `$DAISY_CONFIG/homes` (default `~/.config/daisy/homes`), one

@@ -282,51 +282,39 @@ x 2026-01-17 2026-01-13 Completed task 3 @jira
 
 ### Setup
 
-**Symlinks (correct):**
-```
-prompt.md → home/work/prompt.md
-tasks → home/work/tasks
-journal.md → home/work/journal/journal.md
-today.md → home/work/journal/today.md
-```
-
-**Files (all exist):**
-```
-home/work/prompt.md
-home/work/tasks/todo.txt
-home/work/tasks/done.txt
-home/work/tasks/alias.txt
-home/work/journal/journal.md
-home/work/journal/today.md
-```
-
-**tasks/todo.txt (valid format):**
-```
-(A) 2026-01-16 Valid task @jira
-2026-01-16 Valid inbox task
-x 2026-01-16 2026-01-15 Valid completed task
-```
+A workspace bound to the home `work` (`daisy init work`), the home created
+by `daisy home new work` from `templates/home/`, and a root whose
+publishable files carry no identifying term.
 
 ### Command
 ```
 check system
 ```
 
+### Expected Process
+
+The agent runs `daisy healthcheck` (`--force` to bypass the cached pass)
+and shows its output.
+
 ### Expected Output
 
 ```
-✅ System Health Check
+✓ DAISY_ROOT: <root>
+✓ DAISY_HOME: <home> (home: work)
+✓ Git repository: <short hash>
+✓ today.md format valid
+✓ Component: list
+  … one Component line per command with a health hook …
+✓ Component: test
+✓ Publication hygiene: no identifying terms outside the homes
+✓ Feedback: 0 entries (never optimized)
 
-Home: work
-Required Files: ✅ All 6 files present
-Symlinks:
-  ✅ prompt.md → home/work/prompt.md
-  ✅ tasks → home/work/tasks
-  ✅ journal.md → home/work/journal/journal.md
-  ✅ today.md → home/work/journal/today.md
-Format: ✅ todo.txt format valid (3 tasks)
-Status: ✅ System healthy
+✓ System healthy
 ```
+
+**Verification:**
+- ✅ Exit code 0
+- ✅ The pass is cached in `<home>/.healthcheck.ttl` for 300 seconds
 
 ---
 
@@ -334,59 +322,40 @@ Status: ✅ System healthy
 
 ### Setup
 
-**Symlinks (broken):**
-```
-prompt.md → home/work/prompt.md (exists)
-tasks → home/work/tasks (exists)
-journal.md → MISSING
-today.md → home/work/journal/today.md (target missing)
-```
-
-**Missing files:**
-```
-home/work/journal/journal.md (missing)
-home/work/journal/today.md (missing)
-```
-
-**tasks/todo.txt (invalid format):**
-```
-(A) 2026-01-16 Valid task @jira
-INVALID LINE NO DATE
-x 2026-13-99 2026-01-15 Invalid date format
-```
+As Test Case 8, after a `daisy new-day` (a new home's today.md is empty
+and passes); then today.md loses its `#### Log` heading, and the workspace
+link `.daisy/journal.md` is deleted.
 
 ### Command
 ```
 check system
 ```
 
+### Expected Process
+
+1. The agent runs `daisy healthcheck --force`, shows the full output and
+   walks the user through each issue.
+2. The health check does not inspect the workspace's links; `daisy status`
+   or `daisy files` reports them.
+
 ### Expected Output
 
 ```
-⚠️ System Health Check
-
-Home: work
-Required Files: ⚠️ 2 of 6 files missing
-  ⚠️ Missing: home/work/journal/journal.md
-  ⚠️ Missing: home/work/journal/today.md
-
-Symlinks:
-  ✅ prompt.md → home/work/prompt.md
-  ✅ tasks → home/work/tasks
-  ⚠️ journal.md → symlink missing
-  ⚠️ today.md → target file missing
-
-Format: ⚠️ 2 format issues in todo.txt
-  Line 2: Missing date
-  Line 3: Invalid date format
-
-Status: ⚠️ System needs attention
-
-Suggestions:
-- Create missing files from templates
-- Re-run home setup: "switch to work"
-- Fix format issues in todo.txt
+✗ today.md missing required heading: #### Log
+…
+✗ 1 issue(s) found
 ```
+
+and from `daisy status`, on stderr:
+
+```
+⚠️  the binding link .daisy/journal.md is missing or does not point into the home; re-run 'daisy init work'
+```
+
+**Verification:**
+- ✅ `daisy healthcheck` exits 1; a failing check clears the cached pass
+- ✅ The fixes offered are the ones printed: restore the heading, re-run
+  `daisy init work`
 
 ---
 
@@ -394,18 +363,8 @@ Suggestions:
 
 ### Setup
 
-**Current state:**
-```
-Active home: work
-Symlinks point to home/work/*
-```
-
-**Target:**
-```
-home/personal/prompt.md exists
-home/personal/tasks/ exists
-home/personal/journal/ exists
-```
+**Current state:** the workspace is bound to `work`; a second home,
+`personal`, is registered (`daisy home list` shows both).
 
 ### Command
 ```
@@ -414,35 +373,32 @@ switch to personal
 
 ### Expected Process
 
-1. **Detect current:** Parse prompt.md → "work"
-2. **Teardown:** Remove 4 symlinks (prompt.md, tasks, journal.md, today.md)
-3. **Verify target:** Check home/personal/prompt.md exists
-4. **Setup:** Create 4 new symlinks to home/personal/*
-5. **Verify:** Check all required files exist
+1. The agent runs `daisy init personal` (an identity: a registered home's
+   name, or an `identities/<id>` file in exactly one registered home).
+2. `init` builds the new binding in a stage beside `.daisy/`, unsets the
+   previous identity from the workspace repository's git config, applies
+   the new one, and swaps the stage in.
+3. Verify with `daisy status`, whose header names the home and identity.
 
 ### Expected Output
 
 ```
-Deactivated home: work
-✅ Activated home: personal
+Initializing Daisy in: <workspace>
+  Home: personal
+  Identity: personal
+  ↻ Switching home: work → personal
+  …
+  ✓ Bound .daisy/ to home: personal
 
-Verified files:
-  ✅ tasks/todo.txt
-  ✅ tasks/done.txt
-  ✅ tasks/alias.txt
-  ✅ journal/journal.md
-  ✅ journal/today.md
-  ✅ prompt.md
-
-All systems ready!
+Done. Daisy is ready in this workspace.
+…
 ```
 
 **Verification:**
-- ✅ Old symlinks removed
-- ✅ New symlinks created
-- ✅ Symlinks point to home/personal/*
-- ✅ All files verified
-- ✅ No files deleted (only symlinks changed)
+- ✅ `.daisy/home` reads `personal`; the six links point into the
+  `personal` home
+- ✅ No home file is deleted or changed (only the binding)
+- ✅ Other workspaces bound to `work` are unaffected
 
 ---
 

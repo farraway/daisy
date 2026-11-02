@@ -1,4 +1,4 @@
-package daisy_test
+package main_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"daisy"
+	"daisy/internal/cli"
 	"daisy/internal/env"
 	"daisy/internal/ops"
 )
@@ -44,7 +44,7 @@ func (m *machine) run(t *testing.T, cwd string, args ...string) (code int, stdou
 		GetwdFn:  func() (string, error) { return cwd, nil },
 	}
 	var out, errb bytes.Buffer
-	code = daisy.Run(o, strings.NewReader(""), &out, &errb, args)
+	code = cli.Run(o, strings.NewReader(""), &out, &errb, args)
 	return code, out.String(), errb.String()
 }
 

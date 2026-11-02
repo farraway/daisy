@@ -86,7 +86,7 @@ this need to know your situation, or only the artifact in front of it?**
 The **situated layer** is made of *prompts* — instruction files compiled
 per-home into the agent's context. They know what your projects are, what
 you did yesterday, how you work: `daisy` (tasks, journal, projects),
-`plan`, `retrospective`, `github`, `socrates`, and `personal`. They read and
+`plan`, `praxis`, `retrospective`, `github`, and `socrates`. They read and
 write the files Daisy owns, and they exist only where Daisy is running.
 
 The **craft layer** is made of *skills* — self-contained capabilities the
@@ -107,7 +107,7 @@ worked through in
 
 ## Install
 
-### 1. Clone or Download
+### 1. Clone
 
 ```bash
 git clone <repo-url> daisy
@@ -273,7 +273,7 @@ Mechanics live in the CLI; these are the design choices behind daily use:
 
 For API integrations (Webex, JIRA, GitHub) when MCP servers are unavailable,
 copy `$DAISY_ROOT/templates/env.sh.template` to `.env.sh` in your
-workspace, fill in tokens, and verify with `daisy healthcheck`. MCP servers
+workspace, fill in tokens, and verify with `daisy check-secrets`. MCP servers
 handle authentication automatically; `.env.sh` is only a fallback.
 
 ## File Structure
@@ -288,8 +288,8 @@ lives wherever you put it. The root finds homes by name through a registry.
 daisy/                          # Repository root ($DAISY_ROOT)
 ├── AGENTS.md                   # System architecture & internal specs (auto-applied by Cursor/Claude Code)
 ├── README.md                   # This file
-├── cmd/daisy/main.go           # The binary: bin/daisy (symlinked to ~/bin/daisy); `make build`
-├── daisy.go, internal/         # Run, and the Go packages behind it (ops, env, cli, commands, ...)
+├── cmd/daisy/                  # main.go, the binary: bin/daisy (symlinked to ~/bin/daisy); `make build`; the functional tests
+├── internal/                   # The Go packages behind it (ops, env, cli, commands, ...)
 ├── Makefile                    # build, check (gofmt, vet, tidy, go test -race), test (`daisy test`)
 ├── templates/
 │   ├── journal-day.md          # Daily today.md template

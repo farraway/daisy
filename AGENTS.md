@@ -103,12 +103,14 @@ which is everything a root commit takes.
 ## The Go port
 
 `daisy` is a Go binary; no bash under the root runs but the acceptance
-suite (`tests/`). `cmd/daisy/main.go` is `os.Exit(daisy.Run(ops.Real(),
-…))` and nothing else; `daisy.go` is `Run`; `internal/ops` is every side
+suite (`tests/`), and no Go file sits at the root. `cmd/daisy/main.go` is
+`os.Exit(cli.Run(ops.Real(), …))` and nothing else; `cmd/daisy` also holds
+the functional tests, which call the same `cli.Run` with an `ops.Fake`
+built around a temp machine; `internal/ops` is every side
 effect in one value (`Real`, `ReadOnly`, `Fake`); `internal/env` resolves
 root, registry, workspace, home, identity and projects, and reads
-`.env.sh` without running it; `internal/cli` is the command table, from
-which the help and the Command Reference below are rendered;
+`.env.sh` without running it; `internal/cli` is `Run` and the command
+table, from which the help and the Command Reference below are rendered;
 `internal/commands` is one function per command; the domain packages
 behind them are `internal/todo`, `internal/journal`, `internal/gitx`,
 `internal/prompt`, `internal/skill`, `internal/identity`,
@@ -275,7 +277,7 @@ The reference source itself is never modified or deleted by adoption — copy
 
 ## Reference Documentation
 
-- [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the agreed command tree, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
+- [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the command tree as built, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
 - [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) — The hat/skill distinction, the ownership-of-evolution criterion, worked examples
 - [`docs/task-format.md`](docs/task-format.md) — Task format regex, conversion rules, file organization
 - [`docs/task-sync.md`](docs/task-sync.md) — Bidirectional sync rules, validation algorithm

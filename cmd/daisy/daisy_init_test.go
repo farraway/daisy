@@ -1,4 +1,4 @@
-package daisy_test
+package main_test
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"daisy"
+	"daisy/internal/cli"
 	"daisy/internal/ops"
 )
 
@@ -108,7 +108,7 @@ func (m *machine) pinned(t *testing.T, cwd string, args ...string) (int, string,
 		NowFn:    func() time.Time { return time.Date(2026, 11, 1, 9, 30, 0, 0, time.UTC) },
 	}
 	var out, errb bytes.Buffer
-	code := daisy.Run(o, strings.NewReader(""), &out, &errb, args)
+	code := cli.Run(o, strings.NewReader(""), &out, &errb, args)
 	return code, out.String(), errb.String()
 }
 
@@ -254,7 +254,7 @@ func TestSwapFailureRollsBack(t *testing.T) {
 	daisyBefore, k := tree(t, filepath.Join(ws, ".daisy")), keys(t, ws)
 	o := withFS{&ops.Fake{GetenvFn: func(k string) string { return m.vars[k] }, GetwdFn: func() (string, error) { return ws, nil }}, &failingSwap{FS: ops.Real().FS()}}
 	var out, errb bytes.Buffer
-	code := daisy.Run(o, strings.NewReader(""), &out, &errb, []string{"init", "testhome"})
+	code := cli.Run(o, strings.NewReader(""), &out, &errb, []string{"init", "testhome"})
 	if code != 1 || !strings.Contains(errb.String(), "forced failure") || !strings.Contains(errb.String(), "did not finish") {
 		t.Errorf("exit %d err %q", code, errb.String())
 	}
@@ -328,12 +328,12 @@ func TestInstallBootstrapsFromTheBinary(t *testing.T) {
 		ExecutableFn: func() (string, error) { return filepath.Join(m.root, "bin", "daisy"), nil },
 	}
 	var out, errb bytes.Buffer
-	if code := daisy.Run(o, strings.NewReader(""), &out, &errb, []string{"install", "--update"}); code != 0 || !strings.Contains(out.String(), "DAISY_ROOT: "+m.root+"\n") {
+	if code := cli.Run(o, strings.NewReader(""), &out, &errb, []string{"install", "--update"}); code != 0 || !strings.Contains(out.String(), "DAISY_ROOT: "+m.root+"\n") {
 		t.Errorf("exit %d out %q err %q", code, out.String(), errb.String())
 	}
 	o.ExecutableFn = func() (string, error) { return filepath.Join(t.TempDir(), "daisy"), nil }
 	errb.Reset()
-	if code := daisy.Run(o, strings.NewReader(""), &out, &errb, []string{"install", "--update"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT is not set") {
+	if code := cli.Run(o, strings.NewReader(""), &out, &errb, []string{"install", "--update"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT is not set") {
 		t.Errorf("not in a root: exit %d err %q", code, errb.String())
 	}
 }

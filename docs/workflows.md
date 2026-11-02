@@ -4,7 +4,10 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
 
 ## Status Command
 
-**Command:** "status" or "daisy status"
+**Command:** "status" — the agent's fuller report. `daisy status` itself
+prints the bound home, identity and workspace and the projects; then, when
+today.md exists, today's task and log counts, the backlog and the active
+plan (when `PLAN.md` links one).
 
 ```
 1. Resolve the active home and identity (.daisy/home and .daisy/identity, via the registry)
@@ -173,10 +176,11 @@ Detailed algorithms for agent-driven workflows. For user-facing command summarie
    a. Archives yesterday's today.md content to journal.md
    b. Deletes tasks with "z" prefix from todo.txt (cancelled tasks)
    c. Reads todo.txt and extracts:
+      - Tasks mentioning @git (@github too) → GitHub section, any priority
       - Priority A tasks → Now section
       - Priority B tasks → Next section
-      - No-priority tasks → Inbox section
-      - (C) and (D) tasks are NOT carried into today.md
+      - Dated no-priority tasks → Inbox section
+      - Other (C) and (D) tasks are NOT carried into today.md
    d. Generates new today.md from journal-day.md template
    e. Auto-commits
 

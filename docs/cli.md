@@ -1,18 +1,18 @@
 # The `daisy` CLI — Contract
 
-This is the contract the Go binary must meet: the command tree agreed in the
-plan, and under it one entry per command with its arguments, flags, exit
-codes, the stdout and stderr the bash acceptance suite asserts, the `Ops`
-wrapper it runs under, the files it may write and the commits it makes.
+This is the contract the Go binary meets, as built: the command tree, and
+under it one entry per command with its arguments, flags, exit codes, the
+stdout and stderr the acceptance suite asserts, the `Ops` wrapper it runs
+under, the files it may write and the commits it makes.
 
 **Status of each entry.** `as built` describes the binary as the suite
 pins it; since Step 24 every command is Go and the bash (`daisy.sh` and
 `daisy/scripts/*.sh`) is deleted, so a `Legacy` row is history: the bash
-form a command replaced. `agreed (Step N)` is a
-change the plan's Architecture or Decisions text has decided; the named
-step makes it. `decided (D30, Step N)` is a point Architecture left open
-that this document settles, recorded in the plan's D30 for review; the
-named step makes it. Where the bash has no
+form a command replaced. Every entry is `as built (Step N)`, the step
+that built it, except `swarm`, which is `agreed (Steps 26–30)`: decided in
+the plan and not yet built. `decided (D30, …)` marks a point the plan's
+Architecture left open that this document settled, recorded in the plan's
+D30. Where the bash has no
 explicit exit code or message for a situation the entry says *unspecified;
 Go may choose* rather than inventing one.
 
@@ -31,8 +31,11 @@ entries cross-reference it in prose.
 
 ## Command tree
 
-Agreed text of `daisy --help` (Architecture, "Command tree"; agreed in
-planning round 2 with the `optimize` and `swarm` lines amended):
+`daisy --help` as built, rendered from the `cli` table; `daisy
+help --markdown` renders the same table as AGENTS.md's Command Reference.
+The `Swarm` group (`swarm init`, `swarm apply`, `swarm status`, `swarm
+pause`, `swarm resume`) is agreed for Steps 26–30 and joins the table when
+it is built; the tree never names a command the binary does not run.
 
 ```
 Usage: daisy <command> [args...]
@@ -47,48 +50,52 @@ Workspace
                                     This help, detail for one command or skill, or the Command Reference
 
 Day
-  new-day | new-week                Start a new day / week
+  new-day                           Start a new day
+  new-week                          Start a new week
   log <message...>                  Add a log entry to today.md
   done <pattern>                    Mark a task complete
   tasks [--all] [--todo|--done] [pattern]
-  projects [--archived]
+                                    Search tasks (read-only)
+  projects [--archived]             List active or archived projects
   rotate                            Rotate journal.md into window files
 
 Plans
   plan new [--spec] <description> [+project]
-  plan pickup <path>
-  plan archive
+                                    Create a plan (or an unregistered spec draft)
+  plan pickup <path>                Promote a spec draft into a tracked plan
+  plan archive                      Archive the active plan
 
 Homes and identities
   home new <name> [path]            Create a home; prompts for identity and location
   home add <name> <path>            Register an existing home
-  home list | home remove <name>
+  home list                         Registered homes and where they live
+  home remove <name>                Unregister a home; its files stay where they are
   identity list                     Identities across registered homes
 
 Prompts and skills
   prompt build [<home>]             Rebuild AGENTS.md
   install [--update]                ~/bin/daisy, root skills, permissions
-  feedback [--workflow <n>] <text>
+  feedback [--workflow <n>] <text>  Record a prompt failure for optimization
   optimize [--workflow <n>]         Briefing: pending entries per target, current rules, rewrite flags
   optimize apply --workflow <n> (--rules|--rewrite) <file> [--yes]
-  eval [<case>] [--record]
-
-Swarm
-  swarm init [--defaults]           Wizard: forge, repository, personas, image; writes swarm/, creates labels
-  swarm apply [--once]              Reconcile the forge: run members whose turn it is, post what they wrote
-  swarm status                      Issues by stage; running members
-  swarm pause | swarm resume        Stop launching new members / allow it again
+                                    Apply a proposal: diff, approve, archive, commit
+  eval [<case>] [--record]          List, display, or record an eval case result
 
 System
   commit [--root] <message>         Commit the home repo (or the root repo)
-  healthcheck [--force]
-  check-secrets
-  test [filter]
+  healthcheck [--force]             Run the system health check
+  check-secrets                     Check which secrets/tokens are configured
+  test [filter]                     Run go test, then the hermetic acceptance suite
+
+Every command also accepts --help/-h (as the sole argument) to print its usage.
+
+Environment:
+  DAISY_ROOT    Path to the daisy repository (required)
 ```
 
 ## Renames
 
-| Legacy (the bash) | Agreed | Step |
+| Legacy (the bash) | As built | Step |
 |---|---|---|
 | `daisy build [home]` | `daisy prompt build [<home>]` | 20 |
 | `plan` and its verb as one hyphenated word, three bash scripts | `daisy plan new [--spec] <description> [+project]`, `daisy plan pickup <path>`, `daisy plan archive` | 22 |
@@ -97,7 +104,6 @@ System
 | `daisy init --new <home>` | removed: `daisy home new <home>`, then `daisy init <home>` | 21 |
 | `daisy optimize [--workflow <n>] [--dry-run] [--force]`, `--list` | `daisy optimize [--workflow <n>]` (briefing) and `daisy optimize apply …` | 23 |
 | — | `daisy identity list` (new) | 21 |
-| — | `daisy swarm …` (new) | 26–30 |
 
 Every rename is applied to `prompts/`, `templates/`, `docs/` and `AGENTS.md`
 in the step that ports the command; there are no aliases. Everything not in
@@ -105,14 +111,14 @@ this table keeps its name and every flag the suite asserts.
 
 ## Common behaviour
 
-**Exit codes.** `Run` returns 0 on success, 1 on failure, 2 on a usage
+**Exit codes.** `cli.Run` returns 0 on success, 1 on failure, 2 on a usage
 error (unknown command, unknown flag, missing or surplus positional
 argument, and — for a command whose arguments have places, every one but
 `log` — an empty word before a given one, `Error: empty argument`, so that
 `plan new "" +proj` is not the description `+proj` *(D37, Step 22)*), with
 the command's usage on stderr. The bash exits 1 for usage
 errors too; no case asserts a usage exit code, so 2 is free to take
-*(agreed, Step 17)*. A value the command refuses — an unknown identity, an
+*(built in Step 17)*. A value the command refuses — an unknown identity, an
 invalid name, an ambiguous pattern, no match — is a failure, exit 1, as the
 cases pin it (`home add bad=name` exits 1 in case 68; `not a valid identity
 name` [77] exits 1) *(decided, D30: Architecture says only "exit 2 and
@@ -127,11 +133,10 @@ never reaches the bash)*. Not asserted.
 command's usage on stdout and exits 0 without running it; the bash reads it
 from the script's header comment, the binary from the `cli` table (`Usage:
 daisy <usage>`, blank, the description). `daisy`, `daisy help`, `daisy --help`,
-`daisy -h` print the help: as built the flat `Commands:` list of `show_help`;
-from Step 17 the tree, in the agreed groups and order, each command under the
-name this build answers to (`plan new`, `plan pickup`, `plan archive`,
-`home new`, `home add`, `home list` and `home remove` one row each, no `swarm` until it exists) — the tree never names a
-command the binary does not run. *The four forms and the sole-argument
+`daisy -h` print the help: the tree above, from the `cli` table, in its
+groups and order (`plan new`, `plan pickup`, `plan archive`, `home new`,
+`home add`, `home list` and `home remove` one row each) — the tree never
+names a command the binary does not run. *The four forms and the sole-argument
 rule are as built and kept (decided, D30: Architecture does not mention
 them).*
 
@@ -144,8 +149,8 @@ is refused rather than walked past, exit 1, stderr naming the fault and
 `daisy init` [78] as the repair: `.daisy` `not a directory` [78],
 `symlink` [78], a leftover `.daisy.previous.4242` [78] from an interrupted
 init, or `.daisy/` with no `home` file. Commands that need no workspace:
-`install`, `init`, `home`, `help` (tree or command), `prompt build <home>`,
-and `test`, whose bash dispatcher required one although the script read
+`install`, `init`, `home`, `identity list`, `help` (tree or command),
+`prompt build <home>`, and `test`, whose bash dispatcher required one although the script read
 only the root *(decided, D30; built in Step 24)*. `healthcheck` needs one
 but resolves it itself, after `✓ DAISY_ROOT`, so outside one it prints the
 refusal and then `✗ Cannot resolve home for this workspace` (the bash
@@ -230,7 +235,7 @@ target and leaves it for that commit.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 21): Go (`internal/workspace`, `internal/identity`); `init --new` removed (`home new`, then `init`) |
+| Status | as built (Step 21): Go (`internal/workspace`, `internal/identity`); `init --new` removed (`home new`, then `init`) |
 | Legacy | `daisy init [--new] <identity> [path]` → the bash `daisy-init` script, deleted in Step 21 |
 | Usage | `daisy init <identity> [path]` |
 | Arguments | `<identity>`: a registered home's name (its default identity, `gitconfig`) or the name of `<home>/identities/<identity>` in exactly one registered home. `[path]`: the workspace directory, default `.`. No `<identity>` or a third argument: usage on stderr, exit 2 (`daisy identity list` lists the identities) |
@@ -251,7 +256,7 @@ and that `init` in a subdirectory of a linked worktree is allowed.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 21): Go (`internal/workspace`) |
+| Status | as built (Step 21): Go (`internal/workspace`) |
 | Legacy | `daisy clean [-f]` → built in to `daisy.sh`, deleted in Step 21 |
 | Usage | `daisy clean [-f]` (`--force` accepted as well; kept) |
 | Arguments | without `-f`: prints `This will remove Daisy from: <path>`, `Home:`, `Identity:` and asks `Continue? [y/N]` through `Ops.Prompt` (on stderr, as the bash's `read -p`); anything but y/yes, end of input included, prints `Cancelled.` and exits 0 |
@@ -267,7 +272,7 @@ and that `init` in a subdirectory of a linked worktree is allowed.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 17): Go, as built |
+| Status | as built (Step 17): Go |
 | Legacy | `daisy status` → built in to `daisy.sh` (`cmd_status`), deleted in Step 24 |
 | Usage | `daisy status` |
 | Exit codes | 0; 1 outside a workspace or when the home does not resolve (`cannot be a home` [68], `not registered` [68]); 2 with any argument (the bash ignored them) |
@@ -285,7 +290,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 17): Go, as built |
+| Status | as built (Step 17): Go |
 | Legacy | `daisy files` → `files.sh`, deleted in Step 24 with its `--healthcheck` hook (it checked only that the home resolves; `files` has none) |
 | Usage | `daisy files` |
 | Exit codes | 0 (a project that does not exist is not fatal, case 44); 1 outside a workspace; 2 with any argument |
@@ -300,9 +305,9 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 20): Go |
+| Status | as built (Step 20): Go |
 | Legacy | `daisy list` → the bash `list` script, deleted in Step 20 |
-| Usage | `daisy list [--full]` (`--full` prints each skill's `description` instead of `short_description`; not in the agreed help line, kept as an unasserted flag) |
+| Usage | `daisy list [--full]` (`--full` prints each skill's `description` instead of `short_description`; not in the help line, kept as an unasserted flag) |
 | Exit codes | 0; 1 outside a workspace, for an `include.txt` that cannot be read or a line of it with an unmatched quote (where the bash died mid-listing), or a prompt or SKILL.md that cannot be read; 2 with any other argument |
 | Stdout | `Prompts (<home>):` then one `  %-20s <trigger summary or (always loaded)>` per `include.txt` entry (the width in bytes, as the bash's `printf`), `(missing: <path>)` for an absent prompt, `(no include.txt found)`; the summary is the trigger's first line that is not `Read the full…` and not empty once a leading `- ` is dropped, cut to 97 characters and `...` past 100, else `(lazy, no trigger summary)`; blank; `Skills:` then one `  %-20s <text>` per installed skill, user-level (`~/.claude/skills`) then workspace (`.claude/skills`), workspace overriding by name, in byte order of name (the bash's `sort` collated by locale); `<text>` is `short_description`, else `description`, one surrounding `"` dropped; or `(none installed — run: daisy install, then daisy init <home>)` |
 | Stderr | the refusals above |
@@ -315,7 +320,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 20): Go. The tree (`daisy`, `daisy help`, `--help`, `-h`) is rendered from the `cli` table; so, since Step 24, is AGENTS.md's Command Reference (`--markdown`) |
+| Status | as built (Step 20): Go. The tree (`daisy`, `daisy help`, `--help`, `-h`) is rendered from the `cli` table; so, since Step 24, is AGENTS.md's Command Reference (`--markdown`) |
 | Legacy | `daisy help [<command>\|<skill>]` → built in to `daisy.sh` (`show_help`, `show_command_help` and the skill lookup), deleted in Step 24 |
 | Usage | `daisy help [<command>\|<skill>\|--markdown]`; `daisy`, `daisy --help`, `daisy -h` are `daisy help` |
 | Exit codes | 0; 1 for a name that is neither (`Unknown command or skill: <name>` and `Run 'daisy help' for commands, 'daisy list' for skills.` on stderr; the bash died silently there) or outside a workspace for a skill; 2 for surplus words |
@@ -331,7 +336,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 19); the `optimize --list` nudge removed with `--list` (D30, built in Step 23) |
+| Status | as built (Step 19): Go; the `optimize --list` nudge removed with `--list` (D30, built in Step 23) |
 | Legacy | `daisy new-day` → the bash `new-day` script, deleted in Step 19 |
 | Usage | `daisy new-day` (no argument; any is usage on stderr, exit 2 — the bash ignored them) |
 | Exit codes | 0; 1 when `healthcheck` fails first (`Error: System health check failed` on stderr), when `templates/journal-day.md` or `tasks/todo.txt` is missing, when the journal cannot be rotated (`rotate`'s refusal), or when the commit fails. A refusal writes nothing: every write is decided before the first is made (the bash had appended `today.md` to `journal.md` before a rotate refusal, so the next run archived it twice) |
@@ -345,7 +350,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 19); nudge removed as for `new-day` (D30, built in Step 23) |
+| Status | as built (Step 19): Go; nudge removed as for `new-day` (D30, built in Step 23) |
 | Legacy | `daisy new-week` → the bash `new-week` script, deleted in Step 19 |
 | Usage | `daisy new-week` (no argument) |
 | Exit codes | as `new-day`; the template is `templates/journal-week.md` |
@@ -359,7 +364,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 18) |
+| Status | as built (Step 18): Go |
 | Legacy | `daisy log <message...>` → the bash `log` script, deleted in Step 18 (the dispatcher joined the arguments with single spaces: `"$*"`; the binary does the same) |
 | Usage | `daisy log <message...>` |
 | Exit codes | 0; 2 with no message — no argument, or only empty ones (usage on stderr; the bash exited 1 with `Error: Log message required`); 1 when `healthcheck` fails first (`Error: System health check failed`, `  Run: daisy healthcheck`), when `today.md` is missing (`Error: today.md not found`) or has no `#### Log` section (`Error: Log section not found in today.md`) |
@@ -373,7 +378,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 18) |
+| Status | as built (Step 18): Go |
 | Legacy | `daisy done <pattern>` → the bash `done` script, deleted in Step 18 |
 | Usage | `daisy done <pattern>` (one argument) |
 | Arguments | `<pattern>`: literal, case-insensitive substring (`.` is not a wildcard [08]; `/` is safe [07]; a leading `-` is a pattern, not a flag — except the sole-argument `--help`/`-h` and `--healthcheck`, which the cli takes first) matched against the active lines of `todo.txt` only (`x `/`z ` lines excluded before matching, cases 05, 06). Missing — no argument, or an empty one — or more than one: usage on stderr, exit 2 (the bash exited 1 with `Error: Task pattern required` and ignored extra arguments) |
@@ -389,7 +394,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 18) |
+| Status | as built (Step 18): Go |
 | Legacy | `daisy tasks [--all] [--todo\|--done] [pattern]` → the bash `tasks` script, deleted in Step 18 |
 | Usage | `daisy tasks [--all] [--todo\|--done] [pattern]` |
 | Arguments | scope: this workspace's projects by default — a line is in scope when one of its `+tag` words (whitespace-delimited, compared without case) is a workspace project — `--all` every project [19, 46, 47]; files: both by default [22], `--todo` = `todo.txt` [20], `--done` = `done.txt` [21], the last of the two given wins; `[pattern]`: literal, case-insensitive substring [24] (an empty pattern is none), a leading `-` is a pattern (`-1 point deduction task` [25]) once the three flags above have been consumed — except the sole-argument `--help`/`-h` and `--healthcheck`; flags before the pattern; a second positional is a usage error, exit 2 |
@@ -405,7 +410,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 18) |
+| Status | as built (Step 18): Go |
 | Legacy | `daisy projects [--archived]` → the bash `projects` script, deleted in Step 18 |
 | Usage | `daisy projects [--archived]` |
 | Exit codes | 0; 1 outside a workspace; 2 with a positional argument |
@@ -419,7 +424,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 19); byte-identical to the bash on a copy of a real journal over 33 `new-day`/`new-week` runs across a month and a year boundary, and on 270 synthetic journals (D34) |
+| Status | as built (Step 19): Go; byte-identical to the bash on a copy of a real journal over 33 `new-day`/`new-week` runs across a month and a year boundary, and on 270 synthetic journals (D34) |
 | Legacy | `daisy rotate` → the bash `rotate` script, deleted in Step 19 (also run by `new-day` and `new-week`, in-process in Go) |
 | Usage | `daisy rotate` (no argument) |
 | Exit codes | 0, also when `journal.md` is missing, empty or holds five day-blocks or fewer (nothing written, nothing printed) [83]; 1 when `journal.md` has non-blank content before its first `### YYYY-MM-DD` heading (`Error: rotate: journal.md has non-blank content before its first '### YYYY-MM-DD' heading — aborting, nothing written` on stderr [83]), when the month-to-date or year-to-date window holds no day-block (`Error: rotate: <file> has no '### YYYY-MM-DD' day-block …`; the bash died part-way there, with the last-14 window already written), or when a block would move and a rolling window is not a regular file (`Error: rotate: <file> is not a regular file …`; the bash appended through a link, then replaced it with a file). Nothing is written on either refusal [83] |
@@ -435,7 +440,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 22): Go (`internal/plan`); byte-identical to the bash's output and plan file but where the bash was wrong (D37) |
+| Status | as built (Step 22): Go (`internal/plan`); byte-identical to the bash's output and plan file but where the bash was wrong (D37) |
 | Legacy | `plan` and `new` as one hyphenated word → its bash script, deleted in Step 22 |
 | Usage | `daisy plan new [--spec] <description> [+project]` |
 | Arguments | `<description>`: required — none, or only empty words, is usage on stderr, exit 2 (the bash exited 1 with `Error: Description required`); slugged (every run of bytes other than ASCII letters and digits → one `-`, trimmed, cut to at most 100 bytes and trimmed again, `fix-four-defects` [55] stays readable; the bash's `sed` kept the locale's letters, so `café` stayed `café` and 100 characters could be 200 bytes, and slugged each line of a multi-line description apart — Go's slug is ASCII whatever the locale, and a newline is one more hyphen); taken literally into the H1 (the bash's `awk -v` turned `\t` and `\\` into a tab and a backslash); `[+project]`: leading `+` optional, stripped; a third word is usage, exit 2 (the bash ignored it) |
@@ -450,7 +455,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 22): Go (`internal/plan`) |
+| Status | as built (Step 22): Go (`internal/plan`) |
 | Legacy | `plan` and `pickup` as one hyphenated word → its bash script, deleted in Step 22 |
 | Usage | `daisy plan pickup <path>` (a relative path is the working directory's; the bash's was the workspace root's) |
 | Exit codes | 0; 2 with no path or a second one; 1 for a path that is not a regular file (`Error: File not found: <path>`), an existing `PLAN.md` (a dangling link included), no `# <Description>` H1 in the file (`Could not find a '# {Description}' header`), an empty slug, a project holding `/` or a NUL, a filename of 255 bytes or more (`the limit is 255` — the bash did not bound the slug here, so a long H1 died on the filesystem), an existing plan file of that name, or a home not in its own git repository (checked before the first write; the bash copied and linked, then failed at the commit); a failed link takes back the copy; a failed commit leaves the plan picked up and says so |
@@ -464,7 +469,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 22): Go (`internal/plan`) |
+| Status | as built (Step 22): Go (`internal/plan`) |
 | Legacy | `plan` and `archive` as one hyphenated word → its bash script, deleted in Step 22 |
 | Usage | `daisy plan archive` (any argument: usage, exit 2; the bash ignored them) |
 | Exit codes | 0 [54]; 1 when `PLAN.md` does not exist, is not a symlink (`not a Daisy plan`), its target is not in `plans/` (`The symlink may be broken…`), `plans/archive/<filename>` already exists (the bash's `mv` replaced it), a project file cannot be read, or the home is not in its own git repository — each decided before the first write; 1 when a write fails, with the move, the link and every project file put back (`Nothing was archived.`, or which undo failed); a failed commit leaves the plan archived and says so |
@@ -480,7 +485,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 21): Go, four rows of the `cli` table (`home` is a noun, D35) |
+| Status | as built (Step 21): Go, four rows of the `cli` table (`home` is a noun, D35) |
 | Legacy | `daisy home [list\|add\|remove\|new]` → the bash `home` script, deleted in Step 21 |
 | Usage | `daisy home list`, `daisy home add <name> <path>`, `daisy home remove <name>`, `daisy home new <name> [path]`; bare `daisy home` or another verb: exit 2 listing the four usages (bare `daisy home` was `home list` in bash) |
 | Exit codes | `list`: 0 [68] (69 and 70 run it and assert stdout only). `add`: 0 registered [68]; 1 when the name is `already registered` [68], invalid (`bad=name`, case 68), the path is not a directory [68], has a path problem (`Error: <path> <problem>`: the root itself — `cannot be a home` [68] — or a directory containing it, `contains the Daisy root; …`, which case 68 pins through a registry line and `status`, not through `home add`; the path is already resolved here, so the other two problems cannot arise), has no `include.txt` [68], is `not in its own git repository` [70] (the root's is not one, since Step 24), or nothing under it can be staged. `remove`: 0 [68]; 1 for an unregistered name [68]. `new`: 0 created [69]; 1 when the name is registered (nothing written, case 69) or the location `already exists` [69]; 1 when any step after the first write fails — the copy is removed: `was removed and nothing is registered` [70] on stderr; 1 when a prompt gets EOF |
@@ -500,7 +505,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | built (Step 21) |
+| Status | as built (Step 21) |
 | Legacy | none |
 | Usage | `daisy identity list` |
 | Exit codes | 0; 1 when a registered home cannot be read: the rest are listed, and the unreadable ones named on stderr (`home '<name>' is registered at <path>, which <problem>`) |
@@ -516,7 +521,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 20): Go, renamed from `build` (no alias) |
+| Status | as built (Step 20): Go, renamed from `build` (no alias) |
 | Legacy | `daisy build [home]` → the bash `build-prompt` script, deleted in Step 20 |
 | Usage | `daisy prompt build [<home>]`: with `<home>` builds `<home>/AGENTS.md` (no workspace needed); without, builds the current workspace's `.daisy/AGENTS.md` for its bound home. (`--output`, which the bash `init` passed, went with it in Step 21; `home new` builds in-process and `optimize` passes the home's name.) `daisy prompt` alone or with another verb is a usage error listing the `prompt` commands |
 | Exit codes | 0; 1 for an unregistered or unusable home (the Home resolution messages), outside a workspace without `<home>`, a missing `include.txt` (`Error: <home>/include.txt not found` and `Create include.txt in your home directory listing prompts to include`), an `include.txt` line with an unmatched quote, a prompt that cannot be read, or an output that cannot be written; nothing is written then; 2 for a surplus argument |
@@ -531,7 +536,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 21): Go; non-interactive in both forms (the bash asked for a default home and wrote a variable naming it, which nothing reads since Step 24) |
+| Status | as built (Step 21): Go; non-interactive in both forms (the bash asked for a default home and wrote a variable naming it, which nothing reads since Step 24) |
 | Legacy | `daisy install [--update]` → built in to `daisy.sh`, deleted in Step 21 |
 | Usage | `daisy install [--update]`: `--update` re-applies the symlink, root skills and permissions; plain `install` also writes the shell rc line and refuses when already installed (`Error: Daisy is already installed.`, exit 1). The root is `$DAISY_ROOT`, else the root whose `bin/daisy` is running (`Ops.Executable()`, links resolved), so `<root>/bin/daisy install` bootstraps a shell with nothing set. It does not build: `make build` writes the binary, and `install` warns when it is not built yet |
 | Exit codes | 0 [31]; 1 already installed, `~/bin/daisy` exists and is not a symlink, `~/.claude/settings.json` is not a JSON object (decided before any write), `HOME` unset, no `DAISY_ROOT` and the binary not under a root's `bin/` |
@@ -545,7 +550,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 23); the bash's bytes but where D38 says |
+| Status | as built (Step 23): Go; the bash's bytes but where D38 says |
 | Legacy | `daisy feedback [--workflow <n>] <text>` → `feedback.sh`, deleted in Step 23 |
 | Usage | `daisy feedback [--workflow <n>] <text...>`; `echo <text> \| daisy feedback [--workflow <n>]`; `-w` is `--workflow` (the last given wins); the words are joined by one space; piped text loses its trailing newlines |
 | Arguments | `<n>`: `prompts/<name>`, `skills/<name>`, or a bare name resolved as a prompt (the home's, then the root's), a skill source (the home's over the root's), or an alias for `prompts/daisy` — the home's over the root's, as for `daisy` — (`new-day`, `new-week`, `done`, `log`, `add`, `priority`, `cancel`, `status`, `sync`, `project`, `projects`, `home`); a name holding `/` names nothing; a tag that names no file is refused before anything is written [67] |
@@ -561,7 +566,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 23): the redesign agreed in D12 — no API key; the briefing and `apply` |
+| Status | as built (Step 23): Go: the redesign agreed in D12 — no API key; the briefing and `apply` |
 | Legacy | `daisy optimize [--workflow <n>] [--dry-run] [--force] [--list]` → `optimize.sh`, deleted in Step 23 with the 2-entry floor, `--force`, `--dry-run`, `--list`, `EDITOR` and the `y/N/e` prompt |
 | Usage | `daisy optimize [--workflow <n>]` prints the briefing; `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` applies text the agent proposed (`-w` is `--workflow`; `<file>` is the working directory's when relative) |
 | Targets | entries group by the file their `**Workflow:**` tag resolves to (as `feedback` resolves it), in order of first appearance; two tags naming one file are one target (`[prompts/plan] 2 entries` [38]); an unheadered entry is `prompts/daisy`'s (`[prompts/daisy] 1 entry` [41]); `--workflow <n>` scopes to the target `<n>` names (`[prompts/plan] 1 entry` [40]; one naming nothing is refused, exit 1 [40]); a skill resolves to its source `SKILL.md` (`Target: <home>/skills/widgetcraft/SKILL.md` [49]); a tag naming no file is a group of its own, briefed with the reason (`[daisy-write] 1 entry` [67], `names no prompt or skill` [67]) and never defaulted to daisy.md |
@@ -578,9 +583,9 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | as built in Go (Step 23); the bash's bytes but where D38 says |
+| Status | as built (Step 23): Go; the bash's bytes but where D38 says |
 | Legacy | `daisy eval [<case>] [--record]` → `eval.sh`, deleted in Step 23 |
-| Usage | `daisy eval` lists the cases in `$DAISY_ROOT/prompts/evals/*.md`; `daisy eval <case>` prints one; `daisy eval --record <case> pass\|fail ["notes"]` records a result (the agreed help line `eval [<case>] [--record]` abbreviates this form; `--record` leads). With no notes and a terminal, asks `Notes (optional): ` through `Ops.Prompt` |
+| Usage | `daisy eval` lists the cases in `$DAISY_ROOT/prompts/evals/*.md`; `daisy eval <case>` prints one; `daisy eval --record <case> pass\|fail ["notes"]` records a result (the help line `eval [<case>] [--record]` abbreviates this form; `--record` leads). With no notes and a terminal, asks `Notes (optional): ` through `Ops.Prompt` |
 | Exit codes | 0; 1 for a missing evals directory, an unknown case (`Error: Eval case not found: <case>`; a name holding `/` is none), a result other than `pass`/`fail`, `--record` without a case (its usage line); 2 for a second word without `--record` or a fourth with it |
 | Stdout | list: `No eval cases found in <dir>` (exit 0) or `Available eval cases:`, `  %-20s  <H1 title>` per regular `*.md` file in byte order, the two usage lines; one case: the file, then `  Record result: daisy eval --record <case> pass\|fail "notes"`; record: `  ✓ Recorded <result> for eval '<case>' (<YYYY-MM-DD HH:MM>)`, `  File: <path>` |
 | Ops | Real (decided, D30: one wrapper per command; `--record` writes) |
@@ -596,7 +601,7 @@ new home.
 |---|---|
 | Status | agreed (Steps 26–30); specified in `docs/swarm.md` (Step 26), not here |
 | Legacy | none |
-| Usage | `swarm init [--defaults]`, `swarm apply [--once]`, `swarm status`, `swarm pause`, `swarm resume` — the five help lines above and nothing more |
+| Usage | `swarm init [--defaults]`, `swarm apply [--once]`, `swarm status`, `swarm pause`, `swarm resume` — the five lines the `Swarm` group adds to the help when built, and nothing more |
 | Cases | none |
 
 ## System
@@ -605,7 +610,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 24): Go (`internal/gitx`, `env.RootExclusions`); renamed from `--home`/`--not-home`, no aliases |
+| Status | as built (Step 24): Go (`internal/gitx`, `env.RootExclusions`); renamed from `--home`/`--not-home`, no aliases |
 | Legacy | `daisy commit --home\|--not-home <message>` → `commit.sh`, deleted in Step 24 |
 | Usage | `daisy commit <message>` (the home); `daisy commit --root <message>` (the root). One message word: none, a second, or one starting with `-` (so the removed `--home`/`--not-home`, alone or before a message [73], is never a message) is usage on stderr, exit 2 — the bash exited 1 and ignored a surplus word. Case 73 passes `--root` itself (decided, D30) |
 | Exit codes | 0 committed [73] or nothing to commit [73]; 1 outside a workspace or when the home does not resolve (both forms, as the bash dispatcher required), when the home is not its own repository — the root's included [71] (`Error: Home '<name>' at <path> is not in its own git repository` and the same `  Run: …` fix as `healthcheck`'s), the root is not a repository (`Error: DAISY_ROOT is not a git repository`), or `git add`/`git commit` fails; 2 for a usage error [73] |
@@ -620,7 +625,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 24): Go (`internal/health`) |
+| Status | as built (Step 24): Go (`internal/health`) |
 | Legacy | `daisy healthcheck [--force]` → `healthcheck.sh`, deleted in Step 24 (it was also run silently first by `done`, `log`, `new-day`, `new-week`, which now call the same check in-process) |
 | Usage | `daisy healthcheck [--force]`; any other word is usage, exit 2 (the bash ignored it) |
 | Caching | a passing run writes the unix expiry time to `$DAISY_HOME/.healthcheck.ttl`; a run within `DAISY_HEALTHCHECK_TTL` seconds (default 300; `0` disables; anything but decimal digits is the default) exits 0 after Checks 1–2 without re-checking (no `Component:` [37] lines) and honours the stamp even over a new leak [37]; `--force` ignores it [37]; a failure removes the stamp [37] — wherever it stops the run, Check 3 included (the bash's early exits left it); a corrupt or too-far-ahead stamp is no cache [37]; `DAISY_HEALTHCHECK_PASSED=1` in the environment short-circuits unless `--force` [37] |
@@ -636,7 +641,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 24): Go; `.env.sh` is parsed (`env.ParseShellEnv`), never run (decided, D30) |
+| Status | as built (Step 24): Go; `.env.sh` is parsed (`env.ParseShellEnv`), never run (decided, D30) |
 | Legacy | `daisy check-secrets` → `check-secrets.sh`, deleted in Step 24 |
 | Usage | `daisy check-secrets` (no argument; any is usage, exit 2) |
 | Exit codes | 1 outside a workspace, when `<ws>/.env.sh` is not a file (`❌ .env.sh not found in workspace` and the copy hint on stdout), or when it cannot be read (`Error: cannot read …`); otherwise 0 |
@@ -652,7 +657,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | ported (Step 24): Go; runs `go test ./...` then the acceptance suite |
+| Status | as built (Step 24): Go; runs `go test ./...` then the acceptance suite |
 | Legacy | `daisy test [name-substring]` → `test.sh` (built, then `exec`ed `tests/run.sh`), deleted in Step 24 |
 | Usage | `daisy test [filter]`: a case runs when its file name contains the filter; a filter also skips `go test` (it asks for those cases) |
 | Runs | from `$DAISY_ROOT`, wherever it is invoked (no workspace needed, D30): `make -C <root> --silent build`, then `go test ./...`, then `tests/run.sh [filter]` with `<root>/bin` first on `PATH`, each streaming to the terminal; the first that fails ends the run. `make test` is `daisy test` |
