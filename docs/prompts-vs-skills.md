@@ -73,9 +73,10 @@ is **who refines it over time** — and the two are independent.
 
 Collapsing them is the mistake to avoid, in either direction. Placing a
 capability in the craft layer does not hand its evolution to someone else:
-`css`, `js`, `tdd`, and `agents-md` are skills because they need nothing but
-the artifact in front of them, and they remain yours to refine. Nothing
-about being a skill makes a capability upstream-owned.
+`agents-md`, `css`, `git`, `js`, `testing` and `transcribe` are skills
+because they need nothing but the artifact in front of them, and they
+remain yours to refine. Nothing about being a skill makes a capability
+upstream-owned.
 
 **This creates an obligation.** Because placement follows runtime coupling,
 the feedback loop has to follow content wherever coupling puts it. Four
@@ -162,7 +163,7 @@ seam, as in the `git` example.
 
 A **situated layer** that knows the user — `personal`, `daisy`, `plan`,
 `retrospective`, `socrates`, `github` — and a **craft layer** that knows the
-work — `agents-md`, `css`, `js`, `tdd`, `git`.
+work — `agents-md`, `css`, `git`, `js`, `testing`, `transcribe`.
 `praxis` sits with the prompts: mostly portable implementation guidance, but
 its step-tracking rule writes `PLAN.md`.
 

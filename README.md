@@ -90,11 +90,11 @@ you did yesterday, how you work: `daisy` (tasks, journal, projects),
 write the files Daisy owns, and they exist only where Daisy is running.
 
 The **craft layer** is made of *skills* — self-contained capabilities the
-agent reaches for by description. They know the work, not you: `css`, `js`,
-`tdd`, `git`, `agents-md`. Because they assume nothing about Daisy, they
-keep working in repositories that have never been initialized — your
-conventions travel to every scratch repo and clone, not just the workspaces
-you've set up.
+agent reaches for by description. They know the work, not you: `agents-md`,
+`css`, `git`, `js`, `testing`, `transcribe`. Because they assume nothing
+about Daisy, they keep working in repositories that have never been
+initialized — your conventions travel to every scratch repo and clone, not
+just the workspaces you've set up.
 
 Most prompts are also loaded frugally: only a short trigger stub sits in the
 agent's context, and the full prompt is read on demand when its trigger
@@ -305,12 +305,12 @@ daisy/                          # Repository root ($DAISY_ROOT)
 │   ├── task-format.md, task-sync.md, todotxt.md, templates.md
 │   ├── workflows.md, logging.md, projects.md, home-management.md
 │   ├── plan.md, praxis.md, retrospective.md, github.md
-│   ├── prompts-vs-skills.md, examples.md, test-cases.md
+│   ├── prompts-vs-skills.md, examples.md, test-cases.md, testing.md
 │   └── resources/              # External-talk summaries informing the design
 ├── tests/                      # The acceptance suite (`daisy test`): run.sh, lib/, cases/
 ├── prompts/                    # Situated layer: daisy.md, plan.md, retrospective.md, github.md, ...
 │   └── evals/                  # Eval cases for the feedback loop (`daisy eval`)
-└── skills/                     # Craft layer: css, js, tdd, git, agents-md (see Two Layers)
+└── skills/                     # Craft layer: agents-md, css, git, js, testing, transcribe (see Two Layers)
 ```
 
 ### Per-Machine State and Homes
@@ -390,4 +390,5 @@ See [docs/todotxt.md](docs/todotxt.md) for complete format specification.
 - **[Admin Guide](AGENTS.md)** - Internal architecture and specifications
 - **[Prompts vs. Skills](docs/prompts-vs-skills.md)** - Where the layer boundary falls, and why
 - **[Detailed Examples](docs/examples.md)** - Interaction walkthroughs
+- **[Testing](docs/testing.md)** - The `testing` skill's long form: vocabulary, literature, the design worked through
 - [Todo.txt Specification](docs/todotxt.md) - Format reference

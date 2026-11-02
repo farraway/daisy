@@ -284,6 +284,7 @@ The reference source itself is never modified or deleted by adoption — copy
 - [`docs/logging.md`](docs/logging.md) — Logging design rationale, triggers, abridged archival
 - [`docs/projects.md`](docs/projects.md) — Project management architecture and algorithms
 - [`docs/praxis.md`](docs/praxis.md) — Implementation quality reference: how we work, anti-patterns, extended guidance
+- [`docs/testing.md`](docs/testing.md) — The `testing` skill's long form: vocabulary, the literature, where the method departs, the design at two scales, one step worked
 - [`docs/retrospective.md`](docs/retrospective.md) — Retrospective guide and integration workflows
 - [`docs/plan.md`](docs/plan.md) — Plan workflow reference
 - [`docs/github.md`](docs/github.md) — GitHub operations reference

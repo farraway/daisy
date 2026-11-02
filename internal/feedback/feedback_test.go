@@ -77,7 +77,7 @@ func newTree(t *testing.T) tree {
 	tr := tree{root: t.TempDir(), home: t.TempDir()}
 	for _, f := range []string{
 		"root/prompts/daisy.md", "root/prompts/github.md", "root/prompts/retrospective.md",
-		"root/skills/git/SKILL.md", "root/skills/tdd/SKILL.md", "home/prompts/personal.md",
+		"root/skills/git/SKILL.md", "root/skills/testing/SKILL.md", "home/prompts/personal.md",
 		"home/skills/widget/SKILL.md", "root/prompts/evals/new-day.md",
 	} {
 		write(t, tr.path(f), "## Rules\n\n1. a\n")
@@ -155,7 +155,7 @@ func TestResolve(t *testing.T) {
 	if got, _ := Resolve(fsys, tr.root, tr.home, "git"); got.Label != "skills/git" || !got.Skill {
 		t.Errorf("a skill's label: %+v", got)
 	}
-	want := []string{"prompts/daisy", "prompts/github", "prompts/personal", "prompts/retrospective", "skills/git", "skills/tdd", "skills/widget"}
+	want := []string{"prompts/daisy", "prompts/github", "prompts/personal", "prompts/retrospective", "skills/git", "skills/testing", "skills/widget"}
 	if got := Labels(fsys, tr.root, tr.home); !reflect.DeepEqual(got, want) {
 		t.Errorf("labels %q", got)
 	}
@@ -187,7 +187,7 @@ func TestBrief(t *testing.T) {
 	write(t, tr.path("root/prompts/plan.md"), many)
 	write(t, tr.path("root/prompts/retrospective.md"), many)
 	write(t, tr.path("root/prompts/github.md"), "## Rules\n\n"+strings.Repeat("1. r\n", 10))
-	write(t, tr.path("root/skills/tdd/SKILL.md"), many)
+	write(t, tr.path("root/skills/testing/SKILL.md"), many)
 	l := Parse([]byte("# L\n\n## 2026-08-01 1000\n**Workflow:** plan\n\na\n\n## 2026-08-02 1000\n\nb\n\n## 2026-08-03 1000\n**Workflow:** prompts/plan\n\nc\n\n## 2026-08-04 1000\n**Workflow:** daisy-write\n\nd\n"))
 	active := []string{"retrospective", "github", "plan", "daisy"}
 	b := Brief(fsys, tr.root, tr.home, l, active, nil)
@@ -211,7 +211,7 @@ func TestBrief(t *testing.T) {
 	for _, f := range b.Flagged {
 		flagged = append(flagged, f.Target.Label)
 	}
-	if want := []string{"prompts/retrospective", "skills/tdd"}; !reflect.DeepEqual(flagged, want) {
+	if want := []string{"prompts/retrospective", "skills/testing"}; !reflect.DeepEqual(flagged, want) {
 		t.Errorf("flagged %q (github has 10, plan is pending)", flagged)
 	}
 
@@ -226,14 +226,14 @@ func TestBrief(t *testing.T) {
 	// A target that cannot be read is an error of the briefing, not a
 	// target without rules (review pass 1, F3).
 	os.Chmod(tr.path("root/prompts/plan.md"), 0)
-	os.Chmod(tr.path("root/skills/tdd/SKILL.md"), 0)
+	os.Chmod(tr.path("root/skills/testing/SKILL.md"), 0)
 	if os.Getuid() != 0 {
 		if e := Brief(fsys, tr.root, tr.home, l, active, nil).Errors; len(e) != 2 || !strings.Contains(e[0].Error(), "cannot read "+tr.path("root/prompts/plan.md")) {
 			t.Errorf("unreadable: %v", e)
 		}
 	}
 	os.Chmod(tr.path("root/prompts/plan.md"), 0o644)
-	os.Chmod(tr.path("root/skills/tdd/SKILL.md"), 0o644)
+	os.Chmod(tr.path("root/skills/testing/SKILL.md"), 0o644)
 	retro, _ := Resolve(fsys, tr.root, tr.home, "retrospective")
 	if s := Brief(fsys, tr.root, tr.home, l, active, &retro); len(s.Pending) != 0 || len(s.Flagged) != 1 {
 		t.Errorf("scoped to an unpending flagged target: %+v", s)

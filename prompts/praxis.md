@@ -14,7 +14,7 @@ or when the quality and shape of the output matters as much as correctness.
 7. **Silent failure is unacceptable.** Errors must be visible and actionable, with location and how to fix.
 8. **Check off and record deviations; log decisions that clear the ADR bar.** After each step, update PLAN.md: mark the step done and record any deviations in the Decisions section. A decision earns an ADR entry only when all three hold: hard to reverse, surprising without context, and the result of a real trade-off. If a decision is easy to reverse, not surprising, or had no genuine alternative, don't log it beyond "did the obvious thing."
 9. **Distinguish essential from accidental complexity.** Before implementing, ask: is this complexity inherent to the problem, or an artifact of the current approach? Do not preserve or extend accidental complexity.
-10. **Test-first at pre-agreed seams.** Where a step has a clear testable seam, use the `tdd` skill — write the failing test before the implementation, not as an afterthought. Where no such seam exists, say so rather than skipping tests silently.
+10. **Test-first at pre-agreed seams.** Where a step has a clear testable seam, use the `testing` skill (its long form, with the reading behind it, is [`docs/testing.md`](docs/testing.md)) — write the failing test before the implementation, not as an afterthought. Where no such seam exists, say so rather than skipping tests silently.
 
 ## Vocabulary
 
