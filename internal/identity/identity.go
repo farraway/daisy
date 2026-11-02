@@ -1,8 +1,8 @@
 // Package identity reads the git author a workspace is bound to: a file of
 // `name=`, `email=` and optional `sshkey=` lines in a home, and the record
-// init keeps of what it applied. This step ports what status and files
-// need: reading a file and reporting drift between the record, the bound
-// file and the repository. Apply and unset (init, clean) follow with them.
+// init keeps of what it applied; resolving an identity name to its home;
+// applying one to a repository and taking it back; and the drift status
+// and files report between the record, the bound file and the repository.
 package identity
 
 import (
@@ -84,12 +84,17 @@ func configValues(o ops.Ops, repo, key string) []string {
 	if err != nil {
 		return nil
 	}
-	var values []string
-	for _, v := range bytes.Split(out, []byte{0}) {
-		values = append(values, string(v))
+	return splitValues(out)
+}
+
+// splitValues splits `--get-all -z` output: each value ends with a NUL.
+func splitValues(out []byte) []string {
+	if len(out) == 0 {
+		return nil
 	}
-	if len(values) > 0 && values[len(values)-1] == "" && len(out) > 0 && out[len(out)-1] == 0 {
-		values = values[:len(values)-1]
+	var values []string
+	for _, v := range bytes.Split(bytes.TrimSuffix(out, []byte{0}), []byte{0}) {
+		values = append(values, string(v))
 	}
 	return values
 }

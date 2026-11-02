@@ -13,9 +13,8 @@ import (
 
 // PromptBuild writes AGENTS.md: with a home's name, that home's
 // <home>/AGENTS.md (no workspace needed); without, the workspace's
-// .daisy/AGENTS.md for its bound home. --output, which `daisy init` passes
-// until it is Go, writes another file instead, named as given. The header's
-// rebuild line is the command that rewrites the file. Nothing is
+// .daisy/AGENTS.md for its bound home. The header's rebuild line is the
+// command that rewrites the file. Nothing is
 // committed: the home ignores its AGENTS.md, the workspace's is per-machine.
 func PromptBuild(c *Context) error {
 	var e env.Env
@@ -31,17 +30,6 @@ func PromptBuild(c *Context) error {
 	if err != nil {
 		return err
 	}
-	path := output
-	if v, ok := c.Value("--output"); ok {
-		output, path, rebuild = v, v, "daisy prompt build"
-		if !filepath.IsAbs(v) {
-			cwd, err := c.Ops.Getwd()
-			if err != nil {
-				return fmt.Errorf("Error: cannot read the working directory: %v", err)
-			}
-			path = filepath.Join(cwd, v)
-		}
-	}
 	b, err := prompt.Build(c.Ops.FS(), prompt.Spec{
 		Root: e.Root, HomeName: e.HomeName, Home: e.Home,
 		Output: output, Rebuild: rebuild, Built: c.Ops.Now(),
@@ -52,7 +40,7 @@ func PromptBuild(c *Context) error {
 	for _, w := range b.Warnings {
 		fmt.Fprintln(c.Stderr, w)
 	}
-	if err := c.Ops.FS().WriteFile(path, b.Text, 0o644); err != nil {
+	if err := c.Ops.FS().WriteFile(output, b.Text, 0o644); err != nil {
 		return fmt.Errorf("Error: %v", err)
 	}
 	fmt.Fprintf(c.Stdout, "✅ Built AGENTS.md for home: %s\n", e.HomeName)

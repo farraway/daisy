@@ -15,7 +15,7 @@ target="$FIXTURE_LOCAL/homes/doomed"
 saved_git_config_global="${GIT_CONFIG_GLOBAL-}"
 had_git_config_global="${GIT_CONFIG_GLOBAL+set}"
 export GIT_CONFIG_GLOBAL="$gitcfg"
-fixture_run_with_input $'Fixture Person\nperson@example.invalid\n' home new doomed "$target"
+fixture_run_cli_with_input $'Fixture Person\nperson@example.invalid\n' home new doomed "$target"
 if [ -n "$had_git_config_global" ]; then
     export GIT_CONFIG_GLOBAL="$saved_git_config_global"
 else

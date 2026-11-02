@@ -206,3 +206,16 @@ assert_eq "$RUN_EXIT" "0" "clean exits 0 with a leftover present"
 [ -e "$fresh2/.daisy.previous.555" ] && left=yes || left=no
 assert_eq "$left" "no" "and removes the leftover"
 assert_contains "$RUN_STDOUT" ".daisy.previous.555" "saying so"
+
+# clean gives back what init found: a value set by hand before init returns,
+# a key init set where there was none goes.
+hs="$FIXTURE_LOCAL/handset-ws"
+git init -q "$hs"
+git -C "$hs" config --local user.name "Hand Set"
+fixture_run_cli init testhome "$hs"
+assert_eq "$(git -C "$hs" config --local user.name)" "Zebra Quillfeather" "init applies the identity over a hand-set name"
+FIXTURE_CWD="$hs"
+fixture_run_cli clean -f
+FIXTURE_CWD=""
+assert_eq "$(git -C "$hs" config --local user.name)" "Hand Set" "and clean gives the hand-set name back"
+assert_eq "$(git -C "$hs" config --local user.email || true)" "" "while the email init set is gone"

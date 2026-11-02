@@ -306,7 +306,7 @@ done
 # $DAISY_HOME/skills/ means the skill was removed/renamed upstream since the
 # last `daisy init`. Sources may nest (e.g. skills/vendor/<source>/<name>/),
 # so this matches by SKILL.md's containing-directory basename, not a fixed
-# one-level path — same resolution `daisy-init.sh` uses to install them.
+# one-level path — the same resolution `daisy init` uses to install them.
 if [ -n "$DAISY_WORKSPACE" ] && [ -d "$DAISY_WORKSPACE/.claude/skills" ]; then
     KNOWN_SKILL_NAMES=" "
     while IFS= read -r -d '' skill_md; do
@@ -355,7 +355,7 @@ fi
 check_journal_rotation
 
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(home.sh feedback.sh optimize.sh eval.sh files.sh plan-pickup.sh test.sh)
+HEALTHCHECK_SCRIPTS=(feedback.sh optimize.sh eval.sh files.sh plan-pickup.sh test.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then
@@ -371,13 +371,16 @@ done
 
 # Commands the Go binary has taken over answer `--healthcheck` themselves.
 DAISY_BIN=$(daisy_bin)
-HEALTHCHECK_COMMANDS=(done log tasks projects new-day new-week rotate list)
+# An entry may be a noun and its verb, split into words for the call.
+HEALTHCHECK_COMMANDS=(done log tasks projects new-day new-week rotate list "home new")
 for cmd in "${HEALTHCHECK_COMMANDS[@]}"; do
-    if "$DAISY_BIN" "$cmd" --healthcheck >/dev/null 2>&1; then
+    # shellcheck disable=SC2086  # the words are meant to split
+    if "$DAISY_BIN" $cmd --healthcheck >/dev/null 2>&1; then
         ok "Component: $cmd"
     else
         error "Component: $cmd failed health check"
-        "$DAISY_BIN" "$cmd" --healthcheck 2>&1 | sed 's/^/  /' >&2
+        # shellcheck disable=SC2086
+        "$DAISY_BIN" $cmd --healthcheck 2>&1 | sed 's/^/  /' >&2
         ERRORS=$((ERRORS + 1))
     fi
 done

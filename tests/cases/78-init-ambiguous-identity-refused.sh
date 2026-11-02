@@ -105,7 +105,7 @@ mkdir -p "$spaced/identities" "$second/identities"
 rm -f "$FIXTURE_HOME/identities/pelicanmoor"  # so only 'a second' and 'second' define it
 printf 'name=Pelican Moorhen\nemail=pelican@example.invalid\n' > "$spaced/identities/pelicanmoor"
 printf 'name=Pelican Moorhen\nemail=pelican@example.invalid\n' > "$second/identities/pelicanmoor"
-printf 'a second=%s\n' "$spaced" >> "$(daisy_homes_file)"
+printf 'a second=%s\n' "$spaced" >> "$DAISY_CONFIG/homes"
 fixture_run_cli init pelicanmoor "$ws"
 assert_eq "$RUN_EXIT" "1" "init still refuses the identity defined in two homes"
 assert_contains "$RUN_STDERR" "more than one home" "and says so"
@@ -125,13 +125,14 @@ assert_eq "$left" "no" "and leaves no .daisy/ behind"
 assert_eq "$(git -C "$proj2" config --local user.name || true)" "" "and no identity"
 
 # Likewise when the binding cannot be prepared (here, a directory sits where
-# the record goes): nothing is applied and no binding is written.
+# the record goes): init refuses before writing anything.
 proj3="$FIXTURE_WORKSPACE/proj3"
 mkdir -p "$proj3/.daisy/gitconfig"
 fixture_run_cli init testhome "$proj3"
 [ "$RUN_EXIT" -ne 0 ] && failed=yes || failed=no
 assert_eq "$failed" "yes" "an init that cannot write its record exits non-zero"
-assert_eq "$(git -C "$proj3" config --local user.name || true)" "" "and the identity it applied is taken back"
+[ -e "$proj3/.git" ] && repo=yes || repo=no
+assert_eq "$repo" "no" "and, refused before its first write, makes no repository to apply an identity to"
 [ -e "$proj3/.daisy/home" ] && bound=yes || bound=no
 assert_eq "$bound" "no" "and no binding is written"
 

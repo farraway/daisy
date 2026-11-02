@@ -4,7 +4,7 @@
 # against it at once.
 
 target="$(cd "$FIXTURE_LOCAL" && pwd -P)/homes/fresh"  # the registry stores resolved paths
-fixture_run_with_input $'Fixture Person\nperson@example.invalid\n' home new fresh "$target"
+fixture_run_cli_with_input $'Fixture Person\nperson@example.invalid\n' home new fresh "$target"
 assert_eq "$RUN_EXIT" "0" "home new exits 0"
 assert_eq "$(cat "$target/gitconfig")" $'name=Fixture Person\nemail=person@example.invalid' \
     "the prompted identity is saved to gitconfig"
@@ -21,17 +21,17 @@ fixture_run_cli home list
 assert_contains "$RUN_STDOUT" "fresh" "the new home is registered"
 assert_contains "$RUN_STDOUT" "$target" "at the chosen location"
 
-fixture_run_with_input $'\n\n' home new again "$target"
+fixture_run_cli_with_input $'\n\n' home new again "$target"
 assert_eq "$RUN_EXIT" "1" "home new refuses a location that already exists"
 assert_contains "$RUN_STDERR" "already exists" "and says so"
 
-fixture_run_with_input $'\n\n' home new fresh "$FIXTURE_LOCAL/homes/other"
+fixture_run_cli_with_input $'\n\n' home new fresh "$FIXTURE_LOCAL/homes/other"
 assert_eq "$RUN_EXIT" "1" "home new refuses a name already registered"
 [ -e "$FIXTURE_LOCAL/homes/other" ] && written=yes || written=no
 assert_eq "$written" "no" "and writes nothing"
 
 # With no path, the location is prompted with a default of $DAISY_LOCAL/homes/<name>.
-fixture_run_with_input $'\nA Person\na@example.invalid\n' home new prompted
+fixture_run_cli_with_input $'\nA Person\na@example.invalid\n' home new prompted
 assert_eq "$RUN_EXIT" "0" "home new with no path exits 0"
 [ -d "$FIXTURE_LOCAL/homes/prompted" ] && defaulted=yes || defaulted=no
 assert_eq "$defaulted" "yes" "an empty answer takes the default location"

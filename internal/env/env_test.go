@@ -486,3 +486,59 @@ func TestRealPath(t *testing.T) {
 		t.Errorf("link to dir: %q", got)
 	}
 }
+
+// The registry as the bash read it: names and paths trimmed, trailing
+// slashes dropped, comments, blank lines and empty paths skipped, every
+// line in order (duplicates included: Homes is the file, not a map).
+func TestHomes(t *testing.T) {
+	f := newFx(t)
+	f.write(filepath.Join(f.config, "homes"), "# comment\n\n a b = /x/y// \nnopath=\nsecond=/s\nsecond=/t\nnoequals\n")
+	got := env.Homes(ops.Real().FS(), filepath.Join(f.config, "homes"))
+	want := []env.Home{{Name: "a b", Path: "/x/y"}, {Name: "second", Path: "/s"}, {Name: "second", Path: "/t"}}
+	if len(got) != len(want) {
+		t.Fatalf("got %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("entry %d: got %v want %v", i, got[i], want[i])
+		}
+	}
+	if got := env.Homes(ops.Real().FS(), filepath.Join(f.config, "absent")); len(got) != 0 {
+		t.Errorf("absent registry: %v", got)
+	}
+}
+
+// Register appends a line of its own; Unregister drops every line of the
+// name and passes the rest through byte for byte; both write through a
+// registry that is a symlink.
+func TestRegisterAndUnregister(t *testing.T) {
+	f := newFx(t)
+	real := filepath.Join(f.local, "real-homes")
+	f.write(real, "# keep me\ntesthome="+f.home) // no final newline
+	reg := filepath.Join(f.config, "homes")
+	os.Remove(reg)
+	f.link(real, reg)
+	fs := ops.Real().FS()
+	if err := env.Register(fs, reg, "second", "/s"); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(real); string(b) != "# keep me\ntesthome="+f.home+"\nsecond=/s\n" {
+		t.Errorf("after register: %q", b)
+	}
+	if err := env.Unregister(fs, reg, "testhome"); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(real); string(b) != "# keep me\nsecond=/s\n" {
+		t.Errorf("after unregister: %q", b)
+	}
+	if fi, _ := os.Lstat(reg); fi.Mode()&os.ModeSymlink == 0 {
+		t.Error("the registry link was replaced by a file")
+	}
+	fresh := filepath.Join(t.TempDir(), "new", "homes")
+	if err := env.Register(fs, fresh, "x", "/x"); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(fresh); string(b) != "x=/x\n" {
+		t.Errorf("fresh registry %q", b)
+	}
+}

@@ -66,12 +66,9 @@ func TestPromptBuildForTheWorkspace(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(m.home, "AGENTS.md")); err == nil {
 		t.Error("the home's AGENTS.md was written too")
 	}
-	// --output (init's form, until init is Go) writes there and names it.
-	other := filepath.Join(t.TempDir(), "x.md")
-	code, out, errs = m.run(t, t.TempDir(), "prompt", "build", "--output", other, "testhome")
-	b, _ = os.ReadFile(other)
-	if code != 0 || errs != "" || !strings.Contains(out, "   Output: "+other+"\n") || !strings.Contains(string(b), "\n# Output: "+other+"\n# Do not edit") {
-		t.Errorf("--output: exit %d out %q err %q\n%s", code, out, errs, b)
+	// --output went with the bash init (Step 21): it is no flag now.
+	if code, _, _ := m.run(t, m.ws, "prompt", "build", "--output", filepath.Join(t.TempDir(), "x.md")); code != 2 {
+		t.Errorf("--output: exit %d", code)
 	}
 }
 
@@ -89,8 +86,6 @@ func TestPromptBuildWarnsAndRefuses(t *testing.T) {
 	}{
 		{[]string{"prompt", "build", "nobody"}, 1, "Error: Home 'nobody' is not registered in " + m.config + "/homes\n"},
 		{[]string{"prompt", "build", "a", "b"}, 2, "Error: unexpected argument: b\nUsage: daisy prompt build [<home>]\n"},
-		{[]string{"prompt", "build", "--output"}, 2, "Error: --output needs a value\nUsage: daisy prompt build [<home>]\n"},
-		{[]string{"prompt", "build", "--output", ""}, 2, "Error: --output needs a value\n"},
 		{[]string{"prompt"}, 2, "Error: missing command: daisy prompt <command>\nUsage: daisy prompt build [<home>]\n"},
 		{[]string{"prompt", "bogus"}, 2, "Error: unknown command: prompt bogus\nUsage: daisy prompt build [<home>]\n"},
 		{[]string{"build"}, 2, "Unknown command: build\n"},

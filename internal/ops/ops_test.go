@@ -30,6 +30,8 @@ func TestReadOnlyRefusesWrites(t *testing.T) {
 		"Remove":    func() error { return ro.FS().Remove(target) },
 		"RemoveAll": func() error { return ro.FS().RemoveAll(dir) },
 		"Rename":    func() error { return ro.FS().Rename(target, target+".2") },
+		"Mkdir":     func() error { return ro.FS().Mkdir(filepath.Join(dir, "m"), 0o755) },
+		"Chmod":     func() error { return ro.FS().Chmod(dir, 0o700) },
 	} {
 		if err := call(); err == nil || !strings.Contains(err.Error(), name) {
 			t.Errorf("%s under ReadOnly: got %v, want an error naming the call", name, err)
@@ -136,5 +138,53 @@ func TestChildrenLoseGitHookVariables(t *testing.T) {
 	p.Wait()
 	if strings.TrimSpace(buf.String()) != "[]" {
 		t.Errorf("Start child environment: %q", buf.String())
+	}
+}
+
+// CopyTree is `cp -a` over FS: files, modes and symlinks as they are, a
+// directory's mode set after its contents (so a read-only one still fills).
+func TestCopyTreeKeepsLinksAndModes(t *testing.T) {
+	src, dst := t.TempDir(), filepath.Join(t.TempDir(), "copy")
+	os.MkdirAll(filepath.Join(src, "sub", "locked"), 0o755)
+	os.WriteFile(filepath.Join(src, "run.sh"), []byte("#!/bin/sh\n"), 0o750)
+	os.WriteFile(filepath.Join(src, "sub", "locked", "f"), []byte("f"), 0o444)
+	os.Chmod(filepath.Join(src, "sub", "locked"), 0o555)
+	defer os.Chmod(filepath.Join(src, "sub", "locked"), 0o755)
+	os.Symlink("../run.sh", filepath.Join(src, "sub", "link"))
+	if err := ops.CopyTree(ops.Real().FS(), src, dst); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(filepath.Join(dst, "sub", "locked"), 0o755)
+	if fi, _ := os.Stat(filepath.Join(dst, "run.sh")); fi.Mode().Perm() != 0o750 {
+		t.Errorf("file mode %v", fi.Mode())
+	}
+	if fi, _ := os.Stat(filepath.Join(dst, "sub", "locked")); fi.Mode().Perm() != 0o555 {
+		t.Errorf("dir mode %v", fi.Mode())
+	}
+	if b, _ := os.ReadFile(filepath.Join(dst, "sub", "locked", "f")); string(b) != "f" {
+		t.Errorf("content %q", b)
+	}
+	if l, err := os.Readlink(filepath.Join(dst, "sub", "link")); err != nil || l != "../run.sh" {
+		t.Errorf("link %q %v", l, err)
+	}
+	if err := ops.CopyTree(ops.Real().FS(), src, dst); err == nil {
+		t.Error("copying onto an existing destination succeeded")
+	}
+}
+
+func TestMkdirIsExclusive(t *testing.T) {
+	d := filepath.Join(t.TempDir(), "d")
+	fs := ops.Real().FS()
+	if err := fs.Mkdir(d, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := fs.Mkdir(d, 0o700); err == nil {
+		t.Error("second Mkdir succeeded")
+	}
+	if err := fs.Chmod(d, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if fi, _ := os.Stat(d); fi.Mode().Perm() != 0o755 {
+		t.Errorf("mode %v", fi.Mode())
 	}
 }

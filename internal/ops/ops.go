@@ -19,6 +19,9 @@ type FS interface {
 	ReadFile(name string) ([]byte, error)
 	WriteFile(name string, data []byte, perm os.FileMode) error
 	MkdirAll(path string, perm os.FileMode) error
+	// Mkdir creates one directory and fails when anything is there already.
+	Mkdir(path string, perm os.FileMode) error
+	Chmod(name string, mode os.FileMode) error
 	ReadDir(name string) ([]os.DirEntry, error)
 	Stat(name string) (os.FileInfo, error)
 	Lstat(name string) (os.FileInfo, error)

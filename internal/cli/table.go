@@ -16,9 +16,8 @@ const Unbounded = -1
 // is what the user types, one word or a noun and its verb (`prompt
 // build`). Usage is the line as printed, Help the description beside it.
 // Flags are the words the command takes as flags when they lead its
-// arguments, Values those of them that take the next word as their value
-// (and are not in the usage line: internal); the first other word starts
-// the positionals, dashes included, of which there are Min to Max. Health, when
+// arguments; the first other word starts the positionals, dashes
+// included, of which there are Min to Max. Health, when
 // set, answers `<command> --healthcheck` (hidden from the help): the
 // command's own precondition check, run by `daisy healthcheck`.
 type Command struct {
@@ -28,7 +27,6 @@ type Command struct {
 	Help      string
 	Workspace bool // needs a resolved workspace before it runs
 	Flags     []string
-	Values    []string
 	Min, Max  int
 	Run       func(*commands.Context) error
 	Health    func(*commands.Context) error
@@ -39,8 +37,8 @@ type Command struct {
 // legacy spelling until the step that ports it renames it; the tree
 // therefore always says what this binary does, and nothing it does not.
 var table = []Command{
-	{Group: "Workspace", Name: "init", Usage: "init <identity> [path]", Help: "Bind a workspace to an identity and its home"},
-	{Group: "Workspace", Name: "clean", Usage: "clean [-f]", Help: "Remove Daisy from this workspace"},
+	{Group: "Workspace", Name: "init", Usage: "init <identity> [path]", Help: "Bind a workspace to an identity and its home", Min: 1, Max: 2, Run: commands.Init},
+	{Group: "Workspace", Name: "clean", Usage: "clean [-f]", Help: "Remove Daisy from this workspace", Flags: []string{"-f", "--force"}, Run: commands.Clean},
 	{Group: "Workspace", Name: "status", Usage: "status", Help: "Home, identity, projects, today's counts, active plan", Workspace: true, Run: commands.Status},
 	{Group: "Workspace", Name: "files", Usage: "files", Help: "Resolved real paths for every home file", Workspace: true, Run: commands.Files},
 	{Group: "Workspace", Name: "list", Usage: "list", Help: "Active prompts and installed skills", Workspace: true, Flags: []string{"--full"}, Run: commands.List, Health: commands.ListHealth},
@@ -58,10 +56,14 @@ var table = []Command{
 	{Group: "Plans", Name: "plan-pickup", Usage: "plan-pickup <path>", Help: "Promote a spec draft into a tracked plan"},
 	{Group: "Plans", Name: "plan-archive", Usage: "plan-archive", Help: "Archive the active plan"},
 
-	{Group: "Homes and identities", Name: "home", Usage: "home [list|add <name> <path>|remove <name>|new <name> [path]]", Help: "The homes registry: which homes exist here and where"},
+	{Group: "Homes and identities", Name: "home new", Usage: "home new <name> [path]", Help: "Create a home; prompts for identity and location", Min: 1, Max: 2, Run: commands.HomeNew, Health: commands.HomeNewHealth},
+	{Group: "Homes and identities", Name: "home add", Usage: "home add <name> <path>", Help: "Register an existing home", Min: 2, Max: 2, Run: commands.HomeAdd},
+	{Group: "Homes and identities", Name: "home list", Usage: "home list", Help: "Registered homes and where they live", Run: commands.HomeList},
+	{Group: "Homes and identities", Name: "home remove", Usage: "home remove <name>", Help: "Unregister a home; its files stay where they are", Min: 1, Max: 1, Run: commands.HomeRemove},
+	{Group: "Homes and identities", Name: "identity list", Usage: "identity list", Help: "Identities across registered homes", Run: commands.IdentityList},
 
-	{Group: "Prompts and skills", Name: "prompt build", Usage: "prompt build [<home>]", Help: "Rebuild AGENTS.md", Values: []string{"--output"}, Max: 1, Run: commands.PromptBuild},
-	{Group: "Prompts and skills", Name: "install", Usage: "install [--update]", Help: "~/bin/daisy, root skills, permissions"},
+	{Group: "Prompts and skills", Name: "prompt build", Usage: "prompt build [<home>]", Help: "Rebuild AGENTS.md", Max: 1, Run: commands.PromptBuild},
+	{Group: "Prompts and skills", Name: "install", Usage: "install [--update]", Help: "~/bin/daisy, root skills, permissions", Flags: []string{"--update"}, Run: commands.Install},
 	{Group: "Prompts and skills", Name: "feedback", Usage: "feedback [--workflow <n>] <text>", Help: "Record a prompt failure for optimization"},
 	{Group: "Prompts and skills", Name: "optimize", Usage: "optimize [--workflow <n>] [--dry-run] [--force]", Help: "Run the prompt learning loop on collected feedback"},
 	{Group: "Prompts and skills", Name: "eval", Usage: "eval [<case>] [--record]", Help: "List, display, or record an eval case result"},

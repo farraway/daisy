@@ -97,6 +97,8 @@ func (readOnlyFS) WriteFile(name string, _ []byte, _ os.FileMode) error {
 	return refused("WriteFile", name)
 }
 func (readOnlyFS) MkdirAll(path string, _ os.FileMode) error { return refused("MkdirAll", path) }
+func (readOnlyFS) Mkdir(path string, _ os.FileMode) error    { return refused("Mkdir", path) }
+func (readOnlyFS) Chmod(name string, _ os.FileMode) error    { return refused("Chmod", name) }
 func (readOnlyFS) Symlink(oldname, newname string) error     { return refused("Symlink", oldname, newname) }
 func (readOnlyFS) Remove(name string) error                  { return refused("Remove", name) }
 func (readOnlyFS) RemoveAll(path string) error               { return refused("RemoveAll", path) }

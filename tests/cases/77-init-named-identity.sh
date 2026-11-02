@@ -158,30 +158,28 @@ assert_eq "$(cat "$plain/.daisy")" "user data" "and leaves the file alone"
 [ -e "$plain/.git" ] && repo=yes || repo=no
 assert_eq "$repo" "no" "having written nothing"
 
-# The swap itself failing (the second rename, forced through a PATH-injected
-# mv) rolls everything back: .daisy/ comes back from aside, the identity
-# applied is taken back and the one cleared is put back, and nothing is left
-# beside .daisy/.
+# The final step failing after the previous identity was taken back (the
+# new identity's apply, forced through a PATH-injected git) rolls everything
+# back: the identity cleared is put back, .daisy/ is untouched, and nothing
+# is left beside .daisy/. (The swap's own rename failing is the binary's
+# TestSwapFailureRollsBack: no PATH command stands in for a rename.)
 fixture_run_cli init pelicanmoor
 echo "alpha" > "$FIXTURE_WORKSPACE/.daisy/project"
 fakebin=$(mktemp -d)
-real_mv=$(command -v mv)
-cat > "$fakebin/mv" <<EOF2
+real_git=$(command -v git)
+cat > "$fakebin/git" <<EOF2
 #!/usr/bin/env bash
-# Fail the first rename onto .daisy (the swap); pass everything else on,
-# including the rollback's own rename back.
-case "\${@: -1}" in
-    */.daisy) if [ ! -e "$fakebin/failed" ]; then touch "$fakebin/failed"; echo "mv: forced failure" >&2; exit 1; fi ;;
-esac
-exec "$real_mv" "\$@"
+# Fail the apply; pass everything else on, the rollback's own restore included.
+case " \$* " in *" --replace-all user.name "*) echo "git: forced failure" >&2; exit 1 ;; esac
+exec "$real_git" "\$@"
 EOF2
-chmod +x "$fakebin/mv"
+chmod +x "$fakebin/git"
 RUN_STDOUT=$(cd "$FIXTURE_WORKSPACE" && PATH="$fakebin:$PATH" daisy init testhome 2>"$fakebin/err"); RUN_EXIT=$?
 RUN_STDERR=$(cat "$fakebin/err")
 [ "$RUN_EXIT" -ne 0 ] && failed=yes || failed=no
-assert_eq "$failed" "yes" "an init whose swap fails exits non-zero"
+assert_eq "$failed" "yes" "an init whose final step fails exits non-zero"
 assert_contains "$RUN_STDERR" "did not finish" "and says it did not finish"
-assert_eq "$(cat "$FIXTURE_WORKSPACE/.daisy/identity")" "pelicanmoor" ".daisy/ is back from aside, still bound to the previous identity"
+assert_eq "$(cat "$FIXTURE_WORKSPACE/.daisy/identity")" "pelicanmoor" ".daisy/ is untouched, still bound to the previous identity"
 assert_eq "$(cat "$FIXTURE_WORKSPACE/.daisy/project")" "alpha" "with the project binding intact"
 assert_eq "$(git -C "$FIXTURE_WORKSPACE" config --local user.name)" "Pelican Moorhen" "the previous identity is applied again"
 assert_eq "$(git -C "$FIXTURE_WORKSPACE" config --local core.sshCommand)" "ssh -i $key -o IdentitiesOnly=yes" "with its key"
@@ -293,18 +291,16 @@ assert_eq "$left" "no" "and no .daisy/ is left"
 fixture_run_cli init testhome
 git -C "$FIXTURE_WORKSPACE" config --local user.email "handset@example.invalid"
 fakebin=$(mktemp -d)
-cat > "$fakebin/mv" <<EOF2
+cat > "$fakebin/git" <<EOF2
 #!/usr/bin/env bash
-case "\${@: -1}" in
-    */.daisy) if [ ! -e "$fakebin/failed" ]; then touch "$fakebin/failed"; echo "mv: forced failure" >&2; exit 1; fi ;;
-esac
-exec "$real_mv" "\$@"
+case " \$* " in *" --replace-all user.name "*) echo "git: forced failure" >&2; exit 1 ;; esac
+exec "$real_git" "\$@"
 EOF2
-chmod +x "$fakebin/mv"
+chmod +x "$fakebin/git"
 RUN_STDOUT=$(cd "$FIXTURE_WORKSPACE" && PATH="$fakebin:$PATH" daisy init pelicanmoor 2>"$fakebin/err"); RUN_EXIT=$?
 rm -rf "$fakebin"
 [ "$RUN_EXIT" -ne 0 ] && failed=yes || failed=no
-assert_eq "$failed" "yes" "the forced swap failure exits non-zero"
+assert_eq "$failed" "yes" "the forced failure exits non-zero"
 assert_eq "$(git -C "$FIXTURE_WORKSPACE" config --local user.email)" "handset@example.invalid" "and the hand-set email is exactly as it was"
 assert_eq "$(git -C "$FIXTURE_WORKSPACE" config --local user.name)" "Zebra Quillfeather" "as is the name"
 git -C "$FIXTURE_WORKSPACE" config --local user.email "fixture@example.invalid"
@@ -314,18 +310,16 @@ fixture_run_cli init testhome
 git -C "$FIXTURE_WORKSPACE" config --local user.email $'multi\nline@example.invalid'
 git -C "$FIXTURE_WORKSPACE" config --local --add user.name $'\tTabbed Name'
 fakebin=$(mktemp -d)
-cat > "$fakebin/mv" <<EOF2
+cat > "$fakebin/git" <<EOF2
 #!/usr/bin/env bash
-case "\${@: -1}" in
-    */.daisy) if [ ! -e "$fakebin/failed" ]; then touch "$fakebin/failed"; echo "mv: forced failure" >&2; exit 1; fi ;;
-esac
-exec "$real_mv" "\$@"
+case " \$* " in *" --replace-all user.name "*) echo "git: forced failure" >&2; exit 1 ;; esac
+exec "$real_git" "\$@"
 EOF2
-chmod +x "$fakebin/mv"
+chmod +x "$fakebin/git"
 RUN_STDOUT=$(cd "$FIXTURE_WORKSPACE" && PATH="$fakebin:$PATH" daisy init pelicanmoor 2>"$fakebin/err"); RUN_EXIT=$?
 rm -rf "$fakebin"
 [ "$RUN_EXIT" -ne 0 ] && failed=yes || failed=no
-assert_eq "$failed" "yes" "the forced swap failure exits non-zero"
+assert_eq "$failed" "yes" "the forced failure exits non-zero"
 assert_eq "$(git -C "$FIXTURE_WORKSPACE" config --local --get-all user.email | wc -l | tr -d ' ')" "2" "a value with a newline is one value again (two lines)"
 assert_eq "$(git -C "$FIXTURE_WORKSPACE" config --local --get-all user.email)" $'multi\nline@example.invalid' "and byte for byte"
 assert_eq "$(git -C "$FIXTURE_WORKSPACE" config --local --get-all user.name | tail -1)" $'\tTabbed Name' "a leading tab survives too"

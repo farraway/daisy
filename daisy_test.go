@@ -261,34 +261,23 @@ func TestFallThrough(t *testing.T) {
 		t.Errorf("started %v in %q with stdout %v", got, gotDir, gotStdout)
 	}
 	// a legacy command's own --help falls through too
-	for _, args := range [][]string{{"feedback", "--help"}, {"home", "list"}} {
+	for _, args := range [][]string{{"feedback", "--help"}, {"eval", "x"}} {
 		got = nil
 		daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, args)
 		if strings.Join(got, "|") != m.root+"/daisy.sh|"+strings.Join(args, "|") {
 			t.Errorf("%v started %v", args, got)
 		}
 	}
-	// Without DAISY_ROOT the daisy.sh beside the binary is run, so install
-	// bootstraps; when even that cannot be found, the error is DAISY_ROOT's.
-	delete(m.vars, "DAISY_ROOT")
-	other := t.TempDir()
-	o.ExecutableFn = func() (string, error) { return filepath.Join(other, "bin", "daisy"), nil }
-	got = nil
-	daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, []string{"install", "--update"})
-	if strings.Join(got, "|") != other+"/daisy.sh|install|--update" {
-		t.Errorf("without DAISY_ROOT started %v", got)
-	}
 	// A cwd the shell has lost is the child's problem, not a refusal here.
 	m.vars["DAISY_ROOT"] = m.root
 	o.GetwdFn = func() (string, error) { return "", io.ErrUnexpectedEOF }
 	got, gotDir = nil, "unset"
-	daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, []string{"home", "list"})
-	if strings.Join(got, "|") != m.root+"/daisy.sh|home|list" || gotDir != "" {
+	daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, []string{"eval"})
+	if strings.Join(got, "|") != m.root+"/daisy.sh|eval" || gotDir != "" {
 		t.Errorf("lost cwd: started %v in %q", got, gotDir)
 	}
 	o.GetwdFn = func() (string, error) { return m.ws, nil }
 	delete(m.vars, "DAISY_ROOT")
-	o.ExecutableFn = func() (string, error) { return "", io.ErrUnexpectedEOF }
 	var errb bytes.Buffer
 	if code := daisy.Run(o, strings.NewReader(""), io.Discard, &errb, []string{"feedback"}); code != 1 || !strings.Contains(errb.String(), "DAISY_ROOT not set") {
 		t.Errorf("exit %d err %q", code, errb.String())

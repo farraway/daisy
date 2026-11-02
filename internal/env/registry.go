@@ -1,43 +1,124 @@
 package env
 
 import (
+	"errors"
 	"fmt"
-	"io/fs"
+	iofs "io/fs"
 	"path/filepath"
 	"strings"
 
 	"daisy/internal/ops"
 )
 
-const fsModeSymlink = fs.ModeSymlink
+const fsModeSymlink = iofs.ModeSymlink
 
 // HomesFile is the registry: one `name=/abs/path` per line.
 func (e Env) HomesFile() string { return filepath.Join(e.Config, "homes") }
 
-// HomePath is the registered path of a home, trimmed of surrounding
-// whitespace and trailing slashes; ok is false for an unregistered name.
-// Comment and blank lines are skipped, the first match wins.
-func HomePath(fs ops.FS, homesFile, name string) (path string, ok bool) {
+// Home is one registry line: a name and the path it is registered at.
+type Home struct{ Name, Path string }
+
+// Homes is every line of the registry in order, names and paths trimmed of
+// surrounding whitespace and paths of trailing slashes; comments, blank
+// lines and lines without a path are skipped. A name may appear twice: the
+// first line is the one that counts.
+func Homes(fs ops.FS, homesFile string) []Home {
 	b, err := fs.ReadFile(homesFile)
 	if err != nil {
-		return "", false
+		return nil
 	}
+	var homes []Home
 	for _, line := range strings.Split(string(b), "\n") {
 		key, value, found := strings.Cut(line, "=")
 		if !found {
 			continue
 		}
 		key = strings.TrimSpace(key)
-		if key == "" || strings.HasPrefix(key, "#") || key != name {
-			continue
-		}
 		value = strings.TrimRight(strings.TrimSpace(value), "/")
-		if value == "" {
+		if key == "" || strings.HasPrefix(key, "#") || value == "" {
 			continue
 		}
-		return value, true
+		homes = append(homes, Home{Name: key, Path: value})
+	}
+	return homes
+}
+
+// HomePath is the registered path of a home; ok is false for an
+// unregistered name.
+func HomePath(fs ops.FS, homesFile, name string) (path string, ok bool) {
+	for _, h := range Homes(fs, homesFile) {
+		if h.Name == name {
+			return h.Path, true
+		}
 	}
 	return "", false
+}
+
+// UsableHomes are the registered homes that can be used as homes, each
+// name once (the line HomePath reads), in registry order; Problems are the
+// others, each with what is wrong with it.
+func UsableHomes(fs ops.FS, root, homesFile string) (usable []Home, problems []HomeProblem) {
+	seen := map[string]bool{}
+	for _, h := range Homes(fs, homesFile) {
+		if seen[h.Name] {
+			continue
+		}
+		seen[h.Name] = true
+		if p := HomePathProblem(fs, root, filepath.Clean(h.Path)); p != "" {
+			problems = append(problems, HomeProblem{h, p})
+			continue
+		}
+		usable = append(usable, Home{Name: h.Name, Path: filepath.Clean(h.Path)})
+	}
+	return usable, problems
+}
+
+// HomeProblem is a registered home that cannot be used, and why.
+type HomeProblem struct {
+	Home
+	Problem string
+}
+
+// Register appends `name=path` to the registry on a line of its own,
+// creating the file. Callers validate the name and the path.
+func Register(fs ops.FS, homesFile, name, path string) error {
+	b, err := fs.ReadFile(homesFile)
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return fmt.Errorf("Error: cannot read %s: %v", homesFile, err)
+	}
+	if len(b) > 0 && b[len(b)-1] != '\n' {
+		b = append(b, '\n')
+	}
+	b = append(b, name+"="+path+"\n"...)
+	if err := fs.MkdirAll(filepath.Dir(homesFile), 0o755); err != nil {
+		return fmt.Errorf("Error: %v", err)
+	}
+	if err := ops.Rewrite(fs, homesFile, b, 0o644); err != nil {
+		return fmt.Errorf("Error: %v", err)
+	}
+	return nil
+}
+
+// Unregister drops every line whose name is name; the other lines are kept
+// byte for byte.
+func Unregister(fs ops.FS, homesFile, name string) error {
+	b, err := fs.ReadFile(homesFile)
+	if err != nil {
+		return fmt.Errorf("Error: cannot read %s: %v", homesFile, err)
+	}
+	lines := strings.SplitAfter(string(b), "\n")
+	var kept strings.Builder
+	for _, line := range lines {
+		key, _, _ := strings.Cut(line, "=")
+		if strings.TrimSpace(key) == name {
+			continue
+		}
+		kept.WriteString(line)
+	}
+	if err := ops.Rewrite(fs, homesFile, []byte(kept.String()), 0o644); err != nil {
+		return fmt.Errorf("Error: %v", err)
+	}
+	return nil
 }
 
 // HomePathProblem says why a path cannot be a home, or "" when it can: it

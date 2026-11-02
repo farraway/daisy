@@ -118,6 +118,8 @@ type realFS struct{}
 
 func (realFS) ReadFile(name string) ([]byte, error)         { return os.ReadFile(name) }
 func (realFS) MkdirAll(path string, perm os.FileMode) error { return os.MkdirAll(path, perm) }
+func (realFS) Mkdir(path string, perm os.FileMode) error    { return os.Mkdir(path, perm) }
+func (realFS) Chmod(name string, mode os.FileMode) error    { return os.Chmod(name, mode) }
 func (realFS) ReadDir(name string) ([]os.DirEntry, error)   { return os.ReadDir(name) }
 func (realFS) Stat(name string) (os.FileInfo, error)        { return os.Stat(name) }
 func (realFS) Lstat(name string) (os.FileInfo, error)       { return os.Lstat(name) }

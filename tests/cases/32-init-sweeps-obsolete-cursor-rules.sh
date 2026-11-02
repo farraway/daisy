@@ -1,6 +1,6 @@
 # daisy init must remove pre-.mdc-rename Cursor rule files (daisy.md,
-# daisy-logging.md) — daisy-init.sh used to only ever write the current
-# DAISY_CURSOR_RULE_FILES names and never clean up names that left that list
+# daisy-logging.md) — init used to only ever write the current rule names
+# and never clean up names that left that list
 # (defect 6c, deferred item 5 from plan 260714).
 
 mkdir -p "$FIXTURE_WORKSPACE/.cursor/rules"

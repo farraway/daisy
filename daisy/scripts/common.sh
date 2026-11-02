@@ -37,10 +37,6 @@ daisy_config_dir() {
     echo "${DAISY_CONFIG:-$HOME/.config/daisy}"
 }
 
-daisy_local_dir() {
-    echo "${DAISY_LOCAL:-$HOME/.local/daisy}"
-}
-
 daisy_homes_file() {
     echo "$(daisy_config_dir)/homes"
 }
@@ -77,31 +73,6 @@ daisy_home_path() {
         }' "$file")
     [ -n "$path" ] || return 1
     echo "$path"
-}
-
-# Appends `name=path` to the registry. Callers validate the name and the
-# path; this only guarantees the line lands on a line of its own.
-daisy_register_home() {
-    local file
-    file=$(daisy_homes_file)
-    mkdir -p "$(dirname "$file")"
-    [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ] && echo >> "$file"
-    printf '%s=%s\n' "$1" "$2" >> "$file"
-}
-
-# Removes a name from the registry; other lines are passed through as is.
-# Rewritten in place (not moved over) so a registry kept as a symlink stays
-# one. Returns 1 if there is no registry.
-daisy_unregister_home() {
-    local file tmp
-    file=$(daisy_homes_file)
-    [ -f "$file" ] || return 1
-    tmp=$(mktemp)
-    awk -F= -v name="$1" '
-        { key = $1; gsub(/^[[:space:]]+|[[:space:]]+$/, "", key) }
-        key != name' "$file" > "$tmp"
-    cat "$tmp" > "$file"
-    rm -f "$tmp"
 }
 
 # Echoes why a path cannot be a home, or nothing when it can. The one
@@ -239,8 +210,8 @@ daisy_root_exclusions() {
 # identity of that home, named `<id>`. A workspace records a non-default
 # identity in `.daisy/identity` beside `.daisy/home`.
 #
-# The same three keys are set from a file (daisy_identity_apply) and unset
-# against one (daisy_identity_unset). `init` records what it applied in the
+# The same three keys are set from a file and unset against one (the
+# binary's internal/identity, for `init` and `clean`). `init` records what it applied in the
 # workspace's `.daisy/gitconfig`, in the same format, and `clean` and a
 # later `init` unset against that record: what was applied, not what the
 # home's file says now, which may have changed or gone.
@@ -301,24 +272,6 @@ daisy_workspace_identity() {
     printf '%s\n' "${identity:-$home_name}"
 }
 
-# Echoes the file to unset a workspace's git identity against: the record
-# init kept (.daisy/gitconfig) when it reads; else, for a workspace bound
-# before records existed or whose record is damaged, the identity file the
-# binding names, when the home resolves and that file reads; else nothing,
-# and returns 1. A record is a readable identity file, wherever it is found.
-daisy_identity_record_file() {
-    local daisy_dir="$1" home_name="$2" identity="$3" home_dir file
-    if daisy_identity_read "$daisy_dir/gitconfig" 2>/dev/null; then
-        echo "$daisy_dir/gitconfig"
-        return 0
-    fi
-    [ -n "$home_name" ] || return 1
-    home_dir=$(daisy_home_dir "$home_name" 2>/dev/null) || return 1
-    file=$(daisy_identity_file "$home_dir" "$home_name" "$identity") || return 1
-    daisy_identity_read "$file" 2>/dev/null || return 1
-    echo "$file"
-}
-
 # True when a core.sshCommand value is exactly one Daisy writes — `ssh -i`,
 # one plain key path (the sshkey= rule), `-o IdentitiesOnly=yes` — so that,
 # whatever record survived, it was applied by an init and is Daisy's to
@@ -359,68 +312,6 @@ daisy_identity_value() {
     esac
 }
 
-# True when the directory is a linked worktree: `git config --local` there
-# writes the main checkout's config, so an identity cannot be bound to it
-# without binding the other repository too.
-daisy_is_linked_worktree() {
-    local git_dir common_dir
-    git_dir=$(cd "$1" && daisy_realdir "$(git rev-parse --git-dir 2>/dev/null)") || return 1
-    common_dir=$(daisy_git_common_dir "$1") || return 1
-    [ "$git_dir" != "$common_dir" ]
-}
-
-# Echoes the resolved git directory shared by every worktree of the
-# repository containing a directory (its own, when it is not a worktree).
-daisy_git_common_dir() {
-    (cd "$1" && daisy_realdir "$(git rev-parse --git-common-dir 2>/dev/null)")
-}
-
-# Writes the identity last read (daisy_identity_read) to a file in identity
-# format — the record `init` keeps of what it applied.
-daisy_identity_record() {
-    {
-        printf 'name=%s\nemail=%s\n' "$IDENTITY_NAME" "$IDENTITY_EMAIL"
-        if [ -n "$IDENTITY_SSHKEY" ]; then printf 'sshkey=%s\n' "$IDENTITY_SSHKEY"; fi
-    } > "$1"
-}
-
-# Sets the three keys in a repository's local config from the identity last
-# read (daisy_identity_read), replacing every value a key may hold (a plain
-# set refuses a multi-valued key). One read serves both the apply and the
-# record of it.
-daisy_identity_apply() {
-    local repo="$1"
-    git -C "$repo" config --local --replace-all user.name "$IDENTITY_NAME"
-    git -C "$repo" config --local --replace-all user.email "$IDENTITY_EMAIL"
-    if [ -n "$IDENTITY_SSH_COMMAND" ]; then
-        git -C "$repo" config --local --replace-all core.sshCommand "$IDENTITY_SSH_COMMAND"
-    fi
-}
-
-# Unsets each of the three keys that is still the identity file's — every
-# value the key holds equals the file's — and echoes the keys it unset as
-# one comma-separated line. A value changed or added by hand since the
-# identity was applied is not the identity's, and the key is left whole;
-# except core.sshCommand when every value it holds is in Daisy's own form
-# (daisy_identity_ssh_is_daisys): only an init writes one, so it is Daisy's
-# even when the file claims no key, or there is no readable file at all
-# (the init that wrote it did not finish, or its record was lost).
-daisy_identity_unset() {
-    local repo="$1" file="${2:-}" key value cleared=""
-    daisy_identity_read "$file" 2>/dev/null || true  # read clears the claims before failing
-    for key in "${DAISY_IDENTITY_KEYS[@]}"; do
-        value=$(daisy_identity_value "$key")
-        daisy_identity_key_is_ours "$repo" "$key" "$value" || continue
-        git -C "$repo" config --local --unset-all "$key" || {
-            echo "Error: could not unset $key in the repository at $repo" >&2
-            return 1
-        }
-        cleared="${cleared:+$cleared, }$key"
-    done
-    [ -n "$cleared" ] && echo "$cleared"
-    return 0
-}
-
 # What an interrupted `daisy init` swap can leave beside .daisy/: the previous
 # .daisy/ moved aside (.daisy.previous.<pid>) and the staging directory
 # (.daisy.stage.<6 chars>), directories only. One per line. Only these exact
@@ -444,41 +335,6 @@ daisy_init_leftovers() {
 daisy_is_workspace_dir() {
     [ -d "$1/.daisy" ] || return 1
     [ "$(daisy_realdir "$1/.daisy")" != "$(daisy_realdir "$DAISY_ROOT")" ]
-}
-
-# Removes a staging directory an interrupted init left, first unsetting the
-# identity that init applied — the stage's gitconfig is the only record of
-# it — but only where that init applied it: the directory's own repository,
-# never an enclosing one, never a worktree's main checkout. Echoes the keys
-# unset. Returns 1, removing nothing, when an unset fails.
-daisy_reclaim_stage() {
-    local repo="$1" stage="$2" cleared=""
-    if daisy_identity_repo_here "$repo"; then
-        cleared=$(daisy_identity_unset "$repo" "$stage/gitconfig") || return 1
-    fi
-    rm -rf "${stage:?}" || { echo "Error: could not remove $stage; remove it by hand" >&2; return 1; }
-    [ -n "$cleared" ] && echo "$cleared"
-    return 0
-}
-
-# True when init may have applied a git identity to this directory: it is
-# the top level of its own repository, not a linked worktree (whose config
-# is the main checkout's). The one judgement behind every unset.
-daisy_identity_repo_here() {
-    daisy_is_repo_root "$1" && ! daisy_is_linked_worktree "$1"
-}
-
-# Registered homes that cannot be used as homes, one `name<TAB>path<TAB>problem`
-# per line (daisy_home_path_problem's words). The complement of
-# daisy_usable_homes, for the reader that must refuse rather than skip.
-daisy_homes_with_problems() {
-    local name path problem
-    while IFS= read -r name; do
-        path=$(daisy_home_path "$name") || continue
-        problem=$(daisy_home_path_problem "$path")
-        [ -n "$problem" ] && printf '%s\t%s\t%s\n' "$name" "$path" "$problem"
-    done < <(daisy_homes)
-    return 0
 }
 
 # True, having printed the error and the repair, when a directory is a
@@ -584,43 +440,6 @@ daisy_report_drift() {
         sed "s/^/⚠️  /; s/\$/; re-run 'daisy init $DAISY_IDENTITY_NAME'/" >&2
 }
 
-# Writes the repository's current values of the three identity keys to a
-# file as NUL-separated key, value pairs (a multi-valued key gives several;
-# an unset key none), and restores them from it: every value of each
-# key is replaced by exactly what the file holds. The pair lets `init` put
-# the keys back as they were — hand-set values included — when it cannot
-# finish.
-daisy_identity_snapshot() {
-    local repo="$1" out="$2" key value
-    : > "$out"
-    for key in "${DAISY_IDENTITY_KEYS[@]}"; do
-        git -C "$repo" config --local --get-all -z "$key" 2>/dev/null |
-            while IFS= read -r -d '' value; do printf '%s\0%s\0' "$key" "$value"; done >> "$out"
-    done
-    return 0
-}
-daisy_identity_restore() {
-    local repo="$1" in="$2" key value ok=true
-    [ -f "$in" ] || return 1
-    for key in "${DAISY_IDENTITY_KEYS[@]}"; do
-        git -C "$repo" config --local --unset-all "$key" 2>/dev/null || true
-    done
-    while IFS= read -r -d '' key && IFS= read -r -d '' value; do
-        git -C "$repo" config --local --add "$key" "$value" || ok=false
-    done < "$in"
-    [ "$ok" = true ]
-}
-
-# Echoes the names of the registered homes defining `identities/<id>`, one
-# per line. A registered name that cannot be a home contributes nothing.
-daisy_identity_homes() {
-    local identity="$1" name path
-    while IFS=$'\t' read -r name path; do
-        [ -f "$path/identities/$identity" ] && echo "$name"
-    done < <(daisy_usable_homes)
-    return 0
-}
-
 # A home or identity name is a registry key and a file name: letters,
 # digits, '.', '_', '-', starting with a letter or digit. Refuses '=' (the
 # registry delimiter), '/', whitespace and a leading dot, so a name can
@@ -628,66 +447,6 @@ daisy_identity_homes() {
 daisy_name_ok() {
     local LC_ALL=C  # ASCII letters and digits, whatever the locale
     [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
-}
-
-# Every identity on this machine, one `identity<TAB>home` per line: each
-# registered home's own name, then its identities/ files.
-daisy_identities() {
-    local name path f
-    while IFS=$'\t' read -r name path; do
-        printf '%s\t%s\n' "$name" "$name"
-        for f in "$path"/identities/*; do
-            [ -f "$f" ] || continue
-            printf '%s\t%s\n' "$(basename "$f")" "$name"
-        done
-    done < <(daisy_usable_homes)
-    return 0
-}
-
-# Echoes the name of the home an identity belongs to: the registered home
-# of that name (its default identity) if there is one, else the one home
-# defining identities/<id>. Two homes defining it is an error naming both;
-# none is an error listing every identity there is. Returns 1 on error.
-daisy_identity_home() {
-    local identity="$1" homes count name path problem
-    if ! daisy_name_ok "$identity"; then
-        echo "Error: '$identity' is not a valid identity name (letters, digits, '.', '_', '-'; starting with a letter or digit)" >&2
-        return 1
-    fi
-    if daisy_home_path "$identity" >/dev/null; then
-        echo "$identity"
-        return 0
-    fi
-    # An identity name is looked up across every registered home; a home
-    # that cannot be read might define it too, so the name cannot be
-    # resolved until the registry is whole.
-    homes=$(daisy_homes_with_problems)
-    if [ -n "$homes" ]; then
-        echo "Error: cannot resolve identity '$identity' while a registered home cannot be checked for it:" >&2
-        while IFS=$'\t' read -r name path problem; do
-            echo "  home '$name' is registered at $path, which $problem" >&2
-        done <<< "$homes"
-        echo "  Fix the registration ('daisy home remove <name>', then 'daisy home add <name> /path/to/home') or restore the path, then re-run" >&2
-        return 1
-    fi
-    homes=$(daisy_identity_homes "$identity")
-    count=$(printf '%s' "$homes" | grep -c . || true)
-    case "$count" in
-        1) echo "$homes"; return 0 ;;
-        0)
-            echo "Error: '$identity' is neither a registered home nor an identity of one" >&2
-            echo "  Identities on this machine (identity, home):" >&2
-            daisy_identities | awk -F'\t' '{ printf "    %-14s %s\n", $1, $2 }' >&2
-            echo "  To add an identity: write name=, email= and optionally sshkey= to <home>/identities/$identity" >&2
-            echo "  To create a new home: daisy home new $identity" >&2
-            return 1
-            ;;
-        *)
-            echo "Error: identity '$identity' is defined in more than one home: $(echo "$homes" | paste -sd, | sed 's/,/, /g')" >&2
-            echo "  Remove or rename identities/$identity in all but one of them" >&2
-            return 1
-            ;;
-    esac
 }
 
 # Resolve DAISY_HOME for the current workspace.
@@ -982,49 +741,3 @@ require_env() {
     require_root || return 1
     resolve_home || return 1
 }
-
-# --- Shared workspace-install artifact lists ---
-# Single source of truth for what `daisy-init.sh` installs into a workspace,
-# so `cmd_clean` (daisy.sh) can't silently drift out of sync with it again.
-
-DAISY_CURSOR_RULE_FILES=(
-    "daisy.mdc"
-    "daisy-logging.mdc"
-    "daisy-plan.mdc"
-)
-
-# Names that used to be current (pre-.mdc-rename, or names later dropped from
-# DAISY_CURSOR_RULE_FILES) and must be swept from .cursor/rules/ on init —
-# daisy-init.sh only ever writes the names above, so a name that left this
-# list stays behind forever otherwise.
-DAISY_CURSOR_RULE_OBSOLETE=(
-    "daisy.md"
-    "daisy-logging.md"
-)
-
-DAISY_CLAUDE_COMMAND_FILE=".claude/commands/daisy.md"
-
-DAISY_ALLOW_BASE=(
-    "Read(.daisy/**)"
-    "Edit(.daisy/**)"
-    "Bash(daisy:*)"
-)
-
-DAISY_GITIGNORE_BASE_ENTRIES=(
-    ".daisy/"
-    ".daisy.stage.*"
-    ".daisy.previous.*"
-    ".cursor/rules/daisy.mdc"
-    ".cursor/rules/daisy-logging.mdc"
-    ".cursor/rules/daisy-plan.mdc"
-    ".claude/commands/daisy.md"
-    ".claude/settings.local.json"
-    "PLAN.md"
-)
-
-DAISY_CURSORIGNORE_BASE_ENTRIES=(
-    "!.daisy/"
-    "!.cursor/rules/daisy.mdc"
-    "!.cursor/rules/daisy-logging.mdc"
-    "!PLAN.md"
-)

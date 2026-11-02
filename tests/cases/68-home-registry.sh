@@ -53,17 +53,26 @@ echo "testhome" > "$FIXTURE_WORKSPACE/.daisy/home"
 fixture_unregister_home rooty
 
 # Nor can a home hold the root: a home commit there would commit the root.
-problem=$(bash -c "source '$DAISY_ROOT/daisy/scripts/common.sh'; daisy_home_path_problem '$(dirname "$FIXTURE_ROOT")'")
-assert_contains "$problem" "contains the Daisy root" "a directory holding the root cannot be a home"
-problem=$(bash -c "source '$DAISY_ROOT/daisy/scripts/common.sh'; daisy_home_path_problem 'relative/path'")
-assert_contains "$problem" "not an absolute path" "a relative registry path cannot be a home"
-problem=$(bash -c "source '$DAISY_ROOT/daisy/scripts/common.sh'; daisy_home_path_problem '$FIXTURE_HOME'")
-assert_eq "$problem" "" "the fixture home has no problem"
-# Spellings of the same directory: a POSIX-special leading `//`, and `/`.
-problem=$(bash -c "source '$DAISY_ROOT/daisy/scripts/common.sh'; daisy_home_path_problem '/$FIXTURE_ROOT'")
-assert_contains "$problem" "is the Daisy root" "a double-slash spelling of the root is still the root"
-problem=$(bash -c "source '$DAISY_ROOT/daisy/scripts/common.sh'; daisy_home_path_problem '/'")
-assert_contains "$problem" "contains the Daisy root" "the filesystem root contains every Daisy root"
+# Each registry spelling is checked as the binary resolves the home.
+home_problem() {
+    fixture_register_home probe "$1"
+    echo "probe" > "$FIXTURE_WORKSPACE/.daisy/home"
+    fixture_run_cli status
+    echo "testhome" > "$FIXTURE_WORKSPACE/.daisy/home"
+    fixture_unregister_home probe
+}
+home_problem "$(dirname "$FIXTURE_ROOT")"
+assert_contains "$RUN_STDERR" "contains the Daisy root" "a directory holding the root cannot be a home"
+home_problem "relative/path"
+assert_contains "$RUN_STDERR" "not an absolute path" "a relative registry path cannot be a home"
+home_problem "$FIXTURE_HOME"
+assert_eq "$RUN_EXIT" "0" "the fixture home has no problem"
+# Spellings of the same directory: a POSIX-special leading `//`, and `/`
+# (written `/.`: a registry path is read without its trailing slashes).
+home_problem "/$FIXTURE_ROOT"
+assert_contains "$RUN_STDERR" "is the Daisy root" "a double-slash spelling of the root is still the root"
+home_problem "/."
+assert_contains "$RUN_STDERR" "contains the Daisy root" "the filesystem root contains every Daisy root"
 
 # A workspace bound to the second home resolves into its registered path.
 fixture_run_cli init second

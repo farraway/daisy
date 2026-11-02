@@ -11,24 +11,27 @@
 
 REAL_DAISY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 
-# For the registry writers: the fixture registers homes the way production
-# does, so the two cannot drift apart. They read DAISY_CONFIG, which
-# fixture_setup exports before the first call.
-source "$REAL_DAISY_ROOT/daisy/scripts/common.sh"
-
 fixture_home_dir() {
     echo "$FIXTURE_HOME"
 }
 
-# Registers a home name in the fixture registry. The directory need not
-# exist: the registry is what makes a name a home, and the publication
-# hygiene scan derives its terms from registered names.
+# Registers a home name in the fixture registry ($DAISY_CONFIG/homes, one
+# `name=path` per line). The directory need not exist: the registry is what
+# makes a name a home, and the publication hygiene scan derives its terms
+# from registered names — which is why this writes the line itself rather
+# than going through `daisy home add`, which refuses a path that is not a home.
 fixture_register_home() {
-    daisy_register_home "$1" "${2:-$FIXTURE_LOCAL/homes/$1}"
+    local file="$DAISY_CONFIG/homes"
+    mkdir -p "$DAISY_CONFIG"
+    if [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ]; then echo >> "$file"; fi
+    printf '%s=%s\n' "$1" "${2:-$FIXTURE_LOCAL/homes/$1}" >> "$file"
 }
 
+# Drops every registry line of a name, as `daisy home remove` does.
 fixture_unregister_home() {
-    daisy_unregister_home "$1"
+    local file="$DAISY_CONFIG/homes" kept
+    kept=$(awk -F= -v name="$1" '{ key = $1; gsub(/^[[:space:]]+|[[:space:]]+$/, "", key) } key != name' "$file")
+    printf '%s\n' "$kept" > "$file"
 }
 
 # Sets up FIXTURE_ROOT, FIXTURE_HOME, FIXTURE_CONFIG, FIXTURE_LOCAL,
@@ -114,15 +117,16 @@ fixture_workspace_named() {
 }
 
 # Binds a directory to the fixture home the way `daisy init` leaves it:
-# .daisy/home and the six links — so the binding check in status/files has
-# nothing to report, as in a real workspace.
+# .daisy/home and the six links (env.Links in the binary) — so the binding
+# check in status/files has nothing to report, as in a real workspace.
 fixture_bind_workspace() {
-    local dir="$1" link target
+    local dir="$1" pair
     mkdir -p "$dir/.daisy"
     echo "testhome" > "$dir/.daisy/home"
-    while IFS=$'\t' read -r link target; do
-        ln -sfn "$FIXTURE_HOME/$target" "$dir/.daisy/$link"
-    done < <(daisy_workspace_links)
+    for pair in tasks:tasks today.md:journal/today.md journal.md:journal/journal.md \
+        projects:projects plans:plans feedback.md:feedback/feedback.md; do
+        ln -sfn "$FIXTURE_HOME/${pair#*:}" "$dir/.daisy/${pair%%:*}"
+    done
 }
 
 fixture_write_project_binding() {
@@ -169,9 +173,8 @@ fixture_teardown_llm_stub() {
 # the words are split at the call site so an entry may be several.
 fixture_command() {
     case "$1" in
-        daisy-init)   echo "init" ;;
         build-prompt) echo "prompt build" ;;
-        check-secrets|commit|done|eval|feedback|files|healthcheck|home|list|log|\
+        check-secrets|commit|done|eval|feedback|files|healthcheck|list|log|\
         new-day|new-week|optimize|plan-archive|plan-new|plan-pickup|projects|\
         rotate|tasks|test)
             echo "$1" ;;
@@ -212,6 +215,12 @@ fixture_run() {
 fixture_run_with_input() {
     local input="$1"; shift
     fixture_run "$@" <<<"$input"
+}
+
+# The same for command words given as they are typed (`home new <name>`).
+fixture_run_cli_with_input() {
+    local input="$1"; shift
+    fixture_run_cli "$@" <<<"$input"
 }
 
 # Sets FIXTURE_HOME_OVERRIDE to a fresh temp dir and exports it as HOME for

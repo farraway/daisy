@@ -64,7 +64,7 @@ func Root(o ops.Ops) (string, error) {
 // Resolve finds the workspace the working directory is in and the home it
 // is bound to. The error is the message for stderr, fix included.
 func Resolve(o ops.Ops) (Env, error) {
-	e, err := machine(o)
+	e, err := Machine(o)
 	if err != nil {
 		return e, err
 	}
@@ -74,7 +74,7 @@ func Resolve(o ops.Ops) (Env, error) {
 	if err != nil {
 		return e, fmt.Errorf("Error: cannot read the working directory: %v", err)
 	}
-	ws, err := findWorkspace(fs, root, cwd)
+	ws, err := FindWorkspace(fs, root, cwd)
 	if err != nil {
 		return e, err
 	}
@@ -93,13 +93,7 @@ func Resolve(o ops.Ops) (Env, error) {
 		return e, err
 	}
 
-	e.Identity = e.HomeName
-	if b, err := fs.ReadFile(filepath.Join(daisyDir, "identity")); err == nil {
-		first, _, _ := strings.Cut(strings.ReplaceAll(string(b), "\r", ""), "\n")
-		if id := strings.TrimSpace(first); id != "" {
-			e.Identity = id
-		}
-	}
+	e.Identity = WorkspaceIdentity(fs, daisyDir, e.HomeName)
 	e.IdentityFile, err = IdentityFile(e.Home, e.HomeName, e.Identity)
 	if err != nil {
 		return e, fmt.Errorf("Error: %s holds '%s', which is not an identity name\n  Re-run 'daisy init <identity>' in the workspace to rebind it", filepath.Join(daisyDir, "identity"), e.Identity)
@@ -113,7 +107,7 @@ func Resolve(o ops.Ops) (Env, error) {
 // root, the per-machine directories and the home. Identity and projects
 // are a workspace's and stay unset.
 func ForHome(o ops.Ops, name string) (Env, error) {
-	e, err := machine(o)
+	e, err := Machine(o)
 	if err != nil {
 		return e, err
 	}
@@ -122,15 +116,15 @@ func ForHome(o ops.Ops, name string) (Env, error) {
 	return e, err
 }
 
-// machine is the root and the per-machine directories.
-func machine(o ops.Ops) (Env, error) {
+// Machine is the root and the per-machine directories, with no workspace.
+func Machine(o ops.Ops) (Env, error) {
 	root, err := Root(o)
 	if err != nil {
 		return Env{}, err
 	}
 	return Env{
 		Root:   root,
-		Config: orDefault(o, "DAISY_CONFIG", ".config/daisy"),
+		Config: ConfigDir(o),
 		Local:  orDefault(o, "DAISY_LOCAL", ".local/daisy"),
 	}, nil
 }
@@ -145,6 +139,9 @@ func homeDir(o ops.Ops, e Env) (string, error) {
 	return filepath.Clean(home), nil
 }
 
+// ConfigDir is $DAISY_CONFIG, default ~/.config/daisy: where the registry is.
+func ConfigDir(o ops.Ops) string { return orDefault(o, "DAISY_CONFIG", ".config/daisy") }
+
 // orDefault is `${KEY:-$HOME/<underHome>}`: with HOME unset the default is
 // under `/`, as the shell expanded it, never relative to the cwd.
 func orDefault(o ops.Ops, key, underHome string) string {
@@ -154,24 +151,24 @@ func orDefault(o ops.Ops, key, underHome string) string {
 	return filepath.Join("/"+o.Getenv("HOME"), underHome)
 }
 
-// findWorkspace walks up from cwd to the nearest directory that carries a
+// FindWorkspace walks up from cwd to the nearest directory that carries a
 // binding, refusing one that is broken rather than walking past it.
-func findWorkspace(fs ops.FS, root, cwd string) (string, error) {
+func FindWorkspace(fs ops.FS, root, cwd string) (string, error) {
 	for dir := cwd; dir != "/" && dir != "."; dir = filepath.Dir(dir) {
 		if err := workspaceProblem(fs, root, dir); err != nil {
 			return "", err
 		}
-		if isWorkspaceDir(fs, root, dir) {
+		if IsWorkspaceDir(fs, root, dir) {
 			return dir, nil
 		}
 	}
 	return "", errors.New("Error: Not in a Daisy workspace (no .daisy/ directory found)\n  Run 'daisy init <identity>' to initialize this workspace.")
 }
 
-// isWorkspaceDir: a .daisy/ directory that is not the Daisy root itself. The
+// IsWorkspaceDir: a .daisy/ directory that is not the Daisy root itself. The
 // root is a directory named .daisy under the user's home, so a walk up from
 // beside it steps past it and never reads it as a binding.
-func isWorkspaceDir(fs ops.FS, root, dir string) bool {
+func IsWorkspaceDir(fs ops.FS, root, dir string) bool {
 	d := filepath.Join(dir, ".daisy")
 	fi, err := fs.Stat(d)
 	if err != nil || !fi.IsDir() {
@@ -188,7 +185,7 @@ var leftoverShape = regexp.MustCompile(`^\.daisy\.(previous\.[0-9]+|stage\.[A-Za
 func workspaceProblem(fs ops.FS, root, dir string) error {
 	d := filepath.Join(dir, ".daisy")
 	if fi, err := fs.Stat(d); err == nil && fi.IsDir() {
-		if isWorkspaceDir(fs, root, dir) && isSymlink(fs, d) {
+		if IsWorkspaceDir(fs, root, dir) && isSymlink(fs, d) {
 			return fmt.Errorf("Error: %s is a symlink; a binding is a directory of its own — move it aside, then run 'daisy init <identity>' there", d)
 		}
 		return nil
@@ -199,7 +196,7 @@ func workspaceProblem(fs ops.FS, root, dir string) error {
 	if _, err := fs.Lstat(d); err == nil {
 		return fmt.Errorf("Error: %s exists and is not a directory; move it aside, then run 'daisy init <identity>' there", d)
 	}
-	leftovers := initLeftovers(fs, dir)
+	leftovers := InitLeftovers(fs, dir)
 	if len(leftovers) == 0 {
 		return nil
 	}
@@ -211,9 +208,9 @@ func isSymlink(fs ops.FS, p string) bool {
 	return err == nil && fi.Mode()&fsModeSymlink != 0
 }
 
-// initLeftovers: .daisy.previous.<pid> then .daisy.stage.<6 chars>,
+// InitLeftovers: .daisy.previous.<pid> then .daisy.stage.<6 chars>,
 // directories only; a user's look-alike is never listed.
-func initLeftovers(fs ops.FS, dir string) []string {
+func InitLeftovers(fs ops.FS, dir string) []string {
 	entries, err := fs.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -231,6 +228,18 @@ func initLeftovers(fs ops.FS, dir string) []string {
 		}
 	}
 	return append(previous, stage...)
+}
+
+// WorkspaceIdentity is the identity a binding names: the first line of
+// .daisy/identity, trimmed, else (absent or empty) the home's own name.
+func WorkspaceIdentity(fs ops.FS, daisyDir, homeName string) string {
+	if b, err := fs.ReadFile(filepath.Join(daisyDir, "identity")); err == nil {
+		first, _, _ := strings.Cut(strings.ReplaceAll(string(b), "\r", ""), "\n")
+		if id := strings.TrimSpace(first); id != "" {
+			return id
+		}
+	}
+	return homeName
 }
 
 var nameShape = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)

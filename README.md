@@ -116,19 +116,19 @@ cd daisy
 
 ```bash
 make build        # the Go binary, bin/daisy (Go 1.27, standard library only)
-./daisy.sh install
+bin/daisy install
 ```
 
 This will:
-- Create a `~/bin/daisy` symlink to `bin/daisy`
+- Create a `~/bin/daisy` symlink to `bin/daisy` (`install` does not build it)
 - Install the root skills into `~/.claude/skills/`
-- Select a default home from the registry (`~/.config/daisy/homes`), or
-  create and register one with `daisy home new` when none exists — a home is
-  its own git repository, by default at `~/.local/daisy/homes/<name>`
-- Add `DAISY_ROOT` and `DAISY_DEFAULT_HOME` to your shell rc file (`.zshenv`, `.bashrc`, etc.)
+- Add `DAISY_ROOT` to your shell rc file (`.zshenv`, `.bashrc`, etc.)
 - Configure Claude Code permissions for `daisy` and `$DAISY_ROOT`
 
-Then reload your shell: `source ~/.zshenv` (or open a new terminal).
+Then reload your shell: `source ~/.zshenv` (or open a new terminal), and
+create a home if you have none: `daisy home new <name>` makes one, its own
+git repository, by default at `~/.local/daisy/homes/<name>`, and registers it
+in `~/.config/daisy/homes`.
 
 ### 3. Initialize Daisy in a Workspace
 
@@ -140,8 +140,7 @@ daisy init work
 `work` is an identity: a registered home's name (its default identity, from
 the home's `gitconfig`), or the name of an `identities/<id>` file in exactly
 one registered home. The workspace binds to that home, and the workspace's
-own repository commits as that identity. `daisy init --new <name>` creates and registers
-the home first. This creates:
+own repository commits as that identity. This creates:
 - `.daisy/` directory with symlinks to that home's tasks, journal, projects,
   plans and feedback
 - The identity's `user.name`/`user.email` (and SSH key, if it has one) in the
@@ -225,9 +224,10 @@ daisy help [<command>|<skill>] # Show command list, one command's usage, or a sk
 daisy home list               # Registered homes and where each lives
 daisy home new <name> [path]  # Create a home (own git repo) and register it
 daisy home add <name> <path>  # Register an existing home; `remove` unregisters
+daisy identity list           # Identities across the registered homes
 daisy init <identity>         # Bind the workspace to an identity and its home
 daisy init personal           # Re-run to switch home or identity
-daisy install [--update]      # Set up ~/bin/daisy, root skills, shell environment
+daisy install [--update]      # Set up ~/bin/daisy, root skills, permissions, shell rc
 daisy list                    # List active prompts and installed skills
 daisy log Did thing A         # Add log entry (no quoting needed)
 daisy new-day                 # Start a new day
@@ -287,7 +287,7 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── cmd/daisy/main.go           # The binary: bin/daisy (symlinked to ~/bin/daisy); `make build`
 ├── daisy.go, internal/         # Run, and the Go packages behind it (ops, env, cli, commands, ...)
 ├── daisy.sh                    # Bash entry point; the binary falls through to it for commands not yet ported
-├── daisy/scripts/              # daisy-init, home, feedback, optimize, eval,
+├── daisy/scripts/              # feedback, optimize, eval,
 │                               # healthcheck, common, commit, check-secrets,
 │                               # files, plan-new, plan-pickup, plan-archive,
 │                               # test

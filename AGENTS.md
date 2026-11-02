@@ -107,8 +107,11 @@ writes `bin/daisy` (gitignored); `daisy test` builds it first and drives the
 suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
 -race`) runs before every root commit. Ported so far: `status`, `files`,
 `log`, `done`, `tasks`, `projects`, `new-day`, `new-week`, `rotate`,
-`prompt build`, `list` and `help` (`internal/todo`, `internal/journal`,
-`internal/gitx`, `internal/prompt` and `internal/skill` behind them);
+`prompt build`, `list`, `help`, `init`, `clean`, `install`, `home
+list|add|remove|new` and `identity list` (`internal/todo`,
+`internal/journal`, `internal/gitx`, `internal/prompt`, `internal/skill`,
+`internal/identity`, `internal/settings` and `internal/workspace` behind
+them);
 their scripts are gone, `healthcheck.sh` asks them for `--healthcheck`
 through the binary, and a script that needs one calls the binary
 (`daisy_bin` in `common.sh`).
@@ -118,11 +121,9 @@ through the binary, and a script that needs one calls the binary
 | Script | Purpose |
 |--------|---------|
 | `daisy.sh` (repo root) | CLI entry point — dispatches subcommands |
-| `daisy-init.sh` | Bind a workspace to an identity and its home: `.daisy/` links, local git author, agent configuration |
 | `feedback.sh` | Record a prompt failure with workflow tag and description |
 | `optimize.sh` | LLM-driven prompt optimization loop (groups by workflow tag, diff, approval, archives used entries with provenance) |
 | `eval.sh` | List, display, or record eval case results for the optimize loop |
-| `home.sh` | Homes registry: list, add, remove, new (create from template, git init, register) |
 | `common.sh` | Shared functions: homes registry, identities, resolve_home, require_env |
 | `commit.sh` | Git commit helper — `--home` commits the home's repository, `--not-home` the root's minus any home still inside it |
 | `check-secrets.sh` | Report which API tokens/secrets are configured in .env.sh |

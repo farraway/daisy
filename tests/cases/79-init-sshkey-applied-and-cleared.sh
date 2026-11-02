@@ -115,7 +115,10 @@ assert_eq "$(git -C "$FIXTURE_WORKSPACE" config --local --get-all user.name | tr
 assert_contains "$RUN_STDOUT" "Cleared local git identity (user.email)" "and only the matching key is reported"
 
 # A clean whose unset fails (a stale lock from a crashed git) must stop
-# before removing the record it would need to try again, and say so.
+# before removing the record it would need to try again, and say so. (The
+# hand-added values above are cleared first: clean gives back what a key
+# held before init, so they would come back.)
+git -C "$FIXTURE_WORKSPACE" config --local --unset-all user.name
 fixture_run_cli init pelicanmoor
 touch "$FIXTURE_WORKSPACE/.git/config.lock"
 fixture_run_cli clean -f

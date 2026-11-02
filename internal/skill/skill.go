@@ -35,6 +35,28 @@ func Find(fs ops.FS, dirs []string, name string) (path string, ok bool) {
 	return path, ok
 }
 
+// Discover is every skill under dir by name: each directory, at any depth,
+// holding a SKILL.md, named by that directory (a later one in walk order
+// wins a name). What `daisy init` and `daisy install` copy.
+func Discover(fs ops.FS, dir string) map[string]string {
+	skills := map[string]string{}
+	entries, err := fs.ReadDir(dir)
+	if err != nil {
+		return skills
+	}
+	for _, e := range entries {
+		p := filepath.Join(dir, e.Name())
+		if e.IsDir() {
+			for n, d := range Discover(fs, p) {
+				skills[n] = d
+			}
+		} else if e.Name() == "SKILL.md" {
+			skills[filepath.Base(dir)] = dir
+		}
+	}
+	return skills
+}
+
 // Skill is a skill directory's name and its SKILL.md.
 type Skill struct{ Name, Path string }
 

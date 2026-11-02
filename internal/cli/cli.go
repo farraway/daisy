@@ -55,10 +55,7 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 		return invoke(c, cmd, cmd.Health)
 	}
 
-	var err error
-	if c.Flags, c.Values, c.Args, err = splitArgs(cmd, rest); err != nil {
-		return usageError(stderr, cmd, err.Error())
-	}
+	c.Flags, c.Args = splitArgs(cmd, rest)
 	if len(c.Args) < cmd.Min {
 		return usageError(stderr, cmd, "missing argument")
 	}
@@ -73,7 +70,7 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 // note when a skill has the same name; a noun's is its commands' usages;
 // any other single name is a skill's, which needs the workspace.
 func help(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) int {
-	_, _, words, _ := splitArgs(Command{}, args)
+	_, words := splitArgs(Command{}, args)
 	helpCmd, _, _ := match([]string{"help"})
 	c := &commands.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: words}
 	switch cmd, rest, ok := match(words); {
@@ -124,34 +121,19 @@ func nounOnly(stdout, stderr io.Writer, args []string, group []Command) int {
 }
 
 // splitArgs: the command's flags are the known words leading its
-// arguments, a flag in Values taking the next word as its value; the first
-// other word, dashes or not, starts the positionals (`tasks --todo "-1
-// point"` searches for `-1 point`). An empty word is no argument: `done ""`
-// is a missing pattern, not one that matches every task.
-func splitArgs(cmd Command, args []string) (flags []string, values map[string]string, positional []string, err error) {
-	for len(args) > 0 {
-		switch {
-		case slices.Contains(cmd.Values, args[0]):
-			if len(args) < 2 || args[1] == "" {
-				return nil, nil, nil, fmt.Errorf("%s needs a value", args[0])
-			}
-			if values == nil {
-				values = map[string]string{}
-			}
-			values[args[0]], args = args[1], args[2:]
-			continue
-		case slices.Contains(cmd.Flags, args[0]):
-			flags, args = append(flags, args[0]), args[1:]
-			continue
-		}
-		break
+// arguments; the first other word, dashes or not, starts the positionals
+// (`tasks --todo "-1 point"` searches for `-1 point`). An empty word is no
+// argument: `done ""` is a missing pattern, not one that matches every task.
+func splitArgs(cmd Command, args []string) (flags, positional []string) {
+	for len(args) > 0 && slices.Contains(cmd.Flags, args[0]) {
+		flags, args = append(flags, args[0]), args[1:]
 	}
 	for _, a := range args {
 		if a != "" {
 			positional = append(positional, a)
 		}
 	}
-	return flags, values, positional, nil
+	return flags, positional
 }
 
 // invoke resolves the workspace when the command needs one and runs fn;
@@ -213,16 +195,9 @@ func writeTree(w io.Writer) {
 
 // fallThrough runs $DAISY_ROOT/daisy.sh with the same arguments and streams
 // and returns its exit code: every command works at every commit of the
-// port, whichever side of it the command is on. Without DAISY_ROOT the
-// daisy.sh beside this binary (bin/daisy) is run, so `daisy install` still
-// bootstraps a shell that has nothing set; daisy.sh says what else needs it.
+// port, whichever side of it the command is on.
 func fallThrough(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 	root, err := env.Root(o)
-	if err != nil && o.Getenv("DAISY_ROOT") == "" {
-		if exe, exeErr := o.Executable(); exeErr == nil {
-			root, err = filepath.Dir(filepath.Dir(env.RealPath(o.FS(), exe))), nil
-		}
-	}
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return Failure

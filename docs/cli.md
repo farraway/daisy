@@ -125,8 +125,8 @@ from the script's header comment, the binary from the `cli` table (`Usage:
 daisy <usage>`, blank, the description). `daisy`, `daisy help`, `daisy --help`,
 `daisy -h` print the help: as built the flat `Commands:` list of `show_help`;
 from Step 17 the tree, in the agreed groups and order, each command under the
-name this build answers to (so `plan-new` until Step 22, `home` on one line,
-no `identity list` or `swarm` until they exist) — the tree never names a
+name this build answers to (so `plan-new` until Step 22, `home new`, `home
+add`, `home list` and `home remove` one row each, no `swarm` until it exists) — the tree never names a
 command the binary does not run. *The four forms and the sole-argument
 rule are as built and kept (decided, D30: Architecture does not mention
 them).*
@@ -172,9 +172,9 @@ A clean binding prints nothing on stderr (asserted empty in 76, 77, 79).
 with `Error: DAISY_ROOT not set.` without it; the binary, for a command it
 runs itself, with `Error: DAISY_ROOT not set` and the `~/.zshenv` line to
 add; for every command it has not taken over the binary execs
-`$DAISY_ROOT/daisy.sh`, or without `DAISY_ROOT` the `daisy.sh` beside
-itself, so `install` still bootstraps and the bash prints its own error for
-the rest), `DAISY_CONFIG`,
+`$DAISY_ROOT/daisy.sh`, and without `DAISY_ROOT` refuses with the same
+error; `install` alone finds its root without it, from the binary's own
+path, Step 21), `DAISY_CONFIG`,
 `DAISY_LOCAL`, `DAISY_DEFAULT_HOME`, `HOME`, `USER`, `DAISY_HEALTHCHECK_TTL`,
 `DAISY_HEALTHCHECK_PASSED` (see `healthcheck`), `SHELL` (`install` picks the
 rc file by it). As built only, gone at Step 23 with the edit branch and the
@@ -182,10 +182,11 @@ API call: `EDITOR`, `TMPDIR`, `ANTHROPIC_API_KEY`, `DAISY_OPTIMIZE_MODEL`,
 `DAISY_OPTIMIZE_RESPONSE_FILE` (the suite's LLM stub). Nothing else.
 
 **`--healthcheck` hook.** The scripts listed in `healthcheck.sh`'s
-`HEALTHCHECK_SCRIPTS` (`home`, `feedback`, `optimize`, `eval`, `files`,
+`HEALTHCHECK_SCRIPTS` (`feedback`, `optimize`, `eval`, `files`,
 `plan-pickup`, `test`) and the Go commands listed in its
 `HEALTHCHECK_COMMANDS` (`done`, `log`, `tasks`, `projects`, `new-day`,
-`new-week`, `rotate`, `list`, asked through the binary) accept `--healthcheck` as the
+`new-week`, `rotate`, `list`, `home new` — the template is there —, asked
+through the binary) accept `--healthcheck` as the
 sole argument: check their own preconditions, print nothing on success,
 exit 0; else a one-line `Error: …` on stderr, exit 1. Two cases pin it from
 outside (`done --healthcheck` [18], `tasks --healthcheck` [30]). In the
@@ -205,8 +206,10 @@ repository, as that repository's own git config — never in the root (case
 repository's commit count and `git status --porcelain` are unchanged).
 As built, the committing commands are `done`, `log`, `new-day`, `new-week`,
 `plan pickup`, `plan archive`, `commit` and `home new` (the new home's
-first commit); every mutation the binary makes goes through
-`gitx.Repo.Commit`, one commit per command *(built, Step 18)*; `plan new`, `feedback`, `eval --record` and `optimize` write
+first commit); every mutation of an existing home the binary makes goes through
+`gitx.Repo.Commit`, one commit per command *(built, Step 18)*, and `home
+new` makes the new repository's first commit with its own `git init`,
+`add -A`, `commit` *(Step 21)*; `plan new`, `feedback`, `eval --record` and `optimize` write
 home files without committing them, and the next home commit sweeps them
 up. Architecture adds `optimize apply` to the committing commands (Step
 23). The root is committed only by `commit --not-home` (`--root` after
@@ -218,15 +221,15 @@ Step 24).
 
 | Field | Value |
 |---|---|
-| Status | as built (`init --new` removed at Step 21) |
-| Legacy | `daisy init [--new] <identity> [path]` → `daisy-init.sh` (`exec`) |
+| Status | ported (Step 21): Go (`internal/workspace`, `internal/identity`); `init --new` removed (`home new`, then `init`) |
+| Legacy | `daisy init [--new] <identity> [path]` → the bash `daisy-init` script, deleted in Step 21 |
 | Usage | `daisy init <identity> [path]` |
-| Arguments | `<identity>`: a registered home's name (its default identity, `gitconfig`) or the name of `<home>/identities/<identity>` in exactly one registered home. `[path]`: the workspace directory, default `.`. No `<identity>`: usage and the identity list on stderr, exit 1 |
-| Exit codes | 0 bound (also when already bound, or re-bound to another identity); 1 refused, nothing written: identity in two homes (`identity 'pelicanmoor' is defined in more than one home: testhome, second` [78], `more than one home` [78]), unknown identity (names it, `nosuchone` [77], and lists the identities that exist, `pelicanmoor` [77]), `not a valid identity name` [77], a registered home that cannot be checked (names it and `does not exist` [78]), a named identity file that is incomplete (names the file `identities/pelicanmoor` [79] and the missing key `email` [79]), a malformed `sshkey` [79], a `linked worktree` [76] (names the main checkout), the directory holding the `Daisy root` [78], `.daisy` `not a directory` [77] or a `symlink` [77], two leftovers and no `.daisy/` (names both, `.daisy.previous.100` [77], `.daisy.previous.200` [77]); 1 when a step fails after writing began: `did not finish` [77, 78] on stderr and everything rolled back (binding, git keys byte for byte, stage removed) |
-| Stdout | `Initializing Daisy in: <path>`, `Home: testhome` [77], `Identity: testhome` [76] / `Identity: pelicanmoor` [77]; on a re-bind `Already initialized` [77] `with identity: <identity>` (`Already initialized with identity: pelicanmoor` [77]) or the switch `pelicanmoor → testhome` [77]; the ✓ lines for each artifact; `Bound .daisy/` [79] `to home: <home>`; a cleared previous identity names its keys (`core.sshCommand` [79]); `Done. Daisy is ready in this workspace.` |
+| Arguments | `<identity>`: a registered home's name (its default identity, `gitconfig`) or the name of `<home>/identities/<identity>` in exactly one registered home. `[path]`: the workspace directory, default `.`. No `<identity>` or a third argument: usage on stderr, exit 2 (`daisy identity list` lists the identities) |
+| Exit codes | 0 bound (also when already bound, or re-bound to another identity); 1 refused, nothing written: identity in two homes (`identity 'pelicanmoor' is defined in more than one home: testhome, second` [78], `more than one home` [78]), unknown identity (names it, `nosuchone` [77], and lists the identities that exist, `pelicanmoor` [77]), `not a valid identity name` [77], a registered home that cannot be checked (names it and `does not exist` [78]), a named identity file that is incomplete (names the file `identities/pelicanmoor` [79] and the missing key `email` [79]), a malformed `sshkey` [79], a `linked worktree` [76] (names the main checkout), the directory holding the `Daisy root` [78], `.daisy` `not a directory` [77] or a `symlink` [77], two leftovers and no `.daisy/` (names both, `.daisy.previous.100` [77], `.daisy.previous.200` [77]), a settings file that is not a JSON object [77, 78], a directory where `.daisy/` holds a file of init's own [77, 78]; every refusal is decided before the first write — an unknown identity, an unreadable settings file, a file where init needs a directory or a directory where it writes a file, a home skill named like a core rule (`daisy`, `daisy-logging`, `daisy-plan`) — so a refused init writes nothing, not even `git init`; 1 when a step of the final section fails: `did not finish` [77, 78] on stderr and everything rolled back (binding, git keys byte for byte, stage removed) |
+| Stdout | `Initializing Daisy in: <path>`, `Home: testhome` [77], `Identity: testhome` [76] / `Identity: pelicanmoor` [77] (the build's own report is not printed; its warnings go to stderr); on a re-bind `Already initialized` [77] `with identity: <identity>` (`Already initialized with identity: pelicanmoor` [77]) or the switch `pelicanmoor → testhome` [77]; the ✓ lines for each artifact; `Bound .daisy/` [79] `to home: <home>`; a cleared previous identity names its keys (`core.sshCommand` [79]); `Done. Daisy is ready in this workspace.` |
 | Stderr | warnings, exit still 0: `no complete default identity` [76] (the home's `gitconfig` is template or incomplete; no identity applied), an sshkey that is `not found` [79] (names it, `no-such-key` [79]), a reclaimed leftover `.daisy.previous.12345` [77], `No readable .daisy/gitconfig record` [79] of the previous identity, an aside that `could not be removed` [79]; errors as above |
 | Ops | Real |
-| Writes | `<ws>/.daisy/` as a whole (staged beside it, swapped in by rename): `home`, `identity` (non-default only), `gitconfig` (the applied triple), the six links `tasks today.md journal.md projects plans feedback.md` into the home, `AGENTS.md`; `<ws>/.cursor/rules/daisy.mdc daisy-logging.mdc daisy-plan.mdc` (obsolete `daisy.md`, `daisy-logging.md` removed, case 32), `<ws>/.claude/commands/daisy.md`, `<ws>/.claude/skills/<name>/` and `.cursor/rules/<name>.mdc` for each home skill (stale ones swept, case 33), `<ws>/.claude/settings.local.json` (Daisy's allow rules), `<ws>/.gitignore` and `.cursorignore` entries; `git init` when the directory is not a repository top level; local git config `user.name`, `user.email`, `core.sshCommand` (`ssh -i <key> -o IdentitiesOnly=yes`, only with `sshkey=`) — the previous identity's keys unset first where their values are still its |
+| Writes | `<ws>/.daisy/` as a whole (staged beside it, swapped in by rename): `home`, `identity` (non-default only), `gitconfig` (the applied triple), `gitconfig.before` (what the three keys held, once the previous identity was taken back, when any held a value), the six links `tasks today.md journal.md projects plans feedback.md` into the home, `AGENTS.md`; `<ws>/.cursor/rules/daisy.mdc daisy-logging.mdc daisy-plan.mdc` (obsolete `daisy.md`, `daisy-logging.md` removed, case 32), `<ws>/.claude/commands/daisy.md`, `<ws>/.claude/skills/<name>/` and `.cursor/rules/<name>.mdc` for each home skill (a stub in exactly the form init writes — the one record of which skills init installed — whose skill is gone is swept with its copy, case 33; any other rule is the user's; a link standing where a Cursor rule or a stub goes is replaced by init's file, never written through), `<ws>/.claude/settings.local.json` (Daisy's allow rules), the entries missing from `<ws>/.gitignore` (`.cursorignore` among them, from Step 21) and `.cursorignore`, into the block under Daisy's header line (applying twice equals once); `git init` when the directory is not a repository top level; local git config `user.name`, `user.email`, `core.sshCommand` (`ssh -i <key> -o IdentitiesOnly=yes`, only with `sshkey=`) — the previous identity's keys unset first where their values are still its, and what they held before that identity was applied put back |
 | Commits | none |
 | Cases | 32, 33, 76, 77, 78, 79 |
 
@@ -239,17 +242,17 @@ and that `init` in a subdirectory of a linked worktree is allowed.
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy clean [-f]` → built in to `daisy.sh` (`cmd_clean`) |
+| Status | ported (Step 21): Go (`internal/workspace`) |
+| Legacy | `daisy clean [-f]` → built in to `daisy.sh`, deleted in Step 21 |
 | Usage | `daisy clean [-f]` (`--force` accepted as well; kept) |
-| Arguments | without `-f`: prints `This will remove Daisy from: <path>`, `Home:`, `Identity:` and asks `Continue? [y/N]` through `Ops.Prompt`; anything but y/yes prints `Cancelled.` and exits 0 |
-| Exit codes | 0 removed (also when nothing matched); 1 outside a workspace (beside the Daisy root, case 78); 1 when a git key `could not unset` [79] — the record is kept for the retry, and the message is not `left as is` [79] |
+| Arguments | without `-f`: prints `This will remove Daisy from: <path>`, `Home:`, `Identity:` and asks `Continue? [y/N]` through `Ops.Prompt` (on stderr, as the bash's `read -p`); anything but y/yes, end of input included, prints `Cancelled.` and exits 0 |
+| Exit codes | 0 removed (also when nothing matched); 1 outside a workspace (beside the Daisy root, case 78); 1, before anything is removed, when `.claude/settings.local.json` is not a JSON object; 1 when a git key `could not unset` [79] — the record is kept for the retry, and the message is not `left as is` [79] |
 | Stdout | `Cleared local git identity (user.name, user.email)` [76, 77, 79] naming exactly the keys cleared — `Cleared local git identity (user.name)` [76], `Cleared local git identity (user.email)` [79], `Cleared local git identity (user.name, user.email, core.sshCommand)` [79]; `left as is` [76] when nothing matched; `No readable .daisy/gitconfig record` [76] when there is no record and no identity file resolves; `Removed .daisy/`, `Removed <leftover>` (`.daisy.previous.555` [76]), `Removed Cursor rules`, `Removed Claude command`, `Removed N skill(s)…`, `Cleaned .gitignore`, `Removed empty .gitignore`, `Removed Daisy permissions from .claude/settings.local.json` or `Removed .claude/settings.local.json` (when only Daisy's rules were in it), `Cleaned .cursorignore`, `Removed empty .cursorignore`; `· Local git identity not checked: this workspace is not a repository` / `…this is a linked worktree and its config is the main checkout's` when the keys cannot be checked; `Done. Daisy has been removed from this workspace.` |
 | Stderr | `could not unset` [79]; otherwise unspecified |
 | Ops | Real |
-| Writes | removes everything `init` wrote (above), unsets each of the three git keys when every value it holds is the recorded identity's (the home's identity file stands in for the record for a workspace bound before records existed) or is a `core.sshCommand` in Daisy's exact form (`ssh -i <path> -o IdentitiesOnly=yes`, which nothing but an init writes — taken with or without a record); a hand-set value is the user's and stays; reclaims `.daisy.stage.*` leftovers |
+| Writes | removes everything `init` wrote (above) but the repository a `git init` made, and only that: the `.gitignore`/`.cursorignore` block under Daisy's header (a user's own line that is also an entry stays), Daisy's allow rules (the file goes only when nothing else is left in it), the skills init installed (those whose `.cursor/rules/<name>.mdc` is still a regular file in init's stub form, whatever the home holds now), the empty directories init made; unsets each of the three git keys when every value it holds is the recorded identity's (the home's identity file stands in for the record for a workspace bound before records existed) or is a `core.sshCommand` in Daisy's exact form (`ssh -i <path> -o IdentitiesOnly=yes`, which nothing but an init writes — taken with or without a record); a hand-set value is the user's and stays; a key it unsets gets back what it held before init (`.daisy/gitconfig.before`), so init then clean leaves the keys and `git status` as they were [76]; reclaims `.daisy.stage.*` leftovers |
 | Commits | none |
-| Cases | none of its own; exercised by cases 76/77/79 (`init`'s) and 78 |
+| Cases | none of its own; exercised by cases 76/77/79 (`init`'s) and 78; the inverse is `TestInitThenCleanRestores` |
 
 ### daisy status
 
@@ -468,11 +471,11 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built (Steps 1–3) |
-| Legacy | `daisy home [list\|add\|remove\|new]` → `home.sh` |
-| Usage | `daisy home list` (also bare `daisy home`), `daisy home add <name> <path>`, `daisy home remove <name>`, `daisy home new <name> [path]`; anything else: `Usage: daisy home list \| add <name> <path> \| remove <name> \| new <name> [path]` on stderr, exit 1 |
-| Exit codes | `list`: 0 [68] (69 and 70 run it and assert stdout only). `add`: 0 registered [68]; 1 when the name is `already registered` [68], invalid (`bad=name`, case 68), the path is not a directory [68], has a path problem (`Error: <path> <problem>`: the root itself — `cannot be a home` [68] — or a directory containing it, `contains the Daisy root; …`, which case 68 pins on the validator `daisy_home_path_problem` directly, not through `home add`; the path is already resolved here, so the other two problems cannot arise), has no `include.txt` [68], is `not in its own git repository` [70] (or the root's), or nothing under it can be staged. `remove`: 0 [68]; 1 for an unregistered name [68]. `new`: 0 created [69]; 1 when the name is registered (nothing written, case 69) or the location `already exists` [69]; 1 when any step after the first write fails — the copy is removed: `was removed and nothing is registered` [70] on stderr; 1 when a prompt gets EOF |
-| Stdout | `list`: `%-14s %s` name and path per home (`testhome` [68] and its path [68, 69]; ` (missing)` when the directory is gone); no homes: `No homes registered in <registry>` on stderr, exit 0. `add`: `✓ Registered home '<name>' at <path>`. `remove`: `✓ Unregistered home '<name>' (its files at <path> are untouched)`. `new`: the prompts `  Location [<default>]: ` (only without `[path]`), `Git identity for home '<name>':`, `  Name: `, `  Email: ` through `Ops.Prompt`; `  ✓ Saved git identity to <path>/gitconfig` or `  ⚠ Skipped (both name and email required)…`; `  ✓ Initialized git repository with first commit`; `prompt build`'s report; `✅ Created home: <name>`, `   Location: <path>`, `📋 Next steps:` … `daisy init <name>` |
+| Status | ported (Step 21): Go, four rows of the `cli` table (`home` is a noun, D35) |
+| Legacy | `daisy home [list\|add\|remove\|new]` → the bash `home` script, deleted in Step 21 |
+| Usage | `daisy home list`, `daisy home add <name> <path>`, `daisy home remove <name>`, `daisy home new <name> [path]`; bare `daisy home` or another verb: exit 2 listing the four usages (bare `daisy home` was `home list` in bash) |
+| Exit codes | `list`: 0 [68] (69 and 70 run it and assert stdout only). `add`: 0 registered [68]; 1 when the name is `already registered` [68], invalid (`bad=name`, case 68), the path is not a directory [68], has a path problem (`Error: <path> <problem>`: the root itself — `cannot be a home` [68] — or a directory containing it, `contains the Daisy root; …`, which case 68 pins through a registry line and `status`, not through `home add`; the path is already resolved here, so the other two problems cannot arise), has no `include.txt` [68], is `not in its own git repository` [70] (or the root's), or nothing under it can be staged. `remove`: 0 [68]; 1 for an unregistered name [68]. `new`: 0 created [69]; 1 when the name is registered (nothing written, case 69) or the location `already exists` [69]; 1 when any step after the first write fails — the copy is removed: `was removed and nothing is registered` [70] on stderr; 1 when a prompt gets EOF |
+| Stdout | `list`: `%-14s %s` name and path per home (`testhome` [68] and its path [68, 69]; ` (missing)` when the directory is gone); no homes: `No homes registered in <registry>` on stderr, exit 0. `add`: `✓ Registered home '<name>' at <path>`. `remove`: `✓ Unregistered home '<name>' (its files at <path> are untouched)`. `new`: the prompts `  Location [<default>]: ` (only without `[path]`), `Git identity for home '<name>':`, `  Name: `, `  Email: ` through `Ops.Prompt` (the questions on stderr); `  ✓ Saved git identity to <path>/gitconfig` or `  ⚠ Skipped (both name and email required)…`; `  ✓ Initialized git repository with first commit`; `✅ Created home: <name>`, `   Location: <path>`, `📋 Next steps:` … `daisy init <name>` |
 | Stderr | the errors above, each with its fix on a second line (`include.txt` [68] names what a home must contain); `add` refusing a non-repository says `not in its own git repository` [70] |
 | Ops | `list` ReadOnly; `add`, `remove`, `new` Real (decided, D30) |
 | Writes | the registry `$DAISY_CONFIG/homes` (`name=/absolute/path` lines; `add` stores the resolved real path). `new`: copies `templates/home/` to the location (default `$DAISY_LOCAL/homes/<name>`), writes `gitconfig` as a `name=` [69] line and an `email=` [69] line, `git init` with `user.name`/`user.email` set and a first commit `New home: <name>` as that identity [69], registers, builds `<home>/AGENTS.md`; the template `.gitignore` ignores `.healthcheck.ttl` and `AGENTS.md` [69]; any failure removes the copy and registers nothing [70] |
@@ -488,15 +491,15 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | agreed (Architecture): the command; decided (D30, Step 21): its output |
+| Status | built (Step 21) |
 | Legacy | none |
 | Usage | `daisy identity list` |
-| Exit codes | 0; 1 when a registered home cannot be read (unspecified; Go may choose whether to list the rest) |
-| Stdout | one line per identity across the registered homes: the identity name and its home, as `daisy init` prints the list in its usage and unknown-identity errors today (`%-14s %s`, from `daisy_identities`: each home's own name first, then its `identities/*`). Nothing else is agreed |
+| Exit codes | 0; 1 when a registered home cannot be read: the rest are listed, and the unreadable ones named on stderr (`home '<name>' is registered at <path>, which <problem>`) |
+| Stdout | one line per identity across the registered homes, `%-14s %s`, identity then home: each home's own name first, then its `identities/*` in name order — the list `init`'s unknown-identity error prints |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |
-| Cases | none (the Acceptance suite section says new behaviour gets a bash-form case before any Go) |
+| Cases | none in bash; `TestIdentityList` and `TestHomeOf` |
 
 ## Prompts and skills
 
@@ -506,8 +509,8 @@ new home.
 |---|---|
 | Status | ported (Step 20): Go, renamed from `build` (no alias) |
 | Legacy | `daisy build [home]` → the bash `build-prompt` script, deleted in Step 20 |
-| Usage | `daisy prompt build [<home>]`: with `<home>` builds `<home>/AGENTS.md` (no workspace needed); without, builds the current workspace's `.daisy/AGENTS.md` for its bound home. `--output <file>` (hidden, internal) writes that file instead; `init` passes it until Step 21, `home new` and `optimize` pass the home's name. `daisy prompt` alone or with another verb is a usage error listing the `prompt` commands |
-| Exit codes | 0; 1 for an unregistered or unusable home (the Home resolution messages), outside a workspace without `<home>`, a missing `include.txt` (`Error: <home>/include.txt not found` and `Create include.txt in your home directory listing prompts to include`), an `include.txt` line with an unmatched quote, a prompt that cannot be read, or an output that cannot be written; nothing is written then; 2 for a surplus argument or `--output` without a value |
+| Usage | `daisy prompt build [<home>]`: with `<home>` builds `<home>/AGENTS.md` (no workspace needed); without, builds the current workspace's `.daisy/AGENTS.md` for its bound home. (`--output`, which the bash `init` passed, went with it in Step 21; `home new` builds in-process and `optimize` passes the home's name.) `daisy prompt` alone or with another verb is a usage error listing the `prompt` commands |
+| Exit codes | 0; 1 for an unregistered or unusable home (the Home resolution messages), outside a workspace without `<home>`, a missing `include.txt` (`Error: <home>/include.txt not found` and `Create include.txt in your home directory listing prompts to include`), an `include.txt` line with an unmatched quote, a prompt that cannot be read, or an output that cannot be written; nothing is written then; 2 for a surplus argument |
 | Stdout | `✅ Built AGENTS.md for home: <home>`, `   Full: <names>`, `   Lazy: <names>` (each only when not empty), `   Output: <file>`, `   Size: N lines` |
 | Stderr | `Warning: Prompt not found: <path>` (the root's path, the last looked in; an error block is written into the output and the build continues); `Warning: No ## Trigger section found in <path>` and `  Include as full prompt instead, or add a ## Trigger section` (included in full, counted as Full) |
 | Ops | Real |
@@ -519,15 +522,15 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | as built; the symlink target is `$DAISY_ROOT/bin/daisy` from Step 17 (`make build` writes it; `install` warns when it is not built yet) |
-| Legacy | `daisy install [--update]` → built in to `daisy.sh` (`cmd_install`); the only command that derives `DAISY_ROOT` from its own location instead of the environment |
-| Usage | `daisy install [--update]`: `--update` re-runs the symlink, root skills and permissions only; plain `install` is the interactive bootstrap (default home, shell rc) and refuses when already installed (`Error: Daisy is already installed.`, exit 1) |
-| Exit codes | 0 [31]; 1 already installed, `~/bin/daisy` exists and is not a symlink, an invalid home selection |
-| Stdout | `Installing Daisy...` / `Updating Daisy...`, `  DAISY_ROOT: <root>`, ✓ lines per step, `  ✓ Installed N skill(s) into <dir>`, `  ✓ Pruned N stale skill(s) from <dir>` (case 31: a `$HOME/.claude/skills/<name>` with no source under `skills/` is removed and current skills are installed), `Done.` / `Done. To activate, run:` … |
+| Status | ported (Step 21): Go; non-interactive in both forms (the bash asked for a default home and wrote `DAISY_DEFAULT_HOME`, which nothing reachable through `daisy` reads) |
+| Legacy | `daisy install [--update]` → built in to `daisy.sh`, deleted in Step 21 |
+| Usage | `daisy install [--update]`: `--update` re-applies the symlink, root skills and permissions; plain `install` also writes the shell rc line and refuses when already installed (`Error: Daisy is already installed.`, exit 1). The root is `$DAISY_ROOT`, else the root whose `bin/daisy` is running (`Ops.Executable()`, links resolved), so `<root>/bin/daisy install` bootstraps a shell with nothing set. It does not build: `make build` writes the binary, and `install` warns when it is not built yet |
+| Exit codes | 0 [31]; 1 already installed, `~/bin/daisy` exists and is not a symlink, `~/.claude/settings.json` is not a JSON object (decided before any write), `HOME` unset, no `DAISY_ROOT` and the binary not under a root's `bin/` |
+| Stdout | `Installing Daisy...` / `Updating Daisy...`, `  DAISY_ROOT: <root>`, ✓ lines per step, `  ✓ Installed N skill(s) into <dir>`, `  ✓ Pruned N stale skill(s) from <dir>` (case 31: a `$HOME/.claude/skills/<name>` with no source under `skills/` is removed and current skills are installed), `  Shell config: <rc>` and `  ✓ Added DAISY_ROOT to <rc>` / `  ✓ DAISY_ROOT already set correctly` / `  ✓ Updated DAISY_ROOT (was: <old>)`, `Done.` / `Done. To activate, run:` … `daisy init <home>` (or `daisy home new <name>` first when none is registered) |
 | Ops | Real |
-| Writes | `$HOME/bin/daisy` symlink; `$HOME/.claude/skills/<name>/` for every `SKILL.md` found under `skills/` (copies, named by the containing directory; stale ones pruned); `$HOME/.claude/settings.json` allow rules (`Read(/$DAISY_ROOT/**)`, `Edit(/$DAISY_ROOT/**)` — the leading slash plus the absolute root gives the `//`-anchored form — and `Bash(daisy:*)`; the legacy `Bash(…/daisy/scripts/*)`, single-slash and triple-slash rules are removed); without `--update`: the shell rc (`DAISY_ROOT`, `DAISY_DEFAULT_HOME`) and, with no homes, `home new` |
+| Writes | `$HOME/bin/daisy` symlink; `$HOME/.claude/skills/<name>/` for every `SKILL.md` found under `skills/` (copies, named by the containing directory; stale ones pruned); `$HOME/.claude/settings.json` allow rules (`Read(/$DAISY_ROOT/**)`, `Edit(/$DAISY_ROOT/**)` — the leading slash plus the absolute root gives the `//`-anchored form — and `Bash(daisy:*)`; the legacy `Bash(…/daisy/scripts/*)`, single-slash and triple-slash rules are removed); without `--update`: the rc file by `$SHELL` (`~/.zshenv`, `~/.bashrc`, `~/.config/fish/config.fish`, else `~/.profile`): the `DAISY_ROOT` line replaced in place, or `# daisy` and the line appended; a file kept as a symlink is written through. Applying twice equals once |
 | Commits | none |
-| Cases | 31 |
+| Cases | 31; `TestInstall`, `TestInstallBootstrapsFromTheBinary` |
 
 ### daisy feedback
 

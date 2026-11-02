@@ -81,7 +81,7 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
 **Fixture isolation:** if a step live-tests a script that auto-commits (or
 otherwise mutates) a home, never run it against a real, in-use home.
 Use `daisy test`'s hermetic fixture, or an isolated
-`daisy init --new <fixture-home>`, and tear it down afterward.
+`daisy home new <fixture-home>` and `daisy init <fixture-home>`, and tear it down afterward.
 
 ---
 

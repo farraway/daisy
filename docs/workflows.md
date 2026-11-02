@@ -335,5 +335,5 @@ daisy home new <name> [path]
 ```
 This copies templates/home/ to the path (default `~/.local/daisy/homes/<name>`),
 makes it a git repository with a first commit, and registers it in
-`~/.config/daisy/homes`. `daisy init --new <name>` does the same and then binds
-the current workspace. See `docs/home-management.md`.
+`~/.config/daisy/homes`; `daisy init <name>` then binds the current
+workspace to it. See `docs/home-management.md`.
