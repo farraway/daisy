@@ -43,7 +43,7 @@ The 2026-07 two-layer split took this further: craft capabilities (`css`,
 until the agent reaches for one — a rung below lazy stubs on the same
 ladder.
 
-The build pipeline (`build-prompt.sh`) extracts only the `## Trigger` section for lazy stubs. This is the correct pattern. The resource confirms this design is sound and is what the industry is converging on.
+The build pipeline (`daisy prompt build`) extracts only the `## Trigger` section for lazy stubs. This is the correct pattern. The resource confirms this design is sound and is what the industry is converging on.
 
 **Daisy's file-based memory** (today.md, todo.txt, journal.md, projects/) also validates the "memory as simple markdown" principle. No embeddings needed.
 

@@ -163,8 +163,7 @@ fi
 # that resolves to the enclosing workspace's home.
 AGENTS_TMP=$(mktemp)
 trap 'rm -f "$AGENTS_TMP"' EXIT
-DAISY_HOME="$HOME_DIR" "$DAISY_ROOT/daisy/scripts/build-prompt.sh" \
-    --output "$AGENTS_TMP" "$HOME_NAME"
+"$(daisy_bin)" prompt build --output "$AGENTS_TMP" "$HOME_NAME"
 
 # --- Cursor rules ---
 

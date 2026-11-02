@@ -68,40 +68,24 @@ show_help() {
     cat <<'EOF'
 Usage: daisy <command> [args...]
 
-Commands:
-  build [home]                 Rebuild AGENTS.md for a home
+Commands not yet in the binary (bin/daisy help lists every command):
   check-secrets                Check which secrets/tokens are configured
   clean [-f]                   Remove Daisy from the current workspace
   commit --home|--not-home <message>
                                 Commit changes, scoped to home data or everything else
-  done <pattern>               Mark a task as complete
   eval [<case>] [--record]     List, display, or record an eval case result
   feedback [--workflow <n>]    Record a prompt failure for optimization
-  files                        Show resolved real paths for every home file
   healthcheck [--force]        Run system health check
-  help [<command>|<skill>]     Show this help, or detail for one command or
-                                skill (skills: full description + rules)
   home [list|add|remove|new]   Manage the homes registry: which homes exist
                                 on this machine and where each one lives
   init [--new] <identity> [path]
                                 Bind a workspace to an identity and its home
   install [--update]           Set up daisy + root skills; --update re-runs
                                 only symlink/skills/permissions, no prompts
-  list                         List active prompts and installed skills
-  log <message...>             Add a log entry to today.md
-  new-day                      Start a new day
-  new-week                     Start a new week
   optimize [--workflow <n>]    Run prompt learning loop on collected feedback
   plan-archive                 Archive the active Daisy plan
   plan-new [--spec] <desc>     Create a new Daisy plan (or unregistered spec draft)
   plan-pickup <path>           Promote a local spec draft into a tracked plan
-  projects [--archived]        List active or archived projects with paths
-  rotate                       Rotate journal.md into archive window files
-  status                       Show quick workspace summary
-  tasks [--all] [--todo|--done] [pattern]
-                                Search tasks (read-only). Scope defaults to
-                                this workspace's projects; --all widens it.
-                                --todo/--done pick a file; both by default.
   test [name-substring]        Run the hermetic acceptance suite
 
   Every command also accepts --help/-h (as the sole argument) to print its usage.
@@ -113,19 +97,18 @@ EOF
 
 # --- built-in: per-command help ---
 #
-# Every `daisy <command>` supports `--help`/`-h` when passed as the sole
-# argument (checked in the dispatch section below, before any command runs).
-# Help text is read from each script's own header comment rather than
-# authored separately here.
+# `daisy <command> --help`/`-h` (as the sole argument, checked in the
+# dispatch section below) for a command the binary has not taken over: the
+# script's own header comment, else its show_help() line. `daisy help` and
+# every Go command's help are the binary's.
 
 show_command_help() {
     local cmd="$1"
     local script=""
 
     case "$cmd" in
-        build) script="build-prompt.sh" ;;
         init) script="daisy-init.sh" ;;
-        status|clean|install|help) script="" ;;
+        clean|install) script="" ;;
         *) script="${cmd}.sh" ;;
     esac
 
@@ -138,69 +121,7 @@ show_command_help() {
         return
     fi
 
-    # Built-ins with no standalone script: fall back to their show_help() line.
     show_help | grep -E "^  ${cmd}[[:space:]]" || show_help
-}
-
-# --- built-in: skill help ---
-#
-# `daisy list` gives one line per skill — enough to know a skill exists, not
-# enough to know whether it applies. This prints the full description, the
-# rules, and an outline of what else is in the file, so an agent can decide
-# without reading SKILL.md off disk itself.
-
-is_command_name() {
-    show_help | grep -qE "^  $1[[:space:]]"
-}
-
-# Best-effort skill lookup for the shadowing note below. `daisy help <cmd>`
-# does not otherwise need a workspace or a resolved home, so failing to find
-# one is not an error here — it just means no note. Runs in a subshell so the
-# cd cannot leak into the caller.
-find_skill_quietly() (
-    local root
-    root=$(find_workspace_root 2>/dev/null) || exit 0
-    cd "$root" 2>/dev/null || exit 0
-    require_env >/dev/null 2>&1 || exit 0
-    resolve_skill_source "$1"
-)
-
-show_skill_help() {
-    local name="$1"
-
-    require_workspace
-    require_env || { popd > /dev/null; exit 1; }
-
-    # An installed copy is what an agent actually loads, so it is the honest
-    # answer; the source is the fallback for a skill not installed here.
-    local skill_md="" dir
-    while IFS= read -r dir; do
-        [ -f "$dir/$name/SKILL.md" ] && skill_md="$dir/$name/SKILL.md"
-    done < <(daisy_installed_skill_dirs)
-    [ -n "$skill_md" ] || skill_md=$(resolve_skill_source "$name")
-
-    if [ -z "$skill_md" ]; then
-        echo "Unknown command or skill: $name" >&2
-        echo "  Run 'daisy help' for commands, 'daisy list' for skills." >&2
-        popd > /dev/null
-        exit 1
-    fi
-
-    echo "$name  ($skill_md)"
-    echo ""
-    awk -F': ' '/^description:/{ $1=""; sub(/^ /, ""); print; exit }' "$skill_md"
-    echo ""
-    awk '
-        /^## Rules/ { found=1; print; next }
-        found && /^## / { exit }
-        found { print }
-    ' "$skill_md"
-
-    local sections
-    sections=$(awk '/^## /{ sub(/^## /, ""); if ($0 != "Rules") printf "%s%s", sep, $0; sep=", " }' "$skill_md")
-    [ -n "$sections" ] && echo "Other sections: $sections"
-
-    popd > /dev/null
 }
 
 # --- built-in: clean ---
@@ -756,15 +677,6 @@ case "$COMMAND" in
         "$SCRIPTS/healthcheck.sh" "$@"
         popd > /dev/null
         ;;
-    build)
-        if [ -n "$1" ]; then
-            "$SCRIPTS/build-prompt.sh" "$@"
-        else
-            require_workspace
-            "$SCRIPTS/build-prompt.sh" --output "$WORKSPACE_ROOT/.daisy/AGENTS.md"
-            popd > /dev/null
-        fi
-        ;;
     feedback)
         require_workspace
         "$SCRIPTS/feedback.sh" "$@"
@@ -783,11 +695,6 @@ case "$COMMAND" in
     files)
         require_workspace
         "$SCRIPTS/files.sh" "$@"
-        popd > /dev/null
-        ;;
-    list)
-        require_workspace
-        "$SCRIPTS/list.sh" "$@"
         popd > /dev/null
         ;;
     check-secrets)
@@ -822,20 +729,7 @@ case "$COMMAND" in
         popd > /dev/null
         ;;
     help|--help|-h)
-        if [ "$#" -eq 0 ]; then
-            show_help
-        elif is_command_name "$1"; then
-            show_command_help "$1"
-            # Say so when a skill of the same name exists but is unreachable
-            # this way, rather than leaving it looking absent.
-            if [ -n "$(find_skill_quietly "$1")" ]; then
-                echo ""
-                echo "Note: a skill named '$1' also exists; the command name takes precedence."
-                echo "  Read it with: daisy list, or open its SKILL.md directly."
-            fi
-        else
-            show_skill_help "$1"
-        fi
+        show_help
         ;;
     *)
         echo "Unknown command: $COMMAND" >&2

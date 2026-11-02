@@ -64,15 +64,11 @@ func Root(o ops.Ops) (string, error) {
 // Resolve finds the workspace the working directory is in and the home it
 // is bound to. The error is the message for stderr, fix included.
 func Resolve(o ops.Ops) (Env, error) {
-	var e Env
-	root, err := Root(o)
+	e, err := machine(o)
 	if err != nil {
 		return e, err
 	}
-	e.Root = root
-	e.Config = orDefault(o, "DAISY_CONFIG", ".config/daisy")
-	e.Local = orDefault(o, "DAISY_LOCAL", ".local/daisy")
-	fs := o.FS()
+	root, fs := e.Root, o.FS()
 
 	cwd, err := o.Getwd()
 	if err != nil {
@@ -93,11 +89,9 @@ func Resolve(o ops.Ops) (Env, error) {
 		return e, fmt.Errorf("Error: cannot read %s: %v", filepath.Join(daisyDir, "home"), err)
 	}
 	e.HomeName = strings.TrimRight(string(b), "\n")
-	e.Home, err = HomeDir(o, e)
-	if err != nil {
+	if e.Home, err = homeDir(o, e); err != nil {
 		return e, err
 	}
-	e.Home = filepath.Clean(e.Home) // the registry line as written, less `/./`, `//` and `..`
 
 	e.Identity = e.HomeName
 	if b, err := fs.ReadFile(filepath.Join(daisyDir, "identity")); err == nil {
@@ -113,6 +107,42 @@ func Resolve(o ops.Ops) (Env, error) {
 
 	resolveProjects(fs, &e)
 	return e, nil
+}
+
+// ForHome resolves a home by its registered name, with no workspace: the
+// root, the per-machine directories and the home. Identity and projects
+// are a workspace's and stay unset.
+func ForHome(o ops.Ops, name string) (Env, error) {
+	e, err := machine(o)
+	if err != nil {
+		return e, err
+	}
+	e.HomeName = name
+	e.Home, err = homeDir(o, e)
+	return e, err
+}
+
+// machine is the root and the per-machine directories.
+func machine(o ops.Ops) (Env, error) {
+	root, err := Root(o)
+	if err != nil {
+		return Env{}, err
+	}
+	return Env{
+		Root:   root,
+		Config: orDefault(o, "DAISY_CONFIG", ".config/daisy"),
+		Local:  orDefault(o, "DAISY_LOCAL", ".local/daisy"),
+	}, nil
+}
+
+// homeDir is HomeDir cleaned: the registry line as written, less `/./`,
+// `//` and `..`.
+func homeDir(o ops.Ops, e Env) (string, error) {
+	home, err := HomeDir(o, e)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(home), nil
 }
 
 // orDefault is `${KEY:-$HOME/<underHome>}`: with HOME unset the default is

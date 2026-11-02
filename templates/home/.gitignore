@@ -1,4 +1,4 @@
 # Rewritten on every passing healthcheck: a timestamp, not data.
 .healthcheck.ttl
-# Built by `daisy build` from include.txt and the prompt trees.
+# Built by `daisy prompt build` from include.txt and the prompt trees.
 AGENTS.md

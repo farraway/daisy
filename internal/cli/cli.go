@@ -31,23 +31,22 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 		return OK
 	}
 	if isHelpWord(args[0]) {
-		// `help <name>` is the bash's until the step that ports help: the
-		// skill lookup, and the note when a skill shadows a command, live
-		// there.
-		return fallThrough(o, stdin, stdout, stderr, args)
+		return help(o, stdin, stdout, stderr, args[1:])
 	}
 
-	cmd, ok := lookup(args[0])
+	cmd, rest, ok := match(args)
 	if !ok {
+		if group := noun(args[0]); group != nil {
+			return nounOnly(stdout, stderr, args, group)
+		}
 		fmt.Fprintf(stderr, "Unknown command: %s\n\n", args[0])
 		writeTree(stderr)
 		return Usage
 	}
-	if cmd.Run == nil {
+	if cmd.bash() {
 		return fallThrough(o, stdin, stdout, stderr, args)
 	}
-	rest := args[1:]
-	if len(rest) == 1 && (rest[0] == "--help" || rest[0] == "-h") {
+	if len(rest) == 1 && isHelpFlag(rest[0]) {
 		writeUsage(stdout, cmd)
 		return OK
 	}
@@ -56,7 +55,10 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 		return invoke(c, cmd, cmd.Health)
 	}
 
-	c.Flags, c.Args = splitArgs(cmd.Flags, rest)
+	var err error
+	if c.Flags, c.Values, c.Args, err = splitArgs(cmd, rest); err != nil {
+		return usageError(stderr, cmd, err.Error())
+	}
 	if len(c.Args) < cmd.Min {
 		return usageError(stderr, cmd, "missing argument")
 	}
@@ -66,20 +68,90 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 	return invoke(c, cmd, cmd.Run)
 }
 
+// help answers `daisy help <name>`. A command's help is what its own
+// --help prints (the bash's, for a command still in bash), followed by a
+// note when a skill has the same name; a noun's is its commands' usages;
+// any other single name is a skill's, which needs the workspace.
+func help(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) int {
+	_, _, words, _ := splitArgs(Command{}, args)
+	helpCmd, _, _ := match([]string{"help"})
+	c := &commands.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr, Args: words}
+	switch cmd, rest, ok := match(words); {
+	case len(words) == 0:
+		writeTree(stdout)
+		return OK
+	case len(words) == 1 && isHelpFlag(words[0]):
+		writeUsage(stdout, helpCmd)
+		return OK
+	case ok && len(rest) > 0:
+		return usageError(stderr, helpCmd, "unexpected argument: "+rest[0])
+	case ok && cmd.bash():
+		code := fallThrough(o, stdin, stdout, stderr, append(strings.Fields(cmd.Name), "--help"))
+		commands.ShadowNote(c, cmd.Name)
+		return code
+	case ok:
+		writeUsage(stdout, cmd)
+		commands.ShadowNote(c, cmd.Name)
+		return OK
+	case len(words) > 1:
+		return usageError(stderr, helpCmd, "unexpected argument: "+words[1])
+	case noun(words[0]) != nil:
+		for _, cmd := range noun(words[0]) {
+			writeUsage(stdout, cmd)
+		}
+		commands.ShadowNote(c, words[0])
+		return OK
+	}
+	return invoke(c, Command{Workspace: true}, commands.SkillHelp)
+}
+
+// nounOnly answers a noun without a verb it has: its commands' usages, on
+// stdout for --help, else on stderr as a usage error.
+func nounOnly(stdout, stderr io.Writer, args []string, group []Command) int {
+	w, code := stderr, Usage
+	switch {
+	case len(args) == 2 && isHelpFlag(args[1]):
+		w, code = stdout, OK
+	case len(args) == 1:
+		fmt.Fprintf(stderr, "Error: missing command: daisy %s <command>\n", args[0])
+	default:
+		fmt.Fprintf(stderr, "Error: unknown command: %s %s\n", args[0], args[1])
+	}
+	for _, cmd := range group {
+		writeUsage(w, cmd)
+	}
+	return code
+}
+
 // splitArgs: the command's flags are the known words leading its
-// arguments; the first other word, dashes or not, starts the positionals
-// (`tasks --todo "-1 point"` searches for `-1 point`). An empty word is no
-// argument: `done ""` is a missing pattern, not one that matches every task.
-func splitArgs(known, args []string) (flags, positional []string) {
-	for len(args) > 0 && slices.Contains(known, args[0]) {
-		flags, args = append(flags, args[0]), args[1:]
+// arguments, a flag in Values taking the next word as its value; the first
+// other word, dashes or not, starts the positionals (`tasks --todo "-1
+// point"` searches for `-1 point`). An empty word is no argument: `done ""`
+// is a missing pattern, not one that matches every task.
+func splitArgs(cmd Command, args []string) (flags []string, values map[string]string, positional []string, err error) {
+	for len(args) > 0 {
+		switch {
+		case slices.Contains(cmd.Values, args[0]):
+			if len(args) < 2 || args[1] == "" {
+				return nil, nil, nil, fmt.Errorf("%s needs a value", args[0])
+			}
+			if values == nil {
+				values = map[string]string{}
+			}
+			values[args[0]], args = args[1], args[2:]
+			continue
+		case slices.Contains(cmd.Flags, args[0]):
+			flags, args = append(flags, args[0]), args[1:]
+			continue
+		}
+		break
 	}
 	for _, a := range args {
 		if a != "" {
 			positional = append(positional, a)
 		}
 	}
-	return flags, positional
+	return flags, values, positional, nil
 }
 
 // invoke resolves the workspace when the command needs one and runs fn;
@@ -100,7 +172,8 @@ func invoke(c *commands.Context, cmd Command, fn func(*commands.Context) error) 
 	return OK
 }
 
-func isHelpWord(s string) bool { return s == "help" || s == "--help" || s == "-h" }
+func isHelpWord(s string) bool { return s == "help" || isHelpFlag(s) }
+func isHelpFlag(s string) bool { return s == "--help" || s == "-h" }
 
 func usageError(stderr io.Writer, cmd Command, msg string) int {
 	fmt.Fprintf(stderr, "Error: %s\n", msg)

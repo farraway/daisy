@@ -809,21 +809,14 @@ daisy_projects_summary() {
 }
 
 # --- Skills ---
-# Two different questions, deliberately two different lookups. Sources are
-# what Daisy owns and edits; installed copies are what an agent actually
-# loads. `daisy install`/`daisy init` copy the former to the latter, so a
-# command must be explicit about which one it means.
+# Sources are what Daisy owns and edits; installed copies (what an agent
+# loads, which `daisy list` and `daisy help <skill>` read) are the binary's
+# concern. `daisy install`/`daisy init` copy the former to the latter.
 
 # Skill sources, lowest precedence first (a home skill shadows a root one).
 daisy_skill_source_dirs() {
     echo "$DAISY_ROOT/skills"
     [ -n "$DAISY_HOME" ] && echo "$DAISY_HOME/skills"
-}
-
-# Installed skill copies, lowest precedence first (workspace shadows user).
-daisy_installed_skill_dirs() {
-    echo "$HOME/.claude/skills"
-    [ -n "$DAISY_WORKSPACE" ] && echo "$DAISY_WORKSPACE/.claude/skills"
 }
 
 # Echoes the path to a skill's source SKILL.md, or nothing if there is none.
@@ -958,6 +951,17 @@ replace_rules_section() {
         skip && (/^# / || /^## /) { print ""; skip = 0 }
         !skip { print }
     ' "$file"
+}
+
+# The daisy binary, for a script that needs a command the binary has taken
+# over: this root's when it is built, else `daisy` on PATH (the suite's
+# fixture root has no bin/; the binary on PATH is the one under test).
+daisy_bin() {
+    if [ -x "$DAISY_ROOT/bin/daisy" ]; then
+        echo "$DAISY_ROOT/bin/daisy"
+    else
+        echo daisy
+    fi
 }
 
 # Require DAISY_ROOT to be set. Call early in every script.

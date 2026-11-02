@@ -184,8 +184,8 @@ home_new() {
     daisy_register_home "$name" "$path"
     trap - EXIT
 
-    "$DAISY_ROOT/daisy/scripts/build-prompt.sh" "$name" ||
-        echo "  ⚠ AGENTS.md not built; run 'daisy build $name'" >&2
+    "$(daisy_bin)" prompt build "$name" ||
+        echo "  ⚠ AGENTS.md not built; run 'daisy prompt build $name'" >&2
 
     echo ""
     echo "✅ Created home: $name"

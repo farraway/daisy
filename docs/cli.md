@@ -183,9 +183,9 @@ API call: `EDITOR`, `TMPDIR`, `ANTHROPIC_API_KEY`, `DAISY_OPTIMIZE_MODEL`,
 
 **`--healthcheck` hook.** The scripts listed in `healthcheck.sh`'s
 `HEALTHCHECK_SCRIPTS` (`home`, `feedback`, `optimize`, `eval`, `files`,
-`list`, `plan-pickup`, `test`) and the Go commands listed in its
+`plan-pickup`, `test`) and the Go commands listed in its
 `HEALTHCHECK_COMMANDS` (`done`, `log`, `tasks`, `projects`, `new-day`,
-`new-week`, `rotate`, asked through the binary) accept `--healthcheck` as the
+`new-week`, `rotate`, `list`, asked through the binary) accept `--healthcheck` as the
 sole argument: check their own preconditions, print nothing on success,
 exit 0; else a one-line `Error: …` on stderr, exit 1. Two cases pin it from
 outside (`done --healthcheck` [18], `tasks --healthcheck` [30]). In the
@@ -288,27 +288,27 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built |
-| Legacy | `daisy list` → `list.sh` |
+| Status | ported (Step 20): Go |
+| Legacy | `daisy list` → the bash `list` script, deleted in Step 20 |
 | Usage | `daisy list [--full]` (`--full` prints each skill's `description` instead of `short_description`; not in the agreed help line, kept as an unasserted flag) |
-| Exit codes | 0; 1 outside a workspace |
-| Stdout | `Prompts (<home>):` then one `  %-20s <trigger summary or (always loaded)>` per `include.txt` line, `(missing: <path>)` for an absent prompt, `(no include.txt found)`; blank; `Skills:` then one `  %-20s <text>` per installed skill, user-level (`~/.claude/skills`) then workspace (`.claude/skills`), workspace overriding by name; or `(none installed — run: daisy install, then daisy init <home>)` |
-| Stderr | unspecified |
+| Exit codes | 0; 1 outside a workspace, for an `include.txt` that cannot be read or a line of it with an unmatched quote (where the bash died mid-listing), or a prompt or SKILL.md that cannot be read; 2 with any other argument |
+| Stdout | `Prompts (<home>):` then one `  %-20s <trigger summary or (always loaded)>` per `include.txt` entry (the width in bytes, as the bash's `printf`), `(missing: <path>)` for an absent prompt, `(no include.txt found)`; the summary is the trigger's first line that is not `Read the full…` and not empty once a leading `- ` is dropped, cut to 97 characters and `...` past 100, else `(lazy, no trigger summary)`; blank; `Skills:` then one `  %-20s <text>` per installed skill, user-level (`~/.claude/skills`) then workspace (`.claude/skills`), workspace overriding by name, in byte order of name (the bash's `sort` collated by locale); `<text>` is `short_description`, else `description`, one surrounding `"` dropped; or `(none installed — run: daisy install, then daisy init <home>)` |
+| Stderr | the refusals above |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |
-| Cases | none |
+| Cases | 85 |
 
 ### daisy help
 
 | Field | Value |
 |---|---|
-| Status | as built; the tree (`daisy`, `daisy help`, `--help`, `-h`) is the binary's from Step 17, rendered from the `cli` table under the names this build answers to (legacy spellings until each rename's step); `help <name>` is the bash's until Step 20 |
-| Legacy | `daisy help [<command>\|<skill>]` → built in to `daisy.sh` (`show_help`, `show_command_help`, `show_skill_help`) |
+| Status | ported (Step 20): Go. The tree (`daisy`, `daisy help`, `--help`, `-h`) is rendered from the `cli` table under the names this build answers to (legacy spellings until each rename's step) |
+| Legacy | `daisy help [<command>\|<skill>]` → built in to `daisy.sh` (`show_help`, `show_command_help` and the skill lookup, the last removed in Step 20); since Step 20 `daisy.sh` keeps `show_help` lines and `show_command_help` only for the commands still in bash, which answer their own `--help` |
 | Usage | `daisy help [<command>\|<skill>]`; `daisy`, `daisy --help`, `daisy -h` are `daisy help` |
-| Exit codes | 0; 1 for a name that is neither (`Unknown command or skill: <name>` and `Run 'daisy help' for commands, 'daisy list' for skills.` on stderr); the skill form needs a workspace |
-| Stdout | no argument: the tree. A command name: its usage (the script header today; the `cli` table in Go), and when a skill of that name also exists a note — the command's help, not the skill's (not `Collide politely` [52]), and the word `skill` [52]: `Note: a skill named '<name>' also exists; the command name takes precedence.` A skill name: `<name>  (<SKILL.md path>)`, blank, the full `description:` (`when to stop making them` [51]), blank, the `## Rules` section (`Measure before cutting` [51]), `Other sections: <H2 titles>` (`Worked example` [51]). The installed copy is preferred over the source |
-| Ops | ReadOnly |
+| Exit codes | 0; 1 for a name that is neither (`Unknown command or skill: <name>` and `Run 'daisy help' for commands, 'daisy list' for skills.` on stderr; the bash died silently there) or outside a workspace for a skill; 2 for surplus words |
+| Stdout | no argument: the tree. A command name (its words: `help prompt build`): exactly what `daisy <command> --help` prints — `Usage: daisy <usage>`, blank, the description, from the table for a Go command; the script header through `daisy.sh` for a command still in bash — then, when a skill of that name exists (installed or source; none looked up outside a workspace), a note — the command's help, not the skill's (not `Collide politely` [52]), and the word `skill` [52]: blank, `Note: a skill named '<name>' also exists; the command name takes precedence.`, `  Read it with: daisy list, or open its SKILL.md directly.` A noun (`help prompt`): the usage of each of its commands. A skill name: `<name>  (<SKILL.md path>)`, blank, the full `description:` value (`when to stop making them` [51]; the line after `description: `, `: ` inside it kept), blank, the `## Rules` section up to the next `## ` heading (`Measure before cutting` [51]), `Other sections: <H2 titles>` joined by `, ` (`Worked example` [51]). The installed copy (workspace over user) is preferred over the source (home over root) |
+| Ops | ReadOnly (the skill lookup and the note); a bash command's help is the fall-through's |
 | Writes | none |
 | Commits | none |
 | Cases | 51, 52 |
@@ -504,16 +504,16 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | agreed rename (Step 20); behaviour as built |
-| Legacy | `daisy build [home]` → `build-prompt.sh` |
-| Usage | `daisy prompt build [<home>]`: with `<home>` builds `<home>/AGENTS.md` (no workspace needed); without, builds the current workspace's `.daisy/AGENTS.md` for its bound home (the dispatcher passes `--output <ws>/.daisy/AGENTS.md`). `--output <file>` is an internal flag the dispatcher and `init` use (`home new` and `optimize` call the script with the home name, writing `<home>/AGENTS.md`); Go calls the function directly and need not expose it |
-| Exit codes | 0; 1 for an unregistered home or a missing `include.txt` (`Error: <home>/include.txt not found`) |
-| Stdout | `✅ Built AGENTS.md for home: <home>`, `   Full: <names>`, `   Lazy: <names>`, `   Output: <file>`, `   Size: N lines` |
-| Stderr | `Warning: Prompt not found: <path>` (an error block is written into the output and the build continues); `Warning: No ## Trigger section found in <path>` (included in full) |
+| Status | ported (Step 20): Go, renamed from `build` (no alias) |
+| Legacy | `daisy build [home]` → the bash `build-prompt` script, deleted in Step 20 |
+| Usage | `daisy prompt build [<home>]`: with `<home>` builds `<home>/AGENTS.md` (no workspace needed); without, builds the current workspace's `.daisy/AGENTS.md` for its bound home. `--output <file>` (hidden, internal) writes that file instead; `init` passes it until Step 21, `home new` and `optimize` pass the home's name. `daisy prompt` alone or with another verb is a usage error listing the `prompt` commands |
+| Exit codes | 0; 1 for an unregistered or unusable home (the Home resolution messages), outside a workspace without `<home>`, a missing `include.txt` (`Error: <home>/include.txt not found` and `Create include.txt in your home directory listing prompts to include`), an `include.txt` line with an unmatched quote, a prompt that cannot be read, or an output that cannot be written; nothing is written then; 2 for a surplus argument or `--output` without a value |
+| Stdout | `✅ Built AGENTS.md for home: <home>`, `   Full: <names>`, `   Lazy: <names>` (each only when not empty), `   Output: <file>`, `   Size: N lines` |
+| Stderr | `Warning: Prompt not found: <path>` (the root's path, the last looked in; an error block is written into the output and the build continues); `Warning: No ## Trigger section found in <path>` and `  Include as full prompt instead, or add a ## Trigger section` (included in full, counted as Full) |
 | Ops | Real |
-| Writes | the output file only: a header (`# Daisy Prompt - Auto-generated`, `# Home:`, `# Built: <timestamp>`, `# Source:`, …), then per `include.txt` line a banner and the prompt — whole for `name`, the `## Trigger` section for `~name` — resolved in `<home>/prompts/` then `$DAISY_ROOT/prompts/`, with `$DAISY_ROOT` substituted. Step 20's claim is byte equality with the live `.daisy/AGENTS.md` except the `Built:` line |
+| Writes | the output file only (mode 0644, replaced atomically): a header — `# Daisy Prompt - Auto-generated`, `# Home: <home>`, `# Built: <YYYY-MM-DD HH:MM TZ>`, `# Source: <home>/include.txt`, `#`, `# This file is generated by daisy prompt build`, `# Output: <file>`, `# Do not edit directly - edit source prompts in prompts/ directory`, `# To rebuild: <command>` (`daisy prompt build <home>` for a home's file; `daisy prompt build`, run in the workspace, for any other), a blank line — then per `include.txt` entry a banner and the prompt: whole for `name`, the `## Trigger` section (the lines up to the next line starting `#`, trailing blank lines dropped) for `~name`, resolved in `<home>/prompts/` then `$DAISY_ROOT/prompts/`, every literal `$DAISY_ROOT` replaced by the root. `include.txt`: blank lines and lines whose first non-space is `#` skipped; each other line's words read as `xargs` reads them (blanks collapsed, quotes and backslashes honoured) and a leading `~` making it lazy. Byte for byte the bash's output except the `Built:`, `This file is generated by` and `To rebuild:` lines (Step 20, D35) |
 | Commits | none |
-| Cases | none |
+| Cases | 84; every `init` case (32, 33, 76–79) and `home new` (69) build through it |
 
 ### daisy install
 

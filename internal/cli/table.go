@@ -1,25 +1,34 @@
 package cli
 
-import "daisy/internal/commands"
+import (
+	"slices"
+	"strings"
+
+	"daisy/internal/commands"
+)
 
 // Unbounded is a Max for a command that takes any number of arguments.
 const Unbounded = -1
 
 // Command is one line of `daisy help` and, when Run is set, the function
 // behind it. A command without Run is still the bash's: the binary execs
-// $DAISY_ROOT/daisy.sh for it. Usage is the line as printed, Help the
-// description beside it. Flags are the words the command takes as flags
-// when they lead its arguments; the first other word starts the
-// positionals, dashes included, of which there are Min to Max. Health, when
+// $DAISY_ROOT/daisy.sh for it (help is the exception: the cli's own). Name
+// is what the user types, one word or a noun and its verb (`prompt
+// build`). Usage is the line as printed, Help the description beside it.
+// Flags are the words the command takes as flags when they lead its
+// arguments, Values those of them that take the next word as their value
+// (and are not in the usage line: internal); the first other word starts
+// the positionals, dashes included, of which there are Min to Max. Health, when
 // set, answers `<command> --healthcheck` (hidden from the help): the
 // command's own precondition check, run by `daisy healthcheck`.
 type Command struct {
 	Group     string
-	Name      string // the first word: what the user types
+	Name      string
 	Usage     string
 	Help      string
 	Workspace bool // needs a resolved workspace before it runs
 	Flags     []string
+	Values    []string
 	Min, Max  int
 	Run       func(*commands.Context) error
 	Health    func(*commands.Context) error
@@ -34,7 +43,7 @@ var table = []Command{
 	{Group: "Workspace", Name: "clean", Usage: "clean [-f]", Help: "Remove Daisy from this workspace"},
 	{Group: "Workspace", Name: "status", Usage: "status", Help: "Home, identity, projects, today's counts, active plan", Workspace: true, Run: commands.Status},
 	{Group: "Workspace", Name: "files", Usage: "files", Help: "Resolved real paths for every home file", Workspace: true, Run: commands.Files},
-	{Group: "Workspace", Name: "list", Usage: "list", Help: "Active prompts and installed skills"},
+	{Group: "Workspace", Name: "list", Usage: "list", Help: "Active prompts and installed skills", Workspace: true, Flags: []string{"--full"}, Run: commands.List, Health: commands.ListHealth},
 	{Group: "Workspace", Name: "help", Usage: "help [<command>|<skill>]", Help: "This help, or detail for one command or skill"},
 
 	{Group: "Day", Name: "new-day", Usage: "new-day", Help: "Start a new day", Workspace: true, Run: commands.NewDay, Health: commands.NewDayHealth},
@@ -51,7 +60,7 @@ var table = []Command{
 
 	{Group: "Homes and identities", Name: "home", Usage: "home [list|add <name> <path>|remove <name>|new <name> [path]]", Help: "The homes registry: which homes exist here and where"},
 
-	{Group: "Prompts and skills", Name: "build", Usage: "build [<home>]", Help: "Rebuild AGENTS.md"},
+	{Group: "Prompts and skills", Name: "prompt build", Usage: "prompt build [<home>]", Help: "Rebuild AGENTS.md", Values: []string{"--output"}, Max: 1, Run: commands.PromptBuild},
 	{Group: "Prompts and skills", Name: "install", Usage: "install [--update]", Help: "~/bin/daisy, root skills, permissions"},
 	{Group: "Prompts and skills", Name: "feedback", Usage: "feedback [--workflow <n>] <text>", Help: "Record a prompt failure for optimization"},
 	{Group: "Prompts and skills", Name: "optimize", Usage: "optimize [--workflow <n>] [--dry-run] [--force]", Help: "Run the prompt learning loop on collected feedback"},
@@ -66,11 +75,27 @@ var table = []Command{
 // groups in display order.
 var groups = []string{"Workspace", "Day", "Plans", "Homes and identities", "Prompts and skills", "System"}
 
-func lookup(name string) (Command, bool) {
+// match is the command args name and the arguments after its name.
+func match(args []string) (cmd Command, rest []string, ok bool) {
 	for _, c := range table {
-		if c.Name == name {
-			return c, true
+		words := strings.Fields(c.Name)
+		if len(args) >= len(words) && slices.Equal(args[:len(words)], words) {
+			return c, args[len(words):], true
 		}
 	}
-	return Command{}, false
+	return Command{}, nil, false
 }
+
+// noun is the commands named `<word> <verb>`; none when word is no noun.
+func noun(word string) []Command {
+	var cmds []Command
+	for _, c := range table {
+		if n, _, ok := strings.Cut(c.Name, " "); ok && n == word {
+			cmds = append(cmds, c)
+		}
+	}
+	return cmds
+}
+
+// bash: the command is still daisy.sh's.
+func (c Command) bash() bool { return c.Run == nil && c.Name != "help" }

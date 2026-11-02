@@ -106,10 +106,12 @@ nothing above `ops` calls `os`, `os/exec` or `time.Now` itself. `make build`
 writes `bin/daisy` (gitignored); `daisy test` builds it first and drives the
 suite through it; `make check` (gofmt, vet, `go mod tidy -diff`, `go test
 -race`) runs before every root commit. Ported so far: `status`, `files`,
-`log`, `done`, `tasks`, `projects`, `new-day`, `new-week`, `rotate`
-(`internal/todo`, `internal/journal` and `internal/gitx` behind them);
-their scripts are gone and `healthcheck.sh` asks them for `--healthcheck`
-through the binary.
+`log`, `done`, `tasks`, `projects`, `new-day`, `new-week`, `rotate`,
+`prompt build`, `list` and `help` (`internal/todo`, `internal/journal`,
+`internal/gitx`, `internal/prompt` and `internal/skill` behind them);
+their scripts are gone, `healthcheck.sh` asks them for `--healthcheck`
+through the binary, and a script that needs one calls the binary
+(`daisy_bin` in `common.sh`).
 
 ## Script Reference
 
@@ -121,13 +123,11 @@ through the binary.
 | `optimize.sh` | LLM-driven prompt optimization loop (groups by workflow tag, diff, approval, archives used entries with provenance) |
 | `eval.sh` | List, display, or record eval case results for the optimize loop |
 | `home.sh` | Homes registry: list, add, remove, new (create from template, git init, register) |
-| `build-prompt.sh` | Generate a home's AGENTS.md from its include.txt |
 | `common.sh` | Shared functions: homes registry, identities, resolve_home, require_env |
 | `commit.sh` | Git commit helper — `--home` commits the home's repository, `--not-home` the root's minus any home still inside it |
 | `check-secrets.sh` | Report which API tokens/secrets are configured in .env.sh |
 | `healthcheck.sh` | System validation |
 | `files.sh` | Report resolved real paths for every per-home file/directory |
-| `list.sh` | List active prompts (with trigger summary) and installed skills (with description) |
 | `plan-new.sh` | Create a new Daisy plan file, symlink as PLAN.md (or, with `--spec`, an unregistered draft in the working directory) |
 | `plan-pickup.sh` | Promote a local spec draft (from `plan-new.sh --spec`) into a tracked plan |
 | `plan-archive.sh` | Archive the active Daisy plan, remove the PLAN.md symlink |
@@ -149,9 +149,9 @@ After modifying scripts or workflow logic, validate against [`docs/test-cases.md
 
 ## AGENTS.md Build System
 
-`build-prompt.sh` generates a home's `AGENTS.md` from its `include.txt`, resolving each prompt name against the home's `prompts/` and then the root's `prompts/`. `daisy init` builds the same output into the workspace's `.daisy/AGENTS.md`.
+`daisy prompt build <home>` generates a home's `AGENTS.md` from its `include.txt`, resolving each prompt name against the home's `prompts/` and then the root's `prompts/` (`internal/prompt`). Without a home it builds the workspace's `.daisy/AGENTS.md` for the bound home, which `daisy init` also writes.
 
-Usage: `daisy build [home-name]`
+Usage: `daisy prompt build [<home>]`
 
 `include.txt` is prompts-only. Skills (`skills/`) have no manifest — every
 skill in the merged root+home set always installs at `daisy init`; see
@@ -181,9 +181,9 @@ personal
 
 1. Create `prompts/{name}.md` with a `## Trigger` section as the first heading
 2. Add `~{name}` (lazy) or `{name}` (full) to the home's `include.txt`
-3. Rebuild: `daisy build {home-name}`
+3. Rebuild: `daisy prompt build {home-name}`
 
-The build script extracts everything between `## Trigger` and the next `#` or `##` heading for lazy stubs. If no `## Trigger` is found, falls back to full inclusion with a warning.
+The build extracts everything between `## Trigger` and the next line starting with `#` for lazy stubs. If no `## Trigger` is found, falls back to full inclusion with a warning.
 
 ### Creating a New Skill
 

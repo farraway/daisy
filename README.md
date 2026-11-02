@@ -213,7 +213,6 @@ In any initialized workspace:
 Every command also accepts `--help`/`-h` as its sole argument to print its own usage.
 
 ```bash
-daisy build [home]            # Rebuild AGENTS.md for a home
 daisy check-secrets           # Check which secrets/tokens are configured
 daisy clean [-f]              # Remove Daisy from the current workspace
 daisy commit --home "msg"     # Commit the home's repository (--not-home: the root's)
@@ -222,7 +221,7 @@ daisy eval [<case>]           # List, display, or record an eval case result
 daisy feedback "message"      # Record a prompt failure for optimization
 daisy files                   # Show resolved real paths for every home file
 daisy healthcheck [--force]   # System validation
-daisy help [<command>]        # Show command list, or one command's usage
+daisy help [<command>|<skill>] # Show command list, one command's usage, or a skill's detail
 daisy home list               # Registered homes and where each lives
 daisy home new <name> [path]  # Create a home (own git repo) and register it
 daisy home add <name> <path>  # Register an existing home; `remove` unregisters
@@ -238,6 +237,7 @@ daisy plan-archive            # Archive the active Daisy plan
 daisy plan-new "<description>" # Create a new Daisy plan and symlink PLAN.md
 daisy plan-pickup <path>      # Promote a spec draft into a tracked plan
 daisy projects [--archived]   # List active or archived projects
+daisy prompt build [<home>]   # Rebuild AGENTS.md (a home's, or this workspace's)
 daisy rotate                  # Rotate journal.md into archive window files (automatic; rarely needed by hand)
 daisy status                  # Quick workspace summary
 daisy tasks [--all] [--todo|--done] [pattern]  # Search this workspace's tasks; --all widens to every project (read-only)
@@ -288,9 +288,9 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── daisy.go, internal/         # Run, and the Go packages behind it (ops, env, cli, commands, ...)
 ├── daisy.sh                    # Bash entry point; the binary falls through to it for commands not yet ported
 ├── daisy/scripts/              # daisy-init, home, feedback, optimize, eval,
-│                               # build-prompt, healthcheck, common, commit,
-│                               # check-secrets, files, list, plan-new,
-│                               # plan-pickup, plan-archive, test
+│                               # healthcheck, common, commit, check-secrets,
+│                               # files, plan-new, plan-pickup, plan-archive,
+│                               # test
 ├── templates/
 │   ├── journal-day.md          # Daily today.md template
 │   ├── journal-week.md         # Weekly today.md template (adds retrospective)
@@ -327,9 +327,8 @@ A home is one git repository, created from `templates/home/`:
 ```
 {home}/
 ├── .gitignore                  # AGENTS.md and the healthcheck stamp
-├── AGENTS.md                   # Generated prompt (rebuild with `daisy build`)
+├── AGENTS.md                   # Generated prompt (rebuild with `daisy prompt build`)
 ├── include.txt                 # Which prompts load into AGENTS.md, and how
-├── prompt.md                   # Legacy, from before include.txt; nothing reads it
 ├── gitconfig                   # The home's default identity: name=, email=, optional sshkey=
 ├── identities/                 # Optional: further identities of this home, one file each (same format)
 ├── prompts/                    # Optional, yours to add: home prompts shadow the root's by name

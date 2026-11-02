@@ -512,8 +512,7 @@ echo ""
 
 if [ "$PROMPT_APPLIED" = true ]; then
     echo "Rebuilding AGENTS.md..."
-    "$DAISY_ROOT/daisy/scripts/build-prompt.sh" "$DAISY_HOME_NAME" 2>/dev/null || \
-        "$DAISY_ROOT/daisy/scripts/build-prompt.sh" --output "$DAISY_HOME/AGENTS.md" "$DAISY_HOME_NAME"
+    "$(daisy_bin)" prompt build "$DAISY_HOME_NAME"
     echo "  ✓ AGENTS.md rebuilt"
 fi
 

@@ -355,7 +355,7 @@ fi
 check_journal_rotation
 
 # Check 6: Run component health checks
-HEALTHCHECK_SCRIPTS=(home.sh feedback.sh optimize.sh eval.sh files.sh list.sh plan-pickup.sh test.sh)
+HEALTHCHECK_SCRIPTS=(home.sh feedback.sh optimize.sh eval.sh files.sh plan-pickup.sh test.sh)
 for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     script="$DAISY_ROOT/daisy/scripts/$script_name"
     if [ -f "$script" ] && [ -x "$script" ]; then
@@ -369,12 +369,9 @@ for script_name in "${HEALTHCHECK_SCRIPTS[@]}"; do
     fi
 done
 
-# Commands the Go binary has taken over answer `--healthcheck` themselves:
-# this root's binary when it is built, else `daisy` on PATH (the suite's
-# fixture root has no bin/; the binary on PATH is the one under test).
-DAISY_BIN="$DAISY_ROOT/bin/daisy"
-[ -x "$DAISY_BIN" ] || DAISY_BIN=daisy
-HEALTHCHECK_COMMANDS=(done log tasks projects new-day new-week rotate)
+# Commands the Go binary has taken over answer `--healthcheck` themselves.
+DAISY_BIN=$(daisy_bin)
+HEALTHCHECK_COMMANDS=(done log tasks projects new-day new-week rotate list)
 for cmd in "${HEALTHCHECK_COMMANDS[@]}"; do
     if "$DAISY_BIN" "$cmd" --healthcheck >/dev/null 2>&1; then
         ok "Component: $cmd"

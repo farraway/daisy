@@ -260,9 +260,8 @@ func TestFallThrough(t *testing.T) {
 	if strings.Join(got, "|") != m.root+"/daisy.sh|feedback|a|b c|--help" || gotDir != m.ws || gotStdout != &out {
 		t.Errorf("started %v in %q with stdout %v", got, gotDir, gotStdout)
 	}
-	// `help <name>` (a command of either side, or a skill) and a legacy
-	// command's own --help fall through too
-	for _, args := range [][]string{{"help", "done"}, {"help", "status"}, {"feedback", "--help"}, {"home", "list"}} {
+	// a legacy command's own --help falls through too
+	for _, args := range [][]string{{"feedback", "--help"}, {"home", "list"}} {
 		got = nil
 		daisy.Run(o, strings.NewReader(""), io.Discard, io.Discard, args)
 		if strings.Join(got, "|") != m.root+"/daisy.sh|"+strings.Join(args, "|") {

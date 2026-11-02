@@ -170,7 +170,7 @@ fixture_teardown_llm_stub() {
 fixture_command() {
     case "$1" in
         daisy-init)   echo "init" ;;
-        build-prompt) echo "build" ;;
+        build-prompt) echo "prompt build" ;;
         check-secrets|commit|done|eval|feedback|files|healthcheck|home|list|log|\
         new-day|new-week|optimize|plan-archive|plan-new|plan-pickup|projects|\
         rotate|tasks|test)
