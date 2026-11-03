@@ -600,7 +600,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | agreed (Steps 27–30); specified in [docs/swarm.md](swarm.md) (Step 26), not here: `swarm.json`, the lifecycle, the member container, both seams, and each verb's reads, writes, output and exit codes |
+| Status | agreed (Steps 27–30); specified in [docs/swarm.md](swarm.md) (Step 26, revised at Step 38), not here: `swarm.json` (its gates and budget included), the eight-label lifecycle over two conversations (the issue for the design, a pull request per slice for the implementation), the member and check containers, both seams, and each verb's reads, writes, output and exit codes |
 | Legacy | none |
 | Usage | `swarm init [--defaults]`, `swarm apply [--once]`, `swarm status`, `swarm pause`, `swarm resume` — the five lines the `Swarm` group adds to the help when built, and nothing more |
 | Cases | none |

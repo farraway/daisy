@@ -1,9 +1,15 @@
-# The swarm member image: what one role run executes in (docs/swarm.md,
-# section 7). Specified at Step 26 and NOT YET BUILT OR RUN: Step 28's smoke
-# builds it first. It holds the two provider CLIs and git, and nothing the
-# spec does not require. No secret, token or key is in the image or its
-# build context: a run receives its provider's key at `docker run` time as
-# its one environment variable (docs/swarm.md, section 8).
+# The swarm's base member image: what one role run executes in
+# (docs/swarm.md, section 7). Specified at Step 26, revised at Step 38, and
+# NOT YET BUILT OR RUN: Step 39 builds it first, by hand. It holds the two
+# provider CLIs and git, and nothing the spec does not require. It is a
+# base: a product's image starts `FROM daisy-member:1` and adds the
+# product's toolchain and a warmed dependency cache, so the worker can run
+# the product's `check` and Daisy can run it again in a container with no
+# network (docs/swarm.md, section 7.2). The maintainer builds and tags that
+# image and names it in swarm.json's `image`. No secret, token or key is in
+# either image or its build context: a member receives its provider's key
+# at `docker run` time as its one environment variable, and the check
+# receives none (docs/swarm.md, section 8).
 #
 # Build, naming the CLI versions (recorded in the plan's Decisions):
 #   docker build -t daisy-member:1 \
@@ -11,13 +17,13 @@
 #     --build-arg CODEX_VERSION=<version> images/member
 
 # Base: Node.js, because both provider CLIs are npm packages; Debian slim so
-# git comes from the distribution. Pinned to an exact release; Step 28
-# appends the digest `docker pull` prints (FROM node:<tag>@sha256:<digest>).
+# git comes from the distribution. Pinned to an exact release; the first
+# build appends the digest `docker pull` prints (FROM node:<tag>@sha256:<digest>).
 FROM node:24.11.0-bookworm-slim
 
 # git: the worker commits in /work, and every role reads the history and
 # the diff there. ca-certificates: TLS roots for the codex CLI, a native
-# binary that does not carry Node's bundled roots (to confirm at Step 28;
+# binary that does not carry Node's bundled roots (to confirm at Step 39;
 # dropped if codex reaches its API without it). --no-install-recommends
 # keeps everything else out: no ssh client, since a member never reaches a
 # git remote (apply pushes from the host).
@@ -49,5 +55,6 @@ RUN mkdir -m 1777 /home/member
 # (claude refuses --permission-mode bypassPermissions as root).
 USER node
 
-# /work is where apply mounts the clone of the product repository.
+# /work is where apply mounts the clone of the product repository, writable
+# for every role (a reviewer's clone is a throwaway, never fetched).
 WORKDIR /work
