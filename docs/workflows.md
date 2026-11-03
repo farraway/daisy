@@ -228,8 +228,9 @@ absent from todo.txt.
    (`--rewrite <file>` for a rewrite). It shows the diff, writes the target,
    moves the target's entries to feedback/archive.md with an
    **Addressed by:** line, rebuilds AGENTS.md and commits the home once. A
-   target under $DAISY_ROOT is left uncommitted for the root commit (run
-   `daisy healthcheck --force` first), as `apply` says.
+   target under $DAISY_ROOT is never written: `--rules` writes a layered
+   override in the home (the proposal keeps the root's rules first,
+   unchanged, and adds the home's after them), `--rewrite` a full one.
 ```
 
 **Post-workflow:** Remind about weekly inbox checklist:

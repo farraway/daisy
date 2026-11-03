@@ -200,6 +200,32 @@ these are different systems.
 
 **Lazy inclusion** (`~` prefix in include.txt): only the `## Trigger` section is embedded. The model reads the full file on demand when the trigger condition is met.
 
+### Home Overrides
+
+Homes consume the root. A home file at a root prompt's path
+(`<home>/prompts/<name>.md`, or `<home>/skills/<name>/SKILL.md`) overrides
+it, in one of two forms (`internal/prompt/override.go`, D49):
+
+- **Layered** — the file is the line `<!-- daisy: upstream body -->` and
+  one `## Rules` section holding only the home's rules. The prompt is the
+  root's file with those rules appended to its `## Rules` section,
+  renumbered after the root's (a root without the section gets one), so
+  upstream changes flow through. A home rule may refine a root rule, never
+  delete one. `daisy optimize apply --rules` on a root target writes this
+  form.
+- **Full** — the file holds the whole prompt. `daisy optimize apply
+  --rewrite` on a root target writes it and records the root file's hash in
+  `<home>/feedback/.overrides`; `daisy healthcheck` warns when the root has
+  changed since, and `daisy list` marks it `full, behind`.
+
+One merge rule serves every reader: `prompt build` and `init` write every
+layered prompt, merged, to the workspace's `.daisy/prompts/<name>.md`, list
+each override at the top of AGENTS.md, and point every reference to an
+overridden root prompt there (a full override's at the home's file);
+`init` installs a layered skill as the root's directory with the merged
+`SKILL.md`; `help` and the `optimize` briefing show the merged text. A root
+target is never written by `apply`.
+
 ### include.txt Format
 
 ```
@@ -231,9 +257,12 @@ artifact-only → skill. Where a capability is a hybrid, find the seam at
 which situational knowledge stops being needed and split there.
 
 Placement does not decide ownership. A Daisy-authored skill stays
-feedback-owned — the craft layer is where it runs, not who refines it. Only
+feedback-owned — the craft layer is where it runs, not who refines it — but
+homes consume the root: the feedback loop writes only to the home, as an
+override (see Home Overrides above), and a root prompt or skill changes
+only by the developer's own hand through `daisy commit --root`. Only
 skills carrying `LICENSE`/`NOTICE.md` track an upstream source and must stay
-outside the feedback loop's write path.
+outside the feedback loop's write path, overridden or not.
 
 1. Create `skills/{name}/SKILL.md` with `name`/`description`/
    `short_description` frontmatter (plus `disable-model-invocation: true` if

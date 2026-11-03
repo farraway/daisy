@@ -289,6 +289,7 @@ var pathPlaceholders = map[string]string{
 	"docs/cli.md home/stray/note.txt":      "case 73 fixture",
 	"docs/cli.md prompts/daisy":            "a feedback target name, not a file",
 	"docs/cli.md feedback/.last-optimized": "the home file optimize apply writes",
+	"docs/cli.md feedback/.overrides":      "the home file a full override records the root's hash in, created on first use",
 	"docs/cli.md y/N/e":                    "the bash optimize prompt's answers",
 	"AGENTS.md os/exec":                    "a Go standard package",
 	"docs/swarm.md swarm/swarm.json":       "the workspace file swarm init writes, not a root file",

@@ -28,6 +28,12 @@ func skillHelp(c *Context) error {
 	if err != nil {
 		return fmt.Errorf("Error: cannot read %s: %v", path, err)
 	}
+	if rel, ok := strings.CutPrefix(path, c.Env.Home+"/"); ok {
+		// A source in the home may be a layered override: shown merged.
+		if doc, err = prompt.Locate(c.Ops.FS(), c.Env.Home, c.Env.Root, rel).Text(c.Ops.FS()); err != nil {
+			return fmt.Errorf("Error: %v", err)
+		}
+	}
 	fmt.Fprintf(c.Stdout, "%s  (%s)\n\n", name, path)
 	if d, ok := skill.Field(doc, "description"); ok {
 		fmt.Fprintln(c.Stdout, d)

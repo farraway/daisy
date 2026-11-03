@@ -1,8 +1,6 @@
 package feedback
 
 import (
-	"fmt"
-
 	"daisy/internal/ops"
 	"daisy/internal/prompt"
 	"daisy/internal/skill"
@@ -87,7 +85,9 @@ func Brief(fs ops.FS, root, home string, l Log, include []string, scope *Target)
 		}
 	}
 	for _, s := range skill.All(fs, skill.SourceDirs(root, home)) {
-		active = append(active, Target{Label: "skills/" + s.Name, Path: s.Path, Skill: true})
+		if t, ok := skillTarget(fs, root, home, s.Name); ok {
+			active = append(active, t)
+		}
 	}
 	flagged := map[string]bool{}
 	for _, t := range active {
@@ -112,9 +112,9 @@ func newGroup(fs ops.FS, tag string, t Target, resolved bool) Group {
 		return g
 	}
 	g.Vendored = Vendored(fs, t)
-	doc, err := fs.ReadFile(t.Path)
+	doc, err := t.Src.Text(fs) // an override as the agent reads it: merged
 	if err != nil {
-		g.Err = fmt.Errorf("cannot read %s: %v", t.Path, err)
+		g.Err = err
 		return g
 	}
 	if start, end, ok := prompt.RulesSection(doc); ok {

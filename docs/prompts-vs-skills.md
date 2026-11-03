@@ -103,6 +103,17 @@ Two constraints on that work, recorded here because they shape it:
   wants to be in the loop re-introduces one. A skill with no `## Rules`
   section gets one inserted before its first `##` heading other than the
   Trigger rather than having the proposed rules silently discarded.
+- **The loop writes the home, never the root** (decided 2026-11-02, D49).
+  Homes consume the root: a target that resolves to the root's prompt or
+  skill gets a home override at the same path. `--rules` writes a
+  *layered* one — the line `<!-- daisy: upstream body -->` and the home's
+  own `## Rules`, appended to the root's at build time and renumbered after
+  them, so upstream changes keep flowing; `--rewrite` writes a *full* one,
+  a copy the root no longer reaches, its root hash recorded so `daisy
+  healthcheck` says when the root moves on. The overlay this section once
+  set aside comes back bounded: it is still one `## Rules` section, and the
+  merged prompt is materialised in the workspace, so the agent loads one
+  file. The root's prompts change only by the developer's own hand.
 - **Coverage is per-skill, not blanket.** A skill carrying `LICENSE` or
   `NOTICE.md` tracks an upstream source; rewriting Daisy's copy from local
   feedback would fork it and make future sync a reconciliation problem.

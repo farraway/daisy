@@ -161,6 +161,8 @@ func Run(o ops.Ops, stdout, stderr io.Writer, opt Options) bool {
 	}
 
 	r.feedback()
+	r.overrides()
+	r.materialised()
 
 	fmt.Fprintln(stdout)
 	if r.issues > 0 {

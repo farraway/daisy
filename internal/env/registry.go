@@ -221,3 +221,42 @@ func RootExclusions(fs ops.FS, e Env) []string {
 	}
 	return rels
 }
+
+// RefuseRoot is a best-effort check, not a guarantee: an error when a
+// write at path — its links resolved; for entry, the parent's only, the
+// write acting on the entry itself — would land in the root: what a root
+// commit takes, so not a registered home inside it (RootExclusions) nor
+// the workspace's own .daisy/ when the root is itself a workspace. Daisy
+// writes by path; links a user makes into the root are the user's, and a
+// write through one is lost at the next root update.
+func RefuseRoot(fs ops.FS, e Env, path string, entry bool) error {
+	real := WriteTarget(fs, path, entry)
+	root := RealPath(fs, e.Root)
+	if real != root && !strings.HasPrefix(real, root+"/") {
+		return nil
+	}
+	if fi, err := fs.Lstat(filepath.Join(e.Workspace, ".daisy")); e.Workspace != "" && err == nil && fi.IsDir() {
+		if own := filepath.Join(RealPath(fs, e.Workspace), ".daisy"); real == own || strings.HasPrefix(real, own+"/") {
+			return nil
+		}
+	}
+	for _, rel := range RootExclusions(fs, e) {
+		if h := filepath.Join(root, rel); real == h || strings.HasPrefix(real, h+"/") {
+			return nil
+		}
+	}
+	if real == filepath.Clean(path) {
+		return fmt.Errorf("Error: %s lies in the root, which Daisy never writes", path)
+	}
+	return fmt.Errorf("Error: %s leads into the root (%s), which Daisy never writes; replace the link on the way with a file or directory of its own", path, real)
+}
+
+// WriteTarget is where a write at path lands (RealPath): every link
+// resolved, or, for entry (a write that acts on the entry itself, a link
+// there removed or replaced first), its parent's links only.
+func WriteTarget(fs ops.FS, path string, entry bool) string {
+	if entry {
+		return filepath.Join(RealPath(fs, filepath.Dir(path)), filepath.Base(path))
+	}
+	return RealPath(fs, path)
+}

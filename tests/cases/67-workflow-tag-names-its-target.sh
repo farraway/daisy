@@ -25,7 +25,8 @@ An entry.
 FB
     fixture_run_cli optimize --workflow "$1"
     if [ "$RUN_EXIT" != 0 ]; then echo "exit $RUN_EXIT"; return; fi
-    printf '%s\n' "$RUN_STDOUT" | sed -n 's/^Target: //p' | head -1
+    # The file alone, not the override mark after it (case 62's concern).
+    printf '%s\n' "$RUN_STDOUT" | sed -n 's/^Target: \([^ ]*\).*/\1/p' | head -1
 }
 
 # --- Qualified tags name their layer ---

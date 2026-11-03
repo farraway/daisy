@@ -1,5 +1,6 @@
-# Test Plan #65: an applying run against a *shared* prompt writes the
-# fixture's copy and leaves the repo's own file alone.
+# Test Plan #65: an applying run against a *shared* prompt leaves the repo's
+# own file alone (and, since Step 37, the fixture root's copy too: the home's
+# override is written).
 #
 # fixture_setup used to symlink the real prompts/ and skills/ trees, so
 # DAISY_ROOT/prompts was the repo's prompts/. Every case avoided writing
@@ -29,17 +30,19 @@ fixture_write_feedback <<'FB'
 Retrospective guidance was wrong once.
 FB
 
-proposal=$(fixture_write_proposal rules.md <<'RU'
+fixture_before=$(cat "$fixture_prompt")
+proposal=$(fixture_write_proposal rewrite.md <<'RU'
 ## Rules
 
 1. Report a measurement, not a score.
 RU
 )
-fixture_run_cli optimize apply --workflow retrospective --rules "$proposal" --yes
+fixture_run_cli optimize apply --workflow retrospective --rewrite "$proposal" --yes
 
 assert_eq "$RUN_EXIT" "0" "the run applies"
 assert_contains "$RUN_STDOUT" "$fixture_prompt" "the target is the fixture's copy"
-assert_contains "$(cat "$fixture_prompt")" "1. Report a measurement, not a score." \
-    "the fixture's copy is rewritten"
+assert_contains "$(cat "$(fixture_home_dir)/prompts/retrospective.md")" "1. Report a measurement, not a score." \
+    "the home's override of it is written (case 62: a root target never is)"
+assert_text_eq "$(cat "$fixture_prompt")" "$fixture_before" "the fixture's copy is untouched"
 assert_text_eq "$(cat "$real_prompt")" "$real_before" \
     "the repo's own prompts/retrospective.md is byte-identical"

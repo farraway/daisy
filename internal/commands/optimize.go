@@ -121,7 +121,7 @@ func writeBriefing(c *Context, log feedback.Log, b feedback.Briefing, scope *fee
 		case g.Vendored:
 			fmt.Fprintf(w, "Target: %s\nNot offered — %s is a vendored skill (carries LICENSE/NOTICE.md); rewriting Daisy's copy would fork it from upstream. Its entries stay pending.\n", g.Target.Path, g.Target.Label)
 		default:
-			fmt.Fprintf(w, "Target: %s\n", g.Target.Path)
+			fmt.Fprintf(w, "Target: %s%s\n", g.Target.Path, overrideMark(c, g.Target))
 			if g.Problem != nil {
 				fmt.Fprintf(w, "--rules refused: %v\n", g.Problem)
 			}
@@ -149,7 +149,7 @@ func writeBriefing(c *Context, log feedback.Log, b feedback.Briefing, scope *fee
 	if len(b.Flagged) > 0 {
 		fmt.Fprintf(w, "\nRewrite flagged (more than %d rules, nothing pending):\n", feedback.RewriteThreshold)
 		for _, f := range b.Flagged {
-			fmt.Fprintf(w, "[%s] rewrite flagged: %d rules\nTarget: %s\n", f.Target.Label, f.Rules, f.Target.Path)
+			fmt.Fprintf(w, "[%s] rewrite flagged: %d rules\nTarget: %s%s\n", f.Target.Label, f.Rules, f.Target.Path, overrideMark(c, f.Target))
 		}
 	}
 	if entries == 0 && len(b.Flagged) == 0 {
@@ -175,15 +175,35 @@ func writeBriefing(c *Context, log feedback.Log, b feedback.Briefing, scope *fee
 	}
 }
 
+// overrideMark is what the briefing says of a target in the root or
+// overriding it: apply never writes the root, so a root target's apply
+// writes a home override; a full override says when the root has moved on
+// since the copy, for the rewrite to fold in.
+func overrideMark(c *Context, t feedback.Target) string {
+	switch t.Src.Form {
+	case prompt.RootOnly:
+		return " (root — apply writes a home override)"
+	case prompt.Layered:
+		return " (home override, layered)"
+	case prompt.Full:
+		if ledger, err := prompt.ReadLedger(c.Ops.FS(), c.Env.Home); err == nil && t.Src.Behind(c.Ops.FS(), ledger) {
+			return " (home override, full, behind the root: fold the root's changes into a rewrite)"
+		}
+		return " (home override, full)"
+	}
+	return ""
+}
+
 // OptimizeApply writes the agent's proposal for one target: with --rules
 // the target's `## Rules` section is replaced, with --rewrite the whole
-// file. It shows the diff and asks (unless --yes, for text the user approved
-// in the conversation); on approval it writes the target, moves the target's
-// pending entries to the archive with their provenance, stamps
-// feedback/.last-optimized, rebuilds AGENTS.md for a prompt and commits
-// the home once. A target in the root is left for the root commit, which
-// runs the publication gate. Every refusal comes before the first write;
-// a failed write takes back the ones before it.
+// file. A target in the root is never written: the home's override at
+// its path is (planChange). It shows the diff and asks (unless --yes, for
+// text the user approved in the conversation); on approval it writes the
+// target, moves the target's pending entries to the archive with their
+// provenance, stamps feedback/.last-optimized, rebuilds AGENTS.md and
+// the materialised prompts for a prompt and commits the home once. Every
+// refusal comes before the first write; a failed write takes back the
+// ones before it.
 func OptimizeApply(c *Context) error {
 	workflow, ok := c.Value("--workflow", "-w")
 	if !ok {
@@ -217,21 +237,9 @@ func OptimizeApply(c *Context) error {
 	if err != nil {
 		return fmt.Errorf("Error: cannot read %s: %v", file, err)
 	}
-	before, err := fsys.ReadFile(t.Path)
+	ch, err := planChange(fsys, t, mode, file, proposal)
 	if err != nil {
-		return fmt.Errorf("Error: cannot read %s: %v", t.Path, err)
-	}
-	after := proposal
-	if mode == "rules" {
-		if after, err = prompt.ReplaceRules(before, proposal); err != nil {
-			var te prompt.TargetError
-			if errors.As(err, &te) {
-				return fmt.Errorf("Error: %s: %v", t.Path, err)
-			}
-			return fmt.Errorf("Error: %s %v", file, err)
-		}
-	} else if strings.TrimSpace(string(proposal)) == "" {
-		return fmt.Errorf("Error: %s is empty; a rewrite replaces the whole of %s", file, t.Label)
+		return err
 	}
 	feedbackDoc, err := readFeedback(c)
 	if err != nil {
@@ -244,8 +252,18 @@ func OptimizeApply(c *Context) error {
 			pending = append(pending, i)
 		}
 	}
-	if string(after) == string(before) && len(pending) == 0 {
-		fmt.Fprintf(c.Stdout, "Nothing to apply: %s already holds this text and no entries are pending for it.\n", t.Path)
+	ledgerPath := filepath.Join(c.Env.Home, prompt.LedgerRel)
+	ledger, ledgerExisted, err := readMaybe(fsys, ledgerPath)
+	if err != nil {
+		return err
+	}
+	newLedger := ledger
+	if ch.hash != "" {
+		newLedger = prompt.SetLedger(ledger, t.Src.Rel, ch.hash)
+	}
+	ledgerChanged := string(newLedger) != string(ledger)
+	if !ch.writes() && !ledgerChanged && len(pending) == 0 {
+		fmt.Fprintf(c.Stdout, "Nothing to apply: %s already holds this text and no entries are pending for it.\n", ch.path)
 		return nil
 	}
 	repo, err := homeRepo(c)
@@ -262,10 +280,16 @@ func OptimizeApply(c *Context) error {
 		}
 	}
 
-	if d := feedback.Diff("a/"+t.Label, "b/"+t.Label, before, after); d != "" {
+	if d := feedback.Diff("a/"+t.Label, "b/"+t.Label, ch.before, ch.after); d != "" {
 		fmt.Fprint(c.Stdout, d)
 	} else {
 		fmt.Fprintf(c.Stdout, "(no change to %s)\n", t.Label)
+	}
+	if ch.override != "" && ch.writes() {
+		fmt.Fprintf(c.Stdout, "Writes the home's %s override %s; the root's %s is not written.\n", ch.override, ch.path, t.Src.Root)
+		if t.Src.Form == prompt.Layered && ch.override == "full" {
+			fmt.Fprintf(c.Stdout, "The layered override is replaced by a full override: the root's later changes reach it no more (daisy healthcheck says when the root moves on).\n")
+		}
 	}
 	fmt.Fprintf(c.Stdout, "Pending entries archived on apply: %d\n", len(pending))
 	if !c.Flag("--yes") {
@@ -286,15 +310,13 @@ func OptimizeApply(c *Context) error {
 	// since (an entry recorded while the question waited) would be lost, so
 	// the apply is refused instead — with --yes too, where the window is
 	// short but not empty.
-	for _, f := range []struct {
-		path string
-		read []byte
-	}{{t.Path, before}, {c.feedbackFile(), feedbackDoc}, {archivePath, archive}} {
-		if f.path == archivePath && len(pending) == 0 {
-			continue
-		}
-		if got, err := readCurrent(c, f.path); err != nil || string(got) != string(f.read) {
-			return fmt.Errorf("Error: %s changed while waiting for the answer; nothing was written. Run the apply again.", f.path)
+	reads := append(ch.reads, read{c.feedbackFile(), feedbackDoc, true}, read{ledgerPath, ledger, ledgerExisted})
+	if len(pending) > 0 {
+		reads = append(reads, read{archivePath, archive, lexists(fsys, archivePath)})
+	}
+	for _, r := range reads {
+		if r.changed(fsys) {
+			return fmt.Errorf("Error: %s changed while waiting for the answer; nothing was written. Run the apply again.", r.path)
 		}
 	}
 
@@ -304,53 +326,183 @@ func OptimizeApply(c *Context) error {
 		entries, archived[i] = append(entries, log.Entries[i]), true
 	}
 	now := c.Ops.Now()
-	writes := []fileWrite{{t.Path, after}}
+	var writes []fileWrite
+	if ch.writes() {
+		writes = append(writes, fileWrite{ch.path, ch.file})
+	}
 	if len(pending) > 0 {
-		provenance := fmt.Sprintf("**Addressed by:** `daisy optimize` %s — `%s` (%s)", now.Format("2006-01-02"), provenancePath(c.Env, t.Path), mode)
+		// Nothing written: the entries are addressed by the text as it stands.
+		addressed, how := t.Path, mode
+		if ch.writes() {
+			addressed, how = ch.path, ch.mode
+		}
+		provenance := fmt.Sprintf("**Addressed by:** `daisy optimize` %s — `%s` (%s)", now.Format("2006-01-02"), provenancePath(c.Env, addressed), how)
 		writes = append(writes,
 			fileWrite{archivePath, feedback.Archive(archive, entries, provenance)},
 			fileWrite{c.feedbackFile(), log.Keep(func(i int) bool { return !archived[i] })})
 	}
 	writes = append(writes, fileWrite{filepath.Join(c.Env.Home, "feedback", ".last-optimized"), []byte(now.Format("2006-01-02 1504") + " " + t.Label + "\n")})
+	if ledgerChanged {
+		writes = append(writes, fileWrite{ledgerPath, newLedger})
+	}
 	var undo undoStack
-	if err := writeAll(fsys, &undo, writes); err != nil {
+	if err := writeAll(fsys, c.Env, &undo, writes); err != nil {
 		return err
 	}
 	if !t.Skill {
-		// AGENTS.md is built from the prompts as now written, and written
-		// under the same undo: a build that fails takes the apply back.
+		// AGENTS.md and the materialised prompts are built from the prompts
+		// as now written, and written under the same undo: a build that
+		// fails takes the apply back.
 		agents, err := agentsWrites(c)
 		if err != nil {
 			return undo.fail(err, "applied")
 		}
-		if err := writeAll(fsys, &undo, agents); err != nil {
+		if err := writeAll(fsys, c.Env, &undo, agents); err != nil {
 			return err
 		}
 	}
-	if string(after) == string(before) {
-		fmt.Fprintf(c.Stdout, "  ✓ %s unchanged\n", t.Path)
+	if ch.writes() {
+		fmt.Fprintf(c.Stdout, "  ✓ Updated %s\n", ch.path)
 	} else {
-		fmt.Fprintf(c.Stdout, "  ✓ Updated %s\n", t.Path)
+		fmt.Fprintf(c.Stdout, "  ✓ %s unchanged\n", t.Path)
 	}
 	if len(pending) > 0 {
 		fmt.Fprintf(c.Stdout, "  ✓ Archived %s to %s\n", plural(len(pending), "entry", "entries"), archivePath)
 	}
-	if t.Skill {
+	if t.Skill && ch.path != t.Src.Root && t.Src.Form != prompt.HomeOwn {
+		fmt.Fprintf(c.Stdout, "A home override of a root skill changed. The workspace's installed copy is still the old version — propagate with:\n  daisy init %s\n", c.Env.Identity)
+	} else if t.Skill {
 		fmt.Fprintf(c.Stdout, "A skill source changed. The installed copies are still the old version — propagate with:\n  daisy install --update      # user-level skills (~/.claude/skills)\n  daisy init %s  # this workspace's skills\n", c.Env.Identity)
 	} else {
 		fmt.Fprintln(c.Stdout, "  ✓ AGENTS.md rebuilt")
 	}
 
-	message := fmt.Sprintf("Optimize %s (%s)", t.Label, mode)
-	if inRoot(c.Env, t.Path) && string(after) != string(before) {
-		fmt.Fprintf(c.Stdout, "  %s is in the root repository, which is published as it is pushed: review it, run 'daisy healthcheck --force', then commit it with:\n    daisy commit --root \"%s\"\n", t.Path, message)
-	}
+	message := fmt.Sprintf("Optimize %s (%s)", t.Label, ch.mode)
 	hash, committed, err := repo.Commit(c.Ops, message)
 	if err != nil {
 		return fmt.Errorf("%v\nThe files are written but NOT committed; run: daisy commit \"%s\"", err, message)
 	}
 	reportCommit(c, message, hash, committed)
 	return nil
+}
+
+// change is what an apply writes to its target: the file it writes (the
+// home's override for a target in the root, which is never written) and
+// what it writes there; the prompt as the agent saw it and as it will
+// read after, for the diff; the mode the archive names; the root's hash
+// for the ledger, when a full override is written over the root; and the
+// files read, which must not change while the question waits.
+type change struct {
+	path, mode    string
+	file          []byte
+	existed       bool
+	current       []byte
+	before, after []byte
+	override      string // "layered" or "full" when the home overrides the root's file
+	hash          string
+	reads         []read
+}
+
+// writes: the target file changes. A layer adding nothing over a root
+// target is no override at all.
+func (ch change) writes() bool {
+	if !ch.existed && ch.override == "layered" && string(ch.before) == string(ch.after) {
+		return false
+	}
+	return !ch.existed || string(ch.file) != string(ch.current)
+}
+
+// planChange is the change mode's proposal makes to t. A target whose
+// text is the root's (no home file, or a layered one) gets a home
+// override: --rules a layered one holding the home's rules, --rewrite a
+// full one, the root's hash recorded. A home prompt, or a full override,
+// is written in place as before; a --rewrite of a full override records
+// the root as it is now.
+func planChange(fsys ops.FS, t feedback.Target, mode, file string, proposal []byte) (change, error) {
+	src := t.Src
+	before, err := src.Text(fsys)
+	if err != nil {
+		return change{}, fmt.Errorf("Error: %v", err)
+	}
+	ch := change{path: t.Path, mode: mode, before: before}
+	var root []byte
+	if src.Overridden() || src.Form == prompt.RootOnly {
+		if root, err = fsys.ReadFile(src.Root); err != nil {
+			return change{}, fmt.Errorf("Error: cannot read %s: %v", src.Root, err)
+		}
+		ch.reads = append(ch.reads, read{src.Root, root, true})
+	}
+	if src.Form == prompt.RootOnly || src.Form == prompt.Layered {
+		ch.path = src.Home
+		ch.override = "layered"
+		if mode == "rewrite" {
+			ch.override = "full"
+		}
+		ch.mode = ch.override + " " + mode
+	}
+	if ch.current, ch.existed, err = readMaybe(fsys, ch.path); err != nil {
+		return change{}, err
+	}
+	ch.reads = append(ch.reads, read{ch.path, ch.current, ch.existed})
+
+	switch {
+	case mode == "rewrite" && strings.TrimSpace(string(proposal)) == "":
+		return change{}, fmt.Errorf("Error: %s is empty; a rewrite replaces the whole of %s", file, t.Label)
+	case mode == "rewrite":
+		ch.file, ch.after = proposal, proposal
+		if src.Form != prompt.HomeOwn {
+			ch.hash = prompt.Hash(root)
+		}
+	case ch.override == "layered":
+		ch.file, err = prompt.LayeredFrom(root, proposal)
+		if err == nil {
+			// The layer is read back as every reader reads it.
+			if ch.after, err = prompt.Merge(root, ch.file); err != nil {
+				return change{}, fmt.Errorf("Error: %s cannot be written as a layered override: %v", file, err)
+			}
+		}
+	default:
+		ch.after, err = prompt.ReplaceRules(before, proposal)
+		ch.file = ch.after
+	}
+	if err != nil {
+		var te prompt.TargetError
+		if errors.As(err, &te) {
+			return change{}, fmt.Errorf("Error: %s: %v", src.Path(), err)
+		}
+		return change{}, fmt.Errorf("Error: %s %v", file, err)
+	}
+	// The file written is read back by its form: it holds the marker line
+	// exactly when it is meant to be a layered override.
+	if prompt.IsLayered(ch.file) != (ch.override == "layered") {
+		return change{}, fmt.Errorf("Error: %s holds the line %s, which makes a file a layered override; a %s cannot hold it outside a code fence (use --rules on the root's target for a layered override)", file, prompt.Marker, mode)
+	}
+	return ch, nil
+}
+
+// read is a file as apply read it: its bytes, and whether it existed.
+type read struct {
+	path    string
+	data    []byte
+	existed bool
+}
+
+// changed: the file is not as it was read.
+func (r read) changed(fsys ops.FS) bool {
+	now, existed, err := readMaybe(fsys, r.path)
+	return err != nil || existed != r.existed || string(now) != string(r.data)
+}
+
+// readMaybe reads path; a file that is not there is no error.
+func readMaybe(fsys ops.FS, path string) ([]byte, bool, error) {
+	b, err := fsys.ReadFile(path)
+	if err != nil {
+		if !lexists(fsys, path) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("Error: cannot read %s: %v", path, err)
+	}
+	return b, true, nil
 }
 
 func yes(answer string) bool {
@@ -384,19 +536,43 @@ type fileWrite struct {
 }
 
 // writeAll makes the writes in order, each through a link as ops.Rewrite
-// does, pushing on undo what takes it back; the first that fails takes
-// back every write before it, this call's and the ones undo already holds.
-func writeAll(fsys ops.FS, undo *undoStack, writes []fileWrite) error {
+// does (a nil data removes the file), pushing on undo what takes it back;
+// the first that fails takes back every write before it, this call's and
+// the ones undo already holds. Daisy writes by path and never at a root
+// path; env.RefuseRoot is a best-effort check against a user-made link
+// leading a write into the root.
+func writeAll(fsys ops.FS, e env.Env, undo *undoStack, writes []fileWrite) error {
+	removed := map[string]bool{} // a removal acts on the entry, not what a link there leads to
+	for _, w := range writes {
+		entry := w.data == nil || removed[w.path]
+		removed[w.path] = removed[w.path] || w.data == nil
+		if err := env.RefuseRoot(fsys, e, w.path, entry); err != nil {
+			return undo.fail(err, "applied")
+		}
+	}
 	for _, w := range writes {
 		old, err := fsys.ReadFile(w.path)
 		existed := err == nil
 		if !existed && lexists(fsys, w.path) {
 			return undo.fail(fmt.Errorf("Error: cannot read %s: %v", w.path, err), "applied")
 		}
-		if err := ops.Rewrite(fsys, w.path, w.data, 0o644); err != nil {
-			return undo.fail(fmt.Errorf("Error: cannot write %s: %v", w.path, err), "applied")
-		}
 		p := w.path
+		if w.data == nil {
+			if !existed {
+				continue
+			}
+			if err := fsys.Remove(p); err != nil {
+				return undo.fail(fmt.Errorf("Error: cannot remove %s: %v", p, err), "applied")
+			}
+			undo.push(func() error { return ops.Rewrite(fsys, p, old, 0o644) })
+			continue
+		}
+		if err := fsys.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return undo.fail(fmt.Errorf("Error: cannot write %s: %v", p, err), "applied")
+		}
+		if err := ops.Rewrite(fsys, p, w.data, 0o644); err != nil {
+			return undo.fail(fmt.Errorf("Error: cannot write %s: %v", p, err), "applied")
+		}
 		if existed {
 			undo.push(func() error { return ops.Rewrite(fsys, p, old, 0o644) })
 		} else {
@@ -407,26 +583,25 @@ func writeAll(fsys ops.FS, undo *undoStack, writes []fileWrite) error {
 }
 
 // agentsWrites are the home's AGENTS.md and the workspace's (the one the
-// agent in this session loads), built from the prompts as they are now.
+// agent in this session loads) with the workspace's materialised
+// prompts, built from the prompts as they are now.
 func agentsWrites(c *Context) ([]fileWrite, error) {
 	e := c.Env
 	var writes []fileWrite
-	for _, out := range []struct{ path, rebuild string }{
-		{filepath.Join(e.Home, "AGENTS.md"), "daisy prompt build " + e.HomeName},
-		{filepath.Join(e.Workspace, ".daisy", "AGENTS.md"), "daisy prompt build"},
+	for _, out := range []struct{ path, rebuild, prompts string }{
+		{filepath.Join(e.Home, "AGENTS.md"), "daisy prompt build " + e.HomeName, ""},
+		{filepath.Join(e.Workspace, ".daisy", "AGENTS.md"), "daisy prompt build", filepath.Join(e.Workspace, ".daisy", "prompts")},
 	} {
-		b, err := buildAgents(c, e, out.path, out.rebuild)
+		b, err := buildAgents(c, e, out.path, out.rebuild, out.prompts)
 		if err != nil {
 			return nil, fmt.Errorf("Error: AGENTS.md cannot be rebuilt: %v", err)
 		}
 		writes = append(writes, fileWrite{out.path, b.Text})
+		if out.prompts != "" {
+			writes = append(writes, promptWrites(c.Ops.FS(), out.prompts, b)...)
+		}
 	}
 	return writes, nil
-}
-
-// inRoot: path lies in the root and not in the home.
-func inRoot(e env.Env, path string) bool {
-	return !strings.HasPrefix(path, e.Home+"/") && strings.HasPrefix(path, e.Root+"/")
 }
 
 // provenancePath names a target in the archive so the name survives the

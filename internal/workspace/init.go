@@ -47,6 +47,8 @@ type initPlan struct {
 	oldHome, oldID     string
 	agents             []byte
 	agentsWarnings     []string
+	prompts            map[string][]byte // materialised prompts, by their path under .daisy/
+	merged             map[string]merged // layered skills, by name
 	rules              map[string][]byte // cursor rule name → content
 	command            []byte
 	skills             map[string]string // name → source dir
@@ -165,11 +167,12 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 	built, err := prompt.Build(fs, prompt.Spec{
 		Root: p.m.Root, HomeName: p.homeName, Home: p.home,
 		Output: filepath.Join(p.daisyDir, agentsFile), Rebuild: "daisy prompt build", Built: o.Now(),
+		Prompts: filepath.Join(p.daisyDir, promptsDir),
 	})
 	if err != nil {
 		return err
 	}
-	p.agents, p.agentsWarnings = built.Text, built.Warnings
+	p.agents, p.agentsWarnings, p.prompts = built.Text, built.Warnings, built.Materialised
 
 	read := func(name string) ([]byte, error) {
 		b, err := fs.ReadFile(filepath.Join(p.m.Root, "templates", name))
@@ -198,6 +201,9 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 		if _, err := fs.ReadFile(filepath.Join(dir, "SKILL.md")); err != nil {
 			return fmt.Errorf("Error: cannot read %s: %v", filepath.Join(dir, "SKILL.md"), err)
 		}
+	}
+	if p.merged, err = mergeSkills(fs, p.m.Root, p.home, p.skills); err != nil {
+		return err
 	}
 	// A stub of a skill the home no longer has is swept with its copy; a
 	// rule not in init's stub form is the user's and stays.
@@ -243,7 +249,22 @@ func (p *initPlan) checkWritable(fs ops.FS) error {
 	for _, n := range sortedNames(p.skills) {
 		files = append(files, ".cursor/rules/"+n+".mdc", ".claude/skills/"+n+"/SKILL.md")
 	}
+	own := env.RealPath(fs, p.target)
 	for _, rel := range files {
+		// Best effort (env.RefuseRoot): a user-made link on the way into
+		// the root (.claude/skills linked to the root's skills/), or at a
+		// file written through it (ops.Rewrite), is refused when seen,
+		// unless it stays in the workspace's own tree (the root bound as a
+		// workspace). A Cursor
+		// rule's link is removed first and a skill's copy replaced whole:
+		// those act on the entry.
+		path := filepath.Join(p.target, rel)
+		entry := strings.HasPrefix(rel, ".cursor/rules/") || strings.HasPrefix(rel, ".claude/skills/")
+		if real := env.WriteTarget(fs, path, entry); real != own && !strings.HasPrefix(real, own+"/") {
+			if err := env.RefuseRoot(fs, p.m, path, entry); err != nil {
+				return err
+			}
+		}
 		dir := p.target
 		parts := strings.Split(rel, "/")
 		for _, part := range parts[:len(parts)-1] {
@@ -252,7 +273,6 @@ func (p *initPlan) checkWritable(fs ops.FS) error {
 				return fmt.Errorf("Error: %s is not a directory, and init writes %s; move it aside, then re-run", dir, filepath.Join(p.target, rel))
 			}
 		}
-		path := filepath.Join(p.target, rel)
 		if strings.HasPrefix(rel, ".claude/skills/") {
 			continue // a skill's copy is replaced whole
 		}
@@ -382,7 +402,7 @@ func (p *initPlan) writeFiles(fs ops.FS, out io.Writer) error {
 		if err := fs.RemoveAll(dst); err != nil {
 			return fmt.Errorf("Error: %v", err)
 		}
-		if err := ops.CopyTree(fs, p.skills[n], dst); err != nil {
+		if err := copySkill(fs, p.skills[n], dst, p.merged[n]); err != nil {
 			return fmt.Errorf("Error: copying the skill %s: %v", n, err)
 		}
 		doc, err := fs.ReadFile(filepath.Join(dst, "SKILL.md"))
@@ -605,6 +625,9 @@ func (p *initPlan) fillStage(fs ops.FS, stage string) error {
 		if err := fs.Symlink(filepath.Join(p.home, l.Target), filepath.Join(stage, l.Link)); err != nil {
 			return fmt.Errorf("Error: %v", err)
 		}
+	}
+	if err := writePrompts(fs, p.daisyDir, stage, p.prompts); err != nil {
+		return err
 	}
 	if err := fs.WriteFile(filepath.Join(stage, agentsFile), p.agents, 0o644); err != nil {
 		return fmt.Errorf("Error: %v", err)

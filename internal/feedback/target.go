@@ -12,11 +12,13 @@ import (
 
 // Target is a file a workflow tag names: a prompt (the home's, else the
 // root's) or a skill's source SKILL.md, with its qualified label
-// (`prompts/<name>`, `skills/<name>`).
+// (`prompts/<name>`, `skills/<name>`), and the path across the root and
+// the home (Src: whether the home overrides the root's, and how).
 type Target struct {
 	Label string
 	Path  string
 	Skill bool
+	Src   prompt.Source
 }
 
 // daisyOwns are the workflows prompts/daisy owns, having no file of their
@@ -56,7 +58,7 @@ func promptTarget(fs ops.FS, root, home, name string) (Target, bool) {
 		return Target{}, false
 	}
 	path, ok := prompt.Lookup(fs, home, root, name)
-	return Target{Label: "prompts/" + name, Path: path}, ok
+	return Target{Label: "prompts/" + name, Path: path, Src: prompt.Locate(fs, home, root, "prompts/"+name+".md")}, ok
 }
 
 func skillTarget(fs ops.FS, root, home, name string) (Target, bool) {
@@ -64,7 +66,7 @@ func skillTarget(fs ops.FS, root, home, name string) (Target, bool) {
 		return Target{}, false
 	}
 	path, ok := skill.Find(fs, skill.SourceDirs(root, home), name)
-	return Target{Label: "skills/" + name, Path: path, Skill: true}, ok
+	return Target{Label: "skills/" + name, Path: path, Skill: true, Src: prompt.Locate(fs, home, root, "skills/"+name+"/SKILL.md")}, ok
 }
 
 // Labels is every target a tag can name, qualified, in byte order: the
@@ -94,16 +96,19 @@ func Labels(fs ops.FS, root, home string) []string {
 	return labels
 }
 
-// Vendored: the target is a skill carrying LICENSE or NOTICE.md, which
-// tracks an upstream source. Rewriting Daisy's copy from local feedback
-// would fork it; such a skill is briefed, never written.
+// Vendored: the target is a skill carrying LICENSE or NOTICE.md, in the
+// root's copy or the home's, which tracks an upstream source. Rewriting or
+// overriding Daisy's copy from local feedback would fork it; such a skill
+// is briefed, never written.
 func Vendored(fs ops.FS, t Target) bool {
 	if !t.Skill {
 		return false
 	}
-	for _, f := range []string{"LICENSE", "NOTICE.md"} {
-		if fi, err := fs.Stat(filepath.Join(filepath.Dir(t.Path), f)); err == nil && fi.Mode().IsRegular() {
-			return true
+	for _, dir := range []string{filepath.Dir(t.Src.Root), filepath.Dir(t.Src.Home)} {
+		for _, f := range []string{"LICENSE", "NOTICE.md"} {
+			if fi, err := fs.Stat(filepath.Join(dir, f)); err == nil && fi.Mode().IsRegular() {
+				return true
+			}
 		}
 	}
 	return false
