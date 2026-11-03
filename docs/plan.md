@@ -4,7 +4,7 @@ Detailed algorithms for the `/daisy plan`, `/daisy execute`, and `/daisy archive
 
 ## Overview
 
-Plans are durable implementation artifacts. A plan is developed collaboratively before any code is written, executed step by step with `praxis.md` as a quality guide, and archived when complete. The plan file is the contract between planning and execution.
+Plans are durable implementation artifacts. A plan is developed collaboratively before any code is written, executed one step per fresh sub-agent with `praxis.md` as a quality guide, and archived when complete. The plan file is the contract between planning and execution.
 
 ---
 
@@ -33,7 +33,10 @@ Plans are durable implementation artifacts. A plan is developed collaboratively 
    - Add a Plans section (or append to it) with:
      ../plans/{filename} — status: in progress
 
-6. Present the numbered Open Questions list via AskUserQuestion
+6. Ask which model and effort level the step agents and the
+   review agents use; record the answer in Decisions.
+
+7. Present the numbered Open Questions list via AskUserQuestion
    (the client's native Q&A UI), including a final question
    equivalent to "Ready to execute?"; fall back to prose ending in
    "Ready to execute? (yes/no)" only when AskUserQuestion is
@@ -56,19 +59,29 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
 
 2. Update "**Status:** executing" in the frontmatter block.
 
-3. Before each step: read $DAISY_ROOT/prompts/praxis.md
-   (as instructed by the bold line in the Steps section).
+3. Work through steps in order, each in a fresh sub-agent (not
+   a fork). The main agent orchestrates and does not implement.
+   Brief the step agent with:
+   - the plan's real path and the step's text
+   - $DAISY_ROOT/prompts/praxis.md and the testing skill
+   - the review gate and its cap, the proportion rule
+   - the hand-back's shape
+   - its reviewer's model and effort (from Decisions)
 
-4. Work through steps in order.
-   After completing each step, mark it "- [x]" in PLAN.md.
-
-5. After each step, update PLAN.md:
+4. The step agent reads praxis.md, states the step's claim,
+   does the step, reviews it to the gate, commits, and updates
+   PLAN.md:
    - Check off the step
    - Record decisions or deviations in Decisions if any
    - Move anything out of scope to Deferred
 
-6. Stop and report if blocked; do not skip steps or work
-   around blockers silently.
+5. The orchestrator verifies the hand-back (claim, tests,
+   daisy healthcheck --force, hygiene, commits, plan marks)
+   before launching the next step. It does not ask the user
+   between steps.
+
+6. Stop and report at the stops below, or if blocked; do not
+   skip steps or work around blockers silently.
 
 7. On all steps complete:
    - Append " *Built*" to the H1 title
@@ -78,10 +91,35 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
    daisy log
 ```
 
+**Review gate and caps:** a review finding is in gate only when the
+reviewer reproduces it and it falls in a class the brief names (the claim
+fails, a required item is missing or wrong, a test is red, a document
+contradicts another). Style and anything outside the step's stated
+contract are out of gate: Deferred or nowhere, never another pass. A write
+into the root counts only when reached through Daisy's own resolution of
+home, workspace and root paths with no user-made link in the way. The cap
+is 6 passes for a code step, 3 for a docs step; a step not clean at the
+cap stops and reports, and the orchestrator decides.
+
+**Proportion:** a step whose diff to existing code, tests or docs passes
+about 300 lines stops and reports. New code is exempt.
+
+**Stops:** the plan's own checkpoints; a hard-to-reverse or outward-facing
+action the plan does not itself call for; a step the plan gives the user;
+a proportion stop; a cap the orchestrator does not settle by committing
+with the findings in Deferred; a permission refusal, which the orchestrator
+reports verbatim and never re-runs for the sub-agent.
+
+**Hand-back:** the claim and its probes; lines added and deleted; each
+review pass with its in-gate count; findings accepted as is; the
+verification lines; the commits; the decisions; the tokens used.
+
 **Fixture isolation:** if a step live-tests a script that auto-commits (or
 otherwise mutates) a home, never run it against a real, in-use home.
-Use `daisy test`'s hermetic fixture, or an isolated
-`daisy home new <fixture-home>` and `daisy init <fixture-home>`, and tear it down afterward.
+Use `daisy test`'s hermetic fixture, or a scratch home, registry and
+workspace under a temp directory (`DAISY_CONFIG` and `DAISY_LOCAL` pointed
+there before `daisy home new <fixture-home>`, and `daisy init <fixture-home>`
+run in a scratch workspace), and tear it down afterward.
 
 ---
 

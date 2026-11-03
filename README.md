@@ -262,7 +262,8 @@ Mechanics live in the CLI; these are the design choices behind daily use:
   [docs/logging.md](docs/logging.md).
 - **Plan before large changes.** `/daisy plan` scaffolds Research → Goal →
   Steps → Decisions before any implementation; `/daisy execute` works
-  through it step by step; `/daisy resume` picks up an interrupted session
+  through it one fresh sub-agent per step, each reviewed and verified
+  before the next; `/daisy resume` picks up an interrupted session
   from verified state. See [docs/plan.md](docs/plan.md).
 - **Concurrency by design.** No locks: stateless home resolution plus
   commit-per-mutation lets sessions interleave. Some sort of lock may

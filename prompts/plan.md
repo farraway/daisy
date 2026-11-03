@@ -10,7 +10,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 - `plan <description> [+project]` → create PLAN.md, enter collaborative planning mode
 - `plan spec <description> [+project]` → create an unregistered draft (`{slug}_PLAN.md`) directly at the workspace root — no `$DAISY_HOME/plans/` copy, no `PLAN.md` symlink. Multiple drafts can coexist while deciding which (if any) to pursue.
 - `plan pickup <path>` → promote a local spec draft into a tracked plan: copies it into `$DAISY_HOME/plans/`, creates the `PLAN.md` symlink
-- `execute PLAN.md` → implement the plan step by step with praxis.md as quality guide
+- `execute PLAN.md` → implement the plan one step per fresh sub-agent, each reviewed and verified before the next
 - `archive PLAN.md` → move completed plan to archive
 - `resume PLAN.md` → verify state from a previous session, confirm resumption point, continue execution
 
@@ -22,7 +22,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 2. **No implementation during plan mode.** During `/daisy plan`, only edit `PLAN.md`; do not write any implementation code until the user confirms the plan is ready.
 3. **Collaborate until confirmed.** Present the Open Questions list via `AskUserQuestion` (the client's native Q&A UI), including a final question equivalent to "Ready to execute?"; fall back to prose ending in "Ready to execute? (yes/no)" only when `AskUserQuestion` is unavailable. Precede the question with the plan summary required by rule 19. Do not proceed to execution without confirmation.
 4. **Prefer spec-mode when the shape isn't settled yet.** Use `plan spec` instead of `plan` when exploring multiple candidate approaches before committing to one, or when it's not yet clear this deserves a tracked Daisy plan at all. Promote to a real plan with `plan pickup` once a direction is chosen.
-5. **Read praxis.md before each step.** During `/daisy execute`, read `$DAISY_ROOT/prompts/praxis.md` as the quality guide before implementing each step.
+5. **Read praxis.md before each step.** During `/daisy execute`, the step agent reads `$DAISY_ROOT/prompts/praxis.md` as the quality guide before implementing its step.
 6. **Check off steps immediately.** After completing each step, mark it `- [x]` in `PLAN.md` before moving on.
 7. **Stop and report when blocked.** Do not skip steps or work around blockers silently; surface them explicitly.
 8. **Out-of-scope work goes to Deferred.** When a need surfaces outside the current step, add it to Deferred — do not implement it partially or silently drop it.
@@ -35,8 +35,15 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 15. **Resume by verifying state, not assuming it.** When picking up an in-progress plan from a previous session, do not assume completed steps are correct — verify. Check git log, today.md, and spot-check key files. Summarize what is confirmed, what is uncertain, and where work was interrupted. Present the plan summary required by rule 19 alongside that verification, then confirm with the user before continuing.
 16. **Ask before deleting a picked-up spec's original.** `daisy plan pickup` never deletes the original `{slug}_PLAN.md` itself — after a successful pickup, ask the user whether to delete it now that its content is tracked via the `PLAN.md` symlink, and only run `rm` if they confirm.
 17. **Resolve the real path before writing `PLAN.md`.** `PLAN.md` at the workspace root is a symlink; writing through it fails with "Refusing to write through symlink". Run `daisy files` (it prints the resolved `active plan` path) and write to that real path instead — for every edit during `execute`, `resume`, and `archive`, not just the first.
-18. **Live-test auto-committing commands only against a hermetic fixture.** Never exercise a command or script that auto-commits (or otherwise mutates) against a real, in-use home. Use `daisy test`'s fixture harness, or an isolated `daisy home new <fixture-home>` and `daisy init <fixture-home>`, and tear it down afterward.
+18. **Live-test auto-committing commands only against a hermetic fixture.** Never exercise a command or script that auto-commits (or otherwise mutates) against a real, in-use home. Use `daisy test`'s fixture harness, or a scratch home, registry and workspace under a temp directory (`DAISY_CONFIG` and `DAISY_LOCAL` pointed there before `daisy home new <fixture-home>`, and `daisy init <fixture-home>` run in a scratch workspace; praxis rules 14–15), and tear it down afterward.
 19. **Show the plan before asking for approval.** Every readiness question — `/daisy plan`'s "Ready to execute?" and `/daisy resume`'s "Ready to resume from Step N?" — must be immediately preceded, in the same response, by a summary the user can answer from without opening the file. In this order: (1) the plan name and its metadata (created date, status); (2) one line on what the plan accomplishes; (3) every step, one line each, optionally followed by a sentence or two on what it entails and any constraint on it — every step, not an abridged selection; (4) risks, each with its mitigation; (5) open questions. A question the user must open a file to answer defeats the point of asking it.
+20. **Execute each step in a fresh sub-agent.** During `/daisy execute` and `/daisy resume`, the main agent orchestrates and does not implement. For each step it briefs a fresh sub-agent, not a fork, with the plan's real path, the step's text, `$DAISY_ROOT/prompts/praxis.md`, the `testing` skill, the review gate and cap (rule 22) and the hand-back's shape (rule 26). The step agent states the step's claim, does the step, reviews it, commits, and marks the plan.
+21. **Ask which models run the steps and the reviews.** During `/daisy plan`, ask the user which model and effort level the step agents and the review agents use, and record the answer in Decisions. Each step brief names its reviewer's model and effort.
+22. **Review to a stated gate, with a cap.** The step agent has a separate review agent attack its diff, with the step's intent and claim stated; it fixes the in-gate findings and the next pass reviews the fixes. A finding is in gate only when the reviewer reproduces it (quotes the code or passage and shows the failure against the step's text or a rule) and it falls in a class the brief names (the claim fails, a required item is missing or wrong, a test is red, a document contradicts another). Style is out of gate, and so is anything outside the step's stated contract: it goes to Deferred or nowhere, never to another pass. Daisy's root/home contract is about paths, not the file system: a write into the root counts only when reached through Daisy's own resolution of home, workspace and root paths with no user-made link in the way. A link a user makes into the root is the user's, and a write through it is lost at the next root update; a reviewer inventing new such arrangements is the loop the cap exists to stop. The cap is 6 passes for a step that changes code, 3 for one that changes only documents and prompts. A step not clean at the cap stops and reports; the orchestrator decides whether to commit with the open findings in Deferred or to stop, never to run another pass.
+23. **Stop at about 300 lines of change to what exists.** A step whose diff to existing code, tests or docs passes about 300 lines stops and reports before going on. New code is exempt.
+24. **Verify every hand-back before the next step.** The orchestrator checks the claim, runs the tests and `daisy healthcheck --force` itself, runs the project's hygiene check where it has one, and confirms the commits and the plan's marks (`- [x]`, Decisions, Deferred) before it launches the next step. It never re-runs for a sub-agent an action the permission gate refused the sub-agent: it reports the refusal to the user verbatim and stops.
+25. **Run unattended between the stops.** Do not ask the user before each step. Stop at the plan's own checkpoints, before a hard-to-reverse or outward-facing action the plan does not itself call for (a force-push, a deletion, a publication), at a step the plan gives the user, at a proportion stop (rule 23), at a cap the orchestrator does not settle by committing with the findings in Deferred (rule 22), and at a permission refusal (rule 24).
+26. **Hand back in one shape.** The step agent's report gives: the claim and the probes that showed its tests can fail; lines added and deleted; each review pass with its in-gate count; the findings accepted as is; the verification lines (tests, health check, hygiene); the commits; the decisions recorded; the tokens used.
 
 # Daisy — Plan Workflow
 
@@ -47,7 +54,8 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 3. **Research phase:** Read what already exists relevant to the task. Identify: (a) what already solves part of this, (b) what's essential to the problem (inherent) vs. accidental (artifact of current approach). Write findings into the `## Research` section of `PLAN.md`. Ask: **"Research summary confirmed — proceed to planning? (yes/no)"**
 4. Scaffold plan sections from conversation context: fill in Goal, Non-goals, Constraints; leave Steps as placeholder checkboxes.
 5. If a `+project` tag was given: update `.daisy/projects/{project}.md` — add a Plans section with a relative link and status `in progress`.
-6. End every response with the numbered Open Questions list and: **"Ready to execute? (yes/no)"**
+6. Ask which model and effort level the step agents and the review agents use; record the answer in Decisions (rule 21).
+7. End every response with the numbered Open Questions list and: **"Ready to execute? (yes/no)"**
 
 ## /daisy plan spec \<description\> [+project]
 
@@ -67,10 +75,10 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 0. Run `daisy files` and use the resolved `active plan` real path for every write below (rule 17) — never write through the `PLAN.md` symlink.
 1. Read `PLAN.md`; confirm at least one unchecked `- [ ]` step exists.
 2. Update `**Status:** executing` in the frontmatter block (write to the resolved real path).
-3. Before each step: read `$DAISY_ROOT/prompts/praxis.md`.
-4. Work through steps in order; mark each `- [x]` in `PLAN.md` after completion (write to the resolved real path).
-5. After each step: update Decisions (if any) and Deferred (if scope surfaced) (write to the resolved real path).
-6. Stop and report if blocked; do not skip steps or work around blockers silently.
+3. Work through the steps in order, each in a fresh sub-agent (rule 20) briefed with the plan's real path, the step's text, `$DAISY_ROOT/prompts/praxis.md`, the `testing` skill, the review gate and cap (rule 22), the proportion rule (rule 23) and the hand-back's shape (rule 26).
+4. The step agent reads `praxis.md`, states the step's claim, does the step, reviews it to the gate, commits, marks the step `- [x]` and updates Decisions (if any) and Deferred (if scope surfaced) (write to the resolved real path), then hands back.
+5. Verify the hand-back (rule 24) before launching the next step; do not ask the user between steps.
+6. Stop and report at the stops of rule 25, or if blocked; do not skip steps or work around blockers silently.
 7. On all steps complete: append ` *Built*` to the H1 title; update `**Status:** built` (write to the resolved real path).
 8. Log execution summary to `today.md` via `daisy log`.
 
@@ -100,4 +108,4 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 7. Ask: **"Ready to resume from Step N? (yes/no)"** — do not proceed without confirmation.
    If "Uncertain" items are significant (multiple unverifiable steps, or a prior session with a correction history), also offer: "Alternatively, I can compact what's confirmed into a fresh context — say 'compact' to replan from here instead of continuing in-place."
 8. If the user says "compact": summarise confirmed work into a Research handoff (exact files changed, decisions made, constraints discovered), write it into the `## Research` section of PLAN.md, reset unchecked steps to reflect remaining work, update `**Status:**` to `planning`, and ask: **"Research summary confirmed — proceed to replan? (yes/no)"**
-9. On confirmation to resume: read `$DAISY_ROOT/prompts/praxis.md`, update `**Status:** executing`, then continue from the identified step.
+9. On confirmation to resume: update `**Status:** executing`, then continue from the identified step as `/daisy execute` does, one fresh sub-agent per step (rule 20).

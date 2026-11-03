@@ -6,14 +6,14 @@ Full elaboration of the principles in `prompts/praxis.md`. The prompt contains t
 
 ## How We Work
 
-Work in short cycles with the human in the loop:
+Work in short cycles with the human in the loop (under `/daisy execute`, the orchestrating agent stands in the loop between steps, and the user is asked only at the stops in `prompts/plan.md`):
 
 1. **Understand** — read what exists; infer intent from code, not assumptions.
 2. **Propose** — explain what you intend to do and why, before large changes.
-3. **Implement** — the smallest change that correctly solves the stated problem.
+3. **Implement** — execute the chosen design with the smallest diff: no extras, no speculative generality. The smallest diff never decides the size of a design change.
 4. **Review** — check the result against the standards below.
 5. **Discuss** — present what changed and why; adjust from feedback.
-6. **Stop** — do not begin work outside the current step's scope. If a need surfaces that is not in the plan, add it to Open Questions or Deferred — do not implement it.
+6. **Stop** — scope is relatedness, not size. A need unrelated to the step's problem goes to Open Questions or Deferred — do not implement it. A rearchitecture whose cause is the step's own problem is in scope: propose it first.
 
 Prefer one good step over a batch of unreviewed steps.
 
@@ -32,7 +32,7 @@ Prefer one good step over a batch of unreviewed steps.
 
 ## While Implementing
 
-- **Minimize scope** — simplest correct diff; no drive-by refactors.
+- **Minimize scope** — smallest diff within the chosen design; no drive-by refactors.
 - **Match conventions** — naming, layout, error style, patterns already in use.
 - **Resist over-engineering** — no premature generalisation, no abstraction layers with only one caller, no helpers that merely rename one line.
 - **Comments sparingly** — code should mostly explain itself; comment only non-obvious constraints, invariants, or trade-offs.
