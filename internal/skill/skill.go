@@ -19,6 +19,21 @@ import (
 // stale.
 const ClaudeCodeSynced = "synced"
 
+// WorkspaceTrees are where init copies each of the home's skills in a
+// workspace, one per agent reading the Agent Skills layout: Claude Code's,
+// then Codex's. They are twins: init, clean and the health check go
+// through this list, never through one tree alone.
+var WorkspaceTrees = []string{".claude/skills", AgentsTree}
+
+// AgentsTree is Codex's project skill directory; init also writes there
+// AgentsDaisy, the skill that is Codex's way into Daisy (as the /daisy
+// command is Claude Code's). No home skill takes the name: it is a core
+// Cursor rule's.
+const (
+	AgentsTree  = ".agents/skills"
+	AgentsDaisy = "daisy"
+)
+
 // SourceDirs are where Daisy keeps skills: the root's, then the home's.
 func SourceDirs(root, home string) []string {
 	return []string{filepath.Join(root, "skills"), filepath.Join(home, "skills")}

@@ -51,6 +51,7 @@ type initPlan struct {
 	merged             map[string]merged // layered skills, by name
 	rules              map[string][]byte // cursor rule name → content
 	command            []byte
+	agentsSkill        []byte            // Codex's daisy skill
 	skills             map[string]string // name → source dir
 	staleStubs         []string
 	settings           []byte
@@ -190,6 +191,9 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 	if p.command, err = read("claude-command.md"); err != nil {
 		return err
 	}
+	if p.agentsSkill, err = read("agents-skill.md"); err != nil {
+		return err
+	}
 
 	p.skills = skill.Discover(fs, filepath.Join(p.home, "skills"))
 	for n, dir := range p.skills {
@@ -242,24 +246,34 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 // write that cannot become what init writes there: a file where it needs
 // a directory on the way, or a directory where it writes a file.
 func (p *initPlan) checkWritable(fs ops.FS) error {
-	files := []string{claudeCommand, settingsFile, ".gitignore", ".cursorignore", ".claude/skills/.probe"}
+	files := []string{claudeCommand, settingsFile, ".gitignore", ".cursorignore", skill.AgentsTree + "/" + skill.AgentsDaisy + "/SKILL.md"}
+	for _, tree := range skill.WorkspaceTrees {
+		files = append(files, tree+"/.probe")
+	}
 	for _, r := range cursorRules {
 		files = append(files, ".cursor/rules/"+r.Name)
 	}
 	for _, n := range sortedNames(p.skills) {
-		files = append(files, ".cursor/rules/"+n+".mdc", ".claude/skills/"+n+"/SKILL.md")
+		files = append(files, ".cursor/rules/"+n+".mdc")
+		for _, tree := range skill.WorkspaceTrees {
+			files = append(files, tree+"/"+n+"/SKILL.md")
+		}
 	}
 	own := env.RealPath(fs, p.target)
 	for _, rel := range files {
 		// Best effort (env.RefuseRoot): a user-made link on the way into
-		// the root (.claude/skills linked to the root's skills/), or at a
+		// the root (a skill tree linked to the root's skills/), or at a
 		// file written through it (ops.Rewrite), is refused when seen,
 		// unless it stays in the workspace's own tree (the root bound as a
 		// workspace). A Cursor
 		// rule's link is removed first and a skill's copy replaced whole:
 		// those act on the entry.
 		path := filepath.Join(p.target, rel)
-		entry := strings.HasPrefix(rel, ".cursor/rules/") || strings.HasPrefix(rel, ".claude/skills/")
+		inTree := false
+		for _, tree := range skill.WorkspaceTrees {
+			inTree = inTree || strings.HasPrefix(rel, tree+"/")
+		}
+		entry := inTree || strings.HasPrefix(rel, ".cursor/rules/")
 		if real := env.WriteTarget(fs, path, entry); real != own && !strings.HasPrefix(real, own+"/") {
 			if err := env.RefuseRoot(fs, p.m, path, entry); err != nil {
 				return err
@@ -273,7 +287,7 @@ func (p *initPlan) checkWritable(fs ops.FS) error {
 				return fmt.Errorf("Error: %s is not a directory, and init writes %s; move it aside, then re-run", dir, filepath.Join(p.target, rel))
 			}
 		}
-		if strings.HasPrefix(rel, ".claude/skills/") {
+		if inTree {
 			continue // a skill's copy is replaced whole
 		}
 		// Under .cursor/rules/ a link is replaced (Lstat); elsewhere a file
@@ -393,19 +407,31 @@ func (p *initPlan) writeFiles(fs ops.FS, out io.Writer) error {
 		return err
 	}
 	fmt.Fprintln(out, "  ✓ Installed Claude command: daisy")
-
-	if err := fs.MkdirAll(at(".claude", "skills"), 0o755); err != nil {
+	// Codex's daisy skill is replaced whole, as a skill's copy is.
+	if err := fs.RemoveAll(at(skill.AgentsTree, skill.AgentsDaisy)); err != nil {
 		return fmt.Errorf("Error: %v", err)
 	}
-	for _, n := range sortedNames(p.skills) {
-		dst := at(".claude", "skills", n)
-		if err := fs.RemoveAll(dst); err != nil {
+	if err := write(at(skill.AgentsTree, skill.AgentsDaisy, "SKILL.md"), p.agentsSkill); err != nil {
+		return err
+	}
+	fmt.Fprintln(out, "  ✓ Installed Codex skill: daisy")
+
+	for _, tree := range skill.WorkspaceTrees {
+		if err := fs.MkdirAll(at(tree), 0o755); err != nil {
 			return fmt.Errorf("Error: %v", err)
 		}
-		if err := copySkill(fs, p.skills[n], dst, p.merged[n]); err != nil {
-			return fmt.Errorf("Error: copying the skill %s: %v", n, err)
+	}
+	for _, n := range sortedNames(p.skills) {
+		for _, tree := range skill.WorkspaceTrees {
+			dst := at(tree, n)
+			if err := fs.RemoveAll(dst); err != nil {
+				return fmt.Errorf("Error: %v", err)
+			}
+			if err := copySkill(fs, p.skills[n], dst, p.merged[n]); err != nil {
+				return fmt.Errorf("Error: copying the skill %s: %v", n, err)
+			}
 		}
-		doc, err := fs.ReadFile(filepath.Join(dst, "SKILL.md"))
+		doc, err := fs.ReadFile(filepath.Join(at(skill.WorkspaceTrees[0], n), "SKILL.md"))
 		if err != nil {
 			return fmt.Errorf("Error: %v", err)
 		}
@@ -416,17 +442,19 @@ func (p *initPlan) writeFiles(fs ops.FS, out io.Writer) error {
 			return err
 		}
 	}
-	fmt.Fprintf(out, "  ✓ Installed %d skill(s) into .claude/skills/ and .cursor/rules/\n", len(p.skills))
+	fmt.Fprintf(out, "  ✓ Installed %d skill(s) into .claude/skills/, .agents/skills/ and .cursor/rules/\n", len(p.skills))
 	for _, n := range p.staleStubs {
 		if err := fs.Remove(at(".cursor", "rules", n+".mdc")); err != nil {
 			return fmt.Errorf("Error: %v", err)
 		}
-		if err := fs.RemoveAll(at(".claude", "skills", n)); err != nil {
-			return fmt.Errorf("Error: %v", err)
+		for _, tree := range skill.WorkspaceTrees {
+			if err := fs.RemoveAll(at(tree, n)); err != nil {
+				return fmt.Errorf("Error: %v", err)
+			}
 		}
 	}
 	if len(p.staleStubs) > 0 {
-		fmt.Fprintf(out, "  ✓ Swept %d stale skill stub(s) from .claude/skills/ and .cursor/rules/\n", len(p.staleStubs))
+		fmt.Fprintf(out, "  ✓ Swept %d stale skill stub(s) from .claude/skills/, .agents/skills/ and .cursor/rules/\n", len(p.staleStubs))
 	}
 
 	if err := write(at(settingsFile), p.settings); err != nil {
@@ -579,7 +607,7 @@ func (p *initPlan) bind(o ops.Ops, out, warn io.Writer) (err error) {
 			fmt.Fprintf(warn, "  ⚠ %s could not be removed; remove it by hand (the next init or clean will try again)\n", l)
 		}
 	}
-	fmt.Fprint(out, "\nDone. Daisy is ready in this workspace.\nStart a Cursor session and say: \"Daisy, start a new day\"\nOr use /daisy in Claude Code: \"/daisy start a new day\"\n")
+	fmt.Fprint(out, "\nDone. Daisy is ready in this workspace.\nStart a Cursor session and say: \"Daisy, start a new day\"\nOr use /daisy in Claude Code: \"/daisy start a new day\"\nOr use $daisy in Codex: \"$daisy start a new day\"\n")
 	return nil
 }
 

@@ -189,12 +189,14 @@ The agent will:
 |------|--------------------|------------|
 | Claude Code | `.claude/commands/daisy.md` (`/daisy` command), `.claude/settings.local.json` (permissions) | `/daisy <request>` |
 | Cursor | `.cursor/rules/daisy.mdc` (plus `daisy-logging.mdc`, `daisy-plan.mdc`), `.cursorignore` entries | Address Daisy in chat: `Daisy, <request>` |
+| Codex | `.agents/skills/daisy/SKILL.md` (the `daisy` skill), and the home's skills copied to `.agents/skills/` | `$daisy <request>`, or implicitly when the request matches the skill's description |
 
 Craft-layer skills are installed once per machine, to `~/.claude/skills/`, by
 `daisy install` — which is why they keep working in repositories that were
 never initialized. A home may additionally define its own skills; those
-`daisy init` copies into the workspace's `.claude/skills/`, with a matching
-stub rule per skill for Cursor.
+`daisy init` copies into the workspace's `.claude/skills/` and, for Codex,
+`.agents/skills/` (twins, byte for byte), with a matching stub rule per
+skill for Cursor.
 
 The examples in this README use the Claude Code form; in Cursor, replace
 `/daisy <request>` with `Daisy, <request>`.

@@ -220,8 +220,9 @@ func Cached(fs ops.FS, stamp string, ttl, now int64) (left int64, ok bool) {
 	return expiry - now, true
 }
 
-// skillDrift: Check 4b, a workspace skill with no source in the root or
-// the home; 4c, a skill `daisy install` put in ~/.claude/skills whose
+// skillDrift: Check 4b, a workspace skill (in either skill tree; the
+// daisy skill init generates for Codex aside) with no source in the root
+// or the home; 4c, a skill `daisy install` put in ~/.claude/skills whose
 // source is gone, Claude Code's own directory aside (its sync writes only
 // there, never in a workspace, so 4b has no exemption). Warnings: the next
 // init or install --update prunes them.
@@ -231,9 +232,11 @@ func (r *run) skillDrift() {
 		for n, d := range skill.Discover(r.fs, filepath.Join(r.e.Home, "skills")) {
 			known[n] = d
 		}
-		for _, n := range skillDirs(r.fs, filepath.Join(r.e.Workspace, ".claude", "skills")) {
-			if known[n] == "" {
-				r.warn("Installed skill '%s' has no matching source in skills/ — stale from a removed/renamed skill; re-run 'daisy init' or remove .claude/skills/%s manually", n, n)
+		for _, tree := range skill.WorkspaceTrees {
+			for _, n := range skillDirs(r.fs, filepath.Join(r.e.Workspace, tree)) {
+				if known[n] == "" && (tree != skill.AgentsTree || n != skill.AgentsDaisy) {
+					r.warn("Installed skill '%s' has no matching source in skills/ — stale from a removed/renamed skill; re-run 'daisy init' or remove %s/%s manually", n, tree, n)
+				}
 			}
 		}
 	}

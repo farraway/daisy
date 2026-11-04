@@ -10,6 +10,7 @@ import (
 	"daisy/internal/identity"
 	"daisy/internal/ops"
 	"daisy/internal/settings"
+	"daisy/internal/skill"
 )
 
 // Binding is what clean reads of a workspace before it asks: the home and
@@ -135,12 +136,17 @@ func Clean(o ops.Ops, m env.Env, b Binding, out io.Writer) error {
 	if isFile(fs, at(claudeCommand)) && fs.Remove(at(claudeCommand)) == nil {
 		fmt.Fprintln(out, "  ✓ Removed Claude command")
 	}
+	if isFile(fs, at(skill.AgentsTree, skill.AgentsDaisy, "SKILL.md")) && fs.Remove(at(skill.AgentsTree, skill.AgentsDaisy, "SKILL.md")) == nil {
+		fmt.Fprintln(out, "  ✓ Removed Codex skill: daisy")
+	}
 	if len(skills) > 0 {
 		for _, n := range skills {
-			fs.RemoveAll(at(".claude", "skills", n))
+			for _, tree := range skill.WorkspaceTrees {
+				fs.RemoveAll(at(tree, n))
+			}
 			fs.Remove(at(".cursor", "rules", n+".mdc"))
 		}
-		fmt.Fprintf(out, "  ✓ Removed %d skill(s) from .claude/skills/ and .cursor/rules/\n", len(skills))
+		fmt.Fprintf(out, "  ✓ Removed %d skill(s) from .claude/skills/, .agents/skills/ and .cursor/rules/\n", len(skills))
 	}
 
 	// 4. What init added to the ignore files and the settings.
@@ -163,7 +169,7 @@ func Clean(o ops.Ops, m env.Env, b Binding, out io.Writer) error {
 	if err := cleanBlock(fs, at(".cursorignore"), cursorignoreHeader, func(l string) bool { return hasLine(cursorignoreLines, l) }, out); err != nil {
 		return err
 	}
-	removeEmptyDirs(fs, at(".cursor", "rules"), at(".cursor"), at(".claude", "commands"), at(".claude", "skills"), at(".claude"))
+	removeEmptyDirs(fs, at(".cursor", "rules"), at(".cursor"), at(".claude", "commands"), at(".claude", "skills"), at(".claude"), at(skill.AgentsTree, skill.AgentsDaisy), at(skill.AgentsTree), at(".agents"))
 
 	fmt.Fprint(out, "\nDone. Daisy has been removed from this workspace.\n")
 	return nil

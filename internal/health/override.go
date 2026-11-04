@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"daisy/internal/prompt"
+	"daisy/internal/skill"
 )
 
 // overrides is Check 8 (warnings): each full override the home's ledger
@@ -95,20 +96,22 @@ func (r *run) skillOverrides() {
 		if !src.Overridden() {
 			continue
 		}
-		installed := filepath.Join(r.e.Workspace, ".claude", "skills", filepath.Base(filepath.Dir(rel)))
 		want, err := src.SkillFiles(r.fs)
 		if err != nil {
 			r.warn("Skill override %s cannot be read as the workspace would install it: %v", src.Home, err)
 			continue
 		}
-		got := prompt.Files(r.fs, installed)
-		stale := len(got) != len(want)
-		for f, w := range want {
-			g, ok := got[f]
-			stale = stale || !ok || string(g) != string(w)
-		}
-		if stale {
-			r.warn("%s is not the home's override of %s as it is now — run 'daisy init %s'", installed, filepath.Dir(src.Root), r.e.Identity)
+		for _, tree := range skill.WorkspaceTrees {
+			installed := filepath.Join(r.e.Workspace, tree, filepath.Base(filepath.Dir(rel)))
+			got := prompt.Files(r.fs, installed)
+			stale := len(got) != len(want)
+			for f, w := range want {
+				g, ok := got[f]
+				stale = stale || !ok || string(g) != string(w)
+			}
+			if stale {
+				r.warn("%s is not the home's override of %s as it is now — run 'daisy init %s'", installed, filepath.Dir(src.Root), r.e.Identity)
+			}
 		}
 	}
 }

@@ -17,4 +17,4 @@ Also read `.daisy/AGENTS.md` for any of these actions, even without the "Daisy" 
 - Performing retrospectives
 - Checking system status or syncing tasks
 
-The daisy system repo is at `daisy/` (symlinked). Workspace-local data is accessed via `.daisy/` which contains symlinks to the active home's tasks, journal, and projects.
+`.daisy/AGENTS.md` names the Daisy root. The workspace's home is bound through `.daisy/`: its links lead to the home's tasks, journal, and projects.

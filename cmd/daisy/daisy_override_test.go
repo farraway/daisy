@@ -286,6 +286,7 @@ func TestSkillOverrides(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(ws, ".claude", "skills", "sk", "ref.md")); string(b) != "ref\n" {
 		t.Errorf("ref %q", b)
 	}
+	twins(t, ws)
 
 	// A full override stands on the root's directory too.
 	writeFile(t, filepath.Join(l.home, "skills", "sk", "SKILL.md"), "---\nname: sk\ndescription: Mine.\n---\n")
@@ -296,6 +297,7 @@ func TestSkillOverrides(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(ws, ".claude", "skills", "sk", "ref.md")); string(b) != "ref\n" {
 		t.Errorf("full: ref %q", b)
 	}
+	twins(t, ws)
 
 	writeFile(t, filepath.Join(l.root, "skills", "sk", "LICENSE"), "upstream\n")
 	if code, _, errs := l.run("optimize", "apply", "--workflow", "skills/sk", "--rules", l.proposal(t, "r.md", "## Rules\n\n1. root rule\n2. x\n"), "--yes"); code != 1 || !strings.Contains(errs, "vendored") {
@@ -553,20 +555,22 @@ func TestHomeInsideTheRootIsWritten(t *testing.T) {
 	}
 }
 
-// init refuses, before any write, a .claude/skills linked into the root:
-// it would remove and rewrite the root's skills.
+// init refuses, before any write, a .claude/skills or .agents/skills
+// linked into the root: it would remove and rewrite the root's skills.
 func TestInitRefusesASkillsLinkIntoTheRoot(t *testing.T) {
-	l := overrideLoop(t)
-	writeFile(t, filepath.Join(l.root, "skills", "sk", "SKILL.md"), "---\nname: sk\n---\n\n## Rules\n\n1. a\n")
-	writeFile(t, filepath.Join(l.home, "skills", "sk", "SKILL.md"), prompt.Marker+"\n\n## Rules\n\n1. b\n")
-	ws := scratch(t)
-	os.MkdirAll(filepath.Join(ws, ".claude"), 0o755)
-	os.Symlink(filepath.Join(l.root, "skills"), filepath.Join(ws, ".claude", "skills"))
-	rootBefore := snapshot(t, l.root)
-	if code, _, errs := runWith(l.ops(), "init", "testhome", ws); code != 1 || !strings.Contains(errs, "leads into the root") {
-		t.Errorf("exit %d %q", code, errs)
+	for _, tree := range []string{".claude", ".agents"} {
+		l := overrideLoop(t)
+		writeFile(t, filepath.Join(l.root, "skills", "sk", "SKILL.md"), "---\nname: sk\n---\n\n## Rules\n\n1. a\n")
+		writeFile(t, filepath.Join(l.home, "skills", "sk", "SKILL.md"), prompt.Marker+"\n\n## Rules\n\n1. b\n")
+		ws := scratch(t)
+		os.MkdirAll(filepath.Join(ws, tree), 0o755)
+		os.Symlink(filepath.Join(l.root, "skills"), filepath.Join(ws, tree, "skills"))
+		rootBefore := snapshot(t, l.root)
+		if code, _, errs := runWith(l.ops(), "init", "testhome", ws); code != 1 || !strings.Contains(errs, "leads into the root") {
+			t.Errorf("%s: exit %d %q", tree, code, errs)
+		}
+		sameFiles(t, "the root", rootBefore, snapshot(t, l.root))
 	}
-	sameFiles(t, "the root", rootBefore, snapshot(t, l.root))
 }
 
 // init writes these files through a link at the file itself (ops.Rewrite):
@@ -608,5 +612,26 @@ func TestRootBoundAsAWorkspaceBuilds(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(filepath.Join(l.root, ".daisy", "prompts", "plan.md")); !strings.Contains(string(b), "2. home") {
 		t.Errorf("materialised %q", b)
+	}
+}
+
+// The health check compares each tree's copy of an overriding skill with
+// what init would install now: one out of date in .agents/skills warns
+// naming it, as one in .claude/skills does.
+func TestHealthCheckComparesBothSkillCopies(t *testing.T) {
+	l := overrideLoop(t)
+	writeFile(t, filepath.Join(l.root, "skills", "sk", "SKILL.md"), "---\nname: sk\n---\n\n## Rules\n\n1. a\n")
+	writeFile(t, filepath.Join(l.home, "skills", "sk", "SKILL.md"), prompt.Marker+"\n\n## Rules\n\n1. b\n")
+	if code, _, errs := runWith(l.ops(), "init", "testhome", l.ws); code != 0 {
+		t.Fatalf("init: %s", errs)
+	}
+	if _, _, errs := l.run("healthcheck", "--force"); strings.Contains(errs, "is not the home's override") {
+		t.Fatalf("warns after init: %s", errs)
+	}
+	for _, tree := range []string{".agents", ".claude"} {
+		writeFile(t, filepath.Join(l.ws, tree, "skills", "sk", "SKILL.md"), "old\n")
+		if _, _, errs := l.run("healthcheck", "--force"); !strings.Contains(errs, filepath.Join(l.ws, tree, "skills", "sk")+" is not the home's override") {
+			t.Errorf("%s: silent: %s", tree, errs)
+		}
 	}
 }

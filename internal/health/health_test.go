@@ -593,3 +593,22 @@ func TestSkillDriftSparesSynced(t *testing.T) {
 		t.Errorf("synced warned as stale: %q", errs)
 	}
 }
+
+// Check 4b covers Codex's tree as it covers Claude Code's: a copy with no
+// source warns in either, naming its tree; the daisy skill init generates
+// in .agents/skills has no source and never does.
+func TestSkillDriftCoversBothTrees(t *testing.T) {
+	m := newMachine(t)
+	m.write(filepath.Join(m.ws, ".claude", "skills", "gone", "SKILL.md"), "stale\n")
+	m.write(filepath.Join(m.ws, ".agents", "skills", "gone", "SKILL.md"), "stale\n")
+	m.write(filepath.Join(m.ws, ".agents", "skills", "daisy", "SKILL.md"), "generated\n")
+	_, _, errs := m.run(health.Options{Force: true})
+	for _, tree := range []string{".claude/skills", ".agents/skills"} {
+		if !strings.Contains(errs, "remove "+tree+"/gone manually") {
+			t.Errorf("no warning for %s/gone: %q", tree, errs)
+		}
+	}
+	if strings.Contains(errs, "'daisy'") {
+		t.Errorf("the generated daisy skill warned as stale: %q", errs)
+	}
+}

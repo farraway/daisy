@@ -449,6 +449,7 @@ func TestInitRefusesAnUnwritablePathFirst(t *testing.T) {
 		func(ws string) { writeFile(t, filepath.Join(ws, ".cursor", "rules"), "x\n") },
 		func(ws string) { os.MkdirAll(filepath.Join(ws, ".cursor", "rules", "myskill.mdc"), 0o755) },
 		func(ws string) { writeFile(t, filepath.Join(ws, ".claude", "skills"), "x\n") },
+		func(ws string) { writeFile(t, filepath.Join(ws, ".agents", "skills"), "x\n") },
 		func(ws string) {
 			os.MkdirAll(filepath.Join(ws, "somedir"), 0o755)
 			os.MkdirAll(filepath.Join(ws, ".claude", "commands"), 0o755)
@@ -763,7 +764,7 @@ func TestInitIgnoresWhatItWrites(t *testing.T) {
 	}
 	// And so it ignores nothing of the user's beside Daisy's own files.
 	user := []string{"README.md", "src/main.go", "plan.md", "OTHER_PLAN.txt", ".daisyrc", ".daisy.bak", ".env.sh",
-		".claude/settings.json", ".claude/commands/other.md", ".claude/skills/other/SKILL.md", ".cursor/rules/user.mdc", ".cursor/rules/docs.mdc", ".claude/commands/deploy.md", ".cursor/mcp.json", "Procfile", ".claude/skills/my-notes/SKILL.md", ".daisy.sample", ".daisy.plan.md"}
+		".claude/settings.json", ".claude/commands/other.md", ".claude/skills/other/SKILL.md", ".cursor/rules/user.mdc", ".cursor/rules/docs.mdc", ".claude/commands/deploy.md", ".cursor/mcp.json", "Procfile", ".claude/skills/my-notes/SKILL.md", ".agents/skills/other/SKILL.md", ".agents/config.toml", ".daisy.sample", ".daisy.plan.md"}
 	if hit := ignoredBy(t, strings.Join(entries, "\n"), user); len(hit) > 0 {
 		t.Errorf("the block ignores the user's own %v", hit)
 	}
@@ -817,4 +818,62 @@ func generatedSuffix(lit string, paths []string) bool {
 		}
 	}
 	return len(paths) > 0
+}
+
+// twins fails unless .agents/skills holds .claude/skills byte for byte,
+// beside the daisy skill init generates there.
+func twins(t *testing.T, ws string) {
+	t.Helper()
+	claude, agents := tree(t, filepath.Join(ws, ".claude", "skills")), tree(t, filepath.Join(ws, ".agents", "skills"))
+	delete(agents, "daisy")
+	delete(agents, "daisy/SKILL.md")
+	if d := diffTrees(claude, agents); len(d) > 0 {
+		t.Errorf(".agents/skills is not .claude/skills' twin:\n%s", strings.Join(d, "\n"))
+	}
+}
+
+// Codex: init writes the daisy skill (front matter name and a one-line
+// description; the body sends the request through .daisy/AGENTS.md) and
+// every skill's copy in .agents/skills as in .claude/skills; re-init sweeps
+// a stale copy from both trees.
+func TestInitWritesCodexTwinTree(t *testing.T) {
+	m := initMachine(t)
+	writeFile(t, filepath.Join(m.home, "skills", "other", "SKILL.md"), "---\nname: other\ndescription: o\n---\n")
+	ws := scratch(t)
+	// A copy is replaced whole in either tree, whatever stands there.
+	for _, tree := range []string{".claude", ".agents"} {
+		os.MkdirAll(filepath.Join(ws, tree, "skills", "myskill", "SKILL.md"), 0o755)
+	}
+	if code, out, errs := m.pinned(t, ws, "init", "testhome"); code != 0 || !strings.Contains(out, "Installed Codex skill: daisy") {
+		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	b, err := os.ReadFile(filepath.Join(ws, ".agents", "skills", "daisy", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := string(b)
+	front, body, ok := strings.Cut(strings.TrimPrefix(doc, "---\n"), "\n---\n")
+	if !strings.HasPrefix(doc, "---\n") || !ok || !regexp.MustCompile(`(?m)^name: daisy$`).MatchString(front) || !regexp.MustCompile(`(?m)^description: \S.{20,300}$`).MatchString(front) {
+		t.Errorf("front matter: %q", doc)
+	}
+	if !strings.Contains(body, "Read `.daisy/AGENTS.md`") {
+		t.Errorf("body: %q", body)
+	}
+	for _, n := range []string{"myskill/ref.md", "other/SKILL.md"} {
+		if _, err := os.Stat(filepath.Join(ws, ".agents", "skills", n)); err != nil {
+			t.Errorf("no .agents/skills/%s", n)
+		}
+	}
+	twins(t, ws)
+
+	os.RemoveAll(filepath.Join(m.home, "skills", "other"))
+	if code, _, errs := m.pinned(t, ws, "init", "testhome"); code != 0 {
+		t.Fatalf("re-init: %s", errs)
+	}
+	for _, tree := range []string{".claude", ".agents"} {
+		if _, err := os.Lstat(filepath.Join(ws, tree, "skills", "other")); err == nil {
+			t.Errorf("the stale %s/skills/other survived re-init", tree)
+		}
+	}
+	twins(t, ws)
 }

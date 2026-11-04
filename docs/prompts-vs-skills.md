@@ -13,8 +13,9 @@ are the same construct — a context pointer with an on-demand body. Both are
 progressive disclosure; both keep a short summary in front of the agent and
 load the rest when it becomes relevant. Nor is scope a difference: `daisy
 install` copies root skills to `~/.claude/skills/`, `daisy init` copies a
-home's skills into the workspace's `.claude/skills/`, and prompts compile
-per-home, so either format can be narrow or broad.
+home's skills into the workspace's `.claude/skills/` (and its Codex twin,
+`.agents/skills/`), and prompts compile per-home, so either format can be
+narrow or broad.
 
 **The distinction is governance, not mechanism.** It is a decision about who
 maintains a thing and what it is allowed to assume — not about how it

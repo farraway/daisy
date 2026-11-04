@@ -73,8 +73,8 @@ in it names its cause — what writes that path under the root: the binary
 `check-secrets` reads in a workspace), and the block `daisy init` writes
 when the root is itself bound as a workspace (`.daisy/`, its stage and
 previous names, `.cursorignore`, `.claude/settings.local.json`,
-`.claude/commands/daisy.md`, `.cursor/rules/daisy*.mdc`, `PLAN.md`, and the
-bound home's skills) — files that sit inside `$DAISY_ROOT` and would
+`.claude/commands/daisy.md`, `.agents/skills/daisy/SKILL.md`,
+`.cursor/rules/daisy*.mdc`, `PLAN.md`, and the bound home's skills) — files that sit inside `$DAISY_ROOT` and would
 otherwise publish. A line without a cause goes. Two consequences:
 
 - Keep ignore rules in `.gitignore`. A global `core.excludesFile` or a
@@ -223,7 +223,9 @@ layered prompt, merged, to the workspace's `.daisy/prompts/<name>.md`, list
 each override at the top of AGENTS.md, and point every reference to an
 overridden root prompt there (a full override's at the home's file);
 `init` installs a layered skill as the root's directory with the merged
-`SKILL.md`; `help` and the `optimize` briefing show the merged text. A root
+`SKILL.md`, in `.claude/skills/<name>/` and its twin `.agents/skills/<name>/`
+(Codex's; one list of trees, `skill.WorkspaceTrees`, beside the generated
+`.agents/skills/daisy/SKILL.md`, Codex's way into Daisy); `help` and the `optimize` briefing show the merged text. A root
 target is never written by `apply`.
 
 ### include.txt Format
@@ -272,8 +274,8 @@ outside the feedback loop's write path, overridden or not.
    surfaces it verbatim for model-invocation matching.
 2. No manifest entry needed. Root skills (`skills/`) install to
    `~/.claude/skills/` via `daisy install`; home skills (the home's
-   `skills/`) install to the workspace's `.claude/skills/` via
-   `daisy init` — separate targets, no install-time merge. `daisy list`
+   `skills/`) install to the workspace's `.claude/skills/` and its twin
+   `.agents/skills/` (Codex's) via `daisy init` — separate targets, no install-time merge. `daisy list`
    consolidates both for display, with workspace/home entries overriding
    root/user entries of the same name.
 3. Re-run `daisy install` (root skill) or `daisy init` (home skill) in any

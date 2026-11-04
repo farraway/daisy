@@ -31,7 +31,7 @@ var (
 	allowRules    = []string{"Read(.daisy/**)", "Edit(.daisy/**)", "Bash(daisy:*)"}
 
 	gitignoreHeader    = "# Daisy workspace config (per-machine)"
-	gitignoreEntries   = []string{".daisy/", ".daisy.stage.*", ".daisy.previous.*", ".cursor/rules/daisy.mdc", ".cursor/rules/daisy-logging.mdc", ".cursor/rules/daisy-plan.mdc", ".claude/commands/daisy.md", ".claude/settings.local.json", "PLAN.md", ".cursorignore"}
+	gitignoreEntries   = []string{".daisy/", ".daisy.stage.*", ".daisy.previous.*", ".cursor/rules/daisy.mdc", ".cursor/rules/daisy-logging.mdc", ".cursor/rules/daisy-plan.mdc", ".claude/commands/daisy.md", skill.AgentsTree + "/" + skill.AgentsDaisy + "/SKILL.md", ".claude/settings.local.json", "PLAN.md", ".cursorignore"}
 	cursorignoreHeader = "# Allow Cursor to index daisy paths (gitignored but needed for agent context)"
 	cursorignoreLines  = []string{"!.daisy/", "!.cursor/rules/daisy.mdc", "!.cursor/rules/daisy-logging.mdc", "!PLAN.md"}
 )
@@ -60,9 +60,13 @@ func sortedNames(m map[string]string) []string {
 	return names
 }
 
-// skillEntries are the ignore lines for a skill's copy and its stub.
+// skillEntries are the ignore lines for a skill's copies and its stub.
 func skillEntries(name string) []string {
-	return []string{".claude/skills/" + name + "/", ".cursor/rules/" + name + ".mdc"}
+	var entries []string
+	for _, tree := range skill.WorkspaceTrees {
+		entries = append(entries, tree+"/"+name+"/")
+	}
+	return append(entries, ".cursor/rules/"+name+".mdc")
 }
 
 // isGitignoreEntry: a line init may have written into the .gitignore block.
@@ -70,8 +74,10 @@ func isGitignoreEntry(line string) bool {
 	if hasLine(gitignoreEntries, line) {
 		return true
 	}
-	if n, ok := cutAround(line, ".claude/skills/", "/"); ok && n != "" {
-		return true
+	for _, tree := range skill.WorkspaceTrees {
+		if n, ok := cutAround(line, tree+"/", "/"); ok && n != "" {
+			return true
+		}
 	}
 	n, ok := cutAround(line, ".cursor/rules/", ".mdc")
 	return ok && n != ""
