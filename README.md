@@ -294,7 +294,7 @@ daisy/                          # Repository root ($DAISY_ROOT)
 ├── cmd/daisy/                  # main.go, the binary: bin/daisy (symlinked to ~/bin/daisy); `make build`; the functional tests
 ├── internal/                   # The Go packages behind it (ops, env, cli, commands, ...)
 ├── Makefile                    # build, check (gofmt, vet, tidy, go test -race), test (`daisy test`)
-├── images/member/Dockerfile    # The swarm's member image (docs/swarm.md; built at Step 28)
+├── images/member/              # The swarm's member image, Dockerfile and entrypoint.sh (docs/swarm.md; first built by hand at Step 39)
 ├── templates/
 │   ├── journal-day.md          # Daily today.md template
 │   ├── journal-week.md         # Weekly today.md template (adds retrospective)
