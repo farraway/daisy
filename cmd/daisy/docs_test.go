@@ -267,11 +267,10 @@ func TestDocsNameOnlyTableCommands(t *testing.T) {
 	}
 }
 
-// swarmAgreed is the Swarm group as docs/cli.md agrees it (D30): the five
-// verbs and their flags, which docs/swarm.md names before the binary runs
-// them.
+// swarmAgreed is the Swarm group's verbs not yet built, as docs/cli.md
+// agrees them (D30), and their flags, which docs/swarm.md names before
+// the binary runs them; a built verb (`swarm init`) is a row of the table.
 var swarmAgreed = map[string][]string{
-	"swarm init":   {"--defaults"},
 	"swarm apply":  {"--once"},
 	"swarm status": nil,
 	"swarm pause":  nil,

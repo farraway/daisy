@@ -71,6 +71,8 @@ var table = []Command{
 	{Group: "Prompts and skills", Name: "optimize apply", Usage: "optimize apply --workflow <n> (--rules|--rewrite) <file> [--yes]", Help: "Apply a proposal: diff, approve, archive, commit", Workspace: true, Flags: []string{"--yes"}, Values: []string{"--workflow", "-w", "--rules", "--rewrite"}, Run: commands.OptimizeApply},
 	{Group: "Prompts and skills", Name: "eval", Usage: "eval [<case>] [--record]", Help: "List, display, or record an eval case result", Workspace: true, Flags: []string{"--record"}, Max: 3, Run: commands.Eval, Health: commands.EvalHealth},
 
+	{Group: "Swarm", Name: "swarm init", Usage: "swarm init [--defaults]", Help: "Declare the swarm: swarm.json, prompts, labels", Workspace: true, Flags: []string{"--defaults"}, Run: commands.SwarmInit},
+
 	{Group: "System", Name: "commit", Usage: "commit [--root] <message>", Help: "Commit the home repo (or the root repo)", Workspace: true, Flags: []string{"--root"}, Min: 1, Max: 1, Run: commands.Commit},
 	{Group: "System", Name: "healthcheck", Usage: "healthcheck [--force]", Help: "Run the system health check", Flags: []string{"--force"}, Run: commands.Healthcheck},
 	{Group: "System", Name: "check-secrets", Usage: "check-secrets", Help: "Check which secrets/tokens are configured", Run: commands.CheckSecrets},
@@ -78,7 +80,7 @@ var table = []Command{
 }
 
 // groups in display order.
-var groups = []string{"Workspace", "Day", "Plans", "Homes and identities", "Prompts and skills", "System"}
+var groups = []string{"Workspace", "Day", "Plans", "Homes and identities", "Prompts and skills", "Swarm", "System"}
 
 // match is the command args name and the arguments after its name: the
 // longest name that leads args (`optimize apply` before `optimize`).

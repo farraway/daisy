@@ -1,0 +1,229 @@
+package declare
+
+import (
+	"bytes"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+
+	"daisy/internal/ops"
+)
+
+// scripted is an Ops whose Prompt writes each question to its writer and
+// answers from answers in order, EOF once they run out.
+func scripted(answers ...string) (*ops.Fake, *[]string) {
+	var asked []string
+	return &ops.Fake{PromptFn: func(_ io.Reader, w io.Writer, q string) (string, error) {
+		io.WriteString(w, q)
+		asked = append(asked, q)
+		if len(answers) == 0 {
+			return "", io.EOF
+		}
+		a := answers[0]
+		answers = answers[1:]
+		return a, nil
+	}}, &asked
+}
+
+// bareWorkspace is workspace without the prompts: what init finds.
+func bareWorkspace(t *testing.T) string {
+	ws := workspace(t)
+	os.RemoveAll(filepath.Join(ws, "swarm"))
+	return ws
+}
+
+func TestWizardDefaults(t *testing.T) {
+	ws := bareWorkspace(t)
+	o, asked := scripted()
+	var errb bytes.Buffer
+	w := &Wizard{Ops: o, Err: &errb, WS: ws, Defaults: true}
+	c, err := w.Ask()
+	if err == nil {
+		err = w.AskAccount(&c, "swarm-bot", "swarm@example.net")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := valid()
+	want.Repos[0].Check, want.Repos[1].Protected = []string{}, defaultProtected
+	want.Trusted = []string{"swarm-bot"}
+	if !reflect.DeepEqual(c, want) {
+		t.Errorf("--defaults:\n%+v\nwant\n%+v", c, want)
+	}
+	if len(*asked) != 0 || errb.Len() != 0 {
+		t.Errorf("--defaults asked %q, stderr %q", *asked, errb.String())
+	}
+
+	// A workspace that is itself the repository: `.`.
+	hermetic(t)
+	solo := t.TempDir()
+	gitRepo(t, solo, "git@github.com:acme/solo.git")
+	w = &Wizard{Ops: o, Err: &errb, WS: solo, Defaults: true}
+	c, err = w.Ask()
+	if err != nil || len(c.Repos) != 1 || c.Repos[0].Path != "." || c.Repos[0].Name != "solo" ||
+		c.Forge != (Forge{Kind: "github", API: "https://api.github.com", Repo: "acme/solo", TokenEnv: "GITHUB_TOKEN"}) || len(c.Resources) != 0 {
+		t.Errorf("solo: %v %+v", err, c)
+	}
+}
+
+// The questions in order, each default in brackets (section 11's wizard).
+func TestWizardAsksInOrder(t *testing.T) {
+	ws := bareWorkspace(t)
+	o, asked := scripted(make([]string, 40)...)
+	var errb bytes.Buffer
+	w := &Wizard{Ops: o, Err: &errb, WS: ws}
+	c, err := w.Ask()
+	if err == nil {
+		err = w.AskAccount(&c, "swarm-bot", "swarm@example.net")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"Product repositories (comma-separated paths in the workspace, the product first) [app, lib]: ",
+		"Forge kind (gitea, github) [gitea]: ",
+		"Forge API [https://forge.example.net/api/v1]: ",
+		"Issues repository [acme/app]: ",
+		"Token variable [GITEA_TOKEN]: ",
+		"Base branch [main]: ",
+	}
+	for _, r := range Roles {
+		p := examplePersonas[r]
+		want = append(want, r+" provider (anthropic, openai) ["+p.Provider+"]: ", r+" model ["+p.Model+"]: ", r+" effort ["+p.Effort+"]: ",
+			r+" co-author ["+defaultCoAuthor(p.Provider, p.Model)+"]: ")
+	}
+	want = append(want, "app image [daisy-member:1]: ", "lib image [daisy-member:1]: ", "Max members [3]: ", "Max rounds [3]: ",
+		"Timeout [45m]: ", "Interval [5m]: ", "Resources (comma-separated workspace paths, - for none) [docs/]: ",
+		"Maintainer logins (comma-separated, not the swarm's; - for none) [-]: ", "Commit email [swarm@example.net]: ")
+	if !reflect.DeepEqual(*asked, want) {
+		t.Errorf("asked:\n%s\nwant:\n%s", strings.Join(*asked, "\n"), strings.Join(want, "\n"))
+	}
+	if errb.String() != strings.Join(want, "") {
+		t.Errorf("the questions are not all on stderr: %q", errb.String())
+	}
+}
+
+func TestWizardHonoursEachOverride(t *testing.T) {
+	ws := bareWorkspace(t)
+	answers := []string{"lib, app", "gitea", "https://forge.example.net:3000/api/v1", "acme/lib", "SWARM_TOKEN", "trunk"}
+	for _, r := range Roles {
+		answers = append(answers, "openai", r+"-model", "low", r+" Bot <"+r+"@example.net>")
+	}
+	answers = append(answers, "lib-image:2", "app-image:3", "4", "5", "1h", "2m", "-", "jane, joe", "commits@example.net")
+	o, _ := scripted(answers...)
+	w := &Wizard{Ops: o, Err: io.Discard, WS: ws}
+	c, err := w.Ask()
+	if err == nil {
+		err = w.AskAccount(&c, "swarm-bot", "swarm@example.net")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Repos[0].Name != "lib" || c.Repos[0].Image != "lib-image:2" || c.Repos[1].Name != "app" || c.Repos[1].Image != "app-image:3" {
+		t.Errorf("repos %+v", c.Repos)
+	}
+	if c.Forge != (Forge{Kind: "gitea", API: "https://forge.example.net:3000/api/v1", Repo: "acme/lib", TokenEnv: "SWARM_TOKEN", CommitEmail: "commits@example.net"}) {
+		t.Errorf("forge %+v", c.Forge)
+	}
+	if c.Base != "trunk" || c.MaxMembers != 4 || c.MaxRounds != 5 || c.Timeout != "1h" || c.Interval != "2m" || len(c.Resources) != 0 {
+		t.Errorf("scalars %+v", c)
+	}
+	if !reflect.DeepEqual(c.Trusted, []string{"jane", "joe", "swarm-bot"}) {
+		t.Errorf("trusted %q", c.Trusted)
+	}
+	for _, r := range Roles {
+		if c.Personas[r] != (Persona{Provider: "openai", Model: r + "-model", Effort: "low", CoAuthor: r + " Bot <" + r + "@example.net>"}) {
+			t.Errorf("%s: %+v", r, c.Personas[r])
+		}
+	}
+}
+
+func TestWizardAsksARefusedAnswerAgain(t *testing.T) {
+	ws := bareWorkspace(t)
+	answers := []string{"notthere", "", "", "", "", "", ""}
+	answers = append(answers, "", "-", "", "", "")   // owner: provider, model "-" refused, model, effort, co-author
+	answers = append(answers, make([]string, 16)...) // the other four roles
+	answers = append(answers, "", "", "x")           // the two images, then max members "x" refused
+	o, asked := scripted(answers...)
+	var errb bytes.Buffer
+	w := &Wizard{Ops: o, Err: &errb, WS: ws}
+	_, err := w.Ask()
+	if !errors.Is(err, ErrCancelled) {
+		t.Fatalf("want cancelled at EOF, got %v", err)
+	}
+	for _, want := range []string{
+		`swarm.json: repos[0].path: "notthere" is not a git repository` + "\nProduct repositories",
+		`swarm.json: personas.owner.model: "-" is not a model; every role names its model` + "\nowner model [claude-opus-5-5]: ",
+		`swarm.json: max_members: "x" is not an integer` + "\nMax members [3]: ",
+	} {
+		if !strings.Contains(errb.String(), want) {
+			t.Errorf("stderr lacks %q:\n%s", want, errb.String())
+		}
+	}
+	if (*asked)[0] != (*asked)[1] {
+		t.Errorf("question 1 not asked again: %q", (*asked)[:2])
+	}
+}
+
+func TestWizardAccountQuestions(t *testing.T) {
+	ws := bareWorkspace(t)
+	file := valid()
+	file.Trusted = []string{"jane", "Swarm-Bot"}
+	file.Forge.CommitEmail = "commits@example.net"
+	worker := file.Personas["worker"]
+	worker.CoAuthor = "Pair <pair@example.net>"
+	file.Personas["worker"] = worker
+
+	o, asked := scripted("swarm-bot, joe", "", "")
+	var errb bytes.Buffer
+	w := &Wizard{Ops: o, Err: &errb, WS: ws, File: &file}
+	c := file
+	if err := w.AskAccount(&c, "swarm-bot", "swarm@example.net"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*asked) != 3 || (*asked)[0] != "Maintainer logins (comma-separated, not the swarm's; - for none) [jane]: " || (*asked)[2] != "Commit email [commits@example.net]: " {
+		t.Errorf("asked %q", *asked)
+	}
+	if !strings.Contains(errb.String(), `swarm.json: trusted: "swarm-bot" is the token's own login; the swarm needs its own forge account (section 8)`) {
+		t.Errorf("stderr %q", errb.String())
+	}
+	if !reflect.DeepEqual(c.Trusted, []string{"jane", "swarm-bot"}) || c.Forge.CommitEmail != "commits@example.net" {
+		t.Errorf("trusted %q email %q", c.Trusted, c.Forge.CommitEmail)
+	}
+
+	// The co-author's default: the file's while the model is the file's,
+	// the new model's once it changes.
+	answers := make([]string, 6)
+	answers = append(answers, "", "", "", "", "", "", "", "") // owner, architect
+	answers = append(answers, "", "", "")                     // worker: provider, model, effort
+	o, asked = scripted(answers...)
+	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w.Ask()
+	if got := (*asked)[len(*asked)-1]; got != "worker co-author [Pair <pair@example.net>]: " {
+		t.Errorf("unchanged model: %q", got)
+	}
+	answers[len(answers)-2] = "claude-opus-6"
+	o, asked = scripted(answers...)
+	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w.Ask()
+	if got := (*asked)[len(*asked)-1]; got != "worker co-author [claude-opus-6 <noreply@anthropic.com>]: " {
+		t.Errorf("changed model: %q", got)
+	}
+}
+
+func TestWizardDefaultsRefused(t *testing.T) {
+	ws := bareWorkspace(t)
+	o, _ := scripted()
+	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, Defaults: true}
+	c, err := w.Ask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.AskAccount(&c, "swarm-bot", ""); errText(err) != "swarm.json: forge.commit_email: missing" {
+		t.Errorf("no email to default to: %v", err)
+	}
+}

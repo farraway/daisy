@@ -115,8 +115,10 @@ table, from which the help and the Command Reference below are rendered;
 behind them are `internal/todo`, `internal/journal`, `internal/gitx`,
 `internal/prompt`, `internal/skill`, `internal/identity`,
 `internal/settings`, `internal/workspace`, `internal/plan`,
-`internal/feedback` and `internal/health` (the health check, its TTL
-stamp and the publication scan). Dependency rule: `cli → commands →
+`internal/feedback`, `internal/health` (the health check, its TTL
+stamp and the publication scan), and the swarm's `internal/swarm/declare`
+(`swarm.json`, its validation and `init`'s wizard) and
+`internal/swarm/forge` (the forge seam: `Adapter`, `gitea`, `Fake`). Dependency rule: `cli → commands →
 {domain packages} → ops`; nothing above `ops` calls `os`, `os/exec` or
 `time.Now` itself. Each command's `--healthcheck` hook is a `Health`
 function in the table; `daisy healthcheck` runs them in-process as its
@@ -162,6 +164,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Prompts and skills | `daisy optimize [--workflow <n>]` | Briefing: pending entries per target, current rules, rewrite flags |
 | Prompts and skills | `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` | Apply a proposal: diff, approve, archive, commit |
 | Prompts and skills | `daisy eval [<case>] [--record]` | List, display, or record an eval case result |
+| Swarm | `daisy swarm init [--defaults]` | Declare the swarm: swarm.json, prompts, labels |
 | System | `daisy commit [--root] <message>` | Commit the home repo (or the root repo) |
 | System | `daisy healthcheck [--force]` | Run the system health check |
 | System | `daisy check-secrets` | Check which secrets/tokens are configured |
@@ -309,7 +312,7 @@ The reference source itself is never modified or deleted by adoption — copy
 ## Reference Documentation
 
 - [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the command tree as built, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
-- [`docs/swarm.md`](docs/swarm.md) — The swarm's specification (agreed, built in Steps 27–30): `swarm.json`, the label lifecycle and trigger rule, the comment marker, the member container and its image (`images/member/Dockerfile`), the credential rule, the provider and forge seams, the five `swarm` verbs, the merge gate
+- [`docs/swarm.md`](docs/swarm.md) — The swarm's specification (`swarm init` built, the rest agreed for Steps 27–30): `swarm.json`, the label lifecycle and trigger rule, the comment marker, the member container and its image (`images/member/Dockerfile`), the credential rule, the provider and forge seams, the five `swarm` verbs, the merge gate
 - [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) — The hat/skill distinction, the ownership-of-evolution criterion, worked examples
 - [`docs/task-format.md`](docs/task-format.md) — Task format regex, conversion rules, file organization
 - [`docs/task-sync.md`](docs/task-sync.md) — Bidirectional sync rules, validation algorithm

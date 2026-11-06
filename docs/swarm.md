@@ -9,7 +9,9 @@ run of the five roles showed, credential slots and the image's
 entrypoint, verified prompt files, the stage copied to pull requests),
 and at Step 43 (revision 4: the swarm's own forge account, a board as a
 view, and one job across the repositories of an organization).
-Built in Steps 27–30; nothing here runs yet. The maintainer's reading of this revision is Step 27's
+Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
+Step 1 built `declare`, the forge calls `init` makes and the verb, amending
+sections 3, 8–11, 13 and 14); the other four verbs do not run yet. The maintainer's reading of this revision is Step 27's
 checkpoint, and section 14 lists the places where the document chose
 between readings. `docs/cli.md`'s entry for the Swarm group points here:
 this document is the contract for the five verbs, the configuration they
@@ -32,14 +34,15 @@ one run's directory `<state>/runs/<n>-<role>-<k>`, `<k>` the run's number,
 account's login: separate inputs that may coincide (Step 39's did, in a
 user's namespace on Gitea, which revision 4 no longer allows: section 3,
 `forge.repo`), never one filled from the other. `<swarm-login>` is the swarm account's login
-(the token's own, `Login()`), and `<maintainer-login>` a maintainer's.
+(the token's own, `Login()`), `<swarm-email>` that account's email as
+`Login()` reports it, and `<maintainer-login>` a maintainer's.
 A row marked *to confirm at Step N* is written from the plan and the tools'
 public documentation and is checked against the real tool at that step.
-The commands named are the agreed Swarm group (`swarm init [--defaults]`,
-`swarm apply [--once]`, `swarm status`, `swarm pause`, `swarm resume`),
-not yet rows of the `cli` table; `cmd/daisy/docs_test.go` admits exactly
-those five verbs and two flags in this document until each verb joins the
-table.
+The commands named are the Swarm group (`swarm init [--defaults]`,
+`swarm apply [--once]`, `swarm status`, `swarm pause`, `swarm resume`):
+`swarm init` is a row of the `cli` table, and `cmd/daisy/docs_test.go`
+admits the four others and their flag in this document until each verb
+joins the table.
 
 **Sources.** Revision 2 draws on five talks on software factories:
 *Software Engineering Is Becoming Factory Engineering*; *What It Actually
@@ -146,7 +149,7 @@ Every file Daisy writes, and nothing else:
 
 | Path | Holds | Written by | When |
 |---|---|---|---|
-| `swarm/swarm.json` | the configuration, two-space indented JSON, fields in section 3's order, trailing newline | `swarm init` | when the answers differ from the file (absent counts as different) |
+| `swarm/swarm.json` | the configuration, two-space indented JSON, fields in section 3's order, trailing newline | `swarm init` | when the answers differ from the file's values (absent counts as different; a file of the same values in another layout is left as it is) |
 | `swarm/prompts/<role>.md` | the default persona prompt (section 4) | `swarm init` | only when the file is absent; an existing prompt is never overwritten |
 | `<state>/lock` | one line, the holder: `apply[ --once] since <RFC 3339 time> pid <pid>` | `swarm apply` | on taking the lock; the lock is released, not the file removed, at exit |
 | `<state>/paused` | one line: `paused <RFC 3339 time>`, or `paused <RFC 3339 time>: <reason>` when `apply` wrote it (`swarm fault: <reason>`, `budget: <per_day\|total> $<limit> reached ($<spent>)`) | `swarm pause` and `swarm apply` (created), `swarm resume` (removed) | on the command; `apply`: at the second swarm fault in a row (7.7) or when the budget is reached (section 3) |
@@ -176,9 +179,10 @@ real run.
 
 The example, as `swarm init` would write it with every default taken for one product
 repository at `<ws>/app` whose `origin` is `<owner>/<repo>` on a Gitea host, with `docs/`
-present in the workspace, a token whose login is `<swarm-login>`, and the
-maintainer's login `<maintainer-login>` given at the wizard's last
-question (`--defaults` answers none, and writes only `<swarm-login>`):
+present in the workspace, a token whose account is `<swarm-login>` with the
+email `<swarm-email>`, and the
+maintainer's login `<maintainer-login>` given at the wizard's
+question 33 (`--defaults` answers none, and writes only `<swarm-login>`):
 
 ```json
 {
@@ -186,7 +190,8 @@ question (`--defaults` answers none, and writes only `<swarm-login>`):
     "kind": "gitea",
     "api": "https://<forge-host>/api/v1",
     "repo": "<owner>/<repo>",
-    "token_env": "GITEA_TOKEN"
+    "token_env": "GITEA_TOKEN",
+    "commit_email": "<swarm-email>"
   },
   "repos": [
     {"name": "<repo>", "path": "app", "check": [], "image": "daisy-member:1", "protected": [".github/", ".gitea/", ".forgejo/", "AGENTS.md", "CLAUDE.md"]}
@@ -202,11 +207,11 @@ question (`--defaults` answers none, and writes only `<swarm-login>`):
   "gates": {"triage": true, "plan": true, "merge": true},
   "keys": {"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}, "openai": {"slots": 1}},
   "personas": {
-    "owner":       {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high"},
-    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high"},
-    "worker":      {"provider": "anthropic", "model": "claude-sonnet-5-5", "effort": "medium"},
-    "adversary":   {"provider": "openai",    "model": "",                  "effort": "high"},
-    "sympathetic": {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high"}
+    "owner":       {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high",   "co_author": "claude-opus-5-5 <noreply@anthropic.com>"},
+    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high",   "co_author": "claude-fable-5-1 <noreply@anthropic.com>"},
+    "worker":      {"provider": "anthropic", "model": "claude-sonnet-5-5", "effort": "medium", "co_author": "claude-sonnet-5-5 <noreply@anthropic.com>"},
+    "adversary":   {"provider": "openai",    "model": "gpt-6.1-sol",       "effort": "high",   "co_author": "gpt-6.1-sol <noreply@openai.com>"},
+    "sympathetic": {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high",   "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}
   }
 }
 ```
@@ -228,10 +233,11 @@ of `apply`, so an edit applies at the next pass.
 | `forge.api` | string | `https://<host>/api/v1` (gitea), `https://api.github.com` (github) | an absolute `http` or `https` URL, no user information, no query, no trailing `/` |
 | `forge.repo` | string | `<owner>/<repo>` from the first repository's `origin` | `^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`; the issues repository, which holds every swarm issue, declared in `repos` or not; `<owner>` owns every declared repository (section 14, item 7); with kind `gitea`, `<owner>` is an organization, whose labels the swarm uses (section 10), which only the forge can tell: `EnsureLabels` fails otherwise |
 | `forge.token_env` | string | `GITEA_TOKEN` (gitea), `GITHUB_TOKEN` (github) | a variable name, `^[A-Za-z_][A-Za-z0-9_]*$`, naming the swarm account's token (section 8, rule 5); the token itself never appears in any file Daisy writes |
+| `forge.commit_email` | string | the swarm account's email as `Login()` reports it (the wizard's question 34; none reported, no default) | required: an address, `<local>@<domain>` without whitespace or angle brackets; the author address of every swarm commit, `<role> (Daisy swarm) <commit_email>`, which Step 5 makes each clone's identity in place of section 7.1's `<role>@daisy-swarm.invalid` (section 14, item 52) |
 | `forge.board` | string | absent | optional; the title of an open project of the organization that owns `forge.repo`, on which `apply` keeps each open swarm issue in the column of its stage (`Board`, section 10); kind `gitea` only; absent, no board |
 | `repos` | array of objects | one entry per product repository found from `<ws>` (section 11, the wizard) | one or more, in order: the first is the product (its image runs the owner and the architect, in its clone; with one repository declared, a slice that names none is its, and with more, such a slice is *bad slices*, section 7.5; the fast lane's one slice is the first's); each entry has exactly the fields below (section 14, item 49) |
 | `repos[].name` | string | the `<repo>` of the entry's `origin` | `^[A-Za-z0-9_][A-Za-z0-9_.-]*$`, no two the same; the forge repository `<owner>/<name>`, its mirror `<state>/git/<name>/` and the owner's and architect's clone `/work/<name>` |
-| `repos[].path` | string | as found | a relative path inside `<ws>` (`.` when the workspace is the product) naming a git repository with an `origin` remote whose `<owner>/<repo>` is `<owner>/<name>` (branches are pushed there and its pull requests opened there); an `http(s)` origin URL carries no user information at all (a token as user name included); an SSH URL's `user@` is allowed, a password in it is not |
+| `repos[].path` | string | as found | a relative path inside `<ws>` (`.` when the workspace is the product) naming a git repository with an `origin` remote whose `<owner>/<repo>` is `<owner>/<name>` on the forge's host (`github.com` for kind `github`, else `forge.api`'s host; section 14, item 54) (branches are pushed there and its pull requests opened there); an `http(s)` origin URL carries no user information at all (a token as user name included); an SSH URL's `user@` is allowed, a password in it is not |
 | `repos[].check` | array of strings | `[]` | the repository's own checks as one argv (`["make", "check"]`), each element non-empty; named in the worker's and reviewers' Task texts and run by Daisy after each worker run (7.6); `[]` means none, which `init` warns about |
 | `repos[].image` | string | `daisy-member:1` | non-empty; a local image (`docker run --pull never`): the base image, or a product image built `FROM` it (section 7.2) |
 | `repos[].protected` | array of strings | `[".github/", ".gitea/", ".forgejo/", "AGENTS.md", "CLAUDE.md"]` | path patterns in the repository a worker's change may not touch (7.6): an entry ending `/` matches every path under that directory; an entry without `/` matches a path whose last element it matches (`path.Match`), at any depth; any other entry matches the whole path (`path.Match`); each non-empty, relative, without `..`; `[]` protects nothing |
@@ -242,14 +248,15 @@ of `apply`, so an edit applies at the next pass.
 | `interval` | string | `5m` | a Go duration, 1m to 24h: between passes of `apply` without `--once`, and the timer's period |
 | `owner.max_open_proposals` | integer | 5 | 1 to 20: the most issues one batch run creates, and with the triage gate off the most open `proposed` and `ready` issues the batch tops up to (section 6) |
 | `resources` | array of strings | `["docs/"]` when `<ws>/docs` is a directory, else `[]` | each a relative path; resolved through every symbolic link (`Ops.FS().EvalSymlinks`), it must lie inside `<ws>` resolved the same way (a declared repository's tree included: `<path>/docs/`), exist, not be `<ws>` itself, not lie under `swarm/`, and neither be nor contain `.env.sh`, `.daisy` or `.git`; no two the same; the resolved path is what is mounted, read-only, at `/resources/<path>` (a link inside a mounted tree resolves inside the container, where its target is absent); the roadmap the maintainer prepares lives here |
-| `trusted` | array of strings | the maintainer's logins (the wizard's question 28), then the swarm's own, read by `Login()` at `init` | one or more forge logins, each `^[A-Za-z0-9][A-Za-z0-9_.-]*$`; a comment, review or line comment by any other login reaches no prompt and wakes no member (section 6); `init` refuses a maintainer login equal to the token's own (section 11) |
+| `trusted` | array of strings | the maintainer's logins (the wizard's question 33), then the swarm's own, read by `Login()` at `init` | one or more forge logins, each `^[A-Za-z0-9][A-Za-z0-9_.-]*$`; a comment, review or line comment by any other login reaches no prompt and wakes no member (section 6); `init` refuses a maintainer login equal to the token's own (section 11) |
 | `gates.triage`, `gates.plan`, `gates.merge` | booleans | `true` each | G1, G2 and G3 (section 5): `true` keeps the decision the maintainer's; `false` hands it to the swarm |
 | `budget` | object | absent | `{"per_day": <usd>, "total": <usd>}`, both numbers greater than 0; required when any gate is `false`; optional otherwise, and in force whenever present (below) |
 | `keys` | object | `{"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}, "openai": {"slots": 1}}` | provider name → its credential, an object with exactly one of two kinds (section 8): `env`, a variable name that is one of the provider's variables (section 9), resolved on the host as a secret value (below) and passed under the same name; `slots`, an integer 1 to 16, for a provider that takes a slot: slots 1 to that number. Every provider a persona uses must have one |
 | `personas` | object | the five roles as in the example | exactly the keys `owner`, `architect`, `worker`, `adversary`, `sympathetic` |
 | `personas.<role>.provider` | string | as in the example | a provider with an adapter: `anthropic` or `openai` |
-| `personas.<role>.model` | string | as in the example | passed through, but for one check: no whitespace (it is one argv word; section 14, item 6); `""` means the CLI's own default (no model flag) |
+| `personas.<role>.model` | string | as in the example | required: every role names the model it runs (section 14, item 52), so neither `""` nor `-` is accepted; otherwise passed through, but for one check: no whitespace (it is one argv word; section 14, item 6) |
 | `personas.<role>.effort` | string | as in the example | passed through, but must match `^[a-z]+$` (the "bad effort" Step 27 tests); the vendor's list is not checked |
+| `personas.<role>.co_author` | string | `<model> <noreply@anthropic.com>` (anthropic) or `<model> <noreply@openai.com>` (openai); with a file, its value while the role's provider and model are unchanged | required: the whole value of the `Co-Authored-By:` trailer the role's commits carry, `<name> <<email>>`, stamped verbatim by the hook Step 5 installs (section 14, item 52) |
 | (each persona) | — | — | `swarm/prompts/<role>.md` exists and is non-empty |
 
 **The budget.** Spend is the sum of the `cost` lines in `<run>/result`
@@ -275,7 +282,7 @@ failure is reported and the verb exits 1; the message is
 | Problem | Message (after `Error: `) |
 |---|---|
 | file absent | `swarm.json: not found at <ws>/swarm/swarm.json; run 'daisy swarm init'` |
-| not JSON, or a field of the wrong type | `swarm.json: <field>: <what encoding/json reports>` (a syntax error names the byte offset) |
+| not JSON, or a field of the wrong type | `swarm.json: <field>: <what encoding/json reports>` (a syntax error is `swarm.json: <what encoding/json reports> at byte <offset>`; an object or array where another type stands, `swarm.json: <field>: not an object`, `not an array`) |
 | unknown field | `swarm.json: <field>: unknown field` |
 | required field absent | `swarm.json: <field>: missing` |
 | forge kind without an adapter | `swarm.json: forge.kind: "gitlab" has no adapter` |
@@ -284,14 +291,18 @@ failure is reported and the verb exits 1; the message is
 | missing prompt | `swarm.json: personas.architect: prompt swarm/prompts/architect.md is missing or empty` |
 | bad effort | `swarm.json: personas.worker.effort: "Very High" is not one lowercase word` |
 | model with whitespace | `swarm.json: personas.worker.model: "a b" contains whitespace` |
+| model not named | `swarm.json: personas.adversary.model: empty; every role names its model` (`"-"`: `swarm.json: personas.adversary.model: "-" is not a model; every role names its model`) |
+| co-author not a trailer value | `swarm.json: personas.worker.co_author: "<value>" is not <name> <email>` |
+| commit address absent or refused | `swarm.json: forge.commit_email: missing`, `swarm.json: forge.commit_email: "<value>" is not an email address` |
 | `repos` empty | `swarm.json: repos: no repository (at least one is required)` |
 | a repository name refused | `swarm.json: repos[1].name: "<value>" is not a repository name` (also `is listed twice`) |
-| a path not a repository | `swarm.json: repos[0].path: "app" is not a git repository` |
+| a path not a repository | `swarm.json: repos[0].path: "app" is not a git repository` (also when it is inside one but not its top); outside the workspace: `swarm.json: repos[0].path: "../app" is not a relative path inside the workspace` |
 | no `origin` | `swarm.json: repos[0].path: "app" has no origin remote` |
 | credentials in `origin` | `swarm.json: repos[0].path: origin URL carries user information; use SSH or a credential helper` |
-| `origin` not `<owner>/<name>` | `swarm.json: repos[1].path: origin is "<value>", not <owner>/<name>` |
+| `origin` not `<owner>/<name>` on the forge | `swarm.json: repos[1].path: origin is "<value>", not <owner>/<name> on <host>` (`<host>` `github.com` for kind `github`, else `forge.api`'s host; an `origin` in none of section 10's three forms: `origin is "<value>", not <owner>/<repo> on a forge`) |
+| an empty image | `swarm.json: repos[0].image: empty` |
 | a number or duration out of range | `swarm.json: max_members: 0 is not between 1 and 16` (each with its own range) |
-| a resource refused | `swarm.json: resources[1]: "." <reason>` (`is the workspace`, `does not exist`, `is outside the workspace` (also through a symbolic link), `contains .env.sh`, `contains .daisy`, `contains .git`, `is under swarm/`, `is listed twice`) |
+| a resource refused | `swarm.json: resources[1]: "." <reason>` (`is not a relative path`, `is the workspace`, `does not exist`, `is outside the workspace` (also through a symbolic link), `contains .env.sh`, `contains .daisy`, `contains .git`, `is under swarm/`, `is listed twice`) |
 | an empty `check` element | `swarm.json: repos[0].check[0]: empty argument` |
 | a protected pattern refused | `swarm.json: repos[0].protected[2]: "<value>" is not a relative pattern without ..` (also when empty) |
 | `trusted` empty, or a login refused | `swarm.json: trusted: no login (at least one is required)`, `swarm.json: trusted[0]: "<value>" is not a forge login` |
@@ -299,11 +310,13 @@ failure is reported and the verb exits 1; the message is
 | a budget limit not positive | `swarm.json: budget.per_day: 0 is not greater than 0` (also `budget.total`) |
 | a provider without a credential | `swarm.json: keys: no credential for provider "openai"` |
 | a credential not of one kind | `swarm.json: keys.openai: needs exactly one of env, slots` |
+| a credential for a provider without an adapter | `swarm.json: keys.xai: "xai" has no adapter` |
 | a variable the provider's CLI does not read | `swarm.json: keys.anthropic.env: "ANTHROPIC_KEY" is not one of anthropic's variables (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN)` |
 | slots for a provider without them | `swarm.json: keys.anthropic.slots: anthropic takes no slot` (a count out of range is the range row: `keys.openai.slots: 0 is not between 1 and 16`) |
 | `forge.board` with kind `github` | `swarm.json: forge.board: github has no board in version 1` |
 | `forge.board` empty | `swarm.json: forge.board: empty` |
 | bad URL, repo or variable name | `swarm.json: forge.api: "<value>" is not an absolute http(s) URL without credentials`, `swarm.json: forge.repo: "<value>" is not <owner>/<repo>`, `swarm.json: forge.token_env: "<value>" is not a variable name` |
+| a bad base, duration or count | `swarm.json: base: "<value>" is not a branch name`, `swarm.json: timeout: "<value>" is not a Go duration`, `swarm.json: timeout: "30s" is not between 1m and 24h`; in the wizard, `swarm.json: max_members: "<answer>" is not an integer` |
 
 **Secret values.** A variable named by `forge.token_env` or a `keys` `env` is
 resolved as `daisy check-secrets` resolves one: the assignment in
@@ -1277,7 +1290,8 @@ holds the host's login) nor leave state a later run loads (`codex` reads
    `forge.board`) and an expiry. The scope names per method are *to
    confirm at Step 27*. **What `init` checks:** that the variable is set;
    that the token can read the issues repository (`Issues(Open,
-   "swarm:proposed")` succeeds) and its own login (`Login()`); that no
+   "swarm:proposed")` succeeds), each declared repository (`Pulls(0)`
+   succeeds) and its own account (`Login()`); that no
    maintainer login is that login (section 11); and, by `EnsureLabels`,
    that it can write labels (on Gitea the organization's: whether a team
    member with Write may create them is *to confirm at Step 27*; if not,
@@ -1360,8 +1374,8 @@ was trained to work in; `codex` has no system-prompt flag, so both files
 are named in its one positional prompt, the material marked as such.
 `<W>` is the member's working directory (7.2), `workdir`. `<M>`
 and `<E>` are the persona's `model` and `effort`, passed through
-unvalidated (section 3's syntax rules aside); a model of `""` drops
-`--model <M>`. Step 39 ran both argvs against the CLIs the image
+unvalidated (section 3's syntax rules aside); every persona names its
+model (section 3), so `--model <M>` is always passed. Step 39 ran both argvs against the CLIs the image
 installs (Claude Code 2.1.318, Codex 0.166.0): `claude` accepted
 `--append-system-prompt-file` in print mode (checklist item 2) and its
 run records show each role's model, so `--model` took effect; every
@@ -1383,8 +1397,8 @@ lower bound for its runs (section 3).
 ```go
 // internal/swarm/forge, over Ops.HTTP(); built with forge.repo and the declared names
 type Adapter interface {
-    EnsureLabels(names []string) error
-    Login() (string, error)                            // the token's own login
+    EnsureLabels(names []string) (created int, err error)
+    Login() (Account, error)                           // the token's own account
     Issues(state State, label string) ([]Issue, error) // issues in the state carrying the label
     Issue(n int) (Issue, error)                        // with comments, oldest first
     CreateIssue(title, body string, labels []string) (int, error)
@@ -1401,6 +1415,7 @@ type Adapter interface {
     Board(n int, stage string) error                   // with forge.board: issue n's card into the column stage
 }
 
+type Account struct{ Login, Email string } // Email "" when the forge reports none
 type State int // Open, Closed
 type Ref struct {  // a number in a repository of <owner>
     Repo string    // the repository's name: forge.repo's for an issue
@@ -1445,14 +1460,26 @@ var ErrNotMergeable error // wraps the forge's message
 ```
 
 These sixteen methods are every call Daisy makes to the forge; the only
-other traffic with it is host-side git (fetch and push, 7.1 and 7.6). In
+other traffic with it is host-side git (fetch and push, 7.1 and 7.6).
+**As built (Step 1 of the swarm build).** The interface holds fifteen:
+`Board` joins it with the step that builds the board, which waits for a
+run that needs it, as the GitHub adapter does (`forge.New` answers kind
+`github` with `forge: kind github has no adapter yet; it is built when a
+run needs it (docs/swarm.md section 10)`). The `gitea` adapter and
+`forge.Fake` implement what `swarm init` calls, `EnsureLabels`, `Login`,
+`Issues` and `Pulls`; every other method returns `forge: <Method> is not
+built until Step 4`, the step that also builds the retries below (they
+wait on `Ops.After`, item 35) and the label id map that `CreateIssue` and
+`Relabel` read, where a repository's label shadows the organization's;
+until then a `429` or `5xx` is the call's error (section 14, item 53). In
 the calls this document writes, `n` stands for the issue's `Ref` in
 `forge.repo` where a `Ref` is taken, and `m` for the pull request's in its
 own repository.
 
 **Semantics common to both adapters.** `EnsureLabels` lists the labels and
-creates each missing name with colour `#ededed` and no description; it
-never edits or deletes one, so a second call creates nothing. The labels
+creates each missing name with colour `#ededed` and no description, and
+reports how many it created; it never edits or deletes one, so a second
+call creates nothing. The labels
 are one set for every repository: on Gitea the organization's labels
 (`/orgs/{o}/labels`), which every repository of `<owner>` can carry; on
 GitHub, which has no organization labels, each repository's, so
@@ -1469,8 +1496,11 @@ nothing. On Gitea, when `<o>` is not an organization (`GET
 /orgs/{o}/labels` answers `404`), `EnsureLabels` fails with `forge:
 EnsureLabels: <o> is not an organization; kind gitea needs one (section
 3)`. `Login`
-reads the authenticated user. `Issues` excludes pull requests and is
-sorted by number. `Pulls` reads every pull request, open and closed, of
+reads the authenticated user: its login, and its email, which `init`
+offers as `forge.commit_email`. `Issues` excludes pull requests, keeps
+only issues that carry the label (Gitea drops a `labels` filter naming no
+label it has and answers every issue; whether the filter resolves an
+organization label's name is *to confirm* on the instance), and is sorted by number. `Pulls` reads every pull request, open and closed, of
 each declared repository, one list per repository, and returns those
 whose head branch (`head.ref`) is `swarm/<n>-<s>` for a slice number
 `<s>` and whose body has a line equal to `Refs #<n>` in `forge.repo`, or
@@ -1542,8 +1572,8 @@ the organization's labels and the repository's (`GET /orgs/{o}/labels`,
 | Method | HTTP | Endpoint | Request body | Response fields read |
 |---|---|---|---|---|
 | `EnsureLabels` | `GET`, then `POST` per missing name | `/orgs/{o}/labels?page=<p>&limit=50`; `/orgs/{o}/labels` | —; `{"name", "color": "#ededed", "description": ""}` | `[].id`, `[].name`; — |
-| `Login` | `GET` | `/user` | — | `login` |
-| `Issues` | `GET` | `/repos/{o}/{r}/issues?state=<open\|closed>&type=issues&labels=<label>&page=<p>&limit=50` | — | `[].number`, `title`, `body`, `user.login`, `created_at`, `closed_at`, `state`, `labels[].name` |
+| `Login` | `GET` | `/user` | — | `login`, `email` |
+| `Issues` | `GET` | `/repos/{o}/{r}/issues?state=<open\|closed>&type=issues&labels=<label>&page=<p>&limit=50` (the label query-escaped: `swarm%3Aproposed`) | — | `[].number`, `title`, `body`, `user.login`, `created_at`, `closed_at`, `state`, `labels[].name` |
 | `Issue` | `GET`, `GET` | `/repos/{o}/{r}/issues/{n}`; `/repos/{o}/{r}/issues/{n}/comments?page=<p>&limit=50` | — | as `Issues`; `[].body`, `[].user.login`, `[].created_at` |
 | `CreateIssue` | `POST` | `/repos/{o}/{r}/issues` | `{"title", "body", "labels": [<ids>]}` | `number` |
 | `Comment` | `POST` | `/repos/{o}/{r}/issues/{n}/comments` | `{"body"}` | — |
@@ -1558,7 +1588,12 @@ the organization's labels and the repository's (`GET /orgs/{o}/labels`,
 | `Merge` | `POST` | `/repos/{o}/{r}/pulls/{pr}/merge` | `{"Do": "merge", "head_commit_id": <head>}` | the status: `200` merged; `405` or `409` refused |
 | `Board` | `GET`, `GET`, `GET`, `POST` per missing column, `POST` (then `POST` on a `404` or `422`) | `/repos/{o}/{r}/issues/{n}`; `/orgs/{o}/projects?state=open&page=<p>&limit=50`; `/orgs/{o}/projects/{id}/columns?page=<p>&limit=50`; `/orgs/{o}/projects/{id}/columns`; `/orgs/{o}/projects/{id}/issues/{issue_id}/move`; `/orgs/{o}/projects/{id}/columns/{column_id}/issues/{issue_id}` | —; —; —; `{"title": <stage>}`; `{"column_id"}`; — | `id` (`{issue_id}`); `[].id`, `[].title` (the first project titled `forge.board`); `[].id`, `[].title`; `id`; the status: `204`; `201` |
 
-*To confirm at Step 27* against the instance's `/api/swagger`: the
+Step 1 recorded the pairs of `EnsureLabels`, `Login`, `Issues` and
+`Pulls` from Gitea's Swagger (`swagger.v1.json`, version 29.0.0+dev, by
+operationId `orgListLabels`, `orgCreateLabel`, `userGetCurrent`,
+`issueListIssues`, `repoListPullRequests`), which documents `201`, `404`
+and `422` for `orgCreateLabel` and no `403`. *To confirm at Step 27*
+against the instance's `/api/swagger`: the
 `labels` filter taking names, the comments endpoint's paging, the review
 `event` spelling, the refusal of a self-approval, the line comment's line
 field (`position`), and the merge body's field names and refusal statuses;
@@ -1641,12 +1676,12 @@ workspace repository's, committed by the maintainer.
 | Usage | `daisy swarm init [--defaults]` |
 | Reads | `<ws>/swarm/swarm.json` when present (its values are the defaults), each declared repository's `origin` and the workspace tree (detection), `<ws>/.env.sh` (the token), each declared repository's root (the readiness warnings) |
 | Asks | the wizard below, through `Ops.Prompt`, questions on stderr; `--defaults` asks nothing and takes every default |
-| Forge | `Issues(Open, "swarm:proposed")` (the token can read the repository), `Login()` (the swarm's login, added to `trusted` and refused as a maintainer's), then `EnsureLabels` with the eight labels |
+| Forge | `Issues(Open, "swarm:proposed")` (the token can read the issues repository), `Pulls(0)` (no issue is numbered 0, so an empty list, read from every declared repository: the token can read each), `Login()` (the swarm's login, added to `trusted` and refused as a maintainer's; its email, the default of `forge.commit_email`), then `EnsureLabels` with the eight labels |
 | Writes | `swarm/swarm.json` when the answers differ from it; each `swarm/prompts/<role>.md` that is absent. Nothing under `$DAISY_LOCAL` |
-| Order | answers 1–27; validation as section 3 (the prompt files excepted, which this run writes, and `trusted` when the file has none, which the login fills); the token set; the read check and `Login()`; question 28, asked only now, so that its default leaves out the swarm's login and an answer naming it is refused and asked again (`trusted: "<login>" is the token's own login; the swarm needs its own forge account (section 8)`); the files; `EnsureLabels`; the readiness warnings; the unit files printed. A failure stops there, so a failed read check writes nothing |
-| Stdout | `✓ Wrote swarm/swarm.json` or `  Unchanged swarm/swarm.json`; per role `✓ Wrote swarm/prompts/<role>.md` or `  Kept swarm/prompts/<role>.md (exists)`; `✓ Token $<VAR> reads <owner>/<repo> as <login>`; `✓ Labels: 8 present (<c> created)`; a blank line, then the two unit files and the install line (below) |
-| Stderr | the questions; a refused answer's validation message (without `Error: `), then the same question again; `Cancelled — no answer on stdin (EOF); nothing written.`; the readiness warnings (below) |
-| Exit codes | 0 written (or unchanged), or cancelled at EOF; 1 outside a workspace, an invalid file or default (`Error: swarm.json: …`), the token unset, the read check failing (`Error: swarm: $<VAR> cannot read <owner>/<repo>: <forge error>`), a write failing, `EnsureLabels` failing (the files stay written; a re-run completes it); 2 usage. A readiness warning never changes the exit code |
+| Order | answers 1–32; validation as section 3 (the prompt files excepted, which this run writes, and `trusted` and `forge.commit_email`, which the account fills); the token set; the read check and `Login()`; questions 33 and 34, asked only now, so that 33's default leaves out the swarm's login and an answer naming it is refused and asked again (`swarm.json: trusted: "<login>" is the token's own login; the swarm needs its own forge account (section 8)`), and 34's default is the account's email; validation again; the files; `EnsureLabels`; the readiness warnings; the unit files printed. A failure stops there, so a failed read check writes nothing |
+| Stdout | in this order: `✓ Token $<VAR> reads <owner>/<repo> as <login>` (after the read check); `✓ Wrote swarm/swarm.json` or `  Unchanged swarm/swarm.json`; per role `✓ Wrote swarm/prompts/<role>.md` or `  Kept swarm/prompts/<role>.md (exists)`; `✓ Labels: 8 present (<c> created)`; a blank line, then the two unit files and the install line (below) |
+| Stderr | the questions; a refused answer's validation message (without `Error: `), then the same question again; `Cancelled — no answer on stdin (EOF); nothing written.`; `⚠️  .env.sh <problem>` for a line of `<ws>/.env.sh` that cannot be read (it and the lines after it are not, as `check-secrets` says); the readiness warnings (below) |
+| Exit codes | 0 written (or unchanged), or cancelled at EOF; 1 outside a workspace, an invalid file or default (`Error: swarm.json: …`), the token unset, a forge kind without an adapter (`Error: swarm: forge: kind github has no adapter yet; …`), the read check failing (`Error: swarm: $<VAR> cannot read <owner>/<repo>: <forge error>`, `Error: swarm: $<VAR> cannot read the declared repositories: <forge error>`, `Error: swarm: $<VAR> cannot read its own account: <forge error>`), a write failing, `EnsureLabels` failing (the files stay written; a re-run completes it); 2 usage. A readiness warning never changes the exit code |
 | Ops | Real |
 | Idempotence | `init --defaults` run twice: the second run writes no file and creates no label (Step 27's claim) |
 
@@ -1670,39 +1705,46 @@ brackets; defaults come from the existing `swarm.json`, else detection.
 | 4 | `Issues repository [<d>]: ` | `<owner>/<repo>` of the first repository's `origin` |
 | 5 | `Token variable [<d>]: ` | `GITEA_TOKEN` or `GITHUB_TOKEN` |
 | 6 | `Base branch [<d>]: ` | `main` |
-| 7–21 | for each role in the order owner, architect, worker, adversary, sympathetic: `<role> provider (anthropic, openai) [<d>]: `, `<role> model (- for the CLI's default) [<d>]: `, `<role> effort [<d>]: ` | section 3's example |
-| 22 | `<name> image [<d>]: `, once per declared repository, in order | `daisy-member:1` |
-| 23 | `Max members [<d>]: ` | 3 |
-| 24 | `Max rounds [<d>]: ` | 3 |
-| 25 | `Timeout [<d>]: ` | `45m` |
-| 26 | `Interval [<d>]: ` | `5m` |
-| 27 | `Resources (comma-separated workspace paths, - for none) [<d>]: ` | `docs/` when `<ws>/docs` is a directory, else none |
-| 28 | `Maintainer logins (comma-separated, not the swarm's; - for none) [<d>]: ` | none; with a file, its `trusted` without the swarm's login |
+| 7–26 | for each role in the order owner, architect, worker, adversary, sympathetic: `<role> provider (anthropic, openai) [<d>]: `, `<role> model [<d>]: ` (no `-`: every role names its model), `<role> effort [<d>]: `, `<role> co-author [<d>]: ` | section 3's example; the co-author's default `<model> <noreply@anthropic.com>` or `<noreply@openai.com>` by the provider just answered, or the file's while the role's provider and model are the file's |
+| 27 | `<name> image [<d>]: `, once per declared repository, in order | `daisy-member:1` |
+| 28 | `Max members [<d>]: ` | 3 |
+| 29 | `Max rounds [<d>]: ` | 3 |
+| 30 | `Timeout [<d>]: ` | `45m` |
+| 31 | `Interval [<d>]: ` | `5m` |
+| 32 | `Resources (comma-separated workspace paths, - for none) [<d>]: ` | `docs/` when `<ws>/docs` is a directory, else none |
+| 33 | `Maintainer logins (comma-separated, not the swarm's; - for none) [<d>]: ` | none; with a file, its `trusted` without the swarm's login |
+| 34 | `Commit email [<d>]: ` (without a default, `Commit email: `) | the file's `forge.commit_email`, else the swarm account's email as `Login()` reports it, else none (`--defaults` then fails: `Error: swarm.json: forge.commit_email: missing`) |
 
-`trusted` is written as the answer to question 28 followed by the swarm's
+`trusted` is written as the answer to question 33 followed by the swarm's
 login from `Login()`. `owner.max_open_proposals`, `keys`, each repository's `check`
 and `protected`, `gates`, `budget` and `forge.board` are not asked: they keep the existing file's values
 or section 3's defaults, and are edited in the file. Turning a gate off is
 a decision made in the file, beside the `budget` it requires.
 
 **The unit files.** `init` prints them for the maintainer to install;
-`<daisy>` is the running binary's path (`Ops.Executable`), `<interval>`
-the configured interval in systemd's notation (`5min`), and `<instance>`
-the workspace path escaped as `systemd-escape --path` escapes it:
+`<daisy>` is the running binary's path (`Ops.Executable`), `<root>` the
+Daisy root it runs with (a user manager's service does not read the
+shell's `DAISY_ROOT`), `<interval>` the configured interval in systemd's
+notation (`5min`, `1h30min`), and `<instance>` the workspace path escaped
+as `systemd-escape --path` escapes it (the unit name single-quoted on the
+install line when the escape holds a `\`, which the shell would eat);
+the units name the workspace as `%f`, the instance unescaped as a path
+with its leading `/`, which `%I` would leave out:
 
 ```
 # ~/.config/systemd/user/daisy-swarm@.service
 [Unit]
-Description=Daisy swarm: one apply pass for the workspace %I
+Description=Daisy swarm: one apply pass for the workspace %f
 
 [Service]
 Type=oneshot
-WorkingDirectory=%I
+WorkingDirectory=%f
+Environment=DAISY_ROOT=<root>
 ExecStart=<daisy> swarm apply --once
 
 # ~/.config/systemd/user/daisy-swarm@.timer
 [Unit]
-Description=Daisy swarm: apply every <interval> for the workspace %I
+Description=Daisy swarm: apply every <interval> for the workspace %f
 
 [Timer]
 OnActiveSec=1min
@@ -1855,13 +1897,14 @@ merge step's; **the trigger rule's table** of section 6 (seven rows:
 
 | Step | Seam | Tested against | What it pins |
 |---|---|---|---|
-| 27 | `declare`: `swarm.json` validation | real temp workspaces | every row of section 3's error table, one case each, the message byte for byte (`gates`, `budget`, `repos` and each repository's `check` and `protected`, `trusted` and `forge.board` included) |
-| 27 | `declare`: the wizard | a scripted `Ops.Prompt` | `--defaults` takes every default (two repositories under `<ws>` give two `repos` entries, each with the default image; without `--defaults`, question 22 is asked once per repository); each override is honoured; a refused answer asks again; EOF cancels and writes nothing; `trusted` written as question 28's logins then `Login()`'s, question 28's default without the swarm's login, and an answer naming it asked again |
-| 27 | `forge`: `gitea` and `github` | `ops.Fake` `HTTPFn` with one recorded request and response per method | section 10's tables for all sixteen methods: method, endpoint, body; pagination; `Review`'s formal event and its comment-type fallback on a `422`; `Board`'s project and column lookup, a missing column created, the move by the issue's `id` and the add when it is not on the board, GitHub's refusal; `EnsureLabels` idempotent, on the organization's labels (Gitea) or each repository's (GitHub), a repository label shadowing an organization label of its name, a refused organization create (`403`) failing with the missing names byte for byte and creating nothing more, and a `404` on the organization's labels failing as not an organization; `Pulls` one list per declared repository, each `Refs` form, `merge_commit_sha`; `Relabel` on a pull request, with `remove` `""`, and never touching another label; `Pulls`' filter on branch and `Refs`, and its labels; `Merge`'s refusal as `ErrNotMergeable`; error text without the token |
+| 27 | `declare`: `swarm.json` validation | real temp workspaces | every row of section 3's error table, one case each, the message byte for byte (`gates`, `budget`, `repos` and each repository's `check` and `protected`, `trusted` and `forge.board` included, and from Step 1 a model not named, `co_author` and `forge.commit_email`) |
+| 27 | `declare`: the wizard | a scripted `Ops.Prompt` | `--defaults` takes every default (two repositories under `<ws>` give two `repos` entries, each with the default image; without `--defaults`, question 27 is asked once per repository); each override is honoured; a refused answer asks again; EOF cancels and writes nothing; `trusted` written as question 33's logins then `Login()`'s, question 33's default without the swarm's login, and an answer naming it asked again; no `-` for a model; the co-author's default following the model; question 34's default the account's email |
+| 27 | `forge`: `gitea` and `github` | `ops.Fake` `HTTPFn` with one recorded request and response per method | (Step 1 built `gitea`'s `EnsureLabels`, `Login`, `Issues` and `Pulls` with these tests; the rest are Step 4's, the label id map with its repository-label shadowing among them, since `CreateIssue` and `Relabel` are its only readers: section 10, As built) section 10's tables for all sixteen methods: method, endpoint, body; pagination; `Review`'s formal event and its comment-type fallback on a `422`; `Board`'s project and column lookup, a missing column created, the move by the issue's `id` and the add when it is not on the board, GitHub's refusal; `EnsureLabels` idempotent, on the organization's labels (Gitea) or each repository's (GitHub), a repository label shadowing an organization label of its name, a refused organization create (`403`) failing with the missing names byte for byte and creating nothing more, and a `404` on the organization's labels failing as not an organization; `Pulls` one list per declared repository, each `Refs` form, `merge_commit_sha`; `Relabel` on a pull request, with `remove` `""`, and never touching another label; `Pulls`' filter on branch and `Refs`, and its labels; `Merge`'s refusal as `ErrNotMergeable`; error text without the token |
 | 27 | `init`'s readiness warnings | real temp workspaces | each of the four warnings (the first two per repository), and none when all is present; the exit code unchanged |
+| 27 | `init` end to end | `forge.Fake`, a scripted `Ops.Prompt`, real temp workspaces | the files written, the eight labels ensured, the unit files printed; a second run writing no file and creating no label; after `RefuseLabels()`, exit 1 naming the missing labels with the files written, and a re-run finding them once created; the token unset or a read failing writing nothing |
 | 27 | `status` | `ops.ReadOnly` over a Fake | it runs read-only (section 14, item 31) and prints section 11's lines; zero issues per label, the gates and the declared personas after `init`; "Waiting for you" per section 5; Throughput over a scripted `runs/` |
 | 27 | smoke | the Gitea instance, a scratch repository of an organization without the eight labels | `init --defaults` creates the organization's eight labels, or, when the swarm's account may not, fails naming them, which is recorded, and after the maintainer creates them a re-run finds all eight; a second run creates none |
-| 28 | `provider` | table test | section 9's argv for each adapter (both prompt files, model `""` included, `codex`'s `--cd <W>`: `/work`, or `/work/<first name>` for the owner and the architect); `Report` over a recorded output per CLI, a fault included |
+| 28 | `provider` | table test | section 9's argv for each adapter (both prompt files, `codex`'s `--cd <W>`: `/work`, or `/work/<first name>` for the owner and the architect); `Report` over a recorded output per CLI, a fault included |
 | 28 | `runner.Docker` | `ops.Fake` `Exec`/`Start` and the `After` hook (item 35) | section 7.2's two argvs (mounts, the run's repository's image, `--workdir` `/work` or `/work/<first name>` for the owner and the architect, label, name, user, `no-new-privileges`, the env-file or the slot's mount and label for the member only, `--network none` for the check, stop-timeout), an `env` value on stdin only, `docker stop` at the wall clock |
 | 28 | the prompt files | `forge.Fake`, a temp `<run>` | each section of 7.3 per role from the Fake's entries (the `Clone` lines: `/work`, or `/work/<name>` per repository for the owner and the architect), verbatim but for shifted headings; `Opened by owner, run <k>`; `None.` for each empty section; headings shifted; the Task texts' `protected` (the architect's per repository, `<name>: <patterns>`) and `Not established:` sentences, the architect's repository prefix for slices, the worker's `in <owner>/<name>` and its pin sentence for `<s>` > 1; a read-back that differs, or an empty heading field, is *prompt refused* and launches nothing |
 | 28 | the slots | a temp `$DAISY_LOCAL`, `ops.Fake` `Exec` | the lowest free slot taken; a held lock, a container labelled `daisy.credential` in the pass's snapshot, or one seen only by the re-read under the lock, makes the next slot be tried; none free launches nothing; every entry but `auth.json` removed; an `auth.json` that is a link is *slot refused* and its target untouched; the lock released when `docker run` returns |
@@ -1887,7 +1930,9 @@ slot's login landing in `auth.json` under `cli_auth_credentials_store`;
 provider fault's signal, and whether a bot account's formal review is
 accepted (all Step 28); an image digest (the next base build); the
 forge's pagination, every adapter pair, the project endpoints, the
-organization's labels and the token's scopes (Step 27); a job across two
+organization's labels and the token's scopes (Step 27; Step 1 recorded
+`init`'s pairs from Gitea's Swagger, and its smoke on the instance
+confirms them); a job across two
 repositories, with a pin moved to a merged commit, and Gitea's rendering
 of `Refs <owner>/<repo>#<n>` as a cross-reference (Step 30); and the
 reconciler itself, since no transition was made by `apply` (Steps 28–30).
@@ -1960,8 +2005,8 @@ entries among revision 1's, and was renumbered at Step 38.
    count, item 40); from revision 2, `check`, `protected`,
    `trusted`, `gates` and `budget` (items 3–5, 12, 21, 23). Effort is
    checked as one lowercase word (the plan's "bad effort" and "passes
-   through" reconciled); a model may be `""` for the CLI's default, which
-   is the adversary's default since no OpenAI model name is fixed here; a
+   through" reconciled); a model may not be `""` (until Step 1 it meant the CLI's
+   default, and was the adversary's; item 52); a
    model with whitespace is refused (the plan validates only adapters; one
    argv word is the reason). A secret is resolved from `.env.sh`, then the
    process environment (the plan names `.env.sh` only; the fallback serves
@@ -2100,7 +2145,8 @@ entries among revision 1's, and was renumbered at Step 38.
     never`, a per-run `--name`, the prompt files and output in `<run>/io`
     mounted at `/work/.swarm`, resources at `/resources/<path>`; the
     worker's commits authored
-    `worker (Daisy swarm) <worker@daisy-swarm.invalid>`. Confirmed at
+    `worker (Daisy swarm) <worker@daisy-swarm.invalid>` (from Step 5,
+    `<role> (Daisy swarm) <commit_email>`, item 52). Confirmed at
     Step 39 for a uid the image holds (checklist item 6); an unknown uid, served by
     the entrypoint (item 41), is *to confirm at Step 28*.
 25. **An `env` credential reaches the container through `--env-file
@@ -2316,3 +2362,27 @@ entries among revision 1's, and was renumbered at Step 38.
     check runs without a network (7.2), so a check that fetches the newly
     pinned upstream fails for that slice unless the product's image or
     tree provides it; Step 30 records which.
+52. **Every role names its model; the commit's author and co-author are
+    declared** (the maintainer's decision of 2026-11-05, built at Step 1).
+    `personas.<role>.model` is required (`""` and `-` refused), so neither
+    `apply` nor any later verb starts until each role has one, and the
+    example's adversary is a named Codex model; each persona's
+    `co_author` is the whole `Co-Authored-By:` value, set at `init` and
+    stamped verbatim with no logic at run time; `forge.commit_email` is
+    the swarm's commit address, defaulting to the account's email.
+    Alternatives: the model in the author name (no co-author shown by the
+    forge), the maintainer's identity, a fixed `daisy-swarm.invalid`
+    address (no link to the swarm's account on the forge).
+53. **What Step 1 built of the forge seam.** `Login` returns the account
+    (its email feeds `commit_email`) and `EnsureLabels` its created count
+    (`init` prints it); `init` reads each declared repository through
+    `Pulls(0)`, so no method is added; `Board`, the GitHub adapter, the
+    retries and the label id map wait for the steps that use them (section
+    10, As built); `Issues` filters by label itself, since Gitea answers
+    every issue to a filter naming no existing label.
+54. **`init`'s smaller choices at Step 1.** A declared repository's
+    `origin` must also be on the forge's host; the service unit sets
+    `DAISY_ROOT`, which a user manager does not inherit from the shell;
+    the install line quotes an escaped unit name; the units read the
+    workspace as `%f`, since `%I` drops a path instance's leading `/`; `.env.sh` lines it
+    cannot read are named on stderr, as `check-secrets` names them.
