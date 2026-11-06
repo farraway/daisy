@@ -481,7 +481,7 @@ places. Each departure has a cost, named here.
 - *Falsification is expensive.* Review passes that attack the claim cost
   more than the implementation did on every step of Daisy's port where
   the figures were kept, sometimes by three to one. The cap on passes
-  (six for code, three for documents) exists because the search for a
+  (five for every step) exists because the search for a
   refutation has no natural end.
 - *A single Fake must be faithful.* Everything rests on the Fake behaving
   like Real at the seam. The parity check catches signature drift, not

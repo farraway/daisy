@@ -64,14 +64,14 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
    Brief the step agent with:
    - the plan's real path and the step's text
    - $DAISY_ROOT/prompts/praxis.md and the testing skill
-   - the review gate and its cap, the proportion rule
+   - the review gate and its cap
    - the hand-back's shape
    - its reviewer's model and effort (from Decisions)
 
 4. The step agent reads praxis.md, states the step's claim,
-   does the step, reviews it to the gate, commits, and updates
+   does the step, reviews it to the gate, commits and checks off
+   the step (neither when it stops at the cap), and updates
    PLAN.md:
-   - Check off the step
    - Record decisions or deviations in Decisions if any
    - Move anything out of scope to Deferred
 
@@ -91,27 +91,26 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
    daisy log
 ```
 
-**Review gate and caps:** a review finding is in gate only when the
+**Review gate and cap:** a review finding is in gate only when the
 reviewer reproduces it and it falls in a class the brief names (the claim
 fails, a required item is missing or wrong, a test is red, a document
 contradicts another). Style and anything outside the step's stated
 contract are out of gate: Deferred or nowhere, never another pass. A write
 into the root counts only when reached through Daisy's own resolution of
 home, workspace and root paths with no user-made link in the way. The cap
-is 6 passes for a code step, 3 for a docs step; a step not clean at the
-cap stops and reports, and the orchestrator decides.
-
-**Proportion:** a step whose diff to existing code, tests or docs passes
-about 300 lines stops and reports. New code is exempt.
+is 5 passes for every step, code or docs; a step not clean after pass 5
+stops and hands back to the user with the open findings and its proposed
+fixes uncommitted. The orchestrator does not commit at the cap and never
+runs another pass.
 
 **Stops:** the plan's own checkpoints; a hard-to-reverse or outward-facing
 action the plan does not itself call for; a step the plan gives the user;
-a proportion stop; a cap the orchestrator does not settle by committing
-with the findings in Deferred; a permission refusal, which the orchestrator
-reports verbatim and never re-runs for the sub-agent.
+a step stopped at the review cap; a permission refusal, which the
+orchestrator reports verbatim and never re-runs for the sub-agent.
 
 **Hand-back:** the claim and its probes; lines added and deleted; each
-review pass with its in-gate count; findings accepted as is; the
+review pass with its in-gate count; findings accepted as is; at the cap,
+the open findings and the proposed fixes left uncommitted; the
 verification lines; the commits; the decisions; the tokens used.
 
 **Fixture isolation:** if a step live-tests a script that auto-commits (or
