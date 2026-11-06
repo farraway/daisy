@@ -623,7 +623,9 @@ branch; 7–26 per role (owner, architect, worker, adversary, sympathetic)
 its provider, model (every role names one: no `-`), effort and co-author
 (the `Co-Authored-By:` value, `<model> <noreply@anthropic.com>` or
 `<noreply@openai.com>` by default); 27 each repository's image; 28 max
-members; 29 max rounds; 30 the timeout; 31 the interval; 32 the resources;
+members; 29 max rounds (5 since docs/swarm.md revision 5; the built
+wizard offers 3 until the code step that carries it); 30 the timeout; 31
+the interval; 32 the resources;
 then, once the token has read the forge and its account, 33 the
 maintainer's logins (the swarm's refused) and 34 the commit email (the
 account's by default).
@@ -632,7 +634,7 @@ account's by default).
 
 | Field | Value |
 |---|---|
-| Status | agreed (Steps 27–30) for `apply`, `status`, `pause` and `resume`; specified in [docs/swarm.md](swarm.md) (Step 26, revised at Steps 38, 40 and 43), not here: `swarm.json` (its gates, budget and credentials included: an `env` variable or login slots per provider; the swarm's own forge account, an optional board, and the repositories one job spans), the eight-label lifecycle over two conversations (the issue for the design, a pull request per slice for the implementation), the member and check containers, both seams, and each verb's reads, writes, output and exit codes |
+| Status | agreed (Steps 27–30) for `apply`, `status`, `pause` and `resume`; specified in [docs/swarm.md](swarm.md) (Step 26, revised at Steps 38, 40 and 43, and at Step 3 of the swarm build: revision 5), not here: `swarm.json` (its gates, budget and credentials included: an `env` variable or login slots per provider; the swarm's own forge account, an optional board, and the repositories one job spans), the briefs the owner reads, the eight-label lifecycle over two conversations (the issue for the design, a pull request per slice for the implementation; the review limit returning the issue to the architect), the member and check containers, both seams, and each verb's reads, writes, output and exit codes |
 | Legacy | none |
 | Usage | `swarm apply [--once]`, `swarm status`, `swarm pause`, `swarm resume` — the four lines the `Swarm` group adds to the help beside `swarm init` as each is built, and nothing more; a login slot is made with the provider's own CLI (`CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, docs/swarm.md section 8), not a sixth verb |
 | Cases | none |

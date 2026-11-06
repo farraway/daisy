@@ -279,7 +279,9 @@ func TestFormatIsSectionThreesExample(t *testing.T) {
 	c := Config{
 		Forge: Forge{Kind: "gitea", API: "https://<forge-host>/api/v1", Repo: "<owner>/<repo>", TokenEnv: "GITEA_TOKEN", CommitEmail: "<swarm-email>"},
 		Repos: []Repo{{Name: "<repo>", Path: "app", Image: defaultImage, Protected: defaultProtected}},
-		Base:  "main", MaxMembers: 3, MaxRounds: 3, Timeout: "45m", Interval: "5m",
+		// max_rounds 5 is revision 5's default (section 3); the wizard
+		// still offers 3 until the code step that carries it.
+		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
 		Resources: []string{"docs/"},
 		Trusted:   []string{"<maintainer-login>", "<swarm-login>"},
