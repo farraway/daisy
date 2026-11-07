@@ -47,7 +47,8 @@ import (
 // repoGetPullReviewComments (`GET …/pulls/{index}/reviews/{id}/comments`,
 // no page; PullReviewComment: body, path, position, commit_id, user,
 // created_at); repoCreatePullReview (`POST …/pulls/{index}/reviews`,
-// CreatePullReviewOptions: event, body; 200, 422); repoMergePullRequest
+// CreatePullReviewOptions: event, body, and from Step 10 commit_id, read
+// in the Swagger of version 29.0.0+dev-160; 200, 404, 422); repoMergePullRequest
 // (`POST …/pulls/{index}/merge`, MergePullRequestOption: do required,
 // head_commit_id; 200, 405, 409).
 //
@@ -539,6 +540,27 @@ func TestGiteaReview(t *testing.T) {
 			g, s := gitea(t, nil, tc.pairs...)
 			if err := g.Review(Ref{"app", 20}, tc.verdict, "b"); errText(err) != tc.err {
 				t.Errorf("Review: %v, want %q", err, tc.err)
+			}
+			s.done()
+		})
+	}
+}
+
+func TestGiteaApprove(t *testing.T) {
+	const path = "/repos/acme/lib/pulls/20/reviews"
+	body := `{"event":"APPROVED","body":"","commit_id":"c2"}`
+	for _, tc := range []struct {
+		name, resp, err string
+		status          int
+	}{
+		{"approved", `{"id":17,"state":"APPROVED","commit_id":"c2"}`, "", 200},
+		{"a 422 is the error, never a comment-type review", `{"message":"approve your own pull is not allowed","url":""}`,
+			"forge: POST /repos/acme/lib/pulls/20/reviews: 422 approve your own pull is not allowed", 422},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, s := gitea(t, []string{"app", "lib"}, pair{"POST", path, body, tc.status, tc.resp})
+			if err := g.Approve(Ref{"lib", 20}, "c2"); errText(err) != tc.err {
+				t.Errorf("Approve: %v, want %q", err, tc.err)
 			}
 			s.done()
 		})

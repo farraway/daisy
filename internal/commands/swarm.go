@@ -113,17 +113,25 @@ func cancelledOr(c *Context, err error) error {
 
 // secret is a variable as `daisy check-secrets` resolves it: its
 // assignment in <ws>/.env.sh (read, never run), else the environment.
-func secret(c *Context, ws, name string) string {
+func secret(c *Context, ws, name string) string { return secrets(c, ws)(name) }
+
+// secrets resolves variables as secret does, <ws>/.env.sh read once and
+// its problems reported once.
+func secrets(c *Context, ws string) func(name string) string {
+	var vars map[string]string
 	if b, err := c.Ops.FS().ReadFile(filepath.Join(ws, ".env.sh")); err == nil {
-		vars, problems := env.ParseShellEnv(b, c.Ops.Getenv)
+		var problems []string
+		vars, problems = env.ParseShellEnv(b, c.Ops.Getenv)
 		for _, p := range problems {
 			fmt.Fprintf(c.Stderr, "⚠️  .env.sh %s\n", p)
 		}
+	}
+	return func(name string) string {
 		if v, ok := vars[name]; ok {
 			return v
 		}
+		return c.Ops.Getenv(name)
 	}
-	return c.Ops.Getenv(name)
 }
 
 // writeDeclaration writes swarm.json when the answers differ from its

@@ -196,3 +196,48 @@ func TestFakeMilestones(t *testing.T) {
 		t.Errorf("a refused set: %v", err)
 	}
 }
+
+// The maintainer's token on the Fake: As is the same forge under another
+// account, whose writes it authors; the timeline names the account behind
+// each label change, close and merge; Approve refuses the account's own
+// pull request as the forge does (422) and stores a formal approval
+// otherwise.
+func TestFakeAsAnotherAccount(t *testing.T) {
+	f := fakeForge(t)
+	jane := f.As(Account{Login: "jane"})
+	n, _ := f.CreateIssue("A", "", []string{"swarm:proposed"})
+	pr, _ := f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
+	at, pull := Ref{"app", n}, Ref{"app", pr}
+	f.Push(pull, "c1")
+	if acct, _ := jane.Login(); acct.Login != "jane" {
+		t.Errorf("jane's Login = %+v", acct)
+	}
+	if is, _ := jane.Issue(n); is.Author != "swarm-bot" {
+		t.Errorf("jane reads another forge: %+v", is)
+	}
+	f.Relabel(at, "swarm:proposed", "swarm:ready")
+	jane.Relabel(at, "swarm:ready", "swarm:planned")
+	jane.Relabel(at, "swarm:ready", "swarm:planned") // nothing changes, nothing recorded
+	jane.Comment(at, "go")
+	if err := f.Approve(pull, "c1"); errText(err) != "forge: POST /repos/acme/app/pulls/2/reviews: 422 approve your own pull is not allowed" {
+		t.Errorf("the swarm approving its own pull request: %v", err)
+	}
+	if err := jane.Approve(pull, "c1"); err != nil {
+		t.Fatal(err)
+	}
+	jane.Merge(pull, "c1")
+	jane.CloseIssue(n)
+	jane.CloseIssue(n)
+	want := []Event{{"swarm-bot", "labeled swarm:ready"}, {"swarm-bot", "unlabeled swarm:proposed"}, {"jane", "labeled swarm:planned"}, {"jane", "unlabeled swarm:ready"}, {"jane", "closed"}}
+	if got := f.Events(at); !reflect.DeepEqual(got, want) {
+		t.Errorf("issue events = %+v\nwant %+v", got, want)
+	}
+	if got := f.Events(pull); !reflect.DeepEqual(got, []Event{{"jane", "merged"}}) {
+		t.Errorf("pull events = %+v", got)
+	}
+	is, _ := f.Issue(n)
+	reviews, _ := f.Reviews(pull)
+	if len(is.Comments) != 1 || is.Comments[0].Author != "jane" || len(reviews) != 1 || reviews[0].Author != "jane" || reviews[0].State != Approve || reviews[0].Commit != "c1" {
+		t.Errorf("comments %+v, reviews %+v", is.Comments, reviews)
+	}
+}

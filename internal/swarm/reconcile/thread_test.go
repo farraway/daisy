@@ -54,3 +54,40 @@ func TestNewestCounted(t *testing.T) {
 		t.Error("nothing counted, yet an entry")
 	}
 }
+
+// The stage an issue was blocked from, read from the newest reconciler
+// note that blocked it (docs/swarm.md section 7.6's notes).
+func TestBlockedFrom(t *testing.T) {
+	t0 := time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)
+	note := func(k int, text string) string {
+		return "<!-- daisy-swarm role=reconciler run=" + string(rune('0'+k)) + " -->\n**reconciler:**\n\n" + text
+	}
+	failed := note(1, "worker run 1 failed: check failed (was swarm:planned). Relabel the issue to resume.")
+	firstLimit := note(2, "Review round 3 of 3 on app#2 requested changes (was swarm:in-review). The architect revises the plan from the reviews.")
+	for _, tc := range []struct {
+		name     string
+		comments []forge.Comment
+		want     string
+		ok       bool
+	}{
+		{"a failure", []forge.Comment{{Author: "swarm-bot", Body: failed}}, "swarm:planned", true},
+		{"BLOCKED:, the role's text first", []forge.Comment{{Author: "swarm-bot", Body: "<!-- daisy-swarm role=architect run=2 -->\n**architect:**\n\nBLOCKED: which parser?"},
+			{Author: "swarm-bot", Body: note(3, "architect run 2 is blocked (was swarm:ready). Answer and relabel the issue to resume.")}}, "swarm:ready", true},
+		{"the refused merge", []forge.Comment{{Author: "swarm-bot", Body: note(4, "merge of pull request acme/app#2 at abc1234 refused: 409 head out of date (was swarm:approved). Resolve it and relabel the issue.")}}, "swarm:approved", true},
+		{"the newest note wins", []forge.Comment{{Author: "swarm-bot", Body: failed}, {Author: "swarm-bot", Body: note(5, "Review round 3 of 3 on app#2 requested changes a second time (was swarm:in-review). Relabel the issue to resume.")}}, "swarm:in-review", true},
+		{"the round limit's first note blocks nothing", []forge.Comment{{Author: "swarm-bot", Body: failed}, {Author: "swarm-bot", Body: firstLimit}}, "swarm:planned", true},
+		{"only the first note", []forge.Comment{{Author: "swarm-bot", Body: firstLimit}}, "", false},
+		{"a note by a maintainer's login", []forge.Comment{{Author: "jane", Body: failed}}, "", false},
+		{"a note naming no label", []forge.Comment{{Author: "swarm-bot", Body: note(6, "worker run 1 failed: (was swarm:bogus).")}}, "", false},
+		{"no note", nil, "", false},
+	} {
+		is := forge.Issue{Author: "jane", Body: "job", Created: t0}
+		for i, c := range tc.comments {
+			c.Created = t0.Add(time.Duration(i+1) * time.Hour)
+			is.Comments = append(is.Comments, c)
+		}
+		if got, ok := BlockedFrom(is, "swarm-bot"); got != tc.want || ok != tc.ok {
+			t.Errorf("%s: BlockedFrom = %q, %v; want %q, %v", tc.name, got, ok, tc.want, tc.ok)
+		}
+	}
+}

@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,22 +16,48 @@ import (
 
 // giteaServer is an in-memory Gitea answering the calls `swarm init`
 // makes, for the organization acme, the token tok-123 and the swarm's
-// account swarm-bot.
+// account swarm-bot, and issue 1 of acme/app for the maintainer's verbs.
 type giteaServer struct {
 	mux      *http.ServeMux
 	labels   []string
-	requests []string // method and path of each request, in order
+	accounts map[string]string // each Authorization header the forge takes, and its login
+	issue1   []string          // issue 1's labels
+	requests []string          // method and path of each request, in order
+	auths    []string          // the Authorization header of each request, in order
 }
 
 func newGitea(t *testing.T) *giteaServer {
-	g := &giteaServer{mux: http.NewServeMux()}
+	g := &giteaServer{mux: http.NewServeMux(), accounts: map[string]string{"token tok-123": "swarm-bot"}}
 	reply := func(w http.ResponseWriter, status int, v any) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		json.NewEncoder(w).Encode(v)
 	}
 	g.mux.HandleFunc("GET /api/v1/user", func(w http.ResponseWriter, r *http.Request) {
-		reply(w, 200, map[string]any{"id": 7, "login": "swarm-bot", "email": "swarm@example.net"})
+		reply(w, 200, map[string]any{"id": 7, "login": g.accounts[r.Header.Get("Authorization")], "email": "swarm@example.net"})
+	})
+	g.mux.HandleFunc("GET /api/v1/repos/acme/app/issues/1", func(w http.ResponseWriter, r *http.Request) {
+		var labels []map[string]any
+		for _, l := range g.issue1 {
+			labels = append(labels, map[string]any{"name": l})
+		}
+		reply(w, 200, map[string]any{"number": 1, "title": "A job", "body": "", "user": map[string]any{"login": "swarm-bot"},
+			"created_at": "2026-11-07T09:00:00Z", "state": "open", "labels": labels})
+	})
+	g.mux.HandleFunc("GET /api/v1/repos/acme/app/issues/1/comments", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, []any{}) })
+	g.mux.HandleFunc("GET /api/v1/repos/acme/app/labels", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, []any{}) })
+	g.mux.HandleFunc("POST /api/v1/repos/acme/app/issues/1/labels", func(w http.ResponseWriter, r *http.Request) {
+		var in struct{ Labels []int }
+		json.NewDecoder(r.Body).Decode(&in)
+		for _, id := range in.Labels {
+			g.issue1 = append(g.issue1, g.labels[id-1])
+		}
+		reply(w, 200, []any{})
+	})
+	g.mux.HandleFunc("DELETE /api/v1/repos/acme/app/issues/1/labels/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, _ := strconv.Atoi(r.PathValue("id"))
+		g.issue1 = slices.DeleteFunc(g.issue1, func(l string) bool { return l == g.labels[id-1] })
+		w.WriteHeader(204)
 	})
 	g.mux.HandleFunc("GET /api/v1/repos/acme/{repo}/issues", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, []any{}) })
 	g.mux.HandleFunc("GET /api/v1/repos/acme/{repo}/pulls", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, []any{}) })
@@ -51,8 +79,9 @@ func newGitea(t *testing.T) *giteaServer {
 
 func (g *giteaServer) Do(req *http.Request) (*http.Response, error) {
 	g.requests = append(g.requests, req.Method+" "+req.URL.Path)
+	g.auths = append(g.auths, req.Header.Get("Authorization"))
 	rec := httptest.NewRecorder()
-	if req.Header.Get("Authorization") != "token tok-123" {
+	if _, ok := g.accounts[req.Header.Get("Authorization")]; !ok {
 		rec.WriteHeader(401)
 		return rec.Result(), nil
 	}
@@ -159,6 +188,41 @@ func TestSwarmStatusThroughGitea(t *testing.T) {
 	}
 	code, _, errs = runWith(m.swarmOps(m.ws, g), "swarm", "status", "extra")
 	if code != 2 || !strings.Contains(errs, "Usage: daisy swarm status") {
+		t.Errorf("usage: exit %d %q", code, errs)
+	}
+}
+
+// `swarm triage` through the cli and the gitea adapter: every request
+// carries the maintainer's token, none the swarm's, and the relabel is
+// made; the swarm's token as DAISY_MAINTAINER_TOKEN is refused before
+// any request; a word that is no issue number is usage.
+func TestSwarmTriageThroughGitea(t *testing.T) {
+	m := newMachine(t)
+	m.product(t, "git@forge.example.net:acme/app.git")
+	g := newGitea(t)
+	if code, out, errs := runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults"); code != 0 {
+		t.Fatalf("init: exit %d\n%s\n%s", code, out, errs)
+	}
+	g.accounts["token jane-456"] = "jane"
+	g.issue1 = []string{"swarm:proposed"}
+	writeFile(t, filepath.Join(m.ws, ".env.sh"), "export GITEA_TOKEN=tok-123\nexport DAISY_MAINTAINER_TOKEN=jane-456\n")
+	g.requests, g.auths = nil, nil
+	code, out, errs := runWith(m.swarmOps(m.ws, g), "swarm", "triage", "1")
+	if code != 0 || errs != "" || out != "Maintainer jane on acme/app\n#1 swarm:proposed → swarm:ready\n" || !slices.Equal(g.issue1, []string{"swarm:ready"}) {
+		t.Fatalf("exit %d\n%s\n%s\nlabels %q", code, out, errs, g.issue1)
+	}
+	if slices.ContainsFunc(g.auths, func(a string) bool { return a != "token jane-456" }) || !slices.Contains(g.requests, "DELETE /api/v1/repos/acme/app/issues/1/labels/1") {
+		t.Errorf("requests %q under %q", g.requests, g.auths)
+	}
+
+	writeFile(t, filepath.Join(m.ws, ".env.sh"), "export GITEA_TOKEN=tok-123\nexport DAISY_MAINTAINER_TOKEN=tok-123\n")
+	g.requests = nil
+	code, _, errs = runWith(m.swarmOps(m.ws, g), "swarm", "triage", "1")
+	if code != 1 || !strings.HasPrefix(errs, "Error: swarm: $DAISY_MAINTAINER_TOKEN holds the swarm's token ($GITEA_TOKEN)") || len(g.requests) != 0 {
+		t.Errorf("the swarm's token: exit %d %q; requests %q", code, errs, g.requests)
+	}
+	code, _, errs = runWith(m.swarmOps(m.ws, g), "swarm", "triage", "one")
+	if code != 2 || !strings.Contains(errs, "Error: not an issue number: one\nUsage: daisy swarm triage <n>") {
 		t.Errorf("usage: exit %d %q", code, errs)
 	}
 }

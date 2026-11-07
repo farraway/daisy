@@ -40,6 +40,16 @@ type Config struct {
 	Personas   map[string]Persona `json:"personas"`
 }
 
+// SwarmLogin is the swarm's own login as swarm.json names it: trusted's
+// last, which `init` writes after the maintainer's logins (section 3); ""
+// when trusted is empty, which validation refuses.
+func (c Config) SwarmLogin() string {
+	if len(c.Trusted) == 0 {
+		return ""
+	}
+	return c.Trusted[len(c.Trusted)-1]
+}
+
 type Forge struct {
 	Kind        string  `json:"kind"`
 	API         string  `json:"api"`

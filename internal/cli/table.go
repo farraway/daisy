@@ -76,6 +76,12 @@ var table = []Command{
 	{Group: "Swarm", Name: "swarm status", Usage: "swarm status", Help: "Stages, gates, what waits for you, running members (read-only)", Workspace: true, Run: commands.SwarmStatus},
 	{Group: "Swarm", Name: "swarm pause", Usage: "swarm pause", Help: "Launch no new member until resumed; running ones are collected", Workspace: true, Run: commands.SwarmPause},
 	{Group: "Swarm", Name: "swarm resume", Usage: "swarm resume", Help: "Launch members again and release the owner's held batch", Workspace: true, Run: commands.SwarmResume},
+	{Group: "Swarm", Name: "swarm triage", Usage: "swarm triage <n>", Help: "As the maintainer: triage a proposed job to ready", Workspace: true, Min: 1, Max: 1, Run: commands.SwarmTriage},
+	{Group: "Swarm", Name: "swarm accept", Usage: "swarm accept <n>", Help: "As the maintainer: accept the plan, planning to planned", Workspace: true, Min: 1, Max: 1, Run: commands.SwarmAccept},
+	{Group: "Swarm", Name: "swarm approve", Usage: "swarm approve <n>", Help: "As the maintainer: approve the issue's open pull request", Workspace: true, Min: 1, Max: 1, Run: commands.SwarmApprove},
+	{Group: "Swarm", Name: "swarm merge", Usage: "swarm merge <n>", Help: "As the maintainer: merge the approved pull request, then next slice or close", Workspace: true, Min: 1, Max: 1, Run: commands.SwarmMerge},
+	{Group: "Swarm", Name: "swarm unblock", Usage: "swarm unblock <n> <comment...>", Help: "As the maintainer: comment, then return a blocked issue to its prior stage", Workspace: true, Min: 2, Max: Unbounded, Run: commands.SwarmUnblock},
+	{Group: "Swarm", Name: "swarm close", Usage: "swarm close <n> [comment...]", Help: "As the maintainer: close the issue, after the comment when given", Workspace: true, Min: 1, Max: Unbounded, Run: commands.SwarmClose},
 
 	{Group: "System", Name: "commit", Usage: "commit [--root] <message>", Help: "Commit the home repo (or the root repo)", Workspace: true, Flags: []string{"--root"}, Min: 1, Max: 1, Run: commands.Commit},
 	{Group: "System", Name: "healthcheck", Usage: "healthcheck [--force]", Help: "Run the system health check", Flags: []string{"--force"}, Run: commands.Healthcheck},

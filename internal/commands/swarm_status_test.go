@@ -55,7 +55,7 @@ func (s *statusWS) status(f forge.Adapter) error {
 	s.stdout.Reset()
 	s.stderr.Reset()
 	o := &ops.Fake{
-		GetenvFn: func(k string) string { return s.vars[k] },
+		GetenvFn: func(k string) string { s.asked = append(s.asked, k); return s.vars[k] },
 		NowFn: func() time.Time {
 			if !s.now.IsZero() {
 				return s.now
@@ -78,7 +78,10 @@ func (s *statusWS) status(f forge.Adapter) error {
 	}
 	c := &Context{Ops: o, Env: env.Env{Root: s.root, Workspace: s.ws, Local: s.local}, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr}
 	return readOnly(func(c *Context) error {
-		return swarmStatus(c, func(ops.Ops, declare.Forge, []string, string) (forge.Adapter, error) { return f, nil })
+		return swarmStatus(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
+			s.tokens = append(s.tokens, token)
+			return f, nil
+		})
 	})(c)
 }
 

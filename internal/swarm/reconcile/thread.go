@@ -44,9 +44,18 @@ func IssueThread(is forge.Issue) []Entry {
 // Swarms is e's mark when e is the swarm's: its first line, without a
 // trailing `\r`, is the marker, and its author is the swarm's login.
 func Swarms(e Entry, swarmLogin string) (Mark, bool) {
-	first, _, _ := strings.Cut(e.Body, "\n")
+	if m, ok := Marked(e.Body); ok && strings.EqualFold(e.Author, swarmLogin) {
+		return m, true
+	}
+	return Mark{}, false
+}
+
+// Marked is body's mark when its first line, without a trailing `\r`, is
+// the marker, whoever wrote it.
+func Marked(body string) (Mark, bool) {
+	first, _, _ := strings.Cut(body, "\n")
 	m := markerRe.FindStringSubmatch(strings.TrimSuffix(first, "\r"))
-	if m == nil || !strings.EqualFold(e.Author, swarmLogin) {
+	if m == nil {
 		return Mark{}, false
 	}
 	run, _ := strconv.Atoi(m[2])

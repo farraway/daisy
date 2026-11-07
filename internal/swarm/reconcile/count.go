@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -66,4 +67,30 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 		c.Pulls = append(c.Pulls, pc)
 	}
 	return c
+}
+
+// blockedFromRe is the label a reconciler note names the issue left
+// (section 7.6): `(was swarm:<label>)`.
+var blockedFromRe = regexp.MustCompile(`\(was (swarm:[a-z-]+)\)`)
+
+// BlockedFrom is the stage is was blocked from, as the newest of the
+// reconciler's notes that moved it to blocked names it (every note but
+// the round limit's first, which returns the issue to the architect); ok
+// is false when no such note names one of the eight labels but blocked.
+func BlockedFrom(is forge.Issue, swarmLogin string) (label string, ok bool) {
+	thread := IssueThread(is)
+	slices.SortStableFunc(thread, func(a, b Entry) int { return a.Created.Compare(b.Created) })
+	for i := len(thread) - 1; i >= 0; i-- {
+		m, swarm := Swarms(thread[i], swarmLogin)
+		text := swarmText(thread[i].Body)
+		if !swarm || m.Role != "reconciler" || strings.HasSuffix(text, architectRevises) {
+			continue
+		}
+		was := blockedFromRe.FindStringSubmatch(text)
+		if was == nil || was[1] == "swarm:blocked" || !slices.Contains(forge.Labels, was[1]) {
+			return "", false
+		}
+		return was[1], true
+	}
+	return "", false
 }

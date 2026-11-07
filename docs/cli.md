@@ -9,7 +9,7 @@ under, the files it may write and the commits it makes.
 pins it; since Step 24 every command is Go and the bash (`daisy.sh` and
 `daisy/scripts/*.sh`) is deleted, so a `Legacy` row is history: the bash
 form a command replaced. Every entry is `as built (Step N)`, the step
-that built it, the `swarm` verbs `as built (Steps 1, 4, 5 and 6 of the
+that built it, the `swarm` verbs `as built (Steps 1, 4, 5, 6 and 10 of the
 swarm build)`, each specified in [docs/swarm.md](swarm.md). `decided (D30, …)` marks a point the plan's
 Architecture left open that this document settled, recorded in the plan's
 D30. Where the bash has no
@@ -34,9 +34,10 @@ entries cross-reference it in prose.
 `daisy --help` as built, rendered from the `cli` table; `daisy
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm apply`, `swarm status`, `swarm
-pause`, `swarm resume`) joined the table a verb at a time as each was
-built; all five are in it, and the tree never names a command the binary
-does not run.
+pause`, `swarm resume`, and the maintainer's `swarm triage`, `swarm
+accept`, `swarm approve`, `swarm merge`, `swarm unblock` and `swarm
+close`) joined the table a verb at a time as each was built; all eleven
+are in it, and the tree never names a command the binary does not run.
 
 ```
 Usage: daisy <command> [args...]
@@ -88,6 +89,12 @@ Swarm
   swarm status                      Stages, gates, what waits for you, running members (read-only)
   swarm pause                       Launch no new member until resumed; running ones are collected
   swarm resume                      Launch members again and release the owner's held batch
+  swarm triage <n>                  As the maintainer: triage a proposed job to ready
+  swarm accept <n>                  As the maintainer: accept the plan, planning to planned
+  swarm approve <n>                 As the maintainer: approve the issue's open pull request
+  swarm merge <n>                   As the maintainer: merge the approved pull request, then next slice or close
+  swarm unblock <n> <comment...>    As the maintainer: comment, then return a blocked issue to its prior stage
+  swarm close <n> [comment...]      As the maintainer: close the issue, after the comment when given
 
 System
   commit [--root] <message>         Commit the home repo (or the root repo)
@@ -692,6 +699,114 @@ account's by default).
 | Writes | removes `<state>/paused`, whoever wrote it, and `<state>/owner-held`; no forge call, no secret read |
 | Commits | none |
 | Cases | none; `TestSwarmPauseAndResume`, `TestSwarmApplyBatchTrigger` |
+
+### The maintainer's verbs
+
+`swarm triage`, `swarm accept`, `swarm approve`, `swarm merge`, `swarm
+unblock` and `swarm close` are the maintainer's writes on the forge
+(docs/swarm.md section 11, built at Step 10 of the swarm build), each
+under the maintainer's own token, `DAISY_MAINTAINER_TOKEN`, resolved as
+`check-secrets` resolves a variable (`<ws>/.env.sh`, read never run, else
+the environment); `apply`, `status` and `init` never read it. Each verb
+starts the same way, before any write: `<n>` a positive issue number
+(else usage, exit 2); `swarm.json` validated as `status` validates it;
+the token set (`Error: swarm: $DAISY_MAINTAINER_TOKEN is not set (in
+<ws>/.env.sh or the environment)`) and not equal to the value of the
+variable `forge.token_env` names (`Error: swarm:
+$DAISY_MAINTAINER_TOKEN holds the swarm's token ($<VAR>); the
+maintainer's verbs act with your own (docs/swarm.md section 8)`, before
+the forge is reached); `Login()` under it, refused when the login is the
+swarm's, `trusted`'s last (`Error: swarm: $DAISY_MAINTAINER_TOKEN is
+<login>'s token, the swarm's account (trusted's last login); …`); then
+`Maintainer <login> on <owner>/<repo>` on stdout and issue `<n>` read,
+which must be open and carry exactly one `swarm:*` label (`Error: swarm:
+#<n> is closed; nothing changed`, `… carries no swarm:* label; it is not
+the swarm's`, `… carries <label> and <label>; remove all but one on the
+forge first`, `… is <label>, not <label>; nothing changed`). None writes
+a file, launches a member or runs a process (git aside, for the
+validation), or commits; a refusal writes nothing. Their writes carry no
+marker: a comment opening with it is refused (`Error: swarm: the comment
+opens with the swarm's marker, which only the swarm's entries carry;
+nothing posted`).
+
+### daisy swarm triage
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 10 of the swarm build): Go (`internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Usage | `daisy swarm triage <n>`: G1, T3, for an issue at `swarm:proposed` |
+| Exit codes | 0 relabelled; 1 the maintainer's verbs' refusals (above), a forge call failing (`Error: swarm: forge: …`); 2 usage |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> swarm:proposed → swarm:ready` |
+| Ops | Real |
+| Writes | on the forge, `Relabel(n, "swarm:proposed", "swarm:ready")` |
+| Commits | none |
+| Cases | none; `TestSwarmMaintainerVerbs`, `TestSwarmTriageThroughGitea`, `TestSwarmMaintainerRefusesTheSwarmsToken`, `TestSwarmMaintainerRefusals` |
+
+### daisy swarm accept
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 10 of the swarm build), as `swarm triage` |
+| Usage | `daisy swarm accept <n>`: G2, T7, for an issue at `swarm:planning` |
+| Exit codes | as `swarm triage` |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> swarm:planning → swarm:planned` |
+| Ops | Real |
+| Writes | on the forge, `Relabel(n, "swarm:planning", "swarm:planned")` |
+| Commits | none |
+| Cases | none; `TestSwarmMaintainerVerbs`, `TestSwarmMaintainerRefusals` |
+
+### daisy swarm approve
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 10 of the swarm build), as `swarm triage` |
+| Usage | `daisy swarm approve <n>`: a formal approving review of issue `<n>`'s current pull request, open, at its head, at any stage |
+| Exit codes | 0 approved; 1 the maintainer's verbs' refusals, no open swarm pull request (`Error: swarm: #<n> has no open swarm pull request; nothing approved`), the forge refusing the approval, a `422` for one's own pull request among the causes (`Error: swarm: approving pull <name>#<m>: forge: POST …: 422 <message>`), another forge failure; 2 usage |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> approved pull <name>#<m> at <short sha>` |
+| Ops | Real |
+| Writes | on the forge, `Approve(m, <head>)` (no comment-type fallback) |
+| Commits | none |
+| Cases | none; `TestSwarmMaintainerVerbs`, `TestSwarmMaintainerRefusals` |
+
+### daisy swarm merge
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 10 of the swarm build), as `swarm triage` |
+| Usage | `daisy swarm merge <n>`: G3 for an issue at `swarm:approved`: its current pull request merged at the head both the swarm's newest reviews approve, as the merge step merges (`do: merge`, `head_commit_id`), or found merged; then T13 when the accepted plan declares a slice after it, else the issue closed |
+| Exit codes | 0 merged (or found merged) and relabelled or closed; 1 the maintainer's verbs' refusals, no swarm pull request, one closed unmerged, no head both reviews approve, the forge refusing the merge (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; nothing changed`: no note and no block, unlike the merge step), another forge failure; 2 usage |
+| Stdout | `Maintainer <login> on <owner>/<repo>`; `#<n> merged pull <name>#<m> (slice <s> of <S>)` or `#<n> pull <name>#<m> already merged (slice <s> of <S>)`; then `#<n> swarm:approved → swarm:planned` or `#<n> closed (last slice merged)` |
+| Ops | Real |
+| Writes | on the forge, `Merge(m, <approved head>)`, then `Relabel(n, "swarm:approved", "swarm:planned")` or `CloseIssue(n)` |
+| Commits | none |
+| Cases | none; `TestSwarmMaintainerVerbs`, `TestSwarmMaintainerCloseUnblockMerged`, `TestSwarmMaintainerRefusals` |
+
+### daisy swarm unblock
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 10 of the swarm build), as `swarm triage` |
+| Usage | `daisy swarm unblock <n> <comment...>`: G4, T18, for an issue at `swarm:blocked`, to the stage the newest reconciler note that blocked it names (`was swarm:<label>`); the words after `<n>` are one comment, saying what changed |
+| Exit codes | 0 commented and relabelled; 1 the maintainer's verbs' refusals, no such note (`Error: swarm: #<n>: no reconciler note names the stage it was blocked from; relabel it on the forge; nothing changed`), a forge failure; 2 usage (no comment among them) |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented`, `#<n> swarm:blocked → <label>` |
+| Stderr | `⚠ <login> is not in trusted: no member reads your comment (docs/swarm.md section 6)`, never an exit code |
+| Ops | Real |
+| Writes | on the forge, `Comment(n, <comment>)`, then `Relabel(n, "swarm:blocked", <label>)` |
+| Commits | none |
+| Cases | none; `TestSwarmMaintainerCloseUnblockMerged`, `TestSwarmMaintainerRefusals` |
+
+### daisy swarm close
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 10 of the swarm build), as `swarm triage` |
+| Usage | `daisy swarm close <n> [comment...]`: T19, at any stage; the words after `<n>`, when given, are one comment posted first |
+| Exit codes | 0 closed; 1 the maintainer's verbs' refusals, a forge failure; 2 usage |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented` when a comment was given, `#<n> closed` |
+| Ops | Real |
+| Writes | on the forge, `Comment(n, <comment>)` when given, then `CloseIssue(n)`; the pull requests are left as they are |
+| Commits | none |
+| Cases | none; `TestSwarmMaintainerCloseUnblockMerged`, `TestSwarmMaintainerRefusals` |
 
 ## System
 

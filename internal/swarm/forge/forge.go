@@ -44,6 +44,10 @@ type Adapter interface {
 	Reviews(pr Ref) ([]Review, error)
 	ReviewComments(pr Ref) ([]ReviewComment, error)
 	Review(pr Ref, verdict Verdict, body string) error
+	// Approve is a formal approving review of pr at the commit head: the
+	// maintainer's (section 12), never falling back to a comment-type
+	// review, so a refusal is its error.
+	Approve(pr Ref, head string) error
 	Merge(pr Ref, head string) error
 	// Milestones is forge.repo's milestones, open and closed, each with
 	// the issues the forge counts in it.

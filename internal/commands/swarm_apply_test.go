@@ -82,9 +82,14 @@ func (a *applyWS) apply(f forge.Adapter, flags ...string) error {
 // writing to stdout and stderr.
 func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.Writer, flags ...string) error {
 	o := &ops.Fake{
-		GetenvFn: func(k string) string { return a.vars[k] },
-		NowFn:    a.Now,
-		AfterFn:  a.after,
+		GetenvFn: func(k string) string {
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			a.asked = append(a.asked, k)
+			return a.vars[k]
+		},
+		NowFn:   a.Now,
+		AfterFn: a.after,
 		SignalsFn: func() <-chan os.Signal {
 			return a.signals
 		},
@@ -106,7 +111,12 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 		PromptFn: func(io.Reader, io.Writer, string) (string, error) { a.t.Error("apply prompted"); return "", io.EOF },
 	}
 	c := &Context{Ops: o, Env: env.Env{Root: a.root, Workspace: a.ws, Local: a.local}, Stdin: strings.NewReader(""), Stdout: stdout, Stderr: stderr, Flags: flags}
-	return swarmApply(c, func(ops.Ops, declare.Forge, []string, string) (forge.Adapter, error) { return f, nil },
+	return swarmApply(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		a.tokens = append(a.tokens, token)
+		return f, nil
+	},
 		func(ops.Ops, string) runner.Runner { return run })
 }
 

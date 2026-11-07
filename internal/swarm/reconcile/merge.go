@@ -44,7 +44,7 @@ func (s *Swarm) mergeStep() error {
 			if err != nil {
 				return err
 			}
-			head, k := approvedHead(reviews, s.SwarmLogin)
+			head, k := ApprovedHead(reviews, s.SwarmLogin)
 			err = errors.New("no head both reviews approve")
 			if head != "" {
 				err = s.Forge.Merge(ref, head)
@@ -93,6 +93,12 @@ func planSlices(is forge.Issue, swarmLogin string) int {
 	return 1
 }
 
+// Slice is the slice of is's pull request p and the number of slices
+// its accepted plan declares, as the merge step counts them.
+func Slice(is forge.Issue, p forge.Pull, swarmLogin string) (s, S int) {
+	return sliceOf(p, is.Number), planSlices(is, swarmLogin)
+}
+
 // AfterApproval is what an approved issue waits for with the merge gate
 // on (section 12): "merge" until its current pull request is merged, then
 // "next slice" when the accepted plan declares a slice after it (T13) or
@@ -107,10 +113,10 @@ func AfterApproval(is forge.Issue, pulls []forge.Pull, swarmLogin string) string
 	return "close"
 }
 
-// approvedHead is the commit both the newest adversary review and the
+// ApprovedHead is the commit both the newest adversary review and the
 // newest sympathetic review approve, with the run of the later one (the
 // run that completed the approving pair); "" when they do not.
-func approvedHead(reviews []forge.Review, swarmLogin string) (string, int) {
+func ApprovedHead(reviews []forge.Review, swarmLogin string) (string, int) {
 	type newest struct {
 		r forge.Review
 		k int

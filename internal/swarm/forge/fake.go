@@ -23,13 +23,19 @@ import (
 // git do on the forge. A helper given a number the Fake does not hold
 // panics: that is the test's mistake. Tests assert on its state, never on
 // which methods were called. It is safe for concurrent use, as two
-// `apply` processes share one forge.
+// `apply` processes share one forge. As gives the same forge under
+// another account's token, as the maintainer's token reaches it.
 type Fake struct {
+	*fakeState
+	account Account // the token's: every write this Fake makes is its
+}
+
+// fakeState is the forge every view of one Fake shares.
+type fakeState struct {
 	mu          sync.Mutex
 	o           ops.Ops
 	owner, repo string   // forge.repo
 	names       []string // the declared repositories
-	account     Account
 	labels      []string
 	refuse      bool
 	items       map[Ref]*item
@@ -51,8 +57,15 @@ type item struct {
 	labels              []string
 	milestone           int64
 	comments            []Comment
+	events              []Event
 	pull                *pullState
 }
+
+// Event is a write the Fake keeps on an issue's or a pull request's
+// timeline, as the forge does: the account whose token made it, and what
+// it did (`labeled <label>`, `unlabeled <label>`, `closed`, `merged`).
+// Comments and reviews carry their own author.
+type Event struct{ Actor, What string }
 
 type pullState struct {
 	head, headSHA, base, mergeSHA string
@@ -68,7 +81,23 @@ var _ Adapter = (*Fake)(nil)
 // clock dates every entry.
 func NewFake(o ops.Ops, repo string, names []string, account Account) *Fake {
 	owner, r, _ := strings.Cut(repo, "/")
-	return &Fake{o: o, owner: owner, repo: r, names: slices.Clone(names), account: account, items: map[Ref]*item{}, next: map[string]int{}}
+	return &Fake{&fakeState{o: o, owner: owner, repo: r, names: slices.Clone(names), items: map[Ref]*item{}, next: map[string]int{}}, account}
+}
+
+// As is this forge under the token of account: its reads are the same
+// forge's, and its writes are authored by account.
+func (f *Fake) As(account Account) *Fake { return &Fake{f.fakeState, account} }
+
+// Events is the timeline of the issue or pull request at, oldest first.
+func (f *Fake) Events(at Ref) []Event {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(must(f.find(at)).events)
+}
+
+// record keeps a write on its timeline, made by this Fake's account.
+func (f *Fake) record(it *item, what string) {
+	it.events = append(it.events, Event{f.account.Login, what})
 }
 
 // RefuseLabels makes every later label create be refused: EnsureLabels
@@ -110,7 +139,7 @@ func (f *Fake) EnsureLabels(names []string) (int, error) {
 	return len(missing), nil
 }
 
-func (f *Fake) Login() (Account, error) { f.mu.Lock(); defer f.mu.Unlock(); return f.account, nil }
+func (f *Fake) Login() (Account, error) { return f.account, nil }
 
 // find is the item at, as the forge answers a number it does not hold.
 func (f *Fake) find(at Ref) (*item, error) {
@@ -245,9 +274,11 @@ func (f *Fake) Relabel(at Ref, remove, add string) error {
 	}
 	if !slices.Contains(it.labels, add) {
 		it.labels = append(it.labels, add)
+		f.record(it, "labeled "+add)
 	}
-	if remove != "" && remove != add {
+	if remove != "" && remove != add && slices.Contains(it.labels, remove) {
 		it.labels = slices.DeleteFunc(it.labels, func(l string) bool { return l == remove })
+		f.record(it, "unlabeled "+remove)
 	}
 	return nil
 }
@@ -275,6 +306,7 @@ func (f *Fake) CloseIssue(n int) error {
 	}
 	if it.open {
 		it.open, it.closed = false, f.o.Now()
+		f.record(it, "closed")
 	}
 	return nil
 }
@@ -397,6 +429,24 @@ func (f *Fake) ReviewAs(pr Ref, login string, verdict Verdict, body string) {
 	it.pull.reviews = append(it.pull.reviews, Review{ID: f.reviewID, Author: login, Body: body, State: verdict, Commit: it.pull.headSHA, Submitted: f.o.Now()})
 }
 
+// Approve is a formal approving review of pr at the commit head by this
+// Fake's account; like the forge, it refuses an approval of the account's
+// own pull request (422) and never falls back to a comment-type review.
+func (f *Fake) Approve(pr Ref, head string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	it, err := f.findPull(pr)
+	if err != nil {
+		return err
+	}
+	if strings.EqualFold(it.author, f.account.Login) {
+		return fmt.Errorf("forge: POST /repos/%s/%s/pulls/%d/reviews: 422 approve your own pull is not allowed", f.owner, pr.Repo, pr.N)
+	}
+	f.reviewID++
+	it.pull.reviews = append(it.pull.reviews, Review{ID: f.reviewID, Author: f.account.Login, State: Approve, Commit: head, Submitted: f.o.Now()})
+	return nil
+}
+
 // Merge merges an open pull request whose head is head and which is not
 // marked unmergeable, recording a merge commit; it closes no issue.
 func (f *Fake) Merge(pr Ref, head string) error {
@@ -415,6 +465,7 @@ func (f *Fake) Merge(pr Ref, head string) error {
 	sum := sha1.Sum([]byte(fmt.Sprintf("merge %s#%d %s", pr.Repo, pr.N, head)))
 	it.pull.mergeSHA, it.pull.merged = hex.EncodeToString(sum[:]), true
 	it.open, it.closed = false, f.o.Now()
+	f.record(it, "merged")
 	return nil
 }
 

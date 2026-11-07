@@ -556,6 +556,13 @@ func (g *Gitea) Review(pr Ref, verdict Verdict, body string) error {
 	return g.call("POST", path, map[string]string{"event": "COMMENT", "body": body}, http.StatusOK, nil)
 }
 
+// Approve posts a formal approving review of the commit head, with no
+// body; Gitea's refusal (422 for an approval of one's own pull request) is
+// the error, never a comment-type review in its place.
+func (g *Gitea) Approve(pr Ref, head string) error {
+	return g.call("POST", fmt.Sprintf("%s/pulls/%d/reviews", g.repoPath(pr.Repo), pr.N), map[string]string{"event": "APPROVED", "body": "", "commit_id": head}, http.StatusOK, nil)
+}
+
 // Merge merges a pull request with a merge commit, only while its head is
 // head; Gitea's refusal (405 not mergeable, 409 the head moved) is
 // ErrNotMergeable with the forge's message.

@@ -25,6 +25,8 @@ type swarmWS struct {
 	vars              map[string]string
 	forge             *forge.Fake
 	opened            []string // what the last opener was given: kind, api, repo, names, token
+	tokens            []string // every token status's and apply's openers were given
+	asked             []string // every variable status and apply asked the environment for
 	stdout, stderr    bytes.Buffer
 	answers           []string
 	readFails         bool
