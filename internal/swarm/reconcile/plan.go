@@ -96,7 +96,8 @@ func fenceOf(line string) string {
 }
 
 // Shift gives each Markdown heading line of text, outside a fenced block,
-// by more `#`, at most six in all (section 7.3).
+// by more `#`, at most six in all, and closes a fenced block text leaves
+// open, so that no fence runs on over the prompt's own lines (section 7.3).
 func Shift(text string, by int) string {
 	lines := strings.Split(text, "\n")
 	fence := ""
@@ -116,6 +117,9 @@ func Shift(text string, by int) string {
 		if h >= 1 && h <= 6 && (len(line) == h || line[h] == ' ' || line[h] == '\t') {
 			lines[i] = strings.Repeat("#", min(6, h+by)-h) + line
 		}
+	}
+	if fence != "" {
+		lines = append(lines, fence)
 	}
 	return strings.Join(lines, "\n")
 }

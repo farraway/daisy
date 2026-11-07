@@ -64,6 +64,9 @@ func TakeSlot(fs ops.FS, r Runner, dir, provider string, count int, holder strin
 		if errors.As(err, &held) {
 			continue
 		}
+		if errors.Is(err, iofs.ErrNotExist) { // no slot directory for the provider: no login made
+			return nil, &SlotRefused{Credential: cred, Dir: filepath.Join(dir, strconv.Itoa(j)), NoLogin: true}
+		}
 		if err != nil {
 			return nil, err
 		}

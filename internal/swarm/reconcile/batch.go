@@ -101,14 +101,10 @@ func (s *Swarm) recentlyClosed(active []brief.Brief) ([]Closed, error) {
 	if err != nil {
 		return nil, err
 	}
-	slices.SortStableFunc(closed, func(a, b forge.Issue) int { return b.Closed.Compare(a.Closed) })
-	var recent, rest []forge.Issue
-	for _, is := range closed {
-		if s.O.Now().Sub(is.Closed) <= 30*24*time.Hour && len(recent) < 20 {
-			recent = append(recent, is)
-			continue
-		}
-		path, _, _ := strings.Cut(strings.TrimPrefix(BriefLine(is, s.SwarmLogin), "Brief: "), " — ")
+	recent, older := Recent(closed, s.O.Now())
+	var rest []forge.Issue
+	for _, is := range older {
+		path, _ := BriefOf(is, s.SwarmLogin)
 		if slices.ContainsFunc(active, func(b brief.Brief) bool { return b.Path == path }) {
 			rest = append(rest, is)
 		}
@@ -139,6 +135,22 @@ func (s *Swarm) recentlyClosed(active []brief.Brief) ([]Closed, error) {
 		out = append(out, c)
 	}
 	return out, nil
+}
+
+// Recent is closed split as the batch prompt's closed list reads it
+// (section 7.3): the issues closed in the last 30 days, newest first, at
+// most 20, and the others, newest first.
+func Recent(closed []forge.Issue, now time.Time) (recent, older []forge.Issue) {
+	closed = slices.Clone(closed)
+	slices.SortStableFunc(closed, func(a, b forge.Issue) int { return b.Closed.Compare(a.Closed) })
+	for _, is := range closed {
+		if now.Sub(is.Closed) <= 30*24*time.Hour && len(recent) < 20 {
+			recent = append(recent, is)
+		} else {
+			older = append(older, is)
+		}
+	}
+	return recent, older
 }
 
 var (

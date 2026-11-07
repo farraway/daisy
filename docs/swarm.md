@@ -715,7 +715,8 @@ itself: the owner keeps proposing and the other issues keep moving, and
 `swarm status`'s "Waiting for you" line (section 11) lists what needs the
 maintainer: `proposed` issues (triage, G1 on), `planning` issues whose
 newest entry is the architect's (the plan, G2 on), `approved` issues (the
-merge, G3 on) and every `blocked` issue (G4).
+merge, then the next slice or the close, G3 on) and every `blocked` issue
+(G4).
 
 ## 6. The trigger rule and the marker
 
@@ -827,9 +828,12 @@ pass. A swarm fault (7.7) in a batch run writes no `owner-held`.
 A member is one role run: one container, started by `apply`, that reads two
 prompt files and a clone and writes one output file. It holds no forge
 token, no git credentials and no state beyond the run but its provider
-credential (section 8). A worker run may
-have a second container after it, the check (7.6), which holds no key at
-all.
+credential (section 8). It has the network, Docker's default bridge
+(7.2): the CLI reaches its API, and a member may fetch what its work
+needs (the first real run's architect and worker fetched an upstream
+release archive). A worker run may
+have a second container after it, the check (7.6), which holds no key
+at all and is the only container run under `--network none`.
 
 ### 7.1 Preparing a run
 
@@ -849,10 +853,13 @@ On the host, in order, before `docker run`:
    repository (7.5) is resolved first, against the pass's `repos`; when
    the worker continues an open pull request (section 5) the repository
    is that pull request's (`Pull.Repo`), and a plan line for `<s>` naming
-   another repository (a plan revised after T11) is *bad slices* as well;
-   one that no longer resolves (the plan written before `repos` changed) is
-   the failure *bad slices*: `<run>/result` records `launch-failed <time>`
-   and `failed: bad slices: <s>`, nothing launches, and the run is
+   another repository (a plan revised after T11) is *bad slices* `<s>`;
+   when the worker starts slice `<s>`, every slice line of the accepted
+   plan must resolve (a plan written before `repos` changed may not) and
+   the plan must declare a slice `<s>`, else the failure is *bad slices*
+   naming each slice that does not resolve, or `<s>`:
+   `<run>/result` records `launch-failed <time>`
+   and `failed: bad slices: <slice numbers>`, nothing launches, and the run is
    collected at once like any run with an end line (7.6), with no
    container: T17. Then the two prompt files are written to
    `<run>/io/system.md` and `<run>/io/prompt.md` (7.3), rendered from
@@ -861,7 +868,10 @@ On the host, in order, before `docker run`:
    run was sent stale example material). Each file is read back and
    compared byte for byte with what was rendered, and every field of
    `# Repository` and of the `# Issue` or `# Pull request` heading lines
-   must be non-empty (Step 39's early prompts had an empty `<owner>`);
+   must be non-empty (Step 39's early prompts had an empty `<owner>`):
+   Daisy's own lines only, the `- Issues:` and `- Clone ` lines of the
+   `# Repository` block and the heading lines outside a fenced block, so
+   a quoted text's bullet or fenced line is never read as a field;
    otherwise the run is a swarm fault, `prompt refused` (7.7), and
    nothing launches.
 3. The clone: `git clone --no-local --quiet --branch <branch> <state>/git <run>/work`.
@@ -882,14 +892,14 @@ On the host, in order, before `docker run`:
    round-1 reviewers, lacking it, diffed against the parent commit);
    `git -C <run>/work remote remove origin`; `user.name`
    `<role> (Daisy swarm)` and `user.email` `<commit_email>` (section 3)
-   are set in the clone's config; a `commit-msg` hook is written to
+   are set in the clone's config; `/.swarm/` is appended to
+   `<run>/work/.git/info/exclude`; a `commit-msg` hook is written to
    `.git/hooks/commit-msg`,
    `git interpret-trailers --in-place --if-exists addIfDifferent --trailer 'Co-Authored-By: <co_author>' "$1"`
    with the role's `co_author`, so each commit the member makes carries
    the role's co-author once, the CLIs' own attribution being off
    (section 9), and no commit is rewritten after the run (7.6, The
-   trailer); `/.swarm/` is appended to
-   `<run>/work/.git/info/exclude`; and `<run>/work/.swarm` is created as
+   trailer); and `<run>/work/.swarm` is created as
    the mount point. The head commit is recorded in `<run>/result` as
    `start <sha>` (`start <name> <sha>` per clone for the owner and the
    architect), and the worker's branch as `branch swarm/<n>-<s> in <name>`.
@@ -907,7 +917,8 @@ On the host, in order, before `docker run`:
    `auth.json` that is not a regular file (`Lstat`, so a symbolic link a
    member left is never followed) is the swarm fault `slot refused`
    (7.7), the lock released; so is a slot with no login, its directory
-   or its `auth.json` absent or `auth.json` empty (section 3, Secret
+   (or the provider's `credentials/<provider>/`, where no login was ever
+   made) or its `auth.json` absent or `auth.json` empty (section 3, Secret
    values). The
    lock is released when `docker run` has returned; if `apply` dies
    first, the container's `daisy.credential` label keeps the slot busy.
@@ -975,7 +986,7 @@ docker run --rm --pull never
 | `/work` | the member's clone, read-write for every role: a reviewer's clone is a throwaway that is never fetched or pushed, so it may build and test there; for the owner and the architect, a directory holding a throwaway clone of each declared repository at `/work/<name>`; for the check, a fresh clone of the fetched head |
 | `<image>` | the run's repository's `image` (7.1 step 3) for the worker, the reviewers and the check; the first repository's for the owner and the architect |
 | `/work/.swarm` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out |
-| `/resources/<resource>` | one read-only mount per `resources` entry, its source the path resolved at this pass's validation (section 3), never `<ws>/<resource>` as written; none when the list is empty; none for the check |
+| `/resources/<resource>` | one read-only mount per `resources` entry, its source the path the entry resolves to through every link, resolved again at the launch (section 3 checked it at this pass's validation), never `<ws>/<resource>` as written; none when the list is empty; none for the check |
 | `--workdir <W>`, `--workdir /work` | the CLIs start in the run's clone, `<W>`: `/work`, and for the owner and the architect the first repository's clone `/work/<name>`, so the CLI reads the product's instructions from its tree; the check starts in its clone, `/work` |
 
 **What is mounted** follows section 8's principle: `/work` and
@@ -999,8 +1010,8 @@ no other credential logic; a product image built `FROM` the base keeps it.
 a *base*: the two provider CLIs, git and the entrypoint. A product's image is built by the
 maintainer from a Dockerfile kept with the product that starts
 `FROM daisy-member:1` and adds the product's toolchain and a warmed
-dependency cache, so that the worker can run `check` and the check can run
-without a network; it is tagged by the maintainer
+dependency cache, so that the worker can run `check` and the check, which
+has no network, can run; it is tagged by the maintainer
 (`daisy-member-<name>:<version>` is the suggested name) and named in
 the repository's `image`. `swarm init` cannot know a product's toolchain, so its default is
 the base. Step 39 built the first product image by hand, over a base
@@ -1029,7 +1040,9 @@ Every embedded text (the persona, a body, a comment, a review, the plan)
 keeps its words, but each Markdown heading line in it, outside a fenced
 block, gains as many `#` as the heading it sits under has (at most six in
 all), so a persona's `# Owner` under `# Persona` reads `## Owner` and a
-plan's `## Steps` under its `## architect, …` entry reads `#### Steps`.
+plan's `## Steps` under its `## architect, …` entry reads `#### Steps`;
+a fenced block the text leaves open is closed at its end, so that no
+fence runs on over the prompt's own lines.
 
 ```markdown
 <!-- daisy-swarm system: <owner>/<repo>#<n> <role> run <k>, <time> -->
@@ -1084,7 +1097,7 @@ Opened by <login> at <time>. Labels: <labels, comma-separated>.
 
 # Earlier pull requests
 
-- <name>#<m> swarm/<n>-<s> <merged <sha>|closed>: <title>
+- <name>#<m> swarm/<n>-<s> <merged <sha>|open|closed>: <title>
 
 # Pull request <name>#<m>: <title>
 
@@ -1237,7 +1250,7 @@ or trailing spaces.
 | The file | Means |
 |---|---|
 | absent, or only whitespace | the failure *no output* |
-| first line begins `BLOCKED:` (the batch run: its first line after any `Met:` lines) | the member asks the maintainer: posted as the role's text, then T17 (the batch run: `owner-held`, reason the rest of the line) |
+| first line begins `BLOCKED:` (the batch run: its first line after any `Met:` lines) | the member asks the maintainer: posted as the role's text, then T17 (the batch run: `owner-held`, reason `blocked: ` and the rest of the line) |
 | a reviewer's, first line exactly `VERDICT: approve` or `VERDICT: request-changes`, agreeing with its findings | the verdict; the whole file is the review's text, verdict line included. It agrees when a `request-changes` review has at least one line beginning `[blocking]` and an `approve` review has none |
 | a reviewer's, any other first line, or a verdict its findings contradict | the failure *bad verdict* |
 | an architect's plan whose slices are not each in one declared repository (below) | the failure *bad slices*; nothing is posted but the note |
@@ -1394,8 +1407,9 @@ current pull request being open, which needs no note at all.
 A **swarm fault** is a failure of the machine, not of the work: it writes
 nothing to the forge. The run records `fault: <reason>`, `outcome fault`
 and `collected`, and the role rule relaunches at run k+1 at the next pass.
-When the two most recently ended runs of this swarm (`<state>/runs`, by
-their end lines) both ended in a fault, `apply` writes `<state>/paused` with
+When the two most recently ended runs of this swarm that are collected
+(`<state>/runs`, by their end lines) both ended in a fault, and this
+process collected the newer (section 14, item 62), `apply` writes `<state>/paused` with
 `swarm fault: <reason>` (the second's) and launches nothing more; `status`
 shows the reason and `swarm resume` clears it. A **failure of the work**
 is T17: the reconciler note and `blocked`.
@@ -1407,6 +1421,7 @@ is T17: the reconciler note and `blocked`.
 | prompt refused | fault | 7.1 step 2: a prompt file read back differs from what was rendered, or a heading field is empty | `launch-failed <time>`, `fault: prompt: <file>: <differs\|empty field>` | none |
 | slot refused | fault | 7.1 step 4: `<slot>/auth.json` is not a regular file, or the slot has no login (absent or empty) | `launch-failed <time>`, `fault: slot <provider>/<j>: auth.json is not a regular file` or `fault: slot <provider>/<j>: no login; run 'CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file'` | none |
 | provider authentication or quota | fault | `Report.Fault` (section 9): `claude`'s JSON result with `is_error` true, or an error event in `codex`'s stream, whose message names authentication, a quota or a rate limit. The fields and messages are *to confirm at Step 28*: Step 39 met no such error (checklist item 2) | `exited <code> <time>`, `fault: provider: <message>` | none |
+| the wait fails | fault | waiting on a started container returns an error | `exited -1 <time>`, `fault: wait: <error>` (a check's: `fault: check: wait: <error>`) | none |
 | check cannot start | fault | the check container's launch fails or exits 125–127 | `fault: check: <error>` | none |
 | timeout | work | the wall clock fires (`docker stop` sent) | `timeout <time>`, `failed: timeout after <timeout>` | T17: reconciler note, `Relabel(n, <label>, "swarm:blocked")` |
 | non-zero exit | work | any other non-zero exit status of `docker run` | `exited <code> <time>`, `failed: exit <code>` | T17 |
@@ -1949,7 +1964,8 @@ command finds it); outside one it prints `Not in a Daisy workspace` and
 exits 1, as `status` does. Any argument a verb does not take is a usage
 error: its usage line on stderr, exit 2. None commits: `swarm/` is the
 workspace repository's, committed by the maintainer. The five
-are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm: `apply`'s
+are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm, and
+`status`'s correction counts at Step 8: `apply`'s
 As built paragraph says what it leaves out); the board, the GitHub
 adapter and the `budget` are specified here ahead of their build wherever this section names them: `swarm.json`
 validates their fields as section 3 says and nothing acts on them until
@@ -2055,13 +2071,13 @@ passphrase prompt, or an agent the user manager can reach).
 | Usage | `daisy swarm apply [--once]` |
 | Reads | `swarm/swarm.json` and the prompts (each pass), `<ws>/.env.sh` (token and `env` credentials), each used slot's `auth.json`, each declared repository's `origin` and `core.sshCommand`, `<state>`, and the briefs under the resolved `resources` paths (the batch prompt, 7.3) |
 | Start | validation; the token and every used provider's `env` credential set (a slot's login is checked at its launch: section 3, Secret values); `Login()`; `id -u` and `id -g`; `docker ps` once (failing: `Error: swarm: docker: <message>`, exit 1); `<state>` created when absent; the lock (below); then `EnsureLabels` with the eight labels (one deleted since `init` is created again; Step 39); its failure, a refused create included (section 10), is `Error: …` and exit 1, with or without `--once`, before any pass |
-| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped); (2) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); (3) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots; of the runs this process did not start, one with `started`, no end line and no container is marked `abandoned` (then `collected`) and its `work/` removed, and one whose container has outlived `timeout` is stopped (7.7); a `docker ps` failure here ends the pass without launching; (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)`, then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one `swarm:*` label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, and launches run until `max_members` are running; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `approved` issue (section 12); (7) the owner's batch trigger, its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) the summary line |
+| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `abandoned` (then `collected`) and its `work/` removed, and one whose container has outlived `timeout` is stopped (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)`, then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one `swarm:*` label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, and launches run until `max_members` are running; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `approved` issue (section 12); (7) the owner's batch trigger, its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) the summary line |
 | `--once` | one pass; then it waits for every run it launched, collects each (starting and waiting for a worker run's check), and exits |
 | Without `--once` | a pass every `interval`, start to start, until SIGINT or SIGTERM: then no launch, its running members and checks collected as they exit (a worker run's check started for it, as its collection needs), exit 0; a second signal exits at once (130), leaving its members to finish and be found abandoned by a later pass |
 | Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge |
 | Writes | `<state>/lock`, `<state>/paused` (a swarm fault, the budget), `<state>/owner-held`, `<state>/git/`, `<state>/runs/`, and for a slot run `<slot>.lock` and the clearing of `<slot>` (section 2); nothing else |
-| Stdout | `#<n> <role> run <k>: launched`; at collection one line per step done, `#<n> <role> run <k>: ` then `check started`, `check exited <code>`, `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`; a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:approved → swarm:planned` or `#<n> closed (last slice merged)`, or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> swarm:approved → swarm:blocked`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
-| Stderr | warnings `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled`, `⚠ #<n> closed during the run; nothing posted`, `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); errors `Error: …` |
+| Stdout | `#<n> <role> run <k>: launched`; at collection one line per step done, `#<n> <role> run <k>: ` then `check started`, `check exited <code>` (or `check timeout`), `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`; a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:approved → swarm:planned` or `#<n> closed (last slice merged)`, or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> swarm:approved → swarm:blocked`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
+| Stderr | `⚠️  .env.sh <problem>` (as `init`); warnings `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled`, `⚠ #<n> closed during the run; nothing posted`, `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); errors `Error: …` |
 | Lock | `Ops.FS().Lock(<state>/lock, "apply[ --once] since <time>")` takes an exclusive `flock` without waiting and writes the holder line (adding `pid <pid>`); the kernel releases it when the process exits, however it exits. Held: `Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`, exit 1, nothing read from the forge |
 | Exit codes | 0 the pass or passes ran (a member's failure is reported on the forge, not in the exit code; a pause is reported on stdout); 1 outside a workspace, invalid `swarm.json` at start, a token or a used provider's `env` credential unset (a slot without a login is its run's fault at the launch, not an exit code), `docker` unavailable (`Error: swarm: docker: <message>`), the lock held, `EnsureLabels` failing at start (a refused create included, with or without `--once`), and with `--once` a forge (a board fault excepted), git or `docker ps` error during the pass (without `--once` such an error is printed and the next pass runs); 130 a second signal while the loop collects its running members; 2 usage |
 | Ops | Real |
@@ -2089,13 +2105,21 @@ the next pass by the same two runs.
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm status` |
-| Reads | `swarm/swarm.json` (validated as `apply` validates it, the prompts included), `<ws>/.env.sh` (the token), `<state>/paused`, `<state>/owner-held`, `<state>/runs/*/result`, the briefs under the resolved `resources` paths (their `Status:` lines, section 4); the forge: `Login()`, `Issues(Open, label)` for each of the eight labels, `Issue(n)` for each `planning` issue (whose turn it is) when the plan gate is on; `docker ps` as `apply` runs it |
+| Reads | `swarm/swarm.json` (validated as `apply` validates it, the prompts included), `<ws>/.env.sh` (the token), `<state>/paused`, `<state>/owner-held`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under the resolved `resources` paths (their `Status:` lines and `## ` headings, section 4); the forge: `Login()`, `Issues(Open, label)` and `Issues(Closed, label)` for each of the eight labels, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
 | Writes | nothing, anywhere |
-| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]` and ` — owner batch held: <reason>` when so; `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per label, `  %-12s %d` and the issue numbers (`  proposed     2  #20 #21`); `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `blocked #…`, separated by `; ` (section 5's list), or `nothing`; `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief, `  <path>` in path order, or `Briefs: none active` |
-| Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`); 1 outside a workspace, `swarm.json` absent or invalid, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief or a run's `result` unreadable; 2 with any argument |
+| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]` and ` — owner batch held: <reason>` when so; `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per label, `  %-12s %d` and the issue numbers (`  proposed     2  #20 #21`); `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `next slice #…`, `close #…`, `blocked #…`, separated by `; ` (section 5's list, an `approved` issue under the one of `merge`, `next slice` and `close` its current pull request calls for, below), or `nothing`; `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief in path order (below), or `Briefs: none active` |
+| Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`); 1 outside a workspace, `swarm.json` absent or invalid, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief, a run's `result` or a batch run's `out.md` unreadable; 2 with any argument |
 | Ops | ReadOnly, which since Step 4 of the swarm build lets through an `HTTP` request whose method is `GET` or `HEAD` and the `Exec` of `docker ps` for every command it wraps (section 14, item 31); every other write, `Exec` and `Start` stays refused |
 
-**Throughput**, read from `<state>/runs/` only:
+**Waiting for you.** With the merge gate on, an `approved` issue waits
+for `merge` until its current pull request is merged, then for `next
+slice` when the accepted plan declares a slice after it (the
+maintainer's T13) and for `close` when it was the last (T19); the slices
+are counted as the merge step counts them (section 12). With the gate
+off, the merge step is Daisy's and none of the three is listed.
+
+**Throughput**, its first five lines read from `<state>/runs/` and the
+issue lines from the forge:
 
 ```
 Throughput:
@@ -2103,6 +2127,8 @@ Throughput:
   cost         $<today> today, $<all> in all (<u> runs without a cost)
   budget       $<per_day> per day, $<total> in all        (or: none)
   approved     <a> pull requests; at the round limit <b>, blocked there <c>
+  stage time   <stage> <median> (<runs>), …        (or: none)
+  #<n>         plan revisions <v>, blocks <k>; <name>#<m> rounds <d>, maintainer comments <c>; …
 ```
 
 `approved` counts the reviewer runs whose `result` holds `relabelled
@@ -2113,11 +2139,40 @@ swarm:blocked` (T11; a reviewer run that
 failed or wrote `BLOCKED:` is not `posted`), and `<c>` the latter. `runs` counts the run directories holding a
 `result`, `other` being the rest of them (`stale`, `abandoned`,
 `discarded`, or no `outcome` yet); `today` is the runs `started` since
-00:00 UTC, as the budget counts them. The `Briefs:` block names each
-`active` brief's path (Step 4 of the plan that builds the swarm); its
-milestones' open and closed issues and whether the newest batch run's
-`out.md` reports it `Met:` join each line with the correction-count step
-(Step 8; the reads are the batch prompt's and `runs/`).
+00:00 UTC, as the budget counts them. `stage time` is the median time
+of a run from its `started` line to its end line, `exited` or `timeout`
+(a run `launch-failed` or `abandoned` did not run), by the stage its
+`label` line names (`batch` for the owner's batch run, which has none),
+and `check` the median from `check started` to `check exited`; the
+median of an even count is the mean of the middle two, to the second;
+each with the number of runs it is taken over, in section 5's order
+after `batch`, `check` last, a stage without a timed run left out. The
+runs are this machine's: a maintainer's relabel is not one, so the time
+an issue waits at a gate is not shown.
+
+One `#<n>` line follows for each open issue and each recently closed
+one (as the batch prompt counts them, 7.3) that has a plan, a swarm pull
+request or a block, by number: the correction counts the maintainer can
+check on the forge by hand. `plan revisions` is the architect's plans in
+the issue thread after its first (its marked comments that do not begin
+`BLOCKED:`: each is a run on `planning`, or on `ready` again after T11
+with the plan gate off); `blocks` the reconciler's notes on the issue
+that moved it to `blocked` (7.7, T11's second time, T16: every
+reconciler note but the round limit's first, which returns the issue to
+the architect); and per swarm pull request, by slice, `rounds` its
+review rounds as section 6 counts them, over all its reviews, and
+`maintainer comments` its comments, reviews and line comments by a
+login in `trusted` that is not the swarm's.
+
+**Briefs.** Each `active` brief's line is its path, then, separated by
+`; `, `<milestone> (<o> open, <c> closed)` for each milestone some swarm
+issue's `Brief:` line names (open, or closed at any time), in the
+brief's heading order (a milestone the brief no longer names after
+them); `<z> of <m> milestones with no issue` when some of its `## `
+headings have none; and `met (owner run <k>)` when the newest batch run
+whose `out.md` is not empty, `<k>` by number, reports it with a `Met:`
+line (section 4). A brief with neither milestones nor issues is its
+path alone.
 
 ### daisy swarm pause and daisy swarm resume
 
@@ -2206,16 +2261,17 @@ follows G2, and T14–T16 are the merge step's; **the trigger rule's table** of 
 **sixteen `Adapter` methods** (section 10): `EnsureLabels`, `Login`,
 `Issues`, `Issue`, `CreateIssue`, `Comment`, `Relabel`, `CloseIssue`,
 `Pulls`, `CreatePull`, `PullComments`, `Reviews`, `ReviewComments`,
-`Review`, `Merge` and `Board`.
+`Review` and `Merge`, the fifteen built, and `Board`, which joins the
+interface with the step that builds the board.
 
 | Step | Seam | Tested against | What it pins |
 |---|---|---|---|
 | 27 | `declare`: `swarm.json` validation | real temp workspaces | every row of section 3's error table, one case each, the message byte for byte (`gates`, `budget`, `repos` and each repository's `check` and `protected`, `trusted` and `forge.board` included, and from Step 1 a model not named, `co_author` and `forge.commit_email`) |
 | 27 | `declare`: the wizard | a scripted `Ops.Prompt` | `--defaults` takes every default (two repositories under `<ws>` give two `repos` entries, each with the default image; without `--defaults`, question 27 is asked once per repository); each override is honoured; a refused answer asks again; EOF cancels and writes nothing; `trusted` written as question 33's logins then `Login()`'s, question 33's default without the swarm's login, and an answer naming it asked again; no `-` for a model; the co-author's default following the model; question 34's default the account's email |
-| 27 | `forge`: `gitea` and `github` | `ops.Fake` `HTTPFn` with one recorded request and response per method | (Step 1 built `gitea`'s `EnsureLabels`, `Login`, `Issues` and `Pulls` with these tests, and Step 4 the rest, the label id map with its repository-label shadowing among them, since `CreateIssue` and `Relabel` are its only readers; the retries wait for `Ops.After`: section 10, As built) section 10's tables for all sixteen methods: method, endpoint, body; pagination; `Review`'s formal event and its comment-type fallback on a `422`; `Board`'s project and column lookup, a missing column created, the move by the issue's `id` and the add when it is not on the board, GitHub's refusal; `EnsureLabels` idempotent, on the organization's labels (Gitea) or each repository's (GitHub), a repository label shadowing an organization label of its name, a refused organization create (`403`) failing with the missing names byte for byte and creating nothing more, and a `404` on the organization's labels failing as not an organization; `Pulls` one list per declared repository, each `Refs` form, `merge_commit_sha`; `Relabel` on a pull request, with `remove` `""`, and never touching another label; `Pulls`' filter on branch and `Refs`, and its labels; `Merge`'s refusal as `ErrNotMergeable`; error text without the token |
+| 27 | `forge`: `gitea` and `github` | `ops.Fake` `HTTPFn` with one recorded request and response per method | (Step 1 built `gitea`'s `EnsureLabels`, `Login`, `Issues` and `Pulls` with these tests, and Step 4 the rest, the label id map with its repository-label shadowing among them, since `CreateIssue` and `Relabel` are its only readers; the retries wait for `Ops.After`: section 10, As built) section 10's tables for all sixteen methods (`Board`'s with the board): method, endpoint, body; pagination; `Review`'s formal event and its comment-type fallback on a `422`; `Board`'s project and column lookup, a missing column created, the move by the issue's `id` and the add when it is not on the board, GitHub's refusal; `EnsureLabels` idempotent, on the organization's labels (Gitea) or each repository's (GitHub), a repository label shadowing an organization label of its name, a refused organization create (`403`) failing with the missing names byte for byte and creating nothing more, and a `404` on the organization's labels failing as not an organization; `Pulls` one list per declared repository, each `Refs` form, `merge_commit_sha`; `Relabel` on a pull request, with `remove` `""`, and never touching another label; `Pulls`' filter on branch and `Refs`, and its labels; `Merge`'s refusal as `ErrNotMergeable`; error text without the token |
 | 27 | `init`'s readiness warnings | real temp workspaces | each of the four warnings (the first two per repository), and none when all is present; the exit code unchanged |
 | 27 | `init` end to end | `forge.Fake`, a scripted `Ops.Prompt`, real temp workspaces | the files written, the eight labels ensured, the unit files printed; a second run writing no file and creating no label; after `RefuseLabels()`, exit 1 naming the missing labels with the files written, and a re-run finding them once created; the token unset or a read failing writing nothing |
-| 27 | `status` | `ops.ReadOnly` over a Fake | it runs read-only (section 14, item 31) and prints section 11's lines; zero issues per label, the gates and the declared personas after `init`; "Waiting for you" per section 5; Throughput over a scripted `runs/` |
+| 27 | `status` | `ops.ReadOnly` over a Fake | it runs read-only (section 14, item 31) and prints section 11's lines; zero issues per label, the gates and the declared personas after `init`; "Waiting for you" per section 5; Throughput over a scripted `runs/`; and from Step 8 of the swarm build, over a `forge.Fake` and `runs/` seeded with the first real run's shape (Step 30's row), the stage times, each issue's correction counts, each `active` brief's milestones with their open and closed issues and the newest batch run's `Met:`, and "Waiting for you" moving from `merge` to `next slice` or `close` as the maintainer merges |
 | 27 | smoke | the Gitea instance, a scratch repository of an organization without the eight labels | `init --defaults` creates the organization's eight labels, or, when the swarm's account may not, fails naming them, which is recorded, and after the maintainer creates them a re-run finds all eight; a second run creates none |
 | 28 | `provider` | table test | section 9's argv for each adapter (both prompt files, `codex`'s `--cd <W>`: `/work`, or `/work/<first name>` for the owner and the architect; `claude`'s `--settings` turning its attribution off; one `--add-dir` per directory of `D`, for both CLIs); `Report` over a recorded output per CLI, a fault included |
 | 28 | the clone | real git in temp directories | 7.1 step 3: no remote, a local `<base>`, the identity `<role> (Daisy swarm) <commit_email>`, `/.swarm/` excluded, and the `commit-msg` hook stamping `Co-Authored-By: <co_author>` on a commit made in the clone, once when the message already carries it |
@@ -2252,6 +2308,29 @@ repositories, with a pin moved to a merged commit, and Gitea's rendering
 of `Refs <owner>/<repo>#<n>` as a cross-reference (Step 30); and the
 reconciler itself, since no transition was made by `apply` (Steps 28–30).
 
+**Established by the first real run** (Step 7 of the swarm build,
+2026-11-07, Step 30's row: one issue in the product, its plan of two
+slices both in the library, each pull request reviewed by the pair and
+merged by the maintainer, then the issue closed): `docker inspect`
+during a run (the check's container without a network, under the
+host's uid); `--effort` and `codex`'s `--model` as the argv passes
+them; a pin moved to a merged commit, slice 2 built on slice 1's merge
+named in `# Earlier pull requests`, and its check passing under
+`--network none`; `Refs <owner>/<repo>#<n>` in a pull request outside
+`forge.repo` (Gitea's rendering of it is the maintainer's to see);
+the reconciler's own transitions T5, T8, T9, T10 and T12, the label's
+copy to the pull request and the batch's pacing; one slot's login
+used by three `codex` runs without a refresh; `codex` reporting no
+cost (its `cost` line is `0`, its tokens counted). From the smoke
+before it (Step 5): a host uid the image's passwd lacks, `codex exec`'s
+daemon (none left), the slot's login in `auth.json`, no `codex`
+trailer, `--add-dir` beside the bypass, and the bot's formal review
+refused (`422`; the verdict posted as a comment-type review). Still not
+established: an API key for either provider; a credential refresh and
+two slots refreshing in parallel; a provider fault's signal; an image
+digest; the forge's paging beyond one page, the project endpoints and
+the board; and a job whose slices span two repositories.
+
 **As built (Step 5 of the swarm build).** The rows for `provider`,
 `runner.Docker`, the prompt files, the slots, the role rule and `ready →
 planning` are Go tests (`internal/swarm/provider`, `internal/swarm/runner`,
@@ -2267,7 +2346,9 @@ directories (`internal/commands/swarm_lifecycle_test.go`,
 `swarm_gates_test.go`, `swarm_failures_test.go`, `swarm_repos_test.go`):
 the lifecycle with every gate on, the round limit with the plan gate on
 and off, every gate off, the refused merge, the label copy, each
-work-failure row of 7.7 then T17 and T18, the trailer, the secret check,
+work-failure row of 7.7 then T17 and T18, the trailer, the secret check
+(in `out.md`, a blob, a commit message and the check's tail; its merge,
+commit-header and slot-at-launch cases are not yet tests),
 the faults, the batch trigger, two repositories and *bad slices*, the
 abandoned and orphan runs, `pause` and `resume`, the labels at the start,
 two `apply --once` at once, and the loop with one signal and with two.
@@ -2904,3 +2985,58 @@ entries among revision 1's, and was renumbered at Step 38.
     procedural finding ends in one round rather than at `max_rounds`.
     The alternative, dropping the rollback probe, was rejected: it is the
     one check that catches a test which passes without the change.
+64. **`status` counts the maintainer's corrections (Step 8 of the swarm
+    build; the synthesis's G3).** The Throughput block gains a `stage
+    time` line and a line per issue, and the `Briefs:` block each
+    brief's milestones (section 11). The counts are read from the
+    forge with the reads `apply`'s pass already makes (`Issues(Closed,
+    label)`, then `Issue`, `Pulls` and each pull request's thread), over
+    the open issues and the ones the batch prompt counts as recently
+    closed, so a finished job stays visible for 30 days and the reads
+    stay bounded; the brief's counts take every closed issue, since a
+    milestone's progress is the whole history. A count is what the
+    maintainer can check on the forge by hand: a plan revision is an
+    architect's plan after its first, a block a reconciler note that
+    moved the issue to `blocked` (every note but the round limit's
+    first, whose closing sentence Daisy now writes from one constant the
+    count reads), a round section 6's count over all of a pull
+    request's reviews, a maintainer comment any comment, review or line
+    comment by a `trusted` login that is not the swarm's. The stage time
+    is the median member time per stage the run was launched on, from
+    `runs/` (the `label`, `started` and end lines), with the check
+    apart: the alternative, the time an issue waits at each label, cannot
+    be read from `runs/`, where neither the maintainer's relabels nor
+    the time of Daisy's own are recorded, and the first real run's
+    record kept stage times this way. "Waiting for you" reads an
+    `approved` issue's current pull request: after the maintainer's
+    merge with the merge gate on it says `next slice` or `close`, counted
+    as the merge step counts slices, not `merge` (the first real run
+    showed `merge` until the maintainer's relabel).
+65. **The spec read against the code built in Steps 1–7 (Step 8 of the
+    swarm build).** Sections 7, 11 and 13 were read against the code;
+    each difference is resolved here. Toward the code: section 7 says a
+    member has the network and only the check runs without one; a
+    worker starting a slice refuses on any slice line of the plan that
+    no longer resolves, naming each (7.1 step 2, as 7.7 already said);
+    the clone's `exclude` line is written before its hook (7.1 step 3);
+    a resource's mount source is resolved again at the launch (7.2); an
+    earlier pull request may read `open` (7.3); the batch's `BLOCKED:`
+    reason is held as `blocked: <question>` (7.5); a failed wait on a
+    container is a fault with its own row, and the pause after two
+    faults counts collected runs, the newer collected by this process
+    (7.7, item 62); a pass reads the running set before it collects, a
+    `docker ps` failure ending it before either, and a check's timeout
+    has its stdout line (section 11); `Adapter` holds fifteen methods,
+    `Board` waiting (section 13); the secret check's As built names the
+    cases its tests cover. Toward the spec, the code fixed: the empty
+    field check of a prompt read every line, so a quoted body's
+    `- Clone ` bullet or a fenced `# Issue` line was a *prompt refused*
+    fault, and two such runs would pause the swarm; it now reads
+    Daisy's own lines (7.1 step 2), and a quoted text that leaves a
+    fence open has it closed at its end (7.3), so that no fence hides
+    a heading of Daisy's from the check or from the member. A provider with no
+    `credentials/<provider>/` directory, where no login was ever made,
+    was a plain error that ended an `--once` pass; it is now *slot
+    refused* with the login's hint, as a slot without `auth.json` is
+    (7.1 step 4). Section 13 gains what the first real run established
+    and what it did not.

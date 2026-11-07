@@ -302,27 +302,48 @@ func swarmStatus(c *Context, open opener) error {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	stages := map[string][]int{}
-	for _, l := range forge.Labels {
-		issues, err := f.Issues(forge.Open, l)
-		if err != nil {
-			return fmt.Errorf("Error: swarm: %v", err)
+	var opened, closed []forge.Issue
+	for _, state := range []forge.State{forge.Open, forge.Closed} {
+		for _, l := range forge.Labels {
+			issues, err := f.Issues(state, l)
+			if err != nil {
+				return fmt.Errorf("Error: swarm: %v", err)
+			}
+			for _, is := range issues {
+				listed := func(in []forge.Issue) bool {
+					return slices.ContainsFunc(in, func(c forge.Issue) bool { return c.Number == is.Number })
+				}
+				if state == forge.Closed {
+					if !listed(closed) {
+						closed = append(closed, is)
+					}
+					continue
+				}
+				stages[l] = append(stages[l], is.Number)
+				if !listed(opened) { // an issue with two labels is listed under each
+					opened = append(opened, is)
+				}
+			}
 		}
-		for _, is := range issues {
-			stages[l] = append(stages[l], is.Number)
-		}
+	}
+	recent, _ := reconcile.Recent(closed, o.Now())
+	issues, err := readIssues(f, append(slices.Clone(opened), recent...), acct.Login, cfg.Trusted)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	var planned []int // planning issues whose newest counted entry is the architect's
 	if cfg.Gates.Plan {
 		for _, n := range stages["swarm:planning"] {
-			is, err := f.Issue(n)
-			if err != nil {
-				return fmt.Errorf("Error: swarm: %v", err)
-			}
-			e, ok := reconcile.NewestCounted(reconcile.IssueThread(is), acct.Login, cfg.Trusted)
+			e, ok := reconcile.NewestCounted(reconcile.IssueThread(issues[n].Issue), acct.Login, cfg.Trusted)
 			if m, swarm := reconcile.Swarms(e, acct.Login); ok && swarm && m.Role == "architect" {
 				planned = append(planned, n)
 			}
 		}
+	}
+	after := map[string][]int{} // approved issues by what the maintainer does next (section 12)
+	for _, n := range stages["swarm:approved"] {
+		next := reconcile.AfterApproval(issues[n].Issue, issues[n].Pulls, acct.Login)
+		after[next] = append(after[next], n)
 	}
 	briefs, err := brief.Find(o.FS(), ws, cfg.Resources)
 	if err != nil {
@@ -346,7 +367,8 @@ func swarmStatus(c *Context, open opener) error {
 		what string
 		on   bool
 		ns   []int
-	}{{"triage", cfg.Gates.Triage, stages["swarm:proposed"]}, {"plan", true, planned}, {"merge", cfg.Gates.Merge, stages["swarm:approved"]}, {"blocked", true, stages["swarm:blocked"]}} {
+	}{{"triage", cfg.Gates.Triage, stages["swarm:proposed"]}, {"plan", true, planned}, {"merge", cfg.Gates.Merge, after["merge"]},
+		{"next slice", cfg.Gates.Merge, after["next slice"]}, {"close", cfg.Gates.Merge, after["close"]}, {"blocked", true, stages["swarm:blocked"]}} {
 		if w.on && len(w.ns) > 0 {
 			waiting = append(waiting, w.what+" "+issueList(w.ns))
 		}
@@ -364,10 +386,19 @@ func swarmStatus(c *Context, open opener) error {
 	if err := throughput(c, state, cfg.Budget); err != nil {
 		return fmt.Errorf("Error: swarm: reading the runs: %v", err)
 	}
+	for _, n := range slices.Sorted(maps.Keys(issues)) {
+		if line := countsLine(issues[n].Counts); line != "" {
+			fmt.Fprintf(out, "  %-12s %s\n", "#"+strconv.Itoa(n), line)
+		}
+	}
+	metRun, met, err := lastMet(o.FS(), state)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: reading the runs: %v", err)
+	}
 	var active []string
 	for _, b := range briefs {
 		if b.Status == "active" {
-			active = append(active, "  "+b.Path+"\n")
+			active = append(active, "  "+briefLine(b, append(opened, closed...), acct.Login, metRun, met)+"\n")
 		}
 	}
 	if len(active) == 0 {
@@ -376,6 +407,130 @@ func swarmStatus(c *Context, open opener) error {
 		fmt.Fprint(out, "Briefs:\n"+strings.Join(active, ""))
 	}
 	return nil
+}
+
+// statusIssue is one issue as status reads it: the issue with its
+// comments, its swarm pull requests and their correction counts.
+type statusIssue struct {
+	Issue  forge.Issue
+	Pulls  []forge.Pull
+	Counts reconcile.Counts
+}
+
+// readIssues reads each issue listed, its pull requests and their
+// threads, by number.
+func readIssues(f forge.Adapter, listed []forge.Issue, swarmLogin string, trusted []string) (map[int]statusIssue, error) {
+	out := map[int]statusIssue{}
+	for _, l := range listed {
+		if _, done := out[l.Number]; done {
+			continue
+		}
+		is, err := f.Issue(l.Number)
+		if err != nil {
+			return nil, err
+		}
+		pulls, err := f.Pulls(l.Number)
+		if err != nil {
+			return nil, err
+		}
+		threads := make([]reconcile.PullThread, len(pulls))
+		for i, p := range pulls {
+			ref := forge.Ref{Repo: p.Repo, N: p.Number}
+			if threads[i].Comments, err = f.PullComments(ref); err == nil {
+				if threads[i].Reviews, err = f.Reviews(ref); err == nil {
+					threads[i].Lines, err = f.ReviewComments(ref)
+				}
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+		out[l.Number] = statusIssue{is, pulls, reconcile.Count(is, pulls, threads, swarmLogin, trusted)}
+	}
+	return out, nil
+}
+
+// countsLine is an issue's line under Throughput, "" for an issue with no
+// plan, no pull request and no block.
+func countsLine(c reconcile.Counts) string {
+	if c.Plans == 0 && c.Blocks == 0 && len(c.Pulls) == 0 {
+		return ""
+	}
+	parts := []string{fmt.Sprintf("plan revisions %d, blocks %d", c.Revisions(), c.Blocks)}
+	for _, p := range c.Pulls {
+		parts = append(parts, fmt.Sprintf("%s#%d rounds %d, maintainer comments %d", p.Repo, p.Number, p.Rounds, p.Maintainer))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// briefLine is an active brief's line under Briefs: its path; each
+// milestone's open and closed swarm issues, told by their Brief: lines,
+// in the brief's order (a milestone it does not name after them); how
+// many of its milestones have none; and whether the newest batch run
+// with an output reports it met.
+func briefLine(b brief.Brief, issues []forge.Issue, swarmLogin string, metRun int, met []string) string {
+	milestones := b.Milestones()
+	order := slices.Clone(milestones)
+	open, closed := map[string]int{}, map[string]int{}
+	for _, is := range issues {
+		path, m := reconcile.BriefOf(is, swarmLogin)
+		if path != b.Path {
+			continue
+		}
+		if !slices.Contains(order, m) {
+			order = append(order, m)
+		}
+		if is.Open {
+			open[m]++
+		} else {
+			closed[m]++
+		}
+	}
+	var parts []string
+	none := 0
+	for _, m := range order {
+		if open[m]+closed[m] == 0 {
+			none++
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s (%d open, %d closed)", m, open[m], closed[m]))
+	}
+	if none > 0 {
+		parts = append(parts, fmt.Sprintf("%d of %d milestones with no issue", none, len(milestones)))
+	}
+	if slices.Contains(met, b.Path) {
+		parts = append(parts, fmt.Sprintf("met (owner run %d)", metRun))
+	}
+	if len(parts) == 0 {
+		return b.Path
+	}
+	return b.Path + ": " + strings.Join(parts, "; ")
+}
+
+// lastMet is the newest batch run whose out.md is not empty, by its
+// number, and the briefs its Met: lines report met; 0 and none without
+// such a run.
+func lastMet(fs ops.FS, state string) (int, []string, error) {
+	runs, err := reconcile.Runs(fs, state)
+	if err != nil {
+		return 0, nil, err
+	}
+	slices.SortFunc(runs, func(a, b reconcile.Run) int { return b.K - a.K })
+	for _, r := range runs {
+		if r.N != 0 {
+			continue
+		}
+		out, err := fs.ReadFile(filepath.Join(r.Dir, "io", "out.md"))
+		if errors.Is(err, iofs.ErrNotExist) || err == nil && strings.TrimSpace(string(out)) == "" {
+			continue
+		}
+		if err != nil {
+			return 0, nil, err
+		}
+		met, _, _ := reconcile.Proposals(string(out))
+		return r.K, met, nil
+	}
+	return 0, nil, nil
 }
 
 func onOff(b bool) string {
@@ -460,6 +615,7 @@ func running(o ops.Ops, ws, repo string) string {
 func throughput(c *Context, state string, budget *declare.Budget) error {
 	var runs, posted, blocked, failed, faults, uncosted, approved, atLimit, blockedThere int
 	var today, all float64
+	times := map[string][]time.Duration{} // run times by the stage launched on, "batch" and "check"
 	midnight := c.Ops.Now().UTC().Truncate(24 * time.Hour)
 	entries, err := c.Ops.FS().ReadDir(filepath.Join(state, "runs"))
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
@@ -478,20 +634,38 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 		}
 		runs++
 		var outcome string
-		var started time.Time
+		var started, ended, checkStarted, checkEnded time.Time
+		stage := "batch"
 		cost, costed := 0.0, false
 		lines := strings.Split(string(data), "\n")
 		for _, line := range lines {
 			f := strings.Fields(line)
+			at := func(i int) time.Time { t, _ := time.Parse(time.RFC3339, f[i]); return t }
 			switch {
 			case len(f) == 2 && f[0] == "outcome":
 				outcome = f[1]
+			case len(f) == 2 && f[0] == "label":
+				stage = strings.TrimPrefix(f[1], "swarm:")
 			case len(f) >= 2 && f[0] == "started":
-				started, _ = time.Parse(time.RFC3339, f[1])
+				started = at(1)
+			case len(f) == 3 && f[0] == "exited", len(f) == 2 && f[0] == "timeout":
+				ended = at(len(f) - 1)
+			case len(f) == 3 && f[0] == "check" && f[1] == "started":
+				checkStarted = at(2)
+			case len(f) == 4 && f[0] == "check" && f[1] == "exited":
+				checkEnded = at(3)
 			case len(f) >= 2 && f[0] == "cost":
 				if v, err := strconv.ParseFloat(f[1], 64); err == nil {
 					cost, costed = v, true
 				}
+			}
+		}
+		for _, span := range []struct {
+			stage    string
+			from, to time.Time
+		}{{stage, started, ended}, {"check", checkStarted, checkEnded}} {
+			if !span.from.IsZero() && !span.to.IsZero() && !span.to.Before(span.from) {
+				times[span.stage] = append(times[span.stage], span.to.Sub(span.from))
 			}
 		}
 		switch outcome {
@@ -535,7 +709,38 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 		fmt.Fprintf(out, "  %-12s $%.2f per day, $%.2f in all\n", "budget", budget.PerDay, budget.Total)
 	}
 	fmt.Fprintf(out, "  %-12s %d pull requests; at the round limit %d, blocked there %d\n", "approved", approved, atLimit, blockedThere)
+	var medians []string
+	for _, stage := range append(append([]string{"batch"}, forgeStages()...), "check") {
+		if d := times[stage]; len(d) > 0 {
+			medians = append(medians, fmt.Sprintf("%s %s (%d)", stage, median(d), len(d)))
+		}
+	}
+	if len(medians) == 0 {
+		medians = []string{"none"}
+	}
+	fmt.Fprintf(out, "  %-12s %s\n", "stage time", strings.Join(medians, ", "))
 	return nil
+}
+
+// forgeStages is the eight labels without `swarm:`, in lifecycle order.
+func forgeStages() []string {
+	out := make([]string, len(forge.Labels))
+	for i, l := range forge.Labels {
+		out[i] = strings.TrimPrefix(l, "swarm:")
+	}
+	return out
+}
+
+// median is the middle of ds, or the mean of the two middle ones, to the
+// second.
+func median(ds []time.Duration) time.Duration {
+	ds = slices.Clone(ds)
+	slices.Sort(ds)
+	m := ds[len(ds)/2]
+	if len(ds)%2 == 0 {
+		m = (ds[len(ds)/2-1] + m) / 2
+	}
+	return m.Round(time.Second)
 }
 
 // SwarmApply is `daisy swarm apply [--once]` (docs/swarm.md section 11):

@@ -45,3 +45,13 @@ func TestFind(t *testing.T) {
 		t.Errorf("a file resource: %+v", got)
 	}
 }
+
+func TestMilestones(t *testing.T) {
+	b := Brief{Text: "# M0\n\nStatus: active\n\n## First one \r\n\ntext\n### not one\n##not one\n## Second\n"}
+	if got := b.Milestones(); !reflect.DeepEqual(got, []string{"First one", "Second"}) {
+		t.Errorf("Milestones = %q", got)
+	}
+	if got := (Brief{Text: "Status: active\n"}).Milestones(); got != nil {
+		t.Errorf("no milestones: %q", got)
+	}
+}

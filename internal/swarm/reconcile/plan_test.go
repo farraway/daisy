@@ -40,4 +40,7 @@ func TestShift(t *testing.T) {
 	if got := Shift(in, 2); got != want {
 		t.Errorf("Shift:\n%s", got)
 	}
+	if got := Shift("a log:\n````\n# x\n```", 1); got != "a log:\n````\n# x\n```\n````" {
+		t.Errorf("an open fence is not closed:\n%s", got)
+	}
 }

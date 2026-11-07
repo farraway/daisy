@@ -302,3 +302,26 @@ func TestOutside(t *testing.T) {
 		t.Errorf("in /work/app: %q", got)
 	}
 }
+
+// The empty-field check reads Daisy's own lines only (section 7.1, step
+// 2): a quoted body's `- Clone ` or `- Issues:` bullet, or a fenced
+// `# Issue` line, is no field of the prompt.
+func TestEmptyField(t *testing.T) {
+	head := "# Repository\n\n- Issues: acme/app on forge.example.net\n- Clone /work: acme/app, branch main, base main, no check declared\n\n"
+	for _, c := range []struct {
+		prompt string
+		empty  bool
+	}{
+		{head + "# Issue #1: Drift\n\n- Clone the repo first.\n- Issues: none\n\n```sh\n# Issue tracker\n# Pull request\n```\n", false},
+		{head + "# Issue #1: \n", true},
+		{"# Repository\n\n- Issues: acme/app on \n", true},
+		{"# Repository\n\n- Clone /work: acme/app, branch , base main, x\n", true},
+		{head + "# Issue #1: Drift\n\n# Pull request app#2: \n", true},
+		{head + "# Issue #1: Drift\n\n~~~\n```\n# Issue x\n~~~\n# Issue #1: \n", true},
+		{head + "# Issue #1: Drift\n\n" + Shift("a pasted log, its fence left open:\n```\n# Pull request x", 1) + "\n\n# Pull request app#2: \n", true},
+	} {
+		if got := emptyField(c.prompt); got != c.empty {
+			t.Errorf("emptyField = %v, want %v:\n%s", got, c.empty, c.prompt)
+		}
+	}
+}

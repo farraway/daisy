@@ -1,0 +1,69 @@
+package reconcile
+
+import (
+	"slices"
+	"strings"
+	"time"
+
+	"daisy/internal/swarm/forge"
+)
+
+// Counts is one issue's correction counts in `swarm status`'s Throughput
+// (section 11), read from the forge: the plans, the blocks and,
+// per swarm pull request, its review rounds and the maintainer's entries.
+type Counts struct {
+	Plans  int // the architect's plans in the issue thread; the revisions are those after the first
+	Blocks int // the reconciler's notes that moved the issue to blocked
+	Pulls  []PullCounts
+}
+
+// PullCounts is one pull request's review rounds and maintainer entries.
+type PullCounts struct {
+	Repo       string
+	Number     int
+	Rounds     int // Rounds over all its reviews
+	Maintainer int // comments, reviews and line comments by a trusted login not the swarm's
+}
+
+// Revisions is the plans after the first.
+func (c Counts) Revisions() int { return max(0, c.Plans-1) }
+
+// Count is is's Counts (is with its comments), pulls being Pulls(n) and
+// threads each pull request's thread, in the same order.
+func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin string, trusted []string) Counts {
+	var c Counts
+	for _, cm := range is.Comments {
+		m, ok := Swarms(Entry{cm.Author, cm.Body, cm.Created}, swarmLogin)
+		switch {
+		case !ok:
+		case m.Role == "architect" && !strings.HasPrefix(swarmText(cm.Body), "BLOCKED:"):
+			c.Plans++
+		case m.Role == "reconciler" && !strings.HasSuffix(swarmText(cm.Body), architectRevises):
+			c.Blocks++
+		}
+	}
+	maintainer := func(login string) bool {
+		return !strings.EqualFold(login, swarmLogin) && slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, login) })
+	}
+	for i, p := range pulls {
+		t := threads[i]
+		pc := PullCounts{Repo: p.Repo, Number: p.Number, Rounds: Rounds(t.Reviews, swarmLogin, time.Time{}, "")}
+		for _, cm := range t.Comments {
+			if maintainer(cm.Author) {
+				pc.Maintainer++
+			}
+		}
+		for _, r := range t.Reviews {
+			if maintainer(r.Author) {
+				pc.Maintainer++
+			}
+		}
+		for _, l := range t.Lines {
+			if maintainer(l.Author) {
+				pc.Maintainer++
+			}
+		}
+		c.Pulls = append(c.Pulls, pc)
+	}
+	return c
+}

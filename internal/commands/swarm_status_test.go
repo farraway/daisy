@@ -2,11 +2,13 @@ package commands
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"daisy/internal/env"
 	"daisy/internal/ops"
@@ -18,6 +20,7 @@ import (
 // temp directory and `docker ps` scripted.
 type statusWS struct {
 	*swarmWS
+	now       time.Time // status's clock when set, else the Fake forge's
 	local     string
 	docker    string // docker ps's stdout
 	dockerErr bool
@@ -53,7 +56,12 @@ func (s *statusWS) status(f forge.Adapter) error {
 	s.stderr.Reset()
 	o := &ops.Fake{
 		GetenvFn: func(k string) string { return s.vars[k] },
-		NowFn:    fixedClock().Now,
+		NowFn: func() time.Time {
+			if !s.now.IsZero() {
+				return s.now
+			}
+			return fixedClock().Now()
+		},
 		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
 			if name != "docker" {
 				return ops.Real().Exec(dir, name, args...)
@@ -107,6 +115,7 @@ Running: none
   cost         $0.00 today, $0.00 in all (0 runs without a cost)
   budget       none
   approved     0 pull requests; at the round limit 0, blocked there 0
+  stage time   none
 Briefs: none active
 `
 	if s.stdout.String() != want || s.stderr.Len() != 0 {
@@ -181,8 +190,9 @@ Gates: triage on, plan on, merge on
 Waiting for you: triage #1 #2; plan #3; merge #6; blocked #7
 Running: #0 owner, #8 adversary, #12 check
 ` + statusPersonas
-	if out := s.stdout.String(); !strings.HasPrefix(out, want) || !strings.HasSuffix(out, "Briefs:\n  docs/briefs/next.md\n  docs/briefs/roadmap.md\n") {
-		t.Errorf("stdout:\n%s\nwant:\n%s…\nBriefs:\n  docs/briefs/next.md\n  docs/briefs/roadmap.md\n", out, want)
+	briefs := "Briefs:\n  docs/briefs/next.md: 1 of 1 milestones with no issue\n  docs/briefs/roadmap.md: 1 of 1 milestones with no issue\n"
+	if out := s.stdout.String(); !strings.HasPrefix(out, want) || !strings.HasSuffix(out, briefs) {
+		t.Errorf("stdout:\n%s\nwant:\n%s…\n%s", out, want, briefs)
 	}
 
 	// The gates off: nothing waits for triage, a plan or a merge.
@@ -256,5 +266,208 @@ func TestSwarmStatusRefusals(t *testing.T) {
 	os.RemoveAll(filepath.Join(s.ws, "swarm"))
 	if err := s.status(s.forge); strings.ReplaceAll(errText(err), s.ws, "<ws>") != "Error: swarm.json: not found at <ws>/swarm/swarm.json; run 'daisy swarm init'" {
 		t.Errorf("no swarm.json: %v", err)
+	}
+}
+
+// runResult writes a run's result, and its out.md when out is not "".
+func (s *statusWS) runResult(name, result, out string) {
+	s.t.Helper()
+	os.MkdirAll(s.state("runs/"+name+"/io"), 0o755)
+	if err := os.WriteFile(s.state("runs/"+name+"/result"), []byte(result), 0o644); err != nil {
+		s.t.Fatal(err)
+	}
+	if out != "" {
+		os.WriteFile(s.state("runs/"+name+"/io/out.md"), []byte(out), 0o644)
+	}
+}
+
+// ran is a run's result lines: its label (none for the batch), its start
+// at the time of day start and its end length later, then rest.
+func ran(label, start, length, rest string) string {
+	from, end := span(start, length)
+	head := ""
+	if label != "" {
+		head = "label swarm:" + label + "\n"
+	}
+	return head + "started " + from + "\nexited 0 " + end + "\n" + rest
+}
+
+// checked is a worker run's check lines, from start for length.
+func checked(start, length string) string {
+	from, end := span(start, length)
+	return "check started " + from + "\ncheck exited 0 " + end + "\n"
+}
+
+func span(start, length string) (string, string) {
+	from, _ := time.Parse(time.RFC3339, "2026-11-06T"+start+"Z")
+	d, _ := time.ParseDuration(length)
+	return from.Format(time.RFC3339), from.Add(d).Format(time.RFC3339)
+}
+
+const m0 = "Brief: docs/briefs/m0.md — lib measured against upstream 2.0.0\n\nMeasure it.\n"
+
+// Status on Step 7's swarm (the first real issue, docs/swarm.md section
+// 13): batch 1's five proposals closed unanswered; batch 2's two
+// proposals naming the brief; #6 planned once, built in two slices in
+// lib, slice 1 reviewed in two rounds with one revision, slice 2 in one;
+// the maintainer's only acts the relabels and the merges. Each count is
+// the one the forge shows by hand, and the Waiting line follows the
+// merges: merge, then next slice, then close.
+func TestSwarmStatusStep7(t *testing.T) {
+	s := newStatusWS(t)
+	s.edit(func(c *declare.Config) { c.Trusted = []string{"jane", "swarm-bot"}; c.Resources = []string{"docs/"} })
+	s.write("docs/briefs/m0.md", "# M0\n\nStatus: active\n\n## lib measured against upstream 2.0.0\n\n## lib green against upstream 2.0.0\n\n## Drift checks in CI\n\n## A second port\n")
+	f := s.forge
+	for i := 1; i <= 5; i++ { // batch 1, before the brief: closed by the maintainer
+		n, _ := f.CreateIssue("a guess", mark("owner", 1)+"A job.\n", []string{"swarm:proposed"})
+		f.CloseIssue(n)
+	}
+	n, _ := f.CreateIssue("lib: pin to v2.0.0", mark("owner", 2)+m0, []string{"swarm:proposed"}) // 6
+	f.CreateIssue("lib: CI", mark("owner", 2)+m0, []string{"swarm:proposed"})                    // 7
+	is := forge.Ref{Repo: "app", N: n}
+	f.SetLabel(is, "swarm:ready")
+	f.Comment(is, mark("architect", 1)+"## Research\n\n## Steps\n\n1. lib: the mechanism.\n2. lib: the pin.\n")
+	f.Relabel(is, "swarm:ready", "swarm:planning")
+	f.SetLabel(is, "swarm:planned")
+	slice := func(s int, heads ...string) forge.Ref {
+		m, _ := f.CreatePull("lib", fmt.Sprintf("swarm/%d-%d", n, s), "main", "slice", mark("worker", 1)+"Refs acme/app#6\n")
+		pr := forge.Ref{Repo: "lib", N: m}
+		for i, h := range heads {
+			f.Push(pr, h)
+			if i > 0 {
+				f.Comment(pr, mark("worker", 2)+"Left both findings, with reasons.\n")
+			}
+			adv := approve
+			if i < len(heads)-1 {
+				adv = requestChanges
+			}
+			f.Review(pr, forge.RequestChanges, mark("adversary", 1)+adv)
+			f.Review(pr, forge.Approve, mark("sympathetic", 1)+approve)
+		}
+		return pr
+	}
+	s1 := slice(1, "aaa1", "aaa2")
+	f.SetLabel(is, "swarm:approved")
+	want := func(waiting string) {
+		t.Helper()
+		if err := s.status(f); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(s.stdout.String(), "Waiting for you: "+waiting+"\n") {
+			t.Errorf("want Waiting for you: %s in\n%s", waiting, s.stdout.String())
+		}
+	}
+	want("triage #7; merge #6")
+	f.Merge(s1, "aaa2")
+	want("triage #7; next slice #6")
+	f.SetLabel(is, "swarm:planned")
+	s2 := slice(2, "bbb1")
+	f.SetLabel(is, "swarm:approved")
+	want("triage #7; merge #6")
+	f.Merge(s2, "bbb1")
+	want("triage #7; close #6")
+	f.CloseIssue(n)
+
+	s.runResult("0-owner-1", ran("", "08:26:22", "2m32s", "propose 5\nposted\noutcome posted\ncollected\n"), "## a guess\n")
+	s.runResult("0-owner-2", ran("", "09:16:00", "2m57s", "propose 5\noutcome posted\ncollected\n"), "## lib: pin to v2.0.0\n"+m0)
+	s.runResult("6-architect-1", ran("ready", "10:06:00", "6m9s", "posted comment\nrelabelled swarm:ready swarm:planning\noutcome posted\ncollected\n"), "")
+	s.runResult("6-worker-1", ran("planned", "10:24:00", "2m43s", checked("10:27:00", "19s")+"relabelled swarm:planned swarm:in-review\noutcome posted\ncollected\n"), "")
+	s.runResult("6-adversary-1", ran("in-review", "10:33:00", "2m55s", "outcome posted\ncollected\n"), "")
+	s.runResult("6-sympathetic-1", ran("in-review", "10:41:00", "1m44s", "relabelled swarm:in-review swarm:reviewed\noutcome posted\ncollected\n"), "")
+	s.runResult("6-worker-2", ran("reviewed", "11:06:00", "2m14s", checked("11:09:00", "18s")+"relabelled swarm:reviewed swarm:in-review\noutcome posted\ncollected\n"), "")
+	s.runResult("6-adversary-2", ran("in-review", "11:14:00", "2m43s", "outcome posted\ncollected\n"), "")
+	s.runResult("6-sympathetic-2", ran("in-review", "11:22:00", "1m9s", "relabelled swarm:in-review swarm:approved\noutcome posted\ncollected\n"), "")
+	s.runResult("6-worker-3", ran("planned", "11:41:00", "1m44s", checked("11:43:00", "18s")+"relabelled swarm:planned swarm:in-review\noutcome posted\ncollected\n"), "")
+	s.runResult("6-adversary-3", ran("in-review", "11:49:00", "3m37s", "outcome posted\ncollected\n"), "")
+	s.runResult("6-sympathetic-3", ran("in-review", "11:58:00", "1m24s", "relabelled swarm:in-review swarm:approved\noutcome posted\ncollected\n"), "")
+	if err := s.status(f); err != nil {
+		t.Fatal(err)
+	}
+	wantTail := `Waiting for you: triage #7
+Running: none
+` + statusPersonas + `Throughput:
+  runs         12 (12 posted, 0 blocked, 0 failed, 0 faults, 0 other)
+  cost         $0.00 today, $0.00 in all (12 runs without a cost)
+  budget       none
+  approved     2 pull requests; at the round limit 0, blocked there 0
+  stage time   batch 2m45s (2), ready 6m9s (1), planned 2m14s (2), in-review 2m14s (6), reviewed 2m14s (1), check 18s (3)
+  #6           plan revisions 0, blocks 0; lib#1 rounds 2, maintainer comments 0; lib#2 rounds 1, maintainer comments 0
+Briefs:
+  docs/briefs/m0.md: lib measured against upstream 2.0.0 (1 open, 1 closed); 3 of 4 milestones with no issue
+`
+	if out := s.stdout.String(); !strings.HasSuffix(out, wantTail) {
+		t.Errorf("stdout:\n%s\nwant it to end:\n%s", out, wantTail)
+	}
+}
+
+// The counts' rules: a plan revision is an architect's plan after its
+// first (BLOCKED: and another login's marker are none); a block is a
+// reconciler note other than the round limit's first; a maintainer
+// comment is a comment, review or line comment by a trusted login that is
+// not the swarm's; an issue with none of a plan, a pull request or a
+// block has no line, and a closed one only within the batch's window
+// (30 days), while the brief counts every closed issue. A batch run's
+// Met: line is read from the newest batch run with an output; a run's
+// time from its start to its exit or timeout.
+func TestSwarmStatusCorrections(t *testing.T) {
+	s := newStatusWS(t)
+	s.edit(func(c *declare.Config) { c.Trusted = []string{"jane", "swarm-bot"}; c.Resources = []string{"docs/"} })
+	s.write("docs/briefs/m0.md", "Status: active\n\n## lib measured against upstream 2.0.0\n\n## Later\n")
+	f := s.forge
+	issue := func(label, body string) forge.Ref {
+		n, _ := f.CreateIssue("t", body, []string{label})
+		return forge.Ref{Repo: "app", N: n}
+	}
+	a := issue("swarm:planning", mark("owner", 1)+m0) // 1
+	f.Comment(a, mark("architect", 1)+"## Research\n")
+	f.Comment(a, mark("architect", 2)+"BLOCKED: which corpus?\n")
+	f.Say(a, "jane", mark("architect", 3)+"not the swarm's")
+	f.Comment(a, mark("architect", 4)+"## Research\nrevised\n")
+	f.Comment(a, mark("reconciler", 1)+"architect run 2 is blocked (was swarm:planning). Answer and relabel the issue to resume.")
+	f.Comment(a, mark("reconciler", 1)+"Review round 5 of 5 on app#9 requested changes (was swarm:in-review). The architect revises the plan from the reviews.")
+	f.Comment(a, mark("reconciler", 2)+"Review round 5 of 5 on app#9 requested changes a second time (was swarm:in-review). Relabel the issue to resume.")
+	m, _ := f.CreatePull("lib", "swarm/1-1", "main", "s", mark("worker", 1)+"Refs acme/app#1\n")
+	pr := forge.Ref{Repo: "lib", N: m}
+	f.Push(pr, "ccc1")
+	f.Say(pr, "jane", "why?")
+	f.Say(pr, "mallory", "not trusted")
+	f.Comment(pr, mark("worker", 1)+"because\n")
+	f.SayOnLine(pr, "Jane", "a.go", 3, "this line")
+	f.ReviewAs(pr, "jane", forge.RequestChanges, "no")
+	f.ReviewAs(pr, "SWARM-BOT", forge.Commented, "the swarm's own login, unmarked")
+	b := issue("swarm:blocked", "") // 2: a block, no plan
+	f.Comment(b, mark("reconciler", 1)+"owner run 1 failed: no output (was swarm:proposed). Relabel the issue to resume.")
+	issue("swarm:proposed", mark("owner", 2)+m0) // 3: nothing to count
+	old := issue("swarm:ready", mark("owner", 2)+"Brief: docs/briefs/m0.md — Later\n")
+	f.Comment(old, mark("architect", 1)+"## Research\n")
+	f.CloseIssue(old.N)                                                                // 4
+	f.CreateIssue("t", mark("owner", 2)+m0, []string{"swarm:proposed", "swarm:ready"}) // 5: two labels, one issue
+
+	s.runResult("0-owner-1", ran("", "08:00:00", "1m", "outcome posted\ncollected\n"), "Met: docs/briefs/other.md\n## x\n")
+	s.runResult("0-owner-2", ran("", "09:00:00", "3m", "outcome posted\ncollected\n"), "Met: docs/briefs/m0.md\n\n## x\n")
+	s.runResult("0-owner-3", ran("", "10:00:00", "2m", "failed: no output\noutcome failed\ncollected\n"), " \n")
+	s.runResult("1-architect-4", "label swarm:planning\nstarted 2026-11-06T10:00:00Z\ntimeout 2026-11-06T10:45:00Z\noutcome failed\ncollected\n", "")
+	s.runResult("1-architect-5", "label swarm:planning\nstarted 2026-11-06T11:00:00Z\nabandoned 2026-11-06T12:00:00Z\noutcome abandoned\ncollected\n", "")
+	s.runResult("1-worker-1", ran("planned", "11:00:00", "4m", "check started 2026-11-06T11:04:00Z\n"), "")
+	if err := s.status(f); err != nil {
+		t.Fatal(err)
+	}
+	wantTail := `  stage time   batch 2m0s (3), planning 45m0s (1), planned 4m0s (1)
+  #1           plan revisions 1, blocks 2; lib#1 rounds 0, maintainer comments 3
+  #2           plan revisions 0, blocks 1
+  #4           plan revisions 0, blocks 0
+Briefs:
+  docs/briefs/m0.md: lib measured against upstream 2.0.0 (3 open, 0 closed); Later (0 open, 1 closed); met (owner run 2)
+`
+	if out := s.stdout.String(); !strings.HasSuffix(out, wantTail) {
+		t.Errorf("stdout:\n%s\nwant it to end:\n%s", out, wantTail)
+	}
+
+	s.now = fixedClock().Now().Add(31 * 24 * time.Hour) // #4 closed 31 days ago: out of the window
+	if err := s.status(f); err != nil {
+		t.Fatal(err)
+	}
+	if out := s.stdout.String(); strings.Contains(out, "  #4 ") || !strings.Contains(out, "Later (0 open, 1 closed)") {
+		t.Errorf("31 days on:\n%s", out)
 	}
 }

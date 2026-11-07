@@ -379,6 +379,16 @@ func (f *Fake) Review(pr Ref, _ Verdict, body string) error {
 	return nil
 }
 
+// ReviewAs is a review by login with verdict on the pull request's
+// current head, as the maintainer submits one.
+func (f *Fake) ReviewAs(pr Ref, login string, verdict Verdict, body string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	it := must(f.findPull(pr))
+	f.reviewID++
+	it.pull.reviews = append(it.pull.reviews, Review{ID: f.reviewID, Author: login, Body: body, State: verdict, Commit: it.pull.headSHA, Submitted: f.o.Now()})
+}
+
 // Merge merges an open pull request whose head is head and which is not
 // marked unmergeable, recording a merge commit; it closes no issue.
 func (f *Fake) Merge(pr Ref, head string) error {

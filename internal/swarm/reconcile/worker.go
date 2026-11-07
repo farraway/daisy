@@ -251,7 +251,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 		return c.end("posted")
 	}
 	on := fmt.Sprintf("%s#%d", pull.Repo, pull.Number)
-	first := fmt.Sprintf("Review round %d of %d on %s requested changes (was swarm:in-review). The architect revises the plan from the reviews.", rounds, s.Cfg.MaxRounds, on)
+	first := fmt.Sprintf("Review round %d of %d on %s requested changes (was swarm:in-review). "+architectRevises, rounds, s.Cfg.MaxRounds, on)
 	second := fmt.Sprintf("Review round %d of %d on %s requested changes a second time (was swarm:in-review). Relabel the issue to resume.", rounds, s.Cfg.MaxRounds, on)
 	own := []string{marker("reconciler", c.r.K) + first, marker("reconciler", c.r.K) + second}
 	again := false
@@ -276,6 +276,10 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 	}
 	return c.end("posted")
 }
+
+// architectRevises ends the round limit's first note (T11), the one
+// reconciler note that does not block the issue.
+const architectRevises = "The architect revises the plan from the reviews."
 
 // Rounds is a pull request's review rounds (section 6): the distinct
 // commits, other than except, with a review marked role=adversary and one

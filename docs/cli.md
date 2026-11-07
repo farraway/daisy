@@ -639,16 +639,16 @@ account's by default).
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 4 of the swarm build): Go (`internal/swarm/forge`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Steps 4 and 8 of the swarm build): Go (`internal/swarm/forge`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
 | Usage | `daisy swarm status`: in a workspace `swarm init` declared; any argument is usage on stderr, exit 2 |
-| Exit codes | 0, also when Docker cannot be reached; 1 outside a workspace, `swarm.json` absent or invalid (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <ws>/.env.sh or the environment)`), a forge call failing (`Error: swarm: forge: …`), a brief or a run's `result` unreadable; 2 usage |
-| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>` with the paused and held notes; `Gates: …`; a line per label, `  %-12s %d` and its issue numbers; `Waiting for you: …` or `nothing`; `Running: …`, `none` or `unknown (docker: <message>)`; `Personas:` and a line per role; `Throughput:` and its four lines; `Briefs:` and the path of each `active` brief under `resources`, or `Briefs: none active` |
+| Exit codes | 0, also when Docker cannot be reached; 1 outside a workspace, `swarm.json` absent or invalid (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <ws>/.env.sh or the environment)`), a forge call failing (`Error: swarm: forge: …`), a brief, a run's `result` or a batch run's `out.md` unreadable; 2 usage |
+| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>` with the paused and held notes; `Gates: …`; a line per label, `  %-12s %d` and its issue numbers; `Waiting for you: …` (an `approved` issue under `merge`, `next slice` or `close` as its current pull request calls for) or `nothing`; `Running: …`, `none` or `unknown (docker: <message>)`; `Personas:` and a line per role; `Throughput:` and its five lines (`stage time` the median run time per stage), then a `#<n>` line of correction counts per open or recently closed issue with a plan, a pull request or a block; `Briefs:` and a line per `active` brief under `resources` (its milestones' open and closed issues, and `met (owner run <k>)` when the newest batch run reports it), or `Briefs: none active` |
 | Stderr | `⚠️  .env.sh <problem>` for a line `.env.sh` cannot be read past; errors |
 | Ops | ReadOnly, with a forge `GET` or `HEAD` and `docker ps` let through |
 | Writes | nothing, anywhere |
 | Commits | none |
-| Cases | none; `TestSwarmStatusThroughGitea`, and the `internal/commands` and `internal/swarm` tests |
+| Cases | none; `TestSwarmStatusThroughGitea`, `TestSwarmStatusStep7`, `TestSwarmStatusCorrections`, and the other `internal/commands` and `internal/swarm` tests |
 
 ### daisy swarm apply
 

@@ -217,3 +217,15 @@ func TestTakeSlotRefusesALink(t *testing.T) {
 	}
 	release()
 }
+
+// No directory for the provider (no login was ever made) is *slot
+// refused* with the login's hint, as a slot directory without auth.json
+// is (section 7.1, step 4).
+func TestTakeSlotWithoutTheProviderDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "openai")
+	_, err := TakeSlot(ops.Real().FS(), &Fake{}, dir, "openai", 1, "h", nil)
+	var refused *SlotRefused
+	if !errors.As(err, &refused) || err.Error() != "slot openai/1: no login; run 'CODEX_HOME="+filepath.Join(dir, "1")+" codex login -c cli_auth_credentials_store=file'" {
+		t.Fatalf("%v", err)
+	}
+}

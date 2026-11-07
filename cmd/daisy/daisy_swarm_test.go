@@ -149,8 +149,8 @@ func TestSwarmStatusThroughGitea(t *testing.T) {
 			t.Errorf("status sent %s", r)
 		}
 	}
-	if len(g.requests) != 9 {
-		t.Errorf("requests %q: Login, then Issues for each of the eight labels", g.requests)
+	if len(g.requests) != 17 {
+		t.Errorf("requests %q: Login, then Issues open and closed for each of the eight labels", g.requests)
 	}
 	for _, r := range ran {
 		if !strings.HasPrefix(r, "git ") && r != "docker ps" {

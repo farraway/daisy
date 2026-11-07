@@ -513,3 +513,10 @@ func BriefLine(is forge.Issue, swarmLogin string) string {
 	}
 	return ""
 }
+
+// BriefOf is the brief's path and the milestone is's Brief: line names;
+// both "" without the line.
+func BriefOf(is forge.Issue, swarmLogin string) (path, milestone string) {
+	path, milestone, _ = strings.Cut(strings.TrimPrefix(BriefLine(is, swarmLogin), "Brief: "), " — ")
+	return path, milestone
+}

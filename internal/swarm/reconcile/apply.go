@@ -581,12 +581,30 @@ var (
 )
 
 // emptyField: a field of `# Repository` or of an issue or pull request
-// heading line in the prompt is empty (section 7.1, step 2).
+// heading line in the prompt is empty (section 7.1, step 2). Only
+// Daisy's own lines are read: the `- Issues:` and `- Clone ` lines of the
+// `# Repository` block, and heading lines outside a fenced block (a
+// quoted text's headings are shifted below `# `, section 7.3).
 func emptyField(prompt string) bool {
+	repository, fence := false, ""
 	for _, l := range strings.Split(prompt, "\n") {
+		if f := fenceOf(l); f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
+			if fence == "" {
+				fence = f
+			} else {
+				fence = ""
+			}
+			continue
+		}
+		if fence != "" {
+			continue
+		}
+		if strings.HasPrefix(l, "# ") {
+			repository = l == "# Repository"
+		}
 		switch {
-		case strings.HasPrefix(l, "- Issues:") && !issuesLine.MatchString(l),
-			strings.HasPrefix(l, "- Clone ") && !cloneLine.MatchString(l),
+		case repository && strings.HasPrefix(l, "- Issues:") && !issuesLine.MatchString(l),
+			repository && strings.HasPrefix(l, "- Clone ") && !cloneLine.MatchString(l),
 			strings.HasPrefix(l, "# Issue ") && !issueHead.MatchString(l),
 			strings.HasPrefix(l, "# Pull request ") && !pullHead.MatchString(l):
 			return true

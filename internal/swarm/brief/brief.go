@@ -79,3 +79,15 @@ func statusOf(text string) (string, bool) {
 	}
 	return "", false
 }
+
+// Milestones is the text of each of the brief's `## ` headings, in order:
+// one milestone each (section 4).
+func (b Brief) Milestones() []string {
+	var out []string
+	for _, line := range strings.Split(b.Text, "\n") {
+		if h, ok := strings.CutPrefix(strings.TrimRight(line, "\r "), "## "); ok {
+			out = append(out, strings.TrimSpace(h))
+		}
+	}
+	return out
+}
