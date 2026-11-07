@@ -12,8 +12,8 @@ import (
 )
 
 // Brief is one brief: its path relative to the workspace, as the batch
-// prompt and a proposal's `Brief:` line name it, and its Status.
-type Brief struct{ Path, Status string }
+// prompt and a proposal's `Brief:` line name it, its Status and its text.
+type Brief struct{ Path, Status, Text string }
 
 // Find is every brief under the resources of the workspace ws, in path
 // order. A resource is read as it is mounted, resolved through its links;
@@ -32,7 +32,7 @@ func Find(fs ops.FS, ws string, resources []string) ([]Brief, error) {
 				return err
 			}
 			if status, ok := statusOf(string(data)); ok {
-				out = append(out, Brief{rel, status})
+				out = append(out, Brief{rel, status, string(data)})
 			}
 			return nil
 		}

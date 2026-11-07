@@ -9,8 +9,8 @@ under, the files it may write and the commits it makes.
 pins it; since Step 24 every command is Go and the bash (`daisy.sh` and
 `daisy/scripts/*.sh`) is deleted, so a `Legacy` row is history: the bash
 form a command replaced. Every entry is `as built (Step N)`, the step
-that built it, except `swarm`, whose `init` and `status` are `as built
-(Steps 1 and 4 of the swarm build)` and whose other three verbs are
+that built it, except `swarm`, whose `init`, `status` and `apply` are `as built
+(Steps 1, 4 and 5 of the swarm build)` and whose other two verbs are
 `agreed (Steps 27–30)`: decided in the plan, specified in
 [docs/swarm.md](swarm.md), and not yet built. `decided (D30, …)` marks a point the plan's
 Architecture left open that this document settled, recorded in the plan's
@@ -37,7 +37,7 @@ entries cross-reference it in prose.
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm apply`, `swarm status`, `swarm
 pause`, `swarm resume`) joins the table a verb at a time as each is built:
-`swarm init` and `swarm status` are in it, the other three are agreed;
+`swarm init`, `swarm apply` and `swarm status` are in it, the other two are agreed;
 the tree never names a command the binary does not run.
 
 ```
@@ -86,6 +86,7 @@ Prompts and skills
 
 Swarm
   swarm init [--defaults]           Declare the swarm: swarm.json, prompts, labels
+  swarm apply [--once]              Reconcile the forge: launch members, post their output, move labels
   swarm status                      Stages, gates, what waits for you, running members (read-only)
 
 System
@@ -649,13 +650,28 @@ account's by default).
 | Commits | none |
 | Cases | none; `TestSwarmStatusThroughGitea`, and the `internal/commands` and `internal/swarm` tests |
 
+### daisy swarm apply
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 5 of the swarm build), in part: Go (`internal/swarm/provider`, `internal/swarm/runner`, `internal/swarm/reconcile`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, whose As built paragraph says which of a pass's steps run so far: `--once` only, and the architect on `swarm:ready` and `swarm:planning` issues |
+| Legacy | none |
+| Usage | `daisy swarm apply [--once]`: in a workspace `swarm init` declared; without `--once`, `Error: swarm apply: only --once is built (the loop joins with the lifecycle); run 'daisy swarm apply --once'`, exit 1; any other argument is usage on stderr, exit 2 |
+| Exit codes | 0 the pass ran (a member's failure is on the forge, not in the exit code); 1 without `--once`, outside a workspace, `swarm.json` absent or invalid, the token or a provider's credential unset (`Error: swarm: slot <slot> has no login; run 'CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file'` for a slot), `docker ps` failing (`Error: swarm: docker: <message>`), the lock held (`Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`), `EnsureLabels` failing, a forge, git or `docker ps` error during the pass (`Error: swarm: …`); 2 usage |
+| Stdout | `#<n> <role> run <k>: launched`; at collection `#<n> <role> run <k>: posted comment`, `#<n> <role> run <k>: <from> → <to>`, `failed (<reason>)`, `fault (<reason>)`; `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
+| Stderr | `⚠️  .env.sh <problem>`; `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n> closed during the run; nothing posted`, `⚠ #<n>: relabelled to <label> during the run; not relabelled`; errors |
+| Ops | Real |
+| Writes | `<state>/lock`, `<state>/git/`, `<state>/runs/`, a slot's lock and the clearing of the slot; on the forge, comments and label changes, and the eight labels when one is missing |
+| Commits | none |
+| Cases | none; `TestSwarmApplyReadyToPlanning` and the other `TestSwarmApply` tests, and the `internal/swarm` tests |
+
 ### daisy swarm
 
 | Field | Value |
 |---|---|
-| Status | agreed (Steps 27–30) for `apply`, `pause` and `resume`; specified in [docs/swarm.md](swarm.md) (Step 26, revised at Steps 38, 40 and 43, and at Step 3 of the swarm build: revision 5), not here: `swarm.json` (its gates, budget and credentials included: an `env` variable or login slots per provider; the swarm's own forge account, an optional board, and the repositories one job spans), the briefs the owner reads, the eight-label lifecycle over two conversations (the issue for the design, a pull request per slice for the implementation; the review limit returning the issue to the architect), the member and check containers, both seams, and each verb's reads, writes, output and exit codes |
+| Status | agreed (Steps 27–30) for `pause` and `resume`, and for the rest of `apply` (its loop and the lifecycle past the architect); specified in [docs/swarm.md](swarm.md) (Step 26, revised at Steps 38, 40 and 43, and at Step 3 of the swarm build: revision 5), not here: `swarm.json` (its gates, budget and credentials included: an `env` variable or login slots per provider; the swarm's own forge account, an optional board, and the repositories one job spans), the briefs the owner reads, the eight-label lifecycle over two conversations (the issue for the design, a pull request per slice for the implementation; the review limit returning the issue to the architect), the member and check containers, both seams, and each verb's reads, writes, output and exit codes |
 | Legacy | none |
-| Usage | `swarm apply [--once]`, `swarm pause`, `swarm resume` — the three lines the `Swarm` group adds to the help beside `swarm init` and `swarm status` as each is built, and nothing more; a login slot is made with the provider's own CLI (`CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, docs/swarm.md section 8), not a sixth verb |
+| Usage | `swarm pause`, `swarm resume` — the two lines the `Swarm` group adds to the help beside `swarm init`, `swarm apply` and `swarm status` as each is built, and nothing more; a login slot is made with the provider's own CLI (`CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, docs/swarm.md section 8), not a sixth verb |
 | Cases | none |
 
 ## System

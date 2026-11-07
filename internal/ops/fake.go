@@ -14,6 +14,7 @@ type Fake struct {
 	ExecFn       func(dir, name string, args ...string) (stdout, stderr []byte, err error)
 	StartFn      func(dir, name string, stdin io.Reader, stdout, stderr io.Writer, args ...string) (Process, error)
 	NowFn        func() time.Time
+	AfterFn      func(d time.Duration) <-chan time.Time
 	GetenvFn     func(key string) string
 	GetwdFn      func() (string, error)
 	ExecutableFn func() (string, error)
@@ -42,6 +43,13 @@ func (f *Fake) Now() time.Time {
 		return f.NowFn()
 	}
 	return Real().Now()
+}
+
+func (f *Fake) After(d time.Duration) <-chan time.Time {
+	if f.AfterFn != nil {
+		return f.AfterFn(d)
+	}
+	return Real().After(d)
 }
 
 func (f *Fake) Getenv(key string) string {

@@ -82,11 +82,12 @@ func (p realProcess) Wait() (int, error) {
 
 func (p realProcess) Kill() error { return p.cmd.Process.Kill() }
 
-func (real) Now() time.Time              { return time.Now() }
-func (real) Getenv(key string) string    { return os.Getenv(key) }
-func (real) Getwd() (string, error)      { return os.Getwd() }
-func (real) Executable() (string, error) { return os.Executable() }
-func (real) HTTP() Doer                  { return http.DefaultClient }
+func (real) Now() time.Time                         { return time.Now() }
+func (real) After(d time.Duration) <-chan time.Time { return time.After(d) }
+func (real) Getenv(key string) string               { return os.Getenv(key) }
+func (real) Getwd() (string, error)                 { return os.Getwd() }
+func (real) Executable() (string, error)            { return os.Executable() }
+func (real) HTTP() Doer                             { return http.DefaultClient }
 
 func (real) Prompt(r io.Reader, w io.Writer, question string) (string, error) {
 	if _, err := io.WriteString(w, question); err != nil {

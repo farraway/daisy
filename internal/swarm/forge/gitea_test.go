@@ -69,6 +69,7 @@ type script struct {
 	t     *testing.T
 	pairs []pair
 	next  int
+	waits []time.Duration // what each retry waited, through Ops.After
 }
 
 func (s *script) Do(req *http.Request) (*http.Response, error) {
@@ -111,7 +112,12 @@ func sameJSON(a, b string) bool {
 
 func gitea(t *testing.T, names []string, pairs ...pair) (*Gitea, *script) {
 	s := &script{t: t, pairs: pairs}
-	o := &ops.Fake{HTTPFn: func() ops.Doer { return s }}
+	o := &ops.Fake{HTTPFn: func() ops.Doer { return s }, AfterFn: func(d time.Duration) <-chan time.Time {
+		s.waits = append(s.waits, d)
+		c := make(chan time.Time, 1)
+		c <- time.Time{}
+		return c
+	}}
 	return NewGitea(o, testAPI, testToken, "acme/app", names), s
 }
 
@@ -279,11 +285,62 @@ func TestGiteaErrorsNameTheEndpointNotTheToken(t *testing.T) {
 	}
 	s.done()
 
-	g, s = gitea(t, nil, pair{"GET", "/user", "", 500, `<html>oops</html>`})
+	oops := pair{"GET", "/user", "", 500, `<html>oops</html>`}
+	g, s = gitea(t, nil, oops, oops, oops, oops)
 	if _, err := g.Login(); errText(err) != "forge: GET /user: 500 Internal Server Error" {
 		t.Errorf("Login error %v", err)
 	}
 	s.done()
+}
+
+// A 429 or 5xx is sent again after its Retry-After, else 10 s, at most
+// three times (section 10); the body goes again with each.
+func TestGiteaRetries(t *testing.T) {
+	body := `{"body":"hello"}`
+	busy := pair{"POST", "/repos/acme/app/issues/7/comments", body, 503, `{"message":"busy"}`}
+	g, s := gitea(t, nil, busy,
+		pair{"POST", "/repos/acme/app/issues/7/comments", body, 429, `{"message":"slow down"}`},
+		pair{"POST", "/repos/acme/app/issues/7/comments", body, 201, `{"id":1}`})
+	retryAfter := &headerDoer{inner: s, status: 429, header: "Retry-After", value: "2"}
+	g.o.(*ops.Fake).HTTPFn = func() ops.Doer { return retryAfter }
+	if err := g.Comment(Ref{"app", 7}, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	s.done()
+	if !reflect.DeepEqual(s.waits, []time.Duration{10 * time.Second, 2 * time.Second}) {
+		t.Errorf("waits %v", s.waits)
+	}
+
+	g, s = gitea(t, nil, busy, busy, busy, busy)
+	if err := g.Comment(Ref{"app", 7}, "hello"); errText(err) != "forge: POST /repos/acme/app/issues/7/comments: 503 busy" {
+		t.Errorf("after three retries: %v", err)
+	}
+	s.done()
+	if len(s.waits) != 3 {
+		t.Errorf("waits %v", s.waits)
+	}
+
+	g, s = gitea(t, nil, pair{"POST", "/repos/acme/app/issues/7/comments", body, 404, `{"message":"no"}`})
+	g.Comment(Ref{"app", 7}, "hello")
+	s.done()
+	if len(s.waits) != 0 {
+		t.Errorf("a 404 retried: %v", s.waits)
+	}
+}
+
+// headerDoer adds a header to every response of status from inner.
+type headerDoer struct {
+	inner         *script
+	status        int
+	header, value string
+}
+
+func (d *headerDoer) Do(req *http.Request) (*http.Response, error) {
+	resp, err := d.inner.Do(req)
+	if err == nil && resp.StatusCode == d.status {
+		resp.Header.Set(d.header, d.value)
+	}
+	return resp, err
 }
 
 func at(y, mo, d, h, mi int) time.Time { return time.Date(y, time.Month(mo), d, h, mi, 0, 0, time.UTC) }

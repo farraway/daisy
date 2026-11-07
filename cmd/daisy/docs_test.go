@@ -271,7 +271,6 @@ func TestDocsNameOnlyTableCommands(t *testing.T) {
 // agrees them (D30), and their flags, which docs/swarm.md names before
 // the binary runs them; a built verb (`swarm init`) is a row of the table.
 var swarmAgreed = map[string][]string{
-	"swarm apply":  {"--once"},
 	"swarm pause":  nil,
 	"swarm resume": nil,
 }

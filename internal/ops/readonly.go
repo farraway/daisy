@@ -69,11 +69,12 @@ func (r readOnly) Start(dir, name string, stdin io.Reader, stdout, stderr io.Wri
 	return nil, refused("Start", append([]string{name}, args...)...)
 }
 
-func (r readOnly) Now() time.Time              { return r.inner.Now() }
-func (r readOnly) Getenv(key string) string    { return r.inner.Getenv(key) }
-func (r readOnly) Getwd() (string, error)      { return r.inner.Getwd() }
-func (r readOnly) Executable() (string, error) { return r.inner.Executable() }
-func (r readOnly) HTTP() Doer                  { return readingDoer{r.inner.HTTP()} }
+func (r readOnly) Now() time.Time                         { return r.inner.Now() }
+func (r readOnly) After(d time.Duration) <-chan time.Time { return r.inner.After(d) }
+func (r readOnly) Getenv(key string) string               { return r.inner.Getenv(key) }
+func (r readOnly) Getwd() (string, error)                 { return r.inner.Getwd() }
+func (r readOnly) Executable() (string, error)            { return r.inner.Executable() }
+func (r readOnly) HTTP() Doer                             { return readingDoer{r.inner.HTTP()} }
 
 func (r readOnly) Prompt(in io.Reader, out io.Writer, question string) (string, error) {
 	return r.inner.Prompt(in, out, question)
@@ -116,3 +117,4 @@ func (readOnlyFS) Symlink(oldname, newname string) error     { return refused("S
 func (readOnlyFS) Remove(name string) error                  { return refused("Remove", name) }
 func (readOnlyFS) RemoveAll(path string) error               { return refused("RemoveAll", path) }
 func (readOnlyFS) Rename(oldpath, newpath string) error      { return refused("Rename", oldpath, newpath) }
+func (readOnlyFS) Lock(name, _ string) (func(), error)       { return nil, refused("Lock", name) }

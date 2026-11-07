@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,45 +50,89 @@ func (e *apiError) Error() string {
 	return fmt.Sprintf("forge: %s %s: %d %s", e.method, e.path, e.status, e.message)
 }
 
+// retries is how many times a 429 or 5xx response is retried, and
+// retryWait the wait when it carries no Retry-After (section 10).
+const (
+	retries   = 3
+	retryWait = 10 * time.Second
+)
+
 // call sends one request and decodes a response of status want into out
-// (out nil: the body is not read). Any other status is an *apiError.
+// (out nil: the body is not read). A 429 or 5xx is sent again after its
+// Retry-After, else retryWait, at most retries times; any other status,
+// or the last of those, is an *apiError.
 func (g *Gitea) call(method, path string, in any, want int, out any) error {
-	var body io.Reader
+	var payload []byte
 	if in != nil {
 		b, err := json.Marshal(in)
 		if err != nil {
 			return fmt.Errorf("forge: %s %s: %v", method, path, err)
 		}
-		body = bytes.NewReader(b)
+		payload = b
+	}
+	for attempt := 0; ; attempt++ {
+		status, data, header, err := g.send(method, path, payload)
+		if err != nil {
+			return err
+		}
+		if (status == http.StatusTooManyRequests || status >= 500) && attempt < retries {
+			<-g.o.After(retryAfter(header, g.o.Now()))
+			continue
+		}
+		if status != want {
+			return &apiError{method, path, status, message(status, data)}
+		}
+		if out == nil {
+			return nil
+		}
+		if err := json.Unmarshal(data, out); err != nil {
+			return fmt.Errorf("forge: %s %s: %d with a body that is not the expected JSON: %v", method, path, status, err)
+		}
+		return nil
+	}
+}
+
+// send makes one request and reads its whole response.
+func (g *Gitea) send(method, path string, payload []byte) (int, []byte, http.Header, error) {
+	var body io.Reader
+	if payload != nil {
+		body = bytes.NewReader(payload)
 	}
 	req, err := http.NewRequest(method, g.base+path, body)
 	if err != nil {
-		return fmt.Errorf("forge: %s %s: %v", method, path, err)
+		return 0, nil, nil, fmt.Errorf("forge: %s %s: %v", method, path, err)
 	}
 	req.Header.Set("Authorization", "token "+g.token)
 	req.Header.Set("Accept", "application/json")
-	if in != nil {
+	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, err := g.o.HTTP().Do(req)
 	if err != nil {
-		return fmt.Errorf("forge: %s %s: %v", method, path, err)
+		return 0, nil, nil, fmt.Errorf("forge: %s %s: %v", method, path, err)
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("forge: %s %s: reading the response: %v", method, path, err)
+		return 0, nil, nil, fmt.Errorf("forge: %s %s: reading the response: %v", method, path, err)
 	}
-	if resp.StatusCode != want {
-		return &apiError{method, path, resp.StatusCode, message(resp.StatusCode, data)}
+	return resp.StatusCode, data, resp.Header, nil
+}
+
+// retryAfter is the wait a Retry-After header asks for, in seconds or as
+// an HTTP date, else retryWait.
+func retryAfter(h http.Header, now time.Time) time.Duration {
+	v := strings.TrimSpace(h.Get("Retry-After"))
+	if secs, err := strconv.Atoi(v); err == nil && secs >= 0 {
+		return time.Duration(secs) * time.Second
 	}
-	if out == nil {
-		return nil
+	if at, err := http.ParseTime(v); err == nil {
+		if d := at.Sub(now); d > 0 {
+			return d
+		}
+		return 0
 	}
-	if err := json.Unmarshal(data, out); err != nil {
-		return fmt.Errorf("forge: %s %s: %d with a body that is not the expected JSON: %v", method, path, resp.StatusCode, err)
-	}
-	return nil
+	return retryWait
 }
 
 // message is a refusal's text: the body's `message` (Gitea's APIError),

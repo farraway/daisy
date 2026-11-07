@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"maps"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/reconcile"
+	"daisy/internal/swarm/runner"
 )
 
 // SwarmInit is `daisy swarm init [--defaults]` (docs/swarm.md section
@@ -533,5 +535,104 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 		fmt.Fprintf(out, "  %-12s $%.2f per day, $%.2f in all\n", "budget", budget.PerDay, budget.Total)
 	}
 	fmt.Fprintf(out, "  %-12s %d pull requests; at the round limit %d, blocked there %d\n", "approved", approved, atLimit, blockedThere)
+	return nil
+}
+
+// SwarmApply is `daisy swarm apply --once` (docs/swarm.md section 11):
+// the start (validation, the credentials, the account, the host's uid and
+// gid, Docker, <state> and its lock, the labels), then one pass of the
+// reconciler. As built at Step 5 of the swarm build, the pass runs the
+// architect, and only `--once` runs.
+func SwarmApply(c *Context) error { return swarmApply(c, openForge, openRunner) }
+
+// runnerOpener builds the runner; tests pass one returning a runner.Fake.
+type runnerOpener func(o ops.Ops, ws string) runner.Runner
+
+func openRunner(o ops.Ops, ws string) runner.Runner { return runner.Docker{O: o, Dir: ws} }
+
+func swarmApply(c *Context, open opener, openRun runnerOpener) error {
+	if !c.Flag("--once") {
+		return errors.New("Error: swarm apply: only --once is built (the loop joins with the lifecycle); run 'daisy swarm apply --once'")
+	}
+	o, ws := c.Ops, c.Env.Workspace
+	cfg, _, err := declare.Load(o.FS(), ws)
+	if err == nil {
+		err = declare.Validate(o, ws, cfg, 0)
+	}
+	if err != nil {
+		return fmt.Errorf("Error: %v", err)
+	}
+	unset := func(v string) error {
+		return fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", v, filepath.Join(ws, ".env.sh"))
+	}
+	token := secret(c, ws, cfg.Forge.TokenEnv)
+	if token == "" {
+		return unset(cfg.Forge.TokenEnv)
+	}
+	used := map[string]bool{}
+	for _, p := range cfg.Personas {
+		used[p.Provider] = true
+	}
+	for _, p := range slices.Sorted(maps.Keys(used)) {
+		key := cfg.Keys[p]
+		if key.Env != nil {
+			if secret(c, ws, *key.Env) == "" {
+				return unset(*key.Env)
+			}
+			continue
+		}
+		for j := 1; j <= *key.Slots; j++ {
+			slot := filepath.Join(c.Env.Local, "swarm", "credentials", p, strconv.Itoa(j))
+			if fi, err := o.FS().Stat(filepath.Join(slot, "auth.json")); err != nil || fi.Size() == 0 {
+				return fmt.Errorf("Error: swarm: slot %s has no login; run 'CODEX_HOME=%s codex login -c cli_auth_credentials_store=file'", slot, slot)
+			}
+		}
+	}
+	var names []string
+	for _, r := range cfg.Repos {
+		names = append(names, r.Name)
+	}
+	f, err := open(o, cfg.Forge, names, token)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	acct, err := f.Login()
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	var ids []string
+	for _, flag := range []string{"-u", "-g"} {
+		out, _, err := o.Exec(ws, "id", flag)
+		if err != nil {
+			return fmt.Errorf("Error: swarm: id %s: %v", flag, err)
+		}
+		ids = append(ids, strings.TrimSpace(string(out)))
+	}
+	run := openRun(o, ws)
+	if _, err := run.Running(); err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	state := cfg.Forge.State(c.Env.Local)
+	if err := o.FS().MkdirAll(state, 0o755); err != nil {
+		return fmt.Errorf("Error: swarm: cannot create %s: %v", state, err)
+	}
+	lock := filepath.Join(state, "lock")
+	release, err := o.FS().Lock(lock, "apply --once since "+o.Now().UTC().Format(time.RFC3339))
+	var held *ops.LockedError
+	if errors.As(err, &held) {
+		return fmt.Errorf("Error: swarm apply is already running for %s (%s); lock: %s", cfg.Forge.Repo, held.Holder, lock)
+	}
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	defer release()
+	if _, err := f.EnsureLabels(forge.Labels); err != nil {
+		return fmt.Errorf("Error: %v", err)
+	}
+	s := &reconcile.Swarm{O: o, WS: ws, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
+		User: ids[0] + ":" + ids[1], Secret: func(v string) string { return secret(c, ws, v) }, Out: c.Stdout, Err: c.Stderr}
+	if err := s.Once(); err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
 	return nil
 }

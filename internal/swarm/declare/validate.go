@@ -13,19 +13,13 @@ import (
 
 	"daisy/internal/gitx"
 	"daisy/internal/ops"
+	"daisy/internal/swarm/provider"
 )
 
-// providers are the providers with an adapter (section 9): the variables
-// an env credential may name, whether a slots credential is accepted, and
-// the address of the default co-author.
-var providers = map[string]struct {
-	Env   []string
-	Slot  bool
-	Email string
-}{
-	"anthropic": {Env: []string{"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"}, Email: "noreply@anthropic.com"},
-	"openai":    {Env: []string{"OPENAI_API_KEY", "CODEX_API_KEY"}, Slot: true, Email: "noreply@openai.com"},
-}
+// providers is the adapter table (section 9): the variables an env
+// credential may name, whether a slots credential is accepted, and the
+// address of the default co-author.
+var providers = provider.Providers
 
 // defaultCoAuthor is a persona's default trailer value: its model and its
 // provider's no-reply address.

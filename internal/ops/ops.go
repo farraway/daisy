@@ -33,7 +33,18 @@ type FS interface {
 	Remove(name string) error
 	RemoveAll(path string) error
 	Rename(oldpath, newpath string) error
+	// Lock takes an exclusive flock on name without waiting, creating the
+	// file, and writes holder and ` pid <pid>` as its one line. Another
+	// holder is a *LockedError naming the line it wrote. release drops the
+	// lock and leaves the file; the kernel drops it too when the process
+	// exits, however it exits.
+	Lock(name, holder string) (release func(), err error)
 }
+
+// LockedError is a Lock already held: Holder is the line its holder wrote.
+type LockedError struct{ Name, Holder string }
+
+func (e *LockedError) Error() string { return e.Name + " is held: " + e.Holder }
 
 // Process is a child started by Ops.Start. Wait returns the exit status
 // once it has exited; err is set only when the status is unknown (the
@@ -58,6 +69,8 @@ type Ops interface {
 	// the child as its own descriptor, so a terminal stays a terminal.
 	Start(dir, name string, stdin io.Reader, stdout, stderr io.Writer, args ...string) (Process, error)
 	Now() time.Time
+	// After is time.After: the channel receives once d has passed.
+	After(d time.Duration) <-chan time.Time
 	Getenv(key string) string
 	Getwd() (string, error)
 	// Executable is the path of the running binary, links unresolved.

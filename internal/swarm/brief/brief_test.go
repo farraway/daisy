@@ -30,7 +30,7 @@ func TestFind(t *testing.T) {
 	os.Symlink(filepath.Join(ws, "outside/y.md"), filepath.Join(ws, "docs/briefs/z.md"))
 
 	got, err := Find(ops.Real().FS(), ws, []string{"docs/", "lib/docs", "docs/briefs/"})
-	want := []Brief{{"docs/briefs/a-roadmap.md", "active"}, {"docs/briefs/b-second.md", "done"}, {"lib/docs/briefs/x.md", "active"}}
+	want := []Brief{{"docs/briefs/a-roadmap.md", "active", "# Roadmap\nStatus: active\nPriority: first.\n\n## M0\n"}, {"docs/briefs/b-second.md", "done", "# Second\n\nStatus: done\n\n## M0\n"}, {"lib/docs/briefs/x.md", "active", "Status:   active  \n"}}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Find = %+v, %v", got, err)
 	}
@@ -41,7 +41,7 @@ func TestFind(t *testing.T) {
 		t.Error("a missing resource is no error")
 	}
 	// A resource that is a brief itself.
-	if got, _ := Find(ops.Real().FS(), ws, []string{"outside/y.md"}); !reflect.DeepEqual(got, []Brief{{"outside/y.md", "active"}}) {
+	if got, _ := Find(ops.Real().FS(), ws, []string{"outside/y.md"}); !reflect.DeepEqual(got, []Brief{{"outside/y.md", "active", "Status: active\n"}}) {
 		t.Errorf("a file resource: %+v", got)
 	}
 }
