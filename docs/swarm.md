@@ -344,7 +344,7 @@ of `apply`, so an edit applies at the next pass.
 | `forge.kind` | string | detected from the first repository's `origin` (section 10) | `gitea` or `github`: a kind with an adapter |
 | `forge.api` | string | `https://<host>/api/v1` (gitea), `https://api.github.com` (github) | an absolute `http` or `https` URL, no user information, no query, no trailing `/` |
 | `forge.repo` | string | `<owner>/<repo>` from the first repository's `origin` | `^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`; the issues repository, which holds every swarm issue, declared in `repos` or not; `<owner>` owns every declared repository (section 14, item 7); with kind `gitea`, `<owner>` is an organization, whose labels the swarm uses (section 10), which only the forge can tell: `EnsureLabels` fails otherwise |
-| `forge.token_env` | string | `GITEA_TOKEN` (gitea), `GITHUB_TOKEN` (github) | a variable name, `^[A-Za-z_][A-Za-z0-9_]*$`, naming the swarm account's token (section 8, rule 5), never `DAISY_MAINTAINER_TOKEN`, the maintainer's; the token itself never appears in any file Daisy writes |
+| `forge.token_env` | string | `GITEA_TOKEN` (gitea), `GITHUB_TOKEN` (github) | a variable name, `^[A-Za-z_][A-Za-z0-9_]*$`, naming the swarm account's token (section 8, rule 5), never `DAISY_MAINTAINER_TOKEN`, the maintainer's, nor a provider's credential variable (section 9), which a member is given; the token itself never appears in any file Daisy writes |
 | `forge.commit_email` | string | the swarm account's email as `Login()` reports it (the wizard's question 34; none reported, no default) | required: an address, `<local>@<domain>` without whitespace or angle brackets; the author address of every swarm commit, `<role> (Daisy swarm) <commit_email>`, which Step 5 makes each clone's identity in place of section 7.1's `<role>@daisy-swarm.invalid` (section 14, item 52) |
 | `forge.board` | string | absent | optional; the title of an open project of the organization that owns `forge.repo`, on which `apply` keeps each open swarm issue in the column of its stage (`Board`, section 10); kind `gitea` only; absent, no board |
 | `repos` | array of objects | one entry per product repository found from `<ws>` (section 11, the wizard) | one or more, in order: the first is the product (its image runs the owner and the architect, in its clone; with one repository declared, a slice that names none is its, and with more, such a slice is *bad slices*, section 7.5; the fast lane's one slice is the first's); each entry has exactly the fields below (section 14, item 49) |
@@ -394,7 +394,7 @@ failure is reported and the verb exits 1; the message is
 | Problem | Message (after `Error: `) |
 |---|---|
 | file absent | `swarm.json: not found at <ws>/swarm/swarm.json; run 'daisy swarm init'` |
-| not JSON, or a field of the wrong type | `swarm.json: <field>: <what encoding/json reports>` (a syntax error is `swarm.json: <what encoding/json reports> at byte <offset>`; an object or array where another type stands, `swarm.json: <field>: not an object`, `not an array`) |
+| not JSON, or a field of the wrong type | `swarm.json: <field>: <what encoding/json reports>` (a syntax error is `swarm.json: <what encoding/json reports> at byte <offset>`; an object or array where another type stands, `swarm.json: <field>: not an object`, `not an array`; a `null` where the field is not optional, `swarm.json: <field>: null is not a boolean` (`an array`, `an object`, `a string`, `a number`), since encoding/json would leave the zero value: a gate silently off) |
 | unknown field | `swarm.json: <field>: unknown field` |
 | required field absent | `swarm.json: <field>: missing` |
 | forge kind without an adapter | `swarm.json: forge.kind: "gitlab" has no adapter` |
@@ -427,7 +427,7 @@ failure is reported and the verb exits 1; the message is
 | slots for a provider without them | `swarm.json: keys.anthropic.slots: anthropic takes no slot` (a count out of range is the range row: `keys.openai.slots: 0 is not between 1 and 16`) |
 | `forge.board` with kind `github` | `swarm.json: forge.board: github has no board in version 1` |
 | `forge.board` empty | `swarm.json: forge.board: empty` |
-| bad URL, repo or variable name | `swarm.json: forge.api: "<value>" is not an absolute http(s) URL without credentials`, `swarm.json: forge.repo: "<value>" is not <owner>/<repo>`, `swarm.json: forge.token_env: "<value>" is not a variable name`, `swarm.json: forge.token_env: "DAISY_MAINTAINER_TOKEN" is the maintainer's token; the swarm's is its own account's (section 8)` |
+| bad URL, repo or variable name | `swarm.json: forge.api: "<value>" is not an absolute http(s) URL without credentials`, `swarm.json: forge.repo: "<value>" is not <owner>/<repo>`, `swarm.json: forge.token_env: "<value>" is not a variable name`, `swarm.json: forge.token_env: "DAISY_MAINTAINER_TOKEN" is the maintainer's token; the swarm's is its own account's (section 8)`, `swarm.json: forge.token_env: "<value>" is <provider>'s credential variable, which a member is given; the forge token never enters a container (section 8)` |
 | a bad base, duration or count | `swarm.json: base: "<value>" is not a branch name`, `swarm.json: timeout: "<value>" is not a Go duration`, `swarm.json: timeout: "30s" is not between 1m and 24h`; in the wizard, `swarm.json: max_members: "<answer>" is not an integer` |
 
 **Secret values.** A variable named by `forge.token_env` or a `keys` `env` is
@@ -1154,6 +1154,10 @@ Branch swarm/<n>-<s> into <base>; head <sha>.
 <check> on <sha>: exit <code>
 ```
 
+The pull request's `<body>` is its opener's entry (section 6): the
+swarm's without its marker, a `trusted` login's as written, and anyone
+else's `Opened by <login>, not trusted; content omitted.`
+
 Which sections a prompt holds, by role:
 
 | Section | Owner and architect | Worker, `planned` | Worker, `reviewed` | Reviewers |
@@ -1274,7 +1278,10 @@ maintainer makes it. Leave such a change out and say so.`
 ### 7.5 The output file
 
 `apply` reads `<run>/io/out.md` (the member's `/work/.swarm/out.md`) once
-the container has exited. Its first line is read without a trailing `\r`
+the container has exited, and only when it is a regular file (`Lstat`): a
+link the member left there is never followed, so it cannot make the host
+read and post a file of the host's; anything but a regular file is *no
+output*. Its first line is read without a trailing `\r`
 or trailing spaces.
 
 | The file | Means |
@@ -1746,6 +1753,7 @@ type Issue struct {
     Labels    []string
     Milestone int64     // its milestone's id, 0 for none
     Comments  []Comment // filled by Issue(n) only
+    Pull      bool      // a pull request: Issue(n) reads both (Gitea's pull_request)
 }
 type Milestone struct {
     ID           int64
@@ -2320,8 +2328,8 @@ else.
 |---|---|
 | Usage | `daisy swarm triage <n>`, `daisy swarm accept <n>`, `daisy swarm approve <n>`, `daisy swarm merge <n>`, `daisy swarm unblock <n> <comment...>`, `daisy swarm close <n> [comment...]`; `<n>` a positive issue number, else usage; the words after `<n>` are one comment |
 | Reads | `swarm/swarm.json` (validated as `status` validates it, the prompts included), `<ws>/.env.sh` or the environment for `DAISY_MAINTAINER_TOKEN`, and for the value of the variable `forge.token_env` names, which is only compared, never sent; nothing under `<state>` |
-| Start | in this order, every refusal before any write: `<n>`; validation; `DAISY_MAINTAINER_TOKEN` set, and not equal to the swarm's token (refused before the forge is reached); the adapter built with it and `Login()`, refused when the login is the swarm's (`trusted`'s last, as `init` writes it: section 3); `Maintainer <login> on <owner>/<repo>`; `Issue(n)`, which must be open and carry exactly one `swarm:*` label, the one the verb's row names |
-| Each verb | `triage`: at `swarm:proposed`, `Relabel(n, "swarm:proposed", "swarm:ready")` (T3). `accept`: at `swarm:planning`, `Relabel(n, "swarm:planning", "swarm:planned")` (T7). `approve`: at any stage, `Pulls(n)`, and `Approve(m, <head>)` on the current pull request, which must be open. `merge`: at `swarm:approved`, `Pulls(n)`; the current pull request open: `Reviews(m)` and `Merge(m, <head>)`, `<head>` the commit both the swarm's newest reviews approve, as the merge step reads it (section 12); merged already: nothing; closed unmerged, or no head both approve: refused; then, by the slices the accepted plan declares as the merge step counts them, `Relabel(n, "swarm:approved", "swarm:planned")` when a slice follows `<s>` (T13), else `CloseIssue(n)`. `unblock`: at `swarm:blocked`, the label `was swarm:<label>` names in the newest of the reconciler's notes that blocked the issue (section 7.6: every note but the round limit's first), refused when there is none; `Comment(n, <comment>)`, then `Relabel(n, "swarm:blocked", <label>)` (T18), the comment first, so the role that stage runs reads it. `close`: at any stage, `Comment(n, <comment>)` when given, then `CloseIssue(n)` (T19); the pull requests are left as they are |
+| Start | in this order, every refusal before any write: `<n>`; validation; `DAISY_MAINTAINER_TOKEN` set, and not equal to the swarm's token (refused before the forge is reached); the adapter built with it and `Login()`, refused when the login is the swarm's (`trusted`'s last, as `init` writes it: section 3); `Maintainer <login> on <owner>/<repo>`; `Issue(n)`, which must be an issue, not a pull request (the forges number both together, and `Issue` reads either), open, and carry exactly one `swarm:*` label, the one the verb's row names |
+| Each verb | `triage`: at `swarm:proposed`, `Relabel(n, "swarm:proposed", "swarm:ready")` (T3). `accept`: at `swarm:planning`, `Relabel(n, "swarm:planning", "swarm:planned")` (T7). `approve`: at any stage, `Pulls(n)`, and `Approve(m, <head>)` on the current pull request, which must be open. `merge`: at `swarm:approved`, `Pulls(n)`; the current pull request open: `Reviews(m)` and `Merge(m, <head>)`, `<head>` the commit both the swarm's newest reviews approve, as the merge step reads it (section 12); merged already: nothing; closed unmerged, or no head both approve: refused; then, by the slices the accepted plan declares as the merge step counts them, `Relabel(n, "swarm:approved", "swarm:planned")` when a slice follows `<s>` (T13), else `CloseIssue(n)`. `unblock`: at `swarm:blocked`, the label `was swarm:<label>` names (the last such in the note, which writes it after any text it quotes) in the newest of the reconciler's notes that blocked the issue (section 7.6: every note but the round limit's first), refused when there is none; `Comment(n, <comment>)`, then `Relabel(n, "swarm:blocked", <label>)` (T18), the comment first, so the role that stage runs reads it. `close`: at any stage, `Comment(n, <comment>)` when given, then `CloseIssue(n)` (T19); the pull requests are left as they are |
 | Forge | reads: `Login`, `Issue`, `Pulls`, `Reviews`; writes: `Relabel`, `Comment`, `Approve`, `Merge`, `CloseIssue`, each by the maintainer's account; no entry it posts carries the marker (section 6): a comment opening with it is refused |
 | Writes | nothing but those forge writes: no file, no container, no commit |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, then per write `#<n> <from> → <to>`, `#<n> commented`, `#<n> closed`, `#<n> approved pull <name>#<m> at <short sha>`, `#<n> merged pull <name>#<m> (slice <s> of <S>)` or `#<n> pull <name>#<m> already merged (slice <s> of <S>)`, and `#<n> closed (last slice merged)` |
@@ -3335,3 +3343,14 @@ entries among revision 1's, and was renumbered at Step 38.
     characters**, not bytes (7.5); **a slot's secrets are its strings of
     32 bytes or more**, as built (7.6); **a brief's header ends at its
     first `## ` heading outside a fence** (section 4).
+69. **Step 11's second pass.** **`out.md` is read only as a regular
+    file** (7.5): a member could otherwise leave a link to a host file,
+    `.env.sh` or another slot's login, and have `apply` post it;
+    **`forge.token_env` may not name a provider's credential variable**
+    (section 3), which a member is given; **a `null` where a field is not
+    optional is the wrong type** (section 3), not a gate silently off;
+    **the pull request's body in a prompt is its opener's entry** (7.3):
+    an untrusted opener's is omitted; **`unblock` reads the last
+    `(was swarm:<label>)` of the note** (section 11), since a failure's
+    reason may quote a member's path; **the maintainer's verbs refuse a
+    pull request's number** (`Issue.Pull`, sections 10 and 11).

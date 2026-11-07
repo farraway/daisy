@@ -154,8 +154,13 @@ func Parse(data []byte) (Config, error) {
 	return c, nil
 }
 
-// decode fills v from raw, naming path in any error.
+// decode fills v from raw, naming path in any error. A JSON null is
+// absent for an optional (pointer) field and the wrong type for any other:
+// encoding/json would leave the zero value, a gate silently off.
 func decode(path string, raw json.RawMessage, v reflect.Value) error {
+	if v.Kind() != reflect.Pointer && string(bytes.TrimSpace(raw)) == "null" {
+		return fieldErr(path, "null is not %s", kindName(v.Kind()))
+	}
 	switch v.Kind() {
 	case reflect.Pointer:
 		if string(bytes.TrimSpace(raw)) == "null" {
@@ -235,6 +240,21 @@ func decode(path string, raw json.RawMessage, v reflect.Value) error {
 		return fieldErr(path, "%s", strings.TrimPrefix(err.Error(), "json: "))
 	}
 	return nil
+}
+
+// kindName is a value kind as section 3 names it.
+func kindName(k reflect.Kind) string {
+	switch k {
+	case reflect.Bool:
+		return "a boolean"
+	case reflect.Slice:
+		return "an array"
+	case reflect.Struct, reflect.Map:
+		return "an object"
+	case reflect.String:
+		return "a string"
+	}
+	return "a number"
 }
 
 func jsonName(f reflect.StructField) string {

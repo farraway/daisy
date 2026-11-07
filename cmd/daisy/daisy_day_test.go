@@ -228,10 +228,14 @@ func TestDoneRefusals(t *testing.T) {
 	if code != 1 || out != "" || errs != "Multiple tasks match \"shared TOKEN\":\n  1) (B) 2026-07-27 Shared token Alpha +daisy\n  2) (B) 2026-07-27 Shared token Beta +daisy\n" {
 		t.Errorf("several: exit %d out %q err %q", code, out, errs)
 	}
-	for _, args := range [][]string{{"done"}, {"done", ""}, {"done", "a", "b"}} {
+	for _, args := range [][]string{{"done"}, {"done", ""}, {"done", "a", "b"}, {"done", "--dry-run"}} {
 		if code, _, errs := runWith(m.dayOps(m.ws, true), args...); code != 2 || !strings.Contains(errs, "Usage: daisy done <pattern>") {
 			t.Errorf("%v: exit %d err %q", args, code, errs)
 		}
+	}
+	// A pattern with a dash and more than a flag's shape is a pattern.
+	if code, _, errs := runWith(m.dayOps(m.ws, true), "done", "--dry-run support"); code != 1 || errs != "No task found matching: --dry-run support\n" {
+		t.Errorf("--dry-run support: exit %d err %q", code, errs)
 	}
 	code, _, errs = runWith(m.dayOps(m.ws, false), "done", "Delta")
 	if code != 1 || !strings.Contains(errs, "System health check failed") {

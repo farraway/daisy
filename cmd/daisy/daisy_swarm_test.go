@@ -226,3 +226,15 @@ func TestSwarmTriageThroughGitea(t *testing.T) {
 		t.Errorf("usage: exit %d %q", code, errs)
 	}
 }
+
+// An empty word in <n>'s place is a usage error, not the comment's first
+// word shifted into it (`swarm close "" 7 dup` is not #7); an empty word in
+// the comment is no argument.
+func TestSwarmVerbsEmptyIssueWord(t *testing.T) {
+	m := newMachine(t)
+	for _, args := range [][]string{{"swarm", "close", "", "7", "dup"}, {"swarm", "unblock", "", "7", "dup"}} {
+		if code, out, errs := runWith(m.planOps(m.ws), args...); code != 2 || out != "" || !strings.HasPrefix(errs, "Error: empty argument\n") {
+			t.Errorf("%q: exit %d out %q err %q", args, code, out, errs)
+		}
+	}
+}

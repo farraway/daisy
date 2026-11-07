@@ -70,7 +70,9 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 }
 
 // blockedFromRe is the label a reconciler note names the issue left
-// (section 7.6): `(was swarm:<label>)`.
+// (section 7.6): `(was swarm:<label>)`, the last in the note, since every
+// note writes it after any text it quotes (a failure's reason may hold a
+// member's path, a refused merge the forge's message).
 var blockedFromRe = regexp.MustCompile(`\(was (swarm:[a-z-]+)\)`)
 
 // BlockedFrom is the stage is was blocked from, as the newest of the
@@ -86,11 +88,15 @@ func BlockedFrom(is forge.Issue, swarmLogin string) (label string, ok bool) {
 		if !swarm || m.Role != "reconciler" || strings.HasSuffix(text, architectRevises) {
 			continue
 		}
-		was := blockedFromRe.FindStringSubmatch(text)
-		if was == nil || was[1] == "swarm:blocked" || !slices.Contains(forge.Labels, was[1]) {
+		all := blockedFromRe.FindAllStringSubmatch(text, -1)
+		if all == nil {
 			return "", false
 		}
-		return was[1], true
+		was := all[len(all)-1][1]
+		if was == "swarm:blocked" || !slices.Contains(forge.Labels, was) {
+			return "", false
+		}
+		return was, true
 	}
 	return "", false
 }

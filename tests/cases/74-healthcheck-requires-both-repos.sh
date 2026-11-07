@@ -44,6 +44,6 @@ fixture_register_home zebranest "$inner"
 
 fixture_run_cli healthcheck --force
 assert_eq "$RUN_EXIT" "0" "a registered home of its own under the root is not a failure"
-assert_not_contains "$RUN_STDERR" "lies inside" "and not warned about"
+assert_not_contains "$RUN_STDERR" "zebranest" "and not warned about"
 
 fixture_unregister_home zebranest

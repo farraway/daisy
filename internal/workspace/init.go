@@ -91,6 +91,17 @@ func planInit(o ops.Ops, m env.Env, name, target string) (*initPlan, error) {
 	if identity.IsRepoRoot(o, target) && identity.IsLinkedWorktree(o, target) {
 		return nil, fmt.Errorf("Error: %s is a linked worktree; its git config belongs to the repository at %s\n  Run 'daisy init %s' in that repository's main checkout instead", target, identity.CommonDir(o, target), name)
 	}
+	// A home's own repository commits as the home's identity (docs/
+	// home-management.md, Identities): binding it as a workspace would
+	// apply another one there.
+	if identity.IsRepoRoot(o, target) {
+		real, _ := fs.EvalSymlinks(target)
+		for _, h := range env.Homes(fs, m.HomesFile()) {
+			if hr, err := fs.EvalSymlinks(h.Path); err == nil && hr == real {
+				return nil, fmt.Errorf("Error: %s is home '%s''s own repository, whose commits carry the home's identity; bind a workspace of its own", target, h.Name)
+			}
+		}
+	}
 	if isDir(fs, p.daisyDir) && !env.IsWorkspaceDir(fs, m.Root, target) {
 		return nil, fmt.Errorf("Error: %s is the Daisy root, not a workspace binding; to bind the root itself, run 'daisy init %s' inside it", p.daisyDir, name)
 	}
@@ -210,6 +221,18 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 	}
 	if p.merged, err = mergeSkills(fs, p.m.Root, p.home, p.skills); err != nil {
 		return err
+	}
+	// Every file a skill's copy reads is read now, before the first write.
+	for _, n := range sortedNames(p.skills) {
+		dirs := []string{p.skills[n]}
+		if p.merged[n].skill != nil {
+			dirs = append(dirs, p.merged[n].rootDir)
+		}
+		for _, d := range dirs {
+			if err := ops.CheckTree(fs, d); err != nil {
+				return fmt.Errorf("Error: the skill %s cannot be copied: %v", n, err)
+			}
+		}
 	}
 	// A stub of a skill the home no longer has is swept with its copy; a
 	// rule not in init's stub form is the user's and stays.

@@ -174,7 +174,7 @@ func (f *Fake) add(repo string, it *item) int {
 }
 
 func (it *item) issue(n int) Issue {
-	return Issue{Number: n, Title: it.title, Body: it.body, Author: it.author, Created: it.created, Closed: it.closed, Open: it.open, Labels: slices.Clone(it.labels), Milestone: it.milestone}
+	return Issue{Number: n, Title: it.title, Body: it.body, Author: it.author, Created: it.created, Closed: it.closed, Open: it.open, Labels: slices.Clone(it.labels), Milestone: it.milestone, Pull: it.pull != nil}
 }
 
 // Issues: forge.repo's issues in state carrying label, by number; pull

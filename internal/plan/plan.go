@@ -124,7 +124,7 @@ func Header(content string) (description, project string, ok bool) {
 			return "", "", false
 		}
 		if i := strings.LastIndex(h, " — +"); i >= 0 {
-			return h[:i], h[strings.LastIndex(h, "— +")+len("— +"):], true
+			return h[:i], h[i+len(" — +"):], true
 		}
 		return h, "", true
 	}

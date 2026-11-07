@@ -2,6 +2,8 @@ package commands
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -123,5 +125,39 @@ func TestSwarmPassCountsAStartedCheck(t *testing.T) {
 	a.pass()
 	if out := a.stdout.String(); !strings.Contains(out, "#1 worker run 1: check started") || strings.Contains(out, "#2 architect run 1: launched") {
 		t.Errorf("a check and a member at once under max_members 1:\n%s", out)
+	}
+}
+
+// out.md is the member's: a link it leaves there is never followed (section
+// 7.5), so it cannot make apply read a host file and post it; the run has no
+// output.
+func TestSwarmOutputLinkIsNotFollowed(t *testing.T) {
+	a := newApplyWS(t)
+	host := filepath.Join(a.ws, "host-secret.txt")
+	if err := os.WriteFile(host, []byte("HOST-SECRET-0123456789\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	a.runner.Script(1, "architect", runner.Canned{Work: func(work string) error {
+		return os.Symlink(host, filepath.Join(filepath.Dir(work), "io", "out.md"))
+	}})
+	a.pass()
+	if body := strings.Join(a.bodies(1), "\n"); strings.Contains(body, "HOST-SECRET") || !strings.Contains(body, "failed: no output") {
+		t.Errorf("the issue's thread:\n%s", body)
+	}
+}
+
+// apply reports a problem of .env.sh once, at its start, however often the
+// pass then reads a secret (section 11, Stderr: as init).
+func TestSwarmApplyWarnsOnceAboutEnvSh(t *testing.T) {
+	a := newApplyWS(t)
+	if err := os.WriteFile(filepath.Join(a.ws, ".env.sh"), []byte("export GITEA_TOKEN=\"tok-123\"\nsource ./other.sh\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	a.pass()
+	if n := strings.Count(a.stderr.String(), ".env.sh line 2"); n != 1 {
+		t.Errorf("warned %d times:\n%s", n, a.stderr.String())
 	}
 }

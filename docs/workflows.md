@@ -98,7 +98,7 @@ plan (when `PLAN.md` links one).
 
 6. Add to today.md (if high priority):
    a. If priority is (A) or (B):
-      - Convert to markdown format: "- [ ] @context {description}"
+      - Convert to markdown format: "- [ ] {description}", the text after the priority and date as written (as `new-day` carries it, so `daisy done` can tick it)
       - Find appropriate section in today.md
       - Append to section
       - Report: "Added to today.md: {formatted_task}"

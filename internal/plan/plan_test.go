@@ -72,6 +72,8 @@ func TestHeader(t *testing.T) {
 		{"intro\n# A plan — +proj\n# later\n", "A plan", "proj"},
 		{"# A plan\n", "A plan", ""},
 		{"#not\n# x — +a — +b\n", "x — +a", "b"},
+		{"# Fix the parser — +daisy notes— +x\n", "Fix the parser", "daisy notes— +x"}, // one split, at the last " — +"
+
 	} {
 		d, p, ok := Header(tc.in)
 		if !ok || d != tc.desc || p != tc.proj {

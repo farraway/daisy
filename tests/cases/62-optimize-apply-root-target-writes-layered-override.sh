@@ -44,7 +44,7 @@ assert_text_eq "$(cat "$materialised")" \
     "the materialised prompt is the root's with the rule appended to its Rules"
 assert_contains "$(cat "$FIXTURE_WORKSPACE/.daisy/AGENTS.md")" "Read the full \`$materialised\`" \
     "the stub points at the materialised prompt"
-assert_not_contains "$RUN_STDOUT" "daisy commit --root" "no root commit is asked for"
+assert_eq "$(git -C "$FIXTURE_ROOT" status --porcelain -- prompts skills)" "" "the root's prompts and skills are untouched"
 assert_eq "$(fixture_commit_count)" "$((commits_before + 1))" "the home is committed once"
 assert_eq "$(git -C "$(fixture_home_dir)" show --name-only --format= HEAD | LC_ALL=C sort | tr '\n' ' ')" \
     "feedback/.last-optimized feedback/archive.md feedback/feedback.md prompts/retrospective.md " \

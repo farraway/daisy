@@ -59,7 +59,7 @@ func textIfDated(t todo.Task, line string) string {
 // included (the bash's pattern substitution turned an `&` in it into the
 // placeholder's name).
 func Fill(template string, now time.Time, c Carried) string {
-	return strings.NewReplacer(
+	return strings.TrimRight(strings.NewReplacer(
 		"{DATE}", now.Format(time.DateOnly),
 		"{DAY}", now.Format("Monday"),
 		"{TIME}", now.Format("1504"),
@@ -67,7 +67,7 @@ func Fill(template string, now time.Time, c Carried) string {
 		"{NEXT_PRIORITY_TASKS}", checklist(c.Next),
 		"{INBOX_TASKS}", checklist(c.Inbox),
 		"{GITHUB_TASKS}", checklist(c.GitHub),
-	).Replace(strings.TrimRight(template, "\n")) + "\n"
+	).Replace(template), "\n") + "\n"
 }
 
 func checklist(tasks []string) string {

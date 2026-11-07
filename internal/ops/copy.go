@@ -63,3 +63,33 @@ func Rewrite(fsys FS, path string, data []byte, perm fs.FileMode) error {
 	}
 	return fsys.WriteFile(path, data, perm)
 }
+
+// CheckTree reads, without writing, everything CopyTree would copy from
+// src, so that a copy decided before a command's first write cannot fail
+// on a file it cannot read halfway through.
+func CheckTree(fsys FS, src string) error {
+	fi, err := fsys.Lstat(src)
+	if err != nil {
+		return err
+	}
+	switch {
+	case fi.Mode()&fs.ModeSymlink != 0:
+		_, err := fsys.Readlink(src)
+		return err
+	case fi.Mode().IsRegular():
+		_, err := fsys.ReadFile(src)
+		return err
+	case fi.IsDir():
+		entries, err := fsys.ReadDir(src)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if err := CheckTree(fsys, filepath.Join(src, e.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("copying %s: not a file, directory or symlink", src)
+}

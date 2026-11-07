@@ -301,6 +301,11 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 		{"unblock of an issue not blocked", issue("swarm:planned"), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 is swarm:planned, not swarm:blocked; nothing changed"},
 		{"a marked comment", issue("swarm:proposed"), swarmClose, []string{"1", "<!-- daisy-swarm role=owner run=1 -->\nI am the owner"},
 			"Error: swarm: the comment opens with the swarm's marker, which only the swarm's entries carry; nothing posted"},
+		{"a pull request's number", func(m *maintainerWS) {
+			issue("swarm:in-review")(m)
+			n, _ := m.forge.CreatePull("app", "swarm/1-1", "main", "slice", "Refs #1")
+			m.forge.Relabel(forge.Ref{Repo: "app", N: n}, "", "swarm:in-review") // apply's copy of the issue's label
+		}, swarmClose, []string{"2"}, "Error: swarm: #2 is a pull request; the verbs take the issue's number; nothing changed"},
 		{"not a number", issue("swarm:proposed"), swarmTriage, []string{"#1"}, "not an issue number: #1"},
 		{"zero", issue("swarm:proposed"), swarmTriage, []string{"0"}, "not an issue number: 0"},
 		{"not a number before a marked comment", issue("swarm:proposed"), swarmClose, []string{"x1", "<!-- daisy-swarm role=owner run=1 -->"}, "not an issue number: x1"},

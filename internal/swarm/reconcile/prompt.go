@@ -437,11 +437,13 @@ func (j *Job) pullRequest(p forge.Pull) string {
 	for _, it := range items {
 		thread = append(thread, trim(it.text))
 	}
-	// A swarm pull request's body is marked and opened by the swarm's
-	// login (section 6).
+	// The body is its opener's entry (section 6): the swarm's, marked;
+	// a trusted login's as written; anyone else's omitted.
 	body := p.Body
 	if _, ok := Swarms(Entry{p.Author, p.Body, p.Created}, j.SwarmLogin); ok {
 		body = swarmText(p.Body)
+	} else if !j.trusted(p.Author) {
+		body = fmt.Sprintf("Opened by %s, not trusted; content omitted.", p.Author)
 	}
 	return doc(fmt.Sprintf("# Pull request %s#%d: %s", p.Repo, p.Number, p.Title),
 		fmt.Sprintf("Branch %s into %s; head %s.", p.Head, p.Base, p.HeadSHA), Shift(trim(body), 1), "## Thread", orNone(thread))

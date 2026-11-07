@@ -116,6 +116,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: forge.repo: "acme" is not <owner>/<repo>`, func(c *Config) { c.Forge.Repo = "acme" }},
 		{`swarm.json: forge.token_env: "GITEA-TOKEN" is not a variable name`, func(c *Config) { c.Forge.TokenEnv = "GITEA-TOKEN" }},
 		{`swarm.json: forge.token_env: "DAISY_MAINTAINER_TOKEN" is the maintainer's token; the swarm's is its own account's (section 8)`, func(c *Config) { c.Forge.TokenEnv = "DAISY_MAINTAINER_TOKEN" }},
+		{`swarm.json: forge.token_env: "CLAUDE_CODE_OAUTH_TOKEN" is anthropic's credential variable, which a member is given; the forge token never enters a container (section 8)`, func(c *Config) { c.Forge.TokenEnv = "CLAUDE_CODE_OAUTH_TOKEN" }},
 		{`swarm.json: forge.commit_email: missing`, func(c *Config) { c.Forge.CommitEmail = "" }},
 		{`swarm.json: forge.commit_email: "swarm at example.net" is not an email address`, func(c *Config) { c.Forge.CommitEmail = "swarm at example.net" }},
 		{`swarm.json: forge.commit_email: "swarm\v@example.net" is not an email address`, func(c *Config) { c.Forge.CommitEmail = "swarm\v@example.net" }},
@@ -230,6 +231,8 @@ func TestParseNamesTheField(t *testing.T) {
 		{`"protected": []}`, `"protected": [1]}`, "swarm.json: repos[1].protected[0]: cannot unmarshal number into Go value of type string"},
 		{`"owner": {"max_open_proposals": 5},`, `"owner": {},`, "swarm.json: owner.max_open_proposals: missing"},
 		{`"owner": {"max_open_proposals": 5},`, `"owner": [],`, "swarm.json: owner: not an object"},
+		{`"merge": true`, `"merge": null`, "swarm.json: gates.merge: null is not a boolean"}, // not a gate silently off
+		{`"check": ["make", "check"]`, `"check": null`, "swarm.json: repos[0].check: null is not an array"},
 	} {
 		src := strings.Replace(good, tc.from, tc.to, 1)
 		if src == good {

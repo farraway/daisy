@@ -1,9 +1,9 @@
 // Package reconcile is the swarm's lifecycle over the forge (docs/swarm.md
 // sections 5–7): the marker and the threads, the trigger rule, the prompt
-// files and Task texts, host-side git (the mirrors and the clones) and
-// `swarm apply`'s pass with its launches and collections. As built at
-// Step 5 of the swarm build the pass runs the architect; the other roles,
-// the merge step and the owner's batch join with the lifecycle.
+// files and Task texts, host-side git (the mirrors, the clones and the
+// secret check) and `swarm apply`'s pass (section 11): the five roles'
+// launches and collections, the merge step (section 12), the owner's
+// batch, the forge milestones, and the counts `status` reads.
 package reconcile
 
 import (

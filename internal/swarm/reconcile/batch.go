@@ -234,7 +234,7 @@ func (c *collection) batch() error {
 	if l, ok := Has(c.lines, "failed"); ok {
 		return failed(strings.TrimPrefix(l, "failed: "))
 	}
-	out, err := fs.ReadFile(filepath.Join(c.r.Dir, "io", "out.md"))
+	out, err := c.r.Output(fs)
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
 		return err
 	}

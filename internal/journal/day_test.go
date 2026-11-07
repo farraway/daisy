@@ -92,4 +92,9 @@ func TestFillKeepsAPlaceholderInATasksText(t *testing.T) {
 	if got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
+	// A template whose last line is a task placeholder ends in one newline too.
+	got = journal.Fill("**Inbox:**\n{INBOX_TASKS}\n", time.Date(2026, 11, 7, 9, 0, 0, 0, time.UTC), journal.Carried{Inbox: []string{"Triage"}})
+	if got != "**Inbox:**\n- [ ] Triage\n" {
+		t.Errorf("a placeholder last: %q", got)
+	}
 }

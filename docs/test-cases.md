@@ -28,21 +28,24 @@ start a new day
 **today.md sections should contain:**
 
 ```markdown
-#### High-Priority Tasks
-- [ ] @jira Fix critical bug +PROJ-1234
-- [ ] @jira Review design doc +PROJ-1235
-- [ ] @meeting Sprint planning
+**Now:**
+- [ ] Fix critical bug @jira +PROJ-1234
 
-#### Task Inbox
+**Next:**
+- [ ] Review design doc @jira +PROJ-1235
+- [ ] Sprint planning @meeting
+
+**Inbox:**
+(the template's own lines, then)
 - [ ] Triage new tickets +INBOX
-- [ ] @jira Update documentation +PROJ-1236
+- [ ] Update documentation @jira +PROJ-1236
 
-#### GitHub PRs
-- [ ] @git Review PR#1234 +PROJ-1237
+**GitHub PRs:**
+- [ ] Review PR#1234 @git +PROJ-1237
 ```
 
 **Verification:**
-- ✅ (A) and (B) tasks in High-Priority (excluding @git)
+- ✅ (A) tasks under Now, (B) tasks under Next (excluding @git)
 - ✅ Tasks without priority in Task Inbox (excluding @git)
 - ✅ @git/@github tasks in separate section regardless of priority
 - ✅ (C) priority task NOT included (not high-priority)
@@ -62,9 +65,11 @@ start a new day
 
 **today.md excerpt:**
 ```markdown
-#### High-Priority Tasks
-- [ ] @jira Fix critical bug +PROJ-1234
-- [ ] @jira Review design doc
+**Now:**
+- [ ] Fix critical bug @jira +PROJ-1234
+
+**Next:**
+- [ ] Review design doc @jira
 ```
 
 ### Command
@@ -76,9 +81,11 @@ done bug fix
 
 **today.md after:**
 ```markdown
-#### High-Priority Tasks
-- [x] @jira Fix critical bug +PROJ-1234
-- [ ] @jira Review design doc
+**Now:**
+- [x] Fix critical bug @jira +PROJ-1234
+
+**Next:**
+- [ ] Review design doc @jira
 ```
 
 **tasks/todo.txt after:**
@@ -224,18 +231,18 @@ x 2026-01-17 2026-01-13 Completed task 3 @jira
 
 | Input | Expected Output (today.md) |
 |-------|---------------------------|
-| `(A) 2026-01-15 Fix bug @jira +PROJ-1234` | `- [ ] @jira Fix bug +PROJ-1234` |
-| `x 2026-01-16 2026-01-15 Fix bug @jira +PROJ-1234` | `- [x] @jira Fix bug +PROJ-1234` |
-| `2026-01-15 Review PR @git +PROJ-1236` | `- [ ] @git Review PR +PROJ-1236` |
-| `z 2026-01-16 2026-01-15 Old task @context` | `- [z] @context Old task` |
+| `(A) 2026-01-15 Fix bug @jira +PROJ-1234` | `- [ ] Fix bug @jira +PROJ-1234` |
+| `x 2026-01-16 2026-01-15 Fix bug @jira +PROJ-1234` | not carried |
+| `2026-01-15 Review PR @git +PROJ-1236` | `- [ ] Review PR @git +PROJ-1236` |
+| `z 2026-01-16 2026-01-15 Old task @context` | not carried |
 | `(B) 2026-01-15 @git @jira Multi-context task` | `- [ ] @git @jira Multi-context task` |
-| `(C) 2026-01-15 No context task +PROJECT` | `- [ ] No context task +PROJECT` |
+| `(C) 2026-01-15 No context task +PROJECT` | not carried |
 
 **Verification Rules:**
 - ✅ Priority stripped
 - ✅ Dates stripped
-- ✅ @context labels moved to front
-- ✅ Checkbox state matches completion status (x/z/none)
+- ✅ @context labels left where they are
+- ✅ Only open lines carried, as `- [ ]` (x, z and untagged (C)/(D) lines are not)
 - ✅ +PROJECT labels preserved in position
 - ✅ Description preserved exactly
 
@@ -466,26 +473,26 @@ start a new day
 
 ### Expected today.md Sections
 
-**High-Priority Tasks:**
+**Now:**
 ```
-- [ ] @jira High priority normal task
+- [ ] High priority normal task @jira
 ```
 
-**Task Inbox:**
+**Inbox:** (after the template's own lines)
 ```
-- [ ] @jira Inbox normal task
+- [ ] Inbox normal task @jira
 ```
 
 **GitHub PRs:**
 ```
-- [ ] @git High priority git task
-- [ ] @github Inbox git task
-- [ ] @git Soon git task
+- [ ] High priority git task @git
+- [ ] Inbox git task @github
+- [ ] Soon git task @git
 ```
 
 **Verification:**
-- ✅ (A) non-git → High-Priority
-- ✅ (B) with @git → GitHub PRs (NOT High-Priority)
+- ✅ (A) non-git → Now
+- ✅ (B) with @git → GitHub PRs (NOT Next)
 - ✅ No priority, no git → Task Inbox
 - ✅ No priority, with @github → GitHub PRs
 - ✅ (C) with @git → GitHub PRs

@@ -235,10 +235,11 @@ type giteaIssue struct {
 		Name string `json:"name"`
 	} `json:"labels"`
 	Milestone *giteaMilestone `json:"milestone"`
+	Pull      *struct{}       `json:"pull_request"`
 }
 
 func (r giteaIssue) issue() Issue {
-	is := Issue{Number: r.Number, Title: r.Title, Body: r.Body, Author: r.User.Login, Created: r.Created, Open: r.State == "open"}
+	is := Issue{Number: r.Number, Title: r.Title, Body: r.Body, Author: r.User.Login, Created: r.Created, Open: r.State == "open", Pull: r.Pull != nil}
 	if r.Closed != nil {
 		is.Closed = *r.Closed
 	}

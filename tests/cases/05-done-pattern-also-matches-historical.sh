@@ -11,4 +11,5 @@ fixture_run_cli done "Ship widget"
 
 assert_eq "$RUN_EXIT" "0" "resolves the sole active match"
 assert_contains "$(fixture_read_todo)" "x 2026-07-01 2026-06-01 Ship widget old release +daisy" "historical x line survives verbatim"
-assert_contains "$(fixture_read_todo)" "2026-07-27 Ship widget +daisy" "active task completed"
+today=$(date +%Y-%m-%d)
+assert_contains "$(fixture_read_todo)" "x $today 2026-07-27 Ship widget +daisy" "active task completed"

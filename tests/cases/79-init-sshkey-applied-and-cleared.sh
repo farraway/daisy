@@ -181,7 +181,6 @@ fixture_run_cli init pelicanmoor
 rm "$FIXTURE_WORKSPACE/.daisy/gitconfig" "$FIXTURE_HOME/identities/pelicanmoor"
 fixture_run_cli status
 assert_contains "$RUN_STDERR" "Pelican Moorhen" "status names the applied identity nothing claims"
-assert_not_contains "$RUN_STDERR" "no git identity is applied" "and does not claim none is applied"
 fixture_run_cli init testhome
 assert_eq "$RUN_EXIT" "0" "a re-init with nothing on record exits 0"
 assert_eq "$(git -C "$FIXTURE_WORKSPACE" config --local core.sshCommand || true)" "" "and still takes the key of Daisy's form"

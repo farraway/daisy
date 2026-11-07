@@ -2,6 +2,7 @@ package declare
 
 import (
 	"fmt"
+	"maps"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -117,14 +118,21 @@ func checkForge(f Forge, skip Skip) *Error {
 	return nil
 }
 
-// checkTokenEnv: forge.token_env is a variable name, and never the
-// maintainer's (section 8, rule 5: no swarm process reads it).
+// checkTokenEnv: forge.token_env is a variable name, never the
+// maintainer's (section 8, rule 5: no swarm process reads it) and never a
+// provider's credential variable (a member is given that one, and the
+// forge token never enters a container, rule 2).
 func checkTokenEnv(v string) *Error {
 	if !varShape.MatchString(v) {
 		return fieldErr("forge.token_env", "%q is not a variable name", v)
 	}
 	if v == MaintainerTokenEnv {
 		return fieldErr("forge.token_env", "%q is the maintainer's token; the swarm's is its own account's (section 8)", v)
+	}
+	for _, name := range slices.Sorted(maps.Keys(providers)) {
+		if slices.Contains(providers[name].Env, v) {
+			return fieldErr("forge.token_env", "%q is %s's credential variable, which a member is given; the forge token never enters a container (section 8)", v, name)
+		}
 	}
 	return nil
 }

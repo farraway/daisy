@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -57,11 +58,11 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 	if err != nil {
 		return usageError(stderr, cmd, err.Error())
 	}
-	if len(positional) > 0 && len(positional[0]) > 2 && strings.HasPrefix(positional[0], "--") {
+	if len(positional) > 0 && longFlag.MatchString(positional[0]) {
 		return usageError(stderr, cmd, "unknown flag: "+positional[0])
 	}
 	c.Flags, c.Values, c.Args, c.EmptyWords = flags, values, positional, empty
-	if cmd.Max != Unbounded && emptyBefore(cmd, rest) {
+	if emptyBefore(cmd, rest) {
 		return usageError(stderr, cmd, "empty argument")
 	}
 	if len(c.Args) < cmd.Min {
@@ -143,8 +144,8 @@ func nounOnly(stdout, stderr io.Writer, args []string, group []Command) int {
 // splitArgs: the command's flags are the known words leading its
 // arguments, a value flag taking the word after it as its value; the first
 // other word starts the positionals (`tasks --todo "-1 point"` searches for
-// `-1 point`), except that Run refuses one beginning `--` as an unknown flag
-// (`plan new --specc …` is a mistyped flag, not a description). An empty word is no argument: `done ""`
+// `-1 point`), except that Run refuses one shaped like a long flag as an
+// unknown flag (`plan new --specc …` is a mistyped flag, not a description). An empty word is no argument: `done ""`
 // is a missing pattern, not one that matches every task; empty says one
 // was dropped. A value flag without a value, or with an empty one, is a
 // usage error.
@@ -159,6 +160,10 @@ func splitArgs(cmd Command, args []string) (flags []string, values []commands.Va
 	}
 	return flags, values, positional, empty, err
 }
+
+// longFlag is a word shaped like a long flag: one before the positionals
+// that is not the command's is a mistyped flag, not an argument.
+var longFlag = regexp.MustCompile(`^--[A-Za-z0-9][A-Za-z0-9-]*$`)
 
 // leading takes the flags and value flags off the front of args.
 func leading(cmd Command, args []string) (rest, flags []string, values []commands.Value, err error) {
@@ -184,9 +189,13 @@ func leading(cmd Command, args []string) (rest, flags []string, values []command
 // emptyBefore: an empty word comes before a given one. A command whose
 // arguments have places would read the later word in the empty one's
 // (`plan new "" +proj` as the description `+proj`), so that is a usage
-// error; for a command taking any number of words the places do not matter.
+// error; for a command taking any number of words the places do not
+// matter, but for its Placed leading ones (`swarm close "" 7` is not #7).
 func emptyBefore(cmd Command, args []string) bool {
 	args, _, _, _ = leading(cmd, args)
+	if cmd.Max == Unbounded {
+		return slices.Contains(args[:min(cmd.Placed, len(args))], "")
+	}
 	empty := false
 	for _, a := range args {
 		if a == "" {

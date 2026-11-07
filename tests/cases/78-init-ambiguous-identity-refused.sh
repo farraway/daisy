@@ -241,7 +241,7 @@ printf 'name=Pelican Moorhen\nemail=pelican@example.invalid\n' > "$enc/sub/.dais
 fixture_run_cli init testhome "$enc/sub"
 assert_eq "$RUN_EXIT" "0" "init in a subdirectory with a stage leftover exits 0"
 assert_eq "$(git -C "$enc" config --local user.name)" "Pelican Moorhen" "the enclosing repository's identity is untouched"
-assert_not_contains "$RUN_STDOUT" "Cleared the git identity an interrupted init applied" "and no clearing is claimed"
+assert_not_contains "$RUN_STDOUT" "Cleared the git identity" "and no clearing is claimed"
 [ -e "$enc/sub/.daisy.stage.abcdef" ] && left=yes || left=no
 assert_eq "$left" "no" "while the leftover is removed"
 

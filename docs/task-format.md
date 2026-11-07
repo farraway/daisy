@@ -88,7 +88,7 @@ When extracting tasks from `todo.txt` to `today.md`:
 
 1. **Now section:** Priority (A) tasks, excluding @git/@github
 2. **Next section:** Priority (B) tasks, excluding @git/@github
-3. **Inbox section:** Tasks without priority prefix, excluding @git/@github (includes default checklist items)
+3. **Inbox section:** Dated tasks without priority prefix, excluding @git/@github (after the template's own checklist items); an undated task without priority is not carried
 4. **GitHub PRs section:** ALL tasks with @git or @github context, any priority
 
 **Special case:** Tasks with @git/@github always go to GitHub section regardless of priority.
@@ -113,36 +113,33 @@ Where:
 
 **Target format (today.md):**
 ```markdown
-- [ ] {contexts} {description}
-- [x] {contexts} {description}  (if completed)
-- [z] {contexts} {description}  (if cancelled)
+- [ ] {body}
 ```
 
 **Conversion Steps:**
 1. Parse source line using regex groups
-2. Determine checkbox state:
-   - Group 1 = "x " → use `- [x]`
-   - Group 1 = "z " → use `- [z]`
-   - Group 1 empty → use `- [ ]`
-3. Drop priority (group 2)
-4. Drop dates (groups 3, 4)
-5. Extract body (group 5)
-6. Parse body for @context labels (tokens starting with `@`)
-7. Reformat: checkbox + contexts (space-separated) + remaining description
+2. Carry only open lines (group 1 empty): an `x ` or `z ` line is never
+   carried, nor a `(C)`/`(D)` line without `@git` (docs/cli.md, `new-day`)
+3. Drop priority (group 2) and creation date (group 4) when the line has a
+   date; an undated line is carried whole, and so is a dated `@git` line
+   whose priority is outside A–D
+4. Extract body (group 5)
+5. Write `- [ ] ` + body, the body exactly as written (contexts and projects
+   stay where they are: `daisy done` ticks a line by its exact text)
 
 **Conversion Examples:**
 
 | Input (todo.txt) | Output (today.md) |
 |------------------|-------------------|
-| `(A) 2026-01-15 Fix bug @jira +PROJ-1234` | `- [ ] @jira Fix bug +PROJ-1234` |
-| `x 2026-01-16 2026-01-15 Fix bug @jira +PROJ-1234` | `- [x] @jira Fix bug +PROJ-1234` |
-| `2026-01-15 Review PR @git +PROJ-1236` | `- [ ] @git Review PR +PROJ-1236` |
-| `z 2026-01-16 2026-01-15 Old task @context` | `- [z] @context Old task` |
+| `(A) 2026-01-15 Fix bug @jira +PROJ-1234` | `- [ ] Fix bug @jira +PROJ-1234` |
+| `x 2026-01-16 2026-01-15 Fix bug @jira +PROJ-1234` | not carried |
+| `2026-01-15 Review PR @git +PROJ-1236` | `- [ ] Review PR @git +PROJ-1236` |
+| `z 2026-01-16 2026-01-15 Old task @context` | not carried |
 | `(B) 2026-01-15 @git @jira Multi-context task` | `- [ ] @git @jira Multi-context task` |
 
 **Edge cases:**
-- No contexts in body → Just description (no context prefix)
-- Context in middle of description → Move all contexts to front
+- Contexts and projects are never moved: the body is written as it is
+  (`daisy new-day`, docs/cli.md: "A task's text is written as it is")
 
 ## Pattern Matching (`daisy done`, `daisy tasks`)
 

@@ -42,6 +42,23 @@ func Runs(fs ops.FS, state string) ([]Run, error) {
 	return out, nil
 }
 
+// Output is the run's `io/out.md`, read only when it is a regular file
+// (section 7.5): the member wrote it, and a link it left is never
+// followed, so it cannot make the host read and post a file of the
+// host's. A link or anything else not a regular file is
+// iofs.ErrNotExist: no output.
+func (r Run) Output(fs ops.FS) ([]byte, error) {
+	p := filepath.Join(r.Dir, "io", "out.md")
+	fi, err := fs.Lstat(p)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, iofs.ErrNotExist
+	}
+	return fs.ReadFile(p)
+}
+
 // Result is the run's result lines; none when it has no result yet.
 func (r Run) Result(fs ops.FS) ([]string, error) {
 	b, err := fs.ReadFile(filepath.Join(r.Dir, "result"))

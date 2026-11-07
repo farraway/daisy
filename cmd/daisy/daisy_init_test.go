@@ -201,6 +201,7 @@ func TestRefusedInitWritesNothing(t *testing.T) {
 	ws := scratch(t)
 	m.pinned(t, ws, "init", "pelicanmoor")
 	gitconfig := filepath.Join(m.home, "gitconfig")
+	unreadable := filepath.Join(m.home, "skills", "nested", "myskill", "secret.md")
 	defaultID, err := os.ReadFile(gitconfig)
 	if err != nil {
 		t.Fatal(err)
@@ -212,6 +213,8 @@ func TestRefusedInitWritesNothing(t *testing.T) {
 			writeFile(t, gitconfig, "name=Fixture Author\nemail=fixture@example.invalid\nsshkey=~/.ssh/my key\n")
 		},
 		func() { writeFile(t, gitconfig, "sshkey=~/.ssh/my key\n") }, // incomplete and malformed
+		// A home skill's file that cannot be read is found before the first write.
+		func() { writeFile(t, unreadable, "x\n"); os.Chmod(unreadable, 0o000) },
 		func() {
 			os.Remove(filepath.Join(ws, ".daisy", "identity"))
 			os.Mkdir(filepath.Join(ws, ".daisy", "identity"), 0o755)
@@ -229,6 +232,7 @@ func TestRefusedInitWritesNothing(t *testing.T) {
 		os.RemoveAll(filepath.Join(ws, ".claude", "settings.local.json"))
 		os.Remove(filepath.Join(ws, ".daisy", "identity"))
 		writeFile(t, gitconfig, string(defaultID))
+		os.Remove(unreadable)
 		m.pinned(t, ws, "init", "pelicanmoor")
 	}
 }
@@ -889,4 +893,20 @@ func TestInitWritesCodexTwinTree(t *testing.T) {
 		}
 	}
 	twins(t, ws)
+}
+
+// A home's own repository is not a workspace: binding it would apply an
+// identity there, and every commit of the home would carry it.
+func TestInitRefusesAHomesOwnRepository(t *testing.T) {
+	m := initMachine(t)
+	m.seed(t)
+	m.initHomeRepo(t)
+	before := keys(t, m.home)
+	code, out, errs := m.pinned(t, m.home, "init", "pelicanmoor")
+	if code != 1 || out != "" || !strings.Contains(errs, "is home 'testhome''s own repository") {
+		t.Errorf("exit %d out %q err %q", code, out, errs)
+	}
+	if keys(t, m.home) != before {
+		t.Errorf("keys %s → %s", before, keys(t, m.home))
+	}
 }

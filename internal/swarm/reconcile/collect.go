@@ -93,7 +93,7 @@ func (s *Swarm) collect(r Run) error {
 	if l, ok := Has(c.lines, "failed"); ok {
 		return c.fail(strings.TrimPrefix(l, "failed: "))
 	}
-	out, err := s.O.FS().ReadFile(filepath.Join(r.Dir, "io", "out.md"))
+	out, err := r.Output(s.O.FS())
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
 		return err
 	}

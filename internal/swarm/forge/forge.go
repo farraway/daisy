@@ -89,6 +89,7 @@ type Issue struct {
 	Labels    []string
 	Milestone int64     // its milestone's id, 0 for none
 	Comments  []Comment // filled by Issue(n) only
+	Pull      bool      // a pull request: Issue(n) reads both, as the forges number them together
 }
 
 // Milestone is a milestone of forge.repo and its issues, open and closed,

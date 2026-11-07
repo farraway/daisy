@@ -3,6 +3,7 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"io"
 	iofs "io/fs"
 	"maps"
 	"path/filepath"
@@ -117,13 +118,16 @@ func secret(c *Context, ws, name string) string { return secrets(c, ws)(name) }
 
 // secrets resolves variables as secret does, <ws>/.env.sh read once and
 // its problems reported once.
-func secrets(c *Context, ws string) func(name string) string {
+func secrets(c *Context, ws string) func(name string) string { return readSecrets(c, ws, c.Stderr) }
+
+// readSecrets is secrets with the problems reported to warn.
+func readSecrets(c *Context, ws string, warn io.Writer) func(name string) string {
 	var vars map[string]string
 	if b, err := c.Ops.FS().ReadFile(filepath.Join(ws, ".env.sh")); err == nil {
 		var problems []string
 		vars, problems = env.ParseShellEnv(b, c.Ops.Getenv)
 		for _, p := range problems {
-			fmt.Fprintf(c.Stderr, "⚠️  .env.sh %s\n", p)
+			fmt.Fprintf(warn, "⚠️  .env.sh %s\n", p)
 		}
 	}
 	return func(name string) string {
@@ -527,7 +531,7 @@ func lastMet(fs ops.FS, state string) (int, []string, error) {
 		if r.N != 0 {
 			continue
 		}
-		out, err := fs.ReadFile(filepath.Join(r.Dir, "io", "out.md"))
+		out, err := r.Output(fs)
 		if errors.Is(err, iofs.ErrNotExist) || err == nil && strings.TrimSpace(string(out)) == "" {
 			continue
 		}
@@ -774,7 +778,8 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 	unset := func(v string) error {
 		return fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", v, filepath.Join(ws, ".env.sh"))
 	}
-	token := secret(c, ws, cfg.Forge.TokenEnv)
+	vars := secrets(c, ws) // its problems reported here, once
+	token := vars(cfg.Forge.TokenEnv)
 	if token == "" {
 		return unset(cfg.Forge.TokenEnv)
 	}
@@ -783,7 +788,7 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		used[p.Provider] = true
 	}
 	for _, p := range slices.Sorted(maps.Keys(used)) {
-		if key := cfg.Keys[p]; key.Env != nil && secret(c, ws, *key.Env) == "" {
+		if key := cfg.Keys[p]; key.Env != nil && vars(*key.Env) == "" {
 			return unset(*key.Env)
 		}
 	}
@@ -835,7 +840,7 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		return fmt.Errorf("Error: %v", err)
 	}
 	s := &reconcile.Swarm{O: o, WS: ws, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
-		User: ids[0] + ":" + ids[1], Secret: func(v string) string { return secret(c, ws, v) }, Out: c.Stdout, Err: c.Stderr}
+		User: ids[0] + ":" + ids[1], Secret: func(v string) string { return readSecrets(c, ws, io.Discard)(v) } /* re-read at each use, warned once above */, Out: c.Stdout, Err: c.Stderr}
 	if once {
 		if err := s.Pass(true); err != nil {
 			return fmt.Errorf("Error: swarm: %v", err)

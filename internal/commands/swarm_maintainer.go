@@ -113,6 +113,9 @@ func (m *maintainer) issue(want string) (forge.Issue, error) {
 	if err != nil {
 		return is, fmt.Errorf("Error: swarm: %v", err)
 	}
+	if is.Pull {
+		return is, fmt.Errorf("Error: swarm: #%d is a pull request; the verbs take the issue's number; nothing changed", m.n)
+	}
 	if !is.Open {
 		return is, fmt.Errorf("Error: swarm: #%d is closed; nothing changed", m.n)
 	}

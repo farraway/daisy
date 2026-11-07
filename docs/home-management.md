@@ -59,7 +59,8 @@ An identity is the git author a workspace's own repository commits as —
 `user.name`, `user.email` and, optionally, the SSH key it pushes with. It
 does not change who commits in the home's repository: Daisy's own commits
 there (`daisy commit` among them) carry that repository's git config, which
-`daisy home new` sets from the default identity. An identity is a file of
+`daisy home new` sets from the default identity; so a home's own repository
+is never bound as a workspace (`init` refuses it). An identity is a file of
 `key=value` lines in a home:
 
 ```

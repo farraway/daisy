@@ -372,6 +372,16 @@ func TestGiteaIssue(t *testing.T) {
 		t.Errorf("Issue(7) = %+v, %v", got, err)
 	}
 	s.done()
+
+	// The issues endpoint answers a pull request's number too: Pull says so.
+	g, s = gitea(t, nil,
+		pair{"GET", "/repos/acme/app/issues/8", "", 200,
+			`{"id":41,"number":8,"title":"slice","body":"Refs #7","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[],"milestone":null,"pull_request":{"merged":false}}`},
+		pair{"GET", "/repos/acme/app/issues/8/comments", "", 200, `[]`})
+	if got, err := g.Issue(8); err != nil || !got.Pull {
+		t.Errorf("Issue(8) = %+v, %v; want a pull request", got, err)
+	}
+	s.done()
 }
 
 // idPairs are the two label lists the id map reads for repository name:
