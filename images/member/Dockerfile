@@ -53,7 +53,10 @@ RUN test -n "$CLAUDE_CODE_VERSION" && test -n "$CODEX_VERSION" \
 ENV HOME=/home/member \
     DISABLE_AUTOUPDATER=1
 RUN mkdir -m 1777 /home/member && chmod 0666 /etc/passwd
-COPY --chmod=0755 entrypoint.sh /usr/local/bin/member-entrypoint
+# COPY then chmod, not COPY --chmod, which needs BuildKit: the file builds
+# under the legacy builder too (a Docker without buildx; Step 5's smoke).
+COPY entrypoint.sh /usr/local/bin/member-entrypoint
+RUN chmod 0755 /usr/local/bin/member-entrypoint
 ENTRYPOINT ["/usr/local/bin/member-entrypoint"]
 
 # Never root, even when run without --user: the image's unprivileged user
