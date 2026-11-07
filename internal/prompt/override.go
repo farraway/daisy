@@ -266,9 +266,20 @@ func LayeredFrom(root, proposal []byte) ([]byte, error) {
 		kept := trimBlankLines(root[start:end])
 		if !bytes.HasPrefix(p, kept) || (len(p) > len(kept) && p[len(kept)] != '\n' && p[len(kept)] != '\r') {
 			n := firstDiff(p, kept) + firstLine(proposal)
-			return nil, fmt.Errorf("changes the root's rules at line %d; a layered override only adds rules after the root's, which stand first and unchanged (use --rewrite, a full override, to change or drop one)", n)
+			return nil, rootChanged(n)
 		}
 		rest = p[len(kept):]
+		// A line that continues the root's last rule changes that rule
+		// too: an indented one (a sub-item, a second paragraph), or one
+		// right after it that starts no block of its own (a lazy
+		// continuation; a list item, heading, fence, quote or break starts
+		// one).
+		at := len(p) - len(bytes.TrimLeft(rest, "\r\n"))
+		adjacent := bytes.Count(p[len(kept):at], []byte("\n")) == 1
+		if at < len(p) && (p[at] == ' ' || p[at] == '\t' || adjacent && !blockStart.Match(bytes.TrimRight(p[at:lineEnd(p, at)], "\r\n"))) {
+			n := bytes.Count(p[:at], []byte("\n")) + firstLine(proposal)
+			return nil, rootChanged(n)
+		}
 	} else {
 		rest = sectionBody(p)
 	}
@@ -277,6 +288,18 @@ func LayeredFrom(root, proposal []byte) ([]byte, error) {
 		out = append(append(append(out, '\n'), renumber(body, 1)...), '\n')
 	}
 	return out, nil
+}
+
+// blockStart is a line that ends the paragraph before it in CommonMark,
+// not continues it: a list item, an ATX heading, a fence, a block quote or
+// a thematic break. An HTML line is not told apart (inline HTML continues
+// the paragraph; only some block tags end it), so it counts as a
+// continuation and the proposal is refused: the safe side.
+var blockStart = regexp.MustCompile("^(([0-9]+[.)]|[-*+])([ \t]|$)|#{1,6}([ \t]|$)|```|~~~|>|(\\*[ \t]*){3,}$|(_[ \t]*){3,}$|(-[ \t]*){3,}$)")
+
+// rootChanged refuses a proposal that changes the root's rules at line n.
+func rootChanged(n int) error {
+	return fmt.Errorf("changes the root's rules at line %d; a layered override only adds rules after the root's, which stand first and unchanged (use --rewrite, a full override, to change or drop one)", n)
 }
 
 // firstDiff is the 0-based line of a where it first differs from b.

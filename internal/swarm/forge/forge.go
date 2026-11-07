@@ -111,6 +111,7 @@ type Pull struct {
 	MergeSHA                         string // "" unless merged
 	Open, Merged                     bool
 	Labels                           []string
+	Author                           string // the login that opened it
 	Created                          time.Time
 }
 

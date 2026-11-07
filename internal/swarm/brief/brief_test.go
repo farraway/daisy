@@ -68,3 +68,19 @@ func TestMilestonesAndTitles(t *testing.T) {
 		t.Errorf("MilestoneTitle = %q", got)
 	}
 }
+
+// The header ends at the first `## ` heading outside a fence: an example
+// in a fenced block, a `## ` line or a `Status:` line in it, neither ends
+// the header nor is its Status (section 4).
+func TestStatusAfterAFencedHeading(t *testing.T) {
+	ws := t.TempDir()
+	text := "# Brief\n\nProposals look like:\n\n```markdown\n## <title>\nStatus: done\n```\n\nStatus: active\n\n## M0\n"
+	write(t, filepath.Join(ws, "docs/briefs/b.md"), text)
+	got, err := Find(ops.Real().FS(), ws, []string{"docs/"})
+	if err != nil || !reflect.DeepEqual(got, []Brief{{"docs/briefs/b.md", "active", text}}) {
+		t.Fatalf("Find = %+v, %v", got, err)
+	}
+	if ms := got[0].Milestones(); !reflect.DeepEqual(ms, []string{"M0"}) {
+		t.Errorf("Milestones = %q", ms)
+	}
+}

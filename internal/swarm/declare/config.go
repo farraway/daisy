@@ -21,6 +21,10 @@ import (
 // Roles are the five personas, in the order the file and the wizard list them.
 var Roles = []string{"owner", "architect", "worker", "adversary", "sympathetic"}
 
+// MaintainerTokenEnv is the variable holding the maintainer's own token,
+// which only the maintainer's verbs read (section 8, rule 5; section 11).
+const MaintainerTokenEnv = "DAISY_MAINTAINER_TOKEN"
+
 // Config is swarm.json. Its field order is section 3's, which is the
 // order Format writes; a field without omitempty is required.
 type Config struct {

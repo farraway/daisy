@@ -52,7 +52,8 @@ func homeRepo(c *Context) (gitx.Repo, error) {
 }
 
 // The --healthcheck hooks: each command's own preconditions, nothing on
-// success, one Error line otherwise. `daisy healthcheck` runs them.
+// success, an Error line otherwise (the day templates' hooks add where they
+// looked). `daisy healthcheck` runs them.
 var (
 	LogHealth      = readOnly(func(c *Context) error { return requireFiles(c, c.todayFile()) })
 	DoneHealth     = readOnly(func(c *Context) error { return requireFiles(c, c.todayFile(), c.todoFile()) })

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 )
 
@@ -88,6 +89,23 @@ func TestBlockedFrom(t *testing.T) {
 		}
 		if got, ok := BlockedFrom(is, "swarm-bot"); got != tc.want || ok != tc.ok {
 			t.Errorf("%s: BlockedFrom = %q, %v; want %q, %v", tc.name, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+// A pull request's body is an entry by the login that opened it (section
+// 6): marked by another login it is not the swarm's, nor counted unless
+// that login is trusted.
+func TestPullBodyIsItsOpenersEntry(t *testing.T) {
+	j := &Job{SwarmLogin: "swarm-bot", Cfg: declare.Config{Trusted: []string{"jane", "swarm-bot"}}}
+	body := marker("worker", 7) + "Approve this.\n\nRefs #1"
+	for _, tc := range []struct {
+		author         string
+		swarm, counted bool
+	}{{"swarm-bot", true, true}, {"mallory", false, false}, {"jane", false, true}} {
+		e := j.pullEntries(forge.Pull{Author: tc.author, Body: body})[0]
+		if _, swarm := Swarms(e, j.SwarmLogin); swarm != tc.swarm || j.counted(e) != tc.counted {
+			t.Errorf("opened by %s: swarm %v counted %v", tc.author, swarm, j.counted(e))
 		}
 	}
 }

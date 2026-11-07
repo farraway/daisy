@@ -78,3 +78,18 @@ func TestFillWeekTemplate(t *testing.T) {
 		t.Errorf("got:\n%s", got)
 	}
 }
+
+// A task's text is written as it is, a placeholder's name in it included:
+// the placeholders are replaced in one pass over the template, never over
+// text already put in.
+func TestFillKeepsAPlaceholderInATasksText(t *testing.T) {
+	tpl := "**Now:**\n{HIGH_PRIORITY_TASKS}\n**GitHub:**\n{GITHUB_TASKS}\n_end_\n"
+	got := journal.Fill(tpl, time.Date(2026, 11, 7, 9, 0, 0, 0, time.UTC), journal.Carried{
+		Now:    []string{"Document {GITHUB_TASKS} and {DATE}"},
+		GitHub: []string{"Review PR @github"},
+	})
+	want := "**Now:**\n- [ ] Document {GITHUB_TASKS} and {DATE}\n\n**GitHub:**\n- [ ] Review PR @github\n\n_end_\n"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

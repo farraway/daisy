@@ -107,9 +107,10 @@ func (g Git) Unstamped(name, base, sha, coAuthor string) ([]string, error) {
 	return bad, nil
 }
 
-// Changed is every path base...sha changes (section 7.6, step 3).
+// Changed is every path base...sha changes (section 7.6, step 3), a
+// renamed file by both its paths.
 func (g Git) Changed(name, base, sha string) ([]string, error) {
-	out, err := g.run(g.Mirror(name), "diff", "--name-only", "refs/heads/"+base+"..."+sha)
+	out, err := g.run(g.Mirror(name), "diff", "--name-only", "--no-renames", "refs/heads/"+base+"..."+sha)
 	if err != nil || out == "" {
 		return nil, err
 	}
@@ -158,15 +159,25 @@ var ErrPushRejected = errors.New("push rejected")
 
 // Push sends ref to the branch on the repository's origin, never forced,
 // then moves the mirror's branch to sha and drops ref (section 7.6, step
-// 5). A refused push is ErrPushRejected, with git's message.
+// 5). A push the remote refuses is ErrPushRejected, with git's message;
+// one that does not reach it is an error.
 func (g Git) Push(r declare.Repo, ref, branch, sha string) error {
 	m := g.Mirror(r.Name)
 	url, opts, err := g.origin(r)
 	if err != nil {
 		return err
 	}
-	if _, err := g.run(m, append(opts, "push", "--quiet", url, ref+":refs/heads/"+branch)...); err != nil {
-		return fmt.Errorf("%w: %v", ErrPushRejected, err)
+	args := append(opts, "push", "--quiet", "--porcelain", url, ref+":refs/heads/"+branch)
+	if out, errb, err := g.O.Exec(m, "git", args...); err != nil {
+		err = fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))
+		// git's porcelain marks a ref the remote refused with `!`; any
+		// other failure (the forge unreachable) is an error to retry.
+		for _, l := range strings.Split(string(out), "\n") {
+			if strings.HasPrefix(l, "!") {
+				return fmt.Errorf("%w: %v", ErrPushRejected, err)
+			}
+		}
+		return err
 	}
 	if _, err := g.run(m, "update-ref", "refs/heads/"+branch, sha); err != nil {
 		return err

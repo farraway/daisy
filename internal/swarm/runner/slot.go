@@ -119,7 +119,7 @@ func (s *Slot) clear(fs ops.FS) error {
 	return nil
 }
 
-// SlotSecrets is every JSON string value of 32 characters or more, at any
+// SlotSecrets is every JSON string value of 32 bytes or more, at any
 // depth, in dir's auth.json when it is a regular file (section 7.6).
 func SlotSecrets(fs ops.FS, dir string) ([]string, error) {
 	p := filepath.Join(dir, "auth.json")

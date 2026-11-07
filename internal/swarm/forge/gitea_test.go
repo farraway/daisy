@@ -256,7 +256,7 @@ func TestGiteaPulls(t *testing.T) {
 		m, _ := json.Marshal(map[string]any{
 			"id": 1000 + number, "number": number, "title": "T" + itoa(number), "body": body, "state": state, "merged": merged,
 			"merge_commit_sha": sha, "head": map[string]string{"ref": ref, "sha": "h" + itoa(number)}, "base": map[string]string{"ref": "main"},
-			"labels": []map[string]any{{"id": 4, "name": "swarm:in-review"}}, "created_at": "2026-11-03T08:00:00Z",
+			"labels": []map[string]any{{"id": 4, "name": "swarm:in-review"}}, "created_at": "2026-11-03T08:00:00Z", "user": map[string]string{"login": "swarm-bot"},
 		})
 		return string(m)
 	}
@@ -280,8 +280,8 @@ func TestGiteaPulls(t *testing.T) {
 	}
 	created := time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC)
 	want := []Pull{
-		{Repo: "lib", Number: 5, Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Labels: []string{"swarm:in-review"}, Created: created},
-		{Repo: "app", Number: 20, Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Labels: []string{"swarm:in-review"}, Created: created},
+		{Repo: "lib", Number: 5, Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Labels: []string{"swarm:in-review"}, Author: "swarm-bot", Created: created},
+		{Repo: "app", Number: 20, Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Labels: []string{"swarm:in-review"}, Author: "swarm-bot", Created: created},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Pulls(7) =\n%+v\nwant\n%+v", got, want)

@@ -200,8 +200,18 @@ func TestRefusedInitWritesNothing(t *testing.T) {
 	m := initMachine(t)
 	ws := scratch(t)
 	m.pinned(t, ws, "init", "pelicanmoor")
+	gitconfig := filepath.Join(m.home, "gitconfig")
+	defaultID, err := os.ReadFile(gitconfig)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, obstacle := range []func(){
 		func() { writeFile(t, filepath.Join(ws, ".claude", "settings.local.json"), "{ not json") },
+		// The default identity may be incomplete, never malformed.
+		func() {
+			writeFile(t, gitconfig, "name=Fixture Author\nemail=fixture@example.invalid\nsshkey=~/.ssh/my key\n")
+		},
+		func() { writeFile(t, gitconfig, "sshkey=~/.ssh/my key\n") }, // incomplete and malformed
 		func() {
 			os.Remove(filepath.Join(ws, ".daisy", "identity"))
 			os.Mkdir(filepath.Join(ws, ".daisy", "identity"), 0o755)
@@ -218,6 +228,7 @@ func TestRefusedInitWritesNothing(t *testing.T) {
 		}
 		os.RemoveAll(filepath.Join(ws, ".claude", "settings.local.json"))
 		os.Remove(filepath.Join(ws, ".daisy", "identity"))
+		writeFile(t, gitconfig, string(defaultID))
 		m.pinned(t, ws, "init", "pelicanmoor")
 	}
 }
@@ -378,6 +389,8 @@ func TestInstallRewritesAStaleRcLine(t *testing.T) {
 	for _, c := range []struct{ shell, rc, text string }{
 		{"/bin/zsh", ".zshenv", "# DAISY_ROOT=\"/old\" until the move\nexport DAISY_ROOT=\"" + m.root + "\"\n"},
 		{"/bin/zsh", ".zshenv", "export DAISY_ROOT=" + m.root + "\n"},
+		{"/bin/zsh", ".zshenv", "export DAISY_ROOT='" + m.root + "'\n"},
+		{"/usr/bin/fish", ".config/fish/config.fish", "set -gx DAISY_ROOT '" + m.root + "'\n"},
 		{"/bin/zsh", ".zshenv", "# export DAISY_ROOT=\"/old\"\nif true; then\n  export DAISY_ROOT=\"" + m.root + "\"\nfi\n"},
 		{"/usr/bin/fish", ".config/fish/config.fish", "set -gx DAISY_ROOT \"" + m.root + "\"\nset -gx PATH $DAISY_ROOT/bin $PATH\n"},
 	} {

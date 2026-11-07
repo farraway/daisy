@@ -106,7 +106,9 @@ which is everything a root commit takes.
 suite (`tests/`), and no Go file sits at the root. `cmd/daisy/main.go` is
 `os.Exit(cli.Run(ops.Real(), …))` and nothing else; `cmd/daisy` also holds
 the functional tests, which call the same `cli.Run` with an `ops.Fake`
-built around a temp machine; `internal/ops` is every side
+built around a temp machine (every package's tests run under
+`internal/testenv`, which pins what the git they start reads: `HOME`,
+`USER`, no global git config); `internal/ops` is every side
 effect in one value (`Real`, `ReadOnly`, `Fake`); `internal/env` resolves
 root, registry, workspace, home, identity and projects, and reads
 `.env.sh` without running it; `internal/cli` is `Run` and the command

@@ -1,9 +1,10 @@
 // Package brief finds the briefs under a swarm's resources (docs/swarm.md
 // section 4, The brief): Markdown files whose header, the lines before the
-// first `## ` heading, holds a `Status:` line.
+// first `## ` heading outside a fenced block, holds a `Status:` line.
 package brief
 
 import (
+	"iter"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -66,9 +67,11 @@ func Find(fs ops.FS, ws string, resources []string) ([]Brief, error) {
 	return out, nil
 }
 
-// statusOf is the value of the header's `Status:` line.
+// statusOf is the value of the header's `Status:` line: the header ends
+// at the first `## ` heading, and a line inside a fenced block is neither
+// (section 4).
 func statusOf(text string) (string, bool) {
-	for _, line := range strings.Split(text, "\n") {
+	for line := range unfenced(text) {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "## ") {
 			break
@@ -85,27 +88,35 @@ func statusOf(text string) (string, bool) {
 // block is no heading, and a heading with no text no milestone.
 func (b Brief) Milestones() []string {
 	var out []string
-	fence := ""
-	for _, line := range strings.Split(b.Text, "\n") {
-		line = strings.TrimRight(line, "\r ")
-		if f := fenceOf(line); f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
-			if fence == "" {
-				fence = f
-			} else {
-				fence = ""
-			}
-			continue
-		}
-		if fence != "" {
-			continue
-		}
-		if h, ok := strings.CutPrefix(line, "## "); ok {
+	for line := range unfenced(b.Text) {
+		if h, ok := strings.CutPrefix(strings.TrimRight(line, "\r "), "## "); ok {
 			if h = strings.TrimSpace(h); h != "" && !slices.Contains(out, h) {
 				out = append(out, h)
 			}
 		}
 	}
 	return out
+}
+
+// unfenced yields the lines of text outside its fenced blocks, the fence
+// lines themselves left out.
+func unfenced(text string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		fence := ""
+		for _, line := range strings.Split(text, "\n") {
+			if f := fenceOf(strings.TrimRight(line, "\r ")); f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
+				if fence == "" {
+					fence = f
+				} else {
+					fence = ""
+				}
+				continue
+			}
+			if fence == "" && !yield(line) {
+				return
+			}
+		}
+	}
 }
 
 // fenceOf is the run of backticks or tildes that opens or closes a fenced

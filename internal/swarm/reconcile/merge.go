@@ -25,6 +25,9 @@ func (s *Swarm) mergeStep() error {
 		if err != nil {
 			return err
 		}
+		if stage, ok := StageOf(is); !is.Open || !ok || stage != "swarm:approved" {
+			continue // two labels (warned in step 5), or moved or closed since the list was read
+		}
 		pulls, err := s.Forge.Pulls(n)
 		if err != nil {
 			return err

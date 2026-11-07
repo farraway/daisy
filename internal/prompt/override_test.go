@@ -89,6 +89,14 @@ func TestLayeredFrom(t *testing.T) {
 		{"a root rule changed", overRoot, "## Rules\n\n1. a!\n2. b\n3. c\n", "", "line 3"},
 		{"a root rule dropped", overRoot, "## Rules\n\n1. a\n3. c\n", "", "line 4"},
 		{"the root's last rule extended", overRoot, "## Rules\n\n1. a\n2. bb\n", "", "line 4"},
+		{"the root's last rule continued", overRoot, "## Rules\n\n1. a\n2. b\n   - only on Fridays\n3. c\n", "", "line 5"},
+		{"the root's last rule continued after a blank", overRoot, "## Rules\n\n1. a\n2. b\n\n   More on b.\n", "", "line 6"},
+		{"the root's last rule continued lazily", overRoot, "## Rules\n\n1. a\n2. b\nonly on Fridays\n3. c\n", "", "line 5"},
+		{"a bullet after the root's rules", overRoot, "## Rules\n\n1. a\n2. b\n- c\n", Marker + "\n\n## Rules\n\n- c\n", ""},
+		{"a heading after the root's rules", overRoot, "## Rules\n\n1. a\n2. b\n### Home\n\n- c\n", Marker + "\n\n## Rules\n\n### Home\n\n- c\n", ""},
+		{"a break after the root's rules", overRoot, "## Rules\n\n1. a\n2. b\n***\n\n- c\n", Marker + "\n\n## Rules\n\n***\n\n- c\n", ""},
+		{"inline HTML continuing the root's last rule", overRoot, "## Rules\n\n1. a\n2. b\n<em>never</em> on Fridays\n", "", "line 5"},
+		{"a fence after the root's rules", overRoot, "## Rules\n\n1. a\n2. b\n```\nx\n```\n", Marker + "\n\n## Rules\n\n```\nx\n```\n", ""},
 		{"not a rules section", overRoot, "# Title\n", "", "must begin with"},
 	} {
 		got, err := LayeredFrom([]byte(tc.root), []byte(tc.proposal))

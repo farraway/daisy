@@ -118,10 +118,7 @@ func (w *Wizard) Ask() (Config, error) {
 		func() error {
 			return w.ask("Token variable", w.forgeDefault(origins[0], c.Forge.Kind).TokenEnv, func(a string) *Error {
 				c.Forge.TokenEnv = a
-				if !varShape.MatchString(a) {
-					return fieldErr("forge.token_env", "%q is not a variable name", a)
-				}
-				return nil
+				return checkTokenEnv(a)
 			})
 		},
 		func() error {

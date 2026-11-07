@@ -115,6 +115,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: forge.api: "forge.example.net/api/v1" is not an absolute http(s) URL without credentials`, func(c *Config) { c.Forge.API = "forge.example.net/api/v1" }},
 		{`swarm.json: forge.repo: "acme" is not <owner>/<repo>`, func(c *Config) { c.Forge.Repo = "acme" }},
 		{`swarm.json: forge.token_env: "GITEA-TOKEN" is not a variable name`, func(c *Config) { c.Forge.TokenEnv = "GITEA-TOKEN" }},
+		{`swarm.json: forge.token_env: "DAISY_MAINTAINER_TOKEN" is the maintainer's token; the swarm's is its own account's (section 8)`, func(c *Config) { c.Forge.TokenEnv = "DAISY_MAINTAINER_TOKEN" }},
 		{`swarm.json: forge.commit_email: missing`, func(c *Config) { c.Forge.CommitEmail = "" }},
 		{`swarm.json: forge.commit_email: "swarm at example.net" is not an email address`, func(c *Config) { c.Forge.CommitEmail = "swarm at example.net" }},
 		{`swarm.json: forge.commit_email: "swarm\v@example.net" is not an email address`, func(c *Config) { c.Forge.CommitEmail = "swarm\v@example.net" }},

@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,5 +67,65 @@ func TestCloneAndTheCommitMsgHook(t *testing.T) {
 	}
 	if a := git(dir, "log", "-1", "--format=%an <%ae>"); a != "worker (Daisy swarm) <swarm@example.net>" {
 		t.Errorf("author %s", a)
+	}
+}
+
+// Collection's git (section 7.6, steps 3 and 5) with real git: a
+// protected file renamed away is changed by its old path too; a push the
+// remote refuses is ErrPushRejected, and one that cannot reach it is an
+// error to retry, not a rejection.
+func TestChangedAndPush(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	o := ops.Real()
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		out, errb, err := o.Exec(dir, "git", args...)
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	ws, state, up := t.TempDir(), t.TempDir(), t.TempDir()
+	git(up, "init", "-q", "-b", "main")
+	os.WriteFile(filepath.Join(up, "AGENTS.md"), []byte("Rules.\n"), 0o644)
+	git(up, "add", "AGENTS.md")
+	git(up, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "-m", "first")
+	os.MkdirAll(filepath.Join(ws, "app"), 0o755)
+	git(filepath.Join(ws, "app"), "init", "-q")
+	git(filepath.Join(ws, "app"), "remote", "add", "origin", up)
+	g := Git{O: o, WS: ws, State: state}
+	repo := declare.Repo{Name: "app", Path: "app"}
+	if err := g.Fetch(repo); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "work")
+	if _, err := g.Clone(repo, "main", "main", dir, "worker", "swarm@example.net", "c <c@example.net>"); err != nil {
+		t.Fatal(err)
+	}
+	git(dir, "checkout", "-q", "-b", "swarm/1-1")
+	git(dir, "mv", "AGENTS.md", "NOTES.md")
+	git(dir, "commit", "-q", "-m", "Rename")
+	sha, err := g.FetchRun("app", dir, "swarm/1-1", "refs/swarm-runs/1-worker-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := g.Changed("app", "main", sha)
+	if err != nil || len(Protected(changed, []string{"AGENTS.md"})) == 0 {
+		t.Errorf("changed %q (%v): the protected file renamed away is not among them", changed, err)
+	}
+
+	// A branch of that name the remote holds already, unrelated: refused.
+	git(up, "checkout", "-q", "--orphan", "other")
+	git(up, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "other")
+	git(up, "branch", "-q", "swarm/1-1")
+	git(up, "checkout", "-q", "main")
+	if err := g.Push(repo, "refs/swarm-runs/1-worker-1", "swarm/1-1", sha); !errors.Is(err, ErrPushRejected) {
+		t.Errorf("refused push: %v, want ErrPushRejected", err)
+	}
+	// The forge unreachable: an error, not a rejection.
+	git(filepath.Join(ws, "app"), "remote", "set-url", "origin", filepath.Join(t.TempDir(), "gone.git"))
+	if err := g.Push(repo, "refs/swarm-runs/1-worker-1", "swarm/1-1", sha); err == nil || errors.Is(err, ErrPushRejected) {
+		t.Errorf("unreachable push: %v, want an error that is not ErrPushRejected", err)
 	}
 }

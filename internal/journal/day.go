@@ -53,26 +53,21 @@ func textIfDated(t todo.Task, line string) string {
 }
 
 // Fill makes today.md from a day or week template: {DATE}, {DAY} and
-// {TIME} from now, then each task placeholder with one `- [ ] ` line per
-// task, in that order; the result ends in exactly one newline. A task's
-// text is written as it is (the bash's pattern substitution turned an `&`
-// in it into the placeholder's name).
+// {TIME} from now, and each task placeholder with one `- [ ] ` line per
+// task, in one pass over the template; the result ends in exactly one
+// newline. A task's text is written as it is, a placeholder's name in it
+// included (the bash's pattern substitution turned an `&` in it into the
+// placeholder's name).
 func Fill(template string, now time.Time, c Carried) string {
-	s := strings.TrimRight(template, "\n")
-	for _, r := range []struct {
-		placeholder, value string
-	}{
-		{"{DATE}", now.Format(time.DateOnly)},
-		{"{DAY}", now.Format("Monday")},
-		{"{TIME}", now.Format("1504")},
-		{"{HIGH_PRIORITY_TASKS}", checklist(c.Now)},
-		{"{NEXT_PRIORITY_TASKS}", checklist(c.Next)},
-		{"{INBOX_TASKS}", checklist(c.Inbox)},
-		{"{GITHUB_TASKS}", checklist(c.GitHub)},
-	} {
-		s = strings.ReplaceAll(s, r.placeholder, r.value)
-	}
-	return s + "\n"
+	return strings.NewReplacer(
+		"{DATE}", now.Format(time.DateOnly),
+		"{DAY}", now.Format("Monday"),
+		"{TIME}", now.Format("1504"),
+		"{HIGH_PRIORITY_TASKS}", checklist(c.Now),
+		"{NEXT_PRIORITY_TASKS}", checklist(c.Next),
+		"{INBOX_TASKS}", checklist(c.Inbox),
+		"{GITHUB_TASKS}", checklist(c.GitHub),
+	).Replace(strings.TrimRight(template, "\n")) + "\n"
 }
 
 func checklist(tasks []string) string {

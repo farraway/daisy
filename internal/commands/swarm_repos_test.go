@@ -227,7 +227,8 @@ func TestSwarmApplyConcurrently(t *testing.T) {
 	for len(a.runner.Launches()) == 0 {
 		time.Sleep(time.Millisecond)
 	}
-	err := a.apply(a.forge, "--once")
+	second := &countingRuns{Fake: a.runner}
+	err := a.applyTo(readsNothing{t: t}, second, &bytes.Buffer{}, &bytes.Buffer{}, "--once")
 	close(open)
 	if err1 := <-first; err1 != nil {
 		t.Fatal(err1)
@@ -238,7 +239,31 @@ func TestSwarmApplyConcurrently(t *testing.T) {
 	if n := len(a.runner.Launches()); n != 1 {
 		t.Errorf("launched %d", n)
 	}
+	if second.ps != 0 {
+		t.Errorf("the second read docker ps %d times before refusing", second.ps)
+	}
 }
+
+// readsNothing is a forge any call to which fails the test (Login with an
+// error, any other method with a panic): an apply that finds the lock held
+// reads nothing from the forge.
+type readsNothing struct {
+	forge.Adapter
+	t *testing.T
+}
+
+func (r readsNothing) Login() (forge.Account, error) {
+	r.t.Error("Login() with the lock held")
+	return forge.Account{}, errors.New("read with the lock held")
+}
+
+// countingRuns counts the reads of the running set.
+type countingRuns struct {
+	*runner.Fake
+	ps int
+}
+
+func (c *countingRuns) Running() ([]runner.Running, error) { c.ps++; return c.Fake.Running() }
 
 // Without --once (section 11): a pass every interval until a signal, then
 // the running members collected and exit 0; a second signal during that

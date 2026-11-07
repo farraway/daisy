@@ -224,6 +224,7 @@ func outside(workdir string, dirs []string) []string {
 func (s *Swarm) watch(dir string, c runner.Container, slot *runner.Slot, check bool) {
 	l := &live{check: check, done: make(chan struct{})}
 	s.live[dir] = l
+	s.started++
 	go func() {
 		defer close(l.done)
 		l.exit, l.err = c.Wait()

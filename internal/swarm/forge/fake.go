@@ -364,7 +364,7 @@ func (f *Fake) Pulls(n int) ([]Pull, error) {
 				continue
 			}
 			found = append(found, bySlice{s, Pull{Repo: name, Number: m, Title: it.title, Body: it.body, Head: it.pull.head, HeadSHA: it.pull.headSHA,
-				Base: it.pull.base, MergeSHA: it.pull.mergeSHA, Open: it.open, Merged: it.pull.merged, Labels: slices.Clone(it.labels), Created: it.created}})
+				Base: it.pull.base, MergeSHA: it.pull.mergeSHA, Open: it.open, Merged: it.pull.merged, Labels: slices.Clone(it.labels), Author: it.author, Created: it.created}})
 		}
 	}
 	slices.SortStableFunc(found, func(a, b bySlice) int { return a.s - b.s })

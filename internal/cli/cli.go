@@ -57,6 +57,9 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 	if err != nil {
 		return usageError(stderr, cmd, err.Error())
 	}
+	if len(positional) > 0 && len(positional[0]) > 2 && strings.HasPrefix(positional[0], "--") {
+		return usageError(stderr, cmd, "unknown flag: "+positional[0])
+	}
 	c.Flags, c.Values, c.Args, c.EmptyWords = flags, values, positional, empty
 	if cmd.Max != Unbounded && emptyBefore(cmd, rest) {
 		return usageError(stderr, cmd, "empty argument")
@@ -139,8 +142,9 @@ func nounOnly(stdout, stderr io.Writer, args []string, group []Command) int {
 
 // splitArgs: the command's flags are the known words leading its
 // arguments, a value flag taking the word after it as its value; the first
-// other word, dashes or not, starts the positionals (`tasks --todo "-1
-// point"` searches for `-1 point`). An empty word is no argument: `done ""`
+// other word starts the positionals (`tasks --todo "-1 point"` searches for
+// `-1 point`), except that Run refuses one beginning `--` as an unknown flag
+// (`plan new --specc …` is a mistyped flag, not a description). An empty word is no argument: `done ""`
 // is a missing pattern, not one that matches every task; empty says one
 // was dropped. A value flag without a value, or with an empty one, is a
 // usage error.

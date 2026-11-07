@@ -344,7 +344,7 @@ of `apply`, so an edit applies at the next pass.
 | `forge.kind` | string | detected from the first repository's `origin` (section 10) | `gitea` or `github`: a kind with an adapter |
 | `forge.api` | string | `https://<host>/api/v1` (gitea), `https://api.github.com` (github) | an absolute `http` or `https` URL, no user information, no query, no trailing `/` |
 | `forge.repo` | string | `<owner>/<repo>` from the first repository's `origin` | `^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`; the issues repository, which holds every swarm issue, declared in `repos` or not; `<owner>` owns every declared repository (section 14, item 7); with kind `gitea`, `<owner>` is an organization, whose labels the swarm uses (section 10), which only the forge can tell: `EnsureLabels` fails otherwise |
-| `forge.token_env` | string | `GITEA_TOKEN` (gitea), `GITHUB_TOKEN` (github) | a variable name, `^[A-Za-z_][A-Za-z0-9_]*$`, naming the swarm account's token (section 8, rule 5); the token itself never appears in any file Daisy writes |
+| `forge.token_env` | string | `GITEA_TOKEN` (gitea), `GITHUB_TOKEN` (github) | a variable name, `^[A-Za-z_][A-Za-z0-9_]*$`, naming the swarm account's token (section 8, rule 5), never `DAISY_MAINTAINER_TOKEN`, the maintainer's; the token itself never appears in any file Daisy writes |
 | `forge.commit_email` | string | the swarm account's email as `Login()` reports it (the wizard's question 34; none reported, no default) | required: an address, `<local>@<domain>` without whitespace or angle brackets; the author address of every swarm commit, `<role> (Daisy swarm) <commit_email>`, which Step 5 makes each clone's identity in place of section 7.1's `<role>@daisy-swarm.invalid` (section 14, item 52) |
 | `forge.board` | string | absent | optional; the title of an open project of the organization that owns `forge.repo`, on which `apply` keeps each open swarm issue in the column of its stage (`Board`, section 10); kind `gitea` only; absent, no board |
 | `repos` | array of objects | one entry per product repository found from `<ws>` (section 11, the wizard) | one or more, in order: the first is the product (its image runs the owner and the architect, in its clone; with one repository declared, a slice that names none is its, and with more, such a slice is *bad slices*, section 7.5; the fast lane's one slice is the first's); each entry has exactly the fields below (section 14, item 49) |
@@ -427,7 +427,7 @@ failure is reported and the verb exits 1; the message is
 | slots for a provider without them | `swarm.json: keys.anthropic.slots: anthropic takes no slot` (a count out of range is the range row: `keys.openai.slots: 0 is not between 1 and 16`) |
 | `forge.board` with kind `github` | `swarm.json: forge.board: github has no board in version 1` |
 | `forge.board` empty | `swarm.json: forge.board: empty` |
-| bad URL, repo or variable name | `swarm.json: forge.api: "<value>" is not an absolute http(s) URL without credentials`, `swarm.json: forge.repo: "<value>" is not <owner>/<repo>`, `swarm.json: forge.token_env: "<value>" is not a variable name` |
+| bad URL, repo or variable name | `swarm.json: forge.api: "<value>" is not an absolute http(s) URL without credentials`, `swarm.json: forge.repo: "<value>" is not <owner>/<repo>`, `swarm.json: forge.token_env: "<value>" is not a variable name`, `swarm.json: forge.token_env: "DAISY_MAINTAINER_TOKEN" is the maintainer's token; the swarm's is its own account's (section 8)` |
 | a bad base, duration or count | `swarm.json: base: "<value>" is not a branch name`, `swarm.json: timeout: "<value>" is not a Go duration`, `swarm.json: timeout: "30s" is not between 1m and 24h`; in the wizard, `swarm.json: max_members: "<answer>" is not an integer` |
 
 **Secret values.** A variable named by `forge.token_env` or a `keys` `env` is
@@ -784,7 +784,7 @@ the issue and its pull requests. The owner's batch runs are issue 0.
 
 **The two threads.** The *issue thread* is the issue body, then its
 comments, oldest first. The *pull-request thread* of pull request m is its
-body, then its comments (`PullComments`), its reviews (`Reviews`) and its
+body (an entry by the login that opened it, `Pull.Author`), then its comments (`PullComments`), its reviews (`Reviews`) and its
 line comments (`ReviewComments`), merged oldest first by the time each was
 created or submitted.
 
@@ -1326,7 +1326,7 @@ request's head is no longer the run's `start` commit posts nothing:
 
 **The secret check**, before a run's first forge step and before any
 push. The member's secrets are its `env` value, or for a slot each JSON
-string value, at any depth, of 32 characters or more in
+string value, at any depth, of 32 bytes or more in
 `<slot>/auth.json`, read on the host
 under the slot's lock at the launch and again when `docker run` returns
 (a refresh rotates them), each time only when it is a regular file
@@ -1351,20 +1351,25 @@ ran, whatever its end:
    posts nothing, 7.7), so the maintainer can read the work or
    continue from it; pruning these refs is the maintainer's. Collection
    then goes to the failure's own steps.
-3. **Protected paths.** `git -C <state>/git diff --name-only refs/heads/<base>...<fetched>`,
-   host git in the mirror, never in the member's clone: any path matching
-   `protected` (section 3) is the failure *protected path changed*,
-   nothing is pushed, and the note names the paths. The rule covers what
-   a push triggers as well as what a container holds: both forges run a
-   branch's own CI workflows, with the repository's secrets, on a push to
-   it, and an agent instruction file changes every later member's
-   instructions once merged. The maintainer makes such a change by hand.
-   Then the secret check reads every object the push would send, as
-   stored (commits with all their headers, merges, trees and blobs):
+3. **The secret check, then protected paths.** First the secret check
+   reads every object the push would send, as stored (commits with all
+   their headers, merges, trees and blobs):
    `git -C <state>/git rev-list --objects --no-object-names refs/heads/<base>..<fetched>`,
    its object names fed to `git -C <state>/git cat-file --batch` (without
    `--no-object-names` each blob's line carries its path, which
-   `cat-file` reads as part of the name and answers `missing`).
+   `cat-file` reads as part of the name and answers `missing`); it comes
+   first because the protected-path note names paths, and a path is the
+   member's text. Then
+   `git -C <state>/git diff --name-only --no-renames refs/heads/<base>...<fetched>`,
+   host git in the mirror, never in the member's clone (`--no-renames`, so
+   a protected file renamed away is named by its old path too): any path
+   matching `protected` (section 3) is the failure *protected path
+   changed*, nothing is pushed, and the note names the paths. The rule
+   covers what a push triggers as well as what a container holds: both
+   forges run a branch's own CI workflows, with the repository's secrets,
+   on a push to it, and an agent instruction file changes every later
+   member's instructions once merged. The maintainer makes such a change
+   by hand.
 4. **The check**, when `check` is not `[]`:
    `git clone --no-local --quiet --no-checkout <state>/git <run>/check`,
    `git -C <run>/check fetch --quiet --no-tags origin refs/swarm-runs/<n>-worker-<k>`
@@ -1378,8 +1383,10 @@ ran, whatever its end:
    is a swarm fault (7.7); a check started with no end line and no
    container (its `apply` died) is started again. A failing check is not
    a failure: its result is posted and is the reviewers' input.
-5. **The push**: `git -C <state>/git push <origin-url> refs/swarm-runs/<n>-worker-<k>:refs/heads/swarm/<n>-<s>`
-   (never forced; a rejection is the failure *push rejected*); then
+5. **The push**: `git -C <state>/git push --porcelain <origin-url> refs/swarm-runs/<n>-worker-<k>:refs/heads/swarm/<n>-<s>`
+   (never forced; a rejection, a ref the porcelain marks `!`, is the
+   failure *push rejected*; a push that does not reach the forge is a git
+   error, retried at the next pass); then
    `git -C <state>/git update-ref refs/heads/swarm/<n>-<s> <fetched>` and
    `git -C <state>/git update-ref -d refs/swarm-runs/<n>-worker-<k>`
    (`pushed <sha>`).
@@ -1753,6 +1760,7 @@ type Pull struct {
     MergeSHA                         string // the merge commit, "" unless merged
     Open, Merged                     bool
     Labels                           []string
+    Author                           string // the login that opened it (Gitea's user.login)
     Created                          time.Time
 }
 type Review struct {
@@ -2169,8 +2177,8 @@ passphrase prompt, or an agent the user manager can reach).
 |---|---|
 | Usage | `daisy swarm apply [--once]` |
 | Reads | `swarm/swarm.json` and the prompts (each pass), `<ws>/.env.sh` (token and `env` credentials), each used slot's `auth.json`, each declared repository's `origin` and `core.sshCommand`, `<state>`, and the briefs under the resolved `resources` paths (the batch prompt, 7.3, and the milestones, step 8) |
-| Start | validation; the token and every used provider's `env` credential set (a slot's login is checked at its launch: section 3, Secret values); `Login()`; `id -u` and `id -g`; `docker ps` once (failing: `Error: swarm: docker: <message>`, exit 1); `<state>` created when absent; the lock (below); then `EnsureLabels` with the eight labels (one deleted since `init` is created again; Step 39); its failure, a refused create included (section 10), is `Error: …` and exit 1, with or without `--once`, before any pass |
-| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `abandoned` (then `collected`) and its `work/` removed, and one whose container has outlived `timeout` is stopped (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)`, then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one `swarm:*` label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, and launches run until `max_members` are running; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `approved` issue (section 12); (7) the owner's batch trigger, its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) after the runs `--once` waits for (so that a batch's proposals are in it), unless a signal has come, and paused or not, the milestones: with an `active` brief, `Milestones()`, then `EnsureMilestone(<slug>: <milestone>)` for each `## ` heading of each `active` brief (`<slug>` its file name without `.md`) that has no milestone of its title, then `Issues(Open, label)` and `Issues(Closed, label)` for each label and `SetMilestone(n, <id>)` for each issue in no milestone whose `Brief:` line (section 4) names a milestone of an `active` brief; an issue already in a milestone is left in it, the maintainer's choice or an earlier one's; every failure here is a warning, never a fault, an exit code or an end to the pass; (9) the summary line |
+| Start | validation; the token and every used provider's `env` credential set (a slot's login is checked at its launch: section 3, Secret values); `<state>` created when absent; the lock (below), before anything is read from the forge or Docker; `Login()`; `id -u` and `id -g`; `docker ps` once (failing: `Error: swarm: docker: <message>`, exit 1); then `EnsureLabels` with the eight labels (one deleted since `init` is created again; Step 39); its failure, a refused create included (section 10), is `Error: …` and exit 1, with or without `--once`, before any pass |
+| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots, to which every container this process starts during the pass, a check in (3) included, is added; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `abandoned` (then `collected`) and its `work/` removed, and one whose container has outlived `timeout` is stopped (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)` (an issue `Issue(n)` reads closed, or with a stage other than the listed one, is passed over: it is read at its own stage, or at the next pass), then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one `swarm:*` label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, and launches run until `max_members` are running; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `approved` issue (section 12); (7) the owner's batch trigger, its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) after the runs `--once` waits for (so that a batch's proposals are in it), unless a signal has come, and paused or not, the milestones: with an `active` brief, `Milestones()`, then `EnsureMilestone(<slug>: <milestone>)` for each `## ` heading of each `active` brief (`<slug>` its file name without `.md`) that has no milestone of its title, then `Issues(Open, label)` and `Issues(Closed, label)` for each label and `SetMilestone(n, <id>)` for each issue in no milestone whose `Brief:` line (section 4) names a milestone of an `active` brief; an issue already in a milestone is left in it, the maintainer's choice or an earlier one's; every failure here is a warning, never a fault, an exit code or an end to the pass; (9) the summary line |
 | `--once` | one pass; then it waits for every run it launched, collects each (starting and waiting for a worker run's check), and exits |
 | Without `--once` | a pass every `interval`, start to start, until SIGINT or SIGTERM: then no launch, its running members and checks collected as they exit (a worker run's check started for it, as its collection needs), exit 0; a second signal exits at once (130), leaving its members to finish and be found abandoned by a later pass |
 | Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`, `Milestones`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), `EnsureMilestone` and `SetMilestone` (step 8), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge |
@@ -3305,3 +3313,25 @@ entries among revision 1's, and was renumbered at Step 38.
     Fake's state: `forge.Fake.As` is the same forge under another
     account, and `Events` its timeline of label changes, closes and
     merges by account (section 10).
+68. **Review until a pass finds nothing real (Step 11 of the swarm
+    build).** The code changed where a review or an attack showed it
+    against this document, and the document where it was wrong:
+    **`forge.token_env` may not name `DAISY_MAINTAINER_TOKEN`** (section
+    3), or `apply` would act with the maintainer's token; **`apply` takes
+    its lock before it reads the forge or Docker** (section 11, Start), so
+    the Lock row's "nothing read from the forge" holds; **a worker run's
+    secret check comes before its protected-path check** (7.6 step 3),
+    whose note names paths, and **`--no-renames`** names a protected file
+    renamed away; **a push the forge does not answer is a git error,
+    retried**, and only a ref git's porcelain marks `!` is *push rejected*
+    (7.6 step 5); **the pass acts on an issue as `Issue(n)` reads it**,
+    not as the label list read before it did, **counts every container it
+    starts during the pass**, a check started in step (3) included, for
+    rules 2 and 4, and **the merge step merges only an open issue whose
+    one `swarm:*` label is `approved`** (section 11, A pass; section 12);
+    **a pull request's body is an entry by the login that opened it**
+    (`Pull.Author`, section 6 and 10), so a marked body opened by another
+    account is not the swarm's; **a proposal's title is 1 to 200
+    characters**, not bytes (7.5); **a slot's secrets are its strings of
+    32 bytes or more**, as built (7.6); **a brief's header ends at its
+    first `## ` heading outside a fence** (section 4).

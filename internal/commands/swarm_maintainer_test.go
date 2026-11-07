@@ -303,6 +303,8 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 			"Error: swarm: the comment opens with the swarm's marker, which only the swarm's entries carry; nothing posted"},
 		{"not a number", issue("swarm:proposed"), swarmTriage, []string{"#1"}, "not an issue number: #1"},
 		{"zero", issue("swarm:proposed"), swarmTriage, []string{"0"}, "not an issue number: 0"},
+		{"not a number before a marked comment", issue("swarm:proposed"), swarmClose, []string{"x1", "<!-- daisy-swarm role=owner run=1 -->"}, "not an issue number: x1"},
+		{"not a number before a marked unblock", issue("swarm:blocked"), swarmUnblock, []string{"x1", "<!-- daisy-swarm role=owner run=1 -->"}, "not an issue number: x1"},
 	} {
 		m := newMaintainerWS(t)
 		tc.seed(m)

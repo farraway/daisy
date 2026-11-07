@@ -149,6 +149,7 @@ func TestPlanNewRefusals(t *testing.T) {
 		{[]string{"x", "+a/b"}, 1, "cannot be part of a file name"},
 		{nil, 2, "missing argument"},
 		{[]string{"a", "b", "c"}, 2, "unexpected argument: c"},
+		{[]string{"--specc", "Fix the parser"}, 2, "unknown flag: --specc"}, // a mistyped flag, not a description
 	} {
 		code, _, errs := runWith(o, append([]string{"plan", "new"}, tc.args...)...)
 		if code != tc.code || !strings.Contains(errs, tc.want) {

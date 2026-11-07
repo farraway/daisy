@@ -320,6 +320,7 @@ func TestEval(t *testing.T) {
 		{[]string{"eval", "--record", "new-day", "maybe"}, 1, "Error: result must be 'pass' or 'fail' (got: maybe)\n"},
 		{[]string{"eval", "--record"}, 1, "Usage: daisy eval --record <case> pass|fail [\"notes\"]\n"},
 		{[]string{"eval", "new-day", "extra"}, 2, "Error: unexpected argument: extra\n"},
+		{[]string{"feedback", "--workflw", "prompts/plan", "Plan was wrong."}, 2, "Error: unknown flag: --workflw\n"},
 	} {
 		if code, _, errs := l.run(tc.args...); code != tc.code || !strings.HasPrefix(errs, tc.err) {
 			t.Errorf("%q: exit %d err %q", tc.args, code, errs)

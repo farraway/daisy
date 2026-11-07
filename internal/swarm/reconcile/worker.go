@@ -72,8 +72,8 @@ func (c *collection) keep() error {
 }
 
 // worker is a worker run's steps after its output was read (section 7.6):
-// no commits; protected paths and the secret check of every object the
-// push would send; the check, started and collected when it ends, its
+// no commits; the secret check of every object the push would send, then
+// protected paths; the check, started and collected when it ends, its
 // posted tail checked for secrets; the push; then the pull request opened
 // or commented on, and T8 or T12.
 func (c *collection) worker(text string, pull *forge.Pull) error {
@@ -86,19 +86,21 @@ func (c *collection) worker(text string, pull *forge.Pull) error {
 	secrets := s.secretsOf(c.r, c.lines)
 	_, pushed := Has(c.lines, "pushed")
 	if !pushed {
-		changed, err := s.git().Changed(name, s.Cfg.Base, sha)
-		if err != nil {
-			return err
-		}
-		if hits := Protected(changed, repo.Protected); len(hits) > 0 {
-			return c.fail("protected path changed: " + strings.Join(hits, ", "))
-		}
+		// The secret check first: the protected-path note names paths,
+		// and a path is the member's text too.
 		objects, err := s.git().Objects(name, s.Cfg.Base, sha)
 		if err != nil {
 			return err
 		}
 		if hit(objects, secrets) {
 			return c.fail("secret in output: commits")
+		}
+		changed, err := s.git().Changed(name, s.Cfg.Base, sha)
+		if err != nil {
+			return err
+		}
+		if hits := Protected(changed, repo.Protected); len(hits) > 0 {
+			return c.fail("protected path changed: " + strings.Join(hits, ", "))
 		}
 	}
 	block := "**Check:** none declared."
@@ -148,7 +150,7 @@ func (c *collection) worker(text string, pull *forge.Pull) error {
 		mark := marker("worker", c.r.K)
 		created := false
 		for _, p := range pulls {
-			created = created || p.Open && p.Head == branch && strings.HasPrefix(p.Body, mark)
+			created = created || p.Open && p.Head == branch && strings.HasPrefix(p.Body, mark) && strings.EqualFold(p.Author, s.SwarmLogin)
 		}
 		if !created {
 			sl := strings.TrimPrefix(branch, fmt.Sprintf("swarm/%d-", c.r.N))
@@ -171,7 +173,7 @@ func (c *collection) worker(text string, pull *forge.Pull) error {
 // onPull posts the worker's text as a comment on its open pull request,
 // unless it is the one this run opened.
 func (c *collection) onPull(p forge.Pull, posted string) error {
-	if strings.HasPrefix(p.Body, marker("worker", c.r.K)) {
+	if strings.HasPrefix(p.Body, marker("worker", c.r.K)) && strings.EqualFold(p.Author, c.s.SwarmLogin) {
 		return nil
 	}
 	ref := forge.Ref{Repo: p.Repo, N: p.Number}

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"daisy/internal/swarm/brief"
 	"daisy/internal/swarm/declare"
@@ -191,7 +192,7 @@ func Proposals(out string) (met []string, blocked string, ps []Proposal) {
 	}
 	for ; i < len(lines); i++ {
 		if m := proposalLine.FindStringSubmatch(lines[i]); m != nil {
-			if t := strings.TrimSpace(m[1]); len(t) >= 1 && len(t) <= 200 {
+			if t := strings.TrimSpace(m[1]); utf8.RuneCountInString(t) >= 1 && utf8.RuneCountInString(t) <= 200 {
 				flush()
 				cur, body = &Proposal{Title: t}, nil
 				continue

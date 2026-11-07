@@ -241,3 +241,15 @@ func TestFakeAsAnotherAccount(t *testing.T) {
 		t.Errorf("comments %+v, reviews %+v", is.Comments, reviews)
 	}
 }
+
+// Pulls names who opened each pull request, as gitea's `user.login` does.
+func TestFakePullAuthor(t *testing.T) {
+	f := fakeForge(t)
+	f.CreateIssue("A", "", []string{"swarm:proposed"})
+	f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
+	f.As(Account{Login: "mallory"}).CreatePull("app", "swarm/1-2", "main", "Q", "Refs #1")
+	ps, err := f.Pulls(1)
+	if err != nil || len(ps) != 2 || ps[0].Author != f.account.Login || ps[1].Author != "mallory" {
+		t.Errorf("Pulls(1) = %+v, %v", ps, err)
+	}
+}

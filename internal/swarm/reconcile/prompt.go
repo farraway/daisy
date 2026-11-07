@@ -387,15 +387,10 @@ func stateName(v forge.Verdict) string {
 }
 
 // pullEntries is the pull request's thread as entries (section 6): its
-// body, comments, reviews and line comments. Its body is the swarm's when
-// it is marked, since Pulls returns only the swarm's branches and Pull
-// carries no author.
+// body, by the login that opened it, then its comments, reviews and line
+// comments.
 func (j *Job) pullEntries(p forge.Pull) []Entry {
-	author := ""
-	if first, _, _ := strings.Cut(p.Body, "\n"); markerRe.MatchString(strings.TrimSuffix(first, "\r")) {
-		author = j.SwarmLogin
-	}
-	out := []Entry{{author, p.Body, p.Created}}
+	out := []Entry{{p.Author, p.Body, p.Created}}
 	if j.Pull == nil {
 		return out
 	}
@@ -442,10 +437,10 @@ func (j *Job) pullRequest(p forge.Pull) string {
 	for _, it := range items {
 		thread = append(thread, trim(it.text))
 	}
-	// A swarm pull request's body is marked; Pull carries no author, and
-	// Pulls returns only the swarm's branches.
+	// A swarm pull request's body is marked and opened by the swarm's
+	// login (section 6).
 	body := p.Body
-	if first, _, _ := strings.Cut(p.Body, "\n"); markerRe.MatchString(strings.TrimSuffix(first, "\r")) {
+	if _, ok := Swarms(Entry{p.Author, p.Body, p.Created}, j.SwarmLogin); ok {
 		body = swarmText(p.Body)
 	}
 	return doc(fmt.Sprintf("# Pull request %s#%d: %s", p.Repo, p.Number, p.Title),

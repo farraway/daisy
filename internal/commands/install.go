@@ -195,6 +195,9 @@ func installSkills(c *Context, root, dir string) error {
 	return nil
 }
 
+// quoted is a value's first quoted word, double or single quotes.
+var quoted = regexp.MustCompile(`"[^"]*"|'[^']*'`)
+
 // planRC is the shell's rc file and, when it must change, its new content
 // and what to say: the DAISY_ROOT lines updated in place or a block
 // appended. One pattern finds the lines both to check and to rewrite (an
@@ -229,8 +232,8 @@ func planRC(o ops.Ops, home, root string) (rc string, content []byte, message st
 		}
 		found = true
 		value := strings.TrimSpace(l[loc[4]:loc[5]])
-		if q := regexp.MustCompile(`"[^"]*"`).FindString(value); q != "" {
-			value = strings.Trim(q, `"`)
+		if q := quoted.FindString(value); q != "" {
+			value = q[1 : len(q)-1]
 		}
 		if value != root && !stale {
 			stale, current = true, value

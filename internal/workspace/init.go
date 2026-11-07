@@ -75,11 +75,13 @@ func planInit(o ops.Ops, m env.Env, name, target string) (*initPlan, error) {
 	}
 	p.home = he.Home
 	// The default identity is optional (a home may not have one yet); a
-	// named identity is what was asked for, so it must be whole.
+	// named identity is what was asked for, so it must be whole. A
+	// malformed sshkey is refused in either: the file is there, and wrong.
 	p.idFile, _ = env.IdentityFile(p.home, p.homeName, name)
 	p.id, err = identity.Read(fs, p.idFile)
 	p.idOK = err == nil
-	if err != nil && name != p.homeName {
+	var malformed *identity.MalformedKeyError
+	if err != nil && (name != p.homeName || errors.As(err, &malformed)) {
 		return nil, err
 	}
 

@@ -15,8 +15,9 @@ import (
 
 // MaintainerTokenEnv is the variable the maintainer's verbs take their
 // token from (docs/swarm.md section 11): the maintainer's own, never the
-// swarm's. `apply`, `status` and `init` never read it.
-const MaintainerTokenEnv = "DAISY_MAINTAINER_TOKEN"
+// swarm's. `apply`, `status` and `init` never read it, and swarm.json's
+// forge.token_env may not name it.
+const MaintainerTokenEnv = declare.MaintainerTokenEnv
 
 // SwarmTriage is `daisy swarm triage <n>`: G1, T3 (proposed → ready).
 func SwarmTriage(c *Context) error { return swarmTriage(c, openForge) }
@@ -52,14 +53,24 @@ type maintainer struct {
 	at    forge.Ref
 }
 
+// issueArg is the verb's <n>, a positive issue number, else usage: checked
+// first, before the comment.
+func issueArg(c *Context) (int, error) {
+	n, err := strconv.Atoi(c.Args[0])
+	if err != nil || n < 1 || strconv.Itoa(n) != c.Args[0] {
+		return 0, UsageError("not an issue number: " + c.Args[0])
+	}
+	return n, nil
+}
+
 // asMaintainer is every maintainer's verb's start (section 11): the issue
 // number, swarm.json validated, $DAISY_MAINTAINER_TOKEN set and not the
 // swarm's token, then its account read and refused when it is the swarm's,
 // all before any write. The swarm's token is read only to be compared.
 func asMaintainer(c *Context, open opener) (*maintainer, error) {
-	n, err := strconv.Atoi(c.Args[0])
-	if err != nil || n < 1 || strconv.Itoa(n) != c.Args[0] {
-		return nil, UsageError("not an issue number: " + c.Args[0])
+	n, err := issueArg(c)
+	if err != nil {
+		return nil, err
 	}
 	o, ws := c.Ops, c.Env.Workspace
 	cfg, err := loadSwarm(o, ws)
@@ -192,6 +203,9 @@ func swarmMove(c *Context, open opener, from, to string) error {
 }
 
 func swarmClose(c *Context, open opener) error {
+	if _, err := issueArg(c); err != nil {
+		return err
+	}
 	text, err := comment(c)
 	if err != nil {
 		return err
@@ -291,6 +305,9 @@ func swarmMerge(c *Context, open opener) error {
 // issue to the stage the newest reconciler note that blocked it names, so
 // the role that stage runs reads the comment when it runs.
 func swarmUnblock(c *Context, open opener) error {
+	if _, err := issueArg(c); err != nil {
+		return err
+	}
 	text, err := comment(c)
 	if err != nil {
 		return err

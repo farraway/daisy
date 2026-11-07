@@ -44,6 +44,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 		{name: "protected path", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n", "docs/AGENTS.md": "x\n"}, "v1")},
 			reason: "protected path changed: .gitea/workflows/ci.yml, docs/AGENTS.md", kept: true},
 		{name: "secret in a blob", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"sub/key.txt": secret + "\n"}, "v1")}, reason: "secret in output: commits", kept: true},
+		{name: "secret in a protected path's name", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{".gitea/workflows/" + secret + ".yml": "on: push\n"}, "v1")}, reason: "secret in output: commits", kept: true},
 		{name: "secret in a commit message", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n"}, "token "+secret)}, reason: "secret in output: commits", kept: true},
 		{name: "secret in the check's tail", canned: work("v1"), check: runner.Canned{Stdout: "env: " + secret + "\n"}, reason: "secret in output: check.out", kept: true},
 		{name: "push rejected", canned: work("v1"), setup: func(a *applyWS) {

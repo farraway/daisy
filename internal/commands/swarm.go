@@ -787,6 +787,26 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 			return unset(*key.Env)
 		}
 	}
+	// The lock before anything is read from the forge or Docker: a second
+	// apply refuses having read nothing.
+	state := cfg.Forge.State(c.Env.Local)
+	if err := o.FS().MkdirAll(state, 0o755); err != nil {
+		return fmt.Errorf("Error: swarm: cannot create %s: %v", state, err)
+	}
+	lock := filepath.Join(state, "lock")
+	holder := "apply since "
+	if once {
+		holder = "apply --once since "
+	}
+	release, err := o.FS().Lock(lock, holder+o.Now().UTC().Format(time.RFC3339))
+	var held *ops.LockedError
+	if errors.As(err, &held) {
+		return fmt.Errorf("Error: swarm apply is already running for %s (%s); lock: %s", cfg.Forge.Repo, held.Holder, lock)
+	}
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	defer release()
 	var names []string
 	for _, r := range cfg.Repos {
 		names = append(names, r.Name)
@@ -811,24 +831,6 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 	if _, err := run.Running(); err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
-	state := cfg.Forge.State(c.Env.Local)
-	if err := o.FS().MkdirAll(state, 0o755); err != nil {
-		return fmt.Errorf("Error: swarm: cannot create %s: %v", state, err)
-	}
-	lock := filepath.Join(state, "lock")
-	holder := "apply since "
-	if once {
-		holder = "apply --once since "
-	}
-	release, err := o.FS().Lock(lock, holder+o.Now().UTC().Format(time.RFC3339))
-	var held *ops.LockedError
-	if errors.As(err, &held) {
-		return fmt.Errorf("Error: swarm apply is already running for %s (%s); lock: %s", cfg.Forge.Repo, held.Holder, lock)
-	}
-	if err != nil {
-		return fmt.Errorf("Error: swarm: %v", err)
-	}
-	defer release()
 	if _, err := f.EnsureLabels(forge.Labels); err != nil {
 		return fmt.Errorf("Error: %v", err)
 	}

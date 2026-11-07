@@ -285,9 +285,10 @@ type giteaPull struct {
 	Base struct {
 		Ref string `json:"ref"`
 	} `json:"base"`
-	State    string  `json:"state"`
-	Merged   bool    `json:"merged"`
-	MergeSHA *string `json:"merge_commit_sha"`
+	State    string    `json:"state"`
+	Merged   bool      `json:"merged"`
+	MergeSHA *string   `json:"merge_commit_sha"`
+	User     giteaUser `json:"user"`
 	Labels   []struct {
 		Name string `json:"name"`
 	} `json:"labels"`
@@ -314,7 +315,7 @@ func (g *Gitea) Pulls(n int) ([]Pull, error) {
 				continue
 			}
 			p := Pull{Repo: name, Number: r.Number, Title: r.Title, Body: r.Body, Head: r.Head.Ref, HeadSHA: r.Head.SHA,
-				Base: r.Base.Ref, Open: r.State == "open", Merged: r.Merged, Created: r.Created}
+				Base: r.Base.Ref, Open: r.State == "open", Merged: r.Merged, Author: r.User.Login, Created: r.Created}
 			if r.Merged && r.MergeSHA != nil {
 				p.MergeSHA = *r.MergeSHA
 			}

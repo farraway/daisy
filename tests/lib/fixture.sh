@@ -45,6 +45,19 @@ fixture_setup() {
     FIXTURE_LOCAL=$(mktemp -d)
     FIXTURE_WORKSPACE=$(mktemp -d)
 
+    # Every variable the binary and git read from the machine is pinned
+    # (praxis rule 14): HOME is a fixture directory (a case may set its own
+    # override), USER a name in no file, the cache's TTL the default, no
+    # GIT_* variable from outside, and git reads no global or system config
+    # (a signing or hook setting there would change what a commit does).
+    FIXTURE_USER_HOME=$(mktemp -d)
+    local v
+    for v in $(compgen -e); do
+        case "$v" in GIT_*) unset "$v" ;; esac
+    done
+    export HOME="$FIXTURE_USER_HOME" USER=fixtureuser GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+    unset DAISY_HEALTHCHECK_TTL XDG_CONFIG_HOME
+
     # `prompts`, `skills`, `templates` and `AGENTS.md` (whose Command
     # Reference the health check compares with the cli table) are *copied*:
     # symlinked, DAISY_ROOT/prompts was literally the repo's, so any applying
@@ -128,7 +141,7 @@ fixture_add_project() {
 }
 
 fixture_teardown() {
-    rm -rf "$FIXTURE_ROOT" "$FIXTURE_HOME_PARENT" "$FIXTURE_CONFIG" "$FIXTURE_LOCAL" "$FIXTURE_WORKSPACE"
+    rm -rf "$FIXTURE_ROOT" "$FIXTURE_HOME_PARENT" "$FIXTURE_CONFIG" "$FIXTURE_LOCAL" "$FIXTURE_WORKSPACE" "$FIXTURE_USER_HOME"
     unset DAISY_CONFIG DAISY_LOCAL
     fixture_teardown_home_override
 }
@@ -136,12 +149,12 @@ fixture_teardown() {
 # Runs `daisy "$@"` (the installed entry point) inside the fixture
 # workspace, capturing stdout/stderr/exit code into RUN_STDOUT/RUN_STDERR/
 # RUN_EXIT. HOME is the override when a case set one (install, healthcheck,
-# init read and write $HOME/.claude/**). stdin is inherited, so a caller may
+# init read and write $HOME/.claude/**), else the fixture's own. stdin is inherited, so a caller may
 # feed one with a here-string.
 fixture_run_cli() {
     local err_file
     err_file=$(mktemp)
-    RUN_STDOUT=$(cd "${FIXTURE_CWD:-$FIXTURE_WORKSPACE}" && HOME="${FIXTURE_HOME_OVERRIDE:-$HOME}" daisy "$@" 2>"$err_file")
+    RUN_STDOUT=$(cd "${FIXTURE_CWD:-$FIXTURE_WORKSPACE}" && HOME="${FIXTURE_HOME_OVERRIDE:-$FIXTURE_USER_HOME}" daisy "$@" 2>"$err_file")
     RUN_EXIT=$?
     RUN_STDERR=$(cat "$err_file")
     rm -f "$err_file"

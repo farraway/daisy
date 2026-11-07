@@ -98,8 +98,8 @@ func checkForge(f Forge, skip Skip) *Error {
 	if !repoShape.MatchString(f.Repo) {
 		return fieldErr("forge.repo", "%q is not <owner>/<repo>", f.Repo)
 	}
-	if !varShape.MatchString(f.TokenEnv) {
-		return fieldErr("forge.token_env", "%q is not a variable name", f.TokenEnv)
+	if err := checkTokenEnv(f.TokenEnv); err != nil {
+		return err
 	}
 	if skip&SkipAccount == 0 {
 		if err := checkCommitEmail(f.CommitEmail); err != nil {
@@ -113,6 +113,18 @@ func checkForge(f Forge, skip Skip) *Error {
 		if *f.Board == "" {
 			return fieldErr("forge.board", "empty")
 		}
+	}
+	return nil
+}
+
+// checkTokenEnv: forge.token_env is a variable name, and never the
+// maintainer's (section 8, rule 5: no swarm process reads it).
+func checkTokenEnv(v string) *Error {
+	if !varShape.MatchString(v) {
+		return fieldErr("forge.token_env", "%q is not a variable name", v)
+	}
+	if v == MaintainerTokenEnv {
+		return fieldErr("forge.token_env", "%q is the maintainer's token; the swarm's is its own account's (section 8)", v)
 	}
 	return nil
 }

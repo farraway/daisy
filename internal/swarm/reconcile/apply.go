@@ -33,6 +33,7 @@ type Swarm struct {
 	Out, Err   io.Writer
 
 	live      map[string]*live    // run directory → its container in flight
+	started   int                 // containers this process started in this pass, members and checks
 	given     map[string][]string // run directory → the secrets its member was given
 	Stopping  func() bool         // the loop was signalled: launch nothing more (nil: never)
 	newFault  bool                // a run this process collected ended in a fault
@@ -93,7 +94,7 @@ func (s *Swarm) Pass(wait bool) error {
 			mine++
 		}
 	}
-	s.collected = 0
+	s.collected, s.started = 0, 0
 	errs := []error{s.collectAll(running)}
 	launched := 0
 	if paused := s.paused(); paused != "" {
@@ -102,7 +103,9 @@ func (s *Swarm) Pass(wait bool) error {
 	} else {
 		fetched := false
 		launch := func(j *Job) error {
-			if mine+launched >= s.Cfg.MaxMembers || s.paused() != "" || s.stopping() {
+			// The running set is the pass's start; a container started
+			// since, a check in step (3) included, counts too (rule 4).
+			if mine+s.started >= s.Cfg.MaxMembers || s.paused() != "" || s.stopping() {
 				return nil // a second fault in a row, or a signal, this pass launches nothing more
 			}
 			if !fetched {
@@ -364,6 +367,18 @@ func (s *Swarm) containerName(n int, role string, k int) string {
 	return fmt.Sprintf("daisy-swarm.%s.%s.%d.%s.%d", o, repo, n, role, k)
 }
 
+// StageOf is the issue's one `swarm:*` label; ok is false with none or
+// more than one (section 5: an issue with two is skipped).
+func StageOf(is forge.Issue) (stage string, ok bool) {
+	n := 0
+	for _, l := range is.Labels {
+		if strings.HasPrefix(l, "swarm:") {
+			stage, n = l, n+1
+		}
+	}
+	return stage, n == 1
+}
+
 // stageOrder is section 5's labels in order: every stage is read, its
 // current pull request given its label, and the stages with a role
 // launched.
@@ -402,6 +417,9 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 					fmt.Fprintf(s.Err, "⚠ #%d: carries %s and %s; skipped\n", n, stages[0], stages[1])
 				}
 				continue
+			}
+			if !is.Open || len(stages) == 0 || stages[0] != label {
+				continue // moved or closed since the list was read: as it is now, at its own stage or the next pass
 			}
 			pulls, err := s.Forge.Pulls(n)
 			if err != nil {
@@ -458,19 +476,22 @@ func (s *Swarm) repoCheck(name string) []string {
 	return r.Check
 }
 
-// busy is rule 2: a container of this swarm runs on issue n, or a run on
-// n has an end line and no `collected`.
+// busy is rule 2: a container of this swarm runs on issue n (in the
+// pass's running set, or started by this process since, this pass's
+// launches included), or a run on n has an end line and no `collected`.
 func (s *Swarm) busy(running []runner.Running, runs []Run, n int) bool {
 	prefix := fmt.Sprintf("%s#%d/", s.Cfg.Forge.Repo, n)
 	if slices.ContainsFunc(running, func(c runner.Running) bool { return strings.HasPrefix(c.Swarm, prefix) }) {
 		return true
 	}
+	for dir := range s.live {
+		if r, ok := runOf(dir); ok && r.N == n {
+			return true
+		}
+	}
 	for _, r := range runs {
 		if r.N != n {
 			continue
-		}
-		if s.live[r.Dir] != nil {
-			return true
 		}
 		lines, _ := r.Result(s.O.FS())
 		if _, done := Has(lines, "collected"); Ended(lines) != "" && !done {

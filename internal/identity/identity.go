@@ -68,13 +68,22 @@ func Read(fs ops.FS, file string) (Identity, error) {
 		return ""
 	}
 	id.Name, id.Email, id.SSHKey = first("name"), first("email"), first("sshkey")
+	if id.SSHKey != "" && !keyShape.MatchString(id.SSHKey) {
+		return Identity{}, &MalformedKeyError{File: file, Key: id.SSHKey}
+	}
 	if id.Name == "" || id.Email == "" {
 		return Identity{}, fmt.Errorf("Error: identity file %s is incomplete: it needs both 'name=' and 'email=' lines", file)
 	}
-	if id.SSHKey != "" && !keyShape.MatchString(id.SSHKey) {
-		return Identity{}, fmt.Errorf("Error: identity file %s: sshkey '%s' must be a plain path (letters, digits, '.', '_', '/', '~', '@', '+', '-')", file, id.SSHKey)
-	}
 	return id, nil
+}
+
+// MalformedKeyError: the file's sshkey is not one plain shell word. A file
+// with one is refused even where an incomplete one is not (a home's
+// default identity at init).
+type MalformedKeyError struct{ File, Key string }
+
+func (e *MalformedKeyError) Error() string {
+	return fmt.Sprintf("Error: identity file %s: sshkey '%s' must be a plain path (letters, digits, '.', '_', '/', '~', '@', '+', '-')", e.File, e.Key)
 }
 
 // configValues are every value a repository's local config holds for a key,
