@@ -8,7 +8,7 @@ or when the quality and shape of the output matters as much as correctness.
 1. **Read before inventing.** Understand what exists and infer intent from code before proposing anything new.
 2. **Propose before large changes.** Explain what you intend to do and why; do not begin extensive implementation on an unconfirmed design.
 3. **Smallest diff is a mode, not a goal.** It governs fixes inside a stable abstraction and the execution of a chosen design: no extras, no speculative generality. It never decides the size of a design change.
-4. **Scope is relatedness, not size.** A need unrelated to the step's problem goes to Open Questions or Deferred — do not implement it. A rearchitecture whose cause is the step's own problem is in scope: propose it first (Rule 2).
+4. **Scope is relatedness, not size.** A need unrelated to the step's problem goes to Open Questions or Deferred — do not implement it. A rearchitecture whose cause is the step's own problem is in scope. Under a plan, record it in the plan's Decisions with the alternative considered and proceed; stop only where it crosses a decision the user has made. Outside a plan, propose it first (Rule 2).
 5. **Consult a paragon.** Before designing, find a well-regarded implementation of the same concept in the codebase and read it.
 6. **Dead code must be removed.** Nothing unused, commented-out, or "for later" survives a step.
 7. **Silent failure is unacceptable.** Errors must be visible and actionable, with location and how to fix.
