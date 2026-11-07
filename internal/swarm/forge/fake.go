@@ -14,8 +14,9 @@ import (
 
 // Fake is an in-memory forge (section 10, "forge.Fake"): the issues
 // repository and the declared repositories it is built with, their issues,
-// pull requests, comments, reviews and line comments; one label set for
-// all of them, as Gitea's organization labels are; numbers from one
+// pull requests, comments, reviews and line comments; the issues
+// repository's milestones; one label set for all of them, as Gitea's
+// organization labels are; numbers from one
 // counter per repository, shared by its issues and pull requests; times
 // from the Ops clock; and the account its token is. It applies the real
 // adapters' semantics, and its helpers stand in for what other logins and
@@ -34,7 +35,13 @@ type Fake struct {
 	items       map[Ref]*item
 	next        map[string]int
 	reviewID    int64
+	milestones  []fakeMilestone
+	refuseMs    bool
 }
+
+// fakeMilestone is a milestone of the issues repository: its id is its
+// place in the list, from 1.
+type fakeMilestone struct{ title string }
 
 // item is an issue, or a pull request when pull is set.
 type item struct {
@@ -42,6 +49,7 @@ type item struct {
 	created, closed     time.Time
 	open                bool
 	labels              []string
+	milestone           int64
 	comments            []Comment
 	pull                *pullState
 }
@@ -137,7 +145,7 @@ func (f *Fake) add(repo string, it *item) int {
 }
 
 func (it *item) issue(n int) Issue {
-	return Issue{Number: n, Title: it.title, Body: it.body, Author: it.author, Created: it.created, Closed: it.closed, Open: it.open, Labels: slices.Clone(it.labels)}
+	return Issue{Number: n, Title: it.title, Body: it.body, Author: it.author, Created: it.created, Closed: it.closed, Open: it.open, Labels: slices.Clone(it.labels), Milestone: it.milestone}
 }
 
 // Issues: forge.repo's issues in state carrying label, by number; pull
@@ -407,5 +415,65 @@ func (f *Fake) Merge(pr Ref, head string) error {
 	sum := sha1.Sum([]byte(fmt.Sprintf("merge %s#%d %s", pr.Repo, pr.N, head)))
 	it.pull.mergeSHA, it.pull.merged = hex.EncodeToString(sum[:]), true
 	it.open, it.closed = false, f.o.Now()
+	return nil
+}
+
+// RefuseMilestones makes every later milestone create, and every later
+// SetMilestone, be refused as the forge refuses an account without write
+// access to the issues (403).
+func (f *Fake) RefuseMilestones() { f.mu.Lock(); defer f.mu.Unlock(); f.refuseMs = true }
+
+// Milestones: the issues repository's milestones, in creation order, each
+// with its open and closed items counted, a pull request among them as
+// Gitea counts one.
+func (f *Fake) Milestones() ([]Milestone, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]Milestone, len(f.milestones))
+	for i, m := range f.milestones {
+		out[i] = Milestone{ID: int64(i + 1), Title: m.title}
+	}
+	for at, it := range f.items {
+		if at.Repo != f.repo || it.milestone == 0 {
+			continue
+		}
+		if m := &out[it.milestone-1]; it.open {
+			m.Open++
+		} else {
+			m.Closed++
+		}
+	}
+	return out, nil
+}
+
+// EnsureMilestone: the first milestone titled title, or a new one.
+func (f *Fake) EnsureMilestone(title string) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if i := slices.IndexFunc(f.milestones, func(m fakeMilestone) bool { return m.title == title }); i >= 0 {
+		return int64(i + 1), nil
+	}
+	if f.refuseMs {
+		return 0, fmt.Errorf("forge: POST /repos/%s/%s/milestones: 403 forbidden", f.owner, f.repo)
+	}
+	f.milestones = append(f.milestones, fakeMilestone{title})
+	return int64(len(f.milestones)), nil
+}
+
+// SetMilestone puts issue n in the milestone id, which must exist (0
+// takes it out of its milestone).
+func (f *Fake) SetMilestone(n int, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	it, err := f.find(Ref{f.repo, n})
+	switch {
+	case err != nil:
+		return err
+	case f.refuseMs:
+		return fmt.Errorf("forge: PATCH /repos/%s/%s/issues/%d: 403 forbidden", f.owner, f.repo, n)
+	case id < 0 || id > int64(len(f.milestones)):
+		return fmt.Errorf("forge: PATCH /repos/%s/%s/issues/%d: 422 milestone %d does not exist", f.owner, f.repo, n, id)
+	}
+	it.milestone = id
 	return nil
 }

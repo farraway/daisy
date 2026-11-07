@@ -148,3 +148,51 @@ func TestFakePullsReviewsAndMerge(t *testing.T) {
 		t.Errorf("a merged pull request merged again: %v", err)
 	}
 }
+
+// The Fake's milestones: one per title; the counts are the issues and pull
+// requests of forge.repo in each, as Gitea counts them; SetMilestone takes a
+// milestone that exists, and after RefuseMilestones a create and a set
+// fail as the forge's 403.
+func TestFakeMilestones(t *testing.T) {
+	f := fakeForge(t)
+	a, _ := f.CreateIssue("A", "", []string{"swarm:ready"})
+	b, _ := f.CreateIssue("B", "", []string{"bug"})
+	pr, _ := f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
+	first, _ := f.EnsureMilestone("m0: First")
+	second, _ := f.EnsureMilestone("m0: Second")
+	if again, err := f.EnsureMilestone("m0: First"); again != first || err != nil || first == second {
+		t.Errorf("EnsureMilestone again = %d, %v; first %d, second %d", again, err, first, second)
+	}
+	for _, n := range []int{a, b, pr} {
+		if err := f.SetMilestone(n, first); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.CloseIssue(b)
+	if is, _ := f.Issue(a); is.Milestone != first {
+		t.Errorf("Issue(%d).Milestone = %d", a, is.Milestone)
+	}
+	if got, _ := f.Issues(Closed, "bug"); len(got) != 1 || got[0].Milestone != first {
+		t.Errorf("Issues(Closed) = %+v", got)
+	}
+	ms, err := f.Milestones()
+	if want := []Milestone{{ID: first, Title: "m0: First", Open: 2, Closed: 1}, {ID: second, Title: "m0: Second"}}; err != nil || !reflect.DeepEqual(ms, want) {
+		t.Errorf("Milestones = %+v, %v", ms, err)
+	}
+	if err := f.SetMilestone(a, 9); errText(err) != "forge: PATCH /repos/acme/app/issues/1: 422 milestone 9 does not exist" {
+		t.Errorf("an unknown milestone: %v", err)
+	}
+	if err := f.SetMilestone(99, first); errText(err) != "forge: acme/app#99: 404 not found" {
+		t.Errorf("an unknown issue: %v", err)
+	}
+	f.RefuseMilestones()
+	if _, err := f.EnsureMilestone("m0: Third"); errText(err) != "forge: POST /repos/acme/app/milestones: 403 forbidden" {
+		t.Errorf("a refused create: %v", err)
+	}
+	if id, err := f.EnsureMilestone("m0: Second"); id != second || err != nil {
+		t.Errorf("an existing milestone is found while refused: %d, %v", id, err)
+	}
+	if err := f.SetMilestone(a, second); errText(err) != "forge: PATCH /repos/acme/app/issues/1: 403 forbidden" {
+		t.Errorf("a refused set: %v", err)
+	}
+}

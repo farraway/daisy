@@ -45,6 +45,14 @@ type Adapter interface {
 	ReviewComments(pr Ref) ([]ReviewComment, error)
 	Review(pr Ref, verdict Verdict, body string) error
 	Merge(pr Ref, head string) error
+	// Milestones is forge.repo's milestones, open and closed, each with
+	// the issues the forge counts in it.
+	Milestones() ([]Milestone, error)
+	// EnsureMilestone is the id of forge.repo's milestone titled title,
+	// open or closed, created open when there is none; it never edits one.
+	EnsureMilestone(title string) (id int64, err error)
+	// SetMilestone puts issue n of forge.repo in the milestone id.
+	SetMilestone(n int, id int64) error
 }
 
 // Account is the token's own forge account as the forge reports it; Email
@@ -67,15 +75,24 @@ type Ref struct {
 }
 
 type Issue struct {
-	Number   int
-	Title    string
-	Body     string
-	Author   string
-	Created  time.Time
-	Closed   time.Time // zero while open
-	Open     bool
-	Labels   []string
-	Comments []Comment // filled by Issue(n) only
+	Number    int
+	Title     string
+	Body      string
+	Author    string
+	Created   time.Time
+	Closed    time.Time // zero while open
+	Open      bool
+	Labels    []string
+	Milestone int64     // its milestone's id, 0 for none
+	Comments  []Comment // filled by Issue(n) only
+}
+
+// Milestone is a milestone of forge.repo and its issues, open and closed,
+// as the forge counts them.
+type Milestone struct {
+	ID           int64
+	Title        string
+	Open, Closed int
 }
 
 type Comment struct {

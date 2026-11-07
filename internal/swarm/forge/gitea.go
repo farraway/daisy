@@ -234,12 +234,16 @@ type giteaIssue struct {
 	Labels  []struct {
 		Name string `json:"name"`
 	} `json:"labels"`
+	Milestone *giteaMilestone `json:"milestone"`
 }
 
 func (r giteaIssue) issue() Issue {
 	is := Issue{Number: r.Number, Title: r.Title, Body: r.Body, Author: r.User.Login, Created: r.Created, Open: r.State == "open"}
 	if r.Closed != nil {
 		is.Closed = *r.Closed
+	}
+	if r.Milestone != nil {
+		is.Milestone = r.Milestone.ID
 	}
 	for _, l := range r.Labels {
 		is.Labels = append(is.Labels, l.Name)
@@ -562,4 +566,61 @@ func (g *Gitea) Merge(pr Ref, head string) error {
 		return fmt.Errorf("%w: %d %s", ErrNotMergeable, api.status, api.message)
 	}
 	return err
+}
+
+type giteaMilestone struct {
+	ID     int64  `json:"id"`
+	Title  string `json:"title"`
+	Open   int    `json:"open_issues"`
+	Closed int    `json:"closed_issues"`
+}
+
+// Milestones lists forge.repo's milestones in every state: without
+// state=all, Gitea lists the open ones alone.
+func (g *Gitea) Milestones() ([]Milestone, error) {
+	raw, err := list[giteaMilestone](g, g.repoPath(g.repo)+"/milestones?state=all")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Milestone, len(raw))
+	for i, r := range raw {
+		out[i] = Milestone{ID: r.ID, Title: r.Title, Open: r.Open, Closed: r.Closed}
+	}
+	return out, nil
+}
+
+// EnsureMilestone reads the milestones first, since Gitea creates a
+// second milestone of a title it already has; the first of the title is
+// the one taken.
+func (g *Gitea) EnsureMilestone(title string) (int64, error) {
+	ms, err := g.Milestones()
+	if err != nil {
+		return 0, err
+	}
+	for _, m := range ms {
+		if m.Title == title {
+			return m.ID, nil
+		}
+	}
+	var out giteaMilestone
+	if err := g.call("POST", g.repoPath(g.repo)+"/milestones", map[string]string{"title": title}, http.StatusCreated, &out); err != nil {
+		return 0, err
+	}
+	return out.ID, nil
+}
+
+// SetMilestone edits issue n's milestone and reads it back from the
+// answer: Gitea answers 201 without the change to an account that may
+// edit the issue, as its poster, but may not write the repository's
+// issues.
+func (g *Gitea) SetMilestone(n int, id int64) error {
+	path := fmt.Sprintf("%s/issues/%d", g.repoPath(g.repo), n)
+	var out giteaIssue
+	if err := g.call("PATCH", path, map[string]int64{"milestone": id}, http.StatusCreated, &out); err != nil {
+		return err
+	}
+	if got := out.issue().Milestone; got != id {
+		return fmt.Errorf("forge: PATCH %s: 201 with milestone %d, not %d; the token's account needs write access to the issues of %s/%s", path, got, id, g.owner, g.repo)
+	}
+	return nil
 }

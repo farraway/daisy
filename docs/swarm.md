@@ -24,8 +24,9 @@ its Step 5 built the provider and runner seams, the prompt files, the
 trigger rule and `apply --once` running the architect, amending sections
 2, 7.1, 7.3, 7.6, 9, 10, 11, 13 and 14; its Step 6 built the lifecycle,
 the gates, the merge step, the owner's batch, `apply`'s loop, `pause`
-and `resume`, amending sections 2, 3, 7.1, 7.6, 7.7, 11, 13 and 14); the
-board, the GitHub adapter and the `budget` wait for a run that needs
+and `resume`, amending sections 2, 3, 7.1, 7.6, 7.7, 11, 13 and 14; its
+Step 9 the forge milestones that mirror the briefs, amending sections 4,
+10, 11, 13 and 14); the board, the GitHub adapter and the `budget` wait for a run that needs
 them. The maintainer reads the sections each code
 step's hand-back cites (the plan's decision of 2026-11-06, in place of a
 reading of the whole before the first code step), and section 14 lists
@@ -449,8 +450,10 @@ heading after the header is one milestone, and the milestone's text
 gives its persona, its exit criterion, observable without reading code,
 and what it forces earlier. A brief has no steps: the owner cuts it into
 jobs and the architect plans each. Daisy parses no more than the
-`Status:` line and the `## ` headings, which the forge milestones of
-Step 9 mirror; the priority and everything else are the owner's reading.
+`Status:` line and the `## ` headings (a `## ` line inside a fenced
+block is none, nor is a heading without text), which the forge
+milestones mirror (sections 10 and 11, `apply`); the priority and
+everything else are the owner's reading.
 A file under `resources` without a `Status:` line is a resource like any
 other. The owner reads every `active` brief in its batch prompt (7.3,
 `# Briefs`), proposes toward the highest-priority brief's first unmet
@@ -1677,6 +1680,9 @@ type Adapter interface {
     ReviewComments(pr Ref) ([]ReviewComment, error)    // line comments, oldest first
     Review(pr Ref, verdict Verdict, body string) error
     Merge(pr Ref, head string) error                   // ErrNotMergeable when the forge refuses
+    Milestones() ([]Milestone, error)                  // forge.repo's, open and closed, with the forge's counts
+    EnsureMilestone(title string) (id int64, err error) // forge.repo's milestone titled title, created when none is
+    SetMilestone(n int, id int64) error                // issue n into the milestone id
     Board(n int, stage string) error                   // with forge.board: issue n's card into the column stage
 }
 
@@ -1693,9 +1699,15 @@ type Issue struct {
     Author   string    // login
     Created  time.Time
     Closed   time.Time // zero while open
-    Open     bool
-    Labels   []string
-    Comments []Comment // filled by Issue(n) only
+    Open      bool
+    Labels    []string
+    Milestone int64     // its milestone's id, 0 for none
+    Comments  []Comment // filled by Issue(n) only
+}
+type Milestone struct {
+    ID           int64
+    Title        string
+    Open, Closed int    // its open and closed issues, as the forge counts them
 }
 type Comment struct{ Author, Body string; Created time.Time }
 type Pull struct {
@@ -1724,15 +1736,15 @@ type Verdict int // Approve, RequestChanges, Commented
 var ErrNotMergeable error // wraps the forge's message
 ```
 
-These sixteen methods are every call Daisy makes to the forge; the only
+These nineteen methods are every call Daisy makes to the forge; the only
 other traffic with it is host-side git (fetch and push, 7.1 and 7.6).
-**As built (Steps 1 and 4 of the swarm build).** The interface holds
-fifteen: `Board` joins it with the step that builds the board, which
+**As built (Steps 1, 4 and 9 of the swarm build).** The interface holds
+eighteen: `Board` joins it with the step that builds the board, which
 waits for a run that needs it, as the GitHub adapter does (`forge.New`
 answers kind `github` with `forge: kind github has no adapter yet; it is
 built when a run needs it (docs/swarm.md section 10)`). The `gitea`
-adapter and `forge.Fake` implement all fifteen (Step 1 what `swarm init`
-calls, Step 4 the rest), the label id map with a repository's label
+adapter and `forge.Fake` implement all eighteen (Step 1 what `swarm init`
+calls, Step 4 the rest but the milestones, Step 9 those), the label id map with a repository's label
 shadowing the organization's included, read afresh by each `CreateIssue`
 and `Relabel`. The retries below are built at Step 5 of the swarm build over
 `Ops.After` (item 35): a `Retry-After` in seconds or as an HTTP date,
@@ -1816,6 +1828,18 @@ fault. An
 error reads `forge: <METHOD> <path>: <status> <message
 from the body>`, but for `EnsureLabels`'s two messages above (a refused create, an owner that is not an organization).
 
+**The milestones** (Step 9 of the swarm build) are `forge.repo`'s, which
+`apply` keeps as a mirror of the briefs (section 11): a view of a
+brief's progress on the forge's own pages, which no rule reads.
+`Milestones` lists them, open and closed, each with the number of its
+open and closed issues as the forge counts them (Gitea counts a pull
+request put in one, and an issue that is not the swarm's). `EnsureMilestone`
+lists them and returns the id of the first titled `title`, open or
+closed, and only when none is creates one, open, with no description and
+no due date, since the forge would create a second of one title; it never
+edits or closes one. `SetMilestone` sets issue n's milestone, and only
+it. `Issues` and `Issue` read each issue's milestone's id (0 for none).
+
 **Detection** (the wizard's defaults): from the first repository's
 `remote.origin.url` in any of the forms `git@<host>:<owner>/<repo>.git`,
 `ssh://[<user>@]<host>[:<port>]/<owner>/<repo>[.git]` and
@@ -1842,7 +1866,7 @@ last column names; any other is the call's error.
 |---|---|---|---|---|
 | `EnsureLabels` | `GET`, then `POST` per missing name | `/orgs/{o}/labels?page=<p>&limit=50`; `/orgs/{o}/labels` | —; `{"name", "color": "#ededed", "description": ""}` | `[].id`, `[].name`; — |
 | `Login` | `GET` | `/user` | — | `login`, `email` |
-| `Issues` | `GET` | `/repos/{o}/{r}/issues?state=<open\|closed>&type=issues&labels=<label>&page=<p>&limit=50` (the label query-escaped: `swarm%3Aproposed`) | — | `[].number`, `title`, `body`, `user.login`, `created_at`, `closed_at`, `state`, `labels[].name` |
+| `Issues` | `GET` | `/repos/{o}/{r}/issues?state=<open\|closed>&type=issues&labels=<label>&page=<p>&limit=50` (the label query-escaped: `swarm%3Aproposed`) | — | `[].number`, `title`, `body`, `user.login`, `created_at`, `closed_at`, `state`, `labels[].name`, `milestone.id` (`milestone` `null` for none) |
 | `Issue` | `GET`, `GET` | `/repos/{o}/{r}/issues/{n}`; `/repos/{o}/{r}/issues/{n}/comments` (no paging: the endpoint answers every comment) | — | as `Issues`; `[].body`, `[].user.login`, `[].created_at` |
 | `CreateIssue` | `POST` | `/repos/{o}/{r}/issues` | `{"title", "body", "labels": [<ids>]}` | `201`: `number` |
 | `Comment` | `POST` | `/repos/{o}/{r}/issues/{n}/comments` | `{"body"}` | `201` |
@@ -1855,6 +1879,9 @@ last column names; any other is the call's error.
 | `ReviewComments` | `GET` per review | `/repos/{o}/{r}/pulls/{pr}/reviews/{id}/comments`, for each id `Reviews` returns (no paging) | — | `[].body`, `[].path`, `[].position`, `[].commit_id`, `[].user.login`, `[].created_at` |
 | `Review` | `POST`, then `POST` on a `422` | `/repos/{o}/{r}/pulls/{pr}/reviews` | `{"event": "APPROVED" or "REQUEST_CHANGES", "body"}`; `{"event": "COMMENT", "body"}` | `200`; on `422` the second `POST`, `200` |
 | `Merge` | `POST` | `/repos/{o}/{r}/pulls/{pr}/merge` | `{"do": "merge", "head_commit_id": <head>}` | the status: `200` merged; `405` or `409` refused |
+| `Milestones` | `GET` | `/repos/{o}/{r}/milestones?state=all&page=<p>&limit=50` (without `state=all` Gitea lists the open ones alone) | — | `[].id`, `[].title`, `[].open_issues`, `[].closed_issues` |
+| `EnsureMilestone` | `GET` as `Milestones`, then `POST` when no milestone has the title | `/repos/{o}/{r}/milestones?state=all&page=<p>&limit=50`; `/repos/{o}/{r}/milestones` | —; `{"title"}` | as `Milestones`; `201`: `id` |
+| `SetMilestone` | `PATCH` | `/repos/{o}/{r}/issues/{n}` | `{"milestone": <id>}` | `201`: `milestone.id`, which must be `<id>`: Gitea's edit drops the field, still answering `201`, for the issue's poster without write access to the repository's issues (as its source reads; *to confirm*), and the call then fails with `forge: PATCH <path>: 201 with milestone <got>, not <id>; the token's account needs write access to the issues of <o>/<r>` |
 | `Board` | `GET`, `GET`, `GET`, `POST` per missing column, `POST` (then `POST` on a `404` or `422`) | `/repos/{o}/{r}/issues/{n}`; `/orgs/{o}/projects?state=open&page=<p>&limit=50`; `/orgs/{o}/projects/{id}/columns?page=<p>&limit=50`; `/orgs/{o}/projects/{id}/columns`; `/orgs/{o}/projects/{id}/issues/{issue_id}/move`; `/orgs/{o}/projects/{id}/columns/{column_id}/issues/{issue_id}` | —; —; —; `{"title": <stage>}`; `{"column_id"}`; — | `id` (`{issue_id}`); `[].id`, `[].title` (the first project titled `forge.board`); `[].id`, `[].title`; `id`; the status: `204`; `201` |
 
 Step 1 recorded the pairs of `EnsureLabels`, `Login`, `Issues` and
@@ -1867,7 +1894,12 @@ from the same Swagger (by operationId `issueGetIssue`, `issueGetComments`,
 `issueAddLabel`, `issueRemoveLabel`, `issueEditIssue`,
 `repoCreatePullRequest`, `repoListPullReviews`,
 `repoGetPullReviewComments`, `repoCreatePullReview`,
-`repoMergePullRequest`), which settles four of the points left open:
+`repoMergePullRequest`), and Step 9 the milestones' from the Swagger of
+version 29.0.0+dev-160 (by operationId `issueGetMilestonesList`, whose
+`state` defaults to `open`, `issueCreateMilestone`, answering `201`, and
+`issueEditIssue` again, whose `EditIssueOption` takes `milestone` as an
+id; `issueGetMilestone` is not used, the list carrying the counts). Step
+4's pairs settle four of the points left open:
 the comment endpoints take no page (`since` and `before` only) and the
 review comments' none; the review `event`s are `APPROVED`,
 `REQUEST_CHANGES` and `COMMENT`; the line comment's line is `position`;
@@ -1885,7 +1917,10 @@ answer for an issue not on the board; for the labels, that a team member
 with Write may create organization labels (section 8, rule 5), that
 `/repos/{o}/{r}/labels` lists the repository's own labels only, and that
 an issue or pull request in any repository of the organization takes an
-organization label's id.
+organization label's id; for the milestones, that the instance's version
+documents the same three pairs, that the swarm's account may create a
+milestone and set one (Gitea asks write access to the issues for both),
+and that a milestone's counts include a pull request.
 
 ### GitHub (REST v3)
 
@@ -1912,6 +1947,7 @@ Labels are named in paths and bodies (a name in a path is escaped:
 | `ReviewComments` | `GET` | `/repos/{o}/{r}/pulls/{pr}/comments?per_page=100&page=<p>` | — | `[].body`, `[].path`, `[].line`, `[].commit_id`, `[].user.login`, `[].created_at` |
 | `Review` | `POST`, then `POST` on a `422` | `/repos/{o}/{r}/pulls/{pr}/reviews` | `{"event": "APPROVE" or "REQUEST_CHANGES", "body"}`; `{"event": "COMMENT", "body"}` | — |
 | `Merge` | `PUT` | `/repos/{o}/{r}/pulls/{pr}/merge` | `{"sha": <head>, "merge_method": "merge"}` | the status: `200` merged; `405` or `409` refused |
+| `Milestones`, `EnsureMilestone`, `SetMilestone` | none | not mapped: the GitHub adapter waits for a run that needs it (the swarm build's Non-goals), and its milestone pairs are recorded when it is built | — | — |
 | `Board` | none | not supported in version 1: GitHub's boards (Projects v2, whose API is GraphQL-first, with items and field values rather than columns) are not mapped; validation refuses `forge.board` for kind `github` (section 3), so the method is never called, and the adapter returns an error naming this | — | — |
 
 `Relabel`'s `POST` adds without replacing (the `PUT` form would replace
@@ -1935,9 +1971,13 @@ keeps each issue's column), and has helpers the real forge does not need:
 `Say(at, login, body)` (a comment on an issue or a pull request, `at` a `Ref`),
 `SayOnLine(pr, login, path, line, body)` (a line comment),
 `SetLabel(at, label)`, `Push(pr, sha)` (moves a head),
-`Unmergeable(pr)`, `FailBoard()` (every later `Board` errs) and
+`Unmergeable(pr)`, `FailBoard()` (every later `Board` errs),
 `RefuseLabels()` (every later label create is refused, `EnsureLabels`
-failing as Gitea's refused create does), each `pr` a `Ref`. Its labels are
+failing as Gitea's refused create does) and `RefuseMilestones()` (every
+later milestone create and `SetMilestone` refused as the forge's `403`),
+each `pr` a `Ref`. Its milestones are `forge.repo`'s, their ids from 1 in
+creation order, their counts the issues and pull requests of `forge.repo`
+in each; `SetMilestone` refuses an id it does not hold. Its labels are
 one set for all its repositories, as Gitea's organization labels are. A test merges as the maintainer by calling `Merge`.
 Tests assert on the Fake's state after a pass, never on which methods were
 called.
@@ -2069,17 +2109,17 @@ passphrase prompt, or an agent the user manager can reach).
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm apply [--once]` |
-| Reads | `swarm/swarm.json` and the prompts (each pass), `<ws>/.env.sh` (token and `env` credentials), each used slot's `auth.json`, each declared repository's `origin` and `core.sshCommand`, `<state>`, and the briefs under the resolved `resources` paths (the batch prompt, 7.3) |
+| Reads | `swarm/swarm.json` and the prompts (each pass), `<ws>/.env.sh` (token and `env` credentials), each used slot's `auth.json`, each declared repository's `origin` and `core.sshCommand`, `<state>`, and the briefs under the resolved `resources` paths (the batch prompt, 7.3, and the milestones, step 8) |
 | Start | validation; the token and every used provider's `env` credential set (a slot's login is checked at its launch: section 3, Secret values); `Login()`; `id -u` and `id -g`; `docker ps` once (failing: `Error: swarm: docker: <message>`, exit 1); `<state>` created when absent; the lock (below); then `EnsureLabels` with the eight labels (one deleted since `init` is created again; Step 39); its failure, a refused create included (section 10), is `Error: …` and exit 1, with or without `--once`, before any pass |
-| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `abandoned` (then `collected`) and its `work/` removed, and one whose container has outlived `timeout` is stopped (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)`, then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one `swarm:*` label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, and launches run until `max_members` are running; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `approved` issue (section 12); (7) the owner's batch trigger, its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) the summary line |
+| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `abandoned` (then `collected`) and its `work/` removed, and one whose container has outlived `timeout` is stopped (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)`, then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one `swarm:*` label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, and launches run until `max_members` are running; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `approved` issue (section 12); (7) the owner's batch trigger, its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) after the runs `--once` waits for (so that a batch's proposals are in it), unless a signal has come, and paused or not, the milestones: with an `active` brief, `Milestones()`, then `EnsureMilestone(<slug>: <milestone>)` for each `## ` heading of each `active` brief (`<slug>` its file name without `.md`) that has no milestone of its title, then `Issues(Open, label)` and `Issues(Closed, label)` for each label and `SetMilestone(n, <id>)` for each issue in no milestone whose `Brief:` line (section 4) names a milestone of an `active` brief; an issue already in a milestone is left in it, the maintainer's choice or an earlier one's; every failure here is a warning, never a fault, an exit code or an end to the pass; (9) the summary line |
 | `--once` | one pass; then it waits for every run it launched, collects each (starting and waiting for a worker run's check), and exits |
 | Without `--once` | a pass every `interval`, start to start, until SIGINT or SIGTERM: then no launch, its running members and checks collected as they exit (a worker run's check started for it, as its collection needs), exit 0; a second signal exits at once (130), leaving its members to finish and be found abandoned by a later pass |
-| Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge |
+| Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`, `Milestones`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), `EnsureMilestone` and `SetMilestone` (step 8), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge |
 | Writes | `<state>/lock`, `<state>/paused` (a swarm fault, the budget), `<state>/owner-held`, `<state>/git/`, `<state>/runs/`, and for a slot run `<slot>.lock` and the clearing of `<slot>` (section 2); nothing else |
-| Stdout | `#<n> <role> run <k>: launched`; at collection one line per step done, `#<n> <role> run <k>: ` then `check started`, `check exited <code>` (or `check timeout`), `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`; a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:approved → swarm:planned` or `#<n> closed (last slice merged)`, or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> swarm:approved → swarm:blocked`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
-| Stderr | `⚠️  .env.sh <problem>` (as `init`); warnings `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled`, `⚠ #<n> closed during the run; nothing posted`, `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); errors `Error: …` |
+| Stdout | `#<n> <role> run <k>: launched`; at collection one line per step done, `#<n> <role> run <k>: ` then `check started`, `check exited <code>` (or `check timeout`), `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`; a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:approved → swarm:planned` or `#<n> closed (last slice merged)`, or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> swarm:approved → swarm:blocked`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; the milestones' `milestone created: <title>` and `#<n> milestone: <title>`; each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
+| Stderr | `⚠️  .env.sh <problem>` (as `init`); warnings `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled`, `⚠ #<n> closed during the run; nothing posted`, `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); the milestones' warnings, each pass while the cause stands, for an open issue `⚠ #<n>: its Brief: line names "<milestone>", which is no milestone of <path>; no milestone set` (a heading renamed or removed since) and `⚠ #<n>: its Brief: line names <path>, which is no brief under resources; no milestone set`, `⚠ milestones: <path> and <path> share the name <slug>; <path> is mirrored to no milestone` (the second in path order), `⚠ milestone <title>: <error>` (a refused create), `⚠ #<n>: milestone <title>: <error>`, and `⚠ milestones: <error>` (the briefs or a list unreadable); a closed issue's line, and a brief not `active`, give none; errors `Error: …` |
 | Lock | `Ops.FS().Lock(<state>/lock, "apply[ --once] since <time>")` takes an exclusive `flock` without waiting and writes the holder line (adding `pid <pid>`); the kernel releases it when the process exits, however it exits. Held: `Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`, exit 1, nothing read from the forge |
-| Exit codes | 0 the pass or passes ran (a member's failure is reported on the forge, not in the exit code; a pause is reported on stdout); 1 outside a workspace, invalid `swarm.json` at start, a token or a used provider's `env` credential unset (a slot without a login is its run's fault at the launch, not an exit code), `docker` unavailable (`Error: swarm: docker: <message>`), the lock held, `EnsureLabels` failing at start (a refused create included, with or without `--once`), and with `--once` a forge (a board fault excepted), git or `docker ps` error during the pass (without `--once` such an error is printed and the next pass runs); 130 a second signal while the loop collects its running members; 2 usage |
+| Exit codes | 0 the pass or passes ran (a member's failure is reported on the forge, not in the exit code; a pause is reported on stdout); 1 outside a workspace, invalid `swarm.json` at start, a token or a used provider's `env` credential unset (a slot without a login is its run's fault at the launch, not an exit code), `docker` unavailable (`Error: swarm: docker: <message>`), the lock held, `EnsureLabels` failing at start (a refused create included, with or without `--once`), and with `--once` a forge (a board fault and step (8)'s milestones excepted), git or `docker ps` error during the pass (without `--once` such an error is printed and the next pass runs); 130 a second signal while the loop collects its running members; 2 usage |
 | Ops | Real |
 
 **As built (Steps 5 and 6 of the swarm build).** The table as written,
@@ -2100,12 +2140,19 @@ Two faults in a row pause the swarm only when the second was collected
 by this process (section 14, item 62), so a `resume` is not undone at
 the next pass by the same two runs.
 
+**As built (Step 9 of the swarm build).** Step (8), the milestones, as
+the table says (section 14, item 66). Without `--once`, a batch run is
+collected at a later pass's step (3), and its proposals are put in their
+milestones at that pass's step (8). The step reads every swarm issue,
+open and closed, at each pass with an `active` brief: sixteen list calls
+beside `Milestones()`, and writes only what is missing.
+
 ### daisy swarm status
 
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm status` |
-| Reads | `swarm/swarm.json` (validated as `apply` validates it, the prompts included), `<ws>/.env.sh` (the token), `<state>/paused`, `<state>/owner-held`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under the resolved `resources` paths (their `Status:` lines and `## ` headings, section 4); the forge: `Login()`, `Issues(Open, label)` and `Issues(Closed, label)` for each of the eight labels, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
+| Reads | `swarm/swarm.json` (validated as `apply` validates it, the prompts included), `<ws>/.env.sh` (the token), `<state>/paused`, `<state>/owner-held`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under the resolved `resources` paths (their `Status:` lines and `## ` headings, section 4); the forge: `Login()`, `Issues(Open, label)` and `Issues(Closed, label)` for each of the eight labels, `Milestones()` when a brief is `active`, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
 | Writes | nothing, anywhere |
 | Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]` and ` — owner batch held: <reason>` when so; `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per label, `  %-12s %d` and the issue numbers (`  proposed     2  #20 #21`); `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `next slice #…`, `close #…`, `blocked #…`, separated by `; ` (section 5's list, an `approved` issue under the one of `merge`, `next slice` and `close` its current pull request calls for, below), or `nothing`; `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief in path order (below), or `Briefs: none active` |
 | Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`); 1 outside a workspace, `swarm.json` absent or invalid, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief, a run's `result` or a batch run's `out.md` unreadable; 2 with any argument |
@@ -2165,14 +2212,18 @@ review rounds as section 6 counts them, over all its reviews, and
 login in `trusted` that is not the swarm's.
 
 **Briefs.** Each `active` brief's line is its path, then, separated by
-`; `, `<milestone> (<o> open, <c> closed)` for each milestone some swarm
-issue's `Brief:` line names (open, or closed at any time), in the
-brief's heading order (a milestone the brief no longer names after
-them); `<z> of <m> milestones with no issue` when some of its `## `
-headings have none; and `met (owner run <k>)` when the newest batch run
+`; `, `<milestone> (<o> open, <c> closed)` for each of its `## `
+headings, in order, whose forge milestone (`<slug>: <milestone>`,
+section 10) holds an issue, the counts the forge's own (`Milestones()`:
+every issue in the milestone, open or closed at any time, the
+maintainer's too, and none outside it, so an issue `apply` has not yet
+put in one is not counted); `<z> of <m> milestones with no issue` when
+some of its headings' milestones hold none; `<y> of <m> milestones not
+on the forge` when some have no milestone yet (`apply` creates them at
+its next pass); and `met (owner run <k>)` when the newest batch run
 whose `out.md` is not empty, `<k>` by number, reports it with a `Met:`
-line (section 4). A brief with neither milestones nor issues is its
-path alone.
+line (section 4). A brief with no milestones and no `Met:` is its path
+alone.
 
 ### daisy swarm pause and daisy swarm resume
 
@@ -2258,20 +2309,21 @@ follows G2, and T14–T16 are the merge step's; **the trigger rule's table** of 
 `proposed`, `ready`, `planning` and `planned` read the issue thread,
 `in-review` and `reviewed` the current pull request's, and `approved` and
 `blocked` run nobody), with the batch trigger's two pacing conditions; and
-**sixteen `Adapter` methods** (section 10): `EnsureLabels`, `Login`,
+**nineteen `Adapter` methods** (section 10): `EnsureLabels`, `Login`,
 `Issues`, `Issue`, `CreateIssue`, `Comment`, `Relabel`, `CloseIssue`,
 `Pulls`, `CreatePull`, `PullComments`, `Reviews`, `ReviewComments`,
-`Review` and `Merge`, the fifteen built, and `Board`, which joins the
-interface with the step that builds the board.
+`Review`, `Merge`, `Milestones`, `EnsureMilestone` and `SetMilestone`,
+the eighteen built, and `Board`, which joins the interface with the step
+that builds the board.
 
 | Step | Seam | Tested against | What it pins |
 |---|---|---|---|
 | 27 | `declare`: `swarm.json` validation | real temp workspaces | every row of section 3's error table, one case each, the message byte for byte (`gates`, `budget`, `repos` and each repository's `check` and `protected`, `trusted` and `forge.board` included, and from Step 1 a model not named, `co_author` and `forge.commit_email`) |
 | 27 | `declare`: the wizard | a scripted `Ops.Prompt` | `--defaults` takes every default (two repositories under `<ws>` give two `repos` entries, each with the default image; without `--defaults`, question 27 is asked once per repository); each override is honoured; a refused answer asks again; EOF cancels and writes nothing; `trusted` written as question 33's logins then `Login()`'s, question 33's default without the swarm's login, and an answer naming it asked again; no `-` for a model; the co-author's default following the model; question 34's default the account's email |
-| 27 | `forge`: `gitea` and `github` | `ops.Fake` `HTTPFn` with one recorded request and response per method | (Step 1 built `gitea`'s `EnsureLabels`, `Login`, `Issues` and `Pulls` with these tests, and Step 4 the rest, the label id map with its repository-label shadowing among them, since `CreateIssue` and `Relabel` are its only readers; the retries wait for `Ops.After`: section 10, As built) section 10's tables for all sixteen methods (`Board`'s with the board): method, endpoint, body; pagination; `Review`'s formal event and its comment-type fallback on a `422`; `Board`'s project and column lookup, a missing column created, the move by the issue's `id` and the add when it is not on the board, GitHub's refusal; `EnsureLabels` idempotent, on the organization's labels (Gitea) or each repository's (GitHub), a repository label shadowing an organization label of its name, a refused organization create (`403`) failing with the missing names byte for byte and creating nothing more, and a `404` on the organization's labels failing as not an organization; `Pulls` one list per declared repository, each `Refs` form, `merge_commit_sha`; `Relabel` on a pull request, with `remove` `""`, and never touching another label; `Pulls`' filter on branch and `Refs`, and its labels; `Merge`'s refusal as `ErrNotMergeable`; error text without the token |
+| 27 | `forge`: `gitea` and `github` | `ops.Fake` `HTTPFn` with one recorded request and response per method | (Step 1 built `gitea`'s `EnsureLabels`, `Login`, `Issues` and `Pulls` with these tests, and Step 4 the rest, the label id map with its repository-label shadowing among them, since `CreateIssue` and `Relabel` are its only readers; the retries wait for `Ops.After`: section 10, As built) section 10's tables for all nineteen methods (`Board`'s with the board): method, endpoint, body; pagination; `Review`'s formal event and its comment-type fallback on a `422`; `Board`'s project and column lookup, a missing column created, the move by the issue's `id` and the add when it is not on the board, GitHub's refusal; `EnsureLabels` idempotent, on the organization's labels (Gitea) or each repository's (GitHub), a repository label shadowing an organization label of its name, a refused organization create (`403`) failing with the missing names byte for byte and creating nothing more, and a `404` on the organization's labels failing as not an organization; `Pulls` one list per declared repository, each `Refs` form, `merge_commit_sha`; `Relabel` on a pull request, with `remove` `""`, and never touching another label; `Pulls`' filter on branch and `Refs`, and its labels; `Merge`'s refusal as `ErrNotMergeable`; error text without the token; from Step 9 of the swarm build, `Milestones` in every state over pages with the forge's counts, `EnsureMilestone` finding the first of a title, a closed one included, and creating only a missing one, `SetMilestone`'s body and its `201` without the change failing, and an issue's `milestone.id` read |
 | 27 | `init`'s readiness warnings | real temp workspaces | each of the four warnings (the first two per repository), and none when all is present; the exit code unchanged |
 | 27 | `init` end to end | `forge.Fake`, a scripted `Ops.Prompt`, real temp workspaces | the files written, the eight labels ensured, the unit files printed; a second run writing no file and creating no label; after `RefuseLabels()`, exit 1 naming the missing labels with the files written, and a re-run finding them once created; the token unset or a read failing writing nothing |
-| 27 | `status` | `ops.ReadOnly` over a Fake | it runs read-only (section 14, item 31) and prints section 11's lines; zero issues per label, the gates and the declared personas after `init`; "Waiting for you" per section 5; Throughput over a scripted `runs/`; and from Step 8 of the swarm build, over a `forge.Fake` and `runs/` seeded with the first real run's shape (Step 30's row), the stage times, each issue's correction counts, each `active` brief's milestones with their open and closed issues and the newest batch run's `Met:`, and "Waiting for you" moving from `merge` to `next slice` or `close` as the maintainer merges |
+| 27 | `status` | `ops.ReadOnly` over a Fake | it runs read-only (section 14, item 31) and prints section 11's lines; zero issues per label, the gates and the declared personas after `init`; "Waiting for you" per section 5; Throughput over a scripted `runs/`; and from Step 8 of the swarm build, over a `forge.Fake` and `runs/` seeded with the first real run's shape (Step 30's row), the stage times, each issue's correction counts, each `active` brief's milestones with their open and closed issues and the newest batch run's `Met:`, and "Waiting for you" moving from `merge` to `next slice` or `close` as the maintainer merges; from Step 9, the brief's counts read from its forge milestones, an issue the maintainer put in one counted and a swarm issue in none not, and a milestone not yet on the forge named |
 | 27 | smoke | the Gitea instance, a scratch repository of an organization without the eight labels | `init --defaults` creates the organization's eight labels, or, when the swarm's account may not, fails naming them, which is recorded, and after the maintainer creates them a re-run finds all eight; a second run creates none |
 | 28 | `provider` | table test | section 9's argv for each adapter (both prompt files, `codex`'s `--cd <W>`: `/work`, or `/work/<first name>` for the owner and the architect; `claude`'s `--settings` turning its attribution off; one `--add-dir` per directory of `D`, for both CLIs); `Report` over a recorded output per CLI, a fault included |
 | 28 | the clone | real git in temp directories | 7.1 step 3: no remote, a local `<base>`, the identity `<role> (Daisy swarm) <commit_email>`, `/.swarm/` excluded, and the `commit-msg` hook stamping `Co-Authored-By: <co_author>` on a commit made in the clone, once when the message already carries it |
@@ -2282,6 +2334,7 @@ interface with the step that builds the board.
 | 28 | `reconcile`, `ready → planning` | `forge.Fake`, `runner.Fake` | the architect runs once; its output is a marked comment; T5; a second pass launches nothing; `Say` from a trusted login runs it again, from another login does not |
 | 28 | smoke | a real container from a product image rebuilt over this revision's base (section 7.2), run by the maintainer with `daisy swarm apply --once` | one comment on the real issue, the label moved, `docker ps` empty, both prompt files under `runs/`, a `cost` line in `result`; a commit made in the run's clone during the run carrying the role's identity and its `Co-Authored-By` trailer; and one `Review` by the swarm's account on a scratch pull request it opened, the accepted event or the refusal's status recorded |
 | 29 | `reconcile`, the lifecycle | `forge.Fake`, `runner.Fake` | T1, T3, T5, T7–T13, T17, T18: an issue from `proposed` to `approved` with two approvals through all five roles in two rounds, on `swarm/<n>-1` with `Refs #<n>`; merged by the test as the maintainer and relabelled `planned`, the next slice on `swarm/<n>-2`; severity (a `request-changes` without a blocking finding is *bad verdict*); `max_rounds` then T11 to `planning` with the first note, the architect's revision, T7 by the test, the rounds counted again from the revised plan, a retried collection of the first-time run not taken for a second time, and the limit a second time on the same pull request to `blocked` with the second note; every work-failure row of 7.7 then T17 with the prior label in the note and a failed worker's commits kept; protected paths; the check's clone fetching the run's ref, then run and posted; the pull request's label copied from the issue's by the next pass, the maintainer's other labels kept; the batch trigger, its two pacing conditions and `owner-held`; the batch over two `active` briefs creating issues whose bodies open with the `Brief:` line as the canned output wrote them, a `Met:` line left in `out.md` and not a proposal |
+| 29 | `reconcile`, the milestones (Step 9 of the swarm build) | `forge.Fake`, `runner.Fake` | two `active` briefs with three milestones (a fenced `## ` line none of them) and a `done` brief: after a pass whose batch proposes three jobs, the forge holds three milestones titled `<slug>: <milestone>`, each proposal in the one its `Brief:` line names, and the swarm issues from before them, open and closed, in theirs; a `done` brief's issue, an issue without a `Brief:` line and a closed issue naming a missing milestone or brief left, an open one naming either a warning; a second pass writing nothing and leaving an issue the maintainer moved; a paused pass mirroring; after `RefuseMilestones()`, the warnings, exit 0 and nothing paused |
 | 29 | `reconcile`, the gates off | `forge.Fake`, `runner.Fake` | T2, T4, T6, T14–T16: with every gate off and a `budget`, an issue goes from the batch to closed over two slices with nothing from the maintainer; T11 to `ready` with the plan gate off, the architect's `ready` text carrying the open-slice sentence, then T6 and the worker continuing the pull request; a refused merge is T16; the worker's merge of `base` |
 | 29 | `reconcile`, two repositories | `forge.Fake` with two repositories, `runner.Fake` | a plan of two slices, the first in the second declared repository and the second, moving the first's pin, in the first: each built in its repository's mirror, clone, image, check and `protected`, and its pull request opened there on `swarm/<n>-<s>`, the one outside `forge.repo` carrying `Refs <owner>/<repo>#<n>`; `Pulls(n)` finds both; slice 2 starts after slice 1 is merged and its `# Earlier pull requests` names slice 1's repository and merge commit; the owner's and the architect's clones at `/work/<name>` in the first repository's image; a plan naming an undeclared repository, a slice line naming none, or a plan without slice lines, is *bad slices* then T17, as is a worker's slice whose repository was removed from `repos` after the plan, while with one repository declared an unnamed slice and a plan without slice lines are in it; the eight labels from one `EnsureLabels` carried in both repositories |
 | 29 | the secret check | `forge.Fake`, `runner.Fake`, a temp mirror | an `env` value, or a slot's long string read at the launch or the return, in `out.md`, in any object the push would send (a blob with a path, a merge, a commit header) or in the posted check tail: *secret in output*, nothing posted or pushed, the note naming where and never the value |
@@ -2361,6 +2414,15 @@ request's head wraps the Fake so that it follows the branch the push
 moved in the test's upstream, the Fake holding no git. `Ops` gains
 `Signals` (SIGINT and SIGTERM), which the loop reads; a Fake without one
 never signals.
+
+**As built (Step 9 of the swarm build).** The milestones' rows are Go
+tests: `internal/swarm/forge` (`TestGiteaMilestones`,
+`TestGiteaEnsureMilestone`, `TestGiteaSetMilestone`, the milestone in
+`TestGiteaIssues` and `TestGiteaIssue`, `TestFakeMilestones`),
+`internal/swarm/brief` (`TestMilestonesAndTitles`) and
+`internal/commands` (`TestSwarmApplyMilestones`,
+`TestSwarmApplyMilestonesRefused`, and the status tests' brief lines).
+Not established: the pairs on the instance (section 10's *to confirm*).
 
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
@@ -3040,3 +3102,38 @@ entries among revision 1's, and was renumbered at Step 38.
     refused* with the login's hint, as a slot without `auth.json` is
     (7.1 step 4). Section 13 gains what the first real run established
     and what it did not.
+66. **Forge milestones mirror the briefs (Step 9 of the swarm build;
+    the maintainer, 2026-11-06).** Each `## ` heading of an `active`
+    brief has a milestone of `forge.repo` titled `<slug>: <milestone>`,
+    `<slug>` the brief's file name without `.md`, which `apply` ensures
+    at every pass (section 11, step 8), and each swarm issue whose
+    `Brief:` line names one is put in it, so a brief's progress shows on
+    the forge's own milestone pages and `status` reads its counts there.
+    The plan named two methods, `EnsureMilestone` and `SetMilestone`;
+    a third, `Milestones`, reads them with the forge's counts, since
+    `status` runs read-only and cannot ensure, and one list lets a pass
+    create only what is missing. **The issues from before the
+    milestones are put in them too:** the step takes every swarm issue,
+    open or closed, in no milestone, not only a new proposal, so the
+    first real swarm's issues, two of them closed, count from the first
+    pass. The alternative, `status` counting an issue in no milestone by
+    its `Brief:` line beside the forge's counts, was rejected: two
+    sources for one number, and the forge's page would still disagree.
+    An issue already in a milestone is left there, so `apply` never
+    undoes a maintainer who moved one (an issue whose heading was
+    renamed stays in the old title's milestone). The step runs at every
+    pass, not only after a batch, so an issue the maintainer files with
+    a `Brief:` line, and a write a refusal stopped, are taken at the
+    next; with `--once` it runs after the drain, so a batch's proposals
+    are in their milestones in the pass that ran it. It is a view, as
+    the board is: every failure is a warning, never a fault or an exit
+    code, and its warnings are for open issues only, since a closed
+    issue's line cannot be acted on. `status` shows the forge's counts,
+    which take every issue in the milestone (the maintainer's own
+    included) and none outside it, and names a milestone not yet on the
+    forge. A `## ` line inside a fenced block is no milestone, nor a
+    heading without text (section 4), now that a heading becomes a forge
+    object. Two `active` briefs of one file name would share their
+    milestones; the second is warned and mirrored to none. GitHub's
+    milestone pairs are not mapped, its adapter waiting for a run that
+    needs it (section 10).

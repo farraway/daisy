@@ -165,6 +165,7 @@ func TestSwarmStatusStages(t *testing.T) {
 	f.Relabel(forge.Ref{Repo: "app", N: 9}, "", "swarm:in-review")
 	closed := issue("swarm:ready")
 	f.CloseIssue(closed)
+	inMilestone(t, f, "roadmap: M0") // next.md's M1 has none on the forge yet
 
 	os.MkdirAll(s.state(""), 0o755)
 	os.WriteFile(s.state("paused"), []byte("paused 2026-11-06T10:00:00Z: swarm fault: docker: no such image\n"), 0o644)
@@ -190,7 +191,7 @@ Gates: triage on, plan on, merge on
 Waiting for you: triage #1 #2; plan #3; merge #6; blocked #7
 Running: #0 owner, #8 adversary, #12 check
 ` + statusPersonas
-	briefs := "Briefs:\n  docs/briefs/next.md: 1 of 1 milestones with no issue\n  docs/briefs/roadmap.md: 1 of 1 milestones with no issue\n"
+	briefs := "Briefs:\n  docs/briefs/next.md: 1 of 1 milestones not on the forge\n  docs/briefs/roadmap.md: 1 of 1 milestones with no issue\n"
 	if out := s.stdout.String(); !strings.HasPrefix(out, want) || !strings.HasSuffix(out, briefs) {
 		t.Errorf("stdout:\n%s\nwant:\n%s…\n%s", out, want, briefs)
 	}
@@ -304,6 +305,21 @@ func span(start, length string) (string, string) {
 	return from.Format(time.RFC3339), from.Add(d).Format(time.RFC3339)
 }
 
+// inMilestone is the milestone title on the forge, ensured as apply
+// ensures it, with the issues ns put in it.
+func inMilestone(t *testing.T, f *forge.Fake, title string, ns ...int) {
+	t.Helper()
+	id, err := f.EnsureMilestone(title)
+	for _, n := range ns {
+		if err == nil {
+			err = f.SetMilestone(n, id)
+		}
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 const m0 = "Brief: docs/briefs/m0.md — lib measured against upstream 2.0.0\n\nMeasure it.\n"
 
 // Status on Step 7's swarm (the first real issue, docs/swarm.md section
@@ -367,6 +383,11 @@ func TestSwarmStatusStep7(t *testing.T) {
 	f.Merge(s2, "bbb1")
 	want("triage #7; close #6")
 	f.CloseIssue(n)
+	// The milestones apply mirrors from the brief, #6 and #7 in the first.
+	inMilestone(t, f, "m0: lib measured against upstream 2.0.0", 6, 7)
+	inMilestone(t, f, "m0: lib green against upstream 2.0.0")
+	inMilestone(t, f, "m0: Drift checks in CI")
+	inMilestone(t, f, "m0: A second port")
 
 	s.runResult("0-owner-1", ran("", "08:26:22", "2m32s", "propose 5\nposted\noutcome posted\ncollected\n"), "## a guess\n")
 	s.runResult("0-owner-2", ran("", "09:16:00", "2m57s", "propose 5\noutcome posted\ncollected\n"), "## lib: pin to v2.0.0\n"+m0)
@@ -406,9 +427,10 @@ Briefs:
 // comment is a comment, review or line comment by a trusted login that is
 // not the swarm's; an issue with none of a plan, a pull request or a
 // block has no line, and a closed one only within the batch's window
-// (30 days), while the brief counts every closed issue. A batch run's
-// Met: line is read from the newest batch run with an output; a run's
-// time from its start to its exit or timeout.
+// (30 days), while a brief's milestone counts every issue the forge has
+// in it, closed at any time or not the swarm's, and none outside it. A
+// batch run's Met: line is read from the newest batch run with an output;
+// a run's time from its start to its exit or timeout.
 func TestSwarmStatusCorrections(t *testing.T) {
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) { c.Trusted = []string{"jane", "swarm-bot"}; c.Resources = []string{"docs/"} })
@@ -442,6 +464,13 @@ func TestSwarmStatusCorrections(t *testing.T) {
 	f.Comment(old, mark("architect", 1)+"## Research\n")
 	f.CloseIssue(old.N)                                                                // 4
 	f.CreateIssue("t", mark("owner", 2)+m0, []string{"swarm:proposed", "swarm:ready"}) // 5: two labels, one issue
+	f.AddLabels("bug")
+	if n, err := f.CreateIssue("t", "", []string{"bug"}); n != 6 || err != nil { // 6: the maintainer's own, in a milestone by hand
+		t.Fatal(n, err)
+	}
+	issue("swarm:proposed", mark("owner", 2)+m0) // 7: in no milestone yet, so not counted
+	inMilestone(t, f, "m0: lib measured against upstream 2.0.0", 1, 3, 5, 6)
+	inMilestone(t, f, "m0: Later", 4)
 
 	s.runResult("0-owner-1", ran("", "08:00:00", "1m", "outcome posted\ncollected\n"), "Met: docs/briefs/other.md\n## x\n")
 	s.runResult("0-owner-2", ran("", "09:00:00", "3m", "outcome posted\ncollected\n"), "Met: docs/briefs/m0.md\n\n## x\n")
@@ -457,7 +486,7 @@ func TestSwarmStatusCorrections(t *testing.T) {
   #2           plan revisions 0, blocks 1
   #4           plan revisions 0, blocks 0
 Briefs:
-  docs/briefs/m0.md: lib measured against upstream 2.0.0 (3 open, 0 closed); Later (0 open, 1 closed); met (owner run 2)
+  docs/briefs/m0.md: lib measured against upstream 2.0.0 (4 open, 0 closed); Later (0 open, 1 closed); met (owner run 2)
 `
 	if out := s.stdout.String(); !strings.HasSuffix(out, wantTail) {
 		t.Errorf("stdout:\n%s\nwant it to end:\n%s", out, wantTail)

@@ -80,14 +80,52 @@ func statusOf(text string) (string, bool) {
 	return "", false
 }
 
-// Milestones is the text of each of the brief's `## ` headings, in order:
-// one milestone each (section 4).
+// Milestones is the text of each of the brief's `## ` headings, in order,
+// once each: one milestone each (section 4). A `## ` line inside a fenced
+// block is no heading, and a heading with no text no milestone.
 func (b Brief) Milestones() []string {
 	var out []string
+	fence := ""
 	for _, line := range strings.Split(b.Text, "\n") {
-		if h, ok := strings.CutPrefix(strings.TrimRight(line, "\r "), "## "); ok {
-			out = append(out, strings.TrimSpace(h))
+		line = strings.TrimRight(line, "\r ")
+		if f := fenceOf(line); f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
+			if fence == "" {
+				fence = f
+			} else {
+				fence = ""
+			}
+			continue
+		}
+		if fence != "" {
+			continue
+		}
+		if h, ok := strings.CutPrefix(line, "## "); ok {
+			if h = strings.TrimSpace(h); h != "" && !slices.Contains(out, h) {
+				out = append(out, h)
+			}
 		}
 	}
 	return out
 }
+
+// fenceOf is the run of backticks or tildes that opens or closes a fenced
+// block on line, "" when line is no fence.
+func fenceOf(line string) string {
+	t := strings.TrimLeft(line, " ")
+	if len(line)-len(t) > 3 {
+		return ""
+	}
+	for _, c := range []string{"`", "~"} {
+		if n := len(t) - len(strings.TrimLeft(t, c)); n >= 3 {
+			return strings.Repeat(c, n)
+		}
+	}
+	return ""
+}
+
+// Slug is the brief's file name without `.md`.
+func (b Brief) Slug() string { return strings.TrimSuffix(filepath.Base(b.Path), ".md") }
+
+// MilestoneTitle is the title of the forge milestone that mirrors the
+// brief's milestone m (section 10): `<slug>: <m>`.
+func (b Brief) MilestoneTitle(m string) string { return b.Slug() + ": " + m }

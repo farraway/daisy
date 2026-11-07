@@ -50,6 +50,17 @@ import (
 // CreatePullReviewOptions: event, body; 200, 422); repoMergePullRequest
 // (`POST …/pulls/{index}/merge`, MergePullRequestOption: do required,
 // head_commit_id; 200, 405, 409).
+//
+// Step 9's, from the same Swagger (version 29.0.0+dev-160, read
+// 2026-11-07): issueGetMilestonesList (`GET
+// /repos/{owner}/{repo}/milestones`, query state "open, closed and all.
+// Defaults to open", name, page, limit; 200 Milestone list; Milestone: id,
+// title, description, state, open_issues, closed_issues, created_at,
+// updated_at, closed_at, due_on); issueCreateMilestone (`POST …/milestones`,
+// CreateMilestoneOption: title, description, due_on, state; 201
+// Milestone); issueEditIssue again (EditIssueOption: milestone, an id;
+// 201 Issue, whose milestone is a Milestone or null). issueGetMilestone
+// (`GET …/milestones/{id}`) is not used: the list carries the counts.
 
 // pair is one recorded request and its response.
 type pair struct {
@@ -216,14 +227,14 @@ func errText(err error) string {
 func TestGiteaIssues(t *testing.T) {
 	g, s := gitea(t, nil,
 		pair{"GET", "/repos/acme/app/issues?state=open&type=issues&labels=swarm%3Aproposed&page=1&limit=50", "", 200, `[
-		  {"id":31,"number":12,"title":"Second","body":"b","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[{"id":1,"name":"swarm:proposed"}]},
+		  {"id":31,"number":12,"title":"Second","body":"b","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[{"id":1,"name":"swarm:proposed"}],"milestone":` + milestone(7, "m0: First", 1, 0) + `},
 		  {"id":30,"number":9,"title":"First","body":"a","user":{"login":"jane"},"state":"open","created_at":"2026-10-30T09:00:00Z","closed_at":null,"labels":[{"id":5,"name":"bug"},{"id":1,"name":"swarm:proposed"}]},
 		  {"id":32,"number":14,"title":"Unlabelled","body":"","user":{"login":"jane"},"state":"open","created_at":"2026-11-02T09:00:00Z","closed_at":null,"labels":[]}
 		]`})
 	got, err := g.Issues(Open, "swarm:proposed")
 	want := []Issue{
 		{Number: 9, Title: "First", Body: "a", Author: "jane", Created: time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC), Open: true, Labels: []string{"bug", "swarm:proposed"}},
-		{Number: 12, Title: "Second", Body: "b", Author: "swarm-bot", Created: time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC), Open: true, Labels: []string{"swarm:proposed"}},
+		{Number: 12, Title: "Second", Body: "b", Author: "swarm-bot", Created: time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC), Open: true, Labels: []string{"swarm:proposed"}, Milestone: 7},
 	}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Issues = %+v, %v", got, err)
@@ -348,7 +359,7 @@ func at(y, mo, d, h, mi int) time.Time { return time.Date(y, time.Month(mo), d, 
 func TestGiteaIssue(t *testing.T) {
 	g, s := gitea(t, nil,
 		pair{"GET", "/repos/acme/app/issues/7", "", 200,
-			`{"id":40,"number":7,"title":"Drift","body":"Brief: docs/briefs/b.md — M0","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[{"id":3,"name":"swarm:planning"}],"pull_request":null}`},
+			`{"id":40,"number":7,"title":"Drift","body":"Brief: docs/briefs/b.md — M0","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[{"id":3,"name":"swarm:planning"}],"milestone":null,"pull_request":null}`},
 		pair{"GET", "/repos/acme/app/issues/7/comments", "", 200, `[
 		  {"id":501,"html_url":"","issue_url":"","pull_request_url":"","body":"plan","user":{"login":"swarm-bot"},"created_at":"2026-11-01T11:00:00Z","updated_at":"2026-11-01T11:00:00Z"},
 		  {"id":502,"html_url":"","issue_url":"","pull_request_url":"","body":"ok","user":{"login":"jane"},"created_at":"2026-11-01T12:00:00Z","updated_at":"2026-11-01T12:00:00Z"}
@@ -553,6 +564,86 @@ func TestGiteaMerge(t *testing.T) {
 			err := g.Merge(Ref{"app", 20}, "c2")
 			if errText(err) != tc.err || errors.Is(err, ErrNotMergeable) != tc.notMergeable {
 				t.Errorf("Merge: %v", err)
+			}
+			s.done()
+		})
+	}
+}
+
+func milestone(id int, title string, open, closed int) string {
+	return `{"id":` + itoa(id) + `,"title":"` + title + `","description":"","state":"open","open_issues":` + itoa(open) + `,"closed_issues":` + itoa(closed) +
+		`,"created_at":"2026-11-07T09:00:00Z","updated_at":"2026-11-07T09:00:00Z","closed_at":null,"due_on":null}`
+}
+
+const listMilestones = "/repos/acme/app/milestones?state=all&page=1&limit=50"
+
+// Milestones reads every page in every state, with the forge's counts.
+func TestGiteaMilestones(t *testing.T) {
+	fifty := make([]string, 50)
+	for i := range fifty {
+		fifty[i] = milestone(100+i, "old "+itoa(i), 0, 1)
+	}
+	g, s := gitea(t, []string{"app", "lib"},
+		pair{"GET", listMilestones, "", 200, "[" + strings.Join(fifty, ",") + "]"},
+		pair{"GET", "/repos/acme/app/milestones?state=all&page=2&limit=50", "", 200, "[" + milestone(7, "m0: First", 2, 3) + "]"})
+	got, err := g.Milestones()
+	if err != nil || len(got) != 51 || got[50] != (Milestone{ID: 7, Title: "m0: First", Open: 2, Closed: 3}) || got[0] != (Milestone{ID: 100, Title: "old 0", Closed: 1}) {
+		t.Errorf("Milestones = %+v, %v", got, err)
+	}
+	s.done()
+}
+
+func TestGiteaEnsureMilestone(t *testing.T) {
+	closed := strings.Replace(milestone(8, "m0: Second", 0, 2), `"state":"open"`, `"state":"closed"`, 1)
+	have := "[" + milestone(7, "m0: First", 1, 0) + "," + closed + "," + milestone(9, "m0: First", 0, 0) + "]"
+	for _, tc := range []struct {
+		name, title string
+		pairs       []pair
+		id          int64
+		err         string
+	}{
+		{"found: nothing created, the first of the title", "m0: First", []pair{{"GET", listMilestones, "", 200, have}}, 7, ""},
+		{"a closed milestone is found", "m0: Second", []pair{{"GET", listMilestones, "", 200, have}}, 8, ""},
+		{"missing: created", "m0: Third", []pair{
+			{"GET", listMilestones, "", 200, have},
+			{"POST", "/repos/acme/app/milestones", `{"title":"m0: Third"}`, 201, milestone(12, "m0: Third", 0, 0)},
+		}, 12, ""},
+		{"a refused create is the forge's error", "m0: Third", []pair{
+			{"GET", listMilestones, "", 200, "[]"},
+			{"POST", "/repos/acme/app/milestones", `{"title":"m0: Third"}`, 403, `{"message":"token does not have at least one of required scope(s): [write:issue]"}`},
+		}, 0, "forge: POST /repos/acme/app/milestones: 403 token does not have at least one of required scope(s): [write:issue]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, s := gitea(t, nil, tc.pairs...)
+			id, err := g.EnsureMilestone(tc.title)
+			if id != tc.id || errText(err) != tc.err {
+				t.Errorf("EnsureMilestone = %d, %q; want %d, %q", id, errText(err), tc.id, tc.err)
+			}
+			s.done()
+		})
+	}
+}
+
+func TestGiteaSetMilestone(t *testing.T) {
+	const path = "/repos/acme/app/issues/7"
+	edited := func(m string) string {
+		return `{"id":40,"number":7,"title":"Drift","body":"","user":{"login":"swarm-bot"},"state":"open","labels":[],"milestone":` + m + `}`
+	}
+	for _, tc := range []struct {
+		name   string
+		status int
+		resp   string
+		err    string
+	}{
+		{"set", 201, edited(milestone(12, "m0: Third", 1, 0)), ""},
+		{"201 without the change: no write access", 201, edited("null"),
+			"forge: PATCH /repos/acme/app/issues/7: 201 with milestone 0, not 12; the token's account needs write access to the issues of acme/app"},
+		{"403 is the forge's error", 403, `{"message":"forbidden"}`, "forge: PATCH /repos/acme/app/issues/7: 403 forbidden"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, s := gitea(t, []string{"app", "lib"}, pair{"PATCH", path, `{"milestone":12}`, tc.status, tc.resp})
+			if err := g.SetMilestone(7, 12); errText(err) != tc.err {
+				t.Errorf("SetMilestone: %v, want %q", err, tc.err)
 			}
 			s.done()
 		})

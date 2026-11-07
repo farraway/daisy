@@ -72,10 +72,13 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 // collected; (3) the abandoned and the orphans over time; (4) paused;
 // (5) each stage's issues, their pull requests given the issue's label,
 // and the role rule's launches up to max_members; (6) the merge step with
-// the merge gate off; (7) the owner's batch trigger; (8) the summary
+// the merge gate off; (7) the owner's batch trigger; (8) the forge
+// milestones mirroring the briefs, unless signalled; (9) the summary
 // line. With wait (`--once`), every container launched is waited for and
-// collected, a worker run's check included, before the summary. A forge,
-// git or docker error is returned after the pass's other work.
+// collected, a worker run's check included, before (8), so that a batch's
+// proposals are put in their milestones in the pass that ran it. A forge,
+// git or docker error is returned after the pass's other work; (8) only
+// warns.
 func (s *Swarm) Pass(wait bool) error {
 	if s.live == nil {
 		s.live, s.given = map[string]*live{}, map[string][]string{}
@@ -128,6 +131,9 @@ func (s *Swarm) Pass(wait bool) error {
 	}
 	if wait {
 		errs = append(errs, s.Drain(nil))
+	}
+	if !s.stopping() {
+		s.milestones()
 	}
 	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, mine)
 	return errors.Join(errs...)

@@ -55,3 +55,16 @@ func TestMilestones(t *testing.T) {
 		t.Errorf("no milestones: %q", got)
 	}
 }
+
+// A `## ` line in a fenced block is no milestone, nor is an empty heading
+// or a second heading of one text; the forge milestone's title is the
+// brief's file name and the milestone.
+func TestMilestonesAndTitles(t *testing.T) {
+	b := Brief{Path: "docs/briefs/m0-libraries.md", Text: "Status: active\n\n## First\n\n```md\n## not one\n```\n\n~~~~\n```\n## not one either\n~~~~\n\n## \n\n## Second\n\n## First\n"}
+	if got := b.Milestones(); !reflect.DeepEqual(got, []string{"First", "Second"}) {
+		t.Errorf("Milestones = %q", got)
+	}
+	if got := b.MilestoneTitle("First"); got != "m0-libraries: First" {
+		t.Errorf("MilestoneTitle = %q", got)
+	}
+}

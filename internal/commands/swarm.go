@@ -396,10 +396,17 @@ func swarmStatus(c *Context, open opener) error {
 		return fmt.Errorf("Error: swarm: reading the runs: %v", err)
 	}
 	var active []string
+	var milestones []forge.Milestone
 	for _, b := range briefs {
-		if b.Status == "active" {
-			active = append(active, "  "+briefLine(b, append(opened, closed...), acct.Login, metRun, met)+"\n")
+		if b.Status != "active" {
+			continue
 		}
+		if milestones == nil {
+			if milestones, err = f.Milestones(); err != nil {
+				return fmt.Errorf("Error: swarm: %v", err)
+			}
+		}
+		active = append(active, "  "+briefLine(b, milestones, metRun, met)+"\n")
 	}
 	if len(active) == 0 {
 		fmt.Fprintln(out, "Briefs: none active")
@@ -464,39 +471,31 @@ func countsLine(c reconcile.Counts) string {
 }
 
 // briefLine is an active brief's line under Briefs: its path; each
-// milestone's open and closed swarm issues, told by their Brief: lines,
-// in the brief's order (a milestone it does not name after them); how
-// many of its milestones have none; and whether the newest batch run
-// with an output reports it met.
-func briefLine(b brief.Brief, issues []forge.Issue, swarmLogin string, metRun int, met []string) string {
-	milestones := b.Milestones()
-	order := slices.Clone(milestones)
-	open, closed := map[string]int{}, map[string]int{}
-	for _, is := range issues {
-		path, m := reconcile.BriefOf(is, swarmLogin)
-		if path != b.Path {
-			continue
-		}
-		if !slices.Contains(order, m) {
-			order = append(order, m)
-		}
-		if is.Open {
-			open[m]++
-		} else {
-			closed[m]++
-		}
-	}
+// milestone's open and closed issues, as the forge counts them in the
+// milestone that mirrors it (section 10), in the brief's heading order;
+// how many of its milestones have no issue, and how many no milestone on
+// the forge yet; and whether the newest batch run with an output reports
+// it met.
+func briefLine(b brief.Brief, milestones []forge.Milestone, metRun int, met []string) string {
+	headings := b.Milestones()
 	var parts []string
-	none := 0
-	for _, m := range order {
-		if open[m]+closed[m] == 0 {
+	none, absent := 0, 0
+	for _, m := range headings {
+		i := slices.IndexFunc(milestones, func(fm forge.Milestone) bool { return fm.Title == b.MilestoneTitle(m) })
+		switch {
+		case i < 0:
+			absent++
+		case milestones[i].Open+milestones[i].Closed == 0:
 			none++
-			continue
+		default:
+			parts = append(parts, fmt.Sprintf("%s (%d open, %d closed)", m, milestones[i].Open, milestones[i].Closed))
 		}
-		parts = append(parts, fmt.Sprintf("%s (%d open, %d closed)", m, open[m], closed[m]))
 	}
 	if none > 0 {
-		parts = append(parts, fmt.Sprintf("%d of %d milestones with no issue", none, len(milestones)))
+		parts = append(parts, fmt.Sprintf("%d of %d milestones with no issue", none, len(headings)))
+	}
+	if absent > 0 {
+		parts = append(parts, fmt.Sprintf("%d of %d milestones not on the forge", absent, len(headings)))
 	}
 	if slices.Contains(met, b.Path) {
 		parts = append(parts, fmt.Sprintf("met (owner run %d)", metRun))
