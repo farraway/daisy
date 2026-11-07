@@ -143,6 +143,16 @@ presence of defects, never their absence. The probe is the only evidence a
 green test is load-bearing, and review is the only check on the claim
 itself.
 
+## Review
+
+The reviewer attacks the claim and reports only what it reproduces. A pass
+that finds nothing in gate is the expected result of a good step and is
+reported as such; it is not a failure of the review. Every in-gate finding
+stops the commit and spends one of five passes; at the fifth the step is
+held and the maintainer reads every finding. A finding the reviewer would
+not stake the commit on is out of gate. The reviewer does not learn the
+previous pass's count.
+
 ## Oracles and expected values
 
 - Expected values come from an independent source: a literal, a worked

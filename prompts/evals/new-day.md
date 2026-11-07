@@ -24,8 +24,7 @@ Evaluate each criterion and assign pass or fail with a specific explanation if i
 
 - today.md must contain exactly these H4 headings: `#### Agenda`, `#### Tasks`, `#### Log`, `#### Retrospective`
 - Each task must appear as `- [ ] <description>` (not `- [x]`, not bare text)
-- The Log section must be present and empty (a blank line after `#### Log`, then the next heading)
-- No blank lines within the Log section between entries (there are no entries yet)
+- The Log section must hold exactly one entry, `- HHMM New day started` (the new day's start time), with a blank line before it and one before the next heading
 
 ### 3. Default inbox checklist
 

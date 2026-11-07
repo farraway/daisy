@@ -470,7 +470,7 @@ places. Each departure has a cost, named here.
 
 - *Pre-agreed seams can miss the unanticipated.* A test written only where
   the plan said one would go cannot catch a defect in a place no one
-  named. The sweep rule and the reviewer's attacker list are the
+  named. The sweep rule and the review that attacks the claim are the
   mitigations, and they depend on someone asking.
 - *Characterization enshrines accidents.* An oracle pins the old program's
   mistakes as faithfully as its intent. During Daisy's port the review
@@ -651,13 +651,16 @@ writes nothing" test fails. Each probe is recorded in the step's report.
 hand-set `user.name` values behind, which the restore would now bring
 back; its cleanup was fixed as a sibling of the same class.
 
-**Review.** Six passes. The first found writes that happened before a
+**Review.** Six passes, run before the cap of five was set; a step like
+this one is why it was. The first found writes that happened before a
 refusal, and a fix that checks every path before the first write. Passes
 two to five circled one seam, which skills belong to `init`, through
 three patches, until the seam was reshaped to a single rule (a skill is
 `init`'s exactly when its rule file is byte-for-byte the stub `init`
 writes) and verified by a test rather than a seventh pass. Pass six's one
-finding fell under the same rule.
+finding fell under the same rule. Under the rules as they stand, pass
+five would have held the step with the open findings for the maintainer,
+and passes two to five would have reviewed only each round's fixes.
 
 **What was accepted as is.** Four edges where `clean` is not a byte-exact
 inverse, each the old behaviour, each listed in the plan's deferred items

@@ -129,7 +129,7 @@ The original `git.md` mixed two things:
   each hunk, preserve both intents, never `--abort`, run the project's
   checks. This needs the conflict and the repository history. It needs
   nothing from Daisy.
-- **The GitHub PR workflow** — `user-github-*` operations, never merging
+- **The GitHub PR workflow** — the GitHub MCP server's operations, never merging
   without green CI, opening a `todo.txt` entry when a PR opens, logging the
   merge when it lands.
 

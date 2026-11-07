@@ -27,7 +27,7 @@ When modifying any Daisy data files, preserve EXACT formatting.
 - Preserve checkbox format: `- [ ]`, `- [x]`, `- [z]` (note spaces)
 - NEVER add/remove blank lines between sections
 - Time format: `HHMM` (24-hour, no colons)
-- Log entry format: `- HHMM - message` (note dashes and spaces)
+- Log entry format: `- HHMM message` (one dash, then the time, one space, the message; no second dash)
 
 ### Journal.md Archive Rules
 

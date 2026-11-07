@@ -10,7 +10,7 @@ When `PLAN.md` exists at the workspace root, it is an active Daisy implementatio
 **In Cursor Plan mode:**
 - Collaborate on `PLAN.md` only — do not write implementation code.
 - Fill in: Goal, Non-goals, Constraints, Steps (as `- [ ]` checkboxes), Risks, Test Plan, Deferred, Open Questions (numbered list).
-- End every response with the Open Questions list and: "Ready to execute? (yes/no)"
+- Close each planning round with the plan summary, the numbered Open Questions list and: "Ready to execute? (yes/no)"
 
 **In Cursor Agent mode (executing a plan):**
 - Read `PLAN.md` before starting; set `**Status:** executing`.

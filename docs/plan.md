@@ -50,7 +50,7 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
 ## /daisy execute PLAN.md
 
 ```
-0. Run `daisy files` and use the resolved "active plan" real path
+0. Run `daisy files` and use the resolved "current plan" real path
    for every write below — PLAN.md at the workspace root is a
    symlink, and writing through it fails with "Refusing to write
    through symlink".
@@ -91,17 +91,27 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
    daisy log
 ```
 
-**Review gate and cap:** a review finding is in gate only when the
-reviewer reproduces it and it falls in a class the brief names (the claim
+**Review gate and cap:** the first pass reviews the diff; each later pass
+reviews only the fixes (the previous findings, the diff of the fixes
+alone and the files those hunks touch), and a finding in text no fix
+touched is Deferred after pass 1. A review finding is in gate only when
+the reviewer reproduces it and it falls in one of four classes: the claim
 fails, a required item is missing or wrong, a test is red, a document
-contradicts another). Style and anything outside the step's stated
-contract are out of gate: Deferred or nowhere, never another pass. A write
-into the root counts only when reached through Daisy's own resolution of
-home, workspace and root paths with no user-made link in the way. The cap
-is 5 passes for every step, code or docs; a step not clean after pass 5
-stops and hands back to the user with the open findings and its proposed
-fixes uncommitted. The orchestrator does not commit at the cap and never
-runs another pass.
+contradicts another. The brief names these classes and adds none, and
+never adds the last pass's finding types. A green test is not red (a
+missing test is a Deferred candidate unless the step's text names it); a
+contradiction counts only when the diff introduced it (compare with `git
+show HEAD:<file>`); a design hole two passages leave open is an Open
+Question. Style and anything outside the step's stated contract are out
+of gate: Deferred or nowhere, never another pass. So is a finding that
+needs an arrangement the project's own contract does not support (in
+Daisy's root, a user-made link into it). The step agent classifies each
+finding before fixing anything (in gate, disputed with a one-sentence
+reason and not fixed, or out of gate) and fixes only the in-gate ones. The
+cap is 5 passes for every step, code or docs; a step not clean after pass
+5 stops: the step agent hands back with the open findings and its
+proposed fixes uncommitted, and the orchestrator takes them to the user.
+The orchestrator does not commit at the cap and never runs another pass.
 
 **Stops:** the plan's own checkpoints; a hard-to-reverse or outward-facing
 action the plan does not itself call for; a step the plan gives the user;
@@ -109,7 +119,8 @@ a step stopped at the review cap; a permission refusal, which the
 orchestrator reports verbatim and never re-runs for the sub-agent.
 
 **Hand-back:** the claim and its probes; lines added and deleted; each
-review pass with its in-gate count; findings accepted as is; at the cap,
+review pass with its in-gate count; findings disputed with the reason;
+findings accepted as is; at the cap,
 the open findings and the proposed fixes left uncommitted; the
 verification lines; the commits; the decisions; the tokens used.
 
@@ -166,7 +177,9 @@ One paragraph describing what this plan achieves.
 > Read $DAISY_ROOT/prompts/praxis.md before each step.
 
 - [ ] Step 1: Description
+  Claim: one sentence the reviewer can refute by a command, a test name or two quoted passages
 - [ ] Step 2: Description
+  Claim: ...
 
 ## Decisions
 

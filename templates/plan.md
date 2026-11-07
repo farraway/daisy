@@ -19,6 +19,7 @@
 **Re-read `$DAISY_ROOT/prompts/praxis.md` before beginning each step.**
 
 - [ ] Step 1
+  Claim: {one sentence the reviewer can refute by a command, a test name or two quoted passages}
 
 ## Risks
 

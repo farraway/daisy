@@ -6,63 +6,12 @@ Reference for github.com operations via the GitHub MCP server. For the AI agent'
 
 ## MCP Server
 
-Use the **github** MCP server (`user-github-*` tools) for all public GitHub operations.
+Use the GitHub MCP server's tools for public github.com operations (pull
+requests, reviews, issues, code, commits); their own descriptions carry the
+parameters, so this reference lists no tool names.
 
-**Do NOT use `mcp_aicodinggithub_*` tools for public GitHub.** Those connect to an internal GitHub Enterprise instance.
-
-### Key Tools
-
-| Tool | Purpose |
-|------|---------|
-| `user-github-list_pull_requests` / `user-github-search_pull_requests` | Find PRs |
-| `user-github-pull_request_read` | Get PR details, diff, status, reviews, comments |
-| `user-github-create_pull_request` / `user-github-update_pull_request` | Manage PRs |
-| `user-github-merge_pull_request` | Merge PRs |
-| `user-github-pull_request_review_write` | Create/submit reviews |
-| `user-github-list_issues` / `user-github-search_issues` | Find issues |
-| `user-github-issue_write` / `user-github-issue_read` | Manage issues |
-| `user-github-get_file_contents` / `user-github-search_code` | Browse code |
-| `user-github-list_commits` / `user-github-get_commit` | Browse commits |
-
----
-
-## Common Operations
-
-### List My Open PRs
-
-```
-user-github-search_pull_requests
-  query: "author:@me is:open"
-  owner: {owner}
-  repo: {repo}
-```
-
-### Check PR Status
-
-```
-user-github-pull_request_read
-  method: "get"        # details
-  method: "get_status" # build/check status
-  method: "get_diff"   # diff
-  method: "get_files"  # changed files list
-```
-
-### Create a PR
-
-```
-user-github-create_pull_request
-  owner, repo, title, head, base, body
-```
-
-### Review a PR
-
-For complex reviews with line-level comments:
-1. `user-github-pull_request_review_write` method: "create" (creates pending review)
-2. `user-github-add_comment_to_pending_review` (add line comments)
-3. `user-github-pull_request_review_write` method: "submit_pending" (submit)
-
-For simple reviews:
-- `user-github-pull_request_review_write` with event: "APPROVE" / "REQUEST_CHANGES" / "COMMENT"
+**Never use the `aicodinggithub` server's tools for github.com.** Those
+connect to an internal GitHub Enterprise instance.
 
 ---
 
@@ -78,7 +27,7 @@ When a PR is opened, add to todo.txt:
 ### Checking PR Status
 
 When user says "check PR 123":
-1. Use `pull_request_read` with method "get" and "get_status"
+1. Read the PR's details and its check status through the server's PR tools
 2. Report: state, checks, reviews
 
 ### When PR is Merged
