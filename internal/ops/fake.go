@@ -2,6 +2,7 @@ package ops
 
 import (
 	"io"
+	"os"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type Fake struct {
 	StartFn      func(dir, name string, stdin io.Reader, stdout, stderr io.Writer, args ...string) (Process, error)
 	NowFn        func() time.Time
 	AfterFn      func(d time.Duration) <-chan time.Time
+	SignalsFn    func() <-chan os.Signal
 	GetenvFn     func(key string) string
 	GetwdFn      func() (string, error)
 	ExecutableFn func() (string, error)
@@ -43,6 +45,15 @@ func (f *Fake) Now() time.Time {
 		return f.NowFn()
 	}
 	return Real().Now()
+}
+
+// Signals is SignalsFn's channel; none set, a channel that never
+// receives, not Real's: a test never takes the process's own signals.
+func (f *Fake) Signals() <-chan os.Signal {
+	if f.SignalsFn != nil {
+		return f.SignalsFn()
+	}
+	return nil
 }
 
 func (f *Fake) After(d time.Duration) <-chan time.Time {

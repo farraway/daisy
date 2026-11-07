@@ -71,6 +71,9 @@ type Ops interface {
 	Now() time.Time
 	// After is time.After: the channel receives once d has passed.
 	After(d time.Duration) <-chan time.Time
+	// Signals is a channel that receives each SIGINT and SIGTERM the
+	// process gets from the call on, which no longer end it.
+	Signals() <-chan os.Signal
 	Getenv(key string) string
 	Getwd() (string, error)
 	// Executable is the path of the running binary, links unresolved.

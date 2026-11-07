@@ -74,6 +74,8 @@ var table = []Command{
 	{Group: "Swarm", Name: "swarm init", Usage: "swarm init [--defaults]", Help: "Declare the swarm: swarm.json, prompts, labels", Workspace: true, Flags: []string{"--defaults"}, Run: commands.SwarmInit},
 	{Group: "Swarm", Name: "swarm apply", Usage: "swarm apply [--once]", Help: "Reconcile the forge: launch members, post their output, move labels", Workspace: true, Flags: []string{"--once"}, Run: commands.SwarmApply},
 	{Group: "Swarm", Name: "swarm status", Usage: "swarm status", Help: "Stages, gates, what waits for you, running members (read-only)", Workspace: true, Run: commands.SwarmStatus},
+	{Group: "Swarm", Name: "swarm pause", Usage: "swarm pause", Help: "Launch no new member until resumed; running ones are collected", Workspace: true, Run: commands.SwarmPause},
+	{Group: "Swarm", Name: "swarm resume", Usage: "swarm resume", Help: "Launch members again and release the owner's held batch", Workspace: true, Run: commands.SwarmResume},
 
 	{Group: "System", Name: "commit", Usage: "commit [--root] <message>", Help: "Commit the home repo (or the root repo)", Workspace: true, Flags: []string{"--root"}, Min: 1, Max: 1, Run: commands.Commit},
 	{Group: "System", Name: "healthcheck", Usage: "healthcheck [--force]", Help: "Run the system health check", Flags: []string{"--force"}, Run: commands.Healthcheck},

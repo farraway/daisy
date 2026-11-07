@@ -538,10 +538,10 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 	return nil
 }
 
-// SwarmApply is `daisy swarm apply --once` (docs/swarm.md section 11):
+// SwarmApply is `daisy swarm apply [--once]` (docs/swarm.md section 11):
 // the start (validation, the credentials, the account, the host's uid and
-// gid, Docker, <state> and its lock, the labels), then one pass, its runs
-// waited for and collected.
+// gid, Docker, <state> and its lock, the labels), then one pass with
+// --once, or a pass every interval until SIGINT or SIGTERM.
 func SwarmApply(c *Context) error { return swarmApply(c, openForge, openRunner) }
 
 // runnerOpener builds the runner; tests pass one returning a runner.Fake.
@@ -549,11 +549,12 @@ type runnerOpener func(o ops.Ops, ws string) runner.Runner
 
 func openRunner(o ops.Ops, ws string) runner.Runner { return runner.Docker{O: o, Dir: ws} }
 
+// ErrInterrupted: a second signal ended `apply`'s drain (exit 130).
+var ErrInterrupted = errors.New("interrupted")
+
 func swarmApply(c *Context, open opener, openRun runnerOpener) error {
-	if !c.Flag("--once") {
-		return errors.New("Error: swarm apply: only --once is built (the loop joins with the lifecycle); run 'daisy swarm apply --once'")
-	}
 	o, ws := c.Ops, c.Env.Workspace
+	once := c.Flag("--once")
 	cfg, err := loadSwarm(o, ws)
 	if err != nil {
 		return err
@@ -603,7 +604,11 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		return fmt.Errorf("Error: swarm: cannot create %s: %v", state, err)
 	}
 	lock := filepath.Join(state, "lock")
-	release, err := o.FS().Lock(lock, "apply --once since "+o.Now().UTC().Format(time.RFC3339))
+	holder := "apply since "
+	if once {
+		holder = "apply --once since "
+	}
+	release, err := o.FS().Lock(lock, holder+o.Now().UTC().Format(time.RFC3339))
 	var held *ops.LockedError
 	if errors.As(err, &held) {
 		return fmt.Errorf("Error: swarm apply is already running for %s (%s); lock: %s", cfg.Forge.Repo, held.Holder, lock)
@@ -617,13 +622,17 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 	}
 	s := &reconcile.Swarm{O: o, WS: ws, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
 		User: ids[0] + ":" + ids[1], Secret: func(v string) string { return secret(c, ws, v) }, Out: c.Stdout, Err: c.Stderr}
-	if err := s.Pass(true); err != nil {
-		return fmt.Errorf("Error: swarm: %v", err)
+	if once {
+		if err := s.Pass(true); err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		return nil
 	}
-	return nil
+	return applyLoop(c, s)
 }
 
-// loadSwarm reads and validates swarm.json as apply's start does.
+// loadSwarm reads and validates swarm.json as apply's start and each pass
+// do.
 func loadSwarm(o ops.Ops, ws string) (declare.Config, error) {
 	cfg, _, err := declare.Load(o.FS(), ws)
 	if err == nil {
@@ -633,4 +642,125 @@ func loadSwarm(o ops.Ops, ws string) (declare.Config, error) {
 		return cfg, fmt.Errorf("Error: %v", err)
 	}
 	return cfg, nil
+}
+
+// applyLoop is `apply` without --once (section 11): a pass every
+// interval, start to start, swarm.json re-read before each (a failure is
+// printed and the pass skipped) and a pass's error printed, until SIGINT
+// or SIGTERM; then no launch, the running members and checks collected as
+// they exit, and exit 0, or at once on a second signal (130).
+func applyLoop(c *Context, s *reconcile.Swarm) error {
+	o := c.Ops
+	signals := o.Signals()
+	signalled := false
+	// A signal during a pass ends its launching. The pass asks on this
+	// goroutine, so a signal already in the channel is always seen.
+	s.Stopping = func() bool {
+		if !signalled {
+			select {
+			case <-signals:
+				signalled = true
+			default:
+			}
+		}
+		return signalled
+	}
+	for !s.Stopping() {
+		begin := o.Now()
+		if cfg, err := loadSwarm(o, c.Env.Workspace); err != nil {
+			fmt.Fprintln(c.Stderr, err)
+		} else {
+			s.Cfg = cfg
+			if err := s.Pass(false); err != nil {
+				fmt.Fprintf(c.Stderr, "Error: swarm: %v\n", err)
+			}
+		}
+		if signalled {
+			break // signalled during the pass: drain now, not after the interval
+		}
+		interval, _ := time.ParseDuration(s.Cfg.Interval) // validated
+		select {
+		case <-signals:
+			signalled = true
+		case <-o.After(interval - o.Now().Sub(begin)):
+		}
+	}
+	second := make(chan struct{})
+	go func() { <-signals; close(second) }()
+	err := s.Drain(second)
+	if errors.Is(err, reconcile.ErrInterrupted) {
+		return ErrInterrupted
+	}
+	if err != nil {
+		fmt.Fprintf(c.Stderr, "Error: swarm: %v\n", err)
+	}
+	return nil
+}
+
+// swarmStateOnly is the <state> pause and resume act on: swarm.json read
+// for its forge fields only (section 11).
+func swarmStateOnly(c *Context) (string, error) {
+	cfg, _, err := declare.Load(c.Ops.FS(), c.Env.Workspace)
+	if err == nil {
+		err = declare.ValidateForge(cfg.Forge)
+	}
+	if err != nil {
+		return "", fmt.Errorf("Error: %v", err)
+	}
+	return cfg.Forge.State(c.Env.Local), nil
+}
+
+// SwarmPause is `daisy swarm pause` (docs/swarm.md section 11): <state>/paused
+// written, so the next pass of every apply launches nothing and merges
+// nothing while collection goes on.
+func SwarmPause(c *Context) error {
+	state, err := swarmStateOnly(c)
+	if err != nil {
+		return err
+	}
+	fs := c.Ops.FS()
+	path := filepath.Join(state, "paused")
+	if b, err := fs.ReadFile(path); err == nil {
+		fmt.Fprintf(c.Stdout, "Already paused since %s\n", strings.TrimPrefix(firstLine(b), "paused "))
+		return nil
+	}
+	if err := fs.MkdirAll(state, 0o755); err != nil {
+		return fmt.Errorf("Error: swarm: cannot create %s: %v", state, err)
+	}
+	if err := fs.WriteFile(path, []byte("paused "+c.Ops.Now().UTC().Format(time.RFC3339)+"\n"), 0o644); err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	fmt.Fprintf(c.Stdout, "Paused: no new member will launch (%s); running members finish and are posted\n", path)
+	return nil
+}
+
+// SwarmResume is `daisy swarm resume` (docs/swarm.md section 11):
+// <state>/paused removed, whoever wrote it, and <state>/owner-held.
+func SwarmResume(c *Context) error {
+	state, err := swarmStateOnly(c)
+	if err != nil {
+		return err
+	}
+	fs := c.Ops.FS()
+	removed := map[string]bool{}
+	for _, name := range []string{"paused", "owner-held"} {
+		path := filepath.Join(state, name)
+		if _, err := fs.Lstat(path); err != nil {
+			continue
+		}
+		if err := fs.Remove(path); err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		removed[name] = true
+	}
+	if removed["paused"] {
+		fmt.Fprintln(c.Stdout, "Resumed: members launch at the next pass")
+	}
+	if removed["owner-held"] {
+		fmt.Fprintln(c.Stdout, "Owner batch released")
+	}
+	if len(removed) == 0 {
+		fmt.Fprintln(c.Stdout, "Not paused")
+	}
+	return nil
 }

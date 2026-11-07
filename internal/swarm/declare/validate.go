@@ -79,6 +79,15 @@ func Validate(o ops.Ops, ws string, c Config, skip Skip) error {
 	return nil
 }
 
+// ValidateForge checks the forge fields alone, as `pause` and `resume`
+// read them to find <state> (section 3).
+func ValidateForge(f Forge) error {
+	if err := checkForge(f, SkipAccount); err != nil {
+		return err
+	}
+	return nil
+}
+
 func checkForge(f Forge, skip Skip) *Error {
 	if f.Kind != "gitea" && f.Kind != "github" {
 		return fieldErr("forge.kind", "%q has no adapter", f.Kind)

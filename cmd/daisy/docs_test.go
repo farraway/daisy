@@ -202,17 +202,6 @@ func TestDocsNameOnlyTableCommands(t *testing.T) {
 						name = n
 					}
 				}
-				// docs/swarm.md specifies the Swarm group before it is built
-				// (Steps 27–30): an agreed verb absent from the table is
-				// checked against its agreed flags; once the verb is a row,
-				// the table governs it.
-				agreed, isAgreed := []string(nil), false
-				if f == "docs/swarm.md" && name == "" && len(w) >= 2 {
-					agreed, isAgreed = swarmAgreed[w[0]+" "+w[1]]
-					if isAgreed {
-						name = w[0] + " " + w[1]
-					}
-				}
 				if w[0] != "" && name == "" {
 					if first[w[0]] && len(w) > 1 && !wordRe.MatchString(w[1]) && !strings.HasPrefix(w[1], "-") {
 						continue // `daisy plan …`, `daisy home <verb>`: a group named, no verb
@@ -224,9 +213,6 @@ func TestDocsNameOnlyTableCommands(t *testing.T) {
 					continue
 				}
 				allowed, health, _ := cli.Flags(name)
-				if isAgreed {
-					allowed = agreed
-				}
 				if name == "help" { // help answers its flag itself; its usage shows it
 					allowed = append(allowed, "--markdown")
 				}
@@ -256,23 +242,6 @@ func TestDocsNameOnlyTableCommands(t *testing.T) {
 			}
 		}
 	}
-	built := 0
-	for n := range swarmAgreed {
-		if _, ok := usage[n]; ok {
-			built++
-		}
-	}
-	if built == len(swarmAgreed) {
-		t.Error("every agreed swarm verb is a row of the cli table: drop swarmAgreed")
-	}
-}
-
-// swarmAgreed is the Swarm group's verbs not yet built, as docs/cli.md
-// agrees them (D30), and their flags, which docs/swarm.md names before
-// the binary runs them; a built verb (`swarm init`) is a row of the table.
-var swarmAgreed = map[string][]string{
-	"swarm pause":  nil,
-	"swarm resume": nil,
 }
 
 // pathPlaceholders are the repository-shaped paths a document names that

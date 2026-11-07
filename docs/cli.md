@@ -9,10 +9,8 @@ under, the files it may write and the commits it makes.
 pins it; since Step 24 every command is Go and the bash (`daisy.sh` and
 `daisy/scripts/*.sh`) is deleted, so a `Legacy` row is history: the bash
 form a command replaced. Every entry is `as built (Step N)`, the step
-that built it, except `swarm`, whose `init`, `status` and `apply` are `as built
-(Steps 1, 4 and 5 of the swarm build)` and whose other two verbs are
-`agreed (Steps 27–30)`: decided in the plan, specified in
-[docs/swarm.md](swarm.md), and not yet built. `decided (D30, …)` marks a point the plan's
+that built it, the `swarm` verbs `as built (Steps 1, 4, 5 and 6 of the
+swarm build)`, each specified in [docs/swarm.md](swarm.md). `decided (D30, …)` marks a point the plan's
 Architecture left open that this document settled, recorded in the plan's
 D30. Where the bash has no
 explicit exit code or message for a situation the entry says *unspecified;
@@ -36,9 +34,9 @@ entries cross-reference it in prose.
 `daisy --help` as built, rendered from the `cli` table; `daisy
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm apply`, `swarm status`, `swarm
-pause`, `swarm resume`) joins the table a verb at a time as each is built:
-`swarm init`, `swarm apply` and `swarm status` are in it, the other two are agreed;
-the tree never names a command the binary does not run.
+pause`, `swarm resume`) joined the table a verb at a time as each was
+built; all five are in it, and the tree never names a command the binary
+does not run.
 
 ```
 Usage: daisy <command> [args...]
@@ -88,6 +86,8 @@ Swarm
   swarm init [--defaults]           Declare the swarm: swarm.json, prompts, labels
   swarm apply [--once]              Reconcile the forge: launch members, post their output, move labels
   swarm status                      Stages, gates, what waits for you, running members (read-only)
+  swarm pause                       Launch no new member until resumed; running ones are collected
+  swarm resume                      Launch members again and release the owner's held batch
 
 System
   commit [--root] <message>         Commit the home repo (or the root repo)
@@ -654,25 +654,44 @@ account's by default).
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 5 of the swarm build), in part: Go (`internal/swarm/provider`, `internal/swarm/runner`, `internal/swarm/reconcile`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, whose As built paragraph says which of a pass's steps run so far: `--once` only, and the architect on `swarm:ready` and `swarm:planning` issues |
+| Status | as built (Steps 5 and 6 of the swarm build): Go (`internal/swarm/provider`, `internal/swarm/runner`, `internal/swarm/reconcile`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, whose As built paragraph says what a pass leaves out (the board and the budget) |
 | Legacy | none |
-| Usage | `daisy swarm apply [--once]`: in a workspace `swarm init` declared; without `--once`, `Error: swarm apply: only --once is built (the loop joins with the lifecycle); run 'daisy swarm apply --once'`, exit 1; any other argument is usage on stderr, exit 2 |
-| Exit codes | 0 the pass ran (a member's failure is on the forge, not in the exit code); 1 without `--once`, outside a workspace, `swarm.json` absent or invalid, the token or a provider's credential unset (`Error: swarm: slot <slot> has no login; run 'CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file'` for a slot), `docker ps` failing (`Error: swarm: docker: <message>`), the lock held (`Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`), `EnsureLabels` failing, a forge, git or `docker ps` error during the pass (`Error: swarm: …`); 2 usage |
-| Stdout | `#<n> <role> run <k>: launched`; at collection `#<n> <role> run <k>: posted comment`, `#<n> <role> run <k>: <from> → <to>`, `failed (<reason>)`, `fault (<reason>)`; `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
-| Stderr | `⚠️  .env.sh <problem>`; `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n> closed during the run; nothing posted`, `⚠ #<n>: relabelled to <label> during the run; not relabelled`; errors |
+| Usage | `daisy swarm apply [--once]`: in a workspace `swarm init` declared; with `--once`, one pass, its runs waited for and collected; without, a pass every `interval` until SIGINT or SIGTERM; any other argument is usage on stderr, exit 2 |
+| Exit codes | 0 the pass or passes ran (a member's failure is on the forge, not in the exit code; a pause on stdout); 1 outside a workspace, `swarm.json` absent or invalid at the start, the token or an `env` credential unset (a slot without its login is not checked at the start: it is the swarm fault *slot refused* of the run that takes the slot), `docker ps` failing at the start (`Error: swarm: docker: <message>`), the lock held (`Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`), `EnsureLabels` failing, and with `--once` a forge, git or `docker ps` error during the pass (`Error: swarm: …`; without `--once` it is printed and the next pass runs); 130 a second signal while the loop collects its running members; 2 usage |
+| Stdout | `#<n> <role> run <k>: launched` (the owner's batch: `owner run <k>: launched`); at collection, `#<n> <role> run <k>: ` then `posted comment`, `posted review (<verdict>)`, `check started`, `check exited <code>`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`, `failed (<reason>)`, `fault (<reason>)`; the batch's `owner run <k>: proposed #<n> <title>` or `owner run <k>: <reason>; batch held (<state>/owner-held)`; `#<n> pull <name>#<m>: <label>`; the merge step's `#<n> merged pull <name>#<m> (slice <s> of <S>)`, `#<n> swarm:approved → swarm:planned`, `#<n> closed (last slice merged)`, `#<n> merge of pull <name>#<m> refused (<message>)`; `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
+| Stderr | `⚠️  .env.sh <problem>`; `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n> closed during the run; nothing posted`, `⚠ #<n>: relabelled to <label> during the run; not relabelled`, `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>`; errors |
 | Ops | Real |
-| Writes | `<state>/lock`, `<state>/git/`, `<state>/runs/`, a slot's lock and the clearing of the slot; on the forge, comments and label changes, and the eight labels when one is missing |
+| Writes | `<state>/lock`, `<state>/paused` (two swarm faults in a row), `<state>/owner-held`, `<state>/git/`, `<state>/runs/`, a slot's lock and the clearing of the slot; on the forge, issues, comments, reviews, pull requests, label changes, pushed `swarm/<n>-<s>` branches, the eight labels when one is missing, and with `gates.merge` false merges and closed issues |
 | Commits | none |
-| Cases | none; `TestSwarmApplyReadyToPlanning` and the other `TestSwarmApply` tests, and the `internal/swarm` tests |
+| Cases | none; `TestSwarmApplyLifecycle`, `TestSwarmApplyGatesOff` and the other `TestSwarmApply` tests, and the `internal/swarm` tests |
 
-### daisy swarm
+### daisy swarm pause
 
 | Field | Value |
 |---|---|
-| Status | agreed (Steps 27–30) for `pause` and `resume`, and for the rest of `apply` (its loop and the lifecycle past the architect); specified in [docs/swarm.md](swarm.md) (Step 26, revised at Steps 38, 40 and 43, and at Step 3 of the swarm build: revision 5), not here: `swarm.json` (its gates, budget and credentials included: an `env` variable or login slots per provider; the swarm's own forge account, an optional board, and the repositories one job spans), the briefs the owner reads, the eight-label lifecycle over two conversations (the issue for the design, a pull request per slice for the implementation; the review limit returning the issue to the architect), the member and check containers, both seams, and each verb's reads, writes, output and exit codes |
+| Status | as built (Step 6 of the swarm build): Go (`internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
-| Usage | `swarm pause`, `swarm resume` — the two lines the `Swarm` group adds to the help beside `swarm init`, `swarm apply` and `swarm status` as each is built, and nothing more; a login slot is made with the provider's own CLI (`CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, docs/swarm.md section 8), not a sixth verb |
-| Cases | none |
+| Usage | `daisy swarm pause`: in a workspace `swarm init` declared; any argument is usage on stderr, exit 2 |
+| Exit codes | 0 paused or already paused; 1 outside a workspace, `swarm.json` absent or unparsable or its forge fields invalid, the write failing; 2 usage |
+| Stdout | `Paused: no new member will launch (<state>/paused); running members finish and are posted`, or `Already paused since <time>[: <reason>]` |
+| Ops | Real |
+| Writes | `<state>/paused` (and `<state>` when absent); no forge call, no secret read |
+| Commits | none |
+| Cases | none; `TestSwarmPauseAndResume` |
+
+### daisy swarm resume
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 6 of the swarm build): Go (`internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Legacy | none |
+| Usage | `daisy swarm resume`: in a workspace `swarm init` declared; any argument is usage on stderr, exit 2 |
+| Exit codes | 0; 1 outside a workspace, `swarm.json` absent or unparsable or its forge fields invalid, a removal failing; 2 usage |
+| Stdout | `Resumed: members launch at the next pass` when `<state>/paused` was present, `Owner batch released` when `<state>/owner-held` was; `Not paused` when neither was |
+| Ops | Real |
+| Writes | removes `<state>/paused`, whoever wrote it, and `<state>/owner-held`; no forge call, no secret read |
+| Commits | none |
+| Cases | none; `TestSwarmPauseAndResume`, `TestSwarmApplyBatchTrigger` |
 
 ## System
 

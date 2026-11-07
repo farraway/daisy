@@ -29,6 +29,8 @@ type applyWS struct {
 	upstreams map[string]string // origin URL → local bare repository
 	now       time.Time         // the clock of apply and of the forge, moved by tick
 	mu        sync.Mutex
+	signals   chan os.Signal
+	after     func(time.Duration) <-chan time.Time
 }
 
 func (a *applyWS) Now() time.Time { a.mu.Lock(); defer a.mu.Unlock(); return a.now }
@@ -82,6 +84,10 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 	o := &ops.Fake{
 		GetenvFn: func(k string) string { return a.vars[k] },
 		NowFn:    a.Now,
+		AfterFn:  a.after,
+		SignalsFn: func() <-chan os.Signal {
+			return a.signals
+		},
 		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
 			if name == "id" {
 				return []byte("1000\n"), nil, nil
@@ -342,9 +348,6 @@ func TestSwarmApplyArchitectFailures(t *testing.T) {
 // prompt with an empty heading field refused as a fault.
 func TestSwarmApplyStart(t *testing.T) {
 	a := newApplyWS(t)
-	if err := a.apply(a.forge); err == nil || err.Error() != "Error: swarm apply: only --once is built (the loop joins with the lifecycle); run 'daisy swarm apply --once'" {
-		t.Errorf("without --once: %v", err)
-	}
 	os.MkdirAll(a.state(""), 0o755)
 	release, err := ops.Real().FS().Lock(a.state("lock"), "apply --once since 2026-11-06T14:59:00Z")
 	if err != nil {

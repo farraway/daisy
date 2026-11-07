@@ -34,6 +34,7 @@ type Swarm struct {
 
 	live      map[string]*live    // run directory → its container in flight
 	given     map[string][]string // run directory → the secrets its member was given
+	Stopping  func() bool         // the loop was signalled: launch nothing more (nil: never)
 	newFault  bool                // a run this process collected ended in a fault
 	collected int                 // runs collected in this pass
 }
@@ -49,6 +50,8 @@ type live struct {
 	err   error
 	again []string
 }
+
+func (s *Swarm) stopping() bool { return s.Stopping != nil && s.Stopping() }
 
 func (s *Swarm) state() string { return s.Cfg.Forge.State(s.Local) }
 func (s *Swarm) owner() string { return owner(s.Cfg) }
@@ -96,8 +99,8 @@ func (s *Swarm) Pass(wait bool) error {
 	} else {
 		fetched := false
 		launch := func(j *Job) error {
-			if mine+launched >= s.Cfg.MaxMembers || s.paused() != "" {
-				return nil // a second fault in a row this pass launches nothing more
+			if mine+launched >= s.Cfg.MaxMembers || s.paused() != "" || s.stopping() {
+				return nil // a second fault in a row, or a signal, this pass launches nothing more
 			}
 			if !fetched {
 				for _, r := range s.Cfg.Repos {
@@ -117,7 +120,7 @@ func (s *Swarm) Pass(wait bool) error {
 		if err := s.stages(running, launch); err != nil {
 			errs = append(errs, err)
 		} else {
-			if !s.Cfg.Gates.Merge && s.paused() == "" {
+			if !s.Cfg.Gates.Merge && s.paused() == "" && !s.stopping() {
 				errs = append(errs, s.mergeStep())
 			}
 			errs = append(errs, s.batch(running, launch))

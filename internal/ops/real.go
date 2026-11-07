@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -84,10 +86,16 @@ func (p realProcess) Kill() error { return p.cmd.Process.Kill() }
 
 func (real) Now() time.Time                         { return time.Now() }
 func (real) After(d time.Duration) <-chan time.Time { return time.After(d) }
-func (real) Getenv(key string) string               { return os.Getenv(key) }
-func (real) Getwd() (string, error)                 { return os.Getwd() }
-func (real) Executable() (string, error)            { return os.Executable() }
-func (real) HTTP() Doer                             { return http.DefaultClient }
+
+func (real) Signals() <-chan os.Signal {
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	return c
+}
+func (real) Getenv(key string) string    { return os.Getenv(key) }
+func (real) Getwd() (string, error)      { return os.Getwd() }
+func (real) Executable() (string, error) { return os.Executable() }
+func (real) HTTP() Doer                  { return http.DefaultClient }
 
 func (real) Prompt(r io.Reader, w io.Writer, question string) (string, error) {
 	if _, err := io.WriteString(w, question); err != nil {

@@ -18,9 +18,10 @@ import (
 
 // Exit codes.
 const (
-	OK      = 0
-	Failure = 1
-	Usage   = 2
+	OK          = 0
+	Failure     = 1
+	Usage       = 2
+	Interrupted = 130 // a second signal ended `swarm apply` at once
 )
 
 // Run dispatches args. Errors a command returns are printed as they are:
@@ -207,6 +208,9 @@ func invoke(c *commands.Context, cmd Command, fn func(*commands.Context) error) 
 	if err := fn(c); err != nil {
 		if errors.Is(err, commands.ErrReported) {
 			return Failure
+		}
+		if errors.Is(err, commands.ErrInterrupted) {
+			return Interrupted
 		}
 		var u commands.UsageError
 		if errors.As(err, &u) {

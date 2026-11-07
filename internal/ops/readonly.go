@@ -71,6 +71,7 @@ func (r readOnly) Start(dir, name string, stdin io.Reader, stdout, stderr io.Wri
 
 func (r readOnly) Now() time.Time                         { return r.inner.Now() }
 func (r readOnly) After(d time.Duration) <-chan time.Time { return r.inner.After(d) }
+func (r readOnly) Signals() <-chan os.Signal              { return r.inner.Signals() }
 func (r readOnly) Getenv(key string) string               { return r.inner.Getenv(key) }
 func (r readOnly) Getwd() (string, error)                 { return r.inner.Getwd() }
 func (r readOnly) Executable() (string, error)            { return r.inner.Executable() }
