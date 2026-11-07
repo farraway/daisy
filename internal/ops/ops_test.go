@@ -2,6 +2,7 @@ package ops_test
 
 import (
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,13 +73,57 @@ func TestReadOnlyExecAllowsOnlyGitReads(t *testing.T) {
 	}
 }
 
-func TestReadOnlyRefusesStartAndHTTP(t *testing.T) {
+func TestReadOnlyRefusesStartAndHTTPWrites(t *testing.T) {
 	ro := ops.ReadOnly(ops.Real())
 	if _, err := ro.Start(t.TempDir(), "true", nil, nil, nil); err == nil {
 		t.Error("Start under ReadOnly was allowed")
 	}
 	if _, err := ro.HTTP().Do(nil); err == nil {
 		t.Error("HTTP under ReadOnly was allowed")
+	}
+	// A GET or HEAD reaches the inner Doer; every other method is refused
+	// before it does (docs/swarm.md section 14, item 31).
+	var sent []string
+	inner := &ops.Fake{HTTPFn: func() ops.Doer { return doerFunc(func(r *http.Request) { sent = append(sent, r.Method) }) }}
+	ro = ops.ReadOnly(inner)
+	for _, m := range []string{"GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"} {
+		req, _ := http.NewRequest(m, "https://forge.example.net/api/v1/user", nil)
+		_, err := ro.HTTP().Do(req)
+		if read := m == "GET" || m == "HEAD"; read != (err == nil) {
+			t.Errorf("%s under ReadOnly: %v", m, err)
+		} else if !read && !strings.Contains(err.Error(), "HTTP "+m+" https://forge.example.net/api/v1/user refused") {
+			t.Errorf("%s refusal does not name the call: %v", m, err)
+		}
+	}
+	if strings.Join(sent, " ") != "GET HEAD" {
+		t.Errorf("reached the forge: %v", sent)
+	}
+}
+
+type doerFunc func(*http.Request)
+
+func (f doerFunc) Do(r *http.Request) (*http.Response, error) {
+	f(r)
+	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
+}
+
+func TestReadOnlyExecAllowsDockerPsOnly(t *testing.T) {
+	var ran []string
+	inner := &ops.Fake{ExecFn: func(_, name string, args ...string) ([]byte, []byte, error) {
+		ran = append(ran, name+" "+strings.Join(args, " "))
+		return nil, nil, nil
+	}}
+	ro := ops.ReadOnly(inner)
+	if _, _, err := ro.Exec("", "docker", "ps", "--filter", "label=daisy.swarm"); err != nil {
+		t.Errorf("docker ps under ReadOnly: %v", err)
+	}
+	for _, args := range [][]string{{"run", "img"}, {"stop", "c"}, {"rm", "c"}, {}} {
+		if _, _, err := ro.Exec("", "docker", args...); err == nil || !strings.Contains(err.Error(), "read-only") {
+			t.Errorf("docker %v under ReadOnly: %v", args, err)
+		}
+	}
+	if strings.Join(ran, ";") != "docker ps --filter label=daisy.swarm" {
+		t.Errorf("ran %q", ran)
 	}
 }
 

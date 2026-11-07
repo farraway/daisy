@@ -10,9 +10,11 @@ import (
 )
 
 // ReadOnly wraps inner so that every mutating FS call, every Exec other than
-// a git read, every Start and every HTTP request returns an error naming the
-// call. The commands whose usage promises "read-only" run under it, so the
-// promise is checked rather than trusted.
+// a git read or `docker ps`, every Start and every HTTP request other than
+// a GET or HEAD returns an error naming the call. The commands whose usage
+// promises "read-only" run under it, so the promise is checked rather than
+// trusted (`swarm status` reads the forge and the running containers:
+// docs/swarm.md section 14, item 31).
 func ReadOnly(inner Ops) Ops { return readOnly{inner} }
 
 type readOnly struct{ inner Ops }
@@ -53,8 +55,11 @@ func gitReads(args []string) bool {
 	return false
 }
 
+// dockerReads: `docker ps`, which lists containers and changes nothing.
+func dockerReads(args []string) bool { return len(args) > 0 && args[0] == "ps" }
+
 func (r readOnly) Exec(dir, name string, args ...string) ([]byte, []byte, error) {
-	if name != "git" || !gitReads(args) {
+	if !(name == "git" && gitReads(args)) && !(name == "docker" && dockerReads(args)) {
 		return nil, nil, refused("Exec", append([]string{name}, args...)...)
 	}
 	return r.inner.Exec(dir, name, args...)
@@ -68,20 +73,28 @@ func (r readOnly) Now() time.Time              { return r.inner.Now() }
 func (r readOnly) Getenv(key string) string    { return r.inner.Getenv(key) }
 func (r readOnly) Getwd() (string, error)      { return r.inner.Getwd() }
 func (r readOnly) Executable() (string, error) { return r.inner.Executable() }
-func (r readOnly) HTTP() Doer                  { return refusingDoer{} }
+func (r readOnly) HTTP() Doer                  { return readingDoer{r.inner.HTTP()} }
 
 func (r readOnly) Prompt(in io.Reader, out io.Writer, question string) (string, error) {
 	return r.inner.Prompt(in, out, question)
 }
 
-type refusingDoer struct{}
+// readingDoer sends a GET or HEAD through inner and refuses every other
+// method.
+type readingDoer struct{ inner Doer }
 
-func (refusingDoer) Do(req *http.Request) (*http.Response, error) {
-	url := ""
-	if req != nil && req.URL != nil {
-		url = req.URL.String()
+func (d readingDoer) Do(req *http.Request) (*http.Response, error) {
+	if req != nil && (req.Method == http.MethodGet || req.Method == http.MethodHead) {
+		return d.inner.Do(req)
 	}
-	return nil, refused("HTTP", url)
+	method, url := "", ""
+	if req != nil {
+		method = req.Method
+		if req.URL != nil {
+			url = req.URL.String()
+		}
+	}
+	return nil, refused("HTTP", method, url)
 }
 
 type readOnlyFS struct{ inner FS }

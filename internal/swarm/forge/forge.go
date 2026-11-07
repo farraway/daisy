@@ -119,12 +119,6 @@ const (
 // ErrNotMergeable is a merge the forge refused.
 var ErrNotMergeable = errors.New("forge: not mergeable")
 
-// notBuilt is the error of a method the build has not reached: the methods
-// `swarm init` does not call are built with `swarm apply` (Step 4).
-func notBuilt(method string) error {
-	return fmt.Errorf("forge: %s is not built until Step 4", method)
-}
-
 // New is the adapter for kind over o's HTTP: gitea is built; github is
 // specified (section 10) and built when a run needs it.
 func New(o ops.Ops, kind, api, token, repo string, names []string) (Adapter, error) {
@@ -137,9 +131,23 @@ func New(o ops.Ops, kind, api, token, repo string, names []string) (Adapter, err
 	return nil, fmt.Errorf("forge: kind %q has no adapter", kind)
 }
 
+// noLabel is CreateIssue's or Relabel's failure on a label the forge
+// does not hold for the repository name of owner.
+func noLabel(method, owner, name, label string) error {
+	return fmt.Errorf("forge: %s: no label %s for %s/%s; run 'daisy swarm init', which ensures the eight", method, label, owner, name)
+}
+
 // refusedLabels is EnsureLabels' failure when the forge refuses a create.
 func refusedLabels(owner string, missing []string) error {
 	return fmt.Errorf("forge: EnsureLabels: %s's labels missing: %s; an owner of %s creates them once", owner, strings.Join(missing, ", "), owner)
+}
+
+// swarmPull: a pull request in the declared repository name, on branch
+// head with body, is the swarm's for issue n of owner/repo (section 10,
+// Pulls), and its slice number.
+func swarmPull(head, body, owner, repo, name string, n int) (int, bool) {
+	s, ok := sliceOf(head, n)
+	return s, ok && refersTo(body, owner, repo, name, n)
 }
 
 // sliceOf is the slice number of a swarm branch `swarm/<n>-<s>` for issue

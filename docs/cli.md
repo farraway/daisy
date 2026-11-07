@@ -9,9 +9,10 @@ under, the files it may write and the commits it makes.
 pins it; since Step 24 every command is Go and the bash (`daisy.sh` and
 `daisy/scripts/*.sh`) is deleted, so a `Legacy` row is history: the bash
 form a command replaced. Every entry is `as built (Step N)`, the step
-that built it, except `swarm`, whose `init` is `as built (Step 1 of the
-swarm build)` and whose other four verbs are `agreed (Steps 27–30)`: decided
-in the plan, specified in [docs/swarm.md](swarm.md), and not yet built. `decided (D30, …)` marks a point the plan's
+that built it, except `swarm`, whose `init` and `status` are `as built
+(Steps 1 and 4 of the swarm build)` and whose other three verbs are
+`agreed (Steps 27–30)`: decided in the plan, specified in
+[docs/swarm.md](swarm.md), and not yet built. `decided (D30, …)` marks a point the plan's
 Architecture left open that this document settled, recorded in the plan's
 D30. Where the bash has no
 explicit exit code or message for a situation the entry says *unspecified;
@@ -36,8 +37,8 @@ entries cross-reference it in prose.
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm apply`, `swarm status`, `swarm
 pause`, `swarm resume`) joins the table a verb at a time as each is built:
-`swarm init` is in it, the other four are agreed; the tree never names a
-command the binary does not run.
+`swarm init` and `swarm status` are in it, the other three are agreed;
+the tree never names a command the binary does not run.
 
 ```
 Usage: daisy <command> [args...]
@@ -85,6 +86,7 @@ Prompts and skills
 
 Swarm
   swarm init [--defaults]           Declare the swarm: swarm.json, prompts, labels
+  swarm status                      Stages, gates, what waits for you, running members (read-only)
 
 System
   commit [--root] <message>         Commit the home repo (or the root repo)
@@ -213,7 +215,9 @@ no hook) *(decided, D30, Step 18; in-process since Step 24)*.
 
 **`Ops` wrappers.** `ReadOnly` for `status`, `files`, `list`, `projects`,
 `tasks`, `help` and the briefing, `optimize` (Step 23),
-and for `check-secrets`, `home list` and `identity list` (decided, D30);
+and for `check-secrets`, `home list` and `identity list` (decided, D30),
+and `swarm status`, for which `ReadOnly` lets a `GET` or `HEAD` request
+and `docker ps` through (docs/swarm.md section 14, item 31);
 `Real` for everything else, `eval` included (one wrapper per command;
 `--record` writes), `optimize apply`, and `healthcheck`, because a pass
 writes the TTL stamp.
@@ -623,20 +627,35 @@ branch; 7–26 per role (owner, architect, worker, adversary, sympathetic)
 its provider, model (every role names one: no `-`), effort and co-author
 (the `Co-Authored-By:` value, `<model> <noreply@anthropic.com>` or
 `<noreply@openai.com>` by default); 27 each repository's image; 28 max
-members; 29 max rounds (5 since docs/swarm.md revision 5; the built
-wizard offers 3 until the code step that carries it); 30 the timeout; 31
+members; 29 max rounds (5 since docs/swarm.md revision 5, built at
+Step 4 of the swarm build); 30 the timeout; 31
 the interval; 32 the resources;
 then, once the token has read the forge and its account, 33 the
 maintainer's logins (the swarm's refused) and 34 the commit email (the
 account's by default).
 
+### daisy swarm status
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 4 of the swarm build): Go (`internal/swarm/forge`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Legacy | none |
+| Usage | `daisy swarm status`: in a workspace `swarm init` declared; any argument is usage on stderr, exit 2 |
+| Exit codes | 0, also when Docker cannot be reached; 1 outside a workspace, `swarm.json` absent or invalid (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <ws>/.env.sh or the environment)`), a forge call failing (`Error: swarm: forge: …`), a brief or a run's `result` unreadable; 2 usage |
+| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>` with the paused and held notes; `Gates: …`; a line per label, `  %-12s %d` and its issue numbers; `Waiting for you: …` or `nothing`; `Running: …`, `none` or `unknown (docker: <message>)`; `Personas:` and a line per role; `Throughput:` and its four lines; `Briefs:` and the path of each `active` brief under `resources`, or `Briefs: none active` |
+| Stderr | `⚠️  .env.sh <problem>` for a line `.env.sh` cannot be read past; errors |
+| Ops | ReadOnly, with a forge `GET` or `HEAD` and `docker ps` let through |
+| Writes | nothing, anywhere |
+| Commits | none |
+| Cases | none; `TestSwarmStatusThroughGitea`, and the `internal/commands` and `internal/swarm` tests |
+
 ### daisy swarm
 
 | Field | Value |
 |---|---|
-| Status | agreed (Steps 27–30) for `apply`, `status`, `pause` and `resume`; specified in [docs/swarm.md](swarm.md) (Step 26, revised at Steps 38, 40 and 43, and at Step 3 of the swarm build: revision 5), not here: `swarm.json` (its gates, budget and credentials included: an `env` variable or login slots per provider; the swarm's own forge account, an optional board, and the repositories one job spans), the briefs the owner reads, the eight-label lifecycle over two conversations (the issue for the design, a pull request per slice for the implementation; the review limit returning the issue to the architect), the member and check containers, both seams, and each verb's reads, writes, output and exit codes |
+| Status | agreed (Steps 27–30) for `apply`, `pause` and `resume`; specified in [docs/swarm.md](swarm.md) (Step 26, revised at Steps 38, 40 and 43, and at Step 3 of the swarm build: revision 5), not here: `swarm.json` (its gates, budget and credentials included: an `env` variable or login slots per provider; the swarm's own forge account, an optional board, and the repositories one job spans), the briefs the owner reads, the eight-label lifecycle over two conversations (the issue for the design, a pull request per slice for the implementation; the review limit returning the issue to the architect), the member and check containers, both seams, and each verb's reads, writes, output and exit codes |
 | Legacy | none |
-| Usage | `swarm apply [--once]`, `swarm status`, `swarm pause`, `swarm resume` — the four lines the `Swarm` group adds to the help beside `swarm init` as each is built, and nothing more; a login slot is made with the provider's own CLI (`CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, docs/swarm.md section 8), not a sixth verb |
+| Usage | `swarm apply [--once]`, `swarm pause`, `swarm resume` — the three lines the `Swarm` group adds to the help beside `swarm init` and `swarm status` as each is built, and nothing more; a login slot is made with the provider's own CLI (`CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, docs/swarm.md section 8), not a sixth verb |
 | Cases | none |
 
 ## System

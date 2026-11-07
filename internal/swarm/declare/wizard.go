@@ -218,7 +218,7 @@ func (w *Wizard) unasked() Config {
 	}
 	env, slots := "CLAUDE_CODE_OAUTH_TOKEN", 1
 	return Config{
-		Base: "main", MaxMembers: 3, MaxRounds: 3, Timeout: "45m", Interval: "5m",
+		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
 		Resources: resources,
 		Gates:     Gates{Triage: true, Plan: true, Merge: true},

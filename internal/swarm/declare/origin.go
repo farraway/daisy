@@ -2,6 +2,7 @@ package declare
 
 import (
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -96,4 +97,25 @@ func (f Forge) Host() string {
 		return ""
 	}
 	return u.Hostname()
+}
+
+// ForgeHost is `<forge-host>` (section 10, Detection): github.com for kind
+// github, else forge.api's host with its port when it has one.
+func (f Forge) ForgeHost() string {
+	if f.Kind == "github" {
+		return "github.com"
+	}
+	u, err := url.Parse(f.API)
+	if err != nil {
+		return ""
+	}
+	return u.Host
+}
+
+// State is `<state>`, the swarm's runtime state on this machine (section
+// 2): `<local>/swarm/<forge-host>/<owner>/<repo>`, local being
+// $DAISY_LOCAL.
+func (f Forge) State(local string) string {
+	owner, repo, _ := strings.Cut(f.Repo, "/")
+	return filepath.Join(local, "swarm", f.ForgeHost(), owner, repo)
 }

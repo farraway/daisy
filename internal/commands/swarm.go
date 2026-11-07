@@ -3,15 +3,20 @@ package commands
 import (
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"daisy/internal/env"
 	"daisy/internal/ops"
+	"daisy/internal/swarm/brief"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
+	"daisy/internal/swarm/reconcile"
 )
 
 // SwarmInit is `daisy swarm init [--defaults]` (docs/swarm.md section
@@ -261,4 +266,272 @@ func systemdEscapePath(p string) string {
 		}
 	}
 	return b.String()
+}
+
+// SwarmStatus is `daisy swarm status` (docs/swarm.md section 11): the
+// swarm's stages, gates, whose turn it is, the running set, the personas,
+// the throughput from runs/ and the active briefs, under ReadOnly (the
+// forge's GETs and `docker ps` let through: section 14, item 31).
+var SwarmStatus = readOnly(func(c *Context) error { return swarmStatus(c, openForge) })
+
+func swarmStatus(c *Context, open opener) error {
+	o, ws := c.Ops, c.Env.Workspace
+	cfg, _, err := declare.Load(o.FS(), ws)
+	if err == nil {
+		err = declare.Validate(o, ws, cfg, 0)
+	}
+	if err != nil {
+		return fmt.Errorf("Error: %v", err)
+	}
+	token := secret(c, ws, cfg.Forge.TokenEnv)
+	if token == "" {
+		return fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", cfg.Forge.TokenEnv, filepath.Join(ws, ".env.sh"))
+	}
+	var names []string
+	for _, r := range cfg.Repos {
+		names = append(names, r.Name)
+	}
+	f, err := open(o, cfg.Forge, names, token)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	acct, err := f.Login()
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	stages := map[string][]int{}
+	for _, l := range forge.Labels {
+		issues, err := f.Issues(forge.Open, l)
+		if err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		for _, is := range issues {
+			stages[l] = append(stages[l], is.Number)
+		}
+	}
+	var planned []int // planning issues whose newest counted entry is the architect's
+	if cfg.Gates.Plan {
+		for _, n := range stages["swarm:planning"] {
+			is, err := f.Issue(n)
+			if err != nil {
+				return fmt.Errorf("Error: swarm: %v", err)
+			}
+			e, ok := reconcile.NewestCounted(reconcile.IssueThread(is), acct.Login, cfg.Trusted)
+			if m, swarm := reconcile.Swarms(e, acct.Login); ok && swarm && m.Role == "architect" {
+				planned = append(planned, n)
+			}
+		}
+	}
+	briefs, err := brief.Find(o.FS(), ws, cfg.Resources)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: reading the briefs: %v", err)
+	}
+
+	out := c.Stdout
+	state := cfg.Forge.State(c.Env.Local)
+	fmt.Fprintf(out, "Swarm: %s on %s (%s), repositories %s\n", cfg.Forge.Repo, cfg.Forge.ForgeHost(), cfg.Forge.Kind, strings.Join(names, ", "))
+	fmt.Fprintf(out, "State: %s%s\n", state, stateNotes(c.Ops.FS(), state))
+	fmt.Fprintf(out, "Gates: triage %s, plan %s, merge %s\n", onOff(cfg.Gates.Triage), onOff(cfg.Gates.Plan), onOff(cfg.Gates.Merge))
+	for _, l := range forge.Labels {
+		fmt.Fprintf(out, "  %-12s %d", strings.TrimPrefix(l, "swarm:"), len(stages[l]))
+		if len(stages[l]) > 0 {
+			fmt.Fprintf(out, "  %s", issueList(stages[l]))
+		}
+		fmt.Fprintln(out)
+	}
+	var waiting []string
+	for _, w := range []struct {
+		what string
+		on   bool
+		ns   []int
+	}{{"triage", cfg.Gates.Triage, stages["swarm:proposed"]}, {"plan", true, planned}, {"merge", cfg.Gates.Merge, stages["swarm:approved"]}, {"blocked", true, stages["swarm:blocked"]}} {
+		if w.on && len(w.ns) > 0 {
+			waiting = append(waiting, w.what+" "+issueList(w.ns))
+		}
+	}
+	if len(waiting) == 0 {
+		waiting = []string{"nothing"}
+	}
+	fmt.Fprintf(out, "Waiting for you: %s\n", strings.Join(waiting, "; "))
+	fmt.Fprintf(out, "Running: %s\n", running(o, ws, cfg.Forge.Repo))
+	fmt.Fprintln(out, "Personas:")
+	for _, r := range declare.Roles {
+		p := cfg.Personas[r]
+		fmt.Fprintf(out, "  %-12s %-10s %s %s\n", r, p.Provider, p.Model, p.Effort)
+	}
+	if err := throughput(c, state, cfg.Budget); err != nil {
+		return fmt.Errorf("Error: swarm: reading the runs: %v", err)
+	}
+	var active []string
+	for _, b := range briefs {
+		if b.Status == "active" {
+			active = append(active, "  "+b.Path+"\n")
+		}
+	}
+	if len(active) == 0 {
+		fmt.Fprintln(out, "Briefs: none active")
+	} else {
+		fmt.Fprint(out, "Briefs:\n"+strings.Join(active, ""))
+	}
+	return nil
+}
+
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return "off"
+}
+
+func issueList(ns []int) string {
+	s := make([]string, len(ns))
+	for i, n := range ns {
+		s[i] = "#" + strconv.Itoa(n)
+	}
+	return strings.Join(s, " ")
+}
+
+// stateNotes is the State line's tail: since when and why the swarm is
+// paused, and why the owner's batch is held (section 2's two files).
+func stateNotes(fs ops.FS, state string) string {
+	var notes string
+	if b, err := fs.ReadFile(filepath.Join(state, "paused")); err == nil {
+		notes += " — paused since " + strings.TrimPrefix(firstLine(b), "paused ")
+	}
+	if b, err := fs.ReadFile(filepath.Join(state, "owner-held")); err == nil {
+		_, reason, found := strings.Cut(strings.TrimPrefix(firstLine(b), "held "), ": ")
+		if !found {
+			reason = firstLine(b)
+		}
+		notes += " — owner batch held: " + reason
+	}
+	return notes
+}
+
+func firstLine(b []byte) string {
+	line, _, _ := strings.Cut(string(b), "\n")
+	return strings.TrimSpace(line)
+}
+
+// running is the Running line's value: this swarm's containers from
+// `docker ps` as `apply` lists them, `#<n> <role>` by issue, or unknown
+// with docker's message.
+func running(o ops.Ops, ws, repo string) string {
+	stdout, stderr, err := o.Exec(ws, "docker", "ps", "--filter", "label=daisy.swarm", "--format", `{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}`)
+	if err != nil {
+		msg := firstLine(stderr)
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "unknown (docker: " + msg + ")"
+	}
+	type member struct {
+		n    int
+		role string
+	}
+	var ms []member
+	for _, line := range strings.Split(string(stdout), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		rest, ok := strings.CutPrefix(fields[1], repo+"#")
+		num, role, slash := strings.Cut(rest, "/")
+		n, err := strconv.Atoi(num)
+		if ok && slash && err == nil {
+			ms = append(ms, member{n, role})
+		}
+	}
+	if len(ms) == 0 {
+		return "none"
+	}
+	slices.SortStableFunc(ms, func(a, b member) int { return a.n - b.n })
+	s := make([]string, len(ms))
+	for i, m := range ms {
+		s[i] = fmt.Sprintf("#%d %s", m.n, m.role)
+	}
+	return strings.Join(s, ", ")
+}
+
+// throughput prints section 11's Throughput block from <state>/runs/ only;
+// no runs/ is no run, and a run without a result is being prepared.
+func throughput(c *Context, state string, budget *declare.Budget) error {
+	var runs, posted, blocked, failed, faults, uncosted, approved, atLimit, blockedThere int
+	var today, all float64
+	midnight := c.Ops.Now().UTC().Truncate(24 * time.Hour)
+	entries, err := c.Ops.FS().ReadDir(filepath.Join(state, "runs"))
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return err
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		data, err := c.Ops.FS().ReadFile(filepath.Join(state, "runs", e.Name(), "result"))
+		if errors.Is(err, iofs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		runs++
+		var outcome string
+		var started time.Time
+		cost, costed := 0.0, false
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			f := strings.Fields(line)
+			switch {
+			case len(f) == 2 && f[0] == "outcome":
+				outcome = f[1]
+			case len(f) >= 2 && f[0] == "started":
+				started, _ = time.Parse(time.RFC3339, f[1])
+			case len(f) >= 2 && f[0] == "cost":
+				if v, err := strconv.ParseFloat(f[1], 64); err == nil {
+					cost, costed = v, true
+				}
+			}
+		}
+		switch outcome {
+		case "posted":
+			posted++
+		case "blocked":
+			blocked++
+		case "failed":
+			failed++
+		case "fault":
+			faults++
+		}
+		if !costed {
+			uncosted++
+		}
+		all += cost
+		if !started.Before(midnight) {
+			today += cost
+		}
+		if slices.Contains(lines, "relabelled swarm:in-review swarm:approved") {
+			approved++
+		}
+		if outcome == "posted" {
+			for _, to := range []string{"planning", "ready", "blocked"} {
+				if slices.Contains(lines, "relabelled swarm:in-review swarm:"+to) {
+					atLimit++
+					if to == "blocked" {
+						blockedThere++
+					}
+				}
+			}
+		}
+	}
+	out := c.Stdout
+	fmt.Fprintln(out, "Throughput:")
+	fmt.Fprintf(out, "  %-12s %d (%d posted, %d blocked, %d failed, %d faults, %d other)\n", "runs", runs, posted, blocked, failed, faults, runs-posted-blocked-failed-faults)
+	fmt.Fprintf(out, "  %-12s $%.2f today, $%.2f in all (%d runs without a cost)\n", "cost", today, all, uncosted)
+	if budget == nil {
+		fmt.Fprintf(out, "  %-12s none\n", "budget")
+	} else {
+		fmt.Fprintf(out, "  %-12s $%.2f per day, $%.2f in all\n", "budget", budget.PerDay, budget.Total)
+	}
+	fmt.Fprintf(out, "  %-12s %d pull requests; at the round limit %d, blocked there %d\n", "approved", approved, atLimit, blockedThere)
+	return nil
 }

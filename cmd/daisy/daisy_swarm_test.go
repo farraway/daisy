@@ -16,8 +16,9 @@ import (
 // makes, for the organization acme, the token tok-123 and the swarm's
 // account swarm-bot.
 type giteaServer struct {
-	mux    *http.ServeMux
-	labels []string
+	mux      *http.ServeMux
+	labels   []string
+	requests []string // method and path of each request, in order
 }
 
 func newGitea(t *testing.T) *giteaServer {
@@ -49,6 +50,7 @@ func newGitea(t *testing.T) *giteaServer {
 }
 
 func (g *giteaServer) Do(req *http.Request) (*http.Response, error) {
+	g.requests = append(g.requests, req.Method+" "+req.URL.Path)
 	rec := httptest.NewRecorder()
 	if req.Header.Get("Authorization") != "token tok-123" {
 		rec.WriteHeader(401)
@@ -113,6 +115,50 @@ func TestSwarmInitRefusals(t *testing.T) {
 	}
 	code, _, errs = runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults", "extra")
 	if code != 2 || !strings.Contains(errs, "Usage: daisy swarm init [--defaults]") {
+		t.Errorf("usage: exit %d %q", code, errs)
+	}
+}
+
+// `swarm status` through the cli, under its ReadOnly, and the gitea adapter
+// over an in-memory forge: GETs only, docker ps the one command beside
+// git's, and the swarm's own lines.
+func TestSwarmStatusThroughGitea(t *testing.T) {
+	m := newMachine(t)
+	m.product(t, "git@forge.example.net:acme/app.git")
+	g := newGitea(t)
+	if code, out, errs := runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults"); code != 0 {
+		t.Fatalf("init: exit %d\n%s\n%s", code, out, errs)
+	}
+	g.requests = nil
+	o := m.swarmOps(m.ws, g)
+	var ran []string
+	o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
+		ran = append(ran, name+" "+args[0])
+		if name == "docker" {
+			return []byte("daisy-acme-app-4-worker-1 acme/app#4/worker openai/1\n"), nil, nil
+		}
+		return ops.Real().Exec(dir, name, args...)
+	}
+	code, out, errs := runWith(o, "swarm", "status")
+	if code != 0 || errs != "" || !strings.HasPrefix(out, "Swarm: acme/app on forge.example.net (gitea), repositories app\n") ||
+		!strings.Contains(out, "\n  proposed     0\n") || !strings.Contains(out, "\nWaiting for you: nothing\nRunning: #4 worker\nPersonas:\n") {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
+	}
+	for _, r := range g.requests {
+		if !strings.HasPrefix(r, "GET ") {
+			t.Errorf("status sent %s", r)
+		}
+	}
+	if len(g.requests) != 9 {
+		t.Errorf("requests %q: Login, then Issues for each of the eight labels", g.requests)
+	}
+	for _, r := range ran {
+		if !strings.HasPrefix(r, "git ") && r != "docker ps" {
+			t.Errorf("status ran %s", r)
+		}
+	}
+	code, _, errs = runWith(m.swarmOps(m.ws, g), "swarm", "status", "extra")
+	if code != 2 || !strings.Contains(errs, "Usage: daisy swarm status") {
 		t.Errorf("usage: exit %d %q", code, errs)
 	}
 }

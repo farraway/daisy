@@ -96,7 +96,7 @@ func TestWizardAsksInOrder(t *testing.T) {
 		want = append(want, r+" provider (anthropic, openai) ["+p.Provider+"]: ", r+" model ["+p.Model+"]: ", r+" effort ["+p.Effort+"]: ",
 			r+" co-author ["+defaultCoAuthor(p.Provider, p.Model)+"]: ")
 	}
-	want = append(want, "app image [daisy-member:1]: ", "lib image [daisy-member:1]: ", "Max members [3]: ", "Max rounds [3]: ",
+	want = append(want, "app image [daisy-member:1]: ", "lib image [daisy-member:1]: ", "Max members [3]: ", "Max rounds [5]: ",
 		"Timeout [45m]: ", "Interval [5m]: ", "Resources (comma-separated workspace paths, - for none) [docs/]: ",
 		"Maintainer logins (comma-separated, not the swarm's; - for none) [-]: ", "Commit email [swarm@example.net]: ")
 	if !reflect.DeepEqual(*asked, want) {
@@ -113,7 +113,7 @@ func TestWizardHonoursEachOverride(t *testing.T) {
 	for _, r := range Roles {
 		answers = append(answers, "openai", r+"-model", "low", r+" Bot <"+r+"@example.net>")
 	}
-	answers = append(answers, "lib-image:2", "app-image:3", "4", "5", "1h", "2m", "-", "jane, joe", "commits@example.net")
+	answers = append(answers, "lib-image:2", "app-image:3", "4", "6", "1h", "2m", "-", "jane, joe", "commits@example.net")
 	o, _ := scripted(answers...)
 	w := &Wizard{Ops: o, Err: io.Discard, WS: ws}
 	c, err := w.Ask()
@@ -129,7 +129,7 @@ func TestWizardHonoursEachOverride(t *testing.T) {
 	if c.Forge != (Forge{Kind: "gitea", API: "https://forge.example.net:3000/api/v1", Repo: "acme/lib", TokenEnv: "SWARM_TOKEN", CommitEmail: "commits@example.net"}) {
 		t.Errorf("forge %+v", c.Forge)
 	}
-	if c.Base != "trunk" || c.MaxMembers != 4 || c.MaxRounds != 5 || c.Timeout != "1h" || c.Interval != "2m" || len(c.Resources) != 0 {
+	if c.Base != "trunk" || c.MaxMembers != 4 || c.MaxRounds != 6 || c.Timeout != "1h" || c.Interval != "2m" || len(c.Resources) != 0 {
 		t.Errorf("scalars %+v", c)
 	}
 	if !reflect.DeepEqual(c.Trusted, []string{"jane", "joe", "swarm-bot"}) {

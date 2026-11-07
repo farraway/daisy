@@ -18,7 +18,9 @@ issue to the architect; the meta loop's data contract; and two diagrams,
 in sections 1 and 5; section 14, items 55–59).
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
-sections 3, 8–11, 13 and 14); the other four verbs do not run yet. The maintainer reads the sections each code
+sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
+`gitea` adapter and `forge.Fake`, amending sections 3, 10, 11, 13 and 14); the other three verbs
+do not run yet. The maintainer reads the sections each code
 step's hand-back cites (the plan's decision of 2026-11-06, in place of a
 reading of the whole before the first code step), and section 14 lists
 the places where the document chose between readings. `docs/cli.md`'s entry for the Swarm group points here:
@@ -323,7 +325,7 @@ of `apply`, so an edit applies at the next pass.
 | `repos[].protected` | array of strings | `[".github/", ".gitea/", ".forgejo/", "AGENTS.md", "CLAUDE.md"]` | path patterns in the repository a worker's change may not touch (7.6): an entry ending `/` matches every path under that directory; an entry without `/` matches a path whose last element it matches (`path.Match`), at any depth; any other entry matches the whole path (`path.Match`); each non-empty, relative, without `..`; `[]` protects nothing |
 | `base` | string | `main` | a branch name: `^[A-Za-z0-9._][A-Za-z0-9._/-]*$`, no `..`, not ending in `/` or `.lock`; the branch pull requests target and new slices start from (it need not be the forge's default branch: nothing closes on a merge, section 12) |
 | `max_members` | integer | 3 | 1 to 16: containers of this swarm (`<owner>/<repo>`) running at once |
-| `max_rounds` | integer | 5 | 1 to 10: review rounds of one pull request, counted since its accepted plan (section 6), before the pair's request for changes returns the issue to the architect, and the second time blocks it (T11, section 5); Step 1 built the default as 3, and the code step that carries this revision changes it (section 14, item 55) |
+| `max_rounds` | integer | 5 | 1 to 10: review rounds of one pull request, counted since its accepted plan (section 6), before the pair's request for changes returns the issue to the architect, and the second time blocks it (T11, section 5); Step 1 built the default as 3, and Step 4 of the swarm build changed it to 5 (section 14, item 55) |
 | `timeout` | string | `45m` | a Go duration, 1m to 24h: one run's wall clock, and its check's |
 | `interval` | string | `5m` | a Go duration, 1m to 24h: between passes of `apply` without `--once`, and the timer's period |
 | `owner.max_open_proposals` | integer | 5 | 1 to 20: the most issues one batch run creates, and with the triage gate off the most open `proposed` and `ready` issues the batch tops up to (section 6) |
@@ -1639,17 +1641,17 @@ var ErrNotMergeable error // wraps the forge's message
 
 These sixteen methods are every call Daisy makes to the forge; the only
 other traffic with it is host-side git (fetch and push, 7.1 and 7.6).
-**As built (Step 1 of the swarm build).** The interface holds fifteen:
-`Board` joins it with the step that builds the board, which waits for a
-run that needs it, as the GitHub adapter does (`forge.New` answers kind
-`github` with `forge: kind github has no adapter yet; it is built when a
-run needs it (docs/swarm.md section 10)`). The `gitea` adapter and
-`forge.Fake` implement what `swarm init` calls, `EnsureLabels`, `Login`,
-`Issues` and `Pulls`; every other method returns `forge: <Method> is not
-built until Step 4`, the step that also builds the retries below (they
-wait on `Ops.After`, item 35) and the label id map that `CreateIssue` and
-`Relabel` read, where a repository's label shadows the organization's;
-until then a `429` or `5xx` is the call's error (section 14, item 53). In
+**As built (Steps 1 and 4 of the swarm build).** The interface holds
+fifteen: `Board` joins it with the step that builds the board, which
+waits for a run that needs it, as the GitHub adapter does (`forge.New`
+answers kind `github` with `forge: kind github has no adapter yet; it is
+built when a run needs it (docs/swarm.md section 10)`). The `gitea`
+adapter and `forge.Fake` implement all fifteen (Step 1 what `swarm init`
+calls, Step 4 the rest), the label id map with a repository's label
+shadowing the organization's included, read afresh by each `CreateIssue`
+and `Relabel`. The retries below wait on `Ops.After` (item 35), which the
+runner's step adds (Step 5 of the swarm build); until then a `429` or
+`5xx` is the call's error (section 14, items 53 and 60). In
 the calls this document writes, `n` stands for the issue's `Ref` in
 `forge.repo` where a `Ref` is taken, and `m` for the pull request's in its
 own repository.
@@ -1744,37 +1746,52 @@ Header `Authorization: token <token>`; `<base>` is `forge.api`; `{o}/{r}`
 is `forge.repo`, or the `Ref`'s or `CreatePull`'s repository `<owner>/<name>`
 (`Pulls`: each declared one in turn). Label endpoints take ids: the adapter lists
 the organization's labels and the repository's (`GET /orgs/{o}/labels`,
-`GET /repos/{o}/{r}/labels`) to map names to ids before `CreateIssue` and
-`Relabel`.
+`GET /repos/{o}/{r}/labels`, each `?page=<p>&limit=50`) to map names to ids before `CreateIssue` and
+`Relabel`, and a name in neither list fails the call, before any write,
+with `forge: <Method>: no label <label> for <owner>/<name>; run 'daisy
+swarm init', which ensures the eight`. A write expects the status the
+last column names; any other is the call's error.
 
 | Method | HTTP | Endpoint | Request body | Response fields read |
 |---|---|---|---|---|
 | `EnsureLabels` | `GET`, then `POST` per missing name | `/orgs/{o}/labels?page=<p>&limit=50`; `/orgs/{o}/labels` | —; `{"name", "color": "#ededed", "description": ""}` | `[].id`, `[].name`; — |
 | `Login` | `GET` | `/user` | — | `login`, `email` |
 | `Issues` | `GET` | `/repos/{o}/{r}/issues?state=<open\|closed>&type=issues&labels=<label>&page=<p>&limit=50` (the label query-escaped: `swarm%3Aproposed`) | — | `[].number`, `title`, `body`, `user.login`, `created_at`, `closed_at`, `state`, `labels[].name` |
-| `Issue` | `GET`, `GET` | `/repos/{o}/{r}/issues/{n}`; `/repos/{o}/{r}/issues/{n}/comments?page=<p>&limit=50` | — | as `Issues`; `[].body`, `[].user.login`, `[].created_at` |
-| `CreateIssue` | `POST` | `/repos/{o}/{r}/issues` | `{"title", "body", "labels": [<ids>]}` | `number` |
-| `Comment` | `POST` | `/repos/{o}/{r}/issues/{n}/comments` | `{"body"}` | — |
-| `Relabel` | `POST`, then `DELETE` (none when `remove` is `""`) | `/repos/{o}/{r}/issues/{n}/labels`; `/repos/{o}/{r}/issues/{n}/labels/{id}` | `{"labels": [<add id>]}`; — | — |
-| `CloseIssue` | `PATCH` | `/repos/{o}/{r}/issues/{n}` | `{"state": "closed"}` | — |
+| `Issue` | `GET`, `GET` | `/repos/{o}/{r}/issues/{n}`; `/repos/{o}/{r}/issues/{n}/comments` (no paging: the endpoint answers every comment) | — | as `Issues`; `[].body`, `[].user.login`, `[].created_at` |
+| `CreateIssue` | `POST` | `/repos/{o}/{r}/issues` | `{"title", "body", "labels": [<ids>]}` | `201`: `number` |
+| `Comment` | `POST` | `/repos/{o}/{r}/issues/{n}/comments` | `{"body"}` | `201` |
+| `Relabel` | `POST`, then `DELETE` (none when `remove` is `""`) | `/repos/{o}/{r}/issues/{n}/labels`; `/repos/{o}/{r}/issues/{n}/labels/{id}` | `{"labels": [<add id>]}`; — | `200`; `204` |
+| `CloseIssue` | `PATCH` | `/repos/{o}/{r}/issues/{n}` | `{"state": "closed"}` | `201` (Gitea's answer to an edit) |
 | `Pulls` | `GET` | `/repos/{o}/{r}/pulls?state=all&page=<p>&limit=50` | — | `[].number`, `title`, `body`, `head.ref`, `head.sha`, `base.ref`, `state`, `merged`, `merge_commit_sha`, `labels[].name`, `created_at` |
-| `CreatePull` | `POST` | `/repos/{o}/{r}/pulls` | `{"head", "base", "title", "body"}` | `number` |
-| `PullComments` | `GET` | `/repos/{o}/{r}/issues/{pr}/comments?page=<p>&limit=50` | — | `[].body`, `[].user.login`, `[].created_at` |
-| `Reviews` | `GET` | `/repos/{o}/{r}/pulls/{pr}/reviews?page=<p>&limit=50` | — | `[].id`, `[].body`, `[].state` (`APPROVED`, `REQUEST_CHANGES`, `COMMENT`), `[].commit_id`, `[].user.login`, `[].submitted_at` |
-| `ReviewComments` | `GET` per review | `/repos/{o}/{r}/pulls/{pr}/reviews/{id}/comments`, for each id `Reviews` returns | — | `[].body`, `[].path`, `[].position`, `[].commit_id`, `[].user.login`, `[].created_at` |
-| `Review` | `POST`, then `POST` on a `422` | `/repos/{o}/{r}/pulls/{pr}/reviews` | `{"event": "APPROVED" or "REQUEST_CHANGES", "body"}`; `{"event": "COMMENT", "body"}` | — |
-| `Merge` | `POST` | `/repos/{o}/{r}/pulls/{pr}/merge` | `{"Do": "merge", "head_commit_id": <head>}` | the status: `200` merged; `405` or `409` refused |
+| `CreatePull` | `POST` | `/repos/{o}/{r}/pulls` | `{"head", "base", "title", "body"}` | `201`: `number` |
+| `PullComments` | `GET` | `/repos/{o}/{r}/issues/{pr}/comments` (no paging, as for `Issue`) | — | `[].body`, `[].user.login`, `[].created_at` |
+| `Reviews` | `GET` | `/repos/{o}/{r}/pulls/{pr}/reviews?page=<p>&limit=50` | — | `[].id`, `[].body`, `[].state` (`APPROVED`, `REQUEST_CHANGES`, `COMMENT`; an entry in `PENDING` or `REQUEST_REVIEW`, a review not yet submitted or a request for one, is left out), `[].commit_id`, `[].user.login`, `[].submitted_at` |
+| `ReviewComments` | `GET` per review | `/repos/{o}/{r}/pulls/{pr}/reviews/{id}/comments`, for each id `Reviews` returns (no paging) | — | `[].body`, `[].path`, `[].position`, `[].commit_id`, `[].user.login`, `[].created_at` |
+| `Review` | `POST`, then `POST` on a `422` | `/repos/{o}/{r}/pulls/{pr}/reviews` | `{"event": "APPROVED" or "REQUEST_CHANGES", "body"}`; `{"event": "COMMENT", "body"}` | `200`; on `422` the second `POST`, `200` |
+| `Merge` | `POST` | `/repos/{o}/{r}/pulls/{pr}/merge` | `{"do": "merge", "head_commit_id": <head>}` | the status: `200` merged; `405` or `409` refused |
 | `Board` | `GET`, `GET`, `GET`, `POST` per missing column, `POST` (then `POST` on a `404` or `422`) | `/repos/{o}/{r}/issues/{n}`; `/orgs/{o}/projects?state=open&page=<p>&limit=50`; `/orgs/{o}/projects/{id}/columns?page=<p>&limit=50`; `/orgs/{o}/projects/{id}/columns`; `/orgs/{o}/projects/{id}/issues/{issue_id}/move`; `/orgs/{o}/projects/{id}/columns/{column_id}/issues/{issue_id}` | —; —; —; `{"title": <stage>}`; `{"column_id"}`; — | `id` (`{issue_id}`); `[].id`, `[].title` (the first project titled `forge.board`); `[].id`, `[].title`; `id`; the status: `204`; `201` |
 
 Step 1 recorded the pairs of `EnsureLabels`, `Login`, `Issues` and
 `Pulls` from Gitea's Swagger (`swagger.v1.json`, version 29.0.0+dev, by
 operationId `orgListLabels`, `orgCreateLabel`, `userGetCurrent`,
 `issueListIssues`, `repoListPullRequests`), which documents `201`, `404`
-and `422` for `orgCreateLabel` and no `403`. *To confirm at Step 27*
-against the instance's `/api/swagger`: the
-`labels` filter taking names, the comments endpoint's paging, the review
-`event` spelling, the refusal of a self-approval, the line comment's line
-field (`position`), and the merge body's field names and refusal statuses;
+and `422` for `orgCreateLabel` and no `403`. Step 4 recorded the rest
+from the same Swagger (by operationId `issueGetIssue`, `issueGetComments`,
+`repoListLabels`, `issueCreateIssue`, `issueCreateComment`,
+`issueAddLabel`, `issueRemoveLabel`, `issueEditIssue`,
+`repoCreatePullRequest`, `repoListPullReviews`,
+`repoGetPullReviewComments`, `repoCreatePullReview`,
+`repoMergePullRequest`), which settles four of the points left open:
+the comment endpoints take no page (`since` and `before` only) and the
+review comments' none; the review `event`s are `APPROVED`,
+`REQUEST_CHANGES` and `COMMENT`; the line comment's line is `position`;
+the merge body is `do` (required) and `head_commit_id`, refused with
+`405` or `409`; and `issueEditIssue` answers `201`. *To confirm*
+against the instance's `/api/swagger` (Gitea 28.3.0): the
+`labels` filter selecting by an organization label's name (Step 1's
+smoke saw it answer `200`, not yet that it filters), the refusal of a
+self-approval (`422`), and that the instance's version documents the
+same pairs;
 for `Board`, that `{o}` is an organization (a user's projects have no
 such endpoints) and `{issue_id}` the issue's `id` (the move endpoint's
 "global id of the issue, not the repository-local index"), and the move's
@@ -1839,15 +1856,30 @@ one set for all its repositories, as Gitea's organization labels are. A test mer
 Tests assert on the Fake's state after a pass, never on which methods were
 called.
 
+**As built (Step 4 of the swarm build).** `forge.NewFake(o, repo, names,
+account)`: the clock `o`, the issues repository `repo`
+(`<owner>/<repo>`), the declared repositories `names`, the token's
+account. Besides the helpers above (but `FailBoard`, which waits with
+`Board`), `AddLabels(names…)` creates labels as an owner does by hand.
+`SetLabel(at, label)` is the maintainer moving a stage: every `swarm:*`
+label `at` carries is replaced by `label`, the others kept. `CreatePull`
+refuses an undeclared repository as the `gitea` adapter does, and a
+second open pull request from the same head to the same base as the
+forge does (`409`); a new pull request's head commit is `""` until
+`Push` moves it, since the Fake holds no git. A merge records a merge
+commit, a SHA-1 of the repository, number and head. A method given a
+number the Fake does not hold fails as the forge's `404`; a helper given
+one panics, the test's own mistake.
+
 ## 11. The verbs
 
 Every verb runs in a Daisy workspace (`<ws>`, found as every workspace
 command finds it); outside one it prints `Not in a Daisy workspace` and
 exits 1, as `status` does. Any argument a verb does not take is a usage
 error: its usage line on stderr, exit 2. None commits: `swarm/` is the
-workspace repository's, committed by the maintainer. `init` is built
-(Step 1 of the plan that builds the swarm); the other four verbs are
-specified here ahead of their build, as are the board, the GitHub
+workspace repository's, committed by the maintainer. `init` and `status`
+are built (Steps 1 and 4 of the plan that builds the swarm); the other
+three verbs are specified here ahead of their build, as are the board, the GitHub
 adapter and the `budget` wherever this section names them: `swarm.json`
 validates their fields as section 3 says and nothing acts on them until
 the step that builds each, which waits for a run that needs it.
@@ -1891,7 +1923,7 @@ brackets; defaults come from the existing `swarm.json`, else detection.
 | 7–26 | for each role in the order owner, architect, worker, adversary, sympathetic: `<role> provider (anthropic, openai) [<d>]: `, `<role> model [<d>]: ` (no `-`: every role names its model), `<role> effort [<d>]: `, `<role> co-author [<d>]: ` | section 3's example; the co-author's default `<model> <noreply@anthropic.com>` or `<noreply@openai.com>` by the provider just answered, or the file's while the role's provider and model are the file's |
 | 27 | `<name> image [<d>]: `, once per declared repository, in order | `daisy-member:1` |
 | 28 | `Max members [<d>]: ` | 3 |
-| 29 | `Max rounds [<d>]: ` | 5 (Step 1 built 3; section 3) |
+| 29 | `Max rounds [<d>]: ` | 5 (section 3) |
 | 30 | `Timeout [<d>]: ` | `45m` |
 | 31 | `Interval [<d>]: ` | `5m` |
 | 32 | `Resources (comma-separated workspace paths, - for none) [<d>]: ` | `docs/` when `<ws>/docs` is a directory, else none |
@@ -1968,11 +2000,11 @@ passphrase prompt, or an agent the user manager can reach).
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm status` |
-| Reads | `swarm/swarm.json`, `<ws>/.env.sh` (the token), `<state>/paused`, `<state>/owner-held`, `<state>/runs/*/result`; the forge: `Login()`, `Issues(Open, label)` for each of the eight labels, `Issue(n)` for each `planning` issue (whose turn it is); `docker ps` as `apply` runs it |
+| Reads | `swarm/swarm.json` (validated as `apply` validates it, the prompts included), `<ws>/.env.sh` (the token), `<state>/paused`, `<state>/owner-held`, `<state>/runs/*/result`, the briefs under the resolved `resources` paths (their `Status:` lines, section 4); the forge: `Login()`, `Issues(Open, label)` for each of the eight labels, `Issue(n)` for each `planning` issue (whose turn it is) when the plan gate is on; `docker ps` as `apply` runs it |
 | Writes | nothing, anywhere |
-| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]` and ` — owner batch held: <reason>` when so; `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per label, `  %-12s %d` and the issue numbers (`  proposed     2  #20 #21`); `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `blocked #…`, separated by `; ` (section 5's list), or `nothing`; `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model or `(default)`, effort); `Throughput:` and its lines (below) |
-| Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`); 1 outside a workspace, invalid `swarm.json`, the token unset, a forge call failing; 2 with any argument |
-| Ops | ReadOnly, extended at Step 27 to let through an `HTTP` request whose method is `GET` or `HEAD` and the `Exec` of `docker ps` (section 14, item 31); every other write, `Exec` and `Start` stays refused |
+| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]` and ` — owner batch held: <reason>` when so; `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per label, `  %-12s %d` and the issue numbers (`  proposed     2  #20 #21`); `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `blocked #…`, separated by `; ` (section 5's list), or `nothing`; `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief, `  <path>` in path order, or `Briefs: none active` |
+| Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`); 1 outside a workspace, `swarm.json` absent or invalid, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief or a run's `result` unreadable; 2 with any argument |
+| Ops | ReadOnly, which since Step 4 of the swarm build lets through an `HTTP` request whose method is `GET` or `HEAD` and the `Exec` of `docker ps` for every command it wraps (section 14, item 31); every other write, `Exec` and `Start` stays refused |
 
 **Throughput**, read from `<state>/runs/` only:
 
@@ -1989,12 +2021,14 @@ swarm:in-review swarm:approved`, the round-limit count those holding
 both `outcome posted` and `relabelled swarm:in-review swarm:planning`,
 `relabelled swarm:in-review swarm:ready` or `relabelled swarm:in-review
 swarm:blocked` (T11; a reviewer run that
-failed or wrote `BLOCKED:` is not `posted`), and `<c>` the latter. A
-`Briefs:` block, one line per `active` brief with its milestones' open
-and closed issues and whether the newest batch run's `out.md` reports it
-`Met:`, is the correction-count step's (Step 8 of the plan that builds
-the swarm; the reads are the batch prompt's and `runs/`), recorded here
-and not built before it.
+failed or wrote `BLOCKED:` is not `posted`), and `<c>` the latter. `runs` counts the run directories holding a
+`result`, `other` being the rest of them (`stale`, `abandoned`,
+`discarded`, or no `outcome` yet); `today` is the runs `started` since
+00:00 UTC, as the budget counts them. The `Briefs:` block names each
+`active` brief's path (Step 4 of the plan that builds the swarm); its
+milestones' open and closed issues and whether the newest batch run's
+`out.md` reports it `Met:` join each line with the correction-count step
+(Step 8; the reads are the batch prompt's and `runs/`).
 
 ### daisy swarm pause and daisy swarm resume
 
@@ -2089,7 +2123,7 @@ follows G2, and T14–T16 are the merge step's; **the trigger rule's table** of 
 |---|---|---|---|
 | 27 | `declare`: `swarm.json` validation | real temp workspaces | every row of section 3's error table, one case each, the message byte for byte (`gates`, `budget`, `repos` and each repository's `check` and `protected`, `trusted` and `forge.board` included, and from Step 1 a model not named, `co_author` and `forge.commit_email`) |
 | 27 | `declare`: the wizard | a scripted `Ops.Prompt` | `--defaults` takes every default (two repositories under `<ws>` give two `repos` entries, each with the default image; without `--defaults`, question 27 is asked once per repository); each override is honoured; a refused answer asks again; EOF cancels and writes nothing; `trusted` written as question 33's logins then `Login()`'s, question 33's default without the swarm's login, and an answer naming it asked again; no `-` for a model; the co-author's default following the model; question 34's default the account's email |
-| 27 | `forge`: `gitea` and `github` | `ops.Fake` `HTTPFn` with one recorded request and response per method | (Step 1 built `gitea`'s `EnsureLabels`, `Login`, `Issues` and `Pulls` with these tests; the rest are Step 4's, the label id map with its repository-label shadowing among them, since `CreateIssue` and `Relabel` are its only readers: section 10, As built) section 10's tables for all sixteen methods: method, endpoint, body; pagination; `Review`'s formal event and its comment-type fallback on a `422`; `Board`'s project and column lookup, a missing column created, the move by the issue's `id` and the add when it is not on the board, GitHub's refusal; `EnsureLabels` idempotent, on the organization's labels (Gitea) or each repository's (GitHub), a repository label shadowing an organization label of its name, a refused organization create (`403`) failing with the missing names byte for byte and creating nothing more, and a `404` on the organization's labels failing as not an organization; `Pulls` one list per declared repository, each `Refs` form, `merge_commit_sha`; `Relabel` on a pull request, with `remove` `""`, and never touching another label; `Pulls`' filter on branch and `Refs`, and its labels; `Merge`'s refusal as `ErrNotMergeable`; error text without the token |
+| 27 | `forge`: `gitea` and `github` | `ops.Fake` `HTTPFn` with one recorded request and response per method | (Step 1 built `gitea`'s `EnsureLabels`, `Login`, `Issues` and `Pulls` with these tests, and Step 4 the rest, the label id map with its repository-label shadowing among them, since `CreateIssue` and `Relabel` are its only readers; the retries wait for `Ops.After`: section 10, As built) section 10's tables for all sixteen methods: method, endpoint, body; pagination; `Review`'s formal event and its comment-type fallback on a `422`; `Board`'s project and column lookup, a missing column created, the move by the issue's `id` and the add when it is not on the board, GitHub's refusal; `EnsureLabels` idempotent, on the organization's labels (Gitea) or each repository's (GitHub), a repository label shadowing an organization label of its name, a refused organization create (`403`) failing with the missing names byte for byte and creating nothing more, and a `404` on the organization's labels failing as not an organization; `Pulls` one list per declared repository, each `Refs` form, `merge_commit_sha`; `Relabel` on a pull request, with `remove` `""`, and never touching another label; `Pulls`' filter on branch and `Refs`, and its labels; `Merge`'s refusal as `ErrNotMergeable`; error text without the token |
 | 27 | `init`'s readiness warnings | real temp workspaces | each of the four warnings (the first two per repository), and none when all is present; the exit code unchanged |
 | 27 | `init` end to end | `forge.Fake`, a scripted `Ops.Prompt`, real temp workspaces | the files written, the eight labels ensured, the unit files printed; a second run writing no file and creating no label; after `RefuseLabels()`, exit 1 naming the missing labels with the files written, and a re-run finding them once created; the token unset or a read failing writing nothing |
 | 27 | `status` | `ops.ReadOnly` over a Fake | it runs read-only (section 14, item 31) and prints section 11's lines; zero issues per label, the gates and the declared personas after `init`; "Waiting for you" per section 5; Throughput over a scripted `runs/` |
@@ -2607,8 +2641,8 @@ entries among revision 1's, and was renumbered at Step 38.
     note for the limit on it from an earlier run (a retried collection
     finding its own note is still the first time), the issue is `blocked`
     (G4). No new state and no new forge call: the count and the
-    first-or-second are read from the threads. Step 1 built the default as 3, and the
-    code step that carries this revision changes it with the wizard's
+    first-or-second are read from the threads. Step 1 built the default
+    as 3, and Step 4 of the swarm build changed it to 5 with the wizard's
     test. Alternative: `blocked` at the first limit (revisions 1–4),
     under which every hard slice was the maintainer's to resume.
 56. **The architect's plan is a standard Daisy plan** (revision 5; the
@@ -2667,3 +2701,24 @@ entries among revision 1's, and was renumbered at Step 38.
     `apply`) and section 5's state diagram (the lifecycle, T1–T19), each
     kept in step with the T-table and the pass; the docs test reads them
     as text.
+60. **What Step 4 built of the forge seam and `status`.** The pairs
+    follow Gitea's Swagger where it differs from what revision 5 wrote:
+    the comment endpoints are read without paging (the Swagger gives them
+    no `page` or `limit`), the merge body's field is `do`, and an edit
+    answers `201` (section 10). `Reviews` leaves out an entry in
+    `PENDING` or `REQUEST_REVIEW`, neither a review anyone submitted, so
+    a request for a review is never a thread's newest entry. The label id
+    map is read afresh by each `CreateIssue` and `Relabel` rather than
+    held for the adapter's life, so a label `EnsureLabels` creates
+    mid-run is found; two list calls per write is the cost. The retries
+    move to the step that adds `Ops.After` (Step 5 of the swarm build,
+    the runner's), item 35 being where that hook is decided. `ReadOnly`
+    lets a `GET` or `HEAD` and `docker ps` through for every command it
+    wraps, not for `status` alone (item 31's choice, taken as written):
+    each is a read. `status` compares logins without regard to case, as
+    Gitea does, for the author check and `trusted` alike; it reads whose
+    turn a `planning` issue is from the newest counted entry (section 6)
+    with the code that the trigger rule extends at Step 5
+    (`internal/swarm/reconcile`), and the briefs with a reader the batch
+    prompt shares (`internal/swarm/brief`); its `Briefs:` block names the
+    `active` briefs, Step 8 adding their milestones.

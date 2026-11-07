@@ -165,6 +165,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Prompts and skills | `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` | Apply a proposal: diff, approve, archive, commit |
 | Prompts and skills | `daisy eval [<case>] [--record]` | List, display, or record an eval case result |
 | Swarm | `daisy swarm init [--defaults]` | Declare the swarm: swarm.json, prompts, labels |
+| Swarm | `daisy swarm status` | Stages, gates, what waits for you, running members (read-only) |
 | System | `daisy commit [--root] <message>` | Commit the home repo (or the root repo) |
 | System | `daisy healthcheck [--force]` | Run the system health check |
 | System | `daisy check-secrets` | Check which secrets/tokens are configured |
@@ -312,7 +313,7 @@ The reference source itself is never modified or deleted by adoption — copy
 ## Reference Documentation
 
 - [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the command tree as built, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
-- [`docs/swarm.md`](docs/swarm.md) — The swarm's specification (`swarm init` built, the rest agreed for Steps 27–30): `swarm.json`, the label lifecycle and trigger rule, the comment marker, the member container and its image (`images/member/Dockerfile`), the credential rule, the provider and forge seams, the five `swarm` verbs, the merge gate
+- [`docs/swarm.md`](docs/swarm.md) — The swarm's specification (`swarm init` and `swarm status` built, the rest agreed for Steps 27–30): `swarm.json`, the label lifecycle and trigger rule, the comment marker, the member container and its image (`images/member/Dockerfile`), the credential rule, the provider and forge seams, the five `swarm` verbs, the merge gate
 - [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) — The hat/skill distinction, the ownership-of-evolution criterion, worked examples
 - [`docs/task-format.md`](docs/task-format.md) — Task format regex, conversion rules, file organization
 - [`docs/task-sync.md`](docs/task-sync.md) — Bidirectional sync rules, validation algorithm

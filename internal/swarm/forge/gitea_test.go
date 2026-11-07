@@ -2,6 +2,7 @@ package forge
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"reflect"
@@ -25,7 +26,30 @@ import (
 // merge_commit_sha, labels, created_at). Error bodies are APIError
 // (`{"message", "url"}`). A 403 on orgCreateLabel is not in the Swagger:
 // the route requires the organization's ownership, which answers 403 to a
-// member (to confirm on the instance).
+// member (confirmed on the instance at Step 1's smoke).
+//
+// Step 4's, from the same Swagger: issueGetIssue (`GET
+// /repos/{owner}/{repo}/issues/{index}`, 200 Issue); issueGetComments
+// (`GET …/issues/{index}/comments`, query since and before only, no page:
+// 200 Comment list; Comment: id, body, user, created_at, …);
+// repoListLabels (`GET /repos/{owner}/{repo}/labels`, page, limit);
+// issueCreateIssue (`POST …/issues`, CreateIssueOption: title required,
+// body, labels "list of label ids"; 201 Issue); issueCreateComment (`POST
+// …/issues/{index}/comments`, CreateIssueCommentOption: body; 201);
+// issueAddLabel (`POST …/issues/{index}/labels`, IssueLabelsOption: labels;
+// 200 Label list); issueRemoveLabel (`DELETE …/issues/{index}/labels/{id}`,
+// 204); issueEditIssue (`PATCH …/issues/{index}`, EditIssueOption: state;
+// 201 Issue); repoCreatePullRequest (`POST …/pulls`,
+// CreatePullRequestOption: head, base, title, body; 201 PullRequest);
+// repoListPullReviews (`GET …/pulls/{index}/reviews`, page, limit;
+// PullReview: id, body, state of APPROVED, PENDING, COMMENT,
+// REQUEST_CHANGES, REQUEST_REVIEW, commit_id, user, submitted_at);
+// repoGetPullReviewComments (`GET …/pulls/{index}/reviews/{id}/comments`,
+// no page; PullReviewComment: body, path, position, commit_id, user,
+// created_at); repoCreatePullReview (`POST …/pulls/{index}/reviews`,
+// CreatePullReviewOptions: event, body; 200, 422); repoMergePullRequest
+// (`POST …/pulls/{index}/merge`, MergePullRequestOption: do required,
+// head_commit_id; 200, 405, 409).
 
 // pair is one recorded request and its response.
 type pair struct {
@@ -262,9 +286,218 @@ func TestGiteaErrorsNameTheEndpointNotTheToken(t *testing.T) {
 	s.done()
 }
 
-func TestNotBuiltMethodsNameTheStep(t *testing.T) {
-	g, _ := gitea(t, nil)
-	if err := g.Comment(Ref{"app", 1}, "x"); errText(err) != "forge: Comment is not built until Step 4" {
-		t.Errorf("Comment: %v", err)
+func at(y, mo, d, h, mi int) time.Time { return time.Date(y, time.Month(mo), d, h, mi, 0, 0, time.UTC) }
+
+func TestGiteaIssue(t *testing.T) {
+	g, s := gitea(t, nil,
+		pair{"GET", "/repos/acme/app/issues/7", "", 200,
+			`{"id":40,"number":7,"title":"Drift","body":"Brief: docs/briefs/b.md — M0","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[{"id":3,"name":"swarm:planning"}],"pull_request":null}`},
+		pair{"GET", "/repos/acme/app/issues/7/comments", "", 200, `[
+		  {"id":501,"html_url":"","issue_url":"","pull_request_url":"","body":"plan","user":{"login":"swarm-bot"},"created_at":"2026-11-01T11:00:00Z","updated_at":"2026-11-01T11:00:00Z"},
+		  {"id":502,"html_url":"","issue_url":"","pull_request_url":"","body":"ok","user":{"login":"jane"},"created_at":"2026-11-01T12:00:00Z","updated_at":"2026-11-01T12:00:00Z"}
+		]`})
+	got, err := g.Issue(7)
+	want := Issue{Number: 7, Title: "Drift", Body: "Brief: docs/briefs/b.md — M0", Author: "swarm-bot", Created: at(2026, 11, 1, 10, 0), Open: true,
+		Labels: []string{"swarm:planning"}, Comments: []Comment{{"swarm-bot", "plan", at(2026, 11, 1, 11, 0)}, {"jane", "ok", at(2026, 11, 1, 12, 0)}}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("Issue(7) = %+v, %v", got, err)
+	}
+	s.done()
+}
+
+// idPairs are the two label lists the id map reads for repository name:
+// the organization's eight, and the repository's own swarm:ready (id 40),
+// which shadows the organization's (id 2).
+func idPairs(name string) []pair {
+	return []pair{
+		{"GET", listLabels, "", 200, labelList(Labels...)},
+		{"GET", "/repos/acme/" + name + "/labels?page=1&limit=50", "", 200, `[` + label(40, "swarm:ready") + `,` + label(41, "bug") + `]`},
+	}
+}
+
+func TestGiteaCreateIssue(t *testing.T) {
+	g, s := gitea(t, nil, append(idPairs("app"),
+		pair{"POST", "/repos/acme/app/issues", `{"title":"Add X","body":"Brief: b — M1","labels":[1]}`, 201,
+			`{"id":77,"number":23,"title":"Add X","body":"Brief: b — M1","user":{"login":"swarm-bot"},"state":"open","labels":[{"id":1,"name":"swarm:proposed"}]}`})...)
+	n, err := g.CreateIssue("Add X", "Brief: b — M1", []string{"swarm:proposed"})
+	if n != 23 || err != nil {
+		t.Errorf("CreateIssue = %d, %v", n, err)
+	}
+	s.done()
+
+	g, s = gitea(t, nil, append(idPairs("app"),
+		pair{"POST", "/repos/acme/app/issues", `{"title":"Y","body":"","labels":[40]}`, 201, `{"number":24}`})...)
+	if n, err := g.CreateIssue("Y", "", []string{"swarm:ready"}); n != 24 || err != nil {
+		t.Errorf("CreateIssue with the repository's label = %d, %v", n, err)
+	}
+	s.done()
+
+	g, s = gitea(t, nil, idPairs("app")...)
+	if _, err := g.CreateIssue("Z", "", []string{"swarm:nonesuch"}); errText(err) != "forge: CreateIssue: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eight" {
+		t.Errorf("an unknown label: %v", err)
+	}
+	s.done()
+}
+
+func TestGiteaComment(t *testing.T) {
+	g, s := gitea(t, []string{"app", "lib"},
+		pair{"POST", "/repos/acme/lib/issues/5/comments", `{"body":"hello"}`, 201, `{"id":9,"body":"hello","user":{"login":"swarm-bot"}}`})
+	if err := g.Comment(Ref{"lib", 5}, "hello"); err != nil {
+		t.Error(err)
+	}
+	s.done()
+}
+
+func TestGiteaRelabel(t *testing.T) {
+	// On a pull request in lib: add, then remove, each by its id; the
+	// repository's own swarm:ready shadows the organization's.
+	g, s := gitea(t, []string{"app", "lib"}, append(idPairs("lib"),
+		pair{"POST", "/repos/acme/lib/issues/5/labels", `{"labels":[5]}`, 200, `[` + label(5, "swarm:in-review") + `]`},
+		pair{"DELETE", "/repos/acme/lib/issues/5/labels/40", "", 204, ""})...)
+	if err := g.Relabel(Ref{"lib", 5}, "swarm:ready", "swarm:in-review"); err != nil {
+		t.Error(err)
+	}
+	s.done()
+
+	g, s = gitea(t, nil, append(idPairs("app"),
+		pair{"POST", "/repos/acme/app/issues/7/labels", `{"labels":[7]}`, 200, `[]`})...)
+	if err := g.Relabel(Ref{"app", 7}, "", "swarm:approved"); err != nil {
+		t.Errorf("remove \"\" only adds: %v", err)
+	}
+	s.done()
+
+	g, s = gitea(t, nil, idPairs("app")...)
+	if err := g.Relabel(Ref{"app", 7}, "swarm:nonesuch", "swarm:approved"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eight" {
+		t.Errorf("an unknown label writes nothing: %v", err)
+	}
+	s.done()
+}
+
+func TestGiteaCloseIssue(t *testing.T) {
+	g, s := gitea(t, nil, pair{"PATCH", "/repos/acme/app/issues/7", `{"state":"closed"}`, 201, `{"number":7,"state":"closed"}`})
+	if err := g.CloseIssue(7); err != nil {
+		t.Error(err)
+	}
+	s.done()
+}
+
+func TestGiteaCreatePull(t *testing.T) {
+	g, s := gitea(t, []string{"app", "lib"},
+		pair{"POST", "/repos/acme/lib/pulls", `{"head":"swarm/7-1","base":"main","title":"Slice 1","body":"Refs acme/app#7"}`, 201,
+			`{"id":1005,"number":5,"title":"Slice 1","state":"open","head":{"ref":"swarm/7-1"},"base":{"ref":"main"}}`})
+	if n, err := g.CreatePull("lib", "swarm/7-1", "main", "Slice 1", "Refs acme/app#7"); n != 5 || err != nil {
+		t.Errorf("CreatePull = %d, %v", n, err)
+	}
+	s.done()
+
+	g, s = gitea(t, []string{"app", "lib"})
+	if _, err := g.CreatePull("other", "swarm/7-1", "main", "x", ""); errText(err) != "forge: CreatePull: other is not a declared repository (app, lib)" {
+		t.Errorf("an undeclared repository: %v", err)
+	}
+	s.done()
+}
+
+func TestGiteaPullComments(t *testing.T) {
+	g, s := gitea(t, []string{"app", "lib"}, pair{"GET", "/repos/acme/lib/issues/5/comments", "", 200,
+		`[{"id":1,"body":"looks off","user":{"login":"jane"},"created_at":"2026-11-02T09:00:00Z"}]`})
+	got, err := g.PullComments(Ref{"lib", 5})
+	if err != nil || !reflect.DeepEqual(got, []Comment{{"jane", "looks off", at(2026, 11, 2, 9, 0)}}) {
+		t.Errorf("PullComments = %+v, %v", got, err)
+	}
+	s.done()
+}
+
+const reviewList = `[
+  {"id":11,"body":"VERDICT: request-changes","state":"REQUEST_CHANGES","commit_id":"c1","user":{"login":"jane"},"submitted_at":"2026-11-02T10:00:00Z","official":true,"stale":false,"dismissed":false,"comments_count":1},
+  {"id":10,"body":"VERDICT: approve","state":"COMMENT","commit_id":"c1","user":{"login":"swarm-bot"},"submitted_at":"2026-11-02T09:00:00Z","comments_count":0},
+  {"id":12,"body":"","state":"REQUEST_REVIEW","commit_id":"","user":{"login":"jane"},"submitted_at":"2026-11-02T11:00:00Z"},
+  {"id":13,"body":"fine","state":"APPROVED","commit_id":"c2","user":{"login":"jane"},"submitted_at":"2026-11-02T12:00:00Z","comments_count":1}
+]`
+
+func TestGiteaReviews(t *testing.T) {
+	g, s := gitea(t, nil, pair{"GET", "/repos/acme/app/pulls/20/reviews?page=1&limit=50", "", 200, reviewList})
+	got, err := g.Reviews(Ref{"app", 20})
+	want := []Review{
+		{ID: 10, Author: "swarm-bot", Body: "VERDICT: approve", State: Commented, Commit: "c1", Submitted: at(2026, 11, 2, 9, 0)},
+		{ID: 11, Author: "jane", Body: "VERDICT: request-changes", State: RequestChanges, Commit: "c1", Submitted: at(2026, 11, 2, 10, 0)},
+		{ID: 13, Author: "jane", Body: "fine", State: Approve, Commit: "c2", Submitted: at(2026, 11, 2, 12, 0)},
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("Reviews =\n%+v\nwant\n%+v", got, want)
+	}
+	s.done()
+}
+
+func TestGiteaReviewComments(t *testing.T) {
+	g, s := gitea(t, nil,
+		pair{"GET", "/repos/acme/app/pulls/20/reviews?page=1&limit=50", "", 200, reviewList},
+		pair{"GET", "/repos/acme/app/pulls/20/reviews/10/comments", "", 200, `[]`},
+		pair{"GET", "/repos/acme/app/pulls/20/reviews/11/comments", "", 200,
+			`[{"id":91,"body":"off by one","path":"a.go","position":12,"original_position":12,"commit_id":"c1","original_commit_id":"c1","user":{"login":"jane"},"created_at":"2026-11-02T10:00:00Z","pull_request_review_id":11}]`},
+		pair{"GET", "/repos/acme/app/pulls/20/reviews/13/comments", "", 200,
+			`[{"id":92,"body":"nice","path":"b.go","position":3,"commit_id":"c2","user":{"login":"jane"},"created_at":"2026-11-02T09:30:00Z","pull_request_review_id":13}]`},
+	)
+	got, err := g.ReviewComments(Ref{"app", 20})
+	want := []ReviewComment{
+		{Author: "jane", Body: "nice", Path: "b.go", Commit: "c2", Line: 3, Created: at(2026, 11, 2, 9, 30)},
+		{Author: "jane", Body: "off by one", Path: "a.go", Commit: "c1", Line: 12, Created: at(2026, 11, 2, 10, 0)},
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("ReviewComments =\n%+v\nwant\n%+v", got, want)
+	}
+	s.done()
+}
+
+func TestGiteaReview(t *testing.T) {
+	const path = "/repos/acme/app/pulls/20/reviews"
+	accepted := `{"id":14,"state":"APPROVED"}`
+	refused := `{"message":"approve your own pull is not allowed","url":""}`
+	for _, tc := range []struct {
+		name    string
+		verdict Verdict
+		pairs   []pair
+		err     string
+	}{
+		{"the formal event accepted", Approve, []pair{{"POST", path, `{"event":"APPROVED","body":"b"}`, 200, accepted}}, ""},
+		{"a 422 falls back to a comment-type review", RequestChanges, []pair{
+			{"POST", path, `{"event":"REQUEST_CHANGES","body":"b"}`, 422, refused},
+			{"POST", path, `{"event":"COMMENT","body":"b"}`, 200, `{"id":15,"state":"COMMENT"}`},
+		}, ""},
+		{"Commented posts the comment-type review alone", Commented, []pair{{"POST", path, `{"event":"COMMENT","body":"b"}`, 200, `{"id":16}`}}, ""},
+		{"another refusal is the error, without the fallback", Approve, []pair{{"POST", path, `{"event":"APPROVED","body":"b"}`, 404, `{"message":"not found"}`}},
+			"forge: POST /repos/acme/app/pulls/20/reviews: 404 not found"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, s := gitea(t, nil, tc.pairs...)
+			if err := g.Review(Ref{"app", 20}, tc.verdict, "b"); errText(err) != tc.err {
+				t.Errorf("Review: %v, want %q", err, tc.err)
+			}
+			s.done()
+		})
+	}
+}
+
+func TestGiteaMerge(t *testing.T) {
+	const path = "/repos/acme/app/pulls/20/merge"
+	body := `{"do":"merge","head_commit_id":"c2"}`
+	for _, tc := range []struct {
+		name         string
+		status       int
+		resp, err    string
+		notMergeable bool
+	}{
+		{"merged", 200, "", "", false},
+		{"405: not mergeable", 405, `{"message":"Please try again later"}`, "forge: not mergeable: 405 Please try again later", true},
+		{"409: the head moved", 409, `{"message":"head out of date"}`, "forge: not mergeable: 409 head out of date", true},
+		{"403 is the forge's error", 403, `{"message":"forbidden"}`, "forge: POST /repos/acme/app/pulls/20/merge: 403 forbidden", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, s := gitea(t, nil, pair{"POST", path, body, tc.status, tc.resp})
+			err := g.Merge(Ref{"app", 20}, "c2")
+			if errText(err) != tc.err || errors.Is(err, ErrNotMergeable) != tc.notMergeable {
+				t.Errorf("Merge: %v", err)
+			}
+			s.done()
+		})
 	}
 }

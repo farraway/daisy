@@ -272,7 +272,6 @@ func TestDocsNameOnlyTableCommands(t *testing.T) {
 // the binary runs them; a built verb (`swarm init`) is a row of the table.
 var swarmAgreed = map[string][]string{
 	"swarm apply":  {"--once"},
-	"swarm status": nil,
 	"swarm pause":  nil,
 	"swarm resume": nil,
 }

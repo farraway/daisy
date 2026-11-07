@@ -75,7 +75,7 @@ func valid() Config {
 			{Name: "app", Path: "app", Check: []string{"make", "check"}, Image: defaultImage, Protected: defaultProtected},
 			{Name: "lib", Path: "lib", Check: []string{}, Image: defaultImage, Protected: []string{}},
 		},
-		Base: "main", MaxMembers: 3, MaxRounds: 3, Timeout: "45m", Interval: "5m",
+		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
 		Resources: []string{"docs/"},
 		Trusted:   []string{"jane", "swarm-bot"},
@@ -358,6 +358,21 @@ func TestParseOrigin(t *testing.T) {
 		o, _ := parseOrigin(tc.raw)
 		if got := detected(o); got != tc.want {
 			t.Errorf("detected(%q) = %+v", tc.raw, got)
+		}
+	}
+}
+
+func TestForgeHostAndState(t *testing.T) {
+	for _, tc := range []struct {
+		f          Forge
+		host, path string
+	}{
+		{Forge{Kind: "gitea", API: "http://forge.example.net:3000/api/v1", Repo: "acme/app"}, "forge.example.net:3000", "/l/swarm/forge.example.net:3000/acme/app"},
+		{Forge{Kind: "gitea", API: "https://forge.example.net/api/v1", Repo: "acme/app"}, "forge.example.net", "/l/swarm/forge.example.net/acme/app"},
+		{Forge{Kind: "github", API: "https://api.github.com", Repo: "acme/app"}, "github.com", "/l/swarm/github.com/acme/app"},
+	} {
+		if h, p := tc.f.ForgeHost(), tc.f.State("/l"); h != tc.host || p != tc.path {
+			t.Errorf("%+v: %q %q", tc.f, h, p)
 		}
 	}
 }

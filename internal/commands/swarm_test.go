@@ -37,7 +37,7 @@ func newSwarmWS(t *testing.T) *swarmWS {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	s := &swarmWS{t: t, ws: t.TempDir(), root: t.TempDir(), vars: map[string]string{}}
-	s.forge = forge.NewFake("acme", forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
+	s.forge = forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
 	for name, url := range map[string]string{"app": "git@forge.example.net:acme/app.git", "lib": "git@forge.example.net:acme/lib.git"} {
 		dir := filepath.Join(s.ws, name)
 		os.MkdirAll(dir, 0o755)
@@ -49,6 +49,11 @@ func newSwarmWS(t *testing.T) *swarmWS {
 	}
 	s.write(".env.sh", "export GITEA_TOKEN=\"tok-123\"\n")
 	return s
+}
+
+// fixedClock is the Ops whose clock reads 2026-11-06 15:00 UTC.
+func fixedClock() ops.Ops {
+	return &ops.Fake{NowFn: func() time.Time { return time.Date(2026, 11, 6, 15, 0, 0, 0, time.UTC) }}
 }
 
 func (s *swarmWS) write(rel, content string) {
@@ -287,7 +292,7 @@ func TestSwarmInitWritesNothingBeforeTheForgeAnswers(t *testing.T) {
 		{"a declared repository unreadable", func(s *swarmWS) { s.declaredReadFails = true },
 			"Error: swarm: $GITEA_TOKEN cannot read the declared repositories: forge: GET /repos/acme/lib/pulls?…: 404 Not Found"},
 		{"its own login not a forge login", func(s *swarmWS) {
-			s.forge = forge.NewFake("acme", forge.Account{Login: "swarm bot", Email: "swarm@example.net"})
+			s.forge = forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm bot", Email: "swarm@example.net"})
 		},
 			`Error: swarm.json: trusted[0]: "swarm bot" is not a forge login`},
 		{"its own account unreadable", func(s *swarmWS) { s.loginFails = true },

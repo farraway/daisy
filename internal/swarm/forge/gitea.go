@@ -164,6 +164,11 @@ func (g *Gitea) EnsureLabels(names []string) (int, error) {
 	return created, nil
 }
 
+// repoPath is the API path of the repository name of the owner.
+func (g *Gitea) repoPath(name string) string {
+	return "/repos/" + url.PathEscape(g.owner) + "/" + url.PathEscape(name)
+}
+
 // Login reads the authenticated user.
 func (g *Gitea) Login() (Account, error) {
 	var u giteaUser
@@ -186,6 +191,17 @@ type giteaIssue struct {
 	} `json:"labels"`
 }
 
+func (r giteaIssue) issue() Issue {
+	is := Issue{Number: r.Number, Title: r.Title, Body: r.Body, Author: r.User.Login, Created: r.Created, Open: r.State == "open"}
+	if r.Closed != nil {
+		is.Closed = *r.Closed
+	}
+	for _, l := range r.Labels {
+		is.Labels = append(is.Labels, l.Name)
+	}
+	return is
+}
+
 // Issues is the issues of forge.repo in state carrying label, by number.
 // Gitea drops a label filter naming no existing label and then answers
 // every issue, so the label is checked on each issue as well.
@@ -194,21 +210,14 @@ func (g *Gitea) Issues(state State, label string) ([]Issue, error) {
 	if state == Closed {
 		st = "closed"
 	}
-	path := fmt.Sprintf("/repos/%s/%s/issues?state=%s&type=issues&labels=%s", url.PathEscape(g.owner), url.PathEscape(g.repo), st, url.QueryEscape(label))
+	path := fmt.Sprintf("%s/issues?state=%s&type=issues&labels=%s", g.repoPath(g.repo), st, url.QueryEscape(label))
 	raw, err := list[giteaIssue](g, path)
 	if err != nil {
 		return nil, err
 	}
 	var out []Issue
 	for _, r := range raw {
-		is := Issue{Number: r.Number, Title: r.Title, Body: r.Body, Author: r.User.Login, Created: r.Created, Open: r.State == "open"}
-		if r.Closed != nil {
-			is.Closed = *r.Closed
-		}
-		for _, l := range r.Labels {
-			is.Labels = append(is.Labels, l.Name)
-		}
-		if slices.Contains(is.Labels, label) {
+		if is := r.issue(); slices.Contains(is.Labels, label) {
 			out = append(out, is)
 		}
 	}
@@ -246,13 +255,13 @@ func (g *Gitea) Pulls(n int) ([]Pull, error) {
 	}
 	var found []bySlice
 	for _, name := range g.names {
-		raw, err := list[giteaPull](g, fmt.Sprintf("/repos/%s/%s/pulls?state=all", url.PathEscape(g.owner), url.PathEscape(name)))
+		raw, err := list[giteaPull](g, g.repoPath(name)+"/pulls?state=all")
 		if err != nil {
 			return nil, err
 		}
 		for _, r := range raw {
-			s, ok := sliceOf(r.Head.Ref, n)
-			if !ok || !refersTo(r.Body, g.owner, g.repo, name, n) {
+			s, ok := swarmPull(r.Head.Ref, r.Body, g.owner, g.repo, name, n)
+			if !ok {
 				continue
 			}
 			p := Pull{Repo: name, Number: r.Number, Title: r.Title, Body: r.Body, Head: r.Head.Ref, HeadSHA: r.Head.SHA,
@@ -274,16 +283,238 @@ func (g *Gitea) Pulls(n int) ([]Pull, error) {
 	return out, nil
 }
 
-func (g *Gitea) Issue(n int) (Issue, error)                        { return Issue{}, notBuilt("Issue") }
-func (g *Gitea) CreateIssue(string, string, []string) (int, error) { return 0, notBuilt("CreateIssue") }
-func (g *Gitea) Comment(Ref, string) error                         { return notBuilt("Comment") }
-func (g *Gitea) Relabel(Ref, string, string) error                 { return notBuilt("Relabel") }
-func (g *Gitea) CloseIssue(int) error                              { return notBuilt("CloseIssue") }
-func (g *Gitea) CreatePull(string, string, string, string, string) (int, error) {
-	return 0, notBuilt("CreatePull")
+type giteaComment struct {
+	Body    string    `json:"body"`
+	User    giteaUser `json:"user"`
+	Created time.Time `json:"created_at"`
 }
-func (g *Gitea) PullComments(Ref) ([]Comment, error)         { return nil, notBuilt("PullComments") }
-func (g *Gitea) Reviews(Ref) ([]Review, error)               { return nil, notBuilt("Reviews") }
-func (g *Gitea) ReviewComments(Ref) ([]ReviewComment, error) { return nil, notBuilt("ReviewComments") }
-func (g *Gitea) Review(Ref, Verdict, string) error           { return notBuilt("Review") }
-func (g *Gitea) Merge(Ref, string) error                     { return notBuilt("Merge") }
+
+// comments reads the comments of issue or pull request n in repository
+// name, oldest first. Gitea's endpoint takes no page and answers them all.
+func (g *Gitea) comments(name string, n int) ([]Comment, error) {
+	var raw []giteaComment
+	if err := g.call("GET", fmt.Sprintf("%s/issues/%d/comments", g.repoPath(name), n), nil, http.StatusOK, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]Comment, len(raw))
+	for i, r := range raw {
+		out[i] = Comment{Author: r.User.Login, Body: r.Body, Created: r.Created}
+	}
+	return out, nil
+}
+
+// Issue reads issue n of forge.repo and its comments.
+func (g *Gitea) Issue(n int) (Issue, error) {
+	var r giteaIssue
+	if err := g.call("GET", fmt.Sprintf("%s/issues/%d", g.repoPath(g.repo), n), nil, http.StatusOK, &r); err != nil {
+		return Issue{}, err
+	}
+	is := r.issue()
+	cs, err := g.comments(g.repo, n)
+	if err != nil {
+		return Issue{}, err
+	}
+	is.Comments = cs
+	return is, nil
+}
+
+// labelIDs maps each label name to the id an issue or pull request of the
+// repository name takes: the organization's labels, then the
+// repository's own, which shadow an organization label of their name.
+func (g *Gitea) labelIDs(name string) (map[string]int64, error) {
+	ids := map[string]int64{}
+	for _, path := range []string{"/orgs/" + url.PathEscape(g.owner) + "/labels", g.repoPath(name) + "/labels"} {
+		ls, err := list[giteaLabel](g, path)
+		if err != nil {
+			return nil, err
+		}
+		for _, l := range ls {
+			ids[l.Name] = l.ID
+		}
+	}
+	return ids, nil
+}
+
+// labelID is label's id for the repository name, from ids.
+func (g *Gitea) labelID(method, name, label string, ids map[string]int64) (int64, error) {
+	id, ok := ids[label]
+	if !ok {
+		return 0, noLabel(method, g.owner, name, label)
+	}
+	return id, nil
+}
+
+// CreateIssue opens an issue in forge.repo carrying labels.
+func (g *Gitea) CreateIssue(title, body string, labels []string) (int, error) {
+	ids, err := g.labelIDs(g.repo)
+	if err != nil {
+		return 0, err
+	}
+	in := struct {
+		Title  string  `json:"title"`
+		Body   string  `json:"body"`
+		Labels []int64 `json:"labels"`
+	}{title, body, []int64{}}
+	for _, l := range labels {
+		id, err := g.labelID("CreateIssue", g.repo, l, ids)
+		if err != nil {
+			return 0, err
+		}
+		in.Labels = append(in.Labels, id)
+	}
+	var out struct {
+		Number int `json:"number"`
+	}
+	if err := g.call("POST", g.repoPath(g.repo)+"/issues", in, http.StatusCreated, &out); err != nil {
+		return 0, err
+	}
+	return out.Number, nil
+}
+
+// Comment posts body on an issue or a pull request: Gitea keeps a pull
+// request's comments as its issue's.
+func (g *Gitea) Comment(at Ref, body string) error {
+	return g.call("POST", fmt.Sprintf("%s/issues/%d/comments", g.repoPath(at.Repo), at.N), map[string]string{"body": body}, http.StatusCreated, nil)
+}
+
+// Relabel adds add, then removes remove ("" removes nothing), on an issue
+// or a pull request; no other label is touched.
+func (g *Gitea) Relabel(at Ref, remove, add string) error {
+	ids, err := g.labelIDs(at.Repo)
+	if err != nil {
+		return err
+	}
+	addID, err := g.labelID("Relabel", at.Repo, add, ids)
+	if err != nil {
+		return err
+	}
+	var removeID int64
+	if remove != "" {
+		if removeID, err = g.labelID("Relabel", at.Repo, remove, ids); err != nil {
+			return err
+		}
+	}
+	path := fmt.Sprintf("%s/issues/%d/labels", g.repoPath(at.Repo), at.N)
+	if err := g.call("POST", path, map[string][]int64{"labels": {addID}}, http.StatusOK, nil); err != nil {
+		return err
+	}
+	if remove == "" {
+		return nil
+	}
+	return g.call("DELETE", fmt.Sprintf("%s/%d", path, removeID), nil, http.StatusNoContent, nil)
+}
+
+// CloseIssue sets issue n's state to closed.
+func (g *Gitea) CloseIssue(n int) error {
+	return g.call("PATCH", fmt.Sprintf("%s/issues/%d", g.repoPath(g.repo), n), map[string]string{"state": "closed"}, http.StatusCreated, nil)
+}
+
+// CreatePull opens a pull request from head into base in the declared
+// repository repo.
+func (g *Gitea) CreatePull(repo, head, base, title, body string) (int, error) {
+	if !slices.Contains(g.names, repo) {
+		return 0, fmt.Errorf("forge: CreatePull: %s is not a declared repository (%s)", repo, strings.Join(g.names, ", "))
+	}
+	in := map[string]string{"head": head, "base": base, "title": title, "body": body}
+	var out struct {
+		Number int `json:"number"`
+	}
+	if err := g.call("POST", g.repoPath(repo)+"/pulls", in, http.StatusCreated, &out); err != nil {
+		return 0, err
+	}
+	return out.Number, nil
+}
+
+// PullComments reads a pull request's comments, oldest first.
+func (g *Gitea) PullComments(pr Ref) ([]Comment, error) { return g.comments(pr.Repo, pr.N) }
+
+type giteaReview struct {
+	ID        int64     `json:"id"`
+	Body      string    `json:"body"`
+	State     string    `json:"state"`
+	Commit    string    `json:"commit_id"`
+	User      giteaUser `json:"user"`
+	Submitted time.Time `json:"submitted_at"`
+}
+
+// reviewStates are the submitted reviews' states; Gitea lists a review
+// request (REQUEST_REVIEW) and a pending review (PENDING) among them too,
+// neither of which is a review anyone gave, so Reviews leaves them out.
+var reviewStates = map[string]Verdict{"APPROVED": Approve, "REQUEST_CHANGES": RequestChanges, "COMMENT": Commented}
+
+// Reviews reads a pull request's submitted reviews, oldest first.
+func (g *Gitea) Reviews(pr Ref) ([]Review, error) {
+	raw, err := list[giteaReview](g, fmt.Sprintf("%s/pulls/%d/reviews", g.repoPath(pr.Repo), pr.N))
+	if err != nil {
+		return nil, err
+	}
+	var out []Review
+	for _, r := range raw {
+		if v, ok := reviewStates[r.State]; ok {
+			out = append(out, Review{ID: r.ID, Author: r.User.Login, Body: r.Body, State: v, Commit: r.Commit, Submitted: r.Submitted})
+		}
+	}
+	slices.SortStableFunc(out, func(a, b Review) int { return a.Submitted.Compare(b.Submitted) })
+	return out, nil
+}
+
+type giteaReviewComment struct {
+	Body     string    `json:"body"`
+	Path     string    `json:"path"`
+	Position int       `json:"position"`
+	Commit   string    `json:"commit_id"`
+	User     giteaUser `json:"user"`
+	Created  time.Time `json:"created_at"`
+}
+
+// ReviewComments reads the line comments of each review Reviews returns,
+// oldest first. Gitea's endpoint takes no page and answers them all.
+func (g *Gitea) ReviewComments(pr Ref) ([]ReviewComment, error) {
+	reviews, err := g.Reviews(pr)
+	if err != nil {
+		return nil, err
+	}
+	var out []ReviewComment
+	for _, r := range reviews {
+		var raw []giteaReviewComment
+		if err := g.call("GET", fmt.Sprintf("%s/pulls/%d/reviews/%d/comments", g.repoPath(pr.Repo), pr.N, r.ID), nil, http.StatusOK, &raw); err != nil {
+			return nil, err
+		}
+		for _, c := range raw {
+			out = append(out, ReviewComment{Author: c.User.Login, Body: c.Body, Path: c.Path, Commit: c.Commit, Line: c.Position, Created: c.Created})
+		}
+	}
+	slices.SortStableFunc(out, func(a, b ReviewComment) int { return a.Created.Compare(b.Created) })
+	return out, nil
+}
+
+// reviewEvents are the formal events Review posts first.
+var reviewEvents = map[Verdict]string{Approve: "APPROVED", RequestChanges: "REQUEST_CHANGES"}
+
+// Review posts the formal review of verdict and, when Gitea refuses that
+// event (422: its own pull request, for one), the same body as a
+// comment-type review. The verdict is read from the body, never from the
+// review's state (section 10).
+func (g *Gitea) Review(pr Ref, verdict Verdict, body string) error {
+	path := fmt.Sprintf("%s/pulls/%d/reviews", g.repoPath(pr.Repo), pr.N)
+	if event, ok := reviewEvents[verdict]; ok {
+		err := g.call("POST", path, map[string]string{"event": event, "body": body}, http.StatusOK, nil)
+		var api *apiError
+		if !errors.As(err, &api) || api.status != http.StatusUnprocessableEntity {
+			return err
+		}
+	}
+	return g.call("POST", path, map[string]string{"event": "COMMENT", "body": body}, http.StatusOK, nil)
+}
+
+// Merge merges a pull request with a merge commit, only while its head is
+// head; Gitea's refusal (405 not mergeable, 409 the head moved) is
+// ErrNotMergeable with the forge's message.
+func (g *Gitea) Merge(pr Ref, head string) error {
+	err := g.call("POST", fmt.Sprintf("%s/pulls/%d/merge", g.repoPath(pr.Repo), pr.N), map[string]string{"do": "merge", "head_commit_id": head}, http.StatusOK, nil)
+	var api *apiError
+	if errors.As(err, &api) && (api.status == http.StatusMethodNotAllowed || api.status == http.StatusConflict) {
+		return fmt.Errorf("%w: %d %s", ErrNotMergeable, api.status, api.message)
+	}
+	return err
+}

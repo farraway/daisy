@@ -72,6 +72,7 @@ var table = []Command{
 	{Group: "Prompts and skills", Name: "eval", Usage: "eval [<case>] [--record]", Help: "List, display, or record an eval case result", Workspace: true, Flags: []string{"--record"}, Max: 3, Run: commands.Eval, Health: commands.EvalHealth},
 
 	{Group: "Swarm", Name: "swarm init", Usage: "swarm init [--defaults]", Help: "Declare the swarm: swarm.json, prompts, labels", Workspace: true, Flags: []string{"--defaults"}, Run: commands.SwarmInit},
+	{Group: "Swarm", Name: "swarm status", Usage: "swarm status", Help: "Stages, gates, what waits for you, running members (read-only)", Workspace: true, Run: commands.SwarmStatus},
 
 	{Group: "System", Name: "commit", Usage: "commit [--root] <message>", Help: "Commit the home repo (or the root repo)", Workspace: true, Flags: []string{"--root"}, Min: 1, Max: 1, Run: commands.Commit},
 	{Group: "System", Name: "healthcheck", Usage: "healthcheck [--force]", Help: "Run the system health check", Flags: []string{"--force"}, Run: commands.Healthcheck},
