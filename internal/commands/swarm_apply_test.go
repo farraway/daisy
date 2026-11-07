@@ -8,7 +8,9 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"daisy/internal/env"
 	"daisy/internal/ops"
@@ -25,10 +27,20 @@ type applyWS struct {
 	*statusWS
 	runner    *runner.Fake
 	upstreams map[string]string // origin URL → local bare repository
+	now       time.Time         // the clock of apply and of the forge, moved by tick
+	mu        sync.Mutex
 }
 
+func (a *applyWS) Now() time.Time { a.mu.Lock(); defer a.mu.Unlock(); return a.now }
+
+// tick moves the clock a minute on, so that entries of later passes come
+// after those of earlier ones.
+func (a *applyWS) tick() { a.mu.Lock(); defer a.mu.Unlock(); a.now = a.now.Add(time.Minute) }
+
 func newApplyWS(t *testing.T) *applyWS {
-	a := &applyWS{statusWS: newStatusWS(t), runner: &runner.Fake{}, upstreams: map[string]string{}}
+	a := &applyWS{statusWS: newStatusWS(t), runner: &runner.Fake{}, upstreams: map[string]string{}, now: fixedClock().Now()}
+	a.forge = forge.NewFake(&ops.Fake{NowFn: a.Now}, "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
+	a.forge.AddLabels(forge.Labels...)
 	for _, name := range []string{"app", "lib"} {
 		up := filepath.Join(t.TempDir(), name+".git")
 		src := t.TempDir()
@@ -50,6 +62,9 @@ func newApplyWS(t *testing.T) *applyWS {
 	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
 	os.MkdirAll(slot, 0o700)
 	os.WriteFile(filepath.Join(slot, "auth.json"), []byte(`{"tokens":{"access_token":"x"}}`), 0o600)
+	// The owner's batch is held unless a test releases it.
+	os.MkdirAll(a.state(""), 0o755)
+	os.WriteFile(a.state("owner-held"), []byte("held 2026-11-06T14:00:00Z: test\n"), 0o644)
 	return a
 }
 
@@ -58,9 +73,15 @@ func newApplyWS(t *testing.T) *applyWS {
 func (a *applyWS) apply(f forge.Adapter, flags ...string) error {
 	a.stdout.Reset()
 	a.stderr.Reset()
+	return a.applyTo(f, a.runner, &a.stdout, &a.stderr, flags...)
+}
+
+// applyTo is `swarm apply` with flags over the forge and runner given,
+// writing to stdout and stderr.
+func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.Writer, flags ...string) error {
 	o := &ops.Fake{
 		GetenvFn: func(k string) string { return a.vars[k] },
-		NowFn:    fixedClock().Now,
+		NowFn:    a.Now,
 		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
 			if name == "id" {
 				return []byte("1000\n"), nil, nil
@@ -69,7 +90,7 @@ func (a *applyWS) apply(f forge.Adapter, flags ...string) error {
 				a.t.Errorf("docker %q reached the real runner", args)
 			}
 			for i, arg := range args {
-				if up, ok := a.upstreams[arg]; ok && slices.Contains(args, "fetch") {
+				if up, ok := a.upstreams[arg]; ok && (slices.Contains(args, "fetch") || slices.Contains(args, "push")) {
 					args = slices.Clone(args)
 					args[i] = up
 				}
@@ -78,9 +99,9 @@ func (a *applyWS) apply(f forge.Adapter, flags ...string) error {
 		},
 		PromptFn: func(io.Reader, io.Writer, string) (string, error) { a.t.Error("apply prompted"); return "", io.EOF },
 	}
-	c := &Context{Ops: o, Env: env.Env{Root: a.root, Workspace: a.ws, Local: a.local}, Stdin: strings.NewReader(""), Stdout: &a.stdout, Stderr: &a.stderr, Flags: flags}
+	c := &Context{Ops: o, Env: env.Env{Root: a.root, Workspace: a.ws, Local: a.local}, Stdin: strings.NewReader(""), Stdout: stdout, Stderr: stderr, Flags: flags}
 	return swarmApply(c, func(ops.Ops, declare.Forge, []string, string) (forge.Adapter, error) { return f, nil },
-		func(ops.Ops, string) runner.Runner { return a.runner })
+		func(ops.Ops, string) runner.Runner { return run })
 }
 
 func (a *applyWS) result(run string) string {
@@ -324,12 +345,6 @@ func TestSwarmApplyStart(t *testing.T) {
 	if err := a.apply(a.forge); err == nil || err.Error() != "Error: swarm apply: only --once is built (the loop joins with the lifecycle); run 'daisy swarm apply --once'" {
 		t.Errorf("without --once: %v", err)
 	}
-	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
-	os.WriteFile(filepath.Join(slot, "auth.json"), nil, 0o600)
-	if err := a.apply(a.forge, "--once"); err == nil || err.Error() != "Error: swarm: slot "+slot+" has no login; run 'CODEX_HOME="+slot+" codex login -c cli_auth_credentials_store=file'" {
-		t.Errorf("empty slot: %v", err)
-	}
-	os.WriteFile(filepath.Join(slot, "auth.json"), []byte("{}"), 0o600)
 	os.MkdirAll(a.state(""), 0o755)
 	release, err := ops.Real().FS().Lock(a.state("lock"), "apply --once since 2026-11-06T14:59:00Z")
 	if err != nil {

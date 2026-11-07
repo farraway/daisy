@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -15,11 +16,18 @@ import (
 // this pass (section 7.1, step 4).
 var ErrNoSlot = errors.New("no free slot")
 
-// SlotRefused is a slot whose auth.json is not a regular file: the swarm
-// fault *slot refused* (section 7.7).
-type SlotRefused struct{ Credential string }
+// SlotRefused is a slot whose auth.json is not a regular file, or holds
+// no login (absent or empty): the swarm fault *slot refused* (section
+// 7.7), met at the launch that takes the slot.
+type SlotRefused struct {
+	Credential, Dir string
+	NoLogin         bool
+}
 
 func (e *SlotRefused) Error() string {
+	if e.NoLogin {
+		return "slot " + e.Credential + ": no login; run 'CODEX_HOME=" + e.Dir + " codex login -c cli_auth_credentials_store=file'"
+	}
 	return "slot " + e.Credential + ": auth.json is not a regular file"
 }
 
@@ -80,9 +88,13 @@ func TakeSlot(fs ops.FS, r Runner, dir, provider string, count int, holder strin
 }
 
 // clear removes every entry of the slot but auth.json, and refuses an
-// auth.json that is not a regular file (Lstat: a link is never followed).
+// auth.json that is absent, empty or not a regular file (Lstat: a link is
+// never followed).
 func (s *Slot) clear(fs ops.FS) error {
 	entries, err := fs.ReadDir(s.Dir)
+	if errors.Is(err, iofs.ErrNotExist) {
+		return &SlotRefused{Credential: s.Credential, Dir: s.Dir, NoLogin: true}
+	}
 	if err != nil {
 		return fmt.Errorf("slot %s: %v", s.Credential, err)
 	}
@@ -95,8 +107,11 @@ func (s *Slot) clear(fs ops.FS) error {
 		}
 	}
 	fi, err := fs.Lstat(filepath.Join(s.Dir, "auth.json"))
-	if err != nil || !fi.Mode().IsRegular() {
-		return &SlotRefused{s.Credential}
+	switch {
+	case errors.Is(err, iofs.ErrNotExist) || err == nil && fi.Mode().IsRegular() && fi.Size() == 0:
+		return &SlotRefused{Credential: s.Credential, Dir: s.Dir, NoLogin: true}
+	case err != nil || !fi.Mode().IsRegular():
+		return &SlotRefused{Credential: s.Credential, Dir: s.Dir}
 	}
 	return nil
 }

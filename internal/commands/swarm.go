@@ -540,9 +540,8 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 
 // SwarmApply is `daisy swarm apply --once` (docs/swarm.md section 11):
 // the start (validation, the credentials, the account, the host's uid and
-// gid, Docker, <state> and its lock, the labels), then one pass of the
-// reconciler. As built at Step 5 of the swarm build, the pass runs the
-// architect, and only `--once` runs.
+// gid, Docker, <state> and its lock, the labels), then one pass, its runs
+// waited for and collected.
 func SwarmApply(c *Context) error { return swarmApply(c, openForge, openRunner) }
 
 // runnerOpener builds the runner; tests pass one returning a runner.Fake.
@@ -555,12 +554,9 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		return errors.New("Error: swarm apply: only --once is built (the loop joins with the lifecycle); run 'daisy swarm apply --once'")
 	}
 	o, ws := c.Ops, c.Env.Workspace
-	cfg, _, err := declare.Load(o.FS(), ws)
-	if err == nil {
-		err = declare.Validate(o, ws, cfg, 0)
-	}
+	cfg, err := loadSwarm(o, ws)
 	if err != nil {
-		return fmt.Errorf("Error: %v", err)
+		return err
 	}
 	unset := func(v string) error {
 		return fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", v, filepath.Join(ws, ".env.sh"))
@@ -574,18 +570,8 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		used[p.Provider] = true
 	}
 	for _, p := range slices.Sorted(maps.Keys(used)) {
-		key := cfg.Keys[p]
-		if key.Env != nil {
-			if secret(c, ws, *key.Env) == "" {
-				return unset(*key.Env)
-			}
-			continue
-		}
-		for j := 1; j <= *key.Slots; j++ {
-			slot := filepath.Join(c.Env.Local, "swarm", "credentials", p, strconv.Itoa(j))
-			if fi, err := o.FS().Stat(filepath.Join(slot, "auth.json")); err != nil || fi.Size() == 0 {
-				return fmt.Errorf("Error: swarm: slot %s has no login; run 'CODEX_HOME=%s codex login -c cli_auth_credentials_store=file'", slot, slot)
-			}
+		if key := cfg.Keys[p]; key.Env != nil && secret(c, ws, *key.Env) == "" {
+			return unset(*key.Env)
 		}
 	}
 	var names []string
@@ -631,8 +617,20 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 	}
 	s := &reconcile.Swarm{O: o, WS: ws, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
 		User: ids[0] + ":" + ids[1], Secret: func(v string) string { return secret(c, ws, v) }, Out: c.Stdout, Err: c.Stderr}
-	if err := s.Once(); err != nil {
+	if err := s.Pass(true); err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	return nil
+}
+
+// loadSwarm reads and validates swarm.json as apply's start does.
+func loadSwarm(o ops.Ops, ws string) (declare.Config, error) {
+	cfg, _, err := declare.Load(o.FS(), ws)
+	if err == nil {
+		err = declare.Validate(o, ws, cfg, 0)
+	}
+	if err != nil {
+		return cfg, fmt.Errorf("Error: %v", err)
+	}
+	return cfg, nil
 }

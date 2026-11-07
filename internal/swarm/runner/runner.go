@@ -75,12 +75,15 @@ type Container interface{ Wait() (Exit, error) }
 // Running is one container of `docker ps`: its name and its two labels.
 type Running struct{ Name, Swarm, Credential string }
 
-// Runner starts containers and lists the running set.
+// Runner starts containers, lists the running set and stops one.
 type Runner interface {
 	// Start runs s; timeout is its wall clock, at which it is stopped.
 	Start(s Spec, timeout time.Duration) (Container, error)
 	// Running is every container labelled daisy.swarm, of every swarm.
 	Running() ([]Running, error)
+	// Stop is `docker stop --time 30 <name>`: the wall clock's stop, and
+	// an orphan's (section 7.7).
+	Stop(name string) error
 }
 
 // Docker is the runner over the docker CLI.
@@ -133,8 +136,8 @@ func (c *dockerRun) Wait() (Exit, error) {
 	case r = <-done:
 	case <-c.d.O.After(c.timeout):
 		timedOut = true
-		if _, errb, err := c.d.O.Exec(c.d.Dir, "docker", "stop", "--time", "30", c.name); err != nil {
-			return Exit{}, fmt.Errorf("docker stop %s: %v %s", c.name, err, strings.TrimSpace(string(errb)))
+		if err := c.d.Stop(c.name); err != nil {
+			return Exit{}, err
 		}
 		r = <-done
 	}
@@ -142,6 +145,14 @@ func (c *dockerRun) Wait() (Exit, error) {
 		return Exit{}, r.err
 	}
 	return Exit{Code: r.code, TimedOut: timedOut, Stdout: c.stdout.Bytes(), Stderr: c.stderr.Bytes()}, nil
+}
+
+// Stop sends the container its stop signal and, after 30 seconds, kills it.
+func (d Docker) Stop(name string) error {
+	if _, errb, err := d.O.Exec(d.Dir, "docker", "stop", "--time", "30", name); err != nil {
+		return fmt.Errorf("docker stop %s: %v %s", name, err, strings.TrimSpace(string(errb)))
+	}
+	return nil
 }
 
 // psFormat is the running set's columns: name, daisy.swarm, daisy.credential.

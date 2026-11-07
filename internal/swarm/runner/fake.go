@@ -2,6 +2,7 @@ package runner
 
 import (
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,25 +12,29 @@ import (
 )
 
 // Canned is one scripted run: what the member writes to out.md ("" writes
-// nothing), its exit status, its standard output, and whether the wall
-// clock stopped it.
+// nothing), what it does in its clone (Work, given the directory mounted
+// at /work: a worker's commits), its exit status, its standard output and
+// error, and whether the wall clock stopped it. A check is scripted the
+// same way under the role "check", its Stdout and Stderr its output.
 type Canned struct {
-	Out      string
-	Code     int
-	Stdout   string
-	TimedOut bool
+	Out            string
+	Work           func(work string) error
+	Code           int
+	Stdout, Stderr string
+	TimedOut       bool
 }
 
 // Fake is a runner that records each launch's Spec and answers it with the
 // next Canned scripted for its issue and role (none: no output, exit 0).
 // Others is the running set of containers it did not start; a container it
-// starts is running until Wait. FS writes the canned out.md (nil:
-// ops.Real().FS()).
+// starts is running until Wait. Stopped is every name Stop was given. FS
+// writes the canned out.md (nil: ops.Real().FS()).
 type Fake struct {
 	FS       ops.FS
 	mu       sync.Mutex
 	Launched []Spec
 	Others   []Running
+	Stopped  []string
 	StartErr error
 	canned   map[string][]Canned
 	running  []Running
@@ -48,6 +53,13 @@ func (f *Fake) Script(n int, role string, runs ...Canned) {
 	f.canned[key] = append(f.canned[key], runs...)
 }
 
+// Launches is a copy of the specs launched so far.
+func (f *Fake) Launches() []Spec {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.Launched)
+}
+
 func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -61,12 +73,17 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 		c, f.canned[rest] = q[0], q[1:]
 	}
 	for _, m := range s.Mounts {
-		if m.Dst == "/work/.swarm" && c.Out != "" {
+		switch {
+		case m.Dst == "/work/.swarm" && c.Out != "":
 			fs := f.FS
 			if fs == nil {
 				fs = ops.Real().FS()
 			}
 			if err := fs.WriteFile(filepath.Join(m.Src, "out.md"), []byte(c.Out), 0o644); err != nil {
+				return nil, err
+			}
+		case m.Dst == "/work" && c.Work != nil:
+			if err := c.Work(m.Src); err != nil {
 				return nil, err
 			}
 		}
@@ -81,6 +98,15 @@ func (f *Fake) Running() ([]Running, error) {
 	return append(append([]Running(nil), f.Others...), f.running...), nil
 }
 
+// Stop records the name and takes the container out of the running set.
+func (f *Fake) Stop(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Stopped = append(f.Stopped, name)
+	f.Others = slices.DeleteFunc(f.Others, func(r Running) bool { return r.Name == name })
+	return nil
+}
+
 type fakeRun struct {
 	f    *Fake
 	name string
@@ -90,11 +116,6 @@ type fakeRun struct {
 func (r *fakeRun) Wait() (Exit, error) {
 	r.f.mu.Lock()
 	defer r.f.mu.Unlock()
-	for i, c := range r.f.running {
-		if c.Name == r.name {
-			r.f.running = append(r.f.running[:i], r.f.running[i+1:]...)
-			break
-		}
-	}
-	return Exit{Code: r.c.Code, TimedOut: r.c.TimedOut, Stdout: []byte(r.c.Stdout)}, nil
+	r.f.running = slices.DeleteFunc(r.f.running, func(c Running) bool { return c.Name == r.name })
+	return Exit{Code: r.c.Code, TimedOut: r.c.TimedOut, Stdout: []byte(r.c.Stdout), Stderr: []byte(r.c.Stderr)}, nil
 }

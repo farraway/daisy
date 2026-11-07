@@ -1,7 +1,6 @@
 package reconcile
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -15,14 +14,13 @@ import (
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
-	"daisy/internal/swarm/provider"
 	"daisy/internal/swarm/runner"
 )
 
 // Swarm is one `swarm apply`'s view of its swarm: the declaration, the
-// forge, Docker and <state> (section 11, apply). As built at Step 5 of the
-// swarm build, a pass runs the architect on `swarm:ready` and
-// `swarm:planning` issues; the other roles join with the lifecycle.
+// forge, Docker and <state> (section 11, apply), and the containers this
+// process started and has not yet collected. The caller sets Cfg before
+// each pass, re-read and validated (pass step 1).
 type Swarm struct {
 	O          ops.Ops
 	WS, Local  string
@@ -33,32 +31,52 @@ type Swarm struct {
 	User       string                   // the host's uid:gid
 	Secret     func(name string) string // a variable as check-secrets resolves it
 	Out, Err   io.Writer
+
+	live      map[string]*live    // run directory → its container in flight
+	given     map[string][]string // run directory → the secrets its member was given
+	newFault  bool                // a run this process collected ended in a fault
+	collected int                 // runs collected in this pass
 }
 
-// built are the stages a pass acts on, with the role each runs.
-var built = []struct{ label, role string }{{"swarm:ready", "architect"}, {"swarm:planning", "architect"}}
+// live is a container this process started, a member or a worker run's
+// check: done is closed once `docker run` has returned, with how it ended
+// and, for a slot, the slot's secrets read again before its lock was
+// released.
+type live struct {
+	check bool
+	done  chan struct{}
+	exit  runner.Exit
+	err   error
+	again []string
+}
 
 func (s *Swarm) state() string { return s.Cfg.Forge.State(s.Local) }
 func (s *Swarm) owner() string { return owner(s.Cfg) }
 
 func (s *Swarm) git() Git { return Git{O: s.O, WS: s.WS, State: s.state()} }
 
-// started is a run this process launched.
-type started struct {
-	run     Run
-	job     *Job
-	c       runner.Container
-	slot    *runner.Slot
-	secrets []string
+func (s *Swarm) repo(name string) (declare.Repo, bool) {
+	for _, r := range s.Cfg.Repos {
+		if r.Name == name {
+			return r, true
+		}
+	}
+	return declare.Repo{}, false
 }
 
-// Once is one pass of `apply --once` (section 11): the runs left
-// uncollected and abandoned settled, the role rule over the built stages,
-// launches up to max_members, then every launched run waited for and
-// collected, and the summary line. A forge, git or docker error is
-// returned after the pass's other work.
-func (s *Swarm) Once() error {
-	fs := s.O.FS()
+// Pass is one pass of `apply` (section 11): (2) the containers this
+// process started that have ended, and every run left uncollected,
+// collected; (3) the abandoned and the orphans over time; (4) paused;
+// (5) each stage's issues, their pull requests given the issue's label,
+// and the role rule's launches up to max_members; (6) the merge step with
+// the merge gate off; (7) the owner's batch trigger; (8) the summary
+// line. With wait (`--once`), every container launched is waited for and
+// collected, a worker run's check included, before the summary. A forge,
+// git or docker error is returned after the pass's other work.
+func (s *Swarm) Pass(wait bool) error {
+	if s.live == nil {
+		s.live, s.given = map[string]*live{}, map[string][]string{}
+	}
 	running, err := s.Runner.Running()
 	if err != nil {
 		return err
@@ -69,13 +87,129 @@ func (s *Swarm) Once() error {
 			mine++
 		}
 	}
+	s.collected = 0
+	errs := []error{s.collectAll(running)}
+	launched := 0
+	if paused := s.paused(); paused != "" {
+		fmt.Fprintf(s.Out, "Paused since %s (%s): launching nothing\n", strings.TrimPrefix(paused, "paused "), filepath.Join(s.state(), "paused"))
+		errs = append(errs, s.stages(running, nil))
+	} else {
+		fetched := false
+		launch := func(j *Job) error {
+			if mine+launched >= s.Cfg.MaxMembers || s.paused() != "" {
+				return nil // a second fault in a row this pass launches nothing more
+			}
+			if !fetched {
+				for _, r := range s.Cfg.Repos {
+					if err := s.git().Fetch(r); err != nil {
+						return err
+					}
+				}
+				fetched = true
+			}
+			ok, err := s.launch(j, running)
+			if ok {
+				launched++
+			}
+			s.faultPause()
+			return err
+		}
+		if err := s.stages(running, launch); err != nil {
+			errs = append(errs, err)
+		} else {
+			if !s.Cfg.Gates.Merge && s.paused() == "" {
+				errs = append(errs, s.mergeStep())
+			}
+			errs = append(errs, s.batch(running, launch))
+		}
+	}
+	if wait {
+		errs = append(errs, s.Drain(nil))
+	}
+	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, mine)
+	return errors.Join(errs...)
+}
+
+// ErrInterrupted: a second signal stopped the drain (section 11, apply
+// without --once).
+var ErrInterrupted = errors.New("interrupted")
+
+// Drain waits for every container this process started, collecting each
+// run as it ends (a worker run's check started and waited for in turn). A
+// signal on stop ends it at once with ErrInterrupted, the containers left
+// running.
+func (s *Swarm) Drain(stop <-chan struct{}) error {
+	var errs []error
+	for len(s.live) > 0 {
+		dirs := slices.Sorted(func(yield func(string) bool) {
+			for d := range s.live {
+				if !yield(d) {
+					return
+				}
+			}
+		})
+		for _, dir := range dirs {
+			select {
+			case <-s.live[dir].done:
+			case <-stop:
+				return ErrInterrupted
+			}
+			r, _ := runOf(dir)
+			if err := s.settle(r); err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			if err := s.collect(r); err != nil {
+				errs = append(errs, err) // retried at the next pass
+			}
+		}
+	}
+	s.faultPause()
+	return errors.Join(errs...)
+}
+
+func runOf(dir string) (Run, bool) {
+	m := runName.FindStringSubmatch(filepath.Base(dir))
+	if m == nil {
+		return Run{}, false
+	}
+	n, _ := strconv.Atoi(m[1])
+	k, _ := strconv.Atoi(m[3])
+	return Run{Dir: dir, N: n, K: k, Role: m[2]}, true
+}
+
+// collectAll is pass steps (2) and (3): each container of this process
+// that has ended recorded, each run left uncollected collected, each
+// check whose apply died started again, and the runs another apply
+// started marked abandoned, or stopped when they have outlived timeout.
+func (s *Swarm) collectAll(running []runner.Running) error {
+	fs := s.O.FS()
 	runs, err := Runs(fs, s.state())
 	if err != nil {
 		return err
 	}
-	collected := 0
+	slices.SortFunc(runs, func(a, b Run) int { return strings.Compare(a.Dir, b.Dir) })
+	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
+	over := func(at string) bool {
+		t, err := time.Parse(time.RFC3339, at)
+		return err == nil && s.O.Now().Sub(t) > timeout
+	}
+	isRunning := func(name string) bool {
+		return slices.ContainsFunc(running, func(c runner.Running) bool { return c.Name == name })
+	}
 	var errs []error
 	for _, r := range runs {
+		if l := s.live[r.Dir]; l != nil {
+			select {
+			case <-l.done:
+				if err := s.settle(r); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+			default:
+				continue
+			}
+		}
 		lines, err := r.Result(fs)
 		if err != nil {
 			return err
@@ -83,86 +217,162 @@ func (s *Swarm) Once() error {
 		if _, done := Has(lines, "collected"); done {
 			continue
 		}
+		now := stamp(s.O.Now())
 		if Ended(lines) == "" {
-			if _, ok := Has(lines, "started"); !ok || slices.ContainsFunc(running, func(c runner.Running) bool { return c.Name == s.containerName(r) }) {
+			started, ok := Has(lines, "started")
+			if !ok {
 				continue
 			}
-			if err := r.Append(fs, "abandoned "+stamp(s.O.Now()), "outcome abandoned", "collected"); err != nil {
+			name := s.containerName(r.N, r.Role, r.K)
+			if isRunning(name) {
+				if !over(strings.TrimPrefix(started, "started ")) {
+					continue
+				}
+				if err := s.Runner.Stop(name); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+			}
+			if err := r.Append(fs, "abandoned "+now, "outcome abandoned", "collected"); err != nil {
 				return err
 			}
 			fs.RemoveAll(filepath.Join(r.Dir, "work"))
 			continue
 		}
-		if err := s.collect(r, nil); err != nil {
-			errs = append(errs, err)
-		} else {
-			collected++
-		}
-	}
-	if runs, err = Runs(fs, s.state()); err != nil {
-		return err
-	}
-
-	var launched []*started
-	fetched := false
-	err = s.candidates(running, runs, func(j *Job) error {
-		if mine+len(launched) >= s.Cfg.MaxMembers {
-			return nil
-		}
-		if !fetched {
-			for _, r := range s.Cfg.Repos {
-				if err := s.git().Fetch(r); err != nil {
+		if at, pending := checkPending(lines); pending {
+			name := s.containerName(r.N, "check", r.K)
+			switch {
+			case isRunning(name) && over(at):
+				if err := s.Runner.Stop(name); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				if err := r.Append(fs, "check timeout "+now); err != nil {
 					return err
 				}
+			case isRunning(name):
+				continue
+			default:
+				if err := s.startCheck(r, lines); err != nil {
+					errs = append(errs, err)
+				}
+				continue
 			}
-			fetched = true
 		}
-		st, err := s.launch(j, running)
-		if st != nil {
-			launched = append(launched, st)
-		}
-		return err
-	})
-	if err != nil {
-		errs = append(errs, err)
-	}
-	for _, st := range launched {
-		if err := s.finish(st); err != nil {
+		if err := s.collect(r); err != nil {
 			errs = append(errs, err)
-			continue
-		}
-		if err := s.collect(st.run, st); err != nil {
-			errs = append(errs, err)
-		} else {
-			collected++
 		}
 	}
-	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), countStarted(launched), collected, mine)
+	s.faultPause()
 	return errors.Join(errs...)
 }
 
-func countStarted(ls []*started) int {
-	n := 0
-	for _, l := range ls {
-		if l.c != nil {
-			n++
+// checkPending: the run's check started and has no end line yet; at is
+// when it started.
+func checkPending(lines []string) (at string, pending bool) {
+	l, started := "", false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "check started ") {
+			l, started = line, true // the last: a check started again
 		}
 	}
-	return n
+	if !started {
+		return "", false
+	}
+	_, exited := Has(lines, "check exited")
+	_, timedOut := Has(lines, "check timeout")
+	_, fault := Has(lines, "fault")
+	return strings.TrimPrefix(l, "check started "), !exited && !timedOut && !fault
 }
 
-func (s *Swarm) containerName(r Run) string {
-	o, repo, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
-	return fmt.Sprintf("daisy-swarm.%s.%s.%d.%s.%d", o, repo, r.N, r.Role, r.K)
+// paused is <state>/paused's line, "" when the swarm is not paused.
+func (s *Swarm) paused() string {
+	b, err := s.O.FS().ReadFile(filepath.Join(s.state(), "paused"))
+	if err != nil {
+		return ""
+	}
+	l, _, _ := strings.Cut(strings.TrimRight(string(b), "\n"), "\n")
+	if l == "" {
+		l = "paused"
+	}
+	return l
 }
 
-// candidates reads each built stage's open issues and calls launch with
-// the job of every issue whose role the trigger rule says runs (section
-// 6), by stage then number.
-func (s *Swarm) candidates(running []runner.Running, runs []Run, launch func(*Job) error) error {
+// faultPause writes <state>/paused when the two most recently ended runs
+// both ended in a swarm fault (section 7.7), and the newest was collected
+// by this process: a pause the maintainer resumed is not taken again from
+// the same two runs.
+func (s *Swarm) faultPause() {
+	if !s.newFault || s.paused() != "" {
+		return
+	}
+	s.newFault = false
 	fs := s.O.FS()
-	for _, st := range built {
-		issues, err := s.Forge.Issues(forge.Open, st.label)
+	runs, err := Runs(fs, s.state())
+	if err != nil {
+		return
+	}
+	type ended struct {
+		at     string
+		dir    string
+		reason string
+	}
+	var es []ended
+	for _, r := range runs {
+		lines, _ := r.Result(fs)
+		if _, done := Has(lines, "collected"); !done {
+			continue
+		}
+		e := ended{dir: r.Dir}
+		for _, l := range lines {
+			f := strings.Fields(l)
+			if len(f) > 1 && slices.Contains(endWords, f[0]) {
+				e.at = f[len(f)-1]
+			}
+		}
+		if l, ok := Has(lines, "fault"); ok {
+			e.reason = strings.TrimPrefix(l, "fault: ")
+		}
+		es = append(es, e)
+	}
+	slices.SortFunc(es, func(a, b ended) int {
+		if c := strings.Compare(a.at, b.at); c != 0 {
+			return c
+		}
+		return strings.Compare(a.dir, b.dir)
+	})
+	if len(es) < 2 || es[len(es)-1].reason == "" || es[len(es)-2].reason == "" {
+		return
+	}
+	line := fmt.Sprintf("paused %s: swarm fault: %s\n", stamp(s.O.Now()), es[len(es)-1].reason)
+	if err := fs.WriteFile(filepath.Join(s.state(), "paused"), []byte(line), 0o644); err != nil {
+		fmt.Fprintf(s.Err, "Error: swarm: %v\n", err)
+	}
+}
+
+func (s *Swarm) containerName(n int, role string, k int) string {
+	o, repo, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
+	return fmt.Sprintf("daisy-swarm.%s.%s.%d.%s.%d", o, repo, n, role, k)
+}
+
+// stageOrder is section 5's labels in order: every stage is read, its
+// current pull request given its label, and the stages with a role
+// launched.
+var stageOrder = forge.Labels
+
+// stages is pass step (5): for each label in order, each open issue's
+// thread and pull requests read, its current pull request given the
+// issue's label, and launch called with the job of every issue whose role
+// the trigger rule says runs (section 6), by stage then number; launch nil
+// launches nothing (paused).
+func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error {
+	fs := s.O.FS()
+	runs, err := Runs(fs, s.state())
+	if err != nil {
+		return err
+	}
+	for _, label := range stageOrder {
+		issues, err := s.Forge.Issues(forge.Open, label)
 		if err != nil {
 			return err
 		}
@@ -179,53 +389,112 @@ func (s *Swarm) candidates(running []runner.Running, runs []Run, launch func(*Jo
 				}
 			}
 			if len(stages) > 1 {
-				fmt.Fprintf(s.Err, "⚠ #%d: carries %s and %s; skipped\n", n, stages[0], stages[1])
+				if stages[0] == label {
+					fmt.Fprintf(s.Err, "⚠ #%d: carries %s and %s; skipped\n", n, stages[0], stages[1])
+				}
 				continue
 			}
 			pulls, err := s.Forge.Pulls(n)
 			if err != nil {
 				return err
 			}
-			busy := slices.ContainsFunc(running, func(c runner.Running) bool {
-				return strings.HasPrefix(c.Swarm, fmt.Sprintf("%s#%d/", s.Cfg.Forge.Repo, n))
-			})
-			for _, r := range runs {
-				lines, err := r.Result(fs)
-				if err != nil {
+			j := &Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, N: n, Label: label, Time: s.O.Now(), Issue: is, Pulls: pulls}
+			cur, open := j.current()
+			if open {
+				if err := s.copyLabel(n, cur, label); err != nil {
 					return err
 				}
-				_, done := Has(lines, "collected")
-				busy = busy || (r.N == n && Ended(lines) != "" && !done)
 			}
-			role := Launch(Turn{Label: st.label, Thread: IssueThread(is), Running: busy}, s.SwarmLogin, s.Cfg.Trusted)
-			if role != st.role {
+			roles := stageRoles[label]
+			if len(roles) == 0 || launch == nil {
+				continue
+			}
+			review := label == "swarm:in-review" || label == "swarm:reviewed"
+			if review && !open {
+				fmt.Fprintf(s.Err, "⚠ #%d: %s but its current pull request is not open; skipped\n", n, label)
+				continue
+			}
+			marks := marksOf(IssueThread(is), s.SwarmLogin)
+			if open {
+				if j.Pull, err = s.pullThread(cur); err != nil {
+					return err
+				}
+				j.Check = CheckSection(fs, runs, n, cur.HeadSHA, s.repoCheck(cur.Repo), s.Cfg.Timeout)
+				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
+			}
+			turn := Turn{Label: label, Thread: IssueThread(is), Running: s.busy(running, runs, n)}
+			if review {
+				turn.Thread, turn.Reviews, turn.Head = j.pullEntries(cur), j.Pull.Reviews, cur.HeadSHA
+			}
+			role := Launch(turn, s.SwarmLogin, s.Cfg.Trusted)
+			if role == "" {
 				continue
 			}
 			persona, err := fs.ReadFile(declare.PromptFile(s.WS, role))
 			if err != nil {
 				return err
 			}
-			j := &Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, N: n, Role: role, Label: st.label,
-				Time: s.O.Now(), Persona: string(persona), Issue: is, Pulls: pulls}
-			marks := marksOf(IssueThread(is), s.SwarmLogin)
-			if cur, open := j.current(); open {
-				if j.Pull, err = s.pullThread(cur); err != nil {
-					return err
-				}
-				j.Check = CheckSection(fs, runs, n, cur.HeadSHA, j.repo(cur.Repo).Check, s.Cfg.Timeout)
-				for _, c := range j.Pull.Comments {
-					marks = append(marks, marksOf([]Entry{{c.Author, c.Body, c.Created}}, s.SwarmLogin)...)
-				}
-				for _, r := range j.Pull.Reviews {
-					marks = append(marks, marksOf([]Entry{{r.Author, r.Body, r.Submitted}}, s.SwarmLogin)...)
-				}
-			}
+			j.Role, j.Persona = role, string(persona)
 			j.K = NextK(runs, n, role, marks)
 			if err := launch(j); err != nil {
 				return err
 			}
 		}
 	}
+	return nil
+}
+
+func (s *Swarm) repoCheck(name string) []string {
+	r, _ := s.repo(name)
+	return r.Check
+}
+
+// busy is rule 2: a container of this swarm runs on issue n, or a run on
+// n has an end line and no `collected`.
+func (s *Swarm) busy(running []runner.Running, runs []Run, n int) bool {
+	prefix := fmt.Sprintf("%s#%d/", s.Cfg.Forge.Repo, n)
+	if slices.ContainsFunc(running, func(c runner.Running) bool { return strings.HasPrefix(c.Swarm, prefix) }) {
+		return true
+	}
+	for _, r := range runs {
+		if r.N != n {
+			continue
+		}
+		if s.live[r.Dir] != nil {
+			return true
+		}
+		lines, _ := r.Result(s.O.FS())
+		if _, done := Has(lines, "collected"); Ended(lines) != "" && !done {
+			return true
+		}
+	}
+	return false
+}
+
+// copyLabel gives the issue's open current pull request the issue's stage
+// label (section 5): one of its own swarm:* labels other than the issue's
+// replaced, or the label added; any other label kept.
+func (s *Swarm) copyLabel(n int, p forge.Pull, label string) error {
+	var own []string
+	for _, l := range p.Labels {
+		if strings.HasPrefix(l, "swarm:") {
+			own = append(own, l)
+		}
+	}
+	if len(own) == 1 && own[0] == label {
+		return nil
+	}
+	remove := ""
+	for _, l := range own {
+		if l != label {
+			remove = l
+			break
+		}
+	}
+	if err := s.Forge.Relabel(forge.Ref{Repo: p.Repo, N: p.Number}, remove, label); err != nil {
+		return err
+	}
+	fmt.Fprintf(s.Out, "#%d pull %s#%d: %s\n", n, p.Repo, p.Number, label)
 	return nil
 }
 
@@ -270,19 +539,9 @@ func CheckSection(fs ops.FS, runs []Run, n int, head string, check []string, tim
 		if !slices.Contains(lines, "pushed "+head) {
 			continue
 		}
-		result := ""
-		if l, ok := Has(lines, "check exited"); ok {
-			f := strings.Fields(l)
-			result = "exit " + f[2]
-		} else if _, ok := Has(lines, "check timeout"); ok {
-			result = "timeout after " + timeout
-		} else {
+		result, tail, ok := checkResult(fs, r, lines, timeout)
+		if !ok {
 			break
-		}
-		out, _ := fs.ReadFile(filepath.Join(r.Dir, "check.out"))
-		tail := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
-		if len(tail) > 20 {
-			tail = tail[len(tail)-20:]
 		}
 		for i := range tail {
 			tail[i] = "    " + tail[i]
@@ -290,6 +549,25 @@ func CheckSection(fs ops.FS, runs []Run, n int, head string, check []string, tim
 		return shellQuote(check) + " on " + head + ": " + result + "\n\n" + strings.Join(tail, "\n")
 	}
 	return "No check result for this head."
+}
+
+// checkResult is a worker run's check as it ended, `exit <code>` or
+// `timeout after <timeout>`, and the last 20 lines of its check.out; ok
+// is false when it has no end.
+func checkResult(fs ops.FS, r Run, lines []string, timeout string) (result string, tail []string, ok bool) {
+	if l, ok := Has(lines, "check exited"); ok {
+		result = "exit " + strings.Fields(l)[2]
+	} else if _, ok := Has(lines, "check timeout"); ok {
+		result = "timeout after " + timeout
+	} else {
+		return "", nil, false
+	}
+	out, _ := fs.ReadFile(filepath.Join(r.Dir, "check.out"))
+	tail = strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	if len(tail) > 20 {
+		tail = tail[len(tail)-20:]
+	}
+	return result, tail, true
 }
 
 var (
@@ -312,171 +590,4 @@ func emptyField(prompt string) bool {
 		}
 	}
 	return false
-}
-
-// launch prepares and starts the run of j (section 7.1): its directory and
-// prompt files, read back; the clones; the credential; the argv and the
-// result's first lines. A run that cannot launch is recorded and returned
-// with no container; nil when no slot is free.
-func (s *Swarm) launch(j *Job, running []runner.Running) (*started, error) {
-	fs := s.O.FS()
-	r := Run{Dir: filepath.Join(s.state(), "runs", fmt.Sprintf("%d-%s-%d", j.N, j.Role, j.K)), N: j.N, K: j.K, Role: j.Role}
-	ioDir := filepath.Join(r.Dir, "io")
-	if err := fs.MkdirAll(ioDir, 0o755); err != nil {
-		return nil, err
-	}
-	st := &started{run: r, job: j}
-	now := func() string { return stamp(s.O.Now()) }
-	fault := func(reason string) (*started, error) {
-		return st, r.Append(fs, "launch-failed "+now(), "fault: "+reason)
-	}
-	system, prompt := Render(j)
-	for _, f := range []struct{ name, text string }{{"system.md", system}, {"prompt.md", prompt}} {
-		p := filepath.Join(ioDir, f.name)
-		if err := fs.WriteFile(p, []byte(f.text), 0o644); err != nil {
-			return nil, err
-		}
-		back, err := fs.ReadFile(p)
-		if err != nil || !bytes.Equal(back, []byte(f.text)) {
-			return fault("prompt: " + f.name + ": differs")
-		}
-	}
-	if emptyField(prompt) {
-		return fault("prompt: prompt.md: empty field")
-	}
-
-	persona := s.Cfg.Personas[j.Role]
-	work := filepath.Join(r.Dir, "work")
-	var startLines []string
-	for _, repo := range s.Cfg.Repos {
-		sha, err := s.git().Clone(repo, s.Cfg.Base, s.Cfg.Base, filepath.Join(work, repo.Name), j.Role, s.Cfg.Forge.CommitEmail, persona.CoAuthor)
-		if err != nil {
-			fs.RemoveAll(r.Dir)
-			return nil, err
-		}
-		startLines = append(startLines, "start "+repo.Name+" "+sha)
-	}
-	if err := fs.MkdirAll(filepath.Join(work, ".swarm"), 0o755); err != nil {
-		return nil, err
-	}
-
-	o, repo, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
-	first := s.Cfg.Repos[0]
-	workdir := "/work/" + first.Name
-	reads := []string{"/work/.swarm"}
-	for _, rp := range s.Cfg.Repos[1:] {
-		reads = append(reads, "/work/"+rp.Name)
-	}
-	mounts := []runner.Mount{{Src: work, Dst: "/work"}, {Src: ioDir, Dst: "/work/.swarm"}}
-	for i, res := range ResourceMounts(s.Cfg.Resources) {
-		src, err := fs.EvalSymlinks(filepath.Join(s.WS, s.Cfg.Resources[i]))
-		if err != nil {
-			return nil, err
-		}
-		mounts = append(mounts, runner.Mount{Src: src, Dst: res, ReadOnly: true})
-		reads = append(reads, res)
-	}
-	spec := runner.Spec{Name: s.containerName(r), Label: fmt.Sprintf("%s/%s#%d/%s", o, repo, j.N, j.Role), User: s.User,
-		Mounts: mounts, Workdir: workdir, Image: first.Image,
-		Argv: provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, "/work/.swarm/system.md", "/work/.swarm/prompt.md", outside(workdir, reads))}
-
-	key := s.Cfg.Keys[persona.Provider]
-	credential := ""
-	if key.Env != nil {
-		spec.EnvVar, spec.EnvValue = *key.Env, s.Secret(*key.Env)
-		st.secrets = []string{spec.EnvValue}
-		credential = "credential " + persona.Provider + " env " + *key.Env
-	} else {
-		holder := fmt.Sprintf("%s#%d/%s run %d since %s", s.Cfg.Forge.Repo, j.N, j.Role, j.K, now())
-		slot, err := runner.TakeSlot(fs, s.Runner, s.slotDir(persona.Provider), persona.Provider, *key.Slots, holder, running)
-		var refused *runner.SlotRefused
-		switch {
-		case errors.Is(err, runner.ErrNoSlot):
-			return nil, fs.RemoveAll(r.Dir)
-		case errors.As(err, &refused):
-			st.run = r
-			return fault(refused.Error())
-		case err != nil:
-			fs.RemoveAll(r.Dir)
-			return nil, err
-		}
-		st.slot, st.secrets = slot, slot.Secrets
-		spec.Credential, spec.Slot = slot.Credential, slot.Dir
-		credential = fmt.Sprintf("credential %s slot %d", persona.Provider, slot.J)
-	}
-	if err := fs.WriteFile(filepath.Join(r.Dir, "argv"), []byte(strings.Join(append([]string{"docker"}, spec.Args()...), "\n")+"\n"), 0o644); err != nil {
-		return st, err
-	}
-	lines := append(startLines, "label "+j.Label, "started "+now(), credential)
-	if err := r.Append(fs, lines...); err != nil {
-		return st, err
-	}
-	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
-	c, err := s.Runner.Start(spec, timeout)
-	if err != nil {
-		if st.slot != nil {
-			st.slot.Release()
-		}
-		return st, r.Append(fs, "launch-failed "+now(), "fault: launch: "+err.Error())
-	}
-	st.c = c
-	fmt.Fprintf(s.Out, "#%d %s run %d: launched\n", j.N, j.Role, j.K)
-	return st, nil
-}
-
-func (s *Swarm) slotDir(p string) string { return filepath.Join(s.Local, "swarm", "credentials", p) }
-
-// outside is the mounts a member started in workdir must be given leave
-// to reach: those not under it.
-func outside(workdir string, dirs []string) []string {
-	var out []string
-	for _, d := range dirs {
-		if d != workdir && !strings.HasPrefix(d, workdir+"/") {
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
-// finish waits for a started container and records how it ended
-// (sections 2 and 7.7): its streams, the end line, its cost, and a
-// failure or a fault; the slot is released once docker run has returned.
-func (s *Swarm) finish(st *started) error {
-	if st.c == nil {
-		return nil
-	}
-	fs := s.O.FS()
-	exit, err := st.c.Wait()
-	if st.slot != nil {
-		if again, err := runner.SlotSecrets(fs, st.slot.Dir); err == nil {
-			st.secrets = append(st.secrets, again...)
-		}
-		st.slot.Release()
-	}
-	r := st.run
-	now := stamp(s.O.Now())
-	if err != nil {
-		return r.Append(fs, "exited -1 "+now, "fault: wait: "+err.Error())
-	}
-	fs.WriteFile(filepath.Join(r.Dir, "stdout"), exit.Stdout, 0o644)
-	fs.WriteFile(filepath.Join(r.Dir, "stderr"), exit.Stderr, 0o644)
-	lines := []string{fmt.Sprintf("exited %d %s", exit.Code, now)}
-	if exit.TimedOut {
-		lines = []string{"timeout " + now}
-	}
-	rep := provider.Providers[s.Cfg.Personas[r.Role].Provider].Adapter.Report(exit.Stdout)
-	if rep.Known {
-		lines = append(lines, fmt.Sprintf("cost %s tokens %d/%d turns %d", strconv.FormatFloat(rep.CostUSD, 'f', -1, 64), rep.InTokens, rep.OutTokens, rep.Turns))
-	}
-	switch {
-	case exit.TimedOut:
-		lines = append(lines, "failed: timeout after "+s.Cfg.Timeout)
-	case exit.Code >= 125 && exit.Code <= 127:
-		lines = append(lines, fmt.Sprintf("fault: exit %d", exit.Code))
-	case rep.Fault != "":
-		lines = append(lines, "fault: provider: "+rep.Fault)
-	case exit.Code != 0:
-		lines = append(lines, fmt.Sprintf("failed: exit %d", exit.Code))
-	}
-	return r.Append(fs, lines...)
 }

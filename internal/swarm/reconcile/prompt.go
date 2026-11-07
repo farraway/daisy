@@ -386,6 +386,31 @@ func stateName(v forge.Verdict) string {
 	return "comment"
 }
 
+// pullEntries is the pull request's thread as entries (section 6): its
+// body, comments, reviews and line comments. Its body is the swarm's when
+// it is marked, since Pulls returns only the swarm's branches and Pull
+// carries no author.
+func (j *Job) pullEntries(p forge.Pull) []Entry {
+	author := ""
+	if first, _, _ := strings.Cut(p.Body, "\n"); markerRe.MatchString(strings.TrimSuffix(first, "\r")) {
+		author = j.SwarmLogin
+	}
+	out := []Entry{{author, p.Body, p.Created}}
+	if j.Pull == nil {
+		return out
+	}
+	for _, c := range j.Pull.Comments {
+		out = append(out, Entry{c.Author, c.Body, c.Created})
+	}
+	for _, r := range j.Pull.Reviews {
+		out = append(out, Entry{r.Author, r.Body, r.Submitted})
+	}
+	for _, l := range j.Pull.Lines {
+		out = append(out, Entry{l.Author, l.Body, l.Created})
+	}
+	return out
+}
+
 func (j *Job) pullRequest(p forge.Pull) string {
 	type item struct {
 		at   time.Time

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"daisy/internal/ops"
@@ -20,8 +21,10 @@ import (
 // adapters' semantics, and its helpers stand in for what other logins and
 // git do on the forge. A helper given a number the Fake does not hold
 // panics: that is the test's mistake. Tests assert on its state, never on
-// which methods were called.
+// which methods were called. It is safe for concurrent use, as two
+// `apply` processes share one forge.
 type Fake struct {
+	mu          sync.Mutex
 	o           ops.Ops
 	owner, repo string   // forge.repo
 	names       []string // the declared repositories
@@ -62,11 +65,17 @@ func NewFake(o ops.Ops, repo string, names []string, account Account) *Fake {
 
 // RefuseLabels makes every later label create be refused: EnsureLabels
 // fails as Gitea's refused create does, creating nothing more.
-func (f *Fake) RefuseLabels() { f.refuse = true }
+func (f *Fake) RefuseLabels() { f.mu.Lock(); defer f.mu.Unlock(); f.refuse = true }
 
 // AddLabels creates labels as an owner of the organization does by hand,
 // refused or not.
 func (f *Fake) AddLabels(names ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.addLabels(names...)
+}
+
+func (f *Fake) addLabels(names ...string) {
 	for _, n := range names {
 		if !slices.Contains(f.labels, n) {
 			f.labels = append(f.labels, n)
@@ -75,9 +84,11 @@ func (f *Fake) AddLabels(names ...string) {
 }
 
 // Labels is the label set, in creation order.
-func (f *Fake) Labels() []string { return slices.Clone(f.labels) }
+func (f *Fake) Labels() []string { f.mu.Lock(); defer f.mu.Unlock(); return slices.Clone(f.labels) }
 
 func (f *Fake) EnsureLabels(names []string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	var missing []string
 	for _, n := range names {
 		if !slices.Contains(f.labels, n) && !slices.Contains(missing, n) {
@@ -87,11 +98,11 @@ func (f *Fake) EnsureLabels(names []string) (int, error) {
 	if len(missing) > 0 && f.refuse {
 		return 0, refusedLabels(f.owner, missing)
 	}
-	f.AddLabels(missing...)
+	f.addLabels(missing...)
 	return len(missing), nil
 }
 
-func (f *Fake) Login() (Account, error) { return f.account, nil }
+func (f *Fake) Login() (Account, error) { f.mu.Lock(); defer f.mu.Unlock(); return f.account, nil }
 
 // find is the item at, as the forge answers a number it does not hold.
 func (f *Fake) find(at Ref) (*item, error) {
@@ -132,6 +143,8 @@ func (it *item) issue(n int) Issue {
 // Issues: forge.repo's issues in state carrying label, by number; pull
 // requests excluded.
 func (f *Fake) Issues(state State, label string) ([]Issue, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	var out []Issue
 	for at, it := range f.items {
 		if at.Repo == f.repo && it.pull == nil && it.open == (state == Open) && slices.Contains(it.labels, label) {
@@ -143,6 +156,8 @@ func (f *Fake) Issues(state State, label string) ([]Issue, error) {
 }
 
 func (f *Fake) Issue(n int) (Issue, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it, err := f.find(Ref{f.repo, n})
 	if err != nil {
 		return Issue{}, err
@@ -163,6 +178,8 @@ func (f *Fake) known(method, repo string, labels ...string) error {
 }
 
 func (f *Fake) CreateIssue(title, body string, labels []string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.known("CreateIssue", f.repo, labels...); err != nil {
 		return 0, err
 	}
@@ -176,6 +193,8 @@ func (f *Fake) CreateIssue(title, body string, labels []string) (int, error) {
 }
 
 func (f *Fake) Comment(at Ref, body string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it, err := f.find(at)
 	if err != nil {
 		return err
@@ -186,12 +205,16 @@ func (f *Fake) Comment(at Ref, body string) error {
 
 // Say is a comment by login on an issue or a pull request.
 func (f *Fake) Say(at Ref, login, body string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it := must(f.find(at))
 	it.comments = append(it.comments, Comment{Author: login, Body: body, Created: f.o.Now()})
 }
 
 // SayOnLine is a line comment by login on the pull request's current head.
 func (f *Fake) SayOnLine(pr Ref, login, path string, line int, body string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it := must(f.findPull(pr))
 	it.pull.lines = append(it.pull.lines, ReviewComment{Author: login, Body: body, Path: path, Commit: it.pull.headSHA, Line: line, Created: f.o.Now()})
 }
@@ -199,6 +222,8 @@ func (f *Fake) SayOnLine(pr Ref, login, path string, line int, body string) {
 // Relabel adds add, then removes remove ("" removes nothing); both must
 // exist in the label set, and no other label is touched.
 func (f *Fake) Relabel(at Ref, remove, add string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it, err := f.find(at)
 	if err != nil {
 		return err
@@ -223,6 +248,8 @@ func (f *Fake) Relabel(at Ref, remove, add string) error {
 // at carries replaced by label, which the label set must hold; the others
 // kept.
 func (f *Fake) SetLabel(at Ref, label string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it := must(f.find(at))
 	if err := f.known("SetLabel", at.Repo, label); err != nil {
 		panic("forge.Fake: " + err.Error())
@@ -232,6 +259,8 @@ func (f *Fake) SetLabel(at Ref, label string) {
 }
 
 func (f *Fake) CloseIssue(n int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it, err := f.find(Ref{f.repo, n})
 	if err != nil {
 		return err
@@ -246,6 +275,8 @@ func (f *Fake) CloseIssue(n int) error {
 // head commit is "" until Push moves it, since the Fake holds no git.
 // Like the forge, it refuses a second open pull request from head to base.
 func (f *Fake) CreatePull(repo, head, base, title, body string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if !slices.Contains(f.names, repo) {
 		return 0, fmt.Errorf("forge: CreatePull: %s is not a declared repository (%s)", repo, strings.Join(f.names, ", "))
 	}
@@ -259,14 +290,24 @@ func (f *Fake) CreatePull(repo, head, base, title, body string) (int, error) {
 }
 
 // Push moves a pull request's head to sha.
-func (f *Fake) Push(pr Ref, sha string) { must(f.findPull(pr)).pull.headSHA = sha }
+func (f *Fake) Push(pr Ref, sha string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	must(f.findPull(pr)).pull.headSHA = sha
+}
 
 // Unmergeable makes every later Merge of pr be refused.
-func (f *Fake) Unmergeable(pr Ref) { must(f.findPull(pr)).pull.unmergeable = true }
+func (f *Fake) Unmergeable(pr Ref) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	must(f.findPull(pr)).pull.unmergeable = true
+}
 
 // Pulls: the swarm's pull requests for issue n in every declared
 // repository (section 10's filter), by slice.
 func (f *Fake) Pulls(n int) ([]Pull, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	type bySlice struct {
 		s int
 		p Pull
@@ -295,6 +336,8 @@ func (f *Fake) Pulls(n int) ([]Pull, error) {
 }
 
 func (f *Fake) PullComments(pr Ref) ([]Comment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it, err := f.findPull(pr)
 	if err != nil {
 		return nil, err
@@ -303,6 +346,8 @@ func (f *Fake) PullComments(pr Ref) ([]Comment, error) {
 }
 
 func (f *Fake) Reviews(pr Ref) ([]Review, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it, err := f.findPull(pr)
 	if err != nil {
 		return nil, err
@@ -311,6 +356,8 @@ func (f *Fake) Reviews(pr Ref) ([]Review, error) {
 }
 
 func (f *Fake) ReviewComments(pr Ref) ([]ReviewComment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it, err := f.findPull(pr)
 	if err != nil {
 		return nil, err
@@ -321,6 +368,8 @@ func (f *Fake) ReviewComments(pr Ref) ([]ReviewComment, error) {
 // Review stores a comment-type review on the pull request's current head:
 // the fallback, since the Fake opens every pull request as its own login.
 func (f *Fake) Review(pr Ref, _ Verdict, body string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it, err := f.findPull(pr)
 	if err != nil {
 		return err
@@ -333,6 +382,8 @@ func (f *Fake) Review(pr Ref, _ Verdict, body string) error {
 // Merge merges an open pull request whose head is head and which is not
 // marked unmergeable, recording a merge commit; it closes no issue.
 func (f *Fake) Merge(pr Ref, head string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	it, err := f.findPull(pr)
 	if err != nil {
 		return err

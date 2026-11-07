@@ -118,33 +118,22 @@ func (j *Job) protected() string {
 }
 
 // round is the reviewer's round on the current head (section 6: the
-// distinct commits both reviewers reviewed since the accepted plan, plus
-// this one) and the commit of the role's newest review on the pull request.
+// rounds before this head, since the accepted plan, plus this one) and the
+// commit of the role's newest review on the pull request before this head.
 func (j *Job) round(p forge.Pull) (int, string) {
 	if j.Pull == nil {
 		return 1, ""
 	}
-	plan, _, hasPlan := j.Plan()
-	by := map[string]map[string]bool{}
+	var since time.Time
+	if plan, _, ok := j.Plan(); ok {
+		since = plan.Created
+	}
 	prev, prevAt := "", time.Time{}
 	for _, r := range j.Pull.Reviews {
 		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, j.SwarmLogin)
-		if !ok || (hasPlan && !r.Submitted.After(plan.Created)) {
-			continue
-		}
-		if by[r.Commit] == nil {
-			by[r.Commit] = map[string]bool{}
-		}
-		by[r.Commit][m.Role] = true
-		if m.Role == j.Role && r.Commit != p.HeadSHA && !r.Submitted.Before(prevAt) {
+		if ok && m.Role == j.Role && r.Commit != p.HeadSHA && (since.IsZero() || r.Submitted.After(since)) && !r.Submitted.Before(prevAt) {
 			prev, prevAt = r.Commit, r.Submitted
 		}
 	}
-	rounds := 0
-	for c, roles := range by {
-		if roles["adversary"] && roles["sympathetic"] && c != p.HeadSHA {
-			rounds++
-		}
-	}
-	return rounds + 1, prev
+	return Rounds(j.Pull.Reviews, j.SwarmLogin, since, p.HeadSHA) + 1, prev
 }
