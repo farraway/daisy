@@ -7,6 +7,7 @@ package forge
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -14,11 +15,42 @@ import (
 	"daisy/internal/ops"
 )
 
-// Labels are the eight stage labels (section 5), in lifecycle order: what
-// `swarm init` and `swarm apply` ensure.
-var Labels = []string{
+// Stages are the eight stage labels (section 5), in lifecycle order: the
+// state machine, one on each open swarm issue.
+var Stages = []string{
 	"swarm:proposed", "swarm:ready", "swarm:planning", "swarm:planned",
 	"swarm:in-review", "swarm:reviewed", "swarm:approved", "swarm:blocked",
+}
+
+// Gated is the maintainer's flag beside the stage, never a stage: on an
+// open swarm issue exactly when its stage waits for the maintainer
+// (section 5). Done and Rejected are the terminal labels, which replace
+// the stage label when the swarm or the maintainer's verbs close an issue.
+const (
+	Gated    = "swarm:gated"
+	Done     = "swarm:done"
+	Rejected = "swarm:rejected"
+)
+
+// Labels are the eleven labels `swarm init` and `swarm apply` ensure: the
+// stages, the flag and the two terminals.
+var Labels = append(slices.Clone(Stages), Gated, Done, Rejected)
+
+// IsStage: l counts as a stage label wherever Daisy reads an issue's one
+// stage: a `swarm:*` label other than the flag and the terminals, so an
+// unknown `swarm:*` name beside a stage still makes two (section 5).
+func IsStage(l string) bool {
+	return strings.HasPrefix(l, "swarm:") && l != Gated && l != Done && l != Rejected
+}
+
+// SwarmLabels are the labels whose issues in state are swarm issues, each
+// listed by them: an open one carries a stage; a closed one its terminal,
+// or the stage it was closed at before the terminals or by hand.
+func SwarmLabels(state State) []string {
+	if state == Open {
+		return Stages
+	}
+	return append(slices.Clone(Stages), Done, Rejected)
 }
 
 // Adapter is every call the swarm makes to the forge, less Board, which is
@@ -34,6 +66,8 @@ type Adapter interface {
 	Issue(n int) (Issue, error) // with comments, oldest first
 	CreateIssue(title, body string, labels []string) (int, error)
 	Comment(at Ref, body string) error
+	// Relabel adds add, then removes remove; "" on either side is no
+	// change there, so one call sets or clears the flag alone.
 	Relabel(at Ref, remove, add string) error
 	CloseIssue(n int) error
 	// Pulls is the swarm's pull requests for issue n in every declared
@@ -157,7 +191,7 @@ func New(o ops.Ops, kind, api, token, repo string, names []string) (Adapter, err
 // noLabel is CreateIssue's or Relabel's failure on a label the forge
 // does not hold for the repository name of owner.
 func noLabel(method, owner, name, label string) error {
-	return fmt.Errorf("forge: %s: no label %s for %s/%s; run 'daisy swarm init', which ensures the eight", method, label, owner, name)
+	return fmt.Errorf("forge: %s: no label %s for %s/%s; run 'daisy swarm init', which ensures the eleven", method, label, owner, name)
 }
 
 // refusedLabels is EnsureLabels' failure when the forge refuses a create.

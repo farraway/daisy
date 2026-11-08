@@ -208,7 +208,7 @@ func (c *collection) relabel(from, to string) error {
 	}
 	now := ""
 	for _, l := range c.is.Labels {
-		if strings.HasPrefix(l, "swarm:") {
+		if forge.IsStage(l) {
 			now = l
 		}
 	}

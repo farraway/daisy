@@ -74,10 +74,11 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 		Time: s.O.Now(), Persona: string(persona), Batch: b})
 }
 
-// issues is every issue in state carrying a swarm:* label, by number.
+// issues is every swarm issue in state, listed by forge.SwarmLabels, by
+// number.
 func (s *Swarm) issues(state forge.State) ([]forge.Issue, error) {
 	var out []forge.Issue
-	for _, label := range forge.Labels {
+	for _, label := range forge.SwarmLabels(state) {
 		is, err := s.Forge.Issues(state, label)
 		if err != nil {
 			return nil, err

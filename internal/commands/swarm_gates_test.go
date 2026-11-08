@@ -111,7 +111,7 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 				t.Errorf("the architect's revision:\n%s\n%s", sys, prompt)
 			}
 			if planGate {
-				if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:planning"}) {
+				if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:planning", forge.Gated}) {
 					t.Fatalf("the revision moved the label: %v", got)
 				}
 				a.forge.SetLabel(issue1, "swarm:planned") // T7
@@ -128,7 +128,7 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 			a.pass()
 			a.pass()
 			second := mark("reconciler", 2) + "Review round 1 of 1 on app#2 requested changes a second time (was swarm:in-review). Relabel the issue to resume."
-			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked"}) || a.bodies(1)[len(a.bodies(1))-1] != second {
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked", forge.Gated}) || a.bodies(1)[len(a.bodies(1))-1] != second {
 				t.Fatalf("T11, second time: %v %q", got, a.bodies(1))
 			}
 		})
@@ -172,14 +172,14 @@ func TestSwarmApplyGatesOff(t *testing.T) {
 		a.pass()
 		a.pass() // T9
 		a.pass() // the merge step
-		want := map[int]string{1: "#1 merged pull app#2 (slice 1 of 2)\n#1 swarm:approved → swarm:planned\n", 2: "#1 merged pull app#3 (slice 2 of 2)\n#1 closed (last slice merged)\n"}[s]
+		want := map[int]string{1: "#1 merged pull app#2 (slice 1 of 2)\n#1 swarm:approved → swarm:planned\n", 2: "#1 merged pull app#3 (slice 2 of 2)\n#1 closed (last slice merged)\n#1 swarm:approved → swarm:done\n"}[s]
 		if !strings.Contains(a.stdout.String(), want) {
 			t.Fatalf("slice %d's merge step:\n%s", s, a.stdout.String())
 		}
 	}
 	is := a.issue(1)
 	ps := a.pulls(1)
-	if is.Open || len(ps) != 2 || !ps[0].Merged || !ps[1].Merged {
+	if is.Open || len(ps) != 2 || !ps[0].Merged || !ps[1].Merged || !reflect.DeepEqual(is.Labels, []string{forge.Done}) {
 		t.Errorf("T15: issue %+v, pulls %+v", is, ps)
 	}
 	if _, err := os.Stat(a.state("paused")); err == nil {
@@ -224,7 +224,7 @@ func TestSwarmApplyMergeRefused(t *testing.T) {
 	a.pass()
 	head := a.pulls(1)[0].HeadSHA
 	note := mark("reconciler", 1) + "merge of pull request acme/app#2 at " + head[:7] + " refused: 405 Please try again later (was swarm:approved). Resolve it and relabel the issue."
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked"}) || a.bodies(1)[len(a.bodies(1))-1] != note ||
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked", forge.Gated}) || a.bodies(1)[len(a.bodies(1))-1] != note ||
 		!strings.Contains(a.stdout.String(), "#1 merge of pull app#2 refused (405 Please try again later)\n") {
 		t.Errorf("T16: %v %q\n%s", got, a.bodies(1), a.stdout.String())
 	}
@@ -257,7 +257,7 @@ func TestSwarmApplyMergeRefusedNoteIsTheSwarms(t *testing.T) {
 	a.forge.SetLabel(issue1, "swarm:approved")
 	a.pass()
 	is = a.issue(1)
-	if last := is.Comments[len(is.Comments)-1]; last.Author != "swarm-bot" || last.Body != note || !reflect.DeepEqual(labels(is), []string{"swarm:blocked"}) {
+	if last := is.Comments[len(is.Comments)-1]; last.Author != "swarm-bot" || last.Body != note || !reflect.DeepEqual(labels(is), []string{"swarm:blocked", forge.Gated}) {
 		t.Errorf("refused again: the last word is %s's, labels %v", last.Author, labels(is))
 	}
 }

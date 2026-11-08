@@ -80,18 +80,25 @@ func TestFakeRelabel(t *testing.T) {
 	if !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:planning"}) {
 		t.Errorf("labels %v: add, remove, the others kept", is.Labels)
 	}
-	if err := f.Relabel(Ref{"app", n}, "swarm:planning", "swarm:nonesuch"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eight" {
+	if err := f.Relabel(Ref{"app", n}, "swarm:planning", "swarm:nonesuch"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eleven" {
 		t.Errorf("an unknown label: %v", err)
 	}
 	f.Relabel(Ref{"app", n}, "", "swarm:blocked")
 	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:planning", "swarm:blocked"}) {
 		t.Errorf("remove \"\" only adds: %v", is.Labels)
 	}
+	f.Relabel(Ref{"app", n}, "", Gated)
 	f.SetLabel(Ref{"app", n}, "swarm:planned")
-	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:planned"}) {
-		t.Errorf("SetLabel: %v", is.Labels)
+	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", Gated, "swarm:planned"}) {
+		t.Errorf("SetLabel moves the stage and keeps the flag: %v", is.Labels)
 	}
-	if _, err := f.CreateIssue("B", "", []string{"wontfix"}); errText(err) != "forge: CreateIssue: no label wontfix for acme/app; run 'daisy swarm init', which ensures the eight" {
+	if err := f.Relabel(Ref{"app", n}, Gated, ""); err != nil {
+		t.Fatal(err)
+	}
+	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:planned"}) {
+		t.Errorf("add \"\" only removes: %v", is.Labels)
+	}
+	if _, err := f.CreateIssue("B", "", []string{"wontfix"}); errText(err) != "forge: CreateIssue: no label wontfix for acme/app; run 'daisy swarm init', which ensures the eleven" {
 		t.Errorf("CreateIssue with an unknown label: %v", err)
 	}
 }

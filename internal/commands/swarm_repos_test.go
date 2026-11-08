@@ -74,7 +74,7 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 	}
 	a.pass()
 	a.pass()
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:approved"}) {
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:approved", forge.Gated}) {
 		t.Fatalf("slice 1 not approved: %v", got)
 	}
 	a.forge.Merge(forge.Ref{Repo: "lib", N: 1}, a.pulls(1)[0].HeadSHA)
@@ -184,7 +184,7 @@ func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 	a := newApplyWS(t)
 	f := forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	f.AddLabels(forge.Labels[1:]...)
-	if err := a.apply(f, "--once"); err != nil || !reflect.DeepEqual(f.Labels()[7], "swarm:proposed") {
+	if err := a.apply(f, "--once"); err != nil || !reflect.DeepEqual(f.Labels()[len(forge.Labels)-1], "swarm:proposed") {
 		t.Errorf("%v %v", err, f.Labels())
 	}
 	g := forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})

@@ -115,14 +115,14 @@ func TestSwarmInitThroughGitea(t *testing.T) {
 	g := newGitea(t)
 	code, out, errs := runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults")
 	if code != 0 || !strings.HasPrefix(out, "✓ Token $GITEA_TOKEN reads acme/app as swarm-bot\n✓ Wrote swarm/swarm.json\n") ||
-		!strings.Contains(out, "✓ Labels: 8 present (8 created)\n") || !strings.Contains(errs, "⚠ Readiness: app has no AGENTS.md") {
+		!strings.Contains(out, "✓ Labels: 11 present (11 created)\n") || !strings.Contains(errs, "⚠ Readiness: app has no AGENTS.md") {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
-	if len(g.labels) != 8 {
+	if len(g.labels) != 11 {
 		t.Errorf("labels %q", g.labels)
 	}
 	code, out, _ = runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults")
-	if code != 0 || !strings.Contains(out, "  Unchanged swarm/swarm.json\n") || !strings.Contains(out, "✓ Labels: 8 present (0 created)\n") || len(g.labels) != 8 {
+	if code != 0 || !strings.Contains(out, "  Unchanged swarm/swarm.json\n") || !strings.Contains(out, "✓ Labels: 11 present (0 created)\n") || len(g.labels) != 11 {
 		t.Errorf("second run: exit %d\n%s", code, out)
 	}
 }
@@ -178,8 +178,8 @@ func TestSwarmStatusThroughGitea(t *testing.T) {
 			t.Errorf("status sent %s", r)
 		}
 	}
-	if len(g.requests) != 17 {
-		t.Errorf("requests %q: Login, then Issues open and closed for each of the eight labels", g.requests)
+	if len(g.requests) != 19 {
+		t.Errorf("requests %q: Login, then Issues open for each of the eight stages and closed for each of them and the two terminals", g.requests)
 	}
 	for _, r := range ran {
 		if !strings.HasPrefix(r, "git ") && r != "docker ps" {

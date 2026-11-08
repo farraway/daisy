@@ -44,13 +44,14 @@ func SwarmClose(c *Context) error { return swarmClose(c, openForge) }
 // under the maintainer's token, with the maintainer's login and the
 // swarm's, for issue n.
 type maintainer struct {
-	c     *Context
-	cfg   declare.Config
-	f     forge.Adapter
-	login string // the maintainer's, as the forge reports the token's
-	swarm string // the swarm's, trusted's last
-	n     int
-	at    forge.Ref
+	c      *Context
+	cfg    declare.Config
+	f      forge.Adapter
+	login  string // the maintainer's, as the forge reports the token's
+	swarm  string // the swarm's, trusted's last
+	n      int
+	at     forge.Ref
+	labels []string // issue n's, as issue read them
 }
 
 // issueArg is the verb's <n>, a positive issue number, else usage: checked
@@ -106,8 +107,9 @@ func asMaintainer(c *Context, open opener) (*maintainer, error) {
 	return &maintainer{c: c, cfg: cfg, f: f, login: acct.Login, swarm: swarm, n: n, at: forge.Ref{Repo: repo, N: n}}, nil
 }
 
-// issue is issue n with its comments, open and carrying exactly one
-// swarm:* label, that label being want unless want is "".
+// issue is issue n with its comments, open and carrying exactly one stage
+// label (forge.IsStage: the flag and the terminals are none), that label
+// being want unless want is "".
 func (m *maintainer) issue(want string) (forge.Issue, error) {
 	is, err := m.f.Issue(m.n)
 	if err != nil {
@@ -121,7 +123,7 @@ func (m *maintainer) issue(want string) (forge.Issue, error) {
 	}
 	var stage []string
 	for _, l := range is.Labels {
-		if strings.HasPrefix(l, "swarm:") {
+		if forge.IsStage(l) {
 			stage = append(stage, l)
 		}
 	}
@@ -133,6 +135,7 @@ func (m *maintainer) issue(want string) (forge.Issue, error) {
 	case want != "" && stage[0] != want:
 		return is, fmt.Errorf("Error: swarm: #%d is %s, not %s; nothing changed", m.n, stage[0], want)
 	}
+	m.labels = is.Labels
 	return is, nil
 }
 
@@ -160,11 +163,17 @@ func comment(c *Context) (string, error) {
 	return text, nil
 }
 
+// relabel is a verb's transition, the maintainer's flag cleared with it
+// (section 5): the next pass of apply sets it again when the new stage
+// waits.
 func (m *maintainer) relabel(from, to string) error {
 	if err := m.f.Relabel(m.at, from, to); err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	fmt.Fprintf(m.c.Stdout, "#%d %s → %s\n", m.n, from, to)
+	if err := reconcile.Unflag(m.f, m.at, m.labels, m.c.Stdout); err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
 	return nil
 }
 
@@ -176,11 +185,16 @@ func (m *maintainer) say(text string) error {
 	return nil
 }
 
-func (m *maintainer) close(how string) error {
+// close closes issue n, then gives it terminal in place of its stage
+// label, stage, and clears the flag (section 5).
+func (m *maintainer) close(stage, terminal, how string) error {
 	if err := m.f.CloseIssue(m.n); err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	fmt.Fprintf(m.c.Stdout, "#%d closed%s\n", m.n, how)
+	if err := reconcile.Retire(m.f, m.at, stage, m.labels, terminal, m.c.Stdout); err != nil {
+		return fmt.Errorf("Error: swarm: #%d is closed, but not relabelled %s: %v; relabel it on the forge", m.n, terminal, err)
+	}
 	return nil
 }
 
@@ -217,7 +231,8 @@ func swarmClose(c *Context, open opener) error {
 	if err != nil {
 		return err
 	}
-	if _, err := m.issue(""); err != nil {
+	is, err := m.issue("")
+	if err != nil {
 		return err
 	}
 	if text != "" {
@@ -225,7 +240,8 @@ func swarmClose(c *Context, open opener) error {
 			return err
 		}
 	}
-	return m.close("")
+	stage, _ := reconcile.StageOf(is)
+	return m.close(stage, forge.Rejected, "")
 }
 
 func swarmApprove(c *Context, open opener) error {
@@ -301,7 +317,7 @@ func swarmMerge(c *Context, open opener) error {
 	if s < S {
 		return m.relabel("swarm:approved", "swarm:planned")
 	}
-	return m.close(" (last slice merged)")
+	return m.close("swarm:approved", forge.Done, " (last slice merged)")
 }
 
 // swarmUnblock posts the maintainer's comment, then relabels the blocked

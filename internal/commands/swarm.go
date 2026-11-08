@@ -316,7 +316,7 @@ func swarmStatus(c *Context, open opener) error {
 	stages := map[string][]int{}
 	var opened, closed []forge.Issue
 	for _, state := range []forge.State{forge.Open, forge.Closed} {
-		for _, l := range forge.Labels {
+		for _, l := range forge.SwarmLabels(state) {
 			issues, err := f.Issues(state, l)
 			if err != nil {
 				return fmt.Errorf("Error: swarm: %v", err)
@@ -343,19 +343,22 @@ func swarmStatus(c *Context, open opener) error {
 	if err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
-	var planned []int // planning issues whose newest counted entry is the architect's
-	if cfg.Gates.Plan {
-		for _, n := range stages["swarm:planning"] {
-			e, ok := reconcile.NewestCounted(reconcile.IssueThread(issues[n].Issue), acct.Login, cfg.Trusted)
-			if m, swarm := reconcile.Swarms(e, acct.Login); ok && swarm && m.Role == "architect" {
-				planned = append(planned, n)
+	// What waits for the maintainer: the open issues whose one stage
+	// reconcile.Gated holds for, the predicate apply flags them by, by
+	// item; an approved issue under what its pull request calls for
+	// (section 12).
+	waits := map[string][]int{}
+	for _, l := range forge.Stages {
+		for _, n := range stages[l] {
+			if stage, ok := reconcile.StageOf(issues[n].Issue); !ok || stage != l || !reconcile.Gated(l, cfg.Gates) {
+				continue
 			}
+			item := map[string]string{"swarm:proposed": "triage", "swarm:planning": "plan", "swarm:blocked": "blocked"}[l]
+			if l == "swarm:approved" {
+				item = reconcile.AfterApproval(issues[n].Issue, issues[n].Pulls, acct.Login)
+			}
+			waits[item] = append(waits[item], n)
 		}
-	}
-	after := map[string][]int{} // approved issues by what the maintainer does next (section 12)
-	for _, n := range stages["swarm:approved"] {
-		next := reconcile.AfterApproval(issues[n].Issue, issues[n].Pulls, acct.Login)
-		after[next] = append(after[next], n)
 	}
 	briefs, err := brief.Find(o.FS(), ws, cfg.Resources)
 	if err != nil {
@@ -367,7 +370,7 @@ func swarmStatus(c *Context, open opener) error {
 	fmt.Fprintf(out, "Swarm: %s on %s (%s), repositories %s\n", cfg.Forge.Repo, cfg.Forge.ForgeHost(), cfg.Forge.Kind, strings.Join(names, ", "))
 	fmt.Fprintf(out, "State: %s%s\n", state, stateNotes(c.Ops.FS(), state))
 	fmt.Fprintf(out, "Gates: triage %s, plan %s, merge %s\n", onOff(cfg.Gates.Triage), onOff(cfg.Gates.Plan), onOff(cfg.Gates.Merge))
-	for _, l := range forge.Labels {
+	for _, l := range forge.Stages {
 		fmt.Fprintf(out, "  %-12s %d", strings.TrimPrefix(l, "swarm:"), len(stages[l]))
 		if len(stages[l]) > 0 {
 			fmt.Fprintf(out, "  %s", issueList(stages[l]))
@@ -375,14 +378,9 @@ func swarmStatus(c *Context, open opener) error {
 		fmt.Fprintln(out)
 	}
 	var waiting []string
-	for _, w := range []struct {
-		what string
-		on   bool
-		ns   []int
-	}{{"triage", cfg.Gates.Triage, stages["swarm:proposed"]}, {"plan", true, planned}, {"merge", cfg.Gates.Merge, after["merge"]},
-		{"next slice", cfg.Gates.Merge, after["next slice"]}, {"close", cfg.Gates.Merge, after["close"]}, {"blocked", true, stages["swarm:blocked"]}} {
-		if w.on && len(w.ns) > 0 {
-			waiting = append(waiting, w.what+" "+issueList(w.ns))
+	for _, item := range []string{"triage", "plan", "merge", "next slice", "close", "blocked"} {
+		if len(waits[item]) > 0 {
+			waiting = append(waiting, item+" "+issueList(waits[item]))
 		}
 	}
 	if len(waiting) == 0 {
@@ -733,10 +731,10 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 	return nil
 }
 
-// forgeStages is the eight labels without `swarm:`, in lifecycle order.
+// forgeStages is the eight stages without `swarm:`, in lifecycle order.
 func forgeStages() []string {
-	out := make([]string, len(forge.Labels))
-	for i, l := range forge.Labels {
+	out := make([]string, len(forge.Stages))
+	for i, l := range forge.Stages {
 		out[i] = strings.TrimPrefix(l, "swarm:")
 	}
 	return out

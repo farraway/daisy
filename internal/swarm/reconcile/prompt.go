@@ -459,11 +459,13 @@ func (b *Batch) sections(j *Job) []string {
 	for _, br := range b.active() {
 		briefs = append(briefs, doc(fmt.Sprintf("## %s (Status: active; mounted at /resources/%s)", br.Path, br.Path), Shift(trim(br.Text), 2)))
 	}
+	// An issue's line names its stage, not the flag; a closed issue's
+	// its terminal, or the stage it was closed at.
 	line := func(is forge.Issue) string {
 		stage := ""
 		for _, l := range is.Labels {
-			if s, ok := strings.CutPrefix(l, "swarm:"); ok {
-				stage = s
+			if forge.IsStage(l) || l == forge.Done || l == forge.Rejected {
+				stage = strings.TrimPrefix(l, "swarm:")
 			}
 		}
 		s := fmt.Sprintf("- #%d [%s] %s", is.Number, stage, is.Title)

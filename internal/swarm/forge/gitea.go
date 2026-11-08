@@ -428,26 +428,29 @@ func (g *Gitea) Comment(at Ref, body string) error {
 	return g.call("POST", fmt.Sprintf("%s/issues/%d/comments", g.repoPath(at.Repo), at.N), map[string]string{"body": body}, http.StatusCreated, nil)
 }
 
-// Relabel adds add, then removes remove ("" removes nothing), on an issue
-// or a pull request; no other label is touched.
+// Relabel adds add, then removes remove ("" on either side: no call for
+// it), on an issue or a pull request; no other label is touched.
 func (g *Gitea) Relabel(at Ref, remove, add string) error {
 	ids, err := g.labelIDs(at.Repo)
 	if err != nil {
 		return err
 	}
-	addID, err := g.labelID("Relabel", at.Repo, add, ids)
-	if err != nil {
-		return err
+	var addID, removeID int64
+	if add != "" {
+		if addID, err = g.labelID("Relabel", at.Repo, add, ids); err != nil {
+			return err
+		}
 	}
-	var removeID int64
 	if remove != "" {
 		if removeID, err = g.labelID("Relabel", at.Repo, remove, ids); err != nil {
 			return err
 		}
 	}
 	path := fmt.Sprintf("%s/issues/%d/labels", g.repoPath(at.Repo), at.N)
-	if err := g.call("POST", path, map[string][]int64{"labels": {addID}}, http.StatusOK, nil); err != nil {
-		return err
+	if add != "" {
+		if err := g.call("POST", path, map[string][]int64{"labels": {addID}}, http.StatusOK, nil); err != nil {
+			return err
+		}
 	}
 	if remove == "" {
 		return nil

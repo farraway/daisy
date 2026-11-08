@@ -24,7 +24,7 @@ after the maintainer has said yes to that write.
    the runs since the maintainer last looked, and what each produced
    (a plan, a pull request, a review's verdict, a block and its reason),
    quoting the run's own words where they matter. Then "Waiting for you"
-   from `status`, each item with the decision it asks for and the
+   from `status` (on the forge, the same issues carry `swarm:gated`), each item with the decision it asks for and the
    evidence for it (for a plan, its `## Research` first: a wrong belief
    there is wrong in every slice built on it).
 3. **Confirm every write in words, one at a time.** Before running a verb,
@@ -65,9 +65,9 @@ the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first.
 | `triage #n` | `daisy swarm triage <n>` | `swarm:proposed → swarm:ready`; the architect plans it next |
 | `plan #n` | `daisy swarm accept <n>` | `swarm:planning → swarm:planned`; the worker builds the next slice |
 | `merge #n` (approval first, when a branch rule asks one) | `daisy swarm approve <n>` | a formal approving review of the issue's open pull request at its head |
-| `merge #n`, `next slice #n`, `close #n` | `daisy swarm merge <n>` | merges the current pull request at the head both swarm reviews approve (or finds it merged), then `swarm:approved → swarm:planned` when the plan declares a later slice, or closes the issue after its last |
+| `merge #n`, `next slice #n`, `close #n` | `daisy swarm merge <n>` | merges the current pull request at the head both swarm reviews approve (or finds it merged), then `swarm:approved → swarm:planned` when the plan declares a later slice, or closes the issue after its last, labelled `swarm:done` |
 | `blocked #n` | `daisy swarm unblock <n> <comment...>` | the comment, saying what changed, then `swarm:blocked →` the stage the reconciler's note names |
-| a job to drop, or one done | `daisy swarm close <n> [comment...]` | the comment when given, then the issue closed |
+| a job to drop | `daisy swarm close <n> [comment...]` | the comment when given, then the issue closed, labelled `swarm:rejected` (a job done closes through `merge`, which finds a pull request merged by hand) |
 | — | `daisy swarm pause`, `daisy swarm resume` | no member launches until resumed; resume also releases a held owner batch |
 
 A verb that refuses changes nothing; read its message to the maintainer

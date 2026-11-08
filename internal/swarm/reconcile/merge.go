@@ -11,8 +11,8 @@ import (
 // mergeStep is pass step (6), with the merge gate off (section 12): for
 // each open approved issue, its current pull request merged at the head
 // both its newest swarm reviews approve (or found merged), then T14 when
-// the accepted plan declares a slice after it and T15 otherwise; a
-// refused merge is T16.
+// the accepted plan declares a slice after it and T15 otherwise, the
+// closed issue labelled swarm:done; a refused merge is T16.
 func (s *Swarm) mergeStep() error {
 	issues, err := s.Forge.Issues(forge.Open, "swarm:approved")
 	if err != nil {
@@ -84,6 +84,9 @@ func (s *Swarm) mergeStep() error {
 			return err
 		}
 		fmt.Fprintf(s.Out, "#%d closed (last slice merged)\n", n)
+		if err := Retire(s.Forge, at, "swarm:approved", is.Labels, forge.Done, s.Out); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -152,12 +152,12 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
-	want := "#1 architect run 1: launched\n#1 architect run 1: posted comment\n#1 architect run 1: swarm:ready → swarm:planning\nPass 15:00:00: launched 1, collected 1, running 0\n"
+	want := "#1 architect run 1: launched\n#1 architect run 1: posted comment\n#1 architect run 1: swarm:ready → swarm:planning\n#1 gated\nPass 15:00:00: launched 1, collected 1, running 0\n"
 	if a.stdout.String() != want || a.stderr.Len() != 0 {
 		t.Errorf("stdout:\n%s\nstderr:\n%s", a.stdout.String(), a.stderr.String())
 	}
 	is, _ := a.forge.Issue(1)
-	if !reflect.DeepEqual(is.Labels, []string{"swarm:planning"}) || len(is.Comments) != 1 ||
+	if !reflect.DeepEqual(labels(is), []string{"swarm:planning", forge.Gated}) || len(is.Comments) != 1 ||
 		is.Comments[0].Body != "<!-- daisy-swarm role=architect run=1 -->\n**architect:**\n\n"+archPlan || is.Comments[0].Author != "swarm-bot" {
 		t.Fatalf("issue after pass 1: %+v", is)
 	}
@@ -208,7 +208,7 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 		t.Fatal(err)
 	}
 	is, _ = a.forge.Issue(1)
-	if len(a.runner.Launched) != 2 || !reflect.DeepEqual(is.Labels, []string{"swarm:planning"}) || len(is.Comments) != 4 ||
+	if len(a.runner.Launched) != 2 || !reflect.DeepEqual(labels(is), []string{"swarm:planning", forge.Gated}) || len(is.Comments) != 4 ||
 		!strings.HasPrefix(is.Comments[3].Body, "<!-- daisy-swarm role=architect run=2 -->\n") {
 		t.Errorf("pass 4: launched %d, issue %+v", len(a.runner.Launched), is)
 	}
@@ -259,10 +259,10 @@ func TestSwarmApplyRetriesAnInterruptedCollection(t *testing.T) {
 		t.Fatal(err)
 	}
 	is, _ := a.forge.Issue(1)
-	if len(is.Comments) != 1 || !reflect.DeepEqual(is.Labels, []string{"swarm:planning"}) || len(a.runner.Launched) != 1 {
+	if len(is.Comments) != 1 || !reflect.DeepEqual(labels(is), []string{"swarm:planning", forge.Gated}) || len(a.runner.Launched) != 1 {
 		t.Errorf("issue %+v, launched %d", is, len(a.runner.Launched))
 	}
-	if want := "#1 architect run 1: swarm:ready → swarm:planning\nPass 15:00:00: launched 0, collected 1, running 0\n"; a.stdout.String() != want {
+	if want := "#1 architect run 1: swarm:ready → swarm:planning\n#1 gated\nPass 15:00:00: launched 0, collected 1, running 0\n"; a.stdout.String() != want {
 		t.Errorf("stdout:\n%s", a.stdout.String())
 	}
 	if r := a.result("1-architect-1"); strings.Count(r, "posted comment") != 1 || !strings.HasSuffix(r, "outcome posted\ncollected\n") {
@@ -344,7 +344,11 @@ func TestSwarmApplyArchitectFailures(t *testing.T) {
 			for _, c := range is.Comments {
 				bodies = append(bodies, c.Body)
 			}
-			if !reflect.DeepEqual(is.Labels, []string{tc.label}) || !reflect.DeepEqual(bodies, tc.comments) {
+			want := []string{tc.label}
+			if tc.label == "swarm:blocked" {
+				want = append(want, forge.Gated) // blocked waits for the maintainer
+			}
+			if !reflect.DeepEqual(labels(is), want) || !reflect.DeepEqual(bodies, tc.comments) {
 				t.Errorf("labels %q, comments %q", is.Labels, bodies)
 			}
 			if r := a.result("1-architect-1"); !strings.HasSuffix(r, "outcome "+tc.outcome+"\ncollected\n") {

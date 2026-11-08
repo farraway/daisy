@@ -163,7 +163,9 @@ workflows) under `prompts/evals/`.
 **The swarm.** `daisy swarm init` declares a swarm in a workspace: it
 writes `<ws>/swarm/swarm.json` and a prompt per role under
 `<ws>/swarm/prompts/`,
-creates the eight stage labels on the forge and prints the systemd user
+creates the swarm's labels on the forge (the eight stages, the
+`swarm:gated` flag on what waits for you, and the terminals
+`swarm:done` and `swarm:rejected`) and prints the systemd user
 units for a timer. `daisy swarm apply --once` runs one pass of the
 reconciler: it reads the forge, launches the members (one agent run each,
 in its own container) whose turn it is, posts what they wrote and moves

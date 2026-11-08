@@ -201,7 +201,7 @@ func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
 	a.pass() // T10: reviewed
 	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: should main.go say v2 or v3?\n"})
 	a.pass() // T17: blocked
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked"}) {
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked", forge.Gated}) {
 		t.Fatalf("not blocked: %v\n%s", got, a.stdout.String())
 	}
 	m := &maintainerWS{statusWS: a.statusWS}
@@ -210,7 +210,7 @@ func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
 	if err := m.verb(swarmUnblock, "1", "v2, as the plan says."); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(m.stdout.String(), "#1 commented on pull app#2\n") {
+	if !strings.HasSuffix(m.stdout.String(), "#1 commented on pull app#2\n#1 swarm:blocked → swarm:reviewed\n#1 gated cleared\n") {
 		t.Errorf("unblock:\n%s", m.stdout.String())
 	}
 	before := len(a.runner.Launches())
@@ -265,7 +265,7 @@ func TestSwarmCollectionRelabelReadsTheLabelsAgain(t *testing.T) {
 	if err := a.apply(&relabelOnComment{Fake: a.forge, to: "swarm:blocked"}, "--once"); err != nil {
 		t.Fatal(err)
 	}
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked"}) || !strings.Contains(a.stderr.String(), "relabelled to swarm:blocked during the run") {
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked", forge.Gated}) || !strings.Contains(a.stderr.String(), "relabelled to swarm:blocked during the run") {
 		t.Errorf("labels %v\nstderr:\n%s", got, a.stderr.String())
 	}
 }

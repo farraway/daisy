@@ -103,7 +103,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 				note += " Its commits are kept in the swarm's mirror as refs/swarm-runs/1-worker-1."
 			}
 			b := a.bodies(1)
-			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked"}) || b[len(b)-1] != note {
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked", forge.Gated}) || b[len(b)-1] != note {
 				t.Fatalf("T17: %v %q\n%s", got, b, a.result("1-"+role+"-1"))
 			}
 			r := a.result("1-" + role + "-1")

@@ -82,7 +82,7 @@ var blockedFromRe = regexp.MustCompile(`\(was (swarm:[a-z-]+)\)`)
 // BlockedFrom is the stage is was blocked from, as the newest of the
 // reconciler's notes that moved it to blocked names it (every note but
 // the round limit's first, which returns the issue to the architect); ok
-// is false when no such note names one of the eight labels but blocked.
+// is false when no such note names one of the eight stages but blocked.
 func BlockedFrom(is forge.Issue, swarmLogin string) (label string, ok bool) {
 	label, _, ok = blockedFrom(is, swarmLogin)
 	return label, ok
@@ -110,7 +110,7 @@ func blockedFrom(is forge.Issue, swarmLogin string) (label string, roundLimit, o
 			return "", false, false
 		}
 		was := all[len(all)-1][1]
-		if was == "swarm:blocked" || !slices.Contains(forge.Labels, was) {
+		if was == "swarm:blocked" || !slices.Contains(forge.Stages, was) {
 			return "", false, false
 		}
 		return was, roundLimitNote.MatchString(text), true

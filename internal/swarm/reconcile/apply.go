@@ -73,13 +73,14 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 // collected; (3) the abandoned and the orphans over time; (4) paused;
 // (5) each stage's issues, their pull requests given the issue's label,
 // and the role rule's launches up to max_members; (6) the merge step with
-// the merge gate off; (7) the owner's batch trigger; (8) the forge
-// milestones mirroring the briefs, unless signalled; (9) the summary
-// line. With wait (`--once`), every container launched is waited for and
-// collected, a worker run's check included, before (8), so that a batch's
-// proposals are put in their milestones in the pass that ran it. A forge,
-// git or docker error is returned after the pass's other work; (8) only
-// warns.
+// the merge gate off; (7) the owner's batch trigger; (8) unless
+// signalled, the maintainer's flag set and cleared by the stages, then
+// the forge milestones mirroring the briefs; (9) the summary line. With
+// wait (`--once`), every container launched is waited for and collected,
+// a worker run's check included, before (8), so that the flag follows
+// the labels the collections moved and a batch's proposals are put in
+// their milestones in the pass that ran it. A forge, git or docker error
+// is returned after the pass's other work; (8) only warns.
 func (s *Swarm) Pass(wait bool) error {
 	if s.live == nil {
 		s.live, s.given = map[string]*live{}, map[string][]string{}
@@ -136,6 +137,7 @@ func (s *Swarm) Pass(wait bool) error {
 		errs = append(errs, s.Drain(nil))
 	}
 	if !s.stopping() {
+		s.flags()
 		s.milestones()
 	}
 	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, mine)
@@ -368,12 +370,13 @@ func (s *Swarm) containerName(n int, role string, k int) string {
 	return fmt.Sprintf("daisy-swarm.%s.%s.%d.%s.%d", o, repo, n, role, k)
 }
 
-// StageOf is the issue's one `swarm:*` label; ok is false with none or
-// more than one (section 5: an issue with two is skipped).
+// StageOf is the issue's one stage label (forge.IsStage: the flag and
+// the terminals are none); ok is false with none or more than one
+// (section 5: an issue with two is skipped).
 func StageOf(is forge.Issue) (stage string, ok bool) {
 	n := 0
 	for _, l := range is.Labels {
-		if strings.HasPrefix(l, "swarm:") {
+		if forge.IsStage(l) {
 			stage, n = l, n+1
 		}
 	}
@@ -383,7 +386,7 @@ func StageOf(is forge.Issue) (stage string, ok bool) {
 // stageOrder is section 5's labels in order: every stage is read, its
 // current pull request given its label, and the stages with a role
 // launched.
-var stageOrder = forge.Labels
+var stageOrder = forge.Stages
 
 // stages is pass step (5): for each label in order, each open issue's
 // thread and pull requests read, its current pull request given the
@@ -409,7 +412,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			}
 			var stages []string
 			for _, l := range is.Labels {
-				if strings.HasPrefix(l, "swarm:") {
+				if forge.IsStage(l) {
 					stages = append(stages, l)
 				}
 			}
@@ -503,12 +506,12 @@ func (s *Swarm) busy(running []runner.Running, runs []Run, n int) bool {
 }
 
 // copyLabel gives the issue's open current pull request the issue's stage
-// label (section 5): one of its own swarm:* labels other than the issue's
-// replaced, or the label added; any other label kept.
+// label (section 5): one of its own stage labels other than the issue's
+// replaced, or the label added; any other label, the flag among them, kept.
 func (s *Swarm) copyLabel(n int, p forge.Pull, label string) error {
 	var own []string
 	for _, l := range p.Labels {
-		if strings.HasPrefix(l, "swarm:") {
+		if forge.IsStage(l) {
 			own = append(own, l)
 		}
 	}

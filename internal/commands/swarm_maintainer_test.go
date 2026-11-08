@@ -134,13 +134,13 @@ func TestSwarmMaintainerVerbs(t *testing.T) {
 	m.ok(swarmApprove, head+"#1 approved pull app#2 at c1\n", "1")
 	m.ok(swarmMerge, head+"#1 merged pull app#2 (slice 1 of 2)\n#1 swarm:approved → swarm:planned\n", "1")
 	second := m.approvedPull(2, "c2abcdef0123")
-	m.ok(swarmMerge, head+"#1 merged pull app#3 (slice 2 of 2)\n#1 closed (last slice merged)\n", "1")
+	m.ok(swarmMerge, head+"#1 merged pull app#3 (slice 2 of 2)\n#1 closed (last slice merged)\n#1 swarm:approved → swarm:done\n", "1")
 
 	want := []string{
 		"jane labeled swarm:ready #1", "jane unlabeled swarm:proposed #1",
 		"jane labeled swarm:planned #1", "jane unlabeled swarm:planning #1",
 		"jane labeled swarm:planned #1", "jane unlabeled swarm:approved #1",
-		"jane closed #1",
+		"jane closed #1", "jane labeled swarm:done #1", "jane unlabeled swarm:approved #1",
 		"jane merged #2", "jane review 0 at c1 #2",
 		"jane merged #3",
 	}
@@ -172,9 +172,10 @@ func TestSwarmMaintainerCloseUnblockMerged(t *testing.T) {
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposed"})
 	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:ready"})
 	const head = "Maintainer jane on acme/app\n"
-	m.ok(swarmClose, head+"#1 commented\n#1 closed\n", "1", "Not", "this", "one.")
-	m.ok(swarmClose, head+"#2 closed\n", "2")
-	if got := m.writes(1, 2); !reflect.DeepEqual(got, []string{"jane closed #1", `jane comment "Not this one." #1`, "jane closed #2"}) {
+	m.ok(swarmClose, head+"#1 commented\n#1 closed\n#1 swarm:proposed → swarm:rejected\n", "1", "Not", "this", "one.")
+	m.ok(swarmClose, head+"#2 closed\n#2 swarm:ready → swarm:rejected\n", "2")
+	if got := m.writes(1, 2); !reflect.DeepEqual(got, []string{"jane closed #1", "jane labeled swarm:rejected #1", "jane unlabeled swarm:proposed #1", `jane comment "Not this one." #1`,
+		"jane closed #2", "jane labeled swarm:rejected #2", "jane unlabeled swarm:ready #2"}) {
 		t.Errorf("close's writes: %q", got)
 	}
 

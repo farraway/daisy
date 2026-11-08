@@ -256,8 +256,9 @@ func (f *Fake) SayOnLine(pr Ref, login, path string, line int, body string) {
 	it.pull.lines = append(it.pull.lines, ReviewComment{Author: login, Body: body, Path: path, Commit: it.pull.headSHA, Line: line, Created: f.o.Now()})
 }
 
-// Relabel adds add, then removes remove ("" removes nothing); both must
-// exist in the label set, and no other label is touched.
+// Relabel adds add, then removes remove ("" on either side changes
+// nothing there); both must exist in the label set, and no other label is
+// touched.
 func (f *Fake) Relabel(at Ref, remove, add string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -265,14 +266,16 @@ func (f *Fake) Relabel(at Ref, remove, add string) error {
 	if err != nil {
 		return err
 	}
-	check := []string{add}
-	if remove != "" {
-		check = append(check, remove)
+	var check []string
+	for _, l := range []string{add, remove} {
+		if l != "" {
+			check = append(check, l)
+		}
 	}
 	if err := f.known("Relabel", at.Repo, check...); err != nil {
 		return err
 	}
-	if !slices.Contains(it.labels, add) {
+	if add != "" && !slices.Contains(it.labels, add) {
 		it.labels = append(it.labels, add)
 		f.record(it, "labeled "+add)
 	}
@@ -283,9 +286,9 @@ func (f *Fake) Relabel(at Ref, remove, add string) error {
 	return nil
 }
 
-// SetLabel is the maintainer moving a stage by hand: every swarm:* label
-// at carries replaced by label, which the label set must hold; the others
-// kept.
+// SetLabel is the maintainer moving a stage by hand: every stage label
+// at carries (IsStage) replaced by label, which the label set must hold;
+// the others, the flag and the terminals among them, kept.
 func (f *Fake) SetLabel(at Ref, label string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -293,7 +296,7 @@ func (f *Fake) SetLabel(at Ref, label string) {
 	if err := f.known("SetLabel", at.Repo, label); err != nil {
 		panic("forge.Fake: " + err.Error())
 	}
-	it.labels = slices.DeleteFunc(it.labels, func(l string) bool { return strings.HasPrefix(l, "swarm:") })
+	it.labels = slices.DeleteFunc(it.labels, IsStage)
 	it.labels = append(it.labels, label)
 }
 

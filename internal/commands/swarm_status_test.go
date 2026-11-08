@@ -134,8 +134,9 @@ const (
 	reconciler = "<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\nfailed"
 )
 
-// The stages, whose turn each planning issue is, the paused and held
-// notes, the running set, the active briefs.
+// The stages, the paused and held notes, the running set, the active
+// briefs; every planning issue waits under the plan gate, whoever spoke
+// last in its thread (the flag's predicate, section 5).
 func TestSwarmStatusStages(t *testing.T) {
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) { c.Trusted = []string{"jane", "swarm-bot"}; c.Resources = []string{"docs/"} })
@@ -152,13 +153,13 @@ func TestSwarmStatusStages(t *testing.T) {
 	}
 	issue("swarm:proposed")                                  // 1
 	issue("swarm:proposed")                                  // 2
-	p3 := forge.Ref{Repo: "app", N: issue("swarm:planning")} // 3: the plan, the maintainer's turn
+	p3 := forge.Ref{Repo: "app", N: issue("swarm:planning")} // 3: the plan
 	f.Comment(p3, archMark)
 	f.Say(p3, "mallory", "untrusted, passed over")
-	p4 := forge.Ref{Repo: "app", N: issue("swarm:planning")} // 4: the maintainer answered: the architect's turn
+	p4 := forge.Ref{Repo: "app", N: issue("swarm:planning")} // 4: the maintainer answered; still at the gate
 	f.Comment(p4, archMark)
 	f.Say(p4, "Jane", "revise step 2")
-	p5 := forge.Ref{Repo: "app", N: issue("swarm:planning")} // 5: a marker under the maintainer's login is not the swarm's
+	p5 := forge.Ref{Repo: "app", N: issue("swarm:planning")} // 5: no plan yet; still at the gate
 	f.Say(p5, "jane", archMark)
 	issue("swarm:approved")                                // 6
 	b := forge.Ref{Repo: "app", N: issue("swarm:blocked")} // 7
@@ -191,7 +192,7 @@ Gates: triage on, plan on, merge on
   reviewed     0
   approved     1  #6
   blocked      1  #7
-Waiting for you: triage #1 #2; plan #3; merge #6; blocked #7
+Waiting for you: triage #1 #2; plan #3 #4 #5; merge #6; blocked #7
 Running: #0 owner, #8 adversary, #12 check
 ` + statusPersonas
 	briefs := "Briefs:\n  docs/briefs/next.md: 1 of 1 milestones not on the forge\n  docs/briefs/roadmap.md: 1 of 1 milestones with no issue\n"

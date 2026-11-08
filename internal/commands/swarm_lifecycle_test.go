@@ -104,7 +104,15 @@ type execErr struct {
 
 func (e *execErr) Error() string { return strings.Join(e.args, " ") + ": " + e.errb }
 
-func labels(is forge.Issue) []string { return is.Labels }
+// labels is the issue's labels with the maintainer's flag, when it
+// carries it, last: a test's expected labels say where the flag is.
+func labels(is forge.Issue) []string {
+	out := slices.DeleteFunc(slices.Clone(is.Labels), func(l string) bool { return l == forge.Gated })
+	if slices.Contains(is.Labels, forge.Gated) {
+		out = append(out, forge.Gated)
+	}
+	return out
+}
 
 func mark(role string, k int) string {
 	return "<!-- daisy-swarm role=" + role + " run=" + strconv.Itoa(k) + " -->\n**" + role + ":**\n\n"
@@ -135,7 +143,9 @@ const (
 // (T5), the maintainer accepts (T7), the worker pushes swarm/1-1 and opens
 // app#2 with Refs #1 after its check (T8), the pair reviews in two rounds
 // (T10, T12, T9), the maintainer merges and relabels planned (T13), and
-// the next slice starts on swarm/1-2.
+// the next slice starts on swarm/1-2. The maintainer's flag rides along:
+// on at proposed, planning and approved, the gated stages, and cleared by
+// the pass that moves the issue on from each.
 func TestSwarmApplyLifecycle(t *testing.T) {
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nThe first priority.\n\n## M1 The drift\n\nA persona sees no drift.\n")
@@ -147,7 +157,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	a.pass()
 	is := a.issue(1)
 	if is.Title != "Drift check" || is.Body != mark("owner", 1)+"Brief: docs/briefs/a.md — M1 The drift\nCheck the drift." || is.Author != "swarm-bot" ||
-		!reflect.DeepEqual(labels(is), []string{"swarm:proposed"}) {
+		!reflect.DeepEqual(labels(is), []string{"swarm:proposed", forge.Gated}) {
 		t.Fatalf("T1: %+v", is)
 	}
 	if !strings.Contains(a.stdout.String(), "owner run 1: launched\nowner run 1: proposed #1 Drift check\n") {
@@ -170,7 +180,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	a.forge.SetLabel(ref, "swarm:ready") // T3
 	a.runner.Script(1, "architect", runner.Canned{Out: twoSlices})
 	a.pass()
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:planning"}) {
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:planning", forge.Gated}) {
 		t.Fatalf("T5: %v", labels(a.issue(1)))
 	}
 
@@ -246,7 +256,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("round 2's Task:\n%s", sys)
 	}
 	a.pass() // T9
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:approved"}) {
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:approved", forge.Gated}) {
 		t.Fatalf("T9: %v", labels(a.issue(1)))
 	}
 	a.pass() // approved runs nobody
@@ -271,6 +281,9 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	merged := a.pulls(1)[0]
 	if len(ps) != 2 || ps[1].Head != "swarm/1-2" || ps[1].Number != 3 || ps[1].Title != "#1 slice 2: Drift check" {
 		t.Fatalf("slice 2: %+v", ps)
+	}
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:in-review"}) || !strings.Contains(a.stdout.String(), "#1 gated cleared\n") {
+		t.Errorf("T13 by hand, then T8: %v\n%s", labels(a.issue(1)), a.stdout.String())
 	}
 	if p := a.file("1-worker-3", "io/prompt.md"); !strings.Contains(p, "# Earlier pull requests\n\n- app#2 swarm/1-1 merged "+merged.MergeSHA+": #1 slice 1: Drift check\n") {
 		t.Errorf("slice 2's prompt:\n%s", p)
