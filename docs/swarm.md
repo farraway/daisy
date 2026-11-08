@@ -795,12 +795,12 @@ nothing: their trigger is the maintainer's decision.
 | T14 | `swarm:review-2-approved` | `swarm:plan-1-accepted` | G3 off | the merge step merges the current pull request (or finds it merged), and the plan declares a slice after `<s>` | Daisy: `Merge(m, <head>)`, then `Relabel(n, "swarm:review-2-approved", "swarm:plan-1-accepted")` |
 | T15 | `swarm:review-2-approved` | closed, `swarm:done` | G3 off | the merge step merges the current pull request (or finds it merged), and `<s>` is the plan's last slice | Daisy: `Merge(m, <head>)`, then `CloseIssue(n)` and `Relabel(n, "swarm:review-2-approved", "swarm:done")` |
 | T16 | `swarm:review-2-approved` | `swarm:review-2-approved` kept, `swarm:blocked` set | G3 off | the merge step's `Merge` is refused (the pull request is not mergeable, or its head is not the approved one) | Daisy: `Comment(n, <reconciler note>)`, then `Relabel(n, "", "swarm:blocked")` |
-| T17 | any stage with a role, or the in-progress stage its run's launch wrote | the run's home (T22), `swarm:blocked` set beside it | — | a run on the issue ends in a failure whose forge column in 7.7 is T17, or writes `BLOCKED:` | Daisy: the role's text when it wrote `BLOCKED:`, `Comment(n, <reconciler note>)`, then T22 when the launch wrote an in-progress stage, then `Relabel(n, "", "swarm:blocked")` |
+| T17 | any stage with a role, or the in-progress stage its run's launch wrote | the run's home (T22), `swarm:blocked` set beside it | — | a run on the issue ends in a failure whose forge column in 7.7 is T17, or writes `BLOCKED:` | Daisy: the role's text when it wrote `BLOCKED:`, `Comment(n, <reconciler note>)`, then T22 for a worker and a reviewer, then `Relabel(n, "", "swarm:blocked")` |
 | T18 | `swarm:blocked` set, at any stage | `swarm:blocked` cleared, the stage kept | G4 | the maintainer resumes the issue: the stage's role runs again at the next pass | the maintainer: `swarm unblock <n> <comment>`, its comment first, then `Relabel(n, "swarm:blocked", "")`; or on the forge, the flag removed, and the stage relabelled when another is wanted |
 | T19 | open, any label | closed, `swarm:done` or `swarm:rejected` | — | the maintainer closes the issue: the job done (with G3 on, after merging its last slice) or abandoned | the maintainer: `swarm merge <n>` of the last slice (`swarm:done`), or `swarm close <n> [comment]` (`swarm:rejected`), each then `Relabel(n, <stage>, <terminal>)` and each flag removed; or on the forge, the labels left as they are |
 | T20 | `swarm:plan-1-accepted` or `swarm:review-3-changes-requested` | `swarm:plan-2-in-progress` | — | the role rule launches the worker on the issue, and its container starts | Daisy: `Relabel(n, <stage>, "swarm:plan-2-in-progress")` |
 | T21 | `swarm:review-0-ready` | `swarm:review-1-in-progress` | — | the role rule launches the pair's first reviewer, and its container starts | Daisy: `Relabel(n, "swarm:review-0-ready", "swarm:review-1-in-progress")` |
-| T22 | the in-progress stage a run's launch wrote (T20, T21), or `swarm:review-1-in-progress` for the pair's second reviewer | the run's home: `swarm:review-0-ready` for a reviewer, the stage the run was launched on for a worker | — | the run ends without moving the issue on: a swarm fault, abandoned, stale (a reviewer), discarded (its pull request closed), or before T17's flag | Daisy: `Relabel(n, <in-progress>, <the run's label>)` |
+| T22 | the in-progress stage a run's launch wrote (T20, T21), or `swarm:review-1-in-progress` for the pair's second reviewer | the run's home: `swarm:review-0-ready` for a reviewer, the stage the run was launched on for a worker | — | the run ends without moving the issue on: a swarm fault, abandoned, stale (a reviewer), discarded (its pull request closed), or before T17's flag | Daisy: `Relabel(n, <in-progress>, <home>)`, `<home>` the run's home |
 
 The maintainer may also relabel any issue to any stage at any time; the
 next pass reads the new label and the role rule decides from there. That
@@ -1641,7 +1641,7 @@ relabel and what it names.
 
 | Failure | Kind | Detected by | `<run>/result` | On the forge |
 |---|---|---|---|---|
-| launch fails | fault | `Ops.Start` returns an error (no `docker`, no socket) | `launch-failed <time>`, `fault: launch: <error>` | none: nothing started, so no in-progress stage was written |
+| launch fails | fault | `Ops.Start` returns an error (no `docker`, no socket) | `launch-failed <time>`, `fault: launch: <error>` | none, nothing having started, but for the pair's second reviewer: T22, review-1-in-progress to review-0-ready |
 | Docker's own exit | fault | the exit status of `docker run` is 125–127 (a missing image, a command that cannot run) | `exited <code> <time>`, `fault: exit <code>` | T22 only |
 | prompt refused | fault | 7.1 step 2: a prompt file read back differs from what was rendered, or a heading field is empty | `launch-failed <time>`, `fault: prompt: <file>: <differs\|empty field>` | none, as a launch that fails |
 | slot refused | fault | 7.1 step 4: `<slot>/auth.json` is not a regular file, or the slot has no login (absent or empty) | `launch-failed <time>`, `fault: slot <provider>/<j>: auth.json is not a regular file` or `fault: slot <provider>/<j>: no login; run 'CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file'` | none, as a launch that fails |
@@ -1658,7 +1658,7 @@ relabel and what it names.
 | secret in output | work | 7.6, the secret check: `out.md`, a worker's commits or the posted tail of `check.out` holds a secret the member was given | `failed: secret in output: <out.md, commits and/or check.out>` | T17, the note naming where, never the value; nothing posted or pushed |
 | push rejected (worker) | work | 7.6 | `failed: push rejected` | T17 |
 | the clone reaches outside itself (worker) | work | 7.6 | `failed: the clone reaches outside itself: <what>` | T17 |
-| abandoned | — | a pass finds a run not its own with `started`, no end line and no container by the run's name (the `apply` that started it died) | `abandoned <time>`, then T22's `relabelled <in-progress> <label>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 |
+| abandoned | — | a pass finds a run not its own with `started`, no end line and no container by the run's name (the `apply` that started it died) | `abandoned <time>`, then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 |
 | orphan over time | — | a pass finds a container by the run's name, the run not its own, `started` more than `timeout` ago | `docker stop --time 30 <name>` sent; then abandoned as above | as abandoned |
 | orphan check over time | — | a pass finds a container named `daisy-swarm.<owner>.<repo>.<n>.check.<k>`, the run not its own, its `check started` more than `timeout` ago | `docker stop --time 30 <name>` sent; `check timeout <time>`; the collection then proceeds as after any check (7.6) | as the run's collection |
 | stale (reviewer) | — | 7.6: the pull request's head moved during the run | `stale <sha>`, `outcome stale`, `collected` | T22 only; relaunched on the new head |
@@ -3775,7 +3775,8 @@ entries among revision 1's, and was renumbered at Step 38.
     new one (`forge.Current`), so a run the old binary launched and the
     new one collects still moves its issue. **The in-progress stages are
     written once the container has started**, so a refused or failed
-    launch never moves the issue, and the collection moves it on from
+    launch never writes one (it moves only the pair's second reviewer's
+    issue, back home to review-0-ready), and the collection moves it on from
     whichever of the two stages it carries, so a refused write costs
     nothing; a run that does not move it on takes it back home (T22):
     a worker's to the stage it was launched on, which `<run>/result`
