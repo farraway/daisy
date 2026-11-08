@@ -169,7 +169,7 @@ func TestSwarmInitDefaults(t *testing.T) {
 	for _, r := range declare.Roles {
 		wantOut += "✓ Wrote swarm/prompts/" + r + ".md\n"
 	}
-	wantOut += "✓ Labels: 11 present (11 created)\n" + s.units()
+	wantOut += "✓ Labels: 15 present (15 created, 0 renamed)\n" + s.units()
 	if s.stdout.String() != wantOut {
 		t.Errorf("stdout:\n%s\nwant:\n%s", s.stdout.String(), wantOut)
 	}
@@ -208,11 +208,11 @@ func TestSwarmInitDefaults(t *testing.T) {
 	for _, r := range declare.Roles {
 		wantOut += "  Kept swarm/prompts/" + r + ".md (exists)\n"
 	}
-	wantOut += "✓ Labels: 11 present (0 created)\n" + s.units()
+	wantOut += "✓ Labels: 15 present (0 created, 0 renamed)\n" + s.units()
 	if s.stdout.String() != wantOut || s.read("swarm/swarm.json") != before || s.read("swarm/prompts/worker.md") != "# My worker\n" {
 		t.Errorf("second run:\n%s", s.stdout.String())
 	}
-	if len(s.forge.Labels()) != 11 {
+	if len(s.forge.Labels()) != 15 {
 		t.Errorf("labels %q", s.forge.Labels())
 	}
 
@@ -252,13 +252,13 @@ func TestSwarmInitReadyWarnsNothing(t *testing.T) {
 }
 
 // A refused label create: exit 1 with the missing names, the files
-// written; once the owner creates them, a re-run finds all eleven.
+// written; once the owner creates them, a re-run finds all fifteen.
 func TestSwarmInitRefusedLabels(t *testing.T) {
 	s := newSwarmWS(t)
-	s.forge.AddLabels("swarm:proposed", "swarm:ready")
+	s.forge.AddLabels("swarm:proposal-posted", "swarm:proposal-accepted")
 	s.forge.RefuseLabels()
 	err := s.run("--defaults")
-	want := "Error: forge: EnsureLabels: acme's labels missing: swarm:planning, swarm:planned, swarm:in-review, swarm:reviewed, swarm:approved, swarm:blocked, swarm:gated, swarm:done, swarm:rejected; an owner of acme creates them once"
+	want := "Error: forge: EnsureLabels: acme's labels missing: swarm:plan-0-posted, swarm:plan-1-accepted, swarm:plan-2-in-progress, swarm:review-0-ready, swarm:review-1-in-progress, swarm:review-2-approved, swarm:review-3-changes-requested, swarm:gated, swarm:blocked, swarm:paused, swarm:blocking, swarm:done, swarm:rejected; an owner of acme makes them once"
 	if errText(err) != want {
 		t.Errorf("got  %v\nwant %s", err, want)
 	}
@@ -269,7 +269,7 @@ func TestSwarmInitRefusedLabels(t *testing.T) {
 		t.Errorf("went on past the failure:\n%s", s.stdout.String())
 	}
 	s.forge.AddLabels(forge.Labels...)
-	if err := s.run("--defaults"); err != nil || !strings.Contains(s.stdout.String(), "✓ Labels: 11 present (0 created)\n") {
+	if err := s.run("--defaults"); err != nil || !strings.Contains(s.stdout.String(), "✓ Labels: 15 present (0 created, 0 renamed)\n") {
 		t.Errorf("re-run: %v\n%s", err, s.stdout.String())
 	}
 }

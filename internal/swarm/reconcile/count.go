@@ -14,7 +14,7 @@ import (
 // per swarm pull request, its review rounds and the maintainer's entries.
 type Counts struct {
 	Plans  int // the architect's plans in the issue thread; the revisions are those after the first
-	Blocks int // the reconciler's notes that moved the issue to blocked
+	Blocks int // the reconciler's notes that blocked the issue
 	Pulls  []PullCounts
 }
 
@@ -71,49 +71,22 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 
 // roundLimitNote is the round limit's second note, from its start: the
 // words alone could be a member's path quoted in a failure's note.
-var roundLimitNote = regexp.MustCompile(`^Review round [0-9]+ of [0-9]+ on \S+ ` + roundLimitAgain + ` \(was swarm:in-review\)\.`)
+var roundLimitNote = regexp.MustCompile(`^Review round [0-9]+ of [0-9]+ on \S+ ` + roundLimitAgain + ` \(at ` + forge.ReviewInProgress + `\)\.`)
 
-// blockedFromRe is the label a reconciler note names the issue left
-// (section 7.6): `(was swarm:<label>)`, the last in the note, since every
-// note writes it after any text it quotes (a failure's reason may hold a
-// member's path, a refused merge the forge's message).
-var blockedFromRe = regexp.MustCompile(`\(was (swarm:[a-z-]+)\)`)
-
-// BlockedFrom is the stage is was blocked from, as the newest of the
-// reconciler's notes that moved it to blocked names it (every note but
-// the round limit's first, which returns the issue to the architect); ok
-// is false when no such note names one of the eight stages but blocked.
-func BlockedFrom(is forge.Issue, swarmLogin string) (label string, ok bool) {
-	label, _, ok = blockedFrom(is, swarmLogin)
-	return label, ok
-}
-
-// AtTheRoundLimit: the newest note that blocked the issue is the round
-// limit's second, whose `(was swarm:in-review)` names a stage where no
-// role runs, both reviewers having reviewed the head (section 6).
+// AtTheRoundLimit: the newest of the reconciler's notes that blocked is
+// (every note but the round limit's first, which returns the issue to the
+// architect) is the round limit's second, which leaves the issue at
+// review-1-in-progress, where no role runs, both reviewers having
+// reviewed the head (section 6).
 func AtTheRoundLimit(is forge.Issue, swarmLogin string) bool {
-	_, again, ok := blockedFrom(is, swarmLogin)
-	return ok && again
-}
-
-func blockedFrom(is forge.Issue, swarmLogin string) (label string, roundLimit, ok bool) {
 	thread := IssueThread(is)
 	slices.SortStableFunc(thread, func(a, b Entry) int { return a.Created.Compare(b.Created) })
 	for i := len(thread) - 1; i >= 0; i-- {
 		m, swarm := Swarms(thread[i], swarmLogin)
 		text := swarmText(thread[i].Body)
-		if !swarm || m.Role != "reconciler" || strings.HasSuffix(text, architectRevises) {
-			continue
+		if swarm && m.Role == "reconciler" && !strings.HasSuffix(text, architectRevises) {
+			return roundLimitNote.MatchString(text)
 		}
-		all := blockedFromRe.FindAllStringSubmatch(text, -1)
-		if all == nil {
-			return "", false, false
-		}
-		was := all[len(all)-1][1]
-		if was == "swarm:blocked" || !slices.Contains(forge.Stages, was) {
-			return "", false, false
-		}
-		return was, roundLimitNote.MatchString(text), true
 	}
-	return "", false, false
+	return false
 }

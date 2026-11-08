@@ -13,6 +13,7 @@ import (
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
+	"daisy/internal/swarm/reconcile"
 )
 
 // maintainerWS is a swarm initialised with --defaults, jane a trusted
@@ -24,6 +25,7 @@ type maintainerWS struct {
 	as     map[string]*forge.Fake // the forge under each token
 	opened []string               // every token the verbs' opener was given
 	ran    []string               // every process the verbs ran
+	values []Value                // the value flags the cli read leading the next verb's arguments
 }
 
 const bothTokens = "export GITEA_TOKEN=\"tok-123\"\nexport DAISY_MAINTAINER_TOKEN=\"jane-456\"\n"
@@ -57,7 +59,7 @@ func (m *maintainerWS) verb(run func(*Context, opener) error, args ...string) er
 		},
 		PromptFn: func(io.Reader, io.Writer, string) (string, error) { m.t.Error("a verb prompted"); return "", io.EOF },
 	}
-	c := &Context{Ops: o, Env: env.Env{Root: m.root, Workspace: m.ws, Local: m.local}, Stdin: strings.NewReader(""), Stdout: &m.stdout, Stderr: &m.stderr, Args: args}
+	c := &Context{Ops: o, Env: env.Env{Root: m.root, Workspace: m.ws, Local: m.local}, Stdin: strings.NewReader(""), Stdout: &m.stdout, Stderr: &m.stderr, Args: args, Values: m.values}
 	return run(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
 		m.opened = append(m.opened, token)
 		if f, ok := m.as[token]; ok {
@@ -114,7 +116,7 @@ func (m *maintainerWS) approvedPull(s int, sha string) forge.Ref {
 	m.forge.Push(pr, sha)
 	m.forge.Review(pr, forge.Approve, mark("adversary", s)+approve)
 	m.forge.Review(pr, forge.Approve, mark("sympathetic", s)+approve)
-	m.forge.SetLabel(issue1, "swarm:approved")
+	m.forge.SetLabel(issue1, "swarm:review-2-approved")
 	return pr
 }
 
@@ -124,23 +126,23 @@ func (m *maintainerWS) approvedPull(s int, sha string) forge.Ref {
 // and no process but git run.
 func TestSwarmMaintainerVerbs(t *testing.T) {
 	m := newMaintainerWS(t)
-	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"Brief: docs/briefs/m0.md — First\n", []string{"swarm:proposed"})
+	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"Brief: docs/briefs/m0.md — First\n", []string{"swarm:proposal-posted"})
 	const head = "Maintainer jane on acme/app\n"
-	m.ok(swarmTriage, head+"#1 swarm:proposed → swarm:ready\n", "1")
+	m.ok(swarmTriage, head+"#1 swarm:proposal-posted → swarm:proposal-accepted\n", "1")
 	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
-	m.forge.SetLabel(issue1, "swarm:planning")
-	m.ok(swarmAccept, head+"#1 swarm:planning → swarm:planned\n", "1")
+	m.forge.SetLabel(issue1, "swarm:plan-0-posted")
+	m.ok(swarmAccept, head+"#1 swarm:plan-0-posted → swarm:plan-1-accepted\n", "1")
 	first := m.approvedPull(1, "c1")
 	m.ok(swarmApprove, head+"#1 approved pull app#2 at c1\n", "1")
-	m.ok(swarmMerge, head+"#1 merged pull app#2 (slice 1 of 2)\n#1 swarm:approved → swarm:planned\n", "1")
+	m.ok(swarmMerge, head+"#1 merged pull app#2 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", "1")
 	second := m.approvedPull(2, "c2abcdef0123")
-	m.ok(swarmMerge, head+"#1 merged pull app#3 (slice 2 of 2)\n#1 closed (last slice merged)\n#1 swarm:approved → swarm:done\n", "1")
+	m.ok(swarmMerge, head+"#1 merged pull app#3 (slice 2 of 2)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n", "1")
 
 	want := []string{
-		"jane labeled swarm:ready #1", "jane unlabeled swarm:proposed #1",
-		"jane labeled swarm:planned #1", "jane unlabeled swarm:planning #1",
-		"jane labeled swarm:planned #1", "jane unlabeled swarm:approved #1",
-		"jane closed #1", "jane labeled swarm:done #1", "jane unlabeled swarm:approved #1",
+		"jane labeled swarm:proposal-accepted #1", "jane unlabeled swarm:proposal-posted #1",
+		"jane labeled swarm:plan-1-accepted #1", "jane unlabeled swarm:plan-0-posted #1",
+		"jane labeled swarm:plan-1-accepted #1", "jane unlabeled swarm:review-2-approved #1",
+		"jane closed #1", "jane labeled swarm:done #1", "jane unlabeled swarm:review-2-approved #1",
 		"jane merged #2", "jane review 0 at c1 #2",
 		"jane merged #3",
 	}
@@ -164,50 +166,50 @@ func TestSwarmMaintainerVerbs(t *testing.T) {
 	}
 }
 
-// close, with a comment and without; unblock to the stage the reconciler's
-// note names, its comment first; a merge already made on the forge goes
-// straight to the relabel.
+// close, with a comment and without; unblock clearing swarm:blocked (and
+// the gated flag with it) from the stage the block kept, its comment
+// first; a merge already made on the forge goes straight to the relabel.
 func TestSwarmMaintainerCloseUnblockMerged(t *testing.T) {
 	m := newMaintainerWS(t)
-	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposed"})
-	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:ready"})
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
+	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:proposal-accepted"})
 	const head = "Maintainer jane on acme/app\n"
-	m.ok(swarmClose, head+"#1 commented\n#1 closed\n#1 swarm:proposed → swarm:rejected\n", "1", "Not", "this", "one.")
-	m.ok(swarmClose, head+"#2 closed\n#2 swarm:ready → swarm:rejected\n", "2")
-	if got := m.writes(1, 2); !reflect.DeepEqual(got, []string{"jane closed #1", "jane labeled swarm:rejected #1", "jane unlabeled swarm:proposed #1", `jane comment "Not this one." #1`,
-		"jane closed #2", "jane labeled swarm:rejected #2", "jane unlabeled swarm:ready #2"}) {
+	m.ok(swarmClose, head+"#1 commented\n#1 closed\n#1 swarm:proposal-posted → swarm:rejected\n", "1", "Not", "this", "one.")
+	m.ok(swarmClose, head+"#2 closed\n#2 swarm:proposal-accepted → swarm:rejected\n", "2")
+	if got := m.writes(1, 2); !reflect.DeepEqual(got, []string{"jane closed #1", "jane labeled swarm:rejected #1", "jane unlabeled swarm:proposal-posted #1", `jane comment "Not this one." #1`,
+		"jane closed #2", "jane labeled swarm:rejected #2", "jane unlabeled swarm:proposal-accepted #2"}) {
 		t.Errorf("close's writes: %q", got)
 	}
 
 	m = newMaintainerWS(t)
-	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:blocked"})
-	m.forge.Comment(issue1, mark("reconciler", 1)+"worker run 1 failed: check failed (was swarm:planned). Relabel the issue to resume.")
-	m.ok(swarmUnblock, head+"#1 commented\n#1 swarm:blocked → swarm:planned\n", "1", "The fixture is fixed;", "build again.")
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted", forge.Blocked, forge.Gated})
+	m.forge.Comment(issue1, mark("reconciler", 1)+"worker run 1 failed: check failed (at swarm:plan-1-accepted). Remove swarm:blocked to resume.")
+	m.ok(swarmUnblock, head+"#1 commented\n#1 blocked cleared\n#1 gated cleared\n", "1", "The fixture is fixed;", "build again.")
 	is, _ := m.forge.Issue(1)
-	if last := is.Comments[len(is.Comments)-1]; last.Author != "jane" || last.Body != "The fixture is fixed; build again." || !reflect.DeepEqual(is.Labels, []string{"swarm:planned"}) {
+	if last := is.Comments[len(is.Comments)-1]; last.Author != "jane" || last.Body != "The fixture is fixed; build again." || !reflect.DeepEqual(is.Labels, []string{"swarm:plan-1-accepted"}) {
 		t.Errorf("unblock: %+v, %q", last, is.Labels)
 	}
-	if got := m.writes(1); !reflect.DeepEqual(got, []string{"jane labeled swarm:planned #1", "jane unlabeled swarm:blocked #1", `jane comment "The fixture is fixed; build again." #1`}) {
+	if got := m.writes(1); !reflect.DeepEqual(got, []string{"jane unlabeled swarm:blocked #1", "jane unlabeled swarm:gated #1", `jane comment "The fixture is fixed; build again." #1`}) {
 		t.Errorf("unblock's writes: %q", got)
 	}
 
 	// jane untrusted: the unblock is made and says no member reads her.
 	m = newMaintainerWS(t)
 	m.edit(func(c *declare.Config) { c.Trusted = []string{"swarm-bot"} })
-	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:blocked"})
-	m.forge.Comment(issue1, mark("reconciler", 2)+"architect run 2 is blocked (was swarm:ready). Answer and relabel the issue to resume.")
-	m.ok(swarmUnblock, head+"#1 commented\n#1 swarm:blocked → swarm:ready\n", "1", "Use the stack.")
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-accepted", forge.Blocked})
+	m.forge.Comment(issue1, mark("reconciler", 2)+"architect run 2 is blocked (at swarm:proposal-accepted). Answer, then remove swarm:blocked to resume.")
+	m.ok(swarmUnblock, head+"#1 commented\n#1 blocked cleared\n", "1", "Use the stack.")
 	if m.stderr.String() != "⚠ jane is not in trusted: no member reads your comment (docs/swarm.md section 6)\n" {
 		t.Errorf("stderr %q", m.stderr.String())
 	}
 
 	// Merged on the forge already: the verb relabels for the next slice.
 	m = newMaintainerWS(t)
-	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposed"})
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
 	pr := m.approvedPull(1, "c1")
 	m.as["jane-456"].Merge(pr, "c1")
-	m.ok(swarmMerge, head+"#1 pull app#2 already merged (slice 1 of 2)\n#1 swarm:approved → swarm:planned\n", "1")
+	m.ok(swarmMerge, head+"#1 pull app#2 already merged (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", "1")
 }
 
 // Every verb refuses, writing nothing, when DAISY_MAINTAINER_TOKEN is
@@ -240,7 +242,7 @@ func TestSwarmMaintainerRefusesTheSwarmsToken(t *testing.T) {
 			if tc.swarmAccount {
 				m.as["jane-456"] = m.forge
 			}
-			m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:approved"})
+			m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:review-2-approved"})
 			m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
 			m.approvedPull(1, "c1")
 			err := m.verb(v.run, v.args...)
@@ -257,9 +259,11 @@ func TestSwarmMaintainerRefusesTheSwarmsToken(t *testing.T) {
 // The verbs' own refusals, each before any write: the issue in another
 // stage, closed, with two stages or none; merge without a head both
 // reviews approve, refused by the forge, or without a pull request; an
-// approval the forge refuses (422, plainly); unblock without a note
-// naming the prior stage; a comment carrying the marker; a word that is
-// not an issue number.
+// approval the forge refuses (422, plainly); unblock of an issue not
+// blocked, or blocked at the round limit's review-1-in-progress; block of
+// an issue by itself, by a closed one or by a pull request, and without
+// --by; pause and resume of an issue not the swarm's; a comment carrying
+// the marker; a word that is not an issue number.
 func TestSwarmMaintainerRefusals(t *testing.T) {
 	type seed func(m *maintainerWS)
 	issue := func(labels ...string) seed {
@@ -272,48 +276,67 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 		args []string
 		err  string
 	}{
-		{"triage of a ready issue", issue("swarm:ready"), swarmTriage, []string{"1"}, "Error: swarm: #1 is swarm:ready, not swarm:proposed; nothing changed"},
-		{"accept of a proposed issue", issue("swarm:proposed"), swarmAccept, []string{"1"}, "Error: swarm: #1 is swarm:proposed, not swarm:planning; nothing changed"},
-		{"two stages", issue("swarm:proposed", "swarm:ready"), swarmTriage, []string{"1"}, "Error: swarm: #1 carries swarm:proposed and swarm:ready; remove all but one on the forge first"},
+		{"triage of a ready issue", issue("swarm:proposal-accepted"), swarmTriage, []string{"1"}, "Error: swarm: #1 is swarm:proposal-accepted, not swarm:proposal-posted; nothing changed"},
+		{"accept of a proposed issue", issue("swarm:proposal-posted"), swarmAccept, []string{"1"}, "Error: swarm: #1 is swarm:proposal-posted, not swarm:plan-0-posted; nothing changed"},
+		{"two stages", issue("swarm:proposal-posted", "swarm:proposal-accepted"), swarmTriage, []string{"1"}, "Error: swarm: #1 carries swarm:proposal-posted and swarm:proposal-accepted; remove all but one on the forge first"},
 		{"no stage", func(m *maintainerWS) { m.forge.AddLabels("bug"); issue("bug")(m) }, swarmClose, []string{"1"}, "Error: swarm: #1 carries no swarm:* label; it is not the swarm's"},
-		{"closed", func(m *maintainerWS) { issue("swarm:ready")(m); m.forge.CloseIssue(1) }, swarmClose, []string{"1"}, "Error: swarm: #1 is closed; nothing changed"},
-		{"no such issue", issue("swarm:ready"), swarmClose, []string{"9"}, "Error: swarm: forge: acme/app#9: 404 not found"},
-		{"merge without a pull request", issue("swarm:approved"), swarmMerge, []string{"1"}, "Error: swarm: #1 has no swarm pull request; nothing merged"},
+		{"closed", func(m *maintainerWS) { issue("swarm:proposal-accepted")(m); m.forge.CloseIssue(1) }, swarmClose, []string{"1"}, "Error: swarm: #1 is closed; nothing changed"},
+		{"no such issue", issue("swarm:proposal-accepted"), swarmClose, []string{"9"}, "Error: swarm: forge: acme/app#9: 404 not found"},
+		{"merge without a pull request", issue("swarm:review-2-approved"), swarmMerge, []string{"1"}, "Error: swarm: #1 has no swarm pull request; nothing merged"},
 		{"merge of a head not approved", func(m *maintainerWS) {
-			issue("swarm:approved")(m)
+			issue("swarm:review-2-approved")(m)
 			pr := m.approvedPull(1, "c1")
 			m.forge.Review(pr, forge.RequestChanges, mark("adversary", 2)+requestChanges)
 		}, swarmMerge, []string{"1"}, "Error: swarm: #1: no head of pull app#2 is approved by both the swarm's reviews; nothing merged"},
 		{"merge refused by the forge", func(m *maintainerWS) {
-			issue("swarm:approved")(m)
+			issue("swarm:review-2-approved")(m)
 			m.forge.Unmergeable(m.approvedPull(1, "c1abcdef99"))
 		}, swarmMerge, []string{"1"}, "Error: swarm: #1: merge of pull app#2 at c1abcde refused: 405 Please try again later; nothing changed"},
 		{"merge of a pull request closed unmerged", func(m *maintainerWS) {
-			issue("swarm:approved")(m)
+			issue("swarm:review-2-approved")(m)
 			m.forge.CloseIssue(m.approvedPull(1, "c1").N) // a pull request of forge.repo closes as its issue
 		}, swarmMerge, []string{"1"}, "Error: swarm: #1: pull app#2 is closed unmerged; nothing merged"},
-		{"approve with no pull request", issue("swarm:approved"), swarmApprove, []string{"1"}, "Error: swarm: #1 has no open swarm pull request; nothing approved"},
+		{"approve with no pull request", issue("swarm:review-2-approved"), swarmApprove, []string{"1"}, "Error: swarm: #1 has no open swarm pull request; nothing approved"},
 		{"an approval the forge refuses", func(m *maintainerWS) {
-			issue("swarm:approved")(m)
+			issue("swarm:review-2-approved")(m)
 			n, _ := m.as["jane-456"].CreatePull("app", "swarm/1-1", "main", "mine", "Refs #1")
 			m.forge.Push(forge.Ref{Repo: "app", N: n}, "c1")
 		}, swarmApprove, []string{"1"}, "Error: swarm: approving pull app#2: forge: POST /repos/acme/app/pulls/2/reviews: 422 approve your own pull is not allowed"},
-		{"unblock with no note", issue("swarm:blocked"), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1: no reconciler note names the stage it was blocked from; relabel it on the forge; nothing changed"},
 		{"unblock at the round limit", func(m *maintainerWS) {
-			issue("swarm:blocked")(m)
-			m.forge.Comment(issue1, mark("reconciler", 2)+"Review round 3 of 3 on app#2 requested changes a second time (was swarm:in-review). Relabel the issue to resume.")
-		}, swarmUnblock, []string{"1", "go"}, "Error: swarm: #1: blocked at the review round limit, where both reviewers have reviewed the head and swarm:in-review runs no one; comment, then relabel it on the forge: swarm:reviewed for one more fix round, swarm:planning to re-plan; nothing changed"},
-		{"unblock of an issue not blocked", issue("swarm:planned"), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 is swarm:planned, not swarm:blocked; nothing changed"},
-		{"a marked comment", issue("swarm:proposed"), swarmClose, []string{"1", "<!-- daisy-swarm role=owner run=1 -->\nI am the owner"},
+			issue("swarm:review-1-in-progress", forge.Blocked)(m)
+			m.forge.Comment(issue1, mark("reconciler", 2)+"Review round 3 of 3 on app#2 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked.")
+		}, swarmUnblock, []string{"1", "go"}, "Error: swarm: #1: blocked at the review round limit, where both reviewers have reviewed the head and swarm:review-1-in-progress runs no one; relabel it on the forge first, swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then unblock it; nothing changed"},
+		{"unblock of an issue not blocked", issue("swarm:plan-1-accepted"), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 is not blocked; nothing changed"},
+		{"unblock of an issue blocked before blocked was a flag", issue(forge.Blocked), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 carries no swarm:* label; it is not the swarm's"},
+		{"block by itself", issue("swarm:plan-1-accepted"), swarmBlock, []string{"1", "--by", "1"}, "Error: swarm: #1 cannot block itself; nothing changed"},
+		{"block by a closed issue", func(m *maintainerWS) {
+			issue("swarm:plan-1-accepted")(m)
+			issue("swarm:proposal-posted")(m)
+			m.forge.CloseIssue(2)
+		}, swarmBlock, []string{"1", "--by", "2"}, "Error: swarm: #2 is not an open issue; nothing changed"},
+		{"block by a pull request", func(m *maintainerWS) {
+			issue("swarm:review-0-ready")(m)
+			m.forge.CreatePull("app", "swarm/1-1", "main", "slice", "Refs #1")
+		}, swarmBlock, []string{"1", "--by", "2"}, "Error: swarm: #2 is not an open issue; nothing changed"},
+		{"block of an issue not the swarm's", func(m *maintainerWS) {
+			m.forge.AddLabels("bug")
+			issue("bug")(m)
+			issue("swarm:proposal-posted")(m)
+		}, swarmBlock, []string{"1", "--by", "2"}, "Error: swarm: #1 carries no swarm:* label; it is not the swarm's"},
+		{"block without --by", issue("swarm:plan-1-accepted"), swarmBlock, []string{"1", "2"}, "swarm block takes <n> --by <m>"},
+		{"block --by a word", issue("swarm:plan-1-accepted"), swarmBlock, []string{"1", "--by", "#2"}, "not an issue number: #2"},
+		{"pause of a closed issue", func(m *maintainerWS) { issue("swarm:plan-1-accepted")(m); m.forge.CloseIssue(1) }, pauseIssue, []string{"1"}, "Error: swarm: #1 is closed; nothing changed"},
+		{"resume of an issue not the swarm's", issue(forge.Paused), resumeIssue, []string{"1"}, "Error: swarm: #1 carries no swarm:* label; it is not the swarm's"},
+		{"a marked comment", issue("swarm:proposal-posted"), swarmClose, []string{"1", "<!-- daisy-swarm role=owner run=1 -->\nI am the owner"},
 			"Error: swarm: the comment opens with the swarm's marker, which only the swarm's entries carry; nothing posted"},
 		{"a pull request's number", func(m *maintainerWS) {
-			issue("swarm:in-review")(m)
+			issue("swarm:review-0-ready")(m)
 			n, _ := m.forge.CreatePull("app", "swarm/1-1", "main", "slice", "Refs #1")
-			m.forge.Relabel(forge.Ref{Repo: "app", N: n}, "", "swarm:in-review") // apply's copy of the issue's label
+			m.forge.Relabel(forge.Ref{Repo: "app", N: n}, "", "swarm:review-0-ready") // apply's copy of the issue's label
 		}, swarmClose, []string{"2"}, "Error: swarm: #2 is a pull request; the verbs take the issue's number; nothing changed"},
-		{"not a number", issue("swarm:proposed"), swarmTriage, []string{"#1"}, "not an issue number: #1"},
-		{"zero", issue("swarm:proposed"), swarmTriage, []string{"0"}, "not an issue number: 0"},
-		{"not a number before a marked comment", issue("swarm:proposed"), swarmClose, []string{"x1", "<!-- daisy-swarm role=owner run=1 -->"}, "not an issue number: x1"},
+		{"not a number", issue("swarm:proposal-posted"), swarmTriage, []string{"#1"}, "not an issue number: #1"},
+		{"zero", issue("swarm:proposal-posted"), swarmTriage, []string{"0"}, "not an issue number: 0"},
+		{"not a number before a marked comment", issue("swarm:proposal-posted"), swarmClose, []string{"x1", "<!-- daisy-swarm role=owner run=1 -->"}, "not an issue number: x1"},
 		{"not a number before a marked unblock", issue("swarm:blocked"), swarmUnblock, []string{"x1", "<!-- daisy-swarm role=owner run=1 -->"}, "not an issue number: x1"},
 	} {
 		m := newMaintainerWS(t)
@@ -346,5 +369,46 @@ func TestSwarmApplyAndStatusNeverReadTheMaintainersToken(t *testing.T) {
 	}
 	if !reflect.DeepEqual(a.tokens, []string{"tok-123", "tok-123"}) || slices.Contains(a.asked, MaintainerTokenEnv) {
 		t.Errorf("tokens %q; asked %q", a.tokens, a.asked)
+	}
+}
+
+func pauseIssue(c *Context, open opener) error  { return swarmHold(c, open, true) }
+func resumeIssue(c *Context, open opener) error { return swarmHold(c, open, false) }
+
+// The maintainer's holds (section 11): pause <n> and resume <n> set and
+// clear swarm:paused on the issue, idempotently, as jane; block <n> --by
+// <m>, with --by after <n> or leading as the cli reads it, flags #m
+// swarm:blocking and then comments `Blocked by #<m>` on #n; nothing else
+// is written, and the bare pause and resume still act on the whole swarm.
+func TestSwarmMaintainerHolds(t *testing.T) {
+	m := newMaintainerWS(t)
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted"}) // #1
+	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:proposal-posted"}) // #2
+	m.forge.AddLabels("bug")
+	m.forge.CreateIssue("Not the swarm's", "", []string{"bug"}) // #3
+	const head = "Maintainer jane on acme/app\n"
+	m.ok(pauseIssue, head+"#1 paused\n", "1")
+	m.ok(pauseIssue, head+"#1 already paused\n", "1")
+	if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:plan-1-accepted", forge.Paused}) {
+		t.Errorf("pause: %v", is.Labels)
+	}
+	m.ok(resumeIssue, head+"#1 paused cleared\n", "1")
+	m.ok(resumeIssue, head+"#1 not paused\n", "1")
+	m.ok(swarmBlock, head+"#2 blocking\n#1 commented\n", "1", "--by", "2")
+	m.values = []Value{{Flag: "--by", Value: "3"}}
+	m.ok(swarmBlock, head+"#3 blocking\n#1 commented\n", "1")
+	m.values = nil
+	if got := m.writes(1, 2, 3); !reflect.DeepEqual(got, []string{"jane labeled swarm:paused #1", "jane unlabeled swarm:paused #1", `jane comment "Blocked by #2" #1`, `jane comment "Blocked by #3" #1`,
+		"jane labeled swarm:blocking #2", "jane labeled swarm:blocking #3"}) {
+		t.Errorf("writes: %q", got)
+	}
+	if is, _ := m.forge.Issue(1); reconcile.BlockedBy(is, "swarm-bot", []string{"jane", "swarm-bot"}) != 3 {
+		t.Errorf("the newest blocking comment does not name #3: %+v", is.Comments)
+	}
+	if err := m.verb(pauseIssue); err != nil || m.stdout.String() != "Paused: no new member will launch ("+m.state("paused")+"); running members finish and are posted\n" {
+		t.Errorf("the bare pause: %v %q", err, m.stdout.String())
+	}
+	if err := m.verb(resumeIssue); err != nil || m.stdout.String() != "Resumed: members launch at the next pass\n" {
+		t.Errorf("the bare resume: %v %q", err, m.stdout.String())
 	}
 }

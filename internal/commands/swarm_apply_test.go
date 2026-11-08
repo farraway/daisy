@@ -145,19 +145,19 @@ var issue1 = forge.Ref{Repo: "app", N: 1}
 // label.
 func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	a := newApplyWS(t)
-	if _, err := a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"}); err != nil {
+	if _, err := a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"}); err != nil {
 		t.Fatal(err)
 	}
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Stdout: claudeResult}, runner.Canned{Out: archPlan + "2. app: more.\n", Stdout: claudeResult})
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
-	want := "#1 architect run 1: launched\n#1 architect run 1: posted comment\n#1 architect run 1: swarm:ready → swarm:planning\n#1 gated\nPass 15:00:00: launched 1, collected 1, running 0\n"
+	want := "#1 architect run 1: launched\n#1 architect run 1: posted comment\n#1 architect run 1: swarm:proposal-accepted → swarm:plan-0-posted\n#1 gated\nPass 15:00:00: launched 1, collected 1, running 0\n"
 	if a.stdout.String() != want || a.stderr.Len() != 0 {
 		t.Errorf("stdout:\n%s\nstderr:\n%s", a.stdout.String(), a.stderr.String())
 	}
 	is, _ := a.forge.Issue(1)
-	if !reflect.DeepEqual(labels(is), []string{"swarm:planning", forge.Gated}) || len(is.Comments) != 1 ||
+	if !reflect.DeepEqual(labels(is), []string{"swarm:plan-0-posted", forge.Gated}) || len(is.Comments) != 1 ||
 		is.Comments[0].Body != "<!-- daisy-swarm role=architect run=1 -->\n**architect:**\n\n"+archPlan || is.Comments[0].Author != "swarm-bot" {
 		t.Fatalf("issue after pass 1: %+v", is)
 	}
@@ -180,7 +180,7 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	result := a.result("1-architect-1")
 	lines := strings.Split(strings.TrimSuffix(result, "\n"), "\n")
 	if len(lines) != 11 || !strings.HasPrefix(lines[0], "start app ") || !strings.HasPrefix(lines[1], "start lib ") ||
-		strings.Join(lines[2:], "\n") != "label swarm:ready\nstarted 2026-11-06T15:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\nexited 0 2026-11-06T15:00:00Z\ncost 0.25 tokens 10/20 turns 4\nposted comment\nrelabelled swarm:ready swarm:planning\noutcome posted\ncollected" {
+		strings.Join(lines[2:], "\n") != "label swarm:proposal-accepted\nstarted 2026-11-06T15:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\nexited 0 2026-11-06T15:00:00Z\ncost 0.25 tokens 10/20 turns 4\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\noutcome posted\ncollected" {
 		t.Errorf("result:\n%s", result)
 	}
 	for _, f := range []string{"io/system.md", "io/prompt.md", "argv", "stdout"} {
@@ -208,11 +208,11 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 		t.Fatal(err)
 	}
 	is, _ = a.forge.Issue(1)
-	if len(a.runner.Launched) != 2 || !reflect.DeepEqual(labels(is), []string{"swarm:planning", forge.Gated}) || len(is.Comments) != 4 ||
+	if len(a.runner.Launched) != 2 || !reflect.DeepEqual(labels(is), []string{"swarm:plan-0-posted", forge.Gated}) || len(is.Comments) != 4 ||
 		!strings.HasPrefix(is.Comments[3].Body, "<!-- daisy-swarm role=architect run=2 -->\n") {
 		t.Errorf("pass 4: launched %d, issue %+v", len(a.runner.Launched), is)
 	}
-	if !strings.Contains(a.result("1-architect-2"), "label swarm:planning\n") || strings.Contains(a.result("1-architect-2"), "relabelled") {
+	if !strings.Contains(a.result("1-architect-2"), "label swarm:plan-0-posted\n") || strings.Contains(a.result("1-architect-2"), "relabelled") {
 		t.Errorf("run 2:\n%s", a.result("1-architect-2"))
 	}
 	prompt, _ := os.ReadFile(a.state("runs/1-architect-2/io/prompt.md"))
@@ -249,7 +249,7 @@ func (f *failing) Relabel(at forge.Ref, remove, add string) error {
 // and posts nothing twice (section 7.6); --once exits 1 on the error.
 func TestSwarmApplyRetriesAnInterruptedCollection(t *testing.T) {
 	a := newApplyWS(t)
-	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
 	f := &failing{Fake: a.forge, relabels: 1}
 	if err := a.apply(f, "--once"); err == nil || !strings.Contains(err.Error(), "502 Bad Gateway") {
@@ -259,10 +259,10 @@ func TestSwarmApplyRetriesAnInterruptedCollection(t *testing.T) {
 		t.Fatal(err)
 	}
 	is, _ := a.forge.Issue(1)
-	if len(is.Comments) != 1 || !reflect.DeepEqual(labels(is), []string{"swarm:planning", forge.Gated}) || len(a.runner.Launched) != 1 {
+	if len(is.Comments) != 1 || !reflect.DeepEqual(labels(is), []string{"swarm:plan-0-posted", forge.Gated}) || len(a.runner.Launched) != 1 {
 		t.Errorf("issue %+v, launched %d", is, len(a.runner.Launched))
 	}
-	if want := "#1 architect run 1: swarm:ready → swarm:planning\n#1 gated\nPass 15:00:00: launched 0, collected 1, running 0\n"; a.stdout.String() != want {
+	if want := "#1 architect run 1: swarm:proposal-accepted → swarm:plan-0-posted\n#1 gated\nPass 15:00:00: launched 0, collected 1, running 0\n"; a.stdout.String() != want {
 		t.Errorf("stdout:\n%s", a.stdout.String())
 	}
 	if r := a.result("1-architect-1"); strings.Count(r, "posted comment") != 1 || !strings.HasSuffix(r, "outcome posted\ncollected\n") {
@@ -274,7 +274,7 @@ func TestSwarmApplyRetriesAnInterruptedCollection(t *testing.T) {
 // its comment cannot be posted, no second run launches.
 func TestSwarmApplyUncollectedHoldsTheIssue(t *testing.T) {
 	a := newApplyWS(t)
-	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan}, runner.Canned{Out: archPlan})
 	f := &failing{Fake: a.forge, comments: 2}
 	for pass := 1; pass <= 2; pass++ {
@@ -291,13 +291,13 @@ func TestSwarmApplyUncollectedHoldsTheIssue(t *testing.T) {
 // next pass finds the label moved and records nothing more but the end.
 func TestSwarmApplyFindsTheLabelMoved(t *testing.T) {
 	a := newApplyWS(t)
-	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.forge.Comment(issue1, "<!-- daisy-swarm role=architect run=1 -->\n**architect:**\n\n"+archPlan)
-	a.forge.SetLabel(issue1, "swarm:planning")
+	a.forge.SetLabel(issue1, "swarm:plan-0-posted")
 	run := a.state("runs/1-architect-1")
 	os.MkdirAll(filepath.Join(run, "io"), 0o755)
 	os.WriteFile(filepath.Join(run, "io", "out.md"), []byte(archPlan), 0o644)
-	os.WriteFile(filepath.Join(run, "result"), []byte("label swarm:ready\nstarted 2026-11-06T14:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\nexited 0 2026-11-06T14:10:00Z\nposted comment\n"), 0o644)
+	os.WriteFile(filepath.Join(run, "result"), []byte("label swarm:proposal-accepted\nstarted 2026-11-06T14:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\nexited 0 2026-11-06T14:10:00Z\nposted comment\n"), 0o644)
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatal(err)
 	}
@@ -308,8 +308,9 @@ func TestSwarmApplyFindsTheLabelMoved(t *testing.T) {
 }
 
 // The architect's failures (section 7.7): BLOCKED: posts its text, the
-// note and T17; no output and bad slices are T17 with the reason; Docker's
-// own exit is a swarm fault, nothing on the forge.
+// note and T17, the stage kept and swarm:blocked beside it; no output and
+// bad slices are T17 with the reason; Docker's own exit is a swarm fault,
+// nothing on the forge.
 func TestSwarmApplyArchitectFailures(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -320,21 +321,21 @@ func TestSwarmApplyArchitectFailures(t *testing.T) {
 	}{
 		{"blocked", runner.Canned{Out: "BLOCKED: which repository?\n"}, "swarm:blocked",
 			[]string{"<!-- daisy-swarm role=architect run=1 -->\n**architect:**\n\nBLOCKED: which repository?\n",
-				"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 is blocked (was swarm:ready). Answer and relabel the issue to resume."}, "blocked"},
+				"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 is blocked (at swarm:proposal-accepted). Answer, then remove swarm:blocked to resume."}, "blocked"},
 		{"no output", runner.Canned{Out: " \n"}, "swarm:blocked",
-			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: no output (was swarm:ready). Relabel the issue to resume."}, "failed"},
+			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: no output (at swarm:proposal-accepted). Remove swarm:blocked to resume."}, "failed"},
 		{"bad slices", runner.Canned{Out: "## Steps\n\n1. app: one.\n2. other: two.\n3. three.\n"}, "swarm:blocked",
-			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: bad slices: 2, 3 (was swarm:ready). Relabel the issue to resume."}, "failed"},
+			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: bad slices: 2, 3 (at swarm:proposal-accepted). Remove swarm:blocked to resume."}, "failed"},
 		{"timeout", runner.Canned{Out: archPlan, TimedOut: true, Code: 137}, "swarm:blocked",
-			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: timeout after 45m (was swarm:ready). Relabel the issue to resume."}, "failed"},
-		{"the image missing", runner.Canned{Code: 125}, "swarm:ready", nil, "fault"},
-		{"the provider's quota", runner.Canned{Out: archPlan, Code: 1, Stdout: `{"type":"result","is_error":true,"result":"Claude AI usage limit reached"}`}, "swarm:ready", nil, "fault"},
+			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: timeout after 45m (at swarm:proposal-accepted). Remove swarm:blocked to resume."}, "failed"},
+		{"the image missing", runner.Canned{Code: 125}, "swarm:proposal-accepted", nil, "fault"},
+		{"the provider's quota", runner.Canned{Out: archPlan, Code: 1, Stdout: `{"type":"result","is_error":true,"result":"Claude AI usage limit reached"}`}, "swarm:proposal-accepted", nil, "fault"},
 		{"the token in out.md", runner.Canned{Out: "leak oauth-token-0123456789abcdef0123456789\n"}, "swarm:blocked",
-			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: secret in output: out.md (was swarm:ready). Relabel the issue to resume."}, "failed"},
+			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: secret in output: out.md (at swarm:proposal-accepted). Remove swarm:blocked to resume."}, "failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newApplyWS(t)
-			a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+			a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 			a.runner.Script(1, "architect", tc.canned)
 			if err := a.apply(a.forge, "--once"); err != nil {
 				t.Fatal(err)
@@ -346,7 +347,7 @@ func TestSwarmApplyArchitectFailures(t *testing.T) {
 			}
 			want := []string{tc.label}
 			if tc.label == "swarm:blocked" {
-				want = append(want, forge.Gated) // blocked waits for the maintainer
+				want = []string{"swarm:proposal-accepted", forge.Blocked, forge.Gated} // blocked at its stage, waiting for the maintainer
 			}
 			if !reflect.DeepEqual(labels(is), want) || !reflect.DeepEqual(bodies, tc.comments) {
 				t.Errorf("labels %q, comments %q", is.Labels, bodies)
@@ -373,7 +374,7 @@ func TestSwarmApplyStart(t *testing.T) {
 		t.Errorf("lock held: %v", err)
 	}
 
-	a.forge.CreateIssue("", "No title.", []string{"swarm:ready"})
+	a.forge.CreateIssue("", "No title.", []string{"swarm:proposal-accepted"})
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +394,7 @@ func TestSwarmApplyOnASlot(t *testing.T) {
 	})
 	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
 	os.WriteFile(filepath.Join(slot, "config.toml"), []byte("x"), 0o600)
-	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatal(err)

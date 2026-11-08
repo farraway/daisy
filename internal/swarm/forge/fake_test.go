@@ -3,6 +3,7 @@ package forge
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ func fakeForge(t *testing.T) *Fake {
 	o := &ops.Fake{NowFn: func() time.Time { now = now.Add(time.Minute); return now }}
 	f := NewFake(o, "acme/app", []string{"app", "lib"}, Account{Login: "swarm-bot"})
 	f.AddLabels("bug")
-	if _, err := f.EnsureLabels(Labels); err != nil {
+	if _, _, err := f.EnsureLabels(Labels); err != nil {
 		t.Fatal(err)
 	}
 	return f
@@ -34,26 +35,26 @@ func numbers(is []Issue) []int {
 
 func TestFakeIssuesAndThreads(t *testing.T) {
 	f := fakeForge(t)
-	a, _ := f.CreateIssue("A", "body a", []string{"swarm:proposed"})
+	a, _ := f.CreateIssue("A", "body a", []string{"swarm:proposal-posted"})
 	pr, _ := f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
-	b, _ := f.CreateIssue("B", "", []string{"swarm:proposed", "bug"})
-	c, _ := f.CreateIssue("C", "", []string{"swarm:ready"})
+	b, _ := f.CreateIssue("B", "", []string{"swarm:proposal-posted", "bug"})
+	c, _ := f.CreateIssue("C", "", []string{"swarm:proposal-accepted"})
 	if a != 1 || pr != 2 || b != 3 || c != 4 {
 		t.Errorf("numbers %d %d %d %d: one counter per repository, shared by issues and pull requests", a, pr, b, c)
 	}
 	if n, _ := f.CreatePull("lib", "swarm/1-2", "main", "Q", "Refs acme/app#1"); n != 1 {
 		t.Errorf("lib's first number %d", n)
 	}
-	f.Relabel(Ref{"app", pr}, "", "swarm:proposed") // a pull request is never an issue
-	got, _ := f.Issues(Open, "swarm:proposed")
-	if !reflect.DeepEqual(numbers(got), []int{1, 3}) || got[1].Title != "B" || !reflect.DeepEqual(got[1].Labels, []string{"swarm:proposed", "bug"}) || got[0].Author != "swarm-bot" {
+	f.Relabel(Ref{"app", pr}, "", "swarm:proposal-posted") // a pull request is never an issue
+	got, _ := f.Issues(Open, "swarm:proposal-posted")
+	if !reflect.DeepEqual(numbers(got), []int{1, 3}) || got[1].Title != "B" || !reflect.DeepEqual(got[1].Labels, []string{"swarm:proposal-posted", "bug"}) || got[0].Author != "swarm-bot" {
 		t.Errorf("Issues(Open, proposed) = %+v", got)
 	}
 	f.CloseIssue(b)
-	if got, _ := f.Issues(Open, "swarm:proposed"); !reflect.DeepEqual(numbers(got), []int{1}) {
+	if got, _ := f.Issues(Open, "swarm:proposal-posted"); !reflect.DeepEqual(numbers(got), []int{1}) {
 		t.Errorf("after closing #3: %v", numbers(got))
 	}
-	if got, _ := f.Issues(Closed, "swarm:proposed"); !reflect.DeepEqual(numbers(got), []int{3}) || got[0].Open || got[0].Closed.IsZero() {
+	if got, _ := f.Issues(Closed, "swarm:proposal-posted"); !reflect.DeepEqual(numbers(got), []int{3}) || got[0].Open || got[0].Closed.IsZero() {
 		t.Errorf("Issues(Closed) = %+v", got)
 	}
 
@@ -72,40 +73,40 @@ func TestFakeIssuesAndThreads(t *testing.T) {
 
 func TestFakeRelabel(t *testing.T) {
 	f := fakeForge(t)
-	n, _ := f.CreateIssue("A", "", []string{"bug", "swarm:ready"})
-	if err := f.Relabel(Ref{"app", n}, "swarm:ready", "swarm:planning"); err != nil {
+	n, _ := f.CreateIssue("A", "", []string{"bug", "swarm:proposal-accepted"})
+	if err := f.Relabel(Ref{"app", n}, "swarm:proposal-accepted", "swarm:plan-0-posted"); err != nil {
 		t.Fatal(err)
 	}
 	is, _ := f.Issue(n)
-	if !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:planning"}) {
+	if !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:plan-0-posted"}) {
 		t.Errorf("labels %v: add, remove, the others kept", is.Labels)
 	}
-	if err := f.Relabel(Ref{"app", n}, "swarm:planning", "swarm:nonesuch"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eleven" {
+	if err := f.Relabel(Ref{"app", n}, "swarm:plan-0-posted", "swarm:nonesuch"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the fifteen" {
 		t.Errorf("an unknown label: %v", err)
 	}
 	f.Relabel(Ref{"app", n}, "", "swarm:blocked")
-	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:planning", "swarm:blocked"}) {
+	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:plan-0-posted", "swarm:blocked"}) {
 		t.Errorf("remove \"\" only adds: %v", is.Labels)
 	}
 	f.Relabel(Ref{"app", n}, "", Gated)
-	f.SetLabel(Ref{"app", n}, "swarm:planned")
-	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", Gated, "swarm:planned"}) {
-		t.Errorf("SetLabel moves the stage and keeps the flag: %v", is.Labels)
+	f.SetLabel(Ref{"app", n}, "swarm:plan-1-accepted")
+	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:blocked", Gated, "swarm:plan-1-accepted"}) {
+		t.Errorf("SetLabel moves the stage and keeps the flags: %v", is.Labels)
 	}
 	if err := f.Relabel(Ref{"app", n}, Gated, ""); err != nil {
 		t.Fatal(err)
 	}
-	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:planned"}) {
+	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:blocked", "swarm:plan-1-accepted"}) {
 		t.Errorf("add \"\" only removes: %v", is.Labels)
 	}
-	if _, err := f.CreateIssue("B", "", []string{"wontfix"}); errText(err) != "forge: CreateIssue: no label wontfix for acme/app; run 'daisy swarm init', which ensures the eleven" {
+	if _, err := f.CreateIssue("B", "", []string{"wontfix"}); errText(err) != "forge: CreateIssue: no label wontfix for acme/app; run 'daisy swarm init', which ensures the fifteen" {
 		t.Errorf("CreateIssue with an unknown label: %v", err)
 	}
 }
 
 func TestFakePullsReviewsAndMerge(t *testing.T) {
 	f := fakeForge(t)
-	n, _ := f.CreateIssue("Job", "", []string{"swarm:planned"})
+	n, _ := f.CreateIssue("Job", "", []string{"swarm:plan-1-accepted"})
 	if _, err := f.CreatePull("other", "swarm/1-1", "main", "x", ""); errText(err) != "forge: CreatePull: other is not a declared repository (app, lib)" {
 		t.Errorf("undeclared: %v", err)
 	}
@@ -162,7 +163,7 @@ func TestFakePullsReviewsAndMerge(t *testing.T) {
 // fail as the forge's 403.
 func TestFakeMilestones(t *testing.T) {
 	f := fakeForge(t)
-	a, _ := f.CreateIssue("A", "", []string{"swarm:ready"})
+	a, _ := f.CreateIssue("A", "", []string{"swarm:proposal-accepted"})
 	b, _ := f.CreateIssue("B", "", []string{"bug"})
 	pr, _ := f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
 	first, _ := f.EnsureMilestone("m0: First")
@@ -212,7 +213,7 @@ func TestFakeMilestones(t *testing.T) {
 func TestFakeAsAnotherAccount(t *testing.T) {
 	f := fakeForge(t)
 	jane := f.As(Account{Login: "jane"})
-	n, _ := f.CreateIssue("A", "", []string{"swarm:proposed"})
+	n, _ := f.CreateIssue("A", "", []string{"swarm:proposal-posted"})
 	pr, _ := f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
 	at, pull := Ref{"app", n}, Ref{"app", pr}
 	f.Push(pull, "c1")
@@ -222,9 +223,9 @@ func TestFakeAsAnotherAccount(t *testing.T) {
 	if is, _ := jane.Issue(n); is.Author != "swarm-bot" {
 		t.Errorf("jane reads another forge: %+v", is)
 	}
-	f.Relabel(at, "swarm:proposed", "swarm:ready")
-	jane.Relabel(at, "swarm:ready", "swarm:planned")
-	jane.Relabel(at, "swarm:ready", "swarm:planned") // nothing changes, nothing recorded
+	f.Relabel(at, "swarm:proposal-posted", "swarm:proposal-accepted")
+	jane.Relabel(at, "swarm:proposal-accepted", "swarm:plan-1-accepted")
+	jane.Relabel(at, "swarm:proposal-accepted", "swarm:plan-1-accepted") // nothing changes, nothing recorded
 	jane.Comment(at, "go")
 	if err := f.Approve(pull, "c1"); errText(err) != "forge: POST /repos/acme/app/pulls/2/reviews: 422 approve your own pull is not allowed" {
 		t.Errorf("the swarm approving its own pull request: %v", err)
@@ -235,7 +236,7 @@ func TestFakeAsAnotherAccount(t *testing.T) {
 	jane.Merge(pull, "c1")
 	jane.CloseIssue(n)
 	jane.CloseIssue(n)
-	want := []Event{{"swarm-bot", "labeled swarm:ready"}, {"swarm-bot", "unlabeled swarm:proposed"}, {"jane", "labeled swarm:planned"}, {"jane", "unlabeled swarm:ready"}, {"jane", "closed"}}
+	want := []Event{{"swarm-bot", "labeled swarm:proposal-accepted"}, {"swarm-bot", "unlabeled swarm:proposal-posted"}, {"jane", "labeled swarm:plan-1-accepted"}, {"jane", "unlabeled swarm:proposal-accepted"}, {"jane", "closed"}}
 	if got := f.Events(at); !reflect.DeepEqual(got, want) {
 		t.Errorf("issue events = %+v\nwant %+v", got, want)
 	}
@@ -252,11 +253,78 @@ func TestFakeAsAnotherAccount(t *testing.T) {
 // Pulls names who opened each pull request, as gitea's `user.login` does.
 func TestFakePullAuthor(t *testing.T) {
 	f := fakeForge(t)
-	f.CreateIssue("A", "", []string{"swarm:proposed"})
+	f.CreateIssue("A", "", []string{"swarm:proposal-posted"})
 	f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
 	f.As(Account{Login: "mallory"}).CreatePull("app", "swarm/1-2", "main", "Q", "Refs #1")
 	ps, err := f.Pulls(1)
 	if err != nil || len(ps) != 2 || ps[0].Author != f.account.Login || ps[1].Author != "mallory" {
 		t.Errorf("Pulls(1) = %+v, %v", ps, err)
+	}
+}
+
+// The one-time migration (section 14, item 74): a Fake holding the eleven
+// labels of Step 14 under their old names renames the seven old stage
+// names in place, every issue and pull request carrying one, open or
+// closed, reading its new name, and creates the four the set lacks; a
+// second run makes nothing; a refused one names what is left to make.
+func TestFakeEnsureLabelsRenamesTheOldNames(t *testing.T) {
+	o := &ops.Fake{NowFn: func() time.Time { return at(2026, 11, 7, 23, 0) }}
+	f := NewFake(o, "acme/app", []string{"app"}, Account{Login: "swarm-bot"})
+	before := []string{"swarm:proposed", "swarm:ready", "swarm:planning", "swarm:planned", "swarm:in-review", "swarm:reviewed", "swarm:approved", "swarm:blocked", "swarm:gated", "swarm:done", "swarm:rejected", "bug"}
+	f.AddLabels(before...)
+	open, _ := f.CreateIssue("Open", "", []string{"bug", "swarm:in-review", Gated})
+	pr, _ := f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
+	f.Relabel(Ref{"app", pr}, "", "swarm:in-review")
+	closed, _ := f.CreateIssue("Closed", "", []string{"swarm:approved"})
+	f.CloseIssue(closed)
+	blocked, _ := f.CreateIssue("Blocked", "", []string{"swarm:blocked"})
+
+	refused := NewFake(o, "acme/app", nil, Account{Login: "swarm-bot"})
+	refused.AddLabels(before...)
+	refused.RefuseLabels()
+	if _, _, err := refused.EnsureLabels(Labels); errText(err) != "forge: EnsureLabels: acme's labels to rename (keeping their issues): swarm:proposed as swarm:proposal-posted, swarm:ready as swarm:proposal-accepted, swarm:planning as swarm:plan-0-posted, swarm:planned as swarm:plan-1-accepted, swarm:in-review as swarm:review-0-ready, swarm:approved as swarm:review-2-approved, swarm:reviewed as swarm:review-3-changes-requested; missing: swarm:plan-2-in-progress, swarm:review-1-in-progress, swarm:paused, swarm:blocking; an owner of acme makes them once" {
+		t.Errorf("refused: %v", err)
+	}
+	if !reflect.DeepEqual(refused.Labels(), before) {
+		t.Errorf("a refused migration changed the set: %v", refused.Labels())
+	}
+
+	created, renamed, err := f.EnsureLabels(Labels)
+	if err != nil || created != 4 || renamed != 7 {
+		t.Fatalf("EnsureLabels = %d created, %d renamed, %v", created, renamed, err)
+	}
+	for _, l := range Labels {
+		if !slices.Contains(f.Labels(), l) {
+			t.Errorf("%s missing after the migration", l)
+		}
+	}
+	for old := range Renamed {
+		if slices.Contains(f.Labels(), old) {
+			t.Errorf("%s still in the set", old)
+		}
+	}
+	read := func(at Ref) []string {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return must(f.find(at)).labels
+	}
+	for _, tc := range []struct {
+		at   Ref
+		want []string
+	}{
+		{Ref{"app", open}, []string{"bug", "swarm:review-0-ready", Gated}},
+		{Ref{"app", pr}, []string{"swarm:review-0-ready"}},
+		{Ref{"app", closed}, []string{"swarm:review-2-approved"}},
+		{Ref{"app", blocked}, []string{"swarm:blocked"}},
+	} {
+		if got := read(tc.at); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("#%d: %v, want %v", tc.at.N, got, tc.want)
+		}
+	}
+	if got, _ := f.Issues(Closed, "swarm:review-2-approved"); len(got) != 1 || got[0].Number != closed {
+		t.Errorf("the closed issue is not listed by its new name: %+v", got)
+	}
+	if created, renamed, err := f.EnsureLabels(Labels); created != 0 || renamed != 0 || err != nil {
+		t.Errorf("a second run: %d created, %d renamed, %v", created, renamed, err)
 	}
 }

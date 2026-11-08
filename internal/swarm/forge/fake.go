@@ -100,8 +100,8 @@ func (f *Fake) record(it *item, what string) {
 	it.events = append(it.events, Event{f.account.Login, what})
 }
 
-// RefuseLabels makes every later label create be refused: EnsureLabels
-// fails as Gitea's refused create does, creating nothing more.
+// RefuseLabels makes every later label rename and create be refused:
+// EnsureLabels fails as Gitea's refused write does, making nothing more.
 func (f *Fake) RefuseLabels() { f.mu.Lock(); defer f.mu.Unlock(); f.refuse = true }
 
 // AddLabels creates labels as an owner of the organization does by hand,
@@ -123,20 +123,27 @@ func (f *Fake) addLabels(names ...string) {
 // Labels is the label set, in creation order.
 func (f *Fake) Labels() []string { f.mu.Lock(); defer f.mu.Unlock(); return slices.Clone(f.labels) }
 
-func (f *Fake) EnsureLabels(names []string) (int, error) {
+// EnsureLabels renames and creates as Gitea's adapter does: a renamed
+// label keeps its issues, which carry the new name from then on.
+func (f *Fake) EnsureLabels(names []string) (int, int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	var missing []string
-	for _, n := range names {
-		if !slices.Contains(f.labels, n) && !slices.Contains(missing, n) {
-			missing = append(missing, n)
+	holds := func(n string) bool { return slices.Contains(f.labels, n) }
+	rename := renames(names, holds)
+	missing := absent(names, holds, rename)
+	if len(rename)+len(missing) > 0 && f.refuse {
+		return 0, 0, refusedLabels(f.owner, rename, missing)
+	}
+	for _, r := range rename {
+		f.labels[slices.Index(f.labels, r[0])] = r[1]
+		for _, it := range f.items {
+			if i := slices.Index(it.labels, r[0]); i >= 0 {
+				it.labels[i] = r[1]
+			}
 		}
 	}
-	if len(missing) > 0 && f.refuse {
-		return 0, refusedLabels(f.owner, missing)
-	}
 	f.addLabels(missing...)
-	return len(missing), nil
+	return len(missing), len(rename), nil
 }
 
 func (f *Fake) Login() (Account, error) { return f.account, nil }

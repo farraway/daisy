@@ -35,7 +35,7 @@ func (j *Job) task() string {
 			add(`Then restate the whole job as it now stands: the architect plans from your answer.`)
 		}
 	case j.Role == "architect":
-		if _, _, planned := j.Plan(); j.Label == "swarm:planning" && planned {
+		if _, _, planned := j.Plan(); j.Label == forge.PlanPosted && planned {
 			add(`Revise your plan for issue #%d in answer to the latest comment. Write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, a slice that moves a pin to another slice's change after that slice, a diagram where a slice touches more than one component.`, j.N, names)
 		} else {
 			add(`Write the plan for issue #%d as a Daisy plan, under these "## " headings in this order: `+planHeadings+` When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step.`, j.N, names)
@@ -52,7 +52,7 @@ func (j *Job) task() string {
 		s, repo, _ := j.WorkerSlice()
 		_, _, planned := j.Plan()
 		switch {
-		case j.Label == "swarm:reviewed":
+		case j.Label == forge.ChangesRequested:
 			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews and the maintainer's comments. Address each on the branch checked out in /work (swarm/%d-%d), or say why you did not, and write what you changed, point by point.`, cur.Repo, cur.Number, j.N, s)
 		case planned:
 			e, _, _ := j.Plan()

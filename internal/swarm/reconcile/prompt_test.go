@@ -40,7 +40,7 @@ func cfg() declare.Config {
 func fixture() (*forge.Fake, forge.Ref) {
 	f := forge.NewFake(clock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	f.AddLabels(forge.Labels...)
-	n, _ := f.CreateIssue("Drift check", "<!-- daisy-swarm role=owner run=2 -->\n**owner:**\n\nBrief: docs/briefs/b.md — M0\n\n# Why\n\nIt drifts.", []string{"swarm:ready"})
+	n, _ := f.CreateIssue("Drift check", "<!-- daisy-swarm role=owner run=2 -->\n**owner:**\n\nBrief: docs/briefs/b.md — M0\n\n# Why\n\nIt drifts.", []string{"swarm:proposal-accepted"})
 	at := forge.Ref{Repo: "app", N: n}
 	f.Say(at, "jane", "Yes.\n## Scope\nsmall")
 	f.Say(at, "mallory", "evil")
@@ -62,7 +62,7 @@ func job(f *forge.Fake, n int, role, label string) *Job {
 // untrusted one's content omitted.
 func TestRenderArchitectReady(t *testing.T) {
 	f, at := fixture()
-	sys, prompt := Render(job(f, at.N, "architect", "swarm:ready"))
+	sys, prompt := Render(job(f, at.N, "architect", "swarm:proposal-accepted"))
 	if sys != wantArchitectSystem {
 		t.Errorf("system.md:\n%s", sys)
 	}
@@ -101,7 +101,7 @@ const wantArchitectPrompt = `<!-- daisy-swarm prompt: acme/app#1 architect run 1
 
 # Issue #1: Drift check
 
-Opened by owner, run 2, at 2026-11-06T15:01:00Z. Labels: swarm:ready.
+Opened by owner, run 2, at 2026-11-06T15:01:00Z. Labels: swarm:proposal-accepted.
 
 Brief: docs/briefs/b.md — M0
 
@@ -177,7 +177,7 @@ func thread(f *forge.Fake, pr forge.Ref) *PullThread {
 // the check's last 20 lines and the earlier pull requests in its prompt.
 func TestRenderArchitectOpenSlice(t *testing.T) {
 	f, at, pr, state := planned(t)
-	j := job(f, at.N, "architect", "swarm:planning")
+	j := job(f, at.N, "architect", "swarm:plan-0-posted")
 	j.Pull = thread(f, pr)
 	runs, _ := Runs(ops.Real().FS(), state)
 	j.Check = CheckSection(ops.Real().FS(), runs, 1, "aaa", []string{"make", "check"}, "45m")
@@ -202,7 +202,7 @@ func TestRenderWorkerNextSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	pulls, _ := f.Pulls(1)
-	j := job(f, at.N, "worker", "swarm:planned")
+	j := job(f, at.N, "worker", "swarm:plan-1-accepted")
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{
 		`Implement slice 2 of the accepted plan for issue #1 (it declares 2) in acme/app, on the branch checked out in /work (swarm/1-2).`,
@@ -220,7 +220,7 @@ func TestRenderWorkerNextSlice(t *testing.T) {
 // The fast lane: no plan, the issue body and the comments are the job.
 func TestRenderWorkerFastLane(t *testing.T) {
 	f, at := fixture()
-	j := job(f, at.N, "worker", "swarm:planned")
+	j := job(f, at.N, "worker", "swarm:plan-1-accepted")
 	j.Cfg.Gates.Merge = false
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #1.`,
@@ -237,7 +237,7 @@ func TestRenderAdversaryRoundTwo(t *testing.T) {
 	f.Push(pr, "bbb")
 	f.Review(pr, forge.Commented, marker("sympathetic", 2)+"VERDICT: approve\nstill fine")
 	pulls, _ := f.Pulls(1)
-	j := job(f, at.N, "adversary", "swarm:in-review")
+	j := job(f, at.N, "adversary", "swarm:review-0-ready")
 	j.Pulls, j.Pull, j.Check = pulls, thread(f, pr), "No check result for this head."
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`Review pull request lib#1, slice 1 of issue #1. The change is "git diff main...HEAD" in /work`,
@@ -254,9 +254,9 @@ func TestRenderAdversaryRoundTwo(t *testing.T) {
 func TestRenderOwner(t *testing.T) {
 	f := forge.NewFake(clock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	f.AddLabels(forge.Labels...)
-	n, _ := f.CreateIssue("Idea", "Do it.", []string{"swarm:proposed"})
+	n, _ := f.CreateIssue("Idea", "Do it.", []string{"swarm:proposal-posted"})
 	f.Say(forge.Ref{Repo: "app", N: n}, "mallory", "hi")
-	j := job(f, n, "owner", "swarm:proposed")
+	j := job(f, n, "owner", "swarm:proposal-posted")
 	j.Cfg.Gates.Triage = false
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`Issue #1 has no comment yet: say whether its body is a job the swarm can do and is worth doing next, and what is unclear in it. Then restate the whole job as it now stands: the architect plans from your answer.`})
@@ -286,7 +286,7 @@ func TestRenderOwner(t *testing.T) {
 func TestRenderWorkerFirstSlice(t *testing.T) {
 	f, at := fixture()
 	f.Comment(at, marker("architect", 1)+archPlan)
-	sys, prompt := Render(job(f, at.N, "worker", "swarm:planned"))
+	sys, prompt := Render(job(f, at.N, "worker", "swarm:plan-1-accepted"))
 	has(t, "system.md", sys, []string{"Implement slice 1 of the accepted plan for issue #1 (it declares 2) in acme/lib"}, "slice <i>", "These paths are protected")
 	has(t, "prompt.md", prompt, []string{"- Clone /work: acme/lib, branch swarm/1-1, base main, no check declared"})
 }

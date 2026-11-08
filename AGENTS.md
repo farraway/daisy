@@ -195,13 +195,14 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm init [--defaults]` | Declare the swarm: swarm.json, prompts, labels |
 | Swarm | `daisy swarm apply [--once]` | Reconcile the forge: launch members, post their output, move labels |
 | Swarm | `daisy swarm status` | Stages, gates, what waits for you, running members (read-only) |
-| Swarm | `daisy swarm pause` | Launch no new member until resumed; running ones are collected |
-| Swarm | `daisy swarm resume` | Launch members again and release the owner's held batch |
-| Swarm | `daisy swarm triage <n>` | As the maintainer: triage a proposed job to ready |
-| Swarm | `daisy swarm accept <n>` | As the maintainer: accept the plan, planning to planned |
+| Swarm | `daisy swarm pause [<n>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue) |
+| Swarm | `daisy swarm resume [<n>]` | Launch members again and release the owner's held batch (with <n>, that issue) |
+| Swarm | `daisy swarm triage <n>` | As the maintainer: triage a proposal, proposal-posted to proposal-accepted |
+| Swarm | `daisy swarm accept <n>` | As the maintainer: accept the plan, plan-0-posted to plan-1-accepted |
 | Swarm | `daisy swarm approve <n>` | As the maintainer: approve the issue's open pull request |
 | Swarm | `daisy swarm merge <n>` | As the maintainer: merge the approved pull request, then next slice or close |
-| Swarm | `daisy swarm unblock <n> <comment...>` | As the maintainer: comment, then return a blocked issue to its prior stage |
+| Swarm | `daisy swarm unblock <n> <comment...>` | As the maintainer: comment, then clear swarm:blocked from the issue |
+| Swarm | `daisy swarm block <n> --by <m>` | As the maintainer: hold the issue's job until #m is closed |
 | Swarm | `daisy swarm close <n> [comment...]` | As the maintainer: close the issue, after the comment when given |
 | System | `daisy commit [--root] <message>` | Commit the home repo (or the root repo) |
 | System | `daisy healthcheck [--force]` | Run the system health check |
@@ -255,7 +256,8 @@ agent working near it:
   verb only after the maintainer has confirmed that write in words.
 - **Two tokens, two code paths.** The swarm's token (`forge.token_env` in
   `swarm.json`) is read by `init`, `apply` and `status`; the maintainer's
-  (`DAISY_MAINTAINER_TOKEN`) by the six verbs only, which refuse when it
+  (`DAISY_MAINTAINER_TOKEN`) by the maintainer's verbs only (and `pause`
+  and `resume` given an issue), which refuse when it
   equals the swarm's or is the swarm's account. Neither value is ever
   printed, written to a file Daisy makes, or passed into a container (a
   member gets exactly one credential, its provider's).
@@ -400,7 +402,7 @@ The reference source itself is never modified or deleted by adoption: copy
 ## Reference Documentation
 
 - [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the command tree as built, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
-- [`docs/swarm.md`](docs/swarm.md) — The swarm's contract (the eleven verbs built; the board, the GitHub adapter and the budget specified ahead of their build): `swarm.json`, the brief, the label lifecycle and trigger rule, the marker, the member container and its image, the credential rule, the provider and forge seams, the verbs (the maintainer's six among them, with the `swarm` skill as their guide), the merge gate
+- [`docs/swarm.md`](docs/swarm.md) — The swarm's contract (the twelve verbs built; the board, the GitHub adapter and the budget specified ahead of their build): `swarm.json`, the brief, the label lifecycle and trigger rule, the marker, the member container and its image, the credential rule, the provider and forge seams, the verbs (the maintainer's six among them, with the `swarm` skill as their guide), the merge gate
 - [`docs/home-management.md`](docs/home-management.md) — Root and homes as separate repositories, the registry, identities, per-workspace resolution, the health check
 - [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) — The situated/craft distinction, the coupling criterion, the ownership axis, worked examples
 - [`docs/task-format.md`](docs/task-format.md) — Task format regex, conversion rules, file organization

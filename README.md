@@ -163,9 +163,11 @@ workflows) under `prompts/evals/`.
 **The swarm.** `daisy swarm init` declares a swarm in a workspace: it
 writes `<ws>/swarm/swarm.json` and a prompt per role under
 `<ws>/swarm/prompts/`,
-creates the swarm's labels on the forge (the eight stages, the
-`swarm:gated` flag on what waits for you, and the terminals
-`swarm:done` and `swarm:rejected`) and prints the systemd user
+creates the swarm's labels on the forge (the nine stages, grouped and
+numbered as the job gets on, `swarm:proposal-posted` to
+`swarm:review-3-changes-requested`; the flags `swarm:gated` on what
+waits for you, `swarm:blocked`, `swarm:paused` and `swarm:blocking`; and
+the terminals `swarm:done` and `swarm:rejected`) and prints the systemd user
 units for a timer. `daisy swarm apply --once` runs one pass of the
 reconciler: it reads the forge, launches the members (one agent run each,
 in its own container) whose turn it is, posts what they wrote and moves
@@ -173,10 +175,11 @@ the labels; the timer runs `apply --once` every interval, and `apply`
 without `--once` loops itself until signalled. `daisy swarm status`
 reports the stages, the gates, what waits for you, the running members,
 throughput and the briefs, and writes nothing. `daisy swarm pause` and
-`daisy swarm resume` hold and release launches. The six verbs of the
+`daisy swarm resume` hold and release launches, for the whole swarm or,
+given an issue's number, for that issue alone. The seven verbs of the
 maintainer, the person who runs the swarm, `triage`, `accept`, `approve`,
-`merge`, `unblock` and `close`, make your decisions on the forge under a
-token of your own. The contract is `docs/swarm.md`; the agent's guide
+`merge`, `unblock`, `block` (hold one job until another issue is closed)
+and `close`, make your decisions on the forge under a token of your own. The contract is `docs/swarm.md`; the agent's guide
 over the verbs is the `swarm` skill (`skills/swarm/SKILL.md`).
 
 **System.** `daisy commit <message>` commits the home's repository (or the
@@ -308,7 +311,7 @@ chosen for a reason:
   with a marker*, a fixed first line naming the role and the run. So the
   maintainer's words and the swarm's are told apart by authorship, and a
   member's text cannot pass as the maintainer's. The maintainer's writes
-  go through six verbs under a separate token, read by the verbs only and
+  go through seven verbs under a separate token, read by the verbs only and
   never by `init`, `apply` or `status`; a verb refuses when its token is
   the swarm's.
 - *Mount only what the run owns.* A member reads untrusted text, so it

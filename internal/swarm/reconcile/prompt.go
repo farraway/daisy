@@ -82,11 +82,11 @@ func Render(j *Job) (system, prompt string) {
 		}
 	default:
 		blocks = append(blocks, "# Plan", j.plan())
-		if j.Role == "worker" && j.Label == "swarm:planned" {
+		if j.Role == "worker" && j.Label == forge.PlanAccepted {
 			blocks = append(blocks, "# Direction", j.direction())
 		}
 		blocks = append(blocks, j.earlier())
-		if open || j.Label == "swarm:reviewed" || reviewer {
+		if open || j.Label == forge.ChangesRequested || reviewer {
 			blocks = append(blocks, j.pullRequest(cur), "# Check", j.Check)
 		}
 	}

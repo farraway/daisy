@@ -176,37 +176,59 @@ type giteaUser struct {
 }
 
 // EnsureLabels works on the organization's labels, which every repository
-// of the owner can carry: it lists them and creates each missing name. A
-// refused create (401, 403) creates nothing more and names every label
-// still missing; a 404 on the list is an owner that is no organization.
-func (g *Gitea) EnsureLabels(names []string) (int, error) {
+// of the owner can carry: it lists them, renames each old name (Renamed)
+// it finds whose new name is absent (`PATCH`, so the label keeps its id
+// and every issue that carries it), then creates each name still missing.
+// A refused rename or create (401, 403) makes nothing more and names
+// everything still to rename and create; a 404 on the list is an owner
+// that is no organization.
+func (g *Gitea) EnsureLabels(names []string) (int, int, error) {
 	path := "/orgs/" + url.PathEscape(g.owner) + "/labels"
 	have, err := list[giteaLabel](g, path)
 	var api *apiError
 	if errors.As(err, &api) && api.status == http.StatusNotFound {
-		return 0, fmt.Errorf("forge: EnsureLabels: %s is not an organization; kind gitea needs one (section 3)", g.owner)
+		return 0, 0, fmt.Errorf("forge: EnsureLabels: %s is not an organization; kind gitea needs one (section 3)", g.owner)
 	}
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	var missing []string
-	for _, n := range names {
-		if !slices.ContainsFunc(have, func(l giteaLabel) bool { return l.Name == n }) && !slices.Contains(missing, n) {
-			missing = append(missing, n)
+	id := func(n string) (int64, bool) {
+		i := slices.IndexFunc(have, func(l giteaLabel) bool { return l.Name == n })
+		if i < 0 {
+			return 0, false
 		}
+		return have[i].ID, true
+	}
+	holds := func(n string) bool { _, ok := id(n); return ok }
+	rename := renames(names, holds)
+	missing := absent(names, holds, rename)
+	refused := func(err error) bool {
+		return errors.As(err, &api) && (api.status == http.StatusUnauthorized || api.status == http.StatusForbidden)
+	}
+	renamed := 0
+	for i, r := range rename {
+		old, _ := id(r[0])
+		err := g.call("PATCH", fmt.Sprintf("%s/%d", path, old), map[string]string{"name": r[1]}, http.StatusOK, nil)
+		if refused(err) {
+			return 0, renamed, refusedLabels(g.owner, rename[i:], missing)
+		}
+		if err != nil {
+			return 0, renamed, err
+		}
+		renamed++
 	}
 	created := 0
 	for i, n := range missing {
 		err := g.call("POST", path, map[string]string{"name": n, "color": "#ededed", "description": ""}, http.StatusCreated, nil)
-		if errors.As(err, &api) && (api.status == http.StatusUnauthorized || api.status == http.StatusForbidden) {
-			return created, refusedLabels(g.owner, missing[i:])
+		if refused(err) {
+			return created, renamed, refusedLabels(g.owner, nil, missing[i:])
 		}
 		if err != nil {
-			return created, err
+			return created, renamed, err
 		}
 		created++
 	}
-	return created, nil
+	return created, renamed, nil
 }
 
 // repoPath is the API path of the repository name of the owner.

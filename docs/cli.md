@@ -35,9 +35,10 @@ entries cross-reference it in prose.
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm apply`, `swarm status`, `swarm
 pause`, `swarm resume`, and the maintainer's `swarm triage`, `swarm
-accept`, `swarm approve`, `swarm merge`, `swarm unblock` and `swarm
-close`) joined the table a verb at a time as each was built; all eleven
-are in it, and the tree never names a command the binary does not run.
+accept`, `swarm approve`, `swarm merge`, `swarm unblock`, `swarm block`
+and `swarm close`) joined the table a verb at a time as each was built;
+all twelve are in it, and the tree never names a command the binary does
+not run.
 
 ```
 Usage: daisy <command> [args...]
@@ -87,13 +88,14 @@ Swarm
   swarm init [--defaults]           Declare the swarm: swarm.json, prompts, labels
   swarm apply [--once]              Reconcile the forge: launch members, post their output, move labels
   swarm status                      Stages, gates, what waits for you, running members (read-only)
-  swarm pause                       Launch no new member until resumed; running ones are collected
-  swarm resume                      Launch members again and release the owner's held batch
-  swarm triage <n>                  As the maintainer: triage a proposed job to ready
-  swarm accept <n>                  As the maintainer: accept the plan, planning to planned
+  swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
+  swarm resume [<n>]                Launch members again and release the owner's held batch (with <n>, that issue)
+  swarm triage <n>                  As the maintainer: triage a proposal, proposal-posted to proposal-accepted
+  swarm accept <n>                  As the maintainer: accept the plan, plan-0-posted to plan-1-accepted
   swarm approve <n>                 As the maintainer: approve the issue's open pull request
   swarm merge <n>                   As the maintainer: merge the approved pull request, then next slice or close
-  swarm unblock <n> <comment...>    As the maintainer: comment, then return a blocked issue to its prior stage
+  swarm unblock <n> <comment...>    As the maintainer: comment, then clear swarm:blocked from the issue
+  swarm block <n> --by <m>          As the maintainer: hold the issue's job until #m is closed
   swarm close <n> [comment...]      As the maintainer: close the issue, after the comment when given
 
 System
@@ -631,11 +633,11 @@ new home.
 | Status | as built (Step 1 of the swarm build): Go (`internal/swarm/declare`, `internal/swarm/forge`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, with `swarm.json` in section 3 and the forge calls in section 10 |
 | Legacy | none |
 | Usage | `daisy swarm init [--defaults]`: in a workspace, asks the wizard's questions (below) through `Ops.Prompt` on stderr, an empty answer taking the default in brackets (the existing `swarm.json`'s value, else detection, else section 3's example); `--defaults` asks nothing |
-| Exit codes | 0 written or unchanged, or cancelled at EOF (`Cancelled — no answer on stdin (EOF); nothing written.`); 1 outside a workspace, an invalid file or default (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <ws>/.env.sh or the environment)`), kind `github` (no adapter yet), the token unable to read the issues repository, a declared repository or its own account (`Error: swarm: $<VAR> cannot read …`), a write failing, `EnsureLabels` failing (a refused create names every missing label; the files stay written and a re-run completes it); 2 usage. A readiness warning never changes it |
-| Stdout | `✓ Token $<VAR> reads <owner>/<repo> as <login>`; `✓ Wrote swarm/swarm.json` or `  Unchanged swarm/swarm.json`; per role `✓ Wrote swarm/prompts/<role>.md` or `  Kept swarm/prompts/<role>.md (exists)`; `✓ Labels: 11 present (<c> created)`; the two systemd user units and the install line |
+| Exit codes | 0 written or unchanged, or cancelled at EOF (`Cancelled — no answer on stdin (EOF); nothing written.`); 1 outside a workspace, an invalid file or default (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <ws>/.env.sh or the environment)`), kind `github` (no adapter yet), the token unable to read the issues repository, a declared repository or its own account (`Error: swarm: $<VAR> cannot read …`), a write failing, `EnsureLabels` failing (a refused rename or create names every label still to rename and to create; the files stay written and a re-run completes it); 2 usage. A readiness warning never changes it |
+| Stdout | `✓ Token $<VAR> reads <owner>/<repo> as <login>`; `✓ Wrote swarm/swarm.json` or `  Unchanged swarm/swarm.json`; per role `✓ Wrote swarm/prompts/<role>.md` or `  Kept swarm/prompts/<role>.md (exists)`; `✓ Labels: 15 present (<c> created, <r> renamed)`; the two systemd user units and the install line |
 | Stderr | the questions; a refused answer's message, then the question again; `⚠️  .env.sh <problem>` for a line `.env.sh` cannot be read past; the four readiness warnings (`⚠ Readiness: …`) |
 | Ops | Real |
-| Writes | `<ws>/swarm/swarm.json` when the answers differ from it; each `<ws>/swarm/prompts/<role>.md` that is absent; on the forge, the organization's missing labels of the eleven (the eight stages, `swarm:gated`, `swarm:done`, `swarm:rejected`: docs/swarm.md section 5). Nothing under `$DAISY_LOCAL` |
+| Writes | `<ws>/swarm/swarm.json` when the answers differ from it; each `<ws>/swarm/prompts/<role>.md` that is absent; on the forge, the organization's labels of the fifteen (the nine stages, the flags `swarm:gated`, `swarm:blocked`, `swarm:paused` and `swarm:blocking`, the terminals `swarm:done` and `swarm:rejected`: docs/swarm.md section 5), each of the seven stage labels found under its name before Step 15 of the swarm build renamed in place (section 14, item 74) and every other missing one created. Nothing under `$DAISY_LOCAL` |
 | Commits | none: `swarm/` is the workspace repository's |
 | Cases | none; `TestSwarmInitThroughGitea`, `TestSwarmInitRefusals`, and the `internal/commands` and `internal/swarm` tests |
 
@@ -657,65 +659,67 @@ account's by default).
 
 | Field | Value |
 |---|---|
-| Status | as built (Steps 4, 8, 9 and 14 of the swarm build): Go (`internal/swarm/forge`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Steps 4, 8, 9, 14 and 15 of the swarm build): Go (`internal/swarm/forge`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
 | Usage | `daisy swarm status`: in a workspace `swarm init` declared; any argument is usage on stderr, exit 2 |
 | Exit codes | 0, also when Docker cannot be reached; 1 outside a workspace, `swarm.json` absent or invalid (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <ws>/.env.sh or the environment)`), a forge call failing (`Error: swarm: forge: …`), a brief, a run's `result` or a batch run's `out.md` unreadable; 2 usage |
-| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>` with the paused and held notes; `Gates: …`; a line per stage, `  %-12s %d` and its issue numbers; `Waiting for you: …`, the open issues whose one stage is gated (the predicate `apply` sets `swarm:gated` by: `triage`, `plan`, an `approved` issue under `merge`, `next slice` or `close` as its current pull request calls for, `blocked`), or `nothing`; `Running: …`, `none` or `unknown (docker: <message>)`; `Personas:` and a line per role; `Throughput:` and its five lines (`stage time` the median run time per stage), then a `#<n>` line of correction counts per open or recently closed issue with a plan, a pull request or a block; `Briefs:` and a line per `active` brief under `resources` (its milestones' open and closed issues as the forge counts them in the milestones that mirror them, those with none or not yet on the forge, and `met (owner run <k>)` when the newest batch run reports it), or `Briefs: none active` |
+| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>` with the paused and held notes; `Gates: …`; a line per stage, `  %-26s %d` and its issue numbers; `Waiting for you: …`, the open issues the predicate `apply` sets `swarm:gated` by holds for (`triage`, `plan`, a `review-2-approved` issue under `merge`, `next slice` or `close` as its current pull request calls for, and `blocked` every issue carrying `swarm:blocked`, at whatever stage), or `nothing`; `Held: …`, `paused #…` for the issues carrying `swarm:paused` and `#<n> blocked by #<m>` for each whose newest maintainer comment names an open blocker, separated by `; `, or `nothing`; `Running: …`, `none` or `unknown (docker: <message>)`; `Personas:` and a line per role; `Throughput:` and its five lines (`stage time` the median run time per stage, a run recorded before Step 15 of the swarm build counted under its stage's new name), then a `#<n>` line of correction counts per open or recently closed issue with a plan, a pull request or a block; `Briefs:` and a line per `active` brief under `resources` (its milestones' open and closed issues as the forge counts them in the milestones that mirror them, those with none or not yet on the forge, and `met (owner run <k>)` when the newest batch run reports it), or `Briefs: none active` |
 | Stderr | `⚠️  .env.sh <problem>` for a line `.env.sh` cannot be read past; errors |
 | Ops | ReadOnly, with a forge `GET` or `HEAD` and `docker ps` let through |
 | Writes | nothing, anywhere |
 | Commits | none |
-| Cases | none; `TestSwarmStatusThroughGitea`, `TestSwarmStatusStep7`, `TestSwarmStatusCorrections`, `TestSwarmApplyGatedFlag`, and the other `internal/commands` and `internal/swarm` tests |
+| Cases | none; `TestSwarmStatusThroughGitea`, `TestSwarmStatusStages`, `TestSwarmStatusStep7`, `TestSwarmStatusCorrections`, `TestSwarmApplyGatedFlag`, and the other `internal/commands` and `internal/swarm` tests |
 
 ### daisy swarm apply
 
 | Field | Value |
 |---|---|
-| Status | as built (Steps 5, 6, 9 and 14 of the swarm build): Go (`internal/swarm/provider`, `internal/swarm/runner`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, whose As built paragraph says what a pass leaves out (the board and the budget) |
+| Status | as built (Steps 5, 6, 9, 14 and 15 of the swarm build): Go (`internal/swarm/provider`, `internal/swarm/runner`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, whose As built paragraph says what a pass leaves out (the board and the budget) |
 | Legacy | none |
 | Usage | `daisy swarm apply [--once]`: in a workspace `swarm init` declared; with `--once`, one pass, its runs waited for and collected; without, a pass every `interval` until SIGINT or SIGTERM; any other argument is usage on stderr, exit 2 |
-| Exit codes | 0 the pass or passes ran (a member's failure is on the forge, not in the exit code; a pause on stdout); 1 outside a workspace, `swarm.json` absent or invalid at the start, the token or an `env` credential unset (a slot without its login is not checked at the start: it is the swarm fault *slot refused* of the run that takes the slot), `docker ps` failing at the start (`Error: swarm: docker: <message>`), the lock held (`Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`), `EnsureLabels` failing, and with `--once` a forge, git or `docker ps` error during the pass (`Error: swarm: …`; without `--once` it is printed and the next pass runs); 130 a second signal while the loop collects its running members; 2 usage |
-| Stdout | `#<n> <role> run <k>: launched` (the owner's batch: `owner run <k>: launched`); at collection, `#<n> <role> run <k>: ` then `posted comment`, `posted review (<verdict>)`, `check started`, `check exited <code>`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`, `failed (<reason>)`, `fault (<reason>)`; the batch's `owner run <k>: proposed #<n> <title>` or `owner run <k>: <reason>; batch held (<state>/owner-held)`; `#<n> pull <name>#<m>: <label>`; the merge step's `#<n> merged pull <name>#<m> (slice <s> of <S>)`, `#<n> swarm:approved → swarm:planned`, `#<n> closed (last slice merged)` then `#<n> swarm:approved → swarm:done`, `#<n> merge of pull <name>#<m> refused (<message>)`; the maintainer's flag's `#<n> gated` and `#<n> gated cleared`; `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; the milestones' `milestone created: <title>` and `#<n> milestone: <title>`; `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
+| Exit codes | 0 the pass or passes ran (a member's failure is on the forge, not in the exit code; a pause on stdout); 1 outside a workspace, `swarm.json` absent or invalid at the start, the token or an `env` credential unset (a slot without its login is not checked at the start: it is the swarm fault *slot refused* of the run that takes the slot), `docker ps` failing at the start (`Error: swarm: docker: <message>`), the lock held (`Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`), `EnsureLabels` failing (a refused rename or create among the causes), and with `--once` a forge, git or `docker ps` error during the pass (`Error: swarm: …`; without `--once` it is printed and the next pass runs); 130 a second signal while the loop collects its running members; 2 usage |
+| Stdout | `✓ Labels: 15 present (<c> created, <r> renamed)` at the start when `EnsureLabels` made a label; `#<n> <role> run <k>: launched` (the owner's batch: `owner run <k>: launched`), then for a worker, and a reviewer launched at `swarm:review-0-ready`, `#<n> <role> run <k>: <stage> → <in-progress stage>`; at collection, `#<n> <role> run <k>: ` then `posted comment`, `posted review (<verdict>)`, `check started`, `check exited <code>`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`, `blocked`, `failed (<reason>)`, `fault (<reason>)`; the batch's `owner run <k>: proposed #<n> <title>` or `owner run <k>: <reason>; batch held (<state>/owner-held)`; `#<n> pull <name>#<m>: <label>`; the merge step's `#<n> merged pull <name>#<m> (slice <s> of <S>)`, `#<n> swarm:review-2-approved → swarm:plan-1-accepted`, `#<n> closed (last slice merged)` then `#<n> swarm:review-2-approved → swarm:done`, `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> blocked`; the maintainer's flag's `#<n> gated` and `#<n> gated cleared`; `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; the milestones' `milestone created: <title>` and `#<n> milestone: <title>`; `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
 | Stderr | `⚠️  .env.sh <problem>`; `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n> closed during the run; nothing posted`, `⚠ #<n>: relabelled to <label> during the run; not relabelled` (`during the merge step` for the merge step's), `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>`; the flag's `⚠ #<n>: gated: <error>` and `⚠ gated: <error>` and the milestones' warnings (docs/swarm.md section 11), never an exit code; errors |
 | Ops | Real |
-| Writes | `<state>/lock`, `<state>/paused` (two swarm faults in a row), `<state>/owner-held`, `<state>/git/`, `<state>/runs/`, a slot's lock and the clearing of the slot; on the forge, issues, comments, reviews, pull requests, label changes, pushed `swarm/<n>-<s>` branches, the eleven labels when one is missing, `swarm:gated` set and cleared on open issues, a milestone per `active` brief's milestone and an issue's milestone where it has none, and with `gates.merge` false merges and closed issues, each closed issue then `swarm:done` |
+| Writes | `<state>/lock`, `<state>/paused` (two swarm faults in a row), `<state>/owner-held`, `<state>/git/`, `<state>/runs/`, a slot's lock and the clearing of the slot; on the forge, issues, comments, reviews, pull requests, label changes, pushed `swarm/<n>-<s>` branches, the fifteen labels when one is missing (an old stage name renamed in place), `swarm:gated` set and cleared on open issues, `swarm:blocked` set on a failed or blocked run's issue and on a refused merge's, a milestone per `active` brief's milestone and an issue's milestone where it has none, and with `gates.merge` false merges and closed issues, each closed issue then `swarm:done` |
 | Commits | none |
-| Cases | none; `TestSwarmApplyLifecycle`, `TestSwarmApplyGatesOff`, `TestSwarmApplyMilestones`, `TestSwarmApplyGatedFlag` and the other `TestSwarmApply` tests, and the `internal/swarm` tests |
+| Cases | none; `TestSwarmApplyLifecycle`, `TestSwarmApplyGatesOff`, `TestSwarmApplyMilestones`, `TestSwarmApplyGatedFlag`, `TestSwarmApplyHolds`, `TestSwarmInProgressTakenBack` and the other `TestSwarmApply` tests, and the `internal/swarm` tests |
 
 ### daisy swarm pause
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 6 of the swarm build): Go (`internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Step 6 of the swarm build; `<n>` at Step 15): Go (`internal/commands/swarm.go`, `internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
-| Usage | `daisy swarm pause`: in a workspace `swarm init` declared; any argument is usage on stderr, exit 2 |
-| Exit codes | 0 paused or already paused; 1 outside a workspace, `swarm.json` absent or unparsable or its forge fields invalid, the write failing; 2 usage |
-| Stdout | `Paused: no new member will launch (<state>/paused); running members finish and are posted`, or `Already paused since <time>[: <reason>]` |
+| Usage | `daisy swarm pause [<n>]`: in a workspace `swarm init` declared; without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone (the maintainer's verbs' start, below); a second argument is usage on stderr, exit 2 |
+| Exit codes | 0 paused or already paused; 1 outside a workspace, `swarm.json` absent or unparsable or its forge fields invalid, the write failing, and with `<n>` the maintainer's verbs' refusals and a forge failure; 2 usage |
+| Stdout | `Paused: no new member will launch (<state>/paused); running members finish and are posted`, or `Already paused since <time>[: <reason>]`; with `<n>`, `Maintainer <login> on <owner>/<repo>`, then `#<n> paused` or `#<n> already paused` |
 | Ops | Real |
-| Writes | `<state>/paused` (and `<state>` when absent); no forge call, no secret read |
+| Writes | without `<n>`, `<state>/paused` (and `<state>` when absent), no forge call, no secret read; with it, on the forge, `Relabel(n, "", "swarm:paused")` unless it carries it |
 | Commits | none |
-| Cases | none; `TestSwarmPauseAndResume` |
+| Cases | none; `TestSwarmPauseAndResume`, `TestSwarmMaintainerHolds`, `TestSwarmApplyHolds` |
 
 ### daisy swarm resume
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 6 of the swarm build): Go (`internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Step 6 of the swarm build; `<n>` at Step 15): Go (`internal/commands/swarm.go`, `internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
-| Usage | `daisy swarm resume`: in a workspace `swarm init` declared; any argument is usage on stderr, exit 2 |
-| Exit codes | 0; 1 outside a workspace, `swarm.json` absent or unparsable or its forge fields invalid, a removal failing; 2 usage |
-| Stdout | `Resumed: members launch at the next pass` when `<state>/paused` was present, `Owner batch released` when `<state>/owner-held` was; `Not paused` when neither was |
+| Usage | `daisy swarm resume [<n>]`: in a workspace `swarm init` declared; without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone; a second argument is usage on stderr, exit 2 |
+| Exit codes | 0; 1 outside a workspace, `swarm.json` absent or unparsable or its forge fields invalid, a removal failing, and with `<n>` the maintainer's verbs' refusals and a forge failure; 2 usage |
+| Stdout | `Resumed: members launch at the next pass` when `<state>/paused` was present, `Owner batch released` when `<state>/owner-held` was; `Not paused` when neither was; with `<n>`, `Maintainer <login> on <owner>/<repo>`, then `#<n> paused cleared` or `#<n> not paused` |
 | Ops | Real |
-| Writes | removes `<state>/paused`, whoever wrote it, and `<state>/owner-held`; no forge call, no secret read |
+| Writes | without `<n>`, removes `<state>/paused`, whoever wrote it, and `<state>/owner-held`, no forge call, no secret read; with it, on the forge, `Relabel(n, "swarm:paused", "")` when it carries it |
 | Commits | none |
-| Cases | none; `TestSwarmPauseAndResume`, `TestSwarmApplyBatchTrigger` |
+| Cases | none; `TestSwarmPauseAndResume`, `TestSwarmApplyBatchTrigger`, `TestSwarmMaintainerHolds` |
 
 ### The maintainer's verbs
 
 `swarm triage`, `swarm accept`, `swarm approve`, `swarm merge`, `swarm
-unblock` and `swarm close` are the maintainer's writes on the forge
-(docs/swarm.md section 11, built at Step 10 of the swarm build), each
+unblock`, `swarm block` and `swarm close`, and `swarm pause <n>` and
+`swarm resume <n>`, are the maintainer's writes on the forge
+(docs/swarm.md section 11, built at Step 10 of the swarm build, `block`
+and the issue's `pause` and `resume` at Step 15), each
 under the maintainer's own token, `DAISY_MAINTAINER_TOKEN`, resolved as
 `check-secrets` resolves a variable (`<ws>/.env.sh`, read never run, else
 the environment); `apply`, `status` and `init` never read it. Each verb
@@ -730,8 +734,9 @@ the forge is reached); `Login()` under it, refused when the login is the
 swarm's, `trusted`'s last (`Error: swarm: $DAISY_MAINTAINER_TOKEN is
 <login>'s token, the swarm's account (trusted's last login); …`); then
 `Maintainer <login> on <owner>/<repo>` on stdout and issue `<n>` read,
-which must be open and carry exactly one stage label, the flag
-`swarm:gated` and the terminals being none (`Error: swarm:
+which must be open and carry exactly one stage label, the flags
+(`swarm:gated`, `swarm:blocked`, `swarm:paused`, `swarm:blocking`) and
+the terminals being none (`Error: swarm:
 #<n> is closed; nothing changed`, `… carries no swarm:* label; it is not
 the swarm's`, `… carries <label> and <label>; remove all but one on the
 forge first`, `… is <label>, not <label>; nothing changed`). None writes
@@ -740,8 +745,8 @@ validation), or commits; a refusal writes nothing. A relabel of an
 issue carrying `swarm:gated` is followed by `Relabel(n, "swarm:gated",
 "")` and `#<n> gated cleared`; a close by the terminal in the stage's
 place, `Relabel(n, <stage>, "swarm:done")` after `merge`'s and
-`Relabel(n, <stage>, "swarm:rejected")` after `close`'s, then the flag's
-removal; a terminal refused after the close is `Error: swarm: #<n> is
+`Relabel(n, <stage>, "swarm:rejected")` after `close`'s, then the removal
+of each flag it carries (`#<n> <flag> cleared`); a terminal refused after the close is `Error: swarm: #<n> is
 closed, but not relabelled <terminal>: <error>; relabel it on the forge`
 (exit 1). Their writes carry no
 marker: a comment opening with it is refused (`Error: swarm: the comment
@@ -753,11 +758,11 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 10 of the swarm build): Go (`internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
-| Usage | `daisy swarm triage <n>`: G1, T3, for an issue at `swarm:proposed` |
+| Usage | `daisy swarm triage <n>`: G1, T3, for an issue at `swarm:proposal-posted` |
 | Exit codes | 0 relabelled; 1 the maintainer's verbs' refusals (above), a forge call failing (`Error: swarm: forge: …`); 2 usage |
-| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> swarm:proposed → swarm:ready`, and `#<n> gated cleared` when it carried the flag |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> swarm:proposal-posted → swarm:proposal-accepted`, and `#<n> gated cleared` when it carried the flag |
 | Ops | Real |
-| Writes | on the forge, `Relabel(n, "swarm:proposed", "swarm:ready")`, then `Relabel(n, "swarm:gated", "")` when it carried the flag |
+| Writes | on the forge, `Relabel(n, "swarm:proposal-posted", "swarm:proposal-accepted")`, then `Relabel(n, "swarm:gated", "")` when it carried the flag; `swarm:blocked` and `swarm:paused` are left as they are |
 | Commits | none |
 | Cases | none; `TestSwarmMaintainerVerbs`, `TestSwarmTriageThroughGitea`, `TestSwarmMaintainerRefusesTheSwarmsToken`, `TestSwarmMaintainerRefusals` |
 
@@ -766,11 +771,11 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 10 of the swarm build), as `swarm triage` |
-| Usage | `daisy swarm accept <n>`: G2, T7, for an issue at `swarm:planning` |
+| Usage | `daisy swarm accept <n>`: G2, T7, for an issue at `swarm:plan-0-posted` |
 | Exit codes | as `swarm triage` |
-| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> swarm:planning → swarm:planned`, and `#<n> gated cleared` when it carried the flag |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> swarm:plan-0-posted → swarm:plan-1-accepted`, and `#<n> gated cleared` when it carried the flag |
 | Ops | Real |
-| Writes | on the forge, `Relabel(n, "swarm:planning", "swarm:planned")`, then the flag's removal when it carried it |
+| Writes | on the forge, `Relabel(n, "swarm:plan-0-posted", "swarm:plan-1-accepted")`, then the flag's removal when it carried it |
 | Commits | none |
 | Cases | none; `TestSwarmMaintainerVerbs`, `TestSwarmMaintainerRefusals` |
 
@@ -792,11 +797,11 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 10 of the swarm build), as `swarm triage` |
-| Usage | `daisy swarm merge <n>`: G3 for an issue at `swarm:approved`: its current pull request merged at the head both the swarm's newest reviews approve, as the merge step merges (`do: merge`, `head_commit_id`), or found merged; then T13 when the accepted plan declares a slice after it, else the issue closed and labelled `swarm:done` |
+| Usage | `daisy swarm merge <n>`: G3 for an issue at `swarm:review-2-approved`: its current pull request merged at the head both the swarm's newest reviews approve, as the merge step merges (`do: merge`, `head_commit_id`), or found merged; then T13 when the accepted plan declares a slice after it, else the issue closed and labelled `swarm:done` |
 | Exit codes | 0 merged (or found merged) and relabelled or closed; 1 the maintainer's verbs' refusals, no swarm pull request, one closed unmerged, no head both reviews approve, the forge refusing the merge (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; nothing changed`: no note and no block, unlike the merge step), another forge failure; 2 usage |
-| Stdout | `Maintainer <login> on <owner>/<repo>`; `#<n> merged pull <name>#<m> (slice <s> of <S>)` or `#<n> pull <name>#<m> already merged (slice <s> of <S>)`; then `#<n> swarm:approved → swarm:planned` or `#<n> closed (last slice merged)` and `#<n> swarm:approved → swarm:done`; `#<n> gated cleared` when it carried the flag |
+| Stdout | `Maintainer <login> on <owner>/<repo>`; `#<n> merged pull <name>#<m> (slice <s> of <S>)` or `#<n> pull <name>#<m> already merged (slice <s> of <S>)`; then `#<n> swarm:review-2-approved → swarm:plan-1-accepted` or `#<n> closed (last slice merged)` and `#<n> swarm:review-2-approved → swarm:done`; `#<n> <flag> cleared` for each flag the close cleared, or `#<n> gated cleared` after the relabel |
 | Ops | Real |
-| Writes | on the forge, `Merge(m, <approved head>)`, then `Relabel(n, "swarm:approved", "swarm:planned")`, or `CloseIssue(n)` and `Relabel(n, "swarm:approved", "swarm:done")`; then the flag's removal when it carried it |
+| Writes | on the forge, `Merge(m, <approved head>)`, then `Relabel(n, "swarm:review-2-approved", "swarm:plan-1-accepted")` and the gated flag's removal when it carried it, or `CloseIssue(n)`, `Relabel(n, "swarm:review-2-approved", "swarm:done")` and the removal of each flag it carried |
 | Commits | none |
 | Cases | none; `TestSwarmMaintainerVerbs`, `TestSwarmMaintainerCloseUnblockMerged`, `TestSwarmMaintainerFlagAndTerminals`, `TestSwarmMaintainerRefusals` |
 
@@ -804,15 +809,28 @@ nothing posted`).
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 10 of the swarm build), as `swarm triage` |
-| Usage | `daisy swarm unblock <n> <comment...>`: G4, T18, for an issue at `swarm:blocked`, to the stage the newest reconciler note that blocked it names (`was swarm:<label>`, the last in the note), unless that note is the round limit's second, whose `swarm:in-review` runs no one; the words after `<n>` are one comment, saying what changed |
-| Exit codes | 0 commented and relabelled; 1 the maintainer's verbs' refusals, no such note (`Error: swarm: #<n>: no reconciler note names the stage it was blocked from; relabel it on the forge; nothing changed`), the round limit's second note (`Error: swarm: #<n>: blocked at the review round limit, …; nothing changed`, naming `swarm:reviewed` and `swarm:planning`), a forge failure; 2 usage (no comment among them) |
-| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented` (or `#<n> commented on pull <name>#<m>`, to `swarm:reviewed` with the pull request open), `#<n> swarm:blocked → <label>`, then `#<n> gated cleared` (a blocked issue carries the flag after a pass) |
+| Status | as built (Step 10 of the swarm build; `swarm:blocked` a flag at Step 15), as `swarm triage` |
+| Usage | `daisy swarm unblock <n> <comment...>`: G4, T18, for an issue carrying `swarm:blocked` beside its stage, which the block kept: the comment, then the flag cleared; refused at the round limit's `swarm:review-1-in-progress`, where no role runs; the words after `<n>` are one comment, saying what changed |
+| Exit codes | 0 commented and unblocked; 1 the maintainer's verbs' refusals, the issue not blocked (`Error: swarm: #<n> is not blocked; nothing changed`), blocked at the round limit (`Error: swarm: #<n>: blocked at the review round limit, …; nothing changed`, naming the relabels `swarm:review-3-changes-requested` and `swarm:plan-0-posted` to make first), a forge failure; 2 usage (no comment among them) |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented` (or `#<n> commented on pull <name>#<m>`, at `swarm:review-3-changes-requested` with the pull request open), `#<n> blocked cleared`, then `#<n> gated cleared` (a blocked issue carries the flag after a pass) |
 | Stderr | `⚠ <login> is not in trusted: no member reads your comment (docs/swarm.md section 6)`, never an exit code |
 | Ops | Real |
-| Writes | on the forge, `Comment(n, <comment>)` (on the current pull request instead, when it is open and `<label>` is `swarm:reviewed`), then `Relabel(n, "swarm:blocked", <label>)` and the flag's removal when it carried it |
+| Writes | on the forge, `Comment(n, <comment>)` (on the current pull request instead, when it is open and the stage is `swarm:review-3-changes-requested`), then `Relabel(n, "swarm:blocked", "")` and the gated flag's removal when it carried it |
 | Commits | none |
-| Cases | none; `TestSwarmMaintainerCloseUnblockMerged`, `TestSwarmMaintainerRefusals` |
+| Cases | none; `TestSwarmMaintainerCloseUnblockMerged`, `TestSwarmUnblockReviewedRunsTheWorker`, `TestSwarmMaintainerRefusals` |
+
+### daisy swarm block
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 15 of the swarm build), as `swarm triage` |
+| Usage | `daisy swarm block <n> --by <m>`: hold issue `<n>`'s job until issue `<m>` of `forge.repo`, open, is closed: `#<m>` given `swarm:blocking`, then the maintainer's comment `Blocked by #<m>` on `#<n>`, which the role rule reads while it is `#<n>`'s newest maintainer comment (docs/swarm.md section 6, rule 1); `--by <m>` may also lead, as the cli reads a value flag |
+| Exit codes | 0 flagged and commented; 1 the maintainer's verbs' refusals for `#<n>`, `#<m>` the same issue (`Error: swarm: #<n> cannot block itself; nothing changed`), closed or a pull request (`Error: swarm: #<m> is not an open issue; nothing changed`), a forge failure; 2 usage, `--by` missing or `<m>` not an issue number among it |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<m> blocking` (none when it carries the flag already), `#<n> commented` |
+| Ops | Real |
+| Writes | on the forge, `Relabel(m, "", "swarm:blocking")` unless it carries it, then `Comment(n, "Blocked by #<m>")` |
+| Commits | none |
+| Cases | none; `TestSwarmMaintainerHolds`, `TestSwarmMaintainerRefusals`, `TestSwarmApplyHolds` |
 
 ### daisy swarm close
 
@@ -821,9 +839,9 @@ nothing posted`).
 | Status | as built (Step 10 of the swarm build), as `swarm triage` |
 | Usage | `daisy swarm close <n> [comment...]`: T19, at any stage, the rejection (a job done is closed by `swarm merge`, as `swarm:done`); the words after `<n>`, when given, are one comment posted first |
 | Exit codes | 0 closed and relabelled; 1 the maintainer's verbs' refusals, the terminal refused after the close, a forge failure; 2 usage |
-| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented` when a comment was given, `#<n> closed`, `#<n> <stage> → swarm:rejected`, and `#<n> gated cleared` when it carried the flag |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented` when a comment was given, `#<n> closed`, `#<n> <stage> → swarm:rejected`, and `#<n> <flag> cleared` for each flag it carried |
 | Ops | Real |
-| Writes | on the forge, `Comment(n, <comment>)` when given, then `CloseIssue(n)`, `Relabel(n, <stage>, "swarm:rejected")` and the flag's removal when it carried it; the pull requests are left as they are |
+| Writes | on the forge, `Comment(n, <comment>)` when given, then `CloseIssue(n)`, `Relabel(n, <stage>, "swarm:rejected")` and the removal of each flag it carried; the pull requests are left as they are |
 | Commits | none |
 | Cases | none; `TestSwarmMaintainerCloseUnblockMerged`, `TestSwarmMaintainerFlagAndTerminals`, `TestSwarmMaintainerRefusals` |
 

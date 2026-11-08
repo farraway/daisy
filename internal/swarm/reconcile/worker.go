@@ -142,7 +142,7 @@ func (c *collection) worker(text string, pull *forge.Pull) error {
 		}
 	}
 	posted := text + "\n\n" + block
-	if c.label == "swarm:reviewed" || pull != nil && pull.Open {
+	if c.label == forge.ChangesRequested || pull != nil && pull.Open {
 		if err := c.onPull(*pull, posted); err != nil {
 			return err
 		}
@@ -172,7 +172,7 @@ func (c *collection) worker(text string, pull *forge.Pull) error {
 			}
 		}
 	}
-	if err := c.relabel(c.label, "swarm:in-review"); err != nil {
+	if err := c.relabel(forge.ReviewReady); err != nil {
 		return err
 	}
 	return c.end("posted")
@@ -194,7 +194,8 @@ func (c *collection) onPull(p forge.Pull, posted string) error {
 
 // review is a reviewer run's steps (section 7.6): its verdict read and
 // checked against its findings' severity (7.5), the review posted, and
-// once the pair on the head is complete, T9, T10 or T11.
+// once the pair on the head is complete, T9, T10 or T11, from the stage
+// the run is at (review-1-in-progress, or the stage it was launched on).
 func (c *collection) review(out, text string, pull forge.Pull) error {
 	s := c.s
 	verdict := verdictOf(out)
@@ -243,7 +244,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 		return c.end("posted")
 	}
 	if pair["adversary"] == "approve" && pair["sympathetic"] == "approve" {
-		if err := c.relabel(c.label, "swarm:approved"); err != nil {
+		if err := c.relabel(forge.ReviewApproved); err != nil {
 			return err
 		}
 		return c.end("posted")
@@ -255,14 +256,15 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 	}
 	rounds := Rounds(reviews, s.SwarmLogin, since, "")
 	if rounds < s.Cfg.MaxRounds {
-		if err := c.relabel(c.label, "swarm:reviewed"); err != nil {
+		if err := c.relabel(forge.ChangesRequested); err != nil {
 			return err
 		}
 		return c.end("posted")
 	}
 	on := fmt.Sprintf("%s#%d", pull.Repo, pull.Number)
-	first := fmt.Sprintf("Review round %d of %d on %s requested changes (was swarm:in-review). "+architectRevises, rounds, s.Cfg.MaxRounds, on)
-	second := fmt.Sprintf("Review round %d of %d on %s "+roundLimitAgain+" (was swarm:in-review). Relabel the issue to resume.", rounds, s.Cfg.MaxRounds, on)
+	first := fmt.Sprintf("Review round %d of %d on %s requested changes (was %s). "+architectRevises, rounds, s.Cfg.MaxRounds, on, forge.ReviewInProgress)
+	second := fmt.Sprintf("Review round %d of %d on %s "+roundLimitAgain+" (at %s). Relabel the issue %s for one more fix round or %s to re-plan, then remove %s.",
+		rounds, s.Cfg.MaxRounds, on, forge.ReviewInProgress, forge.ChangesRequested, forge.PlanPosted, forge.Blocked)
 	own := []string{marker("reconciler", c.r.K) + first, marker("reconciler", c.r.K) + second}
 	again := false
 	for _, cm := range c.is.Comments {
@@ -271,17 +273,25 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 		again = again || ok && m.Role == "reconciler" && strings.HasPrefix(t, "Review round ") &&
 			strings.Contains(t, " on "+on+" requested changes") && cm.Body != own[0] && cm.Body != own[1]
 	}
-	note, to := first, "swarm:planning"
-	switch {
-	case again:
-		note, to = second, "swarm:blocked"
-	case !s.Cfg.Gates.Plan:
-		to = "swarm:ready"
+	if again {
+		// The second time, the stage stays and the issue is blocked: the
+		// maintainer's (G4).
+		if err := c.comment("reconciler", second); err != nil {
+			return err
+		}
+		if err := c.flag(); err != nil {
+			return err
+		}
+		return c.end("posted")
 	}
-	if err := c.comment("reconciler", note); err != nil {
+	to := forge.PlanPosted
+	if !s.Cfg.Gates.Plan {
+		to = forge.ProposalAccepted
+	}
+	if err := c.comment("reconciler", first); err != nil {
 		return err
 	}
-	if err := c.relabel(c.label, to); err != nil {
+	if err := c.relabel(to); err != nil {
 		return err
 	}
 	return c.end("posted")
@@ -292,7 +302,8 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 const architectRevises = "The architect revises the plan from the reviews."
 
 // roundLimitAgain is the round limit's second note's words: the reviewers
-// have both reviewed the head, so in-review runs no one (section 6).
+// have both reviewed the head, so review-1-in-progress runs no one
+// (section 6).
 const roundLimitAgain = "requested changes a second time"
 
 // Rounds is a pull request's review rounds (section 6): the distinct

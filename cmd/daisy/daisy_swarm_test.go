@@ -68,6 +68,18 @@ func newGitea(t *testing.T) *giteaServer {
 		}
 		reply(w, 200, out)
 	})
+	g.mux.HandleFunc("PATCH /api/v1/orgs/acme/labels/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, _ := strconv.Atoi(r.PathValue("id"))
+		var in struct{ Name string }
+		json.NewDecoder(r.Body).Decode(&in)
+		for i, l := range g.issue1 { // the id kept: issue 1 reads the new name
+			if l == g.labels[id-1] {
+				g.issue1[i] = in.Name
+			}
+		}
+		g.labels[id-1] = in.Name
+		reply(w, 200, map[string]any{"id": id, "name": in.Name})
+	})
 	g.mux.HandleFunc("POST /api/v1/orgs/acme/labels", func(w http.ResponseWriter, r *http.Request) {
 		var in struct{ Name, Color string }
 		json.NewDecoder(r.Body).Decode(&in)
@@ -115,15 +127,33 @@ func TestSwarmInitThroughGitea(t *testing.T) {
 	g := newGitea(t)
 	code, out, errs := runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults")
 	if code != 0 || !strings.HasPrefix(out, "✓ Token $GITEA_TOKEN reads acme/app as swarm-bot\n✓ Wrote swarm/swarm.json\n") ||
-		!strings.Contains(out, "✓ Labels: 11 present (11 created)\n") || !strings.Contains(errs, "⚠ Readiness: app has no AGENTS.md") {
+		!strings.Contains(out, "✓ Labels: 15 present (15 created, 0 renamed)\n") || !strings.Contains(errs, "⚠ Readiness: app has no AGENTS.md") {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
-	if len(g.labels) != 11 {
+	if len(g.labels) != 15 {
 		t.Errorf("labels %q", g.labels)
 	}
 	code, out, _ = runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults")
-	if code != 0 || !strings.Contains(out, "  Unchanged swarm/swarm.json\n") || !strings.Contains(out, "✓ Labels: 11 present (0 created)\n") || len(g.labels) != 11 {
+	if code != 0 || !strings.Contains(out, "  Unchanged swarm/swarm.json\n") || !strings.Contains(out, "✓ Labels: 15 present (0 created, 0 renamed)\n") || len(g.labels) != 15 {
 		t.Errorf("second run: exit %d\n%s", code, out)
+	}
+
+	// The organization of Step 14, its eleven labels under the old names:
+	// the seven old stage names renamed in place, by id, issue 1 reading
+	// its new stage, and the four new labels created.
+	g = newGitea(t)
+	g.labels = []string{"swarm:proposed", "swarm:ready", "swarm:planning", "swarm:planned", "swarm:in-review", "swarm:reviewed", "swarm:approved", "swarm:blocked", "swarm:gated", "swarm:done", "swarm:rejected"}
+	g.issue1 = []string{"swarm:in-review"}
+	code, out, errs = runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults")
+	var patched int
+	for _, r := range g.requests {
+		if strings.HasPrefix(r, "PATCH /api/v1/orgs/acme/labels/") {
+			patched++
+		}
+	}
+	if code != 0 || !strings.Contains(out, "✓ Labels: 15 present (4 created, 7 renamed)\n") || patched != 7 || len(g.labels) != 15 ||
+		g.labels[4] != "swarm:review-0-ready" || !slices.Equal(g.issue1, []string{"swarm:review-0-ready"}) {
+		t.Errorf("the migration: exit %d, %d renames, labels %q, issue 1 %q\n%s%s", code, patched, g.labels, g.issue1, out, errs)
 	}
 }
 
@@ -170,7 +200,7 @@ func TestSwarmStatusThroughGitea(t *testing.T) {
 	}
 	code, out, errs := runWith(o, "swarm", "status")
 	if code != 0 || errs != "" || !strings.HasPrefix(out, "Swarm: acme/app on forge.example.net (gitea), repositories app\n") ||
-		!strings.Contains(out, "\n  proposed     0\n") || !strings.Contains(out, "\nWaiting for you: nothing\nRunning: #4 worker\nPersonas:\n") {
+		!strings.Contains(out, "\n  proposal-posted            0\n") || !strings.Contains(out, "\nWaiting for you: nothing\nHeld: nothing\nRunning: #4 worker\nPersonas:\n") {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
 	for _, r := range g.requests {
@@ -178,8 +208,8 @@ func TestSwarmStatusThroughGitea(t *testing.T) {
 			t.Errorf("status sent %s", r)
 		}
 	}
-	if len(g.requests) != 19 {
-		t.Errorf("requests %q: Login, then Issues open for each of the eight stages and closed for each of them and the two terminals", g.requests)
+	if len(g.requests) != 21 {
+		t.Errorf("requests %q: Login, then Issues open for each of the nine stages and closed for each of them and the two terminals", g.requests)
 	}
 	for _, r := range ran {
 		if !strings.HasPrefix(r, "git ") && r != "docker ps" {
@@ -204,11 +234,11 @@ func TestSwarmTriageThroughGitea(t *testing.T) {
 		t.Fatalf("init: exit %d\n%s\n%s", code, out, errs)
 	}
 	g.accounts["token jane-456"] = "jane"
-	g.issue1 = []string{"swarm:proposed"}
+	g.issue1 = []string{"swarm:proposal-posted"}
 	writeFile(t, filepath.Join(m.ws, ".env.sh"), "export GITEA_TOKEN=tok-123\nexport DAISY_MAINTAINER_TOKEN=jane-456\n")
 	g.requests, g.auths = nil, nil
 	code, out, errs := runWith(m.swarmOps(m.ws, g), "swarm", "triage", "1")
-	if code != 0 || errs != "" || out != "Maintainer jane on acme/app\n#1 swarm:proposed → swarm:ready\n" || !slices.Equal(g.issue1, []string{"swarm:ready"}) {
+	if code != 0 || errs != "" || out != "Maintainer jane on acme/app\n#1 swarm:proposal-posted → swarm:proposal-accepted\n" || !slices.Equal(g.issue1, []string{"swarm:proposal-accepted"}) {
 		t.Fatalf("exit %d\n%s\n%s\nlabels %q", code, out, errs, g.issue1)
 	}
 	if slices.ContainsFunc(g.auths, func(a string) bool { return a != "token jane-456" }) || !slices.Contains(g.requests, "DELETE /api/v1/repos/acme/app/issues/1/labels/1") {

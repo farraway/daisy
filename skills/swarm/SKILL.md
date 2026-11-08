@@ -52,8 +52,8 @@ after the maintainer has said yes to that write.
    edit applies at `apply`'s next pass.
 7. **A comment to a member is the maintainer's.** To answer the owner or
    the architect, or to comment on a pull request, draft the text and let
-   the maintainer post it on the forge; the verbs post only `close`'s and
-   `unblock`'s comments.
+   the maintainer post it on the forge; the verbs post only `close`'s,
+   `unblock`'s and `block`'s comments.
 
 ## The verbs
 
@@ -62,18 +62,20 @@ the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first.
 
 | Waiting for you | Verb | What it writes |
 |---|---|---|
-| `triage #n` | `daisy swarm triage <n>` | `swarm:proposed → swarm:ready`; the architect plans it next |
-| `plan #n` | `daisy swarm accept <n>` | `swarm:planning → swarm:planned`; the worker builds the next slice |
+| `triage #n` | `daisy swarm triage <n>` | `swarm:proposal-posted → swarm:proposal-accepted`; the architect plans it next |
+| `plan #n` | `daisy swarm accept <n>` | `swarm:plan-0-posted → swarm:plan-1-accepted`; the worker builds the next slice |
 | `merge #n` (approval first, when a branch rule asks one) | `daisy swarm approve <n>` | a formal approving review of the issue's open pull request at its head |
-| `merge #n`, `next slice #n`, `close #n` | `daisy swarm merge <n>` | merges the current pull request at the head both swarm reviews approve (or finds it merged), then `swarm:approved → swarm:planned` when the plan declares a later slice, or closes the issue after its last, labelled `swarm:done` |
-| `blocked #n` | `daisy swarm unblock <n> <comment...>` | the comment, saying what changed, then `swarm:blocked →` the stage the reconciler's note names |
+| `merge #n`, `next slice #n`, `close #n` | `daisy swarm merge <n>` | merges the current pull request at the head both swarm reviews approve (or finds it merged), then `swarm:review-2-approved → swarm:plan-1-accepted` when the plan declares a later slice, or closes the issue after its last, labelled `swarm:done` |
+| `blocked #n` | `daisy swarm unblock <n> <comment...>` | the comment, saying what changed, then the `swarm:blocked` flag cleared; the issue goes on from the stage the block kept |
 | a job to drop | `daisy swarm close <n> [comment...]` | the comment when given, then the issue closed, labelled `swarm:rejected` (a job done closes through `merge`, which finds a pull request merged by hand) |
 | — | `daisy swarm pause`, `daisy swarm resume` | no member launches until resumed; resume also releases a held owner batch |
+| `Held: paused #n` | `daisy swarm pause <n>`, `daisy swarm resume <n>` | `swarm:paused` set or cleared on that issue alone: nothing launches on it and the merge step skips it, so other jobs go first or an urgent fix jumps the queue |
+| `Held: #n blocked by #m` | `daisy swarm block <n> --by <m>` | `swarm:blocking` on #m, then the comment `Blocked by #m` on #n: no member launches on #n while #m is open and that comment is the maintainer's newest on #n |
 
 A verb that refuses changes nothing; read its message to the maintainer
-and do not work around it (a wrong stage, a merge the forge refused, a
-blocked issue without a reconciler note are the maintainer's to resolve
-on the forge).
+and do not work around it (a wrong stage, a merge the forge refused, an
+issue blocked at the review round limit, which needs a relabel first, are
+the maintainer's to resolve on the forge).
 
 ## Briefs
 

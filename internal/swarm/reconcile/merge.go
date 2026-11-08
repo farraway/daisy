@@ -9,12 +9,13 @@ import (
 )
 
 // mergeStep is pass step (6), with the merge gate off (section 12): for
-// each open approved issue, its current pull request merged at the head
-// both its newest swarm reviews approve (or found merged), then T14 when
-// the accepted plan declares a slice after it and T15 otherwise, the
-// closed issue labelled swarm:done; a refused merge is T16.
+// each open approved issue neither blocked nor paused, its current pull
+// request merged at the head both its newest swarm reviews approve (or
+// found merged), then T14 when the accepted plan declares a slice after
+// it and T15 otherwise, the closed issue labelled swarm:done; a refused
+// merge is T16, which blocks it.
 func (s *Swarm) mergeStep() error {
-	issues, err := s.Forge.Issues(forge.Open, "swarm:approved")
+	issues, err := s.Forge.Issues(forge.Open, forge.ReviewApproved)
 	if err != nil {
 		return err
 	}
@@ -24,8 +25,8 @@ func (s *Swarm) mergeStep() error {
 		if err != nil {
 			return err
 		}
-		if stage, ok := StageOf(is); !is.Open || !ok || stage != "swarm:approved" {
-			continue // two labels (warned in step 5), or moved or closed since the list was read
+		if stage, ok := StageOf(is); !is.Open || !ok || stage != forge.ReviewApproved || Held(is.Labels) != "" {
+			continue // two labels (warned in step 5), moved or closed since the list was read, or held
 		}
 		pulls, err := s.Forge.Pulls(n)
 		if err != nil {
@@ -57,7 +58,7 @@ func (s *Swarm) mergeStep() error {
 			if err != nil {
 				msg := strings.TrimPrefix(err.Error(), forge.ErrNotMergeable.Error()+": ")
 				fmt.Fprintf(s.Out, "#%d merge of pull %s#%d refused (%s)\n", n, cur.Repo, cur.Number, msg)
-				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s/%s#%d at %s refused: %s (was swarm:approved). Resolve it and relabel the issue.", s.owner(), cur.Repo, cur.Number, short(head), msg)
+				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s/%s#%d at %s refused: %s (at %s). Resolve it, then remove %s.", s.owner(), cur.Repo, cur.Number, short(head), msg, forge.ReviewApproved, forge.Blocked)
 				// Posted already only when it is the issue's last word and
 				// the swarm's: a retry after a failed relabel, not another
 				// login's copy or an earlier block's same note.
@@ -67,7 +68,7 @@ func (s *Swarm) mergeStep() error {
 						return err
 					}
 				}
-				if err := s.mergeRelabel(n, at, "swarm:blocked"); err != nil {
+				if err := s.mergeBlock(n, at); err != nil {
 					return err
 				}
 				continue
@@ -75,7 +76,7 @@ func (s *Swarm) mergeStep() error {
 			fmt.Fprintf(s.Out, "#%d merged pull %s#%d (slice %d of %d)\n", n, cur.Repo, cur.Number, sl, S)
 		}
 		if sl < S {
-			if err := s.mergeRelabel(n, at, "swarm:planned"); err != nil {
+			if err := s.mergeRelabel(n, at, forge.PlanAccepted); err != nil {
 				return err
 			}
 			continue
@@ -84,30 +85,49 @@ func (s *Swarm) mergeStep() error {
 			return err
 		}
 		fmt.Fprintf(s.Out, "#%d closed (last slice merged)\n", n)
-		if err := Retire(s.Forge, at, "swarm:approved", is.Labels, forge.Done, s.Out); err != nil {
+		if err := Retire(s.Forge, at, forge.ReviewApproved, is.Labels, forge.Done, s.Out); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// mergeRelabel is T14 or T16: approved to `to`, the labels read again right
-// before (the merge or its refusal took a while, and the maintainer may
-// have moved the issue meanwhile: kept, with a warning, section 5).
+// mergeRelabel is T14: approved to `to`, the labels read again right
+// before (the merge took a while, and the maintainer may have moved the
+// issue meanwhile: kept, with a warning, section 5).
 func (s *Swarm) mergeRelabel(n int, at forge.Ref, to string) error {
+	if _, ok, err := s.stillApproved(n); err != nil || !ok {
+		return err
+	}
+	if err := s.Forge.Relabel(at, forge.ReviewApproved, to); err != nil {
+		return err
+	}
+	fmt.Fprintf(s.Out, "#%d %s → %s\n", n, forge.ReviewApproved, to)
+	return nil
+}
+
+// mergeBlock is T16: the approved issue flagged swarm:blocked, its stage
+// kept, the labels read again right before as mergeRelabel reads them.
+func (s *Swarm) mergeBlock(n int, at forge.Ref) error {
+	labels, ok, err := s.stillApproved(n)
+	if err != nil || !ok {
+		return err
+	}
+	return Flag(s.Forge, at, labels, forge.Blocked, s.Out)
+}
+
+// stillApproved is issue n's labels and whether it is still at
+// review-2-approved, warning when it was moved during the merge step.
+func (s *Swarm) stillApproved(n int) ([]string, bool, error) {
 	is, err := s.Forge.Issue(n)
 	if err != nil {
-		return err
+		return nil, false, err
 	}
-	if stage, ok := StageOf(is); !ok || stage != "swarm:approved" {
+	if stage, ok := StageOf(is); !ok || stage != forge.ReviewApproved {
 		fmt.Fprintf(s.Err, "⚠ #%d: relabelled to %s during the merge step; not relabelled\n", n, stage)
-		return nil
+		return nil, false, nil
 	}
-	if err := s.Forge.Relabel(at, "swarm:approved", to); err != nil {
-		return err
-	}
-	fmt.Fprintf(s.Out, "#%d swarm:approved → %s\n", n, to)
-	return nil
+	return is.Labels, true, nil
 }
 
 // planSlices is the number of slices is's accepted plan declares; a plan

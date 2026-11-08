@@ -61,18 +61,20 @@ func (a *applyWS) waitingSet() ([]int, string) {
 
 // The maintainer's flag (section 5) over a paused pass, which still sets
 // it: an issue at each gated stage carries it exactly when its gate is
-// on, blocked always, every other stage never; an issue carrying the flag
-// and no stage, or two stages, is cleared of it; a stage moved by hand
-// loses it at the next pass; and status's Waiting line names exactly the
-// open issues that carry it.
+// on, a blocked one at any stage always, every other stage never; an
+// issue carrying the flag and no stage, or two stages, is cleared of it;
+// a stage moved by hand, or a block lifted by hand, loses it at the next
+// pass; and status's Waiting line names exactly the open issues that
+// carry it.
 func TestSwarmApplyGatedFlag(t *testing.T) {
 	a := newApplyWS(t)
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
-	for _, l := range forge.Stages { // #1 proposed … #8 blocked
+	for _, l := range forge.Stages { // #1 proposal-posted … #9 review-3-changes-requested
 		a.forge.CreateIssue("At "+l, "", []string{l})
 	}
-	a.forge.CreateIssue("The flag alone", "", []string{forge.Gated})                              // #9
-	a.forge.CreateIssue("Two stages", "", []string{"swarm:proposed", "swarm:ready", forge.Gated}) // #10
+	a.forge.CreateIssue("Blocked at its stage", "", []string{"swarm:plan-1-accepted", forge.Blocked})                // #10
+	a.forge.CreateIssue("The flag alone", "", []string{forge.Gated})                                                 // #11
+	a.forge.CreateIssue("Two stages", "", []string{"swarm:proposal-posted", "swarm:proposal-accepted", forge.Gated}) // #12
 	agree := func(when string, want []int) {
 		t.Helper()
 		got, line := a.waitingSet()
@@ -82,11 +84,11 @@ func TestSwarmApplyGatedFlag(t *testing.T) {
 	}
 
 	a.pass()
-	if want := "#1 gated\n#3 gated\n#7 gated\n#8 gated\n#9 gated cleared\n#10 gated cleared\n"; !strings.Contains(a.stdout.String(), want) {
+	if want := "#1 gated\n#3 gated\n#8 gated\n#10 gated\n#11 gated cleared\n#12 gated cleared\n"; !strings.Contains(a.stdout.String(), want) {
 		t.Errorf("every gate on:\n%s\nwant:\n%s", a.stdout.String(), want)
 	}
-	agree("every gate on", []int{1, 3, 7, 8})
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposed", forge.Gated}) {
+	agree("every gate on", []int{1, 3, 8, 10})
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-posted", forge.Gated}) {
 		t.Errorf("#1: %v", got)
 	}
 	a.pass()
@@ -98,42 +100,45 @@ func TestSwarmApplyGatedFlag(t *testing.T) {
 		name string
 		off  func(*declare.Gates)
 		n    int
-	}{{"triage", func(g *declare.Gates) { g.Triage = false }, 1}, {"plan", func(g *declare.Gates) { g.Plan = false }, 3}, {"merge", func(g *declare.Gates) { g.Merge = false }, 7}} {
+	}{{"triage", func(g *declare.Gates) { g.Triage = false }, 1}, {"plan", func(g *declare.Gates) { g.Plan = false }, 3}, {"merge", func(g *declare.Gates) { g.Merge = false }, 8}} {
 		a.edit(func(c *declare.Config) {
 			c.Gates = declare.Gates{Triage: true, Plan: true, Merge: true}
 			gate.off(&c.Gates)
 			c.Budget = &declare.Budget{PerDay: 10, Total: 100}
 		})
 		a.pass()
-		want := []int{1, 3, 7, 8}
+		want := []int{1, 3, 8, 10}
 		want = slices.DeleteFunc(want, func(n int) bool { return n == gate.n })
 		agree(gate.name+" gate off", want)
 		a.edit(func(c *declare.Config) { c.Gates = declare.Gates{Triage: true, Plan: true, Merge: true} })
 		a.pass()
-		agree(gate.name+" gate on again", []int{1, 3, 7, 8})
+		agree(gate.name+" gate on again", []int{1, 3, 8, 10})
 	}
 
-	a.forge.SetLabel(forge.Ref{Repo: "app", N: 3}, "swarm:planned") // T7 on the forge: the flag stays until the pass
-	a.forge.SetLabel(forge.Ref{Repo: "app", N: 8}, "swarm:ready")   // T18 on the forge
+	a.forge.SetLabel(forge.Ref{Repo: "app", N: 3}, "swarm:plan-1-accepted") // T7 on the forge: the flag stays until the pass
+	a.forge.Relabel(forge.Ref{Repo: "app", N: 10}, forge.Blocked, "")       // T18 on the forge
 	a.pass()
-	if !strings.Contains(a.stdout.String(), "#3 gated cleared\n#8 gated cleared\n") {
+	if !strings.Contains(a.stdout.String(), "#3 gated cleared\n#10 gated cleared\n") {
 		t.Errorf("moved by hand:\n%s", a.stdout.String())
 	}
-	agree("moved by hand", []int{1, 7})
+	agree("moved by hand", []int{1, 8})
 }
 
-// The flag and the terminals are no stage (section 6, rule 1): a proposed
-// issue carrying the flag is one stage, and the owner answers the
-// maintainer there; an open issue carrying only the flag or only a
-// terminal is no swarm issue: nothing launches on it, no warning names it,
-// and status counts it under no stage.
+// The flags and the terminals are no stage (section 6, rule 1): a
+// proposal-posted issue carrying the gated flag is one stage, and the
+// owner answers the maintainer there; an open issue carrying only a flag
+// or only a terminal is no swarm issue: nothing launches on it, no warning
+// names it, and status counts it under no stage.
 func TestSwarmFlagAndTerminalsAreNoStage(t *testing.T) {
 	a := newApplyWS(t)
-	a.forge.CreateIssue("Idea", mark("owner", 1)+"Do it.", []string{"swarm:proposed", forge.Gated}) // #1
+	a.forge.CreateIssue("Idea", mark("owner", 1)+"Do it.", []string{"swarm:proposal-posted", forge.Gated}) // #1
 	a.forge.Say(issue1, "jane", "Which file?")
-	a.forge.CreateIssue("Flag only", "", []string{forge.Gated})         // #2
-	a.forge.CreateIssue("Done, open", "", []string{forge.Done})         // #3
-	a.forge.CreateIssue("Rejected, open", "", []string{forge.Rejected}) // #4
+	a.forge.CreateIssue("Flag only", "", []string{forge.Gated})               // #2
+	a.forge.CreateIssue("Done, open", "", []string{forge.Done})               // #3
+	a.forge.CreateIssue("Rejected, open", "", []string{forge.Rejected})       // #4
+	for _, f := range []string{forge.Blocked, forge.Paused, forge.Blocking} { // #5, #6, #7
+		a.forge.CreateIssue(f+" only", "", []string{f})
+	}
 	a.runner.Script(1, "owner", runner.Canned{Out: "main.go.\n"})
 	a.pass()
 	var on []string
@@ -143,7 +148,7 @@ func TestSwarmFlagAndTerminalsAreNoStage(t *testing.T) {
 	if !reflect.DeepEqual(on, []string{"acme/app#1/owner"}) || a.stderr.Len() != 0 {
 		t.Errorf("launched %q\nstderr:\n%s", on, a.stderr.String())
 	}
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposed", forge.Gated}) {
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-posted", forge.Gated}) {
 		t.Errorf("#1: %v", got)
 	}
 	if got := labels(a.issue(3)); !reflect.DeepEqual(got, []string{forge.Done}) {
@@ -152,25 +157,26 @@ func TestSwarmFlagAndTerminalsAreNoStage(t *testing.T) {
 	if err := a.status(a.forge); err != nil {
 		t.Fatal(err)
 	}
-	if out := a.stdout.String(); !strings.Contains(out, "\n  proposed     1  #1\n") || !strings.Contains(out, "\nWaiting for you: triage #1\n") || strings.Contains(out, "#2") || strings.Contains(out, "#3") || strings.Contains(out, "#4") {
+	if out := a.stdout.String(); !strings.Contains(out, "\n  proposal-posted            1  #1\n") || !strings.Contains(out, "\nWaiting for you: triage #1\nHeld: nothing\n") ||
+		regexp.MustCompile(`#[2-7]\b`).MatchString(out) {
 		t.Errorf("status:\n%s", out)
 	}
 }
 
-// The maintainer's verbs clear the flag with their relabel, and their
-// closes leave a terminal in the stage's place and no flag: close is
+// The maintainer's verbs clear the gated flag with their relabel, and
+// their closes leave a terminal in the stage's place and no flag: close is
 // swarm:rejected, merge of the last slice swarm:done.
 func TestSwarmMaintainerFlagAndTerminals(t *testing.T) {
 	m := newMaintainerWS(t)
-	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"a", []string{"swarm:proposed", forge.Gated})
+	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"a", []string{"swarm:proposal-posted", forge.Gated})
 	const head = "Maintainer jane on acme/app\n"
-	m.ok(swarmTriage, head+"#1 swarm:proposed → swarm:ready\n#1 gated cleared\n", "1")
-	if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:ready"}) {
+	m.ok(swarmTriage, head+"#1 swarm:proposal-posted → swarm:proposal-accepted\n#1 gated cleared\n", "1")
+	if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:proposal-accepted"}) {
 		t.Errorf("triage: %v", is.Labels)
 	}
 
-	m.forge.CreateIssue("Drop it", mark("owner", 1)+"b", []string{"swarm:blocked", forge.Gated}) // #2
-	m.ok(swarmClose, head+"#2 closed\n#2 swarm:blocked → swarm:rejected\n#2 gated cleared\n", "2")
+	m.forge.CreateIssue("Drop it", mark("owner", 1)+"b", []string{"swarm:plan-1-accepted", forge.Blocked, forge.Paused, forge.Gated}) // #2
+	m.ok(swarmClose, head+"#2 closed\n#2 swarm:plan-1-accepted → swarm:rejected\n#2 gated cleared\n#2 blocked cleared\n#2 paused cleared\n", "2")
 	if is, _ := m.forge.Issue(2); is.Open || !reflect.DeepEqual(is.Labels, []string{forge.Rejected}) {
 		t.Errorf("close: open %v, %v", is.Open, is.Labels)
 	}
@@ -178,7 +184,7 @@ func TestSwarmMaintainerFlagAndTerminals(t *testing.T) {
 	m.forge.Comment(issue1, mark("architect", 1)+oneSlice)
 	m.approvedPull(1, "c1")
 	m.forge.Relabel(issue1, "", forge.Gated)
-	m.ok(swarmMerge, head+"#1 merged pull app#3 (slice 1 of 1)\n#1 closed (last slice merged)\n#1 swarm:approved → swarm:done\n#1 gated cleared\n", "1")
+	m.ok(swarmMerge, head+"#1 merged pull app#3 (slice 1 of 1)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n#1 gated cleared\n", "1")
 	if is, _ := m.forge.Issue(1); is.Open || !reflect.DeepEqual(is.Labels, []string{forge.Done}) {
 		t.Errorf("merge of the last slice: open %v, %v", is.Open, is.Labels)
 	}

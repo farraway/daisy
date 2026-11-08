@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/provider"
 	"daisy/internal/swarm/runner"
 )
@@ -192,6 +193,18 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	s.given[r.Dir] = secrets
 	s.watch(r.Dir, c, slot, false)
 	fmt.Fprintf(s.Out, "%slaunched\n", runHead(r))
+	// The in-progress stage, once the container has started: a refused
+	// launch never moves the issue, and the collection moves it on from
+	// either stage, or back (section 5).
+	if to := InProgress(j.Role, j.Label); to != "" {
+		if err := s.Forge.Relabel(forge.Ref{Repo: rp, N: j.N}, j.Label, to); err != nil {
+			return true, err
+		}
+		fmt.Fprintf(s.Out, "%s%s → %s\n", runHead(r), j.Label, to)
+		if err := r.Append(fs, "relabelled "+j.Label+" "+to); err != nil {
+			return true, err
+		}
+	}
 	return true, nil
 }
 

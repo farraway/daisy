@@ -141,11 +141,14 @@ const (
 // first row): the batch over two active briefs proposes #1 with its
 // Brief: line (T1), the maintainer triages it (T3), the architect plans
 // (T5), the maintainer accepts (T7), the worker pushes swarm/1-1 and opens
-// app#2 with Refs #1 after its check (T8), the pair reviews in two rounds
-// (T10, T12, T9), the maintainer merges and relabels planned (T13), and
-// the next slice starts on swarm/1-2. The maintainer's flag rides along:
-// on at proposed, planning and approved, the gated stages, and cleared by
-// the pass that moves the issue on from each.
+// app#2 with Refs #1 after its check (T8), the issue at
+// plan-2-in-progress from the worker's launch to its collection, the pair
+// reviews in two rounds (T10, T12, T9), the issue at review-1-in-progress
+// from the first reviewer's launch until the pair completes, the
+// maintainer merges and relabels plan-1-accepted (T13), and the next slice
+// starts on swarm/1-2. The maintainer's flag rides along: on at the gated
+// stages, proposal-posted, plan-0-posted and review-2-approved, and cleared
+// by the pass that moves the issue on from each.
 func TestSwarmApplyLifecycle(t *testing.T) {
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nThe first priority.\n\n## M1 The drift\n\nA persona sees no drift.\n")
@@ -157,7 +160,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	a.pass()
 	is := a.issue(1)
 	if is.Title != "Drift check" || is.Body != mark("owner", 1)+"Brief: docs/briefs/a.md — M1 The drift\nCheck the drift." || is.Author != "swarm-bot" ||
-		!reflect.DeepEqual(labels(is), []string{"swarm:proposed", forge.Gated}) {
+		!reflect.DeepEqual(labels(is), []string{"swarm:proposal-posted", forge.Gated}) {
 		t.Fatalf("T1: %+v", is)
 	}
 	if !strings.Contains(a.stdout.String(), "owner run 1: launched\nowner run 1: proposed #1 Drift check\n") {
@@ -177,14 +180,14 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Fatalf("pass 2 launched %d", n)
 	}
 
-	a.forge.SetLabel(ref, "swarm:ready") // T3
+	a.forge.SetLabel(ref, "swarm:proposal-accepted") // T3
 	a.runner.Script(1, "architect", runner.Canned{Out: twoSlices})
 	a.pass()
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:planning", forge.Gated}) {
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:plan-0-posted", forge.Gated}) {
 		t.Fatalf("T5: %v", labels(a.issue(1)))
 	}
 
-	a.forge.SetLabel(ref, "swarm:planned") // T7
+	a.forge.SetLabel(ref, "swarm:plan-1-accepted") // T7
 	a.runner.Script(1, "worker", runner.Canned{Out: "Slice 1: main.go says v1.\n\nNot established: none\n", Work: commit(map[string]string{"main.go": "v1\n"}, "Say v1")})
 	a.runner.Script(1, "check", runner.Canned{Stdout: "ok 1 test\n"})
 	a.pass()
@@ -198,7 +201,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		pr.Body != mark("worker", 1)+"Slice 1: main.go says v1.\n\nNot established: none\n"+wantTail {
 		t.Errorf("T8 pull: %+v", pr)
 	}
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:in-review"}) {
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-0-ready"}) {
 		t.Errorf("T8: %v", labels(a.issue(1)))
 	}
 	msg, _, _ := ops.Real().Exec(a.upstream("app"), "git", "log", "-1", "--format=%an <%ae>%n%B", "swarm/1-1")
@@ -212,7 +215,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		!reflect.DeepEqual(check.Mounts, []runner.Mount{{Src: run + "/check", Dst: "/work"}}) || !reflect.DeepEqual(check.Argv, []string{"make", "check"}) || check.Workdir != "/work" {
 		t.Errorf("check spec %+v", check)
 	}
-	for _, l := range []string{"branch swarm/1-1 in app", "label swarm:planned", "check started ", "check exited 0 ", "pushed " + pr.HeadSHA, "created pull 2", "relabelled swarm:planned swarm:in-review", "outcome posted"} {
+	for _, l := range []string{"branch swarm/1-1 in app", "label swarm:plan-1-accepted", "check started ", "check exited 0 ", "pushed " + pr.HeadSHA, "relabelled swarm:plan-1-accepted swarm:plan-2-in-progress", "created pull 2", "relabelled swarm:plan-2-in-progress swarm:review-0-ready", "outcome posted"} {
 		if !strings.Contains(a.result("1-worker-1"), "\n"+l) {
 			t.Errorf("worker result lacks %q:\n%s", l, a.result("1-worker-1"))
 		}
@@ -220,23 +223,28 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	if _, err := os.Stat(run + "/check"); err == nil {
 		t.Error("check/ kept after the collection")
 	}
+	if !strings.Contains(a.stdout.String(), "#1 worker run 1: launched\n#1 worker run 1: swarm:plan-1-accepted → swarm:plan-2-in-progress\n") ||
+		!strings.Contains(a.stdout.String(), "#1 worker run 1: swarm:plan-2-in-progress → swarm:review-0-ready\n") {
+		t.Errorf("T8 through plan-2-in-progress:\n%s", a.stdout.String())
+	}
 
 	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}, runner.Canned{Out: approve})
 	a.pass() // the adversary, round 1
 	pr = a.pulls(1)[0]
-	if !slices.Contains(pr.Labels, "swarm:in-review") {
+	if !slices.Contains(pr.Labels, "swarm:review-1-in-progress") {
 		t.Errorf("the pull request's label: %v", pr.Labels)
 	}
 	if sys := a.file("1-adversary-1", "io/system.md"); !strings.Contains(sys, "check that its test exists on this head and that it fails against main's code") {
 		t.Errorf("adversary's Task:\n%s", sys)
 	}
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:in-review"}) {
-		t.Errorf("after the first review: %v", labels(a.issue(1)))
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-1-in-progress"}) || !strings.Contains(a.result("1-adversary-1"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") {
+		t.Errorf("after the first review: %v\n%s", labels(a.issue(1)), a.result("1-adversary-1"))
 	}
 	a.pass() // the sympathetic reviewer completes round 1: T10
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:reviewed"}) {
-		t.Fatalf("T10: %v", labels(a.issue(1)))
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-3-changes-requested"}) || !strings.Contains(a.result("1-sympathetic-1"), "\nlabel swarm:review-1-in-progress\n") ||
+		!strings.Contains(a.result("1-sympathetic-1"), "\nrelabelled swarm:review-1-in-progress swarm:review-3-changes-requested\n") {
+		t.Fatalf("T10: %v\n%s", labels(a.issue(1)), a.result("1-sympathetic-1"))
 	}
 	if sys := a.file("1-sympathetic-1", "io/prompt.md"); strings.Contains(sys, "says v1; the plan wants v2") {
 		t.Errorf("the sympathetic reviewer read the adversary's review of its head:\n%s", sys)
@@ -247,7 +255,8 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	a.pass() // T12
 	pr = a.pulls(1)[0]
 	cs, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 2})
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:in-review"}) || len(cs) != 1 || !strings.HasPrefix(cs[0].Body, mark("worker", 2)+"Now v2.") ||
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-0-ready"}) || !strings.Contains(a.result("1-worker-2"), "\nrelabelled swarm:review-3-changes-requested swarm:plan-2-in-progress\n") ||
+		len(cs) != 1 || !strings.HasPrefix(cs[0].Body, mark("worker", 2)+"Now v2.") ||
 		!strings.Contains(cs[0].Body, "**Check:** `make check` on "+pr.HeadSHA[:7]+": exit 0") {
 		t.Fatalf("T12: %v %+v", labels(a.issue(1)), cs)
 	}
@@ -256,7 +265,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("round 2's Task:\n%s", sys)
 	}
 	a.pass() // T9
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:approved", forge.Gated}) {
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-2-approved", forge.Gated}) {
 		t.Fatalf("T9: %v", labels(a.issue(1)))
 	}
 	a.pass() // approved runs nobody
@@ -274,7 +283,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	if err := a.forge.Merge(forge.Ref{Repo: "app", N: 2}, pr.HeadSHA); err != nil { // the maintainer merges
 		t.Fatal(err)
 	}
-	a.forge.SetLabel(ref, "swarm:planned") // T13
+	a.forge.SetLabel(ref, "swarm:plan-1-accepted") // T13
 	a.runner.Script(1, "worker", runner.Canned{Out: "Notes.\n\nNot established: none\n", Work: commit(map[string]string{"notes.md": "n\n"}, "Add notes")})
 	a.pass()
 	ps = a.pulls(1)
@@ -282,7 +291,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	if len(ps) != 2 || ps[1].Head != "swarm/1-2" || ps[1].Number != 3 || ps[1].Title != "#1 slice 2: Drift check" {
 		t.Fatalf("slice 2: %+v", ps)
 	}
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:in-review"}) || !strings.Contains(a.stdout.String(), "#1 gated cleared\n") {
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-0-ready"}) || !strings.Contains(a.stdout.String(), "#1 gated cleared\n") {
 		t.Errorf("T13 by hand, then T8: %v\n%s", labels(a.issue(1)), a.stdout.String())
 	}
 	if p := a.file("1-worker-3", "io/prompt.md"); !strings.Contains(p, "# Earlier pull requests\n\n- app#2 swarm/1-1 merged "+merged.MergeSHA+": #1 slice 1: Drift check\n") {

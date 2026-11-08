@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -74,11 +75,11 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 	}
 	a.pass()
 	a.pass()
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:approved", forge.Gated}) {
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) {
 		t.Fatalf("slice 1 not approved: %v", got)
 	}
 	a.forge.Merge(forge.Ref{Repo: "lib", N: 1}, a.pulls(1)[0].HeadSHA)
-	a.forge.SetLabel(issue1, "swarm:planned")
+	a.forge.SetLabel(issue1, "swarm:plan-1-accepted")
 	a.runner.Script(1, "worker", work("app v2"))
 	a.pass()
 	ps = a.pulls(1)
@@ -114,24 +115,24 @@ func TestSwarmApplyBadSlices(t *testing.T) {
 			if tc.one {
 				a.edit(func(c *declare.Config) { c.Repos = c.Repos[:1] })
 			}
-			a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+			a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 			a.runner.Script(1, "architect", runner.Canned{Out: tc.plan})
 			a.pass()
 			if tc.removeLib {
 				a.edit(func(c *declare.Config) { c.Repos = c.Repos[:1] })
 			}
 			if tc.bad != "" && !tc.removeLib {
-				if b := a.bodies(1); !strings.HasSuffix(b[len(b)-1], "architect run 1 failed: bad slices: "+tc.bad+" (was swarm:ready). Relabel the issue to resume.") {
+				if b := a.bodies(1); !strings.HasSuffix(b[len(b)-1], "architect run 1 failed: bad slices: "+tc.bad+" (at swarm:proposal-accepted). Remove swarm:blocked to resume.") {
 					t.Errorf("architect: %q", b)
 				}
 				return
 			}
-			a.forge.SetLabel(issue1, "swarm:planned")
+			a.forge.SetLabel(issue1, "swarm:plan-1-accepted")
 			a.runner.Script(1, "worker", work("v1"))
 			a.pass()
 			if tc.bad != "" {
 				b := a.bodies(1)
-				if !strings.HasSuffix(b[len(b)-1], "worker run 1 failed: bad slices: "+tc.bad+" (was swarm:planned). Relabel the issue to resume.") ||
+				if !strings.HasSuffix(b[len(b)-1], "worker run 1 failed: bad slices: "+tc.bad+" (at swarm:plan-1-accepted). Remove swarm:blocked to resume.") ||
 					!strings.Contains(a.result("1-worker-1"), "launch-failed ") || len(a.runner.Launches()) != 1 {
 					t.Errorf("worker: %q\n%s", b, a.result("1-worker-1"))
 				}
@@ -167,7 +168,7 @@ func TestSwarmPauseAndResume(t *testing.T) {
 		t.Errorf("resume: %q", a.stdout.String())
 	}
 	a.pass()
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:in-review"}) {
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) {
 		t.Errorf("after resume: %v", got)
 	}
 	a.release() // the batch, unscripted, held itself in that pass
@@ -179,21 +180,54 @@ func TestSwarmPauseAndResume(t *testing.T) {
 
 // The lock and the labels (section 11, apply's start): EnsureLabels runs
 // after the lock, creating a deleted label again; after RefuseLabels and
-// a deleted label apply exits 1 before any pass.
+// a deleted label apply exits 1 before any pass. On a forge holding the
+// eleven labels of Step 14 under their old names, the first apply renames
+// the seven old stage names in place and creates the four new labels
+// (section 14, item 74): every issue, open or closed, reads its new
+// stage, and the pass works on the new names.
 func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 	a := newApplyWS(t)
 	f := forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	f.AddLabels(forge.Labels[1:]...)
-	if err := a.apply(f, "--once"); err != nil || !reflect.DeepEqual(f.Labels()[len(forge.Labels)-1], "swarm:proposed") {
-		t.Errorf("%v %v", err, f.Labels())
+	if err := a.apply(f, "--once"); err != nil || !reflect.DeepEqual(f.Labels()[len(forge.Labels)-1], "swarm:proposal-posted") ||
+		!strings.HasPrefix(a.stdout.String(), "✓ Labels: 15 present (1 created, 0 renamed)\n") {
+		t.Errorf("%v %v\n%s", err, f.Labels(), a.stdout.String())
+	}
+	if err := a.apply(f, "--once"); err != nil || strings.Contains(a.stdout.String(), "Labels:") {
+		t.Errorf("nothing to make, nothing said: %v\n%s", err, a.stdout.String())
 	}
 	g := forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	g.AddLabels(forge.Labels[1:]...)
 	g.RefuseLabels()
 	a.release()
 	err := a.apply(g, "--once")
-	if err == nil || err.Error() != "Error: forge: EnsureLabels: acme's labels missing: swarm:proposed; an owner of acme creates them once" || strings.Contains(a.stdout.String(), "Pass ") {
+	if err == nil || err.Error() != "Error: forge: EnsureLabels: acme's labels missing: swarm:proposal-posted; an owner of acme makes them once" || strings.Contains(a.stdout.String(), "Pass ") {
 		t.Errorf("refused: %v\n%s", err, a.stdout.String())
+	}
+
+	old := forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
+	old.AddLabels("swarm:proposed", "swarm:ready", "swarm:planning", "swarm:planned", "swarm:in-review", "swarm:reviewed", "swarm:approved", "swarm:blocked", "swarm:gated", "swarm:done", "swarm:rejected")
+	proposed, _ := old.CreateIssue("p", "", []string{"swarm:proposed", "swarm:gated"})
+	approved, _ := old.CreateIssue("a", "", []string{"swarm:approved"})
+	done, _ := old.CreateIssue("d", "", []string{"swarm:done"})
+	old.CloseIssue(done)
+	reviewed, _ := old.CreateIssue("r", "", []string{"swarm:reviewed"})
+	old.CloseIssue(reviewed)
+	a.release()
+	if err := a.apply(old, "--once"); err != nil || !strings.HasPrefix(a.stdout.String(), "✓ Labels: 15 present (4 created, 7 renamed)\n") {
+		t.Fatalf("the migration: %v\n%s", err, a.stdout.String())
+	}
+	for _, tc := range []struct {
+		n    int
+		want string
+	}{{proposed, "swarm:proposal-posted"}, {approved, "swarm:review-2-approved"}, {done, "swarm:done"}, {reviewed, "swarm:review-3-changes-requested"}} {
+		is, _ := old.Issue(tc.n)
+		if !slices.Contains(is.Labels, tc.want) || slices.ContainsFunc(is.Labels, func(l string) bool { _, was := forge.Renamed[l]; return was }) {
+			t.Errorf("#%d after the migration: %v, want %s", tc.n, is.Labels, tc.want)
+		}
+	}
+	if strings.Contains(a.stdout.String(), "gated cleared") {
+		t.Errorf("the flag moved on a renamed stage:\n%s", a.stdout.String())
 	}
 }
 
@@ -219,7 +253,7 @@ func (r gatedRun) Wait() (runner.Exit, error) { <-r.open; return r.Container.Wai
 // the second exits 1 naming the holder before reading the forge.
 func TestSwarmApplyConcurrently(t *testing.T) {
 	a := newApplyWS(t)
-	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan}, runner.Canned{Out: archPlan})
 	open := make(chan struct{})
 	first := make(chan error)
@@ -295,7 +329,7 @@ func TestSwarmApplyLoop(t *testing.T) {
 
 	c := newApplyWS(t)
 	c.signals = make(chan os.Signal, 2)
-	c.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	c.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	c.runner.Script(1, "architect", runner.Canned{Out: archPlan})
 	open := make(chan struct{})
 	c.after = func(time.Duration) <-chan time.Time {
@@ -340,7 +374,7 @@ func TestSwarmApplyLoopSignalledDuringAPass(t *testing.T) {
 		return c
 	}
 	for _, n := range []int{1, 2} {
-		a.forge.CreateIssue("Job", "x", []string{"swarm:ready"})
+		a.forge.CreateIssue("Job", "x", []string{"swarm:proposal-accepted"})
 		a.runner.Script(n, "architect", runner.Canned{Out: archPlan})
 	}
 	err := a.applyTo(a.git(), signalling{a.runner, a.signals}, &a.stdout, &a.stderr)

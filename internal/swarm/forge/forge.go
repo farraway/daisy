@@ -15,32 +15,78 @@ import (
 	"daisy/internal/ops"
 )
 
-// Stages are the eight stage labels (section 5), in lifecycle order: the
-// state machine, one on each open swarm issue.
+// The nine stage labels (section 5), grouped by what they are about and
+// numbered by how far the stage has got: the state machine, one on each
+// open swarm issue. PlanInProgress and ReviewInProgress are written at a
+// member's launch and taken back when its run does not succeed.
+const (
+	ProposalPosted   = "swarm:proposal-posted"
+	ProposalAccepted = "swarm:proposal-accepted"
+	PlanPosted       = "swarm:plan-0-posted"
+	PlanAccepted     = "swarm:plan-1-accepted"
+	PlanInProgress   = "swarm:plan-2-in-progress"
+	ReviewReady      = "swarm:review-0-ready"
+	ReviewInProgress = "swarm:review-1-in-progress"
+	ReviewApproved   = "swarm:review-2-approved"
+	ChangesRequested = "swarm:review-3-changes-requested"
+)
+
+// Stages are the stage labels in lifecycle order.
 var Stages = []string{
-	"swarm:proposed", "swarm:ready", "swarm:planning", "swarm:planned",
-	"swarm:in-review", "swarm:reviewed", "swarm:approved", "swarm:blocked",
+	ProposalPosted, ProposalAccepted, PlanPosted, PlanAccepted, PlanInProgress,
+	ReviewReady, ReviewInProgress, ReviewApproved, ChangesRequested,
 }
 
-// Gated is the maintainer's flag beside the stage, never a stage: on an
-// open swarm issue exactly when its stage waits for the maintainer
-// (section 5). Done and Rejected are the terminal labels, which replace
-// the stage label when the swarm or the maintainer's verbs close an issue.
+// The flags sit beside the stage, never one (section 5): Gated, the
+// stage waits for the maintainer; Blocked, progress cannot be made until
+// the maintainer unblocks it; Paused, the maintainer holds the issue;
+// Blocking, the issue blocks another. Done and Rejected are the terminal
+// labels, which replace the stage label when the swarm or the
+// maintainer's verbs close an issue.
 const (
 	Gated    = "swarm:gated"
+	Blocked  = "swarm:blocked"
+	Paused   = "swarm:paused"
+	Blocking = "swarm:blocking"
 	Done     = "swarm:done"
 	Rejected = "swarm:rejected"
 )
 
-// Labels are the eleven labels `swarm init` and `swarm apply` ensure: the
-// stages, the flag and the two terminals.
-var Labels = append(slices.Clone(Stages), Gated, Done, Rejected)
+// Flags are the four flags.
+var Flags = []string{Gated, Blocked, Paused, Blocking}
+
+// Labels are the fifteen labels `swarm init` and `swarm apply` ensure:
+// the stages, the flags and the two terminals.
+var Labels = append(append(slices.Clone(Stages), Flags...), Done, Rejected)
+
+// Renamed is each stage label before Step 15 of the swarm build by the
+// name that replaced it (section 14, item 74): EnsureLabels renames a
+// label found under its old name, and a run recorded before the rename
+// is read under the new one. swarm:blocked keeps its name, as a flag.
+var Renamed = map[string]string{
+	"swarm:proposed":  ProposalPosted,
+	"swarm:ready":     ProposalAccepted,
+	"swarm:planning":  PlanPosted,
+	"swarm:planned":   PlanAccepted,
+	"swarm:in-review": ReviewReady,
+	"swarm:approved":  ReviewApproved,
+	"swarm:reviewed":  ChangesRequested,
+}
+
+// Current is label under its current name: a stage's old name (Renamed)
+// is its new one, any other label itself.
+func Current(label string) string {
+	if n, ok := Renamed[label]; ok {
+		return n
+	}
+	return label
+}
 
 // IsStage: l counts as a stage label wherever Daisy reads an issue's one
-// stage: a `swarm:*` label other than the flag and the terminals, so an
+// stage: a `swarm:*` label other than the flags and the terminals, so an
 // unknown `swarm:*` name beside a stage still makes two (section 5).
 func IsStage(l string) bool {
-	return strings.HasPrefix(l, "swarm:") && l != Gated && l != Done && l != Rejected
+	return strings.HasPrefix(l, "swarm:") && !slices.Contains(Flags, l) && l != Done && l != Rejected
 }
 
 // SwarmLabels are the labels whose issues in state are swarm issues, each
@@ -58,9 +104,11 @@ func SwarmLabels(state State) []string {
 // the board. An adapter is built for forge.repo and the declared
 // repositories' names.
 type Adapter interface {
-	// EnsureLabels creates each name the label set lacks and reports how
-	// many it created; it never edits or deletes a label.
-	EnsureLabels(names []string) (created int, err error)
+	// EnsureLabels gives the label set every name of names: a name absent
+	// whose old name (Renamed) is present is that label renamed, keeping
+	// its issues, and any other absent name is created; it reports how
+	// many it created and renamed, and never deletes a label.
+	EnsureLabels(names []string) (created, renamed int, err error)
 	Login() (Account, error) // the token's own account
 	Issues(state State, label string) ([]Issue, error)
 	Issue(n int) (Issue, error) // with comments, oldest first
@@ -191,12 +239,49 @@ func New(o ops.Ops, kind, api, token, repo string, names []string) (Adapter, err
 // noLabel is CreateIssue's or Relabel's failure on a label the forge
 // does not hold for the repository name of owner.
 func noLabel(method, owner, name, label string) error {
-	return fmt.Errorf("forge: %s: no label %s for %s/%s; run 'daisy swarm init', which ensures the eleven", method, label, owner, name)
+	return fmt.Errorf("forge: %s: no label %s for %s/%s; run 'daisy swarm init', which ensures the fifteen", method, label, owner, name)
 }
 
-// refusedLabels is EnsureLabels' failure when the forge refuses a create.
-func refusedLabels(owner string, missing []string) error {
-	return fmt.Errorf("forge: EnsureLabels: %s's labels missing: %s; an owner of %s creates them once", owner, strings.Join(missing, ", "), owner)
+// renames is each name of names absent from have whose old name (Renamed)
+// have holds, as {old, new}, in names' order.
+func renames(names []string, have func(string) bool) [][2]string {
+	var out [][2]string
+	for old, n := range Renamed {
+		if slices.Contains(names, n) && !have(n) && have(old) {
+			out = append(out, [2]string{old, n})
+		}
+	}
+	slices.SortFunc(out, func(a, b [2]string) int { return slices.Index(names, a[1]) - slices.Index(names, b[1]) })
+	return out
+}
+
+// absent is each name of names, once, that have lacks and no rename of
+// rename gives.
+func absent(names []string, have func(string) bool, rename [][2]string) []string {
+	var out []string
+	for _, n := range names {
+		if !have(n) && !slices.Contains(out, n) && !slices.ContainsFunc(rename, func(r [2]string) bool { return r[1] == n }) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// refusedLabels is EnsureLabels' failure when the forge refuses a rename
+// or a create: what is still to rename and to create, for an owner.
+func refusedLabels(owner string, rename [][2]string, missing []string) error {
+	var todo []string
+	if len(rename) > 0 {
+		var rs []string
+		for _, r := range rename {
+			rs = append(rs, r[0]+" as "+r[1])
+		}
+		todo = append(todo, "to rename (keeping their issues): "+strings.Join(rs, ", "))
+	}
+	if len(missing) > 0 {
+		todo = append(todo, "missing: "+strings.Join(missing, ", "))
+	}
+	return fmt.Errorf("forge: EnsureLabels: %s's labels %s; an owner of %s makes them once", owner, strings.Join(todo, "; "), owner)
 }
 
 // swarmPull: a pull request in the declared repository name, on branch

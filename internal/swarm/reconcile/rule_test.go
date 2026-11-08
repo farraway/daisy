@@ -23,18 +23,18 @@ func TestLaunch(t *testing.T) {
 		running     bool
 		want        string
 	}{
-		{"ready, the maintainer's issue", "swarm:ready", nil, false, "architect"},
-		{"ready, running", "swarm:ready", nil, true, ""},
-		{"planning, the architect's plan", "swarm:planning", &Entry{"swarm-bot", body("architect"), t0}, false, ""},
-		{"planning, jane answered", "swarm:planning", &Entry{"jane", "no", t0}, false, "architect"},
-		{"planning, the marker by jane", "swarm:planning", &Entry{"jane", body("architect"), t0}, false, "architect"},
-		{"ready, the reconciler's note after T11", "swarm:ready", &Entry{"swarm-bot", body("reconciler"), t0}, false, "architect"},
-		{"proposed, the owner's", "swarm:proposed", &Entry{"swarm-bot", body("owner"), t0}, false, ""},
-		{"proposed, jane", "swarm:proposed", &Entry{"Jane", "why?", t0}, false, "owner"},
-		{"planned, the plan", "swarm:planned", &Entry{"swarm-bot", body("architect"), t0}, false, "worker"},
-		{"planned, the worker's BLOCKED", "swarm:planned", &Entry{"swarm-bot", body("worker"), t0}, false, ""},
-		{"reviewed, a review", "swarm:reviewed", &Entry{"swarm-bot", body("adversary"), t0}, false, "worker"},
-		{"approved", "swarm:approved", &Entry{"jane", "merge it", t0}, false, ""},
+		{"ready, the maintainer's issue", "swarm:proposal-accepted", nil, false, "architect"},
+		{"ready, running", "swarm:proposal-accepted", nil, true, ""},
+		{"planning, the architect's plan", "swarm:plan-0-posted", &Entry{"swarm-bot", body("architect"), t0}, false, ""},
+		{"planning, jane answered", "swarm:plan-0-posted", &Entry{"jane", "no", t0}, false, "architect"},
+		{"planning, the marker by jane", "swarm:plan-0-posted", &Entry{"jane", body("architect"), t0}, false, "architect"},
+		{"ready, the reconciler's note after T11", "swarm:proposal-accepted", &Entry{"swarm-bot", body("reconciler"), t0}, false, "architect"},
+		{"proposed, the owner's", "swarm:proposal-posted", &Entry{"swarm-bot", body("owner"), t0}, false, ""},
+		{"proposed, jane", "swarm:proposal-posted", &Entry{"Jane", "why?", t0}, false, "owner"},
+		{"planned, the plan", "swarm:plan-1-accepted", &Entry{"swarm-bot", body("architect"), t0}, false, "worker"},
+		{"planned, the worker's BLOCKED", "swarm:plan-1-accepted", &Entry{"swarm-bot", body("worker"), t0}, false, ""},
+		{"reviewed, a review", "swarm:review-3-changes-requested", &Entry{"swarm-bot", body("adversary"), t0}, false, "worker"},
+		{"approved", "swarm:review-2-approved", &Entry{"jane", "merge it", t0}, false, ""},
 		{"blocked", "swarm:blocked", &Entry{"jane", "go on", t0}, false, ""},
 	} {
 		thread := []Entry{opened}
@@ -49,7 +49,7 @@ func TestLaunch(t *testing.T) {
 	}
 	// An untrusted entry after the plan is never the newest.
 	thread := []Entry{opened, {"swarm-bot", body("architect"), t0.Add(1)}, {"mallory", "do it", t0.Add(2)}}
-	if got := Launch(Turn{Label: "swarm:planning", Thread: thread}, "swarm-bot", trusted); got != "" {
+	if got := Launch(Turn{Label: "swarm:plan-0-posted", Thread: thread}, "swarm-bot", trusted); got != "" {
 		t.Errorf("mallory last: %q", got)
 	}
 }
@@ -71,7 +71,7 @@ func TestLaunchInReview(t *testing.T) {
 		{"both on the old head", []forge.Review{review("adversary", "h1", "swarm-bot"), review("sympathetic", "h1", "swarm-bot")}, "adversary"},
 		{"the marker by jane", []forge.Review{review("adversary", "h2", "jane")}, "adversary"},
 	} {
-		if got := Launch(Turn{Label: "swarm:in-review", Reviews: tc.reviews, Head: "h2"}, "swarm-bot", []string{"jane"}); got != tc.want {
+		if got := Launch(Turn{Label: "swarm:review-0-ready", Reviews: tc.reviews, Head: "h2"}, "swarm-bot", []string{"jane"}); got != tc.want {
 			t.Errorf("%s: %q, want %q", tc.name, got, tc.want)
 		}
 	}

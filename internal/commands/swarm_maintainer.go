@@ -19,10 +19,12 @@ import (
 // forge.token_env may not name it.
 const MaintainerTokenEnv = declare.MaintainerTokenEnv
 
-// SwarmTriage is `daisy swarm triage <n>`: G1, T3 (proposed → ready).
+// SwarmTriage is `daisy swarm triage <n>`: G1, T3 (proposal-posted →
+// proposal-accepted).
 func SwarmTriage(c *Context) error { return swarmTriage(c, openForge) }
 
-// SwarmAccept is `daisy swarm accept <n>`: G2, T7 (planning → planned).
+// SwarmAccept is `daisy swarm accept <n>`: G2, T7 (plan-0-posted →
+// plan-1-accepted).
 func SwarmAccept(c *Context) error { return swarmAccept(c, openForge) }
 
 // SwarmApprove is `daisy swarm approve <n>`: a formal approving review of
@@ -33,9 +35,14 @@ func SwarmApprove(c *Context) error { return swarmApprove(c, openForge) }
 // then T13 or the last slice's close (section 12).
 func SwarmMerge(c *Context) error { return swarmMerge(c, openForge) }
 
-// SwarmUnblock is `daisy swarm unblock <n> <comment...>`: G4, T18 to the
-// stage the reconciler's note names.
+// SwarmUnblock is `daisy swarm unblock <n> <comment...>`: G4, T18, the
+// comment then swarm:blocked cleared.
 func SwarmUnblock(c *Context) error { return swarmUnblock(c, openForge) }
+
+// SwarmBlock is `daisy swarm block <n> --by <m>`: #m flagged
+// swarm:blocking, then `Blocked by #<m>` on #n, which holds #n's job while
+// #m is open (section 6, rule 1).
+func SwarmBlock(c *Context) error { return swarmBlock(c, openForge) }
 
 // SwarmClose is `daisy swarm close <n> [comment...]`: T19.
 func SwarmClose(c *Context) error { return swarmClose(c, openForge) }
@@ -171,7 +178,12 @@ func (m *maintainer) relabel(from, to string) error {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	fmt.Fprintf(m.c.Stdout, "#%d %s → %s\n", m.n, from, to)
-	if err := reconcile.Unflag(m.f, m.at, m.labels, m.c.Stdout); err != nil {
+	return m.unflag(forge.Gated)
+}
+
+// unflag clears flag from issue n when it carries it.
+func (m *maintainer) unflag(flag string) error {
+	if err := reconcile.Unflag(m.f, m.at, m.labels, flag, m.c.Stdout); err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	return nil
@@ -199,11 +211,11 @@ func (m *maintainer) close(stage, terminal, how string) error {
 }
 
 func swarmTriage(c *Context, open opener) error {
-	return swarmMove(c, open, "swarm:proposed", "swarm:ready")
+	return swarmMove(c, open, forge.ProposalPosted, forge.ProposalAccepted)
 }
 
 func swarmAccept(c *Context, open opener) error {
-	return swarmMove(c, open, "swarm:planning", "swarm:planned")
+	return swarmMove(c, open, forge.PlanPosted, forge.PlanAccepted)
 }
 
 // swarmMove is a gate's relabel, from the one stage it decides: triage's
@@ -277,7 +289,7 @@ func swarmMerge(c *Context, open opener) error {
 	if err != nil {
 		return err
 	}
-	is, err := m.issue("swarm:approved")
+	is, err := m.issue(forge.ReviewApproved)
 	if err != nil {
 		return err
 	}
@@ -315,14 +327,14 @@ func swarmMerge(c *Context, open opener) error {
 		fmt.Fprintf(c.Stdout, "#%d merged pull %s#%d (slice %d of %d)\n", m.n, cur.Repo, cur.Number, s, S)
 	}
 	if s < S {
-		return m.relabel("swarm:approved", "swarm:planned")
+		return m.relabel(forge.ReviewApproved, forge.PlanAccepted)
 	}
-	return m.close("swarm:approved", forge.Done, " (last slice merged)")
+	return m.close(forge.ReviewApproved, forge.Done, " (last slice merged)")
 }
 
-// swarmUnblock posts the maintainer's comment, then relabels the blocked
-// issue to the stage the newest reconciler note that blocked it names, so
-// the role that stage runs reads the comment when it runs.
+// swarmUnblock posts the maintainer's comment, then clears swarm:blocked
+// from the issue, whose stage the block kept, so the role that stage runs
+// reads the comment when it runs.
 func swarmUnblock(c *Context, open opener) error {
 	if _, err := issueArg(c); err != nil {
 		return err
@@ -335,24 +347,24 @@ func swarmUnblock(c *Context, open opener) error {
 	if err != nil {
 		return err
 	}
-	is, err := m.issue("swarm:blocked")
+	is, err := m.issue("")
 	if err != nil {
 		return err
 	}
-	prior, ok := reconcile.BlockedFrom(is, m.swarm)
-	if !ok {
-		return fmt.Errorf("Error: swarm: #%d: no reconciler note names the stage it was blocked from; relabel it on the forge; nothing changed", m.n)
+	if !slices.Contains(is.Labels, forge.Blocked) {
+		return fmt.Errorf("Error: swarm: #%d is not blocked; nothing changed", m.n)
 	}
-	if reconcile.AtTheRoundLimit(is, m.swarm) {
-		return fmt.Errorf("Error: swarm: #%d: blocked at the review round limit, where both reviewers have reviewed the head and swarm:in-review runs no one; comment, then relabel it on the forge: swarm:reviewed for one more fix round, swarm:planning to re-plan; nothing changed", m.n)
+	stage, _ := reconcile.StageOf(is)
+	if stage == forge.ReviewInProgress && reconcile.AtTheRoundLimit(is, m.swarm) {
+		return fmt.Errorf("Error: swarm: #%d: blocked at the review round limit, where both reviewers have reviewed the head and %s runs no one; relabel it on the forge first, %s for one more fix round or %s to re-plan, then unblock it; nothing changed", m.n, stage, forge.ChangesRequested, forge.PlanPosted)
 	}
 	if !slices.ContainsFunc(m.cfg.Trusted, func(l string) bool { return strings.EqualFold(l, m.login) }) {
 		fmt.Fprintf(c.Stderr, "⚠ %s is not in trusted: no member reads your comment (docs/swarm.md section 6)\n", m.login)
 	}
 	// The comment goes where the stage's role reads: the worker in
-	// swarm:reviewed reads the current pull request's thread, whose newest
-	// entry may be its own BLOCKED: (section 6, rule 3).
-	if prior == "swarm:reviewed" {
+	// review-3-changes-requested reads the current pull request's thread,
+	// whose newest entry may be its own BLOCKED: (section 6, rule 3).
+	if stage == forge.ChangesRequested {
 		pulls, err := m.f.Pulls(m.n)
 		if err != nil {
 			return fmt.Errorf("Error: swarm: %v", err)
@@ -363,13 +375,106 @@ func swarmUnblock(c *Context, open opener) error {
 				return fmt.Errorf("Error: swarm: %v", err)
 			}
 			fmt.Fprintf(m.c.Stdout, "#%d commented on pull %s#%d\n", m.n, cur.Repo, cur.Number)
-			return m.relabel("swarm:blocked", prior)
+			return m.lift()
 		}
 	}
 	if err := m.say(text); err != nil {
 		return err
 	}
-	return m.relabel("swarm:blocked", prior)
+	return m.lift()
+}
+
+// lift clears swarm:blocked, and with it swarm:gated, which the next pass
+// sets again when the stage waits.
+func (m *maintainer) lift() error {
+	if err := m.unflag(forge.Blocked); err != nil {
+		return err
+	}
+	return m.unflag(forge.Gated)
+}
+
+// SwarmPause is `daisy swarm pause [<n>]`: with <n>, the maintainer's
+// hold on issue n, swarm:paused set (section 6, rule 1); without, the
+// whole swarm paused (pauseSwarm).
+func SwarmPause(c *Context) error { return swarmHold(c, openForge, true) }
+
+// SwarmResume is `daisy swarm resume [<n>]`: with <n>, swarm:paused
+// cleared from issue n; without, the whole swarm resumed (resumeSwarm).
+func SwarmResume(c *Context) error { return swarmHold(c, openForge, false) }
+
+func swarmHold(c *Context, open opener, pause bool) error {
+	if len(c.Args) == 0 {
+		if pause {
+			return pauseSwarm(c)
+		}
+		return resumeSwarm(c)
+	}
+	m, err := asMaintainer(c, open)
+	if err != nil {
+		return err
+	}
+	if _, err := m.issue(""); err != nil {
+		return err
+	}
+	paused := slices.Contains(m.labels, forge.Paused)
+	switch {
+	case pause && paused:
+		fmt.Fprintf(c.Stdout, "#%d already paused\n", m.n)
+		return nil
+	case !pause && !paused:
+		fmt.Fprintf(c.Stdout, "#%d not paused\n", m.n)
+		return nil
+	case pause:
+		if err := reconcile.Flag(m.f, m.at, m.labels, forge.Paused, c.Stdout); err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		return nil
+	}
+	return m.unflag(forge.Paused)
+}
+
+// swarmBlock flags #m swarm:blocking, then comments `Blocked by #<m>` on
+// #n as the maintainer: the role rule launches nothing on #n while that
+// comment is its newest by a maintainer and #m is open.
+func swarmBlock(c *Context, open opener) error {
+	if _, err := issueArg(c); err != nil {
+		return err
+	}
+	// --by after <n>, as the usage writes it, or leading, as the cli reads
+	// a value flag.
+	by, given := c.Value("--by")
+	switch {
+	case given && len(c.Args) == 1:
+	case !given && len(c.Args) == 3 && c.Args[1] == "--by":
+		by = c.Args[2]
+	default:
+		return UsageError("swarm block takes <n> --by <m>")
+	}
+	b, err := strconv.Atoi(by)
+	if err != nil || b < 1 || strconv.Itoa(b) != by {
+		return UsageError("not an issue number: " + by)
+	}
+	m, err := asMaintainer(c, open)
+	if err != nil {
+		return err
+	}
+	if b == m.n {
+		return fmt.Errorf("Error: swarm: #%d cannot block itself; nothing changed", m.n)
+	}
+	if _, err := m.issue(""); err != nil {
+		return err
+	}
+	blocker, err := m.f.Issue(b)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	if !blocker.Open || blocker.Pull {
+		return fmt.Errorf("Error: swarm: #%d is not an open issue; nothing changed", b)
+	}
+	if err := reconcile.Flag(m.f, forge.Ref{Repo: m.at.Repo, N: b}, blocker.Labels, forge.Blocking, c.Stdout); err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	return m.say(fmt.Sprintf("Blocked by #%d", b))
 }
 
 // short is a commit's first seven characters.

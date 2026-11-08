@@ -50,20 +50,20 @@ func TestSwarmApplyMilestones(t *testing.T) {
 	a.write("docs/briefs/c.md", "# C\n\nStatus: done\n\n## M1 Gone\n")
 	f := a.forge
 	create := func(label, body string) int {
-		n, err := f.CreateIssue("t", body, []string{label})
+		n, err := f.CreateIssue("t", body, strings.Split(label, "+"))
 		if err != nil {
 			t.Fatal(err)
 		}
 		return n
 	}
-	create("swarm:blocked", mark("owner", 1)+"Brief: docs/briefs/a.md — M2 Second\nA job.\n")   // 1
-	f.CloseIssue(create("swarm:ready", mark("owner", 1)+"Brief: docs/briefs/b.md — M1 Only\n")) // 2
-	create("swarm:blocked", mark("owner", 1)+"Brief: docs/briefs/a.md — M1 Frist\n")            // 3: a heading renamed since
-	create("swarm:approved", "Brief: docs/briefs/c.md — M1 Gone\n")                             // 4: the maintainer's, a done brief
-	create("swarm:blocked", "A job of the maintainer's.\n")                                     // 5
-	create("swarm:blocked", "Brief: docs/brief/a.md — M1 First\n")                              // 6: no such brief
-	f.CloseIssue(create("swarm:approved", mark("owner", 1)+"Brief: docs/briefs/b.md — Gone\n")) // 7
-	f.CloseIssue(create("swarm:approved", "Brief: docs/brief/b.md — M1 Only\n"))                // 8
+	create("swarm:plan-1-accepted+swarm:blocked", mark("owner", 1)+"Brief: docs/briefs/a.md — M2 Second\nA job.\n") // 1
+	f.CloseIssue(create("swarm:proposal-accepted", mark("owner", 1)+"Brief: docs/briefs/b.md — M1 Only\n"))         // 2
+	create("swarm:plan-1-accepted+swarm:blocked", mark("owner", 1)+"Brief: docs/briefs/a.md — M1 Frist\n")          // 3: a heading renamed since
+	create("swarm:review-2-approved", "Brief: docs/briefs/c.md — M1 Gone\n")                                        // 4: the maintainer's, a done brief
+	create("swarm:plan-1-accepted+swarm:blocked", "A job of the maintainer's.\n")                                   // 5
+	create("swarm:plan-1-accepted+swarm:blocked", "Brief: docs/brief/a.md — M1 First\n")                            // 6: no such brief
+	f.CloseIssue(create("swarm:review-2-approved", mark("owner", 1)+"Brief: docs/briefs/b.md — Gone\n"))            // 7
+	f.CloseIssue(create("swarm:review-2-approved", "Brief: docs/brief/b.md — M1 Only\n"))                           // 8
 
 	a.release()
 	a.runner.Script(0, "owner", runner.Canned{Stdout: claudeResult, Out: "## One\nBrief: docs/briefs/a.md — M1 First\nDo one.\n\n" +
@@ -101,7 +101,7 @@ func TestSwarmApplyMilestones(t *testing.T) {
 	}
 
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T16:00:00Z\n"), 0o644)
-	create("swarm:blocked", "Brief: docs/briefs/b.md — M1 Only\n") // 12
+	create("swarm:plan-1-accepted+swarm:blocked", "Brief: docs/briefs/b.md — M1 Only\n") // 12
 	a.pass()
 	if !strings.Contains(a.stdout.String(), "#12 milestone: b: M1 Only\n") || a.milestoneOf(12) != "b: M1 Only" {
 		t.Errorf("paused:\n%s", a.stdout.String())
@@ -115,7 +115,7 @@ func TestSwarmApplyMilestonesRefused(t *testing.T) {
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "Status: active\n\n## M1\n\n## M2\n")
 	f := a.forge
-	f.CreateIssue("t", "Brief: docs/briefs/a.md — M1\n", []string{"swarm:blocked"})
+	f.CreateIssue("t", "Brief: docs/briefs/a.md — M1\n", []string{"swarm:plan-1-accepted", forge.Blocked})
 	f.EnsureMilestone("a: M1")
 	f.RefuseMilestones()
 	a.pass()

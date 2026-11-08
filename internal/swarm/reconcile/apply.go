@@ -247,11 +247,11 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 					continue
 				}
 			}
-			if err := r.Append(fs, "abandoned "+now, "outcome abandoned", "collected"); err != nil {
+			// The end line first: collect restores the issue's stage and
+			// only then records `collected`, so a forge error is retried.
+			if err := r.Append(fs, "abandoned "+now); err != nil {
 				return err
 			}
-			fs.RemoveAll(filepath.Join(r.Dir, "work"))
-			continue
 		}
 		if at, pending := checkPending(lines); pending {
 			name := s.containerName(r.N, "check", r.K)
@@ -440,10 +440,22 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			if len(roles) == 0 || launch == nil {
 				continue
 			}
-			review := label == "swarm:in-review" || label == "swarm:reviewed"
+			if held := Held(is.Labels); held != "" {
+				continue // rule 1: blocked, or paused by the maintainer
+			}
+			review := onPull(label)
 			if review && !open {
 				fmt.Fprintf(s.Err, "⚠ #%d: %s but its current pull request is not open; skipped\n", n, label)
 				continue
+			}
+			if m := BlockedBy(is, s.SwarmLogin, s.Cfg.Trusted); m != 0 {
+				blocker, err := s.Forge.Issue(m)
+				if err != nil {
+					return err
+				}
+				if blocker.Open {
+					continue // rule 1: the maintainer's `Blocked by #<m>`, #<m> open
+				}
 			}
 			marks := marksOf(IssueThread(is), s.SwarmLogin)
 			if open {

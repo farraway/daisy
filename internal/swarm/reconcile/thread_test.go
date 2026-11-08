@@ -57,41 +57,33 @@ func TestNewestCounted(t *testing.T) {
 	}
 }
 
-// The stage an issue was blocked from, read from the newest reconciler
-// note that blocked it (docs/swarm.md section 7.6's notes).
-func TestBlockedFrom(t *testing.T) {
+// The blocker the newest maintainer comment names (section 6, rule 1): a
+// comment `Blocked by #<m>` by a trusted login not the swarm's, newest of
+// theirs; a later maintainer comment lifts it, the swarm's and an
+// untrusted login's do not.
+func TestBlockedBy(t *testing.T) {
 	t0 := time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)
-	note := func(k int, text string) string {
-		return "<!-- daisy-swarm role=reconciler run=" + string(rune('0'+k)) + " -->\n**reconciler:**\n\n" + text
-	}
-	failed := note(1, "worker run 1 failed: check failed (was swarm:planned). Relabel the issue to resume.")
-	firstLimit := note(2, "Review round 3 of 3 on app#2 requested changes (was swarm:in-review). The architect revises the plan from the reviews.")
 	for _, tc := range []struct {
 		name     string
 		comments []forge.Comment
-		want     string
-		ok       bool
+		want     int
 	}{
-		{"a failure", []forge.Comment{{Author: "swarm-bot", Body: failed}}, "swarm:planned", true},
-		{"BLOCKED:, the role's text first", []forge.Comment{{Author: "swarm-bot", Body: "<!-- daisy-swarm role=architect run=2 -->\n**architect:**\n\nBLOCKED: which parser?"},
-			{Author: "swarm-bot", Body: note(3, "architect run 2 is blocked (was swarm:ready). Answer and relabel the issue to resume.")}}, "swarm:ready", true},
-		{"a member's path quoting a label", []forge.Comment{{Author: "swarm-bot", Body: note(7, "worker run 1 failed: protected path changed: .gitea/(was swarm:approved).yml (was swarm:planned). Relabel the issue to resume.")}}, "swarm:planned", true},
-		{"a forge message quoting a label", []forge.Comment{{Author: "swarm-bot", Body: note(8, "merge of pull request acme/app#2 at abc1234 refused: 405 (was swarm:merged) (was swarm:approved). Resolve it and relabel the issue.")}}, "swarm:approved", true},
-		{"the refused merge", []forge.Comment{{Author: "swarm-bot", Body: note(4, "merge of pull request acme/app#2 at abc1234 refused: 409 head out of date (was swarm:approved). Resolve it and relabel the issue.")}}, "swarm:approved", true},
-		{"the newest note wins", []forge.Comment{{Author: "swarm-bot", Body: failed}, {Author: "swarm-bot", Body: note(5, "Review round 3 of 3 on app#2 requested changes a second time (was swarm:in-review). Relabel the issue to resume.")}}, "swarm:in-review", true},
-		{"the round limit's first note blocks nothing", []forge.Comment{{Author: "swarm-bot", Body: failed}, {Author: "swarm-bot", Body: firstLimit}}, "swarm:planned", true},
-		{"only the first note", []forge.Comment{{Author: "swarm-bot", Body: firstLimit}}, "", false},
-		{"a note by a maintainer's login", []forge.Comment{{Author: "jane", Body: failed}}, "", false},
-		{"a note naming no label", []forge.Comment{{Author: "swarm-bot", Body: note(6, "worker run 1 failed: (was swarm:bogus).")}}, "", false},
-		{"no note", nil, "", false},
+		{"the verb's comment", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}}, 3},
+		{"written by hand, spaced", []forge.Comment{{Author: "Jane", Body: "  Blocked by #12\n"}}, 12},
+		{"the swarm's and an untrusted login's after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "swarm-bot", Body: marker("owner", 1) + "ok"}, {Author: "mallory", Body: "go"}}, 3},
+		{"a later maintainer comment", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "#3 can wait; go on"}}, 0},
+		{"an untrusted login's", []forge.Comment{{Author: "mallory", Body: "Blocked by #3"}}, 0},
+		{"the swarm's", []forge.Comment{{Author: "swarm-bot", Body: "Blocked by #3"}}, 0},
+		{"inside a sentence", []forge.Comment{{Author: "jane", Body: "Blocked by #3 for now"}}, 0},
+		{"no comment", nil, 0},
 	} {
-		is := forge.Issue{Author: "jane", Body: "job", Created: t0}
+		is := forge.Issue{Author: "jane", Body: "Blocked by #9", Created: t0}
 		for i, c := range tc.comments {
 			c.Created = t0.Add(time.Duration(i+1) * time.Hour)
 			is.Comments = append(is.Comments, c)
 		}
-		if got, ok := BlockedFrom(is, "swarm-bot"); got != tc.want || ok != tc.ok {
-			t.Errorf("%s: BlockedFrom = %q, %v; want %q, %v", tc.name, got, ok, tc.want, tc.ok)
+		if got := BlockedBy(is, "swarm-bot", []string{"jane", "swarm-bot"}); got != tc.want {
+			t.Errorf("%s: BlockedBy = %d, want %d", tc.name, got, tc.want)
 		}
 	}
 }
@@ -150,10 +142,10 @@ func TestAtTheRoundLimit(t *testing.T) {
 	note := func(text string) forge.Issue {
 		return forge.Issue{Author: "jane", Body: "job", Comments: []forge.Comment{{Author: "swarm-bot", Body: marker("reconciler", 1) + text, Created: time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)}}}
 	}
-	if !AtTheRoundLimit(note("Review round 3 of 3 on app#2 requested changes a second time (was swarm:in-review). Relabel the issue to resume."), "swarm-bot") {
+	if !AtTheRoundLimit(note("Review round 3 of 3 on app#2 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked."), "swarm-bot") {
 		t.Error("the second note is not the round limit's")
 	}
-	if AtTheRoundLimit(note("worker run 1 failed: protected path changed: .gitea/requested changes a second time (was swarm:planned). Relabel the issue to resume."), "swarm-bot") {
+	if AtTheRoundLimit(note("worker run 1 failed: protected path changed: .gitea/requested changes a second time (at swarm:plan-1-accepted). Remove swarm:blocked to resume."), "swarm-bot") {
 		t.Error("a member's path made a failure the round limit's")
 	}
 }

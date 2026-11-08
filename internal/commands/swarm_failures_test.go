@@ -16,16 +16,17 @@ import (
 // planned is a new issue #1 with an accepted one-slice plan at planned.
 func (a *applyWS) planned(plan string) {
 	a.t.Helper()
-	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: plan})
 	a.pass()
-	a.forge.SetLabel(issue1, "swarm:planned")
+	a.forge.SetLabel(issue1, "swarm:plan-1-accepted")
 }
 
 // Every work-failure row of section 7.7 a worker or a reviewer can meet,
-// then T17 with the prior label in the note and a failed worker's commits
-// kept in the mirror; then T18, the maintainer's relabel, runs the role
-// again.
+// then T17: the in-progress stage the launch wrote taken back to the
+// launch's (plan-1-accepted, review-0-ready), swarm:blocked beside it, the
+// stage in the note, and a failed worker's commits kept in the mirror;
+// then T18, the flag removed, runs the role again.
 func TestSwarmApplyWorkFailures(t *testing.T) {
 	secret := "oauth-token-0123456789abcdef0123456789"
 	for _, tc := range []struct {
@@ -84,10 +85,10 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newApplyWS(t)
-			role, label := "worker", "swarm:planned"
+			role, label := "worker", "swarm:plan-1-accepted"
 			if tc.review {
 				a.inReview(oneSlice)
-				role, label = "adversary", "swarm:in-review"
+				role, label = "adversary", "swarm:review-0-ready"
 			} else {
 				a.planned(oneSlice)
 			}
@@ -98,15 +99,20 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 			a.runner.Script(1, "check", tc.check)
 			a.pass()
 			k := map[string]string{"worker": "1", "adversary": "1"}[role]
-			note := mark("reconciler", 1) + role + " run " + k + " failed: " + tc.reason + " (was " + label + "). Relabel the issue to resume."
+			note := mark("reconciler", 1) + role + " run " + k + " failed: " + tc.reason + " (at " + label + "). Remove swarm:blocked to resume."
 			if tc.kept {
 				note += " Its commits are kept in the swarm's mirror as refs/swarm-runs/1-worker-1."
 			}
 			b := a.bodies(1)
-			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked", forge.Gated}) || b[len(b)-1] != note {
+			r := a.result("1-" + role + "-1")
+			progress := map[string]string{"worker": "swarm:plan-2-in-progress", "adversary": "swarm:review-1-in-progress"}[role]
+			if !strings.Contains(r, "\nrelabelled "+label+" "+progress+"\n") || !strings.Contains(r, "\nrelabelled "+progress+" "+label+"\n") ||
+				!strings.Contains(r, "\nflagged swarm:blocked\n") {
+				t.Errorf("the in-progress stage and back:\n%s", r)
+			}
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{label, "swarm:blocked", forge.Gated}) || b[len(b)-1] != note {
 				t.Fatalf("T17: %v %q\n%s", got, b, a.result("1-"+role+"-1"))
 			}
-			r := a.result("1-" + role + "-1")
 			if !strings.Contains(r, "failed: "+tc.reason+"\n") || !strings.HasSuffix(r, "outcome failed\ncollected\n") {
 				t.Errorf("result:\n%s", r)
 			}
@@ -127,7 +133,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 				t.Error("the secret was posted")
 			}
 
-			a.forge.SetLabel(issue1, label) // T18
+			a.forge.Relabel(issue1, forge.Blocked, "") // T18
 			a.runner.Script(1, role, runner.Canned{Out: "BLOCKED: what now?\n"})
 			a.pass()
 			if _, err := os.Stat(a.state("runs/1-" + role + "-2/result")); err != nil {
@@ -196,7 +202,7 @@ func TestSwarmApplyFaults(t *testing.T) {
 	if err != nil || !strings.HasSuffix(string(paused), ": swarm fault: slot openai/1: no login; run 'CODEX_HOME="+slot+" codex login -c cli_auth_credentials_store=file'\n") {
 		t.Fatalf("paused: %q %v", paused, err)
 	}
-	if !reflect.DeepEqual(a.bodies(1), before) || !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:in-review"}) {
+	if !reflect.DeepEqual(a.bodies(1), before) || !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-0-ready"}) {
 		t.Errorf("a fault reached the forge: %q", a.bodies(1))
 	}
 	a.pass()
@@ -221,9 +227,9 @@ func TestSwarmApplyFaultsInOnePass(t *testing.T) {
 	})
 	os.Remove(filepath.Join(a.local, "swarm", "credentials", "openai", "1", "auth.json"))
 	for _, title := range []string{"One", "Two"} {
-		a.forge.CreateIssue(title, "x", []string{"swarm:ready"})
+		a.forge.CreateIssue(title, "x", []string{"swarm:proposal-accepted"})
 	}
-	a.forge.CreateIssue("Three", "x", []string{"swarm:planned"})
+	a.forge.CreateIssue("Three", "x", []string{"swarm:plan-1-accepted"})
 	a.runner.Script(3, "worker", work("v1"))
 	a.pass()
 	if _, err := os.Stat(a.state("paused")); err != nil || len(a.runner.Launches()) != 0 {
@@ -243,7 +249,7 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 			c.Owner.MaxOpenProposals = 3
 			c.Budget = &declare.Budget{PerDay: 10, Total: 100}
 		})
-		a.forge.CreateIssue("Old", "x", []string{"swarm:ready"})
+		a.forge.CreateIssue("Old", "x", []string{"swarm:proposal-accepted"})
 		a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.app.1.architect.9", Swarm: "acme/app#1/architect"}} // #1 stays ready
 		a.release()
 		a.runner.Script(0, "owner", runner.Canned{Out: "## One\nA.\n## Two\nB.\n## Three\nC.\n"})
@@ -251,7 +257,7 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 		if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, "Propose up to 2 new jobs for acme/app, most important first, from the resources and the code.") {
 			t.Errorf("batch Task:\n%s", sys)
 		}
-		ready, _ := a.forge.Issues(forge.Open, "swarm:ready")
+		ready, _ := a.forge.Issues(forge.Open, "swarm:proposal-accepted")
 		if len(ready) != 3 || ready[2].Title != "Two" {
 			t.Errorf("ready: %+v", ready)
 		}
@@ -285,7 +291,7 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 			if string(held) != "held 2026-11-06T15:01:00Z: "+tc.held+"\n" {
 				t.Errorf("owner-held: %q", held)
 			}
-			if is, _ := a.forge.Issues(forge.Open, "swarm:proposed"); len(is) != 0 {
+			if is, _ := a.forge.Issues(forge.Open, "swarm:proposal-posted"); len(is) != 0 {
 				t.Errorf("created %+v", is)
 			}
 			a.pass()
@@ -307,7 +313,7 @@ func TestSwarmApplyAbandonedAndOrphans(t *testing.T) {
 	a := newApplyWS(t)
 	for run, started := range map[string]string{"1-architect-1": "2026-11-06T14:59:00Z", "2-architect-1": "2026-11-06T14:00:00Z", "3-architect-1": "2026-11-06T14:59:00Z"} {
 		os.MkdirAll(a.state("runs/"+run+"/work"), 0o755)
-		os.WriteFile(a.state("runs/"+run+"/result"), []byte("label swarm:ready\nstarted "+started+"\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\n"), 0o644)
+		os.WriteFile(a.state("runs/"+run+"/result"), []byte("label swarm:proposal-accepted\nstarted "+started+"\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\n"), 0o644)
 	}
 	a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.app.2.architect.1", Swarm: "acme/app#2/architect"}, {Name: "daisy-swarm.acme.app.3.architect.1", Swarm: "acme/app#3/architect"}}
 	a.pass()

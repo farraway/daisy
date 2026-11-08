@@ -28,6 +28,13 @@ import (
 // the route requires the organization's ownership, which answers 403 to a
 // member (confirmed on the instance at Step 1's smoke).
 //
+// Step 15's, from the same Swagger: orgEditLabel (`PATCH
+// /orgs/{org}/labels/{id}`, EditLabelOption: name, color, description,
+// exclusive, is_archived, each optional; 200 Label), which renames a
+// label in place, keeping its id and so every issue that carries it. Its
+// route requires the organization's ownership too, as orgCreateLabel's
+// does: a member's token is answered 403, recorded as the create's.
+//
 // Step 4's, from the same Swagger: issueGetIssue (`GET
 // /repos/{owner}/{repo}/issues/{index}`, 200 Issue); issueGetComments
 // (`GET …/issues/{index}/comments`, query since and before only, no page:
@@ -174,44 +181,71 @@ func TestGiteaEnsureLabels(t *testing.T) {
 	for i := range fifty {
 		fifty[i] = "other-" + itoa(i)
 	}
+	// The eleven of Step 14, by their names before Step 15, ids 1 to 11.
+	before := []string{"swarm:proposed", "swarm:ready", "swarm:planning", "swarm:planned", "swarm:in-review", "swarm:reviewed", "swarm:approved", "swarm:blocked", "swarm:gated", "swarm:done", "swarm:rejected"}
+	rename := func(id int, name string, status int, resp string) pair {
+		return pair{"PATCH", orgLabels + "/" + itoa(id), `{"name":"` + name + `"}`, status, resp}
+	}
 	for _, tc := range []struct {
-		name    string
-		pairs   []pair
-		created int
-		err     string
+		name             string
+		pairs            []pair
+		created, renamed int
+		err              string
 	}{
-		{"all present: nothing created", []pair{{"GET", listLabels, "", 200, labelList(append([]string{"bug"}, all...)...)}}, 0, ""},
+		{"all present: nothing made", []pair{{"GET", listLabels, "", 200, labelList(append([]string{"bug"}, all...)...)}}, 0, 0, ""},
 		{"the missing created", []pair{
-			{"GET", listLabels, "", 200, labelList(all[:9]...)},
+			{"GET", listLabels, "", 200, labelList(all[:13]...)},
 			createLabel("swarm:done", 201, createdBody),
 			createLabel("swarm:rejected", 201, createdBody),
-		}, 2, ""},
+		}, 2, 0, ""},
 		{"every page read", []pair{
 			{"GET", listLabels, "", 200, labelList(fifty...)},
 			{"GET", "/orgs/acme/labels?page=2&limit=50", "", 200, labelList(all[1:]...)},
-			createLabel("swarm:proposed", 201, createdBody),
-		}, 1, ""},
+			createLabel("swarm:proposal-posted", 201, createdBody),
+		}, 1, 0, ""},
+		{"the old names renamed in place, by id, then the new created", []pair{
+			{"GET", listLabels, "", 200, labelList(before...)},
+			rename(1, "swarm:proposal-posted", 200, label(1, "swarm:proposal-posted")),
+			rename(2, "swarm:proposal-accepted", 200, label(2, "swarm:proposal-accepted")),
+			rename(3, "swarm:plan-0-posted", 200, label(3, "swarm:plan-0-posted")),
+			rename(4, "swarm:plan-1-accepted", 200, label(4, "swarm:plan-1-accepted")),
+			rename(5, "swarm:review-0-ready", 200, label(5, "swarm:review-0-ready")),
+			rename(7, "swarm:review-2-approved", 200, label(7, "swarm:review-2-approved")),
+			rename(6, "swarm:review-3-changes-requested", 200, label(6, "swarm:review-3-changes-requested")),
+			createLabel("swarm:plan-2-in-progress", 201, createdBody),
+			createLabel("swarm:review-1-in-progress", 201, createdBody),
+			createLabel("swarm:paused", 201, createdBody),
+			createLabel("swarm:blocking", 201, createdBody),
+		}, 4, 7, ""},
+		{"an old name beside its new one is left as it is", []pair{
+			{"GET", listLabels, "", 200, labelList(append([]string{"swarm:planned"}, all...)...)},
+		}, 0, 0, ""},
+		{"a refused rename (403) makes nothing more and names every rename and create still to make", []pair{
+			{"GET", listLabels, "", 200, labelList(before...)},
+			rename(1, "swarm:proposal-posted", 200, label(1, "swarm:proposal-posted")),
+			rename(2, "swarm:proposal-accepted", 403, refused),
+		}, 0, 1, "forge: EnsureLabels: acme's labels to rename (keeping their issues): swarm:ready as swarm:proposal-accepted, swarm:planning as swarm:plan-0-posted, swarm:planned as swarm:plan-1-accepted, swarm:in-review as swarm:review-0-ready, swarm:approved as swarm:review-2-approved, swarm:reviewed as swarm:review-3-changes-requested; missing: swarm:plan-2-in-progress, swarm:review-1-in-progress, swarm:paused, swarm:blocking; an owner of acme makes them once"},
 		{"a refused create (403) creates nothing more and names every missing label", []pair{
 			{"GET", listLabels, "", 200, labelList(Stages...)},
 			createLabel("swarm:gated", 403, refused),
-		}, 0, "forge: EnsureLabels: acme's labels missing: swarm:gated, swarm:done, swarm:rejected; an owner of acme creates them once"},
+		}, 0, 0, "forge: EnsureLabels: acme's labels missing: swarm:gated, swarm:blocked, swarm:paused, swarm:blocking, swarm:done, swarm:rejected; an owner of acme makes them once"},
 		{"a refusal (401) after one create names the rest", []pair{
-			{"GET", listLabels, "", 200, labelList(Stages...)},
-			createLabel("swarm:gated", 201, createdBody),
+			{"GET", listLabels, "", 200, labelList(all[:12]...)},
+			createLabel("swarm:blocking", 201, createdBody),
 			createLabel("swarm:done", 401, `{"message":"token is required"}`),
-		}, 1, "forge: EnsureLabels: acme's labels missing: swarm:done, swarm:rejected; an owner of acme creates them once"},
+		}, 1, 0, "forge: EnsureLabels: acme's labels missing: swarm:done, swarm:rejected; an owner of acme makes them once"},
 		{"a 404 on the list: not an organization", []pair{{"GET", listLabels, "", 404, `{"errors":null,"message":"not found","url":""}`}},
-			0, "forge: EnsureLabels: acme is not an organization; kind gitea needs one (section 3)"},
+			0, 0, "forge: EnsureLabels: acme is not an organization; kind gitea needs one (section 3)"},
 		{"another failure is the forge's error", []pair{
 			{"GET", listLabels, "", 200, "[]"},
-			createLabel("swarm:proposed", 422, `{"message":"invalid color"}`),
-		}, 0, "forge: POST /orgs/acme/labels: 422 invalid color"},
+			createLabel("swarm:proposal-posted", 422, `{"message":"invalid color"}`),
+		}, 0, 0, "forge: POST /orgs/acme/labels: 422 invalid color"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g, s := gitea(t, nil, tc.pairs...)
-			created, err := g.EnsureLabels(all)
-			if created != tc.created || errText(err) != tc.err {
-				t.Errorf("EnsureLabels = %d, %q; want %d, %q", created, errText(err), tc.created, tc.err)
+			created, renamed, err := g.EnsureLabels(all)
+			if created != tc.created || renamed != tc.renamed || errText(err) != tc.err {
+				t.Errorf("EnsureLabels = %d, %d, %q; want %d, %d, %q", created, renamed, errText(err), tc.created, tc.renamed, tc.err)
 			}
 			s.done()
 		})
@@ -227,24 +261,24 @@ func errText(err error) string {
 
 func TestGiteaIssues(t *testing.T) {
 	g, s := gitea(t, nil,
-		pair{"GET", "/repos/acme/app/issues?state=open&type=issues&labels=swarm%3Aproposed&page=1&limit=50", "", 200, `[
-		  {"id":31,"number":12,"title":"Second","body":"b","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[{"id":1,"name":"swarm:proposed"}],"milestone":` + milestone(7, "m0: First", 1, 0) + `},
-		  {"id":30,"number":9,"title":"First","body":"a","user":{"login":"jane"},"state":"open","created_at":"2026-10-30T09:00:00Z","closed_at":null,"labels":[{"id":5,"name":"bug"},{"id":1,"name":"swarm:proposed"}]},
+		pair{"GET", "/repos/acme/app/issues?state=open&type=issues&labels=swarm%3Aproposal-posted&page=1&limit=50", "", 200, `[
+		  {"id":31,"number":12,"title":"Second","body":"b","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[{"id":1,"name":"swarm:proposal-posted"}],"milestone":` + milestone(7, "m0: First", 1, 0) + `},
+		  {"id":30,"number":9,"title":"First","body":"a","user":{"login":"jane"},"state":"open","created_at":"2026-10-30T09:00:00Z","closed_at":null,"labels":[{"id":5,"name":"bug"},{"id":1,"name":"swarm:proposal-posted"}]},
 		  {"id":32,"number":14,"title":"Unlabelled","body":"","user":{"login":"jane"},"state":"open","created_at":"2026-11-02T09:00:00Z","closed_at":null,"labels":[]}
 		]`})
-	got, err := g.Issues(Open, "swarm:proposed")
+	got, err := g.Issues(Open, "swarm:proposal-posted")
 	want := []Issue{
-		{Number: 9, Title: "First", Body: "a", Author: "jane", Created: time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC), Open: true, Labels: []string{"bug", "swarm:proposed"}},
-		{Number: 12, Title: "Second", Body: "b", Author: "swarm-bot", Created: time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC), Open: true, Labels: []string{"swarm:proposed"}, Milestone: 7},
+		{Number: 9, Title: "First", Body: "a", Author: "jane", Created: time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC), Open: true, Labels: []string{"bug", "swarm:proposal-posted"}},
+		{Number: 12, Title: "Second", Body: "b", Author: "swarm-bot", Created: time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC), Open: true, Labels: []string{"swarm:proposal-posted"}, Milestone: 7},
 	}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Issues = %+v, %v", got, err)
 	}
 	s.done()
 
-	g, s = gitea(t, nil, pair{"GET", "/repos/acme/app/issues?state=closed&type=issues&labels=swarm%3Aready&page=1&limit=50", "", 200,
-		`[{"number":3,"title":"Done","body":"","user":{"login":"jane"},"state":"closed","created_at":"2026-10-01T09:00:00Z","closed_at":"2026-10-02T09:00:00Z","labels":[{"name":"swarm:ready"}]}]`})
-	got, err = g.Issues(Closed, "swarm:ready")
+	g, s = gitea(t, nil, pair{"GET", "/repos/acme/app/issues?state=closed&type=issues&labels=swarm%3Aproposal-accepted&page=1&limit=50", "", 200,
+		`[{"number":3,"title":"Done","body":"","user":{"login":"jane"},"state":"closed","created_at":"2026-10-01T09:00:00Z","closed_at":"2026-10-02T09:00:00Z","labels":[{"name":"swarm:proposal-accepted"}]}]`})
+	got, err = g.Issues(Closed, "swarm:proposal-accepted")
 	if err != nil || len(got) != 1 || got[0].Open || !got[0].Closed.Equal(time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)) {
 		t.Errorf("Issues(Closed) = %+v, %v", got, err)
 	}
@@ -256,7 +290,7 @@ func TestGiteaPulls(t *testing.T) {
 		m, _ := json.Marshal(map[string]any{
 			"id": 1000 + number, "number": number, "title": "T" + itoa(number), "body": body, "state": state, "merged": merged,
 			"merge_commit_sha": sha, "head": map[string]string{"ref": ref, "sha": "h" + itoa(number)}, "base": map[string]string{"ref": "main"},
-			"labels": []map[string]any{{"id": 4, "name": "swarm:in-review"}}, "created_at": "2026-11-03T08:00:00Z", "user": map[string]string{"login": "swarm-bot"},
+			"labels": []map[string]any{{"id": 4, "name": "swarm:review-0-ready"}}, "created_at": "2026-11-03T08:00:00Z", "user": map[string]string{"login": "swarm-bot"},
 		})
 		return string(m)
 	}
@@ -280,8 +314,8 @@ func TestGiteaPulls(t *testing.T) {
 	}
 	created := time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC)
 	want := []Pull{
-		{Repo: "lib", Number: 5, Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Labels: []string{"swarm:in-review"}, Author: "swarm-bot", Created: created},
-		{Repo: "app", Number: 20, Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Labels: []string{"swarm:in-review"}, Author: "swarm-bot", Created: created},
+		{Repo: "lib", Number: 5, Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
+		{Repo: "app", Number: 20, Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Pulls(7) =\n%+v\nwant\n%+v", got, want)
@@ -360,14 +394,14 @@ func at(y, mo, d, h, mi int) time.Time { return time.Date(y, time.Month(mo), d, 
 func TestGiteaIssue(t *testing.T) {
 	g, s := gitea(t, nil,
 		pair{"GET", "/repos/acme/app/issues/7", "", 200,
-			`{"id":40,"number":7,"title":"Drift","body":"Brief: docs/briefs/b.md — M0","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[{"id":3,"name":"swarm:planning"}],"milestone":null,"pull_request":null}`},
+			`{"id":40,"number":7,"title":"Drift","body":"Brief: docs/briefs/b.md — M0","user":{"login":"swarm-bot"},"state":"open","created_at":"2026-11-01T10:00:00Z","closed_at":null,"labels":[{"id":3,"name":"swarm:plan-0-posted"}],"milestone":null,"pull_request":null}`},
 		pair{"GET", "/repos/acme/app/issues/7/comments", "", 200, `[
 		  {"id":501,"html_url":"","issue_url":"","pull_request_url":"","body":"plan","user":{"login":"swarm-bot"},"created_at":"2026-11-01T11:00:00Z","updated_at":"2026-11-01T11:00:00Z"},
 		  {"id":502,"html_url":"","issue_url":"","pull_request_url":"","body":"ok","user":{"login":"jane"},"created_at":"2026-11-01T12:00:00Z","updated_at":"2026-11-01T12:00:00Z"}
 		]`})
 	got, err := g.Issue(7)
 	want := Issue{Number: 7, Title: "Drift", Body: "Brief: docs/briefs/b.md — M0", Author: "swarm-bot", Created: at(2026, 11, 1, 10, 0), Open: true,
-		Labels: []string{"swarm:planning"}, Comments: []Comment{{"swarm-bot", "plan", at(2026, 11, 1, 11, 0)}, {"jane", "ok", at(2026, 11, 1, 12, 0)}}}
+		Labels: []string{"swarm:plan-0-posted"}, Comments: []Comment{{"swarm-bot", "plan", at(2026, 11, 1, 11, 0)}, {"jane", "ok", at(2026, 11, 1, 12, 0)}}}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Issue(7) = %+v, %v", got, err)
 	}
@@ -385,20 +419,20 @@ func TestGiteaIssue(t *testing.T) {
 }
 
 // idPairs are the two label lists the id map reads for repository name:
-// the organization's eight, and the repository's own swarm:ready (id 40),
+// the organization's eight, and the repository's own swarm:proposal-accepted (id 40),
 // which shadows the organization's (id 2).
 func idPairs(name string) []pair {
 	return []pair{
 		{"GET", listLabels, "", 200, labelList(Labels...)},
-		{"GET", "/repos/acme/" + name + "/labels?page=1&limit=50", "", 200, `[` + label(40, "swarm:ready") + `,` + label(41, "bug") + `]`},
+		{"GET", "/repos/acme/" + name + "/labels?page=1&limit=50", "", 200, `[` + label(40, "swarm:proposal-accepted") + `,` + label(41, "bug") + `]`},
 	}
 }
 
 func TestGiteaCreateIssue(t *testing.T) {
 	g, s := gitea(t, nil, append(idPairs("app"),
 		pair{"POST", "/repos/acme/app/issues", `{"title":"Add X","body":"Brief: b — M1","labels":[1]}`, 201,
-			`{"id":77,"number":23,"title":"Add X","body":"Brief: b — M1","user":{"login":"swarm-bot"},"state":"open","labels":[{"id":1,"name":"swarm:proposed"}]}`})...)
-	n, err := g.CreateIssue("Add X", "Brief: b — M1", []string{"swarm:proposed"})
+			`{"id":77,"number":23,"title":"Add X","body":"Brief: b — M1","user":{"login":"swarm-bot"},"state":"open","labels":[{"id":1,"name":"swarm:proposal-posted"}]}`})...)
+	n, err := g.CreateIssue("Add X", "Brief: b — M1", []string{"swarm:proposal-posted"})
 	if n != 23 || err != nil {
 		t.Errorf("CreateIssue = %d, %v", n, err)
 	}
@@ -406,13 +440,13 @@ func TestGiteaCreateIssue(t *testing.T) {
 
 	g, s = gitea(t, nil, append(idPairs("app"),
 		pair{"POST", "/repos/acme/app/issues", `{"title":"Y","body":"","labels":[40]}`, 201, `{"number":24}`})...)
-	if n, err := g.CreateIssue("Y", "", []string{"swarm:ready"}); n != 24 || err != nil {
+	if n, err := g.CreateIssue("Y", "", []string{"swarm:proposal-accepted"}); n != 24 || err != nil {
 		t.Errorf("CreateIssue with the repository's label = %d, %v", n, err)
 	}
 	s.done()
 
 	g, s = gitea(t, nil, idPairs("app")...)
-	if _, err := g.CreateIssue("Z", "", []string{"swarm:nonesuch"}); errText(err) != "forge: CreateIssue: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eleven" {
+	if _, err := g.CreateIssue("Z", "", []string{"swarm:nonesuch"}); errText(err) != "forge: CreateIssue: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the fifteen" {
 		t.Errorf("an unknown label: %v", err)
 	}
 	s.done()
@@ -429,32 +463,32 @@ func TestGiteaComment(t *testing.T) {
 
 func TestGiteaRelabel(t *testing.T) {
 	// On a pull request in lib: add, then remove, each by its id; the
-	// repository's own swarm:ready shadows the organization's.
+	// repository's own swarm:proposal-accepted shadows the organization's.
 	g, s := gitea(t, []string{"app", "lib"}, append(idPairs("lib"),
-		pair{"POST", "/repos/acme/lib/issues/5/labels", `{"labels":[5]}`, 200, `[` + label(5, "swarm:in-review") + `]`},
+		pair{"POST", "/repos/acme/lib/issues/5/labels", `{"labels":[6]}`, 200, `[` + label(6, "swarm:review-0-ready") + `]`},
 		pair{"DELETE", "/repos/acme/lib/issues/5/labels/40", "", 204, ""})...)
-	if err := g.Relabel(Ref{"lib", 5}, "swarm:ready", "swarm:in-review"); err != nil {
+	if err := g.Relabel(Ref{"lib", 5}, "swarm:proposal-accepted", "swarm:review-0-ready"); err != nil {
 		t.Error(err)
 	}
 	s.done()
 
 	g, s = gitea(t, nil, append(idPairs("app"),
-		pair{"POST", "/repos/acme/app/issues/7/labels", `{"labels":[7]}`, 200, `[]`})...)
-	if err := g.Relabel(Ref{"app", 7}, "", "swarm:approved"); err != nil {
+		pair{"POST", "/repos/acme/app/issues/7/labels", `{"labels":[8]}`, 200, `[]`})...)
+	if err := g.Relabel(Ref{"app", 7}, "", "swarm:review-2-approved"); err != nil {
 		t.Errorf("remove \"\" only adds: %v", err)
 	}
 	s.done()
 
 	// add "" only removes: the flag cleared by one DELETE, nothing added.
 	g, s = gitea(t, nil, append(idPairs("app"),
-		pair{"DELETE", "/repos/acme/app/issues/7/labels/9", "", 204, ""})...)
+		pair{"DELETE", "/repos/acme/app/issues/7/labels/10", "", 204, ""})...)
 	if err := g.Relabel(Ref{"app", 7}, "swarm:gated", ""); err != nil {
 		t.Errorf("add \"\" only removes: %v", err)
 	}
 	s.done()
 
 	g, s = gitea(t, nil, idPairs("app")...)
-	if err := g.Relabel(Ref{"app", 7}, "swarm:nonesuch", "swarm:approved"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eleven" {
+	if err := g.Relabel(Ref{"app", 7}, "swarm:nonesuch", "swarm:review-2-approved"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the fifteen" {
 		t.Errorf("an unknown label writes nothing: %v", err)
 	}
 	s.done()

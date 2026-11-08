@@ -25,7 +25,7 @@ type collection struct {
 	r     Run
 	lines []string
 	head  string // the run's prefix on stdout
-	label string // the stage the run was launched on
+	label string // the stage the run was launched on, by its current name
 	is    forge.Issue
 	at    forge.Ref // the issue
 }
@@ -45,8 +45,13 @@ func (s *Swarm) collect(r Run) error {
 		return nil
 	}
 	labelLine, _ := Has(lines, "label")
-	c := &collection{s: s, r: r, lines: lines, head: runHead(r), label: strings.TrimPrefix(labelLine, "label "),
+	// A run recorded before the stages' rename names its stage by the old
+	// name, which the forge no longer holds (forge.Renamed).
+	c := &collection{s: s, r: r, lines: lines, head: runHead(r), label: forge.Current(strings.TrimPrefix(labelLine, "label ")),
 		at: forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: r.N}}
+	if Ended(lines) == "abandoned" {
+		return c.abandoned()
+	}
 	if r.N == 0 {
 		return c.batch()
 	}
@@ -62,6 +67,9 @@ func (s *Swarm) collect(r Run) error {
 			if err := c.keep(); err != nil {
 				return err
 			}
+		}
+		if err := c.restore(); err != nil {
+			return err
 		}
 		return c.end("fault")
 	}
@@ -79,12 +87,20 @@ func (s *Swarm) collect(r Run) error {
 			return err
 		}
 		pull = c.runPull(pulls)
-		onPull := r.Role != "worker" || c.label == "swarm:reviewed"
+		onPull := r.Role != "worker" || c.label == forge.ChangesRequested
 		if pull != nil && !pull.Open || pull == nil && onPull && Ended(lines) != "launch-failed" {
+			if err := c.restore(); err != nil {
+				return err
+			}
 			return c.end("discarded")
 		}
 		if start, _ := Has(lines, "start"); !worker && pull != nil && "start "+pull.HeadSHA != start {
-			if err := c.step("stale " + pull.HeadSHA); err != nil {
+			if _, ok := Has(c.lines, "stale"); !ok {
+				if err := c.step("stale " + pull.HeadSHA); err != nil {
+					return err
+				}
+			}
+			if err := c.restore(); err != nil {
 				return err
 			}
 			return c.end("stale")
@@ -113,8 +129,8 @@ func (s *Swarm) collect(r Run) error {
 		if err := c.comment(r.Role, text); err != nil {
 			return err
 		}
-		if c.label == "swarm:proposed" && !s.Cfg.Gates.Triage {
-			if err := c.relabel(c.label, "swarm:ready"); err != nil {
+		if c.label == forge.ProposalPosted && !s.Cfg.Gates.Triage {
+			if err := c.relabel(forge.ProposalAccepted); err != nil {
 				return err
 			}
 		}
@@ -125,12 +141,12 @@ func (s *Swarm) collect(r Run) error {
 		if err := c.comment(r.Role, text); err != nil {
 			return err
 		}
-		if c.label == "swarm:ready" {
-			to := "swarm:planning"
+		if c.label == forge.ProposalAccepted {
+			to := forge.PlanPosted
 			if !s.Cfg.Gates.Plan {
-				to = "swarm:planned"
+				to = forge.PlanAccepted
 			}
-			if err := c.relabel(c.label, to); err != nil {
+			if err := c.relabel(to); err != nil {
 				return err
 			}
 		}
@@ -183,10 +199,22 @@ func (c *collection) say(at forge.Ref, existing []forge.Comment, role, text stri
 // comment posts on the issue.
 func (c *collection) comment(role, text string) error { return c.say(c.at, c.is.Comments, role, text) }
 
-// relabel moves the issue from one stage to another; a `from` the issue no
-// longer carries is skipped with a warning, and a move already made is
-// skipped.
-func (c *collection) relabel(from, to string) error {
+// stage is the stage of the run the issue carries now: the in-progress
+// stage its launch wrote (InProgress), else the stage it was launched on;
+// "" when it carries neither, the maintainer having moved it.
+func (c *collection) stage() string {
+	for _, l := range []string{InProgress(c.r.Role, c.label), c.label} {
+		if l != "" && slices.Contains(c.is.Labels, l) {
+			return l
+		}
+	}
+	return ""
+}
+
+// relabel moves the open issue from the run's stage (stage) to to; an
+// issue the maintainer moved during the run is skipped with a warning, a
+// move already made is skipped, and a closed issue is left as it is.
+func (c *collection) relabel(to string) error {
 	// The labels as they are now, read right before the write: the
 	// maintainer may have moved the issue while the run was collected (the
 	// forge has no compare-and-set, so this narrows the window to the two
@@ -196,11 +224,15 @@ func (c *collection) relabel(from, to string) error {
 		return err
 	}
 	c.is.Labels = is.Labels
+	from := c.stage()
 	switch {
-	case slices.Contains(c.is.Labels, from):
+	case !is.Open, from == to:
+		return nil
+	case from != "":
 		if err := c.s.Forge.Relabel(c.at, from, to); err != nil {
 			return err
 		}
+		c.is.Labels = append(slices.DeleteFunc(slices.Clone(c.is.Labels), func(l string) bool { return l == from }), to)
 		fmt.Fprintf(c.s.Out, "%s%s → %s\n", c.head, from, to)
 		return c.step("relabelled " + from + " " + to)
 	case slices.Contains(c.is.Labels, to):
@@ -216,12 +248,66 @@ func (c *collection) relabel(from, to string) error {
 	return nil
 }
 
+// restore takes the issue back to the stage the run was launched on, the
+// in-progress stage its launch wrote undone (section 5): a run that ends
+// without moving the issue on, a fault, stale, discarded or abandoned,
+// leaves it where the role rule finds it again.
+func (c *collection) restore() error {
+	if InProgress(c.r.Role, c.label) == "" {
+		return nil // the launch wrote none
+	}
+	return c.relabel(c.label)
+}
+
+// abandoned ends a run whose apply died before its container ended
+// (section 7.7): the issue restored, the run collected, its clone removed.
+func (c *collection) abandoned() error {
+	if c.r.N != 0 {
+		if err := c.restore(); err != nil {
+			return err
+		}
+	}
+	fs := c.s.O.FS()
+	if err := c.r.Append(fs, "outcome abandoned", "collected"); err != nil {
+		return err
+	}
+	return fs.RemoveAll(filepath.Join(c.r.Dir, "work"))
+}
+
+// block is T17, swarm:blocked being a flag: the issue taken back to the
+// stage the run was launched on, then flagged beside it (section 5).
+func (c *collection) block() error {
+	if err := c.relabel(c.label); err != nil {
+		return err
+	}
+	return c.flag()
+}
+
+// flag sets swarm:blocked on the open issue at the run's stage, the
+// labels read again first: an issue the maintainer moved during the run
+// is left as it is.
+func (c *collection) flag() error {
+	is, err := c.s.Forge.Issue(c.r.N)
+	if err != nil {
+		return err
+	}
+	c.is.Labels = is.Labels
+	if !is.Open || c.stage() == "" || slices.Contains(is.Labels, forge.Blocked) {
+		return nil
+	}
+	if err := c.s.Forge.Relabel(c.at, "", forge.Blocked); err != nil {
+		return err
+	}
+	fmt.Fprintln(c.s.Out, c.head+"blocked")
+	return c.step("flagged " + forge.Blocked)
+}
+
 // note posts the reconciler's note on the issue, then T17.
 func (c *collection) note(text, outcome string) error {
 	if err := c.comment("reconciler", text); err != nil {
 		return err
 	}
-	if err := c.relabel(c.label, "swarm:blocked"); err != nil {
+	if err := c.block(); err != nil {
 		return err
 	}
 	return c.end(outcome)
@@ -237,7 +323,7 @@ func (c *collection) fail(reason string) error {
 		}
 	}
 	fmt.Fprintf(c.s.Out, "%sfailed (%s)\n", c.head, reason)
-	note := fmt.Sprintf("%s run %d failed: %s (was %s). Relabel the issue to resume.", c.r.Role, c.r.K, reason, c.label)
+	note := fmt.Sprintf("%s run %d failed: %s (at %s). Remove %s to resume.", c.r.Role, c.r.K, reason, c.label, forge.Blocked)
 	kept, err := c.keptNote()
 	if err != nil {
 		return err
@@ -249,7 +335,7 @@ func (c *collection) fail(reason string) error {
 // worker in reviewed and the reviewers, else on the issue; then the note
 // and T17.
 func (c *collection) blocked(text string, pull *forge.Pull) error {
-	onPull := c.r.Role == "adversary" || c.r.Role == "sympathetic" || c.r.Role == "worker" && c.label == "swarm:reviewed"
+	onPull := c.r.Role == "adversary" || c.r.Role == "sympathetic" || c.r.Role == "worker" && c.label == forge.ChangesRequested
 	if onPull && pull != nil {
 		ref := forge.Ref{Repo: pull.Repo, N: pull.Number}
 		existing, err := c.s.Forge.PullComments(ref)
@@ -266,7 +352,7 @@ func (c *collection) blocked(text string, pull *forge.Pull) error {
 	if err != nil {
 		return err
 	}
-	return c.note(fmt.Sprintf("%s run %d is blocked (was %s). Answer and relabel the issue to resume.", c.r.Role, c.r.K, c.label)+kept, "blocked")
+	return c.note(fmt.Sprintf("%s run %d is blocked (at %s). Answer, then remove %s to resume.", c.r.Role, c.r.K, c.label, forge.Blocked)+kept, "blocked")
 }
 
 // keptNote keeps a worker run's commits (section 7.6, step 2) and is the

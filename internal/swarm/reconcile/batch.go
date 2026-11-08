@@ -43,7 +43,7 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	waiting := 0
 	for _, is := range open {
 		for _, l := range is.Labels {
-			if l == "swarm:proposed" || l == "swarm:ready" && !s.Cfg.Gates.Triage {
+			if l == forge.ProposalPosted || l == forge.ProposalAccepted && !s.Cfg.Gates.Triage {
 				waiting++
 				break
 			}
@@ -258,9 +258,9 @@ func (c *collection) batch() error {
 	if len(ps) == 0 {
 		return failed("proposed nothing")
 	}
-	label := "swarm:proposed"
+	label := forge.ProposalPosted
 	if !s.Cfg.Gates.Triage {
-		label = "swarm:ready"
+		label = forge.ProposalAccepted
 	}
 	for i, pr := range ps {
 		creating := fmt.Sprintf("creating %d", i+1)

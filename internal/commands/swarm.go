@@ -67,7 +67,7 @@ func swarmInit(c *Context, open opener) error {
 	if err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
-	if _, err := f.Issues(forge.Open, "swarm:proposed"); err != nil {
+	if _, err := f.Issues(forge.Open, forge.ProposalPosted); err != nil {
 		return fmt.Errorf("Error: swarm: $%s cannot read %s: %v", tokenVar, cfg.Forge.Repo, err)
 	}
 	if _, err := f.Pulls(0); err != nil {
@@ -89,13 +89,19 @@ func swarmInit(c *Context, open opener) error {
 	if err := writeDeclaration(c, ws, cfg); err != nil {
 		return err
 	}
-	created, err := f.EnsureLabels(forge.Labels)
+	created, renamed, err := f.EnsureLabels(forge.Labels)
 	if err != nil {
 		return fmt.Errorf("Error: %v", err)
 	}
-	fmt.Fprintf(c.Stdout, "✓ Labels: %d present (%d created)\n", len(forge.Labels), created)
+	fmt.Fprintln(c.Stdout, labelsLine(created, renamed))
 	readiness(c, ws, cfg, acct.Login)
 	return printUnits(c, ws, cfg.Interval)
+}
+
+// labelsLine is init's report of EnsureLabels, and apply's when it made
+// a label.
+func labelsLine(created, renamed int) string {
+	return fmt.Sprintf("✓ Labels: %d present (%d created, %d renamed)", len(forge.Labels), created, renamed)
 }
 
 // cancelledOr: EOF at a question cancels (exit 0, nothing written);
@@ -343,19 +349,40 @@ func swarmStatus(c *Context, open opener) error {
 	if err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
-	// What waits for the maintainer: the open issues whose one stage
-	// reconcile.Gated holds for, the predicate apply flags them by, by
-	// item; an approved issue under what its pull request calls for
-	// (section 12).
+	// What waits for the maintainer: the open issues reconcile.Gated holds
+	// for, the predicate apply flags them by, by item: a blocked one under
+	// blocked, an approved one under what its pull request calls for
+	// (section 12). What the maintainer holds: the paused ones, and those
+	// whose newest maintainer comment names an open blocker.
 	waits := map[string][]int{}
+	var paused, blockedBy []string
 	for _, l := range forge.Stages {
 		for _, n := range stages[l] {
-			if stage, ok := reconcile.StageOf(issues[n].Issue); !ok || stage != l || !reconcile.Gated(l, cfg.Gates) {
+			is := issues[n].Issue
+			if stage, ok := reconcile.StageOf(is); !ok || stage != l {
 				continue
 			}
-			item := map[string]string{"swarm:proposed": "triage", "swarm:planning": "plan", "swarm:blocked": "blocked"}[l]
-			if l == "swarm:approved" {
-				item = reconcile.AfterApproval(issues[n].Issue, issues[n].Pulls, acct.Login)
+			if slices.Contains(is.Labels, forge.Paused) {
+				paused = append(paused, "#"+strconv.Itoa(n))
+			}
+			if m := reconcile.BlockedBy(is, acct.Login, cfg.Trusted); m != 0 {
+				blocker, err := f.Issue(m)
+				if err != nil {
+					return fmt.Errorf("Error: swarm: %v", err)
+				}
+				if blocker.Open {
+					blockedBy = append(blockedBy, fmt.Sprintf("#%d blocked by #%d", n, m))
+				}
+			}
+			if !reconcile.Gated(is.Labels, cfg.Gates) {
+				continue
+			}
+			item := map[string]string{forge.ProposalPosted: "triage", forge.PlanPosted: "plan"}[l]
+			switch {
+			case slices.Contains(is.Labels, forge.Blocked):
+				item = "blocked"
+			case l == forge.ReviewApproved:
+				item = reconcile.AfterApproval(is, issues[n].Pulls, acct.Login)
 			}
 			waits[item] = append(waits[item], n)
 		}
@@ -371,7 +398,7 @@ func swarmStatus(c *Context, open opener) error {
 	fmt.Fprintf(out, "State: %s%s\n", state, stateNotes(c.Ops.FS(), state))
 	fmt.Fprintf(out, "Gates: triage %s, plan %s, merge %s\n", onOff(cfg.Gates.Triage), onOff(cfg.Gates.Plan), onOff(cfg.Gates.Merge))
 	for _, l := range forge.Stages {
-		fmt.Fprintf(out, "  %-12s %d", strings.TrimPrefix(l, "swarm:"), len(stages[l]))
+		fmt.Fprintf(out, "  %-26s %d", strings.TrimPrefix(l, "swarm:"), len(stages[l]))
 		if len(stages[l]) > 0 {
 			fmt.Fprintf(out, "  %s", issueList(stages[l]))
 		}
@@ -387,6 +414,14 @@ func swarmStatus(c *Context, open opener) error {
 		waiting = []string{"nothing"}
 	}
 	fmt.Fprintf(out, "Waiting for you: %s\n", strings.Join(waiting, "; "))
+	held := blockedBy
+	if len(paused) > 0 {
+		held = append([]string{"paused " + strings.Join(paused, " ")}, blockedBy...)
+	}
+	if len(held) == 0 {
+		held = []string{"nothing"}
+	}
+	fmt.Fprintf(out, "Held: %s\n", strings.Join(held, "; "))
 	fmt.Fprintf(out, "Running: %s\n", running(o, ws, cfg.Forge.Repo))
 	fmt.Fprintln(out, "Personas:")
 	for _, r := range declare.Roles {
@@ -646,6 +681,7 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 		var started, ended, checkStarted, checkEnded time.Time
 		stage := "batch"
 		cost, costed := 0.0, false
+		var moves [][2]string // the run's relabels, by the stages' current names
 		lines := strings.Split(string(data), "\n")
 		for _, line := range lines {
 			f := strings.Fields(line)
@@ -654,7 +690,9 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 			case len(f) == 2 && f[0] == "outcome":
 				outcome = f[1]
 			case len(f) == 2 && f[0] == "label":
-				stage = strings.TrimPrefix(f[1], "swarm:")
+				stage = strings.TrimPrefix(forge.Current(f[1]), "swarm:") // a run recorded before the rename by its old name
+			case len(f) == 3 && f[0] == "relabelled":
+				moves = append(moves, [2]string{forge.Current(f[1]), forge.Current(f[2])})
 			case len(f) >= 2 && f[0] == "started":
 				started = at(1)
 			case len(f) == 3 && f[0] == "exited", len(f) == 2 && f[0] == "timeout":
@@ -694,18 +732,27 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 		if !started.Before(midnight) {
 			today += cost
 		}
-		if slices.Contains(lines, "relabelled swarm:in-review swarm:approved") {
-			approved++
-		}
-		if outcome == "posted" {
-			for _, to := range []string{"planning", "ready", "blocked"} {
-				if slices.Contains(lines, "relabelled swarm:in-review swarm:"+to) {
-					atLimit++
-					if to == "blocked" {
-						blockedThere++
-					}
-				}
+		// A reviewer's moves: from review-0-ready (as a run recorded
+		// before the in-progress stages names in-review) or
+		// review-1-in-progress; the round limit's second time is its flag,
+		// or, recorded before blocked was a flag, a move to it.
+		for _, m := range moves {
+			if m[0] != forge.ReviewReady && m[0] != forge.ReviewInProgress {
+				continue
 			}
+			switch {
+			case m[1] == forge.ReviewApproved:
+				approved++
+			case outcome == "posted" && (m[1] == forge.PlanPosted || m[1] == forge.ProposalAccepted):
+				atLimit++
+			case outcome == "posted" && m[1] == forge.Blocked:
+				atLimit++
+				blockedThere++
+			}
+		}
+		if outcome == "posted" && slices.Contains(lines, "flagged "+forge.Blocked) {
+			atLimit++
+			blockedThere++
 		}
 	}
 	out := c.Stdout
@@ -731,7 +778,7 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 	return nil
 }
 
-// forgeStages is the eight stages without `swarm:`, in lifecycle order.
+// forgeStages is the nine stages without `swarm:`, in lifecycle order.
 func forgeStages() []string {
 	out := make([]string, len(forge.Stages))
 	for i, l := range forge.Stages {
@@ -834,8 +881,12 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 	if _, err := run.Running(); err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
-	if _, err := f.EnsureLabels(forge.Labels); err != nil {
+	created, renamed, err := f.EnsureLabels(forge.Labels)
+	if err != nil {
 		return fmt.Errorf("Error: %v", err)
+	}
+	if created+renamed > 0 {
+		fmt.Fprintln(c.Stdout, labelsLine(created, renamed))
 	}
 	s := &reconcile.Swarm{O: o, WS: ws, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
 		User: ids[0] + ":" + ids[1], Secret: func(v string) string { return readSecrets(c, ws, io.Discard)(v) } /* re-read at each use, warned once above */, Out: c.Stdout, Err: c.Stderr}
@@ -932,10 +983,10 @@ func swarmStateOnly(c *Context) (string, error) {
 	return cfg.Forge.State(c.Env.Local), nil
 }
 
-// SwarmPause is `daisy swarm pause` (docs/swarm.md section 11): <state>/paused
-// written, so the next pass of every apply launches nothing and merges
-// nothing while collection goes on.
-func SwarmPause(c *Context) error {
+// pauseSwarm is `daisy swarm pause` (docs/swarm.md section 11):
+// <state>/paused written, so the next pass of every apply launches nothing
+// and merges nothing while collection goes on.
+func pauseSwarm(c *Context) error {
 	state, err := swarmStateOnly(c)
 	if err != nil {
 		return err
@@ -956,9 +1007,9 @@ func SwarmPause(c *Context) error {
 	return nil
 }
 
-// SwarmResume is `daisy swarm resume` (docs/swarm.md section 11):
+// resumeSwarm is `daisy swarm resume` (docs/swarm.md section 11):
 // <state>/paused removed, whoever wrote it, and <state>/owner-held.
-func SwarmResume(c *Context) error {
+func resumeSwarm(c *Context) error {
 	state, err := swarmStateOnly(c)
 	if err != nil {
 		return err
