@@ -13,7 +13,7 @@ import (
 // fetch is a worker run's step 1 (section 7.6): its branch fetched from
 // its clone into the mirror as the run's ref, then each new commit
 // without the role's trailer reported (The trailer): on stderr and as
-// `unstamped <sha>`, never a failure.
+// `unstamped <sha>`, never a failure; an empty co_author asks for none.
 func (c *collection) fetch() error {
 	if _, ok := Has(c.lines, "fetched"); ok {
 		return nil
@@ -33,10 +33,10 @@ func (c *collection) fetch() error {
 	if err := c.step("fetched " + sha); err != nil {
 		return err
 	}
-	if !c.commits() {
+	coAuthor := c.s.Cfg.Personas["worker"].CoAuthor
+	if !c.commits() || coAuthor == "" {
 		return nil
 	}
-	coAuthor := c.s.Cfg.Personas["worker"].CoAuthor
 	bad, err := c.s.git().Unstamped(branchRepo(c.lines), c.s.Cfg.Base, sha, coAuthor)
 	if err != nil {
 		return err

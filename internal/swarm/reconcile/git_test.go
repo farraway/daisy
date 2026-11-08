@@ -68,6 +68,19 @@ func TestCloneAndTheCommitMsgHook(t *testing.T) {
 	if a := git(dir, "log", "-1", "--format=%an <%ae>"); a != "worker (Daisy swarm) <swarm@example.net>" {
 		t.Errorf("author %s", a)
 	}
+
+	// An empty co_author is no trailer: no hook, and a commit without one.
+	bare := filepath.Join(t.TempDir(), "work")
+	if _, err := g.Clone(repo, "swarm/1-1", "main", bare, "worker", "swarm@example.net", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(bare, ".git", "hooks", "commit-msg")); err == nil {
+		t.Error("a commit-msg hook for an empty co_author")
+	}
+	git(bare, "commit", "-q", "--allow-empty", "-m", "Plain")
+	if msg := git(bare, "log", "-1", "--format=%B"); msg != "Plain" {
+		t.Errorf("an empty co_author's commit:\n%s", msg)
+	}
 }
 
 // Collection's git (section 7.6, steps 3 and 5) with real git: a

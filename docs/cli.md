@@ -647,7 +647,7 @@ The wizard's questions, in order (defaults in docs/swarm.md section 11):
 branch; 7–26 per role (owner, architect, worker, adversary, sympathetic)
 its provider, model (every role names one: no `-`), effort and co-author
 (the `Co-Authored-By:` value, `<model> <noreply@anthropic.com>` or
-`<noreply@openai.com>` by default); 27 each repository's image; 28 max
+`<noreply@openai.com>` by default, `-` for none: no trailer); 27 each repository's image; 28 max
 members; 29 max rounds (5 since docs/swarm.md revision 5, built at
 Step 4 of the swarm build); 30 the timeout; 31
 the interval; 32 the resources;

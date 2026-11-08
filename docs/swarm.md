@@ -377,7 +377,7 @@ of `apply`, so an edit applies at the next pass (but for `forge.kind`,
 | `personas.<role>.provider` | string | as in the example | a provider with an adapter: `anthropic` or `openai` |
 | `personas.<role>.model` | string | as in the example | required: every role names the model it runs (section 14, item 52), so neither `""` nor `-` is accepted; otherwise passed through, but for one check: no whitespace (it is one argv word; section 14, item 6) |
 | `personas.<role>.effort` | string | as in the example | passed through, but must match `^[a-z]+$` (the "bad effort" Step 27 tests); the vendor's list is not checked |
-| `personas.<role>.co_author` | string | `<model> <noreply@anthropic.com>` (anthropic) or `<model> <noreply@openai.com>` (openai); with a file, its value while the role's provider and model are unchanged | required: the whole value of the `Co-Authored-By:` trailer the role's commits carry, `<name> <<email>>`, stamped verbatim by the hook Step 5 installs (section 14, item 52) |
+| `personas.<role>.co_author` | string | `<model> <noreply@anthropic.com>` (anthropic) or `<model> <noreply@openai.com>` (openai); with a file, its value while the role's provider and model are unchanged | required: the whole value of the `Co-Authored-By:` trailer the role's commits carry, `<name> <<email>>`, stamped verbatim by the hook Step 5 installs (section 14, item 52); or `""`, no trailer: the clone gets no hook and the collection reports no commit unstamped (Step 15 of the swarm build, section 14, item 74) |
 | (each persona) | — | — | `swarm/prompts/<role>.md` exists and is non-empty |
 
 **The budget.** Spend is the sum of the `cost` lines in `<run>/result`
@@ -1063,7 +1063,8 @@ On the host, in order, before `docker run`:
    with the role's `co_author`, so each commit the member makes carries
    the role's co-author once, the CLIs' own attribution being off
    (section 9), and no commit is rewritten after the run (7.6, The
-   trailer); and `<run>/work/.swarm` is created as
+   trailer); with an empty `co_author` no hook is written, so the
+   member's commits carry no trailer; and `<run>/work/.swarm` is created as
    the mount point. The head commit is recorded in `<run>/result` as
    `start <sha>` (`start <name> <sha>` per clone for the owner and the
    architect), and the worker's branch as `branch swarm/<n>-<s> in <name>`.
@@ -1557,8 +1558,9 @@ ran, whatever its end:
    `git -C <state>/git update-ref -d refs/swarm-runs/<n>-worker-<k>`
    (`pushed <sha>`).
 
-**The trailer.** After the fetch (step 1), each commit of
-`refs/heads/<base>..<fetched>` whose message lacks the line
+**The trailer.** After the fetch (step 1), with the worker's `co_author`
+not empty, each commit of `refs/heads/<base>..<fetched>` whose message
+lacks the line
 `Co-Authored-By: <co_author>` (the member committed with `--no-verify`
 or changed its clone's hook) is reported, `⚠ #<n> worker run <k>: commit
 <short sha> has no Co-Authored-By: <co_author>` on stderr and `unstamped
@@ -2315,7 +2317,7 @@ brackets; defaults come from the existing `swarm.json`, else detection.
 | 4 | `Issues repository [<d>]: ` | `<owner>/<repo>` of the first repository's `origin` |
 | 5 | `Token variable [<d>]: ` | `GITEA_TOKEN` or `GITHUB_TOKEN` |
 | 6 | `Base branch [<d>]: ` | `main` |
-| 7–26 | for each role in the order owner, architect, worker, adversary, sympathetic: `<role> provider (anthropic, openai) [<d>]: `, `<role> model [<d>]: ` (no `-`: every role names its model), `<role> effort [<d>]: `, `<role> co-author [<d>]: ` | section 3's example; the co-author's default `<model> <noreply@anthropic.com>` or `<noreply@openai.com>` by the provider just answered, or the file's while the role's provider and model are the file's |
+| 7–26 | for each role in the order owner, architect, worker, adversary, sympathetic: `<role> provider (anthropic, openai) [<d>]: `, `<role> model [<d>]: ` (no `-`: every role names its model), `<role> effort [<d>]: `, `<role> co-author (- for none) [<d>]: ` (`-` the empty `co_author`, no trailer: an empty answer is the default, as everywhere) | section 3's example; the co-author's default `<model> <noreply@anthropic.com>` or `<noreply@openai.com>` by the provider just answered, or the file's while the role's provider and model are the file's, `-` when the file's is empty |
 | 27 | `<name> image [<d>]: `, once per declared repository, in order | `daisy-member:1` |
 | 28 | `Max members [<d>]: ` | 3 |
 | 29 | `Max rounds [<d>]: ` | 5 (section 3) |
@@ -2716,7 +2718,7 @@ interface with the step that builds the board.
 | Step | Seam | Tested against | What it pins |
 |---|---|---|---|
 | 27 | `declare`: `swarm.json` validation | real temp workspaces | every row of section 3's error table, one case each, the message byte for byte (`gates`, `budget`, `repos` and each repository's `check` and `protected`, `trusted` and `forge.board` included, and from Step 1 a model not named, `co_author` and `forge.commit_email`) |
-| 27 | `declare`: the wizard | a scripted `Ops.Prompt` | `--defaults` takes every default (two repositories under `<ws>` give two `repos` entries, each with the default image; without `--defaults`, question 27 is asked once per repository); each override is honoured; a refused answer asks again; EOF cancels and writes nothing; `trusted` written as question 33's logins then `Login()`'s, question 33's default without the swarm's login, and an answer naming it asked again; no `-` for a model; the co-author's default following the model; question 34's default the account's email |
+| 27 | `declare`: the wizard | a scripted `Ops.Prompt` | `--defaults` takes every default (two repositories under `<ws>` give two `repos` entries, each with the default image; without `--defaults`, question 27 is asked once per repository); each override is honoured; a refused answer asks again; EOF cancels and writes nothing; `trusted` written as question 33's logins then `Login()`'s, question 33's default without the swarm's login, and an answer naming it asked again; no `-` for a model; the co-author's default following the model, `-` its none and the file's none offered as `-`; question 34's default the account's email |
 | 27 | `forge`: `gitea` and `github` | `ops.Fake` `HTTPFn` with one recorded request and response per method | (Step 1 built `gitea`'s `EnsureLabels`, `Login`, `Issues` and `Pulls` with these tests, and Step 4 the rest, the label id map with its repository-label shadowing among them, since `CreateIssue` and `Relabel` are its only readers; the retries wait for `Ops.After`: section 10, As built) section 10's tables for all twenty methods (`Board`'s with the board): method, endpoint, body; pagination; `Review`'s formal event and its comment-type fallback on a `422`; `Board`'s project and column lookup, a missing column created, the move by the issue's `id` and the add when it is not on the board, GitHub's refusal; `EnsureLabels` idempotent, on the organization's labels (Gitea) or each repository's (GitHub), a repository label shadowing an organization label of its name, a refused organization create (`403`) failing with the missing names byte for byte and creating nothing more, and a `404` on the organization's labels failing as not an organization; `Pulls` one list per declared repository, each `Refs` form, `merge_commit_sha`; `Relabel` on a pull request, with `remove` `""`, and never touching another label; `Pulls`' filter on branch and `Refs`, and its labels; `Merge`'s refusal as `ErrNotMergeable`; error text without the token; from Step 9 of the swarm build, `Milestones` in every state over pages with the forge's counts, `EnsureMilestone` finding the first of a title, a closed one included, and creating only a missing one, `SetMilestone`'s body and its `201` without the change failing, and an issue's `milestone.id` read; from Step 10, `Approve`'s formal event on `commit_id` with no fallback, a `422` its error |
 | 27 | `init`'s readiness warnings | real temp workspaces | each of the four warnings (the first two per repository), and none when all is present; the exit code unchanged |
 | 27 | `init` end to end | `forge.Fake`, a scripted `Ops.Prompt`, real temp workspaces | the files written, the fifteen labels ensured (from Step 15, the old stage names renamed in place), the unit files printed; a second run writing no file and creating no label; after `RefuseLabels()`, exit 1 naming the missing labels with the files written, and a re-run finding them once created; the token unset or a read failing writing nothing |
@@ -3805,4 +3807,13 @@ entries among revision 1's, and was renumbered at Step 38.
     `Held:` line, and a blocked issue under `blocked` in "Waiting for
     you" at whatever stage. An open issue blocked before the change
     carries `swarm:blocked` alone, a flag and no stage, and is no swarm
-    issue until the maintainer adds the stage its note names.
+    issue until the maintainer adds the stage its note names. **An empty
+    `co_author` is no trailer** (section 3): the maintainer's choice to
+    leave the swarm's commits without a co-author line, as the
+    maintainer's own commits carry none. `checkCoAuthor` accepts `""`,
+    the clone gets no `commit-msg` hook (a hook that adds nothing would
+    be dead weight in every clone), and the trailer scan reports nothing
+    (it would call every commit unstamped). The wizard's empty answer
+    already means the default, so none is `-`, as the list questions
+    take it, and a file's empty value is offered as `-` while the role's
+    provider and model are the file's.

@@ -94,7 +94,7 @@ func TestWizardAsksInOrder(t *testing.T) {
 	for _, r := range Roles {
 		p := examplePersonas[r]
 		want = append(want, r+" provider (anthropic, openai) ["+p.Provider+"]: ", r+" model ["+p.Model+"]: ", r+" effort ["+p.Effort+"]: ",
-			r+" co-author ["+defaultCoAuthor(p.Provider, p.Model)+"]: ")
+			r+" co-author (- for none) ["+defaultCoAuthor(p.Provider, p.Model)+"]: ")
 	}
 	want = append(want, "app image [daisy-member:1]: ", "lib image [daisy-member:1]: ", "Max members [3]: ", "Max rounds [5]: ",
 		"Timeout [45m]: ", "Interval [5m]: ", "Resources (comma-separated workspace paths, - for none) [docs/]: ",
@@ -203,15 +203,37 @@ func TestWizardAccountQuestions(t *testing.T) {
 	o, asked = scripted(answers...)
 	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
 	w.Ask()
-	if got := (*asked)[len(*asked)-1]; got != "worker co-author [Pair <pair@example.net>]: " {
+	if got := (*asked)[len(*asked)-1]; got != "worker co-author (- for none) [Pair <pair@example.net>]: " {
 		t.Errorf("unchanged model: %q", got)
 	}
 	answers[len(answers)-2] = "claude-opus-6"
 	o, asked = scripted(answers...)
 	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
 	w.Ask()
-	if got := (*asked)[len(*asked)-1]; got != "worker co-author [claude-opus-6 <noreply@anthropic.com>]: " {
+	if got := (*asked)[len(*asked)-1]; got != "worker co-author (- for none) [claude-opus-6 <noreply@anthropic.com>]: " {
 		t.Errorf("changed model: %q", got)
+	}
+
+	// `-` is no co-author, ""; the file's "" is offered as `-` while the
+	// model is the file's, and --defaults keeps it.
+	answers[len(answers)-2] = ""
+	o, asked = scripted(append(answers, "-")...)
+	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	got, _ := w.Ask()
+	if got.Personas["worker"].CoAuthor != "" {
+		t.Errorf("- is not none: %q", got.Personas["worker"].CoAuthor)
+	}
+	worker.CoAuthor = ""
+	file.Personas["worker"] = worker
+	o, asked = scripted(answers...)
+	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w.Ask()
+	if got := (*asked)[len(*asked)-1]; got != "worker co-author (- for none) [-]: " {
+		t.Errorf("the file's none: %q", got)
+	}
+	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file, Defaults: true}
+	if got, err := w.Ask(); err != nil || got.Personas["worker"].CoAuthor != "" {
+		t.Errorf("--defaults with the file's none: %q, %v", got.Personas["worker"].CoAuthor, err)
 	}
 }
 

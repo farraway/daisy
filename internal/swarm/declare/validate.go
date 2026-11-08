@@ -418,8 +418,12 @@ func isAddress(v string) bool {
 }
 
 // checkCoAuthor: `<name> <<email>>`, the name without control characters,
-// angle brackets or whitespace at either end, the email an address.
+// angle brackets or whitespace at either end, the email an address; or ""
+// for none, the role's commits carrying no Co-Authored-By trailer.
 func checkCoAuthor(field, v string) *Error {
+	if v == "" {
+		return nil
+	}
 	name, rest, ok := strings.Cut(v, " <")
 	email, closed := strings.CutSuffix(rest, ">")
 	if !ok || !closed || name == "" || strings.TrimFunc(name, unicode.IsSpace) != name || !isAddress(email) ||

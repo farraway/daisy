@@ -1,6 +1,7 @@
 package declare
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -312,7 +313,8 @@ func (w *Wizard) forgeDefault(first Origin, kind string) Forge {
 
 // personas is questions 7–26: per role, provider, model, effort and the
 // co-author, whose default follows the model unless the file's persona
-// has the same provider and model.
+// has the same provider and model; `-` is none, an empty answer being the
+// default, as the list questions take it.
 func (w *Wizard) personas(c *Config) error {
 	for _, role := range Roles {
 		p, ok := c.Personas[role]
@@ -335,10 +337,16 @@ func (w *Wizard) personas(c *Config) error {
 		}
 		if err == nil {
 			def := defaultCoAuthor(p.Provider, p.Model)
-			if ok && was.Provider == p.Provider && was.Model == p.Model && was.CoAuthor != "" {
-				def = was.CoAuthor
+			if ok && was.Provider == p.Provider && was.Model == p.Model {
+				def = cmp.Or(was.CoAuthor, "-")
 			}
-			err = w.ask(role+" co-author", def, func(a string) *Error { p.CoAuthor = a; return checkCoAuthor(at+".co_author", a) })
+			err = w.ask(role+" co-author (- for none)", def, func(a string) *Error {
+				if a == "-" {
+					a = ""
+				}
+				p.CoAuthor = a
+				return checkCoAuthor(at+".co_author", a)
+			})
 		}
 		if err != nil {
 			return err

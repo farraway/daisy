@@ -173,7 +173,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: personas.worker.model: "a\u2003b" contains whitespace`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Model = "a\u2003b" }) }},
 		{`swarm.json: personas.worker.effort: "Very High" is not one lowercase word`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Effort = "Very High" }) }},
 		{`swarm.json: personas.worker.co_author: "claude-sonnet-5-5" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "claude-sonnet-5-5" }) }},
-		{`swarm.json: personas.worker.co_author: "" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "" }) }},
+		{`swarm.json: personas.worker.co_author: " " is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = " " }) }},
 		{`swarm.json: personas.worker.co_author: "m <a b@x.y>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m <a b@x.y>" }) }},
 		{`swarm.json: personas.worker.co_author: "m  <a@b>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m  <a@b>" }) }},
 		{`swarm.json: personas.worker.co_author: "m\rx <a@b>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m\rx <a@b>" }) }},
@@ -195,6 +195,11 @@ func TestValidateNamesTheField(t *testing.T) {
 
 	if err := Validate(ops.Real(), ws, valid(), 0); err != nil {
 		t.Errorf("the valid declaration: %v", err)
+	}
+	none := valid()
+	setPersona(&none, "worker", func(p *Persona) { p.CoAuthor = "" })
+	if err := Validate(ops.Real(), ws, none, 0); err != nil {
+		t.Errorf(`co_author "", no trailer: %v`, err)
 	}
 	os.Remove(PromptFile(ws, "architect"))
 	write(t, PromptFile(ws, "worker"), "")
