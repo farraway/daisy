@@ -240,13 +240,6 @@ stated gate, no silent failure, no dead code. Under a plan, the review
 gate and the cap of five passes are `prompts/plan.md` rule 22; a step not
 clean at the cap stops and hands back with its findings.
 
-**The spec follows the code.** `docs/swarm.md` and `docs/cli.md` describe
-the binary as built, and mark as such anything they specify ahead of its
-build (`docs/swarm.md`'s board, GitHub adapter and `budget`). A change
-that departs from a documented behaviour amends the section and, in
-`docs/swarm.md`, adds a line to its section 14; a document is never left
-describing as built what the code lacks.
-
 ## The swarm, from an agent session
 
 The swarm's code is `internal/swarm/*` and `internal/commands/swarm.go`;
