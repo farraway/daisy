@@ -200,10 +200,11 @@ func (c *collection) say(at forge.Ref, existing []forge.Comment, role, text stri
 func (c *collection) comment(role, text string) error { return c.say(c.at, c.is.Comments, role, text) }
 
 // stage is the stage of the run the issue carries now: the in-progress
-// stage its launch wrote (InProgress), else the stage it was launched on;
-// "" when it carries neither, the maintainer having moved it.
+// stage its launch wrote (InProgress), else the stage it was launched on,
+// else the one a run that does not move it on leaves it at (home); ""
+// when it carries none, the maintainer having moved it.
 func (c *collection) stage() string {
-	for _, l := range []string{InProgress(c.r.Role, c.label), c.label} {
+	for _, l := range []string{InProgress(c.r.Role, c.label), c.label, c.home()} {
 		if l != "" && slices.Contains(c.is.Labels, l) {
 			return l
 		}
@@ -248,15 +249,24 @@ func (c *collection) relabel(to string) error {
 	return nil
 }
 
-// restore takes the issue back to the stage the run was launched on, the
-// in-progress stage its launch wrote undone (section 5): a run that ends
-// without moving the issue on, a fault, stale, discarded or abandoned,
-// leaves it where the role rule finds it again.
-func (c *collection) restore() error {
-	if InProgress(c.r.Role, c.label) == "" {
-		return nil // the launch wrote none
+// home is where a run that does not move the issue on leaves it (section
+// 5, T22): review-0-ready for a reviewer, whichever of the pair it was,
+// and the stage it was launched on for every other role.
+func (c *collection) home() string {
+	if (c.r.Role == "adversary" || c.r.Role == "sympathetic") && reviewing(c.label) {
+		return forge.ReviewReady
 	}
-	return c.relabel(c.label)
+	return c.label
+}
+
+// restore takes the issue back home (T22), the in-progress stage undone:
+// a run that ends without moving the issue on, a fault, stale, discarded
+// or abandoned, leaves it where the role rule finds it again.
+func (c *collection) restore() error {
+	if InProgress(c.r.Role, c.label) == "" && c.home() == c.label {
+		return nil // the launch wrote none, and home is where it launched
+	}
+	return c.relabel(c.home())
 }
 
 // abandoned ends a run whose apply died before its container ended
@@ -274,10 +284,10 @@ func (c *collection) abandoned() error {
 	return fs.RemoveAll(filepath.Join(c.r.Dir, "work"))
 }
 
-// block is T17, swarm:blocked being a flag: the issue taken back to the
-// stage the run was launched on, then flagged beside it (section 5).
+// block is T17, swarm:blocked being a flag: the issue taken back home,
+// then flagged beside it (section 5).
 func (c *collection) block() error {
-	if err := c.relabel(c.label); err != nil {
+	if err := c.relabel(c.home()); err != nil {
 		return err
 	}
 	return c.flag()
@@ -323,7 +333,7 @@ func (c *collection) fail(reason string) error {
 		}
 	}
 	fmt.Fprintf(c.s.Out, "%sfailed (%s)\n", c.head, reason)
-	note := fmt.Sprintf("%s run %d failed: %s (at %s). Remove %s to resume.", c.r.Role, c.r.K, reason, c.label, forge.Blocked)
+	note := fmt.Sprintf("%s run %d failed: %s (at %s). Remove %s to resume.", c.r.Role, c.r.K, reason, c.home(), forge.Blocked)
 	kept, err := c.keptNote()
 	if err != nil {
 		return err
@@ -352,7 +362,7 @@ func (c *collection) blocked(text string, pull *forge.Pull) error {
 	if err != nil {
 		return err
 	}
-	return c.note(fmt.Sprintf("%s run %d is blocked (at %s). Answer, then remove %s to resume.", c.r.Role, c.r.K, c.label, forge.Blocked)+kept, "blocked")
+	return c.note(fmt.Sprintf("%s run %d is blocked (at %s). Answer, then remove %s to resume.", c.r.Role, c.r.K, c.home(), forge.Blocked)+kept, "blocked")
 }
 
 // keptNote keeps a worker run's commits (section 7.6, step 2) and is the

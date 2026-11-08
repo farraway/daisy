@@ -15,6 +15,8 @@ import (
 
 // The in-progress stages taken back when a run does not move the issue
 // on (section 5): a worker's swarm fault leaves plan-1-accepted, unblocked;
+// the pair's second reviewer failing leaves review-0-ready, blocked, as the
+// first's does;
 // an abandoned worker run, whose apply died with the issue at
 // plan-2-in-progress, is restored before the worker runs again; a first
 // reviewer's stale run leaves review-0-ready; and a launch whose relabel
@@ -88,6 +90,27 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 		}
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) {
 			t.Errorf("after a stale review: %v", got)
+		}
+	})
+	t.Run("the pair's second reviewer failing", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.inReview(oneSlice)
+		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+		a.runner.Script(1, "sympathetic", runner.Canned{Out: "Looks fine.\n"}) // no verdict line
+		a.pass()
+		a.pass()
+		r := a.result("1-sympathetic-1")
+		b := a.bodies(1)
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready", forge.Blocked, forge.Gated}) ||
+			!strings.Contains(r, "\nlabel swarm:review-1-in-progress\n") || !strings.Contains(r, "\nrelabelled swarm:review-1-in-progress swarm:review-0-ready\n") ||
+			b[len(b)-1] != mark("reconciler", 1)+"sympathetic run 1 failed: bad verdict (at swarm:review-0-ready). Remove swarm:blocked to resume." {
+			t.Errorf("%v %q\n%s", got, b, r)
+		}
+		a.forge.Relabel(issue1, forge.Blocked, "") // T18: the second reviewer runs again, from review-0-ready
+		a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+		a.pass()
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) || !strings.Contains(a.result("1-sympathetic-2"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") {
+			t.Errorf("after T18: %v\n%s", got, a.result("1-sympathetic-2"))
 		}
 	})
 	t.Run("a refused relabel at the launch", func(t *testing.T) {

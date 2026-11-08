@@ -477,11 +477,13 @@ the verbs, each under your own token in `.env.sh` as
 `DAISY_MAINTAINER_TOKEN`:
 
 ```bash
-daisy swarm triage 12            # proposed → ready: the architect plans it
-daisy swarm accept 12            # planning → planned: the worker builds the next slice
+daisy swarm triage 12            # proposal-posted → proposal-accepted: the architect plans it
+daisy swarm accept 12            # plan-0-posted → plan-1-accepted: the worker builds the next slice
 daisy swarm approve 12           # a formal approving review, where a branch rule wants one before the merge
 daisy swarm merge 12             # merge the approved pull request, then the next slice or close
-daisy swarm unblock 12 <comment> # say what changed, then return it to its stage
+daisy swarm unblock 12 <comment> # say what changed, then clear swarm:blocked: its stage runs again
+daisy swarm block 12 --by 9      # hold #12's job until #9 is closed
+daisy swarm pause 12             # hold #12 alone; daisy swarm resume 12 releases it
 daisy swarm close 12
 ```
 
