@@ -143,3 +143,17 @@ func TestIssueBodyInThePromptByItsOpener(t *testing.T) {
 		}
 	}
 }
+
+// The round limit's second note is told by its start, never by its words
+// inside another note's quoted text (a member's path).
+func TestAtTheRoundLimit(t *testing.T) {
+	note := func(text string) forge.Issue {
+		return forge.Issue{Author: "jane", Body: "job", Comments: []forge.Comment{{Author: "swarm-bot", Body: marker("reconciler", 1) + text, Created: time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)}}}
+	}
+	if !AtTheRoundLimit(note("Review round 3 of 3 on app#2 requested changes a second time (was swarm:in-review). Relabel the issue to resume."), "swarm-bot") {
+		t.Error("the second note is not the round limit's")
+	}
+	if AtTheRoundLimit(note("worker run 1 failed: protected path changed: .gitea/requested changes a second time (was swarm:planned). Relabel the issue to resume."), "swarm-bot") {
+		t.Error("a member's path made a failure the round limit's")
+	}
+}

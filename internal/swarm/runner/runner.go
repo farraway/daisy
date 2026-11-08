@@ -135,10 +135,11 @@ func (c *dockerRun) Wait() (Exit, error) {
 	select {
 	case r = <-done:
 	case <-c.d.O.After(c.timeout):
+		// A timeout whatever the run exits with (section 7.2), and only
+		// once `docker run` has returned, a failed stop included (the
+		// container gone already, --rm): the slot's lock is held until then.
 		timedOut = true
-		if err := c.d.Stop(c.name); err != nil {
-			return Exit{}, err
-		}
+		c.d.Stop(c.name)
 		r = <-done
 	}
 	if r.err != nil {

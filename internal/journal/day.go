@@ -23,33 +23,48 @@ type Carried struct {
 func Carry(lines []string) Carried {
 	var c Carried
 	for _, l := range lines {
-		t := todo.Parse(l)
-		if t.State != todo.Open || l == "" {
+		text, ok := Entry(l)
+		if !ok {
 			continue
 		}
-		dated := t.Created != ""
-		switch {
+		switch t := todo.Parse(l); {
 		case strings.Contains(l, "@git"):
-			if dated && (t.Priority == 0 || t.Priority >= 'A' && t.Priority <= 'D') {
-				l = t.Text
-			}
-			c.GitHub = append(c.GitHub, l)
+			c.GitHub = append(c.GitHub, text)
 		case t.Priority == 'A':
-			c.Now = append(c.Now, textIfDated(t, l))
+			c.Now = append(c.Now, text)
 		case t.Priority == 'B':
-			c.Next = append(c.Next, textIfDated(t, l))
-		case t.Priority == 0 && dated:
-			c.Inbox = append(c.Inbox, t.Text)
+			c.Next = append(c.Next, text)
+		default:
+			c.Inbox = append(c.Inbox, text)
 		}
 	}
 	return c
 }
 
-func textIfDated(t todo.Task, line string) string {
-	if t.Created != "" {
-		return t.Text
+// Entry is the text a new day writes for a todo.txt line, after `- [ ] `,
+// and whether it carries the line at all (Carry's rules): `done` ticks the
+// line by it.
+func Entry(line string) (string, bool) {
+	t := todo.Parse(line)
+	if t.State != todo.Open || line == "" {
+		return "", false
 	}
-	return line
+	dated := t.Created != ""
+	switch {
+	case strings.Contains(line, "@git"):
+		if dated && (t.Priority == 0 || t.Priority >= 'A' && t.Priority <= 'D') {
+			return t.Text, true
+		}
+		return line, true
+	case t.Priority == 'A' || t.Priority == 'B':
+		if dated {
+			return t.Text, true
+		}
+		return line, true
+	case t.Priority == 0 && dated:
+		return t.Text, true
+	}
+	return "", false
 }
 
 // Fill makes today.md from a day or week template: {DATE}, {DAY} and

@@ -46,8 +46,10 @@ to `gitconfig`, runs `git init` with a first commit as that identity,
 registers the name, and builds the home's `AGENTS.md`. Leaving name or email
 blank is allowed (reported, `gitconfig` is left as the template) but then the
 first commit uses the machine's global git identity, and with none the
-commit fails. Any failure after the first write removes the copy, so nothing
-half-made is left behind or registered. `daisy init <name>` then binds a
+commit fails. Any failure after the first write, up to the registration,
+removes the copy, so nothing half-made is left behind or registered; a
+failed `AGENTS.md` build after it is a warning (`daisy prompt build
+<name>` makes it later). `daisy init <name>` then binds a
 workspace to it.
 
 Home and identity names are ASCII: letters, digits, `.`, `_`, `-`, starting

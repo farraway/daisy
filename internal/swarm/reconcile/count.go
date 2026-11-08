@@ -69,6 +69,10 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 	return c
 }
 
+// roundLimitNote is the round limit's second note, from its start: the
+// words alone could be a member's path quoted in a failure's note.
+var roundLimitNote = regexp.MustCompile(`^Review round [0-9]+ of [0-9]+ on \S+ ` + roundLimitAgain + ` \(was swarm:in-review\)\.`)
+
 // blockedFromRe is the label a reconciler note names the issue left
 // (section 7.6): `(was swarm:<label>)`, the last in the note, since every
 // note writes it after any text it quotes (a failure's reason may hold a
@@ -109,7 +113,7 @@ func blockedFrom(is forge.Issue, swarmLogin string) (label string, roundLimit, o
 		if was == "swarm:blocked" || !slices.Contains(forge.Labels, was) {
 			return "", false, false
 		}
-		return was, strings.Contains(text, roundLimitAgain), true
+		return was, roundLimitNote.MatchString(text), true
 	}
 	return "", false, false
 }

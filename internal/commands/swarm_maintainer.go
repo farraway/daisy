@@ -333,6 +333,23 @@ func swarmUnblock(c *Context, open opener) error {
 	if !slices.ContainsFunc(m.cfg.Trusted, func(l string) bool { return strings.EqualFold(l, m.login) }) {
 		fmt.Fprintf(c.Stderr, "⚠ %s is not in trusted: no member reads your comment (docs/swarm.md section 6)\n", m.login)
 	}
+	// The comment goes where the stage's role reads: the worker in
+	// swarm:reviewed reads the current pull request's thread, whose newest
+	// entry may be its own BLOCKED: (section 6, rule 3).
+	if prior == "swarm:reviewed" {
+		pulls, err := m.f.Pulls(m.n)
+		if err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		if len(pulls) > 0 && pulls[len(pulls)-1].Open {
+			cur := pulls[len(pulls)-1]
+			if err := m.f.Comment(forge.Ref{Repo: cur.Repo, N: cur.Number}, text); err != nil {
+				return fmt.Errorf("Error: swarm: %v", err)
+			}
+			fmt.Fprintf(m.c.Stdout, "#%d commented on pull %s#%d\n", m.n, cur.Repo, cur.Number)
+			return m.relabel("swarm:blocked", prior)
+		}
+	}
 	if err := m.say(text); err != nil {
 		return err
 	}

@@ -105,6 +105,9 @@ func TestChangedAndPush(t *testing.T) {
 	}
 	git(dir, "checkout", "-q", "-b", "swarm/1-1")
 	git(dir, "mv", "AGENTS.md", "NOTES.md")
+	os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0o755)
+	os.WriteFile(filepath.Join(dir, ".github", "workflows", "é.yml"), []byte("on: push\n"), 0o644)
+	git(dir, "add", ".github")
 	git(dir, "commit", "-q", "-m", "Rename")
 	sha, err := g.FetchRun("app", dir, "swarm/1-1", "refs/swarm-runs/1-worker-1")
 	if err != nil {
@@ -113,6 +116,10 @@ func TestChangedAndPush(t *testing.T) {
 	changed, err := g.Changed("app", "main", sha)
 	if err != nil || len(Protected(changed, []string{"AGENTS.md"})) == 0 {
 		t.Errorf("changed %q (%v): the protected file renamed away is not among them", changed, err)
+	}
+	// A path git would quote (a byte outside ASCII) is named as it is.
+	if hits := Protected(changed, []string{".github/"}); len(hits) != 1 || hits[0] != ".github/workflows/é.yml" {
+		t.Errorf("changed %q: the workflow with a non-ASCII name is not protected", changed)
 	}
 
 	// A branch of that name the remote holds already, unrelated: refused.
@@ -180,5 +187,56 @@ func TestClonesForgetTheHost(t *testing.T) {
 			}
 			return nil
 		})
+	}
+}
+
+// A member's clone that reaches outside itself is not fetched from: a
+// planted alternates file or a ref that is a link to another repository's
+// would have host git read that repository's objects (section 8).
+func TestFetchRunRefusesAForeignClone(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	o := ops.Real()
+	git := func(dir string, args ...string) {
+		t.Helper()
+		if _, errb, err := o.Exec(dir, "git", args...); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+	}
+	ws, state, up, other := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	for _, d := range []string{up, other} {
+		git(d, "init", "-q", "-b", "main")
+		git(d, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "first")
+	}
+	os.MkdirAll(filepath.Join(ws, "app"), 0o755)
+	git(filepath.Join(ws, "app"), "init", "-q")
+	git(filepath.Join(ws, "app"), "remote", "add", "origin", up)
+	g := Git{O: o, WS: ws, State: state}
+	if err := g.Fetch(declare.Repo{Name: "app", Path: "app"}); err != nil {
+		t.Fatal(err)
+	}
+	for name, plant := range map[string]func(work string){
+		"alternates": func(work string) {
+			os.WriteFile(filepath.Join(work, ".git", "objects", "info", "alternates"), []byte(filepath.Join(other, ".git", "objects")+"\n"), 0o644)
+		},
+		"a linked ref": func(work string) {
+			p := filepath.Join(work, ".git", "refs", "heads", "swarm", "1-1")
+			os.Remove(p)
+			os.Symlink(filepath.Join(other, ".git", "refs", "heads", "main"), p)
+		},
+		"a linked objects directory": func(work string) {
+			os.RemoveAll(filepath.Join(work, ".git", "objects", "pack"))
+			os.Symlink(filepath.Join(other, ".git", "objects", "pack"), filepath.Join(work, ".git", "objects", "pack"))
+		},
+	} {
+		work := filepath.Join(t.TempDir(), "work")
+		if _, err := g.Clone(declare.Repo{Name: "app", Path: "app"}, "main", "main", work, "worker", "swarm@example.net", "c <c@example.net>"); err != nil {
+			t.Fatal(err)
+		}
+		git(work, "checkout", "-q", "-b", "swarm/1-1")
+		git(work, "commit", "-q", "--allow-empty", "-m", "Work")
+		plant(work)
+		if _, err := g.FetchRun("app", work, "swarm/1-1", "refs/swarm-runs/1-worker-1"); !errors.Is(err, ErrForeignClone) || strings.Contains(err.Error(), work) {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }

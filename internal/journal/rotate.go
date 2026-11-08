@@ -63,7 +63,7 @@ type Rotation struct {
 // block before it. windows holds the rolling files that exist, by name.
 // This is the bash rotation, byte for byte; nothing here reads the clock.
 func Rotate(journal string, windows map[string]string) (Rotation, error) {
-	blocks, err := splitBlocks(journal)
+	pre, blocks, err := splitBlocks(journal)
 	if err != nil {
 		return Rotation{}, fmt.Errorf("Error: rotate: journal.md has %v — aborting, nothing written", err)
 	}
@@ -90,7 +90,7 @@ func Rotate(journal string, windows map[string]string) (Rotation, error) {
 		}
 	}
 
-	r := Rotation{Journal: strings.Join(blocks[moved:], "\n---\n\n"), Moved: moved, Write: map[string]string{}}
+	r := Rotation{Journal: pre + strings.Join(blocks[moved:], "\n---\n\n"), Moved: moved, Write: map[string]string{}}
 	for name, content := range dir {
 		if old, ok := windows[name]; !ok || old != content {
 			r.Write[name] = content
@@ -172,17 +172,29 @@ func first(dir map[string]string, glob string) string {
 // terminated, trailing blank lines and one trailing `---` trimmed. A line
 // with anything but white space before the first heading is refused: it
 // has no block to belong to.
-func splitBlocks(content string) ([]string, error) {
+func splitBlocks(content string) (pre string, _ []string, _ error) {
 	var blocks [][]string
+	var head []string
 	for _, l := range lines(content) {
 		switch {
 		case dayHeading.MatchString(l):
 			blocks = append(blocks, []string{l})
 		case len(blocks) > 0:
 			blocks[len(blocks)-1] = append(blocks[len(blocks)-1], l)
-		case !blank(l):
-			return nil, fmt.Errorf("non-blank content before its first '### YYYY-MM-DD' heading")
+		default:
+			head = append(head, l)
 		}
+	}
+	// What comes before the first heading is refused, but for a preamble
+	// that ends in `---` (new-week's Weekly Retrospective on a home whose
+	// journal was empty): with no block before it to stay with, it stays
+	// at the top of journal.md, never rotated.
+	if slices.ContainsFunc(head, func(l string) bool { return !blank(l) }) {
+		b := trimBlank(head)
+		if b[len(b)-1] != "---" || len(blocks) == 0 {
+			return "", nil, fmt.Errorf("non-blank content before its first '### YYYY-MM-DD' heading")
+		}
+		pre = strings.Join(b, "\n") + "\n\n"
 	}
 	out := make([]string, len(blocks))
 	for i, b := range blocks {
@@ -192,7 +204,7 @@ func splitBlocks(content string) ([]string, error) {
 		}
 		out[i] = strings.Join(b, "\n") + "\n"
 	}
-	return out, nil
+	return pre, out, nil
 }
 
 // trimBlank drops trailing blank lines; the heading is never blank.
@@ -265,7 +277,7 @@ func dates(window string) []string {
 // dropOldest removes a window's first block, re-joining the rest; the
 // front matter goes with it, for frontMatter to rebuild.
 func dropOldest(window string) string {
-	blocks, _ := splitBlocks(blocksPart(window)) // starts at a heading: nothing to refuse
+	_, blocks, _ := splitBlocks(blocksPart(window)) // starts at a heading: nothing to refuse
 	return strings.Join(blocks[1:], "\n---\n\n")
 }
 

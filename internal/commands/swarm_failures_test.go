@@ -43,6 +43,27 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 		{name: "no commits", canned: runner.Canned{Out: "Nothing to do.\n"}, reason: "no commits"},
 		{name: "protected path", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n", "docs/AGENTS.md": "x\n"}, "v1")},
 			reason: "protected path changed: .gitea/workflows/ci.yml, docs/AGENTS.md", kept: true},
+		{name: "a clone reaching outside itself", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
+				return err
+			}
+			return os.WriteFile(filepath.Join(work, ".git", "objects", "info", "alternates"), []byte("/elsewhere/objects\n"), 0o644)
+		}}, reason: "the clone reaches outside itself: it holds .git/objects/info/alternates"},
+		{name: "a clone with a link named by a secret", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
+				return err
+			}
+			return os.Symlink("x", filepath.Join(work, ".git", "refs", secret))
+		}}, reason: "the clone reaches outside itself: .git holds a link"},
+		{name: "a clone with an unreadable directory", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
+				return err
+			}
+			os.Mkdir(filepath.Join(work, ".git", "closed"), 0o755)
+			return os.Chmod(filepath.Join(work, ".git", "closed"), 0)
+		}}, reason: "the clone reaches outside itself: a directory in .git cannot be read"},
+		{name: "a protected path with a newline", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n", ".gitea/x\ncost 4242.5": "x\n"}, "v1")},
+			reason: `protected path changed: .gitea/x\ncost 4242.5`, kept: true},
 		{name: "secret in a blob", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"sub/key.txt": secret + "\n"}, "v1")}, reason: "secret in output: commits", kept: true},
 		{name: "secret in a protected path's name", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{".gitea/workflows/" + secret + ".yml": "on: push\n"}, "v1")}, reason: "secret in output: commits", kept: true},
 		{name: "secret in a commit message", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n"}, "token "+secret)}, reason: "secret in output: commits", kept: true},

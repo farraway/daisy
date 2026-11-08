@@ -221,6 +221,7 @@ func (c *collection) note(text, outcome string) error {
 // fail is a failure of the work (section 7.7): the reason recorded, a
 // worker's commits kept, the note and T17.
 func (c *collection) fail(reason string) error {
+	reason = oneLine.Replace(reason) // as the result holds it, on stdout and in the note alike
 	if _, ok := Has(c.lines, "failed"); !ok {
 		if err := c.step("failed: " + reason); err != nil {
 			return err

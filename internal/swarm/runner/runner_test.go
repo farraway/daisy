@@ -119,6 +119,41 @@ func TestDockerStartAndTheWallClock(t *testing.T) {
 	}
 }
 
+// A stop that fails at the wall clock (the container gone already, --rm)
+// is still a timeout, reported once docker run has returned, never before:
+// the slot's lock is released only then (section 7.1).
+func TestDockerStopFailingStillWaits(t *testing.T) {
+	proc := &blocked{release: make(chan struct{}), code: 137}
+	fire := make(chan time.Time, 1)
+	returned := make(chan struct{})
+	o := &ops.Fake{
+		StartFn: func(dir, name string, in io.Reader, stdout, stderr io.Writer, args ...string) (ops.Process, error) {
+			return proc, nil
+		},
+		AfterFn: func(time.Duration) <-chan time.Time { return fire },
+		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
+			return nil, []byte("Error response from daemon: No such container"), errors.New("exit status 1")
+		},
+	}
+	c, err := Docker{O: o, Dir: "/ws"}.Start(member(), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fire <- time.Time{}
+	var exit Exit
+	go func() { exit, err = c.Wait(); close(returned) }()
+	select {
+	case <-returned:
+		t.Fatal("Wait returned before docker run did")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(proc.release)
+	<-returned
+	if err != nil || !exit.TimedOut || exit.Code != 137 {
+		t.Errorf("exit %+v, err %v", exit, err)
+	}
+}
+
 func TestDockerRunning(t *testing.T) {
 	o := &ops.Fake{ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
 		if got := name + " " + strings.Join(args, " "); got != `docker ps --filter label=daisy.swarm --format {{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}` {

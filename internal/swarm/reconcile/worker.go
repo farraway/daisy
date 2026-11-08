@@ -19,6 +19,14 @@ func (c *collection) fetch() error {
 		return nil
 	}
 	sha, err := c.s.git().FetchRun(branchRepo(c.lines), filepath.Join(c.r.Dir, "work"), runBranch(c.lines), runRef(c.r))
+	if errors.Is(err, ErrForeignClone) {
+		// A work failure, read by the collection as any other: nothing
+		// is fetched from the clone, so nothing of it is pushed.
+		if _, failed := Has(c.lines, "failed"); failed {
+			return nil
+		}
+		return c.step("failed: " + err.Error())
+	}
 	if err != nil {
 		return err
 	}

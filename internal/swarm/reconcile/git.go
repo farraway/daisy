@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"path"
 	"path/filepath"
 	"strings"
@@ -76,11 +77,61 @@ func (g Git) Branch(dir, branch string) error {
 // ref, and returns the fetched commit (section 7.6, step 1): the only git
 // command that reads the member's clone.
 func (g Git) FetchRun(name, work, branch, ref string) (string, error) {
+	if err := selfContained(g.O.FS(), filepath.Join(work, ".git")); err != nil {
+		return "", err
+	}
 	m := g.Mirror(name)
 	if _, err := g.run(m, "fetch", "--quiet", "--no-tags", work, "+refs/heads/"+branch+":"+ref); err != nil {
 		return "", err
 	}
 	return g.run(m, "rev-parse", ref)
+}
+
+// ErrForeignClone: a member's clone that reaches outside itself, which
+// host git, reading it with the host's rights, would follow (section 8:
+// a member must not reach the host's state).
+var ErrForeignClone = errors.New("the clone reaches outside itself")
+
+// selfContained: the member's .git is a directory of its own, with no
+// link anywhere in it (a ref or an objects directory led to a host
+// repository's), no alternates and no commondir (another repository's
+// objects or refs read as its own).
+func selfContained(fs ops.FS, dir string) error {
+	fi, err := fs.Lstat(dir)
+	if err != nil || !fi.IsDir() {
+		return fmt.Errorf("%w: .git is not a directory", ErrForeignClone)
+	}
+	for _, rel := range []string{"commondir", filepath.Join("objects", "info", "alternates"), filepath.Join("objects", "info", "http-alternates")} {
+		if _, err := fs.Lstat(filepath.Join(dir, rel)); err == nil {
+			return fmt.Errorf("%w: it holds .git/%s", ErrForeignClone, rel)
+		}
+	}
+	var walk func(string) error
+	walk = func(d string) error {
+		// The reason names no path: a name in the member's .git is its
+		// text, past no secret check (nothing was fetched to check).
+		entries, err := fs.ReadDir(d)
+		if err != nil {
+			return fmt.Errorf("%w: a directory in .git cannot be read", ErrForeignClone)
+		}
+		for _, e := range entries {
+			p := filepath.Join(d, e.Name())
+			fi, err := fs.Lstat(p)
+			if err != nil {
+				return fmt.Errorf("%w: a file in .git cannot be read", ErrForeignClone)
+			}
+			switch {
+			case fi.Mode()&iofs.ModeSymlink != 0:
+				return fmt.Errorf("%w: .git holds a link", ErrForeignClone)
+			case fi.IsDir():
+				if err := walk(p); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	return walk(dir)
 }
 
 // Unstamped is each commit of base..sha whose message lacks the line
@@ -110,11 +161,21 @@ func (g Git) Unstamped(name, base, sha, coAuthor string) ([]string, error) {
 // Changed is every path base...sha changes (section 7.6, step 3), a
 // renamed file by both its paths.
 func (g Git) Changed(name, base, sha string) ([]string, error) {
-	out, err := g.run(g.Mirror(name), "diff", "--name-only", "--no-renames", "refs/heads/"+base+"..."+sha)
-	if err != nil || out == "" {
-		return nil, err
+	// -z: each path as it is, NUL-ended, never quoted (core.quotePath
+	// would quote a path with a byte outside ASCII, which no pattern
+	// matches).
+	args := []string{"diff", "--name-only", "-z", "--no-renames", "refs/heads/" + base + "..." + sha}
+	out, errb, err := g.O.Exec(g.Mirror(name), "git", args...)
+	if err != nil {
+		return nil, fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))
 	}
-	return strings.Split(out, "\n"), nil
+	var paths []string
+	for _, p := range strings.Split(string(out), "\x00") {
+		if p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths, nil
 }
 
 // Objects is every object the push of sha would send past base, as

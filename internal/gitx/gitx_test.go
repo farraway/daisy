@@ -60,7 +60,7 @@ func TestCommitIsOneCommit(t *testing.T) {
 	if err != nil || !committed || hash != "abc1234" {
 		t.Fatalf("hash %q committed %v err %v", hash, committed, err)
 	}
-	want := []string{"git status --porcelain -- .", "git add -- .", "git commit -m Log: 1423 - x", "git rev-parse --short HEAD"}
+	want := []string{"git status --porcelain --untracked-files=all -- .", "git add -- .", "git commit -m Log: 1423 - x", "git rev-parse --short HEAD"}
 	if strings.Join(s.calls, "|") != strings.Join(want, "|") {
 		t.Errorf("calls %q", s.calls)
 	}
@@ -156,6 +156,11 @@ func TestCommitWithRealGit(t *testing.T) {
 	}
 	if got := run("rev-list", "--count", "HEAD"); got != "2" {
 		t.Errorf("commits: %s", got)
+	} // A new file is taken whatever status.showUntrackedFiles says.
+	run("config", "status.showUntrackedFiles", "no")
+	os.WriteFile(filepath.Join(dir, "new.md"), []byte("new\n"), 0o644)
+	if _, committed, err := repo.Commit(o, "third"); err != nil || !committed {
+		t.Errorf("a new file under showUntrackedFiles=no: committed %v err %v", committed, err)
 	}
 }
 
@@ -170,7 +175,7 @@ func TestCommitExcludes(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec := "-- . :(exclude,literal)data/zebranest :(exclude,literal)a b"
-	want := []string{"git status --porcelain " + spec, "git add " + spec, "git commit -m m " + spec, "git rev-parse --short HEAD"}
+	want := []string{"git status --porcelain --untracked-files=all " + spec, "git add " + spec, "git commit -m m " + spec, "git rev-parse --short HEAD"}
 	if strings.Join(s.calls, "|") != strings.Join(want, "|") {
 		t.Errorf("calls %q", s.calls)
 	}

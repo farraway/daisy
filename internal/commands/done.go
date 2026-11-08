@@ -47,6 +47,12 @@ func Done(c *Context) error {
 	}
 
 	task := todo.Parse(lines[matches[0]])
+	// today.md holds the line as new-day carried it (an undated (A)
+	// whole), or as the description, as the agent writes a task in.
+	entries := []string{task.Text}
+	if e, carried := journal.Entry(lines[matches[0]]); carried && e != task.Text {
+		entries = append([]string{e}, entries...)
+	}
 	today := c.Ops.Now().Format("2006-01-02")
 	lines = append(append(lines[:matches[0]:matches[0]], lines[matches[0]+1:]...), task.Complete(today).Format())
 	if err := fs.WriteFile(c.todoFile(), []byte(todo.Content(lines)), 0o644); err != nil {
@@ -57,11 +63,14 @@ func Done(c *Context) error {
 	// is checked off by hand and never reaches todo.txt.
 	ticked := false
 	if b, err := fs.ReadFile(c.todayFile()); err == nil {
-		if out, ok := journal.Tick(string(b), task.Text); ok {
-			if err := fs.WriteFile(c.todayFile(), []byte(out), 0o644); err != nil {
-				return err
+		for _, e := range entries {
+			if out, ok := journal.Tick(string(b), e); ok {
+				if err := fs.WriteFile(c.todayFile(), []byte(out), 0o644); err != nil {
+					return err
+				}
+				ticked = true
+				break
 			}
-			ticked = true
 		}
 	}
 	logErr := appendLog(c, c.Ops.Now().Format("1504"), "Done: "+task.Text)

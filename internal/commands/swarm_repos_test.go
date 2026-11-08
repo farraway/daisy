@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -345,5 +346,37 @@ func TestSwarmApplyLoopSignalledDuringAPass(t *testing.T) {
 	err := a.applyTo(a.git(), signalling{a.runner, a.signals}, &a.stdout, &a.stderr)
 	if err != nil || waited || len(a.runner.Launches()) != 1 || !strings.HasSuffix(a.result("1-architect-1"), "outcome posted\ncollected\n") {
 		t.Errorf("%v: waited %v, launched %d\n%s", err, waited, len(a.runner.Launches()), a.stdout.String())
+	}
+}
+
+// The loop's lock, adapter and token are its start's: a pass after
+// swarm.json's forge.repo changed is skipped with the reason, never run
+// on the other repository's <state> without its lock (section 11).
+func TestSwarmApplyLoopForgeChanged(t *testing.T) {
+	a := newApplyWS(t)
+	a.signals = make(chan os.Signal, 2)
+	waits := 0
+	var mu sync.Mutex
+	a.after = func(time.Duration) <-chan time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		waits++
+		c := make(chan time.Time, 1)
+		if waits == 1 {
+			a.edit(func(c *declare.Config) { c.Forge.Repo = "acme/lib" })
+			c <- time.Time{}
+		} else {
+			a.signals <- os.Interrupt
+		}
+		return c
+	}
+	if err := a.apply(a.git()); err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(a.stdout.String(), "Pass "); n != 1 || !strings.Contains(a.stderr.String(), "swarm.json's forge (kind, api, repo or token_env) changed since apply started; pass skipped") {
+		t.Errorf("%d passes\nstderr:\n%s", n, a.stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(a.local, "swarm", "forge.example.net", "acme", "lib")); err == nil {
+		t.Error("a pass ran on acme/lib's <state>")
 	}
 }

@@ -275,9 +275,14 @@ func OptimizeApply(c *Context) error {
 	// when entries will move to it.
 	archivePath := c.archiveFile()
 	var archive []byte
+	var archiveRead read // as it was read: absent when the template stands in
 	if len(pending) > 0 {
 		if archive, err = readCurrent(c, archivePath); err != nil {
 			return err
+		}
+		archiveRead = read{archivePath, nil, lexists(fsys, archivePath)}
+		if archiveRead.existed {
+			archiveRead.data = archive
 		}
 	}
 
@@ -313,7 +318,7 @@ func OptimizeApply(c *Context) error {
 	// short but not empty.
 	reads := append(ch.reads, read{c.feedbackFile(), feedbackDoc, true}, read{ledgerPath, ledger, ledgerExisted})
 	if len(pending) > 0 {
-		reads = append(reads, read{archivePath, archive, lexists(fsys, archivePath)})
+		reads = append(reads, archiveRead)
 	}
 	for _, r := range reads {
 		if r.changed(fsys) {

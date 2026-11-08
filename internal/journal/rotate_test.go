@@ -171,3 +171,18 @@ func dateAfter(base string, n int) string {
 	t, _ := time.Parse(time.DateOnly, base)
 	return t.AddDate(0, 0, n).Format(time.DateOnly)
 }
+
+// A preamble ending in `---` before the first heading (new-week's Weekly
+// Retrospective archived into an empty journal) has no block before it to
+// stay with: it stays at the top of journal.md, never rotated.
+func TestRotateKeepsALeadingRetrospective(t *testing.T) {
+	retro := "#### Weekly Retrospective\n\n* **Successes:** \n\n---\n\n"
+	in := retro + days("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06")
+	r, err := journal.Rotate(in, nil)
+	if err != nil || r.Moved != 1 || !strings.HasPrefix(r.Journal, retro+"### 2026-10-02") {
+		t.Errorf("%+v %v", r, err)
+	}
+	if _, err := journal.Rotate("#### Weekly Retrospective\n\n---\n", nil); err == nil {
+		t.Error("a preamble with no block after it was taken")
+	}
+}

@@ -888,6 +888,11 @@ func applyLoop(c *Context, s *reconcile.Swarm) error {
 		begin := o.Now()
 		if cfg, err := loadSwarm(o, c.Env.Workspace); err != nil {
 			fmt.Fprintln(c.Stderr, err)
+		} else if f, was := cfg.Forge, s.Cfg.Forge; f.Kind != was.Kind || f.API != was.API || f.Repo != was.Repo || f.TokenEnv != was.TokenEnv {
+			// The lock, the adapter and the token are the start's: a pass
+			// on another forge or repository would run on a <state> whose
+			// lock it does not hold.
+			fmt.Fprintf(c.Stderr, "Error: swarm: swarm.json's forge (kind, api, repo or token_env) changed since apply started; pass skipped: restart apply to act on it\n")
 		} else {
 			s.Cfg = cfg
 			if err := s.Pass(false); err != nil {

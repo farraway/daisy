@@ -187,3 +187,36 @@ func TestSwarmPausedPassMergesNothing(t *testing.T) {
 		t.Errorf("not merged after resume:\n%s", a.stdout.String())
 	}
 }
+
+// A worker that writes BLOCKED: in swarm:reviewed posts it on the pull
+// request, whose thread the worker reads there; unblock comments there,
+// so the worker runs again (section 6, rule 3), not on the issue, where
+// it would see its own BLOCKED: as the newest entry and run no more.
+func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	a.pass() // T10: reviewed
+	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: should main.go say v2 or v3?\n"})
+	a.pass() // T17: blocked
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked"}) {
+		t.Fatalf("not blocked: %v\n%s", got, a.stdout.String())
+	}
+	m := &maintainerWS{statusWS: a.statusWS}
+	m.write(".env.sh", bothTokens)
+	m.as = map[string]*forge.Fake{"tok-123": a.forge, "jane-456": a.forge.As(forge.Account{Login: "jane"})}
+	if err := m.verb(swarmUnblock, "1", "v2, as the plan says."); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.stdout.String(), "#1 commented on pull app#2\n") {
+		t.Errorf("unblock:\n%s", m.stdout.String())
+	}
+	before := len(a.runner.Launches())
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	if len(a.runner.Launches()) == before {
+		t.Errorf("no worker after unblock to swarm:reviewed:\n%s", a.stdout.String())
+	}
+}

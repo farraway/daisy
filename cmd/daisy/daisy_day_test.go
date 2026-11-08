@@ -263,6 +263,11 @@ func TestDoneWithoutTheTaskInToday(t *testing.T) {
 	code, _, errs = runWith(m.dayOps(m.ws, true), "done", "Alpha")
 	if code != 0 || errs != "" || !strings.Contains(m.read(t, "journal/today.md"), "- [x] Alpha task +daisy\n") || m.read(t, "tasks/todo.txt") != "x 2026-07-28 Alpha task +daisy\n" {
 		t.Errorf("undated: exit %d err %q todo %q", code, errs, m.read(t, "tasks/todo.txt"))
+	} // as new-day carries it: an undated (A) line whole
+	writeFile(t, filepath.Join(m.home, "tasks", "todo.txt"), "(A) Beta undated urgent\n")
+	writeFile(t, filepath.Join(m.home, "journal", "today.md"), todayBasic+"- [ ] (A) Beta undated urgent\n")
+	if code, _, errs = runWith(m.dayOps(m.ws, true), "done", "Beta"); code != 0 || errs != "" || !strings.Contains(m.read(t, "journal/today.md"), "- [x] (A) Beta undated urgent\n") {
+		t.Errorf("carried whole: exit %d err %q today %q", code, errs, m.read(t, "journal/today.md"))
 	}
 }
 

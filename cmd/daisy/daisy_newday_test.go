@@ -420,3 +420,25 @@ func checkRotation(t *testing.T, dir string, archived []string) {
 		}
 	}
 }
+
+// A fresh home (empty journal and today) that starts with new-week: the
+// next new-day archives the week's today.md, its Weekly Retrospective
+// first, and runs (the retrospective stays at the top of journal.md).
+func TestNewDayAfterAFreshHomesFirstWeek(t *testing.T) {
+	m := newMachine(t)
+	m.seed(t)
+	writeFile(t, filepath.Join(m.home, "journal", "today.md"), "")
+	writeFile(t, filepath.Join(m.home, "journal", "journal.md"), "")
+	writeFile(t, filepath.Join(m.home, "tasks", "done.txt"), "")
+	m.initHomeRepo(t)
+	mon := time.Date(2026, 8, 3, 9, 0, 0, 0, time.Local)
+	if code, _, errs := runWith(m.at(mon), "new-week"); code != 0 {
+		t.Fatalf("new-week: exit %d: %s", code, errs)
+	}
+	if code, _, errs := runWith(m.at(mon.Add(24*time.Hour)), "new-day"); code != 0 {
+		t.Fatalf("new-day: exit %d: %s", code, errs)
+	}
+	if j := m.read(t, "journal/journal.md"); !strings.HasPrefix(j, "#### Weekly Retrospective\n") || !strings.Contains(j, "### 2026-08-03 Monday") {
+		t.Errorf("journal.md:\n%s", j)
+	}
+}

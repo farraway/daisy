@@ -3,6 +3,8 @@ package reconcile
 import (
 	"strings"
 	"testing"
+
+	"daisy/internal/ops"
 )
 
 // A proposal's title is 1 to 200 characters, not bytes (section 7.5): 150
@@ -25,5 +27,19 @@ func TestProposalsBareBlocked(t *testing.T) {
 	met, blocked, isBlocked, ps := Proposals("Met: docs/b.md\n\nBLOCKED:\n")
 	if !isBlocked || blocked != "" || len(ps) != 0 || len(met) != 1 {
 		t.Errorf("met %q blocked %q %v proposals %+v", met, blocked, isBlocked, ps)
+	}
+}
+
+// The result file is read line by line: a line Append writes stays one,
+// whatever it quotes (a member's path may hold a newline).
+func TestAppendKeepsOneLine(t *testing.T) {
+	r := Run{Dir: t.TempDir()}
+	fs := ops.Real().FS()
+	if err := r.Append(fs, "failed: protected path changed: .gitea/x\ncost 4242.5", "outcome failed"); err != nil {
+		t.Fatal(err)
+	}
+	lines, _ := r.Result(fs)
+	if len(lines) != 2 || lines[0] != `failed: protected path changed: .gitea/x\ncost 4242.5` {
+		t.Errorf("%q", lines)
 	}
 }

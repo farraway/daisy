@@ -77,8 +77,16 @@ func (r Run) Append(fs ops.FS, lines ...string) error {
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
 		return err
 	}
-	return fs.WriteFile(filepath.Join(r.Dir, "result"), append(old, []byte(strings.Join(lines, "\n")+"\n")...), 0o644)
+	// One line each, whatever a line quotes (a member's path may hold a
+	// newline): the file is read line by line.
+	var b strings.Builder
+	for _, l := range lines {
+		b.WriteString(oneLine.Replace(l) + "\n")
+	}
+	return fs.WriteFile(filepath.Join(r.Dir, "result"), append(old, b.String()...), 0o644)
 }
+
+var oneLine = strings.NewReplacer("\r", `\r`, "\n", `\n`)
 
 // endWords are the first words of a result's end line (section 2).
 var endWords = []string{"exited", "timeout", "launch-failed", "abandoned"}

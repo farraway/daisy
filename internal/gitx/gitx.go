@@ -123,7 +123,8 @@ func (r Repo) Commit(o ops.Ops, message string) (hash string, committed bool, er
 		spec = append(spec, ":(exclude,literal)"+rel)
 	}
 	// `status --porcelain` rather than `diff`: a new, untracked file counts.
-	status, err := git(append([]string{"status", "--porcelain"}, spec...)...)
+	// --untracked-files=all: whatever status.showUntrackedFiles says.
+	status, err := git(append([]string{"status", "--porcelain", "--untracked-files=all"}, spec...)...)
 	if err != nil {
 		return "", false, err
 	}

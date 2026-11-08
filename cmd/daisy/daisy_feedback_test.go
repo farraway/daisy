@@ -458,3 +458,18 @@ func TestOptimizeBriefingFlagsAnOpenFence(t *testing.T) {
 		t.Errorf("no section:\n%s", out)
 	}
 }
+
+// A home with no feedback/archive.md yet: apply starts it from the root's
+// template, and the re-check before writing compares it as absent, not as
+// the template (it was not there to change).
+func TestOptimizeApplyStartsTheArchive(t *testing.T) {
+	l := newLoop(t)
+	os.Remove(filepath.Join(l.home, "feedback", "archive.md"))
+	code, out, errs := l.run("optimize", "apply", "-w", "widgetflow", "--rules", l.proposal(t, "r.md", "## Rules\n\n1. Measure before cutting.\n2. Cut once.\n"), "--yes")
+	if code != 0 {
+		t.Fatalf("exit %d\nout %s\nerr %s", code, out, errs)
+	}
+	if b, err := os.ReadFile(filepath.Join(l.home, "feedback", "archive.md")); err != nil || len(b) == 0 {
+		t.Errorf("archive.md not started: %v", err)
+	}
+}
