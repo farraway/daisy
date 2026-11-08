@@ -173,6 +173,12 @@ func TestVendored(t *testing.T) {
 	if !Vendored(fsys, git) {
 		t.Error("NOTICE.md makes it vendored")
 	}
+	// A prompt is not, even beside a LICENSE or NOTICE.md of its directory.
+	write(t, filepath.Join(tr.root, "prompts", "LICENSE"), "x")
+	write(t, filepath.Join(tr.root, "prompts", "NOTICE.md"), "x")
+	if daisy, ok := Resolve(fsys, tr.root, tr.home, "prompts/daisy"); !ok || Vendored(fsys, daisy) {
+		t.Error("a prompt is vendored")
+	}
 }
 
 // Grouping: entries go to the target their tag resolves to (two tags for

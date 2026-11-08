@@ -232,6 +232,7 @@ func TestParseNamesTheField(t *testing.T) {
 		{`"owner": {"max_open_proposals": 5},`, `"owner": {},`, "swarm.json: owner.max_open_proposals: missing"},
 		{`"owner": {"max_open_proposals": 5},`, `"owner": [],`, "swarm.json: owner: not an object"},
 		{`"merge": true`, `"merge": null`, "swarm.json: gates.merge: null is not a boolean"}, // not a gate silently off
+		{`"max_members": 3`, `"max_members": 1e400`, "swarm.json: max_members: cannot unmarshal number 1e400 into Go value of type int"},
 		{`"check": ["make", "check"]`, `"check": null`, "swarm.json: repos[0].check: null is not an array"},
 	} {
 		src := strings.Replace(good, tc.from, tc.to, 1)

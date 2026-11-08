@@ -139,8 +139,10 @@ func Load(fs ops.FS, ws string) (c Config, found bool, err error) {
 // Parse decodes data strictly: an unknown field, a required field absent
 // and a value of the wrong type are each an *Error naming the field.
 func Parse(data []byte) (Config, error) {
+	// Syntax only: a value json.Unmarshal into any cannot hold (1e400)
+	// is the field's to report, by decode, with its name.
 	var probe any
-	if err := json.Unmarshal(data, &probe); err != nil {
+	if err := json.Unmarshal(data, &probe); err != nil && !json.Valid(data) {
 		var syn *json.SyntaxError
 		if errors.As(err, &syn) {
 			return Config{}, &Error{"", fmt.Sprintf("%s at byte %d", syn.Error(), syn.Offset)}

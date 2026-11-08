@@ -434,3 +434,18 @@ func TestHealthcheckHooks(t *testing.T) {
 		t.Errorf("status has no hook: exit %d", code)
 	}
 }
+
+// projects lists the `*.md` glob: no dotfile, in the files' byte order
+// (`a-b.md` before `a.md`), as the bash's glob did.
+func TestProjectsIsTheGlob(t *testing.T) {
+	m := newMachine(t)
+	for _, f := range []string{"a.md", "a-b.md", ".draft.md"} {
+		writeFile(t, filepath.Join(m.home, "projects", f), "")
+	}
+	real := env.RealPath(ops.Real().FS(), m.home)
+	code, out, errs := runWith(m.dayOps(m.ws, true), "projects")
+	want := "Active projects:\n  a-b                            " + real + "/projects/a-b.md\n  a                              " + real + "/projects/a.md\n"
+	if code != 0 || out != want {
+		t.Errorf("exit %d err %q\ngot\n%s\nwant\n%s", code, errs, out, want)
+	}
+}

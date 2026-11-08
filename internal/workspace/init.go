@@ -94,10 +94,12 @@ func planInit(o ops.Ops, m env.Env, name, target string) (*initPlan, error) {
 	// A home's own repository commits as the home's identity (docs/
 	// home-management.md, Identities): binding it as a workspace would
 	// apply another one there.
+	// One repository by its common directory: a home that is a linked
+	// worktree of the target's repository shares its config too.
 	if identity.IsRepoRoot(o, target) {
-		real, _ := fs.EvalSymlinks(target)
+		common := identity.CommonDir(o, target)
 		for _, h := range env.Homes(fs, m.HomesFile()) {
-			if hr, err := fs.EvalSymlinks(h.Path); err == nil && hr == real {
+			if hc := identity.CommonDir(o, h.Path); hc != "" && hc == common {
 				return nil, fmt.Errorf("Error: %s is home '%s''s own repository, whose commits carry the home's identity; bind a workspace of its own", target, h.Name)
 			}
 		}
@@ -561,29 +563,40 @@ func (p *initPlan) bind(o ops.Ops, out, warn io.Writer) (err error) {
 		return err
 	}
 	touched = true
-	for _, s := range p.stages {
-		c := readClaim(fs, s)
-		cleared, err := identity.Unset(o, p.target, c.id, c.before)
-		if err != nil {
-			return err
-		}
-		if len(cleared) > 0 {
-			fmt.Fprintf(out, "  ✓ Cleared the git identity an interrupted init's record names (%s)\n", strings.Join(cleared, ", "))
-		}
+	// Every claim on the keys is taken back, those with a record first
+	// (the binding's, then the leftovers'), so a key of Daisy's form gets
+	// back what a record says it held before; a claim with no record (an
+	// unbound workspace, a stage killed before its record) only takes such
+	// a key after.
+	type taking struct {
+		c   claim
+		say string
 	}
+	var takes []taking
 	old := claim{}
 	if p.bound {
 		old = p.oldClaim(o, warn)
 	}
-	cleared, err := identity.Unset(o, p.target, old.id, old.before)
-	if err != nil {
-		return err
+	sayOld := "  ✓ Cleared a git identity an earlier init left here (%s)\n"
+	if p.oldHome != "" {
+		sayOld = "  ✓ Cleared previous git identity (%s)\n"
 	}
-	if len(cleared) > 0 {
-		if p.oldHome != "" {
-			fmt.Fprintf(out, "  ✓ Cleared previous git identity (%s)\n", strings.Join(cleared, ", "))
-		} else {
-			fmt.Fprintf(out, "  ✓ Cleared a git identity an earlier init left here (%s)\n", strings.Join(cleared, ", "))
+	takes = append(takes, taking{old, sayOld})
+	for _, st := range p.stages {
+		takes = append(takes, taking{readClaim(fs, st), "  ✓ Cleared the git identity an interrupted init's record names (%s)\n"})
+	}
+	for _, recorded := range []bool{true, false} {
+		for _, t := range takes {
+			if (t.c.id != identity.Identity{}) != recorded {
+				continue
+			}
+			cleared, err := identity.Unset(o, p.target, t.c.id, t.c.before)
+			if err != nil {
+				return err
+			}
+			if len(cleared) > 0 {
+				fmt.Fprintf(out, t.say, strings.Join(cleared, ", "))
+			}
 		}
 	}
 	if p.idOK {

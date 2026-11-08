@@ -910,3 +910,68 @@ func TestInitRefusesAHomesOwnRepository(t *testing.T) {
 		t.Errorf("keys %s → %s", before, keys(t, m.home))
 	}
 }
+
+// A leftover stage with no record (an init killed before writing it) does
+// not take a key of Daisy's form before the binding's own claim does: the
+// binding's record alone holds what the key held before, and it is put
+// back (init then clean leaves the keys as they were).
+func TestInitRestoresBeforeARecordlessStage(t *testing.T) {
+	m := initMachine(t)
+	ws := scratch(t)
+	gitIn(t, ws, "config", "--local", "core.sshCommand", "ssh -v")
+	if code, _, errs := m.pinned(t, ws, "init", "pelicanmoor"); code != 0 {
+		t.Fatal(errs)
+	}
+	os.Mkdir(filepath.Join(ws, ".daisy.stage.abcdef"), 0o700)
+	if code, _, errs := m.pinned(t, ws, "init", "testhome"); code != 0 {
+		t.Fatal(errs)
+	}
+	if got := strings.TrimSpace(gitIn(t, ws, "config", "--local", "--get-all", "core.sshCommand")); got != "ssh -v" {
+		t.Errorf("core.sshCommand after the switch: %q", got)
+	}
+}
+
+// A home that is a linked worktree of the workspace's repository shares its
+// config: binding the workspace would apply an identity the home's commits
+// then carry, so init refuses it too.
+func TestInitRefusesAHomeSharingTheRepository(t *testing.T) {
+	m := initMachine(t)
+	proj := scratch(t)
+	h := filepath.Join(t.TempDir(), "wthome")
+	gitIn(t, proj, "worktree", "add", "-q", "-b", "daisy-data", h)
+	copyTree(t, "templates/home", h)
+	writeFile(t, filepath.Join(h, "identities", "persona"), "name=Persona Gannet\nemail=persona@example.invalid\n")
+	gitIn(t, h, "-c", "user.name=Home Owner", "-c", "user.email=owner@example.invalid", "add", "-A")
+	gitIn(t, h, "-c", "user.name=Home Owner", "-c", "user.email=owner@example.invalid", "commit", "-q", "-m", "home")
+	if code, out, errs := m.pinned(t, m.ws, "home", "add", "wthome", h); code != 0 {
+		t.Fatalf("home add: %d %s %s", code, out, errs)
+	}
+	code, out, errs := m.pinned(t, proj, "init", "persona")
+	if code != 1 || out != "" || !strings.Contains(errs, "is home 'wthome''s own repository") {
+		t.Errorf("exit %d out %q err %q", code, out, errs)
+	}
+}
+
+// The other way round: an unbound workspace (no claim of its own) with a
+// stage that holds a record (an init killed after applying, before its
+// swap): the stage's record puts back what the key held before.
+func TestInitRestoresAnInterruptedFirstInit(t *testing.T) {
+	m := initMachine(t)
+	ws := scratch(t)
+	gitIn(t, ws, "config", "--local", "core.sshCommand", "ssh -v")
+	if code, _, errs := m.pinned(t, ws, "init", "pelicanmoor"); code != 0 {
+		t.Fatal(errs)
+	}
+	stage := filepath.Join(ws, ".daisy.stage.abcdef")
+	os.Mkdir(stage, 0o700)
+	for _, f := range []string{"gitconfig", "gitconfig.before"} {
+		os.Rename(filepath.Join(ws, ".daisy", f), filepath.Join(stage, f))
+	}
+	os.RemoveAll(filepath.Join(ws, ".daisy"))
+	if code, _, errs := m.pinned(t, ws, "init", "testhome"); code != 0 {
+		t.Fatal(errs)
+	}
+	if got := strings.TrimSpace(gitIn(t, ws, "config", "--local", "--get-all", "core.sshCommand")); got != "ssh -v" {
+		t.Errorf("core.sshCommand: %q", got)
+	}
+}

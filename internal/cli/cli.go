@@ -93,6 +93,9 @@ func newContext(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer) *commands.
 func help(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 	_, _, words, _, _ := splitArgs(Command{}, args)
 	helpCmd, _, _ := match([]string{"help"})
+	if emptyBefore(helpCmd, args) {
+		return usageError(stderr, helpCmd, "empty argument")
+	}
 	c := newContext(o, stdin, stdout, stderr)
 	c.Args = words
 	switch cmd, rest, ok := match(words); {

@@ -262,6 +262,7 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 				if err := r.Append(fs, "check timeout "+now); err != nil {
 					return err
 				}
+				fmt.Fprintf(s.Out, "%scheck timeout\n", runHead(r))
 			case isRunning(name):
 				continue
 			default:

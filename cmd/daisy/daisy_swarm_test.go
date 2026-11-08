@@ -232,7 +232,7 @@ func TestSwarmTriageThroughGitea(t *testing.T) {
 // the comment is no argument.
 func TestSwarmVerbsEmptyIssueWord(t *testing.T) {
 	m := newMachine(t)
-	for _, args := range [][]string{{"swarm", "close", "", "7", "dup"}, {"swarm", "unblock", "", "7", "dup"}} {
+	for _, args := range [][]string{{"swarm", "close", "", "7", "dup"}, {"swarm", "unblock", "", "7", "dup"}, {"help", "", "status"}} {
 		if code, out, errs := runWith(m.planOps(m.ws), args...); code != 2 || out != "" || !strings.HasPrefix(errs, "Error: empty argument\n") {
 			t.Errorf("%q: exit %d out %q err %q", args, code, out, errs)
 		}

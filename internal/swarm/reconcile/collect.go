@@ -187,6 +187,15 @@ func (c *collection) comment(role, text string) error { return c.say(c.at, c.is.
 // longer carries is skipped with a warning, and a move already made is
 // skipped.
 func (c *collection) relabel(from, to string) error {
+	// The labels as they are now, read right before the write: the
+	// maintainer may have moved the issue while the run was collected (the
+	// forge has no compare-and-set, so this narrows the window to the two
+	// calls, section 5).
+	is, err := c.s.Forge.Issue(c.r.N)
+	if err != nil {
+		return err
+	}
+	c.is.Labels = is.Labels
 	switch {
 	case slices.Contains(c.is.Labels, from):
 		if err := c.s.Forge.Relabel(c.at, from, to); err != nil {

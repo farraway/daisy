@@ -220,3 +220,85 @@ func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
 		t.Errorf("no worker after unblock to swarm:reviewed:\n%s", a.stdout.String())
 	}
 }
+
+// A check another apply started, outlived its timeout: stopped, recorded
+// and said on stdout as any collection step is (section 11, Stdout).
+func TestSwarmOrphanCheckTimeoutIsSaid(t *testing.T) {
+	a := newApplyWS(t)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:planned"})
+	run := "1-worker-1"
+	os.MkdirAll(a.state("runs/"+run+"/work"), 0o755)
+	os.WriteFile(a.state("runs/"+run+"/result"), []byte("start aaaa\nbranch swarm/1-1 in app\nlabel swarm:planned\nstarted 2026-11-06T13:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\nexited 0 2026-11-06T13:10:00Z\nfetched bbbb\ncheck started 2026-11-06T13:11:00Z\n"), 0o644)
+	a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.app.1.check.1", Swarm: "acme/app#1/check"}}
+	a.tick()
+	a.apply(a.git(), "--once")
+	if !strings.Contains(a.result(run), "check timeout ") || !strings.Contains(a.stdout.String(), "#1 worker run 1: check timeout\n") {
+		t.Errorf("result:\n%s\nstdout:\n%s", a.result(run), a.stdout.String())
+	}
+}
+
+// relabelOnComment is the maintainer relabelling issue 1 to `to` while the
+// collection posts: after its read of the issue, before its relabel.
+type relabelOnComment struct {
+	*forge.Fake
+	to   string
+	done bool
+}
+
+func (r *relabelOnComment) Comment(at forge.Ref, body string) error {
+	err := r.Fake.Comment(at, body)
+	if !r.done && at == issue1 {
+		r.done = true
+		r.Fake.SetLabel(issue1, r.to)
+	}
+	return err
+}
+
+// A collection reads the labels right before it relabels: the maintainer's
+// move while the run was posted is kept, with the warning, never joined by
+// a second swarm:* label (section 5).
+func TestSwarmCollectionRelabelReadsTheLabelsAgain(t *testing.T) {
+	a := newApplyWS(t)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:ready"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	a.tick()
+	if err := a.apply(&relabelOnComment{Fake: a.forge, to: "swarm:blocked"}, "--once"); err != nil {
+		t.Fatal(err)
+	}
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:blocked"}) || !strings.Contains(a.stderr.String(), "relabelled to swarm:blocked during the run") {
+		t.Errorf("labels %v\nstderr:\n%s", got, a.stderr.String())
+	}
+}
+
+// relabelOnMerge is the maintainer relabelling issue 1 while the merge
+// step merges.
+type relabelOnMerge struct {
+	gitForge
+	done bool
+}
+
+func (r *relabelOnMerge) Merge(pr forge.Ref, head string) error {
+	if !r.done {
+		r.done = true
+		r.Fake.SetLabel(issue1, "swarm:ready")
+	}
+	return r.gitForge.Merge(pr, head)
+}
+
+// The merge step reads the labels again right before its relabel: the
+// maintainer's move during the merge is kept, with the warning.
+func TestSwarmMergeStepRelabelReadsTheLabelsAgain(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	a.pass() // T9
+	a.forge.Unmergeable(forge.Ref{Repo: "app", N: 2})
+	a.tick()
+	a.apply(&relabelOnMerge{gitForge: a.git()}, "--once")
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:ready"}) || !strings.Contains(a.stderr.String(), "relabelled to swarm:ready during the merge step") {
+		t.Errorf("labels %v\nstdout:\n%s\nstderr:\n%s", got, a.stdout.String(), a.stderr.String())
+	}
+}

@@ -48,10 +48,10 @@ func (s Spec) Args() []string {
 		a = append(a, "--env-file", "/dev/stdin")
 	}
 	if s.Credential != "" {
-		a = append(a, "--label", "daisy.credential="+s.Credential, "--mount", "type=bind,src="+s.Slot+",dst=/credential")
+		a = append(a, "--label", "daisy.credential="+s.Credential, "--mount", "type=bind,"+mountField("src", s.Slot)+","+mountField("dst", "/credential"))
 	}
 	for _, m := range s.Mounts {
-		v := "type=bind,src=" + m.Src + ",dst=" + m.Dst
+		v := "type=bind," + mountField("src", m.Src) + "," + mountField("dst", m.Dst)
 		if m.ReadOnly {
 			v += ",readonly"
 		}
@@ -59,6 +59,17 @@ func (s Spec) Args() []string {
 	}
 	a = append(a, "--workdir", s.Workdir, s.Image)
 	return append(a, s.Argv...)
+}
+
+// mountField is one key=value of docker's --mount, which docker reads as a
+// CSV record: a value holding a comma or a quote is quoted, so a path can
+// add no option of its own (`d,src=/etc`).
+func mountField(key, value string) string {
+	f := key + "=" + value
+	if strings.ContainsAny(f, ",\"\r\n") {
+		return `"` + strings.ReplaceAll(f, `"`, `""`) + `"`
+	}
+	return f
 }
 
 // Exit is how a container ended: docker run's exit status, whether the

@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"encoding/csv"
 	"errors"
 	"io"
 	"os"
@@ -263,4 +264,29 @@ func TestTakeSlotWithoutTheProviderDirectory(t *testing.T) {
 	if !errors.As(err, &refused) || err.Error() != "slot openai/1: no login; run 'CODEX_HOME="+filepath.Join(dir, "1")+" codex login -c cli_auth_credentials_store=file'" {
 		t.Fatalf("%v", err)
 	}
+}
+
+// docker reads --mount as a CSV record: a source holding a comma is quoted
+// and adds no option of its own (a resource linked to `d,src=/etc`).
+func TestMountSourceWithAComma(t *testing.T) {
+	s := member()
+	s.Mounts = append(s.Mounts, Mount{Src: "/ws/app/d,src=/etc", Dst: "/resources/app/docs", ReadOnly: true})
+	args := s.Args()
+	for i := range args {
+		if args[i] != "--mount" || !strings.Contains(args[i+1], "/resources/app/docs") {
+			continue
+		}
+		fields, err := csv.NewReader(strings.NewReader(args[i+1])).Read()
+		src := ""
+		for _, f := range fields {
+			if k, v, _ := strings.Cut(f, "="); k == "src" {
+				src = v
+			}
+		}
+		if err != nil || src != "/ws/app/d,src=/etc" || len(fields) != 4 {
+			t.Errorf("--mount %s: fields %q (%v)", args[i+1], fields, err)
+		}
+		return
+	}
+	t.Fatal("no resource mount")
 }

@@ -1,9 +1,10 @@
 // Package prompt assembles a home's AGENTS.md: include.txt names the
 // prompts, each is looked up in the home's prompts/ and then the root's,
 // and goes in whole or, lazy, as its `## Trigger` section only, with
-// $DAISY_ROOT substituted. The output is the bash build script's, byte
-// for byte, but for the header lines that name the build and its rebuild
-// command (and the Built: time).
+// $DAISY_ROOT substituted. For a home without overrides the output is the
+// bash build script's, byte for byte, but for the header lines that name
+// the build and its rebuild command (and the Built: time); a home's
+// overrides add their block and redirect the prompts they override (D49).
 package prompt
 
 import (

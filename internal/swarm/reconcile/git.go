@@ -69,8 +69,10 @@ func (g Git) Fetch(r declare.Repo) error {
 // Branch starts branch at the clone's head (section 7.1, step 3: a worker
 // starting a slice).
 func (g Git) Branch(dir, branch string) error {
-	_, err := g.run(dir, "checkout", "--quiet", "-b", branch)
-	return err
+	if _, err := g.run(dir, "checkout", "--quiet", "-b", branch); err != nil {
+		return err
+	}
+	return forgetHost(g.O.FS(), dir) // the checkout's reflog is host git's too
 }
 
 // FetchRun fetches a worker run's branch from its clone into the mirror as

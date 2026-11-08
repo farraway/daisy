@@ -166,7 +166,12 @@ func TestClonesForgetTheHost(t *testing.T) {
 	if _, err := g.Clone(repo, "main", "main", work, "worker", "swarm@example.net", "c <c@example.net>"); err != nil {
 		t.Fatal(err)
 	}
-	git(work, "checkout", "-q", "-b", "swarm/1-1")
+	if err := g.Branch(work, "swarm/1-1"); err != nil { // as launch does for a new slice
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(work, ".git", "logs")); err == nil {
+		t.Error("a new slice's branch left host git's reflog")
+	}
 	git(work, "commit", "-q", "--allow-empty", "-m", "Work")
 	sha, err := g.FetchRun("app", work, "swarm/1-1", "refs/swarm-runs/1-worker-1")
 	if err != nil {
