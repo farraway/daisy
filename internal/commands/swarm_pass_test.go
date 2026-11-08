@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -159,5 +160,30 @@ func TestSwarmApplyWarnsOnceAboutEnvSh(t *testing.T) {
 	a.pass()
 	if n := strings.Count(a.stderr.String(), ".env.sh line 2"); n != 1 {
 		t.Errorf("warned %d times:\n%s", n, a.stderr.String())
+	}
+}
+
+// A paused pass merges nothing (section 11, pause): with the merge gate
+// off, an approved issue stays approved and its pull request open until
+// resume.
+func TestSwarmPausedPassMergesNothing(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	a.pass() // T9: approved
+	if err := a.verb(SwarmPause); err != nil {
+		t.Fatal(err)
+	}
+	a.pass()
+	if ps := a.pulls(1); ps[0].Merged || !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:approved"}) {
+		t.Errorf("a paused pass merged: %+v %v\n%s", ps[0], labels(a.issue(1)), a.stdout.String())
+	}
+	a.resume()
+	a.pass()
+	if ps := a.pulls(1); !ps[0].Merged {
+		t.Errorf("not merged after resume:\n%s", a.stdout.String())
 	}
 }

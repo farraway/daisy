@@ -327,6 +327,9 @@ func swarmUnblock(c *Context, open opener) error {
 	if !ok {
 		return fmt.Errorf("Error: swarm: #%d: no reconciler note names the stage it was blocked from; relabel it on the forge; nothing changed", m.n)
 	}
+	if reconcile.AtTheRoundLimit(is, m.swarm) {
+		return fmt.Errorf("Error: swarm: #%d: blocked at the review round limit, where both reviewers have reviewed the head and swarm:in-review runs no one; comment, then relabel it on the forge: swarm:reviewed for one more fix round, swarm:planning to re-plan; nothing changed", m.n)
+	}
 	if !slices.ContainsFunc(m.cfg.Trusted, func(l string) bool { return strings.EqualFold(l, m.login) }) {
 		fmt.Fprintf(c.Stderr, "⚠ %s is not in trusted: no member reads your comment (docs/swarm.md section 6)\n", m.login)
 	}

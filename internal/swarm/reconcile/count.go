@@ -80,6 +80,19 @@ var blockedFromRe = regexp.MustCompile(`\(was (swarm:[a-z-]+)\)`)
 // the round limit's first, which returns the issue to the architect); ok
 // is false when no such note names one of the eight labels but blocked.
 func BlockedFrom(is forge.Issue, swarmLogin string) (label string, ok bool) {
+	label, _, ok = blockedFrom(is, swarmLogin)
+	return label, ok
+}
+
+// AtTheRoundLimit: the newest note that blocked the issue is the round
+// limit's second, whose `(was swarm:in-review)` names a stage where no
+// role runs, both reviewers having reviewed the head (section 6).
+func AtTheRoundLimit(is forge.Issue, swarmLogin string) bool {
+	_, again, ok := blockedFrom(is, swarmLogin)
+	return ok && again
+}
+
+func blockedFrom(is forge.Issue, swarmLogin string) (label string, roundLimit, ok bool) {
 	thread := IssueThread(is)
 	slices.SortStableFunc(thread, func(a, b Entry) int { return a.Created.Compare(b.Created) })
 	for i := len(thread) - 1; i >= 0; i-- {
@@ -90,13 +103,13 @@ func BlockedFrom(is forge.Issue, swarmLogin string) (label string, ok bool) {
 		}
 		all := blockedFromRe.FindAllStringSubmatch(text, -1)
 		if all == nil {
-			return "", false
+			return "", false, false
 		}
 		was := all[len(all)-1][1]
 		if was == "swarm:blocked" || !slices.Contains(forge.Labels, was) {
-			return "", false
+			return "", false, false
 		}
-		return was, true
+		return was, strings.Contains(text, roundLimitAgain), true
 	}
-	return "", false
+	return "", false, false
 }

@@ -30,6 +30,7 @@ fixture_write_today <<'EOF2'
 * **What would a Sage do next:**
 EOF2
 
+before_blanks=$(fixture_read_today | grep -c '^$')
 export DAISY_HEALTHCHECK_PASSED=1
 fixture_run_cli log "Placed at the end of the Log section"
 unset DAISY_HEALTHCHECK_PASSED
@@ -44,4 +45,4 @@ last_entry=$(printf '%s\n' "$log_section" | grep -v '^$' | tail -1)
 assert_contains "$last_entry" "Placed at the end of the Log section" "and is its last entry"
 retro=$(printf '%s\n' "$after" | awk '/^#### Retrospective/{p=1} p')
 assert_not_contains "$retro" "Placed at the end" "the Retrospective section is untouched"
-assert_eq "$(printf '%s\n' "$after" | grep -c '^$')" "$(fixture_read_today | grep -c '^$')" "no blank line was added"
+assert_eq "$(printf '%s\n' "$after" | grep -c '^$')" "$before_blanks" "no blank line was added"

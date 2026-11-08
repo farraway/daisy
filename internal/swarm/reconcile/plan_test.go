@@ -35,8 +35,8 @@ func TestSliceRepos(t *testing.T) {
 // Headings gain the level they sit under, at most six; a fence's lines,
 // a `#tag` and a heading already at six stay.
 func TestShift(t *testing.T) {
-	in := "# A\n#tag\n## B\n~~~\n# in a fence\n~~~\n##### E\n###### F\n#\n"
-	want := "### A\n#tag\n#### B\n~~~\n# in a fence\n~~~\n###### E\n###### F\n###\n"
+	in := "# A\n#tag\n## B\n~~~\n# in a fence\n~~~\n##### E\n###### F\n#\n   # three in\n    # code\n"
+	want := "### A\n#tag\n#### B\n~~~\n# in a fence\n~~~\n###### E\n###### F\n###\n   ### three in\n    # code\n"
 	if got := Shift(in, 2); got != want {
 		t.Errorf("Shift:\n%s", got)
 	}

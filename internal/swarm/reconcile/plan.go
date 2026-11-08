@@ -113,9 +113,13 @@ func Shift(text string, by int) string {
 		if fence != "" {
 			continue
 		}
-		h := len(line) - len(strings.TrimLeft(line, "#"))
-		if h >= 1 && h <= 6 && (len(line) == h || line[h] == ' ' || line[h] == '\t') {
-			lines[i] = strings.Repeat("#", min(6, h+by)-h) + line
+		// A heading may stand up to three spaces in (CommonMark), as a
+		// fence may (fenceOf).
+		t := strings.TrimLeft(line, " ")
+		in := len(line) - len(t)
+		h := len(t) - len(strings.TrimLeft(t, "#"))
+		if in <= 3 && h >= 1 && h <= 6 && (len(t) == h || t[h] == ' ' || t[h] == '\t') {
+			lines[i] = line[:in] + strings.Repeat("#", min(6, h+by)-h) + t
 		}
 	}
 	if fence != "" {

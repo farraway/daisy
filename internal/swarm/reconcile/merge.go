@@ -3,7 +3,6 @@ package reconcile
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"daisy/internal/swarm/forge"
@@ -59,7 +58,11 @@ func (s *Swarm) mergeStep() error {
 				msg := strings.TrimPrefix(err.Error(), forge.ErrNotMergeable.Error()+": ")
 				fmt.Fprintf(s.Out, "#%d merge of pull %s#%d refused (%s)\n", n, cur.Repo, cur.Number, msg)
 				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s/%s#%d at %s refused: %s (was swarm:approved). Resolve it and relabel the issue.", s.owner(), cur.Repo, cur.Number, short(head), msg)
-				if !slices.ContainsFunc(is.Comments, func(c forge.Comment) bool { return c.Body == note }) {
+				// Posted already only when it is the issue's last word and
+				// the swarm's: a retry after a failed relabel, not another
+				// login's copy or an earlier block's same note.
+				last := len(is.Comments) - 1
+				if last < 0 || is.Comments[last].Body != note || !strings.EqualFold(is.Comments[last].Author, s.SwarmLogin) {
 					if err := s.Forge.Comment(at, note); err != nil {
 						return err
 					}

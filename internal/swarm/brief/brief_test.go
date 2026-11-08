@@ -84,3 +84,15 @@ func TestStatusAfterAFencedHeading(t *testing.T) {
 		t.Errorf("Milestones = %q", ms)
 	}
 }
+
+// One rule says what a `## ` heading is, for where the header ends and for
+// the milestones: at the left margin. An indented one is neither.
+func TestIndentedHeadingIsNeither(t *testing.T) {
+	text := "# Brief\n\n  ## Context\n\n## \n\nStatus: active\n\n  ## M0\n\n## M1\n"
+	if v, ok := statusOf(text); !ok || v != "active" {
+		t.Errorf("statusOf = %q, %v", v, ok)
+	}
+	if ms := (Brief{Text: text}).Milestones(); !reflect.DeepEqual(ms, []string{"M1"}) {
+		t.Errorf("Milestones = %q", ms)
+	}
+}

@@ -485,6 +485,26 @@ func TestMergedFilesReplaceLinks(t *testing.T) {
 	sameFiles(t, "the root after build", rootBefore, snapshot(t, l.root))
 }
 
+// A dangling link at a materialised prompt's path is replaced like a live
+// one: the build's own file stands there after, nothing written through.
+func TestMaterialisedPathOverADanglingLink(t *testing.T) {
+	l := overrideLoop(t)
+	writeFile(t, filepath.Join(l.home, "prompts", "plan.md"), prompt.Marker+"\n\n## Rules\n\n1. home\n")
+	os.MkdirAll(filepath.Join(l.ws, ".daisy", "prompts"), 0o755)
+	p := filepath.Join(l.ws, ".daisy", "prompts", "plan.md")
+	gone := filepath.Join(l.ws, "gone.md")
+	os.Symlink(gone, p)
+	if code, _, errs := l.run("prompt", "build"); code != 0 {
+		t.Fatalf("build: exit %d: %s", code, errs)
+	}
+	if fi, err := os.Lstat(p); err != nil || !fi.Mode().IsRegular() {
+		t.Errorf("%s is not a regular file: %v", p, err)
+	}
+	if _, err := os.Lstat(gone); err == nil {
+		t.Error("the link's target was written")
+	}
+}
+
 // No write lands in the root through a link on the way: .daisy/prompts a
 // link into the root's prompts/, the home's prompt a link to the root's,
 // the home's skill directory a link to the root's. Each is refused,

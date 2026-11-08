@@ -230,6 +230,38 @@ func TestSwarmApplyMergeRefused(t *testing.T) {
 	}
 }
 
+// T16's note is posted unless it is already the issue's last word by the
+// swarm (a retry): not when another login posted its text first, and again
+// when the maintainer has answered and the merge is refused once more.
+func TestSwarmApplyMergeRefusedNoteIsTheSwarms(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) {
+		c.Gates.Merge = false
+		c.Budget = &declare.Budget{PerDay: 10, Total: 100}
+	})
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	a.pass() // T9
+	head := a.pulls(1)[0].HeadSHA
+	note := mark("reconciler", 1) + "merge of pull request acme/app#2 at " + head[:7] + " refused: 405 Please try again later (was swarm:approved). Resolve it and relabel the issue."
+	a.forge.Say(issue1, "mallory", note)
+	a.forge.Unmergeable(forge.Ref{Repo: "app", N: 2})
+	a.pass()
+	is := a.issue(1)
+	if last := is.Comments[len(is.Comments)-1]; last.Author != "swarm-bot" || last.Body != note {
+		t.Errorf("after another login's copy, the last word is %s's", last.Author)
+	}
+	a.forge.Say(issue1, "jane", "Try once more.")
+	a.forge.SetLabel(issue1, "swarm:approved")
+	a.pass()
+	is = a.issue(1)
+	if last := is.Comments[len(is.Comments)-1]; last.Author != "swarm-bot" || last.Body != note || !reflect.DeepEqual(labels(is), []string{"swarm:blocked"}) {
+		t.Errorf("refused again: the last word is %s's, labels %v", last.Author, labels(is))
+	}
+}
+
 // The pull request carries the issue's stage (section 5): copied by the
 // next pass when the maintainer moves the issue, the maintainer's own
 // labels on it kept.

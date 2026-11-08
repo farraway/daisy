@@ -52,8 +52,9 @@ func Terms(o ops.Ops, e env.Env) []string {
 	}
 	add(o.Getenv("USER"))
 	identity(e.Root)
-	if home := o.Getenv("HOME"); home != "" && home != "/" {
-		add(home + "/")
+	// HOME may end in a slash; the term is the path with exactly one.
+	if home := o.Getenv("HOME"); home != "" && filepath.Clean(home) != "/" {
+		add(filepath.Clean(home) + "/")
 	}
 	return terms
 }

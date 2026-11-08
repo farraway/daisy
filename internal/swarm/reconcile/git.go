@@ -151,6 +151,19 @@ func (g Git) CheckClone(name, dir, ref, sha string) error {
 			return err
 		}
 	}
+	return forgetHost(g.O.FS(), dir)
+}
+
+// forgetHost removes what host git wrote into a clone a container will
+// see beside the objects (section 8, rule 3): the reflogs, which name the
+// host's git identity and the mirror's path (`clone: from <state>/git/…`),
+// and FETCH_HEAD, which names the mirror too.
+func forgetHost(fs ops.FS, dir string) error {
+	for _, p := range []string{filepath.Join(dir, ".git", "logs"), filepath.Join(dir, ".git", "FETCH_HEAD")} {
+		if err := fs.RemoveAll(p); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -237,6 +250,9 @@ func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor stri
 		}
 	}
 	fs := g.O.FS()
+	if err := forgetHost(fs, dir); err != nil {
+		return "", err
+	}
 	exclude := filepath.Join(dir, ".git", "info", "exclude")
 	old, _ := fs.ReadFile(exclude)
 	if len(old) > 0 && old[len(old)-1] != '\n' {

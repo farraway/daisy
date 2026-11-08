@@ -151,12 +151,18 @@ func TestRealWriteFileIsAtomic(t *testing.T) {
 	if err := fs.WriteFile(target, []byte("one"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	before, _ := os.Stat(target)
 	if err := fs.WriteFile(target, []byte("two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := fs.ReadFile(target)
 	if string(b) != "two" {
 		t.Errorf("got %q", b)
+	}
+	// Atomic: a new file renamed over the old, never the old truncated and
+	// rewritten in place, where a reader or a crash could see it half done.
+	if after, _ := os.Stat(target); os.SameFile(before, after) {
+		t.Error("the file was rewritten in place, not replaced")
 	}
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 1 {
@@ -296,6 +302,39 @@ func TestIsTerminal(t *testing.T) {
 		defer tty.Close()
 		if !ops.IsTerminal(tty) {
 			t.Error("/dev/tty is no terminal")
+		}
+	}
+}
+
+// Rewrite writes a link's target and keeps the link, the target created
+// when it does not exist yet (a registry kept in dotfiles), as `>` does.
+func TestRewriteWritesThroughLinks(t *testing.T) {
+	dir := t.TempDir()
+	fs := ops.Real().FS()
+	os.WriteFile(filepath.Join(dir, "live"), []byte("old"), 0o644)
+	os.Symlink(filepath.Join(dir, "live"), filepath.Join(dir, "a"))
+	os.Symlink(filepath.Join(dir, "absent"), filepath.Join(dir, "b"))
+	os.Symlink("rel-absent", filepath.Join(dir, "c"))
+	// A relative link inside a linked directory reads from the real one.
+	os.MkdirAll(filepath.Join(dir, "dotfiles", "daisy"), 0o755)
+	os.WriteFile(filepath.Join(dir, "dotfiles", "homes"), []byte("old"), 0o644)
+	os.Symlink("../homes", filepath.Join(dir, "dotfiles", "daisy", "homes"))
+	os.Symlink("../gone", filepath.Join(dir, "dotfiles", "daisy", "gone"))
+	os.MkdirAll(filepath.Join(dir, "config"), 0o755)
+	os.Symlink(filepath.Join(dir, "dotfiles", "daisy"), filepath.Join(dir, "config", "daisy"))
+	for link, target := range map[string]string{"a": "live", "b": "absent", "c": "rel-absent", "config/daisy/homes": "dotfiles/homes", "config/daisy/gone": "dotfiles/gone"} {
+		if err := ops.Rewrite(fs, filepath.Join(dir, link), []byte("new"), 0o644); err != nil {
+			t.Fatalf("%s: %v", link, err)
+		}
+		fi, _ := os.Lstat(filepath.Join(dir, link))
+		b, _ := os.ReadFile(filepath.Join(dir, target))
+		if fi.Mode()&os.ModeSymlink == 0 || string(b) != "new" {
+			t.Errorf("%s: a link %v, %s holds %q", link, fi.Mode()&os.ModeSymlink != 0, target, b)
+		}
+	}
+	for _, stray := range []string{"config/homes", "config/gone"} {
+		if _, err := os.Lstat(filepath.Join(dir, stray)); err == nil {
+			t.Errorf("a stray file at %s", stray)
 		}
 	}
 }

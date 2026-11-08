@@ -164,9 +164,10 @@ type Proposal struct{ Title, Body string }
 
 // Proposals reads a batch run's out.md (section 7.5): the `Met:` lines
 // before the first proposal, then the first line after them when it is a
-// BLOCKED: line, and the proposals, each a `## <title>` line (a title of
-// 1 to 200 characters) and its body up to the next, blank lines trimmed.
-func Proposals(out string) (met []string, blocked string, ps []Proposal) {
+// BLOCKED: line (isBlocked, blocked the rest of it, maybe empty), and the
+// proposals, each a `## <title>` line (a title of 1 to 200 characters) and
+// its body up to the next, blank lines trimmed.
+func Proposals(out string) (met []string, blocked string, isBlocked bool, ps []Proposal) {
 	lines := strings.Split(strings.ReplaceAll(out, "\r\n", "\n"), "\n")
 	i := 0
 	for ; i < len(lines); i++ {
@@ -180,7 +181,7 @@ func Proposals(out string) (met []string, blocked string, ps []Proposal) {
 		}
 	}
 	if i < len(lines) && strings.HasPrefix(strings.TrimRight(lines[i], " "), "BLOCKED:") {
-		return met, strings.TrimSpace(strings.TrimPrefix(lines[i], "BLOCKED:")), nil
+		return met, strings.TrimSpace(strings.TrimPrefix(lines[i], "BLOCKED:")), true, nil
 	}
 	var cur *Proposal
 	var body []string
@@ -201,7 +202,7 @@ func Proposals(out string) (met []string, blocked string, ps []Proposal) {
 		body = append(body, lines[i])
 	}
 	flush()
-	return met, "", ps
+	return met, "", false, ps
 }
 
 // batch collects the owner's batch run (sections 6, 7.5 and 7.6): each
@@ -244,8 +245,8 @@ func (c *collection) batch() error {
 	if hit(out, s.secretsOf(c.r, c.lines)) {
 		return failed("secret in output: out.md")
 	}
-	_, blocked, ps := Proposals(string(out))
-	if blocked != "" {
+	_, blocked, isBlocked, ps := Proposals(string(out))
+	if isBlocked {
 		return hold("blocked: "+blocked, "blocked")
 	}
 	l, _ := Has(c.lines, "propose")

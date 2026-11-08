@@ -538,7 +538,7 @@ func lastMet(fs ops.FS, state string) (int, []string, error) {
 		if err != nil {
 			return 0, nil, err
 		}
-		met, _, _ := reconcile.Proposals(string(out))
+		met, _, _, _ := reconcile.Proposals(string(out))
 		return r.K, met, nil
 	}
 	return 0, nil, nil

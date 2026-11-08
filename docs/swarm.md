@@ -823,7 +823,9 @@ comment; in `reviewed` the newest entry is a review or the maintainer's
 comment, so the worker runs. The worker never posts on the issue but to
 say `BLOCKED:`, and every blocked issue's last word is the reconciler's
 note, so relabelling a blocked issue runs its role again, answered or
-not. Within a pass, an issue's candidate roles are taken in the table's
+not, but for the round limit's second note: its `swarm:in-review` runs no
+one, both reviewers having reviewed the head (section 12 lists the
+relabels that resume such an issue). Within a pass, an issue's candidate roles are taken in the table's
 order and at most one launches, so the adversary reviews a head before the
 sympathetic reviewer does. An issue in a review stage whose current pull
 request is not open is skipped with a warning.
@@ -920,7 +922,9 @@ On the host, in order, before `docker run`:
    has none (`git -C <run>/work branch <base> origin/<base>`), so
    `git diff <base>...HEAD` and `git merge <base>` work (Step 39's
    round-1 reviewers, lacking it, diffed against the parent commit);
-   `git -C <run>/work remote remove origin`; `user.name`
+   `git -C <run>/work remote remove origin`; `.git/logs/` and
+   `.git/FETCH_HEAD` removed, since host git wrote them naming the host's
+   git identity and the mirror's path (section 8, rule 3); `user.name`
    `<role> (Daisy swarm)` and `user.email` `<commit_email>` (section 3)
    are set in the clone's config; `/.swarm/` is appended to
    `<run>/work/.git/info/exclude`; a `commit-msg` hook is written to
@@ -1156,7 +1160,12 @@ Branch swarm/<n>-<s> into <base>; head <sha>.
 
 The pull request's `<body>` is its opener's entry (section 6): the
 swarm's without its marker, a `trusted` login's as written, and anyone
-else's `Opened by <login>, not trusted; content omitted.`
+else's `Opened by <login>, not trusted; content omitted.` The issue's
+`<body>` likewise: an issue opened by a login not in `trusted` reads
+`Opened by <login> at <time> (not trusted; content omitted).` and shows
+no body (it could be edited after the maintainer labelled it), so the
+maintainer states its job in a comment, a counted entry of the issue's
+thread.
 
 Which sections a prompt holds, by role:
 
@@ -1383,7 +1392,8 @@ ran, whatever its end:
    (a clone copies only `refs/heads/*`, so the run's ref is fetched by
    name, as Step 39's first check preparation showed),
    `git -C <run>/check checkout --quiet --detach <fetched>`,
-   `git -C <run>/check remote remove origin`; then the check container
+   `git -C <run>/check remote remove origin`, and `.git/logs/` and
+   `.git/FETCH_HEAD` removed as in 7.1 step 3; then the check container
    (7.2) is started (`check started <time>`), and the collection resumes
    at a later pass once it has exited (`check exited <code> <time>`, or
    `check timeout <time>` at the wall clock). A check that cannot start
@@ -2329,7 +2339,7 @@ else.
 | Usage | `daisy swarm triage <n>`, `daisy swarm accept <n>`, `daisy swarm approve <n>`, `daisy swarm merge <n>`, `daisy swarm unblock <n> <comment...>`, `daisy swarm close <n> [comment...]`; `<n>` a positive issue number, else usage; the words after `<n>` are one comment |
 | Reads | `swarm/swarm.json` (validated as `status` validates it, the prompts included), `<ws>/.env.sh` or the environment for `DAISY_MAINTAINER_TOKEN`, and for the value of the variable `forge.token_env` names, which is only compared, never sent; nothing under `<state>` |
 | Start | in this order, every refusal before any write: `<n>`; validation; `DAISY_MAINTAINER_TOKEN` set, and not equal to the swarm's token (refused before the forge is reached); the adapter built with it and `Login()`, refused when the login is the swarm's (`trusted`'s last, as `init` writes it: section 3); `Maintainer <login> on <owner>/<repo>`; `Issue(n)`, which must be an issue, not a pull request (the forges number both together, and `Issue` reads either), open, and carry exactly one `swarm:*` label, the one the verb's row names |
-| Each verb | `triage`: at `swarm:proposed`, `Relabel(n, "swarm:proposed", "swarm:ready")` (T3). `accept`: at `swarm:planning`, `Relabel(n, "swarm:planning", "swarm:planned")` (T7). `approve`: at any stage, `Pulls(n)`, and `Approve(m, <head>)` on the current pull request, which must be open. `merge`: at `swarm:approved`, `Pulls(n)`; the current pull request open: `Reviews(m)` and `Merge(m, <head>)`, `<head>` the commit both the swarm's newest reviews approve, as the merge step reads it (section 12); merged already: nothing; closed unmerged, or no head both approve: refused; then, by the slices the accepted plan declares as the merge step counts them, `Relabel(n, "swarm:approved", "swarm:planned")` when a slice follows `<s>` (T13), else `CloseIssue(n)`. `unblock`: at `swarm:blocked`, the label `was swarm:<label>` names (the last such in the note, which writes it after any text it quotes) in the newest of the reconciler's notes that blocked the issue (section 7.6: every note but the round limit's first), refused when there is none; `Comment(n, <comment>)`, then `Relabel(n, "swarm:blocked", <label>)` (T18), the comment first, so the role that stage runs reads it. `close`: at any stage, `Comment(n, <comment>)` when given, then `CloseIssue(n)` (T19); the pull requests are left as they are |
+| Each verb | `triage`: at `swarm:proposed`, `Relabel(n, "swarm:proposed", "swarm:ready")` (T3). `accept`: at `swarm:planning`, `Relabel(n, "swarm:planning", "swarm:planned")` (T7). `approve`: at any stage, `Pulls(n)`, and `Approve(m, <head>)` on the current pull request, which must be open. `merge`: at `swarm:approved`, `Pulls(n)`; the current pull request open: `Reviews(m)` and `Merge(m, <head>)`, `<head>` the commit both the swarm's newest reviews approve, as the merge step reads it (section 12); merged already: nothing; closed unmerged, or no head both approve: refused; then, by the slices the accepted plan declares as the merge step counts them, `Relabel(n, "swarm:approved", "swarm:planned")` when a slice follows `<s>` (T13), else `CloseIssue(n)`. `unblock`: at `swarm:blocked`, the label `was swarm:<label>` names (the last such in the note, which writes it after any text it quotes) in the newest of the reconciler's notes that blocked the issue (section 7.6: every note but the round limit's first), refused when there is none, and refused when that note is the round limit's second, whose `swarm:in-review` runs no one, naming `swarm:reviewed` and `swarm:planning` as the relabels to make on the forge; `Comment(n, <comment>)`, then `Relabel(n, "swarm:blocked", <label>)` (T18), the comment first, so the role that stage runs reads it. `close`: at any stage, `Comment(n, <comment>)` when given, then `CloseIssue(n)` (T19); the pull requests are left as they are |
 | Forge | reads: `Login`, `Issue`, `Pulls`, `Reviews`; writes: `Relabel`, `Comment`, `Approve`, `Merge`, `CloseIssue`, each by the maintainer's account; no entry it posts carries the marker (section 6): a comment opening with it is refused |
 | Writes | nothing but those forge writes: no file, no container, no commit |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, then per write `#<n> <from> → <to>`, `#<n> commented`, `#<n> closed`, `#<n> approved pull <name>#<m> at <short sha>`, `#<n> merged pull <name>#<m> (slice <s> of <S>)` or `#<n> pull <name>#<m> already merged (slice <s> of <S>)`, and `#<n> closed (last slice merged)` |
@@ -3354,3 +3364,16 @@ entries among revision 1's, and was renumbered at Step 38.
     `(was swarm:<label>)` of the note** (section 11), since a failure's
     reason may quote a member's path; **the maintainer's verbs refuse a
     pull request's number** (`Issue.Pull`, sections 10 and 11).
+70. **Step 11's third pass.** **An issue opened by an untrusted login
+    shows no body in a prompt** (7.3; section 6: the body is its opener's
+    entry, editable after the maintainer labelled the issue), so the
+    maintainer states its job in a comment; **the clones a member and a
+    check see lose host git's reflogs and `FETCH_HEAD`** (7.1 step 3,
+    7.6 step 4), which named the host's git identity and the mirror's
+    path; **a refused merge's note is posted unless it is already the
+    issue's last word by the swarm** (section 12), not skipped for another
+    login's copy or an earlier block's; **`unblock` refuses the round
+    limit's second note** (sections 6 and 11), whose `swarm:in-review`
+    runs no one; **a batch run's bare `BLOCKED:` is a block** (7.5);
+    **a heading up to three spaces in is shifted** (7.3), as CommonMark
+    reads it.

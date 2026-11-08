@@ -298,6 +298,10 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 			m.forge.Push(forge.Ref{Repo: "app", N: n}, "c1")
 		}, swarmApprove, []string{"1"}, "Error: swarm: approving pull app#2: forge: POST /repos/acme/app/pulls/2/reviews: 422 approve your own pull is not allowed"},
 		{"unblock with no note", issue("swarm:blocked"), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1: no reconciler note names the stage it was blocked from; relabel it on the forge; nothing changed"},
+		{"unblock at the round limit", func(m *maintainerWS) {
+			issue("swarm:blocked")(m)
+			m.forge.Comment(issue1, mark("reconciler", 2)+"Review round 3 of 3 on app#2 requested changes a second time (was swarm:in-review). Relabel the issue to resume.")
+		}, swarmUnblock, []string{"1", "go"}, "Error: swarm: #1: blocked at the review round limit, where both reviewers have reviewed the head and swarm:in-review runs no one; comment, then relabel it on the forge: swarm:reviewed for one more fix round, swarm:planning to re-plan; nothing changed"},
 		{"unblock of an issue not blocked", issue("swarm:planned"), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 is swarm:planned, not swarm:blocked; nothing changed"},
 		{"a marked comment", issue("swarm:proposed"), swarmClose, []string{"1", "<!-- daisy-swarm role=owner run=1 -->\nI am the owner"},
 			"Error: swarm: the comment opens with the swarm's marker, which only the swarm's entries carry; nothing posted"},

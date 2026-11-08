@@ -269,6 +269,11 @@ func (j *Job) issue() string {
 	if m, ok := Swarms(Entry{is.Author, is.Body, is.Created}, j.SwarmLogin); ok {
 		opened = fmt.Sprintf("Opened by %s, run %d, at %s.", m.Role, m.Run, stamp(is.Created))
 		body = swarmText(body)
+	} else if !j.trusted(is.Author) {
+		// The body is its opener's entry (section 6), and it can be edited
+		// after the maintainer labelled the issue.
+		opened = fmt.Sprintf("Opened by %s at %s (not trusted; content omitted).", is.Author, stamp(is.Created))
+		body = ""
 	}
 	return doc(fmt.Sprintf("# Issue #%d: %s", is.Number, is.Title), opened+" Labels: "+strings.Join(is.Labels, ", ")+".", Shift(trim(body), 1))
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"path/filepath"
 	"strings"
 
@@ -551,6 +552,20 @@ func writeAll(fsys ops.FS, e env.Env, undo *undoStack, writes []fileWrite) error
 		}
 	}
 	for _, w := range writes {
+		// Removing a link removes the link, live or dangling; the undo
+		// puts the link back.
+		if fi, err := fsys.Lstat(w.path); w.data == nil && err == nil && fi.Mode()&iofs.ModeSymlink != 0 {
+			p := w.path
+			target, err := fsys.Readlink(p)
+			if err == nil {
+				err = fsys.Remove(p)
+			}
+			if err != nil {
+				return undo.fail(fmt.Errorf("Error: cannot remove %s: %v", p, err), "applied")
+			}
+			undo.push(func() error { return fsys.Symlink(target, p) })
+			continue
+		}
 		old, err := fsys.ReadFile(w.path)
 		existed := err == nil
 		if !existed && lexists(fsys, w.path) {

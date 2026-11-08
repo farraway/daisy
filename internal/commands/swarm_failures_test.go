@@ -244,6 +244,7 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 		canned     runner.Canned
 	}{
 		{"blocked", "blocked: nothing left in the brief", runner.Canned{Out: "Met: docs/briefs/a.md\nBLOCKED: nothing left in the brief\n"}},
+		{"blocked with no question", "blocked: ", runner.Canned{Out: "BLOCKED:\n"}},
 		{"proposed nothing", "proposed nothing", runner.Canned{Out: "Met: docs/briefs/a.md\n"}},
 		{"failed", "exit 1", runner.Canned{Out: "## x\n", Code: 1}},
 		{"fault", "", runner.Canned{Code: 125}},

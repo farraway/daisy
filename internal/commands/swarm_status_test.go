@@ -503,3 +503,19 @@ Briefs:
 		t.Errorf("31 days on:\n%s", out)
 	}
 }
+
+// Met: is read from the newest batch run with an output, never from a
+// member's run, however new (section 11, status).
+func TestSwarmStatusMetFromBatchRunsOnly(t *testing.T) {
+	s := newStatusWS(t)
+	s.edit(func(c *declare.Config) { c.Resources = []string{"docs/"} })
+	s.write("docs/briefs/m0.md", "Status: active\n\n## First\n")
+	s.runResult("0-owner-2", ran("", "09:00:00", "3m", "outcome posted\ncollected\n"), "Met: docs/briefs/m0.md\n")
+	s.runResult("1-architect-3", ran("planning", "10:00:00", "3m", "outcome posted\ncollected\n"), "Met: docs/briefs/other.md\n\n## Research\nplan\n")
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	if out := s.stdout.String(); !strings.Contains(out, "met (owner run 2)") {
+		t.Errorf("stdout:\n%s", out)
+	}
+}

@@ -129,3 +129,56 @@ func TestChangedAndPush(t *testing.T) {
 		t.Errorf("unreachable push: %v, want an error that is not ErrPushRejected", err)
 	}
 }
+
+// The clones a member and a check see hold nothing of the host's but the
+// objects (section 8, rule 3): no reflog naming the host's git identity or
+// the mirror's path, no FETCH_HEAD.
+func TestClonesForgetTheHost(t *testing.T) {
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	os.WriteFile(global, []byte("[user]\n\tname = Host Person\n\temail = host@example.net\n"), 0o644)
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+	o := ops.Real()
+	git := func(dir string, args ...string) {
+		t.Helper()
+		if _, errb, err := o.Exec(dir, "git", args...); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+	}
+	ws, state, up := t.TempDir(), t.TempDir(), t.TempDir()
+	git(up, "init", "-q", "-b", "main")
+	git(up, "commit", "-q", "--allow-empty", "-m", "first")
+	os.MkdirAll(filepath.Join(ws, "app"), 0o755)
+	git(filepath.Join(ws, "app"), "init", "-q")
+	git(filepath.Join(ws, "app"), "remote", "add", "origin", up)
+	g := Git{O: o, WS: ws, State: state}
+	repo := declare.Repo{Name: "app", Path: "app"}
+	if err := g.Fetch(repo); err != nil {
+		t.Fatal(err)
+	}
+	work := filepath.Join(t.TempDir(), "work")
+	if _, err := g.Clone(repo, "main", "main", work, "worker", "swarm@example.net", "c <c@example.net>"); err != nil {
+		t.Fatal(err)
+	}
+	git(work, "checkout", "-q", "-b", "swarm/1-1")
+	git(work, "commit", "-q", "--allow-empty", "-m", "Work")
+	sha, err := g.FetchRun("app", work, "swarm/1-1", "refs/swarm-runs/1-worker-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := filepath.Join(t.TempDir(), "check")
+	if err := g.CheckClone("app", check, "refs/swarm-runs/1-worker-1", sha); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{work, check} {
+		filepath.WalkDir(filepath.Join(dir, ".git"), func(p string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() || strings.Contains(p, string(filepath.Separator)+"objects"+string(filepath.Separator)) {
+				return err
+			}
+			b, _ := os.ReadFile(p)
+			if strings.Contains(string(b), "host@example.net") || strings.Contains(string(b), g.Mirror("app")) {
+				t.Errorf("%s names the host: %q", p, b)
+			}
+			return nil
+		})
+	}
+}

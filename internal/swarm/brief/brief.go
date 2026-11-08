@@ -72,11 +72,10 @@ func Find(fs ops.FS, ws string, resources []string) ([]Brief, error) {
 // (section 4).
 func statusOf(text string) (string, bool) {
 	for line := range unfenced(text) {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "## ") {
+		if isHeading(line) {
 			break
 		}
-		if v, ok := strings.CutPrefix(line, "Status:"); ok {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "Status:"); ok {
 			return strings.TrimSpace(v), true
 		}
 	}
@@ -89,13 +88,21 @@ func statusOf(text string) (string, bool) {
 func (b Brief) Milestones() []string {
 	var out []string
 	for line := range unfenced(b.Text) {
-		if h, ok := strings.CutPrefix(strings.TrimRight(line, "\r "), "## "); ok {
-			if h = strings.TrimSpace(h); h != "" && !slices.Contains(out, h) {
+		if isHeading(line) {
+			if h := strings.TrimSpace(strings.TrimPrefix(line, "## ")); !slices.Contains(out, h) {
 				out = append(out, h)
 			}
 		}
 	}
 	return out
+}
+
+// isHeading: line is a `## ` heading with text, at the left margin, the
+// one rule for where the header ends and what is a milestone (section 4:
+// a heading without text is none).
+func isHeading(line string) bool {
+	h, ok := strings.CutPrefix(line, "## ")
+	return ok && strings.TrimSpace(h) != ""
 }
 
 // unfenced yields the lines of text outside its fenced blocks, the fence

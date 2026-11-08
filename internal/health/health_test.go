@@ -126,6 +126,10 @@ func TestTerms(t *testing.T) {
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("terms\n got %q\nwant %q", got, want)
 	}
+	m.vars["HOME"] = m.uhome + "/"
+	if got := health.Terms(m.ops(), m.env()); got[len(got)-1] != m.uhome+"/" {
+		t.Errorf("HOME with a trailing slash: %q", got)
+	}
 	m.vars["HOME"] = "/"
 	m.vars["USER"] = ""
 	if got := health.Terms(m.ops(), m.env()); strings.Contains(strings.Join(got, "|"), "|/") {

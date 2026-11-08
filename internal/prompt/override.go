@@ -385,8 +385,9 @@ func cutLast(l string) (rel, hash string, ok bool) {
 }
 
 // Behind: s is a full override whose ledger hash is not the root file's
-// now (the root changed, or went, since the copy). A full override with
-// no ledger line is not known to be behind.
+// now (the root changed since the copy, or cannot be read). A full
+// override with no ledger line is not known to be behind; one whose root
+// file went is no override at all (Locate makes it the home's own).
 func (s Source) Behind(fs ops.FS, ledger map[string]string) bool {
 	recorded, ok := ledger[s.Rel]
 	if s.Form != Full || !ok {
