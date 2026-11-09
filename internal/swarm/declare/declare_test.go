@@ -187,6 +187,8 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: keys.anthropic.env: "ANTHROPIC_KEY" is not one of anthropic's variables (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN)`, func(c *Config) { c.Keys["anthropic"] = Key{Env: ptr("ANTHROPIC_KEY")} }},
 		{`swarm.json: keys.anthropic.slots: anthropic takes no slot`, func(c *Config) { c.Keys["anthropic"] = Key{Slots: ptr(1)} }},
 		{`swarm.json: keys.openai.slots: 0 is not between 1 and 16`, func(c *Config) { c.Keys["openai"] = Key{Slots: ptr(0)} }},
+		{`swarm.json: keys.xai: needs exactly one of env, slots`, func(c *Config) { c.Keys["xai"] = Key{Env: ptr("XAI_API_KEY"), Slots: ptr(1)} }},
+		{`swarm.json: keys.xai.slots: 17 is not between 1 and 16`, func(c *Config) { c.Keys["xai"] = Key{Slots: ptr(17)} }},
 		{`swarm.json: keys.gemini: "gemini" has no adapter`, func(c *Config) { c.Keys["gemini"] = Key{Env: ptr("GEMINI_API_KEY")} }},
 	} {
 		c := valid()
@@ -199,6 +201,14 @@ func TestValidateNamesTheField(t *testing.T) {
 
 	if err := Validate(ops.Real(), ws, valid(), 0); err != nil {
 		t.Errorf("the valid declaration: %v", err)
+	}
+	for _, k := range []Key{{Slots: ptr(2)}, {Env: ptr("XAI_API_KEY")}} { // xai takes either form (section 8)
+		x := valid()
+		setPersona(&x, "sympathetic", func(p *Persona) { p.Provider, p.Model, p.CoAuthor = "xai", "grok-4.5", "grok-4.5 <noreply@x.ai>" })
+		x.Keys["xai"] = k
+		if err := Validate(ops.Real(), ws, x, 0); err != nil {
+			t.Errorf("xai %+v: %v", k, err)
+		}
 	}
 	none := valid()
 	setPersona(&none, "worker", func(p *Persona) { p.CoAuthor = "" })

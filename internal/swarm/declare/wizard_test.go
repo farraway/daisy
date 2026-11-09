@@ -177,6 +177,27 @@ func TestWizardMovesARoleToXAI(t *testing.T) {
 	}
 }
 
+// A file's xai login slot is kept by the wizard, as an openai key is:
+// keys are not asked, either form stays as the file declares it (section
+// 11).
+func TestWizardKeepsTheFilesXAIForm(t *testing.T) {
+	ws := bareWorkspace(t)
+	answers := make([]string, 40)
+	answers[6+4*4] = "xai"
+	o, _ := scripted(answers...)
+	file := valid()
+	slots, env := 2, "OPENAI_API_KEY"
+	file.Keys = map[string]Key{"anthropic": file.Keys["anthropic"], "openai": {Env: &env}, "xai": {Slots: &slots}}
+	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	c, err := w.Ask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(c.Keys, file.Keys) {
+		t.Errorf("keys %+v", c.Keys)
+	}
+}
+
 // Every provider with an adapter has a default model and a default
 // credential the validation accepts.
 func TestProviderDefaults(t *testing.T) {

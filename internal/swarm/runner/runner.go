@@ -26,14 +26,16 @@ type Mount struct {
 type Spec struct {
 	Name, Label, User string // --name, the daisy.swarm label, --user uid:gid
 	// Credential is a slot's `<provider>/<j>` and Slot its directory,
-	// mounted at /credential; EnvVar and EnvValue an env credential, read
-	// by docker from its standard input. At most one of the two.
-	Credential, Slot string
-	EnvVar, EnvValue string
-	NoNetwork        bool
-	Mounts           []Mount
-	Workdir, Image   string
-	Argv             []string
+	// mounted at /credential, Home the variable that names the mount as
+	// the CLI's home (CODEX_HOME, GROK_HOME); EnvVar and EnvValue an env
+	// credential, read by docker from its standard input. At most one of
+	// the two.
+	Credential, Slot, Home string
+	EnvVar, EnvValue       string
+	NoNetwork              bool
+	Mounts                 []Mount
+	Workdir, Image         string
+	Argv                   []string
 }
 
 // Args is the `docker` argv, section 7.2's lines in order; it holds no
@@ -49,6 +51,9 @@ func (s Spec) Args() []string {
 	}
 	if s.Credential != "" {
 		a = append(a, "--label", "daisy.credential="+s.Credential, "--mount", "type=bind,"+mountField("src", s.Slot)+","+mountField("dst", "/credential"))
+		if s.Home != "" {
+			a = append(a, "--env", s.Home+"=/credential")
+		}
 	}
 	for _, m := range s.Mounts {
 		v := "type=bind," + mountField("src", m.Src) + "," + mountField("dst", m.Dst)

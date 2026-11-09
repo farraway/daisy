@@ -179,7 +179,8 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	} else {
 		holder := fmt.Sprintf("%s#%d/%s run %d since %s", s.Cfg.Forge.Repo, j.N, j.Role, j.K, now())
 		var err error
-		slot, err = runner.TakeSlot(fs, s.Runner, s.slotDir(persona.Provider), persona.Provider, *key.Slots, holder, running)
+		prov := provider.Providers[persona.Provider]
+		slot, err = runner.TakeSlot(fs, s.Runner, s.slotDir(persona.Provider), persona.Provider, *key.Slots, prov.LoginHint, holder, running)
 		var refused *runner.SlotRefused
 		switch {
 		case errors.Is(err, runner.ErrNoSlot):
@@ -191,7 +192,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			return false, err
 		}
 		secrets = slot.Secrets
-		spec.Credential, spec.Slot = slot.Credential, slot.Dir
+		spec.Credential, spec.Slot, spec.Home = slot.Credential, slot.Dir, prov.Home
 		credential = fmt.Sprintf("credential %s slot %d", persona.Provider, slot.J)
 	}
 	if err := fs.WriteFile(filepath.Join(r.Dir, "argv"), []byte(strings.Join(append([]string{"docker"}, spec.Args()...), "\n")+"\n"), 0o644); err != nil {

@@ -2,7 +2,8 @@
 # The member image's entrypoint (docs/swarm.md, section 7.2): it runs
 # before every member and every check, as whatever uid `docker run --user`
 # gave, then execs the argv it was given as the container's first process.
-# It holds no credential logic beyond pointing CODEX_HOME at a mounted slot.
+# It holds no credential logic: a mounted slot is named the CLI's home
+# (CODEX_HOME, GROK_HOME) by `docker run --env`, not here.
 set -eu
 
 # A directory any uid can write; it dies with the container (--rm).
@@ -20,10 +21,5 @@ fi
 # names the role (section 7.1) and takes precedence.
 git config --global user.name 'Daisy swarm'
 git config --global user.email 'member@daisy-swarm.invalid'
-
-# A slot credential: the login directory apply mounted (section 8).
-if [ -d /credential ]; then
-  export CODEX_HOME=/credential
-fi
 
 exec "$@"

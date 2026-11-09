@@ -400,7 +400,7 @@ func TestSwarmApplyOnXAI(t *testing.T) {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
 	spec := a.runner.Launched[0]
-	if spec.EnvVar != "XAI_API_KEY" || spec.EnvValue != a.vars["XAI_API_KEY"] || spec.Credential != "" || spec.Slot != "" ||
+	if spec.EnvVar != "XAI_API_KEY" || spec.EnvValue != a.vars["XAI_API_KEY"] || spec.Credential != "" || spec.Slot != "" || spec.Home != "" ||
 		spec.Argv[0] != "grok" || !slices.Contains(spec.Argv, "--trust") || spec.Argv[len(spec.Argv)-2] != "-p" {
 		t.Errorf("spec %+v", spec)
 	}
@@ -435,7 +435,7 @@ func TestSwarmApplyOnASlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec := a.runner.Launched[0]
-	if spec.Credential != "openai/1" || spec.Slot != slot || spec.EnvVar != "" || spec.Argv[0] != "codex" || !slices.Contains(spec.Argv, "--cd") {
+	if spec.Credential != "openai/1" || spec.Slot != slot || spec.Home != "CODEX_HOME" || spec.EnvVar != "" || spec.Argv[0] != "codex" || !slices.Contains(spec.Argv, "--cd") {
 		t.Errorf("spec %+v", spec)
 	}
 	if _, err := os.Stat(filepath.Join(slot, "config.toml")); err == nil {
@@ -449,4 +449,95 @@ func TestSwarmApplyOnASlot(t *testing.T) {
 		t.Fatalf("the slot's lock is still held: %v", err)
 	}
 	release()
+}
+
+// The architect on an xai login slot (section 8): the slot cleared of
+// grok's own files but auth.json, mounted read-write at /credential under
+// its label and named the CLI's home by GROK_HOME, with no env credential;
+// the slot's long strings refused in a later run's out.md; the lock
+// released once docker run has returned.
+func TestSwarmApplyOnAnXAISlot(t *testing.T) {
+	a := newApplyWS(t)
+	slots := 1
+	a.edit(func(c *declare.Config) {
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Keys["xai"] = declare.Key{Slots: &slots}
+	})
+	token := "grok-access-token-0123456789abcdefghijklmnop"
+	slot := filepath.Join(a.local, "swarm", "credentials", "xai", "1")
+	os.MkdirAll(filepath.Join(slot, "sessions"), 0o700)
+	os.WriteFile(filepath.Join(slot, "auth.json"), []byte(`{"access_token":"`+token+`","refresh_token":"r"}`), 0o600)
+	os.WriteFile(filepath.Join(slot, "config.toml"), []byte("x"), 0o600)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Stdout: `{"num_turns":2,"usage":{"input_tokens":5,"output_tokens":6}}`},
+		runner.Canned{Out: archPlan + "\nThe login is " + token + ".\n"})
+	if err := a.apply(a.forge, "--once"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	spec := a.runner.Launched[0]
+	if spec.Credential != "xai/1" || spec.Slot != slot || spec.Home != "GROK_HOME" || spec.EnvVar != "" || spec.Argv[0] != "grok" {
+		t.Errorf("spec %+v", spec)
+	}
+	args := strings.Join(spec.Args(), "\n")
+	if !strings.Contains(args, "\n--label\ndaisy.credential=xai/1\n--mount\ntype=bind,src="+slot+",dst=/credential\n--env\nGROK_HOME=/credential\n") ||
+		strings.Contains(args, "--env-file") || strings.Contains(args, token) {
+		t.Errorf("argv:\n%s", args)
+	}
+	if entries, _ := os.ReadDir(slot); len(entries) != 1 || entries[0].Name() != "auth.json" {
+		t.Errorf("the slot was not cleared: %v", entries)
+	}
+	if r := a.result("1-architect-1"); !strings.Contains(r, "credential xai slot 1\nexited 0 2026-11-06T15:00:00Z\n") || !strings.Contains(r, "posted comment\n") {
+		t.Errorf("result:\n%s", r)
+	}
+	release, err := ops.Real().FS().Lock(filepath.Join(a.local, "swarm", "credentials", "xai", "1.lock"), "test")
+	if err != nil {
+		t.Fatalf("the slot's lock is still held: %v", err)
+	}
+	release()
+	a.forge.Say(issue1, "jane", "Split it in two.")
+	if err := a.apply(a.forge, "--once"); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.result("1-architect-2"); !strings.Contains(r, "failed: secret in output: out.md\n") || strings.Contains(strings.Join(a.bodies(1), "\n"), token) {
+		t.Errorf("the slot's token was posted:\n%s\n%q", r, a.bodies(1))
+	}
+}
+
+// An xai slot without a login is its run's fault at the launch, *slot
+// refused*, with grok's login line naming the slot as GROK_HOME (section
+// 7.7); nothing is launched or posted.
+func TestSwarmApplyXAISlotWithoutALogin(t *testing.T) {
+	a := newApplyWS(t)
+	slots := 1
+	a.edit(func(c *declare.Config) {
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Keys["xai"] = declare.Key{Slots: &slots}
+	})
+	slot := filepath.Join(a.local, "swarm", "credentials", "xai", "1")
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	before := a.bodies(1)
+	if err := a.apply(a.forge, "--once"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	want := "fault: slot xai/1: no login; run 'GROK_HOME=" + slot + " grok login --device-auth'\noutcome fault\ncollected\n"
+	if r := a.result("1-architect-1"); !strings.HasSuffix(r, want) || len(a.runner.Launched) != 0 || !reflect.DeepEqual(a.bodies(1), before) {
+		t.Errorf("launched %d\n%s", len(a.runner.Launched), r)
+	}
+}
+
+// keys.xai declaring both forms, the key and a slot, is refused at the
+// configuration, before anything is launched (section 3).
+func TestSwarmApplyXAIBothForms(t *testing.T) {
+	a := newApplyWS(t)
+	env, slots := "XAI_API_KEY", 1
+	a.edit(func(c *declare.Config) {
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Keys["xai"] = declare.Key{Env: &env, Slots: &slots}
+	})
+	a.vars["XAI_API_KEY"] = "xai-key-0123456789abcdef0123456789abcdef"
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	err := a.apply(a.forge, "--once")
+	if err == nil || !strings.Contains(err.Error(), "swarm.json: keys.xai: needs exactly one of env, slots") || len(a.runner.Launched) != 0 {
+		t.Errorf("%v; launched %d", err, len(a.runner.Launched))
+	}
 }

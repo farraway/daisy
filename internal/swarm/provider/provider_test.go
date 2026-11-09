@@ -108,3 +108,18 @@ func TestReport(t *testing.T) {
 		}
 	}
 }
+
+// The slot form (section 8): openai and xai take a slot, each naming its
+// CLI's home and the login that fills it; anthropic takes none.
+func TestSlots(t *testing.T) {
+	for name, want := range map[string]string{
+		"openai":    "CODEX_HOME=/s codex login -c cli_auth_credentials_store=file",
+		"xai":       "GROK_HOME=/s grok login --device-auth",
+		"anthropic": "",
+	} {
+		p := Providers[name]
+		if p.Slot() != (want != "") || p.Slot() && (p.Login == "" || p.LoginHint("/s") != want) {
+			t.Errorf("%s: slot %v, home %q, login %q", name, p.Slot(), p.Home, p.Login)
+		}
+	}
+}

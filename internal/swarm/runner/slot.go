@@ -18,15 +18,16 @@ var ErrNoSlot = errors.New("no free slot")
 
 // SlotRefused is a slot whose auth.json is not a regular file, or holds
 // no login (absent or empty): the swarm fault *slot refused* (section
-// 7.7), met at the launch that takes the slot.
+// 7.7), met at the launch that takes the slot. Login is the command line
+// that logs the slot in, the hint of a slot without a login.
 type SlotRefused struct {
-	Credential, Dir string
-	NoLogin         bool
+	Credential, Dir, Login string
+	NoLogin                bool
 }
 
 func (e *SlotRefused) Error() string {
 	if e.NoLogin {
-		return "slot " + e.Credential + ": no login; run 'CODEX_HOME=" + e.Dir + " codex login -c cli_auth_credentials_store=file'"
+		return "slot " + e.Credential + ": no login; run '" + e.Login + "'"
 	}
 	return "slot " + e.Credential + ": auth.json is not a regular file"
 }
@@ -50,7 +51,9 @@ func (s *Slot) Release() { s.release() }
 // a slot busy in the pass's snapshot, whose lock is held, or busy in the
 // running set read again under its lock is passed over; the one taken is
 // cleared of every entry but auth.json, which must be a regular file.
-func TakeSlot(fs ops.FS, r Runner, dir, provider string, count int, holder string, snapshot []Running) (*Slot, error) {
+// login is the command line that logs a slot's directory in, for the
+// hint of a slot refused without a login.
+func TakeSlot(fs ops.FS, r Runner, dir, provider string, count int, login func(slot string) string, holder string, snapshot []Running) (*Slot, error) {
 	busy := func(set []Running, cred string) bool {
 		return slices.ContainsFunc(set, func(c Running) bool { return c.Credential == cred })
 	}
@@ -65,7 +68,8 @@ func TakeSlot(fs ops.FS, r Runner, dir, provider string, count int, holder strin
 			continue
 		}
 		if errors.Is(err, iofs.ErrNotExist) { // no slot directory for the provider: no login made
-			return nil, &SlotRefused{Credential: cred, Dir: filepath.Join(dir, strconv.Itoa(j)), NoLogin: true}
+			d := filepath.Join(dir, strconv.Itoa(j))
+			return nil, &SlotRefused{Credential: cred, Dir: d, Login: login(d), NoLogin: true}
 		}
 		if err != nil {
 			return nil, err
@@ -80,7 +84,7 @@ func TakeSlot(fs ops.FS, r Runner, dir, provider string, count int, holder strin
 			continue
 		}
 		s := &Slot{J: j, Dir: filepath.Join(dir, strconv.Itoa(j)), Credential: cred, release: release}
-		if err := s.clear(fs); err != nil {
+		if err := s.clear(fs, login); err != nil {
 			release()
 			return nil, err
 		}
@@ -93,10 +97,10 @@ func TakeSlot(fs ops.FS, r Runner, dir, provider string, count int, holder strin
 // clear removes every entry of the slot but auth.json, and refuses an
 // auth.json that is absent, empty or not a regular file (Lstat: a link is
 // never followed).
-func (s *Slot) clear(fs ops.FS) error {
+func (s *Slot) clear(fs ops.FS, login func(string) string) error {
 	entries, err := fs.ReadDir(s.Dir)
 	if errors.Is(err, iofs.ErrNotExist) {
-		return &SlotRefused{Credential: s.Credential, Dir: s.Dir, NoLogin: true}
+		return &SlotRefused{Credential: s.Credential, Dir: s.Dir, Login: login(s.Dir), NoLogin: true}
 	}
 	if err != nil {
 		return fmt.Errorf("slot %s: %v", s.Credential, err)
@@ -112,7 +116,7 @@ func (s *Slot) clear(fs ops.FS) error {
 	fi, err := fs.Lstat(filepath.Join(s.Dir, "auth.json"))
 	switch {
 	case errors.Is(err, iofs.ErrNotExist) || err == nil && fi.Mode().IsRegular() && fi.Size() == 0:
-		return &SlotRefused{Credential: s.Credential, Dir: s.Dir, NoLogin: true}
+		return &SlotRefused{Credential: s.Credential, Dir: s.Dir, Login: login(s.Dir), NoLogin: true}
 	case err != nil || !fi.Mode().IsRegular():
 		return &SlotRefused{Credential: s.Credential, Dir: s.Dir}
 	}

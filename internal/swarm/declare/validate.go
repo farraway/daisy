@@ -483,7 +483,7 @@ func checkKeys(keys map[string]Key, personas map[string]Persona) *Error {
 			return fieldErr(at+".env", "%q is not one of %s's variables (%s)", *k.Env, name, strings.Join(p.Env, ", "))
 		}
 		if k.Slots != nil {
-			if !p.Slot {
+			if !p.Slot() {
 				return fieldErr(at+".slots", "%s takes no slot", name)
 			}
 			if err := checkRange(at+".slots", *k.Slots, 1, 16); err != nil {

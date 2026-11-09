@@ -36,20 +36,34 @@ type Report struct {
 }
 
 // Provider is a provider with an adapter: its CLI, the variables an env
-// credential may name, whether it takes a login slot, and the address of
-// its default co-author.
+// credential may name, the login slot it takes, and the address of its
+// default co-author.
 type Provider struct {
 	Adapter Adapter
 	Env     []string
-	Slot    bool
-	Email   string
+	// Home is the variable naming the CLI's home, which a slot becomes:
+	// the member is given Home=/credential (section 7.2). "" takes no slot.
+	Home string
+	// Login is the command that logs a slot in on the host, run with Home
+	// set to the slot's directory (section 8).
+	Login string
+	Email string
 }
+
+// Slot reports whether the provider takes a slots credential.
+func (p Provider) Slot() bool { return p.Home != "" }
+
+// LoginHint is the command line that logs slot in: the hint of a slot
+// refused for want of a login (section 7.7).
+func (p Provider) LoginHint(slot string) string { return p.Home + "=" + slot + " " + p.Login }
 
 // Providers is the adapter table (section 9).
 var Providers = map[string]Provider{
 	"anthropic": {Adapter: claude{}, Env: []string{"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"}, Email: "noreply@anthropic.com"},
-	"openai":    {Adapter: codex{}, Env: []string{"OPENAI_API_KEY", "CODEX_API_KEY"}, Slot: true, Email: "noreply@openai.com"},
-	"xai":       {Adapter: grok{}, Env: []string{"XAI_API_KEY"}, Email: "noreply@x.ai"},
+	"openai": {Adapter: codex{}, Env: []string{"OPENAI_API_KEY", "CODEX_API_KEY"},
+		Home: "CODEX_HOME", Login: "codex login -c cli_auth_credentials_store=file", Email: "noreply@openai.com"},
+	"xai": {Adapter: grok{}, Env: []string{"XAI_API_KEY"},
+		Home: "GROK_HOME", Login: "grok login --device-auth", Email: "noreply@x.ai"},
 }
 
 // noAttribution is the Claude Code setting that leaves its own
