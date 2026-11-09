@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -213,10 +214,7 @@ func (c *collection) onPull(p forge.Pull, posted string) error {
 func (c *collection) review(out, text string, pull forge.Pull) error {
 	s := c.s
 	verdict := verdictOf(out)
-	blocking := false
-	for _, l := range strings.Split(out, "\n") {
-		blocking = blocking || strings.HasPrefix(l, "[blocking]")
-	}
+	blocking := len(blockingLines(out)) > 0
 	if verdict == "comment" || (verdict == "request-changes") != blocking {
 		return c.fail("bad verdict")
 	}
@@ -332,17 +330,13 @@ const roundLimitAgain = "requested changes a second time"
 // reviews submitted after since (all of them when since is zero), and not
 // except's since the newest answer, the head as it stands.
 func Rounds(reviews []forge.Review, answers []time.Time, swarmLogin string, since time.Time, except string) int {
-	by := map[string]map[string]bool{}
+	by := map[roundKey]map[string]bool{}
 	for _, r := range reviews {
 		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
-		after := 0 // the answers before it
-		for after < len(answers) && answers[after].Before(r.Submitted) {
-			after++
-		}
-		if !ok || !since.IsZero() && !r.Submitted.After(since) || r.Commit == except && after == len(answers) {
+		key := keyOf(r, answers)
+		if !ok || !since.IsZero() && !r.Submitted.After(since) || r.Commit == except && key.answers == len(answers) {
 			continue
 		}
-		key := fmt.Sprintf("%s %d", r.Commit, after)
 		if by[key] == nil {
 			by[key] = map[string]bool{}
 		}
@@ -355,4 +349,60 @@ func Rounds(reviews []forge.Review, answers []time.Time, swarmLogin string, sinc
 		}
 	}
 	return n
+}
+
+// roundKey is the round a review belongs to (section 6): the commit it
+// reviewed and how many of the worker's answers without a commit came
+// before it.
+type roundKey struct {
+	commit  string
+	answers int
+}
+
+func keyOf(r forge.Review, answers []time.Time) roundKey {
+	n := 0
+	for n < len(answers) && answers[n].Before(r.Submitted) {
+		n++
+	}
+	return roundKey{r.Commit, n}
+}
+
+// round is one round of a pull request's thread: its key and the swarm
+// reviewers' reviews in it, oldest first.
+type round struct {
+	roundKey
+	reviews []forge.Review
+}
+
+// roundsOf is reviews' rounds (keyOf) with a review marked role=adversary
+// or role=sympathetic, in the order of each round's first review; a head
+// reviewed by one of the two alone is a round here too.
+func roundsOf(reviews []forge.Review, answers []time.Time, swarmLogin string) []round {
+	sorted := slices.Clone(reviews)
+	slices.SortStableFunc(sorted, func(a, b forge.Review) int { return a.Submitted.Compare(b.Submitted) })
+	var out []round
+	for _, r := range sorted {
+		if m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin); !ok || m.Role != "adversary" && m.Role != "sympathetic" {
+			continue
+		}
+		k := keyOf(r, answers)
+		i := slices.IndexFunc(out, func(rd round) bool { return rd.roundKey == k })
+		if i < 0 {
+			out, i = append(out, round{roundKey: k}), len(out)
+		}
+		out[i].reviews = append(out[i].reviews, r)
+	}
+	return out
+}
+
+// blockingLines is a review text's blocking findings: its lines that
+// begin "[blocking]" (section 7.4).
+func blockingLines(text string) []string {
+	var out []string
+	for _, l := range strings.Split(text, "\n") {
+		if l = strings.TrimRight(l, "\r "); strings.HasPrefix(l, "[blocking]") {
+			out = append(out, l)
+		}
+	}
+	return out
 }

@@ -463,9 +463,9 @@ up by it, and two such faults in a row pause the swarm with that line.
 | Role | Runs in | Reads (section 7.3) | Writes to `out.md` | Its output becomes |
 |---|---|---|---|---|
 | owner | no issue (the batch run); `swarm:proposal-posted` | for the batch, every `active` brief in `resources` (below), the open and recently closed swarm issues; on an issue, the issue thread | the batch: `Met: <path>` for each brief whose milestones are all met, then proposals, each `## <title>`, a `Brief: <path> — <milestone>` line and a body; on an issue: a reply | new issues labelled `swarm:proposal-posted` (`swarm:proposal-accepted` with the triage gate off), each text (after the marker lines, section 6) opening with its `Brief:` line; a comment on the issue |
-| architect | `swarm:proposal-accepted`, `swarm:plan-0-posted` | the issue thread; while the issue's current pull request is open (after T11, or a relabel by the maintainer), the earlier pull requests, that pull request's thread and the check's result too | the whole plan, a standard Daisy plan in the form of section 7.4 | a comment on the issue |
-| worker | `swarm:plan-1-accepted`, `swarm:review-3-changes-requested` | the issue body, the accepted plan, the maintainer's direction and the earlier pull requests; in `review-3-changes-requested` (and in `plan-1-accepted` when its pull request is open), the pull-request thread and the check's result | the pull request's description; in `review-3-changes-requested`, what it changed; and commits on `swarm/<n>-<s>` in the clone | a pushed branch and a pull request in the slice's repository (its `Refs` line, section 5); a comment on the pull request |
-| adversary | `swarm:review-0-ready`, `swarm:review-1-in-progress` | the issue body, the accepted plan, the pull-request thread without the other reviewer's review of the head, and the check's result; the change is `git diff <base>...HEAD` in its writable throwaway clone | `VERDICT: approve` or `VERDICT: request-changes`, then the review, each finding marked by severity | a pull request review |
+| architect | `swarm:proposal-accepted`, `swarm:plan-0-posted` | the issue thread; while the issue's current pull request is open (after T11, or a relabel by the maintainer), the earlier pull requests, that pull request's thread with every round's blocking findings (7.3) and the check's result too | the whole plan, a standard Daisy plan in the form of section 7.4 | a comment on the issue |
+| worker | `swarm:plan-1-accepted`, `swarm:review-3-changes-requested` | the issue body, the accepted plan, the maintainer's direction and the earlier pull requests; in `review-3-changes-requested` (and in `plan-1-accepted` when its pull request is open), the pull-request thread with its latest round in full and the earlier as lines (7.3), and the check's result | the pull request's description; in `review-3-changes-requested`, what it changed; and commits on `swarm/<n>-<s>` in the clone | a pushed branch and a pull request in the slice's repository (its `Refs` line, section 5); a comment on the pull request |
+| adversary | `swarm:review-0-ready`, `swarm:review-1-in-progress` | the issue body, the accepted plan, the pull-request thread compacted (7.3: the worker's newest report, the previous round's blocking findings, each earlier round as a line, the maintainer's entries in full, never the other reviewer's review of the head), and the check's result; the change is `git diff <base>...HEAD` in its writable throwaway clone | `VERDICT: approve` or `VERDICT: request-changes`, then the review, each finding marked by severity | a pull request review |
 | sympathetic | `swarm:review-0-ready`, `swarm:review-1-in-progress` | as the adversary | as the adversary, ending with a reading guide | a pull request review |
 
 Every role may instead write `BLOCKED: <reason>` as its first line
@@ -1331,6 +1331,10 @@ Branch swarm/<n>-<s> into <base>; head <sha>.
 
 <body>
 
+## Earlier rounds
+
+- round <r>: <b> blocking, <revised in <sha>|answered without a commit>
+
 ## Thread
 
 ### <login> at <time>
@@ -1339,7 +1343,7 @@ Branch swarm/<n>-<s> into <base>; head <sha>.
 
 ### <role>, run <k>, at <time>, on <sha>: <approve|request-changes>
 
-<review>
+<review, or its [blocking] lines alone>
 
 ### <login> at <time>, on <path>:<line> at <sha>
 
@@ -1368,7 +1372,7 @@ Which sections a prompt holds, by role:
 | `# Plan` | — | yes | yes | yes |
 | `# Direction` (`None.` when there are none) | — | yes | — | — |
 | `# Earlier pull requests` (`None.` when there are none) | the architect, when the current pull request is open (after T11, or a relabel by the maintainer) | yes | yes | yes |
-| `# Pull request` and its `## Thread` (`None.` when no entry is shown in it) | the architect, when the current pull request is open (the rounds) | when the current pull request is open | yes | yes, without the other reviewer's review of the current head |
+| `# Pull request`, its `## Earlier rounds` (left out when no round is a line) and its `## Thread` (`None.` when no entry is shown in it), compacted as below | the architect, when the current pull request is open (the rounds): every round's blocking findings | when the current pull request is open: the latest round in full, the earlier as lines | yes: the latest round in full, the earlier as lines | yes: the previous round's blocking findings, the earlier as lines, never the current round |
 | `# Check` | the architect, when the current pull request is open | when the current pull request is open | yes | yes |
 
 - **The accepted plan** is the newest counted issue comment marked
@@ -1382,11 +1386,43 @@ Which sections a prompt holds, by role:
   the slice the run works on (every one but the current while it is
   open, and every one when the worker starts the next slice), by slice, each with its repository and, when merged,
   its merge commit (`MergeSHA`, section 10): the commit a later slice pins.
-- **The pull-request thread** is section 6's, entries oldest first; a
-  review that is not the swarm's shows its login and the forge's state. A
-  reviewer's prompt leaves out the other reviewer's review of the current
-  head, so the two reads stay independent; reviews of earlier heads stay,
-  as the history the worker answered.
+- **The pull-request thread** is section 6's, entries oldest first,
+  compacted so that a prompt stops growing with the rounds (section 14,
+  item 77). An entry that is not the swarm's is shown whatever its age: a
+  `trusted` login's as written (the maintainer's comments, reviews and
+  line comments are direction), anyone else's as its login and time; a
+  review that is not the swarm's shows its login and the forge's state.
+  The swarm's comments are shown from the **worker's newest report** on:
+  the newest of the pull request's entries that are the swarm's and
+  marked `role=worker`, its body (the description, shown above the
+  thread in every case) or a comment (a revision's report, an answer
+  without a commit, a `BLOCKED:`); the older ones are the history the
+  round lines summarise. The swarm reviewers' reviews fall into
+  **rounds**: a round is a head commit together with the worker's
+  answers without a commit before its reviews (section 6), so a head
+  answered `NO CHANGE:` begins a new round on the same commit, and a head
+  that one reviewer alone reviewed is a round here too. Rounds are
+  numbered in the order of their first review over the whole pull
+  request, so after a plan revision (T11), or once a head was reviewed
+  by one reviewer alone, the numbers run on past the Task text's
+  `This is round <r>`, which counts the pairs since the accepted plan.
+  - A reviewer's prompt leaves out the **current round** (the head as it
+    stands since the worker's newest answer), so the two reads stay
+    independent; shows the **previous round**, the newest of the others,
+    as each review's heading with its `[blocking]` lines alone, the
+    findings the round `r > 1` Task text asks about, whose resolutions
+    the worker's newest report states; and gives every earlier round a
+    line.
+  - The worker's prompt shows the latest round's reviews in full and
+    gives every earlier round a line.
+  - The architect's prompt shows every round's reviews as their headings
+    with their `[blocking]` lines alone (it reworks the plan from them),
+    and no line.
+
+  A round given a line reads `- round <r>: <b> blocking, <resolution>`
+  under `## Earlier rounds`, `<b>` being the `[blocking]` lines of its
+  reviews and `<resolution>` `revised in <sha>` when the next round is on
+  another head, `answered without a commit` when it is on the same one.
 - **`# Check`** is the check of the worker run that pushed the current
   head (the run whose `<run>/result` has `pushed <head>`): one line, exit
   code or `timeout after <timeout>`, then the last 20 lines of
@@ -2981,6 +3017,22 @@ the run without the line, or on `plan-1-accepted`, the failure *no
 commits*). Not established: the first gating event and the first
 `NO CHANGE:` run on the real swarm, which the step's smoke watches for.
 
+**As built (Step 17 of the swarm build).** The compacted pull-request
+thread (7.3) is Go tests in `internal/swarm/reconcile` over a Fake
+thread of six rounds, each with three blocking findings, a non-blocking
+one and about 1.8kB of reasoning per review and per report:
+`TestRenderReviewCompact` (round 7's review prompt: five round lines, the previous round's findings alone, the
+newest report and the maintainer's comment and line comment in full,
+none of the earlier reports or bodies; prompt.md under a quarter of the
+thread's text), `TestRenderReviewStopsGrowing` (rounds 5, 6 and 7
+within two round lines of each other while the thread grows by four
+reviews and two reports), `TestRenderWorkerRevisionCompact`,
+`TestRenderArchitectKeepsEveryFinding` and `TestRenderRoundLinesAnswer`
+(a `NO CHANGE:` round's line, and the other reviewer's review of the
+same head before the answer shown as the previous round's). Not
+established: the real swarm's input tokens on a multi-round review,
+which the step's smoke reads.
+
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
 writes the canned `out.md` (and, for the worker, commits in the clone)
@@ -3961,3 +4013,41 @@ entries among revision 1's, and was renumbered at Step 38.
     as it bounds a loop of pushes. The alternative, an empty commit
     pushed by Daisy, would have changed the head with no change and put
     a commit of Daisy's own on the swarm's branch.
+77. **The review prompt is compacted (Step 17 of the swarm build,
+    2026-11-08).** On the first two days one issue's adversary read
+    1.1M to 2.8M input tokens per review over seven rounds, each review
+    re-reading the whole pull-request thread and every earlier review;
+    the cost arrived before the loss of quality the sources warn of. A
+    prompt now carries the round's material (7.3), and a review prompt's
+    length grows by one line a round: on the Fake thread of
+    `TestRenderReviewCompact`, round 7's review prompt is 4,974 bytes
+    where it was 36,867, against a thread of 35,895. **The previous
+    round** is the newest round other than the current one, a round
+    being section 6's key, a head commit with the worker's answers
+    without a commit before its reviews, so a `NO CHANGE:` answer is a
+    round boundary; its reviews are shown, both reviewers' since the
+    worker answered both, as their headings with their `[blocking]`
+    lines, the lines the collection already reads as blocking. So the
+    other reviewer's review of a head before an answer without a
+    commit, which the commit-based rule of item 76 left out, is now
+    shown as the previous round's. **The worker's newest report** is the
+    newest of the pull request's entries that are the swarm's and marked
+    `role=worker`, its body or a comment; the swarm's comments before it
+    are the history the lines summarise, and the resolutions as the
+    worker stated them are in it. Where the step left a choice the
+    smaller was taken: the description stays in full above the thread,
+    as the slice's statement, constant in size; the rounds are numbered
+    over the whole pull request in the order of their first review, a
+    head one reviewer alone reviewed included, rather than since the
+    accepted plan as the Task text counts (which would need a second
+    sequence or a mark for the revision; the two differ after T11, and
+    once a head was reviewed by one reviewer alone);
+    a line's resolution is what followed the round, `revised in <sha>`
+    or `answered without a commit`, Daisy's fact rather than the
+    worker's claim; and "the issue thread's older entries", which a
+    reviewer's prompt does not hold (the table of 7.3), is read as the
+    pull-request thread's older swarm entries, the owner's and the
+    architect's `# Thread` staying whole. The maintainer's entries are
+    shown in full whatever their age: they are direction. The architect
+    keeps every round's blocking findings, without the bodies, as it
+    reworks the plan from them, and the worker the latest round in full.

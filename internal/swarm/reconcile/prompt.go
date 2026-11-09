@@ -412,30 +412,130 @@ func (j *Job) pullEntries(p forge.Pull) []Entry {
 	return out
 }
 
+// How a round's reviews are shown (section 7.3): left out, as a line under
+// "## Earlier rounds", as their headings with their blocking findings, or
+// in full.
+const (
+	roundHidden = iota
+	roundLine
+	roundFindings
+	roundFull
+)
+
+// shown is how each of the pull request's rounds is shown to the run's
+// role: a reviewer sees the previous round's findings and every earlier
+// round as a line, never the current round (the other reviewer's review
+// of the head as it stands); the worker the latest round in full and the
+// rest as lines; the architect every round's findings.
+func (j *Job) shown(rounds []round, current roundKey) []int {
+	modes := make([]int, len(rounds))
+	switch j.Role {
+	case "adversary", "sympathetic":
+		prev := -1
+		for i, rd := range rounds {
+			if rd.roundKey == current {
+				modes[i] = roundHidden
+				continue
+			}
+			modes[i], prev = roundLine, i
+		}
+		if prev >= 0 {
+			modes[prev] = roundFindings
+		}
+	case "worker":
+		for i := range rounds {
+			modes[i] = roundLine
+		}
+		if len(rounds) > 0 {
+			modes[len(rounds)-1] = roundFull
+		}
+	default:
+		for i := range rounds {
+			modes[i] = roundFindings
+		}
+	}
+	return modes
+}
+
+// roundLines is the "## Earlier rounds" lines: each round shown as a
+// line, numbered in the pull request's order, with its blocking findings
+// counted and what followed it.
+func roundLines(rounds []round, modes []int) []string {
+	var out []string
+	for i, rd := range rounds {
+		if modes[i] != roundLine {
+			continue
+		}
+		b := 0
+		for _, r := range rd.reviews {
+			b += len(blockingLines(r.Body))
+		}
+		// A round shown as a line is never the last (shown), so a round
+		// follows it.
+		next := "revised in " + rounds[i+1].commit
+		if rounds[i+1].commit == rd.commit {
+			next = "answered without a commit"
+		}
+		out = append(out, fmt.Sprintf("- round %d: %d blocking, %s", i+1, b, next))
+	}
+	return out
+}
+
+// pullRequest is the current pull request and its thread, compacted
+// (section 7.3): the entries not the swarm's always, the swarm's from the
+// worker's newest report on, and the swarm reviewers' reviews as shown
+// says.
 func (j *Job) pullRequest(p forge.Pull) string {
 	type item struct {
 		at   time.Time
 		text string
 	}
 	var items []item
+	var lines []string
 	if j.Pull != nil {
+		answers := Answers(pullComments(j.Pull.Comments), j.SwarmLogin)
+		rounds := roundsOf(j.Pull.Reviews, answers, j.SwarmLogin)
+		modes := j.shown(rounds, roundKey{p.HeadSHA, len(answers)})
+		lines = roundLines(rounds, modes)
+		mode := map[roundKey]int{}
+		for i, rd := range rounds {
+			mode[rd.roundKey] = modes[i]
+		}
+		report := j.newestReport(p)
+		// A swarm comment older than the newest report is the history the
+		// round lines summarise.
+		swarmOld := func(e Entry) bool {
+			_, swarm := Swarms(e, j.SwarmLogin)
+			return swarm && e.Created.Before(report)
+		}
 		for _, c := range j.Pull.Comments {
-			items = append(items, item{c.Created, j.entry(3, Entry{c.Author, c.Body, c.Created}, "")})
+			if e := (Entry{c.Author, c.Body, c.Created}); !swarmOld(e) {
+				items = append(items, item{c.Created, j.entry(3, e, "")})
+			}
 		}
 		for _, r := range j.Pull.Reviews {
 			e := Entry{r.Author, r.Body, r.Submitted}
 			m, swarm := Swarms(e, j.SwarmLogin)
-			if swarm && r.Commit == p.HeadSHA && (j.Role == "adversary" || j.Role == "sympathetic") && m.Role != j.Role && (m.Role == "adversary" || m.Role == "sympathetic") {
-				continue // the other reviewer's review of this head
-			}
 			verdict := stateName(r.State)
 			if swarm {
 				verdict = verdictOf(swarmText(r.Body))
 			}
-			items = append(items, item{r.Submitted, j.entry(3, e, fmt.Sprintf(", on %s: %s", r.Commit, verdict))})
+			suffix := fmt.Sprintf(", on %s: %s", r.Commit, verdict)
+			md := roundFull // a review not the swarm's reviewers' is in no round
+			if swarm && (m.Role == "adversary" || m.Role == "sympathetic") {
+				md = mode[keyOf(r, answers)]
+			}
+			switch md {
+			case roundFindings:
+				items = append(items, item{r.Submitted, doc(fmt.Sprintf("### %s, run %d, at %s%s", m.Role, m.Run, stamp(r.Submitted), suffix), strings.Join(blockingLines(swarmText(r.Body)), "\n"))})
+			case roundFull:
+				items = append(items, item{r.Submitted, j.entry(3, e, suffix)})
+			}
 		}
 		for _, l := range j.Pull.Lines {
-			items = append(items, item{l.Created, j.entry(3, Entry{l.Author, l.Body, l.Created}, fmt.Sprintf(", on %s:%d at %s", l.Path, l.Line, l.Commit))})
+			if e := (Entry{l.Author, l.Body, l.Created}); !swarmOld(e) {
+				items = append(items, item{l.Created, j.entry(3, e, fmt.Sprintf(", on %s:%d at %s", l.Path, l.Line, l.Commit))})
+			}
 		}
 	}
 	slices.SortStableFunc(items, func(a, b item) int { return a.at.Compare(b.at) })
@@ -451,8 +551,31 @@ func (j *Job) pullRequest(p forge.Pull) string {
 	} else if !j.trusted(p.Author) {
 		body = fmt.Sprintf("Opened by %s, not trusted; content omitted.", p.Author)
 	}
+	earlier := ""
+	if len(lines) > 0 {
+		earlier = "## Earlier rounds\n\n" + strings.Join(lines, "\n")
+	}
 	return doc(fmt.Sprintf("# Pull request %s#%d: %s", p.Repo, p.Number, p.Title),
-		fmt.Sprintf("Branch %s into %s; head %s.", p.Head, p.Base, p.HeadSHA), Shift(trim(body), 1), "## Thread", orNone(thread))
+		fmt.Sprintf("Branch %s into %s; head %s.", p.Head, p.Base, p.HeadSHA), Shift(trim(body), 1), earlier, "## Thread", orNone(thread))
+}
+
+// newestReport is when the worker's newest report was posted: the newest
+// of the pull request's entries that are the swarm's and marked
+// role=worker, its body (the description) or a comment (a revision's
+// report, an answer without a commit, a BLOCKED:); zero when there is
+// none.
+func (j *Job) newestReport(p forge.Pull) time.Time {
+	var at time.Time
+	entries := []Entry{{p.Author, p.Body, p.Created}}
+	if j.Pull != nil {
+		entries = append(entries, pullComments(j.Pull.Comments)...)
+	}
+	for _, e := range entries {
+		if m, ok := Swarms(e, j.SwarmLogin); ok && m.Role == "worker" && !e.Created.Before(at) {
+			at = e.Created
+		}
+	}
+	return at
 }
 
 func (b *Batch) sections(j *Job) []string {
