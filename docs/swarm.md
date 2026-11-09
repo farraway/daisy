@@ -3261,7 +3261,7 @@ told to read it, its run `notes unchanged`; a worker's copy read-only,
 its prompt with the line and no section, and its mount point not on its
 branch; `TestSwarmApplyResearchWikiMerges`: the maintainer's edit of
 another page during the run kept under the run's commit, an edit of the
-same page a conflict pushed to `swarm/notes-1-architect-1` with the
+same page a conflict pushed to the `swarm/notes-<n>-<role>-<k>` branch with the
 warning, a secret in a note not pushed and the copy kept, and a wiki
 that cannot be cloned ending the pass with what to do). Not
 established: a Gitea wiki under the swarm's token (its clone and push
