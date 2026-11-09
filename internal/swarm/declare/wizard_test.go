@@ -160,10 +160,10 @@ func TestWizardMovesARoleToXAI(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := (*asked)[6+4*4 : 6+5*4]; !reflect.DeepEqual(got, []string{"sympathetic provider (anthropic, openai, xai) [anthropic]: ",
-		"sympathetic model [grok-4.5]: ", "sympathetic effort [high]: ", "sympathetic co-author (- for none) [grok-4.5 <noreply@x.ai>]: "}) {
+		"sympathetic model [grok-4.7]: ", "sympathetic effort [high]: ", "sympathetic co-author (- for none) [grok-4.7 <noreply@x.ai>]: "}) {
 		t.Errorf("asked %q", got)
 	}
-	if c.Personas["sympathetic"] != (Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}) {
+	if c.Personas["sympathetic"] != (Persona{Provider: "xai", Model: "grok-4.7", Effort: "high", CoAuthor: "grok-4.7 <noreply@x.ai>"}) {
 		t.Errorf("sympathetic %+v", c.Personas["sympathetic"])
 	}
 	if k := c.Keys["xai"]; k.Env == nil || *k.Env != "XAI_API_KEY" || k.Slots != nil || len(c.Keys) != 3 {

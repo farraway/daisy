@@ -41,7 +41,7 @@ var providerDefaults = map[string]struct {
 }{
 	"anthropic": {model: "claude-opus-5-5", env: "CLAUDE_CODE_OAUTH_TOKEN"},
 	"openai":    {model: "gpt-6.1-sol", slots: 1},
-	"xai":       {model: "grok-4.5", env: "XAI_API_KEY"},
+	"xai":       {model: "grok-4.7", env: "XAI_API_KEY"},
 }
 
 // defaultKey is provider's credential in providerDefaults.

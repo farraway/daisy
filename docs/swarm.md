@@ -2324,7 +2324,7 @@ permission checks off. `grok` 1.0.70's form comes from its `--help`, its
 `help` and the user guide it ships (headless mode, authentication), not
 from a run: the first `xai` run (Step 22's smoke) is to confirm that
 `--reasoning-effort` is accepted for the persona's model (a model takes
-only the levels its menu lists; `grok-4.5` is the guide's default model),
+only the levels its menu lists; `grok-4.7` is the CLI's default model),
 that `--add-dir` beside `--trust` is not refused, the result's fields
 above, and that the reviewer writes `out.md`. `--no-subagents` keeps the
 run one agent, whose usage the result reports whole (a subagent's can be
