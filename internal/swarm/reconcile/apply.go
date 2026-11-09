@@ -115,8 +115,8 @@ func (s *Swarm) Pass(wait bool) error {
 						return err
 					}
 				}
-				if s.Cfg.Wiki {
-					w, err := s.wiki()
+				if s.Cfg.KeepsNotes() {
+					w, err := s.notesRepo()
 					if err == nil {
 						err = w.Refresh()
 					}

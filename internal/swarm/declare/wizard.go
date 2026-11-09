@@ -65,6 +65,7 @@ type Wizard struct {
 	WS       string
 	Defaults bool
 	File     *Config
+	own      bool // question 4's follow-up: the issues repository is the swarm's own
 }
 
 // ask puts one question until take accepts the answer (or the default).
@@ -139,6 +140,7 @@ func (w *Wizard) Ask() (Config, error) {
 				return nil
 			})
 		},
+		func() error { return w.askOwn(c) },
 		func() error {
 			return w.ask("Token variable", w.forgeDefault(origins[0], c.Forge.Kind).TokenEnv, func(a string) *Error {
 				c.Forge.TokenEnv = a
@@ -187,7 +189,7 @@ func (w *Wizard) Ask() (Config, error) {
 			return w.ask("Interval", c.Interval, func(a string) *Error { c.Interval = a; return checkDuration("interval", a) })
 		},
 		func() error {
-			return w.ask("Resources (comma-separated workspace paths, - for none)", listDefault(c.Resources), func(a string) *Error {
+			return w.ask("Resources (comma-separated workspace paths, - for none)", listDefault(w.resources(c)), func(a string) *Error {
 				c.Resources = list(a)
 				return checkResources(w.Ops, w.WS, c.Resources)
 			})
@@ -236,21 +238,89 @@ func (w *Wizard) AskAccount(c *Config, login, email string) error {
 	return w.ask("Commit email", email, func(a string) *Error { c.Forge.CommitEmail = a; return checkCommitEmail(a) })
 }
 
-// AskWiki is question 35: whether the swarm keeps its research notes in
-// the issues repository's wiki (section 3, wiki), the file's answer the
-// default, else no.
-func (w *Wizard) AskWiki(c *Config) error {
+// askOwn is question 4's follow-up, asked when the issues repository is
+// none of the declared ones: whether it is the swarm's own, holding no
+// product code; the default yes when the file keeps its notes there or a
+// clone of it lies directly in the workspace, else no.
+func (w *Wizard) askOwn(c Config) error {
+	w.own = false
+	if _, ok := c.Declares(c.Forge.Repo); ok {
+		return nil
+	}
 	def := "no"
-	if c.Wiki {
+	if (w.File != nil && w.File.Notes) || w.issuesClone(c) != "" {
 		def = "yes"
 	}
-	return w.ask("Research wiki, the issues repository's wiki (yes, no)", def, func(a string) *Error {
+	return w.ask("Issues repository "+c.Forge.Repo+": the swarm's own, holding no product code (yes, no)", def, func(a string) *Error {
 		switch a {
 		case "yes", "no":
-			c.Wiki = a == "yes"
+			w.own = a == "yes"
 			return nil
 		}
-		return fieldErr("wiki", "%q is not yes or no", a)
+		return fieldErr("forge.repo", "%q is not yes or no", a)
+	})
+}
+
+// issuesClone is the directory directly under the workspace whose origin
+// is the issues repository on the forge's host, "" for none.
+func (w *Wizard) issuesClone(c Config) string {
+	entries, _ := w.Ops.FS().ReadDir(w.WS)
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		o, _, err := checkRepoPath(w.Ops, w.WS, "", e.Name())
+		if err == nil && strings.EqualFold(o.Host, c.Forge.Host()) && strings.EqualFold(o.Owner+"/"+o.Repo, c.Forge.Repo) {
+			return e.Name()
+		}
+	}
+	return ""
+}
+
+// resources is question 32's default: the file's resources, else
+// section 3's; and, for the swarm's own issues repository, its clone's
+// briefs/ when the clone lies in the workspace, holds that directory and
+// no resource names it yet.
+func (w *Wizard) resources(c Config) []string {
+	out := slices.Clone(c.Resources)
+	clone := w.issuesClone(c)
+	if !w.own || clone == "" {
+		return out
+	}
+	briefs := clone + "/briefs/"
+	if fi, err := w.Ops.FS().Stat(filepath.Join(w.WS, briefs)); err != nil || !fi.IsDir() {
+		return out
+	}
+	if slices.ContainsFunc(out, func(r string) bool { return filepath.Clean(r) == filepath.Clean(briefs) }) {
+		return out
+	}
+	return append(out, briefs)
+}
+
+// AskNotes is question 35: where the swarm keeps its research notes. For
+// the swarm's own issues repository (question 4's follow-up), whether in
+// its notes/ (section 3, notes); for any other, whether in the issues
+// repository's wiki (section 3, wiki). The file's answer is the default,
+// else no; the other field is cleared.
+func (w *Wizard) AskNotes(c *Config) error {
+	question, field, keep := "Research wiki, the issues repository's wiki (yes, no)", "wiki", &c.Wiki
+	if w.own {
+		question, field, keep = "Research notes, in "+c.Forge.Repo+"'s notes/ (yes, no)", "notes", &c.Notes
+		c.Wiki = false
+	} else {
+		c.Notes = false
+	}
+	def := "no"
+	if *keep {
+		def = "yes"
+	}
+	return w.ask(question, def, func(a string) *Error {
+		switch a {
+		case "yes", "no":
+			*keep = a == "yes"
+			return nil
+		}
+		return fieldErr(field, "%q is not yes or no", a)
 	})
 }
 

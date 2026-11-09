@@ -178,16 +178,16 @@ func (c *collection) end(outcome string) error {
 	c.s.collected++
 	c.s.newFault = c.s.newFault || outcome == "fault"
 	delete(c.s.given, c.r.Dir)
-	return errors.Join(fs.RemoveAll(filepath.Join(c.r.Dir, "work")), fs.RemoveAll(filepath.Join(c.r.Dir, "check")), c.dropWiki())
+	return errors.Join(fs.RemoveAll(filepath.Join(c.r.Dir, "work")), fs.RemoveAll(filepath.Join(c.r.Dir, "check")), c.dropNotes())
 }
 
-// dropWiki removes the run's copy of the wiki, kept when its notes were
-// not pushed (`notes kept`), for the maintainer.
-func (c *collection) dropWiki() error {
+// dropNotes removes the run's copy of the notes, kept when they were not
+// pushed (`notes kept`), for the maintainer.
+func (c *collection) dropNotes() error {
 	if _, kept := Has(c.lines, "notes kept"); kept {
 		return nil
 	}
-	return c.s.O.FS().RemoveAll(filepath.Join(c.r.Dir, "wiki"))
+	return c.s.O.FS().RemoveAll(filepath.Join(c.r.Dir, "notes"))
 }
 
 // say posts text marked for role and this run at at, unless existing (its
@@ -293,7 +293,7 @@ func (c *collection) abandoned() error {
 	if err := c.r.Append(fs, "outcome abandoned", "collected"); err != nil {
 		return err
 	}
-	return errors.Join(fs.RemoveAll(filepath.Join(c.r.Dir, "work")), c.dropWiki())
+	return errors.Join(fs.RemoveAll(filepath.Join(c.r.Dir, "work")), c.dropNotes())
 }
 
 // block is T17, swarm:blocked being a flag: the issue taken back home,

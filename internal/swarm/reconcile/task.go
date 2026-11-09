@@ -87,7 +87,7 @@ func (j *Job) task() string {
 			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since ("git diff %s..HEAD").`, r, prev, prev)
 		}
 	}
-	if j.Cfg.Wiki && writesNotes(j.Role) {
+	if j.Cfg.KeepsNotes() && writesNotes(j.Role) {
 		add("%s", j.notesTask())
 	}
 	if (j.Role == "architect" || j.Role == "worker") && j.Batch == nil {

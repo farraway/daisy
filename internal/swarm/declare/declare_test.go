@@ -159,6 +159,10 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: resources[0]: "app/.git/hooks" contains .git`, func(c *Config) { c.Resources = []string{"app/.git/hooks"} }},
 		{`swarm.json: resources[0]: "swarm/notes" is under swarm/`, func(c *Config) { c.Resources = []string{"swarm/notes"} }},
 		{`swarm.json: resources[1]: "docs-link" is listed twice`, func(c *Config) { c.Resources = []string{"docs/", "docs-link"} }},
+		{`swarm.json: wiki: true beside notes; the swarm's own repository keeps its notes in notes/, and its wiki is no better than its tree`, func(c *Config) {
+			c.Forge.Repo, c.Wiki, c.Notes = "acme/swarm-x", true, true
+		}},
+		{`swarm.json: notes: acme/lib is a declared repository, which holds product code; notes/ is for the swarm's own issues repository (wiki keeps a product's)`, func(c *Config) { c.Forge.Repo, c.Notes = "acme/lib", true }},
 		{`swarm.json: trusted: no login (at least one is required)`, func(c *Config) { c.Trusted = nil }},
 		{`swarm.json: trusted[1]: "jane doe" is not a forge login`, func(c *Config) { c.Trusted = []string{"swarm-bot", "jane doe"} }},
 		{`swarm.json: budget: missing (required when a gate is false)`, func(c *Config) { c.Gates.Merge = false }},
@@ -339,6 +343,39 @@ func TestFormatWiki(t *testing.T) {
 	}
 	if _, err := Parse([]byte(strings.Replace(out, `"wiki": true`, `"wiki": null`, 1))); errText(err) != "swarm.json: wiki: null is not a boolean" {
 		t.Errorf("null: %v", err)
+	}
+}
+
+// The swarm's own issues repository (section 3, notes): its clone in the
+// workspace, none of repos, holds the briefs under briefs/, a resource
+// like any other, and is no product repository (Declares finds it not, so
+// no mirror, worker, check or image is its); notes: true is valid for it,
+// written after wiki's place and read back.
+func TestOwnIssuesRepository(t *testing.T) {
+	ws := workspace(t)
+	gitRepo(t, filepath.Join(ws, "swarm-x"), "git@forge.example.net:acme/swarm-x.git")
+	write(t, filepath.Join(ws, "swarm-x", "briefs", "m0.md"), "Status: active\n\n## M1\n")
+	c := valid()
+	c.Forge.Repo, c.Notes, c.Resources = "acme/swarm-x", true, []string{"docs/", "swarm-x/briefs/"}
+	if err := Validate(ops.Real(), ws, c, 0); err != nil {
+		t.Fatalf("own issues repository: %v", err)
+	}
+	if _, ok := c.Declares(c.Forge.Repo); ok || len(c.Repos) != 2 || !c.KeepsNotes() {
+		t.Errorf("the issues repository declared: %+v", c.Repos)
+	}
+	if r, ok := c.Declares("acme/lib"); !ok || r.Path != "lib" {
+		t.Errorf("Declares(acme/lib) = %+v, %v", r, ok)
+	}
+	out := string(Format(c))
+	if !strings.Contains(out, `  "resources": ["docs/", "swarm-x/briefs/"],`+"\n"+`  "notes": true,`+"\n"+`  "trusted": `) {
+		t.Errorf("Format:\n%s", out)
+	}
+	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("round trip: %v", err)
+	}
+	c.Notes = false
+	if strings.Contains(string(Format(c)), "notes") {
+		t.Errorf("notes written while false:\n%s", Format(c))
 	}
 }
 

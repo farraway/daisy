@@ -290,25 +290,99 @@ func TestWizardAccountQuestions(t *testing.T) {
 	}
 }
 
-// Question 35: the file's answer the default, else no; anything but yes
-// or no asked again; --defaults keeps the file's.
+// Question 35 for a product issues repository, the wiki: the file's
+// answer the default, else no; anything but yes or no asked again;
+// --defaults keeps the file's; notes cleared.
 func TestWizardWiki(t *testing.T) {
 	o, asked := scripted("", "maybe", "yes")
 	var errb bytes.Buffer
 	c := valid()
+	c.Notes = true
 	w := &Wizard{Ops: o, Err: &errb}
-	if err := w.AskWiki(&c); err != nil || c.Wiki {
-		t.Fatalf("default: %v %v", err, c.Wiki)
+	if err := w.AskNotes(&c); err != nil || c.Wiki || c.Notes {
+		t.Fatalf("default: %v %v %v", err, c.Wiki, c.Notes)
 	}
-	if err := w.AskWiki(&c); err != nil || !c.Wiki {
+	if err := w.AskNotes(&c); err != nil || !c.Wiki {
 		t.Fatalf("yes: %v %v", err, c.Wiki)
 	}
 	if (*asked)[0] != "Research wiki, the issues repository's wiki (yes, no) [no]: " || len(*asked) != 3 || !strings.Contains(errb.String(), "[no]: swarm.json: wiki: \"maybe\" is not yes or no\nResearch wiki") {
 		t.Errorf("asked %q, stderr %q", *asked, errb.String())
 	}
 	w = &Wizard{Ops: o, Err: io.Discard, Defaults: true}
-	if err := w.AskWiki(&c); err != nil || !c.Wiki {
+	if err := w.AskNotes(&c); err != nil || !c.Wiki {
 		t.Errorf("--defaults with the file's yes: %v %v", err, c.Wiki)
+	}
+}
+
+// The swarm's own issues repository (section 11, question 4's follow-up
+// and question 35), its clone left out of question 1's answer, as no
+// product repository: an issues repository none of the declared ones is
+// asked about, yes by default when its clone lies in the workspace; yes
+// adds the clone's briefs/ to the resources' default and asks for notes
+// in place of the wiki; no asks for the wiki; a declared one asks
+// neither follow-up.
+func TestWizardOwnIssuesRepository(t *testing.T) {
+	ws := bareWorkspace(t)
+	gitRepo(t, filepath.Join(ws, "swarm-x"), "git@forge.example.net:acme/swarm-x.git")
+	os.MkdirAll(filepath.Join(ws, "swarm-x", "briefs"), 0o755)
+	answers := func(issues, own string) []string {
+		a := []string{"app, lib", "", "", issues}
+		if own != "-" {
+			a = append(a, own)
+		}
+		return append(a, make([]string, 40)...)
+	}
+	for _, tc := range []struct {
+		name, issues, own string
+		resources         []string
+		last              string
+		notes, wiki       bool
+	}{
+		{name: "own", issues: "acme/swarm-x", own: "", resources: []string{"docs/", "swarm-x/briefs/"}, last: "Research notes, in acme/swarm-x's notes/ (yes, no) [no]: ", notes: true},
+		{name: "not own", issues: "acme/swarm-x", own: "no", resources: []string{"docs/"}, last: "Research wiki, the issues repository's wiki (yes, no) [no]: ", wiki: true},
+		{name: "declared", issues: "acme/lib", own: "-", resources: []string{"docs/"}, last: "Research wiki, the issues repository's wiki (yes, no) [no]: ", wiki: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			o, asked := scripted(answers(tc.issues, tc.own)...)
+			w := &Wizard{Ops: o, Err: io.Discard, WS: ws}
+			c, err := w.Ask()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(c.Resources, tc.resources) {
+				t.Errorf("resources %q, want %q", c.Resources, tc.resources)
+			}
+			ownQ := "Issues repository acme/swarm-x: the swarm's own, holding no product code (yes, no) [yes]: "
+			if got := (*asked)[4]; (tc.own != "-") != (got == ownQ) {
+				t.Errorf("question 5 asked %q", got)
+			}
+			if got := (*asked)[len(*asked)-1]; !strings.HasPrefix(got, "Resources (comma-separated workspace paths, - for none) [") {
+				t.Errorf("the last of Ask: %q", got)
+			}
+			o.PromptFn = func(_ io.Reader, _ io.Writer, q string) (string, error) {
+				*asked = append(*asked, q)
+				return "yes", nil
+			}
+			if err := w.AskNotes(&c); err != nil || c.Notes != tc.notes || c.Wiki != tc.wiki || (*asked)[len(*asked)-1] != tc.last {
+				t.Errorf("question 35 %q: %v notes %v wiki %v", (*asked)[len(*asked)-1], err, c.Notes, c.Wiki)
+			}
+		})
+	}
+
+	// Its default: yes for a file keeping its notes there, the clone gone.
+	os.RemoveAll(filepath.Join(ws, "swarm-x"))
+	file := valid()
+	file.Forge.Repo, file.Notes = "acme/swarm-x", true
+	o, asked := scripted(make([]string, 40)...)
+	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	if _, err := w.Ask(); err != nil || (*asked)[4] != "Issues repository acme/swarm-x: the swarm's own, holding no product code (yes, no) [yes]: " {
+		t.Errorf("the file's own: %v %q", err, (*asked)[4])
+	}
+	o, asked = scripted("app, lib", "", "", "acme/elsewhere", "maybe", "")
+	w = &Wizard{Ops: o, Err: io.Discard, WS: ws}
+	w.Ask()
+	if (*asked)[4] != "Issues repository acme/elsewhere: the swarm's own, holding no product code (yes, no) [no]: " || (*asked)[5] != (*asked)[4] {
+		t.Errorf("no clone, no file: %q", *asked)
 	}
 }
 

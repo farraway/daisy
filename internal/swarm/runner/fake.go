@@ -13,15 +13,16 @@ import (
 
 // Canned is one scripted run: what the member writes to out.md ("" writes
 // nothing), what it does in its clone (Work, given the directory mounted
-// at /work: a worker's commits) and in its copy of the wiki (Wiki, given
-// the directory mounted at /work/.wiki: an architect's notes), its exit
+// at /work: a worker's commits) and in its copy of the research notes
+// (Notes, given the directory mounted at /work/.notes: an architect's
+// notes), its exit
 // status, its standard output and error, and whether the wall clock
 // stopped it. A check is scripted the same way under the role "check",
 // its Stdout and Stderr its output.
 type Canned struct {
 	Out            string
 	Work           func(work string) error
-	Wiki           func(wiki string) error
+	Notes          func(notes string) error
 	Code           int
 	Stdout, Stderr string
 	TimedOut       bool
@@ -89,8 +90,8 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 			if err := c.Work(m.Src); err != nil {
 				return nil, err
 			}
-		case m.Dst == "/work/.wiki" && c.Wiki != nil:
-			if err := c.Wiki(m.Src); err != nil {
+		case m.Dst == "/work/.notes" && c.Notes != nil:
+			if err := c.Notes(m.Src); err != nil {
 				return nil, err
 			}
 		}

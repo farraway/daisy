@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ type statusWS struct {
 	local     string
 	docker    string // docker ps's stdout
 	dockerErr bool
+	issues    string // the issues repository's name, when not app
 }
 
 func newStatusWS(t *testing.T) *statusWS {
@@ -46,7 +48,7 @@ func (s *statusWS) edit(edit func(c *declare.Config)) {
 }
 
 func (s *statusWS) state(rel string) string {
-	return filepath.Join(s.local, "swarm", "forge.example.net", "acme", "app", rel)
+	return filepath.Join(s.local, "swarm", "forge.example.net", "acme", cmp.Or(s.issues, "app"), rel)
 }
 
 // status is `swarm status` under ReadOnly, as the cli runs it, over the

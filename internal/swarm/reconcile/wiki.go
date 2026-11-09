@@ -11,24 +11,27 @@ import (
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/brief"
+	"daisy/internal/swarm/declare"
 )
 
-// The research wiki (section 7.3, # Research notes; section 7.6, The
-// notes): the issues repository's wiki, declared by `wiki` (section 3),
-// cloned on the host at <state>/wiki, copied into each run as <run>/wiki
-// and mounted at /work/.wiki, writable for the owner and the architect,
-// whose changes Daisy commits and pushes after the run.
+// The research notes (section 7.3, # Research notes; section 7.6, The
+// notes): with `wiki`, the issues repository's wiki; with `notes`, the
+// notes/ directory of the swarm's own issues repository (section 3).
+// Either is cloned on the host (<state>/wiki, <state>/notes), its notes
+// copied into each run as <run>/notes and mounted at /work/.notes,
+// writable for the owner and the architect, whose changes Daisy commits
+// and pushes after the run.
 
-// WikiMount is where a run's copy of the wiki is mounted.
-const WikiMount = "/work/.wiki"
+// NotesMount is where a run's copy of the notes is mounted.
+const NotesMount = "/work/.notes"
 
-// writesNotes: the role's copy of the wiki is writable, and its changes
+// writesNotes: the role's copy of the notes is writable, and its changes
 // are pushed (section 7.2).
 func writesNotes(role string) bool { return role == "owner" || role == "architect" }
 
-// Note is one research note: a page at the wiki's top whose header (the
-// lines before its first `## ` heading, as a brief's) holds a Subject:
-// and a Source: line.
+// Note is one research note: a file at the top of the notes whose header
+// (the lines before its first `## ` heading, as a brief's) holds a
+// Subject: and a Source: line.
 type Note struct {
 	File                              string // the page's file name
 	Subject, Source, Written, Checked string
@@ -44,8 +47,9 @@ func (n Note) Pin() string {
 	return ""
 }
 
-// ReadNotes is every note at the top of the wiki copy dir, by file name;
-// a link or a page without Subject: and Source: is no note.
+// ReadNotes is every note at the top of the notes' copy dir, by file
+// name; a link or a file without Subject: and Source: (a README) is no
+// note.
 func ReadNotes(fs ops.FS, dir string) ([]Note, error) {
 	entries, err := fs.ReadDir(dir)
 	if err != nil {
@@ -132,7 +136,7 @@ func (j *Job) notes() string {
 		if n.Checked != "" {
 			checked = "checked " + n.Checked + age(n.Checked, j.Time)
 		}
-		out = append(out, fmt.Sprintf("- %s/%s: %s; %s; %s; %s", WikiMount, n.File, n.Subject, src, written, checked))
+		out = append(out, fmt.Sprintf("- %s/%s: %s; %s; %s; %s", NotesMount, n.File, n.Subject, src, written, checked))
 	}
 	if len(out) == 0 {
 		return "None."
@@ -160,8 +164,17 @@ func age(date string, now time.Time) string {
 	}
 }
 
+// notesHome is where the notes are pushed, as the # Repository line names
+// it: the wiki, or notes/ in the swarm's own issues repository.
+func notesHome(c declare.Config) string {
+	if c.Notes {
+		return "notes/ in " + c.Forge.Repo
+	}
+	return "the wiki"
+}
+
 // notesTask is the Task text's sentences for a run whose copy of the
-// wiki is writable (section 7.4).
+// notes is writable (section 7.4).
 func (j *Job) notesTask() string {
 	by := fmt.Sprintf("%s run %d on #%d", j.Role, j.K, j.N)
 	if j.Batch != nil {
@@ -169,63 +182,81 @@ func (j *Job) notesTask() string {
 	}
 	date := j.Time.UTC().Format("2006-01-02")
 	t := fmt.Sprintf(`Before you research a source, read its note if "# Research notes" lists one: the note names the commit or tag it describes and, for a declared repository, how many commits it has moved since; trust it as far as that and its date allow, and check what changed rather than research it again. When you research a source other jobs may need (a library, an upstream release, a part of a declared repository this job does not change) and no note covers it at the commit you read, write what you found as a note: a file %s/<Subject-with-dashes>.md beginning with the lines "Subject: <what it describes>", "Source: <a declared repository's name, one of %s, or a URL> <the commit or tag you read>", "Written: %s by %s" and "Checked: %s", then a blank line and your findings under "## " headings. When you re-check a note, update its findings, its Source pin and its Checked line in place, keeping its Written line.`,
-		WikiMount, strings.Join(j.names(), ", "), date, by, date)
+		NotesMount, strings.Join(j.names(), ", "), date, by, date)
 	if j.Role == "architect" {
 		t += ` Your plan's "## Research" then names the note rather than repeating it.`
 	}
-	return t + ` Daisy commits and pushes ` + WikiMount + ` after the run; delete no page.`
+	return t + ` Daisy commits and pushes ` + NotesMount + ` after the run; delete no note.`
 }
 
-// WikiURL is the wiki's git URL beside origin, the first declared
-// repository's: `<owner>/<repo>.wiki.git` on the same remote, `<repo>`
-// the issues repository's name (section 14, item 7: one owner).
-func WikiURL(origin, issues string) string {
+// RepoURL is the git URL of the repository `<owner>/<repo>` beside
+// origin, the first declared repository's: its last element replaced by
+// `<repo>.git` (section 14, item 7: one owner). The wiki's repo is
+// `<issues-repo>.wiki`.
+func RepoURL(origin, repo string) string {
 	u := strings.TrimRight(origin, "/")
-	return u[:strings.LastIndexAny(u, "/:")+1] + issues + ".wiki.git"
+	return u[:strings.LastIndexAny(u, "/:")+1] + repo + ".git"
 }
 
-// Wiki is the host's clone of the wiki, <state>/wiki: never mounted, the
-// only wiki repository host git writes, reached over the first declared
-// repository's remote with its core.sshCommand.
-type Wiki struct {
+// NotesRepo is the host's clone of the repository the notes live in, never
+// mounted, the only one host git writes besides the mirrors, reached over
+// the first declared repository's remote with its core.sshCommand: with
+// `wiki`, the issues repository's wiki at <state>/wiki, its notes its top;
+// with `notes`, the issues repository itself at <state>/notes, its notes
+// its notes/ directory.
+type NotesRepo struct {
 	Git
 	URL  string
 	Opts []string
+	Name string // the repository as a warning names it
+	Sub  string // the notes' directory in the tree, "" for its top
+	dir  string
 }
 
-func (s *Swarm) wiki() (Wiki, error) {
+func (s *Swarm) notesRepo() (NotesRepo, error) {
 	url, opts, err := s.git().origin(s.Cfg.Repos[0])
 	if err != nil {
-		return Wiki{}, err
+		return NotesRepo{}, err
 	}
-	return Wiki{Git: s.git(), URL: WikiURL(url, repoName(s.Cfg.Forge.Repo)), Opts: opts}, nil
+	issues := repoName(s.Cfg.Forge.Repo)
+	if s.Cfg.Notes {
+		return NotesRepo{Git: s.git(), URL: RepoURL(url, issues), Opts: opts, Name: s.Cfg.Forge.Repo, Sub: "notes", dir: "notes"}, nil
+	}
+	return NotesRepo{Git: s.git(), URL: RepoURL(url, issues+".wiki"), Opts: opts, Name: "the wiki", dir: "wiki"}, nil
 }
 
 // Dir is the host's clone.
-func (w Wiki) Dir() string { return filepath.Join(w.State, "wiki") }
+func (w NotesRepo) Dir() string { return filepath.Join(w.State, w.dir) }
 
-func (w Wiki) remote(dir string, args ...string) (string, error) {
+// notes is the notes' directory in the clone.
+func (w NotesRepo) notes() string { return filepath.Join(w.Dir(), w.Sub) }
+
+func (w NotesRepo) remote(dir string, args ...string) (string, error) {
 	return w.run(dir, append(slices.Clone(w.Opts), args...)...)
 }
 
-// branch is the wiki's branch, the one its clone checked out.
-func (w Wiki) branch() (string, error) { return w.run(w.Dir(), "symbolic-ref", "--short", "HEAD") }
+// branch is the branch the notes are pushed to, the one the clone checked
+// out: the forge's default.
+func (w NotesRepo) branch() (string, error) { return w.run(w.Dir(), "symbolic-ref", "--short", "HEAD") }
 
-func (w Wiki) fetch() error {
+func (w NotesRepo) fetch() error {
 	_, err := w.remote(w.Dir(), "fetch", "--quiet", "--prune", w.URL, "+refs/heads/*:refs/remotes/origin/*")
 	return err
 }
 
-// Refresh brings the clone to the wiki's head as the forge has it, cloning
-// it when absent (section 7.1, step 1): once a pass, before its first
-// launch, so every run of the pass is given the same notes.
-func (w Wiki) Refresh() error {
+// Refresh brings the clone to the branch's head as the forge has it,
+// cloning it when absent (section 7.1, step 1): once a pass, before its
+// first launch, so every run of the pass is given the same notes.
+func (w NotesRepo) Refresh() error {
 	fs := w.O.FS()
 	if _, err := fs.Stat(filepath.Join(w.Dir(), ".git")); err != nil {
 		if err := fs.RemoveAll(w.Dir()); err != nil {
 			return err
 		}
 		if _, err := w.remote("", "clone", "--quiet", w.URL, w.Dir()); err != nil {
+			if w.Sub != "" {
+				return fmt.Errorf("notes %s: %v; give the swarm's key read and write access to %s", w.URL, err, w.Name)
+			}
 			return fmt.Errorf("wiki %s: %v; enable the issues repository's wiki and create its first page", w.URL, err)
 		}
 	}
@@ -240,7 +271,7 @@ func (w Wiki) Refresh() error {
 }
 
 // reset makes the clone's tree the commit's, nothing else in it.
-func (w Wiki) reset(commit string) error {
+func (w NotesRepo) reset(commit string) error {
 	if _, err := w.run(w.Dir(), "reset", "--quiet", "--hard", commit); err != nil {
 		return err
 	}
@@ -248,28 +279,34 @@ func (w Wiki) reset(commit string) error {
 	return err
 }
 
-// Export copies the clone's tree, without its .git, to dst, the run's
-// copy (section 7.1, step 3), and is its commit.
-func (w Wiki) Export(dst string) (string, error) {
+// Export copies the clone's notes, without a .git, to dst, the run's copy
+// (section 7.1, step 3), and is the clone's commit; notes/ absent, or not
+// a directory (a link is never followed), is an empty copy.
+func (w NotesRepo) Export(dst string) (string, error) {
 	sha, err := w.run(w.Dir(), "rev-parse", "HEAD")
 	if err != nil {
 		return "", err
 	}
-	return sha, copyTree(w.O.FS(), w.Dir(), dst)
+	fs := w.O.FS()
+	if fi, err := fs.Lstat(w.notes()); err != nil || !fi.IsDir() {
+		return sha, fs.MkdirAll(dst, 0o755)
+	}
+	return sha, copyTree(fs, w.notes(), dst)
 }
 
-// Publish is the wiki step (section 7.6, The notes): src, the run's copy,
-// copied over the clone at base, the commit it was given (a page added or
-// changed, none deleted); nothing changed is `notes unchanged`; a changed
-// page holding a secret is not committed, `notes kept: secret in a note`;
-// else one commit by the role's identity, msg its message, put on top of
-// the wiki's head as fetched now (a cherry-pick, never a rebase) and
-// pushed to the wiki's branch, `notes pushed <sha>`; a conflict with the
-// head pushes the run's commit to the branch conflict instead, `notes
-// branch <conflict> <sha>`, and a push the forge refuses is `notes kept:
-// push rejected`. Its result is that line; an error is one that did not
-// reach the forge, to retry.
-func (w Wiki) Publish(src, base, conflict, msg, name, email string, secrets []string) (string, error) {
+// Publish is the notes step (section 7.6, The notes): src, the run's
+// copy, copied over the clone's notes at base, the commit it was given (a
+// note added or changed, none deleted); nothing changed is `notes
+// unchanged`; a changed file holding a secret is not committed, `notes
+// kept: secret in a note`, nor anything when notes/ is not a directory at
+// base (a link, a file), `notes kept: notes/ is not a directory`; else one commit by the role's identity, msg
+// its message, put on top of the branch's head as fetched now (a
+// cherry-pick, never a rebase) and pushed to the branch, `notes pushed
+// <sha>`; a conflict with the head pushes the run's commit to the branch
+// conflict instead, `notes branch <conflict> <sha>`, and a push the forge
+// refuses is `notes kept: push rejected`. Its result is that line; an
+// error is one that did not reach the forge, to retry.
+func (w NotesRepo) Publish(src, base, conflict, msg, name, email string, secrets []string) (string, error) {
 	fs := w.O.FS()
 	b, err := w.branch()
 	if err != nil {
@@ -278,7 +315,10 @@ func (w Wiki) Publish(src, base, conflict, msg, name, email string, secrets []st
 	if err := w.reset(base); err != nil {
 		return "", err
 	}
-	if err := copyTree(fs, src, w.Dir()); err != nil {
+	if fi, err := fs.Lstat(w.notes()); err == nil && !fi.IsDir() {
+		return "notes kept: notes/ is not a directory", nil // the maintainer's link or file, never replaced
+	}
+	if err := copyTree(fs, src, w.notes()); err != nil {
 		return "", err
 	}
 	if _, err := w.run(w.Dir(), "add", "--all"); err != nil {
@@ -344,9 +384,9 @@ func (w Wiki) Publish(src, base, conflict, msg, name, email string, secrets []st
 	return w.push(top, b, "notes pushed "+top)
 }
 
-// push sends commit to the wiki's branch, never forced: done is the
+// push sends commit to branch, never forced: done is the
 // result line; a refusal is `notes kept: push rejected`.
-func (w Wiki) push(commit, branch, done string) (string, error) {
+func (w NotesRepo) push(commit, branch, done string) (string, error) {
 	err := w.pushTo(w.Dir(), w.Opts, w.URL, commit+":refs/heads/"+branch)
 	switch {
 	case err == nil:
@@ -359,8 +399,8 @@ func (w Wiki) push(commit, branch, done string) (string, error) {
 
 // copyTree copies the regular files and directories under src into dst,
 // leaving out every name .git and anything else (a link, a device); a
-// file there is replaced, never written through, so a link the wiki holds
-// leads no write outside dst.
+// file there is replaced, never written through, so a link the clone
+// holds leads no write outside dst.
 func copyTree(fs ops.FS, src, dst string) error {
 	if fi, err := fs.Lstat(dst); err == nil && !fi.IsDir() {
 		if err := fs.RemoveAll(dst); err != nil {
@@ -406,19 +446,19 @@ func copyTree(fs ops.FS, src, dst string) error {
 	return nil
 }
 
-// notes is the wiki step of an owner's or architect's run whose copy of
-// the wiki was writable (section 7.6, The notes): before the run's other
+// notes is the notes step of an owner's or architect's run whose copy of
+// the notes was writable (section 7.6, The notes): before the run's other
 // steps, whatever its end, once (a `notes` line records it). It never
 // changes the run's outcome: notes, not code.
 func (c *collection) notes() error {
-	base, ok := Has(c.lines, "wiki")
+	base, ok := Has(c.lines, "notes-base")
 	if !ok || !writesNotes(c.r.Role) || Ended(c.lines) == "launch-failed" {
 		return nil
 	}
 	if _, done := Has(c.lines, "notes"); done {
 		return nil
 	}
-	w, err := c.s.wiki()
+	w, err := c.s.notesRepo()
 	if err != nil {
 		return err
 	}
@@ -431,7 +471,7 @@ func (c *collection) notes() error {
 	if co := c.s.Cfg.Personas[c.r.Role].CoAuthor; co != "" {
 		msg += "\n\nCo-Authored-By: " + co
 	}
-	line, err := w.Publish(filepath.Join(c.r.Dir, "wiki"), strings.TrimPrefix(base, "wiki "), fmt.Sprintf("swarm/notes-%d-%s-%d", c.r.N, c.r.Role, c.r.K),
+	line, err := w.Publish(filepath.Join(c.r.Dir, "notes"), strings.TrimPrefix(base, "notes-base "), fmt.Sprintf("swarm/notes-%d-%s-%d", c.r.N, c.r.Role, c.r.K),
 		msg, c.r.Role+" (Daisy swarm)", c.s.Cfg.Forge.CommitEmail, c.s.secretsOf(c.r, c.lines))
 	if err != nil {
 		return err
@@ -441,9 +481,9 @@ func (c *collection) notes() error {
 	case "pushed":
 		fmt.Fprintf(c.s.Out, "%spushed notes %s\n", c.head, short(f[2]))
 	case "branch":
-		fmt.Fprintf(c.s.Err, "⚠ %snotes conflict with the wiki's head; pushed to %s\n", c.head, f[2])
+		fmt.Fprintf(c.s.Err, "⚠ %snotes conflict with %s's head; pushed to %s\n", c.head, w.Name, f[2])
 	case "kept:":
-		fmt.Fprintf(c.s.Err, "⚠ %snotes not pushed (%s); kept in %s\n", c.head, strings.TrimPrefix(line, "notes kept: "), filepath.Join(c.r.Dir, "wiki"))
+		fmt.Fprintf(c.s.Err, "⚠ %snotes not pushed (%s); kept in %s\n", c.head, strings.TrimPrefix(line, "notes kept: "), filepath.Join(c.r.Dir, "notes"))
 	}
 	return c.step(line)
 }

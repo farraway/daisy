@@ -75,7 +75,7 @@ func boardNote(pin string) string {
 }
 
 // The claim of Step 19 (docs/swarm.md section 14, item 79): an architect
-// that researches writes a note into /work/.wiki, writable for it, which
+// that researches writes a note into /work/.notes, writable for it, which
 // Daisy commits by the role's identity with the marker in the message and
 // pushes after the run; a second architect, on another issue, is given
 // the note in its prompt's # Research notes, with the commits its source
@@ -93,7 +93,7 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 	hostFile := filepath.Join(t.TempDir(), "host.txt")
 	os.WriteFile(hostFile, []byte("the host's\n"), 0o644)
 	pwned := filepath.Join(t.TempDir(), "pwned")
-	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Wiki: func(dir string) error {
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Notes: func(dir string) error {
 		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 			t.Error("the run's copy of the wiki holds .git")
 		}
@@ -121,18 +121,18 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 		t.Errorf("the note pushed:\n%s", got)
 	}
 	result := a.result("1-architect-1")
-	if !strings.Contains(result, "\nwiki "+base+"\n") || !strings.Contains(result, "\nnotes pushed "+head+"\n") {
+	if !strings.Contains(result, "\nnotes-base "+base+"\n") || !strings.Contains(result, "\nnotes pushed "+head+"\n") {
 		t.Errorf("result:\n%s", result)
 	}
 	spec := a.runner.Launches()[0]
 	run := a.state("runs/1-architect-1")
-	if !slices.Contains(spec.Mounts, runner.Mount{Src: run + "/wiki", Dst: "/work/.wiki"}) || !slices.Contains(spec.Argv, "/work/.wiki") {
+	if !slices.Contains(spec.Mounts, runner.Mount{Src: run + "/notes", Dst: "/work/.notes"}) || !slices.Contains(spec.Argv, "/work/.notes") {
 		t.Errorf("the architect's mounts %+v, argv %q", spec.Mounts, spec.Argv)
 	}
-	if _, err := os.Stat(filepath.Join(run, "wiki")); err == nil {
+	if _, err := os.Stat(filepath.Join(run, "notes")); err == nil {
 		t.Error("the run's copy of the wiki kept after its notes were pushed")
 	}
-	if p := a.file("1-architect-1", "io/prompt.md"); !strings.Contains(p, "- Research notes: /work/.wiki, the wiki, pushed by Daisy after the run\n\n# Research notes\n\nNone.\n\n# Issue #1") {
+	if p := a.file("1-architect-1", "io/prompt.md"); !strings.Contains(p, "- Research notes: /work/.notes, the wiki, pushed by Daisy after the run\n\n# Research notes\n\nNone.\n\n# Issue #1") {
 		t.Errorf("run 1's prompt:\n%s", p)
 	}
 	if s := a.file("1-architect-1", "io/system.md"); !strings.Contains(s, `"Written: 2026-11-06 by architect run 1 on #1"`) || !strings.Contains(s, `Your plan's "## Research" then names the note`) {
@@ -145,7 +145,7 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 	a.forge.CreateIssue("Board moves", "Add moves.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(2, "architect", runner.Canned{Out: archPlan})
 	a.pass()
-	want := "# Research notes\n\n- /work/.wiki/Board-model.md: the board model; source app " + pin + ", 1 commit on app's main since the pin; written 2026-11-06 by architect run 1 on #1; checked 2026-11-06 (today)\n\n# Issue #2"
+	want := "# Research notes\n\n- /work/.notes/Board-model.md: the board model; source app " + pin + ", 1 commit on app's main since the pin; written 2026-11-06 by architect run 1 on #1; checked 2026-11-06 (today)\n\n# Issue #2"
 	if p := a.file("2-architect-1", "io/prompt.md"); !strings.Contains(p, want) {
 		t.Errorf("the second architect's prompt lacks the note:\n%s", p)
 	}
@@ -160,7 +160,7 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 	// committed.
 	a.forge.SetLabel(forge.Ref{Repo: "app", N: 2}, "swarm:plan-1-accepted")
 	a.runner.Script(2, "worker", runner.Canned{Out: "Done.\n", Work: func(work string) error {
-		if err := os.WriteFile(filepath.Join(work, ".wiki", "stray.md"), []byte("x\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(work, ".notes", "stray.md"), []byte("x\n"), 0o644); err != nil {
 			return err
 		}
 		return commit(map[string]string{"main.go": "v1\n"}, "v1")(work)
@@ -172,13 +172,13 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 			worker = l
 		}
 	}
-	if !slices.Contains(worker.Mounts, runner.Mount{Src: a.state("runs/2-worker-1/wiki"), Dst: "/work/.wiki", ReadOnly: true}) {
+	if !slices.Contains(worker.Mounts, runner.Mount{Src: a.state("runs/2-worker-1/notes"), Dst: "/work/.notes", ReadOnly: true}) {
 		t.Errorf("the worker's mounts %+v", worker.Mounts)
 	}
-	if p := a.file("2-worker-1", "io/prompt.md"); !strings.Contains(p, "- Research notes (read-only): /work/.wiki\n") || strings.Contains(p, "# Research notes") {
+	if p := a.file("2-worker-1", "io/prompt.md"); !strings.Contains(p, "- Research notes (read-only): /work/.notes\n") || strings.Contains(p, "# Research notes") {
 		t.Errorf("the worker's prompt:\n%s", p)
 	}
-	if files := gitIn(t, a.upstream("app"), "ls-tree", "-r", "--name-only", "swarm/2-1"); strings.Contains(files, ".wiki") {
+	if files := gitIn(t, a.upstream("app"), "ls-tree", "-r", "--name-only", "swarm/2-1"); strings.Contains(files, ".notes") {
 		t.Errorf("the worker's branch holds the mount point:\n%s", files)
 	}
 }
@@ -211,7 +211,7 @@ func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 			up := a.wikiUp(map[string]string{"Board-model.md": "Old.\n"})
 			base := gitIn(t, up, "rev-parse", "master")
 			a.forge.CreateIssue("Board model", "Change the board.", []string{"swarm:proposal-accepted"})
-			a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Wiki: func(dir string) error {
+			a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Notes: func(dir string) error {
 				if tc.hand != nil {
 					editUp(t, up, "master", tc.hand)
 				}
@@ -248,7 +248,7 @@ func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 					t.Errorf("the branch's note %q", got)
 				}
 			}
-			_, err := os.Stat(a.state("runs/1-architect-1/wiki/Board-model.md"))
+			_, err := os.Stat(a.state("runs/1-architect-1/notes/Board-model.md"))
 			if tc.kept != (err == nil) {
 				t.Errorf("the run's copy kept: %v, want %v", err == nil, tc.kept)
 			}

@@ -38,12 +38,18 @@ type Config struct {
 	Owner      Owner              `json:"owner"`
 	Resources  []string           `json:"resources"`
 	Wiki       bool               `json:"wiki,omitempty"`
+	Notes      bool               `json:"notes,omitempty"`
 	Trusted    []string           `json:"trusted"`
 	Gates      Gates              `json:"gates"`
 	Budget     *Budget            `json:"budget,omitempty"`
 	Keys       map[string]Key     `json:"keys"`
 	Personas   map[string]Persona `json:"personas"`
 }
+
+// KeepsNotes: the swarm keeps research notes, in the issues repository's
+// wiki (`wiki`) or in the notes/ directory of the swarm's own issues
+// repository (`notes`), section 3.
+func (c Config) KeepsNotes() bool { return c.Wiki || c.Notes }
 
 // SwarmLogin is the swarm's own login as swarm.json names it: trusted's
 // last, which `init` writes after the maintainer's logins (section 3); ""
@@ -308,6 +314,9 @@ func Format(c Config) []byte {
 	}
 	if c.Wiki {
 		top = append(top, `"wiki": true`)
+	}
+	if c.Notes {
+		top = append(top, `"notes": true`)
 	}
 	top = append(top, `"trusted": `+inline(nonNil(c.Trusted)), `"gates": `+inline(c.Gates))
 	if c.Budget != nil {

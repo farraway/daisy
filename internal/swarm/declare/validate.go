@@ -62,6 +62,7 @@ func Validate(o ops.Ops, ws string, c Config, skip Skip) error {
 		func() *Error { return checkDuration("interval", c.Interval) },
 		func() *Error { return checkRange("owner.max_open_proposals", c.Owner.MaxOpenProposals, 1, 20) },
 		func() *Error { return checkResources(o, ws, c.Resources) },
+		func() *Error { return checkNotes(c) },
 		func() *Error {
 			if skip&SkipAccount != 0 {
 				return nil
@@ -280,6 +281,36 @@ func checkResources(o ops.Ops, ws string, resources []string) *Error {
 		seen = append(seen, real)
 	}
 	return nil
+}
+
+// checkNotes: `notes` keeps the notes in the issues repository's notes/,
+// so that repository is the swarm's own, none of repos (Daisy writes no
+// declared repository's tree, section 2), and its wiki is not declared
+// beside it.
+func checkNotes(c Config) *Error {
+	if !c.Notes {
+		return nil
+	}
+	if c.Wiki {
+		return fieldErr("wiki", "true beside notes; the swarm's own repository keeps its notes in notes/, and its wiki is no better than its tree")
+	}
+	if _, ok := c.Declares(c.Forge.Repo); ok {
+		return fieldErr("notes", "%s is a declared repository, which holds product code; notes/ is for the swarm's own issues repository (wiki keeps a product's)", c.Forge.Repo)
+	}
+	return nil
+}
+
+// Declares is the declared repository whose forge repository is repo
+// (`<owner>/<name>`): repos are their owner's (section 14, item 7), so
+// its name decides.
+func (c Config) Declares(repo string) (Repo, bool) {
+	_, name, _ := strings.Cut(repo, "/")
+	for _, r := range c.Repos {
+		if strings.EqualFold(r.Name, name) {
+			return r, true
+		}
+	}
+	return Repo{}, false
 }
 
 var forbiddenNames = []string{".env.sh", ".daisy", ".git"}
