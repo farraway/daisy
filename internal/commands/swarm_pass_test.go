@@ -294,7 +294,7 @@ func TestSwarmMergeStepRelabelReadsTheLabelsAgain(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the pair: T9
-	a.forge.Unmergeable(forge.Ref{Repo: "app", N: 2})
+	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 2})
 	a.tick()
 	a.apply(&relabelOnMerge{gitForge: a.git()}, "--once")
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-accepted"}) || !strings.Contains(a.stderr.String(), "relabelled to swarm:proposal-accepted during the merge step") {

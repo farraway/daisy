@@ -289,7 +289,7 @@ func TestGiteaIssues(t *testing.T) {
 func TestGiteaPulls(t *testing.T) {
 	pull := func(number int, ref, body, state string, merged bool, sha string) string {
 		m, _ := json.Marshal(map[string]any{
-			"id": 1000 + number, "number": number, "title": "T" + itoa(number), "body": body, "state": state, "merged": merged,
+			"id": 1000 + number, "number": number, "title": "T" + itoa(number), "body": body, "state": state, "merged": merged, "mergeable": state == "open",
 			"merge_commit_sha": sha, "head": map[string]string{"ref": ref, "sha": "h" + itoa(number)}, "base": map[string]string{"ref": "main"},
 			"labels": []map[string]any{{"id": 4, "name": "swarm:review-0-ready"}}, "created_at": "2026-11-03T08:00:00Z", "user": map[string]string{"login": "swarm-bot"},
 		})
@@ -319,12 +319,41 @@ func TestGiteaPulls(t *testing.T) {
 	}
 	created := time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC)
 	want := []Pull{
-		{Repo: "lib", Number: 5, Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
-		{Repo: "app", Number: 20, Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
-		{Repo: "lib", Number: 3, Title: "acme/app#7 slice 6: Drift check", Body: "Refs acme/app#7", Head: "swarm/7-6", HeadSHA: "h3", Base: "main", MergeSHA: "m3", Merged: true, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
+		{Repo: "lib", Number: 5, Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Mergeable: MergeableNo, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
+		{Repo: "app", Number: 20, Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Mergeable: MergeableYes, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
+		{Repo: "lib", Number: 3, Title: "acme/app#7 slice 6: Drift check", Body: "Refs acme/app#7", Head: "swarm/7-6", HeadSHA: "h3", Base: "main", MergeSHA: "m3", Merged: true, Mergeable: MergeableNo, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Pulls(7) =\n%+v\nwant\n%+v", got, want)
+	}
+	s.done()
+}
+
+// Pulls' mergeable as Gitea's list reports it on an open pull request
+// (repoListPullRequests): true, false (a conflict, or its checker
+// recomputing), and null or absent, which no Gitea sends for a boolean
+// but GitHub's null is, unknown.
+func TestGiteaPullsMergeable(t *testing.T) {
+	pull := func(number int, mergeable string) string {
+		field := ""
+		if mergeable != "" {
+			field = `,"mergeable":` + mergeable
+		}
+		return `{"number":` + itoa(number) + `,"title":"T","body":"Refs #7","state":"open","merged":false` + field +
+			`,"head":{"ref":"swarm/7-` + itoa(number) + `","sha":"h"},"base":{"ref":"main"},"user":{"login":"swarm-bot"},"created_at":"2026-11-03T08:00:00Z"}`
+	}
+	g, s := gitea(t, []string{"app"}, pair{"GET", "/repos/acme/app/pulls?state=all&page=1&limit=50", "", 200,
+		"[" + strings.Join([]string{pull(1, "true"), pull(2, "false"), pull(3, "null"), pull(4, "")}, ",") + "]"})
+	got, err := g.Pulls(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m []Mergeable
+	for _, p := range got {
+		m = append(m, p.Mergeable)
+	}
+	if want := []Mergeable{MergeableYes, MergeableNo, MergeableUnknown, MergeableUnknown}; !reflect.DeepEqual(m, want) {
+		t.Errorf("mergeable %v, want %v", m, want)
 	}
 	s.done()
 }

@@ -12,13 +12,18 @@ import (
 // each open approved issue neither blocked nor paused, its current pull
 // request merged at the head both its newest swarm reviews approve (or
 // found merged), then T14 when the accepted plan declares a slice after
-// it and T15 otherwise, the closed issue labelled swarm:done; a refused
-// merge is T16, which blocks it.
+// it and T15 otherwise, the closed issue labelled swarm:done. A refused
+// merge of a pull request the forge reports not mergeable is T25, back to
+// the worker with the direction to merge base; of one whose mergeability
+// is unknown, or read after this step merged into its repository (the
+// forge recomputing it), nothing until the next pass; of any other, T16,
+// which blocks it.
 func (s *Swarm) mergeStep() error {
 	issues, err := s.Forge.Issues(forge.Open, forge.ReviewApproved)
 	if err != nil {
 		return err
 	}
+	merged := map[string]bool{} // the repositories whose base this step moved
 	for _, listed := range issues {
 		n := listed.Number
 		is, err := s.Forge.Issue(n)
@@ -48,15 +53,32 @@ func (s *Swarm) mergeStep() error {
 				return err
 			}
 			head, k := ApprovedHead(reviews, s.SwarmLogin)
-			err = errors.New("no head both reviews approve")
+			msg := "no head both reviews approve"
 			if head != "" {
-				err = s.Forge.Merge(ref, head)
+				msg = ""
+				err := s.Forge.Merge(ref, head)
+				switch {
+				case errors.Is(err, forge.ErrNotMergeable):
+					msg = strings.TrimPrefix(err.Error(), forge.ErrNotMergeable.Error()+": ")
+				case err != nil:
+					return err
+				}
 			}
-			if err != nil && head != "" && !errors.Is(err, forge.ErrNotMergeable) {
-				return err
+			// The forge's refusal read by the pull request's mergeability,
+			// which a merge into its repository earlier in this step left
+			// being recomputed.
+			refused := head != "" && msg != ""
+			switch {
+			case refused && (cur.Mergeable == forge.MergeableUnknown || merged[cur.Repo]):
+				fmt.Fprintf(s.Out, "#%d merge of pull %s#%d refused (%s); its mergeability is not settled, so the next pass tries again\n", n, cur.Repo, cur.Number, msg)
+				continue
+			case refused && cur.Mergeable == forge.MergeableNo:
+				if err := s.backToWorker(is, cur, head, k); err != nil {
+					return err
+				}
+				continue
 			}
-			if err != nil {
-				msg := strings.TrimPrefix(err.Error(), forge.ErrNotMergeable.Error()+": ")
+			if msg != "" {
 				fmt.Fprintf(s.Out, "#%d merge of pull %s#%d refused (%s)\n", n, cur.Repo, cur.Number, msg)
 				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s/%s#%d at %s refused: %s (at %s). Resolve it, then remove %s.", s.owner(), cur.Repo, cur.Number, short(head), msg, forge.ReviewApproved, forge.Blocked)
 				// Posted already only when it is the issue's last word and
@@ -73,6 +95,7 @@ func (s *Swarm) mergeStep() error {
 				}
 				continue
 			}
+			merged[cur.Repo] = true
 			fmt.Fprintf(s.Out, "#%d merged pull %s#%d (slice %d of %d)\n", n, cur.Repo, cur.Number, sl, S)
 		}
 		if sl < S {
@@ -90,6 +113,38 @@ func (s *Swarm) mergeStep() error {
 		}
 	}
 	return nil
+}
+
+// backToWorker is T25 by the merge step: the direction to merge base
+// posted on the pull request as the reconciler's note (unless it is the
+// thread's last word already: a retry after a failed relabel), then the
+// issue relabelled review-3-changes-requested, whose worker answers it.
+func (s *Swarm) backToWorker(is forge.Issue, p forge.Pull, head string, k int) error {
+	fmt.Fprintf(s.Out, "#%d not mergeable: back to the worker\n", is.Number)
+	ref := forge.Ref{Repo: p.Repo, N: p.Number}
+	comments, err := s.Forge.PullComments(ref)
+	if err != nil {
+		return err
+	}
+	note := marker("reconciler", max(k, 1)) + Direction(s.owner(), s.Cfg.Base, is.Number, p, head)
+	last := len(comments) - 1
+	if last < 0 || comments[last].Body != note || !strings.EqualFold(comments[last].Author, s.SwarmLogin) {
+		if err := s.Forge.Comment(ref, note); err != nil {
+			return err
+		}
+	}
+	return s.mergeRelabel(is.Number, forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: is.Number}, forge.ChangesRequested)
+}
+
+// Direction is the comment that sends an approved pull request p of issue
+// n, which the forge reports not mergeable into base, back to the worker
+// (T25): merge base into the branch and resolve. The forge names no
+// conflicting file, so it names the branch and the base; the merge step
+// posts it as the reconciler's note, `swarm merge` as the maintainer.
+func Direction(owner, base string, n int, p forge.Pull, head string) string {
+	branch := fmt.Sprintf("swarm/%d-%d", n, sliceOf(p, n))
+	return fmt.Sprintf("Pull request %s/%s#%d was approved at %s, but the forge reports it not mergeable into %s, which has moved since %s last took it in. Merge %s into %s with a merge commit (\"git merge --no-edit %s\"), resolve each conflict, keeping what both sides meant, and commit; the reviewers then review the new head.",
+		owner, p.Repo, p.Number, short(head), base, branch, base, branch, base)
 }
 
 // mergeRelabel is T14: approved to `to`, the labels read again right

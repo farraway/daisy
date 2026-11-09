@@ -63,9 +63,7 @@ func (j *Job) task() string {
 		default:
 			add(`There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #%d. Keep the change small; if it needs a plan, write "BLOCKED: needs a plan". Work on the branch checked out in /work (swarm/%d-%d) and write the pull request's description.`, j.N, j.N, s)
 		}
-		if !j.Cfg.Gates.Merge {
-			add(`Before anything else, run "git merge --no-edit %s"; if it conflicts, write "BLOCKED: %s conflicts" instead.`, j.Cfg.Base, j.Cfg.Base)
-		}
+		add(`Before anything else, run "git merge --no-edit %s"; if it conflicts, resolve each conflict, keeping what both sides meant, and commit the merge, or, if you cannot, write "BLOCKED: %s conflicts in <files>" instead, naming the conflicting files.`, j.Cfg.Base, j.Cfg.Base)
 		add(`Commit with git; do not push. Never amend, rebase or reset a commit that is already on the branch; add commits.`)
 		if check := j.repo(repo).Check; len(check) > 0 {
 			add(`Run "%s" before you finish and quote its last result.`, shellQuote(check))

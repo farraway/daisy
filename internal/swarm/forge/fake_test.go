@@ -137,16 +137,29 @@ func TestFakePullsReviewsAndMerge(t *testing.T) {
 	if err := f.Merge(lr, "c1"); !errors.Is(err, ErrNotMergeable) || errText(err) != "forge: not mergeable: 409 head out of date" {
 		t.Errorf("a moved head: %v", err)
 	}
-	f.Unmergeable(ar)
-	if err := f.Merge(ar, ""); !errors.Is(err, ErrNotMergeable) {
-		t.Errorf("unmergeable: %v", err)
+	for _, m := range []Mergeable{MergeableNo, MergeableUnknown} {
+		f.SetMergeable(ar, m)
+		if err := f.Merge(ar, ""); !errors.Is(err, ErrNotMergeable) || errText(err) != "forge: not mergeable: 405 Please try again later" {
+			t.Errorf("mergeable %d: %v", m, err)
+		}
+		if ps, _ := f.Pulls(n); ps[1].Mergeable != m {
+			t.Errorf("Pulls reports mergeable %d, not %d", ps[1].Mergeable, m)
+		}
+	}
+	f.SetMergeable(ar, MergeableYes)
+	f.RefuseMerge(ar)
+	if err := f.Merge(ar, ""); !errors.Is(err, ErrNotMergeable) || errText(err) != "forge: not mergeable: 405 not allowed to merge" {
+		t.Errorf("a refused merge: %v", err)
+	}
+	if ps, _ := f.Pulls(n); ps[1].Mergeable != MergeableYes || ps[1].Merged {
+		t.Errorf("a refused merge: %+v", ps[1])
 	}
 	if err := f.Merge(lr, "c2"); err != nil {
 		t.Fatal(err)
 	}
 	pulls, _ := f.Pulls(n)
 	if len(pulls) != 2 || pulls[0].Repo != "lib" || pulls[0].Number != lib || !pulls[0].Merged || pulls[0].Open || len(pulls[0].MergeSHA) != 40 ||
-		pulls[0].HeadSHA != "c2" || pulls[1].Repo != "app" || pulls[1].Number != app || pulls[1].Merged || pulls[1].MergeSHA != "" {
+		pulls[0].HeadSHA != "c2" || pulls[0].Mergeable != MergeableYes || pulls[1].Repo != "app" || pulls[1].Number != app || pulls[1].Merged || pulls[1].MergeSHA != "" {
 		t.Errorf("Pulls(1) = %+v", pulls)
 	}
 	if is, _ := f.Issue(n); !is.Open {

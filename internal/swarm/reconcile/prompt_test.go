@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -206,8 +207,7 @@ func TestRenderWorkerNextSlice(t *testing.T) {
 		`Implement slice 2 of the accepted plan for issue #1 (it declares 2) in acme/app, on the branch checked out in /work (swarm/1-2).`,
 		`Commit with git; do not push.`, `Run "make check" before you finish and quote its last result.`,
 		`End what you write with a line "Not established:"`,
-		`write "BLOCKED: slice <i> is not merged".`, `These paths are protected: .gitea/, AGENTS.md.`},
-		`git merge --no-edit`)
+		`write "BLOCKED: slice <i> is not merged".`, `These paths are protected: .gitea/, AGENTS.md.`, mergeBase})
 	has(t, "prompt.md", prompt, []string{"- Clone /work: acme/app, branch swarm/1-2, base main, check make check\n",
 		"# Plan\n\n## architect, run 1, at 2026-11-06T15:04:00Z: slice 2 of 2, in app\n\n#### Research\n",
 		"```mermaid\n1. app: not a slice\n```",
@@ -222,7 +222,7 @@ func TestRenderWorkerFastLane(t *testing.T) {
 	j.Cfg.Gates.Merge = false
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #1.`,
-		`Before anything else, run "git merge --no-edit main"; if it conflicts, write "BLOCKED: main conflicts" instead. Commit with git`},
+		mergeBase + ` Commit with git`},
 		"slice <i>")
 	has(t, "prompt.md", prompt, []string{"# Plan\n\nNone: there is no plan.", "# Direction\n\n## jane at", "- Clone /work: acme/app, branch swarm/1-1,"})
 }
@@ -447,6 +447,31 @@ func TestRenderOwner(t *testing.T) {
 	b.Batch.Briefs = nil
 	sys, prompt = Render(b)
 	has(t, "batch without briefs", sys+prompt, []string{"from the resources and the code. Start each", "# Briefs\n\nNone."})
+}
+
+// mergeBase is the worker's first instruction in every Task text, the
+// merge gate on or off (section 7.4).
+const mergeBase = `Before anything else, run "git merge --no-edit main"; if it conflicts, resolve each conflict, keeping what both sides meant, and commit the merge, or, if you cannot, write "BLOCKED: main conflicts in <files>" instead, naming the conflicting files.`
+
+// Every worker run merges base first, whatever its stage and the merge
+// gate: a slice with a plan, the fast lane, and an answer to the reviews.
+func TestRenderWorkerMergesBase(t *testing.T) {
+	for _, gate := range []bool{true, false} {
+		f, at, pr, _ := planned(t)
+		fast, fastAt := fixture()
+		pulls, _ := f.Pulls(1)
+		answer := job(f, at.N, "worker", "swarm:review-3-changes-requested")
+		answer.Pulls, answer.Pull = pulls, thread(f, pr)
+		for name, j := range map[string]*Job{
+			"slice":     job(f, at.N, "worker", "swarm:plan-1-accepted"),
+			"fast lane": job(fast, fastAt.N, "worker", "swarm:plan-1-accepted"),
+			"answer":    answer,
+		} {
+			j.Cfg.Gates.Merge = gate
+			sys, _ := Render(j)
+			has(t, fmt.Sprintf("%s, merge gate %v", name, gate), sys, []string{mergeBase})
+		}
+	}
 }
 
 // The worker's first slice of a plan: no pin sentence.

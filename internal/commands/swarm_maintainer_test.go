@@ -212,6 +212,32 @@ func TestSwarmMaintainerCloseUnblockMerged(t *testing.T) {
 	m.ok(swarmMerge, head+"#1 pull app#2 already merged (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", "1")
 }
 
+// merge of an approved pull request the forge reports not mergeable (a
+// merge to base since it forked, as the swarm's first conflict was): T25, the
+// orchestrator's hand routing made the verb's: the direction on the pull
+// request as jane, then review-2-approved → review-3-changes-requested
+// and the gated flag cleared; exit 0, nothing merged.
+func TestSwarmMaintainerMergeNotMergeable(t *testing.T) {
+	m := newMaintainerWS(t)
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
+	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
+	pr := m.approvedPull(1, "c1abcdef99")
+	m.forge.Relabel(issue1, "", forge.Gated)
+	m.forge.SetMergeable(pr, forge.MergeableNo)
+	m.ok(swarmMerge, "Maintainer jane on acme/app\n#1 not mergeable: back to the worker\n#1 commented on pull app#2\n#1 swarm:review-2-approved → swarm:review-3-changes-requested\n#1 gated cleared\n", "1")
+	want := []string{
+		"swarm-bot labeled swarm:gated #1", // the pass that gated it
+		"jane labeled swarm:review-3-changes-requested #1", "jane unlabeled swarm:review-2-approved #1", "jane unlabeled swarm:gated #1",
+		fmt.Sprintf("jane comment %q #2", direction("c1abcdef99")),
+	}
+	if got := m.writes(1, pr.N); !reflect.DeepEqual(got, want) {
+		t.Errorf("writes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if ps, _ := m.forge.Pulls(1); !ps[0].Open || ps[0].Merged {
+		t.Errorf("merged: %+v", ps[0])
+	}
+}
+
 // Every verb refuses, writing nothing, when DAISY_MAINTAINER_TOKEN is
 // unset, holds the swarm's token (refused before the forge is opened) or
 // is a token of the swarm's account (refused after Login, before any
@@ -290,8 +316,12 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 		}, swarmMerge, []string{"1"}, "Error: swarm: #1: no head of pull app#2 is approved by both the swarm's reviews; nothing merged"},
 		{"merge refused by the forge", func(m *maintainerWS) {
 			issue("swarm:review-2-approved")(m)
-			m.forge.Unmergeable(m.approvedPull(1, "c1abcdef99"))
-		}, swarmMerge, []string{"1"}, "Error: swarm: #1: merge of pull app#2 at c1abcde refused: 405 Please try again later; nothing changed"},
+			m.forge.RefuseMerge(m.approvedPull(1, "c1abcdef99"))
+		}, swarmMerge, []string{"1"}, "Error: swarm: #1: merge of pull app#2 at c1abcde refused: 405 not allowed to merge; nothing changed"},
+		{"merge refused while the forge computes", func(m *maintainerWS) {
+			issue("swarm:review-2-approved")(m)
+			m.forge.SetMergeable(m.approvedPull(1, "c1abcdef99"), forge.MergeableUnknown)
+		}, swarmMerge, []string{"1"}, "Error: swarm: #1: merge of pull app#2 at c1abcde refused: 405 Please try again later; the forge has not yet computed whether it merges, so run merge again shortly; nothing changed"},
 		{"merge of a pull request closed unmerged", func(m *maintainerWS) {
 			issue("swarm:review-2-approved")(m)
 			m.forge.CloseIssue(m.approvedPull(1, "c1").N) // a pull request of forge.repo closes as its issue

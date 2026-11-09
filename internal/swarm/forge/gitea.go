@@ -308,11 +308,12 @@ type giteaPull struct {
 	Base struct {
 		Ref string `json:"ref"`
 	} `json:"base"`
-	State    string    `json:"state"`
-	Merged   bool      `json:"merged"`
-	MergeSHA *string   `json:"merge_commit_sha"`
-	User     giteaUser `json:"user"`
-	Labels   []struct {
+	State     string    `json:"state"`
+	Merged    bool      `json:"merged"`
+	Mergeable *bool     `json:"mergeable"`
+	MergeSHA  *string   `json:"merge_commit_sha"`
+	User      giteaUser `json:"user"`
+	Labels    []struct {
 		Name string `json:"name"`
 	} `json:"labels"`
 	Created time.Time `json:"created_at"`
@@ -320,7 +321,10 @@ type giteaPull struct {
 
 // Pulls reads every pull request, open and closed, of each declared
 // repository and keeps the swarm's for issue n: head branch
-// `swarm/<n>-<s>` and the Refs line for n. Sorted by slice.
+// `swarm/<n>-<s>` and the Refs line for n. Sorted by slice. Gitea's
+// `mergeable` is a boolean, false while its checker recomputes a pull
+// request after a push to its base as when it conflicts; an absent or
+// null one is unknown.
 func (g *Gitea) Pulls(n int) ([]Pull, error) {
 	type bySlice struct {
 		s int
@@ -345,6 +349,13 @@ func (g *Gitea) Pulls(n int) ([]Pull, error) {
 				Base: r.Base.Ref, Open: r.State == "open", Merged: r.Merged, Author: r.User.Login, Created: r.Created}
 			if r.Merged && r.MergeSHA != nil {
 				p.MergeSHA = *r.MergeSHA
+			}
+			switch {
+			case r.Mergeable == nil:
+			case *r.Mergeable:
+				p.Mergeable = MergeableYes
+			default:
+				p.Mergeable = MergeableNo
 			}
 			for _, l := range r.Labels {
 				p.Labels = append(p.Labels, l.Name)

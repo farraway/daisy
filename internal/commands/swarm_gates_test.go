@@ -239,7 +239,7 @@ func TestSwarmApplyGatesOff(t *testing.T) {
 		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 		a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 		a.pass()
-		if sys := a.file("1-worker-"+string(rune('0'+s)), "io/system.md"); !strings.Contains(sys, `Before anything else, run "git merge --no-edit main"; if it conflicts, write "BLOCKED: main conflicts" instead.`) {
+		if sys := a.file("1-worker-"+string(rune('0'+s)), "io/system.md"); !strings.Contains(sys, `Before anything else, run "git merge --no-edit main"; if it conflicts, resolve each conflict, keeping what both sides meant, and commit the merge, or, if you cannot, write "BLOCKED: main conflicts in <files>" instead, naming the conflicting files.`) {
 			t.Errorf("worker's Task:\n%s", sys)
 		}
 		a.pass() // the pair: T9
@@ -292,12 +292,12 @@ func TestSwarmApplyMergeRefused(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the pair: T9
-	a.forge.Unmergeable(forge.Ref{Repo: "app", N: 2})
+	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 2})
 	a.pass()
 	head := a.pulls(1)[0].HeadSHA
-	note := mark("reconciler", 1) + "merge of pull request acme/app#2 at " + head[:7] + " refused: 405 Please try again later (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
+	note := mark("reconciler", 1) + "merge of pull request acme/app#2 at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", "swarm:blocked", forge.Gated}) || a.bodies(1)[len(a.bodies(1))-1] != note ||
-		!strings.Contains(a.stdout.String(), "#1 merge of pull app#2 refused (405 Please try again later)\n#1 blocked\n") {
+		!strings.Contains(a.stdout.String(), "#1 merge of pull app#2 refused (405 not allowed to merge)\n#1 blocked\n") {
 		t.Errorf("T16: %v %q\n%s", got, a.bodies(1), a.stdout.String())
 	}
 	a.pass()
@@ -320,9 +320,9 @@ func TestSwarmApplyMergeRefusedNoteIsTheSwarms(t *testing.T) {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the pair: T9
 	head := a.pulls(1)[0].HeadSHA
-	note := mark("reconciler", 1) + "merge of pull request acme/app#2 at " + head[:7] + " refused: 405 Please try again later (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
+	note := mark("reconciler", 1) + "merge of pull request acme/app#2 at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
 	a.forge.Say(issue1, "mallory", note)
-	a.forge.Unmergeable(forge.Ref{Repo: "app", N: 2})
+	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 2})
 	a.pass()
 	is := a.issue(1)
 	if last := is.Comments[len(is.Comments)-2]; last.Author != "swarm-bot" || last.Body != note || !strings.HasPrefix(is.Comments[len(is.Comments)-1].Body, gateNote) {

@@ -197,10 +197,23 @@ type Pull struct {
 	Title, Body, Head, HeadSHA, Base string
 	MergeSHA                         string // "" unless merged
 	Open, Merged                     bool
+	Mergeable                        Mergeable // whether it merges into Base, as the forge last computed it
 	Labels                           []string
 	Author                           string // the login that opened it
 	Created                          time.Time
 }
+
+// Mergeable is whether an open pull request merges into its base, as the
+// forge reports it (section 10): unknown while the forge has not computed
+// it (GitHub's null), no when the forge says it does not (a conflict
+// with the base among the causes).
+type Mergeable int
+
+const (
+	MergeableUnknown Mergeable = iota
+	MergeableYes
+	MergeableNo
+)
 
 type Review struct {
 	ID        int64

@@ -328,8 +328,10 @@ func swarmApprove(c *Context, open opener) error {
 // head both the swarm's newest reviews approve, with `do: merge` as the
 // merge step does, or finds it merged; then, as the merge step does with
 // the gate off, relabels the issue planned when the accepted plan declares
-// a slice after it (T13) and closes it when it was the last. A refused
-// merge changes nothing: the maintainer is there to read why.
+// a slice after it (T13) and closes it when it was the last. A merge the
+// forge refuses of a pull request it reports not mergeable goes back to
+// the worker, as the merge step sends it (T25); any other refused merge
+// changes nothing: the maintainer is there to read why.
 func swarmMerge(c *Context, open opener) error {
 	m, err := asMaintainer(c, open)
 	if err != nil {
@@ -365,6 +367,12 @@ func swarmMerge(c *Context, open opener) error {
 		err = m.f.Merge(ref, head)
 		if errors.Is(err, forge.ErrNotMergeable) {
 			msg := strings.TrimPrefix(err.Error(), forge.ErrNotMergeable.Error()+": ")
+			switch cur.Mergeable {
+			case forge.MergeableNo:
+				return m.backToWorker(cur, head)
+			case forge.MergeableUnknown:
+				return fmt.Errorf("Error: swarm: #%d: merge of pull %s#%d at %s refused: %s; the forge has not yet computed whether it merges, so run merge again shortly; nothing changed", m.n, cur.Repo, cur.Number, short(head), msg)
+			}
 			return fmt.Errorf("Error: swarm: #%d: merge of pull %s#%d at %s refused: %s; nothing changed", m.n, cur.Repo, cur.Number, short(head), msg)
 		}
 		if err != nil {
@@ -376,6 +384,19 @@ func swarmMerge(c *Context, open opener) error {
 		return m.relabel(forge.ReviewApproved, forge.PlanAccepted)
 	}
 	return m.close(forge.ReviewApproved, forge.Done, " (last slice merged)")
+}
+
+// backToWorker is T25 by the maintainer: the direction to merge base
+// (reconcile.Direction) posted on the pull request, whose thread the
+// worker reads, then the issue relabelled review-3-changes-requested.
+func (m *maintainer) backToWorker(p forge.Pull, head string) error {
+	fmt.Fprintf(m.c.Stdout, "#%d not mergeable: back to the worker\n", m.n)
+	owner, _, _ := strings.Cut(m.cfg.Forge.Repo, "/")
+	if err := m.f.Comment(forge.Ref{Repo: p.Repo, N: p.Number}, reconcile.Direction(owner, m.cfg.Base, m.n, p, head)); err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	fmt.Fprintf(m.c.Stdout, "#%d commented on pull %s#%d\n", m.n, p.Repo, p.Number)
+	return m.relabel(forge.ReviewApproved, forge.ChangesRequested)
 }
 
 // swarmUnblock posts the maintainer's comment, then clears swarm:blocked

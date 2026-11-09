@@ -69,7 +69,8 @@ type Event struct{ Actor, What string }
 
 type pullState struct {
 	head, headSHA, base, mergeSHA string
-	merged, unmergeable           bool
+	merged, refused               bool
+	mergeable                     Mergeable
 	reviews                       []Review
 	lines                         []ReviewComment
 }
@@ -322,8 +323,9 @@ func (f *Fake) CloseIssue(n int) error {
 }
 
 // CreatePull opens a pull request in the declared repository repo; its
-// head commit is "" until Push moves it, since the Fake holds no git.
-// Like the forge, it refuses a second open pull request from head to base.
+// head commit is "" until Push moves it, and it is mergeable until
+// SetMergeable says otherwise, since the Fake holds no git. Like the
+// forge, it refuses a second open pull request from head to base.
 func (f *Fake) CreatePull(repo, head, base, title, body string) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -335,7 +337,7 @@ func (f *Fake) CreatePull(repo, head, base, title, body string) (int, error) {
 			return 0, fmt.Errorf("forge: POST /repos/%s/%s/pulls: 409 pull request already exists for these targets", f.owner, repo)
 		}
 	}
-	it := &item{title: title, body: body, author: f.account.Login, created: f.o.Now(), open: true, pull: &pullState{head: head, base: base}}
+	it := &item{title: title, body: body, author: f.account.Login, created: f.o.Now(), open: true, pull: &pullState{head: head, base: base, mergeable: MergeableYes}}
 	return f.add(repo, it), nil
 }
 
@@ -346,11 +348,22 @@ func (f *Fake) Push(pr Ref, sha string) {
 	must(f.findPull(pr)).pull.headSHA = sha
 }
 
-// Unmergeable makes every later Merge of pr be refused.
-func (f *Fake) Unmergeable(pr Ref) {
+// SetMergeable is the forge computing pr's mergeability as m, as it
+// does after a push to the pull request or to its base: a pull request
+// not MergeableYes is reported so by Pulls and refused by Merge.
+func (f *Fake) SetMergeable(pr Ref, m Mergeable) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	must(f.findPull(pr)).pull.unmergeable = true
+	must(f.findPull(pr)).pull.mergeable = m
+}
+
+// RefuseMerge makes every later Merge of pr be refused while the forge
+// still reports it mergeable, as a branch protection rule the swarm's
+// own reviews do not satisfy refuses it.
+func (f *Fake) RefuseMerge(pr Ref) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	must(f.findPull(pr)).pull.refused = true
 }
 
 // Pulls: the swarm's pull requests for issue n in every declared
@@ -374,7 +387,7 @@ func (f *Fake) Pulls(n int) ([]Pull, error) {
 				continue
 			}
 			found = append(found, bySlice{s, Pull{Repo: name, Number: m, Title: it.title, Body: it.body, Head: it.pull.head, HeadSHA: it.pull.headSHA,
-				Base: it.pull.base, MergeSHA: it.pull.mergeSHA, Open: it.open, Merged: it.pull.merged, Labels: slices.Clone(it.labels), Author: it.author, Created: it.created}})
+				Base: it.pull.base, MergeSHA: it.pull.mergeSHA, Open: it.open, Merged: it.pull.merged, Mergeable: it.pull.mergeable, Labels: slices.Clone(it.labels), Author: it.author, Created: it.created}})
 		}
 	}
 	slices.SortStableFunc(found, func(a, b bySlice) int { return a.s - b.s })
@@ -457,8 +470,10 @@ func (f *Fake) Approve(pr Ref, head string) error {
 	return nil
 }
 
-// Merge merges an open pull request whose head is head and which is not
-// marked unmergeable, recording a merge commit; it closes no issue.
+// Merge merges an open pull request whose head is head and which is
+// mergeable (SetMergeable), recording a merge commit; it closes no issue.
+// Like Gitea, it refuses one that is not with 405 "Please try again
+// later", whether it conflicts or the forge is still computing.
 func (f *Fake) Merge(pr Ref, head string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -467,10 +482,12 @@ func (f *Fake) Merge(pr Ref, head string) error {
 		return err
 	}
 	switch {
-	case !it.open || it.pull.unmergeable:
+	case !it.open || it.pull.mergeable != MergeableYes:
 		return fmt.Errorf("%w: 405 Please try again later", ErrNotMergeable)
 	case it.pull.headSHA != head:
 		return fmt.Errorf("%w: 409 head out of date", ErrNotMergeable)
+	case it.pull.refused:
+		return fmt.Errorf("%w: 405 not allowed to merge", ErrNotMergeable)
 	}
 	sum := sha1.Sum([]byte(fmt.Sprintf("merge %s#%d %s", pr.Repo, pr.N, head)))
 	it.pull.mergeSHA, it.pull.merged = hex.EncodeToString(sum[:]), true
