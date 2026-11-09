@@ -31,6 +31,7 @@ type Job struct {
 	Pull  *PullThread  // the current pull request's thread, when it is open
 	Check string       // the # Check section's text for the current head
 	Batch *Batch       // the owner's batch
+	Notes []Note       // the research notes in the run's copy of the wiki, with `wiki`
 }
 
 // PullThread is the current pull request's comments, reviews and line
@@ -68,6 +69,9 @@ func Render(j *Job) (system, prompt string) {
 	head := fmt.Sprintf("%s#%d %s run %d, %s -->", j.Cfg.Forge.Repo, j.N, j.Role, j.K, stamp(j.Time))
 	system = doc("<!-- daisy-swarm system: "+head, "# Persona", Shift(trim(j.Persona), 1), "# Task", j.task())
 	blocks := []string{"<!-- daisy-swarm prompt: " + head, j.repository()}
+	if j.Cfg.Wiki && writesNotes(j.Role) {
+		blocks = append(blocks, "# Research notes", j.notes())
+	}
 	if j.Batch != nil {
 		return system, doc(append(blocks, j.Batch.sections(j)...)...)
 	}
@@ -236,7 +240,14 @@ func (j *Job) repository() string {
 	if len(j.Cfg.Resources) > 0 {
 		res = strings.Join(ResourceMounts(j.Cfg.Resources), ", ")
 	}
-	return strings.Join(append(lines, "- Resources (read-only): "+res), "\n")
+	lines = append(lines, "- Resources (read-only): "+res)
+	switch {
+	case j.Cfg.Wiki && writesNotes(j.Role):
+		lines = append(lines, "- Research notes: "+WikiMount+", the wiki, pushed by Daisy after the run")
+	case j.Cfg.Wiki:
+		lines = append(lines, "- Research notes (read-only): "+WikiMount)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // ResourceMounts is where each resource is mounted: /resources/<path>.

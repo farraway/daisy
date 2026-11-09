@@ -237,6 +237,28 @@ func TestWizardAccountQuestions(t *testing.T) {
 	}
 }
 
+// Question 35: the file's answer the default, else no; anything but yes
+// or no asked again; --defaults keeps the file's.
+func TestWizardWiki(t *testing.T) {
+	o, asked := scripted("", "maybe", "yes")
+	var errb bytes.Buffer
+	c := valid()
+	w := &Wizard{Ops: o, Err: &errb}
+	if err := w.AskWiki(&c); err != nil || c.Wiki {
+		t.Fatalf("default: %v %v", err, c.Wiki)
+	}
+	if err := w.AskWiki(&c); err != nil || !c.Wiki {
+		t.Fatalf("yes: %v %v", err, c.Wiki)
+	}
+	if (*asked)[0] != "Research wiki, the issues repository's wiki (yes, no) [no]: " || len(*asked) != 3 || !strings.Contains(errb.String(), "[no]: swarm.json: wiki: \"maybe\" is not yes or no\nResearch wiki") {
+		t.Errorf("asked %q, stderr %q", *asked, errb.String())
+	}
+	w = &Wizard{Ops: o, Err: io.Discard, Defaults: true}
+	if err := w.AskWiki(&c); err != nil || !c.Wiki {
+		t.Errorf("--defaults with the file's yes: %v %v", err, c.Wiki)
+	}
+}
+
 func TestWizardDefaultsRefused(t *testing.T) {
 	ws := bareWorkspace(t)
 	o, _ := scripted()

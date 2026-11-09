@@ -12,9 +12,9 @@ import (
 )
 
 // The clone a member sees (section 7.1, step 3), with real git: no remote,
-// a local base, the role's identity at the commit address, /.swarm/
-// excluded, and the hook stamping the role's co-author on each commit the
-// member makes, once, even when the message already carries it.
+// a local base, the role's identity at the commit address, /.swarm/ and
+// /.wiki/ excluded, and the hook stamping the role's co-author on each
+// commit the member makes, once, even when the message already carries it.
 func TestCloneAndTheCommitMsgHook(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
@@ -52,7 +52,7 @@ func TestCloneAndTheCommitMsgHook(t *testing.T) {
 	if git(dir, "config", "user.name") != "worker (Daisy swarm)" || git(dir, "config", "user.email") != "swarm@example.net" {
 		t.Error("identity")
 	}
-	if b, _ := os.ReadFile(filepath.Join(dir, ".git", "info", "exclude")); !strings.HasSuffix(string(b), "/.swarm/\n") {
+	if b, _ := os.ReadFile(filepath.Join(dir, ".git", "info", "exclude")); !strings.HasSuffix(string(b), "/.swarm/\n/.wiki/\n") {
 		t.Errorf("exclude %q", b)
 	}
 	os.WriteFile(filepath.Join(dir, "a"), []byte("a"), 0o644)

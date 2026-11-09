@@ -71,7 +71,7 @@ func newApplyWS(t *testing.T) *applyWS {
 }
 
 // apply is `swarm apply` with flags over the Fake forge and runner; the
-// mirrors fetch from the upstreams, and `id` answers 1000.
+// mirrors and the wiki fetch from the upstreams, and `id` answers 1000.
 func (a *applyWS) apply(f forge.Adapter, flags ...string) error {
 	a.stdout.Reset()
 	a.stderr.Reset()
@@ -101,7 +101,7 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 				a.t.Errorf("docker %q reached the real runner", args)
 			}
 			for i, arg := range args {
-				if up, ok := a.upstreams[arg]; ok && (slices.Contains(args, "fetch") || slices.Contains(args, "push")) {
+				if up, ok := a.upstreams[arg]; ok && (slices.Contains(args, "fetch") || slices.Contains(args, "push") || slices.Contains(args, "clone")) {
 					args = slices.Clone(args)
 					args[i] = up
 				}

@@ -86,6 +86,9 @@ func (j *Job) task() string {
 			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since ("git diff %s..HEAD").`, r, prev, prev)
 		}
 	}
+	if j.Cfg.Wiki && writesNotes(j.Role) {
+		add("%s", j.notesTask())
+	}
 	if (j.Role == "architect" || j.Role == "worker") && j.Batch == nil {
 		if p := j.protected(); p != "" {
 			add(`These paths are protected: %s. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.`, p)

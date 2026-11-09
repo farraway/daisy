@@ -226,14 +226,14 @@ func TestSwarmInitReadyWarnsNothing(t *testing.T) {
 	s.write("lib/CLAUDE.md", "# Lib\n")
 	s.write("docs/roadmap.md", "# Roadmap\n")
 	s.answers = make([]string, 33)
-	s.answers = append(s.answers, "jane", "")
+	s.answers = append(s.answers, "jane", "", "")
 	if err := s.run(); err != nil {
 		t.Fatal(err)
 	}
 	f := s.read("swarm/swarm.json")
 	f = strings.Replace(f, `"check": []`, `"check": ["make", "check"]`, 2)
 	s.write("swarm/swarm.json", f)
-	s.answers = make([]string, 35)
+	s.answers = make([]string, 36)
 	if err := s.run(); err != nil {
 		t.Fatal(err)
 	}
@@ -345,18 +345,18 @@ func TestSwarmInitWritesNothingBeforeTheForgeAnswers(t *testing.T) {
 	}
 }
 
-// Question 33 refuses the swarm's login and asks again; EOF cancels and
-// writes nothing.
+// Question 33 refuses the swarm's login and asks again, and question 35's
+// yes declares the wiki; EOF cancels and writes nothing.
 func TestSwarmInitMaintainerQuestion(t *testing.T) {
 	s := newSwarmWS(t)
-	s.answers = append(make([]string, 33), "swarm-bot", "jane", "")
+	s.answers = append(make([]string, 33), "swarm-bot", "jane", "", "yes")
 	if err := s.run(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(s.stderr.String(), `swarm.json: trusted: "swarm-bot" is the token's own login; the swarm needs its own forge account (section 8)`+"\nMaintainer logins") {
 		t.Errorf("stderr:\n%s", s.stderr.String())
 	}
-	if !strings.Contains(s.read("swarm/swarm.json"), `"trusted": ["jane", "swarm-bot"]`) {
+	if !strings.Contains(s.read("swarm/swarm.json"), `"wiki": true,`+"\n"+`  "trusted": ["jane", "swarm-bot"]`) {
 		t.Errorf("swarm.json:\n%s", s.read("swarm/swarm.json"))
 	}
 

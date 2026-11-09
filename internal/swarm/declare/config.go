@@ -37,6 +37,7 @@ type Config struct {
 	Interval   string             `json:"interval"`
 	Owner      Owner              `json:"owner"`
 	Resources  []string           `json:"resources"`
+	Wiki       bool               `json:"wiki,omitempty"`
 	Trusted    []string           `json:"trusted"`
 	Gates      Gates              `json:"gates"`
 	Budget     *Budget            `json:"budget,omitempty"`
@@ -304,9 +305,11 @@ func Format(c Config) []byte {
 		`"interval": ` + inline(c.Interval),
 		`"owner": ` + inline(c.Owner),
 		`"resources": ` + inline(nonNil(c.Resources)),
-		`"trusted": ` + inline(nonNil(c.Trusted)),
-		`"gates": ` + inline(c.Gates),
 	}
+	if c.Wiki {
+		top = append(top, `"wiki": true`)
+	}
+	top = append(top, `"trusted": `+inline(nonNil(c.Trusted)), `"gates": `+inline(c.Gates))
 	if c.Budget != nil {
 		top = append(top, `"budget": `+inline(*c.Budget))
 	}

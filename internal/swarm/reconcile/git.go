@@ -7,6 +7,7 @@ import (
 	iofs "io/fs"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"daisy/internal/ops"
@@ -243,16 +244,7 @@ func (g Git) Push(r declare.Repo, ref, branch, sha string) error {
 	if err != nil {
 		return err
 	}
-	args := append(opts, "push", "--quiet", "--porcelain", url, ref+":refs/heads/"+branch)
-	if out, errb, err := g.O.Exec(m, "git", args...); err != nil {
-		err = fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))
-		// git's porcelain marks a ref the remote refused with `!`; any
-		// other failure (the forge unreachable) is an error to retry.
-		for _, l := range strings.Split(string(out), "\n") {
-			if strings.HasPrefix(l, "!") {
-				return fmt.Errorf("%w: %v", ErrPushRejected, err)
-			}
-		}
+	if err := g.pushTo(m, opts, url, ref+":refs/heads/"+branch); err != nil {
 		return err
 	}
 	if _, err := g.run(m, "update-ref", "refs/heads/"+branch, sha); err != nil {
@@ -260,6 +252,27 @@ func (g Git) Push(r declare.Repo, ref, branch, sha string) error {
 	}
 	return g.DropRef(r.Name, ref)
 }
+
+// pushTo is `git push --porcelain <url> <refspec>` from dir, never
+// forced. A ref the remote refused, which git's porcelain marks with `!`,
+// is ErrPushRejected with git's message; any other failure (the forge
+// unreachable) is an error to retry.
+func (g Git) pushTo(dir string, opts []string, url, refspec string) error {
+	args := append(slices.Clone(opts), "push", "--quiet", "--porcelain", url, refspec)
+	out, errb, err := g.O.Exec(dir, "git", args...)
+	if err == nil {
+		return nil
+	}
+	err = fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))
+	for _, l := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(l, "!") {
+			return fmt.Errorf("%w: %v", ErrPushRejected, err)
+		}
+	}
+	return err
+}
+
+func isRejected(err error) bool { return errors.Is(err, ErrPushRejected) }
 
 // DropRef deletes a ref from the mirror.
 func (g Git) DropRef(name, ref string) error {
@@ -297,7 +310,8 @@ func Protected(paths, patterns []string) []string {
 // before any container sees it (section 7.1, step 3): a local base branch,
 // no remote, the role's identity `<role> (Daisy swarm) <commit_email>`, a
 // commit-msg hook stamping `Co-Authored-By: <co_author>` on every commit
-// (none for an empty co_author: no trailer), and `/.swarm/` excluded. It
+// (none for an empty co_author: no trailer), and `/.swarm/` and the wiki's
+// mount point `/.wiki/` excluded. It
 // returns the head commit.
 func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor string) (string, error) {
 	if _, err := g.run("", "clone", "--no-local", "--quiet", "--branch", branch, g.Mirror(r.Name), dir); err != nil {
@@ -325,7 +339,7 @@ func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor stri
 	if err := fs.MkdirAll(filepath.Dir(exclude), 0o755); err != nil {
 		return "", err
 	}
-	if err := fs.WriteFile(exclude, append(old, "/.swarm/\n"...), 0o644); err != nil {
+	if err := fs.WriteFile(exclude, append(old, "/.swarm/\n/.wiki/\n"...), 0o644); err != nil {
 		return "", err
 	}
 	if coAuthor != "" {

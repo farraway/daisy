@@ -63,6 +63,23 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		branch = cur.Head
 	}
 
+	// The run's copy of the wiki, its notes indexed for the prompt.
+	wikiDir, wikiSHA := filepath.Join(r.Dir, "wiki"), ""
+	if s.Cfg.Wiki {
+		w, err := s.wiki()
+		if err == nil {
+			wikiSHA, err = w.Export(wikiDir)
+		}
+		if err == nil {
+			j.Notes, err = ReadNotes(fs, wikiDir)
+		}
+		if err != nil {
+			fs.RemoveAll(r.Dir)
+			return false, err
+		}
+		s.staleness(j.Notes)
+	}
+
 	system, prompt := Render(j)
 	for _, f := range []struct{ name, text string }{{"system.md", system}, {"prompt.md", prompt}} {
 		p := filepath.Join(ioDir, f.name)
@@ -129,6 +146,16 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
 	mounts := []runner.Mount{{Src: work, Dst: "/work"}, {Src: ioDir, Dst: "/work/.swarm"}}
+	if s.Cfg.Wiki {
+		if err := fs.MkdirAll(filepath.Join(work, ".wiki"), 0o755); err != nil {
+			return false, err
+		}
+		mounts = append(mounts, runner.Mount{Src: wikiDir, Dst: WikiMount, ReadOnly: !writesNotes(j.Role)})
+		if workdir != "/work" {
+			reads = append(reads, WikiMount)
+		}
+		startLines = append(startLines, "wiki "+wikiSHA)
+	}
 	for i, res := range ResourceMounts(s.Cfg.Resources) {
 		src, err := fs.EvalSymlinks(filepath.Join(s.WS, s.Cfg.Resources[i]))
 		if err != nil {

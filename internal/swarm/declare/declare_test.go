@@ -322,6 +322,26 @@ func TestFormatKeepsBudgetAndBoard(t *testing.T) {
 	}
 }
 
+// `wiki` is written after resources only when true, absent read as false
+// (a file written before Step 19 is unchanged), and null refused.
+func TestFormatWiki(t *testing.T) {
+	c := valid()
+	if strings.Contains(string(Format(c)), "wiki") {
+		t.Errorf("wiki written while false:\n%s", Format(c))
+	}
+	c.Wiki = true
+	out := string(Format(c))
+	if !strings.Contains(out, `  "resources": ["docs/"],`+"\n"+`  "wiki": true,`+"\n"+`  "trusted": `) {
+		t.Errorf("Format:\n%s", out)
+	}
+	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("round trip: %v", err)
+	}
+	if _, err := Parse([]byte(strings.Replace(out, `"wiki": true`, `"wiki": null`, 1))); errText(err) != "swarm.json: wiki: null is not a boolean" {
+		t.Errorf("null: %v", err)
+	}
+}
+
 // The default prompts are section 4's, verbatim.
 func TestDefaultPromptsAreSectionFours(t *testing.T) {
 	doc, err := os.ReadFile("../../../docs/swarm.md")

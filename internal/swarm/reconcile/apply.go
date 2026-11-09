@@ -115,6 +115,15 @@ func (s *Swarm) Pass(wait bool) error {
 						return err
 					}
 				}
+				if s.Cfg.Wiki {
+					w, err := s.wiki()
+					if err == nil {
+						err = w.Refresh()
+					}
+					if err != nil {
+						return err
+					}
+				}
 				fetched = true
 			}
 			ok, err := s.launch(j, running)

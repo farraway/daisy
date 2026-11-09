@@ -80,6 +80,9 @@ func swarmInit(c *Context, open opener) error {
 	fmt.Fprintf(c.Stdout, "✓ Token $%s reads %s as %s\n", tokenVar, cfg.Forge.Repo, acct.Login)
 	err = w.AskAccount(&cfg, acct.Login, acct.Email)
 	if err == nil {
+		err = w.AskWiki(&cfg)
+	}
+	if err == nil {
 		err = declare.Validate(o, ws, cfg, declare.SkipPrompts)
 	}
 	if err != nil {

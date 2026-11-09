@@ -1,6 +1,7 @@
 // Package brief finds the briefs under a swarm's resources (docs/swarm.md
 // section 4, The brief): Markdown files whose header, the lines before the
-// first `## ` heading outside a fenced block, holds a `Status:` line.
+// first `## ` heading outside a fenced block, holds a `Status:` line. Field
+// reads such a header's lines, a research note's among them (section 7.3).
 package brief
 
 import (
@@ -67,15 +68,21 @@ func Find(fs ops.FS, ws string, resources []string) ([]Brief, error) {
 	return out, nil
 }
 
-// statusOf is the value of the header's `Status:` line: the header ends
-// at the first `## ` heading, and a line inside a fenced block is neither
-// (section 4).
+// statusOf is the value of the header's `Status:` line (section 4).
 func statusOf(text string) (string, bool) {
+	return Field(text, "Status")
+}
+
+// Field is the value of the header's first `<name>:` line, trimmed: the
+// header is the lines before the first `## ` heading, and a line inside a
+// fenced block is neither (section 4; a research note's header is read by
+// the same rule, section 7.3).
+func Field(text, name string) (string, bool) {
 	for line := range unfenced(text) {
 		if isHeading(line) {
 			break
 		}
-		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "Status:"); ok {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), name+":"); ok {
 			return strings.TrimSpace(v), true
 		}
 	}

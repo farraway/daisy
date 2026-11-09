@@ -199,6 +199,24 @@ func (w *Wizard) AskAccount(c *Config, login, email string) error {
 	return w.ask("Commit email", email, func(a string) *Error { c.Forge.CommitEmail = a; return checkCommitEmail(a) })
 }
 
+// AskWiki is question 35: whether the swarm keeps its research notes in
+// the issues repository's wiki (section 3, wiki), the file's answer the
+// default, else no.
+func (w *Wizard) AskWiki(c *Config) error {
+	def := "no"
+	if c.Wiki {
+		def = "yes"
+	}
+	return w.ask("Research wiki, the issues repository's wiki (yes, no)", def, func(a string) *Error {
+		switch a {
+		case "yes", "no":
+			c.Wiki = a == "yes"
+			return nil
+		}
+		return fieldErr("wiki", "%q is not yes or no", a)
+	})
+}
+
 // unasked is the file's values, else section 3's defaults: the fields no
 // question asks, and the defaults of those that are.
 func (w *Wizard) unasked() Config {
