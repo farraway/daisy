@@ -27,11 +27,13 @@ func Gated(labels []string, g declare.Gates) bool {
 }
 
 // flags is pass step (8), the maintainer's flag (section 5): every open
-// issue given forge.Gated when Gated holds for its labels, and every
-// other open issue carrying the flag cleared of it,
-// one with no stage or two included, so an open issue carries the flag
-// exactly when status lists it as waiting. Every failure is a warning,
-// and the pass goes on.
+// issue given forge.Gated when Gated holds for its labels, with the gate
+// note posted on it once the flag is on, and every other open issue
+// carrying the flag cleared of it, one with no stage or two included, so
+// an open issue carries the flag exactly when status lists it as waiting.
+// A note is posted only when the flag is added: one per gating event, and
+// none for an event whose relabel failed until a later pass adds the
+// flag. Every failure is a warning, and the pass goes on.
 func (s *Swarm) flags() {
 	warn := func(format string, a ...any) { fmt.Fprintf(s.Err, "⚠ "+format+"\n", a...) }
 	open, err := s.issues(forge.Open)
@@ -60,6 +62,9 @@ func (s *Swarm) flags() {
 				continue
 			}
 			fmt.Fprintf(s.Out, "#%d gated\n", is.Number)
+			if err := s.gateNote(is.Number, open); err != nil {
+				warn("#%d: gate note: %v", is.Number, err)
+			}
 		case !want && has:
 			if err := Unflag(s.Forge, at, is.Labels, forge.Gated, s.Out); err != nil {
 				warn("#%d: gated: %v", is.Number, err)

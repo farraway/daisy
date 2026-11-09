@@ -39,7 +39,7 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 		case !ok:
 		case m.Role == "architect" && !strings.HasPrefix(swarmText(cm.Body), "BLOCKED:"):
 			c.Plans++
-		case m.Role == "reconciler" && !strings.HasSuffix(swarmText(cm.Body), architectRevises):
+		case blocks(m, cm.Body):
 			c.Blocks++
 		}
 	}
@@ -48,7 +48,7 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 	}
 	for i, p := range pulls {
 		t := threads[i]
-		pc := PullCounts{Repo: p.Repo, Number: p.Number, Rounds: Rounds(t.Reviews, swarmLogin, time.Time{}, "")}
+		pc := PullCounts{Repo: p.Repo, Number: p.Number, Rounds: Rounds(t.Reviews, Answers(pullComments(t.Comments), swarmLogin), swarmLogin, time.Time{}, "")}
 		for _, cm := range t.Comments {
 			if maintainer(cm.Author) {
 				pc.Maintainer++
@@ -73,20 +73,32 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 // words alone could be a member's path quoted in a failure's note.
 var roundLimitNote = regexp.MustCompile(`^Review round [0-9]+ of [0-9]+ on \S+ ` + roundLimitAgain + ` \(at ` + forge.ReviewInProgress + `\)\.`)
 
-// AtTheRoundLimit: the newest of the reconciler's notes that blocked is
-// (every note but the round limit's first, which returns the issue to the
-// architect) is the round limit's second, which leaves the issue at
-// review-1-in-progress, where no role runs, both reviewers having
-// reviewed the head (section 6).
-func AtTheRoundLimit(is forge.Issue, swarmLogin string) bool {
+// blocks: the swarm's entry marked m, with body, is a reconciler note that
+// blocked its issue: every note but the round limit's first, which
+// returns the issue to the architect, and the gate notes, which say why
+// the issue waits.
+func blocks(m Mark, body string) bool {
+	return m.Role == "reconciler" && !m.Gate && !strings.HasSuffix(swarmText(body), architectRevises)
+}
+
+// blockingNote is the newest of the reconciler's notes on is that blocked
+// it (blocks); ok is false when there is none.
+func blockingNote(is forge.Issue, swarmLogin string) (e Entry, ok bool) {
 	thread := IssueThread(is)
 	slices.SortStableFunc(thread, func(a, b Entry) int { return a.Created.Compare(b.Created) })
 	for i := len(thread) - 1; i >= 0; i-- {
-		m, swarm := Swarms(thread[i], swarmLogin)
-		text := swarmText(thread[i].Body)
-		if swarm && m.Role == "reconciler" && !strings.HasSuffix(text, architectRevises) {
-			return roundLimitNote.MatchString(text)
+		if m, swarm := Swarms(thread[i], swarmLogin); swarm && blocks(m, thread[i].Body) {
+			return thread[i], true
 		}
 	}
-	return false
+	return Entry{}, false
+}
+
+// AtTheRoundLimit: the newest of the reconciler's notes that blocked is
+// (blockingNote) is the round limit's second, which leaves the issue at
+// review-1-in-progress, where no role runs, both reviewers having
+// reviewed the head (section 6).
+func AtTheRoundLimit(is forge.Issue, swarmLogin string) bool {
+	e, ok := blockingNote(is, swarmLogin)
+	return ok && roundLimitNote.MatchString(swarmText(e.Body))
 }

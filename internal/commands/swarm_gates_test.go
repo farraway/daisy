@@ -46,10 +46,16 @@ func (a *applyWS) Cfg() declare.Config {
 func (a *applyWS) bodies(n int) []string {
 	var out []string
 	for _, c := range a.issue(n).Comments {
-		out = append(out, c.Body)
+		if !strings.HasPrefix(c.Body, gateNote) {
+			out = append(out, c.Body)
+		}
 	}
 	return out
 }
+
+// gateNote is the gate note's marker line (section 5), which
+// TestSwarmApplyGateNotes pins; bodies leaves the notes out.
+const gateNote = "<!-- daisy-swarm role=reconciler kind=gate -->\n"
 
 // flaky is the git-following forge whose next Relabels fail, as a network
 // error interrupting a collection does.
@@ -134,6 +140,74 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A revision that needs no commit (section 7.6): the worker on
+// review-3-changes-requested ending with no commit and NO CHANGE: as its
+// first line is collected as posted: its report is the pull request's
+// comment, T12 takes the issue to review-0-ready, and the pair reviews
+// the unchanged head again, as round 2, through to T9. The same run
+// without the line, or the line on plan-1-accepted, is the failure no
+// commits.
+func TestSwarmApplyNoChange(t *testing.T) {
+	const answer = "NO CHANGE: main.go:1 says v1, as the plan's Test Plan wants.\n\nNot established: none\n"
+	toChanges := func(t *testing.T) *applyWS {
+		a := newApplyWS(t)
+		a.inReview(oneSlice)
+		a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+		a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+		a.pass()
+		a.pass() // T10
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested"}) {
+			t.Fatalf("T10: %v", got)
+		}
+		return a
+	}
+	t.Run("answered", func(t *testing.T) {
+		a := toChanges(t)
+		head := a.pulls(1)[0].HeadSHA
+		a.runner.Script(1, "worker", runner.Canned{Out: answer})
+		a.pass()
+		cs, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 2})
+		r := a.result("1-worker-2")
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) || len(cs) != 1 || cs[0].Body != mark("worker", 2)+answer ||
+			a.pulls(1)[0].HeadSHA != head || strings.Contains(r, "failed") || strings.Contains(r, "pushed") || !strings.HasSuffix(r, "relabelled swarm:plan-2-in-progress swarm:review-0-ready\noutcome posted\ncollected\n") {
+			t.Fatalf("T12 without a commit: %v %q\n%s", got, cs, r)
+		}
+		if !strings.Contains(a.stdout.String(), "#1 worker run 2: posted comment\n#1 worker run 2: swarm:plan-2-in-progress → swarm:review-0-ready\n") {
+			t.Errorf("stdout:\n%s", a.stdout.String())
+		}
+		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+		a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+		a.pass() // the adversary, round 2, on the same head
+		if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2, on the head you reviewed before ("+head+")") {
+			t.Fatalf("round 2's Task:\n%s", sys)
+		}
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress"}) {
+			t.Fatalf("the pair complete on the first review of the answer: %v", got)
+		}
+		a.pass() // T9
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) {
+			t.Errorf("T9 on the answer: %v\n%s", got, a.stdout.String())
+		}
+	})
+	t.Run("not answered", func(t *testing.T) {
+		a := toChanges(t)
+		a.runner.Script(1, "worker", runner.Canned{Out: "Nothing to change.\n" + answer})
+		a.pass()
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested", forge.Blocked, forge.Gated}) || !strings.Contains(a.result("1-worker-2"), "\nfailed: no commits\n") {
+			t.Errorf("no commit and no NO CHANGE: line: %v\n%s", got, a.result("1-worker-2"))
+		}
+	})
+	t.Run("on plan-1-accepted", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:plan-1-accepted"})
+		a.runner.Script(1, "worker", runner.Canned{Out: answer})
+		a.pass()
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-1-accepted", forge.Blocked, forge.Gated}) || !strings.Contains(a.result("1-worker-1"), "\nfailed: no commits\n") {
+			t.Errorf("NO CHANGE: on a first build: %v\n%s", got, a.result("1-worker-1"))
+		}
+	})
 }
 
 // Every gate off (section 13, Step 29's second row): the batch proposes
@@ -256,8 +330,8 @@ func TestSwarmApplyMergeRefusedNoteIsTheSwarms(t *testing.T) {
 	a.forge.Unmergeable(forge.Ref{Repo: "app", N: 2})
 	a.pass()
 	is := a.issue(1)
-	if last := is.Comments[len(is.Comments)-1]; last.Author != "swarm-bot" || last.Body != note {
-		t.Errorf("after another login's copy, the last word is %s's", last.Author)
+	if last := is.Comments[len(is.Comments)-2]; last.Author != "swarm-bot" || last.Body != note || !strings.HasPrefix(is.Comments[len(is.Comments)-1].Body, gateNote) {
+		t.Errorf("after another login's copy, the last word before the gate note is %s's", last.Author)
 	}
 	a.forge.Say(issue1, "jane", "Try once more.")
 	a.forge.Relabel(issue1, forge.Blocked, "")

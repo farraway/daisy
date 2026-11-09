@@ -15,8 +15,11 @@ func TestSwarmsReadsTheMarkerAndTheAuthor(t *testing.T) {
 		want               Mark
 		ok                 bool
 	}{
-		{"the architect's", "swarm-bot", "<!-- daisy-swarm role=architect run=2 -->\n**architect:**\n\nplan", Mark{"architect", 2}, true},
-		{"a CRLF first line", "Swarm-Bot", "<!-- daisy-swarm role=reconciler run=12 -->\r\n**reconciler:**", Mark{"reconciler", 12}, true},
+		{"the architect's", "swarm-bot", "<!-- daisy-swarm role=architect run=2 -->\n**architect:**\n\nplan", Mark{Role: "architect", Run: 2}, true},
+		{"a CRLF first line", "Swarm-Bot", "<!-- daisy-swarm role=reconciler run=12 -->\r\n**reconciler:**", Mark{Role: "reconciler", Run: 12}, true},
+		{"the gate note", "swarm-bot", gateMarker + "\n**reconciler:** gated at swarm:plan-0-posted: why.", Mark{Role: "reconciler", Gate: true}, true},
+		{"the gate note with a run", "swarm-bot", "<!-- daisy-swarm role=reconciler run=3 kind=gate -->", Mark{}, false},
+		{"another role's gate note", "swarm-bot", "<!-- daisy-swarm role=owner kind=gate -->", Mark{}, false},
 		{"the marker by a maintainer's login", "jane", "<!-- daisy-swarm role=architect run=2 -->\nplan", Mark{}, false},
 		{"run 0", "swarm-bot", "<!-- daisy-swarm role=owner run=0 -->", Mark{}, false},
 		{"a leading zero", "swarm-bot", "<!-- daisy-swarm role=owner run=01 -->", Mark{}, false},
@@ -54,6 +57,16 @@ func TestNewestCounted(t *testing.T) {
 	}
 	if _, ok := NewestCounted([]Entry{{"mallory", "x", t0}}, "swarm-bot", trusted); ok {
 		t.Error("nothing counted, yet an entry")
+	}
+	// A gate note is never counted (section 6), though its author is the
+	// swarm's and trusted; the same first line by a maintainer is counted.
+	gate := []Entry{{"swarm-bot", marker("owner", 1) + "a job", t0}, {"swarm-bot", gateMarker + "\n**reconciler:** gated", t0.Add(time.Hour)}}
+	if e, _ := NewestCounted(gate, "swarm-bot", trusted); e.Body != gate[0].Body {
+		t.Errorf("the gate note counted: %+v", e)
+	}
+	gate[1].Author = "jane"
+	if e, _ := NewestCounted(gate, "swarm-bot", trusted); e.Author != "jane" {
+		t.Errorf("a maintainer's entry not counted: %+v", e)
 	}
 }
 
@@ -99,8 +112,8 @@ func TestPullBodyIsItsOpenersEntry(t *testing.T) {
 		swarm, counted bool
 	}{{"swarm-bot", true, true}, {"mallory", false, false}, {"jane", false, true}} {
 		e := j.pullEntries(forge.Pull{Author: tc.author, Body: body})[0]
-		if _, swarm := Swarms(e, j.SwarmLogin); swarm != tc.swarm || j.counted(e) != tc.counted {
-			t.Errorf("opened by %s: swarm %v counted %v", tc.author, swarm, j.counted(e))
+		if _, swarm := Swarms(e, j.SwarmLogin); swarm != tc.swarm || counted(e, j.SwarmLogin, j.Cfg.Trusted) != tc.counted {
+			t.Errorf("opened by %s: swarm %v counted %v", tc.author, swarm, counted(e, j.SwarmLogin, j.Cfg.Trusted))
 		}
 	}
 }
@@ -147,5 +160,42 @@ func TestAtTheRoundLimit(t *testing.T) {
 	}
 	if AtTheRoundLimit(note("worker run 1 failed: protected path changed: .gitea/requested changes a second time (at swarm:plan-1-accepted). Remove swarm:blocked to resume."), "swarm-bot") {
 		t.Error("a member's path made a failure the round limit's")
+	}
+	// The gate note the flag step posts after it is no note that blocked.
+	is := note("Review round 3 of 3 on app#2 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked.")
+	is.Comments = append(is.Comments, forge.Comment{Author: "swarm-bot", Body: gateMarker + "\n**reconciler:** gated at review-1-in-progress: it is blocked.", Created: time.Date(2026, 11, 6, 9, 5, 0, 0, time.UTC)})
+	if !AtTheRoundLimit(is, "swarm-bot") {
+		t.Error("the gate note hid the round limit's second note")
+	}
+	if c := Count(is, nil, nil, "swarm-bot", []string{"jane", "swarm-bot"}); c.Blocks != 1 {
+		t.Errorf("blocks %d: the gate note counted", c.Blocks)
+	}
+}
+
+// Rounds (section 6): a head reviewed by both is one round, and once more
+// for each answer without a commit after which both reviewed it again;
+// except leaves out the head's reviews since the newest answer only.
+func TestRoundsCountTheAnswers(t *testing.T) {
+	at := func(m int) time.Time { return time.Date(2026, 11, 6, 9, m, 0, 0, time.UTC) }
+	review := func(role, commit string, m int) forge.Review {
+		return forge.Review{Author: "swarm-bot", Body: marker(role, m) + "VERDICT: approve", Commit: commit, Submitted: at(m)}
+	}
+	reviews := []forge.Review{review("adversary", "h1", 1), review("sympathetic", "h1", 2), review("adversary", "h2", 3), review("sympathetic", "h2", 4)}
+	answers := []time.Time{at(5)}
+	if n := Rounds(reviews, answers, "swarm-bot", time.Time{}, ""); n != 2 {
+		t.Errorf("before the pair on the answer: %d", n)
+	}
+	if n := Rounds(reviews, answers, "swarm-bot", time.Time{}, "h2"); n != 2 {
+		t.Errorf("except the head as it stands, before the answer's pair: %d", n)
+	}
+	reviews = append(reviews, review("adversary", "h2", 6), review("sympathetic", "h2", 7))
+	if n := Rounds(reviews, answers, "swarm-bot", time.Time{}, ""); n != 3 {
+		t.Errorf("the answer reviewed: %d", n)
+	}
+	if n := Rounds(reviews, answers, "swarm-bot", time.Time{}, "h2"); n != 2 {
+		t.Errorf("except the head since the answer: %d", n)
+	}
+	if n := Rounds(reviews, nil, "swarm-bot", time.Time{}, ""); n != 2 {
+		t.Errorf("no answer: %d", n)
 	}
 }

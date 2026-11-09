@@ -13,35 +13,62 @@ var (
 )
 
 // Slices is the repository each slice of plan names, in order (section
-// 7.5): the lines matching `^[0-9]+\. ` between its `## Steps` line and
-// the next `## ` line, outside a fenced block; "" for a line naming none.
-// A plan without slice lines has none.
+// 7.5): the lines matching `^[0-9]+\. ` under its `## Steps` heading,
+// outside a fenced block; "" for a line naming none. A plan without slice
+// lines has none.
 func Slices(plan string) []string {
 	var out []string
+	for _, line := range sliceLines(plan) {
+		name := ""
+		if m := sliceRepo.FindStringSubmatch(line); m != nil {
+			name = m[1]
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
+// sliceLines is the plan's slice lines (Slices), each as written.
+func sliceLines(plan string) []string {
+	var out []string
+	for _, line := range section(plan, "Steps") {
+		if !line.fenced && sliceLine.MatchString(line.text) {
+			out = append(out, line.text)
+		}
+	}
+	return out
+}
+
+// planLine is a line of a plan section, and whether it is inside a fenced
+// block (its fence lines included).
+type planLine struct {
+	text   string
+	fenced bool
+}
+
+// section is the lines between plan's `## <heading>` line and the next
+// `## ` line outside a fenced block, without a trailing `\r`; none when
+// the plan has no such heading.
+func section(plan, heading string) []planLine {
+	var out []planLine
 	in, fence := false, ""
 	for _, line := range strings.Split(plan, "\n") {
 		line = strings.TrimRight(line, "\r")
-		if f := fenceOf(line); f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
+		f := fenceOf(line)
+		if f == "" && fence == "" && strings.HasPrefix(line, "## ") {
+			in = strings.TrimSpace(line) == "## "+heading
+			continue
+		}
+		fenced := fence != "" || f != ""
+		if f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
 			if fence == "" {
 				fence = f
 			} else {
 				fence = ""
 			}
-			continue
 		}
-		if fence != "" {
-			continue
-		}
-		if strings.HasPrefix(line, "## ") {
-			in = strings.TrimSpace(line) == "## Steps"
-			continue
-		}
-		if in && sliceLine.MatchString(line) {
-			name := ""
-			if m := sliceRepo.FindStringSubmatch(line); m != nil {
-				name = m[1]
-			}
-			out = append(out, name)
+		if in {
+			out = append(out, planLine{line, fenced})
 		}
 	}
 	return out

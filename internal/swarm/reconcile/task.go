@@ -53,7 +53,7 @@ func (j *Job) task() string {
 		_, _, planned := j.Plan()
 		switch {
 		case j.Label == forge.ChangesRequested:
-			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews and the maintainer's comments. Address each on the branch checked out in /work (swarm/%d-%d), or say why you did not, and write what you changed, point by point.`, cur.Repo, cur.Number, j.N, s)
+			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews and the maintainer's comments. Address each on the branch checked out in /work (swarm/%d-%d), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`, cur.Repo, cur.Number, j.N, s)
 		case planned:
 			e, _, _ := j.Plan()
 			add(`Implement slice %d of the accepted plan for issue #%d (it declares %d) in %s/%s, on the branch checked out in /work (swarm/%d-%d). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.`, s, j.N, max(1, len(Slices(swarmText(e.Body)))), owner(j.Cfg), repo, j.N, s)
@@ -79,7 +79,10 @@ func (j *Job) task() string {
 		if j.Role == "adversary" {
 			add(`For each test that slice %d's item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against %s's code: in /work, a throwaway clone, put everything the change touches except its tests back as %s has it (check out %s's version of each path, deleting those %s lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against %s's code, is a "[blocking]" finding. Two cases that rollback cannot judge are checked by reading instead, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against %s already). A claim reported not in this slice is not checked here.`, s, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base)
 		}
-		if r, prev := j.round(cur); r > 1 {
+		switch r, prev := j.round(cur); {
+		case r > 1 && prev == cur.HeadSHA:
+			add(`This is round %d, on the head you reviewed before (%s): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.`, r, prev)
+		case r > 1:
 			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since ("git diff %s..HEAD").`, r, prev, prev)
 		}
 	}
@@ -94,7 +97,7 @@ func (j *Job) task() string {
 // commented: the issue has a counted comment (section 6).
 func (j *Job) commented() bool {
 	for _, c := range j.Issue.Comments {
-		if j.counted(Entry{c.Author, c.Body, c.Created}) {
+		if counted(Entry{c.Author, c.Body, c.Created}, j.SwarmLogin, j.Cfg.Trusted) {
 			return true
 		}
 	}
@@ -118,8 +121,10 @@ func (j *Job) protected() string {
 }
 
 // round is the reviewer's round on the current head (section 6: the
-// rounds before this head, since the accepted plan, plus this one) and the
-// commit of the role's newest review on the pull request before this head.
+// rounds before this head as it stands, since the accepted plan, plus
+// this one) and the commit of the role's newest review on the pull
+// request before it: an earlier head's, or this head's before the
+// worker's newest answer without a commit.
 func (j *Job) round(p forge.Pull) (int, string) {
 	if j.Pull == nil {
 		return 1, ""
@@ -128,12 +133,14 @@ func (j *Job) round(p forge.Pull) (int, string) {
 	if plan, _, ok := j.Plan(); ok {
 		since = plan.Created
 	}
+	answers := Answers(pullComments(j.Pull.Comments), j.SwarmLogin)
 	prev, prevAt := "", time.Time{}
 	for _, r := range j.Pull.Reviews {
 		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, j.SwarmLogin)
-		if ok && m.Role == j.Role && r.Commit != p.HeadSHA && (since.IsZero() || r.Submitted.After(since)) && !r.Submitted.Before(prevAt) {
+		standing := r.Commit == p.HeadSHA && sinceAnswer(answers, r.Submitted)
+		if ok && m.Role == j.Role && !standing && (since.IsZero() || r.Submitted.After(since)) && !r.Submitted.Before(prevAt) {
 			prev, prevAt = r.Commit, r.Submitted
 		}
 	}
-	return Rounds(j.Pull.Reviews, j.SwarmLogin, since, p.HeadSHA) + 1, prev
+	return Rounds(j.Pull.Reviews, answers, j.SwarmLogin, since, p.HeadSHA) + 1, prev
 }

@@ -24,7 +24,7 @@ after the maintainer has said yes to that write.
    the runs since the maintainer last looked, and what each produced
    (a plan, a pull request, a review's verdict, a block and its reason),
    quoting the run's own words where they matter. Then "Waiting for you"
-   from `status` (on the forge, the same issues carry `swarm:gated`), each item with the decision it asks for and the
+   from `status` (on the forge, the same issues carry `swarm:gated`, and each gating posted a gate note on the issue naming what to examine and the verbs), each item with the decision it asks for and the
    evidence for it (for a plan, its `## Research` first: a wrong belief
    there is wrong in every slice built on it).
 3. **Confirm every write in words, one at a time.** Before running a verb,

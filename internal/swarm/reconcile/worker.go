@@ -80,14 +80,28 @@ func (c *collection) keep() error {
 }
 
 // worker is a worker run's steps after its output was read (section 7.6):
-// no commits; the secret check of every object the push would send, then
-// protected paths; the check, started and collected when it ends, its
-// posted tail checked for secrets; the push; then the pull request opened
-// or commented on, and T8 or T12.
+// no commits, which on review-3-changes-requested with a NO CHANGE: answer
+// is that answer posted on the pull request and T12; the secret check of
+// every object the push would send, then protected paths; the check,
+// started and collected when it ends, its posted tail checked for
+// secrets; the push; then the pull request opened or commented on, and T8
+// or T12.
 func (c *collection) worker(text string, pull *forge.Pull) error {
 	s := c.s
 	if !c.commits() {
-		return c.fail("no commits")
+		if c.label != forge.ChangesRequested || !strings.HasPrefix(text, noChange) {
+			return c.fail("no commits")
+		}
+		if err := c.keep(); err != nil { // the run's ref dropped
+			return err
+		}
+		if err := c.onPull(*pull, text); err != nil {
+			return err
+		}
+		if err := c.relabel(forge.ReviewReady); err != nil {
+			return err
+		}
+		return c.end("posted")
 	}
 	name, branch, sha := branchRepo(c.lines), runBranch(c.lines), c.fetched()
 	repo, _ := s.repo(name)
@@ -211,6 +225,11 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 	if err != nil {
 		return err
 	}
+	comments, err := s.Forge.PullComments(ref)
+	if err != nil {
+		return err
+	}
+	answers := Answers(pullComments(comments), s.SwarmLogin)
 	posted := false
 	for _, rv := range reviews {
 		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
@@ -236,7 +255,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 	at := map[string]time.Time{}
 	for _, rv := range reviews {
 		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
-		if ok && rv.Commit == pull.HeadSHA && (m.Role == "adversary" || m.Role == "sympathetic") && !rv.Submitted.Before(at[m.Role]) {
+		if ok && rv.Commit == pull.HeadSHA && sinceAnswer(answers, rv.Submitted) && (m.Role == "adversary" || m.Role == "sympathetic") && !rv.Submitted.Before(at[m.Role]) {
 			pair[m.Role], at[m.Role] = verdictOf(swarmText(rv.Body)), rv.Submitted
 		}
 	}
@@ -254,7 +273,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 	if hasPlan {
 		since = plan.Created
 	}
-	rounds := Rounds(reviews, s.SwarmLogin, since, "")
+	rounds := Rounds(reviews, answers, s.SwarmLogin, since, "")
 	if rounds < s.Cfg.MaxRounds {
 		if err := c.relabel(forge.ChangesRequested); err != nil {
 			return err
@@ -306,21 +325,28 @@ const architectRevises = "The architect revises the plan from the reviews."
 // (section 6).
 const roundLimitAgain = "requested changes a second time"
 
-// Rounds is a pull request's review rounds (section 6): the distinct
-// commits, other than except, with a review marked role=adversary and one
-// marked role=sympathetic, counting only reviews submitted after since
-// (all of them when since is zero).
-func Rounds(reviews []forge.Review, swarmLogin string, since time.Time, except string) int {
+// Rounds is a pull request's review rounds (section 6): the heads with a
+// review marked role=adversary and one marked role=sympathetic, a head
+// counted once more for each of the worker's answers without a commit
+// (Answers, answers) after which both reviewed it again; counting only
+// reviews submitted after since (all of them when since is zero), and not
+// except's since the newest answer, the head as it stands.
+func Rounds(reviews []forge.Review, answers []time.Time, swarmLogin string, since time.Time, except string) int {
 	by := map[string]map[string]bool{}
 	for _, r := range reviews {
 		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
-		if !ok || !since.IsZero() && !r.Submitted.After(since) || r.Commit == except {
+		after := 0 // the answers before it
+		for after < len(answers) && answers[after].Before(r.Submitted) {
+			after++
+		}
+		if !ok || !since.IsZero() && !r.Submitted.After(since) || r.Commit == except && after == len(answers) {
 			continue
 		}
-		if by[r.Commit] == nil {
-			by[r.Commit] = map[string]bool{}
+		key := fmt.Sprintf("%s %d", r.Commit, after)
+		if by[key] == nil {
+			by[key] = map[string]bool{}
 		}
-		by[r.Commit][m.Role] = true
+		by[key][m.Role] = true
 	}
 	n := 0
 	for _, roles := range by {

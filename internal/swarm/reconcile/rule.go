@@ -60,18 +60,21 @@ type Turn struct {
 
 // Launch is the role the trigger rule launches (section 6, rules 1–3):
 // the first of the label's roles that has something to answer, "" for
-// none. Rule 1's holds (Held) and rule 4 (paused, max_members, a free
-// slot) are the caller's.
+// none; a reviewer has when it has no review of the head since the
+// worker's newest answer without a commit (Answers) in the thread. Rule
+// 1's holds (Held) and rule 4 (paused, max_members, a free slot) are the
+// caller's.
 func Launch(t Turn, swarmLogin string, trusted []string) string {
 	if t.Running {
 		return ""
 	}
+	answers := Answers(t.Thread, swarmLogin)
 	for _, role := range stageRoles[t.Label] {
 		if reviewing(t.Label) {
 			reviewed := false
 			for _, r := range t.Reviews {
 				m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
-				reviewed = reviewed || (ok && m.Role == role && r.Commit == t.Head)
+				reviewed = reviewed || (ok && m.Role == role && r.Commit == t.Head && sinceAnswer(answers, r.Submitted))
 			}
 			if !reviewed {
 				return role

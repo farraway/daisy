@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"testing"
+	"time"
 
 	"daisy/internal/swarm/forge"
 )
@@ -72,6 +73,31 @@ func TestLaunchInReview(t *testing.T) {
 		{"the marker by jane", []forge.Review{review("adversary", "h2", "jane")}, "adversary"},
 	} {
 		if got := Launch(Turn{Label: "swarm:review-0-ready", Reviews: tc.reviews, Head: "h2"}, "swarm-bot", []string{"jane"}); got != tc.want {
+			t.Errorf("%s: %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	// The worker's answer without a commit (NO CHANGE:) on the pull
+	// request: the reviews of the head before it no longer count.
+	t1 := time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)
+	at := func(r forge.Review, m int) forge.Review {
+		r.Submitted = t1.Add(time.Duration(m) * time.Minute)
+		return r
+	}
+	answer := Entry{"swarm-bot", "<!-- daisy-swarm role=worker run=2 -->\n**worker:**\n\nNO CHANGE: it is right.", t1.Add(5 * time.Minute)}
+	before := []forge.Review{at(review("adversary", "h2", "swarm-bot"), 1), at(review("sympathetic", "h2", "swarm-bot"), 2)}
+	for _, tc := range []struct {
+		name    string
+		thread  []Entry
+		reviews []forge.Review
+		want    string
+	}{
+		{"answered", []Entry{answer}, before, "adversary"},
+		{"the adversary since", []Entry{answer}, append(before, at(review("adversary", "h2", "swarm-bot"), 6)), "sympathetic"},
+		{"both since", []Entry{answer}, append(before, at(review("adversary", "h2", "swarm-bot"), 6), at(review("sympathetic", "h2", "swarm-bot"), 7)), ""},
+		{"the words by jane", []Entry{{"jane", answer.Body, answer.Created}}, before, ""},
+		{"a worker's comment that is no answer", []Entry{{"swarm-bot", "<!-- daisy-swarm role=worker run=2 -->\n**worker:**\n\nFixed. NO CHANGE: elsewhere.", answer.Created}}, before, ""},
+	} {
+		if got := Launch(Turn{Label: "swarm:review-0-ready", Thread: tc.thread, Reviews: tc.reviews, Head: "h2"}, "swarm-bot", []string{"jane", "swarm-bot"}); got != tc.want {
 			t.Errorf("%s: %q, want %q", tc.name, got, tc.want)
 		}
 	}

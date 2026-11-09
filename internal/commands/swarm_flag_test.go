@@ -84,7 +84,7 @@ func TestSwarmApplyGatedFlag(t *testing.T) {
 	}
 
 	a.pass()
-	if want := "#1 gated\n#3 gated\n#8 gated\n#10 gated\n#11 gated cleared\n#12 gated cleared\n"; !strings.Contains(a.stdout.String(), want) {
+	if want := "#1 gated\n#1 gate note posted\n#3 gated\n#3 gate note posted\n#8 gated\n#8 gate note posted\n#10 gated\n#10 gate note posted\n#11 gated cleared\n#12 gated cleared\n"; !strings.Contains(a.stdout.String(), want) {
 		t.Errorf("every gate on:\n%s\nwant:\n%s", a.stdout.String(), want)
 	}
 	agree("every gate on", []int{1, 3, 8, 10})
@@ -122,6 +122,124 @@ func TestSwarmApplyGatedFlag(t *testing.T) {
 		t.Errorf("moved by hand:\n%s", a.stdout.String())
 	}
 	agree("moved by hand", []int{1, 8})
+}
+
+// gateNotes is the gate notes on issue n, oldest first.
+func (a *applyWS) gateNotes(n int) []string {
+	var out []string
+	for _, c := range a.issue(n).Comments {
+		if strings.HasPrefix(c.Body, gateNote) && c.Author == "swarm-bot" {
+			out = append(out, c.Body)
+		}
+	}
+	return out
+}
+
+const gatePlan = `## Research
+
+- /work/app/main.go: the entry point.
+
+## Steps
+
+1. app: change main.go to v1; the test proves it.
+2. lib: add notes.md.
+
+## Risks
+
+- **The corpus drifts.** It moves under us.
+  Watch it.
+- A second risk.
+
+## Open Questions
+
+1. Should main.go say v1 or v2?
+`
+
+// The gate note (section 5): when the flag step adds swarm:gated it posts
+// one note on the issue, at each of the four gates naming what the
+// maintainer decides from: the brief, the milestone's other open issues
+// and the issues the proposal names at triage; the plan's slices, its Open
+// Questions as written and its Risks at the plan gate; the pull request,
+// its slice, rounds and the approving reviews' non-blocking findings at
+// the merge gate; the note that blocked the issue. A second pass posts
+// none, the flag being on; a re-gating after a transition posts a new
+// one; no note wakes a role, and status's Waiting line still names
+// exactly the flagged issues.
+func TestSwarmApplyGateNotes(t *testing.T) {
+	a := newApplyWS(t)
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	a.forge.CreateIssue("Drift check", mark("owner", 1)+"Brief: docs/briefs/a.md — M1 The drift\nAfter #2 lands; not acme/lib#9 nor #1.\n", []string{"swarm:proposal-posted"}) // #1
+	a.forge.CreateIssue("Other half", mark("owner", 1)+"Brief: docs/briefs/a.md — M1 The drift\nThe rest.\n", []string{"swarm:proposal-posted"})                               // #2
+	a.forge.CreateIssue("Planned", "Plan it.", []string{"swarm:plan-0-posted"})                                                                                                // #3
+	a.forge.Comment(forge.Ref{Repo: "app", N: 3}, mark("architect", 1)+gatePlan)
+	a.forge.CreateIssue("Merge me", "Build it.", []string{"swarm:review-2-approved"}) // #4
+	a.forge.Comment(forge.Ref{Repo: "app", N: 4}, mark("architect", 1)+twoSlices)
+	a.forge.CreateIssue("Stuck", "Build it.", []string{"swarm:plan-1-accepted", forge.Blocked}) // #5
+	a.forge.Comment(forge.Ref{Repo: "app", N: 5}, mark("reconciler", 1)+"worker run 1 failed: no commits (at swarm:plan-1-accepted). Remove swarm:blocked to resume.")
+	a.forge.CreateIssue("Later", mark("owner", 1)+"Brief: docs/briefs/a.md — M2 Later\nAfter #1.\n", []string{"swarm:proposal-posted"}) // #6
+	m, _ := a.forge.CreatePull("app", "swarm/4-1", "main", "#4 slice 1: Merge me", mark("worker", 1)+"Did it.\n\nRefs #4")              // app#7
+	pr := forge.Ref{Repo: "app", N: m}
+	a.forge.Push(pr, "c0ffee0")
+	a.forge.Review(pr, forge.RequestChanges, mark("adversary", 1)+"VERDICT: request-changes\n\n[blocking] main.go:1 says v0.\n[non-blocking] main.go:2 an old nit.\n")
+	a.forge.Review(pr, forge.Approve, mark("sympathetic", 1)+approve)
+	a.forge.Push(pr, "c1c1c1c")
+	a.forge.Review(pr, forge.Approve, mark("adversary", 2)+"VERDICT: approve\n\n[non-blocking] main.go:2 could name the version.\n")
+	a.forge.Review(pr, forge.Approve, mark("sympathetic", 2)+"VERDICT: approve\n\n[non-blocking] notes.md:1 a typo.\n")
+
+	a.pass()
+	if want := "#1 gated\n#1 gate note posted\n#2 gated\n#2 gate note posted\n#3 gated\n#3 gate note posted\n#4 gated\n#4 gate note posted\n#5 gated\n#5 gate note posted\n#6 gated\n#6 gate note posted\n"; !strings.Contains(a.stdout.String(), want) || a.stderr.Len() != 0 {
+		t.Fatalf("stdout:\n%s\nstderr:\n%s", a.stdout.String(), a.stderr.String())
+	}
+	want := map[int]string{
+		1: "**reconciler:** gated at proposal-posted: the triage gate holds a proposal until the maintainer triages it.\n\n" +
+			"- Brief: docs/briefs/a.md, milestone M1 The drift.\n- Open issues on the same milestone: #2 Other half.\n- Issues it names, its dependencies among them: #2 (open, proposal-posted).\n\n" +
+			"Decide: `daisy swarm triage 1`, `daisy swarm close 1`, or a comment here, which the owner answers.",
+		3: "**reconciler:** gated at plan-0-posted: the plan gate holds the plan until the maintainer accepts it.\n\n" +
+			"- Slices: 2.\n  1. app: change main.go to v1; the test proves it.\n  2. lib: add notes.md.\n" +
+			"- Open questions, as the plan has them:\n  1. Should main.go say v1 or v2?\n" +
+			"- Risks:\n  - **The corpus drifts.** It moves under us.\n  - A second risk.\n\n" +
+			"Decide: `daisy swarm accept 3`, or a comment here, from which the architect revises the plan.",
+		4: "**reconciler:** gated at review-2-approved: both reviews approve, and the merge gate leaves the merge to the maintainer.\n\n" +
+			"- Pull request acme/app#7, #4 slice 1: Merge me (open, head c1c1c1c).\n- Slice 1 of 2.\n- Review rounds: 2.\n" +
+			"- Non-blocking findings in the approving reviews:\n  - adversary: [non-blocking] main.go:2 could name the version.\n  - sympathetic: [non-blocking] notes.md:1 a typo.\n\n" +
+			"Decide: `daisy swarm merge 4`, `daisy swarm approve 4` first when the forge wants an approving review, or a comment.",
+		5: "**reconciler:** gated at plan-1-accepted: it is blocked, and only the maintainer unblocks it.\n\n" +
+			"- The note that set it, at 2026-11-06T15:00:00Z: worker run 1 failed: no commits (at swarm:plan-1-accepted). Remove swarm:blocked to resume.\n\n" +
+			"Decide: make the relabel the note names, if it names one, then `daisy swarm unblock 5 <comment>`; or `daisy swarm close 5`.",
+	}
+	for n, text := range want {
+		if got := a.gateNotes(n); len(got) != 1 || got[0] != gateNote+text {
+			t.Errorf("#%d's gate notes:\n%q\nwant:\n%q", n, got, gateNote+text)
+		}
+	}
+	if got := a.gateNotes(2); len(got) != 1 || !strings.Contains(got[0], "- Open issues on the same milestone: #1 Drift check.\n- Issues it names, its dependencies among them: none.\n") {
+		t.Errorf("#2's gate note: %q", got)
+	}
+	if got := a.gateNotes(6); len(got) != 1 || !strings.Contains(got[0], "- Open issues on the same milestone: none.\n- Issues it names, its dependencies among them: #1 (open, proposal-posted).\n") {
+		t.Errorf("#6's gate note: %q", got)
+	}
+
+	a.pass()
+	if strings.Contains(a.stdout.String(), "gate note") {
+		t.Errorf("a second pass posted a note with the flag on:\n%s", a.stdout.String())
+	}
+	os.Remove(a.state("paused"))
+	a.pass()
+	if l := a.runner.Launches(); len(l) != 0 {
+		t.Errorf("a gate note woke a role: %+v", l)
+	}
+	if got, line := a.waitingSet(); !reflect.DeepEqual(got, a.gatedSet()) || !reflect.DeepEqual(got, []int{1, 2, 3, 4, 5, 6}) {
+		t.Errorf("Waiting %q, flagged %v", line, a.gatedSet())
+	}
+
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	a.forge.SetLabel(forge.Ref{Repo: "app", N: 3}, "swarm:plan-1-accepted") // T7 on the forge
+	a.pass()
+	a.forge.SetLabel(forge.Ref{Repo: "app", N: 3}, "swarm:plan-0-posted") // and back: gated again
+	a.pass()
+	if got := a.gateNotes(3); len(got) != 2 || got[1] != gateNote+want[3] || !strings.Contains(a.stdout.String(), "#3 gated\n#3 gate note posted\n") {
+		t.Errorf("re-gated: %d notes\n%s", len(got), a.stdout.String())
+	}
 }
 
 // The flags and the terminals are no stage (section 6, rule 1): a

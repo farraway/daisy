@@ -248,6 +248,25 @@ func TestRenderAdversaryRoundTwo(t *testing.T) {
 		"still fine", "# Direction")
 }
 
+// A head the worker answered without a commit (NO CHANGE:) is reviewed
+// again: round 2 on the same head, its Task text telling the reviewer to
+// judge the answer against its previous review of that head and to raise
+// nothing new; the worker's Task text names the form.
+func TestRenderAdversaryNoChange(t *testing.T) {
+	f, at, pr, _ := planned(t)
+	f.Comment(pr, marker("worker", 2)+"NO CHANGE: x.go:1 is right; the plan says so.\n\nNot established: none")
+	pulls, _ := f.Pulls(1)
+	j := job(f, at.N, "adversary", "swarm:review-0-ready")
+	j.Pulls, j.Pull = pulls, thread(f, pr)
+	sys, _ := Render(j)
+	has(t, "system.md", sys, []string{`This is round 2, on the head you reviewed before (aaa): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.`},
+		"This is round 2. First say")
+	w := job(f, at.N, "worker", "swarm:review-3-changes-requested")
+	w.Pulls, w.Pull = pulls, thread(f, pr)
+	sys, _ = Render(w)
+	has(t, "worker system.md", sys, []string{`If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`})
+}
+
 // The owner on a proposed issue without a counted comment, and the batch
 // over a resources tree: the active brief in, a done one and a file
 // without Status left out; None. for each empty list.
