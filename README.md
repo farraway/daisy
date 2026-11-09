@@ -167,12 +167,13 @@ creates the swarm's labels on the forge (the nine stages, grouped and
 numbered as the job gets on, `swarm:proposal-posted` to
 `swarm:review-3-changes-requested`; the flags `swarm:gated` on what
 waits for you, `swarm:blocked`, `swarm:paused` and `swarm:blocking`; and
-the terminals `swarm:done` and `swarm:rejected`) and prints the systemd user
-units for a timer. `daisy swarm apply --once` runs one pass of the
+the terminals `swarm:done` and `swarm:rejected`) and prints a systemd user
+service. `daisy swarm apply --once` runs one pass of the
 reconciler: it reads the forge, launches the members (one agent run each,
 in its own container) whose turn it is, posts what they wrote and moves
-the labels; the timer runs `apply --once` every interval, and `apply`
-without `--once` loops itself until signalled. `daisy swarm status`
+the labels, then waits for its members; `apply` without `--once`, what
+the service runs, loops itself until signalled, a pass every interval
+whatever runs, each run collected by the pass after it ends. `daisy swarm status`
 reports the stages, the gates, what waits for you, the running members,
 throughput and the briefs, and writes nothing. `daisy swarm pause` and
 `daisy swarm resume` hold and release launches, for the whole swarm or,
@@ -465,7 +466,7 @@ forge token in `.env.sh` (copy `templates/env.sh.template`):
 
 ```bash
 daisy swarm init                 # the wizard: forge, repositories, personas, gates
-daisy swarm apply --once         # one pass; the printed timer units run it every interval
+daisy swarm apply --once         # one pass; the printed service runs the loop, apply without --once
 daisy swarm status               # what the swarm did, and what waits for you
 ```
 

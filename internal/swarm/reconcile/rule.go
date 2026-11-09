@@ -48,45 +48,55 @@ func InProgress(role, stage string) string {
 // one stage label: the thread its roles read (the issue's, or in the
 // review stages and review-3-changes-requested the current pull
 // request's), in the review stages that pull request's reviews and head,
-// and whether anything runs on the issue (rule 2: a container, or a run
-// ended and not collected).
+// and the roles that hold the issue (rule 2): the role of each container
+// running on it (`check` for a worker run's check) and of each run on it
+// ended and not collected.
 type Turn struct {
 	Label   string
 	Thread  []Entry
 	Reviews []forge.Review
 	Head    string
-	Running bool
+	Running []string
 }
 
-// Launch is the role the trigger rule launches (section 6, rules 1–3):
-// the first of the label's roles that has something to answer, "" for
-// none; a reviewer has when it has no review of the head since the
-// worker's newest answer without a commit (Answers) in the thread. Rule
-// 1's holds (Held) and rule 4 (paused, max_members, a free slot) are the
-// caller's.
-func Launch(t Turn, swarmLogin string, trusted []string) string {
-	if t.Running {
-		return ""
-	}
-	answers := Answers(t.Thread, swarmLogin)
-	for _, role := range stageRoles[t.Label] {
-		if reviewing(t.Label) {
-			reviewed := false
-			for _, r := range t.Reviews {
-				m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
-				reviewed = reviewed || (ok && m.Role == role && r.Commit == t.Head && sinceAnswer(answers, r.Submitted))
-			}
-			if !reviewed {
-				return role
-			}
-			continue
+// Launch is the roles the trigger rule launches (section 6, rules 1–3):
+// the first of the label's roles that has something to answer, and in a
+// review stage each reviewer that has (the pair launches in one pass,
+// blind to each other on the head); none when nothing is to answer. A
+// reviewer has something to answer when it has no review of the head
+// since the worker's newest answer without a commit (Answers) in the
+// thread. Anything running on the issue holds every role, but in a review
+// stage the other reviewer's run, which holds only itself. Rule 1's holds
+// (Held) and rule 4 (paused, max_members, a free slot) are the caller's.
+func Launch(t Turn, swarmLogin string, trusted []string) []string {
+	if !reviewing(t.Label) {
+		if len(t.Running) > 0 {
+			return nil
 		}
 		e, ok := NewestCounted(t.Thread, swarmLogin, trusted)
-		if m, swarm := Swarms(e, swarmLogin); !ok || !swarm || m.Role != role {
-			return role
+		for _, role := range stageRoles[t.Label] {
+			if m, swarm := Swarms(e, swarmLogin); !ok || !swarm || m.Role != role {
+				return []string{role}
+			}
+		}
+		return nil
+	}
+	answers := Answers(t.Thread, swarmLogin)
+	var out []string
+	for _, role := range stageRoles[t.Label] {
+		if slices.ContainsFunc(t.Running, func(r string) bool { return r == role || !slices.Contains(stageRoles[t.Label], r) }) {
+			continue
+		}
+		reviewed := false
+		for _, r := range t.Reviews {
+			m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
+			reviewed = reviewed || (ok && m.Role == role && r.Commit == t.Head && sinceAnswer(answers, r.Submitted))
+		}
+		if !reviewed {
+			out = append(out, role)
 		}
 	}
-	return ""
+	return out
 }
 
 // Held is the flag that holds an issue whatever its stage (section 6,

@@ -18,8 +18,9 @@ import (
 // launch prepares and starts the run of j (section 7.1): for the worker,
 // its slice's repository resolved first; its directory and prompt files,
 // read back; the clones; the credential; the argv and the result's first
-// lines. It reports whether a container started. A run that cannot launch
-// is recorded and collected at once; none is made when no slot is free.
+// lines. It reports whether a container started, and once it has written
+// the in-progress stage j.Label is that stage. A run that cannot launch is
+// recorded and collected at once; none is made when no slot is free.
 func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	fs := s.O.FS()
 	r := Run{Dir: filepath.Join(s.state(), "runs", fmt.Sprintf("%d-%s-%d", j.N, j.Role, j.K)), N: j.N, K: j.K, Role: j.Role}
@@ -201,7 +202,9 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			return true, err
 		}
 		fmt.Fprintf(s.Out, "%s%s → %s\n", runHead(r), j.Label, to)
-		if err := r.Append(fs, "relabelled "+j.Label+" "+to); err != nil {
+		from := j.Label
+		j.Label = to // the issue's stage now, which the pair's second is launched on
+		if err := r.Append(fs, "relabelled "+from+" "+to); err != nil {
 			return true, err
 		}
 	}

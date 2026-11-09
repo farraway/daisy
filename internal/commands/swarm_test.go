@@ -128,24 +128,18 @@ func (s *swarmWS) run(flags ...string) error {
 const units = `
 # ~/.config/systemd/user/daisy-swarm@.service
 [Unit]
-Description=Daisy swarm: one apply pass for the workspace %f
-
-[Service]
-Type=oneshot
-WorkingDirectory=%f
-Environment=DAISY_ROOT=<root>
-ExecStart=/opt/daisy/bin/daisy swarm apply --once
-
-# ~/.config/systemd/user/daisy-swarm@.timer
-[Unit]
 Description=Daisy swarm: apply every 5min for the workspace %f
 
-[Timer]
-OnActiveSec=1min
-OnUnitInactiveSec=5min
+[Service]
+WorkingDirectory=%f
+Environment=DAISY_ROOT=<root>
+ExecStart=/opt/daisy/bin/daisy swarm apply
+Restart=on-failure
+RestartSec=5min
+KillMode=mixed
 
 [Install]
-WantedBy=timers.target
+WantedBy=default.target
 
 Install (your step):
   systemctl --user daemon-reload && systemctl --user enable --now <unit>
@@ -382,7 +376,7 @@ func TestSystemdNotation(t *testing.T) {
 			t.Errorf("systemdEscapePath(%q) = %q, want %q", in, got, want)
 		}
 	}
-	for in, want := range map[string]string{"/home/jane/ws": "daisy-swarm@home-jane-ws.timer", "/srv/my-ws": `'daisy-swarm@srv-my\x2dws.timer'`} {
+	for in, want := range map[string]string{"/home/jane/ws": "daisy-swarm@home-jane-ws.service", "/srv/my-ws": `'daisy-swarm@srv-my\x2dws.service'`} {
 		if got := installedUnit(in); got != want {
 			t.Errorf("installedUnit(%q) = %q, want %q", in, got, want)
 		}

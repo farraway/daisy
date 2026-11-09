@@ -88,8 +88,10 @@ func (r Run) Append(fs ops.FS, lines ...string) error {
 
 var oneLine = strings.NewReplacer("\r", `\r`, "\n", `\n`)
 
-// endWords are the first words of a result's end line (section 2).
-var endWords = []string{"exited", "timeout", "launch-failed", "abandoned"}
+// endWords are the first words of a result's end line (section 2):
+// `ended` a container another apply started, gone, whose member wrote
+// out.md (its exit status and streams died with that apply).
+var endWords = []string{"exited", "timeout", "launch-failed", "abandoned", "ended"}
 
 // Ended is the run's end line's first word, "" when it has none.
 func Ended(lines []string) string {

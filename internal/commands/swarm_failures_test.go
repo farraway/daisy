@@ -89,6 +89,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 			if tc.review {
 				a.inReview(oneSlice)
 				role, label = "adversary", "swarm:review-0-ready"
+				a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}) // launched beside it, and approving
 			} else {
 				a.planned(oneSlice)
 			}
@@ -206,6 +207,10 @@ func TestSwarmApplyFaults(t *testing.T) {
 	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
 	os.Remove(filepath.Join(slot, "auth.json"))
 	a.inReview(oneSlice) // the architect and the worker are anthropic's
+	// The sympathetic reviewer's review of the head, on the head as the
+	// Fake reads it: the adversary alone runs.
+	a.pulls(1)
+	a.forge.Review(forge.Ref{Repo: "app", N: 2}, forge.Approve, mark("sympathetic", 1)+approve)
 	before := a.bodies(1)
 	a.pass()
 	r := a.result("1-adversary-1")
@@ -343,5 +348,30 @@ func TestSwarmApplyAbandonedAndOrphans(t *testing.T) {
 		if got := strings.HasSuffix(a.result(run), "outcome abandoned\ncollected\n"); got != abandoned {
 			t.Errorf("%s:\n%s", run, a.result(run))
 		}
+	}
+}
+
+// A run another apply started whose container is gone and whose member
+// wrote its out.md (section 7.7, ended): collected from it as its own
+// pass would have, its comment posted once and its issue moved on, not
+// abandoned; the role rule launches nothing more for it.
+func TestSwarmApplyCollectsARunAnotherApplyStarted(t *testing.T) {
+	a := newApplyWS(t)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	run := a.state("runs/1-architect-1")
+	os.MkdirAll(filepath.Join(run, "io"), 0o755)
+	os.MkdirAll(filepath.Join(run, "work"), 0o755)
+	os.WriteFile(filepath.Join(run, "io", "out.md"), []byte(archPlan), 0o644)
+	os.WriteFile(filepath.Join(run, "result"), []byte("start app 0123\nlabel swarm:proposal-accepted\nstarted 2026-11-06T14:30:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\n"), 0o644)
+	a.pass()
+	a.pass()
+	if r := a.result("1-architect-1"); !strings.HasSuffix(r, "\nended 2026-11-06T15:01:00Z\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\noutcome posted\ncollected\n") {
+		t.Errorf("result:\n%s", r)
+	}
+	if b := a.bodies(1); len(b) != 1 || b[0] != mark("architect", 1)+archPlan || !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:plan-0-posted", forge.Gated}) || len(a.runner.Launches()) != 0 {
+		t.Errorf("comments %q, labels %v, launched %d", b, labels(a.issue(1)), len(a.runner.Launches()))
+	}
+	if _, err := os.Stat(filepath.Join(run, "work")); err == nil {
+		t.Error("work/ kept after the collection")
 	}
 }

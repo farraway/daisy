@@ -201,8 +201,8 @@ func readiness(c *Context, ws string, cfg declare.Config, swarmLogin string) {
 	}
 }
 
-// printUnits prints the systemd user units that run `swarm apply --once`
-// every interval in this workspace, and how to install them.
+// printUnits prints the systemd user service that runs `swarm apply`'s
+// loop in this workspace, and how to install it.
 func printUnits(c *Context, ws, interval string) error {
 	daisy, err := c.Ops.Executable()
 	if err != nil {
@@ -213,35 +213,29 @@ func printUnits(c *Context, ws, interval string) error {
 	fmt.Fprintf(c.Stdout, `
 # ~/.config/systemd/user/daisy-swarm@.service
 [Unit]
-Description=Daisy swarm: one apply pass for the workspace %%f
-
-[Service]
-Type=oneshot
-WorkingDirectory=%%f
-Environment=DAISY_ROOT=%s
-ExecStart=%s swarm apply --once
-
-# ~/.config/systemd/user/daisy-swarm@.timer
-[Unit]
 Description=Daisy swarm: apply every %s for the workspace %%f
 
-[Timer]
-OnActiveSec=1min
-OnUnitInactiveSec=%s
+[Service]
+WorkingDirectory=%%f
+Environment=DAISY_ROOT=%s
+ExecStart=%s swarm apply
+Restart=on-failure
+RestartSec=%s
+KillMode=mixed
 
 [Install]
-WantedBy=timers.target
+WantedBy=default.target
 
 Install (your step):
   systemctl --user daemon-reload && systemctl --user enable --now %s
-`, c.Env.Root, daisy, systemdSpan(d), systemdSpan(d), unit)
+`, systemdSpan(d), c.Env.Root, daisy, systemdSpan(d), unit)
 	return nil
 }
 
-// installedUnit is the timer's name on the install line, single-quoted
+// installedUnit is the service's name on the install line, single-quoted
 // when the escape holds a `\`, which the shell would eat.
 func installedUnit(ws string) string {
-	unit := "daisy-swarm@" + systemdEscapePath(ws) + ".timer"
+	unit := "daisy-swarm@" + systemdEscapePath(ws) + ".service"
 	if strings.Contains(unit, `\`) {
 		return "'" + unit + "'"
 	}

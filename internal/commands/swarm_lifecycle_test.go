@@ -143,8 +143,9 @@ const (
 // (T5), the maintainer accepts (T7), the worker pushes swarm/1-1 and opens
 // app#2 with Refs #1 after its check (T8), the issue at
 // plan-2-in-progress from the worker's launch to its collection, the pair
-// reviews in two rounds (T10, T12, T9), the issue at review-1-in-progress
-// from the first reviewer's launch until the pair completes, the
+// reviews in two rounds (T10, T12, T9), both reviewers launched in one
+// pass and the issue at review-1-in-progress, written once, from the
+// first one's launch until the pair completes, the
 // maintainer merges and relabels plan-1-accepted (T13), and the next slice
 // starts on swarm/1-2. The maintainer's flag rides along: on at the gated
 // stages, proposal-posted, plan-0-posted and review-2-approved, and cleared
@@ -230,21 +231,30 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 
 	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}, runner.Canned{Out: approve})
-	a.pass() // the adversary, round 1
+	before := len(a.runner.Launches())
+	a.pass() // the pair, round 1, in one pass: T21 by the first launched, then T10
+	var roles []string
+	for _, l := range a.runner.Launches()[before:] {
+		roles = append(roles, l.Label)
+	}
+	if !reflect.DeepEqual(roles, []string{"acme/app#1/adversary", "acme/app#1/sympathetic"}) {
+		t.Errorf("round 1's pass launched %q", roles)
+	}
 	pr = a.pulls(1)[0]
-	if !slices.Contains(pr.Labels, "swarm:review-1-in-progress") {
+	if !slices.Contains(pr.Labels, "swarm:review-1-in-progress") { // copied as the pass read the issue again under it
 		t.Errorf("the pull request's label: %v", pr.Labels)
 	}
 	if sys := a.file("1-adversary-1", "io/system.md"); !strings.Contains(sys, "check that its test exists on this head and that it fails against main's code") {
 		t.Errorf("adversary's Task:\n%s", sys)
 	}
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-1-in-progress"}) || !strings.Contains(a.result("1-adversary-1"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") {
-		t.Errorf("after the first review: %v\n%s", labels(a.issue(1)), a.result("1-adversary-1"))
-	}
-	a.pass() // the sympathetic reviewer completes round 1: T10
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-3-changes-requested"}) || !strings.Contains(a.result("1-sympathetic-1"), "\nlabel swarm:review-1-in-progress\n") ||
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-3-changes-requested"}) || !strings.Contains(a.result("1-adversary-1"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") ||
+		!strings.Contains(a.result("1-sympathetic-1"), "\nlabel swarm:review-1-in-progress\n") || strings.Contains(a.result("1-sympathetic-1"), "relabelled swarm:review-0-ready") ||
 		!strings.Contains(a.result("1-sympathetic-1"), "\nrelabelled swarm:review-1-in-progress swarm:review-3-changes-requested\n") {
-		t.Fatalf("T10: %v\n%s", labels(a.issue(1)), a.result("1-sympathetic-1"))
+		t.Fatalf("T21 once, then T10: %v\n%s\n%s", labels(a.issue(1)), a.result("1-adversary-1"), a.result("1-sympathetic-1"))
+	}
+	if n := slices.Index(a.forge.Events(ref), forge.Event{Actor: "swarm-bot", What: "labeled swarm:review-1-in-progress"}); n < 0 ||
+		slices.Contains(a.forge.Events(ref)[n+1:], forge.Event{Actor: "swarm-bot", What: "labeled swarm:review-1-in-progress"}) {
+		t.Errorf("review-1-in-progress written other than once: %v", a.forge.Events(ref))
 	}
 	if sys := a.file("1-sympathetic-1", "io/prompt.md"); strings.Contains(sys, "says v1; the plan wants v2") {
 		t.Errorf("the sympathetic reviewer read the adversary's review of its head:\n%s", sys)
@@ -260,11 +270,10 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		!strings.Contains(cs[0].Body, "**Check:** `make check` on "+pr.HeadSHA[:7]+": exit 0") {
 		t.Fatalf("T12: %v %+v", labels(a.issue(1)), cs)
 	}
-	a.pass() // the adversary, round 2
+	a.pass() // the pair, round 2: T9
 	if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2.") {
 		t.Errorf("round 2's Task:\n%s", sys)
 	}
-	a.pass() // T9
 	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-2-approved", forge.Gated}) {
 		t.Fatalf("T9: %v", labels(a.issue(1)))
 	}

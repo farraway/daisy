@@ -194,8 +194,10 @@ func runOf(dir string) (Run, bool) {
 
 // collectAll is pass steps (2) and (3): each container of this process
 // that has ended recorded, each run left uncollected collected, each
-// check whose apply died started again, and the runs another apply
-// started marked abandoned, or stopped when they have outlived timeout.
+// check whose apply died started again, and of the runs another apply
+// started whose container is gone, one whose member wrote out.md marked
+// ended and collected from it, any other abandoned, and one whose
+// container has outlived timeout stopped and abandoned.
 func (s *Swarm) collectAll(running []runner.Running) error {
 	fs := s.O.FS()
 	runs, err := Runs(fs, s.state())
@@ -238,6 +240,7 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 				continue
 			}
 			name := s.containerName(r.N, r.Role, r.K)
+			end := "abandoned "
 			if isRunning(name) {
 				if !over(strings.TrimPrefix(started, "started ")) {
 					continue
@@ -246,10 +249,12 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 					errs = append(errs, err)
 					continue
 				}
+			} else if _, err := r.Output(fs); err == nil {
+				end = "ended " // its member wrote out.md: collected from it as its own pass would
 			}
 			// The end line first: collect restores the issue's stage and
 			// only then records `collected`, so a forge error is retried.
-			if err := r.Append(fs, "abandoned "+now); err != nil {
+			if err := r.Append(fs, end+now); err != nil {
 				return err
 			}
 		}
@@ -399,6 +404,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 	if err != nil {
 		return err
 	}
+	decided := map[int]bool{} // an issue's roles are decided once a pass, though its launch moves it to a stage read later
 	for _, label := range stageOrder {
 		issues, err := s.Forge.Issues(forge.Open, label)
 		if err != nil {
@@ -437,7 +443,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				}
 			}
 			roles := stageRoles[label]
-			if len(roles) == 0 || launch == nil {
+			if len(roles) == 0 || launch == nil || decided[n] {
 				continue
 			}
 			if held := Held(is.Labels); held != "" {
@@ -469,18 +475,21 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			if review {
 				turn.Thread, turn.Reviews, turn.Head = j.pullEntries(cur), j.Pull.Reviews, cur.HeadSHA
 			}
-			role := Launch(turn, s.SwarmLogin, s.Cfg.Trusted)
-			if role == "" {
-				continue
-			}
-			persona, err := fs.ReadFile(declare.PromptFile(s.WS, role))
-			if err != nil {
-				return err
-			}
-			j.Role, j.Persona = role, string(persona)
-			j.K = NextK(runs, n, role, marks)
-			if err := launch(j); err != nil {
-				return err
+			decided[n] = true
+			for _, role := range Launch(turn, s.SwarmLogin, s.Cfg.Trusted) {
+				persona, err := fs.ReadFile(declare.PromptFile(s.WS, role))
+				if err != nil {
+					return err
+				}
+				run := *j
+				run.Role, run.Persona = role, string(persona)
+				run.K = NextK(runs, n, role, marks)
+				if err := launch(&run); err != nil {
+					return err
+				}
+				// The pair's second is launched on the stage the first's
+				// launch wrote, so the in-progress write is made once.
+				j.Label = run.Label
 			}
 		}
 	}
@@ -492,17 +501,24 @@ func (s *Swarm) repoCheck(name string) []string {
 	return r.Check
 }
 
-// busy is rule 2: a container of this swarm runs on issue n (in the
-// pass's running set, or started by this process since, this pass's
-// launches included), or a run on n has an end line and no `collected`.
-func (s *Swarm) busy(running []runner.Running, runs []Run, n int) bool {
+// busy is rule 2: the roles of this swarm's containers running on issue
+// n (in the pass's running set, or started by this process since, this
+// pass's launches included; a check's as `check`), and of the runs on n
+// with an end line and no `collected`.
+func (s *Swarm) busy(running []runner.Running, runs []Run, n int) []string {
 	prefix := fmt.Sprintf("%s#%d/", s.Cfg.Forge.Repo, n)
-	if slices.ContainsFunc(running, func(c runner.Running) bool { return strings.HasPrefix(c.Swarm, prefix) }) {
-		return true
+	var roles []string
+	for _, c := range running {
+		if role, ok := strings.CutPrefix(c.Swarm, prefix); ok {
+			roles = append(roles, role)
+		}
 	}
-	for dir := range s.live {
+	for dir, l := range s.live {
 		if r, ok := runOf(dir); ok && r.N == n {
-			return true
+			if l.check {
+				r.Role = "check"
+			}
+			roles = append(roles, r.Role)
 		}
 	}
 	for _, r := range runs {
@@ -511,10 +527,10 @@ func (s *Swarm) busy(running []runner.Running, runs []Run, n int) bool {
 		}
 		lines, _ := r.Result(s.O.FS())
 		if _, done := Has(lines, "collected"); Ended(lines) != "" && !done {
-			return true
+			roles = append(roles, r.Role)
 		}
 	}
-	return false
+	return roles
 }
 
 // copyLabel gives the issue's open current pull request the issue's stage

@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -97,8 +98,8 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 		a.inReview(oneSlice)
 		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 		a.runner.Script(1, "sympathetic", runner.Canned{Out: "Looks fine.\n"}) // no verdict line
-		a.pass()
-		a.pass()
+
+		a.pass() // the pair, in one pass
 		r := a.result("1-sympathetic-1")
 		b := a.bodies(1)
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready", forge.Blocked, forge.Gated}) ||
@@ -172,11 +173,19 @@ func TestSwarmApplyHolds(t *testing.T) {
 		a.pass()
 		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 		a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+		// The adversary's slot busy: the sympathetic reviewer launches
+		// alone and writes review-1-in-progress.
+		release, err := ops.Real().FS().Lock(filepath.Join(a.local, "swarm", "credentials", "openai", "1.lock"), "test")
+		if err != nil {
+			t.Fatal(err)
+		}
 		a.pass()
+		release()
 		a.forge.Relabel(issue1, "", forge.Paused) // paused between the pair's two reviews: the second waits
 		a.pass()
 		a.pass()
-		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress", forge.Paused}) {
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress", forge.Paused}) || len(a.runner.Launches()) != 4 ||
+			!strings.Contains(a.result("1-sympathetic-1"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") {
 			t.Fatalf("paused mid-pair: %v\n%s", got, a.stdout.String())
 		}
 		a.forge.Relabel(issue1, forge.Paused, "")

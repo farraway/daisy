@@ -33,7 +33,7 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	if err != nil {
 		return err
 	}
-	if s.busy(running, runs, 0) {
+	if len(s.busy(running, runs, 0)) > 0 {
 		return nil
 	}
 	open, err := s.issues(forge.Open)

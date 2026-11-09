@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -344,6 +345,93 @@ func TestSwarmApplyLoop(t *testing.T) {
 	}
 	if r := c.result("1-architect-1"); strings.Contains(r, "collected") {
 		t.Errorf("collected after the second signal:\n%s", r)
+	}
+}
+
+// held is the runner whose containers named in hold run until their
+// channel is closed; the others end at once.
+type held struct {
+	*runner.Fake
+	hold map[string]chan struct{}
+}
+
+func (h held) Start(s runner.Spec, d time.Duration) (runner.Container, error) {
+	c, err := h.Fake.Start(s, d)
+	if ch := h.hold[s.Name]; ch != nil && err == nil {
+		return gatedRun{c, ch}, nil
+	}
+	return c, err
+}
+
+// The loop runs a pass every interval whatever runs (section 11): #1's
+// architect outlives two intervals; the pass after it starts launches
+// #2's, proposed meanwhile, and the pass after that collects #2's; the
+// first pass after #1's member ends collects it, its comment posted and
+// its label moved once; the drain after the signal finds nothing left.
+func TestSwarmApplyLoopCollectsALaterPass(t *testing.T) {
+	a := newApplyWS(t)
+	a.signals = make(chan os.Signal, 2)
+	a.forge.CreateIssue("Long", "x", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	a.runner.Script(2, "architect", runner.Canned{Out: archPlan})
+	const long = "daisy-swarm.acme.app.1.architect.1"
+	gate := make(chan struct{})
+	var once sync.Once
+	var forced atomic.Bool
+	end := func() { once.Do(func() { close(gate) }) }
+	defer end()
+	guard := time.AfterFunc(10*time.Second, func() { forced.Store(true); end() }) // a pass waiting for #1 would never reach the interval
+	defer guard.Stop()
+	waits := 0
+	a.after = func(time.Duration) <-chan time.Time {
+		waits++
+		a.tick()
+		switch waits {
+		case 1:
+			a.forge.CreateIssue("Short", "y", []string{"swarm:proposal-accepted"})
+		case 3:
+			end()
+			for running, _ := a.runner.Running(); slices.ContainsFunc(running, func(c runner.Running) bool { return c.Name == long }); running, _ = a.runner.Running() {
+				time.Sleep(time.Millisecond)
+			}
+		case 5:
+			a.signals <- os.Interrupt
+			return make(chan time.Time)
+		}
+		c := make(chan time.Time, 1)
+		c <- time.Time{}
+		return c
+	}
+	err := a.applyTo(a.git(), held{a.runner, map[string]chan struct{}{long: gate}}, &a.stdout, &a.stderr)
+	lines := strings.Split(a.stdout.String(), "\n")
+	var passes []int
+	for i, l := range lines {
+		if strings.HasPrefix(l, "Pass ") {
+			passes = append(passes, i)
+		}
+	}
+	at := func(line string) int { return slices.Index(lines, line) }
+	if err != nil || forced.Load() || len(passes) != 5 {
+		t.Fatalf("%v, forced %v, %d passes:\n%s", err, forced.Load(), len(passes), a.stdout.String())
+	}
+	if l := at("#2 architect run 1: launched"); l < passes[0] || l > passes[1] || !strings.HasSuffix(lines[passes[1]], "launched 1, collected 0, running 1") {
+		t.Errorf("#2 not launched by pass 2 while #1 ran:\n%s", a.stdout.String())
+	}
+	if l := at("#2 architect run 1: posted comment"); l < passes[1] || l > passes[2] {
+		t.Errorf("#2 not collected by pass 3:\n%s", a.stdout.String())
+	}
+	if l := at("#1 architect run 1: posted comment"); l < passes[2] || l > passes[4] {
+		t.Errorf("#1 not collected by a pass after it ended:\n%s", a.stdout.String())
+	}
+	moved := 0
+	for _, e := range a.forge.Events(issue1) {
+		if e.What == "labeled swarm:plan-0-posted" {
+			moved++
+		}
+	}
+	if b := a.bodies(1); len(b) != 1 || b[0] != mark("architect", 1)+archPlan || moved != 1 || len(a.runner.Launches()) != 2 ||
+		!strings.HasSuffix(a.result("1-architect-1"), "outcome posted\ncollected\n") {
+		t.Errorf("comments %q, moved %d, launched %d\n%s", b, moved, len(a.runner.Launches()), a.result("1-architect-1"))
 	}
 }
 

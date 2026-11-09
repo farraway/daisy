@@ -4,8 +4,8 @@ description: The maintainer's guide over a Daisy swarm in this workspace — rea
 short_description: Guide a Daisy swarm: status, briefs, gates
 ---
 
-The swarm is Daisy's reconciler over a forge: `daisy swarm apply`, on the
-maintainer's timer, launches the five roles (owner, architect, worker,
+The swarm is Daisy's reconciler over a forge: `daisy swarm apply`, as the
+maintainer's user service, launches the five roles (owner, architect, worker,
 adversary, sympathetic) and moves each issue's `swarm:*` label. Its
 contract is `docs/swarm.md` in the Daisy root. This skill is the
 maintainer's side of it: you read, explain and draft; the maintainer

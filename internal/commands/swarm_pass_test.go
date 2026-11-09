@@ -82,8 +82,7 @@ func TestSwarmMergeStepSkipsTwoLabels(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
-	a.pass()
+	a.pass() // the pair: T9
 	if got := labels(a.issue(1)); len(got) != 1 || got[0] != "swarm:review-2-approved" {
 		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
 	}
@@ -175,8 +174,7 @@ func TestSwarmPausedPassMergesNothing(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
-	a.pass() // T9: approved
+	a.pass() // the pair: T9, approved
 	if err := a.verb(SwarmPause); err != nil {
 		t.Fatal(err)
 	}
@@ -200,8 +198,7 @@ func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
-	a.pass() // T10: reviewed
+	a.pass() // the pair: T10, reviewed
 	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: should main.go say v2 or v3?\n"})
 	a.pass() // T17: blocked
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested", forge.Blocked, forge.Gated}) {
@@ -296,12 +293,32 @@ func TestSwarmMergeStepRelabelReadsTheLabelsAgain(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
-	a.pass() // T9
+	a.pass() // the pair: T9
 	a.forge.Unmergeable(forge.Ref{Repo: "app", N: 2})
 	a.tick()
 	a.apply(&relabelOnMerge{gitForge: a.git()}, "--once")
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-accepted"}) || !strings.Contains(a.stderr.String(), "relabelled to swarm:proposal-accepted during the merge step") {
 		t.Errorf("labels %v\nstdout:\n%s\nstderr:\n%s", got, a.stdout.String(), a.stderr.String())
+	}
+}
+
+// An issue's roles are decided once a pass (section 6): with the
+// adversary's launch refused (its slot has no login) and the sympathetic
+// reviewer's moving the issue to review-1-in-progress, which the pass
+// reads later, the adversary is not launched again in that pass.
+func TestSwarmPassDecidesAnIssueOnce(t *testing.T) {
+	a := newApplyWS(t)
+	os.Remove(filepath.Join(a.local, "swarm", "credentials", "openai", "1", "auth.json"))
+	a.inReview(oneSlice)
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	if r := a.result("1-adversary-1"); strings.Count(r, "launch-failed") != 1 || !strings.HasSuffix(r, "outcome fault\ncollected\n") {
+		t.Errorf("the adversary launched again in the pass:\n%s", r)
+	}
+	if _, err := os.Stat(a.state("runs/1-adversary-2")); err == nil {
+		t.Error("adversary run 2 in the same pass")
+	}
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress"}) || !strings.Contains(a.result("1-sympathetic-1"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") {
+		t.Errorf("labels %v\n%s", got, a.result("1-sympathetic-1"))
 	}
 }
