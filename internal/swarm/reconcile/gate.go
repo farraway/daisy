@@ -33,12 +33,14 @@ func (s *Swarm) gateNote(n int, open []forge.Issue) error {
 }
 
 // gateText is the gate note after its marker line: `**reconciler:** gated
-// at <stage>: <why>.`, a blank line, the bullets, a blank line and the
-// decision.
+// at <stage>: <why>.`, a blank line, the bullets (the job's class first),
+// a blank line and the decision.
 func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 	n := is.Number
 	stage, _ := StageOf(is)
 	verb := func(v string) string { return fmt.Sprintf("`daisy swarm %s %d`", v, n) }
+	routine := fmt.Sprintf("`daisy swarm class %d routine`", n)
+	class := ClassOf(is, s.SwarmLogin, s.Cfg.Trusted)
 	var why, decide string
 	var items []string
 	switch {
@@ -49,11 +51,11 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 	case stage == forge.ProposalPosted:
 		why = "the triage gate holds a proposal until the maintainer triages it"
 		items = s.triageItems(is, open)
-		decide = verb("triage") + ", " + verb("close") + ", or a comment here, which the owner answers"
+		decide = verb("triage") + ", " + verb("close") + ", " + routine + ", after which Daisy passes this gate and the plan's, or a comment here, which the owner answers"
 	case stage == forge.PlanPosted:
 		why = "the plan gate holds the plan until the maintainer accepts it"
 		items = s.planItems(is)
-		decide = verb("accept") + ", or a comment here, from which the architect revises the plan"
+		decide = verb("accept") + ", " + routine + ", after which Daisy accepts it, or a comment here, from which the architect revises the plan"
 	default: // review-2-approved under the merge gate
 		why = "both reviews approve, and the merge gate leaves the merge to the maintainer"
 		var err error
@@ -62,6 +64,7 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 		}
 		decide = verb("merge") + ", " + verb("approve") + " first when the forge wants an approving review, or a comment"
 	}
+	items = append([]string{"- Class: " + class + "."}, items...)
 	return fmt.Sprintf("**reconciler:** gated at %s: %s.\n\n%s\n\nDecide: %s.", strings.TrimPrefix(stage, "swarm:"), why, strings.Join(items, "\n"), decide), nil
 }
 

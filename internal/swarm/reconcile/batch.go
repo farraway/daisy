@@ -21,9 +21,11 @@ import (
 // batch is pass step (7), the owner's batch trigger (section 6, G0): the
 // owner runs as issue 0 when nothing runs or waits to be collected on
 // issue 0, <state>/owner-held is absent and the pacing condition holds:
-// with the triage gate on, no open issue is proposed, and the run
-// proposes up to owner.max_open_proposals; off, the open proposed and
-// ready issues are fewer than that, and it proposes the difference.
+// with the triage gate on, no open issue is proposal-posted and the
+// routine jobs at proposal-accepted, which Daisy triaged, are fewer than
+// owner.max_open_proposals, and the run proposes the difference; off, the
+// open proposal-posted and proposal-accepted issues are fewer than that,
+// and it proposes the difference.
 func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	fs := s.O.FS()
 	if _, err := fs.Stat(filepath.Join(s.state(), "owner-held")); err == nil {
@@ -42,20 +44,29 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	}
 	waiting := 0
 	for _, is := range open {
-		for _, l := range is.Labels {
-			if l == forge.ProposalPosted || l == forge.ProposalAccepted && !s.Cfg.Gates.Triage {
-				waiting++
-				break
+		switch {
+		case slices.Contains(is.Labels, forge.ProposalPosted):
+			if s.Cfg.Gates.Triage {
+				return nil
 			}
+			waiting++
+		case slices.Contains(is.Labels, forge.ProposalAccepted):
+			if s.Cfg.Gates.Triage {
+				if slices.Contains(is.Labels, forge.ClassArchitecture) {
+					continue // triaged by the maintainer
+				}
+				full, err := s.Forge.Issue(is.Number)
+				if err != nil {
+					return err
+				}
+				if ClassOf(full, s.SwarmLogin, s.Cfg.Trusted) != Routine {
+					continue
+				}
+			}
+			waiting++
 		}
 	}
-	p := s.Cfg.Owner.MaxOpenProposals
-	switch {
-	case s.Cfg.Gates.Triage && waiting > 0:
-		return nil
-	case !s.Cfg.Gates.Triage:
-		p -= waiting
-	}
+	p := s.Cfg.Owner.MaxOpenProposals - waiting
 	if p <= 0 {
 		return nil
 	}
@@ -207,7 +218,8 @@ func Proposals(out string) (met []string, blocked string, isBlocked bool, ps []P
 }
 
 // batch collects the owner's batch run (sections 6, 7.5 and 7.6): each
-// proposal created in order, `creating <i>` recorded before its
+// proposal created in order, with swarm:class-architecture unless its
+// Class: line says routine, `creating <i>` recorded before its
 // CreateIssue so none is created twice; a failure, BLOCKED: or nothing
 // proposed writes <state>/owner-held and creates nothing; a swarm fault
 // writes no owner-held.
@@ -270,7 +282,11 @@ func (c *collection) batch() error {
 		if err := c.step(creating); err != nil {
 			return err
 		}
-		n, err := s.Forge.CreateIssue(pr.Title, marker("owner", c.r.K)+pr.Body, []string{label})
+		labels := []string{label}
+		if ProposalClass(pr.Body) != Routine {
+			labels = append(labels, forge.ClassArchitecture) // unclassed is architecture
+		}
+		n, err := s.Forge.CreateIssue(pr.Title, marker("owner", c.r.K)+pr.Body, labels)
 		if err != nil {
 			return err
 		}

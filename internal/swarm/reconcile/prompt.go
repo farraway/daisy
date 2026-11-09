@@ -312,13 +312,13 @@ func orNone(blocks []string) string {
 	return strings.Join(blocks, "\n\n")
 }
 
-// thread is the issue thread's comments but the gate notes, which are
-// the maintainer's (section 7.3).
+// thread is the issue thread's comments but the gate notes and the auto
+// notes, which are the maintainer's (section 7.3).
 func (j *Job) thread() string {
 	var out []string
 	for _, c := range j.Issue.Comments {
 		e := Entry{c.Author, c.Body, c.Created}
-		if m, ok := Swarms(e, j.SwarmLogin); ok && m.Gate {
+		if m, ok := Swarms(e, j.SwarmLogin); ok && m.Kind != "" {
 			continue
 		}
 		out = append(out, trim(j.entry(2, e, "")))

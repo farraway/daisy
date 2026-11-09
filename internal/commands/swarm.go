@@ -347,11 +347,12 @@ func swarmStatus(c *Context, open opener) error {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	// What waits for the maintainer: the open issues reconcile.Gated holds
-	// for, the predicate apply flags them by, by item: a blocked one under
+	// for, the predicate apply flags them by, each with its job class, by
+	// item: a blocked one under
 	// blocked, an approved one under what its pull request calls for
 	// (section 12). What the maintainer holds: the paused ones, and those
 	// whose newest maintainer comment names an open blocker.
-	waits := map[string][]int{}
+	waits, classes := map[string][]int{}, map[int]string{}
 	var paused, blockedBy []string
 	for _, l := range forge.Stages {
 		for _, n := range stages[l] {
@@ -371,9 +372,11 @@ func swarmStatus(c *Context, open opener) error {
 					blockedBy = append(blockedBy, fmt.Sprintf("#%d blocked by #%d", n, m))
 				}
 			}
-			if !reconcile.Gated(is.Labels, cfg.Gates) {
+			class := reconcile.ClassOf(is, acct.Login, cfg.Trusted)
+			if !reconcile.Gated(is.Labels, cfg.Gates, class) {
 				continue
 			}
+			classes[n] = class
 			item := map[string]string{forge.ProposalPosted: "triage", forge.PlanPosted: "plan"}[l]
 			switch {
 			case slices.Contains(is.Labels, forge.Blocked):
@@ -404,7 +407,11 @@ func swarmStatus(c *Context, open opener) error {
 	var waiting []string
 	for _, item := range []string{"triage", "plan", "merge", "next slice", "close", "blocked"} {
 		if len(waits[item]) > 0 {
-			waiting = append(waiting, item+" "+issueList(waits[item]))
+			var ns []string
+			for _, n := range waits[item] {
+				ns = append(ns, fmt.Sprintf("#%d (%s)", n, classes[n]))
+			}
+			waiting = append(waiting, item+" "+strings.Join(ns, " "))
 		}
 	}
 	if len(waiting) == 0 {
@@ -425,7 +432,12 @@ func swarmStatus(c *Context, open opener) error {
 		p := cfg.Personas[r]
 		fmt.Fprintf(out, "  %-12s %-10s %s %s\n", r, p.Provider, p.Model, p.Effort)
 	}
-	if err := throughput(c, state, cfg.Budget); err != nil {
+	var autoTriage, autoPlan int
+	for _, si := range issues {
+		t, p := reconcile.AutoPasses(si.Issue, acct.Login)
+		autoTriage, autoPlan = autoTriage+t, autoPlan+p
+	}
+	if err := throughput(c, state, cfg.Budget, autoTriage, autoPlan); err != nil {
 		return fmt.Errorf("Error: swarm: reading the runs: %v", err)
 	}
 	for _, n := range slices.Sorted(maps.Keys(issues)) {
@@ -651,9 +663,11 @@ func running(o ops.Ops, ws, repo string) string {
 	return strings.Join(s, ", ")
 }
 
-// throughput prints section 11's Throughput block from <state>/runs/ only;
-// no runs/ is no run, and a run without a result is being prepared.
-func throughput(c *Context, state string, budget *declare.Budget) error {
+// throughput prints section 11's Throughput block from <state>/runs/, and
+// the gates Daisy passed for routine jobs as status counted them on the
+// issues it read; no runs/ is no run, and a run without a result is being
+// prepared.
+func throughput(c *Context, state string, budget *declare.Budget, autoTriage, autoPlan int) error {
 	var runs, posted, blocked, failed, faults, uncosted, approved, atLimit, blockedThere int
 	var today, all float64
 	times := map[string][]time.Duration{} // run times by the stage launched on, "batch" and "check"
@@ -762,6 +776,7 @@ func throughput(c *Context, state string, budget *declare.Budget) error {
 		fmt.Fprintf(out, "  %-12s $%.2f per day, $%.2f in all\n", "budget", budget.PerDay, budget.Total)
 	}
 	fmt.Fprintf(out, "  %-12s %d pull requests; at the round limit %d, blocked there %d\n", "approved", approved, atLimit, blockedThere)
+	fmt.Fprintf(out, "  %-12s %d gates passed for routine jobs (triage %d, plan %d)\n", "auto", autoTriage+autoPlan, autoTriage, autoPlan)
 	var medians []string
 	for _, stage := range append(append([]string{"batch"}, forgeStages()...), "check") {
 		if d := times[stage]; len(d) > 0 {

@@ -27,6 +27,11 @@ func SwarmTriage(c *Context) error { return swarmTriage(c, openForge) }
 // plan-1-accepted).
 func SwarmAccept(c *Context) error { return swarmAccept(c, openForge) }
 
+// SwarmClass is `daisy swarm class <n> routine|architecture`: the job's
+// class (section 5), swarm:class-architecture set or cleared, then the
+// statement `Class: <class>` posted as the maintainer.
+func SwarmClass(c *Context) error { return swarmClass(c, openForge) }
+
 // SwarmApprove is `daisy swarm approve <n>`: a formal approving review of
 // the issue's current open pull request at its head (section 12).
 func SwarmApprove(c *Context) error { return swarmApprove(c, openForge) }
@@ -229,6 +234,47 @@ func swarmMove(c *Context, open opener, from, to string) error {
 		return err
 	}
 	return m.relabel(from, to)
+}
+
+// swarmClass sets issue n's class: architecture sets
+// swarm:class-architecture, routine clears it, and either then posts
+// `Class: <class>`, which ClassOf reads as the newest statement and no
+// member answers. An issue of that class already is left as it is; a
+// routine statement by a login not in trusted, which ClassOf would not
+// read, is refused before any write.
+func swarmClass(c *Context, open opener) error {
+	if _, err := issueArg(c); err != nil {
+		return err
+	}
+	class := c.Args[1]
+	if class != reconcile.Routine && class != reconcile.Architecture {
+		return UsageError("not a class: " + class + "; swarm class takes routine or architecture")
+	}
+	m, err := asMaintainer(c, open)
+	if err != nil {
+		return err
+	}
+	is, err := m.issue("")
+	if err != nil {
+		return err
+	}
+	if reconcile.ClassOf(is, m.swarm, m.cfg.Trusted) == class {
+		fmt.Fprintf(c.Stdout, "#%d already %s\n", m.n, class)
+		return nil
+	}
+	if class == reconcile.Architecture {
+		if err := reconcile.Flag(m.f, m.at, m.labels, forge.ClassArchitecture, c.Stdout); err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		return m.say("Class: " + class)
+	}
+	if !slices.ContainsFunc(m.cfg.Trusted, func(l string) bool { return strings.EqualFold(l, m.login) }) {
+		return fmt.Errorf("Error: swarm: %s is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed", m.login)
+	}
+	if err := m.unflag(forge.ClassArchitecture); err != nil {
+		return err
+	}
+	return m.say("Class: " + class)
 }
 
 func swarmClose(c *Context, open opener) error {

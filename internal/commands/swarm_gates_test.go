@@ -223,12 +223,12 @@ func TestSwarmApplyGatesOff(t *testing.T) {
 	a.release()
 	a.runner.Script(0, "owner", runner.Canned{Out: "## Drift check\nCheck the drift.\n", Stdout: claudeResult})
 	a.pass()
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-accepted"}) {
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-accepted", forge.ClassArchitecture}) { // unclassed
 		t.Fatalf("T2: %v", got)
 	}
 	a.runner.Script(1, "architect", runner.Canned{Out: twoSlices, Stdout: claudeResult})
 	a.pass()
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-1-accepted"}) {
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-1-accepted", forge.ClassArchitecture}) {
 		t.Fatalf("T6: %v", got)
 	}
 	if sys := a.file("1-architect-1", "io/system.md"); !strings.Contains(sys, "The plan is accepted as you write it: there is no revision round.") {

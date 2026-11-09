@@ -199,6 +199,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm resume [<n>]` | Launch members again and release the owner's held batch (with <n>, that issue) |
 | Swarm | `daisy swarm triage <n>` | As the maintainer: triage a proposal, proposal-posted to proposal-accepted |
 | Swarm | `daisy swarm accept <n>` | As the maintainer: accept the plan, plan-0-posted to plan-1-accepted |
+| Swarm | `daisy swarm class <n> routine\|architecture` | As the maintainer: set the job's class; Daisy passes a routine job's triage and plan |
 | Swarm | `daisy swarm approve <n>` | As the maintainer: approve the issue's open pull request |
 | Swarm | `daisy swarm merge <n>` | As the maintainer: merge the approved pull request, then next slice or close |
 | Swarm | `daisy swarm unblock <n> <comment...>` | As the maintainer: comment, then clear swarm:blocked from the issue |
@@ -402,7 +403,7 @@ The reference source itself is never modified or deleted by adoption: copy
 ## Reference Documentation
 
 - [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the command tree as built, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
-- [`docs/swarm.md`](docs/swarm.md) — The swarm's contract (the twelve verbs built; the board, the GitHub adapter and the budget specified ahead of their build): `swarm.json`, the brief, the label lifecycle and trigger rule, the marker, the member container and its image, the credential rule, the provider and forge seams, the verbs (the maintainer's seven among them, with the `swarm` skill as their guide), the merge gate
+- [`docs/swarm.md`](docs/swarm.md) — The swarm's contract (the thirteen verbs built; the board, the GitHub adapter and the budget specified ahead of their build): `swarm.json`, the brief, the label lifecycle and trigger rule, the marker, the member container and its image, the credential rule, the provider and forge seams, the verbs (the maintainer's eight among them, with the `swarm` skill as their guide), the merge gate
 - [`docs/home-management.md`](docs/home-management.md) — Root and homes as separate repositories, the registry, identities, per-workspace resolution, the health check
 - [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) — The situated/craft distinction, the coupling criterion, the ownership axis, worked examples
 - [`docs/task-format.md`](docs/task-format.md) — Task format regex, conversion rules, file organization

@@ -17,7 +17,8 @@ func TestSwarmsReadsTheMarkerAndTheAuthor(t *testing.T) {
 	}{
 		{"the architect's", "swarm-bot", "<!-- daisy-swarm role=architect run=2 -->\n**architect:**\n\nplan", Mark{Role: "architect", Run: 2}, true},
 		{"a CRLF first line", "Swarm-Bot", "<!-- daisy-swarm role=reconciler run=12 -->\r\n**reconciler:**", Mark{Role: "reconciler", Run: 12}, true},
-		{"the gate note", "swarm-bot", gateMarker + "\n**reconciler:** gated at swarm:plan-0-posted: why.", Mark{Role: "reconciler", Gate: true}, true},
+		{"the gate note", "swarm-bot", gateMarker + "\n**reconciler:** gated at swarm:plan-0-posted: why.", Mark{Role: "reconciler", Kind: "gate"}, true},
+		{"the auto note", "swarm-bot", autoMarker + "\n**reconciler:** auto at plan-0-posted: a routine job passes the plan gate by itself, to plan-1-accepted.", Mark{Role: "reconciler", Kind: "auto"}, true},
 		{"the gate note with a run", "swarm-bot", "<!-- daisy-swarm role=reconciler run=3 kind=gate -->", Mark{}, false},
 		{"another role's gate note", "swarm-bot", "<!-- daisy-swarm role=owner kind=gate -->", Mark{}, false},
 		{"the marker by a maintainer's login", "jane", "<!-- daisy-swarm role=architect run=2 -->\nplan", Mark{}, false},
@@ -68,6 +69,16 @@ func TestNewestCounted(t *testing.T) {
 	if e, _ := NewestCounted(gate, "swarm-bot", trusted); e.Author != "jane" {
 		t.Errorf("a maintainer's entry not counted: %+v", e)
 	}
+	// Nor is an auto note, nor a maintainer's class statement, which is
+	// Daisy's to read; a comment that only mentions a class is counted.
+	quiet := []Entry{{"swarm-bot", marker("owner", 1) + "a job", t0}, {"swarm-bot", autoMarker + "\n**reconciler:** auto at proposal-posted: x", t0.Add(time.Hour)}, {"jane", " Class: routine\n", t0.Add(2 * time.Hour)}}
+	if e, _ := NewestCounted(quiet, "swarm-bot", trusted); e.Body != quiet[0].Body {
+		t.Errorf("an auto note or a class statement counted: %+v", e)
+	}
+	quiet[2].Body = "Class: routine, I think"
+	if e, _ := NewestCounted(quiet, "swarm-bot", trusted); e.Author != "jane" {
+		t.Errorf("a maintainer's comment not counted: %+v", e)
+	}
 }
 
 // The blocker the newest maintainer comment names (section 6, rule 1): a
@@ -88,6 +99,7 @@ func TestBlockedBy(t *testing.T) {
 		{"an untrusted login's", []forge.Comment{{Author: "mallory", Body: "Blocked by #3"}}, 0},
 		{"the swarm's", []forge.Comment{{Author: "swarm-bot", Body: "Blocked by #3"}}, 0},
 		{"inside a sentence", []forge.Comment{{Author: "jane", Body: "Blocked by #3 for now"}}, 0},
+		{"a class statement after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "Class: routine"}}, 3},
 		{"no comment", nil, 0},
 	} {
 		is := forge.Issue{Author: "jane", Body: "Blocked by #9", Created: t0}

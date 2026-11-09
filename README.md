@@ -166,8 +166,8 @@ writes `<ws>/swarm/swarm.json` and a prompt per role under
 creates the swarm's labels on the forge (the nine stages, grouped and
 numbered as the job gets on, `swarm:proposal-posted` to
 `swarm:review-3-changes-requested`; the flags `swarm:gated` on what
-waits for you, `swarm:blocked`, `swarm:paused` and `swarm:blocking`; and
-the terminals `swarm:done` and `swarm:rejected`) and prints a systemd user
+waits for you, `swarm:blocked`, `swarm:paused`, `swarm:blocking` and
+`swarm:class-architecture`; and the terminals `swarm:done` and `swarm:rejected`) and prints a systemd user
 service. `daisy swarm apply --once` runs one pass of the
 reconciler: it reads the forge, launches the members (one agent run each,
 in its own container) whose turn it is, posts what they wrote and moves
@@ -177,10 +177,11 @@ whatever runs, each run collected by the pass after it ends. `daisy swarm status
 reports the stages, the gates, what waits for you, the running members,
 throughput and the briefs, and writes nothing. `daisy swarm pause` and
 `daisy swarm resume` hold and release launches, for the whole swarm or,
-given an issue's number, for that issue alone. The seven verbs of the
-maintainer, the person who runs the swarm, `triage`, `accept`, `approve`,
-`merge`, `unblock`, `block` (hold one job until another issue is closed)
-and `close`, make your decisions on the forge under a token of your own. The contract is `docs/swarm.md`; the agent's guide
+given an issue's number, for that issue alone. The eight verbs of the
+maintainer, the person who runs the swarm, `triage`, `accept`, `class`
+(a job routine or architecture), `approve`, `merge`, `unblock`, `block`
+(hold one job until another issue is closed) and `close`, make your
+decisions on the forge under a token of your own. The contract is `docs/swarm.md`; the agent's guide
 over the verbs is the `swarm` skill (`skills/swarm/SKILL.md`).
 
 **System.** `daisy commit <message>` commits the home's repository (or the
@@ -306,13 +307,16 @@ chosen for a reason:
   vendor difference was the cause.
 - *Gates with the maintainer.* Triage, plan acceptance, merge and unblock
   are the maintainer's decisions by default; each of the first three can
-  be handed to the swarm, which then requires a spending limit. A swarm
-  that merges by default is a non-goal.
+  be handed to the swarm, which then requires a spending limit. Triage
+  and plan acceptance hold only an architecture job: one the owner
+  classes routine (cut from a brief's milestone, at most two slices, no
+  public API or protected path changed) passes them by itself and waits only at the merge.
+  A swarm that merges by default is a non-goal.
 - *The swarm has its own forge account, and every entry it posts opens
   with a marker*, a fixed first line naming the role and the run. So the
   maintainer's words and the swarm's are told apart by authorship, and a
   member's text cannot pass as the maintainer's. The maintainer's writes
-  go through seven verbs under a separate token, read by the verbs only and
+  go through eight verbs under a separate token, read by the verbs only and
   never by `init`, `apply` or `status`; a verb refuses when its token is
   the swarm's.
 - *Mount only what the run owns.* A member reads untrusted text, so it

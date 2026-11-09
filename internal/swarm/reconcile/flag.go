@@ -11,29 +11,34 @@ import (
 )
 
 // Gated is the maintainer's flag's predicate (section 5): an issue with
-// labels waits for the maintainer when it carries one stage and that
-// stage is a gate that is on (proposal-posted with the triage gate,
-// plan-0-posted with the plan gate, review-2-approved with the merge
-// gate), or it carries swarm:blocked. `apply` sets the flag by it and
-// `status`'s Waiting line lists by it, so the forge and the terminal
-// agree.
-func Gated(labels []string, g declare.Gates) bool {
+// labels, of the job class class (ClassOf), waits for the maintainer when
+// it carries one stage and that stage is a gate that is on and holds its
+// class (proposal-posted with the triage gate and plan-0-posted with the
+// plan gate for an architecture job, review-2-approved with the merge
+// gate for both), or it carries swarm:blocked. `apply` sets the flag by
+// it and `status`'s Waiting line lists by it, so the forge and the
+// terminal agree.
+func Gated(labels []string, g declare.Gates, class string) bool {
 	stage, ok := StageOf(forge.Issue{Labels: labels})
 	if !ok {
 		return false
 	}
-	gate := map[string]bool{forge.ProposalPosted: g.Triage, forge.PlanPosted: g.Plan, forge.ReviewApproved: g.Merge}[stage]
+	arch := class != Routine
+	gate := map[string]bool{forge.ProposalPosted: g.Triage && arch, forge.PlanPosted: g.Plan && arch, forge.ReviewApproved: g.Merge}[stage]
 	return gate || slices.Contains(labels, forge.Blocked)
 }
 
-// flags is pass step (8), the maintainer's flag (section 5): every open
-// issue given forge.Gated when Gated holds for its labels, with the gate
-// note posted on it once the flag is on, and every other open issue
-// carrying the flag cleared of it, one with no stage or two included, so
-// an open issue carries the flag exactly when status lists it as waiting.
-// A note is posted only when the flag is added: one per gating event, and
-// none for an event whose relabel failed until a later pass adds the
-// flag. Every failure is a warning, and the pass goes on.
+// flags is pass step (8), the maintainer's flag (section 5): first, an
+// open issue at the triage or plan gate (classGate) is read with its
+// comments for its class, and a routine job's gate passed (autoPass);
+// then every open issue is given forge.Gated when Gated holds for its
+// labels and class, with the gate note posted on it once the flag is on,
+// and every other open issue carrying the flag cleared of it, one with no
+// stage or two included, so an open issue carries the flag exactly when
+// status lists it as waiting. A note is posted only when the flag is
+// added: one per gating event, and none for an event whose relabel failed
+// until a later pass adds the flag. Every failure is a warning, and the
+// pass goes on.
 func (s *Swarm) flags() {
 	warn := func(format string, a ...any) { fmt.Fprintf(s.Err, "⚠ "+format+"\n", a...) }
 	open, err := s.issues(forge.Open)
@@ -53,9 +58,22 @@ func (s *Swarm) flags() {
 	}
 	slices.SortFunc(open, func(a, b forge.Issue) int { return a.Number - b.Number })
 	for _, is := range open {
-		want := Gated(is.Labels, s.Cfg.Gates)
+		labels, class := is.Labels, Architecture // the class decides only at a classGate
+		if stage, gate := s.classGate(labels); gate != "" {
+			full, err := s.Forge.Issue(is.Number)
+			if err != nil {
+				warn("#%d: class: %v", is.Number, err)
+				continue
+			}
+			if class = ClassOf(full, s.SwarmLogin, s.Cfg.Trusted); class == Routine {
+				if labels, err = s.autoPass(full, stage, gate); err != nil {
+					warn("#%d: auto: %v", is.Number, err)
+				}
+			}
+		}
+		want := Gated(labels, s.Cfg.Gates, class)
 		at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: is.Number}
-		switch has := slices.Contains(is.Labels, forge.Gated); {
+		switch has := slices.Contains(labels, forge.Gated); {
 		case want && !has:
 			if err := s.Forge.Relabel(at, "", forge.Gated); err != nil {
 				warn("#%d: gated: %v", is.Number, err)
@@ -66,7 +84,7 @@ func (s *Swarm) flags() {
 				warn("#%d: gate note: %v", is.Number, err)
 			}
 		case !want && has:
-			if err := Unflag(s.Forge, at, is.Labels, forge.Gated, s.Out); err != nil {
+			if err := Unflag(s.Forge, at, labels, forge.Gated, s.Out); err != nil {
 				warn("#%d: gated: %v", is.Number, err)
 			}
 		}

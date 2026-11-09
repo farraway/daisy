@@ -192,19 +192,19 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 	}
 	want := map[int]string{
 		1: "**reconciler:** gated at proposal-posted: the triage gate holds a proposal until the maintainer triages it.\n\n" +
-			"- Brief: docs/briefs/a.md, milestone M1 The drift.\n- Open issues on the same milestone: #2 Other half.\n- Issues it names, its dependencies among them: #2 (open, proposal-posted).\n\n" +
-			"Decide: `daisy swarm triage 1`, `daisy swarm close 1`, or a comment here, which the owner answers.",
+			"- Class: architecture.\n- Brief: docs/briefs/a.md, milestone M1 The drift.\n- Open issues on the same milestone: #2 Other half.\n- Issues it names, its dependencies among them: #2 (open, proposal-posted).\n\n" +
+			"Decide: `daisy swarm triage 1`, `daisy swarm close 1`, `daisy swarm class 1 routine`, after which Daisy passes this gate and the plan's, or a comment here, which the owner answers.",
 		3: "**reconciler:** gated at plan-0-posted: the plan gate holds the plan until the maintainer accepts it.\n\n" +
-			"- Slices: 2.\n  1. app: change main.go to v1; the test proves it.\n  2. lib: add notes.md.\n" +
+			"- Class: architecture.\n- Slices: 2.\n  1. app: change main.go to v1; the test proves it.\n  2. lib: add notes.md.\n" +
 			"- Open questions, as the plan has them:\n  1. Should main.go say v1 or v2?\n" +
 			"- Risks:\n  - **The corpus drifts.** It moves under us.\n  - A second risk.\n\n" +
-			"Decide: `daisy swarm accept 3`, or a comment here, from which the architect revises the plan.",
+			"Decide: `daisy swarm accept 3`, `daisy swarm class 3 routine`, after which Daisy accepts it, or a comment here, from which the architect revises the plan.",
 		4: "**reconciler:** gated at review-2-approved: both reviews approve, and the merge gate leaves the merge to the maintainer.\n\n" +
-			"- Pull request acme/app#7, #4 slice 1: Merge me (open, head c1c1c1c).\n- Slice 1 of 2.\n- Review rounds: 2.\n" +
+			"- Class: architecture.\n- Pull request acme/app#7, #4 slice 1: Merge me (open, head c1c1c1c).\n- Slice 1 of 2.\n- Review rounds: 2.\n" +
 			"- Non-blocking findings in the approving reviews:\n  - adversary: [non-blocking] main.go:2 could name the version.\n  - sympathetic: [non-blocking] notes.md:1 a typo.\n\n" +
 			"Decide: `daisy swarm merge 4`, `daisy swarm approve 4` first when the forge wants an approving review, or a comment.",
 		5: "**reconciler:** gated at plan-1-accepted: it is blocked, and only the maintainer unblocks it.\n\n" +
-			"- The note that set it, at 2026-11-06T15:00:00Z: worker run 1 failed: no commits (at swarm:plan-1-accepted). Remove swarm:blocked to resume.\n\n" +
+			"- Class: architecture.\n- The note that set it, at 2026-11-06T15:00:00Z: worker run 1 failed: no commits (at swarm:plan-1-accepted). Remove swarm:blocked to resume.\n\n" +
 			"Decide: make the relabel the note names, if it names one, then `daisy swarm unblock 5 <comment>`; or `daisy swarm close 5`.",
 	}
 	for n, text := range want {
@@ -275,7 +275,7 @@ func TestSwarmFlagAndTerminalsAreNoStage(t *testing.T) {
 	if err := a.status(a.forge); err != nil {
 		t.Fatal(err)
 	}
-	if out := a.stdout.String(); !strings.Contains(out, "\n  proposal-posted            1  #1\n") || !strings.Contains(out, "\nWaiting for you: triage #1\nHeld: nothing\n") ||
+	if out := a.stdout.String(); !strings.Contains(out, "\n  proposal-posted            1  #1\n") || !strings.Contains(out, "\nWaiting for you: triage #1 (architecture)\nHeld: nothing\n") ||
 		regexp.MustCompile(`#[2-7]\b`).MatchString(out) {
 		t.Errorf("status:\n%s", out)
 	}

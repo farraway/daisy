@@ -183,7 +183,7 @@ func TestSwarmPauseAndResume(t *testing.T) {
 // after the lock, creating a deleted label again; after RefuseLabels and
 // a deleted label apply exits 1 before any pass. On a forge holding the
 // eleven labels of Step 14 under their old names, the first apply renames
-// the seven old stage names in place and creates the four new labels
+// the seven old stage names in place and creates the five new labels
 // (section 14, item 74): every issue, open or closed, reads its new
 // stage, and the pass works on the new names.
 func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
@@ -191,7 +191,7 @@ func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 	f := forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	f.AddLabels(forge.Labels[1:]...)
 	if err := a.apply(f, "--once"); err != nil || !reflect.DeepEqual(f.Labels()[len(forge.Labels)-1], "swarm:proposal-posted") ||
-		!strings.HasPrefix(a.stdout.String(), "✓ Labels: 15 present (1 created, 0 renamed)\n") {
+		!strings.HasPrefix(a.stdout.String(), "✓ Labels: 16 present (1 created, 0 renamed)\n") {
 		t.Errorf("%v %v\n%s", err, f.Labels(), a.stdout.String())
 	}
 	if err := a.apply(f, "--once"); err != nil || strings.Contains(a.stdout.String(), "Labels:") {
@@ -215,7 +215,7 @@ func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 	reviewed, _ := old.CreateIssue("r", "", []string{"swarm:reviewed"})
 	old.CloseIssue(reviewed)
 	a.release()
-	if err := a.apply(old, "--once"); err != nil || !strings.HasPrefix(a.stdout.String(), "✓ Labels: 15 present (4 created, 7 renamed)\n") {
+	if err := a.apply(old, "--once"); err != nil || !strings.HasPrefix(a.stdout.String(), "✓ Labels: 16 present (5 created, 7 renamed)\n") {
 		t.Fatalf("the migration: %v\n%s", err, a.stdout.String())
 	}
 	for _, tc := range []struct {

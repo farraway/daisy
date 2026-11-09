@@ -1,6 +1,6 @@
 ---
 name: swarm
-description: The maintainer's guide over a Daisy swarm in this workspace — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm/swarm.json and the persona prompts, and runs the maintainer's `daisy swarm` verbs (triage, accept, approve, merge, unblock, close) only after the maintainer confirms each write in words. Use in a workspace holding swarm/swarm.json when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a pull request approved or merged, a blocked issue resumed or a job closed, or wants to write or change a brief, swarm.json or a persona prompt.
+description: The maintainer's guide over a Daisy swarm in this workspace — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm/swarm.json and the persona prompts, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, close) only after the maintainer confirms each write in words. Use in a workspace holding swarm/swarm.json when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed or a job closed, or wants to write or change a brief, swarm.json or a persona prompt.
 short_description: Guide a Daisy swarm: status, briefs, gates
 ---
 
@@ -26,7 +26,14 @@ after the maintainer has said yes to that write.
    quoting the run's own words where they matter. Then "Waiting for you"
    from `status` (on the forge, the same issues carry `swarm:gated`, and each gating posted a gate note on the issue naming what to examine and the verbs), each item with the decision it asks for and the
    evidence for it (for a plan, its `## Research` first: a wrong belief
-   there is wrong in every slice built on it).
+   there is wrong in every slice built on it). Each item carries its job
+   class, `routine` or `architecture`: only an architecture job waits at
+   triage and the plan; a routine one (the owner's `Class: routine`
+   proposal, cut from a brief's milestone, at most two slices, no public
+   API or protected path changed) was passed by Daisy with an `auto` note
+   on the issue and first reaches the maintainer at the merge, where it
+   deserves the fuller reading. Say how many gates Daisy passed (the
+   `auto` line under Throughput).
 3. **Confirm every write in words, one at a time.** Before running a verb,
    state exactly what it will write: the verb, the issue, and its effect
    (`daisy swarm merge 10`: merges pull request lib#5 at its approved
@@ -53,7 +60,7 @@ after the maintainer has said yes to that write.
 7. **A comment to a member is the maintainer's.** To answer the owner or
    the architect, or to comment on a pull request, draft the text and let
    the maintainer post it on the forge; the verbs post only `close`'s,
-   `unblock`'s and `block`'s comments.
+   `unblock`'s, `block`'s and `class`'s comments.
 
 ## The verbs
 
@@ -64,6 +71,7 @@ the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first.
 |---|---|---|
 | `triage #n` | `daisy swarm triage <n>` | `swarm:proposal-posted → swarm:proposal-accepted`; the architect plans it next |
 | `plan #n` | `daisy swarm accept <n>` | `swarm:plan-0-posted → swarm:plan-1-accepted`; the worker builds the next slice |
+| `triage #n` or `plan #n` the maintainer finds routine; a routine job that should be read first | `daisy swarm class <n> routine`, `daisy swarm class <n> architecture` | routine clears `swarm:class-architecture` and posts `Class: routine`: Daisy then passes the job's triage and plan gates at its next pass; architecture sets the flag and posts `Class: architecture`: the job waits at every gate it has not yet passed. No member answers either comment |
 | `merge #n` (approval first, when a branch rule asks one) | `daisy swarm approve <n>` | a formal approving review of the issue's open pull request at its head |
 | `merge #n`, `next slice #n`, `close #n` | `daisy swarm merge <n>` | merges the current pull request at the head both swarm reviews approve (or finds it merged), then `swarm:review-2-approved → swarm:plan-1-accepted` when the plan declares a later slice, or closes the issue after its last, labelled `swarm:done` |
 | `blocked #n` | `daisy swarm unblock <n> <comment...>` | the comment, saying what changed, then the `swarm:blocked` flag cleared; the issue goes on from the stage the block kept |

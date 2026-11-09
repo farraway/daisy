@@ -115,13 +115,13 @@ func Held(labels []string) string {
 var blockedByRe = regexp.MustCompile(`^Blocked by #([1-9][0-9]*)$`)
 
 // BlockedBy is the issue the newest comment on is by a login in trusted
-// other than the swarm's names as its blocker, `Blocked by #<m>` (section
-// 6, rule 1); 0 when that comment names none. Whether #m is open is the
-// caller's to read.
+// other than the swarm's, a class statement aside, names as its blocker,
+// `Blocked by #<m>` (section 6, rule 1); 0 when that comment names none.
+// Whether #m is open is the caller's to read.
 func BlockedBy(is forge.Issue, swarmLogin string, trusted []string) int {
 	var newest *forge.Comment
 	for i, c := range is.Comments {
-		if strings.EqualFold(c.Author, swarmLogin) || !slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, c.Author) }) {
+		if strings.EqualFold(c.Author, swarmLogin) || !slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, c.Author) }) || classOfText(c.Body) != "" {
 			continue
 		}
 		if newest == nil || !c.Created.Before(newest.Created) {

@@ -79,6 +79,7 @@ var table = []Command{
 	{Group: "Swarm", Name: "swarm resume", Usage: "swarm resume [<n>]", Help: "Launch members again and release the owner's held batch (with <n>, that issue)", Workspace: true, Max: 1, Run: commands.SwarmResume},
 	{Group: "Swarm", Name: "swarm triage", Usage: "swarm triage <n>", Help: "As the maintainer: triage a proposal, proposal-posted to proposal-accepted", Workspace: true, Min: 1, Max: 1, Run: commands.SwarmTriage},
 	{Group: "Swarm", Name: "swarm accept", Usage: "swarm accept <n>", Help: "As the maintainer: accept the plan, plan-0-posted to plan-1-accepted", Workspace: true, Min: 1, Max: 1, Run: commands.SwarmAccept},
+	{Group: "Swarm", Name: "swarm class", Usage: "swarm class <n> routine|architecture", Help: "As the maintainer: set the job's class; Daisy passes a routine job's triage and plan", Workspace: true, Min: 2, Max: 2, Run: commands.SwarmClass},
 	{Group: "Swarm", Name: "swarm approve", Usage: "swarm approve <n>", Help: "As the maintainer: approve the issue's open pull request", Workspace: true, Min: 1, Max: 1, Run: commands.SwarmApprove},
 	{Group: "Swarm", Name: "swarm merge", Usage: "swarm merge <n>", Help: "As the maintainer: merge the approved pull request, then next slice or close", Workspace: true, Min: 1, Max: 1, Run: commands.SwarmMerge},
 	{Group: "Swarm", Name: "swarm unblock", Usage: "swarm unblock <n> <comment...>", Help: "As the maintainer: comment, then clear swarm:blocked from the issue", Workspace: true, Min: 2, Max: Unbounded, Placed: 1, Run: commands.SwarmUnblock},

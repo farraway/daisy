@@ -7,9 +7,11 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
-// The flag's predicate (section 5): each gated stage exactly when its gate
-// is on, any stage carrying swarm:blocked, every other stage never,
-// whatever the gates; no stage, or two, never.
+// The flag's predicate (section 5): for an architecture job, each gated
+// stage exactly when its gate is on, any stage carrying swarm:blocked,
+// every other stage never, whatever the gates; no stage, or two, never;
+// for a routine job, the same but for the triage and plan gates, which
+// never hold it, and the merge gate, which does.
 func TestGated(t *testing.T) {
 	gate := map[string]func(*declare.Gates){
 		forge.ProposalPosted: func(g *declare.Gates) { g.Triage = false },
@@ -18,27 +20,30 @@ func TestGated(t *testing.T) {
 	}
 	on := declare.Gates{Triage: true, Plan: true, Merge: true}
 	for _, stage := range forge.Stages {
-		if got := Gated([]string{stage}, on); got != (gate[stage] != nil) {
+		if got := Gated([]string{stage}, on, Architecture); got != (gate[stage] != nil) {
 			t.Errorf("%s, every gate on: %v", stage, got)
 		}
-		if Gated([]string{stage}, declare.Gates{}) {
+		if Gated([]string{stage}, declare.Gates{}, Architecture) {
 			t.Errorf("%s, every gate off: gated", stage)
 		}
 		for _, g := range []declare.Gates{on, {}} {
-			if !Gated([]string{forge.Paused, stage, forge.Blocked}, g) {
+			if !Gated([]string{forge.Paused, stage, forge.Blocked}, g, Architecture) || !Gated([]string{forge.Paused, stage, forge.Blocked}, g, Routine) {
 				t.Errorf("%s blocked, gates %+v: not gated", stage, g)
 			}
+		}
+		if got := Gated([]string{stage}, on, Routine); got != (stage == forge.ReviewApproved) {
+			t.Errorf("%s, a routine job, every gate on: %v", stage, got)
 		}
 		if off := gate[stage]; off != nil {
 			g := on
 			off(&g)
-			if Gated([]string{stage}, g) {
+			if Gated([]string{stage}, g, Architecture) {
 				t.Errorf("%s with its own gate off is gated", stage)
 			}
 		}
 	}
 	for _, ls := range [][]string{{forge.Gated}, {forge.Blocked}, {forge.Done}, {forge.Rejected}, nil, {forge.ProposalPosted, forge.PlanPosted, forge.Blocked}} {
-		if Gated(ls, on) {
+		if Gated(ls, on, Architecture) {
 			t.Errorf("%q: not one stage, and gated", ls)
 		}
 	}

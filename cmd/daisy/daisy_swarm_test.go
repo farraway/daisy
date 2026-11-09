@@ -127,14 +127,14 @@ func TestSwarmInitThroughGitea(t *testing.T) {
 	g := newGitea(t)
 	code, out, errs := runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults")
 	if code != 0 || !strings.HasPrefix(out, "✓ Token $GITEA_TOKEN reads acme/app as swarm-bot\n✓ Wrote swarm/swarm.json\n") ||
-		!strings.Contains(out, "✓ Labels: 15 present (15 created, 0 renamed)\n") || !strings.Contains(errs, "⚠ Readiness: app has no AGENTS.md") {
+		!strings.Contains(out, "✓ Labels: 16 present (16 created, 0 renamed)\n") || !strings.Contains(errs, "⚠ Readiness: app has no AGENTS.md") {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
-	if len(g.labels) != 15 {
+	if len(g.labels) != 16 {
 		t.Errorf("labels %q", g.labels)
 	}
 	code, out, _ = runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults")
-	if code != 0 || !strings.Contains(out, "  Unchanged swarm/swarm.json\n") || !strings.Contains(out, "✓ Labels: 15 present (0 created, 0 renamed)\n") || len(g.labels) != 15 {
+	if code != 0 || !strings.Contains(out, "  Unchanged swarm/swarm.json\n") || !strings.Contains(out, "✓ Labels: 16 present (0 created, 0 renamed)\n") || len(g.labels) != 16 {
 		t.Errorf("second run: exit %d\n%s", code, out)
 	}
 
@@ -151,7 +151,7 @@ func TestSwarmInitThroughGitea(t *testing.T) {
 			patched++
 		}
 	}
-	if code != 0 || !strings.Contains(out, "✓ Labels: 15 present (4 created, 7 renamed)\n") || patched != 7 || len(g.labels) != 15 ||
+	if code != 0 || !strings.Contains(out, "✓ Labels: 16 present (5 created, 7 renamed)\n") || patched != 7 || len(g.labels) != 16 ||
 		g.labels[4] != "swarm:review-0-ready" || !slices.Equal(g.issue1, []string{"swarm:review-0-ready"}) {
 		t.Errorf("the migration: exit %d, %d renames, labels %q, issue 1 %q\n%s%s", code, patched, g.labels, g.issue1, out, errs)
 	}

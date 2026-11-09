@@ -120,6 +120,7 @@ Running: none
   cost         $0.00 today, $0.00 in all (0 runs without a cost)
   budget       none
   approved     0 pull requests; at the round limit 0, blocked there 0
+  auto         0 gates passed for routine jobs (triage 0, plan 0)
   stage time   none
 Briefs: none active
 `
@@ -201,7 +202,7 @@ Gates: triage on, plan on, merge on
   review-1-in-progress       0
   review-2-approved          1  #6
   review-3-changes-requested 0
-Waiting for you: triage #1 #2; plan #3 #4 #5; merge #6; blocked #7
+Waiting for you: triage #1 (architecture) #2 (architecture); plan #3 (architecture) #4 (architecture) #5 (architecture); merge #6 (architecture); blocked #7 (architecture)
 Held: paused #11; #12 blocked by #3
 Running: #0 owner, #8 adversary, #12 check
 ` + statusPersonas
@@ -219,7 +220,7 @@ Running: #0 owner, #8 adversary, #12 check
 	if err := s.status(f); err != nil {
 		t.Fatal(err)
 	}
-	for _, line := range []string{"Gates: triage off, plan off, merge off\n", "Waiting for you: blocked #7\n",
+	for _, line := range []string{"Gates: triage off, plan off, merge off\n", "Waiting for you: blocked #7 (architecture)\n",
 		"Running: unknown (docker: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?)\n",
 		"  budget       $10.00 per day, $100.00 in all\n"} {
 		if !strings.Contains(s.stdout.String(), line) {
@@ -395,15 +396,15 @@ func TestSwarmStatusStep7(t *testing.T) {
 			t.Errorf("want Waiting for you: %s in\n%s", waiting, s.stdout.String())
 		}
 	}
-	want("triage #7; merge #6")
+	want("triage #7 (architecture); merge #6 (architecture)")
 	f.Merge(s1, "aaa2")
-	want("triage #7; next slice #6")
+	want("triage #7 (architecture); next slice #6 (architecture)")
 	f.SetLabel(is, "swarm:plan-1-accepted")
 	s2 := slice(2, "bbb1")
 	f.SetLabel(is, "swarm:review-2-approved")
-	want("triage #7; merge #6")
+	want("triage #7 (architecture); merge #6 (architecture)")
 	f.Merge(s2, "bbb1")
-	want("triage #7; close #6")
+	want("triage #7 (architecture); close #6 (architecture)")
 	f.CloseIssue(n)
 	// The milestones apply mirrors from the brief, #6 and #7 in the first.
 	inMilestone(t, f, "m0: lib measured against upstream 2.0.0", 6, 7)
@@ -428,7 +429,7 @@ func TestSwarmStatusStep7(t *testing.T) {
 	if err := s.status(f); err != nil {
 		t.Fatal(err)
 	}
-	wantTail := `Waiting for you: triage #7
+	wantTail := `Waiting for you: triage #7 (architecture)
 Held: nothing
 Running: none
 ` + statusPersonas + `Throughput:
@@ -436,6 +437,7 @@ Running: none
   cost         $0.00 today, $0.00 in all (12 runs without a cost)
   budget       none
   approved     2 pull requests; at the round limit 0, blocked there 0
+  auto         0 gates passed for routine jobs (triage 0, plan 0)
   stage time   batch 2m45s (2), proposal-accepted 6m9s (1), plan-1-accepted 2m14s (2), review-0-ready 2m14s (6), review-3-changes-requested 2m14s (1), check 18s (3)
   #6           plan revisions 0, blocks 0; lib#1 rounds 2, maintainer comments 0; lib#2 rounds 1, maintainer comments 0
 Briefs:
