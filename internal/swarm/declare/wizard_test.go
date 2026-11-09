@@ -93,7 +93,7 @@ func TestWizardAsksInOrder(t *testing.T) {
 	}
 	for _, r := range Roles {
 		p := examplePersonas[r]
-		want = append(want, r+" provider (anthropic, openai) ["+p.Provider+"]: ", r+" model ["+p.Model+"]: ", r+" effort ["+p.Effort+"]: ",
+		want = append(want, r+" provider (anthropic, openai, xai) ["+p.Provider+"]: ", r+" model ["+p.Model+"]: ", r+" effort ["+p.Effort+"]: ",
 			r+" co-author (- for none) ["+defaultCoAuthor(p.Provider, p.Model)+"]: ")
 	}
 	want = append(want, "app image [daisy-member:1]: ", "lib image [daisy-member:1]: ", "Max members [3]: ", "Max rounds [5]: ",
@@ -138,6 +138,59 @@ func TestWizardHonoursEachOverride(t *testing.T) {
 	for _, r := range Roles {
 		if c.Personas[r] != (Persona{Provider: "openai", Model: r + "-model", Effort: "low", CoAuthor: r + " Bot <" + r + "@example.net>"}) {
 			t.Errorf("%s: %+v", r, c.Personas[r])
+		}
+	}
+}
+
+// A role moved to another provider takes that provider's model as the
+// default, and the co-author follows it; a provider no key names gets its
+// default credential, the file's keys left as they were (section 11).
+func TestWizardMovesARoleToXAI(t *testing.T) {
+	ws := bareWorkspace(t)
+	answers := make([]string, 40)
+	answers[6+4*4] = "xai" // the sympathetic's provider
+	o, asked := scripted(answers...)
+	file := valid()
+	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	c, err := w.Ask()
+	if err == nil {
+		err = w.AskAccount(&c, "swarm-bot", "swarm@example.net")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := (*asked)[6+4*4 : 6+5*4]; !reflect.DeepEqual(got, []string{"sympathetic provider (anthropic, openai, xai) [anthropic]: ",
+		"sympathetic model [grok-4.5]: ", "sympathetic effort [high]: ", "sympathetic co-author (- for none) [grok-4.5 <noreply@x.ai>]: "}) {
+		t.Errorf("asked %q", got)
+	}
+	if c.Personas["sympathetic"] != (Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}) {
+		t.Errorf("sympathetic %+v", c.Personas["sympathetic"])
+	}
+	if k := c.Keys["xai"]; k.Env == nil || *k.Env != "XAI_API_KEY" || k.Slots != nil || len(c.Keys) != 3 {
+		t.Errorf("keys %+v", c.Keys)
+	}
+	if _, ok := file.Keys["xai"]; ok {
+		t.Error("the file's keys were changed")
+	}
+	if err := Validate(ops.Real(), ws, c, SkipPrompts); err != nil {
+		t.Errorf("the answers do not validate: %v", err)
+	}
+}
+
+// Every provider with an adapter has a default model and a default
+// credential the validation accepts.
+func TestProviderDefaults(t *testing.T) {
+	for name := range providers {
+		d, ok := providerDefaults[name]
+		if !ok || d.model == "" {
+			t.Errorf("%s: no default model", name)
+		}
+		personas := map[string]Persona{}
+		for _, r := range Roles {
+			personas[r] = Persona{Provider: name}
+		}
+		if err := checkKeys(map[string]Key{name: defaultKey(name)}, personas); err != nil {
+			t.Errorf("%s: %v", name, err)
 		}
 	}
 }

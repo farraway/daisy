@@ -380,6 +380,45 @@ func TestSwarmApplyStart(t *testing.T) {
 	}
 }
 
+// The architect on xai (section 9): grok's argv, the XAI_API_KEY env
+// credential and no slot, its JSON result read into the cost line; a
+// second run's error object naming a lapsed login is a provider fault,
+// posted nowhere.
+func TestSwarmApplyOnXAI(t *testing.T) {
+	a := newApplyWS(t)
+	env := "XAI_API_KEY"
+	a.edit(func(c *declare.Config) {
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Keys["xai"] = declare.Key{Env: &env}
+	})
+	a.vars["XAI_API_KEY"] = "xai-key-0123456789abcdef0123456789abcdef"
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	grokResult := `{"text":"Done.","stopReason":"end_turn","sessionId":"s","num_turns":7,"usage":{"input_tokens":7210,"cache_read_input_tokens":41000,"output_tokens":1893},"total_cost_usd":0.01268905}`
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Stdout: grokResult},
+		runner.Canned{Code: 1, Stdout: `{"type":"error","message":"Not signed in. Run ` + "`grok login`" + ` to authenticate."}`})
+	if err := a.apply(a.forge, "--once"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	spec := a.runner.Launched[0]
+	if spec.EnvVar != "XAI_API_KEY" || spec.EnvValue != a.vars["XAI_API_KEY"] || spec.Credential != "" || spec.Slot != "" ||
+		spec.Argv[0] != "grok" || !slices.Contains(spec.Argv, "--trust") || spec.Argv[len(spec.Argv)-2] != "-p" {
+		t.Errorf("spec %+v", spec)
+	}
+	if r := a.result("1-architect-1"); !strings.Contains(r, "credential xai env XAI_API_KEY\nexited 0 2026-11-06T15:00:00Z\ncost 0.01268905 tokens 7210/1893 turns 7\nposted comment\n") {
+		t.Errorf("result:\n%s", r)
+	}
+	a.forge.Say(issue1, "jane", "Split it in two.")
+	if err := a.apply(a.forge, "--once"); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.result("1-architect-2"); !strings.HasSuffix(r, "exited 1 2026-11-06T15:00:00Z\nfault: provider: Not signed in. Run `grok login` to authenticate.\noutcome fault\ncollected\n") {
+		t.Errorf("run 2:\n%s", r)
+	}
+	if is, _ := a.forge.Issue(1); len(is.Comments) != 3 {
+		t.Errorf("the fault reached the forge: %+v", is.Comments)
+	}
+}
+
 // The architect on a login slot (section 7.1, step 4): the slot cleared
 // but auth.json and mounted at /credential under its label, codex's argv,
 // and the slot's lock released once docker run has returned.

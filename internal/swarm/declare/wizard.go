@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -28,6 +30,27 @@ var examplePersonas = map[string]Persona{
 	"worker":      {Provider: "anthropic", Model: "claude-sonnet-5-5", Effort: "medium"},
 	"adversary":   {Provider: "openai", Model: "gpt-6.1-sol", Effort: "high"},
 	"sympathetic": {Provider: "anthropic", Model: "claude-opus-5-5", Effort: "high"},
+}
+
+// providerDefaults are each provider's model, a role's default when the
+// wizard moves it to that provider, and its credential, added to keys for
+// a provider a persona names and no key does (section 11).
+var providerDefaults = map[string]struct {
+	model, env string
+	slots      int
+}{
+	"anthropic": {model: "claude-opus-5-5", env: "CLAUDE_CODE_OAUTH_TOKEN"},
+	"openai":    {model: "gpt-6.1-sol", slots: 1},
+	"xai":       {model: "grok-4.5", env: "XAI_API_KEY"},
+}
+
+// defaultKey is provider's credential in providerDefaults.
+func defaultKey(provider string) Key {
+	d := providerDefaults[provider]
+	if d.env != "" {
+		return Key{Env: &d.env}
+	}
+	return Key{Slots: &d.slots}
 }
 
 // Wizard asks `swarm init`'s questions (docs/swarm.md section 11) through
@@ -125,7 +148,21 @@ func (w *Wizard) Ask() (Config, error) {
 		func() error {
 			return w.ask("Base branch", c.Base, func(a string) *Error { c.Base = a; return checkBase(a) })
 		},
-		func() error { return w.personas(&c) },
+		func() error {
+			if err := w.personas(&c); err != nil {
+				return err
+			}
+			keys := map[string]Key{}
+			maps.Copy(keys, c.Keys) // the file's map stays the file's
+			for _, r := range Roles {
+				p := c.Personas[r].Provider
+				if _, ok := keys[p]; !ok {
+					keys[p] = defaultKey(p)
+				}
+			}
+			c.Keys = keys
+			return nil
+		},
 		func() error {
 			for i := range c.Repos {
 				r := &c.Repos[i]
@@ -232,13 +269,12 @@ func (w *Wizard) unasked() Config {
 	if fi, err := w.Ops.FS().Stat(filepath.Join(w.WS, "docs")); err == nil && fi.IsDir() {
 		resources = []string{"docs/"}
 	}
-	env, slots := "CLAUDE_CODE_OAUTH_TOKEN", 1
 	return Config{
 		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
 		Resources: resources,
 		Gates:     Gates{Triage: true, Plan: true, Merge: true},
-		Keys:      map[string]Key{"anthropic": {Env: &env}, "openai": {Slots: &slots}},
+		Keys:      map[string]Key{"anthropic": defaultKey("anthropic"), "openai": defaultKey("openai")},
 		Personas:  map[string]Persona{},
 	}
 }
@@ -330,9 +366,11 @@ func (w *Wizard) forgeDefault(first Origin, kind string) Forge {
 }
 
 // personas is questions 7–26: per role, provider, model, effort and the
-// co-author, whose default follows the model unless the file's persona
-// has the same provider and model; `-` is none, an empty answer being the
-// default, as the list questions take it.
+// co-author. The model's default is the provider's (providerDefaults)
+// when the answer moves the role to another provider; the co-author's
+// follows the model unless the file's persona has the same provider and
+// model; `-` is none, an empty answer being the default, as the list
+// questions take it.
 func (w *Wizard) personas(c *Config) error {
 	for _, role := range Roles {
 		p, ok := c.Personas[role]
@@ -341,7 +379,10 @@ func (w *Wizard) personas(c *Config) error {
 		}
 		was := p
 		at := "personas." + role
-		err := w.ask(role+" provider (anthropic, openai)", p.Provider, func(a string) *Error { p.Provider = a; return checkProvider(at+".provider", a) })
+		err := w.ask(role+" provider ("+strings.Join(slices.Sorted(maps.Keys(providers)), ", ")+")", p.Provider, func(a string) *Error { p.Provider = a; return checkProvider(at+".provider", a) })
+		if err == nil && p.Provider != was.Provider {
+			p.Model = providerDefaults[p.Provider].model
+		}
 		if err == nil {
 			err = w.ask(role+" model", p.Model, func(a string) *Error { p.Model = a; return checkModel(at+".model", a) })
 		}

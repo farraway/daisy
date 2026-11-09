@@ -166,7 +166,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: budget.total: -1.5 is not greater than 0`, func(c *Config) { c.Budget = &Budget{PerDay: 1, Total: -1.5} }},
 		{`swarm.json: personas.tester: not a role (owner, architect, worker, adversary, sympathetic)`, func(c *Config) { c.Personas["tester"] = c.Personas["worker"] }},
 		{`swarm.json: personas.owner: missing`, func(c *Config) { delete(c.Personas, "owner") }},
-		{`swarm.json: personas.adversary.provider: "xai" has no adapter`, func(c *Config) { setPersona(c, "adversary", func(p *Persona) { p.Provider = "xai" }) }},
+		{`swarm.json: personas.adversary.provider: "gemini" has no adapter`, func(c *Config) { setPersona(c, "adversary", func(p *Persona) { p.Provider = "gemini" }) }},
 		{`swarm.json: personas.adversary.model: empty; every role names its model`, func(c *Config) { setPersona(c, "adversary", func(p *Persona) { p.Model = "" }) }},
 		{`swarm.json: personas.adversary.model: "-" is not a model; every role names its model`, func(c *Config) { setPersona(c, "adversary", func(p *Persona) { p.Model = "-" }) }},
 		{`swarm.json: personas.worker.model: "a b" contains whitespace`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Model = "a b" }) }},
@@ -183,7 +183,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: keys.anthropic.env: "ANTHROPIC_KEY" is not one of anthropic's variables (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN)`, func(c *Config) { c.Keys["anthropic"] = Key{Env: ptr("ANTHROPIC_KEY")} }},
 		{`swarm.json: keys.anthropic.slots: anthropic takes no slot`, func(c *Config) { c.Keys["anthropic"] = Key{Slots: ptr(1)} }},
 		{`swarm.json: keys.openai.slots: 0 is not between 1 and 16`, func(c *Config) { c.Keys["openai"] = Key{Slots: ptr(0)} }},
-		{`swarm.json: keys.xai: "xai" has no adapter`, func(c *Config) { c.Keys["xai"] = Key{Env: ptr("XAI_API_KEY")} }},
+		{`swarm.json: keys.gemini: "gemini" has no adapter`, func(c *Config) { c.Keys["gemini"] = Key{Env: ptr("GEMINI_API_KEY")} }},
 	} {
 		c := valid()
 		c.Keys = map[string]Key{"anthropic": c.Keys["anthropic"], "openai": c.Keys["openai"]}
