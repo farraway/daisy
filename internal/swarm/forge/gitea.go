@@ -333,11 +333,15 @@ func (g *Gitea) Pulls(n int) ([]Pull, error) {
 			return nil, err
 		}
 		for _, r := range raw {
-			s, ok := swarmPull(r.Head.Ref, r.Body, g.owner, g.repo, name, n)
+			s, ok := swarmPull(r.Head.Ref, r.Title, r.Body, g.owner, g.repo, name, n)
 			if !ok {
 				continue
 			}
-			p := Pull{Repo: name, Number: r.Number, Title: r.Title, Body: r.Body, Head: r.Head.Ref, HeadSHA: r.Head.SHA,
+			head := r.Head.Ref
+			if _, isBranch := sliceOf(head, n); !isBranch {
+				head = fmt.Sprintf("swarm/%d-%d", n, s) // the branch the forge deleted at merge
+			}
+			p := Pull{Repo: name, Number: r.Number, Title: r.Title, Body: r.Body, Head: head, HeadSHA: r.Head.SHA,
 				Base: r.Base.Ref, Open: r.State == "open", Merged: r.Merged, Author: r.User.Login, Created: r.Created}
 			if r.Merged && r.MergeSHA != nil {
 				p.MergeSHA = *r.MergeSHA

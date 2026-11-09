@@ -2023,10 +2023,15 @@ only issues that carry the label (Gitea drops a `labels` filter naming no
 label it has and answers every issue; whether the filter resolves an
 organization label's name is *to confirm* on the instance), and is sorted by number. `Pulls` reads every pull request, open and closed, of
 each declared repository, one list per repository, and returns those
-whose head branch (`head.ref`) is `swarm/<n>-<s>` for a slice number
-`<s>` and whose body has a line equal to `Refs #<n>` in `forge.repo`, or
-`Refs <owner>/<repo>#<n>` in another repository (any case), sorted by
-`<s>`; a pull request on another branch is never the swarm's. The
+whose body has a line equal to `Refs #<n>` in `forge.repo`, or
+`Refs <owner>/<repo>#<n>` in another repository (any case), and whose
+slice number `<s>` is read from the head branch (`head.ref`)
+`swarm/<n>-<s>`, or, when the forge has deleted the merged branch and
+reports a head such as `refs/pull/<m>/head`, from the title the worker's
+collection wrote, `<issue> slice <s>: <title>` (the `Pull`'s `Head` is
+then `swarm/<n>-<s>`, the branch it had; section 14, item 75), sorted by
+`<s>`; a pull request on another branch with no such title is never the
+swarm's. The
 forges' cross-repository search (Gitea's `/repos/issues/search?owner=<o>&type=pulls`,
 GitHub's `/search/issues`) is not used: its items carry no `head.ref`,
 and its matching depends on the forge's search index. `Comment` takes an issue's or a pull request's `Ref`, since both
@@ -3822,3 +3827,18 @@ entries among revision 1's, and was renumbered at Step 38.
     already means the default, so none is `-`, as the list questions
     take it, and a file's empty value is offered as `-` while the role's
     provider and model are the file's.
+75. **A merged pull request is recognised by its title when the forge has
+    deleted its branch (2026-11-08, the first day after Step 15).** Gitea
+    deletes a merged pull request's branch when the repository's
+    "delete branch after merge" default is on, and then reports its head
+    as `refs/pull/<m>/head`; `Pulls(n)` matched the branch `swarm/<n>-<s>`
+    alone, so every merged slice vanished from the swarm's view: a job's
+    next worker was told to implement slice 1 again over "Earlier pull
+    requests: None", found nothing to commit, and was relaunched each
+    pass. The `Refs` line stays the guard; the slice now comes from the
+    branch when it is one and otherwise from the title the collection
+    writes, `<issue> slice <s>: <title>`, and the pull request's `Head`
+    is then the branch it had. A title without the slice, or a head that
+    is neither, is not the swarm's. The alternative, requiring the
+    maintainer to turn the forge's default off, was rejected: the swarm
+    should not depend on a repository setting it cannot see.

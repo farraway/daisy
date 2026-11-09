@@ -285,11 +285,44 @@ func refusedLabels(owner string, rename [][2]string, missing []string) error {
 }
 
 // swarmPull: a pull request in the declared repository name, on branch
-// head with body, is the swarm's for issue n of owner/repo (section 10,
-// Pulls), and its slice number.
-func swarmPull(head, body, owner, repo, name string, n int) (int, bool) {
-	s, ok := sliceOf(head, n)
-	return s, ok && refersTo(body, owner, repo, name, n)
+// head with title and body, is the swarm's for issue n of owner/repo
+// (section 10, Pulls), and its slice number: from the branch
+// `swarm/<n>-<s>`, or, when the forge has deleted a merged branch and
+// reports a head such as `refs/pull/<m>/head`, from the title the worker's
+// collection wrote, `<issue> slice <s>: <title>`.
+func swarmPull(head, title, body, owner, repo, name string, n int) (int, bool) {
+	if !refersTo(body, owner, repo, name, n) {
+		return 0, false
+	}
+	if s, ok := sliceOf(head, n); ok {
+		return s, true
+	}
+	return sliceOfTitle(title, owner, repo, name, n)
+}
+
+// issueRef is how a pull request in repository name refers to issue n of
+// owner/repo: `#<n>` in the issues repository itself, `<owner>/<repo>#<n>`
+// in another.
+func issueRef(owner, repo, name string, n int) string {
+	if name != repo {
+		return fmt.Sprintf("%s/%s#%d", owner, repo, n)
+	}
+	return fmt.Sprintf("#%d", n)
+}
+
+// sliceOfTitle is the slice number a swarm pull request's title names,
+// `<issue> slice <s>: …`, and whether title is one.
+func sliceOfTitle(title, owner, repo, name string, n int) (int, bool) {
+	rest, ok := strings.CutPrefix(title, issueRef(owner, repo, name, n)+" slice ")
+	if !ok {
+		return 0, false
+	}
+	digits, _, ok := strings.Cut(rest, ":")
+	s, err := strconv.Atoi(digits)
+	if !ok || err != nil || s < 1 || strconv.Itoa(s) != digits {
+		return 0, false
+	}
+	return s, true
 }
 
 // sliceOf is the slice number of a swarm branch `swarm/<n>-<s>` for issue
@@ -307,10 +340,7 @@ func sliceOf(branch string, n int) (int, bool) {
 // request in repository name carries for issue n of owner/repo: `Refs #<n>`
 // in the issues repository itself, `Refs <owner>/<repo>#<n>` in another.
 func refersTo(body, owner, repo, name string, n int) bool {
-	want := fmt.Sprintf("Refs #%d", n)
-	if name != repo {
-		want = fmt.Sprintf("Refs %s/%s#%d", owner, repo, n)
-	}
+	want := "Refs " + issueRef(owner, repo, name, n)
 	for _, line := range strings.Split(body, "\n") {
 		if strings.EqualFold(strings.TrimSpace(line), want) {
 			return true

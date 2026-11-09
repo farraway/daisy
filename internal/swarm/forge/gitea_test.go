@@ -306,6 +306,10 @@ func TestGiteaPulls(t *testing.T) {
 		pair{"GET", "/repos/acme/lib/pulls?state=all&page=1&limit=50", "", 200, "[" + strings.Join([]string{
 			pull(5, "swarm/7-1", "Lib slice.\nRefs acme/app#7\n", "closed", true, "m5"),
 			pull(4, "swarm/7-5", "Refs #7", "open", false, ""), // the short form is the issues repository's
+			// the forge deleted the merged branch: the head reads refs/pull/3/head and the slice comes from the title
+			strings.Replace(pull(3, "refs/pull/3/head", "Refs acme/app#7", "closed", true, "m3"), `"title":"T3"`, `"title":"acme/app#7 slice 6: Drift check"`, 1),
+			// a deleted branch and no slice in the title is not the swarm's
+			strings.Replace(pull(2, "refs/pull/2/head", "Refs acme/app#7", "closed", true, "m2"), `"title":"T2"`, `"title":"acme/app#7: by hand"`, 1),
 		}, ",") + "]"},
 	)
 	got, err := g.Pulls(7)
@@ -316,6 +320,7 @@ func TestGiteaPulls(t *testing.T) {
 	want := []Pull{
 		{Repo: "lib", Number: 5, Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
 		{Repo: "app", Number: 20, Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
+		{Repo: "lib", Number: 3, Title: "acme/app#7 slice 6: Drift check", Body: "Refs acme/app#7", Head: "swarm/7-6", HeadSHA: "h3", Base: "main", MergeSHA: "m3", Merged: true, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Pulls(7) =\n%+v\nwant\n%+v", got, want)

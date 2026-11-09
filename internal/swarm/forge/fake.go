@@ -369,7 +369,7 @@ func (f *Fake) Pulls(n int) ([]Pull, error) {
 			if it == nil || it.pull == nil {
 				continue
 			}
-			s, ok := swarmPull(it.pull.head, it.body, f.owner, f.repo, name, n)
+			s, ok := swarmPull(it.pull.head, it.title, it.body, f.owner, f.repo, name, n)
 			if !ok {
 				continue
 			}
