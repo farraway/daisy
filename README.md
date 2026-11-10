@@ -336,17 +336,14 @@ chosen for a reason:
   and test discipline in the architect's and reviewers' tasks, and the
   members being the vendors' CLIs so that only the pipeline is Daisy's.
 
-What the first job taught (2026-11-07, one issue from proposal to close in
-2h44m, two slices, two review rounds on the first and one on the second,
-about $7.60 at list price for the model calls that report a cost; the
-cross-vendor reviewer's runs report none). Three corrections were needed:
-the brief had to exist before the owner proposed, or it proposed from the
-whole documentation tree; the adversary's instructions had to be bounded so
-that it does not demand a check that cannot be made; and the maintainer's
-label changes and merges, made by hand that morning, became the six verbs
-that afternoon. The members ran for about thirty minutes of the 2h44m; the
-rest was waiting, at the four gates and for the next five-minute pass, and
-a pass that waits for a long run delays the others, which is open work. The cost of the design is
+What the first job taught (one issue taken from proposal to close, its
+plan in slices, each slice's pull request reviewed in rounds). Corrections
+were needed: the brief had to exist before the owner proposed, or it
+proposed from the whole documentation tree; the adversary's instructions
+had to be bounded so that it does not demand a check that cannot be made;
+and the maintainer's label changes and merges, made by hand, became verbs.
+The members ran for a small part of the job's time; the rest was waiting,
+at the gates and for the next pass. The cost of the design is
 latency and polling; what it buys is that everything is on the forge, and
 a person can return at any cadence and read what happened.
 

@@ -37,7 +37,9 @@ and `swarm class`, amending sections 1–3, 5, 6, 7.3–7.5, 10–13 and 14;
 its Step 23 the swarm's own repository and `notes`, amending sections
 2–4, 7.1–7.4, 7.6, 8, 11, 13 and 14; its Step 24 the `xai` login slot,
 amending sections 1, 3, 7.1, 7.2, 7.7, 8, 9, 11, 13 and 14; its Step 30
-the configuration's kept lines, amending sections 3, 11, 13 and 14);
+the configuration's kept lines, amending sections 3, 11, 13 and 14; its
+Step 35 the configuration's and the unit's, amending sections 3, 11, 13
+and 14);
 the board, the GitHub adapter and the `budget` wait for a run that needs
 them. The maintainer reads the sections each code
 step's hand-back cites (the plan's decision of 2026-11-06, in place of a
@@ -348,7 +350,7 @@ question 33 (`--defaults` answers none, and writes only `<swarm-login>`):
     "commit_email": "<swarm-email>"
   },
   "repos": [
-    {"name": "<repo>", "path": "app", "check": [], "image": "daisy-member:1", "protected": [".github/", ".gitea/", ".forgejo/", "AGENTS.md", "CLAUDE.md"]}
+    {"name": "<repo>", "path": "app", "check": [], "image": "daisy-member:1", "protected": [".github/", ".gitea/", ".forgejo/", ".claude/", ".grok/", "AGENTS.md", "CLAUDE.md"]}
   ],
   "base": "main",
   "max_members": 3,
@@ -387,7 +389,7 @@ of `apply`, so an edit applies at the next pass (but for `forge.kind`,
 |---|---|---|---|
 | `forge.kind` | string | detected from the first repository's `origin` (section 10) | `gitea` or `github`: a kind with an adapter |
 | `forge.api` | string | `https://<host>/api/v1` (gitea), `https://api.github.com` (github) | an absolute `http` or `https` URL, no user information, no query, no trailing `/` |
-| `forge.repo` | string | `<owner>/<repo>` from the first repository's `origin` | `^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`; the issues repository, which holds every swarm issue, declared in `repos` or not; one not declared may be the swarm's own (`<owner>/swarm-<name>` by convention), holding no product code: its issues, its briefs under `briefs/` (its clone in the workspace, a `resources` entry, section 2) and with `notes` its research notes under `notes/`; no worker runs in it, no check and no image are its, and Daisy keeps no mirror of it; `<owner>` owns every declared repository (section 14, item 7); with kind `gitea`, `<owner>` is an organization, whose labels the swarm uses (section 10), which only the forge can tell: `EnsureLabels` fails otherwise |
+| `forge.repo` | string | `<owner>/<repo>` of the first directory directly under `<ws>`, in name order, whose `origin`'s `<repo>` begins `swarm-` on the forge's host (the swarm's own, by the convention below; section 11, question 4), else from the first repository's `origin` | `^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`; the issues repository, which holds every swarm issue, declared in `repos` or not; one not declared may be the swarm's own (`<owner>/swarm-<name>` by convention), holding no product code: its issues, its briefs under `briefs/` (its clone in the workspace, a `resources` entry, section 2) and with `notes` its research notes under `notes/`; no worker runs in it, no check and no image are its, and Daisy keeps no mirror of it; `<owner>` owns every declared repository (section 14, item 7); with kind `gitea`, `<owner>` is an organization, whose labels the swarm uses (section 10), which only the forge can tell: `EnsureLabels` fails otherwise |
 | `forge.token_env` | string | `GITEA_TOKEN` (gitea), `GITHUB_TOKEN` (github) | a variable name, `^[A-Za-z_][A-Za-z0-9_]*$`, naming the swarm account's token (section 8, rule 5), never `DAISY_MAINTAINER_TOKEN`, the maintainer's, nor a provider's credential variable (section 9), which a member is given; the token itself never appears in any file Daisy writes |
 | `forge.commit_email` | string | the swarm account's email as `Login()` reports it (the wizard's question 34; none reported, no default) | required: an address, `<local>@<domain>` without whitespace or angle brackets; the author address of every swarm commit, `<role> (Daisy swarm) <commit_email>`, which Step 5 makes each clone's identity in place of section 7.1's `<role>@daisy-swarm.invalid` (section 14, item 52) |
 | `forge.board` | string | absent | optional; the title of an open project of the organization that owns `forge.repo`, on which `apply` keeps each open swarm issue in the column of its stage (`Board`, section 10); kind `gitea` only; absent, no board |
@@ -396,7 +398,7 @@ of `apply`, so an edit applies at the next pass (but for `forge.kind`,
 | `repos[].path` | string | as found | a relative path inside `<ws>` (`.` when the workspace is the product) naming a git repository with an `origin` remote whose `<owner>/<repo>` is `<owner>/<name>` on the forge's host (`github.com` for kind `github`, else `forge.api`'s host; section 14, item 54) (branches are pushed there and its pull requests opened there); an `http(s)` origin URL carries no user information at all (a token as user name included); an SSH URL's `user@` is allowed, a password in it is not |
 | `repos[].check` | array of strings | `[]` | the repository's own checks as one argv (`["make", "check"]`), each element non-empty; named in the worker's and reviewers' Task texts and run by Daisy after each worker run (7.6); `[]` means none, which `init` warns about |
 | `repos[].image` | string | `daisy-member:1` | non-empty; a local image (`docker run --pull never`): the base image, or a product image built `FROM` it (section 7.2) |
-| `repos[].protected` | array of strings | `[".github/", ".gitea/", ".forgejo/", "AGENTS.md", "CLAUDE.md"]` | path patterns in the repository a worker's change may not touch (7.6): an entry ending `/` matches every path under that directory; an entry without `/` matches a path whose last element it matches (`path.Match`), at any depth; any other entry matches the whole path (`path.Match`); each non-empty, relative, without `..`; `[]` protects nothing |
+| `repos[].protected` | array of strings | `[".github/", ".gitea/", ".forgejo/", ".claude/", ".grok/", "AGENTS.md", "CLAUDE.md"]`: the forges' workflows, and the settings, hooks and instructions a member's CLI loads from the repository (`.claude/` and `.grok/` since Step 35 of the swarm build, section 14, item 96; `init` keeps an existing entry's list) | path patterns in the repository a worker's change may not touch (7.6): an entry ending `/` matches every path under that directory; an entry without `/` matches a path whose last element it matches (`path.Match`), at any depth; any other entry matches the whole path (`path.Match`); each non-empty, relative, without `..`; `[]` protects nothing |
 | `base` | string | `main` | a branch name: `^[A-Za-z0-9._][A-Za-z0-9._/-]*$`, no `..`, not ending in `/` or `.lock`; the branch pull requests target and new slices start from (it need not be the forge's default branch: nothing closes on a merge, section 12) |
 | `max_members` | integer | 3 | 1 to 16: containers of this swarm (`<owner>/<repo>`) running at once |
 | `max_rounds` | integer | 5 | 1 to 10: review rounds of one pull request, counted since its accepted plan (section 6), before the pair's request for changes returns the issue to the architect, and the second time blocks it (T11, section 5); Step 1 built the default as 3, and Step 4 of the swarm build changed it to 5 (section 14, item 55) |
@@ -2958,7 +2960,7 @@ brackets; defaults come from the existing `swarm.json`, else detection.
 | 1 | `Product repositories (comma-separated paths in the workspace, the product first) [<d>]: ` | `.` when `<ws>` is a git repository with `origin`; else every directory directly under `<ws>` that is, in name order, but one whose `origin`'s `<repo>` begins `swarm-` (section 3's convention for the swarm's own issues repository, which is no product repository; Step 30 of the swarm build) (none: `.`); each entry's `name` is its `origin`'s `<repo>` |
 | 2 | `Forge kind (gitea, github) [<d>]: ` | detected (section 10) |
 | 3 | `Forge API [<d>]: ` | detected |
-| 4 | `Issues repository [<d>]: `; then, only when the answer is none of question 1's repositories, `Issues repository <owner>/<repo>: the swarm's own, holding no product code (yes, no) [<d>]: ` (section 3, `forge.repo`; Step 23 of the swarm build) | `<owner>/<repo>` of the first repository's `origin`; the follow-up's `yes` when the file's `notes` is `true` and its `forge.repo` is the one just answered, or a directory directly under `<ws>` is a clone of `<owner>/<repo>` on the forge's host, else `no`. The swarm's own repository's clone is no product repository: question 1's answer leaves it out (its default does when the clone's `<repo>` begins `swarm-`) |
+| 4 | `Issues repository [<d>]: `; then, only when the answer is none of question 1's repositories, `Issues repository <owner>/<repo>: the swarm's own, holding no product code (yes, no) [<d>]: ` (section 3, `forge.repo`; Step 23 of the swarm build) | `<owner>/<repo>` of the first directory directly under `<ws>`, in name order, whose `origin`'s `<repo>` begins `swarm-` (question 1's rule) on the forge's host, so `--defaults` declares the swarm's own repository its issues repository (Step 35 of the swarm build); else of the first repository's `origin`; the follow-up's `yes` when the file's `notes` is `true` and its `forge.repo` is the one just answered, or a directory directly under `<ws>` is a clone of `<owner>/<repo>` on the forge's host, else `no`. The swarm's own repository's clone is no product repository: question 1's answer leaves it out (its default does when the clone's `<repo>` begins `swarm-`) |
 | 5 | `Token variable [<d>]: ` | `GITEA_TOKEN` or `GITHUB_TOKEN` |
 | 6 | `Base branch [<d>]: ` | `main` |
 | 7–26 | for each role in the order owner, architect, worker, adversary, sympathetic: `<role> provider (anthropic, openai, xai) [<d>]: `, `<role> model [<d>]: ` (no `-`: every role names its model), `<role> effort [<d>]: `, `<role> co-author (- for none) [<d>]: ` (`-` the empty `co_author`, no trailer: an empty answer is the default, as everywhere); once the five are answered, a provider a persona names and `keys` does not gets its default credential (`anthropic` `{"env": "CLAUDE_CODE_OAUTH_TOKEN"}`, `openai` `{"slots": 1}`, `xai` `{"env": "XAI_API_KEY"}`), the file's keys kept, in either form: `openai` and `xai` each take `env` or `slots` (section 8), as the file declares | section 3's example, or the file's; the model's default the provider's (`claude-opus-5-5`, `gpt-6.1-sol`, `grok-4.5`) when the answer moves the role to another provider; the co-author's default `<model> <noreply@anthropic.com>`, `<noreply@openai.com>` or `<noreply@x.ai>` by the provider just answered, or the file's while the role's provider and model are the file's, `-` when the file's is empty |
@@ -2990,8 +2992,9 @@ user service that runs `apply`'s loop (without `--once`), a pass every
 `interval` whatever runs (section 14, item 78); `<daisy>` is the running
 binary's path (`Ops.Executable`), `<root>` the
 Daisy root it runs with (a user manager's service does not read the
-shell's `DAISY_ROOT`), `<interval>` the configured interval in systemd's
-notation (`5min`, `1h30min`), and `<instance>` the workspace path escaped
+shell's `DAISY_ROOT`), `<interval>` the configured interval and
+`<timeout>` the configured timeout in systemd's notation (`5min`,
+`1h30min`, `45min`), and `<instance>` the workspace path escaped
 as `systemd-escape --path` escapes it (the unit name single-quoted on the
 install line when the escape holds a `\`, which the shell would eat);
 the unit names the workspace as `%f`, the instance unescaped as a path
@@ -3009,6 +3012,7 @@ ExecStart=<daisy> swarm apply
 Restart=on-failure
 RestartSec=<interval>
 KillMode=mixed
+TimeoutStopSec=<timeout>
 
 [Install]
 WantedBy=default.target
@@ -3023,12 +3027,17 @@ Docker not yet reachable) is tried again one interval later, as the
 timer of earlier versions tried a failed pass. `KillMode=mixed` sends a
 stop's SIGTERM to `apply` alone: its members, whose `docker run` would
 pass the signal on to them, run on while `apply` collects them as they
-exit (Without `--once`, below); at systemd's stop timeout the rest of the
+exit (Without `--once`, below); `TimeoutStopSec` is the swarm's
+`timeout`, as long as a member may run, so a stop or a restart waits
+for the drain up to that long, each member running at the stop ended by
+its own `timeout` within it (section 14, item 96); at the stop timeout,
+reached by a collection that runs past it (a check, a push), the rest of the
 unit is killed, the `docker run` clients with it and the containers
 left running, and the next `apply` collects each from its `out.md`
 once its `<run>/io/exit` says the member finished (7.7, *ended*). A changed `interval` takes effect at the loop's next
 pass, which reads `swarm.json` again; the unit's description and restart
-delay only when the unit is printed and installed again. A workspace
+delay, and a changed `timeout`'s stop timeout, only when the unit is
+printed and installed again. A workspace
 that ran the earlier timer (`daisy-swarm@<instance>.timer` and a oneshot
 service running `apply --once`) disables the timer and removes its file
 before installing this unit. Under the service, `apply` has no terminal:
@@ -4045,6 +4054,18 @@ revising text with two repositories, absent with one), and
 `TestDefaultPromptsAreSectionFours` (the default architect persona's
 new line). Not established: an architect on the real swarm quoting
 what the worker copies, which the next multi-repository plan shows.
+
+**As built (Step 35 of the swarm build).** The configuration's and the
+unit's kept lines (sections 3 and 11; section 14, item 96) are Go tests:
+`TestWizardDefaults` (a new entry's `protected` naming `.claude/` and
+`.grok/`), `TestWizardOwnIssuesRepository` (under `--defaults`, question
+4 answering the `swarm-<name>` clone's repository, its `briefs/` in the
+resources and question 35 asking for `notes`; a `swarm-` clone on
+another host passed over), `TestFormatIsSectionThreesExample` (section
+3's example against the defaults) and `TestSwarmInitDefaults` (the
+printed unit's `TimeoutStopSec=45min`). Not established: a restart of
+the installed unit waiting out a running member, which only systemd
+shows.
 
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
@@ -5694,3 +5715,28 @@ entries among revision 1's, and was renumbered at Step 38.
     of the thread and the maintainer's answers to it stays legible. A
     heading rather than a line under its own section, as the issue
     thread has no rounds to name. No limit was added.
+96. **The configuration and the unit (Step 35 of the swarm build,
+    2026-11-09).** Three kept lines, by the maintainer's answers.
+    **The default `protected`** named the forges' workflows, `AGENTS.md`
+    and `CLAUDE.md`, but not `.claude/` and `.grok/`, from which Claude
+    Code and grok (with `--trust`) load settings, hooks and MCP servers,
+    so a worker's change there would run in a later member before any
+    gate; both join a new entry's default (section 3), and `init` keeps
+    an existing entry's list. **Question 4's default** was the first
+    product's origin, so `--defaults` never declared the swarm's own
+    repository its issues repository (item 92 left it so); it is now the
+    repository of the first clone directly under the workspace whose
+    `origin`'s `<repo>` begins `swarm-`, question 1's rule, on the
+    forge's host (a clone on another host is no repository of this
+    forge), else the first product's origin as before; the follow-up
+    then defaults to `yes`, as the clone lies in the workspace. **A
+    restart lost each running member's exit status, cost and provider
+    fault** (item 78): systemd's default stop timeout, 90 s, killed
+    `apply` mid-drain and the next `apply` collected the runs as
+    `ended`. The printed unit gains `TimeoutStopSec=<timeout>`, the
+    swarm's `timeout` in systemd's notation, as long as a member may
+    run, so a stop waits for the drain at the price of a stop lasting
+    up to a run; a collection that runs past it (a check, a push) is
+    still cut off and recovered as before. The unit is a template whose
+    settings are one workspace's, as `RestartSec` already was. No other
+    limit or default was added.

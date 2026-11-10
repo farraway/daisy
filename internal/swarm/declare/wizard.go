@@ -18,10 +18,12 @@ import (
 var ErrCancelled = errors.New("Cancelled — no answer on stdin (EOF); nothing written.")
 
 // defaultImage and defaultProtected are a new repository entry's image and
-// protected paths (section 3).
+// protected paths (section 3): the forges' workflows, and the instructions,
+// settings and hooks a member's CLI loads from the repository (.claude/,
+// .grok/, AGENTS.md, CLAUDE.md).
 const defaultImage = "daisy-member:1"
 
-var defaultProtected = []string{".github/", ".gitea/", ".forgejo/", "AGENTS.md", "CLAUDE.md"}
+var defaultProtected = []string{".github/", ".gitea/", ".forgejo/", ".claude/", ".grok/", "AGENTS.md", "CLAUDE.md"}
 
 // examplePersonas are section 3's example: the defaults without a file.
 var examplePersonas = map[string]Persona{
@@ -132,7 +134,7 @@ func (w *Wizard) Ask() (Config, error) {
 			})
 		},
 		func() error {
-			return w.ask("Issues repository", w.forgeDefault(origins[0], c.Forge.Kind).Repo, func(a string) *Error {
+			return w.ask("Issues repository", w.issuesDefault(c, origins[0]), func(a string) *Error {
 				c.Forge.Repo = a
 				if !repoShape.MatchString(a) {
 					return fieldErr("forge.repo", "%q is not <owner>/<repo>", a)
@@ -262,6 +264,31 @@ func (w *Wizard) askOwn(c Config) error {
 	})
 }
 
+// issuesDefault is question 4's default: the file's forge.repo; else the
+// origin of the first directory directly under the workspace, in name
+// order, whose origin's repository name begins swarm- (section 3's
+// convention for the swarm's own issues repository) on the forge's host;
+// else the first repository's origin.
+func (w *Wizard) issuesDefault(c Config, first Origin) string {
+	if w.File == nil {
+		entries, _ := w.Ops.FS().ReadDir(w.WS)
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			o, _, err := checkRepoPath(w.Ops, w.WS, "", e.Name())
+			if err == nil && ownName(o.Repo) && strings.EqualFold(o.Host, c.Forge.Host()) {
+				return o.Owner + "/" + o.Repo
+			}
+		}
+	}
+	return w.forgeDefault(first, c.Forge.Kind).Repo
+}
+
+// ownName: a repository named swarm-<name>, section 3's convention for the
+// swarm's own issues repository.
+func ownName(repo string) bool { return strings.HasPrefix(strings.ToLower(repo), "swarm-") }
+
 // issuesClone is the directory directly under the workspace whose origin
 // is the issues repository on the forge's host, "" for none.
 func (w *Wizard) issuesClone(c Config) string {
@@ -374,7 +401,7 @@ func (w *Wizard) defaultPaths() string {
 			continue
 		}
 		o, _, err := checkRepoPath(w.Ops, w.WS, "", e.Name())
-		if err == nil && !strings.HasPrefix(strings.ToLower(o.Repo), "swarm-") {
+		if err == nil && !ownName(o.Repo) {
 			paths = append(paths, e.Name())
 		}
 	}

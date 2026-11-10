@@ -57,6 +57,11 @@ func TestWizardDefaults(t *testing.T) {
 	if len(*asked) != 0 || errb.Len() != 0 {
 		t.Errorf("--defaults asked %q, stderr %q", *asked, errb.String())
 	}
+	// A new entry protects the forges' workflows and what a member's CLI
+	// loads from the repository (section 3).
+	if p := []string{".github/", ".gitea/", ".forgejo/", ".claude/", ".grok/", "AGENTS.md", "CLAUDE.md"}; !reflect.DeepEqual(c.Repos[1].Protected, p) {
+		t.Errorf("the default protected %q, want %q", c.Repos[1].Protected, p)
+	}
 
 	// A workspace that is itself the repository: `.`.
 	hermetic(t)
@@ -349,11 +354,24 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 	os.MkdirAll(filepath.Join(ws, "swarm-x", "briefs"), 0o755)
 
 	// Question 1's default leaves the clone of swarm-x out (section 3's
-	// convention for the swarm's own repository): app and lib alone.
+	// convention for the swarm's own repository): app and lib alone; and
+	// question 4's is swarm-x, the swarm's own, with its briefs and notes/.
 	o, _ := scripted()
-	if c, err := (&Wizard{Ops: o, Err: io.Discard, WS: ws, Defaults: true}).Ask(); err != nil || len(c.Repos) != 2 || c.Repos[0].Name != "app" || c.Repos[1].Name != "lib" {
-		t.Errorf("question 1's default with the swarm's own clone: %v %+v", err, c.Repos)
+	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, Defaults: true}
+	if c, err := w.Ask(); err != nil || len(c.Repos) != 2 || c.Repos[0].Name != "app" || c.Repos[1].Name != "lib" ||
+		c.Forge.Repo != "acme/swarm-x" || !reflect.DeepEqual(c.Resources, []string{"docs/", "swarm-x/briefs/"}) {
+		t.Errorf("--defaults with the swarm's own clone: %v %+v %q %q", err, c.Repos, c.Forge.Repo, c.Resources)
+	} else if c.Notes = true; w.AskNotes(&c) != nil || !c.Notes || c.Wiki { // own: question 35 keeps notes
+		t.Errorf("--defaults question 35 for the swarm's own: notes %v wiki %v", c.Notes, c.Wiki)
 	}
+	// A swarm- clone on another host is not the forge's: the first
+	// repository's origin.
+	gitRepo(t, filepath.Join(ws, "a-elsewhere"), "git@other.example.org:acme/swarm-y.git")
+	o, asked := scripted(make([]string, 40)...)
+	if _, err := (&Wizard{Ops: o, Err: io.Discard, WS: ws}).Ask(); err != nil || (*asked)[3] != "Issues repository [acme/swarm-x]: " {
+		t.Errorf("question 4 beside a swarm- clone on another host: %v %q", err, *asked)
+	}
+	os.RemoveAll(filepath.Join(ws, "a-elsewhere"))
 	answers := func(issues, own string) []string {
 		a := []string{"app, lib", "", "", issues}
 		if own != "-" {
@@ -412,8 +430,8 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 	os.RemoveAll(filepath.Join(ws, "swarm-x"))
 	file := valid()
 	file.Forge.Repo, file.Notes = "acme/swarm-x", true
-	o, asked := scripted(make([]string, 40)...)
-	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	o, asked = scripted(make([]string, 40)...)
+	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
 	if _, err := w.Ask(); err != nil || (*asked)[4] != "Issues repository acme/swarm-x: the swarm's own, holding no product code (yes, no) [yes]: " {
 		t.Errorf("the file's own: %v %q", err, (*asked)[4])
 	}

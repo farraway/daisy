@@ -137,6 +137,7 @@ ExecStart=/opt/daisy/bin/daisy swarm apply
 Restart=on-failure
 RestartSec=5min
 KillMode=mixed
+TimeoutStopSec=45min
 
 [Install]
 WantedBy=default.target

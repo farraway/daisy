@@ -636,7 +636,7 @@ new home.
 | Legacy | none |
 | Usage | `daisy swarm init [--defaults]`: in a workspace, asks the wizard's questions (below) through `Ops.Prompt` on stderr, an empty answer taking the default in brackets (the existing `swarm.json`'s value, else detection, else section 3's example); `--defaults` asks nothing |
 | Exit codes | 0 written or unchanged, or cancelled at EOF (`Cancelled — no answer on stdin (EOF); nothing written.`); 1 outside a workspace, an invalid file or default (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <ws>/.env.sh or the environment)`), kind `github` (no adapter yet), the token unable to read the issues repository, a declared repository or its own account (`Error: swarm: $<VAR> cannot read …`), a write failing, `EnsureLabels` failing (a refused rename or create names every label still to rename and to create; the files stay written and a re-run completes it); 2 usage. A readiness warning never changes it |
-| Stdout | `✓ Token $<VAR> reads <owner>/<repo> as <login>`; `✓ Wrote swarm/swarm.json` or `  Unchanged swarm/swarm.json`; per role `✓ Wrote swarm/prompts/<role>.md` or `  Kept swarm/prompts/<role>.md (exists)`; `✓ Labels: 16 present (<c> created, <r> renamed)`; the systemd user service that runs `apply`'s loop, and its install line |
+| Stdout | `✓ Token $<VAR> reads <owner>/<repo> as <login>`; `✓ Wrote swarm/swarm.json` or `  Unchanged swarm/swarm.json`; per role `✓ Wrote swarm/prompts/<role>.md` or `  Kept swarm/prompts/<role>.md (exists)`; `✓ Labels: 16 present (<c> created, <r> renamed)`; the systemd user service that runs `apply`'s loop (restarted one `interval` after a failure; a stop waiting one `timeout`, `TimeoutStopSec`, for the drain: Step 35 of the swarm build), and its install line |
 | Stderr | the questions; a refused answer's message, then the question again; `⚠️  .env.sh <problem>` for a line `.env.sh` cannot be read past; the four readiness warnings (`⚠ Readiness: …`) |
 | Ops | Real |
 | Writes | `<ws>/swarm/swarm.json` when the answers differ from it; each `<ws>/swarm/prompts/<role>.md` that is absent; on the forge, the organization's labels of the sixteen (the nine stages, the flags `swarm:gated`, `swarm:blocked`, `swarm:paused`, `swarm:blocking` and `swarm:class-architecture`, the terminals `swarm:done` and `swarm:rejected`: docs/swarm.md section 5), each of the seven stage labels found under its name before Step 15 of the swarm build renamed in place (section 14, item 74) and every other missing one created. Nothing under `$DAISY_LOCAL` |
@@ -675,7 +675,11 @@ wiki's `yes` refused (`swarm.json: wiki: <owner>/<repo> is none of
 repos; …`: the wiki keeps a declared issues repository's notes). Question
 1's default leaves out a clone whose `origin`'s repository name begins
 `swarm-`, the swarm's own repository by convention (Step 30 of the swarm
-build).
+build), and question 4's default is the first such clone's repository on
+the forge's host, else the first product's (Step 35), so `--defaults`
+declares the swarm's own repository its issues repository. A new
+repository entry's `protected` default names `.claude/` and `.grok/`
+beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 
 ### daisy swarm status
 

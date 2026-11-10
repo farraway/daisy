@@ -99,7 +99,7 @@ func swarmInit(c *Context, open opener) error {
 	}
 	fmt.Fprintln(c.Stdout, labelsLine(created, renamed))
 	readiness(c, ws, cfg, acct.Login)
-	return printUnits(c, ws, cfg.Interval)
+	return printUnits(c, ws, cfg.Interval, cfg.Timeout)
 }
 
 // labelsLine is init's report of EnsureLabels, and apply's when it made
@@ -209,13 +209,16 @@ func readiness(c *Context, ws string, cfg declare.Config, swarmLogin string) {
 }
 
 // printUnits prints the systemd user service that runs `swarm apply`'s
-// loop in this workspace, and how to install it.
-func printUnits(c *Context, ws, interval string) error {
+// loop in this workspace, and how to install it: restarted one interval
+// after a failure, and a stop waiting one timeout, as long as a run may
+// last, for the drain before systemd kills what is left.
+func printUnits(c *Context, ws, interval, timeout string) error {
 	daisy, err := c.Ops.Executable()
 	if err != nil {
 		return fmt.Errorf("Error: cannot find the running binary: %v", err)
 	}
 	d, _ := time.ParseDuration(interval) // validated
+	t, _ := time.ParseDuration(timeout)  // validated
 	unit := installedUnit(ws)
 	fmt.Fprintf(c.Stdout, `
 # ~/.config/systemd/user/daisy-swarm@.service
@@ -229,13 +232,14 @@ ExecStart=%s swarm apply
 Restart=on-failure
 RestartSec=%s
 KillMode=mixed
+TimeoutStopSec=%s
 
 [Install]
 WantedBy=default.target
 
 Install (your step):
   systemctl --user daemon-reload && systemctl --user enable --now %s
-`, systemdSpan(d), c.Env.Root, daisy, systemdSpan(d), unit)
+`, systemdSpan(d), c.Env.Root, daisy, systemdSpan(d), systemdSpan(t), unit)
 	return nil
 }
 
