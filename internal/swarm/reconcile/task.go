@@ -46,6 +46,9 @@ func (j *Job) task() string {
 				add(`The plan is accepted as you write it: there is no revision round.`)
 			}
 		}
+		if len(j.Cfg.Repos) > 1 {
+			add(`A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed.`)
+		}
 		if open {
 			add(`Pull request %s#%d, slice %d, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Revise the plan so that the slice can pass review: slice %d keeps its number, its repository and its branch, and the worker continues on them; what it does, how it is tested and the slices after it may change.`, cur.Repo, cur.Number, sliceOf(cur, j.N), sliceOf(cur, j.N))
 		}

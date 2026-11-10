@@ -339,17 +339,39 @@ func orNone(blocks []string) string {
 }
 
 // thread is the issue thread's comments but the gate notes and the auto
-// notes, which are the maintainer's (section 7.3).
+// notes, which are the maintainer's, compacted as the pull-request thread
+// is (section 7.3): an entry not the swarm's whole whatever its age; of
+// the swarm's, each role's newest entry and the accepted plan whole, and
+// every older one its heading alone, so that a prompt stops growing with
+// the plan's revisions.
 func (j *Job) thread() string {
+	newest := map[string]Entry{}
+	runs := map[string]int{}
+	for _, c := range j.Issue.Comments {
+		e := Entry{c.Author, c.Body, c.Created}
+		if m, ok := Swarms(e, j.SwarmLogin); ok && m.Kind == "" && !e.Created.Before(newest[m.Role].Created) {
+			newest[m.Role], runs[m.Role] = e, m.Run
+		}
+	}
+	plan, _, planned := j.Plan()
 	var out []string
 	for _, c := range j.Issue.Comments {
 		e := Entry{c.Author, c.Body, c.Created}
-		if m, ok := Swarms(e, j.SwarmLogin); ok && m.Kind != "" {
+		m, ok := Swarms(e, j.SwarmLogin)
+		switch {
+		case ok && m.Kind != "":
 			continue
+		case ok && !same(e, newest[m.Role]) && !(planned && same(e, plan)):
+			out = append(out, fmt.Sprintf("## %s, run %d, at %s (superseded by run %d; content omitted)", m.Role, m.Run, stamp(e.Created), runs[m.Role]))
+		default:
+			out = append(out, trim(j.entry(2, e, "")))
 		}
-		out = append(out, trim(j.entry(2, e, "")))
 	}
 	return orNone(out)
+}
+
+func same(a, b Entry) bool {
+	return a.Author == b.Author && a.Body == b.Body && a.Created.Equal(b.Created)
 }
 
 func (j *Job) plan() string {

@@ -511,8 +511,8 @@ up by it, and two such faults in a row pause the swarm with that line.
 
 | Role | Runs in | Reads (section 7.3) | Writes to `out.md` | Its output becomes |
 |---|---|---|---|---|
-| owner | no issue (the batch run); `swarm:proposal-posted` | for the batch, every `active` brief in `resources` (below), the open and recently closed swarm issues; on an issue, the issue thread | the batch: `Met: <path>` for each brief whose milestones are all met, then proposals, each `## <title>`, a `Brief: <path> — <milestone>` line and a body; on an issue: a reply | new issues labelled `swarm:proposal-posted` (`swarm:proposal-accepted` with the triage gate off), each text (after the marker lines, section 6) opening with its `Brief:` line; a comment on the issue |
-| architect | `swarm:proposal-accepted`, `swarm:plan-0-posted` | the issue thread; while the issue's current pull request is open (after T11, or a relabel by the maintainer), the earlier pull requests, that pull request's thread with every round's blocking findings (7.3) and the check's result too | the whole plan, a standard Daisy plan in the form of section 7.4 | a comment on the issue |
+| owner | no issue (the batch run); `swarm:proposal-posted` | for the batch, every `active` brief in `resources` (below), the open and recently closed swarm issues; on an issue, the issue thread compacted (7.3: the maintainer's entries in full, each swarm role's newest entry and the accepted plan whole, the swarm's older entries their headings alone) | the batch: `Met: <path>` for each brief whose milestones are all met, then proposals, each `## <title>`, a `Brief: <path> — <milestone>` line and a body; on an issue: a reply | new issues labelled `swarm:proposal-posted` (`swarm:proposal-accepted` with the triage gate off), each text (after the marker lines, section 6) opening with its `Brief:` line; a comment on the issue |
+| architect | `swarm:proposal-accepted`, `swarm:plan-0-posted` | the issue thread, compacted as the owner's (7.3); while the issue's current pull request is open (after T11, or a relabel by the maintainer), the earlier pull requests, that pull request's thread with every round's blocking findings (7.3) and the check's result too | the whole plan, a standard Daisy plan in the form of section 7.4 | a comment on the issue |
 | worker | `swarm:plan-1-accepted`, `swarm:review-3-changes-requested` | the issue body, the accepted plan, the maintainer's direction and the earlier pull requests; in `review-3-changes-requested` (and in `plan-1-accepted` when its pull request is open), the pull-request thread with its latest round in full and the earlier as lines (7.3), and the check's result | the pull request's description; in `review-3-changes-requested`, what it changed; and commits on `swarm/<n>-<s>` in the clone | a pushed branch and a pull request in the slice's repository (its `Refs` line, section 5); a comment on the pull request |
 | adversary | `swarm:review-0-ready`, `swarm:review-1-in-progress` | the issue body, the accepted plan, the pull-request thread compacted (7.3: the worker's newest report, the previous round's blocking findings, each earlier round as a line, the maintainer's entries in full, never the current round), and the check's result; the change is `git diff <base>...HEAD` in its writable throwaway clone | `VERDICT: approve` or `VERDICT: request-changes`, then the review, each finding marked by severity | a pull request review |
 | sympathetic | `swarm:review-0-ready`, `swarm:review-1-in-progress` | as the adversary | as the adversary, ending with a reading guide | a pull request review |
@@ -598,6 +598,9 @@ follow without asking, and that a reviewer can check line by line.
   large, say so and propose how to cut it.
 - When the maintainer replies, revise the plan and write it out whole; the
   worker reads only the accepted plan.
+- The worker sees only the repository its slice changes. Quote in the
+  plan any text it must copy from another repository; "copy it from
+  there" cannot be followed.
 - You do not write the code.
 ```
 
@@ -1562,6 +1565,8 @@ Opened by <login> at <time>. Labels: <labels, comma-separated>.
 
 <swarm comment>
 
+## <role>, run <k>, at <time> (superseded by run <k'>; content omitted)
+
 ## <login> at <time> (not trusted; content omitted)
 
 # Plan
@@ -1624,7 +1629,7 @@ Which sections a prompt holds, by role:
 |---|---|---|---|---|
 | `# Repository` (one `Clone` line: `/work` for the run's repository; for the owner and the architect, `/work/<name>` per declared repository), `# Issue` | yes | yes | yes | yes |
 | `- Research notes:` in `# Repository`, and `# Research notes` (`None.` when the copy holds no note), with `wiki` or `notes` | yes | the line alone, `- Research notes (read-only): /work/.notes` | the line alone | the line alone |
-| `# Thread` (the issue thread's comments, oldest first, but the gate notes and the auto notes, section 5; `None.` when there are none) | yes | — | — | — |
+| `# Thread` (the issue thread's comments, oldest first, but the gate notes and the auto notes, section 5, compacted as below; `None.` when there are none) | yes | — | — | — |
 | `# Plan` | — | yes | yes | yes |
 | `# Direction` (`None.` when there are none) | — | yes | — | — |
 | `# Earlier pull requests` (`None.` when there are none) | the architect, when the current pull request is open (after T11, or a relabel by the maintainer) | yes | yes | yes |
@@ -1660,6 +1665,18 @@ Which sections a prompt holds, by role:
   date with its age (`today`, `1 day ago`, `<d> days ago`; none for a
   date not opening `YYYY-MM-DD`), or `never checked` without one. The notes are material, in `prompt.md`: anyone
   who can edit the wiki or the repository may have written them.
+- **The issue thread** under `# Thread` is compacted as the
+  pull-request thread is (below; section 14, item 95), so that the
+  owner's and the architect's prompts stop growing with the plan's
+  revisions: an entry that is not the swarm's is shown whatever its age,
+  as the pull-request thread shows it; of the swarm's entries, each
+  role's newest (the owner's, the architect's, the reconciler's note)
+  and the accepted plan are shown whole, and every older one is its
+  heading alone, `## <role>, run <k>, at <time> (superseded by run <k'>;
+  content omitted)`, `<k'>` being the run of that role's newest entry,
+  in its place in the thread. The accepted plan stays whole when the
+  architect's newest entry is a `BLOCKED:` question, being what a
+  revision revises.
 - **The accepted plan** is the newest counted issue comment marked
   `role=architect` whose text does not begin `BLOCKED:`; `<S>` is the
   number of its slices (7.4). With no such comment, `# Plan` reads
@@ -1820,6 +1837,12 @@ Written line.`; the architect's then `Your plan's "## Research" then
 names the note rather than repeating it.`; both `Daisy commits and
 pushes /work/.notes after the run; delete no note.` `<date>` is the run's
 day (UTC), and the batch's `Written:` line reads `by owner run <k>`.
+Every architect text adds, when more than one repository is declared,
+after its row's text (the gate's sentence included) and before the
+open-slice sentence: `A worker sees only its slice's repository: quote
+in the plan any text the worker must copy from another repository, since
+a plan that says to copy it from there cannot be followed.` (the worker's
+clone is its slice's repository alone, 7.1; section 14, item 95).
 Every architect
 and worker text adds, last, when `protected` is not `[]`: `These paths are
 protected: <protected, comma-separated>. No change to them is pushed; the
@@ -4007,6 +4030,22 @@ no batch run, no `owner-held`, `status`'s `State:` line naming the
 hold, and the batch running once the brief is `active`) and
 `TestSwarmStatusAfterInit` (the hold named after `init`).
 
+**As built (Step 34 of the swarm build).** The prompts' kept lines
+(sections 4, 7.3 and 7.4; section 14, item 95) are Go tests in
+`internal/swarm/reconcile` and `internal/swarm/declare`:
+`TestRenderIssueThreadCompact` (three plans and the maintainer's
+answers: the newest plan and the owner's newest entry whole, each
+earlier plan its heading alone, every comment not the swarm's whole;
+the owner's prompt alike), `TestRenderIssueThreadStopsGrowing` (the
+fifth to the seventh plan within two superseded headings and two
+answers of each other), `TestRenderIssueThreadKeepsPlan` (the accepted
+plan whole under a newer `BLOCKED:`), `TestRenderArchitectQuotes` and
+`TestRenderArchitectReady` (the quoting sentence in the writing and the
+revising text with two repositories, absent with one), and
+`TestDefaultPromptsAreSectionFours` (the default architect persona's
+new line). Not established: an architect on the real swarm quoting
+what the worker copies, which the next multi-repository plan shows.
+
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
 writes the canned `out.md` (and, for the worker, commits in the clone;
@@ -5032,7 +5071,7 @@ entries among revision 1's, and was renumbered at Step 38.
     worker's claim; and "the issue thread's older entries", which a
     reviewer's prompt does not hold (the table of 7.3), is read as the
     pull-request thread's older swarm entries, the owner's and the
-    architect's `# Thread` staying whole. The maintainer's entries are
+    architect's `# Thread` staying whole (until item 95 compacted it). The maintainer's entries are
     shown in full whatever their age: they are direction. The architect
     keeps every round's blocking findings, without the bodies, as it
     reworks the plan from them, and the worker the latest round in full.
@@ -5632,3 +5671,26 @@ entries among revision 1's, and was renumbered at Step 38.
     batch held: no brief is active`, as it names `owner-held`'s reason.
     The batch's Task text for an empty `# Briefs`, now never rendered,
     is gone (7.4). No limit was added.
+95. **The prompts (Step 34 of the swarm build, 2026-11-09).** Two kept
+    lines, by the maintainer's answers. **The worker sees one
+    repository, the architect every declared one**: a plan that said
+    to copy text from another repository could not be followed by a
+    worker whose clone is its slice's repository alone. The worker's
+    mounts are unchanged; the architect's Task text, writing a plan or
+    revising one, adds a sentence telling it to quote that text in the
+    plan when more than one repository is declared (7.4), and the
+    default architect persona says the same (section 4). A swarm's own
+    `swarm/prompts/<role>.md` for the architect, which `init` keeps when present, is
+    the maintainer's to change. **The owner's and the architect's
+    `# Thread` stayed whole** (item 77), so the architect's prompt grew
+    with every plan revision as the reviewers' grew with the rounds. It
+    is compacted by item 77's rule (7.3): the entries not the swarm's
+    whole whatever their age, as direction; of the swarm's, the newest
+    whole, here each role's newest, since the issue thread holds the
+    owner's job, the architect's plan and the reconciler's notes side by
+    side, and the accepted plan with them, the text a revision revises
+    even under a newer `BLOCKED:`; every older swarm entry its heading
+    in place, `(superseded by run <k'>; content omitted)`, so the order
+    of the thread and the maintainer's answers to it stays legible. A
+    heading rather than a line under its own section, as the issue
+    thread has no rounds to name. No limit was added.

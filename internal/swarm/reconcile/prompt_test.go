@@ -86,7 +86,7 @@ You do it.
 
 # Task
 
-Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. The maintainer reads "## Research" first, then the plan, before any code is written. These paths are protected: app: .gitea/, AGENTS.md. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
+Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
 
 Write your output to /work/.swarm/out.md; that file is the only thing read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /work/.swarm/out.md instead.
 `
@@ -445,6 +445,85 @@ func TestRenderOwner(t *testing.T) {
 	has(t, "batch system.md", sys, []string{`Propose up to 3 new jobs for acme/app, most important first, toward the first milestone`})
 	has(t, "batch prompt.md", prompt, []string{"# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /work/.resources/docs/briefs/a.md)\n\n### A\nStatus: active\nFirst.\n\n#### M1\n",
 		"# Open swarm issues\n\nNone.\n\n# Recently closed\n\nNone.\n"}, "b.md", "notes.md", "# Issue", "# Thread")
+}
+
+// copyQuote is the architect's sentence when more than one repository is
+// declared (section 7.4): the worker sees one.
+const copyQuote = `A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed.`
+
+// The architect is told to quote what the worker must copy from another
+// repository, writing a plan and revising one, while more than one
+// repository is declared; with one, it is not.
+func TestRenderArchitectQuotes(t *testing.T) {
+	f, at := fixture()
+	sys, _ := Render(job(f, at.N, "architect", "swarm:proposal-accepted"))
+	has(t, "system.md", sys, []string{"before any code is written. " + copyQuote + " These paths are protected"})
+	f.Comment(at, marker("architect", 1)+archPlan)
+	f.Say(at, "jane", "Smaller.")
+	sys, _ = Render(job(f, at.N, "architect", "swarm:plan-0-posted"))
+	has(t, "revise system.md", sys, []string{"Revise your plan for issue #1", copyQuote})
+	j := job(f, at.N, "architect", "swarm:plan-0-posted")
+	j.Cfg.Repos = j.Cfg.Repos[:1]
+	sys, _ = Render(j)
+	has(t, "one repository's system.md", sys, nil, "A worker sees only")
+}
+
+// issueRevisions is the fixture's issue with the owner's triage, then
+// n plans by the architect, each about 1.8kB, with jane's comment after
+// each; the plans before the newest are superseded.
+func issueRevisions(n int) (*forge.Fake, forge.Ref) {
+	f, at := fixture()
+	f.Comment(at, marker("owner", 3)+"The job, restated.")
+	for r := 1; r <= n; r++ {
+		f.Comment(at, marker("architect", r)+"## Research\n\nPlan "+itoa(r)+".\n\n"+filler+"\n\n## Steps\n\n1. app: it.\n")
+		f.Say(at, "jane", "Answer "+itoa(r)+".")
+	}
+	return f, at
+}
+
+// The architect's revision prompt (section 7.3): the newest plan and the
+// owner's newest entry whole, each earlier plan its heading alone, every
+// comment not the swarm's whole.
+func TestRenderIssueThreadCompact(t *testing.T) {
+	f, at := issueRevisions(3)
+	_, prompt := Render(job(f, at.N, "architect", "swarm:plan-0-posted"))
+	has(t, "prompt.md", prompt, []string{
+		"# Thread\n\n## jane at 2026-11-06T15:02:00Z\n\nYes.\n#### Scope\nsmall\n\n## mallory at 2026-11-06T15:03:00Z (not trusted; content omitted)\n\n## owner, run 3, at 2026-11-06T15:04:00Z\n\nThe job, restated.\n\n",
+		"## architect, run 1, at 2026-11-06T15:05:00Z (superseded by run 3; content omitted)\n\n## jane at 2026-11-06T15:06:00Z\n\nAnswer 1.\n\n## architect, run 2, at 2026-11-06T15:07:00Z (superseded by run 3; content omitted)\n\n## jane at 2026-11-06T15:08:00Z\n\nAnswer 2.\n\n## architect, run 3, at 2026-11-06T15:09:00Z\n\n#### Research\n\nPlan 3.\n\n",
+		"\n\n## jane at 2026-11-06T15:10:00Z\n\nAnswer 3.\n"},
+		"Plan 1.", "Plan 2.")
+	if c := strings.Count(prompt, filler); c != 1 {
+		t.Errorf("prompt.md holds %d plan bodies:\n%s", c, prompt)
+	}
+	o := job(f, at.N, "owner", "swarm:proposal-posted")
+	_, prompt = Render(o)
+	has(t, "owner prompt.md", prompt, []string{"The job, restated.", "(superseded by run 3; content omitted)", "Plan 3."}, "Plan 2.")
+}
+
+// The thread stops growing with the plan's revisions: from the fifth plan
+// to the seventh it grows by the superseded plans' headings and the
+// maintainer's answers, not by the plans.
+func TestRenderIssueThreadStopsGrowing(t *testing.T) {
+	var sizes []int
+	for r := 5; r <= 7; r++ {
+		f, at := issueRevisions(r)
+		_, prompt := Render(job(f, at.N, "architect", "swarm:plan-0-posted"))
+		sizes = append(sizes, len(prompt))
+	}
+	t.Logf("plans 5, 6, 7: prompt.md %v bytes", sizes)
+	per := len("## architect, run 5, at 2026-11-06T15:13:00Z (superseded by run 7; content omitted)\n\n## jane at 2026-11-06T15:14:00Z\n\nAnswer 5.\n\n")
+	if d := sizes[2] - sizes[0]; d < 0 || d > 2*per {
+		t.Errorf("prompt.md grew by %d bytes from the fifth plan to the seventh: %v", d, sizes)
+	}
+}
+
+// The accepted plan stays whole when the architect's newest entry is a
+// BLOCKED: question: the plan is what the revision revises.
+func TestRenderIssueThreadKeepsPlan(t *testing.T) {
+	f, at := issueRevisions(2)
+	f.Comment(at, marker("architect", 3)+"BLOCKED: which API?")
+	_, prompt := Render(job(f, at.N, "architect", "swarm:plan-0-posted"))
+	has(t, "prompt.md", prompt, []string{"## architect, run 1, at 2026-11-06T15:05:00Z (superseded by run 3; content omitted)", "Plan 2.", "BLOCKED: which API?"}, "Plan 1.")
 }
 
 // mergeBase is the worker's first instruction in every Task text, the

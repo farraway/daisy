@@ -42,6 +42,9 @@ follow without asking, and that a reviewer can check line by line.
   large, say so and propose how to cut it.
 - When the maintainer replies, revise the plan and write it out whole; the
   worker reads only the accepted plan.
+- The worker sees only the repository its slice changes. Quote in the
+  plan any text it must copy from another repository; "copy it from
+  there" cannot be followed.
 - You do not write the code.
 `,
 	"worker": `# Worker
