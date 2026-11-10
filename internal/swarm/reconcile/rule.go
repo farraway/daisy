@@ -1,6 +1,9 @@
 package reconcile
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"regexp"
 	"slices"
 	"strconv"
@@ -137,6 +140,22 @@ func BlockedBy(is forge.Issue, swarmLogin string, trusted []string) int {
 	}
 	n, _ := strconv.Atoi(m[1])
 	return n
+}
+
+// Blocker is whether issue n's `Blocked by #<m>` holds it (section 6,
+// rule 1): #m is open. A #m the forge does not hold (forge.ErrNotFound)
+// holds nothing, with a warning on warn, so one mistyped number does not
+// stop the pass.
+func Blocker(f forge.Adapter, n, m int, warn io.Writer) (bool, error) {
+	blocker, err := f.Issue(m)
+	if errors.Is(err, forge.ErrNotFound) {
+		fmt.Fprintf(warn, "⚠ #%d: Blocked by #%d names no issue; not held\n", n, m)
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return blocker.Open, nil
 }
 
 // marker is the two lines every swarm entry begins with (section 6).

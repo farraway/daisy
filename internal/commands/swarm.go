@@ -364,11 +364,11 @@ func swarmStatus(c *Context, open opener) error {
 				paused = append(paused, "#"+strconv.Itoa(n))
 			}
 			if m := reconcile.BlockedBy(is, acct.Login, cfg.Trusted); m != 0 {
-				blocker, err := f.Issue(m)
+				held, err := reconcile.Blocker(f, n, m, c.Stderr)
 				if err != nil {
 					return fmt.Errorf("Error: swarm: %v", err)
 				}
-				if blocker.Open {
+				if held {
 					blockedBy = append(blockedBy, fmt.Sprintf("#%d blocked by #%d", n, m))
 				}
 			}
@@ -970,9 +970,25 @@ func applyLoop(c *Context, s *reconcile.Swarm) error {
 		case <-o.After(interval - o.Now().Sub(begin)):
 		}
 	}
-	second := make(chan struct{})
-	go func() { <-signals; close(second) }()
+	// A second signal ends the drain at once: one that came during the
+	// pass already, before any wait, and one that comes while it waits.
+	select {
+	case <-signals:
+		return ErrInterrupted
+	default:
+	}
+	second, done, gone := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(gone)
+		select {
+		case <-signals:
+			close(second)
+		case <-done:
+		}
+	}()
 	err := s.Drain(second)
+	close(done)
+	<-gone // the watcher ends with the drain, taking no later signal
 	if errors.Is(err, reconcile.ErrInterrupted) {
 		return ErrInterrupted
 	}

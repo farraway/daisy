@@ -230,6 +230,25 @@ func TestSwarmApplyHolds(t *testing.T) {
 			t.Errorf("a later maintainer comment did not lift the hold: %d launches", n)
 		}
 	})
+	t.Run("blocked by no issue", func(t *testing.T) {
+		// A `Blocked by #<m>` naming a number the forge does not hold (its
+		// 404) holds nothing, with a warning, in the pass and in status:
+		// one mistyped comment does not stop every launch.
+		a := newApplyWS(t)
+		a.forge.CreateIssue("Held", "Check the drift.", []string{"swarm:proposal-accepted"}) // #1
+		a.forge.CreateIssue("Other", "Check the rest.", []string{"swarm:proposal-accepted"}) // #2
+		a.forge.Say(issue1, "jane", "Blocked by #99")
+		a.runner.Script(1, "architect", runner.Canned{Out: oneSlice})
+		a.runner.Script(2, "architect", runner.Canned{Out: oneSlice})
+		a.pass()
+		if n := len(a.runner.Launches()); n != 2 || !strings.Contains(a.stderr.String(), "⚠ #1: Blocked by #99 names no issue; not held\n") {
+			t.Errorf("%d launches\nstderr:\n%s", n, a.stderr.String())
+		}
+		a.forge.Say(issue1, "jane", "Blocked by #99")
+		if err := a.status(a.forge); err != nil || !strings.Contains(a.stderr.String(), "⚠ #1: Blocked by #99 names no issue; not held\n") || strings.Contains(a.stdout.String(), "blocked by #99") {
+			t.Errorf("status: %v\nstdout:\n%s\nstderr:\n%s", err, a.stdout.String(), a.stderr.String())
+		}
+	})
 }
 
 func gitRun(args ...string) error {

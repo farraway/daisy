@@ -306,6 +306,23 @@ func TestSwarmApplyMergeRefused(t *testing.T) {
 	}
 }
 
+// T16 with no head both reviews approve (the issue relabelled
+// review-2-approved by hand): the note names no head.
+func TestSwarmApplyMergeRefusedNoHead(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) {
+		c.Gates.Merge = false
+		c.Budget = &declare.Budget{PerDay: 10, Total: 100}
+	})
+	a.inReview(oneSlice)
+	a.forge.SetLabel(issue1, "swarm:review-2-approved")
+	a.pass()
+	note := mark("reconciler", 1) + "merge of pull request acme/app#2 refused: no head both reviews approve (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
+	if b := a.bodies(1); b[len(b)-1] != note || !strings.Contains(a.stdout.String(), "#1 merge of pull app#2 refused (no head both reviews approve)\n#1 blocked\n") {
+		t.Errorf("%q\n%s", b[len(b)-1], a.stdout.String())
+	}
+}
+
 // T16's note is posted unless it is already the issue's last word by the
 // swarm (a retry): not when another login posted its text first, and again
 // when the maintainer has answered and the merge is refused once more.

@@ -65,6 +65,11 @@ var owner = func(c declare.Config) string { o, _, _ := strings.Cut(c.Forge.Repo,
 
 func stamp(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
+// endStamp is a result's end line's time (section 2), to the nanosecond,
+// so that runs ended within one second are ordered as they ended
+// (faultPause).
+func endStamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
+
 // Render is the run's system.md and prompt.md.
 func Render(j *Job) (system, prompt string) {
 	head := fmt.Sprintf("%s#%d %s run %d, %s -->", j.Cfg.Forge.Repo, j.N, j.Role, j.K, stamp(j.Time))

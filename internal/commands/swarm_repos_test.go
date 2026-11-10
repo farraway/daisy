@@ -499,6 +499,123 @@ func TestSwarmApplyLoopSignalledDuringAPass(t *testing.T) {
 	}
 }
 
+// signalledAtPs is the runner that sends the loop n signals at its first
+// read of the running set, during the pass.
+type signalledAtPs struct {
+	*runner.Fake
+	signals chan os.Signal
+	n       int
+	once    *sync.Once
+}
+
+func (r signalledAtPs) Running() ([]runner.Running, error) {
+	r.once.Do(func() {
+		for range r.n {
+			r.signals <- os.Interrupt
+		}
+	})
+	return r.Fake.Running()
+}
+
+// Two signals during a pass that left no member running exit at once
+// with ErrInterrupted (130), as a second signal during the drain does.
+func TestSwarmApplyLoopTwoSignalsInAPass(t *testing.T) {
+	a := newApplyWS(t)
+	a.signals = make(chan os.Signal, 2)
+	waited := false
+	a.after = func(time.Duration) <-chan time.Time { waited = true; return nil }
+	err := a.applyTo(a.git(), signalledAtPs{a.runner, a.signals, 2, &sync.Once{}}, &a.stdout, &a.stderr)
+	if !errors.Is(err, ErrInterrupted) || waited {
+		t.Errorf("%v, waited %v\n%s", err, waited, a.stdout.String())
+	}
+}
+
+// heldAfterASignal is the runner that sends the loop a signal at its
+// first launch, during the pass, and a second soon after, while the
+// member it started is held running.
+type heldAfterASignal struct {
+	*runner.Fake
+	signals chan os.Signal
+	open    chan struct{}
+}
+
+func (r heldAfterASignal) Start(s runner.Spec, d time.Duration) (runner.Container, error) {
+	r.signals <- os.Interrupt
+	c, err := r.Fake.Start(s, d)
+	go func() { time.Sleep(50 * time.Millisecond); r.signals <- os.Interrupt }()
+	return gatedRun{c, r.open}, err
+}
+
+// A signal during a pass, then a second while its member still runs:
+// ErrInterrupted (130), the member left running and its run uncollected.
+func TestSwarmApplyLoopSecondSignalAfterAPass(t *testing.T) {
+	a := newApplyWS(t)
+	a.signals = make(chan os.Signal, 2)
+	a.after = func(time.Duration) <-chan time.Time { t.Error("waited out the interval"); return nil }
+	a.forge.CreateIssue("Job", "x", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	open := make(chan struct{})
+	err := a.applyTo(a.git(), heldAfterASignal{a.runner, a.signals, open}, &a.stdout, &a.stderr)
+	close(open)
+	if !errors.Is(err, ErrInterrupted) || strings.Contains(a.result("1-architect-1"), "collected") {
+		t.Errorf("%v\n%s", err, a.result("1-architect-1"))
+	}
+}
+
+// The loop takes no signal once it has returned: the drain's watcher for
+// a second signal ends with it.
+func TestSwarmApplyLoopLeavesNoWatcher(t *testing.T) {
+	a := newApplyWS(t)
+	a.signals = make(chan os.Signal, 2)
+	a.after = func(time.Duration) <-chan time.Time { a.signals <- os.Interrupt; return nil }
+	if err := a.apply(a.git()); err != nil {
+		t.Fatal(err)
+	}
+	a.signals <- os.Interrupt
+	for range 20 {
+		if len(a.signals) == 0 {
+			t.Fatal("a signal sent after the loop returned was taken")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// signalledAtIssues is the forge that sends the loop a signal at its
+// first list of issues, in the pass's step (5).
+type signalledAtIssues struct {
+	forge.Adapter
+	signals chan os.Signal
+	once    *sync.Once
+}
+
+func (f signalledAtIssues) Issues(s forge.State, label string) ([]forge.Issue, error) {
+	f.once.Do(func() { f.signals <- os.Interrupt })
+	return f.Adapter.Issues(s, label)
+}
+
+// A signal during a pass skips its merge step (section 11): an approved
+// issue with the merge gate off is not merged by it.
+func TestSwarmApplyLoopSignalSkipsTheMergeStep(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) {
+		c.Gates.Merge = false
+		c.Budget = &declare.Budget{PerDay: 10, Total: 100}
+	})
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass() // the pair: T9
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved"}) {
+		t.Fatalf("not approved: %v", got)
+	}
+	a.signals = make(chan os.Signal, 2)
+	a.after = func(time.Duration) <-chan time.Time { t.Error("waited out the interval"); return nil }
+	err := a.applyTo(signalledAtIssues{a.git(), a.signals, &sync.Once{}}, a.runner, &a.stdout, &a.stderr)
+	if err != nil || a.pulls(1)[0].Merged || strings.Contains(a.stdout.String(), "merged pull") {
+		t.Errorf("%v\n%s", err, a.stdout.String())
+	}
+}
+
 // The loop's lock, adapter and token are its start's: a pass after
 // swarm.json's forge.repo changed is skipped with the reason, never run
 // on the other repository's <state> without its lock (section 11).

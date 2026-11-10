@@ -80,7 +80,11 @@ func (s *Swarm) mergeStep() error {
 			}
 			if msg != "" {
 				fmt.Fprintf(s.Out, "#%d merge of pull %s#%d refused (%s)\n", n, cur.Repo, cur.Number, msg)
-				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s/%s#%d at %s refused: %s (at %s). Resolve it, then remove %s.", s.owner(), cur.Repo, cur.Number, short(head), msg, forge.ReviewApproved, forge.Blocked)
+				onHead := "" // no head both approve: none to name
+				if head != "" {
+					onHead = " at " + short(head)
+				}
+				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s/%s#%d%s refused: %s (at %s). Resolve it, then remove %s.", s.owner(), cur.Repo, cur.Number, onHead, msg, forge.ReviewApproved, forge.Blocked)
 				// Posted already only when it is the issue's last word and
 				// the swarm's: a retry after a failed relabel, not another
 				// login's copy or an earlier block's same note.
@@ -157,6 +161,7 @@ func (s *Swarm) mergeRelabel(n int, at forge.Ref, to string) error {
 	if err := s.Forge.Relabel(at, forge.ReviewApproved, to); err != nil {
 		return err
 	}
+	s.moved(n, to)
 	fmt.Fprintf(s.Out, "#%d %s → %s\n", n, forge.ReviewApproved, to)
 	return nil
 }

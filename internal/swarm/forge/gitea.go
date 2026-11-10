@@ -50,6 +50,11 @@ func (e *apiError) Error() string {
 	return fmt.Sprintf("forge: %s %s: %d %s", e.method, e.path, e.status, e.message)
 }
 
+// Is: a 404 is ErrNotFound.
+func (e *apiError) Is(target error) bool {
+	return target == ErrNotFound && e.status == http.StatusNotFound
+}
+
 // retries is how many times a 429 or 5xx response is retried, and
 // retryWait the wait when it carries no Retry-After (section 10).
 const (

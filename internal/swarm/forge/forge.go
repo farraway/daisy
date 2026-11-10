@@ -241,6 +241,10 @@ const (
 // ErrNotMergeable is a merge the forge refused.
 var ErrNotMergeable = errors.New("forge: not mergeable")
 
+// ErrNotFound matches the forge's 404: Issue(n) of a number it does not
+// hold.
+var ErrNotFound = errors.New("forge: not found")
+
 // New is the adapter for kind over o's HTTP: gitea is built; github is
 // specified (section 10) and built when a run needs it.
 func New(o ops.Ops, kind, api, token, repo string, names []string) (Adapter, error) {

@@ -292,7 +292,7 @@ Every file Daisy writes, and nothing else:
 | `<run>/io/out.md` | the member's output | the member (in the container) | during the run |
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
-| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `wiki` or `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value); for a worker's run and a first reviewer's, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports them (section 9); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
+| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `wiki` or `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value); for a worker's run and a first reviewer's, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports them (section 9); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/check/` | a clone of the fetched head for the check | `swarm apply` (`git clone` from `<state>/git/<name>`), then the check | before the check; removed when the run is collected |
 | `<run>/work/` | the clone the member works in (the owner's and the architect's: a directory of clones, `<name>/` per declared repository) | `swarm apply` (`git clone` from `<state>/git/<name>`), then the member | before the launch; removed when the run is collected or abandoned, a directory the member left unreadable given the owner's rights first (7.6) |
@@ -674,8 +674,12 @@ at Step 39): each pass of `apply`, an issue's current pull request, while
 open, is given the issue's stage label: when its own stage labels are
 not exactly that one,
 `Relabel(m, <one of its own other than the issue's, or "">, <the issue's>)`,
-so a label set by Daisy or by the maintainer reaches the pull request by
-the next pass. The issue's label is the stage; the pull request's is a
+so a label set by the maintainer reaches the pull request by the next
+pass; one Daisy writes after the issue was read there (a launch's
+in-progress stage, a collection in `--once`'s drain, the merge step's,
+a routine job's gate passed) is copied the same way at the pass's end,
+after the flag (section 11, step 8), so the pull request's label does
+not lag the issue's by a pass. The issue's label is the stage; the pull request's is a
 copy that no rule reads (`Issues` excludes pull requests). A label that
 is not a stage label, on either, the flags among them, is never removed
 or changed by the copy, and no flag is copied.
@@ -718,7 +722,12 @@ line and `Decide: <the verbs>.`; each bullet's quoted line
 is cut at 120 characters. With `swarm:blocked` it is the blocked gate,
 at whatever stage: the time and first line of the newest reconciler
 note that blocked the issue (or that none is on it, the flag set by
-hand), deciding `swarm unblock <n> <comment>` after the relabel that
+hand; or, when a comment of the maintainer's, a login in `trusted`
+other than the swarm's, or a gate note of another gate, posted only
+while the issue was not blocked, follows that note, that none is since
+its block was lifted, the flag set again by hand; the blocked gate's own
+notes tell nothing, one following that note and another when a verb
+clears the flag of an issue still blocked), deciding `swarm unblock <n> <comment>` after the relabel that
 note names, if it names one, or `swarm close <n>`. At
 `swarm:proposal-posted` (triage): the brief and milestone its `Brief:`
 line names (or none), the other open swarm issues whose `Brief:` line
@@ -738,12 +747,22 @@ all its reviews) and the `[non-blocking]` lines of the newest adversary
 and sympathetic reviews of the head they approve, each under its role;
 deciding `swarm merge <n>`, `swarm approve <n>` first when the forge
 wants an approving review, or a comment. One note per gating event: the
-step posts it only when it adds the flag, never while the flag is on (an
+step posts it when it adds the flag, and a flag cleared and added again
+posts a new one; while the flag is on, it posts one only on an issue not
+blocked that was gated again since its newest gate note, that note
+naming another stage (the issue moved by hand with the flag left on, or
+through two transitions within one `--once` pass) or, at
+`swarm:plan-0-posted`, the architect having posted a plan after it (a
+revision, after a maintainer's comment or the round limit, T11), so the
+note quotes the plan the maintainer decides on; never otherwise (an
 issue blocked at a gated stage gets none, the reconciler's note that
-blocked it being the word), and a flag cleared and added again posts a
-new one. The relabel comes first: a refused relabel posts nothing until
-a later pass adds the flag, and a refused note is a warning, that event
-left without its note. A gate note is no counted entry (section 6): it
+blocked it being the word, and one flagged with no gate note on it, its
+note refused or the flag set by hand, gets none while the flag stays
+on). The relabel comes first: a refused relabel posts nothing until a
+later pass adds the flag, and a refused note is a warning, that event
+left without its note (but not a gating again with the flag on, whose note
+the next pass tries again while the newest gate note is still the
+earlier one). A gate note is no counted entry (section 6): it
 wakes no role, no prompt shows it (7.3), and it is none of the
 reconciler's notes that blocked the issue, which `status` counts and
 `unblock` reads; `status` and the flag are as they were without it. A relabel by a maintainer's verb removes it
@@ -1081,7 +1100,10 @@ when all of these hold:
    in `trusted` other than the swarm's, a class statement aside, is not `Blocked by #<m>` (the
    comment `swarm block` posts, whitespace at either end aside) naming
    an issue `<m>` of `forge.repo` that is open (`Issue(m)`, read only
-   for such a comment);
+   for such a comment; a `<m>` the forge does not hold, its `404`, holds
+   nothing, with the warning `⚠ #<n>: Blocked by #<m> names no issue;
+   not held`, in the pass and in `status`, so one mistyped number does
+   not stop every launch);
 2. no container labelled `daisy.swarm=<owner>/<repo>#<n>/…` is running,
    whatever its role (a worker run's check included), and no run on n has
    an end line without `collected` (a run whose posting failed is retried,
@@ -2037,8 +2059,10 @@ A **swarm fault** is a failure of the machine, not of the work: it writes
 nothing to the forge. The run records `fault: <reason>`, `outcome fault`
 and `collected`, and the role rule relaunches at run k+1 at the next pass.
 When the two most recently ended runs of this swarm that are collected
-(`<state>/runs`, by their end lines) both ended in a fault, and this
-process collected the newer (section 14, item 62), `apply` writes `<state>/paused` with
+(`<state>/runs`, by their end lines' times, to the nanosecond, section
+2; a tie by run directory) both ended in a fault, and the newer is a run
+this process collected in a fault since it last looked (section 14,
+items 62 and 89), `apply` writes `<state>/paused` with
 `swarm fault: <reason>` (the second's) and launches nothing more; `status`
 shows the reason and `swarm resume` clears it. A **failure of the work**
 is T17: the reconciler note and `swarm:blocked`, beside the run's home.
@@ -2398,7 +2422,7 @@ type Adapter interface {
     EnsureLabels(names []string) (created, renamed int, err error)
     Login() (Account, error)                           // the token's own account
     Issues(state State, label string) ([]Issue, error) // issues in the state carrying the label
-    Issue(n int) (Issue, error)                        // with comments, oldest first
+    Issue(n int) (Issue, error)                        // with comments, oldest first; ErrNotFound for a number it does not hold
     CreateIssue(title, body string, labels []string) (int, error)
     Comment(at Ref, body string) error                 // an issue or a pull request
     Relabel(at Ref, remove, add string) error          // an issue or a pull request; remove "" only adds
@@ -2469,6 +2493,7 @@ type ReviewComment struct {
 }
 type Verdict int // Approve, RequestChanges, Commented
 var ErrNotMergeable error // wraps the forge's message
+var ErrNotFound error     // matches the forge's 404 (errors.Is)
 ```
 
 These twenty methods are every call Daisy makes to the forge; the only
@@ -2921,13 +2946,13 @@ passphrase prompt, or an agent the user manager can reach).
 | Usage | `daisy swarm apply [--once]` |
 | Reads | `swarm/swarm.json` and the prompts (each pass), `<ws>/.env.sh` (token and `env` credentials), each used slot's `auth.json`, each declared repository's `origin` and `core.sshCommand`, `<state>`, the briefs under the resolved `resources` paths (the batch prompt, 7.3, and the milestones, step 8), and with `wiki` or `notes` the notes in each run's copy and the changed notes an owner's or architect's run left (7.6, The notes) |
 | Start | validation; the token and every used provider's `env` credential set (a slot's login is checked at its launch: section 3, Secret values); `<state>` created when absent; the lock (below), before anything is read from the forge or Docker; `Login()`; `id -u` and `id -g`; `docker ps` once (failing: `Error: swarm: docker: <message>`, exit 1); then `EnsureLabels` with the sixteen labels (one deleted since `init` is created again, Step 39; an old stage name renamed, Step 15), printing `✓ Labels: 16 present (<c> created, <r> renamed)` when it made one; its failure, a refused rename or create included (section 10), is `Error: …` and exit 1, with or without `--once`, before any pass |
-| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped, and so is a pass whose `forge.kind`, `api`, `repo` or `token_env` changed since the start, which the lock, the adapter and the token belong to: `Error: swarm: swarm.json's forge (kind, api, repo or token_env) changed since apply started; pass skipped: restart apply to act on it`); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots, to which every container this process starts during the pass, a check in (3) included, is added; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `ended` and collected from its `out.md` when its member finished (its `<run>/io/exit`, 7.7), else marked `abandoned`, a worker's commits kept as its run's ref and its issue taken back from the in-progress stage its launch wrote (T22), then `collected` and its `work/` removed, and one whose container has outlived `timeout` is stopped and abandoned (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)` (an issue `Issue(n)` reads closed, or with a stage other than the listed one, is passed over: it is read at its own stage, or at the next pass), then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one stage label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, an issue carrying `swarm:blocked` or `swarm:paused`, or whose newest maintainer comment names an open blocker (`Issue(m)`), launching nothing, and launches run until `max_members` are running, both reviewers of a pair in the same pass, each worker's and each first reviewer's writing its in-progress stage once its container has started (7.1, step 6), so the issue is read again under that stage later in the same step, its roles not decided again; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `review-2-approved` issue neither blocked nor paused (section 12); (7) the owner's batch trigger, its pacing reading, with the triage gate on, `Issue(n)` for each open `proposal-accepted` issue without `swarm:class-architecture` (its class, section 6, G0), its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each stage and terminal label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) after the runs `--once` waits for (so that the flag follows the labels its collections moved and a batch's proposals are in it), unless a signal has come, and paused or not, the maintainer's flag (section 5): `Issues(Open, label)` for each stage and `Issues(Open, "swarm:gated")`; by number, for each open issue at `proposal-posted` with the triage gate on or at `plan-0-posted` with the plan gate on, `Issue(n)` for its class (section 5, The job class; a read refused is `⚠ #<n>: class: <error>` and the issue is left as it is this pass), and for a routine job the gate passed (T23, T24): with the swarm not paused, the issue neither blocked nor paused and the stage's role having nothing to answer, `Relabel(n, <stage>, <next stage>)` then `Comment(n, <auto note>)` (a refusal: `⚠ #<n>: auto: <error>`); then `Relabel(n, "", "swarm:gated")` for each open issue that is gated (section 5: one stage, a gate on that holds its class, or `swarm:blocked`) and lacks it, each followed by its gate note (section 5: `Issue(n)`, at the merge gate `Pulls(n)`, `Reviews(m)` and `PullComments(m)` for the current pull request, then `Comment(n, <gate note>)`), and `Relabel(n, "swarm:gated", "")` for each other carrying it; then the milestones: with an `active` brief, `Milestones()`, then `EnsureMilestone(<slug>: <milestone>)` for each `## ` heading of each `active` brief (`<slug>` its file name without `.md`) that has no milestone of its title, then `Issues(Open, label)` for each stage and `Issues(Closed, label)` for each stage and terminal and `SetMilestone(n, <id>)` for each issue in no milestone whose `Brief:` line (section 4) names a milestone of an `active` brief; an issue already in a milestone is left in it, the maintainer's choice or an earlier one's; every failure in (8), the flag's or the milestones', is a warning, never a fault, an exit code or an end to the pass; (9) the summary line |
+| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped, and so is a pass whose `forge.kind`, `api`, `repo` or `token_env` changed since the start, which the lock, the adapter and the token belong to: `Error: swarm: swarm.json's forge (kind, api, repo or token_env) changed since apply started; pass skipped: restart apply to act on it`); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots, to which every container this process starts during the pass, a check in (3) included, is added; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `ended` and collected from its `out.md` when its member finished (its `<run>/io/exit`, 7.7), else marked `abandoned`, a worker's commits kept as its run's ref and its issue taken back from the in-progress stage its launch wrote (T22), then `collected` and its `work/` removed, and one whose container has outlived `timeout` is stopped and abandoned (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)` (an issue `Issue(n)` reads closed, or with a stage other than the listed one, is passed over: it is read at its own stage, or at the next pass), then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one stage label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, an issue carrying `swarm:blocked` or `swarm:paused`, or whose newest maintainer comment names an open blocker (`Issue(m)`), launching nothing, and launches run until `max_members` are running, both reviewers of a pair in the same pass, each worker's and each first reviewer's writing its in-progress stage once its container has started (7.1, step 6), so the issue is read again under that stage later in the same step, its roles not decided again; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `review-2-approved` issue neither blocked nor paused (section 12); (7) the owner's batch trigger, its pacing reading, with the triage gate on, `Issue(n)` for each open `proposal-accepted` issue without `swarm:class-architecture` (its class, section 6, G0), its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each stage and terminal label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) after the runs `--once` waits for (so that the flag follows the labels its collections moved and a batch's proposals are in it), unless a signal has come, and paused or not, the maintainer's flag (section 5): `Issues(Open, label)` for each stage and `Issues(Open, "swarm:gated")`; by number, for each open issue at `proposal-posted` with the triage gate on or at `plan-0-posted` with the plan gate on, `Issue(n)` for its class (section 5, The job class; a read refused is `⚠ #<n>: class: <error>` and the issue is left as it is this pass), and for a routine job the gate passed (T23, T24): with the swarm not paused, the issue neither blocked nor paused and the stage's role having nothing to answer, `Relabel(n, <stage>, <next stage>)` then `Comment(n, <auto note>)` (a refusal: `⚠ #<n>: auto: <error>`); then `Relabel(n, "", "swarm:gated")` for each open issue that is gated (section 5: one stage, a gate on that holds its class, or `swarm:blocked`) and lacks it, each followed by its gate note (section 5: `Issue(n)`, at the merge gate `Pulls(n)`, `Reviews(m)` and `PullComments(m)` for the current pull request, then `Comment(n, <gate note>)`), and `Relabel(n, "swarm:gated", "")` for each other carrying it, and, the flag on, a gate note for an issue gated again (section 5); then the copy of step (5) for each issue the pass moved after step (5) read it, `Pulls(n)` and the current pull request, when open, given the stage the move wrote (a failure: `⚠ #<n>: pull request label: <error>`); then the milestones: with an `active` brief, `Milestones()`, then `EnsureMilestone(<slug>: <milestone>)` for each `## ` heading of each `active` brief (`<slug>` its file name without `.md`) that has no milestone of its title, then `Issues(Open, label)` for each stage and `Issues(Closed, label)` for each stage and terminal and `SetMilestone(n, <id>)` for each issue in no milestone whose `Brief:` line (section 4) names a milestone of an `active` brief; an issue already in a milestone is left in it, the maintainer's choice or an earlier one's; every failure in (8), the flag's or the milestones', is a warning, never a fault, an exit code or an end to the pass; (9) the summary line |
 | `--once` | one pass; then it waits for every run it launched, collects each (starting and waiting for a worker run's check), and exits: the maintainer's smokes, not the unit's command |
-| Without `--once` | the loop the unit runs: a pass every `interval`, start to start, whatever runs: a pass waits for none of its members, and each run is collected by the first pass after it ends (a worker run's check started there and collected by a later pass in turn); until SIGINT or SIGTERM: then no launch, its running members and checks collected as they exit (a worker run's check started for it, as its collection needs), exit 0; a second signal exits at once (130), leaving its members to finish and be collected by a later `apply` from their `out.md` (7.7, *ended*) |
+| Without `--once` | the loop the unit runs: a pass every `interval`, start to start, whatever runs: a pass waits for none of its members, and each run is collected by the first pass after it ends (a worker run's check started there and collected by a later pass in turn); until SIGINT or SIGTERM: then no launch, its running members and checks collected as they exit (a worker run's check started for it, as its collection needs), exit 0; a second signal, during the pass the first ended or while the loop collects, exits at once (130), leaving its members to finish and be collected by a later `apply` from their `out.md` (7.7, *ended*) |
 | Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`, `Milestones`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), `EnsureMilestone` and `SetMilestone` (step 8), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge, and with `wiki` clones and fetches the issues repository's wiki (with `notes`, the swarm's own issues repository) and pushes the notes' commits to its branch (the repository's default) or to `swarm/notes-<n>-<role>-<k>` (7.1, 7.6) |
 | Writes | `<state>/lock`, `<state>/paused` (a swarm fault, the budget), `<state>/owner-held`, `<state>/git/`, with `wiki` `<state>/wiki/` (with `notes`, `<state>/notes/`), `<state>/runs/`, and for a slot run `<slot>.lock` and the clearing of `<slot>` (section 2); nothing else |
 | Stdout | `✓ Labels: 16 present (<c> created, <r> renamed)` at the start when a label was made; `#<n> <role> run <k>: launched`, then `#<n> <role> run <k>: <stage> → <in-progress stage>` for a worker and a first reviewer (T20, T21); at collection one line per step done, `#<n> <role> run <k>: ` then `check started`, `check exited <code>` (or `check timeout`), `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`, `blocked` (`swarm:blocked` set), `pushed notes <short sha>` (7.6, The notes); a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:review-2-approved → swarm:plan-1-accepted` or `#<n> closed (last slice merged)` and `#<n> swarm:review-2-approved → swarm:done` (and `#<n> <flag> cleared` for each flag it carried), or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> blocked` (T16), or `#<n> not mergeable: back to the worker` then `#<n> swarm:review-2-approved → swarm:review-3-changes-requested` (T25), or `#<n> merge of pull <name>#<m> refused (<message>); its mergeability is not settled, so the next pass tries again`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; a routine job's gate passed, `#<n> <stage> → <next stage> (auto)` and `#<n> auto note posted`; the flag's `#<n> gated`, `#<n> gate note posted` and `#<n> gated cleared`; the milestones' `milestone created: <title>` and `#<n> milestone: <title>`; each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
-| Stderr | `⚠️  .env.sh <problem>` (as `init`); warnings `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled` (`during the merge step` for the merge step's), `⚠ #<n> closed during the run; nothing posted`, the notes' `⚠ #<n> <role> run <k>: notes conflict with the wiki's head; pushed to swarm/notes-<n>-<role>-<k>` (`with <owner>/<repo>'s head` with `notes`) and `⚠ #<n> <role> run <k>: notes not pushed (<reason>); kept in <run>/notes` (7.6), `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); the flag's warnings `⚠ #<n>: gated: <error>` (a relabel refused), `⚠ #<n>: gate note: <error>` (a read or the post refused: that gating event has no note), `⚠ #<n>: class: <error>` (the class's read refused: the issue left as it is this pass), `⚠ #<n>: auto: <error>` (a routine job's relabel refused, tried again at the next pass, or its auto note refused) and `⚠ gated: <error>` (a list unreadable: no flag changed this pass); the milestones' warnings, each pass while the cause stands, for an open issue `⚠ #<n>: its Brief: line names "<milestone>", which is no milestone of <path>; no milestone set` (a heading renamed or removed since) and `⚠ #<n>: its Brief: line names <path>, which is no brief under resources; no milestone set`, `⚠ milestones: <path> and <path> share the name <slug>; <path> is mirrored to no milestone` (the second in path order), `⚠ milestone <title>: <error>` (a refused create), `⚠ #<n>: milestone <title>: <error>`, and `⚠ milestones: <error>` (the briefs or a list unreadable); a closed issue's line, and a brief not `active`, give none; errors `Error: …` |
+| Stderr | `⚠️  .env.sh <problem>` (as `init`); warnings `⚠ #<n>: Blocked by #<m> names no issue; not held` (section 6, rule 1), `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled` (`during the merge step` for the merge step's), `⚠ #<n> closed during the run; nothing posted`, the notes' `⚠ #<n> <role> run <k>: notes conflict with the wiki's head; pushed to swarm/notes-<n>-<role>-<k>` (`with <owner>/<repo>'s head` with `notes`) and `⚠ #<n> <role> run <k>: notes not pushed (<reason>); kept in <run>/notes` (7.6), `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); the flag's warnings `⚠ #<n>: gated: <error>` (a relabel refused), `⚠ #<n>: gate note: <error>` (a read or the post refused: that gating event has no note), `⚠ #<n>: class: <error>` (the class's read refused: the issue left as it is this pass), `⚠ #<n>: auto: <error>` (a routine job's relabel refused, tried again at the next pass, or its auto note refused) and `⚠ gated: <error>` (a list unreadable: no flag changed this pass); the milestones' warnings, each pass while the cause stands, for an open issue `⚠ #<n>: its Brief: line names "<milestone>", which is no milestone of <path>; no milestone set` (a heading renamed or removed since) and `⚠ #<n>: its Brief: line names <path>, which is no brief under resources; no milestone set`, `⚠ milestones: <path> and <path> share the name <slug>; <path> is mirrored to no milestone` (the second in path order), `⚠ milestone <title>: <error>` (a refused create), `⚠ #<n>: milestone <title>: <error>`, and `⚠ milestones: <error>` (the briefs or a list unreadable); a closed issue's line, and a brief not `active`, give none; errors `Error: …` |
 | Lock | `Ops.FS().Lock(<state>/lock, "apply[ --once] since <time>")` takes an exclusive `flock` without waiting and writes the holder line (adding `pid <pid>`); the kernel releases it when the process exits, however it exits. Held: `Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`, exit 1, nothing read from the forge |
 | Exit codes | 0 the pass or passes ran (a member's failure is reported on the forge, not in the exit code; a pause is reported on stdout); 1 outside a workspace, invalid `swarm.json` at start, a token or a used provider's `env` credential unset (a slot without a login is its run's fault at the launch, not an exit code), `docker` unavailable (`Error: swarm: docker: <message>`), the lock held, `EnsureLabels` failing at start (a refused rename or create included, with or without `--once`), and with `--once` a forge (a board fault and step (8), the flag and the milestones, excepted), git or `docker ps` error during the pass (without `--once` such an error is printed and the next pass runs); 130 a second signal while the loop collects its running members; 2 usage |
 | Ops | Real |
@@ -3251,8 +3276,11 @@ variable `DAISY_MAINTAINER_TOKEN`.
   again. Mergeable (its head moved, a branch protection rule): `Comment(n,
   <reconciler note: merge of pull request
   <owner>/<name>#<m> at <short sha> refused: <forge message> (at
-  swarm:review-2-approved). Resolve it, then remove swarm:blocked.>)` and
-  `Relabel(n, "", "swarm:blocked")`, the stage kept (T16), and the step
+  swarm:review-2-approved). Resolve it, then remove swarm:blocked.>)`
+  (with no head both reviews approve, the issue relabelled
+  `swarm:review-2-approved` by hand, the note names none: `merge of pull
+  request <owner>/<name>#<m> refused: no head both reviews approve (at
+  swarm:review-2-approved)…`) and `Relabel(n, "", "swarm:blocked")`, the stage kept (T16), and the step
   ends there; the step skips the issue while it is blocked, and the
   maintainer's `swarm unblock` lets the next pass merge again. Merged,
   when the accepted plan declares a slice after `<s>`, `Relabel(n,
@@ -3753,6 +3781,24 @@ for a run that wrote nothing under a `notes` that is a file);
 run is never written through: the run's commit on its own branch); and
 in `internal/swarm/reconcile`, `TestReadNotes` (a page whose name holds a
 control character is no note).
+
+**As built (Step 27 of the swarm build).** The pass's and the gates'
+kept lines (sections 2, 5, 6, 7.7, 10, 11 and 12; section 14, item 89)
+are Go tests on the Fakes: `TestSwarmApplyHolds` (`blocked by no
+issue`: a `Blocked by #<m>` the forge does not hold launches, warned, in
+the pass and in `status`); `TestSwarmApplyMergeRefusedNoHead` (T16's
+note naming no head); `TestSwarmFaultPauseOrder` (the end line's
+nanoseconds; a whole second ordered before its fractions; two faults
+ended after this process's own pause nothing);
+`TestSwarmApplyLoopTwoSignalsInAPass`,
+`TestSwarmApplyLoopSecondSignalAfterAPass`,
+`TestSwarmApplyLoopLeavesNoWatcher` and
+`TestSwarmApplyLoopSignalSkipsTheMergeStep` (the loop's signals);
+`TestSwarmApplyLifecycle` (the pull request's label the issue's at the
+pass's end); `TestSwarmApplyGateNoteOnEachGating` (a revised plan and a
+stage moved with the flag on each noted, a blocked issue not) and
+`TestSwarmApplyBlockedGateNote` (the quoted line cut; a block lifted
+since its note).
 
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
@@ -5195,3 +5241,29 @@ entries among revision 1's, and was renumbered at Step 38.
     holds no file, where every owner's and architect's run was `notes
     kept` with a warning and a kept copy. **A page whose name holds a
     control character** is no note, so the index has one line per note.
+89. **The pass and the gates (Step 27 of the swarm build,
+    2026-11-09).** **A `Blocked by #<m>` naming no issue** (section 6,
+    rule 1): `Issue(m)`'s `404` was the pass's error, so one mistyped
+    number stopped every launch, and `status` failed; it now holds
+    nothing, with a warning, through `forge.ErrNotFound` (section 10).
+    **Two faults in a row** (7.7) are ordered by their end lines' times
+    to the nanosecond, a container's taken when its `docker run`
+    returned (section 2), not by run directory within a second, and
+    pause only when the newer is a fault this process collected since it
+    last looked: a retried collection of an older fault no longer pauses
+    again from two others the maintainer resumed past (item 62's
+    wording). **A gate note per gating event** (section 5): with the
+    flag left on, a revised plan at `plan-0-posted` (after a comment or
+    the round limit, T11) and a stage moved under the flag each get a
+    note, where only the flag's adding did, so the maintainer is not
+    left with a note quoting the plan the reviews failed; the cost is
+    one `Issue(n)` per pass for each flagged issue not blocked outside
+    the two class gates. **The blocked gate's note** quotes the
+    blocking note's first line cut at 120 characters, and names none
+    when a maintainer's comment or a gate note of another gate follows
+    it (its block lifted since); a block lifted and set again by hand
+    with neither between is still quoted by the older note. **The pull request's label** is copied again at the
+    pass's end for each issue the pass moved after step (5), one
+    `Pulls(n)` each. **T16 with no approved head** names no head. **The
+    loop** exits 130 on a second signal during the pass as during the
+    drain, and its watcher for that signal ends with it.

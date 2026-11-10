@@ -45,7 +45,7 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 	var items []string
 	switch {
 	case slices.Contains(is.Labels, forge.Blocked):
-		why = "it is blocked, and only the maintainer unblocks it"
+		why = blockedWhy
 		items = s.blockedItems(is)
 		decide = fmt.Sprintf("make the relabel the note names, if it names one, then `daisy swarm unblock %d <comment>`; or %s", n, verb("close"))
 	case stage == forge.ProposalPosted:
@@ -67,6 +67,9 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 	items = append([]string{"- Class: " + class + "."}, items...)
 	return fmt.Sprintf("**reconciler:** gated at %s: %s.\n\n%s\n\nDecide: %s.", strings.TrimPrefix(stage, "swarm:"), why, strings.Join(items, "\n"), decide), nil
 }
+
+// blockedWhy is the blocked gate's why in its note.
+const blockedWhy = "it is blocked, and only the maintainer unblocks it"
 
 // issueRef is a reference to an issue of forge.repo in a text: `#<m>`
 // not inside a word or a path (`<owner>/<repo>#<m>` is another's).
@@ -214,14 +217,37 @@ func (s *Swarm) mergeItems(is forge.Issue) ([]string, error) {
 }
 
 // blockedItems: the reconciler's note that blocked the issue, by its time
-// and first line.
+// and first line, cut; none when no such note is on it, or when the
+// newest was followed by a comment of the maintainer's (a login in
+// trusted other than the swarm's: `unblock`'s among them) or by a gate
+// note of another gate than the blocked one (posted only while the issue
+// was not blocked), either telling that its block was lifted since: then
+// the flag was set by hand. The blocked gate's own notes tell nothing:
+// one follows the note that blocked it, and another may when a verb
+// clears the flag from an issue still blocked.
 func (s *Swarm) blockedItems(is forge.Issue) []string {
 	e, ok := blockingNote(is, s.SwarmLogin)
 	if !ok {
 		return []string{"- The note that set it: none on the issue; swarm:blocked was set by hand."}
 	}
+	for _, later := range IssueThread(is) {
+		if !later.Created.After(e.Created) {
+			continue
+		}
+		m, swarm := Swarms(later, s.SwarmLogin)
+		if swarm && m.Kind == "gate" && !blockedGate(later.Body) || !swarm && !strings.EqualFold(later.Author, s.SwarmLogin) && slices.ContainsFunc(s.Cfg.Trusted, func(l string) bool { return strings.EqualFold(l, later.Author) }) {
+			return []string{fmt.Sprintf("- The note that set it: none since the block of %s was lifted; swarm:blocked was set by hand.", stamp(e.Created))}
+		}
+	}
 	first, _, _ := strings.Cut(swarmText(e.Body), "\n")
-	return []string{fmt.Sprintf("- The note that set it, at %s: %s", stamp(e.Created), strings.TrimRight(first, "\r "))}
+	return []string{fmt.Sprintf("- The note that set it, at %s: %s", stamp(e.Created), cut(strings.TrimRight(first, "\r ")))}
+}
+
+// blockedGate: body is a gate note of the blocked gate (gateText).
+func blockedGate(body string) bool {
+	_, rest, _ := strings.Cut(body, "\n")
+	h := gateHead.FindStringIndex(rest)
+	return h != nil && strings.HasPrefix(rest[h[1]:], blockedWhy)
 }
 
 // cut is a line of at most 120 characters, cut with `…`.

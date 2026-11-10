@@ -177,7 +177,9 @@ func (c *collection) end(outcome string) error {
 		return err
 	}
 	c.s.collected++
-	c.s.newFault = c.s.newFault || outcome == "fault"
+	if outcome == "fault" {
+		c.s.faulted = append(c.s.faulted, c.r.Dir)
+	}
 	delete(c.s.given, c.r.Dir)
 	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "check")), c.dropNotes())
 }
@@ -271,6 +273,7 @@ func (c *collection) relabel(to string) error {
 		if err := c.s.Forge.Relabel(c.at, from, to); err != nil {
 			return err
 		}
+		c.s.moved(c.r.N, to)
 		c.is.Labels = append(slices.DeleteFunc(slices.Clone(c.is.Labels), func(l string) bool { return l == from }), to)
 		fmt.Fprintf(c.s.Out, "%s%s → %s\n", c.head, from, to)
 		return c.step("relabelled " + from + " " + to)

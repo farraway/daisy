@@ -109,6 +109,7 @@ func (s *Swarm) autoPass(is forge.Issue, stage, gate string) ([]string, error) {
 	if err := s.Forge.Relabel(at, stage, to); err != nil {
 		return is.Labels, err
 	}
+	s.moved(is.Number, to)
 	fmt.Fprintf(s.Out, "#%d %s → %s (auto)\n", is.Number, stage, to)
 	labels := slices.Clone(is.Labels)
 	labels[slices.Index(labels, stage)] = to

@@ -3,6 +3,7 @@ package reconcile
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -35,10 +36,11 @@ func Gated(labels []string, g declare.Gates, class string) bool {
 // labels and class, with the gate note posted on it once the flag is on,
 // and every other open issue carrying the flag cleared of it, one with no
 // stage or two included, so an open issue carries the flag exactly when
-// status lists it as waiting. A note is posted only when the flag is
-// added: one per gating event, and none for an event whose relabel failed
-// until a later pass adds the flag. Every failure is a warning, and the
-// pass goes on.
+// status lists it as waiting. A note is posted when the flag is added,
+// and on an issue not blocked whose flag stayed on while it was gated
+// again (regated): one per gating event, and none for an event whose
+// relabel failed until a later pass adds the flag. Every failure is a
+// warning, and the pass goes on.
 func (s *Swarm) flags() {
 	warn := func(format string, a ...any) { fmt.Fprintf(s.Err, "⚠ "+format+"\n", a...) }
 	open, err := s.issues(forge.Open)
@@ -59,14 +61,16 @@ func (s *Swarm) flags() {
 	slices.SortFunc(open, func(a, b forge.Issue) int { return a.Number - b.Number })
 	for _, is := range open {
 		labels, class := is.Labels, Architecture // the class decides only at a classGate
+		var full *forge.Issue                    // is read with its comments, when it was
 		if stage, gate := s.classGate(labels); gate != "" {
-			full, err := s.Forge.Issue(is.Number)
+			read, err := s.Forge.Issue(is.Number)
 			if err != nil {
 				warn("#%d: class: %v", is.Number, err)
 				continue
 			}
-			if class = ClassOf(full, s.SwarmLogin, s.Cfg.Trusted); class == Routine {
-				if labels, err = s.autoPass(full, stage, gate); err != nil {
+			full = &read
+			if class = ClassOf(read, s.SwarmLogin, s.Cfg.Trusted); class == Routine {
+				if labels, err = s.autoPass(read, stage, gate); err != nil {
 					warn("#%d: auto: %v", is.Number, err)
 				}
 			}
@@ -83,12 +87,57 @@ func (s *Swarm) flags() {
 			if err := s.gateNote(is.Number, open); err != nil {
 				warn("#%d: gate note: %v", is.Number, err)
 			}
+		case want && has && !slices.Contains(labels, forge.Blocked):
+			if full == nil {
+				read, err := s.Forge.Issue(is.Number)
+				if err != nil {
+					warn("#%d: gate note: %v", is.Number, err)
+					continue
+				}
+				full = &read
+			}
+			if !s.regated(*full, labels) {
+				continue
+			}
+			if err := s.gateNote(is.Number, open); err != nil {
+				warn("#%d: gate note: %v", is.Number, err)
+			}
 		case !want && has:
 			if err := Unflag(s.Forge, at, labels, forge.Gated, s.Out); err != nil {
 				warn("#%d: gated: %v", is.Number, err)
 			}
 		}
 	}
+}
+
+// gateHead is a gate note's line after its marker, naming the stage it
+// gated (gateText).
+var gateHead = regexp.MustCompile(`^\*\*reconciler:\*\* gated at (\S+): `)
+
+// regated: is, flagged and gated still at the stage its labels name, was
+// gated again since its newest gate note without the flag being cleared
+// (section 5, one note per gating event): that note names another stage
+// (a stage moved within one pass, or by hand with the flag left on), or,
+// at plan-0-posted, the architect posted a plan after it (a revision,
+// after a comment or the round limit, T11). An issue with no gate note
+// (its note refused, or the flag set by hand) is not.
+func (s *Swarm) regated(is forge.Issue, labels []string) bool {
+	stage, _ := StageOf(forge.Issue{Labels: labels})
+	var note *forge.Comment
+	for i, c := range is.Comments {
+		if m, ok := Swarms(Entry{c.Author, c.Body, c.Created}, s.SwarmLogin); ok && m.Kind == "gate" && (note == nil || !c.Created.Before(note.Created)) {
+			note = &is.Comments[i]
+		}
+	}
+	if note == nil {
+		return false
+	}
+	_, rest, _ := strings.Cut(note.Body, "\n")
+	if h := gateHead.FindStringSubmatch(rest); h == nil || "swarm:"+h[1] != stage {
+		return true
+	}
+	plan, _, ok := (&Job{SwarmLogin: s.SwarmLogin, Issue: is}).Plan()
+	return stage == forge.PlanPosted && ok && plan.Created.After(note.Created)
 }
 
 // Unflag clears flag from the issue at, whose labels are labels, when it

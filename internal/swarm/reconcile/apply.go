@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -36,19 +37,21 @@ type Swarm struct {
 	started   int                 // containers this process started in this pass, members and checks
 	given     map[string][]string // run directory → the secrets its member was given
 	Stopping  func() bool         // the loop was signalled: launch nothing more (nil: never)
-	newFault  bool                // a run this process collected ended in a fault
+	faulted   []string            // the runs this process collected in a fault since faultPause last looked
+	moves     map[int]string      // issue → the stage this pass moved it to after step (5) gave its pull request the label
 	collected int                 // runs collected in this pass
 }
 
 // live is a container this process started, a member or a worker run's
-// check: done is closed once `docker run` has returned, with how it ended
-// and, for a slot, the slot's secrets read again before its lock was
+// check: done is closed once `docker run` has returned, with how and when
+// it ended and, for a slot, the slot's secrets read again before its lock was
 // released.
 type live struct {
 	check bool
 	done  chan struct{}
 	exit  runner.Exit
 	err   error
+	at    time.Time // when `docker run` returned: the run's end line's time
 	again []string
 }
 
@@ -95,7 +98,7 @@ func (s *Swarm) Pass(wait bool) error {
 			mine++
 		}
 	}
-	s.collected, s.started = 0, 0
+	s.collected, s.started, s.moves = 0, 0, map[int]string{}
 	errs := []error{s.collectAll(running)}
 	launched := 0
 	if paused := s.paused(); paused != "" {
@@ -147,6 +150,7 @@ func (s *Swarm) Pass(wait bool) error {
 	}
 	if !s.stopping() {
 		s.flags()
+		s.copyMoved()
 		s.milestones()
 	}
 	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, mine)
@@ -242,7 +246,7 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 		if _, done := Has(lines, "collected"); done {
 			continue
 		}
-		now := stamp(s.O.Now())
+		now := endStamp(s.O.Now())
 		if Ended(lines) == "" {
 			started, ok := Has(lines, "started")
 			if !ok {
@@ -328,21 +332,23 @@ func (s *Swarm) paused() string {
 }
 
 // faultPause writes <state>/paused when the two most recently ended runs
-// both ended in a swarm fault (section 7.7), and the newest was collected
-// by this process: a pause the maintainer resumed is not taken again from
-// the same two runs.
+// both ended in a swarm fault (section 7.7), by their end lines' times
+// (endStamp; a tie by run directory), and the newer was collected in a
+// fault by this process since faultPause last looked: a pause the
+// maintainer resumed is not taken again from the same two runs.
 func (s *Swarm) faultPause() {
-	if !s.newFault || s.paused() != "" {
+	mine := s.faulted
+	s.faulted = nil
+	if len(mine) == 0 || s.paused() != "" {
 		return
 	}
-	s.newFault = false
 	fs := s.O.FS()
 	runs, err := Runs(fs, s.state())
 	if err != nil {
 		return
 	}
 	type ended struct {
-		at     string
+		at     time.Time
 		dir    string
 		reason string
 	}
@@ -356,7 +362,7 @@ func (s *Swarm) faultPause() {
 		for _, l := range lines {
 			f := strings.Fields(l)
 			if len(f) > 1 && slices.Contains(endWords, f[0]) {
-				e.at = f[len(f)-1]
+				e.at, _ = time.Parse(time.RFC3339, f[len(f)-1]) // a fraction read if written (endStamp)
 			}
 		}
 		if l, ok := Has(lines, "fault"); ok {
@@ -365,12 +371,12 @@ func (s *Swarm) faultPause() {
 		es = append(es, e)
 	}
 	slices.SortFunc(es, func(a, b ended) int {
-		if c := strings.Compare(a.at, b.at); c != 0 {
+		if c := a.at.Compare(b.at); c != 0 {
 			return c
 		}
 		return strings.Compare(a.dir, b.dir)
 	})
-	if len(es) < 2 || es[len(es)-1].reason == "" || es[len(es)-2].reason == "" {
+	if len(es) < 2 || es[len(es)-1].reason == "" || es[len(es)-2].reason == "" || !slices.Contains(mine, es[len(es)-1].dir) {
 		return
 	}
 	line := fmt.Sprintf("paused %s: swarm fault: %s\n", stamp(s.O.Now()), es[len(es)-1].reason)
@@ -451,6 +457,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 					return err
 				}
 			}
+			delete(s.moves, n) // copied as it is now; a launch below records its move again
 			roles := stageRoles[label]
 			if len(roles) == 0 || launch == nil || decided[n] {
 				continue
@@ -464,11 +471,11 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				continue
 			}
 			if m := BlockedBy(is, s.SwarmLogin, s.Cfg.Trusted); m != 0 {
-				blocker, err := s.Forge.Issue(m)
+				held, err := Blocker(s.Forge, n, m, s.Err)
 				if err != nil {
 					return err
 				}
-				if blocker.Open {
+				if held {
 					continue // rule 1: the maintainer's `Blocked by #<m>`, #<m> open
 				}
 			}
@@ -540,6 +547,31 @@ func (s *Swarm) busy(running []runner.Running, runs []Run, n int) []string {
 		}
 	}
 	return roles
+}
+
+// moved records that this pass moved issue n to stage to, for copyMoved.
+func (s *Swarm) moved(n int, to string) {
+	if s.moves != nil {
+		s.moves[n] = to
+	}
+}
+
+// copyMoved is the copy of step (5) made again, after the flags, for each
+// issue the pass moved since step (5) read it (a launch's in-progress
+// stage, a collection in the drain of --once, the merge step's, a routine
+// job's gate passed): its open current pull request given the stage the
+// move wrote, so the pull request's label does not lag the issue's by a
+// pass (section 5). A failure is a warning; the next pass copies again.
+func (s *Swarm) copyMoved() {
+	for _, n := range slices.Sorted(maps.Keys(s.moves)) {
+		pulls, err := s.Forge.Pulls(n)
+		if err == nil && len(pulls) > 0 && pulls[len(pulls)-1].Open {
+			err = s.copyLabel(n, pulls[len(pulls)-1], s.moves[n])
+		}
+		if err != nil {
+			fmt.Fprintf(s.Err, "⚠ #%d: pull request label: %v\n", n, err)
+		}
+	}
 }
 
 // copyLabel gives the issue's open current pull request the issue's stage

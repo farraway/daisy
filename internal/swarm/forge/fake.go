@@ -154,8 +154,14 @@ func (f *Fake) find(at Ref) (*item, error) {
 	if it, ok := f.items[at]; ok {
 		return it, nil
 	}
-	return nil, fmt.Errorf("forge: %s/%s#%d: 404 not found", f.owner, at.Repo, at.N)
+	return nil, notFound(fmt.Sprintf("forge: %s/%s#%d: 404 not found", f.owner, at.Repo, at.N))
 }
+
+// notFound is the Fake's 404, which is ErrNotFound as Gitea's is.
+type notFound string
+
+func (e notFound) Error() string      { return string(e) }
+func (notFound) Is(target error) bool { return target == ErrNotFound }
 
 func (f *Fake) findPull(pr Ref) (*item, error) {
 	it, err := f.find(pr)

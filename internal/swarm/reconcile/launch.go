@@ -29,6 +29,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return false, err
 	}
 	now := func() string { return stamp(s.O.Now()) }
+	ended := func() string { return endStamp(s.O.Now()) }
 	var labelLines []string
 	if j.Label != "" {
 		labelLines = []string{"label " + j.Label}
@@ -52,7 +53,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			bad = []int{sl}
 		}
 		if len(bad) > 0 {
-			return failed("launch-failed "+now(), "failed: bad slices: "+numbers(bad))
+			return failed("launch-failed "+ended(), "failed: bad slices: "+numbers(bad))
 		}
 		repo, branch = rp, fmt.Sprintf("swarm/%d-%d", j.N, sl)
 		_, newBranch = j.current()
@@ -88,11 +89,11 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 		back, err := fs.ReadFile(p)
 		if err != nil || !bytes.Equal(back, []byte(f.text)) {
-			return failed("launch-failed "+now(), "fault: prompt: "+f.name+": differs")
+			return failed("launch-failed "+ended(), "fault: prompt: "+f.name+": differs")
 		}
 	}
 	if emptyField(prompt) {
-		return failed("launch-failed "+now(), "fault: prompt: prompt.md: empty field")
+		return failed("launch-failed "+ended(), "fault: prompt: prompt.md: empty field")
 	}
 
 	// The resources as they resolve now, section 3's checks made again,
@@ -100,7 +101,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	// outside them (section 7.2).
 	resources, err := declare.ResolveResources(s.O, s.WS, s.Cfg.Resources)
 	if err != nil {
-		return failed("launch-failed "+now(), "fault: "+err.Error())
+		return failed("launch-failed "+ended(), "fault: "+err.Error())
 	}
 
 	persona := s.Cfg.Personas[j.Role]
@@ -111,7 +112,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	// 7.7), collected at once, so the pair's second reviewer's issue goes
 	// home.
 	cloneFailed := func(err error) (bool, error) {
-		return failed("launch-failed "+now(), "fault: clone: "+err.Error())
+		return failed("launch-failed "+ended(), "fault: clone: "+err.Error())
 	}
 	clone := func(rp declare.Repo, branch, dir string) (string, error) {
 		return s.git().Clone(rp, branch, s.Cfg.Base, dir, j.Role, s.Cfg.Forge.CommitEmail, persona.CoAuthor)
@@ -207,7 +208,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		case errors.Is(err, runner.ErrNoSlot):
 			return false, fs.RemoveAll(r.Dir)
 		case errors.As(err, &refused):
-			return failed(append(startLines, "launch-failed "+now(), "fault: "+refused.Error())...)
+			return failed(append(startLines, "launch-failed "+ended(), "fault: "+refused.Error())...)
 		case err != nil:
 			fs.RemoveAll(r.Dir)
 			return false, err
@@ -238,7 +239,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		if slot != nil {
 			slot.Release()
 		}
-		return false, errors.Join(r.Append(fs, "launch-failed "+now(), "fault: launch: "+err.Error()), s.collect(r))
+		return false, errors.Join(r.Append(fs, "launch-failed "+ended(), "fault: launch: "+err.Error()), s.collect(r))
 	}
 	s.given[r.Dir] = secrets
 	s.watch(r.Dir, c, slot, false)
@@ -250,6 +251,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		if err := s.Forge.Relabel(forge.Ref{Repo: rp, N: j.N}, j.Label, to); err != nil {
 			return true, err
 		}
+		s.moved(j.N, to)
 		fmt.Fprintf(s.Out, "%s%s → %s\n", runHead(r), j.Label, to)
 		from := j.Label
 		j.Label = to // the issue's stage now, which the pair's second is launched on
@@ -306,6 +308,7 @@ func (s *Swarm) watch(dir string, c runner.Container, slot *runner.Slot, check b
 	go func() {
 		defer close(l.done)
 		l.exit, l.err = c.Wait()
+		l.at = s.O.Now()
 		if slot != nil {
 			l.again, _ = runner.SlotSecrets(s.O.FS(), slot.Dir)
 			slot.Release()
@@ -320,7 +323,7 @@ func (s *Swarm) settle(r Run) error {
 	l := s.live[r.Dir]
 	delete(s.live, r.Dir)
 	fs := s.O.FS()
-	now := stamp(s.O.Now())
+	now := endStamp(l.at)
 	if l.check {
 		if l.err != nil {
 			return r.Append(fs, "fault: check: wait: "+l.err.Error())

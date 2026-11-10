@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
@@ -260,6 +261,73 @@ func TestSwarmApplyFaults(t *testing.T) {
 	if _, err := os.Stat(a.state("paused")); err == nil || !strings.Contains(a.stdout.String(), "#1 adversary run 3: posted review (approve)\n") {
 		t.Errorf("after resume:\n%s", a.stdout.String())
 	}
+}
+
+// collectedRun writes a run another apply recorded and collected, ended
+// by the end line end, in a fault when reason is not "".
+func (a *applyWS) collectedRun(name, end, reason string) {
+	a.t.Helper()
+	lines := "label swarm:proposal-accepted\nstarted 2026-11-06T14:00:00Z\n" + end + "\n"
+	outcome := "posted"
+	if reason != "" {
+		lines, outcome = lines+"fault: "+reason+"\n", "fault"
+	}
+	dir := a.state(filepath.Join("runs", name))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		a.t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "result"), []byte(lines+"outcome "+outcome+"\ncollected\n"), 0o644); err != nil {
+		a.t.Fatal(err)
+	}
+}
+
+// The two faults in a row (section 7.7) are the two runs that ended last
+// by their end lines' times, which carry the nanoseconds (an older line's
+// whole second read as such, not after its fractions as text), and the
+// newer was collected in a fault by this process: a fault this process
+// collects that ended before two others did pauses nothing.
+func TestSwarmFaultPauseOrder(t *testing.T) {
+	noLogin := func(a *applyWS) {
+		os.Remove(filepath.Join(a.local, "swarm", "credentials", "openai", "1", "auth.json"))
+		a.edit(func(c *declare.Config) {
+			c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
+		})
+		a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"}) // #1: its architect's slot has no login, a fault
+	}
+	t.Run("the end line's nanoseconds", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.now = a.now.Add(250 * time.Millisecond)
+		a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+		a.runner.Script(1, "architect", runner.Canned{Out: oneSlice})
+		if err := a.apply(a.git(), "--once"); err != nil {
+			t.Fatal(err)
+		}
+		if r := a.result("1-architect-1"); !strings.Contains(r, "\nexited 0 2026-11-06T15:00:00.25Z\n") {
+			t.Errorf("end line:\n%s", r)
+		}
+	})
+	t.Run("a whole second before its fractions", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.collectedRun("8-architect-1", "exited 0 2026-11-06T14:59:59Z", "")
+		a.collectedRun("9-architect-1", "launch-failed 2026-11-06T14:59:59.5Z", "clone: gone")
+		noLogin(a)
+		a.pass()
+		if b, err := os.ReadFile(a.state("paused")); err != nil || !strings.Contains(string(b), ": swarm fault: slot openai/1: no login") {
+			t.Errorf("not paused after #9's fault then #1's: %q %v", b, err)
+		}
+	})
+	t.Run("the newer is another's", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.collectedRun("8-architect-1", "launch-failed 2026-11-06T15:30:00Z", "clone: gone")
+		a.collectedRun("9-architect-1", "launch-failed 2026-11-06T15:30:01Z", "clone: gone")
+		os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T15:30:01Z: swarm fault: clone: gone\n"), 0o644)
+		a.resume()
+		noLogin(a)
+		a.pass()
+		if _, err := os.Stat(a.state("paused")); err == nil || !strings.Contains(a.result("1-architect-1"), "outcome fault\n") {
+			t.Errorf("paused again by #8's and #9's faults:\n%s", a.result("1-architect-1"))
+		}
+	})
 }
 
 // Two faults in a row within one pass pause the swarm at once: the pass

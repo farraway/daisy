@@ -244,7 +244,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("round 1's pass launched %q", roles)
 	}
 	pr = a.pulls(1)[0]
-	if !slices.Contains(pr.Labels, "swarm:review-1-in-progress") { // copied as the pass read the issue again under it
+	if !slices.Contains(pr.Labels, "swarm:review-3-changes-requested") { // the issue's as the pass left it, not a pass behind (section 5)
 		t.Errorf("the pull request's label: %v", pr.Labels)
 	}
 	if sys := a.file("1-adversary-1", "io/system.md"); !strings.Contains(sys, "check that its test exists on this head and that it fails against main's code") {

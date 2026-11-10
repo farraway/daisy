@@ -242,6 +242,113 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 	}
 }
 
+// A gate note per gating event, the flag left on between them (section
+// 5): the architect's revised plan under the plan gate gets a note
+// quoting it (after a comment or the round limit, T11); an issue moved
+// to another gated stage with the flag left on (a hand relabel, or two
+// transitions within one --once pass) gets one at its new stage; a pass
+// that finds nothing new posts none; a blocked issue gets none, the note
+// that blocked it being the word.
+func TestSwarmApplyGateNoteOnEachGating(t *testing.T) {
+	a := newApplyWS(t)
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	a.forge.CreateIssue("Planned", "Plan it.", []string{"swarm:plan-0-posted"}) // #1
+	a.forge.Comment(issue1, mark("architect", 1)+gatePlan)
+	a.forge.CreateIssue("Proposed", mark("owner", 1)+"Brief: docs/briefs/a.md — M1 The drift\n", []string{"swarm:proposal-posted"}) // #2
+	a.forge.CreateIssue("Planned, then blocked", "Plan it.", []string{"swarm:plan-0-posted"})                                       // #3
+	a.forge.Comment(forge.Ref{Repo: "app", N: 3}, mark("architect", 1)+gatePlan)
+	a.pass()
+	for _, n := range []int{1, 2, 3} {
+		if got := a.gateNotes(n); len(got) != 1 {
+			t.Fatalf("#%d: %d gate notes\n%s", n, len(got), a.stdout.String())
+		}
+	}
+
+	revised := strings.Replace(gatePlan, "2. lib: add notes.md.", "2. lib: add notes.md.\n3. lib: add a test.", 1)
+	a.tick()
+	a.forge.Comment(issue1, mark("architect", 2)+revised)
+	a.forge.SetLabel(forge.Ref{Repo: "app", N: 2}, "swarm:plan-0-posted")
+	a.forge.Comment(forge.Ref{Repo: "app", N: 2}, mark("architect", 1)+gatePlan)
+	a.forge.Relabel(forge.Ref{Repo: "app", N: 3}, "", forge.Blocked)
+	a.forge.Comment(forge.Ref{Repo: "app", N: 3}, mark("architect", 2)+revised)
+	a.pass()
+	if got := a.gateNotes(1); len(got) != 2 || !strings.Contains(got[1], "- Slices: 3.\n") || !strings.Contains(a.stdout.String(), "#1 gate note posted\n") {
+		t.Errorf("#1, the plan revised: %q\n%s", got, a.stdout.String())
+	}
+	if got := a.gateNotes(2); len(got) != 2 || !strings.HasPrefix(got[1], gateNote+"**reconciler:** gated at plan-0-posted: the plan gate holds") {
+		t.Errorf("#2, moved with the flag on: %q", got)
+	}
+	if got := a.gateNotes(3); len(got) != 1 {
+		t.Errorf("#3, blocked: %d gate notes", len(got))
+	}
+	a.pass()
+	if strings.Contains(a.stdout.String(), "gate note") {
+		t.Errorf("a pass with nothing new posted a note:\n%s", a.stdout.String())
+	}
+}
+
+// The blocked gate's note quotes the newest reconciler note that blocked
+// the issue, its first line cut at 120 characters, unless the block was
+// lifted since (a comment of the maintainer's after it, or a gate note of
+// another gate posted after it), when swarm:blocked was set again by
+// hand; the blocked gate's own earlier note tells nothing (a verb that
+// clears the flag of an issue still blocked).
+func TestSwarmApplyBlockedGateNote(t *testing.T) {
+	a := newApplyWS(t)
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	long := "worker run 1 failed: " + strings.Repeat("x", 130)
+	block := func(n int, why string) {
+		a.forge.Comment(forge.Ref{Repo: "app", N: n}, mark("reconciler", 1)+why+" (at swarm:plan-1-accepted). Remove swarm:blocked to resume.")
+	}
+	a.forge.CreateIssue("Long", "Build it.", []string{"swarm:plan-1-accepted", forge.Blocked}) // #1
+	block(1, long)
+	a.forge.CreateIssue("Unblocked, then blocked by hand", "Build it.", []string{"swarm:plan-1-accepted"}) // #2
+	block(2, "worker run 1 failed: no commits")
+	a.tick()
+	a.forge.Say(forge.Ref{Repo: "app", N: 2}, "jane", "Carry on.")
+	a.forge.Relabel(forge.Ref{Repo: "app", N: 2}, "", forge.Blocked)
+	a.forge.CreateIssue("Lifted by hand", "Build it.", []string{"swarm:plan-1-accepted", forge.Blocked}) // #3
+	block(3, "worker run 1 failed: no commits")
+	a.pass()
+	head := func(n int) string {
+		got := a.gateNotes(n)
+		if len(got) == 0 {
+			return ""
+		}
+		_, items, _ := strings.Cut(got[len(got)-1], "\n- Class: architecture.\n")
+		l, _, _ := strings.Cut(items, "\n")
+		return l
+	}
+	if got, want := head(1), "- The note that set it, at 2026-11-06T15:00:00Z: "+long[:119]+"…"; got != want {
+		t.Errorf("#1:\n%q\nwant\n%q", got, want)
+	}
+	if got, want := head(2), "- The note that set it: none since the block of 2026-11-06T15:00:00Z was lifted; swarm:blocked was set by hand."; got != want {
+		t.Errorf("#2:\n%q\nwant\n%q", got, want)
+	}
+	if got := head(3); !strings.HasPrefix(got, "- The note that set it, at ") {
+		t.Errorf("#3 first: %q", got)
+	}
+	at3 := forge.Ref{Repo: "app", N: 3}
+	a.forge.SetLabel(at3, "swarm:plan-0-posted") // lifted on the forge and re-planned: the plan gate's note
+	a.forge.Relabel(at3, forge.Blocked, "")
+	a.forge.Comment(at3, mark("architect", 1)+gatePlan)
+	a.pass()
+	a.forge.SetLabel(at3, "swarm:plan-1-accepted") // accepted on the forge: the flag cleared
+	a.pass()
+	a.forge.Relabel(at3, "", forge.Blocked) // and blocked again by hand
+	a.pass()
+	if got, want := head(3), "- The note that set it: none since the block of 2026-11-06T15:01:00Z was lifted; swarm:blocked was set by hand."; len(a.gateNotes(3)) != 3 || got != want {
+		t.Errorf("#3 again: %d notes\n%q\nwant\n%q", len(a.gateNotes(3)), got, want)
+	}
+	at1 := forge.Ref{Repo: "app", N: 1}
+	a.forge.SetLabel(at1, "swarm:plan-2-in-progress") // #1 moved with its flag cleared, as a verb does, still blocked
+	a.forge.Relabel(at1, forge.Gated, "")
+	a.pass()
+	if got, want := head(1), "- The note that set it, at 2026-11-06T15:00:00Z: "+long[:119]+"…"; len(a.gateNotes(1)) != 2 || got != want {
+		t.Errorf("#1 flagged again, still blocked: %d notes\n%q\nwant\n%q", len(a.gateNotes(1)), got, want)
+	}
+}
+
 // The flags and the terminals are no stage (section 6, rule 1): a
 // proposal-posted issue carrying the gated flag is one stage, and the
 // owner answers the maintainer there; an open issue carrying only a flag
