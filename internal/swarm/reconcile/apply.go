@@ -46,6 +46,8 @@ type Swarm struct {
 	fetched    bool                // this pass has fetched the mirrors
 	commits    map[string]string   // the pass's commits, by repository (Commits), in a swarm repository's clone
 	pinErr     map[string]error    // a reference's pin this pass's fetch did not bring, by its name
+	driftSeen  bool                // a pass has compared the configuration with the pushed head (drift)
+	drifting   []string            // the paths that drifted at the last comparison
 }
 
 // Openers is whose pull requests are the swarm's (section 10, Pulls):
@@ -97,7 +99,8 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 // and the role rule's launches up to max_members; (6) the merge step with
 // the merge gate off; (7) the owner's batch trigger; (8) unless
 // signalled, the maintainer's flag set and cleared by the stages, then
-// the forge milestones mirroring the briefs; (9) the summary line. With
+// the forge milestones mirroring the briefs; in a swarm repository's
+// clone, Drift (section 11); (9) the summary line. With
 // wait (`--once`), every container launched is waited for and collected,
 // a worker run's check included, before (8), so that the flag follows
 // the labels the collections moved and a batch's proposals are put in
@@ -160,6 +163,7 @@ func (s *Swarm) Pass(wait bool) error {
 		s.copyMoved()
 		s.milestones(open)
 	}
+	s.drift()
 	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, mine)
 	return errors.Join(errs...)
 }

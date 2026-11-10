@@ -81,6 +81,14 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		s.staleness(j.Notes)
 	}
 
+	// The swarm's notes about each repository the run works in, at the
+	// pass's commit (section 4).
+	var err error
+	if j.Repos, err = s.repoNotes(s.noteRepos(j, repo)); err != nil {
+		fs.RemoveAll(r.Dir)
+		return false, err
+	}
+
 	j.Clone = !s.Place.Old()
 	system, prompt := Render(j)
 	for _, f := range []struct{ name, text string }{{"system.md", system}, {"prompt.md", prompt}} {

@@ -34,6 +34,7 @@ type Job struct {
 	Check string       // the # Check section's text for the current head
 	Batch *Batch       // the owner's batch
 	Notes []Note       // the research notes in the run's copy, with `wiki` or `notes`
+	Repos []RepoNote   // the swarm's notes about each repository the run works in (section 4), in a swarm repository's clone
 }
 
 // PullThread is the current pull request's comments, reviews and line
@@ -74,7 +75,11 @@ func endStamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 // Render is the run's system.md and prompt.md.
 func Render(j *Job) (system, prompt string) {
 	head := fmt.Sprintf("%s#%d %s run %d, %s -->", j.Cfg.Forge.Repo, j.N, j.Role, j.K, stamp(j.Time))
-	system = doc("<!-- daisy-swarm system: "+head, "# Persona", Shift(trim(j.Persona), 1), "# Task", j.task())
+	sys := []string{"<!-- daisy-swarm system: " + head, "# Persona", Shift(trim(j.Persona), 1), "# Task", j.task()}
+	for _, n := range j.Repos {
+		sys = append(sys, "# Repository notes: "+n.Name, Shift(trim(n.Text), 1))
+	}
+	system = doc(sys...)
 	blocks := []string{"<!-- daisy-swarm prompt: " + head, j.repository()}
 	if j.Cfg.KeepsNotes() && writesNotes(j.Role) {
 		blocks = append(blocks, "# Research notes", j.notes())

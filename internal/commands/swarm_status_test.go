@@ -38,6 +38,12 @@ func newStatusWSIn(t *testing.T, clone bool) *statusWS {
 	if err := s.run("--defaults"); err != nil {
 		t.Fatal(err)
 	}
+	if clone {
+		// What init writes is pushed and its mirror holds it, as Step 6
+		// of revision 6's plan makes init do: no drift (section 11).
+		s.publish("init")
+		s.fetchMirror()
+	}
 	s.cloned()
 	return s
 }

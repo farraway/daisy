@@ -139,22 +139,30 @@ func swarmInit(c *Context, open opener) error {
 		return cancelledOr(c, err)
 	}
 
-	if err := writeDeclaration(c, p, cfg); err != nil {
-		return err
-	}
 	g := reconcile.Git{O: o, WS: p.Root, State: cfg.Forge.State(c.Env.Local)}
 	if !p.Old() {
-		// The mirrors, the swarm repository's first, which the readiness
-		// warnings read (section 11, init); the old layout writes nothing
-		// under $DAISY_LOCAL.
-		_, own, _ := strings.Cut(cfg.Forge.Repo, "/")
-		if err := g.FetchSwarm(own); err != nil {
-			return fmt.Errorf("Error: swarm: mirror %s: %v", own, err)
-		}
+		// The declared repositories' mirrors before the files, since
+		// repos/<name>.md's seed reads them, as the readiness warnings do
+		// (section 11, init); the old layout writes nothing under
+		// $DAISY_LOCAL.
 		for _, r := range cfg.Repos {
 			if err := g.Fetch(r); err != nil {
 				return fmt.Errorf("Error: swarm: mirror %s: %v", r.Name, err)
 			}
+		}
+	}
+	if err := writeDeclaration(c, p, cfg); err != nil {
+		return err
+	}
+	if !p.Old() {
+		if err := writeRepoNotes(c, p, g, cfg); err != nil {
+			return err
+		}
+		// The swarm repository's mirror after the files, so that it holds
+		// what is pushed of them.
+		_, own, _ := strings.Cut(cfg.Forge.Repo, "/")
+		if err := g.FetchSwarm(own); err != nil {
+			return fmt.Errorf("Error: swarm: mirror %s: %v", own, err)
 		}
 		fmt.Fprintf(c.Stdout, "✓ Mirrors: %s fetched\n", strings.Join(append([]string{own}, names...), ", "))
 	}
@@ -264,6 +272,25 @@ func warnCloneEnv(c *Context, cfg declare.Config) {
 	}
 }
 
+// warnDrift is status's Drift (section 11): each path of the clone's
+// swarm.json and prompts/ that differs from the swarm repository's
+// default branch as the last fetch left its mirror, a line on stderr
+// each time; nothing in the old layout, or before a fetch. It changes no
+// exit code.
+func warnDrift(c *Context, cfg declare.Config) {
+	if c.Swarm.Old() {
+		return
+	}
+	d, err := reconcile.ConfigDrift(reconcile.Git{O: c.Ops, WS: c.Swarm.Root, State: cfg.Forge.State(c.Env.Local)}, cfg.Forge.Repo)
+	if err != nil {
+		fmt.Fprintf(c.Stderr, "⚠ Drift: %v\n", err)
+		return
+	}
+	for _, l := range d.Lines {
+		fmt.Fprintln(c.Stderr, l)
+	}
+}
+
 // writeDeclaration writes swarm.json when the answers differ from its
 // values (its layout aside: a hand-formatted file with the same values is
 // left as it is) and each persona prompt that is absent, each named
@@ -289,6 +316,36 @@ func writeDeclaration(c *Context, at declare.Place, cfg declare.Config) error {
 			continue
 		}
 		if err := fs.WriteFile(p, []byte(declare.DefaultPrompts[role]), 0o644); err != nil {
+			return fmt.Errorf("Error: cannot write %s: %v", p, err)
+		}
+		fmt.Fprintf(c.Stdout, "✓ Wrote %s\n", rel)
+	}
+	return nil
+}
+
+// writeRepoNotes writes, in a swarm repository's clone, repos/<name>.md
+// for each declared repository where it is absent (section 4): its seed
+// from the readiness facts, its instruction files read in its mirror at
+// base. An existing file is never overwritten.
+func writeRepoNotes(c *Context, at declare.Place, g reconcile.Git, cfg declare.Config) error {
+	fs := c.Ops.FS()
+	for _, r := range cfg.Repos {
+		rel := reconcile.RepoNotesFile(r.Name)
+		p := filepath.Join(at.Root, rel)
+		if _, err := fs.Lstat(p); err == nil {
+			fmt.Fprintf(c.Stdout, "  Kept %s (exists)\n", rel)
+			continue
+		}
+		var instructions []string
+		for _, name := range []string{"AGENTS.md", "CLAUDE.md"} {
+			if g.HasFile(r.Name, cfg.Base, name) {
+				instructions = append(instructions, name)
+			}
+		}
+		if err := fs.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return fmt.Errorf("Error: cannot create %s: %v", filepath.Dir(p), err)
+		}
+		if err := fs.WriteFile(p, []byte(reconcile.RepoNotesSeed(cfg, r, instructions)), 0o644); err != nil {
 			return fmt.Errorf("Error: cannot write %s: %v", p, err)
 		}
 		fmt.Fprintf(c.Stdout, "✓ Wrote %s\n", rel)
@@ -442,6 +499,7 @@ func swarmStatus(c *Context, open opener) error {
 		return unsetErr(c, cfg, cfg.Forge.TokenEnv)
 	}
 	warnCloneEnv(c, cfg)
+	warnDrift(c, cfg)
 	var names []string
 	for _, r := range cfg.Repos {
 		names = append(names, r.Name)

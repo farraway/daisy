@@ -111,6 +111,16 @@ func (s *swarmWS) publish(msg string) {
 	}
 }
 
+// fetchMirror brings the swarm repository's mirror up to date with its
+// upstream, as a pass's fetch does (clone).
+func (s *swarmWS) fetchMirror() {
+	s.t.Helper()
+	m := filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app", "git", "swarm-app")
+	if _, errb, err := s.exec(m, "git", "fetch", "-q", "--prune", "origin", "+refs/heads/*:refs/heads/*"); err != nil {
+		s.t.Fatalf("git fetch: %v %s", err, errb)
+	}
+}
+
 // swarmURL is the swarm repository's clone's origin (clone).
 const swarmURL = "git@forge.example.net:acme/swarm-app.git"
 

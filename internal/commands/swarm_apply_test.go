@@ -57,6 +57,7 @@ func newApplyWSIn(t *testing.T, clone bool) *applyWS {
 	})
 	if clone {
 		a.publish("docs")
+		a.fetchMirror()
 	}
 	a.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token-0123456789abcdef0123456789"
 	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")

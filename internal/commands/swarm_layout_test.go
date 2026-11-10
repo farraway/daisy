@@ -43,7 +43,7 @@ func TestSwarmVerbsFromAClone(t *testing.T) {
 	for _, r := range declare.Roles {
 		wantOut += "  Kept prompts/" + r + ".md (exists)\n"
 	}
-	wantOut += "✓ Mirrors: swarm-app, app, lib fetched\n✓ Labels: 16 present (0 created, 0 renamed)\n" + strings.Replace(a.units(), "for the workspace %f", "for the swarm repository %f", 1)
+	wantOut += "  Kept repos/app.md (exists)\n  Kept repos/lib.md (exists)\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Labels: 16 present (0 created, 0 renamed)\n" + strings.Replace(a.units(), "for the workspace %f", "for the swarm repository %f", 1)
 	if a.stdout.String() != wantOut || !strings.Contains(wantOut, "daisy-swarm@"+systemdEscapePath(a.ws)+".service") {
 		t.Errorf("init stdout:\n%s\nwant:\n%s", a.stdout.String(), wantOut)
 	}
