@@ -1,6 +1,6 @@
 ---
 name: swarm
-description: The maintainer's guide over a Daisy swarm in this workspace — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm/swarm.json and the persona prompts, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, pause, resume, close) only after the maintainer confirms each write in words. Use in a workspace holding swarm/swarm.json when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json or a persona prompt.
+description: The maintainer's guide over a Daisy swarm from its repository's clone — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm.json, the persona prompts and the per-repository notes, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, pause, resume, close) only after the maintainer confirms each write in words. Use in a swarm repository's clone (swarm.json at its top), or a workspace holding one or a swarm/swarm.json, when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json, a persona prompt or a repository's notes.
 short_description: Guide a Daisy swarm: status, briefs, gates
 ---
 
@@ -15,11 +15,15 @@ after the maintainer has said yes to that write.
 ## Rules
 
 1. **Read before you speak.** Start with `daisy swarm status` in the
-   workspace. Its `State:` line names the state directory; the runs are
+   swarm repository's clone, where `swarm.json` sits at the top (a
+   swarm not yet moved into its repository keeps it at
+   `swarm/swarm.json` in the workspace, `docs/swarm.md` section 11). Its
+   `State:` line names the state directory; the runs are
    under its `runs/<n>-<role>-<k>/` (`result` says how a run ended, what
    it cost and what was posted; `io/prompt.md` is what the member read,
    `io/out.md` what it wrote). The briefs are the Markdown files with a
-   `Status:` line under the `resources` paths of `swarm/swarm.json`.
+   `Status:` line under the `resources` paths of `swarm.json`; the
+   swarm reads them as pushed, never as they stand in the clone.
 2. **Say what was done, then what waits.** Report per issue: its stage,
    the runs since the maintainer last looked, and what each produced
    (a plan, a pull request, a review's verdict, a block and its reason),
@@ -45,18 +49,21 @@ after the maintainer has said yes to that write.
    forge CLI, no `git push` to the forge, and never `daisy swarm apply`
    or `daisy swarm init`, which are the maintainer's from a terminal. The
    verbs are the only path, and they act with the maintainer's own token.
-5. **Name no secret.** Never read, print or copy `.env.sh`, a token or
+5. **Name no secret.** Never read, print or copy the swarm's secrets
+   file (`env` in the state directory), a `.env.sh`, a token or
    any variable's value, nor ask the maintainer to paste one. You may name
    the variable `DAISY_MAINTAINER_TOKEN`. When a verb says it is unset, or
    that it holds the swarm's token or is the swarm's account, tell the
-   maintainer to set it themselves, in the workspace's `.env.sh`, to a
-   token of their own forge account; then stop.
+   maintainer to set it themselves, in the file the verb's message names,
+   to a token of their own forge account; then stop.
 6. **Edit the maintainer's files as drafts.** You may draft a brief, flip
-   its `Status:` line, and edit `swarm/swarm.json` and
-   `swarm/prompts/<role>.md`; show the diff, run `daisy swarm status`
+   its `Status:` line, and edit `swarm.json`, `prompts/<role>.md` and
+   `repos/<name>.md` in the clone; show the diff, run `daisy swarm status`
    after a `swarm.json` edit (it validates the file and names a bad field)
-   and leave the commit to the maintainer unless they ask for it. An
-   edit applies at `apply`'s next pass.
+   and leave the commit and the push to the maintainer unless they ask
+   for them. An edit to `swarm.json` or a prompt applies at `apply`'s
+   next pass, and `status` warns of drift until it is pushed; a brief, a
+   resource or a repository's notes reach the swarm only once pushed.
 7. **A comment to a member is the maintainer's.** To answer the owner or
    the architect, or to comment on a pull request, draft the text and let
    the maintainer post it on the forge; the verbs post only `close`'s,
@@ -99,10 +106,10 @@ milestones are all met: that is when to suggest flipping its `Status`.
 With no brief `active` the owner proposes nothing: its batch is held, and
 `status`'s `State:` line says `owner batch held: no brief is active`.
 
-When the issues repository is the swarm's own (`forge.repo` none of
-`repos`, by convention `<owner>/swarm-<name>`), its briefs live in its
-clone in the workspace, `<ws>/swarm-<name>/briefs/`, declared as a
-`resources` entry. Daisy reads that clone and never writes it: a brief
-you draft or flip there is committed and pushed by the maintainer, by
-hand, in that clone; and with `notes` the research notes Daisy pushes to the
+The briefs live in the swarm repository's `briefs/` (`forge.repo`, by
+convention `<owner>/swarm-<name>`), declared as a `resources` entry.
+Daisy writes the clone only at `init` and reads the briefs from the
+pushed head: a brief you draft or flip there is committed and pushed by
+the maintainer, by hand, and reaches the owner at the next pass after
+the push; and with `notes` the research notes Daisy pushes to the
 repository's `notes/` reach the clone only when the maintainer pulls it.

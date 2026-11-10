@@ -163,15 +163,22 @@ writes what you approve, archives the entries it addressed and commits.
 `daisy eval` lists, shows or records the eval cases (test prompts for the
 workflows) under `prompts/evals/`.
 
-**The swarm.** `daisy swarm init` declares a swarm in a workspace: it
-writes `<ws>/swarm/swarm.json` and a prompt per role under
-`<ws>/swarm/prompts/`,
+**The swarm.** `daisy swarm init` declares a swarm in its own
+repository on the forge, `<owner>/swarm-<name>`, the swarm's root: with
+your token it creates the repository (or adopts it) and opens it to the
+swarm's account; it clones it, seeds `swarm.json`, a prompt per role
+under `prompts/`, `briefs/`, `notes/`, `docs/` and a note per product
+repository under `repos/`, commits and pushes them, writes the swarm's
+secrets file outside every repository,
 creates the swarm's labels on the forge (the nine stages, grouped and
 numbered as the job gets on, `swarm:proposal-posted` to
 `swarm:review-3-changes-requested`; the flags `swarm:gated` on what
 waits for you, `swarm:blocked`, `swarm:paused`, `swarm:blocking` and
 `swarm:class-architecture`; and the terminals `swarm:done` and `swarm:rejected`) and prints a systemd user
-service. `daisy swarm apply --once` runs one pass of the
+service. Every `daisy swarm` command runs from that repository's clone,
+with or without a Daisy workspace around it (`docs/swarm.md`'s revision
+6, which its plan builds in steps; until then a swarm lives in a
+workspace, as its section 11 describes). `daisy swarm apply --once` runs one pass of the
 reconciler: it reads the forge, launches the members (one agent run each,
 in its own container) whose turn it is, posts what they wrote and moves
 the labels, then waits for its members; `apply` without `--once`, what
@@ -320,12 +327,13 @@ chosen for a reason:
   with a marker*, a fixed first line naming the role and the run. So the
   maintainer's words and the swarm's are told apart by authorship, and a
   member's text cannot pass as the maintainer's. The maintainer's writes
-  go through eight verbs under a separate token, read by the verbs only and
-  never by `init`, `apply` or `status`; a verb refuses when its token is
-  the swarm's.
+  go through eight verbs under a separate token, read by the verbs and,
+  to create the swarm's repository, by `init`, never by `apply` or
+  `status`; a verb refuses when its token is the swarm's.
 - *Mount only what the run owns.* A member reads untrusted text, so it
   gets one credential, its clone, the directories `swarm.json` lists as
-  resources (`docs/` by default; read-only) and nothing of the host's;
+  resources (`briefs/` and `docs/` of the swarm's repository by default;
+  read-only, as pushed) and nothing of the host's;
   the repository's own check command, declared in `swarm.json`, runs in a
   keyless container with no network. The forge token never enters a container: Daisy reads the
   member's output file and posts it.
@@ -466,8 +474,11 @@ whole file).
 
 ### The swarm
 
-In the workspace of the product the swarm is to work on, with the swarm's
-forge token in `.env.sh` (copy `templates/env.sh.template`):
+In a folder holding a clone of the product the swarm is to work on,
+with the swarm's forge token and your own (`DAISY_MAINTAINER_TOKEN`) in
+the environment, `init` creates the swarm's repository, clones it beside
+the product and keeps both tokens in the swarm's secrets file; the other
+commands run from that clone:
 
 ```bash
 daisy swarm init                 # the wizard: forge, repositories, personas, gates
@@ -476,11 +487,11 @@ daisy swarm status               # what the swarm did, and what waits for you
 ```
 
 Write a brief, a Markdown file under a directory `swarm.json` lists as a
-resource (by convention in `<ws>/docs/briefs/`): a header with `Status:
+resource (by convention the swarm repository's `briefs/`), and push it:
+a header with `Status:
 active` and the brief's priority in words, then one `## ` heading per
 milestone. The owner proposes jobs from it as issues; your decisions are
-the verbs, each under your own token in `.env.sh` as
-`DAISY_MAINTAINER_TOKEN`:
+the verbs, each under your own token, `DAISY_MAINTAINER_TOKEN`:
 
 ```bash
 daisy swarm triage 12            # proposal-posted → proposal-accepted: the architect plans it
@@ -493,7 +504,7 @@ daisy swarm pause 12             # hold #12 alone; daisy swarm resume 12 release
 daisy swarm close 12
 ```
 
-In an agent session in that workspace, the `swarm` skill reads `status`,
+In an agent session in that clone, or a workspace holding it, the `swarm` skill reads `status`,
 the briefs and the runs, explains what happened and what waits, drafts
 briefs and configuration changes, and runs a verb only after you have
 confirmed that write in words. It never reaches the forge except through
@@ -520,7 +531,6 @@ workspace/
 │   ├── projects/             → {home}/projects/
 │   ├── plans/                → {home}/plans/
 │   └── feedback.md           → {home}/feedback/feedback.md
-├── swarm/                    # only where a swarm is declared: swarm.json, prompts/
 └── PLAN.md                   → .daisy/plans/{current}.plan.md, while a plan is active
 ```
 

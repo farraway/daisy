@@ -258,7 +258,6 @@ var pathPlaceholders = map[string]string{
 	"docs/cli.md feedback/.overrides":      "the home file a full override records the root's hash in, created on first use",
 	"docs/cli.md y/N/e":                    "the bash optimize prompt's answers",
 	"AGENTS.md os/exec":                    "a Go standard package",
-	"docs/swarm.md swarm/swarm.json":       "the workspace file swarm init writes, not a root file",
 }
 
 // Every repository-relative path a document names, in backticks or as a

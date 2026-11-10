@@ -285,15 +285,18 @@ func TestParseNamesTheField(t *testing.T) {
 	}
 }
 
-// Format writes section 3's example byte for byte.
+// Format writes section 3's example byte for byte. Until Step 3 of
+// revision 6's plan builds repos[].repo, it writes the old layout's form
+// of it, which section 11 (Moving a swarm into its repository) holds;
+// that step points this test back at section 3.
 func TestFormatIsSectionThreesExample(t *testing.T) {
 	doc, err := os.ReadFile("../../../docs/swarm.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := regexp.MustCompile("(?s)## 3\\. `swarm.json`.*?```json\n(.*?)```").FindSubmatch(doc)
+	m := regexp.MustCompile("(?s)### Moving a swarm into its repository.*?```json\n(.*?)```").FindSubmatch(doc)
 	if m == nil {
-		t.Fatal("no example in section 3")
+		t.Fatal("no example of the old layout in section 11")
 	}
 	envVar, slots := "CLAUDE_CODE_OAUTH_TOKEN", 1
 	personas := map[string]Persona{}

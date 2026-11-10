@@ -257,19 +257,26 @@ agent working near it:
   verb only after the maintainer has confirmed that write in words.
 - **Two tokens, two code paths.** The swarm's token (`forge.token_env` in
   `swarm.json`) is read by `init`, `apply` and `status`; the maintainer's
-  (`DAISY_MAINTAINER_TOKEN`) by the maintainer's verbs only (and `pause`
+  (`DAISY_MAINTAINER_TOKEN`) by the maintainer's verbs (and `pause`
   and `resume` given an issue), which refuse when it
-  equals the swarm's or is the swarm's account. Neither value is ever
-  printed, written to a file Daisy makes, or passed into a container (a
-  member gets exactly one credential, its provider's).
+  equals the swarm's or is the swarm's account, and by `init` only to
+  create the swarm repository and give the swarm's account access to it.
+  Neither value is ever printed, written to a file Daisy makes but the
+  swarm's secrets file, `<state>/env` (mode `0600`, outside every
+  repository), or passed into a container (a member gets exactly one
+  credential, its provider's).
 - **Daisy writes nowhere but the places `docs/swarm.md` section 2
-  lists:** `<ws>/swarm/` at `init`, the state directory under
-  `$DAISY_LOCAL/swarm/`, and the forge. Never a Daisy home, never the
-  workspace outside `swarm/`, never a declared repository's tree.
+  lists:** the swarm repository's clone at `init` (its seeded files,
+  their commit and its push), the state directory under
+  `$DAISY_LOCAL/swarm/`, and the forge. Never a Daisy home, never a
+  workspace, never a declared repository's tree. This is the spec's
+  revision 6, which Steps 2–6 of its plan build; until then the code
+  runs the workspace layout that its section 11, Moving a swarm into its
+  repository, describes.
 
 The products a swarm works on, their repositories and the forge's host
-are named only in the workspace that holds the swarm, never in the root
-(Publication Hygiene).
+are named only in the swarm repository and the workspace that holds its
+clone, never in the root (Publication Hygiene).
 
 ## Prompts: the build system
 
