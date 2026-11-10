@@ -303,9 +303,13 @@ func resolveResources(o ops.Ops, ws string, resources []string) ([]string, *Erro
 // checkNotes: `notes` keeps the notes in the issues repository's notes/,
 // so that repository is the swarm's own, none of repos (Daisy writes no
 // declared repository's tree, section 2), and its wiki is not declared
-// beside it.
+// beside it; `wiki` alone keeps them in a declared issues repository's
+// wiki, never the swarm's own repository's.
 func checkNotes(c Config) *Error {
 	if !c.Notes {
+		if _, ok := c.Declares(c.Forge.Repo); c.Wiki && !ok {
+			return fieldErr("wiki", "%s is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)", c.Forge.Repo)
+		}
 		return nil
 	}
 	if c.Wiki {

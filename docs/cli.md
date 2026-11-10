@@ -668,9 +668,14 @@ repository, whether its `notes/` does (the file's `notes` by default;
 Step 23 of the swarm build). Question 4, the issues repository, has a
 follow-up when its answer is none of question 1's repositories: whether
 it is the swarm's own, holding no product code (`yes` by default when a
-clone of it lies directly in the workspace or the file has `notes`);
-`yes` adds that clone's `briefs/` to question 32's default and asks 35
-for the notes in place of the wiki.
+clone of it lies directly in the workspace or the file has `notes` with
+that `forge.repo`); `yes` adds that clone's `briefs/` to question 32's
+default and asks 35 for the notes in place of the wiki; `no` leaves the
+wiki's `yes` refused (`swarm.json: wiki: <owner>/<repo> is none of
+repos; …`: the wiki keeps a declared issues repository's notes). Question
+1's default leaves out a clone whose `origin`'s repository name begins
+`swarm-`, the swarm's own repository by convention (Step 30 of the swarm
+build).
 
 ### daisy swarm status
 

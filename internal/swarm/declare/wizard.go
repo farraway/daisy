@@ -240,15 +240,16 @@ func (w *Wizard) AskAccount(c *Config, login, email string) error {
 
 // askOwn is question 4's follow-up, asked when the issues repository is
 // none of the declared ones: whether it is the swarm's own, holding no
-// product code; the default yes when the file keeps its notes there or a
-// clone of it lies directly in the workspace, else no.
+// product code; the default yes when the file keeps its notes there (its
+// forge.repo the one just answered) or a clone of it lies directly in the
+// workspace, else no.
 func (w *Wizard) askOwn(c Config) error {
 	w.own = false
 	if _, ok := c.Declares(c.Forge.Repo); ok {
 		return nil
 	}
 	def := "no"
-	if (w.File != nil && w.File.Notes) || w.issuesClone(c) != "" {
+	if (w.File != nil && w.File.Notes && strings.EqualFold(w.File.Forge.Repo, c.Forge.Repo)) || w.issuesClone(c) != "" {
 		def = "yes"
 	}
 	return w.ask("Issues repository "+c.Forge.Repo+": the swarm's own, holding no product code (yes, no)", def, func(a string) *Error {
@@ -300,8 +301,9 @@ func (w *Wizard) resources(c Config) []string {
 // AskNotes is question 35: where the swarm keeps its research notes. For
 // the swarm's own issues repository (question 4's follow-up), whether in
 // its notes/ (section 3, notes); for any other, whether in the issues
-// repository's wiki (section 3, wiki). The file's answer is the default,
-// else no; the other field is cleared.
+// repository's wiki (section 3, wiki), yes refused as validation refuses
+// it for an issues repository none of the declared ones. The file's
+// answer is the default, else no; the other field is cleared.
 func (w *Wizard) AskNotes(c *Config) error {
 	question, field, keep := "Research wiki, the issues repository's wiki (yes, no)", "wiki", &c.Wiki
 	if w.own {
@@ -318,7 +320,7 @@ func (w *Wizard) AskNotes(c *Config) error {
 		switch a {
 		case "yes", "no":
 			*keep = a == "yes"
-			return nil
+			return checkNotes(*c)
 		}
 		return fieldErr(field, "%q is not yes or no", a)
 	})
@@ -351,7 +353,9 @@ func (w *Wizard) unasked() Config {
 
 // defaultPaths is question 1's default: the file's repositories; else
 // `.` when the workspace is a repository with an origin, else every
-// directory directly under it that is, in name order, else `.`.
+// directory directly under it that is, in name order, but a clone of a
+// repository named swarm-<name> (section 3's convention for the swarm's
+// own issues repository, which is no product repository), else `.`.
 func (w *Wizard) defaultPaths() string {
 	if w.File != nil {
 		var paths []string
@@ -366,7 +370,11 @@ func (w *Wizard) defaultPaths() string {
 	entries, _ := w.Ops.FS().ReadDir(w.WS)
 	var paths []string
 	for _, e := range entries {
-		if e.IsDir() && isRepoWithOrigin(w.Ops, filepath.Join(w.WS, e.Name())) {
+		if !e.IsDir() {
+			continue
+		}
+		o, _, err := checkRepoPath(w.Ops, w.WS, "", e.Name())
+		if err == nil && !strings.HasPrefix(strings.ToLower(o.Repo), "swarm-") {
 			paths = append(paths, e.Name())
 		}
 	}

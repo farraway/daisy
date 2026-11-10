@@ -340,12 +340,20 @@ func TestWizardWiki(t *testing.T) {
 // product repository: an issues repository none of the declared ones is
 // asked about, yes by default when its clone lies in the workspace; yes
 // adds the clone's briefs/ to the resources' default and asks for notes
-// in place of the wiki; no asks for the wiki; a declared one asks
-// neither follow-up.
+// in place of the wiki; no asks for the wiki, refusing yes (validation's
+// reason, section 3), since the wiki keeps a declared issues repository's
+// notes only; a declared one asks neither follow-up.
 func TestWizardOwnIssuesRepository(t *testing.T) {
 	ws := bareWorkspace(t)
 	gitRepo(t, filepath.Join(ws, "swarm-x"), "git@forge.example.net:acme/swarm-x.git")
 	os.MkdirAll(filepath.Join(ws, "swarm-x", "briefs"), 0o755)
+
+	// Question 1's default leaves the clone of swarm-x out (section 3's
+	// convention for the swarm's own repository): app and lib alone.
+	o, _ := scripted()
+	if c, err := (&Wizard{Ops: o, Err: io.Discard, WS: ws, Defaults: true}).Ask(); err != nil || len(c.Repos) != 2 || c.Repos[0].Name != "app" || c.Repos[1].Name != "lib" {
+		t.Errorf("question 1's default with the swarm's own clone: %v %+v", err, c.Repos)
+	}
 	answers := func(issues, own string) []string {
 		a := []string{"app, lib", "", "", issues}
 		if own != "-" {
@@ -358,14 +366,16 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 		resources         []string
 		last              string
 		notes, wiki       bool
+		refused           bool
 	}{
 		{name: "own", issues: "acme/swarm-x", own: "", resources: []string{"docs/", "swarm-x/briefs/"}, last: "Research notes, in acme/swarm-x's notes/ (yes, no) [no]: ", notes: true},
-		{name: "not own", issues: "acme/swarm-x", own: "no", resources: []string{"docs/"}, last: "Research wiki, the issues repository's wiki (yes, no) [no]: ", wiki: true},
+		{name: "not own", issues: "acme/swarm-x", own: "no", resources: []string{"docs/"}, last: "Research wiki, the issues repository's wiki (yes, no) [no]: ", refused: true},
 		{name: "declared", issues: "acme/lib", own: "-", resources: []string{"docs/"}, last: "Research wiki, the issues repository's wiki (yes, no) [no]: ", wiki: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			o, asked := scripted(answers(tc.issues, tc.own)...)
-			w := &Wizard{Ops: o, Err: io.Discard, WS: ws}
+			var errb bytes.Buffer
+			w := &Wizard{Ops: o, Err: &errb, WS: ws}
 			c, err := w.Ask()
 			if err != nil {
 				t.Fatal(err)
@@ -380,12 +390,20 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 			if got := (*asked)[len(*asked)-1]; !strings.HasPrefix(got, "Resources (comma-separated workspace paths, - for none) [") {
 				t.Errorf("the last of Ask: %q", got)
 			}
+			yes := []string{"yes", "no"}
 			o.PromptFn = func(_ io.Reader, _ io.Writer, q string) (string, error) {
 				*asked = append(*asked, q)
-				return "yes", nil
+				a := yes[0]
+				yes = yes[1:]
+				return a, nil
 			}
+			n := len(*asked)
 			if err := w.AskNotes(&c); err != nil || c.Notes != tc.notes || c.Wiki != tc.wiki || (*asked)[len(*asked)-1] != tc.last {
 				t.Errorf("question 35 %q: %v notes %v wiki %v", (*asked)[len(*asked)-1], err, c.Notes, c.Wiki)
+			}
+			refusal := "swarm.json: wiki: acme/swarm-x is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)\n"
+			if again := len(*asked)-n == 2; again != tc.refused || strings.HasSuffix(errb.String(), refusal) != tc.refused {
+				t.Errorf("question 35 asked %d times, stderr %q", len(*asked)-n, errb.String())
 			}
 		})
 	}
@@ -398,6 +416,21 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
 	if _, err := w.Ask(); err != nil || (*asked)[4] != "Issues repository acme/swarm-x: the swarm's own, holding no product code (yes, no) [yes]: " {
 		t.Errorf("the file's own: %v %q", err, (*asked)[4])
+	}
+	// The file's notes are for its own forge.repo: another answered, no.
+	o, asked = scripted("", "", "", "acme/elsewhere", "maybe", "")
+	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w.Ask()
+	if (*asked)[4] != "Issues repository acme/elsewhere: the swarm's own, holding no product code (yes, no) [no]: " {
+		t.Errorf("the file's notes, another issues repository: %q", *asked)
+	}
+	// --defaults keeping a file's wiki on an issues repository none of
+	// repos fails with validation's reason.
+	file.Notes, file.Wiki = false, true
+	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file, Defaults: true}
+	c := file
+	if err := w.AskNotes(&c); errText(err) != "swarm.json: wiki: acme/swarm-x is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)" {
+		t.Errorf("--defaults with the file's wiki on its own: %v", err)
 	}
 	o, asked = scripted("app, lib", "", "", "acme/elsewhere", "maybe", "")
 	w = &Wizard{Ops: o, Err: io.Discard, WS: ws}

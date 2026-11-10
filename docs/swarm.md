@@ -36,7 +36,8 @@ sections 2, 3, 7.1–7.4, 7.6, 11, 13 and 14; its Step 20 the job classes
 and `swarm class`, amending sections 1–3, 5, 6, 7.3–7.5, 10–13 and 14;
 its Step 23 the swarm's own repository and `notes`, amending sections
 2–4, 7.1–7.4, 7.6, 8, 11, 13 and 14; its Step 24 the `xai` login slot,
-amending sections 1, 3, 7.1, 7.2, 7.7, 8, 9, 11, 13 and 14);
+amending sections 1, 3, 7.1, 7.2, 7.7, 8, 9, 11, 13 and 14; its Step 30
+the configuration's kept lines, amending sections 3, 11, 13 and 14);
 the board, the GitHub adapter and the `budget` wait for a run that needs
 them. The maintainer reads the sections each code
 step's hand-back cites (the plan's decision of 2026-11-06, in place of a
@@ -402,7 +403,7 @@ of `apply`, so an edit applies at the next pass (but for `forge.kind`,
 | `interval` | string | `5m` | a Go duration, 1m to 24h: between the starts of `apply`'s passes without `--once` (the loop the unit runs, section 11), read again before each pass; and the unit's restart delay |
 | `owner.max_open_proposals` | integer | 5 | 1 to 20: the most issues one batch run creates, and the most open issues the batch tops up to: with the triage gate off, those at `proposal-posted` and `proposal-accepted`; on, the routine jobs Daisy triaged that are still at `proposal-accepted` (section 6) |
 | `resources` | array of strings | `["docs/"]` when `<ws>/docs` is a directory, else `[]` | each a relative path; resolved through every symbolic link (`Ops.FS().EvalSymlinks`), it must lie inside `<ws>` resolved the same way (a declared repository's tree included: `<path>/docs/`), exist, not be `<ws>` itself, not lie under `swarm/`, and neither be nor contain `.env.sh`, `.daisy` or `.git`; no two the same; the resolved path is what is mounted, read-only, at `/work/.resources/<path>` (a link inside a mounted tree resolves inside the container, where its target is absent); the briefs the maintainer writes live here (section 4) |
-| `wiki` | boolean | `false` (the wizard's question 35) | optional, absent read as `false`; `true` keeps the swarm's research notes in the issues repository's wiki, `<owner>/<repo>.wiki.git`, reached over the first declared repository's remote (section 7.1, step 1): cloned on the host, copied into each run at `/work/.notes` (writable for the owner and the architect, read-only for the others, 7.2), indexed in the owner's and the architect's prompts (`# Research notes`, 7.3) and pushed after their runs (7.6, The notes). On Gitea the repository's wiki must be enabled (the repository setting `has_wiki`) and hold a first page, which makes its git repository; until then a pass that would launch fails, saying so (7.1); not `true` beside `notes` |
+| `wiki` | boolean | `false` (the wizard's question 35) | optional, absent read as `false`; `true` keeps the swarm's research notes in the issues repository's wiki, `<owner>/<repo>.wiki.git`, reached over the first declared repository's remote (section 7.1, step 1): cloned on the host, copied into each run at `/work/.notes` (writable for the owner and the architect, read-only for the others, 7.2), indexed in the owner's and the architect's prompts (`# Research notes`, 7.3) and pushed after their runs (7.6, The notes). On Gitea the repository's wiki must be enabled (the repository setting `has_wiki`) and hold a first page, which makes its git repository; until then a pass that would launch fails, saying so (7.1); not `true` beside `notes`, nor for an issues repository none of `repos` (the swarm's own keeps its notes in `notes/`; Step 30 of the swarm build) |
 | `notes` | boolean | `false` (the wizard's question 35, for the swarm's own issues repository) | optional, absent read as `false`; `true` keeps the swarm's research notes in the `notes/` directory of the issues repository, which must then be the swarm's own (`forge.repo` none of `repos`: Daisy writes no declared repository's tree, section 2), reached as `<owner>/<repo>.git` over the first declared repository's remote (7.1, step 1), and on its default branch: as `wiki` in all else (the copy at `/work/.notes`, the index, the push); `wiki` is then not `true` too, since the swarm's own repository's wiki is no better than its tree. The swarm's account needs write access to the repository, as it has to a product's |
 | `trusted` | array of strings | the maintainer's logins (the wizard's question 33), then the swarm's own, read by `Login()` at `init` | one or more forge logins, each `^[A-Za-z0-9][A-Za-z0-9_.-]*$`; a comment, review or line comment by any other login reaches no prompt and wakes no member (section 6); `init` refuses a maintainer login equal to the token's own (section 11) |
 | `gates.triage`, `gates.plan`, `gates.merge` | booleans | `true` each | G1, G2 and G3 (section 5): `true` keeps the decision the maintainer's, G1's and G2's for an architecture job only (a routine job passes them by itself, section 5); `false` hands it to the swarm |
@@ -462,6 +463,7 @@ failure is reported and the verb exits 1; the message is
 | an empty image | `swarm.json: repos[0].image: empty` |
 | a number or duration out of range | `swarm.json: max_members: 0 is not between 1 and 16` (each with its own range) |
 | the wiki's answer neither yes nor no (the wizard's question 35) | `swarm.json: wiki: "<answer>" is not yes or no` (`notes` for the swarm's own issues repository: `swarm.json: notes: "<answer>" is not yes or no`; question 4's follow-up: `swarm.json: forge.repo: "<answer>" is not yes or no`) |
+| `wiki` for an issues repository none of `repos` (the wizard's question 35 asks again) | `swarm.json: wiki: <owner>/<repo> is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)` |
 | `notes` beside `wiki`, or for a declared repository | `swarm.json: wiki: true beside notes; the swarm's own repository keeps its notes in notes/, and its wiki is no better than its tree`, `swarm.json: notes: <owner>/<name> is a declared repository, which holds product code; notes/ is for the swarm's own issues repository (wiki keeps a product's)` |
 | a resource refused | `swarm.json: resources[1]: "." <reason>` (`is not a relative path`, `is the workspace`, `does not exist`, `is outside the workspace` (also through a symbolic link), `contains .env.sh`, `contains .daisy`, `contains .git`, `is under swarm/`, `is listed twice`) |
 | an empty `check` element | `swarm.json: repos[0].check[0]: empty argument` |
@@ -2897,10 +2899,10 @@ brackets; defaults come from the existing `swarm.json`, else detection.
 
 | # | Question | Default without a `swarm.json` |
 |---|---|---|
-| 1 | `Product repositories (comma-separated paths in the workspace, the product first) [<d>]: ` | `.` when `<ws>` is a git repository with `origin`; else every directory directly under `<ws>` that is, in name order (none: `.`); each entry's `name` is its `origin`'s `<repo>` |
+| 1 | `Product repositories (comma-separated paths in the workspace, the product first) [<d>]: ` | `.` when `<ws>` is a git repository with `origin`; else every directory directly under `<ws>` that is, in name order, but one whose `origin`'s `<repo>` begins `swarm-` (section 3's convention for the swarm's own issues repository, which is no product repository; Step 30 of the swarm build) (none: `.`); each entry's `name` is its `origin`'s `<repo>` |
 | 2 | `Forge kind (gitea, github) [<d>]: ` | detected (section 10) |
 | 3 | `Forge API [<d>]: ` | detected |
-| 4 | `Issues repository [<d>]: `; then, only when the answer is none of question 1's repositories, `Issues repository <owner>/<repo>: the swarm's own, holding no product code (yes, no) [<d>]: ` (section 3, `forge.repo`; Step 23 of the swarm build) | `<owner>/<repo>` of the first repository's `origin`; the follow-up's `yes` when the file's `notes` is `true` or a directory directly under `<ws>` is a clone of `<owner>/<repo>` on the forge's host, else `no`. The swarm's own repository's clone is no product repository: question 1's answer leaves it out (its default, every repository under `<ws>`, lists it) |
+| 4 | `Issues repository [<d>]: `; then, only when the answer is none of question 1's repositories, `Issues repository <owner>/<repo>: the swarm's own, holding no product code (yes, no) [<d>]: ` (section 3, `forge.repo`; Step 23 of the swarm build) | `<owner>/<repo>` of the first repository's `origin`; the follow-up's `yes` when the file's `notes` is `true` and its `forge.repo` is the one just answered, or a directory directly under `<ws>` is a clone of `<owner>/<repo>` on the forge's host, else `no`. The swarm's own repository's clone is no product repository: question 1's answer leaves it out (its default does when the clone's `<repo>` begins `swarm-`) |
 | 5 | `Token variable [<d>]: ` | `GITEA_TOKEN` or `GITHUB_TOKEN` |
 | 6 | `Base branch [<d>]: ` | `main` |
 | 7–26 | for each role in the order owner, architect, worker, adversary, sympathetic: `<role> provider (anthropic, openai, xai) [<d>]: `, `<role> model [<d>]: ` (no `-`: every role names its model), `<role> effort [<d>]: `, `<role> co-author (- for none) [<d>]: ` (`-` the empty `co_author`, no trailer: an empty answer is the default, as everywhere); once the five are answered, a provider a persona names and `keys` does not gets its default credential (`anthropic` `{"env": "CLAUDE_CODE_OAUTH_TOKEN"}`, `openai` `{"slots": 1}`, `xai` `{"env": "XAI_API_KEY"}`), the file's keys kept, in either form: `openai` and `xai` each take `env` or `slots` (section 8), as the file declares | section 3's example, or the file's; the model's default the provider's (`claude-opus-5-5`, `gpt-6.1-sol`, `grok-4.5`) when the answer moves the role to another provider; the co-author's default `<model> <noreply@anthropic.com>`, `<noreply@openai.com>` or `<noreply@x.ai>` by the provider just answered, or the file's while the role's provider and model are the file's, `-` when the file's is empty |
@@ -2912,7 +2914,7 @@ brackets; defaults come from the existing `swarm.json`, else detection.
 | 32 | `Resources (comma-separated workspace paths, - for none) [<d>]: ` | `docs/` when `<ws>/docs` is a directory, else none (with a file, its `resources`); for the swarm's own issues repository (question 4's follow-up `yes`), `<clone>/briefs/` added when its clone lies directly under `<ws>`, holds `briefs/` and no entry names it yet |
 | 33 | `Maintainer logins (comma-separated, not the swarm's; - for none) [<d>]: ` | none; with a file, its `trusted` without the swarm's login |
 | 34 | `Commit email [<d>]: ` (without a default, `Commit email: `) | the file's `forge.commit_email`, else the swarm account's email as `Login()` reports it, else none (`--defaults` then fails: `Error: swarm.json: forge.commit_email: missing`) |
-| 35 | `Research wiki, the issues repository's wiki (yes, no) [<d>]: `; for the swarm's own issues repository (question 4's follow-up `yes`), `Research notes, in <owner>/<repo>'s notes/ (yes, no) [<d>]: ` instead (Step 23 of the swarm build) | `yes` when the file's `wiki` (`notes`) is `true`, else `no` (section 3; Step 19 of the swarm build); the answer sets that field and clears the other: `init` neither reads nor enables the wiki on the forge, which is the maintainer's (section 3, `wiki`), nor makes `notes/`, which the first note's push does |
+| 35 | `Research wiki, the issues repository's wiki (yes, no) [<d>]: `; for the swarm's own issues repository (question 4's follow-up `yes`), `Research notes, in <owner>/<repo>'s notes/ (yes, no) [<d>]: ` instead (Step 23 of the swarm build) | `yes` when the file's `wiki` (`notes`) is `true`, else `no` (section 3; Step 19 of the swarm build); the wiki's `yes` for an issues repository none of question 1's (the follow-up `no`) is refused with section 3's message and asked again (`--defaults`: the error); the answer sets that field and clears the other: `init` neither reads nor enables the wiki on the forge, which is the maintainer's (section 3, `wiki`), nor makes `notes/`, which the first note's push does |
 
 `trusted` is written as the answer to question 33 followed by the swarm's
 login from `Login()`. `owner.max_open_proposals`, `keys`, each repository's `check`
@@ -3898,6 +3900,15 @@ blocked nothing); `TestReadSecretsKeepsTheNamesAsked`;
 `TestSwarmMaintainerFlagRemovalRefused`,
 `TestSwarmMaintainerStep29Refusals`, `TestSwarmMaintainerClass` and
 `TestSwarmFlagClearedOnEveryTransition` (the verbs).
+
+**As built (Step 30 of the swarm build).** The configuration's kept
+lines (sections 3 and 11; section 14, item 92) are Go tests in
+`internal/swarm/declare`: `TestWizardOwnIssuesRepository` (question 1's
+default leaving out a `swarm-<name>` clone; the follow-up's default on
+the file's `notes` only for the file's own `forge.repo`; question 35's
+wiki `yes` refused for an undeclared issues repository, asked again,
+and under `--defaults` the error) and `TestValidateNamesTheField` (the
+`wiki` row).
 
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
@@ -5439,3 +5450,21 @@ entries among revision 1's, and was renumbered at Step 38.
     issue read at each `status`, costs a read per closed issue for ever,
     and a count from the record alone would drop the gates passed before
     it was written.
+92. **The configuration (Step 30 of the swarm build, 2026-11-09).**
+    **`wiki` needs a declared issues repository** (section 3): `wiki:
+    true` with a `forge.repo` none of `repos` was accepted, though Step
+    23's design refused the wiki on the swarm's own repository; the
+    configuration cannot tell the swarm's own from another undeclared
+    repository, so validation now refuses `wiki` for any issues
+    repository none of `repos`, and the wizard's question 35 refuses the
+    wiki's `yes` there with the same message. **Question 1's default**
+    (section 11) listed every repository directly under the workspace,
+    the swarm's own repository's clone with them, so `init --defaults`
+    declared it a product repository; leaving out the clone whose origin
+    is `forge.repo` would need `forge.repo` before question 1, whose
+    answer it defaults from, so the default leaves out a clone whose
+    `origin`'s repository name begins `swarm-`, section 3's convention
+    (`<owner>/swarm-<name>`); a repository so named that is a product is
+    typed into the answer. **Question 4's follow-up** defaulted to `yes`
+    on the file's `notes` whatever issues repository was just answered;
+    it now does so only when the file's `forge.repo` is that one.

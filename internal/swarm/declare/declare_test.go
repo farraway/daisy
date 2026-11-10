@@ -162,6 +162,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: wiki: true beside notes; the swarm's own repository keeps its notes in notes/, and its wiki is no better than its tree`, func(c *Config) {
 			c.Forge.Repo, c.Wiki, c.Notes = "acme/swarm-x", true, true
 		}},
+		{`swarm.json: wiki: acme/swarm-x is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)`, func(c *Config) { c.Forge.Repo, c.Wiki = "acme/swarm-x", true }},
 		{`swarm.json: notes: acme/lib is a declared repository, which holds product code; notes/ is for the swarm's own issues repository (wiki keeps a product's)`, func(c *Config) { c.Forge.Repo, c.Notes = "acme/lib", true }},
 		{`swarm.json: trusted: no login (at least one is required)`, func(c *Config) { c.Trusted = nil }},
 		{`swarm.json: trusted[1]: "jane doe" is not a forge login`, func(c *Config) { c.Trusted = []string{"swarm-bot", "jane doe"} }},
