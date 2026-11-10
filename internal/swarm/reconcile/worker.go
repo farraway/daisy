@@ -302,7 +302,12 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 	}
 	if again {
 		// The second time, the stage stays and the issue is blocked: the
-		// maintainer's (G4).
+		// maintainer's (G4); unless the maintainer moved it during the run.
+		if now, moved, err := c.movedAway(false); err != nil {
+			return err
+		} else if moved {
+			second = fmt.Sprintf("Review round %d of %d on %s "+roundLimitAgain+" (at %s). %s", rounds, s.Cfg.MaxRounds, on, forge.ReviewInProgress, notBlocked(now))
+		}
 		if err := c.comment("reconciler", second); err != nil {
 			return err
 		}

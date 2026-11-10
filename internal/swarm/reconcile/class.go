@@ -1,11 +1,17 @@
 package reconcile
 
 import (
+	"errors"
 	"fmt"
+	iofs "io/fs"
+	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
+	"daisy/internal/ops"
 	"daisy/internal/swarm/forge"
 )
 
@@ -111,6 +117,9 @@ func (s *Swarm) autoPass(is forge.Issue, stage, gate string) ([]string, error) {
 	}
 	s.moved(is.Number, to)
 	fmt.Fprintf(s.Out, "#%d %s → %s (auto)\n", is.Number, stage, to)
+	if err := s.recordAuto(is.Number, stage); err != nil {
+		fmt.Fprintf(s.Err, "⚠ #%d: auto: %v\n", is.Number, err)
+	}
 	labels := slices.Clone(is.Labels)
 	labels[slices.Index(labels, stage)] = to
 	note := fmt.Sprintf("%s\n**reconciler:** auto at %s: a routine job passes the %s gate by itself, to %s.", autoMarker, strings.TrimPrefix(stage, "swarm:"), gate, strings.TrimPrefix(to, "swarm:"))
@@ -123,6 +132,53 @@ func (s *Swarm) autoPass(is forge.Issue, stage, gate string) ([]string, error) {
 
 // autoNote is the auto note's second line, naming the stage it passed.
 var autoNote = regexp.MustCompile(`^\*\*reconciler:\*\* auto at (proposal-posted|plan-0-posted): `)
+
+// recordAuto appends the gate Daisy passed for issue n at stage to
+// <state>/auto, `<RFC 3339 time> #<n> <stage>`, the stage without
+// `swarm:`: the count status keeps once the issue has left the forge's
+// window (AutoRecorded).
+func (s *Swarm) recordAuto(n int, stage string) error {
+	fs, path := s.O.FS(), filepath.Join(s.state(), "auto")
+	old, err := fs.ReadFile(path)
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return err
+	}
+	line := fmt.Sprintf("%s #%d %s\n", s.O.Now().UTC().Format(time.RFC3339), n, strings.TrimPrefix(stage, "swarm:"))
+	return fs.WriteFile(path, append(old, line...), 0o644)
+}
+
+// AutoRecorded is <state>/auto read (recordAuto): by issue, how many times
+// Daisy passed its triage gate and its plan gate; none when the file is
+// absent, and a line it cannot read counted nowhere.
+func AutoRecorded(fs ops.FS, state string) (map[int][2]int, error) {
+	b, err := fs.ReadFile(filepath.Join(state, "auto"))
+	if errors.Is(err, iofs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := map[int][2]int{}
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) != 3 {
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimPrefix(f[1], "#"))
+		if err != nil || !strings.HasPrefix(f[1], "#") {
+			continue
+		}
+		c := out[n]
+		switch "swarm:" + f[2] {
+		case forge.ProposalPosted:
+			c[0]++
+		case forge.PlanPosted:
+			c[1]++
+		}
+		out[n] = c
+	}
+	return out, nil
+}
 
 // AutoPasses is how many times Daisy passed is's triage gate and its plan
 // gate for a routine job: the auto notes on it, by the stage each names.

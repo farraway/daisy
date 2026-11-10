@@ -63,7 +63,8 @@ type maintainer struct {
 	swarm  string // the swarm's, trusted's last
 	n      int
 	at     forge.Ref
-	labels []string // issue n's, as issue read them
+	is     forge.Issue // issue n with its comments, as issue read it
+	labels []string    // issue n's, as issue read them and the verb's writes left them
 }
 
 // issueArg is the verb's <n>, a positive issue number, else usage: checked
@@ -90,12 +91,12 @@ func asMaintainer(c *Context, open opener) (*maintainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	vars := secrets(c, ws)
-	token := vars(MaintainerTokenEnv)
+	vars := readSecrets(c, ws, c.Stderr, MaintainerTokenEnv, cfg.Forge.TokenEnv)
+	token := vars[MaintainerTokenEnv]
 	if token == "" {
 		return nil, fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", MaintainerTokenEnv, filepath.Join(ws, ".env.sh"))
 	}
-	if token == vars(cfg.Forge.TokenEnv) {
+	if token == vars[cfg.Forge.TokenEnv] {
 		return nil, fmt.Errorf("Error: swarm: $%s holds the swarm's token ($%s); the maintainer's verbs act with your own (docs/swarm.md section 8)", MaintainerTokenEnv, cfg.Forge.TokenEnv)
 	}
 	var names []string
@@ -141,13 +142,13 @@ func (m *maintainer) issue(want string) (forge.Issue, error) {
 	}
 	switch {
 	case len(stage) == 0:
-		return is, fmt.Errorf("Error: swarm: #%d carries no swarm:* label; it is not the swarm's", m.n)
+		return is, fmt.Errorf("Error: swarm: #%d carries no stage label; nothing changed", m.n)
 	case len(stage) > 1:
 		return is, fmt.Errorf("Error: swarm: #%d carries %s; remove all but one on the forge first", m.n, strings.Join(stage, " and "))
 	case want != "" && stage[0] != want:
 		return is, fmt.Errorf("Error: swarm: #%d is %s, not %s; nothing changed", m.n, stage[0], want)
 	}
-	m.labels = is.Labels
+	m.is, m.labels = is, slices.Clone(is.Labels)
 	return is, nil
 }
 
@@ -164,26 +165,45 @@ func (m *maintainer) current() (pulls []forge.Pull, cur forge.Pull, ok bool, err
 	return pulls, pulls[len(pulls)-1], true, nil
 }
 
-// comment is the words after <n> as one comment; one that opens with the
-// swarm's marker is refused, since none of the maintainer's entries carries
-// it (section 6).
+// comment is the words after <n> as one comment, "" when they are blank;
+// one that opens with the swarm's marker is refused, since none of the
+// maintainer's entries carries it (section 6).
 func comment(c *Context) (string, error) {
 	text := strings.Join(c.Args[1:], " ")
+	if strings.TrimSpace(text) == "" {
+		return "", nil
+	}
 	if _, marked := reconcile.Marked(text); marked {
 		return "", fmt.Errorf("Error: swarm: the comment opens with the swarm's marker, which only the swarm's entries carry; nothing posted")
 	}
 	return text, nil
 }
 
-// relabel is a verb's transition, the maintainer's flag cleared with it
-// (section 5): the next pass of apply sets it again when the new stage
-// waits.
+// relabel is a verb's transition, then the maintainer's flag set as the
+// new labels want it (regate).
 func (m *maintainer) relabel(from, to string) error {
 	if err := m.f.Relabel(m.at, from, to); err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	fmt.Fprintf(m.c.Stdout, "#%d %s → %s\n", m.n, from, to)
-	return m.unflag(forge.Gated)
+	m.labels = append(slices.DeleteFunc(m.labels, func(l string) bool { return l == from }), to)
+	m.regate()
+	return nil
+}
+
+// regate clears swarm:gated from issue n after a verb's write unless its
+// labels now are gated (reconcile.Gated, the predicate the pass sets the
+// flag by: section 5), so the forge and status agree before the next
+// pass, which adds the flag, with its note, where it is missing. A removal
+// the forge refuses is a warning: the verb's write is made, and the next
+// pass clears the flag.
+func (m *maintainer) regate() {
+	if reconcile.Gated(m.labels, m.cfg.Gates, reconcile.ClassOf(m.is, m.swarm, m.cfg.Trusted)) {
+		return
+	}
+	if err := reconcile.Unflag(m.f, m.at, m.labels, forge.Gated, m.c.Stdout); err != nil {
+		fmt.Fprintf(m.c.Stderr, "⚠ #%d: %s not cleared (%v); the next pass of apply clears it\n", m.n, forge.Gated, err)
+	}
 }
 
 // unflag clears flag from issue n when it carries it.
@@ -194,23 +214,45 @@ func (m *maintainer) unflag(flag string) error {
 	return nil
 }
 
-func (m *maintainer) say(text string) error {
-	if err := m.f.Comment(m.at, text); err != nil {
+// say posts text on issue n (sayOn).
+func (m *maintainer) say(text string) error { return m.sayOn(m.at, m.is.Comments, text) }
+
+// sayOn posts text as the maintainer on the thread at, whose comments are
+// existing, unless its newest comment is the maintainer's with that text:
+// a verb run again after a write that followed its comment failed finds
+// the comment posted and goes on (section 11).
+func (m *maintainer) sayOn(at forge.Ref, existing []forge.Comment, text string) error {
+	on := ""
+	if at != m.at {
+		on = fmt.Sprintf(" on pull %s#%d", at.Repo, at.N)
+	}
+	if last := len(existing) - 1; last >= 0 && existing[last].Body == text && strings.EqualFold(existing[last].Author, m.login) {
+		fmt.Fprintf(m.c.Stdout, "#%d comment already posted%s\n", m.n, on)
+		return nil
+	}
+	if err := m.f.Comment(at, text); err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
-	fmt.Fprintf(m.c.Stdout, "#%d commented\n", m.n)
+	fmt.Fprintf(m.c.Stdout, "#%d commented%s\n", m.n, on)
 	return nil
 }
 
 // close closes issue n, then gives it terminal in place of its stage
-// label, stage, and clears the flag (section 5).
+// label, stage, and clears every flag (section 5), as reconcile.Retire
+// does, each refusal after the close named for what it left undone.
 func (m *maintainer) close(stage, terminal, how string) error {
 	if err := m.f.CloseIssue(m.n); err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	fmt.Fprintf(m.c.Stdout, "#%d closed%s\n", m.n, how)
-	if err := reconcile.Retire(m.f, m.at, stage, m.labels, terminal, m.c.Stdout); err != nil {
+	if err := m.f.Relabel(m.at, stage, terminal); err != nil {
 		return fmt.Errorf("Error: swarm: #%d is closed, but not relabelled %s: %v; relabel it on the forge", m.n, terminal, err)
+	}
+	fmt.Fprintf(m.c.Stdout, "#%d %s → %s\n", m.n, stage, terminal)
+	for _, flag := range forge.Flags {
+		if err := reconcile.Unflag(m.f, m.at, m.labels, flag, m.c.Stdout); err != nil {
+			return fmt.Errorf("Error: swarm: #%d is closed and relabelled %s, but %s is not cleared: %v; remove it on the forge", m.n, terminal, flag, err)
+		}
 	}
 	return nil
 }
@@ -259,6 +301,15 @@ func swarmClass(c *Context, open opener) error {
 		return err
 	}
 	if reconcile.ClassOf(is, m.swarm, m.cfg.Trusted) == class {
+		// An architecture job by default (no statement, or the
+		// maintainer's issue) carries no flag: set it, so the forge
+		// shows the class.
+		if class == reconcile.Architecture && !slices.Contains(m.labels, forge.ClassArchitecture) {
+			if err := reconcile.Flag(m.f, m.at, m.labels, forge.ClassArchitecture, c.Stdout); err != nil {
+				return fmt.Errorf("Error: swarm: %v", err)
+			}
+			return nil
+		}
 		fmt.Fprintf(c.Stdout, "#%d already %s\n", m.n, class)
 		return nil
 	}
@@ -268,7 +319,7 @@ func swarmClass(c *Context, open opener) error {
 		}
 		return m.say("Class: " + class)
 	}
-	if !slices.ContainsFunc(m.cfg.Trusted, func(l string) bool { return strings.EqualFold(l, m.login) }) {
+	if !m.trusted() {
 		return fmt.Errorf("Error: swarm: %s is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed", m.login)
 	}
 	if err := m.unflag(forge.ClassArchitecture); err != nil {
@@ -392,11 +443,20 @@ func swarmMerge(c *Context, open opener) error {
 func (m *maintainer) backToWorker(p forge.Pull, head string) error {
 	fmt.Fprintf(m.c.Stdout, "#%d not mergeable: back to the worker\n", m.n)
 	owner, _, _ := strings.Cut(m.cfg.Forge.Repo, "/")
-	if err := m.f.Comment(forge.Ref{Repo: p.Repo, N: p.Number}, reconcile.Direction(owner, m.cfg.Base, m.n, p, head)); err != nil {
+	if err := m.sayOnPull(p, reconcile.Direction(owner, m.cfg.Base, m.n, p, head)); err != nil {
+		return err
+	}
+	return m.relabel(forge.ReviewApproved, forge.ChangesRequested)
+}
+
+// sayOnPull posts text on pull request p's thread, as sayOn.
+func (m *maintainer) sayOnPull(p forge.Pull, text string) error {
+	ref := forge.Ref{Repo: p.Repo, N: p.Number}
+	existing, err := m.f.PullComments(ref)
+	if err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
-	fmt.Fprintf(m.c.Stdout, "#%d commented on pull %s#%d\n", m.n, p.Repo, p.Number)
-	return m.relabel(forge.ReviewApproved, forge.ChangesRequested)
+	return m.sayOn(ref, existing, text)
 }
 
 // swarmUnblock posts the maintainer's comment, then clears swarm:blocked
@@ -410,6 +470,9 @@ func swarmUnblock(c *Context, open opener) error {
 	if err != nil {
 		return err
 	}
+	if text == "" {
+		return UsageError("swarm unblock takes a comment after <n>, saying what changed")
+	}
 	m, err := asMaintainer(c, open)
 	if err != nil {
 		return err
@@ -421,27 +484,28 @@ func swarmUnblock(c *Context, open opener) error {
 	if !slices.Contains(is.Labels, forge.Blocked) {
 		return fmt.Errorf("Error: swarm: #%d is not blocked; nothing changed", m.n)
 	}
+	// The round limit's second time leaves the issue at
+	// review-1-in-progress, or at review-0-ready when T21's write was
+	// refused: either way no role runs.
 	stage, _ := reconcile.StageOf(is)
-	if stage == forge.ReviewInProgress && reconcile.AtTheRoundLimit(is, m.swarm) {
+	if (stage == forge.ReviewInProgress || stage == forge.ReviewReady) && reconcile.AtTheRoundLimit(is, m.swarm) {
 		return fmt.Errorf("Error: swarm: #%d: blocked at the review round limit, where both reviewers have reviewed the head and %s runs no one; relabel it on the forge first, %s for one more fix round or %s to re-plan, then unblock it; nothing changed", m.n, stage, forge.ChangesRequested, forge.PlanPosted)
 	}
-	if !slices.ContainsFunc(m.cfg.Trusted, func(l string) bool { return strings.EqualFold(l, m.login) }) {
+	if !m.trusted() {
 		fmt.Fprintf(c.Stderr, "⚠ %s is not in trusted: no member reads your comment (docs/swarm.md section 6)\n", m.login)
 	}
 	// The comment goes where the stage's role reads: the worker in
 	// review-3-changes-requested reads the current pull request's thread,
 	// whose newest entry may be its own BLOCKED: (section 6, rule 3).
 	if stage == forge.ChangesRequested {
-		pulls, err := m.f.Pulls(m.n)
+		_, cur, ok, err := m.current()
 		if err != nil {
-			return fmt.Errorf("Error: swarm: %v", err)
+			return err
 		}
-		if len(pulls) > 0 && pulls[len(pulls)-1].Open {
-			cur := pulls[len(pulls)-1]
-			if err := m.f.Comment(forge.Ref{Repo: cur.Repo, N: cur.Number}, text); err != nil {
-				return fmt.Errorf("Error: swarm: %v", err)
+		if ok && cur.Open {
+			if err := m.sayOnPull(cur, text); err != nil {
+				return err
 			}
-			fmt.Fprintf(m.c.Stdout, "#%d commented on pull %s#%d\n", m.n, cur.Repo, cur.Number)
 			return m.lift()
 		}
 	}
@@ -451,13 +515,21 @@ func swarmUnblock(c *Context, open opener) error {
 	return m.lift()
 }
 
-// lift clears swarm:blocked, and with it swarm:gated, which the next pass
-// sets again when the stage waits.
+// lift clears swarm:blocked, then swarm:gated unless the stage the block
+// kept is gated (regate).
 func (m *maintainer) lift() error {
 	if err := m.unflag(forge.Blocked); err != nil {
 		return err
 	}
-	return m.unflag(forge.Gated)
+	m.labels = slices.DeleteFunc(m.labels, func(l string) bool { return l == forge.Blocked })
+	m.regate()
+	return nil
+}
+
+// trusted: the maintainer's login is in trusted, so the role rule reads
+// its comments (section 6).
+func (m *maintainer) trusted() bool {
+	return slices.ContainsFunc(m.cfg.Trusted, func(l string) bool { return strings.EqualFold(l, m.login) })
 }
 
 // SwarmPause is `daisy swarm pause [<n>]`: with <n>, the maintainer's
@@ -530,6 +602,9 @@ func swarmBlock(c *Context, open opener) error {
 	}
 	if _, err := m.issue(""); err != nil {
 		return err
+	}
+	if !m.trusted() {
+		fmt.Fprintf(c.Stderr, "⚠ %s is not in trusted: the role rule does not read your Blocked by #%d, so it holds nothing (docs/swarm.md section 6)\n", m.login, b)
 	}
 	blocker, err := m.f.Issue(b)
 	if err != nil {

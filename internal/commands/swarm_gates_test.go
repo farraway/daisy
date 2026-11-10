@@ -3,6 +3,7 @@ package commands
 import (
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -80,10 +81,17 @@ func (f *flaky) Relabel(at forge.Ref, remove, add string) error {
 // revision with the open-slice sentence and the pull request in its
 // prompt; the worker continuing the same pull request; the rounds counted
 // again from the revised plan; the second time blocked at
-// review-1-in-progress, where the pair completed, with the second note.
+// review-1-in-progress, where the pair completed, with the second note;
+// or, the maintainer having moved the issue during the second reviewer's
+// run, not blocked, the second note saying so.
 func TestSwarmApplyRoundLimit(t *testing.T) {
-	for _, planGate := range []bool{true, false} {
-		t.Run(map[bool]string{true: "plan gate on", false: "plan gate off"}[planGate], func(t *testing.T) {
+	for _, tc := range []struct{ planGate, moved bool }{{true, false}, {false, false}, {true, true}} {
+		planGate := tc.planGate
+		name := map[bool]string{true: "plan gate on", false: "plan gate off"}[planGate]
+		if tc.moved {
+			name += ", moved during the run"
+		}
+		t.Run(name, func(t *testing.T) {
 			a := newApplyWS(t)
 			a.edit(func(c *declare.Config) {
 				c.MaxRounds = 1
@@ -131,6 +139,17 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 			cs, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 2})
 			if len(ps) != 1 || len(cs) != 1 || !strings.HasPrefix(cs[0].Body, mark("worker", 2)+"v2") {
 				t.Fatalf("the worker did not continue app#2: %+v %+v", ps, cs)
+			}
+			if tc.moved {
+				a.tick()
+				if err := a.apply(&moveOnReview{gitForge: a.git()}, "--once"); err != nil { // the pair, the issue moved to review-0-ready under the second
+					t.Fatal(err)
+				}
+				second := mark("reconciler", 2) + "Review round 1 of 1 on app#2 requested changes a second time (at swarm:review-1-in-progress). The issue was moved to swarm:review-0-ready during the run, so it is not blocked."
+				if got := labels(a.issue(1)); slices.Contains(got, forge.Blocked) || a.bodies(1)[len(a.bodies(1))-1] != second {
+					t.Fatalf("T11, second time, moved: %v %q", got, a.bodies(1))
+				}
+				return
 			}
 			a.pass() // the pair
 			second := mark("reconciler", 2) + "Review round 1 of 1 on app#2 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked."

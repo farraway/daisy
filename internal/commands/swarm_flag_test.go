@@ -382,7 +382,7 @@ func TestSwarmFlagAndTerminalsAreNoStage(t *testing.T) {
 	if err := a.status(a.forge); err != nil {
 		t.Fatal(err)
 	}
-	if out := a.stdout.String(); !strings.Contains(out, "\n  proposal-posted            1  #1\n") || !strings.Contains(out, "\nWaiting for you: triage #1 (architecture)\nHeld: nothing\n") ||
+	if out := a.stdout.String(); !strings.Contains(out, "\n  proposal-posted            1  #1\n") || !strings.Contains(out, "\nWaiting for you: triage #1\nHeld: nothing\n") ||
 		regexp.MustCompile(`#[2-7]\b`).MatchString(out) {
 		t.Errorf("status:\n%s", out)
 	}

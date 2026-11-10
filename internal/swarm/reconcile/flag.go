@@ -117,13 +117,15 @@ func (s *Swarm) flags() []forge.Issue {
 // gated (gateText).
 var gateHead = regexp.MustCompile(`^\*\*reconciler:\*\* gated at (\S+): `)
 
-// regated: is, flagged and gated still at the stage its labels name, was
-// gated again since its newest gate note without the flag being cleared
-// (section 5, one note per gating event): that note names another stage
-// (a stage moved within one pass, or by hand with the flag left on), or,
-// at plan-0-posted, the architect posted a plan after it (a revision,
-// after a comment or the round limit, T11). An issue with no gate note
-// (its note refused, or the flag set by hand) is not.
+// regated: is, flagged, not blocked and gated still at the stage its
+// labels name, was gated again since its newest gate note without the
+// flag being cleared (section 5, one note per gating event): that note
+// names another stage (a stage moved within one pass, or by hand with the
+// flag left on), or is the blocked gate's (a block lifted at a gated
+// stage, which `unblock` leaves flagged), or, at plan-0-posted, the
+// architect posted a plan after it (a revision, after a comment or the
+// round limit, T11). An issue with no gate note (its note refused, or the
+// flag set by hand) is not.
 func (s *Swarm) regated(is forge.Issue, labels []string) bool {
 	stage, _ := StageOf(forge.Issue{Labels: labels})
 	var note *forge.Comment
@@ -136,7 +138,7 @@ func (s *Swarm) regated(is forge.Issue, labels []string) bool {
 		return false
 	}
 	_, rest, _ := strings.Cut(note.Body, "\n")
-	if h := gateHead.FindStringSubmatch(rest); h == nil || "swarm:"+h[1] != stage {
+	if h := gateHead.FindStringSubmatch(rest); h == nil || "swarm:"+h[1] != stage || strings.HasPrefix(rest[len(h[0]):], blockedWhy) {
 		return true
 	}
 	plan, _, ok := (&Job{SwarmLogin: s.SwarmLogin, Issue: is}).Plan()

@@ -75,10 +75,13 @@ var roundLimitNote = regexp.MustCompile(`^Review round [0-9]+ of [0-9]+ on \S+ `
 
 // blocks: the swarm's entry marked m, with body, is a reconciler note that
 // blocked its issue: every note but the round limit's first, which
-// returns the issue to the architect, the gate notes, which say why the
-// issue waits, and the auto notes, which say why it did not.
+// returns the issue to the architect, a note on an issue the maintainer
+// moved during the run (notBlocked), which T17 left as it was, the gate
+// notes, which say why the issue waits, and the auto notes, which say why
+// it did not.
 func blocks(m Mark, body string) bool {
-	return m.Role == "reconciler" && m.Kind == "" && !strings.HasSuffix(swarmText(body), architectRevises)
+	text := swarmText(body)
+	return m.Role == "reconciler" && m.Kind == "" && !strings.HasSuffix(text, architectRevises) && !strings.HasSuffix(text, notBlockedTail)
 }
 
 // blockingNote is the newest of the reconciler's notes on is that blocked

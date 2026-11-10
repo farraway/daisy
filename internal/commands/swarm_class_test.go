@@ -108,7 +108,7 @@ func TestSwarmApplyRoutineJob(t *testing.T) {
 	if err := a.status(a.forge); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"\nWaiting for you: triage #3 (architecture); plan #2 (architecture); merge #1 (routine)\n", "\n  auto         2 gates passed for routine jobs (triage 1, plan 1)\n"} {
+	for _, want := range []string{"\nWaiting for you: triage #3; plan #2; merge #1 (routine)\n", "\n  auto         2 gates passed for routine jobs (triage 1, plan 1)\n"} {
 		if !strings.Contains(a.stdout.String(), want) {
 			t.Errorf("status lacks %q:\n%s", want, a.stdout.String())
 		}
@@ -220,8 +220,9 @@ func TestSwarmBatchCountsRoutineProposals(t *testing.T) {
 // `swarm class` both ways (section 11), as jane: architecture sets the
 // class flag on the owner's routine proposal and posts the statement;
 // routine clears it and posts the statement; a second routine changes
-// nothing; a maintainer-filed issue is made routine by the statement
-// alone; a word other than the two classes is usage, and a routine
+// nothing; a maintainer-filed issue, architecture by default with no
+// flag, is given the flag, then made routine; a word other than the two
+// classes is usage, and a routine
 // statement by a login not in trusted is refused before any write.
 func TestSwarmMaintainerClass(t *testing.T) {
 	m := newMaintainerWS(t)
@@ -242,8 +243,9 @@ func TestSwarmMaintainerClass(t *testing.T) {
 	}
 
 	m.as["jane-456"].CreateIssue("Fix the typo", "teh", []string{"swarm:plan-0-posted"}) // #2, jane's
+	m.ok(swarmClass, head+"#2 class-architecture\n", "2", "architecture")                // architecture by default, unflagged: the flag set
 	m.ok(swarmClass, head+"#2 already architecture\n", "2", "architecture")
-	m.ok(swarmClass, head+"#2 commented\n", "2", "routine")
+	m.ok(swarmClass, head+"#2 class-architecture cleared\n#2 commented\n", "2", "routine")
 	if is, _ := m.forge.Issue(2); reconcile.ClassOf(is, "swarm-bot", []string{"jane", "swarm-bot"}) != reconcile.Routine {
 		t.Errorf("#2 not routine: %+v", is)
 	}

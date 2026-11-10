@@ -26,9 +26,9 @@ after the maintainer has said yes to that write.
    quoting the run's own words where they matter. Then "Waiting for you"
    from `status` (on the forge, the same issues carry `swarm:gated`, and each gating posted a gate note on the issue naming what to examine and the verbs), each item with the decision it asks for and the
    evidence for it (for a plan, its `## Research` first: a wrong belief
-   there is wrong in every slice built on it). Each item carries its job
-   class, `routine` or `architecture`: only an architecture job waits at
-   triage and the plan; a routine one (the owner's `Class: routine`
+   there is wrong in every slice built on it). Each item after `plan`
+   carries its job class, `routine` or `architecture`; only an
+   architecture job waits at triage and the plan, so those name none; a routine one (the owner's `Class: routine`
    proposal, cut from a brief's milestone, at most two slices, no public
    API or protected path changed) was passed by Daisy with an `auto` note
    on the issue and first reaches the maintainer at the merge, where it
@@ -74,6 +74,7 @@ the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first.
 | `triage #n` or `plan #n` the maintainer finds routine; a routine job that should be read first | `daisy swarm class <n> routine`, `daisy swarm class <n> architecture` | routine clears `swarm:class-architecture` and posts `Class: routine`: Daisy then passes the job's triage and plan gates at its next pass; architecture sets the flag and posts `Class: architecture`: the job waits at every gate it has not yet passed. No member answers either comment |
 | `merge #n` (approval first, when a branch rule asks one) | `daisy swarm approve <n>` | a formal approving review of the issue's open pull request at its head |
 | `merge #n`, `next slice #n`, `close #n` | `daisy swarm merge <n>` | merges the current pull request at the head both swarm reviews approve (or finds it merged), then `swarm:review-2-approved → swarm:plan-1-accepted` when the plan declares a later slice, or closes the issue after its last, labelled `swarm:done`; a pull request the forge reports not mergeable (`base` moved under it) goes back to the worker instead: the direction to merge `base` on the pull request and `swarm:review-2-approved → swarm:review-3-changes-requested`, printed `#<n> not mergeable: back to the worker` |
+| `pull closed #n` | none: a relabel on the forge, or `daisy swarm close <n>` | the approved issue's current pull request was closed unmerged, which `merge` refuses; the maintainer decides whether the slice is built again (relabel `swarm:plan-1-accepted` on the forge) or the job dropped |
 | `blocked #n` | `daisy swarm unblock <n> <comment...>` | the comment, saying what changed, then the `swarm:blocked` flag cleared; the issue goes on from the stage the block kept |
 | a job to drop | `daisy swarm close <n> [comment...]` | the comment when given, then the issue closed, labelled `swarm:rejected` (a job done closes through `merge`, which finds a pull request merged by hand) |
 | — | `daisy swarm pause`, `daisy swarm resume` | no member launches until resumed; resume also releases a held owner batch |

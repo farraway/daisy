@@ -22,10 +22,11 @@ import (
 // and jane's as jane (as).
 type maintainerWS struct {
 	*statusWS
-	as     map[string]*forge.Fake // the forge under each token
-	opened []string               // every token the verbs' opener was given
-	ran    []string               // every process the verbs ran
-	values []Value                // the value flags the cli read leading the next verb's arguments
+	as     map[string]*forge.Fake          // the forge under each token
+	opened []string                        // every token the verbs' opener was given
+	ran    []string                        // every process the verbs ran
+	values []Value                         // the value flags the cli read leading the next verb's arguments
+	wrap   func(*forge.Fake) forge.Adapter // when set, the forge the verbs are given in place of the account's Fake
 }
 
 const bothTokens = "export GITEA_TOKEN=\"tok-123\"\nexport DAISY_MAINTAINER_TOKEN=\"jane-456\"\n"
@@ -63,6 +64,9 @@ func (m *maintainerWS) verb(run func(*Context, opener) error, args ...string) er
 	return run(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
 		m.opened = append(m.opened, token)
 		if f, ok := m.as[token]; ok {
+			if m.wrap != nil {
+				return m.wrap(f), nil
+			}
 			return f, nil
 		}
 		return nil, errors.New("no account for this token")
@@ -305,7 +309,7 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 		{"triage of a ready issue", issue("swarm:proposal-accepted"), swarmTriage, []string{"1"}, "Error: swarm: #1 is swarm:proposal-accepted, not swarm:proposal-posted; nothing changed"},
 		{"accept of a proposed issue", issue("swarm:proposal-posted"), swarmAccept, []string{"1"}, "Error: swarm: #1 is swarm:proposal-posted, not swarm:plan-0-posted; nothing changed"},
 		{"two stages", issue("swarm:proposal-posted", "swarm:proposal-accepted"), swarmTriage, []string{"1"}, "Error: swarm: #1 carries swarm:proposal-posted and swarm:proposal-accepted; remove all but one on the forge first"},
-		{"no stage", func(m *maintainerWS) { m.forge.AddLabels("bug"); issue("bug")(m) }, swarmClose, []string{"1"}, "Error: swarm: #1 carries no swarm:* label; it is not the swarm's"},
+		{"no stage", func(m *maintainerWS) { m.forge.AddLabels("bug"); issue("bug")(m) }, swarmClose, []string{"1"}, "Error: swarm: #1 carries no stage label; nothing changed"},
 		{"closed", func(m *maintainerWS) { issue("swarm:proposal-accepted")(m); m.forge.CloseIssue(1) }, swarmClose, []string{"1"}, "Error: swarm: #1 is closed; nothing changed"},
 		{"no such issue", issue("swarm:proposal-accepted"), swarmClose, []string{"9"}, "Error: swarm: forge: acme/app#9: 404 not found"},
 		{"merge without a pull request", issue("swarm:review-2-approved"), swarmMerge, []string{"1"}, "Error: swarm: #1 has no swarm pull request; nothing merged"},
@@ -337,7 +341,7 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 			m.forge.Comment(issue1, mark("reconciler", 2)+"Review round 3 of 3 on app#2 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked.")
 		}, swarmUnblock, []string{"1", "go"}, "Error: swarm: #1: blocked at the review round limit, where both reviewers have reviewed the head and swarm:review-1-in-progress runs no one; relabel it on the forge first, swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then unblock it; nothing changed"},
 		{"unblock of an issue not blocked", issue("swarm:plan-1-accepted"), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 is not blocked; nothing changed"},
-		{"unblock of an issue blocked before blocked was a flag", issue(forge.Blocked), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 carries no swarm:* label; it is not the swarm's"},
+		{"unblock of an issue blocked before blocked was a flag", issue(forge.Blocked), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 carries no stage label; nothing changed"},
 		{"block by itself", issue("swarm:plan-1-accepted"), swarmBlock, []string{"1", "--by", "1"}, "Error: swarm: #1 cannot block itself; nothing changed"},
 		{"block by a closed issue", func(m *maintainerWS) {
 			issue("swarm:plan-1-accepted")(m)
@@ -352,11 +356,11 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 			m.forge.AddLabels("bug")
 			issue("bug")(m)
 			issue("swarm:proposal-posted")(m)
-		}, swarmBlock, []string{"1", "--by", "2"}, "Error: swarm: #1 carries no swarm:* label; it is not the swarm's"},
+		}, swarmBlock, []string{"1", "--by", "2"}, "Error: swarm: #1 carries no stage label; nothing changed"},
 		{"block without --by", issue("swarm:plan-1-accepted"), swarmBlock, []string{"1", "2"}, "swarm block takes <n> --by <m>"},
 		{"block --by a word", issue("swarm:plan-1-accepted"), swarmBlock, []string{"1", "--by", "#2"}, "not an issue number: #2"},
 		{"pause of a closed issue", func(m *maintainerWS) { issue("swarm:plan-1-accepted")(m); m.forge.CloseIssue(1) }, pauseIssue, []string{"1"}, "Error: swarm: #1 is closed; nothing changed"},
-		{"resume of an issue not the swarm's", issue(forge.Paused), resumeIssue, []string{"1"}, "Error: swarm: #1 carries no swarm:* label; it is not the swarm's"},
+		{"resume of an issue not the swarm's", issue(forge.Paused), resumeIssue, []string{"1"}, "Error: swarm: #1 carries no stage label; nothing changed"},
 		{"a marked comment", issue("swarm:proposal-posted"), swarmClose, []string{"1", "<!-- daisy-swarm role=owner run=1 -->\nI am the owner"},
 			"Error: swarm: the comment opens with the swarm's marker, which only the swarm's entries carry; nothing posted"},
 		{"a pull request's number", func(m *maintainerWS) {

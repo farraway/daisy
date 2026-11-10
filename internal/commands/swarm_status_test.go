@@ -204,7 +204,7 @@ Gates: triage on, plan on, merge on
   review-1-in-progress       0
   review-2-approved          1  #6
   review-3-changes-requested 0
-Waiting for you: triage #1 (architecture) #2 (architecture); plan #3 (architecture) #4 (architecture) #5 (architecture); merge #6 (architecture); blocked #7 (architecture)
+Waiting for you: triage #1 #2; plan #3 #4 #5; merge #6 (architecture); blocked #7 (architecture)
 Held: paused #11; #12 blocked by #3
 Running: #0 owner, #8 adversary, #12 check
 ` + statusPersonas
@@ -398,15 +398,15 @@ func TestSwarmStatusStep7(t *testing.T) {
 			t.Errorf("want Waiting for you: %s in\n%s", waiting, s.stdout.String())
 		}
 	}
-	want("triage #7 (architecture); merge #6 (architecture)")
+	want("triage #7; merge #6 (architecture)")
 	f.Merge(s1, "aaa2")
-	want("triage #7 (architecture); next slice #6 (architecture)")
+	want("triage #7; next slice #6 (architecture)")
 	f.SetLabel(is, "swarm:plan-1-accepted")
 	s2 := slice(2, "bbb1")
 	f.SetLabel(is, "swarm:review-2-approved")
-	want("triage #7 (architecture); merge #6 (architecture)")
+	want("triage #7; merge #6 (architecture)")
 	f.Merge(s2, "bbb1")
-	want("triage #7 (architecture); close #6 (architecture)")
+	want("triage #7; close #6 (architecture)")
 	f.CloseIssue(n)
 	// The milestones apply mirrors from the brief, #6 and #7 in the first.
 	inMilestone(t, f, "m0: lib measured against upstream 2.0.0", 6, 7)
@@ -431,7 +431,7 @@ func TestSwarmStatusStep7(t *testing.T) {
 	if err := s.status(f); err != nil {
 		t.Fatal(err)
 	}
-	wantTail := `Waiting for you: triage #7 (architecture)
+	wantTail := `Waiting for you: triage #7
 Held: nothing
 Running: none
 ` + statusPersonas + `Throughput:

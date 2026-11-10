@@ -208,9 +208,15 @@ func Slice(is forge.Issue, p forge.Pull, swarmLogin string) (s, S int) {
 // AfterApproval is what an approved issue waits for with the merge gate
 // on (section 12): "merge" until its current pull request is merged, then
 // "next slice" when the accepted plan declares a slice after it (T13) or
-// "close" when it was the last (T19).
+// "close" when it was the last (T19); "pull closed" when it was closed
+// unmerged, which neither `swarm merge` nor the merge step merges.
 func AfterApproval(is forge.Issue, pulls []forge.Pull, swarmLogin string) string {
-	if len(pulls) == 0 || !pulls[len(pulls)-1].Merged {
+	switch {
+	case len(pulls) == 0:
+		return "merge"
+	case !pulls[len(pulls)-1].Merged && !pulls[len(pulls)-1].Open:
+		return "pull closed"
+	case !pulls[len(pulls)-1].Merged:
 		return "merge"
 	}
 	if sliceOf(pulls[len(pulls)-1], is.Number) < planSlices(is, swarmLogin) {

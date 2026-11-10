@@ -290,6 +290,35 @@ func (c *collection) relabel(to string) error {
 	return nil
 }
 
+// movedAway: the open issue, read again, carries neither the run's stage
+// nor, with home, the run's home, the maintainer having moved it during
+// the run, so a flag set there (flag) is skipped; now is the stage it
+// carries, "" for none.
+func (c *collection) movedAway(home bool) (now string, moved bool, err error) {
+	is, err := c.s.Forge.Issue(c.r.N)
+	if err != nil {
+		return "", false, err
+	}
+	c.is.Labels = is.Labels
+	if !is.Open || c.stage() != "" || home && slices.Contains(is.Labels, c.home()) {
+		return "", false, nil
+	}
+	now, _ = StageOf(is)
+	return now, true, nil
+}
+
+// notBlocked ends a reconciler note that blocked nothing, the issue moved
+// during the run to now (movedAway).
+func notBlocked(now string) string {
+	if now == "" {
+		now = "no stage"
+	}
+	return "The issue was moved to " + now + " during the run" + notBlockedTail
+}
+
+// notBlockedTail is notBlocked's end, which blocks reads.
+const notBlockedTail = ", so it is not blocked."
+
 // home is where a run that does not move the issue on leaves it (section
 // 5, T22): review-0-ready for a reviewer, whichever of the pair it was,
 // and the stage it was launched on for every other role.
@@ -366,8 +395,18 @@ func (c *collection) flag(home bool) error {
 	return c.step("flagged " + forge.Blocked)
 }
 
-// note posts the reconciler's note on the issue, then T17.
-func (c *collection) note(text, outcome string) error {
+// note posts the reconciler's note on the issue, head then resume and
+// kept, then T17. An issue the maintainer moved during the run off both
+// the run's stage and its home, which T17 leaves as it is, gets head and
+// kept then notBlocked in place of resume, a note that blocked nothing
+// (blocks).
+func (c *collection) note(head, resume, kept, outcome string) error {
+	text := head + " " + resume + kept
+	if now, moved, err := c.movedAway(true); err != nil {
+		return err
+	} else if moved {
+		text = head + kept + " " + notBlocked(now)
+	}
 	if err := c.comment("reconciler", text); err != nil {
 		return err
 	}
@@ -387,12 +426,11 @@ func (c *collection) fail(reason string) error {
 		}
 	}
 	fmt.Fprintf(c.s.Out, "%sfailed (%s)\n", c.head, reason)
-	note := fmt.Sprintf("%s run %d failed: %s (at %s). Remove %s to resume.", c.r.Role, c.r.K, reason, c.home(), forge.Blocked)
 	kept, err := c.keptNote()
 	if err != nil {
 		return err
 	}
-	return c.note(note+kept, "failed")
+	return c.note(fmt.Sprintf("%s run %d failed: %s (at %s).", c.r.Role, c.r.K, reason, c.home()), "Remove "+forge.Blocked+" to resume.", kept, "failed")
 }
 
 // blocked posts the member's BLOCKED: text, on the pull request for the
@@ -416,7 +454,7 @@ func (c *collection) blocked(text string, pull *forge.Pull) error {
 	if err != nil {
 		return err
 	}
-	return c.note(fmt.Sprintf("%s run %d is blocked (at %s). Answer, then remove %s to resume.", c.r.Role, c.r.K, c.home(), forge.Blocked)+kept, "blocked")
+	return c.note(fmt.Sprintf("%s run %d is blocked (at %s).", c.r.Role, c.r.K, c.home()), "Answer, then remove "+forge.Blocked+" to resume.", kept, "blocked")
 }
 
 // keptNote keeps a worker run's commits (section 7.6, step 2) and is the

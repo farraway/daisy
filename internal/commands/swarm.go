@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -122,15 +123,15 @@ func cancelledOr(c *Context, err error) error {
 }
 
 // secret is a variable as `daisy check-secrets` resolves it: its
-// assignment in <ws>/.env.sh (read, never run), else the environment.
-func secret(c *Context, ws, name string) string { return secrets(c, ws)(name) }
+// assignment in <ws>/.env.sh (read, never run), else the environment;
+// .env.sh's problems reported on stderr.
+func secret(c *Context, ws, name string) string { return readSecrets(c, ws, c.Stderr, name)[name] }
 
-// secrets resolves variables as secret does, <ws>/.env.sh read once and
-// its problems reported once.
-func secrets(c *Context, ws string) func(name string) string { return readSecrets(c, ws, c.Stderr) }
-
-// readSecrets is secrets with the problems reported to warn.
-func readSecrets(c *Context, ws string, warn io.Writer) func(name string) string {
+// readSecrets resolves each of names as secret does, <ws>/.env.sh read
+// once and its problems reported to warn. Only names are kept: every other
+// assignment, the maintainer's token among them when it is not asked for,
+// is dropped with the parse.
+func readSecrets(c *Context, ws string, warn io.Writer, names ...string) map[string]string {
 	var vars map[string]string
 	if b, err := c.Ops.FS().ReadFile(filepath.Join(ws, ".env.sh")); err == nil {
 		var problems []string
@@ -139,12 +140,15 @@ func readSecrets(c *Context, ws string, warn io.Writer) func(name string) string
 			fmt.Fprintf(warn, "⚠️  .env.sh %s\n", p)
 		}
 	}
-	return func(name string) string {
-		if v, ok := vars[name]; ok {
-			return v
+	kept := make(map[string]string, len(names))
+	for _, name := range names {
+		v, ok := vars[name]
+		if !ok {
+			v = c.Ops.Getenv(name)
 		}
-		return c.Ops.Getenv(name)
+		kept[name] = v
 	}
+	return kept
 }
 
 // writeDeclaration writes swarm.json when the answers differ from its
@@ -347,8 +351,7 @@ func swarmStatus(c *Context, open opener) error {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	// What waits for the maintainer: the open issues reconcile.Gated holds
-	// for, the predicate apply flags them by, each with its job class, by
-	// item: a blocked one under
+	// for, the predicate apply flags them by, by item: a blocked one under
 	// blocked, an approved one under what its pull request calls for
 	// (section 12). What the maintainer holds: the paused ones, and those
 	// whose newest maintainer comment names an open blocker.
@@ -392,7 +395,10 @@ func swarmStatus(c *Context, open opener) error {
 		return fmt.Errorf("Error: swarm: reading the briefs: %v", err)
 	}
 
-	out := c.Stdout
+	// The report is written whole at the end: a read failing on the way
+	// leaves stdout empty, not a partial report before the error.
+	var report bytes.Buffer
+	out := &report
 	state := cfg.Forge.State(c.Env.Local)
 	fmt.Fprintf(out, "Swarm: %s on %s (%s), repositories %s\n", cfg.Forge.Repo, cfg.Forge.ForgeHost(), cfg.Forge.Kind, strings.Join(names, ", "))
 	fmt.Fprintf(out, "State: %s%s\n", state, stateNotes(c.Ops.FS(), state))
@@ -405,11 +411,17 @@ func swarmStatus(c *Context, open opener) error {
 		fmt.Fprintln(out)
 	}
 	var waiting []string
-	for _, item := range []string{"triage", "plan", "merge", "next slice", "close", "blocked"} {
+	for _, item := range []string{"triage", "plan", "merge", "next slice", "close", "pull closed", "blocked"} {
 		if len(waits[item]) > 0 {
 			var ns []string
 			for _, n := range waits[item] {
-				ns = append(ns, fmt.Sprintf("#%d (%s)", n, classes[n]))
+				// Only an architecture job waits at the triage and plan
+				// gates: the class is named where it varies.
+				if item == "triage" || item == "plan" {
+					ns = append(ns, fmt.Sprintf("#%d", n))
+				} else {
+					ns = append(ns, fmt.Sprintf("#%d (%s)", n, classes[n]))
+				}
 			}
 			waiting = append(waiting, item+" "+strings.Join(ns, " "))
 		}
@@ -432,12 +444,25 @@ func swarmStatus(c *Context, open opener) error {
 		p := cfg.Personas[r]
 		fmt.Fprintf(out, "  %-12s %-10s %s %s\n", r, p.Provider, p.Model, p.Effort)
 	}
-	var autoTriage, autoPlan int
-	for _, si := range issues {
-		t, p := reconcile.AutoPasses(si.Issue, acct.Login)
-		autoTriage, autoPlan = autoTriage+t, autoPlan+p
+	// The gates Daisy passed, per issue the larger of the forge's auto
+	// notes (on the issues read) and <state>/auto's lines, so the count
+	// keeps an issue gone from the forge's window.
+	auto, err := reconcile.AutoRecorded(o.FS(), state)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: reading %s: %v", filepath.Join(state, "auto"), err)
 	}
-	if err := throughput(c, state, cfg.Budget, autoTriage, autoPlan); err != nil {
+	if auto == nil {
+		auto = map[int][2]int{}
+	}
+	for n, si := range issues {
+		t, p := reconcile.AutoPasses(si.Issue, acct.Login)
+		auto[n] = [2]int{max(auto[n][0], t), max(auto[n][1], p)}
+	}
+	var autoTriage, autoPlan int
+	for _, a := range auto {
+		autoTriage, autoPlan = autoTriage+a[0], autoPlan+a[1]
+	}
+	if err := throughput(c, out, state, cfg.Budget, autoTriage, autoPlan); err != nil {
 		return fmt.Errorf("Error: swarm: reading the runs: %v", err)
 	}
 	for _, n := range slices.Sorted(maps.Keys(issues)) {
@@ -451,10 +476,20 @@ func swarmStatus(c *Context, open opener) error {
 	}
 	var active []string
 	var milestones []forge.Milestone
+	slugs := map[string]string{} // a slug → the active brief that has it, as apply mirrors them
 	for _, b := range briefs {
 		if b.Status != "active" {
 			continue
 		}
+		if other, taken := slugs[b.Slug()]; taken {
+			line := fmt.Sprintf("%s: shares the name %s with %s; mirrored to no milestone", b.Path, b.Slug(), other)
+			if slices.Contains(met, b.Path) {
+				line += fmt.Sprintf("; met (owner run %d)", metRun)
+			}
+			active = append(active, "  "+line+"\n")
+			continue
+		}
+		slugs[b.Slug()] = b.Path
 		if milestones == nil {
 			if milestones, err = f.Milestones(); err != nil {
 				return fmt.Errorf("Error: swarm: %v", err)
@@ -467,7 +502,8 @@ func swarmStatus(c *Context, open opener) error {
 	} else {
 		fmt.Fprint(out, "Briefs:\n"+strings.Join(active, ""))
 	}
-	return nil
+	_, err = c.Stdout.Write(report.Bytes())
+	return err
 }
 
 // statusIssue is one issue as status reads it: the issue with its
@@ -663,11 +699,11 @@ func running(o ops.Ops, ws, repo string) string {
 	return strings.Join(s, ", ")
 }
 
-// throughput prints section 11's Throughput block from <state>/runs/, and
-// the gates Daisy passed for routine jobs as status counted them on the
-// issues it read; no runs/ is no run, and a run without a result is being
+// throughput writes section 11's Throughput block to out from
+// <state>/runs/, and the gates Daisy passed for routine jobs as status
+// counted them; no runs/ is no run, and a run without a result is being
 // prepared.
-func throughput(c *Context, state string, budget *declare.Budget, autoTriage, autoPlan int) error {
+func throughput(c *Context, out io.Writer, state string, budget *declare.Budget, autoTriage, autoPlan int) error {
 	var runs, posted, blocked, failed, faults, uncosted, approved, atLimit, blockedThere int
 	var today, all float64
 	times := map[string][]time.Duration{} // run times by the stage launched on, "batch" and "check"
@@ -766,7 +802,6 @@ func throughput(c *Context, state string, budget *declare.Budget, autoTriage, au
 			blockedThere++
 		}
 	}
-	out := c.Stdout
 	fmt.Fprintln(out, "Throughput:")
 	fmt.Fprintf(out, "  %-12s %d (%d posted, %d blocked, %d failed, %d faults, %d other)\n", "runs", runs, posted, blocked, failed, faults, runs-posted-blocked-failed-faults)
 	fmt.Fprintf(out, "  %-12s $%.2f today, $%.2f in all (%d runs without a cost)\n", "cost", today, all, uncosted)
@@ -835,17 +870,24 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 	unset := func(v string) error {
 		return fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", v, filepath.Join(ws, ".env.sh"))
 	}
-	vars := secrets(c, ws) // its problems reported here, once
-	token := vars(cfg.Forge.TokenEnv)
-	if token == "" {
-		return unset(cfg.Forge.TokenEnv)
-	}
 	used := map[string]bool{}
 	for _, p := range cfg.Personas {
 		used[p.Provider] = true
 	}
-	for _, p := range slices.Sorted(maps.Keys(used)) {
-		if key := cfg.Keys[p]; key.Env != nil && vars(*key.Env) == "" {
+	providers := slices.Sorted(maps.Keys(used))
+	names := []string{cfg.Forge.TokenEnv}
+	for _, p := range providers {
+		if key := cfg.Keys[p]; key.Env != nil {
+			names = append(names, *key.Env)
+		}
+	}
+	vars := readSecrets(c, ws, c.Stderr, names...) // its problems reported here, once
+	token := vars[cfg.Forge.TokenEnv]
+	if token == "" {
+		return unset(cfg.Forge.TokenEnv)
+	}
+	for _, p := range providers {
+		if key := cfg.Keys[p]; key.Env != nil && vars[*key.Env] == "" {
 			return unset(*key.Env)
 		}
 	}
@@ -869,11 +911,11 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	defer release()
-	var names []string
+	var repos []string
 	for _, r := range cfg.Repos {
-		names = append(names, r.Name)
+		repos = append(repos, r.Name)
 	}
-	f, err := open(o, cfg.Forge, names, token)
+	f, err := open(o, cfg.Forge, repos, token)
 	if err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
@@ -901,7 +943,7 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		fmt.Fprintln(c.Stdout, labelsLine(created, renamed))
 	}
 	s := &reconcile.Swarm{O: o, WS: ws, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
-		User: ids[0] + ":" + ids[1], Secret: func(v string) string { return readSecrets(c, ws, io.Discard)(v) } /* re-read at each use, warned once above */, Out: c.Stdout, Err: c.Stderr}
+		User: ids[0] + ":" + ids[1], Secret: func(v string) string { return readSecrets(c, ws, io.Discard, v)[v] } /* re-read at each use, warned once above */, Out: c.Stdout, Err: c.Stderr}
 	if once {
 		if err := s.Pass(true); err != nil {
 			return fmt.Errorf("Error: swarm: %v", err)
