@@ -11,6 +11,7 @@ import (
 	"daisy/internal/swarm/brief"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
+	"daisy/internal/swarm/provider"
 )
 
 // Job is what one run's two prompt files are rendered from (section 7.3):
@@ -229,6 +230,9 @@ func (j *Job) repository() string {
 		for _, n := range j.names() {
 			clone("/work/"+n, n, j.Cfg.Base)
 		}
+		if names := j.names(); Workdir(j.Cfg, j.Role) == "/work" && len(names) > 0 {
+			lines = append(lines, "- Working directory: /work, holding every clone; the repository is /work/"+names[0])
+		}
 	case "worker":
 		s, r, _ := j.WorkerSlice()
 		clone("/work", r, fmt.Sprintf("swarm/%d-%d", j.N, s))
@@ -250,13 +254,30 @@ func (j *Job) repository() string {
 	return strings.Join(lines, "\n")
 }
 
-// ResourceMounts is where each resource is mounted: /resources/<path>.
+// ResourcesMount is the directory under which each resource is mounted,
+// inside /work so that a CLI confined to its working directory reaches
+// it (sections 7.2 and 9); a clone's .git/info/exclude names it.
+const ResourcesMount = "/work/.resources"
+
+// ResourceMounts is where each resource is mounted: /work/.resources/<path>.
 func ResourceMounts(resources []string) []string {
 	var out []string
 	for _, r := range resources {
-		out = append(out, "/resources/"+strings.Trim(strings.TrimPrefix(r, "./"), "/"))
+		out = append(out, ResourcesMount+"/"+strings.Trim(strings.TrimPrefix(r, "./"), "/"))
 	}
 	return out
+}
+
+// Workdir is the member's working directory, section 7.2's <W>: /work,
+// and for the owner and the architect the first repository's clone
+// /work/<name>, unless their provider is Confined to its working
+// directory (section 9): then /work, which holds every clone, /work/.swarm,
+// the notes and the resources.
+func Workdir(cfg declare.Config, role string) string {
+	if (role == "owner" || role == "architect") && len(cfg.Repos) > 0 && !provider.Providers[cfg.Personas[role].Provider].Confined {
+		return "/work/" + cfg.Repos[0].Name
+	}
+	return "/work"
 }
 
 var safeWord = regexp.MustCompile(`^[A-Za-z0-9_./:=@%+,-]+$`)
@@ -592,7 +613,7 @@ func (j *Job) newestReport(p forge.Pull) time.Time {
 func (b *Batch) sections(j *Job) []string {
 	var briefs []string
 	for _, br := range b.active() {
-		briefs = append(briefs, doc(fmt.Sprintf("## %s (Status: active; mounted at /resources/%s)", br.Path, br.Path), Shift(trim(br.Text), 2)))
+		briefs = append(briefs, doc(fmt.Sprintf("## %s (Status: active; mounted at %s/%s)", br.Path, ResourcesMount, br.Path), Shift(trim(br.Text), 2)))
 	}
 	// An issue's line names its stage, not the flag; a closed issue's
 	// its terminal, or the stage it was closed at.

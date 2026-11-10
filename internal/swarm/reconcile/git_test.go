@@ -52,8 +52,18 @@ func TestCloneAndTheCommitMsgHook(t *testing.T) {
 	if git(dir, "config", "user.name") != "worker (Daisy swarm)" || git(dir, "config", "user.email") != "swarm@example.net" {
 		t.Error("identity")
 	}
-	if b, _ := os.ReadFile(filepath.Join(dir, ".git", "info", "exclude")); !strings.HasSuffix(string(b), "/.swarm/\n/.notes/\n") {
-		t.Errorf("exclude %q", b)
+	// The mount points under /work are excluded: a worker's `git add -A`
+	// commits nothing of /work/.swarm, the notes or a resource.
+	for _, f := range []string{".swarm/out.md", ".notes/n.md", ".resources/docs/README.md"} {
+		os.MkdirAll(filepath.Dir(filepath.Join(dir, f)), 0o755)
+		os.WriteFile(filepath.Join(dir, f), []byte("x"), 0o644)
+	}
+	git(dir, "add", "-A")
+	if staged := git(dir, "diff", "--cached", "--name-only"); staged != "" {
+		t.Errorf("git add -A staged %q", staged)
+	}
+	for _, f := range []string{".swarm", ".notes", ".resources"} {
+		os.RemoveAll(filepath.Join(dir, f))
 	}
 	os.WriteFile(filepath.Join(dir, "a"), []byte("a"), 0o644)
 	git(dir, "add", "a")

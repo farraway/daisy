@@ -75,7 +75,7 @@ func TestSwarmApplyOwnIssuesRepository(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-accepted"}) || a.stderr.Len() != 0 {
 		t.Fatalf("the batch's proposal: %v\nstdout:\n%s\nstderr:\n%s", got, a.stdout.String(), a.stderr.String())
 	}
-	if p := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(p, "## swarm-x/briefs/m0.md (Status: active; mounted at /resources/swarm-x/briefs/m0.md)") ||
+	if p := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(p, "## swarm-x/briefs/m0.md (Status: active; mounted at /work/.resources/swarm-x/briefs/m0.md)") ||
 		!strings.Contains(p, "- Research notes: /work/.notes, notes/ in acme/swarm-x, pushed by Daisy after the run\n\n# Research notes\n\nNone.\n") {
 		t.Errorf("the batch's prompt:\n%s", p)
 	}

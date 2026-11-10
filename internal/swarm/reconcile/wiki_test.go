@@ -73,7 +73,7 @@ func TestRenderResearchNotes(t *testing.T) {
 		{File: "loose.md", Subject: "no pin", Source: "lib", Repo: "lib", Behind: -1, Checked: "someday"},
 	}
 	system, prompt := Render(j)
-	has(t, "prompt", prompt, []string{"- Resources (read-only): /resources/docs\n- Research notes: /work/.notes, the wiki, pushed by Daisy after the run\n\n# Research notes\n\n" +
+	has(t, "prompt", prompt, []string{"- Resources (read-only): /work/.resources/docs\n- Research notes: /work/.notes, the wiki, pushed by Daisy after the run\n\n# Research notes\n\n" +
 		"- /work/.notes/ruleslib.md: ruleslib's rules; source https://example.net/ruleslib v2.0.0, an external source (its pin and its date alone date it); written 2026-11-01 by architect run 3 on #14; checked 2026-11-04 (2 days ago)\n" +
 		"- /work/.notes/board.md: the board; source app 1a2b3c4, 12 commits on app's main since the pin; written 2026-11-06 by owner run 1; checked 2026-11-06 (today)\n" +
 		"- /work/.notes/gone.md: a lost pin; source lib deadbee, a pin not in lib's history; no Written: line; never checked\n" +

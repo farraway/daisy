@@ -171,7 +171,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("stdout:\n%s", a.stdout.String())
 	}
 	prompt := a.file("0-owner-1", "io/prompt.md")
-	if !strings.Contains(prompt, "# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /resources/docs/briefs/a.md)\n") ||
+	if !strings.Contains(prompt, "# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /work/.resources/docs/briefs/a.md)\n") ||
 		!strings.Contains(prompt, "## docs/briefs/b.md (Status: active") || strings.Contains(prompt, "docs/briefs/c.md") {
 		t.Errorf("batch prompt:\n%s", prompt)
 	}

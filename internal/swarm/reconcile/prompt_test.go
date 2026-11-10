@@ -98,7 +98,7 @@ const wantArchitectPrompt = `<!-- daisy-swarm prompt: acme/app#1 architect run 1
 - Issues: acme/app on forge.example.net
 - Clone /work/app: acme/app, branch main, base main, check make check
 - Clone /work/lib: acme/lib, branch main, base main, no check declared
-- Resources (read-only): /resources/docs
+- Resources (read-only): /work/.resources/docs
 
 # Issue #1: Drift check
 
@@ -442,7 +442,7 @@ func TestRenderOwner(t *testing.T) {
 	b.Batch = &Batch{Briefs: briefs, Propose: 3}
 	sys, prompt = Render(b)
 	has(t, "batch system.md", sys, []string{`Propose up to 3 new jobs for acme/app, most important first, toward the first milestone`})
-	has(t, "batch prompt.md", prompt, []string{"# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /resources/docs/briefs/a.md)\n\n### A\nStatus: active\nFirst.\n\n#### M1\n",
+	has(t, "batch prompt.md", prompt, []string{"# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /work/.resources/docs/briefs/a.md)\n\n### A\nStatus: active\nFirst.\n\n#### M1\n",
 		"# Open swarm issues\n\nNone.\n\n# Recently closed\n\nNone.\n"}, "b.md", "notes.md", "# Issue", "# Thread")
 	b.Batch.Briefs = nil
 	sys, prompt = Render(b)
@@ -486,8 +486,8 @@ func TestRenderWorkerFirstSlice(t *testing.T) {
 // The mounts a member is given leave to reach: those outside its working
 // directory.
 func TestOutside(t *testing.T) {
-	dirs := []string{"/work/.swarm", "/work/lib", "/resources/docs", "/workshop"}
-	if got := outside("/work", dirs); !reflect.DeepEqual(got, []string{"/resources/docs", "/workshop"}) {
+	dirs := []string{"/work/.swarm", "/work/lib", "/work/.resources/docs", "/workshop"}
+	if got := outside("/work", dirs); !reflect.DeepEqual(got, []string{"/workshop"}) {
 		t.Errorf("in /work: %q", got)
 	}
 	if got := outside("/work/app", dirs); !reflect.DeepEqual(got, dirs) {

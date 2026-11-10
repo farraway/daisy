@@ -310,9 +310,9 @@ func Protected(paths, patterns []string) []string {
 // before any container sees it (section 7.1, step 3): a local base branch,
 // no remote, the role's identity `<role> (Daisy swarm) <commit_email>`, a
 // commit-msg hook stamping `Co-Authored-By: <co_author>` on every commit
-// (none for an empty co_author: no trailer), and `/.swarm/` and the notes'
-// mount point `/.notes/` excluded. It
-// returns the head commit.
+// (none for an empty co_author: no trailer), and `/.swarm/` and the mount
+// points of the notes, `/.notes/`, and of the resources, `/.resources/`,
+// excluded. It returns the head commit.
 func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor string) (string, error) {
 	if _, err := g.run("", "clone", "--no-local", "--quiet", "--branch", branch, g.Mirror(r.Name), dir); err != nil {
 		return "", err
@@ -339,7 +339,7 @@ func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor stri
 	if err := fs.MkdirAll(filepath.Dir(exclude), 0o755); err != nil {
 		return "", err
 	}
-	if err := fs.WriteFile(exclude, append(old, "/.swarm/\n/.notes/\n"...), 0o644); err != nil {
+	if err := fs.WriteFile(exclude, append(old, "/.swarm/\n/.notes/\n/.resources/\n"...), 0o644); err != nil {
 		return "", err
 	}
 	if coAuthor != "" {

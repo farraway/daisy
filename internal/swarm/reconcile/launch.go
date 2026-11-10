@@ -98,7 +98,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	persona := s.Cfg.Personas[j.Role]
 	work := filepath.Join(r.Dir, "work")
 	var startLines, reads []string
-	workdir, image := "/work", repo.Image
+	workdir, image := Workdir(s.Cfg, j.Role), repo.Image
 	clone := func(rp declare.Repo, branch, dir string) (string, error) {
 		sha, err := s.git().Clone(rp, branch, s.Cfg.Base, dir, j.Role, s.Cfg.Forge.CommitEmail, persona.CoAuthor)
 		if err != nil {
@@ -114,8 +114,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			}
 			startLines = append(startLines, "start "+rp.Name+" "+sha)
 		}
-		first := s.Cfg.Repos[0]
-		workdir, image = "/work/"+first.Name, first.Image
+		image = s.Cfg.Repos[0].Image
 		reads = append(reads, "/work/.swarm")
 		for _, rp := range s.Cfg.Repos[1:] {
 			reads = append(reads, "/work/"+rp.Name)
@@ -158,6 +157,22 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	}
 	for i, res := range ResourceMounts(s.Cfg.Resources) {
 		src, err := fs.EvalSymlinks(filepath.Join(s.WS, s.Cfg.Resources[i]))
+		if err != nil {
+			return false, err
+		}
+		// The mount point made in the run's own tree, as /work/.notes is,
+		// so that Docker creates none in it: a directory for a directory,
+		// an empty file for a file.
+		point := filepath.Join(work, strings.TrimPrefix(res, "/work/"))
+		info, err := fs.Stat(src)
+		if err != nil {
+			return false, err
+		}
+		if info.IsDir() {
+			err = fs.MkdirAll(point, 0o755)
+		} else if err = fs.MkdirAll(filepath.Dir(point), 0o755); err == nil {
+			err = fs.WriteFile(point, nil, 0o644)
+		}
 		if err != nil {
 			return false, err
 		}
