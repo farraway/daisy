@@ -40,7 +40,9 @@ and the old workspace path of a brief still naming it; item 107; Step
 seed of it and Drift; item 108; Step 6, 2026-11-10: `init` creating or
 adopting the swarm repository with the maintainer's token, cloning it in
 a folder holding none, seeding, committing and pushing it, and writing
-`<state>/env`; section 10's three repository calls; item 109); a swarm
+`<state>/env`; section 10's three repository calls; item 109; Step 6a,
+2026-11-10: a variable unset at `init` written commented out in
+`<state>/env`; item 110); a swarm
 not yet moved runs in the workspace layout that section 11, Moving a
 swarm into its repository, describes, until Step 7 retires that layout
 once the maintainer says every swarm has moved.
@@ -334,7 +336,7 @@ Every file Daisy writes, and nothing else:
 | `<swarm>/README.md`; `README.md` in `briefs/`, `notes/` and `docs/` | a heading and a paragraph saying what the repository, or the directory, holds and that `daisy swarm` runs from the clone (the one in `notes/` without a `Subject:` line, so no index lists it, 7.3; the one in `briefs/` without a `Status:` line, so it is no brief, section 4) | `swarm init` | only when the file is absent |
 | `<swarm>/.gitignore` | the line `.env.sh` | `swarm init` | only when the file is absent; an existing one is left as it is |
 | `<swarm>/.git` | one commit of the files this run wrote (and of each file of this table the clone holds and its `HEAD` lacks: an earlier run's whose commit failed), by the clone's own git identity (the maintainer's), its message `swarm: written by init`, pushed to the swarm repository's default branch (section 11); in a clone of an empty repository, `HEAD` first pointed at that branch (`git symbolic-ref`) | `swarm init` (`git add`, `git commit` of those paths alone, `git push`) | when a file it would commit differs from the clone's `HEAD`: one it wrote, or one of this table the clone holds and its `HEAD` lacks |
-| `<state>/env` | one line `export <VAR>='<value>'` per variable the configuration names (`forge.token_env`, each `keys` `env` in the providers' name order) and `DAISY_MAINTAINER_TOKEN`, each value the process environment's at `init`, single-quoted (a `'` in it written `'\''`), empty when unset there; mode `0600` | `swarm init` | only when the file is absent; the maintainer edits it, and Daisy never rewrites it |
+| `<state>/env` | one line `export <VAR>='<value>'` per variable the configuration names (`forge.token_env`, each `keys` `env` in the providers' name order) and `DAISY_MAINTAINER_TOKEN`, each value the process environment's at `init`, single-quoted (a `'` in it written `'\''`); a variable unset or empty there is written commented out, `# <VAR>=`, which assigns nothing, so the environment still supplies it (section 3, Secret values) until the maintainer fills the line in; mode `0600` | `swarm init` | only when the file is absent; the maintainer edits it, and Daisy never rewrites it |
 | `<state>/lock` | one line, the holder: `apply[ --once] since <RFC 3339 time> pid <pid>` | `swarm apply` | on taking the lock; the lock is released, not the file removed, at exit |
 | `<state>/paused` | one line: `paused <RFC 3339 time>`, or `paused <RFC 3339 time>: <reason>` when `apply` wrote it (`swarm fault: <reason>`, `budget: <per_day\|total> $<limit> reached ($<spent>)`) | `swarm pause` and `swarm apply` (created), `swarm resume` (removed) | on the command; `apply`: at the second swarm fault in a row (7.7) or when the budget is reached (section 3) |
 | `<state>/owner-held` | one line: `held <RFC 3339 time>: <reason>` | `swarm apply` (created), `swarm resume` (removed) | when the owner's batch run fails or proposes nothing |
@@ -577,7 +579,10 @@ run), else the process environment (the fallback lets a unit's
 `Environment=` supply a value; section 14, item 6). `<state>/env` lies
 outside every repository (section 14, item 101): `swarm init` writes it
 when absent (section 11), mode `0600`, and the maintainer edits it;
-Daisy never rewrites it. A file a group or other may read is refused
+Daisy never rewrites it. A variable `init` found unset is written
+commented out, `# <VAR>=`: a comment assigns nothing, so that variable
+is the environment's until the maintainer fills its line in (an empty
+assignment would shadow a unit's `Environment=`; section 14, item 110). A file a group or other may read is refused
 before it is read: `Error: swarm: <state>/env is readable by others
 (mode <mode>); run chmod 600 on it`, `<state>` the path. A line that
 cannot be read is `⚠️  <state>/env <problem>`, as `check-secrets` says
@@ -2470,8 +2475,9 @@ notes).
    credential can reach a clone's reflog or config either.
 4. **Names, not values.** `swarm.json` names the variables
    (`forge.token_env`, a `keys` `env`) and counts the slots; the values
-   live in `<state>/env` (mode `0600`, section 3) or the environment, and
-   the logins under `$DAISY_LOCAL/swarm/credentials/`, outside every
+   live in `<state>/env` (mode `0600`, section 3) or the environment (a
+   variable `init` found unset is commented out there, `# <VAR>=`, and so
+   the environment's), and the logins under `$DAISY_LOCAL/swarm/credentials/`, outside every
    repository and every workspace. A resource is a checkout of pushed
    content, never a working tree, and may not contain `.env.sh` or
    `.daisy` (section 3), so no mount carries a secrets file.
@@ -3194,7 +3200,7 @@ the step that builds each, which waits for a run that needs it.
 | Writes | the swarm repository on the forge when absent, and the swarm's access to it (the maintainer's token); the clone, `git clone <ssh_url> <dir>/<repo>`, when `init` runs outside a clone of the swarm repository and `<dir>/<repo>` is absent (`<dir>` the working folder; a `<dir>/<repo>` that is a clone of it holding no `swarm.json` is the clone, taken as it is; one that is not a clone of it, or that holds a `swarm.json`, is refused before any write); in the clone, the files of section 2's table that are absent or whose answers changed, then one commit of those paths and of each file of that table the clone holds and its `HEAD` lacks (an earlier run's whose commit failed), by the clone's git identity (the maintainer's) and its push, `git -C <swarm> push origin HEAD:<branch>`, `<branch>` the repository's `default_branch`, with the clone's own credentials; `<state>/env` when absent; the mirrors, `<state>/git/<repo>` and `<state>/git/<name>` per declared repository, made and fetched as 7.1, step 1 says; the labels (the swarm's token) |
 | Order | answers 1–32; validation as section 3 (the prompt files and the clone's `origin` excepted, which this run may write and clone, and `trusted` and `forge.commit_email`, which the account fills); outside a clone, `<dir>/<repo>` checked (absent, or a clone of the swarm repository holding no `swarm.json`); the swarm's token set and its `Login()`; the maintainer's token set, not the swarm's, and its `Login()` not the swarm's login; questions 33 and 34, asked only now, so that 33's default leaves out the swarm's login and an answer naming it is refused and asked again (`swarm.json: trusted: "<login>" is the token's own login; the swarm needs its own forge account (section 8)`), and 34's default is the account's email; the repository read, created when absent, and the swarm's account given access; the clone; the swarm's read check; question 35, the notes; validation again, the clone's `origin` included; the declared repositories' mirrors, made and fetched (7.1, step 1), which `repos/<name>.md`'s seed and the readiness warnings read; the files; the commit and the push; `<state>/env`; the swarm repository's mirror, after the push, so that it holds what `init` pushed and `status` shows no drift; `EnsureLabels`; the readiness warnings; the unit file printed. A failure stops there, so a failed token check writes nothing, and a re-run after any later failure takes up where it stopped |
 | Stdout | in this order, each write named with the token that made it: `✓ Maintainer <login>: <owner>/<repo> created` or `  Maintainer <login>: <owner>/<repo> exists`; `✓ Maintainer <login>: <swarm-login> may write to <owner>/<repo>`; `✓ Cloned <owner>/<repo> into <swarm>` when it cloned; `✓ Token $<VAR> reads <owner>/<repo> as <login>` (after the read check); `✓ Wrote swarm.json` or `  Unchanged swarm.json`; per role `✓ Wrote prompts/<role>.md` or `  Kept prompts/<role>.md (exists)`, and the same for each other file of section 2's table, in its order (`repos/<name>.md` per declared repository, the `README.md` at the top, then in `briefs/`, `notes/` and `docs/`, and `.gitignore`); `✓ Committed and pushed <short sha> to <owner>/<repo>'s <branch> as <git author>` (`<short sha>` seven hex digits, `<git author>` `<name> <<email>>`) when it committed (a file it wrote, or one of section 2's table the clone holds and its `HEAD` lacks), else `  Nothing to commit`; `✓ Wrote <state>/env (mode 0600)` or `  Kept <state>/env (exists)`; `✓ Mirrors: <repo>, <name>, … fetched`; `✓ Token $<VAR>: labels 16 present (<c> created, <r> renamed)`; a blank line, then the unit file and the install line (below) |
-| Stderr | the questions; a refused answer's validation message (without `Error: `), then the same question again; `Cancelled — no answer on stdin (EOF); nothing written.`; `⚠️  <state>/env <problem>` for a line of it that cannot be read (it and the lines after it are not, as `check-secrets` says of a `.env.sh`); `⚠ <state>/env: $<VAR> is empty; set it before 'daisy swarm apply'` for each variable it wrote without a value; the readiness warnings (below) |
+| Stderr | the questions; a refused answer's validation message (without `Error: `), then the same question again; `Cancelled — no answer on stdin (EOF); nothing written.`; `⚠️  <state>/env <problem>` for a line of it that cannot be read (it and the lines after it are not, as `check-secrets` says of a `.env.sh`); `⚠ <state>/env: $<VAR> is not set; its line is commented out: fill it in, or set $<VAR> in apply's environment` for each variable it wrote commented out (unset or empty in its environment); the readiness warnings (below) |
 | Exit codes | 0 written (or unchanged), or cancelled at EOF; 1 an invalid file or default (`Error: swarm.json: …`), a token unset, the maintainer's token the swarm's or answering the swarm's login (`Error: swarm: $DAISY_MAINTAINER_TOKEN holds the swarm's token ($<VAR>); the maintainer's writes act with your own (docs/swarm.md section 8)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN is <login>'s token, the swarm's account ($<VAR>'s); the maintainer's writes act with your own (docs/swarm.md section 8)`), a forge kind without an adapter (`Error: swarm: forge: kind github has no adapter yet; …`), the repository's read, creation or access refused (`Error: swarm: $DAISY_MAINTAINER_TOKEN cannot <read\|create\|give <swarm-login> write access to> <owner>/<repo>: <forge error>`), the clone refused (`Error: swarm: <dir>/<repo> exists and is not a clone of <owner>/<repo>`, `Error: swarm: <dir>/<repo> is the swarm's clone; run 'daisy swarm init' in it, where its swarm.json gives the answers`, or `Error: swarm: git clone <ssh_url> <dir>/<repo>: <git's error>`), the read check failing (`Error: swarm: $<VAR> cannot read <owner>/<repo>: <forge error>`, `Error: swarm: $<VAR> cannot read the declared repositories: <forge error>`, `Error: swarm: $<VAR> cannot read its own account: <forge error>`), a write failing (a file, or the commit: `Error: swarm: commit in <swarm>: <git's error>`), the push refused (`Error: swarm: push <swarm>: <git's error>; the commit stays in the clone: pull, then push it`), a mirror's fetch failing, `EnsureLabels` failing (a refused rename or create among the causes; the files stay written; a re-run completes it); 2 usage. A readiness warning never changes the exit code |
 | Ops | Real |
 | Idempotence | `init --defaults` run twice: the second run writes no file and makes no label (Step 1's claim, held on its Fakes and on the instance, where the fourth run reported `Unchanged`, five `Kept` and `8 present (0 created)`, the line before the terminals and Step 15's renames); in revision 6 the second run, from the clone the first made, creates no repository, commits nothing and keeps `<state>/env` (Step 6 of revision 6's plan, on its Fakes) |
@@ -3254,8 +3260,10 @@ commit`), and a rewritten `swarm.json` whose commit failed stays staged
 for the maintainer to commit; and a clone of an empty repository
 gets the default branch as its first branch before the commit. The
 push is `git push origin HEAD:<branch>`. `<state>/env` is written after
-the push, from the process environment (each value single-quoted), with
-the warnings above, and kept when present. A re-run after a failure
+the push, from the process environment (each value single-quoted; a
+variable unset there written commented out, `# <VAR>=`, so that
+`apply`'s environment still supplies it), with the warnings above, and
+kept when present. A re-run after a failure
 takes up where it stopped: the forge's repository and access are read
 again, the clone is found, the files written are kept, and a commit
 whose push was refused is the maintainer's to push. The old layout's
@@ -6583,3 +6591,23 @@ entries among revision 1's, and was renumbered at Step 38.
     in-memory forge and real git. The instance smoke (a scratch
     `swarm-<name>` created on the Gitea instance and deleted) needs the
     maintainer's say-so on their token and is not run by the step.
+110. **An unset secret is written commented out (Step 6a of revision 6's
+    plan, as built, 2026-11-10; the maintainer's choice, from Step 6's
+    Deferred item).** `init` wrote a variable unset in its environment
+    to `<state>/env` as `export <VAR>=''`; an assignment in the file wins
+    over the environment (section 3, Secret values), so that empty line
+    shadowed the value a unit's `Environment=` or the shell would supply,
+    the fallback's purpose (item 6). It now writes `# <VAR>=` (the
+    `export` left out: the file is read, never run, and either form reads
+    the same once filled in), a comment the reader skips, so the
+    variable is the environment's until the maintainer fills the line
+    in. The warning stays, reworded to say what to do: `⚠ <state>/env:
+    $<VAR> is not set; its line is commented out: fill it in, or set
+    $<VAR> in apply's environment`. An empty value counts as unset, as
+    every verb reads it. The reader is unchanged: a comment was always no
+    assignment, so `check-secrets` reports the variable as the
+    environment's, else `Not configured`. Tests: `init`'s claim test
+    leaves `<state>/env` as written and sets the architect's token in
+    `apply`'s environment, and the pass launches it with that value (red
+    while `init` wrote the empty assignment); `check-secrets` in a clone
+    reads a commented line as no assignment.

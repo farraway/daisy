@@ -268,8 +268,9 @@ func commitAndPush(c *Context, at declare.Place, cfg declare.Config, branch stri
 // writeEnv writes <state>/env when absent, mode 0600 (section 3, Secret
 // values): one line per variable the configuration names and the
 // maintainer's token, each the process environment's value, single-quoted
-// as a shell reads it; each empty one is warned of. An existing file is
-// never rewritten.
+// as a shell reads it; an unset one is written commented out, `# NAME=`,
+// so that it shadows no value apply's environment supplies, and is warned
+// of. An existing file is never rewritten.
 func writeEnv(c *Context, cfg declare.Config) error {
 	fs := c.Ops.FS()
 	path := secretsFile(c, cfg)
@@ -278,11 +279,13 @@ func writeEnv(c *Context, cfg declare.Config) error {
 		return nil
 	}
 	var b strings.Builder
-	var empty []string
+	var unset []string
 	for _, name := range cfg.SecretNames() {
 		v := c.Ops.Getenv(name)
 		if v == "" {
-			empty = append(empty, name)
+			unset = append(unset, name)
+			fmt.Fprintf(&b, "# %s=\n", name)
+			continue
 		}
 		fmt.Fprintf(&b, "export %s='%s'\n", name, strings.ReplaceAll(v, "'", `'\''`))
 	}
@@ -293,8 +296,8 @@ func writeEnv(c *Context, cfg declare.Config) error {
 		return fmt.Errorf("Error: cannot write %s: %v", path, err)
 	}
 	fmt.Fprintf(c.Stdout, "✓ Wrote %s (mode 0600)\n", path)
-	for _, name := range empty {
-		fmt.Fprintf(c.Stderr, "⚠ %s: $%s is empty; set it before 'daisy swarm apply'\n", path, name)
+	for _, name := range unset {
+		fmt.Fprintf(c.Stderr, "⚠ %s: $%s is not set; its line is commented out: fill it in, or set $%s in apply's environment\n", path, name, name)
 	}
 	return nil
 }

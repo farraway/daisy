@@ -23,7 +23,8 @@ import (
 // repository's holding the push) and the labels with the swarm's token,
 // each write's line naming its token; a second run, from the clone,
 // writes nothing; then `apply --once` runs a pass that reads what init
-// pushed.
+// pushed. A variable unset at init is written commented out, so the
+// environment supplies it at apply (revision 6's plan, Step 6a).
 func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	s := newSwarmWSIn(t, true)
 	if _, err := os.Stat(s.ws); err == nil {
@@ -49,7 +50,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	if s.stdout.String() != want {
 		t.Errorf("stdout:\n%s\nwant:\n%s", s.stdout.String(), want)
 	}
-	if !strings.Contains(s.stderr.String(), "⚠ "+env+": $CLAUDE_CODE_OAUTH_TOKEN is empty; set it before 'daisy swarm apply'\n") {
+	if !strings.Contains(s.stderr.String(), "⚠ "+env+": $CLAUDE_CODE_OAUTH_TOKEN is not set; its line is commented out: fill it in, or set $CLAUDE_CODE_OAUTH_TOKEN in apply's environment\n") {
 		t.Errorf("stderr:\n%s", s.stderr.String())
 	}
 
@@ -84,9 +85,9 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 		t.Errorf("swarm.json: %v %+v", err, c)
 	}
 	// <state>/env: mode 0600, the configuration's variables and the
-	// maintainer's, from the environment.
+	// maintainer's, from the environment; the unset one commented out.
 	if fi, err := os.Stat(env); err != nil || fi.Mode().Perm() != 0o600 ||
-		readAbs(env) != "export GITEA_TOKEN='tok-123'\nexport CLAUDE_CODE_OAUTH_TOKEN=''\nexport DAISY_MAINTAINER_TOKEN='jane-456'\n" {
+		readAbs(env) != "export GITEA_TOKEN='tok-123'\n# CLAUDE_CODE_OAUTH_TOKEN=\nexport DAISY_MAINTAINER_TOKEN='jane-456'\n" {
 		t.Errorf("<state>/env: %v %q", err, readAbs(env))
 	}
 	// The swarm repository's mirror holds the push.
@@ -107,11 +108,12 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 		t.Errorf("second run:\n%s", out)
 	}
 
-	// apply --once on what init left, once the maintainer has set the
-	// architect's token in <state>/env: the architect reads the pushed
-	// commit.
+	// apply --once on what init left, <state>/env untouched and the
+	// architect's token set in apply's environment (a unit's
+	// Environment=): the commented line shadows nothing, and the
+	// architect, given the environment's value, reads the pushed commit.
 	a := &applyWS{statusWS: &statusWS{swarmWS: s, issues: "swarm-app"}, runner: &runner.Fake{}, now: fixedClock().Now()}
-	os.WriteFile(env, []byte(strings.Replace(readAbs(env), "CLAUDE_CODE_OAUTH_TOKEN=''", "CLAUDE_CODE_OAUTH_TOKEN='oauth-token-0123456789abcdef0123456789'", 1)), 0o600)
+	a.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token-0123456789abcdef0123456789"
 	os.WriteFile(a.state("owner-held"), []byte("held 2026-11-06T14:00:00Z: test\n"), 0o644)
 	a.cloned()
 	if err := a.status(a.forge); err != nil || a.stderr.Len() != 0 {
@@ -123,6 +125,9 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-0-posted", forge.Gated}) ||
 		!strings.Contains(a.result("1-architect-1"), "\nresource swarm-app "+gitIn(t, up, "rev-parse", "main")+"\n") {
 		t.Errorf("the pass: %v\n%s\n%s", got, a.result("1-architect-1"), a.stderr.String())
+	}
+	if len(a.runner.Launched) != 1 || a.runner.Launched[0].EnvValue != "oauth-token-0123456789abcdef0123456789" {
+		t.Errorf("the architect's credential: %+v", a.runner.Launched)
 	}
 }
 

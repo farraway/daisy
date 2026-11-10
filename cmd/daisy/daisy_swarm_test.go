@@ -429,7 +429,10 @@ func TestSwarmVerbsWithoutAWorkspace(t *testing.T) {
 	}
 
 	env := filepath.Join(state, "env")
-	if err := os.WriteFile(env, []byte("export GITEA_TOKEN=\"tok-456\"\nexport DAISY_MAINTAINER_TOKEN=\"jane-456\"\n"), 0o600); err != nil {
+	// A variable init found unset is its commented line, `# NAME=`: no
+	// assignment, so the row is the environment's value, else not
+	// configured (revision 6's plan, Step 6a).
+	if err := os.WriteFile(env, []byte("export GITEA_TOKEN=\"tok-456\"\n# CLAUDE_CODE_OAUTH_TOKEN=\nexport DAISY_MAINTAINER_TOKEN=\"jane-456\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	code, out, errs = runWith(m.swarmOps(inside, g), "check-secrets")
@@ -437,6 +440,12 @@ func TestSwarmVerbsWithoutAWorkspace(t *testing.T) {
 	if code != 0 || out != want || errs != "" {
 		t.Errorf("check-secrets in the clone: exit %d %q\n%s\nwant\n%s", code, errs, out, want)
 	}
+	m.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-env-123"
+	code, out, _ = runWith(m.swarmOps(inside, g), "check-secrets")
+	if code != 0 || !strings.Contains(out, "\n✅ CLAUDE_CODE_OAUTH_TOKEN: oauth-en...\n") {
+		t.Errorf("check-secrets, the commented variable in the environment: exit %d\n%s", code, out)
+	}
+	delete(m.vars, "CLAUDE_CODE_OAUTH_TOKEN")
 	os.Chmod(env, 0o640)
 	code, out, _ = runWith(m.swarmOps(inside, g), "check-secrets")
 	if code != 1 || !strings.Contains(out, "❌ "+env+" is readable by others (mode 0640); run chmod 600 on it\n") || strings.Contains(out, "tok-456") {
