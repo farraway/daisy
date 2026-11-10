@@ -120,6 +120,10 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 		func(ops.Ops, string) runner.Runner { return run })
 }
 
+// exitPrefix runs a member's argv under sh, which writes the CLI's exit
+// status to /work/.swarm/exit once it has exited (section 7.2).
+var exitPrefix = []string{"sh", "-c", `"$@"; s=$?; echo "$s" >/work/.swarm/exit; exit "$s"`, "sh"}
+
 func (a *applyWS) result(run string) string {
 	b, _ := os.ReadFile(a.state(filepath.Join("runs", run, "result")))
 	return string(b)
@@ -173,7 +177,7 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	docs, _ := filepath.EvalSymlinks(filepath.Join(a.ws, "docs"))
 	if spec.Name != "daisy-swarm.acme.app.1.architect.1" || spec.Label != "acme/app#1/architect" || spec.User != "1000:1000" ||
 		spec.EnvVar != "CLAUDE_CODE_OAUTH_TOKEN" || spec.EnvValue != a.vars["CLAUDE_CODE_OAUTH_TOKEN"] || spec.Credential != "" ||
-		spec.Workdir != "/work/app" || spec.Image != "daisy-member:1" || !reflect.DeepEqual(spec.Argv, wantArgv) ||
+		spec.Workdir != "/work/app" || spec.Image != "daisy-member:1" || !reflect.DeepEqual(spec.Argv, append(slices.Clone(exitPrefix), wantArgv...)) ||
 		!reflect.DeepEqual(spec.Mounts, []runner.Mount{{Src: run + "/work", Dst: "/work"}, {Src: run + "/io", Dst: "/work/.swarm"}, {Src: docs, Dst: "/resources/docs", ReadOnly: true}}) {
 		t.Errorf("spec %+v", spec)
 	}
@@ -401,7 +405,7 @@ func TestSwarmApplyOnXAI(t *testing.T) {
 	}
 	spec := a.runner.Launched[0]
 	if spec.EnvVar != "XAI_API_KEY" || spec.EnvValue != a.vars["XAI_API_KEY"] || spec.Credential != "" || spec.Slot != "" || spec.Home != "" ||
-		spec.Argv[0] != "grok" || !slices.Contains(spec.Argv, "--trust") || spec.Argv[len(spec.Argv)-2] != "-p" {
+		spec.Argv[len(exitPrefix)] != "grok" || !slices.Contains(spec.Argv, "--trust") || spec.Argv[len(spec.Argv)-2] != "-p" {
 		t.Errorf("spec %+v", spec)
 	}
 	if r := a.result("1-architect-1"); !strings.Contains(r, "credential xai env XAI_API_KEY\nexited 0 2026-11-06T15:00:00Z\ncost 0.01268905 tokens 7210/1893 turns 7\nposted comment\n") {
@@ -435,7 +439,7 @@ func TestSwarmApplyOnASlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec := a.runner.Launched[0]
-	if spec.Credential != "openai/1" || spec.Slot != slot || spec.Home != "CODEX_HOME" || spec.EnvVar != "" || spec.Argv[0] != "codex" || !slices.Contains(spec.Argv, "--cd") {
+	if spec.Credential != "openai/1" || spec.Slot != slot || spec.Home != "CODEX_HOME" || spec.EnvVar != "" || spec.Argv[len(exitPrefix)] != "codex" || !slices.Contains(spec.Argv, "--cd") {
 		t.Errorf("spec %+v", spec)
 	}
 	if _, err := os.Stat(filepath.Join(slot, "config.toml")); err == nil {
@@ -475,7 +479,7 @@ func TestSwarmApplyOnAnXAISlot(t *testing.T) {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
 	spec := a.runner.Launched[0]
-	if spec.Credential != "xai/1" || spec.Slot != slot || spec.Home != "GROK_HOME" || spec.EnvVar != "" || spec.Argv[0] != "grok" {
+	if spec.Credential != "xai/1" || spec.Slot != slot || spec.Home != "GROK_HOME" || spec.EnvVar != "" || spec.Argv[len(exitPrefix)] != "grok" {
 		t.Errorf("spec %+v", spec)
 	}
 	args := strings.Join(spec.Args(), "\n")

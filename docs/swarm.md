@@ -265,6 +265,7 @@ Stages of a software factory the version leaves out, each by choice:
     ├── io/system.md                 # the persona and the Task (mounted at /work/.swarm)
     ├── io/prompt.md                 # the material: issue, thread, plan, pull request (section 7.3)
     ├── io/out.md                    # what the member wrote
+    ├── io/exit                      # the CLI's exit status, written by the sh it runs under once it has exited (section 7.2)
     ├── stdout, stderr               # the provider CLI's raw output
     ├── result                       # how the run ended, what it cost and what was posted (below)
     ├── check.out                    # a worker run's check output (section 7.6)
@@ -289,11 +290,12 @@ Every file Daisy writes, and nothing else:
 | `<state>/wiki/`, `<state>/notes/` | with `wiki` (section 3), a clone of the issues repository's wiki; with `notes` (section 3), a clone of the swarm's own issues repository; either at its head as last fetched, its branch the one the clone checked out (the forge's default) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, and the notes' commits, 7.6) | before each pass's first launch; at the collection of each owner's and architect's run |
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
 | `<run>/io/out.md` | the member's output | the member (in the container) | during the run |
+| `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
-| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `wiki` or `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value); for a worker's run and a first reviewer's, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `out.md` written: 7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports them (section 9); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
+| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `wiki` or `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value); for a worker's run and a first reviewer's, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports them (section 9); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/check/` | a clone of the fetched head for the check | `swarm apply` (`git clone` from `<state>/git/<name>`), then the check | before the check; removed when the run is collected |
-| `<run>/work/` | the clone the member works in (the owner's and the architect's: a directory of clones, `<name>/` per declared repository) | `swarm apply` (`git clone` from `<state>/git/<name>`), then the member | before the launch; removed when the run is collected or abandoned |
+| `<run>/work/` | the clone the member works in (the owner's and the architect's: a directory of clones, `<name>/` per declared repository) | `swarm apply` (`git clone` from `<state>/git/<name>`), then the member | before the launch; removed when the run is collected or abandoned, a directory the member left unreadable given the owner's rights first (7.6) |
 | `<run>/notes/` | with `wiki`, a copy of `<state>/wiki`'s pages; with `notes`, of `<state>/notes`'s `notes/` directory (empty when it has none, or when it is not a directory); as the pass fetched them, without `.git` | `swarm apply` (the copy), then the owner's and the architect's member (notes) | before the launch; removed when the run is collected or abandoned, but kept when its notes were not pushed (`notes kept`, 7.6) |
 | `<slot>/` | `auth.json`, one login of the provider's account; nothing else at a launch | the maintainer (`auth.json`, at login: section 8), the member (`auth.json` refreshed, and the CLI's own files), `swarm apply` (every entry but `auth.json` removed) | `apply`: before each launch on the slot, under its lock |
 | `<slot>.lock` | one line, the holder: `<owner>/<repo>#<n>/<role> run <k> since <RFC 3339 time> pid <pid>` | `swarm apply` | on taking the slot (7.1); released, not removed, when the run's `docker run` has returned |
@@ -1339,6 +1341,7 @@ docker run --rm --pull never
   --mount type=bind,src=<resolved resource>,dst=/resources/<resource>,readonly
   --workdir <W>
   <image>
+  sh -c '"$@"; s=$?; echo "$s" >/work/.swarm/exit; exit "$s"' sh
   <the provider's argv (section 9)>
 ```
 
@@ -1379,7 +1382,8 @@ docker run --rm --pull never
 | `--network none` | the check reaches no network; a product whose check needs one bakes what it fetches into its image (below) |
 | `/work` | the member's clone, read-write for every role: a reviewer's clone is a throwaway that is never fetched or pushed, so it may build and test there; for the owner and the architect, a directory holding a throwaway clone of each declared repository at `/work/<name>`; for the check, a fresh clone of the fetched head |
 | `<image>` | the run's repository's `image` (7.1 step 3) for the worker, the reviewers and the check; the first repository's for the owner and the architect |
-| `/work/.swarm` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out |
+| `/work/.swarm` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out, and `exit` |
+| `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's exit status to `/work/.swarm/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*). A container killed outright (a reboot, `docker stop`'s kill) writes none. The check runs its argv as it is |
 | `/work/.notes` | with `wiki` or `notes`, `<run>/notes`, the run's copy of the research notes, the wiki's pages or the `notes/` directory of the swarm's own issues repository (7.1, step 2): read-write for the owner and the architect, whose changes Daisy pushes after the run (7.6, The notes), and given to their CLI as a directory beside its workdir; read-only for the worker and the reviewers, inside their clone, whose `.git/info/exclude` names it; none for the check |
 | `/resources/<resource>` | one read-only mount per `resources` entry, its source the path the entry resolves to through every link, resolved again at the launch (section 3 checked it at this pass's validation), never `<ws>/<resource>` as written; none when the list is empty; none for the check |
 | `--workdir <W>`, `--workdir /work` | the CLIs start in the run's clone, `<W>`: `/work`, and for the owner and the architect the first repository's clone `/work/<name>`, so the CLI reads the product's instructions from its tree; the check starts in its clone, `/work` |
@@ -1398,8 +1402,11 @@ filtering is deferred).
 member and check: it sets `HOME` to `/home/member` (writable by any uid,
 gone with the container), adds a passwd entry when the uid has none, sets
 a fallback git identity (the clone's role identity of 7.1 overrides it),
-and execs the provider's or the check's argv as the container's first
-process. It holds no credential logic: a slot's home variable is
+and execs the argv it is given as the container's first process: for a
+member the `sh` that runs the provider's argv and writes its exit status
+(above; `sh`, as the first process, ignores `docker stop`'s signal, so a
+stopped member is killed after the 30 seconds), for the check the
+check's argv. It holds no credential logic: a slot's home variable is
 `docker run`'s `--env` (above), so a new provider's slot needs no image
 change; an image built before Step 24 of the swarm build also sets
 `CODEX_HOME=/credential` from its entrypoint whenever a slot is mounted,
@@ -1765,8 +1772,11 @@ or trailing spaces.
 | anything else | the text to post |
 
 A text longer than 60 000 bytes is posted cut at the last line break
-before that length, followed by
-`[truncated by Daisy; the whole output is in runs/<n>-<role>-<k>]`.
+that leaves room for
+`[truncated by Daisy; the whole output is in runs/<n>-<role>-<k>]`
+after it within that length; a worker's text is cut so that the text,
+one blank line and its check block (7.6) together hold to it, the block
+never cut.
 
 The **slices** of a plan are the lines matching `^[0-9]+\. ` between its
 `## Steps` line and the next line beginning `## ` (a slice's text may run
@@ -1795,7 +1805,9 @@ a proposal is created at most once even when the reply was lost), so a
 collection interrupted by a forge or network error is retried whole at
 the next pass without posting twice. Each step done is appended to
 `<run>/result`; `outcome` and then `collected` end it, and `<run>/work`
-and `<run>/check` are then removed. Before any step, `Issue(n)` is read
+and `<run>/check` are then removed (a directory there that cannot be
+read, which the member or the check may leave, is given the owner's
+rights, never through a link, and the removal made again). Before any step, `Issue(n)` is read
 again: an issue closed meanwhile gets nothing posted (`#<n> closed during
 the run; nothing posted`, the output kept in `<run>`, `outcome
 discarded`), and a `Relabel` whose `from` label the issue no longer
@@ -1838,8 +1850,9 @@ ran, whatever its end:
    whose output's first line begins `NO CHANGE:`, whose marked text is
    posted on the pull request, `Comment(m, <marked text>)`, without a
    check block, its run's ref dropped and nothing pushed, then T12.
-2. When the run failed, wrote `BLOCKED:` or ended in a swarm fault and
-   has commits past `start`, the ref stays (`kept refs/swarm-runs/<n>-worker-<k>`);
+2. When the run failed, wrote `BLOCKED:`, ended in a swarm fault or was
+   abandoned (7.7: step 1 is made for it too, its clone otherwise
+   unread) and has commits past `start`, the ref stays (`kept refs/swarm-runs/<n>-worker-<k>`);
    for a failure or `BLOCKED:` the reconciler note names it (a fault
    posts nothing, 7.7), so the maintainer can read the work or
    continue from it; pruning these refs is the maintainer's. Collection
@@ -1943,8 +1956,9 @@ swarm/notes-<n>-<role>-<k>` (with `notes`, `with <owner>/<repo>'s head`)
 and `⚠ #<n> <role> run <k>: notes not pushed (<reason>); kept in
 <run>/notes`.
 
-The worker's posted text is its marked text, then a blank line and the
-check block: `**Check:**`, the check's argv and the short head, `exit
+The worker's posted text is its marked text, its trailing line breaks
+dropped and cut to leave room for the block (7.5), then one blank line
+and the check block: `**Check:**`, the check's argv and the short head, `exit
 <code>` or `timeout after <timeout>`, and the last 20 lines of
 `<run>/check.out` in a fenced block (or `**Check:** none declared.`); as
 built, ``**Check:** `<check>` on <short sha>: exit <code>``, a blank
@@ -1965,9 +1979,12 @@ line, and the fenced tail.
 Every relabel above is made from the stage of the run the issue carries
 when it is read again right before: the in-progress stage its launch
 wrote, else the stage the run was launched on (the `label` line, under
-its current name, section 5), else its home (T22); none carried, the maintainer moved the
+its current name, section 5); neither carried, the maintainer moved the
 issue during the run and the relabel is skipped with the warning, and so
-is `swarm:blocked`. `<marked text>` is the marker for the role and run,
+is `swarm:blocked`, but for T17's, set beside the run's home where T22
+has just taken it. The home is not the run's stage: the pair's second
+reviewer, launched on review-1-in-progress, that finds the issue at
+review-0-ready moved there during its run is skipped and warned. `<marked text>` is the marker for the role and run,
 then the output. A reconciler note is `<!-- daisy-swarm role=reconciler
 run=<k> -->`, `**reconciler:**`, a blank line, and one sentence, naming
 the stage the issue is at: `<role> run <k> failed: <reason> (at
@@ -2026,8 +2043,8 @@ relabel and what it names.
 | secret in output | work | 7.6, the secret check: `out.md`, a worker's commits or the posted tail of `check.out` holds a secret the member was given | `failed: secret in output: <out.md, commits and/or check.out>` | T17, the note naming where, never the value; nothing posted or pushed |
 | push rejected (worker) | work | 7.6 | `failed: push rejected` | T17 |
 | the clone reaches outside itself (worker) | work | 7.6 | `failed: the clone reaches outside itself: <what>` | T17 |
-| abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`, then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 |
-| ended | — | a pass finds a run not its own with `started`, no end line, no container by the run's name and a `<run>/io/out.md` that is a regular file: its member finished after the `apply` that started it died, whose `docker run` took the exit status and the streams with it | `ended <time>`, then the collection of 7.6 from `out.md` as after an exit 0: no `cost` line, and a provider's fault the lost standard output reported is not seen | as the run's collection (posted, blocked, failed, stale or discarded) |
+| abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/exit` that is a regular file holding a number (7.2), whatever `out.md` holds: an empty or partial `out.md` of a member killed mid-run is never read; a run launched before the mark (its `argv` without the `sh -c` line) by no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`; for a worker, 7.6 steps 1 and 2 (`fetched <sha>`, and `kept refs/swarm-runs/<n>-worker-<k>` when it has commits; a clone that cannot be fetched, one that reaches outside itself or holds no branch, keeps nothing, with `⚠ #<n> worker run <k>: abandoned; commits not kept (<reason>)` on stderr, and the run is collected); then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 |
+| ended | — | a pass finds a run not its own with `started`, no end line, no container by the run's name and a `<run>/io/exit` that is a regular file holding a number (a run launched before the mark: a `<run>/io/out.md` that is a regular file): its member finished after the `apply` that started it died, whose `docker run` took the streams with it | `ended <time>`, with the status `exit` holds read as `docker run`'s (125–127 `fault: exit <code>`, any other non-zero `failed: exit <code>`), then the collection of 7.6 from `out.md`: no `cost` line, and a provider's fault the lost standard output reported is not seen | as the run's collection (posted, blocked, failed, stale or discarded) |
 | orphan over time | — | a pass finds a container by the run's name, the run not its own, `started` more than `timeout` ago | `docker stop --time 30 <name>` sent; then abandoned as above, whatever `out.md` holds | as abandoned |
 | orphan check over time | — | a pass finds a container named `daisy-swarm.<owner>.<repo>.<n>.check.<k>`, the run not its own, its `check started` more than `timeout` ago | `docker stop --time 30 <name>` sent; `check timeout <time>`; the collection then proceeds as after any check (7.6) | as the run's collection |
 | stale (reviewer) | — | 7.6: the pull request's head moved during the run | `stale <sha>`, `outcome stale`, `collected` | T22 only; relaunched on the new head |
@@ -2852,7 +2869,7 @@ pass the signal on to them, run on while `apply` collects them as they
 exit (Without `--once`, below); at systemd's stop timeout the rest of the
 unit is killed, the `docker run` clients with it and the containers
 left running, and the next `apply` collects each from its `out.md`
-(7.7, *ended*). A changed `interval` takes effect at the loop's next
+once its `<run>/io/exit` says the member finished (7.7, *ended*). A changed `interval` takes effect at the loop's next
 pass, which reads `swarm.json` again; the unit's description and restart
 delay only when the unit is printed and installed again. A workspace
 that ran the earlier timer (`daisy-swarm@<instance>.timer` and a oneshot
@@ -2868,7 +2885,7 @@ passphrase prompt, or an agent the user manager can reach).
 | Usage | `daisy swarm apply [--once]` |
 | Reads | `swarm/swarm.json` and the prompts (each pass), `<ws>/.env.sh` (token and `env` credentials), each used slot's `auth.json`, each declared repository's `origin` and `core.sshCommand`, `<state>`, the briefs under the resolved `resources` paths (the batch prompt, 7.3, and the milestones, step 8), and with `wiki` or `notes` the notes in each run's copy and the changed notes an owner's or architect's run left (7.6, The notes) |
 | Start | validation; the token and every used provider's `env` credential set (a slot's login is checked at its launch: section 3, Secret values); `<state>` created when absent; the lock (below), before anything is read from the forge or Docker; `Login()`; `id -u` and `id -g`; `docker ps` once (failing: `Error: swarm: docker: <message>`, exit 1); then `EnsureLabels` with the sixteen labels (one deleted since `init` is created again, Step 39; an old stage name renamed, Step 15), printing `✓ Labels: 16 present (<c> created, <r> renamed)` when it made one; its failure, a refused rename or create included (section 10), is `Error: …` and exit 1, with or without `--once`, before any pass |
-| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped, and so is a pass whose `forge.kind`, `api`, `repo` or `token_env` changed since the start, which the lock, the adapter and the token belong to: `Error: swarm: swarm.json's forge (kind, api, repo or token_env) changed since apply started; pass skipped: restart apply to act on it`); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots, to which every container this process starts during the pass, a check in (3) included, is added; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `ended` and collected from its `out.md` when its member wrote one, else marked `abandoned`, its issue taken back from the in-progress stage its launch wrote (T22), then `collected` and its `work/` removed, and one whose container has outlived `timeout` is stopped and abandoned (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)` (an issue `Issue(n)` reads closed, or with a stage other than the listed one, is passed over: it is read at its own stage, or at the next pass), then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one stage label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, an issue carrying `swarm:blocked` or `swarm:paused`, or whose newest maintainer comment names an open blocker (`Issue(m)`), launching nothing, and launches run until `max_members` are running, both reviewers of a pair in the same pass, each worker's and each first reviewer's writing its in-progress stage once its container has started (7.1, step 6), so the issue is read again under that stage later in the same step, its roles not decided again; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `review-2-approved` issue neither blocked nor paused (section 12); (7) the owner's batch trigger, its pacing reading, with the triage gate on, `Issue(n)` for each open `proposal-accepted` issue without `swarm:class-architecture` (its class, section 6, G0), its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each stage and terminal label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) after the runs `--once` waits for (so that the flag follows the labels its collections moved and a batch's proposals are in it), unless a signal has come, and paused or not, the maintainer's flag (section 5): `Issues(Open, label)` for each stage and `Issues(Open, "swarm:gated")`; by number, for each open issue at `proposal-posted` with the triage gate on or at `plan-0-posted` with the plan gate on, `Issue(n)` for its class (section 5, The job class; a read refused is `⚠ #<n>: class: <error>` and the issue is left as it is this pass), and for a routine job the gate passed (T23, T24): with the swarm not paused, the issue neither blocked nor paused and the stage's role having nothing to answer, `Relabel(n, <stage>, <next stage>)` then `Comment(n, <auto note>)` (a refusal: `⚠ #<n>: auto: <error>`); then `Relabel(n, "", "swarm:gated")` for each open issue that is gated (section 5: one stage, a gate on that holds its class, or `swarm:blocked`) and lacks it, each followed by its gate note (section 5: `Issue(n)`, at the merge gate `Pulls(n)`, `Reviews(m)` and `PullComments(m)` for the current pull request, then `Comment(n, <gate note>)`), and `Relabel(n, "swarm:gated", "")` for each other carrying it; then the milestones: with an `active` brief, `Milestones()`, then `EnsureMilestone(<slug>: <milestone>)` for each `## ` heading of each `active` brief (`<slug>` its file name without `.md`) that has no milestone of its title, then `Issues(Open, label)` for each stage and `Issues(Closed, label)` for each stage and terminal and `SetMilestone(n, <id>)` for each issue in no milestone whose `Brief:` line (section 4) names a milestone of an `active` brief; an issue already in a milestone is left in it, the maintainer's choice or an earlier one's; every failure in (8), the flag's or the milestones', is a warning, never a fault, an exit code or an end to the pass; (9) the summary line |
+| A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped, and so is a pass whose `forge.kind`, `api`, `repo` or `token_env` changed since the start, which the lock, the adapter and the token belong to: `Error: swarm: swarm.json's forge (kind, api, repo or token_env) changed since apply started; pass skipped: restart apply to act on it`); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots, to which every container this process starts during the pass, a check in (3) included, is added; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `ended` and collected from its `out.md` when its member finished (its `<run>/io/exit`, 7.7), else marked `abandoned`, a worker's commits kept as its run's ref and its issue taken back from the in-progress stage its launch wrote (T22), then `collected` and its `work/` removed, and one whose container has outlived `timeout` is stopped and abandoned (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)` (an issue `Issue(n)` reads closed, or with a stage other than the listed one, is passed over: it is read at its own stage, or at the next pass), then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one stage label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, an issue carrying `swarm:blocked` or `swarm:paused`, or whose newest maintainer comment names an open blocker (`Issue(m)`), launching nothing, and launches run until `max_members` are running, both reviewers of a pair in the same pass, each worker's and each first reviewer's writing its in-progress stage once its container has started (7.1, step 6), so the issue is read again under that stage later in the same step, its roles not decided again; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `review-2-approved` issue neither blocked nor paused (section 12); (7) the owner's batch trigger, its pacing reading, with the triage gate on, `Issue(n)` for each open `proposal-accepted` issue without `swarm:class-architecture` (its class, section 6, G0), its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each stage and terminal label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) after the runs `--once` waits for (so that the flag follows the labels its collections moved and a batch's proposals are in it), unless a signal has come, and paused or not, the maintainer's flag (section 5): `Issues(Open, label)` for each stage and `Issues(Open, "swarm:gated")`; by number, for each open issue at `proposal-posted` with the triage gate on or at `plan-0-posted` with the plan gate on, `Issue(n)` for its class (section 5, The job class; a read refused is `⚠ #<n>: class: <error>` and the issue is left as it is this pass), and for a routine job the gate passed (T23, T24): with the swarm not paused, the issue neither blocked nor paused and the stage's role having nothing to answer, `Relabel(n, <stage>, <next stage>)` then `Comment(n, <auto note>)` (a refusal: `⚠ #<n>: auto: <error>`); then `Relabel(n, "", "swarm:gated")` for each open issue that is gated (section 5: one stage, a gate on that holds its class, or `swarm:blocked`) and lacks it, each followed by its gate note (section 5: `Issue(n)`, at the merge gate `Pulls(n)`, `Reviews(m)` and `PullComments(m)` for the current pull request, then `Comment(n, <gate note>)`), and `Relabel(n, "swarm:gated", "")` for each other carrying it; then the milestones: with an `active` brief, `Milestones()`, then `EnsureMilestone(<slug>: <milestone>)` for each `## ` heading of each `active` brief (`<slug>` its file name without `.md`) that has no milestone of its title, then `Issues(Open, label)` for each stage and `Issues(Closed, label)` for each stage and terminal and `SetMilestone(n, <id>)` for each issue in no milestone whose `Brief:` line (section 4) names a milestone of an `active` brief; an issue already in a milestone is left in it, the maintainer's choice or an earlier one's; every failure in (8), the flag's or the milestones', is a warning, never a fault, an exit code or an end to the pass; (9) the summary line |
 | `--once` | one pass; then it waits for every run it launched, collects each (starting and waiting for a worker run's check), and exits: the maintainer's smokes, not the unit's command |
 | Without `--once` | the loop the unit runs: a pass every `interval`, start to start, whatever runs: a pass waits for none of its members, and each run is collected by the first pass after it ends (a worker run's check started there and collected by a later pass in turn); until SIGINT or SIGTERM: then no launch, its running members and checks collected as they exit (a worker run's check started for it, as its collection needs), exit 0; a second signal exits at once (130), leaving its members to finish and be collected by a later `apply` from their `out.md` (7.7, *ended*) |
 | Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`, `Milestones`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), `EnsureMilestone` and `SetMilestone` (step 8), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge, and with `wiki` clones and fetches the issues repository's wiki (with `notes`, the swarm's own issues repository) and pushes the notes' commits to its branch (the repository's default) or to `swarm/notes-<n>-<role>-<k>` (7.1, 7.6) |
@@ -2945,9 +2962,9 @@ step (3) finds its `docker run` returned: no pass waits for a member, so
 a launch never waits on another issue's run, and with `interval` at
 `1m` an outcome is posted within a minute of its run's end. A run
 another `apply` started is collected from the disk alone, the running
-set saying its container is gone and `out.md` whether its member
-finished; its exit status, cost and a provider's fault were held by the
-`apply` that died and are not recovered. Both reviewers launch in one
+set saying its container is gone and `<run>/io/exit` whether its member
+finished, with its exit status (7.2); its cost and a provider's fault
+were held by the `apply` that died and are not recovered. Both reviewers launch in one
 pass when both have something to answer and a free credential: the
 first whose container starts writes review-1-in-progress, and the other
 is launched on it.
@@ -3373,8 +3390,9 @@ directories (`internal/commands/swarm_lifecycle_test.go`,
 the lifecycle with every gate on, the round limit with the plan gate on
 and off, every gate off, the refused merge, the label copy, each
 work-failure row of 7.7 then T17 and T18, the trailer, the secret check
-(in `out.md`, a blob, a commit message and the check's tail; its merge,
-commit-header and slot-at-launch cases are not yet tests),
+(in `out.md`, a blob, a commit message and the check's tail; its merge
+and commit-header cases tested since Step 25 of the swarm build, its
+slot-at-launch case not yet),
 the faults, the batch trigger, two repositories and *bad slices*, the
 abandoned and orphan runs, `pause` and `resume`, the labels at the start,
 two `apply --once` at once, and the loop with one signal and with two.
@@ -3649,6 +3667,35 @@ on `main` neither followed nor replaced, the run's note kept with the
 warning, and the run collected). Not established: the swarm's key cloning and pushing
 the real repository over the product's SSH remote, and the first pass
 after the move, which the step's smoke reads.
+
+**As built (Step 25 of the swarm build).** The collection's kept lines
+(sections 2, 7.2, 7.5, 7.6 and 7.7; section 14, item 86) are Go tests on
+the Fakes and real git in temp directories, `internal/commands`:
+`TestSwarmAbandonedWorkerKeepsItsCommits` (an abandoned worker run's
+commits fetched into the mirror as its ref, `kept` in its result, and
+its clone removed though it holds a mode-000 directory);
+`TestSwarmAbandonedWorkerWithoutItsBranch` (a clone with no branch:
+nothing kept, the warning, the run collected);
+`TestSwarmCollectionRemovesAnUnreadableDirectory` (the same at a
+collected run, the pass exiting 0); `TestSwarmOrphanEndedByTheExitMark`
+(a run another `apply` started: abandoned with `out.md` whole or partial
+and no `<run>/io/exit`, or an `exit` not a number; ended with it, an empty
+`out.md` then *no output*, `exit 3` *failed* and `exit 127` a fault; a
+run launched before the mark ended by its `out.md`);
+`TestSwarmWorkerPostHoldsToTheLimitWithItsCheckBlock` and
+`TestSwarmApplyLifecycle`'s pull request body (one blank line before the
+block, and text and block within 60 000 bytes);
+`TestSwarmSecondReviewerSkipsAMoveToReviewReady` (the pair's second
+reviewer's T9 skipped with the warning when the issue was moved to
+review-0-ready during its run); `TestSwarmCheckRestartedAfterItsApplyDied`
+(a check with no end line and no container started again and the run
+collected from it); and `TestSwarmApplyWorkFailures`'s rows *secret on
+a merged branch* (in a commit only a merge brings in, not in the head's
+tree) and *secret in a commit header* (the author). The member argv's
+first four words are the `sh -c` line in `TestSwarmApplyReadyToPlanning`.
+Not established: the `sh -c` line in the real image, a member run
+writing `<run>/io/exit` and a `docker stop` of one taking the 30 seconds, which
+the maintainer's smoke reads.
 
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
@@ -4990,3 +5037,39 @@ entries among revision 1's, and was renumbered at Step 38.
     orchestrator's smoke after the maintainer's login): a review posted
     with the marker under the slot, the refresh landing in the slot,
     and no `grok` process outliving the container.
+
+86. **The collection's kept lines (Step 25 of the swarm build,
+    2026-11-09).** **The mark of a finished member** (7.2, 7.7): `ended`
+    was taken on any regular `out.md`, so a member killed mid-write had
+    its partial text posted as complete and an empty one was *no
+    output* where abandoned would relaunch. Of the two marks the
+    Deferred item named, a sentinel the image writes and the streams
+    teed by the image, both needed a rebuild of every product image;
+    the member's argv is instead run by the image's own `sh`, which
+    writes the CLI's exit status to `/work/.swarm/exit` once it has
+    exited. A container killed outright writes none, so its run is
+    abandoned and relaunched whatever `out.md` holds; a status that is
+    not a number (the member's own file, never overwritten) is no mark.
+    The status is read as `docker run`'s would have been (125–127 a
+    fault, any other non-zero a failure), which the old rule lost. A
+    run launched before the mark (its `argv` file without the `sh -c`
+    line) keeps the old rule, so the first restart after the install
+    relaunches no run that finished. The cost: `sh` is the container's
+    first process and ignores `docker stop`'s signal, so a member
+    stopped at the wall clock is killed after the 30 seconds rather than
+    at its CLI's own exit. **An abandoned worker run** makes 7.6 steps
+    1 and 2, its commits fetched and kept as its run's ref, as a fault's
+    are; it posts nothing. **A tree the member left unreadable** (a
+    mode-000 directory with entries) is given the owner's rights,
+    directory by directory and never through a link, before its removal
+    is made again, so `work/` and `check/` no longer outlive a
+    collection and the pass no longer exits 1 on it. **The worker's
+    post** drops its text's trailing line breaks before the one blank
+    line and the block, and its text is cut so that the two hold to
+    60 000 bytes together, the block never cut (a block over the limit
+    alone, twenty lines of some 3 KB each, is posted whole after the
+    truncation note). **The run's stage** no longer falls back to its
+    home: the pair's second reviewer, launched on review-1-in-progress,
+    that finds the issue moved to review-0-ready during its run is
+    skipped with the warning (7.6), and T17's `swarm:blocked` is still
+    set beside the home where T22 has just taken the issue.

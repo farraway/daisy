@@ -204,8 +204,8 @@ func runOf(dir string) (Run, bool) {
 // collectAll is pass steps (2) and (3): each container of this process
 // that has ended recorded, each run left uncollected collected, each
 // check whose apply died started again, and of the runs another apply
-// started whose container is gone, one whose member wrote out.md marked
-// ended and collected from it, any other abandoned, and one whose
+// started whose container is gone, one whose member finished (Finished)
+// marked ended and collected from it, any other abandoned, and one whose
 // container has outlived timeout stopped and abandoned.
 func (s *Swarm) collectAll(running []runner.Running) error {
 	fs := s.O.FS()
@@ -249,7 +249,7 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 				continue
 			}
 			name := s.containerName(r.N, r.Role, r.K)
-			end := "abandoned "
+			end, more := "abandoned ", []string(nil)
 			if isRunning(name) {
 				if !over(strings.TrimPrefix(started, "started ")) {
 					continue
@@ -258,12 +258,12 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 					errs = append(errs, err)
 					continue
 				}
-			} else if _, err := r.Output(fs); err == nil {
-				end = "ended " // its member wrote out.md: collected from it as its own pass would
+			} else if ended, lines := r.Finished(fs); ended {
+				end, more = "ended ", lines // its member finished: collected from out.md as its own pass would
 			}
 			// The end line first: collect restores the issue's stage and
 			// only then records `collected`, so a forge error is retried.
-			if err := r.Append(fs, end+now); err != nil {
+			if err := r.Append(fs, append([]string{end + now}, more...)...); err != nil {
 				return err
 			}
 		}

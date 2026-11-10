@@ -1,7 +1,9 @@
 package reconcile
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	iofs "io/fs"
 	"path/filepath"
 	"regexp"
@@ -59,6 +61,41 @@ func (r Run) Output(fs ops.FS) ([]byte, error) {
 	return fs.ReadFile(p)
 }
 
+// Finished reads how a run another apply started ended, its container
+// gone (section 7.7): ended, when its member finished, with the lines its
+// exit status adds (a fault for 125 to 127, a failure for any other
+// non-zero status, as a container of this process's); else abandoned.
+// A run launched under exitScript finished when its `io/exit` is a
+// regular file holding a status, whatever out.md holds; one launched
+// before the mark (its argv without the script) when its out.md is a
+// regular file.
+func (r Run) Finished(fs ops.FS) (ended bool, lines []string) {
+	argv, _ := fs.ReadFile(filepath.Join(r.Dir, "argv"))
+	if !bytes.Contains(argv, []byte(exitScript)) {
+		_, err := r.Output(fs)
+		return err == nil, nil
+	}
+	p := filepath.Join(r.Dir, "io", "exit")
+	fi, err := fs.Lstat(p)
+	if err != nil || !fi.Mode().IsRegular() {
+		return false, nil
+	}
+	b, err := fs.ReadFile(p)
+	if err != nil {
+		return false, nil
+	}
+	code, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	switch {
+	case err != nil:
+		return false, nil // not the script's: the member's own, sh never wrote it
+	case code >= 125 && code <= 127:
+		return true, []string{fmt.Sprintf("fault: exit %d", code)}
+	case code != 0:
+		return true, []string{fmt.Sprintf("failed: exit %d", code)}
+	}
+	return true, nil
+}
+
 // Result is the run's result lines; none when it has no result yet.
 func (r Run) Result(fs ops.FS) ([]string, error) {
 	b, err := fs.ReadFile(filepath.Join(r.Dir, "result"))
@@ -89,8 +126,8 @@ func (r Run) Append(fs ops.FS, lines ...string) error {
 var oneLine = strings.NewReplacer("\r", `\r`, "\n", `\n`)
 
 // endWords are the first words of a result's end line (section 2):
-// `ended` a container another apply started, gone, whose member wrote
-// out.md (its exit status and streams died with that apply).
+// `ended` a container another apply started, gone, whose member finished
+// (Finished; its streams died with that apply).
 var endWords = []string{"exited", "timeout", "launch-failed", "abandoned", "ended"}
 
 // Ended is the run's end line's first word, "" when it has none.

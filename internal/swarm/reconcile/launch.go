@@ -166,7 +166,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	}
 	spec := runner.Spec{Name: s.containerName(j.N, j.Role, j.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, j.N, j.Role), User: s.User,
 		Mounts: mounts, Workdir: workdir, Image: image,
-		Argv: provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, "/work/.swarm/system.md", "/work/.swarm/prompt.md", outside(workdir, reads))}
+		Argv: exitMarked(provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, "/work/.swarm/system.md", "/work/.swarm/prompt.md", outside(workdir, reads)))}
 
 	key := s.Cfg.Keys[persona.Provider]
 	var credential string
@@ -237,6 +237,19 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// exitScript runs the provider's argv under sh and, once the CLI has
+// exited, writes its exit status to /work/.swarm/exit (<run>/io/exit):
+// the mark that the member finished, which a later apply reads when the
+// apply that started the run died (sections 7.2 and 7.7, ended). A
+// container killed outright writes none. It is the image's own sh, so no
+// image is rebuilt for it.
+const exitScript = `"$@"; s=$?; echo "$s" >/work/.swarm/exit; exit "$s"`
+
+// exitMarked is argv run under exitScript.
+func exitMarked(argv []string) []string {
+	return append([]string{"sh", "-c", exitScript, "sh"}, argv...)
 }
 
 // runHead is the run's prefix on stdout: `#<n> <role> run <k>: `, the

@@ -202,7 +202,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	pr := ps[0]
 	wantTail := "\n\n**Check:** `make check` on " + pr.HeadSHA[:7] + ": exit 0\n\n```\nok 1 test\n```\n\nRefs #1"
 	if pr.Repo != "app" || pr.Number != 2 || pr.Head != "swarm/1-1" || pr.Title != "#1 slice 1: Drift check" ||
-		pr.Body != mark("worker", 1)+"Slice 1: main.go says v1.\n\nNot established: none\n"+wantTail {
+		pr.Body != mark("worker", 1)+"Slice 1: main.go says v1.\n\nNot established: none"+wantTail {
 		t.Errorf("T8 pull: %+v", pr)
 	}
 	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-0-ready", forge.ClassArchitecture}) {

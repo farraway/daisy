@@ -16,10 +16,7 @@ import (
 // without the role's trailer reported (The trailer): on stderr and as
 // `unstamped <sha>`, never a failure; an empty co_author asks for none.
 func (c *collection) fetch() error {
-	if _, ok := Has(c.lines, "fetched"); ok {
-		return nil
-	}
-	sha, err := c.s.git().FetchRun(branchRepo(c.lines), filepath.Join(c.r.Dir, "work"), runBranch(c.lines), runRef(c.r))
+	err := c.fetchRef()
 	if errors.Is(err, ErrForeignClone) {
 		// A work failure, read by the collection as any other: nothing
 		// is fetched from the clone, so nothing of it is pushed.
@@ -28,6 +25,16 @@ func (c *collection) fetch() error {
 		}
 		return c.step("failed: " + err.Error())
 	}
+	return err
+}
+
+// fetchRef is fetch but for its failure: a clone that reaches outside
+// itself is ErrForeignClone, nothing fetched or recorded.
+func (c *collection) fetchRef() error {
+	if _, ok := Has(c.lines, "fetched"); ok {
+		return nil
+	}
+	sha, err := c.s.git().FetchRun(branchRepo(c.lines), filepath.Join(c.r.Dir, "work"), runBranch(c.lines), runRef(c.r))
 	if err != nil {
 		return err
 	}
@@ -87,7 +94,7 @@ func (c *collection) keep() error {
 // started and collected when it ends, its posted tail checked for
 // secrets; the push; then the pull request opened or commented on, and T8
 // or T12.
-func (c *collection) worker(text string, pull *forge.Pull) error {
+func (c *collection) worker(out, text string, pull *forge.Pull) error {
 	s := c.s
 	if !c.commits() {
 		if c.label != forge.ChangesRequested || !strings.HasPrefix(text, noChange) {
@@ -156,7 +163,10 @@ func (c *collection) worker(text string, pull *forge.Pull) error {
 			return err
 		}
 	}
-	posted := text + "\n\n" + block
+	// One blank line between the text and the block, and the text cut
+	// so that the two together hold to maxPost (section 7.5).
+	sep := "\n\n"
+	posted := strings.TrimRight(postable(out, c.r, len(sep)+len(block)), "\n") + sep + block
 	if c.label == forge.ChangesRequested || pull != nil && pull.Open {
 		if err := c.onPull(*pull, posted); err != nil {
 			return err
@@ -296,7 +306,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 		if err := c.comment("reconciler", second); err != nil {
 			return err
 		}
-		if err := c.flag(); err != nil {
+		if err := c.flag(false); err != nil {
 			return err
 		}
 		return c.end("posted")

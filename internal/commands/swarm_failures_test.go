@@ -68,6 +68,26 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 		{name: "secret in a blob", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"sub/key.txt": secret + "\n"}, "v1")}, reason: "secret in output: commits", kept: true},
 		{name: "secret in a protected path's name", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{".gitea/workflows/" + secret + ".yml": "on: push\n"}, "v1")}, reason: "secret in output: commits", kept: true},
 		{name: "secret in a commit message", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n"}, "token "+secret)}, reason: "secret in output: commits", kept: true},
+		{name: "secret in a commit header", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n"}, "v1", "--author="+secret+" <a@example.net>")}, reason: "secret in output: commits", kept: true},
+		{name: "secret on a merged branch", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			// The secret is in a commit the merge brings in, not in the head's tree.
+			if _, errb, err := ops.Real().Exec(work, "git", "checkout", "-q", "-b", "side"); err != nil {
+				return &execErr{[]string{"checkout"}, string(errb)}
+			}
+			if err := commit(map[string]string{"key.txt": secret + "\n"}, "side")(work); err != nil {
+				return err
+			}
+			if _, errb, err := ops.Real().Exec(work, "git", "checkout", "-q", "-"); err != nil {
+				return &execErr{[]string{"checkout"}, string(errb)}
+			}
+			if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
+				return err
+			}
+			if _, errb, err := ops.Real().Exec(work, "git", "merge", "-q", "-s", "ours", "--no-edit", "side"); err != nil {
+				return &execErr{[]string{"merge"}, string(errb)}
+			}
+			return nil
+		}}, reason: "secret in output: commits", kept: true},
 		{name: "secret in the check's tail", canned: work("v1"), check: runner.Canned{Stdout: "env: " + secret + "\n"}, reason: "secret in output: check.out", kept: true},
 		{name: "push rejected", canned: work("v1"), setup: func(a *applyWS) {
 			// a branch of the name the forge holds already, unrelated

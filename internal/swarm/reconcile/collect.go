@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"daisy/internal/ops"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
@@ -122,7 +123,7 @@ func (s *Swarm) collect(r Run) error {
 	if hit(out, s.secretsOf(r, c.lines)) {
 		return c.fail("secret in output: out.md")
 	}
-	text := postable(string(out), r)
+	text := postable(string(out), r, 0)
 	first, _, _ := strings.Cut(string(out), "\n")
 	if strings.HasPrefix(strings.TrimRight(first, "\r "), "BLOCKED:") {
 		return c.blocked(text, pull)
@@ -154,7 +155,7 @@ func (s *Swarm) collect(r Run) error {
 			}
 		}
 	case "worker":
-		return c.worker(text, pull)
+		return c.worker(string(out), text, pull)
 	default:
 		return c.review(string(out), text, *pull)
 	}
@@ -178,7 +179,30 @@ func (c *collection) end(outcome string) error {
 	c.s.collected++
 	c.s.newFault = c.s.newFault || outcome == "fault"
 	delete(c.s.given, c.r.Dir)
-	return errors.Join(fs.RemoveAll(filepath.Join(c.r.Dir, "work")), fs.RemoveAll(filepath.Join(c.r.Dir, "check")), c.dropNotes())
+	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "check")), c.dropNotes())
+}
+
+// removeTree removes a tree a member or a check wrote: when RemoveAll
+// fails (a directory left unreadable, mode 000, cannot be listed), each
+// directory in it, never through a link, is given the owner's rights,
+// then the removal is made again (section 7.6).
+func removeTree(fs ops.FS, dir string) error {
+	if fs.RemoveAll(dir) == nil {
+		return nil
+	}
+	var open func(string)
+	open = func(d string) {
+		fs.Chmod(d, 0o700)
+		entries, _ := fs.ReadDir(d)
+		for _, e := range entries {
+			p := filepath.Join(d, e.Name())
+			if fi, err := fs.Lstat(p); err == nil && fi.IsDir() {
+				open(p)
+			}
+		}
+	}
+	open(dir)
+	return fs.RemoveAll(dir)
 }
 
 // dropNotes removes the run's copy of the notes, kept when they were not
@@ -212,11 +236,13 @@ func (c *collection) say(at forge.Ref, existing []forge.Comment, role, text stri
 func (c *collection) comment(role, text string) error { return c.say(c.at, c.is.Comments, role, text) }
 
 // stage is the stage of the run the issue carries now: the in-progress
-// stage its launch wrote (InProgress), else the stage it was launched on,
-// else the one a run that does not move it on leaves it at (home); ""
-// when it carries none, the maintainer having moved it.
+// stage its launch wrote (InProgress), else the stage it was launched on;
+// "" when it carries neither, the maintainer (or, for the pair's second
+// reviewer, the first's T22) having moved it. Its home is not its stage:
+// the pair's second reviewer, launched on review-1-in-progress, finds the
+// issue at review-0-ready only when it was moved there during the run.
 func (c *collection) stage() string {
-	for _, l := range []string{InProgress(c.r.Role, c.label), c.label, c.home()} {
+	for _, l := range []string{InProgress(c.r.Role, c.label), c.label} {
 		if l != "" && slices.Contains(c.is.Labels, l) {
 			return l
 		}
@@ -282,8 +308,19 @@ func (c *collection) restore() error {
 }
 
 // abandoned ends a run whose apply died before its container ended
-// (section 7.7): the issue restored, the run collected, its clone removed.
+// (section 7.7): a worker run's commits fetched and kept (7.6, steps 1
+// and 2), the issue restored, the run collected, its clone removed.
 func (c *collection) abandoned() error {
+	if c.r.Role == "worker" {
+		// A clone that cannot be fetched (it reaches outside itself, or
+		// the member killed mid-run left no branch) keeps nothing, with
+		// the warning, so the run is still collected.
+		if err := c.fetchRef(); err != nil {
+			fmt.Fprintf(c.s.Err, "⚠ #%d worker run %d: abandoned; commits not kept (%s)\n", c.r.N, c.r.K, oneLine.Replace(err.Error()))
+		} else if err := c.keep(); err != nil {
+			return err
+		}
+	}
 	if c.r.N != 0 {
 		if err := c.restore(); err != nil {
 			return err
@@ -293,7 +330,7 @@ func (c *collection) abandoned() error {
 	if err := c.r.Append(fs, "outcome abandoned", "collected"); err != nil {
 		return err
 	}
-	return errors.Join(fs.RemoveAll(filepath.Join(c.r.Dir, "work")), c.dropNotes())
+	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), c.dropNotes())
 }
 
 // block is T17, swarm:blocked being a flag: the issue taken back home,
@@ -302,19 +339,21 @@ func (c *collection) block() error {
 	if err := c.relabel(c.home()); err != nil {
 		return err
 	}
-	return c.flag()
+	return c.flag(true)
 }
 
-// flag sets swarm:blocked on the open issue at the run's stage, the
-// labels read again first: an issue the maintainer moved during the run
-// is left as it is.
-func (c *collection) flag() error {
+// flag sets swarm:blocked on the open issue at the run's stage, or with
+// home at the run's home, where T22 has just taken it; the labels read
+// again first: an issue the maintainer moved during the run is left as
+// it is.
+func (c *collection) flag(home bool) error {
 	is, err := c.s.Forge.Issue(c.r.N)
 	if err != nil {
 		return err
 	}
 	c.is.Labels = is.Labels
-	if !is.Open || c.stage() == "" || slices.Contains(is.Labels, forge.Blocked) {
+	at := c.stage() != "" || home && slices.Contains(is.Labels, c.home())
+	if !is.Open || !at || slices.Contains(is.Labels, forge.Blocked) {
 		return nil
 	}
 	if err := c.s.Forge.Relabel(c.at, "", forge.Blocked); err != nil {
@@ -443,15 +482,19 @@ func repoNames(s *Swarm) []string {
 	return out
 }
 
-// postable is the output as posted: cut at the last line break before
-// maxPost bytes, with the note naming the run (section 7.5).
-func postable(out string, r Run) string {
-	if len(out) <= maxPost {
+// postable is the output as posted, leaving room bytes for what follows
+// it (a worker's check block): cut at the last line break before maxPost
+// less room bytes, the note naming the run included (section 7.5).
+func postable(out string, r Run, room int) string {
+	limit := maxPost - room
+	if len(out) <= limit {
 		return out
 	}
-	cut := strings.LastIndex(out[:maxPost], "\n")
+	note := "\n[truncated by Daisy; the whole output is in runs/" + filepath.Base(r.Dir) + "]"
+	limit = max(limit-len(note), 0)
+	cut := strings.LastIndex(out[:limit], "\n")
 	if cut < 0 {
-		cut = maxPost
+		cut = limit
 	}
-	return out[:cut] + "\n[truncated by Daisy; the whole output is in runs/" + filepath.Base(r.Dir) + "]"
+	return out[:cut] + note
 }
