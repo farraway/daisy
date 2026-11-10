@@ -32,7 +32,10 @@ unit's root; section 11, Finding the swarm, and item 105; Step 3,
 2026-11-10: the product repositories by forge name, the mirrors'
 remotes recorded in their configs, the notes' clone at the swarm
 repository's own URL, the readiness read from the mirrors and the
-wizard's forge names; item 106), and until
+wizard's forge names; item 106; Step 4, 2026-11-10: the swarm
+repository's mirror, the resources and references checked out of the
+mirrors at the pass's commits under one mount, the briefs read there
+and the old workspace path of a brief still naming it; item 107), and until
 each lands the code runs the workspace layout that section 11, Moving a
 swarm into its repository, describes for what it has not built; Step 7
 retires that layout once the maintainer says every swarm has moved.
@@ -452,10 +455,10 @@ pushed head (section 2; section 11, Drift).
 
 The Go test of section 3's example (`Format`) reads this one, and the
 old layout's form of it (section 11, Moving a swarm into its
-repository). Until Step 4 of revision 6's plan builds `resources` as
-swarm-repository paths, `init`'s default `resources` is the old one
-(`docs/` when the clone holds that directory), read relative to the
-clone; the example's `["briefs/", "docs/"]` is that step's.
+repository). Until Step 6 of revision 6's plan seeds `briefs/` and
+`docs/`, `init`'s default `resources` in a clone is those of the two
+the clone holds as directories (Step 4, section 14, item 107); the
+example's `["briefs/", "docs/"]` is Step 6's.
 
 | Field | Type | Default (`init`) | Rule |
 |---|---|---|---|
@@ -546,7 +549,7 @@ failure is reported and the verb exits 1; the message is
 | the wiki's answer neither yes nor no (the wizard's question 35) | `swarm.json: wiki: "<answer>" is not yes or no` (`notes` for the swarm's own issues repository: `swarm.json: notes: "<answer>" is not yes or no`; question 4's follow-up: `swarm.json: forge.repo: "<answer>" is not yes or no`) |
 | `wiki` for an issues repository none of `repos` (the wizard's question 35 asks again) | `swarm.json: wiki: <owner>/<repo> is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)` |
 | `notes` beside `wiki`, or for a declared repository | `swarm.json: wiki: true beside notes; the swarm's own repository keeps its notes in notes/, and its wiki is no better than its tree`, `swarm.json: notes: <owner>/<name> is a declared repository, which holds product code; notes/ is for the swarm's own issues repository (wiki keeps a product's)` |
-| a resource refused | `swarm.json: resources[1]: "." <reason>` (`is not a relative path`, `is the whole repository`, `names no declared repository` (a `<name>:` prefix), `is listed twice`); at the launch, read at the pass's commit (7.1, step 3): `does not exist at <short sha>`, `contains .env.sh`, `contains .daisy` |
+| a resource refused | `swarm.json: resources[1]: "." <reason>` (`is not a relative path`, `is the whole repository`, `names no declared repository` (a `<name>:` prefix), `is listed twice`); at the launch, read at the pass's commit (7.1, step 3): `does not exist at <short sha>` (`does not exist: <repository> has no commit fetched` when the mirror holds none), `contains .env.sh`, `contains .daisy` |
 | a reference refused | `swarm.json: references[0].name: "<value>" is not a repository name` (also `is listed twice`, `is a declared repository`, `is the swarm repository`); `swarm.json: references[0].url: "<value>" is not a git URL` (also `carries user information`); `swarm.json: references[0].pin: "<value>" is not a commit or a tag`; `swarm.json: references[0].paths: no path (at least one is required)`; `swarm.json: references[0].paths[1]: "<value>" <reason>` (as a resource's); at the launch, `references[0]: pin <pin> not found at <url>: <git's error>` and a path's `does not exist at <pin>` |
 | an empty `check` element | `swarm.json: repos[0].check[0]: empty argument` |
 | a protected pattern refused | `swarm.json: repos[0].protected[2]: "<value>" is not a relative pattern without ..` (also when empty) |
@@ -1365,15 +1368,19 @@ On the host, in order, before `docker run`:
    `url`. Every host git command that reaches the forge reads them
    there, never from a working tree. The swarm repository's mirror and
    every declared repository's are brought up to date once per pass
-   before the pass's first launch:
+   before the pass's first launch, or before the owner's batch trigger
+   first reads the briefs (section 6), whichever comes first, so that the
+   trigger and the batch prompt read what is pushed:
    `git -C <mirror> fetch --prune origin '+refs/heads/*:refs/heads/*'`;
    the swarm repository's fetch also reads its default branch, `git -C
    <mirror> ls-remote --symref origin HEAD`, and points the mirror's
    `HEAD` at it (`git -C <mirror> symbolic-ref HEAD refs/heads/<branch>`).
    A reference is fetched only when its pin is not in its mirror, `git
-   -C <mirror> fetch --quiet origin <pin>` for a commit (whether each
-   forge serves a fetch by commit is *to confirm at Step 4* of revision
-   6's plan) and `'+refs/tags/<pin>:refs/tags/<pin>'` for a tag, and
+   -C <mirror> fetch --quiet --no-tags origin <pin>` for a commit (git's
+   own `upload-pack` serves a fetch by commit under protocol version 2,
+   which Step 4 of revision 6's plan tested; whether each forge does over
+   SSH and HTTPS is *to confirm* by the maintainer's smoke) and
+   `'+refs/tags/<pin>:refs/tags/<pin>'` for a tag, and
    never again while it is there; a pin the fetch does not bring is the
    swarm fault *resource refused* of each run that reads it (step 3).
    **The pass's commits** are the swarm repository's default branch and
@@ -3101,9 +3108,8 @@ section 14, item 105):* the lookup above is the one function that
 decides the layout (`declare.Find`), and every verb, `init` included,
 runs from a clone holding `swarm.json` with no Daisy workspace, reading
 its secrets from `<state>/env` (section 3, Secret values), printing the
-unit for the clone and running `docker` and `id` there. What Steps 4–6
-have not yet built a clone reads as the old layout does: the workspace
-form of `resources`, relative to the clone;
+unit for the clone and running `docker` and `id` there. What Steps 5–6
+have not yet built a clone reads as the old layout does:
 `init` writes `swarm.json` and `prompts/` at the clone's top and names
 them so (`✓ Wrote swarm.json`, `  Kept prompts/<role>.md (exists)`),
 and run where no clone holding `swarm.json` is found still takes the
@@ -3149,9 +3155,10 @@ what is missing, on stderr, without refusing:
 106):* in a clone, `init` asks question 1 for forge names and question
 4 as `Swarm repository`, with no follow-up (the swarm repository is the
 swarm's own) and question 35 for `notes/`; after the files it makes and
-fetches each declared repository's mirror (`✓ Mirrors: <name>, …
-fetched`, the swarm repository's own mirror added by Step 4; a fetch
-that fails is `Error: swarm: mirror <name>: <git's error>`, exit 1),
+fetches the swarm repository's mirror and each declared repository's
+(`✓ Mirrors: <repo>, <name>, … fetched`, the swarm repository's
+since Step 4, its `HEAD` its default branch; a fetch that fails is
+`Error: swarm: mirror <name>: <git's error>`, exit 1),
 and the first readiness warning reads `AGENTS.md` and `CLAUDE.md` in
 the mirror at `<base>` (`git cat-file -e`). Detection reads the clones
 directly under the folder holding the swarm repository's clone (the
@@ -6294,3 +6301,66 @@ entries among revision 1's, and was renumbered at Step 38.
     `<owner>/swarm-<name>` (item 103), is built here. `resources` stay
     relative to the clone until Step 4, and the Go test of section 3's
     example reads section 3 again, beside the old layout's example.
+107. **Members read pushed content, as built (Step 4 of revision 6's
+    plan, 2026-11-10).** In a swarm repository's clone, `apply`'s pass
+    fetches the swarm repository's mirror, `<state>/git/<repo>`, first,
+    reached at its clone's `origin` with the clone's `core.sshCommand`
+    (recorded in the mirror's config as a declared repository's is), its
+    `HEAD` pointed at the default branch `ls-remote --symref` reads; then
+    each declared repository's; then each reference's pin when its
+    mirror lacks it. The pass's commits are then read from the mirrors
+    (the swarm repository's `HEAD`, each declared repository's `<base>`,
+    each pin), once, before the first launch or before the owner's batch
+    trigger first reads the briefs (7.1, step 1), so a pass that tests
+    the trigger fetches though it launches nothing, and the trigger and
+    the batch prompt read the same pushed briefs. A pin the fetch does
+    not bring is recorded for the pass and is each launch's fault,
+    `fault: swarm.json: references[<i>]: pin <pin> not found at <url>:
+    <git's error>`, not the pass's error; a reference is fetched with
+    `--no-tags`, so a commit pin brings no tag with it. Each launch
+    lists each path at its commit (`ls-tree -r -t`): nothing there is
+    `does not exist at <short sha>` (a reference's `at <pin>`; a
+    repository with no commit fetched at all, an empty swarm repository
+    say, `does not exist: <repository> has no commit fetched`), and a
+    path element `.env.sh` or `.daisy` anywhere in it `contains <name>`;
+    then `git archive --format=tar <commit> -- <path>` is extracted in
+    Go under `<run>/resources/<repository>/` (directories, regular files
+    with their executable bit, links as links, nothing outside it; a
+    path two entries both name written once), and `resource <repository>
+    <sha>` appended after the start lines (and `notes-base`), one per
+    repository, in `resources`' then `references`' order. One read-only
+    mount, `<run>/resources` at `/work/.resources`, its mount point made
+    in `<run>/work`, given to a CLI that needs leave for it as one
+    directory; none when nothing is checked out. `<run>/resources` is
+    removed when the run is collected or abandoned. The prompt's
+    `Resources (read-only)` line names `/work/.resources/<repository>/<path>`
+    per resource and per reference path, and `# Briefs` mounts each brief
+    at `/work/.resources/<repository>/<its path>`. The briefs are read
+    in the mirrors (`ls-tree`, `cat-file blob`): every regular `.md`
+    blob under a `resources` entry, never a link, never from a
+    reference; a repository with no commit fetched yet holds none, so
+    `status` before the first pass shows none, and `status`, which
+    fetches nothing, reads them as the last pass left the mirrors
+    (`ReadOnly` lets `ls-tree` through, and `hash-object` without `-w`
+    for Step 5's Drift). A `Brief:` or `Met:` line whose path begins
+    `<repo>/`, the swarm repository's name, names the brief at the rest
+    (`BriefName`), in the milestone step, the batch's closed list, the
+    triage note and `status`'s met mark; the old layout reads every path
+    as it is. Validation in a clone checks the names alone (section 3's
+    rows: a path neither the clone nor the pushed head holds is valid
+    until a launch reads it); a `<name>:` prefix is read only when the
+    text before the first `:` is a repository name, so a
+    swarm-repository path holding a `:` after a `/` stays one.
+    `references` in the old layout is `references: unknown field`, as
+    the clone's other fields are there. The wizard's question 32 in a
+    clone reads `Resources (comma-separated: paths in the swarm
+    repository, or <name>:<path> in a declared one; - for none)`, its
+    default, until Step 6 seeds them, those of `briefs/` and `docs/`
+    the clone holds as directories, since a resource the pushed head
+    lacks refuses every launch. `init` in a clone fetches the swarm
+    repository's mirror before the declared ones'. The old layout keeps
+    its live bind mounts, one per resource, and its workspace paths.
+    The test fixture of a clone is cloned from an upstream of the swarm
+    repository, and what a test writes in the clone for the members is
+    committed and pushed (`publish`); `runner.Fake` gains a `Resources`
+    hook, the directory mounted at `/work/.resources`.

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -148,6 +149,11 @@ func TestWizardInAClone(t *testing.T) {
 			t.Errorf("question %d: %q, want %q", i+1, (*asked)[i], want)
 		}
 	}
+	// Question 32: swarm-repository paths, its default the directories
+	// init seeds that the clone holds (docs/, not briefs/).
+	if !slices.Contains(*asked, "Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none) [docs/]: ") || !reflect.DeepEqual(c.Resources, []string{"docs/"}) {
+		t.Errorf("question 32: %q, resources %q", *asked, c.Resources)
+	}
 	if last := (*asked)[len(*asked)-1]; last != "Research notes, in acme/swarm-app's notes/ (yes, no) [no]: " {
 		t.Errorf("the notes' question: %q", last)
 	}
@@ -195,5 +201,86 @@ func TestWizardInAClone(t *testing.T) {
 	w = &Wizard{Ops: o, Err: &errb, Place: Clone(clone), Defaults: true}
 	if c, err = w.Ask(); err != nil || c.Forge.Repo != "acme/swarm-app" || c.Forge.API != "https://forge.example.net/api/v1" {
 		t.Errorf("no origin: %v %+v", err, c.Forge)
+	}
+}
+
+// resources and references in a swarm repository's clone (section 3's
+// rows; section 13, revision 6's Step 4): names, checked here, their
+// content at the launch, so a path the clone does not hold is valid; the
+// old layout has no references; references written one line each after
+// resources, and read back.
+func TestValidateResourcesAndReferences(t *testing.T) {
+	_, clone := cloneFolder(t)
+	p := Clone(clone)
+	head := strings.Repeat("ab", 20)
+	ok := func(c *Config) {
+		c.Resources = []string{"briefs/", "docs/", "lib:guide/", "app:docs/x.md", "not/a:name"}
+		c.References = []Reference{{Name: "spec", URL: "https://forge.example.org/std/spec.git", Pin: "v1.2", Paths: []string{"SPEC.md"}},
+			{Name: "std", URL: "git@forge.example.org:std.git", Pin: head, Paths: []string{"lib/", "doc/a.md"}},
+			{Name: "ssh", URL: "ssh://git@forge.example.org:2222/std/ssh", Pin: "main", Paths: []string{"x"}}}
+	}
+	c := validClone()
+	ok(&c)
+	if err := Validate(ops.Real(), p, c, 0); err != nil {
+		t.Fatalf("the valid declaration: %v", err)
+	}
+	for _, tc := range []struct {
+		want string
+		edit func(c *Config)
+	}{
+		{`swarm.json: resources[1]: "." is the whole repository`, func(c *Config) { c.Resources = []string{"docs/", "."} }},
+		{`swarm.json: resources[0]: "lib:./" is the whole repository`, func(c *Config) { c.Resources = []string{"lib:./"} }},
+		{`swarm.json: resources[0]: "/etc" is not a relative path`, func(c *Config) { c.Resources = []string{"/etc"} }},
+		{`swarm.json: resources[0]: "docs/../x" is not a relative path`, func(c *Config) { c.Resources = []string{"docs/../x"} }},
+		{`swarm.json: resources[0]: "lib:" is not a relative path`, func(c *Config) { c.Resources = []string{"lib:"} }},
+		{`swarm.json: resources[0]: "gjot:docs/" names no declared repository`, func(c *Config) { c.Resources = []string{"gjot:docs/"} }},
+		{`swarm.json: resources[1]: "./docs" is listed twice`, func(c *Config) { c.Resources = []string{"docs/", "./docs"} }},
+		{`swarm.json: resources[1]: "lib:guide" is listed twice`, func(c *Config) { c.Resources = []string{"lib:guide/", "lib:guide"} }},
+		{`swarm.json: references[0].name: "a b" is not a repository name`, func(c *Config) { c.References[0].Name = "a b" }},
+		{`swarm.json: references[1].name: "spec" is listed twice`, func(c *Config) { c.References[1].Name = "spec" }},
+		{`swarm.json: references[0].name: "lib" is a declared repository`, func(c *Config) { c.References[0].Name = "lib" }},
+		{`swarm.json: references[0].name: "swarm-app" is the swarm repository`, func(c *Config) { c.References[0].Name = "swarm-app" }},
+		{`swarm.json: references[0].url: "/srv/spec" is not a git URL`, func(c *Config) { c.References[0].URL = "/srv/spec" }},
+		{`swarm.json: references[0].url: "ftp://forge.example.org/spec" is not a git URL`, func(c *Config) { c.References[0].URL = "ftp://forge.example.org/spec" }},
+		{`swarm.json: references[0].url: "https://jane:tok@forge.example.org/spec.git" carries user information`, func(c *Config) {
+			c.References[0].URL = "https://jane:tok@forge.example.org/spec.git"
+		}},
+		{`swarm.json: references[2].url: "ssh://git:pw@forge.example.org/std/ssh" carries user information`, func(c *Config) { c.References[2].URL = "ssh://git:pw@forge.example.org/std/ssh" }},
+		{`swarm.json: references[0].pin: "v1..2" is not a commit or a tag`, func(c *Config) { c.References[0].Pin = "v1..2" }},
+		{`swarm.json: references[0].pin: "" is not a commit or a tag`, func(c *Config) { c.References[0].Pin = "" }},
+		{`swarm.json: references[0].paths: no path (at least one is required)`, func(c *Config) { c.References[0].Paths = nil }},
+		{`swarm.json: references[1].paths[1]: "lib" is listed twice`, func(c *Config) { c.References[1].Paths = []string{"lib/", "lib"} }},
+		{`swarm.json: references[1].paths[0]: "." is the whole repository`, func(c *Config) { c.References[1].Paths = []string{"."} }},
+		{`swarm.json: references[1].paths[0]: "../x" is not a relative path`, func(c *Config) { c.References[1].Paths = []string{"../x"} }},
+	} {
+		c := validClone()
+		ok(&c)
+		tc.edit(&c)
+		if got := errText(Validate(ops.Real(), p, c, 0)); got != tc.want {
+			t.Errorf("got  %s\nwant %s", got, tc.want)
+		}
+	}
+
+	// The old layout: no references.
+	old := valid()
+	old.References = []Reference{{Name: "spec", URL: "https://forge.example.org/spec.git", Pin: "v1", Paths: []string{"SPEC.md"}}}
+	if got := errText(Validate(ops.Real(), Workspace(workspace(t)), old, 0)); got != `swarm.json: references: unknown field` {
+		t.Errorf("old layout: %s", got)
+	}
+
+	// Written after resources, one line per reference; read back.
+	got := string(Format(c))
+	want := `  "resources": ["briefs/", "docs/", "lib:guide/", "app:docs/x.md", "not/a:name"],` + "\n" + `  "references": [` + "\n" +
+		`    {"name": "spec", "url": "https://forge.example.org/std/spec.git", "pin": "v1.2", "paths": ["SPEC.md"]},` + "\n" +
+		`    {"name": "std", "url": "git@forge.example.org:std.git", "pin": "` + head + `", "paths": ["lib/", "doc/a.md"]},` + "\n" +
+		`    {"name": "ssh", "url": "ssh://git@forge.example.org:2222/std/ssh", "pin": "main", "paths": ["x"]}` + "\n  ],\n" + `  "trusted": `
+	if !strings.Contains(got, want) {
+		t.Errorf("Format:\n%s\nwant within:\n%s", got, want)
+	}
+	if back, err := Parse([]byte(got)); err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("round trip: %v %+v", err, back)
+	}
+	if strings.Contains(string(Format(validClone())), "references") {
+		t.Error("references written when none")
 	}
 }

@@ -80,9 +80,16 @@ func newSwarmWSIn(t *testing.T, clone bool) *swarmWS {
 		s.upstreams[url] = up
 	}
 	if clone {
-		os.MkdirAll(s.ws, 0o755)
-		git(t, s.ws, "init", "-q")
-		git(t, s.ws, "remote", "add", "origin", swarmURL)
+		// The swarm repository: an upstream holding one commit on main,
+		// its default branch, and the clone made from it.
+		up := filepath.Join(t.TempDir(), "swarm-app.git")
+		src := t.TempDir()
+		git(t, "", "init", "-q", "-b", "main", src)
+		git(t, src, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "first")
+		git(t, "", "clone", "-q", "--bare", src, up)
+		s.upstreams[swarmURL] = up
+		git(t, "", "clone", "-q", up, s.ws)
+		git(t, s.ws, "remote", "set-url", "origin", swarmURL)
 		s.place = declare.Clone(s.ws)
 	} else {
 		os.Mkdir(filepath.Join(s.ws, ".daisy"), 0o755)
@@ -90,6 +97,18 @@ func newSwarmWSIn(t *testing.T, clone bool) *swarmWS {
 	}
 	s.secrets("export GITEA_TOKEN=\"tok-123\"\n")
 	return s
+}
+
+// publish commits everything in the swarm repository's clone (clone) and
+// pushes it to the swarm repository's default branch, as the maintainer
+// does: what the members read is what is pushed (section 2).
+func (s *swarmWS) publish(msg string) {
+	s.t.Helper()
+	for _, args := range [][]string{{"add", "-A"}, {"-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", msg}, {"push", "-q", "origin", "HEAD:main"}} {
+		if _, errb, err := s.exec(s.ws, "git", args...); err != nil {
+			s.t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+	}
 }
 
 // swarmURL is the swarm repository's clone's origin (clone).

@@ -17,7 +17,9 @@ import (
 )
 
 // Git is the swarm's host-side git (section 7.1): a bare mirror of each
-// declared repository under <state>/git, and the clones members work in.
+// declared repository under <state>/git, in a swarm repository's clone
+// the swarm repository's there too and each reference's under
+// <state>/references, and the clones members work in.
 // WS is the swarm's root: the swarm repository's clone, or in the old
 // layout the workspace.
 type Git struct {
@@ -69,35 +71,48 @@ func (g Git) remote(r declare.Repo) (url string, ssh *string, err error) {
 // its next fetch or push.
 func (g Git) record(r declare.Repo) (string, error) {
 	m := g.Mirror(r.Name)
-	if _, err := g.O.FS().Stat(m); err != nil {
-		if err := g.O.FS().MkdirAll(m, 0o755); err != nil {
-			return "", err
-		}
-		if _, err := g.run(m, "init", "--bare", "--quiet"); err != nil {
-			return "", err
-		}
+	if err := g.bare(m); err != nil {
+		return "", err
 	}
 	url, ssh, err := g.remote(r)
 	if err != nil {
 		return "", err
 	}
+	return m, g.recordAt(m, url, ssh)
+}
+
+// bare makes m a bare repository when it is absent.
+func (g Git) bare(m string) error {
+	if _, err := g.O.FS().Stat(m); err == nil {
+		return nil
+	}
+	if err := g.O.FS().MkdirAll(m, 0o755); err != nil {
+		return err
+	}
+	_, err := g.run(m, "init", "--bare", "--quiet")
+	return err
+}
+
+// recordAt writes url and ssh into the mirror m's config where they
+// differ from what it records (record).
+func (g Git) recordAt(m, url string, ssh *string) error {
 	if cur, err := g.run(m, "config", "--local", "--get", "remote.origin.url"); err != nil || cur != url {
 		if _, err := g.run(m, "config", "remote.origin.url", url); err != nil {
-			return "", err
+			return err
 		}
 	}
 	cur, err := g.run(m, "config", "--local", "--get", "core.sshCommand")
 	switch set := err == nil; {
 	case ssh == nil && set:
 		if _, err := g.run(m, "config", "--unset", "core.sshCommand"); err != nil {
-			return "", err
+			return err
 		}
 	case ssh != nil && (!set || cur != *ssh):
 		if _, err := g.run(m, "config", "core.sshCommand", *ssh); err != nil {
-			return "", err
+			return err
 		}
 	}
-	return m, nil
+	return nil
 }
 
 // Fetch brings the repository's mirror up to date from its origin as the
@@ -110,6 +125,145 @@ func (g Git) Fetch(r declare.Repo) error {
 	}
 	_, err = g.run(m, "fetch", "--quiet", "--prune", "origin", "+refs/heads/*:refs/heads/*")
 	return err
+}
+
+// FetchSwarm brings the swarm repository's mirror, <state>/git/<repo>,
+// up to date as a declared repository's is, reached at its clone's
+// origin URL with the clone's core.sshCommand, and points the mirror's
+// HEAD at the forge's default branch, read by `ls-remote --symref`
+// (section 7.1, step 1).
+func (g Git) FetchSwarm(repo string) error {
+	url, err := g.run(g.WS, "config", "--get", "remote.origin.url")
+	if err != nil {
+		return fmt.Errorf("the swarm repository's clone %s has no origin URL: %v", g.WS, err)
+	}
+	var ssh *string
+	if v, _ := g.run(g.WS, "config", "--get", "core.sshCommand"); v != "" {
+		ssh = &v
+	}
+	m := g.Mirror(repo)
+	if err := g.bare(m); err != nil {
+		return err
+	}
+	if err := g.recordAt(m, url, ssh); err != nil {
+		return err
+	}
+	if _, err := g.run(m, "fetch", "--quiet", "--prune", "origin", "+refs/heads/*:refs/heads/*"); err != nil {
+		return err
+	}
+	out, err := g.run(m, "ls-remote", "--symref", "origin", "HEAD")
+	if err != nil {
+		return err
+	}
+	for _, l := range strings.Split(out, "\n") {
+		if target, ok := strings.CutPrefix(l, "ref: "); ok {
+			target, _, _ = strings.Cut(target, "\t")
+			if cur, _ := g.run(m, "symbolic-ref", "HEAD"); cur != target {
+				if _, err := g.run(m, "symbolic-ref", "HEAD", target); err != nil {
+					return err
+				}
+			}
+			break
+		}
+	}
+	return nil
+}
+
+// Reference is a reference's bare mirror, <state>/references/<name>.
+func (g Git) Reference(name string) string { return filepath.Join(g.State, "references", name) }
+
+// FetchPin makes the reference's mirror, recording its url, and fetches
+// its pin when the mirror does not hold it: a commit by its id, a tag
+// into refs/tags/<pin>; once there, never again (section 7.1, step 1).
+// It returns the pin's commit.
+func (g Git) FetchPin(r declare.Reference) (string, error) {
+	m := g.Reference(r.Name)
+	if err := g.bare(m); err != nil {
+		return "", err
+	}
+	if err := g.recordAt(m, r.URL, nil); err != nil {
+		return "", err
+	}
+	if sha, err := g.Pin(r); err == nil {
+		return sha, nil
+	}
+	refspec := r.Pin
+	if !declare.PinIsCommit(r.Pin) {
+		refspec = "+refs/tags/" + r.Pin + ":refs/tags/" + r.Pin
+	}
+	if _, err := g.run(m, "fetch", "--quiet", "--no-tags", "origin", refspec); err != nil {
+		return "", err
+	}
+	return g.Pin(r)
+}
+
+// Pin is the commit the reference's pin names in its mirror, an error
+// when the mirror does not hold it.
+func (g Git) Pin(r declare.Reference) (string, error) {
+	rev := r.Pin
+	if !declare.PinIsCommit(r.Pin) {
+		rev = "refs/tags/" + r.Pin
+	}
+	return g.run(g.Reference(r.Name), "rev-parse", "--verify", "--quiet", rev+"^{commit}")
+}
+
+// Head is the commit of rev ("HEAD", the swarm repository's default
+// branch, or refs/heads/<base>) in the mirror m, "" when it has none (no
+// mirror yet, or nothing fetched).
+func (g Git) Head(m, rev string) string {
+	if _, err := g.O.FS().Stat(m); err != nil {
+		return ""
+	}
+	sha, err := g.run(m, "rev-parse", "--verify", "--quiet", rev+"^{commit}")
+	if err != nil {
+		return ""
+	}
+	return sha
+}
+
+// TreeEntry is one entry of a commit's tree: its mode, its type (blob,
+// tree or commit), its object and its path in the repository.
+type TreeEntry struct{ Mode, Type, Object, Path string }
+
+// Tree is every entry at and under p in the mirror m's commit, trees
+// included (`ls-tree -r -t`), each path as it is (-z); none when the
+// commit holds no p.
+func (g Git) Tree(m, commit, p string) ([]TreeEntry, error) {
+	args := []string{"ls-tree", "-r", "-t", "-z", commit, "--", p}
+	out, errb, err := g.O.Exec(m, "git", args...)
+	if err != nil {
+		return nil, fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))
+	}
+	var entries []TreeEntry
+	for _, rec := range strings.Split(string(out), "\x00") {
+		meta, name, ok := strings.Cut(rec, "\t")
+		f := strings.Fields(meta)
+		if !ok || len(f) != 3 {
+			continue
+		}
+		entries = append(entries, TreeEntry{f[0], f[1], f[2], name})
+	}
+	return entries, nil
+}
+
+// Blob is the content of the object in the mirror m.
+func (g Git) Blob(m, object string) ([]byte, error) {
+	out, errb, err := g.O.Exec(m, "git", "cat-file", "blob", object)
+	if err != nil {
+		return nil, fmt.Errorf("git cat-file blob %s: %v: %s", object, err, strings.TrimSpace(string(errb)))
+	}
+	return out, nil
+}
+
+// Archive is `git archive --format=tar <commit> -- <p>` in the mirror m:
+// p at the commit, as a tar of its regular files, directories and links.
+func (g Git) Archive(m, commit, p string) ([]byte, error) {
+	args := []string{"archive", "--format=tar", commit, "--", p}
+	out, errb, err := g.O.Exec(m, "git", args...)
+	if err != nil {
+		return nil, fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))
+	}
+	return out, nil
 }
 
 // HasFile: path is a file in the repository's mirror on branch, as the

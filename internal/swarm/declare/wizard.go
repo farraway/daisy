@@ -210,9 +210,13 @@ func (w *Wizard) Ask() (Config, error) {
 			return w.ask("Interval", c.Interval, func(a string) *Error { c.Interval = a; return checkDuration("interval", a) })
 		},
 		func() error {
-			return w.ask("Resources (comma-separated workspace paths, - for none)", listDefault(w.resources(c)), func(a string) *Error {
+			question := "Resources (comma-separated workspace paths, - for none)"
+			if !w.Place.Old() {
+				question = "Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none)"
+			}
+			return w.ask(question, listDefault(w.resources(c)), func(a string) *Error {
 				c.Resources = list(a)
-				return checkResources(w.Ops, w.Place, c.Resources)
+				return checkResources(w.Ops, w.Place, c)
 			})
 		},
 	}
@@ -386,9 +390,17 @@ func (w *Wizard) unasked() Config {
 		}
 		return c
 	}
-	resources := []string{}
-	if fi, err := w.Ops.FS().Stat(filepath.Join(w.Place.Root, "docs")); err == nil && fi.IsDir() {
-		resources = []string{"docs/"}
+	// The directories init seeds that the clone holds (briefs/ and docs/,
+	// section 3), until Step 6 of revision 6's plan seeds them and takes
+	// both; the old layout's docs/ when the workspace holds it.
+	resources, seeded := []string{}, []string{"briefs", "docs"}
+	if w.Place.Old() {
+		seeded = []string{"docs"}
+	}
+	for _, d := range seeded {
+		if fi, err := w.Ops.FS().Stat(filepath.Join(w.Place.Root, d)); err == nil && fi.IsDir() {
+			resources = append(resources, d+"/")
+		}
 	}
 	return Config{
 		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",

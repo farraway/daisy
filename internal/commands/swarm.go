@@ -144,14 +144,19 @@ func swarmInit(c *Context, open opener) error {
 	}
 	g := reconcile.Git{O: o, WS: p.Root, State: cfg.Forge.State(c.Env.Local)}
 	if !p.Old() {
-		// The mirrors, which the readiness warnings read (section 11,
-		// init); the old layout writes nothing under $DAISY_LOCAL.
+		// The mirrors, the swarm repository's first, which the readiness
+		// warnings read (section 11, init); the old layout writes nothing
+		// under $DAISY_LOCAL.
+		_, own, _ := strings.Cut(cfg.Forge.Repo, "/")
+		if err := g.FetchSwarm(own); err != nil {
+			return fmt.Errorf("Error: swarm: mirror %s: %v", own, err)
+		}
 		for _, r := range cfg.Repos {
 			if err := g.Fetch(r); err != nil {
 				return fmt.Errorf("Error: swarm: mirror %s: %v", r.Name, err)
 			}
 		}
-		fmt.Fprintf(c.Stdout, "✓ Mirrors: %s fetched\n", strings.Join(names, ", "))
+		fmt.Fprintf(c.Stdout, "✓ Mirrors: %s fetched\n", strings.Join(append([]string{own}, names...), ", "))
 	}
 	created, renamed, err := f.EnsureLabels(forge.Labels)
 	if err != nil {
@@ -519,7 +524,7 @@ func swarmStatus(c *Context, open opener) error {
 			waits[item] = append(waits[item], n)
 		}
 	}
-	briefs, err := brief.Find(o.FS(), ws, cfg.Resources)
+	briefs, err := reconcile.Briefs(o, c.Swarm, cfg, cfg.Forge.State(c.Env.Local), nil)
 	if err != nil {
 		return fmt.Errorf("Error: swarm: reading the briefs: %v", err)
 	}
@@ -602,6 +607,9 @@ func swarmStatus(c *Context, open opener) error {
 	metRun, met, err := lastMet(o.FS(), state)
 	if err != nil {
 		return fmt.Errorf("Error: swarm: reading the runs: %v", err)
+	}
+	for i, m := range met {
+		met[i] = reconcile.BriefName(c.Swarm, cfg, m)
 	}
 	var active []string
 	var milestones []forge.Milestone

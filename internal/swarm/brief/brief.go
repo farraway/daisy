@@ -14,11 +14,22 @@ import (
 	"daisy/internal/swarm/fence"
 )
 
-// Brief is one brief: its path relative to the workspace, as the batch
-// prompt and a proposal's `Brief:` line name it, its Status and its text.
-type Brief struct{ Path, Status, Text string }
+// Brief is one brief: its path, as the batch prompt and a proposal's
+// `Brief:` line name it (relative to the workspace in the old layout; in
+// a swarm repository's clone its path in the swarm repository, or
+// `<name>:<path>` in a declared one), its Status, its text, and where it
+// is mounted under /work/.resources (its path in the old layout,
+// `<repository>/<path>` in a clone).
+type Brief struct{ Path, Status, Text, Mount string }
 
-// Find is every brief under the resources of the workspace ws, in path
+// Read is the brief at path whose text is data, mounted at mount; ok is
+// false when its header has no Status: line, a resource like any other.
+func Read(path, mount string, data []byte) (b Brief, ok bool) {
+	status, ok := statusOf(string(data))
+	return Brief{path, status, string(data), mount}, ok
+}
+
+// Find is every brief under the resources of the old layout's workspace ws, in path
 // order. A resource is read as it is mounted, resolved through its links;
 // a link inside it is not followed, as it resolves to nothing in a
 // container.
@@ -34,8 +45,8 @@ func Find(fs ops.FS, ws string, resources []string) ([]Brief, error) {
 			if err != nil {
 				return err
 			}
-			if status, ok := statusOf(string(data)); ok {
-				out = append(out, Brief{rel, status, string(data)})
+			if b, ok := Read(rel, rel, data); ok {
+				out = append(out, b)
 			}
 			return nil
 		}

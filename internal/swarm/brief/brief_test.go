@@ -30,7 +30,7 @@ func TestFind(t *testing.T) {
 	os.Symlink(filepath.Join(ws, "outside/y.md"), filepath.Join(ws, "docs/briefs/z.md"))
 
 	got, err := Find(ops.Real().FS(), ws, []string{"docs/", "lib/docs", "docs/briefs/"})
-	want := []Brief{{"docs/briefs/a-roadmap.md", "active", "# Roadmap\nStatus: active\nPriority: first.\n\n## M0\n"}, {"docs/briefs/b-second.md", "done", "# Second\n\nStatus: done\n\n## M0\n"}, {"lib/docs/briefs/x.md", "active", "Status:   active  \n"}}
+	want := []Brief{{"docs/briefs/a-roadmap.md", "active", "# Roadmap\nStatus: active\nPriority: first.\n\n## M0\n", "docs/briefs/a-roadmap.md"}, {"docs/briefs/b-second.md", "done", "# Second\n\nStatus: done\n\n## M0\n", "docs/briefs/b-second.md"}, {"lib/docs/briefs/x.md", "active", "Status:   active  \n", "lib/docs/briefs/x.md"}}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Find = %+v, %v", got, err)
 	}
@@ -41,7 +41,7 @@ func TestFind(t *testing.T) {
 		t.Error("a missing resource is no error")
 	}
 	// A resource that is a brief itself.
-	if got, _ := Find(ops.Real().FS(), ws, []string{"outside/y.md"}); !reflect.DeepEqual(got, []Brief{{"outside/y.md", "active", "Status: active\n"}}) {
+	if got, _ := Find(ops.Real().FS(), ws, []string{"outside/y.md"}); !reflect.DeepEqual(got, []Brief{{"outside/y.md", "active", "Status: active\n", "outside/y.md"}}) {
 		t.Errorf("a file resource: %+v", got)
 	}
 }
@@ -81,7 +81,7 @@ func TestStatusAfterAFencedHeading(t *testing.T) {
 	text := "# Brief\n\nProposals look like:\n\n```markdown\n## <title>\nStatus: done\n```\n\nStatus: active\n\n## M0\n"
 	write(t, filepath.Join(ws, "docs/briefs/b.md"), text)
 	got, err := Find(ops.Real().FS(), ws, []string{"docs/"})
-	if err != nil || !reflect.DeepEqual(got, []Brief{{"docs/briefs/b.md", "active", text}}) {
+	if err != nil || !reflect.DeepEqual(got, []Brief{{"docs/briefs/b.md", "active", text, "docs/briefs/b.md"}}) {
 		t.Fatalf("Find = %+v, %v", got, err)
 	}
 	if ms := got[0].Milestones(); !reflect.DeepEqual(ms, []string{"M0"}) {

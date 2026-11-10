@@ -87,13 +87,13 @@ func (s *Swarm) triageItems(is forge.Issue, open []forge.Issue) []string {
 		}
 		return open[i], true
 	}
-	if path, milestone := BriefOf(is, s.SwarmLogin); path == "" {
+	if path, milestone := s.briefOf(is); path == "" {
 		items = append(items, "- Brief: none named; the body opens with no `Brief:` line.")
 	} else {
 		items = append(items, fmt.Sprintf("- Brief: %s, milestone %s.", path, milestone))
 		var same []string
 		for _, o := range open {
-			if p, m := BriefOf(o, s.SwarmLogin); o.Number != is.Number && p == path && m == milestone {
+			if p, m := s.briefOf(o); o.Number != is.Number && p == path && m == milestone {
 				same = append(same, fmt.Sprintf("#%d %s", o.Number, o.Title))
 			}
 		}

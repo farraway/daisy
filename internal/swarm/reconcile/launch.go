@@ -81,6 +81,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		s.staleness(j.Notes)
 	}
 
+	j.Clone = !s.Place.Old()
 	system, prompt := Render(j)
 	for _, f := range []struct{ name, text string }{{"system.md", system}, {"prompt.md", prompt}} {
 		p := filepath.Join(ioDir, f.name)
@@ -96,12 +97,28 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return failed("launch-failed "+ended(), "fault: prompt: prompt.md: empty field")
 	}
 
-	// The resources as they resolve now, section 3's checks made again,
-	// so a link changed since the pass's validation mounts nothing
-	// outside them (section 7.2).
-	resources, err := declare.ResolveResources(s.O, s.Place, s.Cfg.Resources)
-	if err != nil {
-		return failed("launch-failed "+ended(), "fault: "+err.Error())
+	// The resources: in a swarm repository's clone, checked out of the
+	// mirrors at the pass's commits (section 7.1, step 3); in the old
+	// layout, as they resolve now, section 3's checks made again, so a
+	// link changed since the pass's validation mounts nothing outside them
+	// (section 7.2).
+	var resources, resourceLines []string
+	resDir := filepath.Join(r.Dir, "resources")
+	if s.Place.Old() {
+		var err error
+		if resources, err = declare.ResolveResources(s.O, s.Place, s.Cfg.Resources); err != nil {
+			return failed("launch-failed "+ended(), "fault: "+err.Error())
+		}
+	} else {
+		lines, refused, err := s.checkout(resDir)
+		if err != nil {
+			fs.RemoveAll(r.Dir)
+			return false, err
+		}
+		if refused != "" {
+			return failed("launch-failed "+ended(), "fault: "+refused)
+		}
+		resourceLines = lines
 	}
 
 	persona := s.Cfg.Personas[j.Role]
@@ -165,8 +182,20 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 		startLines = append(startLines, "notes-base "+notesSHA)
 	}
-	for i, res := range ResourceMounts(s.Cfg.Resources) {
-		src := resources[i]
+	if len(resourceLines) > 0 {
+		// One read-only mount of the run's checkout, its mount point made
+		// in the run's own tree, as /work/.notes is.
+		if err := fs.MkdirAll(filepath.Join(work, ".resources"), 0o755); err != nil {
+			return false, err
+		}
+		mounts = append(mounts, runner.Mount{Src: resDir, Dst: ResourcesMount, ReadOnly: true})
+		reads = append(reads, ResourcesMount)
+		startLines = append(startLines, resourceLines...)
+	}
+	// The old layout's live mounts, one per resource (resources is nil in
+	// a clone).
+	for i, src := range resources {
+		res := ResourceMounts(s.Cfg.Resources)[i]
 		// The mount point made in the run's own tree, as /work/.notes is,
 		// so that Docker creates none in it: a directory for a directory,
 		// an empty file for a file.

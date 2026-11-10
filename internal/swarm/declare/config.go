@@ -37,6 +37,7 @@ type Config struct {
 	Interval   string             `json:"interval"`
 	Owner      Owner              `json:"owner"`
 	Resources  []string           `json:"resources"`
+	References []Reference        `json:"references,omitempty"`
 	Wiki       bool               `json:"wiki,omitempty"`
 	Notes      bool               `json:"notes,omitempty"`
 	Trusted    []string           `json:"trusted"`
@@ -83,6 +84,17 @@ type Repo struct {
 	Check      []string `json:"check"`
 	Image      string   `json:"image"`
 	Protected  []string `json:"protected"`
+}
+
+// Reference is an outside repository read at a fixed point, as a
+// resource is (section 3, references): its name, its git URL, its pin (a
+// full commit or a tag) and the paths mounted from it. A swarm
+// repository's clone alone declares it.
+type Reference struct {
+	Name  string   `json:"name"`
+	URL   string   `json:"url"`
+	Pin   string   `json:"pin"`
+	Paths []string `json:"paths"`
 }
 
 type Owner struct {
@@ -316,6 +328,14 @@ func Format(c Config) []byte {
 		`"interval": ` + inline(c.Interval),
 		`"owner": ` + inline(c.Owner),
 		`"resources": ` + inline(nonNil(c.Resources)),
+	}
+	if len(c.References) > 0 {
+		var refs []string
+		for _, r := range c.References {
+			r.Paths = nonNil(r.Paths)
+			refs = append(refs, inline(r))
+		}
+		top = append(top, "\"references\": [\n    "+strings.Join(refs, ",\n    ")+"\n  ]")
 	}
 	if c.Wiki {
 		top = append(top, `"wiki": true`)

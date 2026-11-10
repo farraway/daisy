@@ -43,7 +43,7 @@ func TestSwarmVerbsFromAClone(t *testing.T) {
 	for _, r := range declare.Roles {
 		wantOut += "  Kept prompts/" + r + ".md (exists)\n"
 	}
-	wantOut += "✓ Mirrors: app, lib fetched\n✓ Labels: 16 present (0 created, 0 renamed)\n" + strings.Replace(a.units(), "for the workspace %f", "for the swarm repository %f", 1)
+	wantOut += "✓ Mirrors: swarm-app, app, lib fetched\n✓ Labels: 16 present (0 created, 0 renamed)\n" + strings.Replace(a.units(), "for the workspace %f", "for the swarm repository %f", 1)
 	if a.stdout.String() != wantOut || !strings.Contains(wantOut, "daisy-swarm@"+systemdEscapePath(a.ws)+".service") {
 		t.Errorf("init stdout:\n%s\nwant:\n%s", a.stdout.String(), wantOut)
 	}
@@ -193,16 +193,9 @@ func TestSwarmProductsByForgeName(t *testing.T) {
 		t.Errorf("readiness:\n%s", e)
 	}
 
-	up := filepath.Join(t.TempDir(), "swarm-app.git")
-	src := t.TempDir()
-	gitIn(t, "", "init", "-q", "-b", "main", src)
-	writes(map[string]string{"README.md": "# The swarm\n"})(src)
-	os.MkdirAll(filepath.Join(src, "notes"), 0o755)
-	writes(map[string]string{"notes/README.md": "# Notes\n"})(src)
-	gitIn(t, src, "add", "-A")
-	gitIn(t, src, "commit", "-q", "-m", "first")
-	gitIn(t, "", "clone", "-q", "--bare", src, up)
-	a.upstreams[swarmURL] = up
+	up := a.upstreams[swarmURL]
+	a.write("notes/README.md", "# Notes\n")
+	a.publish("notes")
 	ssh := "ssh -i /keys/lib"
 	a.edit(func(c *declare.Config) { c.Notes, c.Repos[1].SSHCommand = true, &ssh })
 	config := func(name, key string) string {
@@ -226,7 +219,7 @@ func TestSwarmProductsByForgeName(t *testing.T) {
 			t.Errorf("%s's mirror records %q, want %q", name, got, want)
 		}
 	}
-	if files := gitIn(t, up, "ls-tree", "-r", "--name-only", "main"); files != "README.md\nnotes/Board-model.md\nnotes/README.md" {
+	if files := gitIn(t, up, "ls-tree", "-r", "--name-only", "main", "notes/"); files != "notes/Board-model.md\nnotes/README.md" {
 		t.Errorf("the notes did not publish to acme/swarm-app:\n%s", files)
 	}
 

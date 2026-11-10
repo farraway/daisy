@@ -173,7 +173,8 @@ func (c *collection) step(line string) error {
 	return nil
 }
 
-// end records the outcome and `collected`, and removes the run's clones.
+// end records the outcome and `collected`, and removes the run's clones
+// and its checkout of the resources.
 func (c *collection) end(outcome string) error {
 	fs := c.s.O.FS()
 	if err := c.r.Append(fs, "outcome "+outcome, "collected"); err != nil {
@@ -184,7 +185,7 @@ func (c *collection) end(outcome string) error {
 		c.s.faulted = append(c.s.faulted, c.r.Dir)
 	}
 	delete(c.s.given, c.r.Dir)
-	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "check")), c.dropNotes())
+	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "check")), removeTree(fs, filepath.Join(c.r.Dir, "resources")), c.dropNotes())
 }
 
 // removeTree removes a tree a member or a check wrote: when RemoveAll
@@ -365,7 +366,7 @@ func (c *collection) abandoned() error {
 	if err := c.r.Append(fs, "outcome abandoned", "collected"); err != nil {
 		return err
 	}
-	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), c.dropNotes())
+	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "resources")), c.dropNotes())
 }
 
 // block is T17, swarm:blocked being a flag: the issue taken back home,

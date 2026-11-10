@@ -15,7 +15,8 @@ import (
 // nothing), what it does in its clone (Work, given the directory mounted
 // at /work: a worker's commits) and in its copy of the research notes
 // (Notes, given the directory mounted at /work/.notes: an architect's
-// notes), its exit
+// notes) and what it reads of its resources (Resources, given the
+// directory mounted at /work/.resources), its exit
 // status, its standard output and error, and whether the wall clock
 // stopped it. A check is scripted the same way under the role "check",
 // its Stdout and Stderr its output.
@@ -23,6 +24,7 @@ type Canned struct {
 	Out            string
 	Work           func(work string) error
 	Notes          func(notes string) error
+	Resources      func(resources string) error
 	Code           int
 	Stdout, Stderr string
 	TimedOut       bool
@@ -92,6 +94,10 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 			}
 		case m.Dst == "/work/.notes" && c.Notes != nil:
 			if err := c.Notes(m.Src); err != nil {
+				return nil, err
+			}
+		case m.Dst == "/work/.resources" && c.Resources != nil:
+			if err := c.Resources(m.Src); err != nil {
 				return nil, err
 			}
 		}

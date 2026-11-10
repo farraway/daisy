@@ -43,6 +43,9 @@ type Swarm struct {
 	moves      map[int]string      // issue → the stage this pass moved it to after step (5) gave its pull request the label
 	collected  int                 // runs collected in this pass
 	closedRead bool                // the milestone step has read the closed issues once
+	fetched    bool                // this pass has fetched the mirrors
+	commits    map[string]string   // the pass's commits, by repository (Commits), in a swarm repository's clone
+	pinErr     map[string]error    // a reference's pin this pass's fetch did not bring, by its name
 }
 
 // Openers is whose pull requests are the swarm's (section 10, Pulls):
@@ -117,36 +120,21 @@ func (s *Swarm) Pass(wait bool) error {
 			mine++
 		}
 	}
-	s.collected, s.started, s.moves = 0, 0, map[int]string{}
+	s.collected, s.started, s.moves, s.fetched = 0, 0, map[int]string{}, false
 	errs := []error{s.collectAll(running)}
 	launched := 0
 	if paused := s.paused(); paused != "" {
 		fmt.Fprintf(s.Out, "Paused since %s (%s): launching nothing\n", strings.TrimPrefix(paused, "paused "), filepath.Join(s.state(), "paused"))
 		errs = append(errs, s.stages(running, nil))
 	} else {
-		fetched := false
 		launch := func(j *Job) error {
 			// The running set is the pass's start; a container started
 			// since, a check in step (3) included, counts too (rule 4).
 			if mine+s.started >= s.Cfg.MaxMembers || s.paused() != "" || s.stopping() {
 				return nil // a second fault in a row, or a signal, this pass launches nothing more
 			}
-			if !fetched {
-				for _, r := range s.Cfg.Repos {
-					if err := s.git().Fetch(r); err != nil {
-						return err
-					}
-				}
-				if s.Cfg.KeepsNotes() {
-					w, err := s.notesRepo()
-					if err == nil {
-						err = w.Refresh()
-					}
-					if err != nil {
-						return err
-					}
-				}
-				fetched = true
+			if err := s.fetch(); err != nil {
+				return err
 			}
 			ok, err := s.launch(j, running)
 			if ok {
@@ -174,6 +162,50 @@ func (s *Swarm) Pass(wait bool) error {
 	}
 	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, mine)
 	return errors.Join(errs...)
+}
+
+// fetch brings the mirrors up to date, once per pass, before the pass's
+// first launch or its first reading of the briefs (section 7.1, step
+// 1): in a swarm repository's clone the swarm repository's first; each
+// declared repository's; with wiki or notes the notes' clone; and in a
+// clone each reference's pin when its mirror lacks it, a pin not fetched
+// being each run's fault (resource refused), not the pass's. The pass's
+// commits are then read from the mirrors.
+func (s *Swarm) fetch() error {
+	if s.fetched {
+		return nil
+	}
+	g := s.git()
+	if !s.Place.Old() {
+		if err := g.FetchSwarm(repoName(s.Cfg.Forge.Repo)); err != nil {
+			return err
+		}
+	}
+	for _, r := range s.Cfg.Repos {
+		if err := g.Fetch(r); err != nil {
+			return err
+		}
+	}
+	if s.Cfg.KeepsNotes() {
+		w, err := s.notesRepo()
+		if err == nil {
+			err = w.Refresh()
+		}
+		if err != nil {
+			return err
+		}
+	}
+	s.pinErr = map[string]error{}
+	if !s.Place.Old() {
+		for _, r := range s.Cfg.References {
+			if _, err := g.FetchPin(r); err != nil {
+				s.pinErr[r.Name] = err
+			}
+		}
+		s.commits = Commits(g, s.Cfg)
+	}
+	s.fetched = true
+	return nil
 }
 
 // ErrInterrupted: a second signal stopped the drain (section 11, apply

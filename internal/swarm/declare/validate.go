@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -51,9 +52,11 @@ var (
 
 // Validate checks c, a parse of the swarm.json at p, in section 3's
 // order and returns the first problem as an *Error. In a swarm
-// repository's clone its origin is forge.repo's and each repository is
-// named by repos[].repo; in the old layout repos[].path is read under
-// p.Root. resources are read under p.Root, the prompts in p.Dir.
+// repository's clone its origin is forge.repo's, each repository is
+// named by repos[].repo and resources and references are read as names,
+// their content checked at the launch (section 7.1, step 3); in the old
+// layout repos[].path and resources are read under p.Root. The prompts
+// are read in p.Dir.
 func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
 	checks := []func() *Error{
 		func() *Error { return checkForge(c.Forge, skip) },
@@ -65,7 +68,8 @@ func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
 		func() *Error { return checkDuration("timeout", c.Timeout) },
 		func() *Error { return checkDuration("interval", c.Interval) },
 		func() *Error { return checkRange("owner.max_open_proposals", c.Owner.MaxOpenProposals, 1, 20) },
-		func() *Error { return checkResources(o, p, c.Resources) },
+		func() *Error { return checkResources(o, p, c) },
+		func() *Error { return checkReferences(p, c) },
 		func() *Error { return checkNotes(c) },
 		func() *Error {
 			if skip&SkipAccount != 0 {
@@ -323,18 +327,145 @@ func checkDuration(field, v string) *Error {
 	return nil
 }
 
-// checkResources: each resolves, through every link, to a path inside the
-// root that is not the root, in the old layout not under swarm/, neither
-// is nor contains .env.sh, .daisy or .git, and is listed once.
-func checkResources(o ops.Ops, p Place, resources []string) *Error {
-	_, err := resolveResources(o, p, resources)
+// checkResources: in a swarm repository's clone, each entry is a path in
+// the swarm repository or `<name>:<path>` in a declared repository,
+// relative, without `..`, not the whole repository and listed once; what
+// it holds is read at the pass's commit, where the launch checks it
+// (section 7.1, step 3). In the old layout each resolves, through every
+// link, to a path inside the workspace that is not the workspace, not
+// under swarm/, neither is nor contains .env.sh, .daisy or .git, and is
+// listed once.
+func checkResources(o ops.Ops, p Place, c Config) *Error {
+	if !p.Old() {
+		return checkNamedResources(c)
+	}
+	_, err := resolveResources(o, p, c.Resources)
 	return err
+}
+
+// SplitResource reads a resources entry of a swarm repository's clone
+// (section 3): `<name>:<path>`, a path in the declared repository
+// <name>, when the text before the first `:` is a repository name (no
+// `/`), else a path in the swarm repository, name "".
+func SplitResource(entry string) (name, path string) {
+	if n, p, ok := strings.Cut(entry, ":"); ok && nameShape.MatchString(n) {
+		return n, p
+	}
+	return "", entry
+}
+
+// relPath is why p is no path a resource may name in a repository, ""
+// when it is one: relative, without `..`, and not the whole repository.
+func relPath(p string) string {
+	if p == "" || strings.HasPrefix(p, "/") || slices.Contains(strings.Split(p, "/"), "..") {
+		return "is not a relative path"
+	}
+	if path.Clean(p) == "." {
+		return "is the whole repository"
+	}
+	return ""
+}
+
+func checkNamedResources(c Config) *Error {
+	type key struct{ repo, path string }
+	var seen []key
+	for i, r := range c.Resources {
+		at := fmt.Sprintf("resources[%d]", i)
+		name, p := SplitResource(r)
+		if name != "" && !slices.ContainsFunc(c.Repos, func(d Repo) bool { return d.Name == name }) {
+			return fieldErr(at, "%q names no declared repository", r)
+		}
+		if why := relPath(p); why != "" {
+			return fieldErr(at, "%q %s", r, why)
+		}
+		k := key{name, path.Clean(p)}
+		if slices.Contains(seen, k) {
+			return fieldErr(at, "%q is listed twice", r)
+		}
+		seen = append(seen, k)
+	}
+	return nil
+}
+
+var commitShape = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+// PinIsCommit: a reference's pin is a full commit, not a tag (section 3).
+func PinIsCommit(pin string) bool { return commitShape.MatchString(pin) }
+
+// checkReferences: a swarm repository's clone's references (section 3),
+// each named as a repository but none declared and not the swarm
+// repository, its URL a git URL without credentials, its pin a full commit
+// or a tag, its paths as a resource's; the old layout has none.
+func checkReferences(p Place, c Config) *Error {
+	if c.References == nil {
+		return nil
+	}
+	if p.Old() {
+		return fieldErr("references", "unknown field")
+	}
+	_, own, _ := strings.Cut(c.Forge.Repo, "/")
+	for i, r := range c.References {
+		at := fmt.Sprintf("references[%d]", i)
+		switch {
+		case !nameShape.MatchString(r.Name):
+			return fieldErr(at+".name", "%q is not a repository name", r.Name)
+		case slices.ContainsFunc(c.References[:i], func(o Reference) bool { return o.Name == r.Name }):
+			return fieldErr(at+".name", "%q is listed twice", r.Name)
+		case slices.ContainsFunc(c.Repos, func(d Repo) bool { return d.Name == r.Name }):
+			return fieldErr(at+".name", "%q is a declared repository", r.Name)
+		case strings.EqualFold(r.Name, own):
+			return fieldErr(at+".name", "%q is the swarm repository", r.Name)
+		}
+		if credentials, ok := gitURL(r.URL); credentials {
+			return fieldErr(at+".url", "%q carries user information", r.URL)
+		} else if !ok {
+			return fieldErr(at+".url", "%q is not a git URL", r.URL)
+		}
+		if !PinIsCommit(r.Pin) && checkBase(r.Pin) != nil {
+			return fieldErr(at+".pin", "%q is not a commit or a tag", r.Pin)
+		}
+		if len(r.Paths) == 0 {
+			return fieldErr(at+".paths", "no path (at least one is required)")
+		}
+		for j, q := range r.Paths {
+			pat := fmt.Sprintf("%s.paths[%d]", at, j)
+			if why := relPath(q); why != "" {
+				return fieldErr(pat, "%q %s", q, why)
+			}
+			if slices.ContainsFunc(r.Paths[:j], func(o string) bool { return path.Clean(o) == path.Clean(q) }) {
+				return fieldErr(pat, "%q is listed twice", q)
+			}
+		}
+	}
+	return nil
+}
+
+// gitURL reads a reference's URL (section 3): https or http, or SSH in
+// section 10's two SSH forms, naming a host and a path; credentials
+// when an http(s) URL carries user information or an SSH one a password.
+func gitURL(raw string) (credentials, ok bool) {
+	if !strings.Contains(raw, "://") {
+		m := scpLike.FindStringSubmatch(raw)
+		return false, m != nil && strings.Trim(m[2], "/") != ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return strings.Contains(raw, "@"), false
+	}
+	if u.User != nil {
+		_, hasPassword := u.User.Password()
+		credentials = u.Scheme != "ssh" || hasPassword
+	}
+	ok = u.Host != "" && strings.Trim(u.Path, "/") != "" && u.RawQuery == "" && u.Fragment == "" &&
+		(u.Scheme == "ssh" || u.Scheme == "http" || u.Scheme == "https")
+	return credentials, ok
 }
 
 // ResolveResources is each resource's path through every link, the
 // source its mount is given, once section 3's checks hold of it now (a
 // launch makes them again, so a link changed since the pass's validation
-// mounts nothing outside them, section 7.2).
+// mounts nothing outside them, section 7.2): the old layout's live
+// mounts.
 func ResolveResources(o ops.Ops, p Place, resources []string) ([]string, error) {
 	real, err := resolveResources(o, p, resources)
 	if err != nil {

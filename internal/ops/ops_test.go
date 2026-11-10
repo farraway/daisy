@@ -65,6 +65,17 @@ func TestReadOnlyExecAllowsOnlyGitReads(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(out)) == "" {
 		t.Errorf("git rev-parse under ReadOnly: out %q err %v", out, err)
 	}
+	// A swarm's mirrors are read for its briefs and its drift
+	// (docs/swarm.md section 11, status): ls-tree, cat-file, and
+	// hash-object without -w, which writes no object.
+	for _, args := range [][]string{{"ls-tree", "HEAD"}, {"cat-file", "-t", "HEAD"}, {"hash-object", "--stdin"}} {
+		if _, _, err := ro.Exec(dir, "git", args...); err != nil && strings.Contains(err.Error(), "read-only") {
+			t.Errorf("git %v was refused: %v", args, err)
+		}
+	}
+	if _, _, err := ro.Exec(dir, "git", "hash-object", "-w", "--stdin"); err == nil || !strings.Contains(err.Error(), "read-only") {
+		t.Errorf("git hash-object -w under ReadOnly: got %v, want a refusal", err)
+	}
 	if _, _, err := ro.Exec(dir, "git", "config", "--local", "--get-all", "user.name"); err == nil {
 		// unset key: git exits 1, which is the inner git's answer, not a refusal
 		t.Error("expected git's own non-zero exit for an unset key")

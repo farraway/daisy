@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 
-	"daisy/internal/swarm/brief"
 	"daisy/internal/swarm/forge"
 )
 
@@ -21,7 +20,7 @@ import (
 // is otherwise one an earlier step has already seen.
 func (s *Swarm) milestones(open []forge.Issue) {
 	warn := func(format string, a ...any) { fmt.Fprintf(s.Err, "⚠ "+format+"\n", a...) }
-	briefs, err := brief.Find(s.O.FS(), s.WS, s.Cfg.Resources)
+	briefs, err := Briefs(s.O, s.Place, s.Cfg, s.state(), nil)
 	if err != nil {
 		warn("milestones: reading the briefs: %v", err)
 		return
@@ -94,7 +93,7 @@ func (s *Swarm) milestones(open []forge.Issue) {
 		if is.Milestone != 0 {
 			continue
 		}
-		path, m := BriefOf(is, s.SwarmLogin)
+		path, m := s.briefOf(is)
 		if path == "" {
 			continue
 		}

@@ -26,6 +26,7 @@ type Job struct {
 	Label      string // the stage the run is launched on
 	Time       time.Time
 	Persona    string // swarm/prompts/<role>.md as read
+	Clone      bool   // the swarm runs from its repository's clone (revision 6), its resources checked out (section 7.1, step 3)
 
 	Issue forge.Issue  // with its comments
 	Pulls []forge.Pull // Pulls(n), by slice
@@ -246,8 +247,8 @@ func (j *Job) repository() string {
 		clone("/work", cur.Repo, cur.Head)
 	}
 	res := "none"
-	if len(j.Cfg.Resources) > 0 {
-		res = strings.Join(ResourceMounts(j.Cfg.Resources), ", ")
+	if m := Mounts(j.Cfg, j.Clone); len(m) > 0 {
+		res = strings.Join(m, ", ")
 	}
 	lines = append(lines, "- Resources (read-only): "+res)
 	switch {
@@ -264,7 +265,8 @@ func (j *Job) repository() string {
 // it (sections 7.2 and 9); a clone's .git/info/exclude names it.
 const ResourcesMount = "/work/.resources"
 
-// ResourceMounts is where each resource is mounted: /work/.resources/<path>.
+// ResourceMounts is where each resource of the old layout is mounted:
+// /work/.resources/<path>.
 func ResourceMounts(resources []string) []string {
 	var out []string
 	for _, r := range resources {
@@ -641,7 +643,7 @@ func (j *Job) newestReport(p forge.Pull) time.Time {
 func (b *Batch) sections(j *Job) []string {
 	var briefs []string
 	for _, br := range b.active() {
-		briefs = append(briefs, doc(fmt.Sprintf("## %s (Status: active; mounted at %s/%s)", br.Path, ResourcesMount, br.Path), Shift(trim(br.Text), 2)))
+		briefs = append(briefs, doc(fmt.Sprintf("## %s (Status: active; mounted at %s/%s)", br.Path, ResourcesMount, br.Mount), Shift(trim(br.Text), 2)))
 	}
 	// An issue's line names its stage, not the flag; a closed issue's
 	// its terminal, or the stage it was closed at.
