@@ -56,7 +56,7 @@ func (j *Job) task() string {
 		_, _, planned := j.Plan()
 		switch {
 		case j.Label == forge.ChangesRequested:
-			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews and the maintainer's comments. Address each on the branch checked out in /work (swarm/%d-%d), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`, cur.Repo, cur.Number, j.N, s)
+			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge %s. Address each on the branch checked out in /work (swarm/%d-%d), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`, cur.Repo, cur.Number, j.Cfg.Base, j.N, s)
 		case planned:
 			e, _, _ := j.Plan()
 			add(`Implement slice %d of the accepted plan for issue #%d (it declares %d) in %s/%s, on the branch checked out in /work (swarm/%d-%d). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.`, s, j.N, max(1, len(Slices(swarmText(e.Body)))), owner(j.Cfg), repo, j.N, s)
@@ -84,7 +84,7 @@ func (j *Job) task() string {
 		case r > 1 && prev == cur.HeadSHA:
 			add(`This is round %d, on the head you reviewed before (%s): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.`, r, prev)
 		case r > 1:
-			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since ("git diff %s..HEAD").`, r, prev, prev)
+			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since in the files the pull request changes ("git diff %s..HEAD -- $(git diff --name-only %s...HEAD)"): what a merge of %s brought in is not this pull request's change.`, r, prev, prev, j.Cfg.Base, j.Cfg.Base)
 		}
 	}
 	if j.Cfg.KeepsNotes() && writesNotes(j.Role) {

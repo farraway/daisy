@@ -99,6 +99,10 @@ func TestFakeRelabel(t *testing.T) {
 	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:blocked", "swarm:plan-1-accepted"}) {
 		t.Errorf("add \"\" only removes: %v", is.Labels)
 	}
+	f.Relabel(Ref{"app", n}, "swarm:blocked", "swarm:blocked")
+	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:plan-1-accepted"}) {
+		t.Errorf("remove == add, as Gitea's add then DELETE, leaves it off: %v", is.Labels)
+	}
 	if _, err := f.CreateIssue("B", "", []string{"wontfix"}); errText(err) != "forge: CreateIssue: no label wontfix for acme/app; run 'daisy swarm init', which ensures the sixteen" {
 		t.Errorf("CreateIssue with an unknown label: %v", err)
 	}
@@ -137,6 +141,10 @@ func TestFakePullsReviewsAndMerge(t *testing.T) {
 	if err := f.Merge(lr, "c1"); !errors.Is(err, ErrNotMergeable) || errText(err) != "forge: not mergeable: 409 head out of date" {
 		t.Errorf("a moved head: %v", err)
 	}
+	f.SetMergeable(ar, MergeableNo)
+	if err := f.Merge(ar, "c9"); errText(err) != "forge: not mergeable: 405 Please try again later" {
+		t.Errorf("Gitea checks the mergeability before the head (section 10): %v", err)
+	}
 	for _, m := range []Mergeable{MergeableNo, MergeableUnknown} {
 		f.SetMergeable(ar, m)
 		if err := f.Merge(ar, ""); !errors.Is(err, ErrNotMergeable) || errText(err) != "forge: not mergeable: 405 Please try again later" {
@@ -150,6 +158,9 @@ func TestFakePullsReviewsAndMerge(t *testing.T) {
 	f.RefuseMerge(ar)
 	if err := f.Merge(ar, ""); !errors.Is(err, ErrNotMergeable) || errText(err) != "forge: not mergeable: 405 not allowed to merge" {
 		t.Errorf("a refused merge: %v", err)
+	}
+	if err := f.Merge(ar, "c9"); errText(err) != "forge: not mergeable: 405 not allowed to merge" {
+		t.Errorf("a refused merge with a moved head is refused first, as Gitea's handler does: %v", err)
 	}
 	if ps, _ := f.Pulls(n); ps[1].Mergeable != MergeableYes || ps[1].Merged {
 		t.Errorf("a refused merge: %+v", ps[1])

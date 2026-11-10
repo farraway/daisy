@@ -4,11 +4,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/forge"
 )
 
 // The clone a member sees (section 7.1, step 3), with real git: no remote,
@@ -266,5 +268,57 @@ func TestFetchRunRefusesAForeignClone(t *testing.T) {
 		if _, err := g.FetchRun("app", work, "swarm/1-1", "refs/swarm-runs/1-worker-1"); !errors.Is(err, ErrForeignClone) || strings.Contains(err.Error(), work) {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+}
+
+// The round r > 1 Task text's diff, run as written in a reviewer's clone
+// (section 7.4): after the worker merged base, it shows the worker's
+// change since the previous head and leaves out what the merge brought
+// in, a file the branch does not change and one base added.
+func TestRoundDiffLeavesOutABaseMerge(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	o := ops.Real()
+	dir := t.TempDir()
+	run := func(name string, args ...string) string {
+		t.Helper()
+		out, errb, err := o.Exec(dir, name, args...)
+		if err != nil {
+			t.Fatalf("%s %v: %v %s", name, args, err, errb)
+		}
+		return string(out)
+	}
+	commit := func(files map[string]string, msg string) {
+		for f, text := range files {
+			os.WriteFile(filepath.Join(dir, f), []byte(text), 0o644)
+		}
+		run("git", "add", "-A")
+		run("git", "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "-m", msg)
+	}
+	run("git", "init", "-q", "-b", "main")
+	commit(map[string]string{"a.go": "a1\n", "x.go": "x1\n"}, "base")
+	run("git", "checkout", "-q", "-b", "swarm/1-1")
+	commit(map[string]string{"a.go": "a2\n"}, "slice")
+	run("git", "branch", "aaa") // the previous head the fixture's reviews name
+	run("git", "checkout", "-q", "main")
+	commit(map[string]string{"x.go": "x2\n", "y.go": "y\n"}, "another slice merged")
+	run("git", "checkout", "-q", "swarm/1-1")
+	run("git", "-c", "user.name=T", "-c", "user.email=t@example.net", "merge", "-q", "--no-edit", "main")
+	commit(map[string]string{"a.go": "a3\n"}, "the revision")
+
+	f, at, pr, _ := planned(t)
+	f.Push(pr, "bbb")
+	f.Review(pr, forge.Commented, marker("sympathetic", 2)+"VERDICT: approve")
+	pulls, _ := f.Pulls(1)
+	j := job(f, at.N, "adversary", "swarm:review-0-ready")
+	j.Pulls, j.Pull = pulls, thread(f, pr)
+	sys, _ := Render(j)
+	m := regexp.MustCompile(`code changed since[^(]*\("([^"]+)"\)`).FindStringSubmatch(sys)
+	if m == nil {
+		t.Fatalf("no diff in the round 2 Task:\n%s", sys)
+	}
+	diff := run("sh", "-c", m[1])
+	if !strings.Contains(diff, "-a2\n+a3\n") || strings.Contains(diff, "x.go") || strings.Contains(diff, "y.go") {
+		t.Errorf("%s:\n%s", m[1], diff)
 	}
 }

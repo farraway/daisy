@@ -240,7 +240,7 @@ func TestRenderAdversaryRoundTwo(t *testing.T) {
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`Review pull request lib#1, slice 1 of issue #1. The change is "git diff main...HEAD" in /work`,
 		`For each test that slice 1's item under the plan's Steps names`,
-		`This is round 2. First say, for each blocking finding of your review of aaa, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since ("git diff aaa..HEAD").`},
+		`This is round 2. First say, for each blocking finding of your review of aaa, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since in the files the pull request changes ("git diff aaa..HEAD -- $(git diff --name-only main...HEAD)"): what a merge of main brought in is not this pull request's change.`},
 		"These paths are protected")
 	has(t, "prompt.md", prompt, []string{"- Clone /work: acme/lib, branch swarm/1-1, base main, no check declared", "on aaa: request-changes", "# Check\n\nNo check result for this head."},
 		"still fine", "# Direction")
@@ -262,7 +262,8 @@ func TestRenderAdversaryNoChange(t *testing.T) {
 	w := job(f, at.N, "worker", "swarm:review-3-changes-requested")
 	w.Pulls, w.Pull = pulls, thread(f, pr)
 	sys, _ = Render(w)
-	has(t, "worker system.md", sys, []string{`If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`})
+	has(t, "worker system.md", sys, []string{`The newest entries of pull request lib#1's thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge main.`,
+		`If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`})
 }
 
 // filler is an entry's prose: about 1.8kB, the size of a real review's
@@ -327,12 +328,12 @@ func TestRenderReviewCompact(t *testing.T) {
 	has(t, "system.md", sys, []string{"This is round 7. First say, for each blocking finding of your review of c6,"})
 	has(t, "prompt.md", prompt, []string{"# Plan\n\n## architect, run 1,",
 		"Branch swarm/1-1 into main; head c7.\n\nReport 1.\n\n",
-		"## Earlier rounds\n\n- round 1: 3 blocking, revised in c2\n- round 2: 3 blocking, revised in c3\n- round 3: 3 blocking, revised in c4\n- round 4: 3 blocking, revised in c5\n- round 5: 3 blocking, revised in c6\n\n## Thread\n\n### jane at ",
+		"## Earlier rounds\n\n- round on c1: 3 blocking, revised in c2\n- round on c2: 3 blocking, revised in c3\n- round on c3: 3 blocking, revised in c4\n- round on c4: 3 blocking, revised in c5\n- round on c5: 3 blocking, revised in c6\n\n## Thread\n\n### jane at ",
 		"\n\nKeep the API as it is.\n\n### jane at ", ", on a.go:7 at c1\n\nNot here.\n\n### adversary, run 6, at ",
 		", on c6: request-changes\n\n[blocking] a.go:6 finding A6\n[blocking] b.go:6 finding B6\n\n### sympathetic, run 6, at ",
 		", on c6: request-changes\n\n[blocking] s.go:6 finding S6\n\n### worker, run 7, at ",
 		"\n\nReport 7.\n\n" + filler + "\n\n# Check\n"},
-		"Report 6.", "finding A5", "[non-blocking]", "VERDICT:", "round 6:")
+		"Report 6.", "finding A5", "[non-blocking]", "VERDICT:", "round on c6:")
 	if full := fullThread(j); len(prompt)*4 >= full {
 		t.Errorf("prompt.md is %d bytes, not under a quarter of the thread's %d", len(prompt), full)
 	} else {
@@ -352,7 +353,7 @@ func TestRenderReviewStopsGrowing(t *testing.T) {
 		sizes, threads = append(sizes, len(prompt)), append(threads, fullThread(j))
 	}
 	t.Logf("rounds 5, 6, 7: prompt.md %v bytes, the thread %v", sizes, threads)
-	if d := sizes[2] - sizes[0]; d < 0 || d > 2*len("- round 5: 3 blocking, revised in c6\n") {
+	if d := sizes[2] - sizes[0]; d < 0 || d > 2*len("- round on c5: 3 blocking, revised in c6\n") {
 		t.Errorf("prompt.md grew by %d bytes from round 5 to 7: %v", d, sizes)
 	}
 	if d := threads[2] - threads[0]; d < 4*len(filler) {
@@ -369,7 +370,7 @@ func TestRenderWorkerRevisionCompact(t *testing.T) {
 	j := jobOn(f, at, pr, "worker", "swarm:review-3-changes-requested")
 	_, prompt := Render(j)
 	has(t, "prompt.md", prompt, []string{
-		"## Earlier rounds\n\n- round 1: 3 blocking, revised in c2\n- round 2: 3 blocking, revised in c3\n- round 3: 3 blocking, revised in c4\n\n## Thread\n\n### jane at ",
+		"## Earlier rounds\n\n- round on c1: 3 blocking, revised in c2\n- round on c2: 3 blocking, revised in c3\n- round on c3: 3 blocking, revised in c4\n\n## Thread\n\n### jane at ",
 		"\n\nKeep the API as it is.\n\n", "\n\nNot here.\n\n### worker, run 4, at ", "\n\nReport 4.\n\n",
 		", on c4: request-changes\n\nVERDICT: request-changes\n[blocking] a.go:4 finding A4\n\nWhy A4.\n\n### sympathetic, run 4, at ",
 		", on c4: approve\n\nVERDICT: approve\n[non-blocking] c.go:9 later\n\nWhy not.\n\n# Check"},
@@ -411,7 +412,7 @@ func TestRenderRoundLinesAnswer(t *testing.T) {
 	f.Comment(pr, marker("worker", 3)+"Fixed x.go:1.")
 	j = jobOn(f, at, pr, "adversary", "swarm:review-0-ready")
 	_, prompt = Render(j)
-	has(t, "prompt.md", prompt, []string{"## Earlier rounds\n\n- round 1: 1 blocking, answered without a commit\n\n## Thread\n\n### jane at 2026-11-06T15:09:00Z, on x.go:3 at aaa\n\nwhy?\n\n### adversary, run 2, at 2026-11-06T15:11:00Z, on aaa: request-changes\n\n[blocking] x.go:1 still wrong\n\n### sympathetic, run 2, at 2026-11-06T15:12:00Z, on aaa: approve\n\n### worker, run 3, at 2026-11-06T15:13:00Z\n\nFixed x.go:1.\n\n# Check"},
+	has(t, "prompt.md", prompt, []string{"## Earlier rounds\n\n- round on aaa: 1 blocking, answered without a commit\n\n## Thread\n\n### jane at 2026-11-06T15:09:00Z, on x.go:3 at aaa\n\nwhy?\n\n### adversary, run 2, at 2026-11-06T15:11:00Z, on aaa: request-changes\n\n[blocking] x.go:1 still wrong\n\n### sympathetic, run 2, at 2026-11-06T15:12:00Z, on aaa: approve\n\n### worker, run 3, at 2026-11-06T15:13:00Z\n\nFixed x.go:1.\n\n# Check"},
 		"NO CHANGE:", "x.go:1 wrong")
 }
 

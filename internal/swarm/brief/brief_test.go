@@ -64,6 +64,10 @@ func TestMilestonesAndTitles(t *testing.T) {
 	if got := b.Milestones(); !reflect.DeepEqual(got, []string{"First", "Second"}) {
 		t.Errorf("Milestones = %q", got)
 	}
+	// A fence line with an info string closes nothing (CommonMark).
+	if got := (Brief{Text: "Status: active\n\n```\n```md\n## not one\n```\n## Third\n"}).Milestones(); !reflect.DeepEqual(got, []string{"Third"}) {
+		t.Errorf("an info string closed the fence: %q", got)
+	}
 	if got := b.MilestoneTitle("First"); got != "m0-libraries: First" {
 		t.Errorf("MilestoneTitle = %q", got)
 	}

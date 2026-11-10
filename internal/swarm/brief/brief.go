@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"daisy/internal/ops"
+	"daisy/internal/swarm/fence"
 )
 
 // Brief is one brief: its path relative to the workspace, as the batch
@@ -116,36 +117,13 @@ func isHeading(line string) bool {
 // lines themselves left out.
 func unfenced(text string) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		fence := ""
+		var fences fence.Scan
 		for _, line := range strings.Split(text, "\n") {
-			if f := fenceOf(strings.TrimRight(line, "\r ")); f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
-				if fence == "" {
-					fence = f
-				} else {
-					fence = ""
-				}
-				continue
-			}
-			if fence == "" && !yield(line) {
+			if !fences.Line(line) && !yield(line) {
 				return
 			}
 		}
 	}
-}
-
-// fenceOf is the run of backticks or tildes that opens or closes a fenced
-// block on line, "" when line is no fence.
-func fenceOf(line string) string {
-	t := strings.TrimLeft(line, " ")
-	if len(line)-len(t) > 3 {
-		return ""
-	}
-	for _, c := range []string{"`", "~"} {
-		if n := len(t) - len(strings.TrimLeft(t, c)); n >= 3 {
-			return strings.Repeat(c, n)
-		}
-	}
-	return ""
 }
 
 // Slug is the brief's file name without `.md`.

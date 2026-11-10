@@ -529,6 +529,39 @@ func TestGiteaRelabel(t *testing.T) {
 	s.done()
 }
 
+// The label ids are listed once per repository and pass (section 14,
+// item 90): a second write in the same repository lists nothing, another
+// repository lists its own, and after NewPass, or EnsureLabels, which
+// may rename or create a label, the next write lists them again.
+func TestGiteaLabelIDsOncePerPass(t *testing.T) {
+	add := func(repo string, n int) pair {
+		return pair{"POST", "/repos/acme/" + repo + "/issues/" + itoa(n) + "/labels", `{"labels":[10]}`, 200, `[]`}
+	}
+	pairs := append(idPairs("app"), add("app", 7), add("app", 8),
+		pair{"POST", "/repos/acme/app/issues", `{"title":"Y","body":"","labels":[40]}`, 201, `{"number":24}`})
+	pairs = append(append(pairs, idPairs("lib")...), add("lib", 5))
+	pairs = append(append(pairs, idPairs("app")...), add("app", 7))
+	pairs = append(pairs, pair{"GET", listLabels, "", 200, labelList(Labels...)})
+	pairs = append(append(pairs, idPairs("app")...), add("app", 7))
+	g, s := gitea(t, []string{"app", "lib"}, pairs...)
+	for _, n := range []int{7, 8} {
+		if err := g.Relabel(Ref{"app", n}, "", Gated); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := g.CreateIssue("Y", "", []string{"swarm:proposal-accepted"}); err != nil {
+		t.Fatal(err)
+	}
+	g.Relabel(Ref{"lib", 5}, "", Gated)
+	g.NewPass()
+	g.Relabel(Ref{"app", 7}, "", Gated)
+	if _, _, err := g.EnsureLabels(Labels); err != nil {
+		t.Fatal(err)
+	}
+	g.Relabel(Ref{"app", 7}, "", Gated)
+	s.done()
+}
+
 func TestGiteaCloseIssue(t *testing.T) {
 	g, s := gitea(t, nil, pair{"PATCH", "/repos/acme/app/issues/7", `{"state":"closed"}`, 201, `{"number":7,"state":"closed"}`})
 	if err := g.CloseIssue(7); err != nil {
@@ -620,8 +653,8 @@ func TestGiteaReview(t *testing.T) {
 			{"POST", path, `{"event":"COMMENT","body":"b"}`, 200, `{"id":15,"state":"COMMENT"}`},
 		}, ""},
 		{"Commented posts the comment-type review alone", Commented, []pair{{"POST", path, `{"event":"COMMENT","body":"b"}`, 200, `{"id":16}`}}, ""},
-		{"another refusal is the error, without the fallback", Approve, []pair{{"POST", path, `{"event":"APPROVED","body":"b"}`, 404, `{"message":"not found"}`}},
-			"forge: POST /repos/acme/app/pulls/20/reviews: 404 not found"},
+		{"another refusal is the error, without the fallback", Approve, []pair{{"POST", path, `{"event":"APPROVED","body":"b"}`, 404, ""}},
+			"forge: POST /repos/acme/app/pulls/20/reviews: 404 Not Found"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g, s := gitea(t, nil, tc.pairs...)
@@ -664,7 +697,8 @@ func TestGiteaMerge(t *testing.T) {
 		notMergeable bool
 	}{
 		{"merged", 200, "", "", false},
-		{"405: not mergeable", 405, `{"message":"Please try again later"}`, "forge: not mergeable: 405 Please try again later", true},
+		{"405: not mergeable, the Swagger's empty body", 405, "", "forge: not mergeable: 405 Method Not Allowed", true},
+		{"405: not mergeable, Gitea's message", 405, `{"message":"Please try again later"}`, "forge: not mergeable: 405 Please try again later", true},
 		{"409: the head moved", 409, `{"message":"head out of date"}`, "forge: not mergeable: 409 head out of date", true},
 		{"403 is the forge's error", 403, `{"message":"forbidden"}`, "forge: POST /repos/acme/app/pulls/20/merge: 403 forbidden", false},
 	} {

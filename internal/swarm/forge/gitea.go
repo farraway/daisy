@@ -25,8 +25,9 @@ const pageLimit = 50
 type Gitea struct {
 	o           ops.Ops
 	base, token string
-	owner, repo string   // forge.repo
-	names       []string // the declared repositories, in order
+	owner, repo string                      // forge.repo
+	names       []string                    // the declared repositories, in order
+	labels      map[string]map[string]int64 // a repository's label ids (labelIDs), held until NewPass or EnsureLabels
 }
 
 var _ Adapter = (*Gitea)(nil)
@@ -188,6 +189,7 @@ type giteaUser struct {
 // everything still to rename and create; a 404 on the list is an owner
 // that is no organization.
 func (g *Gitea) EnsureLabels(names []string) (int, int, error) {
+	g.labels = nil // a label it renames or creates has a new name or id
 	path := "/orgs/" + url.PathEscape(g.owner) + "/labels"
 	have, err := list[giteaLabel](g, path)
 	var api *apiError
@@ -411,10 +413,19 @@ func (g *Gitea) Issue(n int) (Issue, error) {
 	return is, nil
 }
 
+// NewPass drops the label ids the adapter holds, so that a pass of
+// `apply` reads them once (section 14, item 90): `Swarm.Pass` calls it
+// at its start; a command that makes no pass reads them once for its run.
+func (g *Gitea) NewPass() { g.labels = nil }
+
 // labelIDs maps each label name to the id an issue or pull request of the
 // repository name takes: the organization's labels, then the
 // repository's own, which shadow an organization label of their name.
+// The map is read once per repository until NewPass or EnsureLabels.
 func (g *Gitea) labelIDs(name string) (map[string]int64, error) {
+	if ids, ok := g.labels[name]; ok {
+		return ids, nil
+	}
 	ids := map[string]int64{}
 	for _, path := range []string{"/orgs/" + url.PathEscape(g.owner) + "/labels", g.repoPath(name) + "/labels"} {
 		ls, err := list[giteaLabel](g, path)
@@ -425,6 +436,10 @@ func (g *Gitea) labelIDs(name string) (map[string]int64, error) {
 			ids[l.Name] = l.ID
 		}
 	}
+	if g.labels == nil {
+		g.labels = map[string]map[string]int64{}
+	}
+	g.labels[name] = ids
 	return ids, nil
 }
 

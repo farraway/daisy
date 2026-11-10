@@ -272,7 +272,8 @@ func (f *Fake) SayOnLine(pr Ref, login, path string, line int, body string) {
 
 // Relabel adds add, then removes remove ("" on either side changes
 // nothing there); both must exist in the label set, and no other label is
-// touched.
+// touched. A remove equal to add leaves the issue without it, as Gitea's
+// add then DELETE does.
 func (f *Fake) Relabel(at Ref, remove, add string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -293,7 +294,7 @@ func (f *Fake) Relabel(at Ref, remove, add string) error {
 		it.labels = append(it.labels, add)
 		f.record(it, "labeled "+add)
 	}
-	if remove != "" && remove != add && slices.Contains(it.labels, remove) {
+	if remove != "" && slices.Contains(it.labels, remove) {
 		it.labels = slices.DeleteFunc(it.labels, func(l string) bool { return l == remove })
 		f.record(it, "unlabeled "+remove)
 	}
@@ -478,8 +479,10 @@ func (f *Fake) Approve(pr Ref, head string) error {
 
 // Merge merges an open pull request whose head is head and which is
 // mergeable (SetMergeable), recording a merge commit; it closes no issue.
-// Like Gitea, it refuses one that is not with 405 "Please try again
-// later", whether it conflicts or the forge is still computing.
+// It refuses in Gitea's order, mergeability before the head: one not
+// mergeable with 405 "Please try again later", whether it conflicts or
+// the forge is still computing, one refused (RefuseMerge) with 405, then
+// a head that is not the current one with 409.
 func (f *Fake) Merge(pr Ref, head string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -490,10 +493,10 @@ func (f *Fake) Merge(pr Ref, head string) error {
 	switch {
 	case !it.open || it.pull.mergeable != MergeableYes:
 		return fmt.Errorf("%w: 405 Please try again later", ErrNotMergeable)
-	case it.pull.headSHA != head:
-		return fmt.Errorf("%w: 409 head out of date", ErrNotMergeable)
 	case it.pull.refused:
 		return fmt.Errorf("%w: 405 not allowed to merge", ErrNotMergeable)
+	case it.pull.headSHA != head:
+		return fmt.Errorf("%w: 409 head out of date", ErrNotMergeable)
 	}
 	sum := sha1.Sum([]byte(fmt.Sprintf("merge %s#%d %s", pr.Repo, pr.N, head)))
 	it.pull.mergeSHA, it.pull.merged = hex.EncodeToString(sum[:]), true

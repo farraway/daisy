@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"fmt"
+	"slices"
 
 	"daisy/internal/swarm/brief"
 	"daisy/internal/swarm/forge"
@@ -13,8 +14,12 @@ import (
 // issue, open or closed, that has no milestone and whose Brief: line names
 // one of an active brief put in it. A milestone the line names that its
 // brief lacks, or a brief that is not there, is a warning for an open
-// issue; every failure is a warning, and the pass goes on.
-func (s *Swarm) milestones() {
+// issue; every failure is a warning, and the pass goes on. The open
+// issues are open, the flag step's list (read again when nil); the closed
+// ones are read only when this step created a milestone, or at this
+// process's first reading of them (section 14, item 90): a closed issue
+// is otherwise one an earlier step has already seen.
+func (s *Swarm) milestones(open []forge.Issue) {
 	warn := func(format string, a ...any) { fmt.Fprintf(s.Err, "⚠ "+format+"\n", a...) }
 	briefs, err := brief.Find(s.O.FS(), s.WS, s.Cfg.Resources)
 	if err != nil {
@@ -56,6 +61,7 @@ func (s *Swarm) milestones() {
 			ids[m.Title] = m.ID
 		}
 	}
+	created := false
 	for _, t := range order {
 		if _, ok := ids[t]; ok {
 			continue
@@ -65,17 +71,24 @@ func (s *Swarm) milestones() {
 			warn("milestone %s: %v", t, err)
 			continue
 		}
-		ids[t] = id
+		ids[t], created = id, true
 		fmt.Fprintf(s.Out, "milestone created: %s\n", t)
 	}
-	var issues []forge.Issue
-	for _, state := range []forge.State{forge.Open, forge.Closed} {
-		is, err := s.issues(state)
+	if open == nil {
+		var err error
+		if open, err = s.issues(forge.Open); err != nil {
+			warn("milestones: %v", err)
+			return
+		}
+	}
+	issues := slices.Clone(open)
+	if created || !s.closedRead {
+		closed, err := s.issues(forge.Closed)
 		if err != nil {
 			warn("milestones: %v", err)
 			return
 		}
-		issues = append(issues, is...)
+		issues, s.closedRead = append(issues, closed...), true
 	}
 	for _, is := range issues {
 		if is.Milestone != 0 {

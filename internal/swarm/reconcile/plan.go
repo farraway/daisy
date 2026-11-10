@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"daisy/internal/swarm/fence"
 )
 
 var (
@@ -51,21 +53,13 @@ type planLine struct {
 // the plan has no such heading.
 func section(plan, heading string) []planLine {
 	var out []planLine
-	in, fence := false, ""
+	in, fences := false, fence.Scan{}
 	for _, line := range strings.Split(plan, "\n") {
 		line = strings.TrimRight(line, "\r")
-		f := fenceOf(line)
-		if f == "" && fence == "" && strings.HasPrefix(line, "## ") {
+		fenced := fences.Line(line)
+		if !fenced && strings.HasPrefix(line, "## ") {
 			in = strings.TrimSpace(line) == "## "+heading
 			continue
-		}
-		fenced := fence != "" || f != ""
-		if f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
-			if fence == "" {
-				fence = f
-			} else {
-				fence = ""
-			}
 		}
 		if in {
 			out = append(out, planLine{line, fenced})
@@ -106,42 +100,18 @@ func numbers(ns []int) string {
 	return strings.Join(s, ", ")
 }
 
-// fenceOf is a fence line's marker (``` or ~~~ and any more of the same),
-// "" when the line opens or closes no fenced block.
-func fenceOf(line string) string {
-	t := strings.TrimLeft(line, " ")
-	if len(line)-len(t) > 3 {
-		return ""
-	}
-	for _, c := range []string{"`", "~"} {
-		n := len(t) - len(strings.TrimLeft(t, c))
-		if n >= 3 {
-			return strings.Repeat(c, n)
-		}
-	}
-	return ""
-}
-
 // Shift gives each Markdown heading line of text, outside a fenced block,
 // by more `#`, at most six in all, and closes a fenced block text leaves
 // open, so that no fence runs on over the prompt's own lines (section 7.3).
 func Shift(text string, by int) string {
 	lines := strings.Split(text, "\n")
-	fence := ""
+	var fences fence.Scan
 	for i, line := range lines {
-		if f := fenceOf(line); f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
-			if fence == "" {
-				fence = f
-			} else {
-				fence = ""
-			}
-			continue
-		}
-		if fence != "" {
+		if fences.Line(line) {
 			continue
 		}
 		// A heading may stand up to three spaces in (CommonMark), as a
-		// fence may (fenceOf).
+		// fence may.
 		t := strings.TrimLeft(line, " ")
 		in := len(line) - len(t)
 		h := len(t) - len(strings.TrimLeft(t, "#"))
@@ -149,8 +119,8 @@ func Shift(text string, by int) string {
 			lines[i] = line[:in] + strings.Repeat("#", min(6, h+by)-h) + t
 		}
 	}
-	if fence != "" {
-		lines = append(lines, fence)
+	if f := fences.Open(); f != "" {
+		lines = append(lines, f)
 	}
 	return strings.Join(lines, "\n")
 }

@@ -48,9 +48,10 @@ func InProgress(role, stage string) string {
 }
 
 // Turn is what the trigger rule reads for one open issue carrying exactly
-// one stage label: the thread its roles read (the issue's, or in the
-// review stages and review-3-changes-requested the current pull
-// request's), in the review stages that pull request's reviews and head,
+// one stage label: the thread its roles read (the issue's; in
+// review-3-changes-requested the current pull request's; in the review
+// stages that pull request's comments, where the worker's answers
+// without a commit are), in the review stages its reviews and head,
 // and the roles that hold the issue (rule 2): the role of each container
 // running on it (`check` for a worker run's check) and of each run on it
 // ended and not collected.

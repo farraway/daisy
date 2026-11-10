@@ -208,6 +208,32 @@ func TestSwarmApplyNoChange(t *testing.T) {
 	})
 }
 
+// The reviewers' turn reads the worker's answers without a commit from
+// the pull request's comments alone, as the collection does (section 6):
+// a description that begins NO CHANGE: (a first report, text as any
+// other, section 7.5) is no answer, so the adversary's review of the
+// head, made in the same second, still stands and only the sympathetic
+// is launched.
+func TestSwarmApplyDescriptionIsNoAnswer(t *testing.T) {
+	a := newApplyWS(t)
+	if _, err := a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:plan-1-accepted"}); err != nil {
+		t.Fatal(err)
+	}
+	a.runner.Script(1, "worker", work("NO CHANGE: v1 is new"))
+	a.pass()
+	pr := forge.Ref{Repo: "app", N: 2}
+	if p := a.pulls(1); len(p) != 1 || !strings.Contains(p[0].Body, "NO CHANGE: v1 is new") {
+		t.Fatalf("the description: %+v\n%s", p, a.stdout.String())
+	}
+	a.forge.SetLabel(issue1, "swarm:review-1-in-progress")
+	a.forge.Review(pr, forge.Commented, mark("adversary", 1)+approve)
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	if strings.Contains(a.stdout.String(), "adversary run 2") || !strings.Contains(a.stdout.String(), "#1 sympathetic run 1: launched") {
+		t.Errorf("stdout:\n%s", a.stdout.String())
+	}
+}
+
 // Every gate off (section 13, Step 29's second row): the batch proposes
 // #1 straight to ready (T2), the architect's plan is accepted as written
 // (T6), the worker merges base first, both approvals, the merge step

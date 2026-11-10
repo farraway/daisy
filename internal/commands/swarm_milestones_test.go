@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
@@ -129,5 +130,68 @@ func TestSwarmApplyMilestonesRefused(t *testing.T) {
 	}
 	if _, err := os.Stat(a.state("paused")); err == nil {
 		t.Error("a refused milestone paused the swarm")
+	}
+}
+
+// countingForge counts the passes (NewPass, which Pass calls at its
+// start) and each pass's lists of closed issues.
+type countingForge struct {
+	gitForge
+	pass   *int
+	closed map[int]int
+}
+
+func (f countingForge) NewPass() { *f.pass++ }
+
+func (f countingForge) Issues(s forge.State, label string) ([]forge.Issue, error) {
+	if s == forge.Closed {
+		f.closed[*f.pass]++
+	}
+	return f.gitForge.Issues(s, label)
+}
+
+// The milestone step reads the closed issues only when it created a
+// milestone, or at the process's first reading (section 14, item 90):
+// in the loop, the first pass reads them and puts a closed issue in its
+// milestone, the second reads none, and the third, which creates the
+// milestone a brief gained meanwhile, reads them again and puts the
+// closed issue naming it in it. Each pass begins with NewPass.
+func TestSwarmApplyLoopMilestonesReadClosedOnce(t *testing.T) {
+	a := newApplyWS(t)
+	a.write("docs/briefs/a.md", "Status: active\n\n## M1\n")
+	f := a.forge
+	for _, m := range []string{"M1", "M2"} {
+		n, err := f.CreateIssue("t", "Brief: docs/briefs/a.md — "+m+"\n", []string{"swarm:review-2-approved"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.CloseIssue(n)
+	}
+	a.signals = make(chan os.Signal, 2)
+	waits := 0
+	a.after = func(time.Duration) <-chan time.Time {
+		waits++
+		c := make(chan time.Time, 1)
+		switch waits {
+		case 1:
+			c <- time.Time{}
+		case 2:
+			a.write("docs/briefs/a.md", "Status: active\n\n## M1\n\n## M2\n")
+			c <- time.Time{}
+		default:
+			a.signals <- os.Interrupt
+		}
+		return c
+	}
+	pass, closed := 0, map[int]int{}
+	if err := a.apply(countingForge{a.git(), &pass, closed}); err != nil {
+		t.Fatal(err)
+	}
+	lists := len(forge.SwarmLabels(forge.Closed))
+	if pass != 3 || !reflect.DeepEqual(closed, map[int]int{1: lists, 3: lists}) {
+		t.Errorf("%d passes, closed lists by pass %v, want 3 and {1: %d, 3: %d}\n%s", pass, closed, lists, lists, a.stdout.String())
+	}
+	if a.milestoneOf(1) != "a: M1" || a.milestoneOf(2) != "a: M2" {
+		t.Errorf("#1 in %q, #2 in %q\n%s", a.milestoneOf(1), a.milestoneOf(2), a.stdout.String())
 	}
 }

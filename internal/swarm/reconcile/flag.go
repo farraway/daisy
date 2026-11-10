@@ -40,10 +40,12 @@ func Gated(labels []string, g declare.Gates, class string) bool {
 // and on an issue not blocked whose flag stayed on while it was gated
 // again (regated): one per gating event, and none for an event whose
 // relabel failed until a later pass adds the flag. Every failure is a
-// warning, and the pass goes on.
-func (s *Swarm) flags() {
+// warning, and the pass goes on. It returns the open swarm issues it read,
+// for the milestone step (nil when the read failed).
+func (s *Swarm) flags() []forge.Issue {
 	warn := func(format string, a ...any) { fmt.Fprintf(s.Err, "⚠ "+format+"\n", a...) }
 	open, err := s.issues(forge.Open)
+	swarm := slices.Clone(open)
 	if err == nil {
 		var flagged []forge.Issue
 		if flagged, err = s.Forge.Issues(forge.Open, forge.Gated); err == nil {
@@ -56,7 +58,7 @@ func (s *Swarm) flags() {
 	}
 	if err != nil {
 		warn("gated: %v", err)
-		return
+		return nil
 	}
 	slices.SortFunc(open, func(a, b forge.Issue) int { return a.Number - b.Number })
 	for _, is := range open {
@@ -108,6 +110,7 @@ func (s *Swarm) flags() {
 			}
 		}
 	}
+	return swarm
 }
 
 // gateHead is a gate note's line after its marker, naming the stage it

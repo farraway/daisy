@@ -43,4 +43,19 @@ func TestShift(t *testing.T) {
 	if got := Shift("a log:\n````\n# x\n```", 1); got != "a log:\n````\n# x\n```\n````" {
 		t.Errorf("an open fence is not closed:\n%s", got)
 	}
+	// A fence line with an info string inside a block closes nothing
+	// (CommonMark): the heading after it is the block's text.
+	if got := Shift("```\n```go\n# in\n```\n# out", 1); got != "```\n```go\n# in\n```\n## out" {
+		t.Errorf("an info string closed the fence:\n%s", got)
+	}
+}
+
+// The plan's slices are read by the same fence: an info-string fence
+// line inside a block does not end it, so a numbered line after it is
+// no slice.
+func TestSlicesInsideAFenceWithAnInfoLine(t *testing.T) {
+	plan := "## Steps\n\n1. app: one\n   ```\n   ```mermaid\n9. app: not a slice\n   ```\n2. lib: two\n\n## Risks\n"
+	if got := Slices(plan); !reflect.DeepEqual(got, []string{"app", "lib"}) {
+		t.Errorf("Slices = %q", got)
+	}
 }

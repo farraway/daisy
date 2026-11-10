@@ -495,8 +495,9 @@ func (j *Job) shown(rounds []round, current roundKey) []int {
 }
 
 // roundLines is the "## Earlier rounds" lines: each round shown as a
-// line, numbered in the pull request's order, with its blocking findings
-// counted and what followed it.
+// line, named by the head it reviewed rather than numbered, since the
+// Task text's round number counts other rounds (section 7.3), with its
+// blocking findings counted and what followed it.
 func roundLines(rounds []round, modes []int) []string {
 	var out []string
 	for i, rd := range rounds {
@@ -513,7 +514,7 @@ func roundLines(rounds []round, modes []int) []string {
 		if rounds[i+1].commit == rd.commit {
 			next = "answered without a commit"
 		}
-		out = append(out, fmt.Sprintf("- round %d: %d blocking, %s", i+1, b, next))
+		out = append(out, fmt.Sprintf("- round on %s: %d blocking, %s", rd.commit, b, next))
 	}
 	return out
 }

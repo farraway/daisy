@@ -14,6 +14,7 @@ import (
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/fence"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
@@ -33,13 +34,14 @@ type Swarm struct {
 	Secret     func(name string) string // a variable as check-secrets resolves it
 	Out, Err   io.Writer
 
-	live      map[string]*live    // run directory → its container in flight
-	started   int                 // containers this process started in this pass, members and checks
-	given     map[string][]string // run directory → the secrets its member was given
-	Stopping  func() bool         // the loop was signalled: launch nothing more (nil: never)
-	faulted   []string            // the runs this process collected in a fault since faultPause last looked
-	moves     map[int]string      // issue → the stage this pass moved it to after step (5) gave its pull request the label
-	collected int                 // runs collected in this pass
+	live       map[string]*live    // run directory → its container in flight
+	started    int                 // containers this process started in this pass, members and checks
+	given      map[string][]string // run directory → the secrets its member was given
+	Stopping   func() bool         // the loop was signalled: launch nothing more (nil: never)
+	faulted    []string            // the runs this process collected in a fault since faultPause last looked
+	moves      map[int]string      // issue → the stage this pass moved it to after step (5) gave its pull request the label
+	collected  int                 // runs collected in this pass
+	closedRead bool                // the milestone step has read the closed issues once
 }
 
 // live is a container this process started, a member or a worker run's
@@ -87,6 +89,9 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 func (s *Swarm) Pass(wait bool) error {
 	if s.live == nil {
 		s.live, s.given = map[string]*live{}, map[string][]string{}
+	}
+	if p, ok := s.Forge.(interface{ NewPass() }); ok {
+		p.NewPass() // an adapter's reads held for one pass (the gitea adapter's label ids)
 	}
 	running, err := s.Runner.Running()
 	if err != nil {
@@ -149,9 +154,9 @@ func (s *Swarm) Pass(wait bool) error {
 		errs = append(errs, s.Drain(nil))
 	}
 	if !s.stopping() {
-		s.flags()
+		open := s.flags()
 		s.copyMoved()
-		s.milestones()
+		s.milestones(open)
 	}
 	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, mine)
 	return errors.Join(errs...)
@@ -490,6 +495,12 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			turn := Turn{Label: label, Thread: IssueThread(is), Running: s.busy(running, runs, n)}
 			if review {
 				turn.Thread, turn.Reviews, turn.Head = j.pullEntries(cur), j.Pull.Reviews, cur.HeadSHA
+				if reviewing(label) {
+					// The reviewers' turn reads only the worker's answers,
+					// which are comments (section 6), as the collection
+					// and the rounds read them.
+					turn.Thread = pullComments(j.Pull.Comments)
+				}
 			}
 			decided[n] = true
 			for _, role := range Launch(turn, s.SwarmLogin, s.Cfg.Trusted) {
@@ -686,17 +697,9 @@ var (
 // `# Repository` block, and heading lines outside a fenced block (a
 // quoted text's headings are shifted below `# `, section 7.3).
 func emptyField(prompt string) bool {
-	repository, fence := false, ""
+	repository, fences := false, fence.Scan{}
 	for _, l := range strings.Split(prompt, "\n") {
-		if f := fenceOf(l); f != "" && (fence == "" || strings.HasPrefix(f, fence)) {
-			if fence == "" {
-				fence = f
-			} else {
-				fence = ""
-			}
-			continue
-		}
-		if fence != "" {
+		if fences.Line(l) {
 			continue
 		}
 		if strings.HasPrefix(l, "# ") {
