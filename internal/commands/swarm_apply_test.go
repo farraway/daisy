@@ -49,6 +49,10 @@ func newApplyWSIn(t *testing.T, clone bool) *applyWS {
 	a := &applyWS{statusWS: newStatusWSIn(t, clone), runner: &runner.Fake{}, now: fixedClock().Now()}
 	a.forge = forge.NewFake(&ops.Fake{NowFn: a.Now}, "acme/"+cmp.Or(a.issues, "app"), []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
 	a.forge.AddLabels(forge.Labels...)
+	if clone {
+		a.forge.AddRepository()
+		a.forge.SetSSHURL(swarmURL)
+	}
 	a.write("docs/README.md", "# Docs\n")
 	a.edit(func(c *declare.Config) {
 		c.Trusted = []string{"jane", "swarm-bot"}

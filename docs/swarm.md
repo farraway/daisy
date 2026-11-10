@@ -25,7 +25,7 @@ or without a Daisy workspace; product repositories are declared by
 forge name; members read pushed content only; the secrets live in
 `<state>/env`; `init` creates and seeds the repository; sections 1–4,
 7.1–7.3, 7.6, 7.7, 8–11 and 13, and section 14, items 97–104). **Revision 6 is
-being built:** Steps 2–6 of that plan build it, each amending the
+built:** Steps 2–6 of that plan built it, each amending the
 sections it touches with its As built (Step 2, 2026-11-10: finding the
 swarm with no Daisy workspace, the secrets in `<state>/env` and the
 unit's root; section 11, Finding the swarm, and item 105; Step 3,
@@ -37,10 +37,13 @@ repository's mirror, the resources and references checked out of the
 mirrors at the pass's commits under one mount, the briefs read there
 and the old workspace path of a brief still naming it; item 107; Step
 5, 2026-11-10: `repos/<name>.md` in a member's `system.md`, `init`'s
-seed of it and Drift; item 108), and until
-each lands the code runs the workspace layout that section 11, Moving a
-swarm into its repository, describes for what it has not built; Step 7
-retires that layout once the maintainer says every swarm has moved.
+seed of it and Drift; item 108; Step 6, 2026-11-10: `init` creating or
+adopting the swarm repository with the maintainer's token, cloning it in
+a folder holding none, seeding, committing and pushing it, and writing
+`<state>/env`; section 10's three repository calls; item 109); a swarm
+not yet moved runs in the workspace layout that section 11, Moving a
+swarm into its repository, describes, until Step 7 retires that layout
+once the maintainer says every swarm has moved.
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
 sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
@@ -330,8 +333,8 @@ Every file Daisy writes, and nothing else:
 | `<swarm>/repos/<name>.md` | per declared repository, section 4's seed | `swarm init` | only when the file is absent, as a prompt |
 | `<swarm>/README.md`; `README.md` in `briefs/`, `notes/` and `docs/` | a heading and a paragraph saying what the repository, or the directory, holds and that `daisy swarm` runs from the clone (the one in `notes/` without a `Subject:` line, so no index lists it, 7.3; the one in `briefs/` without a `Status:` line, so it is no brief, section 4) | `swarm init` | only when the file is absent |
 | `<swarm>/.gitignore` | the line `.env.sh` | `swarm init` | only when the file is absent; an existing one is left as it is |
-| `<swarm>/.git` | one commit of the files this run wrote, by the clone's own git identity (the maintainer's), its message `swarm: written by init`, pushed to the swarm repository's default branch (section 11) | `swarm init` (`git add`, `git commit` of those paths alone, `git push`) | when it wrote a file in the clone |
-| `<state>/env` | one line `export <VAR>=<value>` per variable the configuration names (`forge.token_env`, each `keys` `env`) and `DAISY_MAINTAINER_TOKEN`, each value the process environment's at `init`, empty when unset there; mode `0600` | `swarm init` | only when the file is absent; the maintainer edits it, and Daisy never rewrites it |
+| `<swarm>/.git` | one commit of the files this run wrote (and of each file of this table the clone holds and its `HEAD` lacks: an earlier run's whose commit failed), by the clone's own git identity (the maintainer's), its message `swarm: written by init`, pushed to the swarm repository's default branch (section 11); in a clone of an empty repository, `HEAD` first pointed at that branch (`git symbolic-ref`) | `swarm init` (`git add`, `git commit` of those paths alone, `git push`) | when a file it would commit differs from the clone's `HEAD`: one it wrote, or one of this table the clone holds and its `HEAD` lacks |
+| `<state>/env` | one line `export <VAR>='<value>'` per variable the configuration names (`forge.token_env`, each `keys` `env` in the providers' name order) and `DAISY_MAINTAINER_TOKEN`, each value the process environment's at `init`, single-quoted (a `'` in it written `'\''`), empty when unset there; mode `0600` | `swarm init` | only when the file is absent; the maintainer edits it, and Daisy never rewrites it |
 | `<state>/lock` | one line, the holder: `apply[ --once] since <RFC 3339 time> pid <pid>` | `swarm apply` | on taking the lock; the lock is released, not the file removed, at exit |
 | `<state>/paused` | one line: `paused <RFC 3339 time>`, or `paused <RFC 3339 time>: <reason>` when `apply` wrote it (`swarm fault: <reason>`, `budget: <per_day\|total> $<limit> reached ($<spent>)`) | `swarm pause` and `swarm apply` (created), `swarm resume` (removed) | on the command; `apply`: at the second swarm fault in a row (7.7) or when the budget is reached (section 3) |
 | `<state>/owner-held` | one line: `held <RFC 3339 time>: <reason>` | `swarm apply` (created), `swarm resume` (removed) | when the owner's batch run fails or proposes nothing |
@@ -457,10 +460,9 @@ pushed head (section 2; section 11, Drift).
 
 The Go test of section 3's example (`Format`) reads this one, and the
 old layout's form of it (section 11, Moving a swarm into its
-repository). Until Step 6 of revision 6's plan seeds `briefs/` and
-`docs/`, `init`'s default `resources` in a clone is those of the two
-the clone holds as directories (Step 4, section 14, item 107); the
-example's `["briefs/", "docs/"]` is Step 6's.
+repository). `init`'s default `resources`, `["briefs/", "docs/"]`, are
+the two directories it seeds (section 2), whether the clone holds them
+yet or not (Step 6 of revision 6's plan; section 14, item 109).
 
 | Field | Type | Default (`init`) | Rule |
 |---|---|---|---|
@@ -2710,7 +2712,12 @@ type Adapter interface {
     EnsureMilestone(title string) (id int64, err error) // forge.repo's milestone titled title, created when none is
     SetMilestone(n int, id int64) error                // issue n into the milestone id
     Board(n int, stage string) error                   // with forge.board: issue n's card into the column stage
+    Repository() (Repository, error)                   // forge.repo as the forge holds it; ErrNotFound when it holds none
+    CreateRepository() (Repository, error)             // forge.repo, private, in its owner's organization
+    AddCollaborator(login string) error                // login given write access to forge.repo; again, no change
 }
+
+type Repository struct{ SSHURL, DefaultBranch string } // forge.repo's ssh_url and default branch
 
 type Account struct{ Login, Email string } // Email "" when the forge reports none
 type State int // Open, Closed
@@ -2767,16 +2774,21 @@ var ErrNotMergeable error // wraps the forge's message
 var ErrNotFound error     // matches the forge's 404 (errors.Is)
 ```
 
-These twenty methods are every call Daisy makes to the forge; the only
-other traffic with it is host-side git (fetch and push, 7.1 and 7.6).
-**As built (Steps 1, 4, 9 and 10 of the swarm build).** The interface holds
-nineteen: `Board` joins it with the step that builds the board, which
+These twenty-three methods are every call Daisy makes to the forge; the only
+other traffic with it is host-side git (fetch and push, 7.1 and 7.6, and
+`init`'s clone and push, section 11). The last three are `init`'s alone,
+made with the maintainer's token (section 11, init), each on `forge.repo`
+as the adapter is built for it.
+**As built (Steps 1, 4, 9 and 10 of the swarm build; Step 6 of revision
+6's plan).** The interface holds
+twenty-two: `Board` joins it with the step that builds the board, which
 waits for a run that needs it, as the GitHub adapter does (`forge.New`
 answers kind `github` with `forge: kind github has no adapter yet; it is
 built when a run needs it (docs/swarm.md section 10)`). The `gitea`
-adapter and `forge.Fake` implement all nineteen (Step 1 what `swarm init`
+adapter and `forge.Fake` implement all twenty-two (Step 1 what `swarm init`
 calls, Step 4 the rest but the milestones and `Approve`, Step 9 the
-milestones, Step 10 `Approve`), the label id map with a repository's label
+milestones, Step 10 `Approve`, Step 6 of revision 6's plan the three
+repository calls), the label id map with a repository's label
 shadowing the organization's included, read by the first `CreateIssue`
 or `Relabel` of each repository and held until the next pass (from Step
 28 of the swarm build: `Swarm.Pass` drops it at its start through the
@@ -2952,6 +2964,9 @@ last column names; any other is the call's error.
 | `Milestones` | `GET` | `/repos/{o}/{r}/milestones?state=all&page=<p>&limit=50` (without `state=all` Gitea lists the open ones alone) | — | `[].id`, `[].title`, `[].open_issues`, `[].closed_issues` |
 | `EnsureMilestone` | `GET` as `Milestones`, then `POST` when no milestone has the title | `/repos/{o}/{r}/milestones?state=all&page=<p>&limit=50`; `/repos/{o}/{r}/milestones` | —; `{"title"}` | as `Milestones`; `201`: `id` |
 | `SetMilestone` | `PATCH` | `/repos/{o}/{r}/issues/{n}` | `{"milestone": <id>}` | `201`: `milestone.id`, which must be `<id>`: Gitea's edit drops the field, still answering `201`, for the issue's poster without write access to the repository's issues (as its source reads; *to confirm*), and the call then fails with `forge: PATCH <path>: 201 with milestone <got>, not <id>; the token's account needs write access to the issues of <o>/<r>` |
+| `Repository` | `GET` | `/repos/{o}/{r}` | — | `200`: `ssh_url`, `default_branch`; `404`, `ErrNotFound` |
+| `CreateRepository` | `POST` | `/orgs/{o}/repos` | `{"name": <r>, "private": true}` | `201`: `ssh_url`, `default_branch` (`409` when the name exists, `403` for a token that is no owner of `{o}`, `404` for an `{o}` that is no organization: each the error) |
+| `AddCollaborator` | `PUT` | `/repos/{o}/{r}/collaborators/{login}` | `{"permission": "write"}` | `204` |
 | `Board` | `GET`, `GET`, `GET`, `POST` per missing column, `POST` (then `POST` on a `404` or `422`) | `/repos/{o}/{r}/issues/{n}`; `/orgs/{o}/projects?state=open&page=<p>&limit=50`; `/orgs/{o}/projects/{id}/columns?page=<p>&limit=50`; `/orgs/{o}/projects/{id}/columns`; `/orgs/{o}/projects/{id}/issues/{issue_id}/move`; `/orgs/{o}/projects/{id}/columns/{column_id}/issues/{issue_id}` | —; —; —; `{"title": <stage>}`; `{"column_id"}`; — | `id` (`{issue_id}`); `[].id`, `[].title` (the first project titled `forge.board`); `[].id`, `[].title`; `id`; the status: `204`; `201` |
 
 Step 1 recorded the pairs of `EnsureLabels`, `Login`, `Issues` and
@@ -2975,7 +2990,13 @@ answering `200`, `404` or `422`), and Step 15 the rename's
 (`orgEditLabel`, `PATCH /orgs/{org}/labels/{id}`, whose `EditLabelOption`
 fields are each optional, answering `200` with the Label; its route
 requires the organization's ownership as `orgCreateLabel`'s does, so a
-member's token is answered `403`, recorded as the create's). Step
+member's token is answered `403`, recorded as the create's), and Step 6
+of revision 6's plan the repository calls' from the Swagger of version
+29.0.0+dev-160 (by operationId `repoGet`, `200` or `404`;
+`createOrgRepo`, whose `CreateRepoOption` requires `name` and takes
+`private`, answering `201`, `400`, `403`, `404`, `409` or `422`; and
+`repoAddCollaborator`, whose `AddCollaboratorOption` takes `permission`,
+answering `204`, `403`, `404` or `422`). Step
 4's pairs settle four of the points left open:
 the comment endpoints take no page (`since` and `before` only) and the
 review comments' none; the review `event`s are `APPROVED`,
@@ -2993,6 +3014,11 @@ self-approval (`422`), that the instance's version documents the
 same pairs, and from Step 14 of the swarm build that `issueAddLabel` and
 `issueRemoveLabel` relabel a closed issue (the terminal is set after the
 close);
+for the repository calls (Step 6 of revision 6's plan), that the
+instance's version documents the same three pairs, that a repository
+created empty is cloned and its first push sets its default branch, and
+that the maintainer's account may create one in the organization and add
+a collaborator (the instance smoke, run with the maintainer's say-so);
 for `Board`, that `{o}` is an organization (a user's projects have no
 such endpoints) and `{issue_id}` the issue's `id` (the move endpoint's
 "global id of the issue, not the repository-local index"), and the move's
@@ -3033,6 +3059,7 @@ Labels are named in paths and bodies (a name in a path is escaped:
 | `Approve` | `POST` | `/repos/{o}/{r}/pulls/{pr}/reviews` | `{"event": "APPROVE", "commit_id": <head>}` | — |
 | `Merge` | `PUT` | `/repos/{o}/{r}/pulls/{pr}/merge` | `{"sha": <head>, "merge_method": "merge"}` | the status: `200` merged; `405` or `409` refused |
 | `Milestones`, `EnsureMilestone`, `SetMilestone` | none | not mapped: the GitHub adapter waits for a run that needs it (the swarm build's Non-goals), and its milestone pairs are recorded when it is built | — | — |
+| `Repository`, `CreateRepository`, `AddCollaborator` | none | not mapped, as the milestones: recorded when the GitHub adapter is built | — | — |
 | `Board` | none | not supported in version 1: GitHub's boards (Projects v2, whose API is GraphQL-first, with items and field values rather than columns) are not mapped; validation refuses `forge.board` for kind `github` (section 3), so the method is never called, and the adapter returns an error naming this | — | — |
 
 `Relabel`'s `POST` adds without replacing (the `PUT` form would replace
@@ -3105,6 +3132,19 @@ on the Fake's state. `Approve` stores a formal approval by the account
 on `head`, and refuses one on the account's own pull request as the
 forge does (`422`).
 
+**As built (Step 6 of revision 6's plan).** The swarm repository on
+the Fake is `forge.repo`, held or not, never git: `SetSSHURL(u)` is the
+`ssh_url` it reports (its default branch `main`), which a test points at
+an upstream through git's `url.<up>.insteadOf`; `AddRepository()` makes
+the forge hold it, private, as a maintainer creates it by hand;
+`CreateRepository` creates it, private, by the account whose token it is
+under (`As`), and answers `409` when the forge holds it; `AddCollaborator`
+records `write by <account>` for the login, `404` while the forge holds
+none; `RefuseRepository()` makes every later create and
+`AddCollaborator` the forge's `403`; and `Held()` is the repository as
+the forge holds it (private, its creator, its collaborators), which a
+test asserts on.
+
 ## 11. The verbs
 
 **Finding the swarm.** Every verb runs in a clone of the swarm
@@ -3122,21 +3162,18 @@ swarm repository's clone, or run 'daisy swarm init'`. Any argument a
 verb does not take is a usage error: its usage line on stderr, exit 2.
 None commits but `init`, which commits the files it writes in the clone
 and pushes them (below); every later edit of the clone is the
-maintainer's to commit and push. Revision 6 (the header) is built by
-Steps 2–6 of its plan; until then the verbs run as the old layout
-describes for what they have not built. *As built (Step 2, 2026-11-10;
+maintainer's to commit and push. Revision 6 (the header) was built by
+Steps 2–6 of its plan. *As built (Step 2, 2026-11-10;
 section 14, item 105):* the lookup above is the one function that
 decides the layout (`declare.Find`), and every verb, `init` included,
 runs from a clone holding `swarm.json` with no Daisy workspace, reading
 its secrets from `<state>/env` (section 3, Secret values), printing the
-unit for the clone and running `docker` and `id` there. What Steps 5–6
-have not yet built a clone reads as the old layout does:
-`init` writes `swarm.json` and `prompts/` at the clone's top and names
-them so (`✓ Wrote swarm.json`, `  Kept prompts/<role>.md (exists)`),
-and run where no clone holding `swarm.json` is found still takes the
-old layout, writing its files in the workspace it is in (outside
-one, `Error: Not in a Daisy workspace …`, exit 1) until Step 6 makes
-the clone. The thirteen
+unit for the clone and running `docker` and `id` there. *As built (Step
+6, 2026-11-10; item 109):* `init` run where neither a clone holding
+`swarm.json` nor the old layout's `<ws>/swarm/swarm.json` is found takes
+the working folder, in a Daisy workspace or not, as the folder it makes
+the clone in (below); the old layout's `init` runs only where its
+`swarm.json` is. The thirteen
 are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm,
 `status`'s correction counts at Step 8, the maintainer's six at
 Step 10, at Step 15 `swarm block` and the issue's `pause` and
@@ -3151,16 +3188,16 @@ the step that builds each, which waits for a run that needs it.
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm init [--defaults]` |
-| Reads | `<swarm>/swarm.json` when `init` runs in a clone of a swarm repository (its values are the defaults); else, for detection, the clones directly under the working folder (each one's `origin` and `core.sshCommand`); `<state>/env` when present, else the environment (the swarm's token and `DAISY_MAINTAINER_TOKEN`; section 3, Secret values); each declared repository's mirror at `<base>` (the readiness warnings and `repos/<name>.md`'s seed) |
+| Reads | `<swarm>/swarm.json` when `init` runs in a clone of a swarm repository (its values are the defaults); else, for detection, the clones directly under the working folder (each one's `origin` and `core.sshCommand`), never the working folder's own `origin` nor a `swarm.json` there; `<state>/env` when present, else the environment (the swarm's token and `DAISY_MAINTAINER_TOKEN`; section 3, Secret values); each declared repository's mirror at `<base>` (the readiness warnings and `repos/<name>.md`'s seed) |
 | Asks | the wizard below, through `Ops.Prompt`, questions on stderr; `--defaults` asks nothing and takes every default |
-| Forge | with the swarm's token: `Login()` (the swarm's login, added to `trusted`, refused as a maintainer's and given access below; its email, the default of `forge.commit_email`); with the maintainer's: `Login()` (refused when it is the swarm's), then `Repository(<owner>/<repo>)` (Gitea `GET /repos/{o}/{r}`: `ssh_url` and `default_branch`, or `404`, none), `CreateRepository(<owner>, <repo>)` when the forge holds none (`POST /orgs/{o}/repos`, `{"name": <repo>, "private": true}`, `201`; the visibility *to confirm with the maintainer before Step 6*: the plan sets none), and `AddCollaborator(<owner>/<repo>, <swarm-login>)` (`PUT /repos/{o}/{r}/collaborators/{login}`, `{"permission": "write"}`, `204`; made again on every run, which changes nothing once given); then with the swarm's token again: `Issues(Open, "swarm:proposal-posted")` (it can read the swarm repository's issues), `Pulls(0)` (no issue is numbered 0, so an empty list, read from every declared repository: it can read each), then `EnsureLabels` with the sixteen labels (section 5), which renames each old stage name it finds. The three calls on the repository are new methods of the forge seam (section 10), which Step 6 of revision 6's plan adds |
-| Writes | the swarm repository on the forge when absent, and the swarm's access to it (the maintainer's token); the clone, `git clone <ssh_url> <dir>/<repo>`, when `init` runs outside a clone of the swarm repository and `<dir>/<repo>` is absent (`<dir>` the working folder; a `<dir>/<repo>` that is not a clone of it is refused); in the clone, the files of section 2's table that are absent or whose answers changed, then one commit of exactly those paths by the clone's git identity (the maintainer's) and its push, `git -C <swarm> push origin HEAD:<branch>`, `<branch>` the repository's `default_branch`, with the clone's own credentials; `<state>/env` when absent; the mirrors, `<state>/git/<repo>` and `<state>/git/<name>` per declared repository, made and fetched as 7.1, step 1 says; the labels (the swarm's token) |
-| Order | answers 1–32; validation as section 3 (the prompt files and the clone's `origin` excepted, which this run may write and clone, and `trusted` and `forge.commit_email`, which the account fills); the swarm's token set and its `Login()`; the maintainer's token set, not the swarm's, and its `Login()` not the swarm's login; questions 33 and 34, asked only now, so that 33's default leaves out the swarm's login and an answer naming it is refused and asked again (`swarm.json: trusted: "<login>" is the token's own login; the swarm needs its own forge account (section 8)`), and 34's default is the account's email; the repository read, created when absent, and the swarm's account given access; the clone; the swarm's read check; question 35, the notes; validation again, the clone's `origin` included; the declared repositories' mirrors, made and fetched (7.1, step 1), which `repos/<name>.md`'s seed and the readiness warnings read; the files; the commit and the push; `<state>/env`; the swarm repository's mirror, after the push, so that it holds what `init` pushed and `status` shows no drift; `EnsureLabels`; the readiness warnings; the unit file printed. A failure stops there, so a failed token check writes nothing, and a re-run after any later failure takes up where it stopped |
-| Stdout | in this order, each write named with the token that made it: `✓ Maintainer <login>: <owner>/<repo> created` or `  Maintainer <login>: <owner>/<repo> exists`; `✓ Maintainer <login>: <swarm-login> may write to <owner>/<repo>`; `✓ Cloned <owner>/<repo> into <swarm>` when it cloned; `✓ Token $<VAR> reads <owner>/<repo> as <login>` (after the read check); `✓ Wrote swarm.json` or `  Unchanged swarm.json`; per role `✓ Wrote prompts/<role>.md` or `  Kept prompts/<role>.md (exists)`, and the same for each other file of section 2's table; `✓ Committed and pushed <short sha> to <owner>/<repo>'s <branch> as <git author>` when it wrote a file there, else `  Nothing to commit`; `✓ Wrote <state>/env (mode 0600)` or `  Kept <state>/env (exists)`; `✓ Mirrors: <repo>, <name>, … fetched`; `✓ Token $<VAR>: labels 16 present (<c> created, <r> renamed)`; a blank line, then the unit file and the install line (below) |
+| Forge | with the swarm's token: `Login()` (the swarm's login, added to `trusted`, refused as a maintainer's and given access below; its email, the default of `forge.commit_email`); with the maintainer's: `Login()` (refused when it is the swarm's), then `Repository()` (Gitea `GET /repos/{o}/{r}`: `ssh_url` and `default_branch`, or `404`, none), `CreateRepository()` when the forge holds none (`POST /orgs/{o}/repos`, `{"name": <repo>, "private": true}`, `201`: always private, the maintainer changing its visibility on the forge if wanted; section 14, item 109), and `AddCollaborator(<swarm-login>)` (`PUT /repos/{o}/{r}/collaborators/{login}`, `{"permission": "write"}`, `204`; made again on every run, which changes nothing once given), each on `forge.repo`, `{o}/{r}`; then with the swarm's token again: `Issues(Open, "swarm:proposal-posted")` (it can read the swarm repository's issues), `Pulls(0)` (no issue is numbered 0, so an empty list, read from every declared repository: it can read each), then `EnsureLabels` with the sixteen labels (section 5), which renames each old stage name it finds. The three calls on the repository are methods of the forge seam (section 10), added at Step 6 of revision 6's plan |
+| Writes | the swarm repository on the forge when absent, and the swarm's access to it (the maintainer's token); the clone, `git clone <ssh_url> <dir>/<repo>`, when `init` runs outside a clone of the swarm repository and `<dir>/<repo>` is absent (`<dir>` the working folder; a `<dir>/<repo>` that is a clone of it holding no `swarm.json` is the clone, taken as it is; one that is not a clone of it, or that holds a `swarm.json`, is refused before any write); in the clone, the files of section 2's table that are absent or whose answers changed, then one commit of those paths and of each file of that table the clone holds and its `HEAD` lacks (an earlier run's whose commit failed), by the clone's git identity (the maintainer's) and its push, `git -C <swarm> push origin HEAD:<branch>`, `<branch>` the repository's `default_branch`, with the clone's own credentials; `<state>/env` when absent; the mirrors, `<state>/git/<repo>` and `<state>/git/<name>` per declared repository, made and fetched as 7.1, step 1 says; the labels (the swarm's token) |
+| Order | answers 1–32; validation as section 3 (the prompt files and the clone's `origin` excepted, which this run may write and clone, and `trusted` and `forge.commit_email`, which the account fills); outside a clone, `<dir>/<repo>` checked (absent, or a clone of the swarm repository holding no `swarm.json`); the swarm's token set and its `Login()`; the maintainer's token set, not the swarm's, and its `Login()` not the swarm's login; questions 33 and 34, asked only now, so that 33's default leaves out the swarm's login and an answer naming it is refused and asked again (`swarm.json: trusted: "<login>" is the token's own login; the swarm needs its own forge account (section 8)`), and 34's default is the account's email; the repository read, created when absent, and the swarm's account given access; the clone; the swarm's read check; question 35, the notes; validation again, the clone's `origin` included; the declared repositories' mirrors, made and fetched (7.1, step 1), which `repos/<name>.md`'s seed and the readiness warnings read; the files; the commit and the push; `<state>/env`; the swarm repository's mirror, after the push, so that it holds what `init` pushed and `status` shows no drift; `EnsureLabels`; the readiness warnings; the unit file printed. A failure stops there, so a failed token check writes nothing, and a re-run after any later failure takes up where it stopped |
+| Stdout | in this order, each write named with the token that made it: `✓ Maintainer <login>: <owner>/<repo> created` or `  Maintainer <login>: <owner>/<repo> exists`; `✓ Maintainer <login>: <swarm-login> may write to <owner>/<repo>`; `✓ Cloned <owner>/<repo> into <swarm>` when it cloned; `✓ Token $<VAR> reads <owner>/<repo> as <login>` (after the read check); `✓ Wrote swarm.json` or `  Unchanged swarm.json`; per role `✓ Wrote prompts/<role>.md` or `  Kept prompts/<role>.md (exists)`, and the same for each other file of section 2's table, in its order (`repos/<name>.md` per declared repository, the `README.md` at the top, then in `briefs/`, `notes/` and `docs/`, and `.gitignore`); `✓ Committed and pushed <short sha> to <owner>/<repo>'s <branch> as <git author>` (`<short sha>` seven hex digits, `<git author>` `<name> <<email>>`) when it committed (a file it wrote, or one of section 2's table the clone holds and its `HEAD` lacks), else `  Nothing to commit`; `✓ Wrote <state>/env (mode 0600)` or `  Kept <state>/env (exists)`; `✓ Mirrors: <repo>, <name>, … fetched`; `✓ Token $<VAR>: labels 16 present (<c> created, <r> renamed)`; a blank line, then the unit file and the install line (below) |
 | Stderr | the questions; a refused answer's validation message (without `Error: `), then the same question again; `Cancelled — no answer on stdin (EOF); nothing written.`; `⚠️  <state>/env <problem>` for a line of it that cannot be read (it and the lines after it are not, as `check-secrets` says of a `.env.sh`); `⚠ <state>/env: $<VAR> is empty; set it before 'daisy swarm apply'` for each variable it wrote without a value; the readiness warnings (below) |
-| Exit codes | 0 written (or unchanged), or cancelled at EOF; 1 an invalid file or default (`Error: swarm.json: …`), a token unset, the maintainer's token the swarm's or answering the swarm's login (the maintainer's verbs' messages, below), a forge kind without an adapter (`Error: swarm: forge: kind github has no adapter yet; …`), the repository's read, creation or access refused (`Error: swarm: $DAISY_MAINTAINER_TOKEN cannot <read\|create\|give <swarm-login> write access to> <owner>/<repo>: <forge error>`), the clone refused (`Error: swarm: <dir>/<repo> exists and is not a clone of <owner>/<repo>`, or git's error), the read check failing (`Error: swarm: $<VAR> cannot read <owner>/<repo>: <forge error>`, `Error: swarm: $<VAR> cannot read the declared repositories: <forge error>`, `Error: swarm: $<VAR> cannot read its own account: <forge error>`), a write failing, the push refused (`Error: swarm: push <swarm>: <git's error>; the commit stays in the clone: pull, then push it`), a mirror's fetch failing, `EnsureLabels` failing (a refused rename or create among the causes; the files stay written; a re-run completes it); 2 usage. A readiness warning never changes the exit code |
+| Exit codes | 0 written (or unchanged), or cancelled at EOF; 1 an invalid file or default (`Error: swarm.json: …`), a token unset, the maintainer's token the swarm's or answering the swarm's login (`Error: swarm: $DAISY_MAINTAINER_TOKEN holds the swarm's token ($<VAR>); the maintainer's writes act with your own (docs/swarm.md section 8)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN is <login>'s token, the swarm's account ($<VAR>'s); the maintainer's writes act with your own (docs/swarm.md section 8)`), a forge kind without an adapter (`Error: swarm: forge: kind github has no adapter yet; …`), the repository's read, creation or access refused (`Error: swarm: $DAISY_MAINTAINER_TOKEN cannot <read\|create\|give <swarm-login> write access to> <owner>/<repo>: <forge error>`), the clone refused (`Error: swarm: <dir>/<repo> exists and is not a clone of <owner>/<repo>`, `Error: swarm: <dir>/<repo> is the swarm's clone; run 'daisy swarm init' in it, where its swarm.json gives the answers`, or `Error: swarm: git clone <ssh_url> <dir>/<repo>: <git's error>`), the read check failing (`Error: swarm: $<VAR> cannot read <owner>/<repo>: <forge error>`, `Error: swarm: $<VAR> cannot read the declared repositories: <forge error>`, `Error: swarm: $<VAR> cannot read its own account: <forge error>`), a write failing (a file, or the commit: `Error: swarm: commit in <swarm>: <git's error>`), the push refused (`Error: swarm: push <swarm>: <git's error>; the commit stays in the clone: pull, then push it`), a mirror's fetch failing, `EnsureLabels` failing (a refused rename or create among the causes; the files stay written; a re-run completes it); 2 usage. A readiness warning never changes the exit code |
 | Ops | Real |
-| Idempotence | `init --defaults` run twice: the second run writes no file and makes no label (Step 1's claim, held on its Fakes and on the instance, where the fourth run reported `Unchanged`, five `Kept` and `8 present (0 created)`, the line before the terminals and Step 15's renames) |
+| Idempotence | `init --defaults` run twice: the second run writes no file and makes no label (Step 1's claim, held on its Fakes and on the instance, where the fourth run reported `Unchanged`, five `Kept` and `8 present (0 created)`, the line before the terminals and Step 15's renames); in revision 6 the second run, from the clone the first made, creates no repository, commits nothing and keeps `<state>/env` (Step 6 of revision 6's plan, on its Fakes) |
 
 **Readiness warnings.** A product without its own instructions, checks or
 roadmap tends to get worse under a swarm, not better, so `init` names
@@ -3186,15 +3223,45 @@ clone the declared repositories' mirrors are fetched before the files
 and the swarm repository's after them (the Order above), and after the
 prompts `init` writes `repos/<name>.md` for each declared repository
 where the clone has none (`✓ Wrote repos/<name>.md` or `  Kept
-repos/<name>.md (exists)`), the seed of section 4; until Step 6 it
-commits and pushes nothing, so the maintainer commits and pushes what
-it wrote. Detection reads the clones
+repos/<name>.md (exists)`), the seed of section 4, which Step 6's
+commit carries. Detection reads the clones
 directly under the folder holding the swarm repository's clone (the
-folder `init` runs in once Step 6 clones it there), the swarm
+folder `init` ran in when it made the clone), the swarm
 repository's own clone left out; with a `swarm.json`, question 1's
 default is its repositories, an entry the old layout wrote by `path`
 offered as `<owner>/<name>`, `<owner>` `forge.repo`'s. The old layout's
 wizard and readiness are as they were.
+
+*As built (Step 6 of revision 6's plan, 2026-11-10; section 14, item
+109):* `init` is the table above. In a folder holding no clone of a
+swarm repository (Finding the swarm) detection reads the clones directly
+under that folder and never the folder's own `origin`, and validation
+leaves out the clone's `origin` until the clone is made, then checks it.
+Before any forge call, `<dir>/<repo>` is checked: absent, it is cloned
+from the `ssh_url` the forge reports once the repository is read or
+created; a clone of the swarm repository holding no `swarm.json` is
+taken as the clone (a maintainer's own clone of a repository made by
+hand); anything else is refused, a clone holding `swarm.json` among
+them, since `init` there would answer from detection over the file's
+values: it is run in that clone. The two tokens are read as section 3,
+Secret values, says, the maintainer's only after the swarm's account is
+read. The commit is made with `git add` and `git commit -- <paths>` of
+the files this run wrote and of each file of section 2's table the
+clone holds that its `HEAD` lacks (one an earlier run wrote and could not
+commit), nothing else of the clone's index or tree being committed; a
+written file equal to the clone's `HEAD` commits nothing (`  Nothing to
+commit`), and a rewritten `swarm.json` whose commit failed stays staged
+for the maintainer to commit; and a clone of an empty repository
+gets the default branch as its first branch before the commit. The
+push is `git push origin HEAD:<branch>`. `<state>/env` is written after
+the push, from the process environment (each value single-quoted), with
+the warnings above, and kept when present. A re-run after a failure
+takes up where it stopped: the forge's repository and access are read
+again, the clone is found, the files written are kept, and a commit
+whose push was refused is the maintainer's to push. The old layout's
+`init` (Moving a swarm into its repository) runs only where
+`<ws>/swarm/swarm.json` is, and is as it was: its labels line is `✓
+Labels: 16 present (<c> created, <r> renamed)`.
 
 The wizard, in order. An empty answer takes the default shown in
 brackets; defaults come from the existing `swarm.json`, else detection:
@@ -3689,7 +3756,10 @@ no mode refused); `<state>/env` is not read. It has no
 `repos/<name>.md` (section 4) and no Drift (Drift, above): a member's
 `system.md` ends with its Task. The unit's `%f` is the
 workspace. `init` writes `<ws>/swarm/` and nothing under
-`$DAISY_LOCAL`, creates no repository and reads no maintainer's token.
+`$DAISY_LOCAL`, creates no repository and reads no maintainer's token;
+since Step 6 of revision 6's plan it runs only where
+`<ws>/swarm/swarm.json` is (a workspace without one is a folder `init`
+makes a swarm repository's clone in, Finding the swarm).
 Its configuration, as `init` writes section 3's example in it (the Go
 test of section 3's example reads it here too):
 
@@ -3767,14 +3837,19 @@ running.
    (`install -m 600 /dev/null <state>/env` before writing it); they stay
    in `<ws>/.env.sh` only while something else there needs them.
 5. **Commit and push** the clone's new files.
-6. **`daisy swarm init --defaults`** in the clone: its answers are the
-   file's; it adopts the repository and gives the swarm's account write
-   access with the maintainer's token, writes what is still absent
-   (`repos/<name>.md`, the READMEs, `.gitignore`, never a file that
-   exists), commits and pushes those, makes the mirrors, keeps
-   `<state>/env`, and prints the unit for the clone's path; then, from
-   inside the clone, `daisy swarm status` validates the configuration
-   and, the mirrors made, shows no drift.
+6. **`daisy swarm init --defaults`** in the clone, with
+   `DAISY_MAINTAINER_TOKEN` in `<state>/env` (step 4) and the clone's
+   git identity the maintainer's: its answers are the file's; it adopts
+   the repository (`  Maintainer <login>: <owner>/<repo> exists`) and
+   gives the swarm's account write access with the maintainer's token,
+   writes what is still absent (`repos/<name>.md`, the READMEs,
+   `.gitignore`, never a file that exists), commits those alone, `swarm:
+   written by init`, and pushes them to the default branch, makes the
+   mirrors, keeps `<state>/env`, makes the labels with the swarm's token,
+   and prints the unit for the clone's path; then, from inside the
+   clone, `daisy swarm status` validates the configuration and, the
+   mirrors made, shows no drift. Run from the folder holding the clone
+   instead, `init` refuses (the clone holds `swarm.json`).
 7. **The briefs' paths on the forge.** An issue opened before the move
    names its brief by the workspace path, `Brief: swarm-<name>/briefs/<file>.md
    — <milestone>`; until Step 7 retires the old layout that path still
@@ -6275,8 +6350,9 @@ entries among revision 1's, and was renumbered at Step 38.
     `swarm: written by init`; question 4's last default, `<owner>/swarm-<name>`
     after the first product (the convention of item 83 applied to the
     one product a swarm serves); question 32's default the seeded
-    `briefs/` and `docs/`; the created repository private, which the
-    plan does not set and the maintainer confirms before Step 6. `init`
+    `briefs/` and `docs/`; the created repository always private (the
+    maintainer's answer of 2026-11-10: no wizard question; the
+    maintainer changes its visibility on the forge if wanted). `init`
     run in an empty folder has no product clone to default question 1
     from, so `--defaults` there needs a folder holding the products'
     clones, or a `swarm.json`.
@@ -6452,3 +6528,58 @@ entries among revision 1's, and was renumbered at Step 38.
     `repos/<name>.md` nor Drift. Tests: the clone fixture's `status`
     and `apply` start from a pushed `init` whose mirror holds it, as
     Step 6's `init` will leave them.
+109. **`init` creates and seeds the swarm repository (Step 6 of
+    revision 6's plan, as built, 2026-11-10; the maintainer's D7).**
+    `init` run where no clone holding `swarm.json` is found, and no old
+    layout either, takes the working folder (`declare.Folder`,
+    `Place.Outside`), in a Daisy workspace or not: detection reads the
+    clones directly under it, never its own `origin`, and validation
+    leaves out the clone's `origin` until `init` has made the clone; the
+    old layout's `init` runs only where `<ws>/swarm/swarm.json` is, so a
+    workspace no longer gets a new swarm in the old layout. The forge
+    seam gains `Repository`, `CreateRepository` and `AddCollaborator`,
+    on Gitea `GET /repos/{o}/{r}`, `POST /orgs/{o}/repos` (`{"name",
+    "private": true}`) and `PUT /repos/{o}/{r}/collaborators/{login}`
+    (`{"permission": "write"}`), recorded from the Swagger; the GitHub
+    adapter maps none, as for the milestones. **Spec amended (sections 10
+    and 11):** the three calls take no repository: each acts on
+    `forge.repo`, as the adapter is built for it (section 11 had written
+    `Repository(<owner>/<repo>)`, `CreateRepository(<owner>, <repo>)` and
+    `AddCollaborator(<owner>/<repo>, <login>)`), and `CreateRepository`
+    answers the created repository's `ssh_url` and `default_branch`, so
+    no second read follows it. **Choices the spec left open:**
+    `<dir>/<repo>` is checked after the answers and before any forge
+    call: a clone of the swarm repository holding no `swarm.json` is the
+    clone (a maintainer's own clone of a repository made by hand), one
+    holding `swarm.json` refused (`init` from the folder answers from
+    detection, which would overwrite the file's values; it runs in the
+    clone), anything else refused as section 11 says; `init`'s two
+    messages for the maintainer's token are the maintainer's verbs',
+    reworded for `init` (`the maintainer's writes act with your own`, the
+    swarm's account named by `$<VAR>`'s login, as `trusted` is not yet
+    written); `<state>/env`'s values are single-quoted, so that no `$` or
+    backquote in a token is read as shell syntax; a clone of an empty
+    repository gets the default branch as its first branch before the
+    commit; files written but equal to the clone's `HEAD` commit nothing,
+    and a file of section 2's table the clone holds and its `HEAD` lacks is
+    committed with them, so a re-run after a failed commit of new files
+    completes it (a rewritten `swarm.json` whose commit failed stays
+    staged for the maintainer to commit);
+    a failed commit is `Error: swarm: commit in <swarm>: <git's error>`;
+    the labels line names the swarm's token (`✓ Token $<VAR>: labels
+    …`) in revision 6 and stays `✓ Labels: …` in the old layout and in
+    `apply`; the seeded READMEs' text is `declare.Seeds`. Question 32's
+    default is `briefs/` and `docs/` whether the clone holds them or not
+    (Step 4's interim of those the clone held is gone). The secret names
+    `<state>/env` assigns and `check-secrets` reports are one list,
+    `Config.SecretNames`. Tests: the clone fixture runs `init` in a
+    folder holding the products' clones, the forge holding no swarm
+    repository and its upstream empty, with both tokens in the
+    environment and the maintainer's git identity global; `init` creates,
+    clones, commits and pushes, and every revision 6 test builds on what
+    it leaves; the old layout's fixture runs its first `init` at its
+    place; the cli's old-layout tests seed `<ws>/swarm/swarm.json`, and a
+    cli test runs the new `init` through the gitea adapter over an
+    in-memory forge and real git. The instance smoke (a scratch
+    `swarm-<name>` created on the Gitea instance and deleted) needs the
+    maintainer's say-so on their token and is not run by the step.

@@ -21,11 +21,14 @@ import (
 // one commit on main that git reaches in place of the forge, and the
 // token in its secrets file. In the old layout ws is a Daisy workspace
 // (.daisy/) holding the products' clones at app and lib, the swarm in its
-// swarm/ and the token in its .env.sh; in revision 6's (clone) ws is
-// <dir>/swarm-app, a clone of the swarm repository acme/swarm-app with no
-// .daisy/ in it or above it, swarm.json and prompts/ at its top, the
-// token in <state>/env, and the products' clones beside it in <dir> until
-// init has run, then removed: no product's clone is on the machine.
+// swarm/ and the token in its .env.sh; in revision 6's (clone) init runs
+// in <dir>, a folder holding the products' clones and no swarm
+// repository's clone, with no .daisy/ in it or above it, the swarm's
+// token and jane's, the maintainer's, in the environment; the forge holds
+// no acme/swarm-app, whose upstream is empty, and init creates it and
+// makes ws, <dir>/swarm-app, its clone, swarm.json and prompts/ at its
+// top. Once init has run (cloned), the products' clones are removed: no
+// product's clone is on the machine.
 type swarmWS struct {
 	t                 *testing.T
 	ws, root, local   string
@@ -33,7 +36,7 @@ type swarmWS struct {
 	clone             bool
 	upstreams         map[string]string // forge URL → local bare repository
 	place             declare.Place     // where the swarm is
-	cwd               string            // the folder the verbs find the swarm from (find); "" before a clone holds its swarm.json, the verbs then run at place
+	cwd               string            // the folder the verbs find the swarm from (find): <dir> for the clone's first init; "" for the old layout's, which runs at place
 	vars              map[string]string
 	forge             *forge.Fake
 	opened            []string // what the last opener was given: kind, api, repo, names, token
@@ -44,6 +47,8 @@ type swarmWS struct {
 	readFails         bool
 	declaredReadFails bool
 	loginFails        bool
+	maintainer        forge.Account // the account jane-456 is (clone), jane's when zero
+	repoReadFails     bool          // the maintainer's read of the swarm repository refused (clone)
 }
 
 func newSwarmWS(t *testing.T) *swarmWS { return newSwarmWSIn(t, false) }
@@ -80,22 +85,25 @@ func newSwarmWSIn(t *testing.T, clone bool) *swarmWS {
 		s.upstreams[url] = up
 	}
 	if clone {
-		// The swarm repository: an upstream holding one commit on main,
-		// its default branch, and the clone made from it.
+		// The swarm repository: on the forge once init creates it, its
+		// upstream empty, its default branch main. The maintainer's git
+		// identity commits in its clone.
 		up := filepath.Join(t.TempDir(), "swarm-app.git")
-		src := t.TempDir()
-		git(t, "", "init", "-q", "-b", "main", src)
-		git(t, src, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "first")
-		git(t, "", "clone", "-q", "--bare", src, up)
+		git(t, "", "init", "-q", "--bare", "-b", "main", up)
 		s.upstreams[swarmURL] = up
-		git(t, "", "clone", "-q", up, s.ws)
-		git(t, s.ws, "remote", "set-url", "origin", swarmURL)
-		s.place = declare.Clone(s.ws)
+		s.forge.SetSSHURL(swarmURL)
+		global := filepath.Join(t.TempDir(), "gitconfig")
+		os.WriteFile(global, []byte("[user]\n\tname = Jane\n\temail = jane@example.net\n"), 0o644)
+		t.Setenv("GIT_CONFIG_GLOBAL", global)
+		s.place, s.cwd = declare.Clone(s.ws), s.dir
+		s.vars["GITEA_TOKEN"], s.vars["DAISY_MAINTAINER_TOKEN"] = "tok-123", "jane-456"
 	} else {
+		// init finds no old layout before it has written swarm/swarm.json:
+		// the first runs at its place.
 		os.Mkdir(filepath.Join(s.ws, ".daisy"), 0o755)
-		s.place, s.cwd = declare.Workspace(s.ws), s.ws
+		s.place = declare.Workspace(s.ws)
+		s.secrets("export GITEA_TOKEN=\"tok-123\"\n")
 	}
-	s.secrets("export GITEA_TOKEN=\"tok-123\"\n")
 	return s
 }
 
@@ -124,12 +132,13 @@ func (s *swarmWS) fetchMirror() {
 // swarmURL is the swarm repository's clone's origin (clone).
 const swarmURL = "git@forge.example.net:acme/swarm-app.git"
 
-// cloned is the clone once init has written swarm.json at its top and
-// made the mirrors: the verbs finding it from prompts/, a folder inside
-// it, and no product's clone left on the machine (revision 6's plan,
-// Step 3's claim).
+// cloned is the swarm once init has written it: in the old layout the
+// verbs finding it from the workspace; in a clone from prompts/, a folder
+// inside it, with no product's clone left on the machine (revision 6's
+// plan, Step 3's claim).
 func (s *swarmWS) cloned() {
 	if !s.clone {
+		s.cwd = s.ws
 		return
 	}
 	s.cwd = filepath.Join(s.ws, "prompts")
@@ -191,8 +200,7 @@ type cwdOps struct {
 func (o cwdOps) Getwd() (string, error) { return o.cwd, nil }
 
 // at runs verb on c as the cli does once the swarm is found: from s.cwd
-// through find, the one lookup, or at s.place before a clone holds its
-// swarm.json.
+// through find, the one lookup, or at s.place while s.cwd is "".
 func (s *swarmWS) at(c *Context, init bool, verb func(*Context) error) error {
 	c.Env.Root, c.Env.Local = s.root, s.local
 	if s.cwd == "" {
@@ -253,6 +261,20 @@ func (f failingReads) Pulls(int, []string) ([]forge.Pull, error) {
 	return nil, nil
 }
 
+// failingRepo is the Fake under the maintainer's token with its read of
+// the swarm repository refused, as a token without access finds it.
+type failingRepo struct {
+	*forge.Fake
+	fails bool
+}
+
+func (f failingRepo) Repository() (forge.Repository, error) {
+	if f.fails {
+		return forge.Repository{}, errors.New("forge: GET /repos/acme/swarm-app: 403 forbidden")
+	}
+	return f.Fake.Repository()
+}
+
 // run is `swarm init` with flags, over the Fake forge.
 func (s *swarmWS) run(flags ...string) error {
 	s.stdout.Reset()
@@ -275,6 +297,9 @@ func (s *swarmWS) run(flags ...string) error {
 	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr, Flags: flags}
 	return s.at(c, true, func(c *Context) error {
 		return swarmInit(c, func(_ ops.Ops, f declare.Forge, names []string, token string) (forge.Adapter, error) {
+			if token == "jane-456" {
+				return failingRepo{s.forge.As(cmp.Or(s.maintainer, forge.Account{Login: "jane", Email: "jane@example.net"})), s.repoReadFails}, nil
+			}
 			s.opened = []string{f.Kind, f.API, f.Repo, strings.Join(names, ","), token}
 			return failingReads{s.forge, s.readFails, s.declaredReadFails, s.loginFails}, nil
 		})

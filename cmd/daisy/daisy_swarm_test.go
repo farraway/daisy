@@ -24,6 +24,9 @@ type giteaServer struct {
 	issue1   []string          // issue 1's labels
 	requests []string          // method and path of each request, in order
 	auths    []string          // the Authorization header of each request, in order
+	repo     map[string]any    // acme/swarm-app once created
+	// each collaborator added to acme/swarm-app and its permission
+	collaborators []string
 }
 
 func newGitea(t *testing.T) *giteaServer {
@@ -80,6 +83,29 @@ func newGitea(t *testing.T) *giteaServer {
 		g.labels[id-1] = in.Name
 		reply(w, 200, map[string]any{"id": id, "name": in.Name})
 	})
+	g.mux.HandleFunc("GET /api/v1/repos/acme/swarm-app", func(w http.ResponseWriter, r *http.Request) {
+		if g.repo == nil {
+			reply(w, 404, map[string]any{"message": "The target couldn't be found."})
+			return
+		}
+		reply(w, 200, g.repo)
+	})
+	g.mux.HandleFunc("POST /api/v1/orgs/acme/repos", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Name    string
+			Private bool
+		}
+		json.NewDecoder(r.Body).Decode(&in)
+		g.repo = map[string]any{"name": in.Name, "full_name": "acme/" + in.Name, "private": in.Private, "empty": true,
+			"ssh_url": "git@forge.example.net:acme/" + in.Name + ".git", "default_branch": "main"}
+		reply(w, 201, g.repo)
+	})
+	g.mux.HandleFunc("PUT /api/v1/repos/acme/swarm-app/collaborators/{login}", func(w http.ResponseWriter, r *http.Request) {
+		var in struct{ Permission string }
+		json.NewDecoder(r.Body).Decode(&in)
+		g.collaborators = append(g.collaborators, r.PathValue("login")+" "+in.Permission)
+		w.WriteHeader(204)
+	})
 	g.mux.HandleFunc("POST /api/v1/orgs/acme/labels", func(w http.ResponseWriter, r *http.Request) {
 		var in struct{ Name, Color string }
 		json.NewDecoder(r.Body).Decode(&in)
@@ -110,6 +136,11 @@ func (m *machine) swarmOps(cwd string, g *giteaServer) *ops.Fake {
 	}
 }
 
+// product makes the workspace the product's clone at origin, its swarm
+// in the old layout: swarm/swarm.json as a workspace holds it before its
+// first `swarm init` there, which since revision 6 runs only where the
+// file is (section 11, Moving a swarm into its repository), and the token
+// in .env.sh.
 func (m *machine) product(t *testing.T, origin string) {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
@@ -117,16 +148,39 @@ func (m *machine) product(t *testing.T, origin string) {
 	m.gitIn(t, m.ws, "init", "-q")
 	m.gitIn(t, m.ws, "remote", "add", "origin", origin)
 	writeFile(t, filepath.Join(m.ws, ".env.sh"), "export GITEA_TOKEN=tok-123\nexport GITHUB_TOKEN=tok-123\n")
+	writeFile(t, filepath.Join(m.ws, "swarm", "swarm.json"), oldSwarm)
 }
 
-// `swarm init --defaults` through the cli and the gitea adapter over an
-// in-memory forge: the labels created once, the second run creating none.
+// oldSwarm is the old layout's swarm.json for acme/app, the workspace
+// itself, as `init --defaults` leaves it.
+const oldSwarm = `{
+  "forge": {"kind": "gitea", "api": "https://forge.example.net/api/v1", "repo": "acme/app", "token_env": "GITEA_TOKEN", "commit_email": "swarm@example.net"},
+  "repos": [{"name": "app", "path": ".", "check": [], "image": "daisy-member:1", "protected": []}],
+  "base": "main", "max_members": 3, "max_rounds": 5, "timeout": "45m", "interval": "5m",
+  "owner": {"max_open_proposals": 5},
+  "resources": [],
+  "trusted": ["swarm-bot"],
+  "gates": {"triage": true, "plan": true, "merge": true},
+  "keys": {"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}, "openai": {"slots": 1}},
+  "personas": {
+    "owner": {"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": ""},
+    "architect": {"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": ""},
+    "worker": {"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": ""},
+    "adversary": {"provider": "openai", "model": "gpt-6.1-sol", "effort": "high", "co_author": ""},
+    "sympathetic": {"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": ""}
+  }
+}
+`
+
+// `swarm init --defaults` in the old layout through the cli and the gitea
+// adapter over an in-memory forge: the labels created once, the second run
+// creating none.
 func TestSwarmInitThroughGitea(t *testing.T) {
 	m := newMachine(t)
 	m.product(t, "git@forge.example.net:acme/app.git")
 	g := newGitea(t)
 	code, out, errs := runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults")
-	if code != 0 || !strings.HasPrefix(out, "✓ Token $GITEA_TOKEN reads acme/app as swarm-bot\n✓ Wrote swarm/swarm.json\n") ||
+	if code != 0 || !strings.HasPrefix(out, "✓ Token $GITEA_TOKEN reads acme/app as swarm-bot\n  Unchanged swarm/swarm.json\n✓ Wrote swarm/prompts/owner.md\n") ||
 		!strings.Contains(out, "✓ Labels: 16 present (16 created, 0 renamed)\n") || !strings.Contains(errs, "⚠ Readiness: app has no AGENTS.md") {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
@@ -157,20 +211,86 @@ func TestSwarmInitThroughGitea(t *testing.T) {
 	}
 }
 
+// `swarm init --defaults` in revision 6 through the cli and the gitea
+// adapter (section 13, revision 6's Step 6): in a folder holding a
+// product's clone and no workspace, the maintainer's token creates
+// acme/swarm-app private and gives swarm-bot write access, the swarm's
+// token reads and makes the labels, each request under the token its line
+// names; the clone is made beside the product's and its commit pushed; a
+// second run, from inside the clone, adopts the repository and writes
+// nothing.
+func TestSwarmInitCreatesThroughGitea(t *testing.T) {
+	m := newMachine(t)
+	g := newGitea(t)
+	g.accounts["token jane-456"] = "jane"
+	dir := t.TempDir()
+	app, appUp, swarmUp := filepath.Join(dir, "app"), filepath.Join(t.TempDir(), "app.git"), filepath.Join(t.TempDir(), "swarm-app.git")
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	writeFile(t, global, "[user]\n\tname = Jane\n\temail = jane@example.net\n"+
+		"[url \""+appUp+"\"]\n\tinsteadOf = git@forge.example.net:acme/app.git\n[url \""+swarmUp+"\"]\n\tinsteadOf = git@forge.example.net:acme/swarm-app.git\n")
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	m.gitIn(t, "", "init", "-q", "--bare", "-b", "main", swarmUp)
+	m.gitIn(t, "", "init", "-q", "-b", "main", app)
+	m.gitIn(t, app, "commit", "-q", "--allow-empty", "-m", "first")
+	m.gitIn(t, "", "clone", "-q", "--bare", app, appUp)
+	m.gitIn(t, app, "remote", "add", "origin", "git@forge.example.net:acme/app.git")
+	m.vars["GITEA_TOKEN"], m.vars["DAISY_MAINTAINER_TOKEN"] = "tok-123", "jane-456"
+
+	code, out, errs := runWith(m.swarmOps(dir, g), "swarm", "init", "--defaults")
+	clone := filepath.Join(dir, "swarm-app")
+	head := "✓ Maintainer jane: acme/swarm-app created\n✓ Maintainer jane: swarm-bot may write to acme/swarm-app\n✓ Cloned acme/swarm-app into " + clone + "\n✓ Token $GITEA_TOKEN reads acme/swarm-app as swarm-bot\n✓ Wrote swarm.json\n"
+	if code != 0 || !strings.HasPrefix(out, head) || !strings.Contains(out, "\n✓ Token $GITEA_TOKEN: labels 16 present (16 created, 0 renamed)\n") {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
+	}
+	if g.repo["private"] != true || !slices.Equal(g.collaborators, []string{"swarm-bot write"}) || len(g.labels) != 16 {
+		t.Errorf("forge: %v %q %d labels", g.repo, g.collaborators, len(g.labels))
+	}
+	// The swarm's login, then the maintainer's four, then the swarm's
+	// token alone.
+	jane := []string{"GET /api/v1/user", "GET /api/v1/repos/acme/swarm-app", "POST /api/v1/orgs/acme/repos", "PUT /api/v1/repos/acme/swarm-app/collaborators/swarm-bot"}
+	if len(g.requests) < 5 || g.requests[0] != "GET /api/v1/user" || !slices.Equal(g.requests[1:5], jane) {
+		t.Fatalf("requests %q", g.requests)
+	}
+	for i, r := range g.requests {
+		if want := map[bool]string{true: "token jane-456", false: "token tok-123"}[i >= 1 && i < 5]; g.auths[i] != want {
+			t.Errorf("%s under %s, want %s", r, g.auths[i], want)
+		}
+	}
+	if got := m.gitIn(t, swarmUp, "log", "--format=%an %s", "main"); got != "Jane swarm: written by init" {
+		t.Errorf("pushed: %q", got)
+	}
+
+	g.requests, g.auths = nil, nil
+	code, out, errs = runWith(m.swarmOps(filepath.Join(clone, "prompts"), g), "swarm", "init", "--defaults")
+	if code != 0 || !strings.HasPrefix(out, "  Maintainer jane: acme/swarm-app exists\n✓ Maintainer jane: swarm-bot may write to acme/swarm-app\n✓ Token $GITEA_TOKEN reads acme/swarm-app as swarm-bot\n  Unchanged swarm.json\n") ||
+		!strings.Contains(out, "\n  Nothing to commit\n") || slices.Contains(g.requests, "POST /api/v1/orgs/acme/repos") {
+		t.Errorf("second run: exit %d\n%s\n%s\n%q", code, out, errs, g.requests)
+	}
+}
+
 func TestSwarmInitRefusals(t *testing.T) {
 	m := newMachine(t)
-	m.product(t, "git@github.com:acme/app.git")
+	m.product(t, "git@forge.example.net:acme/app.git")
 	g := newGitea(t)
-	code, _, errs := runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults")
+	// In a folder holding a github product's clone: no adapter, nothing
+	// written.
+	dir := t.TempDir()
+	m.gitIn(t, "", "init", "-q", filepath.Join(dir, "app"))
+	m.gitIn(t, filepath.Join(dir, "app"), "remote", "add", "origin", "git@github.com:acme/app.git")
+	m.vars["GITHUB_TOKEN"], m.vars["DAISY_MAINTAINER_TOKEN"] = "tok-123", "jane-456"
+	code, _, errs := runWith(m.swarmOps(dir, g), "swarm", "init", "--defaults")
 	if code != 1 || errs != "Error: swarm: forge: kind github has no adapter yet; it is built when a run needs it (docs/swarm.md section 10)\n" {
 		t.Errorf("github: exit %d %q", code, errs)
 	}
-	if _, err := os.Stat(filepath.Join(m.ws, "swarm")); err == nil {
-		t.Error("github: swarm/ written")
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("github: %d entries written", len(entries)-1)
 	}
-	code, _, errs = runWith(m.swarmOps(t.TempDir(), g), "swarm", "init")
-	if code != 1 || !strings.Contains(errs, "Not in a Daisy workspace") {
-		t.Errorf("outside a workspace: exit %d %q", code, errs)
+	// In a folder holding no clone, outside any workspace: no product.
+	empty := t.TempDir()
+	code, _, errs = runWith(m.swarmOps(empty, g), "swarm", "init", "--defaults")
+	if entries, _ := os.ReadDir(empty); code != 1 || errs != "Error: swarm.json: repos: no repository (at least one is required)\n" || len(entries) != 0 {
+		t.Errorf("an empty folder: exit %d %q", code, errs)
 	}
 	code, _, errs = runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults", "extra")
 	if code != 2 || !strings.Contains(errs, "Usage: daisy swarm init [--defaults]") {

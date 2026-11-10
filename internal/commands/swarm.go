@@ -84,12 +84,14 @@ func openForge(o ops.Ops, f declare.Forge, names []string, token string) (forge.
 func swarmInit(c *Context, open opener) error {
 	o, p := c.Ops, c.Swarm
 	var file *declare.Config
-	existing, found, err := declare.Load(o.FS(), p.Dir)
-	if found && err != nil {
-		return fmt.Errorf("Error: %v", err)
-	}
-	if found {
-		file = &existing
+	if !p.Outside {
+		existing, found, err := declare.Load(o.FS(), p.Dir)
+		if found && err != nil {
+			return fmt.Errorf("Error: %v", err)
+		}
+		if found {
+			file = &existing
+		}
 	}
 	w := &declare.Wizard{Ops: o, In: c.Stdin, Err: c.Stderr, Place: p, Defaults: c.Flag("--defaults"), File: file}
 	cfg, err := w.Ask()
@@ -99,7 +101,19 @@ func swarmInit(c *Context, open opener) error {
 	if err != nil {
 		return cancelledOr(c, err)
 	}
+	if p.Old() {
+		return initWorkspace(c, w, cfg, open)
+	}
+	return initRepository(c, w, cfg, open)
+}
 
+// initWorkspace is init in the old layout (section 11, Moving a swarm
+// into its repository): the swarm's token's read check and account,
+// swarm/swarm.json and the prompts, the labels, the readiness warnings
+// and the unit; no repository, no maintainer's token, nothing under
+// $DAISY_LOCAL.
+func initWorkspace(c *Context, w *declare.Wizard, cfg declare.Config, open opener) error {
+	o, p := c.Ops, c.Swarm
 	tokenVar := cfg.Forge.TokenEnv
 	vars, err := readSecrets(c, cfg, c.Stderr, tokenVar)
 	if err != nil {
@@ -109,19 +123,12 @@ func swarmInit(c *Context, open opener) error {
 	if token == "" {
 		return unsetErr(c, cfg, tokenVar)
 	}
-	var names []string
-	for _, r := range cfg.Repos {
-		names = append(names, r.Name)
-	}
-	f, err := open(o, cfg.Forge, names, token)
+	f, err := open(o, cfg.Forge, repoNames(cfg), token)
 	if err != nil {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
-	if _, err := f.Issues(forge.Open, forge.ProposalPosted); err != nil {
-		return fmt.Errorf("Error: swarm: $%s cannot read %s: %v", tokenVar, cfg.Forge.Repo, err)
-	}
-	if _, err := f.Pulls(0, nil); err != nil {
-		return fmt.Errorf("Error: swarm: $%s cannot read the declared repositories: %v", tokenVar, err)
+	if err := readCheck(f, cfg); err != nil {
+		return err
 	}
 	acct, err := f.Login()
 	if err != nil {
@@ -138,45 +145,41 @@ func swarmInit(c *Context, open opener) error {
 	if err != nil {
 		return cancelledOr(c, err)
 	}
-
-	g := reconcile.Git{O: o, WS: p.Root, State: cfg.Forge.State(c.Env.Local)}
-	if !p.Old() {
-		// The declared repositories' mirrors before the files, since
-		// repos/<name>.md's seed reads them, as the readiness warnings do
-		// (section 11, init); the old layout writes nothing under
-		// $DAISY_LOCAL.
-		for _, r := range cfg.Repos {
-			if err := g.Fetch(r); err != nil {
-				return fmt.Errorf("Error: swarm: mirror %s: %v", r.Name, err)
-			}
-		}
-	}
-	if err := writeDeclaration(c, p, cfg); err != nil {
+	if _, err := writeDeclaration(c, p, cfg); err != nil {
 		return err
-	}
-	if !p.Old() {
-		if err := writeRepoNotes(c, p, g, cfg); err != nil {
-			return err
-		}
-		// The swarm repository's mirror after the files, so that it holds
-		// what is pushed of them.
-		_, own, _ := strings.Cut(cfg.Forge.Repo, "/")
-		if err := g.FetchSwarm(own); err != nil {
-			return fmt.Errorf("Error: swarm: mirror %s: %v", own, err)
-		}
-		fmt.Fprintf(c.Stdout, "✓ Mirrors: %s fetched\n", strings.Join(append([]string{own}, names...), ", "))
 	}
 	created, renamed, err := f.EnsureLabels(forge.Labels)
 	if err != nil {
 		return fmt.Errorf("Error: %v", err)
 	}
 	fmt.Fprintln(c.Stdout, labelsLine(created, renamed))
-	readiness(c, p, g, cfg, acct.Login)
+	readiness(c, p, reconcile.Git{O: o, WS: p.Root}, cfg, acct.Login)
 	return printUnits(c, p, cfg.Interval, cfg.Timeout)
 }
 
-// labelsLine is init's report of EnsureLabels, and apply's when it made
-// a label.
+// repoNames is the declared repositories' names, in order.
+func repoNames(cfg declare.Config) []string {
+	var names []string
+	for _, r := range cfg.Repos {
+		names = append(names, r.Name)
+	}
+	return names
+}
+
+// readCheck is init's check that the swarm's token reads the swarm
+// repository's issues and every declared repository's pull requests.
+func readCheck(f forge.Adapter, cfg declare.Config) error {
+	if _, err := f.Issues(forge.Open, forge.ProposalPosted); err != nil {
+		return fmt.Errorf("Error: swarm: $%s cannot read %s: %v", cfg.Forge.TokenEnv, cfg.Forge.Repo, err)
+	}
+	if _, err := f.Pulls(0, nil); err != nil {
+		return fmt.Errorf("Error: swarm: $%s cannot read the declared repositories: %v", cfg.Forge.TokenEnv, err)
+	}
+	return nil
+}
+
+// labelsLine is apply's report of EnsureLabels when it made a label, and
+// the old layout's init's.
 func labelsLine(created, renamed int) string {
 	return fmt.Sprintf("✓ Labels: %d present (%d created, %d renamed)", len(forge.Labels), created, renamed)
 }
@@ -294,63 +297,72 @@ func warnDrift(c *Context, cfg declare.Config) {
 // writeDeclaration writes swarm.json when the answers differ from its
 // values (its layout aside: a hand-formatted file with the same values is
 // left as it is) and each persona prompt that is absent, each named
-// relative to the swarm's root.
-func writeDeclaration(c *Context, at declare.Place, cfg declare.Config) error {
+// relative to the swarm's root; written is what it wrote, so named.
+func writeDeclaration(c *Context, at declare.Place, cfg declare.Config) (written []string, err error) {
 	fs := c.Ops.FS()
 	if err := fs.MkdirAll(filepath.Join(at.Dir, "prompts"), 0o755); err != nil {
-		return fmt.Errorf("Error: cannot create %s: %v", filepath.Join(at.Dir, "prompts"), err)
+		return nil, fmt.Errorf("Error: cannot create %s: %v", filepath.Join(at.Dir, "prompts"), err)
 	}
 	data := declare.Format(cfg)
 	if old, found, err := declare.Load(fs, at.Dir); found && err == nil && reflect.DeepEqual(old, cfg) {
 		fmt.Fprintf(c.Stdout, "  Unchanged %s\n", at.Rel("swarm.json"))
 	} else {
 		if err := fs.WriteFile(declare.File(at.Dir), data, 0o644); err != nil {
-			return fmt.Errorf("Error: cannot write %s: %v", declare.File(at.Dir), err)
+			return nil, fmt.Errorf("Error: cannot write %s: %v", declare.File(at.Dir), err)
 		}
 		fmt.Fprintf(c.Stdout, "✓ Wrote %s\n", at.Rel("swarm.json"))
+		written = append(written, at.Rel("swarm.json"))
 	}
 	for _, role := range declare.Roles {
-		p, rel := declare.PromptFile(at.Dir, role), at.Rel(filepath.Join("prompts", role+".md"))
-		if _, err := fs.Lstat(p); err == nil {
-			fmt.Fprintf(c.Stdout, "  Kept %s (exists)\n", rel)
-			continue
+		rel := at.Rel(filepath.Join("prompts", role+".md"))
+		w, err := writeAbsent(c, at.Root, rel, declare.DefaultPrompts[role])
+		if err != nil {
+			return nil, err
 		}
-		if err := fs.WriteFile(p, []byte(declare.DefaultPrompts[role]), 0o644); err != nil {
-			return fmt.Errorf("Error: cannot write %s: %v", p, err)
-		}
-		fmt.Fprintf(c.Stdout, "✓ Wrote %s\n", rel)
+		written = append(written, w...)
 	}
-	return nil
+	return written, nil
+}
+
+// writeAbsent writes content at rel under root when nothing is there,
+// `✓ Wrote <rel>`, else names it kept; written is rel when it wrote it.
+// An existing file is never overwritten.
+func writeAbsent(c *Context, root, rel, content string) (written []string, err error) {
+	fs := c.Ops.FS()
+	p := filepath.Join(root, rel)
+	if _, err := fs.Lstat(p); err == nil {
+		fmt.Fprintf(c.Stdout, "  Kept %s (exists)\n", rel)
+		return nil, nil
+	}
+	if err := fs.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return nil, fmt.Errorf("Error: cannot create %s: %v", filepath.Dir(p), err)
+	}
+	if err := fs.WriteFile(p, []byte(content), 0o644); err != nil {
+		return nil, fmt.Errorf("Error: cannot write %s: %v", p, err)
+	}
+	fmt.Fprintf(c.Stdout, "✓ Wrote %s\n", rel)
+	return []string{rel}, nil
 }
 
 // writeRepoNotes writes, in a swarm repository's clone, repos/<name>.md
 // for each declared repository where it is absent (section 4): its seed
 // from the readiness facts, its instruction files read in its mirror at
 // base. An existing file is never overwritten.
-func writeRepoNotes(c *Context, at declare.Place, g reconcile.Git, cfg declare.Config) error {
-	fs := c.Ops.FS()
+func writeRepoNotes(c *Context, at declare.Place, g reconcile.Git, cfg declare.Config) (written []string, err error) {
 	for _, r := range cfg.Repos {
-		rel := reconcile.RepoNotesFile(r.Name)
-		p := filepath.Join(at.Root, rel)
-		if _, err := fs.Lstat(p); err == nil {
-			fmt.Fprintf(c.Stdout, "  Kept %s (exists)\n", rel)
-			continue
-		}
 		var instructions []string
 		for _, name := range []string{"AGENTS.md", "CLAUDE.md"} {
 			if g.HasFile(r.Name, cfg.Base, name) {
 				instructions = append(instructions, name)
 			}
 		}
-		if err := fs.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			return fmt.Errorf("Error: cannot create %s: %v", filepath.Dir(p), err)
+		w, err := writeAbsent(c, at.Root, reconcile.RepoNotesFile(r.Name), reconcile.RepoNotesSeed(cfg, r, instructions))
+		if err != nil {
+			return nil, err
 		}
-		if err := fs.WriteFile(p, []byte(reconcile.RepoNotesSeed(cfg, r, instructions)), 0o644); err != nil {
-			return fmt.Errorf("Error: cannot write %s: %v", p, err)
-		}
-		fmt.Fprintf(c.Stdout, "✓ Wrote %s\n", rel)
+		written = append(written, w...)
 	}
-	return nil
+	return written, nil
 }
 
 // readiness names, on stderr, what a product lacks for a swarm to improve

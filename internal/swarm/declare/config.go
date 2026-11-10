@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"maps"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -51,6 +52,22 @@ type Config struct {
 // wiki (`wiki`) or in the notes/ directory of the swarm's own issues
 // repository (`notes`), section 3.
 func (c Config) KeepsNotes() bool { return c.Wiki || c.Notes }
+
+// SecretNames are the swarm's variables (section 3, Secret values):
+// forge.token_env's, each keys env's in the providers' name order, then
+// DAISY_MAINTAINER_TOKEN, each once.
+func (c Config) SecretNames() []string {
+	names := []string{c.Forge.TokenEnv}
+	for _, p := range slices.Sorted(maps.Keys(c.Keys)) {
+		if e := c.Keys[p].Env; e != nil && !slices.Contains(names, *e) {
+			names = append(names, *e)
+		}
+	}
+	if !slices.Contains(names, MaintainerTokenEnv) {
+		names = append(names, MaintainerTokenEnv)
+	}
+	return names
+}
 
 // SwarmLogin is the swarm's own login as swarm.json names it: trusted's
 // last, which `init` writes after the maintainer's logins (section 3); ""

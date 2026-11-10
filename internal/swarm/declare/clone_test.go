@@ -150,8 +150,8 @@ func TestWizardInAClone(t *testing.T) {
 		}
 	}
 	// Question 32: swarm-repository paths, its default the directories
-	// init seeds that the clone holds (docs/, not briefs/).
-	if !slices.Contains(*asked, "Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none) [docs/]: ") || !reflect.DeepEqual(c.Resources, []string{"docs/"}) {
+	// init seeds, whether the clone holds them yet or not.
+	if !slices.Contains(*asked, "Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none) [briefs/, docs/]: ") || !reflect.DeepEqual(c.Resources, []string{"briefs/", "docs/"}) {
 		t.Errorf("question 32: %q, resources %q", *asked, c.Resources)
 	}
 	if last := (*asked)[len(*asked)-1]; last != "Research notes, in acme/swarm-app's notes/ (yes, no) [no]: " {
@@ -201,6 +201,49 @@ func TestWizardInAClone(t *testing.T) {
 	w = &Wizard{Ops: o, Err: &errb, Place: Clone(clone), Defaults: true}
 	if c, err = w.Ask(); err != nil || c.Forge.Repo != "acme/swarm-app" || c.Forge.API != "https://forge.example.net/api/v1" {
 		t.Errorf("no origin: %v %+v", err, c.Forge)
+	}
+}
+
+// init in a folder holding no swarm repository's clone (section 11, the
+// wizard; section 13, revision 6's Step 6): detection reads the clones
+// directly under the folder itself, never the folder's own origin;
+// question 4's default the swarm- clone there, else <owner>/swarm-<name>
+// after the first product; validation leaves out the clone's origin until
+// the clone is made.
+func TestWizardInAFolder(t *testing.T) {
+	dir, clone := cloneFolder(t)
+	gitRepo(t, dir, "git@forge.example.net:acme/not-this.git") // the folder a repository: never read
+	o, asked := scripted()
+	w := &Wizard{Ops: o, Err: &bytes.Buffer{}, Place: Folder(dir), Defaults: true}
+	c, err := w.Ask()
+	if err != nil || len(*asked) != 0 {
+		t.Fatalf("%v %q", err, *asked)
+	}
+	ssh := "ssh -i /keys/app"
+	if c.Forge.Repo != "acme/swarm-app" || c.Forge.API != "https://forge.example.net/api/v1" || !reflect.DeepEqual(c.Resources, []string{"briefs/", "docs/"}) || !reflect.DeepEqual(c.Repos, []Repo{
+		{Name: "app", Repo: "acme/app", SSHCommand: &ssh, Check: []string{}, Image: defaultImage, Protected: defaultProtected},
+		{Name: "lib", Repo: "acme/lib", Check: []string{}, Image: defaultImage, Protected: defaultProtected},
+	}) {
+		t.Errorf("defaults: %+v", c)
+	}
+	c.Trusted, c.Forge.CommitEmail = []string{"swarm-bot"}, "swarm@example.net"
+	c.Forge.Repo = "acme/swarm-elsewhere"
+	if err := Validate(ops.Real(), Folder(dir), c, SkipPrompts); err != nil {
+		t.Errorf("the folder's answers: %v", err)
+	}
+	if got := errText(Validate(ops.Real(), Clone(clone), c, SkipPrompts)); got != `swarm.json: forge.repo: the clone's origin is "git@forge.example.net:acme/swarm-app.git", not acme/swarm-elsewhere on forge.example.net` {
+		t.Errorf("the clone's origin once made: %s", got)
+	}
+	if !IsCloneOf(ops.Real(), clone, validClone().Forge) || IsCloneOf(ops.Real(), clone, c.Forge) || IsCloneOf(ops.Real(), filepath.Join(clone, "docs"), validClone().Forge) {
+		t.Error("IsCloneOf")
+	}
+
+	// No swarm- clone in the folder: <owner>/swarm-<name>.
+	os.RemoveAll(clone)
+	o, _ = scripted()
+	w = &Wizard{Ops: o, Err: &bytes.Buffer{}, Place: Folder(dir), Defaults: true}
+	if c, err = w.Ask(); err != nil || c.Forge.Repo != "acme/swarm-app" {
+		t.Errorf("no swarm clone: %v %s", err, c.Forge.Repo)
 	}
 }
 

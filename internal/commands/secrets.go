@@ -3,9 +3,7 @@ package commands
 import (
 	"fmt"
 	"io"
-	"maps"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"daisy/internal/env"
@@ -120,15 +118,7 @@ func swarmSecrets(c *Context) bool {
 		fmt.Fprintf(c.Stderr, "⚠ %v; the swarm's variables are not checked\n", err)
 		return true
 	}
-	names := []string{cfg.Forge.TokenEnv}
-	for _, p := range slices.Sorted(maps.Keys(cfg.Keys)) {
-		if e := cfg.Keys[p].Env; e != nil && !slices.Contains(names, *e) {
-			names = append(names, *e)
-		}
-	}
-	if !slices.Contains(names, declare.MaintainerTokenEnv) {
-		names = append(names, declare.MaintainerTokenEnv)
-	}
+	names := cfg.SecretNames()
 	fmt.Fprintf(out, "Swarm %s (%s):\n", cfg.Forge.Repo, secretsFile(c, cfg))
 	var warn io.Writer = c.Stderr
 	if c.Swarm.Old() {

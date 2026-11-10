@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -43,6 +44,18 @@ type fakeState struct {
 	reviewID    int64
 	milestones  []fakeMilestone
 	refuseMs    bool
+	repository  *HeldRepository // forge.repo on the forge, nil while it holds none
+	sshURL      string          // forge.repo's ssh_url
+	refuseRepo  bool
+}
+
+// HeldRepository is forge.repo as the Fake holds it: private, the account
+// that created it ("" when AddRepository made it), and each collaborator's
+// permission with the account that gave it, `write by <login>`.
+type HeldRepository struct {
+	Private       bool
+	CreatedBy     string
+	Collaborators map[string]string
 }
 
 // fakeMilestone is a milestone of the issues repository: its id is its
@@ -562,5 +575,77 @@ func (f *Fake) SetMilestone(n int, id int64) error {
 		return fmt.Errorf("forge: PATCH /repos/%s/%s/issues/%d: 422 milestone %d does not exist", f.owner, f.repo, n, id)
 	}
 	it.milestone = id
+	return nil
+}
+
+// SetSSHURL is the ssh_url the forge reports for forge.repo once it
+// holds it; its default branch is main.
+func (f *Fake) SetSSHURL(u string) { f.mu.Lock(); defer f.mu.Unlock(); f.sshURL = u }
+
+// AddRepository makes the forge hold forge.repo, private, as a
+// maintainer creates it by hand.
+func (f *Fake) AddRepository() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.repository = &HeldRepository{Private: true, Collaborators: map[string]string{}}
+}
+
+// RefuseRepository makes every later CreateRepository and AddCollaborator
+// be refused, as the forge's 403 to a token without the owner's rights.
+func (f *Fake) RefuseRepository() { f.mu.Lock(); defer f.mu.Unlock(); f.refuseRepo = true }
+
+// Held is forge.repo as the forge holds it, ok false while it holds none.
+func (f *Fake) Held() (r HeldRepository, ok bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.repository == nil {
+		return HeldRepository{}, false
+	}
+	r = *f.repository
+	r.Collaborators = maps.Clone(r.Collaborators)
+	return r, true
+}
+
+func (f *Fake) held() Repository { return Repository{SSHURL: f.sshURL, DefaultBranch: "main"} }
+
+// Repository is forge.repo as the forge holds it, ErrNotFound when none.
+func (f *Fake) Repository() (Repository, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.repository == nil {
+		return Repository{}, notFound(fmt.Sprintf("forge: GET /repos/%s/%s: 404 Not Found", f.owner, f.repo))
+	}
+	return f.held(), nil
+}
+
+// CreateRepository creates forge.repo, private, by this Fake's account;
+// one the forge holds already is the forge's 409.
+func (f *Fake) CreateRepository() (Repository, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	path := "/orgs/" + f.owner + "/repos"
+	switch {
+	case f.refuseRepo:
+		return Repository{}, fmt.Errorf("forge: POST %s: 403 forbidden", path)
+	case f.repository != nil:
+		return Repository{}, fmt.Errorf("forge: POST %s: 409 The repository with the same name already exists.", path)
+	}
+	f.repository = &HeldRepository{Private: true, CreatedBy: f.account.Login, Collaborators: map[string]string{}}
+	return f.held(), nil
+}
+
+// AddCollaborator gives login write access to forge.repo, recording which
+// account gave it.
+func (f *Fake) AddCollaborator(login string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	path := fmt.Sprintf("/repos/%s/%s/collaborators/%s", f.owner, f.repo, login)
+	switch {
+	case f.repository == nil:
+		return notFound("forge: PUT " + path + ": 404 Not Found")
+	case f.refuseRepo:
+		return fmt.Errorf("forge: PUT %s: 403 forbidden", path)
+	}
+	f.repository.Collaborators[login] = "write by " + f.account.Login
 	return nil
 }

@@ -39,10 +39,11 @@ func newStatusWSIn(t *testing.T, clone bool) *statusWS {
 		t.Fatal(err)
 	}
 	if clone {
-		// What init writes is pushed and its mirror holds it, as Step 6
-		// of revision 6's plan makes init do: no drift (section 11).
-		s.publish("init")
-		s.fetchMirror()
+		// The swarm's token from <state>/env alone from here on, as the
+		// tests of status and apply read it; the maintainer's stays in the
+		// environment for init's next runs.
+		s.secrets("export GITEA_TOKEN=\"tok-123\"\n")
+		delete(s.vars, "GITEA_TOKEN")
 	}
 	s.cloned()
 	return s

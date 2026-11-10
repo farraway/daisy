@@ -13,8 +13,8 @@ import (
 // anywhere, found from its top and from a folder inside it, its .git a
 // directory or a worktree's file; a workspace in the old layout, found
 // from the workspace, its swarm/ (swarm.json and no .git) never taken for
-// a root; a clone found before the old layout; init's workspace without a
-// swarm.json and its refusal outside one; the not-found message.
+// a root; a clone found before the old layout; init's folder, in a
+// workspace without a swarm.json or outside any; the not-found message.
 func TestFind(t *testing.T) {
 	root := t.TempDir() // the Daisy root: never a workspace
 	mk := func(p string) string {
@@ -82,16 +82,24 @@ func TestFind(t *testing.T) {
 	if _, err := find(loose, false); err != want {
 		t.Errorf("not found: %q\nwant %q", err, want)
 	}
-	// A workspace without swarm/swarm.json: init's, no other verb's.
+	// A workspace without swarm/swarm.json, and a folder in no workspace:
+	// init's folder, where it makes the clone (Outside); no other verb's.
 	bare := mk(t.TempDir())
 	mk(filepath.Join(bare, ".daisy"))
-	if p, err := find(bare, true); err != "" || p != Workspace(bare) {
-		t.Errorf("init in a workspace: %+v %q", p, err)
+	sub := mk(filepath.Join(bare, "products"))
+	for _, cwd := range []string{bare, sub, loose} {
+		if p, err := find(cwd, true); err != "" || p != Folder(cwd) || !p.Outside || p.Old() || p.Root != cwd || p.Rel("swarm.json") != "swarm.json" {
+			t.Errorf("init in %s: %+v %q", cwd, p, err)
+		}
 	}
 	if _, err := find(bare, false); err != "swarm.json: not found in "+bare+" or a folder above it; cd into the swarm repository's clone, or run 'daisy swarm init'" {
 		t.Errorf("status in a workspace without a swarm: %q", err)
 	}
-	if _, err := find(loose, true); err != "Error: Not in a Daisy workspace (no .daisy/ directory found)\n  Run 'daisy init <identity>' to initialize this workspace." {
-		t.Errorf("init outside: %q", err)
+	// init in a clone, or in the old layout, as every verb.
+	if p, err := find(deep, true); err != "" || p != Clone(clone) || p.Outside {
+		t.Errorf("init in a clone: %+v %q", p, err)
+	}
+	if p, err := find(ws, true); err != "" || p != Workspace(ws) {
+		t.Errorf("init in the old layout: %+v %q", p, err)
 	}
 }

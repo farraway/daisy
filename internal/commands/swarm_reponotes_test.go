@@ -121,8 +121,7 @@ func TestSwarmInitSeedsRepositoryNotes(t *testing.T) {
 	if err := s.run("--defaults"); err != nil {
 		t.Fatalf("%v\n%s", err, s.stderr.String())
 	}
-	if !strings.Contains(s.stdout.String(), "  Kept prompts/sympathetic.md (exists)\n✓ Wrote repos/app.md\n✓ Wrote repos/lib.md\n✓ Mirrors: ") &&
-		!strings.Contains(s.stdout.String(), "✓ Wrote prompts/sympathetic.md\n✓ Wrote repos/app.md\n✓ Wrote repos/lib.md\n✓ Mirrors: ") {
+	if !strings.Contains(s.stdout.String(), "✓ Wrote prompts/sympathetic.md\n✓ Wrote repos/app.md\n✓ Wrote repos/lib.md\n✓ Wrote README.md\n") {
 		t.Errorf("init stdout:\n%s", s.stdout.String())
 	}
 	protected := "- Protected: `.github/`, `.gitea/`, `.forgejo/`, `.claude/`, `.grok/`, `AGENTS.md`, `CLAUDE.md`, as swarm.json declares them.\n"
@@ -141,7 +140,8 @@ func TestSwarmInitSeedsRepositoryNotes(t *testing.T) {
 	}
 
 	// A check declared: the seed names it, shell-quoted; an existing
-	// file, edited or not, is kept.
+	// file, edited or not, is kept. From the clone, now that it is one.
+	s.cwd = s.ws
 	s.write("repos/app.md", "# App\n\nMine.\n")
 	os.Remove(filepath.Join(s.ws, "repos/lib.md"))
 	cfg := s.read("swarm.json")

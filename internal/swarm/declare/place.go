@@ -12,14 +12,21 @@ import (
 // the swarm): its root, `<swarm>`, and the folder holding swarm.json and
 // prompts/. In revision 6 both are the swarm repository's clone; in the
 // old layout (section 11, Moving a swarm into its repository) the root is
-// the Daisy workspace and the folder its swarm/.
+// the Daisy workspace and the folder its swarm/. For `init` run where
+// neither is found, both are the working folder, Outside set: init makes
+// the clone in it (section 11, init).
 type Place struct {
-	Root string // the unit's %f; where docker and id run; in the old layout the base of repos[].path and resources
-	Dir  string // swarm.json and prompts/<role>.md
+	Root    string // the unit's %f; where docker and id run; in the old layout the base of repos[].path and resources
+	Dir     string // swarm.json and prompts/<role>.md
+	Outside bool   // Root is the folder init makes the clone in, <Root>/<repo>, not the clone
 }
 
 // Clone is the place of a swarm repository's clone at dir.
 func Clone(dir string) Place { return Place{Root: dir, Dir: dir} }
+
+// Folder is init's place in dir, a folder holding no swarm repository's
+// clone, where it makes one.
+func Folder(dir string) Place { return Place{Root: dir, Dir: dir, Outside: true} }
 
 // Workspace is the old layout's place in the workspace ws.
 func Workspace(ws string) Place { return Place{Root: ws, Dir: filepath.Join(ws, "swarm")} }
@@ -41,11 +48,10 @@ func (p Place) Rel(name string) string {
 // section 11, Finding the swarm): the nearest folder from cwd upward that
 // holds both swarm.json and .git (a directory, or a worktree's file) is a
 // swarm repository's clone; with none, the old layout's
-// <ws>/swarm/swarm.json in the workspace cwd is in. init, which writes
-// the old layout's file, takes the workspace without it, and outside a
-// workspace gets the workspace lookup's own refusal; every other verb
-// finding neither gets section 3's not-found message. root is the Daisy
-// root, which is never a workspace.
+// <ws>/swarm/swarm.json in the workspace cwd is in. init finding neither
+// takes cwd, the folder it makes the clone in (Folder); every other verb
+// gets section 3's not-found message. root is the Daisy root, which is
+// never a workspace.
 func Find(fs ops.FS, root, cwd string, init bool) (Place, error) {
 	for dir := cwd; ; dir = filepath.Dir(dir) {
 		if isClone(fs, dir) {
@@ -55,14 +61,14 @@ func Find(fs ops.FS, root, cwd string, init bool) (Place, error) {
 			break
 		}
 	}
-	ws, err := env.FindWorkspace(fs, root, cwd)
-	if err == nil {
+	if ws, err := env.FindWorkspace(fs, root, cwd); err == nil {
 		p := Workspace(ws)
-		if _, serr := fs.Lstat(File(p.Dir)); serr == nil || init {
+		if _, serr := fs.Lstat(File(p.Dir)); serr == nil {
 			return p, nil
 		}
-	} else if init {
-		return Place{}, err
+	}
+	if init {
+		return Folder(cwd), nil
 	}
 	return Place{}, &Error{"", fmt.Sprintf("not found in %s or a folder above it; cd into the swarm repository's clone, or run 'daisy swarm init'", cwd)}
 }

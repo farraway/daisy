@@ -64,7 +64,7 @@ type Wizard struct {
 	Ops      ops.Ops
 	In       io.Reader
 	Err      io.Writer
-	Place    Place // where the swarm is; detection reads the clones under Place.Root
+	Place    Place // where the swarm is; detection reads the clones under Place.Root, or beside it in a swarm repository's clone
 	Defaults bool
 	File     *Config
 	own      bool // question 4's follow-up: the issues repository is the swarm's own
@@ -390,16 +390,13 @@ func (w *Wizard) unasked() Config {
 		}
 		return c
 	}
-	// The directories init seeds that the clone holds (briefs/ and docs/,
-	// section 3), until Step 6 of revision 6's plan seeds them and takes
-	// both; the old layout's docs/ when the workspace holds it.
-	resources, seeded := []string{}, []string{"briefs", "docs"}
+	// The directories init seeds in the swarm repository (section 3); the
+	// old layout's docs/ when the workspace holds it.
+	resources := []string{"briefs/", "docs/"}
 	if w.Place.Old() {
-		seeded = []string{"docs"}
-	}
-	for _, d := range seeded {
-		if fi, err := w.Ops.FS().Stat(filepath.Join(w.Place.Root, d)); err == nil && fi.IsDir() {
-			resources = append(resources, d+"/")
+		resources = []string{}
+		if fi, err := w.Ops.FS().Stat(filepath.Join(w.Place.Root, "docs")); err == nil && fi.IsDir() {
+			resources = append(resources, "docs/")
 		}
 	}
 	return Config{
@@ -420,13 +417,16 @@ type detectedClone struct {
 	ssh    string
 }
 
-// clones is what detection reads in a swarm repository's clone (section
-// 11, the wizard): every clone directly under the folder holding it (the
-// folder `init` runs in, the products' clones beside the swarm
-// repository's) whose origin is on a forge, in name order, but the swarm
-// repository's own clone.
+// clones is what detection reads in revision 6 (section 11, the
+// wizard): every clone directly under the folder init runs in (Outside),
+// or, in a swarm repository's clone, under the folder holding it, whose
+// origin is on a forge, in name order, but the swarm repository's own
+// clone.
 func (w *Wizard) clones() []detectedClone {
 	dir := filepath.Dir(w.Place.Root)
+	if w.Place.Outside {
+		dir = w.Place.Root
+	}
 	entries, _ := w.Ops.FS().ReadDir(dir)
 	var out []detectedClone
 	for _, e := range entries {
@@ -444,8 +444,12 @@ func (w *Wizard) clones() []detectedClone {
 }
 
 // cloneOrigin is the swarm repository's clone's origin, ok false when it
-// has none that reads as one (section 10, Detection).
+// has none that reads as one (section 10, Detection), or no clone is made
+// yet (Outside).
 func (w *Wizard) cloneOrigin() (Origin, bool) {
+	if w.Place.Outside {
+		return Origin{}, false
+	}
 	o, ok := parseOrigin(readOrigin(w.Ops, w.Place.Root))
 	return o, ok && !o.Credentials
 }

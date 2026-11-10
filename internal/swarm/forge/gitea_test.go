@@ -69,6 +69,16 @@ import (
 // Milestone); issueEditIssue again (EditIssueOption: milestone, an id;
 // 201 Issue, whose milestone is a Milestone or null). issueGetMilestone
 // (`GET …/milestones/{id}`) is not used: the list carries the counts.
+//
+// Step 6 of revision 6's plan's, from the same Swagger (version
+// 29.0.0+dev-160): repoGet (`GET /repos/{owner}/{repo}`, 200 Repository,
+// 404; Repository: id, owner, name, full_name, private, empty, ssh_url,
+// clone_url, default_branch, …); createOrgRepo (`POST /orgs/{org}/repos`,
+// CreateRepoOption: name required, private, auto_init, default_branch, …;
+// 201 Repository, 400, 403, 404, 409 when the name exists, 422); and
+// repoAddCollaborator (`PUT /repos/{owner}/{repo}/collaborators/{collaborator}`,
+// AddCollaboratorOption: permission, `read`, `write` or `admin`; 204, 403,
+// 404, 422).
 
 // pair is one recorded request and its response.
 type pair struct {
@@ -792,6 +802,81 @@ func TestGiteaSetMilestone(t *testing.T) {
 			g, s := gitea(t, []string{"app", "lib"}, pair{"PATCH", path, `{"milestone":12}`, tc.status, tc.resp})
 			if err := g.SetMilestone(7, 12); errText(err) != tc.err {
 				t.Errorf("SetMilestone: %v, want %q", err, tc.err)
+			}
+			s.done()
+		})
+	}
+}
+
+// repository is Gitea's Repository for acme/<name>, as repoGet and
+// createOrgRepo answer it.
+func repository(name string, empty bool) string {
+	return `{"id":31,"owner":{"id":3,"login":"acme"},"name":"` + name + `","full_name":"acme/` + name + `","description":"","empty":` + map[bool]string{true: "true", false: "false"}[empty] +
+		`,"private":true,"fork":false,"html_url":"https://forge.example.net/acme/` + name + `","ssh_url":"git@forge.example.net:acme/` + name + `.git","clone_url":"https://forge.example.net/acme/` + name +
+		`.git","default_branch":"main","permissions":{"admin":true,"push":true,"pull":true}}`
+}
+
+// Repository reads forge.repo's ssh_url and default branch; a 404, with
+// the Swagger's empty body or Gitea's message, is ErrNotFound.
+func TestGiteaRepository(t *testing.T) {
+	g, s := gitea(t, nil, pair{"GET", "/repos/acme/app", "", 200, repository("app", false)})
+	if r, err := g.Repository(); err != nil || r != (Repository{SSHURL: "git@forge.example.net:acme/app.git", DefaultBranch: "main"}) {
+		t.Errorf("Repository() = %+v, %v", r, err)
+	}
+	s.done()
+	for _, resp := range []string{"", `{"message":"The target couldn't be found.","url":"` + testAPI + `/swagger","errors":[]}`} {
+		g, s = gitea(t, nil, pair{"GET", "/repos/acme/app", "", 404, resp})
+		if _, err := g.Repository(); !errors.Is(err, ErrNotFound) || !strings.HasPrefix(errText(err), "forge: GET /repos/acme/app: 404 ") {
+			t.Errorf("404 %q: %v", resp, err)
+		}
+		s.done()
+	}
+}
+
+// CreateRepository creates forge.repo private in its owner's
+// organization; a refusal is the forge's error.
+func TestGiteaCreateRepository(t *testing.T) {
+	const body = `{"name":"app","private":true}`
+	for _, tc := range []struct {
+		name, resp, err string
+		status          int
+	}{
+		{"created", repository("app", true), "", 201},
+		{"403: not an owner of the organization", `{"message":"Given user is not owner of organization.","url":""}`,
+			"forge: POST /orgs/acme/repos: 403 Given user is not owner of organization.", 403},
+		{"404: no such organization", "", "forge: POST /orgs/acme/repos: 404 Not Found", 404},
+		{"409: the name exists", `{"message":"The repository with the same name already exists.","url":""}`,
+			"forge: POST /orgs/acme/repos: 409 The repository with the same name already exists.", 409},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, s := gitea(t, nil, pair{"POST", "/orgs/acme/repos", body, tc.status, tc.resp})
+			r, err := g.CreateRepository()
+			if errText(err) != tc.err || (err == nil && r != (Repository{SSHURL: "git@forge.example.net:acme/app.git", DefaultBranch: "main"})) {
+				t.Errorf("CreateRepository() = %+v, %v; want %q", r, err, tc.err)
+			}
+			s.done()
+		})
+	}
+}
+
+// AddCollaborator gives the login write access, escaped in the path; a
+// refusal is the forge's error.
+func TestGiteaAddCollaborator(t *testing.T) {
+	for _, tc := range []struct {
+		name, login, path, resp, err string
+		status                       int
+	}{
+		{"given", "swarm-bot", "/repos/acme/app/collaborators/swarm-bot", "", "", 204},
+		{"a login escaped", "a b", "/repos/acme/app/collaborators/a%20b", "", "", 204},
+		{"403: not an admin of the repository", "swarm-bot", "/repos/acme/app/collaborators/swarm-bot", `{"message":"forbidden","url":""}`,
+			"forge: PUT /repos/acme/app/collaborators/swarm-bot: 403 forbidden", 403},
+		{"422: no such user", "swarm-bot", "/repos/acme/app/collaborators/swarm-bot", `{"message":"user does not exist [uid: 0, name: swarm-bot]","url":""}`,
+			"forge: PUT /repos/acme/app/collaborators/swarm-bot: 422 user does not exist [uid: 0, name: swarm-bot]", 422},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, s := gitea(t, nil, pair{"PUT", tc.path, `{"permission":"write"}`, tc.status, tc.resp})
+			if err := g.AddCollaborator(tc.login); errText(err) != tc.err {
+				t.Errorf("AddCollaborator: %v, want %q", err, tc.err)
 			}
 			s.done()
 		})

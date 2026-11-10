@@ -361,3 +361,52 @@ func TestFakeEnsureLabelsRenamesTheOldNames(t *testing.T) {
 		t.Errorf("a second run: %d created, %d renamed, %v", created, renamed, err)
 	}
 }
+
+// The swarm repository on the Fake (section 10, forge.Fake): none until
+// created, private and by the creating account; a second create is the
+// forge's 409; write access given by the account that gave it, again
+// changing nothing; a refusal as the forge's 403; AddRepository as a
+// maintainer's by hand.
+func TestFakeRepository(t *testing.T) {
+	f := fakeForge(t)
+	f.SetSSHURL("git@forge.example.net:acme/app.git")
+	jane := f.As(Account{Login: "jane"})
+	if _, err := jane.Repository(); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Repository before: %v", err)
+	}
+	if err := jane.AddCollaborator("swarm-bot"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("AddCollaborator before: %v", err)
+	}
+	want := Repository{SSHURL: "git@forge.example.net:acme/app.git", DefaultBranch: "main"}
+	if r, err := jane.CreateRepository(); err != nil || r != want {
+		t.Fatalf("CreateRepository = %+v, %v", r, err)
+	}
+	if r, err := f.Repository(); err != nil || r != want {
+		t.Errorf("Repository = %+v, %v", r, err)
+	}
+	if _, err := jane.CreateRepository(); errText(err) != "forge: POST /orgs/acme/repos: 409 The repository with the same name already exists." {
+		t.Errorf("a second create: %v", err)
+	}
+	for range 2 {
+		if err := jane.AddCollaborator("swarm-bot"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if h, ok := f.Held(); !ok || !reflect.DeepEqual(h, HeldRepository{Private: true, CreatedBy: "jane", Collaborators: map[string]string{"swarm-bot": "write by jane"}}) {
+		t.Errorf("Held = %+v, %v", h, ok)
+	}
+	f.RefuseRepository()
+	if err := jane.AddCollaborator("bob"); errText(err) != "forge: PUT /repos/acme/app/collaborators/bob: 403 forbidden" {
+		t.Errorf("refused: %v", err)
+	}
+
+	g := fakeForge(t)
+	g.AddRepository()
+	if h, ok := g.Held(); !ok || !reflect.DeepEqual(h, HeldRepository{Private: true, Collaborators: map[string]string{}}) {
+		t.Errorf("AddRepository: %+v %v", h, ok)
+	}
+	g.RefuseRepository()
+	if _, err := g.CreateRepository(); errText(err) != "forge: POST /orgs/acme/repos: 403 forbidden" {
+		t.Errorf("refused create: %v", err)
+	}
+}

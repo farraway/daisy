@@ -694,3 +694,37 @@ func (g *Gitea) SetMilestone(n int, id int64) error {
 	}
 	return nil
 }
+
+type giteaRepository struct {
+	SSHURL        string `json:"ssh_url"`
+	DefaultBranch string `json:"default_branch"`
+}
+
+func (r giteaRepository) repository() Repository {
+	return Repository{SSHURL: r.SSHURL, DefaultBranch: r.DefaultBranch}
+}
+
+// Repository reads forge.repo; a 404 is ErrNotFound.
+func (g *Gitea) Repository() (Repository, error) {
+	var out giteaRepository
+	if err := g.call("GET", g.repoPath(g.repo), nil, http.StatusOK, &out); err != nil {
+		return Repository{}, err
+	}
+	return out.repository(), nil
+}
+
+// CreateRepository creates forge.repo in its owner's organization,
+// private and empty.
+func (g *Gitea) CreateRepository() (Repository, error) {
+	var out giteaRepository
+	in := map[string]any{"name": g.repo, "private": true}
+	if err := g.call("POST", "/orgs/"+url.PathEscape(g.owner)+"/repos", in, http.StatusCreated, &out); err != nil {
+		return Repository{}, err
+	}
+	return out.repository(), nil
+}
+
+// AddCollaborator gives login write access to forge.repo.
+func (g *Gitea) AddCollaborator(login string) error {
+	return g.call("PUT", g.repoPath(g.repo)+"/collaborators/"+url.PathEscape(login), map[string]string{"permission": "write"}, http.StatusNoContent, nil)
+}

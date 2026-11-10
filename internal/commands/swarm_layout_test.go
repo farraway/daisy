@@ -39,11 +39,14 @@ func TestSwarmVerbsFromAClone(t *testing.T) {
 	if err := a.run("--defaults"); err != nil {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
-	wantOut := "✓ Token $GITEA_TOKEN reads acme/swarm-app as swarm-bot\n  Unchanged swarm.json\n"
+	wantOut := "  Maintainer jane: acme/swarm-app exists\n✓ Maintainer jane: swarm-bot may write to acme/swarm-app\n✓ Token $GITEA_TOKEN reads acme/swarm-app as swarm-bot\n  Unchanged swarm.json\n"
 	for _, r := range declare.Roles {
 		wantOut += "  Kept prompts/" + r + ".md (exists)\n"
 	}
-	wantOut += "  Kept repos/app.md (exists)\n  Kept repos/lib.md (exists)\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Labels: 16 present (0 created, 0 renamed)\n" + strings.Replace(a.units(), "for the workspace %f", "for the swarm repository %f", 1)
+	for _, f := range []string{"repos/app.md", "repos/lib.md", "README.md", "briefs/README.md", "notes/README.md", "docs/README.md", ".gitignore"} {
+		wantOut += "  Kept " + f + " (exists)\n"
+	}
+	wantOut += "  Nothing to commit\n  Kept " + a.state("env") + " (exists)\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 16 present (0 created, 0 renamed)\n" + strings.Replace(a.units(), "for the workspace %f", "for the swarm repository %f", 1)
 	if a.stdout.String() != wantOut || !strings.Contains(wantOut, "daisy-swarm@"+systemdEscapePath(a.ws)+".service") {
 		t.Errorf("init stdout:\n%s\nwant:\n%s", a.stdout.String(), wantOut)
 	}

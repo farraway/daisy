@@ -145,7 +145,20 @@ type Adapter interface {
 	EnsureMilestone(title string) (id int64, err error)
 	// SetMilestone puts issue n of forge.repo in the milestone id.
 	SetMilestone(n int, id int64) error
+	// Repository is forge.repo as the forge holds it, ErrNotFound when it
+	// holds none (section 11, init).
+	Repository() (Repository, error)
+	// CreateRepository creates forge.repo, private, in its owner's
+	// organization, as the forge then holds it.
+	CreateRepository() (Repository, error)
+	// AddCollaborator gives login write access to forge.repo; given
+	// again, it changes nothing.
+	AddCollaborator(login string) error
 }
+
+// Repository is the swarm repository as the forge reports it: the URL
+// git reaches it at over SSH and its default branch.
+type Repository struct{ SSHURL, DefaultBranch string }
 
 // Account is the token's own forge account as the forge reports it; Email
 // is "" when the forge reports none.

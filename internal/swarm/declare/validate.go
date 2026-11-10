@@ -164,9 +164,10 @@ func checkCommitEmail(v string) *Error {
 
 // checkClone: a swarm repository's clone has an origin, without
 // credentials, that is forge.repo on the forge's host (section 3,
-// forge.repo); the old layout has no such clone.
+// forge.repo); the old layout has no such clone, nor has init's folder
+// yet (Outside).
 func checkClone(o ops.Ops, p Place, f Forge) *Error {
-	if p.Old() {
+	if p.Old() || p.Outside {
 		return nil
 	}
 	raw := readOrigin(o, p.Root)
@@ -184,6 +185,12 @@ func checkClone(o ops.Ops, p Place, f Forge) *Error {
 		return fieldErr("forge.repo", "the clone's origin is %q, not %s on %s", raw, f.Repo, f.Host())
 	}
 	return nil
+}
+
+// IsCloneOf: dir is the top of a clone whose origin is forge.repo on the
+// forge's host, the clone init adopts (section 11, init).
+func IsCloneOf(o ops.Ops, dir string, f Forge) bool {
+	return gitx.IsRepoRoot(o, dir) && checkClone(o, Clone(dir), f) == nil
 }
 
 // checkRepos checks each declared repository: in a swarm repository's
