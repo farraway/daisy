@@ -14,7 +14,7 @@ import (
 // old layout (section 11, Moving a swarm into its repository) the root is
 // the Daisy workspace and the folder its swarm/.
 type Place struct {
-	Root string // the unit's %f; where docker and id run; the base of repos[].path and resources until Steps 3 and 4 of revision 6's plan
+	Root string // the unit's %f; where docker and id run; the base of resources until Step 4 of revision 6's plan, and of the old layout's repos[].path
 	Dir  string // swarm.json and prompts/<role>.md
 }
 

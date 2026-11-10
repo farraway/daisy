@@ -18,6 +18,8 @@ import (
 
 // Git is the swarm's host-side git (section 7.1): a bare mirror of each
 // declared repository under <state>/git, and the clones members work in.
+// WS is the swarm's root: the swarm repository's clone, or in the old
+// layout the workspace.
 type Git struct {
 	O         ops.Ops
 	WS, State string
@@ -34,39 +36,87 @@ func (g Git) run(dir string, args ...string) (string, error) {
 // Mirror is the repository's bare mirror.
 func (g Git) Mirror(name string) string { return filepath.Join(g.State, "git", name) }
 
-// origin is the repository's origin URL and the git options that reach
-// it: `-c core.sshCommand=<value>` when its clone sets one (section 7.1,
-// step 1).
-func (g Git) origin(r declare.Repo) (url string, opts []string, err error) {
+// remote is where the repository is reached (section 7.1, step 1): for
+// an entry named by its repo, <url>, the swarm repository's clone's
+// origin URL with its last path element replaced by <name>.git, and its
+// ssh_command; for the old layout's entry, by its path, its workspace
+// clone's origin URL and core.sshCommand. Both are read at each call.
+func (g Git) remote(r declare.Repo) (url string, ssh *string, err error) {
+	if r.Path == "" {
+		origin, err := g.run(g.WS, "config", "--get", "remote.origin.url")
+		if err != nil {
+			return "", nil, fmt.Errorf("%s: the swarm repository's clone %s has no origin URL: %v", r.Name, g.WS, err)
+		}
+		return RepoURL(origin, r.Name), r.SSHCommand, nil
+	}
 	src := filepath.Join(g.WS, r.Path)
 	url, err = g.run(src, "config", "--get", "remote.origin.url")
 	if err != nil {
 		return "", nil, fmt.Errorf("%s: no origin URL: %v", r.Name, err)
 	}
-	if ssh, _ := g.run(src, "config", "--get", "core.sshCommand"); ssh != "" {
-		opts = []string{"-c", "core.sshCommand=" + ssh}
+	if v, _ := g.run(src, "config", "--get", "core.sshCommand"); v != "" {
+		ssh = &v
 	}
-	return url, opts, nil
+	return url, ssh, nil
 }
 
-// Fetch brings the repository's mirror up to date from its origin,
-// creating it when absent (section 7.1, step 1).
-func (g Git) Fetch(r declare.Repo) error {
+// record makes the repository's mirror, a bare repository, when it is
+// absent, and writes where the repository is reached into its config
+// whenever that differs from the configuration: remote.origin.url, and
+// core.sshCommand, unset when none is configured (section 7.1, step 1).
+// Every fetch and push then reads them there, so a mirror made before
+// its config recorded them (an empty config) is brought up to date by
+// its next fetch or push.
+func (g Git) record(r declare.Repo) (string, error) {
 	m := g.Mirror(r.Name)
 	if _, err := g.O.FS().Stat(m); err != nil {
 		if err := g.O.FS().MkdirAll(m, 0o755); err != nil {
-			return err
+			return "", err
 		}
 		if _, err := g.run(m, "init", "--bare", "--quiet"); err != nil {
-			return err
+			return "", err
 		}
 	}
-	url, opts, err := g.origin(r)
+	url, ssh, err := g.remote(r)
+	if err != nil {
+		return "", err
+	}
+	if cur, err := g.run(m, "config", "--local", "--get", "remote.origin.url"); err != nil || cur != url {
+		if _, err := g.run(m, "config", "remote.origin.url", url); err != nil {
+			return "", err
+		}
+	}
+	cur, err := g.run(m, "config", "--local", "--get", "core.sshCommand")
+	switch set := err == nil; {
+	case ssh == nil && set:
+		if _, err := g.run(m, "config", "--unset", "core.sshCommand"); err != nil {
+			return "", err
+		}
+	case ssh != nil && (!set || cur != *ssh):
+		if _, err := g.run(m, "config", "core.sshCommand", *ssh); err != nil {
+			return "", err
+		}
+	}
+	return m, nil
+}
+
+// Fetch brings the repository's mirror up to date from its origin as the
+// mirror's config records it, creating the mirror when absent (section
+// 7.1, step 1).
+func (g Git) Fetch(r declare.Repo) error {
+	m, err := g.record(r)
 	if err != nil {
 		return err
 	}
-	_, err = g.run(m, append(opts, "fetch", "--quiet", "--prune", url, "+refs/heads/*:refs/heads/*")...)
+	_, err = g.run(m, "fetch", "--quiet", "--prune", "origin", "+refs/heads/*:refs/heads/*")
 	return err
+}
+
+// HasFile: path is a file in the repository's mirror on branch, as the
+// last fetch left it (`init`'s readiness, section 11).
+func (g Git) HasFile(name, branch, path string) bool {
+	_, err := g.run(g.Mirror(name), "cat-file", "-e", "refs/heads/"+branch+":"+path)
+	return err == nil
 }
 
 // Branch starts branch at the clone's head (section 7.1, step 3: a worker
@@ -262,17 +312,16 @@ func forgetHost(fs ops.FS, dir string) error {
 // ErrPushRejected is the forge refusing a worker's push (section 7.7).
 var ErrPushRejected = errors.New("push rejected")
 
-// Push sends ref to the branch on the repository's origin, never forced,
-// then moves the mirror's branch to sha and drops ref (section 7.6, step
+// Push sends ref to the branch on the repository's origin, as the
+// mirror's config records it (record), never forced, then moves the mirror's branch to sha and drops ref (section 7.6, step
 // 5). A push the remote refuses is ErrPushRejected, with git's message;
 // one that does not reach it is an error.
 func (g Git) Push(r declare.Repo, ref, branch, sha string) error {
-	m := g.Mirror(r.Name)
-	url, opts, err := g.origin(r)
+	m, err := g.record(r)
 	if err != nil {
 		return err
 	}
-	if err := g.pushTo(m, opts, url, ref+":refs/heads/"+branch); err != nil {
+	if err := g.pushTo(m, nil, "origin", ref+":refs/heads/"+branch); err != nil {
 		return err
 	}
 	if _, err := g.run(m, "update-ref", "refs/heads/"+branch, sha); err != nil {

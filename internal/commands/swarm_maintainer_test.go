@@ -91,12 +91,26 @@ func (m *maintainerWS) ok(run func(*Context, opener) error, want string, args ..
 // comments and reviews, in a form a test compares: `<author> <what>`. A
 // number the forge does not hold has none.
 func (m *maintainerWS) writes(ns ...int) []string {
-	var out []string
+	var refs []forge.Ref
 	for _, n := range ns {
-		at := forge.Ref{Repo: "app", N: n}
-		is, err := m.forge.Issue(n) // an issue, or a pull request as its issue
-		if err != nil {
-			continue
+		refs = append(refs, m.ref(n))
+	}
+	return m.writesAt(refs...)
+}
+
+// writesAt is writes of each issue or pull request at its ref: a pull
+// request in a clone lies in app, not in the issues repository.
+func (m *maintainerWS) writesAt(refs ...forge.Ref) []string {
+	var out []string
+	for _, at := range refs {
+		n := at.N
+		var comments []forge.Comment
+		if at.Repo == m.iss() {
+			is, err := m.forge.Issue(n) // an issue, or a pull request as its issue
+			if err != nil {
+				continue
+			}
+			comments = is.Comments
 		}
 		for _, e := range m.forge.Events(at) {
 			out = append(out, fmt.Sprintf("%s %s #%d", e.Actor, e.What, n))
@@ -107,7 +121,7 @@ func (m *maintainerWS) writes(ns ...int) []string {
 				out = append(out, fmt.Sprintf("%s review %d at %s #%d", r.Author, r.State, r.Commit, n))
 			}
 		}
-		for _, c := range is.Comments {
+		for _, c := range comments {
 			if c.Author != "swarm-bot" {
 				out = append(out, fmt.Sprintf("%s comment %q #%d", c.Author, c.Body, n))
 			}
@@ -120,12 +134,16 @@ func (m *maintainerWS) writes(ns ...int) []string {
 // sha, approved by both the swarm's reviewers, the issue relabelled
 // approved by hand.
 func (m *maintainerWS) approvedPull(s int, sha string) forge.Ref {
-	n, _ := m.forge.CreatePull("app", fmt.Sprintf("swarm/1-%d", s), "main", "slice", "Refs #1")
+	refs := "Refs #1"
+	if m.iss() != "app" { // the issue in another repository than its pull request
+		refs = "Refs acme/" + m.iss() + "#1"
+	}
+	n, _ := m.forge.CreatePull("app", fmt.Sprintf("swarm/1-%d", s), "main", "slice", refs)
 	pr := forge.Ref{Repo: "app", N: n}
 	m.forge.Push(pr, sha)
 	m.forge.Review(pr, forge.Approve, mark("adversary", s)+approve)
 	m.forge.Review(pr, forge.Approve, mark("sympathetic", s)+approve)
-	m.forge.SetLabel(issue1, "swarm:review-2-approved")
+	m.forge.SetLabel(m.ref(1), "swarm:review-2-approved")
 	return pr
 }
 
@@ -137,26 +155,26 @@ func TestSwarmMaintainerVerbs(t *testing.T) {
 	bothLayouts(t, func(t *testing.T, clone bool) {
 		m := newMaintainerWSIn(t, clone)
 		m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"Brief: docs/briefs/m0.md — First\n", []string{"swarm:proposal-posted"})
-		const head = "Maintainer jane on acme/app\n"
+		head := "Maintainer jane on acme/" + m.iss() + "\n"
 		m.ok(swarmTriage, head+"#1 swarm:proposal-posted → swarm:proposal-accepted\n", "1")
-		m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
-		m.forge.SetLabel(issue1, "swarm:plan-0-posted")
+		m.forge.Comment(m.ref(1), mark("architect", 1)+twoSlices)
+		m.forge.SetLabel(m.ref(1), "swarm:plan-0-posted")
 		m.ok(swarmAccept, head+"#1 swarm:plan-0-posted → swarm:plan-1-accepted\n", "1")
 		first := m.approvedPull(1, "c1")
-		m.ok(swarmApprove, head+"#1 approved pull app#2 at c1\n", "1")
-		m.ok(swarmMerge, head+"#1 merged pull app#2 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", "1")
+		m.ok(swarmApprove, head+fmt.Sprintf("#1 approved pull app#%d at c1\n", first.N), "1")
+		m.ok(swarmMerge, head+fmt.Sprintf("#1 merged pull app#%d (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", first.N), "1")
 		second := m.approvedPull(2, "c2abcdef0123")
-		m.ok(swarmMerge, head+"#1 merged pull app#3 (slice 2 of 2)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n", "1")
+		m.ok(swarmMerge, head+fmt.Sprintf("#1 merged pull app#%d (slice 2 of 2)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n", second.N), "1")
 
 		want := []string{
 			"jane labeled swarm:proposal-accepted #1", "jane unlabeled swarm:proposal-posted #1",
 			"jane labeled swarm:plan-1-accepted #1", "jane unlabeled swarm:plan-0-posted #1",
 			"jane labeled swarm:plan-1-accepted #1", "jane unlabeled swarm:review-2-approved #1",
 			"jane closed #1", "jane labeled swarm:done #1", "jane unlabeled swarm:review-2-approved #1",
-			"jane merged #2", "jane review 0 at c1 #2",
-			"jane merged #3",
+			fmt.Sprintf("jane merged #%d", first.N), fmt.Sprintf("jane review 0 at c1 #%d", first.N),
+			fmt.Sprintf("jane merged #%d", second.N),
 		}
-		if got := m.writes(1, first.N, second.N); !reflect.DeepEqual(got, want) {
+		if got := m.writesAt(m.ref(1), first, second); !reflect.DeepEqual(got, want) {
 			t.Errorf("writes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 		}
 		pulls, _ := m.forge.Pulls(1, []string{"swarm-bot"})
@@ -476,7 +494,7 @@ func TestSwarmMaintainerHolds(t *testing.T) {
 		m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:proposal-posted"}) // #2
 		m.forge.AddLabels("bug")
 		m.forge.CreateIssue("Not the swarm's", "", []string{"bug"}) // #3
-		const head = "Maintainer jane on acme/app\n"
+		head := "Maintainer jane on acme/" + m.iss() + "\n"
 		m.ok(pauseIssue, head+"#1 paused\n", "1")
 		m.ok(pauseIssue, head+"#1 already paused\n", "1")
 		if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:plan-1-accepted", forge.Paused}) {

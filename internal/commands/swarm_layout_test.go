@@ -3,10 +3,13 @@ package commands
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/forge"
+	"daisy/internal/swarm/runner"
 )
 
 // Every swarm verb from a swarm repository's clone (section 13, Step 2's
@@ -36,11 +39,11 @@ func TestSwarmVerbsFromAClone(t *testing.T) {
 	if err := a.run("--defaults"); err != nil {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
-	wantOut := "✓ Token $GITEA_TOKEN reads acme/app as swarm-bot\n  Unchanged swarm.json\n"
+	wantOut := "✓ Token $GITEA_TOKEN reads acme/swarm-app as swarm-bot\n  Unchanged swarm.json\n"
 	for _, r := range declare.Roles {
 		wantOut += "  Kept prompts/" + r + ".md (exists)\n"
 	}
-	wantOut += "✓ Labels: 16 present (0 created, 0 renamed)\n" + strings.Replace(a.units(), "for the workspace %f", "for the swarm repository %f", 1)
+	wantOut += "✓ Mirrors: app, lib fetched\n✓ Labels: 16 present (0 created, 0 renamed)\n" + strings.Replace(a.units(), "for the workspace %f", "for the swarm repository %f", 1)
 	if a.stdout.String() != wantOut || !strings.Contains(wantOut, "daisy-swarm@"+systemdEscapePath(a.ws)+".service") {
 		t.Errorf("init stdout:\n%s\nwant:\n%s", a.stdout.String(), wantOut)
 	}
@@ -50,7 +53,7 @@ func TestSwarmVerbsFromAClone(t *testing.T) {
 
 	for _, cwd := range []string{a.cwd, a.ws} {
 		a.cwd = cwd
-		if err := a.status(a.forge); err != nil || !strings.HasPrefix(a.stdout.String(), "Swarm: acme/app on forge.example.net (gitea), repositories app, lib\n") {
+		if err := a.status(a.forge); err != nil || !strings.HasPrefix(a.stdout.String(), "Swarm: acme/swarm-app on forge.example.net (gitea), repositories app, lib\n") {
 			t.Errorf("status from %s: %v\n%s", cwd, err, a.stdout.String())
 		}
 	}
@@ -149,5 +152,103 @@ func TestSwarmSecretsFile(t *testing.T) {
 	os.WriteFile(o.state("env"), []byte("export GITEA_TOKEN=tok-123\n"), 0o644)
 	if err := o.status(o.forge); errText(err) != "Error: swarm: $GITEA_TOKEN is not set (in "+filepath.Join(o.ws, ".env.sh")+" or the environment)" || o.stderr.Len() != 0 {
 		t.Errorf("old layout: %v %q", err, o.stderr.String())
+	}
+}
+
+// The claim of revision 6's plan, Step 3 (section 13, its first row):
+// with no clone of any product repository on the machine (the fixture
+// removes them once init has run), the products named by forge name, a
+// pass fetches each mirror at the URL beside the swarm repository's
+// clone's origin, recorded in the mirror's config with lib's
+// ssh_command; a worker's branch is pushed to app; the notes publish to
+// the swarm repository at its clone's origin; and an ssh_command changed
+// and removed in swarm.json is changed and unset in the mirror's config
+// at the next fetch.
+func TestSwarmProductsByForgeName(t *testing.T) {
+	a := newApplyWSIn(t, true)
+	for _, name := range []string{"app", "lib"} {
+		if _, err := os.Stat(filepath.Join(a.dir, name)); err == nil {
+			t.Fatalf("%s's clone is on the machine", name)
+		}
+	}
+	c := a.config()
+	if c.Forge.Repo != "acme/swarm-app" || c.Repos[0].Repo != "acme/app" || c.Repos[1].Repo != "acme/lib" || c.Repos[0].Path != "" || c.Repos[0].SSHCommand != nil {
+		t.Fatalf("init wrote %+v", c)
+	}
+	if !strings.Contains(a.read("swarm.json"), `{"name": "app", "repo": "acme/app", "check": ["make", "check"], `) {
+		t.Errorf("swarm.json:\n%s", a.read("swarm.json"))
+	}
+	// init's readiness reads each product's instructions in its mirror at
+	// base: app's AGENTS.md pushed, lib's still missing.
+	tree := t.TempDir()
+	gitIn(t, "", "clone", "-q", a.upstream("app"), tree)
+	writes(map[string]string{"AGENTS.md": "# App\n"})(tree)
+	gitIn(t, tree, "add", "-A")
+	gitIn(t, tree, "commit", "-q", "-m", "instructions")
+	gitIn(t, tree, "push", "-q", "origin", "main")
+	if err := a.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	if e := a.stderr.String(); strings.Contains(e, "app has no AGENTS.md") || !strings.Contains(e, "⚠ Readiness: lib has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n") {
+		t.Errorf("readiness:\n%s", e)
+	}
+
+	up := filepath.Join(t.TempDir(), "swarm-app.git")
+	src := t.TempDir()
+	gitIn(t, "", "init", "-q", "-b", "main", src)
+	writes(map[string]string{"README.md": "# The swarm\n"})(src)
+	os.MkdirAll(filepath.Join(src, "notes"), 0o755)
+	writes(map[string]string{"notes/README.md": "# Notes\n"})(src)
+	gitIn(t, src, "add", "-A")
+	gitIn(t, src, "commit", "-q", "-m", "first")
+	gitIn(t, "", "clone", "-q", "--bare", src, up)
+	a.upstreams[swarmURL] = up
+	ssh := "ssh -i /keys/lib"
+	a.edit(func(c *declare.Config) { c.Notes, c.Repos[1].SSHCommand = true, &ssh })
+	config := func(name, key string) string {
+		out, _, err := a.exec(a.state("git/"+name), "git", "config", "--local", "--get", key)
+		if err != nil {
+			return "<unset>"
+		}
+		return strings.TrimSpace(string(out))
+	}
+
+	if _, err := a.forge.CreateIssue("Board", "Show the board.", []string{"swarm:proposal-accepted"}); err != nil {
+		t.Fatal(err)
+	}
+	a.runner.Script(1, "architect", runner.Canned{Out: oneSlice, Notes: writes(map[string]string{"Board-model.md": boardNote("main")})})
+	a.pass()
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-0-posted", forge.Gated}) {
+		t.Fatalf("the architect's pass: %v\n%s\n%s", got, a.stdout.String(), a.stderr.String())
+	}
+	for name, want := range map[string][2]string{"app": {"git@forge.example.net:acme/app.git", "<unset>"}, "lib": {"git@forge.example.net:acme/lib.git", ssh}} {
+		if got := [2]string{config(name, "remote.origin.url"), config(name, "core.sshCommand")}; got != want {
+			t.Errorf("%s's mirror records %q, want %q", name, got, want)
+		}
+	}
+	if files := gitIn(t, up, "ls-tree", "-r", "--name-only", "main"); files != "README.md\nnotes/Board-model.md\nnotes/README.md" {
+		t.Errorf("the notes did not publish to acme/swarm-app:\n%s", files)
+	}
+
+	other := "ssh -i /keys/other"
+	a.edit(func(c *declare.Config) { c.Repos[1].SSHCommand = &other })
+	a.forge.SetLabel(a.ref(1), "swarm:plan-1-accepted")
+	a.runner.Script(1, "worker", work("v1"))
+	a.runner.Script(1, "check", runner.Canned{Stdout: "ok\n"})
+	a.pass()
+	ps := a.pulls(1)
+	if len(ps) != 1 || ps[0].Repo != "app" || ps[0].Head != "swarm/1-1" || gitIn(t, a.upstream("app"), "rev-parse", "swarm/1-1") != ps[0].HeadSHA {
+		t.Fatalf("the worker's push: %+v\n%s\n%s", ps, a.stdout.String(), a.stderr.String())
+	}
+	if got := config("lib", "core.sshCommand"); got != other {
+		t.Errorf("lib's ssh command after the change: %s", got)
+	}
+
+	a.edit(func(c *declare.Config) { c.Repos[1].SSHCommand = nil })
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	if got := config("lib", "core.sshCommand"); got != "<unset>" {
+		t.Errorf("lib's ssh command after its removal: %s", got)
 	}
 }

@@ -32,6 +32,9 @@ func newStatusWS(t *testing.T) *statusWS { return newStatusWSIn(t, false) }
 // swarm repository's clone.
 func newStatusWSIn(t *testing.T, clone bool) *statusWS {
 	s := &statusWS{swarmWS: newSwarmWSIn(t, clone)}
+	if clone {
+		s.issues = "swarm-app"
+	}
 	if err := s.run("--defaults"); err != nil {
 		t.Fatal(err)
 	}
@@ -59,6 +62,13 @@ func (s *statusWS) edit(edit func(c *declare.Config)) {
 	edit(&c)
 	s.write(s.cfg("swarm.json"), string(declare.Format(c)))
 }
+
+// iss is the issues repository's name: app in the old layout, the swarm
+// repository's in a clone.
+func (s *statusWS) iss() string { return cmp.Or(s.issues, "app") }
+
+// ref is issue n in the issues repository.
+func (s *statusWS) ref(n int) forge.Ref { return forge.Ref{Repo: s.iss(), N: n} }
 
 func (s *statusWS) state(rel string) string {
 	return filepath.Join(s.local, "swarm", "forge.example.net", "acme", cmp.Or(s.issues, "app"), rel)

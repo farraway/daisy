@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"io"
 	"os"
@@ -15,20 +16,24 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
-// swarmWS is a swarm's temp folder holding the product at app and its
-// library at lib, of the organization acme on forge.example.net, and the
-// token in its secrets file. In the old layout the folder is a Daisy
-// workspace (.daisy/), the swarm in its swarm/ and the token in its
-// .env.sh; in revision 6's (clone) it is a clone of the swarm repository
-// with no .daisy/ in it or above it, swarm.json and prompts/ at its top,
-// the products nested in it (repos[].path, until Step 3 of revision 6's
-// plan names them by forge name) and the token in <state>/env.
+// swarmWS is a swarm of the product app and its library lib, of the
+// organization acme on forge.example.net, each with an upstream holding
+// one commit on main that git reaches in place of the forge, and the
+// token in its secrets file. In the old layout ws is a Daisy workspace
+// (.daisy/) holding the products' clones at app and lib, the swarm in its
+// swarm/ and the token in its .env.sh; in revision 6's (clone) ws is
+// <dir>/swarm-app, a clone of the swarm repository acme/swarm-app with no
+// .daisy/ in it or above it, swarm.json and prompts/ at its top, the
+// token in <state>/env, and the products' clones beside it in <dir> until
+// init has run, then removed: no product's clone is on the machine.
 type swarmWS struct {
 	t                 *testing.T
 	ws, root, local   string
+	dir               string // the folder holding the clone (clone)
 	clone             bool
-	place             declare.Place // where the swarm is
-	cwd               string        // the folder the verbs find the swarm from (find); "" before a clone holds its swarm.json, the verbs then run at place
+	upstreams         map[string]string // forge URL → local bare repository
+	place             declare.Place     // where the swarm is
+	cwd               string            // the folder the verbs find the swarm from (find); "" before a clone holds its swarm.json, the verbs then run at place
 	vars              map[string]string
 	forge             *forge.Fake
 	opened            []string // what the last opener was given: kind, api, repo, names, token
@@ -49,22 +54,35 @@ func newSwarmWSIn(t *testing.T, clone bool) *swarmWS {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	s := &swarmWS{t: t, ws: t.TempDir(), root: t.TempDir(), local: t.TempDir(), clone: clone, vars: map[string]string{}}
-	s.forge = forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
+	s := &swarmWS{t: t, ws: t.TempDir(), root: t.TempDir(), local: t.TempDir(), clone: clone, vars: map[string]string{}, upstreams: map[string]string{}}
+	issues := "acme/app"
+	if clone {
+		s.dir, issues = s.ws, "acme/swarm-app"
+		s.ws = filepath.Join(s.dir, "swarm-app")
+	}
+	s.forge = forge.NewFake(fixedClock(), issues, []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
 	for name, url := range map[string]string{"app": "git@forge.example.net:acme/app.git", "lib": "git@forge.example.net:acme/lib.git"} {
-		dir := filepath.Join(s.ws, name)
+		dir := filepath.Join(cmp.Or(s.dir, s.ws), name)
 		os.MkdirAll(dir, 0o755)
 		for _, args := range [][]string{{"init", "-q"}, {"remote", "add", "origin", url}} {
 			if _, errb, err := ops.Real().Exec(dir, "git", args...); err != nil {
 				t.Fatalf("git %v: %v %s", args, err, errb)
 			}
 		}
+		up := filepath.Join(t.TempDir(), name+".git")
+		src := t.TempDir()
+		for _, args := range [][]string{{"init", "-q", "-b", "main", src}, {"-C", src, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "first"},
+			{"clone", "-q", "--bare", src, up}} {
+			if _, errb, err := ops.Real().Exec("", "git", args...); err != nil {
+				t.Fatalf("git %v: %v %s", args, err, errb)
+			}
+		}
+		s.upstreams[url] = up
 	}
 	if clone {
-		// The clone's origin is added once init has written its
-		// swarm.json (cloned), so that the first run's question 1
-		// detects the products under it, not the clone itself.
+		os.MkdirAll(s.ws, 0o755)
 		git(t, s.ws, "init", "-q")
+		git(t, s.ws, "remote", "add", "origin", swarmURL)
 		s.place = declare.Clone(s.ws)
 	} else {
 		os.Mkdir(filepath.Join(s.ws, ".daisy"), 0o755)
@@ -74,15 +92,35 @@ func newSwarmWSIn(t *testing.T, clone bool) *swarmWS {
 	return s
 }
 
-// cloned is the clone once init has written swarm.json at its top: its
-// origin the swarm repository, the verbs finding it from prompts/, a
-// folder inside it.
+// swarmURL is the swarm repository's clone's origin (clone).
+const swarmURL = "git@forge.example.net:acme/swarm-app.git"
+
+// cloned is the clone once init has written swarm.json at its top and
+// made the mirrors: the verbs finding it from prompts/, a folder inside
+// it, and no product's clone left on the machine (revision 6's plan,
+// Step 3's claim).
 func (s *swarmWS) cloned() {
 	if !s.clone {
 		return
 	}
-	git(s.t, s.ws, "remote", "add", "origin", "git@forge.example.net:acme/swarm-app.git")
 	s.cwd = filepath.Join(s.ws, "prompts")
+	for _, name := range []string{"app", "lib"} {
+		os.RemoveAll(filepath.Join(s.dir, name))
+	}
+}
+
+// exec runs name for real, git reaching each upstream in place of the
+// forge URL it stands for (url.<up>.insteadOf), so that the URLs the
+// mirrors' configs record are the forge's.
+func (s *swarmWS) exec(dir, name string, args ...string) ([]byte, []byte, error) {
+	if name == "git" {
+		var pre []string
+		for url, up := range s.upstreams {
+			pre = append(pre, "-c", "url."+up+".insteadOf="+url)
+		}
+		args = append(pre, args...)
+	}
+	return ops.Real().Exec(dir, name, args...)
 }
 
 func git(t *testing.T, dir string, args ...string) {
@@ -96,7 +134,7 @@ func git(t *testing.T, dir string, args ...string) {
 // or <state>/env.
 func (s *swarmWS) secretsFile() string {
 	if s.clone {
-		return filepath.Join(s.local, "swarm", "forge.example.net", "acme", "app", "env")
+		return filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app", "env")
 	}
 	return filepath.Join(s.ws, ".env.sh")
 }
@@ -193,6 +231,7 @@ func (s *swarmWS) run(flags ...string) error {
 	answers := s.answers
 	o := &ops.Fake{
 		GetenvFn:     func(k string) string { return s.vars[k] },
+		ExecFn:       s.exec,
 		ExecutableFn: func() (string, error) { return "/opt/daisy/bin/daisy", nil },
 		PromptFn: func(_ io.Reader, w io.Writer, q string) (string, error) {
 			io.WriteString(w, q)

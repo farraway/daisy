@@ -373,3 +373,113 @@ func TestConflicts(t *testing.T) {
 		t.Errorf("unknown head: %v %v", ok, err)
 	}
 }
+
+// The mirrors' remotes (section 7.1, step 1; section 13, revision 6's
+// Step 3, the first row), with real git and upstream bare repositories
+// reached by URL: an entry named by its repo is reached at the swarm
+// repository's clone's origin with its last element replaced, its
+// ssh_command recorded in the mirror's config, changed and unset with the
+// configuration, and the fetch and the push read them there, no product's
+// clone on the machine; the old layout's entry, by path, is recorded from
+// its workspace clone, and a mirror made before the config recorded
+// anything (an older Daisy's: no remote at all) fetches and pushes.
+func TestMirrorsRecordTheirRemote(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	o := ops.Real()
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		out, errb, err := o.Exec(dir, "git", args...)
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	forgeDir := t.TempDir() // the forge: <owner>/<repo>.git under it
+	for _, name := range []string{"app", "lib"} {
+		src := t.TempDir()
+		git(src, "init", "-q", "-b", "main")
+		git(src, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", name)
+		git("", "clone", "-q", "--bare", src, filepath.Join(forgeDir, "acme", name+".git"))
+	}
+	config := func(m, key string) string {
+		out, _, err := o.Exec(m, "git", "config", "--local", "--get", key)
+		if err != nil {
+			return "<unset>"
+		}
+		return strings.TrimSpace(string(out))
+	}
+
+	clone := filepath.Join(t.TempDir(), "swarm-app")
+	os.MkdirAll(clone, 0o755)
+	git(clone, "init", "-q")
+	git(clone, "remote", "add", "origin", filepath.Join(forgeDir, "acme", "swarm-app.git"))
+	state := t.TempDir()
+	g := Git{O: o, WS: clone, State: state}
+	ssh := "ssh -i /keys/lib"
+	lib := declare.Repo{Name: "lib", Repo: "acme/lib", SSHCommand: &ssh}
+	app := declare.Repo{Name: "app", Repo: "acme/app"}
+	for _, r := range []declare.Repo{app, lib} {
+		if err := g.Fetch(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := config(g.Mirror("lib"), "remote.origin.url"); got != filepath.Join(forgeDir, "acme", "lib.git") {
+		t.Errorf("lib's url %s", got)
+	}
+	if got := config(g.Mirror("lib"), "core.sshCommand"); got != ssh {
+		t.Errorf("lib's ssh command %s", got)
+	}
+	if got := config(g.Mirror("app"), "core.sshCommand"); got != "<unset>" {
+		t.Errorf("app's ssh command %s", got)
+	}
+	if git(g.Mirror("lib"), "log", "-1", "--format=%s", "main") != "lib" {
+		t.Error("lib's mirror did not fetch lib")
+	}
+	other := "ssh -i /keys/other"
+	lib.SSHCommand = &other
+	if err := g.Fetch(lib); err != nil || config(g.Mirror("lib"), "core.sshCommand") != other {
+		t.Errorf("changed: %v %s", err, config(g.Mirror("lib"), "core.sshCommand"))
+	}
+	lib.SSHCommand = nil
+	if err := g.Fetch(lib); err != nil || config(g.Mirror("lib"), "core.sshCommand") != "<unset>" {
+		t.Errorf("unset: %v %s", err, config(g.Mirror("lib"), "core.sshCommand"))
+	}
+
+	// The push reads the mirror's config: with the clone's origin moved
+	// after the fetch, it reaches the new URL, recorded first.
+	moved := t.TempDir()
+	git("", "clone", "-q", "--bare", filepath.Join(forgeDir, "acme", "app.git"), filepath.Join(moved, "acme", "app.git"))
+	git(clone, "remote", "set-url", "origin", filepath.Join(moved, "acme", "swarm-app.git"))
+	sha := git(g.Mirror("app"), "rev-parse", "main")
+	git(g.Mirror("app"), "update-ref", "refs/swarm-runs/1-worker-1", sha)
+	if err := g.Push(app, "refs/swarm-runs/1-worker-1", "swarm/1-1", sha); err != nil {
+		t.Fatal(err)
+	}
+	if git(filepath.Join(moved, "acme", "app.git"), "rev-parse", "swarm/1-1") != sha || config(g.Mirror("app"), "remote.origin.url") != filepath.Join(moved, "acme", "app.git") {
+		t.Errorf("the push did not reach the recorded URL")
+	}
+
+	// The old layout: a mirror an older Daisy made, with no remote.
+	ws := t.TempDir()
+	os.MkdirAll(filepath.Join(ws, "app"), 0o755)
+	git(filepath.Join(ws, "app"), "init", "-q")
+	git(filepath.Join(ws, "app"), "remote", "add", "origin", filepath.Join(forgeDir, "acme", "app.git"))
+	git(filepath.Join(ws, "app"), "config", "core.sshCommand", ssh)
+	old := Git{O: o, WS: ws, State: t.TempDir()}
+	os.MkdirAll(old.Mirror("app"), 0o755)
+	git(old.Mirror("app"), "init", "--bare", "--quiet")
+	git(old.Mirror("app"), "fetch", "--quiet", filepath.Join(forgeDir, "acme", "app.git"), "+refs/heads/*:refs/heads/*")
+	git(old.Mirror("app"), "update-ref", "refs/swarm-runs/1-worker-2", sha)
+	byPath := declare.Repo{Name: "app", Path: "app"}
+	if err := old.Push(byPath, "refs/swarm-runs/1-worker-2", "swarm/1-2", sha); err != nil {
+		t.Fatalf("an old mirror's push: %v", err)
+	}
+	if err := old.Fetch(byPath); err != nil {
+		t.Fatalf("an old mirror's fetch: %v", err)
+	}
+	if config(old.Mirror("app"), "remote.origin.url") != filepath.Join(forgeDir, "acme", "app.git") || config(old.Mirror("app"), "core.sshCommand") != ssh ||
+		git(old.Mirror("app"), "rev-parse", "swarm/1-2") != sha {
+		t.Errorf("the old mirror's config: %s, %s", config(old.Mirror("app"), "remote.origin.url"), config(old.Mirror("app"), "core.sshCommand"))
+	}
+}

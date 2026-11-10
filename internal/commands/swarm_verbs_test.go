@@ -175,7 +175,7 @@ func TestSwarmMaintainerBlankComment(t *testing.T) {
 		if err := m.verb(swarmUnblock, "1", " ", "\t"); !errors.As(err, &u) || len(m.writes(1)) != 0 {
 			t.Errorf("unblock: %v; writes %q", err, m.writes(1))
 		}
-		m.ok(swarmClose, "Maintainer jane on acme/app\n#1 closed\n#1 swarm:plan-1-accepted → swarm:rejected\n#1 blocked cleared\n", "1", "  ")
+		m.ok(swarmClose, "Maintainer jane on acme/"+m.iss()+"\n#1 closed\n#1 swarm:plan-1-accepted → swarm:rejected\n#1 blocked cleared\n", "1", "  ")
 		if is, _ := m.forge.Issue(1); len(is.Comments) != 0 {
 			t.Errorf("close posted %q", is.Comments)
 		}

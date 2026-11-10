@@ -228,7 +228,7 @@ func TestSwarmMaintainerClass(t *testing.T) {
 	bothLayouts(t, func(t *testing.T, clone bool) {
 		m := newMaintainerWSIn(t, clone)
 		m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"Brief: docs/briefs/m0.md — First\nClass: routine\nPin it.", []string{"swarm:proposal-posted"})
-		const head = "Maintainer jane on acme/app\n"
+		head := "Maintainer jane on acme/" + m.iss() + "\n"
 		m.ok(swarmClass, head+"#1 class-architecture\n#1 commented\n", "1", "architecture")
 		if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:proposal-posted", forge.ClassArchitecture}) {
 			t.Errorf("architecture: %v", is.Labels)
@@ -255,7 +255,7 @@ func TestSwarmMaintainerClass(t *testing.T) {
 			t.Errorf("a bad class: %v", err)
 		}
 		m.edit(func(c *declare.Config) { c.Trusted = []string{"swarm-bot"} })
-		m.forge.Relabel(issue1, "", forge.ClassArchitecture)
+		m.forge.Relabel(m.ref(1), "", forge.ClassArchitecture)
 		if err := m.verb(swarmClass, "1", "routine"); errText(err) != "Error: swarm: jane is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed" {
 			t.Errorf("untrusted: %v", err)
 		}

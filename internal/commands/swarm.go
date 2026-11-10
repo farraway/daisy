@@ -142,12 +142,23 @@ func swarmInit(c *Context, open opener) error {
 	if err := writeDeclaration(c, p, cfg); err != nil {
 		return err
 	}
+	g := reconcile.Git{O: o, WS: p.Root, State: cfg.Forge.State(c.Env.Local)}
+	if !p.Old() {
+		// The mirrors, which the readiness warnings read (section 11,
+		// init); the old layout writes nothing under $DAISY_LOCAL.
+		for _, r := range cfg.Repos {
+			if err := g.Fetch(r); err != nil {
+				return fmt.Errorf("Error: swarm: mirror %s: %v", r.Name, err)
+			}
+		}
+		fmt.Fprintf(c.Stdout, "✓ Mirrors: %s fetched\n", strings.Join(names, ", "))
+	}
 	created, renamed, err := f.EnsureLabels(forge.Labels)
 	if err != nil {
 		return fmt.Errorf("Error: %v", err)
 	}
 	fmt.Fprintln(c.Stdout, labelsLine(created, renamed))
-	readiness(c, p, cfg, acct.Login)
+	readiness(c, p, g, cfg, acct.Login)
 	return printUnits(c, p, cfg.Interval, cfg.Timeout)
 }
 
@@ -281,13 +292,19 @@ func writeDeclaration(c *Context, at declare.Place, cfg declare.Config) error {
 }
 
 // readiness names, on stderr, what a product lacks for a swarm to improve
-// it; never a refusal.
-func readiness(c *Context, at declare.Place, cfg declare.Config, swarmLogin string) {
+// it; never a refusal. Its instructions are read in its mirror at base,
+// or in the old layout in its workspace clone's working tree.
+func readiness(c *Context, at declare.Place, g reconcile.Git, cfg declare.Config, swarmLogin string) {
 	fs := c.Ops.FS()
-	exists := func(p string) bool { _, err := fs.Stat(p); return err == nil }
+	exists := func(r declare.Repo, name string) bool {
+		if !at.Old() {
+			return g.HasFile(r.Name, cfg.Base, name)
+		}
+		_, err := fs.Stat(filepath.Join(at.Root, r.Path, name))
+		return err == nil
+	}
 	for _, r := range cfg.Repos {
-		dir := filepath.Join(at.Root, r.Path)
-		if !exists(filepath.Join(dir, "AGENTS.md")) && !exists(filepath.Join(dir, "CLAUDE.md")) {
+		if !exists(r, "AGENTS.md") && !exists(r, "CLAUDE.md") {
 			fmt.Fprintf(c.Stderr, "⚠ Readiness: %s has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n", r.Name)
 		}
 		if len(r.Check) == 0 {

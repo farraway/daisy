@@ -192,8 +192,9 @@ func (j *Job) notesTask() string {
 }
 
 // RepoURL is the git URL of the repository `<owner>/<repo>` beside
-// origin, the first declared repository's: its last element replaced by
-// `<repo>.git` (section 14, item 7: one owner). The wiki's repo is
+// origin (the swarm repository's clone's, or in the old layout the first
+// declared repository's): its last element replaced by `<repo>.git`
+// (section 14, item 7: one owner). The wiki's repo is
 // `<issues-repo>.wiki`.
 func RepoURL(origin, repo string) string {
 	u := strings.TrimRight(origin, "/")
@@ -201,11 +202,14 @@ func RepoURL(origin, repo string) string {
 }
 
 // NotesRepo is the host's clone of the repository the notes live in, never
-// mounted, the only one host git writes besides the mirrors, reached over
-// the first declared repository's remote with its core.sshCommand: with
-// `wiki`, the issues repository's wiki at <state>/wiki, its notes its top;
-// with `notes`, the issues repository itself at <state>/notes, its notes
-// its notes/ directory.
+// mounted, the only one host git writes besides the mirrors: with
+// `notes` in a swarm repository's clone, the swarm repository at
+// <state>/notes, reached at its clone's origin URL with its
+// core.sshCommand; in the old layout over the first declared
+// repository's remote with its core.sshCommand, with `wiki` the issues
+// repository's wiki at <state>/wiki, its notes its top, and with `notes`
+// the issues repository itself at <state>/notes. The notes are its
+// notes/ directory but for the wiki's.
 type NotesRepo struct {
 	Git
 	URL  string
@@ -216,15 +220,33 @@ type NotesRepo struct {
 }
 
 func (s *Swarm) notesRepo() (NotesRepo, error) {
-	url, opts, err := s.git().origin(s.Cfg.Repos[0])
+	g := s.git()
+	if !s.Place.Old() {
+		// forge.repo is the swarm repository: its clone's origin URL and
+		// core.sshCommand, read at each pass (section 7.1, step 1).
+		url, err := g.run(g.WS, "config", "--get", "remote.origin.url")
+		if err != nil {
+			return NotesRepo{}, fmt.Errorf("the swarm repository's clone %s has no origin URL: %v", g.WS, err)
+		}
+		var opts []string
+		if ssh, _ := g.run(g.WS, "config", "--get", "core.sshCommand"); ssh != "" {
+			opts = []string{"-c", "core.sshCommand=" + ssh}
+		}
+		return NotesRepo{Git: g, URL: url, Opts: opts, Name: s.Cfg.Forge.Repo, Sub: "notes", dir: "notes"}, nil
+	}
+	url, ssh, err := g.remote(s.Cfg.Repos[0])
 	if err != nil {
 		return NotesRepo{}, err
 	}
+	var opts []string
+	if ssh != nil {
+		opts = []string{"-c", "core.sshCommand=" + *ssh}
+	}
 	issues := repoName(s.Cfg.Forge.Repo)
 	if s.Cfg.Notes {
-		return NotesRepo{Git: s.git(), URL: RepoURL(url, issues), Opts: opts, Name: s.Cfg.Forge.Repo, Sub: "notes", dir: "notes"}, nil
+		return NotesRepo{Git: g, URL: RepoURL(url, issues), Opts: opts, Name: s.Cfg.Forge.Repo, Sub: "notes", dir: "notes"}, nil
 	}
-	return NotesRepo{Git: s.git(), URL: RepoURL(url, issues+".wiki"), Opts: opts, Name: "the wiki", dir: "wiki"}, nil
+	return NotesRepo{Git: g, URL: RepoURL(url, issues+".wiki"), Opts: opts, Name: "the wiki", dir: "wiki"}, nil
 }
 
 // Dir is the host's clone.

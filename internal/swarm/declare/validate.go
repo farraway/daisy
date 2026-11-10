@@ -50,13 +50,15 @@ var (
 )
 
 // Validate checks c, a parse of the swarm.json at p, in section 3's
-// order and returns the first problem as an *Error. repos[].path and
-// resources are read under p.Root, the prompts in p.Dir.
+// order and returns the first problem as an *Error. In a swarm
+// repository's clone its origin is forge.repo's and each repository is
+// named by repos[].repo; in the old layout repos[].path is read under
+// p.Root. resources are read under p.Root, the prompts in p.Dir.
 func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
-	ws := p.Root
 	checks := []func() *Error{
 		func() *Error { return checkForge(c.Forge, skip) },
-		func() *Error { return checkRepos(o, ws, c.Forge, c.Repos) },
+		func() *Error { return checkClone(o, p, c.Forge) },
+		func() *Error { return checkRepos(o, p, c.Forge, c.Repos) },
 		func() *Error { return checkBase(c.Base) },
 		func() *Error { return checkRange("max_members", c.MaxMembers, 1, 16) },
 		func() *Error { return checkRange("max_rounds", c.MaxRounds, 1, 10) },
@@ -156,13 +158,39 @@ func checkCommitEmail(v string) *Error {
 	return nil
 }
 
-// checkRepos checks each declared repository, and that its origin is
-// <owner>/<name> on the forge's host.
-func checkRepos(o ops.Ops, ws string, f Forge, repos []Repo) *Error {
+// checkClone: a swarm repository's clone has an origin, without
+// credentials, that is forge.repo on the forge's host (section 3,
+// forge.repo); the old layout has no such clone.
+func checkClone(o ops.Ops, p Place, f Forge) *Error {
+	if p.Old() {
+		return nil
+	}
+	raw := readOrigin(o, p.Root)
+	if raw == "" {
+		return fieldErr("forge.repo", "the clone %s has no origin remote", p.Root)
+	}
+	origin, ok := parseOrigin(raw)
+	if origin.Credentials {
+		return fieldErr("forge.repo", "the clone's origin URL carries user information; use SSH or a credential helper")
+	}
+	if !ok {
+		return fieldErr("forge.repo", "the clone's origin is %q, not <owner>/<repo> on a forge", raw)
+	}
+	if !strings.EqualFold(origin.Host, f.Host()) || !strings.EqualFold(origin.Owner+"/"+origin.Repo, f.Repo) {
+		return fieldErr("forge.repo", "the clone's origin is %q, not %s on %s", raw, f.Repo, f.Host())
+	}
+	return nil
+}
+
+// checkRepos checks each declared repository: in a swarm repository's
+// clone its repo, `<owner>/<name>` beside the swarm repository, and its
+// ssh_command; in the old layout that its path's origin is <owner>/<name>
+// on the forge's host. Each layout refuses the other's fields.
+func checkRepos(o ops.Ops, p Place, f Forge, repos []Repo) *Error {
 	if len(repos) == 0 {
 		return fieldErr("repos", "no repository (at least one is required)")
 	}
-	owner, _, _ := strings.Cut(f.Repo, "/")
+	owner, own, _ := strings.Cut(f.Repo, "/")
 	for i, r := range repos {
 		at := fmt.Sprintf("repos[%d]", i)
 		if !nameShape.MatchString(r.Name) {
@@ -171,12 +199,12 @@ func checkRepos(o ops.Ops, ws string, f Forge, repos []Repo) *Error {
 		if slices.ContainsFunc(repos[:i], func(p Repo) bool { return p.Name == r.Name }) {
 			return fieldErr(at+".name", "%q is listed twice", r.Name)
 		}
-		origin, raw, err := checkRepoPath(o, ws, at+".path", r.Path)
-		if err != nil {
+		if p.Old() {
+			if err := checkOldRepo(o, p.Root, f, owner, at, r); err != nil {
+				return err
+			}
+		} else if err := checkNamedRepo(owner, own, at, r); err != nil {
 			return err
-		}
-		if !strings.EqualFold(origin.Host, f.Host()) || !strings.EqualFold(origin.Owner, owner) || !strings.EqualFold(origin.Repo, r.Name) {
-			return fieldErr(at+".path", "origin is %q, not %s/%s on %s", raw, owner, r.Name, f.Host())
 		}
 		for j, a := range r.Check {
 			if a == "" {
@@ -191,6 +219,56 @@ func checkRepos(o ops.Ops, ws string, f Forge, repos []Repo) *Error {
 				return fieldErr(fmt.Sprintf("%s.protected[%d]", at, j), "%q is not a relative pattern without ..", p)
 			}
 		}
+	}
+	return nil
+}
+
+// checkNamedRepo is a swarm repository's clone's entry: not the swarm
+// repository, no path, repo `<owner>/<name>` (owner forge.repo's, name
+// the entry's), an ssh_command, when present, one non-empty line.
+func checkNamedRepo(owner, own, at string, r Repo) *Error {
+	if strings.EqualFold(r.Name, own) {
+		return fieldErr(at+".name", "%q is the swarm repository", r.Name)
+	}
+	if r.Path != "" {
+		return fieldErr(at+".path", "unknown field")
+	}
+	if r.Repo == "" {
+		return fieldErr(at+".repo", "missing")
+	}
+	if !strings.EqualFold(r.Repo, owner+"/"+r.Name) {
+		return fieldErr(at+".repo", "%q is not %s/%s", r.Repo, owner, r.Name)
+	}
+	if s := r.SSHCommand; s != nil {
+		if *s == "" {
+			return fieldErr(at+".ssh_command", "empty")
+		}
+		if strings.ContainsAny(*s, "\n\r") {
+			return fieldErr(at+".ssh_command", "contains a newline")
+		}
+	}
+	return nil
+}
+
+// checkOldRepo is the old layout's entry: no repo or ssh_command, and
+// its path a clone in the workspace whose origin is <owner>/<name> on the
+// forge's host.
+func checkOldRepo(o ops.Ops, ws string, f Forge, owner, at string, r Repo) *Error {
+	if r.Repo != "" {
+		return fieldErr(at+".repo", "unknown field")
+	}
+	if r.SSHCommand != nil {
+		return fieldErr(at+".ssh_command", "unknown field")
+	}
+	if r.Path == "" {
+		return fieldErr(at+".path", "missing")
+	}
+	origin, raw, err := checkRepoPath(o, ws, at+".path", r.Path)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(origin.Host, f.Host()) || !strings.EqualFold(origin.Owner, owner) || !strings.EqualFold(origin.Repo, r.Name) {
+		return fieldErr(at+".path", "origin is %q, not %s/%s on %s", raw, owner, r.Name, f.Host())
 	}
 	return nil
 }

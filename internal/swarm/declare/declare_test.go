@@ -285,18 +285,14 @@ func TestParseNamesTheField(t *testing.T) {
 	}
 }
 
-// Format writes section 3's example byte for byte. Until Step 3 of
-// revision 6's plan builds repos[].repo, it writes the old layout's form
-// of it, which section 11 (Moving a swarm into its repository) holds;
-// that step points this test back at section 3.
+// Format writes section 3's example byte for byte, the product named by
+// its forge name (revision 6's plan, Step 3, which pointed this test back
+// at section 3), and the old layout's form of it, which section 11
+// (Moving a swarm into its repository) holds, by its path.
 func TestFormatIsSectionThreesExample(t *testing.T) {
 	doc, err := os.ReadFile("../../../docs/swarm.md")
 	if err != nil {
 		t.Fatal(err)
-	}
-	m := regexp.MustCompile("(?s)### Moving a swarm into its repository.*?```json\n(.*?)```").FindSubmatch(doc)
-	if m == nil {
-		t.Fatal("no example of the old layout in section 11")
 	}
 	envVar, slots := "CLAUDE_CODE_OAUTH_TOKEN", 1
 	personas := map[string]Persona{}
@@ -306,19 +302,31 @@ func TestFormatIsSectionThreesExample(t *testing.T) {
 	}
 	c := Config{
 		Forge: Forge{Kind: "gitea", API: "https://<forge-host>/api/v1", Repo: "<owner>/<repo>", TokenEnv: "GITEA_TOKEN", CommitEmail: "<swarm-email>"},
-		Repos: []Repo{{Name: "<repo>", Path: "app", Image: defaultImage, Protected: defaultProtected}},
-		// max_rounds 5 is revision 5's default (section 3); the wizard
-		// still offers 3 until the code step that carries it.
-		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
+		Repos: []Repo{{Name: "<name>", Repo: "<owner>/<name>", Image: defaultImage, Protected: defaultProtected}},
+		Base:  "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
-		Resources: []string{"docs/"},
+		Resources: []string{"briefs/", "docs/"},
 		Trusted:   []string{"<maintainer-login>", "<swarm-login>"},
 		Gates:     Gates{Triage: true, Plan: true, Merge: true},
 		Keys:      map[string]Key{"anthropic": {Env: &envVar}, "openai": {Slots: &slots}},
 		Personas:  personas,
 	}
+	m := regexp.MustCompile("(?s)\n## 3[.] `swarm.json`.*?```json\n(.*?)```").FindSubmatch(doc)
+	if m == nil {
+		t.Fatal("no example in section 3")
+	}
 	if got := Format(c); !bytes.Equal(got, m[1]) {
 		t.Errorf("Format:\n%s\nsection 3:\n%s", got, m[1])
+	}
+
+	m = regexp.MustCompile("(?s)### Moving a swarm into its repository.*?```json\n(.*?)```").FindSubmatch(doc)
+	if m == nil {
+		t.Fatal("no example of the old layout in section 11")
+	}
+	c.Repos = []Repo{{Name: "<repo>", Path: "app", Image: defaultImage, Protected: defaultProtected}}
+	c.Resources = []string{"docs/"}
+	if got := Format(c); !bytes.Equal(got, m[1]) {
+		t.Errorf("Format:\n%s\nsection 11:\n%s", got, m[1])
 	}
 }
 

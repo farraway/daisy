@@ -28,7 +28,11 @@ forge name; members read pushed content only; the secrets live in
 being built:** Steps 2–6 of that plan build it, each amending the
 sections it touches with its As built (Step 2, 2026-11-10: finding the
 swarm with no Daisy workspace, the secrets in `<state>/env` and the
-unit's root; section 11, Finding the swarm, and item 105), and until
+unit's root; section 11, Finding the swarm, and item 105; Step 3,
+2026-11-10: the product repositories by forge name, the mirrors'
+remotes recorded in their configs, the notes' clone at the swarm
+repository's own URL, the readiness read from the mirrors and the
+wizard's forge names; item 106), and until
 each lands the code runs the workspace layout that section 11, Moving a
 swarm into its repository, describes for what it has not built; Step 7
 retires that layout once the maintainer says every swarm has moved.
@@ -446,10 +450,12 @@ of `apply`, so an edit applies at the next pass (but for `forge.kind`,
 read from the clone's working tree, as the prompts are, and not from the
 pushed head (section 2; section 11, Drift).
 
-Until Step 3 of revision 6's plan builds `repos[].repo`, `init` writes
-the old layout's form of this example (section 11, Moving a swarm into
-its repository), which the Go test of section 3's example reads in its
-place until then.
+The Go test of section 3's example (`Format`) reads this one, and the
+old layout's form of it (section 11, Moving a swarm into its
+repository). Until Step 4 of revision 6's plan builds `resources` as
+swarm-repository paths, `init`'s default `resources` is the old one
+(`docs/` when the clone holds that directory), read relative to the
+clone; the example's `["briefs/", "docs/"]` is that step's.
 
 | Field | Type | Default (`init`) | Rule |
 |---|---|---|---|
@@ -462,7 +468,7 @@ place until then.
 | `repos` | array of objects | one entry per product repository found beside the swarm repository's clone (section 11, the wizard) | one or more, in order: the first is the product (its image runs the owner and the architect, in its clone; with one repository declared, a slice that names none is its, and with more, such a slice is *bad slices*, section 7.5; the fast lane's one slice is the first's); each entry has exactly the fields below (section 14, item 49) |
 | `repos[].name` | string | the `<name>` of the entry's `repo` | `^[A-Za-z0-9_][A-Za-z0-9_.-]*$`, no two the same, and not the swarm repository's `<repo>`; the forge repository `<owner>/<name>`, its mirror `<state>/git/<name>/` and the owner's and architect's clone `/work/<name>` |
 | `repos[].repo` | string | as found (question 1: a clone's `origin`'s `<owner>/<repo>`) | `<owner>/<name>`, `<owner>` `forge.repo`'s (section 14, item 7) and `<name>` the entry's `name`: the repository on the forge where its branches are pushed and its pull requests opened, reached at `<url>`, the swarm repository's clone's `origin` URL with its last path element, `<repo>[.git]`, replaced by `<name>.git` (7.1, step 1; every declared repository lies on the swarm repository's forge, beside it) |
-| `repos[].ssh_command` | string | absent; the clone's `core.sshCommand` when question 1 found the repository's clone and it sets one | optional; non-empty, one line; passed as `-c core.sshCommand=<value>` to every host git command that reaches the repository (an identity's key), recorded in its mirror's config (7.1, step 1); absent, git's own SSH command |
+| `repos[].ssh_command` | string | absent; the clone's `core.sshCommand` when question 1 found the repository's clone and it sets one | optional; non-empty, one line; recorded as `core.sshCommand` in its mirror's config (7.1, step 1), where every host git command that reaches the repository reads it (an identity's key); absent, git's own SSH command (the mirror's `core.sshCommand` unset) |
 | `repos[].check` | array of strings | `[]` | the repository's own checks as one argv (`["make", "check"]`), each element non-empty; named in the worker's and reviewers' Task texts and run by Daisy after each worker run (7.6); `[]` means none, which `init` warns about |
 | `repos[].image` | string | `daisy-member:1` | non-empty; a local image (`docker run --pull never`): the base image, or a product image built `FROM` it (section 7.2) |
 | `repos[].protected` | array of strings | `[".github/", ".gitea/", ".forgejo/", ".claude/", ".grok/", "AGENTS.md", "CLAUDE.md"]`: the forges' workflows, and the settings, hooks and instructions a member's CLI loads from the repository (`.claude/` and `.grok/` since Step 35 of the swarm build, section 14, item 96; `init` keeps an existing entry's list) | path patterns in the repository a worker's change may not touch (7.6): an entry ending `/` matches every path under that directory; an entry without `/` matches a path whose last element it matches (`path.Match`), at any depth; any other entry matches the whole path (`path.Match`); each non-empty, relative, without `..`; `[]` protects nothing |
@@ -2141,7 +2147,7 @@ ran, whatever its end:
    is a swarm fault (7.7); a check started with no end line and no
    container (its `apply` died) is started again. A failing check is not
    a failure: its result is posted and is the reviewers' input.
-5. **The push**: `git -C <state>/git push --porcelain origin refs/swarm-runs/<n>-worker-<k>:refs/heads/swarm/<n>-<s>`, the URL and SSH command its config records (7.1, step 1)
+5. **The push**: `git -C <state>/git/<name> push --porcelain origin refs/swarm-runs/<n>-worker-<k>:refs/heads/swarm/<n>-<s>`, the URL and SSH command its config records (7.1, step 1)
    (never forced; a rejection, a ref the porcelain marks `!`, is the
    failure *push rejected*; a push that does not reach the forge is a git
    error, retried at the next pass); then
@@ -3095,10 +3101,9 @@ section 14, item 105):* the lookup above is the one function that
 decides the layout (`declare.Find`), and every verb, `init` included,
 runs from a clone holding `swarm.json` with no Daisy workspace, reading
 its secrets from `<state>/env` (section 3, Secret values), printing the
-unit for the clone and running `docker` and `id` there. What Steps 3–6
-have not yet built a clone reads as the old layout does: `repos[].path`
-and the workspace form of `resources`, relative to the clone (so a
-product's clone lies inside it until Step 3 names it by forge name);
+unit for the clone and running `docker` and `id` there. What Steps 4–6
+have not yet built a clone reads as the old layout does: the workspace
+form of `resources`, relative to the clone;
 `init` writes `swarm.json` and `prompts/` at the clone's top and names
 them so (`✓ Wrote swarm.json`, `  Kept prompts/<role>.md (exists)`),
 and run where no clone holding `swarm.json` is found still takes the
@@ -3139,6 +3144,22 @@ what is missing, on stderr, without refusing:
 (these two once per declared repository),
 `⚠ Readiness: resources is empty; the owner proposes from the code alone` and
 `⚠ Readiness: trusted holds no maintainer login; no comment of yours reaches a member`.
+
+*As built (Step 3 of revision 6's plan, 2026-11-10; section 14, item
+106):* in a clone, `init` asks question 1 for forge names and question
+4 as `Swarm repository`, with no follow-up (the swarm repository is the
+swarm's own) and question 35 for `notes/`; after the files it makes and
+fetches each declared repository's mirror (`✓ Mirrors: <name>, …
+fetched`, the swarm repository's own mirror added by Step 4; a fetch
+that fails is `Error: swarm: mirror <name>: <git's error>`, exit 1),
+and the first readiness warning reads `AGENTS.md` and `CLAUDE.md` in
+the mirror at `<base>` (`git cat-file -e`). Detection reads the clones
+directly under the folder holding the swarm repository's clone (the
+folder `init` runs in once Step 6 clones it there), the swarm
+repository's own clone left out; with a `swarm.json`, question 1's
+default is its repositories, an entry the old layout wrote by `path`
+offered as `<owner>/<name>`, `<owner>` `forge.repo`'s. The old layout's
+wizard and readiness are as they were.
 
 The wizard, in order. An empty answer takes the default shown in
 brackets; defaults come from the existing `swarm.json`, else detection:
@@ -3612,9 +3633,8 @@ read named `⚠️  .env.sh <problem>`, as `check-secrets` names it, and
 no mode refused); `<state>/env` is not read. The unit's `%f` is the
 workspace. `init` writes `<ws>/swarm/` and nothing under
 `$DAISY_LOCAL`, creates no repository and reads no maintainer's token.
-Its configuration, as `init` wrote section 3's example in it (until
-Step 3 of revision 6's plan, `init` still writes this form, and the Go
-test of section 3's example reads it here):
+Its configuration, as `init` writes section 3's example in it (the Go
+test of section 3's example reads it here too):
 
 ```json
 {
@@ -6246,3 +6266,31 @@ entries among revision 1's, and was renumbered at Step 38.
     The unit's description names its root as what it is, `for the swarm
     repository %f` in a clone and `for the workspace %f` in the old
     layout.
+106. **Product repositories by forge name, as built (Step 3 of revision
+    6's plan, 2026-11-10).** A clone's `swarm.json` names each declared
+    repository by `repo` and an optional `ssh_command`; the old layout's
+    by `path`, as before, and each layout refuses the other's fields
+    (`repos[0].path: unknown field` in a clone, `repos[0].repo: unknown
+    field`, `repos[0].ssh_command: unknown field` and `repos[0].path:
+    missing` in a workspace), since one parse reads both until Step 7;
+    a `"repo": ""` is read as absent, `missing`. The clone's `origin`
+    is validated as `forge.repo` before `repos`. Every mirror, in both
+    layouts, records `remote.origin.url` and `core.sshCommand` in its
+    own config (read and written with `--local`, so no global
+    `core.sshCommand` is taken for the mirror's) before each fetch and
+    each push, which name the remote `origin`: in a clone from the
+    clone's `origin` and `ssh_command`, in the old layout from the
+    workspace clone as each pass read it before. So a mirror an earlier
+    Daisy made, with no remote in its config, is filled in by its next
+    fetch or push, whichever comes first, and the live swarms in the old
+    layout run on unchanged. The notes' clone, which is no mirror, is
+    reached at the swarm repository's clone's `origin` with its
+    `core.sshCommand` passed as `-c`, as the old layout's was over the
+    first declared repository's. The wizard's detection in a clone reads
+    the folder holding it, where section 3's example puts the products'
+    clones beside the swarm repository's and where Step 6's `init` will
+    run; the swarm repository's own clone is left out of question 1's
+    default whatever its name; question 4's last default,
+    `<owner>/swarm-<name>` (item 103), is built here. `resources` stay
+    relative to the clone until Step 4, and the Go test of section 3's
+    example reads section 3 again, beside the old layout's example.

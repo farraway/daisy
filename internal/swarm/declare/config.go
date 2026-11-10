@@ -70,14 +70,19 @@ type Forge struct {
 	Board       *string `json:"board,omitempty"`
 }
 
-// Repo is one declared repository: the forge repository <owner>/<Name>,
-// whose clone is at Path in the workspace.
+// Repo is one declared repository: the forge repository <owner>/<Name>.
+// A swarm repository's clone declares it by Repo, `<owner>/<name>`, with
+// an optional SSHCommand (section 3); the old layout by Path, its clone in
+// the workspace (section 11, Moving a swarm into its repository). Each
+// layout refuses the other's fields (Validate).
 type Repo struct {
-	Name      string   `json:"name"`
-	Path      string   `json:"path"`
-	Check     []string `json:"check"`
-	Image     string   `json:"image"`
-	Protected []string `json:"protected"`
+	Name       string   `json:"name"`
+	Repo       string   `json:"repo,omitempty"`
+	SSHCommand *string  `json:"ssh_command,omitempty"`
+	Path       string   `json:"path,omitempty"`
+	Check      []string `json:"check"`
+	Image      string   `json:"image"`
+	Protected  []string `json:"protected"`
 }
 
 type Owner struct {
