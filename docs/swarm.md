@@ -234,7 +234,7 @@ label events was considered and rejected (section 14, item 1).
 | A board as a view: with `forge.board`, each open swarm issue's card kept in the column of its stage on a Gitea organization's project; the label stays the only state (specified ahead of its build: `swarm.json` validates the field and nothing acts on it until a run needs the board) | A board on GitHub (Projects v2, not mapped in this revision); a board that drives the lifecycle |
 | Container limits: only what the run owns mounted, one credential, a wall clock; `protected` paths never pushed; the exact secret a member was given refused in what is posted or pushed | Network egress filtering and further hardening |
 | The product's `check`, run by Daisy in a keyless container on each worker head | Reading the forge's CI status for a head: recorded, not built (section 14, item 23) |
-| Every worker run merges `base` into its branch first and resolves the conflicts it can; an approved pull request the forge reports not mergeable goes back to the worker (T25) | A conflict the worker cannot resolve: it writes `BLOCKED:`, the issue is `blocked` and the maintainer resolves it (section 14, items 20 and 81) |
+| Every worker run merges `base` into its branch first and resolves the conflicts it can; an approved pull request the forge reports not mergeable, which conflicts on the mirror too, goes back to the worker (T25) with the files named; the same head a second time blocks the issue | A conflict the worker cannot resolve: it writes `BLOCKED:`, the issue is `blocked` and the maintainer resolves it (section 14, items 20, 81 and 93) |
 | Cost, tokens, turns and an outcome per run; a Throughput block in `status`; a `budget` (specified ahead of its build: validated, not enforced, until a run needs it) | An observer that turns runs and the maintainer's corrections into prompt changes (the meta loop): the signals are in `runs/` and on the forge, `swarm/prompts/*.md` are the files it would change, and section 14, item 58 is its data contract |
 | `apply` from the maintainer's terminal or a systemd user service | `apply` inside an agent session: the agent's sandbox has no Docker socket, and the swarm must not depend on a chat being open |
 
@@ -296,7 +296,7 @@ Every file Daisy writes, and nothing else:
 | `<run>/io/out.md` | the member's output | the member (in the container) | during the run |
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
-| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `wiki` or `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value); for a worker's run and a first reviewer's, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports them (section 9); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
+| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `wiki` or `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value); for a worker's run and a first reviewer's, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports them (section 9); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/check/` | a clone of the fetched head for the check | `swarm apply` (`git clone` from `<state>/git/<name>`), then the check | before the check; removed when the run is collected |
 | `<run>/work/` | the clone the member works in (the owner's and the architect's: a directory of clones, `<name>/` per declared repository) | `swarm apply` (`git clone` from `<state>/git/<name>`), then the member | before the launch; removed when the run is collected or abandoned, a directory the member left unreadable given the owner's rights first (7.6) |
@@ -785,7 +785,8 @@ the forge and `status` agree before the next pass; a relabel by Daisy or
 by hand on the forge leaves it to that step, which runs after the pass's
 collections and its merge step. *Blocked:* Daisy sets `swarm:blocked`
 on a failure of the work or a run's `BLOCKED:` (T17), a refused merge
-(T16) and the round limit's second time (T11), each time beside the
+(T16), the round limit's second time (T11) and a head sent back to the
+worker that does not merge a second time (T25's second time), each time beside the
 stage, which the issue keeps (a failed run's issue is first taken back
 home, T22: a reviewer's to review-0-ready, any other to the stage the run
 was launched on), so the reconciler's note
@@ -985,7 +986,7 @@ nothing: their trigger is the maintainer's decision.
 | T22 | the in-progress stage a run's launch wrote (T20, T21), or `swarm:review-1-in-progress` for the pair's second reviewer | the run's home: `swarm:review-0-ready` for a reviewer, the stage the run was launched on for a worker | — | the run ends without moving the issue on: a swarm fault, abandoned, stale (a reviewer), discarded (its pull request closed), or before T17's flag | Daisy: `Relabel(n, <in-progress>, <home>)`, `<home>` the run's home |
 | T23 | `swarm:proposal-posted` | `swarm:proposal-accepted` | G1 on, a routine job | step 8 of a pass finds a routine job at `proposal-posted` that carries neither `swarm:blocked` nor `swarm:paused`, whose owner has nothing to answer, the swarm not paused (The job class, above) | Daisy: `Relabel(n, "swarm:proposal-posted", "swarm:proposal-accepted")`, then `Comment(n, <auto note>)` |
 | T24 | `swarm:plan-0-posted` | `swarm:plan-1-accepted` | G2 on, a routine job | step 8 of a pass finds a routine job at `plan-0-posted` as T23 does, its architect having nothing to answer (its plan, or its revision after a comment or T11, the newest counted entry) | Daisy: `Relabel(n, "swarm:plan-0-posted", "swarm:plan-1-accepted")`, then `Comment(n, <auto note>)` |
-| T25 | `swarm:review-2-approved` | `swarm:review-3-changes-requested` | — | the merge of the current pull request is refused and the forge reports it not mergeable (`Pull.Mergeable`, section 10): `base` moved since the branch last took it in, and they conflict. A mergeability the forge has not settled (unknown, or read by the merge step after it merged into the same repository in that pass) is not this row: the merge is tried again at the next pass (section 12). The worker then merges `base` and resolves (7.4), and the pair reviews the new head as any revision (T12, then T9 or T10) | Daisy's merge step (G3 off): `Comment(m, <reconciler note: the direction>)`, then `Relabel(n, "swarm:review-2-approved", "swarm:review-3-changes-requested")`; or the maintainer's `swarm merge <n>` (G3 on): `Comment(m, <the direction>)`, the same relabel, and the gated flag's removal |
+| T25 | `swarm:review-2-approved` | `swarm:review-3-changes-requested` | — | the merge of the current pull request is refused and the forge reports it not mergeable (`Pull.Mergeable`, section 10): `base` moved since the branch last took it in, and they conflict, which the merge step confirms on the mirror (`git merge-tree`, section 12) and names the files of. A mergeability the forge has not settled (unknown, or read by the merge step after it merged into the same repository in that pass, or a head that merges into `base` on the mirror) is not this row: the merge is tried again at the next pass (section 12). The worker then merges `base` and resolves (7.4), and the pair reviews the new head as any revision (T12, then T9 or T10). **The second time** the same head is sent back, the pull request's thread holding a direction on that head before its last comment (the worker answered without a commit and the pair approved the head again), is not this row either: the merge step blocks the issue, the stage kept, with its note on the issue, the maintainer's (G4) as T11's second time is, and `swarm merge` refuses, nothing changed | Daisy's merge step (G3 off): `Comment(m, <reconciler note: the direction>)`, then `Relabel(n, "swarm:review-2-approved", "swarm:review-3-changes-requested")`, or the second time `Comment(n, <reconciler note>)` and `Relabel(n, "", "swarm:blocked")`; or the maintainer's `swarm merge <n>` (G3 on): `Comment(m, <the direction>)`, the same relabel, and the gated flag's removal |
 
 The maintainer may also relabel any issue to any stage at any time; the
 next pass reads the new label and the role rule decides from there. That
@@ -999,7 +1000,7 @@ merges a pull request or closes an issue only in its merge step, with
 `gates.merge` off (section 12).
 
 The lifecycle, as the table reads (`swarm:blocked` is a flag, not a
-state: T11's second time, T16 and T17 set it beside the stage, and T18
+state: T11's second time, T16, T17 and T25's second time set it beside the stage, and T18
 clears it):
 
 ```mermaid
@@ -1035,7 +1036,7 @@ stateDiagram-v2
   note right of proposal_posted : owner answers the thread while G1 holds; gated while G1 is on, an architecture job
   note right of plan_0_posted : architect answers the thread while G2 holds, and the reviews after T11 (in proposal_accepted too, G2 off); gated while G2 is on, an architecture job
   note right of review_1_in_progress : the second reviewer runs here; T11's second time stays here, blocked
-  note right of review_2_approved : nobody runs, and with G3 on it waits for the maintainer, gated; T16 blocks it here
+  note right of review_2_approved : nobody runs, and with G3 on it waits for the maintainer, gated; T16 and T25's second time block it here
 ```
 
 **Runs that do not move the label.** The owner on a `proposal-posted`
@@ -1909,7 +1910,15 @@ ran, whatever its end:
    to read; a directory in `.git` that cannot be read is one), nothing
    fetched. Then
    `git -C <state>/git fetch --no-tags <run>/work '+refs/heads/swarm/<n>-<s>:refs/swarm-runs/<n>-worker-<k>'`
-   (`fetched <sha>`); a fetched commit equal to `start` is the failure
+   (`fetched <sha>`). A fetch that fails is recorded, `fetch failed:
+   <error>` (git's message on one line, the state directory written
+   `<state>`, and `git's message withheld: it holds a secret the member
+   was given` in its place when it holds one: git may quote the clone's
+   own text), and is the pass's error, the collection retried at the
+   next pass; the second failed fetch in a row for the run is the
+   failure *fetch failed* (7.7), even after a fault, so its issue is
+   blocked with the note naming the error and the run is collected, not
+   retried for good. A fetched commit equal to `start` is the failure
    *no commits* on a run that otherwise succeeded, but for the answer
    without a commit (7.5): a worker's on `review-3-changes-requested`
    whose output's first line begins `NO CHANGE:`, whose marked text is
@@ -2128,6 +2137,7 @@ relabel and what it names.
 | secret in output | work | 7.6, the secret check: `out.md`, a worker's commits or the posted tail of `check.out` holds a secret the member was given | `failed: secret in output: <out.md, commits and/or check.out>` | T17, the note naming where, never the value; nothing posted or pushed |
 | push rejected (worker) | work | 7.6 | `failed: push rejected` | T17 |
 | the clone reaches outside itself (worker) | work | 7.6 | `failed: the clone reaches outside itself: <what>` | T17 |
+| fetch failed (worker) | work | 7.6, step 1: the run's second failed fetch in a row from its clone, whatever the run's end (a fault too); the first is the pass's error, retried | `fetch failed: <error>` for each, then `failed: fetch: <error>` (the second's), unless the run failed already | T17, the note naming the error; a run that failed already names its own failure, then `Its commits could not be fetched from its clone: <error>.` |
 | abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/exit` that is a regular file holding a number (7.2), whatever `out.md` holds: an empty or partial `out.md` of a member killed mid-run is never read; a run launched before the mark (its `argv` without the `sh -c` line) by no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`; for a worker, 7.6 steps 1 and 2 (`fetched <sha>`, and `kept refs/swarm-runs/<n>-worker-<k>` when it has commits; a clone that cannot be fetched, one that reaches outside itself or holds no branch, keeps nothing, with `⚠ #<n> worker run <k>: abandoned; commits not kept (<reason>)` on stderr, and the run is collected); then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 |
 | ended | — | a pass finds a run not its own with `started`, no end line, no container by the run's name and a `<run>/io/exit` that is a regular file holding a number (a run launched before the mark: a `<run>/io/out.md` that is a regular file): its member finished after the `apply` that started it died, whose `docker run` took the streams with it | `ended <time>`, with the status `exit` holds read as `docker run`'s (125–127 `fault: exit <code>`, any other non-zero `failed: exit <code>`), then the collection of 7.6 from `out.md`: no `cost` line, and a provider's fault the lost standard output reported is not seen | as the run's collection (posted, blocked, failed, stale or discarded) |
 | orphan over time | — | a pass finds a container by the run's name, the run not its own, `started` more than `timeout` ago | `docker stop --time 30 <name>` sent; then abandoned as above, whatever `out.md` holds | as abandoned |
@@ -2643,7 +2653,9 @@ recomputes a pull request after a push to its base as well as when the
 two conflict (as Gitea's source reads; *to confirm* on the instance), so
 Gitea's adapter reports unknown only for a field absent or `null`, and
 the merge step treats a reading taken after its own merge into the same
-repository as unsettled; GitHub's is `null` while it computes. A list call
+repository as unsettled, and reads a `false` again on the mirror with
+`git merge-tree` (section 12), a head that merges there being the
+checker recomputing; GitHub's is `null` while it computes. A list call
 reads every page (until a page is shorter than the limit). A `429` or
 `5xx` response is retried after its `Retry-After` (else 10 s), at most
 three times, but for `Board`, which is never retried: its first `429` or
@@ -3000,8 +3012,8 @@ passphrase prompt, or an agent the user manager can reach).
 | Without `--once` | the loop the unit runs: a pass every `interval`, start to start, whatever runs: a pass waits for none of its members, and each run is collected by the first pass after it ends (a worker run's check started there and collected by a later pass in turn); until SIGINT or SIGTERM: then no launch, its running members and checks collected as they exit (a worker run's check started for it, as its collection needs), exit 0; a second signal, during the pass the first ended or while the loop collects, exits at once (130), leaving its members to finish and be collected by a later `apply` from their `out.md` (7.7, *ended*) |
 | Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`, `Milestones`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), `EnsureMilestone` and `SetMilestone` (step 8), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge, and with `wiki` clones and fetches the issues repository's wiki (with `notes`, the swarm's own issues repository) and pushes the notes' commits to its branch (the repository's default) or to `swarm/notes-<n>-<role>-<k>` (7.1, 7.6) |
 | Writes | `<state>/lock`, `<state>/paused` (a swarm fault, the budget), `<state>/owner-held`, `<state>/auto`, `<state>/git/`, with `wiki` `<state>/wiki/` (with `notes`, `<state>/notes/`), `<state>/runs/`, and for a slot run `<slot>.lock` and the clearing of `<slot>` (section 2); nothing else |
-| Stdout | `✓ Labels: 16 present (<c> created, <r> renamed)` at the start when a label was made; `#<n> <role> run <k>: launched`, then `#<n> <role> run <k>: <stage> → <in-progress stage>` for a worker and a first reviewer (T20, T21); at collection one line per step done, `#<n> <role> run <k>: ` then `check started`, `check exited <code>` (or `check timeout`), `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`, `blocked` (`swarm:blocked` set), `pushed notes <short sha>` (7.6, The notes); a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:review-2-approved → swarm:plan-1-accepted` or `#<n> closed (last slice merged)` and `#<n> swarm:review-2-approved → swarm:done` (and `#<n> <flag> cleared` for each flag it carried), or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> blocked` (T16), or `#<n> not mergeable: back to the worker` then `#<n> swarm:review-2-approved → swarm:review-3-changes-requested` (T25), or `#<n> merge of pull <name>#<m> refused (<message>); its mergeability is not settled, so the next pass tries again`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; a routine job's gate passed, `#<n> <stage> → <next stage> (auto)` and `#<n> auto note posted`; the flag's `#<n> gated`, `#<n> gate note posted` and `#<n> gated cleared`; the milestones' `milestone created: <title>` and `#<n> milestone: <title>`; each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
-| Stderr | `⚠️  .env.sh <problem>` (as `init`); warnings `⚠ #<n>: Blocked by #<m> names no issue; not held` (section 6, rule 1), `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled` (`during the merge step` for the merge step's), `⚠ #<n> closed during the run; nothing posted`, the notes' `⚠ #<n> <role> run <k>: notes conflict with the wiki's head; pushed to swarm/notes-<n>-<role>-<k>` (`with <owner>/<repo>'s head` with `notes`) and `⚠ #<n> <role> run <k>: notes not pushed (<reason>); kept in <run>/notes` (7.6), `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); the flag's warnings `⚠ #<n>: gated: <error>` (a relabel refused), `⚠ #<n>: gate note: <error>` (a read or the post refused: that gating event has no note), `⚠ #<n>: class: <error>` (the class's read refused: the issue left as it is this pass), `⚠ #<n>: auto: <error>` (a routine job's relabel refused, tried again at the next pass, or its auto note refused) and `⚠ gated: <error>` (a list unreadable: no flag changed this pass); the milestones' warnings, each pass while the cause stands, for an open issue `⚠ #<n>: its Brief: line names "<milestone>", which is no milestone of <path>; no milestone set` (a heading renamed or removed since) and `⚠ #<n>: its Brief: line names <path>, which is no brief under resources; no milestone set`, `⚠ milestones: <path> and <path> share the name <slug>; <path> is mirrored to no milestone` (the second in path order), `⚠ milestone <title>: <error>` (a refused create), `⚠ #<n>: milestone <title>: <error>`, and `⚠ milestones: <error>` (the briefs or a list unreadable); a closed issue's line, and a brief not `active`, give none; errors `Error: …` |
+| Stdout | `✓ Labels: 16 present (<c> created, <r> renamed)` at the start when a label was made; `#<n> <role> run <k>: launched`, then `#<n> <role> run <k>: <stage> → <in-progress stage>` for a worker and a first reviewer (T20, T21); at collection one line per step done, `#<n> <role> run <k>: ` then `check started`, `check exited <code>` (or `check timeout`), `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`, `blocked` (`swarm:blocked` set), `pushed notes <short sha>` (7.6, The notes); a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:review-2-approved → swarm:plan-1-accepted` or `#<n> closed (last slice merged)` and `#<n> swarm:review-2-approved → swarm:done` (and `#<n> <flag> cleared` for each flag it carried), or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> blocked` (T16), or `#<n> not mergeable: back to the worker` then `#<n> swarm:review-2-approved → swarm:review-3-changes-requested` (T25), or `#<n> not mergeable a second time at <short sha>: blocked` then `#<n> blocked` (T25's second time), or `#<n> merge of pull <name>#<m> refused (<message>); its mergeability is not settled, so the next pass tries again`, or `#<n> merge of pull <name>#<m> refused (<message>); its head merges into <base> on the mirror, so the forge is taken to be recomputing and the next pass tries again`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; a routine job's gate passed, `#<n> <stage> → <next stage> (auto)` and `#<n> auto note posted`; the flag's `#<n> gated`, `#<n> gate note posted` and `#<n> gated cleared`; the milestones' `milestone created: <title>` and `#<n> milestone: <title>`; each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
+| Stderr | `⚠️  .env.sh <problem>` (as `init`); warnings `⚠ #<n>: Blocked by #<m> names no issue; not held` (section 6, rule 1), `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled` (`during the merge step` for the merge step's), the merge step's `⚠ #<n>: pull <name>#<m>'s head <short sha> not merged on the mirror (<error>); the forge's report stands` (section 12), `⚠ #<n> closed during the run; nothing posted`, the notes' `⚠ #<n> <role> run <k>: notes conflict with the wiki's head; pushed to swarm/notes-<n>-<role>-<k>` (`with <owner>/<repo>'s head` with `notes`) and `⚠ #<n> <role> run <k>: notes not pushed (<reason>); kept in <run>/notes` (7.6), `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); the flag's warnings `⚠ #<n>: gated: <error>` (a relabel refused), `⚠ #<n>: gate note: <error>` (a read or the post refused: that gating event has no note), `⚠ #<n>: class: <error>` (the class's read refused: the issue left as it is this pass), `⚠ #<n>: auto: <error>` (a routine job's relabel refused, tried again at the next pass, or its auto note refused) and `⚠ gated: <error>` (a list unreadable: no flag changed this pass); the milestones' warnings, each pass while the cause stands, for an open issue `⚠ #<n>: its Brief: line names "<milestone>", which is no milestone of <path>; no milestone set` (a heading renamed or removed since) and `⚠ #<n>: its Brief: line names <path>, which is no brief under resources; no milestone set`, `⚠ milestones: <path> and <path> share the name <slug>; <path> is mirrored to no milestone` (the second in path order), `⚠ milestone <title>: <error>` (a refused create), `⚠ #<n>: milestone <title>: <error>`, and `⚠ milestones: <error>` (the briefs or a list unreadable); a closed issue's line, and a brief not `active`, give none; errors `Error: …` |
 | Lock | `Ops.FS().Lock(<state>/lock, "apply[ --once] since <time>")` takes an exclusive `flock` without waiting and writes the holder line (adding `pid <pid>`); the kernel releases it when the process exits, however it exits. Held: `Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`, exit 1, nothing read from the forge |
 | Exit codes | 0 the pass or passes ran (a member's failure is reported on the forge, not in the exit code; a pause is reported on stdout); 1 outside a workspace, invalid `swarm.json` at start, a token or a used provider's `env` credential unset (a slot without a login is its run's fault at the launch, not an exit code), `docker` unavailable (`Error: swarm: docker: <message>`), the lock held, `EnsureLabels` failing at start (a refused rename or create included, with or without `--once`), and with `--once` a forge (a board fault and step (8), the flag and the milestones, excepted), git or `docker ps` error during the pass (without `--once` such an error is printed and the next pass runs); 130 a second signal while the loop collects its running members; 2 usage |
 | Ops | Real |
@@ -3196,7 +3208,7 @@ check on the forge by hand. `plan revisions` is the architect's plans in
 the issue thread after its first (its marked comments that do not begin
 `BLOCKED:`: each is a run on `plan-0-posted`, or on `proposal-accepted`
 again after T11 with the plan gate off); `blocks` the reconciler's notes
-on the issue that blocked it (7.7, T11's second time, T16: every
+on the issue that blocked it (7.7, T11's second time, T16, T25's second time: every
 reconciler note but the round limit's first, which returns the issue to
 the architect, and a note on an issue the maintainer moved during the
 run, which blocked nothing); and per swarm pull request, by slice, `rounds` its
@@ -3264,7 +3276,7 @@ else.
 | Writes | nothing but those forge writes: no file, no container, no commit |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, then per write `#<n> <from> → <to>`, `#<n> class-architecture` (`class`'s flag set), `#<n> already <class>`, `#<n> commented` (`unblock` at `swarm:review-3-changes-requested`, and `merge` sending a pull request back: `#<n> commented on pull <name>#<m>`), `#<n> comment already posted` (or `… already posted on pull <name>#<m>`) for one not posted again, `#<n> not mergeable: back to the worker` (`merge`, before its comment and relabel), `#<m> blocking`, `#<n> closed`, `#<n> approved pull <name>#<m> at <short sha>`, `#<n> merged pull <name>#<m> (slice <s> of <S>)` or `#<n> pull <name>#<m> already merged (slice <s> of <S>)`, `#<n> closed (last slice merged)`, then the terminal `#<n> <stage> → swarm:done` or `#<n> <stage> → swarm:rejected`, and `#<n> <flag> cleared` for each flag a relabel (`gated`, unless the new labels are gated), an unblock (`blocked`, then `gated` the same), `class <n> routine` (`class-architecture`) or a close (each it carried) removes |
 | Stderr | `⚠️  .env.sh <problem>` (as `init`); `unblock`'s `⚠ <login> is not in trusted: no member reads your comment (docs/swarm.md section 6)`; `block`'s `⚠ <login> is not in trusted: the role rule does not read your Blocked by #<m>, so it holds nothing (docs/swarm.md section 6)`; `⚠ #<n>: swarm:gated not cleared (<error>); the next pass of apply clears it`; errors |
-| Exit codes | 0 the writes made; 1 outside a workspace, `swarm.json` absent or invalid, `Error: swarm: $DAISY_MAINTAINER_TOKEN is not set (in <ws>/.env.sh or the environment)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN holds the swarm's token ($<VAR>); the maintainer's verbs act with your own (docs/swarm.md section 8)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN is <login>'s token, the swarm's account (trusted's last login); the maintainer's verbs act with your own (docs/swarm.md section 8)`, the issue closed, in another stage, with no stage label or with two, no open pull request to approve, no pull request to merge, one closed unmerged, no head both reviews approve, `unblock` of an issue not blocked (`Error: swarm: #<n> is not blocked; nothing changed`) or blocked at the round limit, `block` by itself or by an issue not open (`Error: swarm: #<n> cannot block itself; nothing changed`, `Error: swarm: #<m> is not an open issue; nothing changed`), `class <n> routine` by a login not in `trusted` (`Error: swarm: <login> is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed`), a merge the forge refuses of a pull request it reports mergeable (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; nothing changed`: no note and no block, the maintainer being there to read it) or whose mergeability it has not computed (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; the forge has not yet computed whether it merges, so run merge again shortly; nothing changed`), one it reports not mergeable being T25 and exit 0, an approval the forge refuses (its `422` among them), a marked comment, a forge call failing, the close made and its terminal refused (`Error: swarm: #<n> is closed, but not relabelled swarm:<done\|rejected>: <error>; relabel it on the forge`) or, the terminal set, a flag's removal refused (`Error: swarm: #<n> is closed and relabelled swarm:<done\|rejected>, but <flag> is not cleared: <error>; remove it on the forge`); 2 usage, `unblock` without a comment among it |
+| Exit codes | 0 the writes made; 1 outside a workspace, `swarm.json` absent or invalid, `Error: swarm: $DAISY_MAINTAINER_TOKEN is not set (in <ws>/.env.sh or the environment)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN holds the swarm's token ($<VAR>); the maintainer's verbs act with your own (docs/swarm.md section 8)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN is <login>'s token, the swarm's account (trusted's last login); the maintainer's verbs act with your own (docs/swarm.md section 8)`, the issue closed, in another stage, with no stage label or with two, no open pull request to approve, no pull request to merge, one closed unmerged, no head both reviews approve, `unblock` of an issue not blocked (`Error: swarm: #<n> is not blocked; nothing changed`) or blocked at the round limit, `block` by itself or by an issue not open (`Error: swarm: #<n> cannot block itself; nothing changed`, `Error: swarm: #<m> is not an open issue; nothing changed`), `class <n> routine` by a login not in `trusted` (`Error: swarm: <login> is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed`), a merge the forge refuses of a pull request it reports mergeable (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; nothing changed`: no note and no block, the maintainer being there to read it) or whose mergeability it has not computed (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; the forge has not yet computed whether it merges, so run merge again shortly; nothing changed`), one it reports not mergeable being T25 and exit 0, but for a head sent back once already (`Error: swarm: #<n>: pull <name>#<m> was sent back to merge <base> at <short sha> once already, was approved again at that head, and the forge still reports it not mergeable; merge <base> into swarm/<n>-<s>, or relabel the issue; nothing changed`: T25's second time, section 12), an approval the forge refuses (its `422` among them), a marked comment, a forge call failing, the close made and its terminal refused (`Error: swarm: #<n> is closed, but not relabelled swarm:<done\|rejected>: <error>; relabel it on the forge`) or, the terminal set, a flag's removal refused (`Error: swarm: #<n> is closed and relabelled swarm:<done\|rejected>, but <flag> is not cleared: <error>; remove it on the forge`); 2 usage, `unblock` without a comment among it |
 | Ops | Real; no `Exec` but git's for the validation, no `Start` |
 
 **As built (Step 10 of the swarm build).** The table as written. A
@@ -3326,7 +3338,10 @@ variable `DAISY_MAINTAINER_TOKEN`.
   having moved since the branch last took it in, is not refused by the
   verb: it posts **the direction** on the pull request and relabels the
   issue `swarm:review-3-changes-requested` (T25), as the merge step
-  does with the gate off.
+  does with the gate off, reading the forge alone (the mirror is
+  `apply`'s, brought up to date by its passes), so its direction names
+  no file. A head sent back once already (below) the verb refuses,
+  nothing changed: the maintainer is there to read why.
 - **Two approvals are not evidence that the change is maintainable**: both
   reviewers are models, and the maintainer's reading at merge is the review
   that certifies it (with the merge gate off, no one's is). The merge
@@ -3341,17 +3356,37 @@ variable `DAISY_MAINTAINER_TOKEN`.
   already (an interrupted step): straight to the label. Open: `Merge(m,
   <approved head>)`; refused (`ErrNotMergeable`), the step reads the
   refusal by the pull request's `Mergeable` as `Pulls(n)` gave it. Not
-  mergeable, a conflict with `base`: T25, `Comment(m, <reconciler note:
-  the direction>)`, unless the pull request's last comment is that note
-  by the swarm already (a retry), then `Relabel(n,
-  "swarm:review-2-approved", "swarm:review-3-changes-requested")`; the
-  worker's next run merges `base` and resolves, or writes `BLOCKED:
-  <base> conflicts in <files>` (T17, the maintainer's), and the pair
-  reviews the new head, compacted and counted as any revision. Unknown,
-  or read after the step merged another pull request into the same
-  repository in this pass (Gitea's checker then reports `false` while it
-  recomputes, section 10): nothing, and the next pass tries the merge
-  again. Mergeable (its head moved, a branch protection rule): `Comment(n,
+  mergeable: the step fetches the repository's mirror (once per step,
+  as section 7.1, step 1 fetches it) and merges the approved head into
+  `base` there without a work tree, `git merge-tree --write-tree
+  --name-only --no-messages -z refs/heads/<base> <head>`. A head that
+  merges cleanly is Gitea's checker recomputing (it reports `false`
+  then, section 10): nothing, and the next pass tries the merge again.
+  A conflict with `base`: T25, `Comment(m, <reconciler note: the
+  direction>)` naming the files that conflict, unless the pull
+  request's last comment is a direction on this head by the swarm
+  already (a retry), then `Relabel(n, "swarm:review-2-approved",
+  "swarm:review-3-changes-requested")`; the worker's next run merges
+  `base` and resolves, or writes `BLOCKED: <base> conflicts in <files>`
+  (T17, the maintainer's), and the pair reviews the new head, compacted
+  and counted as any revision. A head the mirror cannot read (git's
+  error, not exit 1 with a tree): the warning, and the forge's report
+  stands, T25 with the direction naming no file. **The second time**:
+  when the pull request's thread already holds a direction on this head
+  before its last comment, the swarm's marked note or a `trusted`
+  login's comment (the worker answered the first without a commit and
+  the pair approved the same head again), the head is not sent back
+  again: `Comment(n, <reconciler note: Pull request <owner>/<name>#<m>
+  was sent back to merge <base> at <short sha> once already, was
+  approved again at that head, and still does not merge into <base>
+  (they conflict in <files>) (at swarm:review-2-approved). Merge <base>
+  into swarm/<n>-<s>, or relabel the issue, then remove
+  swarm:blocked.>)`, posted once across a retry as T16's, and
+  `Relabel(n, "", "swarm:blocked")`, the stage kept, the maintainer's
+  as the round limit's second time is (T11). Unknown, or read after the
+  step merged another pull request into the same repository in this
+  pass (its mirror not holding that merge yet): nothing, and the next
+  pass tries the merge again. Mergeable (its head moved, a branch protection rule): `Comment(n,
   <reconciler note: merge of pull request
   <owner>/<name>#<m> at <short sha> refused: <forge message> (at
   swarm:review-2-approved). Resolve it, then remove swarm:blocked.>)`
@@ -3369,8 +3404,10 @@ variable `DAISY_MAINTAINER_TOKEN`.
   plan's "no merging swarm" non-goal; it is chosen in `swarm.json`,
   beside the `budget` it requires (section 14, item 1). A paused issue is
   skipped the same way: the maintainer holds its merge as its launches.
-- **The direction** is one text, the merge step's under the
+- **The direction** is one form, the merge step's under the
   reconciler's marker and `swarm merge`'s as the maintainer's comment,
+  each beginning `Pull request <owner>/<name>#<m> was approved at <short
+  sha>, but `,
   modelled on the comment the maintainer wrote by hand at the swarm's
   first conflict: `Pull request <owner>/<name>#<m> was approved at
   <short sha>, but the forge reports it not mergeable into <base>, which
@@ -3378,8 +3415,14 @@ variable `DAISY_MAINTAINER_TOKEN`.
   swarm/<n>-<s> with a merge commit ("git merge --no-edit <base>"),
   resolve each conflict, keeping what both sides meant, and commit; the
   reviewers then review the new head.` Neither forge names the
-  conflicting files, so it names the branch and the base; the worker
-  finds the files by the merge.
+  conflicting files, so the verb's names the branch and the base; the
+  merge step's, when the mirror's merge finds them, names the files, its first
+  sentence `Pull request <owner>/<name>#<m> was approved at <short sha>,
+  but it does not merge into <base>, which has moved since
+  swarm/<n>-<s> last took it in: they conflict in <files>.`, each file
+  in backticks, comma-separated. Every direction on one head begins
+  `Pull request <owner>/<name>#<m> was approved at <short sha>, but `,
+  by which the second time is told.
 - **Merging early.** The maintainer may merge the current pull request at
   any stage; the issue stays open at its label, and a review stage then
   skips it with a warning (its current pull request is not open) until the
@@ -3466,7 +3509,7 @@ interface with the step that builds the board.
 | 28 | smoke | a real container from a product image rebuilt over this revision's base (section 7.2), run by the maintainer with `daisy swarm apply --once` | one comment on the real issue, the label moved, `docker ps` empty, both prompt files under `runs/`, a `cost` line in `result`; a commit made in the run's clone during the run carrying the role's identity and its `Co-Authored-By` trailer; and one `Review` by the swarm's account on a scratch pull request it opened, the accepted event or the refusal's status recorded |
 | 29 | `reconcile`, the lifecycle | `forge.Fake`, `runner.Fake` | T1, T3, T5, T7–T13, T17, T18, T20–T22: an issue from `proposal-posted` to `review-2-approved` with two approvals through all five roles in two rounds, on `swarm/<n>-1` with `Refs #<n>`, at `plan-2-in-progress` during each worker run and at `review-1-in-progress` from each first reviewer's launch to the pair's end; merged by the test as the maintainer and relabelled `plan-1-accepted`, the next slice on `swarm/<n>-2`; severity (a `request-changes` without a blocking finding is *bad verdict*); `max_rounds` then T11 to `plan-0-posted` with the first note, the architect's revision, T7 by the test, the rounds counted again from the revised plan, a retried collection of the first-time run not taken for a second time, and the limit a second time on the same pull request blocked at `review-1-in-progress` with the second note; every work-failure row of 7.7 then T22 and T17, the stage the run was launched on in the note and `swarm:blocked` beside it, and a failed worker's commits kept; protected paths; the check's clone fetching the run's ref, then run and posted; the pull request's label copied from the issue's by the next pass, the maintainer's other labels kept; the batch trigger, its two pacing conditions and `owner-held`; the batch over two `active` briefs creating issues whose bodies open with the `Brief:` line as the canned output wrote them, a `Met:` line left in `out.md` and not a proposal |
 | 29 | `reconcile`, the milestones (Step 9 of the swarm build) | `forge.Fake`, `runner.Fake` | two `active` briefs with three milestones (a fenced `## ` line none of them) and a `done` brief: after a pass whose batch proposes three jobs, the forge holds three milestones titled `<slug>: <milestone>`, each proposal in the one its `Brief:` line names, and the swarm issues from before them, open and closed, in theirs; a `done` brief's issue, an issue without a `Brief:` line and a closed issue naming a missing milestone or brief left, an open one naming either a warning; a second pass writing nothing and leaving an issue the maintainer moved; a paused pass mirroring; after `RefuseMilestones()`, the warnings, exit 0 and nothing paused |
-| 29 | `reconcile`, the gates off | `forge.Fake`, `runner.Fake` | T2, T4, T6, T14–T16: with every gate off and a `budget`, an issue goes from the batch to closed over two slices with nothing from the maintainer; T11 to `proposal-accepted` with the plan gate off, the architect's `proposal-accepted` text carrying the open-slice sentence, then T6 and the worker continuing the pull request; a refused merge is T16; the worker's merge of `base`; from Step 21, T25 and the unsettled merge (section 12) |
+| 29 | `reconcile`, the gates off | `forge.Fake`, `runner.Fake` | T2, T4, T6, T14–T16: with every gate off and a `budget`, an issue goes from the batch to closed over two slices with nothing from the maintainer; T11 to `proposal-accepted` with the plan gate off, the architect's `proposal-accepted` text carrying the open-slice sentence, then T6 and the worker continuing the pull request; a refused merge is T16; the worker's merge of `base`; from Step 21, T25 and the unsettled merge (section 12); from Step 32, the mirror's reading of a refusal and T25's second time |
 | 29 | `reconcile`, two repositories | `forge.Fake` with two repositories, `runner.Fake` | a plan of two slices, the first in the second declared repository and the second, moving the first's pin, in the first: each built in its repository's mirror, clone, image, check and `protected`, and its pull request opened there on `swarm/<n>-<s>`, the one outside `forge.repo` carrying `Refs <owner>/<repo>#<n>`; `Pulls(n)` finds both; slice 2 starts after slice 1 is merged and its `# Earlier pull requests` names slice 1's repository and merge commit; the owner's and the architect's clones at `/work/<name>` in the first repository's image; a plan naming an undeclared repository, a slice line naming none, or a plan without slice lines, is *bad slices* then T17, as is a worker's slice whose repository was removed from `repos` after the plan, while with one repository declared an unnamed slice and a plan without slice lines are in it; the stage labels from one `EnsureLabels` carried in both repositories |
 | 29 | the secret check | `forge.Fake`, `runner.Fake`, a temp mirror | an `env` value, or a slot's long string read at the launch or the return, in `out.md`, in any object the push would send (a blob with a path, a merge, a commit header) or in the posted check tail: *secret in output*, nothing posted or pushed, the note naming where and never the value |
 | 29 | swarm faults and the budget | `forge.Fake`, `runner.Fake` | a fault writes nothing to the forge; two in a row write `paused` with the reason; the budget reached writes `paused`; `resume` while still over pauses again |
@@ -3920,6 +3963,24 @@ the file's `notes` only for the file's own `forge.repo`; question 35's
 wiki `yes` refused for an undeclared issues repository, asked again,
 and under `--defaults` the error) and `TestValidateNamesTheField` (the
 `wiki` row).
+
+**As built (Step 32 of the swarm build).** The collection's and the
+merge step's kept lines (sections 2, 5, 7.6, 7.7, 10, 11 and 12;
+section 14, item 93) are Go tests on the Fakes with real git for the
+mirror: `TestSwarmApplyFetchFailsTwice` (a clone whose branch cannot be
+fetched: the first failure the pass's error and the issue held, the
+second the failure *fetch failed*, after a clean exit, a fault or a
+timeout, the note naming git's error with `<state>` for the state
+directory or withholding a message that quotes a secret, and the run
+collected); `TestConflicts` (`Git.Conflicts`: clean, the conflicting
+paths, and a head the mirror does not hold an error);
+`TestSwarmMergeStepRecomputing` (a `false` whose head merges on the
+mirror waits, then merges); `TestSwarmApplyNotMergeableBackToTheWorker`
+and `TestSwarmApplyNotMergeableRetried` (the direction naming the
+file); `TestSwarmMergeStepMirrorCannotTell` (the forge's report
+standing); `TestSentBack`, `TestSwarmMergeStepSentBackTwice` and
+`TestSwarmMaintainerMergeSentBackTwice` (T25's second time: the issue
+blocked by the merge step, the verb refusing).
 
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
@@ -5484,3 +5545,45 @@ entries among revision 1's, and was renumbered at Step 38.
     typed into the answer. **Question 4's follow-up** defaulted to `yes`
     on the file's `notes` whatever issues repository was just answered;
     it now does so only when the file's `forge.repo` is that one.
+93. **The collection and the merge step (Step 32 of the swarm build,
+    2026-11-09).** Three kept lines, by the maintainer's numbers.
+    **A failed fetch retried for good**: a worker run's fetch from its
+    clone (7.6, step 1) that failed returned the error, and every pass
+    retried it with no end, the issue held at its in-progress stage.
+    Each failure is now recorded (`fetch failed: <error>`), the first
+    still the pass's error, and the second in a row is a failure of the
+    work, *fetch failed* (7.7): the issue blocked at the run's home with
+    the note naming git's error, the run collected. It holds after a
+    fault too (blocked, not relaunched on a clone that cannot be read),
+    and a run that failed already names its own failure, then the
+    fetch's. git's message may quote the clone's own text (a
+    `packed-refs` line), which no secret check read, so it is withheld
+    when it holds a secret the member was given, and the state
+    directory is written `<state>` (members read the thread, section 8).
+    **No rule bounded a send-back loop** (item 81): a head sent back by
+    T25, answered without a commit and approved again, was sent back
+    again, each lap a worker run and a round. The second time the same
+    head does not merge, told by a direction on it in the pull request's
+    thread before its last comment (the last being a retry's), the merge
+    step blocks the issue at `swarm:review-2-approved` with its note, as
+    the round limit's second time blocks (T11), and `swarm merge`
+    refuses, nothing changed (a verb's refusal is how the maintainer,
+    who is there, is told; it sets no flag on its own issue). A
+    direction counts when it is the swarm's marked note or a `trusted`
+    login's comment, so an untrusted account's copy blocks nothing.
+    **Gitea's `false` while its checker recomputes** (item 81, *to
+    confirm*): before T25 sends a pull request back, the merge step
+    fetches the repository's mirror and runs `git merge-tree` on it,
+    head against `base`; a clean merge waits for the next pass instead
+    of sending back, a conflict sends back with the conflicting files
+    named in the direction (whose first sentence changes for the merge
+    step's: `but it does not merge into <base>, …: they conflict in
+    <files>.`), and a head the mirror cannot read leaves the forge's
+    report standing, with a warning. The mirror is fetched by the step
+    because a pass that launches nothing has not fetched it. `swarm
+    merge` still reads the forge alone: the mirror is `apply`'s, and
+    the verb fetching it beside a running pass was not wanted for one
+    needless worker run. The retry's check, the pull request's last
+    comment being the direction, now matches any direction on the head
+    by the swarm rather than the exact text, since the files named may
+    differ between the two readings. No other limit was added.

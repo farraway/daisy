@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -320,5 +321,55 @@ func TestRoundDiffLeavesOutABaseMerge(t *testing.T) {
 	diff := run("sh", "-c", m[1])
 	if !strings.Contains(diff, "-a2\n+a3\n") || strings.Contains(diff, "x.go") || strings.Contains(diff, "y.go") {
 		t.Errorf("%s:\n%s", m[1], diff)
+	}
+}
+
+// Conflicts reads a head against base on the mirror with real git: a head
+// that merges is clean; one that conflicts names each conflicting path
+// once, a name with a space as it is; a head the mirror does not hold is
+// an error, not a conflict (merge-tree exits 1 for both).
+func TestConflicts(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	o := ops.Real()
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		out, errb, err := o.Exec(dir, "git", append([]string{"-c", "user.name=T", "-c", "user.email=t@example.net"}, args...)...)
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write := func(dir string, files map[string]string) {
+		for name, text := range files {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		git(dir, "add", "-A")
+		git(dir, "commit", "-q", "-m", "c")
+	}
+	state := t.TempDir()
+	m := filepath.Join(state, "git", "app")
+	os.MkdirAll(m, 0o755)
+	git(m, "init", "-q", "-b", "main")
+	write(m, map[string]string{"a.go": "a\n", "b c.go": "b\n", "d.go": "d\n"})
+	git(m, "checkout", "-q", "-b", "swarm/1-1")
+	write(m, map[string]string{"a.go": "slice\n", "b c.go": "slice\n"})
+	conflicting := git(m, "rev-parse", "HEAD")
+	git(m, "checkout", "-q", "-b", "swarm/2-1", "main")
+	write(m, map[string]string{"e.go": "e\n"})
+	clean := git(m, "rev-parse", "HEAD")
+	git(m, "checkout", "-q", "main")
+	write(m, map[string]string{"a.go": "base\n", "b c.go": "base\n", "d.go": "base\n"})
+	g := Git{O: o, State: state}
+	if paths, ok, err := g.Conflicts("app", "main", clean); err != nil || !ok || paths != nil {
+		t.Errorf("clean: %q %v %v", paths, ok, err)
+	}
+	if paths, ok, err := g.Conflicts("app", "main", conflicting); err != nil || ok || !reflect.DeepEqual(paths, []string{"a.go", "b c.go"}) {
+		t.Errorf("conflicting: %q %v %v", paths, ok, err)
+	}
+	if _, ok, err := g.Conflicts("app", "main", strings.Repeat("0", 40)); err == nil || ok {
+		t.Errorf("unknown head: %v %v", ok, err)
 	}
 }

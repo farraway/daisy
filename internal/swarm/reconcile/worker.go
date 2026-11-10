@@ -15,6 +15,10 @@ import (
 // its clone into the mirror as the run's ref, then each new commit
 // without the role's trailer reported (The trailer): on stderr and as
 // `unstamped <sha>`, never a failure; an empty co_author asks for none.
+// A fetch that fails is recorded (`fetch failed: <error>`) and is the
+// pass's error, retried at the next pass; the second in a row is a
+// failure of the work (section 7.7), `failed: fetch: <error>`, so the
+// issue is blocked with the note naming it and the run is collected.
 func (c *collection) fetch() error {
 	err := c.fetchRef()
 	if errors.Is(err, ErrForeignClone) {
@@ -25,7 +29,44 @@ func (c *collection) fetch() error {
 		}
 		return c.step("failed: " + err.Error())
 	}
-	return err
+	if _, fetched := Has(c.lines, "fetched"); err == nil || fetched {
+		return err // fetched, or an error past the fetch (the trailer's log)
+	}
+	reason := c.fetchReason(err)
+	if err := c.step("fetch failed: " + reason); err != nil {
+		return err
+	}
+	if len(fetchFailures(c.lines)) < 2 {
+		return err
+	}
+	if _, failed := Has(c.lines, "failed"); failed {
+		return nil // the run's own failure; its note names the fetch's too (keptNote)
+	}
+	return c.step("failed: fetch: " + reason)
+}
+
+// fetchFailures is the reasons of the run's failed fetches, oldest first.
+func fetchFailures(lines []string) []string {
+	var out []string
+	for _, l := range lines {
+		if r, ok := strings.CutPrefix(l, "fetch failed: "); ok {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// fetchReason is a failed fetch's error as the result and the note hold
+// it: on one line, the swarm's state directory written <state> (the
+// thread is read by members, which never see the host's paths, section
+// 8), and withheld when it holds a secret the member was given (git's
+// message may quote the clone's own text, which no secret check read).
+func (c *collection) fetchReason(err error) string {
+	reason := oneLine.Replace(strings.ReplaceAll(err.Error(), c.s.state(), "<state>"))
+	if hit([]byte(err.Error()), c.s.secretsOf(c.r, c.lines)) {
+		return "git's message withheld: it holds a secret the member was given"
+	}
+	return reason
 }
 
 // fetchRef is fetch but for its failure: a clone that reaches outside

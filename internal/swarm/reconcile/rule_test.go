@@ -113,3 +113,33 @@ func TestLaunchInReview(t *testing.T) {
 		}
 	}
 }
+
+// SentBack (T25's second time, section 12): a direction on the head, the
+// swarm's marked note or a trusted login's comment, before the thread's
+// last comment; not one that is the last (a retry), an untrusted
+// login's, or one on another head.
+func TestSentBack(t *testing.T) {
+	p := forge.Pull{Repo: "app", Number: 2, Head: "swarm/1-1"}
+	const head, other = "c1abcdef99", "d2abcdef99"
+	dir := func(h string) string { return Direction("acme", "main", 1, p, h, []string{"main.go"}) }
+	swarm := func(body string) forge.Comment {
+		return forge.Comment{Author: "swarm-bot", Body: marker("reconciler", 1) + body}
+	}
+	answer := forge.Comment{Author: "swarm-bot", Body: marker("worker", 2) + "NO CHANGE: merged."}
+	for _, tc := range []struct {
+		name     string
+		comments []forge.Comment
+		want     bool
+	}{
+		{"none", nil, false},
+		{"the swarm's, last: a retry", []forge.Comment{swarm(dir(head))}, false},
+		{"the swarm's, answered", []forge.Comment{swarm(dir(head)), answer}, true},
+		{"a trusted login's, answered", []forge.Comment{{Author: "Jane", Body: Direction("acme", "main", 1, p, head, nil)}, answer}, true},
+		{"an untrusted login's", []forge.Comment{{Author: "mallory", Body: dir(head)}, answer}, false},
+		{"on another head", []forge.Comment{swarm(dir(other)), answer}, false},
+	} {
+		if got := SentBack(tc.comments, "acme", p, head, "swarm-bot", []string{"jane", "swarm-bot"}); got != tc.want {
+			t.Errorf("%s: %v", tc.name, got)
+		}
+	}
+}

@@ -242,6 +242,28 @@ func TestSwarmMaintainerMergeNotMergeable(t *testing.T) {
 	}
 }
 
+// merge of a head sent back once already (T25's second time, section
+// 12): jane's direction on it, the worker's answer without a commit after
+// it, and the pair's approval of the same head again; the forge still
+// reports it not mergeable, and the verb refuses, writing nothing.
+func TestSwarmMaintainerMergeSentBackTwice(t *testing.T) {
+	m := newMaintainerWS(t)
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
+	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
+	pr := m.approvedPull(1, "c1abcdef99")
+	m.as["jane-456"].Comment(pr, direction("c1abcdef99"))
+	m.forge.Comment(pr, mark("worker", 2)+"NO CHANGE: main already merged.")
+	m.forge.SetMergeable(pr, forge.MergeableNo)
+	before := m.writes(1, pr.N)
+	err := m.verb(swarmMerge, "1")
+	if err == nil || err.Error() != "Error: swarm: #1: pull app#2 was sent back to merge main at c1abcde once already, was approved again at that head, and the forge still reports it not mergeable; merge main into swarm/1-1, or relabel the issue; nothing changed" {
+		t.Fatalf("err %v", err)
+	}
+	if got := m.writes(1, pr.N); !reflect.DeepEqual(got, before) {
+		t.Errorf("writes:\n%s", strings.Join(got, "\n"))
+	}
+}
+
 // Every verb refuses, writing nothing, when DAISY_MAINTAINER_TOKEN is
 // unset, holds the swarm's token (refused before the forge is opened) or
 // is a token of the swarm's account (refused after Login, before any

@@ -463,3 +463,81 @@ func TestSwarmApplyCollectsARunAnotherApplyStarted(t *testing.T) {
 		t.Error("work/ kept after the collection")
 	}
 }
+
+// A worker run whose branch cannot be fetched from its clone (its .git
+// left with no HEAD, which git reads as no repository): the first failed
+// fetch is the pass's error, recorded and retried, the issue held at its
+// in-progress stage; the second in a row is a failure of the work, the
+// issue blocked at the run's home with the note naming git's error (the
+// state directory written <state>) and the run collected. A run that
+// failed or faulted already is blocked the same way, its note naming its
+// own failure and then the fetch's.
+func TestSwarmApplyFetchFailsTwice(t *testing.T) {
+	unreadable := func(work string) error {
+		if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
+			return err
+		}
+		return os.Remove(filepath.Join(work, ".git", "HEAD"))
+	}
+	for _, tc := range []struct {
+		name   string
+		canned runner.Canned
+		failed string // the run's own failure, before the fetch's
+		reason string // the fetch's, when not git's message
+	}{
+		{name: "a run that exited 0", canned: runner.Canned{Out: "Done.\n", Work: unreadable}},
+		{name: "a run that faulted", canned: runner.Canned{Code: 125, Work: unreadable}},
+		{name: "a run that timed out", canned: runner.Canned{Out: "half\n", TimedOut: true, Code: 137, Work: unreadable}, failed: "timeout after 45m"},
+		{name: "git quoting the clone's secret", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
+				return err
+			}
+			f, err := os.OpenFile(filepath.Join(work, ".git", "packed-refs"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			_, err = f.WriteString("oauth-token-0123456789abcdef0123456789 x\n") // git's message quotes the line
+			return err
+		}}, reason: "git's message withheld: it holds a secret the member was given"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.planned(oneSlice)
+			a.runner.Script(1, "worker", tc.canned)
+			a.tick()
+			if err := a.apply(a.git(), "--once"); err == nil || !strings.Contains(err.Error(), "fatal: ") {
+				t.Fatalf("the first failed fetch: %v\n%s", err, a.stdout.String())
+			}
+			r := a.result("1-worker-1")
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-2-in-progress"}) || strings.Count(r, "\nfetch failed: ") != 1 || strings.Contains(r, "collected") {
+				t.Fatalf("after the first: %v\n%s", got, r)
+			}
+			a.pass()
+			r = a.result("1-worker-1")
+			reasons := strings.Split(r, "\nfetch failed: ")
+			if len(reasons) != 3 || !strings.HasSuffix(r, "outcome failed\ncollected\n") {
+				t.Fatalf("after the second:\n%s", r)
+			}
+			reason, _, _ := strings.Cut(reasons[2], "\n")
+			if tc.reason != "" && reason != tc.reason || tc.reason == "" && !strings.HasPrefix(reason, "git fetch --quiet --no-tags <state>/runs/1-worker-1/work ") || strings.Contains(reason, a.state("")) || strings.Contains(r, "oauth-token") {
+				t.Errorf("the reason: %q", reason)
+			}
+			note := mark("reconciler", 1) + "worker run 1 failed: fetch: " + reason + " (at swarm:plan-1-accepted). Remove swarm:blocked to resume."
+			if tc.failed != "" {
+				note = mark("reconciler", 1) + "worker run 1 failed: " + tc.failed + " (at swarm:plan-1-accepted). Remove swarm:blocked to resume. Its commits could not be fetched from its clone: " + reason + "."
+			}
+			b := a.bodies(1)
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-1-accepted", "swarm:blocked", forge.Gated}) || b[len(b)-1] != note {
+				t.Fatalf("T17: %v\n%q\nwant %q\n%s", got, b[len(b)-1], note, r)
+			}
+			if _, err := os.Stat(a.state("runs/1-worker-1/work")); err == nil {
+				t.Error("the clone was not removed")
+			}
+			a.pass() // collected: nothing fetched again, nothing launched
+			if a.result("1-worker-1") != r || len(a.bodies(1)) != len(b) {
+				t.Errorf("collected again:\n%s", a.result("1-worker-1"))
+			}
+		})
+	}
+}

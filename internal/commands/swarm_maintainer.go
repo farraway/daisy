@@ -381,8 +381,10 @@ func swarmApprove(c *Context, open opener) error {
 // the gate off, relabels the issue planned when the accepted plan declares
 // a slice after it (T13) and closes it when it was the last. A merge the
 // forge refuses of a pull request it reports not mergeable goes back to
-// the worker, as the merge step sends it (T25); any other refused merge
-// changes nothing: the maintainer is there to read why.
+// the worker, as the merge step sends it (T25), unless that head was sent
+// back once already (reconcile.SentBack), which the verb refuses as the
+// merge step blocks it; any other refused merge changes nothing: the
+// maintainer is there to read why.
 func swarmMerge(c *Context, open opener) error {
 	m, err := asMaintainer(c, open)
 	if err != nil {
@@ -441,9 +443,18 @@ func swarmMerge(c *Context, open opener) error {
 // (reconcile.Direction) posted on the pull request, whose thread the
 // worker reads, then the issue relabelled review-3-changes-requested.
 func (m *maintainer) backToWorker(p forge.Pull, head string) error {
-	fmt.Fprintf(m.c.Stdout, "#%d not mergeable: back to the worker\n", m.n)
 	owner, _, _ := strings.Cut(m.cfg.Forge.Repo, "/")
-	if err := m.sayOnPull(p, reconcile.Direction(owner, m.cfg.Base, m.n, p, head)); err != nil {
+	ref := forge.Ref{Repo: p.Repo, N: p.Number}
+	existing, err := m.f.PullComments(ref)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	if reconcile.SentBack(existing, owner, p, head, m.swarm, m.cfg.Trusted) {
+		return fmt.Errorf("Error: swarm: #%d: pull %s#%d was sent back to merge %s at %s once already, was approved again at that head, and the forge still reports it not mergeable; merge %s into %s, or relabel the issue; nothing changed",
+			m.n, p.Repo, p.Number, m.cfg.Base, short(head), m.cfg.Base, p.Head)
+	}
+	fmt.Fprintf(m.c.Stdout, "#%d not mergeable: back to the worker\n", m.n)
+	if err := m.sayOn(ref, existing, reconcile.Direction(owner, m.cfg.Base, m.n, p, head, nil)); err != nil {
 		return err
 	}
 	return m.relabel(forge.ReviewApproved, forge.ChangesRequested)

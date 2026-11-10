@@ -65,7 +65,10 @@ func (s *Swarm) collect(r Run) error {
 			return err
 		}
 	}
-	if l, ok := Has(c.lines, "fault"); ok {
+	// A worker's second failed fetch is a failure of the work even after
+	// a fault: its issue is blocked, not relaunched on a clone that cannot
+	// be read.
+	if l, ok := Has(c.lines, "fault"); ok && !(worker && len(fetchFailures(c.lines)) >= 2) {
 		fmt.Fprintf(s.Out, "%sfault (%s)\n", c.head, strings.TrimPrefix(l, "fault: "))
 		if worker {
 			if err := c.keep(); err != nil {
@@ -465,6 +468,12 @@ func (c *collection) keptNote() (string, error) {
 	}
 	if err := c.keep(); err != nil {
 		return "", err
+	}
+	if f := fetchFailures(c.lines); len(f) >= 2 {
+		if l, _ := Has(c.lines, "failed"); strings.HasPrefix(l, "failed: fetch: ") {
+			return "", nil // the failure is the fetch's, named already
+		}
+		return " Its commits could not be fetched from its clone: " + f[len(f)-1] + ".", nil
 	}
 	if !c.commits() {
 		return "", nil

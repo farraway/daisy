@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -180,6 +182,32 @@ func (g Git) Changed(name, base, sha string) ([]string, error) {
 	}
 	return paths, nil
 }
+
+// Conflicts is whether sha merges into base on the repository's mirror,
+// as `git merge-tree` merges them without a work tree (section 12, the
+// merge step): clean, or the paths that conflict, each once.
+func (g Git) Conflicts(name, base, sha string) (paths []string, clean bool, err error) {
+	args := []string{"merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", "refs/heads/" + base, sha}
+	out, errb, err := g.O.Exec(g.Mirror(name), "git", args...)
+	// Exit 1 is a conflict when git wrote the merged tree's id first; an
+	// object it cannot read exits 1 as well, with nothing written.
+	var exit *exec.ExitError
+	tree, rest, _ := strings.Cut(string(out), "\x00")
+	switch {
+	case err == nil:
+		return nil, true, nil
+	case errors.As(err, &exit) && exit.ExitCode() == 1 && objectID.MatchString(tree):
+		for _, p := range strings.Split(rest, "\x00") {
+			if p != "" {
+				paths = append(paths, p)
+			}
+		}
+		return paths, false, nil
+	}
+	return nil, false, fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))
+}
+
+var objectID = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
 // Objects is every object the push of sha would send past base, as
 // stored: commits with their headers, trees and blobs (section 7.6, step
