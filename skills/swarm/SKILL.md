@@ -96,6 +96,8 @@ an exit criterion observable without reading the code, and what it forces
 earlier. The owner proposes jobs toward the first unmet milestone of the
 highest-priority `active` brief, and writes `Met: <path>` when a brief's
 milestones are all met: that is when to suggest flipping its `Status`.
+With no brief `active` the owner proposes nothing: its batch is held, and
+`status`'s `State:` line says `owner batch held: no brief is active`.
 
 When the issues repository is the swarm's own (`forge.repo` none of
 `repos`, by convention `<owner>/swarm-<name>`), its briefs live in its

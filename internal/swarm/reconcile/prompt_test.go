@@ -50,7 +50,7 @@ func fixture() (*forge.Fake, forge.Ref) {
 
 func job(f *forge.Fake, n int, role, label string) *Job {
 	is, _ := f.Issue(n)
-	pulls, _ := f.Pulls(n)
+	pulls, _ := f.Pulls(n, []string{"swarm-bot"})
 	return &Job{Cfg: cfg(), Host: "forge.example.net", SwarmLogin: "swarm-bot", N: n, K: 1, Role: role, Label: label, Time: t0,
 		Persona: "# " + role + "\n\nYou do it.\n\n```\n# not a heading\n```\n", Issue: is, Pulls: pulls}
 }
@@ -200,7 +200,7 @@ func TestRenderWorkerNextSlice(t *testing.T) {
 	if err := f.Merge(pr, "aaa"); err != nil {
 		t.Fatal(err)
 	}
-	pulls, _ := f.Pulls(1)
+	pulls, _ := f.Pulls(1, []string{"swarm-bot"})
 	j := job(f, at.N, "worker", "swarm:plan-1-accepted")
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{
@@ -234,7 +234,7 @@ func TestRenderAdversaryRoundTwo(t *testing.T) {
 	f, at, pr, _ := planned(t)
 	f.Push(pr, "bbb")
 	f.Review(pr, forge.Commented, marker("sympathetic", 2)+"VERDICT: approve\nstill fine")
-	pulls, _ := f.Pulls(1)
+	pulls, _ := f.Pulls(1, []string{"swarm-bot"})
 	j := job(f, at.N, "adversary", "swarm:review-0-ready")
 	j.Pulls, j.Pull, j.Check = pulls, thread(f, pr), "No check result for this head."
 	sys, prompt := Render(j)
@@ -253,7 +253,7 @@ func TestRenderAdversaryRoundTwo(t *testing.T) {
 func TestRenderAdversaryNoChange(t *testing.T) {
 	f, at, pr, _ := planned(t)
 	f.Comment(pr, marker("worker", 2)+"NO CHANGE: x.go:1 is right; the plan says so.\n\nNot established: none")
-	pulls, _ := f.Pulls(1)
+	pulls, _ := f.Pulls(1, []string{"swarm-bot"})
 	j := job(f, at.N, "adversary", "swarm:review-0-ready")
 	j.Pulls, j.Pull = pulls, thread(f, pr)
 	sys, _ := Render(j)
@@ -299,7 +299,7 @@ func reviewed(t *testing.T, n int) (*forge.Fake, forge.Ref, forge.Ref) {
 
 // jobOn is the role's job on the reviewed fixture.
 func jobOn(f *forge.Fake, at forge.Ref, pr forge.Ref, role, label string) *Job {
-	pulls, _ := f.Pulls(at.N)
+	pulls, _ := f.Pulls(at.N, []string{"swarm-bot"})
 	j := job(f, at.N, role, label)
 	j.Pulls, j.Pull, j.Check = pulls, thread(f, pr), "No check result for this head."
 	return j
@@ -445,9 +445,6 @@ func TestRenderOwner(t *testing.T) {
 	has(t, "batch system.md", sys, []string{`Propose up to 3 new jobs for acme/app, most important first, toward the first milestone`})
 	has(t, "batch prompt.md", prompt, []string{"# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /work/.resources/docs/briefs/a.md)\n\n### A\nStatus: active\nFirst.\n\n#### M1\n",
 		"# Open swarm issues\n\nNone.\n\n# Recently closed\n\nNone.\n"}, "b.md", "notes.md", "# Issue", "# Thread")
-	b.Batch.Briefs = nil
-	sys, prompt = Render(b)
-	has(t, "batch without briefs", sys+prompt, []string{"from the resources and the code. Start each", "# Briefs\n\nNone."})
 }
 
 // mergeBase is the worker's first instruction in every Task text, the
@@ -460,7 +457,7 @@ func TestRenderWorkerMergesBase(t *testing.T) {
 	for _, gate := range []bool{true, false} {
 		f, at, pr, _ := planned(t)
 		fast, fastAt := fixture()
-		pulls, _ := f.Pulls(1)
+		pulls, _ := f.Pulls(1, []string{"swarm-bot"})
 		answer := job(f, at.N, "worker", "swarm:review-3-changes-requested")
 		answer.Pulls, answer.Pull = pulls, thread(f, pr)
 		for name, j := range map[string]*Job{

@@ -93,7 +93,7 @@ func (f failingReads) Issues(forge.State, string) ([]forge.Issue, error) {
 	return nil, nil
 }
 
-func (f failingReads) Pulls(int) ([]forge.Pull, error) {
+func (f failingReads) Pulls(int, []string) ([]forge.Pull, error) {
 	if f.pulls {
 		return nil, errors.New("forge: GET /repos/acme/lib/pulls?…: 404 Not Found")
 	}

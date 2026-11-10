@@ -217,7 +217,7 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 		if name != repoName(s.Cfg.Forge.Repo) {
 			issue = s.Cfg.Forge.Repo + issue
 		}
-		pulls, err := s.Forge.Pulls(c.r.N)
+		pulls, err := s.pulls(c.r.N)
 		if err != nil {
 			return err
 		}

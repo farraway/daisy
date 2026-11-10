@@ -112,7 +112,7 @@ by `<owner>`.
 (`proposal-posted → proposal-accepted`), G2 plan (`plan-0-posted →
 plan-1-accepted`), G3 merge (`review-2-approved` → merged), G4 unblock
 (`swarm:blocked` cleared, the stage kept), and G0 pacing (the owner
-proposes only when no open issue is `proposal-posted` and fewer than
+proposes only when a brief is `active`, no open issue is `proposal-posted` and fewer than
 `owner.max_open_proposals` routine jobs wait at `proposal-accepted`,
 section 6). G1–G3 are configurable (`gates` in
 `swarm.json`, each on by default); G4 is always the maintainer's. With a
@@ -190,7 +190,7 @@ flowchart TB
     S3 --> S4["4 paused? budget?"]
     S4 --> S5["5 per label in stage order: role rule, launch until max_members"]
     S5 --> S6["6 merge step (G3 off only)"]
-    S6 --> S7["7 owner batch trigger (G0: none posted, fewer than max_open_proposals waiting)"]
+    S6 --> S7["7 owner batch trigger (G0: a brief active, none posted, fewer than max_open_proposals waiting)"]
     S7 --> S8["8 a routine job's triage and plan gates passed; the gated flag; the milestones; the summary line"]
     ST[("state: lock · paused · owner-held<br/>git/name mirrors · runs/k audit")]
   end
@@ -928,7 +928,9 @@ repositories, `<n>` being `forge.repo`'s), and its pull request's body
 ends with the line `Refs #<n>` in `forge.repo`, or `Refs <owner>/<repo>#<n>`
 in another repository (never `Closes`), so merging it does not close the
 issue. The issue's swarm pull requests are those
-`Pulls(n)` returns (section 10); its **current pull request** is the one
+`Pulls(n)` returns (section 10), opened by the swarm's login or a
+`trusted` one (a maintainer's own counts; any other login's never does);
+its **current pull request** is the one
 on the branch with the largest `<s>`, and the earlier ones appear in
 prompts as one line each. The worker in `plan-1-accepted` continues the
 current pull request when it is open, and otherwise starts slice `<s>` +
@@ -1196,8 +1198,14 @@ the count again.
 **The owner's batch trigger (G0).** The owner has one more trigger, having
 no issue to wait on: it runs as issue 0 when no container labelled
 `#0/owner` is running, no batch run (`0-owner-*`) has an end line without
-`collected`, `<state>/owner-held` is absent, rule 4 holds, and the pacing
-condition holds. With the triage gate on, pacing is "no open issue carries
+`collected`, `<state>/owner-held` is absent, a brief under `resources` is
+`active` (section 4), rule 4 holds, and the pacing
+condition holds. While no brief is `active` the trigger is held, as it is
+by `owner-held`, and nothing is written: the owner proposes toward a
+brief's milestones, and with none it would propose from the whole
+resources tree; `status` names the hold on its `State:` line (section
+11), and flipping a brief's `Status` to `active` releases it at the
+next pass. With the triage gate on, pacing is "no open issue carries
 `swarm:proposal-posted`, and the routine jobs at
 `swarm:proposal-accepted` (Daisy triaged them, T23; section 5, The job
 class) number fewer than `owner.max_open_proposals`", and the run
@@ -1732,8 +1740,8 @@ place:
 
 `# Briefs` holds every brief under `resources` whose `Status:` is
 `active` (section 4), in path order, read from the resolved resource
-paths on the host as the prompt is rendered (`None.` when there is none,
-and the owner proposes from the resources and the code);
+paths on the host as the prompt is rendered (never `None.`: the batch
+trigger holds while no brief is `active`, section 6);
 `<path>` is the brief's path relative to `<ws>` (`docs/briefs/<file>.md`),
 the name a proposal's `Brief:` line copies.
 `# Open swarm issues` lists every open issue with a stage label;
@@ -1766,7 +1774,7 @@ with the same paragraph:
 
 | Role, label | Task text (before the closing paragraph) |
 |---|---|
-| owner, batch (issue 0) | `Propose up to <p> new jobs for <owner>/<repo>, most important first, toward the first milestone of the highest-priority brief under "# Briefs" that the closed issues do not yet meet, never proposing what an open issue already covers; a brief is a goal with milestones, each with a persona, an exit criterion and what it forces, and no steps: you cut it into jobs. Start each with a line "## <title>", then a line "Brief: <path> — <milestone>" naming the brief's path as "# Briefs" gives it and the milestone's heading, then a line "Class: routine" or "Class: architecture", then the job's body. A job is routine when it is cut from that milestone, takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. When every milestone of a brief is met by closed issues, write a line "Met: <path>" before the first "## " line; write nothing else before it. If there is nothing worth proposing, write "BLOCKED: <why>" as the only line after any "Met:" lines.` (`<p>` is the number the pacing allows, section 6), then, when a declared repository's `protected` is not `[]`, `The protected paths are <name>: <patterns>; ….` (as the architect's text names them). When `# Briefs` reads `None.`: `Propose up to <p> new jobs for <owner>/<repo>, most important first, from the resources and the code. Start each with a line "## <title>" and follow it with the job's body. Write nothing before the first "## " line. If there is nothing worth proposing, write "BLOCKED: <why>" as the only line.` |
+| owner, batch (issue 0) | `Propose up to <p> new jobs for <owner>/<repo>, most important first, toward the first milestone of the highest-priority brief under "# Briefs" that the closed issues do not yet meet, never proposing what an open issue already covers; a brief is a goal with milestones, each with a persona, an exit criterion and what it forces, and no steps: you cut it into jobs. Start each with a line "## <title>", then a line "Brief: <path> — <milestone>" naming the brief's path as "# Briefs" gives it and the milestone's heading, then a line "Class: routine" or "Class: architecture", then the job's body. A job is routine when it is cut from that milestone, takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. When every milestone of a brief is met by closed issues, write a line "Met: <path>" before the first "## " line; write nothing else before it. If there is nothing worth proposing, write "BLOCKED: <why>" as the only line after any "Met:" lines.` (`<p>` is the number the pacing allows, section 6), then, when a declared repository's `protected` is not `[]`, `The protected paths are <name>: <patterns>; ….` (as the architect's text names them). |
 | owner, `swarm:proposal-posted` | `Answer the latest comment in the thread of issue #<n>.`; when the issue has no counted comment (section 6), `Issue #<n> has no comment yet: say whether its body is a job the swarm can do and is worth doing next, and what is unclear in it.` With the triage gate off, it adds: `Then restate the whole job as it now stands: the architect plans from your answer.` |
 | architect, `swarm:proposal-accepted` | `Write the plan for issue #<n> as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step.` With the plan gate on, it adds `The maintainer reads "## Research" first, then the plan, before any code is written.`; off, `The plan is accepted as you write it: there is no revision round.` While the issue's current pull request is open (T11 with G2 off, or a relabel to `proposal-accepted` by the maintainer), it adds the open-slice sentence of the `plan-0-posted` row |
 | architect, `swarm:plan-0-posted` | `Revise your plan for issue #<n> in answer to the latest comment. Write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, a slice that moves a pin to another slice's change after that slice, a diagram where a slice touches more than one component.` While the issue's current pull request is open (after T11, or a relabel by the maintainer), it adds the **open-slice sentence**: `Pull request <name>#<m>, slice <s>, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Revise the plan so that the slice can pass review: slice <s> keeps its number, its repository and its branch, and the worker continues on them; what it does, how it is tested and the slices after it may change.` With no accepted plan in the thread (the fast lane reaching the limit), the text is the `proposal-accepted` row's, with the open-slice sentence |
@@ -2472,7 +2480,7 @@ type Adapter interface {
     Comment(at Ref, body string) error                 // an issue or a pull request
     Relabel(at Ref, remove, add string) error          // an issue or a pull request; remove "" only adds
     CloseIssue(n int) error
-    Pulls(n int) ([]Pull, error)                       // the swarm's pull requests for issue n in every declared repository, by slice
+    Pulls(n int, openers []string) ([]Pull, error)     // the swarm's pull requests for issue n in every declared repository, opened by one of openers, by slice
     CreatePull(repo, head, base, title, body string) (int, error) // in the declared repository repo
     PullComments(pr Ref) ([]Comment, error)            // oldest first
     Reviews(pr Ref) ([]Review, error)
@@ -2598,7 +2606,11 @@ only issues that carry the label (Gitea drops a `labels` filter naming no
 label it has and answers every issue; whether the filter resolves an
 organization label's name is *to confirm* on the instance), and is sorted by number. `Pulls` reads every pull request, open and closed, of
 each declared repository, one list per repository, and returns those
-whose body has a line equal to `Refs #<n>` in `forge.repo`, or
+opened (`user.login`) by one of `openers`, in any case (the callers pass
+`trusted`'s logins and the swarm's own: a maintainer's pull request
+counts, and one any other login opens on a swarm branch with the `Refs`
+line is never the swarm's, never labelled, read, reviewed or merged as
+its, and never an issue's current pull request), whose body has a line equal to `Refs #<n>` in `forge.repo`, or
 `Refs <owner>/<repo>#<n>` in another repository (any case), and whose
 slice number `<s>` is read from the head branch (`head.ref`)
 `swarm/<n>-<s>`, or, when the forge has deleted the merged branch and
@@ -3116,7 +3128,7 @@ outcome.
 | Usage | `daisy swarm status` |
 | Reads | `swarm/swarm.json` (validated as `apply` validates it, the prompts included), `<ws>/.env.sh` (the token), `<state>/paused`, `<state>/owner-held`, `<state>/auto`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under the resolved `resources` paths (their `Status:` lines and `## ` headings, section 4); the forge: `Login()`, `Issues(Open, label)` for each of the nine stages and `Issues(Closed, label)` for each of them and the two terminals, `Issue(m)` for each blocker an open issue's newest maintainer comment names (`Blocked by #<m>`), `Milestones()` when a brief is `active`, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
 | Writes | nothing, anywhere |
-| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]` and ` — owner batch held: <reason>` when so; `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per stage, `  %-26s %d` and the issue numbers (`  proposal-posted            2  #20 #21`); `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `next slice #…`, `close #…`, `pull closed #…`, `blocked #…`, separated by `; `, each issue `#<n>` under `triage` and `plan` and `#<n> (<class>)` under the others (section 5's list, a `review-2-approved` issue under the one of `merge`, `next slice`, `close` and `pull closed` its current pull request calls for, below), or `nothing`; `Held: ` then `paused #…` and `#<n> blocked by #<m>` for each issue held by an open blocker, separated by `; `, or `nothing`; `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief in path order (below), or `Briefs: none active`; the report is written whole once every read is made, so a failure prints none of it |
+| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]` and ` — owner batch held: <reason>` when so (`<reason>` `owner-held`'s), and ` — owner batch held: no brief is active` when no brief under `resources` is `active` (section 6); `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per stage, `  %-26s %d` and the issue numbers (`  proposal-posted            2  #20 #21`); `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `next slice #…`, `close #…`, `pull closed #…`, `blocked #…`, separated by `; `, each issue `#<n>` under `triage` and `plan` and `#<n> (<class>)` under the others (section 5's list, a `review-2-approved` issue under the one of `merge`, `next slice`, `close` and `pull closed` its current pull request calls for, below), or `nothing`; `Held: ` then `paused #…` and `#<n> blocked by #<m>` for each issue held by an open blocker, separated by `; `, or `nothing`; `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief in path order (below), or `Briefs: none active`; the report is written whole once every read is made, so a failure prints none of it |
 | Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`); 1 outside a workspace, `swarm.json` absent or invalid, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief, `<state>/auto`, a run's `result` or a batch run's `out.md` unreadable; 2 with any argument |
 | Ops | ReadOnly, which since Step 4 of the swarm build lets through an `HTTP` request whose method is `GET` or `HEAD` and the `Exec` of `docker ps` for every command it wraps (section 14, item 31); every other write, `Exec` and `Start` stays refused |
 
@@ -3502,7 +3514,7 @@ interface with the step that builds the board.
 | 28 | `provider` | table test | section 9's argv for each adapter (both prompt files, `codex`'s `--cd <W>` and `grok`'s `--cwd <W>`: `/work`, or `/work/<first name>` for the owner and the architect of a provider not confined; `claude`'s `--settings` turning its attribution off; `grok`'s `--trust`; one `--add-dir` per directory of `D` for `claude` and `codex`, none for `grok` whatever it is given; from Step 25a of the swarm build, over `apply` with the architect on `xai`, no `--add-dir`, `--cwd /work` and `--workdir /work`, every absolute path its argv, `system.md` and `prompt.md` name and every mount but `/credential` under it, and the prompt naming `/work/<first name>` as the repository; an opt-in check, `TestRealGrokTakesTheArgv`, skipped unless `DAISY_TEST_GROK_HOME` names a scratch copy of a logged-in grok home, runs the real `grok` on the argv with a resource under its `--cwd`); `Report` over a recorded output per CLI (`grok`'s, until a run records one, the shapes of its headless guide), a fault included |
 | 28 | the clone | real git in temp directories | 7.1 step 3: no remote, a local `<base>`, the identity `<role> (Daisy swarm) <commit_email>`, `/.swarm/` excluded (from Step 25a of the swarm build, `git add -A` staging nothing under `.swarm/`, `.notes/` or `.resources/`), and the `commit-msg` hook stamping `Co-Authored-By: <co_author>` on a commit made in the clone, once when the message already carries it |
 | 28 | `runner.Docker` | `ops.Fake` `Exec`/`Start` and the `After` hook (item 35) | section 7.2's two argvs (mounts, the run's repository's image, `--workdir` `/work` or `/work/<first name>` for the owner and the architect of a provider not confined, label, name, user, `no-new-privileges`, the env-file or the slot's mount, label and home variable (`CODEX_HOME`, `GROK_HOME`) for the member only, `--network none` for the check, stop-timeout), an `env` value on stdin only, `docker stop` at the wall clock |
-| 28 | the prompt files | `forge.Fake`, a temp `<run>` | each section of 7.3 per role from the Fake's entries (the `Clone` lines: `/work`, or `/work/<name>` per repository for the owner and the architect), verbatim but for shifted headings; `Opened by owner, run <k>`; `None.` for each empty section; headings shifted; the Task texts' `protected` (the architect's per repository, `<name>: <patterns>`) and `Not established:` sentences, the architect's Daisy-plan headings with `## Research` first and its repository prefix for slices, the architect's open-slice sentence in `plan-0-posted` and in `proposal-accepted` with the pull request's thread and `# Check` in its prompt while the current pull request is open, on a second revision too, and the `proposal-accepted` text with that sentence in `plan-0-posted` when there is no plan, the adversary's named-test sentence, the worker's `in <owner>/<name>` and its pin sentence for `<s>` > 1; the batch prompt's `# Briefs` from a temp resources tree holding an `active` brief, a `done` one left out, and a file without a `Status:` line left out, in path order, `None.` with none; a read-back that differs, or an empty heading field, is *prompt refused* and launches nothing |
+| 28 | the prompt files | `forge.Fake`, a temp `<run>` | each section of 7.3 per role from the Fake's entries (the `Clone` lines: `/work`, or `/work/<name>` per repository for the owner and the architect), verbatim but for shifted headings; `Opened by owner, run <k>`; `None.` for each empty section; headings shifted; the Task texts' `protected` (the architect's per repository, `<name>: <patterns>`) and `Not established:` sentences, the architect's Daisy-plan headings with `## Research` first and its repository prefix for slices, the architect's open-slice sentence in `plan-0-posted` and in `proposal-accepted` with the pull request's thread and `# Check` in its prompt while the current pull request is open, on a second revision too, and the `proposal-accepted` text with that sentence in `plan-0-posted` when there is no plan, the adversary's named-test sentence, the worker's `in <owner>/<name>` and its pin sentence for `<s>` > 1; the batch prompt's `# Briefs` from a temp resources tree holding an `active` brief, a `done` one left out, and a file without a `Status:` line left out, in path order (never `None.`: the batch trigger holds while no brief is `active`, section 6); a read-back that differs, or an empty heading field, is *prompt refused* and launches nothing |
 | 28 | the slots | a temp `$DAISY_LOCAL`, `ops.Fake` `Exec` | the lowest free slot taken; a held lock, a container labelled `daisy.credential` in the pass's snapshot, or one seen only by the re-read under the lock, makes the next slot be tried; none free launches nothing; every entry but `auth.json` removed; an `auth.json` that is a link is *slot refused* and its target untouched; a slot without a login *slot refused* with its provider's login line (`TestTakeSlotRefusesAnXAISlotWithoutALogin`); the lock released when `docker run` returns |
 | 28 | the role rule | table over (label, newest counted entry's marker and author, running set) | launch or not, per section 6's table, the marker regex, the author check (a marked entry by a maintainer's login is not the swarm's) and an untrusted newest entry included |
 | 28 | `reconcile`, `proposal-accepted → plan-0-posted` | `forge.Fake`, `runner.Fake` | the architect runs once; its output is a marked comment; T5; a second pass launches nothing; `Say` from a trusted login runs it again, from another login does not |
@@ -3981,6 +3993,19 @@ file); `TestSwarmMergeStepMirrorCannotTell` (the forge's report
 standing); `TestSentBack`, `TestSwarmMergeStepSentBackTwice` and
 `TestSwarmMaintainerMergeSentBackTwice` (T25's second time: the issue
 blocked by the merge step, the verb refusing).
+
+**As built (Step 33 of the swarm build).** Whose pull requests count and
+when the owner proposes (sections 1, 5, 6, 7.3, 7.4, 10 and 11;
+section 14, item 94) are Go tests on the Fakes: `TestGiteaPulls` and
+`TestFakePullAuthor` (`Pulls` keeping a pull request opened by one of
+`openers` in any case, a maintainer's among them, and dropping another
+login's); `TestSwarmMaintainerCurrentPullOpeners` (an untrusted login's
+later-slice pull request never the current one, so `approve` and
+`merge` act on the swarm's; a trusted maintainer's own current);
+`TestSwarmApplyBatchTrigger`'s `no active brief` (a `draft` brief only:
+no batch run, no `owner-held`, `status`'s `State:` line naming the
+hold, and the batch running once the brief is `active`) and
+`TestSwarmStatusAfterInit` (the hold named after `init`).
 
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
@@ -5587,3 +5612,23 @@ entries among revision 1's, and was renumbered at Step 38.
     comment being the direction, now matches any direction on the head
     by the swarm rather than the exact text, since the files named may
     differ between the two readings. No other limit was added.
+94. **Whose pull requests count, and when the owner proposes (Step 33 of
+    the swarm build, 2026-11-09).** Two kept lines, by the maintainer's
+    answers. **An untrusted account's pull request** on a
+    `swarm/<n>-<s>` branch with the `Refs` line was one of `Pulls(n)`,
+    whoever opened it (item 75's reading), so it could become the
+    issue's current pull request: labelled, read and reviewed as the
+    swarm's, and its branch, absent from the mirror, failing the
+    reviewer's clone at every pass while it stayed open. `Pulls` now
+    takes `openers` and keeps only the pull requests one of them opened
+    (any case); every caller passes `trusted`'s logins and the swarm's
+    own, so a maintainer's own pull request still counts and any other
+    login's never does (section 10). The filter is the adapter's, not
+    each caller's, so no reader of `Pulls` can see another login's.
+    **The no-brief batch** proposed from the whole resources tree (five
+    proposals on the first day, all closed): the owner's batch trigger
+    is now held while no brief under `resources` is `active` (section
+    6), writing nothing, and `status`'s `State:` line says ` — owner
+    batch held: no brief is active`, as it names `owner-held`'s reason.
+    The batch's Task text for an empty `# Briefs`, now never rendered,
+    is gone (7.4). No limit was added.

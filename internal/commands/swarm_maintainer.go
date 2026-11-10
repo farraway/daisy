@@ -155,7 +155,7 @@ func (m *maintainer) issue(want string) (forge.Issue, error) {
 // current is issue n's current pull request (section 5): the swarm's with
 // the largest slice; ok is false when the issue has none.
 func (m *maintainer) current() (pulls []forge.Pull, cur forge.Pull, ok bool, err error) {
-	pulls, err = m.f.Pulls(m.n)
+	pulls, err = m.f.Pulls(m.n, reconcile.Openers(m.swarm, m.cfg.Trusted))
 	if err != nil {
 		return nil, cur, false, fmt.Errorf("Error: swarm: %v", err)
 	}

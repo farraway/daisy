@@ -169,7 +169,7 @@ func (s *Swarm) planItems(is forge.Issue) []string {
 // review rounds, and the non-blocking findings of the reviews that
 // approved its head.
 func (s *Swarm) mergeItems(is forge.Issue) ([]string, error) {
-	pulls, err := s.Forge.Pulls(is.Number)
+	pulls, err := s.pulls(is.Number)
 	if err != nil {
 		return nil, err
 	}

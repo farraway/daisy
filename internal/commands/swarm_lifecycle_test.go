@@ -21,8 +21,8 @@ type gitForge struct {
 	a *applyWS
 }
 
-func (g gitForge) Pulls(n int) ([]forge.Pull, error) {
-	ps, err := g.Fake.Pulls(n)
+func (g gitForge) Pulls(n int, openers []string) ([]forge.Pull, error) {
+	ps, err := g.Fake.Pulls(n, openers)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (g gitForge) Pulls(n int) ([]forge.Pull, error) {
 			g.Fake.Push(forge.Ref{Repo: p.Repo, N: p.Number}, sha)
 		}
 	}
-	return g.Fake.Pulls(n)
+	return g.Fake.Pulls(n, openers)
 }
 
 func (a *applyWS) upstream(name string) string {
@@ -64,7 +64,7 @@ func (a *applyWS) issue(n int) forge.Issue {
 
 func (a *applyWS) pulls(n int) []forge.Pull {
 	a.t.Helper()
-	ps, err := a.git().Pulls(n)
+	ps, err := a.git().Pulls(n, []string{"swarm-bot"})
 	if err != nil {
 		a.t.Fatal(err)
 	}
@@ -76,7 +76,15 @@ func (a *applyWS) file(run, rel string) string {
 	return string(b)
 }
 
-func (a *applyWS) release() { os.Remove(a.state("owner-held")) }
+// release lets the owner's batch run: <state>/owner-held removed, and an
+// active brief written when the workspace has none at docs/briefs/a.md
+// (the batch is held while no brief is active, section 6).
+func (a *applyWS) release() {
+	os.Remove(a.state("owner-held"))
+	if _, err := os.Stat(filepath.Join(a.ws, "docs/briefs/a.md")); err != nil {
+		a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nFirst.\n\n## M1 The drift\n\nA persona sees no drift.\n")
+	}
+}
 
 // commit is a worker's work: files written and committed in its clone,
 // through the clone's own hook unless args say --no-verify.

@@ -153,7 +153,7 @@ func TestSwarmMaintainerVerbs(t *testing.T) {
 	if got := m.writes(1, first.N, second.N); !reflect.DeepEqual(got, want) {
 		t.Errorf("writes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	pulls, _ := m.forge.Pulls(1)
+	pulls, _ := m.forge.Pulls(1, []string{"swarm-bot"})
 	for _, p := range pulls {
 		if !p.Merged {
 			t.Errorf("pull %d not merged", p.Number)
@@ -167,6 +167,30 @@ func TestSwarmMaintainerVerbs(t *testing.T) {
 	}
 	if slices.ContainsFunc(m.ran, func(p string) bool { return p != "git" }) {
 		t.Errorf("a verb ran %q", m.ran)
+	}
+}
+
+// Whose pull requests are the issue's (section 10, Pulls): one an
+// untrusted login opens on a later slice's branch with the Refs line is
+// never the current pull request, so approve and merge act on the
+// swarm's; a trusted maintainer's own is current (here unreviewed, so
+// merge refuses it by name).
+func TestSwarmMaintainerCurrentPullOpeners(t *testing.T) {
+	m := newMaintainerWS(t)
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
+	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
+	m.approvedPull(1, "c1")
+	evil, _ := m.forge.As(forge.Account{Login: "mallory"}).CreatePull("app", "swarm/1-2", "main", "slice", "Refs #1")
+	m.forge.Push(forge.Ref{Repo: "app", N: evil}, "e1")
+	const head = "Maintainer jane on acme/app\n"
+	m.ok(swarmApprove, head+"#1 approved pull app#2 at c1\n", "1")
+	m.ok(swarmMerge, head+"#1 merged pull app#2 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", "1")
+
+	own, _ := m.as["jane-456"].CreatePull("app", "swarm/1-3", "main", "slice", "Refs #1")
+	m.forge.Push(forge.Ref{Repo: "app", N: own}, "j3")
+	m.forge.SetLabel(issue1, "swarm:review-2-approved")
+	if err := m.verb(swarmMerge, "1"); errText(err) != fmt.Sprintf("Error: swarm: #1: no head of pull app#%d is approved by both the swarm's reviews; nothing merged", own) {
+		t.Errorf("merge of jane's own: %v", err)
 	}
 }
 
@@ -237,7 +261,7 @@ func TestSwarmMaintainerMergeNotMergeable(t *testing.T) {
 	if got := m.writes(1, pr.N); !reflect.DeepEqual(got, want) {
 		t.Errorf("writes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	if ps, _ := m.forge.Pulls(1); !ps[0].Open || ps[0].Merged {
+	if ps, _ := m.forge.Pulls(1, []string{"swarm-bot"}); !ps[0].Open || ps[0].Merged {
 		t.Errorf("merged: %+v", ps[0])
 	}
 }

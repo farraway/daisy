@@ -327,12 +327,13 @@ type giteaPull struct {
 }
 
 // Pulls reads every pull request, open and closed, of each declared
-// repository and keeps the swarm's for issue n: head branch
-// `swarm/<n>-<s>` and the Refs line for n. Sorted by slice. Gitea's
+// repository and keeps the swarm's for issue n: opened by one of
+// openers, head branch `swarm/<n>-<s>` and the Refs line for n. Sorted
+// by slice. Gitea's
 // `mergeable` is a boolean, false while its checker recomputes a pull
 // request after a push to its base as when it conflicts; an absent or
 // null one is unknown.
-func (g *Gitea) Pulls(n int) ([]Pull, error) {
+func (g *Gitea) Pulls(n int, openers []string) ([]Pull, error) {
 	type bySlice struct {
 		s int
 		p Pull
@@ -344,7 +345,7 @@ func (g *Gitea) Pulls(n int) ([]Pull, error) {
 			return nil, err
 		}
 		for _, r := range raw {
-			s, ok := swarmPull(r.Head.Ref, r.Title, r.Body, g.owner, g.repo, name, n)
+			s, ok := swarmPull(r.Head.Ref, r.Title, r.Body, r.User.Login, g.owner, g.repo, name, n, openers)
 			if !ok {
 				continue
 			}

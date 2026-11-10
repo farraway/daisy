@@ -89,7 +89,7 @@ func (s *Swarm) collect(r Run) error {
 	}
 	var pull *forge.Pull
 	if r.Role == "worker" || r.Role == "adversary" || r.Role == "sympathetic" {
-		pulls, err := s.Forge.Pulls(r.N)
+		pulls, err := s.pulls(r.N)
 		if err != nil {
 			return err
 		}

@@ -37,7 +37,7 @@ func (s *Swarm) mergeStep() error {
 		if stage, ok := StageOf(is); !is.Open || !ok || stage != forge.ReviewApproved || Held(is.Labels) != "" {
 			continue // two labels (warned in step 5), moved or closed since the list was read, or held
 		}
-		pulls, err := s.Forge.Pulls(n)
+		pulls, err := s.pulls(n)
 		if err != nil {
 			return err
 		}

@@ -21,13 +21,11 @@ func (j *Job) task() string {
 	cur, open := j.current()
 	names := strings.Join(j.names(), ", ")
 	switch {
-	case j.Batch != nil && len(j.Batch.active()) > 0:
+	case j.Batch != nil: // the trigger holds while no brief is active (section 6)
 		add(`Propose up to %d new jobs for %s, most important first, toward the first milestone of the highest-priority brief under "# Briefs" that the closed issues do not yet meet, never proposing what an open issue already covers; a brief is a goal with milestones, each with a persona, an exit criterion and what it forces, and no steps: you cut it into jobs. Start each with a line "## <title>", then a line "Brief: <path> — <milestone>" naming the brief's path as "# Briefs" gives it and the milestone's heading, then a line "Class: routine" or "Class: architecture", then the job's body. A job is routine when it is cut from that milestone, takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. When every milestone of a brief is met by closed issues, write a line "Met: <path>" before the first "## " line; write nothing else before it. If there is nothing worth proposing, write "BLOCKED: <why>" as the only line after any "Met:" lines.`, j.Batch.Propose, j.Cfg.Forge.Repo)
 		if p := j.protected(); p != "" {
 			add(`The protected paths are %s.`, p)
 		}
-	case j.Batch != nil:
-		add(`Propose up to %d new jobs for %s, most important first, from the resources and the code. Start each with a line "## <title>" and follow it with the job's body. Write nothing before the first "## " line. If there is nothing worth proposing, write "BLOCKED: <why>" as the only line.`, j.Batch.Propose, j.Cfg.Forge.Repo)
 	case j.Role == "owner":
 		if j.commented() {
 			add(`Answer the latest comment in the thread of issue #%d.`, j.N)

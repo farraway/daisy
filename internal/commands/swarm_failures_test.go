@@ -349,11 +349,34 @@ func TestSwarmApplyFaultsInOnePass(t *testing.T) {
 	}
 }
 
-// The batch trigger (section 6, G0): with the triage gate on it waits for
+// The batch trigger (section 6, G0): held while no brief under resources
+// is active, a brief of another status not counting, with nothing written
+// and status naming the hold; with the triage gate on it waits for
 // no proposed issue; off, it tops the proposed and ready issues up to
 // owner.max_open_proposals; a batch that writes BLOCKED:, proposes
 // nothing or fails holds the batch, and a fault does not.
 func TestSwarmApplyBatchTrigger(t *testing.T) {
+	t.Run("no active brief", func(t *testing.T) {
+		a := newApplyWS(t)
+		os.Remove(a.state("owner-held"))
+		a.write("docs/briefs/a.md", "# Drift\n\nStatus: draft\n\n## M1\n")
+		a.runner.Script(0, "owner", runner.Canned{Out: "## One\nA.\n"})
+		a.pass()
+		if n := len(a.runner.Launches()); n != 0 {
+			t.Fatalf("the batch ran with no active brief: %d launches", n)
+		}
+		if _, err := os.Stat(a.state("owner-held")); err == nil {
+			t.Error("the hold wrote owner-held")
+		}
+		if err := a.status(a.forge); err != nil || !strings.Contains(a.stdout.String(), "\nState: "+a.state("")+" — owner batch held: no brief is active\n") {
+			t.Errorf("status: %v\n%s", err, a.stdout.String())
+		}
+		a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\n\n## M1\n")
+		a.pass()
+		if _, err := os.Stat(a.state("runs/0-owner-1")); err != nil {
+			t.Errorf("the batch did not run once a brief was active: %v", err)
+		}
+	})
 	t.Run("pacing, triage off", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.edit(func(c *declare.Config) {
@@ -366,7 +389,7 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 		a.release()
 		a.runner.Script(0, "owner", runner.Canned{Out: "## One\nA.\n## Two\nB.\n## Three\nC.\n"})
 		a.pass()
-		if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, "Propose up to 2 new jobs for acme/app, most important first, from the resources and the code.") {
+		if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, "Propose up to 2 new jobs for acme/app, most important first, toward the first milestone") {
 			t.Errorf("batch Task:\n%s", sys)
 		}
 		ready, _ := a.forge.Issues(forge.Open, "swarm:proposal-accepted")

@@ -374,8 +374,8 @@ func (f *Fake) RefuseMerge(pr Ref) {
 }
 
 // Pulls: the swarm's pull requests for issue n in every declared
-// repository (section 10's filter), by slice.
-func (f *Fake) Pulls(n int) ([]Pull, error) {
+// repository opened by one of openers (section 10's filter), by slice.
+func (f *Fake) Pulls(n int, openers []string) ([]Pull, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	type bySlice struct {
@@ -389,7 +389,7 @@ func (f *Fake) Pulls(n int) ([]Pull, error) {
 			if it == nil || it.pull == nil {
 				continue
 			}
-			s, ok := swarmPull(it.pull.head, it.title, it.body, f.owner, f.repo, name, n)
+			s, ok := swarmPull(it.pull.head, it.title, it.body, it.author, f.owner, f.repo, name, n, openers)
 			if !ok {
 				continue
 			}

@@ -44,6 +44,19 @@ type Swarm struct {
 	closedRead bool                // the milestone step has read the closed issues once
 }
 
+// Openers is whose pull requests are the swarm's (section 10, Pulls):
+// the swarm's login and trusted's, so a maintainer's own counts and any
+// other login's never does.
+func Openers(swarmLogin string, trusted []string) []string {
+	return append(slices.Clone(trusted), swarmLogin)
+}
+
+// pulls is issue n's swarm pull requests, by slice: Pulls with the
+// swarm's openers.
+func (s *Swarm) pulls(n int) ([]forge.Pull, error) {
+	return s.Forge.Pulls(n, Openers(s.SwarmLogin, s.Cfg.Trusted))
+}
+
 // live is a container this process started, a member or a worker run's
 // check: done is closed once `docker run` has returned, with how and when
 // it ended and, for a slot, the slot's secrets read again before its lock was
@@ -451,7 +464,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			if !is.Open || len(stages) == 0 || stages[0] != label {
 				continue // moved or closed since the list was read: as it is now, at its own stage or the next pass
 			}
-			pulls, err := s.Forge.Pulls(n)
+			pulls, err := s.pulls(n)
 			if err != nil {
 				return err
 			}
@@ -575,7 +588,7 @@ func (s *Swarm) moved(n int, to string) {
 // pass (section 5). A failure is a warning; the next pass copies again.
 func (s *Swarm) copyMoved() {
 	for _, n := range slices.Sorted(maps.Keys(s.moves)) {
-		pulls, err := s.Forge.Pulls(n)
+		pulls, err := s.pulls(n)
 		if err == nil && len(pulls) > 0 && pulls[len(pulls)-1].Open {
 			err = s.copyLabel(n, pulls[len(pulls)-1], s.moves[n])
 		}

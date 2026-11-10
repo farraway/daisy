@@ -20,7 +20,8 @@ import (
 
 // batch is pass step (7), the owner's batch trigger (section 6, G0): the
 // owner runs as issue 0 when nothing runs or waits to be collected on
-// issue 0, <state>/owner-held is absent and the pacing condition holds:
+// issue 0, <state>/owner-held is absent, a brief under resources is
+// `active` (Held, below) and the pacing condition holds:
 // with the triage gate on, no open issue is proposal-posted and the
 // routine jobs at proposal-accepted, which Daisy triaged, are fewer than
 // owner.max_open_proposals, and the run proposes the difference; off, the
@@ -36,6 +37,13 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 		return err
 	}
 	if len(s.busy(running, runs, 0)) > 0 {
+		return nil
+	}
+	briefs, err := brief.Find(fs, s.WS, s.Cfg.Resources)
+	if err != nil {
+		return err
+	}
+	if NoActiveBrief(briefs) {
 		return nil
 	}
 	open, err := s.issues(forge.Open)
@@ -70,10 +78,7 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	if p <= 0 {
 		return nil
 	}
-	b := &Batch{Open: open, Propose: p}
-	if b.Briefs, err = brief.Find(fs, s.WS, s.Cfg.Resources); err != nil {
-		return err
-	}
+	b := &Batch{Open: open, Propose: p, Briefs: briefs}
 	if b.Closed, err = s.recentlyClosed(b.active()); err != nil {
 		return err
 	}
@@ -83,6 +88,14 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	}
 	return launch(&Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, Role: "owner", K: NextK(runs, 0, "owner", nil),
 		Time: s.O.Now(), Persona: string(persona), Batch: b})
+}
+
+// NoActiveBrief is the hold on the owner's batch trigger while no brief
+// under resources is `active` (section 6, G0): the owner proposes the
+// next jobs of an active brief, and with none it would propose from the
+// whole tree; status names the hold on its State line.
+func NoActiveBrief(briefs []brief.Brief) bool {
+	return !slices.ContainsFunc(briefs, func(b brief.Brief) bool { return b.Status == "active" })
 }
 
 // issues is every swarm issue in state, listed by forge.SwarmLabels, by
@@ -125,7 +138,7 @@ func (s *Swarm) recentlyClosed(active []brief.Brief) ([]Closed, error) {
 	slices.Reverse(rest)
 	var out []Closed
 	for _, is := range append(recent, rest...) {
-		pulls, err := s.Forge.Pulls(is.Number)
+		pulls, err := s.pulls(is.Number)
 		if err != nil {
 			return nil, err
 		}

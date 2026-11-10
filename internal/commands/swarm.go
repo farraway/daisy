@@ -71,7 +71,7 @@ func swarmInit(c *Context, open opener) error {
 	if _, err := f.Issues(forge.Open, forge.ProposalPosted); err != nil {
 		return fmt.Errorf("Error: swarm: $%s cannot read %s: %v", tokenVar, cfg.Forge.Repo, err)
 	}
-	if _, err := f.Pulls(0); err != nil {
+	if _, err := f.Pulls(0, nil); err != nil {
 		return fmt.Errorf("Error: swarm: $%s cannot read the declared repositories: %v", tokenVar, err)
 	}
 	acct, err := f.Login()
@@ -401,7 +401,7 @@ func swarmStatus(c *Context, open opener) error {
 	out := &report
 	state := cfg.Forge.State(c.Env.Local)
 	fmt.Fprintf(out, "Swarm: %s on %s (%s), repositories %s\n", cfg.Forge.Repo, cfg.Forge.ForgeHost(), cfg.Forge.Kind, strings.Join(names, ", "))
-	fmt.Fprintf(out, "State: %s%s\n", state, stateNotes(c.Ops.FS(), state))
+	fmt.Fprintf(out, "State: %s%s\n", state, stateNotes(c.Ops.FS(), state, reconcile.NoActiveBrief(briefs)))
 	fmt.Fprintf(out, "Gates: triage %s, plan %s, merge %s\n", onOff(cfg.Gates.Triage), onOff(cfg.Gates.Plan), onOff(cfg.Gates.Merge))
 	for _, l := range forge.Stages {
 		fmt.Fprintf(out, "  %-26s %d", strings.TrimPrefix(l, "swarm:"), len(stages[l]))
@@ -526,7 +526,7 @@ func readIssues(f forge.Adapter, listed []forge.Issue, swarmLogin string, truste
 		if err != nil {
 			return nil, err
 		}
-		pulls, err := f.Pulls(l.Number)
+		pulls, err := f.Pulls(l.Number, reconcile.Openers(swarmLogin, trusted))
 		if err != nil {
 			return nil, err
 		}
@@ -638,8 +638,9 @@ func issueList(ns []int) string {
 }
 
 // stateNotes is the State line's tail: since when and why the swarm is
-// paused, and why the owner's batch is held (section 2's two files).
-func stateNotes(fs ops.FS, state string) string {
+// paused, and why the owner's batch is held (section 2's two files, and
+// noBrief, no brief under resources being active: section 6).
+func stateNotes(fs ops.FS, state string, noBrief bool) string {
 	var notes string
 	if b, err := fs.ReadFile(filepath.Join(state, "paused")); err == nil {
 		notes += " — paused since " + strings.TrimPrefix(firstLine(b), "paused ")
@@ -650,6 +651,9 @@ func stateNotes(fs ops.FS, state string) string {
 			reason = firstLine(b)
 		}
 		notes += " — owner batch held: " + reason
+	}
+	if noBrief {
+		notes += " — owner batch held: no brief is active"
 	}
 	return notes
 }

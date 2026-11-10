@@ -96,14 +96,14 @@ const statusPersonas = `Personas:
 `
 
 // After init: zero issues per stage, the gates, the personas, nothing
-// running, no runs, no brief.
+// running, no runs, no brief, so the owner's batch held (section 6).
 func TestSwarmStatusAfterInit(t *testing.T) {
 	s := newStatusWS(t)
 	if err := s.status(s.forge); err != nil {
 		t.Fatal(err)
 	}
 	want := `Swarm: acme/app on forge.example.net (gitea), repositories app, lib
-State: ` + s.state("") + `
+State: ` + s.state("") + ` — owner batch held: no brief is active
 Gates: triage on, plan on, merge on
   proposal-posted            0
   proposal-accepted          0

@@ -303,6 +303,10 @@ func TestGiteaPulls(t *testing.T) {
 			pull(16, "feature/x", "Refs #7", "open", false, ""),            // not a swarm branch
 			pull(15, "swarm/7-01", "Refs #7", "open", false, ""),           // not a slice number
 			pull(14, "swarm/7-4", "Refs #7 and more", "closed", false, ""), // no Refs line
+			// opened by a login not among the openers
+			strings.Replace(pull(13, "swarm/7-7", "Refs #7", "open", false, ""), `"login":"swarm-bot"`, `"login":"mallory"`, 1),
+			// a maintainer's own, its login in another case
+			strings.Replace(pull(12, "swarm/7-8", "Refs #7", "open", false, ""), `"login":"swarm-bot"`, `"login":"Jane"`, 1),
 		}, ",") + "]"},
 		pair{"GET", "/repos/acme/lib/pulls?state=all&page=1&limit=50", "", 200, "[" + strings.Join([]string{
 			pull(5, "swarm/7-1", "Lib slice.\nRefs acme/app#7\n", "closed", true, "m5"),
@@ -313,7 +317,7 @@ func TestGiteaPulls(t *testing.T) {
 			strings.Replace(pull(2, "refs/pull/2/head", "Refs acme/app#7", "closed", true, "m2"), `"title":"T2"`, `"title":"acme/app#7: by hand"`, 1),
 		}, ",") + "]"},
 	)
-	got, err := g.Pulls(7)
+	got, err := g.Pulls(7, []string{"jane", "swarm-bot"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,6 +326,7 @@ func TestGiteaPulls(t *testing.T) {
 		{Repo: "lib", Number: 5, Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Mergeable: MergeableNo, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
 		{Repo: "app", Number: 20, Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Mergeable: MergeableYes, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
 		{Repo: "lib", Number: 3, Title: "acme/app#7 slice 6: Drift check", Body: "Refs acme/app#7", Head: "swarm/7-6", HeadSHA: "h3", Base: "main", MergeSHA: "m3", Merged: true, Mergeable: MergeableNo, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
+		{Repo: "app", Number: 12, Title: "T12", Body: "Refs #7", Head: "swarm/7-8", HeadSHA: "h12", Base: "main", Open: true, Mergeable: MergeableYes, Labels: []string{"swarm:review-0-ready"}, Author: "Jane", Created: created},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Pulls(7) =\n%+v\nwant\n%+v", got, want)
@@ -344,7 +349,7 @@ func TestGiteaPullsMergeable(t *testing.T) {
 	}
 	g, s := gitea(t, []string{"app"}, pair{"GET", "/repos/acme/app/pulls?state=all&page=1&limit=50", "", 200,
 		"[" + strings.Join([]string{pull(1, "true"), pull(2, "false"), pull(3, "null"), pull(4, "")}, ",") + "]"})
-	got, err := g.Pulls(7)
+	got, err := g.Pulls(7, []string{"swarm-bot"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -150,7 +150,7 @@ func TestFakePullsReviewsAndMerge(t *testing.T) {
 		if err := f.Merge(ar, ""); !errors.Is(err, ErrNotMergeable) || errText(err) != "forge: not mergeable: 405 Please try again later" {
 			t.Errorf("mergeable %d: %v", m, err)
 		}
-		if ps, _ := f.Pulls(n); ps[1].Mergeable != m {
+		if ps, _ := f.Pulls(n, []string{"swarm-bot"}); ps[1].Mergeable != m {
 			t.Errorf("Pulls reports mergeable %d, not %d", ps[1].Mergeable, m)
 		}
 	}
@@ -162,13 +162,13 @@ func TestFakePullsReviewsAndMerge(t *testing.T) {
 	if err := f.Merge(ar, "c9"); errText(err) != "forge: not mergeable: 405 not allowed to merge" {
 		t.Errorf("a refused merge with a moved head is refused first, as Gitea's handler does: %v", err)
 	}
-	if ps, _ := f.Pulls(n); ps[1].Mergeable != MergeableYes || ps[1].Merged {
+	if ps, _ := f.Pulls(n, []string{"swarm-bot"}); ps[1].Mergeable != MergeableYes || ps[1].Merged {
 		t.Errorf("a refused merge: %+v", ps[1])
 	}
 	if err := f.Merge(lr, "c2"); err != nil {
 		t.Fatal(err)
 	}
-	pulls, _ := f.Pulls(n)
+	pulls, _ := f.Pulls(n, []string{"swarm-bot"})
 	if len(pulls) != 2 || pulls[0].Repo != "lib" || pulls[0].Number != lib || !pulls[0].Merged || pulls[0].Open || len(pulls[0].MergeSHA) != 40 ||
 		pulls[0].HeadSHA != "c2" || pulls[0].Mergeable != MergeableYes || pulls[1].Repo != "app" || pulls[1].Number != app || pulls[1].Merged || pulls[1].MergeSHA != "" {
 		t.Errorf("Pulls(1) = %+v", pulls)
@@ -274,15 +274,24 @@ func TestFakeAsAnotherAccount(t *testing.T) {
 	}
 }
 
-// Pulls names who opened each pull request, as gitea's `user.login` does.
+// Pulls names who opened each pull request, as gitea's `user.login` does,
+// and keeps only those opened by one of openers, in any case (section
+// 10): a trusted maintainer's counts, another login's never does.
 func TestFakePullAuthor(t *testing.T) {
 	f := fakeForge(t)
 	f.CreateIssue("A", "", []string{"swarm:proposal-posted"})
 	f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
-	f.As(Account{Login: "mallory"}).CreatePull("app", "swarm/1-2", "main", "Q", "Refs #1")
-	ps, err := f.Pulls(1)
-	if err != nil || len(ps) != 2 || ps[0].Author != f.account.Login || ps[1].Author != "mallory" {
+	f.As(Account{Login: "Jane"}).CreatePull("app", "swarm/1-2", "main", "Q", "Refs #1")
+	f.As(Account{Login: "mallory"}).CreatePull("app", "swarm/1-3", "main", "R", "Refs #1")
+	ps, err := f.Pulls(1, []string{"jane", "swarm-bot"})
+	if err != nil || len(ps) != 2 || ps[0].Author != f.account.Login || ps[1].Author != "Jane" {
 		t.Errorf("Pulls(1) = %+v, %v", ps, err)
+	}
+	if ps, _ := f.Pulls(1, []string{"mallory"}); len(ps) != 1 || ps[0].Author != "mallory" {
+		t.Errorf("Pulls(1, mallory) = %+v", ps)
+	}
+	if ps, _ := f.Pulls(1, nil); len(ps) != 0 {
+		t.Errorf("Pulls(1, nil) = %+v", ps)
 	}
 }
 

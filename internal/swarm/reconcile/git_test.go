@@ -310,7 +310,7 @@ func TestRoundDiffLeavesOutABaseMerge(t *testing.T) {
 	f, at, pr, _ := planned(t)
 	f.Push(pr, "bbb")
 	f.Review(pr, forge.Commented, marker("sympathetic", 2)+"VERDICT: approve")
-	pulls, _ := f.Pulls(1)
+	pulls, _ := f.Pulls(1, []string{"swarm-bot"})
 	j := job(f, at.N, "adversary", "swarm:review-0-ready")
 	j.Pulls, j.Pull = pulls, thread(f, pr)
 	sys, _ := Render(j)

@@ -123,8 +123,10 @@ type Adapter interface {
 	Relabel(at Ref, remove, add string) error
 	CloseIssue(n int) error
 	// Pulls is the swarm's pull requests for issue n in every declared
-	// repository, by slice.
-	Pulls(n int) ([]Pull, error)
+	// repository opened by one of openers (any case: the swarm's login
+	// and trusted's), by slice; a pull request any other login opened is
+	// never one (section 10).
+	Pulls(n int, openers []string) ([]Pull, error)
 	CreatePull(repo, head, base, title, body string) (int, error)
 	PullComments(pr Ref) ([]Comment, error)
 	Reviews(pr Ref) ([]Review, error)
@@ -306,12 +308,16 @@ func refusedLabels(owner string, rename [][2]string, missing []string) error {
 }
 
 // swarmPull: a pull request in the declared repository name, on branch
-// head with title and body, is the swarm's for issue n of owner/repo
-// (section 10, Pulls), and its slice number: from the branch
+// head with title and body, opened by author, is the swarm's for issue n
+// of owner/repo (section 10, Pulls), and its slice number: author is one
+// of openers (any case), and the slice is read from the branch
 // `swarm/<n>-<s>`, or, when the forge has deleted a merged branch and
 // reports a head such as `refs/pull/<m>/head`, from the title the worker's
 // collection wrote, `<issue> slice <s>: <title>`.
-func swarmPull(head, title, body, owner, repo, name string, n int) (int, bool) {
+func swarmPull(head, title, body, author, owner, repo, name string, n int, openers []string) (int, bool) {
+	if !slices.ContainsFunc(openers, func(l string) bool { return strings.EqualFold(l, author) }) {
+		return 0, false
+	}
 	if !refersTo(body, owner, repo, name, n) {
 		return 0, false
 	}
