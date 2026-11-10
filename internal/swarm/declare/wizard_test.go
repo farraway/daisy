@@ -40,7 +40,7 @@ func TestWizardDefaults(t *testing.T) {
 	ws := bareWorkspace(t)
 	o, asked := scripted()
 	var errb bytes.Buffer
-	w := &Wizard{Ops: o, Err: &errb, WS: ws, Defaults: true}
+	w := &Wizard{Ops: o, Err: &errb, Place: Workspace(ws), Defaults: true}
 	c, err := w.Ask()
 	if err == nil {
 		err = w.AskAccount(&c, "swarm-bot", "swarm@example.net")
@@ -67,7 +67,7 @@ func TestWizardDefaults(t *testing.T) {
 	hermetic(t)
 	solo := t.TempDir()
 	gitRepo(t, solo, "git@github.com:acme/solo.git")
-	w = &Wizard{Ops: o, Err: &errb, WS: solo, Defaults: true}
+	w = &Wizard{Ops: o, Err: &errb, Place: Workspace(solo), Defaults: true}
 	c, err = w.Ask()
 	if err != nil || len(c.Repos) != 1 || c.Repos[0].Path != "." || c.Repos[0].Name != "solo" ||
 		c.Forge != (Forge{Kind: "github", API: "https://api.github.com", Repo: "acme/solo", TokenEnv: "GITHUB_TOKEN"}) || len(c.Resources) != 0 {
@@ -80,7 +80,7 @@ func TestWizardAsksInOrder(t *testing.T) {
 	ws := bareWorkspace(t)
 	o, asked := scripted(make([]string, 40)...)
 	var errb bytes.Buffer
-	w := &Wizard{Ops: o, Err: &errb, WS: ws}
+	w := &Wizard{Ops: o, Err: &errb, Place: Workspace(ws)}
 	c, err := w.Ask()
 	if err == nil {
 		err = w.AskAccount(&c, "swarm-bot", "swarm@example.net")
@@ -120,7 +120,7 @@ func TestWizardHonoursEachOverride(t *testing.T) {
 	}
 	answers = append(answers, "lib-image:2", "app-image:3", "4", "6", "1h", "2m", "-", "jane, joe", "commits@example.net")
 	o, _ := scripted(answers...)
-	w := &Wizard{Ops: o, Err: io.Discard, WS: ws}
+	w := &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws)}
 	c, err := w.Ask()
 	if err == nil {
 		err = w.AskAccount(&c, "swarm-bot", "swarm@example.net")
@@ -156,7 +156,7 @@ func TestWizardMovesARoleToXAI(t *testing.T) {
 	answers[6+4*4] = "xai" // the sympathetic's provider
 	o, asked := scripted(answers...)
 	file := valid()
-	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w := &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file}
 	c, err := w.Ask()
 	if err == nil {
 		err = w.AskAccount(&c, "swarm-bot", "swarm@example.net")
@@ -177,7 +177,7 @@ func TestWizardMovesARoleToXAI(t *testing.T) {
 	if _, ok := file.Keys["xai"]; ok {
 		t.Error("the file's keys were changed")
 	}
-	if err := Validate(ops.Real(), ws, c, SkipPrompts); err != nil {
+	if err := Validate(ops.Real(), Workspace(ws), c, SkipPrompts); err != nil {
 		t.Errorf("the answers do not validate: %v", err)
 	}
 }
@@ -193,7 +193,7 @@ func TestWizardKeepsTheFilesXAIForm(t *testing.T) {
 	file := valid()
 	slots, env := 2, "OPENAI_API_KEY"
 	file.Keys = map[string]Key{"anthropic": file.Keys["anthropic"], "openai": {Env: &env}, "xai": {Slots: &slots}}
-	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w := &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file}
 	c, err := w.Ask()
 	if err != nil {
 		t.Fatal(err)
@@ -229,7 +229,7 @@ func TestWizardAsksARefusedAnswerAgain(t *testing.T) {
 	answers = append(answers, "", "", "x")           // the two images, then max members "x" refused
 	o, asked := scripted(answers...)
 	var errb bytes.Buffer
-	w := &Wizard{Ops: o, Err: &errb, WS: ws}
+	w := &Wizard{Ops: o, Err: &errb, Place: Workspace(ws)}
 	_, err := w.Ask()
 	if !errors.Is(err, ErrCancelled) {
 		t.Fatalf("want cancelled at EOF, got %v", err)
@@ -259,7 +259,7 @@ func TestWizardAccountQuestions(t *testing.T) {
 
 	o, asked := scripted("swarm-bot, joe", "", "")
 	var errb bytes.Buffer
-	w := &Wizard{Ops: o, Err: &errb, WS: ws, File: &file}
+	w := &Wizard{Ops: o, Err: &errb, Place: Workspace(ws), File: &file}
 	c := file
 	if err := w.AskAccount(&c, "swarm-bot", "swarm@example.net"); err != nil {
 		t.Fatal(err)
@@ -280,14 +280,14 @@ func TestWizardAccountQuestions(t *testing.T) {
 	answers = append(answers, "", "", "", "", "", "", "", "") // owner, architect
 	answers = append(answers, "", "", "")                     // worker: provider, model, effort
 	o, asked = scripted(answers...)
-	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w = &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file}
 	w.Ask()
 	if got := (*asked)[len(*asked)-1]; got != "worker co-author (- for none) [Pair <pair@example.net>]: " {
 		t.Errorf("unchanged model: %q", got)
 	}
 	answers[len(answers)-2] = "claude-opus-6"
 	o, asked = scripted(answers...)
-	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w = &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file}
 	w.Ask()
 	if got := (*asked)[len(*asked)-1]; got != "worker co-author (- for none) [claude-opus-6 <noreply@anthropic.com>]: " {
 		t.Errorf("changed model: %q", got)
@@ -297,7 +297,7 @@ func TestWizardAccountQuestions(t *testing.T) {
 	// model is the file's, and --defaults keeps it.
 	answers[len(answers)-2] = ""
 	o, asked = scripted(append(answers, "-")...)
-	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w = &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file}
 	got, _ := w.Ask()
 	if got.Personas["worker"].CoAuthor != "" {
 		t.Errorf("- is not none: %q", got.Personas["worker"].CoAuthor)
@@ -305,12 +305,12 @@ func TestWizardAccountQuestions(t *testing.T) {
 	worker.CoAuthor = ""
 	file.Personas["worker"] = worker
 	o, asked = scripted(answers...)
-	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w = &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file}
 	w.Ask()
 	if got := (*asked)[len(*asked)-1]; got != "worker co-author (- for none) [-]: " {
 		t.Errorf("the file's none: %q", got)
 	}
-	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file, Defaults: true}
+	w = &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file, Defaults: true}
 	if got, err := w.Ask(); err != nil || got.Personas["worker"].CoAuthor != "" {
 		t.Errorf("--defaults with the file's none: %q, %v", got.Personas["worker"].CoAuthor, err)
 	}
@@ -357,7 +357,7 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 	// convention for the swarm's own repository): app and lib alone; and
 	// question 4's is swarm-x, the swarm's own, with its briefs and notes/.
 	o, _ := scripted()
-	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, Defaults: true}
+	w := &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), Defaults: true}
 	if c, err := w.Ask(); err != nil || len(c.Repos) != 2 || c.Repos[0].Name != "app" || c.Repos[1].Name != "lib" ||
 		c.Forge.Repo != "acme/swarm-x" || !reflect.DeepEqual(c.Resources, []string{"docs/", "swarm-x/briefs/"}) {
 		t.Errorf("--defaults with the swarm's own clone: %v %+v %q %q", err, c.Repos, c.Forge.Repo, c.Resources)
@@ -368,7 +368,7 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 	// repository's origin.
 	gitRepo(t, filepath.Join(ws, "a-elsewhere"), "git@other.example.org:acme/swarm-y.git")
 	o, asked := scripted(make([]string, 40)...)
-	if _, err := (&Wizard{Ops: o, Err: io.Discard, WS: ws}).Ask(); err != nil || (*asked)[3] != "Issues repository [acme/swarm-x]: " {
+	if _, err := (&Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws)}).Ask(); err != nil || (*asked)[3] != "Issues repository [acme/swarm-x]: " {
 		t.Errorf("question 4 beside a swarm- clone on another host: %v %q", err, *asked)
 	}
 	os.RemoveAll(filepath.Join(ws, "a-elsewhere"))
@@ -393,7 +393,7 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			o, asked := scripted(answers(tc.issues, tc.own)...)
 			var errb bytes.Buffer
-			w := &Wizard{Ops: o, Err: &errb, WS: ws}
+			w := &Wizard{Ops: o, Err: &errb, Place: Workspace(ws)}
 			c, err := w.Ask()
 			if err != nil {
 				t.Fatal(err)
@@ -431,13 +431,13 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 	file := valid()
 	file.Forge.Repo, file.Notes = "acme/swarm-x", true
 	o, asked = scripted(make([]string, 40)...)
-	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w = &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file}
 	if _, err := w.Ask(); err != nil || (*asked)[4] != "Issues repository acme/swarm-x: the swarm's own, holding no product code (yes, no) [yes]: " {
 		t.Errorf("the file's own: %v %q", err, (*asked)[4])
 	}
 	// The file's notes are for its own forge.repo: another answered, no.
 	o, asked = scripted("", "", "", "acme/elsewhere", "maybe", "")
-	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file}
+	w = &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file}
 	w.Ask()
 	if (*asked)[4] != "Issues repository acme/elsewhere: the swarm's own, holding no product code (yes, no) [no]: " {
 		t.Errorf("the file's notes, another issues repository: %q", *asked)
@@ -445,13 +445,13 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 	// --defaults keeping a file's wiki on an issues repository none of
 	// repos fails with validation's reason.
 	file.Notes, file.Wiki = false, true
-	w = &Wizard{Ops: o, Err: io.Discard, WS: ws, File: &file, Defaults: true}
+	w = &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), File: &file, Defaults: true}
 	c := file
 	if err := w.AskNotes(&c); errText(err) != "swarm.json: wiki: acme/swarm-x is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)" {
 		t.Errorf("--defaults with the file's wiki on its own: %v", err)
 	}
 	o, asked = scripted("app, lib", "", "", "acme/elsewhere", "maybe", "")
-	w = &Wizard{Ops: o, Err: io.Discard, WS: ws}
+	w = &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws)}
 	w.Ask()
 	if (*asked)[4] != "Issues repository acme/elsewhere: the swarm's own, holding no product code (yes, no) [no]: " || (*asked)[5] != (*asked)[4] {
 		t.Errorf("no clone, no file: %q", *asked)
@@ -461,7 +461,7 @@ func TestWizardOwnIssuesRepository(t *testing.T) {
 func TestWizardDefaultsRefused(t *testing.T) {
 	ws := bareWorkspace(t)
 	o, _ := scripted()
-	w := &Wizard{Ops: o, Err: io.Discard, WS: ws, Defaults: true}
+	w := &Wizard{Ops: o, Err: io.Discard, Place: Workspace(ws), Defaults: true}
 	c, err := w.Ask()
 	if err != nil {
 		t.Fatal(err)

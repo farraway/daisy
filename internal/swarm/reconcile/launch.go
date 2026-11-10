@@ -99,7 +99,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	// The resources as they resolve now, section 3's checks made again,
 	// so a link changed since the pass's validation mounts nothing
 	// outside them (section 7.2).
-	resources, err := declare.ResolveResources(s.O, s.WS, s.Cfg.Resources)
+	resources, err := declare.ResolveResources(s.O, s.Place, s.Cfg.Resources)
 	if err != nil {
 		return failed("launch-failed "+ended(), "fault: "+err.Error())
 	}

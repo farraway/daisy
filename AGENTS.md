@@ -270,8 +270,10 @@ agent working near it:
   their commit and its push), the state directory under
   `$DAISY_LOCAL/swarm/`, and the forge. Never a Daisy home, never a
   workspace, never a declared repository's tree. This is the spec's
-  revision 6, which Steps 2–6 of its plan build; until then the code
-  runs the workspace layout that its section 11, Moving a swarm into its
+  revision 6, which Steps 2–6 of its plan build (Step 2: the verbs
+  find their swarm in its clone with no workspace, its secrets in
+  `<state>/env`); until each lands the code runs what it has not built
+  as the workspace layout of its section 11, Moving a swarm into its
   repository, describes.
 
 The products a swarm works on, their repositories and the forge's host

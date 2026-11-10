@@ -205,7 +205,7 @@ func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
 		t.Fatalf("not blocked: %v\n%s", got, a.stdout.String())
 	}
 	m := &maintainerWS{statusWS: a.statusWS}
-	m.write(".env.sh", bothTokens)
+	m.secrets(bothTokens)
 	m.as = map[string]*forge.Fake{"tok-123": a.forge, "jane-456": a.forge.As(forge.Account{Login: "jane"})}
 	if err := m.verb(swarmUnblock, "1", "v2, as the plan says."); err != nil {
 		t.Fatal(err)

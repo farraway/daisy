@@ -82,7 +82,7 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	if b.Closed, err = s.recentlyClosed(b.active()); err != nil {
 		return err
 	}
-	persona, err := fs.ReadFile(declare.PromptFile(s.WS, "owner"))
+	persona, err := fs.ReadFile(declare.PromptFile(s.Place.Dir, "owner"))
 	if err != nil {
 		return err
 	}

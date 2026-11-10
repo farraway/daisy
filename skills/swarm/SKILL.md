@@ -71,8 +71,8 @@ after the maintainer has said yes to that write.
 
 ## The verbs
 
-Each runs in the workspace, refuses before any write when its token is
-the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first.
+Each runs in the swarm repository's clone (a swarm not yet moved, in
+its workspace), refuses before any write when its token is the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first.
 
 | Waiting for you | Verb | What it writes |
 |---|---|---|

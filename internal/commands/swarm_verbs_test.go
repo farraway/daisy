@@ -152,30 +152,34 @@ func (m *moveOnComment) Comment(at forge.Ref, body string) error {
 // maintainer's token among them, is dropped with the parse; a name it does
 // not assign is the environment's.
 func TestReadSecretsKeepsTheNamesAsked(t *testing.T) {
-	s := newStatusWS(t)
-	s.write(".env.sh", bothTokens+"export OTHER=\"$GITEA_TOKEN-x\"\n")
-	o := &ops.Fake{GetenvFn: func(k string) string { return map[string]string{"FROM_ENV": "e"}[k] }}
-	c := &Context{Ops: o, Env: env.Env{Workspace: s.ws}}
-	var warn bytes.Buffer
-	got := readSecrets(c, s.ws, &warn, "OTHER", "FROM_ENV")
-	if want := map[string]string{"OTHER": "tok-123-x", "FROM_ENV": "e"}; !reflect.DeepEqual(got, want) || warn.Len() != 0 {
-		t.Errorf("got %q, want %q; warn %q", got, want, warn.String())
+	for _, clone := range []bool{false, true} {
+		s := newStatusWSIn(t, clone)
+		s.secrets(bothTokens + "export OTHER=\"$GITEA_TOKEN-x\"\n")
+		o := &ops.Fake{GetenvFn: func(k string) string { return map[string]string{"FROM_ENV": "e"}[k] }}
+		c := &Context{Ops: o, Env: env.Env{Local: s.local}, Swarm: s.place}
+		var warn bytes.Buffer
+		got, err := readSecrets(c, s.config(), &warn, "OTHER", "FROM_ENV")
+		if want := map[string]string{"OTHER": "tok-123-x", "FROM_ENV": "e"}; err != nil || !reflect.DeepEqual(got, want) || warn.Len() != 0 {
+			t.Errorf("clone %v: got %q (%v), want %q; warn %q", clone, got, err, want, warn.String())
+		}
 	}
 }
 
 // A blank comment is none: `unblock` with one is usage, writing nothing;
 // `close` with one posts nothing before the close.
 func TestSwarmMaintainerBlankComment(t *testing.T) {
-	m := newMaintainerWS(t)
-	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted", forge.Blocked})
-	var u UsageError
-	if err := m.verb(swarmUnblock, "1", " ", "\t"); !errors.As(err, &u) || len(m.writes(1)) != 0 {
-		t.Errorf("unblock: %v; writes %q", err, m.writes(1))
-	}
-	m.ok(swarmClose, "Maintainer jane on acme/app\n#1 closed\n#1 swarm:plan-1-accepted → swarm:rejected\n#1 blocked cleared\n", "1", "  ")
-	if is, _ := m.forge.Issue(1); len(is.Comments) != 0 {
-		t.Errorf("close posted %q", is.Comments)
-	}
+	bothLayouts(t, func(t *testing.T, clone bool) {
+		m := newMaintainerWSIn(t, clone)
+		m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted", forge.Blocked})
+		var u UsageError
+		if err := m.verb(swarmUnblock, "1", " ", "\t"); !errors.As(err, &u) || len(m.writes(1)) != 0 {
+			t.Errorf("unblock: %v; writes %q", err, m.writes(1))
+		}
+		m.ok(swarmClose, "Maintainer jane on acme/app\n#1 closed\n#1 swarm:plan-1-accepted → swarm:rejected\n#1 blocked cleared\n", "1", "  ")
+		if is, _ := m.forge.Issue(1); len(is.Comments) != 0 {
+			t.Errorf("close posted %q", is.Comments)
+		}
+	})
 }
 
 // A verb run again after a write that followed its comment was refused

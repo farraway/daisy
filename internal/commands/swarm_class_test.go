@@ -225,40 +225,42 @@ func TestSwarmBatchCountsRoutineProposals(t *testing.T) {
 // classes is usage, and a routine
 // statement by a login not in trusted is refused before any write.
 func TestSwarmMaintainerClass(t *testing.T) {
-	m := newMaintainerWS(t)
-	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"Brief: docs/briefs/m0.md — First\nClass: routine\nPin it.", []string{"swarm:proposal-posted"})
-	const head = "Maintainer jane on acme/app\n"
-	m.ok(swarmClass, head+"#1 class-architecture\n#1 commented\n", "1", "architecture")
-	if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:proposal-posted", forge.ClassArchitecture}) {
-		t.Errorf("architecture: %v", is.Labels)
-	}
-	m.ok(swarmClass, head+"#1 class-architecture cleared\n#1 commented\n", "1", "routine")
-	m.ok(swarmClass, head+"#1 already routine\n", "1", "routine")
-	want := []string{
-		"jane labeled swarm:class-architecture #1", "jane unlabeled swarm:class-architecture #1",
-		`jane comment "Class: architecture" #1`, `jane comment "Class: routine" #1`,
-	}
-	if got := m.writes(1); !reflect.DeepEqual(got, want) {
-		t.Errorf("writes:\n%q\nwant:\n%q", got, want)
-	}
+	bothLayouts(t, func(t *testing.T, clone bool) {
+		m := newMaintainerWSIn(t, clone)
+		m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"Brief: docs/briefs/m0.md — First\nClass: routine\nPin it.", []string{"swarm:proposal-posted"})
+		const head = "Maintainer jane on acme/app\n"
+		m.ok(swarmClass, head+"#1 class-architecture\n#1 commented\n", "1", "architecture")
+		if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:proposal-posted", forge.ClassArchitecture}) {
+			t.Errorf("architecture: %v", is.Labels)
+		}
+		m.ok(swarmClass, head+"#1 class-architecture cleared\n#1 commented\n", "1", "routine")
+		m.ok(swarmClass, head+"#1 already routine\n", "1", "routine")
+		want := []string{
+			"jane labeled swarm:class-architecture #1", "jane unlabeled swarm:class-architecture #1",
+			`jane comment "Class: architecture" #1`, `jane comment "Class: routine" #1`,
+		}
+		if got := m.writes(1); !reflect.DeepEqual(got, want) {
+			t.Errorf("writes:\n%q\nwant:\n%q", got, want)
+		}
 
-	m.as["jane-456"].CreateIssue("Fix the typo", "teh", []string{"swarm:plan-0-posted"}) // #2, jane's
-	m.ok(swarmClass, head+"#2 class-architecture\n", "2", "architecture")                // architecture by default, unflagged: the flag set
-	m.ok(swarmClass, head+"#2 already architecture\n", "2", "architecture")
-	m.ok(swarmClass, head+"#2 class-architecture cleared\n#2 commented\n", "2", "routine")
-	if is, _ := m.forge.Issue(2); reconcile.ClassOf(is, "swarm-bot", []string{"jane", "swarm-bot"}) != reconcile.Routine {
-		t.Errorf("#2 not routine: %+v", is)
-	}
+		m.as["jane-456"].CreateIssue("Fix the typo", "teh", []string{"swarm:plan-0-posted"}) // #2, jane's
+		m.ok(swarmClass, head+"#2 class-architecture\n", "2", "architecture")                // architecture by default, unflagged: the flag set
+		m.ok(swarmClass, head+"#2 already architecture\n", "2", "architecture")
+		m.ok(swarmClass, head+"#2 class-architecture cleared\n#2 commented\n", "2", "routine")
+		if is, _ := m.forge.Issue(2); reconcile.ClassOf(is, "swarm-bot", []string{"jane", "swarm-bot"}) != reconcile.Routine {
+			t.Errorf("#2 not routine: %+v", is)
+		}
 
-	if err := m.verb(swarmClass, "1", "small"); errText(err) != "not a class: small; swarm class takes routine or architecture" {
-		t.Errorf("a bad class: %v", err)
-	}
-	m.edit(func(c *declare.Config) { c.Trusted = []string{"swarm-bot"} })
-	m.forge.Relabel(issue1, "", forge.ClassArchitecture)
-	if err := m.verb(swarmClass, "1", "routine"); errText(err) != "Error: swarm: jane is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed" {
-		t.Errorf("untrusted: %v", err)
-	}
-	if is, _ := m.forge.Issue(1); !slices.Contains(is.Labels, forge.ClassArchitecture) || len(is.Comments) != 2 {
-		t.Errorf("the refusal wrote: %+v", is)
-	}
+		if err := m.verb(swarmClass, "1", "small"); errText(err) != "not a class: small; swarm class takes routine or architecture" {
+			t.Errorf("a bad class: %v", err)
+		}
+		m.edit(func(c *declare.Config) { c.Trusted = []string{"swarm-bot"} })
+		m.forge.Relabel(issue1, "", forge.ClassArchitecture)
+		if err := m.verb(swarmClass, "1", "routine"); errText(err) != "Error: swarm: jane is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed" {
+			t.Errorf("untrusted: %v", err)
+		}
+		if is, _ := m.forge.Issue(1); !slices.Contains(is.Labels, forge.ClassArchitecture) || len(is.Comments) != 2 {
+			t.Errorf("the refusal wrote: %+v", is)
+		}
+	})
 }

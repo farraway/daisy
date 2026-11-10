@@ -24,9 +24,54 @@ import (
 )
 
 // SwarmInit is `daisy swarm init [--defaults]` (docs/swarm.md section
-// 11): the wizard, the token's read check and account, swarm/swarm.json
-// and the prompts, the labels, the readiness warnings and the unit files.
-func SwarmInit(c *Context) error { return swarmInit(c, openForge) }
+// 11): the wizard, the token's read check and account, swarm.json and the
+// prompts, the labels, the readiness warnings and the unit files.
+func SwarmInit(c *Context) error {
+	if err := locate(c, true); err != nil {
+		return err
+	}
+	return swarmInit(c, openForge)
+}
+
+// locate is every swarm verb's start (section 11, Finding the swarm): the
+// root and the per-machine directories, as every command reads them, and
+// the swarm the working folder is in. No Daisy workspace, home or
+// identity is read.
+func locate(c *Context, init bool) error {
+	m, err := env.Machine(c.Ops)
+	if err != nil {
+		return err
+	}
+	c.Env = m
+	return find(c, init)
+}
+
+// inSwarm runs a verb other than init once locate has found its swarm.
+func inSwarm(c *Context, run func() error) error {
+	if err := locate(c, false); err != nil {
+		return err
+	}
+	return run()
+}
+
+// find is c.Swarm, the swarm the working folder is in (declare.Find, the
+// one function that decides the layout), c.Env's root read.
+func find(c *Context, init bool) error {
+	cwd, err := c.Ops.Getwd()
+	if err != nil {
+		return fmt.Errorf("Error: cannot read the working directory: %v", err)
+	}
+	p, err := declare.Find(c.Ops.FS(), c.Env.Root, cwd, init)
+	var d *declare.Error
+	if errors.As(err, &d) {
+		return fmt.Errorf("Error: %v", d)
+	}
+	if err != nil {
+		return err
+	}
+	c.Swarm = p
+	return nil
+}
 
 // opener builds the forge adapter for a declaration and its token; tests
 // pass one returning a forge.Fake.
@@ -37,28 +82,32 @@ func openForge(o ops.Ops, f declare.Forge, names []string, token string) (forge.
 }
 
 func swarmInit(c *Context, open opener) error {
-	o, ws := c.Ops, c.Env.Workspace
+	o, p := c.Ops, c.Swarm
 	var file *declare.Config
-	existing, found, err := declare.Load(o.FS(), ws)
+	existing, found, err := declare.Load(o.FS(), p.Dir)
 	if found && err != nil {
 		return fmt.Errorf("Error: %v", err)
 	}
 	if found {
 		file = &existing
 	}
-	w := &declare.Wizard{Ops: o, In: c.Stdin, Err: c.Stderr, WS: ws, Defaults: c.Flag("--defaults"), File: file}
+	w := &declare.Wizard{Ops: o, In: c.Stdin, Err: c.Stderr, Place: p, Defaults: c.Flag("--defaults"), File: file}
 	cfg, err := w.Ask()
 	if err == nil {
-		err = declare.Validate(o, ws, cfg, declare.SkipPrompts|declare.SkipAccount)
+		err = declare.Validate(o, p, cfg, declare.SkipPrompts|declare.SkipAccount)
 	}
 	if err != nil {
 		return cancelledOr(c, err)
 	}
 
 	tokenVar := cfg.Forge.TokenEnv
-	token := secret(c, ws, tokenVar)
+	vars, err := readSecrets(c, cfg, c.Stderr, tokenVar)
+	if err != nil {
+		return err
+	}
+	token := vars[tokenVar]
 	if token == "" {
-		return fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", tokenVar, filepath.Join(ws, ".env.sh"))
+		return unsetErr(c, cfg, tokenVar)
 	}
 	var names []string
 	for _, r := range cfg.Repos {
@@ -84,13 +133,13 @@ func swarmInit(c *Context, open opener) error {
 		err = w.AskNotes(&cfg)
 	}
 	if err == nil {
-		err = declare.Validate(o, ws, cfg, declare.SkipPrompts)
+		err = declare.Validate(o, p, cfg, declare.SkipPrompts)
 	}
 	if err != nil {
 		return cancelledOr(c, err)
 	}
 
-	if err := writeDeclaration(c, ws, cfg); err != nil {
+	if err := writeDeclaration(c, p, cfg); err != nil {
 		return err
 	}
 	created, renamed, err := f.EnsureLabels(forge.Labels)
@@ -98,8 +147,8 @@ func swarmInit(c *Context, open opener) error {
 		return fmt.Errorf("Error: %v", err)
 	}
 	fmt.Fprintln(c.Stdout, labelsLine(created, renamed))
-	readiness(c, ws, cfg, acct.Login)
-	return printUnits(c, ws, cfg.Interval, cfg.Timeout)
+	readiness(c, p, cfg, acct.Login)
+	return printUnits(c, p, cfg.Interval, cfg.Timeout)
 }
 
 // labelsLine is init's report of EnsureLabels, and apply's when it made
@@ -122,23 +171,31 @@ func cancelledOr(c *Context, err error) error {
 	return err
 }
 
-// secret is a variable as `daisy check-secrets` resolves it: its
-// assignment in <ws>/.env.sh (read, never run), else the environment;
-// .env.sh's problems reported on stderr.
-func secret(c *Context, ws, name string) string { return readSecrets(c, ws, c.Stderr, name)[name] }
+// secretsFile is where the swarm's variables are assigned (section 3,
+// Secret values): <state>/env, outside every repository, or in the old
+// layout the workspace's .env.sh.
+func secretsFile(c *Context, cfg declare.Config) string {
+	if c.Swarm.Old() {
+		return filepath.Join(c.Swarm.Root, ".env.sh")
+	}
+	return filepath.Join(cfg.Forge.State(c.Env.Local), "env")
+}
 
-// readSecrets resolves each of names as secret does, <ws>/.env.sh read
-// once and its problems reported to warn. Only names are kept: every other
-// assignment, the maintainer's token among them when it is not asked for,
-// is dropped with the parse.
-func readSecrets(c *Context, ws string, warn io.Writer, names ...string) map[string]string {
-	var vars map[string]string
-	if b, err := c.Ops.FS().ReadFile(filepath.Join(ws, ".env.sh")); err == nil {
-		var problems []string
-		vars, problems = env.ParseShellEnv(b, c.Ops.Getenv)
-		for _, p := range problems {
-			fmt.Fprintf(warn, "⚠️  .env.sh %s\n", p)
-		}
+// unsetErr is a needed variable found empty.
+func unsetErr(c *Context, cfg declare.Config, name string) error {
+	return fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", name, secretsFile(c, cfg))
+}
+
+// readSecrets resolves each of names as `daisy check-secrets` resolves a
+// variable: its assignment in the secrets file (read, never run, once,
+// its problems reported to warn), else the environment. Only names are
+// kept: every other assignment, the maintainer's token among them when it
+// is not asked for, is dropped with the parse. <state>/env that a group
+// or other may read is refused before it is read.
+func readSecrets(c *Context, cfg declare.Config, warn io.Writer, names ...string) (map[string]string, error) {
+	vars, err := parseSecrets(c, secretsFile(c, cfg), !c.Swarm.Old(), warn)
+	if err != nil {
+		return nil, err
 	}
 	kept := make(map[string]string, len(names))
 	for _, name := range names {
@@ -148,52 +205,93 @@ func readSecrets(c *Context, ws string, warn io.Writer, names ...string) map[str
 		}
 		kept[name] = v
 	}
-	return kept
+	return kept, nil
+}
+
+// parseSecrets is the assignments of the secrets file at path, nil when
+// it is absent; private, the swarm's <state>/env, refused when a group or
+// other may read it. A line it cannot read past is named on warn: by its
+// path, or in the old layout as `.env.sh`, as check-secrets names it.
+func parseSecrets(c *Context, path string, private bool, warn io.Writer) (map[string]string, error) {
+	fs := c.Ops.FS()
+	fi, err := fs.Stat(path)
+	if err != nil {
+		return nil, nil
+	}
+	if private && fi.Mode().Perm()&0o044 != 0 {
+		return nil, fmt.Errorf("Error: swarm: %s is readable by others (mode %04o); run chmod 600 on it", path, fi.Mode().Perm())
+	}
+	b, err := fs.ReadFile(path)
+	if err != nil {
+		return nil, nil
+	}
+	name := path
+	if !private {
+		name = ".env.sh"
+	}
+	vars, problems := env.ParseShellEnv(b, c.Ops.Getenv)
+	for _, p := range problems {
+		fmt.Fprintf(warn, "⚠️  %s %s\n", name, p)
+	}
+	return vars, nil
+}
+
+// warnCloneEnv is apply's and status's warning of a .env.sh in the swarm
+// repository's clone, which nothing reads (section 3, Secret values).
+func warnCloneEnv(c *Context, cfg declare.Config) {
+	if c.Swarm.Old() {
+		return
+	}
+	p := filepath.Join(c.Swarm.Root, ".env.sh")
+	if _, err := c.Ops.FS().Lstat(p); err == nil {
+		fmt.Fprintf(c.Stderr, "⚠ %s: the swarm reads its secrets from %s, not the clone; move them there and delete it\n", p, secretsFile(c, cfg))
+	}
 }
 
 // writeDeclaration writes swarm.json when the answers differ from its
 // values (its layout aside: a hand-formatted file with the same values is
-// left as it is) and each persona prompt that is absent.
-func writeDeclaration(c *Context, ws string, cfg declare.Config) error {
+// left as it is) and each persona prompt that is absent, each named
+// relative to the swarm's root.
+func writeDeclaration(c *Context, at declare.Place, cfg declare.Config) error {
 	fs := c.Ops.FS()
-	if err := fs.MkdirAll(filepath.Join(ws, "swarm", "prompts"), 0o755); err != nil {
-		return fmt.Errorf("Error: cannot create %s: %v", filepath.Join(ws, "swarm", "prompts"), err)
+	if err := fs.MkdirAll(filepath.Join(at.Dir, "prompts"), 0o755); err != nil {
+		return fmt.Errorf("Error: cannot create %s: %v", filepath.Join(at.Dir, "prompts"), err)
 	}
 	data := declare.Format(cfg)
-	if old, found, err := declare.Load(fs, ws); found && err == nil && reflect.DeepEqual(old, cfg) {
-		fmt.Fprintln(c.Stdout, "  Unchanged swarm/swarm.json")
+	if old, found, err := declare.Load(fs, at.Dir); found && err == nil && reflect.DeepEqual(old, cfg) {
+		fmt.Fprintf(c.Stdout, "  Unchanged %s\n", at.Rel("swarm.json"))
 	} else {
-		if err := fs.WriteFile(declare.File(ws), data, 0o644); err != nil {
-			return fmt.Errorf("Error: cannot write %s: %v", declare.File(ws), err)
+		if err := fs.WriteFile(declare.File(at.Dir), data, 0o644); err != nil {
+			return fmt.Errorf("Error: cannot write %s: %v", declare.File(at.Dir), err)
 		}
-		fmt.Fprintln(c.Stdout, "✓ Wrote swarm/swarm.json")
+		fmt.Fprintf(c.Stdout, "✓ Wrote %s\n", at.Rel("swarm.json"))
 	}
 	for _, role := range declare.Roles {
-		p := declare.PromptFile(ws, role)
+		p, rel := declare.PromptFile(at.Dir, role), at.Rel(filepath.Join("prompts", role+".md"))
 		if _, err := fs.Lstat(p); err == nil {
-			fmt.Fprintf(c.Stdout, "  Kept swarm/prompts/%s.md (exists)\n", role)
+			fmt.Fprintf(c.Stdout, "  Kept %s (exists)\n", rel)
 			continue
 		}
 		if err := fs.WriteFile(p, []byte(declare.DefaultPrompts[role]), 0o644); err != nil {
 			return fmt.Errorf("Error: cannot write %s: %v", p, err)
 		}
-		fmt.Fprintf(c.Stdout, "✓ Wrote swarm/prompts/%s.md\n", role)
+		fmt.Fprintf(c.Stdout, "✓ Wrote %s\n", rel)
 	}
 	return nil
 }
 
 // readiness names, on stderr, what a product lacks for a swarm to improve
 // it; never a refusal.
-func readiness(c *Context, ws string, cfg declare.Config, swarmLogin string) {
+func readiness(c *Context, at declare.Place, cfg declare.Config, swarmLogin string) {
 	fs := c.Ops.FS()
 	exists := func(p string) bool { _, err := fs.Stat(p); return err == nil }
 	for _, r := range cfg.Repos {
-		dir := filepath.Join(ws, r.Path)
+		dir := filepath.Join(at.Root, r.Path)
 		if !exists(filepath.Join(dir, "AGENTS.md")) && !exists(filepath.Join(dir, "CLAUDE.md")) {
 			fmt.Fprintf(c.Stderr, "⚠ Readiness: %s has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n", r.Name)
 		}
 		if len(r.Check) == 0 {
-			fmt.Fprintf(c.Stderr, "⚠ Readiness: %s: check is empty; no member's work is executed (set it in swarm/swarm.json)\n", r.Name)
+			fmt.Fprintf(c.Stderr, "⚠ Readiness: %s: check is empty; no member's work is executed (set it in %s)\n", r.Name, at.Rel("swarm.json"))
 		}
 	}
 	if len(cfg.Resources) == 0 {
@@ -209,21 +307,24 @@ func readiness(c *Context, ws string, cfg declare.Config, swarmLogin string) {
 }
 
 // printUnits prints the systemd user service that runs `swarm apply`'s
-// loop in this workspace, and how to install it: restarted one interval
-// after a failure, and a stop waiting one timeout, as long as a run may
-// last, for the drain before systemd kills what is left.
-func printUnits(c *Context, ws, interval, timeout string) error {
+// loop in the swarm's root, its %f, and how to install it: restarted one
+// interval after a failure, and a stop waiting one timeout, as long as a
+// run may last, for the drain before systemd kills what is left.
+func printUnits(c *Context, at declare.Place, interval, timeout string) error {
 	daisy, err := c.Ops.Executable()
 	if err != nil {
 		return fmt.Errorf("Error: cannot find the running binary: %v", err)
 	}
 	d, _ := time.ParseDuration(interval) // validated
 	t, _ := time.ParseDuration(timeout)  // validated
-	unit := installedUnit(ws)
+	unit, what := installedUnit(at.Root), "the swarm repository"
+	if at.Old() {
+		what = "the workspace"
+	}
 	fmt.Fprintf(c.Stdout, `
 # ~/.config/systemd/user/daisy-swarm@.service
 [Unit]
-Description=Daisy swarm: apply every %s for the workspace %%f
+Description=Daisy swarm: apply every %s for %s %%f
 
 [Service]
 WorkingDirectory=%%f
@@ -239,7 +340,7 @@ WantedBy=default.target
 
 Install (your step):
   systemctl --user daemon-reload && systemctl --user enable --now %s
-`, systemdSpan(d), c.Env.Root, daisy, systemdSpan(d), systemdSpan(t), unit)
+`, systemdSpan(d), what, c.Env.Root, daisy, systemdSpan(d), systemdSpan(t), unit)
 	return nil
 }
 
@@ -297,21 +398,28 @@ func systemdEscapePath(p string) string {
 // swarm's stages, gates, whose turn it is, the running set, the personas,
 // the throughput from runs/ and the active briefs, under ReadOnly (the
 // forge's GETs and `docker ps` let through: section 14, item 31).
-var SwarmStatus = readOnly(func(c *Context) error { return swarmStatus(c, openForge) })
+var SwarmStatus = readOnly(func(c *Context) error {
+	if err := locate(c, false); err != nil {
+		return err
+	}
+	return swarmStatus(c, openForge)
+})
 
 func swarmStatus(c *Context, open opener) error {
-	o, ws := c.Ops, c.Env.Workspace
-	cfg, _, err := declare.Load(o.FS(), ws)
-	if err == nil {
-		err = declare.Validate(o, ws, cfg, 0)
-	}
+	o, ws := c.Ops, c.Swarm.Root
+	cfg, err := loadSwarm(o, c.Swarm)
 	if err != nil {
-		return fmt.Errorf("Error: %v", err)
+		return err
 	}
-	token := secret(c, ws, cfg.Forge.TokenEnv)
+	vars, err := readSecrets(c, cfg, c.Stderr, cfg.Forge.TokenEnv)
+	if err != nil {
+		return err
+	}
+	token := vars[cfg.Forge.TokenEnv]
 	if token == "" {
-		return fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", cfg.Forge.TokenEnv, filepath.Join(ws, ".env.sh"))
+		return unsetErr(c, cfg, cfg.Forge.TokenEnv)
 	}
+	warnCloneEnv(c, cfg)
 	var names []string
 	for _, r := range cfg.Repos {
 		names = append(names, r.Name)
@@ -858,26 +966,30 @@ func median(ds []time.Duration) time.Duration {
 // the start (validation, the credentials, the account, the host's uid and
 // gid, Docker, <state> and its lock, the labels), then one pass with
 // --once, or a pass every interval until SIGINT or SIGTERM.
-func SwarmApply(c *Context) error { return swarmApply(c, openForge, openRunner) }
+func SwarmApply(c *Context) error {
+	if err := locate(c, false); err != nil {
+		return err
+	}
+	return swarmApply(c, openForge, openRunner)
+}
 
-// runnerOpener builds the runner; tests pass one returning a runner.Fake.
-type runnerOpener func(o ops.Ops, ws string) runner.Runner
+// runnerOpener builds the runner, its docker run in dir, the swarm's
+// root; tests pass one returning a runner.Fake.
+type runnerOpener func(o ops.Ops, dir string) runner.Runner
 
-func openRunner(o ops.Ops, ws string) runner.Runner { return runner.Docker{O: o, Dir: ws} }
+func openRunner(o ops.Ops, dir string) runner.Runner { return runner.Docker{O: o, Dir: dir} }
 
 // ErrInterrupted: a second signal ended `apply`'s drain (exit 130).
 var ErrInterrupted = errors.New("interrupted")
 
 func swarmApply(c *Context, open opener, openRun runnerOpener) error {
-	o, ws := c.Ops, c.Env.Workspace
+	o, ws := c.Ops, c.Swarm.Root
 	once := c.Flag("--once")
-	cfg, err := loadSwarm(o, ws)
+	cfg, err := loadSwarm(o, c.Swarm)
 	if err != nil {
 		return err
 	}
-	unset := func(v string) error {
-		return fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", v, filepath.Join(ws, ".env.sh"))
-	}
+	unset := func(v string) error { return unsetErr(c, cfg, v) }
 	used := map[string]bool{}
 	for _, p := range cfg.Personas {
 		used[p.Provider] = true
@@ -889,7 +1001,10 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 			names = append(names, *key.Env)
 		}
 	}
-	vars := readSecrets(c, ws, c.Stderr, names...) // its problems reported here, once
+	vars, err := readSecrets(c, cfg, c.Stderr, names...) // its problems reported here, once
+	if err != nil {
+		return err
+	}
 	token := vars[cfg.Forge.TokenEnv]
 	if token == "" {
 		return unset(cfg.Forge.TokenEnv)
@@ -899,6 +1014,7 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 			return unset(*key.Env)
 		}
 	}
+	warnCloneEnv(c, cfg)
 	// The lock before anything is read from the forge or Docker: a second
 	// apply refuses having read nothing.
 	state := cfg.Forge.State(c.Env.Local)
@@ -950,8 +1066,12 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 	if created+renamed > 0 {
 		fmt.Fprintln(c.Stdout, labelsLine(created, renamed))
 	}
-	s := &reconcile.Swarm{O: o, WS: ws, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
-		User: ids[0] + ":" + ids[1], Secret: func(v string) string { return readSecrets(c, ws, io.Discard, v)[v] } /* re-read at each use, warned once above */, Out: c.Stdout, Err: c.Stderr}
+	secret := func(v string) string {
+		vars, _ := readSecrets(c, cfg, io.Discard, v) // re-read at each use, warned once above; refused, empty
+		return vars[v]
+	}
+	s := &reconcile.Swarm{O: o, Place: c.Swarm, WS: ws, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
+		User: ids[0] + ":" + ids[1], Secret: secret, Out: c.Stdout, Err: c.Stderr}
 	if once {
 		if err := s.Pass(true); err != nil {
 			return fmt.Errorf("Error: swarm: %v", err)
@@ -963,10 +1083,10 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 
 // loadSwarm reads and validates swarm.json as apply's start and each pass
 // do.
-func loadSwarm(o ops.Ops, ws string) (declare.Config, error) {
-	cfg, _, err := declare.Load(o.FS(), ws)
+func loadSwarm(o ops.Ops, at declare.Place) (declare.Config, error) {
+	cfg, _, err := declare.Load(o.FS(), at.Dir)
 	if err == nil {
-		err = declare.Validate(o, ws, cfg, 0)
+		err = declare.Validate(o, at, cfg, 0)
 	}
 	if err != nil {
 		return cfg, fmt.Errorf("Error: %v", err)
@@ -997,7 +1117,7 @@ func applyLoop(c *Context, s *reconcile.Swarm) error {
 	}
 	for !s.Stopping() {
 		begin := o.Now()
-		if cfg, err := loadSwarm(o, c.Env.Workspace); err != nil {
+		if cfg, err := loadSwarm(o, c.Swarm); err != nil {
 			fmt.Fprintln(c.Stderr, err)
 		} else if f, was := cfg.Forge, s.Cfg.Forge; f.Kind != was.Kind || f.API != was.API || f.Repo != was.Repo || f.TokenEnv != was.TokenEnv {
 			// The lock, the adapter and the token are the start's: a pass
@@ -1051,7 +1171,7 @@ func applyLoop(c *Context, s *reconcile.Swarm) error {
 // swarmStateOnly is the <state> pause and resume act on: swarm.json read
 // for its forge fields only (section 11).
 func swarmStateOnly(c *Context) (string, error) {
-	cfg, _, err := declare.Load(c.Ops.FS(), c.Env.Workspace)
+	cfg, _, err := declare.Load(c.Ops.FS(), c.Swarm.Dir)
 	if err == nil {
 		err = declare.ValidateForge(cfg.Forge)
 	}

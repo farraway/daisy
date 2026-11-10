@@ -49,9 +49,11 @@ var (
 	effortShape = regexp.MustCompile(`^[a-z]+$`)
 )
 
-// Validate checks c, a parse of the workspace ws's swarm.json, in section
-// 3's order and returns the first problem as an *Error.
-func Validate(o ops.Ops, ws string, c Config, skip Skip) error {
+// Validate checks c, a parse of the swarm.json at p, in section 3's
+// order and returns the first problem as an *Error. repos[].path and
+// resources are read under p.Root, the prompts in p.Dir.
+func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
+	ws := p.Root
 	checks := []func() *Error{
 		func() *Error { return checkForge(c.Forge, skip) },
 		func() *Error { return checkRepos(o, ws, c.Forge, c.Repos) },
@@ -61,7 +63,7 @@ func Validate(o ops.Ops, ws string, c Config, skip Skip) error {
 		func() *Error { return checkDuration("timeout", c.Timeout) },
 		func() *Error { return checkDuration("interval", c.Interval) },
 		func() *Error { return checkRange("owner.max_open_proposals", c.Owner.MaxOpenProposals, 1, 20) },
-		func() *Error { return checkResources(o, ws, c.Resources) },
+		func() *Error { return checkResources(o, p, c.Resources) },
 		func() *Error { return checkNotes(c) },
 		func() *Error {
 			if skip&SkipAccount != 0 {
@@ -70,7 +72,7 @@ func Validate(o ops.Ops, ws string, c Config, skip Skip) error {
 			return checkTrusted(c.Trusted)
 		},
 		func() *Error { return checkBudget(c.Gates, c.Budget) },
-		func() *Error { return checkPersonas(o, ws, c.Personas, skip) },
+		func() *Error { return checkPersonas(o, p, c.Personas, skip) },
 		func() *Error { return checkKeys(c.Keys, c.Personas) },
 	}
 	for _, check := range checks {
@@ -244,10 +246,10 @@ func checkDuration(field, v string) *Error {
 }
 
 // checkResources: each resolves, through every link, to a path inside the
-// workspace that is not the workspace, not under swarm/, neither is nor
-// contains .env.sh, .daisy or .git, and is listed once.
-func checkResources(o ops.Ops, ws string, resources []string) *Error {
-	_, err := resolveResources(o, ws, resources)
+// root that is not the root, in the old layout not under swarm/, neither
+// is nor contains .env.sh, .daisy or .git, and is listed once.
+func checkResources(o ops.Ops, p Place, resources []string) *Error {
+	_, err := resolveResources(o, p, resources)
 	return err
 }
 
@@ -255,16 +257,16 @@ func checkResources(o ops.Ops, ws string, resources []string) *Error {
 // source its mount is given, once section 3's checks hold of it now (a
 // launch makes them again, so a link changed since the pass's validation
 // mounts nothing outside them, section 7.2).
-func ResolveResources(o ops.Ops, ws string, resources []string) ([]string, error) {
-	real, err := resolveResources(o, ws, resources)
+func ResolveResources(o ops.Ops, p Place, resources []string) ([]string, error) {
+	real, err := resolveResources(o, p, resources)
 	if err != nil {
 		return nil, err
 	}
 	return real, nil
 }
 
-func resolveResources(o ops.Ops, ws string, resources []string) ([]string, *Error) {
-	fs := o.FS()
+func resolveResources(o ops.Ops, p Place, resources []string) ([]string, *Error) {
+	fs, ws := o.FS(), p.Root
 	root, err := fs.EvalSymlinks(ws)
 	if err != nil {
 		return nil, fieldErr("resources", "the workspace %s cannot be resolved: %v", ws, err)
@@ -286,7 +288,7 @@ func resolveResources(o ops.Ops, ws string, resources []string) ([]string, *Erro
 		if rel == "." {
 			return nil, fieldErr(at, "%q is the workspace", r)
 		}
-		if rel == "swarm" || strings.HasPrefix(rel, "swarm/") {
+		if p.Old() && (rel == "swarm" || strings.HasPrefix(rel, "swarm/")) {
 			return nil, fieldErr(at, "%q is under swarm/", r)
 		}
 		if name := forbiddenIn(fs, rel, real); name != "" {
@@ -398,7 +400,7 @@ func checkBudget(g Gates, b *Budget) *Error {
 	return nil
 }
 
-func checkPersonas(o ops.Ops, ws string, personas map[string]Persona, skip Skip) *Error {
+func checkPersonas(o ops.Ops, at Place, personas map[string]Persona, skip Skip) *Error {
 	var extra []string
 	for r := range personas {
 		if !slices.Contains(Roles, r) {
@@ -418,9 +420,9 @@ func checkPersonas(o ops.Ops, ws string, personas map[string]Persona, skip Skip)
 			return err
 		}
 		if skip&SkipPrompts == 0 {
-			b, err := o.FS().ReadFile(PromptFile(ws, r))
+			b, err := o.FS().ReadFile(PromptFile(at.Dir, r))
 			if err != nil || len(b) == 0 {
-				return fieldErr("personas."+r, "prompt swarm/prompts/%s.md is missing or empty", r)
+				return fieldErr("personas."+r, "prompt %s is missing or empty", at.Rel(filepath.Join("prompts", r+".md")))
 			}
 		}
 	}
@@ -520,5 +522,6 @@ func checkKeys(keys map[string]Key, personas map[string]Persona) *Error {
 	return nil
 }
 
-// PromptFile is the prompt of role in the workspace ws.
-func PromptFile(ws, role string) string { return filepath.Join(ws, "swarm", "prompts", role+".md") }
+// PromptFile is the prompt of role in dir, the configuration folder
+// (Place.Dir).
+func PromptFile(dir, role string) string { return filepath.Join(dir, "prompts", role+".md") }

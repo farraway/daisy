@@ -57,7 +57,7 @@ func workspace(t *testing.T) string {
 	gitRepo(t, filepath.Join(ws, "lib"), "https://forge.example.net/acme/lib.git")
 	write(t, filepath.Join(ws, "docs", "roadmap.md"), "# Roadmap\n")
 	for _, r := range Roles {
-		write(t, PromptFile(ws, r), DefaultPrompts[r])
+		write(t, PromptFile(Workspace(ws).Dir, r), DefaultPrompts[r])
 	}
 	return ws
 }
@@ -195,35 +195,35 @@ func TestValidateNamesTheField(t *testing.T) {
 		c := valid()
 		c.Keys = map[string]Key{"anthropic": c.Keys["anthropic"], "openai": c.Keys["openai"]}
 		tc.edit(&c)
-		if got := errText(Validate(ops.Real(), ws, c, 0)); got != tc.want {
+		if got := errText(Validate(ops.Real(), Workspace(ws), c, 0)); got != tc.want {
 			t.Errorf("got  %s\nwant %s", got, tc.want)
 		}
 	}
 
-	if err := Validate(ops.Real(), ws, valid(), 0); err != nil {
+	if err := Validate(ops.Real(), Workspace(ws), valid(), 0); err != nil {
 		t.Errorf("the valid declaration: %v", err)
 	}
 	for _, k := range []Key{{Slots: ptr(2)}, {Env: ptr("XAI_API_KEY")}} { // xai takes either form (section 8)
 		x := valid()
 		setPersona(&x, "sympathetic", func(p *Persona) { p.Provider, p.Model, p.CoAuthor = "xai", "grok-4.5", "grok-4.5 <noreply@x.ai>" })
 		x.Keys["xai"] = k
-		if err := Validate(ops.Real(), ws, x, 0); err != nil {
+		if err := Validate(ops.Real(), Workspace(ws), x, 0); err != nil {
 			t.Errorf("xai %+v: %v", k, err)
 		}
 	}
 	none := valid()
 	setPersona(&none, "worker", func(p *Persona) { p.CoAuthor = "" })
-	if err := Validate(ops.Real(), ws, none, 0); err != nil {
+	if err := Validate(ops.Real(), Workspace(ws), none, 0); err != nil {
 		t.Errorf(`co_author "", no trailer: %v`, err)
 	}
-	os.Remove(PromptFile(ws, "architect"))
-	write(t, PromptFile(ws, "worker"), "")
-	if got := errText(Validate(ops.Real(), ws, valid(), 0)); got != "swarm.json: personas.architect: prompt swarm/prompts/architect.md is missing or empty" {
+	os.Remove(PromptFile(Workspace(ws).Dir, "architect"))
+	write(t, PromptFile(Workspace(ws).Dir, "worker"), "")
+	if got := errText(Validate(ops.Real(), Workspace(ws), valid(), 0)); got != "swarm.json: personas.architect: prompt swarm/prompts/architect.md is missing or empty" {
 		t.Errorf("missing prompt: %s", got)
 	}
 	c := valid()
 	c.Trusted, c.Forge.CommitEmail = nil, ""
-	if err := Validate(ops.Real(), ws, c, SkipPrompts|SkipAccount); err != nil {
+	if err := Validate(ops.Real(), Workspace(ws), c, SkipPrompts|SkipAccount); err != nil {
 		t.Errorf("init's first validation: %v", err)
 	}
 }
@@ -280,7 +280,7 @@ func TestParseNamesTheField(t *testing.T) {
 		t.Errorf("round trip: %v\n%+v", err, c)
 	}
 	ws := t.TempDir()
-	if _, found, err := Load(ops.Real().FS(), ws); found || errText(err) != "swarm.json: not found at "+ws+"/swarm/swarm.json; run 'daisy swarm init'" {
+	if _, found, err := Load(ops.Real().FS(), Workspace(ws).Dir); found || errText(err) != "swarm.json: not found at "+ws+"/swarm/swarm.json; run 'daisy swarm init'" {
 		t.Errorf("absent: found %v, %v", found, err)
 	}
 }
@@ -371,7 +371,7 @@ func TestOwnIssuesRepository(t *testing.T) {
 	write(t, filepath.Join(ws, "swarm-x", "briefs", "m0.md"), "Status: active\n\n## M1\n")
 	c := valid()
 	c.Forge.Repo, c.Notes, c.Resources = "acme/swarm-x", true, []string{"docs/", "swarm-x/briefs/"}
-	if err := Validate(ops.Real(), ws, c, 0); err != nil {
+	if err := Validate(ops.Real(), Workspace(ws), c, 0); err != nil {
 		t.Fatalf("own issues repository: %v", err)
 	}
 	if _, ok := c.Declares(c.Forge.Repo); ok || len(c.Repos) != 2 || !c.KeepsNotes() {

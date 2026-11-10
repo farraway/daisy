@@ -1,4 +1,4 @@
-// Package declare is `swarm/swarm.json` (docs/swarm.md section 3): its
+// Package declare is `swarm.json` (docs/swarm.md section 3): its
 // types, the strict parse, the layout `swarm init` writes, validation with
 // errors naming their field, the wizard that asks for it, and the default
 // persona prompts (section 4).
@@ -126,15 +126,15 @@ func fieldErr(field, format string, args ...any) *Error {
 	return &Error{field, fmt.Sprintf(format, args...)}
 }
 
-// File is swarm.json's path in the workspace ws.
-func File(ws string) string { return filepath.Join(ws, "swarm", "swarm.json") }
+// File is swarm.json's path in dir, the configuration folder (Place.Dir).
+func File(dir string) string { return filepath.Join(dir, "swarm.json") }
 
-// Load reads and parses the workspace's swarm.json; found is false when
-// there is none, err then saying to run init.
-func Load(fs ops.FS, ws string) (c Config, found bool, err error) {
-	b, err := fs.ReadFile(File(ws))
+// Load reads and parses dir's swarm.json (dir a Place.Dir); found is
+// false when there is none, err then saying to run init.
+func Load(fs ops.FS, dir string) (c Config, found bool, err error) {
+	b, err := fs.ReadFile(File(dir))
 	if errors.Is(err, iofs.ErrNotExist) {
-		return Config{}, false, &Error{"", fmt.Sprintf("not found at %s; run 'daisy swarm init'", File(ws))}
+		return Config{}, false, &Error{"", fmt.Sprintf("not found at %s; run 'daisy swarm init'", File(dir))}
 	}
 	if err != nil {
 		return Config{}, true, &Error{"", err.Error()}

@@ -40,7 +40,7 @@ func (a *applyWS) inReview(plan string) {
 }
 
 func (a *applyWS) Cfg() declare.Config {
-	c, _, _ := declare.Load(ops.Real().FS(), a.ws)
+	c, _, _ := declare.Load(ops.Real().FS(), a.place.Dir)
 	return c
 }
 

@@ -198,7 +198,8 @@ over the verbs is the `swarm` skill (`skills/swarm/SKILL.md`).
 root's with `--root`); `daisy healthcheck` checks the installation, the
 home, the day's file, each command's own health and the root's publication
 hygiene; `daisy check-secrets` reports which tokens a workspace's `.env.sh`
-sets, reading the file without running it; `daisy test` builds the binary,
+sets and, in a swarm, the swarm's from its secrets file, reading each
+without running it; `daisy test` builds the binary,
 runs `go test`, then drives the acceptance suite in `tests/` through it.
 
 ## Design decisions & intent

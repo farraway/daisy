@@ -10,18 +10,25 @@ import (
 	"testing"
 	"time"
 
-	"daisy/internal/env"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 )
 
-// swarmWS is a temp workspace holding the product at app and its library
-// at lib, of the organization acme on forge.example.net, and the token in
-// .env.sh.
+// swarmWS is a swarm's temp folder holding the product at app and its
+// library at lib, of the organization acme on forge.example.net, and the
+// token in its secrets file. In the old layout the folder is a Daisy
+// workspace (.daisy/), the swarm in its swarm/ and the token in its
+// .env.sh; in revision 6's (clone) it is a clone of the swarm repository
+// with no .daisy/ in it or above it, swarm.json and prompts/ at its top,
+// the products nested in it (repos[].path, until Step 3 of revision 6's
+// plan names them by forge name) and the token in <state>/env.
 type swarmWS struct {
 	t                 *testing.T
-	ws, root          string
+	ws, root, local   string
+	clone             bool
+	place             declare.Place // where the swarm is
+	cwd               string        // the folder the verbs find the swarm from (find); "" before a clone holds its swarm.json, the verbs then run at place
 	vars              map[string]string
 	forge             *forge.Fake
 	opened            []string // what the last opener was given: kind, api, repo, names, token
@@ -34,11 +41,15 @@ type swarmWS struct {
 	loginFails        bool
 }
 
-func newSwarmWS(t *testing.T) *swarmWS {
+func newSwarmWS(t *testing.T) *swarmWS { return newSwarmWSIn(t, false) }
+
+// newSwarmWSIn is newSwarmWS in the old layout, or with clone in a swarm
+// repository's clone.
+func newSwarmWSIn(t *testing.T, clone bool) *swarmWS {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	s := &swarmWS{t: t, ws: t.TempDir(), root: t.TempDir(), vars: map[string]string{}}
+	s := &swarmWS{t: t, ws: t.TempDir(), root: t.TempDir(), local: t.TempDir(), clone: clone, vars: map[string]string{}}
 	s.forge = forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
 	for name, url := range map[string]string{"app": "git@forge.example.net:acme/app.git", "lib": "git@forge.example.net:acme/lib.git"} {
 		dir := filepath.Join(s.ws, name)
@@ -49,8 +60,83 @@ func newSwarmWS(t *testing.T) *swarmWS {
 			}
 		}
 	}
-	s.write(".env.sh", "export GITEA_TOKEN=\"tok-123\"\n")
+	if clone {
+		// The clone's origin is added once init has written its
+		// swarm.json (cloned), so that the first run's question 1
+		// detects the products under it, not the clone itself.
+		git(t, s.ws, "init", "-q")
+		s.place = declare.Clone(s.ws)
+	} else {
+		os.Mkdir(filepath.Join(s.ws, ".daisy"), 0o755)
+		s.place, s.cwd = declare.Workspace(s.ws), s.ws
+	}
+	s.secrets("export GITEA_TOKEN=\"tok-123\"\n")
 	return s
+}
+
+// cloned is the clone once init has written swarm.json at its top: its
+// origin the swarm repository, the verbs finding it from prompts/, a
+// folder inside it.
+func (s *swarmWS) cloned() {
+	if !s.clone {
+		return
+	}
+	git(s.t, s.ws, "remote", "add", "origin", "git@forge.example.net:acme/swarm-app.git")
+	s.cwd = filepath.Join(s.ws, "prompts")
+}
+
+func git(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	if _, errb, err := ops.Real().Exec(dir, "git", args...); err != nil {
+		t.Fatalf("git %v: %v %s", args, err, errb)
+	}
+}
+
+// secretsFile is where the swarm's secrets are: the workspace's .env.sh,
+// or <state>/env.
+func (s *swarmWS) secretsFile() string {
+	if s.clone {
+		return filepath.Join(s.local, "swarm", "forge.example.net", "acme", "app", "env")
+	}
+	return filepath.Join(s.ws, ".env.sh")
+}
+
+// secrets writes the secrets file, <state>/env with mode 0600.
+func (s *swarmWS) secrets(content string) {
+	s.t.Helper()
+	p := s.secretsFile()
+	os.MkdirAll(filepath.Dir(p), 0o755)
+	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+		s.t.Fatal(err)
+	}
+}
+
+// cfg is a file of the configuration folder, relative to the root:
+// swarm/<rel> in the old layout, <rel> in a clone.
+func (s *swarmWS) cfg(rel string) string { return s.place.Rel(rel) }
+
+// cwdOps is o with its working folder at cwd.
+type cwdOps struct {
+	ops.Ops
+	cwd string
+}
+
+func (o cwdOps) Getwd() (string, error) { return o.cwd, nil }
+
+// at runs verb on c as the cli does once the swarm is found: from s.cwd
+// through find, the one lookup, or at s.place before a clone holds its
+// swarm.json.
+func (s *swarmWS) at(c *Context, init bool, verb func(*Context) error) error {
+	c.Env.Root, c.Env.Local = s.root, s.local
+	if s.cwd == "" {
+		c.Swarm = s.place
+		return verb(c)
+	}
+	c.Ops = cwdOps{c.Ops, s.cwd}
+	if err := find(c, init); err != nil {
+		return err
+	}
+	return verb(c)
 }
 
 // fixedClock is the Ops whose clock reads 2026-11-06 15:00 UTC.
@@ -118,10 +204,12 @@ func (s *swarmWS) run(flags ...string) error {
 			return a, nil
 		},
 	}
-	c := &Context{Ops: o, Env: env.Env{Root: s.root, Workspace: s.ws}, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr, Flags: flags}
-	return swarmInit(c, func(_ ops.Ops, f declare.Forge, names []string, token string) (forge.Adapter, error) {
-		s.opened = []string{f.Kind, f.API, f.Repo, strings.Join(names, ","), token}
-		return failingReads{s.forge, s.readFails, s.declaredReadFails, s.loginFails}, nil
+	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr, Flags: flags}
+	return s.at(c, true, func(c *Context) error {
+		return swarmInit(c, func(_ ops.Ops, f declare.Forge, names []string, token string) (forge.Adapter, error) {
+			s.opened = []string{f.Kind, f.API, f.Repo, strings.Join(names, ","), token}
+			return failingReads{s.forge, s.readFails, s.declaredReadFails, s.loginFails}, nil
+		})
 	})
 }
 
@@ -181,7 +269,7 @@ func TestSwarmInitDefaults(t *testing.T) {
 	if err != nil || len(c.Repos) != 2 || c.Forge.CommitEmail != "swarm@example.net" || strings.Join(c.Trusted, ",") != "swarm-bot" {
 		t.Errorf("swarm.json %v:\n%s", err, s.read("swarm/swarm.json"))
 	}
-	if err := declare.Validate(ops.Real(), s.ws, c, 0); err != nil {
+	if err := declare.Validate(ops.Real(), s.place, c, 0); err != nil {
 		t.Errorf("what init wrote does not validate: %v", err)
 	}
 	for _, r := range declare.Roles {
@@ -388,4 +476,11 @@ func TestSystemdNotation(t *testing.T) {
 			t.Errorf("systemdSpan(%s) = %q, want %q", in, got, want)
 		}
 	}
+}
+
+// bothLayouts runs test in the old layout and in a swarm repository's
+// clone (revision 6), until Step 7 of its plan retires the old.
+func bothLayouts(t *testing.T, test func(t *testing.T, clone bool)) {
+	t.Run("workspace", func(t *testing.T) { test(t, false) })
+	t.Run("clone", func(t *testing.T) { test(t, true) })
 }

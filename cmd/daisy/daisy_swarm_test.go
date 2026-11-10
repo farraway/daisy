@@ -268,3 +268,62 @@ func TestSwarmVerbsEmptyIssueWord(t *testing.T) {
 		}
 	}
 }
+
+// The swarm verbs need no Daisy workspace (revision 6, Step 2): through
+// the cli, in a swarm repository's clone outside any workspace (its
+// swarm.json and prompts/ copied from a workspace's, as a maintainer moves
+// a swarm by hand), pause and resume act on its <state>, and check-secrets
+// reports the swarm's variables from <state>/env, refusing one others may
+// read; in the workspace, check-secrets adds the old layout's swarm, from
+// .env.sh, after the workspace's report.
+func TestSwarmVerbsWithoutAWorkspace(t *testing.T) {
+	m := newMachine(t)
+	m.product(t, "git@forge.example.net:acme/app.git")
+	g := newGitea(t)
+	if code, out, errs := runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults"); code != 0 {
+		t.Fatalf("init: exit %d\n%s\n%s", code, out, errs)
+	}
+	code, out, errs := runWith(m.swarmOps(m.ws, g), "check-secrets")
+	wantWS := "Checking Daisy environment configuration...\n\nCore paths:\n✅ DAISY_ROOT: " + string([]rune(m.root)[:8]) + "...\n⚠️  DAISY_HOME: Not configured\n\nAPI tokens:\n⚠️  Webex API: Not configured\n⚠️  Backstage: Not configured\n⚠️  JIRA API: Not configured\n⚠️  GitHub: Not configured\n\n" +
+		"Swarm acme/app (" + filepath.Join(m.ws, ".env.sh") + "):\n✅ GITEA_TOKEN: tok-123...\n⚠️  CLAUDE_CODE_OAUTH_TOKEN: Not configured\n⚠️  DAISY_MAINTAINER_TOKEN: Not configured\n\nNote: Only showing first 8 characters of tokens for security\n"
+	if code != 0 || out != wantWS || errs != "" {
+		t.Errorf("check-secrets in the workspace: exit %d %q\n%s\nwant\n%s", code, errs, out, wantWS)
+	}
+
+	clone := filepath.Join(t.TempDir(), "swarm-app")
+	m.gitIn(t, "", "init", "-q", clone)
+	b, _ := os.ReadFile(filepath.Join(m.ws, "swarm", "swarm.json"))
+	writeFile(t, filepath.Join(clone, "swarm.json"), string(b))
+	for _, r := range []string{"owner", "architect", "worker", "adversary", "sympathetic"} {
+		b, _ := os.ReadFile(filepath.Join(m.ws, "swarm", "prompts", r+".md"))
+		writeFile(t, filepath.Join(clone, "prompts", r+".md"), string(b))
+	}
+	inside := filepath.Join(clone, "prompts")
+	state := filepath.Join(m.local, "swarm", "forge.example.net", "acme", "app")
+	code, out, errs = runWith(m.swarmOps(inside, g), "swarm", "pause")
+	if code != 0 || out != "Paused: no new member will launch ("+filepath.Join(state, "paused")+"); running members finish and are posted\n" || errs != "" {
+		t.Errorf("pause: exit %d %q %q", code, out, errs)
+	}
+	if code, out, errs = runWith(m.swarmOps(inside, g), "swarm", "resume"); code != 0 || out != "Resumed: members launch at the next pass\n" {
+		t.Errorf("resume: exit %d %q %q", code, out, errs)
+	}
+
+	env := filepath.Join(state, "env")
+	if err := os.WriteFile(env, []byte("export GITEA_TOKEN=\"tok-456\"\nexport DAISY_MAINTAINER_TOKEN=\"jane-456\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs = runWith(m.swarmOps(inside, g), "check-secrets")
+	want := "Checking Daisy environment configuration...\n\nSwarm acme/app (" + env + "):\n✅ GITEA_TOKEN: tok-456...\n⚠️  CLAUDE_CODE_OAUTH_TOKEN: Not configured\n✅ DAISY_MAINTAINER_TOKEN: jane-456...\n\nNote: Only showing first 8 characters of tokens for security\n"
+	if code != 0 || out != want || errs != "" {
+		t.Errorf("check-secrets in the clone: exit %d %q\n%s\nwant\n%s", code, errs, out, want)
+	}
+	os.Chmod(env, 0o640)
+	code, out, _ = runWith(m.swarmOps(inside, g), "check-secrets")
+	if code != 1 || !strings.Contains(out, "❌ "+env+" is readable by others (mode 0640); run chmod 600 on it\n") || strings.Contains(out, "tok-456") {
+		t.Errorf("check-secrets refused: exit %d\n%s", code, out)
+	}
+	code, _, errs = runWith(m.swarmOps(t.TempDir(), g), "swarm", "pause")
+	if code != 1 || !strings.HasPrefix(errs, "Error: swarm.json: not found in ") {
+		t.Errorf("no swarm: exit %d %q", code, errs)
+	}
+}

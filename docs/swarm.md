@@ -25,11 +25,13 @@ or without a Daisy workspace; product repositories are declared by
 forge name; members read pushed content only; the secrets live in
 `<state>/env`; `init` creates and seeds the repository; sections 1–4,
 7.1–7.3, 7.6, 7.7, 8–11 and 13, and section 14, items 97–104). **Revision 6 is
-specified, not built:** Steps 2–6 of that plan build it, each amending
-the sections it touches with its As built, and until each lands the
-code runs the workspace layout that section 11, Moving a swarm into its
-repository, describes; Step 7 retires that layout once the maintainer
-says every swarm has moved.
+being built:** Steps 2–6 of that plan build it, each amending the
+sections it touches with its As built (Step 2, 2026-11-10: finding the
+swarm with no Daisy workspace, the secrets in `<state>/env` and the
+unit's root; section 11, Finding the swarm, and item 105), and until
+each lands the code runs the workspace layout that section 11, Moving a
+swarm into its repository, describes for what it has not built; Step 7
+retires that layout once the maintainer says every swarm has moved.
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
 sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
@@ -3088,7 +3090,21 @@ None commits but `init`, which commits the files it writes in the clone
 and pushes them (below); every later edit of the clone is the
 maintainer's to commit and push. Revision 6 (the header) is built by
 Steps 2–6 of its plan; until then the verbs run as the old layout
-describes. The thirteen
+describes for what they have not built. *As built (Step 2, 2026-11-10;
+section 14, item 105):* the lookup above is the one function that
+decides the layout (`declare.Find`), and every verb, `init` included,
+runs from a clone holding `swarm.json` with no Daisy workspace, reading
+its secrets from `<state>/env` (section 3, Secret values), printing the
+unit for the clone and running `docker` and `id` there. What Steps 3–6
+have not yet built a clone reads as the old layout does: `repos[].path`
+and the workspace form of `resources`, relative to the clone (so a
+product's clone lies inside it until Step 3 names it by forge name);
+`init` writes `swarm.json` and `prompts/` at the clone's top and names
+them so (`✓ Wrote swarm.json`, `  Kept prompts/<role>.md (exists)`),
+and run where no clone holding `swarm.json` is found still takes the
+old layout, writing its files in the workspace it is in (outside
+one, `Error: Not in a Daisy workspace …`, exit 1) until Step 6 makes
+the clone. The thirteen
 are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm,
 `status`'s correction counts at Step 8, the maintainer's six at
 Step 10, at Step 15 `swarm block` and the issue's `pause` and
@@ -3566,8 +3582,13 @@ until Steps 2–6 of its plan build revision 6, and by every verb until
 Step 7 retires it, wherever no swarm repository's clone is found
 (Finding the swarm, above): the swarm is declared in a Daisy workspace,
 `<ws>/swarm/swarm.json` and `<ws>/swarm/prompts/<role>.md`, files of
-the workspace's repository, found as every workspace command finds its
-workspace (`.daisy/`; outside one, `Not in a Daisy workspace`, exit 1).
+the workspace's repository, `<ws>` the nearest folder upward holding
+`.daisy/` (the binding's folder alone: since Step 2 of revision 6's
+plan no home or identity is read), and `<ws>/swarm/swarm.json` present
+(a verb finding neither exits 1 with section 3's not-found message; for
+`init`, Finding the swarm's As built, above). Its files are named from
+`<ws>` (`swarm.json` and `prompts/<role>.md` under `swarm/`), and its unit's
+description reads `for the workspace %f`.
 Each declared repository has `path` in place of `repo` and
 `ssh_command`: a relative path inside `<ws>` (`.` when the workspace is
 the product) naming a clone whose `origin` is `<owner>/<name>` on the
@@ -3586,7 +3607,9 @@ a `resources` entry, and with `notes` the notes, reached over the first
 declared repository's remote; Daisy keeps no mirror of it. A brief's
 path, in the prompts and in the `Brief:` and `Met:` lines, is its path
 in the workspace (`swarm-<name>/briefs/<file>.md`). The secrets are in
-`<ws>/.env.sh`, beside the workspace's others. The unit's `%f` is the
+`<ws>/.env.sh`, beside the workspace's others (a line that cannot be
+read named `⚠️  .env.sh <problem>`, as `check-secrets` names it, and
+no mode refused); `<state>/env` is not read. The unit's `%f` is the
 workspace. `init` writes `<ws>/swarm/` and nothing under
 `$DAISY_LOCAL`, creates no repository and reads no maintainer's token.
 Its configuration, as `init` wrote section 3's example in it (until
@@ -6187,3 +6210,39 @@ entries among revision 1's, and was renumbered at Step 38.
     prints the unit. A swarm whose `forge.repo` was a product repository
     starts clean in its new repository, `<state>` keyed on `forge.repo`
     (item 83), as the plan's non-goal of changing that key requires.
+105. **Finding the swarm and its secrets, as built (Step 2 of revision
+    6's plan, 2026-11-10).** One function, `declare.Find`, decides the
+    layout (the plan's risk R4): the clone first, wherever a workspace
+    lies, then the old layout's (section 11, Moving a swarm into its
+    repository); the cli's
+    `swarm` rows no longer resolve a workspace, each verb reading
+    `$DAISY_ROOT` and `$DAISY_LOCAL` and then the lookup. The old
+    layout is found by the binding's folder alone, no home or identity,
+    and a workspace whose `swarm/` holds no `swarm.json` is no swarm for any verb
+    but `init`, which writes it there (and, outside a workspace, keeps
+    the workspace lookup's refusal) until Step 6 makes a clone; a
+    broken binding is passed over, not reported, as no swarm. Until
+    Steps 3 and 4 replace them, a clone's `repos[].path` and
+    `resources` are read relative to the clone, the base the old layout
+    gave the workspace, so the smallest seam that runs every verb from
+    a clone is a product's clone inside it; their messages still say
+    "workspace". `<state>/env` is refused when its mode has a group's
+    or other's read bit (`0040` or `0004`), before it is read, by every
+    verb that reads it (`init`, `status`, `apply`, the maintainer's;
+    `pause` and `resume` read none), its mode written as four octal
+    digits; a line it cannot be read past is named by its path. The
+    `.env.sh` in a clone is warned of once per `status` and once at
+    `apply`'s start, before the lock. `daisy check-secrets` learns the
+    swarm's variables: run in a swarm (the same lookup), after the
+    workspace's report when it runs in one, it adds `Swarm
+    <owner>/<repo> (<secrets file>):` and one row per variable,
+    `forge.token_env`'s, each `keys` `env`'s in provider order, then
+    `DAISY_MAINTAINER_TOKEN`, each `✅ <VAR>: <first 8 characters>...`
+    or `⚠️  <VAR>: Not configured`, resolved as the verbs resolve them;
+    `swarm.json` is read for its forge and keys alone (one that cannot
+    be read is `⚠ swarm.json: …; the swarm's variables are not checked`
+    on stderr, not a failure); `<state>/env` refused is a `❌` row and
+    exit 1; outside both a workspace and a swarm it refuses as before.
+    The unit's description names its root as what it is, `for the swarm
+    repository %f` in a clone and `for the workspace %f` in the old
+    layout.

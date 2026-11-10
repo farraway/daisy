@@ -25,7 +25,8 @@ import (
 // each pass, re-read and validated (pass step 1).
 type Swarm struct {
 	O          ops.Ops
-	WS, Local  string
+	Place      declare.Place // where the swarm was found (section 11, Finding the swarm)
+	WS, Local  string        // WS is Place.Root
 	Cfg        declare.Config
 	Forge      forge.Adapter
 	Runner     runner.Runner
@@ -517,7 +518,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			}
 			decided[n] = true
 			for _, role := range Launch(turn, s.SwarmLogin, s.Cfg.Trusted) {
-				persona, err := fs.ReadFile(declare.PromptFile(s.WS, role))
+				persona, err := fs.ReadFile(declare.PromptFile(s.Place.Dir, role))
 				if err != nil {
 					return err
 				}

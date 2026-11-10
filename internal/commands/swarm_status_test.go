@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"daisy/internal/env"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
@@ -22,29 +21,43 @@ import (
 type statusWS struct {
 	*swarmWS
 	now       time.Time // status's clock when set, else the Fake forge's
-	local     string
-	docker    string // docker ps's stdout
+	docker    string    // docker ps's stdout
 	dockerErr bool
 	issues    string // the issues repository's name, when not app
 }
 
-func newStatusWS(t *testing.T) *statusWS {
-	s := &statusWS{swarmWS: newSwarmWS(t), local: t.TempDir()}
+func newStatusWS(t *testing.T) *statusWS { return newStatusWSIn(t, false) }
+
+// newStatusWSIn is newStatusWS in the old layout, or with clone in a
+// swarm repository's clone.
+func newStatusWSIn(t *testing.T, clone bool) *statusWS {
+	s := &statusWS{swarmWS: newSwarmWSIn(t, clone)}
 	if err := s.run("--defaults"); err != nil {
 		t.Fatal(err)
 	}
+	s.cloned()
 	return s
+}
+
+// config is swarm.json as it stands.
+func (s *statusWS) config() declare.Config {
+	s.t.Helper()
+	c, _, err := declare.Load(ops.Real().FS(), s.place.Dir)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	return c
 }
 
 // edit rewrites swarm.json with edit applied.
 func (s *statusWS) edit(edit func(c *declare.Config)) {
 	s.t.Helper()
-	c, _, err := declare.Load(ops.Real().FS(), s.ws)
+	c, _, err := declare.Load(ops.Real().FS(), s.place.Dir)
 	if err != nil {
 		s.t.Fatal(err)
 	}
 	edit(&c)
-	s.write("swarm/swarm.json", string(declare.Format(c)))
+	s.write(s.cfg("swarm.json"), string(declare.Format(c)))
 }
 
 func (s *statusWS) state(rel string) string {
@@ -78,11 +91,13 @@ func (s *statusWS) status(f forge.Adapter) error {
 		},
 		PromptFn: func(io.Reader, io.Writer, string) (string, error) { s.t.Error("status prompted"); return "", io.EOF },
 	}
-	c := &Context{Ops: o, Env: env.Env{Root: s.root, Workspace: s.ws, Local: s.local}, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr}
+	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr}
 	return readOnly(func(c *Context) error {
-		return swarmStatus(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
-			s.tokens = append(s.tokens, token)
-			return f, nil
+		return s.at(c, false, func(c *Context) error {
+			return swarmStatus(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
+				s.tokens = append(s.tokens, token)
+				return f, nil
+			})
 		})
 	})(c)
 }
@@ -290,7 +305,7 @@ func TestSwarmStatusRefusals(t *testing.T) {
 		t.Errorf("invalid swarm.json: %v", err)
 	}
 	os.RemoveAll(filepath.Join(s.ws, "swarm"))
-	if err := s.status(s.forge); strings.ReplaceAll(errText(err), s.ws, "<ws>") != "Error: swarm.json: not found at <ws>/swarm/swarm.json; run 'daisy swarm init'" {
+	if err := s.status(s.forge); strings.ReplaceAll(errText(err), s.ws, "<ws>") != "Error: swarm.json: not found in <ws> or a folder above it; cd into the swarm repository's clone, or run 'daisy swarm init'" {
 		t.Errorf("no swarm.json: %v", err)
 	}
 }

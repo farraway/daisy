@@ -64,7 +64,7 @@ type Wizard struct {
 	Ops      ops.Ops
 	In       io.Reader
 	Err      io.Writer
-	WS       string
+	Place    Place // where the swarm is; detection reads the clones under Place.Root
 	Defaults bool
 	File     *Config
 	own      bool // question 4's follow-up: the issues repository is the swarm's own
@@ -193,7 +193,7 @@ func (w *Wizard) Ask() (Config, error) {
 		func() error {
 			return w.ask("Resources (comma-separated workspace paths, - for none)", listDefault(w.resources(c)), func(a string) *Error {
 				c.Resources = list(a)
-				return checkResources(w.Ops, w.WS, c.Resources)
+				return checkResources(w.Ops, w.Place, c.Resources)
 			})
 		},
 	}
@@ -271,12 +271,12 @@ func (w *Wizard) askOwn(c Config) error {
 // else the first repository's origin.
 func (w *Wizard) issuesDefault(c Config, first Origin) string {
 	if w.File == nil {
-		entries, _ := w.Ops.FS().ReadDir(w.WS)
+		entries, _ := w.Ops.FS().ReadDir(w.Place.Root)
 		for _, e := range entries {
 			if !e.IsDir() {
 				continue
 			}
-			o, _, err := checkRepoPath(w.Ops, w.WS, "", e.Name())
+			o, _, err := checkRepoPath(w.Ops, w.Place.Root, "", e.Name())
 			if err == nil && ownName(o.Repo) && strings.EqualFold(o.Host, c.Forge.Host()) {
 				return o.Owner + "/" + o.Repo
 			}
@@ -292,12 +292,12 @@ func ownName(repo string) bool { return strings.HasPrefix(strings.ToLower(repo),
 // issuesClone is the directory directly under the workspace whose origin
 // is the issues repository on the forge's host, "" for none.
 func (w *Wizard) issuesClone(c Config) string {
-	entries, _ := w.Ops.FS().ReadDir(w.WS)
+	entries, _ := w.Ops.FS().ReadDir(w.Place.Root)
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		o, _, err := checkRepoPath(w.Ops, w.WS, "", e.Name())
+		o, _, err := checkRepoPath(w.Ops, w.Place.Root, "", e.Name())
 		if err == nil && strings.EqualFold(o.Host, c.Forge.Host()) && strings.EqualFold(o.Owner+"/"+o.Repo, c.Forge.Repo) {
 			return e.Name()
 		}
@@ -316,7 +316,7 @@ func (w *Wizard) resources(c Config) []string {
 		return out
 	}
 	briefs := clone + "/briefs/"
-	if fi, err := w.Ops.FS().Stat(filepath.Join(w.WS, briefs)); err != nil || !fi.IsDir() {
+	if fi, err := w.Ops.FS().Stat(filepath.Join(w.Place.Root, briefs)); err != nil || !fi.IsDir() {
 		return out
 	}
 	if slices.ContainsFunc(out, func(r string) bool { return filepath.Clean(r) == filepath.Clean(briefs) }) {
@@ -365,7 +365,7 @@ func (w *Wizard) unasked() Config {
 		return c
 	}
 	resources := []string{}
-	if fi, err := w.Ops.FS().Stat(filepath.Join(w.WS, "docs")); err == nil && fi.IsDir() {
+	if fi, err := w.Ops.FS().Stat(filepath.Join(w.Place.Root, "docs")); err == nil && fi.IsDir() {
 		resources = []string{"docs/"}
 	}
 	return Config{
@@ -391,16 +391,16 @@ func (w *Wizard) defaultPaths() string {
 		}
 		return strings.Join(paths, ", ")
 	}
-	if isRepoWithOrigin(w.Ops, w.WS) {
+	if isRepoWithOrigin(w.Ops, w.Place.Root) {
 		return "."
 	}
-	entries, _ := w.Ops.FS().ReadDir(w.WS)
+	entries, _ := w.Ops.FS().ReadDir(w.Place.Root)
 	var paths []string
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		o, _, err := checkRepoPath(w.Ops, w.WS, "", e.Name())
+		o, _, err := checkRepoPath(w.Ops, w.Place.Root, "", e.Name())
 		if err == nil && !ownName(o.Repo) {
 			paths = append(paths, e.Name())
 		}
@@ -427,7 +427,7 @@ func (w *Wizard) repos(answer string) ([]Repo, []Origin, *Error) {
 	var repos []Repo
 	var origins []Origin
 	for i, p := range paths {
-		origin, _, e := checkRepoPath(w.Ops, w.WS, fmt.Sprintf("repos[%d].path", i), p)
+		origin, _, e := checkRepoPath(w.Ops, w.Place.Root, fmt.Sprintf("repos[%d].path", i), p)
 		if e != nil {
 			return nil, nil, e
 		}

@@ -41,9 +41,11 @@ each was built; all thirteen are in it, and the tree never names a command the b
 not run. Their entries below give docs/swarm.md's revision 6 (the swarm
 repository as the swarm's root, run from its clone with no Daisy
 workspace needed, the secrets in the swarm's `<state>/env`), which
-Steps 2–6 of its plan build; until each lands, the verbs run in a
-workspace, as docs/swarm.md section 11, Moving a swarm into its
-repository, describes, and each step amends the entries it builds.
+Steps 2–6 of its plan build (Step 2: finding the swarm from its clone
+with no workspace, the secrets and the unit's root); until each lands,
+the verbs run what it builds as docs/swarm.md section 11, Moving a swarm
+into its repository, describes the old layout, and each step amends the
+entries it builds.
 
 ```
 Usage: daisy <command> [args...]
@@ -180,12 +182,15 @@ is refused rather than walked past, exit 1, stderr naming the fault and
 init, or `.daisy/` with no `home` file. Commands that need no workspace:
 `install`, `init`, `home`, `identity list`, `help` (tree or command),
 `prompt build <home>`, and `test`, whose bash dispatcher required one although the script read
-only the root *(decided, D30; built in Step 24)*. `healthcheck` needs one
+only the root *(decided, D30; built in Step 24)*, and the thirteen
+`swarm` verbs, which find their swarm themselves (docs/swarm.md section
+11, Finding the swarm: a swarm repository's clone, else the old layout's
+workspace, by its `.daisy/` alone; Step 2 of revision 6's plan). `healthcheck` needs one
 but resolves it itself, after `✓ DAISY_ROOT`, so outside one it prints the
 refusal and then `✗ Cannot resolve home for this workspace` (the bash
 dispatcher refused before the check began). `check-secrets` keeps the requirement — it reads the workspace's
 `.env.sh` — but needs only the workspace, not a resolvable home, as the
-bash.
+bash, or, since Step 2 of revision 6's plan, a swarm (below).
 
 **Home resolution.** `.daisy/home` names the home; the name is looked up in
 the registry `$DAISY_CONFIG/homes` (default `~/.config/daisy/homes`). Errors,
@@ -638,7 +643,7 @@ new home.
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 1 of the swarm build): Go (`internal/swarm/declare`, `internal/swarm/forge`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, with `swarm.json` in section 3 and the forge calls in section 10 |
+| Status | as built (Step 1 of the swarm build; finding the swarm, `<state>/env` and the unit's root at Step 2 of revision 6's plan, the rest of revision 6 at its Steps 3–6, docs/swarm.md section 11, Finding the swarm's As built): Go (`internal/swarm/declare`, `internal/swarm/forge`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, with `swarm.json` in section 3 and the forge calls in section 10 |
 | Legacy | none |
 | Usage | `daisy swarm init [--defaults]`: in the swarm repository's clone, or in any folder (the clones directly under it giving the defaults; docs/swarm.md section 11), asks the wizard's questions (below) through `Ops.Prompt` on stderr, an empty answer taking the default in brackets (the existing `swarm.json`'s value, else detection, else section 3's example); `--defaults` asks nothing |
 | Exit codes | 0 written or unchanged, or cancelled at EOF (`Cancelled — no answer on stdin (EOF); nothing written.`); 1 an invalid file or default (`Error: swarm.json: <field>: <problem>`), a token unset (`Error: swarm: $<VAR> is not set (in <state>/env or the environment)`), `DAISY_MAINTAINER_TOKEN` the swarm's or its account, kind `github` (no adapter yet), the maintainer's token unable to read, create or open the swarm repository (`Error: swarm: $DAISY_MAINTAINER_TOKEN cannot …`), the clone refused, the swarm's token unable to read the issues repository, a declared repository or its own account (`Error: swarm: $<VAR> cannot read …`), a write failing, the push refused (the commit stays in the clone), a mirror's fetch failing, `EnsureLabels` failing (a refused rename or create names every label still to rename and to create; the files stay written and a re-run completes it); 2 usage. A readiness warning never changes it |
@@ -685,7 +690,7 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 
 | Field | Value |
 |---|---|
-| Status | as built (Steps 4, 8, 9, 14, 15, 20, 27 and 29 of the swarm build): Go (`internal/swarm/forge`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Steps 4, 8, 9, 14, 15, 20, 27 and 29 of the swarm build; finding the swarm and `<state>/env` at Step 2 of revision 6's plan): Go (`internal/swarm/forge`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
 | Usage | `daisy swarm status`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); any argument is usage on stderr, exit 2 |
 | Exit codes | 0, also when Docker cannot be reached; 1 no swarm found, `swarm.json` absent or invalid (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <state>/env or the environment)`), a forge call failing (`Error: swarm: forge: …`), a brief, `<state>/auto`, a run's `result` or a batch run's `out.md` unreadable; 2 usage; with exit 1, nothing on stdout: the report is written whole once every read is made |
@@ -700,7 +705,7 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 
 | Field | Value |
 |---|---|
-| Status | as built (Steps 5, 6, 9, 14, 15, 18, 19, 20, 23, 24, 25, 26, 27, 29 and 32 of the swarm build): Go (`internal/swarm/provider`, `internal/swarm/runner`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, whose As built paragraph says what a pass leaves out (the board and the budget) |
+| Status | as built (Steps 5, 6, 9, 14, 15, 18, 19, 20, 23, 24, 25, 26, 27, 29 and 32 of the swarm build; finding the swarm, `<state>/env` and `docker` and `id` in the swarm's root at Step 2 of revision 6's plan): Go (`internal/swarm/provider`, `internal/swarm/runner`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, whose As built paragraph says what a pass leaves out (the board and the budget) |
 | Legacy | none |
 | Usage | `daisy swarm apply [--once]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); with `--once`, one pass, its runs waited for and collected (the maintainer's smokes); without, the loop the unit `init` prints runs: a pass every `interval` whatever runs, each run collected by the first pass after it ends, until SIGINT or SIGTERM; any other argument is usage on stderr, exit 2 |
 | Exit codes | 0 the pass or passes ran (a member's failure is on the forge, not in the exit code; a pause on stdout); 1 no swarm found, `swarm.json` absent or invalid at the start, the token or an `env` credential unset (a slot without its login is not checked at the start: it is the swarm fault *slot refused* of the run that takes the slot, `fault: slot <provider>/<j>: no login; run '<login>'`, the login line `CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file` for `openai` and `GROK_HOME=<slot> grok login --device-auth` for `xai`, docs/swarm.md section 8), `docker ps` failing at the start (`Error: swarm: docker: <message>`), the lock held (`Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`), `EnsureLabels` failing (a refused rename or create among the causes), and with `--once` a forge, git or `docker ps` error during the pass (`Error: swarm: …`; without `--once` it is printed and the next pass runs; a worker run's fetch from its clone failing is one the first time, and the second time in a row that run's failure *fetch failed*, its issue blocked; a run's clone failing, or a resource no longer passing its checks, at a launch is not one but that run's swarm fault, *clone failed* or *resource refused*, docs/swarm.md section 7.7); 130 a second signal, during the pass the first ended or while the loop collects its running members; 2 usage |
@@ -715,7 +720,7 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 6 of the swarm build; `<n>` at Step 15): Go (`internal/commands/swarm.go`, `internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Step 6 of the swarm build; `<n>` at Step 15; finding the swarm at Step 2 of revision 6's plan): Go (`internal/commands/swarm.go`, `internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
 | Usage | `daisy swarm pause [<n>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone (the maintainer's verbs' start, below); a second argument is usage on stderr, exit 2 |
 | Exit codes | 0 paused or already paused; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the write failing, and with `<n>` the maintainer's verbs' refusals and a forge failure; 2 usage |
@@ -729,7 +734,7 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 6 of the swarm build; `<n>` at Step 15): Go (`internal/commands/swarm.go`, `internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Step 6 of the swarm build; `<n>` at Step 15; finding the swarm at Step 2 of revision 6's plan): Go (`internal/commands/swarm.go`, `internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
 | Usage | `daisy swarm resume [<n>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone; a second argument is usage on stderr, exit 2 |
 | Exit codes | 0; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, a removal failing, and with `<n>` the maintainer's verbs' refusals and a forge failure; 2 usage |
@@ -795,7 +800,7 @@ nothing posted`).
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 10 of the swarm build): Go (`internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Step 10 of the swarm build; finding the swarm and `<state>/env` at Step 2 of revision 6's plan): Go (`internal/commands/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Usage | `daisy swarm triage <n>`: G1, T3, for an issue at `swarm:proposal-posted` |
 | Exit codes | 0 relabelled; 1 the maintainer's verbs' refusals (above), a forge call failing (`Error: swarm: forge: …`); 2 usage |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> swarm:proposal-posted → swarm:proposal-accepted`, and `#<n> gated cleared` when it carried the flag and is not blocked |
@@ -934,17 +939,17 @@ nothing posted`).
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 24): Go; `.env.sh` is parsed (`env.ParseShellEnv`), never run (decided, D30) |
+| Status | as built (Step 24): Go; `.env.sh` is parsed (`env.ParseShellEnv`), never run (decided, D30); the swarm's variables at Step 2 of revision 6's plan (docs/swarm.md section 14, item 105) |
 | Legacy | `daisy check-secrets` → `check-secrets.sh`, deleted in Step 24 |
-| Usage | `daisy check-secrets` (no argument; any is usage, exit 2) |
-| Exit codes | 1 outside a workspace, when `<ws>/.env.sh` is not a file (`❌ .env.sh not found in workspace` and the copy hint on stdout), or when it cannot be read (`Error: cannot read …`); otherwise 0 |
-| Stdout | `Checking Daisy environment configuration...`, `Core paths:` (`DAISY_ROOT`, `DAISY_HOME`), `API tokens:` (Webex, Backstage, JIRA, GitHub), each `✅ <name>: <first 8 characters>...` or `⚠️  <name>: Not configured`, `Note: Only showing first 8 characters of tokens for security`. A value is the file's assignment, else the environment's (as after `source`) |
-| Stderr | `⚠️  .env.sh line N: <why>; it and every line after it are not read` for the first line that is not a plain assignment — a command, a substitution (`$(…)`, a backtick), `${…}` with an operator, a special or positional parameter (`$1`, `$$`, `$?`, `$[…]`), `$'…'`/`$"…"` quoting, an unquoted `~` leading or after `:`, brace expansion in an `export` (`export X={a,b}`), shell syntax, a quote or a line continuation left open, a second word. Reading stops there: what the shell would do with the lines after it (an open quote, a heredoc, an `if`) depends on running it, so nothing after it is assigned. A value shown is that of the lines read, else the environment's; when reading stopped, a line after the stop may have changed it, and the warning says so. The bash ran such a line |
+| Usage | `daisy check-secrets` (no argument; any is usage, exit 2): in a workspace, a swarm (docs/swarm.md section 11, Finding the swarm: a swarm repository's clone, or the old layout's workspace), or both |
+| Exit codes | 1 outside both a workspace and a swarm (the workspace's refusal, `Not in a Daisy workspace`), when in a workspace `<ws>/.env.sh` is not a file (`❌ .env.sh not found in workspace` and the copy hint on stdout) or cannot be read (`Error: cannot read …` on stderr), or when the swarm's `<state>/env` is readable by a group or others (a `❌` row); otherwise 0 |
+| Stdout | `Checking Daisy environment configuration...`; in a workspace `Core paths:` (`DAISY_ROOT`, `DAISY_HOME`), `API tokens:` (Webex, Backstage, JIRA, GitHub); in a swarm, after a blank line when the workspace's report came first, `Swarm <owner>/<repo> (<secrets file>):`, the secrets file `<state>/env` (`<ws>/.env.sh` in the old layout), then a row per variable the swarm reads: `forge.token_env`'s, each `keys` `env`'s in provider order, `DAISY_MAINTAINER_TOKEN` (or, `<state>/env` refused, `❌ <state>/env is readable by others (mode <mode>); run chmod 600 on it` in their place); each row `✅ <name>: <first 8 characters>...` or `⚠️  <name>: Not configured`; then `Note: Only showing first 8 characters of tokens for security` (not after the workspace's `❌` with no swarm). A value is the file's assignment, else the environment's (as after `source`), as the swarm's verbs resolve it (docs/swarm.md section 3, Secret values) |
+| Stderr | `⚠ swarm.json: <problem>; the swarm's variables are not checked` for a swarm whose `swarm.json` cannot be read for its forge and keys (not a failure); `⚠️  <state>/env line N: …` for the swarm's file, as for `.env.sh`; `⚠️  .env.sh line N: <why>; it and every line after it are not read` for the first line that is not a plain assignment — a command, a substitution (`$(…)`, a backtick), `${…}` with an operator, a special or positional parameter (`$1`, `$$`, `$?`, `$[…]`), `$'…'`/`$"…"` quoting, an unquoted `~` leading or after `:`, brace expansion in an `export` (`export X={a,b}`), shell syntax, a quote or a line continuation left open, a second word. Reading stops there: what the shell would do with the lines after it (an open quote, a heredoc, an `if`) depends on running it, so nothing after it is assigned. A value shown is that of the lines read, else the environment's; when reading stopped, a line after the stop may have changed it, and the warning says so. The bash ran such a line |
 | Reads | `[export ]NAME=<word>` lines up to the first problem: `'…'` literal; `"…"` and bare words with `\` escapes and `$NAME`/`${NAME}` expanded from the assignments above, else the environment (a `$` before a quote inside `"…"` is literal); a trailing `# comment`; blank lines, comments and a bare `export NAME` (a comment after it allowed) change nothing; trailing blanks after a value are no part of it; CRLF read as LF |
 | Ops | ReadOnly (decided, D30) |
 | Writes | none |
 | Commits | none |
-| Cases | none (`TestCheckSecrets`, `TestParseShellEnv`) |
+| Cases | none (`TestCheckSecrets`, `TestParseShellEnv`, `TestSwarmVerbsWithoutAWorkspace`) |
 
 ### daisy test
 

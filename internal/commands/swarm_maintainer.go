@@ -3,7 +3,6 @@ package commands
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -21,36 +20,52 @@ const MaintainerTokenEnv = declare.MaintainerTokenEnv
 
 // SwarmTriage is `daisy swarm triage <n>`: G1, T3 (proposal-posted →
 // proposal-accepted).
-func SwarmTriage(c *Context) error { return swarmTriage(c, openForge) }
+func SwarmTriage(c *Context) error {
+	return inSwarm(c, func() error { return swarmTriage(c, openForge) })
+}
 
 // SwarmAccept is `daisy swarm accept <n>`: G2, T7 (plan-0-posted →
 // plan-1-accepted).
-func SwarmAccept(c *Context) error { return swarmAccept(c, openForge) }
+func SwarmAccept(c *Context) error {
+	return inSwarm(c, func() error { return swarmAccept(c, openForge) })
+}
 
 // SwarmClass is `daisy swarm class <n> routine|architecture`: the job's
 // class (section 5), swarm:class-architecture set or cleared, then the
 // statement `Class: <class>` posted as the maintainer.
-func SwarmClass(c *Context) error { return swarmClass(c, openForge) }
+func SwarmClass(c *Context) error {
+	return inSwarm(c, func() error { return swarmClass(c, openForge) })
+}
 
 // SwarmApprove is `daisy swarm approve <n>`: a formal approving review of
 // the issue's current open pull request at its head (section 12).
-func SwarmApprove(c *Context) error { return swarmApprove(c, openForge) }
+func SwarmApprove(c *Context) error {
+	return inSwarm(c, func() error { return swarmApprove(c, openForge) })
+}
 
 // SwarmMerge is `daisy swarm merge <n>`: G3, the approved head merged,
 // then T13 or the last slice's close (section 12).
-func SwarmMerge(c *Context) error { return swarmMerge(c, openForge) }
+func SwarmMerge(c *Context) error {
+	return inSwarm(c, func() error { return swarmMerge(c, openForge) })
+}
 
 // SwarmUnblock is `daisy swarm unblock <n> <comment...>`: G4, T18, the
 // comment then swarm:blocked cleared.
-func SwarmUnblock(c *Context) error { return swarmUnblock(c, openForge) }
+func SwarmUnblock(c *Context) error {
+	return inSwarm(c, func() error { return swarmUnblock(c, openForge) })
+}
 
 // SwarmBlock is `daisy swarm block <n> --by <m>`: #m flagged
 // swarm:blocking, then `Blocked by #<m>` on #n, which holds #n's job while
 // #m is open (section 6, rule 1).
-func SwarmBlock(c *Context) error { return swarmBlock(c, openForge) }
+func SwarmBlock(c *Context) error {
+	return inSwarm(c, func() error { return swarmBlock(c, openForge) })
+}
 
 // SwarmClose is `daisy swarm close <n> [comment...]`: T19.
-func SwarmClose(c *Context) error { return swarmClose(c, openForge) }
+func SwarmClose(c *Context) error {
+	return inSwarm(c, func() error { return swarmClose(c, openForge) })
+}
 
 // maintainer is the forge as one of the maintainer's verbs reaches it:
 // under the maintainer's token, with the maintainer's login and the
@@ -86,15 +101,18 @@ func asMaintainer(c *Context, open opener) (*maintainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	o, ws := c.Ops, c.Env.Workspace
-	cfg, err := loadSwarm(o, ws)
+	o := c.Ops
+	cfg, err := loadSwarm(o, c.Swarm)
 	if err != nil {
 		return nil, err
 	}
-	vars := readSecrets(c, ws, c.Stderr, MaintainerTokenEnv, cfg.Forge.TokenEnv)
+	vars, err := readSecrets(c, cfg, c.Stderr, MaintainerTokenEnv, cfg.Forge.TokenEnv)
+	if err != nil {
+		return nil, err
+	}
 	token := vars[MaintainerTokenEnv]
 	if token == "" {
-		return nil, fmt.Errorf("Error: swarm: $%s is not set (in %s or the environment)", MaintainerTokenEnv, filepath.Join(ws, ".env.sh"))
+		return nil, unsetErr(c, cfg, MaintainerTokenEnv)
 	}
 	if token == vars[cfg.Forge.TokenEnv] {
 		return nil, fmt.Errorf("Error: swarm: $%s holds the swarm's token ($%s); the maintainer's verbs act with your own (docs/swarm.md section 8)", MaintainerTokenEnv, cfg.Forge.TokenEnv)
@@ -546,11 +564,15 @@ func (m *maintainer) trusted() bool {
 // SwarmPause is `daisy swarm pause [<n>]`: with <n>, the maintainer's
 // hold on issue n, swarm:paused set (section 6, rule 1); without, the
 // whole swarm paused (pauseSwarm).
-func SwarmPause(c *Context) error { return swarmHold(c, openForge, true) }
+func SwarmPause(c *Context) error {
+	return inSwarm(c, func() error { return swarmHold(c, openForge, true) })
+}
 
 // SwarmResume is `daisy swarm resume [<n>]`: with <n>, swarm:paused
 // cleared from issue n; without, the whole swarm resumed (resumeSwarm).
-func SwarmResume(c *Context) error { return swarmHold(c, openForge, false) }
+func SwarmResume(c *Context) error {
+	return inSwarm(c, func() error { return swarmHold(c, openForge, false) })
+}
 
 func swarmHold(c *Context, open opener, pause bool) error {
 	if len(c.Args) == 0 {

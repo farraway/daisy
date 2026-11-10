@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"daisy/internal/env"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
@@ -22,11 +21,20 @@ import (
 
 func prRef(m int) forge.Ref { return forge.Ref{Repo: "app", N: m} }
 
-// verb runs a swarm verb's function in the workspace with apply's clock.
+// verb runs a swarm verb as the cli does, from the folder the swarm is
+// found from, with apply's clock and $DAISY_ROOT and $DAISY_LOCAL the
+// fixture's (no other variable).
 func (a *applyWS) verb(fn func(*Context) error) error {
 	a.stdout.Reset()
 	a.stderr.Reset()
-	c := &Context{Ops: fixedClock(), Env: env.Env{Root: a.root, Workspace: a.ws, Local: a.local}, Stdin: strings.NewReader(""), Stdout: &a.stdout, Stderr: &a.stderr}
+	o := &ops.Fake{
+		NowFn:   fixedClock().Now,
+		GetwdFn: func() (string, error) { return a.cwd, nil },
+		GetenvFn: func(k string) string {
+			return map[string]string{"DAISY_ROOT": a.root, "DAISY_LOCAL": a.local}[k]
+		},
+	}
+	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &a.stdout, Stderr: &a.stderr}
 	return fn(c)
 }
 

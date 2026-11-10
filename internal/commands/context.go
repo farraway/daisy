@@ -11,6 +11,7 @@ import (
 
 	"daisy/internal/env"
 	"daisy/internal/ops"
+	"daisy/internal/swarm/declare"
 )
 
 // Context is what a command runs with. Flags are the command's own flags
@@ -19,6 +20,7 @@ import (
 type Context struct {
 	Ops    ops.Ops
 	Env    env.Env
+	Swarm  declare.Place // the swarm a `swarm` verb runs on (docs/swarm.md section 11, Finding the swarm)
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
