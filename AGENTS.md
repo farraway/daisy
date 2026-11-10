@@ -1,12 +1,5 @@
 # Daisy — the root, for agents
 
-This file is for work on the root itself: the Go binary, the prompts, the
-skills, the templates and the documentation. Cursor and Claude Code apply
-it when a file in this directory is edited. The user-facing workflows
-(tasks, journal, projects, plans) are `prompts/daisy.md`, loaded through
-the generated `AGENTS.md` of each workspace; `README.md` is the account of
-what Daisy is for and why it is shaped as it is.
-
 Four words have fixed senses here. The **root** is this repository,
 installed at `$DAISY_ROOT`, public as it is. A **home** is one context's
 data and configuration, its own git repository, found by name through the
@@ -16,6 +9,13 @@ registry `$DAISY_CONFIG/homes` (default `~/.config/daisy/homes`). A
 commits carry, defined in a home (`gitconfig`, or `identities/<id>`), and
 naming one at `init` chooses the home as well. `docs/home-management.md`
 has the rules; `env.Resolve` in `internal/env` is the code.
+
+This file is for work on the root itself: the Go binary, the prompts, the
+skills, the templates and the documentation. Cursor and Claude Code apply
+it when a file in this directory is edited. The user-facing workflows
+(tasks, journal, projects, plans) are `prompts/daisy.md`, loaded through
+the generated `AGENTS.md` of each workspace; `README.md` is the account of
+what Daisy is for and why it is shaped as it is.
 
 ## Layout and the dependency rule
 

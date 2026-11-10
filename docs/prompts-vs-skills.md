@@ -176,6 +176,10 @@ seam, as in the `git` example.
 A **situated layer** that knows the user — `personal`, `daisy`, `plan`,
 `retrospective`, `socrates`, `github` — and a **craft layer** that knows the
 work — `agents-md`, `css`, `git`, `js`, `testing`, `transcribe`.
+`swarm` is a skill on a third footing: it reads no file of the home, so
+it is not situated, but it guides Daisy's own `swarm` verbs over a
+workspace's swarm.json, so it is coupled to Daisy's commands
+rather than to the user's situation or to the artifact alone.
 `praxis` sits with the prompts: mostly portable implementation guidance, but
 its step-tracking rule writes `PLAN.md`.
 

@@ -24,9 +24,9 @@ var Placeholders = []string{"work", "personal", "example", "testhome"}
 
 // Terms are what the publishable surface must not contain, derived from
 // this machine (a hardcoded list would itself leak): every registered
-// home's name but the placeholders, the git identity (user.name,
-// user.email) of every usable home's repository and of the root's, $USER,
-// and $HOME followed by a slash. Each term once, compared without case.
+// home's name but the placeholders, the git author (user.name,
+// user.email) configured in every usable home's repository and in the
+// root's, $USER, and $HOME followed by a slash. Each term once, compared without case.
 func Terms(o ops.Ops, e env.Env) []string {
 	fs := o.FS()
 	var terms []string

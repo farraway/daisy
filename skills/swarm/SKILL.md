@@ -1,6 +1,6 @@
 ---
 name: swarm
-description: The maintainer's guide over a Daisy swarm in this workspace — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm/swarm.json and the persona prompts, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, close) only after the maintainer confirms each write in words. Use in a workspace holding swarm/swarm.json when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed or a job closed, or wants to write or change a brief, swarm.json or a persona prompt.
+description: The maintainer's guide over a Daisy swarm in this workspace — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm/swarm.json and the persona prompts, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, pause, resume, close) only after the maintainer confirms each write in words. Use in a workspace holding swarm/swarm.json when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json or a persona prompt.
 short_description: Guide a Daisy swarm: status, briefs, gates
 ---
 
@@ -96,3 +96,11 @@ an exit criterion observable without reading the code, and what it forces
 earlier. The owner proposes jobs toward the first unmet milestone of the
 highest-priority `active` brief, and writes `Met: <path>` when a brief's
 milestones are all met: that is when to suggest flipping its `Status`.
+
+When the issues repository is the swarm's own (`forge.repo` none of
+`repos`, by convention `<owner>/swarm-<name>`), its briefs live in its
+clone in the workspace, `<ws>/swarm-<name>/briefs/`, declared as a
+`resources` entry. Daisy reads that clone and never writes it: a brief
+you draft or flip there is committed and pushed by the maintainer, by
+hand, in that clone; and with `notes` the research notes Daisy pushes to the
+repository's `notes/` reach the clone only when the maintainer pulls it.

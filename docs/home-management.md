@@ -57,7 +57,10 @@ with a letter or digit.
 
 ## Identities
 
-An identity is the git author a workspace's own repository commits as —
+The README defines identity beside root, home and workspace (Goals) and
+shows what `daisy init work` writes (Usage, Bind a workspace); this
+section is the mechanism. An identity is the git author a workspace's own
+repository commits as —
 `user.name`, `user.email` and, optionally, the SSH key it pushes with. It
 does not change who commits in the home's repository: Daisy's own commits
 there (`daisy commit` among them) carry that repository's git config, which
@@ -143,6 +146,16 @@ Each workspace has a `.daisy/` directory holding:
 Resolution is stateless, so different workspaces on one machine use
 different homes, or the same home under different identities, concurrently.
 
+Two sessions in one home share its repository, and Daisy takes no lock of
+its own. Each command that changes the home writes its files whole (a
+temporary file renamed over the old) and ends in one commit that stages
+every change in the home (`gitx.Repo.Commit`), another session's
+uncommitted write included. Git's index lock is what serialises the
+commits: a command whose `git add` or `git commit` finds it held fails
+with git's message and exits non-zero, its edit left in the home, and the
+next commit from either session takes it. Two commands editing the same
+file at the same moment are not merged: the later write wins.
+
 ## Switching Home or Identity
 
 Re-run `daisy init <identity>` in the workspace. The new binding's `home`,
@@ -164,8 +177,9 @@ repository that merely encloses it (3); required directories (4),
 installed-skill drift (4b, 4c), `today.md` format and journal rotation state
 (5, 5b), each command's own `--healthcheck` hook, called in-process (6),
 publication hygiene (6c, see `AGENTS.md`), whose identifying terms include
-every registered home's name and the git identity of each home's
-repository, and that AGENTS.md's Command Reference is the cli table's (6b, a
+every registered home's name and the git author (`user.name`,
+`user.email`) configured in each usable home's repository and in the
+root's, and that AGENTS.md's Command Reference is the cli table's (6b, a
 warning). A home inside the root repository is refused: every commit it
 made would land in the published root's history. A passing run is cached in
 `<home>/.healthcheck.ttl` for `DAISY_HEALTHCHECK_TTL` seconds (default 300);

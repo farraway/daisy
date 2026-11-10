@@ -52,9 +52,12 @@ With those four words, the goals:
 3. **Several contexts on one machine, concurrently.** A personal home and a
    work home with separate histories; several workspaces sharing one home
    at once; a workspace committing as a different author from the home it
-   reads. No daemon for the home and no lock: each command that changes
-   the home ends in one commit in its repository (a few leave their write
-   for the next commit), so sessions interleave in the log.
+   reads. No daemon for the home and no lock of Daisy's: each command
+   that changes the home ends in one commit in its repository (a few
+   leave their write for the next commit), so sessions interleave in the
+   log. Git's own index lock is the only one: a commit that meets it held
+   by another session's fails with git's error, the change left in the
+   home for the next commit (`docs/home-management.md`).
 4. **Instructions that learn from their failures.** A correction given to
    the agent is recorded in the home and, periodically, compiled into the
    prompt or skill that failed, as a rule or a rewrite the user approves,
@@ -307,7 +310,8 @@ chosen for a reason:
   vendor difference was the cause.
 - *Gates with the maintainer.* Triage, plan acceptance, merge and unblock
   are the maintainer's decisions by default; each of the first three can
-  be handed to the swarm, which then requires a spending limit. Triage
+  be handed to the swarm, which then requires a spending limit
+  (validated, not yet enforced: nothing pauses on it until it is built). Triage
   and plan acceptance hold only an architecture job: one the owner
   classes routine (cut from a brief's milestone, at most two slices, no
   public API or protected path changed) passes them by itself and waits only at the merge.

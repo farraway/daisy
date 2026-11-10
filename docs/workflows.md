@@ -337,6 +337,9 @@ deletes them.
 
 **Command:** "Daisy, switch to [home]" or "switch to [identity]"
 
+Home, workspace and identity are the README's words (Goals), and what
+`daisy init` writes is its Usage, Bind a workspace.
+
 ```
 1. Run: daisy init <identity>
    - <identity> is a registered home's name or an identities/<id> file in one home
