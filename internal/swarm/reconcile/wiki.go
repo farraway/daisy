@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/brief"
@@ -48,8 +49,9 @@ func (n Note) Pin() string {
 }
 
 // ReadNotes is every note at the top of the notes' copy dir, by file
-// name; a link or a file without Subject: and Source: (a README) is no
-// note.
+// name; a link, a file without Subject: and Source: (a README) or a file
+// whose name holds a control character (a newline would add a line of its
+// own to the index) is no note.
 func ReadNotes(fs ops.FS, dir string) ([]Note, error) {
 	entries, err := fs.ReadDir(dir)
 	if err != nil {
@@ -57,7 +59,7 @@ func ReadNotes(fs ops.FS, dir string) ([]Note, error) {
 	}
 	var out []Note
 	for _, e := range entries {
-		if !e.Type().IsRegular() || !strings.HasSuffix(e.Name(), ".md") {
+		if !e.Type().IsRegular() || !strings.HasSuffix(e.Name(), ".md") || strings.ContainsFunc(e.Name(), unicode.IsControl) {
 			continue
 		}
 		b, err := fs.ReadFile(filepath.Join(dir, e.Name()))
@@ -248,17 +250,8 @@ func (w NotesRepo) fetch() error {
 // cloning it when absent (section 7.1, step 1): once a pass, before its
 // first launch, so every run of the pass is given the same notes.
 func (w NotesRepo) Refresh() error {
-	fs := w.O.FS()
-	if _, err := fs.Stat(filepath.Join(w.Dir(), ".git")); err != nil {
-		if err := fs.RemoveAll(w.Dir()); err != nil {
-			return err
-		}
-		if _, err := w.remote("", "clone", "--quiet", w.URL, w.Dir()); err != nil {
-			if w.Sub != "" {
-				return fmt.Errorf("notes %s: %v; give the swarm's key read and write access to %s", w.URL, err, w.Name)
-			}
-			return fmt.Errorf("wiki %s: %v; enable the issues repository's wiki and create its first page", w.URL, err)
-		}
+	if err := w.ensure(); err != nil {
+		return err
 	}
 	if err := w.fetch(); err != nil {
 		return err
@@ -268,6 +261,24 @@ func (w NotesRepo) Refresh() error {
 		return err
 	}
 	return w.reset("refs/remotes/origin/" + b)
+}
+
+// ensure clones the repository when the host's clone is absent.
+func (w NotesRepo) ensure() error {
+	fs := w.O.FS()
+	if _, err := fs.Stat(filepath.Join(w.Dir(), ".git")); err == nil {
+		return nil
+	}
+	if err := fs.RemoveAll(w.Dir()); err != nil {
+		return err
+	}
+	if _, err := w.remote("", "clone", "--quiet", w.URL, w.Dir()); err != nil {
+		if w.Sub != "" {
+			return fmt.Errorf("notes %s: %v; give the swarm's key read and write access to %s", w.URL, err, w.Name)
+		}
+		return fmt.Errorf("wiki %s: %v; enable the issues repository's wiki and create its first page", w.URL, err)
+	}
+	return nil
 }
 
 // reset makes the clone's tree the commit's, nothing else in it.
@@ -299,14 +310,30 @@ func (w NotesRepo) Export(dst string) (string, error) {
 // note added or changed, none deleted); nothing changed is `notes
 // unchanged`; a changed file holding a secret is not committed, `notes
 // kept: secret in a note`, nor anything when notes/ is not a directory at
-// base (a link, a file), `notes kept: notes/ is not a directory`; else one commit by the role's identity, msg
-// its message, put on top of the branch's head as fetched now (a
-// cherry-pick, never a rebase) and pushed to the branch, `notes pushed
-// <sha>`; a conflict with the head pushes the run's commit to the branch
-// conflict instead, `notes branch <conflict> <sha>`, and a push the forge
-// refuses is `notes kept: push rejected`. Its result is that line; an
-// error is one that did not reach the forge, to retry.
+// base (a link, a file), `notes kept: notes/ is not a directory`, or
+// `notes unchanged` when the run wrote no file; else one commit by the
+// role's identity, msg its message, put on top of the branch's head as
+// fetched now (a cherry-pick, never a rebase) and pushed to the branch,
+// `notes pushed <sha>`; a conflict with the head pushes the run's commit
+// to the branch conflict instead, `notes branch <conflict> <sha>`, and a
+// push the forge refuses is `notes kept: push rejected`. The host's clone
+// is made again when it is absent, and left at base after `notes kept`,
+// the run's pages out of its tree. Its result is that line; an error is
+// one that did not reach the forge, to retry.
 func (w NotesRepo) Publish(src, base, conflict, msg, name, email string, secrets []string) (string, error) {
+	if err := w.ensure(); err != nil {
+		return "", err
+	}
+	line, err := w.publish(src, base, conflict, msg, name, email, secrets)
+	if err == nil && strings.HasPrefix(line, "notes kept") {
+		if err := w.reset(base); err != nil {
+			return "", err
+		}
+	}
+	return line, err
+}
+
+func (w NotesRepo) publish(src, base, conflict, msg, name, email string, secrets []string) (string, error) {
 	fs := w.O.FS()
 	b, err := w.branch()
 	if err != nil {
@@ -316,7 +343,12 @@ func (w NotesRepo) Publish(src, base, conflict, msg, name, email string, secrets
 		return "", err
 	}
 	if fi, err := fs.Lstat(w.notes()); err == nil && !fi.IsDir() {
-		return "notes kept: notes/ is not a directory", nil // the maintainer's link or file, never replaced
+		// The maintainer's link or file, never replaced; the copy began
+		// empty (Export), so a file in it is one the run wrote.
+		if wrote, err := holdsFile(fs, src); err != nil || !wrote {
+			return "notes unchanged", err
+		}
+		return "notes kept: notes/ is not a directory", nil
 	}
 	if err := copyTree(fs, src, w.notes()); err != nil {
 		return "", err
@@ -395,6 +427,33 @@ func (w NotesRepo) push(commit, branch, done string) (string, error) {
 		return "notes kept: push rejected", nil
 	}
 	return "", err
+}
+
+// holdsFile: a regular file copyTree would copy lies in the tree under
+// dir.
+func holdsFile(fs ops.FS, dir string) (bool, error) {
+	entries, err := fs.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	for _, e := range entries {
+		if e.Name() == ".git" {
+			continue
+		}
+		fi, err := fs.Lstat(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return false, err
+		}
+		if fi.Mode().IsRegular() {
+			return true, nil
+		}
+		if fi.IsDir() {
+			if found, err := holdsFile(fs, filepath.Join(dir, e.Name())); err != nil || found {
+				return found, err
+			}
+		}
+	}
+	return false, nil
 }
 
 // copyTree copies the regular files and directories under src into dst,

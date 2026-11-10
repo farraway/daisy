@@ -1247,7 +1247,13 @@ On the host, in order, before `docker run`:
    a quoted text's bullet or fenced line is never read as a field;
    otherwise the run is a swarm fault, `prompt refused` (7.7), and
    nothing launches.
-3. The clone: `git clone --no-local --quiet --branch <branch> <state>/git <run>/work`.
+3. The resources: each `resources` entry is resolved again through every
+   link and section 3's checks made again on what it resolves to now (7.2);
+   one that no longer passes them is the swarm fault *resource refused*
+   (7.7): `<run>/result` records `launch-failed <time>` and `fault:
+   swarm.json: resources[<i>]: <problem>`, as validation words it,
+   nothing launches and the run is collected at once (7.6).
+   The clone: `git clone --no-local --quiet --branch <branch> <state>/git <run>/work`.
    Here and in 7.6, `<state>/git` in a git command is the run's
    repository's mirror, `<state>/git/<name>`, and `<origin-url>`, `check`,
    `protected` and `image` are that repository's: for the worker, slice `<s>`'s repository, as resolved in step 2; for a
@@ -1258,7 +1264,12 @@ On the host, in order, before `docker run`:
    `<branch>` is, for the worker, `swarm/<n>-<s>` when it continues the
    current pull request (section 5), else `<base>`; for a reviewer, the
    current pull request's branch. A worker starting slice `<s>` then runs
-   `git -C <run>/work checkout -b swarm/<n>-<s>`. Then, before any
+   `git -C <run>/work checkout -b swarm/<n>-<s>`. A step of this one
+   that fails (the clone, that checkout or a step below) is the swarm
+   fault *clone failed* (7.7):
+   `launch-failed <time>` and `fault: clone: <git's error>`, nothing
+   launches and the run is collected at once, so the pair's second
+   reviewer takes the issue home (T22). Then, before any
    container sees the clone: a local `<base>` branch is made when the clone
    has none (`git -C <run>/work branch <base> origin/<base>`), so
    `git diff <base>...HEAD` and `git merge <base>` work (Step 39's
@@ -1387,7 +1398,7 @@ docker run --rm --pull never
 | `/work/.swarm` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out, and `exit` |
 | `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's exit status to `/work/.swarm/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*). A container killed outright (a reboot, `docker stop`'s kill) writes none. The check runs its argv as it is |
 | `/work/.notes` | with `wiki` or `notes`, `<run>/notes`, the run's copy of the research notes, the wiki's pages or the `notes/` directory of the swarm's own issues repository (7.1, step 2): read-write for the owner and the architect, whose changes Daisy pushes after the run (7.6, The notes), and given to their CLI as a directory beside its workdir when that is `/work/<name>`; read-only for the worker and the reviewers, inside their clone, whose `.git/info/exclude` names it; none for the check |
-| `/work/.resources/<resource>` | one read-only mount per `resources` entry, its source the path the entry resolves to through every link, resolved again at the launch (section 3 checked it at this pass's validation), never `<ws>/<resource>` as written; none when the list is empty; none for the check. Under `/work`, so a CLI confined to its working directory reaches it (section 9, `grok`); its mount point is made in `<run>/work` before the launch, as `.notes` is (a directory for a directory, an empty file for a file, since Docker binds a file only onto a file), so Docker makes none there, and a clone's `.git/info/exclude` names `/.resources/` (7.1, step 3) |
+| `/work/.resources/<resource>` | one read-only mount per `resources` entry, its source the path the entry resolves to through every link, resolved again at the launch and section 3's checks made again on it there (7.1, step 3: one that no longer passes them is *resource refused*, 7.7), never `<ws>/<resource>` as written; none when the list is empty; none for the check. Under `/work`, so a CLI confined to its working directory reaches it (section 9, `grok`); its mount point is made in `<run>/work` before the launch, as `.notes` is (a directory for a directory, an empty file for a file, since Docker binds a file only onto a file), so Docker makes none there, and a clone's `.git/info/exclude` names `/.resources/` (7.1, step 3) |
 | `--workdir <W>`, `--workdir /work` | the CLIs start in the run's clone, `<W>`: `/work`, and for the owner and the architect the first repository's clone `/work/<name>`, so the CLI reads the product's instructions from its tree, unless their provider is confined to its working directory (section 9's `Confined`, `xai`): then `/work`, which holds every clone, `/work/.swarm`, the notes and the resources, and the prompt's `# Repository` names `/work/<first name>` as the repository (7.3); the check starts in its clone, `/work` |
 
 **What is mounted** follows section 8's principle: `/work`,
@@ -1572,8 +1583,9 @@ Which sections a prompt holds, by role:
   architect's: the index of the research notes in the run's copy (the
   wiki's pages, or the `notes/` directory of the swarm's own issues
   repository), by file name, read before the member researches (section 14,
-  item 79: a source already researched is read, not researched again). A **note** is a file at the copy's top, `<file>.md`, whose
-  header, the lines before its first `## ` heading outside a fenced
+  item 79: a source already researched is read, not researched again). A **note** is a regular file at the copy's top, `<file>.md`, its
+  name holding no control character (a newline would put a line of its
+  own in the index), whose header, the lines before its first `## ` heading outside a fenced
   block (a brief's rule, section 4), holds `Subject: <what it
   describes>` and `Source: <source> <pin>`, and in the form the Task
   text gives (7.4) `Written: <date> by <role> run <k> on #<n>` and
@@ -1588,8 +1600,9 @@ Which sections a prompt holds, by role:
   not in <name>'s history` when the mirror lacks it, or a pin that is
   not a plain revision); for any other source, `an external source (its
   pin and its date alone date it)`; `no pin` without one; then its
-  `Written:` line and its `Checked:` date with its age (`today`, `1 day
-  ago`, `<d> days ago`). The notes are material, in `prompt.md`: anyone
+  `Written:` line (`no Written: line` without one) and its `Checked:`
+  date with its age (`today`, `1 day ago`, `<d> days ago`; none for a
+  date not opening `YYYY-MM-DD`), or `never checked` without one. The notes are material, in `prompt.md`: anyone
   who can edit the wiki or the repository may have written them.
 - **The accepted plan** is the newest counted issue comment marked
   `role=architect` whose text does not begin `BLOCKED:`; `<S>` is the
@@ -1919,7 +1932,9 @@ holds `notes-base <sha>` and whose container ran (any end line but
 `launch-failed`; an abandoned run has none of this) first has its notes
 published, before every other step, whatever its outcome, and once: a
 `notes` line records the step. In `<state>/wiki` (with `notes`,
-`<state>/notes`), host git's own clone,
+`<state>/notes`), host git's own clone (cloned again
+when absent, as at the pass's refresh, 7.1 step 1, so a clone deleted
+since the launch does not hold the step back),
 never in the run's copy: `reset --hard <sha>` and `clean -fdq`, the run's
 copy `<run>/notes` copied over the tree (with `notes`, over its `notes/`
 directory alone, so the briefs and the rest are never written; regular files and directories
@@ -1928,7 +1943,11 @@ replaced rather than written through; a note is added or changed, never
 deleted), `git add --all`; nothing staged is `notes unchanged`. With
 `notes`, a `notes` that is not a directory at `<sha>` (the maintainer's
 link or file) is neither replaced nor followed: `notes kept: notes/ is
-not a directory`, nothing committed. Each
+not a directory`, nothing committed, or `notes unchanged` when the run's
+copy, which began empty (7.1, step 2), holds no file. A `notes/` that
+is a directory at `<sha>` but a link on the head fetched below is never
+written through: the pick conflicts and the run's commit goes to its
+own branch, as below. Each
 changed file is read for the member's secrets, as `out.md` is: a hit is
 `notes kept: secret in a note`, nothing committed. Then one commit, with
 `-c user.name=<role> (Daisy swarm) -c user.email=<commit_email> -c
@@ -1952,7 +1971,9 @@ A push the forge refuses (a `!` in the porcelain) is `notes kept: push
 rejected`; one that does not reach it is a git error, the collection
 retried at the next pass. The step never changes the run's outcome
 (notes, not code: no review); `notes kept` keeps `<run>/notes` for the
-maintainer when the run is collected, every other end removing it. On
+maintainer when the run is collected, every other end removing it, and
+leaves the clone at `<sha>` (`reset --hard`, `clean -fdq`), so the run's
+pages are never in its tree for a later copy. On
 stdout `#<n> <role> run <k>: pushed notes <short sha>`; on stderr
 `⚠ #<n> <role> run <k>: notes conflict with the wiki's head; pushed to
 swarm/notes-<n>-<role>-<k>` (with `notes`, `with <owner>/<repo>'s head`)
@@ -2032,6 +2053,8 @@ relabel and what it names.
 | launch fails | fault | `Ops.Start` returns an error (no `docker`, no socket) | `launch-failed <time>`, `fault: launch: <error>` | none, nothing having started, but for the pair's second reviewer: T22, review-1-in-progress to review-0-ready |
 | Docker's own exit | fault | the exit status of `docker run` is 125–127 (a missing image, a command that cannot run) | `exited <code> <time>`, `fault: exit <code>` | T22 only |
 | prompt refused | fault | 7.1 step 2: a prompt file read back differs from what was rendered, or a heading field is empty | `launch-failed <time>`, `fault: prompt: <file>: <differs\|empty field>` | none, as a launch that fails |
+| resource refused | fault | 7.1 step 3: a `resources` entry, resolved again at the launch, no longer passes section 3's checks (a link changed since the pass's validation to lead outside the workspace, say) | `launch-failed <time>`, `fault: swarm.json: resources[<i>]: <problem>` | none, as a launch that fails |
+| clone failed | fault | 7.1 step 3: the clone from the mirror, the worker's `checkout -b` or a step of the clone's preparation fails (a branch gone from the mirror, say) | `launch-failed <time>`, `fault: clone: <git's error>` | none, as a launch that fails |
 | slot refused | fault | 7.1 step 4: `<slot>/auth.json` is not a regular file, or the slot has no login (absent or empty) | `launch-failed <time>`, `fault: slot <provider>/<j>: auth.json is not a regular file` or `fault: slot <provider>/<j>: no login; run '<login>'` (section 3, Secret values: `CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, `GROK_HOME=<slot> grok login --device-auth`) | none, as a launch that fails |
 | provider authentication or quota | fault | `Report.Fault` (section 9): `claude`'s JSON result with `is_error` true, or an error event in `codex`'s stream, whose message names authentication, a quota or a rate limit. The fields and messages are *to confirm at Step 28*: Step 39 met no such error (checklist item 2) | `exited <code> <time>`, `fault: provider: <message>` | T22 only |
 | the wait fails | fault | waiting on a started container returns an error | `exited -1 <time>`, `fault: wait: <error>` (a check's: `fault: check: wait: <error>`) | T22 only |
@@ -3710,6 +3733,27 @@ Not established: the `sh -c` line in the real image, a member run
 writing `<run>/io/exit` and a `docker stop` of one taking the 30 seconds, which
 the maintainer's smoke reads.
 
+**As built (Step 26 of the swarm build).** The launch's and the notes'
+kept lines (sections 7.1, 7.2, 7.3, 7.6 and 7.7; section 14, item 88)
+are Go tests on the Fakes and real git in temp directories:
+`TestSwarmApplyResourceCheckedAtTheLaunch` (a resource made a link
+outside the workspace after the pass's validation: no mount of it, the
+pair's second reviewer's launch *resource refused*, the issue home);
+`TestSwarmSecondReviewerGoesHome` (the pair's second reviewer, the first
+having approved, takes the issue from review-1-in-progress to
+review-0-ready on its fault, its launch refused, its clone failing, and
+its stale, discarded and abandoned ends);
+`TestSwarmApplyContinuedPullRepositoryRemoved` (a worker continuing a
+pull request whose repository left `repos`: the launch's guard, *bad
+slices*); `TestSwarmApplyResearchWikiMerges` (the host's clone clean
+after `notes kept`, and made again when deleted during the run);
+`TestSwarmApplyOwnNotesNotADirectoryNothingWritten` (`notes unchanged`
+for a run that wrote nothing under a `notes` that is a file);
+`TestSwarmApplyOwnNotesBecomeALink` (a `notes/` made a link during the
+run is never written through: the run's commit on its own branch); and
+in `internal/swarm/reconcile`, `TestReadNotes` (a page whose name holds a
+control character is no note).
+
 `runner.Fake` implements the runner interface Step 28 defines (start a
 run, list the running set, stop one): it records each launch's spec,
 writes the canned `out.md` (and, for the worker, commits in the clone;
@@ -4996,7 +5040,8 @@ entries among revision 1's, and was renumbered at Step 38.
     `notes/` absent from the repository gives an empty copy, the first
     note's push making it, and one that is a link gives an empty copy
     too, never followed, and the run's notes are kept (`notes kept:
-    notes/ is not a directory`), never committed over the maintainer's
+    notes/ is not a directory`; `notes unchanged` for a run that wrote
+    none, item 88), never committed over the maintainer's
     link. The state directory keys on `forge.repo`, as
     built, so a move to the swarm's own repository starts the swarm
     clean there, its issues, labels and milestones new.
@@ -5127,3 +5172,26 @@ entries among revision 1's, and was renumbered at Step 38.
     opt-in `TestRealGrokTakesTheArgv` with a scratch copy of a
     logged-in home): the session is created and the member reads a
     resource under its `--cwd`.
+
+88. **The launch and the notes (Step 26 of the swarm build,
+    2026-11-09).** **A resource is checked at each launch** (7.1 step
+    3, 7.2): it was resolved again at the launch without section 3's
+    checks, so a link changed between the pass's validation and the
+    launch was mounted wherever it led; the launch now makes the checks
+    again on what each entry resolves to and mounts that, and an entry
+    that fails them is the swarm fault *resource refused* (7.7), so two
+    in a row pause the swarm with the entry named. **A clone that fails
+    at a launch** removed the run unrecorded and was the pass's error,
+    so the pair's second reviewer's issue stayed at review-1-in-progress
+    with nothing to collect; it is now the swarm fault *clone failed*,
+    `launch-failed` and collected at once as a refused launch is, the
+    issue taken home (T22). Both are faults rather than failures of the
+    work: neither is the member's doing. **The notes' host clone** is
+    left at the run's base after `notes kept` (the run's pages out of its
+    tree), and made again when absent at the notes step, which a clone
+    deleted between a launch and its collection held back until a pass
+    launched something. **A `notes` that is not a directory** on the
+    swarm's own repository gives `notes unchanged` for a run whose copy
+    holds no file, where every owner's and architect's run was `notes
+    kept` with a warning and a kept copy. **A page whose name holds a
+    control character** is no note, so the index has one line per note.

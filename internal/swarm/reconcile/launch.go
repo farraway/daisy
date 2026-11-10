@@ -95,22 +95,32 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return failed("launch-failed "+now(), "fault: prompt: prompt.md: empty field")
 	}
 
+	// The resources as they resolve now, section 3's checks made again,
+	// so a link changed since the pass's validation mounts nothing
+	// outside them (section 7.2).
+	resources, err := declare.ResolveResources(s.O, s.WS, s.Cfg.Resources)
+	if err != nil {
+		return failed("launch-failed "+now(), "fault: "+err.Error())
+	}
+
 	persona := s.Cfg.Personas[j.Role]
 	work := filepath.Join(r.Dir, "work")
 	var startLines, reads []string
 	workdir, image := Workdir(s.Cfg, j.Role), repo.Image
+	// A clone that fails is a swarm fault recorded as a launch's (section
+	// 7.7), collected at once, so the pair's second reviewer's issue goes
+	// home.
+	cloneFailed := func(err error) (bool, error) {
+		return failed("launch-failed "+now(), "fault: clone: "+err.Error())
+	}
 	clone := func(rp declare.Repo, branch, dir string) (string, error) {
-		sha, err := s.git().Clone(rp, branch, s.Cfg.Base, dir, j.Role, s.Cfg.Forge.CommitEmail, persona.CoAuthor)
-		if err != nil {
-			fs.RemoveAll(r.Dir)
-		}
-		return sha, err
+		return s.git().Clone(rp, branch, s.Cfg.Base, dir, j.Role, s.Cfg.Forge.CommitEmail, persona.CoAuthor)
 	}
 	if j.Role == "owner" || j.Role == "architect" {
 		for _, rp := range s.Cfg.Repos {
 			sha, err := clone(rp, s.Cfg.Base, filepath.Join(work, rp.Name))
 			if err != nil {
-				return false, err
+				return cloneFailed(err)
 			}
 			startLines = append(startLines, "start "+rp.Name+" "+sha)
 		}
@@ -126,12 +136,11 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 		sha, err := clone(repo, from, work)
 		if err != nil {
-			return false, err
+			return cloneFailed(err)
 		}
 		if newBranch {
 			if err := s.git().Branch(work, branch); err != nil {
-				fs.RemoveAll(r.Dir)
-				return false, err
+				return cloneFailed(err)
 			}
 		}
 		startLines = append(startLines, "start "+sha)
@@ -156,10 +165,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		startLines = append(startLines, "notes-base "+notesSHA)
 	}
 	for i, res := range ResourceMounts(s.Cfg.Resources) {
-		src, err := fs.EvalSymlinks(filepath.Join(s.WS, s.Cfg.Resources[i]))
-		if err != nil {
-			return false, err
-		}
+		src := resources[i]
 		// The mount point made in the run's own tree, as /work/.notes is,
 		// so that Docker creates none in it: a directory for a directory,
 		// an empty file for a file.

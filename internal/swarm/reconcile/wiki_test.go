@@ -29,17 +29,20 @@ func TestRepoURL(t *testing.T) {
 
 // A note is a top-level page whose header, as a brief's, holds Subject:
 // and Source:; a line in a fence or after the first `## ` is not its
-// header, and a link, a directory or another page is no note.
+// header, and a link, a directory, another page or a page whose name holds
+// a control character (a line of its own in the index) is no note.
 func TestReadNotes(t *testing.T) {
 	dir := t.TempDir()
 	for f, c := range map[string]string{
-		"Home.md":     "# Home\n",
-		"ruleslib.md": "Subject: ruleslib 2.0.0's rules\nSource: https://example.net/ruleslib v2.0.0\nWritten: 2026-11-01 by architect run 3 on #14\nChecked: 2026-11-04\n\n## Rules\n\nSubject: not this\n",
-		"fenced.md":   "```\nSubject: in a fence\nSource: app main\n```\n",
-		"late.md":     "## First\n\nSubject: after a heading\nSource: app main\n",
-		"no-src.md":   "Subject: a source missing\n",
-		"notes.txt":   "Subject: not Markdown\nSource: app main\n",
-		"sub/deep.md": "Subject: below the top\nSource: app main\n",
+		"Home.md":       "# Home\n",
+		"ruleslib.md":   "Subject: ruleslib 2.0.0's rules\nSource: https://example.net/ruleslib v2.0.0\nWritten: 2026-11-01 by architect run 3 on #14\nChecked: 2026-11-04\n\n## Rules\n\nSubject: not this\n",
+		"fenced.md":     "```\nSubject: in a fence\nSource: app main\n```\n",
+		"late.md":       "## First\n\nSubject: after a heading\nSource: app main\n",
+		"no-src.md":     "Subject: a source missing\n",
+		"notes.txt":     "Subject: not Markdown\nSource: app main\n",
+		"sub/deep.md":   "Subject: below the top\nSource: app main\n",
+		"two\nlines.md": "Subject: a name of two lines\nSource: app main\n",
+		"tab\there.md":  "Subject: a name with a tab\nSource: app main\n",
 	} {
 		os.MkdirAll(filepath.Dir(filepath.Join(dir, f)), 0o755)
 		os.WriteFile(filepath.Join(dir, f), []byte(c), 0o644)

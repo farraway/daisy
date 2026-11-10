@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -236,4 +237,106 @@ func gitRun(args ...string) error {
 		return fmt.Errorf("git %v: %v %s", args, err, errb)
 	}
 	return nil
+}
+
+// The pair's second reviewer, launched on review-1-in-progress (the
+// first's write), takes the issue home to review-0-ready on every path
+// that does not move it on (section 5, T22; section 7.7), the first having
+// approved: its swarm fault, its launch refused by Docker, its clone
+// failing (the first's run took the branch from the mirror), and, its
+// run collected by a later pass with launching paused, its stale,
+// discarded and abandoned ends.
+func TestSwarmSecondReviewerGoesHome(t *testing.T) {
+	home := "\nrelabelled swarm:review-1-in-progress swarm:review-0-ready\noutcome "
+	for _, tc := range []struct {
+		name    string
+		second  func(a *applyWS) runner.Canned
+		outcome string
+		line    string // a line the second's result holds
+	}{
+		{name: "a fault", second: func(*applyWS) runner.Canned { return runner.Canned{Code: 125} }, outcome: "fault", line: "fault: exit 125"},
+		{name: "its launch refused", second: func(*applyWS) runner.Canned {
+			return runner.Canned{Work: func(string) error { return fmt.Errorf("no socket") }}
+		}, outcome: "fault", line: "fault: launch: no socket"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.inReview(oneSlice)
+			a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+			a.runner.Script(1, "sympathetic", tc.second(a))
+			a.pass() // the pair, in one pass
+			r := a.result("1-sympathetic-1")
+			if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-0-ready") || slices.Contains(got, "swarm:review-1-in-progress") || slices.Contains(got, forge.Blocked) ||
+				!strings.Contains(r, "\nlabel swarm:review-1-in-progress\n") || !strings.Contains(r, "\n"+tc.line+"\n") || !strings.Contains(r, home+tc.outcome+"\ncollected\n") {
+				t.Errorf("%v\n%s\nstdout:\n%s", got, r, a.stdout.String())
+			}
+		})
+	}
+
+	t.Run("its clone failing", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.inReview(oneSlice)
+		a.runner.Script(1, "adversary", runner.Canned{Out: approve, Work: func(string) error {
+			return gitRun("-C", a.state("git/app"), "update-ref", "-d", "refs/heads/swarm/1-1")
+		}})
+		a.pass()
+		r := a.result("1-sympathetic-1")
+		if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-0-ready") || slices.Contains(got, "swarm:review-1-in-progress") ||
+			!strings.HasPrefix(r, "label swarm:review-1-in-progress\nlaunch-failed ") || !strings.Contains(r, "\nfault: clone: ") || !strings.Contains(r, home+"fault\ncollected\n") {
+			t.Errorf("%v\n%s\nstdout:\n%s", got, r, a.stdout.String())
+		}
+		if l := a.runner.Launches(); l[len(l)-1].Name != "daisy-swarm.acme.app.1.adversary.1" {
+			t.Errorf("launched last: %s", l[len(l)-1].Name)
+		}
+		if _, err := os.Stat(a.state("runs/1-sympathetic-1/work")); err == nil {
+			t.Error("the failed clone is left")
+		}
+	})
+
+	// The second's run as an apply left it, collected by the next pass;
+	// with an end line, its approval in out.md.
+	left := func(a *applyWS, start string, more ...string) {
+		run := a.state("runs/1-sympathetic-1")
+		os.MkdirAll(filepath.Join(run, "io"), 0o755)
+		if len(more) > 0 {
+			os.WriteFile(filepath.Join(run, "io", "out.md"), []byte(approve), 0o644)
+		}
+		lines := append([]string{"start " + start, "label swarm:review-1-in-progress", "started 2026-11-06T14:59:00Z", "credential anthropic env CLAUDE_CODE_OAUTH_TOKEN"}, more...)
+		os.WriteFile(filepath.Join(run, "result"), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+		a.forge.SetLabel(issue1, "swarm:review-1-in-progress")
+		if err := a.verb(SwarmPause); err != nil {
+			a.t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		name    string
+		setup   func(a *applyWS, head string)
+		outcome string
+	}{
+		{name: "stale", setup: func(a *applyWS, head string) {
+			left(a, strings.Repeat("0", 40), "exited 0 2026-11-06T15:00:00Z")
+		}, outcome: "stale"},
+		{name: "discarded", setup: func(a *applyWS, head string) {
+			left(a, head, "exited 0 2026-11-06T15:00:00Z")
+			pr := forge.Ref{Repo: "app", N: a.pulls(1)[0].Number}
+			a.forge.SetMergeable(pr, forge.MergeableYes)
+			if err := a.forge.Merge(pr, head); err != nil {
+				a.t.Fatal(err)
+			}
+		}, outcome: "discarded"},
+		{name: "abandoned", setup: func(a *applyWS, head string) { left(a, head) }, outcome: "abandoned"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.inReview(oneSlice)
+			tc.setup(a, a.pulls(1)[0].HeadSHA)
+			launched := len(a.runner.Launches())
+			a.pass()
+			r := a.result("1-sympathetic-1")
+			if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-0-ready") || slices.Contains(got, "swarm:review-1-in-progress") ||
+				!strings.Contains(r, home+tc.outcome+"\ncollected\n") || len(a.runner.Launches()) != launched {
+				t.Errorf("%v\n%s\nstdout:\n%s\nstderr:\n%s", got, r, a.stdout.String(), a.stderr.String())
+			}
+		})
+	}
 }

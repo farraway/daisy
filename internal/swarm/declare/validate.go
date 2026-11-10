@@ -247,40 +247,57 @@ func checkDuration(field, v string) *Error {
 // workspace that is not the workspace, not under swarm/, neither is nor
 // contains .env.sh, .daisy or .git, and is listed once.
 func checkResources(o ops.Ops, ws string, resources []string) *Error {
+	_, err := resolveResources(o, ws, resources)
+	return err
+}
+
+// ResolveResources is each resource's path through every link, the
+// source its mount is given, once section 3's checks hold of it now (a
+// launch makes them again, so a link changed since the pass's validation
+// mounts nothing outside them, section 7.2).
+func ResolveResources(o ops.Ops, ws string, resources []string) ([]string, error) {
+	real, err := resolveResources(o, ws, resources)
+	if err != nil {
+		return nil, err
+	}
+	return real, nil
+}
+
+func resolveResources(o ops.Ops, ws string, resources []string) ([]string, *Error) {
 	fs := o.FS()
 	root, err := fs.EvalSymlinks(ws)
 	if err != nil {
-		return fieldErr("resources", "the workspace %s cannot be resolved: %v", ws, err)
+		return nil, fieldErr("resources", "the workspace %s cannot be resolved: %v", ws, err)
 	}
 	var seen []string
 	for i, r := range resources {
 		at := fmt.Sprintf("resources[%d]", i)
 		if r == "" || filepath.IsAbs(r) {
-			return fieldErr(at, "%q is not a relative path", r)
+			return nil, fieldErr(at, "%q is not a relative path", r)
 		}
 		real, err := fs.EvalSymlinks(filepath.Join(ws, r))
 		if err != nil {
-			return fieldErr(at, "%q does not exist", r)
+			return nil, fieldErr(at, "%q does not exist", r)
 		}
 		rel, err := filepath.Rel(root, real)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
-			return fieldErr(at, "%q is outside the workspace", r)
+			return nil, fieldErr(at, "%q is outside the workspace", r)
 		}
 		if rel == "." {
-			return fieldErr(at, "%q is the workspace", r)
+			return nil, fieldErr(at, "%q is the workspace", r)
 		}
 		if rel == "swarm" || strings.HasPrefix(rel, "swarm/") {
-			return fieldErr(at, "%q is under swarm/", r)
+			return nil, fieldErr(at, "%q is under swarm/", r)
 		}
 		if name := forbiddenIn(fs, rel, real); name != "" {
-			return fieldErr(at, "%q contains %s", r, name)
+			return nil, fieldErr(at, "%q contains %s", r, name)
 		}
 		if slices.Contains(seen, real) {
-			return fieldErr(at, "%q is listed twice", r)
+			return nil, fieldErr(at, "%q is listed twice", r)
 		}
 		seen = append(seen, real)
 	}
-	return nil
+	return seen, nil
 }
 
 // checkNotes: `notes` keeps the notes in the issues repository's notes/,

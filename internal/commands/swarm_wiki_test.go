@@ -187,8 +187,9 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 // a page changed during the run is kept, the run's commit put on top of
 // it; the same page changed is a conflict, the run's commit pushed to its
 // own branch with a warning; a note holding a secret the member was given
-// is not pushed and its copy kept; and an unreachable wiki stops the pass
-// with what to do.
+// is not pushed and its copy kept, the host's clone left without it; a
+// host's clone deleted during the run is made again for the push; and an
+// unreachable wiki stops the pass with what to do.
 func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 	secret := "oauth-token-0123456789abcdef0123456789"
 	for _, tc := range []struct {
@@ -200,11 +201,13 @@ func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 		Board    string // master's Board-model.md after
 		kept     bool
 		onBranch bool
+		gone     bool // the host's clone deleted during the run
 	}{
 		{name: "another page", hand: map[string]string{"Home.md": "# Home, by hand\n"}, note: "Subject: x\nSource: app main\n\nNew.\n", line: "notes pushed ", Board: "Subject: x\nSource: app main\n\nNew.\n"},
 		{name: "the same page", hand: map[string]string{"Board-model.md": "By hand.\n"}, note: "Subject: x\nSource: app main\n\nNew.\n", line: "notes branch swarm/notes-1-architect-1 ",
 			warn: "⚠ #1 architect run 1: notes conflict with the wiki's head; pushed to swarm/notes-1-architect-1\n", Board: "By hand.\n", onBranch: true},
 		{name: "a secret", note: "Subject: x\nSource: app main\n\n" + secret + "\n", line: "notes kept: secret in a note", Board: "Old.\n", kept: true},
+		{name: "the host's clone deleted", note: "Subject: x\nSource: app main\n\nNew.\n", line: "notes pushed ", Board: "Subject: x\nSource: app main\n\nNew.\n", gone: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newApplyWS(t)
@@ -214,6 +217,9 @@ func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 			a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Notes: func(dir string) error {
 				if tc.hand != nil {
 					editUp(t, up, "master", tc.hand)
+				}
+				if tc.gone {
+					os.RemoveAll(a.state("wiki"))
 				}
 				return writes(map[string]string{"Board-model.md": tc.note})(dir)
 			}})
@@ -254,6 +260,16 @@ func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 			}
 			if tc.kept && (!strings.Contains(a.stderr.String(), "notes not pushed (secret in a note); kept in ") || strings.Contains(a.stderr.String(), secret)) {
 				t.Errorf("stderr %q", a.stderr.String())
+			}
+			// The host's clone holds no page of the run's but what the
+			// wiki has: nothing kept is left for a later export.
+			if st := gitIn(t, a.state("wiki"), "status", "--porcelain"); st != "" {
+				t.Errorf("the host's clone is left dirty: %q", st)
+			}
+			if tc.kept {
+				if b, _ := os.ReadFile(a.state("wiki/Board-model.md")); string(b) != "Old.\n" {
+					t.Errorf("the host's clone holds the kept note: %q", b)
+				}
 			}
 		})
 	}

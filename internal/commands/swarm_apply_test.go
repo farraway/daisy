@@ -385,6 +385,39 @@ func TestSwarmApplyStart(t *testing.T) {
 	}
 }
 
+// A resource is checked again at each launch (sections 3 and 7.2): docs/
+// made a link to a directory outside the workspace after the pass's
+// validation (here by the first reviewer's run) mounts nothing; the pair's
+// second reviewer's launch is a swarm fault naming the entry, collected
+// at once, the issue taken home.
+func TestSwarmApplyResourceCheckedAtTheLaunch(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	outside := t.TempDir()
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve, Work: func(string) error {
+		if err := os.RemoveAll(filepath.Join(a.ws, "docs")); err != nil {
+			return err
+		}
+		return os.Symlink(outside, filepath.Join(a.ws, "docs"))
+	}})
+	a.pass()
+	for _, l := range a.runner.Launches() {
+		for _, m := range l.Mounts {
+			if strings.HasPrefix(m.Src, outside) {
+				t.Errorf("%s mounts %s", l.Name, m.Src)
+			}
+		}
+	}
+	r := a.result("1-sympathetic-1")
+	if !strings.Contains(r, "launch-failed ") || !strings.Contains(r, "\nfault: swarm.json: resources[0]: \"docs/\" is outside the workspace\n") ||
+		!strings.HasSuffix(r, "\nrelabelled swarm:review-1-in-progress swarm:review-0-ready\noutcome fault\ncollected\n") {
+		t.Errorf("%s\nstdout:\n%s", r, a.stdout.String())
+	}
+	if l := a.runner.Launches(); l[len(l)-1].Name != "daisy-swarm.acme.app.1.adversary.1" {
+		t.Errorf("launched last: %s", l[len(l)-1].Name)
+	}
+}
+
 // The architect on xai (section 9): grok's argv, the XAI_API_KEY env
 // credential and no slot, its JSON result read into the cost line; a
 // second run's error object naming a lapsed login is a provider fault,

@@ -183,3 +183,60 @@ func TestSwarmApplyOwnNotesNotADirectory(t *testing.T) {
 		t.Errorf("stderr %q", a.stderr.String())
 	}
 }
+
+// A notes/ that is not a directory on main keeps nothing of a run that
+// wrote no note: `notes unchanged`, no warning, the run's copy removed.
+func TestSwarmApplyOwnNotesNotADirectoryNothingWritten(t *testing.T) {
+	a := newApplyWS(t)
+	up := a.ownUp()
+	dir := t.TempDir()
+	gitIn(t, "", "clone", "-q", up, dir)
+	os.RemoveAll(filepath.Join(dir, "notes"))
+	os.WriteFile(filepath.Join(dir, "notes"), []byte("a file\n"), 0o644)
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "notes as a file")
+	gitIn(t, dir, "push", "-q", "origin", "main")
+	a.runner.Script(0, "owner", runner.Canned{Out: "## Board\nBrief: swarm-x/briefs/m0.md — M1 The board\nClass: routine\nShow the board.\n"})
+	a.pass()
+	result := a.result("0-owner-1")
+	if !strings.Contains(result, "\nnotes unchanged\n") || !strings.HasSuffix(result, "collected\n") || strings.Contains(a.stderr.String(), "notes not pushed") {
+		t.Errorf("result:\n%s\nstderr %q", result, a.stderr.String())
+	}
+	if _, err := os.Lstat(a.state("runs/0-owner-1/notes")); err == nil {
+		t.Error("the run's copy is kept")
+	}
+}
+
+// A notes/ that is a directory at the run's base but a link on main as
+// fetched at the collection (the maintainer's, during the run) is never
+// written through: the run's note does not reach the link's target, on
+// main or in the host's clone, and is pushed to its own branch.
+func TestSwarmApplyOwnNotesBecomeALink(t *testing.T) {
+	a := newApplyWS(t)
+	up := a.ownUp()
+	brief := gitIn(t, up, "rev-parse", "main:briefs")
+	a.runner.Script(0, "owner", runner.Canned{Out: "## Board\nBrief: swarm-x/briefs/m0.md — M1 The board\nClass: routine\nShow the board.\n", Notes: func(dir string) error {
+		hand := t.TempDir()
+		gitIn(t, "", "clone", "-q", up, hand)
+		os.RemoveAll(filepath.Join(hand, "notes"))
+		os.Symlink("briefs", filepath.Join(hand, "notes"))
+		gitIn(t, hand, "add", "-A")
+		gitIn(t, hand, "commit", "-q", "-m", "notes as a link")
+		gitIn(t, hand, "push", "-q", "origin", "main")
+		return writes(map[string]string{"Ruleslib.md": ruleslibNote("owner run 1")})(dir)
+	}})
+	a.pass()
+	result := a.result("0-owner-1")
+	if !strings.Contains(result, "\nnotes branch swarm/notes-0-owner-1 ") || !strings.HasSuffix(result, "collected\n") {
+		t.Errorf("result:\n%s\nstderr %q", result, a.stderr.String())
+	}
+	if got := gitIn(t, up, "rev-parse", "main:briefs"); got != brief {
+		t.Errorf("main's briefs/ changed: %s", gitIn(t, up, "ls-tree", "-r", "main"))
+	}
+	if _, err := os.Lstat(a.state("notes/briefs/Ruleslib.md")); err == nil {
+		t.Error("the note was written through the link in the host's clone")
+	}
+	if got := gitIn(t, up, "show", "swarm/notes-0-owner-1:notes/Ruleslib.md"); got+"\n" != ruleslibNote("owner run 1") {
+		t.Errorf("the branch's note %q", got)
+	}
+}

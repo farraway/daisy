@@ -146,6 +146,34 @@ func TestSwarmApplyBadSlices(t *testing.T) {
 	}
 }
 
+// A worker continuing its open pull request whose repository was removed
+// from repos since (section 7.1, step 2): the plan still names it for the
+// slice, so only the launch's guard stops it: bad slices, nothing
+// launched, T17 at the stage it was launched on.
+func TestSwarmApplyContinuedPullRepositoryRemoved(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview("## Steps\n\n1. lib: change main.go.\n")
+	if ps := a.pulls(1); len(ps) != 1 || ps[0].Repo != "lib" {
+		t.Fatalf("pulls %+v", ps)
+	}
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.ChangesRequested) {
+		t.Fatalf("not sent back: %v\n%s", got, a.stdout.String())
+	}
+	a.edit(func(c *declare.Config) { c.Repos = c.Repos[:1] })
+	launched := len(a.runner.Launches())
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	r := a.result("1-worker-2")
+	b := a.bodies(1)
+	if !strings.Contains(r, "\nlaunch-failed ") || !strings.Contains(r, "\nfailed: bad slices: 1\n") || len(a.runner.Launches()) != launched ||
+		!strings.HasSuffix(b[len(b)-1], "worker run 2 failed: bad slices: 1 (at "+forge.ChangesRequested+"). Remove swarm:blocked to resume.") {
+		t.Errorf("%s\n%q\nstdout:\n%s", r, b, a.stdout.String())
+	}
+}
+
 // pause and resume (section 11): pause mid-lifecycle stops launches and
 // merges while collection goes on; resume continues; both report what
 // they found.
