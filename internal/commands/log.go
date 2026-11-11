@@ -4,16 +4,27 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"daisy/internal/journal"
 )
 
 // Log adds `- HHMM <message>` to today's Log section and commits the home.
 // The message is the arguments joined with single spaces, so no quoting is
-// needed on the command line.
+// needed on the command line. When today.md is dated before today, the day
+// is quick-started first (`new-day --quick`), in its own commit; an absent
+// or undated today.md is refused as before.
 func Log(c *Context) error {
 	if err := preflight(c); err != nil {
 		return err
+	}
+	if b, err := c.Ops.FS().ReadFile(c.todayFile()); err == nil {
+		now := c.Ops.Now()
+		if last, ok := journal.Date(string(b), now.Location()); ok && last.Format(time.DateOnly) < now.Format(time.DateOnly) {
+			if _, err := quickStart(c, day); err != nil {
+				return err
+			}
+		}
 	}
 	message := strings.Join(c.Args, " ")
 	now := c.Ops.Now().Format("1504")

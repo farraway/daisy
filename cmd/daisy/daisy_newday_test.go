@@ -195,6 +195,103 @@ func TestNewDayRefusals(t *testing.T) {
 	}
 }
 
+// A log on a today.md dated before today quick-starts the day first, in
+// its own commit: a new day within the ISO week, a new week across one,
+// and the entry lands in the new today.md.
+func TestLogQuickStartsTheDay(t *testing.T) {
+	for _, tc := range []struct {
+		name, notice, template, started, done string
+		now                                   time.Time
+	}{
+		{"same week", "retrospective not checked", "journal-day.md", "New day: 2026-07-29 Wednesday",
+			"x 2026-07-01 2026-06-01 Old\n", time.Date(2026, 7, 29, 8, 5, 0, 0, time.Local)},
+		{"next week", "retrospective not checked, daisy optimize not run", "journal-week.md", "New week: 2026-08-03 Monday",
+			"x 2026-07-01 2026-06-01 Old\nx 2026-07-28 2026-07-02 Finished one\nx 2026-07-28 2026-07-03 Finished two +daisy\n",
+			time.Date(2026, 8, 3, 8, 5, 0, 0, time.Local)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newMachine(t)
+			m.seed(t)
+			writeFile(t, filepath.Join(m.home, "tasks", "todo.txt"), todoForNewDay)
+			writeFile(t, filepath.Join(m.home, "tasks", "done.txt"), "x 2026-07-01 2026-06-01 Old\n")
+			m.initHomeRepo(t)
+
+			code, out, errs := runWith(m.at(tc.now), "log", "First", "thing")
+			if code != 0 || errs != "" {
+				t.Fatalf("exit %d stderr %q", code, errs)
+			}
+			if want := "⚡ Quick start: today.md was 2026-07-28; " + tc.notice + "\n📦 Archived yesterday to journal.md\n"; !strings.HasPrefix(out, want) {
+				t.Errorf("stdout:\n%s", out)
+			}
+			if !strings.HasSuffix(out, "✅ Logged: 0805 First thing\n📝 Committed: Log: 0805 - First thing ("+m.git(t, "rev-parse", "--short", "HEAD")+")\n") {
+				t.Errorf("stdout:\n%s", out)
+			}
+			fresh := journal.Fill(m.template(t, tc.template), tc.now, journal.Carry(strings.Split(m.read(t, "tasks/todo.txt"), "\n")))
+			want := strings.Replace(fresh, "- 0805 New day started\n", "- 0805 New day started\n- 0805 First thing\n", 1)
+			if got := m.read(t, "journal/today.md"); got != want {
+				t.Errorf("today.md:\n%s", got)
+			}
+			if got := m.read(t, "journal/journal.md"); got != todayBasic {
+				t.Errorf("journal.md:\n%s", got)
+			}
+			if got := m.read(t, "tasks/done.txt"); got != tc.done {
+				t.Errorf("done.txt:\n%s", got)
+			}
+			if got := m.git(t, "log", "-2", "--format=%s"); got != "Log: 0805 - First thing\n"+tc.started {
+				t.Errorf("commits:\n%s", got)
+			}
+		})
+	}
+}
+
+// new-day --quick and new-week --quick start only a day not yet started,
+// and both choose by the ISO week, not by their own name.
+func TestQuickStart(t *testing.T) {
+	m := newMachine(t)
+	m.seed(t) // today.md is 2026-07-28 Tuesday
+	m.initHomeRepo(t)
+
+	// already started: nothing written, nothing committed
+	for _, cmd := range []string{"new-day", "new-week"} {
+		code, out, errs := runWith(m.at(time.Date(2026, 7, 28, 18, 0, 0, 0, time.Local)), cmd, "--quick")
+		if code != 0 || errs != "" || out != "✅ Day already started: 2026-07-28 Tuesday\n" {
+			t.Errorf("%s --quick, started: exit %d out %q err %q", cmd, code, out, errs)
+		}
+	}
+	if m.commits(t) != "1" || m.read(t, "journal/today.md") != todayBasic {
+		t.Fatalf("an already-started quick start wrote: %s commits", m.commits(t))
+	}
+
+	// new-week --quick within the week is a new day
+	code, out, errs := runWith(m.at(time.Date(2026, 7, 29, 8, 0, 0, 0, time.Local)), "new-week", "--quick")
+	if code != 0 || errs != "" || !strings.HasPrefix(out, "⚡ Quick start: today.md was 2026-07-28; retrospective not checked\n") ||
+		!strings.Contains(out, "✅ New day started: 2026-07-29 Wednesday\n") {
+		t.Errorf("new-week --quick, same week: exit %d out %q err %q", code, out, errs)
+	}
+	// new-day --quick across a week is a new week
+	code, out, errs = runWith(m.at(time.Date(2026, 8, 4, 8, 0, 0, 0, time.Local)), "new-day", "--quick")
+	if code != 0 || errs != "" || !strings.HasPrefix(out, "⚡ Quick start: today.md was 2026-07-29; retrospective not checked, daisy optimize not run\n") ||
+		!strings.Contains(out, "✅ New week started: 2026-08-04 Tuesday\n") {
+		t.Errorf("new-day --quick, next week: exit %d out %q err %q", code, out, errs)
+	}
+	// 2026-12-31 and 2027-01-01 are both in ISO week 2026-W53: a day
+	writeFile(t, filepath.Join(m.home, "journal", "today.md"), strings.Replace(todayBasic, "2026-07-28 Tuesday", "2026-12-31 Thursday", 1))
+	code, out, _ = runWith(m.at(time.Date(2027, 1, 1, 8, 0, 0, 0, time.Local)), "new-day", "--quick")
+	if code != 0 || !strings.Contains(out, "✅ New day started: 2027-01-01 Friday\n") {
+		t.Errorf("across the year, same ISO week: exit %d out %q", code, out)
+	}
+	// no today.md: the command's own start
+	os.Remove(filepath.Join(m.home, "journal", "today.md"))
+	code, out, _ = runWith(m.at(time.Date(2027, 1, 2, 8, 0, 0, 0, time.Local)), "new-week", "--quick")
+	if code != 0 || !strings.HasPrefix(out, "⚡ Quick start: retrospective not checked, daisy optimize not run\n") ||
+		!strings.Contains(out, "✅ New week started: 2027-01-02 Saturday\n") {
+		t.Errorf("no today.md: exit %d out %q", code, out)
+	}
+	if m.commits(t) != "5" {
+		t.Errorf("commits %s, want one per start", m.commits(t))
+	}
+}
+
 func TestRotate(t *testing.T) {
 	m := newMachine(t)
 	m.initHomeRepo(t)

@@ -246,6 +246,33 @@ directly, not via `daisy done`.
 
 ---
 
+## Quick Start
+
+**Command:** none of its own. `daisy log` runs it when today.md is dated
+before today; `daisy new-day --quick` and `daisy new-week --quick` run it
+by hand.
+
+```
+1. Read the date of today.md's first `### YYYY-MM-DD` heading.
+   - Today or later: the day has started. `--quick` prints
+     "✅ Day already started" and writes nothing; `log` just logs.
+   - Before today: start the day, as below.
+   - No today.md, or no dated heading: `--quick` starts the command's own
+     (day or week); `log` refuses as it always did.
+2. Choose by the ISO week (Monday first), not by the command's name:
+   that date in an earlier ISO week → `new-week`; else → `new-day`.
+3. Print "⚡ Quick start: today.md was <date>; retrospective not checked"
+   (a week adds ", daisy optimize not run"), then run the start: its
+   output and its own commit.
+4. `log` then adds its entry to the new today.md and commits it.
+```
+
+The quick start is the command alone. The New Day and New Week pre- and
+post-workflow steps (the retrospective check, `daisy optimize`, the
+checklist reminder) do not run; the notice line names what was skipped.
+
+---
+
 ## Complete Task
 
 **Command:** "Daisy, done [pattern]" or "done [pattern]" (`daisy done "pattern"`)

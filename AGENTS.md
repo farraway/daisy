@@ -171,9 +171,9 @@ then replace the block below with the output of `daisy help --markdown`.
 | Workspace | `daisy files` | Resolved real paths for every home file |
 | Workspace | `daisy list` | Active prompts and installed skills |
 | Workspace | `daisy help [<command>\|<skill>\|--markdown]` | This help, detail for one command or skill, or the Command Reference |
-| Day | `daisy new-day` | Start a new day |
-| Day | `daisy new-week` | Start a new week |
-| Day | `daisy log <message...>` | Add a log entry to today.md |
+| Day | `daisy new-day [--quick]` | Start a new day (--quick: only if not started; a week if one turned) |
+| Day | `daisy new-week [--quick]` | Start a new week (--quick: as new-day --quick) |
+| Day | `daisy log <message...>` | Add a log entry to today.md, quick-starting a stale day |
 | Day | `daisy done <pattern>` | Mark a task complete |
 | Day | `daisy tasks [--all] [--todo\|--done] [pattern]` | Search tasks (read-only) |
 | Day | `daisy projects [--archived]` | List active or archived projects |

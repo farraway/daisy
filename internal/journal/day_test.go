@@ -98,3 +98,20 @@ func TestFillKeepsAPlaceholderInATasksText(t *testing.T) {
 		t.Errorf("a placeholder last: %q", got)
 	}
 }
+
+func TestDate(t *testing.T) {
+	for _, tc := range []struct{ today, want string }{
+		{"### 2026-07-28 Tuesday\n\n#### Log\n", "2026-07-28"},
+		{"#### Weekly Retrospective\n\n---\n\n### 2026-08-03 Monday\n", "2026-08-03"},
+		{"### 2026-07-28 Tuesday\n\n### 2026-07-29 Wednesday\n", "2026-07-28"},
+		{"#### 2026-07-28 Tuesday\n", ""},
+		{"#### Tasks\n- [ ] a\n", ""},
+		{"### 2026-13-40 Nonsense\n", ""},
+		{"", ""},
+	} {
+		d, ok := journal.Date(tc.today, time.UTC)
+		if got := map[bool]string{true: d.Format(time.DateOnly)}[ok]; got != tc.want {
+			t.Errorf("Date(%q) = %q, want %q", tc.today, got, tc.want)
+		}
+	}
+}

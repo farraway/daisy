@@ -29,6 +29,7 @@ fixture_write_today <<'EOF2'
 * **Misses:**
 * **What would a Sage do next:**
 EOF2
+fixture_date_today
 
 before_blanks=$(fixture_read_today | grep -c '^$')
 export DAISY_HEALTHCHECK_PASSED=1

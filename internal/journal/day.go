@@ -1,11 +1,26 @@
 package journal
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
 	"daisy/internal/todo"
 )
+
+var dateHeading = regexp.MustCompile(`(?m)^### (\d{4}-\d{2}-\d{2})\b`)
+
+// Date is the date of the day today.md holds: its first `### YYYY-MM-DD`
+// heading, as Fill writes it (the week template's comes after its
+// `#### Weekly Retrospective`), in loc. ok is false when there is none.
+func Date(today string, loc *time.Location) (date time.Time, ok bool) {
+	m := dateHeading.FindStringSubmatch(today)
+	if m == nil {
+		return time.Time{}, false
+	}
+	d, err := time.ParseInLocation(time.DateOnly, m[1], loc)
+	return d, err == nil
+}
 
 // Carried is what a new day takes from todo.txt into today.md: one
 // description per open task, by section.

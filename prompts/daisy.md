@@ -87,6 +87,8 @@ All workflows are invoked via the `daisy` CLI (e.g. `daisy new-day`). Commands t
 
 **New Week:** Same pre-step. Call `daisy new-week` (also archives completed tasks to done.txt). Then run `daisy optimize`: for each target with pending feedback, propose a new `## Rules` section folding its entries in; for each target flagged for rewrite (more than 10 rules), offer a rewritten file whose body absorbs its rules. Show each proposal and apply only what the user approves, with `daisy optimize apply --workflow <target> --rules <file>` (or `--rewrite <file>`) and `--yes`; a target under `$DAISY_ROOT` is never written — `apply` writes the home's override of it: for `--rules`, keep the root's rules first and unchanged and add the home's after them. Post: remind about weekly inbox checklist. → [`docs/workflows.md`](docs/workflows.md)
 
+**Quick Start:** `daisy log` on a today.md dated before today starts the day first (a new week when the ISO week has turned) and prints `⚡ Quick start: …` naming the steps it skipped; relay that line to the user. `daisy new-day --quick` (or `new-week --quick`) does the same start without a log entry, and nothing when today has started. → [`docs/workflows.md`](docs/workflows.md)
+
 **Complete Task:** Call `daisy done "pattern"` (case-insensitive). Task stays in todo.txt until new-week.
 
 **Cancel Task** *(agent-performed — no CLI command)***:** Mark `[z]` in today.md, `z YYYY-MM-DD` prefix in todo.txt, auto-commit. Deleted at next new-day/new-week.

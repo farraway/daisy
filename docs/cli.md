@@ -58,9 +58,9 @@ Workspace
                                     This help, detail for one command or skill, or the Command Reference
 
 Day
-  new-day                           Start a new day
-  new-week                          Start a new week
-  log <message...>                  Add a log entry to today.md
+  new-day [--quick]                 Start a new day (--quick: only if not started; a week if one turned)
+  new-week [--quick]                Start a new week (--quick: as new-day --quick)
+  log <message...>                  Add a log entry to today.md, quick-starting a stale day
   done <pattern>                    Mark a task complete
   tasks [--all] [--todo|--done] [pattern]
                                     Search tasks (read-only)
@@ -381,7 +381,8 @@ and `home: testhome | identity: pelicanmoor` [77].
 |---|---|
 | Status | as built (Step 19): Go; the `optimize --list` nudge removed with `--list` (D30, built in Step 23); the template resolved home-first (D48, Step 36) |
 | Legacy | `daisy new-day` → the bash `new-day` script, deleted in Step 19 |
-| Usage | `daisy new-day` (no argument; any is usage on stderr, exit 2 — the bash ignored them) |
+| Usage | `daisy new-day [--quick]` (no argument; any is usage on stderr, exit 2 — the bash ignored them) |
+| Quick start | `--quick` starts only a day not yet started: when `today.md`'s first `### YYYY-MM-DD` heading is today or later it prints `✅ Day already started: <YYYY-MM-DD> <Day>`, writes nothing and commits nothing (exit 0). Otherwise it starts a new week when that date is in an earlier ISO week than today, else a new day, whichever of `new-day` and `new-week` was run; a `today.md` that is absent or has no such heading starts the command's own. Before the start's own lines it prints `⚡ Quick start: today.md was <YYYY-MM-DD>; retrospective not checked` (a day) or `…; retrospective not checked, daisy optimize not run` (a week), without `today.md was <date>; ` when there was no date: what the agent's New Day and New Week workflows do around the command and this start did not (`TestQuickStart`) |
 | Exit codes | 0; 1 when `healthcheck` fails first (`Error: System health check failed` on stderr), when `tasks/todo.txt` is missing, when neither `<home>/templates/journal-day.md` nor `$DAISY_ROOT/templates/journal-day.md` is a file (`Error: Template missing: journal-day.md` [87] and `  Looked for: <home>/templates/journal-day.md, then <root>/templates/journal-day.md` [87]; the `--healthcheck` hook checks the same resolution), when the journal cannot be rotated (`rotate`'s refusal), or when the commit fails. A refusal writes nothing: every write is decided before the first is made (the bash had appended `today.md` to `journal.md` before a rotate refusal, so the next run archived it twice) |
 | Stdout | `📦 Archived yesterday to journal.md` (when `today.md` existed) [81], `rotate`'s line [81], `🗑️  Deleted N cancelled task(s)` (when any) [81], `✅ New day started: <YYYY-MM-DD> <Day>` [81], `   High priority tasks: N` [81], `   Next priority tasks: N`, `   Inbox tasks: N`, `   GitHub tasks: N` [81], then `commit`'s `📝 Committed: …` line (git's own commit summary, which the bash let through, is not printed). Nothing follows the commit line: the pending-feedback nudge went with `optimize --list` at Step 23 — the New Week workflow runs `daisy optimize` itself |
 | Ops | Real; the health check runs in-process first (`internal/health`, output discarded; a cached pass or `DAISY_HEALTHCHECK_PASSED=1` skips it), since Step 24, and then — never skipped — the home must be its own repository, before anything is written |
@@ -395,7 +396,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 |---|---|
 | Status | as built (Step 19): Go; nudge removed as for `new-day` (D30, built in Step 23); the template resolved home-first as for `new-day` (D48, Step 36) |
 | Legacy | `daisy new-week` → the bash `new-week` script, deleted in Step 19 |
-| Usage | `daisy new-week` (no argument) |
+| Usage | `daisy new-week [--quick]` (no argument; `--quick` as `new-day`'s) |
 | Exit codes | as `new-day`; the template is `journal-week.md`, the home's `templates/` first, then the root's [87] |
 | Stdout | as `new-day`, plus `📦 Archived N completed task(s) to done.txt` (when any) [82] after the cancelled line, and `✅ New week started: <date> <day>` [82] |
 | Ops | Real |
@@ -410,11 +411,12 @@ and `home: testhome | identity: pelicanmoor` [77].
 | Status | as built (Step 18): Go |
 | Legacy | `daisy log <message...>` → the bash `log` script, deleted in Step 18 (the dispatcher joined the arguments with single spaces: `"$*"`; the binary does the same) |
 | Usage | `daisy log <message...>` |
+| Quick start | when `today.md`'s first `### YYYY-MM-DD` heading is before today, `log` runs `new-day --quick` first (its lines, its refusals, its own commit), then adds the entry to the new `today.md`; an absent or undated `today.md` is refused as below, not started (`TestLogQuickStartsTheDay`) |
 | Exit codes | 0; 2 with no message — no argument, or only empty ones (usage on stderr; the bash exited 1 with `Error: Log message required`); 1 when `healthcheck` fails first (`Error: System health check failed`, `  Run: daisy healthcheck`), when `today.md` is missing (`Error: today.md not found`) or has no `#### Log` section (`Error: Log section not found in today.md`) |
-| Stdout | `✅ Logged: <HHMM> <message>` then `commit`'s line (`done` suppresses both: not `Logged:` [15]) |
+| Stdout | a quick start's lines when one ran, then `✅ Logged: <HHMM> <message>` then `commit`'s line (`done` suppresses both: not `Logged:` [15]) |
 | Ops | Real; the health check runs in-process first, as for `new-day` (the bash's `healthcheck.sh` through `Ops.Exec` until Step 24) |
 | Writes | `journal/today.md`: appends `- HHMM message` to the `#### Log` section — the lines from the heading to the next heading of any level or the end of the file — after its last non-blank line, so blank lines before the next heading stay; a section with no entries is written in the template's shape (heading, blank line, entry, blank line before the next heading), which healthcheck Check 5 requires [80]. *(decided, D33, Step 18: the bash inserted at the first blank line after the section's first entry without stopping at the next heading, so a Log section abutting the next heading sent the entry into a later section)* |
-| Commits | home, once: `Log: <HHMM> - <first 60 characters>` (case 72; case 71 pins that a home inside the root repository is refused before anything is written) |
+| Commits | home, once: `Log: <HHMM> - <first 60 characters>`, after the quick start's own `New day:`/`New week:` commit when one ran (case 72; case 71 pins that a home inside the root repository is refused before anything is written) |
 | Cases | 80; cases 71/72 (`commit`'s) and 76/78 (`init`'s) run it |
 
 ### daisy done

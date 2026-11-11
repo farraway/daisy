@@ -117,7 +117,9 @@ a priority and cancelling are done by the agent, by instruction.
 into `journal.md` and writes a fresh `today.md` from the day template with
 the current tasks; `daisy new-week` does the same with the week template,
 which adds a retrospective, and moves completed tasks to `done.txt`.
-`daisy log <message>` appends a timestamped line to today's log. `daisy
+`daisy log <message>` appends a timestamped line to today's log; when
+`today.md` is still yesterday's, it starts the day first (`new-day
+--quick`, a new week when the week has turned). `daisy
 rotate` keeps `journal.md` at its last five days and moves the rest into
 dated window files, each with a table of contents and a summary; `new-day`
 and `new-week` run it when needed.

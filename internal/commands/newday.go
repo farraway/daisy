@@ -27,20 +27,75 @@ var (
 
 // NewDay archives today.md into journal.md, rotates the journal, drops
 // cancelled tasks, writes a new today.md from the day template with the
-// open tasks carried over, and commits the home once.
-func NewDay(c *Context) error { return startDay(c, day) }
+// open tasks carried over, and commits the home once. With --quick it is
+// quickStart.
+func NewDay(c *Context) error { return startCommand(c, day) }
 
 // NewWeek is NewDay with the week template, and todo.txt's completed tasks
 // moved to done.txt first.
-func NewWeek(c *Context) error { return startDay(c, week) }
+func NewWeek(c *Context) error { return startCommand(c, week) }
 
-// startDay reads everything and decides every write before making the
-// first, so a refusal (a template or todo.txt missing, a journal rotate
-// cannot split) leaves the home as it was.
-func startDay(c *Context, s start) error {
+func startCommand(c *Context, s start) error {
 	if err := preflight(c); err != nil {
 		return err
 	}
+	if !c.Flag("--quick") {
+		return startDay(c, s)
+	}
+	started, err := quickStart(c, s)
+	if err != nil || started {
+		return err
+	}
+	now := c.Ops.Now()
+	fmt.Fprintf(c.Stdout, "✅ Day already started: %s %s\n", now.Format(time.DateOnly), now.Format("Monday"))
+	return nil
+}
+
+// quickStart starts the day when today.md is dated before today: a new
+// week when that date is in an earlier ISO week, else a new day, whichever
+// command asked. A today.md that is absent or has no date starts s. It
+// prints one line naming what an agent's workflow does around the start
+// and this one did not, and reports false when today was already started.
+// The caller has run preflight.
+func quickStart(c *Context, s start) (bool, error) {
+	b, err := c.Ops.FS().ReadFile(c.todayFile())
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return false, err
+	}
+	now := c.Ops.Now()
+	if last, ok := journal.Date(string(b), now.Location()); ok {
+		if last.Format(time.DateOnly) >= now.Format(time.DateOnly) {
+			return false, nil
+		}
+		s = day
+		if ly, lw := last.ISOWeek(); !sameWeek(now, ly, lw) {
+			s = week
+		}
+		fmt.Fprintf(c.Stdout, "⚡ Quick start: today.md was %s; %s\n", last.Format(time.DateOnly), skipped(s))
+	} else {
+		fmt.Fprintf(c.Stdout, "⚡ Quick start: %s\n", skipped(s))
+	}
+	return true, startDay(c, s)
+}
+
+func sameWeek(t time.Time, year, week int) bool {
+	y, w := t.ISOWeek()
+	return y == year && w == week
+}
+
+// skipped is what the agent's New Day or New Week workflow does around
+// the command that a quick start leaves undone.
+func skipped(s start) string {
+	if s.archive {
+		return "retrospective not checked, daisy optimize not run"
+	}
+	return "retrospective not checked"
+}
+
+// startDay reads everything and decides every write before making the
+// first, so a refusal (a template or todo.txt missing, a journal rotate
+// cannot split) leaves the home as it was. The caller has run preflight.
+func startDay(c *Context, s start) error {
 	fsys := c.Ops.FS()
 	path, err := dayTemplate(c, s)
 	if err != nil {

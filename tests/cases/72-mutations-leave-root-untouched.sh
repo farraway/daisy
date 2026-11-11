@@ -5,6 +5,7 @@
 # writes, so this also proves the fixture is honoured end to end.)
 
 seed_basic
+fixture_date_today # `log` on yesterday's today.md would quick-start the day too
 root_before=$(git -C "$FIXTURE_ROOT" rev-list --count HEAD)
 home_before=$(fixture_commit_count)
 

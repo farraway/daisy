@@ -223,6 +223,14 @@ fixture_write_today() {
     cat > "$(fixture_home_dir)/journal/today.md"
 }
 
+# Dates today.md's `### YYYY-MM-DD Day` heading today, so a `daisy log`
+# on the real clock finds the day started and does not quick-start one.
+fixture_date_today() {
+    local f
+    f="$(fixture_home_dir)/journal/today.md"
+    awk -v h="### $(date +%F) $(date +%A)" '!done && /^### [0-9]{4}-[0-9]{2}-[0-9]{2} /{$0 = h; done = 1} 1' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+}
+
 fixture_read_todo() {
     cat "$(fixture_home_dir)/tasks/todo.txt"
 }
