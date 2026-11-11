@@ -1081,7 +1081,7 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		vars, _ := readSecrets(c, cfg, io.Discard, v) // re-read at each use, warned once above; refused, empty
 		return vars[v]
 	}
-	s := &reconcile.Swarm{O: o, Place: c.Swarm, WS: ws, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
+	s := &reconcile.Swarm{O: o, Place: c.Swarm, WS: ws, Root: c.Env.Root, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
 		User: ids[0] + ":" + ids[1], Secret: secret, Out: c.Stdout, Err: c.Stderr}
 	if once {
 		if err := s.Pass(true); err != nil {

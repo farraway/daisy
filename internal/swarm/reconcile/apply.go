@@ -27,6 +27,7 @@ type Swarm struct {
 	O          ops.Ops
 	Place      declare.Place // where the swarm was found (section 11, Finding the swarm)
 	WS, Local  string        // WS is Place.Root
+	Root       string        // $DAISY_ROOT, the installed root: PraxisFile and TestingFile (section 7.3)
 	Cfg        declare.Config
 	Forge      forge.Adapter
 	Runner     runner.Runner

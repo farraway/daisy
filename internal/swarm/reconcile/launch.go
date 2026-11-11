@@ -89,6 +89,14 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return false, err
 	}
 
+	// Praxis and the testing skill from the installed root (section 7.3);
+	// one that cannot be read is the swarm fault prompt refused (7.7).
+	if readsPraxis(j.Role) {
+		if j.Praxis, j.Testing, err = s.praxis(); err != nil {
+			return failed("launch-failed "+ended(), "fault: prompt: system.md: "+err.Error())
+		}
+	}
+
 	system, prompt := Render(j)
 	for _, f := range []struct{ name, text string }{{"system.md", system}, {"prompt.md", prompt}} {
 		p := filepath.Join(ioDir, f.name)

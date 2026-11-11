@@ -14,6 +14,7 @@ import (
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
+	"daisy/internal/swarm/reconcile"
 )
 
 // swarmWS is a swarm of the product app and its library lib, of the
@@ -53,6 +54,12 @@ func newSwarmWS(t *testing.T) *swarmWS {
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	s := &swarmWS{t: t, dir: t.TempDir(), root: t.TempDir(), local: t.TempDir(), vars: map[string]string{}, upstreams: map[string]string{}}
 	s.ws = filepath.Join(s.dir, "swarm-app")
+	// The installed root's praxis and testing skill, which the architect's
+	// and the worker's system.md carry (section 7.3).
+	for rel, text := range map[string]string{reconcile.PraxisFile: rootPraxis, reconcile.TestingFile: rootTesting} {
+		os.MkdirAll(filepath.Dir(filepath.Join(s.root, rel)), 0o755)
+		os.WriteFile(filepath.Join(s.root, rel), []byte(text), 0o644)
+	}
 	s.forge = forge.NewFake(fixedClock(), "acme/swarm-app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
 	for name, url := range map[string]string{"app": "git@forge.example.net:acme/app.git", "lib": "git@forge.example.net:acme/lib.git"} {
 		dir := filepath.Join(s.dir, name)

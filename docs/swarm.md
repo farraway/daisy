@@ -60,6 +60,9 @@ its directory's listing and the check's look at it (item 114). Its Step 4
 (2026-11-11) amended sections 7.1 and 7.4: the architect run while the
 issue's pull request is open has that pull request's head as a branch of
 its repository's clone, which the open-slice sentence names (item 115).
+Its Step 5 (2026-11-11) amended sections 7.1, 7.3 and 7.7: the
+architect's and the worker's `system.md` carry the installed root's
+praxis and testing skill (item 116).
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
 sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
@@ -1457,7 +1460,9 @@ On the host, in order, before `docker run`:
    mirror. Then the two prompt files are written to
    `<run>/io/system.md` and `<run>/io/prompt.md` (7.3), rendered from
    `prompts/<role>.md` in the clone, each `repos/<name>.md` the run reads
-   (section 4) at the pass's commit, and the forge as read in this pass, never
+   (section 4) at the pass's commit, for the architect and the worker
+   the installed root's praxis and testing skill (7.3), and the forge as
+   read in this pass, never
    from an example or an earlier run's files (Step 39's first architect
    run was sent stale example material). Each file is read back and
    compared byte for byte with what was rendered, and every field of
@@ -1466,8 +1471,8 @@ On the host, in order, before `docker run`:
    Daisy's own lines only, the `- Issues:` and `- Clone ` lines of the
    `# Repository` block and the heading lines outside a fenced block, so
    a quoted text's bullet or fenced line is never read as a field;
-   otherwise the run is a swarm fault, `prompt refused` (7.7), and
-   nothing launches.
+   otherwise, or when a file of the root it renders cannot be read, the
+   run is a swarm fault, `prompt refused` (7.7), and nothing launches.
 3. The resources: each `resources` entry and each path of each
    reference is checked out into `<run>/resources/<repository>/<path>`
    at the pass's commit, `git -C <mirror> archive <commit> -- <path>`
@@ -1694,11 +1699,13 @@ copied to `<run>/stdout` and `<run>/stderr` (the check's to
 ### 7.3 The prompt files
 
 Two files, so that the thread never travels in a system-prompt channel:
-`<run>/io/system.md` holds Daisy's and the maintainer's words (the persona
-and the Task), and `<run>/io/prompt.md` holds the material (the issue, the
-threads, the plan, the pull request), which anyone who can comment may
-have written. The member sees them as `/work/.swarm/system.md` and
-`/work/.swarm/prompt.md`; section 9 says how each CLI receives them. Times
+`<run>/io/system.md` holds Daisy's and the maintainer's words (the persona,
+the Task, the swarm's notes about a repository and, for the architect and
+the worker, Daisy's praxis and testing skill), and `<run>/io/prompt.md`
+holds the material (the issue, the threads, the plan, the pull request),
+which anyone who can comment may have written. The member sees them as
+`/work/.swarm/system.md` and `/work/.swarm/prompt.md`; section 9 says how
+each CLI receives them. Times
 are RFC 3339 in UTC; a swarm text appears without its two marker lines,
 under its role and run, and an issue the swarm opened reads
 `Opened by owner, run <k>, at <time>.` in place of `Opened by <login> at <time>.`
@@ -1721,10 +1728,34 @@ fence runs on over the prompt's own lines.
 
 <the Task text for the role and label, 7.4>
 
+# Praxis
+
+<$DAISY_ROOT/prompts/praxis.md, the architect's and the worker's only, verbatim but for its headings, shifted as below>
+
+# Testing
+
+<$DAISY_ROOT/skills/testing/SKILL.md without its frontmatter, the architect's and the worker's only, verbatim but for its headings, shifted as below>
+
 # Repository notes: <name>
 
 <repos/<name>.md at the pass's commit, verbatim but for its headings, shifted as below; one such section per repository the run works in (section 4), none for a file absent, or not a regular file, at that commit>
 ```
+
+**Praxis and the testing skill** are the installed root's
+`prompts/praxis.md` and `skills/testing/SKILL.md`, read in
+`$DAISY_ROOT` as `apply` runs (the unit's `Environment=DAISY_ROOT`,
+section 11) at each launch of the architect and of the worker, and of
+no other role: the two that plan and build (the maintainer's decision
+of 2026-11-10, section 14, item 116). They are the root's files as they
+are, never a home's override of them, since the swarm reads no Daisy
+home (section 2). Praxis is included whole, its `## Trigger` too, as a
+prompt included in full in a workspace's `AGENTS.md` is; the skill
+without its frontmatter, the lines from its first line `---` through
+the next `---` and the blank lines after them, which index the skill
+for an agent's harness and are no text for the model (unshifted, the
+closing `---` under the last field would read as a Markdown heading).
+A file that cannot be read is the swarm fault *prompt refused* (7.7);
+an empty one adds no section. Together they add about 3,100 words to each such run's `system.md`.
 
 ```markdown
 <!-- daisy-swarm prompt: <owner>/<repo>#<n> <role> run <k>, <time> -->
@@ -2342,7 +2373,7 @@ relabel and what it names.
 |---|---|---|---|---|
 | launch fails | fault | `Ops.Start` returns an error (no `docker`, no socket) | `launch-failed <time>`, `fault: launch: <error>` | none, nothing having started, but for the pair's second reviewer: T22, review-1-in-progress to review-0-ready |
 | Docker's own exit | fault | the exit status of `docker run` is 125–127 (a missing image, a command that cannot run) | `exited <code> <time>`, `fault: exit <code>` | T22 only |
-| prompt refused | fault | 7.1 step 2: a prompt file read back differs from what was rendered, or a heading field is empty | `launch-failed <time>`, `fault: prompt: <file>: <differs\|empty field>` | none, as a launch that fails |
+| prompt refused | fault | 7.1 step 2: a prompt file read back differs from what was rendered, or a heading field is empty; or, for the architect and the worker, the installed root's praxis or testing skill cannot be read (7.3) | `launch-failed <time>`, `fault: prompt: <file>: <differs\|empty field>`, or `fault: prompt: system.md: <the read's error>` | none, as a launch that fails |
 | resource refused | fault | 7.1 step 3: a `resources` entry or a reference's path, read at the pass's commit, fails section 3's checks there (a path removed in the pushed head, say, or a pin the fetch did not bring) | `launch-failed <time>`, `fault: swarm.json: resources[<i>]: <problem>` | none, as a launch that fails |
 | clone failed | fault | 7.1 step 3: the clone from the mirror, the worker's `checkout -b` or a step of the clone's preparation fails (a branch gone from the mirror, say) | `launch-failed <time>`, `fault: clone: <git's error>` | none, as a launch that fails |
 | slot refused | fault | 7.1 step 4: `<slot>/auth.json` is not a regular file, or the slot has no login (absent or empty) | `launch-failed <time>`, `fault: slot <provider>/<j>: auth.json is not a regular file` or `fault: slot <provider>/<j>: no login; run '<login>'` (section 3, Secret values: `CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, `GROK_HOME=<slot> grok login --device-auth`) | none, as a launch that fails |
@@ -6749,3 +6780,28 @@ entries among revision 1's, and was renumbered at Step 38.
     architect's `swarm/<n>-<s>` is the pull request's head),
     `TestSwarmApplyRoundLimitHeadGone` (the branch gone: `fault: clone:`,
     nothing launched), `TestRenderArchitectOpenSlice` (the sentence).
+116. **The architect and the worker read Daisy's praxis and testing
+    skill (Step 5 of the plan that clears the Deferred list, 2026-11-11;
+    the maintainer's decision of 2026-11-10).** Daisy's own step agents
+    work by `prompts/praxis.md` and the `testing` skill (a claim per
+    step, red before green, a probe, a hostile review); no member's
+    `system.md` carried them. It now carries both, from the installed
+    root, after `# Task` under `# Praxis` and `# Testing` (7.3): the
+    architect's and the worker's only, the roles that plan and build,
+    as the maintainer chose; not the owner's, not the reviewers'. They
+    add about 3,100 words to each such run. Praxis was made to read
+    for any project first: its rules about Daisy's plan workflow (rule
+    8's `PLAN.md`, rules 14 and 15's homes, rule 12's and the review
+    section's `prompts/plan.md`) now say so, "under a Daisy plan in a
+    home", so one praxis serves Daisy and the swarm. The swarm's plan is
+    a standard Daisy plan in the issue thread (item 56), not one in a
+    home (section 1), so those sentences are not the members'.
+    The files are read at each launch rather than copied into the swarm
+    repository, so a member reads the praxis of the Daisy that runs it
+    and the maintainer keeps no copy; a root's file that cannot be read
+    is a machine's failure, the fault *prompt refused* (7.7), which
+    pauses the swarm at its second. Tests: `TestRenderPraxisAndTesting`
+    (the two blocks in the architect's and the worker's `system.md`, the
+    skill's frontmatter left out, and in no other role's),
+    `TestSwarmApplyPraxisFromTheRoot` (read in `$DAISY_ROOT`; praxis
+    removed there, `fault: prompt: system.md:`, nothing launched).

@@ -16,6 +16,7 @@ import (
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
+	"daisy/internal/swarm/reconcile"
 	"daisy/internal/swarm/runner"
 )
 
@@ -63,6 +64,11 @@ func newApplyWS(t *testing.T) *applyWS {
 	os.WriteFile(a.state("owner-held"), []byte("held 2026-11-06T14:00:00Z: test\n"), 0o644)
 	return a
 }
+
+const (
+	rootPraxis  = "## Trigger\n\nRead it.\n\n## Rules\n\n1. **Read before inventing.** The root's praxis.\n"
+	rootTesting = "---\nname: testing\ndescription: The root's testing skill.\n---\n\nA test is an instrument.\n"
+)
 
 // apply is `swarm apply` with flags over the Fake forge and runner; the
 // mirrors and the notes' clone fetch from the upstreams, and `id` answers 1000.
@@ -380,6 +386,37 @@ func TestSwarmApplyStart(t *testing.T) {
 	if len(a.runner.Launched) != 0 || !strings.HasSuffix(a.result("1-architect-1"), "fault: prompt: prompt.md: empty field\noutcome fault\ncollected\n") ||
 		!strings.Contains(a.stdout.String(), "#1 architect run 1: fault (prompt: prompt.md: empty field)\n") {
 		t.Errorf("launched %d\n%s\n%s", len(a.runner.Launched), a.result("1-architect-1"), a.stdout.String())
+	}
+}
+
+// Praxis and the testing skill come from the installed root, $DAISY_ROOT
+// as apply runs (section 7.3): the architect's system.md carries the
+// root's praxis whole and its testing skill without the frontmatter,
+// after # Task and before the repository notes; a root whose praxis cannot be read is the swarm fault
+// prompt refused (7.7), and nothing launches.
+func TestSwarmApplyPraxisFromTheRoot(t *testing.T) {
+	a := newApplyWS(t)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	if err := a.apply(a.forge, "--once"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	sys, _ := os.ReadFile(a.state("runs/1-architect-1/io/system.md"))
+	want := "\n\n# Praxis\n\n### Trigger\n\nRead it.\n\n### Rules\n\n1. **Read before inventing.** The root's praxis.\n\n# Testing\n\nA test is an instrument.\n\n# Repository notes: app\n"
+	if task := strings.Index(string(sys), "\n# Task\n"); task < 0 || strings.Index(string(sys), want) < task || strings.Contains(string(sys), "name: testing") {
+		t.Errorf("architect's system.md:\n%s", sys)
+	}
+
+	praxis := filepath.Join(a.root, reconcile.PraxisFile)
+	os.Remove(praxis)
+	a.forge.CreateIssue("Second", "Again.", []string{"swarm:proposal-accepted"})
+	if err := a.apply(a.forge, "--once"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	reason := "prompt: system.md: open " + praxis + ": no such file or directory"
+	if len(a.runner.Launched) != 1 || !strings.HasSuffix(a.result("2-architect-1"), "fault: "+reason+"\noutcome fault\ncollected\n") ||
+		!strings.Contains(a.stdout.String(), "#2 architect run 1: fault ("+reason+")\n") {
+		t.Errorf("launched %d\n%s\n%s", len(a.runner.Launched), a.result("2-architect-1"), a.stdout.String())
 	}
 }
 

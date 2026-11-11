@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -34,6 +35,9 @@ type Job struct {
 	Batch *Batch       // the owner's batch
 	Notes []Note       // the research notes in the run's copy, with `notes`
 	Repos []RepoNote   // the swarm's notes about each repository the run works in (section 4), in a swarm repository's clone
+
+	Praxis  string // PraxisFile in the installed root, as read, for the roles that readsPraxis
+	Testing string // TestingFile there, as read
 }
 
 // PullThread is the current pull request's comments, reviews and line
@@ -75,6 +79,13 @@ func endStamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 func Render(j *Job) (system, prompt string) {
 	head := fmt.Sprintf("%s#%d %s run %d, %s -->", j.Cfg.Forge.Repo, j.N, j.Role, j.K, stamp(j.Time))
 	sys := []string{"<!-- daisy-swarm system: " + head, "# Persona", Shift(trim(j.Persona), 1), "# Task", j.task()}
+	if readsPraxis(j.Role) {
+		for _, b := range [][2]string{{"# Praxis", j.Praxis}, {"# Testing", skillBody(j.Testing)}} {
+			if text := trim(b[1]); strings.TrimSpace(text) != "" {
+				sys = append(sys, b[0], Shift(text, 1))
+			}
+		}
+	}
 	for _, n := range j.Repos {
 		sys = append(sys, "# Repository notes: "+n.Name, Shift(trim(n.Text), 1))
 	}
@@ -106,6 +117,45 @@ func Render(j *Job) (system, prompt string) {
 		}
 	}
 	return system, doc(blocks...)
+}
+
+// PraxisFile and TestingFile are the installed root's praxis and testing
+// skill, which the architect's and the worker's system.md carry (section
+// 7.3).
+const (
+	PraxisFile  = "prompts/praxis.md"
+	TestingFile = "skills/testing/SKILL.md"
+)
+
+// readsPraxis is whether role's system.md carries praxis and the testing
+// skill: the roles that plan and build, the architect and the worker.
+func readsPraxis(role string) bool { return role == "architect" || role == "worker" }
+
+// praxis is PraxisFile and TestingFile read in the installed root.
+func (s *Swarm) praxis() (praxis, testing string, err error) {
+	var text [2]string
+	for i, rel := range []string{PraxisFile, TestingFile} {
+		b, err := s.O.FS().ReadFile(filepath.Join(s.Root, rel))
+		if err != nil {
+			return "", "", err
+		}
+		text[i] = string(b)
+	}
+	return text[0], text[1], nil
+}
+
+// skillBody is a SKILL.md without its frontmatter, the lines from a first
+// line "---" through the next "---" line, and the blank lines after it;
+// the text as it is when it has none.
+func skillBody(text string) string {
+	rest, ok := strings.CutPrefix(text, "---\n")
+	if !ok {
+		return text
+	}
+	if _, body, ok := strings.Cut(rest, "\n---\n"); ok {
+		return strings.TrimLeft(body, "\n")
+	}
+	return text
 }
 
 func doc(blocks ...string) string {

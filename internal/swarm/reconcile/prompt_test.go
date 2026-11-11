@@ -558,6 +558,42 @@ func TestRenderWorkerFirstSlice(t *testing.T) {
 	has(t, "prompt.md", prompt, []string{"- Clone /work: acme/lib, branch swarm/1-1, base main, no check declared"})
 }
 
+// Praxis and the testing skill, as the launch read them from the
+// installed root, are the architect's and the worker's system.md only
+// (section 7.3): after # Task and before the repository notes, praxis
+// whole and the skill without its frontmatter, each shifted under its
+// heading; the owner's, the adversary's and the sympathetic's carry
+// neither.
+func TestRenderPraxisAndTesting(t *testing.T) {
+	f, at := fixture()
+	const firstRule = "1. **Read before inventing.**"
+	for _, c := range []struct {
+		role, label string
+		reads       bool
+	}{
+		{"owner", "swarm:proposal-posted", false},
+		{"architect", "swarm:proposal-accepted", true},
+		{"worker", "swarm:plan-1-accepted", true},
+		{"adversary", "swarm:review-0-ready", false},
+		{"sympathetic", "swarm:review-0-ready", false},
+	} {
+		j := job(f, at.N, c.role, c.label)
+		j.Praxis = "## Trigger\n\nRead it.\n\n## Rules\n\n" + firstRule + " Understand what exists.\n"
+		j.Testing = "---\nname: testing\ndescription: Testing as falsification.\n---\n\nA test is an instrument.\n\n## Rules\n\n1. One claim.\n"
+		j.Repos = []RepoNote{{Name: "app", Text: "# App\n\nNotes.\n"}}
+		sys, _ := Render(j)
+		if !c.reads {
+			has(t, c.role+"'s system.md", sys, []string{"\n# Repository notes: app\n"}, firstRule, "# Praxis", "# Testing", "A test is an instrument.")
+			continue
+		}
+		has(t, c.role+"'s system.md", sys, []string{"\n\n# Praxis\n\n### Trigger\n\nRead it.\n\n### Rules\n\n" + firstRule + " Understand what exists.\n\n# Testing\n\nA test is an instrument.\n\n### Rules\n\n1. One claim.\n\n# Repository notes: app\n\n## App\n\nNotes.\n"},
+			"name: testing", "description: Testing as falsification.")
+		if task, praxis := strings.Index(sys, "\n# Task\n"), strings.Index(sys, "\n# Praxis\n"); task < 0 || praxis < task {
+			t.Errorf("%s's # Praxis is not after # Task:\n%s", c.role, sys)
+		}
+	}
+}
+
 // The mounts a member is given leave to reach: those outside its working
 // directory.
 func TestOutside(t *testing.T) {
