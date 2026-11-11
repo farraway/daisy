@@ -50,7 +50,10 @@ repository's clone alone, with no `repos[].path`, workspace
 `resources`, `<ws>/.env.sh`, research wiki or old workspace path of a
 brief; section 11, Moving a swarm into its repository, describes the
 old files for a maintainer moving a swarm with an older Daisy; item
-112).
+112). Step 1 of the plan that clears the Deferred list (2026-11-11)
+amended section 4: the default persona prompts carry the documentation
+duties of the architect, the worker and the adversary, and lose the two
+sentences that repeated the Task text (item 113).
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
 sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
@@ -729,13 +732,12 @@ follow without asking, and that a reviewer can check line by line.
   pull request, in the order they are built, each saying what passes after
   it. State acceptance as numbered claims, each with the check that proves
   it and where its test lives.
+- A slice's documents change with its code. Name, in each slice's
+  acceptance claims, the documents the slice changes.
 - Keep to the job as the thread states it. If the job is unclear or too
   large, say so and propose how to cut it.
 - When the maintainer replies, revise the plan and write it out whole; the
   worker reads only the accepted plan.
-- The worker sees only the repository its slice changes. Quote in the
-  plan any text it must copy from another repository; "copy it from
-  there" cannot be followed.
 - You do not write the code.
 ```
 
@@ -749,7 +751,9 @@ branch checked out in /work, and nothing else.
 
 - Write the tests the plan names first, see them fail, then make them
   pass. Run the repository's own checks before you finish.
-- Make small commits with messages that say why. Do not push; Daisy pushes.
+- Make small commits with messages that say why.
+- Update, in the slice, the documents the plan names for it and any other
+  document your change makes wrong.
 - Change only what the slice needs. If the plan is wrong or cannot be
   followed, stop and say why instead of improvising.
 - When reviews request changes, address each blocking point or say why
@@ -772,7 +776,8 @@ this change before it is merged.
   where that shows something.
 - Look for defects: wrong behaviour, a missed case, a test that cannot
   fail, a claim in the description the change does not support, a pattern
-  fixed in one place and not its siblings.
+  fixed in one place and not its siblings, a document the change makes
+  wrong.
 - Report only what you can point at: the file and line, what is wrong,
   and how to show it. A preference is not a finding.
 - A finding is blocking when the change is wrong without its fix; anything
@@ -3713,7 +3718,8 @@ refuses (the issue is closed).
 
 **The `swarm` skill** (`skills/swarm/SKILL.md`), which `daisy install`
 installs, is the guide an agent session follows in a swarm repository's
-clone, or a workspace holding one: it reads `swarm status`, the briefs and `<state>/runs/`, says
+clone, or in a folder holding one (it runs the verbs inside the clone):
+it reads `swarm status`, the briefs and `<state>/runs/`, says
 what was done and what waits, drafts or flips a brief's `Status` and
 edits `swarm.json` and the persona prompts as drafts for the maintainer,
 and runs a verb (or `pause` and `resume`) only after stating the write
@@ -4549,8 +4555,9 @@ plan whole under a newer `BLOCKED:`), `TestRenderArchitectQuotes` and
 `TestRenderArchitectReady` (the quoting sentence in the writing and the
 revising text with two repositories, absent with one), and
 `TestDefaultPromptsAreSectionFours` (the default architect persona's
-new line). Not established: an architect on the real swarm quoting
-what the worker copies, which the next multi-repository plan shows.
+new line, until item 113 removed it). Not established: an architect on
+the real swarm quoting what the worker copies, which the next
+multi-repository plan shows.
 
 **As built (Step 35 of the swarm build).** The configuration's and the
 unit's kept lines (sections 3 and 11; section 14, item 96) are Go tests:
@@ -6218,7 +6225,8 @@ entries among revision 1's, and was renumbered at Step 38.
     mounts are unchanged; the architect's Task text, writing a plan or
     revising one, adds a sentence telling it to quote that text in the
     plan when more than one repository is declared (7.4), and the
-    default architect persona says the same (section 4). A swarm's own
+    default architect persona said the same (section 4) until item 113
+    removed it. A swarm's own
     `swarm/prompts/<role>.md` for the architect, which `init` keeps when present, is
     the maintainer's to change. **The owner's and the architect's
     `# Thread` stayed whole** (item 77), so the architect's prompt grew
@@ -6652,3 +6660,30 @@ entries among revision 1's, and was renumbered at Step 38.
     is unchanged. Section 11, Moving a swarm into its repository, keeps
     the old files' description and the steps, for a maintainer moving a
     swarm with a Daisy older than this step.
+113. **Documentation is a duty of the roles, and the default persona
+    prompts lose their copies of the Task text (Step 1 of the plan that
+    clears the Deferred list, 2026-11-11; the maintainer's decision of
+    that day).** No default persona prompt and no Task text named
+    documentation, so no member kept the documents a change makes
+    wrong. A sixth role was weighed and refused: it costs a stage and
+    its labels (section 5), its transitions, a sixth key in `personas`
+    (section 3), the role rule, the merge gate and one more paid run
+    per pull request; its commits land after the worker's, so they
+    restart review or merge unreviewed; and it sees the diff the worker
+    sees. The duty goes to the roles that already hold the slice
+    (section 4): the architect names, in each slice's acceptance
+    claims, the documents the slice changes; the worker updates them,
+    and any other document its change makes wrong, in the slice; the
+    adversary's defects include a document the change makes wrong.
+    Drift across pull requests is a job the owner can propose from a
+    brief. The same step removes the two sentences of the default
+    prompts that repeated the Task text, against section 4's rule that a
+    persona prompt states a stance only: the architect's "The worker
+    sees only the repository its slice changes…" (its Task text says it
+    when more than one repository is declared, 7.4 and item 95) and the
+    worker's "Do not push" sentence (every worker text says `do not
+    push`, 7.4). The defaults reach a new swarm only: `init` never
+    overwrites an existing `prompts/<role>.md` (section 2), so a live
+    swarm's prompts are the maintainer's to edit. Test:
+    `TestDefaultPromptsAreSectionFours` (section 4's prompts are
+    `declare.DefaultPrompts`, verbatim).

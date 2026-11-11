@@ -1,5 +1,5 @@
-// Package brief finds the briefs under a swarm's resources (docs/swarm.md
-// section 4, The brief): Markdown files whose header, the lines before the
+// Package brief reads a brief, a Markdown file under a swarm's resources
+// (docs/swarm.md section 4, The brief) whose header, the lines before the
 // first `## ` heading outside a fenced block, holds a `Status:` line. Field
 // reads such a header's lines, a research note's among them (section 7.3).
 package brief
