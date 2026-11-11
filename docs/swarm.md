@@ -56,7 +56,10 @@ duties of the architect, the worker and the adversary, and lose the two
 sentences that repeated the Task text (item 113). Its Step 3 (2026-11-11)
 amended sections 7.1 and 7.6: a member's clone has no automatic
 maintenance, and the check of a worker's clone skips a path gone between
-its directory's listing and the check's look at it (item 114).
+its directory's listing and the check's look at it (item 114). Its Step 4
+(2026-11-11) amended sections 7.1 and 7.4: the architect run while the
+issue's pull request is open has that pull request's head as a branch of
+its repository's clone, which the open-slice sentence names (item 115).
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
 sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
@@ -1501,6 +1504,16 @@ On the host, in order, before `docker run`:
    has none (`git -C <run>/work branch <base> origin/<base>`), so
    `git diff <base>...HEAD` and `git merge <base>` work (Step 39's
    round-1 reviewers, lacking it, diffed against the parent commit);
+   for the architect while the issue's current pull request is open
+   (after T11, or a relabel by the maintainer, section 5), that pull
+   request's head as well, in its repository's clone, the same way:
+   `git -C <run>/work/<name> branch swarm/<n>-<s> origin/swarm/<n>-<s>`,
+   the branch as the pass's fetch left it in the mirror, so the plan is
+   revised against the change its reviews judged (7.4, the open-slice
+   sentence; section 14, item 115); a head gone from the mirror fails
+   this step, *clone failed*, as a reviewer's clone of it does; the
+   architect pushes nothing, its clones being removed at its collection
+   as the owner's are (7.6);
    `git -C <run>/work remote remove origin`; `.git/logs/` and
    `.git/FETCH_HEAD` removed, since host git wrote them naming the host's
    git identity and the mirror's path (section 8, rule 3); `user.name`
@@ -1973,7 +1986,7 @@ with the same paragraph:
 | owner, batch (issue 0) | `Propose up to <p> new jobs for <owner>/<repo>, most important first, toward the first milestone of the highest-priority brief under "# Briefs" that the closed issues do not yet meet, never proposing what an open issue already covers; a brief is a goal with milestones, each with a persona, an exit criterion and what it forces, and no steps: you cut it into jobs. Start each with a line "## <title>", then a line "Brief: <path> — <milestone>" naming the brief's path as "# Briefs" gives it and the milestone's heading, then a line "Class: routine" or "Class: architecture", then the job's body. A job is routine when it is cut from that milestone, takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. When every milestone of a brief is met by closed issues, write a line "Met: <path>" before the first "## " line; write nothing else before it. If there is nothing worth proposing, write "BLOCKED: <why>" as the only line after any "Met:" lines.` (`<p>` is the number the pacing allows, section 6), then, when a declared repository's `protected` is not `[]`, `The protected paths are <name>: <patterns>; ….` (as the architect's text names them). |
 | owner, `swarm:proposal-posted` | `Answer the latest comment in the thread of issue #<n>.`; when the issue has no counted comment (section 6), `Issue #<n> has no comment yet: say whether its body is a job the swarm can do and is worth doing next, and what is unclear in it.` With the triage gate off, it adds: `Then restate the whole job as it now stands: the architect plans from your answer.` |
 | architect, `swarm:proposal-accepted` | `Write the plan for issue #<n> as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step.` With the plan gate on, it adds `The maintainer reads "## Research" first, then the plan, before any code is written.`; off, `The plan is accepted as you write it: there is no revision round.` While the issue's current pull request is open (T11 with G2 off, or a relabel to `proposal-accepted` by the maintainer), it adds the open-slice sentence of the `plan-0-posted` row |
-| architect, `swarm:plan-0-posted` | `Revise your plan for issue #<n> in answer to the latest comment. Write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, a slice that moves a pin to another slice's change after that slice, a diagram where a slice touches more than one component.` While the issue's current pull request is open (after T11, or a relabel by the maintainer), it adds the **open-slice sentence**: `Pull request <name>#<m>, slice <s>, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Revise the plan so that the slice can pass review: slice <s> keeps its number, its repository and its branch, and the worker continues on them; what it does, how it is tested and the slices after it may change.` With no accepted plan in the thread (the fast lane reaching the limit), the text is the `proposal-accepted` row's, with the open-slice sentence |
+| architect, `swarm:plan-0-posted` | `Revise your plan for issue #<n> in answer to the latest comment. Write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, a slice that moves a pin to another slice's change after that slice, a diagram where a slice touches more than one component.` While the issue's current pull request is open (after T11, or a relabel by the maintainer), it adds the **open-slice sentence**: `Pull request <name>#<m>, slice <s>, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/<n>-<s> in /work/<name>, beside <base>: "git diff <base>...swarm/<n>-<s>" there is the change they judged. Revise the plan so that the slice can pass review: slice <s> keeps its number, its repository and its branch, and the worker continues on them; what it does, how it is tested and the slices after it may change.` With no accepted plan in the thread (the fast lane reaching the limit), the text is the `proposal-accepted` row's, with the open-slice sentence |
 | worker, `swarm:plan-1-accepted`, with a plan | `Implement slice <s> of the accepted plan for issue #<n> (it declares <S>) in <owner>/<name>, on the branch checked out in /work (swarm/<n>-<s>). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.` |
 | worker, `swarm:plan-1-accepted`, no plan (the fast lane) | `There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #<n>. Keep the change small; if it needs a plan, write "BLOCKED: needs a plan". Work on the branch checked out in /work (swarm/<n>-<s>) and write the pull request's description.` |
 | worker, `swarm:review-3-changes-requested` | `The newest entries of pull request <name>#<m>'s thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge <base>. Address each on the branch checked out in /work (swarm/<n>-<s>), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.` |
@@ -6717,3 +6730,22 @@ entries among revision 1's, and was renumbered at Step 38.
     reads, is skipped and the branch fetched; one denied refuses; a link
     after a skipped file refuses), `TestCloneAndTheCommitMsgHook`
     (`maintenance.auto` is `false`).
+115. **The architect revising with the pull request open sees its head
+    (Step 4 of the plan that clears the Deferred list, 2026-11-11; the
+    maintainer's decision of 2026-11-10).** After the round limit (T11),
+    or the maintainer's relabel, the architect revises the plan from the
+    pull request's reviews and its check (7.3), but its clones were all
+    at `<base>`: it judged a change it could not read. The head is now a
+    local branch, `swarm/<n>-<s>`, of that repository's clone, beside
+    `<base>`, and the open-slice sentence names it with the diff to read
+    (7.1 step 3, 7.4). It is made as the local `<base>` branch is, from
+    the mirror's branch the clone already fetched, rather than by a
+    second fetch: the pass's fetch is the one that gives a reviewer the
+    same head. The diff in the prompt instead would add its size to
+    every revising run and show none of the files around it. A head gone from the mirror (the branch deleted
+    on the forge) is the swarm fault *clone failed* (7.7), as it is for a
+    reviewer. Nothing collects the architect's clone, so the branch is
+    read-only in effect. Tests: `TestSwarmApplyRoundLimit` (the revising
+    architect's `swarm/<n>-<s>` is the pull request's head),
+    `TestSwarmApplyRoundLimitHeadGone` (the branch gone: `fault: clone:`,
+    nothing launched), `TestRenderArchitectOpenSlice` (the sentence).

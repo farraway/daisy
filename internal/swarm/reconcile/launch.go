@@ -126,12 +126,19 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	cloneFailed := func(err error) (bool, error) {
 		return failed("launch-failed "+ended(), "fault: clone: "+err.Error())
 	}
-	clone := func(rp declare.Repo, branch, dir string) (string, error) {
-		return s.git().Clone(rp, branch, s.Cfg.Base, dir, j.Role, s.Cfg.Forge.CommitEmail, persona.CoAuthor)
+	clone := func(rp declare.Repo, branch, dir string, also ...string) (string, error) {
+		return s.git().Clone(rp, branch, s.Cfg.Base, dir, j.Role, s.Cfg.Forge.CommitEmail, persona.CoAuthor, also...)
 	}
 	if j.Role == "owner" || j.Role == "architect" {
+		// The architect revising with the issue's pull request open sees
+		// its head, a branch of that repository's clone (section 7.1).
+		cur, open := j.current()
 		for _, rp := range s.Cfg.Repos {
-			sha, err := clone(rp, s.Cfg.Base, filepath.Join(work, rp.Name))
+			var also []string
+			if j.Role == "architect" && open && cur.Repo == rp.Name {
+				also = []string{cur.Head}
+			}
+			sha, err := clone(rp, s.Cfg.Base, filepath.Join(work, rp.Name), also...)
 			if err != nil {
 				return cloneFailed(err)
 			}

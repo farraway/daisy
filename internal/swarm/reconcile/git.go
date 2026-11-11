@@ -534,18 +534,21 @@ func Protected(paths, patterns []string) []string {
 
 // Clone makes dir a clone of the repository's mirror on branch, prepared
 // before any container sees it (section 7.1, step 3): a local base branch,
-// no remote, the role's identity `<role> (Daisy swarm) <commit_email>`, a
+// and a local branch for each of also (the revising architect's pull
+// request head) from the mirror's, which the clone fetched; no remote, the role's identity `<role> (Daisy swarm) <commit_email>`, a
 // commit-msg hook stamping `Co-Authored-By: <co_author>` on every commit
 // (none for an empty co_author: no trailer), and `/.swarm/` and the mount
 // points of the notes, `/.notes/`, and of the resources, `/.resources/`,
 // excluded. It returns the head commit.
-func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor string) (string, error) {
+func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor string, also ...string) (string, error) {
 	if _, err := g.run("", "clone", "--no-local", "--quiet", "--branch", branch, g.Mirror(r.Name), dir); err != nil {
 		return "", err
 	}
-	if _, err := g.run(dir, "rev-parse", "--verify", "--quiet", "refs/heads/"+base); err != nil {
-		if _, err := g.run(dir, "branch", base, "origin/"+base); err != nil {
-			return "", err
+	for _, b := range append([]string{base}, also...) {
+		if _, err := g.run(dir, "rev-parse", "--verify", "--quiet", "refs/heads/"+b); err != nil {
+			if _, err := g.run(dir, "branch", b, "origin/"+b); err != nil {
+				return "", err
+			}
 		}
 	}
 	// maintenance.auto false: a member's commit starts no detached `git

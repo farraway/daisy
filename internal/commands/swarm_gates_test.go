@@ -2,6 +2,7 @@ package commands
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -110,9 +111,21 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 				t.Fatal("the interrupted collection exited 0")
 			}
 			// The retry finds the note it posted, takes it for its own, and
-			// relabels; the architect then answers the note in the same pass.
-			a.runner.Script(1, "architect", runner.Canned{Out: oneSlice + "\nRevised.\n"})
+			// relabels; the architect then answers the note in the same pass,
+			// the pull request's head a branch of its clone of app (7.1).
+			var archHead string
+			a.runner.Script(1, "architect", runner.Canned{Out: oneSlice + "\nRevised.\n", Work: func(work string) error {
+				out, errb, err := ops.Real().Exec(filepath.Join(work, "app"), "git", "rev-parse", "--verify", "swarm/1-1")
+				if err != nil {
+					return &execErr{[]string{"rev-parse", "swarm/1-1"}, string(errb)}
+				}
+				archHead = strings.TrimSpace(string(out))
+				return nil
+			}})
 			a.pass()
+			if head := a.pulls(1)[0].HeadSHA; archHead != head {
+				t.Fatalf("the architect's swarm/1-1 is %q, app#1's head %q:\n%s", archHead, head, a.result("1-architect-2"))
+			}
 			first := mark("reconciler", 1) + "Review round 1 of 1 on app#1 requested changes (was swarm:review-1-in-progress). The architect revises the plan from the reviews."
 			if b := a.bodies(1); len(b) != 3 || b[1] != first || !strings.HasPrefix(b[2], mark("architect", 2)) {
 				t.Fatalf("T11, first time: %q", b)
@@ -158,6 +171,30 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 				t.Fatalf("T11, second time: %v %q", got, a.bodies(1))
 			}
 		})
+	}
+}
+
+// The round limit with the pull request's branch gone from the forge:
+// the architect's clone cannot make the head's branch, the swarm fault
+// clone failed (sections 7.1 and 7.7), nothing launched.
+func TestSwarmApplyRoundLimitHeadGone(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.MaxRounds = 1 })
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass() // the pair at the round limit: T11 to plan-0-posted
+	a.runner.Script(1, "architect", runner.Canned{Out: oneSlice + "\nRevised.\n"})
+	if _, errb, err := ops.Real().Exec(a.upstream("app"), "git", "update-ref", "-d", "refs/heads/swarm/1-1"); err != nil {
+		t.Fatal(string(errb))
+	}
+	a.pass()
+	res := a.result("1-architect-2")
+	if !strings.Contains(res, "launch-failed ") || !strings.Contains(res, "\nfault: clone: git branch swarm/1-1 origin/swarm/1-1: ") || !strings.HasSuffix(res, "outcome fault\ncollected\n") {
+		t.Fatalf("the architect without the head's branch:\n%s\n%s", res, a.stdout.String())
+	}
+	if n := len(a.runner.Launched); a.runner.Launched[n-1].Name != "daisy-swarm.acme.swarm-app.1.sympathetic.1" {
+		t.Errorf("launched after the fault: %+v", a.runner.Launched[n-1])
 	}
 }
 

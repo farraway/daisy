@@ -174,7 +174,8 @@ func thread(f *forge.Fake, pr forge.Ref) *PullThread {
 }
 
 // The architect on planning while its slice is open (after T11): the
-// revise text with the open-slice sentence; the pull request, its thread,
+// revise text with the open-slice sentence, naming the head's branch in
+// the repository's clone; the pull request, its thread,
 // the check's last 20 lines and the earlier pull requests in its prompt.
 func TestRenderArchitectOpenSlice(t *testing.T) {
 	f, at, pr, state := planned(t)
@@ -184,7 +185,7 @@ func TestRenderArchitectOpenSlice(t *testing.T) {
 	j.Check = CheckSection(ops.Real().FS(), runs, 1, "aaa", []string{"make", "check"}, "45m")
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`Revise your plan for issue #1 in answer to the latest comment.`,
-		`Pull request lib#1, slice 1, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input.`})
+		`Pull request lib#1, slice 1, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/1-1 in /work/lib, beside main: "git diff main...swarm/1-1" there is the change they judged. Revise the plan`})
 	has(t, "prompt.md", prompt, []string{"# Earlier pull requests\n\nNone.\n\n# Pull request lib#1: #1 slice 1: Drift check\n\nBranch swarm/1-1 into main; head aaa.\n\nDid it.\n\nRefs acme/app#1\n\n## Thread\n\n",
 		"### adversary, run 1, at 2026-11-06T15:07:00Z, on aaa: request-changes\n\n[blocking] x.go:1 wrong\n\n### sympathetic, run 1, at 2026-11-06T15:08:00Z, on aaa: approve\n\n### jane at 2026-11-06T15:09:00Z, on x.go:3 at aaa\n\nwhy?",
 		"# Check\n\nmake check on aaa: exit 2\n\n    line 6\n", "    line 25\n"},
