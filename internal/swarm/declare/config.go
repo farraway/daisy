@@ -39,7 +39,6 @@ type Config struct {
 	Owner      Owner              `json:"owner"`
 	Resources  []string           `json:"resources"`
 	References []Reference        `json:"references,omitempty"`
-	Wiki       bool               `json:"wiki,omitempty"`
 	Notes      bool               `json:"notes,omitempty"`
 	Trusted    []string           `json:"trusted"`
 	Gates      Gates              `json:"gates"`
@@ -47,11 +46,6 @@ type Config struct {
 	Keys       map[string]Key     `json:"keys"`
 	Personas   map[string]Persona `json:"personas"`
 }
-
-// KeepsNotes: the swarm keeps research notes, in the issues repository's
-// wiki (`wiki`) or in the notes/ directory of the swarm's own issues
-// repository (`notes`), section 3.
-func (c Config) KeepsNotes() bool { return c.Wiki || c.Notes }
 
 // SecretNames are the swarm's variables (section 3, Secret values):
 // forge.token_env's, each keys env's in the providers' name order, then
@@ -88,16 +82,13 @@ type Forge struct {
 	Board       *string `json:"board,omitempty"`
 }
 
-// Repo is one declared repository: the forge repository <owner>/<Name>.
-// A swarm repository's clone declares it by Repo, `<owner>/<name>`, with
-// an optional SSHCommand (section 3); the old layout by Path, its clone in
-// the workspace (section 11, Moving a swarm into its repository). Each
-// layout refuses the other's fields (Validate).
+// Repo is one declared repository: the forge repository <owner>/<Name>,
+// declared by Repo, `<owner>/<name>`, with an optional SSHCommand
+// (section 3).
 type Repo struct {
 	Name       string   `json:"name"`
 	Repo       string   `json:"repo,omitempty"`
 	SSHCommand *string  `json:"ssh_command,omitempty"`
-	Path       string   `json:"path,omitempty"`
 	Check      []string `json:"check"`
 	Image      string   `json:"image"`
 	Protected  []string `json:"protected"`
@@ -160,10 +151,10 @@ func fieldErr(field, format string, args ...any) *Error {
 	return &Error{field, fmt.Sprintf(format, args...)}
 }
 
-// File is swarm.json's path in dir, the configuration folder (Place.Dir).
+// File is swarm.json's path in dir, the swarm repository's clone (Place.Root).
 func File(dir string) string { return filepath.Join(dir, "swarm.json") }
 
-// Load reads and parses dir's swarm.json (dir a Place.Dir); found is
+// Load reads and parses dir's swarm.json (dir a Place.Root); found is
 // false when there is none, err then saying to run init.
 func Load(fs ops.FS, dir string) (c Config, found bool, err error) {
 	b, err := fs.ReadFile(File(dir))
@@ -353,9 +344,6 @@ func Format(c Config) []byte {
 			refs = append(refs, inline(r))
 		}
 		top = append(top, "\"references\": [\n    "+strings.Join(refs, ",\n    ")+"\n  ]")
-	}
-	if c.Wiki {
-		top = append(top, `"wiki": true`)
 	}
 	if c.Notes {
 		top = append(top, `"notes": true`)

@@ -32,7 +32,7 @@ func notesOf(sys string) []string {
 // repos' order; a file absent at the pass's commit, or a link there, adds
 // nothing.
 func TestSwarmRepositoryNotes(t *testing.T) {
-	a := newApplyWSIn(t, true)
+	a := newApplyWS(t)
 	a.write("repos/app.md", "# App\n\nApp's notes.\n")
 	a.write("repos/lib.md", "# Lib\n\nLib's notes.\n\n## Testing\n\nRun go test.\n")
 	a.publish("notes")
@@ -93,22 +93,6 @@ func TestSwarmRepositoryNotes(t *testing.T) {
 	}
 }
 
-// The old layout has no repos/<name>.md: nothing is read for a member,
-// even a file at that path in the workspace, and init seeds none.
-func TestSwarmRepositoryNotesOldLayout(t *testing.T) {
-	a := newApplyWS(t)
-	if _, err := os.Stat(filepath.Join(a.ws, "repos")); err == nil || strings.Contains(a.stdout.String(), "repos/") {
-		t.Errorf("init wrote repos/ in the old layout")
-	}
-	a.write("repos/app.md", "# App\n\nApp's notes.\n")
-	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
-	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
-	a.pass()
-	if sys := a.file("1-architect-1", "io/system.md"); sys == "" || len(notesOf(sys)) != 0 {
-		t.Errorf("old layout's architect:\n%s", sys)
-	}
-}
-
 // init seeds repos/<name>.md per declared repository when absent
 // (section 4; section 13, Step 5's row): the heading, what the file is
 // for, and the readiness facts, the product's instruction files read in
@@ -116,7 +100,7 @@ func TestSwarmRepositoryNotesOldLayout(t *testing.T) {
 // declares them; a second run keeps every one, a maintainer's edit
 // included.
 func TestSwarmInitSeedsRepositoryNotes(t *testing.T) {
-	s := newSwarmWSIn(t, true)
+	s := newSwarmWS(t)
 	pushFiles(t, s.upstreams["git@forge.example.net:acme/app.git"], map[string]string{"AGENTS.md": "# App\n", "CLAUDE.md": "# App\n"})
 	if err := s.run("--defaults"); err != nil {
 		t.Fatalf("%v\n%s", err, s.stderr.String())
@@ -165,7 +149,7 @@ func TestSwarmInitSeedsRepositoryNotes(t *testing.T) {
 // changes, then, once a commit and a push clear it, `✓ Drift cleared`
 // once; nothing changes an exit code.
 func TestSwarmDrift(t *testing.T) {
-	a := newApplyWSIn(t, true)
+	a := newApplyWS(t)
 	if err := a.status(a.forge); err != nil || strings.Contains(a.stderr.String(), "Drift") {
 		t.Fatalf("status with nothing drifting: %v\n%s", err, a.stderr.String())
 	}

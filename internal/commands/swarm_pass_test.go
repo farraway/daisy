@@ -150,17 +150,15 @@ func TestSwarmOutputLinkIsNotFollowed(t *testing.T) {
 	}
 }
 
-// apply reports a problem of .env.sh once, at its start, however often the
-// pass then reads a secret (section 11, Stderr: as init).
-func TestSwarmApplyWarnsOnceAboutEnvSh(t *testing.T) {
+// apply reports a problem of <state>/env once, at its start, however
+// often the pass then reads a secret (section 11, Stderr: as init).
+func TestSwarmApplyWarnsOnceAboutTheSecretsFile(t *testing.T) {
 	a := newApplyWS(t)
-	if err := os.WriteFile(filepath.Join(a.ws, ".env.sh"), []byte("export GITEA_TOKEN=\"tok-123\"\nsource ./other.sh\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	a.secrets("export GITEA_TOKEN=\"tok-123\"\nsource ./other.sh\n")
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
 	a.pass()
-	if n := strings.Count(a.stderr.String(), ".env.sh line 2"); n != 1 {
+	if n := strings.Count(a.stderr.String(), a.secretsFile()+" line 2"); n != 1 {
 		t.Errorf("warned %d times:\n%s", n, a.stderr.String())
 	}
 }
@@ -210,7 +208,7 @@ func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
 	if err := m.verb(swarmUnblock, "1", "v2, as the plan says."); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(m.stdout.String(), "#1 commented on pull app#2\n#1 blocked cleared\n#1 gated cleared\n") {
+	if !strings.HasSuffix(m.stdout.String(), "#1 commented on pull app#1\n#1 blocked cleared\n#1 gated cleared\n") {
 		t.Errorf("unblock:\n%s", m.stdout.String())
 	}
 	before := len(a.runner.Launches())
@@ -229,7 +227,7 @@ func TestSwarmOrphanCheckTimeoutIsSaid(t *testing.T) {
 	run := "1-worker-1"
 	os.MkdirAll(a.state("runs/"+run+"/work"), 0o755)
 	os.WriteFile(a.state("runs/"+run+"/result"), []byte("start aaaa\nbranch swarm/1-1 in app\nlabel swarm:plan-1-accepted\nstarted 2026-11-06T13:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\nexited 0 2026-11-06T13:10:00Z\nfetched bbbb\ncheck started 2026-11-06T13:11:00Z\n"), 0o644)
-	a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.app.1.check.1", Swarm: "acme/app#1/check"}}
+	a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.swarm-app.1.check.1", Swarm: "acme/swarm-app#1/check"}}
 	a.tick()
 	a.apply(a.git(), "--once")
 	if !strings.Contains(a.result(run), "check timeout ") || !strings.Contains(a.stdout.String(), "#1 worker run 1: check timeout\n") {
@@ -294,7 +292,7 @@ func TestSwarmMergeStepRelabelReadsTheLabelsAgain(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the pair: T9
-	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 2})
+	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 1})
 	a.tick()
 	a.apply(&relabelOnMerge{gitForge: a.git()}, "--once")
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-accepted"}) || !strings.Contains(a.stderr.String(), "relabelled to swarm:proposal-accepted during the merge step") {

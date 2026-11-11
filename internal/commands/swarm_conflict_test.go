@@ -35,24 +35,24 @@ func (a *applyWS) land(name string, files map[string]string, msg string) {
 	}
 }
 
-// direction is the note `swarm merge`'s T25 posts on app#2, approved at
+// direction is the note `swarm merge`'s T25 posts on app#1, approved at
 // head, for issue 1's slice 1 (section 12): the forge's report, which
 // names no file.
 func direction(head string) string {
-	return "Pull request acme/app#2 was approved at " + head[:7] + ", but the forge reports it not mergeable into main, which has moved since swarm/1-1 last took it in. " +
+	return "Pull request acme/app#1 was approved at " + head[:7] + ", but the forge reports it not mergeable into main, which has moved since swarm/1-1 last took it in. " +
 		`Merge main into swarm/1-1 with a merge commit ("git merge --no-edit main"), resolve each conflict, keeping what both sides meant, and commit; the reviewers then review the new head.`
 }
 
-// conflictIn is the merge step's T25 note on app#2, approved at head,
+// conflictIn is the merge step's T25 note on app#1, approved at head,
 // naming the files that conflict on the mirror (section 12).
 func conflictIn(head, files string) string {
-	return "Pull request acme/app#2 was approved at " + head[:7] + ", but it does not merge into main, which has moved since swarm/1-1 last took it in: they conflict in " + files + ". " +
+	return "Pull request acme/app#1 was approved at " + head[:7] + ", but it does not merge into main, which has moved since swarm/1-1 last took it in: they conflict in " + files + ". " +
 		`Merge main into swarm/1-1 with a merge commit ("git merge --no-edit main"), resolve each conflict, keeping what both sides meant, and commit; the reviewers then review the new head.`
 }
 
 // notMergeable takes issue 1 through the pair's approval with the merge
 // gate off, then lands a main.go on main that conflicts with the slice's
-// and has the forge report app#2 not mergeable; the next pass's merge step
+// and has the forge report app#1 not mergeable; the next pass's merge step
 // is T25. It returns the approved head.
 func (a *applyWS) notMergeable() string {
 	a.t.Helper()
@@ -66,7 +66,7 @@ func (a *applyWS) notMergeable() string {
 	a.pass() // the pair: T9
 	head := a.pulls(1)[0].HeadSHA
 	a.land("app", map[string]string{"main.go": "other\n"}, "another slice merged")
-	a.forge.SetMergeable(forge.Ref{Repo: "app", N: 2}, forge.MergeableNo)
+	a.forge.SetMergeable(forge.Ref{Repo: "app", N: 1}, forge.MergeableNo)
 	a.pass()
 	return head
 }
@@ -80,7 +80,7 @@ func (a *applyWS) notMergeable() string {
 func TestSwarmApplyNotMergeableBackToTheWorker(t *testing.T) {
 	a := newApplyWS(t)
 	approved := a.notMergeable()
-	pr := forge.Ref{Repo: "app", N: 2}
+	pr := forge.Ref{Repo: "app", N: 1}
 	note := mark("reconciler", 1) + conflictIn(approved, "`main.go`")
 	comments, _ := a.forge.PullComments(pr)
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested"}) || len(a.bodies(1)) != 1 ||
@@ -105,7 +105,7 @@ func TestSwarmApplyNotMergeableBackToTheWorker(t *testing.T) {
 	}})
 	a.pass() // the worker: T20, then T12
 	sys, prompt := a.file("1-worker-2", "io/system.md"), a.file("1-worker-2", "io/prompt.md")
-	if !strings.Contains(sys, `The newest entries of pull request app#2's thread need an answer`) ||
+	if !strings.Contains(sys, `The newest entries of pull request app#1's thread need an answer`) ||
 		!strings.Contains(sys, `Before anything else, run "git merge --no-edit main"; if it conflicts, resolve each conflict`) || !strings.Contains(prompt, conflictIn(approved, "`main.go`")) {
 		t.Errorf("the worker's files:\n%s\n%s", sys, prompt)
 	}
@@ -126,7 +126,7 @@ func TestSwarmApplyNotMergeableBackToTheWorker(t *testing.T) {
 	}
 	a.pass() // the merge step: T15
 	ps := a.pulls(1)
-	if is := a.issue(1); is.Open || !ps[0].Merged || ps[0].HeadSHA != head || !strings.Contains(a.stdout.String(), "#1 merged pull app#2 (slice 1 of 1)\n#1 closed (last slice merged)\n") {
+	if is := a.issue(1); is.Open || !ps[0].Merged || ps[0].HeadSHA != head || !strings.Contains(a.stdout.String(), "#1 merged pull app#1 (slice 1 of 1)\n#1 closed (last slice merged)\n") {
 		t.Errorf("merged: %+v %+v\n%s", is, ps, a.stdout.String())
 	}
 	if evs := a.forge.Events(issue1); wroteAs(evs, "jane") {
@@ -154,7 +154,7 @@ func TestSwarmApplyNotMergeableRetried(t *testing.T) {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the pair: T9
 	approved := a.pulls(1)[0].HeadSHA
-	pr := forge.Ref{Repo: "app", N: 2}
+	pr := forge.Ref{Repo: "app", N: 1}
 	a.land("app", map[string]string{"main.go": "other\n"}, "another slice merged")
 	a.forge.SetMergeable(pr, forge.MergeableNo)
 	a.tick()
@@ -182,7 +182,7 @@ func TestSwarmApplyConflictBlocked(t *testing.T) {
 	a.notMergeable()
 	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: main conflicts in main.go\n\nBoth sides rewrite main.go; which wins is the maintainer's call.\n"})
 	a.pass()
-	comments, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 2})
+	comments, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested", "swarm:blocked", forge.Gated}) ||
 		!strings.HasPrefix(comments[len(comments)-1].Body, mark("worker", 2)+"BLOCKED: main conflicts in main.go") ||
 		a.bodies(1)[len(a.bodies(1))-1] != mark("reconciler", 2)+"worker run 2 is blocked (at swarm:review-3-changes-requested). Answer, then remove swarm:blocked to resume." {
@@ -201,13 +201,13 @@ func TestSwarmMergeStepUnsettled(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the pair: T9
-	a.forge.SetMergeable(forge.Ref{Repo: "app", N: 2}, forge.MergeableUnknown)
+	a.forge.SetMergeable(forge.Ref{Repo: "app", N: 1}, forge.MergeableUnknown)
 	a.pass()
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved"}) || len(a.bodies(1)) != 1 ||
-		!strings.Contains(a.stdout.String(), "#1 merge of pull app#2 refused (405 Please try again later); its mergeability is not settled, so the next pass tries again\n") {
+		!strings.Contains(a.stdout.String(), "#1 merge of pull app#1 refused (405 Please try again later); its mergeability is not settled, so the next pass tries again\n") {
 		t.Fatalf("unknown: %v %q\n%s", got, a.bodies(1), a.stdout.String())
 	}
-	a.forge.SetMergeable(forge.Ref{Repo: "app", N: 2}, forge.MergeableYes)
+	a.forge.SetMergeable(forge.Ref{Repo: "app", N: 1}, forge.MergeableYes)
 	a.pass()
 	if a.issue(1).Open {
 		t.Fatalf("not merged once settled:\n%s", a.stdout.String())
@@ -230,7 +230,7 @@ func TestSwarmMergeStepUnsettled(t *testing.T) {
 	}
 	a.pass() // the architects
 	for _, n := range []int{1, 2} {
-		a.forge.SetLabel(forge.Ref{Repo: "app", N: n}, "swarm:plan-1-accepted")
+		a.forge.SetLabel(a.ref(n), "swarm:plan-1-accepted")
 	}
 	a.pass() // the workers
 	a.pass() // the pairs: T9
@@ -259,13 +259,13 @@ func TestSwarmMergeStepRecomputing(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the pair: T9
-	pr := forge.Ref{Repo: "app", N: 2}
+	pr := forge.Ref{Repo: "app", N: 1}
 	a.land("app", map[string]string{"other.go": "other\n"}, "another slice merged, touching no file of the slice")
 	a.forge.SetMergeable(pr, forge.MergeableNo)
 	a.pass()
 	comments, _ := a.forge.PullComments(pr)
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved"}) || len(comments) != 0 || len(a.bodies(1)) != 1 ||
-		!strings.Contains(a.stdout.String(), "#1 merge of pull app#2 refused (405 Please try again later); its head merges into main on the mirror, so the forge is taken to be recomputing and the next pass tries again\n") {
+		!strings.Contains(a.stdout.String(), "#1 merge of pull app#1 refused (405 Please try again later); its head merges into main on the mirror, so the forge is taken to be recomputing and the next pass tries again\n") {
 		t.Fatalf("recomputing: %v %q %q\n%s", got, comments, a.bodies(1), a.stdout.String())
 	}
 	a.forge.SetMergeable(pr, forge.MergeableYes)
@@ -283,7 +283,7 @@ func TestSwarmMergeStepRecomputing(t *testing.T) {
 func TestSwarmMergeStepSentBackTwice(t *testing.T) {
 	a := newApplyWS(t)
 	approved := a.notMergeable()
-	pr := forge.Ref{Repo: "app", N: 2}
+	pr := forge.Ref{Repo: "app", N: 1}
 	a.runner.Script(1, "worker", runner.Canned{Out: "NO CHANGE: main.go already holds what main means.\n\nNot established: none\n"})
 	a.pass() // the worker: T12 without a commit
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
@@ -293,7 +293,7 @@ func TestSwarmMergeStepSentBackTwice(t *testing.T) {
 		t.Fatalf("approved again: %v\n%s", got, a.stdout.String())
 	}
 	a.pass() // the merge step
-	note := mark("reconciler", 2) + "Pull request acme/app#2 was sent back to merge main at " + approved[:7] + " once already, was approved again at that head, and still does not merge into main (they conflict in `main.go`) (at swarm:review-2-approved). Merge main into swarm/1-1, or relabel the issue, then remove swarm:blocked."
+	note := mark("reconciler", 2) + "Pull request acme/app#1 was sent back to merge main at " + approved[:7] + " once already, was approved again at that head, and still does not merge into main (they conflict in `main.go`) (at swarm:review-2-approved). Merge main into swarm/1-1, or relabel the issue, then remove swarm:blocked."
 	comments, _ := a.forge.PullComments(pr)
 	directions := 0
 	for _, c := range comments {
@@ -332,7 +332,7 @@ func TestSwarmMergeStepMirrorCannotTell(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the pair: T9
-	pr := forge.Ref{Repo: "app", N: 2}
+	pr := forge.Ref{Repo: "app", N: 1}
 	a.forge.SetMergeable(pr, forge.MergeableNo)
 	a.tick()
 	if err := a.apply(unknownHead{a.git()}, "--once"); err != nil {
@@ -341,7 +341,7 @@ func TestSwarmMergeStepMirrorCannotTell(t *testing.T) {
 	zero := strings.Repeat("0", 40)
 	comments, _ := a.forge.PullComments(pr)
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested"}) || len(comments) != 1 || comments[0].Body != mark("reconciler", 1)+direction(zero) ||
-		!strings.Contains(a.stderr.String(), "⚠ #1: pull app#2's head 0000000 not merged on the mirror (git merge-tree ") {
+		!strings.Contains(a.stderr.String(), "⚠ #1: pull app#1's head 0000000 not merged on the mirror (git merge-tree ") {
 		t.Errorf("%v %q\n%s", got, comments, a.stderr.String())
 	}
 }

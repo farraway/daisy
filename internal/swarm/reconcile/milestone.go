@@ -93,7 +93,7 @@ func (s *Swarm) milestones(open []forge.Issue) {
 		if is.Milestone != 0 {
 			continue
 		}
-		path, m := s.briefOf(is)
+		path, m := BriefOf(is, s.SwarmLogin)
 		if path == "" {
 			continue
 		}

@@ -10,20 +10,18 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
-// The notes' repository's URL beside each of section 10's three origin
-// forms: the wiki's, and the swarm's own issues repository's.
+// A declared repository's URL beside the swarm repository's clone's
+// origin, in each of section 10's three origin forms.
 func TestRepoURL(t *testing.T) {
 	for origin, want := range map[string]string{
-		"git@forge.example.net:acme/lib.git":            "git@forge.example.net:acme/app.wiki.git",
-		"ssh://git@forge.example.net:2222/acme/lib.git": "ssh://git@forge.example.net:2222/acme/app.wiki.git",
-		"https://forge.example.net/acme/lib/":           "https://forge.example.net/acme/app.wiki.git",
+		"git@forge.example.net:acme/swarm-app.git":            "git@forge.example.net:acme/app.git",
+		"ssh://git@forge.example.net:2222/acme/swarm-app.git": "ssh://git@forge.example.net:2222/acme/app.git",
+		"https://forge.example.net/acme/swarm-app/":           "https://forge.example.net/acme/app.git",
+		"https://forge.example.net/acme/swarm-app":            "https://forge.example.net/acme/app.git",
 	} {
-		if got := RepoURL(origin, "app.wiki"); got != want {
+		if got := RepoURL(origin, "app"); got != want {
 			t.Errorf("RepoURL(%q) = %q, want %q", origin, got, want)
 		}
-	}
-	if got := RepoURL("https://forge.example.net/acme/lib", "swarm-x"); got != "https://forge.example.net/acme/swarm-x.git" {
-		t.Errorf("RepoURL = %q", got)
 	}
 }
 
@@ -63,12 +61,12 @@ func TestReadNotes(t *testing.T) {
 // declared repository's source has moved, or that an external one is
 // dated by its pin alone, and its age; for the owner's batch and the
 // architect, after # Repository, with the Task's sentences; the others
-// see the mount read-only, and nothing without `wiki` or `notes`; with
-// `notes` the line names notes/ in the swarm's own issues repository.
+// see the mount read-only, and nothing without `notes`; the line names
+// notes/ in the swarm repository.
 func TestRenderResearchNotes(t *testing.T) {
 	f, at := fixture()
 	j := job(f, at.N, "architect", forge.ProposalAccepted)
-	j.Cfg.Wiki = true
+	j.Cfg.Notes, j.Cfg.Forge.Repo = true, "acme/swarm-x"
 	j.Notes = []Note{
 		{File: "ruleslib.md", Subject: "ruleslib's rules", Source: "https://example.net/ruleslib v2.0.0", Written: "2026-11-01 by architect run 3 on #14", Checked: "2026-11-04", Behind: -1},
 		{File: "board.md", Subject: "the board", Source: "app 1a2b3c4", Written: "2026-11-06 by owner run 1", Checked: "2026-11-06", Repo: "app", Behind: 12},
@@ -76,7 +74,7 @@ func TestRenderResearchNotes(t *testing.T) {
 		{File: "loose.md", Subject: "no pin", Source: "lib", Repo: "lib", Behind: -1, Checked: "someday"},
 	}
 	system, prompt := Render(j)
-	has(t, "prompt", prompt, []string{"- Resources (read-only): /work/.resources/docs\n- Research notes: /work/.notes, the wiki, pushed by Daisy after the run\n\n# Research notes\n\n" +
+	has(t, "prompt", prompt, []string{"- Resources (read-only): /work/.resources/swarm-x/docs\n- Research notes: /work/.notes, notes/ in acme/swarm-x, pushed by Daisy after the run\n\n# Research notes\n\n" +
 		"- /work/.notes/ruleslib.md: ruleslib's rules; source https://example.net/ruleslib v2.0.0, an external source (its pin and its date alone date it); written 2026-11-01 by architect run 3 on #14; checked 2026-11-04 (2 days ago)\n" +
 		"- /work/.notes/board.md: the board; source app 1a2b3c4, 12 commits on app's main since the pin; written 2026-11-06 by owner run 1; checked 2026-11-06 (today)\n" +
 		"- /work/.notes/gone.md: a lost pin; source lib deadbee, a pin not in lib's history; no Written: line; never checked\n" +
@@ -89,20 +87,16 @@ func TestRenderResearchNotes(t *testing.T) {
 
 	b := job(f, 0, "owner", "")
 	b.N, b.K, b.Batch, b.Issue = 0, 4, &Batch{Propose: 2}, forge.Issue{}
-	b.Cfg.Wiki = true
+	b.Cfg.Notes = true
 	system, prompt = Render(b)
 	has(t, "batch", prompt, []string{"# Research notes\n\nNone.\n\n# Briefs"})
 	has(t, "batch task", system, []string{`"Written: 2026-11-06 by owner run 4"`}, "on #0", "names the note")
 
 	w := job(f, at.N, "worker", forge.PlanAccepted)
-	w.Cfg.Wiki = true
+	w.Cfg.Notes = true
 	system, prompt = Render(w)
 	has(t, "worker", prompt, []string{"- Research notes (read-only): /work/.notes\n"}, "# Research notes")
 	has(t, "worker task", system, nil, "Research notes", ".notes")
-
-	j.Cfg.Wiki, j.Cfg.Notes, j.Cfg.Forge.Repo = false, true, "acme/swarm-x"
-	_, prompt = Render(j)
-	has(t, "notes", prompt, []string{"- Research notes: /work/.notes, notes/ in acme/swarm-x, pushed by Daisy after the run\n\n# Research notes\n\nNone."})
 
 	j.Cfg.Notes = false
 	system, prompt = Render(j)
@@ -131,7 +125,7 @@ func TestExportNotes(t *testing.T) {
 	if _, err := g.run(clone, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "first"); err != nil {
 		t.Fatal(err)
 	}
-	n := NotesRepo{Git: g, Sub: "notes", dir: "notes"}
+	n := NotesRepo{Git: g}
 	for _, tc := range []struct {
 		name  string
 		setup func()

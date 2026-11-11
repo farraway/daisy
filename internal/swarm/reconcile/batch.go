@@ -82,7 +82,7 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	if b.Closed, err = s.recentlyClosed(b.active()); err != nil {
 		return err
 	}
-	persona, err := fs.ReadFile(declare.PromptFile(s.Place.Dir, "owner"))
+	persona, err := fs.ReadFile(declare.PromptFile(s.Place.Root, "owner"))
 	if err != nil {
 		return err
 	}
@@ -90,27 +90,14 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 		Time: s.O.Now(), Persona: string(persona), Batch: b})
 }
 
-// briefs is the briefs the batch reads (section 7.3): in a swarm
-// repository's clone at the pass's commits, the mirrors fetched first
-// (section 7.1, step 1), so that the trigger and the prompt read what is
-// pushed; in the old layout in the workspace.
+// briefs is the briefs the batch reads (section 7.3): at the pass's
+// commits, the mirrors fetched first (section 7.1, step 1), so that the
+// trigger and the prompt read what is pushed.
 func (s *Swarm) briefs() ([]brief.Brief, error) {
-	if s.Place.Old() {
-		return Briefs(s.O, s.Place, s.Cfg, s.state(), nil)
-	}
 	if err := s.fetch(); err != nil {
 		return nil, err
 	}
 	return Briefs(s.O, s.Place, s.Cfg, s.state(), s.commits)
-}
-
-// briefOf is BriefOf with the brief's path as BriefName reads it.
-func (s *Swarm) briefOf(is forge.Issue) (path, milestone string) {
-	path, milestone = BriefOf(is, s.SwarmLogin)
-	if path != "" {
-		path = BriefName(s.Place, s.Cfg, path)
-	}
-	return path, milestone
 }
 
 // NoActiveBrief is the hold on the owner's batch trigger while no brief
@@ -153,7 +140,7 @@ func (s *Swarm) recentlyClosed(active []brief.Brief) ([]Closed, error) {
 	recent, older := Recent(closed, s.O.Now())
 	var rest []forge.Issue
 	for _, is := range older {
-		path, _ := s.briefOf(is)
+		path, _ := BriefOf(is, s.SwarmLogin)
 		if slices.ContainsFunc(active, func(b brief.Brief) bool { return b.Path == path }) {
 			rest = append(rest, is)
 		}

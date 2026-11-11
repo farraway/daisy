@@ -17,10 +17,9 @@ import (
 // swarm.json and prompts/ at its top, the verbs finding it from a folder
 // inside it and from its top; init names its files relative to the clone
 // and prints the unit for the clone, %f the clone; apply's docker and id
-// run in the clone; status, pause and resume run there. The maintainer's
-// verbs and a launching pass run in both layouts (bothLayouts).
+// run in the clone; status, pause and resume run there.
 func TestSwarmVerbsFromAClone(t *testing.T) {
-	a := newApplyWSIn(t, true)
+	a := newApplyWS(t)
 	for dir := a.ws; ; dir = filepath.Dir(dir) {
 		if _, err := os.Lstat(filepath.Join(dir, ".daisy")); err == nil {
 			t.Fatalf("%s holds .daisy", dir)
@@ -46,7 +45,7 @@ func TestSwarmVerbsFromAClone(t *testing.T) {
 	for _, f := range []string{"repos/app.md", "repos/lib.md", "README.md", "briefs/README.md", "notes/README.md", "docs/README.md", ".gitignore"} {
 		wantOut += "  Kept " + f + " (exists)\n"
 	}
-	wantOut += "  Nothing to commit\n  Kept " + a.state("env") + " (exists)\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 16 present (0 created, 0 renamed)\n" + strings.Replace(a.units(), "for the workspace %f", "for the swarm repository %f", 1)
+	wantOut += "  Nothing to commit\n  Kept " + a.state("env") + " (exists)\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 16 present (0 created, 0 renamed)\n" + a.units()
 	if a.stdout.String() != wantOut || !strings.Contains(wantOut, "daisy-swarm@"+systemdEscapePath(a.ws)+".service") {
 		t.Errorf("init stdout:\n%s\nwant:\n%s", a.stdout.String(), wantOut)
 	}
@@ -85,10 +84,9 @@ func TestSwarmVerbsFromAClone(t *testing.T) {
 // The secrets (section 3, Secret values; section 13, Step 2's second
 // row): in a clone, <state>/env, read and never run, the environment the
 // fallback, refused at mode 0640 or 0604 before it is read, a .env.sh in
-// the clone read by nothing and warned of by status and apply; in the old
-// layout, the workspace's .env.sh and never <state>/env.
+// the clone read by nothing and warned of by status and apply.
 func TestSwarmSecretsFile(t *testing.T) {
-	a := newApplyWSIn(t, true)
+	a := newApplyWS(t)
 	env := a.secretsFile()
 	if env != a.state("env") {
 		t.Fatalf("secrets at %s", env)
@@ -147,15 +145,6 @@ func TestSwarmSecretsFile(t *testing.T) {
 	if strings.Join(a.tokens, ",") != "tok-123,tok-123" {
 		t.Errorf("tokens %q", a.tokens)
 	}
-
-	// The old layout: <ws>/.env.sh, and <state>/env never read.
-	o := newStatusWS(t)
-	o.write(".env.sh", "")
-	os.MkdirAll(o.state(""), 0o755)
-	os.WriteFile(o.state("env"), []byte("export GITEA_TOKEN=tok-123\n"), 0o644)
-	if err := o.status(o.forge); errText(err) != "Error: swarm: $GITEA_TOKEN is not set (in "+filepath.Join(o.ws, ".env.sh")+" or the environment)" || o.stderr.Len() != 0 {
-		t.Errorf("old layout: %v %q", err, o.stderr.String())
-	}
 }
 
 // The claim of revision 6's plan, Step 3 (section 13, its first row):
@@ -168,14 +157,14 @@ func TestSwarmSecretsFile(t *testing.T) {
 // and removed in swarm.json is changed and unset in the mirror's config
 // at the next fetch.
 func TestSwarmProductsByForgeName(t *testing.T) {
-	a := newApplyWSIn(t, true)
+	a := newApplyWS(t)
 	for _, name := range []string{"app", "lib"} {
 		if _, err := os.Stat(filepath.Join(a.dir, name)); err == nil {
 			t.Fatalf("%s's clone is on the machine", name)
 		}
 	}
 	c := a.config()
-	if c.Forge.Repo != "acme/swarm-app" || c.Repos[0].Repo != "acme/app" || c.Repos[1].Repo != "acme/lib" || c.Repos[0].Path != "" || c.Repos[0].SSHCommand != nil {
+	if c.Forge.Repo != "acme/swarm-app" || c.Repos[0].Repo != "acme/app" || c.Repos[1].Repo != "acme/lib" || c.Repos[0].SSHCommand != nil {
 		t.Fatalf("init wrote %+v", c)
 	}
 	if !strings.Contains(a.read("swarm.json"), `{"name": "app", "repo": "acme/app", "check": ["make", "check"], `) {

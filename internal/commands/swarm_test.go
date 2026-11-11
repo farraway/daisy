@@ -19,11 +19,8 @@ import (
 // swarmWS is a swarm of the product app and its library lib, of the
 // organization acme on forge.example.net, each with an upstream holding
 // one commit on main that git reaches in place of the forge, and the
-// token in its secrets file. In the old layout ws is a Daisy workspace
-// (.daisy/) holding the products' clones at app and lib, the swarm in its
-// swarm/ and the token in its .env.sh; in revision 6's (clone) init runs
-// in <dir>, a folder holding the products' clones and no swarm
-// repository's clone, with no .daisy/ in it or above it, the swarm's
+// token in its secrets file. init runs in <dir>, a folder holding the
+// products' clones and no swarm repository's clone, with no .daisy/ in it or above it, the swarm's
 // token and jane's, the maintainer's, in the environment; the forge holds
 // no acme/swarm-app, whose upstream is empty, and init creates it and
 // makes ws, <dir>/swarm-app, its clone, swarm.json and prompts/ at its
@@ -32,11 +29,10 @@ import (
 type swarmWS struct {
 	t                 *testing.T
 	ws, root, local   string
-	dir               string // the folder holding the clone (clone)
-	clone             bool
+	dir               string            // the folder holding the clone
 	upstreams         map[string]string // forge URL → local bare repository
 	place             declare.Place     // where the swarm is
-	cwd               string            // the folder the verbs find the swarm from (find): <dir> for the clone's first init; "" for the old layout's, which runs at place
+	cwd               string            // the folder the verbs find the swarm from (find): <dir> for the first init
 	vars              map[string]string
 	forge             *forge.Fake
 	opened            []string // what the last opener was given: kind, api, repo, names, token
@@ -47,27 +43,19 @@ type swarmWS struct {
 	readFails         bool
 	declaredReadFails bool
 	loginFails        bool
-	maintainer        forge.Account // the account jane-456 is (clone), jane's when zero
-	repoReadFails     bool          // the maintainer's read of the swarm repository refused (clone)
+	maintainer        forge.Account // the account jane-456 is, jane's when zero
+	repoReadFails     bool          // the maintainer's read of the swarm repository refused
 }
 
-func newSwarmWS(t *testing.T) *swarmWS { return newSwarmWSIn(t, false) }
-
-// newSwarmWSIn is newSwarmWS in the old layout, or with clone in a swarm
-// repository's clone.
-func newSwarmWSIn(t *testing.T, clone bool) *swarmWS {
+func newSwarmWS(t *testing.T) *swarmWS {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	s := &swarmWS{t: t, ws: t.TempDir(), root: t.TempDir(), local: t.TempDir(), clone: clone, vars: map[string]string{}, upstreams: map[string]string{}}
-	issues := "acme/app"
-	if clone {
-		s.dir, issues = s.ws, "acme/swarm-app"
-		s.ws = filepath.Join(s.dir, "swarm-app")
-	}
-	s.forge = forge.NewFake(fixedClock(), issues, []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
+	s := &swarmWS{t: t, dir: t.TempDir(), root: t.TempDir(), local: t.TempDir(), vars: map[string]string{}, upstreams: map[string]string{}}
+	s.ws = filepath.Join(s.dir, "swarm-app")
+	s.forge = forge.NewFake(fixedClock(), "acme/swarm-app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
 	for name, url := range map[string]string{"app": "git@forge.example.net:acme/app.git", "lib": "git@forge.example.net:acme/lib.git"} {
-		dir := filepath.Join(cmp.Or(s.dir, s.ws), name)
+		dir := filepath.Join(s.dir, name)
 		os.MkdirAll(dir, 0o755)
 		for _, args := range [][]string{{"init", "-q"}, {"remote", "add", "origin", url}} {
 			if _, errb, err := ops.Real().Exec(dir, "git", args...); err != nil {
@@ -84,30 +72,22 @@ func newSwarmWSIn(t *testing.T, clone bool) *swarmWS {
 		}
 		s.upstreams[url] = up
 	}
-	if clone {
-		// The swarm repository: on the forge once init creates it, its
-		// upstream empty, its default branch main. The maintainer's git
-		// identity commits in its clone.
-		up := filepath.Join(t.TempDir(), "swarm-app.git")
-		git(t, "", "init", "-q", "--bare", "-b", "main", up)
-		s.upstreams[swarmURL] = up
-		s.forge.SetSSHURL(swarmURL)
-		global := filepath.Join(t.TempDir(), "gitconfig")
-		os.WriteFile(global, []byte("[user]\n\tname = Jane\n\temail = jane@example.net\n"), 0o644)
-		t.Setenv("GIT_CONFIG_GLOBAL", global)
-		s.place, s.cwd = declare.Clone(s.ws), s.dir
-		s.vars["GITEA_TOKEN"], s.vars["DAISY_MAINTAINER_TOKEN"] = "tok-123", "jane-456"
-	} else {
-		// init finds no old layout before it has written swarm/swarm.json:
-		// the first runs at its place.
-		os.Mkdir(filepath.Join(s.ws, ".daisy"), 0o755)
-		s.place = declare.Workspace(s.ws)
-		s.secrets("export GITEA_TOKEN=\"tok-123\"\n")
-	}
+	// The swarm repository: on the forge once init creates it, its
+	// upstream empty, its default branch main. The maintainer's git
+	// identity commits in its clone.
+	up := filepath.Join(t.TempDir(), "swarm-app.git")
+	git(t, "", "init", "-q", "--bare", "-b", "main", up)
+	s.upstreams[swarmURL] = up
+	s.forge.SetSSHURL(swarmURL)
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	os.WriteFile(global, []byte("[user]\n\tname = Jane\n\temail = jane@example.net\n"), 0o644)
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+	s.place, s.cwd = declare.Clone(s.ws), s.dir
+	s.vars["GITEA_TOKEN"], s.vars["DAISY_MAINTAINER_TOKEN"] = "tok-123", "jane-456"
 	return s
 }
 
-// publish commits everything in the swarm repository's clone (clone) and
+// publish commits everything in the swarm repository's clone and
 // pushes it to the swarm repository's default branch, as the maintainer
 // does: what the members read is what is pushed (section 2).
 func (s *swarmWS) publish(msg string) {
@@ -120,7 +100,7 @@ func (s *swarmWS) publish(msg string) {
 }
 
 // fetchMirror brings the swarm repository's mirror up to date with its
-// upstream, as a pass's fetch does (clone).
+// upstream, as a pass's fetch does.
 func (s *swarmWS) fetchMirror() {
 	s.t.Helper()
 	m := filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app", "git", "swarm-app")
@@ -129,18 +109,13 @@ func (s *swarmWS) fetchMirror() {
 	}
 }
 
-// swarmURL is the swarm repository's clone's origin (clone).
+// swarmURL is the swarm repository's clone's origin.
 const swarmURL = "git@forge.example.net:acme/swarm-app.git"
 
-// cloned is the swarm once init has written it: in the old layout the
-// verbs finding it from the workspace; in a clone from prompts/, a folder
-// inside it, with no product's clone left on the machine (revision 6's
-// plan, Step 3's claim).
+// cloned is the swarm once init has written it: the verbs find it from
+// prompts/, a folder inside it, with no product's clone left on the
+// machine (revision 6's plan, Step 3's claim).
 func (s *swarmWS) cloned() {
-	if !s.clone {
-		s.cwd = s.ws
-		return
-	}
 	s.cwd = filepath.Join(s.ws, "prompts")
 	for _, name := range []string{"app", "lib"} {
 		os.RemoveAll(filepath.Join(s.dir, name))
@@ -168,13 +143,9 @@ func git(t *testing.T, dir string, args ...string) {
 	}
 }
 
-// secretsFile is where the swarm's secrets are: the workspace's .env.sh,
-// or <state>/env.
+// secretsFile is where the swarm's secrets are, <state>/env.
 func (s *swarmWS) secretsFile() string {
-	if s.clone {
-		return filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app", "env")
-	}
-	return filepath.Join(s.ws, ".env.sh")
+	return filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app", "env")
 }
 
 // secrets writes the secrets file, <state>/env with mode 0600.
@@ -187,10 +158,6 @@ func (s *swarmWS) secrets(content string) {
 	}
 }
 
-// cfg is a file of the configuration folder, relative to the root:
-// swarm/<rel> in the old layout, <rel> in a clone.
-func (s *swarmWS) cfg(rel string) string { return s.place.Rel(rel) }
-
 // cwdOps is o with its working folder at cwd.
 type cwdOps struct {
 	ops.Ops
@@ -200,13 +167,9 @@ type cwdOps struct {
 func (o cwdOps) Getwd() (string, error) { return o.cwd, nil }
 
 // at runs verb on c as the cli does once the swarm is found: from s.cwd
-// through find, the one lookup, or at s.place while s.cwd is "".
+// through find, the one lookup.
 func (s *swarmWS) at(c *Context, init bool, verb func(*Context) error) error {
 	c.Env.Root, c.Env.Local = s.root, s.local
-	if s.cwd == "" {
-		c.Swarm = s.place
-		return verb(c)
-	}
 	c.Ops = cwdOps{c.Ops, s.cwd}
 	if err := find(c, init); err != nil {
 		return err
@@ -249,7 +212,7 @@ func (f failingReads) Login() (forge.Account, error) {
 
 func (f failingReads) Issues(forge.State, string) ([]forge.Issue, error) {
 	if f.issues {
-		return nil, errors.New("forge: GET /repos/acme/app/issues?…: 404 Not Found")
+		return nil, errors.New("forge: GET /repos/acme/swarm-app/issues?…: 404 Not Found")
 	}
 	return nil, nil
 }
@@ -320,7 +283,7 @@ func (s *swarmWS) run(args ...string) error {
 const units = `
 # ~/.config/systemd/user/daisy-swarm@.service
 [Unit]
-Description=Daisy swarm: apply every 5min for the workspace %f
+Description=Daisy swarm: apply every 5min for the swarm repository %f
 
 [Service]
 WorkingDirectory=%f
@@ -342,90 +305,71 @@ func (s *swarmWS) units() string {
 	return strings.NewReplacer("<root>", s.root, "<unit>", installedUnit(s.ws)).Replace(units)
 }
 
-// init --defaults end to end: the files, the labels, the four readiness
-// warnings, the unit files; a second run changes nothing.
+// init --defaults end to end in the clone (section 11, init): the four
+// readiness warnings, what it wrote valid and the prompts section 4's; a
+// second run, from the clone, keeps a prompt the maintainer changed and a
+// swarm.json of the same values in the maintainer's own layout.
 func TestSwarmInitDefaults(t *testing.T) {
 	s := newSwarmWS(t)
+	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token"
 	if err := s.run("--defaults"); err != nil {
 		t.Fatalf("%v\n%s", err, s.stderr.String())
 	}
-	if s.opened[0] != "gitea" || s.opened[1] != "https://forge.example.net/api/v1" || s.opened[2] != "acme/app" || s.opened[3] != "app,lib" || s.opened[4] != "tok-123" {
+	if s.opened[0] != "gitea" || s.opened[1] != "https://forge.example.net/api/v1" || s.opened[2] != "acme/swarm-app" || s.opened[3] != "app,lib" || s.opened[4] != "tok-123" {
 		t.Errorf("opened %q", s.opened)
 	}
-	wantOut := "✓ Token $GITEA_TOKEN reads acme/app as swarm-bot\n✓ Wrote swarm/swarm.json\n"
-	for _, r := range declare.Roles {
-		wantOut += "✓ Wrote swarm/prompts/" + r + ".md\n"
-	}
-	wantOut += "✓ Labels: 16 present (16 created, 0 renamed)\n" + s.units()
-	if s.stdout.String() != wantOut {
-		t.Errorf("stdout:\n%s\nwant:\n%s", s.stdout.String(), wantOut)
-	}
 	wantErr := "⚠ Readiness: app has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n" +
-		"⚠ Readiness: app: check is empty; no member's work is executed (set it in swarm/swarm.json)\n" +
+		"⚠ Readiness: app: check is empty; no member's work is executed (set it in swarm.json)\n" +
 		"⚠ Readiness: lib has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n" +
-		"⚠ Readiness: lib: check is empty; no member's work is executed (set it in swarm/swarm.json)\n" +
-		"⚠ Readiness: resources is empty; the owner proposes from the code alone\n" +
+		"⚠ Readiness: lib: check is empty; no member's work is executed (set it in swarm.json)\n" +
 		"⚠ Readiness: trusted holds no maintainer login; no comment of yours reaches a member\n"
 	if s.stderr.String() != wantErr {
 		t.Errorf("stderr:\n%s\nwant:\n%s", s.stderr.String(), wantErr)
 	}
-	c, err := declare.Parse([]byte(s.read("swarm/swarm.json")))
+	c, err := declare.Parse([]byte(s.read("swarm.json")))
 	if err != nil || len(c.Repos) != 2 || c.Forge.CommitEmail != "swarm@example.net" || strings.Join(c.Trusted, ",") != "swarm-bot" {
-		t.Errorf("swarm.json %v:\n%s", err, s.read("swarm/swarm.json"))
+		t.Errorf("swarm.json %v:\n%s", err, s.read("swarm.json"))
 	}
 	if err := declare.Validate(ops.Real(), s.place, c, 0); err != nil {
 		t.Errorf("what init wrote does not validate: %v", err)
 	}
 	for _, r := range declare.Roles {
-		if s.read("swarm/prompts/"+r+".md") != declare.DefaultPrompts[r] {
+		if s.read("prompts/"+r+".md") != declare.DefaultPrompts[r] {
 			t.Errorf("%s's prompt", r)
 		}
 	}
-	if strings.Join(s.forge.Labels(), ",") != strings.Join(forge.Labels, ",") {
-		t.Errorf("labels %q", s.forge.Labels())
-	}
 
-	// Twice: nothing written, nothing created.
-	before := s.read("swarm/swarm.json")
-	s.write("swarm/prompts/worker.md", "# My worker\n")
+	// Again, from the clone: the maintainer's prompt and layout kept.
+	s.cwd = s.ws
+	before := s.read("swarm.json")
+	s.write("prompts/worker.md", "# My worker\n")
+	relaid := strings.Replace(before, `"max_members": 3,`, `"max_members":    3,`, 1)
+	s.write("swarm.json", relaid)
 	if err := s.run("--defaults"); err != nil {
 		t.Fatal(err)
 	}
-	wantOut = "✓ Token $GITEA_TOKEN reads acme/app as swarm-bot\n  Unchanged swarm/swarm.json\n"
-	for _, r := range declare.Roles {
-		wantOut += "  Kept swarm/prompts/" + r + ".md (exists)\n"
-	}
-	wantOut += "✓ Labels: 16 present (0 created, 0 renamed)\n" + s.units()
-	if s.stdout.String() != wantOut || s.read("swarm/swarm.json") != before || s.read("swarm/prompts/worker.md") != "# My worker\n" {
-		t.Errorf("second run:\n%s", s.stdout.String())
-	}
-	if len(s.forge.Labels()) != 16 {
-		t.Errorf("labels %q", s.forge.Labels())
-	}
-
-	// The same values in the maintainer's own layout: left as they are.
-	relaid := strings.Replace(before, `"max_members": 3,`, `"max_members":    3,`, 1)
-	s.write("swarm/swarm.json", relaid)
-	if err := s.run("--defaults"); err != nil || !strings.Contains(s.stdout.String(), "  Unchanged swarm/swarm.json\n") || s.read("swarm/swarm.json") != relaid {
-		t.Errorf("a relaid file: %v\n%s", err, s.stdout.String())
+	if out := s.stdout.String(); !strings.Contains(out, "  Unchanged swarm.json\n") || !strings.Contains(out, "  Kept prompts/worker.md (exists)\n") ||
+		s.read("swarm.json") != relaid || s.read("prompts/worker.md") != "# My worker\n" {
+		t.Errorf("second run:\n%s", out)
 	}
 }
 
-// With the product's instructions, a check, resources and a maintainer's
-// login, init warns about nothing.
+// With the products' instructions pushed, a check, the resources and a
+// maintainer's login, init warns about nothing.
 func TestSwarmInitReadyWarnsNothing(t *testing.T) {
 	s := newSwarmWS(t)
-	s.write("app/AGENTS.md", "# App\n")
-	s.write("lib/CLAUDE.md", "# Lib\n")
-	s.write("docs/roadmap.md", "# Roadmap\n")
+	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token"
+	editUp(t, s.upstreams["git@forge.example.net:acme/app.git"], "main", map[string]string{"AGENTS.md": "# App\n"})
+	editUp(t, s.upstreams["git@forge.example.net:acme/lib.git"], "main", map[string]string{"CLAUDE.md": "# Lib\n"})
 	s.answers = make([]string, 33)
 	s.answers = append(s.answers, "jane", "", "")
 	if err := s.run(); err != nil {
 		t.Fatal(err)
 	}
-	f := s.read("swarm/swarm.json")
+	s.cwd = s.ws
+	f := s.read("swarm.json")
 	f = strings.Replace(f, `"check": []`, `"check": ["make", "check"]`, 2)
-	s.write("swarm/swarm.json", f)
+	s.write("swarm.json", f)
 	s.answers = make([]string, 36)
 	if err := s.run(); err != nil {
 		t.Fatal(err)
@@ -433,7 +377,7 @@ func TestSwarmInitReadyWarnsNothing(t *testing.T) {
 	if strings.Contains(s.stderr.String(), "⚠") {
 		t.Errorf("warned:\n%s", s.stderr.String())
 	}
-	if !strings.Contains(s.stdout.String(), "  Unchanged swarm/swarm.json\n") {
+	if !strings.Contains(s.stdout.String(), "  Unchanged swarm.json\n") {
 		t.Errorf("the file's values are not the defaults:\n%s", s.stdout.String())
 	}
 }
@@ -449,14 +393,15 @@ func TestSwarmInitRefusedLabels(t *testing.T) {
 	if errText(err) != want {
 		t.Errorf("got  %v\nwant %s", err, want)
 	}
-	if s.read("swarm/swarm.json") == "" || s.read("swarm/prompts/owner.md") == "" {
+	if s.read("swarm.json") == "" || s.read("prompts/owner.md") == "" {
 		t.Error("the files were not written")
 	}
-	if strings.Contains(s.stdout.String(), "Labels:") || strings.Contains(s.stdout.String(), "systemd") {
+	if strings.Contains(s.stdout.String(), "labels") || strings.Contains(s.stdout.String(), "systemd") {
 		t.Errorf("went on past the failure:\n%s", s.stdout.String())
 	}
+	s.cwd = s.ws
 	s.forge.AddLabels(forge.Labels...)
-	if err := s.run("--defaults"); err != nil || !strings.Contains(s.stdout.String(), "✓ Labels: 16 present (0 created, 0 renamed)\n") {
+	if err := s.run("--defaults"); err != nil || !strings.Contains(s.stdout.String(), "✓ Token $GITEA_TOKEN: labels 16 present (0 created, 0 renamed)\n") {
 		t.Errorf("re-run: %v\n%s", err, s.stdout.String())
 	}
 }
@@ -468,20 +413,21 @@ func errText(err error) string {
 	return err.Error()
 }
 
-// Every failure before the files writes nothing.
+// Every failure before the files writes none of them, and makes no label.
 func TestSwarmInitWritesNothingBeforeTheForgeAnswers(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		edit func(s *swarmWS)
 		want string
 	}{
-		{"token unset", func(s *swarmWS) { s.write(".env.sh", "") }, "Error: swarm: $GITEA_TOKEN is not set (in <ws>/.env.sh or the environment)"},
-		{"issues repository unreadable", func(s *swarmWS) { s.readFails = true },
-			"Error: swarm: $GITEA_TOKEN cannot read acme/app: forge: GET /repos/acme/app/issues?…: 404 Not Found"},
+		{"token unset", func(s *swarmWS) { delete(s.vars, "GITEA_TOKEN") }, "Error: swarm: $GITEA_TOKEN is not set (in <state>/env or the environment)"},
+		{"swarm repository unreadable", func(s *swarmWS) { s.readFails = true },
+			"Error: swarm: $GITEA_TOKEN cannot read acme/swarm-app: forge: GET /repos/acme/swarm-app/issues?…: 404 Not Found"},
 		{"a declared repository unreadable", func(s *swarmWS) { s.declaredReadFails = true },
 			"Error: swarm: $GITEA_TOKEN cannot read the declared repositories: forge: GET /repos/acme/lib/pulls?…: 404 Not Found"},
 		{"its own login not a forge login", func(s *swarmWS) {
-			s.forge = forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm bot", Email: "swarm@example.net"})
+			s.forge = forge.NewFake(fixedClock(), "acme/swarm-app", []string{"app", "lib"}, forge.Account{Login: "swarm bot", Email: "swarm@example.net"})
+			s.forge.SetSSHURL(swarmURL)
 		},
 			`Error: swarm.json: trusted[0]: "swarm bot" is not a forge login`},
 		{"its own account unreadable", func(s *swarmWS) { s.loginFails = true },
@@ -491,22 +437,25 @@ func TestSwarmInitWritesNothingBeforeTheForgeAnswers(t *testing.T) {
 			s := newSwarmWS(t)
 			tc.edit(s)
 			err := s.run("--defaults")
-			if got := strings.ReplaceAll(errText(err), s.ws, "<ws>"); got != tc.want {
+			state := filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app")
+			if got := strings.ReplaceAll(errText(err), state, "<state>"); got != tc.want {
 				t.Errorf("got  %s\nwant %s", got, tc.want)
 			}
-			if _, err := os.Stat(filepath.Join(s.ws, "swarm")); err == nil {
-				t.Error("swarm/ was written")
+			if _, err := os.Stat(filepath.Join(s.ws, "swarm.json")); err == nil {
+				t.Error("swarm.json was written")
 			}
 			if len(s.forge.Labels()) != 0 {
 				t.Errorf("labels created: %q", s.forge.Labels())
 			}
 		})
 	}
-	// A line .env.sh cannot be read past is named, not skipped silently.
+	// A line <state>/env cannot be read past is named, not skipped
+	// silently.
 	s := newSwarmWS(t)
-	s.write(".env.sh", "export A=$(date)\nexport GITEA_TOKEN=tok\n")
-	if err := s.run("--defaults"); !strings.HasPrefix(s.stderr.String(), "⚠️  .env.sh line 1: ") || !strings.Contains(errText(err), "$GITEA_TOKEN is not set") {
-		t.Errorf(".env.sh problem: %v %q", err, s.stderr.String())
+	delete(s.vars, "GITEA_TOKEN")
+	s.secrets("export A=$(date)\nexport GITEA_TOKEN=tok\n")
+	if err := s.run("--defaults"); !strings.HasPrefix(s.stderr.String(), "⚠️  "+s.secretsFile()+" line 1: ") || !strings.Contains(errText(err), "$GITEA_TOKEN is not set") {
+		t.Errorf("<state>/env problem: %v %q", err, s.stderr.String())
 	}
 
 	// An invalid value in the file is refused as a default: nothing more
@@ -515,31 +464,33 @@ func TestSwarmInitWritesNothingBeforeTheForgeAnswers(t *testing.T) {
 	if err := s.run("--defaults"); err != nil {
 		t.Fatal(err)
 	}
-	broken := strings.Replace(s.read("swarm/swarm.json"), `"max_members": 3`, `"max_members": 0`, 1)
-	s.write("swarm/swarm.json", broken)
-	os.Remove(filepath.Join(s.ws, "swarm", "prompts", "owner.md"))
+	s.cwd = s.ws
+	broken := strings.Replace(s.read("swarm.json"), `"max_members": 3`, `"max_members": 0`, 1)
+	s.write("swarm.json", broken)
+	os.Remove(filepath.Join(s.ws, "prompts", "owner.md"))
 	if err := s.run("--defaults"); errText(err) != "Error: swarm.json: max_members: 0 is not between 1 and 16" ||
-		s.read("swarm/swarm.json") != broken || s.read("swarm/prompts/owner.md") != "" {
+		s.read("swarm.json") != broken || s.read("prompts/owner.md") != "" {
 		t.Errorf("an invalid default: %v", err)
 	}
 
-	// The token from the environment when .env.sh does not assign it.
+	// The token from the environment when <state>/env does not assign it;
+	// <state>/env's assignment before the environment's.
 	s = newSwarmWS(t)
-	s.write(".env.sh", "")
+	s.secrets("")
 	s.vars["GITEA_TOKEN"] = "tok-env"
 	if err := s.run("--defaults"); err != nil || s.opened[4] != "tok-env" {
 		t.Errorf("token from the environment: %v %q", err, s.opened)
 	}
-	// .env.sh's assignment before the environment's.
 	s = newSwarmWS(t)
+	s.secrets("export GITEA_TOKEN=\"tok-123\"\n")
 	s.vars["GITEA_TOKEN"] = "tok-env"
 	if err := s.run("--defaults"); err != nil || s.opened[4] != "tok-123" {
-		t.Errorf(".env.sh first: %v %q", err, s.opened)
+		t.Errorf("<state>/env first: %v %q", err, s.opened)
 	}
 }
 
 // Question 33 refuses the swarm's login and asks again, and question 35's
-// yes declares the wiki; EOF cancels and writes nothing.
+// yes declares the notes; EOF cancels and writes nothing.
 func TestSwarmInitMaintainerQuestion(t *testing.T) {
 	s := newSwarmWS(t)
 	s.answers = append(make([]string, 33), "swarm-bot", "jane", "", "yes")
@@ -549,8 +500,8 @@ func TestSwarmInitMaintainerQuestion(t *testing.T) {
 	if !strings.Contains(s.stderr.String(), `swarm.json: trusted: "swarm-bot" is the token's own login; the swarm needs its own forge account (section 8)`+"\nMaintainer logins") {
 		t.Errorf("stderr:\n%s", s.stderr.String())
 	}
-	if !strings.Contains(s.read("swarm/swarm.json"), `"wiki": true,`+"\n"+`  "trusted": ["jane", "swarm-bot"]`) {
-		t.Errorf("swarm.json:\n%s", s.read("swarm/swarm.json"))
+	if !strings.Contains(s.read("swarm.json"), `"notes": true,`+"\n"+`  "trusted": ["jane", "swarm-bot"]`) {
+		t.Errorf("swarm.json:\n%s", s.read("swarm.json"))
 	}
 
 	s = newSwarmWS(t)
@@ -558,8 +509,11 @@ func TestSwarmInitMaintainerQuestion(t *testing.T) {
 	if err := s.run(); err != nil || !strings.HasSuffix(s.stderr.String(), "Cancelled — no answer on stdin (EOF); nothing written.\n") {
 		t.Errorf("EOF: %v %q", err, s.stderr.String())
 	}
-	if _, err := os.Stat(filepath.Join(s.ws, "swarm")); err == nil || len(s.forge.Labels()) != 0 {
+	if _, err := os.Stat(s.ws); err == nil || len(s.forge.Labels()) != 0 {
 		t.Error("written after EOF")
+	}
+	if _, created := s.forge.Held(); created {
+		t.Error("the repository created after EOF")
 	}
 }
 
@@ -580,11 +534,4 @@ func TestSystemdNotation(t *testing.T) {
 			t.Errorf("systemdSpan(%s) = %q, want %q", in, got, want)
 		}
 	}
-}
-
-// bothLayouts runs test in the old layout and in a swarm repository's
-// clone (revision 6), until Step 7 of its plan retires the old.
-func bothLayouts(t *testing.T, test func(t *testing.T, clone bool)) {
-	t.Run("workspace", func(t *testing.T) { test(t, false) })
-	t.Run("clone", func(t *testing.T) { test(t, true) })
 }

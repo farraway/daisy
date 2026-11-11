@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -23,28 +22,18 @@ type statusWS struct {
 	now       time.Time // status's clock when set, else the Fake forge's
 	docker    string    // docker ps's stdout
 	dockerErr bool
-	issues    string // the issues repository's name, when not app
 }
 
-func newStatusWS(t *testing.T) *statusWS { return newStatusWSIn(t, false) }
-
-// newStatusWSIn is newStatusWS in the old layout, or with clone in a
-// swarm repository's clone.
-func newStatusWSIn(t *testing.T, clone bool) *statusWS {
-	s := &statusWS{swarmWS: newSwarmWSIn(t, clone)}
-	if clone {
-		s.issues = "swarm-app"
-	}
+func newStatusWS(t *testing.T) *statusWS {
+	s := &statusWS{swarmWS: newSwarmWS(t)}
 	if err := s.run("--defaults"); err != nil {
 		t.Fatal(err)
 	}
-	if clone {
-		// The swarm's token from <state>/env alone from here on, as the
-		// tests of status and apply read it; the maintainer's stays in the
-		// environment for init's next runs.
-		s.secrets("export GITEA_TOKEN=\"tok-123\"\n")
-		delete(s.vars, "GITEA_TOKEN")
-	}
+	// The swarm's token from <state>/env alone from here on, as the tests
+	// of status and apply read it; the maintainer's stays in the
+	// environment for init's next runs.
+	s.secrets("export GITEA_TOKEN=\"tok-123\"\n")
+	delete(s.vars, "GITEA_TOKEN")
 	s.cloned()
 	return s
 }
@@ -52,7 +41,7 @@ func newStatusWSIn(t *testing.T, clone bool) *statusWS {
 // config is swarm.json as it stands.
 func (s *statusWS) config() declare.Config {
 	s.t.Helper()
-	c, _, err := declare.Load(ops.Real().FS(), s.place.Dir)
+	c, _, err := declare.Load(ops.Real().FS(), s.place.Root)
 	if err != nil {
 		s.t.Fatal(err)
 	}
@@ -62,23 +51,22 @@ func (s *statusWS) config() declare.Config {
 // edit rewrites swarm.json with edit applied.
 func (s *statusWS) edit(edit func(c *declare.Config)) {
 	s.t.Helper()
-	c, _, err := declare.Load(ops.Real().FS(), s.place.Dir)
+	c, _, err := declare.Load(ops.Real().FS(), s.place.Root)
 	if err != nil {
 		s.t.Fatal(err)
 	}
 	edit(&c)
-	s.write(s.cfg("swarm.json"), string(declare.Format(c)))
+	s.write("swarm.json", string(declare.Format(c)))
 }
 
-// iss is the issues repository's name: app in the old layout, the swarm
-// repository's in a clone.
-func (s *statusWS) iss() string { return cmp.Or(s.issues, "app") }
+// iss is the issues repository's name, the swarm repository's.
+func (s *statusWS) iss() string { return "swarm-app" }
 
 // ref is issue n in the issues repository.
 func (s *statusWS) ref(n int) forge.Ref { return forge.Ref{Repo: s.iss(), N: n} }
 
 func (s *statusWS) state(rel string) string {
-	return filepath.Join(s.local, "swarm", "forge.example.net", "acme", cmp.Or(s.issues, "app"), rel)
+	return filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app", rel)
 }
 
 // status is `swarm status` under ReadOnly, as the cli runs it, over the
@@ -134,7 +122,7 @@ func TestSwarmStatusAfterInit(t *testing.T) {
 	if err := s.status(s.forge); err != nil {
 		t.Fatal(err)
 	}
-	want := `Swarm: acme/app on forge.example.net (gitea), repositories app, lib
+	want := `Swarm: acme/swarm-app on forge.example.net (gitea), repositories app, lib
 State: ` + s.state("") + ` — owner batch held: no brief is active
 Gates: triage on, plan on, merge on
   proposal-posted            0
@@ -161,9 +149,6 @@ Briefs: none active
 	if s.stdout.String() != want || s.stderr.Len() != 0 {
 		t.Errorf("stdout:\n%s\nwant:\n%s\nstderr: %s", s.stdout.String(), want, s.stderr.String())
 	}
-	if _, err := os.Stat(s.state("")); err == nil {
-		t.Error("status created <state>")
-	}
 }
 
 const (
@@ -182,6 +167,8 @@ func TestSwarmStatusStages(t *testing.T) {
 	s.write("docs/briefs/roadmap.md", "# Roadmap\n\nStatus: active\n\n## M0\n")
 	s.write("docs/briefs/old.md", "# Old\n\nStatus: done\n\n## M0\n")
 	s.write("docs/briefs/next.md", "Status: active\n## M1\n")
+	s.publish("briefs")
+	s.fetchMirror() // status reads the briefs as the last pass left the mirror
 	f := s.forge
 	issue := func(label string) int {
 		n, err := f.CreateIssue("t", "", []string{label})
@@ -190,41 +177,41 @@ func TestSwarmStatusStages(t *testing.T) {
 		}
 		return n
 	}
-	issue("swarm:proposal-posted")                                // 1
-	issue("swarm:proposal-posted")                                // 2
-	p3 := forge.Ref{Repo: "app", N: issue("swarm:plan-0-posted")} // 3: the plan
+	issue("swarm:proposal-posted")            // 1
+	issue("swarm:proposal-posted")            // 2
+	p3 := s.ref(issue("swarm:plan-0-posted")) // 3: the plan
 	f.Comment(p3, archMark)
 	f.Say(p3, "mallory", "untrusted, passed over")
-	p4 := forge.Ref{Repo: "app", N: issue("swarm:plan-0-posted")} // 4: the maintainer answered; still at the gate
+	p4 := s.ref(issue("swarm:plan-0-posted")) // 4: the maintainer answered; still at the gate
 	f.Comment(p4, archMark)
 	f.Say(p4, "Jane", "revise step 2")
-	p5 := forge.Ref{Repo: "app", N: issue("swarm:plan-0-posted")} // 5: no plan yet; still at the gate
+	p5 := s.ref(issue("swarm:plan-0-posted")) // 5: no plan yet; still at the gate
 	f.Say(p5, "jane", archMark)
-	issue("swarm:review-2-approved")                               // 6
-	b := forge.Ref{Repo: "app", N: issue("swarm:plan-1-accepted")} // 7: blocked at its stage
+	issue("swarm:review-2-approved")           // 6
+	b := s.ref(issue("swarm:plan-1-accepted")) // 7: blocked at its stage
 	f.Relabel(b, "", forge.Blocked)
 	f.Comment(b, reconciler)
-	issue("swarm:review-0-ready")                            // 8
-	f.CreatePull("app", "swarm/8-1", "main", "s", "Refs #8") // 9: a pull request is no issue
-	f.Relabel(forge.Ref{Repo: "app", N: 9}, "", "swarm:review-0-ready")
+	issue("swarm:review-0-ready")    // 8
+	f.PullInIssues("swarm/8-1", "s") // 9: a pull request is no issue
+	f.Relabel(s.ref(9), "", "swarm:review-0-ready")
 	closed := issue("swarm:proposal-accepted") // 10
 	f.CloseIssue(closed)
-	f.Relabel(forge.Ref{Repo: "app", N: issue("swarm:plan-1-accepted")}, "", forge.Paused)       // 11
-	f.Say(forge.Ref{Repo: "app", N: issue("swarm:proposal-accepted")}, "jane", "Blocked by #3")  // 12: #3 open
-	f.Say(forge.Ref{Repo: "app", N: issue("swarm:proposal-accepted")}, "jane", "Blocked by #10") // 13: #10 closed
-	inMilestone(t, f, "roadmap: M0")                                                             // next.md's M1 has none on the forge yet
+	f.Relabel(s.ref(issue("swarm:plan-1-accepted")), "", forge.Paused)       // 11
+	f.Say(s.ref(issue("swarm:proposal-accepted")), "jane", "Blocked by #3")  // 12: #3 open
+	f.Say(s.ref(issue("swarm:proposal-accepted")), "jane", "Blocked by #10") // 13: #10 closed
+	inMilestone(t, f, "roadmap: M0")                                         // next.md's M1 has none on the forge yet
 
 	os.MkdirAll(s.state(""), 0o755)
 	os.WriteFile(s.state("paused"), []byte("paused 2026-11-06T10:00:00Z: swarm fault: docker: no such image\n"), 0o644)
 	os.WriteFile(s.state("owner-held"), []byte("held 2026-11-06T09:00:00Z: proposed nothing\n"), 0o644)
-	s.docker = "daisy-acme-app-8-adversary-1 acme/app#8/adversary \n" +
-		"daisy-acme-app-0-owner-2 acme/app#0/owner anthropic/1\n" +
+	s.docker = "daisy-acme-app-8-adversary-1 acme/swarm-app#8/adversary \n" +
+		"daisy-acme-app-0-owner-2 acme/swarm-app#0/owner anthropic/1\n" +
 		"daisy-other-x-2-worker-1 other/x#2/worker openai/1\n" +
-		"daisy-acme-app-12-check acme/app#12/check \n"
+		"daisy-acme-app-12-check acme/swarm-app#12/check \n"
 	if err := s.status(f); err != nil {
 		t.Fatal(err)
 	}
-	want := `Swarm: acme/app on forge.example.net (gitea), repositories app, lib
+	want := `Swarm: acme/swarm-app on forge.example.net (gitea), repositories app, lib
 State: ` + s.state("") + ` — paused since 2026-11-06T10:00:00Z: swarm fault: docker: no such image — owner batch held: proposed nothing
 Gates: triage on, plan on, merge on
   proposal-posted            2  #1 #2
@@ -306,23 +293,23 @@ func TestSwarmStatusThroughput(t *testing.T) {
 
 func TestSwarmStatusRefusals(t *testing.T) {
 	s := newStatusWS(t)
-	s.write(".env.sh", "")
-	if err := s.status(s.forge); strings.ReplaceAll(errText(err), s.ws, "<ws>") != "Error: swarm: $GITEA_TOKEN is not set (in <ws>/.env.sh or the environment)" {
+	s.secrets("")
+	if err := s.status(s.forge); strings.ReplaceAll(errText(err), s.state("env"), "<state>/env") != "Error: swarm: $GITEA_TOKEN is not set (in <state>/env or the environment)" {
 		t.Errorf("token unset: %v", err)
 	}
 	s = newStatusWS(t)
 	if err := s.status(failingReads{Fake: s.forge, login: true}); errText(err) != "Error: swarm: forge: GET /user: 401 invalid username, password or token" {
 		t.Errorf("a forge failure: %v", err)
 	}
-	if err := s.status(failingReads{Fake: s.forge, issues: true}); errText(err) != "Error: swarm: forge: GET /repos/acme/app/issues?…: 404 Not Found" {
+	if err := s.status(failingReads{Fake: s.forge, issues: true}); errText(err) != "Error: swarm: forge: GET /repos/acme/swarm-app/issues?…: 404 Not Found" {
 		t.Errorf("a forge failure: %v", err)
 	}
 	s.edit(func(c *declare.Config) { c.MaxRounds = 0 })
 	if err := s.status(s.forge); errText(err) != "Error: swarm.json: max_rounds: 0 is not between 1 and 10" {
 		t.Errorf("invalid swarm.json: %v", err)
 	}
-	os.RemoveAll(filepath.Join(s.ws, "swarm"))
-	if err := s.status(s.forge); strings.ReplaceAll(errText(err), s.ws, "<ws>") != "Error: swarm.json: not found in <ws> or a folder above it; cd into the swarm repository's clone, or run 'daisy swarm init'" {
+	os.Remove(filepath.Join(s.ws, "swarm.json"))
+	if err := s.status(s.forge); strings.ReplaceAll(errText(err), s.cwd, "<cwd>") != "Error: swarm.json: not found in <cwd> or a folder above it; cd into the swarm repository's clone, or run 'daisy swarm init'" {
 		t.Errorf("no swarm.json: %v", err)
 	}
 }
@@ -390,6 +377,8 @@ func TestSwarmStatusStep7(t *testing.T) {
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) { c.Trusted = []string{"jane", "swarm-bot"}; c.Resources = []string{"docs/"} })
 	s.write("docs/briefs/m0.md", "# M0\n\nStatus: active\n\n## lib measured against upstream 2.0.0\n\n## lib green against upstream 2.0.0\n\n## Drift checks in CI\n\n## A second port\n")
+	s.publish("briefs")
+	s.fetchMirror() // status reads the briefs as the last pass left the mirror
 	f := s.forge
 	for i := 1; i <= 5; i++ { // batch 1, before the brief: closed by the maintainer
 		n, _ := f.CreateIssue("a guess", mark("owner", 1)+"A job.\n", []string{"swarm:proposal-posted"})
@@ -397,13 +386,13 @@ func TestSwarmStatusStep7(t *testing.T) {
 	}
 	n, _ := f.CreateIssue("lib: pin to v2.0.0", mark("owner", 2)+m0, []string{"swarm:proposal-posted"}) // 6
 	f.CreateIssue("lib: CI", mark("owner", 2)+m0, []string{"swarm:proposal-posted"})                    // 7
-	is := forge.Ref{Repo: "app", N: n}
+	is := s.ref(n)
 	f.SetLabel(is, "swarm:proposal-accepted")
 	f.Comment(is, mark("architect", 1)+"## Research\n\n## Steps\n\n1. lib: the mechanism.\n2. lib: the pin.\n")
 	f.Relabel(is, "swarm:proposal-accepted", "swarm:plan-0-posted")
 	f.SetLabel(is, "swarm:plan-1-accepted")
 	slice := func(s int, heads ...string) forge.Ref {
-		m, _ := f.CreatePull("lib", fmt.Sprintf("swarm/%d-%d", n, s), "main", "slice", mark("worker", 1)+"Refs acme/app#6\n")
+		m, _ := f.CreatePull("lib", fmt.Sprintf("swarm/%d-%d", n, s), "main", "slice", mark("worker", 1)+"Refs acme/swarm-app#6\n")
 		pr := forge.Ref{Repo: "lib", N: m}
 		for i, h := range heads {
 			f.Push(pr, h)
@@ -496,10 +485,12 @@ func TestSwarmStatusCorrections(t *testing.T) {
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) { c.Trusted = []string{"jane", "swarm-bot"}; c.Resources = []string{"docs/"} })
 	s.write("docs/briefs/m0.md", "Status: active\n\n## lib measured against upstream 2.0.0\n\n## Later\n")
+	s.publish("briefs")
+	s.fetchMirror() // status reads the briefs as the last pass left the mirror
 	f := s.forge
 	issue := func(label, body string) forge.Ref {
 		n, _ := f.CreateIssue("t", body, []string{label})
-		return forge.Ref{Repo: "app", N: n}
+		return s.ref(n)
 	}
 	a := issue("swarm:plan-0-posted", mark("owner", 1)+m0) // 1
 	f.Comment(a, mark("architect", 1)+"## Research\n")
@@ -509,7 +500,7 @@ func TestSwarmStatusCorrections(t *testing.T) {
 	f.Comment(a, mark("reconciler", 1)+"architect run 2 is blocked (was swarm:plan-0-posted). Answer and relabel the issue to resume.")
 	f.Comment(a, mark("reconciler", 1)+"Review round 5 of 5 on app#9 requested changes (was swarm:review-0-ready). The architect revises the plan from the reviews.")
 	f.Comment(a, mark("reconciler", 2)+"Review round 5 of 5 on app#9 requested changes a second time (was swarm:review-0-ready). Relabel the issue to resume.")
-	m, _ := f.CreatePull("lib", "swarm/1-1", "main", "s", mark("worker", 1)+"Refs acme/app#1\n")
+	m, _ := f.CreatePull("lib", "swarm/1-1", "main", "s", mark("worker", 1)+"Refs acme/swarm-app#1\n")
 	pr := forge.Ref{Repo: "lib", N: m}
 	f.Push(pr, "ccc1")
 	f.Say(pr, "jane", "why?")
@@ -569,6 +560,8 @@ func TestSwarmStatusMetFromBatchRunsOnly(t *testing.T) {
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) { c.Resources = []string{"docs/"} })
 	s.write("docs/briefs/m0.md", "Status: active\n\n## First\n")
+	s.publish("briefs")
+	s.fetchMirror() // status reads the briefs as the last pass left the mirror
 	s.runResult("0-owner-2", ran("", "09:00:00", "3m", "outcome posted\ncollected\n"), "Met: docs/briefs/m0.md\n")
 	s.runResult("1-architect-3", ran("planning", "10:00:00", "3m", "outcome posted\ncollected\n"), "Met: docs/briefs/other.md\n\n## Research\nplan\n")
 	if err := s.status(s.forge); err != nil {

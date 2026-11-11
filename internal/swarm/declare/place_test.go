@@ -11,12 +11,11 @@ import (
 // Finding the swarm (docs/swarm.md section 11; section 13, Step 2's first
 // row), on real temp folders: a swarm repository's clone with no .daisy/
 // anywhere, found from its top and from a folder inside it, its .git a
-// directory or a worktree's file; a workspace in the old layout, found
-// from the workspace, its swarm/ (swarm.json and no .git) never taken for
-// a root; a clone found before the old layout; init's folder, in a
-// workspace without a swarm.json or outside any; the not-found message.
+// directory or a worktree's file; a clone inside a Daisy workspace; the
+// old layout's swarm.json in <ws>/swarm/ no swarm (revision 6's plan, Step
+// 7); init's folder, in a workspace or outside any; the not-found
+// message.
 func TestFind(t *testing.T) {
-	root := t.TempDir() // the Daisy root: never a workspace
 	mk := func(p string) string {
 		t.Helper()
 		if err := os.MkdirAll(p, 0o755); err != nil {
@@ -33,7 +32,7 @@ func TestFind(t *testing.T) {
 	}
 	fs := ops.Real().FS()
 	find := func(cwd string, init bool) (Place, string) {
-		p, err := Find(fs, root, cwd, init)
+		p, err := Find(fs, cwd, init)
 		if err != nil {
 			return p, err.Error()
 		}
@@ -45,7 +44,7 @@ func TestFind(t *testing.T) {
 	touch(filepath.Join(clone, "swarm.json"))
 	deep := mk(filepath.Join(clone, "briefs", "m0"))
 	for _, cwd := range []string{clone, deep} {
-		if p, err := find(cwd, false); err != "" || p != Clone(clone) || p.Old() || p.Rel("swarm.json") != "swarm.json" {
+		if p, err := find(cwd, false); err != "" || p != Clone(clone) || p.Root != clone || p.Outside {
 			t.Errorf("clone from %s: %+v %q", cwd, p, err)
 		}
 	}
@@ -57,17 +56,20 @@ func TestFind(t *testing.T) {
 		t.Errorf("worktree: %+v %q", p, err)
 	}
 
+	// The old layout, retired: a swarm.json in <ws>/swarm/ is no swarm, from the
+	// workspace or from its swarm/ (no repository's top).
 	ws := mk(t.TempDir())
 	mk(filepath.Join(ws, ".daisy"))
 	mk(filepath.Join(ws, ".git")) // a workspace may be a repository; its swarm/ is no clone's top
 	touch(filepath.Join(ws, "swarm", "swarm.json"))
 	for _, cwd := range []string{ws, filepath.Join(ws, "swarm"), mk(filepath.Join(ws, "notes"))} {
-		if p, err := find(cwd, false); err != "" || p != Workspace(ws) || !p.Old() || p.Dir != filepath.Join(ws, "swarm") || p.Rel("swarm.json") != "swarm/swarm.json" {
+		want := "swarm.json: not found in " + cwd + " or a folder above it; cd into the swarm repository's clone, or run 'daisy swarm init'"
+		if p, err := find(cwd, false); err != want {
 			t.Errorf("old layout from %s: %+v %q", cwd, p, err)
 		}
 	}
 
-	// A clone inside a workspace that holds the old layout: the clone.
+	// A clone inside a workspace: the clone.
 	inner := mk(filepath.Join(ws, "swarm-app"))
 	mk(filepath.Join(inner, ".git"))
 	touch(filepath.Join(inner, "swarm.json"))
@@ -82,24 +84,25 @@ func TestFind(t *testing.T) {
 	if _, err := find(loose, false); err != want {
 		t.Errorf("not found: %q\nwant %q", err, want)
 	}
-	// A workspace without swarm/swarm.json, and a folder in no workspace:
+	// A workspace holding no clone, and a folder in no workspace:
 	// init's folder, where it makes the clone (Outside); no other verb's.
 	bare := mk(t.TempDir())
 	mk(filepath.Join(bare, ".daisy"))
 	sub := mk(filepath.Join(bare, "products"))
 	for _, cwd := range []string{bare, sub, loose} {
-		if p, err := find(cwd, true); err != "" || p != Folder(cwd) || !p.Outside || p.Old() || p.Root != cwd || p.Rel("swarm.json") != "swarm.json" {
+		if p, err := find(cwd, true); err != "" || p != Folder(cwd) || !p.Outside || p.Root != cwd {
 			t.Errorf("init in %s: %+v %q", cwd, p, err)
 		}
 	}
 	if _, err := find(bare, false); err != "swarm.json: not found in "+bare+" or a folder above it; cd into the swarm repository's clone, or run 'daisy swarm init'" {
 		t.Errorf("status in a workspace without a swarm: %q", err)
 	}
-	// init in a clone, or in the old layout, as every verb.
+	// init in a clone, as every verb; in the old layout's workspace, its
+	// folder.
 	if p, err := find(deep, true); err != "" || p != Clone(clone) || p.Outside {
 		t.Errorf("init in a clone: %+v %q", p, err)
 	}
-	if p, err := find(ws, true); err != "" || p != Workspace(ws) {
-		t.Errorf("init in the old layout: %+v %q", p, err)
+	if p, err := find(ws, true); err != "" || p != Folder(ws) {
+		t.Errorf("init in the old layout's workspace: %+v %q", p, err)
 	}
 }

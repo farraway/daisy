@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"daisy/internal/gitx"
 	"daisy/internal/ops"
 )
 
@@ -64,11 +65,10 @@ type Wizard struct {
 	Ops      ops.Ops
 	In       io.Reader
 	Err      io.Writer
-	Place    Place // where the swarm is; detection reads the clones under Place.Root, or beside it in a swarm repository's clone
+	Place    Place // where the swarm is; detection reads the clones under Place.Root (Outside), or beside it in a swarm repository's clone
 	Defaults bool
 	File     *Config
 	API      string // `init --api <url>`: question 3's default over the file's and every other
-	own      bool   // question 4's follow-up: the issues repository is the swarm's own
 }
 
 // ask puts one question until take accepts the answer (or the default).
@@ -110,16 +110,9 @@ func (w *Wizard) Ask() (Config, error) {
 	var origins []Origin
 	steps := []func() error{
 		func() error {
-			if !w.Place.Old() {
-				return w.ask("Product repositories (comma-separated <owner>/<name>, the product first)", w.defaultNames(), func(a string) *Error {
-					var e *Error
-					c.Repos, origins, e = w.named(a)
-					return e
-				})
-			}
-			return w.ask("Product repositories (comma-separated paths in the workspace, the product first)", w.defaultPaths(), func(a string) *Error {
+			return w.ask("Product repositories (comma-separated <owner>/<name>, the product first)", w.defaultNames(), func(a string) *Error {
 				var e *Error
-				c.Repos, origins, e = w.repos(a)
+				c.Repos, origins, e = w.named(a)
 				return e
 			})
 		},
@@ -142,27 +135,17 @@ func (w *Wizard) Ask() (Config, error) {
 			})
 		},
 		func() error {
-			if !w.Place.Old() {
-				return w.ask("Swarm repository", w.swarmDefault(c, origins[0]), func(a string) *Error {
-					c.Forge.Repo = a
-					if !repoShape.MatchString(a) {
-						return fieldErr("forge.repo", "%q is not <owner>/<repo>", a)
-					}
-					if _, ok := c.Declares(a); ok {
-						return fieldErr("forge.repo", "%s is a declared repository, which holds product code; the swarm repository holds none", a)
-					}
-					return nil
-				})
-			}
-			return w.ask("Issues repository", w.issuesDefault(c, origins[0]), func(a string) *Error {
+			return w.ask("Swarm repository", w.swarmDefault(c, origins[0]), func(a string) *Error {
 				c.Forge.Repo = a
 				if !repoShape.MatchString(a) {
 					return fieldErr("forge.repo", "%q is not <owner>/<repo>", a)
 				}
+				if _, ok := c.Declares(a); ok {
+					return fieldErr("forge.repo", "%s is a declared repository, which holds product code; the swarm repository holds none", a)
+				}
 				return nil
 			})
 		},
-		func() error { return w.askOwn(c) },
 		func() error {
 			return w.ask("Token variable", w.forgeDefault(origins[0], c.Forge.Kind).TokenEnv, func(a string) *Error {
 				c.Forge.TokenEnv = a
@@ -211,13 +194,9 @@ func (w *Wizard) Ask() (Config, error) {
 			return w.ask("Interval", c.Interval, func(a string) *Error { c.Interval = a; return checkDuration("interval", a) })
 		},
 		func() error {
-			question := "Resources (comma-separated workspace paths, - for none)"
-			if !w.Place.Old() {
-				question = "Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none)"
-			}
-			return w.ask(question, listDefault(w.resources(c)), func(a string) *Error {
+			return w.ask("Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none)", listDefault(c.Resources), func(a string) *Error {
 				c.Resources = list(a)
-				return checkResources(w.Ops, w.Place, c)
+				return checkResources(c)
 			})
 		},
 	}
@@ -264,119 +243,25 @@ func (w *Wizard) AskAccount(c *Config, login, email string) error {
 	return w.ask("Commit email", email, func(a string) *Error { c.Forge.CommitEmail = a; return checkCommitEmail(a) })
 }
 
-// askOwn is question 4's follow-up, asked when the issues repository is
-// none of the declared ones: whether it is the swarm's own, holding no
-// product code; the default yes when the file keeps its notes there (its
-// forge.repo the one just answered) or a clone of it lies directly in the
-// workspace, else no.
-func (w *Wizard) askOwn(c Config) error {
-	w.own = !w.Place.Old() // a swarm repository's clone: forge.repo is the swarm's own (section 3)
-	if _, ok := c.Declares(c.Forge.Repo); ok || w.own {
-		return nil
-	}
-	def := "no"
-	if (w.File != nil && w.File.Notes && strings.EqualFold(w.File.Forge.Repo, c.Forge.Repo)) || w.issuesClone(c) != "" {
-		def = "yes"
-	}
-	return w.ask("Issues repository "+c.Forge.Repo+": the swarm's own, holding no product code (yes, no)", def, func(a string) *Error {
-		switch a {
-		case "yes", "no":
-			w.own = a == "yes"
-			return nil
-		}
-		return fieldErr("forge.repo", "%q is not yes or no", a)
-	})
-}
-
-// issuesDefault is question 4's default: the file's forge.repo; else the
-// origin of the first directory directly under the workspace, in name
-// order, whose origin's repository name begins swarm- (section 3's
-// convention for the swarm's own issues repository) on the forge's host;
-// else the first repository's origin.
-func (w *Wizard) issuesDefault(c Config, first Origin) string {
-	if w.File == nil {
-		entries, _ := w.Ops.FS().ReadDir(w.Place.Root)
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
-			}
-			o, _, err := checkRepoPath(w.Ops, w.Place.Root, "", e.Name())
-			if err == nil && ownName(o.Repo) && strings.EqualFold(o.Host, c.Forge.Host()) {
-				return o.Owner + "/" + o.Repo
-			}
-		}
-	}
-	return w.forgeDefault(first, c.Forge.Kind).Repo
-}
-
 // ownName: a repository named swarm-<name>, section 3's convention for the
-// swarm's own issues repository.
+// swarm repository.
 func ownName(repo string) bool { return strings.HasPrefix(strings.ToLower(repo), "swarm-") }
 
-// issuesClone is the directory directly under the workspace whose origin
-// is the issues repository on the forge's host, "" for none.
-func (w *Wizard) issuesClone(c Config) string {
-	entries, _ := w.Ops.FS().ReadDir(w.Place.Root)
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		o, _, err := checkRepoPath(w.Ops, w.Place.Root, "", e.Name())
-		if err == nil && strings.EqualFold(o.Host, c.Forge.Host()) && strings.EqualFold(o.Owner+"/"+o.Repo, c.Forge.Repo) {
-			return e.Name()
-		}
-	}
-	return ""
-}
-
-// resources is question 32's default: the file's resources, else
-// section 3's; and, for the swarm's own issues repository, its clone's
-// briefs/ when the clone lies in the workspace, holds that directory and
-// no resource names it yet.
-func (w *Wizard) resources(c Config) []string {
-	out := slices.Clone(c.Resources)
-	if !w.Place.Old() {
-		return out
-	}
-	clone := w.issuesClone(c)
-	if !w.own || clone == "" {
-		return out
-	}
-	briefs := clone + "/briefs/"
-	if fi, err := w.Ops.FS().Stat(filepath.Join(w.Place.Root, briefs)); err != nil || !fi.IsDir() {
-		return out
-	}
-	if slices.ContainsFunc(out, func(r string) bool { return filepath.Clean(r) == filepath.Clean(briefs) }) {
-		return out
-	}
-	return append(out, briefs)
-}
-
-// AskNotes is question 35: where the swarm keeps its research notes. For
-// the swarm's own issues repository (question 4's follow-up), whether in
-// its notes/ (section 3, notes); for any other, whether in the issues
-// repository's wiki (section 3, wiki), yes refused as validation refuses
-// it for an issues repository none of the declared ones. The file's
-// answer is the default, else no; the other field is cleared.
+// AskNotes is question 35: whether the swarm keeps its research notes in
+// the swarm repository's notes/ (section 3, notes); the file's answer is
+// the default, else no.
 func (w *Wizard) AskNotes(c *Config) error {
-	question, field, keep := "Research wiki, the issues repository's wiki (yes, no)", "wiki", &c.Wiki
-	if w.own {
-		question, field, keep = "Research notes, in "+c.Forge.Repo+"'s notes/ (yes, no)", "notes", &c.Notes
-		c.Wiki = false
-	} else {
-		c.Notes = false
-	}
 	def := "no"
-	if *keep {
+	if c.Notes {
 		def = "yes"
 	}
-	return w.ask(question, def, func(a string) *Error {
+	return w.ask("Research notes, in "+c.Forge.Repo+"'s notes/ (yes, no)", def, func(a string) *Error {
 		switch a {
 		case "yes", "no":
-			*keep = a == "yes"
-			return checkNotes(*c)
+			c.Notes = a == "yes"
+			return nil
 		}
-		return fieldErr(field, "%q is not yes or no", a)
+		return fieldErr("notes", "%q is not yes or no", a)
 	})
 }
 
@@ -391,19 +276,10 @@ func (w *Wizard) unasked() Config {
 		}
 		return c
 	}
-	// The directories init seeds in the swarm repository (section 3); the
-	// old layout's docs/ when the workspace holds it.
-	resources := []string{"briefs/", "docs/"}
-	if w.Place.Old() {
-		resources = []string{}
-		if fi, err := w.Ops.FS().Stat(filepath.Join(w.Place.Root, "docs")); err == nil && fi.IsDir() {
-			resources = append(resources, "docs/")
-		}
-	}
 	return Config{
 		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
-		Resources: resources,
+		Resources: []string{"briefs/", "docs/"}, // the directories init seeds (section 3)
 		Gates:     Gates{Triage: true, Plan: true, Merge: true},
 		Keys:      map[string]Key{"anthropic": defaultKey("anthropic"), "openai": defaultKey("openai")},
 		Personas:  map[string]Persona{},
@@ -418,8 +294,7 @@ type detectedClone struct {
 	ssh    string
 }
 
-// clones is what detection reads in revision 6 (section 11, the
-// wizard): every clone directly under the folder init runs in (Outside),
+// clones is what detection reads (section 11, the wizard): every clone directly under the folder init runs in (Outside),
 // or, in a swarm repository's clone, under the folder holding it, whose
 // origin is on a forge, in name order, but the swarm repository's own
 // clone.
@@ -434,11 +309,15 @@ func (w *Wizard) clones() []detectedClone {
 		if !e.IsDir() || filepath.Join(dir, e.Name()) == w.Place.Root {
 			continue
 		}
-		o, _, err := checkRepoPath(w.Ops, dir, "", e.Name())
-		if err != nil {
+		clone := filepath.Join(dir, e.Name())
+		if !gitx.IsRepoRoot(w.Ops, clone) {
 			continue
 		}
-		ssh, _, _ := w.Ops.Exec(filepath.Join(dir, e.Name()), "git", "config", "--get", "core.sshCommand")
+		o, ok := parseOrigin(readOrigin(w.Ops, clone))
+		if !ok || o.Credentials {
+			continue
+		}
+		ssh, _, _ := w.Ops.Exec(clone, "git", "config", "--get", "core.sshCommand")
 		out = append(out, detectedClone{o, strings.TrimSpace(string(ssh))})
 	}
 	return out
@@ -455,17 +334,15 @@ func (w *Wizard) cloneOrigin() (Origin, bool) {
 	return o, ok && !o.Credentials
 }
 
-// defaultNames is question 1's default in a swarm repository's clone: the
-// file's repositories (an entry the old layout wrote, by path, named
-// <owner>/<name> after forge.repo's owner); else each clone detection
-// finds but one whose repository begins swarm- (section 3's convention
-// for the swarm repository), as its origin's <owner>/<repo>.
+// defaultNames is question 1's default: the file's repositories; else
+// each clone detection finds but one whose repository begins swarm-
+// (section 3's convention for the swarm repository), as its origin's
+// <owner>/<repo>.
 func (w *Wizard) defaultNames() string {
 	var names []string
 	if w.File != nil {
-		owner, _, _ := strings.Cut(w.File.Forge.Repo, "/")
 		for _, r := range w.File.Repos {
-			names = append(names, cmp.Or(r.Repo, owner+"/"+r.Name))
+			names = append(names, r.Repo)
 		}
 		return strings.Join(names, ", ")
 	}
@@ -477,7 +354,7 @@ func (w *Wizard) defaultNames() string {
 	return strings.Join(names, ", ")
 }
 
-// named is question 1's answer in a swarm repository's clone as entries:
+// named is question 1's answer as entries:
 // each `<owner>/<name>`, named by its <name>, its ssh_command the file's
 // for the same repository, else the core.sshCommand of the clone
 // detection finds of it; the file's check, image and protected kept. The
@@ -509,9 +386,8 @@ func (w *Wizard) named(answer string) ([]Repo, []Origin, *Error) {
 			}
 		}
 		if w.File != nil {
-			owner, _, _ := strings.Cut(w.File.Forge.Repo, "/")
 			for _, f := range w.File.Repos {
-				if strings.EqualFold(cmp.Or(f.Repo, owner+"/"+f.Name), a) {
+				if strings.EqualFold(f.Repo, a) {
 					r.Check, r.Image, r.Protected, r.SSHCommand = f.Check, f.Image, f.Protected, f.SSHCommand
 				}
 			}
@@ -530,8 +406,7 @@ func (w *Wizard) named(answer string) ([]Repo, []Origin, *Error) {
 	return repos, []Origin{first}, nil
 }
 
-// swarmDefault is question 4's default in a swarm repository's clone: the
-// file's forge.repo; else the clone's origin; else the first clone
+// swarmDefault is question 4's default: the file's forge.repo; else the clone's origin; else the first clone
 // detection finds whose repository begins swarm- on the forge's host;
 // else <owner>/swarm-<name> after the first product repository (section
 // 14, item 103).
@@ -549,80 +424,6 @@ func (w *Wizard) swarmDefault(c Config, first Origin) string {
 	}
 	owner, name, _ := strings.Cut(c.Repos[0].Repo, "/")
 	return owner + "/swarm-" + name
-}
-
-// defaultPaths is question 1's default: the file's repositories; else
-// `.` when the workspace is a repository with an origin, else every
-// directory directly under it that is, in name order, but a clone of a
-// repository named swarm-<name> (section 3's convention for the swarm's
-// own issues repository, which is no product repository), else `.`.
-func (w *Wizard) defaultPaths() string {
-	if w.File != nil {
-		var paths []string
-		for _, r := range w.File.Repos {
-			paths = append(paths, r.Path)
-		}
-		return strings.Join(paths, ", ")
-	}
-	if isRepoWithOrigin(w.Ops, w.Place.Root) {
-		return "."
-	}
-	entries, _ := w.Ops.FS().ReadDir(w.Place.Root)
-	var paths []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		o, _, err := checkRepoPath(w.Ops, w.Place.Root, "", e.Name())
-		if err == nil && !ownName(o.Repo) {
-			paths = append(paths, e.Name())
-		}
-	}
-	if len(paths) == 0 {
-		return "."
-	}
-	return strings.Join(paths, ", ")
-}
-
-func isRepoWithOrigin(o ops.Ops, dir string) bool {
-	_, _, err := checkRepoPath(o, dir, "", ".")
-	return err == nil
-}
-
-// repos is question 1's answer as entries, each named by its origin's
-// repository and keeping the file's check, image and protected for a path
-// the file declares.
-func (w *Wizard) repos(answer string) ([]Repo, []Origin, *Error) {
-	paths := list(answer)
-	if len(paths) == 0 {
-		return nil, nil, fieldErr("repos", "no repository (at least one is required)")
-	}
-	var repos []Repo
-	var origins []Origin
-	for i, p := range paths {
-		origin, _, e := checkRepoPath(w.Ops, w.Place.Root, fmt.Sprintf("repos[%d].path", i), p)
-		if e != nil {
-			return nil, nil, e
-		}
-		r := Repo{Name: origin.Repo, Path: p, Check: []string{}, Image: defaultImage, Protected: append([]string(nil), defaultProtected...)}
-		if w.File != nil {
-			for _, f := range w.File.Repos {
-				if filepath.Clean(f.Path) == filepath.Clean(p) {
-					r.Check, r.Image, r.Protected = f.Check, f.Image, f.Protected
-				}
-			}
-		}
-		if !nameShape.MatchString(r.Name) {
-			return nil, nil, fieldErr(fmt.Sprintf("repos[%d].name", i), "%q is not a repository name", r.Name)
-		}
-		for _, prev := range repos {
-			if prev.Name == r.Name {
-				return nil, nil, fieldErr(fmt.Sprintf("repos[%d].name", i), "%q is listed twice", r.Name)
-			}
-		}
-		repos, origins = append(repos, r), append(origins, origin)
-	}
-	return repos, origins, nil
 }
 
 // forgeDefault is the forge questions' defaults: the file's forge, else

@@ -88,7 +88,7 @@ func (j *Job) task() string {
 			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since in the files the pull request changes ("git diff %s..HEAD -- $(git diff --name-only %s...HEAD)"): what a merge of %s brought in is not this pull request's change.`, r, prev, prev, j.Cfg.Base, j.Cfg.Base)
 		}
 	}
-	if j.Cfg.KeepsNotes() && writesNotes(j.Role) {
+	if j.Cfg.Notes && writesNotes(j.Role) {
 		add("%s", j.notesTask())
 	}
 	if (j.Role == "architect" || j.Role == "worker") && j.Batch == nil {

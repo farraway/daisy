@@ -20,8 +20,7 @@ import (
 // declared repository under <state>/git, in a swarm repository's clone
 // the swarm repository's there too and each reference's under
 // <state>/references, and the clones members work in.
-// WS is the swarm's root: the swarm repository's clone, or in the old
-// layout the workspace.
+// WS is the swarm's root, the swarm repository's clone.
 type Git struct {
 	O         ops.Ops
 	WS, State string
@@ -38,28 +37,15 @@ func (g Git) run(dir string, args ...string) (string, error) {
 // Mirror is the repository's bare mirror.
 func (g Git) Mirror(name string) string { return filepath.Join(g.State, "git", name) }
 
-// remote is where the repository is reached (section 7.1, step 1): for
-// an entry named by its repo, <url>, the swarm repository's clone's
-// origin URL with its last path element replaced by <name>.git, and its
-// ssh_command; for the old layout's entry, by its path, its workspace
-// clone's origin URL and core.sshCommand. Both are read at each call.
+// remote is where the repository is reached (section 7.1, step 1): the
+// swarm repository's clone's origin URL, read at each call, with its
+// last path element replaced by <name>.git, and the entry's ssh_command.
 func (g Git) remote(r declare.Repo) (url string, ssh *string, err error) {
-	if r.Path == "" {
-		origin, err := g.run(g.WS, "config", "--get", "remote.origin.url")
-		if err != nil {
-			return "", nil, fmt.Errorf("%s: the swarm repository's clone %s has no origin URL: %v", r.Name, g.WS, err)
-		}
-		return RepoURL(origin, r.Name), r.SSHCommand, nil
-	}
-	src := filepath.Join(g.WS, r.Path)
-	url, err = g.run(src, "config", "--get", "remote.origin.url")
+	origin, err := g.run(g.WS, "config", "--get", "remote.origin.url")
 	if err != nil {
-		return "", nil, fmt.Errorf("%s: no origin URL: %v", r.Name, err)
+		return "", nil, fmt.Errorf("%s: the swarm repository's clone %s has no origin URL: %v", r.Name, g.WS, err)
 	}
-	if v, _ := g.run(src, "config", "--get", "core.sshCommand"); v != "" {
-		ssh = &v
-	}
-	return url, ssh, nil
+	return RepoURL(origin, r.Name), r.SSHCommand, nil
 }
 
 // record makes the repository's mirror, a bare repository, when it is

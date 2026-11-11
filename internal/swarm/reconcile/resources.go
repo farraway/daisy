@@ -82,14 +82,10 @@ func Commits(g Git, c declare.Config) map[string]string {
 	return out
 }
 
-// Mounts is where the prompt says each resource is (section 7.3): in a
-// swarm repository's clone /work/.resources/<repository>/<path> for each
-// resource and each reference's path, in the old layout
-// /work/.resources/<path> for each resource.
-func Mounts(c declare.Config, clone bool) []string {
-	if !clone {
-		return ResourceMounts(c.Resources)
-	}
+// Mounts is where the prompt says each resource is (section 7.3):
+// /work/.resources/<repository>/<path> for each resource and each
+// reference's path.
+func Mounts(c declare.Config) []string {
 	var out []string
 	for _, s := range sources(Git{}, c) {
 		out = append(out, ResourcesMount+"/"+s.Repo+"/"+s.Path)
@@ -101,8 +97,8 @@ func Mounts(c declare.Config, clone bool) []string {
 // 3): a secrets file, and a Daisy binding.
 var forbidden = []string{".env.sh", ".daisy"}
 
-// checkout writes each resource and reference path of a swarm
-// repository's clone, at the pass's commits, into dir/<repository>/<path>
+// checkout writes each resource and reference path, at the pass's
+// commits, into dir/<repository>/<path>
 // (section 7.1, step 3: `git archive`, extracted as written, a link never
 // followed). It returns the run's `resource <repository> <sha>` lines,
 // one per repository read, or the fault that refuses the run (*resource
@@ -207,16 +203,12 @@ func extract(fs ops.FS, data []byte, dir string) error {
 	}
 }
 
-// Briefs is every brief under the resources (section 4), in path order:
-// in the old layout read in the workspace; in a swarm repository's clone
-// from the mirrors at commits (the pass's), or, when commits is nil, at
-// the commits the mirrors stand at (status, the milestones), a
+// Briefs is every brief under the resources (section 4), in path order,
+// read from the mirrors at commits (the pass's), or, when commits is nil,
+// at the commits the mirrors stand at (status, the milestones), a
 // repository not yet fetched holding none. A link is no brief, and no
 // brief is read from a reference.
 func Briefs(o ops.Ops, p declare.Place, c declare.Config, state string, commits map[string]string) ([]brief.Brief, error) {
-	if p.Old() {
-		return brief.Find(o.FS(), p.Root, c.Resources)
-	}
 	g := Git{O: o, WS: p.Root, State: state}
 	if commits == nil {
 		commits = Commits(g, c)
@@ -248,19 +240,4 @@ func Briefs(o ops.Ops, p declare.Place, c declare.Config, state string, commits 
 	}
 	slices.SortFunc(out, func(a, b brief.Brief) int { return strings.Compare(a.Path, b.Path) })
 	return out, nil
-}
-
-// BriefName is the brief a `Brief:` or `Met:` line's path names (section
-// 4): in a swarm repository's clone, a brief of the swarm repository
-// named by the old layout's workspace path, `<repo>/<path>`, is the
-// brief at <path>, until Step 7 of revision 6's plan retires the old
-// layout; any other path, and every path in the old layout, as it is.
-func BriefName(p declare.Place, c declare.Config, name string) string {
-	if p.Old() {
-		return name
-	}
-	if rest, ok := strings.CutPrefix(name, repoName(c.Forge.Repo)+"/"); ok && rest != "" {
-		return rest
-	}
-	return name
 }

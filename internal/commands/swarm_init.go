@@ -16,7 +16,7 @@ import (
 // repository's clone (section 2).
 const initMessage = "swarm: written by init"
 
-// initRepository is init in revision 6 (docs/swarm.md section 11, init,
+// initRepository is init (docs/swarm.md section 11, init,
 // its Order): the two tokens and their accounts, the swarm repository read
 // or created and the swarm's account given write access with the
 // maintainer's token, the clone made in a folder holding none, the swarm's
@@ -161,7 +161,7 @@ func initRepository(c *Context, w *declare.Wizard, cfg declare.Config, open open
 		return fmt.Errorf("Error: %v", err)
 	}
 	fmt.Fprintf(c.Stdout, "✓ Token $%s: labels %d present (%d created, %d renamed)\n", tokenVar, len(forge.Labels), created, renamed)
-	readiness(c, p, g, cfg, acct.Login)
+	readiness(c, g, cfg, acct.Login)
 	return printUnits(c, p, cfg.Interval, cfg.Timeout)
 }
 

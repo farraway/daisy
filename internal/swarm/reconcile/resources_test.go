@@ -8,32 +8,7 @@ import (
 	"testing"
 
 	"daisy/internal/ops"
-	"daisy/internal/swarm/declare"
 )
-
-// A Brief: or Met: line's path (section 4): in a swarm repository's
-// clone the old layout's workspace path of a brief of the swarm
-// repository, <repo>/<path>, names the brief at <path>; any other path,
-// and every path in the old layout, is read as it is.
-func TestBriefName(t *testing.T) {
-	c := declare.Config{Forge: declare.Forge{Repo: "acme/swarm-app"}}
-	clone, old := declare.Clone("/c"), declare.Workspace("/ws")
-	for _, tc := range []struct {
-		p          declare.Place
-		name, want string
-	}{
-		{clone, "swarm-app/briefs/a.md", "briefs/a.md"},
-		{clone, "briefs/a.md", "briefs/a.md"},
-		{clone, "lib:briefs/a.md", "lib:briefs/a.md"},
-		{clone, "swarm-other/briefs/a.md", "swarm-other/briefs/a.md"},
-		{clone, "swarm-app/", "swarm-app/"},
-		{old, "swarm-app/briefs/a.md", "swarm-app/briefs/a.md"},
-	} {
-		if got := BriefName(tc.p, c, tc.name); got != tc.want {
-			t.Errorf("%v %q: %q, want %q", tc.p.Old(), tc.name, got, tc.want)
-		}
-	}
-}
 
 // The checkout writes nothing outside its directory: an archive entry
 // leaving it is refused, a link is written as a link.

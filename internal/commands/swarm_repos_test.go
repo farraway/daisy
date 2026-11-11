@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -76,7 +75,7 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 		t.Errorf("slice 1's Task:\n%s", sys)
 	}
 	ps := a.pulls(1)
-	if len(ps) != 1 || ps[0].Repo != "lib" || ps[0].Number != 1 || ps[0].Title != "acme/app#1 slice 1: Drift check" || !strings.HasSuffix(ps[0].Body, "\n\nRefs acme/app#1") {
+	if len(ps) != 1 || ps[0].Repo != "lib" || ps[0].Number != 1 || ps[0].Title != "acme/swarm-app#1 slice 1: Drift check" || !strings.HasSuffix(ps[0].Body, "\n\nRefs acme/swarm-app#1") {
 		t.Fatalf("slice 1's pull request: %+v", ps)
 	}
 	if _, _, err := ops.Real().Exec(a.upstream("lib"), "git", "rev-parse", "--verify", "refs/heads/swarm/1-1"); err != nil {
@@ -92,10 +91,10 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 	a.runner.Script(1, "worker", work("app v2"))
 	a.pass()
 	ps = a.pulls(1)
-	if len(ps) != 2 || ps[1].Repo != "app" || ps[1].Number != 2 || ps[1].Head != "swarm/1-2" || !strings.HasSuffix(ps[1].Body, "\n\nRefs #1") {
+	if len(ps) != 2 || ps[1].Repo != "app" || ps[1].Number != 1 || ps[1].Head != "swarm/1-2" || !strings.HasSuffix(ps[1].Body, "\n\nRefs acme/swarm-app#1") {
 		t.Fatalf("Pulls(1): %+v", ps)
 	}
-	if p := a.file("1-worker-2", "io/prompt.md"); !strings.Contains(p, "# Earlier pull requests\n\n- lib#1 swarm/1-1 merged "+ps[0].MergeSHA+": acme/app#1 slice 1: Drift check\n") {
+	if p := a.file("1-worker-2", "io/prompt.md"); !strings.Contains(p, "# Earlier pull requests\n\n- lib#1 swarm/1-1 merged "+ps[0].MergeSHA+": acme/swarm-app#1 slice 1: Drift check\n") {
 		t.Errorf("slice 2's prompt:\n%s", p)
 	}
 	if sys := a.file("1-worker-2", "io/system.md"); !strings.Contains(sys, "A pin to an earlier slice's change names its merged commit") {
@@ -224,7 +223,7 @@ func TestSwarmPauseAndResume(t *testing.T) {
 // stage, and the pass works on the new names.
 func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 	a := newApplyWS(t)
-	f := forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
+	f := forge.NewFake(fixedClock(), "acme/swarm-app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	f.AddLabels(forge.Labels[1:]...)
 	if err := a.apply(f, "--once"); err != nil || !reflect.DeepEqual(f.Labels()[len(forge.Labels)-1], "swarm:proposal-posted") ||
 		!strings.HasPrefix(a.stdout.String(), "✓ Labels: 16 present (1 created, 0 renamed)\n") {
@@ -233,7 +232,7 @@ func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 	if err := a.apply(f, "--once"); err != nil || strings.Contains(a.stdout.String(), "Labels:") {
 		t.Errorf("nothing to make, nothing said: %v\n%s", err, a.stdout.String())
 	}
-	g := forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
+	g := forge.NewFake(fixedClock(), "acme/swarm-app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	g.AddLabels(forge.Labels[1:]...)
 	g.RefuseLabels()
 	a.release()
@@ -242,7 +241,7 @@ func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 		t.Errorf("refused: %v\n%s", err, a.stdout.String())
 	}
 
-	old := forge.NewFake(fixedClock(), "acme/app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
+	old := forge.NewFake(fixedClock(), "acme/swarm-app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	old.AddLabels("swarm:proposed", "swarm:ready", "swarm:planning", "swarm:planned", "swarm:in-review", "swarm:reviewed", "swarm:approved", "swarm:blocked", "swarm:gated", "swarm:done", "swarm:rejected")
 	proposed, _ := old.CreateIssue("p", "", []string{"swarm:proposed", "swarm:gated"})
 	approved, _ := old.CreateIssue("a", "", []string{"swarm:approved"})
@@ -305,7 +304,7 @@ func TestSwarmApplyConcurrently(t *testing.T) {
 	if err1 := <-first; err1 != nil {
 		t.Fatal(err1)
 	}
-	if err == nil || !strings.HasPrefix(err.Error(), "Error: swarm apply is already running for acme/app (apply --once since ") {
+	if err == nil || !strings.HasPrefix(err.Error(), "Error: swarm apply is already running for acme/swarm-app (apply --once since ") {
 		t.Errorf("second: %v", err)
 	}
 	if n := len(a.runner.Launches()); n != 1 {
@@ -410,7 +409,7 @@ func TestSwarmApplyLoopCollectsALaterPass(t *testing.T) {
 	a.forge.CreateIssue("Long", "x", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
 	a.runner.Script(2, "architect", runner.Canned{Out: archPlan})
-	const long = "daisy-swarm.acme.app.1.architect.1"
+	const long = "daisy-swarm.acme.swarm-app.1.architect.1"
 	gate := make(chan struct{})
 	var once sync.Once
 	var forced atomic.Bool
@@ -625,8 +624,9 @@ func TestSwarmApplyLoopSignalSkipsTheMergeStep(t *testing.T) {
 }
 
 // The loop's lock, adapter and token are its start's: a pass after
-// swarm.json's forge.repo changed is skipped with the reason, never run
-// on the other repository's <state> without its lock (section 11).
+// swarm.json's forge changed is skipped with the reason (section 11). A
+// changed forge.repo is refused before, by validation, since the clone's
+// origin is forge.repo.
 func TestSwarmApplyLoopForgeChanged(t *testing.T) {
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
@@ -638,7 +638,7 @@ func TestSwarmApplyLoopForgeChanged(t *testing.T) {
 		waits++
 		c := make(chan time.Time, 1)
 		if waits == 1 {
-			a.edit(func(c *declare.Config) { c.Forge.Repo = "acme/lib" })
+			a.edit(func(c *declare.Config) { c.Forge.TokenEnv = "SWARM_TOKEN" })
 			c <- time.Time{}
 		} else {
 			a.signals <- os.Interrupt
@@ -651,7 +651,7 @@ func TestSwarmApplyLoopForgeChanged(t *testing.T) {
 	if n := strings.Count(a.stdout.String(), "Pass "); n != 1 || !strings.Contains(a.stderr.String(), "swarm.json's forge (kind, api, repo or token_env) changed since apply started; pass skipped") {
 		t.Errorf("%d passes\nstderr:\n%s", n, a.stderr.String())
 	}
-	if _, err := os.Stat(filepath.Join(a.local, "swarm", "forge.example.net", "acme", "lib")); err == nil {
-		t.Error("a pass ran on acme/lib's <state>")
+	if slices.Contains(a.asked, "SWARM_TOKEN") {
+		t.Error("a pass read the changed forge's token")
 	}
 }

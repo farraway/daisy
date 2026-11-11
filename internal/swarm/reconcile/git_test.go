@@ -14,6 +14,24 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
+// productIn is up, a product's upstream at <base>/app.git (made, empty),
+// and ws, a swarm repository's clone whose origin is <base>/swarm-app.git,
+// so that the declared repository app is reached at up (section 7.1,
+// step 1).
+func productIn(t *testing.T) (ws, up string) {
+	t.Helper()
+	base := t.TempDir()
+	up = filepath.Join(base, "app.git")
+	os.MkdirAll(up, 0o755)
+	ws = t.TempDir()
+	for _, args := range [][]string{{"init", "-q"}, {"remote", "add", "origin", filepath.Join(base, "swarm-app.git")}} {
+		if _, errb, err := ops.Real().Exec(ws, "git", args...); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+	}
+	return ws, up
+}
+
 // The clone a member sees (section 7.1, step 3), with real git: no remote,
 // a local base, the role's identity at the commit address, /.swarm/ and
 // /.notes/ excluded, and the hook stamping the role's co-author on each
@@ -30,16 +48,13 @@ func TestCloneAndTheCommitMsgHook(t *testing.T) {
 		}
 		return strings.TrimSpace(string(out))
 	}
-	ws, state := t.TempDir(), t.TempDir()
-	up := t.TempDir()
+	ws, up := productIn(t)
+	state := t.TempDir()
 	git(up, "init", "-q", "-b", "main")
 	git(up, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "first")
 	git(up, "branch", "swarm/1-1")
-	os.MkdirAll(filepath.Join(ws, "app"), 0o755)
-	git(filepath.Join(ws, "app"), "init", "-q")
-	git(filepath.Join(ws, "app"), "remote", "add", "origin", up)
 	g := Git{O: o, WS: ws, State: state}
-	repo := declare.Repo{Name: "app", Path: "app"}
+	repo := declare.Repo{Name: "app", Repo: "acme/app"}
 	if err := g.Fetch(repo); err != nil {
 		t.Fatal(err)
 	}
@@ -112,16 +127,14 @@ func TestChangedAndPush(t *testing.T) {
 		}
 		return strings.TrimSpace(string(out))
 	}
-	ws, state, up := t.TempDir(), t.TempDir(), t.TempDir()
+	ws, up := productIn(t)
+	state := t.TempDir()
 	git(up, "init", "-q", "-b", "main")
 	os.WriteFile(filepath.Join(up, "AGENTS.md"), []byte("Rules.\n"), 0o644)
 	git(up, "add", "AGENTS.md")
 	git(up, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "-m", "first")
-	os.MkdirAll(filepath.Join(ws, "app"), 0o755)
-	git(filepath.Join(ws, "app"), "init", "-q")
-	git(filepath.Join(ws, "app"), "remote", "add", "origin", up)
 	g := Git{O: o, WS: ws, State: state}
-	repo := declare.Repo{Name: "app", Path: "app"}
+	repo := declare.Repo{Name: "app", Repo: "acme/app"}
 	if err := g.Fetch(repo); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +170,7 @@ func TestChangedAndPush(t *testing.T) {
 		t.Errorf("refused push: %v, want ErrPushRejected", err)
 	}
 	// The forge unreachable: an error, not a rejection.
-	git(filepath.Join(ws, "app"), "remote", "set-url", "origin", filepath.Join(t.TempDir(), "gone.git"))
+	git(ws, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "gone.git"))
 	if err := g.Push(repo, "refs/swarm-runs/1-worker-1", "swarm/1-1", sha); err == nil || errors.Is(err, ErrPushRejected) {
 		t.Errorf("unreachable push: %v, want an error that is not ErrPushRejected", err)
 	}
@@ -177,14 +190,12 @@ func TestClonesForgetTheHost(t *testing.T) {
 			t.Fatalf("git %v: %v %s", args, err, errb)
 		}
 	}
-	ws, state, up := t.TempDir(), t.TempDir(), t.TempDir()
+	ws, up := productIn(t)
+	state := t.TempDir()
 	git(up, "init", "-q", "-b", "main")
 	git(up, "commit", "-q", "--allow-empty", "-m", "first")
-	os.MkdirAll(filepath.Join(ws, "app"), 0o755)
-	git(filepath.Join(ws, "app"), "init", "-q")
-	git(filepath.Join(ws, "app"), "remote", "add", "origin", up)
 	g := Git{O: o, WS: ws, State: state}
-	repo := declare.Repo{Name: "app", Path: "app"}
+	repo := declare.Repo{Name: "app", Repo: "acme/app"}
 	if err := g.Fetch(repo); err != nil {
 		t.Fatal(err)
 	}
@@ -233,16 +244,14 @@ func TestFetchRunRefusesAForeignClone(t *testing.T) {
 			t.Fatalf("git %v: %v %s", args, err, errb)
 		}
 	}
-	ws, state, up, other := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	ws, up := productIn(t)
+	state, other := t.TempDir(), t.TempDir()
 	for _, d := range []string{up, other} {
 		git(d, "init", "-q", "-b", "main")
 		git(d, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "first")
 	}
-	os.MkdirAll(filepath.Join(ws, "app"), 0o755)
-	git(filepath.Join(ws, "app"), "init", "-q")
-	git(filepath.Join(ws, "app"), "remote", "add", "origin", up)
 	g := Git{O: o, WS: ws, State: state}
-	if err := g.Fetch(declare.Repo{Name: "app", Path: "app"}); err != nil {
+	if err := g.Fetch(declare.Repo{Name: "app", Repo: "acme/app"}); err != nil {
 		t.Fatal(err)
 	}
 	for name, plant := range map[string]func(work string){
@@ -260,7 +269,7 @@ func TestFetchRunRefusesAForeignClone(t *testing.T) {
 		},
 	} {
 		work := filepath.Join(t.TempDir(), "work")
-		if _, err := g.Clone(declare.Repo{Name: "app", Path: "app"}, "main", "main", work, "worker", "swarm@example.net", "c <c@example.net>"); err != nil {
+		if _, err := g.Clone(declare.Repo{Name: "app", Repo: "acme/app"}, "main", "main", work, "worker", "swarm@example.net", "c <c@example.net>"); err != nil {
 			t.Fatal(err)
 		}
 		git(work, "checkout", "-q", "-b", "swarm/1-1")
@@ -380,8 +389,7 @@ func TestConflicts(t *testing.T) {
 // repository's clone's origin with its last element replaced, its
 // ssh_command recorded in the mirror's config, changed and unset with the
 // configuration, and the fetch and the push read them there, no product's
-// clone on the machine; the old layout's entry, by path, is recorded from
-// its workspace clone, and a mirror made before the config recorded
+// clone on the machine; and a mirror made before the config recorded
 // anything (an older Daisy's: no remote at all) fetches and pushes.
 func TestMirrorsRecordTheirRemote(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
@@ -460,26 +468,22 @@ func TestMirrorsRecordTheirRemote(t *testing.T) {
 		t.Errorf("the push did not reach the recorded URL")
 	}
 
-	// The old layout: a mirror an older Daisy made, with no remote.
-	ws := t.TempDir()
-	os.MkdirAll(filepath.Join(ws, "app"), 0o755)
-	git(filepath.Join(ws, "app"), "init", "-q")
-	git(filepath.Join(ws, "app"), "remote", "add", "origin", filepath.Join(forgeDir, "acme", "app.git"))
-	git(filepath.Join(ws, "app"), "config", "core.sshCommand", ssh)
-	old := Git{O: o, WS: ws, State: t.TempDir()}
+	// A mirror an older Daisy made, with no remote.
+	git(clone, "remote", "set-url", "origin", filepath.Join(forgeDir, "acme", "swarm-app.git"))
+	old := Git{O: o, WS: clone, State: t.TempDir()}
 	os.MkdirAll(old.Mirror("app"), 0o755)
 	git(old.Mirror("app"), "init", "--bare", "--quiet")
 	git(old.Mirror("app"), "fetch", "--quiet", filepath.Join(forgeDir, "acme", "app.git"), "+refs/heads/*:refs/heads/*")
 	git(old.Mirror("app"), "update-ref", "refs/swarm-runs/1-worker-2", sha)
-	byPath := declare.Repo{Name: "app", Path: "app"}
-	if err := old.Push(byPath, "refs/swarm-runs/1-worker-2", "swarm/1-2", sha); err != nil {
+	app.SSHCommand = &ssh
+	if err := old.Push(app, "refs/swarm-runs/1-worker-2", "swarm/1-2", sha); err != nil {
 		t.Fatalf("an old mirror's push: %v", err)
 	}
-	if err := old.Fetch(byPath); err != nil {
+	if err := old.Fetch(app); err != nil {
 		t.Fatalf("an old mirror's fetch: %v", err)
 	}
 	if config(old.Mirror("app"), "remote.origin.url") != filepath.Join(forgeDir, "acme", "app.git") || config(old.Mirror("app"), "core.sshCommand") != ssh ||
-		git(old.Mirror("app"), "rev-parse", "swarm/1-2") != sha {
+		git(filepath.Join(forgeDir, "acme", "app.git"), "rev-parse", "swarm/1-2") != sha {
 		t.Errorf("the old mirror's config: %s, %s", config(old.Mirror("app"), "remote.origin.url"), config(old.Mirror("app"), "core.sshCommand"))
 	}
 }

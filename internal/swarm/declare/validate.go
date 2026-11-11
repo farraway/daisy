@@ -51,26 +51,23 @@ var (
 )
 
 // Validate checks c, a parse of the swarm.json at p, in section 3's
-// order and returns the first problem as an *Error. In a swarm
-// repository's clone its origin is forge.repo's, each repository is
-// named by repos[].repo and resources and references are read as names,
-// their content checked at the launch (section 7.1, step 3); in the old
-// layout repos[].path and resources are read under p.Root. The prompts
-// are read in p.Dir.
+// order and returns the first problem as an *Error: the clone's origin
+// is forge.repo's, each repository is named by repos[].repo, and
+// resources and references are read as names, their content checked at
+// the launch (section 7.1, step 3). The prompts are read in p.Root.
 func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
 	checks := []func() *Error{
 		func() *Error { return checkForge(c.Forge, skip) },
 		func() *Error { return checkClone(o, p, c.Forge) },
-		func() *Error { return checkRepos(o, p, c.Forge, c.Repos) },
+		func() *Error { return checkRepos(c.Forge, c.Repos) },
 		func() *Error { return checkBase(c.Base) },
 		func() *Error { return checkRange("max_members", c.MaxMembers, 1, 16) },
 		func() *Error { return checkRange("max_rounds", c.MaxRounds, 1, 10) },
 		func() *Error { return checkDuration("timeout", c.Timeout) },
 		func() *Error { return checkDuration("interval", c.Interval) },
 		func() *Error { return checkRange("owner.max_open_proposals", c.Owner.MaxOpenProposals, 1, 20) },
-		func() *Error { return checkResources(o, p, c) },
-		func() *Error { return checkReferences(p, c) },
-		func() *Error { return checkNotes(c) },
+		func() *Error { return checkResources(c) },
+		func() *Error { return checkReferences(c) },
 		func() *Error {
 			if skip&SkipAccount != 0 {
 				return nil
@@ -164,10 +161,9 @@ func checkCommitEmail(v string) *Error {
 
 // checkClone: a swarm repository's clone has an origin, without
 // credentials, that is forge.repo on the forge's host (section 3,
-// forge.repo); the old layout has no such clone, nor has init's folder
-// yet (Outside).
+// forge.repo); init's folder has no clone yet (Outside).
 func checkClone(o ops.Ops, p Place, f Forge) *Error {
-	if p.Old() || p.Outside {
+	if p.Outside {
 		return nil
 	}
 	raw := readOrigin(o, p.Root)
@@ -193,11 +189,9 @@ func IsCloneOf(o ops.Ops, dir string, f Forge) bool {
 	return gitx.IsRepoRoot(o, dir) && checkClone(o, Clone(dir), f) == nil
 }
 
-// checkRepos checks each declared repository: in a swarm repository's
-// clone its repo, `<owner>/<name>` beside the swarm repository, and its
-// ssh_command; in the old layout that its path's origin is <owner>/<name>
-// on the forge's host. Each layout refuses the other's fields.
-func checkRepos(o ops.Ops, p Place, f Forge, repos []Repo) *Error {
+// checkRepos checks each declared repository: its repo, `<owner>/<name>`
+// beside the swarm repository, and its ssh_command.
+func checkRepos(f Forge, repos []Repo) *Error {
 	if len(repos) == 0 {
 		return fieldErr("repos", "no repository (at least one is required)")
 	}
@@ -210,11 +204,7 @@ func checkRepos(o ops.Ops, p Place, f Forge, repos []Repo) *Error {
 		if slices.ContainsFunc(repos[:i], func(p Repo) bool { return p.Name == r.Name }) {
 			return fieldErr(at+".name", "%q is listed twice", r.Name)
 		}
-		if p.Old() {
-			if err := checkOldRepo(o, p.Root, f, owner, at, r); err != nil {
-				return err
-			}
-		} else if err := checkNamedRepo(owner, own, at, r); err != nil {
+		if err := checkNamedRepo(owner, own, at, r); err != nil {
 			return err
 		}
 		for j, a := range r.Check {
@@ -234,15 +224,12 @@ func checkRepos(o ops.Ops, p Place, f Forge, repos []Repo) *Error {
 	return nil
 }
 
-// checkNamedRepo is a swarm repository's clone's entry: not the swarm
-// repository, no path, repo `<owner>/<name>` (owner forge.repo's, name
-// the entry's), an ssh_command, when present, one non-empty line.
+// checkNamedRepo is a declared repository's entry: not the swarm
+// repository, repo `<owner>/<name>` (owner forge.repo's, name the
+// entry's), an ssh_command, when present, one non-empty line.
 func checkNamedRepo(owner, own, at string, r Repo) *Error {
 	if strings.EqualFold(r.Name, own) {
 		return fieldErr(at+".name", "%q is the swarm repository", r.Name)
-	}
-	if r.Path != "" {
-		return fieldErr(at+".path", "unknown field")
 	}
 	if r.Repo == "" {
 		return fieldErr(at+".repo", "missing")
@@ -259,54 +246,6 @@ func checkNamedRepo(owner, own, at string, r Repo) *Error {
 		}
 	}
 	return nil
-}
-
-// checkOldRepo is the old layout's entry: no repo or ssh_command, and
-// its path a clone in the workspace whose origin is <owner>/<name> on the
-// forge's host.
-func checkOldRepo(o ops.Ops, ws string, f Forge, owner, at string, r Repo) *Error {
-	if r.Repo != "" {
-		return fieldErr(at+".repo", "unknown field")
-	}
-	if r.SSHCommand != nil {
-		return fieldErr(at+".ssh_command", "unknown field")
-	}
-	if r.Path == "" {
-		return fieldErr(at+".path", "missing")
-	}
-	origin, raw, err := checkRepoPath(o, ws, at+".path", r.Path)
-	if err != nil {
-		return err
-	}
-	if !strings.EqualFold(origin.Host, f.Host()) || !strings.EqualFold(origin.Owner, owner) || !strings.EqualFold(origin.Repo, r.Name) {
-		return fieldErr(at+".path", "origin is %q, not %s/%s on %s", raw, owner, r.Name, f.Host())
-	}
-	return nil
-}
-
-// checkRepoPath: path, relative inside ws, is the top of a git repository
-// whose origin URL (raw) carries no credentials and reads as an Origin.
-func checkRepoPath(o ops.Ops, ws, field, path string) (origin Origin, raw string, err *Error) {
-	clean := filepath.Clean(path)
-	if path == "" || filepath.IsAbs(path) || clean == ".." || strings.HasPrefix(clean, "../") {
-		return Origin{}, "", fieldErr(field, "%q is not a relative path inside the workspace", path)
-	}
-	dir := filepath.Join(ws, clean)
-	if !gitx.IsRepoRoot(o, dir) {
-		return Origin{}, "", fieldErr(field, "%q is not a git repository", path)
-	}
-	raw = readOrigin(o, dir)
-	if raw == "" {
-		return Origin{}, "", fieldErr(field, "%q has no origin remote", path)
-	}
-	origin, ok := parseOrigin(raw)
-	if origin.Credentials {
-		return Origin{}, "", fieldErr(field, "origin URL carries user information; use SSH or a credential helper")
-	}
-	if !ok {
-		return Origin{}, "", fieldErr(field, "origin is %q, not <owner>/<repo> on a forge", raw)
-	}
-	return origin, raw, nil
 }
 
 func checkBase(b string) *Error {
@@ -334,24 +273,7 @@ func checkDuration(field, v string) *Error {
 	return nil
 }
 
-// checkResources: in a swarm repository's clone, each entry is a path in
-// the swarm repository or `<name>:<path>` in a declared repository,
-// relative, without `..`, not the whole repository and listed once; what
-// it holds is read at the pass's commit, where the launch checks it
-// (section 7.1, step 3). In the old layout each resolves, through every
-// link, to a path inside the workspace that is not the workspace, not
-// under swarm/, neither is nor contains .env.sh, .daisy or .git, and is
-// listed once.
-func checkResources(o ops.Ops, p Place, c Config) *Error {
-	if !p.Old() {
-		return checkNamedResources(c)
-	}
-	_, err := resolveResources(o, p, c.Resources)
-	return err
-}
-
-// SplitResource reads a resources entry of a swarm repository's clone
-// (section 3): `<name>:<path>`, a path in the declared repository
+// SplitResource reads a resources entry (section 3): `<name>:<path>`, a path in the declared repository
 // <name>, when the text before the first `:` is a repository name (no
 // `/`), else a path in the swarm repository, name "".
 func SplitResource(entry string) (name, path string) {
@@ -373,7 +295,11 @@ func relPath(p string) string {
 	return ""
 }
 
-func checkNamedResources(c Config) *Error {
+// checkResources: each entry is a path in the swarm repository or
+// `<name>:<path>` in a declared repository, relative, without `..`, not
+// the whole repository and listed once; what it holds is read at the
+// pass's commit, where the launch checks it (section 7.1, step 3).
+func checkResources(c Config) *Error {
 	type key struct{ repo, path string }
 	var seen []key
 	for i, r := range c.Resources {
@@ -399,17 +325,11 @@ var commitShape = regexp.MustCompile(`^[0-9a-f]{40}$`)
 // PinIsCommit: a reference's pin is a full commit, not a tag (section 3).
 func PinIsCommit(pin string) bool { return commitShape.MatchString(pin) }
 
-// checkReferences: a swarm repository's clone's references (section 3),
-// each named as a repository but none declared and not the swarm
-// repository, its URL a git URL without credentials, its pin a full commit
-// or a tag, its paths as a resource's; the old layout has none.
-func checkReferences(p Place, c Config) *Error {
-	if c.References == nil {
-		return nil
-	}
-	if p.Old() {
-		return fieldErr("references", "unknown field")
-	}
+// checkReferences: the references (section 3), each named as a
+// repository but none declared and not the swarm repository, its URL a
+// git URL without credentials, its pin a full commit or a tag, its paths
+// as a resource's.
+func checkReferences(c Config) *Error {
 	_, own, _ := strings.Cut(c.Forge.Repo, "/")
 	for i, r := range c.References {
 		at := fmt.Sprintf("references[%d]", i)
@@ -468,77 +388,6 @@ func gitURL(raw string) (credentials, ok bool) {
 	return credentials, ok
 }
 
-// ResolveResources is each resource's path through every link, the
-// source its mount is given, once section 3's checks hold of it now (a
-// launch makes them again, so a link changed since the pass's validation
-// mounts nothing outside them, section 7.2): the old layout's live
-// mounts.
-func ResolveResources(o ops.Ops, p Place, resources []string) ([]string, error) {
-	real, err := resolveResources(o, p, resources)
-	if err != nil {
-		return nil, err
-	}
-	return real, nil
-}
-
-func resolveResources(o ops.Ops, p Place, resources []string) ([]string, *Error) {
-	fs, ws := o.FS(), p.Root
-	root, err := fs.EvalSymlinks(ws)
-	if err != nil {
-		return nil, fieldErr("resources", "the workspace %s cannot be resolved: %v", ws, err)
-	}
-	var seen []string
-	for i, r := range resources {
-		at := fmt.Sprintf("resources[%d]", i)
-		if r == "" || filepath.IsAbs(r) {
-			return nil, fieldErr(at, "%q is not a relative path", r)
-		}
-		real, err := fs.EvalSymlinks(filepath.Join(ws, r))
-		if err != nil {
-			return nil, fieldErr(at, "%q does not exist", r)
-		}
-		rel, err := filepath.Rel(root, real)
-		if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
-			return nil, fieldErr(at, "%q is outside the workspace", r)
-		}
-		if rel == "." {
-			return nil, fieldErr(at, "%q is the workspace", r)
-		}
-		if p.Old() && (rel == "swarm" || strings.HasPrefix(rel, "swarm/")) {
-			return nil, fieldErr(at, "%q is under swarm/", r)
-		}
-		if name := forbiddenIn(fs, rel, real); name != "" {
-			return nil, fieldErr(at, "%q contains %s", r, name)
-		}
-		if slices.Contains(seen, real) {
-			return nil, fieldErr(at, "%q is listed twice", r)
-		}
-		seen = append(seen, real)
-	}
-	return seen, nil
-}
-
-// checkNotes: `notes` keeps the notes in the issues repository's notes/,
-// so that repository is the swarm's own, none of repos (Daisy writes no
-// declared repository's tree, section 2), and its wiki is not declared
-// beside it; `wiki` alone keeps them in a declared issues repository's
-// wiki, never the swarm's own repository's.
-func checkNotes(c Config) *Error {
-	if !c.Notes {
-		if _, ok := c.Declares(c.Forge.Repo); c.Wiki && !ok {
-			return fieldErr("wiki", "%s is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)", c.Forge.Repo)
-		}
-		return nil
-	}
-	if c.Wiki {
-		return fieldErr("wiki", "true beside notes; the swarm's own repository keeps its notes in notes/, and its wiki is no better than its tree")
-	}
-	if _, ok := c.Declares(c.Forge.Repo); ok {
-		return fieldErr("notes", "%s is a declared repository, which holds product code; notes/ is for the swarm's own issues repository (wiki keeps a product's)", c.Forge.Repo)
-	}
-	return nil
-}
-
 // Declares is the declared repository whose forge repository is repo
 // (`<owner>/<name>`): repos are their owner's (section 14, item 7), so
 // its name decides.
@@ -550,40 +399,6 @@ func (c Config) Declares(repo string) (Repo, bool) {
 		}
 	}
 	return Repo{}, false
-}
-
-var forbiddenNames = []string{".env.sh", ".daisy", ".git"}
-
-// forbiddenIn is the first of .env.sh, .daisy and .git that the resource
-// at real (rel inside the workspace) is, lies in or holds anywhere in its
-// tree, links not followed; "" when none.
-func forbiddenIn(fs ops.FS, rel, real string) string {
-	for _, part := range strings.Split(rel, "/") {
-		if slices.Contains(forbiddenNames, part) {
-			return part
-		}
-	}
-	var walk func(dir string) string
-	walk = func(dir string) string {
-		entries, err := fs.ReadDir(dir)
-		if err != nil {
-			return ""
-		}
-		for _, e := range entries {
-			if slices.Contains(forbiddenNames, e.Name()) {
-				return e.Name()
-			}
-		}
-		for _, e := range entries {
-			if e.IsDir() {
-				if name := walk(filepath.Join(dir, e.Name())); name != "" {
-					return name
-				}
-			}
-		}
-		return ""
-	}
-	return walk(real)
 }
 
 func checkTrusted(trusted []string) *Error {
@@ -636,9 +451,9 @@ func checkPersonas(o ops.Ops, at Place, personas map[string]Persona, skip Skip) 
 			return err
 		}
 		if skip&SkipPrompts == 0 {
-			b, err := o.FS().ReadFile(PromptFile(at.Dir, r))
+			b, err := o.FS().ReadFile(PromptFile(at.Root, r))
 			if err != nil || len(b) == 0 {
-				return fieldErr("personas."+r, "prompt %s is missing or empty", at.Rel(filepath.Join("prompts", r+".md")))
+				return fieldErr("personas."+r, "prompt %s is missing or empty", filepath.Join("prompts", r+".md"))
 			}
 		}
 	}
@@ -738,6 +553,6 @@ func checkKeys(keys map[string]Key, personas map[string]Persona) *Error {
 	return nil
 }
 
-// PromptFile is the prompt of role in dir, the configuration folder
-// (Place.Dir).
+// PromptFile is the prompt of role in dir, the swarm repository's clone
+// (Place.Root).
 func PromptFile(dir, role string) string { return filepath.Join(dir, "prompts", role+".md") }

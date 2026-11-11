@@ -9,29 +9,22 @@ import (
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
-	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
 
-// wikiURL is the issues repository's wiki beside app's origin.
-const wikiURL = "git@forge.example.net:acme/app.wiki.git"
-
-// wikiUp is the wiki's upstream: a bare repository on the branch master
-// (a Gitea wiki's branch is read, never assumed) holding Home.md and the
-// pages given, mapped from wikiURL; and `wiki: true` declared.
-func (a *applyWS) wikiUp(pages map[string]string) string {
+// notesUp declares `notes: true` and pushes notes/Home.md and the pages
+// given under notes/ to the swarm repository's main, as the maintainer
+// does; it is the swarm repository's upstream.
+func (a *applyWS) notesUp(pages map[string]string) string {
 	a.t.Helper()
-	up := filepath.Join(a.t.TempDir(), "app.wiki.git")
-	src := a.t.TempDir()
-	gitIn(a.t, "", "init", "-q", "-b", "master", src)
 	pages["Home.md"] = "# Home\n"
-	writes(pages)(src)
-	gitIn(a.t, src, "add", "-A")
-	gitIn(a.t, src, "commit", "-q", "-m", "first")
-	gitIn(a.t, "", "clone", "-q", "--bare", src, up)
-	a.upstreams[wikiURL] = up
-	a.edit(func(c *declare.Config) { c.Wiki = true })
-	return up
+	for f, c := range pages {
+		a.write(filepath.Join("notes", f), c)
+	}
+	a.edit(func(c *declare.Config) { c.Notes = true })
+	a.publish("notes")
+	a.fetchMirror()
+	return a.upstreams[swarmURL]
 }
 
 // gitIn is real git in dir, failing the test on an error; its output
@@ -47,7 +40,7 @@ func gitIn(t *testing.T, dir string, args ...string) string {
 }
 
 // editUp commits pages to the bare upstream up's branch, as the
-// maintainer editing the wiki by hand.
+// maintainer editing it by hand.
 func editUp(t *testing.T, up, branch string, pages map[string]string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -58,7 +51,7 @@ func editUp(t *testing.T, up, branch string, pages map[string]string) {
 	gitIn(t, dir, "push", "-q", "origin", branch)
 }
 
-// writes is a member's work in its copy of the wiki: the pages written.
+// writes is a member's work in its copy of the notes: the pages written.
 func writes(pages map[string]string) func(string) error {
 	return func(dir string) error {
 		for f, c := range pages {
@@ -80,22 +73,22 @@ func boardNote(pin string) string {
 // pushes after the run; a second architect, on another issue, is given
 // the note in its prompt's # Research notes, with the commits its source
 // has moved since the pin, and told to read it before it researches; a
-// worker sees the wiki read-only, without the section, and its mount
+// worker sees the notes read-only, without the section, and its mount
 // point is never committed.
-func TestSwarmApplyResearchWiki(t *testing.T) {
+func TestSwarmApplyResearchNotes(t *testing.T) {
 	a := newApplyWS(t)
-	up := a.wikiUp(map[string]string{})
-	base := gitIn(t, up, "rev-parse", "master")
+	up := a.notesUp(map[string]string{})
+	base := gitIn(t, up, "rev-parse", "main")
 	pin := gitIn(t, a.upstream("app"), "rev-parse", "main")
 	a.forge.CreateIssue("Board model", "Change the board.", []string{"swarm:proposal-accepted"})
 	// The member's copy holds no .git, and what it plants in one, or a
-	// link to a host file, reaches neither the host's clone nor the wiki.
+	// link to a host file, reaches neither the host's clone nor notes/.
 	hostFile := filepath.Join(t.TempDir(), "host.txt")
 	os.WriteFile(hostFile, []byte("the host's\n"), 0o644)
 	pwned := filepath.Join(t.TempDir(), "pwned")
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Notes: func(dir string) error {
 		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-			t.Error("the run's copy of the wiki holds .git")
+			t.Error("the run's copy of the notes holds .git")
 		}
 		os.MkdirAll(filepath.Join(dir, ".git", "hooks"), 0o755)
 		os.WriteFile(filepath.Join(dir, ".git", "hooks", "post-commit"), []byte("#!/bin/sh\ntouch "+pwned+"\n"), 0o755)
@@ -106,18 +99,18 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 	if _, err := os.Stat(pwned); err == nil {
 		t.Error("a hook the member planted ran on the host")
 	}
-	if files := gitIn(t, up, "ls-tree", "--name-only", "master"); files != "Board-model.md\nHome.md" {
-		t.Errorf("the wiki holds:\n%s", files)
+	if files := gitIn(t, up, "ls-tree", "--name-only", "main", "notes/"); files != "notes/Board-model.md\nnotes/Home.md\nnotes/README.md" {
+		t.Errorf("notes/ holds:\n%s", files)
 	}
 
-	head := gitIn(t, up, "rev-parse", "master")
+	head := gitIn(t, up, "rev-parse", "main")
 	if !strings.Contains(a.stdout.String(), "#1 architect run 1: pushed notes "+head[:7]+"\n") || a.stderr.Len() != 0 {
 		t.Fatalf("stdout:\n%s\nstderr:\n%s", a.stdout.String(), a.stderr.String())
 	}
-	if got := gitIn(t, up, "log", "-1", "--format=%P%n%an <%ae>%n%B", "master"); got != base+"\narchitect (Daisy swarm) <swarm@example.net>\n#1 architect run 1: research notes\n\n<!-- daisy-swarm role=architect run=1 -->\n\nCo-Authored-By: claude-fable-5-1 <noreply@anthropic.com>" {
-		t.Errorf("the wiki's commit:\n%s", got)
+	if got := gitIn(t, up, "log", "-1", "--format=%P%n%an <%ae>%n%B", "main"); got != base+"\narchitect (Daisy swarm) <swarm@example.net>\n#1 architect run 1: research notes\n\n<!-- daisy-swarm role=architect run=1 -->\n\nCo-Authored-By: claude-fable-5-1 <noreply@anthropic.com>" {
+		t.Errorf("the notes' commit:\n%s", got)
 	}
-	if got := gitIn(t, up, "show", "master:Board-model.md"); got+"\n" != boardNote(pin) {
+	if got := gitIn(t, up, "show", "main:notes/Board-model.md"); got+"\n" != boardNote(pin) {
 		t.Errorf("the note pushed:\n%s", got)
 	}
 	result := a.result("1-architect-1")
@@ -130,9 +123,9 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 		t.Errorf("the architect's mounts %+v, argv %q", spec.Mounts, spec.Argv)
 	}
 	if _, err := os.Stat(filepath.Join(run, "notes")); err == nil {
-		t.Error("the run's copy of the wiki kept after its notes were pushed")
+		t.Error("the run's copy of the notes kept after they were pushed")
 	}
-	if p := a.file("1-architect-1", "io/prompt.md"); !strings.Contains(p, "- Research notes: /work/.notes, the wiki, pushed by Daisy after the run\n\n# Research notes\n\nNone.\n\n# Issue #1") {
+	if p := a.file("1-architect-1", "io/prompt.md"); !strings.Contains(p, "- Research notes: /work/.notes, notes/ in acme/swarm-app, pushed by Daisy after the run\n\n# Research notes\n\nNone.\n\n# Issue #1") {
 		t.Errorf("run 1's prompt:\n%s", p)
 	}
 	if s := a.file("1-architect-1", "io/system.md"); !strings.Contains(s, `"Written: 2026-11-06 by architect run 1 on #1"`) || !strings.Contains(s, `Your plan's "## Research" then names the note`) {
@@ -152,13 +145,13 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 	if s := a.file("2-architect-1", "io/system.md"); !strings.Contains(s, `Before you research a source, read its note if "# Research notes" lists one`) {
 		t.Errorf("the second architect's task:\n%s", s)
 	}
-	if !strings.Contains(a.result("2-architect-1"), "\nnotes unchanged\n") || gitIn(t, up, "rev-parse", "master") != head {
+	if !strings.Contains(a.result("2-architect-1"), "\nnotes unchanged\n") || gitIn(t, up, "rev-parse", "main") != head {
 		t.Errorf("a run that wrote nothing pushed:\n%s", a.result("2-architect-1"))
 	}
 
-	// The worker: the wiki read-only, no section, its mount point never
+	// The worker: the notes read-only, no section, its mount point never
 	// committed.
-	a.forge.SetLabel(forge.Ref{Repo: "app", N: 2}, "swarm:plan-1-accepted")
+	a.forge.SetLabel(a.ref(2), "swarm:plan-1-accepted")
 	a.runner.Script(2, "worker", runner.Canned{Out: "Done.\n", Work: func(work string) error {
 		if err := os.WriteFile(filepath.Join(work, ".notes", "stray.md"), []byte("x\n"), 0o644); err != nil {
 			return err
@@ -183,14 +176,13 @@ func TestSwarmApplyResearchWiki(t *testing.T) {
 	}
 }
 
-// The wiki is the maintainer's to edit at will (section 7.6, The notes):
+// The notes are the maintainer's to edit at will (section 7.6, The notes):
 // a page changed during the run is kept, the run's commit put on top of
 // it; the same page changed is a conflict, the run's commit pushed to its
 // own branch with a warning; a note holding a secret the member was given
 // is not pushed and its copy kept, the host's clone left without it; a
-// host's clone deleted during the run is made again for the push; and an
-// unreachable wiki stops the pass with what to do.
-func TestSwarmApplyResearchWikiMerges(t *testing.T) {
+// host's clone deleted during the run is made again for the push.
+func TestSwarmApplyResearchNotesMerges(t *testing.T) {
 	secret := "oauth-token-0123456789abcdef0123456789"
 	for _, tc := range []struct {
 		name     string
@@ -198,28 +190,28 @@ func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 		note     string            // what the architect writes to Board-model.md
 		line     string            // the result's notes line, without its sha
 		warn     string
-		Board    string // master's Board-model.md after
+		Board    string // main's notes/Board-model.md after
 		kept     bool
 		onBranch bool
 		gone     bool // the host's clone deleted during the run
 	}{
-		{name: "another page", hand: map[string]string{"Home.md": "# Home, by hand\n"}, note: "Subject: x\nSource: app main\n\nNew.\n", line: "notes pushed ", Board: "Subject: x\nSource: app main\n\nNew.\n"},
-		{name: "the same page", hand: map[string]string{"Board-model.md": "By hand.\n"}, note: "Subject: x\nSource: app main\n\nNew.\n", line: "notes branch swarm/notes-1-architect-1 ",
-			warn: "⚠ #1 architect run 1: notes conflict with the wiki's head; pushed to swarm/notes-1-architect-1\n", Board: "By hand.\n", onBranch: true},
+		{name: "another page", hand: map[string]string{"notes/Home.md": "# Home, by hand\n"}, note: "Subject: x\nSource: app main\n\nNew.\n", line: "notes pushed ", Board: "Subject: x\nSource: app main\n\nNew.\n"},
+		{name: "the same page", hand: map[string]string{"notes/Board-model.md": "By hand.\n"}, note: "Subject: x\nSource: app main\n\nNew.\n", line: "notes branch swarm/notes-1-architect-1 ",
+			warn: "⚠ #1 architect run 1: notes conflict with acme/swarm-app's head; pushed to swarm/notes-1-architect-1\n", Board: "By hand.\n", onBranch: true},
 		{name: "a secret", note: "Subject: x\nSource: app main\n\n" + secret + "\n", line: "notes kept: secret in a note", Board: "Old.\n", kept: true},
 		{name: "the host's clone deleted", note: "Subject: x\nSource: app main\n\nNew.\n", line: "notes pushed ", Board: "Subject: x\nSource: app main\n\nNew.\n", gone: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newApplyWS(t)
-			up := a.wikiUp(map[string]string{"Board-model.md": "Old.\n"})
-			base := gitIn(t, up, "rev-parse", "master")
+			up := a.notesUp(map[string]string{"Board-model.md": "Old.\n"})
+			base := gitIn(t, up, "rev-parse", "main")
 			a.forge.CreateIssue("Board model", "Change the board.", []string{"swarm:proposal-accepted"})
 			a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Notes: func(dir string) error {
 				if tc.hand != nil {
-					editUp(t, up, "master", tc.hand)
+					editUp(t, up, "main", tc.hand)
 				}
 				if tc.gone {
-					os.RemoveAll(a.state("wiki"))
+					os.RemoveAll(a.state("notes"))
 				}
 				return writes(map[string]string{"Board-model.md": tc.note})(dir)
 			}})
@@ -231,18 +223,18 @@ func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 			if tc.warn != "" && a.stderr.String() != tc.warn {
 				t.Errorf("stderr %q", a.stderr.String())
 			}
-			if got := gitIn(t, up, "show", "master:Board-model.md"); got+"\n" != tc.Board {
+			if got := gitIn(t, up, "show", "main:notes/Board-model.md"); got+"\n" != tc.Board {
 				t.Errorf("master's note %q", got)
 			}
 			if tc.hand != nil {
 				for f, c := range tc.hand {
-					if got := gitIn(t, up, "show", "master:"+f); got+"\n" != c {
+					if got := gitIn(t, up, "show", "main:"+f); got+"\n" != c {
 						t.Errorf("the maintainer's %s lost: %q", f, got)
 					}
 				}
 			}
 			if tc.name == "another page" {
-				if parent := gitIn(t, up, "rev-parse", "master^"); parent == base {
+				if parent := gitIn(t, up, "rev-parse", "main^"); parent == base {
 					t.Error("the run's commit is not on top of the maintainer's")
 				}
 			}
@@ -250,7 +242,7 @@ func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 				if got := gitIn(t, up, "log", "-1", "--format=%P", "swarm/notes-1-architect-1"); got != base {
 					t.Errorf("the branch's commit's parent %s, want the run's base %s", got, base)
 				}
-				if got := gitIn(t, up, "show", "swarm/notes-1-architect-1:Board-model.md"); got+"\n" != tc.note {
+				if got := gitIn(t, up, "show", "swarm/notes-1-architect-1:notes/Board-model.md"); got+"\n" != tc.note {
 					t.Errorf("the branch's note %q", got)
 				}
 			}
@@ -262,25 +254,15 @@ func TestSwarmApplyResearchWikiMerges(t *testing.T) {
 				t.Errorf("stderr %q", a.stderr.String())
 			}
 			// The host's clone holds no page of the run's but what the
-			// wiki has: nothing kept is left for a later export.
-			if st := gitIn(t, a.state("wiki"), "status", "--porcelain"); st != "" {
+			// swarm repository has: nothing kept is left for a later export.
+			if st := gitIn(t, a.state("notes"), "status", "--porcelain"); st != "" {
 				t.Errorf("the host's clone is left dirty: %q", st)
 			}
 			if tc.kept {
-				if b, _ := os.ReadFile(a.state("wiki/Board-model.md")); string(b) != "Old.\n" {
+				if b, _ := os.ReadFile(a.state("notes/notes/Board-model.md")); string(b) != "Old.\n" {
 					t.Errorf("the host's clone holds the kept note: %q", b)
 				}
 			}
 		})
-	}
-
-	// A wiki that cannot be cloned: the pass's error, saying what to do.
-	a := newApplyWS(t)
-	a.edit(func(c *declare.Config) { c.Wiki = true })
-	a.upstreams[wikiURL] = filepath.Join(t.TempDir(), "none.wiki.git")
-	a.forge.CreateIssue("Board model", "Change the board.", []string{"swarm:proposal-accepted"})
-	a.tick()
-	if err := a.apply(a.git(), "--once"); err == nil || !strings.Contains(err.Error(), "enable the issues repository's wiki and create its first page") || len(a.runner.Launches()) != 0 {
-		t.Errorf("an absent wiki: %v", err)
 	}
 }

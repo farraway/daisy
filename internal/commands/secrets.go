@@ -38,7 +38,7 @@ func checkSecrets(c *Context) error {
 		return fmt.Errorf("Error: cannot read the working directory: %v", err)
 	}
 	ws, wsErr := env.FindWorkspace(c.Ops.FS(), m.Root, cwd)
-	at, swarmErr := declare.Find(c.Ops.FS(), m.Root, cwd, false)
+	at, swarmErr := declare.Find(c.Ops.FS(), cwd, false)
 	if wsErr != nil && swarmErr != nil {
 		return wsErr
 	}
@@ -104,13 +104,12 @@ func workspaceSecrets(c *Context, ws string) bool {
 // swarmSecrets is the report of the swarm's variables (docs/swarm.md
 // section 3, Secret values): forge.token_env's, each keys env's and
 // DAISY_MAINTAINER_TOKEN, resolved as the swarm's verbs resolve them,
-// from <state>/env or, in the old layout, the workspace's .env.sh (whose
-// problems the workspace's report named already). swarm.json is read for
+// from <state>/env, else the environment. swarm.json is read for
 // its forge and keys alone; one that cannot be read is a warning, not a
 // failure. False when <state>/env is refused, which it says on stdout.
 func swarmSecrets(c *Context) bool {
 	out := c.Stdout
-	cfg, _, err := declare.Load(c.Ops.FS(), c.Swarm.Dir)
+	cfg, _, err := declare.Load(c.Ops.FS(), c.Swarm.Root)
 	if err == nil {
 		err = declare.ValidateForge(cfg.Forge)
 	}
@@ -120,11 +119,7 @@ func swarmSecrets(c *Context) bool {
 	}
 	names := cfg.SecretNames()
 	fmt.Fprintf(out, "Swarm %s (%s):\n", cfg.Forge.Repo, secretsFile(c, cfg))
-	var warn io.Writer = c.Stderr
-	if c.Swarm.Old() {
-		warn = io.Discard
-	}
-	vars, err := readSecrets(c, cfg, warn, names...)
+	vars, err := readSecrets(c, cfg, c.Stderr, names...)
 	if err != nil {
 		fmt.Fprintf(out, "❌ %s\n", strings.TrimPrefix(err.Error(), "Error: swarm: "))
 		return false

@@ -28,8 +28,8 @@ func cfg() declare.Config {
 	return declare.Config{
 		Forge: declare.Forge{Kind: "gitea", API: "https://forge.example.net/api/v1", Repo: "acme/app", CommitEmail: "swarm@example.net"},
 		Repos: []declare.Repo{
-			{Name: "app", Path: "app", Check: []string{"make", "check"}, Image: "daisy-member-app:2", Protected: []string{".gitea/", "AGENTS.md"}},
-			{Name: "lib", Path: "lib", Check: []string{}, Image: "daisy-member:1", Protected: []string{}},
+			{Name: "app", Repo: "acme/app", Check: []string{"make", "check"}, Image: "daisy-member-app:2", Protected: []string{".gitea/", "AGENTS.md"}},
+			{Name: "lib", Repo: "acme/lib", Check: []string{}, Image: "daisy-member:1", Protected: []string{}},
 		},
 		Base: "main", MaxRounds: 5, Timeout: "45m", Resources: []string{"docs/"}, Trusted: []string{"jane", "swarm-bot"},
 		Gates: declare.Gates{Triage: true, Plan: true, Merge: true},
@@ -98,7 +98,7 @@ const wantArchitectPrompt = `<!-- daisy-swarm prompt: acme/app#1 architect run 1
 - Issues: acme/app on forge.example.net
 - Clone /work/app: acme/app, branch main, base main, check make check
 - Clone /work/lib: acme/lib, branch main, base main, no check declared
-- Resources (read-only): /work/.resources/docs
+- Resources (read-only): /work/.resources/app/docs
 
 # Issue #1: Drift check
 
@@ -430,20 +430,17 @@ func TestRenderOwner(t *testing.T) {
 	has(t, "system.md", sys, []string{`Issue #1 has no comment yet: say whether its body is a job the swarm can do and is worth doing next, and what is unclear in it. Then restate the whole job as it now stands: the architect plans from your answer.`})
 	has(t, "prompt.md", prompt, []string{"Opened by swarm-bot at "})
 
-	ws := t.TempDir()
-	for name, text := range map[string]string{"docs/briefs/a.md": "# A\nStatus: active\nFirst.\n\n## M1\n\nDo.\n", "docs/briefs/b.md": "Status: done\n", "docs/notes.md": "# Notes\n"} {
-		os.MkdirAll(filepath.Join(ws, filepath.Dir(name)), 0o755)
-		os.WriteFile(filepath.Join(ws, name), []byte(text), 0o644)
-	}
-	briefs, err := brief.Find(ops.Real().FS(), ws, []string{"docs/"})
-	if err != nil {
-		t.Fatal(err)
+	var briefs []brief.Brief
+	for _, name := range []string{"docs/briefs/a.md", "docs/briefs/b.md"} {
+		text := map[string]string{"docs/briefs/a.md": "# A\nStatus: active\nFirst.\n\n## M1\n\nDo.\n", "docs/briefs/b.md": "Status: done\n"}[name]
+		b, _ := brief.Read(name, "swarm-app/"+name, []byte(text))
+		briefs = append(briefs, b)
 	}
 	b := job(f, 0, "owner", "")
 	b.Batch = &Batch{Briefs: briefs, Propose: 3}
 	sys, prompt = Render(b)
 	has(t, "batch system.md", sys, []string{`Propose up to 3 new jobs for acme/app, most important first, toward the first milestone`})
-	has(t, "batch prompt.md", prompt, []string{"# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /work/.resources/docs/briefs/a.md)\n\n### A\nStatus: active\nFirst.\n\n#### M1\n",
+	has(t, "batch prompt.md", prompt, []string{"# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /work/.resources/swarm-app/docs/briefs/a.md)\n\n### A\nStatus: active\nFirst.\n\n#### M1\n",
 		"# Open swarm issues\n\nNone.\n\n# Recently closed\n\nNone.\n"}, "b.md", "notes.md", "# Issue", "# Thread")
 }
 

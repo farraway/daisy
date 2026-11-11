@@ -1,6 +1,6 @@
 ---
 name: swarm
-description: The maintainer's guide over a Daisy swarm from its repository's clone — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm.json, the persona prompts and the per-repository notes, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, pause, resume, close) only after the maintainer confirms each write in words. Use in a swarm repository's clone (swarm.json at its top), or a workspace holding one or a swarm/swarm.json, when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json, a persona prompt or a repository's notes.
+description: The maintainer's guide over a Daisy swarm from its repository's clone — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm.json, the persona prompts and the per-repository notes, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, pause, resume, close) only after the maintainer confirms each write in words. Use in a swarm repository's clone (swarm.json at its top), or a workspace holding one, when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json, a persona prompt or a repository's notes.
 short_description: Guide a Daisy swarm: status, briefs, gates
 ---
 
@@ -16,8 +16,9 @@ after the maintainer has said yes to that write.
 
 1. **Read before you speak.** Start with `daisy swarm status` in the
    swarm repository's clone, where `swarm.json` sits at the top (a
-   swarm not yet moved into its repository keeps it at
-   `swarm/swarm.json` in the workspace, `docs/swarm.md` section 11). Its
+   `swarm.json` in a workspace's `swarm/` is the old layout, which the
+   current Daisy no longer reads: point the maintainer to
+   `docs/swarm.md` section 11, Moving a swarm into its repository). Its
    `State:` line names the state directory; the runs are
    under its `runs/<n>-<role>-<k>/` (`result` says how a run ended, what
    it cost and what was posted; `io/prompt.md` is what the member read,
@@ -71,8 +72,7 @@ after the maintainer has said yes to that write.
 
 ## The verbs
 
-Each runs in the swarm repository's clone (a swarm not yet moved, in
-its workspace), refuses before any write when its token is the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first.
+Each runs in the swarm repository's clone, refuses before any write when its token is the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first.
 
 | Waiting for you | Verb | What it writes |
 |---|---|---|

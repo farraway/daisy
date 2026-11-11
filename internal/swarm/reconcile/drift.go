@@ -147,13 +147,9 @@ func ConfigDrift(g Git, repo string) (Drift, error) {
 // branch as the pass fetched it (its mirror fetched now when the pass
 // has not fetched), its lines on stderr at the first pass that compares
 // and again only when the set of drifting paths changes, and once that
-// set is empty again the cleared line on stdout. The old layout has none;
-// a fetch or a comparison git cannot make is one warning, and changes
-// nothing.
+// set is empty again the cleared line on stdout. A fetch or a
+// comparison git cannot make is one warning, and changes nothing.
 func (s *Swarm) drift() {
-	if s.Place.Old() {
-		return
-	}
 	g := s.git()
 	if !s.fetched {
 		if err := g.FetchSwarm(repoName(s.Cfg.Forge.Repo)); err != nil {

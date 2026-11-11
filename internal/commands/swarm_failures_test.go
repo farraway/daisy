@@ -213,7 +213,7 @@ func TestSwarmApplySecretFromTheSlotAtReturn(t *testing.T) {
 		return os.WriteFile(filepath.Join(slot, "auth.json"), []byte(`{"tokens":{"access_token":"`+refreshed+`"}}`), 0o600)
 	}})
 	a.pass()
-	rs, _ := a.forge.Reviews(prRef(2))
+	rs, _ := a.forge.Reviews(prRef(1))
 	if len(rs) != 0 || !strings.Contains(a.result("1-adversary-1"), "failed: secret in output: out.md\n") {
 		t.Errorf("reviews %+v\n%s", rs, a.result("1-adversary-1"))
 	}
@@ -231,7 +231,7 @@ func TestSwarmApplyFaults(t *testing.T) {
 	// The sympathetic reviewer's review of the head, on the head as the
 	// Fake reads it: the adversary alone runs.
 	a.pulls(1)
-	a.forge.Review(forge.Ref{Repo: "app", N: 2}, forge.Approve, mark("sympathetic", 1)+approve)
+	a.forge.Review(prRef(1), forge.Approve, mark("sympathetic", 1)+approve)
 	before := a.bodies(1)
 	a.pass()
 	r := a.result("1-adversary-1")
@@ -360,6 +360,7 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 		a := newApplyWS(t)
 		os.Remove(a.state("owner-held"))
 		a.write("docs/briefs/a.md", "# Drift\n\nStatus: draft\n\n## M1\n")
+		a.publish("a draft brief")
 		a.runner.Script(0, "owner", runner.Canned{Out: "## One\nA.\n"})
 		a.pass()
 		if n := len(a.runner.Launches()); n != 0 {
@@ -372,6 +373,7 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 			t.Errorf("status: %v\n%s", err, a.stdout.String())
 		}
 		a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\n\n## M1\n")
+		a.publish("the brief active")
 		a.pass()
 		if _, err := os.Stat(a.state("runs/0-owner-1")); err != nil {
 			t.Errorf("the batch did not run once a brief was active: %v", err)
@@ -385,11 +387,11 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 			c.Budget = &declare.Budget{PerDay: 10, Total: 100}
 		})
 		a.forge.CreateIssue("Old", "x", []string{"swarm:proposal-accepted"})
-		a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.app.1.architect.9", Swarm: "acme/app#1/architect"}} // #1 stays ready
+		a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.swarm-app.1.architect.9", Swarm: "acme/swarm-app#1/architect"}} // #1 stays ready
 		a.release()
 		a.runner.Script(0, "owner", runner.Canned{Out: "## One\nA.\n## Two\nB.\n## Three\nC.\n"})
 		a.pass()
-		if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, "Propose up to 2 new jobs for acme/app, most important first, toward the first milestone") {
+		if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, "Propose up to 2 new jobs for acme/swarm-app, most important first, toward the first milestone") {
 			t.Errorf("batch Task:\n%s", sys)
 		}
 		ready, _ := a.forge.Issues(forge.Open, "swarm:proposal-accepted")
@@ -450,9 +452,9 @@ func TestSwarmApplyAbandonedAndOrphans(t *testing.T) {
 		os.MkdirAll(a.state("runs/"+run+"/work"), 0o755)
 		os.WriteFile(a.state("runs/"+run+"/result"), []byte("label swarm:proposal-accepted\nstarted "+started+"\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\n"), 0o644)
 	}
-	a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.app.2.architect.1", Swarm: "acme/app#2/architect"}, {Name: "daisy-swarm.acme.app.3.architect.1", Swarm: "acme/app#3/architect"}}
+	a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.swarm-app.2.architect.1", Swarm: "acme/swarm-app#2/architect"}, {Name: "daisy-swarm.acme.swarm-app.3.architect.1", Swarm: "acme/swarm-app#3/architect"}}
 	a.pass()
-	if !reflect.DeepEqual(a.runner.Stopped, []string{"daisy-swarm.acme.app.2.architect.1"}) {
+	if !reflect.DeepEqual(a.runner.Stopped, []string{"daisy-swarm.acme.swarm-app.2.architect.1"}) {
 		t.Errorf("stopped %v", a.runner.Stopped)
 	}
 	for run, abandoned := range map[string]bool{"1-architect-1": true, "2-architect-1": true, "3-architect-1": false} {

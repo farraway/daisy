@@ -46,34 +46,19 @@ func gitRepo(t *testing.T, dir, url string) {
 	}
 }
 
-// workspace is a temp workspace with the product at app and its library
-// at lib, both of the organization acme on forge.example.net, a docs/
-// directory and the five prompts.
-func workspace(t *testing.T) string {
-	t.Helper()
-	hermetic(t)
-	ws := t.TempDir()
-	gitRepo(t, filepath.Join(ws, "app"), "git@forge.example.net:acme/app.git")
-	gitRepo(t, filepath.Join(ws, "lib"), "https://forge.example.net/acme/lib.git")
-	write(t, filepath.Join(ws, "docs", "roadmap.md"), "# Roadmap\n")
-	for _, r := range Roles {
-		write(t, PromptFile(Workspace(ws).Dir, r), DefaultPrompts[r])
-	}
-	return ws
-}
-
+// valid is a declaration the clone of cloneFolder validates.
 func valid() Config {
-	envVar, slots := "CLAUDE_CODE_OAUTH_TOKEN", 1
+	envVar, slots, ssh := "CLAUDE_CODE_OAUTH_TOKEN", 1, "ssh -i /keys/app"
 	personas := map[string]Persona{}
 	for r, p := range examplePersonas {
 		p.CoAuthor = defaultCoAuthor(p.Provider, p.Model)
 		personas[r] = p
 	}
 	return Config{
-		Forge: Forge{Kind: "gitea", API: "https://forge.example.net/api/v1", Repo: "acme/app", TokenEnv: "GITEA_TOKEN", CommitEmail: "swarm@example.net"},
+		Forge: Forge{Kind: "gitea", API: "https://forge.example.net/api/v1", Repo: "acme/swarm-app", TokenEnv: "GITEA_TOKEN", CommitEmail: "swarm@example.net"},
 		Repos: []Repo{
-			{Name: "app", Path: "app", Check: []string{"make", "check"}, Image: defaultImage, Protected: defaultProtected},
-			{Name: "lib", Path: "lib", Check: []string{}, Image: defaultImage, Protected: []string{}},
+			{Name: "app", Repo: "acme/app", SSHCommand: &ssh, Check: []string{"make", "check"}, Image: defaultImage, Protected: defaultProtected},
+			{Name: "lib", Repo: "acme/lib", Check: []string{}, Image: defaultImage, Protected: []string{}},
 		},
 		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
@@ -90,20 +75,8 @@ func ptr[T any](v T) *T { return &v }
 // Every row of section 3's error table, one case each, the message byte
 // for byte (after `Error: `).
 func TestValidateNamesTheField(t *testing.T) {
-	ws := workspace(t)
-	gitRepo(t, filepath.Join(ws, "plain"), "")
-	gitRepo(t, filepath.Join(ws, "leaky"), "https://jane:tok@forge.example.net/acme/leaky.git")
-	gitRepo(t, filepath.Join(ws, "elsewhere"), "git@other.example.net:acme/elsewhere.git")
-	gitRepo(t, filepath.Join(ws, "theirs"), "git@forge.example.net:someone/theirs.git")
-	gitRepo(t, filepath.Join(ws, "local"), "/srv/git/local.git")
-	os.MkdirAll(filepath.Join(ws, "app", "sub"), 0o755)
-	os.MkdirAll(filepath.Join(ws, "notrepo"), 0o755)
-	write(t, filepath.Join(ws, "secrets", ".env.sh"), "")
-	os.MkdirAll(filepath.Join(ws, "bound", "deep", ".daisy"), 0o755)
-	os.MkdirAll(filepath.Join(ws, "swarm", "notes"), 0o755)
-	outside := t.TempDir()
-	os.Symlink(outside, filepath.Join(ws, "escape"))
-	os.Symlink("docs", filepath.Join(ws, "docs-link"))
+	_, clone := cloneFolder(t)
+	p := Clone(clone)
 
 	for _, tc := range []struct {
 		want string
@@ -127,17 +100,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: forge.board: empty`, func(c *Config) { c.Forge.Board = ptr("") }},
 		{`swarm.json: repos: no repository (at least one is required)`, func(c *Config) { c.Repos = nil }},
 		{`swarm.json: repos[1].name: "-lib" is not a repository name`, func(c *Config) { c.Repos[1].Name = "-lib" }},
-		{`swarm.json: repos[1].name: "app" is listed twice`, func(c *Config) { c.Repos[1].Name = "app" }},
-		{`swarm.json: repos[0].path: "notrepo" is not a git repository`, func(c *Config) { c.Repos[0].Path = "notrepo" }},
-		{`swarm.json: repos[0].path: "docs" is not a git repository`, func(c *Config) { c.Repos[0].Path = "docs" }},
-		{`swarm.json: repos[0].path: "app/sub" is not a git repository`, func(c *Config) { c.Repos[0].Path = "app/sub" }},
-		{`swarm.json: repos[0].path: origin is "/srv/git/local.git", not <owner>/<repo> on a forge`, func(c *Config) { c.Repos[0].Path, c.Repos[0].Name = "local", "local" }},
-		{`swarm.json: repos[0].path: "../app" is not a relative path inside the workspace`, func(c *Config) { c.Repos[0].Path = "../app" }},
-		{`swarm.json: repos[0].path: "plain" has no origin remote`, func(c *Config) { c.Repos[0].Path = "plain" }},
-		{`swarm.json: repos[0].path: origin URL carries user information; use SSH or a credential helper`, func(c *Config) { c.Repos[0].Path, c.Repos[0].Name = "leaky", "leaky" }},
-		{`swarm.json: repos[1].path: origin is "git@other.example.net:acme/elsewhere.git", not acme/elsewhere on forge.example.net`, func(c *Config) { c.Repos[1].Path, c.Repos[1].Name = "elsewhere", "elsewhere" }},
-		{`swarm.json: repos[1].path: origin is "git@forge.example.net:someone/theirs.git", not acme/theirs on forge.example.net`, func(c *Config) { c.Repos[1].Path, c.Repos[1].Name = "theirs", "theirs" }},
-		{`swarm.json: repos[1].path: origin is "https://forge.example.net/acme/lib.git", not acme/library on forge.example.net`, func(c *Config) { c.Repos[1].Name = "library" }},
+		{`swarm.json: repos[1].name: "app" is listed twice`, func(c *Config) { c.Repos[1].Name, c.Repos[1].Repo = "app", "acme/app" }},
 		{`swarm.json: repos[0].check[1]: empty argument`, func(c *Config) { c.Repos[0].Check = []string{"make", ""} }},
 		{`swarm.json: repos[0].image: empty`, func(c *Config) { c.Repos[0].Image = "" }},
 		{`swarm.json: repos[0].protected[2]: "../ci/" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Protected = []string{"a/", "b", "../ci/"} }},
@@ -149,21 +112,6 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: timeout: "30s" is not between 1m and 24h`, func(c *Config) { c.Timeout = "30s" }},
 		{`swarm.json: interval: "5 minutes" is not a Go duration`, func(c *Config) { c.Interval = "5 minutes" }},
 		{`swarm.json: owner.max_open_proposals: 21 is not between 1 and 20`, func(c *Config) { c.Owner.MaxOpenProposals = 21 }},
-		{`swarm.json: resources[1]: "." is the workspace`, func(c *Config) { c.Resources = []string{"docs/", "."} }},
-		{`swarm.json: resources[0]: "/etc" is not a relative path`, func(c *Config) { c.Resources = []string{"/etc"} }},
-		{`swarm.json: resources[0]: "missing/" does not exist`, func(c *Config) { c.Resources = []string{"missing/"} }},
-		{`swarm.json: resources[0]: "escape" is outside the workspace`, func(c *Config) { c.Resources = []string{"escape"} }},
-		{`swarm.json: resources[0]: "secrets" contains .env.sh`, func(c *Config) { c.Resources = []string{"secrets"} }},
-		{`swarm.json: resources[0]: "bound" contains .daisy`, func(c *Config) { c.Resources = []string{"bound"} }},
-		{`swarm.json: resources[0]: "app" contains .git`, func(c *Config) { c.Resources = []string{"app"} }},
-		{`swarm.json: resources[0]: "app/.git/hooks" contains .git`, func(c *Config) { c.Resources = []string{"app/.git/hooks"} }},
-		{`swarm.json: resources[0]: "swarm/notes" is under swarm/`, func(c *Config) { c.Resources = []string{"swarm/notes"} }},
-		{`swarm.json: resources[1]: "docs-link" is listed twice`, func(c *Config) { c.Resources = []string{"docs/", "docs-link"} }},
-		{`swarm.json: wiki: true beside notes; the swarm's own repository keeps its notes in notes/, and its wiki is no better than its tree`, func(c *Config) {
-			c.Forge.Repo, c.Wiki, c.Notes = "acme/swarm-x", true, true
-		}},
-		{`swarm.json: wiki: acme/swarm-x is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)`, func(c *Config) { c.Forge.Repo, c.Wiki = "acme/swarm-x", true }},
-		{`swarm.json: notes: acme/lib is a declared repository, which holds product code; notes/ is for the swarm's own issues repository (wiki keeps a product's)`, func(c *Config) { c.Forge.Repo, c.Notes = "acme/lib", true }},
 		{`swarm.json: trusted: no login (at least one is required)`, func(c *Config) { c.Trusted = nil }},
 		{`swarm.json: trusted[1]: "jane doe" is not a forge login`, func(c *Config) { c.Trusted = []string{"swarm-bot", "jane doe"} }},
 		{`swarm.json: budget: missing (required when a gate is false)`, func(c *Config) { c.Gates.Merge = false }},
@@ -195,35 +143,35 @@ func TestValidateNamesTheField(t *testing.T) {
 		c := valid()
 		c.Keys = map[string]Key{"anthropic": c.Keys["anthropic"], "openai": c.Keys["openai"]}
 		tc.edit(&c)
-		if got := errText(Validate(ops.Real(), Workspace(ws), c, 0)); got != tc.want {
+		if got := errText(Validate(ops.Real(), p, c, 0)); got != tc.want {
 			t.Errorf("got  %s\nwant %s", got, tc.want)
 		}
 	}
 
-	if err := Validate(ops.Real(), Workspace(ws), valid(), 0); err != nil {
+	if err := Validate(ops.Real(), p, valid(), 0); err != nil {
 		t.Errorf("the valid declaration: %v", err)
 	}
 	for _, k := range []Key{{Slots: ptr(2)}, {Env: ptr("XAI_API_KEY")}} { // xai takes either form (section 8)
 		x := valid()
 		setPersona(&x, "sympathetic", func(p *Persona) { p.Provider, p.Model, p.CoAuthor = "xai", "grok-4.5", "grok-4.5 <noreply@x.ai>" })
 		x.Keys["xai"] = k
-		if err := Validate(ops.Real(), Workspace(ws), x, 0); err != nil {
+		if err := Validate(ops.Real(), p, x, 0); err != nil {
 			t.Errorf("xai %+v: %v", k, err)
 		}
 	}
 	none := valid()
 	setPersona(&none, "worker", func(p *Persona) { p.CoAuthor = "" })
-	if err := Validate(ops.Real(), Workspace(ws), none, 0); err != nil {
+	if err := Validate(ops.Real(), p, none, 0); err != nil {
 		t.Errorf(`co_author "", no trailer: %v`, err)
 	}
-	os.Remove(PromptFile(Workspace(ws).Dir, "architect"))
-	write(t, PromptFile(Workspace(ws).Dir, "worker"), "")
-	if got := errText(Validate(ops.Real(), Workspace(ws), valid(), 0)); got != "swarm.json: personas.architect: prompt swarm/prompts/architect.md is missing or empty" {
+	os.Remove(PromptFile(clone, "architect"))
+	write(t, PromptFile(clone, "worker"), "")
+	if got := errText(Validate(ops.Real(), p, valid(), 0)); got != "swarm.json: personas.architect: prompt prompts/architect.md is missing or empty" {
 		t.Errorf("missing prompt: %s", got)
 	}
 	c := valid()
 	c.Trusted, c.Forge.CommitEmail = nil, ""
-	if err := Validate(ops.Real(), Workspace(ws), c, SkipPrompts|SkipAccount); err != nil {
+	if err := Validate(ops.Real(), p, c, SkipPrompts|SkipAccount); err != nil {
 		t.Errorf("init's first validation: %v", err)
 	}
 }
@@ -254,6 +202,9 @@ func TestParseNamesTheField(t *testing.T) {
 		{`"merge": true`, `"merge": null`, "swarm.json: gates.merge: null is not a boolean"}, // not a gate silently off
 		{`"max_members": 3`, `"max_members": 1e400`, "swarm.json: max_members: cannot unmarshal number 1e400 into Go value of type int"},
 		{`"check": ["make", "check"]`, `"check": null`, "swarm.json: repos[0].check: null is not an array"},
+		// The old layout's fields, retired (revision 6's plan, Step 7).
+		{`"repo": "acme/lib",`, `"repo": "acme/lib", "path": "lib",`, "swarm.json: repos[1].path: unknown field"},
+		{`"resources": ["docs/"],`, `"resources": ["docs/"], "wiki": true,`, "swarm.json: wiki: unknown field"},
 	} {
 		src := strings.Replace(good, tc.from, tc.to, 1)
 		if src == good {
@@ -279,16 +230,13 @@ func TestParseNamesTheField(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(c, valid()) {
 		t.Errorf("round trip: %v\n%+v", err, c)
 	}
-	ws := t.TempDir()
-	if _, found, err := Load(ops.Real().FS(), Workspace(ws).Dir); found || errText(err) != "swarm.json: not found at "+ws+"/swarm/swarm.json; run 'daisy swarm init'" {
+	dir := t.TempDir()
+	if _, found, err := Load(ops.Real().FS(), dir); found || errText(err) != "swarm.json: not found at "+dir+"/swarm.json; run 'daisy swarm init'" {
 		t.Errorf("absent: found %v, %v", found, err)
 	}
 }
 
-// Format writes section 3's example byte for byte, the product named by
-// its forge name (revision 6's plan, Step 3, which pointed this test back
-// at section 3), and the old layout's form of it, which section 11
-// (Moving a swarm into its repository) holds, by its path.
+// Format writes section 3's example byte for byte.
 func TestFormatIsSectionThreesExample(t *testing.T) {
 	doc, err := os.ReadFile("../../../docs/swarm.md")
 	if err != nil {
@@ -318,16 +266,6 @@ func TestFormatIsSectionThreesExample(t *testing.T) {
 	if got := Format(c); !bytes.Equal(got, m[1]) {
 		t.Errorf("Format:\n%s\nsection 3:\n%s", got, m[1])
 	}
-
-	m = regexp.MustCompile("(?s)### Moving a swarm into its repository.*?```json\n(.*?)```").FindSubmatch(doc)
-	if m == nil {
-		t.Fatal("no example of the old layout in section 11")
-	}
-	c.Repos = []Repo{{Name: "<repo>", Path: "app", Image: defaultImage, Protected: defaultProtected}}
-	c.Resources = []string{"docs/"}
-	if got := Format(c); !bytes.Equal(got, m[1]) {
-		t.Errorf("Format:\n%s\nsection 11:\n%s", got, m[1])
-	}
 }
 
 // A budget and a board are written in their places, and read back.
@@ -348,48 +286,13 @@ func TestFormatKeepsBudgetAndBoard(t *testing.T) {
 	}
 }
 
-// `wiki` is written after resources only when true, absent read as false
-// (a file written before Step 19 is unchanged), and null refused.
-func TestFormatWiki(t *testing.T) {
+// `notes` is written after resources (and references) only when true,
+// absent read as false, and read back (section 3).
+func TestFormatNotes(t *testing.T) {
 	c := valid()
-	if strings.Contains(string(Format(c)), "wiki") {
-		t.Errorf("wiki written while false:\n%s", Format(c))
-	}
-	c.Wiki = true
+	c.Notes = true
 	out := string(Format(c))
-	if !strings.Contains(out, `  "resources": ["docs/"],`+"\n"+`  "wiki": true,`+"\n"+`  "trusted": `) {
-		t.Errorf("Format:\n%s", out)
-	}
-	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
-		t.Errorf("round trip: %v", err)
-	}
-	if _, err := Parse([]byte(strings.Replace(out, `"wiki": true`, `"wiki": null`, 1))); errText(err) != "swarm.json: wiki: null is not a boolean" {
-		t.Errorf("null: %v", err)
-	}
-}
-
-// The swarm's own issues repository (section 3, notes): its clone in the
-// workspace, none of repos, holds the briefs under briefs/, a resource
-// like any other, and is no product repository (Declares finds it not, so
-// no mirror, worker, check or image is its); notes: true is valid for it,
-// written after wiki's place and read back.
-func TestOwnIssuesRepository(t *testing.T) {
-	ws := workspace(t)
-	gitRepo(t, filepath.Join(ws, "swarm-x"), "git@forge.example.net:acme/swarm-x.git")
-	write(t, filepath.Join(ws, "swarm-x", "briefs", "m0.md"), "Status: active\n\n## M1\n")
-	c := valid()
-	c.Forge.Repo, c.Notes, c.Resources = "acme/swarm-x", true, []string{"docs/", "swarm-x/briefs/"}
-	if err := Validate(ops.Real(), Workspace(ws), c, 0); err != nil {
-		t.Fatalf("own issues repository: %v", err)
-	}
-	if _, ok := c.Declares(c.Forge.Repo); ok || len(c.Repos) != 2 || !c.KeepsNotes() {
-		t.Errorf("the issues repository declared: %+v", c.Repos)
-	}
-	if r, ok := c.Declares("acme/lib"); !ok || r.Path != "lib" {
-		t.Errorf("Declares(acme/lib) = %+v, %v", r, ok)
-	}
-	out := string(Format(c))
-	if !strings.Contains(out, `  "resources": ["docs/", "swarm-x/briefs/"],`+"\n"+`  "notes": true,`+"\n"+`  "trusted": `) {
+	if !strings.Contains(out, `  "resources": ["docs/"],`+"\n"+`  "notes": true,`+"\n"+`  "trusted": `) {
 		t.Errorf("Format:\n%s", out)
 	}
 	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {

@@ -208,7 +208,7 @@ func TestSwarmApplyHolds(t *testing.T) {
 		a.forge.AddLabels("bug")
 		a.forge.CreateIssue("The blocker", "", []string{"bug"})                              // #1, not the swarm's
 		a.forge.CreateIssue("Held", "Check the drift.", []string{"swarm:proposal-accepted"}) // #2
-		job := forge.Ref{Repo: "app", N: 2}
+		job := a.ref(2)
 		a.forge.Say(job, "jane", "Blocked by #1")
 		a.pass()
 		if len(a.runner.Launches()) != 0 {
@@ -222,8 +222,8 @@ func TestSwarmApplyHolds(t *testing.T) {
 		}
 		a.forge.CreateIssue("Another", "", []string{"bug"})                      // #3
 		a.forge.CreateIssue("Next", "Two.", []string{"swarm:proposal-accepted"}) // #4
-		a.forge.Say(forge.Ref{Repo: "app", N: 4}, "jane", "Blocked by #3")
-		a.forge.Say(forge.Ref{Repo: "app", N: 4}, "jane", "Go ahead anyway.")
+		a.forge.Say(a.ref(4), "jane", "Blocked by #3")
+		a.forge.Say(a.ref(4), "jane", "Go ahead anyway.")
 		a.runner.Script(4, "architect", runner.Canned{Out: oneSlice})
 		a.pass()
 		if n := len(a.runner.Launches()); n != 2 {
@@ -304,7 +304,7 @@ func TestSwarmSecondReviewerGoesHome(t *testing.T) {
 			!strings.HasPrefix(r, "label swarm:review-1-in-progress\nlaunch-failed ") || !strings.Contains(r, "\nfault: clone: ") || !strings.Contains(r, home+"fault\ncollected\n") {
 			t.Errorf("%v\n%s\nstdout:\n%s", got, r, a.stdout.String())
 		}
-		if l := a.runner.Launches(); l[len(l)-1].Name != "daisy-swarm.acme.app.1.adversary.1" {
+		if l := a.runner.Launches(); l[len(l)-1].Name != "daisy-swarm.acme.swarm-app.1.adversary.1" {
 			t.Errorf("launched last: %s", l[len(l)-1].Name)
 		}
 		if _, err := os.Stat(a.state("runs/1-sympathetic-1/work")); err == nil {

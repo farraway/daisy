@@ -165,7 +165,7 @@ func TestSwarmWorkerPostHoldsToTheLimitWithItsCheckBlock(t *testing.T) {
 	if len(ps) != 1 {
 		t.Fatalf("pulls %+v", ps)
 	}
-	posted := strings.TrimSuffix(strings.TrimPrefix(ps[0].Body, mark("worker", 1)), "\n\nRefs #1")
+	posted := strings.TrimSuffix(strings.TrimPrefix(ps[0].Body, mark("worker", 1)), "\n\nRefs acme/swarm-app#1")
 	note := "\n[truncated by Daisy; the whole output is in runs/1-worker-1]\n\n**Check:** `make check` on "
 	if len(posted) > 60000 || !strings.Contains(posted, note) || !strings.HasSuffix(posted, ": exit 0\n\n```\n"+strings.Repeat("ok\n", 19)+"ok\n```") {
 		t.Errorf("posted %d bytes:\n%s", len(posted), posted[max(0, len(posted)-400):])

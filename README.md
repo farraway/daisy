@@ -177,8 +177,8 @@ waits for you, `swarm:blocked`, `swarm:paused`, `swarm:blocking` and
 `swarm:class-architecture`; and the terminals `swarm:done` and `swarm:rejected`) and prints a systemd user
 service. Every `daisy swarm` command runs from that repository's clone,
 with or without a Daisy workspace around it (`docs/swarm.md`'s revision
-6, which its plan builds in steps; until then a swarm lives in a
-workspace, as its section 11 describes). `daisy swarm apply --once` runs one pass of the
+6; a swarm in the older workspace layout is moved into its repository
+by hand, as its section 11 describes). `daisy swarm apply --once` runs one pass of the
 reconciler: it reads the forge, launches the members (one agent run each,
 in its own container) whose turn it is, posts what they wrote and moves
 the labels, then waits for its members; `apply` without `--once`, what

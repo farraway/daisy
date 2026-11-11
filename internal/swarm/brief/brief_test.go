@@ -1,48 +1,28 @@
 package brief
 
 import (
-	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
-
-	"daisy/internal/ops"
 )
 
-func write(t *testing.T, p, s string) {
-	t.Helper()
-	os.MkdirAll(filepath.Dir(p), 0o755)
-	if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestFind(t *testing.T) {
-	ws := t.TempDir()
-	write(t, filepath.Join(ws, "docs/briefs/b-second.md"), "# Second\n\nStatus: done\n\n## M0\n")
-	write(t, filepath.Join(ws, "docs/briefs/a-roadmap.md"), "# Roadmap\nStatus: active\nPriority: first.\n\n## M0\n")
-	write(t, filepath.Join(ws, "docs/briefs/c-late.md"), "# Late\n\n## M0\n\nStatus: active\n") // after the first milestone: no header line
-	write(t, filepath.Join(ws, "docs/notes.md"), "# Notes\n")
-	write(t, filepath.Join(ws, "docs/briefs/d.txt"), "Status: active\n")
-	write(t, filepath.Join(ws, "lib/docs/briefs/x.md"), "Status:   active  \n")
-	write(t, filepath.Join(ws, "outside/y.md"), "Status: active\n")
-	os.Symlink(filepath.Join(ws, "outside"), filepath.Join(ws, "docs/briefs/linked"))
-	os.Symlink(filepath.Join(ws, "outside/y.md"), filepath.Join(ws, "docs/briefs/z.md"))
-
-	got, err := Find(ops.Real().FS(), ws, []string{"docs/", "lib/docs", "docs/briefs/"})
-	want := []Brief{{"docs/briefs/a-roadmap.md", "active", "# Roadmap\nStatus: active\nPriority: first.\n\n## M0\n", "docs/briefs/a-roadmap.md"}, {"docs/briefs/b-second.md", "done", "# Second\n\nStatus: done\n\n## M0\n", "docs/briefs/b-second.md"}, {"lib/docs/briefs/x.md", "active", "Status:   active  \n", "lib/docs/briefs/x.md"}}
-	if err != nil || !reflect.DeepEqual(got, want) {
-		t.Errorf("Find = %+v, %v", got, err)
-	}
-	if got, err := Find(ops.Real().FS(), ws, nil); err != nil || got != nil {
-		t.Errorf("no resources: %+v, %v", got, err)
-	}
-	if _, err := Find(ops.Real().FS(), ws, []string{"gone/"}); err == nil {
-		t.Error("a missing resource is no error")
-	}
-	// A resource that is a brief itself.
-	if got, _ := Find(ops.Real().FS(), ws, []string{"outside/y.md"}); !reflect.DeepEqual(got, []Brief{{"outside/y.md", "active", "Status: active\n", "outside/y.md"}}) {
-		t.Errorf("a file resource: %+v", got)
+// Read takes a file as a brief when its header, the lines before its
+// first `## ` heading, holds a Status: line, its value trimmed; a
+// Status: line after the first milestone makes no brief (section 4).
+func TestRead(t *testing.T) {
+	for _, c := range []struct {
+		text, status string
+		ok           bool
+	}{
+		{"# Roadmap\nStatus: active\nPriority: first.\n\n## M0\n", "active", true},
+		{"# Second\n\nStatus: done\n\n## M0\n", "done", true},
+		{"Status:   active  \n", "active", true},
+		{"# Late\n\n## M0\n\nStatus: active\n", "", false},
+		{"# Notes\n", "", false},
+	} {
+		b, ok := Read("briefs/b.md", "swarm-app/briefs/b.md", []byte(c.text))
+		if ok != c.ok || (ok && b != (Brief{"briefs/b.md", c.status, c.text, "swarm-app/briefs/b.md"})) {
+			t.Errorf("Read(%q) = %+v, %v", c.text, b, ok)
+		}
 	}
 }
 
@@ -77,14 +57,12 @@ func TestMilestonesAndTitles(t *testing.T) {
 // in a fenced block, a `## ` line or a `Status:` line in it, neither ends
 // the header nor is its Status (section 4).
 func TestStatusAfterAFencedHeading(t *testing.T) {
-	ws := t.TempDir()
 	text := "# Brief\n\nProposals look like:\n\n```markdown\n## <title>\nStatus: done\n```\n\nStatus: active\n\n## M0\n"
-	write(t, filepath.Join(ws, "docs/briefs/b.md"), text)
-	got, err := Find(ops.Real().FS(), ws, []string{"docs/"})
-	if err != nil || !reflect.DeepEqual(got, []Brief{{"docs/briefs/b.md", "active", text, "docs/briefs/b.md"}}) {
-		t.Fatalf("Find = %+v, %v", got, err)
+	got, ok := Read("briefs/b.md", "swarm-app/briefs/b.md", []byte(text))
+	if !ok || got.Status != "active" {
+		t.Fatalf("Read = %+v, %v", got, ok)
 	}
-	if ms := got[0].Milestones(); !reflect.DeepEqual(ms, []string{"M0"}) {
+	if ms := got.Milestones(); !reflect.DeepEqual(ms, []string{"M0"}) {
 		t.Errorf("Milestones = %q", ms)
 	}
 }

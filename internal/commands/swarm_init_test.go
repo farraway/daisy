@@ -27,7 +27,7 @@ import (
 // pushed. A variable unset at init is written commented out, so the
 // environment supplies it at apply (revision 6's plan, Step 6a).
 func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
-	s := newSwarmWSIn(t, true)
+	s := newSwarmWS(t)
 	if _, err := os.Stat(s.ws); err == nil {
 		t.Fatal("a clone before init")
 	}
@@ -47,7 +47,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	}
 	want += "✓ Committed and pushed " + gitIn(t, up, "rev-parse", "--short=7", "main") + " to acme/swarm-app's main as Jane <jane@example.net>\n✓ Wrote " + env +
 		" (mode 0600)\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 16 present (16 created, 0 renamed)\n" +
-		strings.Replace(s.units(), "for the workspace %f", "for the swarm repository %f", 1)
+		s.units()
 	if s.stdout.String() != want {
 		t.Errorf("stdout:\n%s\nwant:\n%s", s.stdout.String(), want)
 	}
@@ -113,7 +113,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	// architect's token set in apply's environment (a unit's
 	// Environment=): the commented line shadows nothing, and the
 	// architect, given the environment's value, reads the pushed commit.
-	a := &applyWS{statusWS: &statusWS{swarmWS: s, issues: "swarm-app"}, runner: &runner.Fake{}, now: fixedClock().Now()}
+	a := &applyWS{statusWS: &statusWS{swarmWS: s}, runner: &runner.Fake{}, now: fixedClock().Now()}
 	a.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token-0123456789abcdef0123456789"
 	os.WriteFile(a.state("owner-held"), []byte("held 2026-11-06T14:00:00Z: test\n"), 0o644)
 	a.cloned()
@@ -150,7 +150,7 @@ func readAbs(p string) string {
 // committed on top; and a clone of it already in the folder, holding no
 // swarm.json, taken as it is.
 func TestSwarmInitAdoptsTheSwarmRepository(t *testing.T) {
-	s := newSwarmWSIn(t, true)
+	s := newSwarmWS(t)
 	s.forge.AddRepository()
 	up := s.upstreams[swarmURL]
 	pushFiles(t, up, map[string]string{"README.md": "# Ours\n"})
@@ -168,7 +168,7 @@ func TestSwarmInitAdoptsTheSwarmRepository(t *testing.T) {
 
 	// A clone of it already in the folder, without swarm.json: no clone
 	// made, its files committed.
-	s = newSwarmWSIn(t, true)
+	s = newSwarmWS(t)
 	s.forge.AddRepository()
 	git(t, "", "clone", "-q", s.upstreams[swarmURL], s.ws)
 	git(t, s.ws, "remote", "set-url", "origin", swarmURL)
@@ -216,7 +216,7 @@ func TestSwarmInitRefusesInAFolder(t *testing.T) {
 		}, "Error: swarm: push <ws>: git push: remote: refused        \nTo git@forge.example.net:acme/swarm-app.git\n ! [remote rejected] HEAD -> main (pre-receive hook declined)\nerror: failed to push some refs to 'git@forge.example.net:acme/swarm-app.git'; the commit stays in the clone: pull, then push it", true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := newSwarmWSIn(t, true)
+			s := newSwarmWS(t)
 			tc.set(s)
 			err := s.run("--defaults")
 			state := filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app")
@@ -242,7 +242,7 @@ func TestSwarmInitRefusesInAFolder(t *testing.T) {
 // the files the first run wrote and could not commit, kept by the second,
 // are committed and pushed by it, and nothing else of the clone.
 func TestSwarmInitCommitsWhatAFailedRunLeft(t *testing.T) {
-	s := newSwarmWSIn(t, true)
+	s := newSwarmWS(t)
 	s.forge.AddRepository()
 	git(t, "", "clone", "-q", s.upstreams[swarmURL], s.ws)
 	git(t, s.ws, "remote", "set-url", "origin", swarmURL)
@@ -285,7 +285,7 @@ func TestSwarmInitForgeAPI(t *testing.T) {
 		{"the guess", []string{"--defaults"}, nil, "https://forge.example.net/api/v1"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := newSwarmWSIn(t, true)
+			s := newSwarmWS(t)
 			maps.Copy(s.vars, tc.vars)
 			if err := s.run(tc.flags...); err != nil {
 				t.Fatalf("%v\n%s", err, s.stderr.String())
@@ -299,7 +299,7 @@ func TestSwarmInitForgeAPI(t *testing.T) {
 	}
 
 	// With swarm.json: its forge.api over the variable; the flag over it.
-	s := newSwarmWSIn(t, true)
+	s := newSwarmWS(t)
 	s.vars["GITEA_API_URL"] = port
 	if err := s.run("--defaults"); err != nil {
 		t.Fatalf("%v\n%s", err, s.stderr.String())

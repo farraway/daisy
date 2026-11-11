@@ -66,7 +66,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 
 	// The run's copy of the notes, indexed for the prompt.
 	notesDir, notesSHA := filepath.Join(r.Dir, "notes"), ""
-	if s.Cfg.KeepsNotes() {
+	if s.Cfg.Notes {
 		w, err := s.notesRepo()
 		if err == nil {
 			notesSHA, err = w.Export(notesDir)
@@ -89,7 +89,6 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return false, err
 	}
 
-	j.Clone = !s.Place.Old()
 	system, prompt := Render(j)
 	for _, f := range []struct{ name, text string }{{"system.md", system}, {"prompt.md", prompt}} {
 		p := filepath.Join(ioDir, f.name)
@@ -105,28 +104,16 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return failed("launch-failed "+ended(), "fault: prompt: prompt.md: empty field")
 	}
 
-	// The resources: in a swarm repository's clone, checked out of the
-	// mirrors at the pass's commits (section 7.1, step 3); in the old
-	// layout, as they resolve now, section 3's checks made again, so a
-	// link changed since the pass's validation mounts nothing outside them
-	// (section 7.2).
-	var resources, resourceLines []string
+	// The resources, checked out of the mirrors at the pass's commits
+	// (section 7.1, step 3).
 	resDir := filepath.Join(r.Dir, "resources")
-	if s.Place.Old() {
-		var err error
-		if resources, err = declare.ResolveResources(s.O, s.Place, s.Cfg.Resources); err != nil {
-			return failed("launch-failed "+ended(), "fault: "+err.Error())
-		}
-	} else {
-		lines, refused, err := s.checkout(resDir)
-		if err != nil {
-			fs.RemoveAll(r.Dir)
-			return false, err
-		}
-		if refused != "" {
-			return failed("launch-failed "+ended(), "fault: "+refused)
-		}
-		resourceLines = lines
+	resourceLines, refused, err := s.checkout(resDir)
+	if err != nil {
+		fs.RemoveAll(r.Dir)
+		return false, err
+	}
+	if refused != "" {
+		return failed("launch-failed "+ended(), "fault: "+refused)
 	}
 
 	persona := s.Cfg.Personas[j.Role]
@@ -180,7 +167,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
 	mounts := []runner.Mount{{Src: work, Dst: "/work"}, {Src: ioDir, Dst: "/work/.swarm"}}
-	if s.Cfg.KeepsNotes() {
+	if s.Cfg.Notes {
 		if err := fs.MkdirAll(filepath.Join(work, ".notes"), 0o755); err != nil {
 			return false, err
 		}
@@ -199,29 +186,6 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		mounts = append(mounts, runner.Mount{Src: resDir, Dst: ResourcesMount, ReadOnly: true})
 		reads = append(reads, ResourcesMount)
 		startLines = append(startLines, resourceLines...)
-	}
-	// The old layout's live mounts, one per resource (resources is nil in
-	// a clone).
-	for i, src := range resources {
-		res := ResourceMounts(s.Cfg.Resources)[i]
-		// The mount point made in the run's own tree, as /work/.notes is,
-		// so that Docker creates none in it: a directory for a directory,
-		// an empty file for a file.
-		point := filepath.Join(work, strings.TrimPrefix(res, "/work/"))
-		info, err := fs.Stat(src)
-		if err != nil {
-			return false, err
-		}
-		if info.IsDir() {
-			err = fs.MkdirAll(point, 0o755)
-		} else if err = fs.MkdirAll(filepath.Dir(point), 0o755); err == nil {
-			err = fs.WriteFile(point, nil, 0o644)
-		}
-		if err != nil {
-			return false, err
-		}
-		mounts = append(mounts, runner.Mount{Src: src, Dst: res, ReadOnly: true})
-		reads = append(reads, res)
 	}
 	spec := runner.Spec{Name: s.containerName(j.N, j.Role, j.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, j.N, j.Role), User: s.User,
 		Mounts: mounts, Workdir: workdir, Image: image,

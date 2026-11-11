@@ -32,11 +32,8 @@ func (s *Swarm) noteRepos(j *Job, repo declare.Repo) []string {
 // repoNotes reads repos/<name>.md for each of names in the swarm
 // repository's mirror at the pass's commit: a file absent, or no regular
 // file there (a link, a directory), gives none, as does a swarm
-// repository with no commit fetched. The old layout has none.
+// repository with no commit fetched.
 func (s *Swarm) repoNotes(names []string) ([]RepoNote, error) {
-	if s.Place.Old() {
-		return nil, nil
-	}
 	g := s.git()
 	own := repoName(s.Cfg.Forge.Repo)
 	commit := s.commits[own]

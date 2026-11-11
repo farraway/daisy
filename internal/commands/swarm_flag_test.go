@@ -115,8 +115,8 @@ func TestSwarmApplyGatedFlag(t *testing.T) {
 		agree(gate.name+" gate on again", []int{1, 3, 8, 10})
 	}
 
-	a.forge.SetLabel(forge.Ref{Repo: "app", N: 3}, "swarm:plan-1-accepted") // T7 on the forge: the flag stays until the pass
-	a.forge.Relabel(forge.Ref{Repo: "app", N: 10}, forge.Blocked, "")       // T18 on the forge
+	a.forge.SetLabel(a.ref(3), "swarm:plan-1-accepted") // T7 on the forge: the flag stays until the pass
+	a.forge.Relabel(a.ref(10), forge.Blocked, "")       // T18 on the forge
 	a.pass()
 	if !strings.Contains(a.stdout.String(), "#3 gated cleared\n#10 gated cleared\n") {
 		t.Errorf("moved by hand:\n%s", a.stdout.String())
@@ -171,13 +171,13 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 	a.forge.CreateIssue("Drift check", mark("owner", 1)+"Brief: docs/briefs/a.md — M1 The drift\nAfter #2 lands; not acme/lib#9 nor #1.\n", []string{"swarm:proposal-posted"}) // #1
 	a.forge.CreateIssue("Other half", mark("owner", 1)+"Brief: docs/briefs/a.md — M1 The drift\nThe rest.\n", []string{"swarm:proposal-posted"})                               // #2
 	a.forge.CreateIssue("Planned", "Plan it.", []string{"swarm:plan-0-posted"})                                                                                                // #3
-	a.forge.Comment(forge.Ref{Repo: "app", N: 3}, mark("architect", 1)+gatePlan)
+	a.forge.Comment(a.ref(3), mark("architect", 1)+gatePlan)
 	a.forge.CreateIssue("Merge me", "Build it.", []string{"swarm:review-2-approved"}) // #4
-	a.forge.Comment(forge.Ref{Repo: "app", N: 4}, mark("architect", 1)+twoSlices)
+	a.forge.Comment(a.ref(4), mark("architect", 1)+twoSlices)
 	a.forge.CreateIssue("Stuck", "Build it.", []string{"swarm:plan-1-accepted", forge.Blocked}) // #5
-	a.forge.Comment(forge.Ref{Repo: "app", N: 5}, mark("reconciler", 1)+"worker run 1 failed: no commits (at swarm:plan-1-accepted). Remove swarm:blocked to resume.")
-	a.forge.CreateIssue("Later", mark("owner", 1)+"Brief: docs/briefs/a.md — M2 Later\nAfter #1.\n", []string{"swarm:proposal-posted"}) // #6
-	m, _ := a.forge.CreatePull("app", "swarm/4-1", "main", "#4 slice 1: Merge me", mark("worker", 1)+"Did it.\n\nRefs #4")              // app#7
+	a.forge.Comment(a.ref(5), mark("reconciler", 1)+"worker run 1 failed: no commits (at swarm:plan-1-accepted). Remove swarm:blocked to resume.")
+	a.forge.CreateIssue("Later", mark("owner", 1)+"Brief: docs/briefs/a.md — M2 Later\nAfter #1.\n", []string{"swarm:proposal-posted"})  // #6
+	m, _ := a.forge.CreatePull("app", "swarm/4-1", "main", "#4 slice 1: Merge me", mark("worker", 1)+"Did it.\n\nRefs acme/swarm-app#4") // app#1
 	pr := forge.Ref{Repo: "app", N: m}
 	a.forge.Push(pr, "c0ffee0")
 	a.forge.Review(pr, forge.RequestChanges, mark("adversary", 1)+"VERDICT: request-changes\n\n[blocking] main.go:1 says v0.\n[non-blocking] main.go:2 an old nit.\n")
@@ -200,7 +200,7 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 			"- Risks:\n  - **The corpus drifts.** It moves under us.\n  - A second risk.\n\n" +
 			"Decide: `daisy swarm accept 3`, `daisy swarm class 3 routine`, after which Daisy accepts it, or a comment here, from which the architect revises the plan.",
 		4: "**reconciler:** gated at review-2-approved: both reviews approve, and the merge gate leaves the merge to the maintainer.\n\n" +
-			"- Class: architecture.\n- Pull request acme/app#7, #4 slice 1: Merge me (open, head c1c1c1c).\n- Slice 1 of 2.\n- Review rounds: 2.\n" +
+			"- Class: architecture.\n- Pull request acme/app#1, #4 slice 1: Merge me (open, head c1c1c1c).\n- Slice 1 of 2.\n- Review rounds: 2.\n" +
 			"- Non-blocking findings in the approving reviews:\n  - adversary: [non-blocking] main.go:2 could name the version.\n  - sympathetic: [non-blocking] notes.md:1 a typo.\n\n" +
 			"Decide: `daisy swarm merge 4`, `daisy swarm approve 4` first when the forge wants an approving review, or a comment.",
 		5: "**reconciler:** gated at plan-1-accepted: it is blocked, and only the maintainer unblocks it.\n\n" +
@@ -233,9 +233,9 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 	}
 
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
-	a.forge.SetLabel(forge.Ref{Repo: "app", N: 3}, "swarm:plan-1-accepted") // T7 on the forge
+	a.forge.SetLabel(a.ref(3), "swarm:plan-1-accepted") // T7 on the forge
 	a.pass()
-	a.forge.SetLabel(forge.Ref{Repo: "app", N: 3}, "swarm:plan-0-posted") // and back: gated again
+	a.forge.SetLabel(a.ref(3), "swarm:plan-0-posted") // and back: gated again
 	a.pass()
 	if got := a.gateNotes(3); len(got) != 2 || got[1] != gateNote+want[3] || !strings.Contains(a.stdout.String(), "#3 gated\n#3 gate note posted\n") {
 		t.Errorf("re-gated: %d notes\n%s", len(got), a.stdout.String())
@@ -256,7 +256,7 @@ func TestSwarmApplyGateNoteOnEachGating(t *testing.T) {
 	a.forge.Comment(issue1, mark("architect", 1)+gatePlan)
 	a.forge.CreateIssue("Proposed", mark("owner", 1)+"Brief: docs/briefs/a.md — M1 The drift\n", []string{"swarm:proposal-posted"}) // #2
 	a.forge.CreateIssue("Planned, then blocked", "Plan it.", []string{"swarm:plan-0-posted"})                                       // #3
-	a.forge.Comment(forge.Ref{Repo: "app", N: 3}, mark("architect", 1)+gatePlan)
+	a.forge.Comment(a.ref(3), mark("architect", 1)+gatePlan)
 	a.pass()
 	for _, n := range []int{1, 2, 3} {
 		if got := a.gateNotes(n); len(got) != 1 {
@@ -267,10 +267,10 @@ func TestSwarmApplyGateNoteOnEachGating(t *testing.T) {
 	revised := strings.Replace(gatePlan, "2. lib: add notes.md.", "2. lib: add notes.md.\n3. lib: add a test.", 1)
 	a.tick()
 	a.forge.Comment(issue1, mark("architect", 2)+revised)
-	a.forge.SetLabel(forge.Ref{Repo: "app", N: 2}, "swarm:plan-0-posted")
-	a.forge.Comment(forge.Ref{Repo: "app", N: 2}, mark("architect", 1)+gatePlan)
-	a.forge.Relabel(forge.Ref{Repo: "app", N: 3}, "", forge.Blocked)
-	a.forge.Comment(forge.Ref{Repo: "app", N: 3}, mark("architect", 2)+revised)
+	a.forge.SetLabel(a.ref(2), "swarm:plan-0-posted")
+	a.forge.Comment(a.ref(2), mark("architect", 1)+gatePlan)
+	a.forge.Relabel(a.ref(3), "", forge.Blocked)
+	a.forge.Comment(a.ref(3), mark("architect", 2)+revised)
 	a.pass()
 	if got := a.gateNotes(1); len(got) != 2 || !strings.Contains(got[1], "- Slices: 3.\n") || !strings.Contains(a.stdout.String(), "#1 gate note posted\n") {
 		t.Errorf("#1, the plan revised: %q\n%s", got, a.stdout.String())
@@ -298,15 +298,15 @@ func TestSwarmApplyBlockedGateNote(t *testing.T) {
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
 	long := "worker run 1 failed: " + strings.Repeat("x", 130)
 	block := func(n int, why string) {
-		a.forge.Comment(forge.Ref{Repo: "app", N: n}, mark("reconciler", 1)+why+" (at swarm:plan-1-accepted). Remove swarm:blocked to resume.")
+		a.forge.Comment(a.ref(n), mark("reconciler", 1)+why+" (at swarm:plan-1-accepted). Remove swarm:blocked to resume.")
 	}
 	a.forge.CreateIssue("Long", "Build it.", []string{"swarm:plan-1-accepted", forge.Blocked}) // #1
 	block(1, long)
 	a.forge.CreateIssue("Unblocked, then blocked by hand", "Build it.", []string{"swarm:plan-1-accepted"}) // #2
 	block(2, "worker run 1 failed: no commits")
 	a.tick()
-	a.forge.Say(forge.Ref{Repo: "app", N: 2}, "jane", "Carry on.")
-	a.forge.Relabel(forge.Ref{Repo: "app", N: 2}, "", forge.Blocked)
+	a.forge.Say(a.ref(2), "jane", "Carry on.")
+	a.forge.Relabel(a.ref(2), "", forge.Blocked)
 	a.forge.CreateIssue("Lifted by hand", "Build it.", []string{"swarm:plan-1-accepted", forge.Blocked}) // #3
 	block(3, "worker run 1 failed: no commits")
 	a.pass()
@@ -328,7 +328,7 @@ func TestSwarmApplyBlockedGateNote(t *testing.T) {
 	if got := head(3); !strings.HasPrefix(got, "- The note that set it, at ") {
 		t.Errorf("#3 first: %q", got)
 	}
-	at3 := forge.Ref{Repo: "app", N: 3}
+	at3 := a.ref(3)
 	a.forge.SetLabel(at3, "swarm:plan-0-posted") // lifted on the forge and re-planned: the plan gate's note
 	a.forge.Relabel(at3, forge.Blocked, "")
 	a.forge.Comment(at3, mark("architect", 1)+gatePlan)
@@ -340,7 +340,7 @@ func TestSwarmApplyBlockedGateNote(t *testing.T) {
 	if got, want := head(3), "- The note that set it: none since the block of 2026-11-06T15:01:00Z was lifted; swarm:blocked was set by hand."; len(a.gateNotes(3)) != 3 || got != want {
 		t.Errorf("#3 again: %d notes\n%q\nwant\n%q", len(a.gateNotes(3)), got, want)
 	}
-	at1 := forge.Ref{Repo: "app", N: 1}
+	at1 := a.ref(1)
 	a.forge.SetLabel(at1, "swarm:plan-2-in-progress") // #1 moved with its flag cleared, as a verb does, still blocked
 	a.forge.Relabel(at1, forge.Gated, "")
 	a.pass()
@@ -370,7 +370,7 @@ func TestSwarmFlagAndTerminalsAreNoStage(t *testing.T) {
 	for _, l := range a.runner.Launches() {
 		on = append(on, l.Label)
 	}
-	if !reflect.DeepEqual(on, []string{"acme/app#1/owner"}) || a.stderr.Len() != 0 {
+	if !reflect.DeepEqual(on, []string{"acme/swarm-app#1/owner"}) || a.stderr.Len() != 0 {
 		t.Errorf("launched %q\nstderr:\n%s", on, a.stderr.String())
 	}
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-posted", forge.Gated}) {
@@ -394,7 +394,7 @@ func TestSwarmFlagAndTerminalsAreNoStage(t *testing.T) {
 func TestSwarmMaintainerFlagAndTerminals(t *testing.T) {
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"a", []string{"swarm:proposal-posted", forge.Gated})
-	const head = "Maintainer jane on acme/app\n"
+	const head = "Maintainer jane on acme/swarm-app\n"
 	m.ok(swarmTriage, head+"#1 swarm:proposal-posted → swarm:proposal-accepted\n#1 gated cleared\n", "1")
 	if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:proposal-accepted"}) {
 		t.Errorf("triage: %v", is.Labels)
@@ -409,7 +409,7 @@ func TestSwarmMaintainerFlagAndTerminals(t *testing.T) {
 	m.forge.Comment(issue1, mark("architect", 1)+oneSlice)
 	m.approvedPull(1, "c1")
 	m.forge.Relabel(issue1, "", forge.Gated)
-	m.ok(swarmMerge, head+"#1 merged pull app#3 (slice 1 of 1)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n#1 gated cleared\n", "1")
+	m.ok(swarmMerge, head+"#1 merged pull app#1 (slice 1 of 1)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n#1 gated cleared\n", "1")
 	if is, _ := m.forge.Issue(1); is.Open || !reflect.DeepEqual(is.Labels, []string{forge.Done}) {
 		t.Errorf("merge of the last slice: open %v, %v", is.Open, is.Labels)
 	}

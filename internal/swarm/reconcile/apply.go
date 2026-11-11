@@ -170,27 +170,24 @@ func (s *Swarm) Pass(wait bool) error {
 
 // fetch brings the mirrors up to date, once per pass, before the pass's
 // first launch or its first reading of the briefs (section 7.1, step
-// 1): in a swarm repository's clone the swarm repository's first; each
-// declared repository's; with wiki or notes the notes' clone; and in a
-// clone each reference's pin when its mirror lacks it, a pin not fetched
-// being each run's fault (resource refused), not the pass's. The pass's
-// commits are then read from the mirrors.
+// 1): the swarm repository's first; each declared repository's; with
+// notes the notes' clone; and each reference's pin when its mirror lacks
+// it, a pin not fetched being each run's fault (resource refused), not
+// the pass's. The pass's commits are then read from the mirrors.
 func (s *Swarm) fetch() error {
 	if s.fetched {
 		return nil
 	}
 	g := s.git()
-	if !s.Place.Old() {
-		if err := g.FetchSwarm(repoName(s.Cfg.Forge.Repo)); err != nil {
-			return err
-		}
+	if err := g.FetchSwarm(repoName(s.Cfg.Forge.Repo)); err != nil {
+		return err
 	}
 	for _, r := range s.Cfg.Repos {
 		if err := g.Fetch(r); err != nil {
 			return err
 		}
 	}
-	if s.Cfg.KeepsNotes() {
+	if s.Cfg.Notes {
 		w, err := s.notesRepo()
 		if err == nil {
 			err = w.Refresh()
@@ -200,14 +197,12 @@ func (s *Swarm) fetch() error {
 		}
 	}
 	s.pinErr = map[string]error{}
-	if !s.Place.Old() {
-		for _, r := range s.Cfg.References {
-			if _, err := g.FetchPin(r); err != nil {
-				s.pinErr[r.Name] = err
-			}
+	for _, r := range s.Cfg.References {
+		if _, err := g.FetchPin(r); err != nil {
+			s.pinErr[r.Name] = err
 		}
-		s.commits = Commits(g, s.Cfg)
 	}
+	s.commits = Commits(g, s.Cfg)
 	s.fetched = true
 	return nil
 }
@@ -554,7 +549,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			}
 			decided[n] = true
 			for _, role := range Launch(turn, s.SwarmLogin, s.Cfg.Trusted) {
-				persona, err := fs.ReadFile(declare.PromptFile(s.Place.Dir, role))
+				persona, err := fs.ReadFile(declare.PromptFile(s.Place.Root, role))
 				if err != nil {
 					return err
 				}

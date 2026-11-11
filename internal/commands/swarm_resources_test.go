@@ -81,7 +81,7 @@ func tree(t *testing.T, dir string) map[string]string {
 // once the run is collected; status reads the briefs in the mirror as the
 // last pass fetched it.
 func TestSwarmMembersReadPushedContent(t *testing.T) {
-	a := newApplyWSIn(t, true)
+	a := newApplyWS(t)
 	up := a.upstreams[swarmURL]
 	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nv1\n\n## M1 The drift\n")
 	a.publish("brief v1")
@@ -151,7 +151,7 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 // tag moved or its upstream gone changes nothing; a brief in a declared repository named
 // <name>:<path>.
 func TestSwarmResourcesAtTheirCommits(t *testing.T) {
-	a := newApplyWSIn(t, true)
+	a := newApplyWS(t)
 	libHead := pushFiles(t, a.upstream("lib"), map[string]string{"guide/x.md": "# Guide\n", "guide/link": "-> ../README.md",
 		"guide/b.md": "# B\n\nStatus: active\n\n## M1 Lib\n", "other.md": "not a resource\n"})
 	specUp := a.newUpstream("git@forge.example.net:std/spec.git", map[string]string{"SPEC.md": "spec v1\n"})
@@ -258,7 +258,7 @@ func TestSwarmResourceRefused(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a := newApplyWSIn(t, true)
+			a := newApplyWS(t)
 			a.edit(func(c *declare.Config) { tc.edit(a, c) })
 			if _, err := a.forge.CreateIssue("Board", "Show the board.", []string{"swarm:proposal-accepted"}); err != nil {
 				t.Fatal(err)
@@ -277,12 +277,12 @@ func TestSwarmResourceRefused(t *testing.T) {
 }
 
 // An issue opened before the swarm moved names its brief by the old
-// layout's workspace path, swarm-app/<path> (section 4; the plan's risk
-// R2): until Step 7 it names the brief at <path>, so the milestone step
-// puts it in its milestone, the batch counts it against the brief, and a
-// Met: line naming it so is read by status.
-func TestSwarmOldBriefPathMatches(t *testing.T) {
-	a := newApplyWSIn(t, true)
+// layout's workspace path, swarm-app/<path>; the old layout retired
+// (revision 6's plan, Step 7), that path names no brief: the milestone
+// step leaves the issue out of the brief's milestone, and a Met: line
+// naming it so marks no brief met in status.
+func TestSwarmOldBriefPathRetired(t *testing.T) {
+	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\n\n## M1 The drift\n")
 	a.publish("brief")
 	n, err := a.forge.CreateIssue("Old", mark("owner", 1)+"Brief: swarm-app/docs/briefs/a.md — M1 The drift\nAn old job.\n", []string{"swarm:plan-1-accepted", "swarm:blocked"})
@@ -292,10 +292,10 @@ func TestSwarmOldBriefPathMatches(t *testing.T) {
 	os.Remove(a.state("owner-held"))
 	a.runner.Script(0, "owner", runner.Canned{Out: "Met: swarm-app/docs/briefs/a.md\n\nBLOCKED: the brief is met\n"})
 	a.pass()
-	if got := a.milestoneOf(n); got != "a: M1 The drift" || strings.Contains(a.stderr.String(), "no brief") {
+	if got := a.milestoneOf(n); got != "" {
 		t.Errorf("#%d in %q\nstdout:\n%s\nstderr:\n%s", n, got, a.stdout.String(), a.stderr.String())
 	}
-	if err := a.status(a.forge); err != nil || !strings.Contains(a.stdout.String(), "  docs/briefs/a.md: M1 The drift (1 open, 0 closed); met (owner run 1)\n") {
+	if err := a.status(a.forge); err != nil || !strings.Contains(a.stdout.String(), "Briefs:\n  docs/briefs/a.md: 1 of 1 milestones with no issue\n") || strings.Contains(a.stdout.String(), "met (") {
 		t.Errorf("status: %v\n%s", err, a.stdout.String())
 	}
 }

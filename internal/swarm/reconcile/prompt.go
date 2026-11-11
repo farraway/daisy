@@ -25,15 +25,14 @@ type Job struct {
 	Role       string
 	Label      string // the stage the run is launched on
 	Time       time.Time
-	Persona    string // swarm/prompts/<role>.md as read
-	Clone      bool   // the swarm runs from its repository's clone (revision 6), its resources checked out (section 7.1, step 3)
+	Persona    string // prompts/<role>.md as read
 
 	Issue forge.Issue  // with its comments
 	Pulls []forge.Pull // Pulls(n), by slice
 	Pull  *PullThread  // the current pull request's thread, when it is open
 	Check string       // the # Check section's text for the current head
 	Batch *Batch       // the owner's batch
-	Notes []Note       // the research notes in the run's copy, with `wiki` or `notes`
+	Notes []Note       // the research notes in the run's copy, with `notes`
 	Repos []RepoNote   // the swarm's notes about each repository the run works in (section 4), in a swarm repository's clone
 }
 
@@ -81,7 +80,7 @@ func Render(j *Job) (system, prompt string) {
 	}
 	system = doc(sys...)
 	blocks := []string{"<!-- daisy-swarm prompt: " + head, j.repository()}
-	if j.Cfg.KeepsNotes() && writesNotes(j.Role) {
+	if j.Cfg.Notes && writesNotes(j.Role) {
 		blocks = append(blocks, "# Research notes", j.notes())
 	}
 	if j.Batch != nil {
@@ -252,14 +251,14 @@ func (j *Job) repository() string {
 		clone("/work", cur.Repo, cur.Head)
 	}
 	res := "none"
-	if m := Mounts(j.Cfg, j.Clone); len(m) > 0 {
+	if m := Mounts(j.Cfg); len(m) > 0 {
 		res = strings.Join(m, ", ")
 	}
 	lines = append(lines, "- Resources (read-only): "+res)
 	switch {
-	case j.Cfg.KeepsNotes() && writesNotes(j.Role):
+	case j.Cfg.Notes && writesNotes(j.Role):
 		lines = append(lines, "- Research notes: "+NotesMount+", "+notesHome(j.Cfg)+", pushed by Daisy after the run")
-	case j.Cfg.KeepsNotes():
+	case j.Cfg.Notes:
 		lines = append(lines, "- Research notes (read-only): "+NotesMount)
 	}
 	return strings.Join(lines, "\n")
@@ -269,16 +268,6 @@ func (j *Job) repository() string {
 // inside /work so that a CLI confined to its working directory reaches
 // it (sections 7.2 and 9); a clone's .git/info/exclude names it.
 const ResourcesMount = "/work/.resources"
-
-// ResourceMounts is where each resource of the old layout is mounted:
-// /work/.resources/<path>.
-func ResourceMounts(resources []string) []string {
-	var out []string
-	for _, r := range resources {
-		out = append(out, ResourcesMount+"/"+strings.Trim(strings.TrimPrefix(r, "./"), "/"))
-	}
-	return out
-}
 
 // Workdir is the member's working directory, section 7.2's <W>: /work,
 // and for the owner and the architect the first repository's clone

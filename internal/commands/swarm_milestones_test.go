@@ -49,6 +49,7 @@ func TestSwarmApplyMilestones(t *testing.T) {
 	a.write("docs/briefs/a.md", "# A\n\nStatus: active\n\n## M1 First\n\n```\n## not a milestone\n```\n\n## M2 Second\n")
 	a.write("docs/briefs/b.md", "# B\n\nStatus: active\n\n## M1 Only\n")
 	a.write("docs/briefs/c.md", "# C\n\nStatus: done\n\n## M1 Gone\n")
+	a.publish("briefs")
 	f := a.forge
 	create := func(label, body string) int {
 		n, err := f.CreateIssue("t", body, strings.Split(label, "+"))
@@ -115,13 +116,15 @@ func TestSwarmApplyMilestones(t *testing.T) {
 func TestSwarmApplyMilestonesRefused(t *testing.T) {
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "Status: active\n\n## M1\n\n## M2\n")
+	a.publish("briefs")
+	a.fetchMirror() // the milestones read the mirror as it stands (section 7.1)
 	f := a.forge
 	f.CreateIssue("t", "Brief: docs/briefs/a.md — M1\n", []string{"swarm:plan-1-accepted", forge.Blocked})
 	f.EnsureMilestone("a: M1")
 	f.RefuseMilestones()
 	a.pass()
-	warnings := "⚠ milestone a: M2: forge: POST /repos/acme/app/milestones: 403 forbidden\n" +
-		"⚠ #1: milestone a: M1: forge: PATCH /repos/acme/app/issues/1: 403 forbidden\n"
+	warnings := "⚠ milestone a: M2: forge: POST /repos/acme/swarm-app/milestones: 403 forbidden\n" +
+		"⚠ #1: milestone a: M1: forge: PATCH /repos/acme/swarm-app/issues/1: 403 forbidden\n"
 	if a.stderr.String() != warnings || a.issue(1).Milestone != 0 || !reflect.DeepEqual(a.milestoneTitles(), []string{"a: M1"}) {
 		t.Errorf("stderr:\n%s\nwant:\n%s", a.stderr.String(), warnings)
 	}
@@ -159,6 +162,8 @@ func (f countingForge) Issues(s forge.State, label string) ([]forge.Issue, error
 func TestSwarmApplyLoopMilestonesReadClosedOnce(t *testing.T) {
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "Status: active\n\n## M1\n")
+	a.publish("briefs")
+	a.fetchMirror() // the milestones read the mirror as it stands (section 7.1)
 	f := a.forge
 	for _, m := range []string{"M1", "M2"} {
 		n, err := f.CreateIssue("t", "Brief: docs/briefs/a.md — "+m+"\n", []string{"swarm:review-2-approved"})
@@ -177,6 +182,8 @@ func TestSwarmApplyLoopMilestonesReadClosedOnce(t *testing.T) {
 			c <- time.Time{}
 		case 2:
 			a.write("docs/briefs/a.md", "Status: active\n\n## M1\n\n## M2\n")
+			a.publish("briefs")
+			a.fetchMirror()
 			c <- time.Time{}
 		default:
 			a.signals <- os.Interrupt

@@ -10,16 +10,13 @@ import (
 	"slices"
 	"strings"
 
-	"daisy/internal/ops"
 	"daisy/internal/swarm/fence"
 )
 
 // Brief is one brief: its path, as the batch prompt and a proposal's
-// `Brief:` line name it (relative to the workspace in the old layout; in
-// a swarm repository's clone its path in the swarm repository, or
+// `Brief:` line name it (its path in the swarm repository, or
 // `<name>:<path>` in a declared one), its Status, its text, and where it
-// is mounted under /work/.resources (its path in the old layout,
-// `<repository>/<path>` in a clone).
+// is mounted under /work/.resources (`<repository>/<path>`).
 type Brief struct{ Path, Status, Text, Mount string }
 
 // Read is the brief at path whose text is data, mounted at mount; ok is
@@ -27,57 +24,6 @@ type Brief struct{ Path, Status, Text, Mount string }
 func Read(path, mount string, data []byte) (b Brief, ok bool) {
 	status, ok := statusOf(string(data))
 	return Brief{path, status, string(data), mount}, ok
-}
-
-// Find is every brief under the resources of the old layout's workspace ws, in path
-// order. A resource is read as it is mounted, resolved through its links;
-// a link inside it is not followed, as it resolves to nothing in a
-// container.
-func Find(fs ops.FS, ws string, resources []string) ([]Brief, error) {
-	var out []Brief
-	var walk func(real, rel string, dir bool) error
-	walk = func(real, rel string, dir bool) error {
-		if !dir {
-			if !strings.HasSuffix(rel, ".md") || slices.ContainsFunc(out, func(b Brief) bool { return b.Path == rel }) {
-				return nil
-			}
-			data, err := fs.ReadFile(real)
-			if err != nil {
-				return err
-			}
-			if b, ok := Read(rel, rel, data); ok {
-				out = append(out, b)
-			}
-			return nil
-		}
-		entries, err := fs.ReadDir(real)
-		if err != nil {
-			return err
-		}
-		for _, e := range entries {
-			if e.IsDir() || e.Type().IsRegular() {
-				if err := walk(filepath.Join(real, e.Name()), filepath.Join(rel, e.Name()), e.IsDir()); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	for _, r := range resources {
-		real, err := fs.EvalSymlinks(filepath.Join(ws, r))
-		if err != nil {
-			return nil, err
-		}
-		fi, err := fs.Stat(real)
-		if err != nil {
-			return nil, err
-		}
-		if err := walk(real, filepath.Clean(r), fi.IsDir()); err != nil {
-			return nil, err
-		}
-	}
-	slices.SortFunc(out, func(a, b Brief) int { return strings.Compare(a.Path, b.Path) })
-	return out, nil
 }
 
 // statusOf is the value of the header's `Status:` line (section 4).

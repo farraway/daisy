@@ -34,23 +34,13 @@ func cloneFolder(t *testing.T) (dir, clone string) {
 	return dir, clone
 }
 
-// validClone is valid() as a swarm repository's clone declares it.
-func validClone() Config {
-	c := valid()
-	c.Forge.Repo = "acme/swarm-app"
-	ssh := "ssh -i /keys/app"
-	c.Repos[0].Path, c.Repos[0].Repo, c.Repos[0].SSHCommand = "", "acme/app", &ssh
-	c.Repos[1].Path, c.Repos[1].Repo = "", "acme/lib"
-	return c
-}
-
 // The rows section 3's error table adds for revision 6 (section 13,
 // revision 6's Step 3, the second row): repos[].repo, ssh_command and the
-// clone's origin, byte for byte; each layout refusing the other's fields.
+// clone's origin, byte for byte.
 func TestValidateAClone(t *testing.T) {
 	_, clone := cloneFolder(t)
 	p := Clone(clone)
-	if err := Validate(ops.Real(), p, validClone(), 0); err != nil {
+	if err := Validate(ops.Real(), p, valid(), 0); err != nil {
 		t.Fatalf("the valid declaration: %v", err)
 	}
 	for _, tc := range []struct {
@@ -58,7 +48,6 @@ func TestValidateAClone(t *testing.T) {
 		edit func(c *Config)
 	}{
 		{`swarm.json: repos[1].name: "swarm-app" is the swarm repository`, func(c *Config) { c.Repos[1].Name, c.Repos[1].Repo = "swarm-app", "acme/swarm-app" }},
-		{`swarm.json: repos[0].path: unknown field`, func(c *Config) { c.Repos[0].Path = "app" }},
 		{`swarm.json: repos[0].repo: missing`, func(c *Config) { c.Repos[0].Repo = "" }},
 		{`swarm.json: repos[1].repo: "acme/library" is not acme/lib`, func(c *Config) { c.Repos[1].Repo = "acme/library" }},
 		{`swarm.json: repos[1].repo: "someone/lib" is not acme/lib`, func(c *Config) { c.Repos[1].Repo = "someone/lib" }},
@@ -68,7 +57,7 @@ func TestValidateAClone(t *testing.T) {
 		{`swarm.json: forge.repo: the clone's origin is "git@forge.example.net:acme/swarm-app.git", not acme/swarm-x on forge.example.net`, func(c *Config) { c.Forge.Repo = "acme/swarm-x" }},
 		{`swarm.json: forge.repo: the clone's origin is "git@forge.example.net:acme/swarm-app.git", not acme/swarm-app on other.example.net`, func(c *Config) { c.Forge.API = "https://other.example.net/api/v1" }},
 	} {
-		c := validClone()
+		c := valid()
 		tc.edit(&c)
 		if got := errText(Validate(ops.Real(), p, c, 0)); got != tc.want {
 			t.Errorf("got  %s\nwant %s", got, tc.want)
@@ -83,35 +72,18 @@ func TestValidateAClone(t *testing.T) {
 		if url != "" {
 			ops.Real().Exec(clone, "git", "remote", "add", "origin", url)
 		}
-		if got := errText(Validate(ops.Real(), p, validClone(), 0)); got != want {
+		if got := errText(Validate(ops.Real(), p, valid(), 0)); got != want {
 			t.Errorf("origin %q:\ngot  %s\nwant %s", url, got, want)
 		}
 	}
 
-	// The old layout refuses the clone's fields, and needs path.
-	ws := workspace(t)
-	for _, tc := range []struct {
-		want string
-		edit func(c *Config)
-	}{
-		{`swarm.json: repos[0].repo: unknown field`, func(c *Config) { c.Repos[0].Repo = "acme/app" }},
-		{`swarm.json: repos[0].ssh_command: unknown field`, func(c *Config) { c.Repos[0].SSHCommand = ptr("ssh") }},
-		{`swarm.json: repos[1].path: missing`, func(c *Config) { c.Repos[1].Path = "" }},
-	} {
-		c := valid()
-		tc.edit(&c)
-		if got := errText(Validate(ops.Real(), Workspace(ws), c, 0)); got != tc.want {
-			t.Errorf("got  %s\nwant %s", got, tc.want)
-		}
-	}
-
 	// Parsed and written: ssh_command after repo, absent when unset.
-	got := string(Format(validClone()))
+	got := string(Format(valid()))
 	if !strings.Contains(got, `{"name": "app", "repo": "acme/app", "ssh_command": "ssh -i /keys/app", "check": ["make", "check"], `) ||
 		!strings.Contains(got, `{"name": "lib", "repo": "acme/lib", "check": [], `) {
 		t.Errorf("Format:\n%s", got)
 	}
-	if c, err := Parse([]byte(got)); err != nil || !reflect.DeepEqual(c, validClone()) {
+	if c, err := Parse([]byte(got)); err != nil || !reflect.DeepEqual(c, valid()) {
 		t.Errorf("round trip: %v %+v", err, c)
 	}
 }
@@ -173,12 +145,10 @@ func TestWizardInAClone(t *testing.T) {
 	}
 
 	// A refused name, asked again; with a file, its repositories and
-	// their ssh_command the defaults, an entry by path named after
-	// forge.repo's owner.
+	// their ssh_command the defaults.
 	o, asked = scripted("app", "acme/lib", "")
 	errb.Reset()
-	file := validClone()
-	file.Repos[1].Path, file.Repos[1].Repo = "lib", ""
+	file := valid()
 	w = &Wizard{Ops: o, Err: &errb, Place: Clone(clone), File: &file}
 	if _, err := w.Ask(); err == nil {
 		t.Fatal("no EOF")
@@ -190,7 +160,7 @@ func TestWizardInAClone(t *testing.T) {
 	o, _ = scripted()
 	w = &Wizard{Ops: o, Err: &errb, Place: Clone(clone), File: &file, Defaults: true}
 	c, err = w.Ask()
-	if err != nil || c.Repos[0].SSHCommand == nil || *c.Repos[0].SSHCommand != ssh || c.Repos[1].Repo != "acme/lib" || c.Repos[1].Path != "" {
+	if err != nil || c.Repos[0].SSHCommand == nil || *c.Repos[0].SSHCommand != ssh || c.Repos[1].Repo != "acme/lib" {
 		t.Errorf("from the file: %v %+v", err, c.Repos)
 	}
 
@@ -234,7 +204,7 @@ func TestWizardInAFolder(t *testing.T) {
 	if got := errText(Validate(ops.Real(), Clone(clone), c, SkipPrompts)); got != `swarm.json: forge.repo: the clone's origin is "git@forge.example.net:acme/swarm-app.git", not acme/swarm-elsewhere on forge.example.net` {
 		t.Errorf("the clone's origin once made: %s", got)
 	}
-	if !IsCloneOf(ops.Real(), clone, validClone().Forge) || IsCloneOf(ops.Real(), clone, c.Forge) || IsCloneOf(ops.Real(), filepath.Join(clone, "docs"), validClone().Forge) {
+	if !IsCloneOf(ops.Real(), clone, valid().Forge) || IsCloneOf(ops.Real(), clone, c.Forge) || IsCloneOf(ops.Real(), filepath.Join(clone, "docs"), valid().Forge) {
 		t.Error("IsCloneOf")
 	}
 
@@ -249,9 +219,8 @@ func TestWizardInAFolder(t *testing.T) {
 
 // resources and references in a swarm repository's clone (section 3's
 // rows; section 13, revision 6's Step 4): names, checked here, their
-// content at the launch, so a path the clone does not hold is valid; the
-// old layout has no references; references written one line each after
-// resources, and read back.
+// content at the launch, so a path the clone does not hold is valid;
+// references written one line each after resources, and read back.
 func TestValidateResourcesAndReferences(t *testing.T) {
 	_, clone := cloneFolder(t)
 	p := Clone(clone)
@@ -262,7 +231,7 @@ func TestValidateResourcesAndReferences(t *testing.T) {
 			{Name: "std", URL: "git@forge.example.org:std.git", Pin: head, Paths: []string{"lib/", "doc/a.md"}},
 			{Name: "ssh", URL: "ssh://git@forge.example.org:2222/std/ssh", Pin: "main", Paths: []string{"x"}}}
 	}
-	c := validClone()
+	c := valid()
 	ok(&c)
 	if err := Validate(ops.Real(), p, c, 0); err != nil {
 		t.Fatalf("the valid declaration: %v", err)
@@ -296,19 +265,12 @@ func TestValidateResourcesAndReferences(t *testing.T) {
 		{`swarm.json: references[1].paths[0]: "." is the whole repository`, func(c *Config) { c.References[1].Paths = []string{"."} }},
 		{`swarm.json: references[1].paths[0]: "../x" is not a relative path`, func(c *Config) { c.References[1].Paths = []string{"../x"} }},
 	} {
-		c := validClone()
+		c := valid()
 		ok(&c)
 		tc.edit(&c)
 		if got := errText(Validate(ops.Real(), p, c, 0)); got != tc.want {
 			t.Errorf("got  %s\nwant %s", got, tc.want)
 		}
-	}
-
-	// The old layout: no references.
-	old := valid()
-	old.References = []Reference{{Name: "spec", URL: "https://forge.example.org/spec.git", Pin: "v1", Paths: []string{"SPEC.md"}}}
-	if got := errText(Validate(ops.Real(), Workspace(workspace(t)), old, 0)); got != `swarm.json: references: unknown field` {
-		t.Errorf("old layout: %s", got)
 	}
 
 	// Written after resources, one line per reference; read back.
@@ -323,7 +285,7 @@ func TestValidateResourcesAndReferences(t *testing.T) {
 	if back, err := Parse([]byte(got)); err != nil || !reflect.DeepEqual(back, c) {
 		t.Errorf("round trip: %v %+v", err, back)
 	}
-	if strings.Contains(string(Format(validClone())), "references") {
+	if strings.Contains(string(Format(valid())), "references") {
 		t.Error("references written when none")
 	}
 }

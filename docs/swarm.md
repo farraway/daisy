@@ -44,10 +44,13 @@ a folder holding none, seeding, committing and pushing it, and writing
 2026-11-10: a variable unset at `init` written commented out in
 `<state>/env`; item 110; Step 6b, 2026-11-10: question 3's default
 from `init --api <url>`, else `$GITEA_API_URL` or `$GITHUB_API_URL`,
-else detection; item 111); a swarm
-not yet moved runs in the workspace layout that section 11, Moving a
-swarm into its repository, describes, until Step 7 retires that layout
-once the maintainer says every swarm has moved.
+else detection; item 111; Step 7, 2026-11-10, once the maintainer had
+moved every swarm: the workspace layout retired, a swarm run from its
+repository's clone alone, with no `repos[].path`, workspace
+`resources`, `<ws>/.env.sh`, research wiki or old workspace path of a
+brief; section 11, Moving a swarm into its repository, describes the
+old files for a maintainer moving a swarm with an older Daisy; item
+112).
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
 sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
@@ -307,8 +310,7 @@ Stages of a software factory the version leaves out, each by choice:
 ├── auto                             # one line per gate Daisy passed for a routine job (section 5), which status counts
 ├── git/<name>/                      # bare mirror of each declared repository, and git/<repo>/ of the swarm repository: the only repositories host-side git writes, but for the notes' clone (and the clone, at `init`)
 ├── references/<ref>/                # bare mirror of each reference, holding its pin (section 3)
-├── wiki/                            # with `wiki`, the host's clone of the issues repository's wiki: never mounted (section 7.1)
-├── notes/                           # with `notes`, the host's clone of the swarm's own issues repository: never mounted (section 7.1)
+├── notes/                           # with `notes`, the host's clone of the swarm repository: never mounted (section 7.1)
 └── runs/<n>-<role>-<k>/             # one role run, kept for audit (the owner's batch run is <n> = 0)
     ├── argv                         # the `docker run` argv, one argument per line (no secret in it)
     ├── io/system.md                 # the persona and the Task (mounted at /work/.swarm)
@@ -321,7 +323,7 @@ Stages of a software factory the version leaves out, each by choice:
     ├── check/                       # the check's clone of the fetched head; removed once collected
     ├── work/                        # the member's clone; removed once the run is collected
     ├── resources/                   # the run's checkout of its resources at the pass's commits, mounted read-only at /work/.resources; removed once collected
-    └── notes/                       # with `wiki` or `notes`, the run's copy of the research notes, mounted at /work/.notes; removed once collected unless its notes were kept
+    └── notes/                       # with `notes`, the run's copy of the research notes, mounted at /work/.notes; removed once collected unless its notes were kept
 $DAISY_LOCAL/swarm/credentials/<provider>/   # this machine's login slots, shared by every swarm on it (section 8)
 ├── <j>/auth.json                    # slot j: one login, made by the maintainer, refreshed by the CLI
 └── <j>.lock                         # held (flock) for the life of the run that uses slot j
@@ -345,20 +347,20 @@ Every file Daisy writes, and nothing else:
 | `<state>/auto` | one line per gate passed: `<RFC 3339 time> #<n> <proposal-posted\|plan-0-posted>`, the stage the gate held (section 5, The job class) | `swarm apply` (appended) | at each routine job's gate passed (T23, T24), after its relabel; a refused write is a warning |
 | `<state>/git/<name>/`, `<state>/git/<repo>/` | per declared repository, and for the swarm repository, a bare repository: its config's `remote.origin.url` and `core.sshCommand` (7.1, step 1), `refs/heads/*` as last fetched from the forge, the swarm repository's `HEAD` naming its default branch, a worker's branch before its push, and `refs/swarm-runs/<n>-worker-<k>` for a worker run's commits not pushed | `swarm init` and `swarm apply` (`git init --bare`, `config`, `fetch`, `symbolic-ref`, `update-ref`) | at `init`; before each pass's first launch; after each worker run |
 | `<state>/references/<ref>/` | per reference (section 3), a bare repository holding its pin, its config's `remote.origin.url` its `url` | `swarm apply` (`git init --bare`, `config`, `fetch`) | before a pass's first launch, when the pin is not in it |
-| `<state>/wiki/`, `<state>/notes/` | with `wiki` (section 3), a clone of the issues repository's wiki; with `notes` (section 3), a clone of the swarm's own issues repository; either at its head as last fetched, its branch the one the clone checked out (the forge's default) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, and the notes' commits, 7.6) | before each pass's first launch; at the collection of each owner's and architect's run |
+| `<state>/notes/` | with `notes` (section 3), a clone of the swarm repository at its head as last fetched, its branch the one the clone checked out (the forge's default) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, and the notes' commits, 7.6) | before each pass's first launch; at the collection of each owner's and architect's run |
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
 | `<run>/io/out.md` | the member's output | the member (in the container) | during the run |
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
-| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `wiki` or `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value); for a worker's run and a first reviewer's, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports them (section 9); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
+| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value); for a worker's run and a first reviewer's, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports them (section 9); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/check/` | a clone of the fetched head for the check | `swarm apply` (`git clone` from `<state>/git/<name>`), then the check | before the check; removed when the run is collected |
 | `<run>/resources/` | per resource, its checkout at the pass's commit, `<run>/resources/<repository>/<path>` (7.1, step 3) | `swarm apply` (`git archive`, extracted) | before the launch; removed when the run is collected or abandoned |
 | `<run>/work/` | the clone the member works in (the owner's and the architect's: a directory of clones, `<name>/` per declared repository) | `swarm apply` (`git clone` from `<state>/git/<name>`), then the member | before the launch; removed when the run is collected or abandoned, a directory the member left unreadable given the owner's rights first (7.6) |
-| `<run>/notes/` | with `wiki`, a copy of `<state>/wiki`'s pages; with `notes`, of `<state>/notes`'s `notes/` directory (empty when it has none, or when it is not a directory); as the pass fetched them, without `.git` | `swarm apply` (the copy), then the owner's and the architect's member (notes) | before the launch; removed when the run is collected or abandoned, but kept when its notes were not pushed (`notes kept`, 7.6) |
+| `<run>/notes/` | with `notes`, a copy of `<state>/notes`'s `notes/` directory (empty when it has none, or when it is not a directory); as the pass fetched them, without `.git` | `swarm apply` (the copy), then the owner's and the architect's member (notes) | before the launch; removed when the run is collected or abandoned, but kept when its notes were not pushed (`notes kept`, 7.6) |
 | `<slot>/` | `auth.json`, one login of the provider's account; nothing else at a launch | the maintainer (`auth.json`, at login: section 8), the member (`auth.json` refreshed, and the CLI's own files), `swarm apply` (every entry but `auth.json` removed) | `apply`: before each launch on the slot, under its lock |
 | `<slot>.lock` | one line, the holder: `<owner>/<repo>#<n>/<role> run <k> since <RFC 3339 time> pid <pid>` | `swarm apply` | on taking the slot (7.1); released, not removed, when the run's `docker run` has returned |
-| the forge | comments, reviews, issues, pull requests, label changes (on issues and their pull requests), pushed `swarm/<n>-<s>` branches, with `wiki` the research notes' commits pushed to the issues repository's wiki, with `notes` to the `notes/` directory of the swarm's own issues repository (its default branch, or `swarm/notes-<n>-<role>-<k>` on a conflict, 7.6), the sixteen labels (section 5) and the renames of the old stage names; with `gates.merge` off, merges and closed issues; with `forge.board`, the board's cards and missing columns | `swarm init` (from revision 6, with the maintainer's token: the swarm repository when absent and the swarm's account's write access to it, section 11; then the push of its seeded files), `swarm init` and `swarm apply` (labels), `swarm apply` (the rest); the maintainer's verbs (label changes, comments, a formal approval, merges, closed issues) as the maintainer's account | sections 5–7, 11 and 12 |
+| the forge | comments, reviews, issues, pull requests, label changes (on issues and their pull requests), pushed `swarm/<n>-<s>` branches, with `notes` the research notes' commits pushed to the swarm repository's `notes/` directory (its default branch, or `swarm/notes-<n>-<role>-<k>` on a conflict, 7.6), the sixteen labels (section 5) and the renames of the old stage names; with `gates.merge` off, merges and closed issues; with `forge.board`, the board's cards and missing columns | `swarm init` (from revision 6, with the maintainer's token: the swarm repository when absent and the swarm's account's write access to it, section 11; then the push of its seeded files), `swarm init` and `swarm apply` (labels), `swarm apply` (the rest); the maintainer's verbs (label changes, comments, a formal approval, merges, closed issues) as the maintainer's account | sections 5–7, 11 and 12 |
 
 **Invariant.** Daisy writes nowhere else: not to a Daisy home, not to a
 workspace, not to the swarm repository's clone but at `swarm init` (the
@@ -451,9 +453,9 @@ product and its library declares both, the product first:
 `{"name": "<lib>", "repo": "<owner>/<lib>", …}` is a second line of `repos`;
 a repository entry's `ssh_command`, when present, comes after `repo`.
 `budget` comes after `gates` when present; `init --defaults` writes none,
-since every gate is on. `references`, then `wiki` and `notes`, come
+since every gate is on. `references`, then `notes`, come
 after `resources`, in that order, `references` written only when it
-names one and the other two only when `true`; `references` is one line
+names one and `notes` only when `true`; `references` is one line
 per reference, as `repos` is. `forge.board`, when present, comes last in `forge`;
 `init` keeps it from an existing file and never adds one. `swarm.json` is read by every verb but `init`
 reads it only for its defaults; it is re-read at the start of every pass
@@ -462,9 +464,7 @@ of `apply`, so an edit applies at the next pass (but for `forge.kind`,
 read from the clone's working tree, as the prompts are, and not from the
 pushed head (section 2; section 11, Drift).
 
-The Go test of section 3's example (`Format`) reads this one, and the
-old layout's form of it (section 11, Moving a swarm into its
-repository). `init`'s default `resources`, `["briefs/", "docs/"]`, are
+The Go test of section 3's example (`Format`) reads this one. `init`'s default `resources`, `["briefs/", "docs/"]`, are
 the two directories it seeds (section 2), whether the clone holds them
 yet or not (Step 6 of revision 6's plan; section 14, item 109).
 
@@ -491,8 +491,7 @@ yet or not (Step 6 of revision 6's plan; section 14, item 109).
 | `owner.max_open_proposals` | integer | 5 | 1 to 20: the most issues one batch run creates, and the most open issues the batch tops up to: with the triage gate off, those at `proposal-posted` and `proposal-accepted`; on, the routine jobs Daisy triaged that are still at `proposal-accepted` (section 6) |
 | `resources` | array of strings | `["briefs/", "docs/"]`, the directories `init` seeds | each either `<path>`, a path in the swarm repository, or `<name>:<path>`, a path in the declared repository `<name>`; `<path>` relative, without `..` and not the whole repository (`.`); no two the same; read at the pass's commit, the swarm repository's default branch or the declared repository's `<base>` as the pass fetched it (7.1, step 1), never from a working tree: checked out into each run and mounted, read-only, at `/work/.resources/<repository>/<path>` (`<repository>` the swarm repository's `<repo>` or `<name>`; 7.1, step 3), where it must exist and neither be nor contain `.env.sh` or `.daisy` (a link inside it is checked out as a link, which resolves inside the container, where its target is absent); the briefs the maintainer writes live here (section 4) |
 | `references` | array of objects | absent (`init` writes none and keeps the file's) | optional; each `{"name": <ref>, "url": <git URL>, "pin": <commit or tag>, "paths": [<path>, …]}`, exactly these fields: an outside repository read at a fixed point, as a resource is; `name` `^[A-Za-z0-9_][A-Za-z0-9_.-]*$`, no two the same, neither a declared repository's `name` nor the swarm repository's `<repo>`; `url` a git URL (`https`, or SSH as section 10's three forms read one), an `http(s)` one carrying no user information and an SSH one no password, fetched with the host's git credentials; `pin` a full 40-hexadecimal commit, or a tag name (`base`'s rule); `paths` one or more, each as a `resources` `<path>`, no two the same; fetched into `<state>/references/<name>` once, when the pin is not there (7.1, step 1), and each path mounted, read-only, at `/work/.resources/<name>/<path>`; no brief is read from a reference |
-| `wiki` | boolean | `false` (the wizard's question 35) | optional, absent read as `false`; `true` keeps the swarm's research notes in the issues repository's wiki, `<owner>/<repo>.wiki.git`, reached over the first declared repository's remote (section 7.1, step 1): cloned on the host, copied into each run at `/work/.notes` (writable for the owner and the architect, read-only for the others, 7.2), indexed in the owner's and the architect's prompts (`# Research notes`, 7.3) and pushed after their runs (7.6, The notes). On Gitea the repository's wiki must be enabled (the repository setting `has_wiki`) and hold a first page, which makes its git repository; until then a pass that would launch fails, saying so (7.1); not `true` beside `notes`, nor for an issues repository none of `repos` (the swarm's own keeps its notes in `notes/`; Step 30 of the swarm build), so since revision 6, `forge.repo` being the swarm repository, only a swarm in the old layout (section 11, Moving a swarm into its repository) may set it |
-| `notes` | boolean | `false` (the wizard's question 35, for the swarm's own issues repository) | optional, absent read as `false`; `true` keeps the swarm's research notes in the `notes/` directory of the issues repository, which must then be the swarm's own (`forge.repo` none of `repos`: Daisy writes no declared repository's tree, section 2), reached at the swarm repository's clone's `origin` URL with its `core.sshCommand` (7.1, step 1), and on its default branch: as `wiki` in all else (the copy at `/work/.notes`, the index, the push); `wiki` is then not `true` too, since the swarm's own repository's wiki is no better than its tree. The swarm's account needs write access to the repository, as it has to a product's |
+| `notes` | boolean | `false` (the wizard's question 35) | optional, absent read as `false`; `true` keeps the swarm's research notes in the swarm repository's `notes/` directory, reached at its clone's `origin` URL with its `core.sshCommand` (7.1, step 1), on its default branch: cloned on the host, copied into each run at `/work/.notes` (writable for the owner and the architect, read-only for the others, 7.2), indexed in the owner's and the architect's prompts (`# Research notes`, 7.3) and pushed after their runs (7.6, The notes). The swarm's account needs write access to the repository, which `init` gives it (section 11). The old layout's `wiki` is no field (`swarm.json: wiki: unknown field`; Step 7 of revision 6's plan, section 14, item 112) |
 | `trusted` | array of strings | the maintainer's logins (the wizard's question 33), then the swarm's own, read by `Login()` at `init` | one or more forge logins, each `^[A-Za-z0-9][A-Za-z0-9_.-]*$`; a comment, review or line comment by any other login reaches no prompt and wakes no member (section 6); `init` refuses a maintainer login equal to the token's own (section 11) |
 | `gates.triage`, `gates.plan`, `gates.merge` | booleans | `true` each | G1, G2 and G3 (section 5): `true` keeps the decision the maintainer's, G1's and G2's for an architecture job only (a routine job passes them by itself, section 5); `false` hands it to the swarm |
 | `budget` | object | absent | `{"per_day": <usd>, "total": <usd>}`, both numbers greater than 0; required when any gate is `false`; optional otherwise; validated, not enforced: no pass compares the spend with it until it is built (below) |
@@ -554,9 +553,7 @@ failure is reported and the verb exits 1; the message is
 | the clone's `origin` | `swarm.json: forge.repo: the clone <swarm> has no origin remote`; `swarm.json: forge.repo: the clone's origin URL carries user information; use SSH or a credential helper`; `swarm.json: forge.repo: the clone's origin is "<value>", not <owner>/<repo> on <host>` (`<host>` `github.com` for kind `github`, else `forge.api`'s host; an `origin` in none of section 10's three forms: `origin is "<value>", not <owner>/<repo> on a forge`) |
 | an empty image | `swarm.json: repos[0].image: empty` |
 | a number or duration out of range | `swarm.json: max_members: 0 is not between 1 and 16` (each with its own range) |
-| the wiki's answer neither yes nor no (the wizard's question 35) | `swarm.json: wiki: "<answer>" is not yes or no` (`notes` for the swarm's own issues repository: `swarm.json: notes: "<answer>" is not yes or no`; question 4's follow-up: `swarm.json: forge.repo: "<answer>" is not yes or no`) |
-| `wiki` for an issues repository none of `repos` (the wizard's question 35 asks again) | `swarm.json: wiki: <owner>/<repo> is none of repos; wiki keeps a declared issues repository's notes, and the swarm's own keeps them in notes/ (notes)` |
-| `notes` beside `wiki`, or for a declared repository | `swarm.json: wiki: true beside notes; the swarm's own repository keeps its notes in notes/, and its wiki is no better than its tree`, `swarm.json: notes: <owner>/<name> is a declared repository, which holds product code; notes/ is for the swarm's own issues repository (wiki keeps a product's)` |
+| the notes' answer neither yes nor no (the wizard's question 35) | `swarm.json: notes: "<answer>" is not yes or no` |
 | a resource refused | `swarm.json: resources[1]: "." <reason>` (`is not a relative path`, `is the whole repository`, `names no declared repository` (a `<name>:` prefix), `is listed twice`); at the launch, read at the pass's commit (7.1, step 3): `does not exist at <short sha>` (`does not exist: <repository> has no commit fetched` when the mirror holds none), `contains .env.sh`, `contains .daisy` |
 | a reference refused | `swarm.json: references[0].name: "<value>" is not a repository name` (also `is listed twice`, `is a declared repository`, `is the swarm repository`); `swarm.json: references[0].url: "<value>" is not a git URL` (also `carries user information`); `swarm.json: references[0].pin: "<value>" is not a commit or a tag`; `swarm.json: references[0].paths: no path (at least one is required)`; `swarm.json: references[0].paths[1]: "<value>" <reason>` (as a resource's); at the launch, `references[0]: pin <pin> not found at <url>: <git's error>` and a path's `does not exist at <pin>` |
 | an empty `check` element | `swarm.json: repos[0].check[0]: empty argument` |
@@ -648,11 +645,11 @@ swarm repository, `<name>:<path>` in a declared one) and `<milestone>` its
 heading's text, and writes `Met: <path>` for a brief whose milestones
 are all met by closed issues (7.5), which stays in the run's `out.md`
 for `status` to show (section 11), so the maintainer can flip its
-`Status`. Until Step 7 of revision 6's plan retires the old layout, a
-`Brief:` or `Met:` line that names a brief of the swarm repository by
-the old layout's workspace path, `<repo>/<path>` (`swarm-<name>/briefs/<file>.md`),
-names the brief at `<path>`, so the issues opened before a swarm moved
-keep their milestones (section 11, Moving a swarm into its repository).
+`Status`. A `Brief:` or `Met:` line names a brief by that path alone:
+the old layout's workspace path, `<repo>/<path>`, names no brief since
+Step 7 of revision 6's plan retired that layout (section 11, Moving a
+swarm into its repository, says how a maintainer rewrites such a line;
+section 14, item 112).
 
 **The swarm's notes about a repository.** `repos/<name>.md` in the
 swarm repository, for the declared repository `<name>`, is the
@@ -686,9 +683,6 @@ What `daisy swarm init` found:
 - Check: `<check, as one shell-quoted line>`, as swarm.json declares it.   (or: none declared in swarm.json; no member's work is executed.)
 - Protected: `<pattern>`, `<pattern>`, as swarm.json declares them.   (or: none declared in swarm.json.)
 ```
-
-The old layout (section 11, Moving a swarm into its repository) has no
-`repos/<name>.md`: no member reads one and `init` seeds none.
 
 The default prompts follow. `swarm init` writes each to
 `prompts/<role>.md` in the swarm repository's clone when absent. They state a persona's stance only:
@@ -1420,25 +1414,14 @@ On the host, in order, before `docker run`:
    edit reaches the swarm when it is pushed, at the next pass. These are
    the host's credentials; they are
    used only by host-side git. The fetch touches only `refs/heads/*`, so
-   `refs/swarm-runs/*` (7.6) survive it. With `wiki` (section 3; a swarm
-   in the old layout, section 11), the
-   wiki's clone too, in the same place in the pass: `<wiki-url>` is the
-   first declared repository's `origin` URL with its last path element,
-   `<repo>[.git]`, replaced by `<issues-repo>.wiki.git` (`<issues-repo>`
-   the `<repo>` of `forge.repo`, whose owner owns every declared
-   repository, section 14, item 7), reached with that repository's
-   `core.sshCommand`; `git clone --quiet <wiki-url> <state>/wiki` when
-   the clone is absent (the wiki's branch is the one it checks out, read
-   and never assumed: Gitea's wikis have used `master` and `main`), then
-   `git -C <state>/wiki fetch --quiet --prune <wiki-url> '+refs/heads/*:refs/remotes/origin/*'`,
+   `refs/swarm-runs/*` (7.6) survive it. With `notes` (section 3), the
+   notes' clone too, in the same place in the pass: `<notes-url>` is the
+   swarm repository's clone's `origin` URL, reached with that clone's
+   `core.sshCommand`; `git clone --quiet <notes-url> <state>/notes` when
+   the clone is absent (its branch is the one it checks out, the forge's
+   default branch), then `git -C <state>/notes fetch --quiet --prune <notes-url> '+refs/heads/*:refs/remotes/origin/*'`,
    `reset --quiet --hard refs/remotes/origin/<branch>` and `clean -fdq`,
-   so every run of the pass is given the same pages. A wiki that cannot
-   be cloned ends the pass's launching, as a fetch that fails does:
-   `wiki <wiki-url>: <git's error>; enable the issues repository's wiki
-   and create its first page`. With `notes` (section 3), the same for the
-   swarm repository: `<notes-url>` is its clone's `origin` URL, reached
-   with that clone's `core.sshCommand`, its host clone `<state>/notes`, its
-   branch the one the clone checks out (the forge's default branch); one
+   so every run of the pass is given the same notes. One
    that cannot be cloned ends the pass's launching with `notes
    <notes-url>: <git's error>; give the swarm's key read and write access
    to <owner>/<repo>`.
@@ -1454,9 +1437,8 @@ On the host, in order, before `docker run`:
    `<run>/result` records `launch-failed <time>`
    and `failed: bad slices: <slice numbers>`, nothing launches, and the run is
    collected at once like any run with an end line (7.6), with no
-   container: T17. With `wiki`, `<state>/wiki`'s tree is then copied to
-   `<run>/notes`, and with `notes` `<state>/notes`'s `notes/` directory
-   alone (none, or one that is not a directory, a link included, gives
+   container: T17. With `notes`, `<state>/notes`'s `notes/` directory
+   is then copied to `<run>/notes`, alone (none, or one that is not a directory, a link included, gives
    an empty copy; the briefs and the rest of the repository stay out),
    regular files and directories only: no `.git`, no
    link; its notes are read from the copy for `# Research notes` (7.3),
@@ -1526,11 +1508,11 @@ On the host, in order, before `docker run`:
    (section 9), and no commit is rewritten after the run (7.6, The
    trailer); with an empty `co_author` no hook is written, so the
    member's commits carry no trailer; and `<run>/work/.swarm` is created as
-   the mount point (with `wiki` or `notes`, `<run>/work/.notes` too). The head commit
+   the mount point (with `notes`, `<run>/work/.notes` too). The head commit
    is recorded in `<run>/result` as
    `start <sha>` (`start <name> <sha>` per clone for the owner and the
    architect), the worker's branch as `branch swarm/<n>-<s> in <name>`,
-   and with `wiki` or `notes` the commit of the notes' clone the copy was
+   and with `notes` the commit of the notes' clone the copy was
    made from as `notes-base <sha>`.
 4. The credential (section 8). For `env`, nothing is prepared. For
    `slots`, the lowest-numbered free slot (section 6, rule 4) is taken
@@ -1599,7 +1581,7 @@ The line marked `(env)` is there for an `env` credential and the three
 marked `(slots)` for a slot, never both, `<home>` the variable that names
 the provider's CLI's home (`CODEX_HOME` for `openai`, `GROK_HOME` for
 `xai`; section 9); the line marked `(notes)` with
-`wiki` or `notes` (section 3), `readonly` but for the owner and the
+`notes` (section 3), `readonly` but for the owner and the
 architect; the line marked `(resources)` when `resources` or
 `references` names a path; the marks are not arguments.
 
@@ -1635,7 +1617,7 @@ docker run --rm --pull never
 | `<image>` | the run's repository's `image` (7.1 step 3) for the worker, the reviewers and the check; the first repository's for the owner and the architect |
 | `/work/.swarm` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out, and `exit` |
 | `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's exit status to `/work/.swarm/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*). A container killed outright (a reboot, `docker stop`'s kill) writes none. The check runs its argv as it is |
-| `/work/.notes` | with `wiki` or `notes`, `<run>/notes`, the run's copy of the research notes, the wiki's pages or the `notes/` directory of the swarm's own issues repository (7.1, step 2): read-write for the owner and the architect, whose changes Daisy pushes after the run (7.6, The notes), and given to their CLI as a directory beside its workdir when that is `/work/<name>`; read-only for the worker and the reviewers, inside their clone, whose `.git/info/exclude` names it; none for the check |
+| `/work/.notes` | with `notes`, `<run>/notes`, the run's copy of the research notes, the swarm repository's `notes/` directory (7.1, step 2): read-write for the owner and the architect, whose changes Daisy pushes after the run (7.6, The notes), and given to their CLI as a directory beside its workdir when that is `/work/<name>`; read-only for the worker and the reviewers, inside their clone, whose `.git/info/exclude` names it; none for the check |
 | `/work/.resources` | `<run>/resources`, read-only: each resource at `/work/.resources/<repository>/<path>`, checked out at the pass's commit (7.1, step 3: one the commit does not hold is *resource refused*, 7.7), never a working tree; none when `resources` and `references` name nothing; none for the check. Under `/work`, so a CLI confined to its working directory reaches it (section 9, `grok`); its mount point is made in `<run>/work` before the launch, as `.notes` is, so Docker makes none there, and a clone's `.git/info/exclude` names `/.resources/` (7.1, step 3) |
 | `--workdir <W>`, `--workdir /work` | the CLIs start in the run's clone, `<W>`: `/work`, and for the owner and the architect the first repository's clone `/work/<name>`, so the CLI reads the product's instructions from its tree, unless their provider is confined to its working directory (section 9's `Confined`, `xai`): then `/work`, which holds every clone, `/work/.swarm`, the notes and the resources, and the prompt's `# Repository` names `/work/<first name>` as the repository (7.3); the check starts in its clone, `/work` |
 
@@ -1730,7 +1712,7 @@ fence runs on over the prompt's own lines.
 - Clone <path>: <owner>/<name>, branch <branch>, base <base>, check <check, as one shell-quoted line> (or: no check declared)
 - Working directory: /work, holding every clone; the repository is /work/<first name> (the owner and the architect of a confined provider only, section 9)
 - Resources (read-only): /work/.resources/<repository>/<path>, … (or: none)
-- Research notes: /work/.notes, the wiki (or: notes/ in <owner>/<repo>), pushed by Daisy after the run
+- Research notes: /work/.notes, notes/ in <owner>/<repo>, pushed by Daisy after the run
 
 # Research notes
 
@@ -1815,7 +1797,7 @@ Which sections a prompt holds, by role:
 | Section | Owner and architect | Worker, `plan-1-accepted` | Worker, `review-3-changes-requested` | Reviewers |
 |---|---|---|---|---|
 | `# Repository` (one `Clone` line: `/work` for the run's repository; for the owner and the architect, `/work/<name>` per declared repository), `# Issue` | yes | yes | yes | yes |
-| `- Research notes:` in `# Repository`, and `# Research notes` (`None.` when the copy holds no note), with `wiki` or `notes` | yes | the line alone, `- Research notes (read-only): /work/.notes` | the line alone | the line alone |
+| `- Research notes:` in `# Repository`, and `# Research notes` (`None.` when the copy holds no note), with `notes` | yes | the line alone, `- Research notes (read-only): /work/.notes` | the line alone | the line alone |
 | `# Thread` (the issue thread's comments, oldest first, but the gate notes and the auto notes, section 5, compacted as below; `None.` when there are none) | yes | — | — | — |
 | `# Plan` | — | yes | yes | yes |
 | `# Direction` (`None.` when there are none) | — | yes | — | — |
@@ -1823,11 +1805,10 @@ Which sections a prompt holds, by role:
 | `# Pull request`, its `## Earlier rounds` (left out when no round is a line) and its `## Thread` (`None.` when no entry is shown in it), compacted as below | the architect, when the current pull request is open (the rounds): every round's blocking findings | when the current pull request is open: the latest round in full, the earlier as lines | yes: the latest round in full, the earlier as lines | yes: the previous round's blocking findings, the earlier as lines, never the current round |
 | `# Check` | the architect, when the current pull request is open | when the current pull request is open | yes | yes |
 
-- **`# Research notes`**, with `wiki` or `notes` (section 3), comes after
+- **`# Research notes`**, with `notes` (section 3), comes after
   `# Repository` in the owner's prompts, the batch's included, and the
   architect's: the index of the research notes in the run's copy (the
-  wiki's pages, or the `notes/` directory of the swarm's own issues
-  repository), by file name, read before the member researches (section 14,
+  swarm repository's `notes/` directory), by file name, read before the member researches (section 14,
   item 79: a source already researched is read, not researched again). A **note** is a regular file at the copy's top, `<file>.md`, its
   name holding no control character (a newline would put a line of its
   own in the index), whose header, the lines before its first `## ` heading outside a fenced
@@ -1851,7 +1832,7 @@ Which sections a prompt holds, by role:
   `Written:` line (`no Written: line` without one) and its `Checked:`
   date with its age (`today`, `1 day ago`, `<d> days ago`; none for a
   date not opening `YYYY-MM-DD`), or `never checked` without one. The notes are material, in `prompt.md`: anyone
-  who can edit the wiki or the repository may have written them.
+  who can push to the swarm repository may have written them.
 - **The issue thread** under `# Thread` is compacted as the
   pull-request thread is (below; section 14, item 95), so that the
   owner's and the architect's prompts stop growing with the plan's
@@ -2006,7 +1987,7 @@ result.`, or `No check command is declared; say how you tested.` when
 and list what you did not run or could not verify (live services, other
 platforms, behaviour that needs a network), or "none".` (section 14, item
 45); with a plan and `<s>` > 1, `A pin to an earlier slice's change names its merged commit, listed under Earlier pull requests, never a branch or an unmerged head; if this slice needs an earlier slice that is not merged, write "BLOCKED: slice <i> is not merged".`
-With `wiki` or `notes`, every owner text, the batch's included, and every
+With `notes`, every owner text, the batch's included, and every
 architect text adds, before the protected paths: `Before you research a
 source, read its note if "# Research notes" lists one: the note names
 the commit or tag it describes and, for a declared repository, how many
@@ -2204,21 +2185,20 @@ not be the one the member's report describes. Built with the worker's
 collection (Step 6 of the swarm build); the hook and the identity are
 Step 5's (7.1).
 
-**The notes.** With `wiki` or `notes`, an owner's or architect's run whose result
+**The notes.** With `notes`, an owner's or architect's run whose result
 holds `notes-base <sha>` and whose container ran (any end line but
 `launch-failed`; an abandoned run has none of this) first has its notes
 published, before every other step, whatever its outcome, and once: a
-`notes` line records the step. In `<state>/wiki` (with `notes`,
-`<state>/notes`), host git's own clone (cloned again
+`notes` line records the step. In `<state>/notes`, host git's own clone (cloned again
 when absent, as at the pass's refresh, 7.1 step 1, so a clone deleted
 since the launch does not hold the step back),
 never in the run's copy: `reset --hard <sha>` and `clean -fdq`, the run's
-copy `<run>/notes` copied over the tree (with `notes`, over its `notes/`
-directory alone, so the briefs and the rest are never written; regular files and directories
+copy `<run>/notes` copied over its `notes/`
+directory alone (so the briefs and the rest are never written; regular files and directories
 only, every name `.git` and every link left out, a link in the clone
 replaced rather than written through; a note is added or changed, never
-deleted), `git add --all`; nothing staged is `notes unchanged`. With
-`notes`, a `notes` that is not a directory at `<sha>` (the maintainer's
+deleted), `git add --all`; nothing staged is `notes unchanged`. A
+`notes` that is not a directory at `<sha>` (the maintainer's
 link or file) is neither replaced nor followed: `notes kept: notes/ is
 not a directory`, nothing committed, or `notes unchanged` when the run's
 copy, which began empty (7.1, step 2), holds no file. A `notes/` that
@@ -2232,14 +2212,13 @@ commit.gpgsign=false commit --no-verify`, its message `#<n> <role> run
 <k>: research notes` (the batch's `owner run <k>: research notes`), a
 blank line, the run's marker line `<!-- daisy-swarm role=<role> run=<k>
 -->`, and with a `co_author` a blank line and `Co-Authored-By:
-<co_author>`. The clone's branch (the wiki's, or the default branch of
-the swarm's own repository) is fetched again and the commit put on its head
+<co_author>`. The clone's branch (the swarm repository's default
+branch) is fetched again and the commit put on its head
 as fetched, never a rebase and never forced: when the head is still
 `<sha>`, the commit itself; else `cherry-pick --no-commit` onto the head
 and a commit reusing the run's message and author (`commit -C`), a pick
 that changes nothing being `notes unchanged` (a push whose record was
-lost); then `git push --porcelain <wiki-url> <commit>:refs/heads/<branch>`
-(`<notes-url>` with `notes`),
+lost); then `git push --porcelain <notes-url> <commit>:refs/heads/<branch>`,
 `notes pushed <sha>`. A pick that conflicts with the maintainer's edits
 pushes the run's own commit, on `<sha>`, to
 `refs/heads/swarm/notes-<n>-<role>-<k>` instead, `notes branch
@@ -2252,9 +2231,8 @@ maintainer when the run is collected, every other end removing it, and
 leaves the clone at `<sha>` (`reset --hard`, `clean -fdq`), so the run's
 pages are never in its tree for a later copy. On
 stdout `#<n> <role> run <k>: pushed notes <short sha>`; on stderr
-`⚠ #<n> <role> run <k>: notes conflict with the wiki's head; pushed to
-swarm/notes-<n>-<role>-<k>` (with `notes`, `with <owner>/<repo>'s head`)
-and `⚠ #<n> <role> run <k>: notes not pushed (<reason>); kept in
+`⚠ #<n> <role> run <k>: notes conflict with <owner>/<repo>'s head; pushed to
+swarm/notes-<n>-<role>-<k>` and `⚠ #<n> <role> run <k>: notes not pushed (<reason>); kept in
 <run>/notes`.
 
 The worker's posted text is its marked text, its trailing line breaks
@@ -2464,8 +2442,8 @@ notes).
    the method, endpoint and status, never the request's headers).
 3. **The host's git credentials never enter a container.** Fetch and push
    run on the host, in the mirrors under `<state>/git/` and
-   `<state>/references/` (and with `wiki` or `notes`
-   in `<state>/wiki` or `<state>/notes`, the notes' clone), with the host's SSH keys, agent or
+   `<state>/references/` (and with `notes`
+   in `<state>/notes`, the notes' clone), with the host's SSH keys, agent or
    credential helper and the SSH command each mirror's config records
    (a declared repository's `ssh_command`, the swarm repository's
    clone's `core.sshCommand`: 7.1, step 1). The
@@ -3168,8 +3146,7 @@ runs anywhere inside the clone and a workspace may hold several clones,
 each found from inside it. No Daisy workspace is needed: a verb reads
 `$DAISY_ROOT` and `$DAISY_LOCAL` as every command does, and no home and
 no identity. With no such folder, `init` makes one (below), and every
-other verb looks for a swarm in the old layout (Moving a swarm into its
-repository, below) and, finding none either, exits 1 with section 3's
+other verb exits 1 with section 3's
 `Error: swarm.json: not found in <dir> or a folder above it; cd into the
 swarm repository's clone, or run 'daisy swarm init'`. Any argument a
 verb does not take is a usage error: its usage line on stderr, exit 2.
@@ -3182,11 +3159,14 @@ decides the layout (`declare.Find`), and every verb, `init` included,
 runs from a clone holding `swarm.json` with no Daisy workspace, reading
 its secrets from `<state>/env` (section 3, Secret values), printing the
 unit for the clone and running `docker` and `id` there. *As built (Step
-6, 2026-11-10; item 109):* `init` run where neither a clone holding
-`swarm.json` nor the old layout's `<ws>/swarm/swarm.json` is found takes
-the working folder, in a Daisy workspace or not, as the folder it makes
-the clone in (below); the old layout's `init` runs only where its
-`swarm.json` is. The thirteen
+6, 2026-11-10; item 109):* `init` run where no clone holding
+`swarm.json` is found takes the working folder, in a Daisy workspace or
+not, as the folder it makes the clone in (below). *As built (Step 7,
+2026-11-10; item 112):* the old layout is retired: a `swarm.json` in a
+workspace's `swarm/` is no swarm, so a verb run there finds none (`init`
+takes the workspace as its folder), and nothing reads the old layout's
+`repos[].path`, workspace `resources`, `<ws>/.env.sh` or `wiki` (Moving
+a swarm into its repository, below). The thirteen
 are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm,
 `status`'s correction counts at Step 8, the maintainer's six at
 Step 10, at Step 15 `swarm block` and the issue's `pause` and
@@ -3241,9 +3221,10 @@ commit carries. Detection reads the clones
 directly under the folder holding the swarm repository's clone (the
 folder `init` ran in when it made the clone), the swarm
 repository's own clone left out; with a `swarm.json`, question 1's
-default is its repositories, an entry the old layout wrote by `path`
-offered as `<owner>/<name>`, `<owner>` `forge.repo`'s. The old layout's
-wizard and readiness are as they were.
+default is its repositories (`repos[].repo`). Since Step 7 of revision
+6's plan there is no other wizard: the old layout's questions (paths in
+the workspace, the issues repository and its "own" follow-up, the wiki)
+are gone with it (section 14, item 112).
 
 *As built (Step 6 of revision 6's plan, 2026-11-10; section 14, item
 109):* `init` is the table above. In a folder holding no clone of a
@@ -3277,17 +3258,14 @@ whose push was refused is the maintainer's to push. *As built at Step
 6b:* question 3's default is `--api`'s value, else the file's
 `forge.api`, else `$GITEA_API_URL` or `$GITHUB_API_URL` by the kind
 question 2 answered (read from the process environment; a variable of
-the other kind is not read), else detection, in both layouts;
+the other kind is not read), else detection;
 interactively that value is the default in brackets. `--api` is a
 value flag of the `cli` row (`--api needs a value` without one, exit
 2), its value not checked until question 3 takes it: under `--defaults`
 an invalid one is `Error: swarm.json: forge.api: "<url>" is not an
 absolute http(s) URL without credentials`, exit 1, before any forge
 call. `<state>` follows the answer, its `<forge-host>` carrying the
-port. The old layout's
-`init` (Moving a swarm into its repository) runs only where
-`<ws>/swarm/swarm.json` is, and is as it was: its labels line is `✓
-Labels: 16 present (<c> created, <r> renamed)`.
+port.
 
 The wizard, in order. An empty answer takes the default shown in
 brackets; defaults come from the existing `swarm.json`, else detection:
@@ -3311,7 +3289,7 @@ any folder's), each one's `origin` and `core.sshCommand`.
 | 32 | `Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none) [<d>]: ` | `briefs/, docs/`, the directories `init` seeds (with a file, its `resources`) |
 | 33 | `Maintainer logins (comma-separated, not the swarm's; - for none) [<d>]: ` | none; with a file, its `trusted` without the swarm's login |
 | 34 | `Commit email [<d>]: ` (without a default, `Commit email: `) | the file's `forge.commit_email`, else the swarm account's email as `Login()` reports it, else none (`--defaults` then fails: `Error: swarm.json: forge.commit_email: missing`) |
-| 35 | `Research notes, in <owner>/<repo>'s notes/ (yes, no) [<d>]: ` (Step 23 of the swarm build; the wiki's question is the old layout's alone, section 3, `wiki`) | `yes` when the file's `notes` is `true`, else `no` (section 3); the answer sets `notes` and clears `wiki`; `init` seeds the `README.md` in `notes/` either way (section 2) |
+| 35 | `Research notes, in <owner>/<repo>'s notes/ (yes, no) [<d>]: ` (Step 23 of the swarm build) | `yes` when the file's `notes` is `true`, else `no` (section 3); the answer sets `notes`; `init` seeds the `README.md` in `notes/` either way (section 2) |
 
 `trusted` is written as the answer to question 33 followed by the swarm's
 login from `Login()`. `owner.max_open_proposals`, each repository's `check`
@@ -3392,13 +3370,13 @@ passphrase prompt, or an agent the user manager can reach).
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm apply [--once]` |
-| Reads | `swarm.json` and `prompts/` in the clone (each pass), the clone's `origin` and `core.sshCommand` (each pass, 7.1), `<state>/env` (token and `env` credentials), each used slot's `auth.json`, `<state>`, from the mirrors at the pass's commits the briefs under `resources` (the batch prompt, 7.3, and the milestones, step 8), the resources and `repos/<name>.md` (7.1), and with `wiki` or `notes` the notes in each run's copy and the changed notes an owner's or architect's run left (7.6, The notes) |
+| Reads | `swarm.json` and `prompts/` in the clone (each pass), the clone's `origin` and `core.sshCommand` (each pass, 7.1), `<state>/env` (token and `env` credentials), each used slot's `auth.json`, `<state>`, from the mirrors at the pass's commits the briefs under `resources` (the batch prompt, 7.3, and the milestones, step 8), the resources and `repos/<name>.md` (7.1), and with `notes` the notes in each run's copy and the changed notes an owner's or architect's run left (7.6, The notes) |
 | Start | validation; the token and every used provider's `env` credential set (a slot's login is checked at its launch: section 3, Secret values); `<state>` created when absent; the lock (below), before anything is read from the forge or Docker; `Login()`; `id -u` and `id -g`; `docker ps` once (failing: `Error: swarm: docker: <message>`, exit 1); then `EnsureLabels` with the sixteen labels (one deleted since `init` is created again, Step 39; an old stage name renamed, Step 15), printing `✓ Labels: 16 present (<c> created, <r> renamed)` when it made one; its failure, a refused rename or create included (section 10), is `Error: …` and exit 1, with or without `--once`, before any pass |
 | A pass | (1) re-read and validate `swarm.json` (without `--once`, a failure is printed and the pass skipped, and so is a pass whose `forge.kind`, `api`, `repo` or `token_env` changed since the start, which the lock, the adapter and the token belong to: `Error: swarm: swarm.json's forge (kind, api, repo or token_env) changed since apply started; pass skipped: restart apply to act on it`); (2) the running set: `docker ps --filter label=daisy.swarm --format '{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}'`, keeping this swarm's (`<owner>/<repo>`) for rules 2 and 4 and every swarm's busy slots, to which every container this process starts during the pass, a check in (3) included, is added; a `docker ps` failure ends the pass there, nothing collected or launched; (3) collect this process's finished runs and checks, and retry every run with an end line but no `collected` (7.6); of the runs this process did not start, one with `started`, no end line and no container in the running set is marked `ended` and collected from its `out.md` when its member finished (its `<run>/io/exit`, 7.7), else marked `abandoned`, a worker's commits kept as its run's ref and its issue taken back from the in-progress stage its launch wrote (T22), then `collected` and its `work/` removed, and one whose container has outlived `timeout` is stopped and abandoned (7.7); (4) when `paused` exists, print it, launch nothing and skip the merge step; the budget (section 3) is checked here and before each launch; (5) for each label in section 5's order, `Issues(Open, label)`, and for each issue by number `Issue(n)` (an issue `Issue(n)` reads closed, or with a stage other than the listed one, is passed over: it is read at its own stage, or at the next pass), then `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for the current pull request when it is open and the stage reads it (section 7.3); the current pull request, when open, given the issue's label (section 5); with `forge.board`, `Board(n, <stage>)` for each issue that carries exactly one stage label, `<stage>` that label without `swarm:` (a board fault: `⚠ #<n>: board: <error>`, no further `Board` call this pass, and the pass goes on); a forge error here ends the pass's launching, with `Error: …` on stderr: the role rule (section 6) decides, an issue carrying `swarm:blocked` or `swarm:paused`, or whose newest maintainer comment names an open blocker (`Issue(m)`), launching nothing, and launches run until `max_members` are running, both reviewers of a pair in the same pass, each worker's and each first reviewer's writing its in-progress stage once its container has started (7.1, step 6), so the issue is read again under that stage later in the same step, its roles not decided again; the mirrors are fetched before the pass's first launch (7.1); (6) with `gates.merge` false, the merge step for each `review-2-approved` issue neither blocked nor paused (section 12); (7) the owner's batch trigger, its pacing reading, with the triage gate on, `Issue(n)` for each open `proposal-accepted` issue without `swarm:class-architecture` (its class, section 6, G0), its prompt reading the `active` briefs from the host and `Issues(Closed, label)` for each stage and terminal label and `Pulls(n)` and `Issue(n)` for each recently closed issue; (8) after the runs `--once` waits for (so that the flag follows the labels its collections moved and a batch's proposals are in it), unless a signal has come, and paused or not, the maintainer's flag (section 5): `Issues(Open, label)` for each stage and `Issues(Open, "swarm:gated")`; by number, for each open issue at `proposal-posted` with the triage gate on or at `plan-0-posted` with the plan gate on, `Issue(n)` for its class (section 5, The job class; a read refused is `⚠ #<n>: class: <error>` and the issue is left as it is this pass), and for a routine job the gate passed (T23, T24): with the swarm not paused, the issue neither blocked nor paused and the stage's role having nothing to answer, `Relabel(n, <stage>, <next stage>)` then `Comment(n, <auto note>)` (a refusal: `⚠ #<n>: auto: <error>`); then `Relabel(n, "", "swarm:gated")` for each open issue that is gated (section 5: one stage, a gate on that holds its class, or `swarm:blocked`) and lacks it, each followed by its gate note (section 5: `Issue(n)`, at the merge gate `Pulls(n)`, `Reviews(m)` and `PullComments(m)` for the current pull request, then `Comment(n, <gate note>)`), and `Relabel(n, "swarm:gated", "")` for each other carrying it, and, the flag on, a gate note for an issue gated again (section 5); then the copy of step (5) for each issue the pass moved after step (5) read it, `Pulls(n)` and the current pull request, when open, given the stage the move wrote (a failure: `⚠ #<n>: pull request label: <error>`); then the milestones: with an `active` brief, `Milestones()`, then `EnsureMilestone(<slug>: <milestone>)` for each `## ` heading of each `active` brief (`<slug>` its file name without `.md`) that has no milestone of its title, then `Issues(Open, label)` for each stage (the flag's list, read again only when that read failed) and, when it created a milestone or at the process's first reading, `Issues(Closed, label)` for each stage and terminal, and `SetMilestone(n, <id>)` for each issue in no milestone whose `Brief:` line (section 4) names a milestone of an `active` brief; an issue already in a milestone is left in it, the maintainer's choice or an earlier one's; every failure in (8), the flag's or the milestones', is a warning, never a fault, an exit code or an end to the pass; in a swarm repository's clone, Drift (below), the swarm repository's mirror fetched first when the pass fetched nothing (7.1, step 1); (9) the summary line |
 | `--once` | one pass; then it waits for every run it launched, collects each (starting and waiting for a worker run's check), and exits: the maintainer's smokes, not the unit's command |
 | Without `--once` | the loop the unit runs: a pass every `interval`, start to start, whatever runs: a pass waits for none of its members, and each run is collected by the first pass after it ends (a worker run's check started there and collected by a later pass in turn); until SIGINT or SIGTERM: then no launch, its running members and checks collected as they exit (a worker run's check started for it, as its collection needs), exit 0; a second signal, during the pass the first ended or while the loop collects, exits at once (130), leaving its members to finish and be collected by a later `apply` from their `out.md` (7.7, *ended*) |
-| Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`, `Milestones`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), `EnsureMilestone` and `SetMilestone` (step 8), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge, and with `wiki` clones and fetches the issues repository's wiki (with `notes`, the swarm's own issues repository) and pushes the notes' commits to its branch (the repository's default) or to `swarm/notes-<n>-<role>-<k>` (7.1, 7.6) |
-| Writes | `<state>/lock`, `<state>/paused` (a swarm fault, the budget), `<state>/owner-held`, `<state>/auto`, `<state>/git/`, with `wiki` `<state>/wiki/` (with `notes`, `<state>/notes/`), `<state>/runs/`, and for a slot run `<slot>.lock` and the clearing of `<slot>` (section 2); nothing else |
+| Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`, `Milestones`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), `EnsureMilestone` and `SetMilestone` (step 8), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge, and with `notes` clones and fetches the swarm repository and pushes the notes' commits to its branch (the repository's default) or to `swarm/notes-<n>-<role>-<k>` (7.1, 7.6) |
+| Writes | `<state>/lock`, `<state>/paused` (a swarm fault, the budget), `<state>/owner-held`, `<state>/auto`, `<state>/git/`, with `notes` `<state>/notes/`, `<state>/runs/`, and for a slot run `<slot>.lock` and the clearing of `<slot>` (section 2); nothing else |
 | Stdout | `✓ Labels: 16 present (<c> created, <r> renamed)` at the start when a label was made; `#<n> <role> run <k>: launched`, then `#<n> <role> run <k>: <stage> → <in-progress stage>` for a worker and a first reviewer (T20, T21); at collection one line per step done, `#<n> <role> run <k>: ` then `check started`, `check exited <code>` (or `check timeout`), `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`, `blocked` (`swarm:blocked` set), `pushed notes <short sha>` (7.6, The notes); a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:review-2-approved → swarm:plan-1-accepted` or `#<n> closed (last slice merged)` and `#<n> swarm:review-2-approved → swarm:done` (and `#<n> <flag> cleared` for each flag it carried), or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> blocked` (T16), or `#<n> not mergeable: back to the worker` then `#<n> swarm:review-2-approved → swarm:review-3-changes-requested` (T25), or `#<n> not mergeable a second time at <short sha>: blocked` then `#<n> blocked` (T25's second time), or `#<n> merge of pull <name>#<m> refused (<message>); its mergeability is not settled, so the next pass tries again`, or `#<n> merge of pull <name>#<m> refused (<message>); its head merges into <base> on the mirror, so the forge is taken to be recomputing and the next pass tries again`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; a routine job's gate passed, `#<n> <stage> → <next stage> (auto)` and `#<n> auto note posted`; the flag's `#<n> gated`, `#<n> gate note posted` and `#<n> gated cleared`; the milestones' `milestone created: <title>` and `#<n> milestone: <title>`; `✓ Drift cleared: swarm.json and prompts/ are <owner>/<repo>'s <branch> at <short sha>` (Drift, below); each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
 | Stderr | `⚠️  <state>/env <problem>` (as `init`); `⚠ <swarm>/.env.sh: …` (section 3, Secret values) and the drift warnings (Drift, below), each when it applies; warnings `⚠ #<n>: Blocked by #<m> names no issue; not held` (section 6, rule 1), `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled` (`during the merge step` for the merge step's), the merge step's `⚠ #<n>: pull <name>#<m>'s head <short sha> not merged on the mirror (<error>); the forge's report stands` (section 12), `⚠ #<n> closed during the run; nothing posted`, the notes' `⚠ #<n> <role> run <k>: notes conflict with the wiki's head; pushed to swarm/notes-<n>-<role>-<k>` (`with <owner>/<repo>'s head` with `notes`) and `⚠ #<n> <role> run <k>: notes not pushed (<reason>); kept in <run>/notes` (7.6), `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); the flag's warnings `⚠ #<n>: gated: <error>` (a relabel refused), `⚠ #<n>: gate note: <error>` (a read or the post refused: that gating event has no note), `⚠ #<n>: class: <error>` (the class's read refused: the issue left as it is this pass), `⚠ #<n>: auto: <error>` (a routine job's relabel refused, tried again at the next pass, or its auto note refused) and `⚠ gated: <error>` (a list unreadable: no flag changed this pass); the milestones' warnings, each pass while the cause stands, for an open issue `⚠ #<n>: its Brief: line names "<milestone>", which is no milestone of <path>; no milestone set` (a heading renamed or removed since) and `⚠ #<n>: its Brief: line names <path>, which is no brief under resources; no milestone set`, `⚠ milestones: <path> and <path> share the name <slug>; <path> is mirrored to no milestone` (the second in path order), `⚠ milestone <title>: <error>` (a refused create), `⚠ #<n>: milestone <title>: <error>`, and `⚠ milestones: <error>` (the briefs or a list unreadable); a closed issue's line, and a brief not `active`, give none; errors `Error: …` |
 | Lock | `Ops.FS().Lock(<state>/lock, "apply[ --once] since <time>")` takes an exclusive `flock` without waiting and writes the holder line (adding `pid <pid>`); the kernel releases it when the process exits, however it exits. Held: `Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`, exit 1, nothing read from the forge |
@@ -3485,13 +3463,13 @@ first whose container starts writes review-1-in-progress, and the other
 is launched on it.
 
 **As built (Step 19 of the swarm build).** The table as written
-(section 14, item 79). With `wiki` (with `notes`, since Step 23, the
-swarm's own issues repository, item 83), the notes' clone is refreshed beside
-the mirrors before a pass's first launch, so a pass that launches
-nothing reaches no wiki; each run is given a copy (7.1), the owner's and
+(section 14, item 79). With `notes` (since Step 23 of the swarm build,
+item 83; the research wiki of Step 19 retired with the old layout, item
+112), the notes' clone is refreshed beside the mirrors before a pass's
+first launch; each run is given a copy (7.1), the owner's and
 the architect's prompts the index (7.3), and their collections publish
-the notes first (7.6). A pass's error from the wiki (it cannot be cloned
-or fetched) ends its launching, as a mirror's does; a note's step that
+the notes first (7.6). A pass's error from the notes' clone (it cannot
+be cloned or fetched) ends its launching, as a mirror's does; a note's step that
 cannot reach the forge leaves the collection to be retried; a conflict,
 a refused push or a secret in a note is a warning, never the run's
 outcome.
@@ -3656,8 +3634,7 @@ error>`, and changes nothing. `status` prints its lines after `⚠
 end of each pass, before its `Pass` line, the swarm repository's mirror
 fetched then when the pass fetched nothing (7.1, step 1), and its
 memory of the last set is the process's: each `apply --once` prints
-its drift, and a loop restarted prints it again at its first pass. The
-old layout has no Drift.
+its drift, and a loop restarted prints it again at its first pass.
 
 ### daisy swarm pause and daisy swarm resume
 
@@ -3746,48 +3723,38 @@ variable `DAISY_MAINTAINER_TOKEN`.
 
 ### Moving a swarm into its repository
 
-**The old layout**, the only one before revision 6 and run by the code
-until Steps 2–6 of its plan build revision 6, and by every verb until
-Step 7 retires it, wherever no swarm repository's clone is found
-(Finding the swarm, above): the swarm is declared in a Daisy workspace,
-`<ws>/swarm/swarm.json` and `<ws>/swarm/prompts/<role>.md`, files of
-the workspace's repository, `<ws>` the nearest folder upward holding
-`.daisy/` (the binding's folder alone: since Step 2 of revision 6's
-plan no home or identity is read), and `<ws>/swarm/swarm.json` present
-(a verb finding neither exits 1 with section 3's not-found message; for
-`init`, Finding the swarm's As built, above). Its files are named from
-`<ws>` (`swarm.json` and `prompts/<role>.md` under `swarm/`), and its unit's
-description reads `for the workspace %f`.
-Each declared repository has `path` in place of `repo` and
-`ssh_command`: a relative path inside `<ws>` (`.` when the workspace is
-the product) naming a clone whose `origin` is `<owner>/<name>` on the
-forge's host, validated as the swarm repository's clone's `origin` is
-(section 3), and whose `origin` URL and `core.sshCommand` each pass
-reads for its mirror's fetch and every push, its working tree read for
-`init`'s readiness warnings. `resources` are workspace paths, resolved
-through every link to lie inside `<ws>`, neither `<ws>` itself nor under
-`swarm/` nor holding `.env.sh`, `.daisy` or `.git`, and mounted live,
-one read-only bind mount each at `/work/.resources/<path>`, the
-resolved working tree re-checked at each launch. `forge.repo` may be a
-declared repository (its research notes then in its wiki, `wiki`) or
-the swarm's own, `<owner>/swarm-<name>`, holding the issues, its briefs
-in its clone in the workspace, `<ws>/swarm-<name>/briefs/`, declared as
-a `resources` entry, and with `notes` the notes, reached over the first
-declared repository's remote; Daisy keeps no mirror of it. A brief's
-path, in the prompts and in the `Brief:` and `Met:` lines, is its path
-in the workspace (`swarm-<name>/briefs/<file>.md`). The secrets are in
-`<ws>/.env.sh`, beside the workspace's others (a line that cannot be
-read named `⚠️  .env.sh <problem>`, as `check-secrets` names it, and
-no mode refused); `<state>/env` is not read. It has no
-`repos/<name>.md` (section 4) and no Drift (Drift, above): a member's
-`system.md` ends with its Task. The unit's `%f` is the
-workspace. `init` writes `<ws>/swarm/` and nothing under
-`$DAISY_LOCAL`, creates no repository and reads no maintainer's token;
-since Step 6 of revision 6's plan it runs only where
-`<ws>/swarm/swarm.json` is (a workspace without one is a folder `init`
-makes a swarm repository's clone in, Finding the swarm).
-Its configuration, as `init` writes section 3's example in it (the Go
-test of section 3's example reads it here too):
+**The old layout**, the only one before revision 6, was read by every
+verb until Step 7 of revision 6's plan retired it (2026-11-10, once the
+maintainer had moved every swarm; section 14, item 112). The current
+Daisy reads none of its files: a `swarm.json` in a workspace's `swarm/`
+is no swarm (a verb run there exits 1 with section 3's not-found
+message, and `init` takes the workspace as the folder it makes a clone
+in), and a `swarm.json` holding the old layout's fields is refused
+(`swarm.json: repos[0].path: unknown field`, `swarm.json: wiki: unknown
+field`). What follows describes the old files, so that a maintainer
+moving a swarm still in that layout finds them; only a Daisy older than
+Step 7 runs such a swarm.
+
+In the old layout the swarm is declared in a Daisy workspace,
+`<ws>/swarm/swarm.json` and `<ws>/swarm/prompts/<role>.md`, files of the
+workspace's repository, `<ws>` the nearest folder upward holding
+`.daisy/`, and its unit's description reads `for the workspace %f`, its
+`%f` the workspace. Each declared repository has `path` in place of
+`repo` and `ssh_command`: a relative path inside `<ws>` (`.` when the
+workspace is the product) naming a clone whose `origin` is
+`<owner>/<name>` on the forge's host, whose `origin` URL and
+`core.sshCommand` its mirror's fetch and every push read. `resources`
+are workspace paths, mounted live, one read-only bind mount each at
+`/work/.resources/<path>`. `forge.repo` may be a declared repository
+(its research notes then in its wiki, `wiki: true`) or the swarm's own,
+`<owner>/swarm-<name>`, holding the issues, its briefs in its clone in
+the workspace, `<ws>/swarm-<name>/briefs/`, declared as a `resources`
+entry, and with `notes` the notes. A brief's path, in the prompts and in
+the `Brief:` and `Met:` lines, is its path in the workspace
+(`swarm-<name>/briefs/<file>.md`). The secrets are in `<ws>/.env.sh`,
+beside the workspace's others. There is no `repos/<name>.md` and no
+Drift. Its configuration, as an older Daisy's `init` wrote section 3's
+example in it:
 
 ```json
 {
@@ -3823,12 +3790,14 @@ test of section 3's example reads it here too):
 
 **Moving by hand.** There is no migrate verb (section 14, item 104):
 the maintainer moves a swarm, once, in these steps, with no member
-running.
+running. Step 1 needs the Daisy that runs the old swarm, one older than
+Step 7 of revision 6's plan; steps 2 to 5 are by hand; steps 6 to 8 are
+the current Daisy's.
 
-1. **Stop the swarm.** `daisy swarm pause`, wait until `daisy swarm
-   status` reads `Running: none`, then disable the unit:
-   `systemctl --user disable --now daisy-swarm@<instance>.service`,
-   `<instance>` the workspace's.
+1. **Stop the swarm**, with the older Daisy: `daisy swarm pause` in the
+   workspace, wait until `daisy swarm status` reads `Running: none`,
+   then disable the unit: `systemctl --user disable --now
+   daisy-swarm@<instance>.service`, `<instance>` the workspace's.
 2. **The swarm repository and its clone.** When `forge.repo` is
    already the swarm's own (`<owner>/swarm-<name>`), its clone in the
    workspace, `<ws>/swarm-<name>`, is the swarm's root, and `<state>`,
@@ -3839,58 +3808,58 @@ running.
    issues the maintainer closes or files again by hand; the maintainer
    creates `<owner>/swarm-<name>` on the forge and clones it into the
    workspace before step 3 (`init`, step 6, then adopts it).
-3. **The configuration.** Move `<ws>/swarm/swarm.json` and
+3. **The configuration.** Copy `<ws>/swarm/swarm.json` and
    `<ws>/swarm/prompts/` into the clone, as `swarm.json` and `prompts/`
-   at its top (`git mv` does not cross repositories: copy them, and
-   remove them from the workspace's repository in its own commit once
-   the swarm runs from the clone). In `swarm.json`: each `repos` entry's
-   `"path": "<p>"` becomes `"repo": "<owner>/<name>"`, with
-   `"ssh_command": "<value>"` after it when the clone at `<ws>/<p>` sets
-   `core.sshCommand` (`git -C <ws>/<p> config core.sshCommand` prints
-   it); `forge.repo` names the swarm repository; `resources` become
-   swarm repository paths, `swarm-<name>/briefs/` becoming `briefs/`, and
-   a path in a declared repository's clone, `<p>/<path>`, becoming
-   `<name>:<path>`; the workspace's own `docs/` that span the products
-   move into the clone's `docs/` (its entry stays `docs/`), and anything
-   a member read that lies in no repository is committed to one or
-   becomes a `references` entry; `wiki` is dropped for `notes` (section
-   3), whose notes start empty in `notes/` unless the maintainer copies
-   the wiki's pages there.
+   at its top (`git mv` does not cross repositories). In `swarm.json`:
+   each `repos` entry's `"path": "<p>"` becomes `"repo":
+   "<owner>/<name>"`, with `"ssh_command": "<value>"` after it when the
+   clone at `<ws>/<p>` sets `core.sshCommand` (`git -C <ws>/<p> config
+   core.sshCommand` prints it); `forge.repo` names the swarm repository;
+   `resources` become swarm repository paths, `swarm-<name>/briefs/`
+   becoming `briefs/`, and a path in a declared repository's clone,
+   `<p>/<path>`, becoming `<name>:<path>`; the workspace's own `docs/`
+   that span the products move into the clone's `docs/` (its entry
+   stays `docs/`), and anything a member read that lies in no
+   repository is committed to one or becomes a `references` entry;
+   `wiki` is dropped for `notes` (section 3), whose notes start empty in
+   `notes/` unless the maintainer copies the wiki's pages there.
 4. **The secrets.** Copy the swarm's variables (`forge.token_env`'s,
    each `keys` `env`'s, `DAISY_MAINTAINER_TOKEN`) from `<ws>/.env.sh`
    into `<state>/env`, `<state>` the swarm's state directory,
    `$DAISY_LOCAL/swarm/<forge-host>/<owner>/<repo>`, with mode `0600`
    (`install -m 600 /dev/null <state>/env` before writing it); they stay
-   in `<ws>/.env.sh` only while something else there needs them.
-5. **Commit and push** the clone's new files.
-6. **`daisy swarm init --defaults`** in the clone, with
-   `DAISY_MAINTAINER_TOKEN` in `<state>/env` (step 4) and the clone's
-   git identity the maintainer's: its answers are the file's; it adopts
-   the repository (`  Maintainer <login>: <owner>/<repo> exists`) and
-   gives the swarm's account write access with the maintainer's token,
-   writes what is still absent (`repos/<name>.md`, the READMEs,
-   `.gitignore`, never a file that exists), commits those alone, `swarm:
-   written by init`, and pushes them to the default branch, makes the
-   mirrors, keeps `<state>/env`, makes the labels with the swarm's token,
-   and prints the unit for the clone's path; then, from inside the
-   clone, `daisy swarm status` validates the configuration and, the
-   mirrors made, shows no drift. Run from the folder holding the clone
-   instead, `init` refuses (the clone holds `swarm.json`).
+   in `<ws>/.env.sh` only while something else there needs them, since
+   the swarm reads none of that file.
+5. **Commit and push** the clone's new files, and remove `<ws>/swarm/`
+   from the workspace's repository in its own commit.
+6. **`daisy swarm init --defaults`** in the clone, with the current
+   Daisy, `DAISY_MAINTAINER_TOKEN` in `<state>/env` (step 4) and the
+   clone's git identity the maintainer's: its answers are the file's; it
+   adopts the repository (`  Maintainer <login>: <owner>/<repo> exists`)
+   and gives the swarm's account write access with the maintainer's
+   token, writes what is still absent (`repos/<name>.md`, the READMEs,
+   `.gitignore`, never a file that exists), commits those alone,
+   `swarm: written by init`, and pushes them to the default branch,
+   makes the mirrors, keeps `<state>/env`, makes the labels with the
+   swarm's token, and prints the unit for the clone's path; then, from
+   inside the clone, `daisy swarm status` validates the configuration
+   and, the mirrors made, shows no drift. Run from the folder holding
+   the clone instead, `init` refuses (the clone holds `swarm.json`). A
+   `swarm.json` still naming a `path` or `wiki` is refused here, naming
+   the field (step 3).
 7. **The briefs' paths on the forge.** An issue opened before the move
    names its brief by the workspace path, `Brief: swarm-<name>/briefs/<file>.md
-   — <milestone>`; until Step 7 retires the old layout that path still
-   names the brief at `briefs/<file>.md` (section 4), and after it no
-   longer does: the maintainer rewrites those lines by hand on the forge
-   (the issue's text), before Step 7 or as they please, or leaves the
-   closed issues as they are (a closed issue whose `Brief:` line names
-   no brief gives no warning, section 11, `apply`, step 8).
+   — <milestone>`, which names no brief for the current Daisy (section
+   4): the issue is in no brief's milestone and the batch does not count
+   it against the brief. The maintainer rewrites those lines by hand on
+   the forge (the issue's text) as `Brief: briefs/<file>.md —
+   <milestone>`, or leaves the closed issues as they are (a closed issue
+   whose `Brief:` line names no brief gives no warning, section 11,
+   `apply`, step 8).
 8. **Start the swarm.** Install the printed unit (`systemctl --user
    daemon-reload && systemctl --user enable --now
    daisy-swarm@<instance>.service`, `<instance>` the clone's path
-   escaped), then `daisy swarm resume` from the clone; remove
-   `<ws>/swarm/` from the workspace's repository once the first pass
-   has run, so that no verb run from the workspace finds the old layout
-   again.
+   escaped), then `daisy swarm resume` from the clone.
 
 ## 12. The merge gate
 
@@ -4602,12 +4571,12 @@ for the owner and the architect, notes in the copy at `/work/.notes`) that the
 test scripted for (issue, role, run), reports the canned exit and
 standard output, and runs a check as a scripted exit and output.
 
-**Seams for revision 6** (Steps 2–6 of the plan that makes the swarm
-repository the swarm's root; Step 7, the old layout's retirement, waits
-for the maintainer). Each step tests here first, on the Fakes, every
-test with real git in temp directories for the clone and the mirrors,
-and both layouts wherever it touches the lookup, until Step 7 removes
-the old one's fixture.
+**Seams for revision 6** (Steps 2–7 of the plan that makes the swarm
+repository the swarm's root). Each step tests here first, on the Fakes,
+every test with real git in temp directories for the clone and the
+mirrors; Steps 2–6 tested both layouts wherever they touched the
+lookup, and Step 7 removed the old one's fixture, each kept test
+running once, on the clone.
 
 | Step | Seam | Tested against | What it pins |
 |---|---|---|---|
@@ -4621,6 +4590,7 @@ the old one's fixture.
 | 5 | `repos/<name>.md` and Drift | `forge.Fake`, `runner.Fake`, the mirrors | a worker in the second declared repository given its `repos/<name>.md` and not the first's, the owner and the architect every one, a file absent adding nothing; `init`'s seed; the drift lines on `status` each time and on `apply` once per change, cleared after a commit and a push (the step's claim) |
 | 6 | `init` | `forge.Fake` with the three calls (`Repository`, `CreateRepository`, `AddCollaborator`), `gitea` over recorded pairs, an upstream bare repository | `init --defaults` from a folder holding no swarm repository's clone: the repository created with the maintainer's token, the access given, the clone made, the tree seeded, committed and pushed, `<state>/env` written `0600` once, the mirrors made, the labels made with the swarm's token, each write's line naming its token, then `apply --once` running a pass (the step's claim); an existing repository adopted; a second run writing nothing; each refusal |
 | 6 | smoke | the Gitea instance, a scratch `swarm-<name>` repository created and then deleted | the three calls and the labels, run by the orchestrator with the maintainer's say-so on the maintainer's token, or by the maintainer |
+| 7 | the old layout retired | real temp folders, `forge.Fake`, `runner.Fake`, the mirrors, the cli over an in-memory Gitea | the old layout's `<ws>/swarm/swarm.json` found by no verb (`init` taking the workspace as its folder) and reported by no `check-secrets`; `repos[].path` and `wiki` refused by the parse as unknown fields; an issue's `Brief:` and a batch's `Met:` line naming a brief by the old workspace path matching no brief; every kept test of the old fixture, the research notes' among them, run on the clone (the step's claim: `git grep swarm/swarm.json internal/` empty, and the suite passing) |
 
 ## 14. Decisions
 
@@ -6648,3 +6618,37 @@ entries among revision 1's, and was renumbered at Step 38.
     variable's, else the guess, and with a file keeping its own; the cli
     sending every request of a new swarm's `init` to the address `--api`
     names. The instance smoke runs again after it (the maintainer's).
+
+112. **The workspace layout retired (Step 7 of revision 6's plan, as
+    built, 2026-11-10; the maintainer's go-ahead of that day, every
+    live swarm moved).** The old layout's every branch is gone: the
+    lookup of `<ws>/swarm/swarm.json` (`declare.Find` reads the clone
+    alone, and takes no Daisy root; a workspace's `swarm/` is no
+    swarm, `init` taking the workspace as the folder it makes a clone
+    in, section 11, Finding the swarm), `repos[].path` and its
+    validation, workspace `resources` and their live bind mounts,
+    `<ws>/.env.sh` for the swarm (`check-secrets` keeps its rows for
+    the workspace's own variables), the old layout's `init` and wizard
+    (paths in the workspace, the issues repository and its "own"
+    follow-up), and the brief reader's match of the old workspace path
+    (`<repo>/<path>` names no brief, section 4). `wiki` went with it:
+    since revision 6 `forge.repo` is the swarm repository, never a
+    declared one, so validation refused `wiki` on every clone, and it
+    survived only for the old layout; the notes' clone is the swarm
+    repository's alone (`<state>/notes`, its `notes/`). A file holding
+    `path` or `wiki` is refused by the parse, `unknown field`, naming
+    it. `Place` keeps `Root` alone, the old configuration folder
+    (`Dir`, `Rel`, `Old`) having no use. The kept tests run once, on
+    the clone: the old fixture, `bothLayouts` and the tests of the old
+    layout alone (live resource links, the workspace's `.env.sh`, the
+    old wizard) are removed, and the research wiki's tests now drive
+    the notes in the swarm repository. With the issues in the swarm
+    repository and the pull requests in the declared ones, a pull
+    request is numbered in its own repository, so `forge.Fake` gains
+    two seeding helpers, `ClosePull` (a pull request closed unmerged,
+    which `CloseIssue` did when both shared the issues repository) and
+    `PullInIssues` (a pull request opened in the swarm repository, as a
+    maintainer may, which the verbs refuse by number); the adapter seam
+    is unchanged. Section 11, Moving a swarm into its repository, keeps
+    the old files' description and the steps, for a maintainer moving a
+    swarm with a Daisy older than this step.

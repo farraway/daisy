@@ -342,6 +342,27 @@ func (f *Fake) CloseIssue(n int) error {
 	return nil
 }
 
+// ClosePull closes the pull request pr unmerged, as its opener or the
+// maintainer does on the forge.
+func (f *Fake) ClosePull(pr Ref) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	it := must(f.findPull(pr))
+	if it.open {
+		it.open, it.closed = false, f.o.Now()
+		f.record(it, "closed")
+	}
+}
+
+// PullInIssues opens a pull request in the issues repository, forge.repo,
+// as a maintainer opens one there (the swarm opens none: it builds in the
+// declared repositories); its number is the issues' next.
+func (f *Fake) PullInIssues(head, title string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.add(f.repo, &item{title: title, author: f.account.Login, created: f.o.Now(), open: true, pull: &pullState{head: head, base: "main", mergeable: MergeableYes}})
+}
+
 // CreatePull opens a pull request in the declared repository repo; its
 // head commit is "" until Push moves it, and it is mergeable until
 // SetMergeable says otherwise, since the Fake holds no git. Like the
