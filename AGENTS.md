@@ -192,7 +192,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Prompts and skills | `daisy optimize [--workflow <n>]` | Briefing: pending entries per target, current rules, rewrite flags |
 | Prompts and skills | `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` | Apply a proposal: diff, approve, archive, commit |
 | Prompts and skills | `daisy eval [<case>] [--record]` | List, display, or record an eval case result |
-| Swarm | `daisy swarm init [--defaults]` | Declare the swarm: swarm.json, prompts, labels |
+| Swarm | `daisy swarm init [--defaults] [--api <url>]` | Declare the swarm: swarm.json, prompts, labels |
 | Swarm | `daisy swarm apply [--once]` | Reconcile the forge: launch members, post their output, move labels |
 | Swarm | `daisy swarm status` | Stages, gates, what waits for you, running members (read-only) |
 | Swarm | `daisy swarm pause [<n>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue) |

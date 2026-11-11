@@ -14,10 +14,11 @@ import (
 )
 
 // scripted is an Ops whose Prompt writes each question to its writer and
-// answers from answers in order, EOF once they run out.
+// answers from answers in order, EOF once they run out; its environment
+// is empty.
 func scripted(answers ...string) (*ops.Fake, *[]string) {
 	var asked []string
-	return &ops.Fake{PromptFn: func(_ io.Reader, w io.Writer, q string) (string, error) {
+	return &ops.Fake{GetenvFn: func(string) string { return "" }, PromptFn: func(_ io.Reader, w io.Writer, q string) (string, error) {
 		io.WriteString(w, q)
 		asked = append(asked, q)
 		if len(answers) == 0 {
@@ -468,5 +469,66 @@ func TestWizardDefaultsRefused(t *testing.T) {
 	}
 	if err := w.AskAccount(&c, "swarm-bot", ""); errText(err) != "swarm.json: forge.commit_email: missing" {
 		t.Errorf("no email to default to: %v", err)
+	}
+}
+
+// Question 3's default (section 11; revision 6's plan, Step 6b): `init
+// --api <url>`, else $GITEA_API_URL or $GITHUB_API_URL by the kind
+// answered, else the guess from an SSH origin, which carries neither
+// scheme nor port; a file's forge.api over the environment, the flag
+// over the file; interactively the chosen value is the default shown.
+func TestWizardForgeAPI(t *testing.T) {
+	dir, _ := cloneFolder(t)
+	const port, other = "http://forge.example.net:3000/api/v1", "https://elsewhere.example.net/api/v1"
+	for _, tc := range []struct {
+		name, flag string
+		vars       map[string]string
+		answers    []string // questions 1 and 2, when not --defaults
+		file       bool
+		want       string
+	}{
+		{name: "the guess", want: "https://forge.example.net/api/v1"},
+		{name: "the flag", flag: port, want: port},
+		{name: "the variable", vars: map[string]string{"GITEA_API_URL": port}, want: port},
+		{name: "the flag over the variable", flag: port, vars: map[string]string{"GITEA_API_URL": other}, want: port},
+		{name: "an empty variable", vars: map[string]string{"GITEA_API_URL": ""}, want: "https://forge.example.net/api/v1"},
+		{name: "the other kind's variable", vars: map[string]string{"GITHUB_API_URL": other}, want: "https://forge.example.net/api/v1"},
+		{name: "kind github's variable", vars: map[string]string{"GITEA_API_URL": port, "GITHUB_API_URL": other}, answers: []string{"", "github"}, want: other},
+		{name: "the file over the variable", vars: map[string]string{"GITEA_API_URL": other}, file: true, want: "https://forge.example.net/api/v1"},
+		{name: "the flag over the file", flag: port, vars: map[string]string{"GITEA_API_URL": other}, file: true, want: port},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, interactive := range []bool{false, true} {
+				answers := tc.answers
+				if interactive && answers == nil {
+					answers = []string{"", ""}
+				}
+				o, asked := scripted(append(answers, "")...)
+				o.GetenvFn = func(k string) string { return tc.vars[k] }
+				w := &Wizard{Ops: o, Err: io.Discard, Place: Folder(dir), Defaults: !interactive && tc.answers == nil, API: tc.flag}
+				if tc.file {
+					f := validClone()
+					w.File = &f
+				}
+				if !w.Defaults {
+					w.Ask() // EOF after question 3
+					if len(*asked) < 3 || (*asked)[2] != "Forge API ["+tc.want+"]: " {
+						t.Errorf("interactive: asked %q", *asked)
+					}
+					continue
+				}
+				c, err := w.Ask()
+				if err != nil || c.Forge.API != tc.want {
+					t.Errorf("--defaults: %v %q, want %q", err, c.Forge.API, tc.want)
+				}
+			}
+		})
+	}
+
+	// The flag's value validated as question 3's answer is.
+	o, _ := scripted()
+	w := &Wizard{Ops: o, Err: io.Discard, Place: Folder(dir), Defaults: true, API: "forge.example.net:3000"}
+	if _, err := w.Ask(); errText(err) != `swarm.json: forge.api: "forge.example.net:3000" is not an absolute http(s) URL without credentials` {
+		t.Errorf("an invalid --api: %v", err)
 	}
 }

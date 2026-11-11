@@ -24,6 +24,7 @@ type giteaServer struct {
 	issue1   []string          // issue 1's labels
 	requests []string          // method and path of each request, in order
 	auths    []string          // the Authorization header of each request, in order
+	bases    []string          // the scheme and host of each request, in order
 	repo     map[string]any    // acme/swarm-app once created
 	// each collaborator added to acme/swarm-app and its permission
 	collaborators []string
@@ -118,6 +119,7 @@ func newGitea(t *testing.T) *giteaServer {
 func (g *giteaServer) Do(req *http.Request) (*http.Response, error) {
 	g.requests = append(g.requests, req.Method+" "+req.URL.Path)
 	g.auths = append(g.auths, req.Header.Get("Authorization"))
+	g.bases = append(g.bases, req.URL.Scheme+"://"+req.URL.Host)
 	rec := httptest.NewRecorder()
 	if _, ok := g.accounts[req.Header.Get("Authorization")]; !ok {
 		rec.WriteHeader(401)
@@ -237,7 +239,10 @@ func TestSwarmInitCreatesThroughGitea(t *testing.T) {
 	m.gitIn(t, app, "remote", "add", "origin", "git@forge.example.net:acme/app.git")
 	m.vars["GITEA_TOKEN"], m.vars["DAISY_MAINTAINER_TOKEN"] = "tok-123", "jane-456"
 
-	code, out, errs := runWith(m.swarmOps(dir, g), "swarm", "init", "--defaults")
+	// The forge's API at the address --api names (revision 6's plan, Step
+	// 6b), where the products' SSH origins would guess https without the
+	// port.
+	code, out, errs := runWith(m.swarmOps(dir, g), "swarm", "init", "--defaults", "--api", "http://forge.example.net:3000/api/v1")
 	clone := filepath.Join(dir, "swarm-app")
 	head := "✓ Maintainer jane: acme/swarm-app created\n✓ Maintainer jane: swarm-bot may write to acme/swarm-app\n✓ Cloned acme/swarm-app into " + clone + "\n✓ Token $GITEA_TOKEN reads acme/swarm-app as swarm-bot\n✓ Wrote swarm.json\n"
 	if code != 0 || !strings.HasPrefix(out, head) || !strings.Contains(out, "\n✓ Token $GITEA_TOKEN: labels 16 present (16 created, 0 renamed)\n") {
@@ -259,6 +264,9 @@ func TestSwarmInitCreatesThroughGitea(t *testing.T) {
 	}
 	if got := m.gitIn(t, swarmUp, "log", "--format=%an %s", "main"); got != "Jane swarm: written by init" {
 		t.Errorf("pushed: %q", got)
+	}
+	if slices.ContainsFunc(g.bases, func(b string) bool { return b != "http://forge.example.net:3000" }) {
+		t.Errorf("requests at %q", g.bases)
 	}
 
 	g.requests, g.auths = nil, nil
@@ -293,8 +301,12 @@ func TestSwarmInitRefusals(t *testing.T) {
 		t.Errorf("an empty folder: exit %d %q", code, errs)
 	}
 	code, _, errs = runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults", "extra")
-	if code != 2 || !strings.Contains(errs, "Usage: daisy swarm init [--defaults]") {
+	if code != 2 || !strings.Contains(errs, "Usage: daisy swarm init [--defaults] [--api <url>]") {
 		t.Errorf("usage: exit %d %q", code, errs)
+	}
+	code, _, errs = runWith(m.swarmOps(m.ws, g), "swarm", "init", "--defaults", "--api")
+	if code != 2 || !strings.Contains(errs, "--api needs a value") {
+		t.Errorf("--api without a value: exit %d %q", code, errs)
 	}
 }
 

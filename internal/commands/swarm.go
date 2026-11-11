@@ -23,9 +23,10 @@ import (
 	"daisy/internal/swarm/runner"
 )
 
-// SwarmInit is `daisy swarm init [--defaults]` (docs/swarm.md section
-// 11): the wizard, the token's read check and account, swarm.json and the
-// prompts, the labels, the readiness warnings and the unit files.
+// SwarmInit is `daisy swarm init [--defaults] [--api <url>]`
+// (docs/swarm.md section 11): the wizard, `--api` question 3's default,
+// the token's read check and account, swarm.json and the prompts, the
+// labels, the readiness warnings and the unit files.
 func SwarmInit(c *Context) error {
 	if err := locate(c, true); err != nil {
 		return err
@@ -93,7 +94,8 @@ func swarmInit(c *Context, open opener) error {
 			file = &existing
 		}
 	}
-	w := &declare.Wizard{Ops: o, In: c.Stdin, Err: c.Stderr, Place: p, Defaults: c.Flag("--defaults"), File: file}
+	api, _ := c.Value("--api")
+	w := &declare.Wizard{Ops: o, In: c.Stdin, Err: c.Stderr, Place: p, Defaults: c.Flag("--defaults"), File: file, API: api}
 	cfg, err := w.Ask()
 	if err == nil {
 		err = declare.Validate(o, p, cfg, declare.SkipPrompts|declare.SkipAccount)

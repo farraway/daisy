@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -260,5 +261,56 @@ func TestSwarmInitCommitsWhatAFailedRunLeft(t *testing.T) {
 	if out := s.stdout.String(); strings.Contains(out, "✓ Wrote swarm.json") || !strings.Contains(out, "✓ Committed and pushed ") ||
 		len(strings.Split(gitIn(t, up, "ls-tree", "-r", "--name-only", "main"), "\n")) != 13 || gitIn(t, s.ws, "status", "--porcelain") != "?? mine.txt" {
 		t.Errorf("the re-run:\n%s\n%s", out, gitIn(t, up, "ls-tree", "-r", "--name-only", "main"))
+	}
+}
+
+// The claim of revision 6's plan, Step 6b (section 11, init's question
+// 3): with the products' SSH origins, which carry neither scheme nor
+// port, `init --defaults` opens the forge at `--api`'s address, else at
+// $GITEA_API_URL's, else at the guess https://<host>/api/v1; swarm.json
+// records it, and <state> is under its host and port. Once swarm.json
+// exists its forge.api is the default: the variable does not move it,
+// the flag does.
+func TestSwarmInitForgeAPI(t *testing.T) {
+	const port, other = "http://forge.example.net:3000/api/v1", "http://forge.example.net:3001/api/v1"
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		vars  map[string]string
+		want  string
+	}{
+		{"the flag", []string{"--defaults", "--api", port}, nil, port},
+		{"the variable", []string{"--defaults"}, map[string]string{"GITEA_API_URL": port}, port},
+		{"the flag over the variable", []string{"--api", port, "--defaults"}, map[string]string{"GITEA_API_URL": other}, port},
+		{"the guess", []string{"--defaults"}, nil, "https://forge.example.net/api/v1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newSwarmWSIn(t, true)
+			maps.Copy(s.vars, tc.vars)
+			if err := s.run(tc.flags...); err != nil {
+				t.Fatalf("%v\n%s", err, s.stderr.String())
+			}
+			host := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(tc.want, "http://"), "https://"), "/api/v1")
+			if s.opened[1] != tc.want || !strings.Contains(s.read("swarm.json"), `"api": "`+tc.want+`"`) ||
+				!strings.Contains(s.stdout.String(), "✓ Wrote "+filepath.Join(s.local, "swarm", host, "acme", "swarm-app", "env")+" (mode 0600)\n") {
+				t.Errorf("opened %q\n%s\n%s", s.opened, s.read("swarm.json"), s.stdout.String())
+			}
+		})
+	}
+
+	// With swarm.json: its forge.api over the variable; the flag over it.
+	s := newSwarmWSIn(t, true)
+	s.vars["GITEA_API_URL"] = port
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	s.cloned()
+	s.vars["GITEA_API_URL"] = other
+	if err := s.run("--defaults"); err != nil || s.opened[1] != port || !strings.Contains(s.stdout.String(), "\n  Unchanged swarm.json\n") {
+		t.Errorf("the file's: %v %q\n%s", err, s.opened, s.stdout.String())
+	}
+	if err := s.run("--defaults", "--api", other); err != nil || s.opened[1] != other || !strings.Contains(s.stdout.String(), "\n✓ Wrote swarm.json\n") ||
+		!strings.Contains(s.read("swarm.json"), `"api": "`+other+`"`) {
+		t.Errorf("the flag's: %v %q\n%s\n%s", err, s.opened, s.stdout.String(), s.stderr.String())
 	}
 }

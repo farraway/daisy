@@ -67,7 +67,8 @@ type Wizard struct {
 	Place    Place // where the swarm is; detection reads the clones under Place.Root, or beside it in a swarm repository's clone
 	Defaults bool
 	File     *Config
-	own      bool // question 4's follow-up: the issues repository is the swarm's own
+	API      string // `init --api <url>`: question 3's default over the file's and every other
+	own      bool   // question 4's follow-up: the issues repository is the swarm's own
 }
 
 // ask puts one question until take accepts the answer (or the default).
@@ -132,7 +133,7 @@ func (w *Wizard) Ask() (Config, error) {
 			})
 		},
 		func() error {
-			return w.ask("Forge API", w.forgeDefault(origins[0], c.Forge.Kind).API, func(a string) *Error {
+			return w.ask("Forge API", w.apiDefault(origins[0], c.Forge.Kind), func(a string) *Error {
 				c.Forge.API = a
 				if !apiOK(a) {
 					return fieldErr("forge.api", "%q is not an absolute http(s) URL without credentials", a)
@@ -640,6 +641,26 @@ func (w *Wizard) forgeDefault(first Origin, kind string) Forge {
 		d.Kind = kind
 	}
 	return d
+}
+
+// apiEnv is the variable naming a self-hosted forge's API, by kind
+// (section 10, Detection).
+var apiEnv = map[string]string{"gitea": "GITEA_API_URL", "github": "GITHUB_API_URL"}
+
+// apiDefault is question 3's default: `--api`'s value, else the file's
+// forge.api, else $GITEA_API_URL or $GITHUB_API_URL by kind when set and
+// not empty, else what the first repository's origin names.
+func (w *Wizard) apiDefault(first Origin, kind string) string {
+	if w.API != "" {
+		return w.API
+	}
+	if w.File != nil {
+		return w.File.Forge.API
+	}
+	if v := w.Ops.Getenv(apiEnv[kind]); v != "" {
+		return v
+	}
+	return w.forgeDefault(first, kind).API
 }
 
 // personas is questions 7–26: per role, provider, model, effort and the

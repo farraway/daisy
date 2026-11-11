@@ -275,11 +275,22 @@ func (f failingRepo) Repository() (forge.Repository, error) {
 	return f.Fake.Repository()
 }
 
-// run is `swarm init` with flags, over the Fake forge.
-func (s *swarmWS) run(flags ...string) error {
+// run is `swarm init` with flags, over the Fake forge; `--api` takes the
+// next word as its value, as the cli does.
+func (s *swarmWS) run(args ...string) error {
 	s.stdout.Reset()
 	s.stderr.Reset()
 	answers := s.answers
+	var flags []string
+	var values []Value
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--api" && i+1 < len(args) {
+			values = append(values, Value{Flag: args[i], Value: args[i+1]})
+			i++
+			continue
+		}
+		flags = append(flags, args[i])
+	}
 	o := &ops.Fake{
 		GetenvFn:     func(k string) string { return s.vars[k] },
 		ExecFn:       s.exec,
@@ -294,7 +305,7 @@ func (s *swarmWS) run(flags ...string) error {
 			return a, nil
 		},
 	}
-	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr, Flags: flags}
+	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr, Flags: flags, Values: values}
 	return s.at(c, true, func(c *Context) error {
 		return swarmInit(c, func(_ ops.Ops, f declare.Forge, names []string, token string) (forge.Adapter, error) {
 			if token == "jane-456" {

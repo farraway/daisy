@@ -228,7 +228,7 @@ func TestHelpForms(t *testing.T) {
 	// The tree names only commands this binary runs, one line per name, and
 	// a long usage never runs into its description.
 	_, out, _ := m.run(t, m.ws)
-	if !strings.Contains(out, "\n  plan new ") || !strings.Contains(out, "\nSwarm\n  swarm init [--defaults] ") || !strings.Contains(out, "\n  swarm resume ") {
+	if !strings.Contains(out, "\n  plan new ") || !strings.Contains(out, "\nSwarm\n  swarm init [--defaults] [--api <url>]") || !strings.Contains(out, "\n  swarm resume ") {
 		t.Errorf("tree does not describe this build:\n%s", out)
 	}
 	if !strings.Contains(out, "\n  tasks [--all] [--todo|--done] [pattern]\n                                    Search tasks (read-only)\n") {

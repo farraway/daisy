@@ -42,7 +42,9 @@ adopting the swarm repository with the maintainer's token, cloning it in
 a folder holding none, seeding, committing and pushing it, and writing
 `<state>/env`; section 10's three repository calls; item 109; Step 6a,
 2026-11-10: a variable unset at `init` written commented out in
-`<state>/env`; item 110); a swarm
+`<state>/env`; item 110; Step 6b, 2026-11-10: question 3's default
+from `init --api <url>`, else `$GITEA_API_URL` or `$GITHUB_API_URL`,
+else detection; item 111); a swarm
 not yet moved runs in the workspace layout that section 11, Moving a
 swarm into its repository, describes, until Step 7 retires that layout
 once the maintainer says every swarm has moved.
@@ -102,7 +104,7 @@ user's namespace on Gitea, which revision 4 no longer allows: section 3,
 `Login()` reports it, and `<maintainer-login>` a maintainer's.
 A row marked *to confirm at Step N* is written from the plan and the tools'
 public documentation and is checked against the real tool at that step.
-The commands named are the Swarm group (`swarm init [--defaults]`,
+The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
 `swarm apply [--once]`, `swarm status`, `swarm pause [<n>]`, `swarm
 resume [<n>]`, and the maintainer's `swarm triage <n>`, `swarm accept
 <n>`, `swarm class <n> routine|architecture`, `swarm approve <n>`, `swarm
@@ -469,7 +471,7 @@ yet or not (Step 6 of revision 6's plan; section 14, item 109).
 | Field | Type | Default (`init`) | Rule |
 |---|---|---|---|
 | `forge.kind` | string | detected from the first repository's `origin` (section 10) | `gitea` or `github`: a kind with an adapter |
-| `forge.api` | string | `https://<host>/api/v1` (gitea), `https://api.github.com` (github) | an absolute `http` or `https` URL, no user information, no query, no trailing `/` |
+| `forge.api` | string | `init --api <url>`, else `$GITEA_API_URL` (gitea) or `$GITHUB_API_URL` (github) when set and not empty, else `https://<host>/api/v1` (gitea), `https://api.github.com` (github) (question 3, section 11) | an absolute `http` or `https` URL, no user information, no query, no trailing `/` |
 | `forge.repo` | string | the clone's `origin` when `init` runs in a clone of a swarm repository; else question 4's detection (section 11) | `^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`; the swarm repository (section 2; `<owner>/swarm-<name>` by convention), whose clone holds this file: that clone's `origin` is `<owner>/<repo>` on the forge's host (`github.com` for kind `github`, else `forge.api`'s host; section 14, item 54), an `http(s)` URL carrying no user information at all and an SSH URL no password; none of `repos`: it holds every swarm issue, its briefs under `briefs/`, with `notes` its research notes under `notes/`, and no product code; no worker runs in it, no check and no image are its; Daisy mirrors it at `<state>/git/<repo>` (7.1); `<owner>` owns every declared repository (section 14, item 7); with kind `gitea`, `<owner>` is an organization, whose labels the swarm uses (section 10), which only the forge can tell: `EnsureLabels` fails otherwise |
 | `forge.token_env` | string | `GITEA_TOKEN` (gitea), `GITHUB_TOKEN` (github) | a variable name, `^[A-Za-z_][A-Za-z0-9_]*$`, naming the swarm account's token (section 8, rule 5), never `DAISY_MAINTAINER_TOKEN`, the maintainer's, nor a provider's credential variable (section 9), which a member is given; the token itself never appears in any file Daisy writes but `<state>/env`, the secrets file `init` writes when absent (section 3, Secret values) |
 | `forge.commit_email` | string | the swarm account's email as `Login()` reports it (the wizard's question 34; none reported, no default) | required: an address, `<local>@<domain>` without whitespace or angle brackets; the author address of every swarm commit, `<role> (Daisy swarm) <commit_email>`, which Step 5 makes each clone's identity in place of section 7.1's `<role>@daisy-swarm.invalid` (section 14, item 52) |
@@ -2933,7 +2935,12 @@ clone's `remote.origin.url`, else the first product clone's (section
 `https://<host>[:<port>]/<owner>/<repo>[.git]`: host `github.com` gives
 kind `github`, API `https://api.github.com`; any other host gives kind
 `gitea`, API `https://<host>/api/v1` (an SSH port is not the web port and
-is dropped). **`<forge-host>`**, the first part of `<state>`, is
+is dropped). An origin cannot name a self-hosted forge's API when it
+is served on another scheme or port (an SSH origin carries neither), so
+question 3's default is, before detection, `init --api <url>`, then
+`$GITEA_API_URL` (kind `gitea`) or `$GITHUB_API_URL` (kind `github`)
+when set and not empty (section 11, the wizard; section 14, item 111).
+**`<forge-host>`**, the first part of `<state>`, is
 `github.com` for kind `github`, else `forge.api`'s host (with `:<port>`
 when it has one).
 
@@ -3193,9 +3200,9 @@ the step that builds each, which waits for a run that needs it.
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm init [--defaults]` |
-| Reads | `<swarm>/swarm.json` when `init` runs in a clone of a swarm repository (its values are the defaults); else, for detection, the clones directly under the working folder (each one's `origin` and `core.sshCommand`), never the working folder's own `origin` nor a `swarm.json` there; `<state>/env` when present, else the environment (the swarm's token and `DAISY_MAINTAINER_TOKEN`; section 3, Secret values); each declared repository's mirror at `<base>` (the readiness warnings and `repos/<name>.md`'s seed) |
-| Asks | the wizard below, through `Ops.Prompt`, questions on stderr; `--defaults` asks nothing and takes every default |
+| Usage | `daisy swarm init [--defaults] [--api <url>]` |
+| Reads | `<swarm>/swarm.json` when `init` runs in a clone of a swarm repository (its values are the defaults); else, for detection, the clones directly under the working folder (each one's `origin` and `core.sshCommand`), never the working folder's own `origin` nor a `swarm.json` there; `<state>/env` when present, else the environment (the swarm's token and `DAISY_MAINTAINER_TOKEN`; section 3, Secret values); the environment's `GITEA_API_URL` or `GITHUB_API_URL`, by the kind question 2 answered, for question 3's default when no `swarm.json` gives one (never `<state>/env`, whose place follows from that answer); each declared repository's mirror at `<base>` (the readiness warnings and `repos/<name>.md`'s seed) |
+| Asks | the wizard below, through `Ops.Prompt`, questions on stderr; `--defaults` asks nothing and takes every default; `--api <url>` is question 3's default over every other, the file's included, with or without `--defaults`, its value checked as question 3's answer is |
 | Forge | with the swarm's token: `Login()` (the swarm's login, added to `trusted`, refused as a maintainer's and given access below; its email, the default of `forge.commit_email`); with the maintainer's: `Login()` (refused when it is the swarm's), then `Repository()` (Gitea `GET /repos/{o}/{r}`: `ssh_url` and `default_branch`, or `404`, none), `CreateRepository()` when the forge holds none (`POST /orgs/{o}/repos`, `{"name": <repo>, "private": true}`, `201`: always private, the maintainer changing its visibility on the forge if wanted; section 14, item 109), and `AddCollaborator(<swarm-login>)` (`PUT /repos/{o}/{r}/collaborators/{login}`, `{"permission": "write"}`, `204`; made again on every run, which changes nothing once given), each on `forge.repo`, `{o}/{r}`; then with the swarm's token again: `Issues(Open, "swarm:proposal-posted")` (it can read the swarm repository's issues), `Pulls(0)` (no issue is numbered 0, so an empty list, read from every declared repository: it can read each), then `EnsureLabels` with the sixteen labels (section 5), which renames each old stage name it finds. The three calls on the repository are methods of the forge seam (section 10), added at Step 6 of revision 6's plan |
 | Writes | the swarm repository on the forge when absent, and the swarm's access to it (the maintainer's token); the clone, `git clone <ssh_url> <dir>/<repo>`, when `init` runs outside a clone of the swarm repository and `<dir>/<repo>` is absent (`<dir>` the working folder; a `<dir>/<repo>` that is a clone of it holding no `swarm.json` is the clone, taken as it is; one that is not a clone of it, or that holds a `swarm.json`, is refused before any write); in the clone, the files of section 2's table that are absent or whose answers changed, then one commit of those paths and of each file of that table the clone holds and its `HEAD` lacks (an earlier run's whose commit failed), by the clone's git identity (the maintainer's) and its push, `git -C <swarm> push origin HEAD:<branch>`, `<branch>` the repository's `default_branch`, with the clone's own credentials; `<state>/env` when absent; the mirrors, `<state>/git/<repo>` and `<state>/git/<name>` per declared repository, made and fetched as 7.1, step 1 says; the labels (the swarm's token) |
 | Order | answers 1–32; validation as section 3 (the prompt files and the clone's `origin` excepted, which this run may write and clone, and `trusted` and `forge.commit_email`, which the account fills); outside a clone, `<dir>/<repo>` checked (absent, or a clone of the swarm repository holding no `swarm.json`); the swarm's token set and its `Login()`; the maintainer's token set, not the swarm's, and its `Login()` not the swarm's login; questions 33 and 34, asked only now, so that 33's default leaves out the swarm's login and an answer naming it is refused and asked again (`swarm.json: trusted: "<login>" is the token's own login; the swarm needs its own forge account (section 8)`), and 34's default is the account's email; the repository read, created when absent, and the swarm's account given access; the clone; the swarm's read check; question 35, the notes; validation again, the clone's `origin` included; the declared repositories' mirrors, made and fetched (7.1, step 1), which `repos/<name>.md`'s seed and the readiness warnings read; the files; the commit and the push; `<state>/env`; the swarm repository's mirror, after the push, so that it holds what `init` pushed and `status` shows no drift; `EnsureLabels`; the readiness warnings; the unit file printed. A failure stops there, so a failed token check writes nothing, and a re-run after any later failure takes up where it stopped |
@@ -3266,7 +3273,18 @@ variable unset there written commented out, `# <VAR>=`, so that
 kept when present. A re-run after a failure
 takes up where it stopped: the forge's repository and access are read
 again, the clone is found, the files written are kept, and a commit
-whose push was refused is the maintainer's to push. The old layout's
+whose push was refused is the maintainer's to push. *As built at Step
+6b:* question 3's default is `--api`'s value, else the file's
+`forge.api`, else `$GITEA_API_URL` or `$GITHUB_API_URL` by the kind
+question 2 answered (read from the process environment; a variable of
+the other kind is not read), else detection, in both layouts;
+interactively that value is the default in brackets. `--api` is a
+value flag of the `cli` row (`--api needs a value` without one, exit
+2), its value not checked until question 3 takes it: under `--defaults`
+an invalid one is `Error: swarm.json: forge.api: "<url>" is not an
+absolute http(s) URL without credentials`, exit 1, before any forge
+call. `<state>` follows the answer, its `<forge-host>` carrying the
+port. The old layout's
 `init` (Moving a swarm into its repository) runs only where
 `<ws>/swarm/swarm.json` is, and is as it was: its labels line is `✓
 Labels: 16 present (<c> created, <r> renamed)`.
@@ -3280,7 +3298,7 @@ any folder's), each one's `origin` and `core.sshCommand`.
 |---|---|---|
 | 1 | `Product repositories (comma-separated <owner>/<name>, the product first) [<d>]: ` | every clone directly under the working folder whose `origin` is on a forge, in name order, but one whose `origin`'s `<repo>` begins `swarm-` (section 3's convention for the swarm repository, which is no product repository; Step 30 of the swarm build), each as its `origin`'s `<owner>/<repo>`, its `core.sshCommand` the entry's `ssh_command`; none found, no default (`--defaults`: `Error: swarm.json: repos: no repository (at least one is required)`); each entry's `name` is the answer's `<name>` |
 | 2 | `Forge kind (gitea, github) [<d>]: ` | detected (section 10) |
-| 3 | `Forge API [<d>]: ` | detected |
+| 3 | `Forge API [<d>]: ` | `--api`'s value; else `$GITEA_API_URL` for kind `gitea`, `$GITHUB_API_URL` for kind `github`, when set and not empty; else detected (section 10). With a file, `--api`'s value, else the file's `forge.api`: the variable does not override it |
 | 4 | `Swarm repository [<d>]: ` (section 3, `forge.repo`: it holds the issues; an answer that is one of question 1's repositories is refused, `swarm.json: forge.repo: <owner>/<repo> is a declared repository, which holds product code; the swarm repository holds none`, and asked again) | the clone's `origin` when `init` runs in a clone of a swarm repository; else `<owner>/<repo>` of the first clone directly under the working folder, in name order, whose `origin`'s `<repo>` begins `swarm-` (question 1's rule) on the forge's host (Step 35 of the swarm build); else `<owner>/swarm-<name>`, `<owner>` and `<name>` the first product repository's (section 14, item 103) |
 | 5 | `Token variable [<d>]: ` | `GITEA_TOKEN` or `GITHUB_TOKEN` |
 | 6 | `Base branch [<d>]: ` | `main` |
@@ -6611,3 +6629,22 @@ entries among revision 1's, and was renumbered at Step 38.
     `apply`'s environment, and the pass launches it with that value (red
     while `init` wrote the empty assignment); `check-secrets` in a clone
     reads a commented line as no assignment.
+111. **`init` learns a self-hosted forge's API address (Step 6b of
+    revision 6's plan, as built, 2026-11-10; the maintainer's choice,
+    from the instance smoke).** `init --defaults` in a folder holding a
+    product's clone with an SSH origin guessed `https://<host>/api/v1`,
+    and its first request failed (a TLS name mismatch) on a Gitea whose
+    API is served at `http://<host>:<port>/api/v1`: an SSH origin
+    carries neither the web scheme nor the web port. Question 3's
+    default is now, in order, `init --api <url>` (with or without
+    `--defaults`), then `$GITEA_API_URL` for kind `gitea` or
+    `$GITHUB_API_URL` for kind `github` when set and not empty, then
+    detection as before (section 10). With a `swarm.json` its
+    `forge.api` stays the default, ahead of the variable; `--api`
+    overrides it. The flag's value is checked as question 3's answer is
+    (section 3's `forge.api` row). Tests: the wizard's defaults, by
+    flag, variable, kind, file and interactively shown; `init --defaults`
+    over the Fakes opening the forge at the flag's address, else the
+    variable's, else the guess, and with a file keeping its own; the cli
+    sending every request of a new swarm's `init` to the address `--api`
+    names. The instance smoke runs again after it (the maintainer's).
