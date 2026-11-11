@@ -2,11 +2,13 @@ package reconcile
 
 import (
 	"errors"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 
 	"daisy/internal/ops"
@@ -33,7 +35,8 @@ func productIn(t *testing.T) (ws, up string) {
 }
 
 // The clone a member sees (section 7.1, step 3), with real git: no remote,
-// a local base, the role's identity at the commit address, /.swarm/ and
+// a local base, the role's identity at the commit address, no automatic
+// maintenance (a commit starts no detached writer in .git), /.swarm/ and
 // /.notes/ excluded, and the hook stamping the role's co-author on each
 // commit the member makes, once, even when the message already carries it.
 func TestCloneAndTheCommitMsgHook(t *testing.T) {
@@ -69,6 +72,9 @@ func TestCloneAndTheCommitMsgHook(t *testing.T) {
 	}
 	if git(dir, "config", "user.name") != "worker (Daisy swarm)" || git(dir, "config", "user.email") != "swarm@example.net" {
 		t.Error("identity")
+	}
+	if m := git(dir, "config", "maintenance.auto"); m != "false" {
+		t.Errorf("maintenance.auto %q", m)
 	}
 	// The mount points under /work are excluded: a worker's `git add -A`
 	// commits nothing of /work/.swarm, the notes or a resource.
@@ -280,6 +286,119 @@ func TestFetchRunRefusesAForeignClone(t *testing.T) {
 		}
 	}
 }
+
+// A path in a member's .git gone between the walk's listing and its look
+// at it is no way out of the clone (section 7.6, step 1): a lock a git
+// process releases, as the detached `git maintenance run --auto` a commit
+// starts releases .git/objects/maintenance.lock, is skipped and the
+// branch fetched (the planted lock is .git/index.lock, which no git
+// process the test runs removes). A path that is there and cannot be read still refuses,
+// and a link still refuses after a skipped path.
+func TestFetchRunSkipsAVanishedPath(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	o := ops.Real()
+	git := func(dir string, args ...string) {
+		t.Helper()
+		if _, errb, err := o.Exec(dir, "git", args...); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+	}
+	ws, up := productIn(t)
+	git(up, "init", "-q", "-b", "main")
+	git(up, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "first")
+	state, other := t.TempDir(), t.TempDir()
+	if err := (Git{O: o, WS: ws, State: state}).Fetch(declare.Repo{Name: "app", Repo: "acme/app"}); err != nil {
+		t.Fatal(err)
+	}
+	lock := "index.lock"
+	plantLock := func(d string) { os.WriteFile(filepath.Join(d, lock), nil, 0o644) }
+	plantDir := func(d string) { os.MkdirAll(filepath.Join(d, "refs", "stale"), 0o755) }
+	for _, c := range []struct {
+		name    string
+		plant   func(dotgit string)
+		race    func(dotgit string) racingFS
+		foreign bool
+	}{
+		{"a file gone once listed", plantLock, func(d string) racingFS {
+			return racingFS{gone: map[string]string{"readdir " + d: filepath.Join(d, lock)}}
+		}, false},
+		{"a directory gone once listed", plantDir, func(d string) racingFS {
+			return racingFS{gone: map[string]string{"readdir " + filepath.Join(d, "refs"): filepath.Join(d, "refs", "stale")}}
+		}, false},
+		{"a directory gone before it is read", plantDir, func(d string) racingFS {
+			return racingFS{gone: map[string]string{"lstat " + filepath.Join(d, "refs", "stale"): filepath.Join(d, "refs", "stale")}}
+		}, false},
+		{"a file there that cannot be read", plantLock, func(d string) racingFS {
+			return racingFS{denied: map[string]bool{"lstat " + filepath.Join(d, lock): true}}
+		}, true},
+		{"a directory there that cannot be read", plantDir, func(d string) racingFS {
+			return racingFS{denied: map[string]bool{"readdir " + filepath.Join(d, "refs", "stale"): true}}
+		}, true},
+		{"a link after a vanished file", func(d string) {
+			plantLock(d)
+			os.Symlink(filepath.Join(other, "objects"), filepath.Join(d, "refs", "link"))
+		}, func(d string) racingFS {
+			return racingFS{gone: map[string]string{"readdir " + d: filepath.Join(d, lock)}}
+		}, true},
+	} {
+		work := filepath.Join(t.TempDir(), "work")
+		if _, err := (Git{O: o, WS: ws, State: state}).Clone(declare.Repo{Name: "app", Repo: "acme/app"}, "main", "main", work, "worker", "swarm@example.net", ""); err != nil {
+			t.Fatal(err)
+		}
+		git(work, "checkout", "-q", "-b", "swarm/1-1")
+		git(work, "commit", "-q", "--allow-empty", "-m", "Work")
+		dotgit := filepath.Join(work, ".git")
+		c.plant(dotgit)
+		fs := c.race(dotgit)
+		fs.FS = o.FS()
+		g := Git{O: racingOps{o, fs}, WS: ws, State: state}
+		sha, err := g.FetchRun("app", work, "swarm/1-1", "refs/swarm-runs/1-worker-1")
+		if c.foreign != errors.Is(err, ErrForeignClone) || !c.foreign && (err != nil || sha == "") {
+			t.Errorf("%s: %q, %v", c.name, sha, err)
+		}
+	}
+}
+
+// racingFS is the FS the walk of a member's .git reads, raced. Each key
+// is a call, "readdir <path>" or "lstat <path>": in gone, the path its
+// value names is removed just after that call; in denied, the call fails
+// as on a path that is there but cannot be read.
+type racingFS struct {
+	ops.FS
+	gone   map[string]string
+	denied map[string]bool
+}
+
+func (r racingFS) ReadDir(name string) ([]os.DirEntry, error) {
+	if r.denied["readdir "+name] {
+		return nil, &iofs.PathError{Op: "open", Path: name, Err: syscall.EACCES}
+	}
+	defer r.remove("readdir " + name)
+	return r.FS.ReadDir(name)
+}
+
+func (r racingFS) Lstat(name string) (os.FileInfo, error) {
+	if r.denied["lstat "+name] {
+		return nil, &iofs.PathError{Op: "lstat", Path: name, Err: syscall.EACCES}
+	}
+	defer r.remove("lstat " + name)
+	return r.FS.Lstat(name)
+}
+
+func (r racingFS) remove(call string) {
+	if p, ok := r.gone[call]; ok {
+		os.RemoveAll(p)
+	}
+}
+
+// racingOps is ops.Real with its FS raced.
+type racingOps struct {
+	ops.Ops
+	fs racingFS
+}
+
+func (r racingOps) FS() ops.FS { return r.fs }
 
 // The round r > 1 Task text's diff, run as written in a reviewer's clone
 // (section 7.4): after the worker merged base, it shows the worker's

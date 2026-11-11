@@ -53,7 +53,10 @@ old files for a maintainer moving a swarm with an older Daisy; item
 112). Step 1 of the plan that clears the Deferred list (2026-11-11)
 amended section 4: the default persona prompts carry the documentation
 duties of the architect, the worker and the adversary, and lose the two
-sentences that repeated the Task text (item 113).
+sentences that repeated the Task text (item 113). Its Step 3 (2026-11-11)
+amended sections 7.1 and 7.6: a member's clone has no automatic
+maintenance, and the check of a worker's clone skips a path gone between
+its directory's listing and the check's look at it (item 114).
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
 sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
@@ -1502,8 +1505,10 @@ On the host, in order, before `docker run`:
    `.git/FETCH_HEAD` removed, since host git wrote them naming the host's
    git identity and the mirror's path (section 8, rule 3); `user.name`
    `<role> (Daisy swarm)` and `user.email` `<commit_email>` (section 3)
-   are set in the clone's config; `/.swarm/`, `/.notes/` and
-   `/.resources/` (the mount points of the notes and the resources, so a
+   are set in the clone's config, with `maintenance.auto` `false`, so a
+   member's commit starts no detached `git maintenance run --auto` still
+   writing in `.git` when the run is collected (7.6 step 1); `/.swarm/`,
+   `/.notes/` and `/.resources/` (the mount points of the notes and the resources, so a
    member's `git add -A` never takes them) are appended
    to `<run>/work/.git/info/exclude`; a `commit-msg` hook is written to
    `.git/hooks/commit-msg`,
@@ -2112,8 +2117,10 @@ ran, whatever its end:
    git, with the host's rights, to another repository's objects or refs;
    otherwise the failure *the clone reaches outside itself* (its kind
    only, no name from the clone: nothing was fetched for the secret check
-   to read; a directory in `.git` that cannot be read is one), nothing
-   fetched. Then
+   to read; a path in `.git` that is there and cannot be read is one),
+   nothing fetched. A path gone between its directory's listing and the
+   check's look at it (a lock a git process released) leads nowhere and
+   is skipped; `.git` itself gone is the failure. Then
    `git -C <state>/git fetch --no-tags <run>/work '+refs/heads/swarm/<n>-<s>:refs/swarm-runs/<n>-worker-<k>'`
    (`fetched <sha>`). A fetch that fails is recorded, `fetch failed:
    <error>` (git's message on one line, the state directory written
@@ -6687,3 +6694,26 @@ entries among revision 1's, and was renumbered at Step 38.
     swarm's prompts are the maintainer's to edit. Test:
     `TestDefaultPromptsAreSectionFours` (section 4's prompts are
     `declare.DefaultPrompts`, verbatim).
+114. **A path gone from a member's `.git` mid-check is skipped, and a
+    member's clone has no automatic maintenance (Step 3 of the plan that
+    clears the Deferred list, 2026-11-11).** The full suite failed now
+    and then with *the clone reaches outside itself: a file in .git
+    cannot be read*. A current git's `git commit` ends by starting `git
+    maintenance run --auto --quiet --detach` (`maintenance.autoDetach`
+    defaults to true), which holds `.git/objects/maintenance.lock` past
+    the commit's exit and then removes it; the check (7.6 step 1)
+    listed the lock, found it gone at its `lstat`, and read the vanished
+    path as one that cannot be read. A path gone (`ENOENT`) between its directory's listing and the
+    check's look at it, file or directory, is now skipped: it is no way
+    out of the clone, since what host git reads is what is there when it
+    fetches, which the check cannot pin for a clone a process still
+    writes to in any case. A path that is there and cannot be read
+    still refuses, as does a link anywhere after a skipped path, and
+    `.git` itself gone is the failure. The clone is made with
+    `maintenance.auto` `false` (7.1 step 3), so no such writer starts
+    from a member's commit at all; a member may set it back, which the
+    skip covers. Tests: `TestFetchRunSkipsAVanishedPath` (a file or a
+    directory removed between the check's calls, through the FS it
+    reads, is skipped and the branch fetched; one denied refuses; a link
+    after a skipped file refuses), `TestCloneAndTheCommitMsgHook`
+    (`maintenance.auto` is `false`).

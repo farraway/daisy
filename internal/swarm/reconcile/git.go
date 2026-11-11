@@ -301,17 +301,26 @@ func selfContained(fs ops.FS, dir string) error {
 			return fmt.Errorf("%w: it holds .git/%s", ErrForeignClone, rel)
 		}
 	}
+	// A path gone between its directory's listing and the walk's look at
+	// it (a lock a git process released) leads nowhere, and is skipped.
+	gone := func(p string, err error) bool { return p != dir && errors.Is(err, iofs.ErrNotExist) }
 	var walk func(string) error
 	walk = func(d string) error {
 		// The reason names no path: a name in the member's .git is its
 		// text, past no secret check (nothing was fetched to check).
 		entries, err := fs.ReadDir(d)
+		if gone(d, err) {
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("%w: a directory in .git cannot be read", ErrForeignClone)
 		}
 		for _, e := range entries {
 			p := filepath.Join(d, e.Name())
 			fi, err := fs.Lstat(p)
+			if gone(p, err) {
+				continue
+			}
 			if err != nil {
 				return fmt.Errorf("%w: a file in .git cannot be read", ErrForeignClone)
 			}
@@ -539,7 +548,10 @@ func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor stri
 			return "", err
 		}
 	}
-	for _, args := range [][]string{{"remote", "remove", "origin"}, {"config", "user.name", role + " (Daisy swarm)"}, {"config", "user.email", email}} {
+	// maintenance.auto false: a member's commit starts no detached `git
+	// maintenance run --auto`, a writer still at work in .git when the
+	// run is collected (7.6, step 1).
+	for _, args := range [][]string{{"remote", "remove", "origin"}, {"config", "user.name", role + " (Daisy swarm)"}, {"config", "user.email", email}, {"config", "maintenance.auto", "false"}} {
 		if _, err := g.run(dir, args...); err != nil {
 			return "", err
 		}
