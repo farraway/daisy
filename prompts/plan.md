@@ -26,7 +26,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 6. **Check off steps immediately.** After completing each step, mark it `- [x]` in `PLAN.md` before moving on.
 7. **Stop and report when blocked.** Do not skip steps or work around blockers silently; surface them explicitly.
 8. **Out-of-scope work goes to Deferred.** When a need surfaces outside the current step, add it to Deferred — do not implement it partially or silently drop it.
-9. **Log before the session closes.** After completing all steps, log a summary to `today.md` via `daisy log` before ending the session — not deferred to the next one.
+9. **Log each verified step, and before the session closes.** During `/daisy execute` and `/daisy resume`, the orchestrator logs each step via `daisy log` as soon as it has verified the step's hand-back (rule 23), and each stop of rule 24 with its reason; the plan's marks, the commits and the hand-back are not the journal. After completing all steps, log a summary to `today.md` via `daisy log` before ending the session — not deferred to the next one.
 10. **Warn before archiving incomplete plans.** If `**Status:**` is not `built`, confirm with the user before archiving.
 11. **Archive only applies to Daisy plans.** `/daisy archive` requires a `PLAN.md` symlink in the workspace. Plans created by Claude's `/plan` mode (stored in `~/.claude/plans/`) are not Daisy plans — there is nothing to archive.
 12. **Calibrate process to task complexity.** Skip the plan workflow for simple, contained changes (a one-liner, a rename, a config tweak) — just do them directly. Use one research pass + plan for single-file features. Use full RPI with human checkpoints for cross-file or cross-repo work. Reserve multiple research iterations for complex refactors.
@@ -76,7 +76,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 2. Update `**Status:** executing` in the frontmatter block (write to the resolved real path).
 3. Work through the steps in order, each in a fresh sub-agent (rule 20) briefed with the plan's real path, the step's text, `$DAISY_ROOT/prompts/praxis.md`, the `testing` skill, the review gate and cap (rule 22) and the hand-back's shape (rule 25).
 4. The step agent reads `praxis.md`, states the step's claim, does the step, reviews it to the gate, commits and marks the step `- [x]` (neither when it stops at the cap, rule 22), updates Decisions (if any) and Deferred (if scope surfaced) (write to the resolved real path), then hands back.
-5. Verify the hand-back (rule 23) before launching the next step; do not ask the user between steps.
+5. Verify the hand-back (rule 23), then log the step via `daisy log` (rule 9), before launching the next step; do not ask the user between steps.
 6. Stop and report at the stops of rule 24, or if blocked; do not skip steps or work around blockers silently.
 7. On all steps complete: append ` *Built*` to the H1 title; update `**Status:** built` (write to the resolved real path).
 8. Log execution summary to `today.md` via `daisy log`.

@@ -59,7 +59,7 @@ Priorities: (A) now, (B) next, (C) soon, (D) someday, none = inbox.
 3. **Strip priority on completion.** Completed (`x`) and cancelled (`z`) tasks must never have a priority prefix.
 4. **Completion ≠ archival.** Marking a task done keeps it in `todo.txt`; it only moves to `done.txt` during "new week".
 5. **Cancelled tasks are soft-deleted.** They stay in `todo.txt` with a `z` prefix until the next "new day" or "new week" removes them.
-6. **Proactive logging.** If you helped the user DO something (not just discuss), log it immediately using `daisy log` — do not wait until the end of the session.
+6. **Proactive logging.** If you helped the user DO something (not just discuss), log it immediately using `daisy log` — do not wait until the end of the session. Before reporting a milestone or ending a turn after substantive work, read today.md's Log and log first whatever was done since its last entry: a plan, a commit, a pull request comment or a scratch file does not stand in for the journal, and the user should not have to ask.
 7. **Log entries are chronological.** Oldest first, newest at the bottom of the Log section.
 8. **Projects are checked first.** When the user references `+name`, read `.daisy/projects/{name}.md` before checking JIRA, GitHub, or the filesystem.
 9. **JIRA sync is one-way.** The project file is the source of truth; JIRA is for communicating progress outward.

@@ -69,6 +69,14 @@ after the maintainer has said yes to that write.
    the architect, or to comment on a pull request, draft the text and let
    the maintainer post it on the forge; the verbs post only `close`'s,
    `unblock`'s, `block`'s and `class`'s comments.
+8. **Log each write as it is done.** After each verb you run that
+   writes, and each edit you make to a brief, `swarm.json`, a prompt or
+   a repository's notes, run `daisy log` with what it did (`daisy log
+   "swarm: merged lib#5 at its approved head, closed #10"`) before you
+   report it; a verb that refused is a blocker, logged the same way. The
+   forge's comments and labels, the runs' files and a plan are not the
+   maintainer's journal. Outside a Daisy workspace `daisy log` refuses
+   (`Not in a Daisy workspace`): say so once and go on.
 
 ## The verbs
 

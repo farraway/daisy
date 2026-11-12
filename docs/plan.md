@@ -76,9 +76,9 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
    - Move anything out of scope to Deferred
 
 5. The orchestrator verifies the hand-back (claim, tests,
-   daisy healthcheck --force, hygiene, commits, plan marks)
-   before launching the next step. It does not ask the user
-   between steps.
+   daisy healthcheck --force, hygiene, commits, plan marks),
+   then logs the step via daisy log, before launching the next
+   step. It does not ask the user between steps.
 
 6. Stop and report at the stops below, or if blocked; do not
    skip steps or work around blockers silently.
