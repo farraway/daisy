@@ -193,6 +193,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Prompts and skills | `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` | Apply a proposal: diff, approve, archive, commit |
 | Prompts and skills | `daisy eval [<case>] [--record]` | List, display, or record an eval case result |
 | Swarm | `daisy swarm init [--defaults] [--api <url>]` | Declare the swarm: swarm.json, prompts, labels |
+| Swarm | `daisy swarm prompt build [--force] [--dry-run]` | Reseed prompts/ from this Daisy's defaults; an edited prompt is kept |
 | Swarm | `daisy swarm apply [--once]` | Reconcile the forge: launch members, post their output, move labels |
 | Swarm | `daisy swarm status` | Stages, gates, what waits for you, running members (read-only) |
 | Swarm | `daisy swarm pause [<n>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue) |
@@ -267,7 +268,8 @@ agent working near it:
   credential, its provider's).
 - **Daisy writes nowhere but the places `docs/swarm.md` section 2
   lists:** the swarm repository's clone at `init` (its seeded files,
-  their commit and its push), the state directory under
+  their commit and its push) and at `prompt build` (the prompts it
+  rewrites, their commit and its push), the state directory under
   `$DAISY_LOCAL/swarm/`, and the forge. Never a Daisy home, never a
   workspace, never a declared repository's tree. This is the spec's
   revision 6, which Steps 2–6 of its plan built; Step 7 retired the old
@@ -411,7 +413,7 @@ The reference source itself is never modified or deleted by adoption: copy
 ## Reference Documentation
 
 - [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the command tree as built, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
-- [`docs/swarm.md`](docs/swarm.md) — The swarm's contract (the thirteen verbs built; the board, the GitHub adapter and the budget specified ahead of their build): `swarm.json`, the brief, the label lifecycle and trigger rule, the marker, the member container and its image, the credential rule, the provider and forge seams, the verbs (the maintainer's eight among them, with the `swarm` skill as their guide), the merge gate
+- [`docs/swarm.md`](docs/swarm.md) — The swarm's contract (the fourteen verbs built; the board, the GitHub adapter and the budget specified ahead of their build): `swarm.json`, the brief, the label lifecycle and trigger rule, the marker, the member container and its image, the credential rule, the provider and forge seams, the verbs (the maintainer's eight among them, with the `swarm` skill as their guide), the merge gate
 - [`docs/home-management.md`](docs/home-management.md) — Root and homes as separate repositories, the registry, identities, per-workspace resolution, the health check
 - [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) — The situated/craft distinction, the coupling criterion, the ownership axis, worked examples
 - [`docs/task-format.md`](docs/task-format.md) — Task format regex, conversion rules, file organization

@@ -62,7 +62,10 @@ issue's pull request is open has that pull request's head as a branch of
 its repository's clone, which the open-slice sentence names (item 115).
 Its Step 5 (2026-11-11) amended sections 7.1, 7.3 and 7.7: the
 architect's and the worker's `system.md` carry the installed root's
-praxis and testing skill (item 116).
+praxis and testing skill (item 116). Its Step 7 (2026-11-12) amended
+sections 2 and 11: `swarm prompt build` rewrites, commits and pushes
+each persona prompt of the clone that is still an earlier default, and
+keeps an edited one, printing its diff (item 117).
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
 sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
@@ -92,7 +95,7 @@ them. The maintainer reads the sections each code
 step's hand-back cites (the plan's decision of 2026-11-06, in place of a
 reading of the whole before the first code step), and section 14 lists
 the places where the document chose between readings. `docs/cli.md`'s entry for the Swarm group points here:
-this document is the contract for the thirteen verbs, the configuration they
+this document is the contract for the fourteen verbs, the configuration they
 read, the forge calls they make, the containers they run and every file
 they write.
 
@@ -120,11 +123,11 @@ user's namespace on Gitea, which revision 4 no longer allows: section 3,
 A row marked *to confirm at Step N* is written from the plan and the tools'
 public documentation and is checked against the real tool at that step.
 The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
-`swarm apply [--once]`, `swarm status`, `swarm pause [<n>]`, `swarm
+`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm status`, `swarm pause [<n>]`, `swarm
 resume [<n>]`, and the maintainer's `swarm triage <n>`, `swarm accept
 <n>`, `swarm class <n> routine|architecture`, `swarm approve <n>`, `swarm
 merge <n>`, `swarm unblock <n> <comment...>`, `swarm block <n> --by <m>`
-and `swarm close <n> [comment...]`): all thirteen are rows of the `cli`
+and `swarm close <n> [comment...]`): all fourteen are rows of the `cli`
 table.
 
 **Sources.** Revision 2 draws on five talks on software factories:
@@ -305,7 +308,7 @@ Stages of a software factory the version leaves out, each by choice:
 ## 2. Files
 
 ```
-<swarm>/                             # the swarm repository's clone (<owner>/swarm-<name>), the swarm's root; Daisy writes it only at `swarm init`
+<swarm>/                             # the swarm repository's clone (<owner>/swarm-<name>), the swarm's root; Daisy writes it only at `swarm init` and `swarm prompt build`
 ├── swarm.json                       # forge, repositories (each with its image and check), personas, gates, limits (section 3)
 ├── prompts/<role>.md                # each persona's prompt (section 4)
 ├── briefs/                          # the briefs (section 4), a `resources` entry by default
@@ -347,17 +350,18 @@ Every file Daisy writes, and nothing else:
 |---|---|---|---|
 | `<swarm>/` | a clone of the swarm repository, `git clone <ssh_url> <dir>/<repo>` (section 11) | `swarm init` | when `init` runs outside a clone of it and `<dir>/<repo>` is absent |
 | `<swarm>/swarm.json` | the configuration, two-space indented JSON, fields in section 3's order, trailing newline | `swarm init` | when the answers differ from the file's values (absent counts as different; a file of the same values in another layout is left as it is) |
-| `<swarm>/prompts/<role>.md` | the default persona prompt (section 4) | `swarm init` | only when the file is absent; an existing prompt is never overwritten |
+| `<swarm>/prompts/<role>.md` | the default persona prompt (section 4) | `swarm init`; `swarm prompt build` | `init`: only when the file is absent; an existing prompt is never overwritten. `prompt build`: when the file is absent or is an earlier default (with `--force`, any text but the current default; section 11) |
 | `<swarm>/repos/<name>.md` | per declared repository, section 4's seed | `swarm init` | only when the file is absent, as a prompt |
 | `<swarm>/README.md`; `README.md` in `briefs/`, `notes/` and `docs/` | a heading and a paragraph saying what the repository, or the directory, holds and that `daisy swarm` runs from the clone (the one in `notes/` without a `Subject:` line, so no index lists it, 7.3; the one in `briefs/` without a `Status:` line, so it is no brief, section 4) | `swarm init` | only when the file is absent |
 | `<swarm>/.gitignore` | the line `.env.sh` | `swarm init` | only when the file is absent; an existing one is left as it is |
 | `<swarm>/.git` | one commit of the files this run wrote (and of each file of this table the clone holds and its `HEAD` lacks: an earlier run's whose commit failed), by the clone's own git identity (the maintainer's), its message `swarm: written by init`, pushed to the swarm repository's default branch (section 11); in a clone of an empty repository, `HEAD` first pointed at that branch (`git symbolic-ref`) | `swarm init` (`git add`, `git commit` of those paths alone, `git push`) | when a file it would commit differs from the clone's `HEAD`: one it wrote, or one of this table the clone holds and its `HEAD` lacks |
+| `<swarm>/.git` | one commit of the prompts `prompt build` wrote, by the clone's own git identity, its message `swarm: prompts rebuilt from the root at <short sha> (<role>, …)`, pushed to the swarm repository's default branch (section 11) | `swarm prompt build` (`git add`, `git commit` of those paths alone, `git push`) | when a prompt it wrote differs from the clone's `HEAD` |
 | `<state>/env` | one line `export <VAR>='<value>'` per variable the configuration names (`forge.token_env`, each `keys` `env` in the providers' name order) and `DAISY_MAINTAINER_TOKEN`, each value the process environment's at `init`, single-quoted (a `'` in it written `'\''`); a variable unset or empty there is written commented out, `# <VAR>=`, which assigns nothing, so the environment still supplies it (section 3, Secret values) until the maintainer fills the line in; mode `0600` | `swarm init` | only when the file is absent; the maintainer edits it, and Daisy never rewrites it |
 | `<state>/lock` | one line, the holder: `apply[ --once] since <RFC 3339 time> pid <pid>` | `swarm apply` | on taking the lock; the lock is released, not the file removed, at exit |
 | `<state>/paused` | one line: `paused <RFC 3339 time>`, or `paused <RFC 3339 time>: <reason>` when `apply` wrote it (`swarm fault: <reason>`, `budget: <per_day\|total> $<limit> reached ($<spent>)`) | `swarm pause` and `swarm apply` (created), `swarm resume` (removed) | on the command; `apply`: at the second swarm fault in a row (7.7) or when the budget is reached (section 3) |
 | `<state>/owner-held` | one line: `held <RFC 3339 time>: <reason>` | `swarm apply` (created), `swarm resume` (removed) | when the owner's batch run fails or proposes nothing |
 | `<state>/auto` | one line per gate passed: `<RFC 3339 time> #<n> <proposal-posted\|plan-0-posted>`, the stage the gate held (section 5, The job class) | `swarm apply` (appended) | at each routine job's gate passed (T23, T24), after its relabel; a refused write is a warning |
-| `<state>/git/<name>/`, `<state>/git/<repo>/` | per declared repository, and for the swarm repository, a bare repository: its config's `remote.origin.url` and `core.sshCommand` (7.1, step 1), `refs/heads/*` as last fetched from the forge, the swarm repository's `HEAD` naming its default branch, a worker's branch before its push, and `refs/swarm-runs/<n>-worker-<k>` for a worker run's commits not pushed | `swarm init` and `swarm apply` (`git init --bare`, `config`, `fetch`, `symbolic-ref`, `update-ref`) | at `init`; before each pass's first launch; after each worker run |
+| `<state>/git/<name>/`, `<state>/git/<repo>/` | per declared repository, and for the swarm repository, a bare repository: its config's `remote.origin.url` and `core.sshCommand` (7.1, step 1), `refs/heads/*` as last fetched from the forge, the swarm repository's `HEAD` naming its default branch, a worker's branch before its push, and `refs/swarm-runs/<n>-worker-<k>` for a worker run's commits not pushed | `swarm init` and `swarm apply` (`git init --bare`, `config`, `fetch`, `symbolic-ref`, `update-ref`); `swarm prompt build` (the swarm repository's: `git init --bare`, `config`, `fetch`, `symbolic-ref`) | at `init`; before each pass's first launch; after each worker run; after `prompt build`'s push |
 | `<state>/references/<ref>/` | per reference (section 3), a bare repository holding its pin, its config's `remote.origin.url` its `url` | `swarm apply` (`git init --bare`, `config`, `fetch`) | before a pass's first launch, when the pin is not in it |
 | `<state>/notes/` | with `notes` (section 3), a clone of the swarm repository at its head as last fetched, its branch the one the clone checked out (the forge's default) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, and the notes' commits, 7.6) | before each pass's first launch; at the collection of each owner's and architect's run |
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
@@ -372,11 +376,12 @@ Every file Daisy writes, and nothing else:
 | `<run>/notes/` | with `notes`, a copy of `<state>/notes`'s `notes/` directory (empty when it has none, or when it is not a directory); as the pass fetched them, without `.git` | `swarm apply` (the copy), then the owner's and the architect's member (notes) | before the launch; removed when the run is collected or abandoned, but kept when its notes were not pushed (`notes kept`, 7.6) |
 | `<slot>/` | `auth.json`, one login of the provider's account; nothing else at a launch | the maintainer (`auth.json`, at login: section 8), the member (`auth.json` refreshed, and the CLI's own files), `swarm apply` (every entry but `auth.json` removed) | `apply`: before each launch on the slot, under its lock |
 | `<slot>.lock` | one line, the holder: `<owner>/<repo>#<n>/<role> run <k> since <RFC 3339 time> pid <pid>` | `swarm apply` | on taking the slot (7.1); released, not removed, when the run's `docker run` has returned |
-| the forge | comments, reviews, issues, pull requests, label changes (on issues and their pull requests), pushed `swarm/<n>-<s>` branches, with `notes` the research notes' commits pushed to the swarm repository's `notes/` directory (its default branch, or `swarm/notes-<n>-<role>-<k>` on a conflict, 7.6), the sixteen labels (section 5) and the renames of the old stage names; with `gates.merge` off, merges and closed issues; with `forge.board`, the board's cards and missing columns | `swarm init` (from revision 6, with the maintainer's token: the swarm repository when absent and the swarm's account's write access to it, section 11; then the push of its seeded files), `swarm init` and `swarm apply` (labels), `swarm apply` (the rest); the maintainer's verbs (label changes, comments, a formal approval, merges, closed issues) as the maintainer's account | sections 5–7, 11 and 12 |
+| the forge | comments, reviews, issues, pull requests, label changes (on issues and their pull requests), pushed `swarm/<n>-<s>` branches, with `notes` the research notes' commits pushed to the swarm repository's `notes/` directory (its default branch, or `swarm/notes-<n>-<role>-<k>` on a conflict, 7.6), the sixteen labels (section 5) and the renames of the old stage names; with `gates.merge` off, merges and closed issues; with `forge.board`, the board's cards and missing columns | `swarm init` (from revision 6, with the maintainer's token: the swarm repository when absent and the swarm's account's write access to it, section 11; then the push of its seeded files), `swarm prompt build` (the push of the prompts it wrote, with the clone's own credentials), `swarm init` and `swarm apply` (labels), `swarm apply` (the rest); the maintainer's verbs (label changes, comments, a formal approval, merges, closed issues) as the maintainer's account | sections 5–7, 11 and 12 |
 
 **Invariant.** Daisy writes nowhere else: not to a Daisy home, not to a
 workspace, not to the swarm repository's clone but at `swarm init` (the
-clone itself when absent, the files above, their commit and its push;
+clone itself when absent, the files above, their commit and its push)
+and `swarm prompt build` (the prompts above, their commit and its push;
 every other verb reads the clone's `swarm.json`, `prompts/`, `origin`
 URL and `core.sshCommand`, and writes nothing there: the notes go to the
 forge from `<state>/notes`, never through the clone), not to any
@@ -538,8 +543,10 @@ quota, met as a provider fault (7.7). `claude -p` reports
 is spend; it is present only when the server stamped a complete cost
 (its headless guide), and a run without it counts as zero.
 
-Validation runs before anything else in every verb but `pause` and
-`resume` (which read only the forge fields, to find `<state>`). The first
+Validation runs before anything else in every verb but `pause`,
+`resume` (which read only the forge fields, to find `<state>`) and
+`prompt build` (the same, to name the swarm repository and `<state>`;
+section 11). The first
 failure is reported and the verb exits 1; the message is
 `Error: swarm.json: <field>: <problem>` on stderr, `<field>` a dotted path:
 
@@ -3206,9 +3213,9 @@ other verb exits 1 with section 3's
 `Error: swarm.json: not found in <dir> or a folder above it; cd into the
 swarm repository's clone, or run 'daisy swarm init'`. Any argument a
 verb does not take is a usage error: its usage line on stderr, exit 2.
-None commits but `init`, which commits the files it writes in the clone
-and pushes them (below); every later edit of the clone is the
-maintainer's to commit and push. Revision 6 (the header) was built by
+None commits but `init` and `prompt build`, which commit the files they
+write in the clone and push them (below); every other edit of the clone
+is the maintainer's to commit and push. Revision 6 (the header) was built by
 Steps 2–6 of its plan. *As built (Step 2, 2026-11-10;
 section 14, item 105):* the lookup above is the one function that
 decides the layout (`declare.Find`), and every verb, `init` included,
@@ -3222,11 +3229,12 @@ not, as the folder it makes the clone in (below). *As built (Step 7,
 workspace's `swarm/` is no swarm, so a verb run there finds none (`init`
 takes the workspace as its folder), and nothing reads the old layout's
 `repos[].path`, workspace `resources`, `<ws>/.env.sh` or `wiki` (Moving
-a swarm into its repository, below). The thirteen
+a swarm into its repository, below). The fourteen
 are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm,
 `status`'s correction counts at Step 8, the maintainer's six at
 Step 10, at Step 15 `swarm block` and the issue's `pause` and
-`resume`, and at Step 20 `swarm class`: `apply`'s
+`resume`, at Step 20 `swarm class`, and `prompt build` at Step 7 of
+the plan that clears the Deferred list: `apply`'s
 As built paragraph says what it leaves out); the board, the GitHub
 adapter and the `budget` are specified here ahead of their build wherever this section names them: `swarm.json`
 validates their fields as section 3 says and nothing acts on them until
@@ -3420,6 +3428,37 @@ service running `apply --once`) disables the timer and removes its file
 before installing this unit. Under the service, `apply` has no terminal:
 the push needs credentials that work without one (an SSH key without a
 passphrase prompt, or an agent the user manager can reach).
+
+### daisy swarm prompt build
+
+`init` writes a persona prompt only where none is, so a change to a
+default (section 4) reaches a new swarm only. `prompt build` brings an
+existing swarm's prompts to this Daisy's defaults where the maintainer
+has not edited them, and shows where they have.
+
+| Field | Value |
+|---|---|
+| Usage | `daisy swarm prompt build [--force] [--dry-run]` |
+| Reads | `swarm.json`'s forge fields only (the swarm repository's name and `<state>`); each `prompts/<role>.md` in the clone's working tree; the commit of the Daisy root it runs with (`git rev-parse --short=7 HEAD` in `$DAISY_ROOT`); when a prompt is to be written, the swarm repository's default branch as its origin's `HEAD` names it (`git ls-remote --symref origin HEAD` in the clone, with the clone's own credentials); no secret, no forge call |
+| Each prompt | compared with this Daisy's default for its role (section 4), byte for byte. **Current**, the default itself: left as it is, `  Unchanged prompts/<role>.md`. **An earlier default**, one whose sha256 is in the binary's table of every default the role has had (below): rewritten as the current, `✓ Rebuilt prompts/<role>.md (an earlier default)`. **Absent**: written as `init` writes it, `✓ Wrote prompts/<role>.md`. **Edited**, any other text: left byte for byte, `  Kept prompts/<role>.md (edited), its diff from the default:`, then its unified diff from the default (`--- prompts/<role>.md (default)`, `+++ prompts/<role>.md`, three lines of context), and named in the refusal; with `--force` rewritten too, `✓ Rebuilt prompts/<role>.md (edited, overwritten by --force), its diff from the default:` and the diff, which shows what the rewrite discards |
+| Order | every prompt read and compared before any write (one that cannot be read, other than absent, is `Error: swarm: cannot read <path>: <error>`, nothing written); the default branch read when a prompt is to be written; the writes, in the roles' order; one commit of the prompts written and nothing else, by the clone's git identity, its message `swarm: prompts rebuilt from the root at <short sha> (<role>, …)`, `<short sha>` the root's commit and the roles those written, and its push, `git push origin HEAD:<branch>`, as `init`'s; the swarm repository's mirror fetched, as `init` fetches it after its push, so that `status` shows no drift for what was pushed; last, when an edited prompt was kept, the refusal and exit 1. So the unedited prompts are written, committed and pushed before the edited ones are reported. Nothing to write commits nothing |
+| `--dry-run` | runs read-only (`ReadOnly`): the same lines with `Would write` and `Would rebuild` for `Wrote` and `Rebuilt`, the diffs, then `  Dry run: nothing written; would commit "<message>" and push it`, or `  Dry run: nothing to write`; no default branch read, no write, commit, push or fetch; the exit code the run would have. With `--force` it shows what `--force` would do: the dry run wins over `--force`, so the pair is a preview of the forced run, not a refusal |
+| Stdout | the lines above, a prompt per role in the roles' order (owner, architect, worker, adversary, sympathetic); then `✓ Committed and pushed <short sha> to <owner>/<repo>'s <branch> as <git author>` and `✓ Mirrors: <repo> fetched`, or `  Nothing to commit` |
+| Exit codes | 0 every prompt current or written (with `--force`, the edited ones included); 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the root's commit unreadable (`Error: swarm: cannot read the commit of the Daisy root <root>: <git's error>`), a prompt unreadable, the default branch unreadable (`Error: swarm: cannot read the default branch of <swarm>'s origin: git ls-remote: <git's error>`, or `Error: swarm: <swarm>'s origin names no default branch (git ls-remote --symref origin HEAD)`), a write failing, the commit failing (`Error: swarm: commit in <swarm>: <git's error>`), the push refused (`Error: swarm: push <swarm>: <git's error>; the commit stays in the clone: pull, then push it`), the mirror's fetch failing (`Error: swarm: mirror <repo>: <git's error>`), and an edited prompt kept, after the others are written, committed and pushed (`Error: swarm: edited, so kept: prompts/<role>.md, … (each diff above); merge the default's changes in by hand, or run 'daisy swarm prompt build --force' to overwrite them`); 2 usage |
+| Ops | Real; `ReadOnly` with `--dry-run` |
+
+**The table of earlier defaults** is `defaultHistory` in
+`internal/swarm/declare/prompts.go`: per role, the sha256 of each
+distinct default the role has had since the defaults were introduced
+(b3ec5eb, Step 1 of the swarm build), oldest first and the current one
+last, from the root's history of that file, each the text `init` wrote,
+byte for byte. The owner has had two, the architect four, the worker
+and the adversary two each, the sympathetic reviewer one. A change to a
+default appends its hash: `TestDefaultHistoryHoldsEachCurrentDefault`
+fails while a role's current default is not its last entry, so a prompt
+still at the old default is rewritten rather than taken for an edit. No
+maintainer's text is in the table. *As built (Step 7 of the plan that
+clears the Deferred list, 2026-11-12; section 14, item 117).*
 
 ### daisy swarm apply
 
@@ -3773,7 +3812,8 @@ clone, or in a folder holding one (it runs the verbs inside the clone):
 it reads `swarm status`, the briefs and `<state>/runs/`, says
 what was done and what waits, drafts or flips a brief's `Status` and
 edits `swarm.json` and the persona prompts as drafts for the maintainer,
-and runs a verb (or `pause` and `resume`) only after stating the write
+and runs a verb (or `pause`, `resume` and `prompt build`, whose
+`--dry-run` alone it may run unasked) only after stating the write
 and the maintainer's yes to it in words; it never reaches the forge
 itself, never runs `init` or `apply`, and names no secret but the
 variable `DAISY_MAINTAINER_TOKEN`.
@@ -6735,7 +6775,9 @@ entries among revision 1's, and was renumbered at Step 38.
     worker's "Do not push" sentence (every worker text says `do not
     push`, 7.4). The defaults reach a new swarm only: `init` never
     overwrites an existing `prompts/<role>.md` (section 2), so a live
-    swarm's prompts are the maintainer's to edit. Test:
+    swarm's prompts are the maintainer's to edit (until item 117's
+    `swarm prompt build`, which rewrites one still at an earlier
+    default). Test:
     `TestDefaultPromptsAreSectionFours` (section 4's prompts are
     `declare.DefaultPrompts`, verbatim).
 114. **A path gone from a member's `.git` mid-check is skipped, and a
@@ -6805,3 +6847,30 @@ entries among revision 1's, and was renumbered at Step 38.
     skill's frontmatter left out, and in no other role's),
     `TestSwarmApplyPraxisFromTheRoot` (read in `$DAISY_ROOT`; praxis
     removed there, `fault: prompt: system.md:`, nothing launched).
+117. **`swarm prompt build` reseeds the prompts from the defaults (Step
+    7 of the plan that clears the Deferred list, 2026-11-12; the
+    maintainer's decision of that day).** `init` never overwrites a
+    prompt (section 2), so a change to a default (item 113's) reached
+    no running swarm, and a maintainer could not tell an untouched
+    prompt from an edited one. Layering the prompts at run time was
+    offered and not chosen. `prompt build`
+    (section 11) rewrites a prompt that is absent or an earlier default,
+    leaves the current default as it is, and keeps an edited prompt with
+    its diff printed and the exit 1, unless `--force`. "Earlier default"
+    is a table of hashes in the binary rather than a comparison with the
+    root's git history, so that a root installed without that history,
+    or a binary run with another root, still knows them; each change to
+    a default appends to it, which a test enforces. The writes are
+    committed and pushed before the edited prompts are reported, so one
+    edited prompt does not hold back the others. The default branch is
+    read from the clone's origin (`git ls-remote --symref`), not the
+    forge, so the verb needs no token; the swarm repository's mirror is
+    fetched after the push, as `init` does, so that `status` shows no
+    drift. `--dry-run` runs read-only and wins over `--force`, which it
+    previews. Tests: `TestSwarmPromptBuild` (over a scratch clone and a
+    bare remote: an earlier default rewritten and an absent prompt
+    written, committed by the clone's identity and pushed, the mirror
+    fetched; an edited prompt left byte for byte, its diff printed, the
+    exit 1 naming it; the dry run writing nothing; `--force` rewriting
+    it; a last run committing nothing), `TestComparePrompt` and
+    `TestDefaultHistoryHoldsEachCurrentDefault`.

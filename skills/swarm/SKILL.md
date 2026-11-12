@@ -1,6 +1,6 @@
 ---
 name: swarm
-description: The maintainer's guide over a Daisy swarm from its repository's clone — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm.json, the persona prompts and the per-repository notes, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, pause, resume, close) only after the maintainer confirms each write in words. Use in a swarm repository's clone (swarm.json at its top), or in a folder holding one (the verbs run inside the clone), when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json, a persona prompt or a repository's notes.
+description: The maintainer's guide over a Daisy swarm from its repository's clone — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm.json, the persona prompts and the per-repository notes, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, pause, resume, close, prompt build) only after the maintainer confirms each write in words. Use in a swarm repository's clone (swarm.json at its top), or in a folder holding one (the verbs run inside the clone), when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json, a persona prompt or a repository's notes, or to bring the persona prompts to Daisy's current defaults.
 short_description: Guide a Daisy swarm: status, briefs, gates
 ---
 
@@ -49,7 +49,9 @@ after the maintainer has said yes to that write.
 4. **Never reach the forge yourself.** No HTTP call, no API client, no
    forge CLI, no `git push` to the forge, and never `daisy swarm apply`
    or `daisy swarm init`, which are the maintainer's from a terminal. The
-   verbs are the only path, and they act with the maintainer's own token.
+   verbs are the only path, and they act with the maintainer's own token
+   (`daisy swarm prompt build` pushes with the clone's own credentials:
+   its push is the verb's, below).
 5. **Name no secret.** Never read, print or copy the swarm's secrets
    file (`env` in the state directory), a `.env.sh`, a token or
    any variable's value, nor ask the maintainer to paste one. You may name
@@ -101,6 +103,28 @@ and do not work around it (a wrong stage, a merge the forge refused, an
 issue blocked at the review round limit, which needs a relabel first, are
 the maintainer's to resolve on the forge).
 
+## Reseeding the persona prompts
+
+`daisy swarm init` writes a persona prompt only where none is, so a
+newer Daisy's default prompts do not reach a running swarm by
+themselves. `daisy swarm prompt build`, in the clone, compares each
+`prompts/<role>.md` with the installed Daisy's default: one still at an
+earlier default is rewritten, one at the current default is left, and
+one the maintainer edited is kept with its diff from the default
+printed, the verb then exiting 1 and naming it. What it wrote it
+commits as the clone's identity and pushes to the default branch.
+
+Run `daisy swarm prompt build --dry-run` (it writes nothing, so it
+needs no yes) after the maintainer has updated Daisy, when a prompt
+reads older than `docs/swarm.md` section 4, or when they ask whether
+the prompts are current; show its output. Then, as with every verb,
+state the write (the prompts it would rewrite, the commit and the push)
+and run `daisy swarm prompt build` only on the maintainer's yes. For an
+edited prompt, draft the default's changes into it as rule 6 says,
+from the printed diff; `daisy swarm prompt build --force`, which
+overwrites the edits, only on the maintainer's yes to losing them, named
+prompt by prompt.
+
 ## Briefs
 
 A brief is the swarm's input: a goal with milestones, never steps. Its
@@ -116,7 +140,8 @@ With no brief `active` the owner proposes nothing: its batch is held, and
 
 The briefs live in the swarm repository's `briefs/` (`forge.repo`, by
 convention `<owner>/swarm-<name>`), declared as a `resources` entry.
-Daisy writes the clone only at `init` and reads the briefs from the
+Daisy writes the clone only at `init` and, for the prompts, at
+`prompt build`, and reads the briefs from the
 pushed head: a brief you draft or flip there is committed and pushed by
 the maintainer, by hand, and reaches the owner at the next pass after
 the push; and with `notes` the research notes Daisy pushes to the

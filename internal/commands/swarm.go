@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"daisy/internal/env"
+	"daisy/internal/feedback"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/brief"
 	"daisy/internal/swarm/declare"
@@ -1245,4 +1246,153 @@ func resumeSwarm(c *Context) error {
 		fmt.Fprintln(c.Stdout, "Not paused")
 	}
 	return nil
+}
+
+// SwarmPromptBuild is `daisy swarm prompt build [--force] [--dry-run]`
+// (docs/swarm.md section 11): the clone's persona prompts reseeded from
+// this Daisy's defaults, committed and pushed; an edited one is kept, its
+// diff from the default printed, and refused unless --force.
+func SwarmPromptBuild(c *Context) error {
+	return inSwarm(c, func() error { return promptBuild(c) })
+}
+
+// promptAction is what prompt build does with one role's prompt.
+type promptAction struct {
+	role, rel string
+	kind      declare.PromptKind
+	absent    bool
+	text      []byte // the prompt as the clone holds it
+}
+
+// promptBuild reads every prompt before it writes any: a role's prompt
+// that is absent or an earlier default is written as the current
+// default, an edited one only with force; the writes are committed and
+// pushed, then the swarm repository's mirror fetched, as init does; the
+// edited prompts kept are refused last. With --dry-run it runs read-only
+// and says what it would do, --force included.
+func promptBuild(c *Context) error {
+	dry, force := c.Flag("--dry-run"), c.Flag("--force")
+	if dry {
+		c.Ops = ops.ReadOnly(c.Ops)
+	}
+	o, at := c.Ops, c.Swarm
+	cfg, _, err := declare.Load(o.FS(), at.Root)
+	if err == nil {
+		err = declare.ValidateForge(cfg.Forge)
+	}
+	if err != nil {
+		return fmt.Errorf("Error: %v", err)
+	}
+	out, errb, err := o.Exec(c.Env.Root, "git", "rev-parse", "--short=7", "HEAD")
+	if err != nil {
+		return fmt.Errorf("Error: swarm: cannot read the commit of the Daisy root %s: %s", c.Env.Root, gitErr(err, errb))
+	}
+	rootSHA := strings.TrimSpace(string(out))
+
+	var actions []promptAction
+	var roles []string // the roles whose prompt is written
+	for _, role := range declare.Roles {
+		a := promptAction{role: role, rel: filepath.Join("prompts", role+".md")}
+		b, err := o.FS().ReadFile(filepath.Join(at.Root, a.rel))
+		switch {
+		case errors.Is(err, iofs.ErrNotExist):
+			a.absent = true
+		case err != nil:
+			return fmt.Errorf("Error: swarm: cannot read %s: %v", filepath.Join(at.Root, a.rel), err)
+		default:
+			a.text, a.kind = b, declare.ComparePrompt(role, b)
+		}
+		if a.absent || a.kind == declare.PromptEarlier || a.kind == declare.PromptEdited && force {
+			roles = append(roles, role)
+		}
+		actions = append(actions, a)
+	}
+	branch := ""
+	if len(roles) > 0 && !dry {
+		if branch, err = defaultBranch(c, at); err != nil {
+			return err
+		}
+	}
+
+	var written, kept []string
+	for _, a := range actions {
+		def := declare.DefaultPrompts[a.role]
+		writes := slices.Contains(roles, a.role)
+		verb, would, what := "Rebuilt", "Would rebuild", a.rel
+		switch {
+		case a.absent:
+			verb, would = "Wrote", "Would write"
+		case a.kind == declare.PromptCurrent:
+			verb = "Unchanged"
+		case a.kind == declare.PromptEarlier:
+			what += " (an earlier default)"
+		case writes:
+			what += " (edited, overwritten by --force), its diff from the default:"
+		default:
+			verb, what = "Kept", what+" (edited), its diff from the default:"
+			kept = append(kept, a.rel)
+		}
+		switch {
+		case writes && dry:
+			fmt.Fprintf(c.Stdout, "  %s %s\n", would, what)
+		case writes:
+			p := filepath.Join(at.Root, a.rel)
+			if err := o.FS().MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				return fmt.Errorf("Error: cannot create %s: %v", filepath.Dir(p), err)
+			}
+			if err := o.FS().WriteFile(p, []byte(def), 0o644); err != nil {
+				return fmt.Errorf("Error: cannot write %s: %v", p, err)
+			}
+			fmt.Fprintf(c.Stdout, "✓ %s %s\n", verb, what)
+			written = append(written, a.rel)
+		default:
+			fmt.Fprintf(c.Stdout, "  %s %s\n", verb, what)
+		}
+		if a.kind == declare.PromptEdited && !a.absent {
+			io.WriteString(c.Stdout, feedback.Diff(a.rel+" (default)", a.rel, []byte(def), a.text))
+		}
+	}
+
+	message := "swarm: prompts rebuilt from the root at " + rootSHA + " (" + strings.Join(roles, ", ") + ")"
+	switch {
+	case dry && len(roles) > 0:
+		fmt.Fprintf(c.Stdout, "  Dry run: nothing written; would commit %q and push it\n", message)
+	case dry:
+		fmt.Fprintln(c.Stdout, "  Dry run: nothing to write")
+	case len(written) == 0:
+		fmt.Fprintln(c.Stdout, "  Nothing to commit")
+	default:
+		if err := commitPaths(c, at, cfg.Forge.Repo, branch, message, written); err != nil {
+			return err
+		}
+		// The swarm repository's mirror after the push, as init's, so
+		// that status shows no drift for what was pushed.
+		_, repo, _ := strings.Cut(cfg.Forge.Repo, "/")
+		if err := (reconcile.Git{O: o, WS: at.Root, State: cfg.Forge.State(c.Env.Local)}).FetchSwarm(repo); err != nil {
+			return fmt.Errorf("Error: swarm: mirror %s: %v", repo, err)
+		}
+		fmt.Fprintf(c.Stdout, "✓ Mirrors: %s fetched\n", repo)
+	}
+	if len(kept) > 0 {
+		return fmt.Errorf("Error: swarm: edited, so kept: %s (each diff above); merge the default's changes in by hand, or run 'daisy swarm prompt build --force' to overwrite them", strings.Join(kept, ", "))
+	}
+	return nil
+}
+
+// defaultBranch is the swarm repository's default branch, as its
+// origin's HEAD names it (`git ls-remote --symref origin HEAD` in the
+// clone, with the clone's own credentials), which init reads from the
+// forge.
+func defaultBranch(c *Context, at declare.Place) (string, error) {
+	out, errb, err := c.Ops.Exec(at.Root, "git", "ls-remote", "--symref", "origin", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("Error: swarm: cannot read the default branch of %s's origin: git ls-remote: %s", at.Root, gitErr(err, errb))
+	}
+	for _, l := range strings.Split(string(out), "\n") {
+		if target, ok := strings.CutPrefix(l, "ref: refs/heads/"); ok {
+			branch, _, _ := strings.Cut(target, "\t")
+			return branch, nil
+		}
+	}
+	return "", fmt.Errorf("Error: swarm: %s's origin names no default branch (git ls-remote --symref origin HEAD)", at.Root)
 }

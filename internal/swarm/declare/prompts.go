@@ -1,5 +1,11 @@
 package declare
 
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"slices"
+)
+
 // DefaultPrompts are the five default persona prompts of docs/swarm.md
 // section 4, which `swarm init` writes to prompts/<role>.md in the swarm
 // repository's clone when absent. They state a stance only; what to do and where to write it is
@@ -96,4 +102,62 @@ maintainer will, assuming it is meant to work.
 - End with a short reading guide for the maintainer: where the change
   departs from the plan, what is riskiest, and what to read first.
 `,
+}
+
+// defaultHistory is, per role, the sha256 (hex) of every default prompt
+// the role has had, oldest first, the current one last: each distinct
+// DefaultPrompts[role] in the root's history of this file since the
+// defaults were introduced, as `swarm init` wrote it (the string, byte
+// for byte). `swarm prompt build` overwrites a prompt that is one of
+// them and refuses any other (docs/swarm.md section 11).
+//
+// To change a default: edit DefaultPrompts, then append the new text's
+// sha256 to its role's list here, keeping every earlier one (the failure
+// of TestDefaultHistoryHoldsEachCurrentDefault prints it), with the
+// commit's short sha and date in a comment once it is committed. Never
+// add the hash of a prompt a maintainer edited.
+var defaultHistory = map[string][]string{
+	"owner": {
+		"e8c358ba3565f1a8396ee9a55c4abe4c19aa8d7c7a6756c4bd9b9e82a2487f59", // b3ec5eb, 2026-11-06: the first defaults
+		"715365faca2fe7f5e7b24f52d809a45c82288083314e90f471ad09e8d9ce9b02", // 4a0434d, 2026-11-09: /work/.resources
+	},
+	"architect": {
+		"3f6d4a644ce1da47536934531578f7a00ecc0a6e6e113075adc1736a60e3b9f0", // b3ec5eb, 2026-11-06
+		"3fe135323147cf93d6a40e5036f8e23f4820ac2b842271a2b70538ae75081c6c", // 4a0434d, 2026-11-09: /work/.resources
+		"8f2faf7093aca163ebba82d11ba3d99d37a9b8305cf5abe4f3b9712906ddb527", // b1021ce, 2026-11-09: "The worker sees only…"
+		"953f62285c2977d9711100b821600f087f68476a88feaf04492396b92bc777b6", // 6ce1bb4, 2026-11-11: documentation duty
+	},
+	"worker": {
+		"700b6715ccb0d80009c5ac98764abcbed48a3602a97c840ad54d5a574eb14a48", // b3ec5eb, 2026-11-06
+		"09aeb6dc8634518cb36fbceb07e6c5cd862b9a235ab85f7dfdc1f8b99f3edbdf", // 6ce1bb4, 2026-11-11: documentation duty
+	},
+	"adversary": {
+		"835a912a688db206558744955c182e26bc3461bfed0e9afb156920a8208f8098", // b3ec5eb, 2026-11-06
+		"c0157222a793d4415c41853dd819341e90d79e82c3122c09f1b57399b9166f0f", // 6ce1bb4, 2026-11-11: documentation duty
+	},
+	"sympathetic": {
+		"80e9469ddf6025963f7145f607e1304a32d7e378334a697f510dc8d28f70d414", // b3ec5eb, 2026-11-06
+	},
+}
+
+// PromptKind is how a persona prompt stands to role's defaults.
+type PromptKind int
+
+const (
+	PromptCurrent PromptKind = iota // the current default, byte for byte
+	PromptEarlier                   // a default the role had before
+	PromptEdited                    // no default: the maintainer's text
+)
+
+// ComparePrompt is the kind of text as role's prompt: the current
+// default, an earlier one (defaultHistory), or edited.
+func ComparePrompt(role string, text []byte) PromptKind {
+	if string(text) == DefaultPrompts[role] {
+		return PromptCurrent
+	}
+	sum := sha256.Sum256(text)
+	if slices.Contains(defaultHistory[role], hex.EncodeToString(sum[:])) {
+		return PromptEarlier
+	}
+	return PromptEdited
 }

@@ -33,11 +33,11 @@ entries cross-reference it in prose.
 
 `daisy --help` as built, rendered from the `cli` table; `daisy
 help --markdown` renders the same table as AGENTS.md's Command Reference.
-The `Swarm` group (`swarm init`, `swarm apply`, `swarm status`, `swarm
-pause`, `swarm resume`, and the maintainer's `swarm triage`, `swarm
-accept`, `swarm class`, `swarm approve`, `swarm merge`, `swarm unblock`,
-`swarm block` and `swarm close`) joined the table a verb at a time as
-each was built; all thirteen are in it, and the tree never names a command the binary does
+The `Swarm` group (`swarm init`, `swarm prompt build`, `swarm apply`,
+`swarm status`, `swarm pause`, `swarm resume`, and the maintainer's
+`swarm triage`, `swarm accept`, `swarm class`, `swarm approve`, `swarm
+merge`, `swarm unblock`, `swarm block` and `swarm close`) joined the
+table a verb at a time as each was built; all fourteen are in it, and the tree never names a command the binary does
 not run. Their entries below give docs/swarm.md's revision 6 (the swarm
 repository as the swarm's root, run from its clone with no Daisy
 workspace needed, the secrets in the swarm's `<state>/env`), which
@@ -92,6 +92,8 @@ Prompts and skills
 Swarm
   swarm init [--defaults] [--api <url>]
                                     Declare the swarm: swarm.json, prompts, labels
+  swarm prompt build [--force] [--dry-run]
+                                    Reseed prompts/ from this Daisy's defaults; an edited prompt is kept
   swarm apply [--once]              Reconcile the forge: launch members, post their output, move labels
   swarm status                      Stages, gates, what waits for you, running members (read-only)
   swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
@@ -181,7 +183,7 @@ is refused rather than walked past, exit 1, stderr naming the fault and
 init, or `.daisy/` with no `home` file. Commands that need no workspace:
 `install`, `init`, `home`, `identity list`, `help` (tree or command),
 `prompt build <home>`, and `test`, whose bash dispatcher required one although the script read
-only the root *(decided, D30; built in Step 24)*, and the thirteen
+only the root *(decided, D30; built in Step 24)*, and the fourteen
 `swarm` verbs, which find their swarm themselves (docs/swarm.md section
 11, Finding the swarm: a swarm repository's clone; Step 2 of revision
 6's plan, the old layout's workspace no longer read since its Step 7). `healthcheck` needs one
@@ -688,6 +690,21 @@ first such clone's repository on the forge's host (Step 35), else
 `<owner>/swarm-<name>` after the first product. A new
 repository entry's `protected` default names `.claude/` and `.grok/`
 beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
+
+### daisy swarm prompt build
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 7 of the plan that clears the Deferred list, 2026-11-12): Go (`internal/swarm/declare/prompts.go`, the table of earlier defaults and `ComparePrompt`; `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11, prompt build, and section 14, item 117 |
+| Legacy | none |
+| Usage | `daisy swarm prompt build [--force] [--dry-run]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); each `prompts/<role>.md` compared with this Daisy's default for its role: the current default left as it is, an earlier default (its sha256 in the binary's table of every default the role has had) or an absent prompt written as the current, an edited one kept with its diff from the default printed; `--force` overwrites an edited one too; `--dry-run` runs read-only, writes nothing and wins over `--force`, which it previews; any argument is usage on stderr, exit 2 |
+| Exit codes | 0 every prompt current or written; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the root's commit, a prompt or the origin's default branch unreadable, a write, the commit, the push or the mirror's fetch failing (the push refused: `Error: swarm: push <swarm>: <git's error>; the commit stays in the clone: pull, then push it`), and an edited prompt kept, reported after the others are written, committed and pushed (`Error: swarm: edited, so kept: prompts/<role>.md, … (each diff above); merge the default's changes in by hand, or run 'daisy swarm prompt build --force' to overwrite them`), under `--dry-run` too; 2 usage |
+| Stdout | per role, in order: `  Unchanged prompts/<role>.md`, `✓ Rebuilt prompts/<role>.md (an earlier default)`, `✓ Wrote prompts/<role>.md` (absent), `  Kept prompts/<role>.md (edited), its diff from the default:` or with `--force` `✓ Rebuilt prompts/<role>.md (edited, overwritten by --force), its diff from the default:`, each followed by the unified diff (`--- prompts/<role>.md (default)`, `+++ prompts/<role>.md`); under `--dry-run`, `  Would write` and `  Would rebuild` for the writes, then `  Dry run: nothing written; would commit "<message>" and push it` or `  Dry run: nothing to write`; else `✓ Committed and pushed <short sha> to <owner>/<repo>'s <branch> as <git author>` and `✓ Mirrors: <repo> fetched`, or `  Nothing to commit` |
+| Stderr | errors |
+| Ops | Real; `ReadOnly` with `--dry-run` |
+| Writes | in the clone, the prompts above; the swarm repository's mirror, `<state>/git/<repo>`, fetched after the push; no forge call, no secret read |
+| Commits | in the swarm repository's clone, the prompts it wrote and nothing else, by the clone's own git identity, its message `swarm: prompts rebuilt from the root at <short sha> (<role>, …)`, `<short sha>` the Daisy root's `HEAD`, pushed to the repository's default branch as its origin's `HEAD` names it (`git ls-remote --symref origin HEAD`); nothing written, no commit |
+| Cases | none; `TestSwarmPromptBuild`, `TestComparePrompt`, `TestDefaultHistoryHoldsEachCurrentDefault` |
 
 ### daisy swarm status
 

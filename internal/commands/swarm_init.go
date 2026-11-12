@@ -204,13 +204,31 @@ func initFiles(cfg declare.Config) []string {
 
 // commitAndPush commits the paths init wrote in the clone, with each file
 // of section 2's table the clone holds and its HEAD lacks (one an earlier
-// run wrote and did not commit, its commit having failed), by the clone's
-// own git identity, and pushes the commit to the swarm repository's
-// default branch with the clone's own credentials; nothing else of the
-// clone's index or tree is committed, and nothing to commit (or nothing
-// that differs from the clone's index) commits nothing. A clone of an
-// empty repository gets branch as its first branch.
+// run wrote and did not commit, its commit having failed), as
+// commitPaths does.
 func commitAndPush(c *Context, at declare.Place, cfg declare.Config, branch string, written []string) error {
+	for _, rel := range initFiles(cfg) {
+		if slices.Contains(written, rel) {
+			continue
+		}
+		if _, err := c.Ops.FS().Lstat(filepath.Join(at.Root, rel)); err != nil {
+			continue
+		}
+		if _, _, err := c.Ops.Exec(at.Root, "git", "cat-file", "-e", "HEAD:"+rel); err != nil {
+			written = append(written, rel)
+		}
+	}
+	return commitPaths(c, at, cfg.Forge.Repo, branch, initMessage, written)
+}
+
+// commitPaths commits written, paths relative to the clone, with message,
+// by the clone's own git identity, and pushes the commit to the swarm
+// repository repo's default branch with the clone's own credentials;
+// nothing else of the clone's index or tree is committed, and nothing to
+// commit (or nothing that differs from the clone's index) commits
+// nothing. A clone of an empty repository gets branch as its first
+// branch.
+func commitPaths(c *Context, at declare.Place, repo, branch, message string, written []string) error {
 	run := func(args ...string) (string, error) {
 		out, errb, err := c.Ops.Exec(at.Root, "git", args...)
 		if err != nil {
@@ -219,17 +237,6 @@ func commitAndPush(c *Context, at declare.Place, cfg declare.Config, branch stri
 		return strings.TrimSpace(string(out)), nil
 	}
 	fail := func(err error) error { return fmt.Errorf("Error: swarm: commit in %s: %v", at.Root, err) }
-	for _, rel := range initFiles(cfg) {
-		if slices.Contains(written, rel) {
-			continue
-		}
-		if _, err := c.Ops.FS().Lstat(filepath.Join(at.Root, rel)); err != nil {
-			continue
-		}
-		if _, err := run("cat-file", "-e", "HEAD:"+rel); err != nil {
-			written = append(written, rel)
-		}
-	}
 	if len(written) > 0 {
 		if _, err := run(append([]string{"add", "--"}, written...)...); err != nil {
 			return fail(err)
@@ -247,7 +254,7 @@ func commitAndPush(c *Context, at declare.Place, cfg declare.Config, branch stri
 			return fail(err)
 		}
 	}
-	if _, err := run(append([]string{"commit", "--quiet", "-m", initMessage, "--"}, written...)...); err != nil {
+	if _, err := run(append([]string{"commit", "--quiet", "-m", message, "--"}, written...)...); err != nil {
 		return fail(err)
 	}
 	sha, err := run("rev-parse", "--short=7", "HEAD")
@@ -261,7 +268,7 @@ func commitAndPush(c *Context, at declare.Place, cfg declare.Config, branch stri
 	if _, err := run("push", "--quiet", "origin", "HEAD:"+branch); err != nil {
 		return fmt.Errorf("Error: swarm: push %s: %v; the commit stays in the clone: pull, then push it", at.Root, err)
 	}
-	fmt.Fprintf(c.Stdout, "✓ Committed and pushed %s to %s's %s as %s\n", sha, cfg.Forge.Repo, branch, author)
+	fmt.Fprintf(c.Stdout, "✓ Committed and pushed %s to %s's %s as %s\n", sha, repo, branch, author)
 	return nil
 }
 
