@@ -74,7 +74,7 @@ Evals grabbed off the shelf and never improved will give unreliable signal. The 
 | Component | Location |
 |---|---|
 | Failure collection | `daisy feedback --workflow <target> "<description>"` → the home's `feedback/feedback.md` |
-| Optimization loop | `daisy optimize` briefs the agent in session (pending entries per target, its `## Rules`, rewrite flags past 10 rules); the agent proposes; `daisy optimize apply --workflow <target> --rules\|--rewrite <file>` writes what is approved and archives the entries |
+| Optimization loop | `daisy optimize` briefs the agent in session (pending entries per target, its `## Rules`, rewrite flags past 3 rules); the agent proposes; `daisy optimize apply --workflow <target> --rules\|--rewrite <file>` writes what is approved and archives the entries |
 | Eval cases | `$DAISY_ROOT/prompts/evals/` (`daisy eval`); results in the home's `feedback/eval/results.md` (`daisy eval --record`) |
 
 The `## Rules` section in each prompt or skill is the target of a `--rules` proposal; a file without one gets one.

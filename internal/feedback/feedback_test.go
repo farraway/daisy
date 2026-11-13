@@ -186,14 +186,15 @@ func TestVendored(t *testing.T) {
 // one file are one target), in order of first appearance; an unheadered
 // entry is daisy's; a tag naming nothing is its own group, unresolved;
 // a scope keeps one target's entries; every active target and every pending
-// one over 10 rules is flagged, and a pending one carries its flag inline.
+// one over 3 rules is flagged (4 are, 3 are not), and a pending one
+// carries its flag inline.
 func TestBrief(t *testing.T) {
 	tr := newTree(t)
 	fsys := ops.Real().FS()
-	many := "## Rules\n\n" + strings.Repeat("1. r\n", 11)
+	many := "## Rules\n\n" + strings.Repeat("1. r\n", 4)
 	write(t, tr.path("root/prompts/plan.md"), many)
 	write(t, tr.path("root/prompts/retrospective.md"), many)
-	write(t, tr.path("root/prompts/github.md"), "## Rules\n\n"+strings.Repeat("1. r\n", 10))
+	write(t, tr.path("root/prompts/github.md"), "## Rules\n\n"+strings.Repeat("1. r\n", 3))
 	write(t, tr.path("root/skills/testing/SKILL.md"), many)
 	l := Parse([]byte("# L\n\n## 2026-08-01 1000\n**Workflow:** plan\n\na\n\n## 2026-08-02 1000\n\nb\n\n## 2026-08-03 1000\n**Workflow:** prompts/plan\n\nc\n\n## 2026-08-04 1000\n**Workflow:** daisy-write\n\nd\n"))
 	active := []string{"retrospective", "github", "plan", "daisy"}
@@ -205,7 +206,7 @@ func TestBrief(t *testing.T) {
 	if want := []string{"plan=prompts/plan:xx", "daisy=prompts/daisy:x", "daisy-write=:x"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("groups %q", got)
 	}
-	if g := b.Pending[0]; g.Rules != 11 || !g.Flagged() || !g.HasRules {
+	if g := b.Pending[0]; g.Rules != 4 || !g.Flagged() || !g.HasRules {
 		t.Errorf("plan: %+v", g)
 	}
 	if g := b.Pending[1]; g.Rules != 1 || g.Flagged() {
@@ -219,7 +220,7 @@ func TestBrief(t *testing.T) {
 		flagged = append(flagged, f.Target.Label)
 	}
 	if want := []string{"prompts/retrospective", "skills/testing"}; !reflect.DeepEqual(flagged, want) {
-		t.Errorf("flagged %q (github has 10, plan is pending)", flagged)
+		t.Errorf("flagged %q (github has 3, plan is pending)", flagged)
 	}
 
 	plan, _ := Resolve(fsys, tr.root, tr.home, "plan")

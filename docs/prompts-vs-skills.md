@@ -93,7 +93,7 @@ Two constraints on that work, recorded here because they shape it:
 - **The rewrite anchor is `## Rules`** (decided 2026-08-17). `optimize`
   resolves a skill's source `SKILL.md` and `optimize apply --rules`
   replaces its `## Rules` section with the rules the agent proposed,
-  exactly as for a prompt; past ten rules the file is flagged for a
+  exactly as for a prompt; past three rules the file is flagged for a
   whole-file rewrite (`--rewrite`), which is the loop's other mode. The alternatives were a whole-body pass
   (no convention to maintain, but every run can restructure the whole skill,
   and the diffs stop being reviewable) and a non-destructive overlay (safest,

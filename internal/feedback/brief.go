@@ -8,8 +8,9 @@ import (
 
 // RewriteThreshold is the most rules a `## Rules` section holds before its
 // file is flagged for a whole-file rewrite, whose body absorbs what the
-// rules have accreted (D12).
-const RewriteThreshold = 10
+// rules have accreted (D12): a rewrite every few rules (3, the
+// maintainer's choice of 2026-11-12; fixed, not a setting).
+const RewriteThreshold = 3
 
 // Group is one target's pending entries (indices into the Log), with the
 // target's current rules. Tag is the first tag that named it; Resolved is

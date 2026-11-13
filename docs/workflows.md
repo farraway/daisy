@@ -219,7 +219,7 @@ absent from todo.txt.
 2. Call `daisy optimize` (read-only): the briefing lists each target with
    pending feedback — its path, the entries, its current ## Rules and the
    rule count — and flags every active prompt or skill whose ## Rules holds
-   more than 10 rules for a whole-file rewrite.
+   more than 3 rules for a whole-file rewrite.
 3. For each pending target, propose a ## Rules section folding the entries
    in; for each flagged target, offer a rewrite whose body absorbs the
    rules. One entry can be enough: the threshold is judgement, not a count.

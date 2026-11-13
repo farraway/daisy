@@ -163,7 +163,7 @@ needs there. The two layers and why they differ are the section
 **The feedback loop.** `daisy feedback <text>` records a failure against a
 prompt or skill in the home's `feedback/feedback.md`. `daisy optimize`
 briefs the agent in your session: each prompt or skill with pending entries, its
-entries, its current rules, and whether its rules have grown past ten and
+entries, its current rules, and whether its rules have grown past three and
 want a rewrite. The agent proposes; `daisy optimize apply` shows the diff,
 writes what you approve, archives the entries it addressed and commits.
 `daisy eval` lists, shows or records the eval cases (test prompts for the
