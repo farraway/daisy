@@ -151,6 +151,10 @@ func orDefault(o ops.Ops, key, underHome string) string {
 	return filepath.Join("/"+o.Getenv("HOME"), underHome)
 }
 
+// ErrNoWorkspace is FindWorkspace's answer when no directory above the
+// working directory carries a binding, broken or whole.
+var ErrNoWorkspace = errors.New("Error: Not in a Daisy workspace (no .daisy/ directory found)\n  Run 'daisy init <identity>' to initialize this workspace.")
+
 // FindWorkspace walks up from cwd to the nearest directory that carries a
 // binding, refusing one that is broken rather than walking past it.
 func FindWorkspace(fs ops.FS, root, cwd string) (string, error) {
@@ -162,7 +166,7 @@ func FindWorkspace(fs ops.FS, root, cwd string) (string, error) {
 			return dir, nil
 		}
 	}
-	return "", errors.New("Error: Not in a Daisy workspace (no .daisy/ directory found)\n  Run 'daisy init <identity>' to initialize this workspace.")
+	return "", ErrNoWorkspace
 }
 
 // IsWorkspaceDir: a .daisy/ directory that is not the Daisy root itself. The

@@ -975,3 +975,85 @@ func TestInitRestoresAnInterruptedFirstInit(t *testing.T) {
 		t.Errorf("core.sshCommand: %q", got)
 	}
 }
+
+// A bare `daisy init` is `daisy init` with the workspace's own binding: run
+// anywhere in a workspace bound to a named identity, after the root's prompt
+// and the home's skills changed, it keeps .daisy/identity, the record of the
+// applied identity, what the keys held before it and the keys themselves,
+// and rebuilds .daisy/AGENTS.md and the skills. The home is the binding's:
+// a second home defining the same identity, which makes `init pelicanmoor`
+// ambiguous, does not move it. In a folder with no binding it is the
+// missing argument, exit 2, naming `daisy init <identity>`, and writes nothing.
+func TestBareInitReinitsTheBinding(t *testing.T) {
+	m := initMachine(t)
+	agentsPrompt := filepath.Join(m.root, "prompts", "daisy.md")
+	writeFile(t, agentsPrompt, "## Trigger\n\nThe root as it was.\n")
+	ws := scratch(t)
+	gitIn(t, ws, "config", "--local", "user.email", "hand@example.invalid")
+	if code, _, errs := m.pinned(t, ws, "init", "pelicanmoor"); code != 0 {
+		t.Fatalf("init: exit %d: %s", code, errs)
+	}
+	read := func(rel string) string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join(ws, rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	binding := map[string]string{}
+	for _, f := range []string{".daisy/identity", ".daisy/gitconfig", ".daisy/gitconfig.before"} {
+		binding[f] = read(f)
+	}
+	if !strings.Contains(binding[".daisy/gitconfig.before"], "hand@example.invalid") {
+		t.Fatalf("init recorded no hand-set key: %q", binding[".daisy/gitconfig.before"])
+	}
+	k := keys(t, ws)
+
+	writeFile(t, agentsPrompt, "## Trigger\n\nThe root as it is now.\n")
+	writeFile(t, filepath.Join(m.home, "skills", "later", "SKILL.md"), "---\nname: later\ndescription: l\n---\n")
+	second := filepath.Join(t.TempDir(), "second")
+	writeFile(t, filepath.Join(second, "identities", "pelicanmoor"), "name=Other Pelican\nemail=other@example.invalid\n")
+	writeFile(t, filepath.Join(m.config, "homes"), "testhome="+m.home+"\nsecond="+second+"\n")
+	if code, _, errs := m.pinned(t, ws, "init", "pelicanmoor"); code != 1 || !strings.Contains(errs, "more than one home") {
+		t.Fatalf("init pelicanmoor with two homes defining it: exit %d: %s", code, errs)
+	}
+
+	sub := filepath.Join(ws, "sub")
+	os.Mkdir(sub, 0o755)
+	code, out, errs := m.pinned(t, sub, "init")
+	if code != 0 || !strings.Contains(out, "Initializing Daisy in: "+ws+"\n") || !strings.Contains(out, "Already initialized with identity: pelicanmoor") {
+		t.Fatalf("bare init: exit %d out %q err %q", code, out, errs)
+	}
+	for f, was := range binding {
+		if got := read(f); got != was {
+			t.Errorf("%s: %q → %q", f, was, got)
+		}
+	}
+	if got := keys(t, ws); got != k {
+		t.Errorf("keys %s → %s", k, got)
+	}
+	if got := read(".daisy/home"); got != "testhome\n" {
+		t.Errorf(".daisy/home is %q", got)
+	}
+	if agents := read(".daisy/AGENTS.md"); !strings.Contains(agents, "The root as it is now.") || strings.Contains(agents, "The root as it was.") {
+		t.Errorf("AGENTS.md not rebuilt: %s", agents)
+	}
+	for _, tree := range []string{".claude", ".agents"} {
+		if _, err := os.Stat(filepath.Join(ws, tree, "skills", "later", "SKILL.md")); err != nil {
+			t.Errorf("the home's new skill is not in %s/skills: %v", tree, err)
+		}
+	}
+	if _, err := os.Lstat(filepath.Join(sub, ".daisy")); err == nil {
+		t.Errorf("bare init bound the subdirectory")
+	}
+
+	unbound := t.TempDir()
+	code, out, errs = m.pinned(t, unbound, "init")
+	if code != 2 || out != "" || !strings.Contains(errs, "Error: missing argument") || !strings.Contains(errs, "daisy init <identity>") || !strings.Contains(errs, "Usage: daisy init") {
+		t.Errorf("bare init in an unbound folder: exit %d out %q err %q", code, out, errs)
+	}
+	if entries, _ := os.ReadDir(unbound); len(entries) != 0 {
+		t.Errorf("bare init in an unbound folder wrote %v", entries)
+	}
+}

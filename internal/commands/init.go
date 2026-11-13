@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -10,11 +11,16 @@ import (
 )
 
 // Init binds the workspace (the path argument, else the working
-// directory) to an identity and its home.
+// directory) to an identity and its home. Bare, it re-initializes the
+// workspace the working directory is in with the binding's own home and
+// identity; with no binding there, the identity is the missing argument.
 func Init(c *Context) error {
 	m, err := env.Machine(c.Ops)
 	if err != nil {
 		return err
+	}
+	if len(c.Args) == 0 {
+		return reinit(c, m)
 	}
 	target := "."
 	if len(c.Args) == 2 {
@@ -24,6 +30,25 @@ func Init(c *Context) error {
 		return err
 	}
 	return workspace.Init(c.Ops, m, c.Args[0], target, c.Stdout, c.Stderr)
+}
+
+func reinit(c *Context, m env.Env) error {
+	cwd, err := c.Ops.Getwd()
+	if err != nil {
+		return fmt.Errorf("Error: cannot read the working directory: %v", err)
+	}
+	ws, err := env.FindWorkspace(c.Ops.FS(), m.Root, cwd)
+	if errors.Is(err, env.ErrNoWorkspace) {
+		return UsageError("missing argument\n  No binding here to re-initialize: run 'daisy init <identity>' to bind this folder ('daisy identity list' lists the identities)")
+	}
+	if err != nil {
+		return err
+	}
+	b := workspace.ReadBinding(c.Ops, m, ws)
+	if b.HomeName == "" {
+		return UsageError(fmt.Sprintf("missing argument\n  %s names no home to re-initialize with: run 'daisy init <identity>' there to rebind it", filepath.Join(ws, ".daisy")))
+	}
+	return workspace.Reinit(c.Ops, m, b, c.Stdout, c.Stderr)
 }
 
 // Clean removes Daisy from the workspace the working directory is in,

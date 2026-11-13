@@ -22,7 +22,25 @@ import (
 // entries, and the identity applied to the target's repository. Progress
 // goes to out, warnings to warn; the error is the message for stderr.
 func Init(o ops.Ops, m env.Env, name, target string, out, warn io.Writer) error {
-	p, err := planInit(o, m, name, target)
+	homeName, err := identity.HomeOf(o, m, name)
+	if err != nil {
+		return err
+	}
+	return initAs(o, m, homeName, name, target, out, warn)
+}
+
+// Reinit is init with the binding's own home and identity: what `daisy init
+// <identity>` in b.Workspace does, the home being the one .daisy/home names
+// rather than the one the identity's name resolves to now.
+func Reinit(o ops.Ops, m env.Env, b Binding, out, warn io.Writer) error {
+	if b.Identity != b.HomeName && !env.NameOK(b.Identity) {
+		return fmt.Errorf("Error: %s names '%s', which is not an identity name\n  Run 'daisy init <identity>' to rebind the workspace", filepath.Join(b.Workspace, ".daisy", identityFile), b.Identity)
+	}
+	return initAs(o, m, b.HomeName, b.Identity, b.Workspace, out, warn)
+}
+
+func initAs(o ops.Ops, m env.Env, homeName, name, target string, out, warn io.Writer) error {
+	p, err := planInit(o, m, homeName, name, target)
 	if err != nil {
 		return err
 	}
@@ -62,13 +80,9 @@ type initPlan struct {
 	cursorignoreChange bool
 }
 
-func planInit(o ops.Ops, m env.Env, name, target string) (*initPlan, error) {
+func planInit(o ops.Ops, m env.Env, homeName, name, target string) (*initPlan, error) {
 	fs := o.FS()
-	p := &initPlan{m: m, name: name, target: target, daisyDir: filepath.Join(target, ".daisy")}
-	var err error
-	if p.homeName, err = identity.HomeOf(o, m, name); err != nil {
-		return nil, err
-	}
+	p := &initPlan{m: m, homeName: homeName, name: name, target: target, daisyDir: filepath.Join(target, ".daisy")}
 	he, err := env.ForHome(o, p.homeName)
 	if err != nil {
 		return nil, err

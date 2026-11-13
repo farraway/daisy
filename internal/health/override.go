@@ -52,7 +52,7 @@ func (r *run) materialised() {
 		r.warn("The workspace's AGENTS.md cannot be rebuilt: %v", err)
 	case err != nil:
 	case on && string(builtLine.ReplaceAll(built, nil)) != string(builtLine.ReplaceAll(b.Text, nil)):
-		r.warn("%s is not what a build makes now (the root's prompts or the home's overrides changed since) — run 'daisy prompt build'", filepath.Join(ws, "AGENTS.md"))
+		r.warn("%s is not what a build makes now (the root's prompts or the home's overrides changed since) — run 'daisy init'", filepath.Join(ws, "AGENTS.md"))
 	case on:
 		have := map[string]bool{}
 		for _, rel := range prompt.MDFiles(r.fs, filepath.Join(ws, "prompts")) {
@@ -64,7 +64,7 @@ func (r *run) materialised() {
 			stale = stale || err != nil || string(got) != string(want)
 		}
 		if stale {
-			r.warn("%s is not the merge of the root's prompts and the home's overrides as they are now — run 'daisy prompt build'", filepath.Join(ws, "prompts"))
+			r.warn("%s is not the merge of the root's prompts and the home's overrides as they are now — run 'daisy init'", filepath.Join(ws, "prompts"))
 		}
 	}
 	r.skillOverrides()

@@ -168,6 +168,13 @@ so a refused `init` (an unknown identity, an unreadable settings file, a
 directory where `.daisy/` holds a file) writes nothing; a failure in the
 final step rolls the git config back and removes the stage. Other workspaces are unaffected; no environment variable changes.
 
+A bare `daisy init`, anywhere in the workspace, does the same with the
+binding's own home (`.daisy/home`) and identity (`.daisy/identity`, else
+the home's default): the identity is taken back and applied again, so its
+record and what the keys held before stay as they were, and everything
+else `init` writes is rebuilt from the root and the home as they are now.
+It is how a workspace takes up an update of the root.
+
 ## Health Check
 
 `daisy healthcheck` verifies, in order: `DAISY_ROOT` is set and valid (1);

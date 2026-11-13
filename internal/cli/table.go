@@ -40,7 +40,7 @@ type Command struct {
 // agreed groups and order, each command under the name it answers to, so
 // both always say what this binary does, and nothing it does not.
 var table = []Command{
-	{Group: "Workspace", Name: "init", Usage: "init <identity> [path]", Help: "Bind a workspace to an identity and its home", Min: 1, Max: 2, Run: commands.Init},
+	{Group: "Workspace", Name: "init", Usage: "init [<identity> [path]]", Help: "Bind a workspace to an identity and its home (bare: re-initialize this one)", Max: 2, Run: commands.Init},
 	{Group: "Workspace", Name: "clean", Usage: "clean [-f]", Help: "Remove Daisy from this workspace", Flags: []string{"-f", "--force"}, Run: commands.Clean},
 	{Group: "Workspace", Name: "status", Usage: "status", Help: "Home, identity, projects, today's counts, active plan", Workspace: true, Run: commands.Status},
 	{Group: "Workspace", Name: "files", Usage: "files", Help: "Resolved real paths for every home file", Workspace: true, Run: commands.Files},

@@ -372,19 +372,19 @@ func TestHealthcheckSaysAStaleMaterialisedPrompt(t *testing.T) {
 	if code, _, errs := l.run("prompt", "build"); code != 0 {
 		t.Fatal(errs)
 	}
-	if _, _, errs := l.run("healthcheck", "--force"); strings.Contains(errs, "run 'daisy prompt build'") {
+	if _, _, errs := l.run("healthcheck", "--force"); strings.Contains(errs, "run 'daisy init'\n") {
 		t.Errorf("warned when current: %s", errs)
 	}
 	writeFile(t, filepath.Join(l.root, "prompts", "plan.md"), planRoot+"2. upstream\n")
 	stale := func(what string) {
 		t.Helper()
-		if _, _, errs := l.run("healthcheck", "--force"); !strings.Contains(errs, "run 'daisy prompt build'") {
+		if _, _, errs := l.run("healthcheck", "--force"); !strings.Contains(errs, "run 'daisy init'\n") {
 			t.Errorf("%s: no stale warning: %s", what, errs)
 		}
 		if code, _, errs := l.run("prompt", "build"); code != 0 {
 			t.Fatal(errs)
 		}
-		if _, _, errs := l.run("healthcheck", "--force"); strings.Contains(errs, "run 'daisy prompt build'") {
+		if _, _, errs := l.run("healthcheck", "--force"); strings.Contains(errs, "run 'daisy init'\n") {
 			t.Errorf("%s: warned once rebuilt: %s", what, errs)
 		}
 	}

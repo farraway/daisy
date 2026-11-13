@@ -143,13 +143,16 @@ reference is `docs/plan.md`.
 **Homes and identities.** `daisy home new`, `daisy home add`, `daisy home
 list` and `daisy home remove` manage the registry; `daisy identity list`
 prints every identity on the machine and its home. `daisy init <identity>`
-binds the workspace you stand in; `daisy clean` unbinds it, putting the
+binds the workspace you stand in, and a bare `daisy init` re-initializes it
+with its own home and identity; `daisy clean` unbinds it, putting the
 git configuration back as it was. `daisy files` prints every home path the
 workspace resolves to.
 
 **Prompts and skills.** `daisy prompt build` rebuilds a home's generated
 `AGENTS.md` (or the bound workspace's `.daisy/AGENTS.md`) from
-`include.txt`; `daisy list` shows the active prompts and installed skills;
+`include.txt`; after the root is updated, a bare `daisy init` in the
+workspace rebuilds that and refreshes the skills, rules and settings.
+`daisy list` shows the active prompts and installed skills;
 `daisy help <skill>` prints a skill's description and rules. `daisy install` links
 `~/bin/daisy`, installs the root's skills into `~/.claude/skills/`, adds
 `DAISY_ROOT` to the shell rc file and grants Claude Code the permissions
@@ -405,6 +408,15 @@ home's tasks, journal, projects, plans and feedback, and the generated
 configuration, configures each supported agent tool and adds its own
 entries to `.gitignore`. Run it again to switch home or identity; `daisy
 clean` removes all of it and restores the git configuration.
+
+```bash
+daisy init
+```
+
+Bare, anywhere in a bound workspace, `init` re-initializes it with the
+home and identity it is bound to: run it after updating the root, so the
+workspace's `AGENTS.md`, skills, rules and settings are the root's as it
+is now. A workspace keeps what its last `init` wrote until then.
 
 | Tool | What `init` writes | How to address Daisy |
 |------|--------------------|----------------------|
