@@ -6,7 +6,8 @@ import (
 )
 
 // Read takes a file as a brief when its header, the lines before its
-// first `## ` heading, holds a Status: line, its value trimmed; a
+// first `## ` heading, holds a Status: line, its value trimmed, or the
+// bold **Status:** line Daisy's plan and project templates write; a
 // Status: line after the first milestone makes no brief (section 4).
 func TestRead(t *testing.T) {
 	for _, c := range []struct {
@@ -16,6 +17,9 @@ func TestRead(t *testing.T) {
 		{"# Roadmap\nStatus: active\nPriority: first.\n\n## M0\n", "active", true},
 		{"# Second\n\nStatus: done\n\n## M0\n", "done", true},
 		{"Status:   active  \n", "active", true},
+		{"# Roadmap — +app\n\n**Status:** active\n\n## M0\n", "active", true},
+		{"**Status:**done\n", "done", true},
+		{"**Status** active\n", "", false},
 		{"# Late\n\n## M0\n\nStatus: active\n", "", false},
 		{"# Notes\n", "", false},
 	} {

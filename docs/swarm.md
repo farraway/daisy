@@ -88,7 +88,17 @@ those passages leave open are marked *not established as of
 2026-11-13*; the budget reads as validated, not enforced, wherever it
 read as in force; items 18, 22, 61 and 86 are completed; and item 55 is
 no longer provisional (the maintainer confirmed it as built on
-2026-11-12).
+2026-11-12). Its Step 19 (2026-11-13) amended sections 4 and 7.4–7.7:
+a brief's `**Status:**` line is read as `Status:`; with one repository
+declared, a slice prefix naming no repository the swarm has a mirror
+of is the slice's text; the round r > 1 reviewer's diff takes the pull
+request's files whole and shows nothing when there are none; the round
+limit's note after the first says `again`; a worker's posted text
+loses a final CRLF whole; an abandoned worker run's failed fetch is
+retried as a worker run's is, and what it fetched is kept whatever
+follows; a run's copy of the notes that cannot be read is `notes
+kept`; and a mount point the product's tree holds as a file is the
+fault *clone failed* (item 119).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -694,6 +704,8 @@ the owner.
 (by convention the swarm repository's `briefs/`, section 2), read at the
 pass's commit, never a reference's, whose header, the lines
 before its first `## ` heading, holds a line `Status: <active|done|superseded>`
+(or `**Status:** <…>`, the bold form Daisy's plan and project templates
+write, read the same way, as a research note's header fields are, 7.3)
 and states, in words, the brief's priority among the briefs. Each `## `
 heading after the header is one milestone, and the milestone's text
 gives its persona, its exit criterion, observable without reading code,
@@ -2089,7 +2101,7 @@ with the same paragraph:
 | worker, `swarm:plan-1-accepted`, with a plan | `Implement slice <s> of the accepted plan for issue #<n> (it declares <S>) in <owner>/<name>, on the branch checked out in /work (swarm/<n>-<s>). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.` |
 | worker, `swarm:plan-1-accepted`, no plan (the fast lane) | `There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #<n>. Keep the change small; if it needs a plan, write "BLOCKED: needs a plan". Work on the branch checked out in /work (swarm/<n>-<s>) and write the pull request's description.` |
 | worker, `swarm:review-3-changes-requested` | `The newest entries of pull request <name>#<m>'s thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge <base>. Address each on the branch checked out in /work (swarm/<n>-<s>), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.` |
-| adversary or sympathetic, `swarm:review-0-ready` or `swarm:review-1-in-progress` | `Review pull request <name>#<m>, slice <s> of issue #<n>. The change is "git diff <base>...HEAD" in /work, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding. The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.` The adversary's adds: `For each test that slice <s>'s item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against <base>'s code: in /work, a throwaway clone, put everything the change touches except its tests back as <base> has it (check out <base>'s version of each path, deleting those <base> lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against <base>'s code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against <base> already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against <base> by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.` In round r > 1 it adds: `This is round <r>. First say, for each blocking finding of your review of <previous head>, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since in the files the pull request changes ("git diff <previous head>..HEAD -- $(git diff --name-only <base>...HEAD)"): what a merge of <base> brought in is not this pull request's change.` (`<base>...HEAD` names the files the branch itself changes, so a revision that merged `<base>` does not show the reviewer other slices' files; section 14, item 90), `<previous head>` being the commit of the role's newest review on this pull request but those of the head since the worker's newest answer without a commit (section 6); when that commit is the head itself, the worker having answered `NO CHANGE:`, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.` |
+| adversary or sympathetic, `swarm:review-0-ready` or `swarm:review-1-in-progress` | `Review pull request <name>#<m>, slice <s> of issue #<n>. The change is "git diff <base>...HEAD" in /work, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding. The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.` The adversary's adds: `For each test that slice <s>'s item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against <base>'s code: in /work, a throwaway clone, put everything the change touches except its tests back as <base> has it (check out <base>'s version of each path, deleting those <base> lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against <base>'s code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against <base> already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against <base> by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.` In round r > 1 it adds: `This is round <r>. First say, for each blocking finding of your review of <previous head>, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since <previous head> in the files the pull request changes ("git diff --name-only -z <base>...HEAD \| xargs -0 -r git diff <previous head>..HEAD --"): what a merge of <base> brought in is not this pull request's change.` (`<base>...HEAD` names the files the branch itself changes, so a revision that merged `<base>` does not show the reviewer other slices' files; `-z` and `xargs -0` pass each name whole, a space in it among them, and `-r` runs no diff when the branch changes no file, rather than one of the whole range; section 14, items 90 and 119), `<previous head>` being the commit of the role's newest review on this pull request but those of the head since the worker's newest answer without a commit (section 6); when that commit is the head itself, the worker having answered `NO CHANGE:`, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.` |
 
 The plan's **Acceptance**, wherever this document names it, is its
 `## Test Plan`: the numbered claims the worker reports on and the
@@ -2176,8 +2188,13 @@ on over indented lines and a fenced diagram, which no rule reads); a plan
 with none, or no plan, has one slice. A slice's repository is the `<name>` of its line's
 `^[0-9]+\. ([A-Za-z0-9_][A-Za-z0-9_.-]*): `, which must be a declared
 repository's. With one repository declared, a line naming none is in it,
-as is the one slice of a plan without slice lines; with more than one,
-either is *bad slices*. No plan (the fast lane) is one slice in the first
+and so is a line whose `<name>` names no repository the swarm has a
+mirror of in `<state>/git` (`1. Parser: read the header`: the prefix is
+the slice's own text), as is the one slice of a plan without slice
+lines; with more than one, each of these is *bad slices*, and so, with
+any number, is a `<name>` with a mirror that is no longer declared (a
+repository removed from `repos` since the plan, whose slices no longer
+resolve). No plan (the fast lane) is one slice in the first
 repository.
 
 ### 7.6 Collecting a run
@@ -2238,15 +2255,25 @@ ran, whatever its end:
    check's look at it (a lock a git process released) leads nowhere and
    is skipped; `.git` itself gone is the failure. Then
    `git -C <state>/git fetch --no-tags <run>/work '+refs/heads/swarm/<n>-<s>:refs/swarm-runs/<n>-worker-<k>'`
-   (`fetched <sha>`). A fetch that fails is recorded, `fetch failed:
-   <error>` (git's message on one line, the state directory written
-   `<state>`, and `git's message withheld: it holds a secret the member
+   (`fetched <sha>`), unless the clone's `.git` holds no ref
+   `refs/heads/swarm/<n>-<s>`, loose or in `packed-refs` (a `.git`
+   holding `reftable` is not read so: the fetch tells), which fails
+   as `the clone has no branch swarm/<n>-<s>` with no git run. A
+   fetch that fails is recorded, `fetch failed: <error>` (git's message
+   on one line, the state directory written `<state>`, and `git's message withheld: it holds a secret the member
    was given` in its place when it holds one: git may quote the clone's
    own text), and is the pass's error, the collection retried at the
    next pass; the second failed fetch in a row for the run is the
    failure *fetch failed* (7.7), even after a fault, so its issue is
    blocked with the note naming the error and the run is collected, not
-   retried for good. A fetched commit equal to `start` is the failure
+   retried for good. An abandoned run's fetch (7.7) is retried the same
+   way, the first failure recorded and the pass's error, but its
+   second in a row keeps nothing rather than failing the work (an
+   abandoned run is no failure); a clone that reaches outside itself
+   or has no branch keeps nothing at once, no retry bringing either
+   back. What was fetched is kept whatever follows: an error past the
+   fetch (the trailer's log, The trailer below) is the pass's, the
+   commits already kept. A fetched commit equal to `start` is the failure
    *no commits* on a run that otherwise succeeded, but for the answer
    without a commit (7.5): a worker's on `review-3-changes-requested`
    whose output's first line begins `NO CHANGE:`, whose marked text is
@@ -2329,7 +2356,11 @@ deleted), `git add --all`; nothing staged is `notes unchanged`. A
 `notes` that is not a directory at `<sha>` (the maintainer's
 link or file) is neither replaced nor followed: `notes kept: notes/ is
 not a directory`, nothing committed, or `notes unchanged` when the run's
-copy, which began empty (7.1, step 2), holds no file. A `notes/` that
+copy, which began empty (7.1, step 2), holds no file. A run's copy that
+cannot be read where the step reads it (a directory or a file in it the
+member closed) is `notes kept: the run's copy cannot be read`, nothing
+committed, rather than an error that would fail the collection at each
+pass. A `notes/` that
 is a directory at `<sha>` but a link on the head fetched below is never
 written through: the pick conflicts and the run's commit goes to its
 own branch, as below. Each
@@ -2364,9 +2395,10 @@ swarm/notes-<n>-<role>-<k>` and `⚠ #<n> <role> run <k>: notes not pushed (<rea
 <run>/notes`.
 
 The worker's posted text is its marked text, its trailing line breaks
-dropped and cut to leave room for the block (7.5), then one blank line
-and the check block: `**Check:**`, the check's argv and the short head, `exit
-<code>` or `timeout after <timeout>`, and the last 20 lines of
+(`\n` and `\r`, so a CRLF end goes whole) dropped and cut to leave
+room for the block (7.5), then one blank line and the check block:
+`**Check:**`, the check's argv and the short head, `exit <code>`
+or `timeout after <timeout>`, and the last 20 lines of
 `<run>/check.out` in a fenced block (or `**Check:** none declared.`); as
 built, ``**Check:** `<check>` on <short sha>: exit <code>``, a blank
 line, and the fenced tail.
@@ -2402,10 +2434,13 @@ swarm:<label>). Answer, then remove swarm:blocked to resume.`, `Review
 round <r> of <max_rounds> on <name>#<m> requested changes (was
 swarm:review-1-in-progress). The architect revises the plan from the
 reviews.` the first time a pull request reaches the limit, `Review round
-<r> of <max_rounds> on <name>#<m> requested changes a second time (at
+<r> of <max_rounds> on <name>#<m> requested changes again (at
 swarm:review-1-in-progress). Relabel the issue
 swarm:review-3-changes-requested for one more fix round or
-swarm:plan-0-posted to re-plan, then remove swarm:blocked.` the second,
+swarm:plan-0-posted to re-plan, then remove swarm:blocked.` the second
+and each later time (a note posted before Step 19 of the plan that
+clears the Deferred list says `a second time` in place of `again`, and
+is read as this one),
 or the refused merge's (section 12). `<label>` is the run's home, where
 T22 leaves it. When the maintainer moved the issue during the run off
 the run's stage and its home (the round limit's second time: off the
@@ -2510,7 +2545,7 @@ relabel and what it names.
 | Docker's own exit | fault | the exit status of `docker run` is 125–127 (a missing image, a command that cannot run) | `exited <code> <time>`, `fault: exit <code>` | T22 only |
 | prompt refused | fault | 7.1 step 2: a prompt file read back differs from what was rendered, or a heading field is empty; or, for the architect and the worker, the installed root's praxis or testing skill cannot be read (7.3) | `launch-failed <time>`, `fault: prompt: <file>: <differs\|empty field>`, or `fault: prompt: system.md: <the read's error>` | none, as a launch that fails |
 | resource refused | fault | 7.1 step 3: a `resources` entry or a reference's path, read at the pass's commit, fails section 3's checks there (a path removed in the pushed head, say, or a pin the fetch did not bring) | `launch-failed <time>`, `fault: swarm.json: resources[<i>]: <problem>` | none, as a launch that fails |
-| clone failed | fault | 7.1 step 3: the clone from the mirror, the worker's `checkout -b` or a step of the clone's preparation fails (a branch gone from the mirror, say) | `launch-failed <time>`, `fault: clone: <git's error>` | none, as a launch that fails |
+| clone failed | fault | 7.1 step 3: the clone from the mirror, the worker's `checkout -b` or a step of the clone's preparation fails (a branch gone from the mirror, say, or a mount point, `<run>/work/.swarm`, `.notes` or `.resources`, that the product's own tree holds as a file) | `launch-failed <time>`, `fault: clone: <git's error>` (a mount point's: `fault: clone: mkdir <path>: <error>`) | none, as a launch that fails |
 | slot refused | fault | 7.1 step 4: `<slot>/auth.json` is not a regular file, or the slot has no login (absent or empty) | `launch-failed <time>`, `fault: slot <provider>/<j>: auth.json is not a regular file` or `fault: slot <provider>/<j>: no login; run '<login>'` (section 3, Secret values: `CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, `GROK_HOME=<slot> grok login --device-auth`) | none, as a launch that fails |
 | provider authentication or quota | fault | `Report.Fault` (section 9): `claude`'s JSON result with `is_error` true, or an error event in `codex`'s stream, whose message names authentication, a quota or a rate limit. The fields and messages are *to confirm at Step 28*: Step 39 met no such error (checklist item 2) | `exited <code> <time>`, `fault: provider: <message>` | T22 only |
 | the wait fails | fault | waiting on a started container returns an error | `exited -1 <time>`, `fault: wait: <error>` (a check's: `fault: check: wait: <error>`) | T22 only |
@@ -2526,7 +2561,7 @@ relabel and what it names.
 | push rejected (worker) | work | 7.6 | `failed: push rejected` | T17 |
 | the clone reaches outside itself (worker) | work | 7.6 | `failed: the clone reaches outside itself: <what>` | T17 |
 | fetch failed (worker) | work | 7.6, step 1: the run's second failed fetch in a row from its clone, whatever the run's end (a fault too); the first is the pass's error, retried | `fetch failed: <error>` for each, then `failed: fetch: <error>` (the second's), unless the run failed already | T17, the note naming the error; a run that failed already names its own failure, then `Its commits could not be fetched from its clone: <error>.` |
-| abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/exit` that is a regular file holding a number (7.2), whatever `out.md` holds: an empty or partial `out.md` of a member killed mid-run is never read; a run launched before the mark (its `argv` without the `sh -c` line) by no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`; for a worker, 7.6 steps 1 and 2 (`fetched <sha>`, and `kept refs/swarm-runs/<n>-worker-<k>` when it has commits; a clone that cannot be fetched, one that reaches outside itself or holds no branch, keeps nothing, with `⚠ #<n> worker run <k>: abandoned; commits not kept (<reason>)` on stderr, and the run is collected); then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 |
+| abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/exit` that is a regular file holding a number (7.2), whatever `out.md` holds: an empty or partial `out.md` of a member killed mid-run is never read; a run launched before the mark (its `argv` without the `sh -c` line) by no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`; for a worker, 7.6 steps 1 and 2 (`fetched <sha>`, and `kept refs/swarm-runs/<n>-worker-<k>` when it has commits; a fetch that fails with git's error is recorded, `fetch failed: <error>`, and is the pass's error, retried at the next pass as a worker run's is; a clone that reaches outside itself or holds no branch, or a second failed fetch in a row, keeps nothing, with `⚠ #<n> worker run <k>: abandoned; commits not kept (<reason>)` on stderr, and the run is collected); then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 |
 | ended | — | a pass finds a run not its own with `started`, no end line, no container by the run's name and a `<run>/io/exit` that is a regular file holding a number (a run launched before the mark: a `<run>/io/out.md` that is a regular file): its member finished after the `apply` that started it died, whose `docker run` took the streams with it | `ended <time>`, with the status `exit` holds read as `docker run`'s (125–127 `fault: exit <code>`, any other non-zero `failed: exit <code>`), then the collection of 7.6 from `out.md`: no `cost` line, and a provider's fault the lost standard output reported is not seen | as the run's collection (posted, blocked, failed, stale or discarded) |
 | orphan over time | — | a pass finds a container by the run's name, the run not its own, `started` more than `timeout` ago | `docker stop --time 30 <name>` sent; then abandoned as above, whatever `out.md` holds | as abandoned |
 | orphan check over time | — | a pass finds a container named `daisy-swarm.<owner>.<repo>.<n>.check.<k>`, the run not its own, its `check started` more than `timeout` ago | `docker stop --time 30 <name>` sent; `check timeout <time>`; the collection then proceeds as after any check (7.6) | as the run's collection |
@@ -7151,3 +7186,54 @@ entries among revision 1's, and was renumbered at Step 38.
     `TestSwarmInitRecordsTheWorkspacesHome`, `TestQueueHoldsARunOnce`,
     `TestAppendUnderTheLockLosesNoRow`, `TestLockGivesUpNamingTheHolder`,
     `TestEstimate` and `TestReport`.
+119. **Reconcile's loose ends (Step 19 of the plan that clears the
+    Deferred list, 2026-11-13).** **A bold `Status:`** (section 4): the
+    maintainer decided (2026-11-12) that the brief reader takes
+    `**Status:** <…>`, the form Daisy's own plan and project templates
+    write, rather than leave such a file silently a resource;
+    `brief.Field` reads either form of any header field, so a research
+    note's fields too. **A slice prefix with one repository** (7.5): the
+    architect may begin a slice with its subject (`1. Parser: …`); with
+    one repository declared there is nothing to choose, so a prefix
+    naming no repository is read as the slice's text; with more it
+    stays *bad slices*, a slice there having to name its repository. A
+    name alone cannot tell `Parser` from a repository removed from
+    `repos` since the plan (`1. lib: …`), whose slices must stay *bad
+    slices* (item 65), so a name the swarm holds a mirror of in
+    `<state>/git` (every repository declared since it began, and the
+    swarm repository) is never read as text. **The round's diff** (7.4): `$(git diff --name-only …)`
+    split a name with a space and, empty, diffed the whole range; the
+    names now go through `-z` and `xargs -0 -r`. **The round limit's
+    later notes** (7.6): the note said `a second time` at the third limit
+    too; it now says `again`, which counts no time, and the old words are
+    still read, since notes on the forge carry them. **A CRLF end** (7.6):
+    a worker's text ending `\r\n` kept a `\r` before the check block.
+    **An abandoned run's fetch** (7.6, 7.7): the maintainer decided
+    (2026-11-12) that a fetch failing with git's error is retried as a
+    worker run's is, the first failure the pass's error and the second in
+    a row keeping nothing, since a transient failure lost the commits for
+    good; a clone that reaches outside itself, or has no branch, gives up
+    at once. To tell no branch from git's (localized) message, the
+    collection reads the clone's `.git` for the ref, loose or packed,
+    before the fetch, as the check before it reads `.git`; a `.git` in
+    git's reftable format is left to the fetch. A fetch that succeeded
+    keeps its commits even when the trailer's log after it fails (the
+    log's error is the pass's), where before the commits were dropped.
+    **An unreadable copy of the notes** (7.6, The notes): a directory the
+    member closed failed the collection at every pass; it is now `notes
+    kept`, whether `notes/` is a directory or not. **A mount point** (7.1,
+    7.7): a product repository tracking `.swarm`, `.notes` or
+    `.resources` as a file left a run directory with no `started` line
+    and the pass's error at every pass; it is now the fault *clone
+    failed*, so two in a row pause the swarm with the reason. Tests:
+    `TestSwarmApplyRoundLimit` (the limit a third time, `again`),
+    `TestAtTheRoundLimit` (both words), `TestRoundDiffLeavesOutABaseMerge`
+    (a name with a space; no file changed), `TestSliceRepos`,
+    `TestSwarmApplyBadSlices` (one repository: a prefix naming no
+    repository; a repository removed since the plan),
+    `TestSwarmWorkerPostTakesOffACRLFEnd`,
+    `TestSwarmAbandonedWorkerFetchRetried`,
+    `TestSwarmAbandonedWorkerKeepsWhatItFetched`,
+    `TestSwarmAbandonedWorkerWithoutItsBranch`, `TestFetchRunFindsTheBranch`,
+    `TestSwarmApplyOwnNotesUnreadable`, `TestSwarmApplyMountPointRefused`
+    and `TestRead`.

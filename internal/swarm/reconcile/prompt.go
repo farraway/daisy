@@ -30,6 +30,7 @@ type Job struct {
 
 	Issue forge.Issue  // with its comments
 	Pulls []forge.Pull // Pulls(n), by slice
+	Known []string     // the repositories the swarm holds a mirror of (SliceRepos)
 	Pull  *PullThread  // the current pull request's thread, when it is open
 	Check string       // the # Check section's text for the current head
 	Batch *Batch       // the owner's batch
@@ -224,7 +225,7 @@ func (j *Job) WorkerSlice() (s int, repo string, bad []int) {
 	if cur, open := j.current(); open {
 		s = sliceOf(cur, j.N)
 		if e, _, ok := j.Plan(); ok {
-			if repos, _ := SliceRepos(swarmText(e.Body), names); s <= len(repos) && repos[s-1] != cur.Repo {
+			if repos, _ := SliceRepos(swarmText(e.Body), names, j.Known); s <= len(repos) && repos[s-1] != cur.Repo {
 				return s, cur.Repo, []int{s}
 			}
 		}
@@ -238,7 +239,7 @@ func (j *Job) WorkerSlice() (s int, repo string, bad []int) {
 	if !ok {
 		return s, names[0], nil
 	}
-	repos, bad := SliceRepos(swarmText(e.Body), names)
+	repos, bad := SliceRepos(swarmText(e.Body), names, j.Known)
 	if len(bad) > 0 {
 		return s, "", bad
 	}

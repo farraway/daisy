@@ -131,9 +131,10 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	work := filepath.Join(r.Dir, "work")
 	var startLines, reads []string
 	workdir, image := Workdir(s.Cfg, j.Role), repo.Image
-	// A clone that fails is a swarm fault recorded as a launch's (section
-	// 7.7), collected at once, so the pair's second reviewer's issue goes
-	// home.
+	// A clone that fails, or a step of its preparation (a mount point the
+	// product's own tree holds as a file, say), is a swarm fault recorded
+	// as a launch's (section 7.7), collected at once, so the pair's second
+	// reviewer's issue goes home.
 	cloneFailed := func(err error) (bool, error) {
 		return failed("launch-failed "+ended(), "fault: clone: "+err.Error())
 	}
@@ -180,14 +181,14 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 	}
 	if err := fs.MkdirAll(filepath.Join(work, ".swarm"), 0o755); err != nil {
-		return false, err
+		return cloneFailed(err)
 	}
 
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
 	mounts := []runner.Mount{{Src: work, Dst: "/work"}, {Src: ioDir, Dst: "/work/.swarm"}}
 	if s.Cfg.Notes {
 		if err := fs.MkdirAll(filepath.Join(work, ".notes"), 0o755); err != nil {
-			return false, err
+			return cloneFailed(err)
 		}
 		mounts = append(mounts, runner.Mount{Src: notesDir, Dst: NotesMount, ReadOnly: !writesNotes(j.Role)})
 		if workdir != "/work" {
@@ -199,7 +200,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		// One read-only mount of the run's checkout, its mount point made
 		// in the run's own tree, as /work/.notes is.
 		if err := fs.MkdirAll(filepath.Join(work, ".resources"), 0o755); err != nil {
-			return false, err
+			return cloneFailed(err)
 		}
 		mounts = append(mounts, runner.Mount{Src: resDir, Dst: ResourcesMount, ReadOnly: true})
 		reads = append(reads, ResourcesMount)

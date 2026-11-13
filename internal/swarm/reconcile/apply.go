@@ -503,7 +503,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			if err != nil {
 				return err
 			}
-			j := &Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, N: n, Label: label, Time: s.O.Now(), Issue: is, Pulls: pulls}
+			j := &Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, N: n, Label: label, Time: s.O.Now(), Issue: is, Pulls: pulls, Known: s.mirrors()}
 			cur, open := j.current()
 			if open {
 				if err := s.copyLabel(n, cur, label); err != nil {

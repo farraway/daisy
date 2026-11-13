@@ -103,7 +103,8 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 }
 
 // Bad slices (section 7.5) with two repositories, and what one repository
-// allows.
+// allows: a slice naming none, or with a prefix naming no repository the
+// swarm has a mirror of, but not one removed from repos since the plan.
 func TestSwarmApplyBadSlices(t *testing.T) {
 	for _, tc := range []struct {
 		name, plan string
@@ -117,6 +118,7 @@ func TestSwarmApplyBadSlices(t *testing.T) {
 		{name: "a slice's repository removed", plan: "## Steps\n\n1. lib: x.\n", removeLib: true, bad: "1"},
 		{name: "one repository: a slice naming none", plan: "## Steps\n\n1. x.\n", one: true},
 		{name: "one repository: no slice lines", plan: "## Research\n\nx\n", one: true},
+		{name: "one repository: a prefix naming no repository", plan: "## Steps\n\n1. Parser: read the header.\n", one: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newApplyWS(t)

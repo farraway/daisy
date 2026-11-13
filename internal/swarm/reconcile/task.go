@@ -85,7 +85,7 @@ func (j *Job) task() string {
 		case r > 1 && prev == cur.HeadSHA:
 			add(`This is round %d, on the head you reviewed before (%s): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.`, r, prev)
 		case r > 1:
-			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since in the files the pull request changes ("git diff %s..HEAD -- $(git diff --name-only %s...HEAD)"): what a merge of %s brought in is not this pull request's change.`, r, prev, prev, j.Cfg.Base, j.Cfg.Base)
+			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since %s in the files the pull request changes ("git diff --name-only -z %s...HEAD | xargs -0 -r git diff %s..HEAD --"): what a merge of %s brought in is not this pull request's change.`, r, prev, prev, j.Cfg.Base, prev, j.Cfg.Base)
 		}
 	}
 	if j.Cfg.Notes && writesNotes(j.Role) {

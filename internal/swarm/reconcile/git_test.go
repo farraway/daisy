@@ -287,6 +287,52 @@ func TestFetchRunRefusesAForeignClone(t *testing.T) {
 	}
 }
 
+// The run's branch in the member's clone, as git keeps it: a loose ref or
+// a packed one is fetched; none, after the member deleted it, is
+// ErrNoBranch, git not run (section 7.6, step 1; 7.7, abandoned).
+func TestFetchRunFindsTheBranch(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	o := ops.Real()
+	git := func(dir string, args ...string) {
+		t.Helper()
+		if _, errb, err := o.Exec(dir, "git", args...); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+	}
+	ws, up := productIn(t)
+	git(up, "init", "-q", "-b", "main")
+	git(up, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "first")
+	g := Git{O: o, WS: ws, State: t.TempDir()}
+	if err := g.Fetch(declare.Repo{Name: "app", Repo: "acme/app"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name  string
+		after func(work string)
+		none  bool
+	}{
+		{"loose", func(string) {}, false},
+		{"packed", func(work string) { git(work, "pack-refs", "--all") }, false},
+		{"deleted", func(work string) {
+			git(work, "checkout", "-q", "--detach")
+			git(work, "branch", "-q", "-D", "swarm/1-1")
+		}, true},
+	} {
+		work := filepath.Join(t.TempDir(), "work")
+		if _, err := g.Clone(declare.Repo{Name: "app", Repo: "acme/app"}, "main", "main", work, "worker", "swarm@example.net", "c <c@example.net>"); err != nil {
+			t.Fatal(err)
+		}
+		git(work, "checkout", "-q", "-b", "swarm/1-1")
+		git(work, "commit", "-q", "--allow-empty", "-m", "Work")
+		tc.after(work)
+		sha, err := g.FetchRun("app", work, "swarm/1-1", "refs/swarm-runs/1-worker-1")
+		if tc.none && (!errors.Is(err, ErrNoBranch) || err.Error() != "the clone has no branch swarm/1-1") || !tc.none && (err != nil || sha == "") {
+			t.Errorf("%s: %q %v", tc.name, sha, err)
+		}
+	}
+}
+
 // A path in a member's .git gone between the walk's listing and its look
 // at it is no way out of the clone (section 7.6, step 1): a lock a git
 // process releases, as the detached `git maintenance run --auto` a commit
@@ -402,8 +448,10 @@ func (r racingOps) FS() ops.FS { return r.fs }
 
 // The round r > 1 Task text's diff, run as written in a reviewer's clone
 // (section 7.4): after the worker merged base, it shows the worker's
-// change since the previous head and leaves out what the merge brought
-// in, a file the branch does not change and one base added.
+// change since the previous head, a file whose name holds a space among
+// it, and leaves out what the merge brought in, a file the branch does
+// not change and one base added; when the branch no longer changes any
+// file, it shows nothing, never the whole range.
 func TestRoundDiffLeavesOutABaseMerge(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
@@ -433,7 +481,7 @@ func TestRoundDiffLeavesOutABaseMerge(t *testing.T) {
 	commit(map[string]string{"x.go": "x2\n", "y.go": "y\n"}, "another slice merged")
 	run("git", "checkout", "-q", "swarm/1-1")
 	run("git", "-c", "user.name=T", "-c", "user.email=t@example.net", "merge", "-q", "--no-edit", "main")
-	commit(map[string]string{"a.go": "a3\n"}, "the revision")
+	commit(map[string]string{"a.go": "a3\n", "s p.go": "s\n"}, "the revision")
 
 	f, at, pr, _ := planned(t)
 	f.Push(pr, "bbb")
@@ -447,8 +495,13 @@ func TestRoundDiffLeavesOutABaseMerge(t *testing.T) {
 		t.Fatalf("no diff in the round 2 Task:\n%s", sys)
 	}
 	diff := run("sh", "-c", m[1])
-	if !strings.Contains(diff, "-a2\n+a3\n") || strings.Contains(diff, "x.go") || strings.Contains(diff, "y.go") {
+	if !strings.Contains(diff, "-a2\n+a3\n") || !strings.Contains(diff, "+++ b/s p.go") || strings.Contains(diff, "x.go") || strings.Contains(diff, "y.go") {
 		t.Errorf("%s:\n%s", m[1], diff)
+	}
+	run("git", "rm", "-q", "s p.go")
+	commit(map[string]string{"a.go": "a1\n"}, "the change undone")
+	if diff := run("sh", "-c", m[1]); diff != "" {
+		t.Errorf("%s with no file changed:\n%s", m[1], diff)
 	}
 }
 

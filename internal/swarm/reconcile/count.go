@@ -69,9 +69,11 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 	return c
 }
 
-// roundLimitNote is the round limit's second note, from its start: the
-// words alone could be a member's path quoted in a failure's note.
-var roundLimitNote = regexp.MustCompile(`^Review round [0-9]+ of [0-9]+ on \S+ ` + roundLimitAgain + ` \(at ` + forge.ReviewInProgress + `\)\.`)
+// roundLimitNote is the round limit's note after the first, from its
+// start: the words alone could be a member's path quoted in a failure's
+// note. A note posted before Step 19 of the plan that clears the Deferred
+// list says "a second time" in place of "again".
+var roundLimitNote = regexp.MustCompile(`^Review round [0-9]+ of [0-9]+ on \S+ (?:` + roundLimitAgain + `|requested changes a second time) \(at ` + forge.ReviewInProgress + `\)\.`)
 
 // blocks: the swarm's entry marked m, with body, is a reconciler note that
 // blocked its issue: every note but the round limit's first, which
@@ -98,9 +100,9 @@ func blockingNote(is forge.Issue, swarmLogin string) (e Entry, ok bool) {
 }
 
 // AtTheRoundLimit: the newest of the reconciler's notes that blocked is
-// (blockingNote) is the round limit's second, which leaves the issue at
-// review-1-in-progress, where no role runs, both reviewers having
-// reviewed the head (section 6).
+// (blockingNote) is a round limit's note after the first, which leaves
+// the issue at review-1-in-progress, where no role runs, both reviewers
+// having reviewed the head (section 6).
 func AtTheRoundLimit(is forge.Issue, swarmLogin string) bool {
 	e, ok := blockingNote(is, swarmLogin)
 	return ok && roundLimitNote.MatchString(swarmText(e.Body))

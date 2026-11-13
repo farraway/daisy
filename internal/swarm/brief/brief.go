@@ -1,7 +1,8 @@
 // Package brief reads a brief, a Markdown file under a swarm's resources
 // (docs/swarm.md section 4, The brief) whose header, the lines before the
-// first `## ` heading outside a fenced block, holds a `Status:` line. Field
-// reads such a header's lines, a research note's among them (section 7.3).
+// first `## ` heading outside a fenced block, holds a `Status:` line
+// (`**Status:**` too). Field reads such a header's lines, a research
+// note's among them (section 7.3).
 package brief
 
 import (
@@ -31,17 +32,21 @@ func statusOf(text string) (string, bool) {
 	return Field(text, "Status")
 }
 
-// Field is the value of the header's first `<name>:` line, trimmed: the
-// header is the lines before the first `## ` heading, and a line inside a
-// fenced block is neither (section 4; a research note's header is read by
-// the same rule, section 7.3).
+// Field is the value of the header's first `<name>:` line, or
+// `**<name>:**` line (the bold form Daisy's plan and project templates
+// write), trimmed: the header is the lines before the first `## `
+// heading, and a line inside a fenced block is neither (section 4; a
+// research note's header is read by the same rule, section 7.3).
 func Field(text, name string) (string, bool) {
 	for line := range unfenced(text) {
 		if isHeading(line) {
 			break
 		}
-		if v, ok := strings.CutPrefix(strings.TrimSpace(line), name+":"); ok {
-			return strings.TrimSpace(v), true
+		line = strings.TrimSpace(line)
+		for _, prefix := range []string{name + ":", "**" + name + ":**"} {
+			if v, ok := strings.CutPrefix(line, prefix); ok {
+				return strings.TrimSpace(v), true
+			}
 		}
 	}
 	return "", false

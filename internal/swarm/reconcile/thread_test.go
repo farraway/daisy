@@ -161,14 +161,21 @@ func TestIssueBodyInThePromptByItsOpener(t *testing.T) {
 	}
 }
 
-// The round limit's second note is told by its start, never by its words
-// inside another note's quoted text (a member's path).
+// The round limit's later note is told by its start, never by its words
+// inside another note's quoted text (a member's path); a note posted
+// before Step 19 of the plan that clears the Deferred list says "a
+// second time" where the note now says "again" (section 7.6).
 func TestAtTheRoundLimit(t *testing.T) {
 	note := func(text string) forge.Issue {
 		return forge.Issue{Author: "jane", Body: "job", Comments: []forge.Comment{{Author: "swarm-bot", Body: marker("reconciler", 1) + text, Created: time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)}}}
 	}
-	if !AtTheRoundLimit(note("Review round 3 of 3 on app#2 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked."), "swarm-bot") {
-		t.Error("the second note is not the round limit's")
+	for _, words := range []string{"again", "a second time"} {
+		if !AtTheRoundLimit(note("Review round 3 of 3 on app#2 requested changes "+words+" (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked."), "swarm-bot") {
+			t.Errorf("the note saying %q is not the round limit's", words)
+		}
+	}
+	if AtTheRoundLimit(note("Review round 3 of 3 on app#2 requested changes once more (at swarm:review-1-in-progress)."), "swarm-bot") {
+		t.Error("other words made a note the round limit's")
 	}
 	if AtTheRoundLimit(note("worker run 1 failed: protected path changed: .gitea/requested changes a second time (at swarm:plan-1-accepted). Remove swarm:blocked to resume."), "swarm-bot") {
 		t.Error("a member's path made a failure the round limit's")

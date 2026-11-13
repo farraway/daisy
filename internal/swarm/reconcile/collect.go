@@ -142,7 +142,7 @@ func (s *Swarm) collect(r Run) error {
 			}
 		}
 	case "architect":
-		if _, bad := SliceRepos(string(out), repoNames(s)); len(bad) > 0 {
+		if _, bad := SliceRepos(string(out), repoNames(s), s.mirrors()); len(bad) > 0 {
 			return c.fail("bad slices: " + numbers(bad))
 		}
 		if err := c.comment(r.Role, text); err != nil {
@@ -351,12 +351,7 @@ func (c *collection) restore() error {
 // and 2), the issue restored, the run collected, its clone removed.
 func (c *collection) abandoned() error {
 	if c.r.Role == "worker" {
-		// A clone that cannot be fetched (it reaches outside itself, or
-		// the member killed mid-run left no branch) keeps nothing, with
-		// the warning, so the run is still collected.
-		if err := c.fetchRef(); err != nil {
-			fmt.Fprintf(c.s.Err, "⚠ #%d worker run %d: abandoned; commits not kept (%s)\n", c.r.N, c.r.K, oneLine.Replace(err.Error()))
-		} else if err := c.keep(); err != nil {
+		if err := c.abandonedFetch(); err != nil {
 			return err
 		}
 	}
@@ -373,6 +368,32 @@ func (c *collection) abandoned() error {
 		return err
 	}
 	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "resources")), c.dropNotes())
+}
+
+// abandonedFetch is an abandoned worker run's steps 1 and 2 (section 7.6):
+// what was fetched is kept, an error past the fetch (the trailer's log)
+// the pass's; a fetch that fails is retried as fetch retries it, the
+// first failure recorded and the pass's error. A clone that reaches
+// outside itself or holds no branch, or a second failure in a row, keeps
+// nothing, with the warning, so the run is still collected.
+func (c *collection) abandonedFetch() error {
+	err := c.fetchRef()
+	if _, fetched := Has(c.lines, "fetched"); fetched {
+		if kerr := c.keep(); kerr != nil {
+			return kerr
+		}
+		return err
+	}
+	if !errors.Is(err, ErrForeignClone) && !errors.Is(err, ErrNoBranch) {
+		if err := c.step("fetch failed: " + c.fetchReason(err)); err != nil {
+			return err
+		}
+		if len(fetchFailures(c.lines)) < 2 {
+			return err
+		}
+	}
+	fmt.Fprintf(c.s.Err, "⚠ #%d worker run %d: abandoned; commits not kept (%s)\n", c.r.N, c.r.K, oneLine.Replace(err.Error()))
+	return nil
 }
 
 // block is T17, swarm:blocked being a flag: the issue taken back home,
@@ -530,6 +551,17 @@ func (s *Swarm) secretsOf(r Run, lines []string) []string {
 }
 
 func repoName(repo string) string { _, r, _ := strings.Cut(repo, "/"); return r }
+
+// mirrors is the repositories <state>/git holds a mirror of: every one
+// declared since the swarm began, the swarm repository's among them.
+func (s *Swarm) mirrors() []string {
+	entries, _ := s.O.FS().ReadDir(filepath.Join(s.state(), "git"))
+	var out []string
+	for _, e := range entries {
+		out = append(out, e.Name())
+	}
+	return out
+}
 
 func repoNames(s *Swarm) []string {
 	var out []string

@@ -207,7 +207,7 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 	// One blank line between the text and the block, and the text cut
 	// so that the two together hold to maxPost (section 7.5).
 	sep := "\n\n"
-	posted := strings.TrimRight(postable(out, c.r, len(sep)+len(block)), "\n") + sep + block
+	posted := strings.TrimRight(postable(out, c.r, len(sep)+len(block)), "\r\n") + sep + block
 	if c.label == forge.ChangesRequested || pull != nil && pull.Open {
 		if err := c.onPull(*pull, posted); err != nil {
 			return err
@@ -342,8 +342,9 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 			strings.Contains(t, " on "+on+" requested changes") && cm.Body != own[0] && cm.Body != own[1]
 	}
 	if again {
-		// The second time, the stage stays and the issue is blocked: the
-		// maintainer's (G4); unless the maintainer moved it during the run.
+		// The second time and each after, the stage stays and the issue
+		// is blocked: the maintainer's (G4); unless the maintainer moved
+		// it during the run.
 		if now, moved, err := c.movedAway(false); err != nil {
 			return err
 		} else if moved {
@@ -374,10 +375,10 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 // reconciler note that does not block the issue.
 const architectRevises = "The architect revises the plan from the reviews."
 
-// roundLimitAgain is the round limit's second note's words: the reviewers
-// have both reviewed the head, so review-1-in-progress runs no one
-// (section 6).
-const roundLimitAgain = "requested changes a second time"
+// roundLimitAgain is the words of the round limit's note each time after
+// the first, which counts no time: the reviewers have both reviewed the
+// head, so review-1-in-progress runs no one (section 6).
+const roundLimitAgain = "requested changes again"
 
 // Rounds is a pull request's review rounds (section 6): the heads with a
 // review marked role=adversary and one marked role=sympathetic, a head

@@ -270,10 +270,15 @@ func (g Git) Branch(dir, branch string) error {
 
 // FetchRun fetches a worker run's branch from its clone into the mirror as
 // ref, and returns the fetched commit (section 7.6, step 1): the only git
-// command that reads the member's clone.
+// command that reads the member's clone. A clone that plainly holds no
+// branch is ErrNoBranch, nothing run.
 func (g Git) FetchRun(name, work, branch, ref string) (string, error) {
-	if err := selfContained(g.O.FS(), filepath.Join(work, ".git")); err != nil {
+	dotgit := filepath.Join(work, ".git")
+	if err := selfContained(g.O.FS(), dotgit); err != nil {
 		return "", err
+	}
+	if noBranch(g.O.FS(), dotgit, branch) {
+		return "", fmt.Errorf("%w %s", ErrNoBranch, branch)
 	}
 	m := g.Mirror(name)
 	if _, err := g.run(m, "fetch", "--quiet", "--no-tags", work, "+refs/heads/"+branch+":"+ref); err != nil {
@@ -286,6 +291,32 @@ func (g Git) FetchRun(name, work, branch, ref string) (string, error) {
 // host git, reading it with the host's rights, would follow (section 8:
 // a member must not reach the host's state).
 var ErrForeignClone = errors.New("the clone reaches outside itself")
+
+// ErrNoBranch: a member's clone without the run's branch (a member
+// killed mid-run, say), which no retry of the fetch brings back.
+var ErrNoBranch = errors.New("the clone has no branch")
+
+// noBranch: the files of dotgit, a self-contained .git, hold no ref
+// refs/heads/<branch>, loose or packed; a clone whose refs are not files
+// (git's reftable) is never taken to lack it, the fetch telling.
+func noBranch(fs ops.FS, dotgit, branch string) bool {
+	if _, err := fs.Lstat(filepath.Join(dotgit, "reftable")); err == nil {
+		return false
+	}
+	if _, err := fs.Lstat(filepath.Join(dotgit, "refs", "heads", filepath.FromSlash(branch))); err == nil {
+		return false
+	}
+	packed, err := fs.ReadFile(filepath.Join(dotgit, "packed-refs"))
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return false
+	}
+	for _, line := range strings.Split(string(packed), "\n") {
+		if strings.HasSuffix(strings.TrimRight(line, "\r"), " refs/heads/"+branch) {
+			return false
+		}
+	}
+	return true
+}
 
 // selfContained: the member's .git is a directory of its own, with no
 // link anywhere in it (a ref or an objects directory led to a host

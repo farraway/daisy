@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -304,10 +305,11 @@ func (w NotesRepo) Export(dst string) (string, error) {
 // fetched now (a cherry-pick, never a rebase) and pushed to the branch,
 // `notes pushed <sha>`; a conflict with the head pushes the run's commit
 // to the branch conflict instead, `notes branch <conflict> <sha>`, and a
-// push the forge refuses is `notes kept: push rejected`. The host's clone
-// is made again when it is absent, and left at base after `notes kept`,
-// the run's pages out of its tree. Its result is that line; an error is
-// one that did not reach the forge, to retry.
+// push the forge refuses is `notes kept: push rejected`; a run's copy that
+// cannot be read is `notes kept: the run's copy cannot be read`. The
+// host's clone is made again when it is absent, and left at base after
+// `notes kept`, the run's pages out of its tree. Its result is that line;
+// an error is one that did not reach the forge, to retry.
 func (w NotesRepo) Publish(src, base, conflict, msg, name, email string, secrets []string) (string, error) {
 	if err := w.ensure(); err != nil {
 		return "", err
@@ -333,12 +335,17 @@ func (w NotesRepo) publish(src, base, conflict, msg, name, email string, secrets
 	if fi, err := fs.Lstat(w.notes()); err == nil && !fi.IsDir() {
 		// The maintainer's link or file, never replaced; the copy began
 		// empty (Export), so a file in it is one the run wrote.
-		if wrote, err := holdsFile(fs, src); err != nil || !wrote {
-			return "notes unchanged", err
+		switch wrote, err := holdsFile(fs, src); {
+		case err != nil:
+			return unreadableNotes, nil
+		case !wrote:
+			return "notes unchanged", nil
 		}
 		return "notes kept: notes/ is not a directory", nil
 	}
-	if err := copyTree(fs, src, w.notes()); err != nil {
+	if err := copyTree(fs, src, w.notes()); errors.Is(err, errUnreadable) {
+		return unreadableNotes, nil
+	} else if err != nil {
 		return "", err
 	}
 	if _, err := w.run(w.Dir(), "add", "--all"); err != nil {
@@ -417,12 +424,22 @@ func (w NotesRepo) push(commit, branch, done string) (string, error) {
 	return "", err
 }
 
+// unreadableNotes is the notes step's line for a run's copy of the notes
+// that cannot be read (a directory or a file the member closed): kept for
+// the maintainer, as a refused push is, rather than failing the
+// collection at each pass.
+const unreadableNotes = "notes kept: the run's copy cannot be read"
+
+// errUnreadable is a file or directory of the tree copyTree copies from,
+// or holdsFile reads, that cannot be read.
+var errUnreadable = errors.New("cannot be read")
+
 // holdsFile: a regular file copyTree would copy lies in the tree under
 // dir.
 func holdsFile(fs ops.FS, dir string) (bool, error) {
 	entries, err := fs.ReadDir(dir)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%w: %w", errUnreadable, err)
 	}
 	for _, e := range entries {
 		if e.Name() == ".git" {
@@ -430,7 +447,7 @@ func holdsFile(fs ops.FS, dir string) (bool, error) {
 		}
 		fi, err := fs.Lstat(filepath.Join(dir, e.Name()))
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("%w: %w", errUnreadable, err)
 		}
 		if fi.Mode().IsRegular() {
 			return true, nil
@@ -447,7 +464,8 @@ func holdsFile(fs ops.FS, dir string) (bool, error) {
 // copyTree copies the regular files and directories under src into dst,
 // leaving out every name .git and anything else (a link, a device); a
 // file there is replaced, never written through, so a link the clone
-// holds leads no write outside dst.
+// holds leads no write outside dst. A read of src that fails is
+// errUnreadable.
 func copyTree(fs ops.FS, src, dst string) error {
 	if fi, err := fs.Lstat(dst); err == nil && !fi.IsDir() {
 		if err := fs.RemoveAll(dst); err != nil {
@@ -459,7 +477,7 @@ func copyTree(fs ops.FS, src, dst string) error {
 	}
 	entries, err := fs.ReadDir(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", errUnreadable, err)
 	}
 	for _, e := range entries {
 		if e.Name() == ".git" {
@@ -468,7 +486,7 @@ func copyTree(fs ops.FS, src, dst string) error {
 		from, to := filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())
 		fi, err := fs.Lstat(from)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %w", errUnreadable, err)
 		}
 		switch {
 		case fi.IsDir():
@@ -483,7 +501,7 @@ func copyTree(fs ops.FS, src, dst string) error {
 			}
 			data, err := fs.ReadFile(from)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %w", errUnreadable, err)
 			}
 			if err := fs.WriteFile(to, data, 0o644); err != nil {
 				return err

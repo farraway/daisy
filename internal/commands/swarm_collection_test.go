@@ -95,6 +95,74 @@ func TestSwarmAbandonedWorkerWithoutItsBranch(t *testing.T) {
 	}
 }
 
+// An abandoned worker run whose fetch fails with git's error (its clone's
+// .git left with no HEAD, which git reads as no repository) is retried as
+// a worker run's fetch is (section 7.6, step 1): the first failure is the
+// pass's error, recorded, the run left uncollected and its issue at its
+// in-progress stage; a fetch that then succeeds keeps the commits, and a
+// second failure in a row keeps nothing, with the warning, and the run is
+// collected (7.7, abandoned).
+func TestSwarmAbandonedWorkerFetchRetried(t *testing.T) {
+	for _, mended := range []bool{true, false} {
+		t.Run(map[bool]string{true: "mended", false: "failing again"}[mended], func(t *testing.T) {
+			a := newApplyWS(t)
+			a.planned(oneSlice)
+			head := a.orphanWorker()
+			headFile := filepath.Join(a.state("runs/1-worker-1/work"), ".git", "HEAD")
+			os.Rename(headFile, headFile+".aside")
+			a.tick()
+			if err := a.apply(a.git(), "--once"); err == nil || !strings.Contains(err.Error(), "git fetch") {
+				t.Fatalf("the first failed fetch: %v\n%s", err, a.stderr.String())
+			}
+			r := a.result("1-worker-1")
+			if strings.Count(r, "\nfetch failed: git fetch ") != 1 || strings.Contains(r, "collected") || strings.Contains(a.stderr.String(), "commits not kept") ||
+				!reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:plan-2-in-progress"}) {
+				t.Fatalf("after the first:\n%s\n%v\n%s", r, labels(a.issue(1)), a.stderr.String())
+			}
+			if mended {
+				os.Rename(headFile+".aside", headFile)
+			}
+			a.pass()
+			r = a.result("1-worker-1")
+			kept := strings.Contains(r, "\nfetched "+head+"\n") && strings.Contains(r, "\nkept refs/swarm-runs/1-worker-1\n")
+			warned := strings.Contains(a.stderr.String(), "⚠ #1 worker run 1: abandoned; commits not kept (git fetch ")
+			if !strings.HasSuffix(r, "outcome abandoned\ncollected\n") || kept != mended || warned == mended || strings.Count(r, "\nfetch failed: ") != map[bool]int{true: 1, false: 2}[mended] {
+				t.Errorf("after the second:\n%s\nstderr:\n%s", r, a.stderr.String())
+			}
+		})
+	}
+}
+
+// An abandoned worker run whose fetch succeeds and whose trailer's log
+// then fails (base gone from the mirror) keeps its commits, the fetch
+// being done: the log's error is the pass's, and the next pass collects
+// the run (section 7.6, steps 1 and 2).
+func TestSwarmAbandonedWorkerKeepsWhatItFetched(t *testing.T) {
+	a := newApplyWS(t)
+	a.planned(oneSlice)
+	head := a.orphanWorker()
+	mirror := a.state("git/app")
+	base := a.gitRunIn(mirror, "rev-parse", "refs/heads/main")
+	a.gitRunIn(mirror, "update-ref", "-d", "refs/heads/main")
+	a.tick()
+	if err := a.apply(a.git(), "--once"); err == nil || !strings.Contains(err.Error(), "git log") {
+		t.Fatalf("the trailer's log: %v", err)
+	}
+	r := a.result("1-worker-1")
+	if !strings.Contains(r, "\nfetched "+head+"\nkept refs/swarm-runs/1-worker-1\n") || strings.Contains(r, "collected") || strings.Contains(a.stderr.String(), "commits not kept") {
+		t.Fatalf("after the first:\n%s\nstderr:\n%s", r, a.stderr.String())
+	}
+	a.gitRunIn(mirror, "update-ref", "refs/heads/main", base)
+	a.pass()
+	r = a.result("1-worker-1")
+	if !strings.HasSuffix(r, "outcome abandoned\ncollected\n") || strings.Count(r, "\nkept ") != 1 {
+		t.Errorf("after the second:\n%s", r)
+	}
+	if got := a.gitRunIn(mirror, "rev-parse", "refs/swarm-runs/1-worker-1"); got != head {
+		t.Errorf("the run's ref is %q, want %s", got, head)
+	}
+}
+
 // A run another apply started, its container gone (section 7.7): ended
 // only when the sh its argv runs under wrote the CLI's exit status to
 // io/exit, whatever out.md holds; a run launched before the mark, by its
@@ -169,6 +237,20 @@ func TestSwarmWorkerPostHoldsToTheLimitWithItsCheckBlock(t *testing.T) {
 	note := "\n[truncated by Daisy; the whole output is in runs/1-worker-1]\n\n**Check:** `make check` on "
 	if len(posted) > 60000 || !strings.Contains(posted, note) || !strings.HasSuffix(posted, ": exit 0\n\n```\n"+strings.Repeat("ok\n", 19)+"ok\n```") {
 		t.Errorf("posted %d bytes:\n%s", len(posted), posted[max(0, len(posted)-400):])
+	}
+}
+
+// A worker's text ending in CRLF line ends: the line break before the
+// blank line and the check block is taken off whole, no "\r" left
+// before it (section 7.5).
+func TestSwarmWorkerPostTakesOffACRLFEnd(t *testing.T) {
+	a := newApplyWS(t)
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", runner.Canned{Out: "Done.\r\nNot established: none\r\n", Work: commit(map[string]string{"main.go": "v1\n"}, "v1")})
+	a.pass()
+	ps := a.pulls(1)
+	if len(ps) != 1 || !strings.HasPrefix(ps[0].Body, mark("worker", 1)+"Done.\r\nNot established: none\n\n**Check:** ") {
+		t.Errorf("pulls %+v", ps)
 	}
 }
 

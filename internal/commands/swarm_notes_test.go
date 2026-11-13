@@ -160,6 +160,52 @@ func TestSwarmApplyOwnNotesNotADirectory(t *testing.T) {
 	}
 }
 
+// A run's copy of the notes that cannot be read (a directory the member
+// closed), whether notes/ on main is a link or a directory, is kept with
+// the warning, nothing committed, and the run collected, never the
+// collection's error at each pass (section 7.6, The notes).
+func TestSwarmApplyOwnNotesUnreadable(t *testing.T) {
+	for _, link := range []bool{true, false} {
+		t.Run(map[bool]string{true: "notes/ a link", false: "notes/ a directory"}[link], func(t *testing.T) {
+			a := newApplyWS(t)
+			up := a.ownUp()
+			if link {
+				dir := t.TempDir()
+				gitIn(t, "", "clone", "-q", up, dir)
+				os.RemoveAll(filepath.Join(dir, "notes"))
+				os.Symlink("briefs", filepath.Join(dir, "notes"))
+				gitIn(t, dir, "add", "-A")
+				gitIn(t, dir, "commit", "-q", "-m", "notes as a link")
+				gitIn(t, dir, "push", "-q", "origin", "main")
+			}
+			head := notesTip(t, up)
+			var closed string
+			a.runner.Script(0, "owner", runner.Canned{Out: "## Board\nBrief: briefs/m0.md — M1 The board\nClass: routine\nShow the board.\n", Notes: func(dir string) error {
+				closed = filepath.Join(dir, "drafts")
+				if err := os.MkdirAll(closed, 0o755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(closed, "Ruleslib.md"), []byte(ruleslibNote("owner run 1")), 0o644); err != nil {
+					return err
+				}
+				t.Cleanup(func() { os.Chmod(closed, 0o755) })
+				return os.Chmod(closed, 0)
+			}})
+			a.pass()
+			result := a.result("0-owner-1")
+			if !strings.Contains(result, "\nnotes kept: the run's copy cannot be read\n") || !strings.HasSuffix(result, "collected\n") || notesTip(t, up) != head {
+				t.Errorf("result:\n%s", result)
+			}
+			if !strings.Contains(a.stderr.String(), "notes not pushed (the run's copy cannot be read); kept in ") || len(a.issue(1).Labels) == 0 {
+				t.Errorf("stderr %q", a.stderr.String())
+			}
+			if _, err := os.Lstat(closed); err != nil {
+				t.Errorf("the run's copy not kept: %v", err)
+			}
+		})
+	}
+}
+
 // A notes/ that is not a directory on main keeps nothing of a run that
 // wrote no note: `notes unchanged`, no warning, the run's copy removed.
 func TestSwarmApplyOwnNotesNotADirectoryNothingWritten(t *testing.T) {

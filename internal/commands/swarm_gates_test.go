@@ -158,17 +158,33 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 				if err := a.apply(&moveOnReview{gitForge: a.git()}, "--once"); err != nil { // the pair, the issue moved to review-0-ready under the second
 					t.Fatal(err)
 				}
-				second := mark("reconciler", 2) + "Review round 1 of 1 on app#1 requested changes a second time (at swarm:review-1-in-progress). The issue was moved to swarm:review-0-ready during the run, so it is not blocked."
+				second := mark("reconciler", 2) + "Review round 1 of 1 on app#1 requested changes again (at swarm:review-1-in-progress). The issue was moved to swarm:review-0-ready during the run, so it is not blocked."
 				if got := labels(a.issue(1)); slices.Contains(got, forge.Blocked) || a.bodies(1)[len(a.bodies(1))-1] != second {
 					t.Fatalf("T11, second time, moved: %v %q", got, a.bodies(1))
 				}
 				return
 			}
 			a.pass() // the pair
-			second := mark("reconciler", 2) + "Review round 1 of 1 on app#1 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked."
+			again := " requested changes again (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked."
+			second := mark("reconciler", 2) + "Review round 1 of 1 on app#1" + again
 			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress", "swarm:blocked", forge.Gated}) || a.bodies(1)[len(a.bodies(1))-1] != second ||
 				!strings.Contains(a.result("1-sympathetic-2"), "\nflagged swarm:blocked\nrecorded\noutcome posted\n") {
 				t.Fatalf("T11, second time: %v %q", got, a.bodies(1))
+			}
+			// The maintainer's one more fix round, and the limit a third
+			// time: the same note as the second's, which counts no time.
+			a.forge.SetLabel(issue1, "swarm:review-3-changes-requested")
+			if err := a.forge.Relabel(issue1, forge.Blocked, ""); err != nil {
+				t.Fatal(err)
+			}
+			a.runner.Script(1, "worker", work("v3"))
+			a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+			a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+			a.pass() // the worker
+			a.pass() // the pair
+			third := mark("reconciler", 3) + "Review round 2 of 1 on app#1" + again
+			if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || a.bodies(1)[len(a.bodies(1))-1] != third {
+				t.Fatalf("T11, third time: %v %q", got, a.bodies(1))
 			}
 		})
 	}

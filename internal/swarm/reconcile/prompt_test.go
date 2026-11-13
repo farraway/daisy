@@ -241,7 +241,7 @@ func TestRenderAdversaryRoundTwo(t *testing.T) {
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`Review pull request lib#1, slice 1 of issue #1. The change is "git diff main...HEAD" in /work`,
 		`For each test that slice 1's item under the plan's Steps names`,
-		`This is round 2. First say, for each blocking finding of your review of aaa, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since in the files the pull request changes ("git diff aaa..HEAD -- $(git diff --name-only main...HEAD)"): what a merge of main brought in is not this pull request's change.`},
+		`This is round 2. First say, for each blocking finding of your review of aaa, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since aaa in the files the pull request changes ("git diff --name-only -z main...HEAD | xargs -0 -r git diff aaa..HEAD --"): what a merge of main brought in is not this pull request's change.`},
 		"These paths are protected")
 	has(t, "prompt.md", prompt, []string{"- Clone /work: acme/lib, branch swarm/1-1, base main, no check declared", "on aaa: request-changes", "# Check\n\nNo check result for this head."},
 		"still fine", "# Direction")

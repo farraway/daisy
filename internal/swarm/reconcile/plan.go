@@ -71,8 +71,12 @@ func section(plan, heading string) []planLine {
 // SliceRepos is each slice's declared repository, from 1, for a plan read
 // against the declared names; bad is the slice numbers that are not each
 // in one declared repository (section 7.5: with one repository declared, a
-// line naming none, or a plan without slice lines, is in it).
-func SliceRepos(plan string, names []string) (repos []string, bad []int) {
+// line naming none, a line whose prefix names no repository the swarm
+// knows (`1. Parser: …`, the slice's own text), or a plan without slice
+// lines, is in it). known is the names the swarm holds a mirror of, so a
+// repository removed from repos since the plan still names its slices,
+// which no longer resolve.
+func SliceRepos(plan string, names, known []string) (repos []string, bad []int) {
 	lines := Slices(plan)
 	if len(lines) == 0 {
 		if len(names) == 1 {
@@ -82,7 +86,7 @@ func SliceRepos(plan string, names []string) (repos []string, bad []int) {
 	}
 	for i, name := range lines {
 		switch {
-		case name == "" && len(names) == 1:
+		case len(names) == 1 && name != names[0] && !slices.Contains(known, name):
 			name = names[0]
 		case !slices.Contains(names, name):
 			bad = append(bad, i+1)

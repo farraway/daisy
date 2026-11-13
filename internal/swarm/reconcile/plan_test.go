@@ -6,7 +6,10 @@ import (
 )
 
 // The slices of a plan (section 7.5): the numbered lines under ## Steps
-// only, a fenced block's lines excepted; each in a declared repository.
+// only, a fenced block's lines excepted; each in a declared repository,
+// and with one repository declared, a prefix naming no repository the
+// swarm knows (no mirror) is the slice's text, the slice in that
+// repository, while one naming a repository removed since is not.
 func TestSliceRepos(t *testing.T) {
 	plan := "## Research\n\n1. app: not a slice\n\n## Steps\n\n1. lib: first\n   2. app: indented, not a slice\n```\n2. app: fenced\n```\n2. app: second\n3. third\n\n## Test Plan\n\n1. app: a claim\n"
 	if got := Slices(plan); !reflect.DeepEqual(got, []string{"lib", "app", ""}) {
@@ -16,16 +19,20 @@ func TestSliceRepos(t *testing.T) {
 		name  string
 		plan  string
 		names []string
+		known []string
 		repos []string
 		bad   []int
 	}{
-		{"one unnamed with two declared", plan, []string{"app", "lib"}, []string{"lib", "app", ""}, []int{3}},
-		{"one unnamed with one declared", plan, []string{"app", "lib"}[:1], []string{"lib", "app", "app"}, []int{1}},
-		{"no slice lines, one declared", "## Steps\n\nDo it.\n", []string{"app"}, []string{"app"}, nil},
-		{"no slice lines, two declared", "## Steps\n\nDo it.\n", []string{"app", "lib"}, nil, []int{1}},
-		{"an undeclared repository", "## Steps\n\n1. other: x\n", []string{"app", "lib"}, []string{"other"}, []int{1}},
+		{"one unnamed with two declared", plan, []string{"app", "lib"}, nil, []string{"lib", "app", ""}, []int{3}},
+		{"one unnamed with one declared", plan, []string{"app"}, []string{"app", "swarm-app"}, []string{"app", "app", "app"}, nil},
+		{"a prefix naming no repository, one declared", "## Steps\n\n1. Parser: read the header.\n2. app: print it.\n", []string{"app"}, []string{"app", "swarm-app"}, []string{"app", "app"}, nil},
+		{"a repository removed since, one declared", "## Steps\n\n1. lib: x.\n2. Parser: y.\n", []string{"app"}, []string{"app", "lib", "swarm-app"}, []string{"lib", "app"}, []int{1}},
+		{"a prefix naming no repository, two declared", "## Steps\n\n1. Parser: read the header.\n", []string{"app", "lib"}, nil, []string{"Parser"}, []int{1}},
+		{"no slice lines, one declared", "## Steps\n\nDo it.\n", []string{"app"}, nil, []string{"app"}, nil},
+		{"no slice lines, two declared", "## Steps\n\nDo it.\n", []string{"app", "lib"}, nil, nil, []int{1}},
+		{"an undeclared repository", "## Steps\n\n1. other: x\n", []string{"app", "lib"}, nil, []string{"other"}, []int{1}},
 	} {
-		repos, bad := SliceRepos(tc.plan, tc.names)
+		repos, bad := SliceRepos(tc.plan, tc.names, tc.known)
 		if !reflect.DeepEqual(repos, tc.repos) || !reflect.DeepEqual(bad, tc.bad) {
 			t.Errorf("%s: %q %v", tc.name, repos, bad)
 		}

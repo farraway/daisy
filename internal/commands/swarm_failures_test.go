@@ -23,6 +23,41 @@ func (a *applyWS) planned(plan string) {
 	a.forge.SetLabel(issue1, "swarm:plan-1-accepted")
 }
 
+// A step of the clone's preparation after the clone that fails (the
+// product repository tracks a file where the worker's clone takes a mount
+// point: .swarm, .notes with notes on, .resources with a resource) is the
+// swarm fault clone failed, recorded as a launch's and collected at once,
+// the issue left at its stage, never the pass's error with a run
+// directory no pass collects (sections 7.1 and 7.7).
+func TestSwarmApplyMountPointRefused(t *testing.T) {
+	for _, point := range []string{".swarm", ".notes", ".resources"} {
+		t.Run(point, func(t *testing.T) {
+			a := newApplyWS(t) // docs/ its one resource
+			if point == ".notes" {
+				a.edit(func(c *declare.Config) { c.Notes = true })
+				a.publish("notes on")
+				a.fetchMirror()
+			}
+			dir := t.TempDir()
+			gitIn(t, "", "clone", "-q", a.upstream("app"), dir)
+			os.WriteFile(filepath.Join(dir, point), []byte("the product's own\n"), 0o644)
+			gitIn(t, dir, "add", "-A")
+			gitIn(t, dir, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "-m", "a file "+point)
+			gitIn(t, dir, "push", "-q", "origin", "HEAD:main")
+			a.planned(oneSlice)
+			a.pass()
+			r := a.result("1-worker-1")
+			if !strings.HasPrefix(r, "label swarm:plan-1-accepted\nlaunch-failed ") || !strings.Contains(r, "\nfault: clone: mkdir ") || !strings.Contains(r, point+": not a directory\n") ||
+				!strings.HasSuffix(r, "outcome fault\ncollected\n") {
+				t.Errorf("result:\n%s", r)
+			}
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-1-accepted"}) || len(a.runner.Launches()) != 1 {
+				t.Errorf("labels %v, launched %d", got, len(a.runner.Launches()))
+			}
+		})
+	}
+}
+
 // Every work-failure row of section 7.7 a worker or a reviewer can meet,
 // then T17: the in-progress stage the launch wrote taken back to the
 // launch's (plan-1-accepted, review-0-ready), swarm:blocked beside it, the
