@@ -235,7 +235,7 @@ func TestSwarmApplyFaults(t *testing.T) {
 	before := a.bodies(1)
 	a.pass()
 	r := a.result("1-adversary-1")
-	want := "fault: slot openai/1: no login; run 'CODEX_HOME=" + slot + " codex login -c cli_auth_credentials_store=file'\noutcome fault\ncollected\n"
+	want := "fault: slot openai/1: no login; run 'CODEX_HOME=" + slot + " codex login -c cli_auth_credentials_store=file'\nrecorded\noutcome fault\ncollected\n"
 	if !strings.HasSuffix(r, want) || len(a.runner.Launches()) != 3 || !reflect.DeepEqual(a.bodies(1), before) {
 		t.Fatalf("slot without login:\n%s", r)
 	}
@@ -478,7 +478,7 @@ func TestSwarmApplyCollectsARunAnotherApplyStarted(t *testing.T) {
 	os.WriteFile(filepath.Join(run, "result"), []byte("start app 0123\nlabel swarm:proposal-accepted\nstarted 2026-11-06T14:30:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\n"), 0o644)
 	a.pass()
 	a.pass()
-	if r := a.result("1-architect-1"); !strings.HasSuffix(r, "\nended 2026-11-06T15:01:00Z\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\noutcome posted\ncollected\n") {
+	if r := a.result("1-architect-1"); !strings.HasSuffix(r, "\nended 2026-11-06T15:01:00Z\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\nrecorded\noutcome posted\ncollected\n") {
 		t.Errorf("result:\n%s", r)
 	}
 	if b := a.bodies(1); len(b) != 1 || b[0] != mark("architect", 1)+archPlan || !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:plan-0-posted", forge.Gated}) || len(a.runner.Launches()) != 0 {

@@ -94,19 +94,22 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 			return nil
 		}}
 	}
-	batch := func(k int) (prompt, result string) {
+	// batch is the owner's batch run k: its prompt, its result, and the
+	// swarm repository's main as the pass found it.
+	batch := func(k int) (prompt, result, at string) {
 		t.Helper()
 		os.Remove(a.state("owner-held"))
 		a.runner.Script(0, "owner", owner())
+		at = gitIn(t, up, "rev-parse", "main")
 		a.pass()
 		run := "0-owner-" + strconv.Itoa(k)
 		if _, err := os.Stat(a.state(filepath.Join("runs", run, "resources"))); err == nil {
 			t.Errorf("run %d: resources/ kept after the collection", k)
 		}
-		return a.file(run, "io/prompt.md"), a.result(run)
+		return a.file(run, "io/prompt.md"), a.result(run), at
 	}
 
-	prompt, result := batch(1)
+	prompt, result, _ := batch(1)
 	heading := "## docs/briefs/a.md (Status: active; mounted at /work/.resources/swarm-app/docs/briefs/a.md)"
 	if !strings.Contains(prompt, heading) || !strings.Contains(prompt, "\nv1\n") || !strings.Contains(prompt, "- Resources (read-only): /work/.resources/swarm-app/docs\n") {
 		t.Fatalf("run 1's prompt:\n%s\nstdout:\n%s\nstderr:\n%s", prompt, a.stdout.String(), a.stderr.String())
@@ -119,10 +122,11 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 		t.Errorf("run 1's mount: %q", seen)
 	}
 
-	// Edited in the clone, not pushed: the next pass reads v1 still.
+	// Edited in the clone, not pushed: the next pass reads v1 still, at
+	// the head the pass found (the first pass's journal commit on v1).
 	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nv2\n\n## M1 The drift\n")
-	prompt, result = batch(2)
-	if !strings.Contains(prompt, "\nv1\n") || strings.Contains(prompt, "v2") || !strings.Contains(result, "\nresource swarm-app "+v1+"\n") ||
+	prompt, result, at := batch(2)
+	if !strings.Contains(prompt, "\nv1\n") || strings.Contains(prompt, "v2") || !strings.Contains(result, "\nresource swarm-app "+at+"\n") ||
 		len(seen) != 2 || !strings.Contains(seen[1]["swarm-app/docs/briefs/a.md"], "v1") {
 		t.Errorf("run 2 read the unpushed edit:\n%s\n%s\n%q", prompt, result, seen)
 	}
@@ -135,7 +139,7 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 	if err := a.status(a.forge); err != nil || !strings.Contains(a.stdout.String(), "Briefs:\n  docs/briefs/a.md: 1 of 1 milestones with no issue\n") {
 		t.Errorf("status before the pass: %v\n%s", err, a.stdout.String())
 	}
-	prompt, result = batch(3)
+	prompt, result, _ = batch(3)
 	if !strings.Contains(prompt, "\nv2\n") || strings.Contains(prompt, "v1") || strings.Contains(prompt, "docs/briefs/b.md") ||
 		!strings.Contains(result, "\nresource swarm-app "+v2+"\n") || len(seen) != 3 || !strings.Contains(seen[2]["swarm-app/docs/briefs/a.md"], "v2") {
 		t.Errorf("run 3 did not read the pushed edit:\n%s\n%s\n%q", prompt, result, seen)
@@ -212,7 +216,9 @@ func TestSwarmResourcesAtTheirCommits(t *testing.T) {
 	gitIn(t, specUp, "tag", "-f", "v1", moved)
 	os.RemoveAll(stdUp)
 	a.forge.Say(a.ref(1), "jane", "Say more.")
+	swarmAt = gitIn(t, a.upstreams[swarmURL], "rev-parse", "main") // the first pass's journal commit
 	a.pass()
+	lines = "\nresource swarm-app " + swarmAt + "\nresource lib " + libHead + "\nresource spec " + specAt + "\nresource std " + stdAt + "\n"
 	if len(seen) != 2 || !reflect.DeepEqual(seen[1], want) || !strings.Contains(a.result("1-architect-2"), lines) {
 		t.Errorf("the second run: %q\n%s\n%s", seen, a.stdout.String(), a.stderr.String())
 	}
@@ -263,10 +269,10 @@ func TestSwarmResourceRefused(t *testing.T) {
 			if _, err := a.forge.CreateIssue("Board", "Show the board.", []string{"swarm:proposal-accepted"}); err != nil {
 				t.Fatal(err)
 			}
+			want := tc.want(a) // before the pass's journal commit
 			a.pass()
-			want := tc.want(a)
 			result := a.result("1-architect-1")
-			if len(a.runner.Launched) != 0 || !strings.Contains(result, "\nlaunch-failed ") || !strings.Contains(result, "\n"+want+"\noutcome fault\ncollected\n") {
+			if len(a.runner.Launched) != 0 || !strings.Contains(result, "\nlaunch-failed ") || !strings.Contains(result, "\n"+want+"\nrecorded\noutcome fault\ncollected\n") {
 				t.Errorf("result:\n%s\nwant %s\nstdout:\n%s", result, want, a.stdout.String())
 			}
 			if _, err := os.Stat(a.state("runs/1-architect-1/resources")); err == nil {

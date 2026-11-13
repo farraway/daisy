@@ -33,7 +33,7 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 		r := a.result("1-worker-1")
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-1-accepted"}) ||
 			!strings.Contains(r, "\nrelabelled swarm:plan-1-accepted swarm:plan-2-in-progress\n") ||
-			!strings.Contains(r, "\nfault: exit 125\n") || !strings.HasSuffix(r, "\nrelabelled swarm:plan-2-in-progress swarm:plan-1-accepted\noutcome fault\ncollected\n") {
+			!strings.Contains(r, "\nfault: exit 125\n") || !strings.HasSuffix(r, "\nrelabelled swarm:plan-2-in-progress swarm:plan-1-accepted\nrecorded\noutcome fault\ncollected\n") {
 			t.Errorf("%v\n%s", got, r)
 		}
 	})
@@ -45,7 +45,7 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 		os.WriteFile(a.state("runs/1-worker-1/result"), []byte("start aaaa\nbranch swarm/1-1 in app\nlabel swarm:plan-1-accepted\nstarted 2026-11-06T14:59:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\nrelabelled swarm:plan-1-accepted swarm:plan-2-in-progress\n"), 0o644)
 		a.runner.Script(1, "worker", work("v1"))
 		a.pass()
-		if r := a.result("1-worker-1"); !strings.HasSuffix(r, "relabelled swarm:plan-2-in-progress swarm:plan-1-accepted\noutcome abandoned\ncollected\n") {
+		if r := a.result("1-worker-1"); !strings.HasSuffix(r, "relabelled swarm:plan-2-in-progress swarm:plan-1-accepted\nrecorded\noutcome abandoned\ncollected\n") {
 			t.Errorf("abandoned:\n%s", r)
 		}
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) || !strings.Contains(a.result("1-worker-2"), "\nlabel swarm:plan-1-accepted\n") {
@@ -67,7 +67,7 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 		}
 		a.runner.Script(1, "worker", work("v1"))
 		a.pass()
-		if r := a.result("1-worker-1"); !strings.HasSuffix(r, "relabelled swarm:plan-2-in-progress swarm:plan-1-accepted\noutcome abandoned\ncollected\n") || strings.Count(r, "abandoned ") != 1 {
+		if r := a.result("1-worker-1"); !strings.HasSuffix(r, "relabelled swarm:plan-2-in-progress swarm:plan-1-accepted\nrecorded\noutcome abandoned\ncollected\n") || strings.Count(r, "abandoned ") != 1 {
 			t.Errorf("the retry:\n%s", r)
 		}
 	})
@@ -87,7 +87,7 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 		}})
 		a.pass()
 		r := a.result("1-adversary-1")
-		if !strings.Contains(r, "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") || !strings.Contains(r, "\nrelabelled swarm:review-1-in-progress swarm:review-0-ready\noutcome stale\n") {
+		if !strings.Contains(r, "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") || !strings.Contains(r, "\nrelabelled swarm:review-1-in-progress swarm:review-0-ready\nrecorded\noutcome stale\n") {
 			t.Errorf("stale:\n%s", r)
 		}
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) {
@@ -125,7 +125,7 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 		}
 		r := a.result("1-worker-1")
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) || strings.Contains(r, "plan-2-in-progress") ||
-			!strings.Contains(r, "\nrelabelled swarm:plan-1-accepted swarm:review-0-ready\noutcome posted\n") {
+			!strings.Contains(r, "\nrelabelled swarm:plan-1-accepted swarm:review-0-ready\nrecorded\noutcome posted\n") {
 			t.Errorf("%v\n%s", got, r)
 		}
 	})
@@ -266,7 +266,7 @@ func gitRun(args ...string) error {
 // run collected by a later pass with launching paused, its stale,
 // discarded and abandoned ends.
 func TestSwarmSecondReviewerGoesHome(t *testing.T) {
-	home := "\nrelabelled swarm:review-1-in-progress swarm:review-0-ready\noutcome "
+	home := "\nrelabelled swarm:review-1-in-progress swarm:review-0-ready\nrecorded\noutcome "
 	for _, tc := range []struct {
 		name    string
 		second  func(a *applyWS) runner.Canned

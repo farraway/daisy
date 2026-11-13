@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"daisy/internal/env"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/reconcile"
@@ -150,6 +151,9 @@ func initRepository(c *Context, w *declare.Wizard, cfg declare.Config, open open
 	if err := writeEnv(c, cfg); err != nil {
 		return err
 	}
+	if err := writeHome(c, cfg); err != nil {
+		return err
+	}
 	// The swarm repository's mirror after the push, so that it holds what
 	// init pushed and status shows no drift.
 	if err := g.FetchSwarm(repo); err != nil {
@@ -270,6 +274,59 @@ func commitPaths(c *Context, at declare.Place, repo, branch, message string, wri
 	}
 	fmt.Fprintf(c.Stdout, "✓ Committed and pushed %s to %s's %s as %s\n", sha, repo, branch, author)
 	return nil
+}
+
+// writeHome writes <state>/home when absent (section 2): the name of the
+// home the Daisy workspace init runs in is bound to, to whose metrics CSV
+// apply appends each run's row (section 7.6, The run's record). Outside
+// a workspace it writes none, and the journal alone records the runs. An
+// existing file is never rewritten: the maintainer edits it.
+func writeHome(c *Context, cfg declare.Config) error {
+	fs := c.Ops.FS()
+	path := filepath.Join(cfg.Forge.State(c.Env.Local), "home")
+	if _, err := fs.Lstat(path); err == nil {
+		fmt.Fprintf(c.Stdout, "  Kept %s (exists)\n", path)
+		return nil
+	}
+	name, err := boundHome(c)
+	if err != nil {
+		fmt.Fprintf(c.Stderr, "⚠ %s not written: %s\n", path, strings.TrimPrefix(strings.SplitN(err.Error(), "\n", 2)[0], "Error: "))
+		return nil
+	}
+	if name == "" {
+		fmt.Fprintf(c.Stdout, "  No Daisy workspace here: %s not written; the journal alone records each run\n", path)
+		return nil
+	}
+	if err := fs.WriteFile(path, []byte(name+"\n"), 0o644); err != nil {
+		return fmt.Errorf("Error: cannot write %s: %v", path, err)
+	}
+	fmt.Fprintf(c.Stdout, "✓ Wrote %s (%s): each run's metrics row goes to that home\n", path, name)
+	return nil
+}
+
+// boundHome is the name of the home the workspace the working folder is
+// in is bound to (its .daisy/home), "" when it is in none.
+func boundHome(c *Context) (string, error) {
+	cwd, err := c.Ops.Getwd()
+	if err != nil {
+		return "", err
+	}
+	ws, err := env.FindWorkspace(c.Ops.FS(), c.Env.Root, cwd)
+	if errors.Is(err, env.ErrNoWorkspace) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	b, err := c.Ops.FS().ReadFile(filepath.Join(ws, ".daisy", "home"))
+	if err != nil {
+		return "", fmt.Errorf("%s/.daisy has no home file to name", ws)
+	}
+	name := strings.TrimSpace(string(b))
+	if !env.NameOK(name) {
+		return "", fmt.Errorf("%s/.daisy/home holds %q, which is not a home's name", ws, name)
+	}
+	return name, nil
 }
 
 // writeEnv writes <state>/env when absent, mode 0600 (section 3, Secret

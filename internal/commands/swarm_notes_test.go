@@ -63,7 +63,8 @@ func TestSwarmApplyNotesInTheSwarmRepository(t *testing.T) {
 	if got := a.milestoneTitles(); !reflect.DeepEqual(got, []string{"m0: M1 The board"}) || a.milestoneOf(1) != "m0: M1 The board" {
 		t.Errorf("milestones %q, #1's %q", got, a.milestoneOf(1))
 	}
-	if got := gitIn(t, up, "log", "-1", "--format=%P%n%an <%ae>%n%B", "main"); got != first+"\nowner (Daisy swarm) <swarm@example.net>\nowner run 1: research notes\n\n<!-- daisy-swarm role=owner run=1 -->\n\nCo-Authored-By: claude-opus-5-5 <noreply@anthropic.com>" {
+	// main~1: the pass's journal commit is on top (section 7.6, The run's record).
+	if got := gitIn(t, up, "log", "-1", "--format=%P%n%an <%ae>%n%B", "main~1"); got != first+"\nowner (Daisy swarm) <swarm@example.net>\nowner run 1: research notes\n\n<!-- daisy-swarm role=owner run=1 -->\n\nCo-Authored-By: claude-opus-5-5 <noreply@anthropic.com>" {
 		t.Errorf("the batch's notes commit:\n%s", got)
 	}
 
@@ -95,7 +96,7 @@ func TestSwarmApplyNotesInTheSwarmRepository(t *testing.T) {
 	if files := gitIn(t, up, "ls-tree", "-r", "--name-only", "main", "briefs/", "notes/"); files != "briefs/README.md\nbriefs/m0.md\nnotes/Board-model.md\nnotes/README.md\nnotes/Ruleslib.md" {
 		t.Errorf("acme/swarm-app's main holds:\n%s", files)
 	}
-	if got := gitIn(t, up, "log", "-1", "--format=%an%n%s", "main"); got != "architect (Daisy swarm)\n#1 architect run 1: research notes" {
+	if got := gitIn(t, up, "log", "-1", "--format=%an%n%s", "main~1"); got != "architect (Daisy swarm)\n#1 architect run 1: research notes" {
 		t.Errorf("the architect's notes commit: %s", got)
 	}
 	if got := gitIn(t, up, "show", "main:briefs/m0.md"); got+"\n" != ownBrief {
@@ -142,7 +143,7 @@ func TestSwarmApplyOwnNotesNotADirectory(t *testing.T) {
 	gitIn(t, dir, "add", "-A")
 	gitIn(t, dir, "commit", "-q", "-m", "notes as a link")
 	gitIn(t, dir, "push", "-q", "origin", "main")
-	head := gitIn(t, up, "rev-parse", "main")
+	head := notesTip(t, up)
 	a.runner.Script(0, "owner", runner.Canned{Out: "## Board\nBrief: briefs/m0.md — M1 The board\nClass: routine\nShow the board.\n", Notes: func(dir string) error {
 		if entries, _ := os.ReadDir(dir); len(entries) != 0 {
 			t.Errorf("the copy holds %d entries: the link was followed", len(entries))
@@ -151,7 +152,7 @@ func TestSwarmApplyOwnNotesNotADirectory(t *testing.T) {
 	}})
 	a.pass()
 	result := a.result("0-owner-1")
-	if !strings.Contains(result, "\nnotes kept: notes/ is not a directory\n") || !strings.HasSuffix(result, "collected\n") || gitIn(t, up, "rev-parse", "main") != head {
+	if !strings.Contains(result, "\nnotes kept: notes/ is not a directory\n") || !strings.HasSuffix(result, "collected\n") || notesTip(t, up) != head {
 		t.Errorf("result:\n%s", result)
 	}
 	if !strings.Contains(a.stderr.String(), "notes not pushed (notes/ is not a directory); kept in ") || len(a.issue(1).Labels) == 0 {
@@ -214,4 +215,10 @@ func TestSwarmApplyOwnNotesBecomeALink(t *testing.T) {
 	if got := gitIn(t, up, "show", "swarm/notes-0-owner-1:notes/Ruleslib.md"); got+"\n" != ruleslibNote("owner run 1") {
 		t.Errorf("the branch's note %q", got)
 	}
+}
+
+// notesTip is the newest commit on up's main that touches notes/: the
+// journal's commits beside it (section 7.6, The run's record) left out.
+func notesTip(t *testing.T, up string) string {
+	return gitIn(t, up, "log", "-1", "--format=%H", "main", "--", "notes/")
 }

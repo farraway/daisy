@@ -46,7 +46,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 		want += "✓ Wrote " + f + "\n"
 	}
 	want += "✓ Committed and pushed " + gitIn(t, up, "rev-parse", "--short=7", "main") + " to acme/swarm-app's main as Jane <jane@example.net>\n✓ Wrote " + env +
-		" (mode 0600)\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 16 present (16 created, 0 renamed)\n" +
+		" (mode 0600)\n  No Daisy workspace here: " + filepath.Join(filepath.Dir(env), "home") + " not written; the journal alone records each run\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 16 present (16 created, 0 renamed)\n" +
 		s.units()
 	if s.stdout.String() != want {
 		t.Errorf("stdout:\n%s\nwant:\n%s", s.stdout.String(), want)
@@ -122,9 +122,10 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	}
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Stdout: claudeResult})
+	pushed := gitIn(t, up, "rev-parse", "main")
 	a.pass()
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-0-posted", forge.Gated}) ||
-		!strings.Contains(a.result("1-architect-1"), "\nresource swarm-app "+gitIn(t, up, "rev-parse", "main")+"\n") {
+		!strings.Contains(a.result("1-architect-1"), "\nresource swarm-app "+pushed+"\n") {
 		t.Errorf("the pass: %v\n%s\n%s", got, a.result("1-architect-1"), a.stderr.String())
 	}
 	if len(a.runner.Launched) != 1 || a.runner.Launched[0].EnvValue != "oauth-token-0123456789abcdef0123456789" {

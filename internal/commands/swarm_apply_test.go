@@ -152,6 +152,7 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Stdout: claudeResult}, runner.Canned{Out: archPlan + "2. app: more.\n", Stdout: claudeResult})
+	pushed := gitIn(t, a.upstreams[swarmURL], "rev-parse", "main") // before the pass's journal commit
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
@@ -172,7 +173,7 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	// The resources: the run's checkout at the pass's commit, one mount
 	// at /work/.resources (section 7.2).
 	resDir, resMount := "/work/.resources", runner.Mount{Src: run + "/resources", Dst: "/work/.resources", ReadOnly: true}
-	resLines := "resource swarm-app " + gitIn(t, a.upstreams[swarmURL], "rev-parse", "main") + "\n"
+	resLines := "resource swarm-app " + pushed + "\n"
 	wantArgv := []string{"claude", "-p", "--model", "claude-fable-5-1", "--effort", "high", "--append-system-prompt-file", "/work/.swarm/system.md",
 		"--settings", `{"attribution":{"commit":"","pr":""}}`, "--add-dir", "/work/.swarm", "--add-dir", "/work/lib", "--add-dir", resDir,
 		"--permission-mode", "bypassPermissions", "--output-format", "json",
@@ -186,7 +187,7 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	result := a.result("1-architect-1")
 	lines := strings.Split(strings.TrimSuffix(result, "\n"), "\n")
 	if !strings.HasPrefix(lines[0], "start app ") || !strings.HasPrefix(lines[1], "start lib ") ||
-		strings.Join(lines[2:], "\n") != resLines+"label swarm:proposal-accepted\nstarted 2026-11-06T15:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\nexited 0 2026-11-06T15:00:00Z\ncost 0.25 tokens 10/20 turns 4\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\noutcome posted\ncollected" {
+		strings.Join(lines[2:], "\n") != resLines+"label swarm:proposal-accepted\nstarted 2026-11-06T15:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\npersona anthropic claude-fable-5-1 high\nexited 0 2026-11-06T15:00:00Z\ncost 0.25 tokens 10/20 turns 4\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\nrecorded\noutcome posted\ncollected" {
 		t.Errorf("result:\n%s", result)
 	}
 	for _, f := range []string{"io/system.md", "io/prompt.md", "argv", "stdout"} {
@@ -311,7 +312,7 @@ func TestSwarmApplyFindsTheLabelMoved(t *testing.T) {
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatal(err)
 	}
-	if a.stderr.Len() != 0 || len(a.bodies(1)) != 1 || len(a.runner.Launched) != 0 || !strings.HasSuffix(a.result("1-architect-1"), "posted comment\noutcome posted\ncollected\n") {
+	if a.stderr.Len() != 0 || len(a.bodies(1)) != 1 || len(a.runner.Launched) != 0 || !strings.HasSuffix(a.result("1-architect-1"), "posted comment\nrecorded\noutcome posted\ncollected\n") {
 		t.Errorf("stderr %q, comments %d, launched %d\n%s", a.stderr.String(), len(a.bodies(1)), len(a.runner.Launched), a.result("1-architect-1"))
 	}
 }
@@ -383,7 +384,7 @@ func TestSwarmApplyStart(t *testing.T) {
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatal(err)
 	}
-	if len(a.runner.Launched) != 0 || !strings.HasSuffix(a.result("1-architect-1"), "fault: prompt: prompt.md: empty field\noutcome fault\ncollected\n") ||
+	if len(a.runner.Launched) != 0 || !strings.HasSuffix(a.result("1-architect-1"), "fault: prompt: prompt.md: empty field\nrecorded\noutcome fault\ncollected\n") ||
 		!strings.Contains(a.stdout.String(), "#1 architect run 1: fault (prompt: prompt.md: empty field)\n") {
 		t.Errorf("launched %d\n%s\n%s", len(a.runner.Launched), a.result("1-architect-1"), a.stdout.String())
 	}
@@ -414,7 +415,7 @@ func TestSwarmApplyPraxisFromTheRoot(t *testing.T) {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
 	reason := "prompt: system.md: open " + praxis + ": no such file or directory"
-	if len(a.runner.Launched) != 1 || !strings.HasSuffix(a.result("2-architect-1"), "fault: "+reason+"\noutcome fault\ncollected\n") ||
+	if len(a.runner.Launched) != 1 || !strings.HasSuffix(a.result("2-architect-1"), "fault: "+reason+"\nrecorded\noutcome fault\ncollected\n") ||
 		!strings.Contains(a.stdout.String(), "#2 architect run 1: fault ("+reason+")\n") {
 		t.Errorf("launched %d\n%s\n%s", len(a.runner.Launched), a.result("2-architect-1"), a.stdout.String())
 	}
@@ -448,14 +449,14 @@ func TestSwarmApplyOnXAI(t *testing.T) {
 		t.Errorf("spec %+v", spec)
 	}
 	confined(t, spec, a.state("runs/1-architect-1"), "/work/app")
-	if r := a.result("1-architect-1"); !strings.Contains(r, "credential xai env XAI_API_KEY\nexited 0 2026-11-06T15:00:00Z\ncost 0.01268905 tokens 7210/1893 turns 7\nposted comment\n") {
+	if r := a.result("1-architect-1"); !strings.Contains(r, "credential xai env XAI_API_KEY\npersona xai grok-4.5 high\nexited 0 2026-11-06T15:00:00Z\ncost 0.01268905 tokens 7210/1893 turns 7\nposted comment\n") {
 		t.Errorf("result:\n%s", r)
 	}
 	a.forge.Say(issue1, "jane", "Split it in two.")
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatal(err)
 	}
-	if r := a.result("1-architect-2"); !strings.HasSuffix(r, "exited 1 2026-11-06T15:00:00Z\nfault: provider: Not signed in. Run `grok login` to authenticate.\noutcome fault\ncollected\n") {
+	if r := a.result("1-architect-2"); !strings.HasSuffix(r, "exited 1 2026-11-06T15:00:00Z\nfault: provider: Not signed in. Run `grok login` to authenticate.\nrecorded\noutcome fault\ncollected\n") {
 		t.Errorf("run 2:\n%s", r)
 	}
 	if is, _ := a.forge.Issue(1); len(is.Comments) != 3 {
@@ -576,7 +577,7 @@ func TestSwarmApplyOnAnXAISlot(t *testing.T) {
 	if entries, _ := os.ReadDir(slot); len(entries) != 1 || entries[0].Name() != "auth.json" {
 		t.Errorf("the slot was not cleared: %v", entries)
 	}
-	if r := a.result("1-architect-1"); !strings.Contains(r, "credential xai slot 1\nexited 0 2026-11-06T15:00:00Z\n") || !strings.Contains(r, "posted comment\n") {
+	if r := a.result("1-architect-1"); !strings.Contains(r, "credential xai slot 1\npersona xai grok-4.5 high\nexited 0 2026-11-06T15:00:00Z\n") || !strings.Contains(r, "posted comment\n") {
 		t.Errorf("result:\n%s", r)
 	}
 	release, err := ops.Real().FS().Lock(filepath.Join(a.local, "swarm", "credentials", "xai", "1.lock"), "test")
@@ -609,7 +610,7 @@ func TestSwarmApplyXAISlotWithoutALogin(t *testing.T) {
 	if err := a.apply(a.forge, "--once"); err != nil {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
-	want := "fault: slot xai/1: no login; run 'GROK_HOME=" + slot + " grok login --device-auth'\noutcome fault\ncollected\n"
+	want := "fault: slot xai/1: no login; run 'GROK_HOME=" + slot + " grok login --device-auth'\nrecorded\noutcome fault\ncollected\n"
 	if r := a.result("1-architect-1"); !strings.HasSuffix(r, want) || len(a.runner.Launched) != 0 || !reflect.DeepEqual(a.bodies(1), before) {
 		t.Errorf("launched %d\n%s", len(a.runner.Launched), r)
 	}

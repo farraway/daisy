@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"math"
 	"reflect"
 	"testing"
 )
@@ -59,15 +60,17 @@ func TestReport(t *testing.T) {
 		want                   Report
 	}{
 		{"claude success", "anthropic", `{"type":"result","subtype":"success","is_error":false,"duration_ms":81234,"num_turns":12,"result":"Done.","session_id":"s","total_cost_usd":0.4321,"usage":{"input_tokens":120,"cache_read_input_tokens":40000,"output_tokens":3456}}`,
-			Report{Known: true, CostUSD: 0.4321, InTokens: 120, OutTokens: 3456, Turns: 12}},
+			Report{Known: true, CostKnown: true, CostUSD: 0.4321, InTokens: 120, OutTokens: 3456, Turns: 12}},
 		{"claude quota", "anthropic", `{"type":"result","subtype":"success","is_error":true,"num_turns":1,"result":"Claude AI usage limit reached|1762444800","total_cost_usd":0,"usage":{"input_tokens":0,"output_tokens":0}}`,
-			Report{Known: true, Turns: 1, Fault: "Claude AI usage limit reached|1762444800"}},
+			Report{Known: true, CostKnown: true, Turns: 1, Fault: "Claude AI usage limit reached|1762444800"}},
 		{"claude authentication", "anthropic", `{"type":"result","is_error":true,"result":"Invalid API key · Please run /login"}`,
 			Report{Fault: "Invalid API key · Please run /login"}},
 		{"claude error that is the work's", "anthropic", `{"type":"result","is_error":true,"num_turns":30,"result":"Reached max turns","total_cost_usd":1.5,"usage":{"input_tokens":9,"output_tokens":8}}`,
-			Report{Known: true, CostUSD: 1.5, InTokens: 9, OutTokens: 8, Turns: 30}},
+			Report{Known: true, CostKnown: true, CostUSD: 1.5, InTokens: 9, OutTokens: 8, Turns: 30}},
 		{"claude success that mentions a rate limit", "anthropic", `{"type":"result","is_error":false,"num_turns":2,"result":"Added the rate limit test.","total_cost_usd":0.1,"usage":{"input_tokens":1,"output_tokens":2}}`,
-			Report{Known: true, CostUSD: 0.1, InTokens: 1, OutTokens: 2, Turns: 2}},
+			Report{Known: true, CostKnown: true, CostUSD: 0.1, InTokens: 1, OutTokens: 2, Turns: 2}},
+		{"claude usage without a cost", "anthropic", `{"type":"result","is_error":false,"num_turns":3,"result":"Done.","usage":{"input_tokens":30,"output_tokens":40}}`,
+			Report{Known: true, InTokens: 30, OutTokens: 40, Turns: 3}},
 		{"claude no JSON", "anthropic", "Error: something\n", Report{}},
 		{"codex two turns", "openai", `{"type":"thread.started","thread_id":"t"}
 {"type":"turn.started"}
@@ -84,7 +87,7 @@ func TestReport(t *testing.T) {
 		{"codex failure that is the work's", "openai", `{"type":"turn.failed","error":{"message":"command failed: make check"}}
 `, Report{}},
 		{"grok success under an API key", "xai", `{"text":"Done.","stopReason":"end_turn","sessionId":"s","requestId":"r","cwd":"/work","num_turns":7,"usage":{"input_tokens":7210,"cache_read_input_tokens":41000,"cache_creation_input_tokens":0,"output_tokens":1893,"reasoning_tokens":412,"total_tokens":50103},"modelUsage":{"grok-4.5":{"inputTokens":7210,"outputTokens":1893,"cacheReadInputTokens":41000,"modelCalls":7,"costUSD":0.01268905}},"total_cost_usd":0.01268905,"total_cost_usd_ticks":126890500}
-`, Report{Known: true, CostUSD: 0.01268905, InTokens: 7210, OutTokens: 1893, Turns: 7}},
+`, Report{Known: true, CostKnown: true, CostUSD: 0.01268905, InTokens: 7210, OutTokens: 1893, Turns: 7}},
 		{"grok success with its cost partial", "xai", `{
   "text": "Done.",
   "stopReason": "end_turn",
@@ -122,6 +125,29 @@ func TestSlots(t *testing.T) {
 		p := Providers[name]
 		if p.Slot() != (want != "") || p.Slot() && (p.Login == "" || p.LoginHint("/s") != want) {
 			t.Errorf("%s: slot %v, home %q, login %q", name, p.Slot(), p.Home, p.Login)
+		}
+	}
+}
+
+// Estimate is a model's tokens at its list price (section 9): the
+// models whose price is known, in and out at their own rates; a model
+// not in the table has no estimate, never a zero one.
+func TestEstimate(t *testing.T) {
+	for _, tc := range []struct {
+		model   string
+		in, out int
+		want    float64
+		ok      bool
+	}{
+		{"claude-opus-5-5", 1_000_000, 500_000, 14, true},
+		{"claude-sonnet-5-5", 2_000_000, 100_000, 5, true},
+		{"claude-fable-5-1", 10, 20, 0.0011, true},
+		{"gpt-6.1-sol", 1_000_000, 1_000_000, 0, false},
+		{"grok-4.7", 1_000_000, 1_000_000, 0, false},
+	} {
+		got, ok := Estimate(tc.model, tc.in, tc.out)
+		if ok != tc.ok || math.Abs(got-tc.want) > 1e-12 {
+			t.Errorf("Estimate(%s, %d, %d) = %v, %v; want %v, %v", tc.model, tc.in, tc.out, got, ok, tc.want, tc.ok)
 		}
 	}
 }

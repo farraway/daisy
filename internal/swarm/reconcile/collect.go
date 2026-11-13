@@ -173,10 +173,13 @@ func (c *collection) step(line string) error {
 	return nil
 }
 
-// end records the outcome and `collected`, and removes the run's clones
+// end records the run (record), then the outcome and `collected`, and removes the run's clones
 // and its checkout of the resources.
 func (c *collection) end(outcome string) error {
 	fs := c.s.O.FS()
+	if err := c.record(outcome); err != nil {
+		return err
+	}
 	if err := c.r.Append(fs, "outcome "+outcome, "collected"); err != nil {
 		return err
 	}
@@ -363,6 +366,9 @@ func (c *collection) abandoned() error {
 		}
 	}
 	fs := c.s.O.FS()
+	if err := c.record("abandoned"); err != nil {
+		return err
+	}
 	if err := c.r.Append(fs, "outcome abandoned", "collected"); err != nil {
 		return err
 	}

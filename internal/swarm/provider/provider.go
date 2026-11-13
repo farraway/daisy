@@ -25,10 +25,11 @@ type Adapter interface {
 }
 
 // Report is what a run's output says: its usage when the CLI reports it,
-// and the message of a provider fault (authentication, quota, rate limit;
-// section 7.7), "" for none.
+// its cost when it reports that too, and the message of a provider fault
+// (authentication, quota, rate limit; section 7.7), "" for none.
 type Report struct {
 	Known     bool // the output carried usage
+	CostKnown bool // the output carried a cost: codex never does, grok not always
 	CostUSD   float64
 	InTokens  int
 	OutTokens int
@@ -73,6 +74,31 @@ var Providers = map[string]Provider{
 		Home: "GROK_HOME", Login: "grok login --device-auth", Email: "noreply@x.ai", Confined: true},
 }
 
+// Price is a model's list price, in US dollars per million tokens of
+// input and of output.
+type Price struct{ In, Out float64 }
+
+// Prices is the list price of each model whose price this Daisy knows
+// (section 9): Anthropic's published API rates as of 2026-10-06. A model
+// not here has no estimate; no price is guessed.
+var Prices = map[string]Price{
+	"claude-fable-5-1":  {In: 10, Out: 50},
+	"claude-opus-5-5":   {In: 4, Out: 20},
+	"claude-sonnet-5-5": {In: 2, Out: 10},
+}
+
+// Estimate is what in and out tokens of model cost at its list price; ok
+// is false for a model Prices does not hold. The tokens are those the
+// CLI reports, which leave cached input out, so the estimate is a lower
+// bound.
+func Estimate(model string, in, out int) (usd float64, ok bool) {
+	p, ok := Prices[model]
+	if !ok {
+		return 0, false
+	}
+	return (float64(in)*p.In + float64(out)*p.Out) / 1e6, true
+}
+
 // noAttribution is the Claude Code setting that leaves its own
 // Co-Authored-By trailer and pull-request line out: the swarm's trailer is
 // Daisy's hook's (section 7.1).
@@ -109,7 +135,7 @@ func (claude) Report(stdout []byte) Report {
 	if r.Usage != nil {
 		rep = Report{Known: true, InTokens: r.Usage.In, OutTokens: r.Usage.Out, Turns: r.Turns}
 		if r.Cost != nil {
-			rep.CostUSD = *r.Cost
+			rep.CostKnown, rep.CostUSD = true, *r.Cost
 		}
 	}
 	if r.IsError && isFault(r.Result) {
@@ -217,7 +243,7 @@ func (grok) Report(stdout []byte) Report {
 	if r.Usage != nil {
 		rep = Report{Known: true, InTokens: r.Usage.In, OutTokens: r.Usage.Out, Turns: r.Turns}
 		if r.Cost != nil {
-			rep.CostUSD = *r.Cost
+			rep.CostKnown, rep.CostUSD = true, *r.Cost
 		}
 	}
 	if r.Type == "error" && isFault(r.Message) {

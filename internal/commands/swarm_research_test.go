@@ -103,11 +103,11 @@ func TestSwarmApplyResearchNotes(t *testing.T) {
 		t.Errorf("notes/ holds:\n%s", files)
 	}
 
-	head := gitIn(t, up, "rev-parse", "main")
+	head := notesTip(t, up)
 	if !strings.Contains(a.stdout.String(), "#1 architect run 1: pushed notes "+head[:7]+"\n") || a.stderr.Len() != 0 {
 		t.Fatalf("stdout:\n%s\nstderr:\n%s", a.stdout.String(), a.stderr.String())
 	}
-	if got := gitIn(t, up, "log", "-1", "--format=%P%n%an <%ae>%n%B", "main"); got != base+"\narchitect (Daisy swarm) <swarm@example.net>\n#1 architect run 1: research notes\n\n<!-- daisy-swarm role=architect run=1 -->\n\nCo-Authored-By: claude-fable-5-1 <noreply@anthropic.com>" {
+	if got := gitIn(t, up, "log", "-1", "--format=%P%n%an <%ae>%n%B", head); got != base+"\narchitect (Daisy swarm) <swarm@example.net>\n#1 architect run 1: research notes\n\n<!-- daisy-swarm role=architect run=1 -->\n\nCo-Authored-By: claude-fable-5-1 <noreply@anthropic.com>" {
 		t.Errorf("the notes' commit:\n%s", got)
 	}
 	if got := gitIn(t, up, "show", "main:notes/Board-model.md"); got+"\n" != boardNote(pin) {
@@ -145,7 +145,7 @@ func TestSwarmApplyResearchNotes(t *testing.T) {
 	if s := a.file("2-architect-1", "io/system.md"); !strings.Contains(s, `Before you research a source, read its note if "# Research notes" lists one`) {
 		t.Errorf("the second architect's task:\n%s", s)
 	}
-	if !strings.Contains(a.result("2-architect-1"), "\nnotes unchanged\n") || gitIn(t, up, "rev-parse", "main") != head {
+	if !strings.Contains(a.result("2-architect-1"), "\nnotes unchanged\n") || notesTip(t, up) != head {
 		t.Errorf("a run that wrote nothing pushed:\n%s", a.result("2-architect-1"))
 	}
 

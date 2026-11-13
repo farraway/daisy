@@ -44,6 +44,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	// The run's repository and branch: the worker's slice, a reviewer's
 	// pull request; the owner and the architect clone every repository.
 	var repo declare.Repo
+	var round []string // a reviewer's round, which its record reads (section 7.6)
 	branch, newBranch := s.Cfg.Base, false
 	switch j.Role {
 	case "worker":
@@ -62,6 +63,8 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		cur, _ := j.current()
 		repo, _ = s.repo(cur.Repo)
 		branch = cur.Head
+		rd, _ := j.round(cur)
+		round = []string{"round " + strconv.Itoa(rd)}
 	}
 
 	// The run's copy of the notes, indexed for the prompt.
@@ -243,7 +246,10 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	if j.Batch != nil {
 		lines = append(lines, "propose "+strconv.Itoa(j.Batch.Propose))
 	}
-	if err := r.Append(fs, append(lines, "started "+now(), credential)...); err != nil {
+	// The persona the run is launched with, which its record names
+	// whatever swarm.json says by its collection.
+	lines = append(append(lines, "started "+now(), credential, "persona "+persona.Provider+" "+persona.Model+" "+persona.Effort), round...)
+	if err := r.Append(fs, lines...); err != nil {
 		if slot != nil {
 			slot.Release()
 		}
@@ -371,7 +377,12 @@ func (s *Swarm) settle(r Run) error {
 	}
 	rep := provider.Providers[s.Cfg.Personas[r.Role].Provider].Adapter.Report(exit.Stdout)
 	if rep.Known {
-		lines = append(lines, fmt.Sprintf("cost %s tokens %d/%d turns %d", strconv.FormatFloat(rep.CostUSD, 'f', -1, 64), rep.InTokens, rep.OutTokens, rep.Turns))
+		// A cost the CLI did not report is `-`, never 0 (section 3).
+		cost := "-"
+		if rep.CostKnown {
+			cost = strconv.FormatFloat(rep.CostUSD, 'f', -1, 64)
+		}
+		lines = append(lines, fmt.Sprintf("cost %s tokens %d/%d turns %d", cost, rep.InTokens, rep.OutTokens, rep.Turns))
 	}
 	switch {
 	case exit.TimedOut:

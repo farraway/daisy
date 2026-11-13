@@ -144,6 +144,13 @@ func MetricsAdd(c *Context) error {
 	}
 
 	csvFile := env.MetricsFile(c.Env.Home)
+	// The lock from the read to the last write, so that a row another
+	// writer (a swarm's apply) appends meanwhile is not written over.
+	release, err := metrics.Lock(c.Ops, env.MetricsLock(c.Env.Local), "metrics add since "+c.Ops.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return fmt.Errorf("Error: cannot take %s: %v\nNothing was recorded.", env.MetricsLock(c.Env.Local), err)
+	}
+	defer release()
 	before, err := fsys.ReadFile(csvFile)
 	if err != nil && (!errors.Is(err, fs.ErrNotExist) || lexists(fsys, csvFile)) {
 		return fmt.Errorf("Error: cannot read %s: %v", csvFile, err)

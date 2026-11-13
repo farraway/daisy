@@ -28,6 +28,7 @@ type Swarm struct {
 	Place      declare.Place // where the swarm was found (section 11, Finding the swarm)
 	WS, Local  string        // WS is Place.Root
 	Root       string        // $DAISY_ROOT, the installed root: PraxisFile and TestingFile (section 7.3)
+	Config     string        // $DAISY_CONFIG, where the registry names the home <state>/home names
 	Cfg        declare.Config
 	Forge      forge.Adapter
 	Runner     runner.Runner
@@ -165,6 +166,7 @@ func (s *Swarm) Pass(wait bool) error {
 		s.milestones(open)
 	}
 	s.drift()
+	errs = append(errs, s.Journal())
 	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, mine)
 	return errors.Join(errs...)
 }

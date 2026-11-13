@@ -33,7 +33,7 @@ start reads: `HOME`, `USER`, no global git config.
 | `internal/env` | root, registry, workspace, home, identity and projects resolution; `.env.sh` read without being run; the homes a root commit leaves out (`RootExclusions`) |
 | `internal/cli` | `Run` and the command table (`internal/cli/table.go`), from which the help, `docs/cli.md`'s tree and the Command Reference below are rendered |
 | `internal/commands` | one function per command |
-| `internal/todo`, `internal/journal`, `internal/gitx`, `internal/prompt`, `internal/skill`, `internal/identity`, `internal/settings`, `internal/workspace`, `internal/plan`, `internal/feedback`, `internal/metrics` | the domain packages behind them; `internal/gitx` makes the one commit every command that changes an existing home ends in (`plan new`, `feedback`, `eval --record`, `metrics add` and a hand-run `rotate` leave their writes to the next commit) |
+| `internal/todo`, `internal/journal`, `internal/gitx`, `internal/prompt`, `internal/skill`, `internal/identity`, `internal/settings`, `internal/workspace`, `internal/plan`, `internal/feedback`, `internal/metrics` | the domain packages behind them; `internal/gitx` makes the one commit every command that changes an existing home ends in (`plan new`, `feedback`, `eval --record`, `metrics add`, `swarm apply`'s metrics rows and a hand-run `rotate` leave their writes to the next commit) |
 | `internal/health` | `daisy healthcheck`: the checks, the TTL stamp and the publication scan |
 | `internal/swarm/declare` | `swarm.json`, its validation and `init`'s wizard |
 | `internal/swarm/forge` | the forge seam: `Adapter`, `gitea`, `Fake` |
@@ -276,9 +276,11 @@ agent working near it:
   lists:** the swarm repository's clone at `init` (its seeded files,
   their commit and its push) and at `prompt build` (the prompts it
   rewrites, their commit and its push), the state directory under
-  `$DAISY_LOCAL/swarm/`, and the forge. Never a Daisy home, never a
-  workspace, never a declared repository's tree. This is the spec's
-  revision 6, which Steps 2–6 of its plan built; Step 7 retired the old
+  `$DAISY_LOCAL/swarm/`, and the forge; and, at each collected run, a
+  row in the metrics CSV of the home `<state>/home` names (under
+  `$DAISY_LOCAL/metrics.lock`), the one file of a Daisy home it
+  writes. Never a workspace, never a declared repository's tree. This
+  is the spec's revision 6, which Steps 2–6 of its plan built; Step 7 retired the old
   workspace layout, so a swarm runs from its repository's clone alone
   (section 11, Moving a swarm into its repository, describes the old
   files for a maintainer moving a swarm with an older Daisy).

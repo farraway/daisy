@@ -167,7 +167,7 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 			a.pass() // the pair
 			second := mark("reconciler", 2) + "Review round 1 of 1 on app#1 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked."
 			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress", "swarm:blocked", forge.Gated}) || a.bodies(1)[len(a.bodies(1))-1] != second ||
-				!strings.Contains(a.result("1-sympathetic-2"), "\nflagged swarm:blocked\noutcome posted\n") {
+				!strings.Contains(a.result("1-sympathetic-2"), "\nflagged swarm:blocked\nrecorded\noutcome posted\n") {
 				t.Fatalf("T11, second time: %v %q", got, a.bodies(1))
 			}
 		})
@@ -226,7 +226,7 @@ func TestSwarmApplyNoChange(t *testing.T) {
 		cs, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
 		r := a.result("1-worker-2")
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) || len(cs) != 1 || cs[0].Body != mark("worker", 2)+answer ||
-			a.pulls(1)[0].HeadSHA != head || strings.Contains(r, "failed") || strings.Contains(r, "pushed") || !strings.HasSuffix(r, "relabelled swarm:plan-2-in-progress swarm:review-0-ready\noutcome posted\ncollected\n") {
+			a.pulls(1)[0].HeadSHA != head || strings.Contains(r, "failed") || strings.Contains(r, "pushed") || !strings.HasSuffix(r, "relabelled swarm:plan-2-in-progress swarm:review-0-ready\nrecorded\noutcome posted\ncollected\n") {
 			t.Fatalf("T12 without a commit: %v %q\n%s", got, cs, r)
 		}
 		if !strings.Contains(a.stdout.String(), "#1 worker run 2: posted comment\n#1 worker run 2: swarm:plan-2-in-progress → swarm:review-0-ready\n") {
@@ -238,7 +238,7 @@ func TestSwarmApplyNoChange(t *testing.T) {
 		if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2, on the head you reviewed before ("+head+")") {
 			t.Fatalf("round 2's Task:\n%s", sys)
 		}
-		if r := a.result("1-adversary-2"); !strings.HasSuffix(r, "posted review\noutcome posted\ncollected\n") {
+		if r := a.result("1-adversary-2"); !strings.HasSuffix(r, "posted review\nrecorded\noutcome posted\ncollected\n") {
 			t.Fatalf("the pair completed on the adversary's review of the answer alone:\n%s", r)
 		}
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) {

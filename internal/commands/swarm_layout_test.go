@@ -45,7 +45,7 @@ func TestSwarmVerbsFromAClone(t *testing.T) {
 	for _, f := range []string{"repos/app.md", "repos/lib.md", "README.md", "briefs/README.md", "notes/README.md", "docs/README.md", ".gitignore"} {
 		wantOut += "  Kept " + f + " (exists)\n"
 	}
-	wantOut += "  Nothing to commit\n  Kept " + a.state("env") + " (exists)\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 16 present (0 created, 0 renamed)\n" + a.units()
+	wantOut += "  Nothing to commit\n  Kept " + a.state("env") + " (exists)\n  No Daisy workspace here: " + a.state("home") + " not written; the journal alone records each run\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 16 present (0 created, 0 renamed)\n" + a.units()
 	if a.stdout.String() != wantOut || !strings.Contains(wantOut, "daisy-swarm@"+systemdEscapePath(a.ws)+".service") {
 		t.Errorf("init stdout:\n%s\nwant:\n%s", a.stdout.String(), wantOut)
 	}

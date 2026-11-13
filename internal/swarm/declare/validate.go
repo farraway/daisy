@@ -297,7 +297,9 @@ func relPath(p string) string {
 
 // checkResources: each entry is a path in the swarm repository or
 // `<name>:<path>` in a declared repository, relative, without `..`, not
-// the whole repository and listed once; what it holds is read at the
+// the whole repository, not the swarm repository's journal/ (Daisy's
+// record of the runs, which no member is given: section 7.6) and listed
+// once; what it holds is read at the
 // pass's commit, where the launch checks it (section 7.1, step 3).
 func checkResources(c Config) *Error {
 	type key struct{ repo, path string }
@@ -311,6 +313,9 @@ func checkResources(c Config) *Error {
 		if why := relPath(p); why != "" {
 			return fieldErr(at, "%q %s", r, why)
 		}
+		if cl := path.Clean(p); name == "" && (cl == JournalDir || strings.HasPrefix(cl, JournalDir+"/")) {
+			return fieldErr(at, "%q is the swarm's journal, which no member reads", r)
+		}
 		k := key{name, path.Clean(p)}
 		if slices.Contains(seen, k) {
 			return fieldErr(at, "%q is listed twice", r)
@@ -319,6 +324,10 @@ func checkResources(c Config) *Error {
 	}
 	return nil
 }
+
+// JournalDir is the swarm's journal in the swarm repository (section 7.6,
+// The run's record).
+const JournalDir = "journal"
 
 var commitShape = regexp.MustCompile(`^[0-9a-f]{40}$`)
 

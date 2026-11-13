@@ -143,6 +143,12 @@ func homeDir(o ops.Ops, e Env) (string, error) {
 // metrics add` appends to and `daisy metrics` summarizes.
 func MetricsFile(home string) string { return filepath.Join(home, "metrics", "metrics.csv") }
 
+// MetricsLock is the lock every writer of a metrics CSV holds from its
+// read to its rewrite (`metrics add`, `swarm apply`): one per machine, in
+// $DAISY_LOCAL, since a lock file in the home would be swept into its
+// next commit.
+func MetricsLock(local string) string { return filepath.Join(local, "metrics.lock") }
+
 // ConfigDir is $DAISY_CONFIG, default ~/.config/daisy: where the registry is.
 func ConfigDir(o ops.Ops) string { return orDefault(o, "DAISY_CONFIG", ".config/daisy") }
 

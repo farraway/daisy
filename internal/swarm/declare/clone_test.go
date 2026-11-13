@@ -246,6 +246,8 @@ func TestValidateResourcesAndReferences(t *testing.T) {
 		{`swarm.json: resources[0]: "docs/../x" is not a relative path`, func(c *Config) { c.Resources = []string{"docs/../x"} }},
 		{`swarm.json: resources[0]: "lib:" is not a relative path`, func(c *Config) { c.Resources = []string{"lib:"} }},
 		{`swarm.json: resources[0]: "gjot:docs/" names no declared repository`, func(c *Config) { c.Resources = []string{"gjot:docs/"} }},
+		{`swarm.json: resources[1]: "journal/" is the swarm's journal, which no member reads`, func(c *Config) { c.Resources = []string{"docs/", "journal/"} }},
+		{`swarm.json: resources[0]: "./journal/2026-11-12.md" is the swarm's journal, which no member reads`, func(c *Config) { c.Resources = []string{"./journal/2026-11-12.md"} }},
 		{`swarm.json: resources[1]: "./docs" is listed twice`, func(c *Config) { c.Resources = []string{"docs/", "./docs"} }},
 		{`swarm.json: resources[1]: "lib:guide" is listed twice`, func(c *Config) { c.Resources = []string{"lib:guide/", "lib:guide"} }},
 		{`swarm.json: references[0].name: "a b" is not a repository name`, func(c *Config) { c.References[0].Name = "a b" }},

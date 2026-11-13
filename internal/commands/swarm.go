@@ -1082,7 +1082,7 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		vars, _ := readSecrets(c, cfg, io.Discard, v) // re-read at each use, warned once above; refused, empty
 		return vars[v]
 	}
-	s := &reconcile.Swarm{O: o, Place: c.Swarm, WS: ws, Root: c.Env.Root, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
+	s := &reconcile.Swarm{O: o, Place: c.Swarm, WS: ws, Root: c.Env.Root, Config: c.Env.Config, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
 		User: ids[0] + ":" + ids[1], Secret: secret, Out: c.Stdout, Err: c.Stderr}
 	if once {
 		if err := s.Pass(true); err != nil {
@@ -1174,7 +1174,8 @@ func applyLoop(c *Context, s *reconcile.Swarm) error {
 	if errors.Is(err, reconcile.ErrInterrupted) {
 		return ErrInterrupted
 	}
-	if err != nil {
+	// The drain's collections in the journal, as a pass's are.
+	if err := errors.Join(err, s.Journal()); err != nil {
 		fmt.Fprintf(c.Stderr, "Error: swarm: %v\n", err)
 	}
 	return nil

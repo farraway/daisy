@@ -30,6 +30,7 @@ import (
 type swarmWS struct {
 	t                 *testing.T
 	ws, root, local   string
+	config            string            // $DAISY_CONFIG: the registry
 	dir               string            // the folder holding the clone
 	upstreams         map[string]string // forge URL → local bare repository
 	place             declare.Place     // where the swarm is
@@ -52,7 +53,7 @@ func newSwarmWS(t *testing.T) *swarmWS {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	s := &swarmWS{t: t, dir: t.TempDir(), root: t.TempDir(), local: t.TempDir(), vars: map[string]string{}, upstreams: map[string]string{}}
+	s := &swarmWS{t: t, dir: t.TempDir(), root: t.TempDir(), local: t.TempDir(), config: t.TempDir(), vars: map[string]string{}, upstreams: map[string]string{}}
 	s.ws = filepath.Join(s.dir, "swarm-app")
 	// The installed root's praxis and testing skill, which the architect's
 	// and the worker's system.md carry (section 7.3).
@@ -96,10 +97,13 @@ func newSwarmWS(t *testing.T) *swarmWS {
 
 // publish commits everything in the swarm repository's clone and
 // pushes it to the swarm repository's default branch, as the maintainer
-// does: what the members read is what is pushed (section 2).
+// does: what the members read is what is pushed (section 2). It pulls
+// first, as the maintainer must once apply has pushed the journal
+// (section 7.6, The run's record).
 func (s *swarmWS) publish(msg string) {
 	s.t.Helper()
-	for _, args := range [][]string{{"add", "-A"}, {"-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", msg}, {"push", "-q", "origin", "HEAD:main"}} {
+	for _, args := range [][]string{{"add", "-A"}, {"-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", msg},
+		{"-c", "user.name=T", "-c", "user.email=t@example.net", "pull", "-q", "--rebase", "origin", "main"}, {"push", "-q", "origin", "HEAD:main"}} {
 		if _, errb, err := s.exec(s.ws, "git", args...); err != nil {
 			s.t.Fatalf("git %v: %v %s", args, err, errb)
 		}
@@ -176,7 +180,7 @@ func (o cwdOps) Getwd() (string, error) { return o.cwd, nil }
 // at runs verb on c as the cli does once the swarm is found: from s.cwd
 // through find, the one lookup.
 func (s *swarmWS) at(c *Context, init bool, verb func(*Context) error) error {
-	c.Env.Root, c.Env.Local = s.root, s.local
+	c.Env.Root, c.Env.Local, c.Env.Config = s.root, s.local, s.config
 	c.Ops = cwdOps{c.Ops, s.cwd}
 	if err := find(c, init); err != nil {
 		return err
