@@ -51,9 +51,9 @@ func mergeSkills(fs ops.FS, root, home string, skills map[string]string) (map[st
 // SKILL.md.
 func copySkill(fs ops.FS, dir, dst string, m merged) error {
 	if m.skill == nil {
-		return ops.CopyTree(fs, dir, dst)
+		return ops.CopyTreeUnderUmask(fs, dir, dst)
 	}
-	if err := ops.CopyTree(fs, m.rootDir, dst); err != nil {
+	if err := ops.CopyTreeUnderUmask(fs, m.rootDir, dst); err != nil {
 		return err
 	}
 	entries, err := fs.ReadDir(dir)
@@ -67,11 +67,11 @@ func copySkill(fs ops.FS, dir, dst string, m merged) error {
 		if err := fs.RemoveAll(filepath.Join(dst, e.Name())); err != nil {
 			return err
 		}
-		if err := ops.CopyTree(fs, filepath.Join(dir, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+		if err := ops.CopyTreeUnderUmask(fs, filepath.Join(dir, e.Name()), filepath.Join(dst, e.Name())); err != nil {
 			return err
 		}
 	}
-	// The copy's SKILL.md may be the root's link (CopyTree keeps links):
+	// The copy's SKILL.md may be the root's link (the copy keeps links):
 	// replaced, not written through, or the merge would land in the root.
 	if err := removeFile(fs, filepath.Join(dst, "SKILL.md")); err != nil {
 		return err

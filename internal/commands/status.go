@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"daisy/internal/env"
+	"daisy/internal/todo"
 )
 
 // Status prints the workspace summary an agent orients itself with: the
@@ -17,7 +18,6 @@ var (
 	pendingLine   = regexp.MustCompile(`^- \[ \]`)
 	completedLine = regexp.MustCompile(`^- \[x\]`)
 	logEntry      = regexp.MustCompile(`^- [0-9]{4} `)
-	backlogSkip   = regexp.MustCompile(`^(x |z |$)`)
 )
 
 func status(c *Context) error {
@@ -36,10 +36,10 @@ func status(c *Context) error {
 	fmt.Fprintf(c.Stdout, "Tasks:  %d pending, %d completed today\n", pending, completed)
 	fmt.Fprintf(c.Stdout, "Log:    %d entries\n", countLogEntries(lines))
 
-	if todo, err := fs.ReadFile(filepath.Join(c.Env.Home, "tasks", "todo.txt")); err == nil {
+	if b, err := fs.ReadFile(filepath.Join(c.Env.Home, "tasks", "todo.txt")); err == nil {
 		backlog := 0
-		for _, l := range strings.Split(strings.TrimSuffix(string(todo), "\n"), "\n") {
-			if !backlogSkip.MatchString(l) {
+		for _, l := range todo.Lines(string(b)) {
+			if l != "" && todo.Parse(l).State == todo.Open {
 				backlog++
 			}
 		}

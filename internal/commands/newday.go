@@ -10,6 +10,7 @@ import (
 
 	"daisy/internal/env"
 	"daisy/internal/journal"
+	"daisy/internal/ops"
 	"daisy/internal/todo"
 )
 
@@ -164,7 +165,7 @@ func startDay(c *Context, s start) error {
 	case rot.Moved > 0:
 		err = applyRotation(c, rot)
 	case archived:
-		err = fsys.WriteFile(journalPath, []byte(content), 0o644)
+		err = ops.Rewrite(fsys, journalPath, []byte(content), 0o644)
 	}
 	if err != nil {
 		return err
@@ -173,21 +174,21 @@ func startDay(c *Context, s start) error {
 		fmt.Fprintln(c.Stdout, "📦 Archived yesterday to journal.md")
 	}
 	reportRotation(c, rot)
-	if err := fsys.WriteFile(c.todoFile(), []byte(todo.Content(open)), 0o644); err != nil {
+	if err := ops.Rewrite(fsys, c.todoFile(), []byte(todo.Content(open)), 0o644); err != nil {
 		return err
 	}
 	if len(cancelled) > 0 {
 		fmt.Fprintf(c.Stdout, "🗑️  Deleted %d cancelled task(s)\n", len(cancelled))
 	}
 	if s.archive {
-		if err := fsys.WriteFile(c.doneFile(), []byte(done), 0o644); err != nil {
+		if err := ops.Rewrite(fsys, c.doneFile(), []byte(done), 0o644); err != nil {
 			return err
 		}
 		if len(completed) > 0 {
 			fmt.Fprintf(c.Stdout, "📦 Archived %d completed task(s) to done.txt\n", len(completed))
 		}
 	}
-	if err := fsys.WriteFile(c.todayFile(), []byte(today), 0o644); err != nil {
+	if err := ops.Rewrite(fsys, c.todayFile(), []byte(today), 0o644); err != nil {
 		return err
 	}
 

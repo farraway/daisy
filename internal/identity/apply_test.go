@@ -176,7 +176,18 @@ func TestHomeOf(t *testing.T) {
 	for _, p := range [][2]string{{"alpha", "alpha"}, {"shared", "alpha"}, {"beta", "beta"}, {"alpha", "beta"}, {"only", "beta"}, {"shared", "beta"}} {
 		want = append(want, identity.Pair{Identity: p[0], Home: p[1]})
 	}
+	// beta's identities/alpha is never resolved: the home alpha wins its
+	// name, so it is listed shadowed (L504) — as is a file named like a
+	// registered home that cannot be read (away), which wins it as well.
+	want[3].Shadowed = true
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("List %v", got)
+	}
+	if got := identity.FormatList(got[3:4], ""); got != "alpha          beta (shadowed: the home alpha takes this name)\n" {
+		t.Errorf("FormatList %q", got)
+	}
+	write(t, filepath.Join(b, "identities", "away"), "name=W\nemail=w@x\n")
+	if got := identity.List(o.FS(), m); len(got) != 7 || got[4] != (identity.Pair{Identity: "away", Home: "beta", Shadowed: true}) {
+		t.Errorf("List with a file named like an unusable home: %v", got)
 	}
 }

@@ -75,19 +75,23 @@ email=jane@example.net
 sshkey=~/.ssh/id_ed25519_jane
 ```
 
-`sshkey=` is optional and must be one plain path (no spaces or comment on
-the line); git expands a leading `~` itself, so the same file serves every
-machine.
+Each key's first line counts, its value read without the white space
+around it. `sshkey=` is optional and must be one plain path (no spaces or
+comment on the line); git expands a leading `~` itself, so the same file
+serves every machine.
 
 - `<home>/gitconfig` is the home's **default identity**, named by the home's
   own name. The template ships every line commented out; `daisy home new`
-  fills in `name=` and `email=` from its prompts.
+  fills in `name=` and `email=` from its prompts in place of the commented
+  ones, leaving the commented `sshkey=` hint for the user to fill in.
 - `<home>/identities/<id>` is a further identity of that home, named `<id>`.
   One person can work against the same home from several workspaces whose
   own repositories commit as different authors — a personal and a work
   persona, say — by choosing the identity when binding each workspace.
 
-`daisy identity list` prints every identity on the machine and its home.
+`daisy identity list` prints every identity on the machine and its home;
+an `identities/<id>` file named like a registered home is marked shadowed,
+since rule 1 below gives that name to the home.
 `daisy init <identity>` resolves the identity to a home:
 
 1. A registered home of that name wins: its default identity (`gitconfig`),

@@ -33,7 +33,7 @@ func TestRotateNothingToMove(t *testing.T) {
 		// five blocks with untidy separators: not rewritten, since nothing moves
 		days("2026-10-01", "2026-10-02") + "\n---\n\n\n---\n" + days("2026-10-03", "2026-10-04", "2026-10-05") + "\n\n",
 	} {
-		r, err := journal.Rotate(in, nil)
+		r, err := journal.Rotate(in, nil, nil)
 		if err != nil || r.Moved != 0 || len(r.Write) != 0 || len(r.Remove) != 0 {
 			t.Errorf("%q: %+v %v", in, r, err)
 		}
@@ -41,12 +41,12 @@ func TestRotateNothingToMove(t *testing.T) {
 }
 
 func TestRotateRefusesContentBeforeTheFirstHeading(t *testing.T) {
-	_, err := journal.Rotate("stray note\n\n"+days("2026-10-01"), nil)
+	_, err := journal.Rotate("stray note\n\n"+days("2026-10-01"), nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "non-blank content before its first '### YYYY-MM-DD' heading") {
 		t.Errorf("err %v", err)
 	}
 	// blank lines before the first heading are not content
-	if _, err := journal.Rotate(" \n\t\n"+days("2026-10-01"), nil); err != nil {
+	if _, err := journal.Rotate(" \n\t\n"+days("2026-10-01"), nil, nil); err != nil {
 		t.Errorf("blank lead: %v", err)
 	}
 }
@@ -55,7 +55,7 @@ func TestRotateRefusesContentBeforeTheFirstHeading(t *testing.T) {
 // the block's date, each with its front matter; journal.md keeps five.
 func TestRotateOneBlockFormat(t *testing.T) {
 	in := days("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06")
-	r, err := journal.Rotate(in, nil)
+	r, err := journal.Rotate(in, nil, nil)
 	if err != nil || r.Moved != 1 {
 		t.Fatalf("%+v %v", r, err)
 	}
@@ -81,7 +81,7 @@ func TestRotateOneBlockFormat(t *testing.T) {
 func TestRotateBlockBoundaries(t *testing.T) {
 	first := "### 2026-10-01 Day\n\nwork\n  \n---\n\n#### Weekly Retrospective\n\n* ok\n\n---\n\n\t\n"
 	in := first + days("2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06")
-	r, err := journal.Rotate(in, nil)
+	r, err := journal.Rotate(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,13 +91,13 @@ func TestRotateBlockBoundaries(t *testing.T) {
 	}
 	// only one trailing separator is the boundary; a second is content
 	in = "### 2026-10-01 Day\n\nwork\n\n---\n---\n\n" + days("2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06")
-	r, _ = journal.Rotate(in, nil)
+	r, _ = journal.Rotate(in, nil, nil)
 	if got := r.Write["journal-20261001-ytd.md"]; !strings.HasSuffix(got, "\n---\n\n### 2026-10-01 Day\n\nwork\n\n---\n") {
 		t.Errorf("ytd:\n%q", got)
 	}
 	// the retained blocks are trimmed and rejoined too
 	in = days("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05") + "\n\n---\n\n\n" + block("2026-10-06") + "\n\n"
-	r, _ = journal.Rotate(in, nil)
+	r, _ = journal.Rotate(in, nil, nil)
 	if want := days("2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06"); r.Journal != want {
 		t.Errorf("journal:\n%q", r.Journal)
 	}
@@ -114,7 +114,7 @@ func TestRotateWindowsAcrossBoundaries(t *testing.T) {
 		day := dateAfter("2026-12-12", d)
 		all = append(all, day)
 		start := max(0, len(all)-6)
-		r, err := journal.Rotate(days(all[start:]...), windows)
+		r, err := journal.Rotate(days(all[start:]...), windows, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -161,7 +161,7 @@ func TestRotateWindowsAcrossBoundaries(t *testing.T) {
 // already written. Go refuses before anything is written.
 func TestRotateRefusesAWindowWithoutAHeading(t *testing.T) {
 	in := days("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06")
-	_, err := journal.Rotate(in, map[string]string{"journal-20260901-mtd.md": "# notes\n"})
+	_, err := journal.Rotate(in, map[string]string{"journal-20260901-mtd.md": "# notes\n"}, nil)
 	if err == nil || !strings.Contains(err.Error(), "journal-20260901-mtd.md") {
 		t.Errorf("err %v", err)
 	}
@@ -178,11 +178,41 @@ func dateAfter(base string, n int) string {
 func TestRotateKeepsALeadingRetrospective(t *testing.T) {
 	retro := "#### Weekly Retrospective\n\n* **Successes:** \n\n---\n\n"
 	in := retro + days("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06")
-	r, err := journal.Rotate(in, nil)
+	r, err := journal.Rotate(in, nil, nil)
 	if err != nil || r.Moved != 1 || !strings.HasPrefix(r.Journal, retro+"### 2026-10-02") {
 		t.Errorf("%+v %v", r, err)
 	}
-	if _, err := journal.Rotate("#### Weekly Retrospective\n\n---\n", nil); err == nil {
+	if _, err := journal.Rotate("#### Weekly Retrospective\n\n---\n", nil, nil); err == nil {
 		t.Error("a preamble with no block after it was taken")
+	}
+}
+
+// A month or year window never closes into a file of its name that exists
+// already, in the directory or written earlier in the same run: blocks out
+// of date order would replace it, so the rotation is refused, nothing
+// written (L513).
+func TestRotateNeverReplacesAClosedWindow(t *testing.T) {
+	retained := []string{"2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14"}
+	for _, tc := range []struct {
+		name     string
+		moved    []string
+		existing map[string]bool
+		closes   string
+	}{
+		// September closes when October comes, October when September
+		// comes back, and September would close a second time.
+		{"in the run", []string{"2026-09-28", "2026-10-01", "2026-09-29", "2026-10-02"}, nil, "journal-202609.md"},
+		{"on disk, a month", []string{"2026-09-29", "2026-10-01"}, map[string]bool{"journal-202609.md": true}, "journal-202609.md"},
+		{"on disk, a year", []string{"2025-12-31", "2026-01-01"}, map[string]bool{"journal-2025.md": true}, "journal-2025.md"},
+	} {
+		in := days(append(tc.moved, retained...)...)
+		r, err := journal.Rotate(in, nil, tc.existing)
+		if err == nil || !strings.Contains(err.Error(), "would replace "+tc.closes) || !strings.Contains(err.Error(), "Nothing written") {
+			t.Errorf("%s: %+v %v", tc.name, r, err)
+		}
+	}
+	// In date order, the same blocks close each period once.
+	if _, err := journal.Rotate(days("2026-09-28", "2026-09-29", "2026-10-01", "2026-10-02", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14"), nil, map[string]bool{"journal-202608.md": true}); err != nil {
+		t.Errorf("in order: %v", err)
 	}
 }

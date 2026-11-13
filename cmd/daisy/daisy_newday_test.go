@@ -334,6 +334,34 @@ func TestRotate(t *testing.T) {
 	}
 }
 
+// A month window that would close into a month file already on disk (a
+// day-block of June after July's) is refused: the file is not replaced,
+// nothing is written (L513).
+func TestRotateKeepsAClosedMonthFile(t *testing.T) {
+	m := newMachine(t)
+	m.initHomeRepo(t)
+	jdir := filepath.Join(m.home, "journal")
+	june := "# Journal Archive: 2026-06\n\n### 2026-06-01 Day\n\nWork on 2026-06-01\n"
+	writeFile(t, filepath.Join(jdir, "journal-202606.md"), june)
+	writeFile(t, filepath.Join(jdir, "journal.md"), days("2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05", "2026-07-06"))
+	names := func() []string {
+		es, _ := os.ReadDir(jdir)
+		var ns []string
+		for _, e := range es {
+			ns = append(ns, e.Name())
+		}
+		return ns
+	}
+	before, journalBefore := names(), m.read(t, "journal/journal.md")
+	code, out, errs := runWith(m.at(time.Now()), "rotate")
+	if code != 1 || out != "" || !strings.Contains(errs, "would replace journal-202606.md") {
+		t.Errorf("exit %d out %q err %q", code, out, errs)
+	}
+	if m.read(t, "journal/journal-202606.md") != june || m.read(t, "journal/journal.md") != journalBefore || !slices.Equal(names(), before) {
+		t.Errorf("a refused rotation wrote: %q", names())
+	}
+}
+
 func TestDayHealthcheckHooks(t *testing.T) {
 	m := newMachine(t)
 	m.seed(t)
@@ -537,5 +565,68 @@ func TestNewDayAfterAFreshHomesFirstWeek(t *testing.T) {
 	}
 	if j := m.read(t, "journal/journal.md"); !strings.HasPrefix(j, "#### Weekly Retrospective\n") || !strings.Contains(j, "### 2026-08-03 Monday") {
 		t.Errorf("journal.md:\n%s", j)
+	}
+}
+
+// A home file that is a symbolic link (kept with the user's dotfiles, say)
+// is written through, never replaced by a file: log, done, new-day and
+// new-week, with and without a rotation, write today.md, todo.txt,
+// done.txt and journal.md so (L518).
+func TestDayWritesGoThroughLinks(t *testing.T) {
+	m := newMachine(t)
+	m.seed(t)
+	writeFile(t, filepath.Join(m.home, "tasks", "done.txt"), "")
+	writeFile(t, filepath.Join(m.home, "journal", "journal.md"), days("2026-07-27"))
+	store := t.TempDir()
+	target := map[string]string{}
+	for _, rel := range []string{"journal/today.md", "journal/journal.md", "tasks/todo.txt", "tasks/done.txt"} {
+		p := filepath.Join(m.home, rel)
+		target[rel] = filepath.Join(store, filepath.Base(rel))
+		if err := os.Rename(p, target[rel]); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target[rel], p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m.initHomeRepo(t)
+	stored := func(rel string) string {
+		t.Helper()
+		if fi, err := os.Lstat(filepath.Join(m.home, rel)); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("%s is no longer a link (%v)", rel, err)
+		}
+		b, _ := os.ReadFile(target[rel])
+		return string(b)
+	}
+	steps := []struct {
+		o    *ops.Fake
+		args []string
+		rel  string
+		want string
+	}{
+		{m.dayOps(m.ws, true), []string{"log", "Linked entry"}, "journal/today.md", "- 1423 Linked entry\n"},
+		{m.dayOps(m.ws, true), []string{"done", "Alpha"}, "tasks/todo.txt", "x 2026-07-28 2026-07-27 Alpha task +daisy\n"},
+		{m.at(time.Date(2026, 7, 29, 8, 0, 0, 0, time.Local)), []string{"new-day"}, "journal/journal.md", "### 2026-07-28 Tuesday\n"},
+		{m.at(time.Date(2026, 8, 3, 8, 0, 0, 0, time.Local)), []string{"new-week"}, "tasks/done.txt", "x 2026-07-28 2026-07-27 Alpha task +daisy\n"},
+	}
+	for i, s := range steps {
+		if i == 3 { // six blocks once today.md is archived: one rotates
+			os.WriteFile(target["journal/journal.md"], []byte(days("2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26")), 0o644)
+		}
+		if code, _, errs := runWith(s.o, s.args...); code != 0 {
+			t.Fatalf("%v: exit %d: %s", s.args, code, errs)
+		}
+		for rel := range target {
+			stored(rel) // every file the step wrote is still a link
+		}
+		if got := stored(s.rel); !strings.Contains(got, s.want) {
+			t.Errorf("%v: %s holds %q, want %q in it", s.args, s.rel, got, s.want)
+		}
+	}
+	if got := stored("journal/journal.md"); !strings.HasPrefix(got, "### 2026-07-23 Day\n") {
+		t.Errorf("journal.md after the rotation:\n%s", got)
+	}
+	if got := stored("journal/today.md"); !strings.Contains(got, "\n### 2026-08-03 Monday\n") {
+		t.Errorf("today.md after new-week:\n%s", got)
 	}
 }

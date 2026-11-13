@@ -92,8 +92,9 @@ func TestPlanNewCreatesAndLinks(t *testing.T) {
 
 	// A second plan is refused, and so is one over a dangling PLAN.md link.
 	before := snapshot(t, m.home, m.ws)
-	if code, _, errs := runWith(o, "plan", "new", "Another"); code != 1 || !strings.Contains(errs, "PLAN.md already exists") {
-		t.Fatalf("second plan new = %d: %s", code, errs)
+	// The hint names the command and the agent's form (L519).
+	if code, _, errs := runWith(o, "plan", "new", "Another"); code != 1 || errs != "Error: PLAN.md already exists in this workspace\nArchive it first: daisy plan archive (or, to an agent, /daisy archive PLAN.md)\n" {
+		t.Fatalf("second plan new = %d: %q", code, errs)
 	}
 	os.Remove(filepath.Join(m.ws, "PLAN.md"))
 	os.Symlink(".daisy/plans/gone.plan.md", filepath.Join(m.ws, "PLAN.md"))

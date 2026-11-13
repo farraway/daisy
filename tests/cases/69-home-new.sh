@@ -6,8 +6,12 @@
 target="$(cd "$FIXTURE_LOCAL" && pwd -P)/homes/fresh"  # the registry stores resolved paths
 fixture_run_cli_with_input $'Fixture Person\nperson@example.invalid\n' home new fresh "$target"
 assert_eq "$RUN_EXIT" "0" "home new exits 0"
-assert_eq "$(cat "$target/gitconfig")" $'name=Fixture Person\nemail=person@example.invalid' \
+assert_eq "$(grep -v '^#' "$target/gitconfig")" $'name=Fixture Person\nemail=person@example.invalid' \
     "the prompted identity is saved to gitconfig"
+assert_eq "$(grep -c '^# sshkey=~/.ssh/id_ed25519$' "$target/gitconfig")" "1" \
+    "gitconfig keeps the template's commented sshkey= hint"
+assert_eq "$(grep -c '^# \(name\|email\)=' "$target/gitconfig")" "0" \
+    "the prompted lines take the place of the template's commented ones"
 [ -f "$target/include.txt" ] && copied=yes || copied=no
 assert_eq "$copied" "yes" "the template is copied to the chosen location"
 assert_eq "$(git -C "$target" rev-list --count HEAD)" "1" \

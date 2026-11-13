@@ -51,8 +51,9 @@ func (id Identity) Value(key string) string {
 	return ""
 }
 
-// Read parses an identity file. Name and email are required; the error
-// says what is missing and names the file.
+// Read parses an identity file: each key's first line, its value without
+// the white space around it. Name and email are required; the error says
+// what is missing and names the file.
 func Read(fs ops.FS, file string) (Identity, error) {
 	b, err := fs.ReadFile(file)
 	if err != nil {
@@ -62,7 +63,7 @@ func Read(fs ops.FS, file string) (Identity, error) {
 	first := func(key string) string {
 		for _, line := range strings.Split(string(b), "\n") {
 			if v, ok := strings.CutPrefix(line, key+"="); ok {
-				return strings.ReplaceAll(v, "\r", "")
+				return strings.TrimSpace(v) // a CR and blanks around the value are not part of it
 			}
 		}
 		return ""

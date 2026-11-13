@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"daisy/internal/journal"
+	"daisy/internal/ops"
 )
 
 // Rotate keeps journal.md's last five day-blocks and files the older ones
@@ -45,10 +46,11 @@ func rotation(c *Context, content string) (journal.Rotation, error) {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return journal.Rotation{}, err
 	}
-	windows := map[string]string{}
+	windows, existing := map[string]string{}, map[string]bool{}
 	var odd []string
 	for _, e := range entries {
 		if !journal.IsRollingWindow(e.Name()) {
+			existing[e.Name()] = true
 			continue
 		}
 		if !e.Type().IsRegular() {
@@ -61,7 +63,7 @@ func rotation(c *Context, content string) (journal.Rotation, error) {
 		}
 		windows[e.Name()] = string(b)
 	}
-	r, err := journal.Rotate(content, windows)
+	r, err := journal.Rotate(content, windows, existing)
 	// A window that is a link (or anything but a file) matters only when a
 	// block moves: the bash appended through a link and then replaced it
 	// with a file, and leaving it out would open a second window beside it.
@@ -80,7 +82,7 @@ func applyRotation(c *Context, r journal.Rotation) error {
 	fsys := c.Ops.FS()
 	dir := filepath.Dir(c.journalFile())
 	for _, name := range slices.Sorted(maps.Keys(r.Write)) {
-		if err := fsys.WriteFile(filepath.Join(dir, name), []byte(r.Write[name]), 0o644); err != nil {
+		if err := ops.Rewrite(fsys, filepath.Join(dir, name), []byte(r.Write[name]), 0o644); err != nil {
 			return err
 		}
 	}
@@ -89,7 +91,7 @@ func applyRotation(c *Context, r journal.Rotation) error {
 			return err
 		}
 	}
-	return fsys.WriteFile(c.journalFile(), []byte(r.Journal), 0o644)
+	return ops.Rewrite(fsys, c.journalFile(), []byte(r.Journal), 0o644)
 }
 
 func reportRotation(c *Context, r journal.Rotation) {

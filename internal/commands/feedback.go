@@ -30,16 +30,19 @@ func Feedback(c *Context) error {
 		}
 	}
 	var message string
-	switch {
-	case len(c.Args) > 0 || c.EmptyWords:
+	given := len(c.Args) > 0 || c.EmptyWords
+	if given {
 		message = strings.Join(c.Args, " ")
-	case !ops.IsTerminal(c.Stdin):
+	} else if !ops.IsTerminal(c.Stdin) {
 		b, err := io.ReadAll(c.Stdin)
 		if err != nil {
 			return fmt.Errorf("Error: cannot read stdin: %v", err)
 		}
 		message = strings.TrimRight(string(b), "\n")
-	default:
+	}
+	// No word and nothing piped (a terminal, or an empty pipe) is no
+	// message given: the usage and the tags. An empty word is a message.
+	if !given && message == "" {
 		return errors.New("Usage: daisy feedback [--workflow <name>] \"<description>\"\n" +
 			"  or:  echo \"<description>\" | daisy feedback [--workflow <name>]\n\n" +
 			"Workflows:\n" + indent(c.workflowLabels(), "  "))

@@ -236,6 +236,44 @@ func TestCopyTreeKeepsLinksAndModes(t *testing.T) {
 	}
 }
 
+// CopyTreeUnderUmask is `cp -r`: each file and directory takes the
+// source's mode under the umask (a new home, a skill's copy, L517), a
+// read-only directory still filled; links stay links.
+func TestCopyTreeUnderUmask(t *testing.T) {
+	src, dst := t.TempDir(), filepath.Join(t.TempDir(), "copy")
+	os.MkdirAll(filepath.Join(src, "sub", "locked"), 0o755)
+	os.WriteFile(filepath.Join(src, "run.sh"), []byte("#!/bin/sh\n"), 0o755)
+	os.WriteFile(filepath.Join(src, "sub", "notes"), []byte("n"), 0o644)
+	os.WriteFile(filepath.Join(src, "sub", "locked", "f"), []byte("f"), 0o444)
+	for p, m := range map[string]os.FileMode{"run.sh": 0o755, "sub": 0o755, "sub/notes": 0o644, "sub/locked/f": 0o444, "sub/locked": 0o555} {
+		os.Chmod(filepath.Join(src, p), m) // the fixture's modes whatever the umask
+	}
+	defer os.Chmod(filepath.Join(src, "sub", "locked"), 0o755)
+	os.Symlink("../run.sh", filepath.Join(src, "sub", "link"))
+	old := syscall.Umask(0o027)
+	defer syscall.Umask(old)
+	if err := ops.CopyTreeUnderUmask(ops.Real().FS(), src, dst); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(filepath.Join(dst, "sub", "locked"), 0o755)
+	for p, want := range map[string]os.FileMode{".": 0o750, "run.sh": 0o750, "sub": 0o750, "sub/notes": 0o640, "sub/locked": 0o550, "sub/locked/f": 0o440} {
+		if fi, err := os.Stat(filepath.Join(dst, p)); err != nil {
+			t.Error(err)
+		} else if fi.Mode().Perm() != want {
+			t.Errorf("%s: mode %v, want %v", p, fi.Mode().Perm(), want)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(dst, "sub", "locked", "f")); string(b) != "f" {
+		t.Errorf("content %q", b)
+	}
+	if l, err := os.Readlink(filepath.Join(dst, "sub", "link")); err != nil || l != "../run.sh" {
+		t.Errorf("link %q %v", l, err)
+	}
+	if err := ops.CopyTreeUnderUmask(ops.Real().FS(), src, dst); err == nil {
+		t.Error("copying onto an existing destination succeeded")
+	}
+}
+
 func TestMkdirIsExclusive(t *testing.T) {
 	d := filepath.Join(t.TempDir(), "d")
 	fs := ops.Real().FS()

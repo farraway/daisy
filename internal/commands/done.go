@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"daisy/internal/journal"
+	"daisy/internal/ops"
 	"daisy/internal/todo"
 )
 
@@ -55,7 +56,7 @@ func Done(c *Context) error {
 	}
 	today := c.Ops.Now().Format("2006-01-02")
 	lines = append(append(lines[:matches[0]:matches[0]], lines[matches[0]+1:]...), task.Complete(today).Format())
-	if err := fs.WriteFile(c.todoFile(), []byte(todo.Content(lines)), 0o644); err != nil {
+	if err := ops.Rewrite(fs, c.todoFile(), []byte(todo.Content(lines)), 0o644); err != nil {
 		return err
 	}
 
@@ -65,7 +66,7 @@ func Done(c *Context) error {
 	if b, err := fs.ReadFile(c.todayFile()); err == nil {
 		for _, e := range entries {
 			if out, ok := journal.Tick(string(b), e); ok {
-				if err := fs.WriteFile(c.todayFile(), []byte(out), 0o644); err != nil {
+				if err := ops.Rewrite(fs, c.todayFile(), []byte(out), 0o644); err != nil {
 					return err
 				}
 				ticked = true

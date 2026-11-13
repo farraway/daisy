@@ -18,7 +18,7 @@ func (c *Context) planLink() string     { return filepath.Join(c.Env.Workspace, 
 func (c *Context) planTemplate() string { return filepath.Join(c.Env.Root, "templates", "plan.md") }
 
 // errPlanExists: the workspace already has a plan, or a link where one goes.
-var errPlanExists = errors.New("Error: PLAN.md already exists in this workspace\nArchive it first: /daisy archive PLAN.md")
+var errPlanExists = errors.New("Error: PLAN.md already exists in this workspace\nArchive it first: daisy plan archive (or, to an agent, /daisy archive PLAN.md)")
 
 // PlanNew creates a plan from templates/plan.md in the home's plans/ and
 // links it as the workspace's PLAN.md; with --spec it writes an unregistered

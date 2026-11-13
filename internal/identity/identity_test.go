@@ -31,6 +31,8 @@ func TestRead(t *testing.T) {
 		{"name and email", "name=Pelican Moorhen\nemail=pelican@example.invalid\n", identity.Identity{Name: "Pelican Moorhen", Email: "pelican@example.invalid"}, "", ""},
 		{"sshkey gives the ssh command", "name=A\nemail=a@b\nsshkey=~/.ssh/id_x\n", identity.Identity{Name: "A", Email: "a@b", SSHKey: "~/.ssh/id_x"}, "ssh -i ~/.ssh/id_x -o IdentitiesOnly=yes", ""},
 		{"CR stripped, first line wins", "name=A\r\nname=B\nemail=a@b\n", identity.Identity{Name: "A", Email: "a@b"}, "", ""},
+		{"surrounding white space trimmed", "name= Jane Doe \nemail=\tjane@example.net \r\nsshkey=~/.ssh/id_x  \n", identity.Identity{Name: "Jane Doe", Email: "jane@example.net", SSHKey: "~/.ssh/id_x"}, "ssh -i ~/.ssh/id_x -o IdentitiesOnly=yes", ""},
+		{"white space alone is no value", "name=  \nemail=a@b\n", identity.Identity{}, "", "needs both 'name=' and 'email=' lines"},
 		{"template with comments only", "# name=Your Name\n# email=you@example.com\n", identity.Identity{}, "", "is incomplete"},
 		{"missing email", "name=A\n", identity.Identity{}, "", "needs both 'name=' and 'email=' lines"},
 		{"sshkey with a space", "name=A\nemail=a@b\nsshkey=/k/a b\n", identity.Identity{}, "", "must be a plain path"},
@@ -135,5 +137,23 @@ func TestDrift(t *testing.T) {
 	write(t, record, "name=Zebra Quillfeather\nemail=fixture@example.invalid\n")
 	if d := identity.Drift(ops.ReadOnly(o), repo, daisyDir, bound); len(d) != 1 || !strings.Contains(d[0], "is missing or not a complete identity") {
 		t.Errorf("under ReadOnly: %v", d)
+	}
+}
+
+// Fill writes name= and email= where the template has them commented out
+// and keeps every other line, the sshkey= hint among them (L503); a key
+// with no commented line is appended.
+func TestFill(t *testing.T) {
+	id := identity.Identity{Name: "Jane Doe", Email: "jane@example.net"}
+	cases := []struct{ template, want string }{
+		{"# The home's identity.\n# name=Your Name\n# email=you@example.com\n# sshkey=~/.ssh/id_ed25519\n",
+			"# The home's identity.\nname=Jane Doe\nemail=jane@example.net\n# sshkey=~/.ssh/id_ed25519\n"},
+		{"", "name=Jane Doe\nemail=jane@example.net\n"},
+		{"# a comment\n# email=x", "# a comment\nemail=jane@example.net\nname=Jane Doe\n"},
+	}
+	for _, tc := range cases {
+		if got := string(id.Fill([]byte(tc.template))); got != tc.want {
+			t.Errorf("Fill(%q) = %q, want %q", tc.template, got, tc.want)
+		}
 	}
 }

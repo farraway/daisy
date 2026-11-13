@@ -9,20 +9,29 @@ import (
 	"daisy/internal/ops"
 )
 
-// Pair is one identity and the home it belongs to.
-type Pair struct{ Identity, Home string }
+// Pair is one identity and the home it belongs to. Shadowed: the identity
+// is an identities/ file named like a registered home, which HomeOf takes
+// first, so the file is never resolved.
+type Pair struct {
+	Identity, Home string
+	Shadowed       bool
+}
 
 // List is every identity on this machine: each usable registered home's
 // own name, then its identities/ files, in registry and name order.
 func List(fs ops.FS, m env.Env) []Pair {
 	usable, _ := env.UsableHomes(fs, m.Root, m.HomesFile())
+	registered := map[string]bool{}
+	for _, h := range env.Homes(fs, m.HomesFile()) {
+		registered[h.Name] = true
+	}
 	var pairs []Pair
 	for _, h := range usable {
-		pairs = append(pairs, Pair{h.Name, h.Name})
+		pairs = append(pairs, Pair{Identity: h.Name, Home: h.Name})
 		entries, _ := fs.ReadDir(filepath.Join(h.Path, "identities"))
 		for _, e := range entries {
 			if !strings.HasPrefix(e.Name(), ".") && isFile(fs, filepath.Join(h.Path, "identities", e.Name())) {
-				pairs = append(pairs, Pair{e.Name(), h.Name})
+				pairs = append(pairs, Pair{Identity: e.Name(), Home: h.Name, Shadowed: registered[e.Name()]})
 			}
 		}
 	}
@@ -33,7 +42,11 @@ func List(fs ops.FS, m env.Env) []Pair {
 func FormatList(pairs []Pair, indent string) string {
 	var b strings.Builder
 	for _, p := range pairs {
-		fmt.Fprintf(&b, "%s%-14s %s\n", indent, p.Identity, p.Home)
+		fmt.Fprintf(&b, "%s%-14s %s", indent, p.Identity, p.Home)
+		if p.Shadowed {
+			fmt.Fprintf(&b, " (shadowed: the home %s takes this name)", p.Identity)
+		}
+		b.WriteString("\n")
 	}
 	return b.String()
 }

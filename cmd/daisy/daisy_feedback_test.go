@@ -273,8 +273,14 @@ func TestFeedback(t *testing.T) {
 	if code, _, errs := l.run("feedback", "--workflow", "nope", "x"); code != 1 || !strings.Contains(errs, "Error: workflow 'nope' names no prompt or skill\n") || !strings.Contains(errs, "\n    prompts/widgetflow\n") {
 		t.Errorf("unknown tag: exit %d err %q", code, errs)
 	}
-	if code, _, errs := l.run("feedback"); code != 1 || errs != "Error: feedback message cannot be empty\n" {
-		t.Errorf("empty: exit %d err %q", code, errs)
+	// No word and nothing piped is no message given: the usage and the
+	// tags, as on a terminal (L108).
+	for _, piped := range []string{"", "\n\n"} {
+		var so, se bytes.Buffer
+		code := cli.Run(l.ops(), strings.NewReader(piped), &so, &se, []string{"feedback"})
+		if errs := se.String(); code != 1 || !strings.HasPrefix(errs, "Usage: daisy feedback [--workflow <name>]") || !strings.Contains(errs, "\nWorkflows:\n") || !strings.Contains(errs, "\n  prompts/widgetflow\n") {
+			t.Errorf("nothing piped (%q): exit %d err %q", piped, code, errs)
+		}
 	}
 	// An empty word is an empty message, not a reason to read stdin
 	// (review pass 3, F13).

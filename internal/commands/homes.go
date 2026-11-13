@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"path/filepath"
 	"strings"
 
@@ -177,12 +178,17 @@ func createHome(c *Context, m env.Env, name, template, path, gitName, gitEmail s
 	if err := fs.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", fmt.Errorf("Error: %v", err)
 	}
-	if err := ops.CopyTree(fs, template, path); err != nil {
+	if err := ops.CopyTreeUnderUmask(fs, template, path); err != nil {
 		return "", fmt.Errorf("Error: copying the template: %v", err)
 	}
 	real := env.RealDir(fs, path)
 	if gitName != "" && gitEmail != "" {
-		if err := fs.WriteFile(filepath.Join(real, "gitconfig"), []byte("name="+gitName+"\nemail="+gitEmail+"\n"), 0o644); err != nil {
+		file := filepath.Join(real, "gitconfig")
+		tpl, err := fs.ReadFile(file)
+		if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+			return "", fmt.Errorf("Error: %v", err)
+		}
+		if err := fs.WriteFile(file, identity.Identity{Name: gitName, Email: gitEmail}.Fill(tpl), 0o644); err != nil {
 			return "", fmt.Errorf("Error: %v", err)
 		}
 		fmt.Fprintf(c.Stdout, "  ✓ Saved git identity to %s/gitconfig\n", real)

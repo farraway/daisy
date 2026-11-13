@@ -51,8 +51,10 @@ type Rotation struct {
 // (which then drops its oldest block beyond Last14), the month-to-date and
 // the year-to-date window. A month or year window whose first block is of
 // another month or year than the incoming block closes first, into
-// journal-YYYYMM.md or journal-YYYY.md (replacing any file of that name),
-// and a new one opens. Each rolling window is named by the date of its
+// journal-YYYYMM.md or journal-YYYY.md, and a new one opens. A window never
+// closes over a file: when that name is in existing (the other names in the
+// journal directory) or was closed earlier in the run, a block came out of
+// date order and the rotation is refused, nothing written. Each rolling window is named by the date of its
 // first block and carries a table of contents and a summary. So every
 // rotated block is in exactly one month file and one year file, and in the
 // last-14 window while it is among the fourteen most recently rotated.
@@ -60,9 +62,10 @@ type Rotation struct {
 // A day-block runs from a `### YYYY-MM-DD` heading to the next one, less
 // its trailing blank lines and one trailing `---`; anything between a `---`
 // and the next heading (new-week's Weekly Retrospective) stays with the
-// block before it. windows holds the rolling files that exist, by name.
+// block before it. windows holds the rolling files that exist, by name;
+// existing the directory's other names.
 // This is the bash rotation, byte for byte; nothing here reads the clock.
-func Rotate(journal string, windows map[string]string) (Rotation, error) {
+func Rotate(journal string, windows map[string]string, existing map[string]bool) (Rotation, error) {
 	pre, blocks, err := splitBlocks(journal)
 	if err != nil {
 		return Rotation{}, fmt.Errorf("Error: rotate: journal.md has %v — aborting, nothing written", err)
@@ -78,12 +81,12 @@ func Rotate(journal string, windows map[string]string) (Rotation, error) {
 	for _, b := range blocks[:moved] {
 		date := b[4:14]
 		fileLast14(dir, b, date)
-		if err := fileCalendar(dir, mtdGlob, b, date[:7], func(month string) string {
+		if err := fileCalendar(dir, existing, mtdGlob, b, date[:7], func(month string) string {
 			return "journal-" + strings.Replace(month, "-", "", 1) + ".md"
 		}); err != nil {
 			return Rotation{}, err
 		}
-		if err := fileCalendar(dir, ytdGlob, b, date[:4], func(year string) string {
+		if err := fileCalendar(dir, existing, ytdGlob, b, date[:4], func(year string) string {
 			return "journal-" + year + ".md"
 		}); err != nil {
 			return Rotation{}, err
@@ -127,9 +130,9 @@ func fileLast14(dir map[string]string, block, date string) {
 
 // fileCalendar appends the block to the month (or year) window when the
 // window's first block is of the same period; otherwise it closes the
-// window into closed(period) and opens a new one with the block. period is
-// the block's YYYY-MM (or YYYY).
-func fileCalendar(dir map[string]string, glob, block, period string, closed func(string) string) error {
+// window into closed(period), refusing a name that is taken, and opens a
+// new one with the block. period is the block's YYYY-MM (or YYYY).
+func fileCalendar(dir map[string]string, existing map[string]bool, glob, block, period string, closed func(string) string) error {
 	name := first(dir, glob)
 	current := ""
 	if name != "" {
@@ -144,9 +147,13 @@ func fileCalendar(dir map[string]string, glob, block, period string, closed func
 		return nil
 	}
 	if name != "" {
+		to := closed(current)
+		if _, ok := dir[to]; ok || existing[to] {
+			return fmt.Errorf("Error: rotate: closing the %s window would replace %s: a day-block of %s comes after a later one, in journal.md or since %s was closed. Put it in date order (in journal.md, or into %s by hand), then re-run. Nothing written.", current, to, current, to, to)
+		}
 		content := frontMatter(dir[name], "Journal Archive: "+current)
 		delete(dir, name)
-		dir[closed(current)] = content
+		dir[to] = content
 	}
 	kind := strings.TrimSuffix(strings.TrimPrefix(glob, "journal-*-"), ".md")
 	dir[windowName(block[4:14], kind)] = frontMatter(block, "Journal Archive: "+period)

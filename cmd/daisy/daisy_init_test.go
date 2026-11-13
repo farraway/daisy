@@ -12,6 +12,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1420,5 +1421,49 @@ func TestInitStartsARepositoryOnMain(t *testing.T) {
 				t.Errorf("HEAD is %s, want %s", got, tc.want)
 			}
 		})
+	}
+}
+
+// What Daisy copies for the user to keep, a new home from the template and
+// a skill installed in a workspace, takes the umask as `cp -r` did, not
+// the source's modes (L517): under umask 077 nothing of it is readable by
+// group or others, though the template and the root's skill are.
+func TestCopiesTakeTheUmask(t *testing.T) {
+	m := initMachine(t)
+	for _, dir := range []string{filepath.Join(m.root, "templates", "home"), filepath.Join(m.root, "skills", "rootskill")} {
+		filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+			if err == nil {
+				mode := os.FileMode(0o644)
+				if d.IsDir() {
+					mode = 0o755
+				}
+				err = os.Chmod(p, mode)
+			}
+			return err
+		})
+	}
+	ws := scratch(t)
+	old := syscall.Umask(0o077)
+	defer syscall.Umask(old)
+
+	home := filepath.Join(t.TempDir(), "fresh")
+	o := &ops.Fake{GetenvFn: func(k string) string { return m.vars[k] }, GetwdFn: func() (string, error) { return ws, nil }}
+	var out, errb bytes.Buffer
+	if code := cli.Run(o, strings.NewReader("Jane Doe\njane@example.net\n"), &out, &errb, []string{"home", "new", "fresh", home}); code != 0 {
+		t.Fatalf("home new exit %d: %s%s", code, out.String(), errb.String())
+	}
+	if code, out, errs := m.pinned(t, ws, "init", "testhome"); code != 0 {
+		t.Fatalf("init exit %d: %s%s", code, out, errs)
+	}
+	for p, want := range map[string]os.FileMode{
+		home: 0o700, filepath.Join(home, "journal"): 0o700, filepath.Join(home, "include.txt"): 0o600, filepath.Join(home, "gitconfig"): 0o600,
+		filepath.Join(ws, ".claude", "skills", "rootskill"): 0o700, filepath.Join(ws, ".claude", "skills", "rootskill", "SKILL.md"): 0o600,
+		filepath.Join(ws, ".agents", "skills", "rootskill", "SKILL.md"): 0o600,
+	} {
+		if fi, err := os.Stat(p); err != nil {
+			t.Error(err)
+		} else if fi.Mode().Perm() != want {
+			t.Errorf("%s: mode %v, want %v", p, fi.Mode().Perm(), want)
+		}
 	}
 }

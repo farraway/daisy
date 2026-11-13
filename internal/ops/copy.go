@@ -10,11 +10,20 @@ import (
 // `cp -a` does: regular files with their modes, symlinks as links,
 // directories with their modes set once their contents are in (so a
 // read-only directory is still filled). Anything else is an error.
-func CopyTree(fsys FS, src, dst string) error {
+func CopyTree(fsys FS, src, dst string) error { return copyTree(fsys, src, dst, true) }
+
+// CopyTreeUnderUmask is CopyTree as `cp -r` copies: each file and
+// directory takes the source's mode under the umask, as anything new
+// Daisy writes does. The copies a user is given to keep (a new home, a
+// skill installed in a workspace) are made so.
+func CopyTreeUnderUmask(fsys FS, src, dst string) error { return copyTree(fsys, src, dst, false) }
+
+func copyTree(fsys FS, src, dst string, exact bool) error {
 	fi, err := fsys.Lstat(src)
 	if err != nil {
 		return err
 	}
+	perm := fi.Mode().Perm()
 	switch {
 	case fi.Mode()&fs.ModeSymlink != 0:
 		target, err := fsys.Readlink(src)
@@ -30,13 +39,17 @@ func CopyTree(fsys FS, src, dst string) error {
 		if err != nil {
 			return err
 		}
-		// `cp -a` keeps the mode exactly; WriteFile applies the umask.
-		if err := fsys.WriteFile(dst, b, fi.Mode().Perm()); err != nil {
+		// A new file: WriteFile gives it perm under the umask.
+		if err := fsys.WriteFile(dst, b, perm); err != nil {
 			return err
 		}
-		return fsys.Chmod(dst, fi.Mode().Perm())
+		if exact {
+			return fsys.Chmod(dst, perm)
+		}
+		return nil
 	case fi.IsDir():
-		if err := fsys.Mkdir(dst, 0o700); err != nil {
+		// The owner's rwx while it fills, under the umask like perm.
+		if err := fsys.Mkdir(dst, perm|0o700); err != nil {
 			return err
 		}
 		entries, err := fsys.ReadDir(src)
@@ -44,11 +57,23 @@ func CopyTree(fsys FS, src, dst string) error {
 			return err
 		}
 		for _, e := range entries {
-			if err := CopyTree(fsys, filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+			if err := copyTree(fsys, filepath.Join(src, e.Name()), filepath.Join(dst, e.Name()), exact); err != nil {
 				return err
 			}
 		}
-		return fsys.Chmod(dst, fi.Mode().Perm())
+		if exact {
+			return fsys.Chmod(dst, perm)
+		}
+		if perm&0o700 == 0o700 {
+			return nil
+		}
+		// perm under the umask is what Mkdir gave less the owner's bits
+		// perm lacks: the umask is read from its effect, never set.
+		made, err := fsys.Stat(dst)
+		if err != nil {
+			return err
+		}
+		return fsys.Chmod(dst, made.Mode().Perm()&^(0o700&^perm))
 	}
 	return fmt.Errorf("copying %s: not a file, directory or symlink", src)
 }

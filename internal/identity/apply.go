@@ -3,6 +3,7 @@ package identity
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,6 +18,27 @@ func (id Identity) Record() []byte {
 		s += "sshkey=" + id.SSHKey + "\n"
 	}
 	return []byte(s)
+}
+
+// Fill is template, an identity file whose lines may be commented out (the
+// home template's gitconfig), with the identity's name= and email= in
+// place of its first commented `# name=` and `# email=` lines, every other
+// line kept (the commented sshkey= hint among them); a key the template
+// has no such line for is appended.
+func (id Identity) Fill(template []byte) []byte {
+	var lines []string
+	if t := strings.TrimSuffix(string(template), "\n"); t != "" {
+		lines = strings.Split(t, "\n")
+	}
+	for _, kv := range [][2]string{{"name", id.Name}, {"email", id.Email}} {
+		i := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(l, "# "+kv[0]+"=") })
+		if i < 0 {
+			lines = append(lines, kv[0]+"="+kv[1])
+			continue
+		}
+		lines[i] = kv[0] + "=" + kv[1]
+	}
+	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
 // Values are what a repository's local config holds for each of the three

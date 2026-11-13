@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"daisy/internal/journal"
+	"daisy/internal/ops"
 )
 
 // Log adds `- HHMM <message>` to today's Log section and commits the home.
@@ -51,7 +52,7 @@ func appendLog(c *Context, time, message string) error {
 	if err != nil {
 		return err
 	}
-	return fs.WriteFile(c.todayFile(), []byte(out), 0o644)
+	return ops.Rewrite(fs, c.todayFile(), []byte(out), 0o644)
 }
 
 // summary is the first 60 characters of a message, for a commit subject.
