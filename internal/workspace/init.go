@@ -71,6 +71,7 @@ type initPlan struct {
 	command            []byte
 	agentsSkill        []byte            // Codex's daisy skill
 	skills             map[string]string // name → source dir
+	ownedHere          []owned           // root skills the workspace has its own of
 	staleStubs         []string
 	settings           []byte
 	gitignore          []byte
@@ -79,6 +80,9 @@ type initPlan struct {
 	cursorignore       []byte
 	cursorignoreChange bool
 }
+
+// owned is a root skill's name and the workspace's own path that takes it.
+type owned struct{ name, path string }
 
 func planInit(o ops.Ops, m env.Env, homeName, name, target string) (*initPlan, error) {
 	fs := o.FS()
@@ -224,18 +228,44 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 		return err
 	}
 
-	p.skills = skill.Discover(fs, filepath.Join(p.home, "skills"))
+	// The root's skills and the home's, the home's winning a name: an
+	// override of the root's is merged over its directory (mergeSkills).
+	// A root skill whose name the workspace uses for a skill or a Cursor
+	// rule of its own (not one init's stub claims) is the workspace's: no
+	// one chose that name for this workspace, so init installs none of it
+	// and says so; a home skill's name is the home's choice.
+	homeSkills := skill.Discover(fs, filepath.Join(p.home, "skills"))
+	p.skills = skill.Discover(fs, filepath.Join(p.m.Root, "skills"))
+	installed := map[string]bool{}
+	for _, n := range stubs(fs, p.target) {
+		installed[n] = true
+	}
+	for _, n := range sortedNames(p.skills) {
+		if homeSkills[n] != "" || installed[n] {
+			continue
+		}
+		for _, rel := range skillEntries(n) {
+			if path := filepath.Join(p.target, strings.TrimSuffix(rel, "/")); exists(fs, path) {
+				p.ownedHere = append(p.ownedHere, owned{n, path})
+				delete(p.skills, n)
+				break
+			}
+		}
+	}
+	for n, dir := range homeSkills {
+		p.skills[n] = dir
+	}
 	for n, dir := range p.skills {
 		// A skill's stub sits beside the core rules and its name is a line
 		// of .gitignore: it can be neither a core rule nor two lines.
 		if isCoreRule(n+".mdc") || strings.ContainsAny(n, "\r\n") {
-			return fmt.Errorf("Error: the home's skill %s cannot be installed under the name %q (a core Cursor rule's name, or not one line); rename its directory", dir, n)
+			return fmt.Errorf("Error: the skill %s cannot be installed under the name %q (a core Cursor rule's name, or not one line); rename its directory", dir, n)
 		}
 		if _, err := fs.ReadFile(filepath.Join(dir, "SKILL.md")); err != nil {
 			return fmt.Errorf("Error: cannot read %s: %v", filepath.Join(dir, "SKILL.md"), err)
 		}
 	}
-	if p.merged, err = mergeSkills(fs, p.m.Root, p.home, p.skills); err != nil {
+	if p.merged, err = mergeSkills(fs, p.m.Root, p.home, homeSkills); err != nil {
 		return err
 	}
 	// Every file a skill's copy reads is read now, before the first write.
@@ -250,8 +280,8 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 			}
 		}
 	}
-	// A stub of a skill the home no longer has is swept with its copy; a
-	// rule not in init's stub form is the user's and stays.
+	// A stub of a skill neither the root nor the home has now is swept
+	// with its copy; a rule not in init's stub form is the user's and stays.
 	for _, n := range stubs(fs, p.target) {
 		if p.skills[n] == "" {
 			p.staleStubs = append(p.staleStubs, n)
@@ -264,7 +294,7 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 		return fmt.Errorf("Error: cannot read %s: %v", path, err)
 	}
 	// The removed rule is legacy: older inits granted the deleted bash scripts.
-	if p.settings, err = settings.Allow(existing, allowRules, []string{"Bash(" + p.m.Root + "/daisy/scripts/*)"}); err != nil {
+	if p.settings, err = settings.Allow(existing, allowRules(p.m.Root), []string{"Bash(" + p.m.Root + "/daisy/scripts/*)"}); err != nil {
 		return fmt.Errorf("Error: %s cannot be read as settings: %v\n  Fix or remove it, then re-run 'daisy init %s'", path, err, p.name)
 	}
 
@@ -398,6 +428,9 @@ func (p *initPlan) apply(o ops.Ops, out, warn io.Writer) error {
 	}
 	for _, w := range p.agentsWarnings {
 		fmt.Fprintln(warn, w)
+	}
+	for _, o := range p.ownedHere {
+		fmt.Fprintf(warn, "  ⚠ The root's skill %s is not installed: this workspace has its own %s; rename or remove it, then re-run 'daisy init' to install the root's\n", o.name, o.path)
 	}
 	if err := p.writeFiles(fs, out); err != nil {
 		return err

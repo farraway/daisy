@@ -222,10 +222,10 @@ func Cached(fs ops.FS, stamp string, ttl, now int64) (left int64, ok bool) {
 
 // skillDrift: Check 4b, a workspace skill (in either skill tree; the
 // daisy skill init generates for Codex aside) with no source in the root
-// or the home; 4c, a skill `daisy install` put in ~/.claude/skills whose
-// source is gone, Claude Code's own directory aside (its sync writes only
-// there, never in a workspace, so 4b has no exemption). Warnings: the next
-// init or install --update prunes them.
+// or the home (the next init sweeps it); 4c, a copy of a root skill an
+// earlier `daisy install` left in ~/.claude/skills (skill.RootCopies:
+// never a user's own skill, an edited one or Claude Code's synced), which
+// install --update removes. Warnings.
 func (r *run) skillDrift() {
 	if r.e.Workspace != "" {
 		known := skill.Discover(r.fs, filepath.Join(r.root, "skills"))
@@ -241,11 +241,9 @@ func (r *run) skillDrift() {
 		}
 	}
 	dir := filepath.Join("/"+r.o.Getenv("HOME"), ".claude", "skills")
-	known := skill.Discover(r.fs, filepath.Join(r.root, "skills"))
-	for _, n := range skillDirs(r.fs, dir) {
-		if known[n] == "" && n != skill.ClaudeCodeSynced {
-			r.warn("Root-installed skill '%s' has no matching source in $DAISY_ROOT/skills — stale from a removed skill; re-run 'daisy install --update' or remove %s manually", n, filepath.Join(dir, n))
-		}
+	copies, _ := skill.RootCopies(r.o, r.root, dir)
+	for _, n := range copies {
+		r.warn("%s is a copy of the root's skill '%s' that an earlier 'daisy install' left; skills are installed in each workspace by 'daisy init' now — run 'daisy install --update' to remove it", filepath.Join(dir, n), n)
 	}
 }
 

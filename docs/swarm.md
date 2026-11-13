@@ -65,7 +65,10 @@ architect's and the worker's `system.md` carry the installed root's
 praxis and testing skill (item 116). Its Step 7 (2026-11-12) amended
 sections 2 and 11: `swarm prompt build` rewrites, commits and pushes
 each persona prompt of the clone that is still an earlier default, and
-keeps an edited one, printing its diff (item 117).
+keeps an edited one, printing its diff (item 117). Its Step 13
+(2026-11-12) amended section 11: the `swarm` skill is installed in each
+workspace by `daisy init`, with the root's other skills, no longer in
+`~/.claude/skills` by `daisy install`.
 Built in Steps 27–30 (the plan that builds it takes `swarm init` first: its
 Step 1 built `declare`, the forge calls `init` makes and the verb, amending
 sections 3, 8–11, 13 and 14; its Step 4 built `status` and the rest of the
@@ -3806,9 +3809,11 @@ after the verb's relabel is a warning (the next pass clears the flag),
 and after a close's terminal an error naming the flag, where a re-run
 refuses (the issue is closed).
 
-**The `swarm` skill** (`skills/swarm/SKILL.md`), which `daisy install`
-installs, is the guide an agent session follows in a swarm repository's
-clone, or in a folder holding one (it runs the verbs inside the clone):
+**The `swarm` skill** (`skills/swarm/SKILL.md`), which `daisy init`
+installs in each workspace with the root's other skills (a clone or a
+folder outside any workspace has it only once bound), is the guide an
+agent session follows in a swarm repository's clone, or in a folder
+holding one (it runs the verbs inside the clone):
 it reads `swarm status`, the briefs and `<state>/runs/`, says
 what was done and what waits, drafts or flips a brief's `Status` and
 edits `swarm.json` and the persona prompts as drafts for the maintainer,

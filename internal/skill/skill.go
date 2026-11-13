@@ -1,6 +1,7 @@
 // Package skill reads skills: SKILL.md files in skill directories, the
 // sources (the root's skills/ then the home's) and the installed copies
-// (~/.claude/skills then the workspace's .claude/skills). Directories are
+// (the user's ~/.claude/skills then the workspace's .claude/skills, where
+// init copies both sources). Directories are
 // always given lowest precedence first: a later one shadows an earlier one
 // by name.
 package skill
@@ -15,14 +16,14 @@ import (
 
 // ClaudeCodeSynced is the directory in ~/.claude/skills where Claude Code's
 // own skill sync writes, recreating it minutes after it is removed. It is
-// not Daisy's: install never prunes it and the health check never calls it
-// stale.
+// not Daisy's: install never removes it and the health check never names
+// it.
 const ClaudeCodeSynced = "synced"
 
-// WorkspaceTrees are where init copies each of the home's skills in a
-// workspace, one per agent reading the Agent Skills layout: Claude Code's,
-// then Codex's. They are twins: init, clean and the health check go
-// through this list, never through one tree alone.
+// WorkspaceTrees are where init copies each skill (the root's and the
+// home's) in a workspace, one per agent reading the Agent Skills layout:
+// Claude Code's, then Codex's. They are twins: init, clean and the health
+// check go through this list, never through one tree alone.
 var WorkspaceTrees = []string{".claude/skills", AgentsTree}
 
 // AgentsTree is Codex's project skill directory; init also writes there
@@ -39,8 +40,8 @@ func SourceDirs(root, home string) []string {
 	return []string{filepath.Join(root, "skills"), filepath.Join(home, "skills")}
 }
 
-// InstalledDirs are where agents load skills from: the user's (from
-// `daisy install`), then the workspace's (from `daisy init`). userHome is
+// InstalledDirs are where agents load skills from: the user's own, then
+// the workspace's (from `daisy init`). userHome is
 // $HOME, which may be empty: the shell made that `/.claude/skills`.
 func InstalledDirs(userHome, workspace string) []string {
 	return []string{filepath.Join("/"+userHome, ".claude", "skills"), filepath.Join(workspace, ".claude", "skills")}
@@ -58,7 +59,7 @@ func Find(fs ops.FS, dirs []string, name string) (path string, ok bool) {
 
 // Discover is every skill under dir by name: each directory, at any depth,
 // holding a SKILL.md, named by that directory (a later one in walk order
-// wins a name). What `daisy init` and `daisy install` copy.
+// wins a name). What `daisy init` copies.
 func Discover(fs ops.FS, dir string) map[string]string {
 	skills := map[string]string{}
 	entries, err := fs.ReadDir(dir)

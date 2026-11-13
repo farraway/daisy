@@ -144,7 +144,7 @@ func list(c *Context) error {
 	fmt.Fprintln(c.Stdout, "Skills:")
 	skills := skill.All(fs, skill.InstalledDirs(c.Ops.Getenv("HOME"), c.Env.Workspace))
 	if len(skills) == 0 {
-		fmt.Fprintf(c.Stdout, "  (none installed — run: daisy install, then daisy init %s)\n", c.Env.HomeName)
+		fmt.Fprintf(c.Stdout, "  (none installed — run: daisy init %s)\n", c.Env.HomeName)
 	}
 	for _, s := range skills {
 		doc, err := fs.ReadFile(s.Path)

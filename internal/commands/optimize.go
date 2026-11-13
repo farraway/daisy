@@ -378,7 +378,7 @@ func OptimizeApply(c *Context) error {
 	if t.Skill && ch.path != t.Src.Root && t.Src.Form != prompt.HomeOwn {
 		fmt.Fprintf(c.Stdout, "A home override of a root skill changed. The workspace's installed copy is still the old version — propagate with:\n  daisy init %s\n", c.Env.Identity)
 	} else if t.Skill {
-		fmt.Fprintf(c.Stdout, "A skill source changed. The installed copies are still the old version — propagate with:\n  daisy install --update      # user-level skills (~/.claude/skills)\n  daisy init %s  # this workspace's skills\n", c.Env.Identity)
+		fmt.Fprintf(c.Stdout, "A skill source changed. The installed copies are still the old version — propagate with 'daisy init' in each workspace; in this one:\n  daisy init %s\n", c.Env.Identity)
 	} else {
 		fmt.Fprintln(c.Stdout, "  ✓ AGENTS.md rebuilt")
 	}

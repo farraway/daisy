@@ -12,10 +12,10 @@ Less than it looks. A skill's `description` and a lazy prompt's `## Trigger`
 are the same construct — a context pointer with an on-demand body. Both are
 progressive disclosure; both keep a short summary in front of the agent and
 load the rest when it becomes relevant. Nor is scope a difference: `daisy
-install` copies root skills to `~/.claude/skills/`, `daisy init` copies a
-home's skills into the workspace's `.claude/skills/` (and its Codex twin,
-`.agents/skills/`), and prompts compile per-home, so either format can be
-narrow or broad.
+init` copies the root's skills and a home's into the workspace's
+`.claude/skills/` (and its Codex twin, `.agents/skills/`), and prompts
+compile per-home and per-workspace, so either format can be narrow or
+broad.
 
 **The distinction is governance, not mechanism.** It is a decision about who
 maintains a thing and what it is allowed to assume — not about how it
@@ -26,7 +26,7 @@ motivating it:
 
 - **Provenance.** A skill is *copied* into its install location — a
   distribution of a source that lives elsewhere, which is why refreshing one
-  means re-running `daisy install` or `daisy init`. A prompt is compiled
+  means re-running `daisy init`. A prompt is compiled
   from `include.txt` into the per-home `AGENTS.md`; Daisy owns the source
   outright and there is no copy to drift from it.
 - **Dispatch.** A skill is a discrete unit the agent surfaces by matching

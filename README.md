@@ -154,9 +154,10 @@ workspace resolves to.
 workspace rebuilds that and refreshes the skills, rules and settings.
 `daisy list` shows the active prompts and installed skills;
 `daisy help <skill>` prints a skill's description and rules. `daisy install` links
-`~/bin/daisy`, installs the root's skills into `~/.claude/skills/`, adds
-`DAISY_ROOT` to the shell rc file and grants Claude Code the permissions
-`daisy` needs. The two layers and why they differ are the section
+`~/bin/daisy` and adds `DAISY_ROOT` to the shell rc file, and writes
+nothing under `~/.claude`: `daisy init` installs the root's skills and the
+home's in each workspace and grants Claude Code the permissions `daisy`
+needs there. The two layers and why they differ are the section
 [Prompts vs. Skills](#prompts-vs-skills) below.
 
 **The feedback loop.** `daisy feedback <text>` records a failure against a
@@ -372,9 +373,10 @@ make build              # the Go binary, bin/daisy (Go 1.27, standard library on
 bin/daisy install
 ```
 
-`install` links `~/bin/daisy` to `bin/daisy`, installs the root's skills
-into `~/.claude/skills/`, adds `DAISY_ROOT` to your shell rc file and grants
-Claude Code the permissions `daisy` needs. Open a new shell (or source the
+`install` links `~/bin/daisy` to `bin/daisy` and adds `DAISY_ROOT` to your
+shell rc file; it writes nothing under `~/.claude` (skills and permissions
+come with `daisy init`, per workspace, below), and takes back the skill
+copies and permissions an earlier install put there. Open a new shell (or source the
 rc file `install` named), then create a home if you have none:
 
 ```bash
@@ -420,9 +422,9 @@ is now. A workspace keeps what its last `init` wrote until then.
 
 | Tool | What `init` writes | How to address Daisy |
 |------|--------------------|----------------------|
-| Claude Code | `.claude/commands/daisy.md` (the `/daisy` command), `.claude/settings.local.json` (permissions), the home's skills in `.claude/skills/` | `/daisy <request>` |
+| Claude Code | `.claude/commands/daisy.md` (the `/daisy` command), `.claude/settings.local.json` (permissions), the root's and the home's skills in `.claude/skills/` | `/daisy <request>` |
 | Cursor | `.cursor/rules/daisy.mdc`, `daisy-logging.mdc`, `daisy-plan.mdc`, `.cursorignore` entries | `Daisy, <request>` |
-| Codex | `.agents/skills/daisy/SKILL.md` (the `daisy` skill), the home's skills in `.agents/skills/` | `$daisy <request>`, or by matching the skill's description |
+| Codex | `.agents/skills/daisy/SKILL.md` (the `daisy` skill), the root's and the home's skills in `.agents/skills/` | `$daisy <request>`, or by matching the skill's description |
 
 The examples below use the Claude Code form.
 
@@ -574,13 +576,16 @@ A **skill** (`skills/`) is craft. It knows the work, not you. Six assume
 nothing about Daisy at all: `agents-md`, `css`, `git`, `js`, `testing` and
 `transcribe`; the seventh, `swarm`, is the maintainer's guide over a swarm
 and knows Daisy's `swarm` verbs, but nothing of your tasks or journal. The
-root's
-skills are installed once per machine by `daisy install`, so they keep
-working in repositories that were never bound; a home's skills are copied
-into each workspace by `daisy init`. A skill is a directory with a
+root's skills and the home's are copied into each workspace by `daisy
+init`, never into your own `~/.claude`: Daisy changes no agent's
+configuration outside a workspace, and a workspace keeps the copies it
+has until `daisy init` is run there again. A repository never bound has
+none of them. A skill is a directory with a
 `SKILL.md` whose frontmatter description is what the agent matches a
-request against; there is no manifest, and every skill in the root and the
-home installs.
+request against; there is no manifest: `daisy init` installs every skill
+in the root and the home, except a root skill whose name no home skill
+has and the workspace already uses for a skill or Cursor rule of its own,
+which init leaves alone with a warning.
 
 The two look alike (both are markdown with a trigger, both can load on
 demand) and the mechanism is not what separates them. The question is

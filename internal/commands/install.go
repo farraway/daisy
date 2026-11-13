@@ -13,13 +13,15 @@ import (
 	"daisy/internal/skill"
 )
 
-// Install links ~/bin/daisy to this root's binary, copies the root's skills
-// into ~/.claude/skills (pruning copies whose source is gone), grants
-// Daisy's permissions in ~/.claude/settings.json and, unless --update,
-// writes the DAISY_ROOT line to the shell's rc file. It does not build:
-// `make build` writes the binary. The root is the one this binary was
-// built in (bin/daisy under it), so a shell with nothing set can bootstrap;
-// a $DAISY_ROOT naming another root is refused before any write.
+// Install links ~/bin/daisy to this root's binary and, unless --update,
+// writes the DAISY_ROOT line to the shell's rc file. It writes nothing
+// under ~/.claude: skills and permissions are init's, per workspace. It
+// takes back what earlier installs put there: the copies of the root's
+// skills (skill.RootCopies; a user's own skill, an edited copy and synced
+// stay) and Daisy's allow rules in ~/.claude/settings.json. It does not
+// build: `make build` writes the binary. The root is the one this binary
+// was built in (bin/daisy under it), so a shell with nothing set can
+// bootstrap; a $DAISY_ROOT naming another root is refused before any write.
 func Install(c *Context) error {
 	fs := c.Ops.FS()
 	update := c.Flag("--update")
@@ -37,17 +39,17 @@ func Install(c *Context) error {
 		return errors.New("  ⚠ ~/bin/daisy exists but is not a symlink. Remove it and re-run.")
 	}
 	settingsPath := filepath.Join(home, ".claude", "settings.json")
-	current, err := fs.ReadFile(settingsPath)
-	if err != nil && exists(fs, settingsPath) {
+	var newSettings []byte
+	settingsRemoved, settingsEmpty := false, false
+	if current, err := fs.ReadFile(settingsPath); err != nil && exists(fs, settingsPath) {
 		return fmt.Errorf("Error: cannot read %s: %v", settingsPath, err)
-	}
-	// The removed rules are legacy: older installs granted the deleted
-	// bash scripts and wrote the root rules in two other spellings.
-	newSettings, err := settings.Allow(current,
-		[]string{"Read(/" + root + "/**)", "Edit(/" + root + "/**)", "Bash(daisy:*)"},
-		[]string{"Bash(" + root + "/daisy/scripts/*)", "Read(" + root + "/**)", "Edit(" + root + "/**)", "Read(//" + root + "/**)", "Edit(//" + root + "/**)"})
-	if err != nil {
-		return fmt.Errorf("Error: %s cannot be read as settings: %v\n  Fix or remove it, then re-run 'daisy install'", settingsPath, err)
+	} else if err == nil {
+		// Every form an install wrote: the current one, the deleted bash
+		// scripts' grant, and the root rules' two other spellings.
+		own := []string{"Read(/" + root + "/**)", "Edit(/" + root + "/**)", "Bash(daisy:*)", "Bash(" + root + "/daisy/scripts/*)", "Read(" + root + "/**)", "Edit(" + root + "/**)", "Read(//" + root + "/**)", "Edit(//" + root + "/**)"}
+		if newSettings, settingsRemoved, settingsEmpty, err = settings.Disallow(current, own); err != nil {
+			return fmt.Errorf("Error: %s cannot be read as settings: %v\n  Fix or remove it, then re-run 'daisy install'", settingsPath, err)
+		}
 	}
 	rc, rcContent, rcMessage, err := planRC(c.Ops, home, root)
 	if err != nil && !update {
@@ -56,7 +58,7 @@ func Install(c *Context) error {
 	// Installed is the link and the rc line both naming this root: a moved
 	// root installed only with --update still needs its rc line written.
 	if !update && linkErr == nil && existing == target && rcContent == nil {
-		return errors.New("Error: Daisy is already installed.\nRun 'daisy install --update' to re-apply symlink/skills/permissions.")
+		return errors.New("Error: Daisy is already installed.\nRun 'daisy install --update' to re-apply the symlink and take back what earlier installs put under ~/.claude.")
 	}
 
 	if update {
@@ -93,7 +95,7 @@ func Install(c *Context) error {
 		fmt.Fprintf(c.Stdout, "  ✓ Created ~/bin/daisy → %s\n", target)
 	}
 
-	if err := installSkills(c, root, filepath.Join(home, ".claude", "skills")); err != nil {
+	if err := removeSkillCopies(c, root, filepath.Join(home, ".claude", "skills")); err != nil {
 		return err
 	}
 
@@ -110,13 +112,18 @@ func Install(c *Context) error {
 		fmt.Fprintln(c.Stdout, rcMessage)
 	}
 
-	if err := fs.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
-		return fmt.Errorf("Error: %v", err)
+	switch {
+	case settingsRemoved && settingsEmpty:
+		if err := fs.Remove(settingsPath); err != nil {
+			return fmt.Errorf("Error: %v", err)
+		}
+		fmt.Fprintln(c.Stdout, "  ✓ Removed ~/.claude/settings.json (it held only Daisy's permissions, which each workspace's 'daisy init' grants now)")
+	case settingsRemoved:
+		if err := ops.Rewrite(fs, settingsPath, newSettings, 0o644); err != nil {
+			return fmt.Errorf("Error: %v", err)
+		}
+		fmt.Fprintln(c.Stdout, "  ✓ Removed Daisy's permissions from ~/.claude/settings.json (each workspace's 'daisy init' grants them now)")
 	}
-	if err := ops.Rewrite(fs, settingsPath, newSettings, 0o644); err != nil {
-		return fmt.Errorf("Error: %v", err)
-	}
-	fmt.Fprintln(c.Stdout, "  ✓ Configured ~/.claude/settings.json with Daisy permissions")
 
 	if update {
 		fmt.Fprint(c.Stdout, "\nDone.\n")
@@ -159,38 +166,21 @@ func installRoot(o ops.Ops) (string, error) {
 	return root, nil
 }
 
-// installSkills copies every root skill and prunes installed copies whose
-// source is gone, sparing Claude Code's own directory.
-func installSkills(c *Context, root, dir string) error {
-	fs := c.Ops.FS()
-	if err := fs.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("Error: %v", err)
-	}
-	sources := skill.Discover(fs, filepath.Join(root, "skills"))
-	for n, src := range sources {
-		if err := fs.RemoveAll(filepath.Join(dir, n)); err != nil {
+// removeSkillCopies removes the copies of the root's skills earlier
+// installs left in dir and says which directories named as a root skill it
+// keeps, and why.
+func removeSkillCopies(c *Context, root, dir string) error {
+	copies, kept := skill.RootCopies(c.Ops, root, dir)
+	for _, n := range copies {
+		if err := c.Ops.FS().RemoveAll(filepath.Join(dir, n)); err != nil {
 			return fmt.Errorf("Error: %v", err)
 		}
-		if err := ops.CopyTree(fs, src, filepath.Join(dir, n)); err != nil {
-			return fmt.Errorf("Error: copying the skill %s: %v", n, err)
-		}
 	}
-	fmt.Fprintf(c.Stdout, "  ✓ Installed %d skill(s) into %s\n", len(sources), dir)
-	pruned := 0
-	entries, _ := fs.ReadDir(dir)
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".") || sources[e.Name()] != "" || e.Name() == skill.ClaudeCodeSynced {
-			continue
-		}
-		if fi, err := fs.Stat(filepath.Join(dir, e.Name())); err == nil && fi.IsDir() {
-			if err := fs.RemoveAll(filepath.Join(dir, e.Name())); err != nil {
-				return fmt.Errorf("Error: %v", err)
-			}
-			pruned++
-		}
+	if len(copies) > 0 {
+		fmt.Fprintf(c.Stdout, "  ✓ Removed %s from ~/.claude/skills (%s); Daisy installs skills in each workspace now: run 'daisy init' there\n", plural(len(copies), "copy of a root skill", "copies of root skills"), strings.Join(copies, ", "))
 	}
-	if pruned > 0 {
-		fmt.Fprintf(c.Stdout, "  ✓ Pruned %d stale skill(s) from %s\n", pruned, dir)
+	for _, n := range kept {
+		fmt.Fprintf(c.Stdout, "  · Kept ~/.claude/skills/%s: named as a root skill but holding a file no version of it has (an edit, or a file of your own); remove it by hand if it is Daisy's\n", n)
 	}
 	return nil
 }

@@ -583,18 +583,27 @@ func TestShellQuote(t *testing.T) {
 	}
 }
 
-// Check 4c: a root-installed skill with no source warns, but synced, where
-// Claude Code's own skill sync writes, is not Daisy's and never does.
-func TestSkillDriftSparesSynced(t *testing.T) {
+// Check 4c: a copy of a root skill an earlier install left in ~/.claude/
+// skills warns (install --update removes it); a skill of the user's own,
+// one named as a root skill but edited, and synced, where Claude Code's own
+// skill sync writes, are not Daisy's and never do.
+func TestSkillDriftNamesRootCopies(t *testing.T) {
 	m := newMachine(t)
-	m.write(filepath.Join(m.uhome, ".claude", "skills", "synced", "abc", "SKILL.md"), "Claude Code's\n")
-	m.write(filepath.Join(m.uhome, ".claude", "skills", "old-skill", "SKILL.md"), "stale\n")
+	m.write(filepath.Join(m.root, "skills", "s", "SKILL.md"), "the root's\n")
+	m.write(filepath.Join(m.root, "skills", "e", "SKILL.md"), "the root's\n")
+	skills := filepath.Join(m.uhome, ".claude", "skills")
+	m.write(filepath.Join(skills, "s", "SKILL.md"), "the root's\n")
+	m.write(filepath.Join(skills, "e", "SKILL.md"), "edited\n")
+	m.write(filepath.Join(skills, "mine", "SKILL.md"), "mine\n")
+	m.write(filepath.Join(skills, "synced", "abc", "SKILL.md"), "Claude Code's\n")
 	_, _, errs := m.run(health.Options{Force: true})
-	if !strings.Contains(errs, "Root-installed skill 'old-skill'") {
-		t.Errorf("no warning for the stale skill: %q", errs)
+	if !strings.Contains(errs, filepath.Join(skills, "s")+" is a copy of the root's skill 's'") || !strings.Contains(errs, "daisy install --update") {
+		t.Errorf("no warning for the copy: %q", errs)
 	}
-	if strings.Contains(errs, "'synced'") {
-		t.Errorf("synced warned as stale: %q", errs)
+	for _, n := range []string{"'e'", "'mine'", "'synced'", "/e ", "/mine ", "/synced "} {
+		if strings.Contains(errs, n) {
+			t.Errorf("%s warned: %q", n, errs)
+		}
 	}
 }
 

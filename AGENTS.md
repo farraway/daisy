@@ -187,7 +187,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Homes and identities | `daisy home remove <name>` | Unregister a home; its files stay where they are |
 | Homes and identities | `daisy identity list` | Identities across registered homes |
 | Prompts and skills | `daisy prompt build [<home>]` | Rebuild AGENTS.md |
-| Prompts and skills | `daisy install [--update]` | ~/bin/daisy, root skills, permissions |
+| Prompts and skills | `daisy install [--update]` | ~/bin/daisy and DAISY_ROOT; nothing under ~/.claude |
 | Prompts and skills | `daisy feedback [--workflow <n>] <text>` | Record a prompt failure for optimization |
 | Prompts and skills | `daisy optimize [--workflow <n>]` | Briefing: pending entries per target, current rules, rewrite flags |
 | Prompts and skills | `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` | Apply a proposal: diff, approve, archive, commit |
@@ -292,8 +292,11 @@ bare `daisy init` in the workspace, which re-initializes it with its own
 home and identity and so refreshes its skills, rules and settings as
 well; `prompt build` is the narrower command.
 
-`include.txt` is prompts-only. Skills (`skills/`) have no manifest: every
-skill in the merged root and home set installs at `daisy init`; see
+`include.txt` is prompts-only. Skills (`skills/`) have no manifest:
+`daisy init` installs every skill in the merged root and home set, except
+a root skill whose name no home skill has and the workspace already uses
+for a skill or Cursor rule of its own, which init leaves alone with a
+warning (Skills, step 2, below); see
 [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) for why these are
 different systems.
 
@@ -382,16 +385,27 @@ stay outside the feedback loop's write path, overridden or not.
    separate, ≤50-character, standalone summary that `daisy list` prints
    by default; `description` is never shortened, since Claude Code
    surfaces it verbatim for model-invocation matching.
-2. No manifest entry is needed. Root skills (`skills/`) install to
-   `~/.claude/skills/` via `daisy install`; home skills (the home's
-   `skills/`) install to the workspace's `.claude/skills/` and its twin
-   `.agents/skills/` (Codex's) via `daisy init`: separate targets, no
-   install-time merge. `daisy list` consolidates both for display, with
-   workspace and home entries overriding root and user entries of the
-   same name.
-3. Re-run `daisy install` (root skill) or `daisy init` (home skill) in any
-   workspace that should pick it up: skills are copied, not symlinked, so
-   this is the only way to refresh one.
+2. No manifest entry is needed. Root skills (`skills/`) and home skills
+   (the home's `skills/`) both install to the workspace's `.claude/skills/`
+   and its twin `.agents/skills/` (Codex's) via `daisy init`. A root
+   skill's name goes first to a home skill of that name (an override when
+   it sits at the root skill's path, see Home overrides above; elsewhere
+   a full one installs alone and a layered one refuses init), installed
+   over whatever the workspace holds there;
+   failing that, to a skill or Cursor rule of the workspace's own, and
+   init then installs none of the root's, with a warning.
+   `daisy install` writes nothing under `~/.claude`: Daisy changes no
+   agent's configuration outside a workspace, and only the `daisy`
+   command is global. It removes the copies of root skills earlier
+   installs left in `~/.claude/skills` (`skill.RootCopies`: a directory
+   whose every file is a version of a root skill's, in the working tree
+   or the root's history; an edited one, a user's own skill and `synced`
+   stay) and its old rules in `~/.claude/settings.json`. `daisy list`
+   shows the user's skills and the workspace's, the workspace's winning
+   by name.
+3. Re-run `daisy init` in any workspace that should pick it up: skills
+   are copied, not symlinked, so this is the only way to refresh one, and
+   a workspace keeps the copies it has until then.
 
 ### Adopting a skill from reference
 
@@ -408,7 +422,7 @@ any future reference source) is not a skill until adopted:
    `NOTICE.md` needs no other edits; it is the sole provenance record for
    an adopted skill, with no separate `attribution:` frontmatter.
 4. Add `short_description` frontmatter to `SKILL.md` (above).
-5. Re-run `daisy install` to deliver it.
+5. Re-run `daisy init` in each workspace to deliver it.
 
 The reference source itself is never modified or deleted by adoption: copy
 *from* it, always.

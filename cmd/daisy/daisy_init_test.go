@@ -118,6 +118,7 @@ func initMachine(t *testing.T) *machine {
 	m := newMachine(t)
 	writeFile(t, filepath.Join(m.home, "skills", "nested", "myskill", "SKILL.md"), "---\nname: myskill\ndescription: \"Use when: testing\"\n---\nbody\n")
 	writeFile(t, filepath.Join(m.home, "skills", "nested", "myskill", "ref.md"), "ref\n")
+	writeFile(t, filepath.Join(m.root, "skills", "rootskill", "SKILL.md"), "---\nname: rootskill\ndescription: \"Use when: the root's\"\n---\nbody\n")
 	os.MkdirAll(filepath.Join(m.home, "identities"), 0o755)
 	writeFile(t, filepath.Join(m.home, "identities", "pelicanmoor"), "name=Pelican Moorhen\nemail=pelican@example.invalid\nsshkey=~/.ssh/id_p\n")
 	return m
@@ -144,7 +145,7 @@ func TestInitTwiceEqualsOnce(t *testing.T) {
 		if k := keys(t, ws); k != onceKeys {
 			t.Errorf("%s: keys %s → %s", id, onceKeys, k)
 		}
-		for _, f := range []string{".gitignore", ".cursorignore", ".claude/settings.local.json", ".cursor/rules/myskill.mdc", ".claude/skills/myskill/ref.md", ".daisy/AGENTS.md"} {
+		for _, f := range []string{".gitignore", ".cursorignore", ".claude/settings.local.json", ".cursor/rules/myskill.mdc", ".claude/skills/myskill/ref.md", ".cursor/rules/rootskill.mdc", ".claude/skills/rootskill/SKILL.md", ".agents/skills/rootskill/SKILL.md", ".daisy/AGENTS.md"} {
 			if _, ok := once[f]; !ok {
 				t.Errorf("%s: init wrote no %s", id, f)
 			}
@@ -193,6 +194,126 @@ func TestInitThenCleanRestores(t *testing.T) {
 			}
 		}
 	}
+}
+
+// init installs the root's skills beside the home's, in .claude/skills and
+// its Codex twin .agents/skills, each with its Cursor stub, a nested one
+// by its directory's name, byte for byte as the root has it; a home skill
+// of the same name wins: its override of the root's (the root's directory,
+// the home's SKILL.md), or, at another path, the home's alone. The root's
+// Read and Edit rules join .claude/settings.local.json. git ignores all of
+// it, and clean takes all of it out. Nothing is written under the user's
+// ~/.claude.
+func TestInitInstallsRootSkills(t *testing.T) {
+	m := initMachine(t)
+	writeFile(t, filepath.Join(m.root, "skills", "rootskill", "ref.md"), "the root's ref\n")
+	writeFile(t, filepath.Join(m.root, "skills", "group", "deep", "SKILL.md"), "---\nname: deep\ndescription: nested\n---\n")
+	writeFile(t, filepath.Join(m.root, "skills", "both", "SKILL.md"), "---\nname: both\ndescription: the root's\n---\n")
+	writeFile(t, filepath.Join(m.root, "skills", "both", "ref.md"), "both's ref\n")
+	writeFile(t, filepath.Join(m.home, "skills", "both", "SKILL.md"), "---\nname: both\ndescription: the home's\n---\n")
+	writeFile(t, filepath.Join(m.root, "skills", "elsewhere", "SKILL.md"), "---\nname: elsewhere\ndescription: the root's\n---\n")
+	writeFile(t, filepath.Join(m.home, "skills", "mine", "elsewhere", "SKILL.md"), "---\nname: elsewhere\ndescription: the home's\n---\n")
+	ws := scratch(t)
+	status := gitIn(t, ws, "status", "--porcelain", "--untracked-files=all")
+	if code, out, errs := m.pinned(t, ws, "init", "testhome"); code != 0 || !strings.Contains(out, "Installed 5 skill(s)") {
+		t.Fatalf("init exit %d: %s%s", code, out, errs)
+	}
+	for _, tree := range []string{".claude/skills", ".agents/skills"} {
+		for n, src := range map[string]string{"rootskill": "skills/rootskill", "deep": "skills/group/deep"} {
+			if d := diffTrees(treeOf(t, filepath.Join(m.root, src)), treeOf(t, filepath.Join(ws, tree, n))); len(d) > 0 {
+				t.Errorf("%s/%s is not the root's %s:\n%s", tree, n, src, strings.Join(d, "\n"))
+			}
+		}
+		for f, want := range map[string]string{"both/SKILL.md": "the home's", "both/ref.md": "both's ref", "elsewhere/SKILL.md": "the home's"} {
+			if b, _ := os.ReadFile(filepath.Join(ws, tree, f)); !strings.Contains(string(b), want) {
+				t.Errorf("%s/%s: %q, want %q", tree, f, b, want)
+			}
+		}
+	}
+	twins(t, ws)
+	for _, n := range []string{"rootskill", "deep", "both", "elsewhere"} {
+		if b, _ := os.ReadFile(filepath.Join(ws, ".cursor", "rules", n+".mdc")); !strings.Contains(string(b), "Read `.claude/skills/"+n+"/SKILL.md`") {
+			t.Errorf("no stub for %s: %q", n, b)
+		}
+	}
+	settings, _ := os.ReadFile(filepath.Join(ws, ".claude", "settings.local.json"))
+	for _, r := range []string{`"Read(//` + strings.TrimPrefix(m.root, "/") + `/**)"`, `"Edit(//` + strings.TrimPrefix(m.root, "/") + `/**)"`, `"Bash(daisy:*)"`, `"Read(.daisy/**)"`} {
+		if !strings.Contains(string(settings), r) {
+			t.Errorf("settings lack %s: %s", r, settings)
+		}
+	}
+	if got := gitIn(t, ws, "status", "--porcelain", "--untracked-files=all"); got != " M .gitignore\n"+status {
+		t.Errorf("git sees what init wrote: %q", got)
+	}
+	if _, err := os.Lstat(filepath.Join(m.vars["HOME"], ".claude")); err == nil {
+		t.Error("init wrote under ~/.claude")
+	}
+	if code, _, errs := m.pinned(t, ws, "clean", "-f"); code != 0 {
+		t.Fatalf("clean exit %d: %s", code, errs)
+	}
+	for _, p := range []string{".claude", ".agents", ".cursor"} {
+		if _, err := os.Lstat(filepath.Join(ws, p)); err == nil {
+			t.Errorf("clean left %s: %v", p, tree(t, filepath.Join(ws, p)))
+		}
+	}
+}
+
+// A root skill whose name the workspace already uses for a skill or a
+// Cursor rule of its own (one init's stub does not claim) is not
+// installed: init warns, writes none of its copies, stub or ignore lines,
+// and clean leaves the workspace's own as it was. A root skill init did
+// install is refreshed, and a home skill's name is still the home's
+// choice (TestStubIsTheRecordOfInstalledSkills).
+func TestInitKeepsAWorkspacesOwnSkillOfARootName(t *testing.T) {
+	m := initMachine(t)
+	writeFile(t, filepath.Join(m.root, "skills", "css", "SKILL.md"), "---\nname: css\ndescription: the root's\n---\n")
+	ws := scratch(t)
+	writeFile(t, filepath.Join(ws, ".claude", "skills", "rootskill", "SKILL.md"), "the project's own\n")
+	writeFile(t, filepath.Join(ws, ".cursor", "rules", "css.mdc"), "Use BEM.\n")
+	gitIn(t, ws, "add", ".claude", ".cursor")
+	gitIn(t, ws, "-c", "user.name=S", "-c", "user.email=s@x", "commit", "-q", "-m", "own")
+	status := gitIn(t, ws, "status", "--porcelain", "--untracked-files=all")
+	for i := 0; i < 2; i++ {
+		code, _, errs := m.pinned(t, ws, "init", "testhome")
+		if code != 0 {
+			t.Fatalf("init exit %d: %s", code, errs)
+		}
+		for _, want := range []string{"The root's skill rootskill is not installed: this workspace has its own " + filepath.Join(ws, ".claude", "skills", "rootskill"), "The root's skill css is not installed: this workspace has its own " + filepath.Join(ws, ".cursor", "rules", "css.mdc")} {
+			if !strings.Contains(errs, want) {
+				t.Errorf("no warning %q: %s", want, errs)
+			}
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(ws, ".claude", "skills", "rootskill", "SKILL.md")); string(b) != "the project's own\n" {
+		t.Errorf("the workspace's skill became %q", b)
+	}
+	for _, p := range []string{".agents/skills/rootskill", ".claude/skills/css", ".agents/skills/css", ".cursor/rules/rootskill.mdc"} {
+		if _, err := os.Lstat(filepath.Join(ws, p)); err == nil {
+			t.Errorf("init wrote %s", p)
+		}
+	}
+	if got := gitIn(t, ws, "status", "--porcelain", "--untracked-files=all"); got != " M .gitignore\n"+status {
+		t.Errorf("git status after init %q", got)
+	}
+	if code, _, errs := m.pinned(t, ws, "clean", "-f"); code != 0 {
+		t.Fatalf("clean exit %d: %s", code, errs)
+	}
+	if got := gitIn(t, ws, "status", "--porcelain", "--untracked-files=all"); got != status {
+		t.Errorf("git status after clean %q, want %q", got, status)
+	}
+}
+
+// treeOf is tree with each directory's mode left out: a copy's directories
+// are made by the copy.
+func treeOf(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	files := tree(t, dir)
+	for k, v := range files {
+		if strings.HasPrefix(v, "dir ") {
+			delete(files, k)
+		}
+	}
+	return files
 }
 
 // A refused init writes nothing: every refusal is decided before the first write.
@@ -286,8 +407,9 @@ func TestSwapFailureRollsBack(t *testing.T) {
 	}
 }
 
-// install against a temp HOME: the link, the rc line and the permissions;
-// applied twice equals once; plain install refuses once installed.
+// install against a temp HOME: the link and the rc line, and nothing under
+// ~/.claude (skills and permissions are init's, per workspace); applied
+// twice equals once; plain install refuses once installed.
 func TestInstall(t *testing.T) {
 	m := newMachine(t)
 	home := m.vars["HOME"]
@@ -308,12 +430,8 @@ func TestInstall(t *testing.T) {
 	if string(rc) != "export PATH=x\n\n# daisy\nexport DAISY_ROOT=\""+m.root+"\"\n" {
 		t.Errorf("rc %q", rc)
 	}
-	settings, _ := os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
-	if !strings.Contains(string(settings), `"Read(/`+m.root+`/**)"`) || !strings.Contains(string(settings), `"Bash(daisy:*)"`) {
-		t.Errorf("settings %s", settings)
-	}
-	if _, err := os.Stat(filepath.Join(home, ".claude", "skills", "s", "SKILL.md")); err != nil {
-		t.Error("the root skill was not installed")
+	if _, err := os.Lstat(filepath.Join(home, ".claude")); err == nil {
+		t.Errorf("install wrote under ~/.claude: %v", tree(t, filepath.Join(home, ".claude")))
 	}
 	once := tree(t, home)
 	if code, _, errs := m.pinned(t, m.ws, "install"); code != 1 || !strings.Contains(errs, "already installed") {
@@ -335,23 +453,72 @@ func TestInstall(t *testing.T) {
 	}
 }
 
-// install --update prunes a copy whose source is gone and leaves synced,
-// where Claude Code's own skill sync writes, as it found it.
-func TestInstallPrunesStaleSparesSynced(t *testing.T) {
+// install --update takes back what earlier installs put under ~/.claude
+// and nothing else: of the skills, only the copies of a root skill (one an
+// older root installed, its every file a version in the root's history),
+// never a user's own skill, a root-named one the user edited or synced,
+// where Claude Code's own skill sync writes; of the settings, only Daisy's
+// rules, in every form an install wrote, the rest in place. With none of
+// Daisy's rules there, no file under ~/.claude is written at all.
+func TestInstallRemovesOnlyRootSkillCopies(t *testing.T) {
 	m := newMachine(t)
 	home := m.vars["HOME"]
-	writeFile(t, filepath.Join(m.root, "skills", "s", "SKILL.md"), "---\nname: s\n---\n")
-	writeFile(t, filepath.Join(home, ".claude", "skills", "old-skill", "SKILL.md"), "stale\n")
-	writeFile(t, filepath.Join(home, ".claude", "skills", "synced", "abc", "SKILL.md"), "Claude Code's\n")
+	skills := filepath.Join(home, ".claude", "skills")
+	gitIn(t, m.root, "init", "-q")
+	writeFile(t, filepath.Join(m.root, "skills", "s", "SKILL.md"), "---\nname: s\n---\nv1\n")
+	writeFile(t, filepath.Join(m.root, "skills", "e", "SKILL.md"), "---\nname: e\n---\n")
+	gitIn(t, m.root, "add", "skills")
+	gitIn(t, m.root, "-c", "user.name=R", "-c", "user.email=r@x", "commit", "-q", "-m", "one")
+	writeFile(t, filepath.Join(m.root, "skills", "s", "SKILL.md"), "---\nname: s\n---\nv2\n")
+	gitIn(t, m.root, "-c", "user.name=R", "-c", "user.email=r@x", "commit", "-q", "-am", "two")
+	writeFile(t, filepath.Join(skills, "s", "SKILL.md"), "---\nname: s\n---\nv1\n") // the older root's copy
+	writeFile(t, filepath.Join(skills, "e", "SKILL.md"), "---\nname: e\n---\nmy edit\n")
+	writeFile(t, filepath.Join(skills, "mine", "SKILL.md"), "mine\n")
+	writeFile(t, filepath.Join(skills, "synced", "abc", "SKILL.md"), "Claude Code's\n")
+	userOnly := "{\n  \"model\": \"x\",\n  \"permissions\": {\"allow\": [\"Bash(ls:*)\"]}\n}\n"
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+	writeFile(t, settingsPath, userOnly)
+	past := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	filepath.Walk(filepath.Join(home, ".claude"), func(p string, _ os.FileInfo, _ error) error { return os.Chtimes(p, past, past) })
+	before := tree(t, filepath.Join(home, ".claude"))
+
 	code, out, errs := m.pinned(t, m.ws, "install", "--update")
-	if code != 0 || !strings.Contains(out, "Pruned 1 stale skill(s)") {
+	if code != 0 || !strings.Contains(out, "Removed 1 copy of a root skill") || !strings.Contains(out, "skills/e") {
 		t.Fatalf("exit %d out %q err %q", code, out, errs)
 	}
-	if _, err := os.Lstat(filepath.Join(home, ".claude", "skills", "old-skill")); err == nil {
-		t.Error("old-skill survived the prune")
+	after := tree(t, filepath.Join(home, ".claude"))
+	for k := range before {
+		if k == "skills/s" || strings.HasPrefix(k, "skills/s/") {
+			if _, ok := after[k]; ok {
+				t.Errorf("%s survived", k)
+			}
+			delete(before, k)
+		}
 	}
-	if b, _ := os.ReadFile(filepath.Join(home, ".claude", "skills", "synced", "abc", "SKILL.md")); string(b) != "Claude Code's\n" {
-		t.Errorf("synced was not left as it was: %q", b)
+	if d := diffTrees(before, after); len(d) > 0 {
+		t.Errorf("~/.claude changed beyond the copy's removal:\n%s", strings.Join(d, "\n"))
+	}
+	filepath.Walk(filepath.Join(home, ".claude"), func(p string, fi os.FileInfo, _ error) error {
+		if fi != nil && !fi.IsDir() && !fi.ModTime().Equal(past) {
+			t.Errorf("%s was written", p)
+		}
+		return nil
+	})
+
+	// Daisy's rules, as installs wrote them, come out; the rest stays.
+	r := m.root
+	writeFile(t, settingsPath, "{\n  \"model\": \"x\",\n  \"permissions\": {\n    \"allow\": [\n      \"Read(/"+r+"/**)\",\n      \"Bash(ls:*)\",\n      \"Edit(/"+r+"/**)\",\n      \"Bash(daisy:*)\",\n      \"Read(//"+r+"/**)\",\n      \"Edit("+r+"/**)\",\n      \"Bash("+r+"/daisy/scripts/*)\"\n    ],\n    \"deny\": []\n  }\n}\n")
+	if code, out, errs := m.pinned(t, m.ws, "install", "--update"); code != 0 || !strings.Contains(out, "Removed Daisy's permissions from ~/.claude/settings.json") {
+		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	if b, _ := os.ReadFile(settingsPath); string(b) != "{\n  \"model\": \"x\",\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(ls:*)\"\n    ],\n    \"deny\": []\n  }\n}\n" {
+		t.Errorf("settings %s", b)
+	}
+	// Nothing but Daisy's rules: the file goes, as clean's does.
+	writeFile(t, settingsPath, "{\"permissions\": {\"allow\": [\"Bash(daisy:*)\"]}}\n")
+	m.pinned(t, m.ws, "install", "--update")
+	if _, err := os.Lstat(settingsPath); err == nil {
+		t.Error("a settings file holding only Daisy's rules was kept")
 	}
 }
 

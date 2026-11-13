@@ -66,7 +66,7 @@ var table = []Command{
 	{Group: "Homes and identities", Name: "identity list", Usage: "identity list", Help: "Identities across registered homes", Run: commands.IdentityList},
 
 	{Group: "Prompts and skills", Name: "prompt build", Usage: "prompt build [<home>]", Help: "Rebuild AGENTS.md", Max: 1, Run: commands.PromptBuild},
-	{Group: "Prompts and skills", Name: "install", Usage: "install [--update]", Help: "~/bin/daisy, root skills, permissions", Flags: []string{"--update"}, Run: commands.Install},
+	{Group: "Prompts and skills", Name: "install", Usage: "install [--update]", Help: "~/bin/daisy and DAISY_ROOT; nothing under ~/.claude", Flags: []string{"--update"}, Run: commands.Install},
 	{Group: "Prompts and skills", Name: "feedback", Usage: "feedback [--workflow <n>] <text>", Help: "Record a prompt failure for optimization", Workspace: true, Values: []string{"--workflow", "-w"}, Max: Unbounded, Run: commands.Feedback, Health: commands.FeedbackHealth},
 	{Group: "Prompts and skills", Name: "optimize", Usage: "optimize [--workflow <n>]", Help: "Briefing: pending entries per target, current rules, rewrite flags", Workspace: true, Values: []string{"--workflow", "-w"}, Run: commands.Optimize, Health: commands.OptimizeHealth},
 	{Group: "Prompts and skills", Name: "optimize apply", Usage: "optimize apply --workflow <n> (--rules|--rewrite) <file> [--yes]", Help: "Apply a proposal: diff, approve, archive, commit", Workspace: true, Flags: []string{"--yes"}, Values: []string{"--workflow", "-w", "--rules", "--rewrite"}, Run: commands.OptimizeApply},

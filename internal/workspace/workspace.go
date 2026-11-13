@@ -28,7 +28,6 @@ var (
 	obsoleteRules = []string{"daisy.md", "daisy-logging.md"}
 	claudeCommand = ".claude/commands/daisy.md"
 	settingsFile  = ".claude/settings.local.json"
-	allowRules    = []string{"Read(.daisy/**)", "Edit(.daisy/**)", "Bash(daisy:*)"}
 
 	gitignoreHeader    = "# Daisy workspace config (per-machine)"
 	gitignoreEntries   = []string{".daisy/", ".daisy.stage.*", ".daisy.previous.*", ".cursor/rules/daisy.mdc", ".cursor/rules/daisy-logging.mdc", ".cursor/rules/daisy-plan.mdc", ".claude/commands/daisy.md", skill.AgentsTree + "/" + skill.AgentsDaisy + "/SKILL.md", ".claude/settings.local.json", "PLAN.md", ".cursorignore"}
@@ -45,6 +44,13 @@ const (
 	beforeFile   = "gitconfig.before" // what the keys held before it was applied
 	agentsFile   = "AGENTS.md"
 )
+
+// allowRules are the rules init grants in the workspace's settings: the
+// binding, the root (`//`-anchored, the root being absolute: the root's
+// prompts and skills are read there) and the daisy command.
+func allowRules(root string) []string {
+	return []string{"Read(.daisy/**)", "Edit(.daisy/**)", "Read(/" + root + "/**)", "Edit(/" + root + "/**)", "Bash(daisy:*)"}
+}
 
 // legacyRules are allow rules older inits wrote, removed by clean.
 func legacyRules(root string) []string {

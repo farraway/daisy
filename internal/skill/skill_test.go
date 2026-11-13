@@ -2,6 +2,7 @@ package skill
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -84,5 +85,70 @@ func TestSections(t *testing.T) {
 	doc := []byte("## Rules\n## Worked example\n### not\n##nospace\n## Rules for x\n")
 	if got, want := Sections(doc), []string{"Worked example", "Rules for x"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("got %q", got)
+	}
+}
+
+// git runs git in dir with a fixed author, failing the test on error.
+func git(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=R", "-c", "user.email=r@x"}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// RootCopies: a directory in the user's skills named as a skill the root
+// has or has had is a copy when every file in it is, byte for byte, a
+// version of that file in the root (its working tree or any commit), so a
+// copy an older root installed is one, a skill since removed from the root
+// too; one holding anything else (an edit, a file of the user's) is kept,
+// and a skill of another name, synced, a hidden name or a link is neither.
+func TestRootCopies(t *testing.T) {
+	root, dir := t.TempDir(), t.TempDir()
+	git(t, root, "init", "-q")
+	write(t, filepath.Join(root, "skills", "s", "SKILL.md"), "s v1\n")
+	write(t, filepath.Join(root, "skills", "s", "ref.md"), "ref\n")
+	write(t, filepath.Join(root, "skills", "gone", "SKILL.md"), "gone\n")
+	write(t, filepath.Join(root, "skills", "t", "SKILL.md"), "t\n")
+	write(t, filepath.Join(root, "skills", "x", "SKILL.md"), "x\n")
+	git(t, root, "add", "-A")
+	git(t, root, "commit", "-q", "-m", "one")
+	write(t, filepath.Join(root, "skills", "s", "SKILL.md"), "s v2\n")
+	write(t, filepath.Join(root, "skills", "group", "n", "SKILL.md"), "n\n")
+	os.RemoveAll(filepath.Join(root, "skills", "gone"))
+	git(t, root, "add", "-A")
+	git(t, root, "commit", "-q", "-m", "two")
+	write(t, filepath.Join(root, "skills", "w", "SKILL.md"), "w, not committed\n")
+
+	write(t, filepath.Join(dir, "s", "SKILL.md"), "s v1\n") // an older root's
+	write(t, filepath.Join(dir, "s", "ref.md"), "ref\n")
+	write(t, filepath.Join(dir, "gone", "SKILL.md"), "gone\n") // removed since
+	write(t, filepath.Join(dir, "n", "SKILL.md"), "n\n")       // nested in the root
+	write(t, filepath.Join(dir, "w", "SKILL.md"), "w, not committed\n")
+	write(t, filepath.Join(dir, "t", "SKILL.md"), "t, edited\n")
+	write(t, filepath.Join(dir, "x", "SKILL.md"), "x\n")
+	write(t, filepath.Join(dir, "x", "notes.md"), "the user's\n")
+	write(t, filepath.Join(dir, "mine", "SKILL.md"), "mine\n")
+	write(t, filepath.Join(dir, "synced", "SKILL.md"), "x\n")
+	write(t, filepath.Join(dir, ".s", "SKILL.md"), "s v2\n")
+	write(t, filepath.Join(dir, "ref.md"), "ref\n")
+	os.Symlink(filepath.Join(root, "skills", "group", "n"), filepath.Join(dir, "group"))
+
+	copies, kept := RootCopies(&ops.Fake{}, root, dir)
+	if want := []string{"gone", "n", "s", "w"}; !reflect.DeepEqual(copies, want) {
+		t.Errorf("copies %q, want %q", copies, want)
+	}
+	if want := []string{"t", "x"}; !reflect.DeepEqual(kept, want) {
+		t.Errorf("kept %q, want %q", kept, want)
+	}
+
+	// A root that is not a repository has only its working tree.
+	os.RemoveAll(filepath.Join(root, ".git"))
+	copies, kept = RootCopies(&ops.Fake{}, root, dir)
+	if want := []string{"n", "w"}; !reflect.DeepEqual(copies, want) {
+		t.Errorf("without history: copies %q, want %q", copies, want)
+	}
+	if want := []string{"s", "t", "x"}; !reflect.DeepEqual(kept, want) {
+		t.Errorf("without history: kept %q, want %q", kept, want)
 	}
 }

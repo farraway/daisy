@@ -56,7 +56,7 @@ func Clean(o ops.Ops, m env.Env, b Binding, out io.Writer) error {
 	var newSettings []byte
 	settingsRemoved, settingsEmpty := false, false
 	if data, err := fs.ReadFile(settingsPath); err == nil {
-		rules := append(append([]string{}, allowRules...), legacyRules(m.Root)...)
+		rules := append(allowRules(m.Root), legacyRules(m.Root)...)
 		if newSettings, settingsRemoved, settingsEmpty, err = settings.Disallow(data, rules); err != nil {
 			return fmt.Errorf("Error: %s cannot be read as settings: %v\n  Fix or remove it, then re-run 'daisy clean'", settingsPath, err)
 		}

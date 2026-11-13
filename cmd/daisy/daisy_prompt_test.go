@@ -126,7 +126,7 @@ func TestList(t *testing.T) {
 	os.RemoveAll(filepath.Join(m.ws, ".claude"))
 	os.Remove(filepath.Join(m.home, "include.txt"))
 	_, out, _ = m.run(t, m.ws, "list")
-	if out != "Prompts (testhome):\n  (no include.txt found)\n\nSkills:\n  (none installed — run: daisy install, then daisy init testhome)\n" {
+	if out != "Prompts (testhome):\n  (no include.txt found)\n\nSkills:\n  (none installed — run: daisy init testhome)\n" {
 		t.Errorf("empty:\n%s", out)
 	}
 	if code, _, errs := m.run(t, t.TempDir(), "list"); code != 1 || !strings.Contains(errs, "Not in a Daisy workspace") {
