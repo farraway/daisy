@@ -191,8 +191,9 @@ installed-skill drift (4b, 4c), `today.md` format and journal rotation state
 publication hygiene (6c, see `AGENTS.md`), whose identifying terms include
 every registered home's name and the git author (`user.name`,
 `user.email`) configured in each usable home's repository and in the
-root's, and that AGENTS.md's Command Reference is the cli table's (6b, a
-warning). A home inside the root repository is refused: every commit it
+root's, less any declared in `$DAISY_CONFIG/hygiene-skip` (each skip
+printed by every scan the command prints), and that AGENTS.md's Command
+Reference is the cli table's (6b, a warning). A home inside the root repository is refused: every commit it
 made would land in the published root's history. A passing run is cached in
 `<home>/.healthcheck.ttl` for `DAISY_HEALTHCHECK_TTL` seconds (default 300);
 `--force` re-checks now.

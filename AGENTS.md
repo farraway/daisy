@@ -95,6 +95,24 @@ personal *content* that contains no known term, and it says nothing about
 a file it considers unpublishable. Write system files as if they were
 already public.
 
+**A declared term is let through, and every scan says so.** A derived
+term that is an ordinary word (a home named `notes`, a `$USER` that is a
+common name) fails the scan wherever the word is used. The per-machine
+file `$DAISY_CONFIG/hygiene-skip` (default
+`~/.config/daisy/hygiene-skip`, beside the registry and outside the
+root) lists terms the scan does not look for: one per line, each
+trimmed, blank lines and lines starting with `#` aside. A line skips the
+term it equals without case, never a part of a term or a longer term
+holding it (`notes` does not skip `notes@example.net`). Every scan
+`daisy healthcheck` prints (not a cached pass, nor the silent check
+`done`, `log`, `new-day` and `new-week` run first) says `⚠ Publication
+hygiene: skipping declared term(s) …` with the file's path, names a line
+that matches no derived term as unused, and skips nothing when the file
+cannot be read. Declaring a term that does identify someone (the OS
+username, a real home's name, an email address) switches the gate off
+for that term: the scan no longer looks for it in any file. Declare only
+a word that system files use as a word.
+
 **`.gitignore` is the publication boundary.** It is the single declaration
 of what does not ship, honoured by the scan and by git alike. Every line
 in it names its cause, what writes that path under the root: the binary

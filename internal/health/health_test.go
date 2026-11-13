@@ -255,6 +255,56 @@ func TestHygieneScan(t *testing.T) {
 	}
 }
 
+// A home named like an ordinary word fails the scan wherever the word is
+// used. Declared in $DAISY_CONFIG/hygiene-skip it is skipped, and every
+// scan says so; only the whole term is skipped (a part of it, or a longer
+// term holding it, is still looked for), an entry that names no term the
+// scan derives is reported as unused, and a list that cannot be read
+// skips nothing.
+func TestHygieneDeclaredTerms(t *testing.T) {
+	m := newMachine(t)
+	m.write(filepath.Join(m.config, "homes"), "testhome="+m.home+"\nnotes="+filepath.Join(t.TempDir(), "notes")+"\n")
+	m.write(filepath.Join(m.root, "README.md"), "Keep your Notes in a home.\n")
+	if ok, _, errs := m.run(health.Options{Force: true}); ok || !strings.Contains(errs, "Publication hygiene: 'notes' appears") {
+		t.Fatalf("an undeclared home name passed:\n%s", errs)
+	}
+
+	skip := filepath.Join(m.config, "hygiene-skip")
+	m.write(skip, "# ordinary words\n  NOTES  \n\nretired\n")
+	ok, out, errs := m.run(health.Options{Force: true})
+	w := "\033[1;33m⚠\033[0m "
+	if want := w + "Publication hygiene: skipping declared term(s) 'notes' (" + skip + ") — the scan does not look for them\n" +
+		w + "Publication hygiene: unused declared term(s) 'retired' in " + skip + " (no term the scan derives) — remove them\n"; !ok || errs != want {
+		t.Errorf("declared: ok %v stderr\n%s\nwant\n%s", ok, errs, want)
+	}
+	if !strings.Contains(out, "System healthy") {
+		t.Errorf("declared: stdout\n%s", out)
+	}
+
+	m.write(skip, "note\n")
+	if ok, _, errs := m.run(health.Options{Force: true}); ok || !strings.Contains(errs, "Publication hygiene: 'notes' appears") {
+		t.Errorf("a part of the term skipped it:\n%s", errs)
+	}
+	m.git(m.root, "config", "user.email", "notes@example.invalid")
+	m.write(filepath.Join(m.root, "README.md"), "Mail notes@example.invalid.\n")
+	m.write(skip, "notes\n")
+	if ok, _, errs := m.run(health.Options{Force: true}); ok || !strings.Contains(errs, "Publication hygiene: 'notes@example.invalid' appears") {
+		t.Errorf("a longer term holding the declared one was skipped:\n%s", errs)
+	}
+	m.write(filepath.Join(m.root, "README.md"), "Keep your notes in a home.\n")
+	m.write(skip, "notes@example.invalid\n")
+	if ok, _, errs := m.run(health.Options{Force: true}); ok || !strings.Contains(errs, "Publication hygiene: 'notes' appears") {
+		t.Errorf("a line holding the term skipped it:\n%s", errs)
+	}
+
+	os.Remove(skip)
+	m.write(filepath.Join(skip, "x"), "")
+	ok, _, errs = m.run(health.Options{Force: true})
+	if ok || !strings.Contains(errs, w+"Publication hygiene: cannot read "+skip+", so no term is skipped: ") || !strings.Contains(errs, "'notes' appears") {
+		t.Errorf("an unreadable list: ok %v stderr\n%s", ok, errs)
+	}
+}
+
 // A leak only in the index (staged, then cleaned in the worktree) is what
 // a plain commit publishes; a term in a file's name is published too.
 func TestHygieneReadsIndexAndPaths(t *testing.T) {
