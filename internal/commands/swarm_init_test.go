@@ -133,6 +133,22 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	}
 }
 
+// A variable of blanks alone at init is unset, as an empty one is: its
+// line in <state>/env is commented out, so it shadows nothing apply's
+// environment supplies (section 11, init).
+func TestSwarmInitEnvTakesBlanksAsUnset(t *testing.T) {
+	s := newSwarmWS(t)
+	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = " \t "
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	env := filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app", "env")
+	if got := readAbs(env); got != "export GITEA_TOKEN='tok-123'\n# CLAUDE_CODE_OAUTH_TOKEN=\nexport DAISY_MAINTAINER_TOKEN='jane-456'\n" ||
+		!strings.Contains(s.stderr.String(), "⚠ "+env+": $CLAUDE_CODE_OAUTH_TOKEN is not set; its line is commented out") {
+		t.Errorf("<state>/env %q\n%s", got, s.stderr.String())
+	}
+}
+
 // sortedLines is text's lines in order, to compare two listings.
 func sortedLines(text string) string {
 	lines := strings.Split(text, "\n")

@@ -166,7 +166,7 @@ func initRepository(c *Context, w *declare.Wizard, cfg declare.Config, open open
 	}
 	fmt.Fprintf(c.Stdout, "✓ Token $%s: labels %d present (%d created, %d renamed)\n", tokenVar, len(forge.Labels), created, renamed)
 	readiness(c, g, cfg, acct.Login)
-	return printUnits(c, p, cfg.Interval, cfg.Timeout)
+	return printUnit(c, p, cfg.Interval, cfg.Timeout)
 }
 
 // gitErr is git's own message for a failed command, else the error.
@@ -332,9 +332,10 @@ func boundHome(c *Context) (string, error) {
 // writeEnv writes <state>/env when absent, mode 0600 (section 3, Secret
 // values): one line per variable the configuration names and the
 // maintainer's token, each the process environment's value, single-quoted
-// as a shell reads it; an unset one is written commented out, `# NAME=`,
-// so that it shadows no value apply's environment supplies, and is warned
-// of. An existing file is never rewritten.
+// as a shell reads it; an unset one (empty, or blanks alone) is written
+// commented out, `# NAME=`, so that it shadows no value apply's
+// environment supplies, and is warned of. An existing file is never
+// rewritten.
 func writeEnv(c *Context, cfg declare.Config) error {
 	fs := c.Ops.FS()
 	path := secretsFile(c, cfg)
@@ -346,7 +347,7 @@ func writeEnv(c *Context, cfg declare.Config) error {
 	var unset []string
 	for _, name := range cfg.SecretNames() {
 		v := c.Ops.Getenv(name)
-		if v == "" {
+		if strings.TrimSpace(v) == "" {
 			unset = append(unset, name)
 			fmt.Fprintf(&b, "# %s=\n", name)
 			continue

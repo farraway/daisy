@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"daisy/internal/env"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
@@ -298,8 +299,8 @@ Description=Daisy swarm: apply every 5min for the swarm repository %f
 
 [Service]
 WorkingDirectory=%f
-Environment=DAISY_ROOT=<root>
-ExecStart=/opt/daisy/bin/daisy swarm apply
+Environment="DAISY_ROOT=<root>"
+ExecStart="/opt/daisy/bin/daisy" swarm apply
 Restart=on-failure
 RestartSec=5min
 KillMode=mixed
@@ -308,7 +309,7 @@ TimeoutStopSec=45min
 [Install]
 WantedBy=default.target
 
-Install (your step):
+Install (your step): save the unit above as ~/.config/systemd/user/daisy-swarm@.service, then run
   systemctl --user daemon-reload && systemctl --user enable --now <unit>
 `
 
@@ -362,6 +363,36 @@ func TestSwarmInitDefaults(t *testing.T) {
 	if out := s.stdout.String(); !strings.Contains(out, "  Unchanged swarm.json\n") || !strings.Contains(out, "  Kept prompts/worker.md (exists)\n") ||
 		s.read("swarm.json") != relaid || s.read("prompts/worker.md") != "# My worker\n" {
 		t.Errorf("second run:\n%s", out)
+	}
+}
+
+// A kept prompt apply would refuse, empty or a link to nothing, is
+// warned of: init keeps what is there, and says what to do (section 11,
+// init).
+func TestSwarmInitWarnsOfAnUnusablePrompt(t *testing.T) {
+	s := newSwarmWS(t)
+	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token"
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	s.cwd = s.ws
+	s.write("prompts/worker.md", "")
+	os.Remove(filepath.Join(s.ws, "prompts", "owner.md"))
+	if err := os.Symlink("gone.md", filepath.Join(s.ws, "prompts", "owner.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	const fix = "; apply refuses it: write the role's prompt, or remove it and run 'daisy swarm prompt build' for the default\n"
+	if out := s.stdout.String(); !strings.Contains(out, "  Kept prompts/owner.md (exists)\n") || !strings.Contains(out, "  Kept prompts/worker.md (exists)\n") {
+		t.Errorf("stdout:\n%s", out)
+	}
+	if e := s.stderr.String(); !strings.HasPrefix(e, "⚠ prompts/owner.md is a link to nothing"+fix+"⚠ prompts/worker.md is empty"+fix) || strings.Count(e, "prompts/") != 2 {
+		t.Errorf("stderr:\n%s", e)
+	}
+	if s.read("prompts/worker.md") != "" {
+		t.Error("the empty prompt was rewritten")
 	}
 }
 
@@ -525,6 +556,27 @@ func TestSwarmInitMaintainerQuestion(t *testing.T) {
 	}
 	if _, created := s.forge.Held(); created {
 		t.Error("the repository created after EOF")
+	}
+}
+
+// The unit's Environment= and ExecStart= values are quoted words, each
+// escaped as systemd reads one: a \ and a " escaped, a % (a specifier)
+// doubled, and in ExecStart= a $ (a variable) doubled (section 11, The
+// unit file).
+func TestSwarmUnitQuotesItsValues(t *testing.T) {
+	var out bytes.Buffer
+	o := &ops.Fake{ExecutableFn: func() (string, error) { return `/opt/my daisy/100%/"b"\$HOME/daisy`, nil }}
+	c := &Context{Ops: o, Env: env.Env{Root: `/opt/my daisy/100%/"b"\$HOME`}, Stdout: &out}
+	if err := printUnit(c, declare.Clone("/srv/swarm-app"), "5m", "45m"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"\nEnvironment=\"DAISY_ROOT=/opt/my daisy/100%%/\\\"b\\\"\\\\$HOME\"\n",
+		"\nExecStart=\"/opt/my daisy/100%%/\\\"b\\\"\\\\$$HOME/daisy\" swarm apply\n",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("no %q in\n%s", want, out.String())
+		}
 	}
 }
 

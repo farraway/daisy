@@ -124,6 +124,9 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: personas.adversary.model: "-" is not a model; every role names its model`, func(c *Config) { setPersona(c, "adversary", func(p *Persona) { p.Model = "-" }) }},
 		{`swarm.json: personas.worker.model: "a b" contains whitespace`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Model = "a b" }) }},
 		{`swarm.json: personas.worker.model: "a\u2003b" contains whitespace`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Model = "a\u2003b" }) }},
+		{`swarm.json: personas.worker.model: "a\x00b" contains a control or format character`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Model = "a\x00b" }) }},
+		{`swarm.json: personas.worker.model: "a\x7fb" contains a control or format character`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Model = "a\x7fb" }) }},
+		{`swarm.json: personas.worker.model: "a\u200bb" contains a control or format character`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Model = "a\u200bb" }) }},
 		{`swarm.json: personas.worker.effort: "Very High" is not one lowercase word`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Effort = "Very High" }) }},
 		{`swarm.json: personas.worker.co_author: "claude-sonnet-5-5" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "claude-sonnet-5-5" }) }},
 		{`swarm.json: personas.worker.co_author: " " is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = " " }) }},
@@ -139,6 +142,11 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: keys.xai: needs exactly one of env, slots`, func(c *Config) { c.Keys["xai"] = Key{Env: ptr("XAI_API_KEY"), Slots: ptr(1)} }},
 		{`swarm.json: keys.xai.slots: 17 is not between 1 and 16`, func(c *Config) { c.Keys["xai"] = Key{Slots: ptr(17)} }},
 		{`swarm.json: keys.gemini: "gemini" has no adapter`, func(c *Config) { c.Keys["gemini"] = Key{Env: ptr("GEMINI_API_KEY")} }},
+		// section 3's order: keys before personas, whose problems wait
+		{`swarm.json: keys.openai: needs exactly one of env, slots`, func(c *Config) {
+			c.Keys["openai"] = Key{}
+			setPersona(c, "worker", func(p *Persona) { p.Effort = "Very High" })
+		}},
 	} {
 		c := valid()
 		c.Keys = map[string]Key{"anthropic": c.Keys["anthropic"], "openai": c.Keys["openai"]}
@@ -350,6 +358,23 @@ func TestParseOrigin(t *testing.T) {
 		o, _ := parseOrigin(tc.raw)
 		if got := detected(o); got != tc.want {
 			t.Errorf("detected(%q) = %+v", tc.raw, got)
+		}
+	}
+	// A kind other than the detected one (question 2's answer) keeps an
+	// http(s) origin's scheme and port, as detection does; an IPv6 host
+	// is bracketed.
+	for _, tc := range []struct {
+		raw, kind, api string
+	}{
+		{"http://github.com:8080/acme/app.git", "gitea", "http://github.com:8080/api/v1"},
+		{"git@github.com:acme/app.git", "gitea", "https://github.com/api/v1"},
+		{"https://forge.example.net:3000/acme/app.git", "github", "https://api.github.com"},
+		{"http://[fd00::1]:3000/acme/app.git", "gitea", "http://[fd00::1]:3000/api/v1"},
+		{"ssh://git@[fd00::1]:2222/acme/app.git", "gitea", "https://[fd00::1]/api/v1"},
+	} {
+		o, _ := parseOrigin(tc.raw)
+		if got := forgeAs(o, tc.kind); got.API != tc.api || got.Kind != tc.kind || got.Repo != "acme/app" {
+			t.Errorf("forgeAs(%q, %s) = %+v, want API %s", tc.raw, tc.kind, got, tc.api)
 		}
 	}
 }

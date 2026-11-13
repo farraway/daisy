@@ -75,8 +75,8 @@ func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
 			return checkTrusted(c.Trusted)
 		},
 		func() *Error { return checkBudget(c.Gates, c.Budget) },
-		func() *Error { return checkPersonas(o, p, c.Personas, skip) },
 		func() *Error { return checkKeys(c.Keys, c.Personas) },
+		func() *Error { return checkPersonas(o, p, c.Personas, skip) },
 	}
 	for _, check := range checks {
 		if err := check(); err != nil {
@@ -490,7 +490,9 @@ func checkProvider(field, v string) *Error {
 	return nil
 }
 
-// checkModel: every role names the model it runs, as one argv word.
+// checkModel: every role names the model it runs, as one argv word,
+// without a control or format character (a zero-width space among them)
+// that the word would carry unseen.
 func checkModel(field, v string) *Error {
 	switch {
 	case v == "":
@@ -499,6 +501,8 @@ func checkModel(field, v string) *Error {
 		return fieldErr(field, "%q is not a model; every role names its model", v)
 	case strings.ContainsFunc(v, unicode.IsSpace):
 		return fieldErr(field, "%q contains whitespace", v)
+	case strings.ContainsFunc(v, func(r rune) bool { return unicode.IsControl(r) || unicode.Is(unicode.Cf, r) }):
+		return fieldErr(field, "%q contains a control or format character", v)
 	}
 	return nil
 }
@@ -527,6 +531,8 @@ func checkCoAuthor(field, v string) *Error {
 	return nil
 }
 
+// checkKeys runs before checkPersonas (section 3's order), so a persona
+// missing or naming a provider without an adapter is left to it.
 func checkKeys(keys map[string]Key, personas map[string]Persona) *Error {
 	names := make([]string, 0, len(keys))
 	for k := range keys {
@@ -555,8 +561,12 @@ func checkKeys(keys map[string]Key, personas map[string]Persona) *Error {
 		}
 	}
 	for _, r := range Roles {
-		if _, ok := keys[personas[r].Provider]; !ok {
-			return fieldErr("keys", "no credential for provider %q", personas[r].Provider)
+		p, ok := personas[r]
+		if _, adapter := providers[p.Provider]; !ok || !adapter {
+			continue
+		}
+		if _, ok := keys[p.Provider]; !ok {
+			return fieldErr("keys", "no credential for provider %q", p.Provider)
 		}
 	}
 	return nil

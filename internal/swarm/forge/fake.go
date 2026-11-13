@@ -513,10 +513,11 @@ func (f *Fake) Approve(pr Ref, head string) error {
 
 // Merge merges an open pull request whose head is head and which is
 // mergeable (SetMergeable), recording a merge commit; it closes no issue.
-// It refuses in Gitea's order, mergeability before the head: one not
-// mergeable with 405 "Please try again later", whether it conflicts or
-// the forge is still computing, one refused (RefuseMerge) with 405, then
-// a head that is not the current one with 409.
+// One closed unmerged is not found (404), as Gitea's handler answers its
+// ErrIsClosed. It refuses in Gitea's order, mergeability before the head:
+// one merged or not mergeable with 405 "Please try again later", whether
+// it conflicts or the forge is still computing, one refused (RefuseMerge)
+// with 405, then a head that is not the current one with 409.
 func (f *Fake) Merge(pr Ref, head string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -525,6 +526,8 @@ func (f *Fake) Merge(pr Ref, head string) error {
 		return err
 	}
 	switch {
+	case !it.open && !it.pull.merged:
+		return notFound(fmt.Sprintf("forge: POST /repos/%s/%s/pulls/%d/merge: 404 Not Found", f.owner, pr.Repo, pr.N))
 	case !it.open || it.pull.mergeable != MergeableYes:
 		return fmt.Errorf("%w: 405 Please try again later", ErrNotMergeable)
 	case it.pull.refused:

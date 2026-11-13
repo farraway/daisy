@@ -426,22 +426,17 @@ func (w *Wizard) swarmDefault(c Config, first Origin) string {
 	return owner + "/swarm-" + name
 }
 
-// forgeDefault is the forge questions' defaults: the file's forge, else
+// forgeDefault is the forge questions' defaults for kind, question 2's
+// answer ("" before it): the file's forge while kind is the file's; else
 // what the first repository's origin names, for kind when one is given.
 func (w *Wizard) forgeDefault(first Origin, kind string) Forge {
-	if w.File != nil {
+	if w.File != nil && (kind == "" || kind == w.File.Forge.Kind) {
 		return w.File.Forge
 	}
-	d := detected(first)
-	if kind != "" && kind != d.Kind {
-		if kind == "github" {
-			d.API, d.TokenEnv = "https://api.github.com", "GITHUB_TOKEN"
-		} else {
-			d.API, d.TokenEnv = "https://"+first.Host+"/api/v1", "GITEA_TOKEN"
-		}
-		d.Kind = kind
+	if kind == "" {
+		return detected(first)
 	}
-	return d
+	return forgeAs(first, kind)
 }
 
 // apiEnv is the variable naming a self-hosted forge's API, by kind
@@ -449,13 +444,14 @@ func (w *Wizard) forgeDefault(first Origin, kind string) Forge {
 var apiEnv = map[string]string{"gitea": "GITEA_API_URL", "github": "GITHUB_API_URL"}
 
 // apiDefault is question 3's default: `--api`'s value, else the file's
-// forge.api, else $GITEA_API_URL or $GITHUB_API_URL by kind when set and
-// not empty, else what the first repository's origin names.
+// forge.api while kind is the file's, else $GITEA_API_URL or
+// $GITHUB_API_URL by kind when set and not empty, else what the first
+// repository's origin names.
 func (w *Wizard) apiDefault(first Origin, kind string) string {
 	if w.API != "" {
 		return w.API
 	}
-	if w.File != nil {
+	if w.File != nil && kind == w.File.Forge.Kind {
 		return w.File.Forge.API
 	}
 	if v := w.Ops.Getenv(apiEnv[kind]); v != "" {

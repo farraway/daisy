@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -358,6 +359,8 @@ func TestWizardForgeAPI(t *testing.T) {
 		{name: "kind github's variable", vars: map[string]string{"GITEA_API_URL": port, "GITHUB_API_URL": other}, answers: []string{"", "github"}, want: other},
 		{name: "the file over the variable", vars: map[string]string{"GITEA_API_URL": other}, file: true, want: "https://forge.example.net/api/v1"},
 		{name: "the flag over the file", flag: port, vars: map[string]string{"GITEA_API_URL": other}, file: true, want: port},
+		{name: "another kind than the file's: detected", answers: []string{"", "github"}, file: true, want: "https://api.github.com"},
+		{name: "another kind than the file's: its variable", vars: map[string]string{"GITHUB_API_URL": other}, answers: []string{"", "github"}, file: true, want: other},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, interactive := range []bool{false, true} {
@@ -392,5 +395,36 @@ func TestWizardForgeAPI(t *testing.T) {
 	w := &Wizard{Ops: o, Err: io.Discard, Place: Folder(dir), Defaults: true, API: "forge.example.net:3000"}
 	if _, err := w.Ask(); errText(err) != `swarm.json: forge.api: "forge.example.net:3000" is not an absolute http(s) URL without credentials` {
 		t.Errorf("an invalid --api: %v", err)
+	}
+}
+
+// Question 2 answered with another kind than the file's: questions 3 and
+// 5 default from detection for that kind, not from the file's forge; and
+// another kind than the detected one keeps the origin's scheme and port
+// (section 10, Detection; section 11, the wizard).
+func TestWizardKindChangedFromTheFile(t *testing.T) {
+	dir, _ := cloneFolder(t)
+	other := t.TempDir()
+	gitRepo(t, filepath.Join(other, "app"), "http://github.com:8080/acme/app.git")
+	gitea := valid()
+	github := valid()
+	github.Forge.Kind, github.Forge.API, github.Forge.TokenEnv = "github", "https://api.github.com", "GITHUB_TOKEN"
+	for _, tc := range []struct {
+		name, dir  string
+		file       *Config
+		kind       string
+		api, token string
+	}{
+		{"the file's kind", dir, &gitea, "gitea", "https://forge.example.net/api/v1", "GITEA_TOKEN"},
+		{"gitea to github", dir, &gitea, "github", "https://api.github.com", "GITHUB_TOKEN"},
+		{"github to gitea", dir, &github, "gitea", "https://forge.example.net/api/v1", "GITEA_TOKEN"},
+		{"no file: gitea on an http origin on github.com", other, nil, "gitea", "http://github.com:8080/api/v1", "GITEA_TOKEN"},
+	} {
+		o, asked := scripted("", tc.kind, "", "")
+		w := &Wizard{Ops: o, Err: io.Discard, Place: Folder(tc.dir), File: tc.file}
+		w.Ask() // EOF after question 4
+		if len(*asked) < 5 || (*asked)[2] != "Forge API ["+tc.api+"]: " || (*asked)[4] != "Token variable ["+tc.token+"]: " {
+			t.Errorf("%s: asked %q", tc.name, *asked)
+		}
 	}
 }

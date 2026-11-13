@@ -33,6 +33,14 @@ type giteaServer struct {
 
 func newGitea(t *testing.T) *giteaServer {
 	g := &giteaServer{mux: http.NewServeMux(), accounts: map[string]string{"token tok-123": "swarm-bot"}}
+	// page is a list's page as Gitea answers it: the query's page of
+	// limit items, empty past the end.
+	page := func(r *http.Request, items []map[string]any) []map[string]any {
+		p, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		from := min(max(p-1, 0)*limit, len(items))
+		return append([]map[string]any{}, items[from:min(from+limit, len(items))]...)
+	}
 	reply := func(w http.ResponseWriter, status int, v any) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
@@ -71,7 +79,7 @@ func newGitea(t *testing.T) *giteaServer {
 		for i, l := range g.labels {
 			out = append(out, map[string]any{"id": i + 1, "name": l})
 		}
-		reply(w, 200, out)
+		reply(w, 200, page(r, out))
 	})
 	g.mux.HandleFunc("PATCH /api/v1/orgs/acme/labels/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(r.PathValue("id"))

@@ -27,7 +27,7 @@ import (
 // SwarmInit is `daisy swarm init [--defaults] [--api <url>]`
 // (docs/swarm.md section 11): the wizard, `--api` question 3's default,
 // the token's read check and account, swarm.json and the prompts, the
-// labels, the readiness warnings and the unit files.
+// labels, the readiness warnings and the unit file.
 func SwarmInit(c *Context) error {
 	if err := locate(c, true); err != nil {
 		return err
@@ -252,9 +252,30 @@ func writeDeclaration(c *Context, at declare.Place, cfg declare.Config) (written
 		if err != nil {
 			return nil, err
 		}
+		if len(w) == 0 {
+			warnUnusablePrompt(c, at.Root, rel)
+		}
 		written = append(written, w...)
 	}
 	return written, nil
+}
+
+// warnUnusablePrompt warns of a prompt init kept that validation refuses
+// (section 3, missing prompt): empty, a link to nothing, or unreadable.
+func warnUnusablePrompt(c *Context, root, rel string) {
+	b, err := c.Ops.FS().ReadFile(filepath.Join(root, rel))
+	problem := ""
+	switch {
+	case errors.Is(err, iofs.ErrNotExist):
+		problem = "is a link to nothing"
+	case err != nil:
+		problem = fmt.Sprintf("cannot be read (%v)", err)
+	case len(b) == 0:
+		problem = "is empty"
+	default:
+		return
+	}
+	fmt.Fprintf(c.Stderr, "⚠ %s %s; apply refuses it: write the role's prompt, or remove it and run 'daisy swarm prompt build' for the default\n", rel, problem)
 }
 
 // writeAbsent writes content at rel under root when nothing is there,
@@ -321,11 +342,13 @@ func readiness(c *Context, g reconcile.Git, cfg declare.Config, swarmLogin strin
 	}
 }
 
-// printUnits prints the systemd user service that runs `swarm apply`'s
+// printUnit prints the systemd user service that runs `swarm apply`'s
 // loop in the swarm's root, its %f, and how to install it: restarted one
 // interval after a failure, and a stop waiting one timeout, as long as a
-// run may last, for the drain before systemd kills what is left.
-func printUnits(c *Context, at declare.Place, interval, timeout string) error {
+// run may last, for the drain before systemd kills what is left. The
+// root and the binary are quoted words (unitWord), the binary's `$`
+// doubled, which ExecStart= would read as a variable.
+func printUnit(c *Context, at declare.Place, interval, timeout string) error {
 	daisy, err := c.Ops.Executable()
 	if err != nil {
 		return fmt.Errorf("Error: cannot find the running binary: %v", err)
@@ -339,7 +362,7 @@ Description=Daisy swarm: apply every %s for the swarm repository %%f
 
 [Service]
 WorkingDirectory=%%f
-Environment=DAISY_ROOT=%s
+Environment=%s
 ExecStart=%s swarm apply
 Restart=on-failure
 RestartSec=%s
@@ -349,10 +372,16 @@ TimeoutStopSec=%s
 [Install]
 WantedBy=default.target
 
-Install (your step):
+Install (your step): save the unit above as ~/.config/systemd/user/daisy-swarm@.service, then run
   systemctl --user daemon-reload && systemctl --user enable --now %s
-`, systemdSpan(d), c.Env.Root, daisy, systemdSpan(d), systemdSpan(t), installedUnit(at.Root))
+`, systemdSpan(d), unitWord("DAISY_ROOT="+c.Env.Root), strings.ReplaceAll(unitWord(daisy), "$", "$$"), systemdSpan(d), systemdSpan(t), installedUnit(at.Root))
 	return nil
+}
+
+// unitWord is s as one quoted word of a unit file: a \ and a " escaped
+// with a \, and a % doubled, which systemd would read as a specifier.
+func unitWord(s string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, `%`, `%%`).Replace(s) + `"`
 }
 
 // installedUnit is the service's name on the install line, single-quoted
@@ -787,29 +816,21 @@ func firstLine(b []byte) string {
 	return strings.TrimSpace(line)
 }
 
-// running is the Running line's value: this swarm's containers from
-// `docker ps` as `apply` lists them, `#<n> <role>` by issue, or unknown
-// with docker's message.
+// running is the Running line's value: this swarm's containers as
+// `apply` lists them (runner.Docker's Running), `#<n> <role>` by issue,
+// or unknown with docker's message.
 func running(o ops.Ops, ws, repo string) string {
-	stdout, stderr, err := o.Exec(ws, "docker", "ps", "--filter", "label=daisy.swarm", "--format", `{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}`)
+	all, err := runner.Docker{O: o, Dir: ws}.Running()
 	if err != nil {
-		msg := firstLine(stderr)
-		if msg == "" {
-			msg = err.Error()
-		}
-		return "unknown (docker: " + msg + ")"
+		return "unknown (" + err.Error() + ")"
 	}
 	type member struct {
 		n    int
 		role string
 	}
 	var ms []member
-	for _, line := range strings.Split(string(stdout), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		rest, ok := strings.CutPrefix(fields[1], repo+"#")
+	for _, r := range all {
+		rest, ok := strings.CutPrefix(r.Swarm, repo+"#")
 		num, role, slash := strings.Cut(rest, "/")
 		n, err := strconv.Atoi(num)
 		if ok && slash && err == nil {

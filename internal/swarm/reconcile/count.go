@@ -101,8 +101,9 @@ func blockingNote(is forge.Issue, swarmLogin string) (e Entry, ok bool) {
 
 // AtTheRoundLimit: the newest of the reconciler's notes that blocked is
 // (blockingNote) is a round limit's note after the first, which leaves
-// the issue at review-1-in-progress, where no role runs, both reviewers
-// having reviewed the head (section 6).
+// the issue at review-1-in-progress, or at review-0-ready when T21's
+// write was refused, where no role runs, both reviewers having reviewed
+// the head (section 6; section 11, unblock).
 func AtTheRoundLimit(is forge.Issue, swarmLogin string) bool {
 	e, ok := blockingNote(is, swarmLogin)
 	return ok && roundLimitNote.MatchString(swarmText(e.Body))

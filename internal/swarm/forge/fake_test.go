@@ -179,6 +179,12 @@ func TestFakePullsReviewsAndMerge(t *testing.T) {
 	if err := f.Merge(lr, "c2"); !errors.Is(err, ErrNotMergeable) {
 		t.Errorf("a merged pull request merged again: %v", err)
 	}
+	// Closed unmerged: Gitea's handler answers its ErrIsClosed 404, a
+	// forge error, not a refusal to merge (section 10, forge.Fake).
+	f.ClosePull(ar)
+	if err := f.Merge(ar, ""); !errors.Is(err, ErrNotFound) || errors.Is(err, ErrNotMergeable) || errText(err) != "forge: POST /repos/acme/app/pulls/"+itoa(app)+"/merge: 404 Not Found" {
+		t.Errorf("a closed pull request merged: %v", err)
+	}
 }
 
 // The Fake's milestones: one per title; the counts are the issues and pull

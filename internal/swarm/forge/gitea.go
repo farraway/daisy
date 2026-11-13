@@ -16,8 +16,9 @@ import (
 	"daisy/internal/ops"
 )
 
-// pageLimit is the page size of every list call; a page shorter than it
-// is the last.
+// pageLimit is the page size every list call asks for. An instance whose
+// MAX_RESPONSE_ITEMS is lower answers pages of that size instead, so a
+// page shorter than pageLimit may not be the last (list).
 const pageLimit = 50
 
 // Gitea is the adapter for Gitea's API v1 (section 10, "Gitea (API v1)").
@@ -25,9 +26,9 @@ const pageLimit = 50
 type Gitea struct {
 	o           ops.Ops
 	base, token string
-	owner, repo string                      // forge.repo
-	names       []string                    // the declared repositories, in order
-	labels      map[string]map[string]int64 // a repository's label ids (labelIDs), held until NewPass or EnsureLabels
+	owner, repo string                        // forge.repo
+	names       []string                      // the declared repositories, in order
+	labels      map[string]map[string][]int64 // a repository's label ids (labelIDs), held until NewPass or EnsureLabels
 }
 
 var _ Adapter = (*Gitea)(nil)
@@ -152,22 +153,26 @@ func message(status int, body []byte) string {
 }
 
 // list reads every page of a list endpoint (path carries its own query,
-// to which page and limit are added) into one slice.
+// to which page and limit are added) into one slice: the last page is an
+// empty one or one shorter than an earlier page, since the instance's
+// page size may be below pageLimit.
 func list[T any](g *Gitea, path string) ([]T, error) {
 	sep := "?"
 	if strings.Contains(path, "?") {
 		sep = "&"
 	}
 	var all []T
+	longest := 0
 	for p := 1; ; p++ {
 		var page []T
 		if err := g.call("GET", fmt.Sprintf("%s%spage=%d&limit=%d", path, sep, p, pageLimit), nil, http.StatusOK, &page); err != nil {
 			return nil, err
 		}
 		all = append(all, page...)
-		if len(page) < pageLimit {
+		if len(page) == 0 || len(page) < longest {
 			return all, nil
 		}
+		longest = len(page)
 	}
 }
 
@@ -419,36 +424,38 @@ func (g *Gitea) Issue(n int) (Issue, error) {
 // at its start; a command that makes no pass reads them once for its run.
 func (g *Gitea) NewPass() { g.labels = nil }
 
-// labelIDs maps each label name to the id an issue or pull request of the
-// repository name takes: the organization's labels, then the
-// repository's own, which shadow an organization label of their name.
-// The map is read once per repository until NewPass or EnsureLabels.
-func (g *Gitea) labelIDs(name string) (map[string]int64, error) {
+// labelIDs maps each label name to the ids it has for an issue or pull
+// request of the repository name: the repository's own label first,
+// which shadows an organization label of its name for a label added,
+// then the organization's. The map is read once per repository until
+// NewPass or EnsureLabels.
+func (g *Gitea) labelIDs(name string) (map[string][]int64, error) {
 	if ids, ok := g.labels[name]; ok {
 		return ids, nil
 	}
-	ids := map[string]int64{}
+	ids := map[string][]int64{}
 	for _, path := range []string{"/orgs/" + url.PathEscape(g.owner) + "/labels", g.repoPath(name) + "/labels"} {
 		ls, err := list[giteaLabel](g, path)
 		if err != nil {
 			return nil, err
 		}
 		for _, l := range ls {
-			ids[l.Name] = l.ID
+			ids[l.Name] = append([]int64{l.ID}, ids[l.Name]...)
 		}
 	}
 	if g.labels == nil {
-		g.labels = map[string]map[string]int64{}
+		g.labels = map[string]map[string][]int64{}
 	}
 	g.labels[name] = ids
 	return ids, nil
 }
 
-// labelID is label's id for the repository name, from ids.
-func (g *Gitea) labelID(method, name, label string, ids map[string]int64) (int64, error) {
+// labelID is label's ids for the repository name, from ids: the one a
+// label added takes first.
+func (g *Gitea) labelID(method, name, label string, ids map[string][]int64) ([]int64, error) {
 	id, ok := ids[label]
 	if !ok {
-		return 0, noLabel(method, g.owner, name, label)
+		return nil, noLabel(method, g.owner, name, label)
 	}
 	return id, nil
 }
@@ -469,7 +476,7 @@ func (g *Gitea) CreateIssue(title, body string, labels []string) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		in.Labels = append(in.Labels, id)
+		in.Labels = append(in.Labels, id[0])
 	}
 	var out struct {
 		Number int `json:"number"`
@@ -487,33 +494,51 @@ func (g *Gitea) Comment(at Ref, body string) error {
 }
 
 // Relabel adds add, then removes remove ("" on either side: no call for
-// it), on an issue or a pull request; no other label is touched.
+// it), on an issue or a pull request; no other label is touched. A
+// remove deletes every id the name has, the repository's and the
+// organization's, since the issue may carry either: a 404 on one is
+// taken while another is deleted.
 func (g *Gitea) Relabel(at Ref, remove, add string) error {
 	ids, err := g.labelIDs(at.Repo)
 	if err != nil {
 		return err
 	}
-	var addID, removeID int64
+	var addIDs, removeIDs []int64
 	if add != "" {
-		if addID, err = g.labelID("Relabel", at.Repo, add, ids); err != nil {
+		if addIDs, err = g.labelID("Relabel", at.Repo, add, ids); err != nil {
 			return err
 		}
 	}
 	if remove != "" {
-		if removeID, err = g.labelID("Relabel", at.Repo, remove, ids); err != nil {
+		if removeIDs, err = g.labelID("Relabel", at.Repo, remove, ids); err != nil {
 			return err
 		}
 	}
 	path := fmt.Sprintf("%s/issues/%d/labels", g.repoPath(at.Repo), at.N)
 	if add != "" {
-		if err := g.call("POST", path, map[string][]int64{"labels": {addID}}, http.StatusOK, nil); err != nil {
+		if err := g.call("POST", path, map[string][]int64{"labels": {addIDs[0]}}, http.StatusOK, nil); err != nil {
 			return err
 		}
 	}
-	if remove == "" {
+	var notFound error
+	deleted := false
+	for _, id := range removeIDs {
+		err := g.call("DELETE", fmt.Sprintf("%s/%d", path, id), nil, http.StatusNoContent, nil)
+		if err == nil {
+			deleted = true
+			continue
+		}
+		if !errors.Is(err, ErrNotFound) {
+			return err
+		}
+		if notFound == nil {
+			notFound = err
+		}
+	}
+	if remove == "" || deleted {
 		return nil
 	}
-	return g.call("DELETE", fmt.Sprintf("%s/%d", path, removeID), nil, http.StatusNoContent, nil)
+	return notFound
 }
 
 // CloseIssue sets issue n's state to closed.

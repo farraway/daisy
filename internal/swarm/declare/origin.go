@@ -1,6 +1,7 @@
 package declare
 
 import (
+	"net"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -70,20 +71,34 @@ func readOrigin(o ops.Ops, dir string) string {
 }
 
 // detected is the forge an origin names (section 10, Detection): host
-// github.com is kind github; any other is gitea, its API on the origin's
-// host (an SSH port is not the web port and is dropped).
+// github.com is kind github; any other is gitea.
 func detected(o Origin) Forge {
 	if strings.EqualFold(o.Host, "github.com") {
-		return Forge{Kind: "github", API: "https://api.github.com", Repo: o.Owner + "/" + o.Repo, TokenEnv: "GITHUB_TOKEN"}
+		return forgeAs(o, "github")
+	}
+	return forgeAs(o, "gitea")
+}
+
+// forgeAs is the forge of kind for the repository o names: kind github's
+// API is api.github.com; kind gitea's is on the origin's host, an
+// http(s) origin's scheme and port kept (an SSH port is not the web port
+// and is dropped).
+func forgeAs(o Origin, kind string) Forge {
+	repo := o.Owner + "/" + o.Repo
+	if kind == "github" {
+		return Forge{Kind: "github", API: "https://api.github.com", Repo: repo, TokenEnv: "GITHUB_TOKEN"}
 	}
 	scheme, host := "https", o.Host
 	if o.Scheme == "http" {
 		scheme = "http"
 	}
-	if o.Scheme != "ssh" && o.Port != "" {
-		host += ":" + o.Port
+	switch {
+	case o.Scheme != "ssh" && o.Port != "":
+		host = net.JoinHostPort(host, o.Port)
+	case strings.Contains(host, ":"): // an IPv6 address
+		host = "[" + host + "]"
 	}
-	return Forge{Kind: "gitea", API: scheme + "://" + host + "/api/v1", Repo: o.Owner + "/" + o.Repo, TokenEnv: "GITEA_TOKEN"}
+	return Forge{Kind: kind, API: scheme + "://" + host + "/api/v1", Repo: repo, TokenEnv: "GITEA_TOKEN"}
 }
 
 // Host is the forge's host as an origin names it: github.com for kind
