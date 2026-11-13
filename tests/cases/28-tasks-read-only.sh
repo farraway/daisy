@@ -12,6 +12,8 @@ commits_before=$(fixture_commit_count)
 
 fixture_run_cli tasks --all +proj
 
+assert_eq "$RUN_EXIT" "0" "the query matches"
+assert_contains "$RUN_STDOUT" "Task one +proj" "the query ran: its match is printed"
 assert_eq "$(fixture_read_todo)" "$todo_before" "todo.txt byte-identical after a tasks query"
 assert_eq "$(fixture_read_done)" "$done_before" "done.txt byte-identical after a tasks query"
 assert_eq "$(fixture_commit_count)" "$commits_before" "no commit is produced by a read-only query"

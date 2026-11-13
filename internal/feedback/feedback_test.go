@@ -1,6 +1,7 @@
 package feedback
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -262,5 +263,35 @@ func TestDiff(t *testing.T) {
 	}
 	if got := Diff("a", "b", []byte("x"), []byte("x\n")); !strings.Contains(got, "\\ No newline at end of file") {
 		t.Errorf("a missing final newline is shown: %q", got)
+	}
+}
+
+// Every root skill is a target `daisy optimize` briefs with a `## Rules`
+// section of its own, so `apply --rules` replaces that section rather than
+// inserting one above the skill's first heading (for git, above `## 1. See
+// the current state`).
+func TestRootSkillsHaveARulesSection(t *testing.T) {
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fsys := ops.Real().FS()
+	dirs, err := os.ReadDir(filepath.Join(root, "skills"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc strings.Builder
+	doc.WriteString("# L\n")
+	for i, d := range dirs {
+		fmt.Fprintf(&doc, "\n## 2026-08-%02d 1000\n**Workflow:** skills/%s\n\nx\n", i+1, d.Name())
+	}
+	b := Brief(fsys, root, t.TempDir(), Parse([]byte(doc.String())), nil, nil)
+	if len(b.Pending) != len(dirs) || len(b.Errors) != 0 {
+		t.Fatalf("%d skills, %d briefed, errors %v", len(dirs), len(b.Pending), b.Errors)
+	}
+	for _, g := range b.Pending {
+		if !g.Resolved || !g.HasRules || g.Problem != nil {
+			t.Errorf("%s: resolved %v, a ## Rules section %v, problem %v", g.Tag, g.Resolved, g.HasRules, g.Problem)
+		}
 	}
 }

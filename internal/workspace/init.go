@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"daisy/internal/env"
+	"daisy/internal/gitx"
 	"daisy/internal/identity"
 	"daisy/internal/ops"
 	"daisy/internal/prompt"
@@ -136,10 +137,10 @@ func planInit(o ops.Ops, m env.Env, homeName, name, target string) (*initPlan, e
 	if err := p.planBinding(o); err != nil {
 		return nil, err
 	}
+	p.gitInit = !identity.IsRepoRoot(o, target) // planFiles asks git what the repository ignores
 	if err := p.planFiles(o); err != nil {
 		return nil, err
 	}
-	p.gitInit = !identity.IsRepoRoot(o, target)
 	return p, nil
 }
 
@@ -306,10 +307,20 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 	for _, n := range sortedNames(p.skills) {
 		ignore = append(ignore, skillEntries(n)...)
 	}
-	if p.gitignore, p.gitignoreChanged, p.gitignoreNew, err = planBlock(fs, filepath.Join(p.target, ".gitignore"), gitignoreHeader, ignore); err != nil {
+	// A repository that ignores an entry already needs no line for it: the
+	// root bound as a workspace, whose .gitignore ignores every path init
+	// writes wholesale, gets no block (D44). A repository init is about to
+	// make has no rules of its own yet.
+	var ignored map[string]bool
+	if !p.gitInit {
+		if ignored, err = gitx.Ignored(o, p.target, ignore); err != nil {
+			return err
+		}
+	}
+	if p.gitignore, p.gitignoreChanged, p.gitignoreNew, err = planBlock(fs, filepath.Join(p.target, ".gitignore"), gitignoreHeader, ignore, func(e string) bool { return ignored[e] }); err != nil {
 		return err
 	}
-	p.cursorignore, p.cursorignoreChange, _, err = planBlock(fs, filepath.Join(p.target, ".cursorignore"), cursorignoreHeader, cursorignoreLines)
+	p.cursorignore, p.cursorignoreChange, _, err = planBlock(fs, filepath.Join(p.target, ".cursorignore"), cursorignoreHeader, cursorignoreLines, nil)
 	return err
 }
 
@@ -374,7 +385,7 @@ func (p *initPlan) checkWritable(fs ops.FS) error {
 	return nil
 }
 
-func planBlock(fs ops.FS, path, header string, entries []string) (content []byte, changed, created bool, err error) {
+func planBlock(fs ops.FS, path, header string, entries []string, covered func(string) bool) (content []byte, changed, created bool, err error) {
 	existing, err := fs.ReadFile(path)
 	if err != nil {
 		if exists(fs, path) {
@@ -382,7 +393,7 @@ func planBlock(fs ops.FS, path, header string, entries []string) (content []byte
 		}
 		created = true
 	}
-	content, changed = addBlock(existing, header, entries)
+	content, changed = addBlock(existing, header, entries, covered)
 	return content, changed || created, created, nil
 }
 

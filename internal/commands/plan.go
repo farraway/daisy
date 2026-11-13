@@ -70,6 +70,17 @@ func PlanNew(c *Context) error {
 	if err != nil {
 		return err
 	}
+	// A line git already ignores the plan by is enough, as for init's
+	// entries: the root bound as a workspace ignores both names wholesale.
+	if ignore != nil && gitx.Toplevel(c.Ops, c.Env.Workspace) != "" {
+		ignored, err := gitx.Ignored(c.Ops, c.Env.Workspace, []string{entry})
+		if err != nil {
+			return err
+		}
+		if ignored[entry] {
+			ignore = nil
+		}
+	}
 
 	content := plan.Fill(string(tmpl), description, project, now.Format("2006-01-02 15:04"), c.Env.Root)
 	if err := fsys.WriteFile(dest, []byte(content), 0o644); err != nil {

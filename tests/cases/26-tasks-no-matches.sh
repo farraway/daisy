@@ -8,3 +8,4 @@ fixture_run_cli tasks --todo "Nonexistent Pattern"
 
 assert_eq "$RUN_EXIT" "1" "no matches is a non-zero exit, grep-style"
 assert_eq "$RUN_STDOUT" "" "nothing on stdout when there are no matches"
+assert_contains "$RUN_STDERR" "No tasks match: Nonexistent Pattern" "the refusal names the pattern"

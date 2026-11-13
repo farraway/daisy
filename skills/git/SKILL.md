@@ -39,3 +39,8 @@ resolved to something that compiles is not yet resolved.
 
 Stage everything and commit. If rebasing, continue until every commit is
 replayed, resolving further conflicts the same way as they surface.
+
+## Rules
+
+None yet: the sections above are this skill's guidance. Rules that
+`daisy optimize` learns from feedback go here.

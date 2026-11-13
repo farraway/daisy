@@ -5,20 +5,9 @@ alwaysApply: false
 
 # Daisy Plan Workflow
 
-When `PLAN.md` exists at the workspace root, it is an active Daisy implementation plan. The file lives in `.daisy/plans/` (symlinked from the Daisy home) and is gitignored.
+When `PLAN.md` exists at the workspace root, it is an active Daisy implementation plan: a symlink into the bound home's `plans/` (through `.daisy/plans/`), gitignored. Edit its real path, which `daisy files` prints as `current plan`, never through the link.
 
-**In Cursor Plan mode:**
-- Collaborate on `PLAN.md` only — do not write implementation code.
-- Fill in: Goal, Non-goals, Constraints, Steps (as `- [ ]` checkboxes), Risks, Test Plan, Deferred, Open Questions (numbered list).
-- Close each planning round with the plan summary, the numbered Open Questions list and: "Ready to execute? (yes/no)"
-
-**In Cursor Agent mode (executing a plan):**
-- Read `PLAN.md` before starting; set `**Status:** executing`.
-- Re-read `$DAISY_ROOT/prompts/praxis.md` before each step (the Steps section will remind you).
-- Work through steps in order; mark each `- [x]` on completion.
-- After each step: update Decisions if you deviated; move anything out of scope to Deferred.
-- Stop and report on blockers — do not skip or work around them silently.
-- When all steps are complete: append ` *Built*` to the H1 title; set `**Status:** built`.
+Before any plan work, read `.daisy/AGENTS.md` and, in full, the plan workflow prompt it names (`prompts/plan.md`, or the home's override of it where `.daisy/AGENTS.md` points), and follow its rules; this rule does not restate them. In Cursor Plan mode, edit `PLAN.md` only (its rule 2); to execute a plan, follow its rules 20–25.
 
 **To archive a completed plan:**
 Run `daisy plan archive` or say `/daisy archive PLAN.md`.

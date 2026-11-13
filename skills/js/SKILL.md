@@ -161,3 +161,8 @@ and always handle rejections.
   destructured: `const [a, b] = await Promise.all([p1, p2])`. Sequential
   `await` where operations depend on each other.
 - `Promise.allSettled()` when you need every result regardless of outcome.
+
+## Rules
+
+None yet: the sections above are this skill's guidance. Rules that
+`daisy optimize` learns from feedback go here.

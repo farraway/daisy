@@ -1,9 +1,13 @@
 // Package gitx is git over Ops.Exec: which repository a home's data commits
-// to, and the one commit a mutation makes.
+// to, the one commit a mutation makes, and which of Daisy's paths a
+// repository's .gitignore already ignores.
 package gitx
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -146,4 +150,61 @@ func (r Repo) Commit(o ops.Ops, message string) (hash string, committed bool, er
 		return "", true, err
 	}
 	return strings.TrimRight(out, "\n"), true, nil
+}
+
+// Ignored is the paths (relative to dir, in a repository) that a
+// .gitignore of the repository already ignores, as git reads it: rules
+// every clone shares. A rule only this machine has, in its
+// core.excludesFile or .git/info/exclude, does not count: a clone
+// elsewhere lacks it. git names the rule that decides each path, a
+// .gitignore's before the machine's, and a negated rule ignores nothing.
+// A path under a symbolic link is outside the repository's tree, which
+// git refuses to be asked about; nothing ignores it there.
+func Ignored(o ops.Ops, dir string, paths []string) (map[string]bool, error) {
+	ignored := map[string]bool{}
+	var ask []string
+	for _, p := range paths {
+		if !underLink(o.FS(), dir, p) {
+			ask = append(ask, p)
+		}
+	}
+	if len(ask) == 0 {
+		return ignored, nil
+	}
+	out, errb, err := o.Exec(dir, "git", append([]string{"check-ignore", "--no-index", "--verbose", "--"}, ask...)...)
+	var exit *exec.ExitError
+	if err != nil && !(errors.As(err, &exit) && exit.ExitCode() == 1) { // 1: none ignored
+		msg := strings.TrimSpace(string(errb))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("Error: cannot ask git which of Daisy's paths %s ignores: %s", dir, msg)
+	}
+	for _, l := range strings.Split(string(out), "\n") {
+		// <source>:<line>:<pattern> TAB <path>
+		rule, path, _ := strings.Cut(l, "\t")
+		f := strings.SplitN(rule, ":", 3)
+		if len(f) == 3 && !filepath.IsAbs(f[0]) && filepath.Base(f[0]) == ".gitignore" && !strings.HasPrefix(f[2], "!") {
+			ignored[path] = true
+		}
+	}
+	return ignored, nil
+}
+
+// underLink: a directory on the way from dir to rel, or rel itself when
+// it names a directory (a trailing /), is a symbolic link. A linked file
+// is a path in the tree, and git answers for it.
+func underLink(fsys ops.FS, dir, rel string) bool {
+	parts := strings.Split(strings.TrimSuffix(rel, "/"), "/")
+	if !strings.HasSuffix(rel, "/") {
+		parts = parts[:len(parts)-1]
+	}
+	p := dir
+	for _, part := range parts {
+		p = filepath.Join(p, part)
+		if fi, err := fsys.Lstat(p); err == nil && fi.Mode()&fs.ModeSymlink != 0 {
+			return true
+		}
+	}
+	return false
 }

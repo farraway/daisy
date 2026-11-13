@@ -4,16 +4,18 @@ import "strings"
 
 // A Daisy block in a line-based ignore file (.gitignore, .cursorignore) is
 // a header line and the entry lines that follow it, after one blank line.
-// init adds the entries the file lacks anywhere, into the block; clean takes
-// the block out and nothing else, so a user's own line that happens to be
-// an entry, or a blank line of theirs, stays.
+// init adds the entries the file lacks anywhere, into the block, but those
+// the file needs no line for (git ignores them already); clean takes the
+// block out and nothing else, so a user's own line that happens to be an
+// entry, or a blank line of theirs, stays.
 
-// addBlock returns content with every entry present, and whether it changed.
-func addBlock(content []byte, header string, entries []string) ([]byte, bool) {
+// addBlock returns content with every entry present, and whether it
+// changed; an entry covered says needs no line (nil: none) is not added.
+func addBlock(content []byte, header string, entries []string, covered func(string) bool) ([]byte, bool) {
 	lines := splitLines(string(content))
 	var missing []string
 	for _, e := range entries {
-		if !hasLine(lines, e) && !hasLine(missing, e) {
+		if !hasLine(lines, e) && !hasLine(missing, e) && (covered == nil || !covered(e)) {
 			missing = append(missing, e)
 		}
 	}

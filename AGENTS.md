@@ -99,13 +99,17 @@ already public.
 of what does not ship, honoured by the scan and by git alike. Every line
 in it names its cause, what writes that path under the root: the binary
 `make build` writes (`bin/`), OS artifacts, secrets (`.env.sh`, which
-`check-secrets` reads in a workspace), and the block `daisy init` writes
-when the root is itself bound as a workspace (`.daisy/`, its stage and
-previous names, `.cursorignore`, `.claude/settings.local.json`,
-`.claude/commands/daisy.md`, `.agents/skills/daisy/SKILL.md`,
-`.cursor/rules/daisy*.mdc`, `PLAN.md`, and the bound home's skills): files
-that sit inside `$DAISY_ROOT` and would otherwise publish. A line without
-a cause goes. Two consequences:
+`check-secrets` reads in a workspace), and what `daisy init` and `daisy
+plan new` write when the root is itself bound as a workspace, to any
+home (`.daisy/`, its stage and previous names, `PLAN.md`, `*_PLAN.md`,
+`.claude/skills/`, `.claude/commands/daisy.md`,
+`.claude/settings.local.json`, `.agents/skills/`, `.cursor/rules/`,
+`.cursorignore`): files that sit inside `$DAISY_ROOT` and would otherwise
+publish. Those lines name whole directories under the root's own
+comment, never a home's skill, and not under `init`'s header: `init` adds
+no line a repository's `.gitignore` already ignores, so binding the root
+leaves the file as it is and `clean` finds no block there to strip. A
+line without a cause goes. Two consequences:
 
 - Keep ignore rules in `.gitignore`. A global `core.excludesFile` or a
   `.git/info/exclude` entry hides a file from the scan on this machine
@@ -416,9 +420,12 @@ any future reference source) is not a skill until adopted:
    skills/{name}`; this carries the source's `NOTICE.md` along.
 2. Copy `LICENSE` alongside: `cp docs/resources/mattpo-skills/LICENSE
    skills/{name}/LICENSE`.
-3. Fix the copied `NOTICE.md`'s license line from `../LICENSE` to
-   `./LICENSE`: the original pointed at one shared file one level up, and
-   once `LICENSE` is copied in as a sibling the old relative path dangles.
+3. Fix the copied `NOTICE.md`'s two relative paths, which were written
+   for `docs/resources/mattpo-skills/{name}/` and dangle from
+   `skills/{name}/`: the license line from `../LICENSE` to `./LICENSE`
+   (the original pointed at one shared file one level up; `LICENSE` is
+   now a sibling), and a rename's back-reference, where it has one, from
+   `../../../prompts-vs-skills.md` to `../../docs/prompts-vs-skills.md`.
    `NOTICE.md` needs no other edits; it is the sole provenance record for
    an adopted skill, with no separate `attribution:` frontmatter.
 4. Add `short_description` frontmatter to `SKILL.md` (above).

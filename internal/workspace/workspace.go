@@ -32,7 +32,7 @@ var (
 	gitignoreHeader    = "# Daisy workspace config (per-machine)"
 	gitignoreEntries   = []string{".daisy/", ".daisy.stage.*", ".daisy.previous.*", ".cursor/rules/daisy.mdc", ".cursor/rules/daisy-logging.mdc", ".cursor/rules/daisy-plan.mdc", ".claude/commands/daisy.md", skill.AgentsTree + "/" + skill.AgentsDaisy + "/SKILL.md", ".claude/settings.local.json", "PLAN.md", ".cursorignore"}
 	cursorignoreHeader = "# Allow Cursor to index daisy paths (gitignored but needed for agent context)"
-	cursorignoreLines  = []string{"!.daisy/", "!.cursor/rules/daisy.mdc", "!.cursor/rules/daisy-logging.mdc", "!PLAN.md"}
+	cursorignoreLines  = []string{"!.daisy/", "!.cursor/rules/daisy.mdc", "!.cursor/rules/daisy-logging.mdc", "!.cursor/rules/daisy-plan.mdc", "!PLAN.md"}
 )
 
 // The files of .daisy/ that init owns and rewrites on every run: the

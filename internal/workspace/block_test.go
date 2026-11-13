@@ -8,11 +8,11 @@ func isAB(line string) bool { return line == "a" || line == "b" || line == "c" }
 // file byte for byte, user lines that happen to be entries included.
 func TestBlockAddIsIdempotentAndRemoveUndoesIt(t *testing.T) {
 	for _, original := range []string{"", "node_modules/\n", "b\nmine\n\n", "no final newline\n"} {
-		once, changed := addBlock([]byte(original), "# H", []string{"a", "b"})
+		once, changed := addBlock([]byte(original), "# H", []string{"a", "b"}, nil)
 		if !changed && original != "b\nmine\n\n" {
 			t.Errorf("%q: nothing added", original)
 		}
-		twice, changed := addBlock(once, "# H", []string{"a", "b"})
+		twice, changed := addBlock(once, "# H", []string{"a", "b"}, nil)
 		if changed || string(twice) != string(once) {
 			t.Errorf("%q: second add changed %q -> %q", original, once, twice)
 		}
@@ -27,7 +27,7 @@ func TestBlockAddIsIdempotentAndRemoveUndoesIt(t *testing.T) {
 // one header, not after whatever the user appended to the file.
 func TestBlockAddFillsTheExistingBlock(t *testing.T) {
 	in := "top\n\n# H\na\nb\n\nuser\n"
-	got, _ := addBlock([]byte(in), "# H", []string{"a", "b", "c"})
+	got, _ := addBlock([]byte(in), "# H", []string{"a", "b", "c"}, nil)
 	if string(got) != "top\n\n# H\na\nb\nc\n\nuser\n" {
 		t.Errorf("got %q", got)
 	}

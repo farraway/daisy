@@ -196,6 +196,55 @@ func TestInitThenCleanRestores(t *testing.T) {
 	}
 }
 
+// The root bound as a workspace (D44): a root holding this root's own
+// .gitignore, bound to a home whose skill (myskill) the root's .gitignore
+// does not name, stays as git has it through init, a re-init, `plan new`,
+// `plan new --spec` and `clean -f`: nothing untracked, and .gitignore byte
+// for byte as the root ships it. Its lines ignore what init and plan write
+// wholesale, under the root's own comment, so init adds no block and clean
+// finds none to strip.
+func TestBindingTheRootLeavesItAsGitHasIt(t *testing.T) {
+	m := initMachine(t)
+	shipped, err := os.ReadFile(".gitignore")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(m.root, ".gitignore"), string(shipped))
+	gitIn(t, m.root, "init", "-q")
+	gitIn(t, m.root, "add", "-A")
+	gitIn(t, m.root, "-c", "user.name=S", "-c", "user.email=s@x", "commit", "-q", "-m", "root")
+	// After each command, the files it leaves in the root that git would
+	// otherwise publish: there, and ignored.
+	for _, c := range []struct {
+		args  []string
+		there []string
+	}{
+		{[]string{"init", "testhome"}, []string{".daisy/AGENTS.md", ".claude/skills/myskill/SKILL.md", ".agents/skills/rootskill/SKILL.md", ".cursor/rules/myskill.mdc", ".claude/settings.local.json", ".cursorignore"}},
+		{[]string{"init", "testhome"}, []string{".claude/skills/myskill/SKILL.md"}},
+		{[]string{"plan", "new", "Ship it"}, []string{"PLAN.md"}},
+		{[]string{"plan", "new", "--spec", "A draft"}, []string{"A-draft_PLAN.md"}},
+		{[]string{"clean", "-f"}, []string{"PLAN.md", "A-draft_PLAN.md"}}, // clean never removes a plan
+	} {
+		if code, _, errs := runWith(m.planOps(m.root), c.args...); code != 0 {
+			t.Fatalf("%v: exit %d: %s", c.args, code, errs)
+		}
+		for _, p := range c.there {
+			if _, err := os.Lstat(filepath.Join(m.root, p)); err != nil {
+				t.Errorf("after %v: %v", c.args, err)
+			}
+		}
+		if st := gitIn(t, m.root, "status", "--porcelain", "--untracked-files=all"); st != "" {
+			t.Errorf("after %v, git status in the root:\n%s", c.args, st)
+		}
+		if b, _ := os.ReadFile(filepath.Join(m.root, ".gitignore")); string(b) != string(shipped) {
+			t.Errorf("after %v, the root's .gitignore is\n%s", c.args, b)
+		}
+	}
+	if _, err := os.Lstat(filepath.Join(m.root, ".claude", "skills", "myskill")); err == nil {
+		t.Error("clean left the home's skill in the root")
+	}
+}
+
 // init installs the root's skills beside the home's, in .claude/skills and
 // its Codex twin .agents/skills, each with its Cursor stub, a nested one
 // by its directory's name, byte for byte as the root has it; a home skill
@@ -973,6 +1022,103 @@ func TestInitIgnoresWhatItWrites(t *testing.T) {
 	for _, l := range cl[1:] {
 		if !strings.HasPrefix(l, "!") || !slices.Contains(entries, l[1:]) {
 			t.Errorf(".cursorignore line %q re-includes no entry of the .gitignore block", l)
+		}
+	}
+	// And the other way: every core Cursor rule init ignores, and .daisy/
+	// and PLAN.md, Cursor may index.
+	for _, e := range entries {
+		if (strings.HasPrefix(e, ".cursor/rules/daisy") || e == ".daisy/" || e == "PLAN.md") && !slices.Contains(cl, "!"+e) {
+			t.Errorf("the block ignores %s and .cursorignore does not re-include it", e)
+		}
+	}
+}
+
+// init adds no entry a .gitignore of the repository already ignores (the
+// user's own .claude/), but still adds one only this machine ignores (in
+// .git/info/exclude or a core.excludesFile, which a clone elsewhere lacks)
+// and one a negated line re-includes.
+func TestInitSkipsOnlyWhatTheRepositoryIgnores(t *testing.T) {
+	m := initMachine(t)
+	ws := scratch(t)
+	writeFile(t, filepath.Join(ws, ".gitignore"), ".claude/\n*.md\n!PLAN.md\n")
+	writeFile(t, filepath.Join(ws, ".git", "info", "exclude"), ".daisy/\n")
+	machine := filepath.Join(t.TempDir(), ".gitignore") // named as a repository's, and not one
+	writeFile(t, machine, ".cursorignore\n")
+	gitIn(t, ws, "config", "core.excludesFile", machine)
+	if code, _, errs := m.pinned(t, ws, "init", "testhome"); code != 0 {
+		t.Fatalf("init exit %d: %s", code, errs)
+	}
+	b, _ := os.ReadFile(filepath.Join(ws, ".gitignore"))
+	lines := splitNonEmpty(string(b))
+	h := slices.Index(lines, "# Daisy workspace config (per-machine)")
+	if h < 0 {
+		t.Fatalf("no block:\n%s", b)
+	}
+	block := lines[h+1:]
+	for _, e := range []string{".daisy/", ".cursorignore", "PLAN.md", ".cursor/rules/daisy.mdc", ".agents/skills/myskill/"} {
+		if !slices.Contains(block, e) {
+			t.Errorf("the block lacks %s:\n%s", e, b)
+		}
+	}
+	for _, e := range block {
+		if strings.HasPrefix(e, ".claude/") {
+			t.Errorf("the block adds %s, which the repository's .claude/ ignores:\n%s", e, b)
+		}
+	}
+}
+
+// plan new adds no PLAN.md line a .gitignore of the workspace already
+// ignores the plan by, as init adds no entry it has: init, plan new and
+// clean leave such a workspace's .gitignore and git status as they were.
+func TestPlanNewAddsNoLineGitAlreadyHas(t *testing.T) {
+	m := initMachine(t)
+	ws := scratch(t)
+	writeFile(t, filepath.Join(ws, ".gitignore"), "/PLAN.md\n")
+	gitIn(t, ws, "-c", "user.name=S", "-c", "user.email=s@x", "commit", "-q", "-a", "-m", "anchored")
+	status := gitIn(t, ws, "status", "--porcelain", "--untracked-files=all")
+	for _, args := range [][]string{{"init", "testhome"}, {"plan", "new", "Ship it"}, {"clean", "-f"}} {
+		if code, out, errs := runWith(m.planOps(ws), args...); code != 0 || strings.Contains(out, "to .gitignore") && args[0] == "plan" {
+			t.Fatalf("%v: exit %d: %s%s", args, code, out, errs)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(ws, ".gitignore")); string(b) != "/PLAN.md\n" {
+		t.Errorf(".gitignore after init, plan new and clean:\n%s", b)
+	}
+	if got := gitIn(t, ws, "status", "--porcelain", "--untracked-files=all"); got != status {
+		t.Errorf("git status %q → %q", status, got)
+	}
+}
+
+// A directory linked elsewhere — an agent directory, or a skill's copy
+// itself — is outside the repository's tree, which git refuses to be asked
+// about: init still binds the workspace and ignores the paths it writes
+// there, as before.
+func TestInitIgnoresThroughALinkedAgentDirectory(t *testing.T) {
+	m := initMachine(t)
+	for name, link := range map[string]func(ws string) (string, string){
+		".claude elsewhere": func(ws string) (string, string) { return t.TempDir(), filepath.Join(ws, ".claude") },
+		"a skill's copy elsewhere": func(ws string) (string, string) {
+			return t.TempDir(), filepath.Join(ws, ".claude", "skills", "myskill")
+		},
+		"a skill's twin linked to its copy": func(ws string) (string, string) {
+			os.MkdirAll(filepath.Join(ws, ".claude", "skills", "myskill"), 0o755)
+			return "../../.claude/skills/myskill", filepath.Join(ws, ".agents", "skills", "myskill")
+		},
+	} {
+		ws := scratch(t)
+		target, at := link(ws)
+		os.MkdirAll(filepath.Dir(at), 0o755)
+		if err := os.Symlink(target, at); err != nil {
+			t.Fatal(err)
+		}
+		if code, _, errs := m.pinned(t, ws, "init", "testhome"); code != 0 {
+			t.Fatalf("%s: init exit %d: %s", name, code, errs)
+		}
+		b, _ := os.ReadFile(filepath.Join(ws, ".gitignore"))
+		for _, e := range []string{".claude/commands/daisy.md", ".claude/skills/myskill/", ".agents/skills/myskill/"} {
+			if !slices.Contains(splitNonEmpty(string(b)), e) {
+				t.Errorf("%s: the block lacks %s:\n%s", name, e, b)
+			}
 		}
 	}
 }

@@ -107,3 +107,8 @@ everything downstream reads `var(--color-*)`.
 - `:has(:focus-visible)` to disable sticky positioning when a child has
   focus.
 - `max-inline-size` in `ch` units for readable line lengths.
+
+## Rules
+
+None yet: the sections above are this skill's guidance. Rules that
+`daisy optimize` learns from feedback go here.

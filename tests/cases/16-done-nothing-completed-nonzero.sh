@@ -7,4 +7,5 @@ seed_basic
 fixture_run_cli done "Totally Absent Pattern"
 
 assert_eq "$RUN_EXIT" "1" "a run that completes nothing exits non-zero"
+assert_contains "$RUN_STDERR" "No task found matching: Totally Absent Pattern" "the refusal names the pattern"
 assert_not_contains "$RUN_STDOUT" "✅" "no success marker when nothing completed"

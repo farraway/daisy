@@ -112,3 +112,8 @@ secret manager.
 **Leave room for judgment.** Give enough guidance to be effective without
 prescribing every decision; focus on the conventions that matter for
 consistency.
+
+## Rules
+
+None yet: the sections above are this skill's guidance. Rules that
+`daisy optimize` learns from feedback go here.

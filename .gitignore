@@ -11,23 +11,21 @@ bin/
 # can itself be a workspace (below)
 .env.sh
 
-# What `daisy init <identity>` writes when run in the root, binding it as a
-# workspace: init's own block (init and clean edit it, so it keeps init's
-# header and entries), then the skills of the home the root is bound to
-# (gitea's here), each in .claude/skills and Codex's .agents/skills.
-
-# Daisy workspace config (per-machine)
+# What Daisy writes when the root is itself bound as a workspace, whatever
+# the home: `daisy init` (the binding, its stage and set-aside names, the
+# agent files, every skill's copies in .claude/skills and Codex's
+# .agents/skills, and their Cursor stubs) and `daisy plan new` (PLAN.md,
+# <slug>_PLAN.md with --spec). Whole directories, under this comment rather
+# than init's header: init adds no line git already ignores here, so it
+# writes no block into this file, and clean finds none to strip.
 .daisy/
 .daisy.stage.*
 .daisy.previous.*
-.cursor/rules/daisy.mdc
-.cursor/rules/daisy-logging.mdc
-.cursor/rules/daisy-plan.mdc
+PLAN.md
+*_PLAN.md
+.claude/skills/
 .claude/commands/daisy.md
 .claude/settings.local.json
-PLAN.md
+.agents/skills/
+.cursor/rules/
 .cursorignore
-.claude/skills/gitea/
-.cursor/rules/gitea.mdc
-.agents/skills/daisy/SKILL.md
-.agents/skills/gitea/
