@@ -33,6 +33,7 @@ type applyWS struct {
 	after   func(time.Duration) <-chan time.Time
 	runDir  string   // the folder the runner was opened in, the swarm's root
 	idDirs  []string // the folder each `id` ran in
+	fs      ops.FS   // when set, the file system apply is given in place of the real one
 }
 
 func (a *applyWS) Now() time.Time { a.mu.Lock(); defer a.mu.Unlock(); return a.now }
@@ -108,6 +109,9 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 		PromptFn: func(io.Reader, io.Writer, string) (string, error) { a.t.Error("apply prompted"); return "", io.EOF },
 	}
 	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: stdout, Stderr: stderr, Flags: flags}
+	if a.fs != nil {
+		c.Ops = withFS{o, a.fs}
+	}
 	return a.at(c, false, func(c *Context) error {
 		return swarmApply(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
 			a.mu.Lock()
@@ -118,6 +122,14 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 			func(_ ops.Ops, dir string) runner.Runner { a.runDir = dir; return run })
 	})
 }
+
+// withFS is an Ops with its file system replaced.
+type withFS struct {
+	ops.Ops
+	fs ops.FS
+}
+
+func (w withFS) FS() ops.FS { return w.fs }
 
 // exitPrefix runs a member's argv under sh, which writes the CLI's exit
 // status to /work/.swarm/exit once it has exited (section 7.2).
@@ -390,6 +402,41 @@ func TestSwarmApplyStart(t *testing.T) {
 	}
 }
 
+// A prompt file that reads back other than it was written is the swarm
+// fault prompt refused (sections 7.3 and 7.7): nothing launched, the
+// issue left at its stage.
+func TestSwarmApplyPromptReadBackDiffers(t *testing.T) {
+	for _, name := range []string{"system.md", "prompt.md"} {
+		t.Run(name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.fs = changedFS{ops.Real().FS(), filepath.Join("runs", "1-architect-1", "io", name)}
+			a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+			if err := a.apply(a.forge, "--once"); err != nil {
+				t.Fatal(err)
+			}
+			if len(a.runner.Launched) != 0 || !strings.HasSuffix(a.result("1-architect-1"), "fault: prompt: "+name+": differs\nrecorded\noutcome fault\ncollected\n") ||
+				!strings.Contains(a.stdout.String(), "#1 architect run 1: fault (prompt: "+name+": differs)\n") || !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:proposal-accepted"}) {
+				t.Errorf("launched %d, labels %v\n%s\n%s", len(a.runner.Launched), labels(a.issue(1)), a.result("1-architect-1"), a.stdout.String())
+			}
+		})
+	}
+}
+
+// changedFS is a file system whose file at a path ending in suffix reads
+// back with a byte more than it holds.
+type changedFS struct {
+	ops.FS
+	suffix string
+}
+
+func (c changedFS) ReadFile(name string) ([]byte, error) {
+	b, err := c.FS.ReadFile(name)
+	if err == nil && strings.HasSuffix(name, c.suffix) {
+		b = append(b, '!')
+	}
+	return b, err
+}
+
 // Praxis and the testing skill come from the installed root, $DAISY_ROOT
 // as apply runs (section 7.3): the architect's system.md carries the
 // root's praxis whole and its testing skill without the frontmatter,
@@ -471,7 +518,9 @@ var absPath = regexp.MustCompile("(?:^|[\\s(`\"'])(/[A-Za-z0-9._/-]*[A-Za-z0-9_/
 // confined checks a grok member's launch (sections 7.2 and 9, item 87):
 // no --add-dir, started in /work, which every path its argv and prompt
 // files name lies under, and each mount but the credential mounted there;
-// repo is the repository the prompt names.
+// repo is the repository the owner's or the architect's prompt names
+// among its clones, "" for a worker's or a reviewer's, whose one clone is
+// /work.
 func confined(t *testing.T, spec runner.Spec, run, repo string) {
 	t.Helper()
 	argv := spec.Argv[len(exitPrefix):]
@@ -488,7 +537,8 @@ func confined(t *testing.T, spec runner.Spec, run, repo string) {
 		}
 		texts = append(texts, string(b))
 	}
-	if !strings.Contains(texts[2], "- Working directory: /work, holding every clone; the repository is "+repo+"\n") {
+	if want := "- Working directory: /work, holding every clone; the repository is " + repo + "\n"; repo == "" && !strings.Contains(texts[2], "- Clone /work: ") ||
+		repo != "" && !strings.Contains(texts[2], want) {
 		t.Errorf("prompt.md names no repository:\n%s", texts[2])
 	}
 	seen := 0
@@ -507,6 +557,40 @@ func confined(t *testing.T, spec runner.Spec, run, repo string) {
 	}
 	if seen == 0 || !slices.ContainsFunc(spec.Mounts, func(m runner.Mount) bool { return m.Dst == "/work/.resources" && m.ReadOnly }) {
 		t.Errorf("no path seen (%d) or no resource mounted: %+v", seen, spec.Mounts)
+	}
+}
+
+// Every role on xai is confined as the architect is (sections 7.2 and 9,
+// item 87): the owner's batch, the worker and both reviewers.
+func TestSwarmApplyConfinedRoles(t *testing.T) {
+	a := newApplyWS(t)
+	env := "XAI_API_KEY"
+	a.edit(func(c *declare.Config) {
+		for _, role := range []string{"owner", "worker", "adversary", "sympathetic"} {
+			c.Personas[role] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		}
+		c.Keys["xai"] = declare.Key{Env: &env}
+	})
+	a.vars["XAI_API_KEY"] = "xai-key-0123456789abcdef0123456789abcdef"
+	a.inReview(oneSlice) // the architect on anthropic, the worker on xai
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	a.release()
+	a.runner.Script(0, "owner", runner.Canned{Out: "BLOCKED: nothing to propose\n"})
+	a.pass()
+	for _, run := range []struct{ name, repo string }{{"1-worker-1", ""}, {"1-adversary-1", ""}, {"1-sympathetic-1", ""}, {"0-owner-1", "/work/app"}} {
+		i := slices.IndexFunc(a.runner.Launched, func(s runner.Spec) bool {
+			return s.Name == "daisy-swarm.acme.swarm-app."+strings.ReplaceAll(run.name, "-", ".")
+		})
+		if i < 0 {
+			t.Errorf("%s was not launched: %+v", run.name, a.runner.Launched)
+			continue
+		}
+		if spec := a.runner.Launched[i]; spec.EnvVar != "XAI_API_KEY" || spec.Argv[len(exitPrefix)] != "grok" {
+			t.Errorf("%s: spec %+v", run.name, spec)
+		}
+		confined(t, a.runner.Launched[i], a.state("runs/"+run.name), run.repo)
 	}
 }
 
@@ -591,6 +675,36 @@ func TestSwarmApplyOnAnXAISlot(t *testing.T) {
 	}
 	if r := a.result("1-architect-2"); !strings.Contains(r, "failed: secret in output: out.md\n") || strings.Contains(strings.Join(a.bodies(1), "\n"), token) {
 		t.Errorf("the slot's token was posted:\n%s\n%q", r, a.bodies(1))
+	}
+}
+
+// A slot's login refreshed during the run (section 7.6): the token the
+// slot held at the launch, gone from it by the return, is still refused
+// in out.md, so the read at the launch counts as the one at the return
+// does.
+func TestSwarmApplyXAISlotRotatedDuringTheRun(t *testing.T) {
+	a := newApplyWS(t)
+	slots := 1
+	a.edit(func(c *declare.Config) {
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Keys["xai"] = declare.Key{Slots: &slots}
+	})
+	old, rotated := "grok-access-token-0123456789abcdefghijklmnop", "grok-access-token-rotated-0123456789abcdefgh"
+	auth := filepath.Join(a.local, "swarm", "credentials", "xai", "1", "auth.json")
+	os.MkdirAll(filepath.Dir(auth), 0o700)
+	os.WriteFile(auth, []byte(`{"access_token":"`+old+`","refresh_token":"r"}`), 0o600)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan + "\nThe login was " + old + ".\n", Work: func(string) error {
+		return os.WriteFile(auth, []byte(`{"access_token":"`+rotated+`","refresh_token":"r2"}`), 0o600)
+	}})
+	if err := a.apply(a.forge, "--once"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	if b, _ := os.ReadFile(auth); !strings.Contains(string(b), rotated) {
+		t.Fatalf("the slot was not refreshed during the run: %s", b)
+	}
+	if r := a.result("1-architect-1"); !strings.Contains(r, "failed: secret in output: out.md\n") || strings.Contains(strings.Join(a.bodies(1), "\n"), old) {
+		t.Errorf("the launch's token was posted:\n%s\n%q", r, a.bodies(1))
 	}
 }
 

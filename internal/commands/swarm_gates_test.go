@@ -162,6 +162,21 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 				if got := labels(a.issue(1)); slices.Contains(got, forge.Blocked) || a.bodies(1)[len(a.bodies(1))-1] != second {
 					t.Fatalf("T11, second time, moved: %v %q", got, a.bodies(1))
 				}
+				// The note blocked nothing: status counts no block for it,
+				// and with the issue blocked by hand where it was moved,
+				// unblock does not take it for the round limit's.
+				if err := a.status(a.forge); err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(a.stdout.String(), "\n  #1           plan revisions 1, blocks 0; app#1 rounds ") {
+					t.Errorf("status:\n%s", a.stdout.String())
+				}
+				if err := a.forge.Relabel(issue1, "", forge.Blocked); err != nil {
+					t.Fatal(err)
+				}
+				m := &maintainerWS{statusWS: a.statusWS, as: map[string]*forge.Fake{"jane-456": a.forge.As(forge.Account{Login: "jane"})}}
+				m.secrets(bothTokens)
+				m.ok(swarmUnblock, "Maintainer jane on acme/swarm-app\n#1 commented\n#1 blocked cleared\n", "1", "Review", "it", "again.")
 				return
 			}
 			a.pass() // the pair
@@ -187,6 +202,27 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 				t.Fatalf("T11, third time: %v %q", got, a.bodies(1))
 			}
 		})
+	}
+}
+
+// Whose pull requests are the issue's (section 10, Pulls): one an
+// untrusted login opens on the next slice's branch with the Refs line is
+// never the current pull request, so the pair reviews the swarm's.
+func TestSwarmApplyPullOpeners(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	evil, _ := a.forge.As(forge.Account{Login: "mallory"}).CreatePull("app", "swarm/1-2", "main", "slice", "Refs acme/swarm-app#1")
+	a.forge.Push(forge.Ref{Repo: "app", N: evil}, "e1")
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	ours, _ := a.forge.Reviews(forge.Ref{Repo: "app", N: 1})
+	theirs, _ := a.forge.Reviews(forge.Ref{Repo: "app", N: evil})
+	if sys := a.file("1-adversary-1", "io/system.md"); !strings.Contains(sys, "Review pull request app#1, slice 1 of issue #1.") || len(ours) != 2 || len(theirs) != 0 {
+		t.Errorf("reviews: app#1 %d, app#%d %d\n%s", len(ours), evil, len(theirs), sys)
+	}
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) {
+		t.Errorf("labels %v", got)
 	}
 }
 

@@ -192,6 +192,28 @@ func TestRenderArchitectOpenSlice(t *testing.T) {
 		"line 5\n", "<!-- daisy-swarm role=worker", "VERDICT:", "## Earlier rounds")
 }
 
+// The architect on planning without a plan while its slice is open (the
+// fast lane's pull request at the review limit, T11, section 7.3): the
+// plan's Task text, not the revision's, with the open-slice sentence and
+// the pull request in its prompt.
+func TestRenderArchitectOpenSliceWithoutAPlan(t *testing.T) {
+	f, at := fixture()
+	m, err := f.CreatePull("lib", "swarm/1-1", "main", "#1 slice 1: Drift check", marker("worker", 1)+"Did it.\n\nRefs acme/app#1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr := forge.Ref{Repo: "lib", N: m}
+	f.Push(pr, "aaa")
+	f.Review(pr, forge.Commented, marker("adversary", 1)+"VERDICT: request-changes\n[blocking] x.go:1 wrong")
+	j := job(f, at.N, "architect", "swarm:plan-0-posted")
+	j.Pull, j.Check = thread(f, pr), "No check result for this head."
+	sys, prompt := Render(j)
+	has(t, "system.md", sys, []string{`Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: `,
+		`Pull request lib#1, slice 1, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/1-1 in /work/lib, beside main`},
+		"Revise your plan")
+	has(t, "prompt.md", prompt, []string{"# Pull request lib#1: #1 slice 1: Drift check\n\nBranch swarm/1-1 into main; head aaa.\n", "[blocking] x.go:1 wrong", "# Check\n\nNo check result for this head."})
+}
+
 // The worker on planned, slice 2 after slice 1 merged: its repository from
 // the plan, the pin sentence, Not established, the protected paths, the
 // plan and the Direction since it, slice 1 under Earlier with its merge
@@ -522,6 +544,19 @@ func TestRenderIssueThreadKeepsPlan(t *testing.T) {
 	f.Comment(at, marker("architect", 3)+"BLOCKED: which API?")
 	_, prompt := Render(job(f, at.N, "architect", "swarm:plan-0-posted"))
 	has(t, "prompt.md", prompt, []string{"## architect, run 1, at 2026-11-06T15:05:00Z (superseded by run 3; content omitted)", "Plan 2.", "BLOCKED: which API?"}, "Plan 1.")
+}
+
+// The reconciler's notes in # Thread (section 7.3): the newest whole, an
+// older one its heading alone, as for the swarm's other roles.
+func TestRenderIssueThreadNewestNote(t *testing.T) {
+	f, at := fixture()
+	f.Comment(at, marker("reconciler", 1)+"architect run 1 is blocked (at swarm:proposal-accepted). Answer, then remove swarm:blocked to resume.")
+	f.Say(at, "jane", "Use the corpus.")
+	f.Comment(at, marker("reconciler", 2)+"architect run 2 failed: no output (at swarm:proposal-accepted). Remove swarm:blocked to resume.")
+	_, prompt := Render(job(f, at.N, "architect", "swarm:proposal-accepted"))
+	has(t, "prompt.md", prompt, []string{"\n\n## reconciler, run 1, at 2026-11-06T15:04:00Z (superseded by run 2; content omitted)\n\n## jane at 2026-11-06T15:05:00Z\n\nUse the corpus.\n\n" +
+		"## reconciler, run 2, at 2026-11-06T15:06:00Z\n\narchitect run 2 failed: no output (at swarm:proposal-accepted). Remove swarm:blocked to resume.\n"},
+		"is blocked (at")
 }
 
 // mergeBase is the worker's first instruction in every Task text, the

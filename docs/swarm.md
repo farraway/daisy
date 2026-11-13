@@ -107,7 +107,8 @@ and its lists read on past a short page; `forge.Fake` answers a merge
 of a closed pull request `404`; `init` warns of a kept prompt that
 validation refuses and takes a variable of blanks alone as unset, and
 its unit quotes `Environment=` and `ExecStart=` and says where to save
-it (item 120).
+it (item 120). Its Step 21 (2026-11-13) amended item 23: the base
+image's two `FROM` lines name its digest beside its tag.
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -5181,12 +5182,14 @@ entries among revision 1's, and was renumbered at Step 38.
     get a writable throwaway clone. Reading the forge's CI status for a
     head is recorded, not built: it would be a new `Adapter` method, read
     into the reviewers' prompt and `status`. The base pins `node:24.11.0-bookworm-slim` by tag
-    (the digest is added when Docker is at hand), installs the CLIs at
+    and digest (`@sha256:76d0ed0e…`, added at Step 21 of the plan that
+    clears the Deferred list from the build host's image cache, the image
+    `daisy-member:1` is built on), installs the CLIs at
     versions given as required build arguments, and adds `ca-certificates`
     for `codex`. Step 39 built it (Claude Code 2.1.318, Codex 0.166.0)
     and `codex` reached its API with the certificates present; whether it
-    needs them was not tried, so they stay, and the digest is still to be
-    added (an image digest is among what Step 39 did not establish).
+    needs them was not tried, so they stay, for `grok` too, a native
+    binary as `codex` is.
 24. **The container:** run as the host user's uid (`--user`), `--pull
     never`, a per-run `--name`, the prompt files and output in `<run>/io`
     mounted at `/work/.swarm`, resources at `/resources/<path>` (at

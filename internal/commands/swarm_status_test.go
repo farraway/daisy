@@ -475,7 +475,9 @@ Briefs:
 // first (BLOCKED: and another login's marker are none); a block is a
 // reconciler note other than the round limit's first; a maintainer
 // comment is a comment, review or line comment by a trusted login that is
-// not the swarm's; an issue with none of a plan, a pull request or a
+// not the swarm's; a pull request an untrusted login opens with the
+// issue's Refs line on a slice's branch is none of the issue's (section
+// 10, Pulls); an issue with none of a plan, a pull request or a
 // block has no line, and a closed one only within the batch's window
 // (30 days), while a brief's milestone counts every issue the forge has
 // in it, closed at any time or not the swarm's, and none outside it. A
@@ -509,6 +511,7 @@ func TestSwarmStatusCorrections(t *testing.T) {
 	f.SayOnLine(pr, "Jane", "a.go", 3, "this line")
 	f.ReviewAs(pr, "jane", forge.RequestChanges, "no")
 	f.ReviewAs(pr, "SWARM-BOT", forge.Commented, "the swarm's own login, unmarked")
+	f.As(forge.Account{Login: "mallory"}).CreatePull("lib", "swarm/1-2", "main", "s", mark("worker", 2)+"Refs acme/swarm-app#1\n")
 	b := issue("swarm:proposal-posted", "") // 2: a block, no plan
 	f.Relabel(b, "", forge.Blocked)
 	f.Comment(b, mark("reconciler", 1)+"owner run 1 failed: no output (at swarm:proposal-posted). Remove swarm:blocked to resume.")

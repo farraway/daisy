@@ -317,11 +317,16 @@ func TestSwarmCheckRestartedAfterItsApplyDied(t *testing.T) {
 
 // A worker run whose member left a directory in its clone that cannot be
 // read (mode 000, holding a file): the run is collected and its clone
-// removed, the pass exiting 0 (section 7.6).
+// removed, the pass exiting 0; a link in that directory to one outside
+// the run that cannot be read either is removed, never followed, so the
+// directory outside keeps its mode (section 7.6).
 func TestSwarmCollectionRemovesAnUnreadableDirectory(t *testing.T) {
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	var closed string
+	outside := filepath.Join(t.TempDir(), "outside")
+	os.MkdirAll(filepath.Join(outside, "sub"), 0o755)
+	os.Chmod(outside, 0)
 	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n", Work: func(work string) error {
 		if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
 			return err
@@ -329,14 +334,22 @@ func TestSwarmCollectionRemovesAnUnreadableDirectory(t *testing.T) {
 		closed = filepath.Join(work, "build")
 		os.MkdirAll(closed, 0o755)
 		os.WriteFile(filepath.Join(closed, "out.o"), []byte("x"), 0o644)
+		if err := os.Symlink(outside, filepath.Join(closed, "outside")); err != nil {
+			return err
+		}
 		return os.Chmod(closed, 0)
 	}})
-	t.Cleanup(func() { os.Chmod(closed, 0o755) })
+	t.Cleanup(func() { os.Chmod(closed, 0o755); os.Chmod(outside, 0o755) })
 	a.pass()
 	if r := a.result("1-worker-1"); !strings.HasSuffix(r, "outcome posted\ncollected\n") {
 		t.Errorf("result:\n%s", r)
 	}
 	if _, err := os.Lstat(a.state("runs/1-worker-1/work")); err == nil {
 		t.Error("work/ kept after the collection")
+	}
+	if fi, err := os.Lstat(outside); err != nil {
+		t.Error(err)
+	} else if fi.Mode().Perm() != 0 {
+		t.Errorf("the directory outside the run was opened through the link: %v", fi.Mode())
 	}
 }

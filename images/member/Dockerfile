@@ -27,16 +27,18 @@
 # of its own so that the final image holds one copy, without the download
 # layer. Updating grok is a change to this file: the version in the URL
 # and the checksum together.
-FROM node:24.11.0-bookworm-slim AS grok
+FROM node:24.11.0-bookworm-slim@sha256:76d0ed0ed93bed4f4376211e9d8fddac4d8b3fbdb54cc45955696001a3c91152 AS grok
 ADD https://x.ai/cli/grok-1.0.70-linux-x86_64 /grok
 RUN echo "22d281c5964c5444147328096ba2a221f3f0874c6858e27c825656a80f6e58e9  /grok" | sha256sum -c - \
  && chmod 0755 /grok
 
 # Base: Node.js, because two of the provider CLIs are npm packages; Debian slim so
-# git comes from the distribution. Pinned to an exact release; the next
-# build appends the digest `docker pull` prints (FROM node:<tag>@sha256:<digest>),
-# which Step 39's build did not record.
-FROM node:24.11.0-bookworm-slim
+# git comes from the distribution. Pinned to an exact release and its
+# digest, the one the build host's image cache records for the tag
+# (`docker image inspect --format '{{index .RepoDigests 0}}'`), on which
+# daisy-member:1 was built; the grok stage above names the same. Updating
+# the base is a change to both FROM lines: the tag and the digest together.
+FROM node:24.11.0-bookworm-slim@sha256:76d0ed0ed93bed4f4376211e9d8fddac4d8b3fbdb54cc45955696001a3c91152
 
 # git: the worker commits in /work, and every role reads the history and
 # the diff there. ca-certificates: TLS roots for the codex CLI, a native
