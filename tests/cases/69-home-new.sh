@@ -12,6 +12,8 @@ assert_eq "$(cat "$target/gitconfig")" $'name=Fixture Person\nemail=person@examp
 assert_eq "$copied" "yes" "the template is copied to the chosen location"
 assert_eq "$(git -C "$target" rev-list --count HEAD)" "1" \
     "the new home is its own repository with one commit"
+assert_eq "$(git -C "$target" symbolic-ref HEAD)" "refs/heads/main" \
+    "its repository starts on main (no init.defaultBranch is set)"
 assert_eq "$(git -C "$target" config user.email)" "person@example.invalid" \
     "the repository commits as the home's identity"
 assert_eq "$(git -C "$target" check-ignore .healthcheck.ttl AGENTS.md | wc -l | tr -d ' ')" "2" \

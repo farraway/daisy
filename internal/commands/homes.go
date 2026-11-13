@@ -189,7 +189,10 @@ func createHome(c *Context, m env.Env, name, template, path, gitName, gitEmail s
 	} else {
 		fmt.Fprintf(c.Stdout, "  ⚠ Skipped (both name and email required). Edit %s/gitconfig later.\n", real)
 	}
-	steps := [][]string{{"init", "-q"}}
+	if err := gitx.Init(c.Ops, real); err != nil {
+		return "", fmt.Errorf("Error: git init in %s failed: %v", real, err)
+	}
+	var steps [][]string
 	if gitName != "" && gitEmail != "" {
 		steps = append(steps, []string{"config", "user.name", gitName}, []string{"config", "user.email", gitEmail})
 	}

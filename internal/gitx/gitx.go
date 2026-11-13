@@ -41,6 +41,25 @@ func IsRepoRoot(o ops.Ops, dir string) bool {
 	return top != "" && top == env.RealDir(o.FS(), dir)
 }
 
+// Init makes dir a new repository whose first branch is main, unless the
+// user's git config sets init.defaultBranch, which then wins. The value is
+// read in the new repository, so it is the one git init applied: a
+// conditional include is matched against the new .git, and the config of a
+// repository enclosing dir, which git init does not read, is not consulted.
+// The new repository has no config of its own that could set it.
+func Init(o ops.Ops, dir string) error {
+	if _, errb, err := o.Exec(dir, "git", "init", "-q"); err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(errb)+" "+err.Error()))
+	}
+	if out, _, _ := o.Exec(dir, "git", "config", "--get", "init.defaultBranch"); len(out) > 0 {
+		return nil
+	}
+	if _, errb, err := o.Exec(dir, "git", "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
+		return fmt.Errorf("git symbolic-ref HEAD refs/heads/main: %s", strings.TrimSpace(string(errb)+" "+err.Error()))
+	}
+	return nil
+}
+
 // HomeRepo is the repository a home's data commits to: the home's own,
 // and only that. A home inside the root's repository (the layout before
 // the split), or one whose git directory is the root's (a `gitdir:` file

@@ -423,8 +423,8 @@ func (p *initPlan) apply(o ops.Ops, out, warn io.Writer) error {
 
 	fmt.Fprintf(out, "Initializing Daisy in: %s\n  Home: %s\n  Identity: %s\n", p.target, p.homeName, p.name)
 	if p.gitInit {
-		if _, errb, err := o.Exec(p.target, "git", "init", "-q"); err != nil {
-			return fmt.Errorf("Error: git init in %s failed: %s", p.target, strings.TrimSpace(string(errb)))
+		if err := gitx.Init(o, p.target); err != nil {
+			return fmt.Errorf("Error: git init in %s failed: %v", p.target, err)
 		}
 		fmt.Fprintln(out, "  ✓ Initialized git repository")
 	}

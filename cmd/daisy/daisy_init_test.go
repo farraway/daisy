@@ -1370,3 +1370,55 @@ func TestBareInitReinitsTheBinding(t *testing.T) {
 		t.Errorf("bare init in an unbound folder wrote %v", entries)
 	}
 }
+
+// init in a folder that is not a repository's top level starts the new
+// repository on main, unless the user's git config (here the global file)
+// sets init.defaultBranch, which then wins, as git init applies it: through
+// a conditional include matched against the new repository's .git, and
+// never from the config of a repository enclosing the folder, which git
+// init does not read (a value there, or a conditional include matching the
+// enclosing repository, leaves main).
+func TestInitStartsARepositoryOnMain(t *testing.T) {
+	m := initMachine(t)
+	base, configs := t.TempDir(), t.TempDir()
+	trunk := filepath.Join(configs, "trunk")
+	writeFile(t, trunk, "[init]\n\tdefaultBranch = trunk\n")
+	global := func(name, body string) string {
+		p := filepath.Join(configs, name)
+		writeFile(t, p, body)
+		return p
+	}
+	plain := global("plain", "[include]\n\tpath = "+trunk+"\n")
+	when := func(name, gitdir string) string {
+		return global(name, "[includeIf \"gitdir:"+gitdir+"\"]\n\tpath = "+trunk+"\n")
+	}
+	for name, tc := range map[string]struct {
+		global, folder string
+		enclosing      []string // git config of a repository at the folder's parent
+		want           string
+	}{
+		"unset":                         {os.DevNull, "unset", nil, "refs/heads/main"},
+		"global trunk":                  {plain, "global", nil, "refs/heads/trunk"},
+		"conditional trunk":             {when("work", filepath.Join(base, "work")+"/"), "work/ws", nil, "refs/heads/trunk"},
+		"enclosing repo's trunk":        {os.DevNull, "outer/ws", []string{"init.defaultBranch", "trunk"}, "refs/heads/main"},
+		"conditional on enclosing repo": {when("outer", filepath.Join(base, "cond", ".git")), "cond/ws", []string{"core.bare", "false"}, "refs/heads/main"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("GIT_CONFIG_GLOBAL", tc.global)
+			ws := filepath.Join(base, tc.folder)
+			if err := os.MkdirAll(ws, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if tc.enclosing != nil {
+				gitIn(t, filepath.Dir(ws), "init", "-q")
+				gitIn(t, filepath.Dir(ws), append([]string{"config"}, tc.enclosing...)...)
+			}
+			if code, _, errs := m.pinned(t, ws, "init", "testhome"); code != 0 {
+				t.Fatalf("init: exit %d: %s", code, errs)
+			}
+			if got := strings.TrimSpace(gitIn(t, ws, "symbolic-ref", "HEAD")); got != tc.want {
+				t.Errorf("HEAD is %s, want %s", got, tc.want)
+			}
+		})
+	}
+}

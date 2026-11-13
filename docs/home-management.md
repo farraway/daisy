@@ -42,7 +42,8 @@ Two per-machine directories, both overridable by environment variable:
 `daisy home new` collects every answer before writing anything: the location
 (prompted when not given, default `$DAISY_LOCAL/homes/<name>`), then the git
 identity's name and email. It then copies the template, writes the identity
-to `gitconfig`, runs `git init` with a first commit as that identity,
+to `gitconfig`, runs `git init` (on `main`, unless your git config sets
+`init.defaultBranch`) with a first commit as that identity,
 registers the name, and builds the home's `AGENTS.md`. Leaving name or email
 blank is allowed (reported, `gitconfig` is left as the template) but then the
 first commit uses the machine's global git identity, and with none the
