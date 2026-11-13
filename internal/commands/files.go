@@ -88,6 +88,10 @@ func files(c *Context) error {
 	}
 	fmt.Fprintln(c.Stdout)
 
+	fmt.Fprintln(c.Stdout, "Metrics:")
+	row("metrics.csv", env.MetricsFile(home))
+	fmt.Fprintln(c.Stdout)
+
 	fmt.Fprintln(c.Stdout, "Prompts:")
 	row("home/", filepath.Join(home, "prompts"))
 	fmt.Fprintln(c.Stdout)

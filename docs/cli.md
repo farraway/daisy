@@ -72,6 +72,9 @@ Plans
                                     Create a plan (or an unregistered spec draft)
   plan pickup <path>                Promote a spec draft into a tracked plan
   plan archive                      Archive the active plan
+  metrics                           Summary of the home's metrics CSV, by kind and model (read-only)
+  metrics add --step <s> [--plan <p>] [--range <r> [--repo <dir>]] [<flag> <value>...]
+                                    Record a plan step: a row in the home's metrics CSV and in the plan's ## Metrics table
 
 Homes and identities
   home new <name> [path]            Create a home; prompts for identity and location
@@ -268,9 +271,10 @@ and `home new` (the new home's first commit); every mutation of an
 existing home the binary makes goes through
 `gitx.Repo.Commit`, one commit per command *(built, Step 18)*, and `home
 new` makes the new repository's first commit with its own `git init`,
-`add -A`, `commit` *(Step 21)*; `plan new`, `feedback`, `eval --record`
-and `rotate` run by hand write home files without committing them, and the next home commit sweeps
-them up *(decided, D37 for `plan new`, D38 for the other two)*. The root
+`add -A`, `commit` *(Step 21)*; `plan new`, `feedback`, `eval --record`,
+`metrics add` and `rotate` run by hand write home files without committing them, and the next home commit sweeps
+them up *(decided, D37 for `plan new`, D38 for the other two; `metrics add`
+as `feedback`, Step 16a of the plan that clears the Deferred list)*. The root
 is committed only by `commit --root`, by the developer's hand: `optimize
 apply` never writes a root target, it writes the home's override of it
 (D49).
@@ -340,7 +344,7 @@ and `home: testhome | identity: pelicanmoor` [77].
 | Legacy | `daisy files` → `files.sh`, deleted in Step 24 with its `--healthcheck` hook (it checked only that the home resolves; `files` has none) |
 | Usage | `daisy files` |
 | Exit codes | 0 (a project that does not exist is not fatal, case 44); 1 outside a workspace; 2 with any argument |
-| Stdout | the same first line as `status` (`identity: testhome` [76], `identity: pelicanmoor` [77]); sections `Identity:` (the resolved identity file: the home's `gitconfig` [76] or `identities/pelicanmoor` [77], ` (missing)` when absent), `Journal:`, `Tasks:`, `Projects:` (`workspace` row: `+chessgrid` [43] `(from ` `directory name` [43] `)`, `+chessgrid +jobsearch` [43] in file order, `+jobsearch` [42] `(from ` `.daisy/project` [42] `)`, or `(none)` (`none` [44])), `Feedback:`, `Plans:` (with `current plan` when `PLAN.md` is a link), `Prompts:`; each row `  %-12s <real path>`; last `AGENTS.md:    <real path>` (`%-14s`) |
+| Stdout | the same first line as `status` (`identity: testhome` [76], `identity: pelicanmoor` [77]); sections `Identity:` (the resolved identity file: the home's `gitconfig` [76] or `identities/pelicanmoor` [77], ` (missing)` when absent), `Journal:`, `Tasks:`, `Projects:` (`workspace` row: `+chessgrid` [43] `(from ` `directory name` [43] `)`, `+chessgrid +jobsearch` [43] in file order, `+jobsearch` [42] `(from ` `.daisy/project` [42] `)`, or `(none)` (`none` [44])), `Feedback:`, `Plans:` (with `current plan` when `PLAN.md` is a link), `Metrics:` (`metrics.csv`, which `metrics add` writes, listed whether or not it exists yet), `Prompts:`; each row `  %-12s <real path>`; last `AGENTS.md:    <real path>` (`%-14s`) |
 | Stderr | empty when the convention default matches nothing (asserted `""`, case 44); a declared project with no file is named (`typoed-name` [44]); drift warnings |
 | Ops | ReadOnly |
 | Writes | none |
@@ -526,6 +530,36 @@ and `home: testhome | identity: pelicanmoor` [77].
 | Writes | moves `plans/<filename>` to `plans/archive/<filename>`, removes `<ws>/PLAN.md`; in every regular `projects/*.md` and `projects/_archive/*.md` (not dotfiles, as the glob) rewrites each literal `../plans/<filename>` to `../plans/archive/` [54] `<filename>`, written through a link (the bash's `sed -i` replaced a linked project file with a copy), leaving unrelated project files byte-identical [54] |
 | Commits | home, once: `Archive plan: <filename>` |
 | Cases | 54 |
+
+### daisy metrics
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 16a of the plan that clears the Deferred list, 2026-11-12): Go (`internal/metrics`, `internal/commands/metrics.go`) |
+| Legacy | none |
+| Usage | `daisy metrics` (any argument: usage, exit 2) |
+| Exit codes | 0, the summary or none recorded yet; 1 outside a workspace, or when the CSV cannot be read, its header is not the columns `metrics add` writes, or a row has the wrong number of cells or a cell `metrics add` would refuse (the row named) |
+| Stdout | `No metrics recorded yet (<path> does not exist)` and the line that records one; else `Metrics: <path>`, `  N rows, K superseded by a later record of the same step or run` (a later row with the same kind, plan or swarm, step or run and role supersedes an earlier one: the CSV is only appended to, so a correction is a new row), then one line per kind and model, in that order: rows, tokens (`tokens_total`, else `tokens_in` and `tokens_out` added), cost (`cost_reported`), estimated (`cost_estimated`), measured (rows with lines), code, tests and prose (`+added/-removed` over the measured rows); a sum over only some of the rows reads `<sum> (k/n)`, over none `—`; a model left empty is `(none)` |
+| Ops | ReadOnly |
+| Writes | none |
+| Commits | none |
+| Cases | none; `TestMetricsAddRecordsAStep`, `TestSummarize` |
+
+### daisy metrics add
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 16a of the plan that clears the Deferred list, 2026-11-12): Go (`internal/metrics`, `internal/commands/metrics.go`) |
+| Legacy | none |
+| Usage | `daisy metrics add --step <s> [--plan <p>] [--range <r> [--repo <dir>]] [<flag> <value>...]`: every word a value flag, in any order, no positional argument. `--step` the step as the plan numbers it (`16a`); `--plan` a plan file's path (the working directory's when relative), else one plan in the home's `plans/` or `plans/archive/` named in full, without `.plan.md`, by its timestamp or by its slug, and without `--plan` the plan `PLAN.md` links to; `--range` the step's commits, `<a>..<b>` or `<commit>^!` (a lone commit would be diffed against the working tree, and a word starting with `-` is refused), measured in `--repo` (default the working directory); `--when` an RFC 3339 time (default now); `--role` (default `step`), `--provider`, `--model`, `--effort`, `--outcome`, `--prompt-hash` and `--notes` free text; `--review-rounds`, `--tokens-in`, `--tokens-out` and `--tokens` (the total, when only that is known) whole numbers; `--cost` (reported) and `--cost-estimated` dollars (`1.25`); `--root-sha` hex, default `git rev-parse HEAD` in `$DAISY_ROOT`, the root the step ran under; `--home-sha` hex, default `git rev-parse HEAD` in the bound home, so the two name every prompt and skill in use (the root's by the root's sha, the home's skills and overrides by the home's). A flag not given is an empty cell, unknown, never zero |
+| Lines | `git -C <repo> diff --numstat -z -M <range> --`, never a count the caller gives: each file classed by the path it ends at (a rename by its new name): a `_test.go` file, or one under a directory named `tests` or `test` at any depth, is **tests**; else a `.md` file, or one under a directory named `docs`, is **prose**; anything else is **code**. A binary file (git's `-` counts) is counted as no lines and in `binary_files`. No `--range`: the line cells are empty |
+| Exit codes | 0 recorded; 1 outside a workspace, no `--plan` and no `PLAN.md` (or a broken link), a `--plan` naming no plan or more than one (each listed), a cell refused (`Error: --tokens must be a whole number (got: 12k)`), a range refused or `git diff` failing (its first line), the CSV's header not these columns, a file unreadable, a write failing (the CSV put back: `Nothing was recorded.`); 2 for `--step` missing, `--repo` without `--range`, a value flag without a value, a positional word |
+| Stdout | `  ✓ Recorded step <s> of <plan>: code +a/-r, tests +a/-r, prose +a/-r` (then ` (N binary file(s), counted as no lines)` when any; ` (no --range: no lines measured)` without one), `  CSV:  <path>`, `  Plan: <real path>` |
+| Stderr | errors; `⚠️  root_sha left empty: …` when `$DAISY_ROOT` is no clone and no `--root-sha` is given, `⚠️  home_sha left empty: …` when the home has no commit and no `--home-sha` is given |
+| Ops | Real |
+| Writes | `<home>/metrics/metrics.csv` (`env.MetricsFile`; directory created; written atomically, through a link): the header (the columns, in order: `when`, `kind` — `plan-step` here, `swarm-run` for a swarm's run —, `plan_or_swarm` the plan's file name without `.plan.md`, `step_or_run`, `role`, `provider`, `model`, `effort`, `root_sha`, `home_sha` (empty for a row with no home), `prompt_hash`, `outcome`, `review_rounds`, `tokens_in`, `tokens_out`, `tokens_total`, `cost_reported`, `cost_estimated`, `code_added`, `code_removed`, `tests_added`, `tests_removed`, `prose_added`, `prose_removed`, `binary_files`, `range`, `notes`) when the file is new, then one row, quoted as CSV quotes (Go's CSV writer); the bytes before it are the file's, which must start with that header (else refused, nothing written). The plan, at its real path (never through `PLAN.md`): the step's row of the `## Metrics` table (`\| Step \| Role \| Model \| Effort \| Root \| Home \| Outcome \| Reviews \| Tokens \| Cost \| Code \| Tests \| Prose \| Range \| Notes \|`, the two shas cut to 7 digits, a cell's `\|` escaped and its line ends made spaces): the row of the same step and role replaced when the table has one, else this one appended; no table, it is added at the end of the section; no section, the section goes after `## Decisions`, else at the end of the plan; every other byte of the plan as it was, but the blank line before an added section |
+| Commits | none: the next home commit sweeps both files up, as for `feedback` |
+| Cases | none; `TestMetricsAddRecordsAStep`, `TestMetricsAddRefusals`, `TestClassify`, `TestCount`, `TestAppendCSV`, `TestPlanRowInsertsAfterDecisions`, `TestPlanRowPlacement` |
 
 ## Homes and identities
 

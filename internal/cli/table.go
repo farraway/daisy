@@ -58,6 +58,9 @@ var table = []Command{
 	{Group: "Plans", Name: "plan new", Usage: "plan new [--spec] <description> [+project]", Help: "Create a plan (or an unregistered spec draft)", Workspace: true, Flags: []string{"--spec"}, Min: 1, Max: 2, Run: commands.PlanNew, Health: commands.PlanNewHealth},
 	{Group: "Plans", Name: "plan pickup", Usage: "plan pickup <path>", Help: "Promote a spec draft into a tracked plan", Workspace: true, Min: 1, Max: 1, Run: commands.PlanPickup, Health: commands.PlanPickupHealth},
 	{Group: "Plans", Name: "plan archive", Usage: "plan archive", Help: "Archive the active plan", Workspace: true, Run: commands.PlanArchive, Health: commands.PlanArchiveHealth},
+	{Group: "Plans", Name: "metrics", Usage: "metrics", Help: "Summary of the home's metrics CSV, by kind and model (read-only)", Workspace: true, Run: commands.Metrics},
+	{Group: "Plans", Name: "metrics add", Usage: "metrics add --step <s> [--plan <p>] [--range <r> [--repo <dir>]] [<flag> <value>...]", Help: "Record a plan step: a row in the home's metrics CSV and in the plan's ## Metrics table", Workspace: true,
+		Values: []string{"--step", "--plan", "--range", "--repo", "--role", "--provider", "--model", "--effort", "--root-sha", "--home-sha", "--prompt-hash", "--outcome", "--review-rounds", "--tokens-in", "--tokens-out", "--tokens", "--cost", "--cost-estimated", "--notes", "--when"}, Run: commands.MetricsAdd},
 
 	{Group: "Homes and identities", Name: "home new", Usage: "home new <name> [path]", Help: "Create a home; prompts for identity and location", Min: 1, Max: 2, Run: commands.HomeNew, Health: commands.HomeNewHealth},
 	{Group: "Homes and identities", Name: "home add", Usage: "home add <name> <path>", Help: "Register an existing home", Min: 2, Max: 2, Run: commands.HomeAdd},

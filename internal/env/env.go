@@ -139,6 +139,10 @@ func homeDir(o ops.Ops, e Env) (string, error) {
 	return filepath.Clean(home), nil
 }
 
+// MetricsFile is the home's canonical metrics CSV, the one file `daisy
+// metrics add` appends to and `daisy metrics` summarizes.
+func MetricsFile(home string) string { return filepath.Join(home, "metrics", "metrics.csv") }
+
 // ConfigDir is $DAISY_CONFIG, default ~/.config/daisy: where the registry is.
 func ConfigDir(o ops.Ops) string { return orDefault(o, "DAISY_CONFIG", ".config/daisy") }
 

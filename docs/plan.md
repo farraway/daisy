@@ -77,8 +77,15 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
 
 5. The orchestrator verifies the hand-back (claim, tests,
    daisy healthcheck --force, hygiene, commits, plan marks),
-   then logs the step via daisy log, before launching the next
-   step. It does not ask the user between steps.
+   records the step's metrics with daisy metrics add, two
+   rows: --role step (the step's commit range and repository,
+   the step agent's model, effort and tokens) and --role review
+   (the reviewers' model and effort, --review-rounds, all review
+   passes' tokens summed; no range, so no lines); a step stopped
+   at the review cap is recorded too, with no range and
+   --outcome "held at cap", its tokens and rounds. Then it logs
+   the step via daisy log, before launching the next step. It
+   does not ask the user between steps.
 
 6. Stop and report at the stops below, or if blocked; do not
    skip steps or work around blockers silently.
@@ -122,7 +129,17 @@ orchestrator reports verbatim and never re-runs for the sub-agent.
 review pass with its in-gate count; findings disputed with the reason;
 findings accepted as is; at the cap,
 the open findings and the proposed fixes left uncommitted; the
-verification lines; the commits; the decisions; the tokens used.
+verification lines; the commits, with the step's commit range and
+its repository; the decisions; the tokens used, the step agent's and
+each reviewer's, each with its model and effort.
+
+**Metrics:** `daisy metrics add` appends the step's row to
+`<home>/metrics/metrics.csv`, the one record across plans, and writes
+the same row into the plan's `## Metrics` table. The lines added and
+removed per class (code, tests, prose) are measured from the step's
+commit range by git, never reported by an agent. `daisy metrics` summarizes the CSV by kind and model: the
+record is there to show what a change of documentation, model or
+strategy does to a step's cost and shape.
 
 **Fixture isolation:** if a step live-tests a script that auto-commits (or
 otherwise mutates) a home, never run it against a real, in-use home.
@@ -184,6 +201,10 @@ One paragraph describing what this plan achieves.
 ## Decisions
 
 (recorded during execution)
+
+## Metrics
+
+(a step row and a review row per step, written by daisy metrics add)
 
 ## Deferred
 

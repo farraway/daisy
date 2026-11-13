@@ -33,7 +33,7 @@ start reads: `HOME`, `USER`, no global git config.
 | `internal/env` | root, registry, workspace, home, identity and projects resolution; `.env.sh` read without being run; the homes a root commit leaves out (`RootExclusions`) |
 | `internal/cli` | `Run` and the command table (`internal/cli/table.go`), from which the help, `docs/cli.md`'s tree and the Command Reference below are rendered |
 | `internal/commands` | one function per command |
-| `internal/todo`, `internal/journal`, `internal/gitx`, `internal/prompt`, `internal/skill`, `internal/identity`, `internal/settings`, `internal/workspace`, `internal/plan`, `internal/feedback` | the domain packages behind them; `internal/gitx` makes the one commit every command that changes an existing home ends in (`plan new`, `feedback`, `eval --record` and a hand-run `rotate` leave their writes to the next commit) |
+| `internal/todo`, `internal/journal`, `internal/gitx`, `internal/prompt`, `internal/skill`, `internal/identity`, `internal/settings`, `internal/workspace`, `internal/plan`, `internal/feedback`, `internal/metrics` | the domain packages behind them; `internal/gitx` makes the one commit every command that changes an existing home ends in (`plan new`, `feedback`, `eval --record`, `metrics add` and a hand-run `rotate` leave their writes to the next commit) |
 | `internal/health` | `daisy healthcheck`: the checks, the TTL stamp and the publication scan |
 | `internal/swarm/declare` | `swarm.json`, its validation and `init`'s wizard |
 | `internal/swarm/forge` | the forge seam: `Adapter`, `gitea`, `Fake` |
@@ -185,6 +185,8 @@ then replace the block below with the output of `daisy help --markdown`.
 | Plans | `daisy plan new [--spec] <description> [+project]` | Create a plan (or an unregistered spec draft) |
 | Plans | `daisy plan pickup <path>` | Promote a spec draft into a tracked plan |
 | Plans | `daisy plan archive` | Archive the active plan |
+| Plans | `daisy metrics` | Summary of the home's metrics CSV, by kind and model (read-only) |
+| Plans | `daisy metrics add --step <s> [--plan <p>] [--range <r> [--repo <dir>]] [<flag> <value>...]` | Record a plan step: a row in the home's metrics CSV and in the plan's ## Metrics table |
 | Homes and identities | `daisy home new <name> [path]` | Create a home; prompts for identity and location |
 | Homes and identities | `daisy home add <name> <path>` | Register an existing home |
 | Homes and identities | `daisy home list` | Registered homes and where they live |

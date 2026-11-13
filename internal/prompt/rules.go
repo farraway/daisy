@@ -40,6 +40,23 @@ func RulesSection(doc []byte) (start, end int, ok bool) {
 	return start, len(doc), found
 }
 
+// Section is where doc's first level-2 section titled exactly title lies,
+// as byte offsets, by the same boundary as RulesSection: from its heading
+// line to the next level-1 or level-2 heading outside a fence, or the end
+// of doc.
+func Section(doc []byte, title string) (start, end int, ok bool) {
+	found := false
+	for _, l := range scan(doc) {
+		switch {
+		case !found && l.level == 2 && l.title() == title:
+			start, found = l.off, true
+		case found && l.level >= 1 && l.level <= 2:
+			return start, l.off, true
+		}
+	}
+	return start, len(doc), found
+}
+
 // Rules is the section's lines, heading included; nil when there is none.
 func Rules(doc []byte) []string {
 	start, end, ok := RulesSection(doc)
