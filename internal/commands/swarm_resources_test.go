@@ -111,8 +111,11 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 
 	prompt, result, _ := batch(1)
 	heading := "## docs/briefs/a.md (Status: active; mounted at /work/.resources/swarm-app/docs/briefs/a.md)"
-	if !strings.Contains(prompt, heading) || !strings.Contains(prompt, "\nv1\n") || !strings.Contains(prompt, "- Resources (read-only): /work/.resources/swarm-app/docs\n") {
+	if !strings.Contains(prompt, heading) || !strings.Contains(prompt, "\nv1\n") {
 		t.Fatalf("run 1's prompt:\n%s\nstdout:\n%s\nstderr:\n%s", prompt, a.stdout.String(), a.stderr.String())
+	}
+	if system := a.file("0-owner-1", "io/system.md"); !strings.HasSuffix(system, "\n# Resources\n\nMounted read-only:\n\n- /work/.resources/swarm-app/docs (index: /work/.resources/swarm-app/docs/README.md)\n") {
+		t.Errorf("run 1's system.md:\n%s", system)
 	}
 	if !strings.Contains(result, "\nresource swarm-app "+v1+"\n") {
 		t.Errorf("run 1's result:\n%s", result)
@@ -153,22 +156,25 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 // /work/.resources/<repository>/<path> under one read-only mount, each
 // repository's commit in the result; a reference fetched once, so its
 // tag moved or its upstream gone changes nothing; a brief in a declared repository named
-// <name>:<path>.
+// <name>:<path>. The architect's system.md lists each (section 7.3,
+// F35's Step 4): its mount, its README.md as its index when the commit
+// mounted holds one as a regular file (a link, or one pushed after the
+// pin, is none), and its note.
 func TestSwarmResourcesAtTheirCommits(t *testing.T) {
 	a := newApplyWS(t)
-	libHead := pushFiles(t, a.upstream("lib"), map[string]string{"guide/x.md": "# Guide\n", "guide/link": "-> ../README.md",
+	libHead := pushFiles(t, a.upstream("lib"), map[string]string{"guide/x.md": "# Guide\n", "guide/link": "-> ../README.md", "guide/README.md": "-> x.md",
 		"guide/b.md": "# B\n\nStatus: active\n\n## M1 Lib\n", "other.md": "not a resource\n"})
 	specUp := a.newUpstream("git@forge.example.net:std/spec.git", map[string]string{"SPEC.md": "spec v1\n"})
 	gitIn(t, specUp, "tag", "v1", "main")
 	specAt := gitIn(t, specUp, "rev-parse", "v1^{commit}")
 	stdUp := a.newUpstream("https://forge.example.net/std/std.git", map[string]string{"lib/a.md": "std a\n", "lib/b.md": "std b\n"})
 	stdAt := gitIn(t, stdUp, "rev-parse", "main")
-	pushFiles(t, stdUp, map[string]string{"lib/a.md": "std a, later\n"}) // the pin stays before it
+	pushFiles(t, stdUp, map[string]string{"lib/a.md": "std a, later\n", "lib/README.md": "# Std\n"}) // the pin stays before it
 	a.edit(func(c *declare.Config) {
-		c.Resources = []string{"docs/", "lib:guide/"}
+		c.Resources = []declare.Resource{{Path: "docs/", Note: "the swarm's docs; the ADRs under adr/ are rulings"}, {Path: "lib:guide/"}}
 		c.References = []declare.Reference{
-			{Name: "spec", URL: "git@forge.example.net:std/spec.git", Pin: "v1", Paths: []string{"SPEC.md"}},
-			{Name: "std", URL: "https://forge.example.net/std/std.git", Pin: stdAt, Paths: []string{"lib/"}},
+			{Name: "spec", URL: "git@forge.example.net:std/spec.git", Pin: "v1", Paths: []declare.Resource{{Path: "SPEC.md", Note: "the standard"}}},
+			{Name: "std", URL: "https://forge.example.net/std/std.git", Pin: stdAt, Paths: declare.Paths("lib/")},
 		}
 	})
 	swarmAt := gitIn(t, a.upstreams[swarmURL], "rev-parse", "main")
@@ -184,7 +190,7 @@ func TestSwarmResourcesAtTheirCommits(t *testing.T) {
 	a.pass()
 	want := map[string]string{
 		"swarm-app/docs/README.md": "# Docs\n",
-		"lib/guide/x.md":           "# Guide\n", "lib/guide/link": "-> ../README.md", "lib/guide/b.md": "# B\n\nStatus: active\n\n## M1 Lib\n",
+		"lib/guide/x.md":           "# Guide\n", "lib/guide/link": "-> ../README.md", "lib/guide/README.md": "-> x.md", "lib/guide/b.md": "# B\n\nStatus: active\n\n## M1 Lib\n",
 		"spec/SPEC.md": "spec v1\n",
 		"std/lib/a.md": "std a\n", "std/lib/b.md": "std b\n",
 	}
@@ -201,8 +207,16 @@ func TestSwarmResourcesAtTheirCommits(t *testing.T) {
 	if !reflect.DeepEqual(mounts, []string{"/work/.resources resources ro"}) {
 		t.Errorf("mounts %q", mounts)
 	}
-	if prompt := a.file("1-architect-1", "io/prompt.md"); !strings.Contains(prompt, "- Resources (read-only): /work/.resources/swarm-app/docs, /work/.resources/lib/guide, /work/.resources/spec/SPEC.md, /work/.resources/std/lib\n") {
-		t.Errorf("prompt:\n%s", prompt)
+	listed := "\n# Resources\n\nMounted read-only:\n\n" +
+		"- /work/.resources/swarm-app/docs (index: /work/.resources/swarm-app/docs/README.md) — the swarm's docs; the ADRs under adr/ are rulings\n" +
+		"- /work/.resources/lib/guide\n" +
+		"- /work/.resources/spec/SPEC.md — the standard\n" +
+		"- /work/.resources/std/lib\n"
+	if system := a.file("1-architect-1", "io/system.md"); !strings.HasSuffix(system, listed) {
+		t.Errorf("system.md:\n%s\nwant it to end with:%s", system, listed)
+	}
+	if prompt := a.file("1-architect-1", "io/prompt.md"); strings.Contains(prompt, "/work/.resources") {
+		t.Errorf("prompt.md names a resource:\n%s", prompt)
 	}
 	lines := "\nresource swarm-app " + swarmAt + "\nresource lib " + libHead + "\nresource spec " + specAt + "\nresource std " + stdAt + "\n"
 	if result := a.result("1-architect-1"); !strings.Contains(result, lines) {
@@ -241,24 +255,24 @@ func TestSwarmResourceRefused(t *testing.T) {
 	}{
 		{"not at the commit", func(a *applyWS, c *declare.Config) {
 			a.write("gone/x.md", "only in the clone\n")
-			c.Resources = []string{"docs/", "gone/"}
+			c.Resources = declare.Paths("docs/", "gone/")
 		}, func(a *applyWS) string {
 			return `fault: swarm.json: resources[1]: "gone/" does not exist at ` + gitIn(a.t, a.upstreams[swarmURL], "rev-parse", "--short=7", "main")
 		}},
 		{"a secret", func(a *applyWS, c *declare.Config) {
 			pushFiles(a.t, a.upstream("lib"), map[string]string{"guide/deep/.env.sh": "export A=1\n"})
-			c.Resources = []string{"lib:guide"}
+			c.Resources = declare.Paths("lib:guide")
 		}, func(*applyWS) string { return `fault: swarm.json: resources[0]: "lib:guide" contains .env.sh` }},
 		{"a pin not fetched", func(a *applyWS, c *declare.Config) {
 			a.newUpstream("git@forge.example.net:std/spec.git", map[string]string{"SPEC.md": "spec\n"})
-			c.References = []declare.Reference{{Name: "spec", URL: "git@forge.example.net:std/spec.git", Pin: "v9", Paths: []string{"SPEC.md"}}}
+			c.References = []declare.Reference{{Name: "spec", URL: "git@forge.example.net:std/spec.git", Pin: "v9", Paths: declare.Paths("SPEC.md")}}
 		}, func(*applyWS) string {
 			return "fault: swarm.json: references[0]: pin v9 not found at git@forge.example.net:std/spec.git: git fetch --quiet --no-tags origin +refs/tags/v9:refs/tags/v9: exit status 128: fatal: couldn't find remote ref refs/tags/v9"
 		}},
 		{"a reference's path", func(a *applyWS, c *declare.Config) {
 			up := a.newUpstream("git@forge.example.net:std/spec.git", map[string]string{"SPEC.md": "spec\n"})
 			gitIn(a.t, up, "tag", "v1", "main")
-			c.References = []declare.Reference{{Name: "spec", URL: "git@forge.example.net:std/spec.git", Pin: "v1", Paths: []string{"SPEC.md", "NOTES.md"}}}
+			c.References = []declare.Reference{{Name: "spec", URL: "git@forge.example.net:std/spec.git", Pin: "v1", Paths: declare.Paths("SPEC.md", "NOTES.md")}}
 		}, func(*applyWS) string {
 			return `fault: swarm.json: references[0].paths[1]: "NOTES.md" does not exist at v1`
 		}},

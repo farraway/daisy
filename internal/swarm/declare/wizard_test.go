@@ -43,7 +43,7 @@ func TestWizardDefaults(t *testing.T) {
 	}
 	want := valid()
 	want.Repos[0].Check, want.Repos[1].Protected = []string{}, defaultProtected
-	want.Trusted, want.Resources = []string{"swarm-bot"}, []string{"briefs/", "docs/"}
+	want.Trusted, want.Resources = []string{"swarm-bot"}, Paths("briefs/", "docs/")
 	if !reflect.DeepEqual(c, want) {
 		t.Errorf("--defaults:\n%+v\nwant\n%+v", c, want)
 	}
@@ -199,6 +199,28 @@ func TestWizardKeepsTheFilesDeps(t *testing.T) {
 	}
 	if !reflect.DeepEqual(c.Repos[0].Deps, file.Repos[0].Deps) || c.Repos[1].Deps != nil {
 		t.Errorf("deps %+v, %+v", c.Repos[0].Deps, c.Repos[1].Deps)
+	}
+}
+
+// A file's resource notes are kept for the paths question 32's answer
+// keeps, and a path it adds has none: notes are not asked (section 11).
+func TestWizardKeepsTheFilesResourceNotes(t *testing.T) {
+	_, clone := cloneFolder(t)
+	o := &ops.Fake{GetenvFn: func(string) string { return "" }, PromptFn: func(_ io.Reader, _ io.Writer, q string) (string, error) {
+		if strings.HasPrefix(q, "Resources ") {
+			return "lib:guide/, docs/", nil
+		}
+		return "", nil
+	}}
+	file := valid()
+	file.Resources = []Resource{{Path: "docs/", Note: "the docs; the ADRs under adr/ are rulings"}, {Path: "briefs/", Note: "the briefs"}}
+	w := &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
+	c, err := w.Ask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []Resource{{Path: "lib:guide/"}, {Path: "docs/", Note: "the docs; the ADRs under adr/ are rulings"}}; !reflect.DeepEqual(c.Resources, want) {
+		t.Errorf("resources %+v", c.Resources)
 	}
 }
 

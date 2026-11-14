@@ -194,8 +194,12 @@ func (w *Wizard) Ask() (Config, error) {
 			return w.ask("Interval", c.Interval, func(a string) *Error { c.Interval = a; return checkDuration("interval", a) })
 		},
 		func() error {
-			return w.ask("Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none)", listDefault(c.Resources), func(a string) *Error {
-				c.Resources = list(a)
+			var paths []string
+			for _, r := range c.Resources {
+				paths = append(paths, r.Path)
+			}
+			return w.ask("Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none)", listDefault(paths), func(a string) *Error {
+				c.Resources = keepNotes(c.Resources, list(a))
 				return checkResources(c)
 			})
 		},
@@ -279,7 +283,7 @@ func (w *Wizard) unasked() Config {
 	return Config{
 		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
-		Resources: []string{"briefs/", "docs/"}, // the directories init seeds (section 3)
+		Resources: Paths("briefs/", "docs/"), // the directories init seeds (section 3)
 		Gates:     Gates{Triage: true, Plan: true, Merge: true},
 		Keys:      map[string]Key{"anthropic": defaultKey("anthropic"), "openai": defaultKey("openai")},
 		Personas:  map[string]Persona{},
@@ -530,6 +534,19 @@ func list(a string) []string {
 	for _, s := range strings.Split(a, ",") {
 		if s = strings.TrimSpace(s); s != "" {
 			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// keepNotes is paths as resources, each keeping the note of the entry in
+// was that writes the same path (question 32: the file's notes are not
+// asked, as its check is not).
+func keepNotes(was []Resource, paths []string) []Resource {
+	out := Paths(paths...)
+	for i, p := range paths {
+		if j := slices.IndexFunc(was, func(r Resource) bool { return r.Path == p }); j >= 0 {
+			out[i].Note = was[j].Note
 		}
 	}
 	return out

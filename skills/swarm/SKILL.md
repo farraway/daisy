@@ -123,7 +123,11 @@ and run `daisy swarm prompt build` only on the maintainer's yes. For an
 edited prompt, draft the default's changes into it as rule 6 says,
 from the printed diff; `daisy swarm prompt build --force`, which
 overwrites the edits, only on the maintainer's yes to losing them, named
-prompt by prompt.
+prompt by prompt. A reading list written into a prompt (paths under
+`/work/.resources`) belongs in `swarm.json` instead: give each resource
+a one-line `note` (`{"path": "<path>", "note": "<what it is, for whom>"}`),
+which every run's `system.md` lists beside its path under
+`# Resources`, and the prompt's own line can return to the default's.
 
 ## Briefs
 

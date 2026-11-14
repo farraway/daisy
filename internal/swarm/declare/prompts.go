@@ -16,9 +16,9 @@ var DefaultPrompts = map[string]string{
 You are the product owner of this repository. You decide what is worth
 doing next, in what order, and why.
 
-- Read the resources under /work/.resources and the code under /work
-  before you propose anything. Propose only what they support, and name
-  the document or file that supports each proposal.
+- Read the resources listed below and the code under /work before you
+  propose anything. Propose only what they support, and name the
+  document or file that supports each proposal.
 - A proposal is one job the swarm can finish in a few pull requests at
   most. Its title names the outcome. Its body says what is true when the
   job is done, why it is next, and what it depends on.
@@ -43,10 +43,9 @@ doing next, in what order, and why.
 You are the architect. You turn an agreed job into a plan a worker can
 follow without asking, and that a reviewer can check line by line.
 
-- Read the code under /work and the resources under /work/.resources
-  before you plan. Follow the design decisions they record; where the job
-  needs one that is not recorded, state it as a decision and give the
-  alternative.
+- Read the code under /work and the resources listed below before you
+  plan. Follow the design decisions they record; where the job needs one
+  that is not recorded, state it as a decision and give the alternative.
 - Plan down to program design: the new or changed types and signatures,
   and the call path of the main flow. Cut the work into slices, each one
   pull request, in the order they are built, each saying what passes after
@@ -158,28 +157,30 @@ var defaultHistory = map[string][]string{
 	"owner": {
 		"e8c358ba3565f1a8396ee9a55c4abe4c19aa8d7c7a6756c4bd9b9e82a2487f59", // b3ec5eb, 2026-11-06: the first defaults
 		"715365faca2fe7f5e7b24f52d809a45c82288083314e90f471ad09e8d9ce9b02", // 4a0434d, 2026-11-09: /work/.resources
-		"ceff2a26224657a4c339a5242b3ef783f0cdc54e547d89cd5be69b6c8bfd6e37", // 2026-11-14: the general rules (F34)
+		"ceff2a26224657a4c339a5242b3ef783f0cdc54e547d89cd5be69b6c8bfd6e37", // c48cba7, 2026-11-14: the general rules (F34)
+		"85e2e89036e4b6aecdfd53399c1d5e05a914c7c6c4f947f965f3bdbe001888dd", // 2026-11-14: the resources listed below (F35)
 	},
 	"architect": {
 		"3f6d4a644ce1da47536934531578f7a00ecc0a6e6e113075adc1736a60e3b9f0", // b3ec5eb, 2026-11-06
 		"3fe135323147cf93d6a40e5036f8e23f4820ac2b842271a2b70538ae75081c6c", // 4a0434d, 2026-11-09: /work/.resources
 		"8f2faf7093aca163ebba82d11ba3d99d37a9b8305cf5abe4f3b9712906ddb527", // b1021ce, 2026-11-09: "The worker sees only…"
 		"953f62285c2977d9711100b821600f087f68476a88feaf04492396b92bc777b6", // 5c92652, 2026-11-11: documentation duty
-		"ebdf076502d2b9b96f15ffe6a601fdc054b90260c96d08790ee39516dbec1588", // 2026-11-14: the general rules (F34)
+		"ebdf076502d2b9b96f15ffe6a601fdc054b90260c96d08790ee39516dbec1588", // c48cba7, 2026-11-14: the general rules (F34)
+		"c78f97600dfa3fa7ed2bdaea0dd472513d83fb388542fa27ff0038e1b25d4942", // 2026-11-14: the resources listed below (F35)
 	},
 	"worker": {
 		"700b6715ccb0d80009c5ac98764abcbed48a3602a97c840ad54d5a574eb14a48", // b3ec5eb, 2026-11-06
 		"09aeb6dc8634518cb36fbceb07e6c5cd862b9a235ab85f7dfdc1f8b99f3edbdf", // 5c92652, 2026-11-11: documentation duty
-		"107913ee8c86c91bed4c572ad32c090c906c3d46838bbcbe49287021028fb662", // 2026-11-14: the general rules (F34)
+		"107913ee8c86c91bed4c572ad32c090c906c3d46838bbcbe49287021028fb662", // c48cba7, 2026-11-14: the general rules (F34)
 	},
 	"adversary": {
 		"835a912a688db206558744955c182e26bc3461bfed0e9afb156920a8208f8098", // b3ec5eb, 2026-11-06
 		"c0157222a793d4415c41853dd819341e90d79e82c3122c09f1b57399b9166f0f", // 5c92652, 2026-11-11: documentation duty
-		"215abc3cc8b5ca50f5c26ae9c9d1bec48e5bf34c898cd81c5a858910ccc080ac", // 2026-11-14: the general rules (F34)
+		"215abc3cc8b5ca50f5c26ae9c9d1bec48e5bf34c898cd81c5a858910ccc080ac", // c48cba7, 2026-11-14: the general rules (F34)
 	},
 	"sympathetic": {
 		"80e9469ddf6025963f7145f607e1304a32d7e378334a697f510dc8d28f70d414", // b3ec5eb, 2026-11-06
-		"23d5445953076859f08a92b96338b00ed4835d040bc8bd5606c0679833059b3b", // 2026-11-14: the general rules (F34)
+		"23d5445953076859f08a92b96338b00ed4835d040bc8bd5606c0679833059b3b", // c48cba7, 2026-11-14: the general rules (F34)
 	},
 }
 

@@ -120,7 +120,11 @@ for the repository, which the check then reads offline; a step that
 fails is the check's result, named as the dependency step's (item 122).
 Its Step 3 (2026-11-14) amended sections 1 and 4: the default persona
 prompts take the general rules a live swarm's maintainer had added by
-hand (item 123).
+hand (item 123). Its Step 4 (2026-11-14) amended sections 3, 4, 7.3 and
+11: a resource may carry a one-line `note`, and every run's `system.md`
+lists the resources under `# Resources`, each with its index page and
+its note, which the owner's and the architect's defaults read in place
+of a path (item 124).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -544,7 +548,8 @@ question 33 (`--defaults` answers none, and writes only `<swarm-login>`):
 
 `init` writes the layout above: `forge`, `repos` and `personas` expanded, two spaces
 per level, each repository and each persona on one line; `owner`, `resources`,
-`trusted`, `gates`, `budget` and `keys` on one line each. A job across a
+`trusted`, `gates`, `budget` and `keys` on one line each (a resource with a
+note as its object, on that line, one without as its path alone). A job across a
 product and its library declares both, the product first:
 `{"name": "<lib>", "repo": "<owner>/<lib>", …}` is a second line of `repos`;
 a repository entry's `ssh_command`, when present, comes after `repo`,
@@ -587,8 +592,8 @@ yet or not (Step 6 of revision 6's plan; section 14, item 109).
 | `timeout` | string | `45m` | a Go duration, 1m to 24h: one run's wall clock, and its check's, and its dependency step's |
 | `interval` | string | `5m` | a Go duration, 1m to 24h: between the starts of `apply`'s passes without `--once` (the loop the unit runs, section 11), read again before each pass; and the unit's restart delay |
 | `owner.max_open_proposals` | integer | 5 | 1 to 20: the most issues one batch run creates, and the most open issues the batch tops up to: with the triage gate off, those at `proposal-posted` and `proposal-accepted`; on, the routine jobs Daisy triaged that are still at `proposal-accepted` (section 6) |
-| `resources` | array of strings | `["briefs/", "docs/"]`, the directories `init` seeds | each either `<path>`, a path in the swarm repository, or `<name>:<path>`, a path in the declared repository `<name>`; `<path>` relative, without `..` and not the whole repository (`.`); no two the same; read at the pass's commit, the swarm repository's default branch or the declared repository's `<base>` as the pass fetched it (7.1, step 1), never from a working tree: checked out into each run and mounted, read-only, at `/work/.resources/<repository>/<path>` (`<repository>` the swarm repository's `<repo>` or `<name>`; 7.1, step 3), where it must exist and neither be nor contain `.env.sh` or `.daisy`, and, in the swarm repository, not be or lie under `journal/` (the journal, Daisy's record for the maintainer, which no member reads: 7.6, The run's record) (a link inside it is checked out as a link, which resolves inside the container, where its target is absent); the briefs the maintainer writes live here (section 4) |
-| `references` | array of objects | absent (`init` writes none and keeps the file's) | optional; each `{"name": <ref>, "url": <git URL>, "pin": <commit or tag>, "paths": [<path>, …]}`, exactly these fields: an outside repository read at a fixed point, as a resource is; `name` `^[A-Za-z0-9_][A-Za-z0-9_.-]*$`, no two the same, neither a declared repository's `name` nor the swarm repository's `<repo>`; `url` a git URL (`https`, or SSH as section 10's three forms read one), an `http(s)` one carrying no user information and an SSH one no password, fetched with the host's git credentials; `pin` a full 40-hexadecimal commit, or a tag name (`base`'s rule); `paths` one or more, each as a `resources` `<path>`, no two the same; fetched into `<state>/references/<name>` once, when the pin is not there (7.1, step 1), and each path mounted, read-only, at `/work/.resources/<name>/<path>`; no brief is read from a reference |
+| `resources` | array of strings and objects | `["briefs/", "docs/"]`, the directories `init` seeds | each either `<path>`, a path in the swarm repository, or `<name>:<path>`, a path in the declared repository `<name>`, written as that string or as `{"path": <it>, "note": <one line>}`, exactly these fields, `note` optional (written only when not empty): what the resource is and who reads it for what (`"the architecture wiki; the ADRs under adr/ are rulings"`), listed beside its path in every run's `system.md` (`# Resources`, 7.3), one line, without a newline; `<path>` relative, without `..` and not the whole repository (`.`); no two the same; read at the pass's commit, the swarm repository's default branch or the declared repository's `<base>` as the pass fetched it (7.1, step 1), never from a working tree: checked out into each run and mounted, read-only, at `/work/.resources/<repository>/<path>` (`<repository>` the swarm repository's `<repo>` or `<name>`; 7.1, step 3), where it must exist and neither be nor contain `.env.sh` or `.daisy`, and, in the swarm repository, not be or lie under `journal/` (the journal, Daisy's record for the maintainer, which no member reads: 7.6, The run's record) (a link inside it is checked out as a link, which resolves inside the container, where its target is absent); the briefs the maintainer writes live here (section 4) |
+| `references` | array of objects | absent (`init` writes none and keeps the file's) | optional; each `{"name": <ref>, "url": <git URL>, "pin": <commit or tag>, "paths": [<path>, …]}`, exactly these fields: an outside repository read at a fixed point, as a resource is; `name` `^[A-Za-z0-9_][A-Za-z0-9_.-]*$`, no two the same, neither a declared repository's `name` nor the swarm repository's `<repo>`; `url` a git URL (`https`, or SSH as section 10's three forms read one), an `http(s)` one carrying no user information and an SSH one no password, fetched with the host's git credentials; `pin` a full 40-hexadecimal commit, or a tag name (`base`'s rule); `paths` one or more, each as a `resources` entry (`<path>` or `{"path", "note"}`, no `<name>:` prefix), no two the same; fetched into `<state>/references/<name>` once, when the pin is not there (7.1, step 1), and each path mounted, read-only, at `/work/.resources/<name>/<path>`; no brief is read from a reference |
 | `notes` | boolean | `false` (the wizard's question 35) | optional, absent read as `false`; `true` keeps the swarm's research notes in the swarm repository's `notes/` directory, reached at its clone's `origin` URL with its `core.sshCommand` (7.1, step 1), on its default branch: cloned on the host, copied into each run at `/work/.notes` (writable for the owner and the architect, read-only for the others, 7.2), indexed in the owner's and the architect's prompts (`# Research notes`, 7.3) and pushed after their runs (7.6, The notes). The swarm's account needs write access to the repository, which `init` gives it (section 11). The old layout's `wiki` is no field (`swarm.json: wiki: unknown field`; Step 7 of revision 6's plan, section 14, item 112) |
 | `trusted` | array of strings | the maintainer's logins (the wizard's question 33), then the swarm's own, read by `Login()` at `init` | one or more forge logins, each `^[A-Za-z0-9][A-Za-z0-9_.-]*$`; a comment, review or line comment by any other login reaches no prompt and wakes no member (section 6); `init` refuses a maintainer login equal to the token's own (section 11) |
 | `gates.triage`, `gates.plan`, `gates.merge` | booleans | `true` each | G1, G2 and G3 (section 5): `true` keeps the decision the maintainer's, G1's and G2's for an architecture job only (a routine job passes them by itself, section 5); `false` hands it to the swarm |
@@ -660,7 +665,7 @@ failure is reported and the verb exits 1; the message is
 | an empty image | `swarm.json: repos[0].image: empty` |
 | a number or duration out of range | `swarm.json: max_members: 0 is not between 1 and 16` (each with its own range) |
 | the notes' answer neither yes nor no (the wizard's question 35) | `swarm.json: notes: "<answer>" is not yes or no` |
-| a resource refused | `swarm.json: resources[1]: "." <reason>` (`is not a relative path`, `is the whole repository`, `names no declared repository` (a `<name>:` prefix), `is the swarm's journal, which no member reads` (a swarm repository path at or under `journal/`), `is listed twice`); at the launch, read at the pass's commit (7.1, step 3): `does not exist at <short sha>` (`does not exist: <repository> has no commit fetched` when the mirror holds none), `contains .env.sh`, `contains .daisy` |
+| a resource refused | `swarm.json: resources[0]: not a string or an object`; `swarm.json: resources[1].note: contains a newline` (also `references[0].paths[1].note`); `swarm.json: resources[1]: "." <reason>` (`is not a relative path`, `is the whole repository`, `names no declared repository` (a `<name>:` prefix), `is the swarm's journal, which no member reads` (a swarm repository path at or under `journal/`), `is listed twice`); at the launch, read at the pass's commit (7.1, step 3): `does not exist at <short sha>` (`does not exist: <repository> has no commit fetched` when the mirror holds none), `contains .env.sh`, `contains .daisy` |
 | a reference refused | `swarm.json: references[0].name: "<value>" is not a repository name` (also `is listed twice`, `is a declared repository`, `is the swarm repository`); `swarm.json: references[0].url: "<value>" is not a git URL` (also `carries user information`); `swarm.json: references[0].pin: "<value>" is not a commit or a tag`; `swarm.json: references[0].paths: no path (at least one is required)`; `swarm.json: references[0].paths[1]: "<value>" <reason>` (as a resource's); at the launch, `references[0]: pin <pin> not found at <url>: <git's error>` and a path's `does not exist at <pin>` |
 | an empty `check` element | `swarm.json: repos[0].check[0]: empty argument` |
 | a dependency step refused | `swarm.json: repos[0].deps.run: no argument (at least one is required)`, `swarm.json: repos[0].deps.run[1]: empty argument`, `swarm.json: repos[0].deps.env.GO-FLAGS: "GO-FLAGS" is not a variable name`, `swarm.json: repos[1].deps: no check to run it before; declare check, or remove deps` (`deps` with `check` `[]`) |
@@ -806,9 +811,9 @@ so an edited persona prompt cannot break the output contract.
 You are the product owner of this repository. You decide what is worth
 doing next, in what order, and why.
 
-- Read the resources under /work/.resources and the code under /work
-  before you propose anything. Propose only what they support, and name
-  the document or file that supports each proposal.
+- Read the resources listed below and the code under /work before you
+  propose anything. Propose only what they support, and name the
+  document or file that supports each proposal.
 - A proposal is one job the swarm can finish in a few pull requests at
   most. Its title names the outcome. Its body says what is true when the
   job is done, why it is next, and what it depends on.
@@ -837,10 +842,9 @@ doing next, in what order, and why.
 You are the architect. You turn an agreed job into a plan a worker can
 follow without asking, and that a reviewer can check line by line.
 
-- Read the code under /work and the resources under /work/.resources
-  before you plan. Follow the design decisions they record; where the job
-  needs one that is not recorded, state it as a decision and give the
-  alternative.
+- Read the code under /work and the resources listed below before you
+  plan. Follow the design decisions they record; where the job needs one
+  that is not recorded, state it as a decision and give the alternative.
 - Plan down to program design: the new or changed types and signatures,
   and the call path of the main flow. Cut the work into slices, each one
   pull request, in the order they are built, each saying what passes after
@@ -1888,8 +1892,8 @@ ends.
 
 Two files, so that the thread never travels in a system-prompt channel:
 `<run>/io/system.md` holds Daisy's and the maintainer's words (the persona,
-the Task, the swarm's notes about a repository and, for the architect and
-the worker, Daisy's praxis and testing skill), and `<run>/io/prompt.md`
+the Task, the swarm's notes about a repository, the resources with their
+notes and, for the architect and the worker, Daisy's praxis and testing skill), and `<run>/io/prompt.md`
 holds the material (the issue, the threads, the plan, the pull request),
 which anyone who can comment may have written. The member sees them as
 `/work/.swarm/system.md` and `/work/.swarm/prompt.md`; section 9 says how
@@ -1927,7 +1931,28 @@ fence runs on over the prompt's own lines.
 # Repository notes: <name>
 
 <repos/<name>.md at the pass's commit, verbatim but for its headings, shifted as below; one such section per repository the run works in (section 4), none for a file absent, or not a regular file, at that commit>
+
+# Resources
+
+Mounted read-only:
+
+- /work/.resources/<repository>/<path> (index: /work/.resources/<repository>/<path>/README.md) — <note>
 ```
+
+**`# Resources`** comes last in every role's `system.md`, as every role
+has the mount (7.2): a line per `resources` entry, then per reference
+path, in `swarm.json`'s order, each its mount, `/work/.resources/<repository>/<path>`
+(`<path>` cleaned, without a trailing `/`), then
+` (index: …/README.md)` when the commit the run mounts holds a
+`README.md` at the resource's root as a regular file (a link is none),
+then ` — <note>` when the entry has one; `None.` when `resources` and
+`references` name nothing. The owner's and the architect's default
+persona reads "the resources listed below" (section 4) and names no
+path, so the list is Daisy's, written from `swarm.json`, and a resource
+added, moved or re-pinned reaches the prompt with the declaration. A
+note says what the resource is and for whom (`the practice pages the
+reviewers review against`); no role filter is declared, since every
+role reads every resource it is given (section 14, item 124).
 
 **Praxis and the testing skill** are the installed root's
 `prompts/praxis.md` and `skills/testing/SKILL.md`, read in
@@ -1953,7 +1978,6 @@ an empty one adds no section. Together they add about 3,100 words to each such r
 - Issues: <owner>/<repo> on <forge-host>
 - Clone /work[/<name>]: <owner>/<name>, branch <branch>, base <base>, check <check, as one shell-quoted line> (or: no check declared)
 - Working directory: /work, holding every clone; the repository is /work/<first name> (the owner and the architect of a confined provider only, section 9)
-- Resources (read-only): /work/.resources/<repository>/<path>, … (or: none)
 - Research notes: /work/.notes, notes/ in <owner>/<repo>, pushed by Daisy after the run
 
 # Research notes
@@ -3762,7 +3786,7 @@ any folder's), each one's `origin` and `core.sshCommand`.
 | 29 | `Max rounds [<d>]: ` | 5 (section 3) |
 | 30 | `Timeout [<d>]: ` | `45m` |
 | 31 | `Interval [<d>]: ` | `5m` |
-| 32 | `Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none) [<d>]: ` | `briefs/, docs/`, the directories `init` seeds (with a file, its `resources`) |
+| 32 | `Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none) [<d>]: ` | `briefs/, docs/`, the directories `init` seeds (with a file, its `resources`' paths; an answered path the file has keeps its note, which is not asked) |
 | 33 | `Maintainer logins (comma-separated, not the swarm's; - for none) [<d>]: ` | none; with a file, its `trusted` without the swarm's login |
 | 34 | `Commit email [<d>]: ` (without a default, `Commit email: `) | the file's `forge.commit_email`, else the swarm account's email as `Login()` reports it, else none (`--defaults` then fails: `Error: swarm.json: forge.commit_email: missing`) |
 | 35 | `Research notes, in <owner>/<repo>'s notes/ (yes, no) [<d>]: ` (Step 23 of the swarm build) | `yes` when the file's `notes` is `true`, else `no` (section 3); the answer sets `notes`; `init` seeds the `README.md` in `notes/` either way (section 2) |
@@ -7649,3 +7673,45 @@ entries among revision 1's, and was renumbered at Step 38.
     as it is until its maintainer rebuilds it. Tests:
     `TestDefaultPromptsAreSectionFours` and
     `TestDefaultHistoryHoldsEachCurrentDefault`.
+124. **The reading list comes from `resources` (Step 4 of the plan for
+    the inbox requests F27–F35, 2026-11-14; request F35).** The owner's
+    and the architect's defaults said "the resources under
+    /work/.resources", so a swarm whose members needed to know which
+    resource was which wrote its own list into its persona prompts (the
+    request's swarm: its briefs, a product's architecture wiki whose
+    ADRs are rulings, a pinned library, its own docs, and the practice
+    pages its reviewers review against), which went stale (a library's
+    version written by hand beside a pin that moves) and made the
+    prompts edited, keeping them out of every later default (item 123).
+    Now a `resources` entry, and a reference's path, is its path alone
+    or `{"path", "note"}`, the note one line (section 3), and every
+    run's `system.md` ends with `# Resources`: each mount in
+    `swarm.json`'s order, its `README.md` as its index page where the
+    commit the run mounts holds one as a regular file, and its note
+    (7.3). The defaults read "the resources listed below" and name no
+    path (section 4); each role's new hash is appended to
+    `defaultHistory` (item 117). **Every role gets the list**, since
+    every role has the mount (7.2): no `roles` field and no `review`
+    note decides who reads what. A per-role filter would have to decide
+    mounts too, or list less than is mounted; a note says in words who a
+    resource is for ("the practice pages the reviewers review against"),
+    which a reviewer reads as it reads its persona, and a swarm whose
+    reviewers should hold to them says so in their prompts. **The list
+    moves** from `prompt.md`'s `- Resources (read-only):` line, which
+    went (the paths would otherwise be written twice), to `system.md`,
+    beside the swarm's notes about a repository: a note is the
+    maintainer's word, and `system.md` holds Daisy's and the
+    maintainer's. **The index** is named, not included: a wiki's
+    `README.md` can be long, and it is in the mount. **The note is
+    kept** by `init`'s question 32 for each path its answer keeps, as
+    `check` and `deps` are. A swarm whose prompts carry a hand-written
+    list is edited and stays as it is until its maintainer moves the
+    list into notes and rebuilds the prompts. Tests:
+    `TestSwarmResourcesAtTheirCommits` (the architect's `# Resources`:
+    a note on a resource and on a reference's path, an index, a link
+    named `README.md` and one pushed after a reference's pin none),
+    `TestSwarmMembersReadPushedContent`, `TestRenderResources` (every
+    role, last, `None.`), `TestDefaultPromptsNameNoResourcePath`,
+    `TestFormatResourceNotes`, `TestParseNamesTheField`,
+    `TestValidateResourcesAndReferences` and
+    `TestWizardKeepsTheFilesResourceNotes`.

@@ -37,7 +37,7 @@ type Config struct {
 	Timeout    string             `json:"timeout"`
 	Interval   string             `json:"interval"`
 	Owner      Owner              `json:"owner"`
-	Resources  []string           `json:"resources"`
+	Resources  []Resource         `json:"resources"`
 	References []Reference        `json:"references,omitempty"`
 	Notes      bool               `json:"notes,omitempty"`
 	Trusted    []string           `json:"trusted"`
@@ -113,10 +113,44 @@ const DepsMount = "/deps"
 // full commit or a tag) and the paths mounted from it. A swarm
 // repository's clone alone declares it.
 type Reference struct {
-	Name  string   `json:"name"`
-	URL   string   `json:"url"`
-	Pin   string   `json:"pin"`
-	Paths []string `json:"paths"`
+	Name  string     `json:"name"`
+	URL   string     `json:"url"`
+	Pin   string     `json:"pin"`
+	Paths []Resource `json:"paths"`
+}
+
+// Resource is one path the runs read (section 3): a resources entry or
+// a reference's path, written as the path alone or as
+// {"path": <path>, "note": <one line>}; the note is listed beside the
+// path in every run's system.md (section 7.3).
+type Resource struct {
+	Path string `json:"path"`
+	Note string `json:"note,omitempty"`
+}
+
+// Paths is each path as a resource without a note.
+func Paths(paths ...string) []Resource {
+	out := []Resource{}
+	for _, p := range paths {
+		out = append(out, Resource{Path: p})
+	}
+	return out
+}
+
+// MarshalJSON writes a resource without a note as its path alone, the
+// form section 3's example has.
+func (r Resource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	var err error
+	if r.Note == "" {
+		err = enc.Encode(r.Path)
+	} else {
+		type object Resource // without this method
+		err = enc.Encode(object(r))
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), err
 }
 
 type Owner struct {
@@ -206,6 +240,16 @@ func Parse(data []byte) (Config, error) {
 // absent for an optional (pointer) field and the wrong type for any other:
 // encoding/json would leave the zero value, a gate silently off.
 func decode(path string, raw json.RawMessage, v reflect.Value) error {
+	// A resource is its path alone, or an object (section 3).
+	if v.Type() == reflect.TypeFor[Resource]() {
+		switch bytes.TrimSpace(raw)[0] {
+		case '"':
+			return decode(path, raw, v.FieldByName("Path"))
+		case '{':
+		default:
+			return fieldErr(path, "not a string or an object")
+		}
+	}
 	if v.Kind() != reflect.Pointer && string(bytes.TrimSpace(raw)) == "null" {
 		return fieldErr(path, "null is not %s", kindName(v.Kind()))
 	}
@@ -417,9 +461,9 @@ func personaLines(personas map[string]Persona) string {
 
 func pad(s string, w int) string { return s + strings.Repeat(" ", w-len([]rune(s))) }
 
-func nonNil(s []string) []string {
+func nonNil[T any](s []T) []T {
 	if s == nil {
-		return []string{}
+		return []T{}
 	}
 	return s
 }

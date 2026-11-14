@@ -717,7 +717,8 @@ one: no `-`), effort and co-author (the `Co-Authored-By:` value,
 members; 29 max rounds (5 since docs/swarm.md revision 5, built at
 Step 4 of the swarm build); 30 the timeout; 31
 the interval; 32 the resources (paths in the swarm repository, or
-`<name>:<path>` in a declared one; `briefs/` and `docs/` by default);
+`<name>:<path>` in a declared one; `briefs/` and `docs/` by default; a
+file's note on a path the answer keeps is kept);
 then, once both tokens have read the forge and their accounts, 33 the
 maintainer's logins (the swarm's refused), 34 the commit email (the
 account's by default) and 35 whether the swarm repository's `notes/`

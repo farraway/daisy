@@ -123,7 +123,7 @@ func TestWizardInAClone(t *testing.T) {
 	}
 	// Question 32: swarm-repository paths, its default the directories
 	// init seeds, whether the clone holds them yet or not.
-	if !slices.Contains(*asked, "Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none) [briefs/, docs/]: ") || !reflect.DeepEqual(c.Resources, []string{"briefs/", "docs/"}) {
+	if !slices.Contains(*asked, "Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none) [briefs/, docs/]: ") || !reflect.DeepEqual(c.Resources, Paths("briefs/", "docs/")) {
 		t.Errorf("question 32: %q, resources %q", *asked, c.Resources)
 	}
 	if last := (*asked)[len(*asked)-1]; last != "Research notes, in acme/swarm-app's notes/ (yes, no) [no]: " {
@@ -190,7 +190,7 @@ func TestWizardInAFolder(t *testing.T) {
 		t.Fatalf("%v %q", err, *asked)
 	}
 	ssh := "ssh -i /keys/app"
-	if c.Forge.Repo != "acme/swarm-app" || c.Forge.API != "https://forge.example.net/api/v1" || !reflect.DeepEqual(c.Resources, []string{"briefs/", "docs/"}) || !reflect.DeepEqual(c.Repos, []Repo{
+	if c.Forge.Repo != "acme/swarm-app" || c.Forge.API != "https://forge.example.net/api/v1" || !reflect.DeepEqual(c.Resources, Paths("briefs/", "docs/")) || !reflect.DeepEqual(c.Repos, []Repo{
 		{Name: "app", Repo: "acme/app", SSHCommand: &ssh, Check: []string{}, Image: defaultImage, Protected: defaultProtected},
 		{Name: "lib", Repo: "acme/lib", Check: []string{}, Image: defaultImage, Protected: defaultProtected},
 	}) {
@@ -226,10 +226,10 @@ func TestValidateResourcesAndReferences(t *testing.T) {
 	p := Clone(clone)
 	head := strings.Repeat("ab", 20)
 	ok := func(c *Config) {
-		c.Resources = []string{"briefs/", "docs/", "lib:guide/", "app:docs/x.md", "not/a:name"}
-		c.References = []Reference{{Name: "spec", URL: "https://forge.example.org/std/spec.git", Pin: "v1.2", Paths: []string{"SPEC.md"}},
-			{Name: "std", URL: "git@forge.example.org:std.git", Pin: head, Paths: []string{"lib/", "doc/a.md"}},
-			{Name: "ssh", URL: "ssh://git@forge.example.org:2222/std/ssh", Pin: "main", Paths: []string{"x"}}}
+		c.Resources = Paths("briefs/", "docs/", "lib:guide/", "app:docs/x.md", "not/a:name")
+		c.References = []Reference{{Name: "spec", URL: "https://forge.example.org/std/spec.git", Pin: "v1.2", Paths: Paths("SPEC.md")},
+			{Name: "std", URL: "git@forge.example.org:std.git", Pin: head, Paths: Paths("lib/", "doc/a.md")},
+			{Name: "ssh", URL: "ssh://git@forge.example.org:2222/std/ssh", Pin: "main", Paths: Paths("x")}}
 	}
 	c := valid()
 	ok(&c)
@@ -240,16 +240,18 @@ func TestValidateResourcesAndReferences(t *testing.T) {
 		want string
 		edit func(c *Config)
 	}{
-		{`swarm.json: resources[1]: "." is the whole repository`, func(c *Config) { c.Resources = []string{"docs/", "."} }},
-		{`swarm.json: resources[0]: "lib:./" is the whole repository`, func(c *Config) { c.Resources = []string{"lib:./"} }},
-		{`swarm.json: resources[0]: "/etc" is not a relative path`, func(c *Config) { c.Resources = []string{"/etc"} }},
-		{`swarm.json: resources[0]: "docs/../x" is not a relative path`, func(c *Config) { c.Resources = []string{"docs/../x"} }},
-		{`swarm.json: resources[0]: "lib:" is not a relative path`, func(c *Config) { c.Resources = []string{"lib:"} }},
-		{`swarm.json: resources[0]: "gjot:docs/" names no declared repository`, func(c *Config) { c.Resources = []string{"gjot:docs/"} }},
-		{`swarm.json: resources[1]: "journal/" is the swarm's journal, which no member reads`, func(c *Config) { c.Resources = []string{"docs/", "journal/"} }},
-		{`swarm.json: resources[0]: "./journal/2026-11-12.md" is the swarm's journal, which no member reads`, func(c *Config) { c.Resources = []string{"./journal/2026-11-12.md"} }},
-		{`swarm.json: resources[1]: "./docs" is listed twice`, func(c *Config) { c.Resources = []string{"docs/", "./docs"} }},
-		{`swarm.json: resources[1]: "lib:guide" is listed twice`, func(c *Config) { c.Resources = []string{"lib:guide/", "lib:guide"} }},
+		{`swarm.json: resources[1]: "." is the whole repository`, func(c *Config) { c.Resources = Paths("docs/", ".") }},
+		{`swarm.json: resources[0]: "lib:./" is the whole repository`, func(c *Config) { c.Resources = Paths("lib:./") }},
+		{`swarm.json: resources[0]: "/etc" is not a relative path`, func(c *Config) { c.Resources = Paths("/etc") }},
+		{`swarm.json: resources[0]: "docs/../x" is not a relative path`, func(c *Config) { c.Resources = Paths("docs/../x") }},
+		{`swarm.json: resources[0]: "lib:" is not a relative path`, func(c *Config) { c.Resources = Paths("lib:") }},
+		{`swarm.json: resources[0]: "gjot:docs/" names no declared repository`, func(c *Config) { c.Resources = Paths("gjot:docs/") }},
+		{`swarm.json: resources[1]: "journal/" is the swarm's journal, which no member reads`, func(c *Config) { c.Resources = Paths("docs/", "journal/") }},
+		{`swarm.json: resources[0]: "./journal/2026-11-12.md" is the swarm's journal, which no member reads`, func(c *Config) { c.Resources = Paths("./journal/2026-11-12.md") }},
+		{`swarm.json: resources[1]: "./docs" is listed twice`, func(c *Config) { c.Resources = Paths("docs/", "./docs") }},
+		{`swarm.json: resources[1]: "lib:guide" is listed twice`, func(c *Config) { c.Resources = Paths("lib:guide/", "lib:guide") }},
+		{`swarm.json: resources[2].note: contains a newline`, func(c *Config) { c.Resources[2].Note = "the guide\n# Task" }},
+		{`swarm.json: references[1].paths[1].note: contains a newline`, func(c *Config) { c.References[1].Paths[1].Note = "a\rb" }},
 		{`swarm.json: references[0].name: "a b" is not a repository name`, func(c *Config) { c.References[0].Name = "a b" }},
 		{`swarm.json: references[1].name: "spec" is listed twice`, func(c *Config) { c.References[1].Name = "spec" }},
 		{`swarm.json: references[0].name: "lib" is a declared repository`, func(c *Config) { c.References[0].Name = "lib" }},
@@ -263,9 +265,9 @@ func TestValidateResourcesAndReferences(t *testing.T) {
 		{`swarm.json: references[0].pin: "v1..2" is not a commit or a tag`, func(c *Config) { c.References[0].Pin = "v1..2" }},
 		{`swarm.json: references[0].pin: "" is not a commit or a tag`, func(c *Config) { c.References[0].Pin = "" }},
 		{`swarm.json: references[0].paths: no path (at least one is required)`, func(c *Config) { c.References[0].Paths = nil }},
-		{`swarm.json: references[1].paths[1]: "lib" is listed twice`, func(c *Config) { c.References[1].Paths = []string{"lib/", "lib"} }},
-		{`swarm.json: references[1].paths[0]: "." is the whole repository`, func(c *Config) { c.References[1].Paths = []string{"."} }},
-		{`swarm.json: references[1].paths[0]: "../x" is not a relative path`, func(c *Config) { c.References[1].Paths = []string{"../x"} }},
+		{`swarm.json: references[1].paths[1]: "lib" is listed twice`, func(c *Config) { c.References[1].Paths = Paths("lib/", "lib") }},
+		{`swarm.json: references[1].paths[0]: "." is the whole repository`, func(c *Config) { c.References[1].Paths = Paths(".") }},
+		{`swarm.json: references[1].paths[0]: "../x" is not a relative path`, func(c *Config) { c.References[1].Paths = Paths("../x") }},
 	} {
 		c := valid()
 		ok(&c)

@@ -51,7 +51,7 @@ func newApplyWS(t *testing.T) *applyWS {
 	a.write("docs/README.md", "# Docs\n")
 	a.edit(func(c *declare.Config) {
 		c.Trusted = []string{"jane", "swarm-bot"}
-		c.Resources = []string{"docs/"}
+		c.Resources = declare.Paths("docs/")
 		c.Repos[0].Check = []string{"make", "check"}
 	})
 	a.publish("docs")
@@ -478,7 +478,7 @@ func TestSwarmApplyOnXAI(t *testing.T) {
 	a.edit(func(c *declare.Config) {
 		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
 		c.Keys["xai"] = declare.Key{Env: &env}
-		c.Resources = append(c.Resources, "SPEC.md")
+		c.Resources = append(c.Resources, declare.Resource{Path: "SPEC.md"})
 	})
 	a.write("SPEC.md", "# Spec\n")
 	a.publish("spec")

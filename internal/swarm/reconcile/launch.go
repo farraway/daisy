@@ -94,6 +94,12 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return false, err
 	}
 
+	// The resources as system.md lists them (section 7.3).
+	if j.Resources, err = s.listing(); err != nil {
+		fs.RemoveAll(r.Dir)
+		return false, err
+	}
+
 	// Praxis and the testing skill from the installed root (section 7.3);
 	// one that cannot be read is the swarm fault prompt refused (7.7).
 	if readsPraxis(j.Role) {

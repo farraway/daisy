@@ -24,7 +24,7 @@ func (a *applyWS) ownUp() string {
 	os.Remove(a.state("owner-held"))
 	a.write("briefs/m0.md", ownBrief)
 	a.write("notes/README.md", "# Notes\n\nOne file per subject.\n")
-	a.edit(func(c *declare.Config) { c.Notes, c.Resources = true, []string{"briefs/"} })
+	a.edit(func(c *declare.Config) { c.Notes, c.Resources = true, declare.Paths("briefs/") })
 	a.publish("briefs and notes")
 	a.fetchMirror()
 	return a.upstreams[swarmURL]

@@ -94,7 +94,7 @@ func TestSwarmStatusPullClosedUnmerged(t *testing.T) {
 // counts.
 func TestSwarmStatusBriefsShareAName(t *testing.T) {
 	s := newStatusWS(t)
-	s.edit(func(c *declare.Config) { c.Resources = []string{"docs/"} })
+	s.edit(func(c *declare.Config) { c.Resources = declare.Paths("docs/") })
 	s.write("docs/a/plan.md", "Status: active\n\n## M1\n")
 	s.write("docs/b/plan.md", "Status: active\n\n## M1\n")
 	s.publish("briefs")

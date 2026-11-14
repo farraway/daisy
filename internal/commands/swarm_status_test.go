@@ -163,7 +163,10 @@ const (
 // maintainer comment names an open blocker are held.
 func TestSwarmStatusStages(t *testing.T) {
 	s := newStatusWS(t)
-	s.edit(func(c *declare.Config) { c.Trusted = []string{"jane", "swarm-bot"}; c.Resources = []string{"docs/"} })
+	s.edit(func(c *declare.Config) {
+		c.Trusted = []string{"jane", "swarm-bot"}
+		c.Resources = declare.Paths("docs/")
+	})
 	s.write("docs/briefs/roadmap.md", "# Roadmap\n\nStatus: active\n\n## M0\n")
 	s.write("docs/briefs/old.md", "# Old\n\nStatus: done\n\n## M0\n")
 	s.write("docs/briefs/next.md", "Status: active\n## M1\n")
@@ -375,7 +378,10 @@ const m0 = "Brief: docs/briefs/m0.md — lib measured against upstream 2.0.0\n\n
 // merges: merge, then next slice, then close.
 func TestSwarmStatusStep7(t *testing.T) {
 	s := newStatusWS(t)
-	s.edit(func(c *declare.Config) { c.Trusted = []string{"jane", "swarm-bot"}; c.Resources = []string{"docs/"} })
+	s.edit(func(c *declare.Config) {
+		c.Trusted = []string{"jane", "swarm-bot"}
+		c.Resources = declare.Paths("docs/")
+	})
 	s.write("docs/briefs/m0.md", "# M0\n\nStatus: active\n\n## lib measured against upstream 2.0.0\n\n## lib green against upstream 2.0.0\n\n## Drift checks in CI\n\n## A second port\n")
 	s.publish("briefs")
 	s.fetchMirror() // status reads the briefs as the last pass left the mirror
@@ -485,7 +491,10 @@ Briefs:
 // a run's time from its start to its exit or timeout.
 func TestSwarmStatusCorrections(t *testing.T) {
 	s := newStatusWS(t)
-	s.edit(func(c *declare.Config) { c.Trusted = []string{"jane", "swarm-bot"}; c.Resources = []string{"docs/"} })
+	s.edit(func(c *declare.Config) {
+		c.Trusted = []string{"jane", "swarm-bot"}
+		c.Resources = declare.Paths("docs/")
+	})
 	s.write("docs/briefs/m0.md", "Status: active\n\n## lib measured against upstream 2.0.0\n\n## Later\n")
 	s.publish("briefs")
 	s.fetchMirror() // status reads the briefs as the last pass left the mirror
@@ -561,7 +570,7 @@ Briefs:
 // member's run, however new (section 11, status).
 func TestSwarmStatusMetFromBatchRunsOnly(t *testing.T) {
 	s := newStatusWS(t)
-	s.edit(func(c *declare.Config) { c.Resources = []string{"docs/"} })
+	s.edit(func(c *declare.Config) { c.Resources = declare.Paths("docs/") })
 	s.write("docs/briefs/m0.md", "Status: active\n\n## First\n")
 	s.publish("briefs")
 	s.fetchMirror() // status reads the briefs as the last pass left the mirror

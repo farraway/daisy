@@ -31,7 +31,7 @@ func cfg() declare.Config {
 			{Name: "app", Repo: "acme/app", Check: []string{"make", "check"}, Image: "daisy-member-app:2", Protected: []string{".gitea/", "AGENTS.md"}},
 			{Name: "lib", Repo: "acme/lib", Check: []string{}, Image: "daisy-member:1", Protected: []string{}},
 		},
-		Base: "main", MaxRounds: 5, Timeout: "45m", Resources: []string{"docs/"}, Trusted: []string{"jane", "swarm-bot"},
+		Base: "main", MaxRounds: 5, Timeout: "45m", Resources: declare.Paths("docs/"), Trusted: []string{"jane", "swarm-bot"},
 		Gates: declare.Gates{Triage: true, Plan: true, Merge: true},
 	}
 }
@@ -52,7 +52,8 @@ func job(f *forge.Fake, n int, role, label string) *Job {
 	is, _ := f.Issue(n)
 	pulls, _ := f.Pulls(n, []string{"swarm-bot"})
 	return &Job{Cfg: cfg(), Host: "forge.example.net", SwarmLogin: "swarm-bot", N: n, K: 1, Role: role, Label: label, Time: t0,
-		Persona: "# " + role + "\n\nYou do it.\n\n```\n# not a heading\n```\n", Issue: is, Pulls: pulls}
+		Persona: "# " + role + "\n\nYou do it.\n\n```\n# not a heading\n```\n", Issue: is, Pulls: pulls,
+		Resources: []Listed{{Mount: "/work/.resources/app/docs"}}}
 }
 
 // The architect's two files on ready, byte for byte (section 7.3 and 7.4):
@@ -89,6 +90,12 @@ You do it.
 Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
 
 Write your output to /work/.swarm/out.md; that file is the only thing read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /work/.swarm/out.md instead.
+
+# Resources
+
+Mounted read-only:
+
+- /work/.resources/app/docs
 `
 
 const wantArchitectPrompt = `<!-- daisy-swarm prompt: acme/app#1 architect run 1, 2026-11-06T15:00:00Z -->
@@ -98,7 +105,6 @@ const wantArchitectPrompt = `<!-- daisy-swarm prompt: acme/app#1 architect run 1
 - Issues: acme/app on forge.example.net
 - Clone /work/app: acme/app, branch main, base main, check make check
 - Clone /work/lib: acme/lib, branch main, base main, no check declared
-- Resources (read-only): /work/.resources/app/docs
 
 # Issue #1: Drift check
 
@@ -625,6 +631,40 @@ func TestRenderPraxisAndTesting(t *testing.T) {
 			"name: testing", "description: Testing as falsification.")
 		if task, praxis := strings.Index(sys, "\n# Task\n"), strings.Index(sys, "\n# Praxis\n"); task < 0 || praxis < task {
 			t.Errorf("%s's # Praxis is not after # Task:\n%s", c.role, sys)
+		}
+	}
+}
+
+// system.md's # Resources (section 7.3), last, for every role: a line
+// per resource in swarm.json's order, its mount, its index page when it
+// has one and its note, or None. when none is declared; prompt.md names
+// no resource.
+func TestRenderResources(t *testing.T) {
+	f, at := fixture()
+	listed := []Listed{
+		{Mount: "/work/.resources/app/docs", Index: "/work/.resources/app/docs/README.md", Note: "the swarm's docs; reviewers review against the practice pages under practices/"},
+		{Mount: "/work/.resources/lib/docs/adr", Note: "the ADRs, which are rulings"},
+		{Mount: "/work/.resources/toupee/src"},
+	}
+	const want = "\n\n# Resources\n\nMounted read-only:\n\n" +
+		"- /work/.resources/app/docs (index: /work/.resources/app/docs/README.md) — the swarm's docs; reviewers review against the practice pages under practices/\n" +
+		"- /work/.resources/lib/docs/adr — the ADRs, which are rulings\n" +
+		"- /work/.resources/toupee/src\n"
+	for _, c := range []struct{ role, label string }{
+		{"owner", "swarm:proposal-posted"}, {"architect", "swarm:proposal-accepted"}, {"worker", "swarm:plan-1-accepted"},
+		{"adversary", "swarm:review-0-ready"}, {"sympathetic", "swarm:review-0-ready"},
+	} {
+		j := job(f, at.N, c.role, c.label)
+		j.Resources = listed
+		j.Repos = []RepoNote{{Name: "app", Text: "# App\n\nNotes.\n"}}
+		sys, prompt := Render(j)
+		if !strings.HasSuffix(sys, "\n\n## App\n\nNotes."+want) {
+			t.Errorf("%s's system.md does not end with # Resources:\n%s", c.role, sys)
+		}
+		has(t, c.role+"'s prompt.md", prompt, nil, "/work/.resources", "Resources")
+		j.Resources = nil
+		if sys, _ := Render(j); !strings.HasSuffix(sys, "\n\n# Resources\n\nNone.\n") {
+			t.Errorf("%s's system.md without resources:\n%s", c.role, sys)
 		}
 	}
 }

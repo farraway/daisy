@@ -62,7 +62,7 @@ func valid() Config {
 		},
 		Base: "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
-		Resources: []string{"docs/"},
+		Resources: Paths("docs/"),
 		Trusted:   []string{"jane", "swarm-bot"},
 		Gates:     Gates{Triage: true, Plan: true, Merge: true},
 		Keys:      map[string]Key{"anthropic": {Env: &envVar}, "openai": {Slots: &slots}},
@@ -220,6 +220,12 @@ func TestParseNamesTheField(t *testing.T) {
 		{`"check": ["make", "check"],`, `"check": ["make", "check"], "deps": {"run": ["go"], "cache": "/c"},`, "swarm.json: repos[0].deps.cache: unknown field"},
 		{`"check": ["make", "check"],`, `"check": ["make", "check"], "deps": ["go"],`, "swarm.json: repos[0].deps: not an object"},
 		{`"check": ["make", "check"],`, `"check": ["make", "check"], "deps": {"run": ["go"], "env": {"A": 1}},`, "swarm.json: repos[0].deps.env.A: cannot unmarshal number into Go value of type string"},
+		// A resource is its path, or {"path", "note"} (section 3).
+		{`"resources": ["docs/"],`, `"resources": [3],`, "swarm.json: resources[0]: not a string or an object"},
+		{`"resources": ["docs/"],`, `"resources": [null],`, "swarm.json: resources[0]: not a string or an object"},
+		{`"resources": ["docs/"],`, `"resources": [{"note": "the docs"}],`, "swarm.json: resources[0].path: missing"},
+		{`"resources": ["docs/"],`, `"resources": [{"path": "docs/", "notes": "the docs"}],`, "swarm.json: resources[0].notes: unknown field"},
+		{`"resources": ["docs/"],`, `"resources": ["docs/", {"path": "x", "note": 1}],`, "swarm.json: resources[1].note: cannot unmarshal number into Go value of type string"},
 		// The old layout's fields, retired (revision 6's plan, Step 7).
 		{`"repo": "acme/lib",`, `"repo": "acme/lib", "path": "lib",`, "swarm.json: repos[1].path: unknown field"},
 		{`"resources": ["docs/"],`, `"resources": ["docs/"], "wiki": true,`, "swarm.json: wiki: unknown field"},
@@ -271,7 +277,7 @@ func TestFormatIsSectionThreesExample(t *testing.T) {
 		Repos: []Repo{{Name: "<name>", Repo: "<owner>/<name>", Image: defaultImage, Protected: defaultProtected}},
 		Base:  "main", MaxMembers: 3, MaxRounds: 5, Timeout: "45m", Interval: "5m",
 		Owner:     Owner{MaxOpenProposals: 5},
-		Resources: []string{"briefs/", "docs/"},
+		Resources: Paths("briefs/", "docs/"),
 		Trusted:   []string{"<maintainer-login>", "<swarm-login>"},
 		Gates:     Gates{Triage: true, Plan: true, Merge: true},
 		Keys:      map[string]Key{"anthropic": {Env: &envVar}, "openai": {Slots: &slots}},
@@ -348,6 +354,35 @@ func TestFormatNotes(t *testing.T) {
 	c.Notes = false
 	if strings.Contains(string(Format(c)), "notes") {
 		t.Errorf("notes written while false:\n%s", Format(c))
+	}
+}
+
+// A resource with a note is written {"path", "note"}, one without its
+// path alone, in resources and in a reference's paths, and each is read
+// back; {"path"} without a note reads as the path alone (section 3).
+func TestFormatResourceNotes(t *testing.T) {
+	c := valid()
+	c.Resources = []Resource{{Path: "docs/"}, {Path: "lib:guide/", Note: "the guide: rules & <limits>"}}
+	c.References = []Reference{{Name: "spec", URL: "https://forge.example.org/std/spec.git", Pin: "v1", Paths: []Resource{{Path: "SPEC.md", Note: "the standard"}, {Path: "lib/"}}}}
+	out := string(Format(c))
+	for _, want := range []string{
+		`  "resources": ["docs/", {"path": "lib:guide/", "note": "the guide: rules & <limits>"}],` + "\n",
+		`"pin": "v1", "paths": [{"path": "SPEC.md", "note": "the standard"}, "lib/"]}` + "\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Format lacks %q:\n%s", want, out)
+		}
+	}
+	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("round trip: %v\n%+v", err, back)
+	}
+	_, clone := cloneFolder(t)
+	if err := Validate(ops.Real(), Clone(clone), c, 0); err != nil {
+		t.Errorf("valid notes: %v", err)
+	}
+	object := strings.Replace(out, `["docs/", `, `[{"path": "docs/"}, `, 1)
+	if back, err := Parse([]byte(object)); err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("{\"path\"} alone: %v\n%+v", err, back)
 	}
 }
 

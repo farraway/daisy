@@ -82,7 +82,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	if got := gitIn(t, s.ws, "status", "--porcelain"); got != "" || s.read(".gitignore") != ".env.sh\n" {
 		t.Errorf("the clone: %q, .gitignore %q", got, s.read(".gitignore"))
 	}
-	if c, _, err := declare.Load(ops.Real().FS(), s.ws); err != nil || !reflect.DeepEqual(c.Resources, []string{"briefs/", "docs/"}) || !reflect.DeepEqual(c.Trusted, []string{"swarm-bot"}) {
+	if c, _, err := declare.Load(ops.Real().FS(), s.ws); err != nil || !reflect.DeepEqual(c.Resources, declare.Paths("briefs/", "docs/")) || !reflect.DeepEqual(c.Trusted, []string{"swarm-bot"}) {
 		t.Errorf("swarm.json: %v %+v", err, c)
 	}
 	// <state>/env: mode 0600, the configuration's variables and the

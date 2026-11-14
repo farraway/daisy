@@ -334,8 +334,11 @@ func relPath(p string) string {
 func checkResources(c Config) *Error {
 	type key struct{ repo, path string }
 	var seen []key
-	for i, r := range c.Resources {
-		at := fmt.Sprintf("resources[%d]", i)
+	for i, res := range c.Resources {
+		at, r := fmt.Sprintf("resources[%d]", i), res.Path
+		if err := checkNote(at, res); err != nil {
+			return err
+		}
 		name, p := SplitResource(r)
 		if name != "" && !slices.ContainsFunc(c.Repos, func(d Repo) bool { return d.Name == name }) {
 			return fieldErr(at, "%q names no declared repository", r)
@@ -351,6 +354,15 @@ func checkResources(c Config) *Error {
 			return fieldErr(at, "%q is listed twice", r)
 		}
 		seen = append(seen, k)
+	}
+	return nil
+}
+
+// checkNote: a resource's note is one line, since the prompt lists it on
+// its path's line (section 7.3).
+func checkNote(at string, r Resource) *Error {
+	if strings.ContainsAny(r.Note, "\n\r") {
+		return fieldErr(at+".note", "contains a newline")
 	}
 	return nil
 }
@@ -393,12 +405,15 @@ func checkReferences(c Config) *Error {
 		if len(r.Paths) == 0 {
 			return fieldErr(at+".paths", "no path (at least one is required)")
 		}
-		for j, q := range r.Paths {
-			pat := fmt.Sprintf("%s.paths[%d]", at, j)
+		for j, res := range r.Paths {
+			pat, q := fmt.Sprintf("%s.paths[%d]", at, j), res.Path
+			if err := checkNote(pat, res); err != nil {
+				return err
+			}
 			if why := relPath(q); why != "" {
 				return fieldErr(pat, "%q %s", q, why)
 			}
-			if slices.ContainsFunc(r.Paths[:j], func(o string) bool { return path.Clean(o) == path.Clean(q) }) {
+			if slices.ContainsFunc(r.Paths[:j], func(o Resource) bool { return path.Clean(o.Path) == path.Clean(q) }) {
 				return fieldErr(pat, "%q is listed twice", q)
 			}
 		}

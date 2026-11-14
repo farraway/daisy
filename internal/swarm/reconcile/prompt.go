@@ -39,6 +39,8 @@ type Job struct {
 
 	Praxis  string // PraxisFile in the installed root, as read, for the roles that readsPraxis
 	Testing string // TestingFile there, as read
+
+	Resources []Listed // each resource and reference path, as # Resources lists them (section 7.3)
 }
 
 // PullThread is the current pull request's comments, reviews and line
@@ -90,7 +92,7 @@ func Render(j *Job) (system, prompt string) {
 	for _, n := range j.Repos {
 		sys = append(sys, "# Repository notes: "+n.Name, Shift(trim(n.Text), 1))
 	}
-	system = doc(sys...)
+	system = doc(append(sys, "# Resources", j.resources())...)
 	blocks := []string{"<!-- daisy-swarm prompt: " + head, j.repository()}
 	if j.Cfg.Notes && writesNotes(j.Role) {
 		blocks = append(blocks, "# Research notes", j.notes())
@@ -301,11 +303,6 @@ func (j *Job) repository() string {
 		cur, _ := j.current()
 		clone("/work", cur.Repo, cur.Head)
 	}
-	res := "none"
-	if m := Mounts(j.Cfg); len(m) > 0 {
-		res = strings.Join(m, ", ")
-	}
-	lines = append(lines, "- Resources (read-only): "+res)
 	switch {
 	case j.Cfg.Notes && writesNotes(j.Role):
 		lines = append(lines, "- Research notes: "+NotesMount+", "+notesHome(j.Cfg)+", pushed by Daisy after the run")
@@ -313,6 +310,26 @@ func (j *Job) repository() string {
 		lines = append(lines, "- Research notes (read-only): "+NotesMount)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// resources is system.md's # Resources (section 7.3): a line per
+// resource, its mount, its index page and its note, or None.
+func (j *Job) resources() string {
+	var lines []string
+	for _, l := range j.Resources {
+		line := "- " + l.Mount
+		if l.Index != "" {
+			line += " (index: " + l.Index + ")"
+		}
+		if l.Note != "" {
+			line += " — " + l.Note
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return "None."
+	}
+	return "Mounted read-only:\n\n" + strings.Join(lines, "\n")
 }
 
 // ResourcesMount is the directory under which each resource is mounted,

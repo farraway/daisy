@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -63,6 +64,22 @@ func TestComparePrompt(t *testing.T) {
 	} {
 		if got := ComparePrompt(c.role, []byte(c.text)); got != c.want {
 			t.Errorf("ComparePrompt(%q, %.40q…) = %v, want %v", c.role, c.text, got, c.want)
+		}
+	}
+}
+
+// No default names a resource's path: the owner and the architect read
+// the resources listed below, system.md's # Resources, which Daisy writes
+// from swarm.json (section 7.3).
+func TestDefaultPromptsNameNoResourcePath(t *testing.T) {
+	for _, role := range Roles {
+		if strings.Contains(DefaultPrompts[role], "/work/.resources") {
+			t.Errorf("%s's default names a path under /work/.resources", role)
+		}
+	}
+	for _, role := range []string{"owner", "architect"} {
+		if !strings.Contains(DefaultPrompts[role], "the resources listed below") {
+			t.Errorf("%s's default does not read the resources listed below", role)
 		}
 	}
 }

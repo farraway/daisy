@@ -49,7 +49,7 @@ func TestSwarmRepositoryNotes(t *testing.T) {
 	}
 	task := strings.Index(sys, "\n# Task\n")
 	app := strings.Index(sys, "\n# Repository notes: app\n\n## App\n\nApp's notes.\n\n# Repository notes: lib\n\n## Lib\n\nLib's notes.\n\n### Testing\n\nRun go test.\n")
-	if task < 0 || app < task || !strings.HasSuffix(sys, "Run go test.\n") || strings.Contains(sys, "UNPUSHED") {
+	if task < 0 || app < task || !strings.Contains(sys, "Run go test.\n\n# Resources\n") || strings.Contains(sys, "UNPUSHED") {
 		t.Errorf("architect's system.md:\n%s", sys)
 	}
 
@@ -88,7 +88,7 @@ func TestSwarmRepositoryNotes(t *testing.T) {
 	os.Remove(a.state("owner-held"))
 	a.runner.Script(0, "owner", runner.Canned{Out: "BLOCKED: nothing to propose\n"})
 	a.pass()
-	if sys := a.file("0-owner-2", "io/system.md"); strings.Join(notesOf(sys), "|") != "# Repository notes: lib" || !strings.HasSuffix(sys, "\n## Lib\n\nBack.\n") {
+	if sys := a.file("0-owner-2", "io/system.md"); strings.Join(notesOf(sys), "|") != "# Repository notes: lib" || !strings.Contains(sys, "\n## Lib\n\nBack.\n\n# Resources\n") {
 		t.Errorf("owner's batch with lib's notes:\n%s", sys)
 	}
 }

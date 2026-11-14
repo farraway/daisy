@@ -28,6 +28,7 @@ type source struct {
 	Repo   string
 	Mirror string
 	Path   string             // the path in the repository, cleaned
+	Note   string             // the entry's note (section 3)
 	Brief  string             // a brief's path prefix: "" in the swarm repository, "<name>:" in a declared one
 	Ref    *declare.Reference // the reference, for its paths
 	RefAt  int                // the reference's index
@@ -39,8 +40,8 @@ func sources(g Git, c declare.Config) []source {
 	own := repoName(c.Forge.Repo)
 	var out []source
 	for i, r := range c.Resources {
-		name, p := declare.SplitResource(r)
-		s := source{Field: fmt.Sprintf("resources[%d]", i), Value: r, Repo: own, Mirror: g.Mirror(own), Path: path.Clean(p)}
+		name, p := declare.SplitResource(r.Path)
+		s := source{Field: fmt.Sprintf("resources[%d]", i), Value: r.Path, Repo: own, Mirror: g.Mirror(own), Path: path.Clean(p), Note: r.Note}
 		if name != "" {
 			s.Repo, s.Mirror, s.Brief = name, g.Mirror(name), name+":"
 		}
@@ -49,8 +50,8 @@ func sources(g Git, c declare.Config) []source {
 	for i := range c.References {
 		ref := &c.References[i]
 		for j, p := range ref.Paths {
-			out = append(out, source{Field: fmt.Sprintf("references[%d].paths[%d]", i, j), Value: p, Repo: ref.Name,
-				Mirror: g.Reference(ref.Name), Path: path.Clean(p), Ref: ref, RefAt: i})
+			out = append(out, source{Field: fmt.Sprintf("references[%d].paths[%d]", i, j), Value: p.Path, Repo: ref.Name,
+				Mirror: g.Reference(ref.Name), Path: path.Clean(p.Path), Note: p.Note, Ref: ref, RefAt: i})
 		}
 	}
 	return out
@@ -82,15 +83,39 @@ func Commits(g Git, c declare.Config) map[string]string {
 	return out
 }
 
-// Mounts is where the prompt says each resource is (section 7.3):
-// /work/.resources/<repository>/<path> for each resource and each
-// reference's path.
-func Mounts(c declare.Config) []string {
-	var out []string
-	for _, s := range sources(Git{}, c) {
-		out = append(out, ResourcesMount+"/"+s.Repo+"/"+s.Path)
+// Listed is one resource as system.md's # Resources lists it (section
+// 7.3): where it is mounted, its index page, and its note.
+type Listed struct{ Mount, Index, Note string }
+
+// indexPage is the file at a resource's root that the listing names as
+// its index (section 7.3).
+const indexPage = "README.md"
+
+// listing is each resource and each reference's path as the run's
+// system.md lists it, in swarm.json's order: mounted at
+// /work/.resources/<repository>/<path>, its index the indexPage at its
+// root when the pass's commit holds one as a regular file.
+func (s *Swarm) listing() ([]Listed, error) {
+	g := s.git()
+	var out []Listed
+	for _, src := range sources(g, s.Cfg) {
+		at := ResourcesMount + "/" + src.Repo + "/"
+		l := Listed{Mount: at + src.Path, Note: src.Note}
+		if commit := s.commits[src.Repo]; commit != "" {
+			index := path.Join(src.Path, indexPage)
+			entries, err := g.Tree(src.Mirror, commit, index)
+			if err != nil {
+				return nil, err
+			}
+			if slices.ContainsFunc(entries, func(e TreeEntry) bool {
+				return e.Path == index && e.Type == "blob" && (e.Mode == "100644" || e.Mode == "100755")
+			}) {
+				l.Index = at + index
+			}
+		}
+		out = append(out, l)
 	}
-	return out
+	return out, nil
 }
 
 // forbidden are the names a resource may neither be nor contain (section
