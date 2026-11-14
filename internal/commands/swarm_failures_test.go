@@ -70,6 +70,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 		review bool // the failure is the adversary's, #1 in review
 		canned runner.Canned
 		check  runner.Canned
+		deps   runner.Canned
 		setup  func(a *applyWS)
 		reason string
 		kept   bool
@@ -125,6 +126,8 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 			return nil
 		}}, reason: "secret in output: commits", kept: true},
 		{name: "secret in the check's tail", canned: work("v1"), check: runner.Canned{Stdout: "env: " + secret + "\n"}, reason: "secret in output: check.out", kept: true},
+		{name: "secret in the dependency step's tail", canned: work("v1"), deps: runner.Canned{Code: 1, Stderr: "env: " + secret + "\n"}, setup: func(a *applyWS) { a.withDeps(goDeps) },
+			reason: "secret in output: deps.out", kept: true},
 		{name: "push rejected", canned: work("v1"), setup: func(a *applyWS) {
 			// a branch of the name the forge holds already, unrelated
 			src := a.t.TempDir()
@@ -154,6 +157,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 			}
 			a.runner.Script(1, role, tc.canned)
 			a.runner.Script(1, "check", tc.check)
+			a.runner.Script(1, "deps", tc.deps)
 			a.pass()
 			k := map[string]string{"worker": "1", "adversary": "1"}[role]
 			note := mark("reconciler", 1) + role + " run " + k + " failed: " + tc.reason + " (at " + label + "). Remove swarm:blocked to resume."

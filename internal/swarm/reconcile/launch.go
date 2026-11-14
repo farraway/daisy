@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -265,7 +267,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return false, errors.Join(r.Append(fs, "launch-failed "+ended(), "fault: launch: "+err.Error()), s.collect(r))
 	}
 	s.given[r.Dir] = secrets
-	s.watch(r.Dir, c, slot, false)
+	s.watch(r.Dir, c, slot, "")
 	fmt.Fprintf(s.Out, "%slaunched\n", runHead(r))
 	// The in-progress stage, once the container has started: a refused
 	// launch never moves the issue, and the collection moves it on from
@@ -321,11 +323,12 @@ func outside(workdir string, dirs []string) []string {
 	return out
 }
 
-// watch waits for a started container in the background: once `docker
-// run` has returned, a slot's secrets are read again and its lock
-// released (sections 7.1 and 7.6), and done is closed.
-func (s *Swarm) watch(dir string, c runner.Container, slot *runner.Slot, check bool) {
-	l := &live{check: check, done: make(chan struct{})}
+// watch waits for a started container in the background, a member or
+// a worker run's step ("deps" or "check"): once `docker run` has
+// returned, a slot's secrets are read again and its lock released
+// (sections 7.1 and 7.6), and done is closed.
+func (s *Swarm) watch(dir string, c runner.Container, slot *runner.Slot, step string) {
+	l := &live{step: step, done: make(chan struct{})}
 	s.live[dir] = l
 	s.started++
 	go func() {
@@ -341,26 +344,26 @@ func (s *Swarm) watch(dir string, c runner.Container, slot *runner.Slot, check b
 
 // settle records how an ended container of this process ended (sections
 // 2 and 7.7): a member's streams, end line, cost and failure or fault; a
-// check's output and end line.
+// step's output, <step>.out, and end line.
 func (s *Swarm) settle(r Run) error {
 	l := s.live[r.Dir]
 	delete(s.live, r.Dir)
 	fs := s.O.FS()
 	now := endStamp(l.at)
-	if l.check {
+	if step := l.step; step != "" {
 		if l.err != nil {
-			return r.Append(fs, "fault: check: wait: "+l.err.Error())
+			return r.Append(fs, "fault: "+step+": wait: "+l.err.Error())
 		}
-		if err := fs.WriteFile(filepath.Join(r.Dir, "check.out"), append(l.exit.Stdout, l.exit.Stderr...), 0o644); err != nil {
+		if err := fs.WriteFile(filepath.Join(r.Dir, step+".out"), append(l.exit.Stdout, l.exit.Stderr...), 0o644); err != nil {
 			return err
 		}
-		said := fmt.Sprintf("check exited %d", l.exit.Code)
+		said := fmt.Sprintf("%s exited %d", step, l.exit.Code)
 		lines := []string{said + " " + now}
 		switch {
 		case l.exit.TimedOut:
-			said, lines = "check timeout", []string{"check timeout " + now}
+			said, lines = step+" timeout", []string{step + " timeout " + now}
 		case l.exit.Code >= 125 && l.exit.Code <= 127:
-			lines = append(lines, fmt.Sprintf("fault: check: exit %d", l.exit.Code))
+			lines = append(lines, fmt.Sprintf("fault: %s: exit %d", step, l.exit.Code))
 		}
 		fmt.Fprintf(s.Out, "%s%s\n", runHead(r), said)
 		return r.Append(fs, lines...)
@@ -401,13 +404,19 @@ func (s *Swarm) settle(r Run) error {
 // runRef is the mirror's ref for a worker run's commits (section 7.6).
 func runRef(r Run) string { return fmt.Sprintf("refs/swarm-runs/%d-worker-%d", r.N, r.K) }
 
-// startCheck clones the worker run's fetched head from the mirror and
-// starts the check container on it (sections 7.2 and 7.6, step 4); a
-// check that cannot start is a swarm fault. A check whose apply died is
-// started again.
-func (s *Swarm) startCheck(r Run, lines []string) error {
+// startStep clones the worker run's fetched head from the mirror into
+// <run>/check and starts step on it (sections 7.2 and 7.6, step 4): the
+// dependency step ("deps") on Docker's default network, the clone
+// read-only and the swarm's cache for the repository read-write; or the
+// check, with no network and, when the repository declares deps, that
+// cache read-only; both given deps' env. One that cannot start is a
+// swarm fault; one whose apply died is started again.
+func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	fs := s.O.FS()
 	repo, _ := s.repo(branchRepo(lines))
+	if step == "deps" && repo.Deps == nil { // swarm.json changed since the step started
+		return r.Append(fs, "fault: deps: "+repo.Name+" declares no deps")
+	}
 	fetched, _ := Has(lines, "fetched")
 	sha := strings.TrimPrefix(fetched, "fetched ")
 	dir := filepath.Join(r.Dir, "check")
@@ -418,20 +427,38 @@ func (s *Swarm) startCheck(r Run, lines []string) error {
 		return err
 	}
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
-	spec := runner.Spec{Name: s.containerName(r.N, "check", r.K), Label: fmt.Sprintf("%s/%s#%d/check", o, rp, r.N), User: s.User, NoNetwork: true,
+	spec := runner.Spec{Name: s.containerName(r.N, step, r.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, r.N, step), User: s.User, NoNetwork: true,
 		Mounts: []runner.Mount{{Src: dir, Dst: "/work"}}, Workdir: "/work", Image: repo.Image, Argv: repo.Check}
+	if d := repo.Deps; d != nil {
+		cache := s.depsCache(repo.Name)
+		if err := fs.MkdirAll(cache, 0o755); err != nil {
+			return err
+		}
+		for _, k := range slices.Sorted(maps.Keys(d.Env)) {
+			spec.Env = append(spec.Env, k+"="+d.Env[k])
+		}
+		spec.Mounts = append(spec.Mounts, runner.Mount{Src: cache, Dst: declare.DepsMount, ReadOnly: step == "check"})
+		if step == "deps" {
+			spec.NoNetwork, spec.Mounts[0].ReadOnly, spec.Argv = false, true, d.Run
+		}
+	}
 	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
 	c, err := s.Runner.Start(spec, timeout)
 	if err != nil {
-		return r.Append(fs, "fault: check: "+err.Error())
+		return r.Append(fs, "fault: "+step+": "+err.Error())
 	}
-	if err := r.Append(fs, "check started "+stamp(s.O.Now())); err != nil {
+	if err := r.Append(fs, step+" started "+stamp(s.O.Now())); err != nil {
 		return err
 	}
-	fmt.Fprintf(s.Out, "%scheck started\n", runHead(r))
-	s.watch(r.Dir, c, nil, true)
+	fmt.Fprintf(s.Out, "%s%s started\n", runHead(r), step)
+	s.watch(r.Dir, c, nil, step)
 	return nil
 }
+
+// depsCache is the swarm's dependency cache for the declared repository
+// name, <state>/deps/<name>, which each of its dependency steps writes
+// and each of its checks reads (section 7.2).
+func (s *Swarm) depsCache(name string) string { return filepath.Join(s.state(), "deps", name) }
 
 // branchRepo is the repository of a worker run's `branch <b> in <name>`
 // line.

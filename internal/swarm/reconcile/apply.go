@@ -70,7 +70,7 @@ func (s *Swarm) pulls(n int) ([]forge.Pull, error) {
 // it ended and, for a slot, the slot's secrets read again before its lock was
 // released.
 type live struct {
-	check bool
+	step  string // "" for a member, "deps" or "check" for a worker run's step (section 7.6, step 4)
 	done  chan struct{}
 	exit  runner.Exit
 	err   error
@@ -324,22 +324,22 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 				return err
 			}
 		}
-		if at, pending := checkPending(lines); pending {
-			name := s.containerName(r.N, "check", r.K)
+		if step, at := pending(lines); step != "" {
+			name := s.containerName(r.N, step, r.K)
 			switch {
 			case isRunning(name) && over(at):
 				if err := s.Runner.Stop(name); err != nil {
 					errs = append(errs, err)
 					continue
 				}
-				if err := r.Append(fs, "check timeout "+now); err != nil {
+				if err := r.Append(fs, step+" timeout "+now); err != nil {
 					return err
 				}
-				fmt.Fprintf(s.Out, "%scheck timeout\n", runHead(r))
+				fmt.Fprintf(s.Out, "%s%s timeout\n", runHead(r), step)
 			case isRunning(name):
 				continue
 			default:
-				if err := s.startCheck(r, lines); err != nil {
+				if err := s.startStep(r, lines, step); err != nil {
 					errs = append(errs, err)
 				}
 				continue
@@ -353,22 +353,28 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 	return errors.Join(errs...)
 }
 
-// checkPending: the run's check started and has no end line yet; at is
-// when it started.
-func checkPending(lines []string) (at string, pending bool) {
-	l, started := "", false
-	for _, line := range lines {
-		if strings.HasPrefix(line, "check started ") {
-			l, started = line, true // the last: a check started again
+// pending is the worker run's step, its dependency step ("deps") or its
+// check, that started and has no end line yet, and when it started; ""
+// when neither is.
+func pending(lines []string) (step, at string) {
+	for _, step := range []string{"deps", "check"} {
+		l, started := "", false
+		for _, line := range lines {
+			if strings.HasPrefix(line, step+" started ") {
+				l, started = line, true // the last: a step started again
+			}
+		}
+		if !started {
+			continue
+		}
+		_, exited := Has(lines, step+" exited")
+		_, timedOut := Has(lines, step+" timeout")
+		_, fault := Has(lines, "fault")
+		if !exited && !timedOut && !fault {
+			return step, strings.TrimPrefix(l, step+" started ")
 		}
 	}
-	if !started {
-		return "", false
-	}
-	_, exited := Has(lines, "check exited")
-	_, timedOut := Has(lines, "check timeout")
-	_, fault := Has(lines, "fault")
-	return strings.TrimPrefix(l, "check started "), !exited && !timedOut && !fault
+	return "", ""
 }
 
 // paused is <state>/paused's line, "" when the swarm is not paused.
@@ -590,8 +596,8 @@ func (s *Swarm) busy(running []runner.Running, runs []Run, n int) []string {
 	}
 	for dir, l := range s.live {
 		if r, ok := runOf(dir); ok && r.N == n {
-			if l.check {
-				r.Role = "check"
+			if l.step != "" {
+				r.Role = l.step
 			}
 			roles = append(roles, r.Role)
 		}
@@ -701,7 +707,7 @@ func CheckSection(fs ops.FS, runs []Run, n int, head string, check []string, tim
 		if !slices.Contains(lines, "pushed "+head) {
 			continue
 		}
-		result, tail, ok := checkResult(fs, r, lines, timeout)
+		result, tail, _, ok := checkResult(fs, r, lines, timeout)
 		if !ok {
 			break
 		}
@@ -714,22 +720,40 @@ func CheckSection(fs ops.FS, runs []Run, n int, head string, check []string, tim
 }
 
 // checkResult is a worker run's check as it ended, `exit <code>` or
-// `timeout after <timeout>`, and the last 20 lines of its check.out; ok
-// is false when it has no end.
-func checkResult(fs ops.FS, r Run, lines []string, timeout string) (result string, tail []string, ok bool) {
-	if l, ok := Has(lines, "check exited"); ok {
+// `timeout after <timeout>`, or its dependency step's failure, which ran
+// no check, and the last 20 lines of the output of the one that ended
+// the check, file (check.out or deps.out); ok is false when it has no
+// end.
+func checkResult(fs ops.FS, r Run, lines []string, timeout string) (result string, tail []string, file string, ok bool) {
+	const noCheck = "; the check did not run"
+	file = "check.out"
+	if code := depsFailed(lines); code != "" {
+		result, file = "dependency step exited "+code+noCheck, "deps.out"
+	} else if _, ok := Has(lines, "deps timeout"); ok {
+		result, file = "dependency step timed out after "+timeout+noCheck, "deps.out"
+	} else if l, ok := Has(lines, "check exited"); ok {
 		result = "exit " + strings.Fields(l)[2]
 	} else if _, ok := Has(lines, "check timeout"); ok {
 		result = "timeout after " + timeout
 	} else {
-		return "", nil, false
+		return "", nil, "", false
 	}
-	out, _ := fs.ReadFile(filepath.Join(r.Dir, "check.out"))
+	out, _ := fs.ReadFile(filepath.Join(r.Dir, file))
 	tail = strings.Split(strings.TrimRight(string(out), "\n"), "\n")
 	if len(tail) > 20 {
 		tail = tail[len(tail)-20:]
 	}
-	return result, tail, true
+	return result, tail, file, true
+}
+
+// depsFailed is the exit status of the run's dependency step when it
+// exited other than 0, else "".
+func depsFailed(lines []string) string {
+	l, ok := Has(lines, "deps exited")
+	if f := strings.Fields(l); ok && len(f) > 2 && f[2] != "0" {
+		return f[2]
+	}
+	return ""
 }
 
 var (

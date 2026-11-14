@@ -212,6 +212,9 @@ func checkRepos(f Forge, repos []Repo) *Error {
 				return fieldErr(fmt.Sprintf("%s.check[%d]", at, j), "empty argument")
 			}
 		}
+		if err := checkDeps(at, r); err != nil {
+			return err
+		}
 		if r.Image == "" {
 			return fieldErr(at+".image", "empty")
 		}
@@ -220,6 +223,33 @@ func checkRepos(f Forge, repos []Repo) *Error {
 				return fieldErr(fmt.Sprintf("%s.protected[%d]", at, j), "%q is not a relative pattern without ..", p)
 			}
 		}
+	}
+	return nil
+}
+
+// checkDeps is a repository's dependency step, when declared: an argv of
+// non-empty arguments, run only before a check, so the repository
+// declares one, and each env name a variable name.
+func checkDeps(at string, r Repo) *Error {
+	d := r.Deps
+	if d == nil {
+		return nil
+	}
+	if len(d.Run) == 0 {
+		return fieldErr(at+".deps.run", "no argument (at least one is required)")
+	}
+	for j, a := range d.Run {
+		if a == "" {
+			return fieldErr(fmt.Sprintf("%s.deps.run[%d]", at, j), "empty argument")
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(d.Env)) {
+		if !varShape.MatchString(k) {
+			return fieldErr(at+".deps.env."+k, "%q is not a variable name", k)
+		}
+	}
+	if len(r.Check) == 0 {
+		return fieldErr(at+".deps", "no check to run it before; declare check, or remove deps")
 	}
 	return nil
 }

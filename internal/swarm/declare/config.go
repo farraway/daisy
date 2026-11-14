@@ -83,16 +83,30 @@ type Forge struct {
 }
 
 // Repo is one declared repository: the forge repository <owner>/<Name>,
-// declared by Repo, `<owner>/<name>`, with an optional SSHCommand
-// (section 3).
+// declared by Repo, `<owner>/<name>`, with an optional SSHCommand and an
+// optional dependency step run before its check (section 3).
 type Repo struct {
 	Name       string   `json:"name"`
 	Repo       string   `json:"repo,omitempty"`
 	SSHCommand *string  `json:"ssh_command,omitempty"`
 	Check      []string `json:"check"`
+	Deps       *Deps    `json:"deps,omitempty"`
 	Image      string   `json:"image"`
 	Protected  []string `json:"protected"`
 }
+
+// Deps is a repository's dependency step (section 3, repos[].deps): Run,
+// the argv run before each check with the network, writing the swarm's
+// cache for the repository mounted at DepsMount; Env, the variables given
+// to it and to the check, which reads that cache offline.
+type Deps struct {
+	Run []string          `json:"run"`
+	Env map[string]string `json:"env,omitempty"`
+}
+
+// DepsMount is where the dependency step and the check find the cache
+// (section 7.2).
+const DepsMount = "/deps"
 
 // Reference is an outside repository read at a fixed point, as a
 // resource is (section 3, references): its name, its git URL, its pin (a

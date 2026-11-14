@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 )
 
@@ -176,18 +177,18 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 	}
 	block := "**Check:** none declared."
 	if len(repo.Check) > 0 {
-		if _, started := Has(c.lines, "check started"); !started {
-			if err := s.startCheck(c.r, c.lines); err != nil {
+		if step := nextStep(repo, c.lines); step != "" {
+			if err := s.startStep(c.r, c.lines, step); err != nil {
 				return err
 			}
 			if s.live[c.r.Dir] == nil {
-				return s.collect(c.r) // the check could not start: a fault
+				return s.collect(c.r) // the step could not start: a fault
 			}
 			return nil
 		}
-		result, tail, _ := checkResult(s.O.FS(), c.r, c.lines, s.Cfg.Timeout)
+		result, tail, file, _ := checkResult(s.O.FS(), c.r, c.lines, s.Cfg.Timeout)
 		if hit([]byte(strings.Join(tail, "\n")), secrets) {
-			return c.fail("secret in output: check.out")
+			return c.fail("secret in output: " + file)
 		}
 		block = fmt.Sprintf("**Check:** `%s` on %s: %s\n\n```\n%s\n```", shellQuote(repo.Check), short(sha), result, strings.Join(tail, "\n"))
 	}
@@ -242,6 +243,23 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 		return err
 	}
 	return c.end("posted")
+}
+
+// nextStep is the container a worker run's collection starts next
+// (section 7.6, step 4): the dependency step, when the repository
+// declares one and it has not started; else the check, unless it has
+// started or the dependency step failed; "" when there is none to start.
+func nextStep(repo declare.Repo, lines []string) string {
+	_, depsStarted := Has(lines, "deps started")
+	if repo.Deps != nil && !depsStarted {
+		return "deps"
+	}
+	_, checkStarted := Has(lines, "check started")
+	_, depsTimedOut := Has(lines, "deps timeout")
+	if checkStarted || depsTimedOut || depsFailed(lines) != "" {
+		return ""
+	}
+	return "check"
 }
 
 // onPull posts the worker's text as a comment on its open pull request,

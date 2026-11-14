@@ -21,8 +21,8 @@ type Mount struct {
 	ReadOnly bool
 }
 
-// Spec is one container as section 7.2 writes it: a member, or with
-// NoNetwork and no credential, a check.
+// Spec is one container as section 7.2 writes it: a member, or with no
+// credential, a check (NoNetwork) or a dependency step.
 type Spec struct {
 	Name, Label, User string // --name, the daisy.swarm label, --user uid:gid
 	// Credential is a slot's `<provider>/<j>` and Slot its directory,
@@ -33,9 +33,12 @@ type Spec struct {
 	Credential, Slot, Home string
 	EnvVar, EnvValue       string
 	NoNetwork              bool
-	Mounts                 []Mount
-	Workdir, Image         string
-	Argv                   []string
+	// Env is the dependency step's variables, `<name>=<value>` each,
+	// given to it and to the check as one --env each, in order.
+	Env            []string
+	Mounts         []Mount
+	Workdir, Image string
+	Argv           []string
 }
 
 // Args is the `docker` argv, section 7.2's lines in order; it holds no
@@ -54,6 +57,9 @@ func (s Spec) Args() []string {
 		if s.Home != "" {
 			a = append(a, "--env", s.Home+"=/credential")
 		}
+	}
+	for _, e := range s.Env {
+		a = append(a, "--env", e)
 	}
 	for _, m := range s.Mounts {
 		v := "type=bind," + mountField("src", m.Src) + "," + mountField("dst", m.Dst)

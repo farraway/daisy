@@ -42,7 +42,7 @@ func (s *Swarm) collect(r Run) error {
 	if _, done := Has(lines, "collected"); done || Ended(lines) == "" {
 		return nil
 	}
-	if _, pending := checkPending(lines); pending {
+	if step, _ := pending(lines); step != "" {
 		return nil
 	}
 	labelLine, _ := Has(lines, "label")

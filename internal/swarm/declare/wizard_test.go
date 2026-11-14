@@ -185,6 +185,23 @@ func TestWizardKeepsTheFilesXAIForm(t *testing.T) {
 	}
 }
 
+// A file's deps is kept by the wizard, as its check is: neither is asked
+// (section 11).
+func TestWizardKeepsTheFilesDeps(t *testing.T) {
+	_, clone := cloneFolder(t)
+	o, _ := scripted(make([]string, 40)...)
+	file := valid()
+	file.Repos[0].Deps = &Deps{Run: []string{"go", "mod", "download"}, Env: map[string]string{"GOMODCACHE": "/deps/go/mod"}}
+	w := &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
+	c, err := w.Ask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(c.Repos[0].Deps, file.Repos[0].Deps) || c.Repos[1].Deps != nil {
+		t.Errorf("deps %+v, %+v", c.Repos[0].Deps, c.Repos[1].Deps)
+	}
+}
+
 // Every provider with an adapter has a default model and a default
 // credential the validation accepts.
 func TestProviderDefaults(t *testing.T) {

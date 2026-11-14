@@ -67,6 +67,26 @@ func TestArgs(t *testing.T) {
 	if got := check.Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("check:\n got %q\nwant %q", got, want)
 	}
+	// With a dependency step: its container on the default network, the
+	// cache read-write; the check's offline, the cache read-only; both
+	// given the step's environment, one --env each, in order.
+	depsEnv := []string{"GOFLAGS=-modcacherw", "GOMODCACHE=/deps/go/mod"}
+	deps := Spec{Name: "daisy-swarm.acme.app.3.deps.1", Label: "acme/app#3/deps", User: "1000:1000", Env: depsEnv,
+		Mounts: []Mount{{Src: "/s/runs/3-worker-1/check", Dst: "/work", ReadOnly: true}, {Src: "/s/deps/app", Dst: "/deps"}}, Workdir: "/work", Image: "daisy-member-app:2", Argv: []string{"go", "mod", "download"}}
+	want = []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.deps.1", "--label", "daisy.swarm=acme/app#3/deps",
+		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--env", "GOFLAGS=-modcacherw", "--env", "GOMODCACHE=/deps/go/mod",
+		"--mount", "type=bind,src=/s/runs/3-worker-1/check,dst=/work,readonly", "--mount", "type=bind,src=/s/deps/app,dst=/deps", "--workdir", "/work", "daisy-member-app:2", "go", "mod", "download"}
+	if got := deps.Args(); !reflect.DeepEqual(got, want) {
+		t.Errorf("deps:\n got %q\nwant %q", got, want)
+	}
+	check.Env = depsEnv
+	check.Mounts = append(check.Mounts, Mount{Src: "/s/deps/app", Dst: "/deps", ReadOnly: true})
+	want = []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.check.1", "--label", "daisy.swarm=acme/app#3/check",
+		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--network", "none", "--env", "GOFLAGS=-modcacherw", "--env", "GOMODCACHE=/deps/go/mod",
+		"--mount", "type=bind,src=/s/runs/3-worker-1/check,dst=/work", "--mount", "type=bind,src=/s/deps/app,dst=/deps,readonly", "--workdir", "/work", "daisy-member-app:2", "make", "check"}
+	if got := check.Args(); !reflect.DeepEqual(got, want) {
+		t.Errorf("check after deps:\n got %q\nwant %q", got, want)
+	}
 }
 
 // blocked is a process that exits with code when released.

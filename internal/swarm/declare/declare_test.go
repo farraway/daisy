@@ -102,6 +102,12 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: repos[1].name: "-lib" is not a repository name`, func(c *Config) { c.Repos[1].Name = "-lib" }},
 		{`swarm.json: repos[1].name: "app" is listed twice`, func(c *Config) { c.Repos[1].Name, c.Repos[1].Repo = "app", "acme/app" }},
 		{`swarm.json: repos[0].check[1]: empty argument`, func(c *Config) { c.Repos[0].Check = []string{"make", ""} }},
+		{`swarm.json: repos[0].deps.run: no argument (at least one is required)`, func(c *Config) { c.Repos[0].Deps = &Deps{Run: []string{}} }},
+		{`swarm.json: repos[0].deps.run[1]: empty argument`, func(c *Config) { c.Repos[0].Deps = &Deps{Run: []string{"go", ""}} }},
+		{`swarm.json: repos[0].deps.env.GO-FLAGS: "GO-FLAGS" is not a variable name`, func(c *Config) {
+			c.Repos[0].Deps = &Deps{Run: []string{"go", "mod", "download"}, Env: map[string]string{"GOMODCACHE": "/deps/mod", "GO-FLAGS": "-modcacherw"}}
+		}},
+		{`swarm.json: repos[1].deps: no check to run it before; declare check, or remove deps`, func(c *Config) { c.Repos[1].Deps = &Deps{Run: []string{"go", "mod", "download"}} }},
 		{`swarm.json: repos[0].image: empty`, func(c *Config) { c.Repos[0].Image = "" }},
 		{`swarm.json: repos[0].protected[2]: "../ci/" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Protected = []string{"a/", "b", "../ci/"} }},
 		{`swarm.json: repos[0].protected[0]: "" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Protected = []string{""} }},
@@ -210,6 +216,10 @@ func TestParseNamesTheField(t *testing.T) {
 		{`"merge": true`, `"merge": null`, "swarm.json: gates.merge: null is not a boolean"}, // not a gate silently off
 		{`"max_members": 3`, `"max_members": 1e400`, "swarm.json: max_members: cannot unmarshal number 1e400 into Go value of type int"},
 		{`"check": ["make", "check"]`, `"check": null`, "swarm.json: repos[0].check: null is not an array"},
+		{`"check": ["make", "check"],`, `"check": ["make", "check"], "deps": {"env": {}},`, "swarm.json: repos[0].deps.run: missing"},
+		{`"check": ["make", "check"],`, `"check": ["make", "check"], "deps": {"run": ["go"], "cache": "/c"},`, "swarm.json: repos[0].deps.cache: unknown field"},
+		{`"check": ["make", "check"],`, `"check": ["make", "check"], "deps": ["go"],`, "swarm.json: repos[0].deps: not an object"},
+		{`"check": ["make", "check"],`, `"check": ["make", "check"], "deps": {"run": ["go"], "env": {"A": 1}},`, "swarm.json: repos[0].deps.env.A: cannot unmarshal number into Go value of type string"},
 		// The old layout's fields, retired (revision 6's plan, Step 7).
 		{`"repo": "acme/lib",`, `"repo": "acme/lib", "path": "lib",`, "swarm.json: repos[1].path: unknown field"},
 		{`"resources": ["docs/"],`, `"resources": ["docs/"], "wiki": true,`, "swarm.json: wiki: unknown field"},
@@ -291,6 +301,35 @@ func TestFormatKeepsBudgetAndBoard(t *testing.T) {
 	}
 	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
 		t.Errorf("round trip: %v", err)
+	}
+}
+
+// A repository's deps is written on its line after check, its env's
+// names in order, and read back; with none the line is as before
+// (section 3).
+func TestFormatDeps(t *testing.T) {
+	c := valid()
+	c.Repos[0].Deps = &Deps{Run: []string{"sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"}, Env: map[string]string{"GOMODCACHE": "/deps/go/mod", "GOFLAGS": "-modcacherw"}}
+	c.Repos[1].Check = []string{"make"}
+	c.Repos[1].Deps = &Deps{Run: []string{"npm", "ci"}}
+	out := string(Format(c))
+	for _, want := range []string{
+		`"check": ["make", "check"], "deps": {"run": ["sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"], "env": {"GOFLAGS": "-modcacherw", "GOMODCACHE": "/deps/go/mod"}}, "image": `,
+		`"check": ["make"], "deps": {"run": ["npm", "ci"]}, "image": `,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Format lacks %q:\n%s", want, out)
+		}
+	}
+	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("round trip: %v", err)
+	}
+	_, clone := cloneFolder(t)
+	if err := Validate(ops.Real(), Clone(clone), c, 0); err != nil {
+		t.Errorf("valid deps: %v", err)
+	}
+	if strings.Contains(string(Format(valid())), "deps") {
+		t.Errorf("deps written with none:\n%s", Format(valid()))
 	}
 }
 

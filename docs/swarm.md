@@ -113,7 +113,11 @@ Step 1 of the plan for the inbox requests F27–F35 (2026-11-14) amended
 sections 5, 6, 10, 11 and 12: a merge reads the approved head's checks
 first, a failed one sending the issue back to the worker (T26) and a
 pending one, or none while `base` requires them, waiting for the next
-pass (item 121).
+pass (item 121). Its Step 2 (2026-11-14) amended sections 2, 3, 7.1–7.3,
+7.6, 7.7 and 11: a repository's optional `deps`, a dependency step run
+before each of its checks with the network, writing the swarm's cache
+for the repository, which the check then reads offline; a step that
+fails is the check's result, named as the dependency step's (item 122).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -387,6 +391,7 @@ Stages of a software factory the version leaves out, each by choice:
 ├── journal                          # the journal lines not yet pushed (7.6, The run's record)
 ├── git/<name>/                      # bare mirror of each declared repository, and git/<repo>/ of the swarm repository: the only repositories host-side git writes, but for the notes' clone (and the clone, at `init`)
 ├── references/<ref>/                # bare mirror of each reference, holding its pin (section 3)
+├── deps/<name>/                     # with a repository's deps, the swarm's dependency cache for it: written by its dependency steps, read by its checks (section 7.2)
 ├── notes/                           # the host's clone of the swarm repository, for the notes (with `notes`) and the journal: never mounted (section 7.1)
 └── runs/<n>-<role>-<k>/             # one role run, kept for audit (the owner's batch run is <n> = 0)
     ├── argv                         # the `docker run` argv, one argument per line (no secret in it)
@@ -397,6 +402,7 @@ Stages of a software factory the version leaves out, each by choice:
     ├── stdout, stderr               # the provider CLI's raw output
     ├── result                       # how the run ended, what it cost and what was posted (below)
     ├── check.out                    # a worker run's check output (section 7.6)
+    ├── deps.out                     # with its repository's deps, the dependency step's output (section 7.6)
     ├── check/                       # the check's clone of the fetched head; removed once collected
     ├── work/                        # the member's clone; removed once the run is collected
     ├── resources/                   # the run's checkout of its resources at the pass's commits, mounted read-only at /work/.resources; removed once collected
@@ -432,10 +438,12 @@ Every file Daisy writes, and nothing else:
 | `<run>/io/out.md` | the member's output | the member (in the container) | during the run |
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
-| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
+| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
 | `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names; created with its header when absent | `swarm apply` (under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | at each run's collection, when `<state>/home` names a usable home |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
-| `<run>/check/` | a clone of the fetched head for the check | `swarm apply` (`git clone` from `<state>/git/<name>`), then the check | before the check; removed when the run is collected |
+| `<run>/deps.out` | with the repository's `deps` (section 3), the dependency step's standard output and error, as written | `swarm apply` | when the dependency step ends |
+| `<run>/check/` | a clone of the fetched head for the dependency step and the check | `swarm apply` (`git clone` from `<state>/git/<name>`), then the check | before the dependency step and again before the check; removed when the run is collected |
+| `<state>/deps/<name>/` | with the repository's `deps`, the swarm's dependency cache for it: what its dependency steps fetched (section 7.2) | `swarm apply` (the directory), then each dependency step | made before its first dependency step; kept: pruning it is the maintainer's |
 | `<run>/resources/` | per resource, its checkout at the pass's commit, `<run>/resources/<repository>/<path>` (7.1, step 3) | `swarm apply` (`git archive`, extracted) | before the launch; removed when the run is collected or abandoned |
 | `<run>/work/` | the clone the member works in (the owner's and the architect's: a directory of clones, `<name>/` per declared repository) | `swarm apply` (`git clone` from `<state>/git/<name>`), then the member | before the launch; removed when the run is collected or abandoned, a directory the member left unreadable given the owner's rights first (7.6) |
 | `<run>/notes/` | with `notes`, a copy of `<state>/notes`'s `notes/` directory (empty when it has none, or when it is not a directory); as the pass fetched them, without `.git` | `swarm apply` (the copy), then the owner's and the architect's member (notes) | before the launch; removed when the run is collected or abandoned, but kept when its notes were not pushed (`notes kept`, 7.6) |
@@ -536,7 +544,8 @@ per level, each repository and each persona on one line; `owner`, `resources`,
 `trusted`, `gates`, `budget` and `keys` on one line each. A job across a
 product and its library declares both, the product first:
 `{"name": "<lib>", "repo": "<owner>/<lib>", …}` is a second line of `repos`;
-a repository entry's `ssh_command`, when present, comes after `repo`.
+a repository entry's `ssh_command`, when present, comes after `repo`,
+and its `deps`, when present, after `check`, on the same line.
 `budget` comes after `gates` when present; `init --defaults` writes none,
 since every gate is on. `references`, then `notes`, come
 after `resources`, in that order, `references` written only when it
@@ -566,12 +575,13 @@ yet or not (Step 6 of revision 6's plan; section 14, item 109).
 | `repos[].repo` | string | as found (question 1: a clone's `origin`'s `<owner>/<repo>`) | `<owner>/<name>`, `<owner>` `forge.repo`'s (section 14, item 7) and `<name>` the entry's `name`: the repository on the forge where its branches are pushed and its pull requests opened, reached at `<url>`, the swarm repository's clone's `origin` URL with its last path element, `<repo>[.git]`, replaced by `<name>.git` (7.1, step 1; every declared repository lies on the swarm repository's forge, beside it) |
 | `repos[].ssh_command` | string | absent; the clone's `core.sshCommand` when question 1 found the repository's clone and it sets one | optional; non-empty, one line; recorded as `core.sshCommand` in its mirror's config (7.1, step 1), where every host git command that reaches the repository reads it (an identity's key); absent, git's own SSH command (the mirror's `core.sshCommand` unset) |
 | `repos[].check` | array of strings | `[]` | the repository's own checks as one argv (`["make", "check"]`), each element non-empty; named in the worker's and reviewers' Task texts and run by Daisy after each worker run (7.6); `[]` means none, which `init` warns about |
+| `repos[].deps` | object | absent (`init` writes none, and keeps the file's, as it keeps `check`) | optional; the repository's dependency step, `{"run": [<argument>, …], "env": {"<VAR>": "<value>", …}}`, exactly these fields, `env` optional: `run` one argv, each element non-empty, run by Daisy before each check of the repository (7.6, step 4), in a container of its `image` on Docker's default network, the head's clone read-only at `/work` and the swarm's dependency cache for the repository, `<state>/deps/<name>`, read-write at `/deps`; the check then runs offline with that cache read-only at `/deps` (7.2). `env`, each name a variable name (`^[A-Za-z_][A-Za-z0-9_]*$`), each value as written, is given to both, so that the tool writes its cache under `/deps` in the one and reads it there in the other; Daisy names no tool. A repository with `deps` declares `check`, which it runs before. A step that fails or times out is the check's result, named as the dependency step's (7.6). The worker's container gets neither the cache nor `env`: it is on the default network and fetches what it needs itself (7.2; section 14, item 122). For Go: `{"run": ["sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"], "env": {"GOFLAGS": "-modcacherw", "GOMODCACHE": "/deps/go/mod"}}` (`-modcacherw` leaves the cache's files writable by their owner, so the maintainer can delete it with `rm -rf`). Two dependency steps of one repository may run at once (two workers' checks): Go's module cache is safe for that (the go command takes a lock file per module version, and extracts it behind a `.partial` mark readers skip); a tool whose cache is not serializes its own `run`, e.g. under `flock /deps/.lock` |
 | `repos[].image` | string | `daisy-member:1` | non-empty; a local image (`docker run --pull never`): the base image, or a product image built `FROM` it (section 7.2) |
 | `repos[].protected` | array of strings | `[".github/", ".gitea/", ".forgejo/", ".claude/", ".grok/", "AGENTS.md", "CLAUDE.md"]`: the forges' workflows, and the settings, hooks and instructions a member's CLI loads from the repository (`.claude/` and `.grok/` since Step 35 of the swarm build, section 14, item 96; `init` keeps an existing entry's list) | path patterns in the repository a worker's change may not touch (7.6): an entry ending `/` matches every path under that directory; an entry without `/` matches a path whose last element it matches (`path.Match`), at any depth; any other entry matches the whole path (`path.Match`); each non-empty, relative, without `..`; `[]` protects nothing |
 | `base` | string | `main` | a branch name: `^[A-Za-z0-9._][A-Za-z0-9._/-]*$`, no `..`, not ending in `/` or `.lock`; the branch pull requests target and new slices start from (it need not be the forge's default branch: nothing closes on a merge, section 12) |
 | `max_members` | integer | 3 | 1 to 16: containers of this swarm (`<owner>/<repo>`) running at once |
 | `max_rounds` | integer | 5 | 1 to 10: review rounds of one pull request, counted since its accepted plan (section 6), before the pair's request for changes returns the issue to the architect, and the second time blocks it (T11, section 5); Step 1 built the default as 3, and Step 4 of the swarm build changed it to 5 (section 14, item 55) |
-| `timeout` | string | `45m` | a Go duration, 1m to 24h: one run's wall clock, and its check's |
+| `timeout` | string | `45m` | a Go duration, 1m to 24h: one run's wall clock, and its check's, and its dependency step's |
 | `interval` | string | `5m` | a Go duration, 1m to 24h: between the starts of `apply`'s passes without `--once` (the loop the unit runs, section 11), read again before each pass; and the unit's restart delay |
 | `owner.max_open_proposals` | integer | 5 | 1 to 20: the most issues one batch run creates, and the most open issues the batch tops up to: with the triage gate off, those at `proposal-posted` and `proposal-accepted`; on, the routine jobs Daisy triaged that are still at `proposal-accepted` (section 6) |
 | `resources` | array of strings | `["briefs/", "docs/"]`, the directories `init` seeds | each either `<path>`, a path in the swarm repository, or `<name>:<path>`, a path in the declared repository `<name>`; `<path>` relative, without `..` and not the whole repository (`.`); no two the same; read at the pass's commit, the swarm repository's default branch or the declared repository's `<base>` as the pass fetched it (7.1, step 1), never from a working tree: checked out into each run and mounted, read-only, at `/work/.resources/<repository>/<path>` (`<repository>` the swarm repository's `<repo>` or `<name>`; 7.1, step 3), where it must exist and neither be nor contain `.env.sh` or `.daisy`, and, in the swarm repository, not be or lie under `journal/` (the journal, Daisy's record for the maintainer, which no member reads: 7.6, The run's record) (a link inside it is checked out as a link, which resolves inside the container, where its target is absent); the briefs the maintainer writes live here (section 4) |
@@ -650,6 +660,7 @@ failure is reported and the verb exits 1; the message is
 | a resource refused | `swarm.json: resources[1]: "." <reason>` (`is not a relative path`, `is the whole repository`, `names no declared repository` (a `<name>:` prefix), `is the swarm's journal, which no member reads` (a swarm repository path at or under `journal/`), `is listed twice`); at the launch, read at the pass's commit (7.1, step 3): `does not exist at <short sha>` (`does not exist: <repository> has no commit fetched` when the mirror holds none), `contains .env.sh`, `contains .daisy` |
 | a reference refused | `swarm.json: references[0].name: "<value>" is not a repository name` (also `is listed twice`, `is a declared repository`, `is the swarm repository`); `swarm.json: references[0].url: "<value>" is not a git URL` (also `carries user information`); `swarm.json: references[0].pin: "<value>" is not a commit or a tag`; `swarm.json: references[0].paths: no path (at least one is required)`; `swarm.json: references[0].paths[1]: "<value>" <reason>` (as a resource's); at the launch, `references[0]: pin <pin> not found at <url>: <git's error>` and a path's `does not exist at <pin>` |
 | an empty `check` element | `swarm.json: repos[0].check[0]: empty argument` |
+| a dependency step refused | `swarm.json: repos[0].deps.run: no argument (at least one is required)`, `swarm.json: repos[0].deps.run[1]: empty argument`, `swarm.json: repos[0].deps.env.GO-FLAGS: "GO-FLAGS" is not a variable name`, `swarm.json: repos[1].deps: no check to run it before; declare check, or remove deps` (`deps` with `check` `[]`) |
 | a protected pattern refused | `swarm.json: repos[0].protected[2]: "<value>" is not a relative pattern without ..` (also when empty) |
 | `trusted` empty, or a login refused | `swarm.json: trusted: no login (at least one is required)`, `swarm.json: trusted[0]: "<value>" is not a forge login` |
 | a gate off without a budget | `swarm.json: budget: missing (required when a gate is false)` |
@@ -1670,6 +1681,15 @@ On the host, in order, before `docker run`:
    refused write is the pass's error, the container left running: its
    collection moves the issue on from the stage it was launched on.
 
+**No dependency step before a member.** A repository's `deps` (section
+3) runs before its checks only (7.6, step 4), never before a member's
+run, and no member is given the dependency cache or `deps`' `env`: a
+member's container is on Docker's default network (7.2), so a worker
+fetches what its change needs itself, as before `deps` existed; the
+cache read-only would refuse the worker's own fetch of a new dependency
+(Go's `go get` writes the module cache), and read-write would let a
+member write what other jobs' checks read (section 14, item 122).
+
 After the container starts, host-side git never runs inside
 `<run>/work`: the member controls its `.git` (hooks, config), so the only
 git command that reads it is a `fetch` from it into the mirror (7.6), and
@@ -1718,28 +1738,55 @@ docker run --rm --pull never
   --security-opt no-new-privileges
   --stop-timeout 30
   --network none
+  --env <VAR>=<value>                                     (deps)
   --mount type=bind,src=<run>/check,dst=/work
+  --mount type=bind,src=<state>/deps/<name>,dst=/deps,readonly  (deps)
   --workdir /work
   <image>
   <check>
 ```
+
+Its dependency step, before it, with the repository's `deps` (section 3;
+7.6, step 4):
+
+```
+docker run --rm --pull never
+  --name daisy-swarm.<owner>.<repo>.<n>.deps.<k>
+  --label daisy.swarm=<owner>/<repo>#<n>/deps
+  --user <uid>:<gid>
+  --security-opt no-new-privileges
+  --stop-timeout 30
+  --env <VAR>=<value>
+  --mount type=bind,src=<run>/check,dst=/work,readonly
+  --mount type=bind,src=<state>/deps/<name>,dst=/deps
+  --workdir /work
+  <image>
+  <deps' run>
+```
+
+The lines marked `(deps)` are the check's when its repository declares
+`deps`; `--env` is one line per `env` name, in name order, none when
+`env` names none. Without `deps` the check's argv is as it was before
+`deps` existed, byte for byte.
 
 | Argument | Rule |
 |---|---|
 | `--rm` | no container, and so no volume, survives the run |
 | `--pull never` | the image is local; a missing image fails the run (exit 125, a swarm fault) instead of pulling a public image of the same name |
 | `--name` | unique per run; `apply` stops the container by it at the wall clock |
-| `--label` | the running set: `docker ps --filter label=daisy.swarm` is what rule 2, `max_members` and `status` read; a check counts in it |
+| `--label` | the running set: `docker ps --filter label=daisy.swarm` is what rule 2, `max_members` and `status` read; a check and a dependency step count in it |
 | `--user` | the host user's uid and gid (`id -u`, `id -g`, read once per `apply`), so the bind-mounted files stay the host user's and the member is never root. Confirmed at Step 39 for a uid the image's passwd holds (checklist item 6: uid 1000, the image's `node`; `HOME` `/home/member`; both CLIs ran and workers committed). A uid with no passwd entry gets one from the entrypoint (below), *to confirm at Step 28* (Step 39's host uid was `node`'s) |
 | `--security-opt no-new-privileges` | no process in the container gains privileges through a setuid binary, so the passwd file the entrypoint may write (below) cannot make a member root |
 | `--stop-timeout 30` | the grace between `docker stop`'s signal and its kill; the wall clock itself is `timeout`, enforced by `apply` (below) |
 | `--env-file /dev/stdin` | an `env` credential only: the member's one environment variable, read by the docker CLI from its standard input, which `apply` writes as the single line `<VAR>=<value>` and closes; `<VAR>` is the variable `keys` names, one of the provider's (section 9). The value is never on an argv nor in any file Daisy writes. Confirmed at Step 39 for every `claude` run (checklist item 7: `CLAUDE_CODE_OAUTH_TOKEN` piped on stdin, never on an argv). Docker itself keeps the value in the container's configuration (`docker inspect`) for the container's life, which `--rm` ends: *to confirm at Step 28*, since Step 39 audited neither `docker inspect` nor `ps` during a run (item 7). The check has no `--env-file`: it holds no credential |
 | `daisy.credential`, `/credential`, `--env <home>=/credential` | a `slots` credential only, and then no `--env-file`: `<slot>`, the directory itself, read-write (never a copy, so a refresh the CLI writes is the slot's own, whether it rewrites `auth.json` in place or replaces it by a rename), mounted at `/credential` and named the CLI's home by the one `--env`, a variable name and a fixed path, no secret (section 14, item 85); the label marks the slot busy for every `apply` on the machine (section 6, rule 4) |
-| `--network none` | the check reaches no network; a product whose check needs one bakes what it fetches into its image (below) |
-| `/work` | the member's clone, read-write for every role: a reviewer's clone is a throwaway that is never fetched or pushed, so it may build and test there; for the owner and the architect, a directory holding a throwaway clone of each declared repository at `/work/<name>`; for the check, a fresh clone of the fetched head |
-| `<image>` | the run's repository's `image` (7.1 step 3) for the worker, the reviewers and the check; the first repository's for the owner and the architect |
+| `--network none` | the check reaches no network. Exactly the members and the dependency step, neither of which has `--network`, are on Docker's default bridge: the CLIs reach their APIs, and the dependency step fetches the head's dependencies into the cache. A product whose check needs dependencies declares `deps` (section 3), or bakes them into its image (below) |
+| `--env <VAR>=<value>` | the dependency step's and, with `deps`, the check's: each `deps.env` entry as `swarm.json` writes it (no secret: the file is the swarm repository's); never a member's |
+| `/deps` | with `deps`, `<state>/deps/<name>`, the swarm's dependency cache for the declared repository `<name>`: read-write for its dependency step, read-only for its check; none for a member, and none without `deps`. A directory on the host, made by `apply` when absent and owned by the host user, bind-mounted: a Docker volume new to a container is root's, which `--user` could not write (request F28's failure again; section 14, item 122). Kept from run to run, so each step fetches only what is new; pruning it is the maintainer's (`rm -rf <state>/deps/<name>`) |
+| `/work` | the member's clone, read-write for every role: a reviewer's clone is a throwaway that is never fetched or pushed, so it may build and test there; for the owner and the architect, a directory holding a throwaway clone of each declared repository at `/work/<name>`; for the check, a fresh clone of the fetched head; for the dependency step, such a clone, read-only, so that the step writes the cache alone |
+| `<image>` | the run's repository's `image` (7.1 step 3) for the worker, the reviewers, the dependency step and the check; the first repository's for the owner and the architect |
 | `/work/.swarm` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out, and `exit` |
-| `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's exit status to `/work/.swarm/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*). A container killed outright (a reboot, `docker stop`'s kill) writes none. The check runs its argv as it is |
+| `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's exit status to `/work/.swarm/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*). A container killed outright (a reboot, `docker stop`'s kill) writes none. The check and the dependency step run their argv as it is |
 | `/work/.notes` | with `notes`, `<run>/notes`, the run's copy of the research notes, the swarm repository's `notes/` directory (7.1, step 2): read-write for the owner and the architect, whose changes Daisy pushes after the run (7.6, The notes), and given to their CLI as a directory beside its workdir when that is `/work/<name>`; read-only for the worker and the reviewers, inside their clone, whose `.git/info/exclude` names it; none for the check |
 | `/work/.resources` | `<run>/resources`, read-only: each resource at `/work/.resources/<repository>/<path>`, checked out at the pass's commit (7.1, step 3: one the commit does not hold is *resource refused*, 7.7), never a working tree; none when `resources` and `references` name nothing; none for the check. Under `/work`, so a CLI confined to its working directory reaches it (section 9, `grok`); its mount point is made in `<run>/work` before the launch, as `.notes` is, so Docker makes none there, and a clone's `.git/info/exclude` names `/.resources/` (7.1, step 3) |
 | `--workdir <W>`, `--workdir /work` | the CLIs start in the run's clone, `<W>`: `/work`, and for the owner and the architect the first repository's clone `/work/<name>`, so the CLI reads the product's instructions from its tree, unless their provider is confined to its working directory (section 9's `Confined`, `xai`): then `/work`, which holds every clone, `/work/.swarm`, the notes and the resources, and the prompt's `# Repository` names `/work/<first name>` as the repository (7.3); the check starts in its clone, `/work` |
@@ -1753,17 +1800,18 @@ host home directory (the host's `~/.codex` is never a slot), no
 working tree of any repository (the swarm repository's clone included),
 no `<state>/env`, no SSH agent, no port. The member's
 network is Docker's default bridge (the CLIs reach their APIs; egress
-filtering is deferred).
+filtering is deferred), and so is the dependency step's; the check
+alone has none.
 
 **The entrypoint**, `images/member/entrypoint.sh`, runs before every
-member and check: it sets `HOME` to `/home/member` (writable by any uid,
+member, dependency step and check: it sets `HOME` to `/home/member` (writable by any uid,
 gone with the container), adds a passwd entry when the uid has none, sets
 a fallback git identity (the clone's role identity of 7.1 overrides it),
 and execs the argv it is given as the container's first process: for a
 member the `sh` that runs the provider's argv and writes its exit status
 (above; `sh`, as the first process, ignores `docker stop`'s signal, so a
-stopped member is killed after the 30 seconds), for the check the
-check's argv. It holds no credential logic: a slot's home variable is
+stopped member is killed after the 30 seconds), for the check and the
+dependency step their argv. It holds no credential logic: a slot's home variable is
 `docker run`'s `--env` (above), so a new provider's slot needs no image
 change; an image built before Step 24 of the swarm build also sets
 `CODEX_HOME=/credential` from its entrypoint whenever a slot is mounted,
@@ -1775,9 +1823,12 @@ a *base*: the three provider CLIs, git and the entrypoint (`claude` and `codex` 
 the versions the build names, `grok` the vendor's static binary at the version and checksum the
 Dockerfile pins). A product's image is built by the
 maintainer from a Dockerfile kept with the product that starts
-`FROM daisy-member:1` and adds the product's toolchain and a warmed
-dependency cache, so that the worker can run `check` and the check, which
-has no network, can run; it is tagged by the maintainer
+`FROM daisy-member:1` and adds the product's toolchain, so that the worker
+can run `check`, and what the check, which has no network, needs to run:
+the repository's `deps` (section 3), which fetches each head's
+dependencies into the swarm's cache before its check, or a warmed
+dependency cache in the image, rebuilt for each new dependency (request
+F30's six rebuilds); it is tagged by the maintainer
 (`daisy-member-<name>:<version>` is the suggested name) and named in
 the repository's `image`. `swarm init` cannot know a product's toolchain, so its default is
 the base. Step 39 built the first product image by hand, over a base
@@ -1789,7 +1840,8 @@ timer of `timeout`; when it fires, `apply` runs
 `docker stop --time 30 <name>` and the run (or its check) is a timeout
 whatever it exits with. The container's standard output and error are
 copied to `<run>/stdout` and `<run>/stderr` (the check's to
-`<run>/check.out`) when it ends.
+`<run>/check.out`, the dependency step's to `<run>/deps.out`) when it
+ends.
 
 ### 7.3 The prompt files
 
@@ -2046,8 +2098,11 @@ Which sections a prompt holds, by role:
   another head, `answered without a commit` when it is on the same one.
 - **`# Check`** is the check of the worker run that pushed the current
   head (the run whose `<run>/result` has `pushed <head>`): one line, exit
-  code or `timeout after <timeout>`, then the last 20 lines of
-  `<run>/check.out` indented by four spaces; `No check result for this
+  code or `timeout after <timeout>`, or the dependency step's failure,
+  `dependency step exited <code>; the check did not run` (`dependency
+  step timed out after <timeout>; …`, 7.6 step 4), then the last 20
+  lines of `<run>/check.out` (of `<run>/deps.out` for the dependency
+  step's failure) indented by four spaces; `No check result for this
   head.` when no such run exists (the maintainer pushed it), and
   `No check is declared.` when `check` is `[]`.
 
@@ -2256,9 +2311,10 @@ stand), and held in memory only (a collection retried
 by another `apply` reads the slot as it is then). `apply` searches
 `<run>/io/out.md` for each as an exact byte string, and for a worker run
 the fetched commits (step 3 below) and, before its post, the check
-block's last 20 lines of `check.out`. A hit is the failure *secret in
-output* (7.7): nothing is posted or pushed, and the note names where
-(`out.md`, the commits, or `check.out`), never the value.
+block's last 20 lines of `check.out` (or `deps.out`, step 4). A hit is
+the failure *secret in output* (7.7): nothing is posted or pushed, and
+the note names where (`out.md`, the commits, `check.out` or
+`deps.out`), never the value.
 
 **A worker run, before posting.** After every worker run whose container
 ran, whatever its end:
@@ -2335,10 +2391,22 @@ ran, whatever its end:
    `.git/FETCH_HEAD` removed as in 7.1 step 3; then the check container
    (7.2) is started (`check started <time>`), and the collection resumes
    at a later pass once it has exited (`check exited <code> <time>`, or
-   `check timeout <time>` at the wall clock). A check that cannot start
-   is a swarm fault (7.7); a check started with no end line and no
-   container (its `apply` died) is started again. A failing check is not
-   a failure: its result is posted and is the reviewers' input.
+   `check timeout <time>` at the wall clock). **With the repository's
+   `deps`** (section 3), the dependency step comes first: on such a
+   clone, `<state>/deps/<name>` made when absent, its container (7.2) is
+   started (`deps started <time>`) and the collection resumes once it
+   has ended (`deps exited <code> <time>`, or `deps timeout <time>`);
+   exited 0, the check follows on a clone made again as above; exited
+   otherwise or timed out, no check runs, and the dependency step's
+   result is the check's: the check block reads ``dependency step exited
+   <code>; the check did not run`` (or ``dependency step timed out after
+   <timeout>; the check did not run``) with the tail of `<run>/deps.out`,
+   so the reviewers and the maintainer tell dependencies that could not
+   be fetched from a test that failed (request F28). A dependency step
+   or check that cannot start is a swarm fault (7.7); one started with no
+   end line and no container (its `apply` died) is started again. A
+   failing check, or dependency step, is not a failure: its result is
+   posted and is the reviewers' input.
 5. **The push**: `git -C <state>/git/<name> push --porcelain origin refs/swarm-runs/<n>-worker-<k>:refs/heads/swarm/<n>-<s>`, the URL and SSH command its config records (7.1, step 1)
    (never forced; a rejection, a ref the porcelain marks `!`, is the
    failure *push rejected*; a push that does not reach the forge is a git
@@ -2417,8 +2485,9 @@ The worker's posted text is its marked text, its trailing line breaks
 (`\n` and `\r`, so a CRLF end goes whole) dropped and cut to leave
 room for the block (7.5), then one blank line and the check block:
 `**Check:**`, the check's argv and the short head, `exit <code>`
-or `timeout after <timeout>`, and the last 20 lines of
-`<run>/check.out` in a fenced block (or `**Check:** none declared.`); as
+or `timeout after <timeout>` (or the dependency step's failure, step
+4), and the last 20 lines of `<run>/check.out` (`<run>/deps.out` for
+the dependency step's failure) in a fenced block (or `**Check:** none declared.`); as
 built, ``**Check:** `<check>` on <short sha>: exit <code>``, a blank
 line, and the fenced tail.
 
@@ -2567,8 +2636,9 @@ relabel and what it names.
 | clone failed | fault | 7.1 step 3: the clone from the mirror, the worker's `checkout -b` or a step of the clone's preparation fails (a branch gone from the mirror, say, or a mount point, `<run>/work/.swarm`, `.notes` or `.resources`, that the product's own tree holds as a file) | `launch-failed <time>`, `fault: clone: <git's error>` (a mount point's: `fault: clone: mkdir <path>: <error>`) | none, as a launch that fails |
 | slot refused | fault | 7.1 step 4: `<slot>/auth.json` is not a regular file, or the slot has no login (absent or empty) | `launch-failed <time>`, `fault: slot <provider>/<j>: auth.json is not a regular file` or `fault: slot <provider>/<j>: no login; run '<login>'` (section 3, Secret values: `CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, `GROK_HOME=<slot> grok login --device-auth`) | none, as a launch that fails |
 | provider authentication or quota | fault | `Report.Fault` (section 9): `claude`'s JSON result with `is_error` true, or an error event in `codex`'s stream, whose message names authentication, a quota or a rate limit. The fields and messages are *to confirm at Step 28*: Step 39 met no such error (checklist item 2) | `exited <code> <time>`, `fault: provider: <message>` | T22 only |
-| the wait fails | fault | waiting on a started container returns an error | `exited -1 <time>`, `fault: wait: <error>` (a check's: `fault: check: wait: <error>`) | T22 only |
-| check cannot start | fault | the check container's launch fails or exits 125–127 | `fault: check: <error>` | T22 only |
+| the wait fails | fault | waiting on a started container returns an error | `exited -1 <time>`, `fault: wait: <error>` (a check's: `fault: check: wait: <error>`; a dependency step's: `fault: deps: wait: <error>`) | T22 only |
+| check cannot start | fault | the check container's launch fails or exits 125–127 | `fault: check: <error>` (`fault: check: exit <code>`) | T22 only |
+| dependency step cannot start | fault | the dependency step's launch fails or exits 125–127 (a missing image; a `run` whose command the image lacks, 127), or its repository no longer declares `deps` when it is started again | `fault: deps: <error>` (`fault: deps: exit <code>`, `fault: deps: <name> declares no deps`) | T22 only |
 | timeout | work | the wall clock fires (`docker stop` sent) | `timeout <time>`, `failed: timeout after <timeout>` | T17: reconciler note, T22, `Relabel(n, "", "swarm:blocked")` |
 | non-zero exit | work | any other non-zero exit status of `docker run` | `exited <code> <time>`, `failed: exit <code>` | T17 |
 | no output | work | 7.5 | `failed: no output` | T17 |
@@ -2576,7 +2646,7 @@ relabel and what it names.
 | bad slices (architect; a worker whose slice's repository no longer resolves, or whose continued pull request's repository the revised plan no longer names) | work | 7.5; 7.1 step 2, before the launch (`launch-failed <time>`) | `failed: bad slices: <slice numbers>` | T17, the note naming the slices |
 | no commits (worker, but for the answer without a commit, 7.5) | work | 7.6 | `failed: no commits` | T17 |
 | protected path changed (worker) | work | 7.6 | `failed: protected path changed: <paths>` | T17, the note naming the paths |
-| secret in output | work | 7.6, the secret check: `out.md`, a worker's commits or the posted tail of `check.out` holds a secret the member was given | `failed: secret in output: <out.md, commits and/or check.out>` | T17, the note naming where, never the value; nothing posted or pushed |
+| secret in output | work | 7.6, the secret check: `out.md`, a worker's commits or the posted tail of `check.out` or `deps.out` holds a secret the member was given | `failed: secret in output: <out.md, commits, check.out or deps.out>` | T17, the note naming where, never the value; nothing posted or pushed |
 | push rejected (worker) | work | 7.6 | `failed: push rejected` | T17 |
 | the clone reaches outside itself (worker) | work | 7.6 | `failed: the clone reaches outside itself: <what>` | T17 |
 | fetch failed (worker) | work | 7.6, step 1: the run's second failed fetch in a row from its clone, whatever the run's end (a fault too); the first is the pass's error, retried | `fetch failed: <error>` for each, then `failed: fetch: <error>` (the second's), unless the run failed already | T17, the note naming the error; a run that failed already names its own failure, then `Its commits could not be fetched from its clone: <error>.` |
@@ -2584,6 +2654,7 @@ relabel and what it names.
 | ended | — | a pass finds a run not its own with `started`, no end line, no container by the run's name and a `<run>/io/exit` that is a regular file holding a number (a run launched before the mark: a `<run>/io/out.md` that is a regular file): its member finished after the `apply` that started it died, whose `docker run` took the streams with it | `ended <time>`, with the status `exit` holds read as `docker run`'s (125–127 `fault: exit <code>`, any other non-zero `failed: exit <code>`), then the collection of 7.6 from `out.md`: no `cost` line, and a provider's fault the lost standard output reported is not seen | as the run's collection (posted, blocked, failed, stale or discarded) |
 | orphan over time | — | a pass finds a container by the run's name, the run not its own, `started` more than `timeout` ago | `docker stop --time 30 <name>` sent; then abandoned as above, whatever `out.md` holds | as abandoned |
 | orphan check over time | — | a pass finds a container named `daisy-swarm.<owner>.<repo>.<n>.check.<k>`, the run not its own, its `check started` more than `timeout` ago | `docker stop --time 30 <name>` sent; `check timeout <time>`; the collection then proceeds as after any check (7.6) | as the run's collection |
+| orphan dependency step over time | — | as an orphan check, the container `daisy-swarm.<owner>.<repo>.<n>.deps.<k>` and its `deps started` | `docker stop --time 30 <name>` sent; `deps timeout <time>`; the collection then proceeds as after a dependency step that timed out (7.6, step 4) | as the run's collection |
 | stale (reviewer) | — | 7.6: the pull request's head moved during the run | `stale <sha>`, `outcome stale`, `collected` | T22 only; relaunched on the new head |
 | discarded | — | 7.6: the issue was closed, or the run's pull request is no longer open | `outcome discarded`, `collected` | T22 only, when the pull request closed; none for a closed issue |
 | the batch run, any work failure above, or *proposed nothing* | work | as above | as above | none: `<state>/owner-held` written |
@@ -3656,8 +3727,8 @@ any folder's), each one's `origin` and `core.sshCommand`.
 | 35 | `Research notes, in <owner>/<repo>'s notes/ (yes, no) [<d>]: ` (Step 23 of the swarm build) | `yes` when the file's `notes` is `true`, else `no` (section 3); the answer sets `notes`; `init` seeds the `README.md` in `notes/` either way (section 2) |
 
 `trusted` is written as the answer to question 33 followed by the swarm's
-login from `Login()`. `owner.max_open_proposals`, each repository's `check`
-and `protected`, `gates`, `budget` and `forge.board` are not asked: they keep the existing file's values
+login from `Login()`. `owner.max_open_proposals`, each repository's `check`,
+`deps` and `protected`, `gates`, `budget` and `forge.board` are not asked: they keep the existing file's values
 or section 3's defaults, and are edited in the file. Nor is `keys`, which
 keeps the file's keys and adds, for a provider the answers give a persona
 and no key names, that provider's default (section 3). So the wizard offers
@@ -3780,7 +3851,7 @@ clears the Deferred list, 2026-11-12; section 14, item 117).*
 | Without `--once` | the loop the unit runs: a pass every `interval`, start to start, whatever runs: a pass waits for none of its members, and each run is collected by the first pass after it ends (a worker run's check started there and collected by a later pass in turn); until SIGINT or SIGTERM: then no launch, its running members and checks collected as they exit (a worker run's check started for it, as its collection needs), exit 0; a second signal, during the pass the first ended or while the loop collects, exits at once (130), leaving its members to finish and be collected by a later `apply` from their `out.md` (7.7, *ended*) |
 | Forge | reads: `Login`, `Issues`, `Issue`, `Pulls`, `PullComments`, `Reviews`, `ReviewComments`, `Milestones`; writes: `EnsureLabels`, `CreateIssue`, `Comment`, `Relabel`, `CreatePull`, `Review` (7.6), `EnsureMilestone` and `SetMilestone` (step 8), with `gates.merge` false `Merge` and `CloseIssue` (section 12), and with `forge.board` `Board`; host git fetches from and pushes `swarm/<n>-<s>` to the forge, and with `notes` clones and fetches the swarm repository and pushes the notes' commits to its branch (the repository's default) or to `swarm/notes-<n>-<role>-<k>` (7.1, 7.6) |
 | Writes | `<state>/lock`, `<state>/paused` (a swarm fault; the budget once it is enforced, section 3), `<state>/owner-held`, `<state>/auto`, `<state>/git/`, `<state>/notes/`, `<state>/journal`, `<state>/runs/`, for a slot run `<slot>.lock` and the clearing of `<slot>`, and, when `<state>/home` names a home, that home's `<home>/metrics/metrics.csv` and `$DAISY_LOCAL/metrics.lock` (section 2; 7.6, The run's record); nothing else |
-| Stdout | `✓ Labels: 16 present (<c> created, <r> renamed)` at the start when a label was made; `#<n> <role> run <k>: launched`, then `#<n> <role> run <k>: <stage> → <in-progress stage>` for a worker and a reviewer launched on `review-0-ready` (T20, T21); at collection one line per step done, `#<n> <role> run <k>: ` then `check started`, `check exited <code>` (or `check timeout`), `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`, `blocked` (`swarm:blocked` set), `pushed notes <short sha>` (7.6, The notes); a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:review-2-approved → swarm:plan-1-accepted` or `#<n> closed (last slice merged)` and `#<n> swarm:review-2-approved → swarm:done` (and `#<n> <flag> cleared` for each flag it carried), or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> blocked` (T16), or `#<n> not mergeable: back to the worker` then `#<n> swarm:review-2-approved → swarm:review-3-changes-requested` (T25), or `#<n> not mergeable a second time at <short sha>: blocked` then `#<n> blocked` (T25's second time), or `#<n> merge of pull <name>#<m> refused (<message>); its mergeability is not settled, so the next pass tries again`, or `#<n> merge of pull <name>#<m> refused (<message>); its head merges into <base> on the mirror, so the forge is taken to be recomputing and the next pass tries again`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; a routine job's gate passed, `#<n> <stage> → <next stage> (auto)` and `#<n> auto note posted`; the flag's `#<n> gated`, `#<n> gate note posted` and `#<n> gated cleared`; the milestones' `milestone created: <title>` and `#<n> milestone: <title>`; `✓ Drift cleared: swarm.json and prompts/ are <owner>/<repo>'s <branch> at <short sha>` (Drift, below); each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
+| Stdout | `✓ Labels: 16 present (<c> created, <r> renamed)` at the start when a label was made; `#<n> <role> run <k>: launched`, then `#<n> <role> run <k>: <stage> → <in-progress stage>` for a worker and a reviewer launched on `review-0-ready` (T20, T21); at collection one line per step done, `#<n> <role> run <k>: ` then `deps started`, `deps exited <code>` (or `deps timeout`) with the repository's `deps`, `check started`, `check exited <code>` (or `check timeout`), `posted comment`, `posted review (<approve\|request-changes>)`, `pushed swarm/<n>-<s> <short sha>`, `created pull <name>#<m>`, `<from> → <to>`, `blocked` (`swarm:blocked` set), `pushed notes <short sha>` (7.6, The notes); a failure `#<n> <role> run <k>: failed (<reason>)` and then its steps; a fault `#<n> <role> run <k>: fault (<reason>)`; a label copied to a pull request `#<n> pull <name>#<m>: <label>`; the merge step `#<n> merged pull <name>#<m> (slice <s> of <S>)`, then `#<n> swarm:review-2-approved → swarm:plan-1-accepted` or `#<n> closed (last slice merged)` and `#<n> swarm:review-2-approved → swarm:done` (and `#<n> <flag> cleared` for each flag it carried), or `#<n> merge of pull <name>#<m> refused (<message>)` then `#<n> blocked` (T16), or `#<n> not mergeable: back to the worker` then `#<n> swarm:review-2-approved → swarm:review-3-changes-requested` (T25), or `#<n> not mergeable a second time at <short sha>: blocked` then `#<n> blocked` (T25's second time), or `#<n> merge of pull <name>#<m> refused (<message>); its mergeability is not settled, so the next pass tries again`, or `#<n> merge of pull <name>#<m> refused (<message>); its head merges into <base> on the mirror, so the forge is taken to be recomputing and the next pass tries again`; the batch run `owner run <k>: launched`, `owner run <k>: proposed #<n> <title>` per issue, or `owner run <k>: proposed nothing; batch held (<state>/owner-held)` (another reason in its place for a failure, `blocked: <question>` for `BLOCKED:`); `Paused since <time>[: <reason>] (<state>/paused): launching nothing`; a routine job's gate passed, `#<n> <stage> → <next stage> (auto)` and `#<n> auto note posted`; the flag's `#<n> gated`, `#<n> gate note posted` and `#<n> gated cleared`; the milestones' `milestone created: <title>` and `#<n> milestone: <title>`; `✓ Drift cleared: swarm.json and prompts/ are <owner>/<repo>'s <branch> at <short sha>` (Drift, below); each pass ends `Pass <HH:MM:SS>: launched <a>, collected <c>, running <r>` |
 | Stderr | `⚠️  <state>/env <problem>` (as `init`); `⚠ <swarm>/.env.sh: …` (section 3, Secret values) and the drift warnings (Drift, below), each when it applies; warnings `⚠ #<n>: Blocked by #<m> names no issue; not held` (section 6, rule 1), `⚠ #<n> worker run <k>: commit <short sha> has no Co-Authored-By: <co_author>` (7.6, The trailer), `⚠ #<n>: carries <label> and <label>; skipped`, `⚠ #<n>: <label> but its current pull request is not open; skipped`, `⚠ #<n>: relabelled to <label> during the run; not relabelled` (`during the merge step` for the merge step's), the merge step's `⚠ #<n>: pull <name>#<m>'s head <short sha> not merged on the mirror (<error>); the forge's report stands` (section 12), `⚠ #<n> closed during the run; nothing posted`, the notes' `⚠ #<n> <role> run <k>: notes conflict with the wiki's head; pushed to swarm/notes-<n>-<role>-<k>` (`with <owner>/<repo>'s head` with `notes`) and `⚠ #<n> <role> run <k>: notes not pushed (<reason>); kept in <run>/notes` (7.6), the run's record's `⚠ #<n> <role> run <k>: metrics row not written: <reason>`, `⚠ #<n> <role> run <k>: root_sha left empty: …` (`home_sha` likewise), `⚠ #<n> <role> run <k>: lines not counted: <error>` and `⚠ journal not pushed (<reason>); its <c> lines are kept in <state>/journal for the next pass` (7.6, The run's record), `⚠ #<n>: board: <error>` (a board fault: logged only, never a swarm fault, never blocking a launch or a collection, never an exit code); the flag's warnings `⚠ #<n>: gated: <error>` (a relabel refused), `⚠ #<n>: gate note: <error>` (a read or the post refused: that gating event has no note), `⚠ #<n>: class: <error>` (the class's read refused: the issue left as it is this pass), `⚠ #<n>: auto: <error>` (a routine job's relabel refused, tried again at the next pass, or its auto note refused) and `⚠ gated: <error>` (a list unreadable: no flag changed this pass); the milestones' warnings, each pass while the cause stands, for an open issue `⚠ #<n>: its Brief: line names "<milestone>", which is no milestone of <path>; no milestone set` (a heading renamed or removed since) and `⚠ #<n>: its Brief: line names <path>, which is no brief under resources; no milestone set`, `⚠ milestones: <path> and <path> share the name <slug>; <path> is mirrored to no milestone` (the second in path order), `⚠ milestone <title>: <error>` (a refused create), `⚠ #<n>: milestone <title>: <error>`, and `⚠ milestones: <error>` (the briefs or a list unreadable); a closed issue's line, and a brief not `active`, give none; errors `Error: …` |
 | Lock | `Ops.FS().Lock(<state>/lock, "apply[ --once] since <time>")` takes an exclusive `flock` without waiting and writes the holder line (adding `pid <pid>`); the kernel releases it when the process exits, however it exits. Held: `Error: swarm apply is already running for <owner>/<repo> (<holder line>); lock: <state>/lock`, exit 1, nothing read from the forge |
 | Exit codes | 0 the pass or passes ran (a member's failure is reported on the forge, not in the exit code; a pause is reported on stdout); 1 no swarm found (Finding the swarm, above), invalid `swarm.json` at start, `<state>/env` readable by others, a token or a used provider's `env` credential unset (a slot without a login is its run's fault at the launch, not an exit code), `docker` unavailable (`Error: swarm: docker: <message>`), the lock held, `EnsureLabels` failing at start (a refused rename or create included, with or without `--once`), and with `--once` a forge (a board fault and step (8), the flag and the milestones, excepted), git or `docker ps` error during the pass (a run's clone failing, or a resource no longer passing its checks, at a launch is not one but that run's swarm fault, *clone failed* or *resource refused*, 7.7; without `--once` such an error is printed and the next pass runs); 130 a second signal while the loop collects its running members; 2 usage |
@@ -7433,3 +7504,59 @@ entries among revision 1's, and was renumbered at Step 38.
     `TestSwarmMergeStepChecksFailed`, `TestSwarmMergeStepChecksPassedRefused`,
     `TestSwarmMaintainerMergeChecksFailed`, `TestSwarmMaintainerRefusals`,
     `TestFakeChecks`, `TestGiteaStatus` and `TestGiteaRequiresChecks`.
+122. **A dependency step and the swarm's cache (Step 2 of the plan for
+    the inbox requests F27–F35, 2026-11-14; requests F28 and F30, by
+    F30's (a), the maintainer's choice).** The check runs offline, so a
+    product image had to hold every dependency each head needs: gridapp's
+    was rebuilt six times as jobs adopted libraries, and the cache it
+    held was not writable by the check's uid (F28). Now a repository
+    declares `deps` (section 3), and before each check Daisy runs it on
+    the fetched head with the network, writing `<state>/deps/<name>`;
+    the check reads that cache read-only, still offline (7.2; 7.6, step
+    4). **The schema** is an object, `{"run": [...], "env": {...}}`, not
+    the bare argv the plan named: the cache's place inside a container is
+    the tool's to be told (`GOMODCACHE`, `npm_config_cache`,
+    `PIP_CACHE_DIR`), so Daisy fixes the mount point, `/deps`, and the
+    product names its tool's variables, which both containers are
+    given; an argv alone would have had Daisy know Go, and an `env`
+    beside `deps` could exist without it. A declared mount point was
+    the other reading; mounting at the image's own cache path would hide
+    the image's cache and take its owner. **A host directory, not a
+    Docker volume** (the plan's `daisy-swarm-<owner>-<repo>-<name>-deps`):
+    the daemon makes a new volume's root root's, or copies the owner of
+    the image's directory at the mount point, so the step, run as the
+    host user, could not write it, F28's failure again; a directory
+    under `<state>` is the host user's, per swarm and per repository by
+    its path, needs no name made safe for Docker and no `docker volume
+    create`, and the maintainer prunes it with `rm -rf` (Go's
+    `-modcacherw` keeps its files deletable). **No member gets the
+    cache**, though the plan ran the step before a worker's run too: a
+    member is on Docker's default bridge already (7.2), so the worker
+    fetches what it needs; the cache read-only with `env` would refuse
+    its own fetch of a new dependency, and read-write would let a member
+    write what other jobs' checks read. F30's (a) names the check alone.
+    **No `GOCACHE`** is set by Daisy: the check's own filesystem is per
+    run (`--rm`), and the entrypoint's `HOME`, where Go's build cache
+    lies by default, is writable by any uid; an image that sets an
+    unwritable one is given another through `env`. **The network** is
+    the members' and the dependency step's, never the check's. **The
+    head's clone is read-only** to the step, so that it writes the cache
+    alone and the check sees the head as fetched. **Two steps at once**
+    on one repository are not serialized by Daisy: Go's module cache is
+    safe for concurrent writers (the go command's modfetch package: a
+    `lockedfile` mutex per module version, extraction behind a
+    `.partial` file that readers treat as absent), and a tool whose
+    cache is not says so in its own `run` (`flock`), which knows the
+    tool, where a lock in Daisy would be held across asynchronous
+    containers and lost with a dead `apply`. **A step that fails** or
+    times out is the check's result, named as the dependency step's in
+    the check block and the reviewers' `# Check`, so a module that could
+    not be fetched is not read as a failing test (F28's "Also"); one
+    Docker cannot run (125–127) is a swarm fault, as a check's is.
+    **The wizard asks nothing**: `check` is not asked either, and an
+    argv is edited in the file; it keeps the file's `deps`. Tests:
+    `TestSwarmDepsBeforeTheCheck`, `TestSwarmCheckWithoutDepsUnchanged`,
+    `TestSwarmDepsFailure`, `TestSwarmDepsRestartedAfterItsApplyDied`,
+    `TestSwarmApplyWorkFailures` (a secret in `deps.out`), `TestArgs`,
+    `TestValidateNamesTheField`, `TestParseNamesTheField`,
+    `TestFormatDeps` and `TestWizardKeepsTheFilesDeps`.
