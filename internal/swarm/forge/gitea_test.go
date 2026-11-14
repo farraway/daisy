@@ -79,6 +79,21 @@ import (
 // repoAddCollaborator (`PUT /repos/{owner}/{repo}/collaborators/{collaborator}`,
 // AddCollaboratorOption: permission, `read`, `write` or `admin`; 204, 403,
 // 404, 422).
+//
+// Step 1 of the plan for the inbox requests F27–F35's, from the Swagger of
+// version 29.0.0+dev-160 (read 2026-11-14): repoGetCombinedStatusByRef
+// (`GET /repos/{owner}/{repo}/commits/{ref}/status`, query page, limit;
+// 200 CombinedStatus, 400, 404; CombinedStatus: commit_url, repository,
+// sha, state, statuses, total_count, url; CommitStatus: context,
+// created_at, creator, description, id, status, target_url, updated_at,
+// url; both states one of pending, success, error, failure, warning,
+// skipped) and repoGetBranch (`GET /repos/{owner}/{repo}/branches/{branch}`,
+// 200 Branch, 404; Branch: commit, effective_branch_protection_name,
+// enable_status_check, name, protected, required_approvals,
+// status_check_contexts, user_can_merge, user_can_push). What Gitea
+// answers for a commit no check has reported on is not in the Swagger:
+// recorded here as an empty CombinedStatus, its state "" and its
+// statuses null, *not established as of 2026-11-14*.
 
 // pair is one recorded request and its response.
 type pair struct {
@@ -769,6 +784,66 @@ func TestGiteaMerge(t *testing.T) {
 		})
 	}
 }
+
+// Status reads the commit's combined status and keeps each context's
+// state, in the forge's order; a commit no check has reported on has none.
+func TestGiteaStatus(t *testing.T) {
+	const path = "/repos/acme/lib/commits/c2/status"
+	status := func(id int, context, state string) string {
+		return `{"id":` + itoa(id) + `,"status":"` + state + `","target_url":"","description":"","url":"","context":"` + context +
+			`","creator":{"login":"runner"},"created_at":"2026-11-14T09:00:00Z","updated_at":"2026-11-14T09:00:00Z"}`
+	}
+	for _, tc := range []struct {
+		name, resp string
+		want       []Check
+	}{
+		{"two contexts", `{"state":"failure","sha":"c2","total_count":2,"commit_url":"","url":"","repository":null,"statuses":[` +
+			status(7, "ci / test (push)", "failure") + "," + status(8, "lint", "pending") + `]}`,
+			[]Check{{"ci / test (push)", "failure"}, {"lint", "pending"}}},
+		{"none reported", `{"state":"","sha":"","total_count":0,"commit_url":"","url":"","repository":null,"statuses":null}`, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, s := gitea(t, []string{"app", "lib"}, pair{"GET", path, "", 200, tc.resp})
+			got, err := g.Status("lib", "c2")
+			if err != nil || !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("Status = %+v, %v", got, err)
+			}
+			s.done()
+		})
+	}
+}
+
+// RequiresChecks reads the base branch's enable_status_check, which
+// repoGetBranch answers any reader of the repository with; a 404 is the
+// forge's error.
+func TestGiteaRequiresChecks(t *testing.T) {
+	const path = "/repos/acme/lib/branches/main"
+	branch := func(protected, checks bool) string {
+		return `{"name":"main","commit":{"id":"c1"},"protected":` + boolJSON(protected) + `,"required_approvals":0,"enable_status_check":` + boolJSON(checks) +
+			`,"status_check_contexts":["ci / *"],"user_can_push":true,"user_can_merge":true,"effective_branch_protection_name":""}`
+	}
+	for _, tc := range []struct {
+		name, resp, err string
+		status          int
+		want            bool
+	}{
+		{"required", branch(true, true), "", 200, true},
+		{"protected without checks", branch(true, false), "", 200, false},
+		{"unprotected", branch(false, false), "", 200, false},
+		{"no such branch", `{"message":"branch not found"}`, "forge: GET /repos/acme/lib/branches/main: 404 branch not found", 404, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, s := gitea(t, []string{"app", "lib"}, pair{"GET", path, "", tc.status, tc.resp})
+			got, err := g.RequiresChecks("lib", "main")
+			if got != tc.want || errText(err) != tc.err {
+				t.Errorf("RequiresChecks = %v, %v", got, err)
+			}
+			s.done()
+		})
+	}
+}
+
+func boolJSON(b bool) string { j, _ := json.Marshal(b); return string(j) }
 
 func milestone(id int, title string, open, closed int) string {
 	return `{"id":` + itoa(id) + `,"title":"` + title + `","description":"","state":"open","open_issues":` + itoa(open) + `,"closed_issues":` + itoa(closed) +

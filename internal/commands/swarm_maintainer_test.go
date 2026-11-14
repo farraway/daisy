@@ -284,6 +284,32 @@ func TestSwarmMaintainerMergeNotMergeable(t *testing.T) {
 	}
 }
 
+// merge of an approved head whose checks failed: T26, the verb's as
+// the merge step's, the note naming the failed context on the pull
+// request as jane, then review-2-approved → review-3-changes-requested
+// and the gated flag cleared; exit 0, nothing merged.
+func TestSwarmMaintainerMergeChecksFailed(t *testing.T) {
+	m := newMaintainerWS(t)
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
+	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
+	pr := m.approvedPull(1, "c1abcdef99")
+	m.forge.Relabel(issue1, "", forge.Gated)
+	m.forge.SetStatus("app", "c1abcdef99", "ci / test", "failure")
+	m.forge.SetStatus("app", "c1abcdef99", "lint", "pending")
+	m.ok(swarmMerge, "Maintainer jane on acme/swarm-app\n#1 checks failed at c1abcde: back to the worker\n#1 commented on pull app#1\n#1 swarm:review-2-approved → swarm:review-3-changes-requested\n#1 gated cleared\n", "1")
+	want := []string{
+		"swarm-bot labeled swarm:gated #1",
+		"jane labeled swarm:review-3-changes-requested #1", "jane unlabeled swarm:review-2-approved #1", "jane unlabeled swarm:gated #1",
+		fmt.Sprintf("jane comment %q #1", checksFailed("c1abcdef99", "`ci / test` (failure)")),
+	}
+	if got := m.writesAt(issue1, pr); !reflect.DeepEqual(got, want) {
+		t.Errorf("writes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if ps, _ := m.forge.Pulls(1, []string{"swarm-bot"}); !ps[0].Open || ps[0].Merged {
+		t.Errorf("merged: %+v", ps[0])
+	}
+}
+
 // merge of a head sent back once already (T25's second time, section
 // 12): jane's direction on it, the worker's answer without a commit after
 // it, and the pair's approval of the same head again; the forge still
@@ -391,6 +417,17 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 			issue("swarm:review-2-approved")(m)
 			m.forge.SetMergeable(m.approvedPull(1, "c1abcdef99"), forge.MergeableUnknown)
 		}, swarmMerge, []string{"1"}, "Error: swarm: #1: merge of pull app#1 at c1abcde refused: 405 Please try again later; the forge has not yet computed whether it merges, so run merge again shortly; nothing changed"},
+		{"merge of a head whose checks are pending", func(m *maintainerWS) {
+			issue("swarm:review-2-approved")(m)
+			m.approvedPull(1, "c1abcdef99")
+			m.forge.SetStatus("app", "c1abcdef99", "ci / test", "pending")
+			m.forge.SetStatus("app", "c1abcdef99", "lint", "pending")
+		}, swarmMerge, []string{"1"}, "Error: swarm: #1: merge of pull app#1 waits: its checks on c1abcde are pending: `ci / test`, `lint`; run merge again when they have passed; nothing changed"},
+		{"merge of a head no check has reported on while main requires them", func(m *maintainerWS) {
+			issue("swarm:review-2-approved")(m)
+			m.approvedPull(1, "c1abcdef99")
+			m.forge.RequireChecks("app", "main")
+		}, swarmMerge, []string{"1"}, "Error: swarm: #1: merge of pull app#1 waits: no check has reported on c1abcde, and main requires them; run merge again when they have passed; nothing changed"},
 		{"merge of a pull request closed unmerged", func(m *maintainerWS) {
 			issue("swarm:review-2-approved")(m)
 			m.forge.ClosePull(m.approvedPull(1, "c1"))

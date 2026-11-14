@@ -13,7 +13,10 @@ import (
 // each open approved issue neither blocked nor paused, its current pull
 // request merged at the head both its newest swarm reviews approve (or
 // found merged), then T14 when the accepted plan declares a slice after
-// it and T15 otherwise, the closed issue labelled swarm:done. A refused
+// it and T15 otherwise, the closed issue labelled swarm:done. The head's
+// checks are read first (HeadChecks): one failed is T26, back to the
+// worker with the contexts named; one pending, or none reported while
+// base requires them, waits for the next pass. A refused
 // merge of a pull request the forge reports not mergeable is read on the
 // mirror (`git merge-tree`, Git.Conflicts): a conflict is T25, back to the
 // worker with the direction to merge base naming the files, or, when this
@@ -59,8 +62,22 @@ func (s *Swarm) mergeStep() error {
 			head, k := ApprovedHead(reviews, s.SwarmLogin)
 			msg := "no head both reviews approve"
 			if head != "" {
+				checks, err := HeadChecks(s.Forge, cur.Repo, s.Cfg.Base, head)
+				if err != nil {
+					return err
+				}
+				switch {
+				case len(checks.Failed) > 0:
+					if err := s.checksFailed(is, cur, head, k, checks.Failed); err != nil {
+						return err
+					}
+					continue
+				case checks.Wait():
+					fmt.Fprintf(s.Out, "#%d merge of pull %s#%d waits: %s; the next pass tries again\n", n, cur.Repo, cur.Number, checks.Why(head, s.Cfg.Base))
+					continue
+				}
 				msg = ""
-				err := s.Forge.Merge(ref, head)
+				err = s.Forge.Merge(ref, head)
 				switch {
 				case errors.Is(err, forge.ErrNotMergeable):
 					msg = strings.TrimPrefix(err.Error(), forge.ErrNotMergeable.Error()+": ")
@@ -176,6 +193,91 @@ func (s *Swarm) backToWorker(is forge.Issue, p forge.Pull, head string, k int, f
 		}
 	}
 	return s.mergeRelabel(is.Number, at, forge.ChangesRequested)
+}
+
+// Checks is what the checks on an approved head say of its merge
+// (section 12): Failed, those that failed or errored; Pending, those
+// still running; Unreported, none has reported while the base requires
+// checks. With none failed, none pending and not unreported, the merge
+// is the forge's to make or refuse.
+type Checks struct {
+	Failed, Pending []forge.Check
+	Unreported      bool
+}
+
+// Wait: the merge waits for the checks, none having failed.
+func (c Checks) Wait() bool { return len(c.Failed) == 0 && (len(c.Pending) > 0 || c.Unreported) }
+
+// Why is what the merge of head into base waits for (Wait).
+func (c Checks) Why(head, base string) string {
+	if len(c.Pending) > 0 {
+		names := make([]string, len(c.Pending))
+		for i, k := range c.Pending {
+			names[i] = k.Context
+		}
+		return fmt.Sprintf("its checks on %s are pending: %s", short(head), quoted(names))
+	}
+	return fmt.Sprintf("no check has reported on %s, and %s requires them", short(head), base)
+}
+
+// HeadChecks reads the checks on head in the declared repository repo
+// and, when none has reported, whether base requires them: a forge that
+// reports no requirement, or a base without one, merges as before.
+func HeadChecks(f forge.Adapter, repo, base, head string) (Checks, error) {
+	checks, err := f.Status(repo, head)
+	if err != nil {
+		return Checks{}, err
+	}
+	var c Checks
+	for _, k := range checks {
+		switch k.State {
+		case "failure", "error":
+			c.Failed = append(c.Failed, k)
+		case "pending":
+			c.Pending = append(c.Pending, k)
+		}
+	}
+	if len(checks) == 0 {
+		c.Unreported, err = f.RequiresChecks(repo, base)
+	}
+	return c, err
+}
+
+// ChecksFailed is the comment that sends an approved pull request p of
+// issue n back to the worker when checks failed on its approved head
+// (T26), naming each: the merge step posts it as the reconciler's note,
+// `swarm merge` as the maintainer.
+func ChecksFailed(owner string, n int, p forge.Pull, head string, failed []forge.Check) string {
+	named := make([]string, len(failed))
+	for i, k := range failed {
+		named[i] = fmt.Sprintf("`%s` (%s)", k.Context, k.State)
+	}
+	return fmt.Sprintf("The checks on pull request %s/%s#%d failed at its approved head %s: %s. Fix what they report on swarm/%d-%d and commit; the reviewers then review the new head.",
+		owner, p.Repo, p.Number, short(head), strings.Join(named, ", "), n, sliceOf(p, n))
+}
+
+// checksFailed is T26 by the merge step: ChecksFailed posted on the pull
+// request as the reconciler's note (unless the thread's last word is
+// that note by the swarm already: a retry after a failed relabel), then
+// the issue relabelled review-3-changes-requested, whose worker answers
+// it. Nothing blocks it: a worker that answers without a commit and a
+// pair that approves the head again send it back again, each round
+// counted towards the round limit (T11).
+func (s *Swarm) checksFailed(is forge.Issue, p forge.Pull, head string, k int, failed []forge.Check) error {
+	ref := forge.Ref{Repo: p.Repo, N: p.Number}
+	comments, err := s.Forge.PullComments(ref)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(s.Out, "#%d checks failed at %s: back to the worker\n", is.Number, short(head))
+	note := marker("reconciler", max(k, 1)) + ChecksFailed(s.owner(), is.Number, p, head, failed)
+	last := len(comments) - 1
+	if last < 0 || comments[last].Body != note || !strings.EqualFold(comments[last].Author, s.SwarmLogin) {
+		if err := s.Forge.Comment(ref, note); err != nil {
+			return err
+		}
+	}
+	return s.mergeRelabel(is.Number, forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: is.Number}, forge.ChangesRequested)
 }
 
 // Direction is the comment that sends an approved pull request p of issue

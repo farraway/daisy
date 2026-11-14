@@ -109,6 +109,11 @@ validation refuses and takes a variable of blanks alone as unset, and
 its unit quotes `Environment=` and `ExecStart=` and says where to save
 it (item 120). Its Step 21 (2026-11-13) amended item 23: the base
 image's two `FROM` lines name its digest beside its tag.
+Step 1 of the plan for the inbox requests F27–F35 (2026-11-14) amended
+sections 5, 6, 10, 11 and 12: a merge reads the approved head's checks
+first, a failed one sending the issue back to the worker (T26) and a
+pending one, or none while `base` requires them, waiting for the next
+pass (item 121).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -934,7 +939,7 @@ or changed by the copy, and no flag is copied.
 | `swarm:review-0-ready` | the current pull request awaits both reviews of its head | adversary and sympathetic, launched in the same pass |
 | `swarm:review-1-in-progress` | the pair is under way: from the launch of a reviewer on `review-0-ready` (T21) until the pair on the head completes | adversary and sympathetic: each that has not reviewed the head and is not running |
 | `swarm:review-2-approved` | both reviews of the head approve: merge it | nobody (with the merge gate off, Daisy's merge step, section 12) |
-| `swarm:review-3-changes-requested` | a review of the head requested changes, or the approved head does not merge into `base` (T25) | worker |
+| `swarm:review-3-changes-requested` | a review of the head requested changes, or the approved head does not merge into `base` (T25) or failed its checks (T26) | worker |
 
 **The flags and the terminals.** The five flags sit beside the stage,
 never in its place: `swarm:gated`, the stage waits for the maintainer;
@@ -1179,7 +1184,7 @@ names its merged commit, listed with each earlier pull request (section
 **Gates.** The rows marked G1, G2 and G3 apply according to `gates`, and
 of each gated pair (T1 and T2, T3 and T4, T5 and T6, T13 and T14) exactly
 one applies under any one setting of `gates`; T15 and T16 apply only with
-the merge gate off, and T25 under either setting (the merge step's with
+the merge gate off, and T25 and T26 under either setting (the merge step's with
 it off, `swarm merge`'s with it on); T11's target follows G2 as T5 and T6 do; T23 applies
 only with G1 on and T24 only with G2 on, each to a routine job, where T3
 and T7 remain the maintainer's to make first. Every other row, G4's unblocking row and the
@@ -1189,7 +1194,7 @@ maintainer's closing row included, applies under every setting.
 clearing of `swarm:blocked`, with the one condition that causes it (the
 trigger) and the one party that sets the new label (the setter). "Daisy"
 is `swarm apply` collecting the run named in the trigger (section 7.6),
-or, in T14–T16 and T25, its merge step (section 12), or, in T20 and T21, its
+or, in T14–T16, T25 and T26, its merge step (section 12), or, in T20 and T21, its
 launch (7.1), or, in T23 and T24, its step 8 (section 11), with the calls
 named there. The maintainer's rows launch
 nothing: their trigger is the maintainer's decision.
@@ -1221,6 +1226,7 @@ nothing: their trigger is the maintainer's decision.
 | T23 | `swarm:proposal-posted` | `swarm:proposal-accepted` | G1 on, a routine job | step 8 of a pass finds a routine job at `proposal-posted` that carries neither `swarm:blocked` nor `swarm:paused`, whose owner has nothing to answer, the swarm not paused (The job class, above) | Daisy: `Relabel(n, "swarm:proposal-posted", "swarm:proposal-accepted")`, then `Comment(n, <auto note>)` |
 | T24 | `swarm:plan-0-posted` | `swarm:plan-1-accepted` | G2 on, a routine job | step 8 of a pass finds a routine job at `plan-0-posted` as T23 does, its architect having nothing to answer (its plan, or its revision after a comment or T11, the newest counted entry) | Daisy: `Relabel(n, "swarm:plan-0-posted", "swarm:plan-1-accepted")`, then `Comment(n, <auto note>)` |
 | T25 | `swarm:review-2-approved` | `swarm:review-3-changes-requested` | — | the merge of the current pull request is refused and the forge reports it not mergeable (`Pull.Mergeable`, section 10): `base` moved since the branch last took it in, and they conflict, which the merge step confirms on the mirror (`git merge-tree`, section 12) and names the files of. A mergeability the forge has not settled (unknown, or read by the merge step after it merged into the same repository in that pass, or a head that merges into `base` on the mirror) is not this row: the merge is tried again at the next pass (section 12). The worker then merges `base` and resolves (7.4), and the pair reviews the new head as any revision (T12, then T9 or T10). **The second time** the same head is sent back, the pull request's thread holding a direction on that head before its last comment (the worker answered without a commit and the pair approved the head again), is not this row either: the merge step blocks the issue, the stage kept, with its note on the issue, the maintainer's (G4) as T11's second time is, and `swarm merge` refuses, nothing changed | Daisy's merge step (G3 off): `Comment(m, <reconciler note: the direction>)`, then `Relabel(n, "swarm:review-2-approved", "swarm:review-3-changes-requested")`, or the second time `Comment(n, <reconciler note>)` and `Relabel(n, "", "swarm:blocked")`; or the maintainer's `swarm merge <n>` (G3 on): `Comment(m, <the direction>)`, the same relabel, and the gated flag's removal |
+| T26 | `swarm:review-2-approved` | `swarm:review-3-changes-requested` | — | before the merge of the current pull request, a check on its approved head reports `failure` or `error` (`Status`, section 10; section 12): the worker fixes what the checks report, and the pair reviews the new head as any revision (T12, then T9 or T10). A check `pending`, or none reported while `base`'s protection requires checks (`RequiresChecks`), is not this row: the merge waits for the next pass (`swarm merge` refuses, nothing changed). No block: a worker that answers without a commit and a pair that approves the same head again send it back again, each round counted towards the round limit (T11) | Daisy's merge step (G3 off): `Comment(m, <reconciler note naming each failed check>)`, then `Relabel(n, "swarm:review-2-approved", "swarm:review-3-changes-requested")`; or the maintainer's `swarm merge <n>` (G3 on): `Comment(m, <the same text>)`, the same relabel, and the gated flag's removal |
 
 The maintainer may also relabel any issue to any stage at any time; the
 next pass reads the new label and the role rule decides from there. That
@@ -1264,6 +1270,7 @@ stateDiagram-v2
   review_2_approved --> plan_1_accepted : T14 Daisy merges, next slice (G3 off)
   review_2_approved --> [*] : T15 Daisy merges the last slice, closes as done (G3 off)
   review_2_approved --> review_3_changes_requested : T25 not mergeable into base, back to the worker (the merge step, or swarm merge)
+  review_2_approved --> review_3_changes_requested : T26 its checks failed, back to the worker (the merge step, or swarm merge)
   proposal_posted --> [*] : T19 maintainer closes from any label, rejected with swarm close (drawn from two)
   review_2_approved --> [*] : T19 swarm merge of the last slice, closed as done (G3 on)
 
@@ -1387,7 +1394,8 @@ maintainer sets: in `proposal-accepted` the newest entry is the owner's,
 the maintainer's or, after T11, the reconciler's, never the architect's,
 so the architect runs without a comment; in `review-3-changes-requested`
 the newest entry is a review, the maintainer's comment or, after T25,
-the reconciler's direction to merge `base`, so the worker runs. The worker never posts on the issue but to say `BLOCKED:`, and
+the reconciler's direction to merge `base` (after T26, its note naming
+the checks that failed), so the worker runs. The worker never posts on the issue but to say `BLOCKED:`, and
 every blocked issue's last word is the reconciler's note, so clearing
 `swarm:blocked` runs the stage's role again, answered or not, but for the
 round limit's second note: its `swarm:review-1-in-progress` runs no one,
@@ -2960,6 +2968,8 @@ type Adapter interface {
     Review(pr Ref, verdict Verdict, body string) error
     Approve(pr Ref, head string) error                 // the maintainer's formal approval at head; no fallback
     Merge(pr Ref, head string) error                   // ErrNotMergeable when the forge refuses
+    Status(repo, sha string) ([]Check, error)          // each context's latest status on commit sha in the declared repository repo; none when no check has reported
+    RequiresChecks(repo, branch string) (bool, error)  // branch's protection in the declared repository repo requires status checks before a merge
     Milestones() ([]Milestone, error)                  // forge.repo's, open and closed, with the forge's counts
     EnsureMilestone(title string) (id int64, err error) // forge.repo's milestone titled title, created when none is
     SetMilestone(n int, id int64) error                // issue n into the milestone id
@@ -3022,25 +3032,27 @@ type ReviewComment struct {
     Created                    time.Time
 }
 type Verdict int // Approve, RequestChanges, Commented
+type Check struct{ Context, State string } // a context's name and its state as the forge names it: pending, success, failure, error, or another (Gitea's warning, skipped)
 var ErrNotMergeable error // wraps the forge's message
 var ErrNotFound error     // matches the forge's 404 (errors.Is)
 ```
 
-These twenty-three methods are every call Daisy makes to the forge; the only
+These twenty-five methods are every call Daisy makes to the forge; the only
 other traffic with it is host-side git (fetch and push, 7.1 and 7.6, and
 `init`'s clone and push, section 11). The last three are `init`'s alone,
 made with the maintainer's token (section 11, init), each on `forge.repo`
 as the adapter is built for it.
 **As built (Steps 1, 4, 9 and 10 of the swarm build; Step 6 of revision
-6's plan).** The interface holds
-twenty-two: `Board` joins it with the step that builds the board, which
+6's plan; Step 1 of the plan for the inbox requests F27–F35).** The interface holds
+twenty-four: `Board` joins it with the step that builds the board, which
 waits for a run that needs it, as the GitHub adapter does (`forge.New`
 answers kind `github` with `forge: kind github has no adapter yet; it is
 built when a run needs it (docs/swarm.md section 10)`). The `gitea`
-adapter and `forge.Fake` implement all twenty-two (Step 1 what `swarm init`
+adapter and `forge.Fake` implement all twenty-four (Step 1 what `swarm init`
 calls, Step 4 the rest but the milestones and `Approve`, Step 9 the
 milestones, Step 10 `Approve`, Step 6 of revision 6's plan the three
-repository calls), the label id map with a repository's label
+repository calls, Step 1 of the plan for the inbox requests F27–F35,
+2026-11-14, `Status` and `RequiresChecks`), the label id map with a repository's label
 shadowing the organization's included, read by the first `CreateIssue`
 or `Relabel` of each repository and held until the next pass (from Step
 28 of the swarm build: `Swarm.Pass` drops it at its start through the
@@ -3147,6 +3159,12 @@ when the pull request's head is `head` (the approved commit); a refusal
 (the pull request not mergeable, its head moved, a branch protection rule
 the swarm's own reviews do not satisfy) is `ErrNotMergeable`; which of
 them it was is read from `Pulls`' `Mergeable` (section 12, T16 and T25).
+**`Status`** is the latest status of each context on a commit, the
+forge's order kept and its combined state not read: the merge step and
+`swarm merge` judge the contexts (section 12, T26). **`RequiresChecks`**
+is whether a branch's protection requires status checks before a merge,
+read only when no check has reported on the head, to tell a head whose
+checks have not started from one in a repository that has none.
 **`Pull.Mergeable`** is the forge's own reading: Gitea's `mergeable` is a
 boolean computed by its pull request checker, `false` while the checker
 recomputes a pull request after a push to its base as well as when the
@@ -3243,6 +3261,8 @@ the last, and a list whose first page is short reads one more, empty
 | `Review` | `POST`, then `POST` on a `422` | `/repos/{o}/{r}/pulls/{pr}/reviews` | `{"event": "APPROVED" or "REQUEST_CHANGES", "body"}`; `{"event": "COMMENT", "body"}` | `200`; on `422` the second `POST`, `200` |
 | `Approve` | `POST` | `/repos/{o}/{r}/pulls/{pr}/reviews` | `{"event": "APPROVED", "body": "", "commit_id": <head>}` | `200`; any other status, `422` included, the error |
 | `Merge` | `POST` | `/repos/{o}/{r}/pulls/{pr}/merge` | `{"do": "merge", "head_commit_id": <head>}` | the status: `200` merged; `405` or `409` refused |
+| `Status` | `GET` | `/repos/{o}/{r}/commits/{sha}/status` (repoGetCombinedStatusByRef; its first page alone) | — | `statuses[].context`, `statuses[].status` (`statuses` `null` or empty: none reported); the combined `state` is not read |
+| `RequiresChecks` | `GET` | `/repos/{o}/{r}/branches/{branch}` (repoGetBranch, which any reader of the repository may make; the branch protection endpoints carry the same fields for its administrators) | — | `enable_status_check` |
 | `Milestones` | `GET` | `/repos/{o}/{r}/milestones?state=all&page=<p>&limit=50` (without `state=all` Gitea lists the open ones alone) | — | `[].id`, `[].title`, `[].open_issues`, `[].closed_issues` |
 | `EnsureMilestone` | `GET` as `Milestones`, then `POST` when no milestone has the title | `/repos/{o}/{r}/milestones?state=all&page=<p>&limit=50`; `/repos/{o}/{r}/milestones` | —; `{"title"}` | as `Milestones`; `201`: `id` |
 | `SetMilestone` | `PATCH` | `/repos/{o}/{r}/issues/{n}` | `{"milestone": <id>}` | `201`: `milestone.id`, which must be `<id>`: Gitea's edit drops the field, still answering `201`, for the issue's poster without write access to the repository's issues (as its source reads; *to confirm*), and the call then fails with `forge: PATCH <path>: 201 with milestone <got>, not <id>; the token's account needs write access to the issues of <o>/<r>` |
@@ -3278,7 +3298,16 @@ of revision 6's plan the repository calls' from the Swagger of version
 `createOrgRepo`, whose `CreateRepoOption` requires `name` and takes
 `private`, answering `201`, `400`, `403`, `404`, `409` or `422`; and
 `repoAddCollaborator`, whose `AddCollaboratorOption` takes `permission`,
-answering `204`, `403`, `404` or `422`). Step
+answering `204`, `403`, `404` or `422`), and Step 1 of the plan for the
+inbox requests F27–F35 the checks calls' from the Swagger of version
+29.0.0+dev-160 (read 2026-11-14; by operationId
+`repoGetCombinedStatusByRef`, taking `page` and `limit`, answering `200`
+with a `CombinedStatus`, `400` or `404`, whose `statuses` are
+`CommitStatus`es carrying `context` and `status`, each state one of
+`pending`, `success`, `error`, `failure`, `warning` and `skipped`; and
+`repoGetBranch`, answering `200` with a `Branch`, whose fields include
+`protected`, `enable_status_check` and `status_check_contexts`, or
+`404`). Step
 4's pairs settle four of the points left open:
 the comment endpoints take no page (`since` and `before` only) and the
 review comments' none; the review `event`s are `APPROVED`,
@@ -3319,7 +3348,16 @@ milestones, that the instance's version
 documents the same three pairs, that the swarm's account may create a
 milestone and set one (Gitea asks write access to the issues for both),
 and that a milestone's counts include a pull request; for `Approve`, that
-the instance's version takes `commit_id`.
+the instance's version takes `commit_id`. *Not established as of
+2026-11-14*, for the checks calls: what Gitea answers for a commit no
+check has reported on (recorded as a `200` whose `state` is `""` and
+whose `statuses` are `null`; a `404` would be the pass's error); that
+the swarm's account, with write access, reads `enable_status_check` on
+the branch (the Swagger names no permission); that a commit's statuses
+past the first page are none the merge needs (more contexts than the
+instance's page size are not read); and how the instance treats
+`warning` and `skipped` at the merge (the merge step leaves both to the
+forge's answer).
 
 ### GitHub (REST v3)
 
@@ -3347,6 +3385,7 @@ Labels are named in paths and bodies (a name in a path is escaped:
 | `Review` | `POST`, then `POST` on a `422` | `/repos/{o}/{r}/pulls/{pr}/reviews` | `{"event": "APPROVE" or "REQUEST_CHANGES", "body"}`; `{"event": "COMMENT", "body"}` | — |
 | `Approve` | `POST` | `/repos/{o}/{r}/pulls/{pr}/reviews` | `{"event": "APPROVE", "commit_id": <head>}` | — |
 | `Merge` | `PUT` | `/repos/{o}/{r}/pulls/{pr}/merge` | `{"sha": <head>, "merge_method": "merge"}` | the status: `200` merged; `405` or `409` refused |
+| `Status`, `RequiresChecks` | none | not mapped, as the milestones: GitHub's Actions report check runs (`/repos/{o}/{r}/commits/{ref}/check-runs`) beside the commit statuses, and its branch's `protection.required_status_checks` is read only with the branch's protection; recorded when the GitHub adapter is built | — | — |
 | `Milestones`, `EnsureMilestone`, `SetMilestone` | none | not mapped: the GitHub adapter waits for a run that needs it (the swarm build's Non-goals), and its milestone pairs are recorded when it is built | — | — |
 | `Repository`, `CreateRepository`, `AddCollaborator` | none | not mapped, as the milestones: recorded when the GitHub adapter is built | — | — |
 | `Board` | none | not supported in version 1: GitHub's boards (Projects v2, whose API is GraphQL-first, with items and field values rather than columns) are not mapped; validation refuses `forge.board` for kind `github` (section 3), so the method is never called, and the adapter returns an error naming this | — | — |
@@ -3370,7 +3409,10 @@ then `DELETE` does, `Merge` refuses, in Gitea's order (its handler checks
 mergeability before the head; from Step 28 of the swarm build), a pull
 request not `MergeableYes`
 (`405 Please try again later`, as Gitea answers both a conflict and a
-check in progress), one marked refused (`405 not allowed to merge`) and
+check in progress), one whose base requires checks (`RequireChecks`)
+while its head has none or one not `success` (`405 Not all required
+status checks successful`, the message the live swarm's refusal carried
+on 2026-11-11), one marked refused (`405 not allowed to merge`) and
 then a head that is not the current one (`409`),
 and a pull request closed unmerged is not found (`404`, `ErrNotFound`, not
 `ErrNotMergeable`: Gitea's handler answers its `ErrIsClosed` with `404`,
@@ -3389,6 +3431,11 @@ reports: `MergeableYes` from `CreatePull` on, since the Fake holds no
 git, and left as it is by `Push`), `RefuseMerge(pr)` (every later
 `Merge` refused while the pull request reads mergeable, as a branch
 protection rule refuses it), `FailBoard()` (every later `Board` errs),
+`SetStatus(repo, sha, context, state)` (a check reporting on a commit,
+as a CI posts a commit status: the context's latest, which `Status`
+reports in the order the contexts first reported), `RequireChecks(repo,
+branch)` (the branch protected with required status checks, which
+`RequiresChecks` reports, an undeclared repository being its `404`),
 `RefuseLabels()` (every later label rename and create is refused,
 `EnsureLabels` failing as Gitea's refused write does; its renames, as
 Gitea's, keep each label on its issues, which read the new name) and `RefuseMilestones()` (every
@@ -4033,12 +4080,12 @@ else.
 | Usage | `daisy swarm triage <n>`, `daisy swarm accept <n>`, `daisy swarm class <n> routine\|architecture` (any other word for the class is usage), `daisy swarm approve <n>`, `daisy swarm merge <n>`, `daisy swarm unblock <n> <comment...>`, `daisy swarm block <n> --by <m>` (or `--by <m> <n>`, the value flag leading), `daisy swarm close <n> [comment...]`; `<n>` and `<m>` positive issue numbers, else usage; the words after `<n>` are one comment, and blank ones are none (`unblock` without a comment is usage; `close` with blank ones posts none) |
 | Reads | `swarm.json` in the clone (validated as `status` validates it, the prompts included), `<state>/env` or the environment for `DAISY_MAINTAINER_TOKEN`, and for the value of the variable `forge.token_env` names, which is only compared, never sent; nothing else under `<state>` |
 | Start | in this order, every refusal before any write: `<n>`; validation; `DAISY_MAINTAINER_TOKEN` set, and not equal to the swarm's token (refused before the forge is reached); the adapter built with it and `Login()`, refused when the login is the swarm's (`trusted`'s last, as `init` writes it: section 3); `Maintainer <login> on <owner>/<repo>`; `Issue(n)`, which must be an issue, not a pull request (the forges number both together, and `Issue` reads either), open, and carry exactly one stage label (section 5: the flags and the terminals are none; `Error: swarm: #<n> carries no stage label; nothing changed` without one), the one the verb's row names |
-| Each verb | every relabel below, and `unblock`'s clearing of `swarm:blocked`, of an issue carrying `swarm:gated` is followed by `Relabel(n, "swarm:gated", "")` unless the labels the write leaves are gated by section 5's predicate (the issue still blocked, or unblocked at a gate that is on and holds its class), where the flag stays, as the pass would set it, and for an issue unblocked the next pass posts that gate's note (one still blocked gets none, section 5); that removal refused is a warning, the write being made, which the next pass of `apply` clears; every comment a verb posts (`unblock`'s, `close`'s, `block`'s, `class`'s statement and `merge`'s direction) is not posted when its thread's newest comment is already the maintainer's with that text, so a verb run again after a later write was refused posts it once; and every close by `Relabel(n, <stage>, <terminal>)` and the removal of each flag the issue carries (section 5); `swarm:blocked` and `swarm:paused` are cleared only by `unblock` and `resume <n>`, a relabel leaving them as they are. `triage`: at `swarm:proposal-posted`, `Relabel(n, "swarm:proposal-posted", "swarm:proposal-accepted")` (T3). `accept`: at `swarm:plan-0-posted`, `Relabel(n, "swarm:plan-0-posted", "swarm:plan-1-accepted")` (T7). `class`: at any stage; when `<n>`'s class (section 5, The job class) is already the one named, nothing, but for an architecture job without the flag (no class statement, or the maintainer's own issue), which is given it, `Relabel(n, "", "swarm:class-architecture")`, so the forge shows its class; else `architecture`: `Relabel(n, "", "swarm:class-architecture")` then `Comment(n, "Class: architecture")`; `routine`: refused when the maintainer's login is not in `trusted`, whose statement no rule would read, else `Relabel(n, "swarm:class-architecture", "")` when it carries the flag, then `Comment(n, "Class: routine")`; either statement is the class's newest, wakes no role, and the next pass passes the triage or plan gate of a job made routine (T23, T24). `approve`: at any stage, `Pulls(n)`, and `Approve(m, <head>)` on the current pull request, which must be open. `merge`: at `swarm:review-2-approved`, `Pulls(n)`; the current pull request open: `Reviews(m)` and `Merge(m, <head>)`, `<head>` the commit both the swarm's newest reviews approve, as the merge step reads it (section 12); merged already: nothing; closed unmerged, or no head both approve: refused; the merge refused and the pull request reported not mergeable (`Pull.Mergeable`, section 10): `Comment(m, <the direction>)`, section 12's text, then `Relabel(n, "swarm:review-2-approved", "swarm:review-3-changes-requested")` (T25), the maintainer's hand routing of the swarm's first conflict made the verb's, exit 0 and nothing merged; refused with its mergeability unknown, or reported mergeable: refused; else, by the slices the accepted plan declares as the merge step counts them, `Relabel(n, "swarm:review-2-approved", "swarm:plan-1-accepted")` when a slice follows `<s>` (T13), else `CloseIssue(n)` and `Relabel(n, "swarm:review-2-approved", "swarm:done")`. `unblock`: at any stage, the issue carrying `swarm:blocked` (refused when it does not), and refused at `swarm:review-1-in-progress`, or at `swarm:review-0-ready` where T21's write was refused, when the newest of the reconciler's notes that blocked it (section 7.6: every note but the round limit's first and, from Step 29 of the swarm build, a note on an issue moved during the run, which blocked nothing) is the round limit's second, where no role runs, naming `swarm:review-3-changes-requested` and `swarm:plan-0-posted` as the relabels to make on the forge first; `Comment(n, <comment>)` (on the current pull request instead, when it is open and the stage is `swarm:review-3-changes-requested`, whose worker reads that thread), then `Relabel(n, "swarm:blocked", "")` (T18) and the gated flag's removal as above, the comment first, so the role the stage runs reads it. `block`: `<m>` not `<n>`, `Issue(m)` an open issue (not a pull request), then `Relabel(m, "", "swarm:blocking")` unless it carries it and `Comment(n, "Blocked by #<m>")`, warned when the maintainer's login is not in `trusted`, whose comment the role rule does not read, which holds `<n>`'s launches while it is `<n>`'s newest maintainer comment and `<m>` is open (section 6, rule 1). `close`: at any stage, `Comment(n, <comment>)` when given, then `CloseIssue(n)` and `Relabel(n, <stage>, "swarm:rejected")` (T19): `close` is the rejection, and a job done is closed through `merge`, which finds a pull request merged by hand; the pull requests are left as they are |
+| Each verb | every relabel below, and `unblock`'s clearing of `swarm:blocked`, of an issue carrying `swarm:gated` is followed by `Relabel(n, "swarm:gated", "")` unless the labels the write leaves are gated by section 5's predicate (the issue still blocked, or unblocked at a gate that is on and holds its class), where the flag stays, as the pass would set it, and for an issue unblocked the next pass posts that gate's note (one still blocked gets none, section 5); that removal refused is a warning, the write being made, which the next pass of `apply` clears; every comment a verb posts (`unblock`'s, `close`'s, `block`'s, `class`'s statement and `merge`'s direction or checks' note) is not posted when its thread's newest comment is already the maintainer's with that text, so a verb run again after a later write was refused posts it once; and every close by `Relabel(n, <stage>, <terminal>)` and the removal of each flag the issue carries (section 5); `swarm:blocked` and `swarm:paused` are cleared only by `unblock` and `resume <n>`, a relabel leaving them as they are. `triage`: at `swarm:proposal-posted`, `Relabel(n, "swarm:proposal-posted", "swarm:proposal-accepted")` (T3). `accept`: at `swarm:plan-0-posted`, `Relabel(n, "swarm:plan-0-posted", "swarm:plan-1-accepted")` (T7). `class`: at any stage; when `<n>`'s class (section 5, The job class) is already the one named, nothing, but for an architecture job without the flag (no class statement, or the maintainer's own issue), which is given it, `Relabel(n, "", "swarm:class-architecture")`, so the forge shows its class; else `architecture`: `Relabel(n, "", "swarm:class-architecture")` then `Comment(n, "Class: architecture")`; `routine`: refused when the maintainer's login is not in `trusted`, whose statement no rule would read, else `Relabel(n, "swarm:class-architecture", "")` when it carries the flag, then `Comment(n, "Class: routine")`; either statement is the class's newest, wakes no role, and the next pass passes the triage or plan gate of a job made routine (T23, T24). `approve`: at any stage, `Pulls(n)`, and `Approve(m, <head>)` on the current pull request, which must be open. `merge`: at `swarm:review-2-approved`, `Pulls(n)`; the current pull request open: `Reviews(m)`, then the checks on `<head>` as the merge step reads them (`Status(<name>, <head>)`, and `RequiresChecks(<name>, <base>)` when none has reported, section 12): a check `failure` or `error`: `Comment(m, <the checks' note>)`, section 12's text naming each, then `Relabel(n, "swarm:review-2-approved", "swarm:review-3-changes-requested")` (T26), exit 0 and nothing merged; a check `pending`, or none reported while `<base>` requires them: refused, nothing changed, the merge being a person's act that waits for no pass; else `Merge(m, <head>)`, `<head>` the commit both the swarm's newest reviews approve, as the merge step reads it (section 12); merged already: nothing; closed unmerged, or no head both approve: refused; the merge refused and the pull request reported not mergeable (`Pull.Mergeable`, section 10): `Comment(m, <the direction>)`, section 12's text, then `Relabel(n, "swarm:review-2-approved", "swarm:review-3-changes-requested")` (T25), the maintainer's hand routing of the swarm's first conflict made the verb's, exit 0 and nothing merged; refused with its mergeability unknown, or reported mergeable: refused; else, by the slices the accepted plan declares as the merge step counts them, `Relabel(n, "swarm:review-2-approved", "swarm:plan-1-accepted")` when a slice follows `<s>` (T13), else `CloseIssue(n)` and `Relabel(n, "swarm:review-2-approved", "swarm:done")`. `unblock`: at any stage, the issue carrying `swarm:blocked` (refused when it does not), and refused at `swarm:review-1-in-progress`, or at `swarm:review-0-ready` where T21's write was refused, when the newest of the reconciler's notes that blocked it (section 7.6: every note but the round limit's first and, from Step 29 of the swarm build, a note on an issue moved during the run, which blocked nothing) is the round limit's second, where no role runs, naming `swarm:review-3-changes-requested` and `swarm:plan-0-posted` as the relabels to make on the forge first; `Comment(n, <comment>)` (on the current pull request instead, when it is open and the stage is `swarm:review-3-changes-requested`, whose worker reads that thread), then `Relabel(n, "swarm:blocked", "")` (T18) and the gated flag's removal as above, the comment first, so the role the stage runs reads it. `block`: `<m>` not `<n>`, `Issue(m)` an open issue (not a pull request), then `Relabel(m, "", "swarm:blocking")` unless it carries it and `Comment(n, "Blocked by #<m>")`, warned when the maintainer's login is not in `trusted`, whose comment the role rule does not read, which holds `<n>`'s launches while it is `<n>`'s newest maintainer comment and `<m>` is open (section 6, rule 1). `close`: at any stage, `Comment(n, <comment>)` when given, then `CloseIssue(n)` and `Relabel(n, <stage>, "swarm:rejected")` (T19): `close` is the rejection, and a job done is closed through `merge`, which finds a pull request merged by hand; the pull requests are left as they are |
 | Forge | reads: `Login`, `Issue` (`block` reads `<m>` too), `Pulls`, `Reviews`; writes: `Relabel`, `Comment`, `Approve`, `Merge`, `CloseIssue`, each by the maintainer's account; no entry it posts carries the marker (section 6): a comment opening with it is refused |
 | Writes | nothing but those forge writes: no file, no container, no commit |
-| Stdout | `Maintainer <login> on <owner>/<repo>`, then per write `#<n> <from> → <to>`, `#<n> class-architecture` (`class`'s flag set), `#<n> already <class>`, `#<n> commented` (`unblock` at `swarm:review-3-changes-requested`, and `merge` sending a pull request back: `#<n> commented on pull <name>#<m>`), `#<n> comment already posted` (or `… already posted on pull <name>#<m>`) for one not posted again, `#<n> not mergeable: back to the worker` (`merge`, before its comment and relabel), `#<m> blocking`, `#<n> closed`, `#<n> approved pull <name>#<m> at <short sha>`, `#<n> merged pull <name>#<m> (slice <s> of <S>)` or `#<n> pull <name>#<m> already merged (slice <s> of <S>)`, `#<n> closed (last slice merged)`, then the terminal `#<n> <stage> → swarm:done` or `#<n> <stage> → swarm:rejected`, and `#<n> <flag> cleared` for each flag a relabel (`gated`, unless the new labels are gated), an unblock (`blocked`, then `gated` the same), `class <n> routine` (`class-architecture`) or a close (each it carried) removes |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, then per write `#<n> <from> → <to>`, `#<n> class-architecture` (`class`'s flag set), `#<n> already <class>`, `#<n> commented` (`unblock` at `swarm:review-3-changes-requested`, and `merge` sending a pull request back: `#<n> commented on pull <name>#<m>`), `#<n> comment already posted` (or `… already posted on pull <name>#<m>`) for one not posted again, `#<n> not mergeable: back to the worker` and `#<n> checks failed at <short sha>: back to the worker` (`merge`, before its comment and relabel), `#<m> blocking`, `#<n> closed`, `#<n> approved pull <name>#<m> at <short sha>`, `#<n> merged pull <name>#<m> (slice <s> of <S>)` or `#<n> pull <name>#<m> already merged (slice <s> of <S>)`, `#<n> closed (last slice merged)`, then the terminal `#<n> <stage> → swarm:done` or `#<n> <stage> → swarm:rejected`, and `#<n> <flag> cleared` for each flag a relabel (`gated`, unless the new labels are gated), an unblock (`blocked`, then `gated` the same), `class <n> routine` (`class-architecture`) or a close (each it carried) removes |
 | Stderr | `⚠️  <state>/env <problem>` (as `init`); `unblock`'s `⚠ <login> is not in trusted: no member reads your comment (docs/swarm.md section 6)`; `block`'s `⚠ <login> is not in trusted: the role rule does not read your Blocked by #<m>, so it holds nothing (docs/swarm.md section 6)`; `⚠ #<n>: swarm:gated not cleared (<error>); the next pass of apply clears it`; errors |
-| Exit codes | 0 the writes made; 1 no swarm found, `swarm.json` invalid, `<state>/env` readable by others, `Error: swarm: $DAISY_MAINTAINER_TOKEN is not set (in <state>/env or the environment)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN holds the swarm's token ($<VAR>); the maintainer's verbs act with your own (docs/swarm.md section 8)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN is <login>'s token, the swarm's account (trusted's last login); the maintainer's verbs act with your own (docs/swarm.md section 8)`, the issue closed, in another stage, with no stage label or with two, no open pull request to approve, no pull request to merge, one closed unmerged, no head both reviews approve, `unblock` of an issue not blocked (`Error: swarm: #<n> is not blocked; nothing changed`) or blocked at the round limit, `block` by itself or by an issue not open (`Error: swarm: #<n> cannot block itself; nothing changed`, `Error: swarm: #<m> is not an open issue; nothing changed`), `class <n> routine` by a login not in `trusted` (`Error: swarm: <login> is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed`), a merge the forge refuses of a pull request it reports mergeable (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; nothing changed`: no note and no block, the maintainer being there to read it) or whose mergeability it has not computed (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; the forge has not yet computed whether it merges, so run merge again shortly; nothing changed`), one it reports not mergeable being T25 and exit 0, but for a head sent back once already (`Error: swarm: #<n>: pull <name>#<m> was sent back to merge <base> at <short sha> once already, was approved again at that head, and the forge still reports it not mergeable; merge <base> into swarm/<n>-<s>, or relabel the issue; nothing changed`: T25's second time, section 12), an approval the forge refuses (its `422` among them), a marked comment, a forge call failing, the close made and its terminal refused (`Error: swarm: #<n> is closed, but not relabelled swarm:<done\|rejected>: <error>; relabel it on the forge`) or, the terminal set, a flag's removal refused (`Error: swarm: #<n> is closed and relabelled swarm:<done\|rejected>, but <flag> is not cleared: <error>; remove it on the forge`); 2 usage, `unblock` without a comment among it |
+| Exit codes | 0 the writes made; 1 no swarm found, `swarm.json` invalid, `<state>/env` readable by others, `Error: swarm: $DAISY_MAINTAINER_TOKEN is not set (in <state>/env or the environment)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN holds the swarm's token ($<VAR>); the maintainer's verbs act with your own (docs/swarm.md section 8)`, `Error: swarm: $DAISY_MAINTAINER_TOKEN is <login>'s token, the swarm's account (trusted's last login); the maintainer's verbs act with your own (docs/swarm.md section 8)`, the issue closed, in another stage, with no stage label or with two, no open pull request to approve, no pull request to merge, one closed unmerged, no head both reviews approve, `unblock` of an issue not blocked (`Error: swarm: #<n> is not blocked; nothing changed`) or blocked at the round limit, `block` by itself or by an issue not open (`Error: swarm: #<n> cannot block itself; nothing changed`, `Error: swarm: #<m> is not an open issue; nothing changed`), `class <n> routine` by a login not in `trusted` (`Error: swarm: <login> is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed`), a merge the forge refuses of a pull request it reports mergeable (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; nothing changed`: no note and no block, the maintainer being there to read it) or whose mergeability it has not computed (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; the forge has not yet computed whether it merges, so run merge again shortly; nothing changed`), a head whose checks are pending or have not reported while `<base>` requires them (`Error: swarm: #<n>: merge of pull <name>#<m> waits: its checks on <short sha> are pending: <contexts>; run merge again when they have passed; nothing changed`, or `… waits: no check has reported on <short sha>, and <base> requires them; …`), one whose checks failed being T26 and exit 0, one it reports not mergeable being T25 and exit 0, but for a head sent back once already (`Error: swarm: #<n>: pull <name>#<m> was sent back to merge <base> at <short sha> once already, was approved again at that head, and the forge still reports it not mergeable; merge <base> into swarm/<n>-<s>, or relabel the issue; nothing changed`: T25's second time, section 12), an approval the forge refuses (its `422` among them), a marked comment, a forge call failing, the close made and its terminal refused (`Error: swarm: #<n> is closed, but not relabelled swarm:<done\|rejected>: <error>; relabel it on the forge`) or, the terminal set, a flag's removal refused (`Error: swarm: #<n> is closed and relabelled swarm:<done\|rejected>, but <flag> is not cleared: <error>; remove it on the forge`); 2 usage, `unblock` without a comment among it |
 | Ops | Real; no `Exec` but git's for the validation, no `Start` |
 
 **As built (Step 10 of the swarm build).** The table as written. A
@@ -4259,7 +4306,8 @@ the current Daisy's.
   `swarm:paused`, once per pass and not while the swarm is paused:
   `Pulls(n)` and its current pull request; the approved head is the
   commit both its newest swarm reviews approve (`Reviews(m)`). Merged
-  already (an interrupted step): straight to the label. Open: `Merge(m,
+  already (an interrupted step): straight to the label. Open: the
+  approved head's checks first (The checks, below), then `Merge(m,
   <approved head>)`; refused (`ErrNotMergeable`), the step reads the
   refusal by the pull request's `Mergeable` as `Pulls(n)` gave it. Not
   mergeable: the step fetches the repository's mirror (once per step,
@@ -4310,6 +4358,45 @@ the current Daisy's.
   plan's "no merging swarm" non-goal; it is chosen in `swarm.json`,
   beside the `budget` it requires (section 14, item 1). A paused issue is
   skipped the same way: the maintainer holds its merge as its launches.
+- **The checks.** Before `Merge`, the merge step and `swarm merge` read
+  the approved head's checks, `Status(<name>, <head>)`, each context's
+  latest status (section 10). A context `failure` or `error`: **T26**,
+  back to the worker, whatever the others report: `Comment(m, <note>)`
+  on the pull request, whose thread the worker reads, `The checks on
+  pull request <owner>/<name>#<m> failed at its approved head <short
+  sha>: <contexts>. Fix what they report on swarm/<n>-<s> and commit;
+  the reviewers then review the new head.`, each failed context in
+  backticks with its state in parentheses, comma-separated (the merge
+  step's under the reconciler's marker, not posted again when it is the
+  thread's last word by the swarm already, a retry; `swarm merge`'s as
+  the maintainer), then `Relabel(n, "swarm:review-2-approved",
+  "swarm:review-3-changes-requested")`; no note on the issue and no
+  block, the note's beginning differing from the direction's so that it
+  is never T25's first time. A worker that answers it without a commit
+  (`NO CHANGE:`, a check that failed by chance) and a pair that approves
+  the same head again send it back again, each such round counted
+  towards the round limit (T11), which bounds it; no other limit is
+  set. Else a context `pending`: the merge waits, the merge step
+  printing `#<n> merge of pull <name>#<m> waits: its checks on <short
+  sha> are pending: <contexts>; the next pass tries again` and trying
+  at each pass until the checks settle, as T25's unsettled mergeability
+  does (a check that never settles holds the merge until the maintainer
+  acts, as an unsettled mergeability would). **No status at all**: the
+  step reads `RequiresChecks(<name>, <base>)`; when `<base>`'s
+  protection requires status checks, the merge waits as for a pending
+  one (`… waits: no check has reported on <short sha>, and <base>
+  requires them; …`), the forge itself refusing it; otherwise the merge
+  is made as before checks were read, a repository with no checks
+  merging at once. A forge whose branch reports no requirement (a
+  version without the field among them) reads as none: the merge is
+  tried, and a refusal is T16 as before. Any other state (`success`,
+  Gitea's `warning` or `skipped`) is the forge's to merge or refuse:
+  only then does a refusal follow T16 or T25 as below. `swarm merge`
+  sends a failed head back as the step does (exit 0) and refuses a
+  waiting one, `Error: swarm: #<n>: merge of pull <name>#<m> waits:
+  <why>; run merge again when they have passed; nothing changed`: the
+  maintainer's merge is a person's act, made again by hand, never a
+  block.
 - **The direction** is one form, the merge step's under the
   reconciler's marker and `swarm merge`'s as the maintainer's comment,
   each beginning `Pull request <owner>/<name>#<m> was approved at <short
@@ -4391,11 +4478,11 @@ against: **nine stage labels**, with the flags `swarm:gated`,
 `swarm:class-architecture` and the terminals
 `swarm:done` and `swarm:rejected` beside them (section 5; eight stages
 and one flag before Step 15 of the swarm build, four flags before Step
-20); **twenty-five
-transitions**, T1–T25, of which T1–T2, T3–T4, T5–T6 and T13–T14 are
+20); **twenty-six
+transitions**, T1–T26, of which T1–T2, T3–T4, T5–T6 and T13–T14 are
 gated pairs, T11's target follows G2, T14–T16 are the merge step's,
 T20–T21 the launch's and T23–T24 step 8's, for a routine job, and T25
-the merge step's or `swarm merge`'s; **the trigger rule's table** of section 6 (seven
+and T26 the merge step's or `swarm merge`'s; **the trigger rule's table** of section 6 (seven
 rows: `proposal-posted`, `proposal-accepted`, `plan-0-posted` and
 `plan-1-accepted` read the issue thread, the two review stages and
 `review-3-changes-requested` the current pull request's, and
@@ -7316,3 +7403,33 @@ entries among revision 1's, and was renumbered at Step 38.
     `TestFakePullsReviewsAndMerge`, `TestSwarmInitWarnsOfAnUnusablePrompt`,
     `TestSwarmInitEnvTakesBlanksAsUnset`, `TestSwarmUnitQuotesItsValues`
     and `TestSwarmInitCreatesTheSwarmRepository`.
+121. **A merge reads the head's checks first (Step 1 of the plan for
+    the inbox requests F27–F35, 2026-11-14; request F27).** Gitea
+    reports a pull request whose required checks are still running as
+    mergeable and refuses its merge (`405 Not all required status checks
+    successful`), so with one runner every merge that beat the CI was
+    T16, blocked for the maintainer though nothing was wrong. The forge
+    seam gains `Status` and `RequiresChecks` (section 10), and before
+    `Merge` the merge step and `swarm merge` read the approved head's
+    checks (section 12, The checks): a failed one is T26, back to the
+    worker with the contexts named on the pull request and no block; a
+    pending one waits for the next pass, as an unsettled mergeability
+    does; only a refusal with no check failed or pending stays T16 (or
+    T25). **No status at all** was the choice between three readings:
+    merging as before (a head whose checks have not started is then
+    blocked, F27's failure in a narrower window), waiting always (a
+    repository with no checks would never merge), or waiting only where
+    the base requires checks. The third is taken, its requirement read
+    from the branch (`enable_status_check`), which a reader of the
+    repository may read, rather than the branch protection; a forge
+    that reports none merges as before. Waiting sets no cap: a check
+    that never settles holds the merge as an unsettled mergeability
+    does, and a failed head answered without a commit is bounded by the
+    round limit. **The verb** waits for no pass: a person runs it, so a
+    pending head is refused with exit 1, nothing changed, and a failed
+    one is sent back as the step sends it. The judgement is made on the
+    contexts, not on the combined state, whose precedence among
+    `pending`, `warning` and `failure` the Swagger does not document. Tests: `TestSwarmMergeStepWaitsForChecks`,
+    `TestSwarmMergeStepChecksFailed`, `TestSwarmMergeStepChecksPassedRefused`,
+    `TestSwarmMaintainerMergeChecksFailed`, `TestSwarmMaintainerRefusals`,
+    `TestFakeChecks`, `TestGiteaStatus` and `TestGiteaRequiresChecks`.

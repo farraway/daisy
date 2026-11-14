@@ -402,7 +402,10 @@ func swarmApprove(c *Context, open opener) error {
 // the worker, as the merge step sends it (T25), unless that head was sent
 // back once already (reconcile.SentBack), which the verb refuses as the
 // merge step blocks it; any other refused merge changes nothing: the
-// maintainer is there to read why.
+// maintainer is there to read why. The head's checks are read first: one
+// failed sends the issue back to the worker as the merge step does
+// (T26); one pending, or none reported while base requires them, is
+// refused, nothing changed: the maintainer runs merge again later.
 func swarmMerge(c *Context, open opener) error {
 	m, err := asMaintainer(c, open)
 	if err != nil {
@@ -434,6 +437,21 @@ func swarmMerge(c *Context, open opener) error {
 		head, _ := reconcile.ApprovedHead(reviews, m.swarm)
 		if head == "" {
 			return fmt.Errorf("Error: swarm: #%d: no head of pull %s#%d is approved by both the swarm's reviews; nothing merged", m.n, cur.Repo, cur.Number)
+		}
+		checks, err := reconcile.HeadChecks(m.f, cur.Repo, m.cfg.Base, head)
+		if err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		switch {
+		case len(checks.Failed) > 0:
+			fmt.Fprintf(c.Stdout, "#%d checks failed at %s: back to the worker\n", m.n, short(head))
+			owner, _, _ := strings.Cut(m.cfg.Forge.Repo, "/")
+			if err := m.sayOnPull(cur, reconcile.ChecksFailed(owner, m.n, cur, head, checks.Failed)); err != nil {
+				return err
+			}
+			return m.relabel(forge.ReviewApproved, forge.ChangesRequested)
+		case checks.Wait():
+			return fmt.Errorf("Error: swarm: #%d: merge of pull %s#%d waits: %s; run merge again when they have passed; nothing changed", m.n, cur.Repo, cur.Number, checks.Why(head, m.cfg.Base))
 		}
 		err = m.f.Merge(ref, head)
 		if errors.Is(err, forge.ErrNotMergeable) {

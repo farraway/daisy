@@ -137,6 +137,13 @@ type Adapter interface {
 	// review, so a refusal is its error.
 	Approve(pr Ref, head string) error
 	Merge(pr Ref, head string) error
+	// Status is the latest status of each context on commit sha in the
+	// declared repository repo, as the forge reports them; none when no
+	// check has reported on it.
+	Status(repo, sha string) ([]Check, error)
+	// RequiresChecks: the protection of branch in the declared repository
+	// repo requires status checks to pass before a merge.
+	RequiresChecks(repo, branch string) (bool, error)
 	// Milestones is forge.repo's milestones, open and closed, each with
 	// the issues the forge counts in it.
 	Milestones() ([]Milestone, error)
@@ -244,6 +251,11 @@ type ReviewComment struct {
 	Line                       int
 	Created                    time.Time
 }
+
+// Check is one context's latest status on a commit: the context's name
+// and its state as the forge names it, `pending`, `success`, `failure`
+// or `error`, or another (Gitea's `warning` and `skipped`).
+type Check struct{ Context, State string }
 
 type Verdict int
 

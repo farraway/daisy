@@ -47,6 +47,8 @@ type fakeState struct {
 	repository  *HeldRepository // forge.repo on the forge, nil while it holds none
 	sshURL      string          // forge.repo's ssh_url
 	refuseRepo  bool
+	statuses    map[[2]string][]Check // by {repository, commit}: each context's latest, in the order first reported
+	requires    map[[2]string]bool    // by {repository, branch}: its protection requires checks
 }
 
 // HeldRepository is forge.repo as the Fake holds it: private, the account
@@ -407,6 +409,64 @@ func (f *Fake) RefuseMerge(pr Ref) {
 	must(f.findPull(pr)).pull.refused = true
 }
 
+// SetStatus is a check reporting state for context on commit sha in the
+// declared repository repo, as a CI posts a commit status: the context's
+// latest, replacing its earlier one.
+func (f *Fake) SetStatus(repo, sha, context, state string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.statuses == nil {
+		f.statuses = map[[2]string][]Check{}
+	}
+	key := [2]string{repo, sha}
+	if i := slices.IndexFunc(f.statuses[key], func(c Check) bool { return c.Context == context }); i >= 0 {
+		f.statuses[key][i].State = state
+		return
+	}
+	f.statuses[key] = append(f.statuses[key], Check{context, state})
+}
+
+// RequireChecks protects branch of the declared repository repo with
+// required status checks, as its administrator does on the forge: Merge
+// then refuses a pull request into it whose head has a check not
+// success, or none.
+func (f *Fake) RequireChecks(repo, branch string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.requires == nil {
+		f.requires = map[[2]string]bool{}
+	}
+	f.requires[[2]string{repo, branch}] = true
+}
+
+func (f *Fake) Status(repo, sha string) ([]Check, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.statuses[[2]string{repo, sha}]), nil
+}
+
+// RequiresChecks: a repository not declared is not found, as Gitea's
+// 404 for a repository it does not hold.
+func (f *Fake) RequiresChecks(repo, branch string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !slices.Contains(f.names, repo) {
+		return false, notFound(fmt.Sprintf("forge: GET /repos/%s/%s/branches/%s: 404 Not Found", f.owner, repo, branch))
+	}
+	return f.requires[[2]string{repo, branch}], nil
+}
+
+// checksPass: the checks on pull request it's head let its merge
+// through: its base requires none, or the head has one at least and
+// every one is success.
+func (f *Fake) checksPass(repo string, it *item) bool {
+	if !f.requires[[2]string{repo, it.pull.base}] {
+		return true
+	}
+	checks := f.statuses[[2]string{repo, it.pull.headSHA}]
+	return len(checks) > 0 && !slices.ContainsFunc(checks, func(c Check) bool { return c.State != "success" })
+}
+
 // Pulls: the swarm's pull requests for issue n in every declared
 // repository opened by one of openers (section 10's filter), by slice.
 func (f *Fake) Pulls(n int, openers []string) ([]Pull, error) {
@@ -516,8 +576,10 @@ func (f *Fake) Approve(pr Ref, head string) error {
 // One closed unmerged is not found (404), as Gitea's handler answers its
 // ErrIsClosed. It refuses in Gitea's order, mergeability before the head:
 // one merged or not mergeable with 405 "Please try again later", whether
-// it conflicts or the forge is still computing, one refused (RefuseMerge)
-// with 405, then a head that is not the current one with 409.
+// it conflicts or the forge is still computing, one whose base requires
+// checks (RequireChecks) while its head has none or one not success with
+// 405, one refused (RefuseMerge) with 405, then a head that is not the
+// current one with 409.
 func (f *Fake) Merge(pr Ref, head string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -530,6 +592,8 @@ func (f *Fake) Merge(pr Ref, head string) error {
 		return notFound(fmt.Sprintf("forge: POST /repos/%s/%s/pulls/%d/merge: 404 Not Found", f.owner, pr.Repo, pr.N))
 	case !it.open || it.pull.mergeable != MergeableYes:
 		return fmt.Errorf("%w: 405 Please try again later", ErrNotMergeable)
+	case !f.checksPass(pr.Repo, it):
+		return fmt.Errorf("%w: 405 Not all required status checks successful", ErrNotMergeable)
 	case it.pull.refused:
 		return fmt.Errorf("%w: 405 not allowed to merge", ErrNotMergeable)
 	case it.pull.headSHA != head:

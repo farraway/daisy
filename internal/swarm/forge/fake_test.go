@@ -187,6 +187,64 @@ func TestFakePullsReviewsAndMerge(t *testing.T) {
 	}
 }
 
+// The Fake's checks (section 10): Status is each context's latest on a
+// commit, in the order first reported, none for a commit no check has
+// reported on; RequiresChecks is the protection RequireChecks set; and
+// Merge, as Gitea's, refuses a pull request whose base requires checks
+// while its head has none or one not success, after the mergeability and
+// before a refusing rule or a moved head.
+func TestFakeChecks(t *testing.T) {
+	f := fakeForge(t)
+	f.CreateIssue("Job", "", []string{"swarm:review-2-approved"})
+	m, _ := f.CreatePull("app", "swarm/1-1", "main", "Slice 1", "Refs #1")
+	pr := Ref{"app", m}
+	f.Push(pr, "c1")
+	if got, err := f.Status("app", "c1"); err != nil || len(got) != 0 {
+		t.Errorf("Status with no check reported = %+v, %v", got, err)
+	}
+	if on, err := f.RequiresChecks("app", "main"); err != nil || on {
+		t.Errorf("RequiresChecks unprotected = %v, %v", on, err)
+	}
+	if _, err := f.RequiresChecks("other", "main"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("RequiresChecks of an undeclared repository: %v", err)
+	}
+	f.RequireChecks("app", "main")
+	if on, err := f.RequiresChecks("app", "main"); err != nil || !on {
+		t.Errorf("RequiresChecks protected = %v, %v", on, err)
+	}
+	if on, _ := f.RequiresChecks("lib", "main"); on {
+		t.Error("RequiresChecks reads another repository's protection")
+	}
+	refused := "forge: not mergeable: 405 Not all required status checks successful"
+	if err := f.Merge(pr, "c1"); !errors.Is(err, ErrNotMergeable) || errText(err) != refused {
+		t.Errorf("no check reported: %v", err)
+	}
+	f.SetStatus("app", "c1", "ci / test", "pending")
+	f.SetStatus("app", "c1", "lint", "success")
+	f.SetStatus("app", "c2", "ci / test", "failure")
+	if got, _ := f.Status("app", "c1"); !reflect.DeepEqual(got, []Check{{"ci / test", "pending"}, {"lint", "success"}}) {
+		t.Errorf("Status = %+v", got)
+	}
+	if err := f.Merge(pr, "c1"); errText(err) != refused {
+		t.Errorf("a check pending: %v", err)
+	}
+	f.SetMergeable(pr, MergeableNo)
+	if err := f.Merge(pr, "c1"); errText(err) != "forge: not mergeable: 405 Please try again later" {
+		t.Errorf("the mergeability is checked first: %v", err)
+	}
+	f.SetMergeable(pr, MergeableYes)
+	f.SetStatus("app", "c1", "ci / test", "success")
+	if got, _ := f.Status("app", "c1"); !reflect.DeepEqual(got, []Check{{"ci / test", "success"}, {"lint", "success"}}) {
+		t.Errorf("Status after a context's new status = %+v", got)
+	}
+	if err := f.Merge(pr, "c9"); errText(err) != "forge: not mergeable: 409 head out of date" {
+		t.Errorf("the head's checks, not the one asked for: %v", err)
+	}
+	if err := f.Merge(pr, "c1"); err != nil {
+		t.Errorf("every check success: %v", err)
+	}
+}
+
 // The Fake's milestones: one per title; the counts are the issues and pull
 // requests of forge.repo in each, as Gitea counts them; SetMilestone takes a
 // milestone that exists, and after RefuseMilestones a create and a set

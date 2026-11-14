@@ -663,6 +663,40 @@ func (g *Gitea) Merge(pr Ref, head string) error {
 	return err
 }
 
+// Status reads the commit's combined status, whose statuses are each
+// context's latest; the combined state is not read, the merge step
+// judging the contexts (section 12). Its first page alone is read: the
+// statuses past the forge's page size are not.
+func (g *Gitea) Status(repo, sha string) ([]Check, error) {
+	var out struct {
+		Statuses []struct {
+			Context string `json:"context"`
+			Status  string `json:"status"`
+		} `json:"statuses"`
+	}
+	if err := g.call("GET", g.repoPath(repo)+"/commits/"+url.PathEscape(sha)+"/status", nil, http.StatusOK, &out); err != nil {
+		return nil, err
+	}
+	var checks []Check
+	for _, st := range out.Statuses {
+		checks = append(checks, Check{Context: st.Context, State: st.Status})
+	}
+	return checks, nil
+}
+
+// RequiresChecks reads the branch, whose enable_status_check the
+// Swagger documents on the branch any reader may read, rather than the
+// branch protection, whose route takes the repository's administration.
+func (g *Gitea) RequiresChecks(repo, branch string) (bool, error) {
+	var out struct {
+		EnableStatusCheck bool `json:"enable_status_check"`
+	}
+	if err := g.call("GET", g.repoPath(repo)+"/branches/"+url.PathEscape(branch), nil, http.StatusOK, &out); err != nil {
+		return false, err
+	}
+	return out.EnableStatusCheck, nil
+}
+
 type giteaMilestone struct {
 	ID     int64  `json:"id"`
 	Title  string `json:"title"`
