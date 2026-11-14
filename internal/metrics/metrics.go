@@ -245,13 +245,15 @@ func (r Row) Check() error {
 	return nil
 }
 
-// AppendCSV is the CSV file's content with r appended: the header first
-// when the file is empty, else the file's own header, which must be
-// Header, so a row never lands under other columns. The bytes before the
-// row are the file's, a final newline added when it has none.
-func AppendCSV(file []byte, r Row) ([]byte, error) {
-	if err := r.Check(); err != nil {
-		return nil, err
+// AppendCSV is the CSV file's content with rows appended: the header
+// first when the file is empty, else the file's own header, which must
+// be Header, so a row never lands under other columns. The bytes before
+// the rows are the file's, a final newline added when it has none.
+func AppendCSV(file []byte, rows ...Row) ([]byte, error) {
+	for _, r := range rows {
+		if err := r.Check(); err != nil {
+			return nil, err
+		}
 	}
 	var b bytes.Buffer
 	w := csv.NewWriter(&b)
@@ -266,9 +268,50 @@ func AppendCSV(file []byte, r Row) ([]byte, error) {
 			b.WriteByte('\n')
 		}
 	}
-	w.Write(r.cells())
+	for _, r := range rows {
+		w.Write(r.cells())
+	}
 	w.Flush()
 	return b.Bytes(), w.Error()
+}
+
+// key is a row's identity, its cells' kind, plan or swarm, step or run
+// and role (Header's second to fifth columns): a later row of the same
+// key supersedes it (Summarize), and Append writes no row whose key the
+// CSV holds.
+func key(cells []string) string { return strings.Join(cells[1:5], "\x00") }
+
+// Key is the row's key.
+func (r Row) Key() string { return key(r.cells()) }
+
+// Keys is the key of each row of the CSV.
+func Keys(file []byte) (map[string]bool, error) {
+	recs, err := records(file)
+	if err != nil {
+		return nil, err
+	}
+	keys := map[string]bool{}
+	for _, rec := range recs {
+		keys[key(rec)] = true
+	}
+	return keys, nil
+}
+
+// records is the CSV's rows, its header checked and left out.
+func records(file []byte) ([][]string, error) {
+	if len(bytes.TrimSpace(file)) == 0 {
+		return nil, nil
+	}
+	if err := checkHeader(file); err != nil {
+		return nil, err
+	}
+	r := csv.NewReader(bytes.NewReader(file))
+	r.FieldsPerRecord = len(Header)
+	recs, err := r.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	return recs[1:], nil
 }
 
 func checkHeader(file []byte) error {

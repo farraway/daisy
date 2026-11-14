@@ -35,7 +35,7 @@ func TestAppendUnderTheLockLosesNoRow(t *testing.T) {
 					errs <- err
 					return
 				}
-				err = Append(o.FS(), file, row)
+				_, err = Append(o.FS(), file, row)
 				release()
 				if err != nil {
 					errs <- err
@@ -58,6 +58,39 @@ func TestAppendUnderTheLockLosesNoRow(t *testing.T) {
 	}
 	if len(records) != 1+2*each {
 		t.Fatalf("%d records, want the header and %d rows", len(records), 2*each)
+	}
+}
+
+// Append writes no row whose key (kind, plan or swarm, step or run,
+// role) the CSV holds, nor one twice, in one rewrite; with none to write
+// the file is not touched.
+func TestAppendSkipsHeldKeys(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "metrics", "metrics.csv")
+	fs := ops.Real().FS()
+	run := func(unit, role, notes string) Row {
+		return Row{When: "2026-11-12T10:00:00Z", Kind: SwarmRun, Source: "acme/swarm-app", Unit: unit, Role: role, Notes: notes}
+	}
+	if n, err := Append(fs, file, run("1-worker-1", "worker", "live")); n != 1 || err != nil {
+		t.Fatalf("Append = %d, %v", n, err)
+	}
+	n, err := Append(fs, file, run("1-worker-1", "worker", "again"), run("2-owner-1", "owner", "new"), run("2-owner-1", "owner", "twice"),
+		Row{When: "2026-11-12T10:00:00Z", Kind: PlanStep, Source: "acme/swarm-app", Unit: "1-worker-1", Role: "worker", Notes: "a step"})
+	if n != 2 || err != nil {
+		t.Fatalf("Append = %d, %v", n, err)
+	}
+	b, _ := os.ReadFile(file)
+	records, _ := csv.NewReader(bytes.NewReader(b)).ReadAll()
+	var notes []string
+	for _, r := range records[1:] {
+		notes = append(notes, r[len(r)-1])
+	}
+	if fmt.Sprint(notes) != "[live new a step]" {
+		t.Fatalf("rows' notes %q", notes)
+	}
+	os.Chmod(filepath.Dir(file), 0o555) // a rewrite would fail
+	defer os.Chmod(filepath.Dir(file), 0o755)
+	if n, err := Append(fs, file, run("2-owner-1", "owner", "held")); n != 0 || err != nil {
+		t.Errorf("Append of a held row = %d, %v", n, err)
 	}
 }
 

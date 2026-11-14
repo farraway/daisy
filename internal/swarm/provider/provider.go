@@ -8,6 +8,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -72,6 +74,56 @@ var Providers = map[string]Provider{
 		Home: "CODEX_HOME", Login: "codex login -c cli_auth_credentials_store=file", Email: "noreply@openai.com"},
 	"xai": {Adapter: grok{}, Env: []string{"XAI_API_KEY"},
 		Home: "GROK_HOME", Login: "grok login --device-auth", Email: "noreply@x.ai", Confined: true},
+}
+
+// Persona is the provider, model and effort a run's argv launched its
+// CLI with: the first place in argv (after docker's own arguments and
+// the exit script's) where a provider's Command lies, read up to its
+// model and effort, each other word as Command writes it; ok is false
+// when none does. A run launched before its result named its persona
+// (Step 16b of the plan that clears the Deferred list) is read so, by
+// today's Command, whose words up to the effort those runs share.
+func Persona(argv []string) (name, model, effort string, ok bool) {
+	const m, e = "\x00model", "\x00effort"
+	for _, name := range slices.Sorted(maps.Keys(Providers)) {
+		words := Providers[name].Adapter.Command(m, e, "", "", "", nil)
+		last := 0
+		for j, w := range words {
+			if strings.Contains(w, "\x00") {
+				last = j
+			}
+		}
+		words = words[:last+1]
+	at:
+		for i := 0; i+len(words) <= len(argv); i++ {
+			got := map[string]string{}
+			for j, w := range words {
+				a := argv[i+j]
+				if v, ok := fill(w, a, m); ok {
+					got[m] = v
+				} else if v, ok := fill(w, a, e); ok {
+					got[e] = v
+				} else if w != a {
+					continue at
+				}
+			}
+			if got[m] != "" && got[e] != "" {
+				return name, got[m], got[e], true
+			}
+		}
+	}
+	return "", "", "", false
+}
+
+// fill is what word, a word of Command's holding the placeholder,
+// is filled with in arg; ok false when word does not hold it or arg is
+// not word filled.
+func fill(word, arg, placeholder string) (string, bool) {
+	pre, suf, ok := strings.Cut(word, placeholder)
+	if !ok || !strings.HasPrefix(arg, pre) || !strings.HasSuffix(arg[len(pre):], suf) {
+		return "", false
+	}
+	return arg[len(pre) : len(arg)-len(suf)], true
 }
 
 // Price is a model's list price, in US dollars per million tokens of

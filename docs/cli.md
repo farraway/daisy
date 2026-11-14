@@ -34,10 +34,10 @@ entries cross-reference it in prose.
 `daisy --help` as built, rendered from the `cli` table; `daisy
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm prompt build`, `swarm apply`,
-`swarm status`, `swarm pause`, `swarm resume`, and the maintainer's
+`swarm metrics`, `swarm status`, `swarm pause`, `swarm resume`, and the maintainer's
 `swarm triage`, `swarm accept`, `swarm class`, `swarm approve`, `swarm
 merge`, `swarm unblock`, `swarm block` and `swarm close`) joined the
-table a verb at a time as each was built; all fourteen are in it, and the tree never names a command the binary does
+table a verb at a time as each was built; all fifteen are in it, and the tree never names a command the binary does
 not run. Their entries below give docs/swarm.md's revision 6 (the swarm
 repository as the swarm's root, run from its clone with no Daisy
 workspace needed, the secrets in the swarm's `<state>/env`), which
@@ -98,6 +98,7 @@ Swarm
   swarm prompt build [--force] [--dry-run]
                                     Reseed prompts/ from this Daisy's defaults; an edited prompt is kept
   swarm apply [--once]              Reconcile the forge: launch members, post their output, move labels
+  swarm metrics --backfill          Write a metrics row for each collected run the home's CSV has none for
   swarm status                      Stages, gates, what waits for you, running members (read-only)
   swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
   swarm resume [<n>]                Launch members again and release the owner's held batch (with <n>, that issue)
@@ -187,7 +188,7 @@ init, or `.daisy/` with no `home` file. Commands that need no workspace:
 `install`, `init` (bare, it re-initializes the one it is in, and outside one
 the identity is the missing argument), `home`, `identity list`, `help` (tree or command),
 `prompt build <home>`, and `test`, whose bash dispatcher required one although the script read
-only the root *(decided, D30; built in Step 24)*, and the fourteen
+only the root *(decided, D30; built in Step 24)*, and the fifteen
 `swarm` verbs, which find their swarm themselves (docs/swarm.md section
 11, Finding the swarm: a swarm repository's clone; Step 2 of revision
 6's plan, the old layout's workspace no longer read since its Step 7). `healthcheck` needs one
@@ -776,6 +777,22 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 | Writes | `<state>/lock`, `<state>/paused` (two swarm faults in a row), `<state>/owner-held`, `<state>/auto` (a line per gate passed for a routine job), `<state>/git/`, `<state>/references/` (revision 6), with `notes` `<state>/notes/` (the host's clone of the swarm repository), `<state>/runs/`, a slot's lock and the clearing of the slot; on the forge, issues, comments, reviews, pull requests, label changes, pushed `swarm/<n>-<s>` branches, with `notes` the research notes' commits pushed to the swarm repository's `notes/` directory (its default branch; on a conflict to `swarm/notes-<n>-<role>-<k>`), the sixteen labels when one is missing (an old stage name renamed in place), `swarm:class-architecture` on each of the batch's proposals but those it classes routine, a routine job's `swarm:proposal-posted` and `swarm:plan-0-posted` relabelled with an auto note, `swarm:gated` set and cleared on open issues, a gate note on each issue the flag is added to, `swarm:blocked` set on a failed or blocked run's issue and on a refused merge's, a milestone per `active` brief's milestone and an issue's milestone where it has none, and with `gates.merge` false merges and closed issues, each closed issue then `swarm:done` |
 | Commits | none |
 | Cases | none; `TestSwarmApplyLifecycle`, `TestSwarmApplyLoopCollectsALaterPass`, `TestSwarmApplyCollectsARunAnotherApplyStarted`, `TestSwarmApplyGatesOff`, `TestSwarmApplyMilestones`, `TestSwarmApplyGatedFlag`, `TestSwarmApplyHolds`, `TestSwarmInProgressTakenBack`, `TestSwarmApplyResearchNotes`, `TestSwarmApplyResearchNotesMerges`, `TestSwarmApplyNotesInTheSwarmRepository`, `TestSwarmApplyOwnNotesNotADirectory`, `TestSwarmApplyOwnNotesNotADirectoryNothingWritten`, `TestSwarmApplyOwnNotesBecomeALink`, `TestSwarmSecondReviewerGoesHome`, `TestSwarmApplyContinuedPullRepositoryRemoved`, `TestSwarmApplyRoutineJob`, `TestSwarmBatchCountsRoutineProposals`, the pass's and the gates' (`TestSwarmApplyGateNoteOnEachGating`, `TestSwarmApplyBlockedGateNote`, `TestSwarmApplyMergeRefusedNoHead`, `TestSwarmFaultPauseOrder`, `TestSwarmApplyLoopTwoSignalsInAPass`, `TestSwarmApplyLoopSecondSignalAfterAPass`, `TestSwarmApplyLoopLeavesNoWatcher`, `TestSwarmApplyLoopSignalSkipsTheMergeStep`), the rounds' and the milestones' reads (`TestSwarmApplyDescriptionIsNoAnswer`, `TestSwarmApplyLoopMilestonesReadClosedOnce`), the collection's (`TestSwarmAbandonedWorkerKeepsItsCommits`, `TestSwarmOrphanEndedByTheExitMark`, `TestSwarmCheckRestartedAfterItsApplyDied` and the others of `swarm_collection_test.go`), the merge step's `TestSwarmMergeStepUnsettled`, `TestSwarmMergeStepRecomputing`, `TestSwarmMergeStepMirrorCannotTell` and `TestSwarmMergeStepSentBackTwice`, and the other `TestSwarmApply` tests, and the `internal/swarm` tests |
+
+### daisy swarm metrics
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 5 of the plan for the inbox requests F27-F35): Go (`internal/swarm/reconcile/record.go`, `internal/metrics`, `internal/swarm/provider`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Legacy | none |
+| Usage | `daisy swarm metrics --backfill`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); without `--backfill`, or with an argument, usage on stderr, exit 2 |
+| Exit codes | 0 the rows written (none among them); 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, `<state>/home` naming no home (`Error: swarm metrics --backfill: <state>/home names no Daisy home, whose metrics CSV would take the rows; write a registered home's name in it`) or one that cannot be used (`Error: swarm metrics --backfill: <state>/home names <name>: <reason>`), the CSV's header not this Daisy's, the metrics lock held past 30 seconds, a read or the write failing; 2 usage |
+| Stdout | `✓ Backfilled <w> rows into <home>/metrics/metrics.csv (<c> runs collected, <h> with its row already)` |
+| Stderr | `⚠ #<n> worker run <k>: lines not counted: <reason>` for a worker whose range its mirror cannot diff (its row written, the line cells empty); `⚠ #<n> <role> run <k>: no row: its result has no end line or started line to date it` |
+| Ops | Real |
+| Lock | `$DAISY_LOCAL/metrics.lock`, as `metrics add` and `swarm apply` take it, held for one read and one rewrite of the CSV: every row is made, each worker's lines measured, before it is taken. Not `<state>/lock`: it runs beside a live `apply` |
+| Writes | `<home>/metrics/metrics.csv` of the home `<state>/home` names: one `swarm-run` row (`metrics add`'s columns, above) per collected run whose kind, swarm, run and role the CSV holds no row of, in the order of their times, in one rewrite; nothing when there is none. No journal line, no forge call, no secret read |
+| Commits | none |
+| Cases | none; `TestSwarmMetricsBackfill`, `TestSwarmMetricsBackfillGoneShasAndNoHome`, `TestAppendSkipsHeldKeys` |
 
 ### daisy swarm pause
 

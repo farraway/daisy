@@ -1,8 +1,6 @@
 package metrics
 
 import (
-	"bytes"
-	"encoding/csv"
 	"fmt"
 	"slices"
 	"strconv"
@@ -33,30 +31,18 @@ type Group struct {
 // Summarize reads the CSV AppendCSV writes.
 func Summarize(file []byte) (Summary, error) {
 	var s Summary
-	if len(bytes.TrimSpace(file)) == 0 {
-		return s, nil
-	}
-	if err := checkHeader(file); err != nil {
-		return s, err
-	}
-	r := csv.NewReader(bytes.NewReader(file))
-	r.FieldsPerRecord = len(Header)
-	records, err := r.ReadAll()
+	recs, err := records(file)
 	if err != nil {
 		return s, err
 	}
-	records = records[1:]
-	s.Rows = len(records)
+	s.Rows = len(recs)
 	col := func(name string) int { return slices.Index(Header, name) }
 	latest := map[string]int{} // a row's key -> its last row
-	key := func(rec []string) string {
-		return strings.Join([]string{rec[col("kind")], rec[col("plan_or_swarm")], rec[col("step_or_run")], rec[col("role")]}, "\x00")
-	}
-	for i, rec := range records {
+	for i, rec := range recs {
 		latest[key(rec)] = i
 	}
 	groups := map[[2]string]*Group{}
-	for i, rec := range records {
+	for i, rec := range recs {
 		if latest[key(rec)] != i {
 			s.Superseded++
 			continue

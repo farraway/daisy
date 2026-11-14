@@ -38,22 +38,38 @@ func Lock(o ops.Ops, name, holder string) (release func(), err error) {
 	}
 }
 
-// Append appends r to the CSV at file (AppendCSV), creating the file and
-// its directory when absent; the caller holds Lock.
-func Append(fsys ops.FS, file string, r Row) error {
+// Append appends to the CSV at file (AppendCSV) each of rows whose key
+// it holds no row of, nor an earlier one of rows, in one rewrite,
+// creating the file and its directory when absent; it is how many it
+// appended, the file untouched when none. The caller holds Lock.
+func Append(fsys ops.FS, file string, rows ...Row) (int, error) {
 	before, err := fsys.ReadFile(file)
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		return fmt.Errorf("cannot read %s: %v", file, err)
+		return 0, fmt.Errorf("cannot read %s: %v", file, err)
 	}
-	out, err := AppendCSV(before, r)
+	held, err := Keys(before)
 	if err != nil {
-		return fmt.Errorf("cannot record in %s: %v", file, err)
+		return 0, fmt.Errorf("cannot record in %s: %v", file, err)
+	}
+	var add []Row
+	for _, r := range rows {
+		if k := r.Key(); !held[k] {
+			held[k] = true
+			add = append(add, r)
+		}
+	}
+	if len(add) == 0 {
+		return 0, nil
+	}
+	out, err := AppendCSV(before, add...)
+	if err != nil {
+		return 0, fmt.Errorf("cannot record in %s: %v", file, err)
 	}
 	if err := fsys.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-		return fmt.Errorf("cannot create %s: %v", filepath.Dir(file), err)
+		return 0, fmt.Errorf("cannot create %s: %v", filepath.Dir(file), err)
 	}
 	if err := ops.Rewrite(fsys, file, out, 0o644); err != nil {
-		return fmt.Errorf("cannot write %s: %v", file, err)
+		return 0, fmt.Errorf("cannot write %s: %v", file, err)
 	}
-	return nil
+	return len(add), nil
 }

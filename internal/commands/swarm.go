@@ -1205,14 +1205,23 @@ func applyLoop(c *Context, s *reconcile.Swarm) error {
 // swarmStateOnly is the <state> pause and resume act on: swarm.json read
 // for its forge fields only (section 11).
 func swarmStateOnly(c *Context) (string, error) {
+	cfg, err := forgeOnly(c)
+	if err != nil {
+		return "", err
+	}
+	return cfg.Forge.State(c.Env.Local), nil
+}
+
+// forgeOnly is swarm.json with only its forge fields validated.
+func forgeOnly(c *Context) (declare.Config, error) {
 	cfg, _, err := declare.Load(c.Ops.FS(), c.Swarm.Root)
 	if err == nil {
 		err = declare.ValidateForge(cfg.Forge)
 	}
 	if err != nil {
-		return "", fmt.Errorf("Error: %v", err)
+		return cfg, fmt.Errorf("Error: %v", err)
 	}
-	return cfg.Forge.State(c.Env.Local), nil
+	return cfg, nil
 }
 
 // pauseSwarm is `daisy swarm pause` (docs/swarm.md section 11):
@@ -1267,6 +1276,30 @@ func resumeSwarm(c *Context) error {
 	if len(removed) == 0 {
 		fmt.Fprintln(c.Stdout, "Not paused")
 	}
+	return nil
+}
+
+// SwarmMetrics is `daisy swarm metrics --backfill` (docs/swarm.md
+// section 11): a row in the metrics CSV of the home <state>/home names
+// for each collected run it holds none for.
+func SwarmMetrics(c *Context) error {
+	return inSwarm(c, func() error { return swarmMetrics(c) })
+}
+
+func swarmMetrics(c *Context) error {
+	if !c.Flag("--backfill") {
+		return UsageError("--backfill is required: it is the verb's one action")
+	}
+	cfg, err := forgeOnly(c)
+	if err != nil {
+		return err
+	}
+	s := &reconcile.Swarm{O: c.Ops, Place: c.Swarm, WS: c.Swarm.Root, Root: c.Env.Root, Config: c.Env.Config, Local: c.Env.Local, Cfg: cfg, Out: c.Stdout, Err: c.Stderr}
+	b, err := s.Backfill()
+	if err != nil {
+		return fmt.Errorf("Error: swarm metrics --backfill: %v", err)
+	}
+	fmt.Fprintf(c.Stdout, "✓ Backfilled %d rows into %s (%d runs collected, %d with its row already)\n", b.Written, b.File, b.Collected, b.Had)
 	return nil
 }
 

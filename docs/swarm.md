@@ -124,7 +124,11 @@ hand (item 123). Its Step 4 (2026-11-14) amended sections 3, 4, 7.3 and
 11: a resource may carry a one-line `note`, and every run's `system.md`
 lists the resources under `# Resources`, each with its index page and
 its note, which the owner's and the architect's defaults read in place
-of a path (item 124).
+of a path (item 124). Its Step 5 (2026-11-14) amended sections 2, 7.6
+and 11: `swarm metrics --backfill` writes the row of each collected run
+the home's CSV holds none for, as a collection makes it, and a row's
+persona, without the run's `persona` line, is the one its argv
+launched (item 125).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -157,7 +161,7 @@ them. The maintainer reads the sections each code
 step's hand-back cites (the plan's decision of 2026-11-06, in place of a
 reading of the whole before the first code step), and section 14 lists
 the places where the document chose between readings. `docs/cli.md`'s entry for the Swarm group points here:
-this document is the contract for the fourteen verbs, the configuration they
+this document is the contract for the fifteen verbs, the configuration they
 read, the forge calls they make, the containers they run and every file
 they write.
 
@@ -191,11 +195,11 @@ A point marked *not established as of <date>* is one no recorded run had
 settled by that date; it stays open until a run settles it, and section
 13's Established by the first real run records what the runs settled.
 The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
-`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm status`, `swarm pause [<n>]`, `swarm
+`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill`, `swarm status`, `swarm pause [<n>]`, `swarm
 resume [<n>]`, and the maintainer's `swarm triage <n>`, `swarm accept
 <n>`, `swarm class <n> routine|architecture`, `swarm approve <n>`, `swarm
 merge <n>`, `swarm unblock <n> <comment...>`, `swarm block <n> --by <m>`
-and `swarm close <n> [comment...]`): all fourteen are rows of the `cli`
+and `swarm close <n> [comment...]`): all fifteen are rows of the `cli`
 table.
 
 **Sources.** Revision 2 draws on five talks on software factories:
@@ -446,7 +450,7 @@ Every file Daisy writes, and nothing else:
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
 | `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: section 14, item 61), for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|blocked\|failed\|fault\|stale\|abandoned\|discarded>`; last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
-| `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names; created with its header when absent | `swarm apply` (under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | at each run's collection, when `<state>/home` names a usable home |
+| `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names, never a second for a run it holds a row of; created with its header when absent | `swarm apply`; `swarm metrics --backfill` (each under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | `apply`: at each run's collection, when `<state>/home` names a usable home; `metrics --backfill`: on the command, for each collected run without a row (section 11) |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/deps.out` | with the repository's `deps` (section 3), the dependency step's standard output and error, as written | `swarm apply` | when the dependency step ends |
 | `<run>/check/` | a clone of the fetched head for the dependency step and the check | `swarm apply` (`git clone` from `<state>/git/<name>`), then the check | before the dependency step and again before the check; removed when the run is collected |
@@ -2620,7 +2624,9 @@ metrics` summarizes, `docs/cli.md`). The row is of kind `swarm-run`:
 name, `<n>-<role>-<k>`; `role`; `provider`, `model` and `effort` the
 run's `persona` line, the persona it was launched with (a run without
 the line, launched by an older Daisy or refused before its credential,
-takes the one `swarm.json` declares at the collection); `root_sha`
+takes the one its `<run>/argv` launched, the provider whose CLI argv,
+section 9, lies in it and the model and effort that argv names, and
+with no such argv the one `swarm.json` declares at the collection); `root_sha`
 `$DAISY_ROOT`'s `HEAD` and `home_sha` the home's, at the collection
 (each empty, with a warning, when git cannot say); `prompt_hash` the
 sha256 of `<run>/io/system.md`, so a change to a persona prompt, the
@@ -2628,13 +2634,22 @@ Task, the repository notes or praxis shows; `outcome` the run's;
 `review_rounds` a reviewer's `round` line, its round as section 6
 counts it at the launch; `tokens_in`, `tokens_out` and `cost_reported`
 the `cost` line's, each empty when the run has none, and the cost empty,
-never `0`, when it is `-`; `cost_estimated` those tokens at the model's
+never `0`, when it is `-`, or when it is `0` in a result with no
+`persona` line (launched before Step 16b, when a cost the CLI did not
+report was written `0`: codex's always); `cost_estimated` those tokens at the model's
 list price (section 9's table; empty for a model not in it, and a lower
 bound, the cached input left out); for a worker run that pushed, the
 lines per class of `<start>..<pushed>` in its repository's mirror,
 counted as `metrics add` counts a step's (`git diff --numstat -z -M`),
-and that range; `notes` `#<n>` (the batch's `batch`) and its turns,
-which no column holds. The row is appended under
+and that range (a range the mirror cannot diff, its commits gone, leaves
+the cells empty, warns `⚠ #<n> worker run <k>: lines not counted:
+<reason>` and adds `lines not counted` to the notes); `notes` `#<n>`
+(the batch's `batch`) and its turns, which no column holds. The CSV
+never takes a second row for a run: the row is appended only when the
+CSV holds no row of its kind, `plan_or_swarm`, `step_or_run` and
+`role` (the key a later row supersedes by, `docs/cli.md`, `metrics`),
+so a collection retried after its row was written, or a backfill
+(section 11, `daisy swarm metrics`), adds none. The row is appended under
 `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too, so
 neither writer's read-then-rewrite of the file loses the other's row; a
 home that is not registered or cannot be used, the lock held past 30
@@ -3653,12 +3668,13 @@ not, as the folder it makes the clone in (below). *As built (Step 7,
 workspace's `swarm/` is no swarm, so a verb run there finds none (`init`
 takes the workspace as its folder), and nothing reads the old layout's
 `repos[].path`, workspace `resources`, `<ws>/.env.sh` or `wiki` (Moving
-a swarm into its repository, below). The fourteen
+a swarm into its repository, below). The fifteen
 are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm,
 `status`'s correction counts at Step 8, the maintainer's six at
 Step 10, at Step 15 `swarm block` and the issue's `pause` and
-`resume`, at Step 20 `swarm class`, and `prompt build` at Step 7 of
-the plan that clears the Deferred list: `apply`'s
+`resume`, at Step 20 `swarm class`, `prompt build` at Step 7 of
+the plan that clears the Deferred list, and `metrics` at Step 5 of
+the plan for the inbox requests F27–F35: `apply`'s
 As built paragraph says what it leaves out); the board, the GitHub
 adapter and the `budget` are specified here ahead of their build wherever this section names them: `swarm.json`
 validates their fields as section 3 says and nothing acts on them until
@@ -4179,6 +4195,55 @@ end of each pass, before its `Pass` line, the swarm repository's mirror
 fetched then when the pass fetched nothing (7.1, step 1), and its
 memory of the last set is the process's: each `apply --once` prints
 its drift, and a loop restarted prints it again at its first pass.
+
+### daisy swarm metrics
+
+| Field | Value |
+|---|---|
+| Usage | `daisy swarm metrics --backfill`; without `--backfill`, usage (exit 2) |
+| Reads | `swarm.json`'s forge fields (to name `<state>`) and its personas; `<state>/home`, the registry, `<run>/result`, `<run>/argv` and `<run>/io/system.md`, the home's metrics CSV; a worker's range in its mirror (`git diff --numstat`); no secret, no forge call, no Docker |
+| Writes | the metrics CSV of the home `<state>/home` names (section 2): a `swarm-run` row for each collected run (its `result` holding `collected`) the CSV holds no row of, in the order of their times, in one rewrite; no journal line |
+| Stdout | `✓ Backfilled <w> rows into <file> (<c> runs collected, <h> with its row already)` |
+| Stderr | `⚠ #<n> worker run <k>: lines not counted: <reason>`; `⚠ #<n> <role> run <k>: no row: its result has no end line or started line to date it` |
+| Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no home or one that cannot be used, the CSV's header not this Daisy's, the lock held past 30 seconds, a read or the write failing; 2 usage |
+| Ops | Real |
+
+Each row is the one the run's collection makes (7.6, The run's record),
+read from what the run left in `<run>`: the persona from its `persona`
+line, else from its `argv`; the tokens, the cost and the turns from its
+`cost` line (an old `cost 0` read as no cost); a reviewer's round from
+its `round` line (none before Step 16b); the estimate at the list price;
+a worker's lines over `start..pushed` in its mirror under `<state>/git`
+(a range gone from the mirror: the cells empty, `lines not counted` in
+the notes). It differs from a collection's in three cells: `when` is
+the run's end line's time (else its `started` line's), not the time of
+the backfill; `root_sha` and `home_sha` are empty, the commits in use
+when the run ran being unknown; and the notes end `, backfilled`. A run
+is skipped when the CSV holds a row of its key (its kind, the swarm,
+the run and its role), the key a collection writes, so a run recorded
+live is never backfilled and a second backfill writes nothing. Every
+row is made, and each worker's range measured, before
+`$DAISY_LOCAL/metrics.lock` is taken; under it, the CSV is read once,
+the runs it now holds a row of dropped, and the rest written in one
+rewrite, so a live `apply` collecting a run meanwhile waits for one
+read and one rewrite of the file, as it does for `metrics add`. It
+takes no `<state>/lock` and runs beside `apply`: a run is backfilled
+only once collected, and a collection writes its row before its
+`collected` line, so a run `apply` is collecting is left to `apply`.
+
+**Its costs and `status`'s.** After a backfill the swarm's rows hold a
+row per collected run, and their `cost_reported` sums to `status`'s
+`cost` `$<all>` (Throughput, above) whenever no run is mid-collection:
+both add the amounts of the runs' `cost` lines, an old `cost 0` adding
+nothing to either. They differ by design in three places. `status`
+counts an old `cost 0` as costed, the rows as no cost, so `status`'s
+`<u> runs without a cost` is smaller than the rows lacking a
+`cost_reported`. `status` reads every run with a `result`, a run ended
+but not yet collected included, the CSV only collected ones. And `daisy
+metrics` sums a home's rows by kind and model, every swarm whose
+`<state>/home` names that home together, each to the cent: the swarm's
+total is the sum of those lines only when it is the home's one swarm,
+to within a cent per model of `status`'s.
 
 ### daisy swarm pause and daisy swarm resume
 
@@ -7450,7 +7515,9 @@ entries among revision 1's, and was renumbered at Step 38.
     refused push and a `journal` that is a file keep the lines),
     `TestSwarmInitRecordsTheWorkspacesHome`, `TestQueueHoldsARunOnce`,
     `TestAppendUnderTheLockLosesNoRow`, `TestLockGivesUpNamingTheHolder`,
-    `TestEstimate` and `TestReport`.
+    `TestEstimate` and `TestReport`. The runs collected before it got
+    no row here, by the recommendation the plan's archive recorded;
+    `swarm metrics --backfill` writes them (item 125).
 119. **Reconcile's loose ends (Step 19 of the plan that clears the
     Deferred list, 2026-11-13).** **A bold `Status:`** (section 4): the
     maintainer decided (2026-11-12) that the brief reader takes
@@ -7715,3 +7782,53 @@ entries among revision 1's, and was renumbered at Step 38.
     `TestFormatResourceNotes`, `TestParseNamesTheField`,
     `TestValidateResourcesAndReferences` and
     `TestWizardKeepsTheFilesResourceNotes`.
+125. **Backfilling the metrics of runs collected before item 118 (Step
+    5 of the plan for the inbox requests F27-F35, 2026-11-14; the
+    request F31; the maintainer's decision, reversing item 118's
+    recommendation).** The runs a swarm collected before Step 16b have
+    no row, though everything a row holds but the commits in use is in
+    `<run>`. `daisy swarm metrics --backfill` writes one per collected
+    run without a row (section 11), through the collection's own `row`,
+    so a backfilled row and a live one differ only in `when` (the run's
+    end, not the backfill's time), the two commits (unknown, empty) and
+    the notes (`backfilled`). A verb, not a step of `apply`: it is run
+    once per swarm, by the maintainer, and its rows go to the home the
+    machine's `<state>/home` names, which it refuses to guess.
+    **The run's identity** is the row's key, its kind, swarm, run and
+    role, the key `metrics` supersedes by: `metrics.Append` writes no
+    row whose key the CSV holds, for `apply` as for the backfill, so a
+    run recorded live is never backfilled, a collection retried after
+    its row adds none, and a second backfill writes nothing. The
+    `recorded` result line is not the test: a run recorded while
+    `<state>/home` named no usable home has the line and no row.
+    **The persona** of a run without its `persona` line is read from
+    `<run>/argv`, the provider whose CLI argv (section 9's `Command`, up
+    to its effort) lies in it, for a live collection too, before
+    `swarm.json`'s at the collection, which may have changed since the
+    launch: every run's argv names its model and effort, and those of
+    the runs before Step 16b are today's `Command`'s words.
+    **The cost of an old line**: before Step 16b a CLI that reported
+    usage and no cost wrote `cost 0`, as `cost -` is written now; a
+    result with no `persona` line (the two came together) is read as
+    the old form, its `0` a cost not reported, whatever the provider.
+    The alternative, by provider, leaves `0` for grok, which reports a
+    cost not always, and a run that reported usage has never cost
+    exactly nothing. `status` still counts such a run as costed (section
+    11, Throughput), so its total and the rows' sum match, its count of
+    runs without a cost does not. **The lock** is taken once, for one
+    read and one rewrite: every row is made, the workers' ranges diffed,
+    before it, so a live `apply` waits on a backfill of hundreds of
+    runs as on one row; the runs the CSV holds a row of are read first,
+    without the lock, so a second backfill measures nothing, and again
+    under it, so a row written in between is not doubled. A worker
+    whose commits its mirror no longer holds keeps its row, its line
+    cells empty, with `lines not counted` in its notes, live or
+    backfilled. No journal line is written: the journal is the record
+    of a day's collections, and those days' files are pushed. Tests:
+    `TestSwarmMetricsBackfill` (a run recorded live and three of the
+    old form, owner, codex adversary with `cost 0` and grok worker,
+    and one not collected: three rows, each persona from its argv
+    against `swarm.json`'s, the worker's lines, the times, the rows'
+    costs equal to `status`'s; a second backfill leaves the CSV's
+    bytes), `TestSwarmMetricsBackfillGoneShasAndNoHome` and
+    `TestAppendSkipsHeldKeys`.

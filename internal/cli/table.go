@@ -78,6 +78,7 @@ var table = []Command{
 	{Group: "Swarm", Name: "swarm init", Usage: "swarm init [--defaults] [--api <url>]", Help: "Declare the swarm: swarm.json, prompts, labels", Flags: []string{"--defaults"}, Values: []string{"--api"}, Run: commands.SwarmInit},
 	{Group: "Swarm", Name: "swarm prompt build", Usage: "swarm prompt build [--force] [--dry-run]", Help: "Reseed prompts/ from this Daisy's defaults; an edited prompt is kept", Flags: []string{"--force", "--dry-run"}, Run: commands.SwarmPromptBuild},
 	{Group: "Swarm", Name: "swarm apply", Usage: "swarm apply [--once]", Help: "Reconcile the forge: launch members, post their output, move labels", Flags: []string{"--once"}, Run: commands.SwarmApply},
+	{Group: "Swarm", Name: "swarm metrics", Usage: "swarm metrics --backfill", Help: "Write a metrics row for each collected run the home's CSV has none for", Flags: []string{"--backfill"}, Run: commands.SwarmMetrics},
 	{Group: "Swarm", Name: "swarm status", Usage: "swarm status", Help: "Stages, gates, what waits for you, running members (read-only)", Run: commands.SwarmStatus},
 	{Group: "Swarm", Name: "swarm pause", Usage: "swarm pause [<n>]", Help: "Launch no new member until resumed (with <n>, as the maintainer, on that issue)", Max: 1, Run: commands.SwarmPause},
 	{Group: "Swarm", Name: "swarm resume", Usage: "swarm resume [<n>]", Help: "Launch members again and release the owner's held batch (with <n>, that issue)", Max: 1, Run: commands.SwarmResume},

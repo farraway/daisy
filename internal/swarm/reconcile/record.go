@@ -47,16 +47,19 @@ func (c *collection) record(outcome string) error {
 // its turns ("" when not reported), which the row's notes carry.
 func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	s := c.s
-	r := metrics.Row{When: now.Format(time.RFC3339), Kind: metrics.SwarmRun, Source: s.Cfg.Forge.Repo,
-		Unit: filepath.Base(c.r.Dir), Role: c.r.Role, Outcome: outcome}
+	r := s.runKey(c.r)
+	r.When, r.Outcome = now.Format(time.RFC3339), outcome
 	// The persona the launch recorded; a run without the line (launched
-	// by an older Daisy, or refused before its credential) takes the one
-	// swarm.json declares now.
+	// by an older Daisy, or refused before its credential) the one its
+	// argv launched, else the one swarm.json declares now.
 	p := s.Cfg.Personas[c.r.Role]
 	r.Provider, r.Model, r.Effort = p.Provider, p.Model, p.Effort
-	if l, ok := Has(c.lines, "persona"); ok {
-		if f := strings.Fields(l); len(f) == 4 {
-			r.Provider, r.Model, r.Effort = f[1], f[2], f[3]
+	persona, since16b := Has(c.lines, "persona")
+	if f := strings.Fields(persona); len(f) == 4 {
+		r.Provider, r.Model, r.Effort = f[1], f[2], f[3]
+	} else if argv, err := s.O.FS().ReadFile(filepath.Join(c.r.Dir, "argv")); err == nil {
+		if name, model, effort, ok := provider.Persona(strings.Split(string(argv), "\n")); ok {
+			r.Provider, r.Model, r.Effort = name, model, effort
 		}
 	}
 	if l, ok := Has(c.lines, "round"); ok {
@@ -64,9 +67,11 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	}
 	var turns string
 	if l, ok := Has(c.lines, "cost"); ok {
-		// cost <usd|-> tokens <in>/<out> turns <t> (section 2)
+		// cost <usd|-> tokens <in>/<out> turns <t> (section 2). A run
+		// launched before the persona line wrote a cost its CLI did not
+		// report as 0 (codex's always), where it now writes `-`.
 		if f := strings.Fields(l); len(f) == 6 && f[2] == "tokens" && f[4] == "turns" {
-			if f[1] != "-" {
+			if f[1] != "-" && (since16b || f[1] != "0") {
 				r.CostReported = f[1]
 			}
 			in, out, _ := strings.Cut(f[3], "/")
@@ -84,11 +89,13 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	}
 	// A worker's lines are its pushed commits', start to pushed, counted
 	// in its repository's mirror.
+	var uncounted bool
 	if start, ok := Has(c.lines, "start"); ok && c.r.Role == "worker" {
 		if pushed, ok := Has(c.lines, "pushed"); ok {
 			rng := strings.TrimPrefix(start, "start ") + ".." + strings.TrimPrefix(pushed, "pushed ")
 			if lines, err := metrics.Measure(s.O, s.git().Mirror(branchRepo(c.lines)), rng); err != nil {
 				fmt.Fprintf(s.Err, "⚠ %slines not counted: %v\n", c.head, err)
+				uncounted = true
 			} else {
 				r.Lines, r.Range = &lines, rng
 			}
@@ -101,7 +108,16 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	if turns != "" {
 		r.Notes += ", " + turns + " turns"
 	}
+	if uncounted {
+		r.Notes += ", lines not counted"
+	}
 	return r, turns
+}
+
+// runKey is the run's row with its key's cells alone (metrics.Row.Key):
+// its kind, the swarm, the run and its role.
+func (s *Swarm) runKey(r Run) metrics.Row {
+	return metrics.Row{Kind: metrics.SwarmRun, Source: s.Cfg.Forge.Repo, Unit: filepath.Base(r.Dir), Role: r.Role}
 }
 
 // journalLine is the run's line in its day's journal file, as `daisy
@@ -164,35 +180,138 @@ func (s *Swarm) homeName() string {
 	return strings.TrimSpace(string(b))
 }
 
+// metricsHome is the home <state>/home names, "" when it names none; an
+// error when the home cannot be used, naming the file and the home.
+func (s *Swarm) metricsHome() (string, error) {
+	name := s.homeName()
+	if name == "" {
+		return "", nil
+	}
+	home, err := env.HomeDir(s.O, env.Env{Root: s.Root, Config: s.Config, HomeName: name})
+	if err != nil {
+		first, _, _ := strings.Cut(strings.TrimPrefix(err.Error(), "Error: "), "\n")
+		return "", fmt.Errorf("%s names %s: %s", filepath.Join(s.state(), "home"), name, first)
+	}
+	return home, nil
+}
+
 // central appends the row to the metrics CSV of the home <state>/home
 // names, under the machine's metrics lock, with the root's and the
 // home's commits; no home named, no row. A home that cannot be used, or
 // a write refused, is a warning.
 func (s *Swarm) central(head string, row metrics.Row) {
-	name := s.homeName()
-	if name == "" {
-		return
-	}
 	warn := func(format string, a ...any) {
 		fmt.Fprintf(s.Err, "⚠ %smetrics row not written: "+format+"\n", append([]any{head}, a...)...)
 	}
-	home, err := env.HomeDir(s.O, env.Env{Root: s.Root, Config: s.Config, HomeName: name})
-	if err != nil {
-		first, _, _ := strings.Cut(strings.TrimPrefix(err.Error(), "Error: "), "\n")
-		warn("%s names %s: %s", filepath.Join(s.state(), "home"), name, first)
+	home, err := s.metricsHome()
+	if home == "" {
+		if err != nil {
+			warn("%v", err)
+		}
 		return
 	}
 	row.RootSHA, row.HomeSHA = s.headOf(head, s.Root, "root_sha"), s.headOf(head, home, "home_sha")
-	lock := env.MetricsLock(s.Local)
-	release, err := metrics.Lock(s.O, lock, "swarm apply "+s.Cfg.Forge.Repo+" since "+s.O.Now().UTC().Format(time.RFC3339))
-	if err != nil {
-		warn("cannot take %s: %v", lock, err)
-		return
-	}
-	defer release()
-	if err := metrics.Append(s.O.FS(), env.MetricsFile(home), row); err != nil {
+	if _, err := s.appendRows(env.MetricsFile(home), "swarm apply", row); err != nil {
 		warn("%v", err)
 	}
+}
+
+// appendRows appends to file each of rows whose run it holds no row of
+// (metrics.Append: the row's kind, swarm, run and role), under the
+// machine's metrics lock, held by who for one read and one rewrite.
+func (s *Swarm) appendRows(file, who string, rows ...metrics.Row) (int, error) {
+	lock := env.MetricsLock(s.Local)
+	release, err := metrics.Lock(s.O, lock, who+" "+s.Cfg.Forge.Repo+" since "+s.O.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return 0, fmt.Errorf("cannot take %s: %v", lock, err)
+	}
+	defer release()
+	return metrics.Append(s.O.FS(), file, rows...)
+}
+
+// Backfill writes the row of each collected run that the metrics CSV of
+// the home <state>/home names holds none for (section 11, swarm
+// metrics): the row a collection makes (row), at the time of the run's
+// end line, its root's and home's commits unknown, its notes ending
+// `backfilled`. Every row is made, a worker's lines measured, before the
+// metrics lock is taken; under it, the CSV is read and rewritten once,
+// so a live apply waits on it no longer than on its own row. No journal
+// line is written.
+func (s *Swarm) Backfill() (Backfilled, error) {
+	var b Backfilled
+	home, err := s.metricsHome()
+	if err != nil {
+		return b, err
+	}
+	if home == "" {
+		return b, fmt.Errorf("%s names no Daisy home, whose metrics CSV would take the rows; write a registered home's name in it", filepath.Join(s.state(), "home"))
+	}
+	b.File = env.MetricsFile(home)
+	// The runs the CSV holds a row for now are skipped unread; Append
+	// skips any a writer adds before the lock.
+	before, err := s.O.FS().ReadFile(b.File)
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return b, fmt.Errorf("cannot read %s: %v", b.File, err)
+	}
+	held, err := metrics.Keys(before)
+	if err != nil {
+		return b, fmt.Errorf("cannot record in %s: %v", b.File, err)
+	}
+	runs, err := Runs(s.O.FS(), s.state())
+	if err != nil {
+		return b, err
+	}
+	var rows []metrics.Row
+	undated := 0
+	for _, r := range runs {
+		lines, err := r.Result(s.O.FS())
+		if err != nil {
+			return b, err
+		}
+		if _, ok := Has(lines, "collected"); !ok {
+			continue
+		}
+		b.Collected++
+		if held[s.runKey(r).Key()] {
+			continue
+		}
+		c := &collection{s: s, r: r, lines: lines, head: runHead(r)}
+		when, ok := endTime(lines)
+		if !ok {
+			fmt.Fprintf(s.Err, "⚠ %sno row: its result has no end line or started line to date it\n", c.head)
+			undated++
+			continue
+		}
+		outcome, _ := Has(lines, "outcome")
+		row, _ := c.row(strings.TrimPrefix(outcome, "outcome "), when)
+		row.Notes += ", backfilled"
+		rows = append(rows, row)
+	}
+	slices.SortStableFunc(rows, func(a, b metrics.Row) int { return strings.Compare(a.When, b.When) })
+	b.Written, err = s.appendRows(b.File, "swarm metrics --backfill", rows...)
+	b.Had = b.Collected - undated - b.Written
+	return b, err
+}
+
+// Backfilled is what a backfill did: the CSV it wrote to, the rows it
+// wrote, the runs collected and those of them the CSV held a row for.
+type Backfilled struct {
+	File                    string
+	Written, Collected, Had int
+}
+
+// endTime is when the run ended, its end line's time (section 2), else
+// its started line's.
+func endTime(lines []string) (time.Time, bool) {
+	for _, prefix := range []string{Ended(lines), "started"} {
+		if l, ok := Has(lines, prefix); prefix != "" && ok {
+			f := strings.Fields(l)
+			if t, err := time.Parse(time.RFC3339Nano, f[len(f)-1]); err == nil {
+				return t.UTC(), true
+			}
+		}
+	}
+	return time.Time{}, false
 }
 
 // headOf is the commit dir's HEAD is at; "" with a warning when git cannot
