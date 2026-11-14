@@ -6,7 +6,7 @@ Full elaboration of the principles in `prompts/praxis.md`. The prompt contains t
 
 ## How We Work
 
-Work in short cycles with the human in the loop (under `/daisy execute`, the orchestrating agent stands in the loop between steps, and the user is asked only at the stops in `prompts/plan.md`):
+Work in short cycles with the human in the loop (under `/daisy execute`, the orchestrating agent stands in the loop between steps, and the user is asked only when the run needs something only they can give that the plan does not record, and at the plan's own checkpoints (`prompts/plan.md` rule 24)):
 
 1. **Understand** — read what exists; infer intent from code, not assumptions.
 2. **Propose** — explain what you intend to do and why, before large changes.

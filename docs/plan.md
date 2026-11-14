@@ -55,7 +55,9 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
    symlink, and writing through it fails with "Refusing to write
    through symlink".
 
-1. Read PLAN.md; confirm at least one unchecked "- [ ]" step exists.
+1. Read PLAN.md; confirm at least one unchecked "- [ ]" step exists,
+   and that Decisions records the model and effort the step agents
+   and the review agents use (ask it if not).
 
 2. Update "**Status:** executing" in the frontmatter block.
 
@@ -76,7 +78,10 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
    - Move anything out of scope to Deferred
 
 5. The orchestrator verifies the hand-back (claim, tests,
-   daisy healthcheck --force, hygiene, commits, plan marks),
+   daisy healthcheck --force, hygiene, commits, plan marks;
+   for a hand-back stopped at the review cap, that the step
+   has neither a commit nor its "- [x]", and its Decisions and
+   Deferred as for any step),
    records the step's metrics with daisy metrics add, two
    rows: --role step (the step's commit range and repository,
    the step agent's model, effort and tokens) and --role review
@@ -116,14 +121,20 @@ Daisy's root, a user-made link into it). The step agent classifies each
 finding before fixing anything (in gate, disputed with a one-sentence
 reason and not fixed, or out of gate) and fixes only the in-gate ones. The
 cap is 5 passes for every step, code or docs; a step not clean after pass
-5 stops: the step agent hands back with the open findings and its
-proposed fixes uncommitted, and the orchestrator takes them to the user.
+5 stops: the step agent neither commits nor marks the step; it hands
+back with the open findings and its proposed fixes uncommitted, and the
+orchestrator takes them to the user.
 The orchestrator does not commit at the cap and never runs another pass.
 
-**Stops:** the plan's own checkpoints; a hard-to-reverse or outward-facing
-action the plan does not itself call for; a step the plan gives the user;
-a step stopped at the review cap; a permission refusal, which the
-orchestrator reports verbatim and never re-runs for the sub-agent.
+**Stops:** the run stops when it needs something only the user can give
+and the plan does not record: a decision of theirs (the model and effort
+of the step and review agents when Decisions has none; a rearchitecture
+that crosses a decision they made), an approval (a hard-to-reverse or
+outward-facing action the plan does not call for, such as a force-push,
+a deletion or a publication; a step the plan gives the user), or a way
+past a block (a step stopped at the review cap; the same mistake twice; a
+permission refusal, which the orchestrator reports verbatim and never
+re-runs for the sub-agent). The plan's own checkpoints are stops too.
 
 **Hand-back:** the claim and its probes; lines added and deleted; each
 review pass with its in-gate count; findings disputed with the reason;
