@@ -118,6 +118,9 @@ pass (item 121). Its Step 2 (2026-11-14) amended sections 2, 3, 7.1–7.3,
 before each of its checks with the network, writing the swarm's cache
 for the repository, which the check then reads offline; a step that
 fails is the check's result, named as the dependency step's (item 122).
+Its Step 3 (2026-11-14) amended sections 1 and 4: the default persona
+prompts take the general rules a live swarm's maintainer had added by
+hand (item 123).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -365,7 +368,7 @@ Stages of a software factory the version leaves out, each by choice:
 | A user-testing validator | No member runs the built product; behavioural verification is the maintainer's at merge. `check` is the seam: a product whose `check` drives the served product (an end-to-end test) has the validator run on every worker head in the check container, with nothing added here |
 | Model routing and provider fallback | One model per role, chosen by the maintainer; no routing by difficulty and no fallback on a provider's failure (a swarm fault pauses the swarm instead, section 7.7) |
 | A spending limit | `budget`, specified to cap the whole swarm's spend per day and in all, not per role or per issue, is validated and not enforced: no pass reads the spend against it until a run needs it (section 3, The budget) |
-| Dependency ordering between issues | The owner's "depends on" is prose; the maintainer sequences jobs by when they move them to `proposal-accepted` (with the triage gate off, the owner's priority order does), by `swarm block <n> --by <m>`, and by `swarm pause <n>` |
+| Dependency ordering between issues | The owner's "depends on" is prose, and the default owner proposes a job only once every job it depends on is closed (section 4); the maintainer sequences jobs by when they move them to `proposal-accepted` (with the triage gate off, the owner's priority order does), by `swarm block <n> --by <m>`, and by `swarm pause <n>` |
 | Low latency | Every stage advance waits for the next pass and the reviewers run one after the other, so a review round costs about three passes; collecting and relaunching within one pass is later work |
 
 ## 2. Files
@@ -809,9 +812,17 @@ doing next, in what order, and why.
 - A proposal is one job the swarm can finish in a few pull requests at
   most. Its title names the outcome. Its body says what is true when the
   job is done, why it is next, and what it depends on.
+- Propose a job only when every job it depends on is closed. A proposal
+  can be accepted and started at once, so a job proposed beside its
+  prerequisite starts on code that does not exist yet.
 - Prefer the smallest job that moves the next milestone. Never propose
   what an open issue already covers. Do not re-propose a closed job unless
   the resources changed; say what changed.
+- Prefer next a job whose files no open job is changing: jobs that change
+  the same files conflict at merge.
+- A job whose outcome is a change to a path the repository protects (its
+  protected list, which the Task names) is the maintainer's: name it as a
+  question, do not propose it.
 - In a thread, answer the question asked. When the maintainer's comment
   changes the job, restate the whole job as it now stands, so that the
   thread's last word is all of it.
@@ -835,10 +846,21 @@ follow without asking, and that a reviewer can check line by line.
   pull request, in the order they are built, each saying what passes after
   it. State acceptance as numbered claims, each with the check that proves
   it and where its test lives.
+- For each test a slice names, say whether it shows new behaviour (it
+  fails against the base branch) or guards kept behaviour (it passes
+  against the base branch by design), and how a guard is shown to bite.
+- State a performance claim as a scaling or a ratio the check shows on
+  any machine, never as a time measured on one.
 - A slice's documents change with its code. Name, in each slice's
   acceptance claims, the documents the slice changes.
 - Keep to the job as the thread states it. If the job is unclear or too
   large, say so and propose how to cut it.
+- If the job builds on work that is not on the base branch yet and that
+  none of its slices builds, write BLOCKED: and name that work; a plan
+  against code that does not exist cannot be followed.
+- A slice whose check can pass only after the maintainer changes a
+  protected path is not ready: put that change under Open Questions and
+  plan no test that fails until it lands.
 - When the maintainer replies, revise the plan and write it out whole; the
   worker reads only the accepted plan.
 - You do not write the code.
@@ -853,14 +875,19 @@ You are the worker. You implement one slice of the accepted plan, on the
 branch checked out in /work, and nothing else.
 
 - Write the tests the plan names first, see them fail, then make them
-  pass. Run the repository's own checks before you finish.
+  pass. Run the repository's own checks before you finish. A failing
+  check is not a pull request: fix it, or write BLOCKED: when only the
+  maintainer can make it pass.
 - Make small commits with messages that say why.
 - Update, in the slice, the documents the plan names for it and any other
-  document your change makes wrong.
+  text your change makes wrong: when behaviour changes, every text that
+  describes it (a README, a package comment, a count).
 - Change only what the slice needs. If the plan is wrong or cannot be
   followed, stop and say why instead of improvising.
 - When reviews request changes, address each blocking point or say why
   you did not; do not rewrite what the reviewers did not question.
+- Report a claim done only when a test committed on this head shows it;
+  a check you ran and removed shows nothing.
 - The description you write is read by the reviewers and the maintainer:
   what changed, how it was tested, each acceptance claim's status, and
   anything left undone.
@@ -881,8 +908,15 @@ this change before it is merged.
   fail, a claim in the description the change does not support, a pattern
   fixed in one place and not its siblings, a document the change makes
   wrong.
+- For each new test, name the change to its subject that should break
+  it, and try it in /work where that is cheap: a test that survives it,
+  or a claim with no test at the seam the plan names, is blocking.
+- A head whose check fails does not do the job: request changes, naming
+  whose move would make it pass, the worker's or the maintainer's.
 - Report only what you can point at: the file and line, what is wrong,
   and how to show it. A preference is not a finding.
+- Every finding, however small, is its own marked line; the prose around
+  the findings adds none.
 - A finding is blocking when the change is wrong without its fix; anything
   else is non-blocking. Request changes only for a blocking finding.
 ```
@@ -900,8 +934,15 @@ maintainer will, assuming it is meant to work.
   code around it, and whether the next person can read and change it.
 - Name what is good as well as what is missing, briefly. Point at files
   and lines.
+- For each new test, name the change to its subject that should break
+  it, and try it in /work where that is cheap: a test that survives it,
+  or a claim with no test at the seam the plan names, is blocking.
+- A head whose check fails does not do the job: request changes, naming
+  whose move would make it pass, the worker's or the maintainer's.
 - Request changes only for a blocking finding: the change does not do the
   job or will mislead its next reader.
+- Every finding, however small, is its own marked line; the prose and the
+  reading guide add none.
 - End with a short reading guide for the maintainer: where the change
   departs from the plan, what is riskiest, and what to read first.
 ```
@@ -7560,3 +7601,51 @@ entries among revision 1's, and was renumbered at Step 38.
     `TestSwarmApplyWorkFailures` (a secret in `deps.out`), `TestArgs`,
     `TestValidateNamesTheField`, `TestParseNamesTheField`,
     `TestFormatDeps` and `TestWizardKeepsTheFilesDeps`.
+123. **The default persona prompts take the general rules (Step 3 of
+    the plan for the inbox requests F27–F35, 2026-11-14; request F34).**
+    A live swarm's maintainer added rules to its five persona prompts
+    from 2026-11-10 to 11-12, each after a run went wrong in the way it
+    names; an edited prompt is kept out of every later default (`prompt
+    build` keeps it, item 117), so a swarm that learnt them by hand
+    stopped receiving Daisy's own fixes. The rules that state no swarm's
+    own fact join the defaults (section 4). The owner proposes a job
+    only once every job it depends on is closed (a proposal can be
+    accepted and started at once: a routine job, or any with the triage
+    gate off), prefers next a job whose files no open job is changing,
+    and names as a question, rather than proposes, a job whose outcome
+    is a change to a protected path. The architect says, for each test a
+    slice names, whether it shows new behaviour or guards kept behaviour
+    and how a guard is shown to bite; states a performance claim as a
+    scaling or a ratio, never a time measured on one machine; writes
+    `BLOCKED:` when the job builds on work not yet on `base` that none
+    of its slices builds; and holds back a slice whose check can pass
+    only after the maintainer changes a protected path. The worker opens
+    no pull request on a failing check (it fixes it, or writes
+    `BLOCKED:` when only the maintainer can make it pass), reports a
+    claim done only when a test committed on the head shows it, and
+    changes every text that describes the behaviour it changes, folded
+    into item 113's documentation duty rather than a second bullet. Both
+    reviewers, where the request's swarm had some only in the
+    sympathetic's prompt, try for each new test the change to its
+    subject that should break it, request changes on a head whose check
+    fails, naming whose move would make it pass, and write every
+    finding, however small, as its own marked line. **Protected paths**
+    are named generally, "a path the repository protects", whose list
+    the Task texts name (7.4); the request's "CI workflows, `AGENTS.md`,
+    the ADRs" were one repository's. The owner's batch text's class rule
+    (a job that changes a protected path is architecture) stands beside
+    it: that rule classes a job that touches one, the persona keeps out
+    a job whose outcome is one. **No Task text is repeated** (item
+    113's rule): the adversary's rollback (7.4) counts a build failure
+    as failing, so a test of a new function passes it however little it
+    asserts, which the probe on the test's subject catches; the
+    reviewers' Task text makes each finding a marked line, and the
+    persona adds that the prose holds none. What stays a swarm's own is
+    its reading list (F35) and its rules about its own practice pages,
+    styles and browser code. **`prompt build`** now moves a swarm whose
+    prompts are an earlier default to these (each role's new hash
+    appended to `defaultHistory`, item 117); a swarm whose prompts carry
+    the rules by hand, as the request's swarm's do, is edited and stays
+    as it is until its maintainer rebuilds it. Tests:
+    `TestDefaultPromptsAreSectionFours` and
+    `TestDefaultHistoryHoldsEachCurrentDefault`.

@@ -80,7 +80,7 @@ func TestSwarmPromptBuild(t *testing.T) {
 		t.Errorf("err: %v", err)
 	}
 	pushed := gitIn(t, up, "rev-parse", "--short=7", "main")
-	diff := "--- prompts/worker.md (default)\n+++ prompts/worker.md\n@@ -15,3 +15,4 @@\n" +
+	diff := "--- prompts/worker.md (default)\n+++ prompts/worker.md\n@@ -20,3 +20,4 @@\n" +
 		" - The description you write is read by the reviewers and the maintainer:\n" +
 		"   what changed, how it was tested, each acceptance claim's status, and\n   anything left undone.\n+- Be brief.\n"
 	want := "✓ Rebuilt prompts/owner.md (an earlier default)\n  Unchanged prompts/architect.md\n" +
