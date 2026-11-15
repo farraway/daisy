@@ -807,10 +807,11 @@ func CheckSection(fs ops.FS, runs []Run, n int, head string, check []string, tim
 }
 
 // checkResult is a worker run's check as it ended, `exit <code>` or
-// `timeout after <timeout>`, or its dependency step's failure, which ran
-// no check, and the last 20 lines of the output of the one that ended
-// the check, file (check.out or deps.out); ok is false when it has no
-// end.
+// `timeout after <timeout>`, or its dependency step's failure or its test
+// services file's refusal, either of which ran no check, and the last 20
+// lines of the output of the one that ended the check, file (check.out
+// or deps.out), or the refusal and the services file; ok is false when
+// it has no end.
 func checkResult(fs ops.FS, r Run, lines []string, timeout string) (result string, tail []string, file string, ok bool) {
 	const noCheck = "; the check did not run"
 	file = "check.out"
@@ -818,6 +819,9 @@ func checkResult(fs ops.FS, r Run, lines []string, timeout string) (result strin
 		result, file = "dependency step exited "+code+noCheck, "deps.out"
 	} else if _, ok := Has(lines, "deps timeout"); ok {
 		result, file = "dependency step timed out after "+timeout+noCheck, "deps.out"
+	} else if reason := servicesRefused(lines); reason != "" {
+		file, _, _ = strings.Cut(reason, ": ")
+		return "test services refused" + noCheck, []string{reason}, file, true
 	} else if l, ok := Has(lines, "check exited"); ok {
 		result = "exit " + strings.Fields(l)[2]
 	} else if _, ok := Has(lines, "check timeout"); ok {

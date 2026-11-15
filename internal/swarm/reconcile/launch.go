@@ -141,6 +141,8 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	persona := s.Cfg.Personas[j.Role]
 	work := filepath.Join(r.Dir, "work")
 	var startLines, reads []string
+	var svc *runner.Services // the worker's test services (section 7.6)
+	var svcEnv []string
 	workdir, image := Workdir(s.Cfg, j.Role), repo.Image
 	// A clone that fails, or a step of its preparation (a mount point the
 	// product's own tree holds as a file, say), is a swarm fault recorded
@@ -189,6 +191,21 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		startLines = append(startLines, "start "+sha)
 		if j.Role == "worker" {
 			startLines = append(startLines, "branch "+branch+" in "+repo.Name)
+			// The services at the commit the worker starts from; one the
+			// file refuses runs beside none, its check reporting the
+			// refusal if the head still holds it.
+			ts, ok, refused, err := s.testServices(repo, sha)
+			switch {
+			case err != nil:
+				fs.RemoveAll(r.Dir)
+				return false, err
+			case refused != "":
+				fmt.Fprintf(s.Err, "⚠ %stest services refused (%s): launched without them\n", runHead(r), refused)
+				startLines = append(startLines, "services worker refused: "+refused)
+			case ok:
+				v := s.services(r, "worker", ts)
+				svc, svcEnv = &v, ts.Env
+			}
 		}
 	}
 	if err := fs.MkdirAll(filepath.Join(work, ".swarm"), 0o755); err != nil {
@@ -220,6 +237,11 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	spec := runner.Spec{Name: s.containerName(j.N, j.Role, j.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, j.N, j.Role), User: s.User,
 		Mounts: mounts, Workdir: workdir, Image: image,
 		Argv: exitMarked(provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, "/work/.swarm/system.md", "/work/.swarm/prompt.md", outside(workdir, reads)))}
+	if svc != nil {
+		// Its own network, not internal: the CLI reaches its API through
+		// it as through Docker's default bridge (section 7.2).
+		spec.Network, spec.Env = svc.Network, svcEnv
+	}
 
 	key := s.Cfg.Keys[persona.Provider]
 	var credential string
@@ -266,6 +288,18 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			slot.Release()
 		}
 		return false, err
+	}
+	if svc != nil {
+		fault, err := s.servicesUp(r, "worker", *svc)
+		if err != nil || fault != "" {
+			if slot != nil {
+				slot.Release()
+			}
+			if err != nil {
+				return false, err
+			}
+			return false, errors.Join(r.Append(fs, "launch-failed "+ended(), fault), s.collect(r))
+		}
 	}
 	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
 	c, err := s.Runner.Start(spec, timeout)
@@ -422,13 +456,21 @@ func runRef(r Run) string { return fmt.Sprintf("refs/swarm-runs/%d-worker-%d", r
 // dependency step ("deps") on Docker's default network, the clone
 // read-only and the swarm's cache for the repository read-write; or the
 // check, with no network and, when the repository declares deps, that
-// cache read-only; both given deps' env. One that cannot start is a
-// swarm fault; one whose apply died is started again.
+// cache read-only; both given deps' env. With the head's test services
+// file, the check runs beside its services on their internal network,
+// given x-daisy-env too; a file refused runs no check, its refusal the
+// check's result. One that cannot start, services included, is a swarm
+// fault; one whose apply died is started again, its services taken down
+// first.
 func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	fs := s.O.FS()
 	repo, _ := s.repo(branchRepo(lines))
 	if step == "deps" && repo.Deps == nil { // swarm.json changed since the step started
 		return r.Append(fs, "fault: deps: "+repo.Name+" declares no deps")
+	}
+	lines, err := s.servicesDown(r, lines)
+	if err != nil {
+		return err
 	}
 	fetched, _ := Has(lines, "fetched")
 	sha := strings.TrimPrefix(fetched, "fetched ")
@@ -439,8 +481,20 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	if err := s.git().CheckClone(repo.Name, dir, runRef(r), sha); err != nil {
 		return err
 	}
+	var ts declare.TestServices
+	var svc bool
+	if step == "check" {
+		var refused string
+		if ts, svc, refused, err = s.testServices(repo, sha); err != nil {
+			return err
+		}
+		if refused != "" {
+			fmt.Fprintf(s.Out, "%stest services refused (%s): the check did not run\n", runHead(r), refused)
+			return r.Append(fs, "services check refused: "+refused)
+		}
+	}
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
-	spec := runner.Spec{Name: s.containerName(r.N, step, r.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, r.N, step), User: s.User, NoNetwork: true,
+	spec := runner.Spec{Name: s.containerName(r.N, step, r.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, r.N, step), User: s.User, Network: "none",
 		Mounts: []runner.Mount{{Src: dir, Dst: "/work"}}, Workdir: "/work", Image: repo.Image, Argv: repo.Check}
 	if d := repo.Deps; d != nil {
 		cache := s.depsCache(repo.Name)
@@ -452,7 +506,18 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 		}
 		spec.Mounts = append(spec.Mounts, runner.Mount{Src: cache, Dst: declare.DepsMount, ReadOnly: step == "check"})
 		if step == "deps" {
-			spec.NoNetwork, spec.Mounts[0].ReadOnly, spec.Argv = false, true, d.Run
+			spec.Network, spec.Mounts[0].ReadOnly, spec.Argv = "", true, d.Run
+		}
+	}
+	if svc {
+		sv := s.services(r, step, ts)
+		spec.Network, spec.Env = sv.Network, append(spec.Env, ts.Env...)
+		fault, err := s.servicesUp(r, step, sv)
+		if err != nil {
+			return err
+		}
+		if fault != "" {
+			return r.Append(fs, fault)
 		}
 	}
 	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated

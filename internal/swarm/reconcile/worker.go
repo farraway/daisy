@@ -248,7 +248,8 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 // nextStep is the container a worker run's collection starts next
 // (section 7.6, step 4): the dependency step, when the repository
 // declares one and it has not started; else the check, unless it has
-// started or the dependency step failed; "" when there is none to start.
+// started, the dependency step failed or the head's test services file
+// was refused; "" when there is none to start.
 func nextStep(repo declare.Repo, lines []string) string {
 	_, depsStarted := Has(lines, "deps started")
 	if repo.Deps != nil && !depsStarted {
@@ -256,7 +257,7 @@ func nextStep(repo declare.Repo, lines []string) string {
 	}
 	_, checkStarted := Has(lines, "check started")
 	_, depsTimedOut := Has(lines, "deps timeout")
-	if checkStarted || depsTimedOut || depsFailed(lines) != "" {
+	if checkStarted || depsTimedOut || depsFailed(lines) != "" || servicesRefused(lines) != "" {
 		return ""
 	}
 	return "check"

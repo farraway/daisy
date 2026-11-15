@@ -84,14 +84,16 @@ type Forge struct {
 
 // Repo is one declared repository: the forge repository <owner>/<Name>,
 // declared by Repo, `<owner>/<name>`, with an optional SSHCommand, an
-// optional dependency step run before its check and optional Rulings,
-// nil when absent, so that an explicit [] is kept (section 3).
+// optional dependency step run before its check, an optional test
+// services file (ServicesPath) and optional Rulings, nil when absent, so
+// that an explicit [] is kept (section 3).
 type Repo struct {
 	Name       string    `json:"name"`
 	Repo       string    `json:"repo,omitempty"`
 	SSHCommand *string   `json:"ssh_command,omitempty"`
 	Check      []string  `json:"check"`
 	Deps       *Deps     `json:"deps,omitempty"`
+	Services   *string   `json:"services,omitempty"`
 	Image      string    `json:"image"`
 	Protected  []string  `json:"protected"`
 	Rulings    *[]string `json:"rulings,omitempty"`

@@ -45,6 +45,11 @@ func (s *Swarm) collect(r Run) error {
 	if step, _ := pending(lines); step != "" {
 		return nil
 	}
+	// No container of the run runs now: its test services go first,
+	// whatever its outcome (section 7.6, step 4).
+	if lines, err = s.servicesDown(r, lines); err != nil {
+		return err
+	}
 	labelLine, _ := Has(lines, "label")
 	// A run recorded before the stages' rename names its stage by the old
 	// name, which the forge no longer holds (forge.Renamed).

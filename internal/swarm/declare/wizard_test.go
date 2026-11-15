@@ -185,14 +185,15 @@ func TestWizardKeepsTheFilesXAIForm(t *testing.T) {
 	}
 }
 
-// A file's deps and rulings are kept by the wizard, as its check is: none
-// is asked (section 11).
+// A file's deps, services and rulings are kept by the wizard, as its check
+// is: none is asked (section 11).
 func TestWizardKeepsTheFilesDeps(t *testing.T) {
 	_, clone := cloneFolder(t)
 	o, _ := scripted(make([]string, 40)...)
 	file := valid()
 	file.Repos[0].Deps = &Deps{Run: []string{"go", "mod", "download"}, Env: map[string]string{"GOMODCACHE": "/deps/go/mod"}}
 	file.Repos[0].Rulings = &[]string{}
+	file.Repos[0].Services = ptr("test/compose.yaml")
 	w := &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
 	c, err := w.Ask()
 	if err != nil {
@@ -203,6 +204,9 @@ func TestWizardKeepsTheFilesDeps(t *testing.T) {
 	}
 	if !reflect.DeepEqual(c.Repos[0].Rulings, file.Repos[0].Rulings) || c.Repos[1].Rulings != nil {
 		t.Errorf("rulings %v, %v", c.Repos[0].Rulings, c.Repos[1].Rulings)
+	}
+	if c.Repos[0].Services == nil || *c.Repos[0].Services != "test/compose.yaml" || c.Repos[1].Services != nil {
+		t.Errorf("services %v, %v", c.Repos[0].Services, c.Repos[1].Services)
 	}
 }
 

@@ -215,6 +215,10 @@ func checkRepos(f Forge, repos []Repo) *Error {
 		if err := checkDeps(at, r); err != nil {
 			return err
 		}
+		if p := r.Services; p != nil && (*p == "" || filepath.IsAbs(*p) || strings.HasSuffix(*p, "/") || strings.ContainsAny(*p, "\n\r") ||
+			slices.Contains(strings.Split(*p, "/"), "..") || path.Clean(*p) != *p) {
+			return fieldErr(at+".services", "%q is not a file's path in the repository", *p)
+		}
 		if r.Image == "" {
 			return fieldErr(at+".image", "empty")
 		}

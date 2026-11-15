@@ -225,7 +225,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	launches := a.runner.Launches()
 	check := launches[len(launches)-1]
 	run := a.state("runs/1-worker-1")
-	if check.Name != "daisy-swarm.acme.swarm-app.1.check.1" || check.Label != "acme/swarm-app#1/check" || !check.NoNetwork || check.EnvVar != "" || check.Credential != "" ||
+	if check.Name != "daisy-swarm.acme.swarm-app.1.check.1" || check.Label != "acme/swarm-app#1/check" || check.Network != "none" || check.EnvVar != "" || check.Credential != "" ||
 		!reflect.DeepEqual(check.Mounts, []runner.Mount{{Src: run + "/check", Dst: "/work"}}) || !reflect.DeepEqual(check.Argv, []string{"make", "check"}) || check.Workdir != "/work" {
 		t.Errorf("check spec %+v", check)
 	}

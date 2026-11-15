@@ -3,11 +3,13 @@
 // with its argv and a wall clock, the running set read from `docker ps`,
 // and the login slots a run takes. Docker is the real runner over
 // Ops.Start and Ops.Exec; Fake records launches and answers with canned
-// output.
+// output. A check or a worker run may have a product's test services
+// beside it (Services): a private network and a container per service.
 package runner
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -22,7 +24,7 @@ type Mount struct {
 }
 
 // Spec is one container as section 7.2 writes it: a member, or with no
-// credential, a check (NoNetwork) or a dependency step.
+// credential, a check or a dependency step.
 type Spec struct {
 	Name, Label, User string // --name, the daisy.swarm label, --user uid:gid
 	// Credential is a slot's `<provider>/<j>` and Slot its directory,
@@ -32,9 +34,12 @@ type Spec struct {
 	// the two.
 	Credential, Slot, Home string
 	EnvVar, EnvValue       string
-	NoNetwork              bool
-	// Env is the dependency step's variables, `<name>=<value>` each,
-	// given to it and to the check as one --env each, in order.
+	// Network is the container's network: "" Docker's default bridge,
+	// "none" the check's without test services, or the network of the
+	// run's or check's test services (Services).
+	Network string
+	// Env is the dependency step's variables and the test services'
+	// x-daisy-env, `<name>=<value>` each, one --env each, in order.
 	Env            []string
 	Mounts         []Mount
 	Workdir, Image string
@@ -46,8 +51,8 @@ type Spec struct {
 func (s Spec) Args() []string {
 	a := []string{"run", "--rm", "--pull", "never", "--name", s.Name, "--label", "daisy.swarm=" + s.Label, "--user", s.User,
 		"--security-opt", "no-new-privileges", "--stop-timeout", "30"}
-	if s.NoNetwork {
-		a = append(a, "--network", "none")
+	if s.Network != "" {
+		a = append(a, "--network", s.Network)
 	}
 	if s.EnvVar != "" {
 		a = append(a, "--env-file", "/dev/stdin")
@@ -97,6 +102,50 @@ type Container interface{ Wait() (Exit, error) }
 // Running is one container of `docker ps`: its name and its two labels.
 type Running struct{ Name, Swarm, Credential string }
 
+// Services is a step's private network and a product's test services on
+// it (section 7.2): Network names the network, which is the name of the
+// container it is made for, and prefixes each service's container,
+// `<Network>.<service>`; Internal gives it no route out (a check's). The
+// network and the containers carry the label daisy.services=<Network>,
+// not daisy.swarm: they are their check's or run's, never counted apart.
+type Services struct {
+	Network  string
+	Internal bool
+	List     []Service
+}
+
+// Service is one test service: its name, which is its address on the
+// network, its image, its tmpfs paths, its environment (`<name>=<value>`)
+// and its command, none for the image's own.
+type Service struct {
+	Name, Image         string
+	Tmpfs, Env, Command []string
+}
+
+// NetworkArgs is `docker network create`'s argv for s.
+func (s Services) NetworkArgs() []string {
+	a := []string{"network", "create"}
+	if s.Internal {
+		a = append(a, "--internal")
+	}
+	return append(a, "--label", "daisy.services="+s.Network, s.Network)
+}
+
+// ServiceArgs is the `docker run` argv of v on s's network: detached, on
+// that network alone under v's name, from a local image, as its image's
+// user, without new privileges, removed once stopped.
+func (s Services) ServiceArgs(v Service) []string {
+	a := []string{"run", "--detach", "--rm", "--pull", "never", "--name", s.Network + "." + v.Name, "--label", "daisy.services=" + s.Network,
+		"--network", s.Network, "--network-alias", v.Name, "--security-opt", "no-new-privileges"}
+	for _, t := range v.Tmpfs {
+		a = append(a, "--tmpfs", t)
+	}
+	for _, e := range v.Env {
+		a = append(a, "--env", e)
+	}
+	return append(append(a, v.Image), v.Command...)
+}
+
 // Runner starts containers, lists the running set and stops one.
 type Runner interface {
 	// Start runs s; timeout is its wall clock, at which it is stopped.
@@ -106,6 +155,12 @@ type Runner interface {
 	// Stop is `docker stop --time 30 <name>`: the wall clock's stop, and
 	// an orphan's (section 7.7).
 	Stop(name string) error
+	// Up makes s's network and starts each of its services on it, in
+	// order; on an error, what it made is left for Down.
+	Up(s Services) error
+	// Down removes the network's services and the network, whatever of
+	// them exists (an apply's that died included); none is no error.
+	Down(network string) error
 }
 
 // Docker is the runner over the docker CLI.
@@ -178,22 +233,67 @@ func (d Docker) Stop(name string) error {
 	return nil
 }
 
+// Up runs `docker network create`, then `docker run --detach` for each
+// service; a failure names the network or the service, with docker's
+// first line of error (a missing image: `No such image: <image>`).
+func (d Docker) Up(s Services) error {
+	if _, err := d.docker(s.NetworkArgs()...); err != nil {
+		return fmt.Errorf("network %s: %v", s.Network, err)
+	}
+	for _, v := range s.List {
+		if _, err := d.docker(s.ServiceArgs(v)...); err != nil {
+			return fmt.Errorf("%s: %v", v.Name, err)
+		}
+	}
+	return nil
+}
+
+// Down removes, by their label, the network's containers (`docker rm
+// --force`) and then the network.
+func (d Docker) Down(network string) error {
+	label := "label=daisy.services=" + network
+	out, err := d.docker("ps", "--all", "--quiet", "--filter", label)
+	if err == nil && len(strings.Fields(out)) > 0 {
+		_, err = d.docker(append([]string{"rm", "--force"}, strings.Fields(out)...)...)
+	}
+	if err == nil {
+		out, err = d.docker("network", "ls", "--quiet", "--filter", label)
+	}
+	if err == nil && len(strings.Fields(out)) > 0 {
+		_, err = d.docker("network", "rm", network)
+	}
+	if err != nil {
+		return fmt.Errorf("network %s: %v", network, err)
+	}
+	return nil
+}
+
+// docker runs one docker command; its error is docker's first line of
+// error, else the exit's.
+func (d Docker) docker(args ...string) (string, error) {
+	stdout, stderr, err := d.O.Exec(d.Dir, "docker", args...)
+	if err != nil {
+		msg, _, _ := strings.Cut(strings.TrimSpace(string(stderr)), "\n")
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", errors.New(msg)
+	}
+	return string(stdout), nil
+}
+
 // psFormat is the running set's columns: name, daisy.swarm, daisy.credential.
 const psFormat = `{{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}`
 
 // Running is `docker ps --filter label=daisy.swarm` (section 11, apply's
 // pass, step 3); a failure carries docker's first line of error.
 func (d Docker) Running() ([]Running, error) {
-	stdout, stderr, err := d.O.Exec(d.Dir, "docker", "ps", "--filter", "label=daisy.swarm", "--format", psFormat)
+	stdout, err := d.docker("ps", "--filter", "label=daisy.swarm", "--format", psFormat)
 	if err != nil {
-		msg, _, _ := strings.Cut(strings.TrimSpace(string(stderr)), "\n")
-		if msg == "" {
-			msg = err.Error()
-		}
-		return nil, fmt.Errorf("docker: %s", msg)
+		return nil, fmt.Errorf("docker: %v", err)
 	}
 	var out []Running
-	for _, line := range strings.Split(string(stdout), "\n") {
+	for _, line := range strings.Split(stdout, "\n") {
 		f := strings.Fields(line)
 		if len(f) < 2 {
 			continue

@@ -59,7 +59,7 @@ func TestArgs(t *testing.T) {
 		"--env", "GROK_HOME=/credential"}, mounts); !reflect.DeepEqual(got, want) {
 		t.Errorf("xai slot member:\n got %q\nwant %q", got, want)
 	}
-	check := Spec{Name: "daisy-swarm.acme.app.3.check.1", Label: "acme/app#3/check", User: "1000:1000", NoNetwork: true,
+	check := Spec{Name: "daisy-swarm.acme.app.3.check.1", Label: "acme/app#3/check", User: "1000:1000", Network: "none",
 		Mounts: []Mount{{Src: "/s/runs/3-worker-1/check", Dst: "/work"}}, Workdir: "/work", Image: "daisy-member-app:2", Argv: []string{"make", "check"}}
 	want := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.check.1", "--label", "daisy.swarm=acme/app#3/check",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--network", "none",
@@ -86,6 +86,99 @@ func TestArgs(t *testing.T) {
 		"--mount", "type=bind,src=/s/runs/3-worker-1/check,dst=/work", "--mount", "type=bind,src=/s/deps/app,dst=/deps,readonly", "--workdir", "/work", "daisy-member-app:2", "make", "check"}
 	if got := check.Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("check after deps:\n got %q\nwant %q", got, want)
+	}
+	// With test services: the check on their network in place of none.
+	check.Network = "daisy-swarm.acme.app.3.check.1"
+	want[15] = "daisy-swarm.acme.app.3.check.1"
+	if got := check.Args(); !reflect.DeepEqual(got, want) {
+		t.Errorf("check with services:\n got %q\nwant %q", got, want)
+	}
+}
+
+// gridapp is a check's test services: mongo on tmpfs, redis with a
+// command and an environment.
+var gridapp = Services{Network: "daisy-swarm.acme.app.3.check.1", Internal: true, List: []Service{
+	{Name: "mongo", Image: "mongo:7", Tmpfs: []string{"/data/db"}},
+	{Name: "redis", Image: "redis:7", Env: []string{"A=1", "B=x y"}, Command: []string{"redis-server", "--save", ""}},
+}}
+
+// Section 7.2's services: the network, internal for a check, labelled
+// with its name; each service detached on it alone, by its name, from a
+// local image, never privileged, removed when stopped.
+func TestServicesArgs(t *testing.T) {
+	if got, want := gridapp.NetworkArgs(), []string{"network", "create", "--internal", "--label", "daisy.services=daisy-swarm.acme.app.3.check.1", "daisy-swarm.acme.app.3.check.1"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("network:\n got %q\nwant %q", got, want)
+	}
+	worker := Services{Network: "daisy-swarm.acme.app.3.worker.1", List: gridapp.List}
+	if got, want := worker.NetworkArgs(), []string{"network", "create", "--label", "daisy.services=daisy-swarm.acme.app.3.worker.1", "daisy-swarm.acme.app.3.worker.1"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("worker's network:\n got %q\nwant %q", got, want)
+	}
+	head := []string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.check.1.%s", "--label", "daisy.services=daisy-swarm.acme.app.3.check.1",
+		"--network", "daisy-swarm.acme.app.3.check.1", "--network-alias", "%s", "--security-opt", "no-new-privileges"}
+	args := func(name string, rest ...string) []string {
+		var out []string
+		for _, a := range head {
+			out = append(out, strings.ReplaceAll(a, "%s", name))
+		}
+		return append(out, rest...)
+	}
+	if got, want := gridapp.ServiceArgs(gridapp.List[0]), args("mongo", "--tmpfs", "/data/db", "mongo:7"); !reflect.DeepEqual(got, want) {
+		t.Errorf("mongo:\n got %q\nwant %q", got, want)
+	}
+	if got, want := gridapp.ServiceArgs(gridapp.List[1]), args("redis", "--env", "A=1", "--env", "B=x y", "redis:7", "redis-server", "--save", ""); !reflect.DeepEqual(got, want) {
+		t.Errorf("redis:\n got %q\nwant %q", got, want)
+	}
+}
+
+// Docker.Up makes the network, then starts each service in order; a
+// service that cannot start (a missing image: --pull never) is named
+// with docker's message and starts none after it. Down removes the
+// network's containers and the network by their label, an apply's that
+// died included, and with none removes nothing.
+func TestDockerServices(t *testing.T) {
+	var ran []string
+	fail := ""
+	o := &ops.Fake{ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
+		line := name + " " + strings.Join(args, " ")
+		ran = append(ran, line)
+		switch {
+		case fail != "" && strings.Contains(line, fail):
+			return nil, []byte("docker: Error response from daemon: No such image: redis:7.\nSee 'docker run --help'.\n"), errors.New("exit status 125")
+		case strings.HasPrefix(line, "docker ps "):
+			return []byte("c1\nc2\n"), nil, nil
+		case strings.HasPrefix(line, "docker network ls "):
+			return []byte("n1\n"), nil, nil
+		}
+		return nil, nil, nil
+	}}
+	d := Docker{O: o, Dir: "/ws"}
+	if err := d.Up(gridapp); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"docker " + strings.Join(gridapp.NetworkArgs(), " "), "docker " + strings.Join(gridapp.ServiceArgs(gridapp.List[0]), " "), "docker " + strings.Join(gridapp.ServiceArgs(gridapp.List[1]), " ")}
+	if !reflect.DeepEqual(ran, want) {
+		t.Errorf("up:\n got %q\nwant %q", ran, want)
+	}
+	ran, fail = nil, "redis:7"
+	if err := d.Up(gridapp); err == nil || err.Error() != "redis: docker: Error response from daemon: No such image: redis:7." || len(ran) != 3 {
+		t.Errorf("up with a missing image: %v, ran %q", err, ran)
+	}
+	ran, fail = nil, ""
+	if err := d.Down(gridapp.Network); err != nil {
+		t.Fatal(err)
+	}
+	label := "label=daisy.services=daisy-swarm.acme.app.3.check.1"
+	want = []string{"docker ps --all --quiet --filter " + label, "docker rm --force c1 c2", "docker network ls --quiet --filter " + label, "docker network rm daisy-swarm.acme.app.3.check.1"}
+	if !reflect.DeepEqual(ran, want) {
+		t.Errorf("down:\n got %q\nwant %q", ran, want)
+	}
+	ran = nil
+	o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
+		ran = append(ran, name+" "+strings.Join(args, " "))
+		return nil, nil, nil
+	}
+	if err := d.Down(gridapp.Network); err != nil || len(ran) != 2 {
+		t.Errorf("down with nothing up: %v, ran %q", err, ran)
 	}
 }
 
