@@ -132,7 +132,7 @@ func TestSwarmApplyBadSlices(t *testing.T) {
 				a.edit(func(c *declare.Config) { c.Repos = c.Repos[:1] })
 			}
 			if tc.bad != "" && !tc.removeLib {
-				if b := a.bodies(1); !strings.HasSuffix(b[len(b)-1], "architect run 1 failed: bad slices: "+tc.bad+" (at swarm:proposal-accepted). Remove swarm:blocked to resume.") {
+				if b := a.bodies(1); !strings.HasSuffix(b[len(b)-1], "architect run 1 failed: bad slices: "+tc.bad+" (at swarm:proposal-accepted). Remove swarm:blocked to resume.\n\ncc @jane") {
 					t.Errorf("architect: %q", b)
 				}
 				return
@@ -142,7 +142,7 @@ func TestSwarmApplyBadSlices(t *testing.T) {
 			a.pass()
 			if tc.bad != "" {
 				b := a.bodies(1)
-				if !strings.HasSuffix(b[len(b)-1], "worker run 1 failed: bad slices: "+tc.bad+" (at swarm:plan-1-accepted). Remove swarm:blocked to resume.") ||
+				if !strings.HasSuffix(b[len(b)-1], "worker run 1 failed: bad slices: "+tc.bad+" (at swarm:plan-1-accepted). Remove swarm:blocked to resume.\n\ncc @jane") ||
 					!strings.Contains(a.result("1-worker-1"), "launch-failed ") || len(a.runner.Launches()) != 1 {
 					t.Errorf("worker: %q\n%s", b, a.result("1-worker-1"))
 				}
@@ -178,7 +178,7 @@ func TestSwarmApplyContinuedPullRepositoryRemoved(t *testing.T) {
 	r := a.result("1-worker-2")
 	b := a.bodies(1)
 	if !strings.Contains(r, "\nlaunch-failed ") || !strings.Contains(r, "\nfailed: bad slices: 1\n") || len(a.runner.Launches()) != launched ||
-		!strings.HasSuffix(b[len(b)-1], "worker run 2 failed: bad slices: 1 (at "+forge.ChangesRequested+"). Remove swarm:blocked to resume.") {
+		!strings.HasSuffix(b[len(b)-1], "worker run 2 failed: bad slices: 1 (at "+forge.ChangesRequested+"). Remove swarm:blocked to resume.\n\ncc @jane") {
 		t.Errorf("%s\n%q\nstdout:\n%s", r, b, a.stdout.String())
 	}
 }

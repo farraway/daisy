@@ -352,7 +352,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 	unlinked := fmt.Sprintf("%s#%d", pull.Repo, pull.Number) // a note's form before Step 7 of the plan for the inbox requests F27-F35
 	first := fmt.Sprintf("Review round %d of %d on %s requested changes (was %s). "+architectRevises, rounds, s.Cfg.MaxRounds, on, forge.ReviewInProgress)
 	second := fmt.Sprintf("Review round %d of %d on %s "+roundLimitAgain+" (at %s). Relabel the issue %s for one more fix round or %s to re-plan, then remove %s.",
-		rounds, s.Cfg.MaxRounds, on, forge.ReviewInProgress, forge.ChangesRequested, forge.PlanPosted, forge.Blocked)
+		rounds, s.Cfg.MaxRounds, on, forge.ReviewInProgress, forge.ChangesRequested, forge.PlanPosted, forge.Blocked) + s.mention()
 	own := []string{marker("reconciler", c.r.K) + first, marker("reconciler", c.r.K) + second}
 	again := false
 	for _, cm := range c.is.Comments {

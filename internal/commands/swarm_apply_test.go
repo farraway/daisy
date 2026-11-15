@@ -355,17 +355,17 @@ func TestSwarmApplyArchitectFailures(t *testing.T) {
 	}{
 		{"blocked", runner.Canned{Out: "BLOCKED: which repository?\n"}, "swarm:blocked",
 			[]string{"<!-- daisy-swarm role=architect run=1 -->\n**architect:**\n\nBLOCKED: which repository?\n",
-				"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 is blocked (at swarm:proposal-accepted). Answer, then remove swarm:blocked to resume."}, "blocked"},
+				"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 is blocked (at swarm:proposal-accepted). Answer, then remove swarm:blocked to resume.\n\ncc @jane"}, "blocked"},
 		{"no output", runner.Canned{Out: " \n"}, "swarm:blocked",
-			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: no output (at swarm:proposal-accepted). Remove swarm:blocked to resume."}, "failed"},
+			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: no output (at swarm:proposal-accepted). Remove swarm:blocked to resume.\n\ncc @jane"}, "failed"},
 		{"bad slices", runner.Canned{Out: "## Steps\n\n1. app: one.\n2. other: two.\n3. three.\n"}, "swarm:blocked",
-			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: bad slices: 2, 3 (at swarm:proposal-accepted). Remove swarm:blocked to resume."}, "failed"},
+			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: bad slices: 2, 3 (at swarm:proposal-accepted). Remove swarm:blocked to resume.\n\ncc @jane"}, "failed"},
 		{"timeout", runner.Canned{Out: archPlan, TimedOut: true, Code: 137}, "swarm:blocked",
-			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: timeout after 45m (at swarm:proposal-accepted). Remove swarm:blocked to resume."}, "failed"},
+			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: timeout after 45m (at swarm:proposal-accepted). Remove swarm:blocked to resume.\n\ncc @jane"}, "failed"},
 		{"the image missing", runner.Canned{Code: 125}, "swarm:proposal-accepted", nil, "fault"},
 		{"the provider's quota", runner.Canned{Out: archPlan, Code: 1, Stdout: `{"type":"result","is_error":true,"result":"Claude AI usage limit reached"}`}, "swarm:proposal-accepted", nil, "fault"},
 		{"the token in out.md", runner.Canned{Out: "leak oauth-token-0123456789abcdef0123456789\n"}, "swarm:blocked",
-			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: secret in output: out.md (at swarm:proposal-accepted). Remove swarm:blocked to resume."}, "failed"},
+			[]string{"<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: secret in output: out.md (at swarm:proposal-accepted). Remove swarm:blocked to resume.\n\ncc @jane"}, "failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newApplyWS(t)

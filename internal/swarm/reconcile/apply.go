@@ -108,8 +108,9 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 // the merge gate off; (7) the owner's batch trigger; (8) unless
 // signalled, the maintainer's flag set and cleared by the stages, each
 // open issue's pull requests listed in its body, then the forge
-// milestones mirroring the briefs; in a swarm repository's
-// clone, Drift (section 11); (9) the summary line. With
+// milestones mirroring the briefs, and with notify each new item
+// waiting for the maintainer told (section 5, Notify); in a swarm
+// repository's clone, Drift (section 11); (9) the summary line. With
 // wait (`--once`), every container launched is waited for and collected,
 // a worker run's check included, before (8), so that the flag follows
 // the labels the collections moved and a batch's proposals are put in
@@ -174,6 +175,7 @@ func (s *Swarm) Pass(wait bool) error {
 			s.listPulls(is)
 		}
 		s.milestones(open)
+		s.notify()
 	}
 	s.drift()
 	errs = append(errs, s.Journal())

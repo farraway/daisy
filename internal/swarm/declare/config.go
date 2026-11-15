@@ -41,6 +41,7 @@ type Config struct {
 	References []Reference        `json:"references,omitempty"`
 	Notes      bool               `json:"notes,omitempty"`
 	Trusted    []string           `json:"trusted"`
+	Notify     []string           `json:"notify,omitempty"`
 	Gates      Gates              `json:"gates"`
 	Budget     *Budget            `json:"budget,omitempty"`
 	Keys       map[string]Key     `json:"keys"`
@@ -427,7 +428,11 @@ func Format(c Config) []byte {
 	if c.Notes {
 		top = append(top, `"notes": true`)
 	}
-	top = append(top, `"trusted": `+inline(nonNil(c.Trusted)), `"gates": `+inline(c.Gates))
+	top = append(top, `"trusted": `+inline(nonNil(c.Trusted)))
+	if len(c.Notify) > 0 {
+		top = append(top, `"notify": `+inline(c.Notify))
+	}
+	top = append(top, `"gates": `+inline(c.Gates))
 	if c.Budget != nil {
 		top = append(top, `"budget": `+inline(*c.Budget))
 	}

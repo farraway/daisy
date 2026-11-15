@@ -454,12 +454,12 @@ func (c *collection) flag(flag string, home bool) error {
 }
 
 // note posts the reconciler's note on the issue, head then resume and
-// kept, then T17. An issue the maintainer moved during the run off both
-// the run's stage and its home, which T17 leaves as it is, gets head and
-// kept then notBlocked in place of resume, a note that blocked nothing
-// (blocks).
+// kept and the maintainer's mention, then T17. An issue the maintainer
+// moved during the run off both the run's stage and its home, which T17
+// leaves as it is, gets head and kept then notBlocked in place of resume,
+// a note that blocked nothing (blocks) and mentions no one.
 func (c *collection) note(head, resume, kept, outcome string) error {
-	text := head + " " + resume + kept
+	text := head + " " + resume + kept + c.s.mention()
 	if now, moved, err := c.movedAway(true); err != nil {
 		return err
 	} else if moved {

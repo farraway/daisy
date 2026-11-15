@@ -194,6 +194,7 @@ func TestWizardKeepsTheFilesDeps(t *testing.T) {
 	file.Repos[0].Deps = &Deps{Run: []string{"go", "mod", "download"}, Env: map[string]string{"GOMODCACHE": "/deps/go/mod"}}
 	file.Repos[0].Rulings = &[]string{}
 	file.Repos[0].Services = ptr("test/compose.yaml")
+	file.Notify = []string{"ntfy", "publish", "swarm-app"}
 	w := &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
 	c, err := w.Ask()
 	if err != nil {
@@ -207,6 +208,9 @@ func TestWizardKeepsTheFilesDeps(t *testing.T) {
 	}
 	if c.Repos[0].Services == nil || *c.Repos[0].Services != "test/compose.yaml" || c.Repos[1].Services != nil {
 		t.Errorf("services %v, %v", c.Repos[0].Services, c.Repos[1].Services)
+	}
+	if !reflect.DeepEqual(c.Notify, file.Notify) {
+		t.Errorf("notify %q", c.Notify)
 	}
 }
 

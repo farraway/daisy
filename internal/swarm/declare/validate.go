@@ -74,6 +74,7 @@ func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
 			}
 			return checkTrusted(c.Trusted)
 		},
+		func() *Error { return checkNotify(c.Notify) },
 		func() *Error { return checkBudget(c.Gates, c.Budget) },
 		func() *Error { return checkKeys(c.Keys, c.Personas) },
 		func() *Error { return checkPersonas(o, p, c.Personas, skip) },
@@ -471,6 +472,17 @@ func checkTrusted(trusted []string) *Error {
 	for i, l := range trusted {
 		if !loginShape.MatchString(l) {
 			return fieldErr(fmt.Sprintf("trusted[%d]", i), "%q is not a forge login", l)
+		}
+	}
+	return nil
+}
+
+// checkNotify: notify, when present, is one argv, each element
+// non-empty, as a check is (section 3).
+func checkNotify(argv []string) *Error {
+	for i, a := range argv {
+		if a == "" {
+			return fieldErr(fmt.Sprintf("notify[%d]", i), "empty argument")
 		}
 	}
 	return nil

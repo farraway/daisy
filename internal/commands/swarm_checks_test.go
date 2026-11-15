@@ -108,7 +108,7 @@ func TestSwarmMergeStepChecksPassedRefused(t *testing.T) {
 	a.forge.SetStatus("app", head, "ci / test", "success")
 	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 1})
 	a.pass()
-	note := mark("reconciler", 1) + "merge of pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
+	note := mark("reconciler", 1) + "merge of pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked.\n\ncc @jane"
 	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || !slices.Contains(a.bodies(1), note) {
 		t.Errorf("T16: %v %q\n%s", got, a.bodies(1), a.stdout.String())
 	}

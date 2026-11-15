@@ -113,7 +113,7 @@ func TestSwarmApplyQuestionToTheMaintainer(t *testing.T) {
 		t.Errorf("owner's system.md:\n%s", sys)
 	}
 	is := a.issue(1)
-	note := mark("reconciler", 1) + "owner run 1 passed a question to the maintainer (at swarm:plan-1-accepted): Keep the old flag, or drop it? Answer, then remove swarm:blocked to resume."
+	note := mark("reconciler", 1) + "owner run 1 passed a question to the maintainer (at swarm:plan-1-accepted): Keep the old flag, or drop it? Answer, then remove swarm:blocked to resume.\n\ncc @jane"
 	if got := labels(is); !reflect.DeepEqual(got, []string{forge.PlanAccepted, forge.Blocked, forge.Gated}) {
 		t.Fatalf("labels %v\n%s", got, a.stdout.String())
 	}

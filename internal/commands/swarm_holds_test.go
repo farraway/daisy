@@ -105,7 +105,7 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 		b := a.bodies(1)
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready", forge.Blocked, forge.Gated}) ||
 			!strings.Contains(r, "\nlabel swarm:review-1-in-progress\n") || !strings.Contains(r, "\nrelabelled swarm:review-1-in-progress swarm:review-0-ready\n") ||
-			b[len(b)-1] != mark("reconciler", 1)+"sympathetic run 1 failed: bad verdict (at swarm:review-0-ready). Remove swarm:blocked to resume." {
+			b[len(b)-1] != mark("reconciler", 1)+"sympathetic run 1 failed: bad verdict (at swarm:review-0-ready). Remove swarm:blocked to resume.\n\ncc @jane" {
 			t.Errorf("%v %q\n%s", got, b, r)
 		}
 		a.forge.Relabel(issue1, forge.Blocked, "") // T18: the second reviewer runs again, from review-0-ready

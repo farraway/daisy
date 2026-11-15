@@ -123,7 +123,7 @@ func (s *Swarm) mergeStep() error {
 				if head != "" {
 					onHead = " at " + short(head)
 				}
-				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s%s refused: %s (at %s). Resolve it, then remove %s.", pullLink(s.owner(), cur), onHead, msg, forge.ReviewApproved, forge.Blocked)
+				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s%s refused: %s (at %s). Resolve it, then remove %s.", pullLink(s.owner(), cur), onHead, msg, forge.ReviewApproved, forge.Blocked) + s.mention()
 				// Posted already only when it is the issue's last word and
 				// the swarm's: a retry after a failed relabel, not another
 				// login's copy or an earlier block's same note.
@@ -176,7 +176,7 @@ func (s *Swarm) backToWorker(is forge.Issue, p forge.Pull, head string, k int, f
 	at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: is.Number}
 	if SentBack(comments, s.owner(), p, head, s.SwarmLogin, s.Cfg.Trusted) {
 		fmt.Fprintf(s.Out, "#%d not mergeable a second time at %s: blocked\n", is.Number, short(head))
-		note := marker("reconciler", max(k, 1)) + SentBackAgain(s.owner(), s.Cfg.Base, is.Number, p, head, files)
+		note := marker("reconciler", max(k, 1)) + SentBackAgain(s.owner(), s.Cfg.Base, is.Number, p, head, files) + s.mention()
 		last := len(is.Comments) - 1
 		if last < 0 || is.Comments[last].Body != note || !strings.EqualFold(is.Comments[last].Author, s.SwarmLogin) {
 			if err := s.Forge.Comment(at, note); err != nil {

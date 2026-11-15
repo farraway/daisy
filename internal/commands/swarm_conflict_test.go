@@ -185,7 +185,7 @@ func TestSwarmApplyConflictBlocked(t *testing.T) {
 	comments, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested", "swarm:blocked", forge.Gated}) ||
 		!strings.HasPrefix(comments[len(comments)-1].Body, mark("worker", 2)+"BLOCKED: main conflicts in main.go") ||
-		a.bodies(1)[len(a.bodies(1))-1] != mark("reconciler", 2)+"worker run 2 is blocked (at swarm:review-3-changes-requested). Answer, then remove swarm:blocked to resume." {
+		a.bodies(1)[len(a.bodies(1))-1] != mark("reconciler", 2)+"worker run 2 is blocked (at swarm:review-3-changes-requested). Answer, then remove swarm:blocked to resume.\n\ncc @jane" {
 		t.Errorf("blocked: %v %q %+v\n%s", got, a.bodies(1), comments, a.stdout.String())
 	}
 }
@@ -293,7 +293,7 @@ func TestSwarmMergeStepSentBackTwice(t *testing.T) {
 		t.Fatalf("approved again: %v\n%s", got, a.stdout.String())
 	}
 	a.pass() // the merge step
-	note := mark("reconciler", 2) + "Pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) was sent back to merge main at " + approved[:7] + " once already, was approved again at that head, and still does not merge into main (they conflict in `main.go`) (at swarm:review-2-approved). Merge main into swarm/1-1, or relabel the issue, then remove swarm:blocked."
+	note := mark("reconciler", 2) + "Pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) was sent back to merge main at " + approved[:7] + " once already, was approved again at that head, and still does not merge into main (they conflict in `main.go`) (at swarm:review-2-approved). Merge main into swarm/1-1, or relabel the issue, then remove swarm:blocked.\n\ncc @jane"
 	comments, _ := a.forge.PullComments(pr)
 	directions := 0
 	for _, c := range comments {

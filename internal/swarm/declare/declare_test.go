@@ -127,6 +127,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: owner.max_open_proposals: 21 is not between 1 and 20`, func(c *Config) { c.Owner.MaxOpenProposals = 21 }},
 		{`swarm.json: trusted: no login (at least one is required)`, func(c *Config) { c.Trusted = nil }},
 		{`swarm.json: trusted[1]: "jane doe" is not a forge login`, func(c *Config) { c.Trusted = []string{"swarm-bot", "jane doe"} }},
+		{`swarm.json: notify[1]: empty argument`, func(c *Config) { c.Notify = []string{"ntfy", ""} }},
 		{`swarm.json: budget: missing (required when a gate is false)`, func(c *Config) { c.Gates.Merge = false }},
 		{`swarm.json: budget.per_day: 0 is not greater than 0`, func(c *Config) { c.Budget = &Budget{PerDay: 0, Total: 10} }},
 		{`swarm.json: budget.total: -1.5 is not greater than 0`, func(c *Config) { c.Budget = &Budget{PerDay: 1, Total: -1.5} }},
@@ -311,6 +312,23 @@ func TestFormatKeepsBudgetAndBoard(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("Format lacks %q:\n%s", want, out)
 		}
+	}
+	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("round trip: %v", err)
+	}
+}
+
+// notify is written after trusted, one line, and read back; with none
+// there is no line (section 3).
+func TestFormatNotify(t *testing.T) {
+	c := valid()
+	if out := string(Format(c)); strings.Contains(out, `"notify"`) {
+		t.Errorf("Format wrote notify unset:\n%s", out)
+	}
+	c.Notify = []string{"ntfy", "publish", "swarm-app"}
+	out := string(Format(c))
+	if want := `"],` + "\n" + `  "notify": ["ntfy", "publish", "swarm-app"],` + "\n" + `  "gates": `; !strings.Contains(out, want) {
+		t.Errorf("Format lacks %q:\n%s", want, out)
 	}
 	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
 		t.Errorf("round trip: %v", err)

@@ -504,9 +504,9 @@ func swarmStatus(c *Context, open opener) error {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	// What waits for the maintainer: the open issues reconcile.Gated holds
-	// for, the predicate apply flags them by, by item: a blocked one under
-	// blocked, an approved one under what its pull request calls for
-	// (section 12). What the maintainer holds: the paused ones, and those
+	// for, the predicate apply flags them by, by item (reconcile.Waiting,
+	// which apply's notify tells by too): a blocked one under blocked, an
+	// approved one under what its pull request calls for (section 12). What the maintainer holds: the paused ones, and those
 	// whose newest maintainer comment names an open blocker.
 	waits, classes := map[string][]int{}, map[int]string{}
 	var paused, blockedBy []string
@@ -533,15 +533,7 @@ func swarmStatus(c *Context, open opener) error {
 				continue
 			}
 			classes[n] = class
-			item := map[string]string{forge.ProposalPosted: "triage", forge.PlanPosted: "plan"}[l]
-			switch {
-			case slices.Contains(is.Labels, forge.Blocked) && reconcile.AtAQuestion(is, acct.Login):
-				item = "question" // passed to the maintainer (section 6, The question)
-			case slices.Contains(is.Labels, forge.Blocked):
-				item = "blocked"
-			case l == forge.ReviewApproved:
-				item = reconcile.AfterApproval(is, issues[n].Pulls, acct.Login)
-			}
+			item := reconcile.Waiting(is, issues[n].Pulls, acct.Login)
 			waits[item] = append(waits[item], n)
 		}
 	}

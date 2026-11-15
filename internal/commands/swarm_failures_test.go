@@ -164,6 +164,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 			if tc.kept {
 				note += " Its commits are kept in the swarm's mirror as refs/swarm-runs/1-worker-1."
 			}
+			note += "\n\ncc @jane"
 			b := a.bodies(1)
 			r := a.result("1-" + role + "-1")
 			progress := map[string]string{"worker": "swarm:plan-2-in-progress", "adversary": "swarm:review-1-in-progress"}[role]
@@ -687,6 +688,7 @@ func TestSwarmApplyFetchFailsTwice(t *testing.T) {
 			if tc.failed != "" {
 				note = mark("reconciler", 1) + "worker run 1 failed: " + tc.failed + " (at swarm:plan-1-accepted). Remove swarm:blocked to resume. Its commits could not be fetched from its clone: " + reason + "."
 			}
+			note += "\n\ncc @jane"
 			b := a.bodies(1)
 			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-1-accepted", "swarm:blocked", forge.Gated}) || b[len(b)-1] != note {
 				t.Fatalf("T17: %v\n%q\nwant %q\n%s", got, b[len(b)-1], note, r)

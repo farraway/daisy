@@ -35,7 +35,8 @@ func (s *Swarm) gateNote(n int, open []forge.Issue) error {
 
 // gateText is the gate note after its marker line: `**reconciler:** gated
 // at <stage>: <why>.`, a blank line, the bullets (the job's class first),
-// a blank line and the decision.
+// a blank line and the decision, then, but at the blocked gate, whose
+// blocking note mentioned the maintainer, the maintainer's mention.
 func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 	n := is.Number
 	stage, _ := StageOf(is)
@@ -44,9 +45,10 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 	class := ClassOf(is, s.SwarmLogin, s.Cfg.Trusted)
 	var why, decide string
 	var items []string
+	mention := s.mention()
 	switch {
 	case slices.Contains(is.Labels, forge.Blocked):
-		why = blockedWhy
+		why, mention = blockedWhy, "" // the note that blocked it mentioned the maintainer
 		pulls, err := s.pulls(n)
 		if err != nil {
 			return "", err
@@ -72,7 +74,7 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 		decide = verb("merge") + ", " + verb("approve") + " first when the forge wants an approving review, or a comment"
 	}
 	items = append([]string{"- Class: " + class + "."}, items...)
-	return fmt.Sprintf("**reconciler:** gated at %s: %s.\n\n%s\n\nDecide: %s.", strings.TrimPrefix(stage, "swarm:"), why, strings.Join(items, "\n"), decide), nil
+	return fmt.Sprintf("**reconciler:** gated at %s: %s.\n\n%s\n\nDecide: %s.%s", strings.TrimPrefix(stage, "swarm:"), why, strings.Join(items, "\n"), decide, mention), nil
 }
 
 // blockedWhy is the blocked gate's why in its note.
