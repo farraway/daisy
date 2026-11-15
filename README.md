@@ -538,7 +538,9 @@ token, taken from the swarm's secrets file, and answered in the thread.
 In an agent session in that clone, or a workspace holding it, the `swarm` skill reads `status`,
 the briefs and the runs, explains what happened and what waits, drafts
 briefs and configuration changes, and runs a verb only after you have
-confirmed that write in words. It never reaches the forge except through
+confirmed that write in words or, through `/daisy swarm connect`, when
+it lies within an authority you granted in the swarm repository's
+`AUTHORITIES.md`. It never reaches the forge except through
 `daisy swarm` commands (`status` to read, the verbs to write); `init` and
 `apply` are yours, from a terminal.
 

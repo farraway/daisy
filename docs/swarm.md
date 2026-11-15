@@ -212,7 +212,13 @@ request runs the architect in the worker's place as changed rulings
 do, merged slices kept (T27); a job with no plan, or in review with its
 pull request closed or merged, is moved where the architect reads it
 (T31); an open pull request, a run in flight or a question waiting
-refuses it (item 138).
+refuses it (item 138). Its Step 21 (2026-11-15) amended sections 1, 2
+and 11: the swarm repository may hold `AUTHORITIES.md`, the
+maintainer's standing authorities for an agent acting through
+`/daisy swarm connect`, which acts without asking only within one,
+citing it by its label, and asks everything else; the maintainer
+writes the file, `init` does not seed it and Daisy's code does not
+read it (item 139).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -367,8 +373,10 @@ skill (`skills/swarm/SKILL.md` in the Daisy root): it reads `swarm
 status`, the briefs and `<state>/runs/`, explains what was done and what
 waits, drafts a brief or flips its `Status` and edits `swarm.json` and
 the persona prompts, and runs a verb only once the maintainer has
-confirmed that write in words; it never reaches the forge itself and
-names no secret.
+confirmed that write in words or, through `/daisy swarm connect`, when
+the write lies within an authority the swarm repository's
+`AUTHORITIES.md` grants (section 2); it never reaches the forge itself
+and names no secret.
 
 **Four levels: brief, job, plan, slice.** A swarm is perpetual and bound
 to one product: one swarm repository holding its `swarm.json` (section
@@ -478,6 +486,7 @@ Stages of a software factory the version leaves out, each by choice:
 ├── docs/                            # the docs that span the products, a `resources` entry by default
 ├── repos/<name>.md                  # the swarm's notes about declared repository <name>, in its members' system prompt (section 4)
 ├── README.md                        # what the repository is
+├── AUTHORITIES.md                   # optional, the maintainer's: standing authorities for an agent acting through `/daisy swarm connect` (below); Daisy neither writes nor reads it
 └── .gitignore                       # `.env.sh`: no secret is committed by accident
 <state>/                             # $DAISY_LOCAL/swarm/<forge-host>/<owner>/<repo>/, this machine's runtime state
 ├── env                              # the secrets, mode 0600 (section 3, Secret values)
@@ -602,6 +611,17 @@ lie under a resource in a declared repository, `<name>:<path>`, section
 3). Daisy reads them from the mirrors at the pass's commits when it
 renders the owner's batch prompt (7.3) and mirrors the milestones, and
 never writes one; their form is in section 4.
+
+**The authorities**, `AUTHORITIES.md` at the swarm repository's top,
+are the maintainer's standing yes to the writes an agent acting
+through `/daisy swarm connect` (`prompts/swarm-connect.md` in the Daisy
+root) may make without asking, each under a label (`A1`, …) the agent
+cites in the write's log line and in any comment the write posts.
+Anything the file does not grant is asked, one write at a time, as the
+`swarm` skill's rule 3 says; with no file, nothing is granted. The
+maintainer writes it: `init` does not seed it, and Daisy's code does
+not read it; it is for the agent, which reads it in the clone during
+its briefing (section 14, item 139).
 
 ## 3. `swarm.json`
 
@@ -5345,7 +5365,9 @@ what was done and what waits, drafts or flips a brief's `Status` and
 edits `swarm.json` and the persona prompts as drafts for the maintainer,
 and runs a verb (or `pause`, `resume` and `prompt build`, whose
 `--dry-run` alone it may run unasked) only after stating the write
-and the maintainer's yes to it in words; it never reaches the forge
+and the maintainer's yes to it in words (through `/daisy swarm
+connect`, a write within an authority `AUTHORITIES.md` grants has
+that yes standing, section 2); it never reaches the forge
 itself, never runs `init` or `apply`, and names no secret but the
 variable `DAISY_MAINTAINER_TOKEN`.
 
@@ -9564,3 +9586,27 @@ entries among revision 1's, and was renumbered at Step 38.
     command line, which the terminal form refuses for the same reason.
     Tests: `TestSwarmReplan`, `TestSwarmApplyCommandReplan`,
     `TestSwarmReplanStages` and `TestSwarmReplanRefused`.
+139. **Written authorities for a connected agent (Step 21 of the plan
+    for the inbox requests F27–F35, 2026-11-15; S5).** Notify (item
+    136) wakes an agent, which connects (item 133) and asked for every
+    write, so a write the maintainer would approve the same way each
+    time still waited for them. **The authorities are a file in the
+    swarm repository**, `AUTHORITIES.md` at its top, each granted by
+    the maintainer and labelled (`A1`, …): the connect prompt reads it
+    in its briefing, runs a write that lies wholly within one on that
+    standing yes, and cites the label in the log line and in any
+    comment the write posts; everything else is asked as before, one
+    write at a time, and with no file nothing is granted. The rule that
+    a write waits for the maintainer's yes is widened (a yes in words,
+    or a standing one in the file) rather than given an exception per
+    verb, and the `swarm` skill's rule 3 points at the file under the
+    connect alone. Alternatives: a field of `swarm.json` (configuration
+    Daisy validates and acts on, while no code acts on an authority:
+    the agent does), or the authorities in the connect prompt (the
+    root's, the same for every swarm, while each maintainer grants
+    their own). **Daisy's code does not read it**, and `init` does not
+    seed it: an authority is the maintainer's word, and a seeded
+    default would grant what no maintainer approved. An authority
+    changes who said yes, not how a write is made: the skill's other
+    rules (the verbs as the only writes, no forge call of the agent's
+    own) stand.

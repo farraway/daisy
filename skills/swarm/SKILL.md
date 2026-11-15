@@ -44,8 +44,13 @@ after the maintainer has said yes to that write.
    (`daisy swarm merge 10`: merges pull request lib#5 at its approved
    head, then closes #10, its plan's last slice). Run it only after the
    maintainer's explicit yes to that write in this conversation; a yes to
-   one write is not a yes to the next. Show the verb's output as printed.
-   `pause` and `resume` are writes too.
+   one write is not a yes to the next. Under `/daisy swarm connect`
+   (`prompts/swarm-connect.md`), a write that lies wholly within an
+   authority the clone's `AUTHORITIES.md` grants has the maintainer's
+   yes standing, and you cite the authority by its label in the log line
+   and in any comment the write posts; with no file, none is granted.
+   Show the verb's output as printed. `pause` and `resume` are writes
+   too.
 4. **Never reach the forge yourself.** No HTTP call, no API client, no
    forge CLI, no `git push` to the forge, and never `daisy swarm apply`
    or `daisy swarm init`, which are the maintainer's from a terminal. The
