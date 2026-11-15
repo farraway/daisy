@@ -78,7 +78,17 @@ func TestReport(t *testing.T) {
 {"type":"turn.completed","usage":{"input_tokens":24763,"cached_input_tokens":24448,"output_tokens":122}}
 {"type":"turn.started"}
 {"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":0,"output_tokens":78}}
-`, Report{Known: true, InTokens: 25763, OutTokens: 200, Turns: 2}},
+`, Report{Known: true, InTokens: 25763, CachedKnown: true, CachedTokens: 24448, OutTokens: 200, Turns: 2}},
+		// The usage of a live run (93-worker-1, gpt-6.1-sol): input_tokens
+		// holds cached_input_tokens; output_tokens holds the reasoning.
+		{"codex live usage", "openai", `{"type":"thread.started","thread_id":"t"}
+{"type":"turn.started"}
+{"type":"turn.completed","usage":{"input_tokens":3476833,"cached_input_tokens":3390208,"cache_write_input_tokens":0,"output_tokens":12969,"reasoning_output_tokens":2175}}
+`, Report{Known: true, InTokens: 3476833, CachedKnown: true, CachedTokens: 3390208, OutTokens: 12969, Turns: 1}},
+		// A turn without the count leaves the cached input unknown.
+		{"codex without a cached count", "openai", `{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":60,"output_tokens":5}}
+{"type":"turn.completed","usage":{"input_tokens":40,"output_tokens":5}}
+`, Report{Known: true, InTokens: 140, CachedTokens: 60, OutTokens: 10, Turns: 2}},
 		{"codex rate limit", "openai", `{"type":"thread.started","thread_id":"t"}
 {"type":"turn.started"}
 {"type":"error","message":"stream error: exceeded retry limit, last status: 429 Too Many Requests"}
@@ -130,24 +140,31 @@ func TestSlots(t *testing.T) {
 }
 
 // Estimate is a model's tokens at its list price (section 9): the
-// models whose price is known, in and out at their own rates; a model
-// not in the table has no estimate, never a zero one.
+// models whose price is known, in and out at their own rates, the
+// cached part of the input at the cached rate; a model not in the table
+// has no estimate, never a zero one, nor has cached input of a model
+// with no cached rate.
 func TestEstimate(t *testing.T) {
 	for _, tc := range []struct {
-		model   string
-		in, out int
-		want    float64
-		ok      bool
+		model           string
+		in, cached, out int
+		want            float64
+		ok              bool
 	}{
-		{"claude-opus-5-5", 1_000_000, 500_000, 14, true},
-		{"claude-sonnet-5-5", 2_000_000, 100_000, 5, true},
-		{"claude-fable-5-1", 10, 20, 0.0011, true},
-		{"gpt-6.1-sol", 1_000_000, 1_000_000, 0, false},
-		{"grok-4.7", 1_000_000, 1_000_000, 0, false},
+		{"claude-opus-5-5", 1_000_000, 0, 500_000, 14, true},
+		{"claude-sonnet-5-5", 2_000_000, 0, 100_000, 5, true},
+		{"claude-fable-5-1", 10, 0, 20, 0.0011, true},
+		{"gpt-6.1-sol", 1_000_000, 0, 1_000_000, 12, true},
+		{"gpt-6.1-sol", 1_000_000, 1_000_000, 0, 0.1, true},
+		// 93-worker-1: 86625 uncached at $2, 3390208 cached at $0.10,
+		// 12969 out at $10.
+		{"gpt-6.1-sol", 3476833, 3390208, 12969, 0.6419608, true},
+		{"claude-opus-5-5", 1_000_000, 1, 0, 0, false},
+		{"grok-4.7", 1_000_000, 0, 1_000_000, 0, false},
 	} {
-		got, ok := Estimate(tc.model, tc.in, tc.out)
+		got, ok := Estimate(tc.model, tc.in, tc.cached, tc.out)
 		if ok != tc.ok || math.Abs(got-tc.want) > 1e-12 {
-			t.Errorf("Estimate(%s, %d, %d) = %v, %v; want %v, %v", tc.model, tc.in, tc.out, got, ok, tc.want, tc.ok)
+			t.Errorf("Estimate(%s, %d, %d, %d) = %v, %v; want %v, %v", tc.model, tc.in, tc.cached, tc.out, got, ok, tc.want, tc.ok)
 		}
 	}
 }

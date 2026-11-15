@@ -392,7 +392,11 @@ func (s *Swarm) settle(r Run) error {
 		if rep.CostKnown {
 			cost = strconv.FormatFloat(rep.CostUSD, 'f', -1, 64)
 		}
-		lines = append(lines, fmt.Sprintf("cost %s tokens %d/%d turns %d", cost, rep.InTokens, rep.OutTokens, rep.Turns))
+		line := fmt.Sprintf("cost %s tokens %d/%d turns %d", cost, rep.InTokens, rep.OutTokens, rep.Turns)
+		if rep.CachedKnown {
+			line += fmt.Sprintf(" cached %d", rep.CachedTokens)
+		}
+		lines = append(lines, line)
 	}
 	switch {
 	case exit.TimedOut:

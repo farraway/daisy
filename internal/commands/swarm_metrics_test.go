@@ -14,6 +14,7 @@ import (
 
 	"daisy/internal/metrics"
 	"daisy/internal/ops"
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/runner"
 )
 
@@ -137,6 +138,48 @@ func TestSwarmApplyRecordsEachRun(t *testing.T) {
 	}
 	if !strings.Contains(a.stdout.String(), "  cost         $0.25 today, $0.25 in all (1 runs without a cost)\n") {
 		t.Errorf("status:\n%s", a.stdout.String())
+	}
+}
+
+// Step 11b's claim (plan for the inbox requests F27-F35; sections 2,
+// 7.6 and 9): an architect on codex whose output is a live run's usage
+// (93-worker-1, gpt-6.1-sol: input_tokens 3476833 holding
+// cached_input_tokens 3390208, output_tokens 12969) records the cached
+// count on its cost line, keeps tokens_in as codex reports it, puts the
+// cached count in the row's notes and the journal line, and estimates
+// 86625 uncached at $2, 3390208 cached at $0.10 and 12969 out at $10 per
+// million: $0.641961.
+func TestSwarmApplyPricesCachedInputApart(t *testing.T) {
+	a := newApplyWS(t)
+	home := a.metricsHome()
+	a.edit(func(c *declare.Config) {
+		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "medium", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
+	})
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Stdout: `{"type":"thread.started","thread_id":"t"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"ok"}}
+{"type":"turn.completed","usage":{"input_tokens":3476833,"cached_input_tokens":3390208,"cache_write_input_tokens":0,"output_tokens":12969,"reasoning_output_tokens":2175}}
+`})
+	if err := a.apply(a.forge, "--once"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	if r := a.result("1-architect-1"); !strings.Contains(r, "\ncost - tokens 3476833/12969 turns 1 cached 3390208\n") {
+		t.Errorf("result:\n%s", r)
+	}
+	got := rows(t, home)
+	if len(got) != 1 {
+		t.Fatalf("%d rows: %v", len(got), got)
+	}
+	for k, v := range map[string]string{"provider": "openai", "model": "gpt-6.1-sol", "tokens_in": "3476833", "tokens_out": "12969",
+		"cost_reported": "", "cost_estimated": "0.641961", "notes": "#1, 1 turns, 3390208 cached input"} {
+		if got[0][k] != v {
+			t.Errorf("%s = %q, want %q", k, got[0][k], v)
+		}
+	}
+	if journal := gitIn(t, a.upstreams[swarmURL], "show", "main:journal/2026-11-06.md"); !strings.Contains(journal,
+		" 1-architect-1: posted; openai gpt-6.1-sol medium; tokens 3476833/12969 (3390208 cached), 1 turns; cost not reported (~$0.641961 at list price); #1") {
+		t.Errorf("journal:\n%s", journal)
 	}
 }
 

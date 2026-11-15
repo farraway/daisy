@@ -35,17 +35,22 @@ func (c *collection) record(outcome string) error {
 	}
 	s := c.s
 	now := s.O.Now().UTC()
-	row, turns := c.row(outcome, now)
-	if err := s.queue(now.Format("2006-01-02"), journalLine(row, turns, now)); err != nil {
+	row, u := c.row(outcome, now)
+	if err := s.queue(now.Format("2006-01-02"), journalLine(row, u, now)); err != nil {
 		return err
 	}
 	s.central(c.head, row)
 	return c.step("recorded")
 }
 
+// usage is what the run's cost line says beside the row's cells: its
+// turns and its cached input ("" when not reported), which the row's
+// notes carry.
+type usage struct{ turns, cached string }
+
 // row is the run as a metrics row (section 7.6, The run's record) and
-// its turns ("" when not reported), which the row's notes carry.
-func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
+// its usage beside the row's cells.
+func (c *collection) row(outcome string, now time.Time) (metrics.Row, usage) {
 	s := c.s
 	r := s.runKey(c.r)
 	r.When, r.Outcome = now.Format(time.RFC3339), outcome
@@ -65,20 +70,31 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	if l, ok := Has(c.lines, "round"); ok {
 		r.ReviewRounds = strings.TrimPrefix(l, "round ")
 	}
-	var turns string
+	var u usage
 	if l, ok := Has(c.lines, "cost"); ok {
-		// cost <usd|-> tokens <in>/<out> turns <t> (section 2). A run
-		// launched before the persona line wrote a cost its CLI did not
-		// report as 0 (codex's always), where it now writes `-`.
-		if f := strings.Fields(l); len(f) == 6 && f[2] == "tokens" && f[4] == "turns" {
+		// cost <usd|-> tokens <in>/<out> turns <t>[ cached <c>] (section
+		// 2). A run launched before the persona line wrote a cost its CLI
+		// did not report as 0 (codex's always), where it now writes `-`.
+		f := strings.Fields(l)
+		if (len(f) == 6 || len(f) == 8 && f[6] == "cached") && f[2] == "tokens" && f[4] == "turns" {
 			if f[1] != "-" && (since16b || f[1] != "0") {
 				r.CostReported = f[1]
 			}
 			in, out, _ := strings.Cut(f[3], "/")
-			r.TokensIn, r.TokensOut, turns = in, out, f[5]
+			r.TokensIn, r.TokensOut, u.turns = in, out, f[5]
 			i, err1 := strconv.Atoi(in)
 			o, err2 := strconv.Atoi(out)
-			if est, ok := provider.Estimate(r.Model, i, o); ok && err1 == nil && err2 == nil {
+			// The input's cached part: the line's count; none for a
+			// provider whose input count leaves it out; unknown, so no
+			// estimate, on a line without the count (written before
+			// Step 11b) of one whose count holds it.
+			cached, known := 0, !provider.Providers[r.Provider].InputHoldsCached
+			if len(f) == 8 {
+				u.cached = f[7]
+				n, err := strconv.Atoi(u.cached)
+				cached, known = n, err == nil
+			}
+			if est, ok := provider.Estimate(r.Model, i, cached, o); ok && known && err1 == nil && err2 == nil {
 				r.CostEstimated = strconv.FormatFloat(math.Round(est*1e6)/1e6, 'f', -1, 64)
 			}
 		}
@@ -105,13 +121,16 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	if c.r.N == 0 {
 		r.Notes = "batch"
 	}
-	if turns != "" {
-		r.Notes += ", " + turns + " turns"
+	if u.turns != "" {
+		r.Notes += ", " + u.turns + " turns"
+	}
+	if u.cached != "" {
+		r.Notes += ", " + u.cached + " cached input"
 	}
 	if uncounted {
 		r.Notes += ", lines not counted"
 	}
-	return r, turns
+	return r, u
 }
 
 // runKey is the run's row with its key's cells alone (metrics.Row.Key):
@@ -123,7 +142,7 @@ func (s *Swarm) runKey(r Run) metrics.Row {
 // journalLine is the run's line in its day's journal file, as `daisy
 // log` writes a day's log: `- HHMM <run>: <outcome>; <persona>; <usage>;
 // <cost>`, then a worker's lines and the issue.
-func journalLine(r metrics.Row, turns string, now time.Time) string {
+func journalLine(r metrics.Row, u usage, now time.Time) string {
 	parts := []string{r.Outcome, strings.Join(slices.DeleteFunc([]string{r.Provider, r.Model, r.Effort}, func(s string) bool { return s == "" }), " ")}
 	if r.ReviewRounds != "" {
 		parts = append(parts, "round "+r.ReviewRounds)
@@ -131,8 +150,10 @@ func journalLine(r metrics.Row, turns string, now time.Time) string {
 	switch {
 	case r.TokensIn == "":
 		parts = append(parts, "no usage reported")
+	case u.cached != "":
+		parts = append(parts, fmt.Sprintf("tokens %s/%s (%s cached), %s turns", r.TokensIn, r.TokensOut, u.cached, u.turns))
 	default:
-		parts = append(parts, fmt.Sprintf("tokens %s/%s, %s turns", r.TokensIn, r.TokensOut, turns))
+		parts = append(parts, fmt.Sprintf("tokens %s/%s, %s turns", r.TokensIn, r.TokensOut, u.turns))
 	}
 	switch {
 	case r.CostReported != "":
