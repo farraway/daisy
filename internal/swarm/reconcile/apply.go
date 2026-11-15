@@ -101,7 +101,8 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 
 // Pass is one pass of `apply` (section 11): (2) the containers this
 // process started that have ended, and every run left uncollected,
-// collected; (3) the abandoned and the orphans over time; (4) paused;
+// collected; (3) the abandoned and the orphans over time, then the
+// owner's hold released when every issue it waits on is closed; (4) paused;
 // (5) each stage's issues, their pull requests given the issue's label,
 // and the role rule's launches up to max_members; (6) the merge step with
 // the merge gate off; (7) the owner's batch trigger; (8) unless
@@ -132,7 +133,7 @@ func (s *Swarm) Pass(wait bool) error {
 		}
 	}
 	s.collected, s.started, s.moves, s.fetched = 0, 0, map[int]string{}, false
-	errs := []error{s.collectAll(running)}
+	errs := []error{s.collectAll(running), s.release()}
 	launched := 0
 	if paused := s.paused(); paused != "" {
 		fmt.Fprintf(s.Out, "Paused since %s (%s): launching nothing\n", strings.TrimPrefix(paused, "paused "), filepath.Join(s.state(), "paused"))

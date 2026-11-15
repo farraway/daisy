@@ -482,6 +482,102 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 	}
 }
 
+// The owner's hold releases itself (section 6, G0): a batch that writes
+// BLOCKED: waiting on the open issues it names records them in
+// owner-held, and the first pass at which every one is closed removes the
+// hold, with a journal line, and runs the batch, no resume needed; a
+// named issue already closed, or none, is not waited on.
+func TestSwarmApplyBatchReleasedByItsIssues(t *testing.T) {
+	t.Run("released at the pass its issues are closed", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.forge.CreateIssue("Library", "x", nil)
+		a.forge.CreateIssue("Upload", "x", nil)
+		a.forge.CreateIssue("Editor", "x", nil)
+		a.forge.CloseIssue(2)
+		a.release()
+		reason := "blocked: waiting on #1, #2, #3: M2 needs the library and the editor"
+		a.runner.Script(0, "owner", runner.Canned{Out: "BLOCKED: waiting on #1, #2, #3: M2 needs the library and the editor\n"})
+		a.pass()
+		if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, `when what is left waits on open issues, write it "BLOCKED: waiting on #<n>, #<m>: <why>"`) {
+			t.Errorf("batch Task:\n%s", sys)
+		}
+		held, _ := os.ReadFile(a.state("owner-held"))
+		if string(held) != "held 2026-11-06T15:01:00Z: "+reason+"\n0-owner-1 waits #1 #3\n" {
+			t.Fatalf("owner-held: %q\n%s", held, a.stdout.String())
+		}
+		if line := "owner run 1: " + reason + "; batch held until #1 #3 are closed (" + a.state("owner-held") + ")\n"; !strings.Contains(a.stdout.String(), line) {
+			t.Errorf("stdout lacks %q:\n%s", line, a.stdout.String())
+		}
+		if err := a.status(a.forge); err != nil || !strings.Contains(a.stdout.String(), "\nState: "+a.state("")+" — owner batch held: "+reason+" (released once #1 #3 are closed)\n") {
+			t.Errorf("status: %v\n%s", err, a.stdout.String())
+		}
+		a.forge.CloseIssue(1)
+		a.pass()
+		if _, err := os.Stat(a.state("runs/0-owner-2")); err == nil || !fileExists(a.state("owner-held")) {
+			t.Fatalf("released with #3 open:\n%s", a.stdout.String())
+		}
+		a.forge.CloseIssue(3)
+		a.runner.Script(0, "owner", runner.Canned{Out: "## Next\nA.\n"})
+		a.pass()
+		if fileExists(a.state("owner-held")) || !strings.Contains(a.stdout.String(), "Owner batch released: #1 #3 closed\n") {
+			t.Fatalf("not released:\n%s", a.stdout.String())
+		}
+		if is, _ := a.forge.Issues(forge.Open, "swarm:proposal-posted"); len(is) != 1 || is[0].Title != "Next" {
+			t.Errorf("the batch did not run once released: %+v\n%s", is, a.stdout.String())
+		}
+		if journal := gitIn(t, a.upstreams[swarmURL], "show", "main:journal/2026-11-06.md"); !strings.Contains(journal, " 0-release-1: owner batch released: #1 #3 closed\n") {
+			t.Errorf("journal:\n%s", journal)
+		}
+
+	})
+	t.Run("the maintainer's pause", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.forge.CreateIssue("Library", "x", nil)
+		a.release()
+		a.runner.Script(0, "owner", runner.Canned{Out: "BLOCKED: waiting on #1: the library\n"})
+		a.pass()
+		if err := a.verb(SwarmPause); err != nil {
+			t.Fatal(err)
+		}
+		a.forge.CloseIssue(1)
+		a.pass()
+		if !fileExists(a.state("paused")) || fileExists(a.state("runs/0-owner-2")) {
+			t.Fatalf("the pause was lifted:\n%s", a.stdout.String())
+		}
+		a.resume()
+		a.runner.Script(0, "owner", runner.Canned{Out: "## Next\nA.\n"})
+		a.pass()
+		if !fileExists(a.state("runs/0-owner-2")) {
+			t.Errorf("the batch did not run once resumed:\n%s", a.stdout.String())
+		}
+	})
+	for _, tc := range []struct{ name, out string }{
+		{"only a closed issue", "BLOCKED: waiting on #2: the upload\n"},
+		{"no such issue", "BLOCKED: waiting on #9: the upload\n"},
+		{"named in passing", "BLOCKED: M2 waits on #1 and the upload\n"},
+		{"proposed nothing", "Met: docs/briefs/a.md\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.forge.CreateIssue("Library", "x", nil)
+			a.forge.CreateIssue("Upload", "x", nil)
+			a.forge.CloseIssue(2)
+			a.release()
+			a.runner.Script(0, "owner", runner.Canned{Out: tc.out})
+			a.pass()
+			held, _ := os.ReadFile(a.state("owner-held"))
+			if strings.Count(string(held), "\n") != 1 {
+				t.Fatalf("owner-held: %q", held)
+			}
+			a.forge.CloseIssue(1)
+			a.pass()
+			if !fileExists(a.state("owner-held")) || fileExists(a.state("runs/0-owner-2")) {
+				t.Errorf("a hold with no issue to wait on was released:\n%s", a.stdout.String())
+			}
+		})
+	}
+}
+
 // Runs another apply started (section 7.7): one with no container is
 // abandoned; one whose container has outlived timeout is stopped, then
 // abandoned; one within its time is left running.
@@ -604,4 +700,9 @@ func TestSwarmApplyFetchFailsTwice(t *testing.T) {
 			}
 		})
 	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

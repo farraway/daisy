@@ -802,7 +802,8 @@ func issueList(ns []int) string {
 }
 
 // stateNotes is the State line's tail: since when and why the swarm is
-// paused, and why the owner's batch is held (section 2's two files, and
+// paused, and why the owner's batch is held and, when the hold waits on
+// issues, that their closing releases it (section 2's two files, and
 // noBrief, no brief under resources being active: section 6).
 func stateNotes(fs ops.FS, state string, noBrief bool) string {
 	var notes string
@@ -815,6 +816,9 @@ func stateNotes(fs ops.FS, state string, noBrief bool) string {
 			reason = firstLine(b)
 		}
 		notes += " — owner batch held: " + reason
+		if _, waits := reconcile.HoldWaits(b); len(waits) > 0 {
+			notes += " (released once " + reconcile.AreClosed(waits) + ")"
+		}
 	}
 	if noBrief {
 		notes += " — owner batch held: no brief is active"

@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -41,5 +42,24 @@ func TestAppendKeepsOneLine(t *testing.T) {
 	lines, _ := r.Result(fs)
 	if len(lines) != 2 || lines[0] != `failed: protected path changed: .gitea/x\ncost 4242.5` {
 		t.Errorf("%q", lines)
+	}
+}
+
+// WaitingOn reads the issues a batch's BLOCKED: names in its fixed form,
+// `waiting on #<n>, #<m>: <why>`, and nothing from any other.
+func TestWaitingOn(t *testing.T) {
+	for blocked, want := range map[string][]int{
+		"waiting on #99, #100: M2 needs them": {99, 100},
+		"waiting on #7: one":                  {7},
+		"waiting on #7,#8 , #9: spaced":       {7, 8, 9},
+		"waiting on #7 and #8: not the form":  nil,
+		"waiting on #7":                       nil,
+		"M2 waits on #99 and #100":            nil,
+		"Waiting on #7: capitalised":          {7},
+		"":                                    nil,
+	} {
+		if got := WaitingOn(blocked); !slices.Equal(got, want) {
+			t.Errorf("WaitingOn(%q) = %v, want %v", blocked, got, want)
+		}
 	}
 }

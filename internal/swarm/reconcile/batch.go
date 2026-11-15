@@ -240,24 +240,154 @@ func Proposals(out string) (met []string, blocked string, isBlocked bool, ps []P
 	return met, "", false, ps
 }
 
+var waitingOn = regexp.MustCompile(`(?i)^waiting on (#\d+(?:\s*,\s*#\d+)*)\s*:`)
+
+// WaitingOn is the issues a batch run's BLOCKED: text names in the form
+// its Task text asks for when what is left waits on open issues (section
+// 7.4), `waiting on #<n>, #<m>: <why>`; none for any other text, a
+// number in passing included.
+func WaitingOn(blocked string) []int {
+	m := waitingOn.FindStringSubmatch(blocked)
+	if m == nil {
+		return nil
+	}
+	var ns []int
+	for _, f := range strings.Split(m[1], ",") {
+		n, _ := strconv.Atoi(strings.TrimPrefix(strings.TrimSpace(f), "#"))
+		if !slices.Contains(ns, n) {
+			ns = append(ns, n)
+		}
+	}
+	return ns
+}
+
+// stillOpen is the issues of ns the forge reads open, the ones the hold
+// waits on (section 6, G0): one closed already, or that names no issue,
+// is not waited on, so a hold whose every issue is closed is the
+// maintainer's to release, never released at the next pass into the
+// same BLOCKED:.
+func (s *Swarm) stillOpen(ns []int) ([]int, error) {
+	var open []int
+	for _, n := range ns {
+		is, err := s.Forge.Issue(n)
+		if errors.Is(err, forge.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if is.Open {
+			open = append(open, n)
+		}
+	}
+	return open, nil
+}
+
+var waitsLine = regexp.MustCompile(`^0-owner-(\d+) waits (#\d+(?: #\d+)*)$`)
+
+// HoldWaits is what owner-held's second line records (section 2): the
+// batch run that wrote the hold and the issues it waits on; none when the
+// hold waits on no issue, so only `swarm resume` releases it.
+func HoldWaits(held []byte) (k int, waits []int) {
+	lines := strings.Split(string(held), "\n")
+	if len(lines) < 2 {
+		return 0, nil
+	}
+	m := waitsLine.FindStringSubmatch(strings.TrimSpace(lines[1]))
+	if m == nil {
+		return 0, nil
+	}
+	k, _ = strconv.Atoi(m[1])
+	for _, f := range strings.Fields(m[2]) {
+		n, _ := strconv.Atoi(strings.TrimPrefix(f, "#"))
+		waits = append(waits, n)
+	}
+	return k, waits
+}
+
+// release is the owner's hold released by its issues (section 6, G0), at
+// each pass after the collections and before the pause: owner-held
+// removed once the forge reads every issue it waits on closed, with a
+// stdout line and the journal line `0-release-<k>`, k the batch run that
+// held it. A hold waiting on no issue (the maintainer's to release) is
+// left; an issue that names none no longer is a warning, the hold kept.
+func (s *Swarm) release() error {
+	fs := s.O.FS()
+	path := filepath.Join(s.state(), "owner-held")
+	held, err := fs.ReadFile(path)
+	if errors.Is(err, iofs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	k, waits := HoldWaits(held)
+	if len(waits) == 0 {
+		return nil
+	}
+	for _, n := range waits {
+		is, err := s.Forge.Issue(n)
+		if errors.Is(err, forge.ErrNotFound) {
+			fmt.Fprintf(s.Err, "⚠ owner batch: #%d, which its hold waits on, names no issue; held (%s)\n", n, path)
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if is.Open {
+			return nil
+		}
+	}
+	if err := fs.Remove(path); err != nil {
+		return err
+	}
+	what := "owner batch released: " + issueList(waits) + " closed"
+	fmt.Fprintln(s.Out, strings.ToUpper(what[:1])+what[1:])
+	now := s.O.Now().UTC()
+	return s.queue(now.Format("2006-01-02"), fmt.Sprintf("- %s 0-release-%d: %s", now.Format("1504"), k, what))
+}
+
+// AreClosed is `#<n> is closed` or `#<n> #<m> are closed`, the waits of
+// a hold as stdout and status name them.
+func AreClosed(ns []int) string {
+	if len(ns) == 1 {
+		return issueList(ns) + " is closed"
+	}
+	return issueList(ns) + " are closed"
+}
+
+func issueList(ns []int) string {
+	s := make([]string, len(ns))
+	for i, n := range ns {
+		s[i] = "#" + strconv.Itoa(n)
+	}
+	return strings.Join(s, " ")
+}
+
 // batch collects the owner's batch run (sections 6, 7.5 and 7.6): each
 // proposal created in order, with swarm:class-architecture unless its
 // Class: line says routine, `creating <i>` recorded before its
 // CreateIssue so none is created twice; a failure, BLOCKED: or nothing
-// proposed writes <state>/owner-held and creates nothing; a swarm fault
-// writes no owner-held.
+// proposed writes <state>/owner-held and creates nothing, a BLOCKED:
+// waiting on open issues recording them (WaitingOn, stillOpen); a swarm
+// fault writes no owner-held.
 func (c *collection) batch() error {
 	s, fs := c.s, c.s.O.FS()
 	if l, ok := Has(c.lines, "fault"); ok {
 		fmt.Fprintf(s.Out, "%sfault (%s)\n", c.head, strings.TrimPrefix(l, "fault: "))
 		return c.end("fault")
 	}
-	hold := func(reason, outcome string) error {
+	hold := func(reason, outcome string, waits []int) error {
 		path := filepath.Join(s.state(), "owner-held")
-		if err := fs.WriteFile(path, []byte("held "+stamp(s.O.Now())+": "+reason+"\n"), 0o644); err != nil {
+		body, until := "held "+stamp(s.O.Now())+": "+reason+"\n", ""
+		if len(waits) > 0 {
+			body += fmt.Sprintf("0-owner-%d waits %s\n", c.r.K, issueList(waits))
+			until = " until " + AreClosed(waits)
+		}
+		if err := fs.WriteFile(path, []byte(body), 0o644); err != nil {
 			return err
 		}
-		fmt.Fprintf(s.Out, "%s%s; batch held (%s)\n", c.head, reason, path)
+		fmt.Fprintf(s.Out, "%s%s; batch held%s (%s)\n", c.head, reason, until, path)
 		return c.end(outcome)
 	}
 	failed := func(reason string) error {
@@ -266,7 +396,7 @@ func (c *collection) batch() error {
 				return err
 			}
 		}
-		return hold(reason, "failed")
+		return hold(reason, "failed", nil)
 	}
 	if l, ok := Has(c.lines, "failed"); ok {
 		return failed(strings.TrimPrefix(l, "failed: "))
@@ -283,7 +413,11 @@ func (c *collection) batch() error {
 	}
 	_, blocked, isBlocked, ps := Proposals(string(out))
 	if isBlocked {
-		return hold("blocked: "+blocked, "blocked")
+		waits, err := s.stillOpen(WaitingOn(blocked))
+		if err != nil {
+			return err
+		}
+		return hold("blocked: "+blocked, "blocked", waits)
 	}
 	l, _ := Has(c.lines, "propose")
 	p, _ := strconv.Atoi(strings.TrimPrefix(l, "propose "))

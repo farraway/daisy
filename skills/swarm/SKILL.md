@@ -106,7 +106,7 @@ Each runs in the swarm repository's clone, refuses before any write when its tok
 | `question #n` | `daisy swarm unblock <n> <answer...>` | a member's question the architect and the owner passed on (the issue's newest reconciler note names it): the answer as the comment, then the `swarm:blocked` flag cleared; the member that asked runs again and reads it under `# Questions` |
 | `blocked #n` | `daisy swarm unblock <n> <comment...>` | the comment, saying what changed, then the `swarm:blocked` flag cleared; the issue goes on from the stage the block kept |
 | a job to drop | `daisy swarm close <n> [comment...]` | the comment when given, then the issue closed, labelled `swarm:rejected` (a job done closes through `merge`, which finds a pull request merged by hand) |
-| — | `daisy swarm pause`, `daisy swarm resume` | no member launches until resumed; resume also releases a held owner batch |
+| — | `daisy swarm pause`, `daisy swarm resume` | no member launches until resumed; resume also releases a held owner batch (a hold waiting on issues, `released once #<n> … are closed` in status, releases itself when they close) |
 | `Held: paused #n` | `daisy swarm pause <n>`, `daisy swarm resume <n>` | `swarm:paused` set or cleared on that issue alone: nothing launches on it and the merge step skips it, so other jobs go first or an urgent fix jumps the queue |
 | `Held: #n blocked by #m` | `daisy swarm block <n> --by <m>` | `swarm:blocking` on #m, then the comment `Blocked by #m` on #n: no member launches on #n while #m is open and that comment is the maintainer's newest on #n |
 
