@@ -54,17 +54,21 @@ func InProgress(role, stage string) string {
 // without a commit are), in the review stages its reviews and head,
 // and the roles that hold the issue (rule 2): the role of each container
 // running on it (`check` for a worker run's check) and of each run on it
-// ended and not collected.
+// ended and not collected; and, on plan-1-accepted, whether rulings
+// changed since the plan (Replan), so the architect runs in the worker's
+// place.
 type Turn struct {
 	Label   string
 	Thread  []Entry
 	Reviews []forge.Review
 	Head    string
 	Running []string
+	Replan  bool
 }
 
 // Launch is the roles the trigger rule launches (section 6, rules 1–3):
-// the first of the label's roles that has something to answer, and in a
+// the first of the label's roles that has something to answer (on
+// plan-1-accepted with Replan, the architect's), and in a
 // review stage each reviewer that has (the pair launches in one pass,
 // blind to each other on the head); none when nothing is to answer. A
 // reviewer has something to answer when it has no review of the head
@@ -77,8 +81,12 @@ func Launch(t Turn, swarmLogin string, trusted []string) []string {
 		if len(t.Running) > 0 {
 			return nil
 		}
+		roles := stageRoles[t.Label]
+		if t.Replan && t.Label == forge.PlanAccepted {
+			roles = []string{"architect"}
+		}
 		e, ok := NewestCounted(t.Thread, swarmLogin, trusted)
-		for _, role := range stageRoles[t.Label] {
+		for _, role := range roles {
 			if m, swarm := Swarms(e, swarmLogin); !ok || !swarm || m.Role != role {
 				return []string{role}
 			}

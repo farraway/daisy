@@ -392,7 +392,7 @@ func (w *Wizard) named(answer string) ([]Repo, []Origin, *Error) {
 		if w.File != nil {
 			for _, f := range w.File.Repos {
 				if strings.EqualFold(f.Repo, a) {
-					r.Check, r.Deps, r.Image, r.Protected, r.SSHCommand = f.Check, f.Deps, f.Image, f.Protected, f.SSHCommand
+					r.Check, r.Deps, r.Image, r.Protected, r.Rulings, r.SSHCommand = f.Check, f.Deps, f.Image, f.Protected, f.Rulings, f.SSHCommand
 				}
 			}
 		}

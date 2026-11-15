@@ -550,7 +550,16 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				j.Check = CheckSection(fs, runs, n, cur.HeadSHA, s.repoCheck(cur.Repo), s.Cfg.Timeout)
 				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
 			}
-			turn := Turn{Label: label, Thread: IssueThread(is), Running: s.busy(running, runs, n)}
+			turn := Turn{Label: label, Running: s.busy(running, runs, n)}
+			if label == forge.PlanAccepted && !open && len(turn.Running) == 0 {
+				// Between slices: rulings changed since the plan run
+				// the architect in the worker's place (section 6).
+				if j.Rulings, err = s.replan(j); err != nil {
+					return err
+				}
+				turn.Replan = len(j.Rulings) > 0
+			}
+			turn.Thread = IssueThread(j.Issue)
 			if review {
 				turn.Thread, turn.Reviews, turn.Head = j.pullEntries(cur), j.Pull.Reviews, cur.HeadSHA
 				if reviewing(label) {

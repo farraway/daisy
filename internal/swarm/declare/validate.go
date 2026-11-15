@@ -218,9 +218,14 @@ func checkRepos(f Forge, repos []Repo) *Error {
 		if r.Image == "" {
 			return fieldErr(at+".image", "empty")
 		}
-		for j, p := range r.Protected {
-			if p == "" || filepath.IsAbs(p) || slices.Contains(strings.Split(p, "/"), "..") {
-				return fieldErr(fmt.Sprintf("%s.protected[%d]", at, j), "%q is not a relative pattern without ..", p)
+		for _, list := range []struct {
+			field    string
+			patterns []string
+		}{{"protected", r.Protected}, {"rulings", r.RulingPaths()}} {
+			for j, p := range list.patterns {
+				if p == "" || filepath.IsAbs(p) || slices.Contains(strings.Split(p, "/"), "..") {
+					return fieldErr(fmt.Sprintf("%s.%s[%d]", at, list.field, j), "%q is not a relative pattern without ..", p)
+				}
 			}
 		}
 	}

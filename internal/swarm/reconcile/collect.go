@@ -142,17 +142,26 @@ func (s *Swarm) collect(r Run) error {
 			}
 		}
 	case "architect":
-		if _, bad := SliceRepos(string(out), repoNames(s), s.mirrors()); len(bad) > 0 {
+		// On plan-1-accepted (the rulings changed, section 6), STANDS:
+		// confirms the plan, which stays accepted; a revised plan goes
+		// to the plan gate (T27), or with it off is accepted as written.
+		confirms := c.label == forge.PlanAccepted && strings.HasPrefix(strings.TrimRight(first, "\r "), stands)
+		if _, bad := SliceRepos(string(out), repoNames(s), s.mirrors()); len(bad) > 0 && !confirms {
 			return c.fail("bad slices: " + numbers(bad))
 		}
 		if err := c.comment(r.Role, text); err != nil {
 			return err
 		}
-		if c.label == forge.ProposalAccepted {
-			to := forge.PlanPosted
-			if !s.Cfg.Gates.Plan {
-				to = forge.PlanAccepted
-			}
+		to := ""
+		switch {
+		case c.label == forge.ProposalAccepted && s.Cfg.Gates.Plan:
+			to = forge.PlanPosted
+		case c.label == forge.ProposalAccepted:
+			to = forge.PlanAccepted
+		case c.label == forge.PlanAccepted && !confirms && s.Cfg.Gates.Plan:
+			to = forge.PlanPosted
+		}
+		if to != "" {
 			if err := c.relabel(to); err != nil {
 				return err
 			}

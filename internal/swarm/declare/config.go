@@ -83,16 +83,35 @@ type Forge struct {
 }
 
 // Repo is one declared repository: the forge repository <owner>/<Name>,
-// declared by Repo, `<owner>/<name>`, with an optional SSHCommand and an
-// optional dependency step run before its check (section 3).
+// declared by Repo, `<owner>/<name>`, with an optional SSHCommand, an
+// optional dependency step run before its check and optional Rulings,
+// nil when absent, so that an explicit [] is kept (section 3).
 type Repo struct {
-	Name       string   `json:"name"`
-	Repo       string   `json:"repo,omitempty"`
-	SSHCommand *string  `json:"ssh_command,omitempty"`
-	Check      []string `json:"check"`
-	Deps       *Deps    `json:"deps,omitempty"`
-	Image      string   `json:"image"`
-	Protected  []string `json:"protected"`
+	Name       string    `json:"name"`
+	Repo       string    `json:"repo,omitempty"`
+	SSHCommand *string   `json:"ssh_command,omitempty"`
+	Check      []string  `json:"check"`
+	Deps       *Deps     `json:"deps,omitempty"`
+	Image      string    `json:"image"`
+	Protected  []string  `json:"protected"`
+	Rulings    *[]string `json:"rulings,omitempty"`
+}
+
+// adrDir is the rulings a repository has without a rulings field, when
+// its protected list names it (section 3, repos[].rulings).
+const adrDir = "docs/adr/"
+
+// RulingPaths is the repository's rulings, path patterns as protected's
+// (section 3): its rulings field when present, [] included; absent,
+// docs/adr/ when protected names it, else none.
+func (r Repo) RulingPaths() []string {
+	if r.Rulings != nil {
+		return *r.Rulings
+	}
+	if slices.Contains(r.Protected, adrDir) {
+		return []string{adrDir}
+	}
+	return nil
 }
 
 // Deps is a repository's dependency step (section 3, repos[].deps): Run,

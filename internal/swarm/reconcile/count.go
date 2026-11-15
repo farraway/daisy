@@ -37,7 +37,7 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 		m, ok := Swarms(Entry{cm.Author, cm.Body, cm.Created}, swarmLogin)
 		switch {
 		case !ok:
-		case m.Role == "architect" && !strings.HasPrefix(swarmText(cm.Body), "BLOCKED:"):
+		case m.Role == "architect" && !strings.HasPrefix(swarmText(cm.Body), "BLOCKED:") && !strings.HasPrefix(swarmText(cm.Body), stands):
 			c.Plans++
 		case blocks(m, cm.Body):
 			c.Blocks++
@@ -76,15 +76,20 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 var roundLimitNote = regexp.MustCompile(`^Review round [0-9]+ of [0-9]+ on \S+ (?:` + roundLimitAgain + `|requested changes a second time) \(at ` + forge.ReviewInProgress + `\)\.`)
 
 // blocks: the swarm's entry marked m, with body, is a reconciler note that
-// blocked its issue: every note but the round limit's first, which
-// returns the issue to the architect, a note on an issue the maintainer
-// moved during the run (notBlocked), which T17 left as it was, the gate
-// notes, which say why the issue waits, and the auto notes, which say why
-// it did not.
+// blocked its issue: every note but those that hand the issue on
+// (handsOn), the gate notes, which say why the issue waits, and the auto
+// notes, which say why it did not.
 func blocks(m Mark, body string) bool {
 	text := swarmText(body)
-	return m.Role == "reconciler" && m.Kind == "" && !strings.HasSuffix(text, architectRevises) && !strings.HasSuffix(text, notBlockedTail)
+	return m.Role == "reconciler" && m.Kind == "" && !slices.ContainsFunc(handsOn, func(tail string) bool { return strings.HasSuffix(text, tail) })
 }
+
+// handsOn is the ends of the reconciler's notes that block nothing: the
+// round limit's first, which returns the issue to the architect (T11);
+// a note on an issue the maintainer moved during the run (notBlocked),
+// which T17 left as it was; and the note that rulings changed since the
+// plan, on which the architect runs (section 6).
+var handsOn = []string{architectRevises, notBlockedTail, rulingsTail}
 
 // blockingNote is the newest of the reconciler's notes on is that blocked
 // it (blocks); ok is false when there is none.

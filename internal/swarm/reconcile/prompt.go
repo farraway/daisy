@@ -41,6 +41,8 @@ type Job struct {
 	Testing string // TestingFile there, as read
 
 	Resources []Listed // each resource and reference path, as # Resources lists them (section 7.3)
+
+	Rulings []string // the architect's on plan-1-accepted: the rulings changed since the plan, each `<name>:<path>` (section 6)
 }
 
 // PullThread is the current pull request's comments, reviews and line
@@ -106,8 +108,11 @@ func Render(j *Job) (system, prompt string) {
 	switch {
 	case j.Role == "owner" || j.Role == "architect":
 		blocks = append(blocks, "# Thread", j.thread())
-		if j.Role == "architect" && open {
+		switch {
+		case j.Role == "architect" && open:
 			blocks = append(blocks, j.earlier(), j.pullRequest(cur), "# Check", j.Check)
+		case j.Role == "architect" && j.Label == forge.PlanAccepted:
+			blocks = append(blocks, j.earlier())
 		}
 	default:
 		blocks = append(blocks, "# Plan", j.plan())
@@ -201,14 +206,22 @@ func sliceOf(p forge.Pull, n int) int {
 }
 
 // Plan is the accepted plan (section 7.3): the newest counted issue
-// comment marked role=architect whose text does not begin BLOCKED:.
+// comment marked role=architect whose text begins neither BLOCKED: nor
+// STANDS: (a confirmation that the plan stands, section 7.5).
 func (j *Job) Plan() (Entry, Mark, bool) {
+	return j.newestArchitect(func(text string) bool { return !strings.HasPrefix(text, stands) })
+}
+
+// newestArchitect is the newest of the architect's issue comments whose
+// text does not begin BLOCKED: and that keep takes.
+func (j *Job) newestArchitect(keep func(text string) bool) (Entry, Mark, bool) {
 	var e Entry
 	var m Mark
 	found := false
 	for _, c := range j.Issue.Comments {
 		ce := Entry{c.Author, c.Body, c.Created}
-		if mk, ok := Swarms(ce, j.SwarmLogin); ok && mk.Role == "architect" && !strings.HasPrefix(swarmText(c.Body), "BLOCKED:") {
+		text := swarmText(c.Body)
+		if mk, ok := Swarms(ce, j.SwarmLogin); ok && mk.Role == "architect" && !strings.HasPrefix(text, "BLOCKED:") && keep(text) {
 			if !found || !c.Created.Before(e.Created) {
 				e, m, found = ce, mk, true
 			}

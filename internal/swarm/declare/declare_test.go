@@ -111,6 +111,8 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: repos[0].image: empty`, func(c *Config) { c.Repos[0].Image = "" }},
 		{`swarm.json: repos[0].protected[2]: "../ci/" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Protected = []string{"a/", "b", "../ci/"} }},
 		{`swarm.json: repos[0].protected[0]: "" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Protected = []string{""} }},
+		{`swarm.json: repos[1].rulings[1]: "/adr/" is not a relative pattern without ..`, func(c *Config) { c.Repos[1].Rulings = &[]string{"docs/adr/", "/adr/"} }},
+		{`swarm.json: repos[0].rulings[0]: "" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Rulings = &[]string{""} }},
 		{`swarm.json: base: "main.lock" is not a branch name`, func(c *Config) { c.Base = "main.lock" }},
 		{`swarm.json: base: "a..b" is not a branch name`, func(c *Config) { c.Base = "a..b" }},
 		{`swarm.json: max_members: 0 is not between 1 and 16`, func(c *Config) { c.MaxMembers = 0 }},
@@ -336,6 +338,50 @@ func TestFormatDeps(t *testing.T) {
 	}
 	if strings.Contains(string(Format(valid())), "deps") {
 		t.Errorf("deps written with none:\n%s", Format(valid()))
+	}
+}
+
+// A repository's rulings is written on its line after protected, an
+// explicit [] kept as written, and read back; absent, the line is as
+// before (section 3).
+func TestFormatRulings(t *testing.T) {
+	c := valid()
+	c.Repos[0].Rulings = &[]string{"docs/adr/", "RULES.md"}
+	c.Repos[1].Rulings = &[]string{}
+	out := string(Format(c))
+	for _, want := range []string{
+		`"protected": [".github/", ".gitea/", ".forgejo/", ".claude/", ".grok/", "AGENTS.md", "CLAUDE.md"], "rulings": ["docs/adr/", "RULES.md"]}`,
+		`"protected": [], "rulings": []}`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Format lacks %q:\n%s", want, out)
+		}
+	}
+	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("round trip: %v", err)
+	}
+	if strings.Contains(string(Format(valid())), "rulings") {
+		t.Errorf("rulings written with none:\n%s", Format(valid()))
+	}
+}
+
+// A repository's rulings are its rulings field when present, [] included;
+// absent, docs/adr/ when protected names it, else none (section 3).
+func TestRulingPaths(t *testing.T) {
+	for _, c := range []struct {
+		protected []string
+		rulings   *[]string
+		want      []string
+	}{
+		{[]string{".github/", "docs/adr/"}, nil, []string{"docs/adr/"}},
+		{[]string{".github/", "docs/adr"}, nil, nil},
+		{[]string{".github/"}, nil, nil},
+		{[]string{"docs/adr/"}, &[]string{}, []string{}},
+		{[]string{".github/"}, &[]string{"RULES.md"}, []string{"RULES.md"}},
+	} {
+		if got := (Repo{Protected: c.protected, Rulings: c.rulings}).RulingPaths(); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("protected %q, rulings %v: %q, want %q", c.protected, c.rulings, got, c.want)
+		}
 	}
 }
 

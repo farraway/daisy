@@ -396,10 +396,22 @@ func (g Git) Unstamped(name, base, sha, coAuthor string) ([]string, error) {
 // Changed is every path base...sha changes (section 7.6, step 3), a
 // renamed file by both its paths.
 func (g Git) Changed(name, base, sha string) ([]string, error) {
+	return g.paths(name, "refs/heads/"+base+"..."+sha)
+}
+
+// Since is every path that differs between sha and base's head in the
+// repository's mirror (section 6, the rulings), a renamed file by both
+// its paths.
+func (g Git) Since(name, sha, base string) ([]string, error) {
+	return g.paths(name, sha, "refs/heads/"+base)
+}
+
+// paths is `git diff --name-only` over revs in the repository's mirror.
+func (g Git) paths(name string, revs ...string) ([]string, error) {
 	// -z: each path as it is, NUL-ended, never quoted (core.quotePath
 	// would quote a path with a byte outside ASCII, which no pattern
 	// matches).
-	args := []string{"diff", "--name-only", "-z", "--no-renames", "refs/heads/" + base + "..." + sha}
+	args := append([]string{"diff", "--name-only", "-z", "--no-renames"}, revs...)
 	out, errb, err := g.O.Exec(g.Mirror(name), "git", args...)
 	if err != nil {
 		return nil, fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))

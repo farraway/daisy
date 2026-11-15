@@ -35,6 +35,24 @@ func (j *Job) task() string {
 		if !j.Cfg.Gates.Triage {
 			add(`Then restate the whole job as it now stands: the architect plans from your answer.`)
 		}
+	case j.Role == "architect" && j.Label == forge.PlanAccepted:
+		add(`Rulings changed since your plan for issue #%d was written or last confirmed: %s; revise the remaining slices or confirm they stand.`, j.N, strings.Join(j.Rulings, ", "))
+		switch cur, _ := j.current(); sliceOf(cur, j.N) {
+		case 0:
+		case 1:
+			add(`Slice 1 has a pull request, under "# Earlier pull requests": keep its line as it is, with its number and repository.`)
+		default:
+			add(`Slices 1 to %d have pull requests, under "# Earlier pull requests": keep their lines as they are, with their numbers and repositories.`, sliceOf(cur, j.N))
+		}
+		add(`To revise, write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s. If the remaining slices stand as they are, write "STANDS: <why>" as the first line of your output instead, then, for each changed ruling, why they agree with it.`, names)
+		if j.Cfg.Gates.Plan {
+			add(`A revised plan goes to the maintainer as a plan does; one that stands goes on to the next slice.`)
+		} else {
+			add(`A revised plan is accepted as you write it.`)
+		}
+		if len(j.Cfg.Repos) > 1 {
+			add(`A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed.`)
+		}
 	case j.Role == "architect":
 		if _, _, planned := j.Plan(); j.Label == forge.PlanPosted && planned {
 			add(`Revise your plan for issue #%d in answer to the latest comment. Write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, a slice that moves a pin to another slice's change after that slice, a diagram where a slice touches more than one component.`, j.N, names)
