@@ -3,6 +3,7 @@ package metrics
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestClassify(t *testing.T) {
@@ -190,7 +191,7 @@ func TestSummarize(t *testing.T) {
 	r = row("3")
 	r.Model, r.TokensTotal = "other", ""
 	add(r)
-	s, err := Summarize(b)
+	s, err := Summarize(b, Filter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +207,54 @@ func TestSummarize(t *testing.T) {
 	if g := s.Groups[1]; g.Model != "other" || g.Rows != 1 || g.WithTokens != 0 {
 		t.Fatalf("group other = %+v", g)
 	}
-	if _, err := Summarize([]byte("when,kind\nx,y\n")); err == nil {
+	if _, err := Summarize([]byte("when,kind\nx,y\n"), Filter{}); err == nil {
 		t.Fatal("another header summarized")
+	}
+}
+
+// A filter keeps a swarm's rows (kind swarm-run, that swarm) written at
+// or after a time; a row is superseded by its key's last row whoever the
+// filter keeps, so a correction outside the window still hides the row
+// it corrects; with a time, a row whose time is not RFC 3339 is refused,
+// named.
+func TestSummarizeFilter(t *testing.T) {
+	var b []byte
+	add := func(when, swarm, run, model string) {
+		r := Row{When: when, Kind: SwarmRun, Source: swarm, Unit: run, Role: "worker", Model: model, TokensIn: "10", TokensOut: "5"}
+		if swarm == "" {
+			r = row(run)
+			r.When = when
+		}
+		var err error
+		if b, err = AppendCSV(b, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("2026-11-10T09:00:00Z", "acme/swarm-app", "1-worker-1", "old")
+	add("2026-11-12T09:00:00Z", "acme/swarm-app", "2-worker-1", "new")
+	add("2026-11-12T10:00:00+01:00", "acme/swarm-app", "3-worker-1", "new") // 09:00Z: at the time, kept
+	add("2026-11-13T09:00:00Z", "acme/swarm-other", "1-worker-1", "new")
+	add("2026-11-13T09:00:00Z", "", "1", "m")                          // a plan's step
+	add("2026-11-09T09:00:00Z", "acme/swarm-app", "2-worker-1", "new") // corrects run 2, before the window
+	since := time.Date(2026, 11, 12, 9, 0, 0, 0, time.UTC)
+	s, err := Summarize(b, Filter{Swarm: "acme/swarm-app", Since: since})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Rows != 2 || s.Superseded != 1 || len(s.Groups) != 1 || s.Groups[0].Model != "new" || s.Groups[0].Rows != 1 || s.Groups[0].Tokens != 15 {
+		t.Errorf("swarm since: %+v", s)
+	}
+	if s, _ := Summarize(b, Filter{Swarm: "acme/swarm-app"}); s.Rows != 4 || s.Superseded != 1 || len(s.Groups) != 2 {
+		t.Errorf("swarm: %+v", s)
+	}
+	if s, _ := Summarize(b, Filter{Since: since}); s.Rows != 4 || s.Superseded != 1 || len(s.Groups) != 2 {
+		t.Errorf("since: %+v", s)
+	}
+	add("yesterday", "acme/swarm-app", "4-worker-1", "new")
+	if _, err := Summarize(b, Filter{Since: since}); err == nil || err.Error() != "row 8: when is not an RFC 3339 time (got: yesterday)" {
+		t.Errorf("a bad time: %v", err)
+	}
+	if _, err := Summarize(b, Filter{Swarm: "acme/swarm-app"}); err != nil {
+		t.Errorf("no time, not read: %v", err)
 	}
 }

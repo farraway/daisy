@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Summary is the CSV read back: its rows, those a later row for the same
@@ -28,14 +29,40 @@ type Group struct {
 	Lines                      Lines
 }
 
-// Summarize reads the CSV AppendCSV writes.
-func Summarize(file []byte) (Summary, error) {
+// Filter is the rows a summary takes: with Swarm, that swarm's runs
+// (kind swarm-run, plan_or_swarm Swarm); with Since, the rows whose
+// `when` is not before it. The zero Filter takes every row.
+type Filter struct {
+	Swarm string
+	Since time.Time
+}
+
+// keeps is whether the filter takes rec, row number n of the file; with
+// Since, a `when` that is not RFC 3339 is refused, the row named.
+func (f Filter) keeps(rec []string, n int, col func(string) int) (bool, error) {
+	if f.Swarm != "" && (rec[col("kind")] != string(SwarmRun) || rec[col("plan_or_swarm")] != f.Swarm) {
+		return false, nil
+	}
+	if f.Since.IsZero() {
+		return true, nil
+	}
+	when, err := time.Parse(time.RFC3339, rec[col("when")])
+	if err != nil {
+		return false, fmt.Errorf("row %d: when is not an RFC 3339 time (got: %s)", n, rec[col("when")])
+	}
+	return !when.Before(f.Since), nil
+}
+
+// Summarize reads the CSV AppendCSV writes, the rows f takes: Rows counts
+// them, Superseded those of them a later row of the same key supersedes
+// (taken or not: a correction outside the filter still hides the row it
+// corrects), and the rest are grouped.
+func Summarize(file []byte, f Filter) (Summary, error) {
 	var s Summary
 	recs, err := records(file)
 	if err != nil {
 		return s, err
 	}
-	s.Rows = len(recs)
 	col := func(name string) int { return slices.Index(Header, name) }
 	latest := map[string]int{} // a row's key -> its last row
 	for i, rec := range recs {
@@ -43,6 +70,14 @@ func Summarize(file []byte) (Summary, error) {
 	}
 	groups := map[[2]string]*Group{}
 	for i, rec := range recs {
+		keep, err := f.keeps(rec, i+2, col)
+		if err != nil {
+			return s, err
+		}
+		if !keep {
+			continue
+		}
+		s.Rows++
 		if latest[key(rec)] != i {
 			s.Superseded++
 			continue

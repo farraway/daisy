@@ -191,7 +191,12 @@ the labels, then waits for its members; `apply` without `--once`, what
 the service runs, loops itself until signalled, a pass every interval
 whatever runs, each run collected by the pass after it ends. `daisy swarm status`
 reports the stages, the gates, what waits for you, the running members,
-throughput and the briefs, and writes nothing. `daisy swarm pause` and
+throughput and the briefs, and writes nothing. `daisy swarm list`
+names, from anywhere, each swarm this machine runs and its clone, and
+`daisy swarm journal` prints the swarm's journal since the line last
+marked seen; in a Daisy workspace, `/daisy swarm connect` briefs you
+from them, then works the swarm with you through the `swarm` skill.
+`daisy swarm pause` and
 `daisy swarm resume` hold and release launches, for the whole swarm or,
 given an issue's number, for that issue alone. The eight verbs of the
 maintainer, the person who runs the swarm, `triage`, `accept`, `class`

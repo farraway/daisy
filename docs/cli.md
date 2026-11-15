@@ -34,10 +34,10 @@ entries cross-reference it in prose.
 `daisy --help` as built, rendered from the `cli` table; `daisy
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm prompt build`, `swarm apply`,
-`swarm metrics`, `swarm status`, `swarm pause`, `swarm resume`, and the maintainer's
+`swarm metrics`, `swarm status`, `swarm list`, `swarm journal`, `swarm pause`, `swarm resume`, and the maintainer's
 `swarm triage`, `swarm accept`, `swarm class`, `swarm approve`, `swarm
 merge`, `swarm unblock`, `swarm block` and `swarm close`) joined the
-table a verb at a time as each was built; all fifteen are in it, and the tree never names a command the binary does
+table a verb at a time as each was built; all seventeen are in it, and the tree never names a command the binary does
 not run. Their entries below give docs/swarm.md's revision 6 (the swarm
 repository as the swarm's root, run from its clone with no Daisy
 workspace needed, the secrets in the swarm's `<state>/env`), which
@@ -72,7 +72,8 @@ Plans
                                     Create a plan (or an unregistered spec draft)
   plan pickup <path>                Promote a spec draft into a tracked plan
   plan archive                      Archive the active plan
-  metrics                           Summary of the home's metrics CSV, by kind and model (read-only)
+  metrics [--swarm <owner>/<repo>] [--since <time>]
+                                    Summary of the home's metrics CSV, by kind and model (read-only)
   metrics add --step <s> [--plan <p>] [--range <r> [--repo <dir>]] [<flag> <value>...]
                                     Record a plan step: a row in the home's metrics CSV and in the plan's ## Metrics table
 
@@ -100,6 +101,8 @@ Swarm
   swarm apply [--once]              Reconcile the forge: launch members, post their output, move labels
   swarm metrics --backfill          Write a metrics row for each collected run the home's CSV has none for
   swarm status                      Stages, gates, what waits for you, running members (read-only)
+  swarm list                        The swarms this machine runs: clone, home, pause; from anywhere (read-only)
+  swarm journal [--mark <run>]      The journal since the line marked seen (read-only); --mark moves the mark
   swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
   swarm resume [<n>]                Launch members again and release the owner's held batch (with <n>, that issue)
   swarm triage <n>                  As the maintainer: triage a proposal, proposal-posted to proposal-accepted
@@ -188,10 +191,11 @@ init, or `.daisy/` with no `home` file. Commands that need no workspace:
 `install`, `init` (bare, it re-initializes the one it is in, and outside one
 the identity is the missing argument), `home`, `identity list`, `help` (tree or command),
 `prompt build <home>`, and `test`, whose bash dispatcher required one although the script read
-only the root *(decided, D30; built in Step 24)*, and the fifteen
+only the root *(decided, D30; built in Step 24)*, and the seventeen
 `swarm` verbs, which find their swarm themselves (docs/swarm.md section
 11, Finding the swarm: a swarm repository's clone; Step 2 of revision
-6's plan, the old layout's workspace no longer read since its Step 7). `healthcheck` needs one
+6's plan, the old layout's workspace no longer read since its Step 7),
+`swarm list` needing none: it lists every swarm this machine runs. `healthcheck` needs one
 but resolves it itself, after `✓ DAISY_ROOT`, so outside one it prints the
 refusal and then `✗ Cannot resolve home for this workspace` (the bash
 dispatcher refused before the check began). `check-secrets` keeps the requirement — it reads the workspace's
@@ -258,7 +262,9 @@ no hook) *(decided, D30, Step 18; in-process since Step 24)*.
 and for `check-secrets`, `home list` and `identity list` (decided, D30),
 and `swarm status`, for which `ReadOnly` lets a `GET` or `HEAD` request
 and `docker ps` through (docs/swarm.md section 14, item 31), and from
-revision 6 git's reading commands on a mirror (item 99);
+revision 6 git's reading commands on a mirror (item 99), and `swarm
+list` and, without `--mark`, `swarm journal` (Step 15 of the plan for
+the inbox requests F27-F35);
 `Real` for everything else, `eval` included (one wrapper per command;
 `--record` writes), `optimize apply`, and `healthcheck`, because a pass
 writes the TTL stamp.
@@ -551,13 +557,13 @@ and `home: testhome | identity: pelicanmoor` [77].
 |---|---|
 | Status | as built (Step 16a of the plan that clears the Deferred list, 2026-11-12): Go (`internal/metrics`, `internal/commands/metrics.go`) |
 | Legacy | none |
-| Usage | `daisy metrics` (any argument: usage, exit 2) |
-| Exit codes | 0, the summary or none recorded yet; 1 outside a workspace, or when the CSV cannot be read, its header is not the columns `metrics add` writes, or a row has the wrong number of cells or a cell `metrics add` would refuse (the row named) |
-| Stdout | `No metrics recorded yet (<path> does not exist)` and the line that records one; else `Metrics: <path>`, `  N rows, K superseded by a later record of the same step or run` (a later row with the same kind, plan or swarm, step or run and role supersedes an earlier one: the CSV is only appended to, so a correction is a new row), then one line per kind and model, in that order: rows, tokens (`tokens_total`, else `tokens_in` and `tokens_out` added), cost (`cost_reported`), estimated (`cost_estimated`), measured (rows with lines), code, tests and prose (`+added/-removed` over the measured rows); a sum over only some of the rows reads `<sum> (k/n)`, over none `—`; a model left empty is `(none)` |
+| Usage | `daisy metrics [--swarm <owner>/<repo>] [--since <time>]`: `--swarm` takes only that swarm's runs (kind `swarm-run`, `plan_or_swarm` the value), `--since` (an RFC 3339 time) only the rows whose `when` is not before it, both together the swarm's runs since then (Step 15 of the plan for the inbox requests F27-F35, for `/daisy swarm connect`'s metrics since a model or prompt change); a positional argument is usage, exit 2 |
+| Exit codes | 0, the summary or none recorded yet; 1 outside a workspace, `--since` not RFC 3339 (`Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: <value>)`), or when the CSV cannot be read, its header is not the columns `metrics add` writes, or a row has the wrong number of cells or a cell `metrics add` would refuse (the row named), or, with `--since`, a row's `when` is not RFC 3339 (`row <i>: when is not an RFC 3339 time (got: <value>)`) |
+| Stdout | `No metrics recorded yet (<path> does not exist)` and the line that records one; else `Metrics: <path>`, with a flag `  Rows taken: --swarm <owner>/<repo> --since <time>` (the flags given, in that order), `  N rows, K superseded by a later record of the same step or run` (N the rows the flags take, K those of them a later row of the same key supersedes, whether or not the flags take that row) (a later row with the same kind, plan or swarm, step or run and role supersedes an earlier one: the CSV is only appended to, so a correction is a new row), then one line per kind and model, in that order: rows, tokens (`tokens_total`, else `tokens_in` and `tokens_out` added), cost (`cost_reported`), estimated (`cost_estimated`), measured (rows with lines), code, tests and prose (`+added/-removed` over the measured rows); a sum over only some of the rows reads `<sum> (k/n)`, over none `—`; a model left empty is `(none)` |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |
-| Cases | none; `TestMetricsAddRecordsAStep`, `TestSummarize` |
+| Cases | none; `TestMetricsAddRecordsAStep`, `TestSummarize`, `TestSummarizeFilter`, `TestSwarmConnectBriefing` |
 
 ### daisy metrics add
 
@@ -773,6 +779,35 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 | Writes | nothing, anywhere |
 | Commits | none |
 | Cases | none; `TestSwarmStatusThroughGitea`, `TestSwarmStatusStages`, `TestSwarmStatusStep7`, `TestSwarmStatusCorrections`, `TestSwarmApplyGatedFlag`, `TestSwarmApplyRoutineJob`, `TestSwarmStatusWritesNothingOnAFailure`, `TestSwarmStatusPullClosedUnmerged`, `TestSwarmStatusBriefsShareAName`, `TestSwarmStatusAutoKeepsOldJobs`, `TestSwarmApplyNoteOnAMovedIssueBlocksNothing`, `TestSwarmDrift`, `TestSwarmApplyResearchNotesRebased`, and the other `internal/commands` and `internal/swarm` tests |
+
+### daisy swarm list
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 15 of the plan for the inbox requests F27-F35): Go (`internal/commands/swarm_connect.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Legacy | none |
+| Usage | `daisy swarm list`: anywhere, in a clone or not, with no Daisy workspace needed; any argument is usage on stderr, exit 2 |
+| Exit codes | 0, also with no swarm; 1 a directory under `$DAISY_LOCAL/swarm` unreadable; 2 usage |
+| Stdout | `Swarms on this machine ($DAISY_LOCAL/swarm):`, then per `<state>` in path order `  <owner>/<repo> on <forge-host>: clone <path>; home <name>; not paused` (`clone not recorded`, `clone <path> (not a clone of it now)`; `no home`; `paused since <time>[: <reason>]`), and `; here <swarm>` when the working folder is in a clone of that swarm; with none, `No swarm on this machine ($DAISY_LOCAL/swarm holds no swarm's state)` |
+| Ops | ReadOnly |
+| Writes | nothing |
+| Commits | none |
+| Cases | none; `TestSwarmConnectBriefing`, `TestSwarmListStates` |
+
+### daisy swarm journal
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 15 of the plan for the inbox requests F27-F35): Go (`internal/commands/swarm_connect.go`, `internal/swarm/reconcile/record.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Legacy | none |
+| Usage | `daisy swarm journal [--mark <run>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); a positional argument is usage on stderr, exit 2 |
+| Exit codes | 0; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the journal unreadable, with `--mark` a run the journal holds no line of (`Error: swarm journal --mark: the journal holds no line of <run>; mark a run its lines name`) or the write failing; 2 usage |
+| Stdout | the lines after the one `<state>/connect-seen` marks: `Journal of <owner>/<repo> since <run> (marked seen <time>): <k> lines`, each line as `<YYYY-MM-DD> - <HHMM> <run>: …`, then `Mark them seen: daisy swarm journal --mark <run>` naming the last; none after it, `Journal of <owner>/<repo>: nothing since <run> (marked seen <time>)`; no mark, or one the journal does not hold, the newest day's lines under `Journal of <owner>/<repo>, <YYYY-MM-DD> (no line marked seen): <k> lines`; an empty journal, `Journal of <owner>/<repo>: no line yet`. With `--mark`, `✓ Marked the journal seen through <run> (<state>/connect-seen)` |
+| Stderr | `⚠ <state>/connect-seen names <run>, which the journal does not hold: showing its newest day` |
+| Ops | ReadOnly; with `--mark`, Real |
+| Writes | with `--mark`, `<state>/connect-seen`; else nothing |
+| Commits | none |
+| Cases | none; `TestSwarmConnectBriefing` |
 
 ### daisy swarm apply
 

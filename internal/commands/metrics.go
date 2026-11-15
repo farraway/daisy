@@ -16,10 +16,25 @@ import (
 
 // Metrics prints the summary of the home's metrics CSV: its rows grouped
 // by kind and model, a row a later one for the same step or run
-// supersedes left out.
+// supersedes left out; with --swarm, that swarm's runs alone, and with
+// --since, the rows written at or after that time.
 var Metrics = readOnly(metricsSummary)
 
 func metricsSummary(c *Context) error {
+	var f metrics.Filter
+	var given []string
+	if v, ok := c.Value("--swarm"); ok {
+		f.Swarm = v
+		given = append(given, "--swarm "+v)
+	}
+	if v, ok := c.Value("--since"); ok {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return fmt.Errorf("Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: %s)", v)
+		}
+		f.Since = t
+		given = append(given, "--since "+v)
+	}
 	file := env.MetricsFile(c.Env.Home)
 	b, err := c.Ops.FS().ReadFile(file)
 	if errors.Is(err, fs.ErrNotExist) && !lexists(c.Ops.FS(), file) {
@@ -29,11 +44,14 @@ func metricsSummary(c *Context) error {
 	if err != nil {
 		return fmt.Errorf("Error: cannot read %s: %v", file, err)
 	}
-	s, err := metrics.Summarize(b)
+	s, err := metrics.Summarize(b, f)
 	if err != nil {
 		return fmt.Errorf("Error: cannot read %s: %v", file, err)
 	}
 	fmt.Fprintf(c.Stdout, "Metrics: %s\n", file)
+	if len(given) > 0 {
+		fmt.Fprintf(c.Stdout, "  Rows taken: %s\n", strings.Join(given, " "))
+	}
 	fmt.Fprintf(c.Stdout, "  %d rows, %d superseded by a later record of the same step or run\n", s.Rows, s.Superseded)
 	if len(s.Groups) == 0 {
 		return nil

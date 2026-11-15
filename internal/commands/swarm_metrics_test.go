@@ -413,7 +413,7 @@ func TestSwarmMetricsBackfill(t *testing.T) {
 
 	// The rows' costs are status's: the old `cost 0` is $0 to both.
 	b, _ := os.ReadFile(csvFile)
-	s, err := metrics.Summarize(b)
+	s, err := metrics.Summarize(b, metrics.Filter{})
 	if err != nil {
 		t.Fatal(err)
 	}

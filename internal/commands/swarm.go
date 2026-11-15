@@ -1079,6 +1079,7 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	defer release()
+	recordClone(c, state, ws)
 	var repos []string
 	for _, r := range cfg.Repos {
 		repos = append(repos, r.Name)

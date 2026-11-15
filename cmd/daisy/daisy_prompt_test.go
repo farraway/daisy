@@ -225,3 +225,32 @@ func TestHelpAgreesForEveryGoCommand(t *testing.T) {
 		t.Error("the tree still names the legacy build")
 	}
 }
+
+// Step 15's claim (plan for the inbox requests F27-F35): a workspace whose
+// home is the template's lists swarm-connect lazily, by its trigger's
+// first line, and the workspace's AGENTS.md built from it carries the
+// trigger, pointing at the root's prompt.
+func TestTemplateListsSwarmConnect(t *testing.T) {
+	m := newMachine(t) // the home's include.txt is the template's
+	for _, name := range []string{"daisy", "retrospective", "plan", "swarm-connect"} {
+		b, err := os.ReadFile(filepath.Join("prompts", name+".md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(m.root, "prompts", name+".md"), string(b))
+	}
+	code, out, errs := m.run(t, m.ws, "list")
+	if code != 0 || errs != "" || !strings.Contains(out, "\n  swarm-connect        The user invokes `/daisy swarm connect [<swarm>]` or says \"connect to the swarm\"\n") {
+		t.Errorf("list: exit %d err %q\n%s", code, errs, out)
+	}
+	code, out, errs = m.run(t, m.ws, "prompt", "build")
+	if code != 0 || errs != "" || !strings.Contains(out, "   Lazy: retrospective plan swarm-connect\n") {
+		t.Fatalf("prompt build: exit %d err %q\n%s", code, errs, out)
+	}
+	b, _ := os.ReadFile(filepath.Join(m.ws, ".daisy", "AGENTS.md"))
+	if !strings.Contains(string(b), "# Prompt: swarm-connect (lazy - read full prompt when triggered)\n") ||
+		!strings.Contains(string(b), "Read the full `"+m.root+"/prompts/swarm-connect.md` when:\n- The user invokes `/daisy swarm connect [<swarm>]`") ||
+		strings.Contains(string(b), "Find the swarm, then work in its clone") {
+		t.Errorf("AGENTS.md:\n%s", b)
+	}
+}

@@ -168,7 +168,12 @@ role; the maintainer's comment on a pull request in review reopens its
 head, so both reviewers run again; a comment at `plan-2-in-progress`
 is held for the role the run leaves the issue to, and one at
 `review-2-approved` wakes no one, which role it should wake being open
-(item 132).
+(item 132). Its Step 15 (2026-11-15) amended sections 2 and 11: `swarm
+list`, run anywhere, names each swarm this machine runs, its clone (which
+`apply` records in `<state>/clone`), its home and its pause, and `swarm
+journal` prints the journal since the line `--mark` last marked seen
+(`<state>/connect-seen`), the read helpers of `/daisy swarm connect`
+(item 133).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -201,7 +206,7 @@ them. The maintainer reads the sections each code
 step's hand-back cites (the plan's decision of 2026-11-06, in place of a
 reading of the whole before the first code step), and section 14 lists
 the places where the document chose between readings. `docs/cli.md`'s entry for the Swarm group points here:
-this document is the contract for the fifteen verbs, the configuration they
+this document is the contract for the seventeen verbs, the configuration they
 read, the forge calls they make, the containers they run and every file
 they write.
 
@@ -237,11 +242,11 @@ A point marked *not established as of <date>* is one no recorded run had
 settled by that date; it stays open until a run settles it, and section
 13's Established by the first real run records what the runs settled.
 The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
-`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill`, `swarm status`, `swarm pause [<n>]`, `swarm
+`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill`, `swarm status`, `swarm list`, `swarm journal [--mark <run>]`, `swarm pause [<n>]`, `swarm
 resume [<n>]`, and the maintainer's `swarm triage <n>`, `swarm accept
 <n>`, `swarm class <n> routine|architecture`, `swarm approve <n>`, `swarm
 merge <n>`, `swarm unblock <n> <comment...>`, `swarm block <n> --by <m>`
-and `swarm close <n> [comment...]`): all fifteen are rows of the `cli`
+and `swarm close <n> [comment...]`): all seventeen are rows of the `cli`
 table.
 
 **Sources.** Revision 2 draws on five talks on software factories:
@@ -437,6 +442,8 @@ Stages of a software factory the version leaves out, each by choice:
 <state>/                             # $DAISY_LOCAL/swarm/<forge-host>/<owner>/<repo>/, this machine's runtime state
 ├── env                              # the secrets, mode 0600 (section 3, Secret values)
 ├── lock                             # held (flock) for the life of one `swarm apply`; names the holder
+├── clone                            # the clone the last `swarm apply` ran from, which `swarm list` names (section 11)
+├── connect-seen                     # the journal's line last marked seen, which `swarm journal` prints after (section 11)
 ├── paused                           # present while paused, with the reason when `apply` paused it
 ├── owner-held                       # present while the owner's batch trigger is held (section 6)
 ├── auto                             # one line per gate Daisy passed for a routine job (section 5), which status counts
@@ -481,6 +488,8 @@ Every file Daisy writes, and nothing else:
 | `<state>/commands/<id>` | the answer to the comment command in comment `<id>` (section 6, The comment commands): its outcome `Not known: …` while the verb runs, then the verb's | `swarm apply` | before the command's verb runs and when it returns; never removed: the record that it ran |
 | `<state>/env` | one line `export <VAR>='<value>'` per variable the configuration names (`forge.token_env`, each `keys` `env` in the providers' name order) and `DAISY_MAINTAINER_TOKEN`, each value the process environment's at `init`, single-quoted (a `'` in it written `'\''`); a variable unset or empty there is written commented out, `# <VAR>=`, which assigns nothing, so the environment still supplies it (section 3, Secret values) until the maintainer fills the line in; mode `0600` | `swarm init` | only when the file is absent; the maintainer edits it, and Daisy never rewrites it |
 | `<state>/lock` | one line, the holder: `apply[ --once] since <RFC 3339 time> pid <pid>` | `swarm apply` | on taking the lock; the lock is released, not the file removed, at exit |
+| `<state>/clone` | one line, the absolute path of the clone `apply` runs from, `<swarm>` (section 11, `daisy swarm list`) | `swarm apply` | after taking the lock, when the file names another path or is absent; a refused write is a warning, `⚠ <state>/clone not written: <error>; swarm list will not name this clone` |
+| `<state>/connect-seen` | one line, `<run> <RFC 3339 time>`: the run whose journal line was marked seen, and when (section 11, `daisy swarm journal`) | `swarm journal --mark` | on the command; never by `apply` |
 | `<state>/paused` | one line: `paused <RFC 3339 time>`, or `paused <RFC 3339 time>: <reason>` when `apply` wrote it (`swarm fault: <reason>`; `budget: <per_day\|total> $<limit> reached ($<spent>)` once the budget is enforced, section 3, The budget) | `swarm pause` and `swarm apply` (created), `swarm resume` (removed) | on the command; `apply`: at the second swarm fault in a row (7.7), or, once the budget is enforced, when it is reached (section 3) |
 | `<state>/owner-held` | one line: `held <RFC 3339 time>: <reason>` | `swarm apply` (created), `swarm resume` (removed) | when the owner's batch run fails or proposes nothing |
 | `<state>/auto` | one line per gate passed: `<RFC 3339 time> #<n> <proposal-posted\|plan-0-posted>`, the stage the gate held (section 5, The job class) | `swarm apply` (appended) | at each routine job's gate passed (T23, T24), after its relabel; a refused write is a warning |
@@ -4217,7 +4226,8 @@ of a clone, `.git` a directory or, in a worktree, a file), so a verb
 runs anywhere inside the clone and a workspace may hold several clones,
 each found from inside it. No Daisy workspace is needed: a verb reads
 `$DAISY_ROOT` and `$DAISY_LOCAL` as every command does, and no home and
-no identity. With no such folder, `init` makes one (below), and every
+no identity. With no such folder, `init` makes one (below), `list`
+needs none (it lists every swarm this machine runs), and every
 other verb exits 1 with section 3's
 `Error: swarm.json: not found in <dir> or a folder above it; cd into the
 swarm repository's clone, or run 'daisy swarm init'`. Any argument a
@@ -4238,13 +4248,14 @@ not, as the folder it makes the clone in (below). *As built (Step 7,
 workspace's `swarm/` is no swarm, so a verb run there finds none (`init`
 takes the workspace as its folder), and nothing reads the old layout's
 `repos[].path`, workspace `resources`, `<ws>/.env.sh` or `wiki` (Moving
-a swarm into its repository, below). The fifteen
+a swarm into its repository, below). The seventeen
 are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm,
 `status`'s correction counts at Step 8, the maintainer's six at
 Step 10, at Step 15 `swarm block` and the issue's `pause` and
 `resume`, at Step 20 `swarm class`, `prompt build` at Step 7 of
-the plan that clears the Deferred list, and `metrics` at Step 5 of
-the plan for the inbox requests F27–F35: `apply`'s
+the plan that clears the Deferred list, `metrics` at Step 5 of
+the plan for the inbox requests F27–F35, and `list` and `journal` at
+its Step 15: `apply`'s
 As built paragraph says what it leaves out); the board, the GitHub
 adapter and the `budget` are specified here ahead of their build wherever this section names them: `swarm.json`
 validates their fields as section 3 says and nothing acts on them until
@@ -4830,6 +4841,53 @@ metrics` sums a home's rows by kind and model, every swarm whose
 total is the sum of those lines only when it is the home's one swarm,
 to within a cent per model of `status`'s.
 
+### daisy swarm list
+
+| Field | Value |
+|---|---|
+| Usage | `daisy swarm list`, anywhere: in a clone or not, in a Daisy workspace or not; any argument is usage (exit 2) |
+| Reads | the directories under `$DAISY_LOCAL/swarm/` three levels down, `<forge-host>/<owner>/<repo>`, each a `<state>` (`credentials/`, the login slots, left out); in each, `clone`, `home` and `paused`; the `swarm.json` of the recorded clone and of the clone the working folder is in (its forge fields, to name its `<state>`); no secret, no forge call, no Docker |
+| Writes | nothing, anywhere |
+| Stdout | `Swarms on this machine ($DAISY_LOCAL/swarm):`, then one line per `<state>`, in path order: `  <owner>/<repo> on <forge-host>: ` and, separated by `; `, `clone <path>` (`clone not recorded` when `<state>/clone` is absent; `clone <path> (not a clone of it now)` when the path holds no clone's top or a clone of another swarm), `home <name>` or `no home` (`<state>/home`), `not paused` or `paused since <time>[: <reason>]` (`<state>/paused`), and `here <swarm>` when the working folder is in a clone of that swarm (Finding the swarm, above); with none, `No swarm on this machine ($DAISY_LOCAL/swarm holds no swarm's state)` |
+| Exit codes | 0, with or without swarms; 1 a directory under `$DAISY_LOCAL/swarm` unreadable; 2 usage |
+| Ops | ReadOnly |
+
+It is the one verb that finds no swarm: it names them, so that a session
+outside every clone (`/daisy swarm connect`, `prompts/swarm-connect.md`)
+knows where each swarm's verbs run. The clone is the one `apply`
+recorded in `<state>/clone` (section 2), the clone the swarm runs from;
+a swarm `apply` never ran from on this machine has none recorded, and
+its clone is found as every verb finds it, from inside. Whether an
+`apply` holds `<state>/lock` now is not shown: testing a flock takes it
+for a moment, and `apply` takes its lock without waiting, so a list run
+as the service restarts could refuse it.
+
+### daisy swarm journal
+
+| Field | Value |
+|---|---|
+| Usage | `daisy swarm journal [--mark <run>]`, in the clone; a positional argument is usage (exit 2) |
+| Reads | `swarm.json`'s forge fields (to name `<state>`); the journal as this machine holds it: `journal/<YYYY-MM-DD>.md` in `<state>/notes`, the host's clone the journal is pushed from (7.6, The run's record), then the lines `<state>/journal` queues; `<state>/connect-seen`; no secret, no forge call, no Docker |
+| Writes | without `--mark`, nothing; with it, `<state>/connect-seen` (section 2) |
+| Stdout | the lines after the one `<state>/connect-seen` names, each `<YYYY-MM-DD> - <HHMM> <run>: …` under `Journal of <owner>/<repo> since <run> (marked seen <time>): <k> lines`, then `Mark them seen: daisy swarm journal --mark <run>`, the last line's run; none after it, `Journal of <owner>/<repo>: nothing since <run> (marked seen <time>)`; no mark, or one naming a run the journal does not hold, the newest day's lines under `Journal of <owner>/<repo>, <YYYY-MM-DD> (no line marked seen): <k> lines`; no line at all, `Journal of <owner>/<repo>: no line yet`. With `--mark`, `✓ Marked the journal seen through <run> (<state>/connect-seen)` |
+| Stderr | `⚠ <state>/connect-seen names <run>, which the journal does not hold: showing its newest day` |
+| Exit codes | 0; 1 no swarm found, invalid forge fields, a journal file or the queue unreadable, with `--mark` a run the journal holds no line of (`Error: swarm journal --mark: the journal holds no line of <run>; mark a run its lines name`, nothing written) or the write failing; 2 usage |
+| Ops | ReadOnly; with `--mark`, Real |
+
+**The journal as this machine holds it.** Each line names its run,
+`<n>-<role>-<k>` or a comment command's `<n>-command-<id>`, which no
+other line names, so a line is found by its run: the day files are read
+in day order, each day's queued lines after its pushed ones, and a
+queued line whose run a day's file already names (pushed, the queue not
+yet removed) is shown once. The mark is that run, not a time: the lines
+are timed to the minute, and several are collected in one minute. It
+is read from `<state>/notes`, not the maintainer's clone, which falls
+behind at each pass that collects a run, nor the swarm repository's
+mirror, fetched before the pass's push. **The mark** is moved only by
+`--mark`, to a run the journal holds, so reading the journal writes
+nothing, and a connect marks the lines it has shown, never one
+collected while it read.
+
 ### daisy swarm pause and daisy swarm resume
 
 | Field | `pause` | `resume` |
@@ -5342,6 +5400,7 @@ interface with the step that builds the board.
 | 29 | the maintainer's verbs (Step 10 of the swarm build) | `forge.Fake` under two accounts (`As`) with its timeline (`Events`), an `ops.Fake` refusing every process but git's; the cli and the `gitea` adapter over an in-memory forge | each verb's writes by the maintainer's login and none marked: `triage` (T3), `accept` (T7), `approve` at the head, `merge` then T13, `merge` of the last slice then the close, a merge made by hand then T13, from Step 21 `merge` of a pull request not mergeable then T25, `close` with a comment and without, `unblock` to the stage the newest note that blocked the issue names, its comment first; every verb refusing and writing nothing with the token unset, the swarm's token (before the forge is opened) and a token of the swarm's account; each verb's own refusals (another stage, closed, two labels or none, no pull request, closed unmerged, no approved head, the merge or the approval refused, no note, a marked comment, no issue number); no member launched; `apply` (with no comment command to run) and `status` never asking for `DAISY_MAINTAINER_TOKEN` and opening the forge under the swarm's token alone; through the cli and `gitea`, every request of `triage` under the maintainer's token; from Step 29, `.env.sh` kept for the names asked alone, the gated flag kept where the labels a verb leaves are gated and cleared on `accept`, `merge`'s T13 and the merge step's T15 of a flagged issue, a flag removal refused after the write, a comment posted once by a verb run again, a blank comment, `class <n> architecture` flagging an unflagged architecture job, `block`'s warning, and `unblock` refused at the round limit at `review-0-ready` |
 | 29 | the comment commands (Step 13 of the plan for the inbox requests F27–F35) | `forge.Fake` under two accounts with its timeline and `EditComment`, `runner.Fake`, `<state>/env` with both tokens | an untrusted login's `/swarm accept` running nothing; the maintainer's on `plan-0-posted` relabelled by the maintainer's account, answered once, journalled, the worker launched in the same pass, and a second pass running nothing; a refused `merge` answered with the refusal, no member launched and not run again; an edited comment, two commands in one, `prompt build`, `/swarm` alone, an argument too many and the token missing each answered once with nothing written, the answer naming `<state>`; the answer edited away and the pause lifted by hand, pausing nothing again and the answer posted once more from `<state>/commands/<id>`; the swarm's own comment (a worker's `BLOCKED:` carrying a command line, and one unmarked) running nothing; `merge` on the pull request's thread merging and closing the job, `approve` there answered with the answer left out of the reviewers' prompts, and `pause` holding the issue before its worker launches; `commandLines`, `Marked` and `NewestCounted` over commands and answers, `BlockedBy` past a command |
 | 29 | the maintainer's word (Step 14 of the plan for the inbox requests F27–F35) | `forge.Fake`, `runner.Fake` | a worker's `BLOCKED:`: the reconciler's note, the gate note and an untrusted login's comment waking no one, then the maintainer's comment on the issue clearing `swarm:blocked` and the worker running in the same pass with it under `# Direction`; a reviewer's failure at `review-0-ready`, the other's approval standing: the maintainer's comment on the issue lifting nothing, one on the pull request lifting the block and running both reviewers, the pair completed by the two new reviews (T10), not by the standing approval, and the worker's earlier round reading `reviewed again after the maintainer's comment`; a reviewer's question passed to the maintainer (T30) at `review-0-ready`, the maintainer's comment on the issue lifting it and only the asker running; `Lifting` over the note alone, a comment before it, a flag set by hand, a gate note after the note, and the swarm's, an untrusted login's, a command, a class statement and a `Blocked by #<m>`; `Launch` in review over the maintainer's comment, before and after the reviews, and the swarm's notes, a command and a `Blocked by #<m>` |
+| 29 | the connect's reads (Step 15 of the plan for the inbox requests F27–F35) | `forge.Fake`, `runner.Fake`, a scratch home, the swarm repository's push refused by a hook | `<state>/clone` written by `apply`; `swarm list` from outside any clone and from inside one, `swarm journal` over a pushed line and a queued one, `swarm status` and `metrics --swarm --since` changing no file of `<state>`, the clone or the home; `--mark` refused for a run the journal lacks, then moving the mark, so the next `journal` shows the line collected after it alone; a line both pushed and queued shown once; a lost mark showing the newest day; `swarm list` with no state, an unrecorded clone, a moved one and a paused swarm |
 | 29 | `pause`, `resume`, the lock | temp `<state>`, `forge.Fake`, `runner.Fake` | `pause` mid-lifecycle stops launches and `resume` continues; `apply` runs `EnsureLabels` after taking the lock, creating a deleted label again, and after `RefuseLabels()` and a deleted label exiting 1 before any pass; two concurrent `apply --once` launch each role once, the second exiting with the holder's name |
 | 30 | the real run | a real product workspace declaring two repositories of one organization (the product, then a library it depends on), the issue in the product's, and the Gitea instance, every gate on | one real issue through the lifecycle over two slices, the first in the library and the second in the product moving the product's pin to the first's merge commit, each pull request merged by the maintainer, then the issue closed by the maintainer; the library's pull request carrying `Refs <owner>/<repo>#<n>`, and whether Gitea shows it as a cross-reference recorded; the second slice's check with the moved pin under `--network none` recorded as passed or failed for want of the upstream (section 14, item 51); every comment the swarm posted carries the marker and is authored by the swarm's account, and the maintainer's approval is a formal review; `status`'s Throughput is the cost recorded |
 
@@ -8857,3 +8916,41 @@ entries among revision 1's, and was renumbered at Step 38.
     Tests: `TestSwarmApplyBlockAnswered`, `TestSwarmApplyReviewComment`,
     `TestSwarmApplyQuestionAnsweredInReview`, `TestLifting` and
     `TestLaunchInReview`.
+
+133. **The connect's read helpers (Step 15 of the plan for the inbox
+    requests F27–F35).** `/daisy swarm connect` (`prompts/swarm-connect.md`,
+    a lazy prompt of a Daisy workspace, not a verb) briefs from commands
+    that write nothing. **Finding a swarm from anywhere**: every verb runs
+    in its clone, and nothing on the machine named the clone, so `apply`
+    records the clone it runs from in `<state>/clone`, and `swarm list`,
+    the one verb run anywhere, lists each `<state>` with that clone
+    (checked: a moved clone says so), its home and its pause, and marks
+    the swarm whose clone the working folder is in. Alternatives: the
+    prompt scraping `$DAISY_LOCAL/swarm/` and searching for clones (a
+    layout every prompt would repeat), or `init` recording the clone too
+    (a clone `init` made need not be the one the swarm runs from, and
+    `init`'s files are each a step's contract). Whether `apply` runs is
+    not shown: a flock is tested only by taking it, and `apply` takes
+    its own without waiting. **The journal since the last connect**:
+    `swarm journal` reads the journal from `<state>/notes` and the queue
+    (the maintainer's clone falls behind, the mirror lags the pass's
+    push), and the mark is a run, `<state>/connect-seen`, moved only by
+    `--mark` to a run the journal holds, so the briefing reads with
+    nothing written and marks only the lines it showed. Alternatives: a
+    time (`--since`; the lines are timed to the minute, so lines of the
+    mark's minute would be lost or shown twice), or a mark moved by the
+    read itself (the briefing no longer read-only, and a line collected
+    while the agent reads marked unseen). With no mark, the newest day's
+    lines, not the whole journal. **The metrics since a model or prompt
+    change**: `daisy metrics` gains `--swarm <owner>/<repo>` and `--since
+    <time>` (the rows of that swarm's runs, written since); the prompt
+    takes the time from the clone's newest commit to `swarm.json` or
+    `prompts/` and compares with the swarm's whole record. A row's
+    `prompt_hash` cannot say when a prompt changed: every `system.md`
+    opens with its issue, role and run, so each run's hash differs. The
+    rows are the home's the workspace is bound to; the prompt leaves the
+    metrics out when `swarm list` names the swarm's home as another.
+    **Faults and pauses** need no helper: `status`'s `State:` line and
+    Throughput, and the journal's `fault` lines. Tests:
+    `TestSwarmConnectBriefing`, `TestSwarmListStates`,
+    `TestSummarizeFilter` and `TestTemplateListsSwarmConnect`.

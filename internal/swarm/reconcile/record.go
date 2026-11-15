@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"maps"
 	"math"
 	"path/filepath"
 	"slices"
@@ -15,6 +16,7 @@ import (
 
 	"daisy/internal/env"
 	"daisy/internal/metrics"
+	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/provider"
 )
@@ -173,7 +175,70 @@ func journalLine(r metrics.Row, u usage, now time.Time) string {
 
 // journalQueue is <state>/journal: the journal lines not yet pushed, one
 // per run, each `<YYYY-MM-DD> <line>`.
-func (s *Swarm) journalQueue() string { return filepath.Join(s.state(), "journal") }
+func (s *Swarm) journalQueue() string { return journalQueue(s.state()) }
+
+func journalQueue(state string) string { return filepath.Join(state, "journal") }
+
+// JournalLine is one line of the swarm's journal: its day, the line as
+// written (`- HHMM <run>: …`) and the run it names (`<n>-<role>-<k>`, or
+// `<n>-command-<id>`), which no other line names.
+type JournalLine struct{ Day, Line, Run string }
+
+// ReadJournal is the swarm's journal as this machine knows it (section
+// 7.6, The run's record): the lines of journal/<day>.md in <state>/notes,
+// the host's clone the journal is pushed from, then the lines
+// <state>/journal still queues, each in its day after the day's pushed
+// lines, the days in order. A queued line whose run a day's file names
+// was pushed already (the queue is removed only after the push lands),
+// so each run is one line.
+func ReadJournal(fs ops.FS, state string) ([]JournalLine, error) {
+	byDay := map[string][]JournalLine{}
+	seen := map[string]bool{}
+	add := func(day, line string) {
+		f := strings.Fields(line)
+		if len(f) < 3 || f[0] != "-" || !strings.HasSuffix(f[2], ":") {
+			return // the day's heading, a blank line
+		}
+		run := strings.TrimSuffix(f[2], ":")
+		if seen[run] {
+			return
+		}
+		seen[run] = true
+		byDay[day] = append(byDay[day], JournalLine{day, line, run})
+	}
+	dir := filepath.Join(state, "notes", declare.JournalDir)
+	entries, err := fs.ReadDir(dir)
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return nil, err
+	}
+	for _, e := range entries {
+		day, ok := strings.CutSuffix(e.Name(), ".md")
+		if !ok || !e.Type().IsRegular() {
+			continue
+		}
+		b, err := fs.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return nil, err
+		}
+		for _, l := range strings.Split(string(b), "\n") {
+			add(day, l)
+		}
+	}
+	b, err := fs.ReadFile(journalQueue(state))
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return nil, err
+	}
+	for _, q := range strings.Split(string(b), "\n") {
+		if day, line, ok := strings.Cut(q, " "); ok {
+			add(day, line)
+		}
+	}
+	var lines []JournalLine
+	for _, day := range slices.Sorted(maps.Keys(byDay)) {
+		lines = append(lines, byDay[day]...)
+	}
+	return lines, nil
+}
 
 // queue adds the line to <state>/journal under day, unless the run's line
 // is there already (a collection retried before its `recorded` line).
