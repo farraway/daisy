@@ -200,10 +200,11 @@ from them, then works the swarm with you through the `swarm` skill.
 `daisy swarm resume` hold and release launches, for the whole swarm or,
 given an issue's number, for that issue alone; `daisy swarm restart`
 has the running `apply` re-execute itself once no member runs, as it
-does by itself when a new build of `daisy` is installed. The eight verbs of the
+does by itself when a new build of `daisy` is installed. The nine verbs of the
 maintainer, the person who runs the swarm, `triage`, `accept`, `class`
 (a job routine or architecture), `approve`, `merge`, `unblock`, `block`
-(hold one job until another issue is closed) and `close`, make your
+(hold one job until another issue is closed), `replan` (the architect
+plans the job again, from your direction) and `close`, make your
 decisions on the forge under a token of your own. The contract is `docs/swarm.md`; the agent's guide
 over the verbs is the `swarm` skill (`skills/swarm/SKILL.md`).
 
@@ -341,7 +342,7 @@ chosen for a reason:
   with a marker*, a fixed first line naming the role and the run. So the
   maintainer's words and the swarm's are told apart by authorship, and a
   member's text cannot pass as the maintainer's. The maintainer's writes
-  go through eight verbs under a separate token, read by the verbs and,
+  go through nine verbs under a separate token, read by the verbs and,
   to create the swarm's repository, by `init`, never by `apply` or
   `status`; a verb refuses when its token is the swarm's.
 - *Mount only what the run owns.* A member reads untrusted text, so it
@@ -524,6 +525,7 @@ daisy swarm approve 12           # a formal approving review, where a branch rul
 daisy swarm merge 12             # merge the approved pull request, then the next slice or close
 daisy swarm unblock 12 <comment> # say what changed, then clear swarm:blocked: its stage runs again
 daisy swarm block 12 --by 9      # hold #12's job until #9 is closed
+daisy swarm replan 12 <direction> # the architect re-plans the job's remaining slices from it
 daisy swarm pause 12             # hold #12 alone; daisy swarm resume 12 releases it
 daisy swarm close 12
 ```

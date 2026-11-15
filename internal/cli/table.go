@@ -92,6 +92,7 @@ var table = []Command{
 	{Group: "Swarm", Name: "swarm merge", Usage: "swarm merge <n>", Help: "As the maintainer: merge the approved pull request, then next slice or close", Min: 1, Max: 1, Run: commands.SwarmMerge},
 	{Group: "Swarm", Name: "swarm unblock", Usage: "swarm unblock <n> <comment...>", Help: "As the maintainer: comment, then clear swarm:blocked from the issue", Min: 2, Max: Unbounded, Placed: 1, Run: commands.SwarmUnblock},
 	{Group: "Swarm", Name: "swarm block", Usage: "swarm block <n> --by <m>", Help: "As the maintainer: hold the issue's job until #m is closed", Values: []string{"--by"}, Min: 1, Max: 3, Run: commands.SwarmBlock},
+	{Group: "Swarm", Name: "swarm replan", Usage: "swarm replan <n> [direction...]", Help: "As the maintainer: have the architect re-plan the job, from your direction", Min: 1, Max: Unbounded, Placed: 1, Run: commands.SwarmReplan},
 	{Group: "Swarm", Name: "swarm close", Usage: "swarm close <n> [comment...]", Help: "As the maintainer: close the issue, after the comment when given", Min: 1, Max: Unbounded, Placed: 1, Run: commands.SwarmClose},
 
 	{Group: "System", Name: "commit", Usage: "commit [--root] <message>", Help: "Commit the home repo (or the root repo)", Workspace: true, Flags: []string{"--root"}, Min: 1, Max: 1, Run: commands.Commit},

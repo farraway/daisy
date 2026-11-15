@@ -36,8 +36,8 @@ help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm prompt build`, `swarm apply`,
 `swarm metrics`, `swarm status`, `swarm list`, `swarm journal`, `swarm pause`, `swarm resume`, `swarm restart`, and the maintainer's
 `swarm triage`, `swarm accept`, `swarm class`, `swarm approve`, `swarm
-merge`, `swarm unblock`, `swarm block` and `swarm close`) joined the
-table a verb at a time as each was built; all eighteen are in it, and the tree never names a command the binary does
+merge`, `swarm unblock`, `swarm block`, `swarm replan` and `swarm close`) joined the
+table a verb at a time as each was built; all nineteen are in it, and the tree never names a command the binary does
 not run. Their entries below give docs/swarm.md's revision 6 (the swarm
 repository as the swarm's root, run from its clone with no Daisy
 workspace needed, the secrets in the swarm's `<state>/env`), which
@@ -114,6 +114,7 @@ Swarm
   swarm merge <n>                   As the maintainer: merge the approved pull request, then next slice or close
   swarm unblock <n> <comment...>    As the maintainer: comment, then clear swarm:blocked from the issue
   swarm block <n> --by <m>          As the maintainer: hold the issue's job until #m is closed
+  swarm replan <n> [direction...]   As the maintainer: have the architect re-plan the job, from your direction
   swarm close <n> [comment...]      As the maintainer: close the issue, after the comment when given
 
 System
@@ -155,7 +156,7 @@ word starts the positionals, `tasks "-1 point"`, `done "--dry-run support"`
 arguments have places, every one but `log` and `feedback`, whose words are
 one text — an empty word before a given one, `Error: empty argument`, so
 that `plan new "" +proj` is not the description `+proj` *(D37, Step 22)*;
-`swarm close` and `swarm unblock` refuse one in `<n>`'s place), with
+`swarm close`, `swarm unblock` and `swarm replan` refuse one in `<n>`'s place), with
 the command's usage on stderr. The bash exits 1 for usage
 errors too; no case asserts a usage exit code, so 2 is free to take
 *(built in Step 17)*. A value the command refuses — an unknown identity, an
@@ -192,7 +193,7 @@ init, or `.daisy/` with no `home` file. Commands that need no workspace:
 `install`, `init` (bare, it re-initializes the one it is in, and outside one
 the identity is the missing argument), `home`, `identity list`, `help` (tree or command),
 `prompt build <home>`, and `test`, whose bash dispatcher required one although the script read
-only the root *(decided, D30; built in Step 24)*, and the eighteen
+only the root *(decided, D30; built in Step 24)*, and the nineteen
 `swarm` verbs, which find their swarm themselves (docs/swarm.md section
 11, Finding the swarm: a swarm repository's clone; Step 2 of revision
 6's plan, the old layout's workspace no longer read since its Step 7),
@@ -886,10 +887,11 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 ### The maintainer's verbs
 
 `swarm triage`, `swarm accept`, `swarm class`, `swarm approve`, `swarm
-merge`, `swarm unblock`, `swarm block` and `swarm close`, and `swarm pause
+merge`, `swarm unblock`, `swarm block`, `swarm replan` and `swarm close`, and `swarm pause
 <n>` and `swarm resume <n>`, are the maintainer's writes on the forge
 (docs/swarm.md section 11, built at Step 10 of the swarm build, `block`
-and the issue's `pause` and `resume` at Step 15, `class` at Step 20), each
+and the issue's `pause` and `resume` at Step 15, `class` at Step 20,
+`replan` at Step 20 of the plan for the inbox requests F27–F35), each
 under the maintainer's own token, `DAISY_MAINTAINER_TOKEN`, resolved as
 `check-secrets` resolves a variable (`<state>/env`, read never run, else
 the environment); `status` never reads it, `apply` only to run a comment
@@ -1031,6 +1033,19 @@ nothing posted`).
 | Writes | on the forge, `Relabel(m, "", "swarm:blocking")` unless it carries it, then `Comment(n, "Blocked by #<m>")` |
 | Commits | none |
 | Cases | none; `TestSwarmMaintainerHolds`, `TestSwarmMaintainerRefusals`, `TestSwarmApplyHolds`, `TestSwarmMaintainerStep29Refusals` |
+
+### daisy swarm replan
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 20 of the plan for the inbox requests F27–F35), as `swarm triage`; the contract is [docs/swarm.md](swarm.md) section 11, daisy swarm replan, and section 6, The re-plan |
+| Usage | `daisy swarm replan <n> [direction...]`: the architect re-plans the job from the maintainer's direction at `apply`'s next pass, no block or unblock needed; the words after `<n>`, when given, are the direction, posted as `Re-plan: <direction>` (`Re-plan.` with none), a comment the architect answers. Between slices (`swarm:plan-1-accepted` with a plan) the architect revises the remaining slices, merged ones kept, or confirms they stand; at `swarm:proposal-accepted` and `swarm:plan-0-posted` it plans or revises from the comment; a job with no plan goes to `swarm:proposal-accepted`, and one in review whose pull request is closed or merged to `swarm:plan-1-accepted` (T31). Also `/swarm replan [direction...]` in a comment |
+| Exit codes | 0 commented, and relabelled where the stage moves; 1 the maintainer's verbs' refusals, the maintainer not in `trusted`, `swarm:proposal-posted` (triage first), `swarm:plan-2-in-progress`, a run on the issue not yet collected, an open pull request at `swarm:plan-1-accepted` or in review (`Error: swarm: #<n>: pull request <owner>/<name>#<m> (<url>) is open (<stage>); close or merge it first, then replan; nothing changed`), `swarm:question` on the issue, a direction holding a command line, a forge failure; 2 usage |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented` (`#<n> comment already posted` when it is the issue's newest already, a re-run), then `#<n> <stage> → <to>` and `#<n> gated cleared` for a relabel |
+| Ops | Real; reads `<state>/runs` for runs not yet collected |
+| Writes | on the forge, `Comment(n, "Re-plan: <direction>")`, then, where the stage moves, `Relabel(n, <stage>, <to>)` and the gated flag's removal when it carried it |
+| Commits | none |
+| Cases | none; `TestSwarmReplan`, `TestSwarmApplyCommandReplan`, `TestSwarmReplanStages`, `TestSwarmReplanRefused` |
 
 ### daisy swarm close
 

@@ -566,12 +566,16 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			turn := Turn{Label: label, Running: s.busy(running, runs, n)}
 			questioned := slices.Contains(is.Labels, forge.Question)
 			if label == forge.PlanAccepted && !open && len(turn.Running) == 0 && !questioned {
-				// Between slices: rulings changed since the plan run
-				// the architect in the worker's place (section 6).
+				// Between slices: rulings changed since the plan, or the
+				// maintainer's re-plan request, run the architect in the
+				// worker's place (section 6).
 				if j.Rulings, err = s.replan(j); err != nil {
 					return err
 				}
-				turn.Replan = len(j.Rulings) > 0
+				if e, ok := j.asked(); ok {
+					j.Replan = &e
+				}
+				turn.Replan = len(j.Rulings) > 0 || j.Replan != nil
 			}
 			turn.Thread = IssueThread(j.Issue)
 			switch {

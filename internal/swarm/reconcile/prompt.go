@@ -43,6 +43,7 @@ type Job struct {
 	Resources []Listed // each resource and reference path, as # Resources lists them (section 7.3)
 
 	Rulings  []string // the architect's on plan-1-accepted: the rulings changed since the plan, each `<name>:<path>` (section 6)
+	Replan   *Entry   // the architect's on plan-1-accepted: the maintainer's re-plan request since the plan (section 6, The re-plan)
 	Question bool     // the architect's or the owner's run answers the issue's question (swarm:question, section 6)
 }
 

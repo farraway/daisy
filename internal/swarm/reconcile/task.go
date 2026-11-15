@@ -45,7 +45,18 @@ func (j *Job) task() string {
 			add(`Then restate the whole job as it now stands: the architect plans from your answer.`)
 		}
 	case j.Role == "architect" && j.Label == forge.PlanAccepted:
-		add(`Rulings changed since your plan for issue #%d was written or last confirmed: %s; revise the remaining slices or confirm they stand.`, j.N, strings.Join(j.Rulings, ", "))
+		why := `for each changed ruling, why they agree with it`
+		if len(j.Rulings) > 0 {
+			add(`Rulings changed since your plan for issue #%d was written or last confirmed: %s; revise the remaining slices or confirm they stand.`, j.N, strings.Join(j.Rulings, ", "))
+		}
+		if e := j.Replan; e != nil {
+			add(`The maintainer asks you to re-plan issue #%d: the comment of %s at %s, beginning "Re-plan" under "# Thread", is the direction. Revise the remaining slices as it directs, or confirm they stand.`, j.N, e.Author, stamp(e.Created))
+			if len(j.Rulings) > 0 {
+				why += `, and why they answer the maintainer's comment`
+			} else {
+				why = `why they answer the maintainer's comment`
+			}
+		}
 		switch cur, _ := j.current(); sliceOf(cur, j.N) {
 		case 0:
 		case 1:
@@ -53,7 +64,10 @@ func (j *Job) task() string {
 		default:
 			add(`Slices 1 to %d have pull requests, under "# Earlier pull requests": keep their lines as they are, with their numbers and repositories.`, sliceOf(cur, j.N))
 		}
-		add(`To revise, write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s. If the remaining slices stand as they are, write "STANDS: <why>" as the first line of your output instead, then, for each changed ruling, why they agree with it.`, names)
+		if len(j.Pulls) > 0 && !cur.Open && !cur.Merged {
+			add(`Pull request %s#%d, slice %d, was closed unmerged: keep its line, its number being taken, and put what it was to do, if it is still wanted, in a later slice.`, cur.Repo, cur.Number, sliceOf(cur, j.N))
+		}
+		add(`To revise, write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s. If the remaining slices stand as they are, write "STANDS: <why>" as the first line of your output instead, then %s.`, names, why)
 		if j.Cfg.Gates.Plan {
 			add(`A revised plan goes to the maintainer as a plan does; one that stands goes on to the next slice.`)
 		} else {

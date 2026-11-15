@@ -203,7 +203,16 @@ after which nothing of the swarm is in flight, when a new build stands
 at the path of the binary it runs from or `daisy swarm restart`, the
 eighteenth verb, asked for it, with a stdout and a journal line; a
 build that cannot be executed is a warning, the loop going on (item
-137).
+137). Its Step 20 (2026-11-15) amended sections 1, 5, 6, 7.4 and 11:
+`daisy swarm replan <n> [direction...]`, the nineteenth verb, and
+`/swarm replan [direction...]` post the maintainer's `Re-plan:
+<direction>` on the issue, a counted entry, so the architect plans or
+revises at the next pass with no block or unblock; between slices the
+request runs the architect in the worker's place as changed rulings
+do, merged slices kept (T27); a job with no plan, or in review with its
+pull request closed or merged, is moved where the architect reads it
+(T31); an open pull request, a run in flight or a question waiting
+refuses it (item 138).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -236,7 +245,7 @@ them. The maintainer reads the sections each code
 step's hand-back cites (the plan's decision of 2026-11-06, in place of a
 reading of the whole before the first code step), and section 14 lists
 the places where the document chose between readings. `docs/cli.md`'s entry for the Swarm group points here:
-this document is the contract for the eighteen verbs, the configuration they
+this document is the contract for the nineteen verbs, the configuration they
 read, the forge calls they make, the containers they run and every file
 they write.
 
@@ -275,9 +284,9 @@ The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
 `swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill`, `swarm status`, `swarm list`, `swarm journal [--mark <run>]`, `swarm pause [<n>]`, `swarm
 resume [<n>]`, `swarm restart`, and the maintainer's `swarm triage <n>`, `swarm accept
 <n>`, `swarm class <n> routine|architecture`, `swarm approve <n>`, `swarm
-merge <n>`, `swarm unblock <n> <comment...>`, `swarm block <n> --by <m>`
-and `swarm close <n> [comment...]`): all eighteen are rows of the `cli`
-table.
+merge <n>`, `swarm unblock <n> <comment...>`, `swarm block <n> --by <m>`,
+`swarm replan <n> [direction...]` and `swarm close <n> [comment...]`):
+all nineteen are rows of the `cli` table.
 
 **Sources.** Revision 2 draws on five talks on software factories:
 *Software Engineering Is Becoming Factory Engineering*; *What It Actually
@@ -337,14 +346,15 @@ cadence; everything between is on the forge, and `swarm status`'s
 
 **The maintainer's side.** The maintainer's writes are the maintainer's
 own forge account's, never the swarm's, made by hand on the forge or
-through eight verbs (section 11): `swarm triage <n>` (G1, T3), `swarm
+through nine verbs (section 11): `swarm triage <n>` (G1, T3), `swarm
 accept <n>` (G2, T7), `swarm class <n> routine|architecture` (the job's
 class, which decides whether G1 and G2 hold it), `swarm approve <n>` (a formal approving review of
 the current pull request), `swarm merge <n>` (G3: the merge at the
 approved head, then T13's relabel or, after the last slice, the close),
 `swarm unblock <n> <comment>` (G4, T18: the comment saying what changed,
 then `swarm:blocked` cleared), `swarm block <n> --by <m>` (#n's job held
-while #m is open) and `swarm close <n> [comment]` (T19), with `swarm
+while #m is open), `swarm replan <n> [direction]` (the architect re-plans
+the job from the direction, T31) and `swarm close <n> [comment]` (T19), with `swarm
 pause <n>` and `swarm resume <n>`, the hold on one issue. Each reads only `DAISY_MAINTAINER_TOKEN`, the
 maintainer's own token in `<state>/env` (section 3, Secret values), and refuses before any write
 when it holds the swarm's token or `GET /user` answers the swarm's
@@ -407,7 +417,7 @@ flowchart TB
   end
   M -- "writes, flips Status" --> B
   M -- "status: Waiting for you · pause · resume" --> A
-  M -- "own token, by the verbs or by hand: triage T3, accept T7, class, approve, merge then T13 or close, unblock T18, block, pause and resume an issue, close T19" --> F
+  M -- "own token, by the verbs or by hand: triage T3, accept T7, class, approve, merge then T13 or close, unblock T18, block, pause and resume an issue, replan T31, close T19" --> F
   B -- "pushed, read from the mirror at the pass's commit into the batch prompt's Briefs section" --> A
   B -- "a checkout at that commit, read-only under /work/.resources" --> MC
   F -- "Issues, Issue, Pulls, Reviews, comments" --> A
@@ -1089,7 +1099,7 @@ or changed by the copy, and no flag is copied.
 | `swarm:proposal-posted` | a job the owner proposed, awaiting triage | owner, to answer the thread |
 | `swarm:proposal-accepted` | triaged: plan it; or, with the plan gate off, re-plan it after the round limit (T11) | architect |
 | `swarm:plan-0-posted` | a plan is in the thread, under discussion (with the maintainer, or with a slice's reviews after the round limit, T11) | architect, to answer the thread |
-| `swarm:plan-1-accepted` | the plan is accepted: build the next slice | worker; between slices, when rulings changed since the plan, the architect (section 6, The rulings) |
+| `swarm:plan-1-accepted` | the plan is accepted: build the next slice | worker; between slices, when rulings changed since the plan or the maintainer asked to re-plan, the architect (section 6, The rulings and The re-plan) |
 | `swarm:plan-2-in-progress` | a worker runs on the issue, a slice's first build or a revision (T20, below) | nobody: the worker's container is running (rule 2) |
 | `swarm:review-0-ready` | the current pull request awaits both reviews of its head | adversary and sympathetic, launched in the same pass |
 | `swarm:review-1-in-progress` | the pair is under way: from the launch of a reviewer on `review-0-ready` (T21) until the pair on the head completes | adversary and sympathetic: each that has not reviewed the head and is not running |
@@ -1484,7 +1494,7 @@ is `swarm apply` collecting the run named in the trigger (section 7.6),
 or, in T14–T16, T25 and T26, its merge step (section 12), or, in T20 and T21, its
 launch (7.1), or, in T23 and T24, its step 8 (section 11), with the calls
 named there; in T27 it is the collection of the architect launched on
-`swarm:plan-1-accepted` (section 6, The rulings), and in T28–T30 the
+`swarm:plan-1-accepted` (section 6, The rulings and The re-plan), and in T28–T30 the
 collection of the asker's, the architect's or the owner's run (section
 6, The question). The maintainer's rows launch
 nothing: their trigger is the maintainer's decision.
@@ -1517,10 +1527,11 @@ nothing: their trigger is the maintainer's decision.
 | T24 | `swarm:plan-0-posted` | `swarm:plan-1-accepted` | G2 on, a routine job | step 8 of a pass finds a routine job at `plan-0-posted` as T23 does, its architect having nothing to answer (its plan, or its revision after a comment or T11, the newest counted entry) | Daisy: `Relabel(n, "swarm:plan-0-posted", "swarm:plan-1-accepted")`, then `Comment(n, <auto note>)` |
 | T25 | `swarm:review-2-approved` | `swarm:review-3-changes-requested` | — | the merge of the current pull request is refused and the forge reports it not mergeable (`Pull.Mergeable`, section 10): `base` moved since the branch last took it in, and they conflict, which the merge step confirms on the mirror (`git merge-tree`, section 12) and names the files of. A mergeability the forge has not settled (unknown, or read by the merge step after it merged into the same repository in that pass, or a head that merges into `base` on the mirror) is not this row: the merge is tried again at the next pass (section 12). The worker then merges `base` and resolves (7.4), and the pair reviews the new head as any revision (T12, then T9 or T10). **The second time** the same head is sent back, the pull request's thread holding a direction on that head before its last comment (the worker answered without a commit and the pair approved the head again), is not this row either: the merge step blocks the issue, the stage kept, with its note on the issue, the maintainer's (G4) as T11's second time is, and `swarm merge` refuses, nothing changed | Daisy's merge step (G3 off): `Comment(m, <reconciler note: the direction>)`, then `Relabel(n, "swarm:review-2-approved", "swarm:review-3-changes-requested")`, or the second time `Comment(n, <reconciler note>)` and `Relabel(n, "", "swarm:blocked")`; or the maintainer's `swarm merge <n>` (G3 on): `Comment(m, <the direction>)`, the same relabel, and the gated flag's removal |
 | T26 | `swarm:review-2-approved` | `swarm:review-3-changes-requested` | — | before the merge of the current pull request, a check on its approved head reports `failure` or `error` (`Status`, section 10; section 12): the worker fixes what the checks report, and the pair reviews the new head as any revision (T12, then T9 or T10). A check `pending`, or none reported while `base`'s protection requires checks (`RequiresChecks`), is not this row: the merge waits for the next pass (`swarm merge` refuses, nothing changed). No block: a worker that answers without a commit and a pair that approves the same head again send it back again, each round counted towards the round limit (T11) | Daisy's merge step (G3 off): `Comment(m, <reconciler note naming each failed check>)`, then `Relabel(n, "swarm:review-2-approved", "swarm:review-3-changes-requested")`; or the maintainer's `swarm merge <n>` (G3 on): `Comment(m, <the same text>)`, the same relabel, and the gated flag's removal |
-| T27 | `swarm:plan-1-accepted` | `swarm:plan-0-posted` | G2 on | between slices, rulings changed since the plan (section 6, The rulings): Daisy posts its note, the architect runs on `plan-1-accepted` and its run succeeds with a revised plan, which goes to the plan gate as a plan does (gated for an architecture job, T24 for a routine one). A run whose output begins `STANDS:` confirms the plan and leaves the label, and with G2 off the revision is the accepted plan and leaves it too: the worker builds the next slice at the next pass. Merged slices stay: the plan keeps their lines (7.4) | Daisy: `Comment(n, <reconciler note>)` at the pass that finds the change, then, collecting the architect's run, `Comment(n, <marked text>)` and `Relabel(n, "swarm:plan-1-accepted", "swarm:plan-0-posted")` |
+| T27 | `swarm:plan-1-accepted` | `swarm:plan-0-posted` | G2 on | between slices, rulings changed since the plan (section 6, The rulings) or the maintainer asked to re-plan (The re-plan): Daisy posts its note (the rulings'; the request is the maintainer's comment), the architect runs on `plan-1-accepted` and its run succeeds with a revised plan, which goes to the plan gate as a plan does (gated for an architecture job, T24 for a routine one). A run whose output begins `STANDS:` confirms the plan and leaves the label, and with G2 off the revision is the accepted plan and leaves it too: the worker builds the next slice at the next pass. Merged slices stay: the plan keeps their lines (7.4) | Daisy: `Comment(n, <reconciler note>)` at the pass that finds the change (none for the re-plan), then, collecting the architect's run, `Comment(n, <marked text>)` and `Relabel(n, "swarm:plan-1-accepted", "swarm:plan-0-posted")` |
 | T28 | any stage with a role, or the in-progress stage the run's launch wrote | the run's home (T22), `swarm:question` set beside it | — | a worker's or a reviewer's run writes `QUESTION:` (7.5), or the architect's run on `swarm:question` passes the question on with its own (section 6, The question) | Daisy: `Comment(n, <the role's text>)` on the issue, then T22 for a worker and a reviewer, then `Relabel(n, "", "swarm:question")` (the architect's finds it set) |
 | T29 | `swarm:question` set, at any stage | `swarm:question` cleared, the stage kept | — | the architect's or the owner's run on `swarm:question` answers: its output begins neither `QUESTION:` nor `BLOCKED:`; the asker's stage resumes, its role reading the answer as the newest counted entry | Daisy: `Comment(n, <the answer, marked ANSWER:>)`, then `Relabel(n, "swarm:question", "")` |
 | T30 | `swarm:question` set, at any stage | `swarm:question` cleared, `swarm:blocked` set, the stage kept | — | the owner's run on `swarm:question` passes the question on with its own `QUESTION:`: the maintainer's (G4), answered with `swarm unblock` (T18) | Daisy: `Comment(n, <the owner's text>)`, `Comment(n, <reconciler note naming the question>)`, then `Relabel(n, "", "swarm:blocked")` and `Relabel(n, "swarm:question", "")` |
+| T31 | `swarm:plan-1-accepted` with no plan, or a review stage whose current pull request is not open | `swarm:proposal-accepted` with no plan, `swarm:plan-1-accepted` with one | — | the maintainer asks the architect to re-plan the job (section 11, daisy swarm replan): at `swarm:plan-1-accepted` with a plan, and at `swarm:proposal-accepted` and `swarm:plan-0-posted`, the stage is kept and the request alone runs the architect (section 6, The re-plan; then T27, T5 or T6 as the architect's run goes) | the maintainer: `swarm replan <n> [direction...]`: `Comment(n, "Re-plan: <direction>")` (`Re-plan.` with none), then `Relabel(n, <stage>, <to>)`; or on the forge |
 
 The maintainer may also relabel any issue to any stage at any time; the
 next pass reads the new label and the role rule decides from there. That
@@ -1565,7 +1576,9 @@ stateDiagram-v2
   review_2_approved --> [*] : T15 Daisy merges the last slice, closes as done (G3 off)
   review_2_approved --> review_3_changes_requested : T25 not mergeable into base, back to the worker (the merge step, or swarm merge)
   review_2_approved --> review_3_changes_requested : T26 its checks failed, back to the worker (the merge step, or swarm merge)
-  plan_1_accepted --> plan_0_posted : T27 rulings changed between slices, the architect revises the plan (G2 on)
+  plan_1_accepted --> plan_0_posted : T27 rulings changed between slices, or the maintainer asked to re-plan; the architect revises the plan (G2 on)
+  plan_1_accepted --> proposal_accepted : T31 swarm replan of a job with no plan
+  review_0_ready --> plan_1_accepted : T31 swarm replan, its pull request closed or merged (drawn from one review stage)
   proposal_posted --> [*] : T19 maintainer closes from any label, rejected with swarm close (drawn from two)
   review_2_approved --> [*] : T19 swarm merge of the last slice, closed as done (G3 on)
 
@@ -1702,7 +1715,7 @@ when all of these hold:
 | `swarm:proposal-posted` | owner | the issue thread | the newest counted entry is not marked `role=owner` |
 | `swarm:proposal-accepted` | architect | the issue thread | the newest counted entry is not marked `role=architect` |
 | `swarm:plan-0-posted` | architect | the issue thread | the newest counted entry is not marked `role=architect` |
-| `swarm:plan-1-accepted` | worker; the architect when rulings changed since the plan (The rulings, below) | the issue thread | the newest counted entry is not marked `role=<R>` (the worker's, or the architect's) |
+| `swarm:plan-1-accepted` | worker; the architect when rulings changed since the plan (The rulings, below) or the maintainer asked to re-plan (The re-plan, below) | the issue thread | the newest counted entry is not marked `role=<R>` (the worker's, or the architect's) |
 | `swarm:review-0-ready`, `swarm:review-1-in-progress` | adversary and sympathetic | the current pull request's thread, when the pull request is open | R has no review marked `role=R` on the pull request's head commit submitted after the head's newest reopening: the worker's newest answer without a commit on it, or the maintainer's newest comment on it (below, and The maintainer's word; any such review, when there is none) |
 | `swarm:review-3-changes-requested` | worker | the current pull request's thread, when the pull request is open | the newest counted entry is not marked `role=worker` |
 | `swarm:plan-2-in-progress`, `swarm:review-2-approved` | nobody (a maintainer's comment there is held: The maintainer's word, below) | — | — |
@@ -1821,6 +1834,42 @@ the slice after the largest with a pull request, by the revised plan.
 `rulings` `[]` on every repository, or no ruling changed, leaves the
 pass as it was.
 
+**The re-plan** (Step 20 of the plan for the inbox requests F27–F35;
+section 14, item 138). The maintainer may want the rest of a plan
+written again without a ruling having changed (a direction that came
+up while slices were built), and without blocking the issue to get a
+comment read. A *re-plan request* is the maintainer's word (The
+maintainer's word, below) on the issue thread whose text, whitespace
+at its start aside, begins `Re-plan:` (the direction after it) or is
+`Re-plan.` alone (none): the comment `swarm replan <n> [direction...]`
+and `/swarm replan [direction...]` post (section 11), or one the
+maintainer writes by hand. At `swarm:plan-1-accepted` it does what
+changed rulings do: an open issue between slices (checked as for the
+rulings, above: rule 1 not holding it, no `swarm:question`, nothing on
+it under rule 2, its current pull request not open) whose thread holds
+an accepted plan and a re-plan request posted after the basis (the
+architect's newest word on the plan, The rulings) runs the architect
+in the worker's place, with no note of Daisy's (the request is the
+counted entry rule 3 reads, so the architect runs once its own word is
+not the newest), launched on `swarm:plan-1-accepted`, its Task text
+naming the request by its author and time (7.4). Its run is collected
+as the rulings' revision is: `STANDS: <why>` keeps the plan and the
+label, and a revised plan, the slices with a pull request kept as they
+are, is T27 with the plan gate on and the accepted plan with it off.
+Either is the new basis, which the request no longer follows, so the
+worker builds the next slice after it, at the next pass, with no step
+of the maintainer's; a `BLOCKED:` is T17, and once the block is lifted
+the request, still after the basis, runs the architect again. With
+rulings changed as well, one run answers both: its Task text names
+both. Merged slices stay merged, as for the rulings. A request while
+the current pull request is open waits for the next time the job is
+between slices; one on a job with no plan is no request at all, and
+the worker reads it under `# Direction` as any comment (which is why
+`swarm replan` moves such a job to `swarm:proposal-accepted`, T31). At
+`swarm:proposal-accepted` and `swarm:plan-0-posted` the request is a
+comment as any other, the architect planning or revising from it as
+the newest counted entry.
+
 **The question** (Step 12 of the plan for the inbox requests F27–F35;
 section 14, item 130). A member that cannot go on without a fact the
 plan and the thread do not give asks for it rather than guessing, and
@@ -1908,8 +1957,8 @@ it is on), as `daisy swarm <verb> <n> <words>` runs it, with every check
 and write section 11 gives that verb, under `DAISY_MAINTAINER_TOKEN`
 from `<state>/env` or the environment (section 8, rule 5): `triage`,
 `accept`, `class routine|architecture`, `approve`, `merge`, `unblock
-<comment...>`, `block --by <m>`, `pause`, `resume` and `close
-[comment...]`, none taking `<n>`. `pause` and `resume` hold the issue
+<comment...>`, `block --by <m>`, `pause`, `resume`, `replan
+[direction...]` and `close [comment...]`, none taking `<n>`. `pause` and `resume` hold the issue
 alone (`swarm:paused`), never the whole swarm, whose `<state>/paused`
 is the host's: a comment cannot resume a swarm that a fault paused; and
 `prompt build`, which writes the clone, is no command. Daisy then
@@ -1932,7 +1981,7 @@ verb refuses, its error after what it printed: a precondition (`Error:
 swarm: #<n> is swarm:plan-0-posted, not swarm:review-2-approved; nothing
 changed`), a word that is no command (`Error: swarm: <word> is no
 comment command; a comment runs triage, accept, class, approve, merge,
-unblock, block, pause, resume or close`), words the verb does not take
+unblock, block, pause, resume, replan or close`), words the verb does not take
 (`Error: swarm: usage: /swarm accept (on the issue or its pull
 request)`), or the maintainer's token absent (`Error: swarm:
 $DAISY_MAINTAINER_TOKEN is not set (in <state>/env or the
@@ -1975,8 +2024,11 @@ same pass (`/swarm accept` runs the worker in it), and one held is held
 (R4):** neither a command comment nor its answer is counted (Trust,
 above), and neither is a `Blocked by #<m>` nor a maintainer's word that
 lifts a block (rule 1; section 5's blocked gate note); a comment a verb
-posts, `unblock`'s or `close`'s, is the maintainer's as at the
-terminal, counted, and wakes the stage's role as it does there. A
+posts, `unblock`'s, `close`'s or `replan`'s, is the maintainer's as at
+the terminal, counted, and wakes the stage's role as it does there, so
+`/swarm replan <direction>` leaves two comments of the maintainer's,
+the command (not counted) and the `Re-plan: <direction>` the verb posts
+(counted, the architect's to answer), the direction once in each. A
 command comment shows under a prompt's `# Thread`, `# Direction` and
 pull request `## Thread` as any trusted comment does (not under `#
 Questions`, which shows counted comments alone); an answer shows in no
@@ -2910,7 +2962,7 @@ with the same paragraph:
 | owner, `swarm:proposal-posted` | `Answer the latest comment in the thread of issue #<n>.`; when the issue has no counted comment (section 6), `Issue #<n> has no comment yet: say whether its body is a job the swarm can do and is worth doing next, and what is unclear in it.` With the triage gate off, it adds: `Then restate the whole job as it now stands: the architect plans from your answer.` |
 | architect, `swarm:proposal-accepted` | `Write the plan for issue #<n> as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step.` With the plan gate on, it adds `The maintainer reads "## Research" first, then the plan, before any code is written.`; off, `The plan is accepted as you write it: there is no revision round.` While the issue's current pull request is open (T11 with G2 off, or a relabel to `proposal-accepted` by the maintainer), it adds the open-slice sentence of the `plan-0-posted` row |
 | architect, `swarm:plan-0-posted` | `Revise your plan for issue #<n> in answer to the latest comment. Write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, a slice that moves a pin to another slice's change after that slice, a diagram where a slice touches more than one component.` While the issue's current pull request is open (after T11, or a relabel by the maintainer), it adds the **open-slice sentence**: `Pull request <name>#<m>, slice <s>, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/<n>-<s> in /work/<name>, beside <base>: "git diff <base>...swarm/<n>-<s>" there is the change they judged. Revise the plan so that the slice can pass review: slice <s> keeps its number, its repository and its branch, and the worker continues on them; what it does, how it is tested and the slices after it may change.` With no accepted plan in the thread (the fast lane reaching the limit), the text is the `proposal-accepted` row's, with the open-slice sentence |
-| architect, `swarm:plan-1-accepted` (the rulings, section 6) | `Rulings changed since your plan for issue #<n> was written or last confirmed: <rulings>; revise the remaining slices or confirm they stand.`, `<rulings>` the changed rulings, `<name>:<path>`, comma-separated; then, when the issue has a pull request, `Slice 1 has a pull request, under "# Earlier pull requests": keep its line as it is, with its number and repository.`, or with `<s>` > 1 the current pull request's slice, `Slices 1 to <s> have pull requests, under "# Earlier pull requests": keep their lines as they are, with their numbers and repositories.`; then `To revise, write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>. If the remaining slices stand as they are, write "STANDS: <why>" as the first line of your output instead, then, for each changed ruling, why they agree with it.`; with the plan gate on, `A revised plan goes to the maintainer as a plan does; one that stands goes on to the next slice.`, off, `A revised plan is accepted as you write it.` |
+| architect, `swarm:plan-1-accepted` (the rulings and the re-plan, section 6) | with changed rulings, `Rulings changed since your plan for issue #<n> was written or last confirmed: <rulings>; revise the remaining slices or confirm they stand.`, `<rulings>` the changed rulings, `<name>:<path>`, comma-separated; with a re-plan request, `The maintainer asks you to re-plan issue #<n>: the comment of <login> at <time>, beginning "Re-plan" under "# Thread", is the direction. Revise the remaining slices as it directs, or confirm they stand.`, `<time>` the request's, as `# Thread` writes it (RFC 3339, UTC); then, when the issue has a pull request, `Slice 1 has a pull request, under "# Earlier pull requests": keep its line as it is, with its number and repository.`, or with `<s>` > 1 the current pull request's slice, `Slices 1 to <s> have pull requests, under "# Earlier pull requests": keep their lines as they are, with their numbers and repositories.`; when that pull request was closed unmerged (the maintainer closed it to re-plan, section 11, daisy swarm replan), `Pull request <name>#<m>, slice <s>, was closed unmerged: keep its line, its number being taken, and put what it was to do, if it is still wanted, in a later slice.`; then `To revise, write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>. If the remaining slices stand as they are, write "STANDS: <why>" as the first line of your output instead, then <what>.`, `<what>` `for each changed ruling, why they agree with it`, with a re-plan request too `for each changed ruling, why they agree with it, and why they answer the maintainer's comment`, with the request alone `why they answer the maintainer's comment`; with the plan gate on, `A revised plan goes to the maintainer as a plan does; one that stands goes on to the next slice.`, off, `A revised plan is accepted as you write it.` |
 | architect, any stage, with `swarm:question` (section 6, The question) | `<Asker> asks a question on issue #<n>, its comment beginning "QUESTION:" under "# Thread". Answer it from the plan, the thread and the resources: write "ANSWER: <your answer>" as the first line of your output, then what the asker needs with it; do not revise the plan here. If they do not settle it, write "QUESTION: <the question>" as the first line instead, restated for the owner, who answers it from the briefs or passes it to the maintainer.`, `<Asker>` the role of the newest of the swarm's issue comments beginning `QUESTION:`, capitalised, and its run, `Worker run <k>` (`A member` when there is none, the flag set by hand); with more than one repository, the architect's sentence on quoting another repository's text is not added |
 | owner, any stage, with `swarm:question` | `The architect passed you a question on issue #<n>, its comment beginning "QUESTION:" under "# Thread", which the plan and the resources do not settle. Answer it from the briefs, the thread and the resources: write "ANSWER: <your answer>" as the first line of your output, then what the asker needs with it. If only the maintainer can settle it, write "QUESTION: <the question>" as the first line instead: Daisy blocks the issue with it for the maintainer.` |
 | worker, `swarm:plan-1-accepted`, with a plan | `Implement slice <s> of the accepted plan for issue #<n> (it declares <S>) in <owner>/<name>, on the branch checked out in /work (swarm/<n>-<s>). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.` |
@@ -4469,14 +4521,14 @@ not, as the folder it makes the clone in (below). *As built (Step 7,
 workspace's `swarm/` is no swarm, so a verb run there finds none (`init`
 takes the workspace as its folder), and nothing reads the old layout's
 `repos[].path`, workspace `resources`, `<ws>/.env.sh` or `wiki` (Moving
-a swarm into its repository, below). The eighteen
+a swarm into its repository, below). The nineteen
 are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm,
 `status`'s correction counts at Step 8, the maintainer's six at
 Step 10, at Step 15 `swarm block` and the issue's `pause` and
 `resume`, at Step 20 `swarm class`, `prompt build` at Step 7 of
 the plan that clears the Deferred list, `metrics` at Step 5 of
 the plan for the inbox requests F27–F35, `list` and `journal` at
-its Step 15, and `restart` at its Step 19: `apply`'s
+its Step 15, `restart` at its Step 19 and `replan` at its Step 20: `apply`'s
 As built paragraph says what it leaves out); the board, the GitHub
 adapter and the `budget` are specified here ahead of their build wherever this section names them: `swarm.json`
 validates their fields as section 3 says and nothing acts on them until
@@ -5296,6 +5348,39 @@ and runs a verb (or `pause`, `resume` and `prompt build`, whose
 and the maintainer's yes to it in words; it never reaches the forge
 itself, never runs `init` or `apply`, and names no secret but the
 variable `DAISY_MAINTAINER_TOKEN`.
+
+### daisy swarm replan
+
+The maintainer's request that the architect re-plan a job (Step 20 of
+the plan for the inbox requests F27–F35; section 6, The re-plan;
+section 14, item 138). It is one of the maintainer's verbs above, with
+their Start (the maintainer's token, its two refusals, `Maintainer
+<login> on <owner>/<repo>`, `Issue(n)` open with one stage, at any
+stage), their Each verb (the comment not posted again when it is
+already the thread's newest by the maintainer; `swarm:gated` cleared
+after the relabel unless the new labels are gated), Forge, Writes and
+Ops, and runs from a comment as they do, `/swarm replan
+[direction...]`; it differs in what follows.
+
+| Field | Value |
+|---|---|
+| Usage | `daisy swarm replan <n> [direction...]`: the words after `<n>` are one comment, the direction, and blank ones are none |
+| Reads | as the verbs above, and `<state>/runs/<n>-*/result` on this machine (rule 2's runs: one that started or ended and was not collected) |
+| Comment | `Re-plan: <direction>`, or `Re-plan.` with no direction: the re-plan request (section 6), a counted entry by the maintainer, which the architect answers; a direction opening with the swarm's marker is refused, as `unblock`'s comment, and so is one holding a command line (`/swarm …` on a line of its own, section 6), which would make the comment a command that no member reads |
+| By stage | `swarm:proposal-accepted`, `swarm:plan-0-posted`: the comment, the stage kept; the architect plans, or revises, from it as the newest counted entry (T5, T6; at `plan-0-posted` the revision path, also after T11 with its pull request open). `swarm:plan-1-accepted` with an accepted plan, the current pull request not open: the comment, the stage kept; the architect runs in the worker's place and revises the remaining slices, merged ones kept, or writes `STANDS:` (section 6, The re-plan; T27). `swarm:plan-1-accepted` with no plan (the fast lane): the comment, then `Relabel(n, "swarm:plan-1-accepted", "swarm:proposal-accepted")` (T31), and the architect writes the job's first plan. A review stage (`swarm:review-0-ready`, `swarm:review-1-in-progress`, `swarm:review-2-approved`, `swarm:review-3-changes-requested`) whose current pull request is closed or merged: the comment, then `Relabel(n, <stage>, "swarm:plan-1-accepted")`, or `"swarm:proposal-accepted"` with no plan (T31). Refused, nothing changed: `swarm:proposal-posted` (no plan yet: `swarm triage` first), `swarm:plan-2-in-progress` (a worker runs), a run on the issue not yet collected, the current pull request open at `swarm:plan-1-accepted` or a review stage (an open pull request is never interrupted: the maintainer closes it, or merges it, then re-plans), and `swarm:question` on the issue (the question is answered first) |
+| Holds | a re-plan lifts no hold of its own: `swarm:paused` stays until `resume <n>`; the comment is the maintainer's word, so it lifts a block a reconciler's note set, at the stage it leaves (The maintainer's word, section 6), and is the maintainer's newest comment, so it ends a `Blocked by #<m>` (rule 1) |
+| Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented` (or `#<n> comment already posted`), then `#<n> <from> → <to>` and `#<n> gated cleared` for a relabel |
+| Exit codes | 0 the comment posted, and the relabel made; 1 the verbs' start refusals, `Error: swarm: <login> is not in trusted, so no member would read your direction; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed`, `Error: swarm: #<n> waits for the answer to a member's question (swarm:question); replan once it is answered; nothing changed`, `Error: swarm: #<n> is swarm:proposal-posted, with no plan to re-plan: triage it (swarm triage <n>), and the architect plans it; nothing changed`, `Error: swarm: #<n>: a worker runs on it (swarm:plan-2-in-progress); replan once its run is collected; nothing changed`, `Error: swarm: #<n>: <role> run <k> is not yet collected; replan once it is; nothing changed`, `Error: swarm: #<n>: pull request <owner>/<name>#<m> (<url>) is open (<stage>); close or merge it first, then replan; nothing changed`, `Error: swarm: the direction holds a command line (<line>), which would make the comment a command that no member reads; nothing posted`, and a forge error; 2 usage |
+
+**As built.** The table as written. The request runs the architect
+through Step 9's machinery, not a stage of its own: the architect's
+Task text on `swarm:plan-1-accepted` (7.4), its collection and T27
+serve both the rulings and the request. No journal line is the verb's
+(no verb writes the journal); from a comment the command's line is
+(section 6, The comment commands), and the architect's run is the
+journal's as any run. `status` shows nothing new: the issue waits for
+no one but the swarm until the architect's revision reaches the plan
+gate.
 
 ### Moving a swarm into its repository
 
@@ -9431,3 +9516,51 @@ entries among revision 1's, and was renumbered at Step 38.
     `TestSwarmApplyRestartWaitsForTheCollection`,
     `TestSwarmApplyRestartSignalled`, `TestReexecRefused` and
     `TestLockIsReleasedByAnExec`.
+138. **Re-plan on request (Step 20 of the plan for the inbox requests
+    F27–F35, 2026-11-15; S4).** A live swarm's watch log records a job
+    the maintainer wanted re-planned against a new ADR after a resume:
+    no entry of the maintainer's was newer than the architect's, so
+    the worker went on, and the re-plan took a `swarm:blocked` set by
+    hand and an `unblock` whose comment carried the direction. **The
+    request is a comment**, `Re-plan: <direction>` (`Re-plan.` with
+    none), posted by the maintainer's verb: a counted entry, so rule 3
+    runs the architect with no new mechanism, and a form the
+    maintainer can also type by hand. A no-direction re-plan still
+    needs a counted entry newer than the architect's word, hence the
+    fixed `Re-plan.`. Alternative: a label or a file in `<state>`, which
+    rule 3 does not read and the architect's prompt would not show.
+    **Between slices it reuses Step 9's revision** (the rulings): the
+    architect runs on `swarm:plan-1-accepted` in the worker's place
+    while a request follows the basis, its Task text naming the
+    request, and its run is collected as the rulings' is (`STANDS:`,
+    or a revision, T27 with the plan gate on), so merged slices stay
+    and the worker builds the next slice by the new basis.
+    Alternative: relabelling to `swarm:plan-0-posted`, as the plan's
+    text has it: the revision Task text there names no earlier pull
+    request, the plan gate's note would quote the old plan before the
+    architect ran, and with the plan gate off the revised plan would
+    wait there for `accept`, the collection moving nothing from
+    `swarm:plan-0-posted`. **Where the job moves** (T31): only where
+    the request alone cannot reach the architect, a job with no plan
+    (to `swarm:proposal-accepted`) and a review stage whose pull
+    request is no longer open (to `swarm:plan-1-accepted`, the
+    revision); at `swarm:proposal-accepted` and `swarm:plan-0-posted`
+    it is a comment the architect answers. **Nothing in flight is
+    interrupted:** a worker's run, a run not yet collected (read from
+    `<state>/runs` on the machine the verb runs on), an open pull
+    request at a stage whose role is not the architect (closed, its
+    slice's number stays taken, and the revision's Task text says so,
+    so its work moves to a later slice), and a question
+    waiting for its answer are refused with what to do first, rather
+    than waiting: a deferred request would need a record of its own,
+    and a comment posted while a member runs is not in its prompt and
+    is followed by the member's own entry, so it would never be
+    answered (the plan's Deferred, from Step 14). The verb never
+    closes a pull request: whether a slice's work is kept (merged) or
+    dropped (closed) is the maintainer's decision. **From a comment**, `/swarm replan <direction>`, the
+    command comment is no counted entry, so the verb posts the request
+    as its own comment, once (the verbs' guard against a second post);
+    the direction is the rest of the command's line, so it holds no
+    command line, which the terminal form refuses for the same reason.
+    Tests: `TestSwarmReplan`, `TestSwarmApplyCommandReplan`,
+    `TestSwarmReplanStages` and `TestSwarmReplanRefused`.

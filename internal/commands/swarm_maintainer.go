@@ -57,6 +57,14 @@ func SwarmUnblock(c *Context) error {
 	return inSwarm(c, func() error { return swarmUnblock(c, openForge) })
 }
 
+// SwarmReplan is `daisy swarm replan <n> [direction...]`: the
+// maintainer's re-plan request posted, `Re-plan: <direction>`, so the
+// architect revises the plan, or writes it, at the next pass (section 6,
+// The re-plan).
+func SwarmReplan(c *Context) error {
+	return inSwarm(c, func() error { return swarmReplan(c, openForge) })
+}
+
 // SwarmBlock is `daisy swarm block <n> --by <m>`: #m flagged
 // swarm:blocking, then `Blocked by #<m>` on #n, which holds #n's job while
 // #m is open (section 6, rule 1).
@@ -85,6 +93,7 @@ var commentVerbs = []commentVerb{
 	{"block", " --by <m>", func(n int) bool { return n == 2 }, swarmBlock},
 	{"pause", "", none, func(c *Context, open opener) error { return swarmHold(c, open, true) }},
 	{"resume", "", none, func(c *Context, open opener) error { return swarmHold(c, open, false) }},
+	{"replan", " [direction...]", func(int) bool { return true }, swarmReplan},
 	{"close", " [comment...]", func(int) bool { return true }, swarmClose},
 }
 
@@ -681,6 +690,87 @@ func (m *maintainer) lift() error {
 // its comments (section 6).
 func (m *maintainer) trusted() bool {
 	return slices.ContainsFunc(m.cfg.Trusted, func(l string) bool { return strings.EqualFold(l, m.login) })
+}
+
+// swarmReplan posts the maintainer's re-plan request on the issue
+// (reconcile.ReplanText), a counted entry the architect answers (section
+// 6, rule 3), and moves the job to the stage where the architect reads
+// it: proposal-accepted and plan-0-posted are kept (the architect plans,
+// or revises, from the newest comment); plan-1-accepted with a plan is
+// kept, the request running the architect in the worker's place (Step
+// 9's revision: merged slices kept, the remaining revised or STANDS:);
+// plan-1-accepted with no plan goes to proposal-accepted; a review stage
+// whose current pull request is no longer open goes to plan-1-accepted,
+// or proposal-accepted with no plan. Nothing in flight is interrupted:
+// a proposal not triaged, a worker's run, a run on the issue not yet
+// collected, an open pull request (but at the two stages where the
+// architect reads it, after the round limit) and a question waiting for
+// its answer are refused, nothing changed.
+func swarmReplan(c *Context, open opener) error {
+	if _, err := issueArg(c); err != nil {
+		return err
+	}
+	direction, err := comment(c)
+	if err != nil {
+		return err
+	}
+	text := reconcile.ReplanText(direction)
+	if reconcile.IsCommand(text) {
+		lines := strings.Split(text, "\n")
+		line := lines[slices.IndexFunc(lines, reconcile.IsCommand)]
+		return fmt.Errorf("Error: swarm: the direction holds a command line (%s), which would make the comment a command that no member reads; nothing posted", strings.TrimSpace(line))
+	}
+	m, err := asMaintainer(c, open)
+	if err != nil {
+		return err
+	}
+	is, err := m.issue("")
+	if err != nil {
+		return err
+	}
+	if !m.trusted() {
+		return fmt.Errorf("Error: swarm: %s is not in trusted, so no member would read your direction; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed", m.login)
+	}
+	stage, _ := reconcile.StageOf(is)
+	switch {
+	case slices.Contains(is.Labels, forge.Question):
+		return fmt.Errorf("Error: swarm: #%d waits for the answer to a member's question (%s); replan once it is answered; nothing changed", m.n, forge.Question)
+	case stage == forge.ProposalPosted:
+		return fmt.Errorf("Error: swarm: #%d is %s, with no plan to re-plan: triage it (swarm triage %d), and the architect plans it; nothing changed", m.n, stage, m.n)
+	case stage == forge.PlanInProgress:
+		return fmt.Errorf("Error: swarm: #%d: a worker runs on it (%s); replan once its run is collected; nothing changed", m.n, stage)
+	}
+	runs, err := reconcile.InFlight(c.Ops.FS(), m.cfg.Forge.State(c.Env.Local), m.n)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	if len(runs) > 0 {
+		return fmt.Errorf("Error: swarm: #%d: %s run %d is not yet collected; replan once it is; nothing changed", m.n, runs[0].Role, runs[0].K)
+	}
+	_, cur, ok, err := m.current()
+	if err != nil {
+		return err
+	}
+	architect := stage == forge.ProposalAccepted || stage == forge.PlanPosted
+	if ok && cur.Open && !architect {
+		owner, _, _ := strings.Cut(m.cfg.Forge.Repo, "/")
+		return fmt.Errorf("Error: swarm: #%d: pull request %s/%s#%d (%s) is open (%s); close or merge it first, then replan; nothing changed", m.n, owner, cur.Repo, cur.Number, cur.URL, stage)
+	}
+	to := ""
+	switch planned := reconcile.Planned(is, m.swarm); {
+	case architect:
+	case !planned:
+		to = forge.ProposalAccepted
+	case stage != forge.PlanAccepted:
+		to = forge.PlanAccepted
+	}
+	if err := m.say(text); err != nil {
+		return err
+	}
+	if to == "" {
+		return nil
+	}
+	return m.relabel(stage, to)
 }
 
 // SwarmPause is `daisy swarm pause [<n>]`: with <n>, the maintainer's

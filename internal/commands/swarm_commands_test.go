@@ -164,8 +164,8 @@ func TestSwarmApplyCommandNotRun(t *testing.T) {
 	}{
 		{"edited", "/swarm accept", "Not run: the comment was edited after it was posted, and a command runs only as it was posted; post it again in a new comment.\n", bothTokens, true},
 		{"two commands", "/swarm accept\n/swarm approve", "Not run: the comment holds 2 commands; post each in a comment of its own.\n", bothTokens, false},
-		{"no comment command", "/swarm prompt build", "Refused:\n\n    Error: swarm: prompt is no comment command; a comment runs triage, accept, class, approve, merge, unblock, block, pause, resume or close\n", bothTokens, false},
-		{"no verb", "/swarm", "Refused:\n\n    Error: swarm: a comment runs triage, accept, class, approve, merge, unblock, block, pause, resume or close\n", bothTokens, false},
+		{"no comment command", "/swarm prompt build", "Refused:\n\n    Error: swarm: prompt is no comment command; a comment runs triage, accept, class, approve, merge, unblock, block, pause, resume, replan or close\n", bothTokens, false},
+		{"no verb", "/swarm", "Refused:\n\n    Error: swarm: a comment runs triage, accept, class, approve, merge, unblock, block, pause, resume, replan or close\n", bothTokens, false},
 		{"an argument too many", "/swarm accept 2", "Refused:\n\n    Error: swarm: usage: /swarm accept (on the issue or its pull request)\n", bothTokens, false},
 		{"no maintainer's token", "/swarm accept", "Refused:\n\n    Error: swarm: $DAISY_MAINTAINER_TOKEN is not set (in <state>/env or the environment)\n", noToken, false},
 	} {

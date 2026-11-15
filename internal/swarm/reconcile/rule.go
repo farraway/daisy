@@ -56,7 +56,8 @@ func InProgress(role, stage string) string {
 // and the roles that hold the issue (rule 2): the role of each container
 // running on it (`check` for a worker run's check) and of each run on it
 // ended and not collected; on plan-1-accepted, whether rulings changed
-// since the plan (Replan), so the architect runs in the worker's place;
+// since the plan or the maintainer asked to re-plan (Replan), so the
+// architect runs in the worker's place;
 // and, on an issue carrying swarm:question, the role that answers it
 // (Question, section 6, The question), which runs in place of the
 // stage's, reading the issue thread.

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"daisy/internal/ops"
 	"daisy/internal/swarm/runner"
 )
 
@@ -39,12 +40,43 @@ func (s *Swarm) Idle() (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		_, started := Has(lines, "started")
-		if _, done := Has(lines, "collected"); !done && (started || Ended(lines) != "") {
+		if inFlight(lines) {
 			return false, nil
 		}
 	}
 	return true, nil
+}
+
+// inFlight: a run's result says it started or ended, and it was not
+// collected (rule 2's holders).
+func inFlight(lines []string) bool {
+	_, started := Has(lines, "started")
+	_, done := Has(lines, "collected")
+	return !done && (started || Ended(lines) != "")
+}
+
+// InFlight is the runs on issue n under state that are in flight
+// (inFlight), so a maintainer's verb waits for them (section 11, swarm
+// replan).
+func InFlight(fs ops.FS, state string, n int) ([]Run, error) {
+	runs, err := Runs(fs, state)
+	if err != nil {
+		return nil, err
+	}
+	var out []Run
+	for _, r := range runs {
+		if r.N != n {
+			continue
+		}
+		lines, err := r.Result(fs)
+		if err != nil {
+			return nil, err
+		}
+		if inFlight(lines) {
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }
 
 // QueueJournal queues the journal line `- <HHMM> <key>: <what>` for the
