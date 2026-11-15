@@ -130,10 +130,12 @@ func commonDir(o ops.Ops, dir string) string {
 }
 
 // Commit stages everything under the repo's directory but the exclusions
-// and commits it once.
+// and commits it once, ending the message with a `Co-Authored-By:
+// <coAuthor>` trailer when coAuthor is not empty (git's --trailer: one
+// already ending the message is not added again).
 // committed is false, with no error, when there was nothing to commit; hash
 // is the new commit's short hash.
-func (r Repo) Commit(o ops.Ops, message string) (hash string, committed bool, err error) {
+func (r Repo) Commit(o ops.Ops, message, coAuthor string) (hash string, committed bool, err error) {
 	git := func(args ...string) (string, error) {
 		out, errb, err := o.Exec(r.Dir, "git", args...)
 		if err != nil {
@@ -158,6 +160,9 @@ func (r Repo) Commit(o ops.Ops, message string) (hash string, committed bool, er
 		return "", false, fmt.Errorf("Error: Failed to stage changes: %v", err)
 	}
 	args := []string{"commit", "-m", message}
+	if coAuthor != "" {
+		args = append(args, "--trailer", "Co-Authored-By: "+coAuthor)
+	}
 	if len(r.Exclude) > 0 {
 		args = append(args, spec...)
 	}

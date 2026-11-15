@@ -26,7 +26,7 @@ func Commit(c *Context) error {
 	if err != nil {
 		return err
 	}
-	hash, committed, err := repo.Commit(c.Ops, message)
+	hash, committed, err := repo.Commit(c.Ops, message, coAuthor(c))
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func commitRoot(c *Context, message string) error {
 		return errors.New("Error: DAISY_ROOT is not a git repository")
 	}
 	repo := gitx.Repo{Dir: c.Env.Root, Exclude: env.RootExclusions(c.Ops.FS(), c.Env)}
-	hash, committed, err := repo.Commit(c.Ops, message)
+	hash, committed, err := repo.Commit(c.Ops, message, coAuthor(c))
 	if err != nil {
 		return err
 	}

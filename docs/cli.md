@@ -226,7 +226,7 @@ with `Error: DAISY_ROOT not set` and the `~/.zshenv` line to add;
 `install` alone finds its root without it, from the binary's own path,
 Step 21, and refuses one naming another root, Step 35), `DAISY_CONFIG`, `DAISY_LOCAL`, `HOME`, `USER`,
 `DAISY_HEALTHCHECK_TTL`, `DAISY_HEALTHCHECK_PASSED` (see `healthcheck`),
-`SHELL` (`install` picks the rc file by it), `PATH` (`test` puts the
+`DAISY_CO_AUTHOR` (every committing command, see Commits below), `SHELL` (`install` picks the rc file by it), `PATH` (`test` puts the
 root's `bin/` first on it for the suite), the variables `check-secrets`
 reports, and the swarm's: the variable `forge.token_env` names (`swarm
 init`, `apply`, `status`; the maintainer's verbs only to compare it), each
@@ -270,17 +270,27 @@ repository, as that repository's own git config — never in the root (case
 repository's commit count and `git status --porcelain` are unchanged).
 As built, the committing commands are `done`, `log`, `new-day`, `new-week`,
 `plan pickup`, `plan archive`, `optimize apply` *(Step 23)*, `commit`
-and `home new` (the new home's first commit); every mutation of an
-existing home the binary makes goes through
-`gitx.Repo.Commit`, one commit per command *(built, Step 18)*, and `home
-new` makes the new repository's first commit with its own `git init`,
-`add -A`, `commit` *(Step 21)*; `plan new`, `feedback`, `eval --record`,
+and `home new` (the new home's first commit); every commit the binary
+makes in a home, and `commit --root`'s, goes through `gitx.Repo.Commit`,
+one commit per command *(built, Step 18; `home new`'s first commit, made
+by its own `add -A` and `commit` from Step 21, since Step 10 of the plan
+for the inbox requests F27–F35)*; `plan new`, `feedback`, `eval --record`,
 `metrics add` and `rotate` run by hand write home files without committing them, and the next home commit sweeps
 them up *(decided, D37 for `plan new`, D38 for the other two; `metrics add`
 as `feedback`, Step 16a of the plan that clears the Deferred list)*. The root
 is committed only by `commit --root`, by the developer's hand: `optimize
 apply` never writes a root target, it writes the home's override of it
-(D49).
+(D49). With `DAISY_CO_AUTHOR` set, as an agent running Daisy sets it to
+its model's line (`Claude Opus 5.5 <noreply@anthropic.com>`), each of
+these commits ends with one `Co-Authored-By: <value>` trailer, added by
+git's `--trailer`, so a message already ending with it gets no second;
+unset, there is none (a person at the keyboard). A value that is not one
+line `Name <email>` is warned about on stderr, `⚠ DAISY_CO_AUTHOR
+"<value>" is not one line 'Name <email>': committing without
+Co-Authored-By`, and left out: the commit is made and the exit code is
+unchanged (`TestHomeCommitsCoAuthor`). The swarm's commits do not read
+it: a member's carry its persona's `co_author` (docs/swarm.md) *(Step 10
+of the plan for the inbox requests F27–F35)*.
 
 ## Workspace
 

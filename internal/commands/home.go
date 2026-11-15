@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"regexp"
 
 	"daisy/internal/gitx"
 	"daisy/internal/health"
@@ -38,8 +39,23 @@ func commitHome(c *Context, message string) (hash string, committed bool, err er
 	if err != nil {
 		return "", false, err
 	}
-	return repo.Commit(c.Ops, message)
+	return repo.Commit(c.Ops, message, coAuthor(c))
 }
+
+// coAuthor is the Co-Authored-By trailer every commit Daisy makes ends
+// with: DAISY_CO_AUTHOR, which an agent running Daisy sets to its model's
+// line, `Name <email>`; unset, none (a person at the keyboard). A value of
+// another shape is warned about and left out, and the commit goes on.
+func coAuthor(c *Context) string {
+	v := c.Ops.Getenv("DAISY_CO_AUTHOR")
+	if v == "" || coAuthorLine.MatchString(v) {
+		return v
+	}
+	fmt.Fprintf(c.Stderr, "⚠ DAISY_CO_AUTHOR %q is not one line 'Name <email>': committing without Co-Authored-By\n", v)
+	return ""
+}
+
+var coAuthorLine = regexp.MustCompile(`^[^<>\s][^<>\r\n]* <[^<>\s]+@[^<>\s]+>$`)
 
 // homeRepo is where the home commits; a command that writes before it
 // commits checks it first.

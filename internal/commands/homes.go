@@ -198,15 +198,17 @@ func createHome(c *Context, m env.Env, name, template, path, gitName, gitEmail s
 	if err := gitx.Init(c.Ops, real); err != nil {
 		return "", fmt.Errorf("Error: git init in %s failed: %v", real, err)
 	}
-	var steps [][]string
 	if gitName != "" && gitEmail != "" {
-		steps = append(steps, []string{"config", "user.name", gitName}, []string{"config", "user.email", gitEmail})
-	}
-	steps = append(steps, []string{"add", "-A"}, []string{"commit", "-q", "-m", "New home: " + name})
-	for _, args := range steps {
-		if _, errb, err := c.Ops.Exec(real, "git", args...); err != nil {
-			return "", fmt.Errorf("Error: git %s in %s failed: %s", args[0], real, strings.TrimSpace(string(errb)+" "+err.Error()))
+		for _, args := range [][]string{{"config", "user.name", gitName}, {"config", "user.email", gitEmail}} {
+			if _, errb, err := c.Ops.Exec(real, "git", args...); err != nil {
+				return "", fmt.Errorf("Error: git %s in %s failed: %s", args[0], real, strings.TrimSpace(string(errb)+" "+err.Error()))
+			}
 		}
+	}
+	if _, committed, err := (gitx.Repo{Dir: real}).Commit(c.Ops, "New home: "+name, coAuthor(c)); err != nil {
+		return "", fmt.Errorf("Error: the first commit in %s failed: %v", real, strings.TrimPrefix(err.Error(), "Error: "))
+	} else if !committed {
+		return "", fmt.Errorf("Error: the template left nothing to commit in %s", real)
 	}
 	fmt.Fprintln(c.Stdout, "  ✓ Initialized git repository with first commit")
 	return real, env.Register(fs, m.HomesFile(), name, real)

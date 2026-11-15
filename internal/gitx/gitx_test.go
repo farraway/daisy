@@ -56,7 +56,7 @@ func TestCommitIsOneCommit(t *testing.T) {
 	s := &script{status: " M journal/today.md\n"}
 	o := &ops.Fake{ExecFn: s.exec}
 	repo := gitx.Repo{Dir: "/h"}
-	hash, committed, err := repo.Commit(o, "Log: 1423 - x")
+	hash, committed, err := repo.Commit(o, "Log: 1423 - x", "")
 	if err != nil || !committed || hash != "abc1234" {
 		t.Fatalf("hash %q committed %v err %v", hash, committed, err)
 	}
@@ -78,7 +78,7 @@ func TestCommitIsOneCommit(t *testing.T) {
 func TestCommitClean(t *testing.T) {
 	s := &script{status: ""}
 	o := &ops.Fake{ExecFn: s.exec}
-	hash, committed, err := (gitx.Repo{Dir: "/h"}).Commit(o, "m")
+	hash, committed, err := (gitx.Repo{Dir: "/h"}).Commit(o, "m", "")
 	if err != nil || committed || hash != "" || len(s.calls) != 1 {
 		t.Errorf("clean tree: hash %q committed %v err %v calls %q", hash, committed, err, s.calls)
 	}
@@ -87,7 +87,7 @@ func TestCommitClean(t *testing.T) {
 func TestCommitFailuresNameTheStep(t *testing.T) {
 	for _, verb := range []string{"add", "commit"} {
 		s := &script{status: " M f\n", fail: verb}
-		_, _, err := (gitx.Repo{Dir: "/h"}).Commit(&ops.Fake{ExecFn: s.exec}, "m")
+		_, _, err := (gitx.Repo{Dir: "/h"}).Commit(&ops.Fake{ExecFn: s.exec}, "m", "")
 		if err == nil || !strings.Contains(err.Error(), verb) || !strings.Contains(err.Error(), "scripted failure") {
 			t.Errorf("%s failing: %v", verb, err)
 		}
@@ -147,7 +147,7 @@ func TestCommitWithRealGit(t *testing.T) {
 	if why != gitx.Accepted {
 		t.Fatal("not a repo")
 	}
-	hash, committed, err := repo.Commit(o, "second")
+	hash, committed, err := repo.Commit(o, "second", "")
 	if err != nil || !committed || hash == "" {
 		t.Fatalf("hash %q committed %v err %v", hash, committed, err)
 	}
@@ -159,7 +159,7 @@ func TestCommitWithRealGit(t *testing.T) {
 	} // A new file is taken whatever status.showUntrackedFiles says.
 	run("config", "status.showUntrackedFiles", "no")
 	os.WriteFile(filepath.Join(dir, "new.md"), []byte("new\n"), 0o644)
-	if _, committed, err := repo.Commit(o, "third"); err != nil || !committed {
+	if _, committed, err := repo.Commit(o, "third", ""); err != nil || !committed {
 		t.Errorf("a new file under showUntrackedFiles=no: committed %v err %v", committed, err)
 	}
 }
@@ -171,7 +171,7 @@ func TestCommitExcludes(t *testing.T) {
 	s := &script{status: " M code.txt\n"}
 	o := &ops.Fake{ExecFn: s.exec}
 	repo := gitx.Repo{Dir: "/r", Exclude: []string{"data/zebranest", "a b"}}
-	if _, _, err := repo.Commit(o, "m"); err != nil {
+	if _, _, err := repo.Commit(o, "m", ""); err != nil {
 		t.Fatal(err)
 	}
 	spec := "-- . :(exclude,literal)data/zebranest :(exclude,literal)a b"

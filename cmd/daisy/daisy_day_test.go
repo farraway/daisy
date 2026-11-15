@@ -149,6 +149,64 @@ func TestLogAppendsAndCommitsOnce(t *testing.T) {
 	}
 }
 
+// DAISY_CO_AUTHOR, set by an agent, ends each home commit with one
+// Co-Authored-By trailer; unset (a person at the keyboard) there is none,
+// and a value not shaped `Name <email>` is warned about and left out, the
+// commit made all the same. A message already ending with the trailer
+// does not get a second.
+func TestHomeCommitsCoAuthor(t *testing.T) {
+	const who = "Claude Opus 5.5 <noreply@anthropic.com>"
+	m := newMachine(t)
+	m.seed(t)
+	m.initHomeRepo(t)
+	trailers := func() string {
+		return m.git(t, "log", "-1", "--format=%(trailers:key=Co-Authored-By,valueonly,separator=|)")
+	}
+	code, _, errs := runWith(m.dayOps(m.ws, true), "log", "by hand")
+	if code != 0 || errs != "" {
+		t.Fatalf("unset: exit %d stderr %q", code, errs)
+	}
+	if body := m.git(t, "log", "-1", "--format=%B"); body != "Log: 1423 - by hand" {
+		t.Errorf("unset: message %q", body)
+	}
+	m.vars["DAISY_CO_AUTHOR"] = who
+	code, out, errs := runWith(m.dayOps(m.ws, true), "log", "by an agent")
+	if code != 0 || errs != "" {
+		t.Fatalf("set: exit %d stderr %q", code, errs)
+	}
+	if !strings.HasSuffix(out, "📝 Committed: Log: 1423 - by an agent ("+m.git(t, "rev-parse", "--short", "HEAD")+")\n") {
+		t.Errorf("set: stdout %q", out)
+	}
+	if body := m.git(t, "log", "-1", "--format=%B"); body != "Log: 1423 - by an agent\n\nCo-Authored-By: "+who {
+		t.Errorf("set: message %q", body)
+	}
+	if got := trailers(); got != who {
+		t.Errorf("set: trailers %q", got)
+	}
+	writeFile(t, filepath.Join(m.home, "tasks", "inbox.txt"), "x\n")
+	code, _, errs = runWith(m.dayOps(m.ws, true), "commit", "Add inbox\n\nCo-Authored-By: "+who)
+	if code != 0 || errs != "" {
+		t.Fatalf("commit: exit %d stderr %q", code, errs)
+	}
+	if got := trailers(); got != who {
+		t.Errorf("a message holding the trailer: trailers %q", got)
+	}
+	for i, bad := range []string{"Claude Opus 5.5", "noreply@anthropic.com", "Claude <noreply@anthropic.com>\nCo-Authored-By: Other <o@x>", "<noreply@anthropic.com>"} {
+		m.vars["DAISY_CO_AUTHOR"] = bad
+		before := m.commits(t)
+		code, _, errs = runWith(m.dayOps(m.ws, true), "log", "bad "+string(rune('a'+i)))
+		if code != 0 || m.commits(t) == before {
+			t.Errorf("%q: exit %d, commits %s, stderr %q", bad, code, m.commits(t), errs)
+		}
+		if !strings.Contains(errs, "DAISY_CO_AUTHOR") || !strings.Contains(errs, "Name <email>") {
+			t.Errorf("%q: stderr %q", bad, errs)
+		}
+		if got := trailers(); got != "" {
+			t.Errorf("%q: trailers %q", bad, got)
+		}
+	}
+}
+
 func TestLogRefusals(t *testing.T) {
 	m := newMachine(t)
 	m.seed(t)

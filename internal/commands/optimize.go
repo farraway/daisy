@@ -384,7 +384,7 @@ func OptimizeApply(c *Context) error {
 	}
 
 	message := fmt.Sprintf("Optimize %s (%s)", t.Label, ch.mode)
-	hash, committed, err := repo.Commit(c.Ops, message)
+	hash, committed, err := repo.Commit(c.Ops, message, coAuthor(c))
 	if err != nil {
 		return fmt.Errorf("%v\nThe files are written but NOT committed; run: daisy commit \"%s\"", err, message)
 	}
