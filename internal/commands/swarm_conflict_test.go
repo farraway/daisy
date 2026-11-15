@@ -86,7 +86,7 @@ func TestSwarmApplyNotMergeableBackToTheWorker(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested"}) || len(a.bodies(1)) != 1 ||
 		len(comments) == 0 || comments[len(comments)-1].Body != note || comments[len(comments)-1].Author != "swarm-bot" ||
 		!strings.Contains(a.stdout.String(), "#1 not mergeable: back to the worker\n#1 swarm:review-2-approved → swarm:review-3-changes-requested\n") {
-		t.Fatalf("T25: %v %q %q\n%s", got, a.bodies(1), comments, a.stdout.String())
+		t.Fatalf("T25: %v %q %+v\n%s", got, a.bodies(1), comments, a.stdout.String())
 	}
 
 	a.runner.Script(1, "worker", runner.Canned{Out: "Merged main; main.go keeps both.\n\nNot established: none\n", Work: func(work string) error {
@@ -186,7 +186,7 @@ func TestSwarmApplyConflictBlocked(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested", "swarm:blocked", forge.Gated}) ||
 		!strings.HasPrefix(comments[len(comments)-1].Body, mark("worker", 2)+"BLOCKED: main conflicts in main.go") ||
 		a.bodies(1)[len(a.bodies(1))-1] != mark("reconciler", 2)+"worker run 2 is blocked (at swarm:review-3-changes-requested). Answer, then remove swarm:blocked to resume." {
-		t.Errorf("blocked: %v %q %q\n%s", got, a.bodies(1), comments, a.stdout.String())
+		t.Errorf("blocked: %v %q %+v\n%s", got, a.bodies(1), comments, a.stdout.String())
 	}
 }
 
@@ -266,7 +266,7 @@ func TestSwarmMergeStepRecomputing(t *testing.T) {
 	comments, _ := a.forge.PullComments(pr)
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved"}) || len(comments) != 0 || len(a.bodies(1)) != 1 ||
 		!strings.Contains(a.stdout.String(), "#1 merge of pull app#1 refused (405 Please try again later); its head merges into main on the mirror, so the forge is taken to be recomputing and the next pass tries again\n") {
-		t.Fatalf("recomputing: %v %q %q\n%s", got, comments, a.bodies(1), a.stdout.String())
+		t.Fatalf("recomputing: %v %+v %q\n%s", got, comments, a.bodies(1), a.stdout.String())
 	}
 	a.forge.SetMergeable(pr, forge.MergeableYes)
 	a.pass()
@@ -342,6 +342,6 @@ func TestSwarmMergeStepMirrorCannotTell(t *testing.T) {
 	comments, _ := a.forge.PullComments(pr)
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested"}) || len(comments) != 1 || comments[0].Body != mark("reconciler", 1)+direction(zero) ||
 		!strings.Contains(a.stderr.String(), "⚠ #1: pull app#1's head 0000000 not merged on the mirror (git merge-tree ") {
-		t.Errorf("%v %q\n%s", got, comments, a.stderr.String())
+		t.Errorf("%v %+v\n%s", got, comments, a.stderr.String())
 	}
 }

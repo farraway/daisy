@@ -70,7 +70,16 @@ after the maintainer has said yes to that write.
 7. **A comment to a member is the maintainer's.** To answer the owner or
    the architect, or to comment on a pull request, draft the text and let
    the maintainer post it on the forge; the verbs post only `close`'s,
-   `unblock`'s, `block`'s and `class`'s comments.
+   `unblock`'s, `block`'s and `class`'s comments. A comment of the
+   maintainer's holding a line `/swarm <verb> [<words>]` is a command:
+   `apply`'s next pass runs that verb on the issue under the
+   maintainer's token and answers in the thread (`docs/swarm.md`
+   section 6, The comment commands), so a draft meant as conversation
+   never has a line beginning `/swarm`; when the maintainer would rather
+   act from the forge, say the line to type (`/swarm accept`, `/swarm
+   block --by 9`) and that the answer below it, `Done:` or `Refused:`,
+   is the verb's output. The reconciler's answers are in the thread
+   (`role=reconciler kind=command`) and the swarm's journal.
 8. **Log each write as it is done.** After each verb you run that
    writes, and each edit you make to a brief, `swarm.json`, a prompt or
    a repository's notes, run `daisy log` with what it did (`daisy log

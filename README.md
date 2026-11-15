@@ -521,6 +521,11 @@ daisy swarm pause 12             # hold #12 alone; daisy swarm resume 12 release
 daisy swarm close 12
 ```
 
+The same verbs run from the forge: a line `/swarm accept` (or `merge`,
+`unblock <comment>`, `block --by 9`, `pause`, …) in your comment on
+the issue or its pull request is run by `apply`'s next pass under your
+token, taken from the swarm's secrets file, and answered in the thread.
+
 In an agent session in that clone, or a workspace holding it, the `swarm` skill reads `status`,
 the briefs and the runs, explains what happened and what waits, drafts
 briefs and configuration changes, and runs a verb only after you have

@@ -279,7 +279,7 @@ func TestSwarmApplyNoChange(t *testing.T) {
 		r := a.result("1-worker-2")
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) || len(cs) != 1 || cs[0].Body != mark("worker", 2)+answer ||
 			a.pulls(1)[0].HeadSHA != head || strings.Contains(r, "failed") || strings.Contains(r, "pushed") || !strings.HasSuffix(r, "relabelled swarm:plan-2-in-progress swarm:review-0-ready\nrecorded\noutcome posted\ncollected\n") {
-			t.Fatalf("T12 without a commit: %v %q\n%s", got, cs, r)
+			t.Fatalf("T12 without a commit: %v %+v\n%s", got, cs, r)
 		}
 		if !strings.Contains(a.stdout.String(), "#1 worker run 2: posted comment\n#1 worker run 2: swarm:plan-2-in-progress → swarm:review-0-ready\n") {
 			t.Errorf("stdout:\n%s", a.stdout.String())

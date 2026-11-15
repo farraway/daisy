@@ -29,11 +29,13 @@ const (
 
 // Mark is what a marker names: the role and the run's number, or for a
 // gate note or an auto note the reconciler and Kind, `gate` or `auto`,
-// with no run.
+// with no run, and for a command's answer Kind `command` and Of, the id
+// of the comment it answers.
 type Mark struct {
 	Role string
 	Run  int
 	Kind string
+	Of   int64
 }
 
 // Entry is one entry of a thread: its author's login, its text and when it
@@ -67,7 +69,8 @@ func Swarms(e Entry, swarmLogin string) (Mark, bool) {
 }
 
 // Marked is body's mark when its first line, without a trailing `\r`, is
-// the marker, or the gate note's or the auto note's, whoever wrote it.
+// the marker, or the gate note's, the auto note's or a command's
+// answer's, whoever wrote it.
 func Marked(body string) (Mark, bool) {
 	first, _, _ := strings.Cut(body, "\n")
 	first = strings.TrimSuffix(first, "\r")
@@ -76,6 +79,10 @@ func Marked(body string) (Mark, bool) {
 		return Mark{Role: "reconciler", Kind: "gate"}, true
 	case autoMarker:
 		return Mark{Role: "reconciler", Kind: "auto"}, true
+	}
+	if m := answerRe.FindStringSubmatch(first); m != nil {
+		of, _ := strconv.ParseInt(m[1], 10, 64)
+		return Mark{Role: "reconciler", Kind: "command", Of: of}, true
 	}
 	m := markerRe.FindStringSubmatch(first)
 	if m == nil {
@@ -86,14 +93,15 @@ func Marked(body string) (Mark, bool) {
 }
 
 // counted is section 6's Trust: e is the swarm's, or its author is in
-// trusted, and it is no gate note or auto note, which are the
-// maintainer's to read, and no class statement (classComment), which is
-// Daisy's: none is a member's to answer.
+// trusted, and it is no gate note, auto note or command's answer, which
+// are the maintainer's to read, no class statement (classComment), which
+// is Daisy's, and no command (IsCommand), which is the maintainer's to
+// Daisy: none is a member's to answer.
 func counted(e Entry, swarmLogin string, trusted []string) bool {
 	if m, swarm := Swarms(e, swarmLogin); swarm {
 		return m.Kind == ""
 	}
-	return slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, e.Author) }) && classOfText(e.Body) == ""
+	return slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, e.Author) }) && classOfText(e.Body) == "" && !IsCommand(e.Body)
 }
 
 // NewestCounted is the thread's newest counted entry (counted); ok is

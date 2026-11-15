@@ -213,9 +213,14 @@ type Milestone struct {
 	Open, Closed int
 }
 
+// Comment is a comment on an issue or a pull request. ID is the forge's
+// own, unique among its comments; Updated is when it was last edited, and
+// equals Created for a comment never edited (section 6, The comment
+// commands).
 type Comment struct {
-	Author, Body string
-	Created      time.Time
+	Author, Body     string
+	Created, Updated time.Time
+	ID               int64
 }
 
 type Pull struct {

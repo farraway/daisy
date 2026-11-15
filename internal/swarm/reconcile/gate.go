@@ -239,7 +239,8 @@ func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
 // blockedItems: the reconciler's note that blocked the issue, by its time
 // and first line, cut; none when no such note is on it, or when the
 // newest was followed by a comment of the maintainer's (a login in
-// trusted other than the swarm's: `unblock`'s among them) or by a gate
+// trusted other than the swarm's, a command aside: `unblock`'s among
+// them) or by a gate
 // note of another gate than the blocked one (posted only while the issue
 // was not blocked), either telling that its block was lifted since: then
 // the flag was set by hand. The blocked gate's own notes tell nothing:
@@ -255,7 +256,7 @@ func (s *Swarm) blockedItems(is forge.Issue) []string {
 			continue
 		}
 		m, swarm := Swarms(later, s.SwarmLogin)
-		if swarm && m.Kind == "gate" && !blockedGate(later.Body) || !swarm && !strings.EqualFold(later.Author, s.SwarmLogin) && slices.ContainsFunc(s.Cfg.Trusted, func(l string) bool { return strings.EqualFold(l, later.Author) }) {
+		if swarm && m.Kind == "gate" && !blockedGate(later.Body) || !swarm && s.maintainer(later.Author) && !IsCommand(later.Body) {
 			return []string{fmt.Sprintf("- The note that set it: none since the block of %s was lifted; swarm:blocked was set by hand.", stamp(e.Created))}
 		}
 	}

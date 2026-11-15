@@ -495,9 +495,10 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 	}
 }
 
-// apply and status never read DAISY_MAINTAINER_TOKEN: with jane's token
-// in the environment, where any lookup of it would end, neither asks for
-// it, and every forge they open is under the swarm's token.
+// apply, with no comment command to run, and status never read
+// DAISY_MAINTAINER_TOKEN: with jane's token in the environment, where any
+// lookup of it would end, neither asks for it, and every forge they open
+// is under the swarm's token.
 func TestSwarmApplyAndStatusNeverReadTheMaintainersToken(t *testing.T) {
 	a := newApplyWS(t)
 	a.vars[MaintainerTokenEnv] = "jane-456"

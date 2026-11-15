@@ -486,7 +486,7 @@ func TestGiteaIssue(t *testing.T) {
 		]`})
 	got, err := g.Issue(7)
 	want := Issue{Number: 7, Title: "Drift", Body: "Brief: docs/briefs/b.md — M0", Author: "swarm-bot", Created: at(2026, 11, 1, 10, 0), Open: true,
-		Labels: []string{"swarm:plan-0-posted"}, Comments: []Comment{{"swarm-bot", "plan", at(2026, 11, 1, 11, 0)}, {"jane", "ok", at(2026, 11, 1, 12, 0)}}}
+		Labels: []string{"swarm:plan-0-posted"}, Comments: []Comment{{"swarm-bot", "plan", at(2026, 11, 1, 11, 0), at(2026, 11, 1, 11, 0), 501}, {"jane", "ok", at(2026, 11, 1, 12, 0), at(2026, 11, 1, 12, 0), 502}}}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Issue(7) = %+v, %v", got, err)
 	}
@@ -676,9 +676,9 @@ func TestGiteaCreatePull(t *testing.T) {
 
 func TestGiteaPullComments(t *testing.T) {
 	g, s := gitea(t, []string{"app", "lib"}, pair{"GET", "/repos/acme/lib/issues/5/comments", "", 200,
-		`[{"id":1,"body":"looks off","user":{"login":"jane"},"created_at":"2026-11-02T09:00:00Z"}]`})
+		`[{"id":1,"body":"looks off","user":{"login":"jane"},"created_at":"2026-11-02T09:00:00Z","updated_at":"2026-11-02T09:05:00Z"}]`})
 	got, err := g.PullComments(Ref{"lib", 5})
-	if err != nil || !reflect.DeepEqual(got, []Comment{{"jane", "looks off", at(2026, 11, 2, 9, 0)}}) {
+	if err != nil || !reflect.DeepEqual(got, []Comment{{"jane", "looks off", at(2026, 11, 2, 9, 0), at(2026, 11, 2, 9, 5), 1}}) {
 		t.Errorf("PullComments = %+v, %v", got, err)
 	}
 	s.done()

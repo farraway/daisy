@@ -643,13 +643,14 @@ func (j *Job) pullRequest(p forge.Pull) string {
 		}
 		report := j.newestReport(p)
 		// A swarm comment older than the newest report is the history the
-		// round lines summarise.
-		swarmOld := func(e Entry) bool {
-			_, swarm := Swarms(e, j.SwarmLogin)
-			return swarm && e.Created.Before(report)
+		// round lines summarise; a command's answer is the maintainer's
+		// (section 6).
+		omitted := func(e Entry) bool {
+			m, swarm := Swarms(e, j.SwarmLogin)
+			return swarm && (e.Created.Before(report) || m.Kind != "")
 		}
 		for _, c := range j.Pull.Comments {
-			if e := (Entry{c.Author, c.Body, c.Created}); !swarmOld(e) {
+			if e := (Entry{c.Author, c.Body, c.Created}); !omitted(e) {
 				items = append(items, item{c.Created, j.entry(3, e, "")})
 			}
 		}
@@ -673,7 +674,7 @@ func (j *Job) pullRequest(p forge.Pull) string {
 			}
 		}
 		for _, l := range j.Pull.Lines {
-			if e := (Entry{l.Author, l.Body, l.Created}); !swarmOld(e) {
+			if e := (Entry{l.Author, l.Body, l.Created}); !omitted(e) {
 				items = append(items, item{l.Created, j.entry(3, e, fmt.Sprintf(", on %s:%d at %s", l.Path, l.Line, l.Commit))})
 			}
 		}

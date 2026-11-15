@@ -386,9 +386,11 @@ func (g *Gitea) Pulls(n int, openers []string) ([]Pull, error) {
 }
 
 type giteaComment struct {
+	ID      int64     `json:"id"`
 	Body    string    `json:"body"`
 	User    giteaUser `json:"user"`
 	Created time.Time `json:"created_at"`
+	Updated time.Time `json:"updated_at"`
 }
 
 // comments reads the comments of issue or pull request n in repository
@@ -400,7 +402,7 @@ func (g *Gitea) comments(name string, n int) ([]Comment, error) {
 	}
 	out := make([]Comment, len(raw))
 	for i, r := range raw {
-		out[i] = Comment{Author: r.User.Login, Body: r.Body, Created: r.Created}
+		out[i] = Comment{Author: r.User.Login, Body: r.Body, Created: r.Created, Updated: r.Updated, ID: r.ID}
 	}
 	return out, nil
 }

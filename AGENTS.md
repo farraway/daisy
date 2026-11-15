@@ -285,7 +285,9 @@ agent working near it:
   `swarm.json`) is read by `init`, `apply` and `status`; the maintainer's
   (`DAISY_MAINTAINER_TOKEN`) by the maintainer's verbs (and `pause`
   and `resume` given an issue), which refuse when it
-  equals the swarm's or is the swarm's account, and by `init` only to
+  equals the swarm's or is the swarm's account, by `apply` only to run
+  a trusted maintainer's `/swarm <verb>` comment through those same
+  verbs (`docs/swarm.md` section 6, The comment commands), and by `init` only to
   create the swarm repository and give the swarm's account access to it.
   Neither value is ever printed, written to a file Daisy makes but the
   swarm's secrets file, `<state>/env` (mode `0600`, outside every

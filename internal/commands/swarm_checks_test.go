@@ -87,7 +87,7 @@ func TestSwarmMergeStepChecksFailed(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ChangesRequested}) || len(a.bodies(1)) != bodies ||
 		len(comments) == 0 || comments[len(comments)-1].Body != note || comments[len(comments)-1].Author != "swarm-bot" ||
 		!strings.Contains(a.stdout.String(), "#1 checks failed at "+head[:7]+": back to the worker\n#1 swarm:review-2-approved → swarm:review-3-changes-requested\n") {
-		t.Fatalf("T26: %v %q %q\n%s", got, a.bodies(1), comments, a.stdout.String())
+		t.Fatalf("T26: %v %q %+v\n%s", got, a.bodies(1), comments, a.stdout.String())
 	}
 	a.runner.Script(1, "worker", work("v2"))
 	a.pass() // the worker: T20, then T12

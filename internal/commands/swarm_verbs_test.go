@@ -176,7 +176,7 @@ func TestSwarmMaintainerBlankComment(t *testing.T) {
 	}
 	m.ok(swarmClose, "Maintainer jane on acme/"+m.iss()+"\n#1 closed\n#1 swarm:plan-1-accepted → swarm:rejected\n#1 blocked cleared\n", "1", "  ")
 	if is, _ := m.forge.Issue(1); len(is.Comments) != 0 {
-		t.Errorf("close posted %q", is.Comments)
+		t.Errorf("close posted %+v", is.Comments)
 	}
 }
 

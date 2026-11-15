@@ -37,6 +37,9 @@ type applyWS struct {
 	// beforeGit, when set, runs before each git command apply runs, as
 	// another writer acting between two of them.
 	beforeGit func(dir string, args []string)
+	// as is the forge under each token apply's opener is given that is
+	// not the swarm's (the maintainer's, for a comment command).
+	as map[string]forge.Adapter
 }
 
 func (a *applyWS) Now() time.Time { a.mu.Lock(); defer a.mu.Unlock(); return a.now }
@@ -123,6 +126,9 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 			a.mu.Lock()
 			defer a.mu.Unlock()
 			a.tokens = append(a.tokens, token)
+			if g, ok := a.as[token]; ok {
+				return g, nil
+			}
 			return f, nil
 		},
 			func(_ ops.Ops, dir string) runner.Runner { a.runDir = dir; return run })

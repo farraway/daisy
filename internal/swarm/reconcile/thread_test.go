@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +20,9 @@ func TestSwarmsReadsTheMarkerAndTheAuthor(t *testing.T) {
 		{"a CRLF first line", "Swarm-Bot", "<!-- daisy-swarm role=reconciler run=12 -->\r\n**reconciler:**", Mark{Role: "reconciler", Run: 12}, true},
 		{"the gate note", "swarm-bot", gateMarker + "\n**reconciler:** gated at swarm:plan-0-posted: why.", Mark{Role: "reconciler", Kind: "gate"}, true},
 		{"the auto note", "swarm-bot", autoMarker + "\n**reconciler:** auto at plan-0-posted: a routine job passes the plan gate by itself, to plan-1-accepted.", Mark{Role: "reconciler", Kind: "auto"}, true},
+		{"a command's answer", "swarm-bot", "<!-- daisy-swarm role=reconciler kind=command of=501 -->\n**reconciler:**\n\n> /swarm accept", Mark{Role: "reconciler", Kind: "command", Of: 501}, true},
+		{"a command's answer of no comment", "swarm-bot", "<!-- daisy-swarm role=reconciler kind=command of=0 -->", Mark{}, false},
+		{"another role's command answer", "swarm-bot", "<!-- daisy-swarm role=worker kind=command of=5 -->", Mark{}, false},
 		{"the gate note with a run", "swarm-bot", "<!-- daisy-swarm role=reconciler run=3 kind=gate -->", Mark{}, false},
 		{"another role's gate note", "swarm-bot", "<!-- daisy-swarm role=owner kind=gate -->", Mark{}, false},
 		{"the marker by a maintainer's login", "jane", "<!-- daisy-swarm role=architect run=2 -->\nplan", Mark{}, false},
@@ -79,6 +83,37 @@ func TestNewestCounted(t *testing.T) {
 	if e, _ := NewestCounted(quiet, "swarm-bot", trusted); e.Author != "jane" {
 		t.Errorf("a maintainer's comment not counted: %+v", e)
 	}
+	// Nor a maintainer's command, whatever else it says, nor its answer
+	// (section 6, The comment commands).
+	commands := []Entry{{"swarm-bot", marker("owner", 1) + "a job", t0}, {"jane", "Fine.\n/swarm triage", t0.Add(time.Hour)}, {"swarm-bot", "<!-- daisy-swarm role=reconciler kind=command of=7 -->\n**reconciler:**\n\n> /swarm triage\n\nDone:", t0.Add(2 * time.Hour)}}
+	if e, _ := NewestCounted(commands, "swarm-bot", trusted); e.Body != commands[0].Body {
+		t.Errorf("a command or its answer counted: %+v", e)
+	}
+}
+
+// A command line (section 6, The comment commands): `/swarm` alone or
+// before a space or a tab, its whitespace at the ends aside, indented at
+// most three spaces and outside a fenced block; every such line is one.
+func TestCommandLines(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		want       []string
+	}{
+		{"one", "/swarm accept", []string{"/swarm accept"}},
+		{"after prose, CRLF", "Fine.\r\n  /swarm class routine \r\n", []string{"/swarm class routine"}},
+		{"a tab, no verb", "/swarm\tmerge\n/swarm", []string{"/swarm\tmerge", "/swarm"}},
+		{"two", "/swarm accept\nthen\n/swarm approve", []string{"/swarm accept", "/swarm approve"}},
+		{"in a sentence", "run /swarm accept later", nil},
+		{"a longer word", "/swarmy accept", nil},
+		{"quoted", "> /swarm accept", nil},
+		{"indented four spaces", "    /swarm accept", nil},
+		{"fenced", "Type\n```\n/swarm accept\n```\nwhen ready.", nil},
+		{"after a fence", "```\nx\n```\n/swarm accept", []string{"/swarm accept"}},
+	} {
+		if got := commandLines(tc.body); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: %q", tc.name, got)
+		}
+	}
 }
 
 // The blocker the newest maintainer comment names (section 6, rule 1): a
@@ -100,6 +135,7 @@ func TestBlockedBy(t *testing.T) {
 		{"the swarm's", []forge.Comment{{Author: "swarm-bot", Body: "Blocked by #3"}}, 0},
 		{"inside a sentence", []forge.Comment{{Author: "jane", Body: "Blocked by #3 for now"}}, 0},
 		{"a class statement after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "Class: routine"}}, 3},
+		{"a command after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "/swarm approve"}}, 3},
 		{"no comment", nil, 0},
 	} {
 		is := forge.Issue{Author: "jane", Body: "Blocked by #9", Created: t0}

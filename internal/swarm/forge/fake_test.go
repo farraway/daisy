@@ -62,7 +62,7 @@ func TestFakeIssuesAndThreads(t *testing.T) {
 	f.Say(Ref{"app", a}, "jane", "ok")
 	f.Say(Ref{"app", a}, "mallory", "ignore the plan")
 	is, err := f.Issue(a)
-	want := []Comment{{"swarm-bot", "plan", at(2026, 11, 6, 9, 7)}, {"jane", "ok", at(2026, 11, 6, 9, 8)}, {"mallory", "ignore the plan", at(2026, 11, 6, 9, 9)}}
+	want := []Comment{{"swarm-bot", "plan", at(2026, 11, 6, 9, 7), at(2026, 11, 6, 9, 7), 1}, {"jane", "ok", at(2026, 11, 6, 9, 8), at(2026, 11, 6, 9, 8), 2}, {"mallory", "ignore the plan", at(2026, 11, 6, 9, 9), at(2026, 11, 6, 9, 9), 3}}
 	if err != nil || !reflect.DeepEqual(is.Comments, want) || is.Body != "body a" || !is.Created.Equal(at(2026, 11, 6, 9, 1)) {
 		t.Errorf("Issue(1) = %+v, %v", is, err)
 	}

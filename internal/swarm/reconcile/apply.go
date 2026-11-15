@@ -35,7 +35,12 @@ type Swarm struct {
 	SwarmLogin string
 	User       string                   // the host's uid:gid
 	Secret     func(name string) string // a variable as check-secrets resolves it
-	Out, Err   io.Writer
+	// Command runs a comment command's verb on issue n as the maintainer,
+	// under the maintainer's token, words being the command line's after
+	// `/swarm` (section 6, The comment commands): what the verb printed,
+	// and its refusal. Nil runs none.
+	Command  func(n int, words []string) (out string, err error)
+	Out, Err io.Writer
 
 	live       map[string]*live    // run directory → its container in flight
 	started    int                 // containers this process started in this pass, members and checks
@@ -490,28 +495,23 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 		}
 		for _, listed := range issues {
 			n := listed.Number
-			is, err := s.Forge.Issue(n)
+			is, pulls, ok, err := s.atStage(n, label)
 			if err != nil {
 				return err
 			}
-			var stages []string
-			for _, l := range is.Labels {
-				if forge.IsStage(l) {
-					stages = append(stages, l)
-				}
-			}
-			if len(stages) > 1 {
-				if stages[0] == label {
-					fmt.Fprintf(s.Err, "⚠ #%d: carries %s and %s; skipped\n", n, stages[0], stages[1])
-				}
+			if !ok {
 				continue
 			}
-			if !is.Open || len(stages) == 0 || stages[0] != label {
-				continue // moved or closed since the list was read: as it is now, at its own stage or the next pass
-			}
-			pulls, err := s.pulls(n)
-			if err != nil {
+			// The comment commands before the role rule, so that what
+			// they wrote is read as it is now (section 6).
+			if ran, err := s.commands(is, pulls); err != nil {
 				return err
+			} else if ran {
+				if is, pulls, ok, err = s.atStage(n, label); err != nil {
+					return err
+				} else if !ok {
+					continue
+				}
 			}
 			j := &Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, N: n, Label: label, Time: s.O.Now(), Issue: is, Pulls: pulls, Known: s.mirrors()}
 			cur, open := j.current()
@@ -594,6 +594,33 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 		}
 	}
 	return nil
+}
+
+// atStage is issue n with its comments and its pull requests, ok when
+// it is open and carries label as its one stage: one moved or closed
+// since the list was read is read at its own stage, or at the next pass,
+// and one carrying two stages is skipped with a warning.
+func (s *Swarm) atStage(n int, label string) (is forge.Issue, pulls []forge.Pull, ok bool, err error) {
+	if is, err = s.Forge.Issue(n); err != nil {
+		return is, nil, false, err
+	}
+	var stages []string
+	for _, l := range is.Labels {
+		if forge.IsStage(l) {
+			stages = append(stages, l)
+		}
+	}
+	if len(stages) > 1 {
+		if stages[0] == label {
+			fmt.Fprintf(s.Err, "⚠ #%d: carries %s and %s; skipped\n", n, stages[0], stages[1])
+		}
+		return is, nil, false, nil
+	}
+	if !is.Open || len(stages) == 0 || stages[0] != label {
+		return is, nil, false, nil
+	}
+	pulls, err = s.pulls(n)
+	return is, pulls, err == nil, err
 }
 
 func (s *Swarm) repoCheck(name string) []string {

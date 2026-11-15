@@ -1115,7 +1115,7 @@ func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 		return vars[v]
 	}
 	s := &reconcile.Swarm{O: o, Place: c.Swarm, WS: ws, Root: c.Env.Root, Config: c.Env.Config, Local: c.Env.Local, Cfg: cfg, Forge: f, Runner: run, SwarmLogin: acct.Login,
-		User: ids[0] + ":" + ids[1], Secret: secret, Out: c.Stdout, Err: c.Stderr}
+		User: ids[0] + ":" + ids[1], Secret: secret, Command: commentCommand(c, open, state), Out: c.Stdout, Err: c.Stderr}
 	if once {
 		if err := s.Pass(true); err != nil {
 			return fmt.Errorf("Error: swarm: %v", err)

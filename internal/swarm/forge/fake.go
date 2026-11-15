@@ -42,6 +42,7 @@ type fakeState struct {
 	items       map[Ref]*item
 	next        map[string]int
 	reviewID    int64
+	commentID   int64
 	milestones  []fakeMilestone
 	refuseMs    bool
 	repository  *HeldRepository // forge.repo on the forge, nil while it holds none
@@ -282,16 +283,34 @@ func (f *Fake) Comment(at Ref, body string) error {
 	if err != nil {
 		return err
 	}
-	it.comments = append(it.comments, Comment{Author: f.account.Login, Body: body, Created: f.o.Now()})
+	f.say(it, f.account.Login, body)
 	return nil
+}
+
+// say adds login's comment on it, numbered as the forge numbers its
+// comments, never edited.
+func (f *Fake) say(it *item, login, body string) {
+	f.commentID++
+	now := f.o.Now()
+	it.comments = append(it.comments, Comment{Author: login, Body: body, Created: now, Updated: now, ID: f.commentID})
+}
+
+// EditComment replaces the body of the comment numbered id on the issue
+// or pull request at, as its author or a writer of the repository edits
+// it on the forge: its Updated moves to now.
+func (f *Fake) EditComment(at Ref, id int64, body string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	it := must(f.find(at))
+	i := slices.IndexFunc(it.comments, func(c Comment) bool { return c.ID == id })
+	it.comments[i].Body, it.comments[i].Updated = body, f.o.Now()
 }
 
 // Say is a comment by login on an issue or a pull request.
 func (f *Fake) Say(at Ref, login, body string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	it := must(f.find(at))
-	it.comments = append(it.comments, Comment{Author: login, Body: body, Created: f.o.Now()})
+	f.say(must(f.find(at)), login, body)
 }
 
 // SayOnLine is a line comment by login on the pull request's current head.

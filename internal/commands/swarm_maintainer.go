@@ -1,8 +1,10 @@
 package commands
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -65,6 +67,91 @@ func SwarmBlock(c *Context) error {
 // SwarmClose is `daisy swarm close <n> [comment...]`: T19.
 func SwarmClose(c *Context) error {
 	return inSwarm(c, func() error { return swarmClose(c, openForge) })
+}
+
+// commentVerbs is the maintainer's verbs a comment command runs (section
+// 6, The comment commands), in section 11's order: each on the issue the
+// comment is on, or whose pull request it is on, so no command takes
+// <n>; pause and resume hold that issue alone, never the whole swarm,
+// whose <state>/paused is the host's. prompt build writes the clone, so
+// no comment runs it.
+var commentVerbs = []commentVerb{
+	{"triage", "", none, swarmTriage},
+	{"accept", "", none, swarmAccept},
+	{"class", " routine|architecture", func(n int) bool { return n == 1 }, swarmClass},
+	{"approve", "", none, swarmApprove},
+	{"merge", "", none, swarmMerge},
+	{"unblock", " <comment...>", func(n int) bool { return n > 0 }, swarmUnblock},
+	{"block", " --by <m>", func(n int) bool { return n == 2 }, swarmBlock},
+	{"pause", "", none, func(c *Context, open opener) error { return swarmHold(c, open, true) }},
+	{"resume", "", none, func(c *Context, open opener) error { return swarmHold(c, open, false) }},
+	{"close", " [comment...]", func(int) bool { return true }, swarmClose},
+}
+
+// commentVerb is one of commentVerbs: its name, its arguments as its
+// usage writes them, whether it takes n of them, and the verb.
+type commentVerb struct {
+	name, args string
+	takes      func(n int) bool
+	run        func(*Context, opener) error
+}
+
+func none(n int) bool { return n == 0 }
+
+// commentRuns names the comment commands, as an answer lists them.
+func commentRuns() string {
+	var names []string
+	for _, v := range commentVerbs {
+		names = append(names, v.name)
+	}
+	return "a comment runs " + strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
+}
+
+// commentCommand is apply's Command (section 6, The comment commands):
+// the verb words name run on issue n as `daisy swarm <verb> <n> <args>`
+// runs it, under $DAISY_MAINTAINER_TOKEN from <state>/env or the
+// environment, its stderr apply's; what it printed and its refusal are
+// returned with the host's paths named as the spec names them (<state>,
+// <swarm>, $DAISY_LOCAL, ~), since the answer is posted on the forge.
+func commentCommand(c *Context, open opener, state string) func(n int, words []string) (string, error) {
+	var paths []string
+	for _, p := range [][2]string{{state, "<state>"}, {c.Swarm.Root, "<swarm>"}, {c.Env.Local, "$DAISY_LOCAL"}, {c.Ops.Getenv("HOME"), "~"}} {
+		if filepath.IsAbs(p[0]) && filepath.Clean(p[0]) != "/" {
+			paths = append(paths, filepath.Clean(p[0]), p[1])
+		}
+	}
+	hide := strings.NewReplacer(paths...)
+	return func(n int, words []string) (string, error) {
+		var out bytes.Buffer
+		err := runComment(c, open, n, words, &out)
+		if err != nil {
+			msg := err.Error()
+			if u := UsageError(""); errors.As(err, &u) {
+				msg = "Error: swarm: " + msg
+			}
+			err = errors.New(hide.Replace(msg))
+		}
+		return hide.Replace(out.String()), err
+	}
+}
+
+// runComment runs the comment verb words name on issue n, printing to
+// out.
+func runComment(c *Context, open opener, n int, words []string, out *bytes.Buffer) error {
+	if len(words) == 0 {
+		return errors.New("Error: swarm: " + commentRuns())
+	}
+	i := slices.IndexFunc(commentVerbs, func(v commentVerb) bool { return v.name == words[0] })
+	if i < 0 {
+		return fmt.Errorf("Error: swarm: %s is no comment command; %s", words[0], commentRuns())
+	}
+	v := commentVerbs[i]
+	if !v.takes(len(words) - 1) {
+		return fmt.Errorf("Error: swarm: usage: /swarm %s%s (on the issue or its pull request)", v.name, v.args)
+	}
+	sub := &Context{Ops: c.Ops, Env: c.Env, Swarm: c.Swarm, Stdin: strings.NewReader(""), Stdout: out, Stderr: c.Stderr,
+		Args: append([]string{strconv.Itoa(n)}, words[1:]...)}
+	return v.run(sub, open)
 }
 
 // maintainer is the forge as one of the maintainer's verbs reaches it:
