@@ -347,7 +347,8 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 		}
 		return c.end("posted")
 	}
-	on := fmt.Sprintf("%s#%d", pull.Repo, pull.Number)
+	on := pullLink(s.owner(), pull)
+	unlinked := fmt.Sprintf("%s#%d", pull.Repo, pull.Number) // a note's form before Step 7 of the plan for the inbox requests F27-F35
 	first := fmt.Sprintf("Review round %d of %d on %s requested changes (was %s). "+architectRevises, rounds, s.Cfg.MaxRounds, on, forge.ReviewInProgress)
 	second := fmt.Sprintf("Review round %d of %d on %s "+roundLimitAgain+" (at %s). Relabel the issue %s for one more fix round or %s to re-plan, then remove %s.",
 		rounds, s.Cfg.MaxRounds, on, forge.ReviewInProgress, forge.ChangesRequested, forge.PlanPosted, forge.Blocked)
@@ -357,7 +358,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 		m, ok := Swarms(Entry{cm.Author, cm.Body, cm.Created}, s.SwarmLogin)
 		t := swarmText(cm.Body)
 		again = again || ok && m.Role == "reconciler" && strings.HasPrefix(t, "Review round ") &&
-			strings.Contains(t, " on "+on+" requested changes") && cm.Body != own[0] && cm.Body != own[1]
+			(strings.Contains(t, " on "+on+" requested changes") || strings.Contains(t, " on "+unlinked+" requested changes")) && cm.Body != own[0] && cm.Body != own[1]
 	}
 	if again {
 		// The second time and each after, the stage stays and the issue

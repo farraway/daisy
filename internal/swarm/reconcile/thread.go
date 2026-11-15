@@ -45,12 +45,17 @@ type Entry struct {
 
 // IssueThread is the issue body, then its comments, oldest first.
 func IssueThread(is forge.Issue) []Entry {
-	t := []Entry{{is.Author, is.Body, is.Created}}
+	t := []Entry{bodyEntry(is)}
 	for _, c := range is.Comments {
 		t = append(t, Entry{c.Author, c.Body, c.Created})
 	}
 	return t
 }
+
+// bodyEntry is the issue body as an entry of its thread, as every reader
+// reads it: without the pulls block (withoutPulls), which no rule reads,
+// so it reads as its opener wrote it.
+func bodyEntry(is forge.Issue) Entry { return Entry{is.Author, withoutPulls(is.Body), is.Created} }
 
 // Swarms is e's mark when e is the swarm's: its first line, without a
 // trailing `\r`, is the marker, and its author is the swarm's login.

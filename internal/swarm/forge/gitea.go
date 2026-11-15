@@ -311,6 +311,7 @@ func (g *Gitea) Issues(state State, label string) ([]Issue, error) {
 
 type giteaPull struct {
 	Number int    `json:"number"`
+	URL    string `json:"html_url"`
 	Title  string `json:"title"`
 	Body   string `json:"body"`
 	Head   struct {
@@ -358,7 +359,7 @@ func (g *Gitea) Pulls(n int, openers []string) ([]Pull, error) {
 			if _, isBranch := sliceOf(head, n); !isBranch {
 				head = fmt.Sprintf("swarm/%d-%d", n, s) // the branch the forge deleted at merge
 			}
-			p := Pull{Repo: name, Number: r.Number, Title: r.Title, Body: r.Body, Head: head, HeadSHA: r.Head.SHA,
+			p := Pull{Repo: name, Number: r.Number, URL: r.URL, Title: r.Title, Body: r.Body, Head: head, HeadSHA: r.Head.SHA,
 				Base: r.Base.Ref, Open: r.State == "open", Merged: r.Merged, Author: r.User.Login, Created: r.Created}
 			if r.Merged && r.MergeSHA != nil {
 				p.MergeSHA = *r.MergeSHA
@@ -544,6 +545,12 @@ func (g *Gitea) Relabel(at Ref, remove, add string) error {
 // CloseIssue sets issue n's state to closed.
 func (g *Gitea) CloseIssue(n int) error {
 	return g.call("PATCH", fmt.Sprintf("%s/issues/%d", g.repoPath(g.repo), n), map[string]string{"state": "closed"}, http.StatusCreated, nil)
+}
+
+// EditIssue sets issue n's body; Gitea answers an edit 201, and a 403
+// to an account that may not edit the issue.
+func (g *Gitea) EditIssue(n int, body string) error {
+	return g.call("PATCH", fmt.Sprintf("%s/issues/%d", g.repoPath(g.repo), n), map[string]string{"body": body}, http.StatusCreated, nil)
 }
 
 // CreatePull opens a pull request from head into base in the declared

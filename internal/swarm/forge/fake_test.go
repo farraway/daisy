@@ -474,3 +474,28 @@ func TestFakeRepository(t *testing.T) {
 		t.Errorf("refused create: %v", err)
 	}
 }
+
+// EditIssue replaces an issue's body alone, kept on its timeline as an
+// edit by the token's account, as the forge keeps a body's history; its
+// creation time stays, and a number the Fake does not hold is its 404. A
+// pull request's URL is its page on the forge, in its repository.
+func TestFakeEditIssueAndPullURL(t *testing.T) {
+	f := fakeForge(t)
+	n, _ := f.CreateIssue("A", "body a", []string{"swarm:proposal-posted"})
+	before, _ := f.Issue(n)
+	if err := f.As(Account{Login: "jane"}).EditIssue(n, "body b"); err != nil {
+		t.Fatal(err)
+	}
+	is, _ := f.Issue(n)
+	if is.Body != "body b" || !is.Created.Equal(before.Created) || is.Title != "A" || !reflect.DeepEqual(is.Labels, before.Labels) || len(is.Comments) != 0 ||
+		!reflect.DeepEqual(f.Events(Ref{"app", n}), []Event{{"jane", "edited"}}) {
+		t.Errorf("edited: %+v %v", is, f.Events(Ref{"app", n}))
+	}
+	if err := f.EditIssue(99, "x"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("EditIssue(99): %v", err)
+	}
+	f.CreatePull("lib", "swarm/1-1", "main", "P", "Refs acme/app#1")
+	if ps, _ := f.Pulls(1, []string{"swarm-bot"}); len(ps) != 1 || ps[0].URL != "https://forge.example.net/acme/lib/pulls/1" {
+		t.Errorf("Pulls: %+v", ps)
+	}
+}

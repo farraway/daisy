@@ -117,6 +117,9 @@ type Adapter interface {
 	Issues(state State, label string) ([]Issue, error)
 	Issue(n int) (Issue, error) // with comments, oldest first
 	CreateIssue(title, body string, labels []string) (int, error)
+	// EditIssue replaces issue n's body with body, and nothing else:
+	// Daisy's list of the issue's pull requests (section 5).
+	EditIssue(n int, body string) error
 	Comment(at Ref, body string) error
 	// Relabel adds add, then removes remove; "" on either side is no
 	// change there, so one call sets or clears the flag alone.
@@ -216,6 +219,7 @@ type Comment struct {
 type Pull struct {
 	Repo                             string // the declared repository's name
 	Number                           int
+	URL                              string // its page on the forge; "" when the forge reports none
 	Title, Body, Head, HeadSHA, Base string
 	MergeSHA                         string // "" unless merged
 	Open, Merged                     bool

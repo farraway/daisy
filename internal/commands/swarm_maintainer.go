@@ -470,9 +470,26 @@ func swarmMerge(c *Context, open opener) error {
 		fmt.Fprintf(c.Stdout, "#%d merged pull %s#%d (slice %d of %d)\n", m.n, cur.Repo, cur.Number, s, S)
 	}
 	if s < S {
-		return m.relabel(forge.ReviewApproved, forge.PlanAccepted)
+		err = m.relabel(forge.ReviewApproved, forge.PlanAccepted)
+	} else {
+		err = m.close(forge.ReviewApproved, forge.Done, " (last slice merged)")
 	}
-	return m.close(forge.ReviewApproved, forge.Done, " (last slice merged)")
+	if err != nil {
+		return err
+	}
+	m.listPulls()
+	return nil
+}
+
+// listPulls is the issue's pull requests listed in its body after the
+// verb's merge (reconcile.ListPulls), as a pass lists them, under the
+// maintainer's token, since no pass reads the issue the verb closes; a
+// failure is a warning, the merge being made.
+func (m *maintainer) listPulls() {
+	owner, _, _ := strings.Cut(m.cfg.Forge.Repo, "/")
+	if err := reconcile.ListPulls(m.f, owner, m.is, reconcile.Openers(m.swarm, m.cfg.Trusted), m.swarm, m.c.Stdout); err != nil {
+		fmt.Fprintf(m.c.Stderr, "⚠ #%d: pull requests: %v\n", m.n, err)
+	}
 }
 
 // backToWorker is T25 by the maintainer: the direction to merge base

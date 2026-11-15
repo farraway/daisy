@@ -26,7 +26,7 @@ func (a *applyWS) approvedGateOff() string {
 // checksFailed is the merge step's note on app#1 whose approved head's
 // checks failed (section 12, T26).
 func checksFailed(head, contexts string) string {
-	return "The checks on pull request acme/app#1 failed at its approved head " + head[:7] + ": " + contexts +
+	return "The checks on pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) failed at its approved head " + head[:7] + ": " + contexts +
 		". Fix what they report on swarm/1-1 and commit; the reviewers then review the new head."
 }
 
@@ -108,7 +108,7 @@ func TestSwarmMergeStepChecksPassedRefused(t *testing.T) {
 	a.forge.SetStatus("app", head, "ci / test", "success")
 	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 1})
 	a.pass()
-	note := mark("reconciler", 1) + "merge of pull request acme/app#1 at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
+	note := mark("reconciler", 1) + "merge of pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
 	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || !slices.Contains(a.bodies(1), note) {
 		t.Errorf("T16: %v %q\n%s", got, a.bodies(1), a.stdout.String())
 	}

@@ -366,8 +366,9 @@ func shellQuote(argv []string) string {
 func (j *Job) issue() string {
 	is := j.Issue
 	opened := fmt.Sprintf("Opened by %s at %s.", is.Author, stamp(is.Created))
-	body := is.Body
-	if m, ok := Swarms(Entry{is.Author, is.Body, is.Created}, j.SwarmLogin); ok {
+	e := bodyEntry(is)
+	body := e.Body
+	if m, ok := Swarms(e, j.SwarmLogin); ok {
 		opened = fmt.Sprintf("Opened by %s, run %d, at %s.", m.Role, m.Run, stamp(is.Created))
 		body = swarmText(body)
 	} else if !j.trusted(is.Author) {
@@ -755,8 +756,9 @@ func (b *Batch) active() []brief.Brief {
 // BriefLine is the `Brief: <path> — <milestone>` line an issue's text,
 // after the marker lines, opens with; "" when it opens with none.
 func BriefLine(is forge.Issue, swarmLogin string) string {
-	text := is.Body
-	if _, ok := Swarms(Entry{is.Author, is.Body, is.Created}, swarmLogin); ok {
+	e := bodyEntry(is)
+	text := e.Body
+	if _, ok := Swarms(e, swarmLogin); ok {
 		text = swarmText(text)
 	}
 	first, _, _ := strings.Cut(strings.TrimLeft(text, "\n"), "\n")

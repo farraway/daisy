@@ -57,8 +57,9 @@ func ClassOf(is forge.Issue, swarmLogin string, trusted []string) string {
 		return Architecture
 	}
 	class := ""
-	if m, ok := Swarms(Entry{is.Author, is.Body, is.Created}, swarmLogin); ok && m.Role == "owner" {
-		class = ProposalClass(swarmText(is.Body))
+	body := bodyEntry(is)
+	if m, ok := Swarms(body, swarmLogin); ok && m.Role == "owner" {
+		class = ProposalClass(swarmText(body.Body))
 	}
 	for _, c := range is.Comments {
 		if c := maintainerClass(c, swarmLogin, trusted); c != "" {

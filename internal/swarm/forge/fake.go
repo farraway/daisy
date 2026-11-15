@@ -78,7 +78,8 @@ type item struct {
 
 // Event is a write the Fake keeps on an issue's or a pull request's
 // timeline, as the forge does: the account whose token made it, and what
-// it did (`labeled <label>`, `unlabeled <label>`, `closed`, `merged`).
+// it did (`labeled <label>`, `unlabeled <label>`, `closed`, `merged`,
+// `edited`, a body replaced, as the forge keeps its history).
 // Comments and reviews carry their own author.
 type Event struct{ Actor, What string }
 
@@ -91,6 +92,9 @@ type pullState struct {
 }
 
 var _ Adapter = (*Fake)(nil)
+
+// fakeHost is the forge's host in the pages the Fake reports.
+const fakeHost = "forge.example.net"
 
 // NewFake is the forge of the issues repository repo (`<owner>/<repo>`)
 // and the declared repositories names, whose token is account's; o's
@@ -256,6 +260,19 @@ func (f *Fake) CreateIssue(title, body string, labels []string) (int, error) {
 		}
 	}
 	return f.add(f.repo, &item{title: title, body: body, author: f.account.Login, created: f.o.Now(), open: true, labels: ls}), nil
+}
+
+// EditIssue replaces issue n's body; its creation time stays.
+func (f *Fake) EditIssue(n int, body string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	it, err := f.find(Ref{f.repo, n})
+	if err != nil {
+		return err
+	}
+	it.body = body
+	f.record(it, "edited")
+	return nil
 }
 
 func (f *Fake) Comment(at Ref, body string) error {
@@ -468,7 +485,8 @@ func (f *Fake) checksPass(repo string, it *item) bool {
 }
 
 // Pulls: the swarm's pull requests for issue n in every declared
-// repository opened by one of openers (section 10's filter), by slice.
+// repository opened by one of openers (section 10's filter), by slice,
+// each at its page on fakeHost.
 func (f *Fake) Pulls(n int, openers []string) ([]Pull, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -487,7 +505,8 @@ func (f *Fake) Pulls(n int, openers []string) ([]Pull, error) {
 			if !ok {
 				continue
 			}
-			found = append(found, bySlice{s, Pull{Repo: name, Number: m, Title: it.title, Body: it.body, Head: it.pull.head, HeadSHA: it.pull.headSHA,
+			url := fmt.Sprintf("https://%s/%s/%s/pulls/%d", fakeHost, f.owner, name, m)
+			found = append(found, bySlice{s, Pull{Repo: name, Number: m, URL: url, Title: it.title, Body: it.body, Head: it.pull.head, HeadSHA: it.pull.headSHA,
 				Base: it.pull.base, MergeSHA: it.pull.mergeSHA, Open: it.open, Merged: it.pull.merged, Mergeable: it.pull.mergeable, Labels: slices.Clone(it.labels), Author: it.author, Created: it.created}})
 		}
 	}

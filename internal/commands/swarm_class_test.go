@@ -83,7 +83,7 @@ func TestSwarmApplyRoutineJob(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) {
 		t.Fatalf("T9: %v\n%s", got, a.stdout.String())
 	}
-	if g := a.gateNotes(1); len(g) != 1 || !strings.Contains(g[0], "gated at review-2-approved: both reviews approve, and the merge gate leaves the merge to the maintainer.\n\n- Class: routine.\n") {
+	if g := a.gateNotes(1); len(g) != 1 || !strings.Contains(g[0], "gated at review-2-approved: both reviews approve "+appPull("1")+" at "+a.pulls(1)[0].HeadSHA[:7]+", and the merge gate leaves the merge to the maintainer.\n\n- Class: routine.\n") {
 		t.Errorf("#1's merge gate note: %q", g)
 	}
 	a.pass()

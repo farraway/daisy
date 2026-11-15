@@ -6,6 +6,7 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -156,15 +157,15 @@ func TestSwarmMaintainerVerbs(t *testing.T) {
 	m.ok(swarmAccept, head+"#1 swarm:plan-0-posted → swarm:plan-1-accepted\n", "1")
 	first := m.approvedPull(1, "c1")
 	m.ok(swarmApprove, head+fmt.Sprintf("#1 approved pull app#%d at c1\n", first.N), "1")
-	m.ok(swarmMerge, head+fmt.Sprintf("#1 merged pull app#%d (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", first.N), "1")
+	m.ok(swarmMerge, head+fmt.Sprintf("#1 merged pull app#%d (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n#1 pull requests listed\n", first.N), "1")
 	second := m.approvedPull(2, "c2abcdef0123")
-	m.ok(swarmMerge, head+fmt.Sprintf("#1 merged pull app#%d (slice 2 of 2)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n", second.N), "1")
+	m.ok(swarmMerge, head+fmt.Sprintf("#1 merged pull app#%d (slice 2 of 2)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n#1 pull requests listed\n", second.N), "1")
 
 	want := []string{
 		"jane labeled swarm:proposal-accepted #1", "jane unlabeled swarm:proposal-posted #1",
 		"jane labeled swarm:plan-1-accepted #1", "jane unlabeled swarm:plan-0-posted #1",
-		"jane labeled swarm:plan-1-accepted #1", "jane unlabeled swarm:review-2-approved #1",
-		"jane closed #1", "jane labeled swarm:done #1", "jane unlabeled swarm:review-2-approved #1",
+		"jane labeled swarm:plan-1-accepted #1", "jane unlabeled swarm:review-2-approved #1", "jane edited #1",
+		"jane closed #1", "jane labeled swarm:done #1", "jane unlabeled swarm:review-2-approved #1", "jane edited #1",
 		fmt.Sprintf("jane merged #%d", first.N), fmt.Sprintf("jane review 0 at c1 #%d", first.N),
 		fmt.Sprintf("jane merged #%d", second.N),
 	}
@@ -177,8 +178,9 @@ func TestSwarmMaintainerVerbs(t *testing.T) {
 			t.Errorf("pull %d not merged", p.Number)
 		}
 	}
-	if is, _ := m.forge.Issue(1); is.Open {
-		t.Error("#1 open after its last slice merged")
+	listed := mark("owner", 1) + pullsBlock(fmt.Sprintf("slice 1 %s merged · slice 2 %s merged", appPull(strconv.Itoa(first.N)), appPull(strconv.Itoa(second.N)))) + "Brief: docs/briefs/m0.md — First\n"
+	if is, _ := m.forge.Issue(1); is.Open || is.Body != listed { // no pass reads the closed issue: the verb lists its pull requests
+		t.Errorf("#1 after its last slice merged: open %v, body\n%s", is.Open, is.Body)
 	}
 	if slices.ContainsFunc(m.opened, func(tok string) bool { return tok != "jane-456" }) || len(m.opened) != 5 {
 		t.Errorf("the verbs opened the forge with %q", m.opened)
@@ -202,7 +204,7 @@ func TestSwarmMaintainerCurrentPullOpeners(t *testing.T) {
 	m.forge.Push(forge.Ref{Repo: "app", N: evil}, "e1")
 	const head = "Maintainer jane on acme/swarm-app\n"
 	m.ok(swarmApprove, head+"#1 approved pull app#1 at c1\n", "1")
-	m.ok(swarmMerge, head+"#1 merged pull app#1 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", "1")
+	m.ok(swarmMerge, head+"#1 merged pull app#1 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n#1 pull requests listed\n", "1")
 
 	own, _ := m.as["jane-456"].CreatePull("app", "swarm/1-3", "main", "slice", "Refs acme/swarm-app#1")
 	m.forge.Push(forge.Ref{Repo: "app", N: own}, "j3")
@@ -255,7 +257,7 @@ func TestSwarmMaintainerCloseUnblockMerged(t *testing.T) {
 	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
 	pr := m.approvedPull(1, "c1")
 	m.as["jane-456"].Merge(pr, "c1")
-	m.ok(swarmMerge, head+"#1 pull app#1 already merged (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", "1")
+	m.ok(swarmMerge, head+"#1 pull app#1 already merged (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n#1 pull requests listed\n", "1")
 }
 
 // merge of an approved pull request the forge reports not mergeable (a

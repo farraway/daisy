@@ -123,7 +123,7 @@ func (s *Swarm) mergeStep() error {
 				if head != "" {
 					onHead = " at " + short(head)
 				}
-				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s/%s#%d%s refused: %s (at %s). Resolve it, then remove %s.", s.owner(), cur.Repo, cur.Number, onHead, msg, forge.ReviewApproved, forge.Blocked)
+				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s%s refused: %s (at %s). Resolve it, then remove %s.", pullLink(s.owner(), cur), onHead, msg, forge.ReviewApproved, forge.Blocked)
 				// Posted already only when it is the issue's last word and
 				// the swarm's: a retry after a failed relabel, not another
 				// login's copy or an earlier block's same note.
@@ -154,6 +154,7 @@ func (s *Swarm) mergeStep() error {
 		if err := Retire(s.Forge, at, forge.ReviewApproved, is.Labels, forge.Done, s.Out); err != nil {
 			return err
 		}
+		s.listPulls(is) // step (8) lists the open issues alone
 	}
 	return nil
 }
@@ -186,7 +187,7 @@ func (s *Swarm) backToWorker(is forge.Issue, p forge.Pull, head string, k int, f
 	}
 	fmt.Fprintf(s.Out, "#%d not mergeable: back to the worker\n", is.Number)
 	last := len(comments) - 1
-	if last < 0 || !strings.EqualFold(comments[last].Author, s.SwarmLogin) || !strings.HasPrefix(swarmText(comments[last].Body), directionHead(s.owner(), p, head)) {
+	if last < 0 || !strings.EqualFold(comments[last].Author, s.SwarmLogin) || !isDirection(swarmText(comments[last].Body), s.owner(), p, head) {
 		note := marker("reconciler", max(k, 1)) + Direction(s.owner(), s.Cfg.Base, is.Number, p, head, files)
 		if err := s.Forge.Comment(ref, note); err != nil {
 			return err
@@ -252,8 +253,8 @@ func ChecksFailed(owner string, n int, p forge.Pull, head string, failed []forge
 	for i, k := range failed {
 		named[i] = fmt.Sprintf("`%s` (%s)", k.Context, k.State)
 	}
-	return fmt.Sprintf("The checks on pull request %s/%s#%d failed at its approved head %s: %s. Fix what they report on swarm/%d-%d and commit; the reviewers then review the new head.",
-		owner, p.Repo, p.Number, short(head), strings.Join(named, ", "), n, sliceOf(p, n))
+	return fmt.Sprintf("The checks on pull request %s failed at its approved head %s: %s. Fix what they report on swarm/%d-%d and commit; the reviewers then review the new head.",
+		pullLink(owner, p), short(head), strings.Join(named, ", "), n, sliceOf(p, n))
 }
 
 // checksFailed is T26 by the merge step: ChecksFailed posted on the pull
@@ -300,7 +301,16 @@ func Direction(owner, base string, n int, p forge.Pull, head string, files []str
 // directionHead is how every direction on p at head begins, which tells
 // it from one on another head.
 func directionHead(owner string, p forge.Pull, head string) string {
-	return fmt.Sprintf("Pull request %s/%s#%d was approved at %s, but ", owner, p.Repo, p.Number, short(head))
+	return fmt.Sprintf("Pull request %s was approved at %s, but ", pullLink(owner, p), short(head))
+}
+
+// isDirection: text begins as a direction on p at head does, or as one
+// did before the pull request was linked in it (Step 7 of the plan for
+// the inbox requests F27-F35), so a head sent back before is told too.
+func isDirection(text, owner string, p forge.Pull, head string) bool {
+	unlinked := p
+	unlinked.URL = ""
+	return strings.HasPrefix(text, directionHead(owner, p, head)) || strings.HasPrefix(text, directionHead(owner, unlinked, head))
 }
 
 // quoted is paths in backticks, comma-separated.
@@ -318,7 +328,6 @@ func quoted(paths []string) string {
 // commit. The thread's last comment is not counted, a direction there
 // being the one a retry after a refused relabel finds.
 func SentBack(comments []forge.Comment, owner string, p forge.Pull, head, swarmLogin string, trusted []string) bool {
-	prefix := directionHead(owner, p, head)
 	for _, c := range comments[:max(len(comments)-1, 0)] {
 		text, ok := c.Body, false
 		if _, swarm := Swarms(Entry{c.Author, c.Body, c.Created}, swarmLogin); swarm {
@@ -326,7 +335,7 @@ func SentBack(comments []forge.Comment, owner string, p forge.Pull, head, swarmL
 		} else {
 			ok = slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, c.Author) })
 		}
-		if ok && strings.HasPrefix(text, prefix) {
+		if ok && isDirection(text, owner, p, head) {
 			return true
 		}
 	}
@@ -342,8 +351,8 @@ func SentBackAgain(owner, base string, n int, p forge.Pull, head string, files [
 	if len(files) > 0 {
 		conflict = " (they conflict in " + quoted(files) + ")"
 	}
-	return fmt.Sprintf("Pull request %s/%s#%d was sent back to merge %s at %s once already, was approved again at that head, and still does not merge into %s%s (at %s). Merge %s into %s, or relabel the issue, then remove %s.",
-		owner, p.Repo, p.Number, base, short(head), base, conflict, forge.ReviewApproved, base, branch, forge.Blocked)
+	return fmt.Sprintf("Pull request %s was sent back to merge %s at %s once already, was approved again at that head, and still does not merge into %s%s (at %s). Merge %s into %s, or relabel the issue, then remove %s.",
+		pullLink(owner, p), base, short(head), base, conflict, forge.ReviewApproved, base, branch, forge.Blocked)
 }
 
 // mergeRelabel is T14: approved to `to`, the labels read again right

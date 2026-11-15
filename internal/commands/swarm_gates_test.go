@@ -126,7 +126,7 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 			if head := a.pulls(1)[0].HeadSHA; archHead != head {
 				t.Fatalf("the architect's swarm/1-1 is %q, app#1's head %q:\n%s", archHead, head, a.result("1-architect-2"))
 			}
-			first := mark("reconciler", 1) + "Review round 1 of 1 on app#1 requested changes (was swarm:review-1-in-progress). The architect revises the plan from the reviews."
+			first := mark("reconciler", 1) + "Review round 1 of 1 on [acme/app#1](https://forge.example.net/acme/app/pulls/1) requested changes (was swarm:review-1-in-progress). The architect revises the plan from the reviews."
 			if b := a.bodies(1); len(b) != 3 || b[1] != first || !strings.HasPrefix(b[2], mark("architect", 2)) {
 				t.Fatalf("T11, first time: %q", b)
 			}
@@ -158,7 +158,7 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 				if err := a.apply(&moveOnReview{gitForge: a.git()}, "--once"); err != nil { // the pair, the issue moved to review-0-ready under the second
 					t.Fatal(err)
 				}
-				second := mark("reconciler", 2) + "Review round 1 of 1 on app#1 requested changes again (at swarm:review-1-in-progress). The issue was moved to swarm:review-0-ready during the run, so it is not blocked."
+				second := mark("reconciler", 2) + "Review round 1 of 1 on [acme/app#1](https://forge.example.net/acme/app/pulls/1) requested changes again (at swarm:review-1-in-progress). The issue was moved to swarm:review-0-ready during the run, so it is not blocked."
 				if got := labels(a.issue(1)); slices.Contains(got, forge.Blocked) || a.bodies(1)[len(a.bodies(1))-1] != second {
 					t.Fatalf("T11, second time, moved: %v %q", got, a.bodies(1))
 				}
@@ -181,7 +181,7 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 			}
 			a.pass() // the pair
 			again := " requested changes again (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked."
-			second := mark("reconciler", 2) + "Review round 1 of 1 on app#1" + again
+			second := mark("reconciler", 2) + "Review round 1 of 1 on " + appPull("1") + again
 			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress", "swarm:blocked", forge.Gated}) || a.bodies(1)[len(a.bodies(1))-1] != second ||
 				!strings.Contains(a.result("1-sympathetic-2"), "\nflagged swarm:blocked\nrecorded\noutcome posted\n") {
 				t.Fatalf("T11, second time: %v %q", got, a.bodies(1))
@@ -197,7 +197,7 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 			a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 			a.pass() // the worker
 			a.pass() // the pair
-			third := mark("reconciler", 3) + "Review round 2 of 1 on app#1" + again
+			third := mark("reconciler", 3) + "Review round 2 of 1 on " + appPull("1") + again
 			if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || a.bodies(1)[len(a.bodies(1))-1] != third {
 				t.Fatalf("T11, third time: %v %q", got, a.bodies(1))
 			}
@@ -429,7 +429,7 @@ func TestSwarmApplyMergeRefused(t *testing.T) {
 	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 1})
 	a.pass()
 	head := a.pulls(1)[0].HeadSHA
-	note := mark("reconciler", 1) + "merge of pull request acme/app#1 at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
+	note := mark("reconciler", 1) + "merge of pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", "swarm:blocked", forge.Gated}) || a.bodies(1)[len(a.bodies(1))-1] != note ||
 		!strings.Contains(a.stdout.String(), "#1 merge of pull app#1 refused (405 not allowed to merge)\n#1 blocked\n") {
 		t.Errorf("T16: %v %q\n%s", got, a.bodies(1), a.stdout.String())
@@ -451,7 +451,7 @@ func TestSwarmApplyMergeRefusedNoHead(t *testing.T) {
 	a.inReview(oneSlice)
 	a.forge.SetLabel(issue1, "swarm:review-2-approved")
 	a.pass()
-	note := mark("reconciler", 1) + "merge of pull request acme/app#1 refused: no head both reviews approve (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
+	note := mark("reconciler", 1) + "merge of pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) refused: no head both reviews approve (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
 	if b := a.bodies(1); b[len(b)-1] != note || !strings.Contains(a.stdout.String(), "#1 merge of pull app#1 refused (no head both reviews approve)\n#1 blocked\n") {
 		t.Errorf("%q\n%s", b[len(b)-1], a.stdout.String())
 	}
@@ -471,7 +471,7 @@ func TestSwarmApplyMergeRefusedNoteIsTheSwarms(t *testing.T) {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the pair: T9
 	head := a.pulls(1)[0].HeadSHA
-	note := mark("reconciler", 1) + "merge of pull request acme/app#1 at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
+	note := mark("reconciler", 1) + "merge of pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked."
 	a.forge.Say(issue1, "mallory", note)
 	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 1})
 	a.pass()

@@ -332,6 +332,7 @@ func TestGiteaPulls(t *testing.T) {
 			"id": 1000 + number, "number": number, "title": "T" + itoa(number), "body": body, "state": state, "merged": merged, "mergeable": state == "open",
 			"merge_commit_sha": sha, "head": map[string]string{"ref": ref, "sha": "h" + itoa(number)}, "base": map[string]string{"ref": "main"},
 			"labels": []map[string]any{{"id": 4, "name": "swarm:review-0-ready"}}, "created_at": "2026-11-03T08:00:00Z", "user": map[string]string{"login": "swarm-bot"},
+			"html_url": "https://forge.example.net/acme/repo/pulls/" + itoa(number),
 		})
 		return string(m)
 	}
@@ -365,10 +366,10 @@ func TestGiteaPulls(t *testing.T) {
 	}
 	created := time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC)
 	want := []Pull{
-		{Repo: "lib", Number: 5, Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Mergeable: MergeableNo, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
-		{Repo: "app", Number: 20, Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Mergeable: MergeableYes, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
-		{Repo: "lib", Number: 3, Title: "acme/app#7 slice 6: Drift check", Body: "Refs acme/app#7", Head: "swarm/7-6", HeadSHA: "h3", Base: "main", MergeSHA: "m3", Merged: true, Mergeable: MergeableNo, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
-		{Repo: "app", Number: 12, Title: "T12", Body: "Refs #7", Head: "swarm/7-8", HeadSHA: "h12", Base: "main", Open: true, Mergeable: MergeableYes, Labels: []string{"swarm:review-0-ready"}, Author: "Jane", Created: created},
+		{Repo: "lib", Number: 5, URL: "https://forge.example.net/acme/repo/pulls/5", Title: "T5", Body: "Lib slice.\nRefs acme/app#7\n", Head: "swarm/7-1", HeadSHA: "h5", Base: "main", MergeSHA: "m5", Merged: true, Mergeable: MergeableNo, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
+		{Repo: "app", Number: 20, URL: "https://forge.example.net/acme/repo/pulls/20", Title: "T20", Body: "Slice two.\n\nrefs #7", Head: "swarm/7-2", HeadSHA: "h20", Base: "main", Open: true, Mergeable: MergeableYes, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
+		{Repo: "lib", Number: 3, URL: "https://forge.example.net/acme/repo/pulls/3", Title: "acme/app#7 slice 6: Drift check", Body: "Refs acme/app#7", Head: "swarm/7-6", HeadSHA: "h3", Base: "main", MergeSHA: "m3", Merged: true, Mergeable: MergeableNo, Labels: []string{"swarm:review-0-ready"}, Author: "swarm-bot", Created: created},
+		{Repo: "app", Number: 12, URL: "https://forge.example.net/acme/repo/pulls/12", Title: "T12", Body: "Refs #7", Head: "swarm/7-8", HeadSHA: "h12", Base: "main", Open: true, Mergeable: MergeableYes, Labels: []string{"swarm:review-0-ready"}, Author: "Jane", Created: created},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Pulls(7) =\n%+v\nwant\n%+v", got, want)
@@ -636,6 +637,22 @@ func TestGiteaCloseIssue(t *testing.T) {
 	g, s := gitea(t, nil, pair{"PATCH", "/repos/acme/app/issues/7", `{"state":"closed"}`, 201, `{"number":7,"state":"closed"}`})
 	if err := g.CloseIssue(7); err != nil {
 		t.Error(err)
+	}
+	s.done()
+}
+
+// EditIssue replaces the issue's body alone (issueEditIssue, as
+// CloseIssue's state): a 403, an account that may not edit it, is the
+// forge's error.
+func TestGiteaEditIssue(t *testing.T) {
+	g, s := gitea(t, nil, pair{"PATCH", "/repos/acme/app/issues/7", `{"body":"<!-- x -->\nText."}`, 201, `{"number":7,"body":"<!-- x -->\nText.","state":"open"}`})
+	if err := g.EditIssue(7, "<!-- x -->\nText."); err != nil {
+		t.Error(err)
+	}
+	s.done()
+	g, s = gitea(t, nil, pair{"PATCH", "/repos/acme/app/issues/7", `{"body":""}`, 403, `{"message":"forbidden"}`})
+	if err := g.EditIssue(7, ""); errText(err) != "forge: PATCH /repos/acme/app/issues/7: 403 forbidden" {
+		t.Errorf("EditIssue refused: %v", err)
 	}
 	s.done()
 }

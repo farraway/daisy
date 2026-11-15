@@ -100,8 +100,9 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 // (5) each stage's issues, their pull requests given the issue's label,
 // and the role rule's launches up to max_members; (6) the merge step with
 // the merge gate off; (7) the owner's batch trigger; (8) unless
-// signalled, the maintainer's flag set and cleared by the stages, then
-// the forge milestones mirroring the briefs; in a swarm repository's
+// signalled, the maintainer's flag set and cleared by the stages, each
+// open issue's pull requests listed in its body, then the forge
+// milestones mirroring the briefs; in a swarm repository's
 // clone, Drift (section 11); (9) the summary line. With
 // wait (`--once`), every container launched is waited for and collected,
 // a worker run's check included, before (8), so that the flag follows
@@ -163,6 +164,9 @@ func (s *Swarm) Pass(wait bool) error {
 	if !s.stopping() {
 		open := s.flags()
 		s.copyMoved()
+		for _, is := range open {
+			s.listPulls(is)
+		}
 		s.milestones(open)
 	}
 	s.drift()

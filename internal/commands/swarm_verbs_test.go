@@ -327,7 +327,7 @@ func TestSwarmFlagClearedOnEveryTransition(t *testing.T) {
 	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
 	m.approvedPull(1, "c1")
 	m.forge.Relabel(issue1, "", forge.Gated)
-	m.ok(swarmMerge, head+"#1 merged pull app#1 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n#1 gated cleared\n", "1")
+	m.ok(swarmMerge, head+"#1 merged pull app#1 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n#1 gated cleared\n#1 pull requests listed\n", "1")
 	if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:plan-1-accepted"}) {
 		t.Errorf("T13: %v", is.Labels)
 	}

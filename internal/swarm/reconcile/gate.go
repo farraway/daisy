@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"cmp"
 	"fmt"
 	"regexp"
 	"slices"
@@ -46,6 +47,13 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 	switch {
 	case slices.Contains(is.Labels, forge.Blocked):
 		why = blockedWhy
+		pulls, err := s.pulls(n)
+		if err != nil {
+			return "", err
+		}
+		if len(pulls) > 0 && pulls[len(pulls)-1].Open {
+			why += "; its pull request is " + pullLink(s.owner(), pulls[len(pulls)-1])
+		}
 		items = s.blockedItems(is)
 		decide = fmt.Sprintf("make the relabel the note names, if it names one, then `daisy swarm unblock %d <comment>`; or %s", n, verb("close"))
 	case stage == forge.ProposalPosted:
@@ -57,9 +65,8 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 		items = s.planItems(is)
 		decide = verb("accept") + ", " + routine + ", after which Daisy accepts it, or a comment here, from which the architect revises the plan"
 	default: // review-2-approved under the merge gate
-		why = "both reviews approve, and the merge gate leaves the merge to the maintainer"
 		var err error
-		if items, err = s.mergeItems(is); err != nil {
+		if why, items, err = s.mergeItems(is); err != nil {
 			return "", err
 		}
 		decide = verb("merge") + ", " + verb("approve") + " first when the forge wants an approving review, or a comment"
@@ -99,8 +106,9 @@ func (s *Swarm) triageItems(is forge.Issue, open []forge.Issue) []string {
 		}
 		items = append(items, "- Open issues on the same milestone: "+listOrNone(same, "; ")+".")
 	}
-	body := is.Body
-	if _, ok := Swarms(Entry{is.Author, is.Body, is.Created}, s.SwarmLogin); ok {
+	e := bodyEntry(is)
+	body := e.Body
+	if _, ok := Swarms(e, s.SwarmLogin); ok {
 		body = swarmText(body)
 	}
 	var named []string
@@ -165,37 +173,49 @@ func (s *Swarm) planItems(is forge.Issue) []string {
 	return append(append(items, "- Risks:"), risks...)
 }
 
-// mergeItems: the current pull request, its slice of the plan's, its
-// review rounds, and the non-blocking findings of the reviews that
+// mergeItems is the merge gate's why, naming the current pull request,
+// linked, at the head both reviews approve (merged already, or closed
+// unmerged), and its bullets: that pull request, its slice of the plan's,
+// its review rounds, and the non-blocking findings of the reviews that
 // approved its head.
-func (s *Swarm) mergeItems(is forge.Issue) ([]string, error) {
+func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
+	why := func(subject string) string {
+		return "both reviews approve" + subject + ", and the merge gate leaves the merge to the maintainer"
+	}
 	pulls, err := s.pulls(is.Number)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if len(pulls) == 0 {
-		return []string{"- Pull request: none."}, nil
+		return why(""), []string{"- Pull request: none."}, nil
 	}
 	cur := pulls[len(pulls)-1]
 	ref := forge.Ref{Repo: cur.Repo, N: cur.Number}
 	reviews, err := s.Forge.Reviews(ref)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	comments, err := s.Forge.PullComments(ref)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	state := "open, head " + short(cur.HeadSHA)
 	if cur.Merged {
 		state = "merged already"
+	}
+	head, _ := ApprovedHead(reviews, s.SwarmLogin)
+	subject := " " + pullLink(s.owner(), cur) + " at " + short(cmp.Or(head, cur.HeadSHA))
+	switch {
+	case cur.Merged:
+		subject = " " + pullLink(s.owner(), cur) + ", merged already"
+	case !cur.Open:
+		subject = " " + pullLink(s.owner(), cur) + ", closed unmerged"
 	}
 	items := []string{
 		fmt.Sprintf("- Pull request %s/%s#%d, %s (%s).", s.owner(), cur.Repo, cur.Number, cur.Title, state),
 		fmt.Sprintf("- Slice %d of %d.", sliceOf(cur, is.Number), planSlices(is, s.SwarmLogin)),
 		fmt.Sprintf("- Review rounds: %d.", Rounds(reviews, Answers(pullComments(comments), s.SwarmLogin), s.SwarmLogin, time.Time{}, "")),
 	}
-	head, _ := ApprovedHead(reviews, s.SwarmLogin)
 	var findings []string
 	for _, role := range []string{"adversary", "sympathetic"} {
 		var last forge.Review
@@ -211,9 +231,9 @@ func (s *Swarm) mergeItems(is forge.Issue) ([]string, error) {
 		}
 	}
 	if len(findings) == 0 {
-		return append(items, "- Non-blocking findings in the approving reviews: none."), nil
+		return why(subject), append(items, "- Non-blocking findings in the approving reviews: none."), nil
 	}
-	return append(append(items, "- Non-blocking findings in the approving reviews:"), findings...), nil
+	return why(subject), append(append(items, "- Non-blocking findings in the approving reviews:"), findings...), nil
 }
 
 // blockedItems: the reconciler's note that blocked the issue, by its time

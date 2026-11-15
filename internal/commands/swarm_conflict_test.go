@@ -39,14 +39,14 @@ func (a *applyWS) land(name string, files map[string]string, msg string) {
 // head, for issue 1's slice 1 (section 12): the forge's report, which
 // names no file.
 func direction(head string) string {
-	return "Pull request acme/app#1 was approved at " + head[:7] + ", but the forge reports it not mergeable into main, which has moved since swarm/1-1 last took it in. " +
+	return "Pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) was approved at " + head[:7] + ", but the forge reports it not mergeable into main, which has moved since swarm/1-1 last took it in. " +
 		`Merge main into swarm/1-1 with a merge commit ("git merge --no-edit main"), resolve each conflict, keeping what both sides meant, and commit; the reviewers then review the new head.`
 }
 
 // conflictIn is the merge step's T25 note on app#1, approved at head,
 // naming the files that conflict on the mirror (section 12).
 func conflictIn(head, files string) string {
-	return "Pull request acme/app#1 was approved at " + head[:7] + ", but it does not merge into main, which has moved since swarm/1-1 last took it in: they conflict in " + files + ". " +
+	return "Pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) was approved at " + head[:7] + ", but it does not merge into main, which has moved since swarm/1-1 last took it in: they conflict in " + files + ". " +
 		`Merge main into swarm/1-1 with a merge commit ("git merge --no-edit main"), resolve each conflict, keeping what both sides meant, and commit; the reviewers then review the new head.`
 }
 
@@ -293,7 +293,7 @@ func TestSwarmMergeStepSentBackTwice(t *testing.T) {
 		t.Fatalf("approved again: %v\n%s", got, a.stdout.String())
 	}
 	a.pass() // the merge step
-	note := mark("reconciler", 2) + "Pull request acme/app#1 was sent back to merge main at " + approved[:7] + " once already, was approved again at that head, and still does not merge into main (they conflict in `main.go`) (at swarm:review-2-approved). Merge main into swarm/1-1, or relabel the issue, then remove swarm:blocked."
+	note := mark("reconciler", 2) + "Pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) was sent back to merge main at " + approved[:7] + " once already, was approved again at that head, and still does not merge into main (they conflict in `main.go`) (at swarm:review-2-approved). Merge main into swarm/1-1, or relabel the issue, then remove swarm:blocked."
 	comments, _ := a.forge.PullComments(pr)
 	directions := 0
 	for _, c := range comments {
