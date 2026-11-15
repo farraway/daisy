@@ -54,21 +54,25 @@ func InProgress(role, stage string) string {
 // without a commit are), in the review stages its reviews and head,
 // and the roles that hold the issue (rule 2): the role of each container
 // running on it (`check` for a worker run's check) and of each run on it
-// ended and not collected; and, on plan-1-accepted, whether rulings
-// changed since the plan (Replan), so the architect runs in the worker's
-// place.
+// ended and not collected; on plan-1-accepted, whether rulings changed
+// since the plan (Replan), so the architect runs in the worker's place;
+// and, on an issue carrying swarm:question, the role that answers it
+// (Question, section 6, The question), which runs in place of the
+// stage's, reading the issue thread.
 type Turn struct {
-	Label   string
-	Thread  []Entry
-	Reviews []forge.Review
-	Head    string
-	Running []string
-	Replan  bool
+	Label    string
+	Thread   []Entry
+	Reviews  []forge.Review
+	Head     string
+	Running  []string
+	Replan   bool
+	Question string
 }
 
 // Launch is the roles the trigger rule launches (section 6, rules 1–3):
 // the first of the label's roles that has something to answer (on
-// plan-1-accepted with Replan, the architect's), and in a
+// plan-1-accepted with Replan, the architect's; with Question, that
+// role's, at any stage), and in a
 // review stage each reviewer that has (the pair launches in one pass,
 // blind to each other on the head); none when nothing is to answer. A
 // reviewer has something to answer when it has no review of the head
@@ -77,12 +81,15 @@ type Turn struct {
 // stage the other reviewer's run, which holds only itself. Rule 1's holds
 // (Held) and rule 4 (paused, max_members, a free slot) are the caller's.
 func Launch(t Turn, swarmLogin string, trusted []string) []string {
-	if !reviewing(t.Label) {
+	if !reviewing(t.Label) || t.Question != "" {
 		if len(t.Running) > 0 {
 			return nil
 		}
 		roles := stageRoles[t.Label]
-		if t.Replan && t.Label == forge.PlanAccepted {
+		switch {
+		case t.Question != "":
+			roles = []string{t.Question}
+		case t.Replan && t.Label == forge.PlanAccepted:
 			roles = []string{"architect"}
 		}
 		e, ok := NewestCounted(t.Thread, swarmLogin, trusted)

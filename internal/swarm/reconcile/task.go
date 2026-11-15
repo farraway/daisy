@@ -26,6 +26,15 @@ func (j *Job) task() string {
 		if p := j.protected(); p != "" {
 			add(`The protected paths are %s.`, p)
 		}
+	case j.Question && j.Role == "architect":
+		asker := "A member"
+		if e, ok := newestQuestion(j.Issue, j.SwarmLogin); ok {
+			m, _ := Swarms(e, j.SwarmLogin)
+			asker = fmt.Sprintf("%s run %d", strings.ToUpper(m.Role[:1])+m.Role[1:], m.Run)
+		}
+		add(`%s asks a question on issue #%d, its comment beginning "QUESTION:" under "# Thread". Answer it from the plan, the thread and the resources: write "ANSWER: <your answer>" as the first line of your output, then what the asker needs with it; do not revise the plan here. If they do not settle it, write "QUESTION: <the question>" as the first line instead, restated for the owner, who answers it from the briefs or passes it to the maintainer.`, asker, j.N)
+	case j.Question && j.Role == "owner":
+		add(`The architect passed you a question on issue #%d, its comment beginning "QUESTION:" under "# Thread", which the plan and the resources do not settle. Answer it from the briefs, the thread and the resources: write "ANSWER: <your answer>" as the first line of your output, then what the asker needs with it. If only the maintainer can settle it, write "QUESTION: <the question>" as the first line instead: Daisy blocks the issue with it for the maintainer.`, j.N)
 	case j.Role == "owner":
 		if j.commented() {
 			add(`Answer the latest comment in the thread of issue #%d.`, j.N)
@@ -105,6 +114,9 @@ func (j *Job) task() string {
 		case r > 1:
 			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since %s in the files the pull request changes ("git diff --name-only -z %s...HEAD | xargs -0 -r git diff %s..HEAD --"): what a merge of %s brought in is not this pull request's change.`, r, prev, prev, j.Cfg.Base, prev, j.Cfg.Base)
 		}
+	}
+	if j.Role == "worker" || j.Role == "adversary" || j.Role == "sympathetic" {
+		add(`When the plan, the issue and its thread leave open something your work depends on, do not guess: write "QUESTION: <one question>" as the first line of your output instead; the architect answers it, and you run again with the answer under "# Questions".`)
 	}
 	if j.Cfg.Notes && writesNotes(j.Role) {
 		add("%s", j.notesTask())

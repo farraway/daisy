@@ -372,7 +372,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 		if err := c.comment("reconciler", second); err != nil {
 			return err
 		}
-		if err := c.flag(false); err != nil {
+		if err := c.flag(forge.Blocked, false); err != nil {
 			return err
 		}
 		return c.end("posted")

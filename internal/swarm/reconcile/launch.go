@@ -36,6 +36,9 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	if j.Label != "" {
 		labelLines = []string{"label " + j.Label}
 	}
+	if j.Question {
+		labelLines = append(labelLines, "question") // the collection's: an answer, not a plan (section 6, The question)
+	}
 	failed := func(lines ...string) (bool, error) {
 		if err := r.Append(fs, append(labelLines, lines...)...); err != nil {
 			return false, err

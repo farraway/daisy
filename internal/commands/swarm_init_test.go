@@ -46,7 +46,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 		want += "✓ Wrote " + f + "\n"
 	}
 	want += "✓ Committed and pushed " + gitIn(t, up, "rev-parse", "--short=7", "main") + " to acme/swarm-app's main as Jane <jane@example.net>\n✓ Wrote " + env +
-		" (mode 0600)\n  No Daisy workspace here: " + filepath.Join(filepath.Dir(env), "home") + " not written; the journal alone records each run\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 16 present (16 created, 0 renamed)\n" +
+		" (mode 0600)\n  No Daisy workspace here: " + filepath.Join(filepath.Dir(env), "home") + " not written; the journal alone records each run\n✓ Mirrors: swarm-app, app, lib fetched\n✓ Token $GITEA_TOKEN: labels 17 present (17 created, 0 renamed)\n" +
 		s.units()
 	if s.stdout.String() != want {
 		t.Errorf("stdout:\n%s\nwant:\n%s", s.stdout.String(), want)
@@ -60,7 +60,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	if h, ok := s.forge.Held(); !ok || !reflect.DeepEqual(h, forge.HeldRepository{Private: true, CreatedBy: "jane", Collaborators: map[string]string{"swarm-bot": "write by jane"}}) {
 		t.Errorf("the forge holds %+v %v", h, ok)
 	}
-	if s.opened[4] != "tok-123" || len(s.forge.Labels()) != 16 {
+	if s.opened[4] != "tok-123" || len(s.forge.Labels()) != 17 {
 		t.Errorf("labels %q under %q", s.forge.Labels(), s.opened)
 	}
 	// The clone and the push: one commit by the clone's identity, of

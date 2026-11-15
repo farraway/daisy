@@ -551,7 +551,8 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
 			}
 			turn := Turn{Label: label, Running: s.busy(running, runs, n)}
-			if label == forge.PlanAccepted && !open && len(turn.Running) == 0 {
+			questioned := slices.Contains(is.Labels, forge.Question)
+			if label == forge.PlanAccepted && !open && len(turn.Running) == 0 && !questioned {
 				// Between slices: rulings changed since the plan run
 				// the architect in the worker's place (section 6).
 				if j.Rulings, err = s.replan(j); err != nil {
@@ -560,7 +561,12 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				turn.Replan = len(j.Rulings) > 0
 			}
 			turn.Thread = IssueThread(j.Issue)
-			if review {
+			switch {
+			case questioned:
+				// The question's answerer reads the issue thread, where
+				// the question is, at any stage (section 6).
+				turn.Question, j.Question = Answerer(is, s.SwarmLogin), true
+			case review:
 				turn.Thread, turn.Reviews, turn.Head = j.pullEntries(cur), j.Pull.Reviews, cur.HeadSHA
 				if reviewing(label) {
 					// The reviewers' turn reads only the worker's answers,

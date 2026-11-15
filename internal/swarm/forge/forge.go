@@ -42,7 +42,8 @@ var Stages = []string{
 // the maintainer unblocks it; Paused, the maintainer holds the issue;
 // Blocking, the issue blocks another; ClassArchitecture, the job is of
 // the architecture class, whose triage and plan gates the maintainer
-// keeps. Done and Rejected are the terminal
+// keeps; Question, a member asked a question that the architect, then
+// the owner, answers or passes on (section 6, The question). Done and Rejected are the terminal
 // labels, which replace the stage label when the swarm or the
 // maintainer's verbs close an issue.
 const (
@@ -54,12 +55,13 @@ const (
 	Rejected = "swarm:rejected"
 
 	ClassArchitecture = "swarm:class-architecture"
+	Question          = "swarm:question"
 )
 
-// Flags are the five flags.
-var Flags = []string{Gated, Blocked, Paused, Blocking, ClassArchitecture}
+// Flags are the six flags.
+var Flags = []string{Gated, Blocked, Paused, Blocking, ClassArchitecture, Question}
 
-// Labels are the sixteen labels `swarm init` and `swarm apply` ensure:
+// Labels are the seventeen labels `swarm init` and `swarm apply` ensure:
 // the stages, the flags and the two terminals.
 var Labels = append(append(slices.Clone(Stages), Flags...), Done, Rejected)
 
@@ -291,7 +293,7 @@ func New(o ops.Ops, kind, api, token, repo string, names []string) (Adapter, err
 // noLabel is CreateIssue's or Relabel's failure on a label the forge
 // does not hold for the repository name of owner.
 func noLabel(method, owner, name, label string) error {
-	return fmt.Errorf("forge: %s: no label %s for %s/%s; run 'daisy swarm init', which ensures the sixteen", method, label, owner, name)
+	return fmt.Errorf("forge: %s: no label %s for %s/%s; run 'daisy swarm init', which ensures the seventeen", method, label, owner, name)
 }
 
 // renames is each name of names absent from have whose old name (Renamed)

@@ -179,8 +179,8 @@ secrets file outside every repository,
 creates the swarm's labels on the forge (the nine stages, grouped and
 numbered as the job gets on, `swarm:proposal-posted` to
 `swarm:review-3-changes-requested`; the flags `swarm:gated` on what
-waits for you, `swarm:blocked`, `swarm:paused`, `swarm:blocking` and
-`swarm:class-architecture`; and the terminals `swarm:done` and `swarm:rejected`) and prints a systemd user
+waits for you, `swarm:blocked`, `swarm:paused`, `swarm:blocking`,
+`swarm:class-architecture` and `swarm:question`; and the terminals `swarm:done` and `swarm:rejected`) and prints a systemd user
 service. Every `daisy swarm` command runs from that repository's clone,
 with or without a Daisy workspace around it (`docs/swarm.md`'s revision
 6; a swarm in the older workspace layout is moved into its repository

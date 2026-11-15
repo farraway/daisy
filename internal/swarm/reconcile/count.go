@@ -37,7 +37,7 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 		m, ok := Swarms(Entry{cm.Author, cm.Body, cm.Created}, swarmLogin)
 		switch {
 		case !ok:
-		case m.Role == "architect" && !strings.HasPrefix(swarmText(cm.Body), "BLOCKED:") && !strings.HasPrefix(swarmText(cm.Body), stands):
+		case m.Role == "architect" && onThePlan(swarmText(cm.Body)) && !strings.HasPrefix(swarmText(cm.Body), stands):
 			c.Plans++
 		case blocks(m, cm.Body):
 			c.Blocks++

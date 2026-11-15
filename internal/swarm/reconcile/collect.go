@@ -128,8 +128,16 @@ func (s *Swarm) collect(r Run) error {
 	}
 	text := postable(string(out), r, 0)
 	first, _, _ := strings.Cut(string(out), "\n")
-	if strings.HasPrefix(strings.TrimRight(first, "\r "), "BLOCKED:") {
+	_, questionRun := Has(lines, "question")
+	switch {
+	case strings.HasPrefix(strings.TrimRight(first, "\r "), "BLOCKED:"):
 		return c.blocked(text, pull)
+	case asks(r.Role, first, questionRun) && r.Role == "owner":
+		return c.toMaintainer(text, first)
+	case asks(r.Role, first, questionRun):
+		return c.ask(text)
+	case questionRun:
+		return c.answer(string(out))
 	}
 	switch r.Role {
 	case "owner":
@@ -406,33 +414,38 @@ func (c *collection) abandonedFetch() error {
 }
 
 // block is T17, swarm:blocked being a flag: the issue taken back home,
-// then flagged beside it (section 5).
+// then flagged beside it (section 5), and a question it carried is the
+// maintainer's (unquestion).
 func (c *collection) block() error {
 	if err := c.relabel(c.home()); err != nil {
 		return err
 	}
-	return c.flag(true)
+	if err := c.flag(forge.Blocked, true); err != nil {
+		return err
+	}
+	return c.unquestion()
 }
 
-// flag sets swarm:blocked on the open issue at the run's stage, or with
-// home at the run's home, where T22 has just taken it; the labels read
-// again first: an issue the maintainer moved during the run is left as
-// it is.
-func (c *collection) flag(home bool) error {
+// flag sets flag (swarm:blocked, or swarm:question) on the open issue at
+// the run's stage, or with home at the run's home, where T22 has just
+// taken it; the labels read again first: an issue the maintainer moved
+// during the run is left as it is.
+func (c *collection) flag(flag string, home bool) error {
 	is, err := c.s.Forge.Issue(c.r.N)
 	if err != nil {
 		return err
 	}
 	c.is.Labels = is.Labels
 	at := c.stage() != "" || home && slices.Contains(is.Labels, c.home())
-	if !is.Open || !at || slices.Contains(is.Labels, forge.Blocked) {
+	if !is.Open || !at || slices.Contains(is.Labels, flag) {
 		return nil
 	}
-	if err := c.s.Forge.Relabel(c.at, "", forge.Blocked); err != nil {
+	if err := c.s.Forge.Relabel(c.at, "", flag); err != nil {
 		return err
 	}
-	fmt.Fprintln(c.s.Out, c.head+"blocked")
-	return c.step("flagged " + forge.Blocked)
+	c.is.Labels = append(slices.Clone(c.is.Labels), flag)
+	fmt.Fprintln(c.s.Out, c.head+strings.TrimPrefix(flag, "swarm:"))
+	return c.step("flagged " + flag)
 }
 
 // note posts the reconciler's note on the issue, head then resume and

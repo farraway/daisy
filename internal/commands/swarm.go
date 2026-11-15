@@ -535,6 +535,8 @@ func swarmStatus(c *Context, open opener) error {
 			classes[n] = class
 			item := map[string]string{forge.ProposalPosted: "triage", forge.PlanPosted: "plan"}[l]
 			switch {
+			case slices.Contains(is.Labels, forge.Blocked) && reconcile.AtAQuestion(is, acct.Login):
+				item = "question" // passed to the maintainer (section 6, The question)
 			case slices.Contains(is.Labels, forge.Blocked):
 				item = "blocked"
 			case l == forge.ReviewApproved:
@@ -570,7 +572,7 @@ func swarmStatus(c *Context, open opener) error {
 		fmt.Fprintln(out)
 	}
 	var waiting []string
-	for _, item := range []string{"triage", "plan", "merge", "next slice", "close", "pull closed", "blocked"} {
+	for _, item := range []string{"triage", "plan", "merge", "next slice", "close", "pull closed", "question", "blocked"} {
 		if len(waits[item]) > 0 {
 			var ns []string
 			for _, n := range waits[item] {

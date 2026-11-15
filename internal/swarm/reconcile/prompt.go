@@ -42,7 +42,8 @@ type Job struct {
 
 	Resources []Listed // each resource and reference path, as # Resources lists them (section 7.3)
 
-	Rulings []string // the architect's on plan-1-accepted: the rulings changed since the plan, each `<name>:<path>` (section 6)
+	Rulings  []string // the architect's on plan-1-accepted: the rulings changed since the plan, each `<name>:<path>` (section 6)
+	Question bool     // the architect's or the owner's run answers the issue's question (swarm:question, section 6)
 }
 
 // PullThread is the current pull request's comments, reviews and line
@@ -119,7 +120,7 @@ func Render(j *Job) (system, prompt string) {
 		if j.Role == "worker" && j.Label == forge.PlanAccepted {
 			blocks = append(blocks, "# Direction", j.direction())
 		}
-		blocks = append(blocks, j.earlier())
+		blocks = append(blocks, j.questions(), j.earlier())
 		if open || j.Label == forge.ChangesRequested || reviewer {
 			blocks = append(blocks, j.pullRequest(cur), "# Check", j.Check)
 		}
@@ -206,14 +207,15 @@ func sliceOf(p forge.Pull, n int) int {
 }
 
 // Plan is the accepted plan (section 7.3): the newest counted issue
-// comment marked role=architect whose text begins neither BLOCKED: nor
-// STANDS: (a confirmation that the plan stands, section 7.5).
+// comment marked role=architect whose text begins none of BLOCKED:,
+// QUESTION:, ANSWER: (onThePlan) and STANDS: (a confirmation that the
+// plan stands, section 7.5).
 func (j *Job) Plan() (Entry, Mark, bool) {
 	return j.newestArchitect(func(text string) bool { return !strings.HasPrefix(text, stands) })
 }
 
-// newestArchitect is the newest of the architect's issue comments whose
-// text does not begin BLOCKED: and that keep takes.
+// newestArchitect is the newest of the architect's issue comments that
+// are its word on the plan (onThePlan) and that keep takes.
 func (j *Job) newestArchitect(keep func(text string) bool) (Entry, Mark, bool) {
 	var e Entry
 	var m Mark
@@ -221,7 +223,7 @@ func (j *Job) newestArchitect(keep func(text string) bool) (Entry, Mark, bool) {
 	for _, c := range j.Issue.Comments {
 		ce := Entry{c.Author, c.Body, c.Created}
 		text := swarmText(c.Body)
-		if mk, ok := Swarms(ce, j.SwarmLogin); ok && mk.Role == "architect" && !strings.HasPrefix(text, "BLOCKED:") && keep(text) {
+		if mk, ok := Swarms(ce, j.SwarmLogin); ok && mk.Role == "architect" && onThePlan(text) && keep(text) {
 			if !found || !c.Created.Before(e.Created) {
 				e, m, found = ce, mk, true
 			}
