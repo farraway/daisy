@@ -521,6 +521,14 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				}
 			}
 			delete(s.moves, n) // copied as it is now; a launch below records its move again
+			if slices.Contains(is.Labels, forge.Blocked) {
+				// The maintainer's word lifts the block, paused or not,
+				// at a stage with a role or none (section 6).
+				if err := s.lift(j, cur, open); err != nil {
+					return err
+				}
+				is = j.Issue
+			}
 			roles := stageRoles[label]
 			if len(roles) == 0 || launch == nil || decided[n] {
 				continue
@@ -544,8 +552,10 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			}
 			marks := marksOf(IssueThread(is), s.SwarmLogin)
 			if open {
-				if j.Pull, err = s.pullThread(cur); err != nil {
-					return err
+				if j.Pull == nil {
+					if j.Pull, err = s.pullThread(cur); err != nil {
+						return err
+					}
 				}
 				j.Check = CheckSection(fs, runs, n, cur.HeadSHA, s.repoCheck(cur.Repo), s.Cfg.Timeout)
 				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
@@ -567,13 +577,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				// the question is, at any stage (section 6).
 				turn.Question, j.Question = Answerer(is, s.SwarmLogin), true
 			case review:
-				turn.Thread, turn.Reviews, turn.Head = j.pullEntries(cur), j.Pull.Reviews, cur.HeadSHA
-				if reviewing(label) {
-					// The reviewers' turn reads only the worker's answers,
-					// which are comments (section 6), as the collection
-					// and the rounds read them.
-					turn.Thread = pullComments(j.Pull.Comments)
-				}
+				turn.Thread, turn.Reviews, turn.Head = j.roleThread(cur), j.Pull.Reviews, cur.HeadSHA
 			}
 			decided[n] = true
 			for _, role := range Launch(turn, s.SwarmLogin, s.Cfg.Trusted) {
@@ -593,6 +597,43 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			}
 		}
 	}
+	return nil
+}
+
+// lift is the maintainer's word read on blocked issue j.Issue (section 6,
+// The maintainer's word): the threads its stage's role reads the
+// maintainer in (roleThread; with the current pull request not open, at
+// a stage whose role reads it, none), and the issue thread too when the
+// block is a question passed to the maintainer, whose asker reads the
+// issue's comments under # Questions; when the maintainer's comment
+// there lifts the block (Lifting), swarm:blocked is cleared and
+// j.Issue's labels with it. The pull request's thread it reads is kept
+// in j.Pull.
+func (s *Swarm) lift(j *Job, cur forge.Pull, open bool) error {
+	var words []Entry
+	switch {
+	case onPull(j.Label) && open:
+		var err error
+		if j.Pull, err = s.pullThread(cur); err != nil {
+			return err
+		}
+		words = j.roleThread(cur)
+	case !onPull(j.Label):
+		words = IssueThread(j.Issue)
+	}
+	if onPull(j.Label) && AtAQuestion(j.Issue, s.SwarmLogin) {
+		words = append(words, IssueThread(j.Issue)...)
+	}
+	e, ok := Lifting(j.Issue, words, s.SwarmLogin, s.Cfg.Trusted)
+	if !ok {
+		return nil
+	}
+	fmt.Fprintf(s.Out, "#%d block answered by %s at %s\n", j.N, e.Author, stamp(e.Created))
+	at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: j.N}
+	if err := Unflag(s.Forge, at, j.Issue.Labels, forge.Blocked, s.Out); err != nil {
+		return err
+	}
+	j.Issue.Labels = slices.DeleteFunc(slices.Clone(j.Issue.Labels), func(l string) bool { return l == forge.Blocked })
 	return nil
 }
 

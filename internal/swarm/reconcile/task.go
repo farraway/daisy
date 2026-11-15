@@ -109,6 +109,8 @@ func (j *Job) task() string {
 			add(`For each test that slice %d's item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against %s's code: in /work, a throwaway clone, put everything the change touches except its tests back as %s has it (check out %s's version of each path, deleting those %s lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against %s's code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against %s already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against %s by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.`, s, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base)
 		}
 		switch r, prev := j.round(cur); {
+		case r > 1 && prev == cur.HeadSHA && !j.answeredSince(prev):
+			add(`This is round %d, on the head you reviewed before (%s): the maintainer commented in the thread, with no commit since. First answer the maintainer's comment; then say, for each blocking finding of your previous review, whether it still stands in its light, and raise a new blocking finding only where the comment shows one.`, r, prev)
 		case r > 1 && prev == cur.HeadSHA:
 			add(`This is round %d, on the head you reviewed before (%s): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.`, r, prev)
 		case r > 1:
@@ -155,11 +157,25 @@ func (j *Job) protected() string {
 	return strings.Join(parts, "; ")
 }
 
+// answeredSince: the worker answered without a commit (Answers) after
+// the role's newest review of head, so what reopened it is the worker's
+// answer, not the maintainer's comment alone (section 6).
+func (j *Job) answeredSince(head string) bool {
+	var at time.Time
+	for _, r := range j.Pull.Reviews {
+		if m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, j.SwarmLogin); ok && m.Role == j.Role && r.Commit == head && r.Submitted.After(at) {
+			at = r.Submitted
+		}
+	}
+	answers := Answers(pullComments(j.Pull.Comments), j.SwarmLogin)
+	return len(answers) > 0 && answers[len(answers)-1].After(at)
+}
+
 // round is the reviewer's round on the current head (section 6: the
 // rounds before this head as it stands, since the accepted plan, plus
 // this one) and the commit of the role's newest review on the pull
-// request before it: an earlier head's, or this head's before the
-// worker's newest answer without a commit.
+// request before it: an earlier head's, or this head's before its
+// newest reopening (Reopenings).
 func (j *Job) round(p forge.Pull) (int, string) {
 	if j.Pull == nil {
 		return 1, ""
@@ -168,11 +184,11 @@ func (j *Job) round(p forge.Pull) (int, string) {
 	if plan, _, ok := j.Plan(); ok {
 		since = plan.Created
 	}
-	answers := Answers(pullComments(j.Pull.Comments), j.SwarmLogin)
+	answers := Reopenings(pullComments(j.Pull.Comments), j.SwarmLogin, j.Cfg.Trusted)
 	prev, prevAt := "", time.Time{}
 	for _, r := range j.Pull.Reviews {
 		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, j.SwarmLogin)
-		standing := r.Commit == p.HeadSHA && sinceAnswer(answers, r.Submitted)
+		standing := r.Commit == p.HeadSHA && standsOnHead(answers, r.Submitted)
 		if ok && m.Role == j.Role && !standing && (since.IsZero() || r.Submitted.After(since)) && !r.Submitted.Before(prevAt) {
 			prev, prevAt = r.Commit, r.Submitted
 		}

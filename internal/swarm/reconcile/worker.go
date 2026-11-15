@@ -296,7 +296,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 	if err != nil {
 		return err
 	}
-	answers := Answers(pullComments(comments), s.SwarmLogin)
+	answers := Reopenings(pullComments(comments), s.SwarmLogin, s.Cfg.Trusted)
 	posted := false
 	for _, rv := range reviews {
 		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
@@ -322,7 +322,7 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 	at := map[string]time.Time{}
 	for _, rv := range reviews {
 		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
-		if ok && rv.Commit == pull.HeadSHA && sinceAnswer(answers, rv.Submitted) && (m.Role == "adversary" || m.Role == "sympathetic") && !rv.Submitted.Before(at[m.Role]) {
+		if ok && rv.Commit == pull.HeadSHA && standsOnHead(answers, rv.Submitted) && (m.Role == "adversary" || m.Role == "sympathetic") && !rv.Submitted.Before(at[m.Role]) {
 			pair[m.Role], at[m.Role] = verdictOf(swarmText(rv.Body)), rv.Submitted
 		}
 	}
@@ -401,10 +401,11 @@ const roundLimitAgain = "requested changes again"
 
 // Rounds is a pull request's review rounds (section 6): the heads with a
 // review marked role=adversary and one marked role=sympathetic, a head
-// counted once more for each of the worker's answers without a commit
-// (Answers, answers) after which both reviewed it again; counting only
-// reviews submitted after since (all of them when since is zero), and not
-// except's since the newest answer, the head as it stands.
+// counted once more for each reopening without a commit (Reopenings,
+// answers: the worker's answers and the maintainer's comments) after
+// which both reviewed it again; counting only reviews submitted after
+// since (all of them when since is zero), and not except's since the
+// newest reopening, the head as it stands.
 func Rounds(reviews []forge.Review, answers []time.Time, swarmLogin string, since time.Time, except string) int {
 	by := map[roundKey]map[string]bool{}
 	for _, r := range reviews {
@@ -428,7 +429,7 @@ func Rounds(reviews []forge.Review, answers []time.Time, swarmLogin string, sinc
 }
 
 // roundKey is the round a review belongs to (section 6): the commit it
-// reviewed and how many of the worker's answers without a commit came
+// reviewed and how many reopenings without a commit (Reopenings) came
 // before it.
 type roundKey struct {
 	commit  string

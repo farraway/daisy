@@ -295,6 +295,21 @@ func TestRenderAdversaryNoChange(t *testing.T) {
 		`If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`})
 }
 
+// The maintainer's comment on a head both reviewed, with no answer of
+// the worker's (section 6, The maintainer's word): round 2 on the same
+// head, its Task text naming the comment, not a NO CHANGE: answer, and
+// leaving new blocking findings open to what the comment shows.
+func TestRenderAdversaryMaintainerComment(t *testing.T) {
+	f, at, pr, _ := planned(t)
+	f.Say(pr, "jane", "Adversary: x.go:1 is right; the plan says so.")
+	pulls, _ := f.Pulls(1, []string{"swarm-bot"})
+	j := job(f, at.N, "adversary", "swarm:review-0-ready")
+	j.Pulls, j.Pull = pulls, thread(f, pr)
+	sys, _ := Render(j)
+	has(t, "system.md", sys, []string{`This is round 2, on the head you reviewed before (aaa): the maintainer commented in the thread, with no commit since. First answer the maintainer's comment; then say, for each blocking finding of your previous review, whether it still stands in its light, and raise a new blocking finding only where the comment shows one.`},
+		`"NO CHANGE:" and no commit`, "This is round 2. First say")
+}
+
 // filler is an entry's prose: about 1.8kB, the size of a real review's
 // or report's reasoning, never a finding.
 var filler = strings.Repeat("The run explains what it read and why at length. ", 36)

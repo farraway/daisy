@@ -302,7 +302,10 @@ func TestSwarmApplyBlockedGateNote(t *testing.T) {
 	}
 	a.forge.CreateIssue("Long", "Build it.", []string{"swarm:plan-1-accepted", forge.Blocked}) // #1
 	block(1, long)
-	a.forge.CreateIssue("Unblocked, then blocked by hand", "Build it.", []string{"swarm:plan-1-accepted"}) // #2
+	// #2 at a stage whose role does not read the issue thread, where the
+	// maintainer's comment lifts no block (section 6, The maintainer's
+	// word): at plan-1-accepted the pass would lift it.
+	a.forge.CreateIssue("Unblocked, then blocked by hand", "Build it.", []string{"swarm:review-0-ready"}) // #2
 	block(2, "worker run 1 failed: no commits")
 	a.tick()
 	a.forge.Say(a.ref(2), "jane", "Carry on.")

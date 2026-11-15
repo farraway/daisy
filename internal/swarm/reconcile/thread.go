@@ -136,10 +136,34 @@ func Answers(thread []Entry, swarmLogin string) []time.Time {
 	return out
 }
 
-// sinceAnswer: a review submitted at t came after the newest of answers,
-// or there is none, so it stands on its head as it is now.
-func sinceAnswer(answers []time.Time, t time.Time) bool {
-	return len(answers) == 0 || t.After(answers[len(answers)-1])
+// maintainerWord: e is the maintainer's word to a member (section 6, The
+// maintainer's word): a counted entry by a login in trusted other than
+// the swarm's (so no class statement and no command) that is no
+// `Blocked by #<m>`, which keeps its meaning (rule 1).
+func maintainerWord(e Entry, swarmLogin string, trusted []string) bool {
+	return !strings.EqualFold(e.Author, swarmLogin) && counted(e, swarmLogin, trusted) && !blockedByRe.MatchString(strings.TrimSpace(e.Body))
+}
+
+// Reopenings is when a pull request's head was put back to the pair
+// without a commit, oldest first: the worker's answers without a commit
+// (Answers) and the maintainer's comments (maintainerWord), thread being
+// its comments. A review stands on the head only when submitted after
+// the newest (standsOnHead), so each reopening runs both reviewers again.
+func Reopenings(thread []Entry, swarmLogin string, trusted []string) []time.Time {
+	out := Answers(thread, swarmLogin)
+	for _, e := range thread {
+		if maintainerWord(e, swarmLogin, trusted) {
+			out = append(out, e.Created)
+		}
+	}
+	slices.SortFunc(out, func(a, b time.Time) int { return a.Compare(b) })
+	return out
+}
+
+// standsOnHead: a review submitted at t came after the newest of reopened
+// (Reopenings), or there is none, so it stands on its head as it is now.
+func standsOnHead(reopened []time.Time, t time.Time) bool {
+	return len(reopened) == 0 || t.After(reopened[len(reopened)-1])
 }
 
 // pullComments is a pull request's comments as entries.

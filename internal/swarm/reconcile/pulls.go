@@ -98,8 +98,8 @@ func pullLink(owner string, p forge.Pull) string {
 // `closed` (unmerged), or, open, `open, approved` when both newest
 // reviews approve its head, else `open, review round <r>`, the round it
 // is in: one more than its rounds (section 6, over all its reviews,
-// comments holding the worker's answers without a commit).
-func pullState(p forge.Pull, reviews []forge.Review, comments []forge.Comment, swarmLogin string) string {
+// comments holding its reopenings, Reopenings).
+func pullState(p forge.Pull, reviews []forge.Review, comments []forge.Comment, swarmLogin string, trusted []string) string {
 	switch {
 	case p.Merged:
 		return "merged"
@@ -109,7 +109,7 @@ func pullState(p forge.Pull, reviews []forge.Review, comments []forge.Comment, s
 	if head, _ := ApprovedHead(reviews, swarmLogin); head != "" && head == p.HeadSHA {
 		return "open, approved"
 	}
-	return fmt.Sprintf("open, review round %d", Rounds(reviews, Answers(pullComments(comments), swarmLogin), swarmLogin, time.Time{}, "")+1)
+	return fmt.Sprintf("open, review round %d", Rounds(reviews, Reopenings(pullComments(comments), swarmLogin, trusted), swarmLogin, time.Time{}, "")+1)
 }
 
 // ListPulls keeps issue is's block (is read with its body) as its pull
@@ -137,7 +137,7 @@ func ListPulls(f forge.Adapter, owner string, is forge.Issue, openers []string, 
 				return err
 			}
 		}
-		items = append(items, fmt.Sprintf("slice %d %s %s", sliceOf(p, is.Number), pullLink(owner, p), pullState(p, reviews, comments, swarmLogin)))
+		items = append(items, fmt.Sprintf("slice %d %s %s", sliceOf(p, is.Number), pullLink(owner, p), pullState(p, reviews, comments, swarmLogin, openers)))
 	}
 	block := ""
 	if len(items) > 0 {

@@ -103,7 +103,7 @@ func TestPullState(t *testing.T) {
 			review("adversary", "approve", "c2", 3), review("sympathetic", "approve", "c2", 4)}, "open, approved"},
 		{"approved, then pushed", forge.Pull{Open: true, HeadSHA: "c3"}, []forge.Review{review("adversary", "approve", "c2", 3), review("sympathetic", "approve", "c2", 4)}, "open, review round 2"},
 	} {
-		if got := pullState(tc.p, tc.reviews, nil, "swarm-bot"); got != tc.want {
+		if got := pullState(tc.p, tc.reviews, nil, "swarm-bot", nil); got != tc.want {
 			t.Errorf("%s: %q, want %q", tc.name, got, tc.want)
 		}
 	}

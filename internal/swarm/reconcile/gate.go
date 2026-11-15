@@ -214,7 +214,7 @@ func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
 	items := []string{
 		fmt.Sprintf("- Pull request %s/%s#%d, %s (%s).", s.owner(), cur.Repo, cur.Number, cur.Title, state),
 		fmt.Sprintf("- Slice %d of %d.", sliceOf(cur, is.Number), planSlices(is, s.SwarmLogin)),
-		fmt.Sprintf("- Review rounds: %d.", Rounds(reviews, Answers(pullComments(comments), s.SwarmLogin), s.SwarmLogin, time.Time{}, "")),
+		fmt.Sprintf("- Review rounds: %d.", Rounds(reviews, Reopenings(pullComments(comments), s.SwarmLogin, s.Cfg.Trusted), s.SwarmLogin, time.Time{}, "")),
 	}
 	var findings []string
 	for _, role := range []string{"adversary", "sympathetic"} {

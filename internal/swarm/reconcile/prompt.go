@@ -534,6 +534,21 @@ func stateName(v forge.Verdict) string {
 // pullEntries is the pull request's thread as entries (section 6): its
 // body, by the login that opened it, then its comments, reviews and line
 // comments.
+// roleThread is the thread the stage's role reads (section 6, rule 3's
+// table), j.Pull read: in the review stages the current pull request p's
+// comments alone, where its reopenings are (Reopenings), as the
+// collection and the rounds read them; in review-3-changes-requested
+// p's whole thread (pullEntries); at any other stage the issue thread.
+func (j *Job) roleThread(p forge.Pull) []Entry {
+	switch {
+	case reviewing(j.Label):
+		return pullComments(j.Pull.Comments)
+	case onPull(j.Label):
+		return j.pullEntries(p)
+	}
+	return IssueThread(j.Issue)
+}
+
 func (j *Job) pullEntries(p forge.Pull) []Entry {
 	out := []Entry{{p.Author, p.Body, p.Created}}
 	if j.Pull == nil {
@@ -599,8 +614,10 @@ func (j *Job) shown(rounds []round, current roundKey) []int {
 // roundLines is the "## Earlier rounds" lines: each round shown as a
 // line, named by the head it reviewed rather than numbered, since the
 // Task text's round number counts other rounds (section 7.3), with its
-// blocking findings counted and what followed it.
-func roundLines(rounds []round, modes []int) []string {
+// blocking findings counted and what followed it: a revision, the
+// worker's answer without a commit (one of answers, Answers) or, with
+// none between, the maintainer's comment.
+func roundLines(rounds []round, modes []int, answers []time.Time) []string {
 	var out []string
 	for i, rd := range rounds {
 		if modes[i] != roundLine {
@@ -614,7 +631,11 @@ func roundLines(rounds []round, modes []int) []string {
 		// follows it.
 		next := "revised in " + rounds[i+1].commit
 		if rounds[i+1].commit == rd.commit {
-			next = "answered without a commit"
+			last, first := rd.reviews[len(rd.reviews)-1].Submitted, rounds[i+1].reviews[0].Submitted
+			next = "reviewed again after the maintainer's comment"
+			if slices.ContainsFunc(answers, func(a time.Time) bool { return a.After(last) && a.Before(first) }) {
+				next = "answered without a commit"
+			}
 		}
 		out = append(out, fmt.Sprintf("- round on %s: %d blocking, %s", rd.commit, b, next))
 	}
@@ -633,10 +654,10 @@ func (j *Job) pullRequest(p forge.Pull) string {
 	var items []item
 	var lines []string
 	if j.Pull != nil {
-		answers := Answers(pullComments(j.Pull.Comments), j.SwarmLogin)
+		answers := Reopenings(pullComments(j.Pull.Comments), j.SwarmLogin, j.Cfg.Trusted)
 		rounds := roundsOf(j.Pull.Reviews, answers, j.SwarmLogin)
 		modes := j.shown(rounds, roundKey{p.HeadSHA, len(answers)})
-		lines = roundLines(rounds, modes)
+		lines = roundLines(rounds, modes, Answers(pullComments(j.Pull.Comments), j.SwarmLogin))
 		mode := map[roundKey]int{}
 		for i, rd := range rounds {
 			mode[rd.roundKey] = modes[i]

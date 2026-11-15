@@ -48,7 +48,7 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 	}
 	for i, p := range pulls {
 		t := threads[i]
-		pc := PullCounts{Repo: p.Repo, Number: p.Number, Rounds: Rounds(t.Reviews, Answers(pullComments(t.Comments), swarmLogin), swarmLogin, time.Time{}, "")}
+		pc := PullCounts{Repo: p.Repo, Number: p.Number, Rounds: Rounds(t.Reviews, Reopenings(pullComments(t.Comments), swarmLogin, trusted), swarmLogin, time.Time{}, "")}
 		for _, cm := range t.Comments {
 			if maintainer(cm.Author) {
 				pc.Maintainer++

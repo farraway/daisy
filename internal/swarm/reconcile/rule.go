@@ -50,8 +50,9 @@ func InProgress(role, stage string) string {
 // Turn is what the trigger rule reads for one open issue carrying exactly
 // one stage label: the thread its roles read (the issue's; in
 // review-3-changes-requested the current pull request's; in the review
-// stages that pull request's comments, where the worker's answers
-// without a commit are), in the review stages its reviews and head,
+// stages that pull request's comments, where its reopenings are: the
+// worker's answers without a commit and the maintainer's comments), in
+// the review stages its reviews and head,
 // and the roles that hold the issue (rule 2): the role of each container
 // running on it (`check` for a worker run's check) and of each run on it
 // ended and not collected; on plan-1-accepted, whether rulings changed
@@ -76,8 +77,7 @@ type Turn struct {
 // review stage each reviewer that has (the pair launches in one pass,
 // blind to each other on the head); none when nothing is to answer. A
 // reviewer has something to answer when it has no review of the head
-// since the worker's newest answer without a commit (Answers) in the
-// thread. Anything running on the issue holds every role, but in a review
+// since the head's newest reopening (Reopenings) in the thread. Anything running on the issue holds every role, but in a review
 // stage the other reviewer's run, which holds only itself. Rule 1's holds
 // (Held) and rule 4 (paused, max_members, a free slot) are the caller's.
 func Launch(t Turn, swarmLogin string, trusted []string) []string {
@@ -100,7 +100,7 @@ func Launch(t Turn, swarmLogin string, trusted []string) []string {
 		}
 		return nil
 	}
-	answers := Answers(t.Thread, swarmLogin)
+	reopened := Reopenings(t.Thread, swarmLogin, trusted)
 	var out []string
 	for _, role := range stageRoles[t.Label] {
 		if slices.ContainsFunc(t.Running, func(r string) bool { return r == role || !slices.Contains(stageRoles[t.Label], r) }) {
@@ -109,7 +109,7 @@ func Launch(t Turn, swarmLogin string, trusted []string) []string {
 		reviewed := false
 		for _, r := range t.Reviews {
 			m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
-			reviewed = reviewed || (ok && m.Role == role && r.Commit == t.Head && sinceAnswer(answers, r.Submitted))
+			reviewed = reviewed || (ok && m.Role == role && r.Commit == t.Head && standsOnHead(reopened, r.Submitted))
 		}
 		if !reviewed {
 			out = append(out, role)
@@ -180,3 +180,27 @@ func marker(role string, k int) string {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// Lifting is the maintainer's comment that lifts the block of issue is,
+// carrying swarm:blocked (section 6, The maintainer's word): the newest
+// of words, the threads the caller reads it in, that is the maintainer's
+// word (maintainerWord) and was posted after the reconciler's note that
+// blocked is (blockingNote); ok is false when none was, or when is holds
+// no such note (the flag set by hand). The block's note and every other
+// entry of the swarm's lift nothing.
+func Lifting(is forge.Issue, words []Entry, swarmLogin string, trusted []string) (Entry, bool) {
+	note, ok := blockingNote(is, swarmLogin)
+	if !ok {
+		return Entry{}, false
+	}
+	var newest *Entry
+	for i, w := range words {
+		if w.Created.After(note.Created) && maintainerWord(w, swarmLogin, trusted) && (newest == nil || !w.Created.Before(newest.Created)) {
+			newest = &words[i]
+		}
+	}
+	if newest == nil {
+		return Entry{}, false
+	}
+	return *newest, true
+}

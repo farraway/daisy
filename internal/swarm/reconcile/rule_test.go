@@ -105,8 +105,18 @@ func TestLaunchInReview(t *testing.T) {
 		{"answered", []Entry{answer}, before, "adversary,sympathetic"},
 		{"the adversary since", []Entry{answer}, append(before, at(review("adversary", "h2", "swarm-bot"), 6)), "sympathetic"},
 		{"both since", []Entry{answer}, append(before, at(review("adversary", "h2", "swarm-bot"), 6), at(review("sympathetic", "h2", "swarm-bot"), 7)), ""},
-		{"the words by jane", []Entry{{"jane", answer.Body, answer.Created}}, before, ""},
+		{"the words by an untrusted login", []Entry{{"mallory", answer.Body, answer.Created}}, before, ""},
 		{"a worker's comment that is no answer", []Entry{{"swarm-bot", "<!-- daisy-swarm role=worker run=2 -->\n**worker:**\n\nFixed. NO CHANGE: elsewhere.", answer.Created}}, before, ""},
+		// The maintainer's comment on the pull request (section 6, The
+		// maintainer's word): both reviewers again, whoever it names; not
+		// the swarm's notes, a command, or a Blocked by #<m>.
+		{"jane's comment", []Entry{{"jane", "Adversary: the v1 is right.", answer.Created}}, before, "adversary,sympathetic"},
+		{"jane's comment, the adversary since", []Entry{{"jane", "Look again.", answer.Created}}, append(before, at(review("adversary", "h2", "swarm-bot"), 6)), "sympathetic"},
+		{"jane's comment before the reviews", []Entry{{"jane", "Look again.", t1}}, before, ""},
+		{"the reconciler's note", []Entry{{"swarm-bot", marker("reconciler", 1) + "The checks failed.", answer.Created}}, before, ""},
+		{"the swarm's comment unmarked", []Entry{{"swarm-bot", "Look again.", answer.Created}}, before, ""},
+		{"jane's command", []Entry{{"jane", "/swarm approve", answer.Created}}, before, ""},
+		{"jane's Blocked by", []Entry{{"jane", "Blocked by #4", answer.Created}}, before, ""},
 	} {
 		if got := strings.Join(Launch(Turn{Label: "swarm:review-0-ready", Thread: tc.thread, Reviews: tc.reviews, Head: "h2"}, "swarm-bot", []string{"jane", "swarm-bot"}), ","); got != tc.want {
 			t.Errorf("%s: %q, want %q", tc.name, got, tc.want)
@@ -141,5 +151,56 @@ func TestSentBack(t *testing.T) {
 		if got := SentBack(tc.comments, "acme", p, head, "swarm-bot", []string{"jane", "swarm-bot"}); got != tc.want {
 			t.Errorf("%s: %v", tc.name, got)
 		}
+	}
+}
+
+// Lifting (section 6, The maintainer's word): the maintainer's comment
+// after the reconciler's note that blocked the issue lifts the block,
+// from the threads the caller gives; nothing lifts a block with no note
+// (set by hand), nor the swarm's own entries, an untrusted login's, a
+// command, a class statement or a Blocked by #<m>; a gate note after the
+// note changes nothing.
+func TestLifting(t *testing.T) {
+	at := func(m int) time.Time { return t0.Add(time.Duration(m) * time.Minute) }
+	trusted := []string{"jane", "swarm-bot"}
+	note := forge.Comment{Author: "swarm-bot", Body: marker("reconciler", 1) + "worker run 1 is blocked (at swarm:plan-1-accepted). Answer, then remove swarm:blocked to resume.", Created: at(1)}
+	gate := func(m int) forge.Comment {
+		return forge.Comment{Author: "swarm-bot", Body: gateMarker + "\n**reconciler:** gated at plan-1-accepted: " + blockedWhy + ".\n\n- Class: architecture.", Created: at(m)}
+	}
+	jane := func(body string, m int) forge.Comment {
+		return forge.Comment{Author: "jane", Body: body, Created: at(m)}
+	}
+	for _, tc := range []struct {
+		name     string
+		comments []forge.Comment
+		want     string // the lifting comment's body, "" for none
+	}{
+		{"the note alone", []forge.Comment{note, gate(2)}, ""},
+		{"jane answers", []forge.Comment{note, gate(2), jane("Use v1.", 3)}, "Use v1."},
+		{"jane answers twice", []forge.Comment{note, gate(2), jane("Use v1.", 3), jane("And v2 later.", 4)}, "And v2 later."},
+		{"jane's comment before the note", []forge.Comment{jane("Use v1.", 0), note, gate(2)}, ""},
+		{"no note: set by hand", []forge.Comment{gate(2), jane("Use v1.", 3)}, ""},
+		{"the gate note again before the answer", []forge.Comment{note, gate(2), gate(3), jane("Use v1.", 4)}, "Use v1."},
+		{"an untrusted login", []forge.Comment{note, {Author: "mallory", Body: "Use v1.", Created: at(3)}}, ""},
+		{"the swarm's, unmarked", []forge.Comment{note, {Author: "swarm-bot", Body: "Use v1.", Created: at(3)}}, ""},
+		{"a command", []forge.Comment{note, jane("/swarm pause", 3)}, ""},
+		{"a class statement", []forge.Comment{note, jane("Class: routine", 3)}, ""},
+		{"a Blocked by", []forge.Comment{note, jane("Blocked by #2", 3)}, ""},
+	} {
+		is := forge.Issue{Number: 1, Author: "jane", Body: "Check the drift.", Created: t0, Labels: []string{forge.PlanAccepted, forge.Blocked}, Comments: tc.comments}
+		e, ok := Lifting(is, IssueThread(is), "swarm-bot", trusted)
+		if got := map[bool]string{true: e.Body}[ok]; got != tc.want {
+			t.Errorf("%s: %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	// The words are the caller's: a comment on a thread it does not give
+	// (the issue's, at a stage whose role reads the pull request's) lifts
+	// nothing; one it gives does.
+	is := forge.Issue{Number: 1, Labels: []string{forge.ReviewReady, forge.Blocked}, Comments: []forge.Comment{note, gate(2), jane("Use v1.", 3)}}
+	if _, ok := Lifting(is, nil, "swarm-bot", trusted); ok {
+		t.Error("lifted from no thread")
+	}
+	if e, ok := Lifting(is, []Entry{{"jane", "Fine as it is.", at(4)}}, "swarm-bot", trusted); !ok || e.Body != "Fine as it is." {
+		t.Errorf("the pull request's comment: %q %v", e.Body, ok)
 	}
 }
