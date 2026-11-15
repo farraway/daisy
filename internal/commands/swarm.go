@@ -794,13 +794,17 @@ func issueList(ns []int) string {
 }
 
 // stateNotes is the State line's tail: since when and why the swarm is
-// paused, and why the owner's batch is held and, when the hold waits on
-// issues, that their closing releases it (section 2's two files, and
-// noBrief, no brief under resources being active: section 6).
+// paused, since when a restart is requested, and why the owner's batch is
+// held and, when the hold waits on issues, that their closing releases it
+// (section 2's three files, and noBrief, no brief under resources being
+// active: section 6).
 func stateNotes(fs ops.FS, state string, noBrief bool) string {
 	var notes string
 	if b, err := fs.ReadFile(filepath.Join(state, "paused")); err == nil {
 		notes += " — paused since " + strings.TrimPrefix(firstLine(b), "paused ")
+	}
+	if b, err := fs.ReadFile(reconcile.RestartFile(state)); err == nil {
+		notes += " — restart requested at " + strings.TrimPrefix(firstLine(b), "restart ")
 	}
 	if b, err := fs.ReadFile(filepath.Join(state, "owner-held")); err == nil {
 		_, reason, found := strings.Cut(strings.TrimPrefix(firstLine(b), "held "), ": ")
@@ -1137,11 +1141,13 @@ func loadSwarm(o ops.Ops, at declare.Place) (declare.Config, error) {
 
 // applyLoop is `apply` without --once (section 11): a pass every
 // interval, start to start, swarm.json re-read before each (a failure is
-// printed and the pass skipped) and a pass's error printed, until SIGINT
-// or SIGTERM; then no launch, the running members and checks collected as
-// they exit, and exit 0, or at once on a second signal (130).
+// printed and the pass skipped) and a pass's error printed, each followed
+// by the restart (restarter.restart), until SIGINT or SIGTERM; then no
+// launch, the running members and checks collected as they exit, and
+// exit 0, or at once on a second signal (130).
 func applyLoop(c *Context, s *reconcile.Swarm) error {
 	o := c.Ops
+	restart := newRestarter(c)
 	signals := o.Signals()
 	signalled := false
 	// A signal during a pass ends its launching. The pass asks on this
@@ -1171,8 +1177,11 @@ func applyLoop(c *Context, s *reconcile.Swarm) error {
 				fmt.Fprintf(c.Stderr, "Error: swarm: %v\n", err)
 			}
 		}
+		if !signalled && restart != nil && restart.restart(c, s) {
+			return nil // replaced by the exec: only a Fake's returns
+		}
 		if signalled {
-			break // signalled during the pass: drain now, not after the interval
+			break // signalled during the pass or the restart: drain now, not after the interval
 		}
 		interval, _ := time.ParseDuration(s.Cfg.Interval) // validated
 		select {

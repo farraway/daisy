@@ -40,6 +40,11 @@ type applyWS struct {
 	// as is the forge under each token apply's opener is given that is
 	// not the swarm's (the maintainer's, for a comment command).
 	as map[string]forge.Adapter
+	// binary is the installed build apply runs from (Executable), and
+	// reexec, when set, stands for replacing the process (Reexec); unset,
+	// a re-exec fails the test.
+	binary string
+	reexec func(path string, args ...string) error
 }
 
 func (a *applyWS) Now() time.Time { a.mu.Lock(); defer a.mu.Unlock(); return a.now }
@@ -49,7 +54,8 @@ func (a *applyWS) Now() time.Time { a.mu.Lock(); defer a.mu.Unlock(); return a.n
 func (a *applyWS) tick() { a.mu.Lock(); defer a.mu.Unlock(); a.now = a.now.Add(time.Minute) }
 
 func newApplyWS(t *testing.T) *applyWS {
-	a := &applyWS{statusWS: newStatusWS(t), runner: &runner.Fake{}, now: fixedClock().Now()}
+	a := &applyWS{statusWS: newStatusWS(t), runner: &runner.Fake{}, now: fixedClock().Now(), binary: filepath.Join(t.TempDir(), "daisy")}
+	os.WriteFile(a.binary, []byte("build 1\n"), 0o755)
 	a.forge = forge.NewFake(&ops.Fake{NowFn: a.Now}, "acme/swarm-app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot", Email: "swarm@example.net"})
 	a.forge.AddLabels(forge.Labels...)
 	a.forge.AddRepository()
@@ -115,7 +121,15 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 			}
 			return a.exec(dir, name, args...)
 		},
-		PromptFn: func(io.Reader, io.Writer, string) (string, error) { a.t.Error("apply prompted"); return "", io.EOF },
+		PromptFn:     func(io.Reader, io.Writer, string) (string, error) { a.t.Error("apply prompted"); return "", io.EOF },
+		ExecutableFn: func() (string, error) { return a.binary, nil },
+		ReexecFn: func(path string, args ...string) error {
+			if a.reexec == nil {
+				a.t.Errorf("re-executed %s %q", path, args)
+				return errors.New("re-exec refused by the test")
+			}
+			return a.reexec(path, args...)
+		},
 	}
 	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: stdout, Stderr: stderr, Flags: flags}
 	if a.fs != nil {

@@ -198,7 +198,9 @@ marked seen; in a Daisy workspace, `/daisy swarm connect` briefs you
 from them, then works the swarm with you through the `swarm` skill.
 `daisy swarm pause` and
 `daisy swarm resume` hold and release launches, for the whole swarm or,
-given an issue's number, for that issue alone. The eight verbs of the
+given an issue's number, for that issue alone; `daisy swarm restart`
+has the running `apply` re-execute itself once no member runs, as it
+does by itself when a new build of `daisy` is installed. The eight verbs of the
 maintainer, the person who runs the swarm, `triage`, `accept`, `class`
 (a job routine or architecture), `approve`, `merge`, `unblock`, `block`
 (hold one job until another issue is closed) and `close`, make your

@@ -34,10 +34,10 @@ entries cross-reference it in prose.
 `daisy --help` as built, rendered from the `cli` table; `daisy
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm prompt build`, `swarm apply`,
-`swarm metrics`, `swarm status`, `swarm list`, `swarm journal`, `swarm pause`, `swarm resume`, and the maintainer's
+`swarm metrics`, `swarm status`, `swarm list`, `swarm journal`, `swarm pause`, `swarm resume`, `swarm restart`, and the maintainer's
 `swarm triage`, `swarm accept`, `swarm class`, `swarm approve`, `swarm
 merge`, `swarm unblock`, `swarm block` and `swarm close`) joined the
-table a verb at a time as each was built; all seventeen are in it, and the tree never names a command the binary does
+table a verb at a time as each was built; all eighteen are in it, and the tree never names a command the binary does
 not run. Their entries below give docs/swarm.md's revision 6 (the swarm
 repository as the swarm's root, run from its clone with no Daisy
 workspace needed, the secrets in the swarm's `<state>/env`), which
@@ -105,6 +105,7 @@ Swarm
   swarm journal [--mark <run>]      The journal since the line marked seen (read-only); --mark moves the mark
   swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
   swarm resume [<n>]                Launch members again and release the owner's held batch (with <n>, that issue)
+  swarm restart                     Have the running apply re-execute itself, onto the installed build, once no member runs
   swarm triage <n>                  As the maintainer: triage a proposal, proposal-posted to proposal-accepted
   swarm accept <n>                  As the maintainer: accept the plan, plan-0-posted to plan-1-accepted
   swarm class <n> routine|architecture
@@ -191,7 +192,7 @@ init, or `.daisy/` with no `home` file. Commands that need no workspace:
 `install`, `init` (bare, it re-initializes the one it is in, and outside one
 the identity is the missing argument), `home`, `identity list`, `help` (tree or command),
 `prompt build <home>`, and `test`, whose bash dispatcher required one although the script read
-only the root *(decided, D30; built in Step 24)*, and the seventeen
+only the root *(decided, D30; built in Step 24)*, and the eighteen
 `swarm` verbs, which find their swarm themselves (docs/swarm.md section
 11, Finding the swarm: a swarm repository's clone; Step 2 of revision
 6's plan, the old layout's workspace no longer read since its Step 7),
@@ -867,6 +868,20 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 | Writes | without `<n>`, removes `<state>/paused`, whoever wrote it, and `<state>/owner-held`, no forge call, no secret read; with it, on the forge, `Relabel(n, "swarm:paused", "")` when it carries it |
 | Commits | none |
 | Cases | none; `TestSwarmPauseAndResume`, `TestSwarmApplyBatchTrigger`, `TestSwarmMaintainerHolds` |
+
+### daisy swarm restart
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 19 of the plan for the inbox requests F27–F35): Go (`internal/commands/swarm_restart.go`); the contract is [docs/swarm.md](swarm.md) section 11, daisy swarm restart and The restart |
+| Legacy | none |
+| Usage | `daisy swarm restart`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); an argument is usage on stderr, exit 2 |
+| Exit codes | 0 requested or already requested; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the write failing; 2 usage |
+| Stdout | `Restart requested (<state>/restart): the running apply re-executes itself at its first pass with no member running`, or `Restart already requested at <time>` |
+| Ops | Real |
+| Writes | `<state>/restart` (and `<state>` when absent), no forge call, no secret read; the running `apply` loop removes it when it re-executes itself, at its first pass after which no member runs |
+| Commits | none |
+| Cases | none; `TestSwarmRestartRequested`, `TestSwarmApplyRestartsOntoANewBuild`, `TestSwarmApplyRestartExecFails` |
 
 ### The maintainer's verbs
 

@@ -10,7 +10,7 @@ import (
 )
 
 // ReadOnly wraps inner so that every mutating FS call, every Exec other than
-// a git read or `docker ps`, every Start and every HTTP request other than
+// a git read or `docker ps`, every Start and Reexec and every HTTP request other than
 // a GET or HEAD returns an error naming the call. The commands whose usage
 // promises "read-only" run under it, so the promise is checked rather than
 // trusted (`swarm status` reads the forge and the running containers:
@@ -73,6 +73,10 @@ func (r readOnly) Exec(dir, name string, args ...string) ([]byte, []byte, error)
 
 func (r readOnly) Start(dir, name string, stdin io.Reader, stdout, stderr io.Writer, args ...string) (Process, error) {
 	return nil, refused("Start", append([]string{name}, args...)...)
+}
+
+func (r readOnly) Reexec(path string, args ...string) error {
+	return refused("Reexec", append([]string{path}, args...)...)
 }
 
 func (r readOnly) Now() time.Time                         { return r.inner.Now() }

@@ -111,6 +111,25 @@ func TestReadOnlyRefusesStartAndHTTPWrites(t *testing.T) {
 	}
 }
 
+// Reexec replaces the process: ReadOnly refuses it, naming the call, and
+// a Fake without ReexecFn refuses it too, never falling back to Real's.
+func TestReexecRefused(t *testing.T) {
+	var ran []string
+	inner := &ops.Fake{ReexecFn: func(path string, args ...string) error {
+		ran = append(ran, path+" "+strings.Join(args, " "))
+		return nil
+	}}
+	if err := ops.ReadOnly(inner).Reexec("/opt/daisy/bin/daisy", "swarm", "apply"); err == nil || !strings.Contains(err.Error(), "Reexec /opt/daisy/bin/daisy swarm apply refused") {
+		t.Errorf("Reexec under ReadOnly: %v", err)
+	}
+	if len(ran) != 0 {
+		t.Errorf("reached the inner Reexec: %q", ran)
+	}
+	if err := (&ops.Fake{}).Reexec("/opt/daisy/bin/daisy", "swarm", "apply"); err == nil || !strings.Contains(err.Error(), "without a ReexecFn") {
+		t.Errorf("Fake's Reexec without ReexecFn: %v", err)
+	}
+}
+
 type doerFunc func(*http.Request)
 
 func (f doerFunc) Do(r *http.Request) (*http.Response, error) {

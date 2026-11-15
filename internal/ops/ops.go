@@ -78,6 +78,13 @@ type Ops interface {
 	Getwd() (string, error)
 	// Executable is the path of the running binary, links unresolved.
 	Executable() (string, error)
+	// Reexec replaces the running process with the program at path, run
+	// with args after its name, the process's environment and its working
+	// directory: the same PID, keeping only the descriptors without
+	// close-on-exec (Go opens every file with it, so a Lock is released by
+	// the exec itself, as it succeeds). It returns only when the exec
+	// failed, the process unchanged.
+	Reexec(path string, args ...string) error
 	HTTP() Doer
 	// Prompt writes question to w and reads one line from r, without the
 	// trailing newline.

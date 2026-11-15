@@ -84,6 +84,7 @@ var table = []Command{
 	{Group: "Swarm", Name: "swarm journal", Usage: "swarm journal [--mark <run>]", Help: "The journal since the line marked seen (read-only); --mark moves the mark", Values: []string{"--mark"}, Run: commands.SwarmJournal},
 	{Group: "Swarm", Name: "swarm pause", Usage: "swarm pause [<n>]", Help: "Launch no new member until resumed (with <n>, as the maintainer, on that issue)", Max: 1, Run: commands.SwarmPause},
 	{Group: "Swarm", Name: "swarm resume", Usage: "swarm resume [<n>]", Help: "Launch members again and release the owner's held batch (with <n>, that issue)", Max: 1, Run: commands.SwarmResume},
+	{Group: "Swarm", Name: "swarm restart", Usage: "swarm restart", Help: "Have the running apply re-execute itself, onto the installed build, once no member runs", Run: commands.SwarmRestart},
 	{Group: "Swarm", Name: "swarm triage", Usage: "swarm triage <n>", Help: "As the maintainer: triage a proposal, proposal-posted to proposal-accepted", Min: 1, Max: 1, Run: commands.SwarmTriage},
 	{Group: "Swarm", Name: "swarm accept", Usage: "swarm accept <n>", Help: "As the maintainer: accept the plan, plan-0-posted to plan-1-accepted", Min: 1, Max: 1, Run: commands.SwarmAccept},
 	{Group: "Swarm", Name: "swarm class", Usage: "swarm class <n> routine|architecture", Help: "As the maintainer: set the job's class; Daisy passes a routine job's triage and plan", Min: 2, Max: 2, Run: commands.SwarmClass},

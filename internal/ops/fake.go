@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"errors"
 	"io"
 	"os"
 	"time"
@@ -20,6 +21,7 @@ type Fake struct {
 	GetenvFn     func(key string) string
 	GetwdFn      func() (string, error)
 	ExecutableFn func() (string, error)
+	ReexecFn     func(path string, args ...string) error
 	HTTPFn       func() Doer
 	PromptFn     func(r io.Reader, w io.Writer, question string) (string, error)
 }
@@ -82,6 +84,16 @@ func (f *Fake) Executable() (string, error) {
 		return f.ExecutableFn()
 	}
 	return Real().Executable()
+}
+
+// Reexec is ReexecFn's; none set, an error, never Real's: a test never
+// replaces its own process. A ReexecFn returning nil stands for an exec
+// that succeeded, after which the caller returns as if replaced.
+func (f *Fake) Reexec(path string, args ...string) error {
+	if f.ReexecFn != nil {
+		return f.ReexecFn(path, args...)
+	}
+	return errors.New("ops: Fake.Reexec without a ReexecFn: a test never replaces its process")
 }
 
 func (f *Fake) HTTP() Doer {
