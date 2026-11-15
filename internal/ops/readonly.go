@@ -37,9 +37,9 @@ func joinArgs(args []string) string {
 func (r readOnly) FS() FS { return readOnlyFS{r.inner.FS()} }
 
 // gitReadVerbs are the git subcommands that change nothing in a
-// repository (ls-tree and cat-file read a swarm's mirrors for its briefs:
-// docs/swarm.md section 11, status).
-var gitReadVerbs = []string{"status", "log", "rev-parse", "ls-files", "ls-tree", "diff", "show", "cat-file"}
+// repository (ls-tree and cat-file read a swarm's mirrors for its briefs,
+// for-each-ref the notes' branches: docs/swarm.md section 11, status).
+var gitReadVerbs = []string{"status", "log", "rev-parse", "ls-files", "ls-tree", "diff", "show", "cat-file", "for-each-ref"}
 
 // gitConfigReads are the config flags that only read.
 var gitConfigReads = []string{"--get", "--get-all", "--get-regexp", "--list", "-l"}

@@ -34,6 +34,9 @@ type applyWS struct {
 	runDir  string   // the folder the runner was opened in, the swarm's root
 	idDirs  []string // the folder each `id` ran in
 	fs      ops.FS   // when set, the file system apply is given in place of the real one
+	// beforeGit, when set, runs before each git command apply runs, as
+	// another writer acting between two of them.
+	beforeGit func(dir string, args []string)
 }
 
 func (a *applyWS) Now() time.Time { a.mu.Lock(); defer a.mu.Unlock(); return a.now }
@@ -103,6 +106,9 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 			}
 			if name == "docker" {
 				a.t.Errorf("docker %q reached the real runner", args)
+			}
+			if name == "git" && a.beforeGit != nil {
+				a.beforeGit(dir, args)
 			}
 			return a.exec(dir, name, args...)
 		},

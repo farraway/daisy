@@ -158,3 +158,29 @@ func TestExportNotes(t *testing.T) {
 		}
 	}
 }
+
+// A pick's conflict whose base part is empty is lines both sides
+// inserted at one place, kept both, the head's first; one whose base
+// part holds a line is the same lines changed on both sides, as is a
+// marker out of its place (section 7.6, The notes).
+func TestKeepBothInserts(t *testing.T) {
+	const both = "Subject: x\n\n## F\n\ngrid.\n<<<<<<< HEAD\n\n## Head\n\nhead text.\n||||||| parent of f539bbb (run)\n=======\n\n## Run\n\nrun text.\n>>>>>>> f539bbb (run)\nafter\n"
+	for _, tc := range []struct {
+		name, merged, want string
+		ok                 bool
+	}{
+		{"inserted at one place", both, "Subject: x\n\n## F\n\ngrid.\n\n## Head\n\nhead text.\n\n## Run\n\nrun text.\nafter\n", true},
+		{"two places", "a\n<<<<<<< HEAD\nh1\n|||||||\n=======\nr1\n>>>>>>> x\nb\n<<<<<<< HEAD\nh2\n||||||| y\n=======\nr2\n>>>>>>> x\n", "a\nh1\nr1\nb\nh2\nr2\n", true},
+		{"the same lines", "a\n<<<<<<< HEAD\nChecked: 2\n||||||| parent\nChecked: 1\n=======\nChecked: 3\n>>>>>>> x\n", "", false},
+		{"one side only", "a\n<<<<<<< HEAD\n||||||| parent\nb\n=======\nc\n>>>>>>> x\n", "", false},
+		{"no base marker", "a\n<<<<<<< HEAD\nh\n=======\nr\n>>>>>>> x\n", "", false},
+		{"left open", "a\n<<<<<<< HEAD\nh\n||||||| p\n=======\nr\n", "", false},
+		{"a separator outside", "Title\n=======\n", "", false},
+		{"no conflict", "a\nb\n", "", false},
+	} {
+		got, ok := keepBoth(tc.merged)
+		if ok != tc.ok || got != tc.want {
+			t.Errorf("%s: keepBoth = %q, %v; want %q, %v", tc.name, got, ok, tc.want, tc.ok)
+		}
+	}
+}

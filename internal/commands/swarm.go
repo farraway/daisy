@@ -547,6 +547,12 @@ func swarmStatus(c *Context, open opener) error {
 	if err != nil {
 		return fmt.Errorf("Error: swarm: reading the briefs: %v", err)
 	}
+	// The runs' notes that conflicted with the head, each on its branch
+	// for the maintainer to merge by hand (section 7.6, The notes).
+	notes, err := reconcile.NotesBranches(reconcile.Git{O: o, WS: ws, State: cfg.Forge.State(c.Env.Local)}, cfg.Forge.Repo)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: reading the notes' branches: %v", err)
+	}
 
 	// The report is written whole at the end: a read failing on the way
 	// leaves stdout empty, not a partial report before the error.
@@ -578,6 +584,9 @@ func swarmStatus(c *Context, open opener) error {
 			}
 			waiting = append(waiting, item+" "+strings.Join(ns, " "))
 		}
+	}
+	if len(notes) > 0 {
+		waiting = append(waiting, "notes "+strings.Join(notes, " "))
 	}
 	if len(waiting) == 0 {
 		waiting = []string{"nothing"}

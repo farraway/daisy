@@ -302,10 +302,12 @@ func (w NotesRepo) Export(dst string) (string, error) {
 // base (a link, a file), `notes kept: notes/ is not a directory`, or
 // `notes unchanged` when the run wrote no file; else one commit by the
 // role's identity, msg its message, put on top of the branch's head as
-// fetched now (a cherry-pick, never a rebase) and pushed to the branch,
-// `notes pushed <sha>`; a conflict with the head pushes the run's commit
-// to the branch conflict instead, `notes branch <conflict> <sha>`, and a
-// push the forge refuses is `notes kept: push rejected`; a run's copy that
+// fetched now (rebased by a cherry-pick, put) and pushed to the branch,
+// `notes pushed <sha>`, a push refused while the head moved put on the
+// new head and pushed again; a pick that changes the same lines as the
+// head pushes the run's commit to the branch conflict instead, `notes
+// branch <conflict> <sha>`, and a push the forge refuses with the head
+// unmoved is `notes kept: push rejected`; a run's copy that
 // cannot be read is `notes kept: the run's copy cannot be read`. The
 // host's clone is made again when it is absent, and left at base after
 // `notes kept`, the run's pages out of its tree. Its result is that line;
@@ -378,37 +380,183 @@ func (w NotesRepo) publish(src, base, conflict, msg, name, email string, secrets
 	if err != nil {
 		return "", err
 	}
-	if err := w.fetch(); err != nil {
-		return "", err
-	}
-	head, err := w.run(w.Dir(), "rev-parse", "refs/remotes/origin/"+b)
-	if err != nil {
-		return "", err
-	}
-	top := commit
-	if head != base {
-		if err := w.reset(head); err != nil {
+	// Put on the branch's head as fetched now and pushed. A push refused
+	// while the head moved since that fetch (another writer pushed
+	// between the two) is put on the new head and pushed again, as often
+	// as the head moves; one refused with the head unmoved is the
+	// commit's own refusal (a hook, a protection).
+	onto := ""
+	for {
+		if err := w.fetch(); err != nil {
 			return "", err
 		}
-		if _, err := w.run(w.Dir(), "cherry-pick", "--no-commit", commit); err != nil {
-			if err := w.reset(head); err != nil {
+		head, err := w.run(w.Dir(), "rev-parse", "refs/remotes/origin/"+b)
+		if err != nil {
+			return "", err
+		}
+		if head == onto {
+			return "notes kept: push rejected", nil
+		}
+		onto = head
+		top := commit
+		if head != base {
+			ok, err := w.put(commit, head)
+			switch {
+			case err != nil:
+				return "", err
+			case !ok:
+				if err := w.reset(head); err != nil {
+					return "", err
+				}
+				return w.push(commit, conflict, "notes branch "+conflict+" "+commit)
+			}
+			if same, err := w.run(w.Dir(), "diff", "--cached", "--name-only"); err != nil {
+				return "", err
+			} else if same == "" {
+				return "notes unchanged", nil // the head holds them already: a push whose record was lost
+			}
+			if _, err := w.run(w.Dir(), append(ident, "commit", "--quiet", "--no-verify", "-C", commit)...); err != nil {
 				return "", err
 			}
-			return w.push(commit, conflict, "notes branch "+conflict+" "+commit)
+			if top, err = w.run(w.Dir(), "rev-parse", "HEAD"); err != nil {
+				return "", err
+			}
 		}
-		if same, err := w.run(w.Dir(), "diff", "--cached", "--name-only"); err != nil {
-			return "", err
-		} else if same == "" {
-			return "notes unchanged", nil // the head holds them already: a push whose record was lost
-		}
-		if _, err := w.run(w.Dir(), append(ident, "commit", "--quiet", "--no-verify", "-C", commit)...); err != nil {
-			return "", err
-		}
-		if top, err = w.run(w.Dir(), "rev-parse", "HEAD"); err != nil {
-			return "", err
+		line, err := w.push(top, b, "notes pushed "+top)
+		if err != nil || line != "notes kept: push rejected" {
+			return line, err
 		}
 	}
-	return w.push(top, b, "notes pushed "+top)
+}
+
+// put picks the run's commit onto head, staged, not committed: the
+// changes of its files merged three ways, as a rebase does; where the
+// pick conflicts, each conflict that is lines both sides inserted at one
+// place keeps both, the head's first (keepBoth). ok is false when any
+// conflict is not (the same lines changed on both sides, a file added on
+// both or deleted on one, a link or a mode), the pick's conflicts left
+// for the caller's reset.
+func (w NotesRepo) put(commit, head string) (ok bool, err error) {
+	if err := w.reset(head); err != nil {
+		return false, err
+	}
+	if _, err := w.run(w.Dir(), "-c", "merge.conflictStyle=diff3", "cherry-pick", "--no-commit", commit); err == nil {
+		return true, nil
+	}
+	out, err := w.run(w.Dir(), "ls-files", "--unmerged", "-z")
+	if err != nil {
+		return false, err
+	}
+	stages := map[string][]string{} // path: its stages' blobs, base, head and the run's
+	var paths []string
+	for _, e := range strings.Split(out, "\x00") {
+		info, path, found := strings.Cut(e, "\t")
+		f := strings.Fields(info)
+		if !found || len(f) != 3 {
+			continue
+		}
+		if f[0] != "100644" && f[0] != "100755" {
+			return false, nil
+		}
+		if stages[path] == nil {
+			paths = append(paths, path)
+		}
+		stages[path] = append(stages[path], f[1])
+	}
+	if len(paths) == 0 {
+		return false, nil
+	}
+	fs := w.O.FS()
+	for _, p := range paths {
+		if len(stages[p]) != 3 {
+			return false, nil
+		}
+		// A line of a side that reads as a conflict marker would be read
+		// as one: such a file is left to the maintainer.
+		for _, blob := range stages[p] {
+			text, err := w.run(w.Dir(), "cat-file", "blob", blob)
+			if err != nil {
+				return false, err
+			}
+			if slices.ContainsFunc(strings.Split(text, "\n"), func(l string) bool { return conflictMarker(l) != 0 }) {
+				return false, nil
+			}
+		}
+		file := filepath.Join(w.Dir(), p)
+		if fi, err := fs.Lstat(file); err != nil || !fi.Mode().IsRegular() {
+			return false, nil
+		}
+		merged, err := fs.ReadFile(file)
+		if err != nil {
+			return false, err
+		}
+		both, ok := keepBoth(string(merged))
+		if !ok {
+			return false, nil
+		}
+		if err := fs.WriteFile(file, []byte(both), 0o644); err != nil {
+			return false, err
+		}
+	}
+	if _, err := w.run(w.Dir(), append([]string{"add", "--"}, paths...)...); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// keepBoth is a diff3-style merge's text, the merge holding at least one
+// conflict, with each conflict whose base part is empty (lines both sides
+// inserted at one place, as two runs appending to a note's end) replaced
+// by the head's lines and then the run's; ok is false when a conflict's
+// base part holds a line (the same lines changed on both sides) or the
+// markers are out of their order.
+func keepBoth(merged string) (string, bool) {
+	var out, head, run strings.Builder
+	const outside, inHead, inBase, inRun = 0, 1, 2, 3
+	state, conflicts := outside, 0
+	for _, l := range strings.SplitAfter(merged, "\n") {
+		switch m := conflictMarker(l); {
+		case state == outside && m == '<':
+			state = inHead
+			head.Reset()
+			run.Reset()
+		case state == outside && m == 0:
+			out.WriteString(l)
+		case state == inHead && m == '|':
+			state = inBase
+		case state == inHead && m == 0:
+			head.WriteString(l)
+		case state == inBase && m == '=':
+			state = inRun
+		case state == inRun && m == '>':
+			out.WriteString(head.String())
+			out.WriteString(run.String())
+			state = outside
+			conflicts++
+		case state == inRun && m == 0:
+			run.WriteString(l)
+		default: // a base line, or a marker out of its place
+			return "", false
+		}
+	}
+	if state != outside || conflicts == 0 {
+		return "", false
+	}
+	return out.String(), true
+}
+
+// conflictMarker is the character of the conflict marker l is (`<<<<<<<`,
+// `|||||||` or `>>>>>>>`, alone or before a space, or `=======` alone),
+// 0 for any other line.
+func conflictMarker(l string) byte {
+	l = strings.TrimRight(l, "\r\n")
+	if len(l) < 7 || !strings.ContainsRune("<|=>", rune(l[0])) || strings.Count(l[:7], l[:1]) != 7 {
+		return 0
+	}
+	if len(l) == 7 || (l[0] != '=' && l[7] == ' ') {
+		return l[0]
+	}
+	return 0
 }
 
 // push sends commit to branch, never forced: done is the
@@ -422,6 +570,26 @@ func (w NotesRepo) push(commit, branch, done string) (string, error) {
 		return "notes kept: push rejected", nil
 	}
 	return "", err
+}
+
+// notesBranch begins the name of the branch a run's notes go to when
+// they conflict with the head: swarm/notes-<n>-<role>-<k>.
+const notesBranch = "swarm/notes-"
+
+// NotesBranches is the notes' branches the swarm repository's mirror
+// holds as its last fetch left it (section 11, Waiting for you), by
+// name; none when the mirror is absent. It runs only git's reading
+// commands, so status may run it under ReadOnly.
+func NotesBranches(g Git, repo string) ([]string, error) {
+	m := g.Mirror(repoName(repo))
+	if _, err := g.O.FS().Stat(m); err != nil {
+		return nil, nil
+	}
+	out, err := g.run(m, "for-each-ref", "--format=%(refname:lstrip=2)", "refs/heads/"+notesBranch+"*")
+	if err != nil || out == "" {
+		return nil, err
+	}
+	return strings.Split(out, "\n"), nil
 }
 
 // unreadableNotes is the notes step's line for a run's copy of the notes
@@ -536,7 +704,7 @@ func (c *collection) notes() error {
 	if co := c.s.Cfg.Personas[c.r.Role].CoAuthor; co != "" {
 		msg += "\n\nCo-Authored-By: " + co
 	}
-	line, err := w.Publish(filepath.Join(c.r.Dir, "notes"), strings.TrimPrefix(base, "notes-base "), fmt.Sprintf("swarm/notes-%d-%s-%d", c.r.N, c.r.Role, c.r.K),
+	line, err := w.Publish(filepath.Join(c.r.Dir, "notes"), strings.TrimPrefix(base, "notes-base "), fmt.Sprintf("%s%d-%s-%d", notesBranch, c.r.N, c.r.Role, c.r.K),
 		msg, c.r.Role+" (Daisy swarm)", c.s.Cfg.Forge.CommitEmail, c.s.secretsOf(c.r, c.lines))
 	if err != nil {
 		return err

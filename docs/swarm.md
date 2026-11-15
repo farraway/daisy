@@ -133,7 +133,12 @@ launched (item 125). Its Step 7 (2026-11-14) amended sections 5, 6,
 owner's marker lines, listing its pull requests, linked, with their
 states, which `apply` keeps with the forge seam's new `EditIssue` and
 every reader of the body leaves out, and every note about a pull
-request links it in its first line (item 126).
+request links it in its first line (item 126). Its Step 8 (2026-11-14)
+amended sections 7.6 and 11: a run's notes commit conflicting with the
+head only where both inserted lines at one place lands with both kept,
+a push refused while the head moved is put on the new head and pushed
+again, and `status` lists the notes' branches under Waiting for you
+(item 127).
 Built by the plan that builds it (the swarm build), in place of the
 Steps 27–30 that section 13's first table numbers, which are those of
 the plan that specified it (the swarm build takes `swarm init` first;
@@ -2596,18 +2601,37 @@ blank line, the run's marker line `<!-- daisy-swarm role=<role> run=<k>
 -->`, and with a `co_author` a blank line and `Co-Authored-By:
 <co_author>`. The clone's branch (the swarm repository's default
 branch) is fetched again and the commit put on its head
-as fetched, never a rebase and never forced: when the head is still
-`<sha>`, the commit itself; else `cherry-pick --no-commit` onto the head
-and a commit reusing the run's message and author (`commit -C`), a pick
-that changes nothing being `notes unchanged` (a push whose record was
-lost); then `git push --porcelain <notes-url> <commit>:refs/heads/<branch>`,
-`notes pushed <sha>`. A pick that conflicts with the maintainer's edits
-pushes the run's own commit, on `<sha>`, to
-`refs/heads/swarm/notes-<n>-<role>-<k>` instead, `notes branch
-swarm/notes-<n>-<role>-<k> <sha>`, for the maintainer to merge by hand.
-A push the forge refuses (a `!` in the porcelain) is `notes kept: push
-rejected`; one that does not reach it is a git error, the collection
-retried at the next pass. The step never changes the run's outcome
+as fetched, never forced: when the head is still `<sha>`, the commit
+itself; else the commit rebased onto the head, `-c
+merge.conflictStyle=diff3 cherry-pick --no-commit` and a commit reusing
+the run's message and author (`commit -C`, its `Co-Authored-By` with
+it), a pick that changes nothing being `notes unchanged` (a push whose
+record was lost). Where the pick conflicts, a conflict that is lines
+both sides inserted at one place (its base part empty: two runs
+appending a section to one note's end, the common case) keeps both,
+the head's lines first, then the run's, and the file is staged so; any
+other conflict is the same lines changed on both sides: a conflict whose
+base part holds a line (two runs changing one `Checked:` line), a file
+added on both sides or deleted on one, a file not a regular file at
+each of the three (a link), or a side holding a line that reads as a
+conflict marker (`<<<<<<<`, `|||||||`, `>>>>>>>`, `=======`). Then `git
+push --porcelain <notes-url> <commit>:refs/heads/<branch>`, `notes
+pushed <sha>`. A pick with the same lines changed pushes the run's own
+commit, on `<sha>`, to `refs/heads/swarm/notes-<n>-<role>-<k>` instead,
+`notes branch swarm/notes-<n>-<role>-<k> <sha>`, for the maintainer to
+merge by hand; `status` lists it under Waiting for you (section 11)
+until it is deleted. A push the forge refuses (a `!` in the porcelain)
+is followed by a fetch: a head moved since the fetch the commit was put
+on (another writer pushed between the two) has the commit put on it as
+above and pushed again, as often as the head moves, each retry
+following a commit that landed, so it needs no limit; a head unmoved is
+a refusal of the commit itself (a hook, a protection), `notes kept:
+push rejected`. A push that does not reach the forge is a git error,
+the collection retried at the next pass. The journal's push (7.6, The
+run's record) uses the same clone at the end of the pass, after every
+collection, in the same process: the two never interleave, and a
+journal commit that lands before a run's notes are pushed is one more
+commit the notes are put on. The step never changes the run's outcome
 (notes, not code: no review); `notes kept` keeps `<run>/notes` for the
 maintainer when the run is collected, every other end removing it, and
 leaves the clone at `<sha>` (`reset --hard`, `clean -fdq`), so the run's
@@ -4125,16 +4149,17 @@ outcome.
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm status` |
-| Reads | `swarm.json` in the clone (validated as `apply` validates it, the prompts included), `<state>/env` (the token), `<state>/paused`, `<state>/owner-held`, `<state>/auto`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under `resources` in the mirrors at their last fetch (their `Status:` lines and `## ` headings, section 4; `status` fetches nothing), and for Drift (below) the clone's `swarm.json` and `prompts/` against the swarm repository's mirror; the forge: `Login()`, `Issues(Open, label)` for each of the nine stages and `Issues(Closed, label)` for each of them and the two terminals, `Issue(m)` for each blocker an open issue's newest maintainer comment names (`Blocked by #<m>`), `Milestones()` when a brief is `active`, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
+| Reads | `swarm.json` in the clone (validated as `apply` validates it, the prompts included), `<state>/env` (the token), `<state>/paused`, `<state>/owner-held`, `<state>/auto`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under `resources` in the mirrors at their last fetch (their `Status:` lines and `## ` headings, section 4; `status` fetches nothing), and for Drift (below) the clone's `swarm.json` and `prompts/` against the swarm repository's mirror, and the mirror's `swarm/notes-*` branches (`for-each-ref`); the forge: `Login()`, `Issues(Open, label)` for each of the nine stages and `Issues(Closed, label)` for each of them and the two terminals, `Issue(m)` for each blocker an open issue's newest maintainer comment names (`Blocked by #<m>`), `Milestones()` when a brief is `active`, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
 | Writes | nothing, anywhere |
-| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]` and ` — owner batch held: <reason>` when so (`<reason>` `owner-held`'s), and ` — owner batch held: no brief is active` when no brief under `resources` is `active` (section 6); `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per stage, `  %-26s %d` and the issue numbers (`  proposal-posted            2  #20 #21`); `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `next slice #…`, `close #…`, `pull closed #…`, `blocked #…`, separated by `; `, each issue `#<n>` under `triage` and `plan` and `#<n> (<class>)` under the others (section 5's list, a `review-2-approved` issue under the one of `merge`, `next slice`, `close` and `pull closed` its current pull request calls for, below), or `nothing`; `Held: ` then `paused #…` and `#<n> blocked by #<m>` for each issue held by an open blocker, separated by `; `, or `nothing`; `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief in path order (below), or `Briefs: none active`; the report is written whole once every read is made, so a failure prints none of it |
+| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]` and ` — owner batch held: <reason>` when so (`<reason>` `owner-held`'s), and ` — owner batch held: no brief is active` when no brief under `resources` is `active` (section 6); `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per stage, `  %-26s %d` and the issue numbers (`  proposal-posted            2  #20 #21`); `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `next slice #…`, `close #…`, `pull closed #…`, `blocked #…`, `notes swarm/notes-<n>-<role>-<k> …`, separated by `; `, each issue `#<n>` under `triage` and `plan` and `#<n> (<class>)` under the others (section 5's list, a `review-2-approved` issue under the one of `merge`, `next slice`, `close` and `pull closed` its current pull request calls for, below), or `nothing`; `Held: ` then `paused #…` and `#<n> blocked by #<m>` for each issue held by an open blocker, separated by `; `, or `nothing`; `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief in path order (below), or `Briefs: none active`; the report is written whole once every read is made, so a failure prints none of it |
 | Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`; a drift warning on stderr changes nothing); 1 no swarm found, `swarm.json` invalid, `<state>/env` readable by others, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief, `<state>/auto`, a run's `result` or a batch run's `out.md` unreadable; 2 with any argument |
-| Ops | ReadOnly, which since Step 4 of the swarm build lets through an `HTTP` request whose method is `GET` or `HEAD` and the `Exec` of `docker ps` for every command it wraps (section 14, item 31), and from Step 4 of revision 6's plan the `Exec` of git's reading commands on a mirror (`ls-tree`, `cat-file`, `hash-object` without `-w`), which the briefs and Drift read; every other write, `Exec` and `Start` stays refused |
+| Ops | ReadOnly, which since Step 4 of the swarm build lets through an `HTTP` request whose method is `GET` or `HEAD` and the `Exec` of `docker ps` for every command it wraps (section 14, item 31), and from Step 4 of revision 6's plan the `Exec` of git's reading commands on a mirror (`ls-tree`, `cat-file`, `hash-object` without `-w`), which the briefs and Drift read, and from Step 8 of the plan for the inbox requests F27–F35 `for-each-ref`, which the notes' branches read; every other write, `Exec` and `Start` stays refused |
 
 **Waiting for you.** The line lists the open issues that are gated, by
 the flag's predicate (section 5), the issues `apply`'s step (8) gives
-`swarm:gated`, so after a pass it names exactly the open issues that
-carry the flag: `blocked` every one carrying `swarm:blocked`, at
+`swarm:gated`, so after a pass its issues are exactly the open issues
+that carry the flag (the notes' branches, `notes` below, follow them):
+`blocked` every one carrying `swarm:blocked`, at
 whatever stage, and of the others `triage` the architecture jobs at
 `proposal-posted` (G1 on), `plan` every architecture job at
 `plan-0-posted` (G2 on), whoever spoke last in its thread, and the three
@@ -4159,7 +4184,16 @@ closes as `swarm:done`), `pull closed` a relabel on the forge (to
 `swarm:plan-1-accepted` for the slice built again, say) or `swarm
 close`, and `blocked` is `swarm unblock`; `swarm close`
 drops a job at any stage, as `swarm:rejected`; `swarm class <n> routine`
-lets Daisy pass a `triage` or `plan` item itself. **Held** lists what the
+lets Daisy pass a `triage` or `plan` item itself. `notes` names, by
+name, each `swarm/notes-<n>-<role>-<k>` branch the swarm repository's
+mirror holds as its last fetch left it (run `<k>` of `<role>` on
+`#<n>`, `0` the owner's batch), a run's notes whose pick changed the
+same lines as the head (7.6, The notes), which no verb resolves: the
+maintainer merges it by hand into the default branch and deletes it,
+and the next pass's fetch (`--prune`) takes it off the list; a branch
+pushed in a pass is listed once a later fetch of the mirror has
+brought it (the same pass's when it fetches after the collection,
+else the next). **Held** lists what the
 maintainer holds, which waits for no decision: `paused` the issues
 carrying `swarm:paused` (`swarm resume <n>` releases one), and `#<n>
 blocked by #<m>` each issue whose newest maintainer comment names a
@@ -7990,3 +8024,43 @@ entries among revision 1's, and was renumbered at Step 38.
     `TestWithPulls`, `TestPullsBlockKeepsTheReaders`, `TestPullState`,
     `TestGiteaEditIssue`, `TestGiteaPulls` (`html_url`) and
     `TestFakeEditIssueAndPullURL`.
+127. **Notes that conflict are rebased (Step 8 of the plan for the
+    inbox requests F27–F35, 2026-11-14; F32).** A live swarm made nine
+    `swarm/notes-…` branches with several architects planning at once.
+    Replayed on a copy of its notes, six were a run's section inserted
+    where another run had just inserted one (a note's end, mostly), and
+    three were both runs changing a note's `Checked:` line. The pick
+    was already a rebase of the run's commit onto the head; git's
+    three-way merge reports two insertions at one place as a conflict,
+    so a rebase alone would have changed nothing. **The rule**: a conflict whose base
+    part is empty (both sides inserted lines at one place) keeps both,
+    the head's lines first, as the maintainer merged those branches by
+    hand (the two runs added separate sections); a conflict whose base
+    part holds a line is the same lines changed on both sides, which
+    only a reader can settle (the request: where `main`'s version is
+    newer, it supersedes), and goes to the branch as before. The merge
+    is read in git's `diff3` form, whose base part says which of the two
+    it is (`zdiff3`, or the default form, would hide it); a side holding
+    a line that reads as a marker goes to the branch rather than be
+    misread. Alternatives: git's `union` merge driver for `notes/`
+    (keeps both sides of the same lines too, so two `Checked:` lines),
+    or `-X theirs` (drops the head's section). **The retry**: a push
+    refused while the head moved since the fetch is put on the new head
+    and pushed again, as often as the head moves, each retry following
+    another writer's commit, so there is no limit to choose; one refused
+    with the head unmoved stays `notes kept: push rejected`. The
+    alternatives, one retry a pass and the collection left for the next
+    pass (as the journal keeps its lines), would hold the run's other
+    steps a pass or need a step pending past `collected`. **No race in
+    a pass**: the journal's push uses the same clone, at the pass's end,
+    after every collection, in one process. **`status`** lists the
+    branches from the swarm repository's mirror (`for-each-ref`, let
+    through ReadOnly), so one merged and deleted leaves the list at the
+    next fetch; the runs' `notes branch` lines would list it forever.
+    Tests: `TestSwarmApplyResearchNotesRebased` (two architects in one
+    pass adding sections to one note, both on `main`, the second's
+    commit the run's on the first's; two changing one line, the
+    second's branch listed by `status` and gone once deleted),
+    `TestSwarmApplyResearchNotesPushRefused` (a journal commit landing
+    between the notes' fetch and push, the commit put on it; a hook's
+    refusal with the head unmoved kept) and `TestKeepBothInserts`.
