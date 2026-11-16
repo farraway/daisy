@@ -51,6 +51,16 @@ If working from a PLAN.md (under `/daisy execute` or `/daisy resume`, the step a
 
 ---
 
+## Rules and Who Makes Them
+
+A rule is a compressed intention: it protects something in fewer words than the intention behind it, so a literal reading can produce work its author would refuse, cost without the benefit the rule was written for. Then the reading is wrong, not the work: name the intention in one sentence, apply it, and record the gap as feedback so the wording is fixed (in Daisy, `daisy feedback`).
+
+The intention is the user's, and so is the making of a new rule. A rule for how the work runs (a limit, a cap, a stop, a gate) binds every later step, and one an agent writes from a lesson of its own carries an inferred figure with the authority of a stated one. On 2026-11-01, after a step ran 20 review passes, a session wrote two such rules into its own project memory, review caps of 6 and 3 passes and a proportion stop at about 300 changed lines, a figure the model chose; a later step, approved to fold that memory into the plan prompt, did so, and the user saw the rules only as one clause of a long decision summary; the stop halted three steps before the user, not recognising it, dropped it (the caps and the removal of the proportion rule: `docs/plan.md`, The review gate). So an agent that thinks a lesson calls for such a rule puts it to the user as a separate question, asked alone, with the figure and where it came from (measured, taken from a source, or its own estimate), and records the rule where later work reads instructions (memory, a prompt, a plan) only once the user confirms it; an agent that cannot ask the user, such as a step agent, hands it back marked as a proposed rule. When memory or other guidance the user has not confirmed moves into a prompt or instruction file, each rule in it is listed for the user to confirm before it lands, not folded into a summary, where a rule reads as a detail of the move.
+
+The approval draws the line, not the file. A rule is approved when the user approved it as such: in a step's text, or in answer to a question that put it, with its figure where it has one. Approving a move or a summary is not approving the rules it carries, so the fold above needed each rule put to the user. Wording, folding or applying a rule the user approved is the step's work; a limit, a cap, a stop or a gate that no such approval names is a new rule, whichever prompt it lands in.
+
+---
+
 ## What Good Output Feels Like
 
 - A reader thinks: "yes, of course it works that way."
