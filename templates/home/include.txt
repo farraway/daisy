@@ -12,6 +12,7 @@ daisy
 ~retrospective
 ~plan
 ~swarm-connect
+~praxis
 
 # Add your home-specific prompts below
 # Examples:

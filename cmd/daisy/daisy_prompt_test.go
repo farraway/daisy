@@ -284,20 +284,13 @@ func TestHelpAgreesForEveryGoCommand(t *testing.T) {
 // first line, and the workspace's AGENTS.md built from it carries the
 // trigger, pointing at the root's prompt.
 func TestTemplateListsSwarmConnect(t *testing.T) {
-	m := newMachine(t) // the home's include.txt is the template's
-	for _, name := range []string{"daisy", "retrospective", "plan", "swarm-connect"} {
-		b, err := os.ReadFile(filepath.Join("prompts", name+".md"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		writeFile(t, filepath.Join(m.root, "prompts", name+".md"), string(b))
-	}
+	m := templateMachine(t)
 	code, out, errs := m.run(t, m.ws, "list")
 	if code != 0 || errs != "" || !strings.Contains(out, "\n  swarm-connect        The user invokes `/daisy swarm connect [<swarm>]` or says \"connect to the swarm\"\n") {
 		t.Errorf("list: exit %d err %q\n%s", code, errs, out)
 	}
 	code, out, errs = m.run(t, m.ws, "prompt", "build")
-	if code != 0 || errs != "" || !strings.Contains(out, "   Lazy: retrospective plan swarm-connect\n") {
+	if code != 0 || errs != "" || !strings.Contains(out, "   Lazy: retrospective plan swarm-connect praxis\n") {
 		t.Fatalf("prompt build: exit %d err %q\n%s", code, errs, out)
 	}
 	b, _ := os.ReadFile(filepath.Join(m.ws, ".daisy", "AGENTS.md"))
@@ -305,5 +298,40 @@ func TestTemplateListsSwarmConnect(t *testing.T) {
 		!strings.Contains(string(b), "Read the full `"+m.root+"/prompts/swarm-connect.md` when:\n- The user invokes `/daisy swarm connect [<swarm>]`") ||
 		strings.Contains(string(b), "Find the swarm, then work in its clone") {
 		t.Errorf("AGENTS.md:\n%s", b)
+	}
+}
+
+// templateMachine is a machine whose home's include.txt is the template's,
+// with the root's prompts.
+func templateMachine(t *testing.T) *machine {
+	t.Helper()
+	m := newMachine(t)
+	copyTree(t, "prompts", filepath.Join(m.root, "prompts"))
+	return m
+}
+
+// Step 21's claim (plan remediating the 2026-11-15 design review, talk
+// A9): a workspace whose home is the template's carries praxis's whole
+// ## Trigger in the AGENTS.md built from it, lazily: the trigger and none
+// of the rules.
+func TestTemplateListsPraxis(t *testing.T) {
+	m := templateMachine(t)
+	src, err := os.ReadFile(filepath.Join("prompts", "praxis.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, trigger, ok := strings.Cut(string(src), "## Trigger\n")
+	trigger, _, _ = strings.Cut(trigger, "\n#")
+	if trigger = strings.Trim(trigger, "\n"); !ok || trigger == "" {
+		t.Fatalf("prompts/praxis.md has no ## Trigger section")
+	}
+	code, out, errs := m.run(t, m.ws, "prompt", "build")
+	if code != 0 || errs != "" || !strings.Contains(out, " praxis\n") {
+		t.Fatalf("prompt build: exit %d err %q\n%s", code, errs, out)
+	}
+	b, _ := os.ReadFile(filepath.Join(m.ws, ".daisy", "AGENTS.md"))
+	_, stub, _ := strings.Cut(string(b), "# Prompt: praxis (lazy - read full prompt when triggered)\n")
+	if !strings.Contains(stub, trigger+"\n") || strings.Contains(string(b), "**Read before inventing.**") {
+		t.Errorf("AGENTS.md does not carry praxis's trigger %q alone:\n%s", trigger, b)
 	}
 }
