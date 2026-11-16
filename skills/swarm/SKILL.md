@@ -1,6 +1,6 @@
 ---
 name: swarm
-description: The maintainer's guide over a Daisy swarm from its repository's clone — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm.json, the persona prompts and the per-repository notes, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, replan, pause, resume, restart, close, prompt build) each write only on the maintainer's yes. Use in a swarm repository's clone (swarm.json at its top), or in a folder holding one (the verbs run inside the clone), when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, a job re-planned, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json, a persona prompt or a repository's notes, or to bring the persona prompts to Daisy's current defaults.
+description: The maintainer's guide over a Daisy swarm from its repository's clone — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm.json, the persona prompts and the per-repository notes, and runs the maintainer's `daisy swarm` verbs, each write only on the maintainer's yes. Use in a swarm repository's clone (swarm.json at its top), or in a folder holding one (the verbs run inside the clone), when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue unblocked, a job blocked by another, a job re-planned, the swarm or one issue paused or resumed, the swarm restarted on a new Daisy build, or a job closed, or wants to write or change a brief, swarm.json, a persona prompt or a repository's notes, or to bring the persona prompts to Daisy's current defaults.
 short_description: Guide a Daisy swarm: status, briefs, gates
 ---
 
@@ -101,7 +101,10 @@ as rule 3 says.
 
 ## The verbs
 
-Each runs in the swarm repository's clone, refuses before any write when its token is the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first.
+`daisy swarm prompt build`, which reseeds the persona prompts from
+Daisy's current defaults, is under Reseeding the persona prompts, below.
+
+Each verb in the table runs in the swarm repository's clone; one given an issue `<n>` refuses before any write when its token is the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first, while the bare `pause`, `resume` and `restart` write only the state directory.
 
 | Waiting for you | Verb | What it writes |
 |---|---|---|

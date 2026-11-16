@@ -436,7 +436,13 @@ stay outside the feedback loop's write path, overridden or not.
    if it should only ever be invoked by name). `short_description` is a
    separate, ≤50-character, standalone summary that `daisy list` prints
    by default; `description` is never shortened, since Claude Code
-   surfaces it verbatim for model-invocation matching.
+   surfaces it verbatim for model-invocation matching. The description
+   is one line of at most 1,024 characters, the Agent Skills
+   specification's bound (<https://agentskills.io/specification>, counted
+   in characters, not bytes): it says what the skill does and when to use
+   it, and an enumeration (the verbs, the files) goes in the body
+   (`TestSkillDescriptionsFitTheCap`, over `skills/*/SKILL.md` and
+   `templates/agents-skill.md`).
 2. No manifest entry is needed. Root skills (`skills/`) and home skills
    (the home's `skills/`) both install to the workspace's `.claude/skills/`
    and its twin `.agents/skills/` (Codex's) via `daisy init`. A root

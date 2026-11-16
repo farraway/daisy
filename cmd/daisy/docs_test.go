@@ -8,8 +8,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"daisy/internal/cli"
+	"daisy/internal/skill"
 )
 
 // docFiles are the documents whose commands and paths must exist: what an
@@ -446,6 +448,35 @@ func TestLoaderTableQuotesTheTemplates(t *testing.T) {
 	for _, a := range []string{"Claude Code", "Codex", "Cursor"} {
 		if quoted[a] == 0 {
 			t.Errorf("%s: no row quotes %s's loader (quoted: %v)", doc, a, quoted)
+		}
+	}
+}
+
+// Every skill the root ships, and the daisy skill init writes for Codex
+// from templates/agents-skill.md, has a description of 1 to 1,024
+// characters, the Agent Skills specification's bound
+// (https://agentskills.io/specification), counted as its validator
+// counts, in Unicode code points, not bytes. The description is one
+// line, as skill.Field reads it: a YAML block scalar (`>` or `|`) would
+// be measured as its indicator alone.
+func TestSkillDescriptionsFitTheCap(t *testing.T) {
+	files, err := filepath.Glob("skills/*/SKILL.md")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("glob skills/*/SKILL.md: %v %v", files, err)
+	}
+	for _, f := range append(files, "templates/agents-skill.md") {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, ok := skill.Field(b, "description")
+		switch n := utf8.RuneCountInString(d); {
+		case !ok || n == 0:
+			t.Errorf("%s: no description", f)
+		case strings.HasPrefix(d, ">") || strings.HasPrefix(d, "|"):
+			t.Errorf("%s: the description is a block scalar (%q); write it on the description: line", f, d)
+		case n > 1024:
+			t.Errorf("%s: the description is %d characters, over the 1,024 the Agent Skills specification allows; move detail into the body", f, n)
 		}
 	}
 }
