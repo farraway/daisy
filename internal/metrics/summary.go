@@ -14,12 +14,41 @@ import (
 // kind, plan or swarm, step or run and role supersedes (a correction is
 // appended, never written over the row it corrects), and the rest
 // grouped by kind and model, and, of kind plan-step, by plan; Swarms
-// names the swarms of the rest of kind swarm-run, in name order.
+// names the swarms of the rest of kind swarm-run, in name order; Reviews
+// is the review rows of the rest by role and model, in that order.
 type Summary struct {
 	Rows, Superseded int
 	Groups           []Group
 	Plans            []Plan
 	Swarms           []string
+	Reviews          []Review
+}
+
+// ReviewRoles are the roles whose rows are reviews: a plan step's
+// review passes (`metrics add --role review`) and a swarm's two
+// reviewers. A row of another role is a review when it records a
+// review_effect.
+var ReviewRoles = []string{"review", "adversary", "sympathetic"}
+
+// Review is the review rows of one role and model: how many, the
+// review_effect over those that record one, the tokens over those that
+// report them, and both over the rows that have both, which the tokens
+// per effect is read from.
+type Review struct {
+	Role, Model                string
+	Rows, WithEffect, Effect   int
+	WithTokens, Tokens         int
+	PairedTokens, PairedEffect int
+}
+
+// TokensPerEffect is the review's tokens per finding fixed, over the
+// rows that report both, rounded; ok is false when those rows fixed
+// none.
+func (r Review) TokensPerEffect() (n int, ok bool) {
+	if r.PairedEffect == 0 {
+		return 0, false
+	}
+	return int(math.Round(float64(r.PairedTokens) / float64(r.PairedEffect))), true
 }
 
 // Plan is a plan's plan-step rows, every role's (the step's, its
@@ -98,6 +127,7 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 	groups := map[[2]string]*Group{}
 	plans := map[string]*Plan{}
 	swarms := map[string]bool{}
+	reviews := map[[2]string]*Review{}
 	for i, rec := range recs {
 		keep, err := f.keeps(rec, i+2, col)
 		if err != nil {
@@ -132,6 +162,18 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 		if k[0] == string(SwarmRun) {
 			swarms[rec[col("plan_or_swarm")]] = true
 		}
+		if role := rec[col("role")]; slices.Contains(ReviewRoles, role) || rec[col("review_effect")] != "" {
+			rk := [2]string{role, rec[col("model")]}
+			if reviews[rk] == nil {
+				reviews[rk] = &Review{Role: rk[0], Model: rk[1]}
+			}
+			reviews[rk].add(rec, col)
+		}
+	}
+	for _, rk := range slices.SortedFunc(maps.Keys(reviews), func(a, b [2]string) int {
+		return strings.Compare(a[0]+"\x00"+a[1], b[0]+"\x00"+b[1])
+	}) {
+		s.Reviews = append(s.Reviews, *reviews[rk])
 	}
 	s.Swarms = slices.Sorted(maps.Keys(swarms))
 	for _, name := range slices.Sorted(maps.Keys(plans)) {
@@ -192,6 +234,24 @@ func (p *Plan) add(rec []string, col func(string) int) {
 	}
 	if r := rec[col("range")]; r != "" && !slices.Contains(p.Ranges, r) {
 		p.Ranges = append(p.Ranges, r)
+	}
+}
+
+// add counts a row Group.add has checked.
+func (r *Review) add(rec []string, col func(string) int) {
+	r.Rows++
+	tokens, withTokens := rowTokens(rec, col)
+	if withTokens {
+		r.Tokens += tokens
+		r.WithTokens++
+	}
+	if e := rec[col("review_effect")]; e != "" {
+		r.Effect += atoi(e)
+		r.WithEffect++
+		if withTokens {
+			r.PairedTokens += tokens
+			r.PairedEffect += atoi(e)
+		}
 	}
 }
 

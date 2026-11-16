@@ -20,8 +20,9 @@ import (
 // metricsReport is the summary: the CSV, whether it exists, the flags
 // that took its rows, the rows taken and how many of them a later record
 // supersedes, a group per kind and model, a plan's figures per plan, the
-// repositories a plan step's range is looked up in for its reverts, and
-// a swarm's merged and reverted pull requests per swarm.
+// repositories a plan step's range is looked up in for its reverts, a
+// swarm's merged and reverted pull requests per swarm, and the reviews'
+// effect per role and model.
 type metricsReport struct {
 	File      string `json:"file"`
 	Exists    bool   `json:"exists"`
@@ -29,13 +30,30 @@ type metricsReport struct {
 		Swarm *string `json:"swarm"`
 		Since *string `json:"since"`
 	} `json:"rows_taken"`
-	Rows         int            `json:"rows"`
-	Superseded   int            `json:"superseded"`
-	Groups       []metricsGroup `json:"groups"`
-	Plans        []planFigures  `json:"plans"`
-	Repositories []string       `json:"repositories"`
-	Swarms       []swarmFigures `json:"swarms"`
+	Rows         int             `json:"rows"`
+	Superseded   int             `json:"superseded"`
+	Groups       []metricsGroup  `json:"groups"`
+	Plans        []planFigures   `json:"plans"`
+	Repositories []string        `json:"repositories"`
+	Swarms       []swarmFigures  `json:"swarms"`
+	Reviews      []reviewFigures `json:"reviews"`
 	verb.Warned
+}
+
+// reviewFigures is the review rows of one role and model (metrics.Review;
+// model nil for (none)): their effect (nil when none records one) and
+// tokens (nil when none reports them), each beside how many rows have
+// it, and the tokens per effect (nil when the rows with both fixed
+// nothing).
+type reviewFigures struct {
+	Role            string  `json:"role"`
+	Model           *string `json:"model"`
+	Rows            int     `json:"rows"`
+	Effect          *int    `json:"effect"`
+	RowsWithEffect  int     `json:"rows_with_effect"`
+	Tokens          *int    `json:"tokens"`
+	RowsWithTokens  int     `json:"rows_with_tokens"`
+	TokensPerEffect *int    `json:"tokens_per_effect"`
 }
 
 // planFigures is a plan's plan-step rows, every role's: their tokens
@@ -179,6 +197,21 @@ func Metrics(c *Context) error {
 			w.Flush()
 			fmt.Fprintln(c.Stdout, "\n  A swarm's pull request is merged by a merge commit on its base whose second parent a worker run pushed,\n  and reverted when a commit on base says \"This reverts commit <sha>\" of it; no fetch is made.")
 		}
+		if len(r.Reviews) > 0 {
+			fmt.Fprintln(c.Stdout)
+			w = tabwriter.NewWriter(c.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "  review role\tmodel\trows\teffect\ttokens\ttokens per effect")
+			for _, rv := range r.Reviews {
+				model := "(none)"
+				if rv.Model != nil {
+					model = *rv.Model
+				}
+				fmt.Fprintf(w, "  %s\t%s\t%d\t%s\t%s\t%s\n", rv.Role, model, rv.Rows, some(rv.Effect, "%d", rv.RowsWithEffect, rv.Rows),
+					some(rv.Tokens, "%d", rv.RowsWithTokens, rv.Rows), some(rv.TokensPerEffect, "%d", 1, 1))
+			}
+			w.Flush()
+			fmt.Fprintln(c.Stdout, "\n  A review's effect is the in-gate findings it raised that were fixed: a plan review's as its row records it,\n  a swarm review's its blocking findings when its role's next review of the pull request approves a new head.")
+		}
 		fmt.Fprintln(c.Stdout, "\n  A sum counts only the rows that have the value: (k/n) when k of the n do.")
 	})
 }
@@ -186,7 +219,7 @@ func Metrics(c *Context) error {
 // readMetrics reads the summary of the home's metrics CSV.
 func readMetrics(c *Context) (*metricsReport, error) {
 	var f metrics.Filter
-	r := &metricsReport{File: env.MetricsFile(c.Env.Home), Groups: []metricsGroup{}, Plans: []planFigures{}, Repositories: []string{}, Swarms: []swarmFigures{}}
+	r := &metricsReport{File: env.MetricsFile(c.Env.Home), Groups: []metricsGroup{}, Plans: []planFigures{}, Repositories: []string{}, Swarms: []swarmFigures{}, Reviews: []reviewFigures{}}
 	if v, ok := c.Value("--swarm"); ok {
 		f.Swarm, r.RowsTaken.Swarm = v, &v
 	}
@@ -247,6 +280,22 @@ func readMetrics(c *Context) (*metricsReport, error) {
 			mp.TokensPerCodeLine = &n
 		}
 		r.Plans = append(r.Plans, mp)
+	}
+	for _, rv := range s.Reviews {
+		f := reviewFigures{Role: rv.Role, Rows: rv.Rows, RowsWithEffect: rv.WithEffect, RowsWithTokens: rv.WithTokens}
+		if rv.Model != "" {
+			f.Model = &rv.Model
+		}
+		if rv.WithEffect > 0 {
+			f.Effect = &rv.Effect
+		}
+		if rv.WithTokens > 0 {
+			f.Tokens = &rv.Tokens
+		}
+		if n, ok := rv.TokensPerEffect(); ok {
+			f.TokensPerEffect = &n
+		}
+		r.Reviews = append(r.Reviews, f)
 	}
 	if len(s.Plans) > 0 {
 		if err := planReverts(c, r, s.Plans); err != nil {
@@ -381,7 +430,7 @@ func some[T any](sum *T, format string, k, n int) string {
 // metricsCells are the flags whose values are cells CheckCell rules on.
 var metricsCells = []struct{ flag, column string }{
 	{"--review-rounds", "review_rounds"}, {"--tokens-in", "tokens_in"}, {"--tokens-out", "tokens_out"},
-	{"--tokens", "tokens_total"}, {"--tokens-cached", "tokens_cached"}, {"--cost", "cost_reported"}, {"--cost-estimated", "cost_estimated"},
+	{"--tokens", "tokens_total"}, {"--tokens-cached", "tokens_cached"}, {"--review-effect", "review_effect"}, {"--cost", "cost_reported"}, {"--cost-estimated", "cost_estimated"},
 	{"--root-sha", "root_sha"}, {"--home-sha", "home_sha"},
 }
 
@@ -423,7 +472,7 @@ func MetricsAdd(c *Context) error {
 		Role: "step", Provider: val("--provider"), Model: val("--model"), Effort: val("--effort"),
 		RootSHA: val("--root-sha"), HomeSHA: val("--home-sha"), PromptHash: val("--prompt-hash"), Outcome: val("--outcome"),
 		ReviewRounds: val("--review-rounds"), TokensIn: val("--tokens-in"), TokensOut: val("--tokens-out"),
-		TokensTotal: val("--tokens"), TokensCached: val("--tokens-cached"), CostReported: val("--cost"), CostEstimated: val("--cost-estimated"),
+		TokensTotal: val("--tokens"), TokensCached: val("--tokens-cached"), ReviewEffect: val("--review-effect"), CostReported: val("--cost"), CostEstimated: val("--cost-estimated"),
 		Range: rng, Notes: val("--notes"),
 	}
 	if v, ok := c.Value("--role"); ok {

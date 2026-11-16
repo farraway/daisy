@@ -42,6 +42,9 @@ func (c *collection) record(outcome string) error {
 		return err
 	}
 	s.central(c.head, row)
+	if isReviewer(c.r.Role) && outcome == "posted" {
+		c.earlierEffects(outcome)
+	}
 	return c.step("recorded")
 }
 
@@ -66,6 +69,9 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	}
 	if l, ok := Has(c.lines, "round"); ok {
 		r.ReviewRounds = strings.TrimPrefix(l, "round ")
+	}
+	if isReviewer(c.r.Role) {
+		r.ReviewEffect = c.reviewEffect(outcome)
 	}
 	var turns string
 	if l, ok := Has(c.lines, "cost"); ok {
@@ -403,11 +409,13 @@ func (s *Swarm) metricsCSV() (string, []byte, error) {
 // last of its key, when the usage its <run>/stdout reports, read by the
 // adapter of the row's provider, gives other usage cells than the row's
 // (usage: tokens_in with the cache's input, tokens_cached, tokens_total,
-// cost_estimated at today's list price): the new row is the held row
-// with those cells, every other cell carried over, its notes ending
-// `repriced`. A run without stdout, one whose stdout reports no usage,
-// or a row naming a provider the adapter table lacks is unread and left
-// as it is. Every row is made before the metrics lock is taken; under
+// cost_estimated at today's list price), or, for a reviewer's run, the
+// runs give another review_effect (reviewEffects): the new row is the
+// held row with those cells, every other cell carried over, its notes
+// ending `repriced`. A run without stdout, one whose stdout reports no
+// usage, or a row naming a provider the adapter table lacks is unread,
+// its usage cells left as they are. Every row is made before the
+// metrics lock is taken; under
 // it, the CSV is read once and a row whose key's last row is already
 // it dropped (metrics.Supersede), so a second reprice writes nothing.
 // With dryRun the rows are made and nothing is written.
@@ -426,6 +434,7 @@ func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
 	if err != nil {
 		return p, err
 	}
+	effects := map[string][]runEffect{} // by issue and reviewer
 	for _, r := range runs {
 		lines, err := r.Result(s.O.FS())
 		if err != nil {
@@ -449,19 +458,34 @@ func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
 		if known && err == nil {
 			rep = prov.Adapter.Report(stdout)
 		}
-		if !rep.Known {
-			p.Unread++
-			continue
-		}
 		row := held
-		cached := ""
-		if rep.CachedKnown {
-			cached = strconv.Itoa(rep.CachedTokens)
+		if rep.Known {
+			cached := ""
+			if rep.CachedKnown {
+				cached = strconv.Itoa(rep.CachedTokens)
+			}
+			usage(&row, strconv.Itoa(rep.InTokens), strconv.Itoa(rep.OutTokens), cached)
+		} else {
+			p.Unread++
 		}
-		usage(&row, strconv.Itoa(rep.InTokens), strconv.Itoa(rep.OutTokens), cached)
+		if isReviewer(r.Role) {
+			k := fmt.Sprintf("%d-%s", r.N, r.Role)
+			if effects[k] == nil {
+				if effects[k], err = s.reviewEffects(r, ""); err != nil {
+					return p, err
+				}
+			}
+			for _, e := range effects[k] {
+				if e.k == r.K {
+					row.ReviewEffect = e.effect
+				}
+			}
+		}
 		if row.TokensIn == held.TokensIn && row.TokensOut == held.TokensOut && row.TokensCached == held.TokensCached &&
-			row.TokensTotal == held.TokensTotal && row.CostEstimated == held.CostEstimated {
-			p.Current++
+			row.TokensTotal == held.TokensTotal && row.CostEstimated == held.CostEstimated && row.ReviewEffect == held.ReviewEffect {
+			if rep.Known {
+				p.Current++
+			}
 			continue
 		}
 		if !strings.HasSuffix(row.Notes, ", repriced") {
@@ -482,8 +506,8 @@ func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
 
 // Repriced is what a reprice did: the CSV, the rows it made (each from
 // the row it supersedes) and those it wrote, the runs collected, those
-// of them the CSV holds a row of, and of those the rows already current
-// and the runs whose usage could not be read.
+// of them the CSV holds a row of, and of those the rows already current,
+// their usage read, and the runs whose usage could not be read.
 type Repriced struct {
 	File                                      string
 	Changes                                   []Change

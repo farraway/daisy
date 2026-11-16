@@ -291,3 +291,10 @@ they write.
   line, the merged swarm pull requests and those a revert on `base`
   names, read from the mirrors as last fetched; section 11; decision
   [141](swarm/decisions/0141-reverts-counted-from-the-mirrors.md).
+- 2026-11-16, Step 30 of the plan remediating the 2026-11-15 design
+  review (P29): a reviewer run's metrics row records `review_effect`,
+  its blocking findings when its role's next review approves a new
+  head, the earlier review's row superseded at that collection and
+  `swarm metrics --reprice` making it for runs recorded before; 7.6,
+  section 11; decision
+  [142](swarm/decisions/0142-a-reviews-effect-read-from-the-runs.md).

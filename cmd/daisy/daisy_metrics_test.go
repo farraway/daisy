@@ -82,8 +82,8 @@ func TestMetricsAddRecordsAStep(t *testing.T) {
 	}
 
 	csvFile := filepath.Join(m.home, "metrics", "metrics.csv")
-	wantCSV := "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds,tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed,binary_files,range,notes,tokens_cached\n" +
-		"2026-11-12T14:05:00+01:00,plan-step," + planName + ",3,step,claude,claude-opus-5-5,high," + rootSHA + "," + homeSHA + ",,committed,2,1200,340,,1.25,,3,1,6,0,4,1,0," + rng + ",\"worker model changed, \"\"again\"\"\",\n"
+	wantCSV := "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds,tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed,binary_files,range,notes,tokens_cached,review_effect\n" +
+		"2026-11-12T14:05:00+01:00,plan-step," + planName + ",3,step,claude,claude-opus-5-5,high," + rootSHA + "," + homeSHA + ",,committed,2,1200,340,,1.25,,3,1,6,0,4,1,0," + rng + ",\"worker model changed, \"\"again\"\"\",,\n"
 	if b, err := os.ReadFile(csvFile); err != nil || string(b) != wantCSV {
 		t.Fatalf("metrics.csv (%v):\n%s\nwant\n%s", err, b, wantCSV)
 	}
@@ -116,7 +116,7 @@ func TestMetricsAddRecordsAStep(t *testing.T) {
 	}
 	b, _ := os.ReadFile(csvFile)
 	if lines := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n"); len(lines) != 3 || !strings.HasPrefix(string(b), wantCSV) ||
-		lines[2] != "2026-11-12T14:05:00+01:00,plan-step,"+planName+",3,step,,,,abcdef1,"+homeSHA+",,,,,,9,,,,,,,,,,,," {
+		lines[2] != "2026-11-12T14:05:00+01:00,plan-step,"+planName+",3,step,,,,abcdef1,"+homeSHA+",,,,,,9,,,,,,,,,,,,," {
 		t.Fatalf("metrics.csv after the second record:\n%s", b)
 	}
 	got = m.read(t, filepath.Join("plans", planName+".plan.md"))
@@ -150,6 +150,7 @@ func TestMetricsAddRefusals(t *testing.T) {
 	}{
 		{[]string{"--root-sha", "abcdef1"}, "--step is required"},
 		{[]string{"--step", "1", "--root-sha", "abcdef1", "--tokens", "12k"}, "--tokens must be a whole number"},
+		{[]string{"--step", "1", "--root-sha", "abcdef1", "--role", "review", "--review-effect", "two"}, "--review-effect must be a whole number"},
 		{[]string{"--step", "1", "--root-sha", "abcdef1", "--cost", "-1"}, "--cost must be a number"},
 		{[]string{"--step", "1", "--root-sha", "xyz"}, "--root-sha must be"},
 		{[]string{"--step", "1", "--root-sha", "abcdef1", "--home-sha", "HEAD"}, "--home-sha must be"},
@@ -197,7 +198,7 @@ func TestMetricsTokensPerCodeLine(t *testing.T) {
 			t.Errorf("plan has no %q:\n%s", row, plan)
 		}
 	}
-	if b, _ := os.ReadFile(filepath.Join(m.home, "metrics", "metrics.csv")); !strings.Contains(string(b), ",1500,,,3,1,6,0,4,1,0,"+base+".."+head+",,1000\n") {
+	if b, _ := os.ReadFile(filepath.Join(m.home, "metrics", "metrics.csv")); !strings.Contains(string(b), ",1500,,,3,1,6,0,4,1,0,"+base+".."+head+",,1000,\n") {
 		t.Errorf("the step's row has no tokens_cached:\n%s", b)
 	}
 	code, out, errs := runWith(o, "metrics")
@@ -205,6 +206,53 @@ func TestMetricsTokensPerCodeLine(t *testing.T) {
 		"  " + planName + "  3     1800 (2/3)  +3 (1/3)    600                   1 not found\n"
 	if code != 0 || errs != "" || !strings.Contains(out, want) || !strings.Contains(out, "  plan-step  (none)  3     1800 (2/3)  1000 (1/3)") {
 		t.Fatalf("metrics = %d:\n%s\nwant within:\n%s\n%s", code, out, want, errs)
+	}
+}
+
+// Step 30's claim, the plan's side (the plan remediating the 2026-11-15
+// design review, P29): `metrics add --role review --review-effect <n>`
+// records a step's review passes' findings fixed in review_effect, the
+// CSV's last column; `daisy metrics` sums the review rows by role and
+// model, the effect over the rows that record one (a row recorded
+// without it counted apart), and the tokens per effect over the rows
+// with both: 1200 + 800 tokens over 3 + 1 findings, 500.
+func TestMetricsReviewEffect(t *testing.T) {
+	m := newMachine(t)
+	o := m.metricsOps(m.ws)
+	if code, _, errs := runWith(o, "plan", "new", "Measure things"); code != 0 {
+		t.Fatalf("plan new = %d: %s", code, errs)
+	}
+	for _, args := range [][]string{
+		{"--step", "1", "--role", "review", "--model", "opus", "--tokens", "1200", "--review-effect", "3"},
+		{"--step", "2", "--role", "review", "--model", "opus", "--tokens", "800", "--review-effect", "1"},
+		{"--step", "3", "--role", "review", "--model", "opus", "--tokens", "500"},
+		{"--step", "3", "--model", "opus", "--tokens", "9000"},
+	} {
+		if code, _, errs := runWith(o, append([]string{"metrics", "add", "--root-sha", "abcdef1", "--home-sha", "abcdef2"}, args...)...); code != 0 {
+			t.Fatalf("metrics add %v = %d: %s", args, code, errs)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(m.home, "metrics", "metrics.csv")); !strings.HasSuffix(strings.SplitN(string(b), "\n", 2)[0], ",tokens_cached,review_effect") ||
+		!strings.Contains(string(b), ",1,review,,opus,,abcdef1,abcdef2,,,,,,1200,,,,,,,,,,,,,3\n") {
+		t.Errorf("csv:\n%s", b)
+	}
+	code, out, errs := runWith(o, "metrics")
+	want := "\n  review role  model  rows  effect   tokens  tokens per effect\n" +
+		"  review       opus   3     4 (2/3)  2500    500\n" +
+		"\n  A review's effect is the in-gate findings it raised that were fixed: a plan review's as its row records it,\n" +
+		"  a swarm review's its blocking findings when its role's next review of the pull request approves a new head.\n"
+	if code != 0 || errs != "" || !strings.Contains(out, want) {
+		t.Fatalf("metrics = %d:\n%s\nwant within:\n%s\n%s", code, out, want, errs)
+	}
+	code, out, _ = runWith(o, "metrics", "--json")
+	var doc struct {
+		Reviews []map[string]any `json:"reviews"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); code != 0 || err != nil || len(doc.Reviews) != 1 {
+		t.Fatalf("metrics --json = %d, %v:\n%s", code, err, out)
+	}
+	if got := fmt.Sprint(doc.Reviews[0]); got != "map[effect:4 model:opus role:review rows:3 rows_with_effect:2 rows_with_tokens:3 tokens:2500 tokens_per_effect:500]" {
+		t.Errorf("reviews[0] = %s", got)
 	}
 }
 

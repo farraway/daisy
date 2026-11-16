@@ -40,7 +40,7 @@ var Header = []string{
 	"root_sha", "home_sha", "prompt_hash", "outcome", "review_rounds",
 	"tokens_in", "tokens_out", "tokens_total", "cost_reported", "cost_estimated",
 	"code_added", "code_removed", "tests_added", "tests_removed", "prose_added", "prose_removed",
-	"binary_files", "range", "notes", "tokens_cached",
+	"binary_files", "range", "notes", "tokens_cached", "review_effect",
 }
 
 // firstColumns is how many of Header's columns the first header had
@@ -62,6 +62,7 @@ type Row struct {
 	ReviewRounds                     string
 	TokensIn, TokensOut, TokensTotal string // tokens_in holds the input read from a cache
 	TokensCached                     string // the part of TokensIn read from a cache
+	ReviewEffect                     string // a review's in-gate findings that were fixed
 	CostReported, CostEstimated      string // in US dollars
 	Lines                            *Lines
 	Range                            string // the commit range Lines was measured over
@@ -209,7 +210,7 @@ func CheckCell(column, value string) string {
 		return ""
 	}
 	switch column {
-	case "review_rounds", "tokens_in", "tokens_out", "tokens_total", "tokens_cached", "code_added", "code_removed",
+	case "review_rounds", "tokens_in", "tokens_out", "tokens_total", "tokens_cached", "review_effect", "code_added", "code_removed",
 		"tests_added", "tests_removed", "prose_added", "prose_removed", "binary_files":
 		if !wholeNumber.MatchString(value) {
 			return "must be a whole number"
@@ -236,7 +237,7 @@ func (r Row) cells() []string {
 	} else {
 		c = append(c, "", "", "", "", "", "", "")
 	}
-	return append(c, r.Range, r.Notes, r.TokensCached)
+	return append(c, r.Range, r.Notes, r.TokensCached, r.ReviewEffect)
 }
 
 // parseRow is the row whose cells rec are (Header's, every one there):
@@ -248,7 +249,7 @@ func parseRow(rec []string) Row {
 		Role: cell("role"), Provider: cell("provider"), Model: cell("model"), Effort: cell("effort"),
 		RootSHA: cell("root_sha"), HomeSHA: cell("home_sha"), PromptHash: cell("prompt_hash"), Outcome: cell("outcome"),
 		ReviewRounds: cell("review_rounds"), TokensIn: cell("tokens_in"), TokensOut: cell("tokens_out"), TokensTotal: cell("tokens_total"),
-		TokensCached: cell("tokens_cached"), CostReported: cell("cost_reported"), CostEstimated: cell("cost_estimated"),
+		TokensCached: cell("tokens_cached"), ReviewEffect: cell("review_effect"), CostReported: cell("cost_reported"), CostEstimated: cell("cost_estimated"),
 		Range: cell("range"), Notes: cell("notes")}
 	if cell("code_added") != "" {
 		r.Lines = &Lines{atoi(cell("code_added")), atoi(cell("code_removed")), atoi(cell("tests_added")),

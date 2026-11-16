@@ -1037,9 +1037,13 @@ func swarmReprice(c *Context, s *reconcile.Swarm, dryRun bool) error {
 	}
 	for _, ch := range p.Changes {
 		f, t := ch.From, ch.To
-		fmt.Fprintf(c.Stdout, "  %s %s %s: tokens_in %s → %s, tokens_cached %s → %s, tokens_total %s → %s, cost_estimated %s → %s\n",
+		effect := ""
+		if t.Role == "adversary" || t.Role == "sympathetic" {
+			effect = fmt.Sprintf(", review_effect %s → %s", cell(f.ReviewEffect), cell(t.ReviewEffect))
+		}
+		fmt.Fprintf(c.Stdout, "  %s %s %s: tokens_in %s → %s, tokens_cached %s → %s, tokens_total %s → %s, cost_estimated %s → %s%s\n",
 			t.Unit, t.Provider, t.Model, cell(f.TokensIn), cell(t.TokensIn), cell(f.TokensCached), cell(t.TokensCached),
-			cell(f.TokensTotal), cell(t.TokensTotal), cell(f.CostEstimated), cell(t.CostEstimated))
+			cell(f.TokensTotal), cell(t.TokensTotal), cell(f.CostEstimated), cell(t.CostEstimated), effect)
 	}
 	fmt.Fprintf(c.Stdout, "Would reprice %d rows in %s %s; nothing written\n", len(p.Changes), p.File, counts)
 	return nil

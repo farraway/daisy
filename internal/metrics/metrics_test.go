@@ -74,7 +74,7 @@ func TestAppendCSV(t *testing.T) {
 		t.Fatal(err)
 	}
 	header := strings.Join(Header, ",") + "\n"
-	first := "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,,\n"
+	first := "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,,,\n"
 	if string(b) != header+first {
 		t.Fatalf("first append:\n%s", b)
 	}
@@ -85,7 +85,7 @@ func TestAppendCSV(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := header + first + "2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,,,10,,,1,0,0,0,0,0,0,,\"a, \"\"b\"\"\nc\",\n"; string(b) != want {
+	if want := header + first + "2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,,,10,,,1,0,0,0,0,0,0,,\"a, \"\"b\"\"\nc\",,\n"; string(b) != want {
 		t.Fatalf("second append:\n%q\nwant\n%q", b, want)
 	}
 	// A file without its final newline gets one before the row.
@@ -284,9 +284,9 @@ func TestFirstHeaderReadAndExtended(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.TrimSuffix(firstHeader, "\n") + ",tokens_cached\n" +
+	want := strings.TrimSuffix(firstHeader, "\n") + ",tokens_cached,review_effect\n" +
 		"2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,\n" +
-		"2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,40,2,42,,,,,,,,,,,,30\n"
+		"2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,40,2,42,,,,,,,,,,,,30,\n"
 	if string(b) != want {
 		t.Fatalf("appended:\n%s\nwant\n%s", b, want)
 	}
@@ -300,7 +300,7 @@ func TestFirstHeaderReadAndExtended(t *testing.T) {
 	for _, c := range []struct{ file, want string }{
 		{firstHeader + "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,\n", "row 2 has 26 cells, not 27"},
 		{firstHeader + "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,,\n", "row 2 has 28 cells, not 27"},
-		{want + "2026-11-12T14:05:00+01:00,plan-step,p,3,step,,m,,,,,,,,,10,,,,,,,,,,\n", "row 4 has 26 cells, not 27 to 28"},
+		{want + "2026-11-12T14:05:00+01:00,plan-step,p,3,step,,m,,,,,,,,,10,,,,,,,,,,\n", "row 4 has 26 cells, not 27 to 29"},
 	} {
 		if _, err := Summarize([]byte(c.file), Filter{}); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("Summarize = %v, want %q", err, c.want)
@@ -308,6 +308,46 @@ func TestFirstHeaderReadAndExtended(t *testing.T) {
 		if _, err := AppendCSV([]byte(c.file), row("9")); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("AppendCSV = %v, want %q", err, c.want)
 		}
+	}
+}
+
+// step28Header is the header the CSV had from Step 28 to Step 30 of the
+// plan remediating the 2026-11-15 design review: review_effect not yet
+// added.
+const step28Header = "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds," +
+	"tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed," +
+	"binary_files,range,notes,tokens_cached\n"
+
+// Step 30's schema change, as Step 28's: a CSV under Step 28's header,
+// holding a row of each width it allows (27 cells, written under the
+// first header, and 28), is read, review_effect empty; an append
+// rewrites the header line alone, every row's bytes kept and the new
+// row whole under it, its review_effect read back.
+func TestStep28HeaderReadAndExtended(t *testing.T) {
+	rows := "2026-11-12T14:05:00+01:00,plan-step,p,1,review,,m,,,,,,,,,10,,,,,,,,,,,\n" +
+		"2026-11-13T14:05:00+01:00,plan-step,p,2,review,,m,,,,,,,,,20,,,,,,,,,,,,5\n"
+	old := step28Header + rows
+	s, err := Summarize([]byte(old), Filter{})
+	if err != nil || s.Rows != 2 || len(s.Reviews) != 1 || s.Reviews[0].Rows != 2 || s.Reviews[0].WithEffect != 0 || s.Reviews[0].Tokens != 30 {
+		t.Fatalf("Summarize(Step 28's header) = %+v, %v", s, err)
+	}
+	r := row("3")
+	r.Role, r.ReviewEffect = "review", "2"
+	b, err := AppendCSV([]byte(old), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.TrimSuffix(step28Header, "\n") + ",review_effect\n" + rows +
+		"2026-11-12T14:05:00+01:00,plan-step,p,3,review,,m,,,,,,,,,10,,,,,,,,,,,,,2\n"
+	if string(b) != want {
+		t.Fatalf("appended:\n%s\nwant\n%s", b, want)
+	}
+	s, err = Summarize(b, Filter{})
+	if err != nil || s.Rows != 3 || s.Reviews[0].Effect != 2 || s.Reviews[0].WithEffect != 1 || s.Reviews[0].Tokens != 40 {
+		t.Fatalf("Summarize(extended) = %+v, %v", s, err)
+	}
+	if latest, err := Latest(b); err != nil || latest[r.Key()].ReviewEffect != "2" {
+		t.Fatalf("Latest = %+v, %v", latest, err)
 	}
 }
 
@@ -359,5 +399,68 @@ func TestSummarizePlans(t *testing.T) {
 	}
 	if fmt.Sprint(s.Swarms) != "[acme/swarm-app]" {
 		t.Errorf("Swarms = %q", s.Swarms)
+	}
+}
+
+// Step 30's claim (the plan remediating the 2026-11-15 design review,
+// P29): the review rows, those of a reviewer's role (a plan's review,
+// a swarm's adversary and sympathetic) or recording a review_effect,
+// summed by role and model, a superseded row left out: their rows, the
+// effect over the rows that record one, the tokens over those that
+// report them, and the tokens per effect over the rows that have both;
+// a step's row without an effect is no review.
+func TestSummarizeReviews(t *testing.T) {
+	var b []byte
+	add := func(kind Kind, source, unit, role, model, tokens, effect string) {
+		r := Row{When: "2026-11-16T10:00:00Z", Kind: kind, Source: source, Unit: unit, Role: role, Model: model, TokensTotal: tokens, ReviewEffect: effect}
+		var err error
+		if b, err = AppendCSV(b, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan := func(step, role, tokens, effect string) { add(PlanStep, "261116.p", step, role, "opus", tokens, effect) }
+	swarm := func(run, role, model, tokens, effect string) {
+		add(SwarmRun, "acme/swarm-app", run, role, model, tokens, effect)
+	}
+	plan("1", "review", "1000", "2")
+	plan("2", "review", "3000", "0")
+	plan("3", "review", "500", "") // recorded before the column
+	plan("4", "review", "9999", "1")
+	plan("4", "review", "600", "3") // supersedes the one before
+	plan("1", "step", "5000", "")   // no review
+	plan("5", "step", "200", "1")   // an effect on another role's row
+	swarm("1-adversary-1", "adversary", "gpt", "100", "1")
+	swarm("1-adversary-2", "adversary", "gpt", "50", "0")
+	swarm("1-adversary-3", "adversary", "gpt", "", "2")        // its usage not reported
+	swarm("1-sympathetic-1", "sympathetic", "grok", "400", "") // its next review not yet collected
+	swarm("1-sympathetic-2", "sympathetic", "grok", "", "0")
+	swarm("1-worker-1", "worker", "grok", "700", "")
+	s, err := Summarize(b, Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Review{
+		{Role: "adversary", Model: "gpt", Rows: 3, WithEffect: 3, Effect: 3, WithTokens: 2, Tokens: 150, PairedTokens: 150, PairedEffect: 1},
+		{Role: "review", Model: "opus", Rows: 4, WithEffect: 3, Effect: 5, WithTokens: 4, Tokens: 5100, PairedTokens: 4600, PairedEffect: 5},
+		{Role: "step", Model: "opus", Rows: 1, WithEffect: 1, Effect: 1, WithTokens: 1, Tokens: 200, PairedTokens: 200, PairedEffect: 1},
+		{Role: "sympathetic", Model: "grok", Rows: 2, WithEffect: 1, Effect: 0, WithTokens: 1, Tokens: 400},
+	}
+	if fmt.Sprint(s.Reviews) != fmt.Sprint(want) {
+		t.Fatalf("Reviews = %+v\nwant %+v", s.Reviews, want)
+	}
+	for i, w := range []struct {
+		n  int
+		ok bool
+	}{{150, true}, {920, true}, {200, true}, {0, false}} {
+		if n, ok := s.Reviews[i].TokensPerEffect(); n != w.n || ok != w.ok {
+			t.Errorf("%s %s: tokens per effect = %d, %v, want %d, %v", want[i].Role, want[i].Model, n, ok, w.n, w.ok)
+		}
+	}
+	if s, _ := Summarize(b, Filter{Swarm: "acme/swarm-app"}); len(s.Reviews) != 2 || s.Reviews[0].Role != "adversary" || s.Reviews[1].Role != "sympathetic" {
+		t.Errorf("a swarm's reviews: %+v", s.Reviews)
+	}
+	bad := Row{When: "2026-11-16T10:00:00Z", Kind: PlanStep, Source: "p", Unit: "1", Role: "review", ReviewEffect: "two"}
+	if _, err := AppendCSV(nil, bad); err == nil || !strings.Contains(err.Error(), "review_effect must be a whole number") {
+		t.Errorf("a bad effect: %v", err)
 	}
 }

@@ -146,6 +146,7 @@ func TestReadOnlyJSON(t *testing.T) {
 			"repositories": [],
 			"swarms": [{"swarm": "acme/swarm-app", "state": "<local>/swarm/forge.example.net/acme/swarm-app", "base": "main",
 				"merged_pulls": 0, "reverted_pulls": 0, "revert_rate": null, "fetched": null, "problem": null}],
+			"reviews": [],
 			"warnings": []}`},
 		{name: "swarm list", cwd: clone, args: []string{"swarm", "list", "--json"}, want: `{
 			"dir": "<local>/swarm",
@@ -176,7 +177,7 @@ func TestReadOnlyJSON(t *testing.T) {
 			"warnings": ["⚠️  the binding link .daisy/today.md is missing or does not point into the home; re-run 'daisy init testhome'"]}`},
 		{name: "metrics with no CSV", cwd: proj, args: []string{"metrics", "--json"}, setup: func() { os.Remove(csv) }, want: `{
 			"file": "<home>/metrics/metrics.csv", "exists": false, "rows_taken": {"swarm": null, "since": null},
-			"rows": 0, "superseded": 0, "groups": [], "plans": [], "repositories": [], "swarms": [], "warnings": []}`},
+			"rows": 0, "superseded": 0, "groups": [], "plans": [], "repositories": [], "swarms": [], "reviews": [], "warnings": []}`},
 		{name: "swarm journal, the mark lost", cwd: clone, args: []string{"swarm", "journal", "--json"}, setup: func() { writeFile(t, seen, "9-gone-1 2026-11-05T10:00:00Z\n") }, want: `{
 			"repository": "acme/swarm-app", "marked": null, "day": "2026-11-06",
 			"lines": [

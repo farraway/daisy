@@ -547,8 +547,8 @@ func TestSwarmMetricsReprice(t *testing.T) {
 	b, _ := os.ReadFile(csvFile)
 	_, oldRows, _ := strings.Cut(held, "\n")
 	want := strings.Join(metrics.Header, ",") + "\n" + oldRows +
-		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,852044,9000,861044,1.2,,,,,,,,,,\"#1, 20 turns, repriced\",800000\n" +
-		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,3489802,,0.641961,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns, repriced\",3390208\n"
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,852044,9000,861044,1.2,,,,,,,,,,\"#1, 20 turns, repriced\",800000,\n" +
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,3489802,,0.641961,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns, repriced\",3390208,\n"
 	if string(b) != want {
 		t.Fatalf("csv:\n%s\nwant:\n%s", b, want)
 	}
@@ -585,5 +585,128 @@ func TestSwarmMetricsReprice(t *testing.T) {
 		if err := a.metricsVerb(flags...); !errors.As(err, &usage) {
 			t.Errorf("swarm metrics %v = %v, want a usage error", flags, err)
 		}
+	}
+}
+
+// Step 30's claim, the swarm's side (the plan remediating the 2026-11-15
+// design review, P29; section 7.6, The run's record): a pull request
+// reviewed in two rounds, the adversary requesting changes with one
+// blocking finding, the worker pushing v2, both reviewers approving it:
+// the adversary's first row is written with its effect unknown, and the
+// collection of its second review supersedes it with effect 1, every
+// other cell carried over; each approving review's effect is 0, the
+// worker's row has none; `daisy metrics` sums them by role and model.
+func TestSwarmApplyRecordsReviewEffect(t *testing.T) {
+	a := newApplyWS(t)
+	home := a.metricsHome()
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass() // T10
+	first := map[string]map[string]string{}
+	for _, r := range rows(t, home) {
+		first[r["step_or_run"]] = r
+	}
+	if r := first["1-adversary-1"]; r == nil || r["review_effect"] != "" || r["review_rounds"] != "1" {
+		t.Fatalf("first adversary row %v", r)
+	}
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass() // T9
+	if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-2-approved") {
+		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
+	}
+	all := rows(t, home)
+	last := map[string]map[string]string{}
+	count := map[string]int{}
+	for _, r := range all {
+		last[r["step_or_run"]] = r
+		count[r["step_or_run"]]++
+	}
+	for run, want := range map[string]string{"1-adversary-1": "1", "1-sympathetic-1": "0", "1-adversary-2": "0", "1-sympathetic-2": "0", "1-worker-1": "", "1-worker-2": ""} {
+		if r := last[run]; r == nil || r["review_effect"] != want {
+			t.Errorf("%s: review_effect %q, want %q", run, r["review_effect"], want)
+		}
+	}
+	if count["1-adversary-1"] != 2 || count["1-sympathetic-1"] != 1 || count["1-adversary-2"] != 1 {
+		t.Errorf("rows per run %v", count)
+	}
+	sup, held := last["1-adversary-1"], first["1-adversary-1"]
+	for _, col := range metrics.Header {
+		if col != "review_effect" && sup[col] != held[col] {
+			t.Errorf("1-adversary-1's %s: %q, superseding %q", col, sup[col], held[col])
+		}
+	}
+	if strings.Contains(a.stderr.String(), "review_effect") {
+		t.Errorf("stderr:\n%s", a.stderr.String())
+	}
+	b, _ := os.ReadFile(filepath.Join(home, "metrics", "metrics.csv"))
+	s, err := metrics.Summarize(b, metrics.Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Reviews) != 2 || s.Reviews[0].Role != "adversary" || s.Reviews[0].Rows != 2 || s.Reviews[0].Effect != 1 || s.Reviews[0].WithEffect != 2 ||
+		s.Reviews[1].Role != "sympathetic" || s.Reviews[1].Effect != 0 || s.Reviews[1].WithEffect != 2 {
+		t.Errorf("reviews %+v", s.Reviews)
+	}
+}
+
+// Step 30's reprice (section 11, swarm metrics): over a fixture CSV
+// under Step 28's header, holding the rows a collection wrote before the
+// review_effect column for one issue's three reviews (the adversary's
+// request with two blocking findings, then its approval of the worker's
+// new head; the sympathetic reviewer's approval), a reprice supersedes
+// each with the effect the runs give, 2, 0 and 0, its usage cells as
+// they were when its output reports none; the dry run names the effect;
+// a second reprice writes nothing.
+func TestSwarmMetricsRepriceReviewEffect(t *testing.T) {
+	a := newApplyWS(t)
+	home := a.metricsHome()
+	csvFile := filepath.Join(home, "metrics", "metrics.csv")
+	held := "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds," +
+		"tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed," +
+		"binary_files,range,notes,tokens_cached\n" +
+		"2026-11-12T08:00:00Z,swarm-run,acme/swarm-app,2-adversary-1,adversary,xai,grok-4.7,high,,,,posted,1,100,10,110,,,,,,,,,,,\"#2, 3 turns\",\n" +
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,2-sympathetic-1,sympathetic,xai,grok-4.7,high,,,,posted,1,200,20,220,,,,,,,,,,,\"#2, 3 turns\",\n" +
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,2-adversary-2,adversary,xai,grok-4.7,high,,,,posted,2,300,30,330,,,,,,,,,,,\"#2, 3 turns\",\n"
+	os.MkdirAll(filepath.Dir(csvFile), 0o755)
+	os.WriteFile(csvFile, []byte(held), 0o644)
+	h1, h2 := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	result := func(round, head string) string {
+		return "start " + head + "\nround " + round + "\nstarted 2026-11-12T07:00:00Z\nexited 0 2026-11-12T07:30:00Z\nposted review\nrecorded\noutcome posted\ncollected\n"
+	}
+	a.runResult("2-adversary-1", result("1", h1), "VERDICT: request-changes\n\n[blocking] main.go:1 wrong.\n[blocking] main.go:2 untested.\n")
+	a.runResult("2-sympathetic-1", result("1", h1), approve)
+	a.runResult("2-adversary-2", result("2", h2), approve)
+	counts := "(3 runs collected, 3 with a row: 0 current, 3 with no usage to read)"
+
+	if err := a.metricsVerb("--reprice", "--dry-run"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	if want := "  2-adversary-1 xai grok-4.7: tokens_in 100 → 100, tokens_cached — → —, tokens_total 110 → 110, cost_estimated — → —, review_effect — → 2\n" +
+		"  2-adversary-2 xai grok-4.7: tokens_in 300 → 300, tokens_cached — → —, tokens_total 330 → 330, cost_estimated — → —, review_effect — → 0\n" +
+		"  2-sympathetic-1 xai grok-4.7: tokens_in 200 → 200, tokens_cached — → —, tokens_total 220 → 220, cost_estimated — → —, review_effect — → 0\n" +
+		"Would reprice 3 rows in " + csvFile + " " + counts + "; nothing written\n"; a.stdout.String() != want || a.stderr.Len() != 0 {
+		t.Errorf("dry run: stdout:\n%s\nwant:\n%s\nstderr:\n%s", a.stdout.String(), want, a.stderr.String())
+	}
+	if err := a.metricsVerb("--reprice"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	b, _ := os.ReadFile(csvFile)
+	_, oldRows, _ := strings.Cut(held, "\n")
+	want := strings.Join(metrics.Header, ",") + "\n" + oldRows +
+		"2026-11-12T08:00:00Z,swarm-run,acme/swarm-app,2-adversary-1,adversary,xai,grok-4.7,high,,,,posted,1,100,10,110,,,,,,,,,,,\"#2, 3 turns, repriced\",,2\n" +
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,2-adversary-2,adversary,xai,grok-4.7,high,,,,posted,2,300,30,330,,,,,,,,,,,\"#2, 3 turns, repriced\",,0\n" +
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,2-sympathetic-1,sympathetic,xai,grok-4.7,high,,,,posted,1,200,20,220,,,,,,,,,,,\"#2, 3 turns, repriced\",,0\n"
+	if string(b) != want {
+		t.Fatalf("csv:\n%s\nwant:\n%s", b, want)
+	}
+	if err := a.metricsVerb("--reprice"); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := os.ReadFile(csvFile); !bytes.Equal(after, b) || a.stdout.String() != "✓ Repriced 0 rows into "+csvFile+" "+counts+"\n" {
+		t.Errorf("second reprice: stdout:\n%s\ncsv:\n%s", a.stdout.String(), after)
 	}
 }
