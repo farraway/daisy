@@ -81,11 +81,11 @@ as before") are each one claim.
 ## /daisy execute PLAN.md
 
 ```
-0. Run `daisy files` and use the resolved "current plan" real path
-   for every write below — PLAN.md at the workspace root is a
-   symlink, and writing through it fails with "Refusing to write
-   through symlink". Every write to the plan is the orchestrator's;
-   a step agent never writes it.
+0. Resolve the plan's real path with `daisy files plan` and write
+   every change below there (prompts/plan.md rule 17: PLAN.md is a
+   link, and prompts/daisy.md's Trigger block says why no Daisy file
+   is reached through one). Every write to the plan is the
+   orchestrator's; a step agent never writes it.
 
 1. Read PLAN.md; confirm at least one unchecked "- [ ]" step exists,
    and that Decisions records the model and effort the step agents

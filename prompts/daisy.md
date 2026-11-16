@@ -7,7 +7,7 @@ Read the full `$DAISY_ROOT/prompts/daisy.md` when executing any Daisy workflow
 
 Invoked when the user says "Daisy", uses the `/daisy` command, or references tasks, journal, or projects.
 
-**Run `daisy files` first, always — including for read-only requests.** It prints the resolved real absolute path for every Daisy-managed file (today.md, todo.txt, done.txt, alias.txt, journal.md, projects/, feedback.md, plans/, prompts/, AGENTS.md). Use those absolute paths directly for any Read/Edit — never navigate there through the `.daisy/` symlinks (those exist for the user's own convenience, not as the agent's access path) and never guess or hand-construct a path.
+**Reach every Daisy file by its real path, for reads as well as writes.** Before you read or edit a Daisy-managed file, resolve its absolute path with `daisy files <name>` (`today`, `todo`, `journal`, `plan`, …; an unknown name lists them all; `projects`, `plans` and `prompts` give a directory) or the full listing a bare `daisy files` prints (it also shows files no name gives, such as a journal window), and use that path for every Read and Edit. A `.daisy/...` path or `PLAN.md` in these prompts names the file, not the way to it: never go through those links (they are for the user's own convenience), and never guess or hand-construct a path. Only resolved paths keep Read and Edit matching Claude Code's permission rules instead of prompting, and a write through the `PLAN.md` link fails with "Refusing to write through symlink".
 
 Key files in `.daisy/`:
 - `tasks/todo.txt` — tasks in todo.txt format; priorities (A)=now (B)=next (C)=soon (D)=someday
@@ -59,7 +59,7 @@ Priorities: (A) now, (B) next, (C) soon, (D) someday, none = inbox.
 3. **Strip priority on completion.** Completed (`x`) and cancelled (`z`) tasks must never have a priority prefix.
 4. **Completion ≠ archival.** Marking a task done keeps it in `todo.txt`; it only moves to `done.txt` during "new week".
 5. **Cancelled tasks are soft-deleted.** They stay in `todo.txt` with a `z` prefix until the next "new day" or "new week" removes them.
-6. **Proactive logging.** If you helped the user DO something (not just discuss), log it immediately using `daisy log` — do not wait until the end of the session. Before reporting a milestone or ending a turn after substantive work, read today.md's Log and log first whatever was done since its last entry: a plan, a commit, a pull request comment or a scratch file does not stand in for the journal, and the user should not have to ask.
+6. **Proactive logging.** If you helped the user DO something (not just discuss), log it immediately using `daisy log` — do not wait until the end of the session. Before reporting a milestone or ending a turn after substantive work, read today.md's Log and log first whatever was done since its last entry: no other record stands in for the journal (a plan, a commit, a hand-back, a comment or label on a forge, a run's files, a scratch file), and the user should not have to ask.
 7. **Log entries are chronological.** Oldest first, newest at the bottom of the Log section.
 8. **Projects are checked first.** When the user references `+name`, read `.daisy/projects/{name}.md` before checking JIRA, GitHub, or the filesystem.
 9. **JIRA sync is one-way.** The project file is the source of truth; JIRA is for communicating progress outward.
@@ -72,7 +72,7 @@ Priorities: (A) now, (B) next, (C) soon, (D) someday, none = inbox.
 16. **Recognize `/daisy <command>` as CLI invocations.** When the user writes `/daisy feedback`, `/daisy log`, `/daisy plan`, etc., treat it as an explicit request to run `daisy <command>` — never substitute Claude's own internal systems (memory, plans, etc.) for Daisy's tools. `/daisy swarm connect` is no command: it is the Swarm Connect workflow below.
 17. **Triage feedback before recording.** When the user submits a `/daisy feedback` entry, determine whether it describes a behavioral correction fixable by editing a prompt or skill (its Rules section, or its body at a rewrite). If yes, record it via `daisy feedback`. If it requires code changes, new CLI commands, or anything beyond prompt optimization, do not record it — instead tell the user it is out of scope for the feedback/optimize/eval loop and suggest adding it as a task in `todo.txt` (creating a `+daisy` project first if one does not exist).
 18. **Proactive feedback capture.** When you make a mistake that requires mid-session correction, offer to record it: "Want me to log that as a feedback entry? (`daisy feedback --workflow <target> "<description>"`)" — the learning loop only works if failures are captured at the moment they occur. Name the target as `prompts/<name>` or `skills/<name>` — the file the guidance belongs in, not a loose label. `daisy feedback` refuses a target that names no file and lists the valid ones; run it with no arguments to see them.
-19. **A `.daisy/...` name identifies the file; `daisy files`' absolute path reaches it.** Where this prompt names a `.daisy/...` path, that names which Daisy-managed file is meant. Every Read/Edit of it goes through the resolved absolute path `daisy files` prints for it (already run once at trigger time, see the Trigger block above), never through the `.daisy/` symlink: those links are for the user's own convenience, not the agent's access path, and only `daisy files`' absolute paths keep Read/Edit calls matching Claude Code's permission rules instead of prompting.
+19. **A `.daisy/...` name identifies the file; its real path reaches it.** Resolve the path as the Trigger block above says (`daisy files <name>`) before any Read or Edit.
 20. **Never prepend DAISY_ROOT inline.** `DAISY_ROOT` is already exported in the shell environment. Do not prepend it as an inline variable (e.g. `DAISY_ROOT=... daisy log ...`) — doing so breaks Claude Code permission matching.
 21. **Scope /daisy archive to /daisy plans only.** The `/daisy archive` command only applies to plans created via `/daisy plan`. If a plan was created by Claude's native plan mode, there is nothing to archive in Daisy — do not attempt it.
 22. **Tasks must be concrete next actions.** Before adding a task, check that its description names a specific action (has a concrete verb and a clear deliverable). If the description sounds like a goal — no verb, or only a vague verb like "launch", "build", "set up", "create" — ask: "What specifically needs to happen to make progress towards that goal?" and use the answer as the task description instead. Goal-shaped items belong in project files, not in todo.txt.
@@ -107,9 +107,7 @@ All workflows are invoked via the `daisy` CLI (e.g. `daisy new-day`). Commands t
 
 Call `daisy log "message"`.
 
-**Proactive logging rule:** If you helped the user DO something (not just discuss), log it. The journal is the user's memory — gaps in the log are gaps in their record.
-
-Log immediately after:
+**When:** rule 6. The journal is the user's memory — gaps in the log are gaps in their record. Work done includes:
 - **Actions taken** — implementations, investigations, decisions made, PRs opened
 - **Stakeholder interactions** — meetings, discussions, handoffs mentioned by the user
 - **State changes** — blockers hit, context switches, milestones reached

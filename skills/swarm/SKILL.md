@@ -1,6 +1,6 @@
 ---
 name: swarm
-description: The maintainer's guide over a Daisy swarm from its repository's clone — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm.json, the persona prompts and the per-repository notes, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, replan, pause, resume, restart, close, prompt build) only after the maintainer confirms each write in words. Use in a swarm repository's clone (swarm.json at its top), or in a folder holding one (the verbs run inside the clone), when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, a job re-planned, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json, a persona prompt or a repository's notes, or to bring the persona prompts to Daisy's current defaults.
+description: The maintainer's guide over a Daisy swarm from its repository's clone — reads `daisy swarm status`, the briefs and the runs, explains what the swarm did and what waits for the maintainer, drafts or flips a brief's Status, edits swarm.json, the persona prompts and the per-repository notes, and runs the maintainer's `daisy swarm` verbs (triage, accept, class, approve, merge, unblock, block, replan, pause, resume, restart, close, prompt build) each write only on the maintainer's yes. Use in a swarm repository's clone (swarm.json at its top), or in a folder holding one (the verbs run inside the clone), when the user asks what the swarm did or what waits for them, wants an issue triaged, a plan accepted, a job classed routine or architecture, a pull request approved or merged, a blocked issue resumed, a job held behind another, a job re-planned, the swarm or one issue paused or resumed, or a job closed, or wants to write or change a brief, swarm.json, a persona prompt or a repository's notes, or to bring the persona prompts to Daisy's current defaults.
 short_description: Guide a Daisy swarm: status, briefs, gates
 ---
 
@@ -10,7 +10,7 @@ adversary, sympathetic) and moves each issue's `swarm:*` label. Its
 contract is `docs/swarm.md` in the Daisy root. This skill is the
 maintainer's side of it: you read, explain and draft; the maintainer
 decides; a forge write happens only through one of the verbs below, run
-after the maintainer has said yes to that write.
+as rule 3 says.
 
 ## Rules
 
@@ -85,18 +85,18 @@ after the maintainer has said yes to that write.
    block --by 9`) and that the answer below it, `Done:` or `Refused:`,
    is the verb's output. The reconciler's answers are in the thread
    (`role=reconciler kind=command`) and the swarm's journal.
-8. **Log each write as it is done.** After each verb you run that
-   writes, and each edit you make to a brief, `swarm.json`, a prompt or
-   a repository's notes, run `daisy log` with what it did, and with
-   `--co-author "<your line>"` before the message so its commit says you
-   wrote it, the line being the one your model signs commits with, one
-   line `Name <email>` (a Claude model's is
-   `Claude <model> <noreply@anthropic.com>`; `daisy log` refuses another
-   shape, and a flag after the message would land in the journal):
-   `daisy log --co-author "<your line>" "swarm: merged lib#5, closed #10"`,
-   before you report it; a verb that refused is a
-   blocker, logged the same way. The forge's comments and labels, the
-   runs' files and a plan are not the maintainer's journal. Outside a Daisy workspace `daisy log` refuses
+8. **Log each write as it is done**, as rule 6 of the Daisy prompt
+   (`prompts/daisy.md` in the Daisy root) says of all work: each verb you run that writes and each edit you make to
+   a brief, `swarm.json`, a prompt or a repository's notes, before you
+   report it, and a verb that refused, as a blocker. Run `daisy log`
+   with what it did, and with `--co-author "<your line>"` before the
+   message so its commit says you wrote it, the line being the one your
+   model signs commits with, one line `Name <email>` (a Claude model's
+   is `Claude <model> <noreply@anthropic.com>`; `daisy log` refuses
+   another shape, and a flag after the message would land in the
+   journal):
+   `daisy log --co-author "<your line>" "swarm: merged lib#5, closed #10"`.
+   Outside a Daisy workspace `daisy log` refuses
    (`Not in a Daisy workspace`): say so once and go on.
 
 ## The verbs
@@ -140,9 +140,9 @@ commits as the clone's identity and pushes to the default branch.
 Run `daisy swarm prompt build --dry-run` (it writes nothing, so it
 needs no yes) after the maintainer has updated Daisy, when a prompt
 reads older than `docs/swarm.md` section 4, or when they ask whether
-the prompts are current; show its output. Then, as with every verb,
-state the write (the prompts it would rewrite, the commit and the push)
-and run `daisy swarm prompt build` only on the maintainer's yes. For an
+the prompts are current; show its output. Then state its write as
+rule 3 says (the prompts it would rewrite, the commit and the push)
+and run `daisy swarm prompt build` only on that yes. For an
 edited prompt, draft the default's changes into it as rule 6 says,
 from the printed diff; `daisy swarm prompt build --force`, which
 overwrites the edits, only on the maintainer's yes to losing them, named

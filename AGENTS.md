@@ -291,9 +291,9 @@ agent working near it:
   must not depend on a chat being open. The `swarm` skill
   (`skills/swarm/SKILL.md`) is the agent's role: read `daisy swarm
   status`, the briefs and the runs; explain; draft; run a maintainer's
-  verb only after the maintainer has confirmed that write in words or,
-  through `/daisy swarm connect`, when it lies within an authority the
-  swarm repository's `AUTHORITIES.md` grants.
+  verb only on the maintainer's yes, as the skill's rule 3 says (through
+  `/daisy swarm connect`, an authority the swarm repository's
+  `AUTHORITIES.md` grants is that yes for a write wholly within it).
 - **Two tokens, two code paths.** The swarm's token (`forge.token_env` in
   `swarm.json`) is read by `init`, `apply` and `status`; the maintainer's
   (`DAISY_MAINTAINER_TOKEN`) by the maintainer's verbs (and `pause`

@@ -372,10 +372,10 @@ swarm repository's clone, or in a workspace holding it, is the maintainer's guid
 skill (`skills/swarm/SKILL.md` in the Daisy root): it reads `swarm
 status`, the briefs and `<state>/runs/`, explains what was done and what
 waits, drafts a brief or flips its `Status` and edits `swarm.json` and
-the persona prompts, and runs a verb only once the maintainer has
-confirmed that write in words or, through `/daisy swarm connect`, when
-the write lies within an authority the swarm repository's
-`AUTHORITIES.md` grants (section 2); it never reaches the forge itself
+the persona prompts, and runs a verb only on the maintainer's yes, as
+the skill's rule 3 says (through `/daisy swarm connect`, an authority
+the swarm repository's `AUTHORITIES.md` grants is that yes for a write
+wholly within it, section 2); it never reaches the forge itself
 and names no secret.
 
 **Four levels: brief, job, plan, slice.** A swarm is perpetual and bound
@@ -5364,10 +5364,10 @@ it reads `swarm status`, the briefs and `<state>/runs/`, says
 what was done and what waits, drafts or flips a brief's `Status` and
 edits `swarm.json` and the persona prompts as drafts for the maintainer,
 and runs a verb (or `pause`, `resume` and `prompt build`, whose
-`--dry-run` alone it may run unasked) only after stating the write
-and the maintainer's yes to it in words (through `/daisy swarm
-connect`, a write within an authority `AUTHORITIES.md` grants has
-that yes standing, section 2); it never reaches the forge
+`--dry-run` alone it may run unasked) only on the maintainer's yes,
+as the skill's rule 3 says (through `/daisy swarm connect`, an
+authority `AUTHORITIES.md` grants is that yes for a write wholly
+within it, section 2); it never reaches the forge
 itself, never runs `init` or `apply`, and names no secret but the
 variable `DAISY_MAINTAINER_TOKEN`.
 

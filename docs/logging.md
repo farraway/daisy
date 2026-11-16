@@ -6,7 +6,7 @@
 
 The original design enumerated 11 specific trigger conditions for proactive logging (stakeholder interactions, starting work, key discoveries, design decisions, etc.). In practice, agents would lose track of the list mid-conversation and forget to log.
 
-The simplified rule -- **"if you helped the user DO something, log it"** -- is a principle rather than a checklist. It's easier to remember, harder to miss, and covers the same ground. The distinction between "doing" and "discussing" prevents over-logging while ensuring meaningful work is captured.
+The simplified rule -- **"if you helped the user DO something, log it"**, stated in `prompts/daisy.md` rule 6 -- is a principle rather than a checklist. It's easier to remember, harder to miss, and covers the same ground. The distinction between "doing" and "discussing" prevents over-logging while ensuring meaningful work is captured.
 
 ## Detailed Logging Triggers
 

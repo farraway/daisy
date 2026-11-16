@@ -5,12 +5,4 @@ alwaysApply: true
 
 # Daisy Logging Post-Hook
 
-After completing any action that changes files, runs commands, or produces an outcome (not just discussion), log it via:
-
-```bash
-daisy log "concise description of what was done"
-```
-
-See `.daisy/AGENTS.md` for log format guidelines (HHMM timestamps, ~aliases, +PROJECT tags, chronological order).
-
-Do not log pure Q&A or code exploration without an outcome.
+Log what you do for the user with `daisy log`, as rule 6 of the Daisy prompt (`prompts/daisy.md` in the Daisy root that `.daisy/AGENTS.md` names) says. Read that rule and its Logging Work section before your first log of the session: they say when and how (HHMM timestamps, chronological order), and its rule 10 how to name people (`~alias`).
