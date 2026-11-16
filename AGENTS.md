@@ -196,7 +196,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Workspace | `daisy init [<identity> [path]]` | Bind a workspace to an identity and its home (bare: re-initialize this one) |
 | Workspace | `daisy clean [-f]` | Remove Daisy from this workspace |
 | Workspace | `daisy status` | Home, identity, projects, today's counts, active plan |
-| Workspace | `daisy files` | Resolved real paths for every home file |
+| Workspace | `daisy files [<name>]` | Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …) |
 | Workspace | `daisy list` | Active prompts and installed skills |
 | Workspace | `daisy help [<command>\|<skill>\|--markdown]` | This help, detail for one command or skill, or the Command Reference |
 | Day | `daisy new-day [--quick]` | Start a new day (--quick: only if not started; a week if one turned) |

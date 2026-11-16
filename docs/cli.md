@@ -52,7 +52,7 @@ Workspace
   init [<identity> [path]]          Bind a workspace to an identity and its home (bare: re-initialize this one)
   clean [-f]                        Remove Daisy from this workspace
   status                            Home, identity, projects, today's counts, active plan
-  files                             Resolved real paths for every home file
+  files [<name>]                    Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)
   list                              Active prompts and installed skills
   help [<command>|<skill>|--markdown]
                                     This help, detail for one command or skill, or the Command Reference
@@ -219,7 +219,7 @@ reachable through `daisy` read since Step 20, is deleted with the bash
 home's name; a value that is not a name is refused: `not an identity
 name` [77], exit 1.
 
-**Binding drift.** `status` and `files` print one warning line per fault on
+**Binding drift.** `status` and `files` (without a name) print one warning line per fault on
 stderr, each ending with the fix `daisy init` [76] `<identity>`: a missing
 or wrong link (naming the file, `today.md` [76]), a git key whose value is
 not the recorded identity's (naming the key, `user.email` [76]; `differs`
@@ -363,12 +363,13 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 17): Go |
+| Status | as built (Step 17): Go; `<name>` since Step 6 of the plan remediating the 2026-11-15 design review |
 | Legacy | `daisy files` → `files.sh`, deleted in Step 24 with its `--healthcheck` hook (it checked only that the home resolves; `files` has none) |
-| Usage | `daisy files` |
-| Exit codes | 0 (a project that does not exist is not fatal, case 44); 1 outside a workspace; 2 with any argument |
-| Stdout | the same first line as `status` (`identity: testhome` [76], `identity: pelicanmoor` [77]); sections `Identity:` (the resolved identity file: the home's `gitconfig` [76] or `identities/pelicanmoor` [77], ` (missing)` when absent), `Journal:`, `Tasks:`, `Projects:` (`workspace` row: `+chessgrid` [43] `(from ` `directory name` [43] `)`, `+chessgrid +jobsearch` [43] in file order, `+jobsearch` [42] `(from ` `.daisy/project` [42] `)`, or `(none)` (`none` [44])), `Feedback:`, `Plans:` (with `current plan` when `PLAN.md` is a link), `Metrics:` (`metrics.csv`, which `metrics add` writes, listed whether or not it exists yet), `Prompts:`; each row `  %-12s <real path>`; last `AGENTS.md:    <real path>` (`%-14s`) |
-| Stderr | empty when the convention default matches nothing (asserted `""`, case 44); a declared project with no file is named (`typoed-name` [44]); drift warnings |
+| Usage | `daisy files [<name>]` |
+| Arguments | `<name>`, one of `identity`, `today`, `journal`, `todo`, `done`, `alias`, `projects`, `projects-archive`, `feedback`, `plans`, `plans-archive`, `plan`, `metrics`, `prompts`, `agents`, in the listing's order: one per row it always prints (the identity file, `today.md`, `journal.md`, `todo.txt`, `done.txt`, `alias.txt`, projects `active` and `archived`, `feedback.md`, `plans/` and `archive/`, `metrics.csv`, the home's `prompts/`, `AGENTS.md`) and `plan`, its `current plan`; each its file's stem or its directory's, `-archive` after the directory an archive sits in; a row whose name varies or that is printed only when its file exists (the journal's windows, `pre-rotation`, the feedback `archive.md`) has none |
+| Exit codes | 0 (a project that does not exist is not fatal, case 44); 1 outside a workspace, and for `plan` when the workspace has no current plan: no `PLAN.md` (`Error: no current plan: this workspace has no PLAN.md` and `  Start one: daisy plan new <description> [+project]`), a `PLAN.md` that is not a link (move it aside, then the same), or a broken link (remove it, then the same; under a drifted binding the drift is named first, with `Re-run 'daisy init <identity>'`, since `PLAN.md` reaches the home through `.daisy/plans`) *(decided: a well-formed request the workspace cannot answer is a failure, Common behaviour's 1, not a usage error)*; 2 for a name not in the list (`Error: unknown name: <name>; one of <the names, in the order above>`, then the usage) or a second argument |
+| Stdout | with `<name>`: that row's real path and a newline, nothing else, whether or not the file exists yet; for `plan`, the file `PLAN.md` resolves to (`TestFilesNamePrintsOnePath`). Without: the same first line as `status` (`identity: testhome` [76], `identity: pelicanmoor` [77]); sections `Identity:` (the resolved identity file: the home's `gitconfig` [76] or `identities/pelicanmoor` [77], ` (missing)` when absent), `Journal:`, `Tasks:`, `Projects:` (`workspace` row: `+chessgrid` [43] `(from ` `directory name` [43] `)`, `+chessgrid +jobsearch` [43] in file order, `+jobsearch` [42] `(from ` `.daisy/project` [42] `)`, or `(none)` (`none` [44])), `Feedback:`, `Plans:` (with `current plan` when `PLAN.md` is a link), `Metrics:` (`metrics.csv`, which `metrics add` writes, listed whether or not it exists yet), `Prompts:`; each row `  %-12s <real path>`; last `AGENTS.md:    <real path>` (`%-14s`) |
+| Stderr | with `<name>`: empty on success, even when the binding has drifted (every name's path but `plan`'s comes from the home, not through the `.daisy/` links; the listing reports drift); the error on a failure. Without: empty when the convention default matches nothing (asserted `""`, case 44); a declared project with no file is named (`typoed-name` [44]); drift warnings |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |

@@ -170,6 +170,77 @@ func TestFilesListsRealPaths(t *testing.T) {
 	}
 }
 
+// `daisy files <name>` prints the one real path the name stands for and
+// nothing else: the plan PLAN.md links to, or a row the listing always
+// prints. An unknown name is a usage error listing the names; no plan, or
+// a PLAN.md that is no plan's link, is a failure naming the repair.
+func TestFilesNamePrintsOnePath(t *testing.T) {
+	m := newMachine(t)
+	plan := filepath.Join(m.home, "plans", "261115120000.the-plan.plan.md")
+	writeFile(t, plan, "# The plan\n")
+	if err := os.Symlink(filepath.Join(m.ws, ".daisy", "plans", filepath.Base(plan)), filepath.Join(m.ws, "PLAN.md")); err != nil {
+		t.Fatal(err)
+	}
+	os.Remove(filepath.Join(m.ws, ".daisy", "today.md")) // drift is the listing's to report, not a name's
+	real, err := filepath.EvalSymlinks(m.home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, rel := range map[string]string{
+		"plan":             "/plans/261115120000.the-plan.plan.md",
+		"identity":         "/gitconfig",
+		"today":            "/journal/today.md",
+		"journal":          "/journal/journal.md",
+		"todo":             "/tasks/todo.txt",
+		"done":             "/tasks/done.txt",
+		"alias":            "/tasks/alias.txt",
+		"projects":         "/projects",
+		"projects-archive": "/projects/_archive",
+		"feedback":         "/feedback/feedback.md",
+		"plans":            "/plans",
+		"plans-archive":    "/plans/archive",
+		"metrics":          "/metrics/metrics.csv",
+		"prompts":          "/prompts",
+		"agents":           "/AGENTS.md",
+	} {
+		code, out, errs := m.run(t, m.ws, "files", name)
+		if code != 0 || out != real+rel+"\n" || errs != "" {
+			t.Errorf("files %s: exit %d out %q err %q, want %q", name, code, out, errs, real+rel+"\n")
+		}
+	}
+
+	code, out, errs := m.run(t, m.ws, "files", "nope")
+	if code != 2 || out != "" || !strings.HasPrefix(errs, "Error: unknown name: nope; one of identity, today, journal, todo, done, alias, projects, projects-archive, feedback, plans, plans-archive, plan, metrics, prompts, agents\nUsage: daisy files [<name>]\n") {
+		t.Errorf("files nope: exit %d out %q err %q", code, out, errs)
+	}
+
+	os.Remove(filepath.Join(m.ws, "PLAN.md"))
+	code, out, errs = m.run(t, m.ws, "files", "plan")
+	if code != 1 || out != "" || !strings.Contains(errs, "no PLAN.md") || !strings.Contains(errs, "daisy plan new <description> [+project]") {
+		t.Errorf("no plan: exit %d out %q err %q", code, out, errs)
+	}
+	os.Symlink(filepath.Join(m.home, "plans", "gone.plan.md"), filepath.Join(m.ws, "PLAN.md"))
+	code, out, errs = m.run(t, m.ws, "files", "plan")
+	if code != 1 || out != "" || !strings.Contains(errs, "PLAN.md is a broken link") {
+		t.Errorf("broken link: exit %d out %q err %q", code, out, errs)
+	}
+	os.Remove(filepath.Join(m.ws, "PLAN.md"))
+	writeFile(t, filepath.Join(m.ws, "PLAN.md"), "# Not linked\n")
+	code, out, errs = m.run(t, m.ws, "files", "plan")
+	if code != 1 || out != "" || !strings.Contains(errs, "PLAN.md is not a link") {
+		t.Errorf("plain file: exit %d out %q err %q", code, out, errs)
+	}
+	// The plan is there, but PLAN.md reaches it through a binding link that
+	// is gone: the repair is init's, not a new plan.
+	os.Remove(filepath.Join(m.ws, "PLAN.md"))
+	os.Symlink(filepath.Join(m.ws, ".daisy", "plans", filepath.Base(plan)), filepath.Join(m.ws, "PLAN.md"))
+	os.Remove(filepath.Join(m.ws, ".daisy", "plans"))
+	code, out, errs = m.run(t, m.ws, "files", "plan")
+	if code != 1 || out != "" || !strings.Contains(errs, "the binding link .daisy/plans is missing") || !strings.Contains(errs, "Re-run 'daisy init testhome'") {
+		t.Errorf("drifted binding: exit %d out %q err %q", code, out, errs)
+	}
+}
+
 func TestStatusAndFilesReportDrift(t *testing.T) {
 	m := newMachine(t)
 	os.Remove(filepath.Join(m.ws, ".daisy", "today.md"))
@@ -219,9 +290,9 @@ func TestHelpForms(t *testing.T) {
 			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)
 		}
 	}
-	for _, args := range [][]string{{"status", "--help"}, {"files", "-h"}} {
+	for usage, args := range map[string][]string{"status": {"status", "--help"}, "files [<name>]": {"files", "-h"}} {
 		code, out, errs := m.run(t, m.ws, args...)
-		if code != 0 || errs != "" || !strings.HasPrefix(out, "Usage: daisy "+args[0]+"\n") {
+		if code != 0 || errs != "" || !strings.HasPrefix(out, "Usage: daisy "+usage+"\n") {
 			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)
 		}
 	}

@@ -43,7 +43,7 @@ var table = []Command{
 	{Group: "Workspace", Name: "init", Usage: "init [<identity> [path]]", Help: "Bind a workspace to an identity and its home (bare: re-initialize this one)", Max: 2, Run: commands.Init},
 	{Group: "Workspace", Name: "clean", Usage: "clean [-f]", Help: "Remove Daisy from this workspace", Flags: []string{"-f", "--force"}, Run: commands.Clean},
 	{Group: "Workspace", Name: "status", Usage: "status", Help: "Home, identity, projects, today's counts, active plan", Workspace: true, Run: commands.Status},
-	{Group: "Workspace", Name: "files", Usage: "files", Help: "Resolved real paths for every home file", Workspace: true, Run: commands.Files},
+	{Group: "Workspace", Name: "files", Usage: "files [<name>]", Help: "Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)", Workspace: true, Max: 1, Run: commands.Files},
 	{Group: "Workspace", Name: "list", Usage: "list", Help: "Active prompts and installed skills", Workspace: true, Flags: []string{"--full"}, Run: commands.List, Health: commands.ListHealth},
 	{Group: "Workspace", Name: "help", Usage: "help [<command>|<skill>|--markdown]", Help: "This help, detail for one command or skill, or the Command Reference"},
 
