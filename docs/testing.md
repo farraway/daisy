@@ -9,7 +9,9 @@ departs, two implementations of the design at different scales, and one
 step worked end to end.
 
 The canonical copy of the skill is `skills/testing/SKILL.md` in the Daisy
-root. If the two disagree, the skill wins and this document is stale.
+root. If the two disagree, the skill wins and this document is stale;
+`TestTestingDocQuotesTheSkill` (`cmd/daisy/rules_test.go`) fails until
+Part 1 is the skill again, its headings one level deeper.
 
 ---
 

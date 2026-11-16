@@ -51,7 +51,14 @@ dependency it avoids.
 | `internal/swarm/brief` | the briefs: `Status:` lines and milestone headings |
 
 **Dependency rule:** `cli → commands → {domain packages} → ops`; nothing
-above `ops` calls `os`, `os/exec` or `time.Now` itself. A read-only command
+above `ops` calls `os`, `os/exec` or `time.Now` itself: no package but
+`ops` imports `os` (`internal/testenv`, which pins a test's environment,
+and `cmd/daisy/main.go`, which hands the process's streams to `cli.Run`,
+excepted), names anything of `os/exec` but its `ExitError` type, or reads
+or waits on the clock through `time`. `TestDependencyRule`
+(`cmd/daisy/rules_test.go`) parses every non-test Go file under `cmd/`
+and `internal/` and fails on an import against the arrows or a use of
+these, naming the file and line. A read-only command
 is marked `ReadOnly` in the table and the cli runs it under `ReadOnly`, so
 it cannot write by accident; its help prints the mark as `(read-only)`,
 never written by hand, and `docs/cli.md` names each command's wrapper. Each command's `--healthcheck` hook is a `Health`

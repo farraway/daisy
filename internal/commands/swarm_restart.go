@@ -3,7 +3,7 @@ package commands
 import (
 	"crypto/sha256"
 	"fmt"
-	"os"
+	iofs "io/fs"
 	"strings"
 	"time"
 
@@ -52,14 +52,14 @@ type restarter struct {
 // fileStamp is what a pass compares a file by before reading it.
 type fileStamp struct{ size, mod int64 }
 
-func stampOf(fi os.FileInfo) fileStamp { return fileStamp{fi.Size(), fi.ModTime().UnixNano()} }
+func stampOf(fi iofs.FileInfo) fileStamp { return fileStamp{fi.Size(), fi.ModTime().UnixNano()} }
 
 // newRestarter reads the running binary at the loop's start: nil, with a
 // warning, when it cannot be read, and that loop never restarts.
 func newRestarter(c *Context) *restarter {
 	fs := c.Ops.FS()
 	path, err := c.Ops.Executable()
-	var fi os.FileInfo
+	var fi iofs.FileInfo
 	var b []byte
 	if err == nil {
 		fi, err = fs.Stat(path)
