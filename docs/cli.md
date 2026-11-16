@@ -964,7 +964,7 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 | Ops | Real; `ReadOnly` with `--dry-run` |
 | Writes | in the clone, the prompts above; the swarm repository's mirror, `<state>/git/<repo>`, fetched after the push; no forge call, no secret read |
 | Commits | in the swarm repository's clone, the prompts it wrote and nothing else, by the clone's own git identity, its message `swarm: prompts rebuilt from the root at <short sha> (<role>, …)`, `<short sha>` the Daisy root's `HEAD`, pushed to the repository's default branch as its origin's `HEAD` names it (`git ls-remote --symref origin HEAD`); nothing written, no commit |
-| Cases | none; `TestSwarmPromptBuild`, `TestComparePrompt`, `TestDefaultHistoryHoldsEachCurrentDefault` |
+| Cases | none of its own; case 92 (`swarm pause`'s) runs its `--dry-run`; `TestSwarmPromptBuild`, `TestComparePrompt`, `TestDefaultHistoryHoldsEachCurrentDefault` |
 
 ### daisy swarm status
 
@@ -1060,7 +1060,7 @@ a fact (no stage holds an issue, nothing runs), so a caller reads
 | Ops | ReadOnly |
 | Writes | nothing |
 | Commits | none |
-| Cases | none; `TestSwarmConnectBriefing`, `TestSwarmListStates`, `TestReadOnlyJSON` |
+| Cases | none of its own; case 92 (`swarm pause`'s) runs it; `TestSwarmConnectBriefing`, `TestSwarmListStates`, `TestReadOnlyJSON` |
 
 `swarm list --json` (Common behaviour, `--json`) has `dir`,
 `$DAISY_LOCAL/swarm`; `swarms`, in the text's order, `[]` with none,
@@ -1155,11 +1155,11 @@ document without `--issue`):
 | Legacy | none |
 | Usage | `daisy swarm pause [<n>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone (the maintainer's verbs' start, below); a second argument is usage on stderr, exit 2 |
 | Exit codes | 0 paused or already paused; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the write failing, and with `<n>` the maintainer's verbs' refusals and a forge failure; 2 usage |
-| Stdout | `Paused: no new member will launch (<state>/paused); running members finish and are posted`, or `Already paused since <time>[: <reason>]`; with `<n>`, `Maintainer <login> on <owner>/<repo>`, then `#<n> paused` or `#<n> already paused` |
+| Stdout | `Paused: no new member will launch (<state>/paused); running members finish and are posted` [92], or `Already paused since <time>` [92], then `: <reason>` when the file carries one; with `<n>`, `Maintainer <login> on <owner>/<repo>`, then `#<n> paused` or `#<n> already paused` |
 | Ops | Real |
 | Writes | without `<n>`, `<state>/paused` (and `<state>` when absent), no forge call, no secret read; with it, on the forge, `Relabel(n, "", "swarm:paused")` unless it carries it |
 | Commits | none |
-| Cases | none; `TestSwarmPauseAndResume`, `TestSwarmMaintainerHolds`, `TestSwarmApplyHolds` |
+| Cases | 92; `TestSwarmPauseAndResume`, `TestSwarmMaintainerHolds`, `TestSwarmApplyHolds` |
 
 ### daisy swarm resume
 
@@ -1169,11 +1169,11 @@ document without `--issue`):
 | Legacy | none |
 | Usage | `daisy swarm resume [<n>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone; a second argument is usage on stderr, exit 2 |
 | Exit codes | 0; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, a removal failing, and with `<n>` the maintainer's verbs' refusals and a forge failure; 2 usage |
-| Stdout | `Resumed: members launch at the next pass` when `<state>/paused` was present, `Owner batch released` when `<state>/owner-held` was; `Not paused` when neither was; with `<n>`, `Maintainer <login> on <owner>/<repo>`, then `#<n> paused cleared` or `#<n> not paused` |
+| Stdout | `Resumed: members launch at the next pass` [92] when `<state>/paused` was present, `Owner batch released` when `<state>/owner-held` was; `Not paused` [92] when neither was; with `<n>`, `Maintainer <login> on <owner>/<repo>`, then `#<n> paused cleared` or `#<n> not paused` |
 | Ops | Real |
 | Writes | without `<n>`, removes `<state>/paused`, whoever wrote it, and `<state>/owner-held`, no forge call, no secret read; with it, on the forge, `Relabel(n, "swarm:paused", "")` when it carries it |
 | Commits | none |
-| Cases | none; `TestSwarmPauseAndResume`, `TestSwarmApplyBatchTrigger`, `TestSwarmMaintainerHolds` |
+| Cases | none of its own; case 92 (`swarm pause`'s) runs it; `TestSwarmPauseAndResume`, `TestSwarmApplyBatchTrigger`, `TestSwarmMaintainerHolds` |
 
 ### daisy swarm restart
 
