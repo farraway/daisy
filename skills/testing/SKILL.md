@@ -148,10 +148,15 @@ itself.
 The reviewer attacks the claim and reports only what it reproduces. A pass
 that finds nothing in gate is the expected result of a good step and is
 reported as such; it is not a failure of the review. Every in-gate finding
-stops the commit and spends one of five passes; at the fifth the step is
-held and the maintainer reads every finding. A finding the reviewer would
-not stake the commit on is out of gate. The reviewer does not learn the
-previous pass's count.
+stops the commit until it is fixed. A pass tests the claim: a prose-only
+claim has two tests (a document contradicts another; a required item
+missing or wrong), so one pass exhausts them and its fixes are committed
+without a second; any other claim's fixes go to the next pass, up to five,
+and at the fifth the step is held and the maintainer reads every finding.
+A finding the reviewer would not stake the commit on is out of gate: it
+is reported, not fixed and not sent to another pass. The reviewer does not
+learn the previous pass's count. Under a Daisy plan the gate, and where an
+out-of-gate remark goes, is `prompts/plan.md` rule 22.
 
 ## Oracles and expected values
 

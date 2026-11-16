@@ -81,8 +81,9 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
    daisy healthcheck --force, hygiene, commits, plan marks;
    for a hand-back stopped at the review cap, that the step
    has neither a commit nor its "- [x]", and its Decisions and
-   Deferred as for any step),
-   records the step's metrics with daisy metrics add, two
+   Deferred as for any step), keeps in Deferred each out-of-gate
+   remark the hand-back reports that names a defect at a file and
+   line, and records the step's metrics with daisy metrics add, two
    rows: --role step (the step's commit range and repository,
    the step agent's model, effort and tokens) and --role review
    (the reviewers' model and effort, --review-rounds, all review
@@ -103,28 +104,9 @@ Collaborate on the plan until the user confirms it is ready. Use the plan phase 
    daisy log
 ```
 
-**Review gate and cap:** the first pass reviews the diff; each later pass
-reviews only the fixes (the previous findings, the diff of the fixes
-alone and the files those hunks touch), and a finding in text no fix
-touched is Deferred after pass 1. A review finding is in gate only when
-the reviewer reproduces it and it falls in one of four classes: the claim
-fails, a required item is missing or wrong, a test is red, a document
-contradicts another. The brief names these classes and adds none, and
-never adds the last pass's finding types. A green test is not red (a
-missing test is a Deferred candidate unless the step's text names it); a
-contradiction counts only when the diff introduced it (compare with `git
-show HEAD:<file>`); a design hole two passages leave open is an Open
-Question. Style and anything outside the step's stated contract are out
-of gate: Deferred or nowhere, never another pass. So is a finding that
-needs an arrangement the project's own contract does not support (in
-Daisy's root, a user-made link into it). The step agent classifies each
-finding before fixing anything (in gate, disputed with a one-sentence
-reason and not fixed, or out of gate) and fixes only the in-gate ones. The
-cap is 5 passes for every step, code or docs; a step not clean after pass
-5 stops: the step agent neither commits nor marks the step; it hands
-back with the open findings and its proposed fixes uncommitted, and the
-orchestrator takes them to the user.
-The orchestrator does not commit at the cap and never runs another pass.
+**Review gate and cap:** `prompts/plan.md` rule 22 is the gate, the
+passes and the cap; [The review gate](#the-review-gate) below gives the
+reasons and the history.
 
 **Stops:** the run stops when it needs something only the user can give
 and the plan does not record: a decision of theirs (the model and effort
@@ -138,7 +120,8 @@ re-runs for the sub-agent). The plan's own checkpoints are stops too.
 
 **Hand-back:** the claim and its probes; lines added and deleted; each
 review pass with its in-gate count; findings disputed with the reason;
-findings accepted as is; at the cap,
+findings accepted as is; the out-of-gate remarks, each with its file
+and line; at the cap,
 the open findings and the proposed fixes left uncommitted; the
 verification lines; the commits, with the step's commit range and
 its repository; the decisions; the tokens used, the step agent's and
@@ -174,6 +157,145 @@ run in a scratch workspace), and tear it down afterward.
 ```
 
 **Note:** `/daisy archive` only applies to plans created via `/daisy plan` — it requires a `PLAN.md` symlink in the workspace. Plans created by Claude's `/plan` mode are stored in `~/.claude/plans/` and are not Daisy plans; there is nothing to archive.
+
+---
+
+## The review gate
+
+`prompts/plan.md` rule 22 is the gate a step agent reviews its step to.
+This section holds why each part of it reads as it does and where it came
+from, so the rule can stay short; where the two differ, the rule wins.
+Most of it comes from an audit of the review loop on 2026-11-06 (one
+session's three step agents and twelve reviewers) and from the design
+review of 2026-11-15.
+
+**A pass tests the claim.** A review pass is an attempt to refute the
+step's `Claim:` line (rule 13; the testing skill, The claim), not a search
+for whatever can be found in the diff. The four classes are the ways a
+claim fails to hold: it fails outright, a required item is missing or
+wrong, a test is red, a document contradicts another. A claim about code
+is tested by the suite and the probes as well, and a fix can break them
+again, so its fixes go to another pass. A prose-only claim, one whose
+diff is documents, prompts or plan text, has only two tests, a document
+contradicts another and a required item is missing or wrong; one pass
+runs both, and a second would only re-read the wording. So its fixes are
+committed without a second pass, and the residue (findings disputed or
+out of gate) goes to the hand-back. This widens the principle rather than
+adding an exception: one rule, a pass tests the claim, decides how many
+passes a code step and a prose step take. The cost is that a wording
+defect a fix introduces may land. Before the change a prose step paid 4 to
+5 passes: in plan 261111115545, Step 25 (prose +26/-15) took 5 passes and
+306,203 review tokens and Step 18 (prose +155/-80) 4 passes and 341,000,
+and the late passes were the reviewer and the step agent negotiating
+wording, the loop the cap exists to stop (design review of 2026-11-15,
+effectiveness F1).
+
+**The reproduction.** A finding counts only when the reviewer quotes the
+code or passage and shows how it fails the step's text or a rule. Without
+that, a judgement call is a finding: in the audited session a reviewer's "This is a judgement call, but it is a new field by the
+gate's own definition" and another's finding marked "(low)" were both
+fixed as in gate. The testing skill's Review says the same from the
+reviewer's side: a finding it would not stake the commit on is out of
+gate.
+
+**Later passes review only the fixes.** Until 2026-11-06 every pass was
+handed the whole diff. A fresh reviewer has no memory of what the last
+one read, so each pass drained a different part of a large text: of
+one step's 21 later findings that the audit traced, 10 cited text that was
+in the first diff and that earlier passes had not read closely and 7 cited
+text a fix had added, while the reviewers worked as hard at pass 5 as at
+pass 1 (30 to 49 tool calls and 169k to 217k tokens of context each). The
+count tracked the text's size, not the fixes. So pass 1 reviews the diff,
+and each later pass gets the previous findings, the diff of the fixes alone
+(`git diff` between the tree the last reviewer saw and the tree now) and
+the files those hunks touch; it reports whether each finding is closed
+and whether a fix introduced an in-gate defect in the lines it changed,
+and a finding in text no fix touched is out of gate after pass 1. Praxis
+rule 12's "and again over the fixes" read either way and was rewritten
+with it.
+
+**Four classes, and none added.** The gate widened in every brief, and
+the widening was cumulative. "A test is red" became "or a test cannot
+fail: show the mutation", which with the testing skill's probe rule made
+every untested line in gate: 6 of one step's 16 in-gate findings, including
+both that held it at the cap, which the reviewer said did not break the
+claim. Another brief named six classes for a 355-line change to a
+2,650-line spec, and the step agent's later briefs added each pass's
+finding types to the next one's hunt list (its brief grew from 7,796 to
+10,133 characters). So every brief names the same four and adds none, not
+even a past finding's type. A green test is not red; a test the reviewer
+thinks is missing is in gate only when the step's text names it, as a
+required item.
+
+**Contradictions the diff introduced.** Briefs that admitted a
+contradiction "introduced or left by the diff" let pre-existing
+inconsistencies in, and the reviewers said so of their own findings ("The
+numbering and the skip rule are pre-existing"). Earlier briefs that said
+"do not report as in gate a gap that existed equally before this change"
+converged (8, 6, 6, 3, 1 findings). So a contradiction is in gate only
+when the diff introduced it: a passage the diff did not touch, or an
+inconsistency that holds equally at HEAD, is out of gate (`git show
+HEAD:<file>` shows which). A hole two passages leave open in a design is
+not a contradiction: a reviewer building a scenario the text does not
+cover is reviewing the design by simulation, which is valuable and has no
+end, so the hole goes to Open Questions, where the user decides it.
+
+**Classify before fixing.** The step agent judges the gate. With no way to
+dispute, it disputed none of 46 in-gate findings across two steps, and
+fixed out-of-gate ones as well; each such fix was new text the next
+reviewer had not asked for. So it classifies every finding before fixing
+any: in gate (a named class, the reproduction holds), disputed (the
+reproduction does not hold or the class is not named: one sentence why,
+not fixed, reported in the hand-back) or out of gate, and fixes only the
+in-gate ones.
+
+**Arrangements the contract does not support.** Rule 22's first version
+(2026-11-02) said Daisy's root/home contract is about paths, not the file
+system: a write into the root counts only when reached through Daisy's own
+resolution of home, workspace and root paths with no user-made link in
+the way. A link a user makes into the root is the user's, and a write
+through it is lost at the next root update. A reviewer inventing such
+arrangements is the loop the cap exists to stop. The 2026-11-06 rewrite
+stated it for any project: a finding that needs an arrangement the
+project's own contract does not support is out of gate, with Daisy's root
+as the example.
+
+**Out-of-gate remarks go to the hand-back.** Until 2026-11-15 an
+out-of-gate remark went "to Deferred or nowhere", and agents chose
+Deferred: plan 261111115545 added 69 Deferred items (41 of them out of
+gate) and plan 261114125457 92 in 21 steps; the project file's Deferred
+section reached 561 bullets, 417 of them struck, and triaging it cost two
+steps and 1.4M review tokens (design review of 2026-11-15, effectiveness
+F2). Now the step agent reports the remarks in its hand-back, which the
+orchestrator reads once; the orchestrator keeps one in Deferred only when
+it names a defect at a file and line (a test missing for a named case, a
+wrong passage), and a style, wording or line-width remark ends there. The
+cost is that some good remarks die; before, they died after the triage.
+
+**The cap.** The first cap (2026-11-02) was 6 passes for a step that
+changes code and 3 for one that changes only documents and prompts, and
+at the cap the orchestrator chose between committing with the open
+findings in Deferred and stopping. On 2026-11-06 it became 5 passes for
+every step, and a step not clean after pass 5 stops uncommitted: the step
+agent hands back the open findings with its proposed fixes uncommitted,
+and the orchestrator takes them to the user, does not commit at the cap
+and never runs another pass; the same change removed the proportion rule.
+On 2026-11-14 the stopped step was also left unmarked. The cap
+exists because the search for a refutation has no natural end
+(`docs/testing.md`, Part 4); with later passes scoped to the fixes,
+reaching it means the fixes themselves keep failing, the signal of a seam
+patched twice (praxis rule 11). The prose-only pass reaches by the claim
+what the first cap's 3 passes for documents reached by the kind of file.
+
+**History.**
+
+| Date | Commit | Change |
+|---|---|---|
+| 2026-11-02 | 0c2c04a | Rule 22: a separate reviewer, the reproduction, the four classes, the root/home link contract, caps of 6 (code) and 3 (documents) |
+| 2026-11-06 | 61bc5de | Cap of 5 for every step; a capped step hands back uncommitted; the proportion rule removed |
+| 2026-11-06 | 78d46b1 | The review-loop audit applied: later passes review the fixes only; the four classes fixed, with the green-test, HEAD and design-hole exclusions; no class added from a past pass; classify and dispute; arrangements the contract does not support |
+| 2026-11-14 | 166d0d0 | A step stopped at the cap is neither committed nor marked |
+| 2026-11-15 | (this change) | Rule 22 shortened, its reasons moved here; a pass tests the claim, so a prose-only claim takes one pass; out-of-gate remarks to the hand-back, kept in Deferred only when they name a defect at a file and line |
 
 ---
 

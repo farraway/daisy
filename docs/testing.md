@@ -155,6 +155,21 @@ presence of defects, never their absence. The probe is the only evidence a
 green test is load-bearing, and review is the only check on the claim
 itself.
 
+### Review
+
+The reviewer attacks the claim and reports only what it reproduces. A pass
+that finds nothing in gate is the expected result of a good step and is
+reported as such; it is not a failure of the review. Every in-gate finding
+stops the commit until it is fixed. A pass tests the claim: a prose-only
+claim has two tests (a document contradicts another; a required item
+missing or wrong), so one pass exhausts them and its fixes are committed
+without a second; any other claim's fixes go to the next pass, up to five,
+and at the fifth the step is held and the maintainer reads every finding.
+A finding the reviewer would not stake the commit on is out of gate: it
+is reported, not fixed and not sent to another pass. The reviewer does not
+learn the previous pass's count. Under a Daisy plan the gate, and where an
+out-of-gate remark goes, is `prompts/plan.md` rule 22.
+
 ### Oracles and expected values
 
 - Expected values come from an independent source: a literal, a worked
@@ -481,8 +496,8 @@ places. Each departure has a cost, named here.
 - *Falsification is expensive.* Review passes that attack the claim cost
   more than the implementation did on every step of Daisy's port where
   the figures were kept, sometimes by three to one. The cap on passes
-  (five for every step) exists because the search for a
-  refutation has no natural end.
+  (five) exists because the search for a refutation has no natural end;
+  a prose-only claim, whose two tests one pass exhausts, takes one.
 - *A single Fake must be faithful.* Everything rests on the Fake behaving
   like Real at the seam. The parity check catches signature drift, not
   behavioural drift; a Fake file system that permits a write Real would
