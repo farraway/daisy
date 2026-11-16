@@ -135,7 +135,15 @@ claim → seams agreed → red → green → probe → sweep → review
   with the claim: "with `Repoint` returning its input unchanged, case 54
   fails on the repointed-link assert".
 - **Sweep.** A defect found once is a class. Search for its siblings before
-  closing it, and fix them under the same test.
+  closing it, and fix them under the same test. Where the class can recur
+  in new code and a check can recognise an instance by its text or shape
+  (an import across a layer, a call that skips a wrapper), the test that
+  closes it runs over the whole tree, not only the sites found: an AST or
+  grep test, a health-check line or a lint that fails on a new instance
+  with a message naming the fix ("imports os outside internal/ops: go
+  through ops.Ops"). Both are the judgment: a defect in one record or one
+  call site that nothing copies, or in logic no check can tell from
+  correct code, closes with its fix.
 - **Refactoring is not part of the loop.** It belongs to review.
 
 **Green means no regression, not correctness.** Dijkstra: testing shows the
@@ -198,6 +206,6 @@ out-of-gate remark goes, is `prompts/plan.md` rule 22.
 5. Assert on outcomes, never on which `Ops` methods were called.
 6. Red before green, one slice at a time, refactoring outside the loop.
 7. Probe every green test by breaking its subject; a test that survives its mutation is fixed or deleted.
-8. A defect is a class: sweep its siblings under the same test.
+8. A defect is a class: sweep its siblings under the same test; where the class can recur in new code and a check can recognise an instance, the test that closes it runs over the whole tree (an AST or grep test, a health-check line, a lint), so a new instance fails with a message naming the fix.
 9. Expected values are independent literals or the contract; when porting, the old bytes are the oracle and every deliberate departure is a recorded decision.
 10. Hermetic: a test builds its own machine and pins every environment variable the program reads.
