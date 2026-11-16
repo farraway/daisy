@@ -136,8 +136,6 @@ Gates: triage on, plan on, merge on
   review-1-in-progress       0
   review-2-approved          0
   review-3-changes-requested 0
-Waiting for you: nothing
-Held: nothing
 Running: none
 ` + statusPersonas + `Throughput:
   runs         0 (0 posted, 0 blocked, 0 failed, 0 faults, 0 other)
@@ -147,6 +145,8 @@ Running: none
   auto         0 gates passed for routine jobs (triage 0, plan 0)
   stage time   none
 Briefs: none active
+Waiting for you: nothing
+Held: nothing
 `
 	if s.stdout.String() != want || s.stderr.Len() != 0 {
 		t.Errorf("stdout:\n%s\nwant:\n%s\nstderr: %s", s.stdout.String(), want, s.stderr.String())
@@ -235,11 +235,11 @@ Gates: triage on, plan on, merge on
   review-1-in-progress       0
   review-2-approved          1  #6
   review-3-changes-requested 0
-Waiting for you: triage #1 #2; plan #3 #4 #5; merge #6 (architecture); blocked #7 (architecture)
-Held: paused #11; #12 blocked by #3
 Running: #0 owner, #8 adversary, #12 check
 ` + statusPersonas
-	briefs := "Briefs:\n  docs/briefs/next.md: 1 of 1 milestones not on the forge\n  docs/briefs/roadmap.md: 1 of 1 milestones with no issue\n"
+	briefs := "Briefs:\n  docs/briefs/next.md: 1 of 1 milestones not on the forge\n  docs/briefs/roadmap.md: 1 of 1 milestones with no issue\n" +
+		"Waiting for you: triage #1 #2; plan #3 #4 #5; merge #6 (architecture); blocked #7 (architecture)\n" +
+		"Held: paused #11; #12 blocked by #3\n"
 	if out := s.stdout.String(); !strings.HasPrefix(out, want) || !strings.HasSuffix(out, briefs) {
 		t.Errorf("stdout:\n%s\nwant:\n%s…\n%s", out, want, briefs)
 	}
@@ -324,6 +324,35 @@ func TestSwarmStatusJSON(t *testing.T) {
 	if errText(err) != "Error: swarm: forge: GET /user: 401 invalid username, password or token" || s.stdout.Len() != 0 ||
 		!strings.HasPrefix(s.stderr.String(), "⚠ "+filepath.Join(s.ws, ".env.sh")+": ") {
 		t.Errorf("a forge failure: %v\nstdout %q\nstderr %q", err, s.stdout.String(), s.stderr.String())
+	}
+}
+
+// `swarm status --waiting` prints the Waiting for you line alone, the
+// line the whole report ends near, Held and the rest left out; with --json
+// the document {waiting, warnings}, waiting as the whole report's.
+func TestSwarmStatusWaiting(t *testing.T) {
+	s := stagedStatus(t)
+	s.flags = []string{"--waiting"}
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	if out := s.stdout.String(); out != "Waiting for you: triage #1 #2; plan #3 #4 #5; merge #6 (architecture); blocked #7 (architecture)\n" || s.stderr.Len() != 0 {
+		t.Errorf("--waiting:\n%s\nstderr: %s", out, s.stderr.String())
+	}
+	s.flags = []string{"--json"}
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	var whole map[string]json.RawMessage
+	json.Unmarshal(s.stdout.Bytes(), &whole)
+	s.flags = []string{"--waiting", "--json"}
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(s.stdout.Bytes(), &doc); err != nil || len(doc) != 2 || string(doc["waiting"]) != string(whole["waiting"]) ||
+		string(doc["warnings"]) != "[]" || len(whole["waiting"]) == 0 || s.stderr.Len() != 0 {
+		t.Errorf("--waiting --json: %v\n%s\nthe whole report's waiting: %s", err, s.stdout.String(), whole["waiting"])
 	}
 }
 
@@ -532,9 +561,7 @@ func TestSwarmStatusStep7(t *testing.T) {
 	if err := s.status(f); err != nil {
 		t.Fatal(err)
 	}
-	wantTail := `Waiting for you: triage #7
-Held: nothing
-Running: none
+	wantTail := `Running: none
 ` + statusPersonas + `Throughput:
   runs         12 (12 posted, 0 blocked, 0 failed, 0 faults, 0 other)
   cost         $0.00 today, $0.00 in all (12 runs without a cost)
@@ -545,6 +572,8 @@ Running: none
   #6           plan revisions 0, blocks 0; lib#1 rounds 2, maintainer comments 0; lib#2 rounds 1, maintainer comments 0
 Briefs:
   docs/briefs/m0.md: lib measured against upstream 2.0.0 (1 open, 1 closed); 3 of 4 milestones with no issue
+Waiting for you: triage #7
+Held: nothing
 `
 	if out := s.stdout.String(); !strings.HasSuffix(out, wantTail) {
 		t.Errorf("stdout:\n%s\nwant it to end:\n%s", out, wantTail)
@@ -627,8 +656,8 @@ func TestSwarmStatusCorrections(t *testing.T) {
 Briefs:
   docs/briefs/m0.md: lib measured against upstream 2.0.0 (4 open, 0 closed); Later (0 open, 1 closed); met (owner run 2)
 `
-	if out := s.stdout.String(); !strings.HasSuffix(out, wantTail) {
-		t.Errorf("stdout:\n%s\nwant it to end:\n%s", out, wantTail)
+	if out := s.stdout.String(); !strings.Contains(out, wantTail+"Waiting for you: ") {
+		t.Errorf("stdout:\n%s\nwant it to end, before Waiting for you and Held:\n%s", out, wantTail)
 	}
 
 	s.now = fixedClock().Now().Add(31 * 24 * time.Hour) // #4 closed 31 days ago: out of the window

@@ -180,10 +180,13 @@ type maintainer struct {
 
 // issueArg is the verb's <n>, a positive issue number, else usage: checked
 // first, before the comment.
-func issueArg(c *Context) (int, error) {
-	n, err := strconv.Atoi(c.Args[0])
-	if err != nil || n < 1 || strconv.Itoa(n) != c.Args[0] {
-		return 0, UsageError("not an issue number: " + c.Args[0])
+func issueArg(c *Context) (int, error) { return parseIssue(c.Args[0]) }
+
+// parseIssue is word as an issue number, 1 or more, else usage.
+func parseIssue(word string) (int, error) {
+	n, err := strconv.Atoi(word)
+	if err != nil || n < 1 || strconv.Itoa(n) != word {
+		return 0, UsageError("not an issue number: " + word)
 	}
 	return n, nil
 }
@@ -834,9 +837,9 @@ func swarmBlock(c *Context, open opener) error {
 	default:
 		return UsageError("swarm block takes <n> --by <m>")
 	}
-	b, err := strconv.Atoi(by)
-	if err != nil || b < 1 || strconv.Itoa(b) != by {
-		return UsageError("not an issue number: " + by)
+	b, err := parseIssue(by)
+	if err != nil {
+		return err
 	}
 	m, err := asMaintainer(c, open)
 	if err != nil {

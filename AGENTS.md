@@ -227,9 +227,9 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm prompt build [--force] [--dry-run]` | Reseed prompts/ from this Daisy's defaults; an edited prompt is kept |
 | Swarm | `daisy swarm apply [--once]` | Reconcile the forge: launch members, post their output, move labels |
 | Swarm | `daisy swarm metrics --backfill` | Write a metrics row for each collected run the home's CSV has none for |
-| Swarm | `daisy swarm status [--json]` | Stages, gates, what waits for you, running members (read-only) |
+| Swarm | `daisy swarm status [--json] [--waiting]` | Stages, gates, running members, what waits for you (--waiting: that alone) (read-only) |
 | Swarm | `daisy swarm list [--json]` | The swarms this machine runs: clone, home, pause; from anywhere (read-only) |
-| Swarm | `daisy swarm journal [--json\|--mark <run>]` | The journal since the line marked seen; --mark moves the mark, its one write |
+| Swarm | `daisy swarm journal [--json] [--issue <n>] \| --mark <run>` | The journal since the line marked seen (--issue: one issue's lines); --mark moves the mark, its one write |
 | Swarm | `daisy swarm pause [<n>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue) |
 | Swarm | `daisy swarm resume [<n>]` | Launch members again and release the owner's held batch (with <n>, that issue) |
 | Swarm | `daisy swarm restart` | Have the running apply re-execute itself, onto the installed build, once no member runs |

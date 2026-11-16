@@ -5,6 +5,7 @@ import (
 	"fmt"
 	iofs "io/fs"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -203,19 +204,30 @@ func recordClone(c *Context, state, root string) {
 	}
 }
 
-// SwarmJournal is `daisy swarm journal [--json|--mark <run>]`
-// (docs/swarm.md section 11): the swarm's journal since the line
-// <state>/connect-seen marks, under ReadOnly; with --mark, that mark
-// moved to the run's line.
+// SwarmJournal is `daisy swarm journal [--json] [--issue <n>] | --mark
+// <run>` (docs/swarm.md section 11): the swarm's journal since the line
+// <state>/connect-seen marks, under ReadOnly, with --issue only the lines
+// of issue <n>; with --mark, that mark moved to the run's line.
 func SwarmJournal(c *Context) error {
 	_, mark := c.Value("--mark")
+	word, filtered := c.Value("--issue")
 	switch {
 	case mark && c.Flag(JSONFlag):
 		return UsageError("--json prints the journal and moves no mark; give --mark alone")
+	case mark && filtered:
+		return UsageError("--issue filters the journal it prints and moves no mark; give --mark alone")
 	case !mark:
 		c.Ops = ops.ReadOnly(c.Ops)
 	}
-	return inSwarm(c, func() error { return swarmJournal(c) })
+	issue := 0 // every line's
+	if filtered {
+		n, err := parseIssue(word)
+		if err != nil {
+			return err
+		}
+		issue = n
+	}
+	return inSwarm(c, func() error { return swarmJournal(c, issue) })
 }
 
 // journalReport is swarm journal's report: the mark <state>/connect-seen
@@ -243,27 +255,40 @@ type journalEntry struct {
 	Line string `json:"line"`
 }
 
-func swarmJournal(c *Context) error {
+// swarmJournal prints the journal's report, issue's lines alone when it
+// is not 0. Then no Mark line: the mark is the whole journal's, and one
+// issue's last line would mark the other issues' lines before it seen.
+func swarmJournal(c *Context, issue int) error {
 	if run, ok := c.Value("--mark"); ok {
 		return markJournal(c, run)
 	}
-	return printReport(c, func() (*journalReport, error) { return readJournal(c) }, func(r *journalReport) {
+	return printReport(c, func() (*journalReport, error) { return readJournal(c, issue) }, func(r *journalReport) {
+		on := ""
+		if issue != 0 {
+			on = fmt.Sprintf(" on #%d", issue)
+		}
+		count := plural(len(r.Lines), "line", "lines") + on
+		if len(r.Lines) == 0 {
+			count = "nothing" + on
+		}
 		switch {
 		case r.Marked == nil && r.Day == nil:
 			fmt.Fprintf(c.Stdout, "Journal of %s: no line yet\n", r.Repository)
 			return
 		case r.Marked != nil && len(r.Lines) == 0:
-			fmt.Fprintf(c.Stdout, "Journal of %s: nothing since %s (marked seen %s)\n", r.Repository, r.Marked.Run, r.Marked.At)
+			fmt.Fprintf(c.Stdout, "Journal of %s: %s since %s (marked seen %s)\n", r.Repository, count, r.Marked.Run, r.Marked.At)
 			return
 		case r.Marked != nil:
-			fmt.Fprintf(c.Stdout, "Journal of %s since %s (marked seen %s): %s\n", r.Repository, r.Marked.Run, r.Marked.At, plural(len(r.Lines), "line", "lines"))
+			fmt.Fprintf(c.Stdout, "Journal of %s since %s (marked seen %s): %s\n", r.Repository, r.Marked.Run, r.Marked.At, count)
 		default:
-			fmt.Fprintf(c.Stdout, "Journal of %s, %s (no line marked seen): %s\n", r.Repository, *r.Day, plural(len(r.Lines), "line", "lines"))
+			fmt.Fprintf(c.Stdout, "Journal of %s, %s (no line marked seen): %s\n", r.Repository, *r.Day, count)
 		}
 		for _, l := range r.Lines {
 			fmt.Fprintf(c.Stdout, "%s %s\n", l.Day, l.Line)
 		}
-		fmt.Fprintf(c.Stdout, "Mark them seen: daisy swarm journal --mark %s\n", r.Lines[len(r.Lines)-1].Run)
+		if issue == 0 {
+			fmt.Fprintf(c.Stdout, "Mark them seen: daisy swarm journal --mark %s\n", r.Lines[len(r.Lines)-1].Run)
+		}
 	})
 }
 
@@ -302,8 +327,8 @@ func markJournal(c *Context, run string) error {
 
 // readJournal reads swarm journal's report: the lines after the marked
 // one; with no mark, or one the journal does not hold (a warning), the
-// newest day's.
-func readJournal(c *Context) (*journalReport, error) {
+// newest day's; of those, issue's alone when it is not 0.
+func readJournal(c *Context, issue int) (*journalReport, error) {
 	lines, state, repo, err := swarmJournalLines(c)
 	if err != nil {
 		return nil, err
@@ -333,9 +358,23 @@ func readJournal(c *Context) (*journalReport, error) {
 		}
 	}
 	for _, l := range shown {
-		r.Lines = append(r.Lines, journalEntry{l.Day, l.Run, l.Line})
+		if issue == 0 || runIssue(l.Run) == issue {
+			r.Lines = append(r.Lines, journalEntry{l.Day, l.Run, l.Line})
+		}
 	}
 	return r, nil
+}
+
+// runIssue is the issue a journal line's run names, its leading number
+// (`<n>-<role>-<k>`, `<n>-command-<id>`): 0 for a line of no issue (the
+// owner's batch, a restart, a released hold).
+func runIssue(run string) int {
+	n, _, _ := strings.Cut(run, "-")
+	i, err := strconv.Atoi(n)
+	if err != nil {
+		return 0
+	}
+	return i
 }
 
 // journalIndex is the place of run's line in lines, -1 when none names it.

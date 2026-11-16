@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -50,14 +51,15 @@ func newGitea(t *testing.T) *giteaServer {
 	g.mux.HandleFunc("GET /api/v1/user", func(w http.ResponseWriter, r *http.Request) {
 		reply(w, 200, map[string]any{"id": 7, "login": g.accounts[r.Header.Get("Authorization")], "email": "swarm@example.net"})
 	})
-	g.mux.HandleFunc("GET /api/v1/repos/acme/swarm-app/issues/1", func(w http.ResponseWriter, r *http.Request) {
+	issue1 := func() map[string]any {
 		var labels []map[string]any
 		for _, l := range g.issue1 {
 			labels = append(labels, map[string]any{"name": l})
 		}
-		reply(w, 200, map[string]any{"number": 1, "title": "A job", "body": "", "user": map[string]any{"login": "swarm-bot"},
-			"created_at": "2026-11-07T09:00:00Z", "state": "open", "labels": labels})
-	})
+		return map[string]any{"number": 1, "title": "A job", "body": "", "user": map[string]any{"login": "swarm-bot"},
+			"created_at": "2026-11-07T09:00:00Z", "state": "open", "labels": labels}
+	}
+	g.mux.HandleFunc("GET /api/v1/repos/acme/swarm-app/issues/1", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, issue1()) })
 	g.mux.HandleFunc("GET /api/v1/repos/acme/swarm-app/issues/1/comments", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, []any{}) })
 	g.mux.HandleFunc("GET /api/v1/repos/acme/swarm-app/labels", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, []any{}) })
 	g.mux.HandleFunc("POST /api/v1/repos/acme/swarm-app/issues/1/labels", func(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +75,15 @@ func newGitea(t *testing.T) *giteaServer {
 		g.issue1 = slices.DeleteFunc(g.issue1, func(l string) bool { return l == g.labels[id-1] })
 		w.WriteHeader(204)
 	})
-	g.mux.HandleFunc("GET /api/v1/repos/acme/{repo}/issues", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, []any{}) })
+	// The open issues: issue 1 once it has labels, the adapter keeping it
+	// under each label it carries.
+	g.mux.HandleFunc("GET /api/v1/repos/acme/{repo}/issues", func(w http.ResponseWriter, r *http.Request) {
+		if r.PathValue("repo") != "swarm-app" || r.URL.Query().Get("state") != "open" || g.issue1 == nil {
+			reply(w, 200, []any{})
+			return
+		}
+		reply(w, 200, page(r, []map[string]any{issue1()}))
+	})
 	g.mux.HandleFunc("GET /api/v1/repos/acme/{repo}/pulls", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, []any{}) })
 	g.mux.HandleFunc("GET /api/v1/orgs/acme/labels", func(w http.ResponseWriter, r *http.Request) {
 		var out []map[string]any
@@ -321,7 +331,8 @@ func TestSwarmStatusThroughGitea(t *testing.T) {
 	}
 	code, out, errs := runWith(o, "swarm", "status")
 	if code != 0 || errs != "" || !strings.HasPrefix(out, "Swarm: acme/swarm-app on forge.example.net (gitea), repositories app\n") ||
-		!strings.Contains(out, "\n  proposal-posted            0\n") || !strings.Contains(out, "\nWaiting for you: nothing\nHeld: nothing\nRunning: #4 worker\nPersonas:\n") {
+		!strings.Contains(out, "\n  proposal-posted            0\n") || !strings.Contains(out, "\n  review-3-changes-requested 0\nRunning: #4 worker\nPersonas:\n") ||
+		!strings.HasSuffix(out, "\nBriefs: none active\nWaiting for you: nothing\nHeld: nothing\n") {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
 	for _, r := range g.requests {
@@ -404,6 +415,131 @@ func TestSwarmStatusJSONThroughGitea(t *testing.T) {
 	code, out, errs = runWith(o, "swarm", "status", "--json")
 	if code != 1 || out != "" || !strings.HasPrefix(errs, "Error: swarm: ") || !strings.Contains(errs, "connection refused") {
 		t.Errorf("an unreachable forge: exit %d out %q err %q", code, out, errs)
+	}
+}
+
+// Step 14's claim (the plan remediating the 2026-11-15 design review,
+// P11), through the cli and the gitea adapter: `swarm status` ends with
+// Waiting for you and Held, nearest the prompt; with --waiting it prints
+// the Waiting for you line alone, and with --json too the document
+// {waiting, warnings}, waiting as the whole report gives it.
+func TestSwarmStatusWaitingThroughGitea(t *testing.T) {
+	m := newMachine(t)
+	g := newGitea(t)
+	clone := m.swarm(t, g)
+	g.issue1 = []string{"swarm:proposal-posted", "swarm:paused"}
+	o := m.swarmOps(clone, g)
+	o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
+		if name == "docker" {
+			return nil, nil, nil
+		}
+		return ops.Real().Exec(dir, name, args...)
+	}
+	code, out, errs := runWith(o, "swarm", "status")
+	if code != 0 || errs != "" || !strings.HasPrefix(out, "Swarm: acme/swarm-app on forge.example.net (gitea), repositories app\n") ||
+		!strings.HasSuffix(out, "\nBriefs: none active\nWaiting for you: triage #1\nHeld: paused #1\n") {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
+	}
+	code, out, errs = runWith(o, "swarm", "status", "--waiting")
+	if code != 0 || errs != "" || out != "Waiting for you: triage #1\n" {
+		t.Errorf("--waiting: exit %d\n%s\n%s", code, out, errs)
+	}
+	code, out, errs = runWith(o, "swarm", "status", "--waiting", "--json")
+	var doc, want any
+	json.Unmarshal([]byte(`{"waiting": {"issues": [{"item": "triage", "issue": 1, "class": "architecture"}], "notes": []}, "warnings": []}`), &want)
+	if code != 0 || errs != "" || json.Unmarshal([]byte(out), &doc) != nil || !reflect.DeepEqual(doc, want) {
+		t.Errorf("--waiting --json: exit %d\n%s\n%s", code, out, errs)
+	}
+	code, out, errs = runWith(o, "swarm", "status", "--waiting", "extra")
+	if code != 2 || out != "" || !strings.Contains(errs, "Usage: daisy swarm status [--json] [--waiting]") {
+		t.Errorf("usage: exit %d %q %q", code, out, errs)
+	}
+}
+
+// Step 14's claim for the journal: `swarm journal --issue 7` prints the
+// lines it would print, since the mark or of the newest day, that name
+// issue 7 (`7-<role>-<k>`, `7-command-<id>`), never #17's or a line of
+// no issue (`0-owner-…`, `0-restart-…`), and no Mark line: the mark is
+// the whole journal's. --json gives the same lines; --issue 0 and --issue
+// with --mark are usage; nothing is written.
+func TestSwarmJournalIssue(t *testing.T) {
+	m := newMachine(t)
+	clone := m.swarm(t, newGitea(t))
+	state := filepath.Join(m.local, "swarm", "forge.example.net", "acme", "swarm-app")
+	writeFile(t, filepath.Join(state, "notes", "journal", "2026-11-05.md"), "# 2026-11-05\n\n- 0900 7-architect-1: posted; the plan; #7\n")
+	writeFile(t, filepath.Join(state, "notes", "journal", "2026-11-06.md"), "# 2026-11-06\n\n"+
+		"- 1500 0-owner-2: posted; batch\n"+
+		"- 1501 7-worker-1: posted; tokens 1/2, 1 turns; #7\n"+
+		"- 1502 17-worker-1: posted; tokens 1/2, 1 turns; #17\n"+
+		"- 1503 0-restart-20261106T150300Z: apply re-executed (a new build)\n"+
+		"- 1504 7-command-12: /swarm accept by jane; done\n")
+	writeFile(t, filepath.Join(state, "journal"), "2026-11-06 - 1505 7-adversary-1: posted; round 1; #7\n")
+	seen := filepath.Join(state, "connect-seen")
+	writeFile(t, seen, "7-architect-1 2026-11-05T10:00:00Z\n")
+
+	for _, c := range []struct {
+		name  string
+		args  []string
+		setup func()
+		code  int
+		want  string // stdout; for a failure, stderr
+	}{
+		{name: "the whole journal", args: []string{"swarm", "journal"}, want: "Journal of acme/swarm-app since 7-architect-1 (marked seen 2026-11-05T10:00:00Z): 6 lines\n" +
+			"2026-11-06 - 1500 0-owner-2: posted; batch\n" +
+			"2026-11-06 - 1501 7-worker-1: posted; tokens 1/2, 1 turns; #7\n" +
+			"2026-11-06 - 1502 17-worker-1: posted; tokens 1/2, 1 turns; #17\n" +
+			"2026-11-06 - 1503 0-restart-20261106T150300Z: apply re-executed (a new build)\n" +
+			"2026-11-06 - 1504 7-command-12: /swarm accept by jane; done\n" +
+			"2026-11-06 - 1505 7-adversary-1: posted; round 1; #7\n" +
+			"Mark them seen: daisy swarm journal --mark 7-adversary-1\n"},
+		{name: "issue 7", args: []string{"swarm", "journal", "--issue", "7"}, want: "Journal of acme/swarm-app since 7-architect-1 (marked seen 2026-11-05T10:00:00Z): 3 lines on #7\n" +
+			"2026-11-06 - 1501 7-worker-1: posted; tokens 1/2, 1 turns; #7\n" +
+			"2026-11-06 - 1504 7-command-12: /swarm accept by jane; done\n" +
+			"2026-11-06 - 1505 7-adversary-1: posted; round 1; #7\n"},
+		{name: "issue 7, as JSON", args: []string{"swarm", "journal", "--json", "--issue", "7"}, want: `{
+			"repository": "acme/swarm-app",
+			"marked": {"run": "7-architect-1", "at": "2026-11-05T10:00:00Z"},
+			"day": null,
+			"lines": [
+				{"day": "2026-11-06", "run": "7-worker-1", "line": "- 1501 7-worker-1: posted; tokens 1/2, 1 turns; #7"},
+				{"day": "2026-11-06", "run": "7-command-12", "line": "- 1504 7-command-12: /swarm accept by jane; done"},
+				{"day": "2026-11-06", "run": "7-adversary-1", "line": "- 1505 7-adversary-1: posted; round 1; #7"}],
+			"warnings": []}`},
+		{name: "an issue with no line since the mark", args: []string{"swarm", "journal", "--issue", "99"},
+			want: "Journal of acme/swarm-app: nothing on #99 since 7-architect-1 (marked seen 2026-11-05T10:00:00Z)\n"},
+		{name: "issue 0", args: []string{"swarm", "journal", "--issue", "0"}, code: 2,
+			want: "Error: not an issue number: 0\nUsage: daisy swarm journal [--json] [--issue <n>] | --mark <run>\n"},
+		{name: "issue with --mark", args: []string{"swarm", "journal", "--issue", "7", "--mark", "7-worker-1"}, code: 2,
+			want: "Error: --issue filters the journal it prints and moves no mark; give --mark alone\nUsage: daisy swarm journal [--json] [--issue <n>] | --mark <run>\n"},
+		{name: "issue 17, no line marked", args: []string{"swarm", "journal", "--issue", "17"}, setup: func() { os.Remove(seen) },
+			want: "Journal of acme/swarm-app, 2026-11-06 (no line marked seen): 1 line on #17\n" +
+				"2026-11-06 - 1502 17-worker-1: posted; tokens 1/2, 1 turns; #17\n"},
+		{name: "an issue with no line that day", args: []string{"swarm", "journal", "--issue", "9"},
+			want: "Journal of acme/swarm-app, 2026-11-06 (no line marked seen): nothing on #9\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if c.setup != nil {
+				c.setup()
+			}
+			code, out, errs := m.run(t, clone, c.args...)
+			switch {
+			case c.code != 0:
+				if code != c.code || out != "" || !strings.HasPrefix(errs, c.want) {
+					t.Errorf("exit %d out %q err %q, want exit %d and stderr starting %q", code, out, errs, c.code, c.want)
+				}
+			case slices.Contains(c.args, "--json"):
+				var got, doc any
+				json.Unmarshal([]byte(c.want), &doc)
+				if code != 0 || errs != "" || json.Unmarshal([]byte(out), &got) != nil || !reflect.DeepEqual(got, doc) {
+					t.Errorf("exit %d err %q out:\n%s\nwant:\n%s", code, errs, out, c.want)
+				}
+			case code != 0 || errs != "" || out != c.want:
+				t.Errorf("exit %d err %q out:\n%s\nwant:\n%s", code, errs, out, c.want)
+			}
+		})
+	}
+	if _, err := os.Stat(seen); !os.IsNotExist(err) {
+		t.Errorf("connect-seen written: %v", err)
 	}
 }
 

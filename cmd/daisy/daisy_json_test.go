@@ -155,7 +155,7 @@ func TestReadOnlyJSON(t *testing.T) {
 				{"day": "2026-11-06", "run": "3-owner-1", "line": "- 1502 3-owner-1: posted; the batch"}],
 			"warnings": []}`},
 		{name: "swarm journal --mark", cwd: clone, args: []string{"swarm", "journal", "--json", "--mark", "3-owner-1"}, code: 2,
-			want: "Error: --json prints the journal and moves no mark; give --mark alone\nUsage: daisy swarm journal [--json|--mark <run>]\n"},
+			want: "Error: --json prints the journal and moves no mark; give --mark alone\nUsage: daisy swarm journal [--json] [--issue <n>] | --mark <run>\n"},
 		{name: "a command without --json", cwd: proj, args: []string{"home", "list", "--json"}, code: 2, want: "Error: unknown flag: --json\n"},
 
 		// The absent values: no today.md, no plan, no project, drift; no

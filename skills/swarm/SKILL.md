@@ -28,8 +28,10 @@ as rule 3 says.
 2. **Say what was done, then what waits.** Report per issue: its stage,
    the runs since the maintainer last looked, and what each produced
    (a plan, a pull request, a review's verdict, a block and its reason),
-   quoting the run's own words where they matter. Then "Waiting for you"
-   from `status` (on the forge, the same issues carry `swarm:gated`, and each gating posted a gate note on the issue naming what to examine and the verbs), each item with the decision it asks for and the
+   quoting the run's own words where they matter (of the lines `daisy
+   swarm journal` shows, `--issue <n>` prints one issue's). Then
+   "Waiting for you" from `status`, at its end before Held (`daisy swarm
+   status --waiting` prints that line alone; on the forge, the same issues carry `swarm:gated`, and each gating posted a gate note on the issue naming what to examine and the verbs), each item with the decision it asks for and the
    evidence for it (for a plan, its `## Research` first: a wrong belief
    there is wrong in every slice built on it). Each item after `plan`
    carries its job class, `routine` or `architecture`; only an

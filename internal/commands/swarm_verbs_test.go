@@ -105,8 +105,8 @@ func TestSwarmStatusBriefsShareAName(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "Briefs:\n  docs/a/plan.md: M1 (1 open, 0 closed)\n  docs/b/plan.md: shares the name plan with docs/a/plan.md; mirrored to no milestone\n"
-	if !strings.HasSuffix(s.stdout.String(), want) {
-		t.Errorf("stdout:\n%s\nwant it to end:\n%s", s.stdout.String(), want)
+	if !strings.HasSuffix(s.stdout.String(), want+"Waiting for you: nothing\nHeld: nothing\n") {
+		t.Errorf("stdout:\n%s\nwant it to end, before Waiting for you and Held:\n%s", s.stdout.String(), want)
 	}
 }
 

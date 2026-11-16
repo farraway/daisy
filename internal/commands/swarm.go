@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -433,11 +432,12 @@ func systemdEscapePath(p string) string {
 	return b.String()
 }
 
-// SwarmStatus is `daisy swarm status [--json]` (docs/swarm.md section
-// 11): the swarm's stages, gates, whose turn it is, the running set, the
-// personas, the throughput from runs/ and the active briefs, under
-// ReadOnly (the forge's GETs and `docker ps` let through: section 14,
-// item 31).
+// SwarmStatus is `daisy swarm status [--json] [--waiting]` (docs/swarm.md
+// section 11): the swarm's stages, gates, the running set, the personas,
+// the throughput from runs/, the active briefs and, last, whose turn it
+// is, under ReadOnly (the forge's GETs and `docker ps` let through:
+// section 14, item 31); with --waiting, what waits for the maintainer
+// alone.
 func SwarmStatus(c *Context) error {
 	if err := locate(c, false); err != nil {
 		return err
@@ -445,21 +445,33 @@ func SwarmStatus(c *Context) error {
 	return swarmStatus(c, openForge)
 }
 
+// WaitingFlag narrows `swarm status` to what waits for the maintainer.
+const WaitingFlag = "--waiting"
+
 // swarmStatus prints the report once every read is made, so a read
 // failing on the way leaves stdout empty: as text, or with --json as one
-// JSON document (docs/cli.md, --json).
+// JSON document (docs/cli.md, --json); with --waiting, the report's
+// waiting alone, in either form.
 func swarmStatus(c *Context, open opener) error {
-	if c.Flag(JSONFlag) {
-		return writeJSON(c, func() (jsonDoc, error) { return readStatus(c, open) })
+	read := func() (*statusReport, error) { return readStatus(c, open) }
+	if c.Flag(WaitingFlag) {
+		return printReport(c, func() (*waitingReport, error) {
+			r, err := read()
+			if err != nil {
+				return nil, err
+			}
+			return &waitingReport{Waiting: r.Waiting}, nil
+		}, func(w *waitingReport) { fmt.Fprintln(c.Stdout, waitingLine(w.Waiting)) })
 	}
-	r, err := readStatus(c, open)
-	if err != nil {
-		return err
-	}
-	var out bytes.Buffer
-	writeStatus(&out, r)
-	_, err = c.Stdout.Write(out.Bytes())
-	return err
+	return printReport(c, read, func(r *statusReport) { writeStatus(c.Stdout, r) })
+}
+
+// waitingReport is `swarm status --waiting`'s report: the full report's
+// waiting under its key, and nothing the text does not print, so no key
+// reads as a fact it does not hold (an empty running set, no stage).
+type waitingReport struct {
+	Waiting statusWaiting `json:"waiting"`
+	warned
 }
 
 // statusReport is status's report: the facts the text prints, issues by
@@ -872,39 +884,6 @@ func writeStatus(out io.Writer, r *statusReport) {
 		}
 		fmt.Fprintln(out)
 	}
-	var waiting []string
-	for i, ws := 0, r.Waiting.Issues; i < len(ws); {
-		item := ws[i].Item
-		var ns []string
-		for ; i < len(ws) && ws[i].Item == item; i++ {
-			// Only an architecture job waits at the triage and plan
-			// gates: the class is named where it varies.
-			if item == "triage" || item == "plan" {
-				ns = append(ns, fmt.Sprintf("#%d", ws[i].Issue))
-			} else {
-				ns = append(ns, fmt.Sprintf("#%d (%s)", ws[i].Issue, ws[i].Class))
-			}
-		}
-		waiting = append(waiting, item+" "+strings.Join(ns, " "))
-	}
-	if len(r.Waiting.Notes) > 0 {
-		waiting = append(waiting, "notes "+strings.Join(r.Waiting.Notes, " "))
-	}
-	if len(waiting) == 0 {
-		waiting = []string{"nothing"}
-	}
-	fmt.Fprintf(out, "Waiting for you: %s\n", strings.Join(waiting, "; "))
-	var held []string
-	if len(r.Held.Paused) > 0 {
-		held = append(held, "paused "+issueList(r.Held.Paused))
-	}
-	for _, b := range r.Held.BlockedBy {
-		held = append(held, fmt.Sprintf("#%d blocked by #%d", b.Issue, b.By))
-	}
-	if len(held) == 0 {
-		held = []string{"nothing"}
-	}
-	fmt.Fprintf(out, "Held: %s\n", strings.Join(held, "; "))
 	fmt.Fprintf(out, "Running: %s\n", runningLine(r.Running))
 	fmt.Fprintln(out, "Personas:")
 	for _, role := range declare.Roles {
@@ -921,12 +900,59 @@ func writeStatus(out io.Writer, r *statusReport) {
 	}
 	if len(r.Briefs) == 0 {
 		fmt.Fprintln(out, "Briefs: none active")
-		return
+	} else {
+		fmt.Fprintln(out, "Briefs:")
+		for _, b := range r.Briefs {
+			fmt.Fprintln(out, "  "+briefLine(b))
+		}
 	}
-	fmt.Fprintln(out, "Briefs:")
-	for _, b := range r.Briefs {
-		fmt.Fprintln(out, "  "+briefLine(b))
+	// What waits for the maintainer and what they hold come last, nearest
+	// the prompt after a long report.
+	fmt.Fprintln(out, waitingLine(r.Waiting))
+	fmt.Fprintln(out, heldLine(r.Held))
+}
+
+// waitingLine is the Waiting for you line: the gated issues by item, then
+// the notes' branches, or nothing.
+func waitingLine(w statusWaiting) string {
+	var waiting []string
+	for i, ws := 0, w.Issues; i < len(ws); {
+		item := ws[i].Item
+		var ns []string
+		for ; i < len(ws) && ws[i].Item == item; i++ {
+			// Only an architecture job waits at the triage and plan
+			// gates: the class is named where it varies.
+			if item == "triage" || item == "plan" {
+				ns = append(ns, fmt.Sprintf("#%d", ws[i].Issue))
+			} else {
+				ns = append(ns, fmt.Sprintf("#%d (%s)", ws[i].Issue, ws[i].Class))
+			}
+		}
+		waiting = append(waiting, item+" "+strings.Join(ns, " "))
 	}
+	if len(w.Notes) > 0 {
+		waiting = append(waiting, "notes "+strings.Join(w.Notes, " "))
+	}
+	if len(waiting) == 0 {
+		waiting = []string{"nothing"}
+	}
+	return "Waiting for you: " + strings.Join(waiting, "; ")
+}
+
+// heldLine is the Held line: the paused issues, then each held by an
+// open blocker, or nothing.
+func heldLine(h statusHeld) string {
+	var held []string
+	if len(h.Paused) > 0 {
+		held = append(held, "paused "+issueList(h.Paused))
+	}
+	for _, b := range h.BlockedBy {
+		held = append(held, fmt.Sprintf("#%d blocked by #%d", b.Issue, b.By))
+	}
+	if len(held) == 0 {
+		held = []string{"nothing"}
+	}
+	return "Held: " + strings.Join(held, "; ")
 }
 
 // briefLine is an active brief's line under Briefs: its path; each
