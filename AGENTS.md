@@ -27,6 +27,14 @@ same `cli.Run` with an `ops.Fake` built around a temp machine. Every
 package's tests run under `internal/testenv`, which pins what the git they
 start reads: `HOME`, `USER`, no global git config.
 
+**Standard library only** holds with the two formats read today by
+parsers written by hand, the shell subset of `.env.sh`
+(`internal/env/shellenv.go`) and the YAML subset of a test services file
+(`internal/swarm/declare/services.go`, about 390 lines, refusing a whole
+file it does not read in full); another non-JSON format is the trigger
+to revisit it, since a third such parser would cost more than the
+dependency it avoids.
+
 | Package | Holds |
 |---|---|
 | `internal/ops` | every side effect in one value: `Real`, `ReadOnly` (refuses every write; since the swarm build it lets a forge `GET`/`HEAD` and `docker ps` through for the read-only commands), `Fake` |
@@ -50,6 +58,14 @@ never written by hand, and `docs/cli.md` names each command's wrapper. Each comm
 function in the table; `daisy healthcheck` runs them in-process as its
 `Component:` lines, and `log`, `done`, `new-day` and `new-week` run the
 whole check in-process before they write.
+
+**Errors:** a new error in a domain package is a lower-case Go error
+wrapping its cause with `%w` ([Go Code Review Comments, Error
+Strings](https://go.dev/wiki/CodeReviewComments#error-strings): it is
+combined into other messages); the command that returns it adds the
+`Error: ` prefix and the fix (`fmt.Errorf("Error: %w", err)`), since
+`cli.invoke` prints a command's error as it stands and prefixes only a
+usage error. The existing `Error: ` sites stay as they are.
 
 **Build and gates.** `make build` writes `bin/daisy` (gitignored); `daisy
 install` links `~/bin/daisy` to it and does not build. `make install-dev`
