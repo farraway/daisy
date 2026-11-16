@@ -280,3 +280,9 @@ they write.
   sections, a decision file and a line here (docs/swarm.md, Changing
   this document). No choice of the contract changed, so no decision
   file was added.
+- 2026-11-16, Step 28 of the plan remediating the 2026-11-15 design
+  review (P22): every adapter's input count holds the cache's input,
+  the metrics CSV gains `tokens_cached` and fills `tokens_total`, and
+  `swarm metrics --reprice [--dry-run]` supersedes the rows written
+  before; sections 1, 2, 7.6, 9 and 11; decision
+  [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md).

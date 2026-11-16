@@ -79,8 +79,8 @@ func TestMetricsAddRecordsAStep(t *testing.T) {
 	}
 
 	csvFile := filepath.Join(m.home, "metrics", "metrics.csv")
-	wantCSV := "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds,tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed,binary_files,range,notes\n" +
-		"2026-11-12T14:05:00+01:00,plan-step," + planName + ",3,step,claude,claude-opus-5-5,high," + rootSHA + "," + homeSHA + ",,committed,2,1200,340,,1.25,,3,1,6,0,4,1,0," + rng + ",\"worker model changed, \"\"again\"\"\"\n"
+	wantCSV := "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds,tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed,binary_files,range,notes,tokens_cached\n" +
+		"2026-11-12T14:05:00+01:00,plan-step," + planName + ",3,step,claude,claude-opus-5-5,high," + rootSHA + "," + homeSHA + ",,committed,2,1200,340,,1.25,,3,1,6,0,4,1,0," + rng + ",\"worker model changed, \"\"again\"\"\",\n"
 	if b, err := os.ReadFile(csvFile); err != nil || string(b) != wantCSV {
 		t.Fatalf("metrics.csv (%v):\n%s\nwant\n%s", err, b, wantCSV)
 	}
@@ -113,7 +113,7 @@ func TestMetricsAddRecordsAStep(t *testing.T) {
 	}
 	b, _ := os.ReadFile(csvFile)
 	if lines := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n"); len(lines) != 3 || !strings.HasPrefix(string(b), wantCSV) ||
-		lines[2] != "2026-11-12T14:05:00+01:00,plan-step,"+planName+",3,step,,,,abcdef1,"+homeSHA+",,,,,,9,,,,,,,,,,," {
+		lines[2] != "2026-11-12T14:05:00+01:00,plan-step,"+planName+",3,step,,,,abcdef1,"+homeSHA+",,,,,,9,,,,,,,,,,,," {
 		t.Fatalf("metrics.csv after the second record:\n%s", b)
 	}
 	got = m.read(t, filepath.Join("plans", planName+".plan.md"))
@@ -163,4 +163,44 @@ func TestMetricsAddRefusals(t *testing.T) {
 		}
 	}
 	sameFiles(t, "refused metrics add", before, snapshot(t, m.home, m.ws))
+}
+
+// Step 28's claim (the plan remediating the 2026-11-15 design review,
+// P22): the orchestrator's row of a step, `--role orchestrator` with no
+// tokens (it often cannot count its own), sits beside the step's and the
+// review's rows, in the CSV and in the plan's table; `daisy metrics`
+// prints each plan's tokens per code line it added, over every role's
+// rows: 1500 + 300 tokens over main.go's 3 code lines, 600.
+func TestMetricsTokensPerCodeLine(t *testing.T) {
+	m := newMachine(t)
+	o := m.metricsOps(m.ws)
+	if code, _, errs := runWith(o, "plan", "new", "Measure things"); code != 0 {
+		t.Fatalf("plan new = %d: %s", code, errs)
+	}
+	planName := "261112140500.Measure-things"
+	repo, base, head := stepRepo(t)
+	for _, args := range [][]string{
+		{"--step", "1", "--range", base + ".." + head, "--repo", repo, "--tokens", "1500", "--tokens-cached", "1000"},
+		{"--step", "1", "--role", "review", "--tokens-in", "200", "--tokens-out", "100"},
+		{"--step", "1", "--role", "orchestrator"},
+	} {
+		if code, _, errs := runWith(o, append([]string{"metrics", "add", "--root-sha", "abcdef1", "--home-sha", "abcdef2"}, args...)...); code != 0 {
+			t.Fatalf("metrics add %v = %d: %s", args, code, errs)
+		}
+	}
+	plan := m.read(t, filepath.Join("plans", planName+".plan.md"))
+	for _, row := range []string{"| 1 | step |", "| 1 | review |", "| 1 | orchestrator |  |  | abcdef1 | abcdef2 |  |  |  |  |  |  |  |  |  |\n"} {
+		if !strings.Contains(plan, row) {
+			t.Errorf("plan has no %q:\n%s", row, plan)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(m.home, "metrics", "metrics.csv")); !strings.Contains(string(b), ",1500,,,3,1,6,0,4,1,0,"+base+".."+head+",,1000\n") {
+		t.Errorf("the step's row has no tokens_cached:\n%s", b)
+	}
+	code, out, errs := runWith(o, "metrics")
+	want := "\n  plan                         rows  tokens      code added  tokens per code line\n" +
+		"  " + planName + "  3     1800 (2/3)  +3 (1/3)    600\n"
+	if code != 0 || errs != "" || !strings.Contains(out, want) || !strings.Contains(out, "  plan-step  (none)  3     1800 (2/3)  1000 (1/3)") {
+		t.Fatalf("metrics = %d:\n%s\nwant within:\n%s\n%s", code, out, want, errs)
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -91,15 +92,15 @@ func TestSwarmApplyRecordsEachRun(t *testing.T) {
 		t.Errorf("stderr:\n%s", a.stderr.String())
 	}
 	if r := a.result("2-architect-1"); !strings.Contains(r, "credential anthropic env CLAUDE_CODE_OAUTH_TOKEN\npersona anthropic claude-fable-5-1 high\n") ||
-		!strings.Contains(r, "\ncost - tokens 30/40 turns 2\n") || !strings.HasSuffix(r, "\nrecorded\noutcome posted\ncollected\n") {
+		!strings.Contains(r, "\ncost - tokens 30/40 turns 2 cached 0\n") || !strings.HasSuffix(r, "\nrecorded\noutcome posted\ncollected\n") {
 		t.Errorf("result:\n%s", r)
 	}
 
 	up := a.upstreams[swarmURL]
 	journal := gitIn(t, up, "show", "main:journal/2026-11-06.md")
 	want := "# 2026-11-06\n\n" +
-		"- 1500 1-architect-1: posted; anthropic claude-fable-5-1 high; tokens 10/20, 4 turns; cost $0.25; #1\n" +
-		"- 1500 2-architect-1: posted; anthropic claude-fable-5-1 high; tokens 30/40, 2 turns; cost not reported (~$0.0023 at list price); #2"
+		"- 1500 1-architect-1: posted; anthropic claude-fable-5-1 high; tokens 10/20 (0 cached), 4 turns; cost $0.25; #1\n" +
+		"- 1500 2-architect-1: posted; anthropic claude-fable-5-1 high; tokens 30/40 (0 cached), 2 turns; cost not reported (~$0.0023 at list price); #2"
 	if journal != want {
 		t.Errorf("journal:\n%s\nwant:\n%s", journal, want)
 	}
@@ -116,11 +117,11 @@ func TestSwarmApplyRecordsEachRun(t *testing.T) {
 	}
 	same := map[string]string{"when": "2026-11-06T15:00:00Z", "kind": "swarm-run", "plan_or_swarm": "acme/swarm-app", "role": "architect",
 		"provider": "anthropic", "model": "claude-fable-5-1", "effort": "high", "root_sha": headOf(t, a.root), "home_sha": headOf(t, home),
-		"outcome": "posted", "review_rounds": "", "tokens_total": "", "code_added": "", "range": ""}
+		"outcome": "posted", "review_rounds": "", "tokens_cached": "0", "code_added": "", "range": ""}
 	for i, w := range []map[string]string{
-		{"step_or_run": "1-architect-1", "prompt_hash": promptHash(t, a, "1-architect-1"), "tokens_in": "10", "tokens_out": "20",
+		{"step_or_run": "1-architect-1", "prompt_hash": promptHash(t, a, "1-architect-1"), "tokens_in": "10", "tokens_out": "20", "tokens_total": "30",
 			"cost_reported": "0.25", "cost_estimated": "0.0011", "notes": "#1, 4 turns"},
-		{"step_or_run": "2-architect-1", "prompt_hash": promptHash(t, a, "2-architect-1"), "tokens_in": "30", "tokens_out": "40",
+		{"step_or_run": "2-architect-1", "prompt_hash": promptHash(t, a, "2-architect-1"), "tokens_in": "30", "tokens_out": "40", "tokens_total": "70",
 			"cost_reported": "", "cost_estimated": "0.0023", "notes": "#2, 2 turns"},
 	} {
 		for k, v := range same {
@@ -146,7 +147,9 @@ func TestSwarmApplyRecordsEachRun(t *testing.T) {
 // (93-worker-1, gpt-6.1-sol: input_tokens 3476833 holding
 // cached_input_tokens 3390208, output_tokens 12969) records the cached
 // count on its cost line, keeps tokens_in as codex reports it, puts the
-// cached count in the row's notes and the journal line, and estimates
+// cached count in the row's tokens_cached (Step 28 of the plan
+// remediating the 2026-11-15 design review; before it, the notes) and
+// the journal line, and estimates
 // 86625 uncached at $2, 3390208 cached at $0.10 and 12969 out at $10 per
 // million: $0.641961.
 func TestSwarmApplyPricesCachedInputApart(t *testing.T) {
@@ -172,7 +175,7 @@ func TestSwarmApplyPricesCachedInputApart(t *testing.T) {
 		t.Fatalf("%d rows: %v", len(got), got)
 	}
 	for k, v := range map[string]string{"provider": "openai", "model": "gpt-6.1-sol", "tokens_in": "3476833", "tokens_out": "12969",
-		"cost_reported": "", "cost_estimated": "0.641961", "notes": "#1, 1 turns, 3390208 cached input"} {
+		"tokens_cached": "3390208", "tokens_total": "3489802", "cost_reported": "", "cost_estimated": "0.641961", "notes": "#1, 1 turns"} {
 		if got[0][k] != v {
 			t.Errorf("%s = %q, want %q", k, got[0][k], v)
 		}
@@ -351,7 +354,9 @@ func (a *applyWS) oldRun(run string, wrapped bool, cli, result string) {
 // the old `cost 0` of codex, which reports no cost, as no cost, a
 // worker's lines from start to pushed in its mirror, the time the run's
 // end line's, the root's and home's commits empty and the notes
-// `backfilled`; a run not collected gets none; the rows' costs sum to
+// `backfilled`; a cost line without its cached count, written before
+// Step 28 of the plan remediating the 2026-11-15 design review, gets no
+// estimate; a run not collected gets none; the rows' costs sum to
 // status's; a second backfill writes nothing.
 func TestSwarmMetricsBackfill(t *testing.T) {
 	a := newApplyWS(t)
@@ -390,15 +395,15 @@ func TestSwarmMetricsBackfill(t *testing.T) {
 	if len(got) != 4 || got[0]["step_or_run"] != "1-architect-1" {
 		t.Fatalf("%d rows: %v", len(got), got)
 	}
-	same := map[string]string{"kind": "swarm-run", "plan_or_swarm": "acme/swarm-app", "root_sha": "", "home_sha": "", "outcome": "posted", "review_rounds": "", "tokens_total": ""}
+	same := map[string]string{"kind": "swarm-run", "plan_or_swarm": "acme/swarm-app", "root_sha": "", "home_sha": "", "outcome": "posted", "review_rounds": "", "tokens_cached": ""}
 	for i, w := range []map[string]string{
 		{"when": "2026-11-05T10:05:00Z", "step_or_run": "0-owner-1", "role": "owner", "provider": "anthropic", "model": "claude-sonnet-5-5", "effort": "low",
-			"prompt_hash": promptHash(t, a, "0-owner-1"), "tokens_in": "1000", "tokens_out": "3000", "cost_reported": "0.5", "cost_estimated": "0.032",
+			"prompt_hash": promptHash(t, a, "0-owner-1"), "tokens_in": "1000", "tokens_out": "3000", "tokens_total": "4000", "cost_reported": "0.5", "cost_estimated": "",
 			"code_added": "", "range": "", "notes": "batch, 3 turns, backfilled"},
 		{"when": "2026-11-05T11:00:00Z", "step_or_run": "2-adversary-1", "role": "adversary", "provider": "openai", "model": "gpt-6.1-sol", "effort": "medium",
-			"tokens_in": "1000", "tokens_out": "2000", "cost_reported": "", "cost_estimated": "", "code_added": "", "range": "", "notes": "#2, 5 turns, backfilled"},
+			"tokens_in": "1000", "tokens_out": "2000", "tokens_total": "3000", "cost_reported": "", "cost_estimated": "", "code_added": "", "range": "", "notes": "#2, 5 turns, backfilled"},
 		{"when": "2026-11-05T12:00:00Z", "step_or_run": "3-worker-1", "role": "worker", "provider": "xai", "model": "grok-4.7", "effort": "low",
-			"tokens_in": "10", "tokens_out": "20", "cost_reported": "0.02", "cost_estimated": "",
+			"tokens_in": "10", "tokens_out": "20", "tokens_total": "30", "cost_reported": "0.02", "cost_estimated": "",
 			"code_added": "2", "code_removed": "0", "tests_added": "1", "prose_added": "1", "binary_files": "0", "range": start + ".." + pushed, "notes": "#3, 1 turns, backfilled"},
 	} {
 		for k, v := range same {
@@ -464,5 +469,121 @@ func TestSwarmMetricsBackfillGoneShasAndNoHome(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, "metrics", "metrics.csv")); err == nil {
 		t.Error("a CSV written with no home named")
+	}
+}
+
+// metricsVerb is `swarm metrics` with flags over the scratch state.
+func (a *applyWS) metricsVerb(flags ...string) error {
+	a.stdout.Reset()
+	a.stderr.Reset()
+	o := &ops.Fake{NowFn: a.Now, ExecFn: a.exec}
+	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &a.stdout, Stderr: &a.stderr, Flags: flags}
+	return a.at(c, false, swarmMetrics)
+}
+
+// Step 28's claim (the plan remediating the 2026-11-15 design review,
+// P22; section 11, swarm metrics): over a fixture CSV under the first
+// header, holding a codex worker's row recorded before gpt-6.1-sol was
+// priced (93-worker-1's usage: no estimate, no cached count) and a
+// claude architect's whose tokens_in left the cache out (44), a reprice
+// reads each run's stdout through its provider's adapter and appends a
+// row superseding each: the codex row's tokens_cached 3390208,
+// tokens_total and its estimate, $0.641961; the claude row's tokens_in
+// with the cache's 852044 and its lower-bound estimate dropped (no
+// cached rate); every other cell carried over, the notes ending
+// `repriced`. A run without stdout is unread, one without a row or not
+// collected not counted; --dry-run writes nothing; a second reprice
+// writes nothing.
+func TestSwarmMetricsReprice(t *testing.T) {
+	a := newApplyWS(t)
+	home := a.metricsHome()
+	csvFile := filepath.Join(home, "metrics", "metrics.csv")
+	held := "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds," +
+		"tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed," +
+		"binary_files,range,notes\n" +
+		"2026-11-12T08:00:00Z,swarm-run,acme/swarm-app,0-owner-1,owner,anthropic,claude-opus-5-5,low,,,,posted,,30,40,,0.1,0.00092,,,,,,,,,\"batch, 2 turns\"\n" +
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,44,9000,,1.2,0.45044,,,,,,,,,\"#1, 20 turns\"\n" +
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,,,,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns\"\n"
+	os.MkdirAll(filepath.Dir(csvFile), 0o755)
+	os.WriteFile(csvFile, []byte(held), 0o644)
+	for run, stdout := range map[string]string{
+		"0-owner-1":     "",
+		"1-architect-1": `{"type":"result","is_error":false,"num_turns":20,"result":"Done.","total_cost_usd":1.2,"usage":{"input_tokens":44,"cache_creation_input_tokens":52000,"cache_read_input_tokens":800000,"output_tokens":9000}}`,
+		"4-adversary-1": `{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":5,"output_tokens":1}}`,
+		"6-worker-1":    `{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":5,"output_tokens":1}}`,
+		"93-worker-1": `{"type":"thread.started","thread_id":"t"}
+{"type":"turn.completed","usage":{"input_tokens":3476833,"cached_input_tokens":3390208,"cache_write_input_tokens":0,"output_tokens":12969,"reasoning_output_tokens":2175}}
+`,
+	} {
+		result := "started 2026-11-12T07:00:00Z\nexited 0 2026-11-12T07:30:00Z\noutcome posted\ncollected\n"
+		if run == "6-worker-1" {
+			result = "started 2026-11-12T07:00:00Z\n"
+		}
+		a.runResult(run, result, "")
+		if stdout != "" {
+			os.WriteFile(a.state("runs/"+run+"/stdout"), []byte(stdout), 0o644)
+		}
+	}
+	counts := "(4 runs collected, 3 with a row: 0 current, 1 with no usage to read)"
+
+	if err := a.metricsVerb("--reprice", "--dry-run"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	if want := "  1-architect-1 anthropic claude-fable-5-1: tokens_in 44 → 852044, tokens_cached — → 800000, tokens_total — → 861044, cost_estimated 0.45044 → —\n" +
+		"  93-worker-1 openai gpt-6.1-sol: tokens_in 3476833 → 3476833, tokens_cached — → 3390208, tokens_total — → 3489802, cost_estimated — → 0.641961\n" +
+		"Would reprice 2 rows in " + csvFile + " " + counts + "; nothing written\n"; a.stdout.String() != want || a.stderr.Len() != 0 {
+		t.Errorf("dry run: stdout:\n%s\nwant:\n%s\nstderr:\n%s", a.stdout.String(), want, a.stderr.String())
+	}
+	if b, _ := os.ReadFile(csvFile); string(b) != held {
+		t.Fatalf("a dry run wrote:\n%s", b)
+	}
+
+	if err := a.metricsVerb("--reprice"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	if want := "✓ Repriced 2 rows into " + csvFile + " " + counts + "\n"; a.stdout.String() != want || a.stderr.Len() != 0 {
+		t.Errorf("stdout:\n%s\nwant:\n%s\nstderr:\n%s", a.stdout.String(), want, a.stderr.String())
+	}
+	b, _ := os.ReadFile(csvFile)
+	_, oldRows, _ := strings.Cut(held, "\n")
+	want := strings.Join(metrics.Header, ",") + "\n" + oldRows +
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,852044,9000,861044,1.2,,,,,,,,,,\"#1, 20 turns, repriced\",800000\n" +
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,3489802,,0.641961,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns, repriced\",3390208\n"
+	if string(b) != want {
+		t.Fatalf("csv:\n%s\nwant:\n%s", b, want)
+	}
+	s, err := metrics.Summarize(b, metrics.Filter{Swarm: "acme/swarm-app"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Rows != 5 || s.Superseded != 2 {
+		t.Errorf("summary %+v", s)
+	}
+	for _, g := range s.Groups {
+		if g.Model == "gpt-6.1-sol" && (g.Rows != 1 || g.Estimate != 0.641961 || g.Cached != 3390208 || g.Tokens != 3489802) {
+			t.Errorf("gpt-6.1-sol group %+v", g)
+		}
+		if g.Model == "claude-fable-5-1" && (g.Rows != 1 || g.WithEstimate != 0 || g.Tokens != 861044) {
+			t.Errorf("claude-fable-5-1 group %+v", g)
+		}
+	}
+
+	if err := a.metricsVerb("--reprice"); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	if after, _ := os.ReadFile(csvFile); !bytes.Equal(after, b) ||
+		a.stdout.String() != "✓ Repriced 0 rows into "+csvFile+" (4 runs collected, 3 with a row: 2 current, 1 with no usage to read)\n" {
+		t.Errorf("second reprice: stdout:\n%s\ncsv:\n%s", a.stdout.String(), after)
+	}
+	if err := a.metricsVerb("--reprice", "--dry-run"); err != nil ||
+		a.stdout.String() != "Would reprice 0 rows in "+csvFile+" (4 runs collected, 3 with a row: 2 current, 1 with no usage to read); nothing written\n" {
+		t.Errorf("a dry run once current = %v: stdout:\n%s", err, a.stdout.String())
+	}
+
+	for _, flags := range [][]string{nil, {"--backfill", "--reprice"}, {"--backfill", "--dry-run"}, {"--dry-run"}} {
+		var usage UsageError
+		if err := a.metricsVerb(flags...); !errors.As(err, &usage) {
+			t.Errorf("swarm metrics %v = %v, want a usage error", flags, err)
+		}
 	}
 }

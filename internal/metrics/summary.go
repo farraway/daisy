@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"fmt"
+	"maps"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,10 +13,29 @@ import (
 // Summary is the CSV read back: its rows, those a later row for the same
 // kind, plan or swarm, step or run and role supersedes (a correction is
 // appended, never written over the row it corrects), and the rest
-// grouped by kind and model.
+// grouped by kind and model, and, of kind plan-step, by plan.
 type Summary struct {
 	Rows, Superseded int
 	Groups           []Group
+	Plans            []Plan
+}
+
+// Plan is a plan's plan-step rows, every role's (the step's, its
+// reviews', the orchestrator's): their tokens, over those that report
+// them, and the code lines their measured rows added.
+type Plan struct {
+	Name                       string
+	Rows, WithTokens, Measured int
+	Tokens, CodeAdded          int
+}
+
+// TokensPerCodeLine is the plan's tokens per code line it added,
+// rounded; ok is false when it reports no tokens or added no code.
+func (p Plan) TokensPerCodeLine() (n int, ok bool) {
+	if p.WithTokens == 0 || p.CodeAdded == 0 {
+		return 0, false
+	}
+	return int(math.Round(float64(p.Tokens) / float64(p.CodeAdded))), true
 }
 
 // Group is the rows of one kind and model: how many, the tokens and costs
@@ -24,7 +45,8 @@ type Group struct {
 	Model                      string
 	Rows, WithTokens, WithCost int
 	WithEstimate, Measured     int
-	Tokens                     int
+	WithCached                 int
+	Tokens, Cached             int
 	Cost, Estimate             float64
 	Lines                      Lines
 }
@@ -69,6 +91,7 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 		latest[key(rec)] = i
 	}
 	groups := map[[2]string]*Group{}
+	plans := map[string]*Plan{}
 	for i, rec := range recs {
 		keep, err := f.keeps(rec, i+2, col)
 		if err != nil {
@@ -91,6 +114,18 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 		if err := g.add(rec, col); err != nil {
 			return s, fmt.Errorf("row %d: %v", i+2, err)
 		}
+		if k[0] == string(PlanStep) {
+			name := rec[col("plan_or_swarm")]
+			p := plans[name]
+			if p == nil {
+				p = &Plan{Name: name}
+				plans[name] = p
+			}
+			p.add(rec, col)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(plans)) {
+		s.Plans = append(s.Plans, *plans[name])
 	}
 	for _, g := range groups {
 		s.Groups = append(s.Groups, *g)
@@ -109,12 +144,13 @@ func (g *Group) add(rec []string, col func(string) int) error {
 		}
 	}
 	g.Rows++
-	if t := cell("tokens_total"); t != "" {
-		g.Tokens += atoi(t)
+	if n, ok := rowTokens(rec, col); ok {
+		g.Tokens += n
 		g.WithTokens++
-	} else if in, out := cell("tokens_in"), cell("tokens_out"); in != "" && out != "" {
-		g.Tokens += atoi(in) + atoi(out)
-		g.WithTokens++
+	}
+	if c := cell("tokens_cached"); c != "" {
+		g.Cached += atoi(c)
+		g.WithCached++
 	}
 	if c := cell("cost_reported"); c != "" {
 		g.Cost += atof(c)
@@ -131,6 +167,31 @@ func (g *Group) add(rec []string, col func(string) int) error {
 		g.Measured++
 	}
 	return nil
+}
+
+// add counts a row Group.add has checked.
+func (p *Plan) add(rec []string, col func(string) int) {
+	p.Rows++
+	if n, ok := rowTokens(rec, col); ok {
+		p.Tokens += n
+		p.WithTokens++
+	}
+	if c := rec[col("code_added")]; c != "" {
+		p.CodeAdded += atoi(c)
+		p.Measured++
+	}
+}
+
+// rowTokens is the row's tokens: tokens_total, else tokens_in and
+// tokens_out added; ok is false when it has neither.
+func rowTokens(rec []string, col func(string) int) (int, bool) {
+	if t := rec[col("tokens_total")]; t != "" {
+		return atoi(t), true
+	}
+	if in, out := rec[col("tokens_in")], rec[col("tokens_out")]; in != "" && out != "" {
+		return atoi(in) + atoi(out), true
+	}
+	return 0, false
 }
 
 // atoi and atof read cells CheckCell has passed; an empty one is 0.

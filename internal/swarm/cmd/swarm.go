@@ -979,27 +979,64 @@ func resumeSwarm(c *Context) error {
 	return nil
 }
 
-// SwarmMetrics is `daisy swarm metrics --backfill` (docs/swarm.md
-// section 11): a row in the metrics CSV of the home <state>/home names
-// for each collected run it holds none for.
+// SwarmMetrics is `daisy swarm metrics --backfill | --reprice
+// [--dry-run]` (docs/swarm.md section 11): in the metrics CSV of the home
+// <state>/home names, a row for each collected run it holds none for, or
+// a row superseding each run's whose output now reads otherwise.
 func SwarmMetrics(c *Context) error {
 	return inSwarm(c, func() error { return swarmMetrics(c) })
 }
 
 func swarmMetrics(c *Context) error {
-	if !c.Flag("--backfill") {
-		return UsageError("--backfill is required: it is the verb's one action")
+	backfill, reprice, dryRun := c.Flag("--backfill"), c.Flag("--reprice"), c.Flag("--dry-run")
+	switch {
+	case backfill == reprice:
+		return UsageError("give --backfill or --reprice: each is one action of the verb")
+	case dryRun && !reprice:
+		return UsageError("--dry-run goes with --reprice")
 	}
 	cfg, err := forgeOnly(c)
 	if err != nil {
 		return err
 	}
 	s := &reconcile.Swarm{O: c.Ops, Place: c.Swarm, WS: c.Swarm.Root, Root: c.Env.Root, Config: c.Env.Config, Local: c.Env.Local, Cfg: cfg, Out: c.Stdout, Err: c.Stderr}
+	if reprice {
+		return swarmReprice(c, s, dryRun)
+	}
 	b, err := s.Backfill()
 	if err != nil {
 		return fmt.Errorf("Error: swarm metrics --backfill: %v", err)
 	}
 	fmt.Fprintf(c.Stdout, "✓ Backfilled %d rows into %s (%d runs collected, %d with its row already)\n", b.Written, b.File, b.Collected, b.Had)
+	return nil
+}
+
+// swarmReprice is `swarm metrics --reprice [--dry-run]`: with --dry-run,
+// each row it would write, its usage cells from the held row's to its
+// own, and nothing written.
+func swarmReprice(c *Context, s *reconcile.Swarm, dryRun bool) error {
+	p, err := s.Reprice(dryRun)
+	if err != nil {
+		return fmt.Errorf("Error: swarm metrics --reprice: %v", err)
+	}
+	counts := fmt.Sprintf("(%d runs collected, %d with a row: %d current, %d with no usage to read)", p.Collected, p.Held, p.Current, p.Unread)
+	if !dryRun {
+		fmt.Fprintf(c.Stdout, "✓ Repriced %d rows into %s %s\n", p.Written, p.File, counts)
+		return nil
+	}
+	cell := func(v string) string {
+		if v == "" {
+			return "—"
+		}
+		return v
+	}
+	for _, ch := range p.Changes {
+		f, t := ch.From, ch.To
+		fmt.Fprintf(c.Stdout, "  %s %s %s: tokens_in %s → %s, tokens_cached %s → %s, tokens_total %s → %s, cost_estimated %s → %s\n",
+			t.Unit, t.Provider, t.Model, cell(f.TokensIn), cell(t.TokensIn), cell(f.TokensCached), cell(t.TokensCached),
+			cell(f.TokensTotal), cell(t.TokensTotal), cell(f.CostEstimated), cell(t.CostEstimated))
+	}
+	fmt.Fprintf(c.Stdout, "Would reprice %d rows in %s %s; nothing written\n", len(p.Changes), p.File, counts)
 	return nil
 }
 

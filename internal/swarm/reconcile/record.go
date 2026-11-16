@@ -37,22 +37,17 @@ func (c *collection) record(outcome string) error {
 	}
 	s := c.s
 	now := s.O.Now().UTC()
-	row, u := c.row(outcome, now)
-	if err := s.queue(now.Format("2006-01-02"), journalLine(row, u, now)); err != nil {
+	row, turns := c.row(outcome, now)
+	if err := s.queue(now.Format("2006-01-02"), journalLine(row, turns, now)); err != nil {
 		return err
 	}
 	s.central(c.head, row)
 	return c.step("recorded")
 }
 
-// usage is what the run's cost line says beside the row's cells: its
-// turns and its cached input ("" when not reported), which the row's
-// notes carry.
-type usage struct{ turns, cached string }
-
 // row is the run as a metrics row (section 7.6, The run's record) and
-// its usage beside the row's cells.
-func (c *collection) row(outcome string, now time.Time) (metrics.Row, usage) {
+// its turns ("" when not reported), which the row's notes carry.
+func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	s := c.s
 	r := s.runKey(c.r)
 	r.When, r.Outcome = now.Format(time.RFC3339), outcome
@@ -72,7 +67,7 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, usage) {
 	if l, ok := Has(c.lines, "round"); ok {
 		r.ReviewRounds = strings.TrimPrefix(l, "round ")
 	}
-	var u usage
+	var turns string
 	if l, ok := Has(c.lines, "cost"); ok {
 		// cost <usd|-> tokens <in>/<out> turns <t>[ cached <c>] (section
 		// 2). A run launched before the persona line wrote a cost its CLI
@@ -83,22 +78,12 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, usage) {
 				r.CostReported = f[1]
 			}
 			in, out, _ := strings.Cut(f[3], "/")
-			r.TokensIn, r.TokensOut, u.turns = in, out, f[5]
-			i, err1 := strconv.Atoi(in)
-			o, err2 := strconv.Atoi(out)
-			// The input's cached part: the line's count; none for a
-			// provider whose input count leaves it out; unknown, so no
-			// estimate, on a line without the count (written before
-			// Step 11b) of one whose count holds it.
-			cached, known := 0, !provider.Providers[r.Provider].InputHoldsCached
+			cached := ""
 			if len(f) == 8 {
-				u.cached = f[7]
-				n, err := strconv.Atoi(u.cached)
-				cached, known = n, err == nil
+				cached = f[7]
 			}
-			if est, ok := provider.Estimate(r.Model, i, cached, o); ok && known && err1 == nil && err2 == nil {
-				r.CostEstimated = strconv.FormatFloat(math.Round(est*1e6)/1e6, 'f', -1, 64)
-			}
+			usage(&r, in, out, cached)
+			turns = f[5]
 		}
 	}
 	if b, err := s.O.FS().ReadFile(filepath.Join(c.r.Dir, "io", "system.md")); err == nil {
@@ -123,16 +108,37 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, usage) {
 	if c.r.N == 0 {
 		r.Notes = "batch"
 	}
-	if u.turns != "" {
-		r.Notes += ", " + u.turns + " turns"
-	}
-	if u.cached != "" {
-		r.Notes += ", " + u.cached + " cached input"
+	if turns != "" {
+		r.Notes += ", " + turns + " turns"
 	}
 	if uncounted {
 		r.Notes += ", lines not counted"
 	}
-	return r, u
+	return r, turns
+}
+
+// usage sets the row's usage cells from in input tokens, out output
+// tokens and cached of the input read from the cache ("" when not
+// reported): tokens_in, tokens_out and tokens_cached as given,
+// tokens_total in and out added, and cost_estimated those tokens at the
+// model's list price (section 9), none when the cached part is not
+// known: on a cost line written before Step 28 of the plan remediating
+// the 2026-11-15 design review, claude's and grok's input count left the
+// cache out, and codex's before Step 11b of the plan for the inbox
+// requests F27-F35 held a cached part it did not say.
+func usage(r *metrics.Row, in, out, cached string) {
+	r.TokensIn, r.TokensOut, r.TokensCached, r.TokensTotal, r.CostEstimated = in, out, cached, "", ""
+	i, err1 := strconv.Atoi(in)
+	o, err2 := strconv.Atoi(out)
+	if err1 != nil || err2 != nil {
+		return
+	}
+	r.TokensTotal = strconv.Itoa(i + o)
+	if c, err := strconv.Atoi(cached); err == nil {
+		if est, ok := provider.Estimate(r.Model, i, c, o); ok {
+			r.CostEstimated = strconv.FormatFloat(math.Round(est*1e6)/1e6, 'f', -1, 64)
+		}
+	}
 }
 
 // runKey is the run's row with its key's cells alone (metrics.Row.Key):
@@ -144,7 +150,7 @@ func (s *Swarm) runKey(r Run) metrics.Row {
 // journalLine is the run's line in its day's journal file, as `daisy
 // log` writes a day's log: `- HHMM <run>: <outcome>; <persona>; <usage>;
 // <cost>`, then a worker's lines and the issue.
-func journalLine(r metrics.Row, u usage, now time.Time) string {
+func journalLine(r metrics.Row, turns string, now time.Time) string {
 	parts := []string{r.Outcome, strings.Join(slices.DeleteFunc([]string{r.Provider, r.Model, r.Effort}, func(s string) bool { return s == "" }), " ")}
 	if r.ReviewRounds != "" {
 		parts = append(parts, "round "+r.ReviewRounds)
@@ -152,10 +158,10 @@ func journalLine(r metrics.Row, u usage, now time.Time) string {
 	switch {
 	case r.TokensIn == "":
 		parts = append(parts, "no usage reported")
-	case u.cached != "":
-		parts = append(parts, fmt.Sprintf("tokens %s/%s (%s cached), %s turns", r.TokensIn, r.TokensOut, u.cached, u.turns))
+	case r.TokensCached != "":
+		parts = append(parts, fmt.Sprintf("tokens %s/%s (%s cached), %s turns", r.TokensIn, r.TokensOut, r.TokensCached, turns))
 	default:
-		parts = append(parts, fmt.Sprintf("tokens %s/%s, %s turns", r.TokensIn, r.TokensOut, u.turns))
+		parts = append(parts, fmt.Sprintf("tokens %s/%s, %s turns", r.TokensIn, r.TokensOut, turns))
 	}
 	switch {
 	case r.CostReported != "":
@@ -297,22 +303,23 @@ func (s *Swarm) central(head string, row metrics.Row) {
 		return
 	}
 	row.RootSHA, row.HomeSHA = s.headOf(head, s.Root, "root_sha"), s.headOf(head, home, "home_sha")
-	if _, err := s.appendRows(env.MetricsFile(home), "swarm apply", row); err != nil {
+	if _, err := s.locked(metrics.Append, env.MetricsFile(home), "swarm apply", row); err != nil {
 		warn("%v", err)
 	}
 }
 
-// appendRows appends to file each of rows whose run it holds no row of
-// (metrics.Append: the row's kind, swarm, run and role), under the
-// machine's metrics lock, held by who for one read and one rewrite.
-func (s *Swarm) appendRows(file, who string, rows ...metrics.Row) (int, error) {
+// locked writes rows to file with write, metrics.Append (each row whose
+// run the file holds no row of: its kind, swarm, run and role) or
+// metrics.Supersede, under the machine's metrics lock, held by who for
+// one read and one rewrite.
+func (s *Swarm) locked(write func(ops.FS, string, ...metrics.Row) (int, error), file, who string, rows ...metrics.Row) (int, error) {
 	lock := env.MetricsLock(s.Local)
 	release, err := metrics.Lock(s.O, lock, who+" "+s.Cfg.Forge.Repo+" since "+s.O.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		return 0, fmt.Errorf("cannot take %s: %v", lock, err)
 	}
 	defer release()
-	return metrics.Append(s.O.FS(), file, rows...)
+	return write(s.O.FS(), file, rows...)
 }
 
 // Backfill writes the row of each collected run that the metrics CSV of
@@ -325,20 +332,13 @@ func (s *Swarm) appendRows(file, who string, rows ...metrics.Row) (int, error) {
 // line is written.
 func (s *Swarm) Backfill() (Backfilled, error) {
 	var b Backfilled
-	home, err := s.metricsHome()
-	if err != nil {
+	var before []byte
+	var err error
+	if b.File, before, err = s.metricsCSV(); err != nil {
 		return b, err
 	}
-	if home == "" {
-		return b, fmt.Errorf("%s names no Daisy home, whose metrics CSV would take the rows; write a registered home's name in it", filepath.Join(s.state(), "home"))
-	}
-	b.File = env.MetricsFile(home)
 	// The runs the CSV holds a row for now are skipped unread; Append
 	// skips any a writer adds before the lock.
-	before, err := s.O.FS().ReadFile(b.File)
-	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		return b, fmt.Errorf("cannot read %s: %v", b.File, err)
-	}
 	held, err := metrics.Keys(before)
 	if err != nil {
 		return b, fmt.Errorf("cannot record in %s: %v", b.File, err)
@@ -374,10 +374,124 @@ func (s *Swarm) Backfill() (Backfilled, error) {
 		rows = append(rows, row)
 	}
 	slices.SortStableFunc(rows, func(a, b metrics.Row) int { return strings.Compare(a.When, b.When) })
-	b.Written, err = s.appendRows(b.File, "swarm metrics --backfill", rows...)
+	b.Written, err = s.locked(metrics.Append, b.File, "swarm metrics --backfill", rows...)
 	b.Had = b.Collected - undated - b.Written
 	return b, err
 }
+
+// metricsCSV is the metrics CSV of the home <state>/home names, and its
+// bytes, none when it does not exist; an error when no usable home is
+// named or the file cannot be read.
+func (s *Swarm) metricsCSV() (string, []byte, error) {
+	home, err := s.metricsHome()
+	if err != nil {
+		return "", nil, err
+	}
+	if home == "" {
+		return "", nil, fmt.Errorf("%s names no Daisy home, whose metrics CSV would take the rows; write a registered home's name in it", filepath.Join(s.state(), "home"))
+	}
+	file := env.MetricsFile(home)
+	b, err := s.O.FS().ReadFile(file)
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return file, nil, fmt.Errorf("cannot read %s: %v", file, err)
+	}
+	return file, b, nil
+}
+
+// Reprice supersedes the row of each collected run that the metrics CSV
+// of the home <state>/home names holds (section 11, swarm metrics), the
+// last of its key, when the usage its <run>/stdout reports, read by the
+// adapter of the row's provider, gives other usage cells than the row's
+// (usage: tokens_in with the cache's input, tokens_cached, tokens_total,
+// cost_estimated at today's list price): the new row is the held row
+// with those cells, every other cell carried over, its notes ending
+// `repriced`. A run without stdout, one whose stdout reports no usage,
+// or a row naming a provider the adapter table lacks is unread and left
+// as it is. Every row is made before the metrics lock is taken; under
+// it, the CSV is read once and a row whose key's last row is already
+// it dropped (metrics.Supersede), so a second reprice writes nothing.
+// With dryRun the rows are made and nothing is written.
+func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
+	var p Repriced
+	var before []byte
+	var err error
+	if p.File, before, err = s.metricsCSV(); err != nil {
+		return p, err
+	}
+	latest, err := metrics.Latest(before)
+	if err != nil {
+		return p, fmt.Errorf("cannot record in %s: %v", p.File, err)
+	}
+	runs, err := Runs(s.O.FS(), s.state())
+	if err != nil {
+		return p, err
+	}
+	for _, r := range runs {
+		lines, err := r.Result(s.O.FS())
+		if err != nil {
+			return p, err
+		}
+		if _, ok := Has(lines, "collected"); !ok {
+			continue
+		}
+		p.Collected++
+		held, ok := latest[s.runKey(r).Key()]
+		if !ok {
+			continue
+		}
+		p.Held++
+		prov, known := provider.Providers[held.Provider]
+		stdout, err := s.O.FS().ReadFile(filepath.Join(r.Dir, "stdout"))
+		if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+			return p, err
+		}
+		var rep provider.Report
+		if known && err == nil {
+			rep = prov.Adapter.Report(stdout)
+		}
+		if !rep.Known {
+			p.Unread++
+			continue
+		}
+		row := held
+		cached := ""
+		if rep.CachedKnown {
+			cached = strconv.Itoa(rep.CachedTokens)
+		}
+		usage(&row, strconv.Itoa(rep.InTokens), strconv.Itoa(rep.OutTokens), cached)
+		if row.TokensIn == held.TokensIn && row.TokensOut == held.TokensOut && row.TokensCached == held.TokensCached &&
+			row.TokensTotal == held.TokensTotal && row.CostEstimated == held.CostEstimated {
+			p.Current++
+			continue
+		}
+		if !strings.HasSuffix(row.Notes, ", repriced") {
+			row.Notes += ", repriced"
+		}
+		p.Changes = append(p.Changes, Change{held, row})
+	}
+	if dryRun || len(p.Changes) == 0 {
+		return p, nil
+	}
+	rows := make([]metrics.Row, len(p.Changes))
+	for i, c := range p.Changes {
+		rows[i] = c.To
+	}
+	p.Written, err = s.locked(metrics.Supersede, p.File, "swarm metrics --reprice", rows...)
+	return p, err
+}
+
+// Repriced is what a reprice did: the CSV, the rows it made (each from
+// the row it supersedes) and those it wrote, the runs collected, those
+// of them the CSV holds a row of, and of those the rows already current
+// and the runs whose usage could not be read.
+type Repriced struct {
+	File                                      string
+	Changes                                   []Change
+	Written, Collected, Held, Current, Unread int
+}
+
+// Change is a held row and the row that supersedes it.
+type Change struct{ From, To metrics.Row }
 
 // Backfilled is what a backfill did: the CSV it wrote to, the rows it
 // wrote, the runs collected and those of them the CSV held a row for.

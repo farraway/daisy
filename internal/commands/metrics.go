@@ -17,7 +17,7 @@ import (
 
 // metricsReport is the summary: the CSV, whether it exists, the flags
 // that took its rows, the rows taken and how many of them a later record
-// supersedes, and a group per kind and model.
+// supersedes, a group per kind and model, and a plan's figures per plan.
 type metricsReport struct {
 	File      string `json:"file"`
 	Exists    bool   `json:"exists"`
@@ -28,7 +28,22 @@ type metricsReport struct {
 	Rows       int            `json:"rows"`
 	Superseded int            `json:"superseded"`
 	Groups     []metricsGroup `json:"groups"`
+	Plans      []planFigures  `json:"plans"`
 	verb.Warned
+}
+
+// planFigures is a plan's plan-step rows, every role's: their tokens
+// (nil when none reports them), the code lines their measured rows added
+// (nil when none is measured), and the tokens per code line (nil without
+// tokens or code).
+type planFigures struct {
+	Plan              string `json:"plan"`
+	Rows              int    `json:"rows"`
+	Tokens            *int   `json:"tokens"`
+	RowsWithTokens    int    `json:"rows_with_tokens"`
+	Measured          int    `json:"measured"`
+	CodeAdded         *int   `json:"code_added"`
+	TokensPerCodeLine *int   `json:"tokens_per_code_line"`
 }
 
 // metricsGroup is the rows of one kind and model (nil, the text's
@@ -41,6 +56,8 @@ type metricsGroup struct {
 	Rows              int           `json:"rows"`
 	Tokens            *int          `json:"tokens"`
 	RowsWithTokens    int           `json:"rows_with_tokens"`
+	Cached            *int          `json:"tokens_cached"`
+	RowsWithCached    int           `json:"rows_with_tokens_cached"`
 	Cost              *float64      `json:"cost"`
 	RowsWithCost      int           `json:"rows_with_cost"`
 	Estimated         *float64      `json:"estimated"`
@@ -60,8 +77,9 @@ func (l *metricsLines) String() string { return fmt.Sprintf("+%d/-%d", l.Added, 
 
 // Metrics prints the summary of the home's metrics CSV: its rows grouped
 // by kind and model, a row a later one for the same step or run
-// supersedes left out; with --swarm, that swarm's runs alone, and with
-// --since, the rows written at or after that time.
+// supersedes left out, then a plan's tokens per code line it added, per
+// plan; with --swarm, that swarm's runs alone, and with --since, the
+// rows written at or after that time.
 func Metrics(c *Context) error {
 	return verb.PrintReport(c, func() (*metricsReport, error) { return readMetrics(c) }, func(r *metricsReport) {
 		if !r.Exists {
@@ -85,7 +103,7 @@ func Metrics(c *Context) error {
 		}
 		fmt.Fprintln(c.Stdout)
 		w := tabwriter.NewWriter(c.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "  kind\tmodel\trows\ttokens\tcost\testimated\tmeasured\tcode\ttests\tprose")
+		fmt.Fprintln(w, "  kind\tmodel\trows\ttokens\tcached\tcost\testimated\tmeasured\tcode\ttests\tprose")
 		for _, g := range r.Groups {
 			model := "(none)"
 			if g.Model != nil {
@@ -95,11 +113,21 @@ func Metrics(c *Context) error {
 			if g.Code != nil {
 				code, tests, prose = g.Code.String(), g.Tests.String(), g.Prose.String()
 			}
-			fmt.Fprintf(w, "  %s\t%s\t%d\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n", g.Kind, model, g.Rows,
-				some(g.Tokens, "%d", g.RowsWithTokens, g.Rows), some(g.Cost, "$%.2f", g.RowsWithCost, g.Rows),
-				some(g.Estimated, "$%.2f", g.RowsWithEstimated, g.Rows), g.Measured, code, tests, prose)
+			fmt.Fprintf(w, "  %s\t%s\t%d\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n", g.Kind, model, g.Rows,
+				some(g.Tokens, "%d", g.RowsWithTokens, g.Rows), some(g.Cached, "%d", g.RowsWithCached, g.Rows),
+				some(g.Cost, "$%.2f", g.RowsWithCost, g.Rows), some(g.Estimated, "$%.2f", g.RowsWithEstimated, g.Rows), g.Measured, code, tests, prose)
 		}
 		w.Flush()
+		if len(r.Plans) > 0 {
+			fmt.Fprintln(c.Stdout)
+			w = tabwriter.NewWriter(c.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "  plan\trows\ttokens\tcode added\ttokens per code line")
+			for _, p := range r.Plans {
+				fmt.Fprintf(w, "  %s\t%d\t%s\t%s\t%s\n", p.Plan, p.Rows, some(p.Tokens, "%d", p.RowsWithTokens, p.Rows),
+					some(p.CodeAdded, "+%d", p.Measured, p.Rows), some(p.TokensPerCodeLine, "%d", 1, 1))
+			}
+			w.Flush()
+		}
 		fmt.Fprintln(c.Stdout, "\n  A sum counts only the rows that have the value: (k/n) when k of the n do.")
 	})
 }
@@ -107,7 +135,7 @@ func Metrics(c *Context) error {
 // readMetrics reads the summary of the home's metrics CSV.
 func readMetrics(c *Context) (*metricsReport, error) {
 	var f metrics.Filter
-	r := &metricsReport{File: env.MetricsFile(c.Env.Home), Groups: []metricsGroup{}}
+	r := &metricsReport{File: env.MetricsFile(c.Env.Home), Groups: []metricsGroup{}, Plans: []planFigures{}}
 	if v, ok := c.Value("--swarm"); ok {
 		f.Swarm, r.RowsTaken.Swarm = v, &v
 	}
@@ -139,6 +167,9 @@ func readMetrics(c *Context) (*metricsReport, error) {
 		if g.WithTokens > 0 {
 			mg.Tokens = &g.Tokens
 		}
+		if g.WithCached > 0 {
+			mg.Cached, mg.RowsWithCached = &g.Cached, g.WithCached
+		}
 		if g.WithCost > 0 {
 			mg.Cost = &g.Cost
 		}
@@ -152,6 +183,19 @@ func readMetrics(c *Context) (*metricsReport, error) {
 			mg.Prose = &metricsLines{l.ProseAdded, l.ProseRemoved}
 		}
 		r.Groups = append(r.Groups, mg)
+	}
+	for _, p := range s.Plans {
+		mp := planFigures{Plan: p.Name, Rows: p.Rows, RowsWithTokens: p.WithTokens, Measured: p.Measured}
+		if p.WithTokens > 0 {
+			mp.Tokens = &p.Tokens
+		}
+		if p.Measured > 0 {
+			mp.CodeAdded = &p.CodeAdded
+		}
+		if n, ok := p.TokensPerCodeLine(); ok {
+			mp.TokensPerCodeLine = &n
+		}
+		r.Plans = append(r.Plans, mp)
 	}
 	return r, nil
 }
@@ -171,7 +215,7 @@ func some[T any](sum *T, format string, k, n int) string {
 // metricsCells are the flags whose values are cells CheckCell rules on.
 var metricsCells = []struct{ flag, column string }{
 	{"--review-rounds", "review_rounds"}, {"--tokens-in", "tokens_in"}, {"--tokens-out", "tokens_out"},
-	{"--tokens", "tokens_total"}, {"--cost", "cost_reported"}, {"--cost-estimated", "cost_estimated"},
+	{"--tokens", "tokens_total"}, {"--tokens-cached", "tokens_cached"}, {"--cost", "cost_reported"}, {"--cost-estimated", "cost_estimated"},
 	{"--root-sha", "root_sha"}, {"--home-sha", "home_sha"},
 }
 
@@ -213,7 +257,7 @@ func MetricsAdd(c *Context) error {
 		Role: "step", Provider: val("--provider"), Model: val("--model"), Effort: val("--effort"),
 		RootSHA: val("--root-sha"), HomeSHA: val("--home-sha"), PromptHash: val("--prompt-hash"), Outcome: val("--outcome"),
 		ReviewRounds: val("--review-rounds"), TokensIn: val("--tokens-in"), TokensOut: val("--tokens-out"),
-		TokensTotal: val("--tokens"), CostReported: val("--cost"), CostEstimated: val("--cost-estimated"),
+		TokensTotal: val("--tokens"), TokensCached: val("--tokens-cached"), CostReported: val("--cost"), CostEstimated: val("--cost-estimated"),
 		Range: rng, Notes: val("--notes"),
 	}
 	if v, ok := c.Value("--role"); ok {

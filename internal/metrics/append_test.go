@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -82,7 +83,7 @@ func TestAppendSkipsHeldKeys(t *testing.T) {
 	records, _ := csv.NewReader(bytes.NewReader(b)).ReadAll()
 	var notes []string
 	for _, r := range records[1:] {
-		notes = append(notes, r[len(r)-1])
+		notes = append(notes, r[slices.Index(Header, "notes")])
 	}
 	if fmt.Sprint(notes) != "[live new a step]" {
 		t.Fatalf("rows' notes %q", notes)
@@ -116,5 +117,53 @@ func TestLockGivesUpNamingTheHolder(t *testing.T) {
 	var held *ops.LockedError
 	if !errors.As(err, &held) || held.Holder == "" {
 		t.Fatalf("Lock = %v, want the holder named", err)
+	}
+}
+
+// Supersede appends each row whose cells differ from its key's last row
+// in the CSV (a key the CSV lacks included), none whose cells are that
+// row's, nor one twice, in one rewrite; with none to write the file is
+// not touched. Latest reads each key's last row back as it was written.
+func TestSupersede(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "metrics", "metrics.csv")
+	fs := ops.Real().FS()
+	run := func(unit, in, notes string) Row {
+		return Row{When: "2026-11-12T10:00:00Z", Kind: SwarmRun, Source: "acme/swarm-app", Unit: unit, Role: "worker", TokensIn: in, TokensCached: "1", Notes: notes,
+			Lines: &Lines{CodeAdded: 3, TestsRemoved: 1}, Range: "a..b"}
+	}
+	if n, err := Append(fs, file, run("1-worker-1", "10", "#1"), run("2-worker-1", "20", "#2")); n != 2 || err != nil {
+		t.Fatalf("Append = %d, %v", n, err)
+	}
+	b, _ := os.ReadFile(file)
+	latest, err := Latest(b)
+	if err != nil || len(latest) != 2 {
+		t.Fatalf("Latest = %v, %v", latest, err)
+	}
+	held := latest[run("1-worker-1", "", "").Key()]
+	if !slices.Equal(held.cells(), run("1-worker-1", "10", "#1").cells()) {
+		t.Fatalf("Latest row %q", held.cells())
+	}
+	repriced := held
+	repriced.TokensIn, repriced.TokensCached, repriced.Notes = "15", "5", "#1, repriced"
+	n, err := Supersede(fs, file, repriced, run("2-worker-1", "20", "#2"), repriced, run("3-worker-1", "30", "#3"))
+	if n != 2 || err != nil {
+		t.Fatalf("Supersede = %d, %v", n, err)
+	}
+	after, _ := os.ReadFile(file)
+	records, _ := csv.NewReader(bytes.NewReader(after)).ReadAll()
+	var notes []string
+	for _, r := range records[1:] {
+		notes = append(notes, r[slices.Index(Header, "notes")])
+	}
+	if fmt.Sprint(notes) != "[#1 #2 #1, repriced #3]" {
+		t.Fatalf("rows' notes %q", notes)
+	}
+	if s, err := Summarize(after, Filter{}); err != nil || s.Rows != 4 || s.Superseded != 1 {
+		t.Fatalf("Summarize = %+v, %v", s, err)
+	}
+	os.Chmod(filepath.Dir(file), 0o555) // a rewrite would fail
+	defer os.Chmod(filepath.Dir(file), 0o755)
+	if n, err := Supersede(fs, file, repriced, run("3-worker-1", "30", "#3")); n != 0 || err != nil {
+		t.Errorf("Supersede of current rows = %d, %v", n, err)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"slices"
 	"strconv"
@@ -30,14 +31,22 @@ const (
 )
 
 // Header is the CSV's columns, in their one order. A column is only ever
-// added at the end, with every older row then one cell short.
+// added at the end: a file under an older header (Header cut short, at
+// least firstColumns long) is read with the columns it lacks empty, and
+// the next append rewrites its header line to Header, its rows left as
+// they were, so an older row is a cell short of a newer one.
 var Header = []string{
 	"when", "kind", "plan_or_swarm", "step_or_run", "role", "provider", "model", "effort",
 	"root_sha", "home_sha", "prompt_hash", "outcome", "review_rounds",
 	"tokens_in", "tokens_out", "tokens_total", "cost_reported", "cost_estimated",
 	"code_added", "code_removed", "tests_added", "tests_removed", "prose_added", "prose_removed",
-	"binary_files", "range", "notes",
+	"binary_files", "range", "notes", "tokens_cached",
 }
+
+// firstColumns is how many of Header's columns the first header had
+// (Step 16a of the plan that clears the Deferred list), the fewest a
+// header or a row holds.
+const firstColumns = 27
 
 // Row is one record. Every field is a cell as written; an empty cell is
 // unknown, never zero (a run with no reported cost has an empty
@@ -51,7 +60,8 @@ type Row struct {
 	RootSHA, HomeSHA                 string // the root and the home in use: every prompt and skill
 	PromptHash, Outcome              string
 	ReviewRounds                     string
-	TokensIn, TokensOut, TokensTotal string
+	TokensIn, TokensOut, TokensTotal string // tokens_in holds the input read from a cache
+	TokensCached                     string // the part of TokensIn read from a cache
 	CostReported, CostEstimated      string // in US dollars
 	Lines                            *Lines
 	Range                            string // the commit range Lines was measured over
@@ -199,7 +209,7 @@ func CheckCell(column, value string) string {
 		return ""
 	}
 	switch column {
-	case "review_rounds", "tokens_in", "tokens_out", "tokens_total", "code_added", "code_removed",
+	case "review_rounds", "tokens_in", "tokens_out", "tokens_total", "tokens_cached", "code_added", "code_removed",
 		"tests_added", "tests_removed", "prose_added", "prose_removed", "binary_files":
 		if !wholeNumber.MatchString(value) {
 			return "must be a whole number"
@@ -226,7 +236,25 @@ func (r Row) cells() []string {
 	} else {
 		c = append(c, "", "", "", "", "", "", "")
 	}
-	return append(c, r.Range, r.Notes)
+	return append(c, r.Range, r.Notes, r.TokensCached)
+}
+
+// parseRow is the row whose cells rec are (Header's, every one there):
+// the inverse of cells for a row whose line cells are all set or all
+// empty, as every writer writes them.
+func parseRow(rec []string) Row {
+	cell := func(name string) string { return rec[slices.Index(Header, name)] }
+	r := Row{When: cell("when"), Kind: Kind(cell("kind")), Source: cell("plan_or_swarm"), Unit: cell("step_or_run"),
+		Role: cell("role"), Provider: cell("provider"), Model: cell("model"), Effort: cell("effort"),
+		RootSHA: cell("root_sha"), HomeSHA: cell("home_sha"), PromptHash: cell("prompt_hash"), Outcome: cell("outcome"),
+		ReviewRounds: cell("review_rounds"), TokensIn: cell("tokens_in"), TokensOut: cell("tokens_out"), TokensTotal: cell("tokens_total"),
+		TokensCached: cell("tokens_cached"), CostReported: cell("cost_reported"), CostEstimated: cell("cost_estimated"),
+		Range: cell("range"), Notes: cell("notes")}
+	if cell("code_added") != "" {
+		r.Lines = &Lines{atoi(cell("code_added")), atoi(cell("code_removed")), atoi(cell("tests_added")),
+			atoi(cell("tests_removed")), atoi(cell("prose_added")), atoi(cell("prose_removed")), atoi(cell("binary_files"))}
+	}
+	return r
 }
 
 // Check is why r cannot be written, nil when it can.
@@ -247,8 +275,10 @@ func (r Row) Check() error {
 
 // AppendCSV is the CSV file's content with rows appended: the header
 // first when the file is empty, else the file's own header, which must
-// be Header, so a row never lands under other columns. The bytes before
-// the rows are the file's, a final newline added when it has none.
+// be Header or an older one (Header cut short), so a row never lands
+// under other columns; an older header's line is rewritten to Header's.
+// The bytes after the header line are the file's, a final newline added
+// when it has none.
 func AppendCSV(file []byte, rows ...Row) ([]byte, error) {
 	for _, r := range rows {
 		if err := r.Check(); err != nil {
@@ -260,11 +290,17 @@ func AppendCSV(file []byte, rows ...Row) ([]byte, error) {
 	if len(bytes.TrimSpace(file)) == 0 {
 		w.Write(Header)
 	} else {
-		if err := checkHeader(file); err != nil {
+		n, err := checkRows(file)
+		if err != nil {
 			return nil, err
 		}
+		if n < len(Header) {
+			w.Write(Header)
+			w.Flush()
+			_, file, _ = bytes.Cut(file, []byte("\n"))
+		}
 		b.Write(file)
-		if file[len(file)-1] != '\n' {
+		if len(file) > 0 && file[len(file)-1] != '\n' {
 			b.WriteByte('\n')
 		}
 	}
@@ -297,29 +333,70 @@ func Keys(file []byte) (map[string]bool, error) {
 	return keys, nil
 }
 
-// records is the CSV's rows, its header checked and left out.
+// Latest is the last row of each key the CSV holds, the row that
+// supersedes the others of its key (Summarize), by its key.
+func Latest(file []byte) (map[string]Row, error) {
+	recs, err := records(file)
+	if err != nil {
+		return nil, err
+	}
+	latest := map[string]Row{}
+	for _, rec := range recs {
+		latest[key(rec)] = parseRow(rec)
+	}
+	return latest, nil
+}
+
+// records is the CSV's rows, its header checked and left out, each row
+// with every one of Header's cells, those its header lacked empty.
 func records(file []byte) ([][]string, error) {
 	if len(bytes.TrimSpace(file)) == 0 {
 		return nil, nil
 	}
-	if err := checkHeader(file); err != nil {
+	if _, err := checkRows(file); err != nil {
 		return nil, err
 	}
 	r := csv.NewReader(bytes.NewReader(file))
-	r.FieldsPerRecord = len(Header)
+	r.FieldsPerRecord = -1
 	recs, err := r.ReadAll()
 	if err != nil {
 		return nil, err
 	}
+	for i, rec := range recs {
+		recs[i] = append(rec, make([]string, len(Header)-len(rec))...)
+	}
 	return recs[1:], nil
 }
 
-func checkHeader(file []byte) error {
-	header, err := csv.NewReader(bytes.NewReader(file)).Read()
-	if err != nil || !slices.Equal(header, Header) {
-		return fmt.Errorf("its header is not this Daisy's columns (%s); move the file aside and record again", strings.Join(Header, ","))
+// checkRows is how many columns the CSV's header has, which must be
+// Header's or an older header's (Header cut short, at least
+// firstColumns long); an error when it is another, or when a row has
+// fewer cells than firstColumns or more than its header, the row
+// named. A row is as short as the header it was written under, which
+// the file's header may since have outgrown.
+func checkRows(file []byte) (int, error) {
+	r := csv.NewReader(bytes.NewReader(file))
+	r.FieldsPerRecord = -1
+	header, err := r.Read()
+	if err != nil || len(header) < firstColumns || !slices.Equal(header, Header[:min(len(header), len(Header))]) || len(header) > len(Header) {
+		return 0, fmt.Errorf("its header is not this Daisy's columns (%s); move the file aside and record again", strings.Join(Header, ","))
 	}
-	return nil
+	for n := 2; ; n++ {
+		rec, err := r.Read()
+		if err == io.EOF {
+			return len(header), nil
+		}
+		if err != nil {
+			return 0, err
+		}
+		if len(rec) < firstColumns || len(rec) > len(header) {
+			want := strconv.Itoa(len(header))
+			if len(header) > firstColumns {
+				want = fmt.Sprintf("%d to %d", firstColumns, len(header))
+			}
+			return 0, fmt.Errorf("row %d has %d cells, not %s", n, len(rec), want)
+		}
+	}
 }
 
 // TableHeader is the plan's `## Metrics` table's first two lines.

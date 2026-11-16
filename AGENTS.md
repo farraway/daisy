@@ -255,7 +255,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm init [--defaults] [--api <url>]` | Declare the swarm: swarm.json, prompts, labels |
 | Swarm | `daisy swarm prompt build [--force] [--dry-run]` | Reseed prompts/ from this Daisy's defaults; an edited prompt is kept |
 | Swarm | `daisy swarm apply [--once]` | Reconcile the forge: launch members, post their output, move labels |
-| Swarm | `daisy swarm metrics --backfill` | Write a metrics row for each collected run the home's CSV has none for |
+| Swarm | `daisy swarm metrics --backfill \| --reprice [--dry-run]` | Write each collected run's missing metrics row (--backfill), or supersede a row its output now reads otherwise (--reprice) |
 | Swarm | `daisy swarm status [--json] [--waiting]` | Stages, gates, running members, what waits for you (--waiting: that alone) (read-only) |
 | Swarm | `daisy swarm list [--json]` | The swarms this machine runs: clone, home, pause; from anywhere (read-only) |
 | Swarm | `daisy swarm journal [--json] [--issue <n>] \| --mark <run>` | The journal since the line marked seen (--issue: one issue's lines); --mark moves the mark, its one write |

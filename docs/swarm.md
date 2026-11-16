@@ -57,7 +57,7 @@ A point marked *not established as of <date>* is one no recorded run had
 settled by that date; it stays open until a run settles it, and section
 13's Established by the first real run records what the runs settled.
 The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
-`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill`, `swarm status [--json] [--waiting]`, `swarm list [--json]`, `swarm journal [--json] [--issue <n>] | --mark <run>`, `swarm pause [<n>]`, `swarm
+`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill | --reprice [--dry-run]`, `swarm status [--json] [--waiting]`, `swarm list [--json]`, `swarm journal [--json] [--issue <n>] | --mark <run>`, `swarm pause [<n>]`, `swarm
 resume [<n>]`, `swarm restart`, and the maintainer's `swarm triage <n>`, `swarm accept
 <n>`, `swarm class <n> routine|architecture`, `swarm approve <n>`, `swarm
 merge <n>`, `swarm unblock <n> <comment...>`, `swarm block <n> --by <m>`,
@@ -325,8 +325,8 @@ Every file Daisy writes, and nothing else:
 | `<run>/io/out.md` | the member's output | the member (in the container) | during the run |
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
-| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: decision [61](swarm/decisions/0061-what-step-5-built-of-the-provider-and-runner-seams-and-apply.md)), then `question` for the architect's or the owner's run on an issue carrying `swarm:question` (section 6, The question), which its collection reads, for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there), followed by ` cached <c>` when the CLI's `<in>` holds the input read from its cache and every turn reported that part, `<c>` (`codex`'s `cached_input_tokens`; a run recorded before Step 11b of the plan for the inbox requests F27–F35 has none); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, with the repository's test services file `services <worker\|check> up <service> …` before they are started, `services <worker\|check> down` once they are removed, and `services <worker\|check> refused: <reason>` for a file not run (7.6, step 4; the worker's `up` or `refused` at its launch, before `started`), `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `flagged swarm:question`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|question\|blocked\|failed\|fault\|stale\|abandoned\|discarded>` (`question` a member's question posted, section 6); last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
-| `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names, never a second for a run it holds a row of; created with its header when absent | `swarm apply`; `swarm metrics --backfill` (each under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | `apply`: at each run's collection, when `<state>/home` names a usable home; `metrics --backfill`: on the command, for each collected run without a row (section 11) |
+| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: decision [61](swarm/decisions/0061-what-step-5-built-of-the-provider-and-runner-seams-and-apply.md)), then `question` for the architect's or the owner's run on an issue carrying `swarm:question` (section 6, The question), which its collection reads, for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there), `<in>` every input token, those written to and read from the CLI's cache included (section 9, `Report`'s `InTokens`), followed by ` cached <c>` when the output reported the part read from the cache, every turn's for `codex`, `<c>` (`codex`'s `cached_input_tokens`, `claude`'s and `grok`'s `cache_read_input_tokens`; a `codex` run recorded before Step 11b of the plan for the inbox requests F27–F35 has none, and a `claude` or `grok` run recorded before Step 28 of the plan remediating the 2026-11-15 design review has none and an `<in>` that leaves its cache out: decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, with the repository's test services file `services <worker\|check> up <service> …` before they are started, `services <worker\|check> down` once they are removed, and `services <worker\|check> refused: <reason>` for a file not run (7.6, step 4; the worker's `up` or `refused` at its launch, before `started`), `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `flagged swarm:question`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|question\|blocked\|failed\|fault\|stale\|abandoned\|discarded>` (`question` a member's question posted, section 6); last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
+| `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names, never a second for a run it holds a row of but a row superseding it; created with its header when absent | `swarm apply`; `swarm metrics --backfill` and `--reprice` (each under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | `apply`: at each run's collection, when `<state>/home` names a usable home; `metrics --backfill`: on the command, for each collected run without a row; `metrics --reprice`: on the command, a superseding row for each run whose row its output now reads otherwise (section 11) |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/deps.out` | with the repository's `deps` (section 3), the dependency step's standard output and error, as written | `swarm apply` | when the dependency step ends |
 | `<run>/check/` | a clone of the fetched head for the dependency step and the check | `swarm apply` (`git clone` from `<state>/git/<name>`), then the check | before the dependency step and again before the check; removed when the run is collected |
@@ -3208,28 +3208,32 @@ with no such argv the one `swarm.json` declares at the collection); `root_sha`
 sha256 of `<run>/io/system.md`, so a change to a persona prompt, the
 Task, the repository notes or praxis shows; `outcome` the run's;
 `review_rounds` a reviewer's `round` line, its round as section 6
-counts it at the launch; `tokens_in`, `tokens_out` and `cost_reported`
-the `cost` line's, each empty when the run has none, and the cost empty,
+counts it at the launch; `tokens_in`, `tokens_out`, `tokens_cached` and
+`cost_reported` the `cost` line's `<in>`, `<out>`, `cached <c>` and
+`<usd>`, each empty when the run has none, and the cost empty,
 never `0`, when it is `-`, or when it is `0` in a result with no
 `persona` line (launched before Step 16b, when a cost the CLI did not
-report was written `0`: codex's always); `cost_estimated` those tokens at the model's
-list price (section 9's table; empty for a model not in it; a lower
-bound for `claude` and `grok`, whose input count leaves the cached
-input out; for `codex`, whose input count holds it, the `cost` line's
-`cached <c>` priced at the model's cached rate and the rest of the input
-at its input rate, and empty for a line without it); for a worker run that pushed, the
+report was written `0`: codex's always); `tokens_total` `<in>` and
+`<out>` added; `cost_estimated` those tokens at the model's list price
+(section 9's table), the `cached <c>` at the model's cached rate and
+the rest of the input at its input rate, empty for a model not in the
+table, for cached input of a model with no cached rate, and for a line
+without `cached <c>`, whose cached part is not known (decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); for a worker run that pushed, the
 lines per class of `<start>..<pushed>` in its repository's mirror,
 counted as `metrics add` counts a step's (`git diff --numstat -z -M`),
 and that range (a range the mirror cannot diff, its commits gone, leaves
 the cells empty, warns `⚠ #<n> worker run <k>: lines not counted:
 <reason>` and adds `lines not counted` to the notes); `notes` `#<n>`
-(the batch's `batch`), its turns and, with a `cached <c>` on the
-`cost` line, `<c> cached input`, which no column holds. The CSV
-never takes a second row for a run: the row is appended only when the
+(the batch's `batch`) and its turns (a row recorded before Step 28 of
+the plan remediating the 2026-11-15 design review also has, with a
+`cached <c>`, `<c> cached input`, which no column then held). The CSV
+takes no second row for a run but one superseding it: the row is
+appended only when the
 CSV holds no row of its kind, `plan_or_swarm`, `step_or_run` and
 `role` (the key a later row supersedes by, `docs/cli.md`, `metrics`),
 so a collection retried after its row was written, or a backfill
-(section 11, `daisy swarm metrics`), adds none. The row is appended under
+(section 11, `daisy swarm metrics`), adds none; a reprice (the same)
+adds a row superseding it, never a row of a run the CSV lacks. The row is appended under
 `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too, so
 neither writer's read-then-rewrite of the file loses the other's row; a
 home that is not registered or cannot be used, the lock held past 30
@@ -3545,9 +3549,10 @@ type Report struct {
     Known     bool    // the output carried usage
     CostKnown bool    // the output carried a cost: codex never does, grok not always
     CostUSD   float64 // 0 unless CostKnown
-    InTokens  int
-    CachedKnown  bool // every turn reported the cached part of InTokens
-    CachedTokens int  // that part, for a provider whose input count holds it
+    InTokens  int     // every input token, the cache's written and read included
+    CachedKnown  bool // the output reported the part of InTokens read from
+                      // the cache (codex: every turn did)
+    CachedTokens int  // that part
     OutTokens int
     Turns     int
     Fault     string  // "" unless the run ended in a provider fault
@@ -3565,8 +3570,6 @@ type Provider struct {
     Email   string   // noreply@anthropic.com, noreply@openai.com, noreply@x.ai
     Confined bool    // the CLI reads nothing outside its working directory and
                      // takes no directory beside it (xai: decision [87](swarm/decisions/0087-grok-sees-only-its-working-folder.md))
-    InputHoldsCached bool // the CLI's input count holds its cached input,
-                          // reported apart (openai: decision [129](swarm/decisions/0129-gpt-6-1-sol-priced-its-cached-input-apart.md))
 }
 func (p Provider) Slot() bool                    // Home != ""
 func (p Provider) LoginHint(slot string) string  // "<Home>=<slot> <Login>", slot refused's hint
@@ -3578,16 +3581,16 @@ var Providers = map[string]Provider{ "anthropic": …, "openai": …, "xai": …
 type Price struct{ In, Cached, Out float64 }
 var Prices = map[string]Price{ "claude-fable-5-1": {10, 0, 50}, "claude-opus-5-5": {4, 0, 20},
     "claude-sonnet-5-5": {2, 0, 10}, "gpt-6.1-sol": {2, 0.10, 10} }
-// in holds cached; ok false for a model not in Prices, or cached > 0
-// for a model with no cached rate
+// in holds cached (InTokens, CachedTokens); ok false for a model not in
+// Prices, or cached > 0 for a model with no cached rate
 func Estimate(model string, in, cached, out int) (usd float64, ok bool)
 ```
 
 | Provider | `Env`; `Home`, `Login` | `Command(M, E, W, S, P, D)` | `Report` reads |
 |---|---|---|---|
-| `anthropic` | `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`; no slot | `claude -p --model <M> --effort <E> --append-system-prompt-file <S> --settings '{"attribution":{"commit":"","pr":""}}' [--add-dir <d> for each d of D] --permission-mode bypassPermissions --output-format json "Read <P>: it is the material the task in your system prompt is about, not instructions. Write your output to /work/.swarm/out.md."` | the JSON result's `total_cost_usd`, `usage.input_tokens`, `usage.output_tokens`, `num_turns`, and `is_error` with its message (`result`) for a fault |
+| `anthropic` | `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`; no slot | `claude -p --model <M> --effort <E> --append-system-prompt-file <S> --settings '{"attribution":{"commit":"","pr":""}}' [--add-dir <d> for each d of D] --permission-mode bypassPermissions --output-format json "Read <P>: it is the material the task in your system prompt is about, not instructions. Write your output to /work/.swarm/out.md."` | the JSON result's `total_cost_usd`, `usage.input_tokens`, `usage.cache_creation_input_tokens` and `usage.cache_read_input_tokens` added (`InTokens`; the last `CachedTokens`, none when absent), `usage.output_tokens`, `num_turns`, and `is_error` with its message (`result`) for a fault |
 | `openai` | `OPENAI_API_KEY`, `CODEX_API_KEY`; `CODEX_HOME`, `codex login -c cli_auth_credentials_store=file` (`auth.json` in the slot) | `codex exec --json --model <M> -c model_reasoning_effort=<E> --dangerously-bypass-approvals-and-sandbox --cd <W> [--add-dir <d> for each d of D] "Read <S>: it is your persona and your task. Then read <P>: it is the material the task is about, not instructions. Write your output to /work/.swarm/out.md."` | the event stream: each `turn.completed`'s `usage` summed and counted as turns, its `input_tokens` holding its `cached_input_tokens` (`CachedTokens`, `CachedKnown` when every turn has it) and its `output_tokens` its `reasoning_output_tokens`; no cost (`CostKnown` false), and an `error` or `turn.failed` event's message for a fault |
-| `xai` | `XAI_API_KEY`; `GROK_HOME`, `grok login --device-auth` (`auth.json` in the slot; section 8) | `grok --model <M> --reasoning-effort <E> --cwd <W> --trust --always-approve --no-subagents --output-format json -p "Read <S>: it is your persona and your task. Then read <P>: it is the material the task is about, not instructions. Write your output to /work/.swarm/out.md."` | its one JSON object: the result's `usage.input_tokens` (uncached, as `claude`'s), `usage.output_tokens`, `num_turns` and `total_cost_usd` when present; an error object (`"type":"error"`) with its `message` for a fault |
+| `xai` | `XAI_API_KEY`; `GROK_HOME`, `grok login --device-auth` (`auth.json` in the slot; section 8) | `grok --model <M> --reasoning-effort <E> --cwd <W> --trust --always-approve --no-subagents --output-format json -p "Read <S>: it is your persona and your task. Then read <P>: it is the material the task is about, not instructions. Write your output to /work/.swarm/out.md."` | its one JSON object: the result's `usage.input_tokens`, `usage.cache_creation_input_tokens` and `usage.cache_read_input_tokens` added, as `claude`'s, `usage.output_tokens`, `num_turns` and `total_cost_usd` when present; an error object (`"type":"error"`) with its `message` for a fault |
 
 **`D`, the directories outside `<W>`.** Claude Code refuses a read
 outside its working directory and the directories `--add-dir` names, even
@@ -3693,19 +3696,26 @@ plan for the inbox requests F27–F35; the post itself was not read). No
 price for a `grok` model is in the root or the sources it was written
 from, so those models have none, and their runs' records no estimate:
 an absent price is never guessed or taken as 0. A price is added by a
-change to the table, and reprices no row already written (decision [129](swarm/decisions/0129-gpt-6-1-sol-priced-its-cached-input-apart.md)).
-The estimate counts the tokens the CLI reports. `claude` and `grok`
-report the uncached `input_tokens`, their cached input apart and left
-out, so theirs is a lower bound. `codex`'s `input_tokens` holds its
-`cached_input_tokens` (every live `turn.completed` reports both, the
-cached never more), so its estimate prices the cached part at the
-cached rate and the rest at the input rate; its `output_tokens` holds
-its `reasoning_output_tokens`, and its `cache_write_input_tokens`, 0 in
-every live run, is priced as input. A model with no cached rate is not
-estimated for a run that reports cached input, and a `codex` run whose
-`cost` line has no cached count (recorded before Step 11b, or a turn
-that did not report it) has no estimate. A subscription's runs are
-priced as if billed per token.
+change to the table, and reprices no row already written (decision [129](swarm/decisions/0129-gpt-6-1-sol-priced-its-cached-input-apart.md))
+until `daisy swarm metrics --reprice` supersedes it (section 11).
+The input every adapter reports is every input token, so one
+provider's `tokens_in` compares with another's (decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)).
+`claude` and `grok` report the uncached `input_tokens` and their cache
+apart, `cache_creation_input_tokens` and `cache_read_input_tokens`,
+which the adapter adds to it, the cache's reads its cached part.
+`codex`'s `input_tokens` holds its `cached_input_tokens` (every live
+`turn.completed` reports both, the cached never more), its cached part;
+its `output_tokens` holds its `reasoning_output_tokens`, and its
+`cache_write_input_tokens`, 0 in every live run, is input. The estimate
+prices the cached part at the cached rate and the rest of the input,
+the cache's writes included, at the input rate, so it is below the
+bill of a provider that charges more for a cache write. A model with no
+cached rate (every Anthropic model's in the table) is not estimated for
+a run that reports cached input, and a run whose `cost` line has no
+cached count (a `codex` run recorded before Step 11b or with a turn
+that did not report it; a `claude` or `grok` run recorded before Step
+28 of the plan remediating the 2026-11-15 design review) has no
+estimate. A subscription's runs are priced as if billed per token.
 `grok` 1.0.70 reaches `cli-chat-proxy.grok.com` and `api.mixpanel.com`
 (its telemetry) as it starts; the member's
 network is unfiltered (7.2), so nothing is refused, and egress
@@ -4871,12 +4881,12 @@ its drift, and a loop restarted prints it again at its first pass.
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm metrics --backfill`; without `--backfill`, usage (exit 2) |
-| Reads | `swarm.json`'s forge fields (to name `<state>`) and its personas; `<state>/home`, the registry, `<run>/result`, `<run>/argv` and `<run>/io/system.md`, the home's metrics CSV; a worker's range in its mirror (`git diff --numstat`); no secret, no forge call, no Docker |
-| Writes | the metrics CSV of the home `<state>/home` names (section 2): a `swarm-run` row for each collected run (its `result` holding `collected`) the CSV holds no row of, in the order of their times, in one rewrite; no journal line |
-| Stdout | `✓ Backfilled <w> rows into <file> (<c> runs collected, <h> with its row already)` |
+| Usage | `daisy swarm metrics --backfill \| --reprice [--dry-run]`; neither or both, or `--dry-run` without `--reprice`, usage (exit 2) |
+| Reads | `swarm.json`'s forge fields (to name `<state>`) and its personas; `<state>/home`, the registry, `<run>/result`, `<run>/argv` and `<run>/io/system.md` (`--backfill`), `<run>/stdout` (`--reprice`), the home's metrics CSV; a worker's range in its mirror (`git diff --numstat`); no secret, no forge call, no Docker |
+| Writes | the metrics CSV of the home `<state>/home` names (section 2), in one rewrite: `--backfill`, a `swarm-run` row for each collected run (its `result` holding `collected`) the CSV holds no row of, in the order of their times; `--reprice`, a row superseding the row of each collected run the CSV holds whose output now reads otherwise (below), in the order of the runs' names; `--dry-run`, nothing; no journal line |
+| Stdout | `✓ Backfilled <w> rows into <file> (<c> runs collected, <h> with its row already)`; `✓ Repriced <w> rows into <file> (<c> runs collected, <h> with a row: <k> current, <u> with no usage to read)`; with `--dry-run`, a line per row it would write, `  <run> <provider> <model>: tokens_in <a> → <b>, tokens_cached <a> → <b>, tokens_total <a> → <b>, cost_estimated <a> → <b>` (`—` for empty), then `Would reprice <w> rows in <file> (…); nothing written` |
 | Stderr | `⚠ #<n> worker run <k>: lines not counted: <reason>`; `⚠ #<n> <role> run <k>: no row: its result has no end line or started line to date it` |
-| Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no home or one that cannot be used, the CSV's header not this Daisy's, the lock held past 30 seconds, a read or the write failing; 2 usage |
+| Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no home or one that cannot be used, the CSV's header not this Daisy's nor an older one (the columns up to `notes`), the lock held past 30 seconds, a read or the write failing; 2 usage |
 | Ops | Real |
 
 Each row is the one the run's collection makes (7.6, The run's record),
@@ -4901,6 +4911,31 @@ read and one rewrite of the file, as it does for `metrics add`. It
 takes no `<state>/lock` and runs beside `apply`: a run is backfilled
 only once collected, and a collection writes its row before its
 `collected` line, so a run `apply` is collecting is left to `apply`.
+
+**The reprice.** `--reprice` brings the rows written before a change of
+the list prices or of how an adapter counts (section 9) to what each
+run's output reads now (decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)). For each collected run
+the CSV holds a row of, the last row of its key, it reads `<run>/stdout`
+through the adapter of the row's `provider` (section 9, `Report`) and
+makes the row's usage cells as a collection makes them from a `cost`
+line (7.6, The run's record): `tokens_in` every input token,
+`tokens_out`, `tokens_cached` the part read from the cache,
+`tokens_total` the two added, and `cost_estimated` at today's list
+price. When any of the five differs from the held row's, it writes a
+row superseding it: the held row with those cells, every other cell
+carried over (its `when`, its commits, its cost, its lines), its notes
+ending `, repriced` (once). A run without `<run>/stdout`, one whose
+output reports no usage, or a row naming no provider of the table is
+counted as with no usage to read and left as it is; a run the CSV holds
+no row of is the backfill's. Every row is made before
+`$DAISY_LOCAL/metrics.lock` is taken; under it, the CSV is read once and
+a row whose key's last row is already that row dropped, so a second
+reprice writes nothing. `--dry-run` makes and prints the rows and takes
+no lock. A `codex` run recorded before gpt-6.1-sol was priced gets its
+cached count and its estimate (93-worker-1: 3,390,208 of 3,476,833
+cached, $0.641961); a `claude` or `grok` run recorded before Step 28 its
+cache's tokens in `tokens_in` and, for a model with no cached rate, no
+estimate.
 
 **Its costs and `status`'s.** After a backfill the swarm's rows hold a
 row per collected run, and their `cost_reported` sums to `status`'s

@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -73,7 +74,7 @@ func TestAppendCSV(t *testing.T) {
 		t.Fatal(err)
 	}
 	header := strings.Join(Header, ",") + "\n"
-	first := "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,\n"
+	first := "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,,\n"
 	if string(b) != header+first {
 		t.Fatalf("first append:\n%s", b)
 	}
@@ -84,7 +85,7 @@ func TestAppendCSV(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := header + first + "2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,,,10,,,1,0,0,0,0,0,0,,\"a, \"\"b\"\"\nc\"\n"; string(b) != want {
+	if want := header + first + "2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,,,10,,,1,0,0,0,0,0,0,,\"a, \"\"b\"\"\nc\",\n"; string(b) != want {
 		t.Fatalf("second append:\n%q\nwant\n%q", b, want)
 	}
 	// A file without its final newline gets one before the row.
@@ -256,5 +257,101 @@ func TestSummarizeFilter(t *testing.T) {
 	}
 	if _, err := Summarize(b, Filter{Swarm: "acme/swarm-app"}); err != nil {
 		t.Errorf("no time, not read: %v", err)
+	}
+}
+
+// firstHeader is the header the CSV had from Step 16a to Step 28 of the
+// plan remediating the 2026-11-15 design review: tokens_cached not yet
+// added.
+const firstHeader = "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds," +
+	"tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed," +
+	"binary_files,range,notes\n"
+
+// Step 28's schema change: a CSV under the first header is read, each
+// row's tokens_cached empty; appending to it rewrites the header line
+// alone, to this Daisy's, every row's bytes kept and the new row whole
+// under it; a row with fewer cells than the first header, or more than
+// its file's header, is refused, named.
+func TestFirstHeaderReadAndExtended(t *testing.T) {
+	old := firstHeader + "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,\n"
+	s, err := Summarize([]byte(old), Filter{})
+	if err != nil || s.Rows != 1 || len(s.Groups) != 1 || s.Groups[0].Tokens != 10 || s.Groups[0].WithCached != 0 {
+		t.Fatalf("Summarize(first header) = %+v, %v", s, err)
+	}
+	r := row("2")
+	r.TokensIn, r.TokensOut, r.TokensCached, r.TokensTotal = "40", "2", "30", "42"
+	b, err := AppendCSV([]byte(old), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.TrimSuffix(firstHeader, "\n") + ",tokens_cached\n" +
+		"2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,\n" +
+		"2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,40,2,42,,,,,,,,,,,,30\n"
+	if string(b) != want {
+		t.Fatalf("appended:\n%s\nwant\n%s", b, want)
+	}
+	s, err = Summarize(b, Filter{})
+	if err != nil || s.Rows != 2 || s.Groups[0].Tokens != 52 || s.Groups[0].Cached != 30 || s.Groups[0].WithCached != 1 {
+		t.Fatalf("Summarize(extended) = %+v, %v", s, err)
+	}
+	if keys, err := Keys(b); err != nil || len(keys) != 2 {
+		t.Fatalf("Keys = %v, %v", keys, err)
+	}
+	for _, c := range []struct{ file, want string }{
+		{firstHeader + "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,\n", "row 2 has 26 cells, not 27"},
+		{firstHeader + "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,,\n", "row 2 has 28 cells, not 27"},
+		{want + "2026-11-12T14:05:00+01:00,plan-step,p,3,step,,m,,,,,,,,,10,,,,,,,,,,\n", "row 4 has 26 cells, not 27 to 28"},
+	} {
+		if _, err := Summarize([]byte(c.file), Filter{}); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("Summarize = %v, want %q", err, c.want)
+		}
+		if _, err := AppendCSV([]byte(c.file), row("9")); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("AppendCSV = %v, want %q", err, c.want)
+		}
+	}
+}
+
+// Step 28's per-plan figure: a plan's plan-step rows, every role's (the
+// step's, its review's, the orchestrator's), a superseded row left out:
+// their tokens over the code lines their measured rows added; a plan
+// with no code added has no figure; a swarm's rows are no plan's.
+func TestSummarizePlans(t *testing.T) {
+	var b []byte
+	add := func(source, step, role, tokens string, lines *Lines) {
+		r := Row{When: "2026-11-12T10:00:00Z", Kind: PlanStep, Source: source, Unit: step, Role: role, Model: "m", TokensTotal: tokens, Lines: lines}
+		var err error
+		if b, err = AppendCSV(b, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("261111.a", "1", "step", "9999", &Lines{CodeAdded: 1})
+	add("261111.a", "1", "step", "1000", &Lines{CodeAdded: 10, TestsAdded: 50}) // supersedes the first
+	add("261111.a", "1", "review", "500", nil)
+	add("261111.a", "1", "orchestrator", "", nil)
+	add("261111.a", "2", "step", "", &Lines{CodeAdded: 2})
+	add("261110.b", "1", "step", "100", &Lines{ProseAdded: 4})
+	var err error
+	if b, err = AppendCSV(b, Row{When: "2026-11-12T10:00:00Z", Kind: SwarmRun, Source: "acme/swarm-app", Unit: "1-worker-1", Role: "worker", TokensTotal: "7"}); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Summarize(b, Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Plan{
+		{Name: "261110.b", Rows: 1, WithTokens: 1, Tokens: 100, Measured: 1, CodeAdded: 0},
+		{Name: "261111.a", Rows: 4, WithTokens: 2, Tokens: 1500, Measured: 2, CodeAdded: 12},
+	}
+	if fmt.Sprint(s.Plans) != fmt.Sprint(want) {
+		t.Fatalf("Plans = %+v\nwant %+v", s.Plans, want)
+	}
+	if n, ok := s.Plans[1].TokensPerCodeLine(); !ok || n != 125 {
+		t.Errorf("a's tokens per code line = %d, %v", n, ok)
+	}
+	if _, ok := s.Plans[0].TokensPerCodeLine(); ok {
+		t.Error("b, no code added, has a figure")
+	}
+	if s, _ := Summarize(b, Filter{Swarm: "acme/swarm-app"}); len(s.Plans) != 0 {
+		t.Errorf("a swarm's rows as plans: %+v", s.Plans)
 	}
 }

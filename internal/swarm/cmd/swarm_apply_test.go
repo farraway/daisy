@@ -225,7 +225,7 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	result := a.result("1-architect-1")
 	lines := strings.Split(strings.TrimSuffix(result, "\n"), "\n")
 	if !strings.HasPrefix(lines[0], "start app ") || !strings.HasPrefix(lines[1], "start lib ") ||
-		strings.Join(lines[2:], "\n") != resLines+"label swarm:proposal-accepted\nstarted 2026-11-06T15:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\npersona anthropic claude-fable-5-1 high\nexited 0 2026-11-06T15:00:00Z\ncost 0.25 tokens 10/20 turns 4\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\nrecorded\noutcome posted\ncollected" {
+		strings.Join(lines[2:], "\n") != resLines+"label swarm:proposal-accepted\nstarted 2026-11-06T15:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\npersona anthropic claude-fable-5-1 high\nexited 0 2026-11-06T15:00:00Z\ncost 0.25 tokens 10/20 turns 4 cached 0\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\nrecorded\noutcome posted\ncollected" {
 		t.Errorf("result:\n%s", result)
 	}
 	for _, f := range []string{"io/system.md", "io/prompt.md", "argv", "stdout"} {
@@ -522,7 +522,7 @@ func TestSwarmApplyOnXAI(t *testing.T) {
 		t.Errorf("spec %+v", spec)
 	}
 	confined(t, spec, a.state("runs/1-architect-1"), "/work/app")
-	if r := a.result("1-architect-1"); !strings.Contains(r, "credential xai env XAI_API_KEY\npersona xai grok-4.5 high\nexited 0 2026-11-06T15:00:00Z\ncost 0.01268905 tokens 7210/1893 turns 7\nposted comment\n") {
+	if r := a.result("1-architect-1"); !strings.Contains(r, "credential xai env XAI_API_KEY\npersona xai grok-4.5 high\nexited 0 2026-11-06T15:00:00Z\ncost 0.01268905 tokens 48210/1893 turns 7 cached 41000\nposted comment\n") {
 		t.Errorf("result:\n%s", r)
 	}
 	a.forge.Say(issue1, "jane", "Split it in two.")

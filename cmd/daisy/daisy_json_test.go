@@ -73,7 +73,8 @@ func TestReadOnlyJSON(t *testing.T) {
 		csvRow(map[string]string{"when": "2026-11-10T10:00:00Z", "kind": "plan-step", "plan_or_swarm": "p", "step_or_run": "1", "role": "step", "model": "claude-opus-5-5", "tokens_total": "1200", "cost_reported": "1.50",
 			"code_added": "10", "code_removed": "2", "tests_added": "5", "tests_removed": "0", "prose_added": "3", "prose_removed": "1", "binary_files": "0"})+
 		csvRow(map[string]string{"when": "2026-11-11T10:00:00Z", "kind": "plan-step", "plan_or_swarm": "p", "step_or_run": "2", "role": "step", "model": "claude-opus-5-5"})+
-		csvRow(map[string]string{"when": "2026-11-12T10:00:00Z", "kind": "swarm-run", "plan_or_swarm": "acme/swarm-app", "step_or_run": "1-architect-1", "role": "architect", "cost_estimated": "0.25"}))
+		csvRow(map[string]string{"when": "2026-11-12T10:00:00Z", "kind": "swarm-run", "plan_or_swarm": "acme/swarm-app", "step_or_run": "1-architect-1", "role": "architect", "cost_estimated": "0.25",
+			"tokens_total": "50", "tokens_cached": "40"}))
 
 	// The swarm: its clone, its state's home, pause and recorded clone,
 	// two days of the journal (one line still queued) and the mark.
@@ -135,11 +136,12 @@ func TestReadOnlyJSON(t *testing.T) {
 			"rows_taken": {"swarm": null, "since": "2026-11-01T00:00:00Z"},
 			"rows": 3, "superseded": 0,
 			"groups": [
-				{"kind": "plan-step", "model": "claude-opus-5-5", "rows": 2, "tokens": 1200, "rows_with_tokens": 1, "cost": 1.5, "rows_with_cost": 1,
+				{"kind": "plan-step", "model": "claude-opus-5-5", "rows": 2, "tokens": 1200, "rows_with_tokens": 1, "tokens_cached": null, "rows_with_tokens_cached": 0, "cost": 1.5, "rows_with_cost": 1,
 				 "estimated": null, "rows_with_estimated": 0, "measured": 1,
 				 "code": {"added": 10, "removed": 2}, "tests": {"added": 5, "removed": 0}, "prose": {"added": 3, "removed": 1}},
-				{"kind": "swarm-run", "model": null, "rows": 1, "tokens": null, "rows_with_tokens": 0, "cost": null, "rows_with_cost": 0,
+				{"kind": "swarm-run", "model": null, "rows": 1, "tokens": 50, "rows_with_tokens": 1, "tokens_cached": 40, "rows_with_tokens_cached": 1, "cost": null, "rows_with_cost": 0,
 				 "estimated": 0.25, "rows_with_estimated": 1, "measured": 0, "code": null, "tests": null, "prose": null}],
+			"plans": [{"plan": "p", "rows": 2, "tokens": 1200, "rows_with_tokens": 1, "measured": 1, "code_added": 10, "tokens_per_code_line": 120}],
 			"warnings": []}`},
 		{name: "swarm list", cwd: clone, args: []string{"swarm", "list", "--json"}, want: `{
 			"dir": "<local>/swarm",
@@ -170,7 +172,7 @@ func TestReadOnlyJSON(t *testing.T) {
 			"warnings": ["⚠️  the binding link .daisy/today.md is missing or does not point into the home; re-run 'daisy init testhome'"]}`},
 		{name: "metrics with no CSV", cwd: proj, args: []string{"metrics", "--json"}, setup: func() { os.Remove(csv) }, want: `{
 			"file": "<home>/metrics/metrics.csv", "exists": false, "rows_taken": {"swarm": null, "since": null},
-			"rows": 0, "superseded": 0, "groups": [], "warnings": []}`},
+			"rows": 0, "superseded": 0, "groups": [], "plans": [], "warnings": []}`},
 		{name: "swarm journal, the mark lost", cwd: clone, args: []string{"swarm", "journal", "--json"}, setup: func() { writeFile(t, seen, "9-gone-1 2026-11-05T10:00:00Z\n") }, want: `{
 			"repository": "acme/swarm-app", "marked": null, "day": "2026-11-06",
 			"lines": [
