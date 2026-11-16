@@ -7,6 +7,8 @@ import (
 
 	"daisy/internal/commands"
 	"daisy/internal/health"
+	swarmcmd "daisy/internal/swarm/cmd"
+	"daisy/internal/verb"
 )
 
 // Unbounded is a Max for a command that takes any number of arguments.
@@ -40,8 +42,8 @@ type Command struct {
 	Min, Max  int
 	Placed    int // of an Unbounded command, the leading arguments with places (`<n>`)
 	Commits   bool
-	Run       func(*commands.Context) error
-	Health    func(*commands.Context) error
+	Run       func(*verb.Context) error
+	Health    func(*verb.Context) error
 }
 
 // table is the one source of the help text and the Command Reference: the
@@ -50,23 +52,23 @@ type Command struct {
 var table = []Command{
 	{Group: "Workspace", Name: "init", Usage: "init [<identity> [path]]", Help: "Bind a workspace to an identity and its home (bare: re-initialize this one)", Example: "init jane", Max: 2, Run: commands.Init},
 	{Group: "Workspace", Name: "clean", Usage: "clean [-f]", Help: "Remove Daisy from this workspace", Example: "clean", Flags: []string{"-f", "--force"}, Run: commands.Clean},
-	{Group: "Workspace", Name: "status", Usage: "status [--json]", Help: "Home, identity, projects, today's counts, active plan", Example: "status --json", Workspace: true, ReadOnly: true, Flags: []string{commands.JSONFlag}, Run: commands.Status},
-	{Group: "Workspace", Name: "files", Usage: "files [--json|<name>]", Help: "Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)", Example: "files plan", Workspace: true, ReadOnly: true, Flags: []string{commands.JSONFlag}, Max: 1, Run: commands.Files},
-	{Group: "Workspace", Name: "list", Usage: "list [--json]", Help: "Active prompts and installed skills", Example: "list --json", Workspace: true, ReadOnly: true, Flags: []string{"--full", commands.JSONFlag}, Run: commands.List, Health: commands.ListHealth},
+	{Group: "Workspace", Name: "status", Usage: "status [--json]", Help: "Home, identity, projects, today's counts, active plan", Example: "status --json", Workspace: true, ReadOnly: true, Flags: []string{verb.JSONFlag}, Run: commands.Status},
+	{Group: "Workspace", Name: "files", Usage: "files [--json|<name>]", Help: "Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)", Example: "files plan", Workspace: true, ReadOnly: true, Flags: []string{verb.JSONFlag}, Max: 1, Run: commands.Files},
+	{Group: "Workspace", Name: "list", Usage: "list [--json]", Help: "Active prompts and installed skills", Example: "list --json", Workspace: true, ReadOnly: true, Flags: []string{"--full", verb.JSONFlag}, Run: commands.List, Health: commands.ListHealth},
 	{Group: "Workspace", Name: "help", Usage: "help [<command>|<skill>|--markdown]", Help: "This help, detail for one command or skill, or the Command Reference", Example: "help swarm prompt build", ReadOnly: true},
 
 	{Group: "Day", Name: "new-day", Usage: "new-day [--quick]", Help: "Start a new day (--quick: only if not started; a week if one turned)", Example: "new-day --quick", Workspace: true, Flags: []string{"--quick"}, Commits: true, Run: commands.NewDay, Health: commands.NewDayHealth},
 	{Group: "Day", Name: "new-week", Usage: "new-week [--quick]", Help: "Start a new week (--quick: as new-day --quick)", Example: "new-week --quick", Workspace: true, Flags: []string{"--quick"}, Commits: true, Run: commands.NewWeek, Health: commands.NewWeekHealth},
 	{Group: "Day", Name: "log", Usage: "log <message...>", Help: "Add a log entry to today.md, quick-starting a stale day", Example: "log \"Reviewed the parser change\"", Workspace: true, Min: 1, Max: Unbounded, Commits: true, Run: commands.Log, Health: commands.LogHealth},
 	{Group: "Day", Name: "done", Usage: "done <pattern>", Help: "Mark a task complete", Example: "done \"parser tests\"", Workspace: true, Min: 1, Max: 1, Commits: true, Run: commands.Done, Health: commands.DoneHealth},
-	{Group: "Day", Name: "tasks", Usage: "tasks [--all] [--todo|--done] [--json] [pattern]", Help: "Search tasks", Example: "tasks --todo parser", Workspace: true, ReadOnly: true, Flags: []string{"--all", "--todo", "--done", commands.JSONFlag}, Max: 1, Run: commands.Tasks, Health: commands.TasksHealth},
-	{Group: "Day", Name: "projects", Usage: "projects [--archived] [--json]", Help: "List active or archived projects", Example: "projects --archived", Workspace: true, ReadOnly: true, Flags: []string{"--archived", commands.JSONFlag}, Run: commands.Projects, Health: commands.ProjectsHealth},
+	{Group: "Day", Name: "tasks", Usage: "tasks [--all] [--todo|--done] [--json] [pattern]", Help: "Search tasks", Example: "tasks --todo parser", Workspace: true, ReadOnly: true, Flags: []string{"--all", "--todo", "--done", verb.JSONFlag}, Max: 1, Run: commands.Tasks, Health: commands.TasksHealth},
+	{Group: "Day", Name: "projects", Usage: "projects [--archived] [--json]", Help: "List active or archived projects", Example: "projects --archived", Workspace: true, ReadOnly: true, Flags: []string{"--archived", verb.JSONFlag}, Run: commands.Projects, Health: commands.ProjectsHealth},
 	{Group: "Day", Name: "rotate", Usage: "rotate", Help: "Rotate journal.md into window files", Example: "rotate", Workspace: true, Run: commands.Rotate, Health: commands.RotateHealth},
 
 	{Group: "Plans", Name: "plan new", Usage: "plan new [--spec] <description> [+project]", Help: "Create a plan (or an unregistered spec draft)", Example: "plan new \"Port the parser to Go\" +parser", Workspace: true, Flags: []string{"--spec"}, Min: 1, Max: 2, Run: commands.PlanNew, Health: commands.PlanNewHealth},
 	{Group: "Plans", Name: "plan pickup", Usage: "plan pickup <path>", Help: "Promote a spec draft into a tracked plan", Example: "plan pickup parser_PLAN.md", Workspace: true, Min: 1, Max: 1, Commits: true, Run: commands.PlanPickup, Health: commands.PlanPickupHealth},
 	{Group: "Plans", Name: "plan archive", Usage: "plan archive", Help: "Archive the active plan", Example: "plan archive", Workspace: true, Commits: true, Run: commands.PlanArchive, Health: commands.PlanArchiveHealth},
-	{Group: "Plans", Name: "metrics", Usage: "metrics [--swarm <owner>/<repo>] [--since <time>] [--json]", Help: "Summary of the home's metrics CSV, by kind and model", Example: "metrics --since 2026-11-01T00:00:00Z --json", Workspace: true, ReadOnly: true, Flags: []string{commands.JSONFlag}, Values: []string{"--swarm", "--since"}, Run: commands.Metrics},
+	{Group: "Plans", Name: "metrics", Usage: "metrics [--swarm <owner>/<repo>] [--since <time>] [--json]", Help: "Summary of the home's metrics CSV, by kind and model", Example: "metrics --since 2026-11-01T00:00:00Z --json", Workspace: true, ReadOnly: true, Flags: []string{verb.JSONFlag}, Values: []string{"--swarm", "--since"}, Run: commands.Metrics},
 	{Group: "Plans", Name: "metrics add", Usage: "metrics add --step <s> [--plan <p>] [--range <r> [--repo <dir>]] [<flag> <value>...]", Help: "Record a plan step: a row in the home's metrics CSV and in the plan's ## Metrics table", Example: "metrics add --step 3 --range HEAD^! --outcome done", Workspace: true,
 		Values: []string{"--step", "--plan", "--range", "--repo", "--role", "--provider", "--model", "--effort", "--root-sha", "--home-sha", "--prompt-hash", "--outcome", "--review-rounds", "--tokens-in", "--tokens-out", "--tokens", "--cost", "--cost-estimated", "--notes", "--when"}, Run: commands.MetricsAdd},
 
@@ -83,25 +85,25 @@ var table = []Command{
 	{Group: "Prompts and skills", Name: "optimize apply", Usage: "optimize apply --workflow <n> (--rules|--rewrite) <file> [--yes]", Help: "Apply a proposal: diff, approve, archive, commit", Example: "optimize apply --workflow plan --rules proposal.md", Workspace: true, Flags: []string{"--yes"}, Values: []string{"--workflow", "-w", "--rules", "--rewrite"}, Commits: true, Run: commands.OptimizeApply},
 	{Group: "Prompts and skills", Name: "eval", Usage: "eval [<case>] [--record]", Help: "List, display, or record an eval case result", Example: "eval --record new-day pass", Workspace: true, Flags: []string{"--record"}, Max: 3, Run: commands.Eval, Health: commands.EvalHealth},
 
-	{Group: "Swarm", Name: "swarm init", Usage: "swarm init [--defaults] [--api <url>]", Help: "Declare the swarm: swarm.json, prompts, labels", Example: "swarm init --defaults", Flags: []string{"--defaults"}, Values: []string{"--api"}, Run: commands.SwarmInit},
-	{Group: "Swarm", Name: "swarm prompt build", Usage: "swarm prompt build [--force] [--dry-run]", Help: "Reseed prompts/ from this Daisy's defaults; an edited prompt is kept", Example: "swarm prompt build --dry-run", Flags: []string{"--force", "--dry-run"}, Run: commands.SwarmPromptBuild},
-	{Group: "Swarm", Name: "swarm apply", Usage: "swarm apply [--once]", Help: "Reconcile the forge: launch members, post their output, move labels", Example: "swarm apply --once", Flags: []string{"--once"}, Run: commands.SwarmApply},
-	{Group: "Swarm", Name: "swarm metrics", Usage: "swarm metrics --backfill", Help: "Write a metrics row for each collected run the home's CSV has none for", Example: "swarm metrics --backfill", Flags: []string{"--backfill"}, Run: commands.SwarmMetrics},
-	{Group: "Swarm", Name: "swarm status", Usage: "swarm status [--json] [--waiting]", Help: "Stages, gates, running members, what waits for you (--waiting: that alone)", Example: "swarm status --waiting", ReadOnly: true, Flags: []string{commands.JSONFlag, commands.WaitingFlag}, Run: commands.SwarmStatus},
-	{Group: "Swarm", Name: "swarm list", Usage: "swarm list [--json]", Help: "The swarms this machine runs: clone, home, pause; from anywhere", Example: "swarm list --json", ReadOnly: true, Flags: []string{commands.JSONFlag}, Run: commands.SwarmList},
-	{Group: "Swarm", Name: "swarm journal", Usage: "swarm journal [--json] [--issue <n>] | --mark <run>", Help: "The journal since the line marked seen (--issue: one issue's lines); --mark moves the mark, its one write", Example: "swarm journal --mark 3-architect-1", Flags: []string{commands.JSONFlag}, Values: []string{"--mark", "--issue"}, Run: commands.SwarmJournal},
-	{Group: "Swarm", Name: "swarm pause", Usage: "swarm pause [<n>]", Help: "Launch no new member until resumed (with <n>, as the maintainer, on that issue)", Example: "swarm pause 12", Max: 1, Run: commands.SwarmPause},
-	{Group: "Swarm", Name: "swarm resume", Usage: "swarm resume [<n>]", Help: "Launch members again and release the owner's held batch (with <n>, that issue)", Example: "swarm resume 12", Max: 1, Run: commands.SwarmResume},
-	{Group: "Swarm", Name: "swarm restart", Usage: "swarm restart", Help: "Have the running apply re-execute itself, onto the installed build, once no member runs", Example: "swarm restart", Run: commands.SwarmRestart},
-	{Group: "Swarm", Name: "swarm triage", Usage: "swarm triage <n>", Help: "As the maintainer: triage a proposal, proposal-posted to proposal-accepted", Example: "swarm triage 12", Min: 1, Max: 1, Run: commands.SwarmTriage},
-	{Group: "Swarm", Name: "swarm accept", Usage: "swarm accept <n>", Help: "As the maintainer: accept the plan, plan-0-posted to plan-1-accepted", Example: "swarm accept 12", Min: 1, Max: 1, Run: commands.SwarmAccept},
-	{Group: "Swarm", Name: "swarm class", Usage: "swarm class <n> routine|architecture", Help: "As the maintainer: set the job's class; Daisy passes a routine job's triage and plan", Example: "swarm class 12 routine", Min: 2, Max: 2, Run: commands.SwarmClass},
-	{Group: "Swarm", Name: "swarm approve", Usage: "swarm approve <n>", Help: "As the maintainer: approve the issue's open pull request", Example: "swarm approve 12", Min: 1, Max: 1, Run: commands.SwarmApprove},
-	{Group: "Swarm", Name: "swarm merge", Usage: "swarm merge <n>", Help: "As the maintainer: merge the approved pull request, then next slice or close", Example: "swarm merge 12", Min: 1, Max: 1, Run: commands.SwarmMerge},
-	{Group: "Swarm", Name: "swarm unblock", Usage: "swarm unblock <n> <comment...>", Help: "As the maintainer: comment, then clear swarm:blocked from the issue", Example: "swarm unblock 12 \"The token is renewed\"", Min: 2, Max: Unbounded, Placed: 1, Run: commands.SwarmUnblock},
-	{Group: "Swarm", Name: "swarm block", Usage: "swarm block <n> --by <m>", Help: "As the maintainer: hold the issue's job until #m is closed", Example: "swarm block 12 --by 9", Values: []string{"--by"}, Min: 1, Max: 3, Run: commands.SwarmBlock},
-	{Group: "Swarm", Name: "swarm replan", Usage: "swarm replan <n> [direction...]", Help: "As the maintainer: have the architect re-plan the job, from your direction", Example: "swarm replan 12 \"Split the parser change in two\"", Min: 1, Max: Unbounded, Placed: 1, Run: commands.SwarmReplan},
-	{Group: "Swarm", Name: "swarm close", Usage: "swarm close <n> [comment...]", Help: "As the maintainer: close the issue, after the comment when given", Example: "swarm close 12 \"Superseded by #14\"", Min: 1, Max: Unbounded, Placed: 1, Run: commands.SwarmClose},
+	{Group: "Swarm", Name: "swarm init", Usage: "swarm init [--defaults] [--api <url>]", Help: "Declare the swarm: swarm.json, prompts, labels", Example: "swarm init --defaults", Flags: []string{"--defaults"}, Values: []string{"--api"}, Run: swarmcmd.SwarmInit},
+	{Group: "Swarm", Name: "swarm prompt build", Usage: "swarm prompt build [--force] [--dry-run]", Help: "Reseed prompts/ from this Daisy's defaults; an edited prompt is kept", Example: "swarm prompt build --dry-run", Flags: []string{"--force", "--dry-run"}, Run: swarmcmd.SwarmPromptBuild},
+	{Group: "Swarm", Name: "swarm apply", Usage: "swarm apply [--once]", Help: "Reconcile the forge: launch members, post their output, move labels", Example: "swarm apply --once", Flags: []string{"--once"}, Run: swarmcmd.SwarmApply},
+	{Group: "Swarm", Name: "swarm metrics", Usage: "swarm metrics --backfill", Help: "Write a metrics row for each collected run the home's CSV has none for", Example: "swarm metrics --backfill", Flags: []string{"--backfill"}, Run: swarmcmd.SwarmMetrics},
+	{Group: "Swarm", Name: "swarm status", Usage: "swarm status [--json] [--waiting]", Help: "Stages, gates, running members, what waits for you (--waiting: that alone)", Example: "swarm status --waiting", ReadOnly: true, Flags: []string{verb.JSONFlag, swarmcmd.WaitingFlag}, Run: swarmcmd.SwarmStatus},
+	{Group: "Swarm", Name: "swarm list", Usage: "swarm list [--json]", Help: "The swarms this machine runs: clone, home, pause; from anywhere", Example: "swarm list --json", ReadOnly: true, Flags: []string{verb.JSONFlag}, Run: swarmcmd.SwarmList},
+	{Group: "Swarm", Name: "swarm journal", Usage: "swarm journal [--json] [--issue <n>] | --mark <run>", Help: "The journal since the line marked seen (--issue: one issue's lines); --mark moves the mark, its one write", Example: "swarm journal --mark 3-architect-1", Flags: []string{verb.JSONFlag}, Values: []string{"--mark", "--issue"}, Run: swarmcmd.SwarmJournal},
+	{Group: "Swarm", Name: "swarm pause", Usage: "swarm pause [<n>]", Help: "Launch no new member until resumed (with <n>, as the maintainer, on that issue)", Example: "swarm pause 12", Max: 1, Run: swarmcmd.SwarmPause},
+	{Group: "Swarm", Name: "swarm resume", Usage: "swarm resume [<n>]", Help: "Launch members again and release the owner's held batch (with <n>, that issue)", Example: "swarm resume 12", Max: 1, Run: swarmcmd.SwarmResume},
+	{Group: "Swarm", Name: "swarm restart", Usage: "swarm restart", Help: "Have the running apply re-execute itself, onto the installed build, once no member runs", Example: "swarm restart", Run: swarmcmd.SwarmRestart},
+	{Group: "Swarm", Name: "swarm triage", Usage: "swarm triage <n>", Help: "As the maintainer: triage a proposal, proposal-posted to proposal-accepted", Example: "swarm triage 12", Min: 1, Max: 1, Run: swarmcmd.SwarmTriage},
+	{Group: "Swarm", Name: "swarm accept", Usage: "swarm accept <n>", Help: "As the maintainer: accept the plan, plan-0-posted to plan-1-accepted", Example: "swarm accept 12", Min: 1, Max: 1, Run: swarmcmd.SwarmAccept},
+	{Group: "Swarm", Name: "swarm class", Usage: "swarm class <n> routine|architecture", Help: "As the maintainer: set the job's class; Daisy passes a routine job's triage and plan", Example: "swarm class 12 routine", Min: 2, Max: 2, Run: swarmcmd.SwarmClass},
+	{Group: "Swarm", Name: "swarm approve", Usage: "swarm approve <n>", Help: "As the maintainer: approve the issue's open pull request", Example: "swarm approve 12", Min: 1, Max: 1, Run: swarmcmd.SwarmApprove},
+	{Group: "Swarm", Name: "swarm merge", Usage: "swarm merge <n>", Help: "As the maintainer: merge the approved pull request, then next slice or close", Example: "swarm merge 12", Min: 1, Max: 1, Run: swarmcmd.SwarmMerge},
+	{Group: "Swarm", Name: "swarm unblock", Usage: "swarm unblock <n> <comment...>", Help: "As the maintainer: comment, then clear swarm:blocked from the issue", Example: "swarm unblock 12 \"The token is renewed\"", Min: 2, Max: Unbounded, Placed: 1, Run: swarmcmd.SwarmUnblock},
+	{Group: "Swarm", Name: "swarm block", Usage: "swarm block <n> --by <m>", Help: "As the maintainer: hold the issue's job until #m is closed", Example: "swarm block 12 --by 9", Values: []string{"--by"}, Min: 1, Max: 3, Run: swarmcmd.SwarmBlock},
+	{Group: "Swarm", Name: "swarm replan", Usage: "swarm replan <n> [direction...]", Help: "As the maintainer: have the architect re-plan the job, from your direction", Example: "swarm replan 12 \"Split the parser change in two\"", Min: 1, Max: Unbounded, Placed: 1, Run: swarmcmd.SwarmReplan},
+	{Group: "Swarm", Name: "swarm close", Usage: "swarm close <n> [comment...]", Help: "As the maintainer: close the issue, after the comment when given", Example: "swarm close 12 \"Superseded by #14\"", Min: 1, Max: Unbounded, Placed: 1, Run: swarmcmd.SwarmClose},
 
 	{Group: "System", Name: "commit", Usage: "commit [--root] <message>", Help: "Commit the home repo (or the root repo)", Example: "commit --co-author \"Jane Doe <jane@example.net>\" \"Notes from the review\"", Workspace: true, Flags: []string{"--root"}, Min: 1, Max: 1, Commits: true, Run: commands.Commit},
 	{Group: "System", Name: "healthcheck", Usage: "healthcheck [--force]", Help: "Run the system health check", Example: "healthcheck --force", Flags: []string{"--force"}, Run: commands.Healthcheck},

@@ -13,6 +13,7 @@ import (
 	"daisy/internal/ops"
 	"daisy/internal/prompt"
 	"daisy/internal/skill"
+	"daisy/internal/verb"
 )
 
 // PromptBuild writes AGENTS.md: with a home's name, that home's
@@ -96,7 +97,7 @@ func promptWrites(fs ops.FS, dir string, b prompt.Built) []fileWrite {
 }
 
 // ListHealth: the workspace and its home resolve, which the cli has checked.
-var ListHealth = readOnly(func(*Context) error { return nil })
+var ListHealth = verb.ReadOnly(func(*Context) error { return nil })
 
 // listReport is list's report: the home's prompts in include.txt's order
 // (nil without include.txt) and the installed skills. read is how far
@@ -107,7 +108,7 @@ type listReport struct {
 	Prompts []listPrompt `json:"prompts"`
 	Skills  []listSkill  `json:"skills"`
 	read    listRead
-	warned
+	verb.Warned
 }
 
 // listRead is how far readList got: the ledger (the header printed), the
@@ -150,8 +151,8 @@ type override struct {
 // how it loads, and the installed skills, each with its short description.
 // Read-only.
 func List(c *Context) error {
-	if c.Flag(JSONFlag) {
-		return writeJSON(c, func() (jsonDoc, error) { return readList(c) })
+	if c.Flag(verb.JSONFlag) {
+		return verb.WriteJSON(c, func() (verb.Doc, error) { return readList(c) })
 	}
 	r, err := readList(c)
 	if r.read >= readLedger {

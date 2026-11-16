@@ -14,6 +14,7 @@ import (
 	"daisy/internal/identity"
 	"daisy/internal/ops"
 	"daisy/internal/prompt"
+	"daisy/internal/verb"
 )
 
 // HomeList prints each registered home and where it lives. Read-only.
@@ -217,7 +218,7 @@ func createHome(c *Context, m env.Env, name, template, path, gitName, gitEmail s
 }
 
 // HomeNewHealth: the template `home new` copies is there.
-var HomeNewHealth = readOnly(func(c *Context) error {
+var HomeNewHealth = verb.ReadOnly(func(c *Context) error {
 	root, err := env.Root(c.Ops)
 	if err != nil {
 		return err

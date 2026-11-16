@@ -34,7 +34,7 @@ func Optimize(c *Context) error {
 		return err
 	}
 	log := feedback.Parse(doc)
-	include, err := c.includedPrompts()
+	include, err := includedPrompts(c)
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func Optimize(c *Context) error {
 
 // readFeedback is the home's feedback.md, which must exist.
 func readFeedback(c *Context) ([]byte, error) {
-	file := c.feedbackFile()
+	file := feedbackFile(c)
 	doc, err := c.Ops.FS().ReadFile(file)
 	if err != nil {
 		if !lexists(c.Ops.FS(), file) {
@@ -65,7 +65,7 @@ func readFeedback(c *Context) ([]byte, error) {
 
 // includedPrompts are the prompt names include.txt lists: the active ones.
 // A home without include.txt has none.
-func (c *Context) includedPrompts() ([]string, error) {
+func includedPrompts(c *Context) ([]string, error) {
 	path := filepath.Join(c.Env.Home, "include.txt")
 	data, err := c.Ops.FS().ReadFile(path)
 	if err != nil {
@@ -100,11 +100,11 @@ func writeBriefing(c *Context, log feedback.Log, b feedback.Briefing, scope *fee
 	}
 	switch {
 	case entries == 0 && scope != nil:
-		fmt.Fprintf(w, "Nothing pending for %s in %s\n", scope.Label, c.feedbackFile())
+		fmt.Fprintf(w, "Nothing pending for %s in %s\n", scope.Label, feedbackFile(c))
 	case entries == 0:
-		fmt.Fprintf(w, "Nothing pending in %s\n", c.feedbackFile())
+		fmt.Fprintf(w, "Nothing pending in %s\n", feedbackFile(c))
 	default:
-		fmt.Fprintf(w, "Pending feedback: %s for %s (%s)\n", plural(entries, "entry", "entries"), plural(len(b.Pending), "target", "targets"), c.feedbackFile())
+		fmt.Fprintf(w, "Pending feedback: %s for %s (%s)\n", plural(entries, "entry", "entries"), plural(len(b.Pending), "target", "targets"), feedbackFile(c))
 	}
 	for _, g := range b.Pending {
 		label := g.Target.Label
@@ -271,7 +271,7 @@ func OptimizeApply(c *Context) error {
 	}
 	// The archive is read, and must be startable from the template, only
 	// when entries will move to it.
-	archivePath := c.archiveFile()
+	archivePath := archiveFile(c)
 	var archive []byte
 	var archiveRead read // as it was read: absent when the template stands in
 	if len(pending) > 0 {
@@ -314,7 +314,7 @@ func OptimizeApply(c *Context) error {
 	// since (an entry recorded while the question waited) would be lost, so
 	// the apply is refused instead — with --yes too, where the window is
 	// short but not empty.
-	reads := append(ch.reads, read{c.feedbackFile(), feedbackDoc, true}, read{ledgerPath, ledger, ledgerExisted})
+	reads := append(ch.reads, read{feedbackFile(c), feedbackDoc, true}, read{ledgerPath, ledger, ledgerExisted})
 	if len(pending) > 0 {
 		reads = append(reads, archiveRead)
 	}
@@ -343,7 +343,7 @@ func OptimizeApply(c *Context) error {
 		provenance := fmt.Sprintf("**Addressed by:** `daisy optimize` %s — `%s` (%s)", now.Format("2006-01-02"), provenancePath(c.Env, addressed), how)
 		writes = append(writes,
 			fileWrite{archivePath, feedback.Archive(archive, entries, provenance)},
-			fileWrite{c.feedbackFile(), log.Keep(func(i int) bool { return !archived[i] })})
+			fileWrite{feedbackFile(c), log.Keep(func(i int) bool { return !archived[i] })})
 	}
 	writes = append(writes, fileWrite{filepath.Join(c.Env.Home, "feedback", ".last-optimized"), []byte(now.Format("2006-01-02 1504") + " " + t.Label + "\n")})
 	if ledgerChanged {
@@ -520,7 +520,7 @@ func yes(answer string) bool {
 func readCurrent(c *Context, path string) ([]byte, error) {
 	fsys := c.Ops.FS()
 	b, err := fsys.ReadFile(path)
-	if err == nil || path != c.archiveFile() || lexists(fsys, path) {
+	if err == nil || path != archiveFile(c) || lexists(fsys, path) {
 		if err != nil {
 			return nil, fmt.Errorf("Error: cannot read %s: %v", path, err)
 		}

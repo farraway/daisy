@@ -10,13 +10,14 @@ import (
 
 	"daisy/internal/journal"
 	"daisy/internal/ops"
+	"daisy/internal/verb"
 )
 
 // Rotate keeps journal.md's last five day-blocks and files the older ones
 // into the window files (see journal.Rotate). It commits nothing: new-day
 // and new-week, which run it, commit.
 func Rotate(c *Context) error {
-	b, err := c.Ops.FS().ReadFile(c.journalFile())
+	b, err := c.Ops.FS().ReadFile(journalFile(c))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
@@ -32,7 +33,7 @@ func Rotate(c *Context) error {
 }
 
 // RotateHealth: journal.md exists.
-var RotateHealth = readOnly(func(c *Context) error { return requireFiles(c, c.journalFile()) })
+var RotateHealth = verb.ReadOnly(func(c *Context) error { return requireFiles(c, journalFile(c)) })
 
 // rotation is journal.Rotate over content (what journal.md is to become)
 // and the rolling windows beside it.
@@ -41,7 +42,7 @@ func rotation(c *Context, content string) (journal.Rotation, error) {
 		return journal.Rotation{}, nil
 	}
 	fsys := c.Ops.FS()
-	dir := filepath.Dir(c.journalFile())
+	dir := filepath.Dir(journalFile(c))
 	entries, err := fsys.ReadDir(dir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return journal.Rotation{}, err
@@ -80,7 +81,7 @@ func applyRotation(c *Context, r journal.Rotation) error {
 		return nil
 	}
 	fsys := c.Ops.FS()
-	dir := filepath.Dir(c.journalFile())
+	dir := filepath.Dir(journalFile(c))
 	for _, name := range slices.Sorted(maps.Keys(r.Write)) {
 		if err := ops.Rewrite(fsys, filepath.Join(dir, name), []byte(r.Write[name]), 0o644); err != nil {
 			return err
@@ -91,7 +92,7 @@ func applyRotation(c *Context, r journal.Rotation) error {
 			return err
 		}
 	}
-	return ops.Rewrite(fsys, c.journalFile(), []byte(r.Journal), 0o644)
+	return ops.Rewrite(fsys, journalFile(c), []byte(r.Journal), 0o644)
 }
 
 func reportRotation(c *Context, r journal.Rotation) {

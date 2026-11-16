@@ -22,14 +22,16 @@ var clock = map[string]bool{
 
 // layer is a package's place in the dependency rule (AGENTS.md, Layout
 // and the dependency rule): an import goes to a lower layer, and between
-// domain packages (layer 1) either way.
+// domain packages (layer 1, internal/verb among them) either way; the two
+// command packages, internal/commands and the swarm's internal/swarm/cmd,
+// share layer 2 and import neither the other.
 func layer(pkg string) int {
 	switch pkg {
 	case "cmd/daisy":
 		return 4
 	case "internal/cli":
 		return 3
-	case "internal/commands":
+	case "internal/commands", "internal/swarm/cmd":
 		return 2
 	case "internal/ops":
 		return 0
@@ -38,10 +40,10 @@ func layer(pkg string) int {
 }
 
 // TestDependencyRule holds AGENTS.md's dependency rule over every non-test
-// Go file under cmd/ and internal/: imports run cli → commands → {domain
-// packages} → ops, and nothing above ops imports os (or os/signal, os/user),
-// names any of os/exec but its ExitError type, or reads or waits on the
-// clock through the time package. internal/testenv sets the environment of
+// Go file under cmd/ and internal/: imports run cli → {commands,
+// swarm/cmd} → {domain packages} → ops, and nothing above ops imports os
+// (or os/signal, os/user), names any of os/exec but its ExitError type, or
+// reads or waits on the clock through the time package. internal/testenv sets the environment of
 // a test process, and cmd/daisy/main.go hands the process's streams to
 // cli.Run: those two import os.
 func TestDependencyRule(t *testing.T) {
@@ -95,7 +97,7 @@ func ruleViolations(fset *token.FileSet, path string, f *ast.File) []string {
 		case strings.HasPrefix(imp, "daisy/"):
 			to := strings.TrimPrefix(imp, "daisy/")
 			if a, b := layer(pkg), layer(to); b > a || b == a && a != 1 {
-				fail(spec, "%s imports %s: imports run cli → commands → {domain packages} → ops", pkg, to)
+				fail(spec, "%s imports %s: imports run cli → {commands, swarm/cmd} → {domain packages} → ops", pkg, to)
 			}
 		}
 	}

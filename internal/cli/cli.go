@@ -15,6 +15,8 @@ import (
 	"daisy/internal/commands"
 	"daisy/internal/env"
 	"daisy/internal/ops"
+	swarmcmd "daisy/internal/swarm/cmd"
+	"daisy/internal/verb"
 )
 
 // Exit codes.
@@ -65,7 +67,7 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 
 // parse checks the arguments after the command's name against its flags
 // and arity and gives them to c; the error is the usage error's message.
-func parse(c *commands.Context, cmd Command, rest []string) error {
+func parse(c *verb.Context, cmd Command, rest []string) error {
 	flags, values, positional, empty, err := splitArgs(cmd, rest)
 	if err != nil {
 		return err
@@ -93,11 +95,11 @@ func parse(c *commands.Context, cmd Command, rest []string) error {
 
 // newContext is a command's Context before its arguments: the streams,
 // and the table's hooks and Command Reference for the health check.
-func newContext(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer) *commands.Context {
-	c := &commands.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr, Reference: Reference()}
+func newContext(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer) *verb.Context {
+	c := &verb.Context{Ops: o, Stdin: stdin, Stdout: stdout, Stderr: stderr, Reference: Reference()}
 	for _, cmd := range table {
 		if cmd.Health != nil {
-			c.Components = append(c.Components, commands.Component{Name: cmd.Name, Check: cmd.Health})
+			c.Components = append(c.Components, verb.Component{Name: cmd.Name, Check: cmd.Health})
 		}
 	}
 	return c
@@ -180,7 +182,7 @@ func nounOnly(stdout, stderr io.Writer, noun, rest []string, group []Command) in
 // is a missing pattern, not one that matches every task; empty says one
 // was dropped. A value flag without a value, or with an empty one, is a
 // usage error.
-func splitArgs(cmd Command, args []string) (flags []string, values []commands.Value, positional []string, empty bool, err error) {
+func splitArgs(cmd Command, args []string) (flags []string, values []verb.Value, positional []string, empty bool, err error) {
 	args, flags, values, err = leading(cmd, args)
 	for _, a := range args {
 		if a != "" {
@@ -197,7 +199,7 @@ func splitArgs(cmd Command, args []string) (flags []string, values []commands.Va
 var longFlag = regexp.MustCompile(`^--[A-Za-z0-9][A-Za-z0-9-]*$`)
 
 // leading takes the flags and value flags off the front of args.
-func leading(cmd Command, args []string) (rest, flags []string, values []commands.Value, err error) {
+func leading(cmd Command, args []string) (rest, flags []string, values []verb.Value, err error) {
 	for len(args) > 0 {
 		switch {
 		case slices.Contains(cmd.Flags, args[0]):
@@ -209,7 +211,7 @@ func leading(cmd Command, args []string) (rest, flags []string, values []command
 			if len(args) < 2 || args[1] == "" || slices.Contains(cmd.Flags, args[1]) || slices.Contains(cmd.values(), args[1]) {
 				return nil, nil, nil, fmt.Errorf("%s needs a value", args[0])
 			}
-			values, args = append(values, commands.Value{Flag: args[0], Value: args[1]}), args[2:]
+			values, args = append(values, verb.Value{Flag: args[0], Value: args[1]}), args[2:]
 		default:
 			return args, flags, values, nil
 		}
@@ -241,7 +243,7 @@ func emptyBefore(cmd Command, args []string) bool {
 // invoke resolves the workspace when the command needs one and runs fn,
 // under ReadOnly when the table marks the command so; the error it
 // returns is the message for stderr.
-func invoke(c *commands.Context, cmd Command, fn func(*commands.Context) error) int {
+func invoke(c *verb.Context, cmd Command, fn func(*verb.Context) error) int {
 	if cmd.Workspace {
 		e, err := env.Resolve(c.Ops)
 		if err != nil {
@@ -254,13 +256,13 @@ func invoke(c *commands.Context, cmd Command, fn func(*commands.Context) error) 
 		c.Ops = ops.ReadOnly(c.Ops)
 	}
 	if err := fn(c); err != nil {
-		if errors.Is(err, commands.ErrReported) {
+		if errors.Is(err, verb.ErrReported) {
 			return Failure
 		}
-		if errors.Is(err, commands.ErrInterrupted) {
+		if errors.Is(err, swarmcmd.ErrInterrupted) {
 			return Interrupted
 		}
-		var u commands.UsageError
+		var u verb.UsageError
 		if errors.As(err, &u) {
 			return usageError(c.Stderr, cmd, string(u))
 		}

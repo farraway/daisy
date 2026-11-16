@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"daisy/internal/ops"
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
@@ -159,7 +160,7 @@ func (s *Swarm) collect(r Run) error {
 		// confirms the plan, which stays accepted; a revised plan goes
 		// to the plan gate (T27), or with it off is accepted as written.
 		confirms := c.label == forge.PlanAccepted && strings.HasPrefix(strings.TrimRight(first, "\r "), stands)
-		if _, bad := SliceRepos(string(out), repoNames(s), s.mirrors()); len(bad) > 0 && !confirms {
+		if _, bad := SliceRepos(string(out), repoNames(s.Cfg), s.mirrors()); len(bad) > 0 && !confirms {
 			return c.fail("bad slices: " + numbers(bad))
 		}
 		if err := c.comment(r.Role, text); err != nil {
@@ -590,9 +591,9 @@ func (s *Swarm) mirrors() []string {
 	return out
 }
 
-func repoNames(s *Swarm) []string {
+func repoNames(cfg declare.Config) []string {
 	var out []string
-	for _, r := range s.Cfg.Repos {
+	for _, r := range cfg.Repos {
 		out = append(out, r.Name)
 	}
 	return out

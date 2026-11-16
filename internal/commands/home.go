@@ -9,13 +9,14 @@ import (
 
 	"daisy/internal/gitx"
 	"daisy/internal/health"
+	"daisy/internal/verb"
 )
 
 // Paths into the home every day command shares.
-func (c *Context) todayFile() string { return filepath.Join(c.Env.Home, "journal", "today.md") }
-func (c *Context) todoFile() string  { return filepath.Join(c.Env.Home, "tasks", "todo.txt") }
-func (c *Context) doneFile() string  { return filepath.Join(c.Env.Home, "tasks", "done.txt") }
-func (c *Context) journalFile() string {
+func todayFile(c *Context) string { return filepath.Join(c.Env.Home, "journal", "today.md") }
+func todoFile(c *Context) string  { return filepath.Join(c.Env.Home, "tasks", "todo.txt") }
+func doneFile(c *Context) string  { return filepath.Join(c.Env.Home, "tasks", "done.txt") }
+func journalFile(c *Context) string {
 	return filepath.Join(c.Env.Home, "journal", "journal.md")
 }
 
@@ -82,10 +83,10 @@ func homeRepo(c *Context) (gitx.Repo, error) {
 // success, an Error line otherwise (the day templates' hooks add where they
 // looked). `daisy healthcheck` runs them.
 var (
-	LogHealth      = readOnly(func(c *Context) error { return requireFiles(c, c.todayFile()) })
-	DoneHealth     = readOnly(func(c *Context) error { return requireFiles(c, c.todayFile(), c.todoFile()) })
-	TasksHealth    = readOnly(func(c *Context) error { return requireDir(c, filepath.Join(c.Env.Home, "tasks")) })
-	ProjectsHealth = readOnly(func(c *Context) error { return requireDir(c, filepath.Join(c.Env.Home, "projects")) })
+	LogHealth      = verb.ReadOnly(func(c *Context) error { return requireFiles(c, todayFile(c)) })
+	DoneHealth     = verb.ReadOnly(func(c *Context) error { return requireFiles(c, todayFile(c), todoFile(c)) })
+	TasksHealth    = verb.ReadOnly(func(c *Context) error { return requireDir(c, filepath.Join(c.Env.Home, "tasks")) })
+	ProjectsHealth = verb.ReadOnly(func(c *Context) error { return requireDir(c, filepath.Join(c.Env.Home, "projects")) })
 )
 
 func requireFiles(c *Context, paths ...string) error {

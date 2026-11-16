@@ -10,12 +10,13 @@ import (
 	"daisy/internal/gitx"
 	"daisy/internal/ops"
 	"daisy/internal/plan"
+	"daisy/internal/verb"
 )
 
 // Paths the plan commands share.
-func (c *Context) plansDir() string     { return filepath.Join(c.Env.Home, "plans") }
-func (c *Context) planLink() string     { return filepath.Join(c.Env.Workspace, "PLAN.md") }
-func (c *Context) planTemplate() string { return filepath.Join(c.Env.Root, "templates", "plan.md") }
+func plansDir(c *Context) string     { return filepath.Join(c.Env.Home, "plans") }
+func planLink(c *Context) string     { return filepath.Join(c.Env.Workspace, "PLAN.md") }
+func planTemplate(c *Context) string { return filepath.Join(c.Env.Root, "templates", "plan.md") }
 
 // errPlanExists: the workspace already has a plan, or a link where one goes.
 var errPlanExists = errors.New("Error: PLAN.md already exists in this workspace\nArchive it first: daisy plan archive (or, to an agent, /daisy archive PLAN.md)")
@@ -39,9 +40,9 @@ func PlanNew(c *Context) error {
 	if err := plan.CheckProject(project); err != nil {
 		return err
 	}
-	tmpl, err := fsys.ReadFile(c.planTemplate())
+	tmpl, err := fsys.ReadFile(planTemplate(c))
 	if err != nil {
-		return fmt.Errorf("Error: Plan template not found at %s", c.planTemplate())
+		return fmt.Errorf("Error: Plan template not found at %s", planTemplate(c))
 	}
 	now := c.Ops.Now()
 	spec := c.Flag("--spec")
@@ -54,11 +55,11 @@ func PlanNew(c *Context) error {
 			return fmt.Errorf("Error: %s already exists in this workspace", name)
 		}
 	} else {
-		if lexists(fsys, c.planLink()) {
+		if lexists(fsys, planLink(c)) {
 			return errPlanExists
 		}
 		name = plan.FileName(now.Format("060102150405"), project, slug)
-		dest, entry = filepath.Join(c.plansDir(), name), "PLAN.md"
+		dest, entry = filepath.Join(plansDir(c), name), "PLAN.md"
 		if err := plan.CheckName(name); err != nil {
 			return err
 		}
@@ -89,10 +90,10 @@ func PlanNew(c *Context) error {
 	var undo undoStack
 	undo.push(func() error { return fsys.Remove(dest) })
 	if !spec {
-		if err := fsys.Symlink(filepath.Join(".daisy", "plans", name), c.planLink()); err != nil {
-			return undo.fail(fmt.Errorf("Error: cannot link %s: %v", c.planLink(), err), "created")
+		if err := fsys.Symlink(filepath.Join(".daisy", "plans", name), planLink(c)); err != nil {
+			return undo.fail(fmt.Errorf("Error: cannot link %s: %v", planLink(c), err), "created")
 		}
-		undo.push(func() error { return fsys.Remove(c.planLink()) })
+		undo.push(func() error { return fsys.Remove(planLink(c)) })
 	}
 	if ignore != nil {
 		if err := ops.Rewrite(fsys, filepath.Join(c.Env.Workspace, ".gitignore"), ignore, 0o644); err != nil {
@@ -103,7 +104,7 @@ func PlanNew(c *Context) error {
 	if spec {
 		fmt.Fprintf(c.Stdout, "✅ Spec created: %s\n   Location: %s\n   Not registered with Daisy — promote later with: daisy plan pickup %s\n", name, dest, dest)
 	} else {
-		fmt.Fprintf(c.Stdout, "✅ Plan created: %s\n   Linked as: %s\n", name, c.planLink())
+		fmt.Fprintf(c.Stdout, "✅ Plan created: %s\n   Linked as: %s\n", name, planLink(c))
 	}
 	return nil
 }
@@ -149,7 +150,7 @@ func PlanPickup(c *Context) error {
 	if err != nil || !fi.Mode().IsRegular() {
 		return fmt.Errorf("Error: File not found: %s", path)
 	}
-	if lexists(fsys, c.planLink()) {
+	if lexists(fsys, planLink(c)) {
 		return errPlanExists
 	}
 	b, err := fsys.ReadFile(src)
@@ -171,7 +172,7 @@ func PlanPickup(c *Context) error {
 	if err := plan.CheckName(name); err != nil {
 		return err
 	}
-	dest := filepath.Join(c.plansDir(), name)
+	dest := filepath.Join(plansDir(c), name)
 	if lexists(fsys, dest) {
 		return fmt.Errorf("Error: %s already exists", dest)
 	}
@@ -184,11 +185,11 @@ func PlanPickup(c *Context) error {
 	if err := fsys.WriteFile(dest, b, fi.Mode().Perm()); err != nil {
 		return fmt.Errorf("Error: cannot write %s: %v", dest, err)
 	}
-	if err := fsys.Symlink(filepath.Join(".daisy", "plans", name), c.planLink()); err != nil {
+	if err := fsys.Symlink(filepath.Join(".daisy", "plans", name), planLink(c)); err != nil {
 		undo := undoStack{func() error { return fsys.Remove(dest) }}
-		return undo.fail(fmt.Errorf("Error: cannot link %s: %v", c.planLink(), err), "picked up")
+		return undo.fail(fmt.Errorf("Error: cannot link %s: %v", planLink(c), err), "picked up")
 	}
-	fmt.Fprintf(c.Stdout, "✅ Picked up: %s → %s\n   Linked as: %s\n   Original left in place at: %s\n", filepath.Base(path), name, c.planLink(), path)
+	fmt.Fprintf(c.Stdout, "✅ Picked up: %s → %s\n   Linked as: %s\n   Original left in place at: %s\n", filepath.Base(path), name, planLink(c), path)
 	return commitPlan(c, repo, "Pick up plan: "+name)
 }
 
@@ -198,7 +199,7 @@ func PlanPickup(c *Context) error {
 // takes back the ones before it.
 func PlanArchive(c *Context) error {
 	fsys := c.Ops.FS()
-	link := c.planLink()
+	link := planLink(c)
 	fi, err := fsys.Lstat(link)
 	if err != nil {
 		return errors.New("Error: PLAN.md does not exist in this workspace")
@@ -211,8 +212,8 @@ func PlanArchive(c *Context) error {
 		return fmt.Errorf("Error: cannot read %s: %v", link, err)
 	}
 	name := filepath.Base(target)
-	src := filepath.Join(c.plansDir(), name)
-	dest := filepath.Join(c.plansDir(), "archive", name)
+	src := filepath.Join(plansDir(c), name)
+	dest := filepath.Join(plansDir(c), "archive", name)
 	if fi, err := fsys.Stat(src); err != nil || !fi.Mode().IsRegular() {
 		return fmt.Errorf("Error: Plan file not found at %s\nThe symlink may be broken. Remove PLAN.md manually to proceed.", src)
 	}
@@ -317,15 +318,15 @@ func lexists(fsys ops.FS, p string) bool {
 // The plan commands' --healthcheck hooks: the home's plans/ (and its
 // archive/, for archive) and, for new, the template.
 var (
-	PlanNewHealth = readOnly(func(c *Context) error {
-		if err := requireDir(c, c.plansDir()); err != nil {
+	PlanNewHealth = verb.ReadOnly(func(c *Context) error {
+		if err := requireDir(c, plansDir(c)); err != nil {
 			return err
 		}
-		if fi, err := c.Ops.FS().Stat(c.planTemplate()); err != nil || !fi.Mode().IsRegular() {
+		if fi, err := c.Ops.FS().Stat(planTemplate(c)); err != nil || !fi.Mode().IsRegular() {
 			return errors.New("Error: plan template not found at templates/plan.md")
 		}
 		return nil
 	})
-	PlanPickupHealth  = readOnly(func(c *Context) error { return requireDir(c, c.plansDir()) })
-	PlanArchiveHealth = readOnly(func(c *Context) error { return requireDir(c, filepath.Join(c.plansDir(), "archive")) })
+	PlanPickupHealth  = verb.ReadOnly(func(c *Context) error { return requireDir(c, plansDir(c)) })
+	PlanArchiveHealth = verb.ReadOnly(func(c *Context) error { return requireDir(c, filepath.Join(plansDir(c), "archive")) })
 )

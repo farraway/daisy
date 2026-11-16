@@ -271,7 +271,8 @@ approval prompt. `Real` does them; `ReadOnly` refuses every write, so a
 command the command table marks read-only (`status`, `files`, `tasks`,
 `swarm status`; its help says `(read-only)`) cannot write by accident; `Fake` lets a test build its own machine, with a
 temporary root, home, registry and workspace, and pin what git reads. The
-rule is `cli → commands → domain packages → ops`, and nothing above `ops`
+rule is `cli → commands → domain packages → ops` (the swarm's verbs a
+second command package beside the first), and nothing above `ops`
 touches the file system, starts a process or reads the clock itself. The
 cost is that every new side effect is added in one place first.
 

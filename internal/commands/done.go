@@ -21,9 +21,9 @@ func Done(c *Context) error {
 	}
 	pattern := c.Args[0]
 	fs := c.Ops.FS()
-	b, err := fs.ReadFile(c.todoFile())
+	b, err := fs.ReadFile(todoFile(c))
 	if err != nil {
-		return fmt.Errorf("Error: cannot read %s: %v", c.todoFile(), err)
+		return fmt.Errorf("Error: cannot read %s: %v", todoFile(c), err)
 	}
 	lines := todo.Lines(string(b))
 
@@ -56,17 +56,17 @@ func Done(c *Context) error {
 	}
 	today := c.Ops.Now().Format("2006-01-02")
 	lines = append(append(lines[:matches[0]:matches[0]], lines[matches[0]+1:]...), task.Complete(today).Format())
-	if err := ops.Rewrite(fs, c.todoFile(), []byte(todo.Content(lines)), 0o644); err != nil {
+	if err := ops.Rewrite(fs, todoFile(c), []byte(todo.Content(lines)), 0o644); err != nil {
 		return err
 	}
 
 	// Absent from today.md is a warning, not a failure: an Inbox-only item
 	// is checked off by hand and never reaches todo.txt.
 	ticked := false
-	if b, err := fs.ReadFile(c.todayFile()); err == nil {
+	if b, err := fs.ReadFile(todayFile(c)); err == nil {
 		for _, e := range entries {
 			if out, ok := journal.Tick(string(b), e); ok {
-				if err := ops.Rewrite(fs, c.todayFile(), []byte(out), 0o644); err != nil {
+				if err := ops.Rewrite(fs, todayFile(c), []byte(out), 0o644); err != nil {
 					return err
 				}
 				ticked = true

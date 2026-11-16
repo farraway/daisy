@@ -8,6 +8,7 @@ import (
 
 	"daisy/internal/env"
 	"daisy/internal/todo"
+	"daisy/internal/verb"
 )
 
 var (
@@ -28,7 +29,7 @@ type workspaceReport struct {
 	Today     *todayCounts      `json:"today"`
 	Backlog   *int              `json:"backlog"`
 	Plan      *currentPlan      `json:"plan"`
-	warned
+	verb.Warned
 }
 
 type todayCounts struct {
@@ -47,8 +48,8 @@ type currentPlan struct {
 // Status prints the workspace summary an agent orients itself with: the
 // binding, projects, today's counts, the backlog and the active plan.
 func Status(c *Context) error {
-	if c.Flag(JSONFlag) {
-		return writeJSON(c, func() (jsonDoc, error) {
+	if c.Flag(verb.JSONFlag) {
+		return verb.WriteJSON(c, func() (verb.Doc, error) {
 			reportDrift(c)
 			return readWorkspace(c), nil
 		})

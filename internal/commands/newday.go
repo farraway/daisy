@@ -12,6 +12,7 @@ import (
 	"daisy/internal/journal"
 	"daisy/internal/ops"
 	"daisy/internal/todo"
+	"daisy/internal/verb"
 )
 
 // start is what differs between a new day and a new week.
@@ -59,7 +60,7 @@ func startCommand(c *Context, s start) error {
 // and this one did not, and reports false when today was already started.
 // The caller has run preflight.
 func quickStart(c *Context, s start) (bool, error) {
-	b, err := c.Ops.FS().ReadFile(c.todayFile())
+	b, err := c.Ops.FS().ReadFile(todayFile(c))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return false, err
 	}
@@ -106,7 +107,7 @@ func startDay(c *Context, s start) error {
 	if err != nil {
 		return fmt.Errorf("Error: cannot read %s: %v", path, err)
 	}
-	b, err := fsys.ReadFile(c.todoFile())
+	b, err := fsys.ReadFile(todoFile(c))
 	if err != nil {
 		return errors.New("Error: todo.txt not found")
 	}
@@ -124,14 +125,14 @@ func startDay(c *Context, s start) error {
 
 	// Yesterday goes to journal.md as it is, after a separator when the
 	// journal has anything in it; an empty today.md is archived too.
-	journalPath := c.journalFile()
+	journalPath := journalFile(c)
 	archived := false
 	jb, err := fsys.ReadFile(journalPath)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 	content := string(jb)
-	if yb, err := fsys.ReadFile(c.todayFile()); err == nil {
+	if yb, err := fsys.ReadFile(todayFile(c)); err == nil {
 		if content != "" {
 			content += "\n---\n\n"
 		}
@@ -147,7 +148,7 @@ func startDay(c *Context, s start) error {
 
 	var done string
 	if s.archive {
-		db, err := fsys.ReadFile(c.doneFile())
+		db, err := fsys.ReadFile(doneFile(c))
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
@@ -174,21 +175,21 @@ func startDay(c *Context, s start) error {
 		fmt.Fprintln(c.Stdout, "📦 Archived yesterday to journal.md")
 	}
 	reportRotation(c, rot)
-	if err := ops.Rewrite(fsys, c.todoFile(), []byte(todo.Content(open)), 0o644); err != nil {
+	if err := ops.Rewrite(fsys, todoFile(c), []byte(todo.Content(open)), 0o644); err != nil {
 		return err
 	}
 	if len(cancelled) > 0 {
 		fmt.Fprintf(c.Stdout, "🗑️  Deleted %d cancelled task(s)\n", len(cancelled))
 	}
 	if s.archive {
-		if err := ops.Rewrite(fsys, c.doneFile(), []byte(done), 0o644); err != nil {
+		if err := ops.Rewrite(fsys, doneFile(c), []byte(done), 0o644); err != nil {
 			return err
 		}
 		if len(completed) > 0 {
 			fmt.Fprintf(c.Stdout, "📦 Archived %d completed task(s) to done.txt\n", len(completed))
 		}
 	}
-	if err := ops.Rewrite(fsys, c.todayFile(), []byte(today), 0o644); err != nil {
+	if err := ops.Rewrite(fsys, todayFile(c), []byte(today), 0o644); err != nil {
 		return err
 	}
 
@@ -208,11 +209,11 @@ func startDay(c *Context, s start) error {
 // NewDayHealth and NewWeekHealth: the template, todo.txt, and the journal
 // directory (new-day) or done.txt (new-week).
 var (
-	NewDayHealth = readOnly(func(c *Context) error {
-		return startHealth(c, day, func() error { return requireDir(c, filepath.Dir(c.todayFile())) })
+	NewDayHealth = verb.ReadOnly(func(c *Context) error {
+		return startHealth(c, day, func() error { return requireDir(c, filepath.Dir(todayFile(c))) })
 	})
-	NewWeekHealth = readOnly(func(c *Context) error {
-		return startHealth(c, week, func() error { return requireFiles(c, c.doneFile()) })
+	NewWeekHealth = verb.ReadOnly(func(c *Context) error {
+		return startHealth(c, week, func() error { return requireFiles(c, doneFile(c)) })
 	})
 )
 
@@ -220,7 +221,7 @@ func startHealth(c *Context, s start, last func() error) error {
 	if _, err := dayTemplate(c, s); err != nil {
 		return err
 	}
-	if err := requireFiles(c, c.todoFile()); err != nil {
+	if err := requireFiles(c, todoFile(c)); err != nil {
 		return err
 	}
 	return last()

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"daisy/internal/commands"
 	"daisy/internal/ops"
+	"daisy/internal/verb"
 )
 
 // run is Run over a Fake that reads no variable of the machine's: the
@@ -63,7 +63,7 @@ func TestReadOnlyMarker(t *testing.T) {
 // it tries is refused, and the same command unmarked makes it.
 func TestTableReadOnlyIsEnforced(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "written")
-	write := func(c *commands.Context) error { return c.Ops.FS().WriteFile(file, []byte("x\n"), 0o644) }
+	write := func(c *verb.Context) error { return c.Ops.FS().WriteFile(file, []byte("x\n"), 0o644) }
 	saved := table
 	t.Cleanup(func() { table = saved })
 	for _, readOnly := range []bool{true, false} {
@@ -103,7 +103,7 @@ func TestExamplesParse(t *testing.T) {
 			}
 			continue
 		}
-		if err := parse(&commands.Context{}, c, rest); err != nil {
+		if err := parse(&verb.Context{}, c, rest); err != nil {
 			t.Errorf("%s: example %q: %v", c.Name, c.Example, err)
 		}
 	}

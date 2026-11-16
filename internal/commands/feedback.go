@@ -9,12 +9,13 @@ import (
 
 	"daisy/internal/feedback"
 	"daisy/internal/ops"
+	"daisy/internal/verb"
 )
 
 // Paths the feedback commands share.
-func (c *Context) feedbackFile() string { return filepath.Join(c.Env.Home, "feedback", "feedback.md") }
-func (c *Context) archiveFile() string  { return filepath.Join(c.Env.Home, "feedback", "archive.md") }
-func (c *Context) evalsDir() string     { return filepath.Join(c.Env.Root, "prompts", "evals") }
+func feedbackFile(c *Context) string { return filepath.Join(c.Env.Home, "feedback", "feedback.md") }
+func archiveFile(c *Context) string  { return filepath.Join(c.Env.Home, "feedback", "archive.md") }
+func evalsDir(c *Context) string     { return filepath.Join(c.Env.Root, "prompts", "evals") }
 
 // Feedback appends an entry to the home's feedback.md: the message from
 // the arguments, else from piped stdin, tagged with --workflow when given.
@@ -45,12 +46,12 @@ func Feedback(c *Context) error {
 	if !given && message == "" {
 		return errors.New("Usage: daisy feedback [--workflow <name>] \"<description>\"\n" +
 			"  or:  echo \"<description>\" | daisy feedback [--workflow <name>]\n\n" +
-			"Workflows:\n" + indent(c.workflowLabels(), "  "))
+			"Workflows:\n" + indent(workflowLabels(c), "  "))
 	}
 	if message == "" {
 		return errors.New("Error: feedback message cannot be empty")
 	}
-	file := c.feedbackFile()
+	file := feedbackFile(c)
 	if fi, err := fsys.Stat(file); err != nil || !fi.Mode().IsRegular() {
 		return fmt.Errorf("Error: feedback file not found at %s\n  Run: mkdir -p \"%s\" && touch \"%s\"", file, filepath.Join(c.Env.Home, "feedback"), file)
 	}
@@ -75,10 +76,10 @@ func Feedback(c *Context) error {
 func unknownWorkflow(c *Context, workflow string) error {
 	return fmt.Errorf("Error: workflow '%s' names no prompt or skill\n"+
 		"  Qualify the target, e.g. --workflow prompts/daisy or --workflow skills/git.\n\n"+
-		"  Available:\n%s", workflow, indent(c.workflowLabels(), "    "))
+		"  Available:\n%s", workflow, indent(workflowLabels(c), "    "))
 }
 
-func (c *Context) workflowLabels() []string {
+func workflowLabels(c *Context) []string {
 	return feedback.Labels(c.Ops.FS(), c.Env.Root, c.Env.Home)
 }
 
@@ -100,7 +101,7 @@ func indent(lines []string, prefix string) string {
 // committed.
 func Eval(c *Context) error {
 	fsys := c.Ops.FS()
-	dir := c.evalsDir()
+	dir := evalsDir(c)
 	if fi, err := fsys.Stat(dir); err != nil || !fi.IsDir() {
 		return fmt.Errorf("Error: No evals directory found at %s", dir)
 	}
@@ -125,7 +126,7 @@ func Eval(c *Context) error {
 
 // evalCase reads the named case; a name holding a slash names none.
 func evalCase(c *Context, name string) ([]byte, error) {
-	path := filepath.Join(c.evalsDir(), name+".md")
+	path := filepath.Join(evalsDir(c), name+".md")
 	if fi, err := c.Ops.FS().Stat(path); strings.ContainsRune(name, '/') || err != nil || !fi.Mode().IsRegular() {
 		return nil, fmt.Errorf("Error: Eval case not found: %s\n  Run 'daisy eval' to list available cases.", name)
 	}
@@ -138,9 +139,9 @@ func evalCase(c *Context, name string) ([]byte, error) {
 
 func evalList(c *Context) error {
 	fsys := c.Ops.FS()
-	entries, err := fsys.ReadDir(c.evalsDir())
+	entries, err := fsys.ReadDir(evalsDir(c))
 	if err != nil {
-		return fmt.Errorf("Error: cannot read %s: %v", c.evalsDir(), err)
+		return fmt.Errorf("Error: cannot read %s: %v", evalsDir(c), err)
 	}
 	var lines []string
 	for _, e := range entries { // ReadDir is in byte order
@@ -148,7 +149,7 @@ func evalList(c *Context) error {
 		if !ok {
 			continue
 		}
-		path := filepath.Join(c.evalsDir(), e.Name())
+		path := filepath.Join(evalsDir(c), e.Name())
 		if fi, err := fsys.Stat(path); err != nil || !fi.Mode().IsRegular() {
 			continue
 		}
@@ -159,7 +160,7 @@ func evalList(c *Context) error {
 		lines = append(lines, fmt.Sprintf("  %s  %s", pad(name, 20), title(b)))
 	}
 	if len(lines) == 0 {
-		fmt.Fprintf(c.Stdout, "No eval cases found in %s\n", c.evalsDir())
+		fmt.Fprintf(c.Stdout, "No eval cases found in %s\n", evalsDir(c))
 		return nil
 	}
 	fmt.Fprintf(c.Stdout, "Available eval cases:\n\n%s\n\n", strings.Join(lines, "\n"))
@@ -231,9 +232,9 @@ func evalRecord(c *Context) error {
 // The --healthcheck hooks: feedback and eval need the workspace and its
 // home, which the cli has resolved; the briefing the home's feedback/.
 var (
-	FeedbackHealth = readOnly(func(*Context) error { return nil })
-	EvalHealth     = readOnly(func(*Context) error { return nil })
-	OptimizeHealth = readOnly(func(c *Context) error {
+	FeedbackHealth = verb.ReadOnly(func(*Context) error { return nil })
+	EvalHealth     = verb.ReadOnly(func(*Context) error { return nil })
+	OptimizeHealth = verb.ReadOnly(func(c *Context) error {
 		if fi, err := c.Ops.FS().Stat(filepath.Join(c.Env.Home, "feedback")); err != nil || !fi.IsDir() {
 			return errors.New("Error: feedback directory not found (needed for feedback.md and archive.md)")
 		}

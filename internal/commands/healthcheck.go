@@ -9,6 +9,7 @@ import (
 
 	"daisy/internal/env"
 	"daisy/internal/health"
+	"daisy/internal/verb"
 )
 
 // Healthcheck runs the system health check (internal/health) and exits 1
@@ -16,7 +17,7 @@ import (
 // writes the home's TTL stamp.
 func Healthcheck(c *Context) error {
 	if !checkHealth(c, c.Stdout, c.Stderr, c.Flag("--force")) {
-		return ErrReported
+		return verb.ErrReported
 	}
 	return nil
 }
@@ -43,7 +44,7 @@ func checkHealth(c *Context, stdout, stderr io.Writer, force bool) bool {
 }
 
 // TestHealth: the acceptance suite's runner is there and executable.
-var TestHealth = readOnly(func(c *Context) error {
+var TestHealth = verb.ReadOnly(func(c *Context) error {
 	root, err := env.Root(c.Ops)
 	if err != nil {
 		return err

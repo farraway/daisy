@@ -19,7 +19,7 @@ func Log(c *Context) error {
 	if err := preflight(c); err != nil {
 		return err
 	}
-	if b, err := c.Ops.FS().ReadFile(c.todayFile()); err == nil {
+	if b, err := c.Ops.FS().ReadFile(todayFile(c)); err == nil {
 		now := c.Ops.Now()
 		if last, ok := journal.Date(string(b), now.Location()); ok && last.Format(time.DateOnly) < now.Format(time.DateOnly) {
 			if _, err := quickStart(c, day); err != nil {
@@ -44,7 +44,7 @@ func Log(c *Context) error {
 // appendLog writes the entry into today.md; the errors are the bash's.
 func appendLog(c *Context, time, message string) error {
 	fs := c.Ops.FS()
-	b, err := fs.ReadFile(c.todayFile())
+	b, err := fs.ReadFile(todayFile(c))
 	if err != nil {
 		return errors.New("Error: today.md not found")
 	}
@@ -52,7 +52,7 @@ func appendLog(c *Context, time, message string) error {
 	if err != nil {
 		return err
 	}
-	return ops.Rewrite(fs, c.todayFile(), []byte(out), 0o644)
+	return ops.Rewrite(fs, todayFile(c), []byte(out), 0o644)
 }
 
 // summary is the first 60 characters of a message, for a commit subject.

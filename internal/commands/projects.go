@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"daisy/internal/env"
+	"daisy/internal/verb"
 )
 
 // projectsReport is the listing: which directory, and each project's name
@@ -13,13 +14,13 @@ import (
 type projectsReport struct {
 	Archived bool        `json:"archived"`
 	Projects []namedPath `json:"projects"`
-	warned
+	verb.Warned
 }
 
 // Projects lists the home's active projects (or, with --archived, the
 // archived ones), each with the real path of its file. Read-only.
 func Projects(c *Context) error {
-	return printReport(c, func() (*projectsReport, error) { return readProjects(c), nil }, func(r *projectsReport) {
+	return verb.PrintReport(c, func() (*projectsReport, error) { return readProjects(c), nil }, func(r *projectsReport) {
 		label := "Active projects"
 		if r.Archived {
 			label = "Archived projects"

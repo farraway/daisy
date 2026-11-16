@@ -5632,7 +5632,7 @@ the board; and a job whose slices span two repositories.
 **As built (Step 5 of the swarm build).** The rows for `provider`,
 `runner.Docker`, the prompt files, the slots, the role rule and `ready →
 planning` are Go tests (`internal/swarm/provider`, `internal/swarm/runner`,
-`internal/swarm/reconcile`, `internal/commands/swarm_apply_test.go`); a
+`internal/swarm/reconcile`, `internal/swarm/cmd/swarm_apply_test.go`); a
 read-back that differs is not reached by a test (the file system is not
 faked), the empty heading field is. The runner interface holds `Start`
 (a `Spec`, the wall clock) and `Running`; the stop is `Docker`'s own at
@@ -5640,7 +5640,7 @@ the wall clock, and the orphan stop joins with Step 6.
 
 **As built (Step 6 of the swarm build).** Step 29's rows but the board's
 and the budget's are Go tests over both Fakes and real git in temp
-directories (`internal/commands/swarm_lifecycle_test.go`,
+directories (`internal/swarm/cmd/swarm_lifecycle_test.go`,
 `swarm_gates_test.go`, `swarm_failures_test.go`, `swarm_repos_test.go`):
 the lifecycle with every gate on, the round limit with the plan gate on
 and off, every gate off, the refused merge, the label copy, each
@@ -5664,7 +5664,7 @@ never signals.
 **As built (Step 10 of the swarm build).** The maintainer's verbs' row
 is Go tests: `internal/swarm/forge` (`TestGiteaApprove`,
 `TestFakeAsAnotherAccount`), `internal/swarm/reconcile`
-(`TestBlockedBy`, Step 15's successor of Step 10's test), `internal/commands` (`TestSwarmMaintainerVerbs`,
+(`TestBlockedBy`, Step 15's successor of Step 10's test), `internal/swarm/cmd` (`TestSwarmMaintainerVerbs`,
 `TestSwarmMaintainerCloseUnblockMerged`,
 `TestSwarmMaintainerRefusesTheSwarmsToken`,
 `TestSwarmMaintainerRefusals`,
@@ -5678,7 +5678,7 @@ tests: `internal/swarm/forge` (`TestGiteaMilestones`,
 `TestGiteaEnsureMilestone`, `TestGiteaSetMilestone`, the milestone in
 `TestGiteaIssues` and `TestGiteaIssue`, `TestFakeMilestones`),
 `internal/swarm/brief` (`TestMilestonesAndTitles`) and
-`internal/commands` (`TestSwarmApplyMilestones`,
+`internal/swarm/cmd` (`TestSwarmApplyMilestones`,
 `TestSwarmApplyMilestonesRefused`, and the status tests' brief lines).
 Not established: the pairs on the instance (section 10's *not established*).
 
@@ -5688,7 +5688,7 @@ Not established: the pairs on the instance (section 10's *not established*).
 always, every other stage and the three labels that are no stage never;
 `TestBatchLinesNameTheStage`), `internal/swarm/forge` (`TestGiteaRelabel`
 with `add` `""`, `TestFakeRelabel`, the eleven in
-`TestGiteaEnsureLabels`), and `internal/commands`
+`TestGiteaEnsureLabels`), and `internal/swarm/cmd`
 (`TestSwarmApplyGatedFlag`: an issue at each stage under each gate on
 and off, the flag alone and two stages cleared, a stage moved by hand
 cleared at the next pass, and `status`'s Waiting line equal to the set
@@ -5714,7 +5714,7 @@ reading the new name, a second run making nothing, a refused one
 changing nothing), `internal/swarm/reconcile` (`TestGated` with
 `swarm:blocked` at every stage under every gate; `TestBlockedBy`: the
 newest maintainer comment, the swarm's and an untrusted login's passed
-over, a later maintainer comment lifting the hold), `internal/commands`
+over, a later maintainer comment lifting the hold), `internal/swarm/cmd`
 (`TestSwarmApplyEnsuresTheLabels`: the migration through `apply`;
 `TestSwarmApplyLifecycle` and `TestSwarmApplyWorkFailures` through the
 in-progress stages and back; `TestSwarmInProgressTakenBack`: a worker's
@@ -5742,7 +5742,7 @@ neither hiding it nor counted as a block; `TestLaunchInReview`: reviews
 of the head before the worker's `NO CHANGE:` answer no longer count, a
 maintainer's copy of the words and a worker's comment not beginning so
 changing nothing; `TestRoundsCountTheAnswers`;
-`TestRenderAdversaryNoChange`: both Task texts), and `internal/commands`
+`TestRenderAdversaryNoChange`: both Task texts), and `internal/swarm/cmd`
 (`TestSwarmApplyGateNotes`: one note at each of the four gates, byte for
 byte, an issue on another milestone and one naming another, none from a
 second pass, no role woken, the Waiting line equal to the flagged set,
@@ -5775,7 +5775,7 @@ from disk and the pair in one pass are Go tests:
 `internal/swarm/reconcile` `TestLaunch` (a check holding the worker)
 and `TestLaunchInReview` (both reviewers returned together at either
 review stage, each held by its own run, a worker's run holding both), and
-`internal/commands` `TestSwarmApplyLoopCollectsALaterPass` (a member
+`internal/swarm/cmd` `TestSwarmApplyLoopCollectsALaterPass` (a member
 held over two intervals while the next pass launches another issue's
 run and a later one collects that; the held run collected by the first
 pass after it ends, one comment and one relabel, nothing left for the
@@ -5809,7 +5809,7 @@ pin with its count, a pin not in the mirror, no pin and an external
 source, the age, the section after `# Repository` for the architect and
 the batch, the Task's sentences, the worker's read-only line and no
 section, nothing without `wiki`; `TestAge`; `TestCloneAndTheCommitMsgHook`
-with `/.notes/` excluded, the name since decision [79](swarm/decisions/0079-the-research-wiki.md)'s rename, as below) and `internal/commands`
+with `/.notes/` excluded, the name since decision [79](swarm/decisions/0079-the-research-wiki.md)'s rename, as below) and `internal/swarm/cmd`
 (`TestSwarmApplyResearchWiki`, the step's claim: an architect's note
 pushed after its run by `architect (Daisy swarm) <commit_email>` with the
 marker and the co-author in the message, on the commit the run was
@@ -5839,7 +5839,7 @@ statement architecture; `TestGated`: a routine job never gated at the
 triage and plan gates and gated at the merge gate; `TestNewestCounted`:
 an auto note and a class statement not counted; `TestBlockedBy`: a
 class statement after `Blocked by #<m>` keeping the hold;
-`TestAutoPasses`) and `internal/commands` (`TestSwarmApplyRoutineJob`,
+`TestAutoPasses`) and `internal/swarm/cmd` (`TestSwarmApplyRoutineJob`,
 the step's claim: a batch of a routine, an architecture and an
 unclassed proposal, the latter two flagged and gated with their gate
 notes, the routine one passed at triage and, after its plan, at the plan
@@ -5868,7 +5868,7 @@ pull request not `MergeableYes` and one marked by `RefuseMerge`, which
 `Pulls` still reports mergeable), `internal/swarm/reconcile`
 (`TestRenderWorkerMergesBase`: the merge sentence in every worker Task
 text, a slice, the fast lane and an answer to the reviews, the merge
-gate on and off) and `internal/commands`
+gate on and off) and `internal/swarm/cmd`
 (`TestSwarmApplyNotMergeableBackToTheWorker`, the step's claim: an
 approved pull request made unmergeable by a commit landing on `main`
 that conflicts with it goes back to the worker with the direction and
@@ -5905,7 +5905,7 @@ question 35 asking for the notes or the wiki by its answer;
 copy the clone's `notes/` alone, empty when it is absent or a link, the
 link not followed; `TestRenderResearchNotes`: `/work/.notes` and the
 `# Repository` line naming `notes/ in <owner>/<repo>`) and
-`internal/commands` (`TestSwarmApplyOwnIssuesRepository`, the step's
+`internal/swarm/cmd` (`TestSwarmApplyOwnIssuesRepository`, the step's
 claim: the owner's batch reads the brief from the clone's `briefs/`,
 proposes on the swarm's own repository and its milestone is mirrored
 there; the batch's note and then the architect's land in that
@@ -5925,7 +5925,7 @@ after the move, which the step's smoke reads.
 
 **As built (Step 25 of the swarm build).** The collection's kept lines
 (sections 2, 7.2, 7.5, 7.6 and 7.7; decision [86](swarm/decisions/0086-the-collections-kept-lines.md)) are Go tests on
-the Fakes and real git in temp directories, `internal/commands`:
+the Fakes and real git in temp directories, `internal/swarm/cmd`:
 `TestSwarmAbandonedWorkerKeepsItsCommits` (an abandoned worker run's
 commits fetched into the mirror as its ref, `kept` in its result, and
 its clone removed though it holds a mode-000 directory);

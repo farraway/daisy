@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	"daisy/internal/todo"
+	"daisy/internal/verb"
 )
 
 // tasksReport is the matching lines, verbatim.
 type tasksReport struct {
 	Tasks []string `json:"tasks"`
-	warned
+	verb.Warned
 }
 
 // Tasks searches todo.txt and done.txt and prints the matching lines, bare.
@@ -19,7 +20,7 @@ type tasksReport struct {
 // both unless --todo or --done. The pattern is a literal, case-insensitive
 // substring. Read-only.
 func Tasks(c *Context) error {
-	return printReport(c, func() (*tasksReport, error) { return readTasks(c) }, func(r *tasksReport) {
+	return verb.PrintReport(c, func() (*tasksReport, error) { return readTasks(c) }, func(r *tasksReport) {
 		for _, l := range r.Tasks {
 			fmt.Fprintln(c.Stdout, l)
 		}
@@ -28,13 +29,13 @@ func Tasks(c *Context) error {
 
 func readTasks(c *Context) (*tasksReport, error) {
 	fs := c.Ops.FS()
-	files := []string{c.todoFile(), c.doneFile()}
+	files := []string{todoFile(c), doneFile(c)}
 	for _, f := range c.Flags {
 		switch f {
 		case "--todo":
-			files = []string{c.todoFile()}
+			files = []string{todoFile(c)}
 		case "--done":
-			files = []string{c.doneFile()}
+			files = []string{doneFile(c)}
 		}
 	}
 	var lines []string
@@ -52,7 +53,7 @@ func readTasks(c *Context) (*tasksReport, error) {
 		for i, f := range files {
 			names[i] = filepath.Base(f)
 		}
-		return nil, fmt.Errorf("Error: no task file to search: %s in %s", strings.Join(names, ", "), filepath.Dir(c.todoFile()))
+		return nil, fmt.Errorf("Error: no task file to search: %s in %s", strings.Join(names, ", "), filepath.Dir(todoFile(c)))
 	}
 
 	var scope []string

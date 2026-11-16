@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"daisy/internal/env"
+	"daisy/internal/verb"
 )
 
 // Test builds bin/daisy from the root's source (`make build`), runs `go
@@ -50,7 +51,7 @@ func Test(c *Context) error {
 		return err
 	}
 	if !ok {
-		return ErrReported
+		return verb.ErrReported
 	}
 	return nil
 }

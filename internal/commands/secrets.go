@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 
 	"daisy/internal/env"
 	"daisy/internal/swarm/declare"
+	"daisy/internal/verb"
 )
 
 var secretRows = []struct{ label, name string }{
@@ -46,7 +46,7 @@ func CheckSecrets(c *Context) error {
 	if wsErr == nil {
 		if !workspaceSecrets(c, ws) {
 			if swarmErr != nil {
-				return ErrReported
+				return verb.ErrReported
 			}
 			failed = true
 		}
@@ -60,7 +60,7 @@ func CheckSecrets(c *Context) error {
 	}
 	fmt.Fprint(out, "\nNote: Only showing first 8 characters of tokens for security\n")
 	if failed {
-		return ErrReported
+		return verb.ErrReported
 	}
 	return nil
 }
@@ -116,10 +116,11 @@ func swarmSecrets(c *Context) bool {
 		return true
 	}
 	names := cfg.SecretNames()
-	fmt.Fprintf(out, "Swarm %s (%s):\n", cfg.Forge.Repo, secretsFile(c, cfg))
-	vars, err := readSecrets(c, cfg, c.Stderr, names...)
+	path := cfg.Forge.SecretsFile(c.Env.Local)
+	fmt.Fprintf(out, "Swarm %s (%s):\n", cfg.Forge.Repo, path)
+	vars, err := declare.ReadSecrets(c.Ops, path, c.Stderr, names...)
 	if err != nil {
-		fmt.Fprintf(out, "❌ %s\n", strings.TrimPrefix(err.Error(), "Error: swarm: "))
+		fmt.Fprintf(out, "❌ %v\n", err)
 		return false
 	}
 	for _, name := range names {

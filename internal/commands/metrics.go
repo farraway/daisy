@@ -12,6 +12,7 @@ import (
 	"daisy/internal/env"
 	"daisy/internal/metrics"
 	"daisy/internal/ops"
+	"daisy/internal/verb"
 )
 
 // metricsReport is the summary: the CSV, whether it exists, the flags
@@ -27,7 +28,7 @@ type metricsReport struct {
 	Rows       int            `json:"rows"`
 	Superseded int            `json:"superseded"`
 	Groups     []metricsGroup `json:"groups"`
-	warned
+	verb.Warned
 }
 
 // metricsGroup is the rows of one kind and model (nil, the text's
@@ -62,7 +63,7 @@ func (l *metricsLines) String() string { return fmt.Sprintf("+%d/-%d", l.Added, 
 // supersedes left out; with --swarm, that swarm's runs alone, and with
 // --since, the rows written at or after that time.
 func Metrics(c *Context) error {
-	return printReport(c, func() (*metricsReport, error) { return readMetrics(c) }, func(r *metricsReport) {
+	return verb.PrintReport(c, func() (*metricsReport, error) { return readMetrics(c) }, func(r *metricsReport) {
 		if !r.Exists {
 			fmt.Fprintf(c.Stdout, "No metrics recorded yet (%s does not exist)\n  Record a plan step: daisy metrics add --step <n> --range <a>..<b>\n", r.File)
 			return
@@ -298,7 +299,7 @@ func MetricsAdd(c *Context) error {
 func metricsPlan(c *Context, name string) (string, error) {
 	fsys := c.Ops.FS()
 	if name == "" {
-		real, err := fsys.EvalSymlinks(c.planLink())
+		real, err := fsys.EvalSymlinks(planLink(c))
 		if err != nil {
 			return "", fmt.Errorf("Error: no PLAN.md in this workspace (or its link is broken)\n  Name the plan: daisy metrics add --plan <path or name> --step <n>")
 		}
@@ -310,7 +311,7 @@ func metricsPlan(c *Context, name string) (string, error) {
 		}
 	}
 	var found []string
-	for _, dir := range []string{c.plansDir(), filepath.Join(c.plansDir(), "archive")} {
+	for _, dir := range []string{plansDir(c), filepath.Join(plansDir(c), "archive")} {
 		entries, _ := fsys.ReadDir(dir) // no directory, no plans
 		for _, en := range entries {
 			base := en.Name()
@@ -324,7 +325,7 @@ func metricsPlan(c *Context, name string) (string, error) {
 	}
 	switch len(found) {
 	case 0:
-		return "", fmt.Errorf("Error: --plan %s names no plan file, and no plan in %s or its archive/", name, c.plansDir())
+		return "", fmt.Errorf("Error: --plan %s names no plan file, and no plan in %s or its archive/", name, plansDir(c))
 	case 1:
 		return fsys.EvalSymlinks(found[0])
 	}

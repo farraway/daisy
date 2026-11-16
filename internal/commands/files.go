@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"daisy/internal/env"
+	"daisy/internal/verb"
 )
 
 const fsModeSymlink = fs.ModeSymlink
@@ -60,7 +61,7 @@ type filesReport struct {
 	JournalWindows  []namedPath        `json:"journal_windows"` // the rolling windows, then the closed ones
 	FeedbackArchive *string            `json:"feedback_archive"`
 	Projects        workspaceProjects  `json:"workspace_projects"`
-	warned
+	verb.Warned
 }
 
 // workspaceProjects is the projects the workspace resolves to and where
@@ -90,12 +91,12 @@ type namedPath struct {
 // Given a name, it prints that one path and nothing else.
 func Files(c *Context) error {
 	switch {
-	case c.Flag(JSONFlag) && len(c.Args) == 1:
+	case c.Flag(verb.JSONFlag) && len(c.Args) == 1:
 		return UsageError("--json lists every path; with <name>, its path alone is printed")
 	case len(c.Args) == 1:
 		return fileByName(c, c.Args[0])
-	case c.Flag(JSONFlag):
-		return writeJSON(c, func() (jsonDoc, error) {
+	case c.Flag(verb.JSONFlag):
+		return verb.WriteJSON(c, func() (verb.Doc, error) {
 			reportDrift(c)
 			return listFiles(c), nil
 		})

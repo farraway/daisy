@@ -21,7 +21,7 @@ func RepoNotesFile(name string) string { return "repos/" + name + ".md" }
 // order; the worker's and a reviewer's the one it works in.
 func (s *Swarm) noteRepos(j *Job, repo declare.Repo) []string {
 	if j.Role == "owner" || j.Role == "architect" {
-		return repoNames(s)
+		return repoNames(s.Cfg)
 	}
 	if repo.Name == "" {
 		return nil

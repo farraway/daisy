@@ -40,20 +40,24 @@ dependency it avoids.
 | `internal/ops` | every side effect in one value: `Real`, `ReadOnly` (refuses every write; since the swarm build it lets a forge `GET`/`HEAD` and `docker ps` through for the read-only commands), `Fake` |
 | `internal/env` | root, registry, workspace, home, identity and projects resolution; `.env.sh` read without being run; the homes a root commit leaves out (`RootExclusions`) |
 | `internal/cli` | `Run` and the command table (`internal/cli/table.go`), from which the help, `docs/cli.md`'s tree and the Command Reference below are rendered |
-| `internal/commands` | one function per command |
+| `internal/verb` | the frame every command runs in: `Context` (built by the cli), `UsageError`, `ErrReported`, `ReadOnly` for a `--healthcheck` hook and the `--json` report (`PrintReport`, `WriteJSON`); the two command packages name its `Context`, `Value` and `UsageError` as their own (type aliases) |
+| `internal/commands` | one function per command, the swarm's verbs aside |
+| `internal/swarm/cmd` | one function per `daisy swarm` command, the swarm's verbs |
 | `internal/todo`, `internal/journal`, `internal/gitx`, `internal/prompt`, `internal/skill`, `internal/identity`, `internal/settings`, `internal/workspace`, `internal/plan`, `internal/feedback`, `internal/metrics` | the domain packages behind them; `internal/gitx` makes the one commit every command that changes an existing home ends in (`plan new`, `feedback`, `eval --record`, `metrics add`, `swarm apply`'s metrics rows and a hand-run `rotate` leave their writes to the next commit) |
 | `internal/health` | `daisy healthcheck`: the checks, the TTL stamp and the publication scan |
-| `internal/swarm/declare` | `swarm.json`, its validation and `init`'s wizard |
+| `internal/swarm/declare` | `swarm.json`, its validation and `init`'s wizard; the secrets file, `<state>/env` |
 | `internal/swarm/forge` | the forge seam: `Adapter`, `gitea`, `Fake` |
 | `internal/swarm/provider` | each agent CLI's argv and what its output reports |
 | `internal/swarm/runner` | the containers: `Docker`, the login slots, `Fake` |
-| `internal/swarm/reconcile` | the trigger rule, the prompt files, host-side git and `apply`'s pass |
+| `internal/swarm/reconcile` | the trigger rule, the prompt files, host-side git, `apply`'s pass and `status`'s report |
 | `internal/swarm/brief` | the briefs: `Status:` lines and milestone headings |
 
-**Dependency rule:** `cli → commands → {domain packages} → ops`; nothing
-above `ops` calls `os`, `os/exec` or `time.Now` itself: no package but
-`ops` imports `os` (`internal/testenv`, which pins a test's environment,
-and `cmd/daisy/main.go`, which hands the process's streams to `cli.Run`,
+**Dependency rule:** `cli → {commands, swarm/cmd} → {domain packages} →
+ops`, `internal/verb` among the domain packages and neither command
+package importing the other; nothing above `ops` calls `os`, `os/exec`
+or `time.Now` itself: no package but `ops` imports `os`
+(`internal/testenv`, which pins a test's environment, and
+`cmd/daisy/main.go`, which hands the process's streams to `cli.Run`,
 excepted), names anything of `os/exec` but its `ExitError` type, or reads
 or waits on the clock through `time`. `TestDependencyRule`
 (`cmd/daisy/rules_test.go`) parses every non-test Go file under `cmd/`
@@ -311,7 +315,7 @@ clean at the cap stops and hands back with its findings.
 
 ## The swarm, from an agent session
 
-The swarm's code is `internal/swarm/*` and `internal/commands/swarm.go`;
+The swarm's code is `internal/swarm/*`, its verbs `internal/swarm/cmd`;
 its contract is `docs/swarm.md`, its decisions one file each under
 `docs/swarm/decisions/` and its history `docs/swarm-changelog.md`, and
 `images/member/Dockerfile` with `images/member/entrypoint.sh` is the
