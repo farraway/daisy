@@ -1,6 +1,10 @@
 package main_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -480,5 +484,111 @@ func TestSkillDescriptionsFitTheCap(t *testing.T) {
 		case n > 1024:
 			t.Errorf("%s: the description is %d characters, over the 1,024 the Agent Skills specification allows; move detail into the body", f, n)
 		}
+	}
+}
+
+// specCitation is one form a Go file cites docs/swarm.md by: each number
+// its pattern captures must be a key of valid. A spec split into several
+// files adds its forms here (a decision file's path) and changes where a
+// form's numbers come from (an item's from the decision files' names).
+type specCitation struct {
+	form  string
+	re    *regexp.Regexp // group 1: the numbers of a list or a range
+	valid map[string]bool
+}
+
+var citedNumber = regexp.MustCompile(`\d+(?:\.\d+)*`)
+
+// specCitations reads docs/swarm.md's numbered headings (`## 7. Members`,
+// `### 7.3 The prompt files`) and its section 14's numbered items.
+func specCitations(t *testing.T) []specCitation {
+	t.Helper()
+	b, err := os.ReadFile("docs/swarm.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	headingRe := regexp.MustCompile(`^##+ (\d+(?:\.\d+)*)\.? `)
+	itemRe := regexp.MustCompile(`^(\d+)\. `)
+	sections, items := map[string]bool{}, map[string]bool{}
+	fence, section := false, ""
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(strings.TrimLeft(l, " "), "```") {
+			fence = !fence
+		}
+		if fence {
+			continue
+		}
+		if m := headingRe.FindStringSubmatch(l); m != nil {
+			sections[m[1]], section = true, m[1]
+		} else if m := itemRe.FindStringSubmatch(l); m != nil && section == "14" {
+			items[m[1]] = true
+		}
+	}
+	if len(sections) < 20 || len(items) < 100 {
+		t.Fatalf("docs/swarm.md: read %d numbered headings and %d items of section 14", len(sections), len(items))
+	}
+	// A list (`sections 3, 7.2 and 7.6`) or a range (`sections 5–7`,
+	// `sections 5 to 7`): each number is checked, a range's two ends.
+	list := `(\d+(?:\.\d+)*(?:(?:\s*[–-]\s*|(?:,\s*|\s+)(?:(?:and|or|to|through)\s+)?)\d+(?:\.\d+)*)*)`
+	return []specCitation{
+		{"section", regexp.MustCompile(`(?i)(?:\bsections?\s+|§§?\s*)` + list), sections},
+		{"section 14's item", regexp.MustCompile(`(?i)\bitems?\s+` + list), items},
+	}
+}
+
+// Every section of docs/swarm.md a Go comment or string under cmd/ and
+// internal/ cites (`section 7.3`, `sections 7.2 and 9`, `sections 5–7`,
+// `§5`) is one of its numbered headings, and every item it cites
+// (`section 14, item 74`) is one of section 14's numbered items, so a
+// spec that moves or renumbers cannot leave the code citing what is no
+// longer there.
+func TestCodeCitesExistingSpecSections(t *testing.T) {
+	forms := specCitations(t)
+	fset := token.NewFileSet()
+	cited := 0
+	check := func(pos token.Pos, text string) {
+		for _, f := range forms {
+			for _, m := range f.re.FindAllStringSubmatchIndex(text, -1) {
+				line := fset.Position(pos).Line + strings.Count(text[:m[0]], "\n")
+				for _, n := range citedNumber.FindAllString(text[m[2]:m[3]], -1) {
+					cited++
+					if !f.valid[n] {
+						t.Errorf("%s:%d: cites %s %s, which docs/swarm.md does not have: %q", fset.Position(pos).Filename, line, f.form, n, strings.Join(strings.Fields(text[m[0]:m[1]]), " "))
+					}
+				}
+			}
+		}
+	}
+	for _, dir := range []string{"cmd", "internal"} {
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
+				return err
+			}
+			f, err := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.SkipObjectResolution)
+			if err != nil {
+				return err
+			}
+			for _, g := range f.Comments {
+				// A citation may wrap: a group's lines are read as one text.
+				var text []string
+				for _, c := range g.List {
+					text = append(text, strings.TrimPrefix(strings.TrimPrefix(strings.TrimSuffix(c.Text, "*/"), "/*"), "//"))
+				}
+				check(g.Pos(), strings.Join(text, "\n"))
+			}
+			ast.Inspect(f, func(n ast.Node) bool {
+				if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+					check(lit.Pos(), lit.Value)
+				}
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if cited < 700 {
+		t.Errorf("read %d citations of docs/swarm.md; the patterns no longer find them", cited)
 	}
 }

@@ -46,7 +46,7 @@ wrong.
 
 - **Match conventions** — naming, layout, error style, patterns already in use.
 - **Resist over-engineering** — no premature generalisation, no abstraction layers with only one caller.
-- **Comments sparingly** — comment only non-obvious constraints, invariants, or trade-offs.
+- **Comments sparingly** — comment only non-obvious constraints, invariants, or trade-offs; a comment never argues for a workaround: fix the cause, or, when the cause lies outside the step's problem (Rule 4), the cause goes to Deferred.
 - **Tests when they earn their keep** — protect real behaviour or document contracts; skip tests that assert the obvious.
 
 ## Review

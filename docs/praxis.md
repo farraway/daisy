@@ -35,7 +35,7 @@ Prefer one good step over a batch of unreviewed steps.
 - **Minimize scope** — smallest diff within the chosen design; no drive-by refactors.
 - **Match conventions** — naming, layout, error style, patterns already in use.
 - **Resist over-engineering** — no premature generalisation, no abstraction layers with only one caller, no helpers that merely rename one line.
-- **Comments sparingly** — code should mostly explain itself; comment only non-obvious constraints, invariants, or trade-offs.
+- **Comments sparingly** — code should mostly explain itself; comment only non-obvious constraints, invariants, or trade-offs. A comment never argues for a workaround: a shortcut it justifies leaves its cause in place, unseen by the next reader. Fix the cause, or, when the cause lies outside the step's problem, the cause goes to Deferred (Maintaining the Plan).
 - **Tests when they earn their keep** — add tests that protect real behaviour or document contracts; skip tests that only assert the obvious.
 
 ---

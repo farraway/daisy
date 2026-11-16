@@ -276,8 +276,10 @@ then replace the block below with the output of `daisy help --markdown`.
 output, the `Ops` wrapper, writes and commits. A Go test
 (`cmd/daisy/docs_test.go`) checks that every `daisy …` the documents name
 is a row of the table with flags the table gives it, that every
-repository path they name exists, and that `docs/cli.md`'s tree is `daisy
-help` byte for byte.
+repository path they name exists, that `docs/cli.md`'s tree is `daisy
+help` byte for byte, and that every section of `docs/swarm.md` a Go
+comment or string cites (`section 7.3`, `§5`) is one of its numbered
+headings, and every item (`section 14, item 74`) one of section 14's.
 
 Commands do not yet implement: priority floor rules, task preservation
 from yesterday, quiet day consolidation, advanced sync validation, JIRA
