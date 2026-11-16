@@ -51,7 +51,13 @@ function in the table; `daisy healthcheck` runs them in-process as its
 whole check in-process before they write.
 
 **Build and gates.** `make build` writes `bin/daisy` (gitignored); `daisy
-install` links `~/bin/daisy` to it and does not build. `daisy test` builds,
+install` links `~/bin/daisy` to it and does not build. `make install-dev`
+is the one command that installs a root as its remote has it, from
+anywhere as `make -C "$DAISY_ROOT" install-dev`: a fast-forward pull, the
+build with a writable `GOCACHE`, `daisy install --update`, then a failure
+unless `~/bin/daisy`'s `daisy version` (the commit Go stamps into a binary
+built in a checkout) is the root's HEAD exactly: a tree with changes git
+status shows, an untracked file included, fails it too. `daisy test` builds,
 runs `go test ./...`, then drives the acceptance suite through the binary
 (`make test` is `daisy test`); the suite refuses a `daisy` on `PATH` that
 is not this root's `bin/daisy`, so a stale link cannot run another
@@ -239,6 +245,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | System | `daisy healthcheck [--force]` | Run the system health check |
 | System | `daisy check-secrets` | Check which secrets/tokens are configured |
 | System | `daisy test [filter]` | Run go test, then the hermetic acceptance suite |
+| System | `daisy version` | The commit this binary was built from; also --version (read-only) |
 <!-- END command reference -->
 
 `docs/cli.md` is the contract behind each row: arguments, exit codes,

@@ -122,6 +122,7 @@ System
   healthcheck [--force]             Run the system health check
   check-secrets                     Check which secrets/tokens are configured
   test [filter]                     Run go test, then the hermetic acceptance suite
+  version                           The commit this binary was built from; also --version (read-only)
 
 Every command also accepts --help/-h (as the sole argument) to print its usage.
 
@@ -643,7 +644,7 @@ new home.
 |---|---|
 | Status | as built (Step 21): Go; non-interactive in both forms (the bash asked for a default home and wrote a variable naming it, which nothing reads since Step 24); writes nothing under `~/.claude` since Step 13 of the plan that clears the Deferred list (2026-11-12): skills and permissions are `init`'s, per workspace |
 | Legacy | `daisy install [--update]` → built in to `daisy.sh`, deleted in Step 21 |
-| Usage | `daisy install [--update]`: `--update` re-applies the symlink and takes back what earlier installs put under `~/.claude` (Writes); plain `install` also writes the shell rc line and refuses when already installed, the link and the rc line both naming this root (`Error: Daisy is already installed.`, exit 1; a link already right with the rc line naming another root is installed, D47). The root is the one whose `bin/daisy` is running (`Ops.Executable()`, `<exe>/../..` with links resolved; a `$DAISY_ROOT` that resolves to it is used as set), so `<root>/bin/daisy install` bootstraps a shell with nothing set; a `$DAISY_ROOT` that resolves to another root is refused before any write, both forms (`Error: DAISY_ROOT is <set>, but this binary (<exe>) is in <root>` [86], then the fix, plain `install` from either form since it also writes the rc line the export came from: `DAISY_ROOT=<root> <root>/bin/daisy install` or unset it, and `<set>/bin/daisy install` for the other root, and a `grep` for an export in another rc file, for a new shell refused again; D47 — a stale export had sent an install, and `~/bin/daisy`, to the old root). It does not build: `make build` writes the binary, and `install` warns when it is not built yet |
+| Usage | `daisy install [--update]`: `--update` re-applies the symlink and takes back what earlier installs put under `~/.claude` (Writes); plain `install` also writes the shell rc line and refuses when already installed, the link and the rc line both naming this root (`Error: Daisy is already installed.`, exit 1; a link already right with the rc line naming another root is installed, D47). The root is the one whose `bin/daisy` is running (`Ops.Executable()`, `<exe>/../..` with links resolved; a `$DAISY_ROOT` that resolves to it is used as set), so `<root>/bin/daisy install` bootstraps a shell with nothing set; a `$DAISY_ROOT` that resolves to another root is refused before any write, both forms (`Error: DAISY_ROOT is <set>, but this binary (<exe>) is in <root>` [86], then the fix, plain `install` from either form since it also writes the rc line the export came from: `DAISY_ROOT=<root> <root>/bin/daisy install` or unset it, and `<set>/bin/daisy install` for the other root, and a `grep` for an export in another rc file, for a new shell refused again; D47 — a stale export had sent an install, and `~/bin/daisy`, to the old root). It does not build: `make build` writes the binary, and `install` warns when it is not built yet. `make install-dev` (`make -C <root> install-dev` from anywhere) is the one command that installs a root as its remote has it: `git pull --ff-only`, `make build` with a writable `GOCACHE` (Go's own cache, else `$TMPDIR/gocache`, said on stdout), `install --update` with `DAISY_ROOT` the root, then a failure (make exits non-zero) unless `~/bin/daisy version` is the root's `git rev-parse HEAD` exactly: another commit (`Error: ~/bin/daisy is <sha>, but the root's HEAD is <sha>`), or HEAD marked ` (modified)`, a tree with changes, an untracked file included (`Error: ~/bin/daisy is <sha> built from a tree with changes HEAD does not hold`, then `git status --porcelain` and the fix; a binary marked modified over a tree with none is the stale build, the first error) (`TestInstallDevChecksTheInstalledCommit`) |
 | Exit codes | 0 [31]; 1 already installed, `~/bin/daisy` exists and is not a symlink, `~/.claude/settings.json` cannot be read or is not a JSON object (decided before any write), `HOME` unset, no `DAISY_ROOT` and the binary not under a root's `bin/`, a `DAISY_ROOT` other than the binary's root [86] or set with the binary's own path unknown |
 | Stdout | `Installing Daisy...` / `Updating Daisy...`, `  DAISY_ROOT: <root>`, ✓ lines per step, `  ✓ Removed N copies of root skills from ~/.claude/skills (<names>); Daisy installs skills in each workspace now: run 'daisy init' there` (`Removed 1 copy of a root skill from ~/.claude/skills (testing)` [31]) and `  · Kept ~/.claude/skills/<name>: named as a root skill but holding a file no version of it has (an edit, or a file of your own); remove it by hand if it is Daisy's` (`Kept ~/.claude/skills/git` [31]) per directory kept, `  ✓ Removed Daisy's permissions from ~/.claude/settings.json (each workspace's 'daisy init' grants them now)` or `  ✓ Removed ~/.claude/settings.json (it held only Daisy's permissions, …)`, each only when it did so, `  Shell config: <rc>` and `  ✓ Added DAISY_ROOT to <rc>` / `  ✓ DAISY_ROOT already set correctly` / `  ✓ Updated DAISY_ROOT (was: <old>)`, `Done.` / `Done. To activate, run:` … `daisy init <home>` (or `daisy home new <name>` first when none is registered) |
 | Ops | Real |
@@ -1123,3 +1124,18 @@ nothing posted`).
 | Writes | `bin/daisy`; temporary fixtures only |
 | Commits | none |
 | Cases | none (`TestTestRunsBuildGoTestThenSuite`) |
+
+### daisy version
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 1 of the plan remediating the 2026-11-15 design review): Go (`internal/commands/version.go`) |
+| Legacy | none |
+| Usage | `daisy version`, or `daisy --version`, the same command; any argument is usage, exit 2. The commit is the stamp the Go toolchain writes into a binary built inside a git checkout (Go's `debug.ReadBuildInfo`: `vcs.revision`, `vcs.modified`), so `make build`, or any `go build` in the root, carries it with no flag of its own; `make install-dev` compares it with the root's HEAD (`daisy install`, above) |
+| Exit codes | 0; 1 when the binary carries no commit (built outside a git checkout, with `-buildvcs=false`, or by `go test` or `go run`); 2 for a usage error |
+| Stdout | the commit's full sha, then ` (modified)` when git status showed changes at build time, an untracked file included, so the binary may hold code the commit does not |
+| Stderr | `Error: this binary carries no commit: …` and `  Build it with 'make build' in the root` |
+| Ops | ReadOnly |
+| Writes | nothing |
+| Commits | none |
+| Cases | none; `TestVersionLine`, `TestVersionWithoutAStamp`, `TestInstallDevChecksTheInstalledCommit` |

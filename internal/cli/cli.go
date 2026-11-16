@@ -35,6 +35,9 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 	if isHelpWord(args[0]) {
 		return help(o, stdin, stdout, stderr, args[1:])
 	}
+	if args[0] == "--version" {
+		args = append([]string{"version"}, args[1:]...)
+	}
 
 	cmd, rest, ok := match(args)
 	if !ok {

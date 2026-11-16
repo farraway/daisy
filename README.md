@@ -384,7 +384,10 @@ bin/daisy install
 `install` links `~/bin/daisy` to `bin/daisy` and adds `DAISY_ROOT` to your
 shell rc file; it writes nothing under `~/.claude` (skills and permissions
 come with `daisy init`, per workspace, below), and takes back the skill
-copies and permissions an earlier install put there. Open a new shell (or source the
+copies and permissions an earlier install put there. To update the root later
+to what its remote has, run `make -C "$DAISY_ROOT" install-dev`: it pulls
+fast-forward, builds, runs `daisy install --update` and fails unless the
+installed `daisy version` is the root's HEAD. Open a new shell (or source the
 rc file `install` named), then create a home if you have none:
 
 ```bash

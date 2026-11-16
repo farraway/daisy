@@ -218,9 +218,9 @@ func TestDocsNameOnlyTableCommands(t *testing.T) {
 				}
 				rest := w[len(strings.Fields(name)):]
 				if w[0] == "" {
-					rest = w[1:] // the bare program takes only --help and -h
+					rest = w[1:] // the bare program takes only --help, -h and --version
 				}
-				if len(rest) == 1 && (rest[0] == "--help" || rest[0] == "-h" || rest[0] == "--healthcheck" && health) {
+				if len(rest) == 1 && (rest[0] == "--help" || rest[0] == "-h" || rest[0] == "--healthcheck" && health || w[0] == "" && rest[0] == "--version") {
 					continue
 				}
 				var words []string // `--todo|--done` is two

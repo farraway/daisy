@@ -99,6 +99,7 @@ var table = []Command{
 	{Group: "System", Name: "healthcheck", Usage: "healthcheck [--force]", Help: "Run the system health check", Flags: []string{"--force"}, Run: commands.Healthcheck},
 	{Group: "System", Name: "check-secrets", Usage: "check-secrets", Help: "Check which secrets/tokens are configured", Run: commands.CheckSecrets},
 	{Group: "System", Name: "test", Usage: "test [filter]", Help: "Run go test, then the hermetic acceptance suite", Max: 1, Run: commands.Test, Health: commands.TestHealth},
+	{Group: "System", Name: "version", Usage: "version", Help: "The commit this binary was built from; also --version (read-only)", Run: commands.Version},
 }
 
 // groups in display order.
