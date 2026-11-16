@@ -187,7 +187,7 @@ func (j *Job) notesTask() string {
 
 // RepoURL is the git URL of the repository `<owner>/<repo>` beside
 // origin, the swarm repository's clone's: its last element replaced by
-// `<repo>.git` (section 14, item 7: one owner).
+// `<repo>.git` (docs/swarm/decisions/0007-every-declared-repository-is-owners-at-its-origin.md: one owner).
 func RepoURL(origin, repo string) string {
 	u := strings.TrimRight(origin, "/")
 	return u[:strings.LastIndexAny(u, "/:")+1] + repo + ".git"

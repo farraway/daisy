@@ -601,8 +601,9 @@ func TestGiteaRelabel(t *testing.T) {
 	s.done()
 }
 
-// The label ids are listed once per repository and pass (section 14,
-// item 90): a second write in the same repository lists nothing, another
+// The label ids are listed once per repository and pass
+// (docs/swarm/decisions/0090-rounds-briefs-and-the-forge.md): a second
+// write in the same repository lists nothing, another
 // repository lists its own, and after NewPass, or EnsureLabels, which
 // may rename or create a label, the next write lists them again.
 func TestGiteaLabelIDsOncePerPass(t *testing.T) {

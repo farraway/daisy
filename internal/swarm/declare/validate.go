@@ -453,7 +453,7 @@ func gitURL(raw string) (credentials, ok bool) {
 }
 
 // Declares is the declared repository whose forge repository is repo
-// (`<owner>/<name>`): repos are their owner's (section 14, item 7), so
+// (`<owner>/<name>`): repos are their owner's (docs/swarm/decisions/0007-every-declared-repository-is-owners-at-its-origin.md), so
 // its name decides.
 func (c Config) Declares(repo string) (Repo, bool) {
 	_, name, _ := strings.Cut(repo, "/")

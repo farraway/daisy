@@ -154,7 +154,7 @@ func (f countingForge) Issues(s forge.State, label string) ([]forge.Issue, error
 }
 
 // The milestone step reads the closed issues only when it created a
-// milestone, or at the process's first reading (section 14, item 90):
+// milestone, or at the process's first reading (docs/swarm/decisions/0090-rounds-briefs-and-the-forge.md):
 // in the loop, the first pass reads them and puts a closed issue in its
 // milestone, the second reads none, and the third, which creates the
 // milestone a brief gained meanwhile, reads them again and puts the

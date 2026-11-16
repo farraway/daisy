@@ -66,7 +66,7 @@ var Flags = []string{Gated, Blocked, Paused, Blocking, ClassArchitecture, Questi
 var Labels = append(append(slices.Clone(Stages), Flags...), Done, Rejected)
 
 // Renamed is each stage label before Step 15 of the swarm build by the
-// name that replaced it (section 14, item 74): EnsureLabels renames a
+// name that replaced it (docs/swarm/decisions/0074-the-label-vocabulary.md): EnsureLabels renames a
 // label found under its old name, and a run recorded before the rename
 // is read under the new one. swarm:blocked keeps its name, as a flag.
 var Renamed = map[string]string{

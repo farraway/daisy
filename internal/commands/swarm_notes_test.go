@@ -34,7 +34,7 @@ func ruleslibNote(by string) string {
 	return "Subject: ruleslib's rules\nSource: https://example.net/ruleslib v2.0.0\nWritten: 2026-11-06 by " + by + "\nChecked: 2026-11-06\n\n## Rules\n\nThree.\n"
 }
 
-// The claim of Step 23 (docs/swarm.md section 14, item 83), in the swarm
+// The claim of Step 23 (docs/swarm/decisions/0083-the-swarms-own-repository-issues-briefs-and-notes-in-owner.md), in the swarm
 // repository acme/swarm-app with `notes: true`: the owner's batch reads
 // the brief from its briefs/ and proposes there, its milestone mirrored
 // there; the batch's note and the architect's land in its notes/ on main,

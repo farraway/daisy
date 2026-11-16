@@ -281,7 +281,9 @@ is a row of the table with flags the table gives it, that every
 repository path they name exists, that `docs/cli.md`'s tree is `daisy
 help` byte for byte, and that every section of `docs/swarm.md` a Go
 comment or string cites (`section 7.3`, `§5`) is one of its numbered
-headings, and every item (`section 14, item 74`) one of section 14's.
+headings, and every decision it cites (`item 74`, or its file
+`docs/swarm/decisions/0074-the-label-vocabulary.md`) is a file of
+`docs/swarm/decisions/`.
 
 Commands do not yet implement: priority floor rules, task preservation
 from yesterday, quiet day consolidation, advanced sync validation, JIRA
@@ -310,9 +312,13 @@ clean at the cap stops and hands back with its findings.
 ## The swarm, from an agent session
 
 The swarm's code is `internal/swarm/*` and `internal/commands/swarm.go`;
-its contract is `docs/swarm.md`, and `images/member/Dockerfile` with
-`images/member/entrypoint.sh` is the member image. Three rules bind an
-agent working near it:
+its contract is `docs/swarm.md`, its decisions one file each under
+`docs/swarm/decisions/` and its history `docs/swarm-changelog.md`, and
+`images/member/Dockerfile` with `images/member/entrypoint.sh` is the
+member image. A change to the contract edits the sections it changes and,
+in the same commit, adds a decision file and a line in the changelog
+(`docs/swarm.md`, Changing this document). Three rules bind an agent
+working near it:
 
 - **`init` and `apply` are the maintainer's, from a terminal.** An agent
   session never runs them: the sandbox has no Docker socket, and the swarm
@@ -519,6 +525,8 @@ The reference source itself is never modified or deleted by adoption: copy
 
 - [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the command tree as built, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
 - [`docs/swarm.md`](docs/swarm.md) — The swarm's contract (the nineteen verbs built; the board, the GitHub adapter and the budget specified ahead of their build): `swarm.json`, the brief, the label lifecycle and trigger rule, the marker, the member container and its image, the credential rule, the provider and forge seams, the verbs (the maintainer's nine among them, with the `swarm` skill as their guide), the merge gate
+- [`docs/swarm/decisions/`](docs/swarm/decisions/) — The swarm's decision records, one file per decision (`NNNN-<slug>.md`): each place `docs/swarm.md` chose between readings, filled a gap or took a change, with its alternative
+- [`docs/swarm-changelog.md`](docs/swarm-changelog.md) — How `docs/swarm.md` came to say what it says: its revisions and each step's change to it
 - [`docs/home-management.md`](docs/home-management.md) — Root and homes as separate repositories, the registry, identities, per-workspace resolution, the health check
 - [`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md) — The situated/craft distinction, the coupling criterion, the ownership axis, worked examples
 - [`docs/task-format.md`](docs/task-format.md) — Task format regex, conversion rules, file organization

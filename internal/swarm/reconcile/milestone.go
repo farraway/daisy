@@ -16,7 +16,7 @@ import (
 // issue; every failure is a warning, and the pass goes on. The open
 // issues are open, the flag step's list (read again when nil); the closed
 // ones are read only when this step created a milestone, or at this
-// process's first reading of them (section 14, item 90): a closed issue
+// process's first reading of them (docs/swarm/decisions/0090-rounds-briefs-and-the-forge.md): a closed issue
 // is otherwise one an earlier step has already seen.
 func (s *Swarm) milestones(open []forge.Issue) {
 	warn := func(format string, a ...any) { fmt.Fprintf(s.Err, "⚠ "+format+"\n", a...) }

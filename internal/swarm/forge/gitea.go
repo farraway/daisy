@@ -423,7 +423,7 @@ func (g *Gitea) Issue(n int) (Issue, error) {
 }
 
 // NewPass drops the label ids the adapter holds, so that a pass of
-// `apply` reads them once (section 14, item 90): `Swarm.Pass` calls it
+// `apply` reads them once (docs/swarm/decisions/0090-rounds-briefs-and-the-forge.md): `Swarm.Pass` calls it
 // at its start; a command that makes no pass reads them once for its run.
 func (g *Gitea) NewPass() { g.labels = nil }
 

@@ -541,7 +541,8 @@ func TestSwarmApplyOnXAI(t *testing.T) {
 // the start, a space or an opening mark, then the path's characters.
 var absPath = regexp.MustCompile("(?:^|[\\s(`\"'])(/[A-Za-z0-9._/-]*[A-Za-z0-9_/-])")
 
-// confined checks a grok member's launch (sections 7.2 and 9, item 87):
+// confined checks a grok member's launch (sections 7.2 and 9;
+// docs/swarm/decisions/0087-grok-sees-only-its-working-folder.md):
 // no --add-dir, started in /work, which every path its argv and prompt
 // files name lies under, and each mount but the credential mounted there;
 // repo is the repository the owner's or the architect's prompt names
@@ -586,8 +587,9 @@ func confined(t *testing.T, spec runner.Spec, run, repo string) {
 	}
 }
 
-// Every role on xai is confined as the architect is (sections 7.2 and 9,
-// item 87): the owner's batch, the worker and both reviewers.
+// Every role on xai is confined as the architect is (sections 7.2 and 9;
+// docs/swarm/decisions/0087-grok-sees-only-its-working-folder.md): the
+// owner's batch, the worker and both reviewers.
 func TestSwarmApplyConfinedRoles(t *testing.T) {
 	a := newApplyWS(t)
 	env := "XAI_API_KEY"

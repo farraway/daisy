@@ -93,7 +93,7 @@ func TestReadOnlyRefusesStartAndHTTPWrites(t *testing.T) {
 		t.Error("HTTP under ReadOnly was allowed")
 	}
 	// A GET or HEAD reaches the inner Doer; every other method is refused
-	// before it does (docs/swarm.md section 14, item 31).
+	// before it does (docs/swarm/decisions/0031-status-runs-under-a-widened-readonly.md).
 	var sent []string
 	inner := &ops.Fake{HTTPFn: func() ops.Doer { return doerFunc(func(r *http.Request) { sent = append(sent, r.Method) }) }}
 	ro = ops.ReadOnly(inner)

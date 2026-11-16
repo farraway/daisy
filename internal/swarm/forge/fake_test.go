@@ -359,7 +359,7 @@ func TestFakePullAuthor(t *testing.T) {
 	}
 }
 
-// The one-time migration (section 14, item 74): a Fake holding the eleven
+// The one-time migration (docs/swarm/decisions/0074-the-label-vocabulary.md): a Fake holding the eleven
 // labels of Step 14 under their old names renames the seven old stage
 // names in place, every issue and pull request carrying one, open or
 // closed, reading its new name, and creates the four the set lacks; a

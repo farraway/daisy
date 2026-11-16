@@ -412,8 +412,8 @@ func (w *Wizard) named(answer string) ([]Repo, []Origin, *Error) {
 
 // swarmDefault is question 4's default: the file's forge.repo; else the clone's origin; else the first clone
 // detection finds whose repository begins swarm- on the forge's host;
-// else <owner>/swarm-<name> after the first product repository (section
-// 14, item 103).
+// else <owner>/swarm-<name> after the first product repository (see
+// docs/swarm/decisions/0103-init-creates-and-seeds-the-swarm-repository.md).
 func (w *Wizard) swarmDefault(c Config, first Origin) string {
 	if w.File != nil {
 		return w.File.Forge.Repo

@@ -14,7 +14,7 @@ import (
 // a GET or HEAD returns an error naming the call. The commands whose usage
 // promises "read-only" run under it, so the promise is checked rather than
 // trusted (`swarm status` reads the forge and the running containers:
-// docs/swarm.md section 14, item 31).
+// docs/swarm/decisions/0031-status-runs-under-a-widened-readonly.md).
 func ReadOnly(inner Ops) Ops { return readOnly{inner} }
 
 type readOnly struct{ inner Ops }

@@ -10,7 +10,7 @@ import (
 )
 
 // The real grok over the argv Command builds (section 9, the xai row; a
-// check of section 14's item 87): a headless session is created from it,
+// check of docs/swarm/decisions/0087-grok-sees-only-its-working-folder.md): a headless session is created from it,
 // so no flag is refused, and the member reads a resource under its
 // working directory, laid out as a member's /work is. Opt-in: it runs only
 // with DAISY_TEST_GROK_HOME naming a scratch copy of a logged-in grok

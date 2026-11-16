@@ -68,7 +68,7 @@ func boardNote(pin string) string {
 	return "Subject: the board model\nSource: app " + pin + "\nWritten: 2026-11-06 by architect run 1 on #1\nChecked: 2026-11-06\n\n## Findings\n\nThe board is a grid.\n"
 }
 
-// The claim of Step 19 (docs/swarm.md section 14, item 79): an architect
+// The claim of Step 19 (docs/swarm/decisions/0079-the-research-wiki.md): an architect
 // that researches writes a note into /work/.notes, writable for it, which
 // Daisy commits by the role's identity with the marker in the message and
 // pushes after the run; a second architect, on another issue, is given

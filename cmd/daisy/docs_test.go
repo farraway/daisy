@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -24,7 +25,7 @@ import (
 func docFiles(t *testing.T) []string {
 	t.Helper()
 	files := []string{"README.md", "AGENTS.md"}
-	for _, g := range []string{"docs/*.md", "prompts/*.md"} {
+	for _, g := range []string{"docs/*.md", "docs/swarm/decisions/*.md", "prompts/*.md"} {
 		m, err := filepath.Glob(g)
 		if err != nil || len(m) == 0 {
 			t.Fatalf("glob %s: %v %v", g, m, err)
@@ -255,18 +256,20 @@ func TestDocsNameOnlyTableCommands(t *testing.T) {
 // pathPlaceholders are the repository-shaped paths a document names that
 // are not tracked files, by document, each with its reason.
 var pathPlaceholders = map[string]string{
-	"README.md bin/daisy":                  "make build writes it (gitignored)",
-	"AGENTS.md bin/daisy":                  "make build writes it (gitignored)",
-	"docs/cli.md bin/daisy":                "make build writes it (gitignored)",
-	"docs/home-management.md bin/daisy":    "make build writes it (gitignored)",
-	"docs/cli.md identities/pelicanmoor":   "case 77/79 fixture identity",
-	"docs/cli.md home/stray/note.txt":      "case 73 fixture",
-	"docs/cli.md prompts/daisy":            "a feedback target name, not a file",
-	"docs/cli.md feedback/.last-optimized": "the home file optimize apply writes",
-	"docs/cli.md feedback/.overrides":      "the home file a full override records the root's hash in, created on first use",
-	"docs/cli.md y/N/e":                    "the bash optimize prompt's answers",
-	"AGENTS.md os/exec":                    "a Go standard package",
-	"docs/swarm.md docs/adr":               "a product repository's ADR directory, the default rulings",
+	"README.md bin/daisy":                                            "make build writes it (gitignored)",
+	"AGENTS.md bin/daisy":                                            "make build writes it (gitignored)",
+	"docs/cli.md bin/daisy":                                          "make build writes it (gitignored)",
+	"docs/home-management.md bin/daisy":                              "make build writes it (gitignored)",
+	"docs/cli.md identities/pelicanmoor":                             "case 77/79 fixture identity",
+	"docs/cli.md home/stray/note.txt":                                "case 73 fixture",
+	"docs/cli.md prompts/daisy":                                      "a feedback target name, not a file",
+	"docs/cli.md feedback/.last-optimized":                           "the home file optimize apply writes",
+	"docs/cli.md feedback/.overrides":                                "the home file a full override records the root's hash in, created on first use",
+	"docs/cli.md y/N/e":                                              "the bash optimize prompt's answers",
+	"AGENTS.md os/exec":                                              "a Go standard package",
+	"docs/swarm.md docs/adr":                                         "a product repository's ADR directory, the default rulings",
+	"docs/swarm-changelog.md docs/adr":                               "a product repository's ADR directory, the default rulings",
+	"docs/swarm/decisions/0128-a-ruling-re-opens-a-plan.md docs/adr": "a product repository's ADR directory, the default rulings",
 }
 
 // Every repository-relative path a document names, in backticks or as a
@@ -487,20 +490,23 @@ func TestSkillDescriptionsFitTheCap(t *testing.T) {
 	}
 }
 
-// specCitation is one form a Go file cites docs/swarm.md by: each number
-// its pattern captures must be a key of valid. A spec split into several
-// files adds its forms here (a decision file's path) and changes where a
-// form's numbers come from (an item's from the decision files' names).
+// specCitation is one form a Go file cites the swarm's spec by: each
+// number its pattern captures, or with whole the capture itself, must be
+// a key of valid. The spec is docs/swarm.md, whose numbered headings are
+// its sections, and docs/swarm/decisions/, one file per decision named
+// `NNNN-<slug>.md`, numbered as they were when they were docs/swarm.md's
+// last section, a list of items.
 type specCitation struct {
 	form  string
-	re    *regexp.Regexp // group 1: the numbers of a list or a range
+	re    *regexp.Regexp // group 1: the numbers of a list or a range, or a name
+	whole bool
 	valid map[string]bool
 }
 
 var citedNumber = regexp.MustCompile(`\d+(?:\.\d+)*`)
 
 // specCitations reads docs/swarm.md's numbered headings (`## 7. Members`,
-// `### 7.3 The prompt files`) and its section 14's numbered items.
+// `### 7.3 The prompt files`) and the names of the decision files.
 func specCitations(t *testing.T) []specCitation {
 	t.Helper()
 	b, err := os.ReadFile("docs/swarm.md")
@@ -508,9 +514,8 @@ func specCitations(t *testing.T) []specCitation {
 		t.Fatal(err)
 	}
 	headingRe := regexp.MustCompile(`^##+ (\d+(?:\.\d+)*)\.? `)
-	itemRe := regexp.MustCompile(`^(\d+)\. `)
-	sections, items := map[string]bool{}, map[string]bool{}
-	fence, section := false, ""
+	sections := map[string]bool{}
+	fence := false
 	for _, l := range strings.Split(string(b), "\n") {
 		if strings.HasPrefix(strings.TrimLeft(l, " "), "```") {
 			fence = !fence
@@ -519,29 +524,49 @@ func specCitations(t *testing.T) []specCitation {
 			continue
 		}
 		if m := headingRe.FindStringSubmatch(l); m != nil {
-			sections[m[1]], section = true, m[1]
-		} else if m := itemRe.FindStringSubmatch(l); m != nil && section == "14" {
-			items[m[1]] = true
+			sections[m[1]] = true
 		}
 	}
+	files, err := os.ReadDir("docs/swarm/decisions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileRe := regexp.MustCompile(`^(\d{4})-[a-z0-9-]+\.md$`)
+	items, names := map[string]bool{}, map[string]bool{}
+	for _, f := range files {
+		m := fileRe.FindStringSubmatch(f.Name())
+		if m == nil {
+			t.Errorf("docs/swarm/decisions/%s is not a decision file's name, NNNN-<slug>.md", f.Name())
+			continue
+		}
+		n, _ := strconv.Atoi(m[1])
+		if items[strconv.Itoa(n)] {
+			t.Errorf("docs/swarm/decisions: two files for decision %s", m[1])
+		}
+		items[strconv.Itoa(n)], names[f.Name()] = true, true
+	}
 	if len(sections) < 20 || len(items) < 100 {
-		t.Fatalf("docs/swarm.md: read %d numbered headings and %d items of section 14", len(sections), len(items))
+		t.Fatalf("read %d numbered headings of docs/swarm.md and %d decision files", len(sections), len(items))
 	}
 	// A list (`sections 3, 7.2 and 7.6`) or a range (`sections 5–7`,
 	// `sections 5 to 7`): each number is checked, a range's two ends.
 	list := `(\d+(?:\.\d+)*(?:(?:\s*[–-]\s*|(?:,\s*|\s+)(?:(?:and|or|to|through)\s+)?)\d+(?:\.\d+)*)*)`
 	return []specCitation{
-		{"section", regexp.MustCompile(`(?i)(?:\bsections?\s+|§§?\s*)` + list), sections},
-		{"section 14's item", regexp.MustCompile(`(?i)\bitems?\s+` + list), items},
+		{"section", regexp.MustCompile(`(?i)(?:\bsections?\s+|§§?\s*)` + list), false, sections},
+		{"decision (item)", regexp.MustCompile(`(?i)\bitems?\s+` + list), false, items},
+		// The file's name, its sentence's stop or comma not part of it.
+		{"decision file", regexp.MustCompile(`docs/swarm/decisions/([\w.-]*[\w-])`), true, names},
 	}
 }
 
 // Every section of docs/swarm.md a Go comment or string under cmd/ and
 // internal/ cites (`section 7.3`, `sections 7.2 and 9`, `sections 5–7`,
-// `§5`) is one of its numbered headings, and every item it cites
-// (`section 14, item 74`) is one of section 14's numbered items, so a
-// spec that moves or renumbers cannot leave the code citing what is no
-// longer there.
+// `§5`) is one of its numbered headings, and every decision it cites, by
+// its number (`item 74`, as the items of that list were cited) or by its
+// file (`docs/swarm/decisions/0074-the-label-vocabulary.md`), has its
+// file, so a spec that moves or renumbers cannot leave the code citing
+// what is no longer there. A product's ADR (`ADR 0027`,
+// `docs/adr/0027-roles.md` in the rulings tests) is no form of these.
 func TestCodeCitesExistingSpecSections(t *testing.T) {
 	forms := specCitations(t)
 	fset := token.NewFileSet()
@@ -550,10 +575,14 @@ func TestCodeCitesExistingSpecSections(t *testing.T) {
 		for _, f := range forms {
 			for _, m := range f.re.FindAllStringSubmatchIndex(text, -1) {
 				line := fset.Position(pos).Line + strings.Count(text[:m[0]], "\n")
-				for _, n := range citedNumber.FindAllString(text[m[2]:m[3]], -1) {
+				keys := []string{text[m[2]:m[3]]}
+				if !f.whole {
+					keys = citedNumber.FindAllString(keys[0], -1)
+				}
+				for _, n := range keys {
 					cited++
 					if !f.valid[n] {
-						t.Errorf("%s:%d: cites %s %s, which docs/swarm.md does not have: %q", fset.Position(pos).Filename, line, f.form, n, strings.Join(strings.Fields(text[m[0]:m[1]]), " "))
+						t.Errorf("%s:%d: cites %s %s, which the spec does not have: %q", fset.Position(pos).Filename, line, f.form, n, strings.Join(strings.Fields(text[m[0]:m[1]]), " "))
 					}
 				}
 			}
@@ -589,6 +618,6 @@ func TestCodeCitesExistingSpecSections(t *testing.T) {
 		}
 	}
 	if cited < 700 {
-		t.Errorf("read %d citations of docs/swarm.md; the patterns no longer find them", cited)
+		t.Errorf("read %d citations of the spec; the patterns no longer find them", cited)
 	}
 }

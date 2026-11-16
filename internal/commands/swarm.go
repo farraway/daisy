@@ -436,7 +436,7 @@ func systemdEscapePath(p string) string {
 // section 11): the swarm's stages, gates, the running set, the personas,
 // the throughput from runs/, the active briefs and, last, whose turn it
 // is, under ReadOnly (the forge's GETs and `docker ps` let through:
-// section 14, item 31); with --waiting, what waits for the maintainer
+// docs/swarm/decisions/0031-status-runs-under-a-widened-readonly.md); with --waiting, what waits for the maintainer
 // alone.
 func SwarmStatus(c *Context) error {
 	if err := locate(c, false); err != nil {

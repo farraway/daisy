@@ -221,7 +221,7 @@ func TestSwarmPauseAndResume(t *testing.T) {
 // a deleted label apply exits 1 before any pass. On a forge holding the
 // eleven labels of Step 14 under their old names, the first apply renames
 // the seven old stage names in place and creates the six new labels
-// (section 14, item 74): every issue, open or closed, reads its new
+// (docs/swarm/decisions/0074-the-label-vocabulary.md): every issue, open or closed, reads its new
 // stage, and the pass works on the new names.
 func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 	a := newApplyWS(t)
