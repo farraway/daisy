@@ -34,7 +34,8 @@ Plans are durable implementation artifacts. A plan is developed collaboratively 
      ../plans/{filename} — status: in progress
 
 6. Ask which model and effort level the step agents and the
-   review agents use; record the answer in Decisions.
+   review agents use, recommending a Sonnet-class model for the
+   reviewers; record the answer in Decisions.
 
 7. Present the numbered Open Questions list via AskUserQuestion
    (the client's native Q&A UI), including a final question
@@ -44,6 +45,36 @@ Plans are durable implementation artifacts. A plan is developed collaboratively 
 ```
 
 Collaborate on the plan until the user confirms it is ready. Use the plan phase to surface risks, open questions, and scope boundaries — especially distinguishing essential from accidental complexity before any implementation begins. Do not implement anything.
+
+### Models and step size
+
+`prompts/plan.md` rules 21 and 13 state the two choices; this is why they
+read as they do.
+
+**A Sonnet-class reviewer by default (rule 21).** Plan 261111115545 ran
+its reviewers on Opus 5.5 at high effort and plan 261114125457 on Sonnet
+5.5 at high effort. The second spent 62% fewer review tokens (2.24M
+against 5.88M) for more code (4,839 committed code lines against 2,702),
+about 2.5 times the code per token; none of its steps took more than 2
+review passes, where seven of the first plan's took 3 to 5, and its
+reviewers still caught real defects (design review of 2026-11-15,
+effectiveness G2 and R2). The metrics show no loss; the trade-off is a
+subtle defect a weaker reviewer may miss, which would show in later fixes.
+So the rule recommends a Sonnet-class model and records another when
+Decisions names a reason (a claim that is an invariant across packages,
+or simply the user's choice). It names the class, not a version, so it
+does not date.
+
+**One claim, about one screen of diff (rule 13).** Plan 261114125457's
+steps averaged about 230 code and 210 test lines and none passed 2 review
+passes; plan 261111115545's two largest, Step 16a (+827) and Step 16b
+(+544), took 5 and 1 (effectiveness R10). The size is a claim and a
+screen, with no file count (the maintainer's choice, 2026-11-15): a rename across many files
+is still one claim. The "and" that splits a step is the one joining two
+changes, two things the step does; an "and" between checks of one change
+does not, and the testing skill's two model claims ("Cases 54 and 55
+pass"; "`init` then `clean` leaves `git status` and the three config keys
+as before") are each one claim.
 
 ---
 
