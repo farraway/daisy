@@ -88,7 +88,9 @@ is not this root's `bin/daisy`, so a stale link cannot run another
 checkout's code against its cases. `make check` (gofmt, vet, `go mod tidy
 -diff`, `go test -race`) runs before every root commit, and so does `daisy
 healthcheck --force` against this root (`PATH="$PWD/bin:$PATH"
-DAISY_ROOT="$PWD" daisy healthcheck --force` from the root). No test runs
+DAISY_ROOT="$PWD" daisy healthcheck --force` from the root). `go test`
+runs a fuzz target's seeds only; `make fuzz` runs each target on
+generated inputs for `FUZZTIME` (30s by default). No test runs
 through the real environment: a test builds its own machine (temp root,
 home, registry, workspace) and pins every variable the program reads; no
 step, live run, fixture or probe writes a real home (`prompts/praxis.md`

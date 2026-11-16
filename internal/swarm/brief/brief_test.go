@@ -2,6 +2,8 @@ package brief
 
 import (
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -81,4 +83,38 @@ func TestIndentedHeadingIsNeither(t *testing.T) {
 	if ms := (Brief{Text: text}).Milestones(); !reflect.DeepEqual(ms, []string{"M1"}) {
 		t.Errorf("Milestones = %q", ms)
 	}
+}
+
+// FuzzRead: any text reads without a panic, a Status trimmed to one
+// line and milestones each one line of text, trimmed, once each; and a
+// brief whose header is a Status: line, plain or bold, and whose first
+// milestone heading follows, reads back with that Status and that
+// milestone first, whatever text comes after it (section 4).
+func FuzzRead(f *testing.F) {
+	f.Add("Status: active\n\n## Parser\n\n```\n## not a milestone\n```\n## Output\n## Parser\n", "active", "Parser")
+	f.Add("# Title\n**Status:** draft\r\n\n## One\r\n", "done ", " Two\r")
+	f.Fuzz(func(t *testing.T, text, status, milestone string) {
+		b, ok := Read("briefs/x.md", "swarm/briefs/x.md", []byte(text))
+		if ok && (b.Status != strings.TrimSpace(b.Status) || strings.Contains(b.Status, "\n")) {
+			t.Fatalf("Read(%q): Status %q", text, b.Status)
+		}
+		ms := b.Milestones()
+		for i, m := range ms {
+			if m == "" || m != strings.TrimSpace(m) || strings.Contains(m, "\n") || slices.Contains(ms[:i], m) {
+				t.Fatalf("Read(%q): milestones %q", text, ms)
+			}
+		}
+		if strings.Contains(status+milestone, "\n") || strings.TrimSpace(milestone) == "" {
+			return
+		}
+		line := "Status: " + status
+		if len(text)%2 == 1 {
+			line = "**Status:** " + status
+		}
+		doc := line + "\n\n## " + milestone + "\n" + text
+		b, ok = Read("briefs/x.md", "swarm/briefs/x.md", []byte(doc))
+		if ms := b.Milestones(); !ok || b.Status != strings.TrimSpace(status) || len(ms) == 0 || ms[0] != strings.TrimSpace(milestone) {
+			t.Fatalf("Read(%q) = Status %q, %v, milestones %q", doc, b.Status, ok, ms)
+		}
+	})
 }

@@ -115,11 +115,11 @@ func Shift(text string, by int) string {
 			continue
 		}
 		// A heading may stand up to three spaces in (CommonMark), as a
-		// fence may.
+		// fence may, and an empty one ends a CRLF line at its `\r`.
 		t := strings.TrimLeft(line, " ")
 		in := len(line) - len(t)
 		h := len(t) - len(strings.TrimLeft(t, "#"))
-		if in <= 3 && h >= 1 && h <= 6 && (len(t) == h || t[h] == ' ' || t[h] == '\t') {
+		if in <= 3 && h >= 1 && h <= 6 && (len(t) == h || t[h] == ' ' || t[h] == '\t' || t[h:] == "\r") {
 			lines[i] = line[:in] + strings.Repeat("#", min(6, h+by)-h) + t
 		}
 	}

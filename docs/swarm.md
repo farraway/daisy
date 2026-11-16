@@ -1659,7 +1659,9 @@ comment it answers. An entry is
 the swarm's exactly when its first line, without a trailing `\r`, matches
 `^<!-- daisy-swarm role=(owner|architect|worker|adversary|sympathetic|reconciler) run=([1-9][0-9]*) -->$`
 or is the gate note's, the auto note's or a command's answer's
-(`^<!-- daisy-swarm role=reconciler kind=command of=([1-9][0-9]*) -->$`), and its author is `<swarm-login>`, the token's own login (`Login()`, read
+(`^<!-- daisy-swarm role=reconciler kind=command of=([1-9][0-9]*) -->$`),
+its run or comment id fitting a 64-bit integer (a larger one is no
+marker's), and its author is `<swarm-login>`, the token's own login (`Login()`, read
 once at the start of each verb that reads threads under the swarm's
 token; the maintainer's verbs, under the maintainer's, take it as
 `trusted`'s last, section 11). The swarm posts as its

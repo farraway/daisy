@@ -187,3 +187,22 @@ func TestContainsFold(t *testing.T) {
 		t.Error("ContainsFold: case-insensitive literal substring")
 	}
 }
+
+// FuzzParse: every line, whatever it holds, formats back to itself, and
+// the task `done` makes of it (Complete) reads back as the same task.
+// The seeds are the documents' odd shapes; `make fuzz` generates more.
+func FuzzParse(f *testing.F) {
+	for _, l := range []string{"", "x ", "(A) 2011-03-02 Call Mom +Family", "x 2011-03-03 2011-03-01 2011-02-01 three dates", "z 2026-01-15 2026-01-14 Old task @context", "(A)  2011-03-02 two spaces", "x 2011-03-03 (A) priority after x", "2011-03-02 ", "\tindented\r"} {
+		f.Add(l)
+	}
+	f.Fuzz(func(t *testing.T, line string) {
+		task := todo.Parse(line)
+		if got := task.Format(); got != line {
+			t.Fatalf("Format(Parse(%q)) = %q", line, got)
+		}
+		done := task.Complete("2026-11-16")
+		if got := todo.Parse(done.Format()); got != done {
+			t.Fatalf("Parse(%q) = %+v, want the completed task %+v", done.Format(), got, done)
+		}
+	})
+}

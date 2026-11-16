@@ -1,11 +1,13 @@
 # Daisy — the Go binary. `make build` is what `daisy install` needs;
 # `make check` is the gate before a root commit; `make test` is `daisy
 # test` (build, go test, then the acceptance suite) run against this root;
-# `make install-dev` installs this root as its remote has it, checked.
+# `make install-dev` installs this root as its remote has it, checked;
+# `make fuzz` runs each fuzz target past its seeds.
 GO ?= go
 BIN := bin/daisy
+FUZZTIME ?= 30s
 
-.PHONY: build test check clean install-dev
+.PHONY: build test check fuzz clean install-dev
 
 build:
 	$(GO) build -o $(BIN) ./cmd/daisy
@@ -18,6 +20,21 @@ check: build
 	$(GO) vet ./...
 	$(GO) mod tidy -diff
 	$(GO) test -race ./...
+
+# fuzz runs every Fuzz target `go test -list` finds, one at a time (Go
+# fuzzes one target per run), each for FUZZTIME (`make fuzz FUZZTIME=2m`);
+# `go test` alone runs only their seeds. A new interesting input is
+# minimized for at most 5s, where Go's default of a minute can stall a
+# short run. A failing input is written under the package's
+# testdata/fuzz/, where it becomes a seed.
+fuzz:
+	@list="$$($(GO) test -list '^Fuzz' ./...)" || { echo "$$list"; exit 1; }; \
+	targets="$$(echo "$$list" | awk '/^Fuzz/ { t[n++] = $$1 } /^ok/ { for (i = 0; i < n; i++) print $$2, t[i]; n = 0 }')"; \
+	test -n "$$targets" || { echo "fuzz: go test -list found no Fuzz target"; exit 1; }; \
+	echo "$$targets" | while read -r pkg target; do \
+		echo "fuzz: $$pkg $$target for $(FUZZTIME)"; \
+		$(GO) test -run '^$$' -fuzz "^$$target\$$" -fuzztime $(FUZZTIME) -fuzzminimizetime 5s "$$pkg" || exit 1; \
+	done
 
 clean:
 	rm -rf bin

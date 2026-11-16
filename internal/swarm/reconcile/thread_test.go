@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -253,4 +254,46 @@ func TestRoundsCountTheAnswers(t *testing.T) {
 	if n := Rounds(reviews, nil, "swarm-bot", time.Time{}, ""); n != 2 {
 		t.Errorf("no answer: %d", n)
 	}
+}
+
+// FuzzMarked: a mark read from any body is one Daisy writes, its marker
+// line the body's first line (without a trailing `\r`), so no other line
+// is read as a mark; and each role's marker with run k ≥ 1 reads back as
+// that role and run, whatever text follows it (section 6).
+func FuzzMarked(f *testing.F) {
+	f.Add("<!-- daisy-swarm role=architect run=2 -->\n**architect:**\n\nplan", 2)
+	f.Add("<!-- daisy-swarm role=reconciler run=12 -->\r\n**reconciler:**", 12)
+	f.Add(gateMarker+"\n**reconciler:** gated", 1)
+	f.Add(autoMarker, 1)
+	f.Add("<!-- daisy-swarm role=reconciler kind=command of=501 -->\n> /swarm accept", 501)
+	f.Add("<!-- daisy-swarm role=owner run=01 -->", 0)
+	f.Add("<!-- daisy-swarm role=owner run=99999999999999999999 -->", 0)
+	f.Add("<!-- daisy-swarm role=reconciler kind=command of=99999999999999999999 -->", 0)
+	f.Fuzz(func(t *testing.T, body string, k int) {
+		if m, ok := Marked(body); ok {
+			want, _, _ := strings.Cut(body, "\n")
+			want = strings.TrimSuffix(want, "\r")
+			var got string
+			switch m.Kind {
+			case "":
+				got, _, _ = strings.Cut(marker(m.Role, m.Run), "\n")
+			case "gate":
+				got = gateMarker
+			case "auto":
+				got = autoMarker
+			case "command":
+				got = fmt.Sprintf("<!-- daisy-swarm role=reconciler kind=command of=%d -->", m.Of)
+			}
+			if got != want {
+				t.Fatalf("Marked(%q) = %+v, whose marker is %q", body, m, got)
+			}
+		}
+		if k < 1 {
+			return
+		}
+		role := []string{"owner", "architect", "worker", "adversary", "sympathetic", "reconciler"}[len(body)%6]
+		if m, ok := Marked(marker(role, k) + body); !ok || m != (Mark{Role: role, Run: k}) {
+			t.Fatalf("Marked(marker(%s, %d) + %q) = %+v, %v", role, k, body, m, ok)
+		}
+	})
 }

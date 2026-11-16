@@ -147,7 +147,14 @@ claim → seams agreed → red → green → probe → sweep → review
   the test that owns that behaviour fails. Revert. A test that stays green
   under its own mutation is not a test; fix or delete it. Record the probes
   with the claim: "with `Repoint` returning its input unchanged, case 54
-  fails on the repointed-link assert".
+  fails on the repointed-link assert". Where the claim is about every
+  input to a parser, or is a bound no input may cross (a line formats back
+  to itself, no input panics, a shifted heading never passes six `#`),
+  examples reach only the inputs someone thought of, so the test that owns
+  the claim generates its inputs, as a fuzz target (Go's `testing.F`) or,
+  in another language, a property test: its seeds run with the suite, its
+  generated inputs run separately and for longer, and its probe is a
+  generated run that finds the break.
 - **Sweep.** A defect found once is a class. Search for its siblings before
   closing it, and fix them under the same test. Where the class can recur
   in new code and a check can recognise an instance by its text or shape
@@ -470,10 +477,18 @@ restore the bug.
 ### 3.10 Property-based testing
 
 Claessen and Hughes, *QuickCheck* (2000), test a property over generated
-inputs rather than an example. The skill does not require it, but it fits
-one place well: pure bounding functions (a slug limited to 100 bytes, a
-file name limited to 255) where "for all inputs, the output satisfies the
-bound" is the claim. A generated test there is a probe that writes itself.
+inputs rather than an example. The skill asks for it in one place, its
+loop's Probe: a claim over every input of a parser or a bound, where "for
+all inputs" is the claim's own form. The properties are few and recur: a
+round trip (a todo.txt line parses and formats back to itself), no panic
+on any input, an output within its bound (a heading shifted under another
+never past six `#`, a slug limited to 100 bytes). A generated test there
+is a probe that writes itself: with the bound removed, it finds the input
+that breaks it, where an example finds only what its author thought of.
+Go's form, which Daisy uses, is the fuzz target (`testing.F`, Go 1.18):
+`go test` runs its seeds and every input it has failed on (Go keeps each
+in the package's testdata directory), and `make fuzz` runs each target on
+generated inputs for a set time.
 
 ---
 
@@ -727,6 +742,6 @@ In the order a reader new to the subject would take them.
 12. Nygard, "Documenting Architecture Decisions" (2011). The record that
     keeps an overruled oracle from being restored.
 13. Claessen and Hughes, "QuickCheck" (2000). Property tests, for the
-    bounding functions.
+    parsers and the bounds.
 14. Parnas, "On the Criteria To Be Used in Decomposing Systems into
     Modules" (1972). The root of all of it.

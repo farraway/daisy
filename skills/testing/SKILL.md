@@ -133,7 +133,14 @@ claim → seams agreed → red → green → probe → sweep → review
   the test that owns that behaviour fails. Revert. A test that stays green
   under its own mutation is not a test; fix or delete it. Record the probes
   with the claim: "with `Repoint` returning its input unchanged, case 54
-  fails on the repointed-link assert".
+  fails on the repointed-link assert". Where the claim is about every
+  input to a parser, or is a bound no input may cross (a line formats back
+  to itself, no input panics, a shifted heading never passes six `#`),
+  examples reach only the inputs someone thought of, so the test that owns
+  the claim generates its inputs, as a fuzz target (Go's `testing.F`) or,
+  in another language, a property test: its seeds run with the suite, its
+  generated inputs run separately and for longer, and its probe is a
+  generated run that finds the break.
 - **Sweep.** A defect found once is a class. Search for its siblings before
   closing it, and fix them under the same test. Where the class can recur
   in new code and a check can recognise an instance by its text or shape

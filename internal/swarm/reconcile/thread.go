@@ -70,7 +70,8 @@ func Swarms(e Entry, swarmLogin string) (Mark, bool) {
 
 // Marked is body's mark when its first line, without a trailing `\r`, is
 // the marker, or the gate note's, the auto note's or a command's
-// answer's, whoever wrote it.
+// answer's, whoever wrote it; a run or a comment id past a 64-bit integer
+// is no marker's (section 6).
 func Marked(body string) (Mark, bool) {
 	first, _, _ := strings.Cut(body, "\n")
 	first = strings.TrimSuffix(first, "\r")
@@ -81,15 +82,17 @@ func Marked(body string) (Mark, bool) {
 		return Mark{Role: "reconciler", Kind: "auto"}, true
 	}
 	if m := answerRe.FindStringSubmatch(first); m != nil {
-		of, _ := strconv.ParseInt(m[1], 10, 64)
-		return Mark{Role: "reconciler", Kind: "command", Of: of}, true
-	}
-	m := markerRe.FindStringSubmatch(first)
-	if m == nil {
+		if of, err := strconv.ParseInt(m[1], 10, 64); err == nil {
+			return Mark{Role: "reconciler", Kind: "command", Of: of}, true
+		}
 		return Mark{}, false
 	}
-	run, _ := strconv.Atoi(m[2])
-	return Mark{Role: m[1], Run: run}, true
+	if m := markerRe.FindStringSubmatch(first); m != nil {
+		if run, err := strconv.Atoi(m[2]); err == nil {
+			return Mark{Role: m[1], Run: run}, true
+		}
+	}
+	return Mark{}, false
 }
 
 // counted is section 6's Trust: e is the swarm's, or its author is in
