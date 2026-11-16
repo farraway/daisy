@@ -17,7 +17,6 @@ import (
 	"daisy/internal/env"
 	"daisy/internal/feedback"
 	"daisy/internal/ops"
-	"daisy/internal/swarm/brief"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/reconcile"
@@ -434,10 +433,11 @@ func systemdEscapePath(p string) string {
 	return b.String()
 }
 
-// SwarmStatus is `daisy swarm status` (docs/swarm.md section 11): the
-// swarm's stages, gates, whose turn it is, the running set, the personas,
-// the throughput from runs/ and the active briefs, under ReadOnly (the
-// forge's GETs and `docker ps` let through: section 14, item 31).
+// SwarmStatus is `daisy swarm status [--json]` (docs/swarm.md section
+// 11): the swarm's stages, gates, whose turn it is, the running set, the
+// personas, the throughput from runs/ and the active briefs, under
+// ReadOnly (the forge's GETs and `docker ps` let through: section 14,
+// item 31).
 var SwarmStatus = readOnly(func(c *Context) error {
 	if err := locate(c, false); err != nil {
 		return err
@@ -445,41 +445,223 @@ var SwarmStatus = readOnly(func(c *Context) error {
 	return swarmStatus(c, openForge)
 })
 
+// swarmStatus prints the report once every read is made, so a read
+// failing on the way leaves stdout empty: as text, or with --json as one
+// JSON document (docs/cli.md, --json).
 func swarmStatus(c *Context, open opener) error {
+	if c.Flag(JSONFlag) {
+		return writeJSON(c, func() (jsonDoc, error) { return readStatus(c, open) })
+	}
+	r, err := readStatus(c, open)
+	if err != nil {
+		return err
+	}
+	var out bytes.Buffer
+	writeStatus(&out, r)
+	_, err = c.Stdout.Write(out.Bytes())
+	return err
+}
+
+// statusReport is status's report: the facts the text prints, issues by
+// number, stages by their labels. Its warnings, under --json, are the
+// lines status writes on stderr.
+type statusReport struct {
+	Repository   string                   `json:"repository"`
+	Forge        statusForge              `json:"forge"`
+	Repositories []string                 `json:"repositories"`
+	State        statusState              `json:"state"`
+	Gates        statusGates              `json:"gates"`
+	Stages       map[string][]int         `json:"stages"` // each of the nine stage labels, its open issues
+	Waiting      statusWaiting            `json:"waiting"`
+	Held         statusHeld               `json:"held"`
+	Running      statusRunning            `json:"running"`
+	Personas     map[string]statusPersona `json:"personas"`
+	Throughput   statusThroughput         `json:"throughput"`
+	Corrections  []statusCorrections      `json:"corrections"`
+	Briefs       []statusBrief            `json:"briefs"` // the active ones, in path order
+	warned
+}
+
+type statusForge struct {
+	Host string `json:"host"`
+	Kind string `json:"kind"`
+}
+
+// statusState is the State line: <state>, and the notes on its files.
+type statusState struct {
+	Path               string       `json:"path"`
+	Paused             *statusSince `json:"paused"`               // <state>/paused
+	RestartRequestedAt *string      `json:"restart_requested_at"` // <state>/restart
+	OwnerHeld          *statusHold  `json:"owner_held"`           // <state>/owner-held
+	NoActiveBrief      bool         `json:"no_active_brief"`      // the owner's batch held for one
+}
+
+// statusSince is a note's time and its reason, "" when it gives none.
+type statusSince struct {
+	Since  string `json:"since"`
+	Reason string `json:"reason"`
+}
+
+// statusHold is the owner's held batch: since when, why, and the issues
+// whose closing releases it.
+type statusHold struct {
+	Since  string `json:"since"`
+	Reason string `json:"reason"`
+	Waits  []int  `json:"waits"`
+}
+
+type statusGates struct {
+	Triage bool `json:"triage"`
+	Plan   bool `json:"plan"`
+	Merge  bool `json:"merge"`
+}
+
+// statusWaiting is what waits for the maintainer: the gated issues, by
+// item in the line's order, and the notes' branches to merge by hand.
+type statusWaiting struct {
+	Issues []statusWait `json:"issues"`
+	Notes  []string     `json:"notes"`
+}
+
+type statusWait struct {
+	Item  string `json:"item"` // triage, plan, merge, next slice, close, pull closed, question or blocked
+	Issue int    `json:"issue"`
+	Class string `json:"class"`
+}
+
+// statusHeld is what the maintainer holds: the paused issues, and those
+// whose newest maintainer comment names an open blocker.
+type statusHeld struct {
+	Paused    []int         `json:"paused"`
+	BlockedBy []statusBlock `json:"blocked_by"`
+}
+
+type statusBlock struct {
+	Issue int `json:"issue"`
+	By    int `json:"by"`
+}
+
+// statusRunning is this swarm's containers, or docker's error.
+type statusRunning struct {
+	Members []statusMember `json:"members"`
+	Error   *string        `json:"error"`
+}
+
+type statusMember struct {
+	Issue int    `json:"issue"`
+	Role  string `json:"role"`
+}
+
+type statusPersona struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Effort   string `json:"effort"`
+}
+
+// statusThroughput is section 11's Throughput block.
+type statusThroughput struct {
+	Runs struct {
+		Total   int `json:"total"`
+		Posted  int `json:"posted"`
+		Blocked int `json:"blocked"`
+		Failed  int `json:"failed"`
+		Faults  int `json:"faults"`
+		Other   int `json:"other"`
+	} `json:"runs"`
+	Cost struct {
+		Today    float64 `json:"today"`
+		All      float64 `json:"all"`
+		Uncosted int     `json:"runs_without_cost"`
+	} `json:"cost"`
+	Budget   *declare.Budget `json:"budget"`
+	Approved struct {
+		PullRequests int `json:"pull_requests"`
+		AtRoundLimit int `json:"at_round_limit"`
+		BlockedThere int `json:"blocked_at_round_limit"`
+	} `json:"approved"`
+	Auto struct {
+		Triage int `json:"triage"`
+		Plan   int `json:"plan"`
+	} `json:"auto"`
+	// StageTime is the median run time by the stage a run was launched
+	// on, by its label, and batch and check; only the stages with a run.
+	StageTime map[string]statusTime `json:"stage_time"`
+}
+
+type statusTime struct {
+	MedianSeconds int64 `json:"median_seconds"`
+	Runs          int   `json:"runs"`
+}
+
+// statusCorrections is an issue's correction counts.
+type statusCorrections struct {
+	Issue         int          `json:"issue"`
+	PlanRevisions int          `json:"plan_revisions"`
+	Blocks        int          `json:"blocks"`
+	Pulls         []statusPull `json:"pulls"`
+}
+
+type statusPull struct {
+	Repo               string `json:"repo"`
+	Number             int    `json:"number"`
+	Rounds             int    `json:"rounds"`
+	MaintainerComments int    `json:"maintainer_comments"`
+}
+
+// statusBrief is an active brief: its milestones as the forge counts
+// their issues, in its heading order (none when another active brief has
+// its name), and the newest batch run reporting it met.
+type statusBrief struct {
+	Path           string            `json:"path"`
+	Name           string            `json:"name"`
+	SharesNameWith *string           `json:"shares_name_with"`
+	Milestones     []statusMilestone `json:"milestones"`
+	MetRun         *int              `json:"met_run"`
+}
+
+type statusMilestone struct {
+	Heading string `json:"heading"`
+	OnForge bool   `json:"on_forge"`
+	Open    int    `json:"open"`
+	Closed  int    `json:"closed"`
+}
+
+// readStatus makes every read status makes and returns the report.
+func readStatus(c *Context, open opener) (*statusReport, error) {
 	o, ws := c.Ops, c.Swarm.Root
 	cfg, err := loadSwarm(o, c.Swarm)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	vars, err := readSecrets(c, cfg, c.Stderr, cfg.Forge.TokenEnv)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	token := vars[cfg.Forge.TokenEnv]
 	if token == "" {
-		return unsetErr(c, cfg, cfg.Forge.TokenEnv)
+		return nil, unsetErr(c, cfg, cfg.Forge.TokenEnv)
 	}
 	warnCloneEnv(c, cfg)
 	warnDrift(c, cfg)
-	var names []string
-	for _, r := range cfg.Repos {
-		names = append(names, r.Name)
-	}
+	names := repoNames(cfg)
 	f, err := open(o, cfg.Forge, names, token)
 	if err != nil {
-		return fmt.Errorf("Error: swarm: %v", err)
+		return nil, fmt.Errorf("Error: swarm: %v", err)
 	}
 	acct, err := f.Login()
 	if err != nil {
-		return fmt.Errorf("Error: swarm: %v", err)
+		return nil, fmt.Errorf("Error: swarm: %v", err)
 	}
-	stages := map[string][]int{}
+	r := &statusReport{Repository: cfg.Forge.Repo, Forge: statusForge{cfg.Forge.ForgeHost(), cfg.Forge.Kind}, Repositories: names, Stages: map[string][]int{}}
+	for _, l := range forge.Stages {
+		r.Stages[l] = []int{}
+	}
 	var opened, closed []forge.Issue
 	for _, state := range []forge.State{forge.Open, forge.Closed} {
 		for _, l := range forge.SwarmLabels(state) {
 			issues, err := f.Issues(state, l)
 			if err != nil {
-				return fmt.Errorf("Error: swarm: %v", err)
+				return nil, fmt.Errorf("Error: swarm: %v", err)
 			}
 			for _, is := range issues {
 				listed := func(in []forge.Issue) bool {
@@ -491,7 +673,7 @@ func swarmStatus(c *Context, open opener) error {
 					}
 					continue
 				}
-				stages[l] = append(stages[l], is.Number)
+				r.Stages[l] = append(r.Stages[l], is.Number)
 				if !listed(opened) { // an issue with two labels is listed under each
 					opened = append(opened, is)
 				}
@@ -501,7 +683,7 @@ func swarmStatus(c *Context, open opener) error {
 	recent, _ := reconcile.Recent(closed, o.Now())
 	issues, err := readIssues(f, append(slices.Clone(opened), recent...), acct.Login, cfg.Trusted)
 	if err != nil {
-		return fmt.Errorf("Error: swarm: %v", err)
+		return nil, fmt.Errorf("Error: swarm: %v", err)
 	}
 	// What waits for the maintainer: the open issues reconcile.Gated holds
 	// for, the predicate apply flags them by, by item (reconcile.Waiting,
@@ -509,23 +691,23 @@ func swarmStatus(c *Context, open opener) error {
 	// approved one under what its pull request calls for (section 12). What the maintainer holds: the paused ones, and those
 	// whose newest maintainer comment names an open blocker.
 	waits, classes := map[string][]int{}, map[int]string{}
-	var paused, blockedBy []string
+	r.Held = statusHeld{Paused: []int{}, BlockedBy: []statusBlock{}}
 	for _, l := range forge.Stages {
-		for _, n := range stages[l] {
+		for _, n := range r.Stages[l] {
 			is := issues[n].Issue
 			if stage, ok := reconcile.StageOf(is); !ok || stage != l {
 				continue
 			}
 			if slices.Contains(is.Labels, forge.Paused) {
-				paused = append(paused, "#"+strconv.Itoa(n))
+				r.Held.Paused = append(r.Held.Paused, n)
 			}
 			if m := reconcile.BlockedBy(is, acct.Login, cfg.Trusted); m != 0 {
 				held, err := reconcile.Blocker(f, n, m, c.Stderr)
 				if err != nil {
-					return fmt.Errorf("Error: swarm: %v", err)
+					return nil, fmt.Errorf("Error: swarm: %v", err)
 				}
 				if held {
-					blockedBy = append(blockedBy, fmt.Sprintf("#%d blocked by #%d", n, m))
+					r.Held.BlockedBy = append(r.Held.BlockedBy, statusBlock{n, m})
 				}
 			}
 			class := reconcile.ClassOf(is, acct.Login, cfg.Trusted)
@@ -537,75 +719,39 @@ func swarmStatus(c *Context, open opener) error {
 			waits[item] = append(waits[item], n)
 		}
 	}
+	r.Waiting.Issues = []statusWait{}
+	for _, item := range []string{"triage", "plan", "merge", "next slice", "close", "pull closed", "question", "blocked"} {
+		for _, n := range waits[item] {
+			r.Waiting.Issues = append(r.Waiting.Issues, statusWait{item, n, classes[n]})
+		}
+	}
 	briefs, err := reconcile.Briefs(o, c.Swarm, cfg, cfg.Forge.State(c.Env.Local), nil)
 	if err != nil {
-		return fmt.Errorf("Error: swarm: reading the briefs: %v", err)
+		return nil, fmt.Errorf("Error: swarm: reading the briefs: %v", err)
 	}
 	// The runs' notes that conflicted with the head, each on its branch
 	// for the maintainer to merge by hand (section 7.6, The notes).
 	notes, err := reconcile.NotesBranches(reconcile.Git{O: o, WS: ws, State: cfg.Forge.State(c.Env.Local)}, cfg.Forge.Repo)
 	if err != nil {
-		return fmt.Errorf("Error: swarm: reading the notes' branches: %v", err)
+		return nil, fmt.Errorf("Error: swarm: reading the notes' branches: %v", err)
 	}
+	r.Waiting.Notes = append([]string{}, notes...)
 
-	// The report is written whole at the end: a read failing on the way
-	// leaves stdout empty, not a partial report before the error.
-	var report bytes.Buffer
-	out := &report
 	state := cfg.Forge.State(c.Env.Local)
-	fmt.Fprintf(out, "Swarm: %s on %s (%s), repositories %s\n", cfg.Forge.Repo, cfg.Forge.ForgeHost(), cfg.Forge.Kind, strings.Join(names, ", "))
-	fmt.Fprintf(out, "State: %s%s\n", state, stateNotes(c.Ops.FS(), state, reconcile.NoActiveBrief(briefs)))
-	fmt.Fprintf(out, "Gates: triage %s, plan %s, merge %s\n", onOff(cfg.Gates.Triage), onOff(cfg.Gates.Plan), onOff(cfg.Gates.Merge))
-	for _, l := range forge.Stages {
-		fmt.Fprintf(out, "  %-26s %d", strings.TrimPrefix(l, "swarm:"), len(stages[l]))
-		if len(stages[l]) > 0 {
-			fmt.Fprintf(out, "  %s", issueList(stages[l]))
-		}
-		fmt.Fprintln(out)
-	}
-	var waiting []string
-	for _, item := range []string{"triage", "plan", "merge", "next slice", "close", "pull closed", "question", "blocked"} {
-		if len(waits[item]) > 0 {
-			var ns []string
-			for _, n := range waits[item] {
-				// Only an architecture job waits at the triage and plan
-				// gates: the class is named where it varies.
-				if item == "triage" || item == "plan" {
-					ns = append(ns, fmt.Sprintf("#%d", n))
-				} else {
-					ns = append(ns, fmt.Sprintf("#%d (%s)", n, classes[n]))
-				}
-			}
-			waiting = append(waiting, item+" "+strings.Join(ns, " "))
-		}
-	}
-	if len(notes) > 0 {
-		waiting = append(waiting, "notes "+strings.Join(notes, " "))
-	}
-	if len(waiting) == 0 {
-		waiting = []string{"nothing"}
-	}
-	fmt.Fprintf(out, "Waiting for you: %s\n", strings.Join(waiting, "; "))
-	held := blockedBy
-	if len(paused) > 0 {
-		held = append([]string{"paused " + strings.Join(paused, " ")}, blockedBy...)
-	}
-	if len(held) == 0 {
-		held = []string{"nothing"}
-	}
-	fmt.Fprintf(out, "Held: %s\n", strings.Join(held, "; "))
-	fmt.Fprintf(out, "Running: %s\n", running(o, ws, cfg.Forge.Repo))
-	fmt.Fprintln(out, "Personas:")
-	for _, r := range declare.Roles {
-		p := cfg.Personas[r]
-		fmt.Fprintf(out, "  %-12s %-10s %s %s\n", r, p.Provider, p.Model, p.Effort)
+	r.State = readStateNotes(o.FS(), state, reconcile.NoActiveBrief(briefs))
+	r.Gates = statusGates{cfg.Gates.Triage, cfg.Gates.Plan, cfg.Gates.Merge}
+	r.Running = running(o, ws, cfg.Forge.Repo)
+	r.Personas = map[string]statusPersona{}
+	for _, role := range declare.Roles {
+		p := cfg.Personas[role]
+		r.Personas[role] = statusPersona{p.Provider, p.Model, p.Effort}
 	}
 	// The gates Daisy passed, per issue the larger of the forge's auto
 	// notes (on the issues read) and <state>/auto's lines, so the count
 	// keeps an issue gone from the forge's window.
 	auto, err := reconcile.AutoRecorded(o.FS(), state)
 	if err != nil {
-		return fmt.Errorf("Error: swarm: reading %s: %v", filepath.Join(state, "auto"), err)
+		return nil, fmt.Errorf("Error: swarm: reading %s: %v", filepath.Join(state, "auto"), err)
 	}
 	if auto == nil {
 		auto = map[int][2]int{}
@@ -614,52 +760,62 @@ func swarmStatus(c *Context, open opener) error {
 		t, p := reconcile.AutoPasses(si.Issue, acct.Login)
 		auto[n] = [2]int{max(auto[n][0], t), max(auto[n][1], p)}
 	}
-	var autoTriage, autoPlan int
+	if r.Throughput, err = throughput(c, state); err != nil {
+		return nil, fmt.Errorf("Error: swarm: reading the runs: %v", err)
+	}
+	r.Throughput.Budget = cfg.Budget
 	for _, a := range auto {
-		autoTriage, autoPlan = autoTriage+a[0], autoPlan+a[1]
+		r.Throughput.Auto.Triage += a[0]
+		r.Throughput.Auto.Plan += a[1]
 	}
-	if err := throughput(c, out, state, cfg.Budget, autoTriage, autoPlan); err != nil {
-		return fmt.Errorf("Error: swarm: reading the runs: %v", err)
-	}
+	r.Corrections = []statusCorrections{}
 	for _, n := range slices.Sorted(maps.Keys(issues)) {
-		if line := countsLine(issues[n].Counts); line != "" {
-			fmt.Fprintf(out, "  %-12s %s\n", "#"+strconv.Itoa(n), line)
+		k := issues[n].Counts
+		if k.Plans == 0 && k.Blocks == 0 && len(k.Pulls) == 0 {
+			continue
 		}
+		cs := statusCorrections{Issue: n, PlanRevisions: k.Revisions(), Blocks: k.Blocks, Pulls: []statusPull{}}
+		for _, p := range k.Pulls {
+			cs.Pulls = append(cs.Pulls, statusPull{p.Repo, p.Number, p.Rounds, p.Maintainer})
+		}
+		r.Corrections = append(r.Corrections, cs)
 	}
 	metRun, met, err := lastMet(o.FS(), state)
 	if err != nil {
-		return fmt.Errorf("Error: swarm: reading the runs: %v", err)
+		return nil, fmt.Errorf("Error: swarm: reading the runs: %v", err)
 	}
-	var active []string
 	var milestones []forge.Milestone
 	slugs := map[string]string{} // a slug → the active brief that has it, as apply mirrors them
+	r.Briefs = []statusBrief{}
 	for _, b := range briefs {
 		if b.Status != "active" {
 			continue
 		}
+		sb := statusBrief{Path: b.Path, Name: b.Slug(), Milestones: []statusMilestone{}}
+		if slices.Contains(met, b.Path) {
+			sb.MetRun = &metRun
+		}
 		if other, taken := slugs[b.Slug()]; taken {
-			line := fmt.Sprintf("%s: shares the name %s with %s; mirrored to no milestone", b.Path, b.Slug(), other)
-			if slices.Contains(met, b.Path) {
-				line += fmt.Sprintf("; met (owner run %d)", metRun)
-			}
-			active = append(active, "  "+line+"\n")
+			sb.SharesNameWith = &other
+			r.Briefs = append(r.Briefs, sb)
 			continue
 		}
 		slugs[b.Slug()] = b.Path
 		if milestones == nil {
 			if milestones, err = f.Milestones(); err != nil {
-				return fmt.Errorf("Error: swarm: %v", err)
+				return nil, fmt.Errorf("Error: swarm: %v", err)
 			}
 		}
-		active = append(active, "  "+briefLine(b, milestones, metRun, met)+"\n")
+		for _, m := range b.Milestones() {
+			sm := statusMilestone{Heading: m}
+			if i := slices.IndexFunc(milestones, func(fm forge.Milestone) bool { return fm.Title == b.MilestoneTitle(m) }); i >= 0 {
+				sm.OnForge, sm.Open, sm.Closed = true, milestones[i].Open, milestones[i].Closed
+			}
+			sb.Milestones = append(sb.Milestones, sm)
+		}
+		r.Briefs = append(r.Briefs, sb)
 	}
-	if len(active) == 0 {
-		fmt.Fprintln(out, "Briefs: none active")
-	} else {
-		fmt.Fprint(out, "Briefs:\n"+strings.Join(active, ""))
-	}
-	_, err = c.Stdout.Write(report.Bytes())
-	return err
+	return r, nil
 }
 
 // statusIssue is one issue as status reads it: the issue with its
@@ -703,17 +859,74 @@ func readIssues(f forge.Adapter, listed []forge.Issue, swarmLogin string, truste
 	return out, nil
 }
 
-// countsLine is an issue's line under Throughput, "" for an issue with no
-// plan, no pull request and no block.
-func countsLine(c reconcile.Counts) string {
-	if c.Plans == 0 && c.Blocks == 0 && len(c.Pulls) == 0 {
-		return ""
+// writeStatus writes the report as text (docs/swarm.md section 11).
+func writeStatus(out io.Writer, r *statusReport) {
+	fmt.Fprintf(out, "Swarm: %s on %s (%s), repositories %s\n", r.Repository, r.Forge.Host, r.Forge.Kind, strings.Join(r.Repositories, ", "))
+	fmt.Fprintf(out, "State: %s%s\n", r.State.Path, stateNotes(r.State))
+	fmt.Fprintf(out, "Gates: triage %s, plan %s, merge %s\n", onOff(r.Gates.Triage), onOff(r.Gates.Plan), onOff(r.Gates.Merge))
+	for _, l := range forge.Stages {
+		ns := r.Stages[l]
+		fmt.Fprintf(out, "  %-26s %d", strings.TrimPrefix(l, "swarm:"), len(ns))
+		if len(ns) > 0 {
+			fmt.Fprintf(out, "  %s", issueList(ns))
+		}
+		fmt.Fprintln(out)
 	}
-	parts := []string{fmt.Sprintf("plan revisions %d, blocks %d", c.Revisions(), c.Blocks)}
-	for _, p := range c.Pulls {
-		parts = append(parts, fmt.Sprintf("%s#%d rounds %d, maintainer comments %d", p.Repo, p.Number, p.Rounds, p.Maintainer))
+	var waiting []string
+	for i, ws := 0, r.Waiting.Issues; i < len(ws); {
+		item := ws[i].Item
+		var ns []string
+		for ; i < len(ws) && ws[i].Item == item; i++ {
+			// Only an architecture job waits at the triage and plan
+			// gates: the class is named where it varies.
+			if item == "triage" || item == "plan" {
+				ns = append(ns, fmt.Sprintf("#%d", ws[i].Issue))
+			} else {
+				ns = append(ns, fmt.Sprintf("#%d (%s)", ws[i].Issue, ws[i].Class))
+			}
+		}
+		waiting = append(waiting, item+" "+strings.Join(ns, " "))
 	}
-	return strings.Join(parts, "; ")
+	if len(r.Waiting.Notes) > 0 {
+		waiting = append(waiting, "notes "+strings.Join(r.Waiting.Notes, " "))
+	}
+	if len(waiting) == 0 {
+		waiting = []string{"nothing"}
+	}
+	fmt.Fprintf(out, "Waiting for you: %s\n", strings.Join(waiting, "; "))
+	var held []string
+	if len(r.Held.Paused) > 0 {
+		held = append(held, "paused "+issueList(r.Held.Paused))
+	}
+	for _, b := range r.Held.BlockedBy {
+		held = append(held, fmt.Sprintf("#%d blocked by #%d", b.Issue, b.By))
+	}
+	if len(held) == 0 {
+		held = []string{"nothing"}
+	}
+	fmt.Fprintf(out, "Held: %s\n", strings.Join(held, "; "))
+	fmt.Fprintf(out, "Running: %s\n", runningLine(r.Running))
+	fmt.Fprintln(out, "Personas:")
+	for _, role := range declare.Roles {
+		p := r.Personas[role]
+		fmt.Fprintf(out, "  %-12s %-10s %s %s\n", role, p.Provider, p.Model, p.Effort)
+	}
+	writeThroughput(out, r.Throughput)
+	for _, k := range r.Corrections {
+		parts := []string{fmt.Sprintf("plan revisions %d, blocks %d", k.PlanRevisions, k.Blocks)}
+		for _, p := range k.Pulls {
+			parts = append(parts, fmt.Sprintf("%s#%d rounds %d, maintainer comments %d", p.Repo, p.Number, p.Rounds, p.MaintainerComments))
+		}
+		fmt.Fprintf(out, "  %-12s %s\n", "#"+strconv.Itoa(k.Issue), strings.Join(parts, "; "))
+	}
+	if len(r.Briefs) == 0 {
+		fmt.Fprintln(out, "Briefs: none active")
+		return
+	}
+	fmt.Fprintln(out, "Briefs:")
+	for _, b := range r.Briefs {
+		fmt.Fprintln(out, "  "+briefLine(b))
+	}
 }
 
 // briefLine is an active brief's line under Briefs: its path; each
@@ -721,30 +934,40 @@ func countsLine(c reconcile.Counts) string {
 // milestone that mirrors it (section 10), in the brief's heading order;
 // how many of its milestones have no issue, and how many no milestone on
 // the forge yet; and whether the newest batch run with an output reports
-// it met.
-func briefLine(b brief.Brief, milestones []forge.Milestone, metRun int, met []string) string {
-	headings := b.Milestones()
+// it met. A brief another active brief's name has is mirrored to no
+// milestone.
+func briefLine(b statusBrief) string {
+	met := ""
+	if b.MetRun != nil {
+		met = fmt.Sprintf("met (owner run %d)", *b.MetRun)
+	}
+	if b.SharesNameWith != nil {
+		line := fmt.Sprintf("%s: shares the name %s with %s; mirrored to no milestone", b.Path, b.Name, *b.SharesNameWith)
+		if met != "" {
+			line += "; " + met
+		}
+		return line
+	}
 	var parts []string
 	none, absent := 0, 0
-	for _, m := range headings {
-		i := slices.IndexFunc(milestones, func(fm forge.Milestone) bool { return fm.Title == b.MilestoneTitle(m) })
+	for _, m := range b.Milestones {
 		switch {
-		case i < 0:
+		case !m.OnForge:
 			absent++
-		case milestones[i].Open+milestones[i].Closed == 0:
+		case m.Open+m.Closed == 0:
 			none++
 		default:
-			parts = append(parts, fmt.Sprintf("%s (%d open, %d closed)", m, milestones[i].Open, milestones[i].Closed))
+			parts = append(parts, fmt.Sprintf("%s (%d open, %d closed)", m.Heading, m.Open, m.Closed))
 		}
 	}
 	if none > 0 {
-		parts = append(parts, fmt.Sprintf("%d of %d milestones with no issue", none, len(headings)))
+		parts = append(parts, fmt.Sprintf("%d of %d milestones with no issue", none, len(b.Milestones)))
 	}
 	if absent > 0 {
-		parts = append(parts, fmt.Sprintf("%d of %d milestones not on the forge", absent, len(headings)))
+		parts = append(parts, fmt.Sprintf("%d of %d milestones not on the forge", absent, len(b.Milestones)))
 	}
-	if slices.Contains(met, b.Path) {
-		parts = append(parts, fmt.Sprintf("met (owner run %d)", metRun))
+	if met != "" {
+		parts = append(parts, met)
 	}
 	if len(parts) == 0 {
 		return b.Path
@@ -793,30 +1016,51 @@ func issueList(ns []int) string {
 	return strings.Join(s, " ")
 }
 
-// stateNotes is the State line's tail: since when and why the swarm is
-// paused, since when a restart is requested, and why the owner's batch is
-// held and, when the hold waits on issues, that their closing releases it
-// (section 2's three files, and noBrief, no brief under resources being
-// active: section 6).
-func stateNotes(fs ops.FS, state string, noBrief bool) string {
-	var notes string
+// readStateNotes is the State line's facts: since when and why the swarm
+// is paused, since when a restart is requested, and since when and why
+// the owner's batch is held and the issues whose closing releases it
+// (section 2's three files), and noBrief, no brief under resources being
+// active (section 6).
+func readStateNotes(fs ops.FS, state string, noBrief bool) statusState {
+	s := statusState{Path: state, NoActiveBrief: noBrief}
 	if b, err := fs.ReadFile(filepath.Join(state, "paused")); err == nil {
-		notes += " — paused since " + strings.TrimPrefix(firstLine(b), "paused ")
+		since, reason, _ := strings.Cut(strings.TrimPrefix(firstLine(b), "paused "), ": ")
+		s.Paused = &statusSince{since, reason}
 	}
 	if b, err := fs.ReadFile(reconcile.RestartFile(state)); err == nil {
-		notes += " — restart requested at " + strings.TrimPrefix(firstLine(b), "restart ")
+		at := strings.TrimPrefix(firstLine(b), "restart ")
+		s.RestartRequestedAt = &at
 	}
 	if b, err := fs.ReadFile(filepath.Join(state, "owner-held")); err == nil {
-		_, reason, found := strings.Cut(strings.TrimPrefix(firstLine(b), "held "), ": ")
+		since, reason, found := strings.Cut(strings.TrimPrefix(firstLine(b), "held "), ": ")
 		if !found {
-			reason = firstLine(b)
+			since, reason = "", firstLine(b)
 		}
-		notes += " — owner batch held: " + reason
-		if _, waits := reconcile.HoldWaits(b); len(waits) > 0 {
-			notes += " (released once " + reconcile.AreClosed(waits) + ")"
+		_, waits := reconcile.HoldWaits(b)
+		s.OwnerHeld = &statusHold{since, reason, append([]int{}, waits...)}
+	}
+	return s
+}
+
+// stateNotes is the State line's tail.
+func stateNotes(s statusState) string {
+	var notes string
+	if s.Paused != nil {
+		notes += " — paused since " + s.Paused.Since
+		if s.Paused.Reason != "" {
+			notes += ": " + s.Paused.Reason
 		}
 	}
-	if noBrief {
+	if s.RestartRequestedAt != nil {
+		notes += " — restart requested at " + *s.RestartRequestedAt
+	}
+	if s.OwnerHeld != nil {
+		notes += " — owner batch held: " + s.OwnerHeld.Reason
+		if len(s.OwnerHeld.Waits) > 0 {
+			notes += " (released once " + reconcile.AreClosed(s.OwnerHeld.Waits) + ")"
+		}
+	}
+	if s.NoActiveBrief {
 		notes += " — owner batch held: no brief is active"
 	}
 	return notes
@@ -827,50 +1071,53 @@ func firstLine(b []byte) string {
 	return strings.TrimSpace(line)
 }
 
-// running is the Running line's value: this swarm's containers as
-// `apply` lists them (runner.Docker's Running), `#<n> <role>` by issue,
-// or unknown with docker's message.
-func running(o ops.Ops, ws, repo string) string {
+// running is this swarm's containers as `apply` lists them
+// (runner.Docker's Running), by issue, or docker's error.
+func running(o ops.Ops, ws, repo string) statusRunning {
 	all, err := runner.Docker{O: o, Dir: ws}.Running()
 	if err != nil {
-		return "unknown (" + err.Error() + ")"
+		msg := err.Error()
+		return statusRunning{Members: []statusMember{}, Error: &msg}
 	}
-	type member struct {
-		n    int
-		role string
-	}
-	var ms []member
+	ms := []statusMember{}
 	for _, r := range all {
 		rest, ok := strings.CutPrefix(r.Swarm, repo+"#")
 		num, role, slash := strings.Cut(rest, "/")
 		n, err := strconv.Atoi(num)
 		if ok && slash && err == nil {
-			ms = append(ms, member{n, role})
+			ms = append(ms, statusMember{n, role})
 		}
 	}
-	if len(ms) == 0 {
+	slices.SortStableFunc(ms, func(a, b statusMember) int { return a.Issue - b.Issue })
+	return statusRunning{Members: ms}
+}
+
+// runningLine is the Running line's value: `#<n> <role>` by issue, none,
+// or unknown with docker's message.
+func runningLine(r statusRunning) string {
+	if r.Error != nil {
+		return "unknown (" + *r.Error + ")"
+	}
+	if len(r.Members) == 0 {
 		return "none"
 	}
-	slices.SortStableFunc(ms, func(a, b member) int { return a.n - b.n })
-	s := make([]string, len(ms))
-	for i, m := range ms {
-		s[i] = fmt.Sprintf("#%d %s", m.n, m.role)
+	s := make([]string, len(r.Members))
+	for i, m := range r.Members {
+		s[i] = fmt.Sprintf("#%d %s", m.Issue, m.Role)
 	}
 	return strings.Join(s, ", ")
 }
 
-// throughput writes section 11's Throughput block to out from
-// <state>/runs/, and the gates Daisy passed for routine jobs as status
-// counted them; no runs/ is no run, and a run without a result is being
-// prepared.
-func throughput(c *Context, out io.Writer, state string, budget *declare.Budget, autoTriage, autoPlan int) error {
-	var runs, posted, blocked, failed, faults, uncosted, approved, atLimit, blockedThere int
-	var today, all float64
+// throughput reads section 11's Throughput from <state>/runs/ (but the
+// budget and the gates Daisy passed, which status fills); no runs/ is no
+// run, and a run without a result is being prepared.
+func throughput(c *Context, state string) (statusThroughput, error) {
+	var t statusThroughput
 	times := map[string][]time.Duration{} // run times by the stage launched on, "batch" and "check"
 	midnight := c.Ops.Now().UTC().Truncate(24 * time.Hour)
 	entries, err := c.Ops.FS().ReadDir(filepath.Join(state, "runs"))
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		return err
+		return t, err
 	}
 	for _, e := range entries {
 		if !e.IsDir() {
@@ -881,9 +1128,9 @@ func throughput(c *Context, out io.Writer, state string, budget *declare.Budget,
 			continue
 		}
 		if err != nil {
-			return err
+			return t, err
 		}
-		runs++
+		t.Runs.Total++
 		var outcome string
 		var started, ended, checkStarted, checkEnded time.Time
 		stage := "batch"
@@ -924,20 +1171,20 @@ func throughput(c *Context, out io.Writer, state string, budget *declare.Budget,
 		}
 		switch outcome {
 		case "posted":
-			posted++
+			t.Runs.Posted++
 		case "blocked":
-			blocked++
+			t.Runs.Blocked++
 		case "failed":
-			failed++
+			t.Runs.Failed++
 		case "fault":
-			faults++
+			t.Runs.Faults++
 		}
 		if !costed {
-			uncosted++
+			t.Cost.Uncosted++
 		}
-		all += cost
+		t.Cost.All += cost
 		if !started.Before(midnight) {
-			today += cost
+			t.Cost.Today += cost
 		}
 		// A reviewer's moves: from review-0-ready (as a run recorded
 		// before the in-progress stages names in-review) or
@@ -949,49 +1196,57 @@ func throughput(c *Context, out io.Writer, state string, budget *declare.Budget,
 			}
 			switch {
 			case m[1] == forge.ReviewApproved:
-				approved++
+				t.Approved.PullRequests++
 			case outcome == "posted" && (m[1] == forge.PlanPosted || m[1] == forge.ProposalAccepted):
-				atLimit++
+				t.Approved.AtRoundLimit++
 			case outcome == "posted" && m[1] == forge.Blocked:
-				atLimit++
-				blockedThere++
+				t.Approved.AtRoundLimit++
+				t.Approved.BlockedThere++
 			}
 		}
 		if outcome == "posted" && slices.Contains(lines, "flagged "+forge.Blocked) {
-			atLimit++
-			blockedThere++
+			t.Approved.AtRoundLimit++
+			t.Approved.BlockedThere++
 		}
 	}
+	t.Runs.Other = t.Runs.Total - t.Runs.Posted - t.Runs.Blocked - t.Runs.Failed - t.Runs.Faults
+	t.StageTime = map[string]statusTime{}
+	for _, stage := range timedStages() {
+		if d := times[strings.TrimPrefix(stage, "swarm:")]; len(d) > 0 {
+			t.StageTime[stage] = statusTime{int64(median(d) / time.Second), len(d)}
+		}
+	}
+	return t, nil
+}
+
+// writeThroughput writes section 11's Throughput block.
+func writeThroughput(out io.Writer, t statusThroughput) {
 	fmt.Fprintln(out, "Throughput:")
-	fmt.Fprintf(out, "  %-12s %d (%d posted, %d blocked, %d failed, %d faults, %d other)\n", "runs", runs, posted, blocked, failed, faults, runs-posted-blocked-failed-faults)
-	fmt.Fprintf(out, "  %-12s $%.2f today, $%.2f in all (%d runs without a cost)\n", "cost", today, all, uncosted)
-	if budget == nil {
+	fmt.Fprintf(out, "  %-12s %d (%d posted, %d blocked, %d failed, %d faults, %d other)\n", "runs", t.Runs.Total, t.Runs.Posted, t.Runs.Blocked, t.Runs.Failed, t.Runs.Faults, t.Runs.Other)
+	fmt.Fprintf(out, "  %-12s $%.2f today, $%.2f in all (%d runs without a cost)\n", "cost", t.Cost.Today, t.Cost.All, t.Cost.Uncosted)
+	if t.Budget == nil {
 		fmt.Fprintf(out, "  %-12s none\n", "budget")
 	} else {
-		fmt.Fprintf(out, "  %-12s $%.2f per day, $%.2f in all\n", "budget", budget.PerDay, budget.Total)
+		fmt.Fprintf(out, "  %-12s $%.2f per day, $%.2f in all\n", "budget", t.Budget.PerDay, t.Budget.Total)
 	}
-	fmt.Fprintf(out, "  %-12s %d pull requests; at the round limit %d, blocked there %d\n", "approved", approved, atLimit, blockedThere)
-	fmt.Fprintf(out, "  %-12s %d gates passed for routine jobs (triage %d, plan %d)\n", "auto", autoTriage+autoPlan, autoTriage, autoPlan)
+	fmt.Fprintf(out, "  %-12s %d pull requests; at the round limit %d, blocked there %d\n", "approved", t.Approved.PullRequests, t.Approved.AtRoundLimit, t.Approved.BlockedThere)
+	fmt.Fprintf(out, "  %-12s %d gates passed for routine jobs (triage %d, plan %d)\n", "auto", t.Auto.Triage+t.Auto.Plan, t.Auto.Triage, t.Auto.Plan)
 	var medians []string
-	for _, stage := range append(append([]string{"batch"}, forgeStages()...), "check") {
-		if d := times[stage]; len(d) > 0 {
-			medians = append(medians, fmt.Sprintf("%s %s (%d)", stage, median(d), len(d)))
+	for _, stage := range timedStages() {
+		if st, ok := t.StageTime[stage]; ok {
+			medians = append(medians, fmt.Sprintf("%s %s (%d)", strings.TrimPrefix(stage, "swarm:"), time.Duration(st.MedianSeconds)*time.Second, st.Runs))
 		}
 	}
 	if len(medians) == 0 {
 		medians = []string{"none"}
 	}
 	fmt.Fprintf(out, "  %-12s %s\n", "stage time", strings.Join(medians, ", "))
-	return nil
 }
 
-// forgeStages is the nine stages without `swarm:`, in lifecycle order.
-func forgeStages() []string {
-	out := make([]string, len(forge.Stages))
-	for i, l := range forge.Stages {
-		out[i] = strings.TrimPrefix(l, "swarm:")
-	}
-	return out
+// timedStages is what a run's time is counted under: the owner's batch,
+// the nine stages by their labels in lifecycle order, and the check.
+func timedStages() []string {
+	return append(append([]string{"batch"}, forge.Stages...), "check")
 }
 
 // median is the middle of ds, or the mean of the two middle ones, to the

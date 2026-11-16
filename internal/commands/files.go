@@ -51,89 +51,152 @@ func fileNames(e env.Env) []named {
 	}
 }
 
+// filesReport is the listing: the binding, every name's real path (plan's
+// nil without a current plan, PLAN.md a link), the rows printed only when
+// their file exists and the workspace's projects. The listing and
+// `files --json` both print it.
+type filesReport struct {
+	Home            string             `json:"home"`
+	Identity        string             `json:"identity"`
+	Workspace       string             `json:"workspace"`
+	Paths           map[string]*string `json:"paths"`
+	IdentityMissing bool               `json:"identity_missing"` // its path then as named, unresolved
+	PreRotation     *string            `json:"pre_rotation"`
+	JournalWindows  []namedPath        `json:"journal_windows"` // the rolling windows, then the closed ones
+	FeedbackArchive *string            `json:"feedback_archive"`
+	Projects        struct {
+		Names  []string           `json:"names"`
+		Source env.ProjectsSource `json:"source"`
+	} `json:"workspace_projects"`
+	warned
+}
+
+// namedPath is a row whose name varies: its file's name and real path.
+type namedPath struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
 func files(c *Context) error {
-	if len(c.Args) == 1 {
+	switch {
+	case c.Flag(JSONFlag) && len(c.Args) == 1:
+		return UsageError("--json lists every path; with <name>, its path alone is printed")
+	case len(c.Args) == 1:
 		return fileByName(c, c.Args[0])
+	case c.Flag(JSONFlag):
+		return writeJSON(c, func() (jsonDoc, error) {
+			reportDrift(c)
+			return listFiles(c), nil
+		})
 	}
-	fs := c.Ops.FS()
-	home := c.Env.Home
-	paths := map[string]string{}
-	for _, n := range fileNames(c.Env) {
-		paths[n.name] = n.path
-	}
-	row := func(name, path string) { fmt.Fprintf(c.Stdout, "  %-12s %s\n", name, env.RealPath(fs, path)) }
-	exists := func(path string) bool { fi, err := fs.Stat(path); return err == nil && fi.Mode().IsRegular() }
+	r := listFiles(c)
+	row := func(name string, path *string) { fmt.Fprintf(c.Stdout, "  %-12s %s\n", name, *path) }
 
 	fmt.Fprintln(c.Stdout, header(c))
 	fmt.Fprintln(c.Stdout)
 	reportDrift(c)
 
 	fmt.Fprintln(c.Stdout, "Identity:")
-	if exists(paths["identity"]) {
-		row(c.Env.Identity, paths["identity"])
+	if r.IdentityMissing {
+		fmt.Fprintf(c.Stdout, "  %-12s %s  (missing)\n", r.Identity, *r.Paths["identity"])
 	} else {
-		fmt.Fprintf(c.Stdout, "  %-12s %s  (missing)\n", c.Env.Identity, paths["identity"])
+		row(r.Identity, r.Paths["identity"])
 	}
 	fmt.Fprintln(c.Stdout)
 
 	fmt.Fprintln(c.Stdout, "Journal:")
-	row("today.md", paths["today"])
-	row("journal.md", paths["journal"])
-	if exists(filepath.Join(home, "journal", "journal-pre-rotation.md")) {
-		row("pre-rotation", filepath.Join(home, "journal", "journal-pre-rotation.md"))
+	row("today.md", r.Paths["today"])
+	row("journal.md", r.Paths["journal"])
+	if r.PreRotation != nil {
+		row("pre-rotation", r.PreRotation)
+	}
+	for _, w := range r.JournalWindows {
+		row(w.Name, &w.Path)
+	}
+	fmt.Fprintln(c.Stdout)
+
+	fmt.Fprintln(c.Stdout, "Tasks:")
+	row("todo.txt", r.Paths["todo"])
+	row("done.txt", r.Paths["done"])
+	row("alias.txt", r.Paths["alias"])
+	fmt.Fprintln(c.Stdout)
+
+	fmt.Fprintln(c.Stdout, "Projects:")
+	row("active", r.Paths["projects"])
+	row("archived", r.Paths["projects-archive"])
+	fmt.Fprintf(c.Stdout, "  %-12s %s\n", "workspace", c.Env.ProjectsSummary())
+	fmt.Fprintln(c.Stdout)
+
+	fmt.Fprintln(c.Stdout, "Feedback:")
+	row("feedback.md", r.Paths["feedback"])
+	if r.FeedbackArchive != nil {
+		row("archive.md", r.FeedbackArchive)
+	}
+	fmt.Fprintln(c.Stdout)
+
+	fmt.Fprintln(c.Stdout, "Plans:")
+	row("plans/", r.Paths["plans"])
+	row("archive/", r.Paths["plans-archive"])
+	if r.Paths["plan"] != nil {
+		row("current plan", r.Paths["plan"])
+	}
+	fmt.Fprintln(c.Stdout)
+
+	fmt.Fprintln(c.Stdout, "Metrics:")
+	row("metrics.csv", r.Paths["metrics"])
+	fmt.Fprintln(c.Stdout)
+
+	fmt.Fprintln(c.Stdout, "Prompts:")
+	row("home/", r.Paths["prompts"])
+	fmt.Fprintln(c.Stdout)
+
+	fmt.Fprintf(c.Stdout, "%-14s %s\n", "AGENTS.md:", *r.Paths["agents"])
+	return nil
+}
+
+// listFiles reads the listing.
+func listFiles(c *Context) *filesReport {
+	fs := c.Ops.FS()
+	home := c.Env.Home
+	real := func(path string) *string { p := env.RealPath(fs, path); return &p }
+	exists := func(path string) bool { fi, err := fs.Stat(path); return err == nil && fi.Mode().IsRegular() }
+	r := &filesReport{Home: c.Env.HomeName, Identity: c.Env.Identity, Workspace: c.Env.Workspace, Paths: map[string]*string{}, JournalWindows: []namedPath{}}
+	for _, n := range fileNames(c.Env) {
+		r.Paths[n.name] = real(n.path)
+	}
+	if id := c.Env.IdentityFile; !exists(id) {
+		r.Paths["identity"], r.IdentityMissing = &id, true
+	}
+	if fi, err := fs.Lstat(filepath.Join(c.Env.Workspace, "PLAN.md")); err != nil || fi.Mode()&fsModeSymlink == 0 {
+		r.Paths["plan"] = nil
+	}
+	if p := filepath.Join(home, "journal", "journal-pre-rotation.md"); exists(p) {
+		r.PreRotation = real(p)
 	}
 	journal, _ := fs.ReadDir(filepath.Join(home, "journal"))
+	window := func(name string) {
+		r.JournalWindows = append(r.JournalWindows, namedPath{name, *real(filepath.Join(home, "journal", name))})
+	}
 	for _, suffix := range []string{"last14", "mtd", "ytd"} {
 		for _, en := range journal {
 			if rollingWindow.MatchString(en.Name()) && strings.HasSuffix(en.Name(), "-"+suffix+".md") && exists(filepath.Join(home, "journal", en.Name())) {
-				row(en.Name(), filepath.Join(home, "journal", en.Name()))
+				window(en.Name())
 			}
 		}
 	}
 	for _, en := range journal {
 		if closedWindow.MatchString(en.Name()) && !en.IsDir() {
-			row(en.Name(), filepath.Join(home, "journal", en.Name()))
+			window(en.Name())
 		}
 	}
-	fmt.Fprintln(c.Stdout)
-
-	fmt.Fprintln(c.Stdout, "Tasks:")
-	row("todo.txt", paths["todo"])
-	row("done.txt", paths["done"])
-	row("alias.txt", paths["alias"])
-	fmt.Fprintln(c.Stdout)
-
-	fmt.Fprintln(c.Stdout, "Projects:")
-	row("active", paths["projects"])
-	row("archived", paths["projects-archive"])
-	fmt.Fprintf(c.Stdout, "  %-12s %s\n", "workspace", c.Env.ProjectsSummary())
-	fmt.Fprintln(c.Stdout)
-
-	fmt.Fprintln(c.Stdout, "Feedback:")
-	row("feedback.md", paths["feedback"])
-	if exists(filepath.Join(home, "feedback", "archive.md")) {
-		row("archive.md", filepath.Join(home, "feedback", "archive.md"))
+	if p := filepath.Join(home, "feedback", "archive.md"); exists(p) {
+		r.FeedbackArchive = real(p)
 	}
-	fmt.Fprintln(c.Stdout)
-
-	fmt.Fprintln(c.Stdout, "Plans:")
-	row("plans/", paths["plans"])
-	row("archive/", paths["plans-archive"])
-	if fi, err := fs.Lstat(paths["plan"]); err == nil && fi.Mode()&fsModeSymlink != 0 {
-		row("current plan", paths["plan"])
+	r.Projects.Names, r.Projects.Source = c.Env.Projects, c.Env.ProjectsSource
+	if r.Projects.Names == nil {
+		r.Projects.Names = []string{}
 	}
-	fmt.Fprintln(c.Stdout)
-
-	fmt.Fprintln(c.Stdout, "Metrics:")
-	row("metrics.csv", paths["metrics"])
-	fmt.Fprintln(c.Stdout)
-
-	fmt.Fprintln(c.Stdout, "Prompts:")
-	row("home/", paths["prompts"])
-	fmt.Fprintln(c.Stdout)
-
-	fmt.Fprintf(c.Stdout, "%-14s %s\n", "AGENTS.md:", env.RealPath(fs, paths["agents"]))
-	return nil
+	return r
 }
 
 // fileByName prints the real path name stands for, alone on its line,

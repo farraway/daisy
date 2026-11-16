@@ -196,7 +196,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Workspace | `daisy init [<identity> [path]]` | Bind a workspace to an identity and its home (bare: re-initialize this one) |
 | Workspace | `daisy clean [-f]` | Remove Daisy from this workspace |
 | Workspace | `daisy status` | Home, identity, projects, today's counts, active plan |
-| Workspace | `daisy files [<name>]` | Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …) |
+| Workspace | `daisy files [--json\|<name>]` | Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …) |
 | Workspace | `daisy list` | Active prompts and installed skills |
 | Workspace | `daisy help [<command>\|<skill>\|--markdown]` | This help, detail for one command or skill, or the Command Reference |
 | Day | `daisy new-day [--quick]` | Start a new day (--quick: only if not started; a week if one turned) |
@@ -226,7 +226,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm prompt build [--force] [--dry-run]` | Reseed prompts/ from this Daisy's defaults; an edited prompt is kept |
 | Swarm | `daisy swarm apply [--once]` | Reconcile the forge: launch members, post their output, move labels |
 | Swarm | `daisy swarm metrics --backfill` | Write a metrics row for each collected run the home's CSV has none for |
-| Swarm | `daisy swarm status` | Stages, gates, what waits for you, running members (read-only) |
+| Swarm | `daisy swarm status [--json]` | Stages, gates, what waits for you, running members (read-only) |
 | Swarm | `daisy swarm list` | The swarms this machine runs: clone, home, pause; from anywhere (read-only) |
 | Swarm | `daisy swarm journal [--mark <run>]` | The journal since the line marked seen (read-only); --mark moves the mark |
 | Swarm | `daisy swarm pause [<n>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue) |

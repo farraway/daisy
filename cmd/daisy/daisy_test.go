@@ -2,8 +2,11 @@ package main_test
 
 import (
 	"bytes"
+	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -210,7 +213,7 @@ func TestFilesNamePrintsOnePath(t *testing.T) {
 	}
 
 	code, out, errs := m.run(t, m.ws, "files", "nope")
-	if code != 2 || out != "" || !strings.HasPrefix(errs, "Error: unknown name: nope; one of identity, today, journal, todo, done, alias, projects, projects-archive, feedback, plans, plans-archive, plan, metrics, prompts, agents\nUsage: daisy files [<name>]\n") {
+	if code != 2 || out != "" || !strings.HasPrefix(errs, "Error: unknown name: nope; one of identity, today, journal, todo, done, alias, projects, projects-archive, feedback, plans, plans-archive, plan, metrics, prompts, agents\nUsage: daisy files [--json|<name>]\n") {
 		t.Errorf("files nope: exit %d out %q err %q", code, out, errs)
 	}
 
@@ -238,6 +241,95 @@ func TestFilesNamePrintsOnePath(t *testing.T) {
 	code, out, errs = m.run(t, m.ws, "files", "plan")
 	if code != 1 || out != "" || !strings.Contains(errs, "the binding link .daisy/plans is missing") || !strings.Contains(errs, "Re-run 'daisy init testhome'") {
 		t.Errorf("drifted binding: exit %d out %q err %q", code, out, errs)
+	}
+}
+
+// objectKeys is an object's keys, sorted: what a --json test pins.
+func objectKeys(t *testing.T, v any) []string {
+	t.Helper()
+	m, ok := v.(map[string]any)
+	if !ok {
+		t.Fatalf("not an object: %#v", v)
+	}
+	return slices.Sorted(maps.Keys(m))
+}
+
+// `daisy files --json` is one JSON document on stdout and nothing on
+// stderr, drift and all: every name `files <name>` takes under paths,
+// plan's null without a current plan, the listing's conditional rows in
+// their own keys, the drift lines under warnings; with a name it is a
+// usage error.
+func TestFilesJSON(t *testing.T) {
+	m := newMachine(t)
+	proj := filepath.Join(m.ws, "chessgrid.260807")
+	writeFile(t, filepath.Join(proj, ".daisy", "home"), "testhome\n")
+	for _, l := range env.Links {
+		os.Symlink(filepath.Join(m.home, l.Target), filepath.Join(proj, ".daisy", l.Link))
+	}
+	writeFile(t, filepath.Join(m.home, "projects", "chessgrid.md"), "# chessgrid\n")
+	writeFile(t, filepath.Join(m.home, "journal", "journal-20260101-last14.md"), "")
+	writeFile(t, filepath.Join(m.home, "journal", "journal-2025.md"), "")
+	writeFile(t, filepath.Join(m.home, "journal", "journal-notes.md"), "")
+	os.Remove(filepath.Join(m.home, "feedback", "archive.md"))
+	real, err := filepath.EvalSymlinks(m.home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decode := func(args ...string) map[string]any {
+		t.Helper()
+		code, out, errs := m.run(t, proj, args...)
+		var doc map[string]any
+		if code != 0 || errs != "" || json.Unmarshal([]byte(out), &doc) != nil {
+			t.Fatalf("%q: exit %d out %q err %q", args, code, out, errs)
+		}
+		return doc
+	}
+	doc := decode("files", "--json")
+	if got := objectKeys(t, doc); !slices.Equal(got, []string{"feedback_archive", "home", "identity", "identity_missing", "journal_windows", "paths", "pre_rotation", "warnings", "workspace", "workspace_projects"}) {
+		t.Errorf("keys %q", got)
+	}
+	if got := objectKeys(t, doc["paths"]); !slices.Equal(got, []string{"agents", "alias", "done", "feedback", "identity", "journal", "metrics", "plan", "plans", "plans-archive", "projects", "projects-archive", "prompts", "today", "todo"}) {
+		t.Errorf("paths keys %q", got)
+	}
+	paths := doc["paths"].(map[string]any)
+	if doc["home"] != "testhome" || doc["identity"] != "testhome" || doc["workspace"] != proj || doc["identity_missing"] != false ||
+		paths["todo"] != real+"/tasks/todo.txt" || paths["identity"] != real+"/gitconfig" || paths["agents"] != real+"/AGENTS.md" || paths["plan"] != nil ||
+		doc["pre_rotation"] != nil || doc["feedback_archive"] != nil {
+		t.Errorf("document %v", doc)
+	}
+	windows, _ := json.Marshal(doc["journal_windows"])
+	if string(windows) != `[{"name":"journal-20260101-last14.md","path":"`+real+`/journal/journal-20260101-last14.md"},{"name":"journal-2025.md","path":"`+real+`/journal/journal-2025.md"}]` {
+		t.Errorf("journal_windows %s", windows)
+	}
+	projects, _ := json.Marshal(doc["workspace_projects"])
+	if string(projects) != `{"names":["chessgrid"],"source":"convention"}` {
+		t.Errorf("workspace_projects %s", projects)
+	}
+	if w, ok := doc["warnings"].([]any); !ok || len(w) != 0 {
+		t.Errorf("warnings %#v", doc["warnings"])
+	}
+
+	// The conditional rows, a current plan, a missing identity file and
+	// drift: still nothing on stderr, the drift under warnings.
+	writeFile(t, filepath.Join(m.home, "journal", "journal-pre-rotation.md"), "")
+	writeFile(t, filepath.Join(m.home, "feedback", "archive.md"), "")
+	writeFile(t, filepath.Join(m.home, "plans", "p.plan.md"), "# P\n")
+	os.Symlink(filepath.Join(m.home, "plans", "p.plan.md"), filepath.Join(proj, "PLAN.md"))
+	os.Remove(filepath.Join(proj, ".daisy", "today.md"))
+	os.Rename(filepath.Join(m.home, "gitconfig"), filepath.Join(m.home, "gitconfig.away"))
+	doc = decode("files", "--json")
+	paths = doc["paths"].(map[string]any)
+	if doc["pre_rotation"] != real+"/journal/journal-pre-rotation.md" || doc["feedback_archive"] != real+"/feedback/archive.md" ||
+		paths["plan"] != real+"/plans/p.plan.md" || doc["identity_missing"] != true || paths["identity"] != m.home+"/gitconfig" {
+		t.Errorf("document %v", doc)
+	}
+	if w, _ := doc["warnings"].([]any); !slices.Contains(w, any("⚠️  the binding link .daisy/today.md is missing or does not point into the home; re-run 'daisy init testhome'")) {
+		t.Errorf("warnings %q", w)
+	}
+
+	code, out, errs := m.run(t, proj, "files", "--json", "plan")
+	if code != 2 || out != "" || !strings.HasPrefix(errs, "Error: --json lists every path; with <name>, its path alone is printed\nUsage: daisy files [--json|<name>]\n") {
+		t.Errorf("--json with a name: exit %d out %q err %q", code, out, errs)
 	}
 }
 
@@ -290,7 +382,7 @@ func TestHelpForms(t *testing.T) {
 			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)
 		}
 	}
-	for usage, args := range map[string][]string{"status": {"status", "--help"}, "files [<name>]": {"files", "-h"}} {
+	for usage, args := range map[string][]string{"status": {"status", "--help"}, "files [--json|<name>]": {"files", "-h"}} {
 		code, out, errs := m.run(t, m.ws, args...)
 		if code != 0 || errs != "" || !strings.HasPrefix(out, "Usage: daisy "+usage+"\n") {
 			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)

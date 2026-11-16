@@ -52,7 +52,7 @@ Workspace
   init [<identity> [path]]          Bind a workspace to an identity and its home (bare: re-initialize this one)
   clean [-f]                        Remove Daisy from this workspace
   status                            Home, identity, projects, today's counts, active plan
-  files [<name>]                    Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)
+  files [--json|<name>]             Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)
   list                              Active prompts and installed skills
   help [<command>|<skill>|--markdown]
                                     This help, detail for one command or skill, or the Command Reference
@@ -100,7 +100,7 @@ Swarm
                                     Reseed prompts/ from this Daisy's defaults; an edited prompt is kept
   swarm apply [--once]              Reconcile the forge: launch members, post their output, move labels
   swarm metrics --backfill          Write a metrics row for each collected run the home's CSV has none for
-  swarm status                      Stages, gates, what waits for you, running members (read-only)
+  swarm status [--json]             Stages, gates, what waits for you, running members (read-only)
   swarm list                        The swarms this machine runs: clone, home, pause; from anywhere (read-only)
   swarm journal [--mark <run>]      The journal since the line marked seen (read-only); --mark moves the mark
   swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
@@ -223,13 +223,35 @@ home's name; a value that is not a name is refused: `not an identity
 name` [77], exit 1.
 
 **Binding drift.** `status` and `files` (without a name) print one warning line per fault on
-stderr, each ending with the fix `daisy init` [76] `<identity>`: a missing
+stderr (`files --json` under its `warnings`, below), each ending with the fix `daisy init` [76] `<identity>`: a missing
 or wrong link (naming the file, `today.md` [76]), a git key whose value is
 not the recorded identity's (naming the key, `user.email` [76]; `differs`
 [77]), an identity file that `does not match what init recorded` [77], a
 bound identity file that is not a complete identity (naming the file), an
 applied identity nothing claims (naming the author, `Pelican Moorhen` [79]).
 A clean binding prints nothing on stderr (asserted empty in 76, 77, 79).
+
+**`--json`.** A read-only command that takes `--json` among its leading
+flags (as built, `files` and `swarm status`; a command without it refuses
+it as an unknown flag, exit 2) prints, with it, its report as one JSON
+document on stdout and nothing else: an object, indented two spaces,
+ending in a newline. The text stays the default, unchanged. The document
+carries the facts the text prints, not its rendering: one key per label,
+in `snake_case` (but the names a command already gives a thing, the
+`files <name>` names, a stage's label); an issue is a number, a stage its
+label (`swarm:plan-0-posted`), a path the real path the text prints. Every key
+is always present: `null` where the text prints nothing for a value
+that is absent (no current plan, no budget), `[]` where it lists none.
+The keys are pinned by tests (`TestFilesJSON`, `TestSwarmStatusJSON`,
+`TestSwarmStatusJSONThroughGitea`), so a change to one is a change to
+this contract. Every document has `warnings`: the lines the command
+would have written on stderr (drift, a secrets file's problem, a
+blocker naming no issue), each as the text form prints it, `[]` when
+none, so on success stderr carries nothing. A failure writes no
+document, partial or whole: stdout stays empty, the exit code is the
+text form's, and stderr carries the held warnings and then the error, as
+without the flag; a caller tells success by the exit code alone *(Step 9
+of the plan remediating the 2026-11-15 design review, P1a)*.
 
 **Environment read.** `DAISY_ROOT` (required: without it a command exits 1
 with `Error: DAISY_ROOT not set` and the `~/.zshenv` line to add;
@@ -378,17 +400,52 @@ and `home: testhome | identity: pelicanmoor` [77].
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 17): Go; `<name>` since Step 6 of the plan remediating the 2026-11-15 design review |
+| Status | as built (Step 17): Go; `<name>` since Step 6 of the plan remediating the 2026-11-15 design review, `--json` since its Step 9 |
 | Legacy | `daisy files` → `files.sh`, deleted in Step 24 with its `--healthcheck` hook (it checked only that the home resolves; `files` has none) |
-| Usage | `daisy files [<name>]` |
+| Usage | `daisy files [--json\|<name>]` |
 | Arguments | `<name>`, one of `identity`, `today`, `journal`, `todo`, `done`, `alias`, `projects`, `projects-archive`, `feedback`, `plans`, `plans-archive`, `plan`, `metrics`, `prompts`, `agents`, in the listing's order: one per row it always prints (the identity file, `today.md`, `journal.md`, `todo.txt`, `done.txt`, `alias.txt`, projects `active` and `archived`, `feedback.md`, `plans/` and `archive/`, `metrics.csv`, the home's `prompts/`, `AGENTS.md`) and `plan`, its `current plan`; each its file's stem or its directory's, `-archive` after the directory an archive sits in; a row whose name varies or that is printed only when its file exists (the journal's windows, `pre-rotation`, the feedback `archive.md`) has none |
-| Exit codes | 0 (a project that does not exist is not fatal, case 44); 1 outside a workspace, and for `plan` when the workspace has no current plan: no `PLAN.md` (`Error: no current plan: this workspace has no PLAN.md` and `  Start one: daisy plan new <description> [+project]`), a `PLAN.md` that is not a link (move it aside, then the same), or a broken link (remove it, then the same; under a drifted binding the drift is named first, with `Re-run 'daisy init <identity>'`, since `PLAN.md` reaches the home through `.daisy/plans`) *(decided: a well-formed request the workspace cannot answer is a failure, Common behaviour's 1, not a usage error)*; 2 for a name not in the list (`Error: unknown name: <name>; one of <the names, in the order above>`, then the usage) or a second argument |
-| Stdout | with `<name>`: that row's real path and a newline, nothing else, whether or not the file exists yet; for `plan`, the file `PLAN.md` resolves to (`TestFilesNamePrintsOnePath`). Without: the same first line as `status` (`identity: testhome` [76], `identity: pelicanmoor` [77]); sections `Identity:` (the resolved identity file: the home's `gitconfig` [76] or `identities/pelicanmoor` [77], ` (missing)` when absent), `Journal:`, `Tasks:`, `Projects:` (`workspace` row: `+chessgrid` [43] `(from ` `directory name` [43] `)`, `+chessgrid +jobsearch` [43] in file order, `+jobsearch` [42] `(from ` `.daisy/project` [42] `)`, or `(none)` (`none` [44])), `Feedback:`, `Plans:` (with `current plan` when `PLAN.md` is a link), `Metrics:` (`metrics.csv`, which `metrics add` writes, listed whether or not it exists yet), `Prompts:`; each row `  %-12s <real path>`; last `AGENTS.md:    <real path>` (`%-14s`) |
-| Stderr | with `<name>`: empty on success, even when the binding has drifted (every name's path but `plan`'s comes from the home, not through the `.daisy/` links; the listing reports drift); the error on a failure. Without: empty when the convention default matches nothing (asserted `""`, case 44); a declared project with no file is named (`typoed-name` [44]); drift warnings |
+| Exit codes | 0 (a project that does not exist is not fatal, case 44); 1 outside a workspace, and for `plan` when the workspace has no current plan: no `PLAN.md` (`Error: no current plan: this workspace has no PLAN.md` and `  Start one: daisy plan new <description> [+project]`), a `PLAN.md` that is not a link (move it aside, then the same), or a broken link (remove it, then the same; under a drifted binding the drift is named first, with `Re-run 'daisy init <identity>'`, since `PLAN.md` reaches the home through `.daisy/plans`) *(decided: a well-formed request the workspace cannot answer is a failure, Common behaviour's 1, not a usage error)*; 2 for a name not in the list (`Error: unknown name: <name>; one of <the names, in the order above>`, then the usage), a second argument, or `--json` with a name (`Error: --json lists every path; with <name>, its path alone is printed`, then the usage: the one path is already the whole output) |
+| Stdout | with `<name>`: that row's real path and a newline, nothing else, whether or not the file exists yet; for `plan`, the file `PLAN.md` resolves to (`TestFilesNamePrintsOnePath`). Without: the same first line as `status` (`identity: testhome` [76], `identity: pelicanmoor` [77]); sections `Identity:` (the resolved identity file: the home's `gitconfig` [76] or `identities/pelicanmoor` [77], ` (missing)` when absent), `Journal:`, `Tasks:`, `Projects:` (`workspace` row: `+chessgrid` [43] `(from ` `directory name` [43] `)`, `+chessgrid +jobsearch` [43] in file order, `+jobsearch` [42] `(from ` `.daisy/project` [42] `)`, or `(none)` (`none` [44])), `Feedback:`, `Plans:` (with `current plan` when `PLAN.md` is a link), `Metrics:` (`metrics.csv`, which `metrics add` writes, listed whether or not it exists yet), `Prompts:`; each row `  %-12s <real path>`; last `AGENTS.md:    <real path>` (`%-14s`). With `--json`: the listing as one document (below) |
+| Stderr | with `--json`: empty on success, drift and a missing project's warning under `warnings`. With `<name>`: empty on success, even when the binding has drifted (every name's path but `plan`'s comes from the home, not through the `.daisy/` links; the listing reports drift); the error on a failure. Without: empty when the convention default matches nothing (asserted `""`, case 44); a declared project with no file is named (`typoed-name` [44]); drift warnings |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |
-| Cases | 42, 43, 44 |
+| Cases | 42, 43, 44; `TestFilesListsRealPaths`, `TestFilesNamePrintsOnePath`, `TestFilesJSON` |
+
+`files --json` (Common behaviour, `--json`) has `home`, `identity` and
+`workspace`, the first line's three; `paths`, every `<name>` above and
+its real path, `files <name>`'s, but `plan`, `null` when `PLAN.md` is
+not a link, and `identity`, the path as the binding names it when the
+file is missing, `identity_missing` then `true` (the text's
+`(missing)`); `pre_rotation` and `feedback_archive`, the rows printed
+only when their file exists, `null` when it does not; `journal_windows`,
+the window rows in the text's order, each `{"name", "path"}` since its
+name varies; `workspace_projects`, `{"names", "source"}`, `source` one
+of `explicit` (`.daisy/project`), `convention` (the directory name) and
+`none`; and `warnings`. Abridged:
+
+```json
+{
+  "home": "work",
+  "identity": "work",
+  "workspace": "/srv/ws/chessgrid.260807",
+  "paths": {
+    "identity": "/srv/homes/work/gitconfig",
+    "today": "/srv/homes/work/journal/today.md",
+    "todo": "/srv/homes/work/tasks/todo.txt",
+    "plan": null,
+    "agents": "/srv/homes/work/AGENTS.md"
+  },
+  "identity_missing": false,
+  "pre_rotation": null,
+  "journal_windows": [
+    {"name": "journal-2025.md", "path": "/srv/homes/work/journal/journal-2025.md"}
+  ],
+  "feedback_archive": null,
+  "workspace_projects": {"names": ["chessgrid"], "source": "convention"},
+  "warnings": []
+}
+```
 
 ### daisy list
 
@@ -790,14 +847,77 @@ beside the forges' workflows, `AGENTS.md` and `CLAUDE.md` (Step 35).
 |---|---|
 | Status | as built (Steps 4, 8, 9, 14, 15, 20, 27 and 29 of the swarm build; finding the swarm and `<state>/env` at Step 2 of revision 6's plan, the briefs read in the mirrors at Step 4, Drift at Step 5): Go (`internal/swarm/forge`, `internal/swarm/reconcile`, `internal/swarm/brief`, `internal/commands/swarm.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
-| Usage | `daisy swarm status`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); any argument is usage on stderr, exit 2 |
-| Exit codes | 0, also when Docker cannot be reached; 1 no swarm found, `swarm.json` absent or invalid (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <state>/env or the environment)`), a forge call failing (`Error: swarm: forge: …`), a brief, `<state>/auto`, a run's `result` or a batch run's `out.md` unreadable; 2 usage; with exit 1, nothing on stdout: the report is written whole once every read is made |
-| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>` with the paused and held notes (` — owner batch held: no brief is active` while no brief under `resources` is `active`: the owner's batch waits for one, docs/swarm.md section 6; a hold that waits on issues followed by ` (released once #<n> … are closed)`); `Gates: …`; a line per stage, `  %-26s %d` and its issue numbers; `Waiting for you: …`, the open issues the predicate `apply` sets `swarm:gated` by holds for (`triage`, `plan`, a `review-2-approved` issue under `merge`, `next slice`, `close` or, its current pull request closed unmerged, `pull closed` as that pull request calls for, `question` every issue carrying `swarm:blocked` whose newest blocking note passed a member's question to the maintainer, `blocked` every other issue carrying `swarm:blocked`, at whatever stage, and `notes` each `swarm/notes-<n>-<role>-<k>` branch the swarm repository's mirror holds: a run's notes that changed the same lines as the head, to merge by hand, docs/swarm.md section 7.6), each `#<n>` under `triage` and `plan`, where only an architecture job waits, and `#<n> (<class>)`, its job class (`routine` or `architecture`, docs/swarm.md section 5) beside it, under the others, or `nothing`; `Held: …`, `paused #…` for the issues carrying `swarm:paused` and `#<n> blocked by #<m>` for each whose newest maintainer comment names an open blocker, separated by `; `, or `nothing`; `Running: …`, `none` or `unknown (docker: <message>)`; `Personas:` and a line per role; `Throughput:` and its six lines (`auto` the gates Daisy passed for routine jobs, per issue the larger of its lines in `<state>/auto` and its auto notes on the open and recently closed issues; `stage time` the median run time per stage, a run recorded before Step 15 of the swarm build counted under its stage's new name), then a `#<n>` line of correction counts per open or recently closed issue with a plan, a pull request or a block; `Briefs:` and a line per `active` brief under `resources` (its milestones' open and closed issues as the forge counts them in the milestones that mirror them, those with none or not yet on the forge, and `met (owner run <k>)` when the newest batch run reports it; one whose file name an earlier `active` brief has, `<path>: shares the name <name> with <other path>; mirrored to no milestone`), or `Briefs: none active` |
-| Stderr | `⚠️  <state>/env <problem>` for a line the swarm's secrets file cannot be read past; `⚠ <swarm>/.env.sh: …`; in a swarm repository's clone, each time, `⚠ Drift: <path> differs from <owner>/<repo>'s <branch> at <short sha>; commit and push it` (`is not in`, `is only in`) per path of `swarm.json` and `prompts/` that differs from the swarm repository's default branch as its mirror was last fetched (docs/swarm.md section 11, Drift; never an exit code); `⚠ #<n>: Blocked by #<m> names no issue; not held` (no hold listed for it); errors |
+| Usage | `daisy swarm status [--json]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); any argument is usage on stderr, exit 2 |
+| Exit codes | 0, also when Docker cannot be reached; 1 no swarm found, `swarm.json` absent or invalid (`Error: swarm.json: <field>: <problem>`), the token unset (`Error: swarm: $<VAR> is not set (in <state>/env or the environment)`), a forge call failing (`Error: swarm: forge: …`), a brief, `<state>/auto`, a run's `result` or a batch run's `out.md` unreadable; 2 usage; with exit 1, nothing on stdout: the report is written whole once every read is made. With `--json` the same: a forge it cannot reach (`Error: swarm: forge: …`) is exit 1 with no document, partial or empty, since a report without the forge's facts would read as a swarm with nothing waiting |
+| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>` with the paused and held notes (` — owner batch held: no brief is active` while no brief under `resources` is `active`: the owner's batch waits for one, docs/swarm.md section 6; a hold that waits on issues followed by ` (released once #<n> … are closed)`); `Gates: …`; a line per stage, `  %-26s %d` and its issue numbers; `Waiting for you: …`, the open issues the predicate `apply` sets `swarm:gated` by holds for (`triage`, `plan`, a `review-2-approved` issue under `merge`, `next slice`, `close` or, its current pull request closed unmerged, `pull closed` as that pull request calls for, `question` every issue carrying `swarm:blocked` whose newest blocking note passed a member's question to the maintainer, `blocked` every other issue carrying `swarm:blocked`, at whatever stage, and `notes` each `swarm/notes-<n>-<role>-<k>` branch the swarm repository's mirror holds: a run's notes that changed the same lines as the head, to merge by hand, docs/swarm.md section 7.6), each `#<n>` under `triage` and `plan`, where only an architecture job waits, and `#<n> (<class>)`, its job class (`routine` or `architecture`, docs/swarm.md section 5) beside it, under the others, or `nothing`; `Held: …`, `paused #…` for the issues carrying `swarm:paused` and `#<n> blocked by #<m>` for each whose newest maintainer comment names an open blocker, separated by `; `, or `nothing`; `Running: …`, `none` or `unknown (docker: <message>)`; `Personas:` and a line per role; `Throughput:` and its six lines (`auto` the gates Daisy passed for routine jobs, per issue the larger of its lines in `<state>/auto` and its auto notes on the open and recently closed issues; `stage time` the median run time per stage, a run recorded before Step 15 of the swarm build counted under its stage's new name), then a `#<n>` line of correction counts per open or recently closed issue with a plan, a pull request or a block; `Briefs:` and a line per `active` brief under `resources` (its milestones' open and closed issues as the forge counts them in the milestones that mirror them, those with none or not yet on the forge, and `met (owner run <k>)` when the newest batch run reports it; one whose file name an earlier `active` brief has, `<path>: shares the name <name> with <other path>; mirrored to no milestone`), or `Briefs: none active`. With `--json`: the report as one document (below) |
+| Stderr | with `--json`, empty on success, each line below then under `warnings`; `⚠️  <state>/env <problem>` for a line the swarm's secrets file cannot be read past; `⚠ <swarm>/.env.sh: …`; in a swarm repository's clone, each time, `⚠ Drift: <path> differs from <owner>/<repo>'s <branch> at <short sha>; commit and push it` (`is not in`, `is only in`) per path of `swarm.json` and `prompts/` that differs from the swarm repository's default branch as its mirror was last fetched (docs/swarm.md section 11, Drift; never an exit code); `⚠ #<n>: Blocked by #<m> names no issue; not held` (no hold listed for it); errors |
 | Ops | ReadOnly, with a forge `GET` or `HEAD`, `docker ps` and (revision 6) git's reading commands on a mirror (`for-each-ref` too, for the notes' branches) let through |
 | Writes | nothing, anywhere |
 | Commits | none |
-| Cases | none; `TestSwarmStatusThroughGitea`, `TestSwarmStatusStages`, `TestSwarmStatusStep7`, `TestSwarmStatusCorrections`, `TestSwarmApplyGatedFlag`, `TestSwarmApplyRoutineJob`, `TestSwarmStatusWritesNothingOnAFailure`, `TestSwarmStatusPullClosedUnmerged`, `TestSwarmStatusBriefsShareAName`, `TestSwarmStatusAutoKeepsOldJobs`, `TestSwarmApplyNoteOnAMovedIssueBlocksNothing`, `TestSwarmDrift`, `TestSwarmApplyResearchNotesRebased`, and the other `internal/commands` and `internal/swarm` tests |
+| Cases | none; `TestSwarmStatusThroughGitea`, `TestSwarmStatusStages`, `TestSwarmStatusStep7`, `TestSwarmStatusCorrections`, `TestSwarmApplyGatedFlag`, `TestSwarmApplyRoutineJob`, `TestSwarmStatusWritesNothingOnAFailure`, `TestSwarmStatusPullClosedUnmerged`, `TestSwarmStatusBriefsShareAName`, `TestSwarmStatusAutoKeepsOldJobs`, `TestSwarmApplyNoteOnAMovedIssueBlocksNothing`, `TestSwarmDrift`, `TestSwarmApplyResearchNotesRebased`, `TestSwarmStatusJSON`, `TestSwarmStatusJSONThroughGitea`, and the other `internal/commands` and `internal/swarm` tests |
+
+`swarm status --json` (Common behaviour, `--json`) carries the text's
+facts by line: `repository`, `forge` (`host`, `kind`) and
+`repositories`, the Swarm line; `state`, the State line: `path`,
+`paused` (`since`, `reason`, `""` when it gives none), `restart_requested_at`,
+`owner_held` (`since`, `reason`, `waits`, the issues whose closing
+releases it), each `null` without its file, and `no_active_brief`;
+`gates` (`triage`, `plan`, `merge`, booleans); `stages`, each of the nine
+stage labels and its open issues; `waiting`, `issues` (each `item`, one
+of the line's words, `triage` to `blocked`, `issue` and `class`, given
+under `triage` and `plan` too) in the line's order, and `notes`, the
+notes' branches; `held`, `paused` and `blocked_by` (each `issue`, `by`);
+`running`, `members` (each `issue`, `role`) and `error`, docker's
+message when it cannot be reached, else `null`; `personas`, each role's
+`provider`, `model` and `effort`; `throughput`: `runs` (`total`,
+`posted`, `blocked`, `failed`, `faults`, `other`), `cost` (`today`,
+`all`, in dollars, `runs_without_cost`), `budget` (`per_day`, `total`, or
+`null`), `approved` (`pull_requests`, `at_round_limit`,
+`blocked_at_round_limit`), `auto` (`triage`, `plan`) and `stage_time`,
+by `batch`, a stage's label or `check`, only those with a run, each
+`median_seconds` and `runs`; `corrections`, the `#<n>` lines, each
+`issue`, `plan_revisions`, `blocks` and `pulls` (each `repo`, `number`,
+`rounds`, `maintainer_comments`); `briefs`, the active ones in path
+order, each `path`, `name` (the milestones' prefix), `shares_name_with`
+(the earlier active brief with its name, else `null`), `milestones` in
+heading order (each `heading`, `on_forge`, `open`, `closed`; `[]` for a
+brief that shares a name) and `met_run` (the batch run reporting it met,
+else `null`); and `warnings`. Abridged:
+
+```json
+{
+  "repository": "acme/swarm-app",
+  "forge": {"host": "forge.example.net", "kind": "gitea"},
+  "repositories": ["app", "lib"],
+  "state": {"path": "<state>", "paused": null, "restart_requested_at": null, "owner_held": null, "no_active_brief": false},
+  "gates": {"triage": true, "plan": true, "merge": true},
+  "stages": {"swarm:proposal-posted": [1, 2], "swarm:plan-0-posted": [3], "swarm:review-2-approved": [6]},
+  "waiting": {
+    "issues": [
+      {"item": "triage", "issue": 1, "class": "architecture"},
+      {"item": "merge", "issue": 6, "class": "routine"}
+    ],
+    "notes": []
+  },
+  "held": {"paused": [11], "blocked_by": [{"issue": 12, "by": 3}]},
+  "running": {"members": [{"issue": 8, "role": "adversary"}], "error": null},
+  "personas": {"owner": {"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high"}},
+  "throughput": {
+    "runs": {"total": 1, "posted": 1, "blocked": 0, "failed": 0, "faults": 0, "other": 0},
+    "cost": {"today": 0.5, "all": 0.5, "runs_without_cost": 0},
+    "budget": null,
+    "approved": {"pull_requests": 0, "at_round_limit": 0, "blocked_at_round_limit": 0},
+    "auto": {"triage": 0, "plan": 0},
+    "stage_time": {"swarm:proposal-accepted": {"median_seconds": 600, "runs": 1}}
+  },
+  "corrections": [{"issue": 3, "plan_revisions": 0, "blocks": 0, "pulls": []}],
+  "briefs": [
+    {"path": "docs/briefs/roadmap.md", "name": "roadmap", "shares_name_with": null,
+     "milestones": [{"heading": "M0", "on_forge": true, "open": 1, "closed": 0}], "met_run": null}
+  ],
+  "warnings": []
+}
+```
 
 ### daisy swarm list
 

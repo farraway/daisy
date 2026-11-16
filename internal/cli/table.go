@@ -45,7 +45,7 @@ var table = []Command{
 	{Group: "Workspace", Name: "init", Usage: "init [<identity> [path]]", Help: "Bind a workspace to an identity and its home (bare: re-initialize this one)", Max: 2, Run: commands.Init},
 	{Group: "Workspace", Name: "clean", Usage: "clean [-f]", Help: "Remove Daisy from this workspace", Flags: []string{"-f", "--force"}, Run: commands.Clean},
 	{Group: "Workspace", Name: "status", Usage: "status", Help: "Home, identity, projects, today's counts, active plan", Workspace: true, Run: commands.Status},
-	{Group: "Workspace", Name: "files", Usage: "files [<name>]", Help: "Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)", Workspace: true, Max: 1, Run: commands.Files},
+	{Group: "Workspace", Name: "files", Usage: "files [--json|<name>]", Help: "Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)", Workspace: true, Flags: []string{commands.JSONFlag}, Max: 1, Run: commands.Files},
 	{Group: "Workspace", Name: "list", Usage: "list", Help: "Active prompts and installed skills", Workspace: true, Flags: []string{"--full"}, Run: commands.List, Health: commands.ListHealth},
 	{Group: "Workspace", Name: "help", Usage: "help [<command>|<skill>|--markdown]", Help: "This help, detail for one command or skill, or the Command Reference"},
 
@@ -81,7 +81,7 @@ var table = []Command{
 	{Group: "Swarm", Name: "swarm prompt build", Usage: "swarm prompt build [--force] [--dry-run]", Help: "Reseed prompts/ from this Daisy's defaults; an edited prompt is kept", Flags: []string{"--force", "--dry-run"}, Run: commands.SwarmPromptBuild},
 	{Group: "Swarm", Name: "swarm apply", Usage: "swarm apply [--once]", Help: "Reconcile the forge: launch members, post their output, move labels", Flags: []string{"--once"}, Run: commands.SwarmApply},
 	{Group: "Swarm", Name: "swarm metrics", Usage: "swarm metrics --backfill", Help: "Write a metrics row for each collected run the home's CSV has none for", Flags: []string{"--backfill"}, Run: commands.SwarmMetrics},
-	{Group: "Swarm", Name: "swarm status", Usage: "swarm status", Help: "Stages, gates, what waits for you, running members (read-only)", Run: commands.SwarmStatus},
+	{Group: "Swarm", Name: "swarm status", Usage: "swarm status [--json]", Help: "Stages, gates, what waits for you, running members (read-only)", Flags: []string{commands.JSONFlag}, Run: commands.SwarmStatus},
 	{Group: "Swarm", Name: "swarm list", Usage: "swarm list", Help: "The swarms this machine runs: clone, home, pause; from anywhere (read-only)", Run: commands.SwarmList},
 	{Group: "Swarm", Name: "swarm journal", Usage: "swarm journal [--mark <run>]", Help: "The journal since the line marked seen (read-only); --mark moves the mark", Values: []string{"--mark"}, Run: commands.SwarmJournal},
 	{Group: "Swarm", Name: "swarm pause", Usage: "swarm pause [<n>]", Help: "Launch no new member until resumed (with <n>, as the maintainer, on that issue)", Max: 1, Run: commands.SwarmPause},

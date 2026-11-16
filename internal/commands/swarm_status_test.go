@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 type statusWS struct {
 	*swarmWS
 	now       time.Time // status's clock when set, else the Fake forge's
+	flags     []string  // status's own flags
 	docker    string    // docker ps's stdout
 	dockerErr bool
 }
@@ -96,7 +98,7 @@ func (s *statusWS) status(f forge.Adapter) error {
 		},
 		PromptFn: func(io.Reader, io.Writer, string) (string, error) { s.t.Error("status prompted"); return "", io.EOF },
 	}
-	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr}
+	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr, Flags: s.flags}
 	return readOnly(func(c *Context) error {
 		return s.at(c, false, func(c *Context) error {
 			return swarmStatus(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
@@ -156,12 +158,9 @@ const (
 	reconciler = "<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\nfailed"
 )
 
-// The stages, the paused and held notes, the running set, the active
-// briefs; every plan-0-posted issue waits under the plan gate, whoever
-// spoke last in its thread (the flag's predicate, section 5); a blocked
-// issue waits at its own stage; a paused one and one whose newest
-// maintainer comment names an open blocker are held.
-func TestSwarmStatusStages(t *testing.T) {
+// stagedStatus is a swarm with issues at every stage, paused and held
+// ones, a running set and two active briefs.
+func stagedStatus(t *testing.T) *statusWS {
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) {
 		c.Trusted = []string{"jane", "swarm-bot"}
@@ -211,7 +210,17 @@ func TestSwarmStatusStages(t *testing.T) {
 		"daisy-acme-app-0-owner-2 acme/swarm-app#0/owner anthropic/1\n" +
 		"daisy-other-x-2-worker-1 other/x#2/worker openai/1\n" +
 		"daisy-acme-app-12-check acme/swarm-app#12/check \n"
-	if err := s.status(f); err != nil {
+	return s
+}
+
+// The stages, the paused and held notes, the running set, the active
+// briefs; every plan-0-posted issue waits under the plan gate, whoever
+// spoke last in its thread (the flag's predicate, section 5); a blocked
+// issue waits at its own stage; a paused one and one whose newest
+// maintainer comment names an open blocker are held.
+func TestSwarmStatusStages(t *testing.T) {
+	s := stagedStatus(t)
+	if err := s.status(s.forge); err != nil {
 		t.Fatal(err)
 	}
 	want := `Swarm: acme/swarm-app on forge.example.net (gitea), repositories app, lib
@@ -241,7 +250,7 @@ Running: #0 owner, #8 adversary, #12 check
 		c.Budget = &declare.Budget{PerDay: 10, Total: 100}
 	})
 	s.dockerErr = true
-	if err := s.status(f); err != nil {
+	if err := s.status(s.forge); err != nil {
 		t.Fatal(err)
 	}
 	for _, line := range []string{"Gates: triage off, plan off, merge off\n", "Waiting for you: blocked #7 (architecture)\n",
@@ -250,6 +259,71 @@ Running: #0 owner, #8 adversary, #12 check
 		if !strings.Contains(s.stdout.String(), line) {
 			t.Errorf("gates off: no %q in\n%s", line, s.stdout.String())
 		}
+	}
+}
+
+// `swarm status --json` carries the report's facts as one JSON document,
+// keys pinned, issues as numbers and stages as their labels; the lines
+// stderr would carry are its warnings, stderr empty. A failure writes no
+// document: the error is returned and the held warnings go to stderr.
+func TestSwarmStatusJSON(t *testing.T) {
+	s := stagedStatus(t)
+	inMilestone(t, s.forge, "roadmap: M0", 1)
+	os.WriteFile(s.state("owner-held"), []byte("held 2026-11-06T09:00:00Z: waits on the jobs\n0-owner-3 waits #1 #2\n"), 0o644)
+	os.WriteFile(s.state("restart"), []byte("restart 2026-11-06T11:00:00Z\n"), 0o644)
+	s.runResult("3-architect-1", "label swarm:proposal-accepted\nstarted 2026-11-06T08:00:00Z\nexited 0 2026-11-06T08:10:00Z\ncost 0.50 tokens 10/20 turns 3\noutcome posted\ncollected\n", "")
+	s.edit(func(c *declare.Config) { c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	s.write(".env.sh", "")
+	s.flags = []string{"--json"}
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(s.stdout.Bytes(), &doc); err != nil || s.stderr.Len() != 0 {
+		t.Fatalf("%v\nstdout:\n%s\nstderr:\n%s", err, s.stdout.String(), s.stderr.String())
+	}
+	for key, want := range map[string]string{
+		"repository":   `"acme/swarm-app"`,
+		"forge":        `{"host":"forge.example.net","kind":"gitea"}`,
+		"repositories": `["app","lib"]`,
+		"state": `{"no_active_brief":false,"owner_held":{"reason":"waits on the jobs","since":"2026-11-06T09:00:00Z","waits":[1,2]},"path":"` + s.state("") +
+			`","paused":{"reason":"swarm fault: docker: no such image","since":"2026-11-06T10:00:00Z"},"restart_requested_at":"2026-11-06T11:00:00Z"}`,
+		"gates": `{"merge":true,"plan":true,"triage":true}`,
+		"stages": `{"swarm:plan-0-posted":[3,4,5],"swarm:plan-1-accepted":[7,11],"swarm:plan-2-in-progress":[],"swarm:proposal-accepted":[12,13],"swarm:proposal-posted":[1,2],` +
+			`"swarm:review-0-ready":[8],"swarm:review-1-in-progress":[],"swarm:review-2-approved":[6],"swarm:review-3-changes-requested":[]}`,
+		"waiting": `{"issues":[{"class":"architecture","issue":1,"item":"triage"},{"class":"architecture","issue":2,"item":"triage"},` +
+			`{"class":"architecture","issue":3,"item":"plan"},{"class":"architecture","issue":4,"item":"plan"},{"class":"architecture","issue":5,"item":"plan"},` +
+			`{"class":"architecture","issue":6,"item":"merge"},{"class":"architecture","issue":7,"item":"blocked"}],"notes":[]}`,
+		"held":    `{"blocked_by":[{"by":3,"issue":12}],"paused":[11]}`,
+		"running": `{"error":null,"members":[{"issue":0,"role":"owner"},{"issue":8,"role":"adversary"},{"issue":12,"role":"check"}]}`,
+		"personas": `{"adversary":{"effort":"high","model":"gpt-6.1-sol","provider":"openai"},"architect":{"effort":"high","model":"claude-fable-5-1","provider":"anthropic"},` +
+			`"owner":{"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},"sympathetic":{"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},` +
+			`"worker":{"effort":"medium","model":"claude-sonnet-5-5","provider":"anthropic"}}`,
+		"throughput": `{"approved":{"at_round_limit":0,"blocked_at_round_limit":0,"pull_requests":0},"auto":{"plan":0,"triage":0},"budget":{"per_day":10,"total":100},` +
+			`"cost":{"all":0.5,"runs_without_cost":0,"today":0.5},"runs":{"blocked":0,"failed":0,"faults":0,"other":0,"posted":1,"total":1},` +
+			`"stage_time":{"swarm:proposal-accepted":{"median_seconds":600,"runs":1}}}`,
+		"corrections": `[{"blocks":0,"issue":3,"plan_revisions":0,"pulls":[]},{"blocks":0,"issue":4,"plan_revisions":0,"pulls":[]},{"blocks":1,"issue":7,"plan_revisions":0,"pulls":[]}]`,
+		"briefs": `[{"met_run":null,"milestones":[{"closed":0,"heading":"M1","on_forge":false,"open":0}],"name":"next","path":"docs/briefs/next.md","shares_name_with":null},` +
+			`{"met_run":null,"milestones":[{"closed":0,"heading":"M0","on_forge":true,"open":1}],"name":"roadmap","path":"docs/briefs/roadmap.md","shares_name_with":null}]`,
+	} {
+		var v any
+		json.Unmarshal(doc[key], &v)
+		if got, _ := json.Marshal(v); string(got) != want {
+			t.Errorf("%s:\n%s\nwant\n%s", key, got, want)
+		}
+	}
+	var warnings []string
+	json.Unmarshal(doc["warnings"], &warnings)
+	if len(doc) != 14 || len(warnings) != 2 || warnings[0] != "⚠ "+filepath.Join(s.ws, ".env.sh")+": the swarm reads its secrets from "+s.state("env")+", not the clone; move them there and delete it" ||
+		!strings.HasPrefix(warnings[1], "⚠ Drift: swarm.json differs from acme/swarm-app's main at ") {
+		t.Errorf("%d keys, warnings %q", len(doc), warnings)
+	}
+
+	// The forge failing: no document, the error, the held warnings on stderr.
+	err := s.status(failingReads{Fake: s.forge, login: true})
+	if errText(err) != "Error: swarm: forge: GET /user: 401 invalid username, password or token" || s.stdout.Len() != 0 ||
+		!strings.HasPrefix(s.stderr.String(), "⚠ "+filepath.Join(s.ws, ".env.sh")+": ") {
+		t.Errorf("a forge failure: %v\nstdout %q\nstderr %q", err, s.stdout.String(), s.stderr.String())
 	}
 }
 

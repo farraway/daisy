@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -340,6 +341,77 @@ func TestSwarmStatusThroughGitea(t *testing.T) {
 	if code != 2 || !strings.Contains(errs, "Usage: daisy swarm status") {
 		t.Errorf("usage: exit %d %q", code, errs)
 	}
+}
+
+// `swarm status --json` through the cli and the gitea adapter: one JSON
+// document on stdout, its keys pinned, nothing on stderr, GETs only; a
+// forge it cannot reach is exit 1, the error on stderr and no document.
+func TestSwarmStatusJSONThroughGitea(t *testing.T) {
+	m := newMachine(t)
+	g := newGitea(t)
+	clone := m.swarm(t, g)
+	g.requests = nil
+	o := m.swarmOps(clone, g)
+	o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
+		if name == "docker" {
+			return []byte("daisy-acme-swarm-app-4-worker-1 acme/swarm-app#4/worker openai/1\n"), nil, nil
+		}
+		return ops.Real().Exec(dir, name, args...)
+	}
+	code, out, errs := runWith(o, "swarm", "status", "--json")
+	var doc map[string]any
+	if code != 0 || errs != "" || json.Unmarshal([]byte(out), &doc) != nil {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
+	}
+	for path, want := range map[string][]string{
+		"":                    {"briefs", "corrections", "forge", "gates", "held", "personas", "repositories", "repository", "running", "stages", "state", "throughput", "waiting", "warnings"},
+		"forge":               {"host", "kind"},
+		"state":               {"no_active_brief", "owner_held", "path", "paused", "restart_requested_at"},
+		"gates":               {"merge", "plan", "triage"},
+		"stages":              {"swarm:plan-0-posted", "swarm:plan-1-accepted", "swarm:plan-2-in-progress", "swarm:proposal-accepted", "swarm:proposal-posted", "swarm:review-0-ready", "swarm:review-1-in-progress", "swarm:review-2-approved", "swarm:review-3-changes-requested"},
+		"waiting":             {"issues", "notes"},
+		"held":                {"blocked_by", "paused"},
+		"running":             {"error", "members"},
+		"personas":            {"adversary", "architect", "owner", "sympathetic", "worker"},
+		"personas.owner":      {"effort", "model", "provider"},
+		"throughput":          {"approved", "auto", "budget", "cost", "runs", "stage_time"},
+		"throughput.runs":     {"blocked", "failed", "faults", "other", "posted", "total"},
+		"throughput.cost":     {"all", "runs_without_cost", "today"},
+		"throughput.approved": {"at_round_limit", "blocked_at_round_limit", "pull_requests"},
+		"throughput.auto":     {"plan", "triage"},
+	} {
+		var v any = doc
+		for _, k := range strings.Split(path, ".") {
+			if k != "" {
+				v = v.(map[string]any)[k]
+			}
+		}
+		if got := objectKeys(t, v); !slices.Equal(got, want) {
+			t.Errorf("%q keys %q, want %q", path, got, want)
+		}
+	}
+	running, _ := json.Marshal(doc["running"])
+	if doc["repository"] != "acme/swarm-app" || string(running) != `{"error":null,"members":[{"issue":4,"role":"worker"}]}` {
+		t.Errorf("document %s", out)
+	}
+	for _, r := range g.requests {
+		if !strings.HasPrefix(r, "GET ") {
+			t.Errorf("status sent %s", r)
+		}
+	}
+
+	o.HTTPFn = func() ops.Doer { return refusing{} }
+	code, out, errs = runWith(o, "swarm", "status", "--json")
+	if code != 1 || out != "" || !strings.HasPrefix(errs, "Error: swarm: ") || !strings.Contains(errs, "connection refused") {
+		t.Errorf("an unreachable forge: exit %d out %q err %q", code, out, errs)
+	}
+}
+
+// refusing is a forge no request reaches.
+type refusing struct{}
+
+func (refusing) Do(*http.Request) (*http.Response, error) {
+	return nil, errors.New("dial tcp 192.0.2.1:443: connect: connection refused")
 }
 
 // `swarm triage` through the cli and the gitea adapter: every request
