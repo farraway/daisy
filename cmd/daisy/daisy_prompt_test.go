@@ -208,7 +208,7 @@ func TestHelpForASkill(t *testing.T) {
 func TestHelpForACommand(t *testing.T) {
 	m := newMachine(t)
 	code, out, errs := m.run(t, m.ws, "help", "status")
-	usage := "Usage: daisy status [--json]\n\nHome, identity, projects, today's counts, active plan\n"
+	usage := "Usage: daisy status [--json]\n\nHome, identity, projects, today's counts, active plan (read-only)\n\nExample: daisy status --json\n"
 	if code != 0 || errs != "" || out != usage {
 		t.Errorf("exit %d out %q err %q", code, out, errs)
 	}
@@ -222,8 +222,30 @@ func TestHelpForACommand(t *testing.T) {
 	}
 	for _, args := range [][]string{{"help", "prompt", "build"}, {"help", "prompt"}, {"prompt", "--help"}, {"prompt", "build", "-h"}} {
 		code, out, errs := m.run(t, m.ws, args...)
-		if code != 0 || errs != "" || out != "Usage: daisy prompt build [<home>]\n\nRebuild AGENTS.md\n" {
+		if code != 0 || errs != "" || out != "Usage: daisy prompt build [<home>]\n\nRebuild AGENTS.md\n\nExample: daisy prompt build work\n" {
 			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)
+		}
+	}
+	// A command of three words, and the noun phrase before its verb, as the
+	// dispatcher matches them: the longest name, else the commands under
+	// the longest phrase.
+	build := "Usage: daisy swarm prompt build [--force] [--dry-run]\n\nReseed prompts/ from this Daisy's defaults; an edited prompt is kept\n\nExample: daisy swarm prompt build --dry-run\n"
+	for _, args := range [][]string{{"help", "swarm", "prompt", "build"}, {"help", "swarm", "prompt"}, {"swarm", "prompt", "--help"}, {"swarm", "prompt", "build", "-h"}} {
+		code, out, errs := m.run(t, m.ws, args...)
+		if code != 0 || errs != "" || out != build {
+			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)
+		}
+	}
+	for args, err := range map[string]string{
+		"swarm prompt":           "Error: missing command: daisy swarm prompt <command>\n" + build,
+		"swarm prompt bogus":     "Error: unknown command: swarm prompt bogus\n" + build,
+		"help swarm prompt x":    "Error: unexpected argument: x\nUsage: daisy help ",
+		"help swarm bogus":       "Error: unexpected argument: bogus\nUsage: daisy help ",
+		"help swarm status more": "Error: unexpected argument: more\nUsage: daisy help ",
+	} {
+		code, out, errs := m.run(t, m.ws, strings.Fields(args)...)
+		if code != 2 || out != "" || !strings.HasPrefix(errs, err) {
+			t.Errorf("%s: exit %d out %q err %q", args, code, out, errs)
 		}
 	}
 	for _, args := range [][]string{{"help", "help"}, {"help", "--help"}, {"-h", "-h"}} {

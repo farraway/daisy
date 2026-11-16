@@ -378,7 +378,7 @@ func TestHelpForms(t *testing.T) {
 	m := newMachine(t)
 	for _, args := range [][]string{{}, {"help"}, {"--help"}, {"-h"}} {
 		code, out, errs := m.run(t, m.ws, args...)
-		if code != 0 || errs != "" || !strings.HasPrefix(out, "Usage: daisy <command> [args...]\n\nWorkspace\n") || !strings.Contains(out, "\n  status [--json]                   Home, identity, projects, today's counts, active plan\n") {
+		if code != 0 || errs != "" || !strings.HasPrefix(out, "Usage: daisy <command> [args...]\n\nWorkspace\n") || !strings.Contains(out, "\n  status [--json]                   Home, identity, projects, today's counts, active plan (read-only)\n") {
 			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)
 		}
 	}

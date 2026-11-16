@@ -41,8 +41,8 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 
 	cmd, rest, ok := match(args)
 	if !ok {
-		if group := noun(args[0]); group != nil {
-			return nounOnly(stdout, stderr, args, group)
+		if n, group := phrase(args); n > 0 {
+			return nounOnly(stdout, stderr, args[:n], args[n:], group)
 		}
 		fmt.Fprintf(stderr, "Unknown command: %s\n\n", args[0])
 		writeTree(stderr)
@@ -57,29 +57,38 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 		return invoke(c, cmd, cmd.Health)
 	}
 
-	flags, values, positional, empty, err := splitArgs(cmd, rest)
-	if err != nil {
+	if err := parse(c, cmd, rest); err != nil {
 		return usageError(stderr, cmd, err.Error())
 	}
+	return invoke(c, cmd, cmd.Run)
+}
+
+// parse checks the arguments after the command's name against its flags
+// and arity and gives them to c; the error is the usage error's message.
+func parse(c *commands.Context, cmd Command, rest []string) error {
+	flags, values, positional, empty, err := splitArgs(cmd, rest)
+	if err != nil {
+		return err
+	}
 	if len(positional) > 0 && longFlag.MatchString(positional[0]) {
-		return usageError(stderr, cmd, "unknown flag: "+positional[0])
+		return errors.New("unknown flag: " + positional[0])
 	}
 	c.Flags, c.Values, c.Args, c.EmptyWords = flags, values, positional, empty
 	for _, v := range values {
 		if v.Flag == commands.CoAuthorFlag && !commands.IsCoAuthor(v.Value) {
-			return usageError(stderr, cmd, fmt.Sprintf("%s %q is not one line 'Name <email>'", v.Flag, v.Value))
+			return fmt.Errorf("%s %q is not one line 'Name <email>'", v.Flag, v.Value)
 		}
 	}
 	if emptyBefore(cmd, rest) {
-		return usageError(stderr, cmd, "empty argument")
+		return errors.New("empty argument")
 	}
 	if len(c.Args) < cmd.Min {
-		return usageError(stderr, cmd, "missing argument")
+		return errors.New("missing argument")
 	}
 	if cmd.Max != Unbounded && len(c.Args) > cmd.Max {
-		return usageError(stderr, cmd, fmt.Sprintf("unexpected argument: %s", c.Args[cmd.Max]))
+		return fmt.Errorf("unexpected argument: %s", c.Args[cmd.Max])
 	}
-	return invoke(c, cmd, cmd.Run)
+	return nil
 }
 
 // newContext is a command's Context before its arguments: the streams,
@@ -96,8 +105,10 @@ func newContext(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer) *commands.
 
 // help answers `daisy help <name>`. A command's help is what its own
 // --help prints, followed by a note when a skill has the same name; a
-// noun's is its commands' usages; `--markdown` is the Command Reference;
-// any other single name is a skill's, which needs the workspace.
+// noun phrase's (`swarm`, `swarm prompt`) is the usages of the commands
+// under it; `--markdown` is the Command Reference; any other single name
+// is a skill's, which needs the workspace. The words name a command as
+// the dispatcher reads them: the longest name, else the longest phrase.
 func help(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 	_, _, words, _, _ := splitArgs(Command{}, args)
 	helpCmd, _, _ := match([]string{"help"})
@@ -106,7 +117,9 @@ func help(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) i
 	}
 	c := newContext(o, stdin, stdout, stderr)
 	c.Args = words
-	switch cmd, rest, ok := match(words); {
+	cmd, rest, ok := match(words)
+	n, group := phrase(words)
+	switch {
 	case len(words) == 0:
 		writeTree(stdout)
 		return OK
@@ -122,29 +135,36 @@ func help(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) i
 		writeUsage(stdout, cmd)
 		commands.ShadowNote(c, cmd.Name)
 		return OK
-	case len(words) > 1:
-		return usageError(stderr, helpCmd, "unexpected argument: "+words[1])
-	case noun(words[0]) != nil:
-		for _, cmd := range noun(words[0]) {
+	case n > 0 && n < len(words):
+		return usageError(stderr, helpCmd, "unexpected argument: "+words[n])
+	case n > 0:
+		for _, cmd := range group {
 			writeUsage(stdout, cmd)
 		}
-		commands.ShadowNote(c, words[0])
+		if n == 1 {
+			commands.ShadowNote(c, words[0])
+		}
 		return OK
+	case len(words) > 1:
+		return usageError(stderr, helpCmd, "unexpected argument: "+words[1])
 	}
-	return invoke(c, Command{Workspace: true}, commands.SkillHelp)
+	skill := helpCmd
+	skill.Workspace = true
+	return invoke(c, skill, commands.SkillHelp)
 }
 
-// nounOnly answers a noun without a verb it has: its commands' usages, on
-// stdout for --help, else on stderr as a usage error.
-func nounOnly(stdout, stderr io.Writer, args []string, group []Command) int {
+// nounOnly answers a noun phrase without a verb it has: the usages of the
+// commands under it, on stdout for --help, else on stderr as a usage
+// error.
+func nounOnly(stdout, stderr io.Writer, noun, rest []string, group []Command) int {
 	w, code := stderr, Usage
 	switch {
-	case len(args) == 2 && isHelpFlag(args[1]):
+	case len(rest) == 1 && isHelpFlag(rest[0]):
 		w, code = stdout, OK
-	case len(args) == 1:
-		fmt.Fprintf(stderr, "Error: missing command: daisy %s <command>\n", args[0])
+	case len(rest) == 0:
+		fmt.Fprintf(stderr, "Error: missing command: daisy %s <command>\n", strings.Join(noun, " "))
 	default:
-		fmt.Fprintf(stderr, "Error: unknown command: %s %s\n", args[0], args[1])
+		fmt.Fprintf(stderr, "Error: unknown command: %s %s\n", strings.Join(noun, " "), rest[0])
 	}
 	for _, cmd := range group {
 		writeUsage(w, cmd)
@@ -218,8 +238,9 @@ func emptyBefore(cmd Command, args []string) bool {
 	return false
 }
 
-// invoke resolves the workspace when the command needs one and runs fn;
-// the error it returns is the message for stderr.
+// invoke resolves the workspace when the command needs one and runs fn,
+// under ReadOnly when the table marks the command so; the error it
+// returns is the message for stderr.
 func invoke(c *commands.Context, cmd Command, fn func(*commands.Context) error) int {
 	if cmd.Workspace {
 		e, err := env.Resolve(c.Ops)
@@ -228,6 +249,9 @@ func invoke(c *commands.Context, cmd Command, fn func(*commands.Context) error) 
 			return Failure
 		}
 		c.Env = e
+	}
+	if cmd.ReadOnly {
+		c.Ops = ops.ReadOnly(c.Ops)
 	}
 	if err := fn(c); err != nil {
 		if errors.Is(err, commands.ErrReported) {
@@ -255,8 +279,10 @@ func usageError(stderr io.Writer, cmd Command, msg string) int {
 	return Usage
 }
 
+// writeUsage prints the command's usage, its description and an example
+// (a command's own help: the tree has no room for one per row).
 func writeUsage(w io.Writer, cmd Command) {
-	fmt.Fprintf(w, "Usage: daisy %s\n\n%s\n", cmd.Usage, cmd.Help)
+	fmt.Fprintf(w, "Usage: daisy %s\n\n%s\n\nExample: daisy %s\n", cmd.Usage, cmd.description(), cmd.Example)
 	if cmd.Commits {
 		fmt.Fprintf(w, "\nIt commits: %s \"Name <email>\", leading its arguments, ends the commit with that Co-Authored-By trailer; without the flag, DAISY_CO_AUTHOR's.\n", commands.CoAuthorFlag)
 	}
@@ -277,9 +303,9 @@ func writeTree(w io.Writer) {
 				continue
 			}
 			if len(c.Usage) >= helpColumn {
-				fmt.Fprintf(&b, "  %s\n  %-*s%s\n", c.Usage, helpColumn, "", c.Help)
+				fmt.Fprintf(&b, "  %s\n  %-*s%s\n", c.Usage, helpColumn, "", c.description())
 			} else {
-				fmt.Fprintf(&b, "  %-*s%s\n", helpColumn, c.Usage, c.Help)
+				fmt.Fprintf(&b, "  %-*s%s\n", helpColumn, c.Usage, c.description())
 			}
 		}
 	}

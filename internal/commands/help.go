@@ -16,9 +16,7 @@ import (
 // an agent can decide whether it applies without opening SKILL.md. The
 // installed copy, which is what an agent loads, is preferred over the
 // source. Read-only.
-var SkillHelp = readOnly(skillHelp)
-
-func skillHelp(c *Context) error {
+func SkillHelp(c *Context) error {
 	name := c.Args[0]
 	path, ok := findSkill(c.Ops, c.Env, name)
 	if !ok {

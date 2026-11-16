@@ -438,12 +438,12 @@ func systemdEscapePath(p string) string {
 // personas, the throughput from runs/ and the active briefs, under
 // ReadOnly (the forge's GETs and `docker ps` let through: section 14,
 // item 31).
-var SwarmStatus = readOnly(func(c *Context) error {
+func SwarmStatus(c *Context) error {
 	if err := locate(c, false); err != nil {
 		return err
 	}
 	return swarmStatus(c, openForge)
-})
+}
 
 // swarmStatus prints the report once every read is made, so a read
 // failing on the way leaves stdout empty: as text, or with --json as one

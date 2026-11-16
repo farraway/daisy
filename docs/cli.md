@@ -51,11 +51,11 @@ Usage: daisy <command> [args...]
 Workspace
   init [<identity> [path]]          Bind a workspace to an identity and its home (bare: re-initialize this one)
   clean [-f]                        Remove Daisy from this workspace
-  status [--json]                   Home, identity, projects, today's counts, active plan
-  files [--json|<name>]             Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)
-  list [--json]                     Active prompts and installed skills
+  status [--json]                   Home, identity, projects, today's counts, active plan (read-only)
+  files [--json|<name>]             Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …) (read-only)
+  list [--json]                     Active prompts and installed skills (read-only)
   help [<command>|<skill>|--markdown]
-                                    This help, detail for one command or skill, or the Command Reference
+                                    This help, detail for one command or skill, or the Command Reference (read-only)
 
 Day
   new-day [--quick]                 Start a new day (--quick: only if not started; a week if one turned)
@@ -64,7 +64,7 @@ Day
   done <pattern>                    Mark a task complete
   tasks [--all] [--todo|--done] [--json] [pattern]
                                     Search tasks (read-only)
-  projects [--archived] [--json]    List active or archived projects
+  projects [--archived] [--json]    List active or archived projects (read-only)
   rotate                            Rotate journal.md into window files
 
 Plans
@@ -80,15 +80,15 @@ Plans
 Homes and identities
   home new <name> [path]            Create a home; prompts for identity and location
   home add <name> <path>            Register an existing home
-  home list                         Registered homes and where they live
+  home list                         Registered homes and where they live (read-only)
   home remove <name>                Unregister a home; its files stay where they are
-  identity list                     Identities across registered homes
+  identity list                     Identities across registered homes (read-only)
 
 Prompts and skills
   prompt build [<home>]             Rebuild AGENTS.md
   install [--update]                ~/bin/daisy and DAISY_ROOT; nothing under ~/.claude
   feedback [--workflow <n>] <text>  Record a prompt failure for optimization
-  optimize [--workflow <n>]         Briefing: pending entries per target, current rules, rewrite flags
+  optimize [--workflow <n>]         Briefing: pending entries per target, current rules, rewrite flags (read-only)
   optimize apply --workflow <n> (--rules|--rewrite) <file> [--yes]
                                     Apply a proposal: diff, approve, archive, commit
   eval [<case>] [--record]          List, display, or record an eval case result
@@ -103,7 +103,7 @@ Swarm
   swarm status [--json]             Stages, gates, what waits for you, running members (read-only)
   swarm list [--json]               The swarms this machine runs: clone, home, pause; from anywhere (read-only)
   swarm journal [--json|--mark <run>]
-                                    The journal since the line marked seen (read-only); --mark moves the mark
+                                    The journal since the line marked seen; --mark moves the mark, its one write
   swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
   swarm resume [<n>]                Launch members again and release the owner's held batch (with <n>, that issue)
   swarm restart                     Have the running apply re-execute itself, onto the installed build, once no member runs
@@ -121,7 +121,7 @@ Swarm
 System
   commit [--root] <message>         Commit the home repo (or the root repo)
   healthcheck [--force]             Run the system health check
-  check-secrets                     Check which secrets/tokens are configured
+  check-secrets                     Check which secrets/tokens are configured (read-only)
   test [filter]                     Run go test, then the hermetic acceptance suite
   version                           The commit this binary was built from; also --version (read-only)
 
@@ -177,8 +177,18 @@ never reaches the bash)*. Not asserted.
 **`--help` / `-h`.** As the sole argument of any command prints that
 command's usage on stdout and exits 0 without running it; the bash reads it
 from the script's header comment, the binary from the `cli` table (`Usage:
-daisy <usage>`, blank, the description; for a command that commits, a
-blank line and `It commits: --co-author …`, Commits below). `daisy`, `daisy help`, `daisy --help`,
+daisy <usage>`, blank, the description, ending ` (read-only)` for a
+command the table runs under `ReadOnly` (`Ops` wrappers below), blank,
+`Example: daisy <command line>`, one real use of it, whose words a test
+parses as the command's usage (`TestExamplesParse`); for a command that
+commits, a blank line and `It commits: --co-author …`, Commits below; a
+usage error prints the same block on stderr). A noun phrase without its
+verb, of one word or more (`home`, `swarm prompt`), is a usage error,
+`Error: missing command: daisy <phrase> <command>`, or with another word
+`Error: unknown command: <phrase> <word>`, the phrase in full, listing
+the usages of the commands under it; with `--help` alone it lists them on
+stdout, exit 0 *(Step 11 of the plan remediating the 2026-11-15 design
+review, P5)*. `daisy`, `daisy help`, `daisy --help`,
 `daisy -h` print the help: the tree above, from the `cli` table, in its
 groups and order (`plan new`, `plan pickup`, `plan archive`, `home new`,
 `home add`, `home list` and `home remove` one row each) — the tree never
@@ -294,17 +304,26 @@ in table order, as its `Component: <command>` lines (the bash ran the
 binary once per command and `files.sh`/`test.sh` as scripts; `files` has
 no hook) *(decided, D30, Step 18; in-process since Step 24)*.
 
-**`Ops` wrappers.** `ReadOnly` for `status`, `files`, `list`, `projects`,
-`tasks`, `help` and the briefing, `optimize` (Step 23),
+**`Ops` wrappers.** The `cli` table marks each command that runs under
+`ReadOnly` as a whole (`ReadOnly`), and the cli wraps it, so the command
+cannot write; its help, the tree and the Command Reference print the
+mark as ` (read-only)` after its description, never written by hand
+(`TestReadOnlyMarker`), and each entry's `Ops` row below starts with the
+whole command's wrapper (`TestCliMdOpsIsTheMarker`) *(Step 11 of the plan
+remediating the 2026-11-15 design review, P5)*. `ReadOnly` for `status`,
+`files`, `list`, `projects`, `tasks`, `help` and `optimize`, the
+briefing (Step 23), `metrics`, `version`,
 and for `check-secrets`, `home list` and `identity list` (decided, D30),
 and `swarm status`, for which `ReadOnly` lets a `GET` or `HEAD` request
 and `docker ps` through (docs/swarm.md section 14, item 31), and from
 revision 6 git's reading commands on a mirror (item 99), and `swarm
-list` and, without `--mark`, `swarm journal` (Step 15 of the plan for
-the inbox requests F27-F35);
+list` (Step 15 of the plan for the inbox requests F27-F35);
 `Real` for everything else, `eval` included (one wrapper per command;
 `--record` writes), `optimize apply`, and `healthcheck`, because a pass
-writes the TTL stamp.
+writes the TTL stamp. A command that writes only in one form narrows
+itself to `ReadOnly` in the others and is `Real` in the table: `swarm
+journal` without `--mark` (Step 15 of that plan), `swarm prompt build`
+with `--dry-run`.
 
 **Home files.** A home file a command rewrites is written whole and atomically (a temporary file renamed into place) and, when it is a symbolic link (kept with the user's dotfiles, say), through the link: the target takes the content and the link stays. `log`, `done`, `new-day`, `new-week` and `rotate` write `journal/today.md`, `journal/journal.md`, its window files, `tasks/todo.txt` and `tasks/done.txt` so (`TestDayWritesGoThroughLinks`), as `plan archive`, `feedback` and `metrics add` write theirs; the bash's `mv` replaced a linked `todo.txt`. A file that exists keeps its mode; a new one takes its mode under the umask, and so does a tree Daisy copies for the user to keep, a new home and each skill installed in a workspace, as the bash's `cp -r` made them (`TestCopiesTakeTheUmask`); `init`'s stage of `.daisy/` keeps the modes it copies.
 
@@ -521,7 +540,7 @@ included), `override` and `behind`; and `warnings`:
 | Legacy | `daisy help [<command>\|<skill>]` → built in to `daisy.sh` (`show_help`, `show_command_help` and the skill lookup), deleted in Step 24 |
 | Usage | `daisy help [<command>\|<skill>\|--markdown]`; `daisy`, `daisy --help`, `daisy -h` are `daisy help` |
 | Exit codes | 0; 1 for a name that is neither (`Unknown command or skill: <name>` and `Run 'daisy help' for commands, 'daisy list' for skills.` on stderr; the bash died silently there) or outside a workspace for a skill; 2 for surplus words |
-| Stdout | no argument: the tree. A command name (its words: `help prompt build`): exactly what `daisy <command> --help` prints — `Usage: daisy <usage>`, blank, the description, from the table — then, when a skill of that name exists (installed or source; none looked up outside a workspace), a note — the command's help, not the skill's (not `Collide politely` [52]), and the word `skill` [52]: blank, `Note: a skill named '<name>' also exists; the command name takes precedence.`, `  Read it with: daisy list, or open its SKILL.md directly.` A noun (`help prompt`): the usage of each of its commands. A skill name: `<name>  (<SKILL.md path>)`, blank, the full `description:` value (`when to stop making them` [51]; the line after `description: `, `: ` inside it kept), blank, the `## Rules` section up to the next `#` or `##` heading, `optimize`'s boundary (`Measure before cutting` [51]; until Step 23 an `# ` heading and what followed it to the next `## ` were printed as rules), `Other sections: <H2 titles>` joined by `, ` (`Worked example` [51]). The installed copy (workspace over user) is preferred over the source (home over root); a home source that is a layered override is shown merged (`TestSkillOverrides`). `--markdown` as the only word: the Command Reference block for AGENTS.md — the BEGIN marker line, a `\| Group \| Command \| What it does \|` table with one row per table command in table order (each usage in backticks after `daisy `, `\|` escaped), the END marker line — which `healthcheck` compares with the root's AGENTS.md (6b) |
+| Stdout | no argument: the tree. A command name (its words: `help prompt build`): exactly what `daisy <command> --help` prints, the block Common behaviour's `--help` states, from the table — then, after the whole block, when a skill of that name exists (installed or source; none looked up outside a workspace), a note — the command's help, not the skill's (not `Collide politely` [52]), and the word `skill` [52]: blank, `Note: a skill named '<name>' also exists; the command name takes precedence.`, `  Read it with: daisy list, or open its SKILL.md directly.` A noun phrase, as the dispatcher reads one (`help prompt`, `help swarm`, `help swarm prompt`; a command's whole name wins, `help swarm prompt build`): the usage of each command under it, the skill note only for a one-word noun; a word past the longest phrase or name is surplus, exit 2 (`help swarm prompt x`). A skill name: `<name>  (<SKILL.md path>)`, blank, the full `description:` value (`when to stop making them` [51]; the line after `description: `, `: ` inside it kept), blank, the `## Rules` section up to the next `#` or `##` heading, `optimize`'s boundary (`Measure before cutting` [51]; until Step 23 an `# ` heading and what followed it to the next `## ` were printed as rules), `Other sections: <H2 titles>` joined by `, ` (`Worked example` [51]). The installed copy (workspace over user) is preferred over the source (home over root); a home source that is a layered override is shown merged (`TestSkillOverrides`). `--markdown` as the only word: the Command Reference block for AGENTS.md — the BEGIN marker line, a `\| Group \| Command \| What it does \|` table with one row per table command in table order (each usage in backticks after `daisy `, `\|` escaped), the END marker line — which `healthcheck` compares with the root's AGENTS.md (6b) |
 | Ops | ReadOnly (the skill lookup and the note) |
 | Writes | none |
 | Commits | none |
@@ -831,7 +850,7 @@ new home.
 | Briefing | under `ReadOnly` [57]. `Pending feedback: N entries for N targets (<feedback.md>)` [38], or `Nothing pending in <feedback.md>` [56]; per target `[<label>] N entries` [38], `Target: <path>` [38] — then ` (root — apply writes a home override)` for a target in the root, ` (home override, layered)` or ` (home override, full)` for one the home overrides (`, behind the root: …` added when `feedback/.overrides` says the root changed since the copy) [62, 88]; an override's text, its rules and their count are the merged ones (D49) —, `Rules: N` [39, 56] (`Rules: N — more than 3: rewrite flagged` [56]; `Rules: none …`), `--- entries ---` and each entry as written, `--- current ## Rules ---` and the section [39, 53], `--- end ---`; a vendored skill (carries `LICENSE`/`NOTICE.md`) is listed with the reason (`vendored` [50]) and its entries stay pending; then `Rewrite flagged (more than 3 rules, nothing pending):` and `[<label>] rewrite flagged: N rules` [56] for every active target over 3 rules (the prompts `include.txt` names, in its order, then every skill source by name; 3 is not flagged [56]); then how to apply (`daisy optimize apply --workflow <label> --rules` [39], `--rewrite` [56]). No floor: one entry is briefed (`Skipped` [39] and `floor` [39] absent) |
 | Apply | `--rules <file>`: the file must be one `## Rules` section — its first non-blank line the heading (`must begin with` [61]), no other `#`/`##` heading outside a fence (named with its line, `## Another Section` [61]), no fence left open; and the result must read back as the section written, so nothing after it is swallowed; it replaces the target's section, keeping the blank lines between the section and the next heading as they were, so replacing the rules with themselves changes nothing, byte for byte [53]; `# Document Title` [53, 58], `## Next Section` [53] and `Body text` [53, 58] survive; a target without a section gets one before its first `## ` heading other than the Trigger, or at the end. `--rewrite <file>`: the file, byte for byte [60]; an empty one is refused. Both print the unified diff (`-1. Measure before cutting.` [58], `+2. Cut once.` [58]) and ask `Apply these changes to <label>? [y/N] ` [58] on stderr through `Ops.Prompt`, unless `--yes` (never asks [60]). `y`/`yes` (any case) applies; anything else is `Cancelled` [59]; EOF is `Cancelled — no answer on stdin (EOF); nothing written.` (`EOF` [64]); any other failure to read the answer is `Error: cannot read the answer: …`, exit 1, nothing written. The writes are computed from what was read before the question: if the target, `feedback.md` or `archive.md` changed while it waited (an entry recorded meanwhile), the apply is refused, exit 1, nothing written. Applied: the target (`  ✓ Updated ` [58] `<path>`), the target's pending entries — every tag naming it [58] — moved from `feedback.md` to `archive.md`, each followed one blank line down by `**Addressed by:** `` `daisy optimize` `` <YYYY-MM-DD> — `` `<target>` `` (rules\|rewrite\|layered rules\|full rewrite)` [63, 62, 88], `<target>` relative to the home — the override's path for a root target [62] — or, when nothing is written (rules adding nothing to a root target), the file as it stands (`$DAISY_ROOT/…`) with the plain mode; `feedback.md` keeps its header and the other entries, one blank line apart, byte for byte [66]; `feedback/.last-optimized` gets `<YYYY-MM-DD HHMM> <label>` [63]; for a prompt, the home's `AGENTS.md` and the workspace's `.daisy/AGENTS.md` and `.daisy/prompts/` (see `prompt build`) are rebuilt from the prompts as written (for a skill, the run says `daisy init` in each workspace propagates it [49]; for the home's override of a root skill, `daisy init` in this one); the home is committed once [58, 60, 62]. **A target in the root is never written (D49).** For one with no home file, or a layered override, apply writes the home's file at the same path (`<home>/prompts/<name>.md`, `<home>/skills/<name>/SKILL.md`), says `Writes the home's <form> override <path>; the root's <path> is not written.`, and the root's tree is byte-identical [62, 88]: `--rules` a **layered** override — the line `<!-- daisy: upstream body -->` then `## Rules` holding the home's rules: the proposal is the merged section as briefed, the root's section must stand first in it unchanged (a root rule changed or dropped is refused with the proposal's line, `use --rewrite`) and the rules after it are the home's, renumbered from 1; applying again rewrites the override only [62]; adding nothing to a root target writes no override. `--rewrite` a **full** override, the proposal whole, the diff from the root's (or the merged) text, and `<rel> <sha256 of the root file>` in `feedback/.overrides` [88]; over a layered override it says `The layered override is replaced by a full override`. A home prompt, and a full override, are written in place as before; a `--rewrite` of a full override records the root's hash as it is now. Applying text already there with nothing pending: `Nothing to apply: …`, exit 0 |
 | Exit codes | 0 (nothing pending, a briefing, an applied, declined or EOF apply, nothing to apply); 1 when `feedback/feedback.md` does not exist (`Error: No feedback file found at <path>` and the `mkdir -p … && touch …` that makes it), a target the briefing cannot read (printed in its place, the errors after the briefing, `The briefing above is incomplete.`), a file changed during the question, `archive.md` absent with no template to start it from when entries are to move, a workflow naming no file [40, 61] (`names no prompt or skill`), a vendored target on `apply` [50], a proposal that cannot be read (`cannot read` [61]) or is not one rules section [61], the home not a repository, a write or the AGENTS.md build failing (every write taken back: `Nothing was applied.`), the commit failing (the files written, the `daisy commit <message>` to run printed), a target `--rules` cannot write (the open-fence and setext refusals of the Rules row, naming the target); 2 for a usage error [57, 61]: `--dry-run`, `--force`, `--list` [57] or any argument to the briefing, bare `optimize apply` [61], no `--workflow`, neither or both of `--rules`/`--rewrite`, a value flag without a value (an empty word, or one of the command's own flags, is none) [61], a stray word [61] |
-| Ops | briefing `ReadOnly` [57]; `apply` Real |
+| Ops | ReadOnly, the briefing [57]; `optimize apply` Real |
 | Writes | `apply` only, every refusal before the first write and a failed write taking back the ones before it: the target prompt or `SKILL.md` in the home (never the root's [62, 88]), `feedback/feedback.md`, `feedback/.overrides` (a full override over the root), `feedback/archive.md` (started from `templates/home/feedback/archive.md` when absent; no template is an error when entries are to move), `feedback/.last-optimized` (`healthcheck` Check 7 reads it), the home's `AGENTS.md` and the workspace's `.daisy/AGENTS.md` and `.daisy/prompts/`. Daisy writes by path and never at a root path; as a best-effort check, not a guarantee, a write whose path, its links resolved, lies in the root (a user-made link: a home file or directory linked to the root's, a `.daisy/prompts` linked into it) is refused before any write, `Error: <path> leads into the root (<real path>), which Daisy never writes; …`, `Nothing was applied.` (`TestNoWriteReachesTheRootThroughALink`; `prompt build` the same); a registered home inside the root's directory is not the root, as for a root commit (`TestHomeInsideTheRootIsWritten`); a link at a materialised path is replaced, never written through. The suite's fixture copies `prompts/` and `skills/`, so not even a fault could write the repository's (case 65) |
 | Commits | `apply`: the home, once, `Optimize <label> (<mode>)` [58], holding the override and the feedback files, never the materialised prompts (the workspace's) [62]; never the root [58, 62, 88] |
 | Cases | 38, 39, 40, 41, 49, 50, 53, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 88; `TestApplyRulesOnARootTargetLayers`, `TestApplyRewriteOnARootTargetIsFull`, `TestOptimizeBriefsOverrides`, `TestSkillOverrides`, `TestOptimizeApplyApproval`, `TestOptimizeApplyArchivesAndCommitsOnce`, `TestOptimizeApplyRollsBack`, `TestOptimizeUsage`, `TestOptimizeBriefing` |
@@ -1041,7 +1060,7 @@ and `here` (the clone the working folder is in, else `null`); and
 | Exit codes | 0; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the journal unreadable, with `--mark` a run the journal holds no line of (`Error: swarm journal --mark: the journal holds no line of <run>; mark a run its lines name`) or the write failing; 2 usage, `--json` with `--mark` among it (`Error: --json prints the journal and moves no mark; give --mark alone`, then the usage) |
 | Stdout | the lines after the one `<state>/connect-seen` marks: `Journal of <owner>/<repo> since <run> (marked seen <time>): <k> lines`, each line as `<YYYY-MM-DD> - <HHMM> <run>: …`, then `Mark them seen: daisy swarm journal --mark <run>` naming the last; none after it, `Journal of <owner>/<repo>: nothing since <run> (marked seen <time>)`; no mark, or one the journal does not hold, the newest day's lines under `Journal of <owner>/<repo>, <YYYY-MM-DD> (no line marked seen): <k> lines`; an empty journal, `Journal of <owner>/<repo>: no line yet`. With `--mark`, `✓ Marked the journal seen through <run> (<state>/connect-seen)`. With `--json`: one document (below) |
 | Stderr | `⚠ <state>/connect-seen names <run>, which the journal does not hold: showing its newest day`; with `--json`, empty, the line under `warnings` |
-| Ops | ReadOnly; with `--mark`, Real |
+| Ops | Real; `ReadOnly` without `--mark` |
 | Writes | with `--mark`, `<state>/connect-seen`; else nothing |
 | Commits | none |
 | Cases | none; `TestSwarmConnectBriefing`, `TestReadOnlyJSON` |

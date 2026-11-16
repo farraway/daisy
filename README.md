@@ -268,8 +268,8 @@ exists.
 **Every side effect goes through one value.** `internal/ops` is the `Ops`
 interface: the file system, processes, the clock, environment, HTTP and the
 approval prompt. `Real` does them; `ReadOnly` refuses every write, so a
-command declared read-only (`status`, `files`, `tasks`, `swarm status`)
-cannot write by accident; `Fake` lets a test build its own machine, with a
+command the command table marks read-only (`status`, `files`, `tasks`,
+`swarm status`; its help says `(read-only)`) cannot write by accident; `Fake` lets a test build its own machine, with a
 temporary root, home, registry and workspace, and pin what git reads. The
 rule is `cli → commands → domain packages → ops`, and nothing above `ops`
 touches the file system, starts a process or reads the clock itself. The

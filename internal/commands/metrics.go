@@ -14,12 +14,6 @@ import (
 	"daisy/internal/ops"
 )
 
-// Metrics prints the summary of the home's metrics CSV: its rows grouped
-// by kind and model, a row a later one for the same step or run
-// supersedes left out; with --swarm, that swarm's runs alone, and with
-// --since, the rows written at or after that time.
-var Metrics = readOnly(metricsSummary)
-
 // metricsReport is the summary: the CSV, whether it exists, the flags
 // that took its rows, the rows taken and how many of them a later record
 // supersedes, and a group per kind and model.
@@ -63,7 +57,11 @@ type metricsLines struct {
 
 func (l *metricsLines) String() string { return fmt.Sprintf("+%d/-%d", l.Added, l.Removed) }
 
-func metricsSummary(c *Context) error {
+// Metrics prints the summary of the home's metrics CSV: its rows grouped
+// by kind and model, a row a later one for the same step or run
+// supersedes left out; with --swarm, that swarm's runs alone, and with
+// --since, the rows written at or after that time.
+func Metrics(c *Context) error {
 	return printReport(c, func() (*metricsReport, error) { return readMetrics(c) }, func(r *metricsReport) {
 		if !r.Exists {
 			fmt.Fprintf(c.Stdout, "No metrics recorded yet (%s does not exist)\n  Record a plan step: daisy metrics add --step <n> --range <a>..<b>\n", r.File)

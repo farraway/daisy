@@ -44,8 +44,9 @@ start reads: `HOME`, `USER`, no global git config.
 
 **Dependency rule:** `cli → commands → {domain packages} → ops`; nothing
 above `ops` calls `os`, `os/exec` or `time.Now` itself. A read-only command
-runs under `ReadOnly`, so it cannot write by accident; `docs/cli.md` names
-each command's wrapper. Each command's `--healthcheck` hook is a `Health`
+is marked `ReadOnly` in the table and the cli runs it under `ReadOnly`, so
+it cannot write by accident; its help prints the mark as `(read-only)`,
+never written by hand, and `docs/cli.md` names each command's wrapper. Each command's `--healthcheck` hook is a `Health`
 function in the table; `daisy healthcheck` runs them in-process as its
 `Component:` lines, and `log`, `done`, `new-day` and `new-week` run the
 whole check in-process before they write.
@@ -195,16 +196,16 @@ then replace the block below with the output of `daisy help --markdown`.
 |---|---|---|
 | Workspace | `daisy init [<identity> [path]]` | Bind a workspace to an identity and its home (bare: re-initialize this one) |
 | Workspace | `daisy clean [-f]` | Remove Daisy from this workspace |
-| Workspace | `daisy status [--json]` | Home, identity, projects, today's counts, active plan |
-| Workspace | `daisy files [--json\|<name>]` | Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …) |
-| Workspace | `daisy list [--json]` | Active prompts and installed skills |
-| Workspace | `daisy help [<command>\|<skill>\|--markdown]` | This help, detail for one command or skill, or the Command Reference |
+| Workspace | `daisy status [--json]` | Home, identity, projects, today's counts, active plan (read-only) |
+| Workspace | `daisy files [--json\|<name>]` | Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …) (read-only) |
+| Workspace | `daisy list [--json]` | Active prompts and installed skills (read-only) |
+| Workspace | `daisy help [<command>\|<skill>\|--markdown]` | This help, detail for one command or skill, or the Command Reference (read-only) |
 | Day | `daisy new-day [--quick]` | Start a new day (--quick: only if not started; a week if one turned) |
 | Day | `daisy new-week [--quick]` | Start a new week (--quick: as new-day --quick) |
 | Day | `daisy log <message...>` | Add a log entry to today.md, quick-starting a stale day |
 | Day | `daisy done <pattern>` | Mark a task complete |
 | Day | `daisy tasks [--all] [--todo\|--done] [--json] [pattern]` | Search tasks (read-only) |
-| Day | `daisy projects [--archived] [--json]` | List active or archived projects |
+| Day | `daisy projects [--archived] [--json]` | List active or archived projects (read-only) |
 | Day | `daisy rotate` | Rotate journal.md into window files |
 | Plans | `daisy plan new [--spec] <description> [+project]` | Create a plan (or an unregistered spec draft) |
 | Plans | `daisy plan pickup <path>` | Promote a spec draft into a tracked plan |
@@ -213,13 +214,13 @@ then replace the block below with the output of `daisy help --markdown`.
 | Plans | `daisy metrics add --step <s> [--plan <p>] [--range <r> [--repo <dir>]] [<flag> <value>...]` | Record a plan step: a row in the home's metrics CSV and in the plan's ## Metrics table |
 | Homes and identities | `daisy home new <name> [path]` | Create a home; prompts for identity and location |
 | Homes and identities | `daisy home add <name> <path>` | Register an existing home |
-| Homes and identities | `daisy home list` | Registered homes and where they live |
+| Homes and identities | `daisy home list` | Registered homes and where they live (read-only) |
 | Homes and identities | `daisy home remove <name>` | Unregister a home; its files stay where they are |
-| Homes and identities | `daisy identity list` | Identities across registered homes |
+| Homes and identities | `daisy identity list` | Identities across registered homes (read-only) |
 | Prompts and skills | `daisy prompt build [<home>]` | Rebuild AGENTS.md |
 | Prompts and skills | `daisy install [--update]` | ~/bin/daisy and DAISY_ROOT; nothing under ~/.claude |
 | Prompts and skills | `daisy feedback [--workflow <n>] <text>` | Record a prompt failure for optimization |
-| Prompts and skills | `daisy optimize [--workflow <n>]` | Briefing: pending entries per target, current rules, rewrite flags |
+| Prompts and skills | `daisy optimize [--workflow <n>]` | Briefing: pending entries per target, current rules, rewrite flags (read-only) |
 | Prompts and skills | `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` | Apply a proposal: diff, approve, archive, commit |
 | Prompts and skills | `daisy eval [<case>] [--record]` | List, display, or record an eval case result |
 | Swarm | `daisy swarm init [--defaults] [--api <url>]` | Declare the swarm: swarm.json, prompts, labels |
@@ -228,7 +229,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm metrics --backfill` | Write a metrics row for each collected run the home's CSV has none for |
 | Swarm | `daisy swarm status [--json]` | Stages, gates, what waits for you, running members (read-only) |
 | Swarm | `daisy swarm list [--json]` | The swarms this machine runs: clone, home, pause; from anywhere (read-only) |
-| Swarm | `daisy swarm journal [--json\|--mark <run>]` | The journal since the line marked seen (read-only); --mark moves the mark |
+| Swarm | `daisy swarm journal [--json\|--mark <run>]` | The journal since the line marked seen; --mark moves the mark, its one write |
 | Swarm | `daisy swarm pause [<n>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue) |
 | Swarm | `daisy swarm resume [<n>]` | Launch members again and release the owner's held batch (with <n>, that issue) |
 | Swarm | `daisy swarm restart` | Have the running apply re-execute itself, onto the installed build, once no member runs |
@@ -243,7 +244,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm close <n> [comment...]` | As the maintainer: close the issue, after the comment when given |
 | System | `daisy commit [--root] <message>` | Commit the home repo (or the root repo) |
 | System | `daisy healthcheck [--force]` | Run the system health check |
-| System | `daisy check-secrets` | Check which secrets/tokens are configured |
+| System | `daisy check-secrets` | Check which secrets/tokens are configured (read-only) |
 | System | `daisy test [filter]` | Run go test, then the hermetic acceptance suite |
 | System | `daisy version` | The commit this binary was built from; also --version (read-only) |
 <!-- END command reference -->

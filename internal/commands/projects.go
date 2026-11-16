@@ -8,10 +8,6 @@ import (
 	"daisy/internal/env"
 )
 
-// Projects lists the home's active projects (or, with --archived, the
-// archived ones), each with the real path of its file. Read-only.
-var Projects = readOnly(projects)
-
 // projectsReport is the listing: which directory, and each project's name
 // and the real path of its file.
 type projectsReport struct {
@@ -20,7 +16,9 @@ type projectsReport struct {
 	warned
 }
 
-func projects(c *Context) error {
+// Projects lists the home's active projects (or, with --archived, the
+// archived ones), each with the real path of its file. Read-only.
+func Projects(c *Context) error {
 	return printReport(c, func() (*projectsReport, error) { return readProjects(c), nil }, func(r *projectsReport) {
 		label := "Active projects"
 		if r.Archived {

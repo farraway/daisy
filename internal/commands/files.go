@@ -13,11 +13,6 @@ import (
 
 const fsModeSymlink = fs.ModeSymlink
 
-// Files prints the resolved real path of every per-home file and
-// directory: where things actually live, whatever the .daisy/ links say.
-// Given a name, it prints that one path and nothing else.
-var Files = readOnly(files)
-
 var (
 	rollingWindow = regexp.MustCompile(`^journal-.*-(last14|mtd|ytd)\.md$`)
 	closedWindow  = regexp.MustCompile(`^journal-[0-9]{4}([0-9]{2})?\.md$`)
@@ -90,7 +85,10 @@ type namedPath struct {
 	Path string `json:"path"`
 }
 
-func files(c *Context) error {
+// Files prints the resolved real path of every per-home file and
+// directory: where things actually live, whatever the .daisy/ links say.
+// Given a name, it prints that one path and nothing else.
+func Files(c *Context) error {
 	switch {
 	case c.Flag(JSONFlag) && len(c.Args) == 1:
 		return UsageError("--json lists every path; with <name>, its path alone is printed")

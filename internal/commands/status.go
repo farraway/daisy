@@ -10,10 +10,6 @@ import (
 	"daisy/internal/todo"
 )
 
-// Status prints the workspace summary an agent orients itself with: the
-// binding, projects, today's counts, the backlog and the active plan.
-var Status = readOnly(status)
-
 var (
 	pendingLine   = regexp.MustCompile(`^- \[ \]`)
 	completedLine = regexp.MustCompile(`^- \[x\]`)
@@ -48,7 +44,9 @@ type currentPlan struct {
 	Path  string `json:"path"`
 }
 
-func status(c *Context) error {
+// Status prints the workspace summary an agent orients itself with: the
+// binding, projects, today's counts, the backlog and the active plan.
+func Status(c *Context) error {
 	if c.Flag(JSONFlag) {
 		return writeJSON(c, func() (jsonDoc, error) {
 			reportDrift(c)

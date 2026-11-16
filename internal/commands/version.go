@@ -10,7 +10,7 @@ import (
 // toolchain writes into a binary built inside a git checkout (`make build`,
 // or any `go build` there), so no build step has to pass it in. `make
 // install-dev` compares it with the root's HEAD.
-var Version = readOnly(func(c *Context) error {
+func Version(c *Context) error {
 	info, _ := debug.ReadBuildInfo()
 	line, err := versionLine(info)
 	if err != nil {
@@ -18,7 +18,7 @@ var Version = readOnly(func(c *Context) error {
 	}
 	fmt.Fprintln(c.Stdout, line)
 	return nil
-})
+}
 
 // versionLine is vcs.revision, then ` (modified)` when vcs.modified is
 // true: git status showed changes at build time, an untracked file

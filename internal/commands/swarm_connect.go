@@ -22,14 +22,14 @@ import (
 // with a state directory under $DAISY_LOCAL/swarm, its clone as the last
 // apply recorded it, its home and its pause, run from anywhere, under
 // ReadOnly.
-var SwarmList = readOnly(func(c *Context) error {
+func SwarmList(c *Context) error {
 	m, err := env.Machine(c.Ops)
 	if err != nil {
 		return err
 	}
 	c.Env = m
 	return swarmList(c)
-})
+}
 
 // swarmListReport is swarm list's report: $DAISY_LOCAL/swarm and each
 // swarm whose state it holds, in path order.

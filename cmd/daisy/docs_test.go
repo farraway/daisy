@@ -357,3 +357,54 @@ func TestCliMdTreeIsHelp(t *testing.T) {
 		t.Errorf("docs/cli.md's Command tree is not `daisy help` (exit %d); replace it with:\n%s", code, out)
 	}
 }
+
+// Each docs/cli.md entry of a table command starts its Ops row with the
+// wrapper the whole command runs under: ReadOnly exactly when the Command
+// Reference, from the table, marks the command (read-only). A command
+// that narrows itself under a flag (`swarm journal` without --mark) is
+// Real there, its row saying when it is ReadOnly.
+func TestCliMdOpsIsTheMarker(t *testing.T) {
+	rowRe := regexp.MustCompile("^\\| [^|]+ \\| `daisy ([^`]*)` \\| (.*) \\|$")
+	wordRe := regexp.MustCompile(`^[a-z][a-z-]*$`)
+	marked := map[string]bool{}
+	for _, l := range strings.Split(cli.Reference(), "\n") {
+		m := rowRe.FindStringSubmatch(l)
+		if m == nil {
+			continue
+		}
+		var name []string
+		for _, w := range strings.Fields(m[1]) {
+			if !wordRe.MatchString(w) {
+				break
+			}
+			name = append(name, w)
+		}
+		marked[strings.Join(name, " ")] = strings.HasSuffix(m[2], " (read-only)")
+	}
+	b, err := os.ReadFile("docs/cli.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, checked, readOnly := "", 0, 0
+	for _, l := range strings.Split(string(b), "\n") {
+		if name, ok := strings.CutPrefix(l, "### daisy "); ok {
+			entry = name
+		}
+		v, ok := strings.CutPrefix(l, "| Ops | ")
+		ro, isCmd := marked[entry]
+		if !ok || !isCmd {
+			continue
+		}
+		kind := strings.Trim(strings.Fields(v)[0], "`;,")
+		if (kind == "ReadOnly") != ro {
+			t.Errorf("docs/cli.md, daisy %s: Ops %q, but the table's marker says read-only %v", entry, kind, ro)
+		}
+		checked++
+		if ro {
+			readOnly++
+		}
+	}
+	if checked < 40 || readOnly < 10 {
+		t.Errorf("checked %d entries' Ops rows, %d ReadOnly", checked, readOnly)
+	}
+}

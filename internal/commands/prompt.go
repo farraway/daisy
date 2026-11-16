@@ -95,11 +95,6 @@ func promptWrites(fs ops.FS, dir string, b prompt.Built) []fileWrite {
 	return writes
 }
 
-// List prints the home's prompts, each with its trigger's first line or
-// how it loads, and the installed skills, each with its short description.
-// Read-only.
-var List = readOnly(list)
-
 // ListHealth: the workspace and its home resolve, which the cli has checked.
 var ListHealth = readOnly(func(*Context) error { return nil })
 
@@ -151,7 +146,10 @@ type override struct {
 	Behind bool    `json:"behind"`
 }
 
-func list(c *Context) error {
+// List prints the home's prompts, each with its trigger's first line or
+// how it loads, and the installed skills, each with its short description.
+// Read-only.
+func List(c *Context) error {
 	if c.Flag(JSONFlag) {
 		return writeJSON(c, func() (jsonDoc, error) { return readList(c) })
 	}

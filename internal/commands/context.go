@@ -1,7 +1,10 @@
 // Package commands holds one function per daisy command. Each takes the
 // resolved Context and writes to its streams; the error it returns is the
-// message for stderr, and the command exits 1. Which Ops wrapper a command
-// runs under is decided here, by the command, and nowhere else.
+// message for stderr, and the command exits 1. A command the cli table
+// marks ReadOnly runs under ops.ReadOnly as a whole, the cli wrapping it;
+// a command narrows itself to ReadOnly here only for a form of it
+// (`swarm journal` without --mark, `swarm prompt build --dry-run`), and a
+// --healthcheck hook through readOnly.
 package commands
 
 import (
@@ -74,8 +77,8 @@ type UsageError string
 
 func (u UsageError) Error() string { return string(u) }
 
-// readOnly runs the command under ops.ReadOnly: the usage text's promise
-// becomes a checked invariant.
+// readOnly runs a --healthcheck hook under ops.ReadOnly: a precondition
+// check writes nothing.
 func readOnly(run func(*Context) error) func(*Context) error {
 	return func(c *Context) error {
 		c.Ops = ops.ReadOnly(c.Ops)

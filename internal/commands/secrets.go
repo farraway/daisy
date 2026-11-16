@@ -10,15 +10,6 @@ import (
 	"daisy/internal/swarm/declare"
 )
 
-// CheckSecrets reports which paths and API tokens the workspace's .env.sh
-// configures, and, in a swarm (docs/swarm.md section 11, Finding the
-// swarm), the swarm's variables as its verbs resolve them, eight
-// characters of each at most. The files are parsed, never run
-// (env.ParseShellEnv); a variable a file does not assign is the
-// environment's, as after `source`. A line it cannot read is named on
-// stderr. Read-only.
-var CheckSecrets = readOnly(checkSecrets)
-
 var secretRows = []struct{ label, name string }{
 	{"DAISY_ROOT", "DAISY_ROOT"},
 	{"DAISY_HOME", "DAISY_HOME"},
@@ -28,7 +19,14 @@ var secretRows = []struct{ label, name string }{
 	{"GitHub", "DAISY_SECRET_GITHUB_TOKEN"},
 }
 
-func checkSecrets(c *Context) error {
+// CheckSecrets reports which paths and API tokens the workspace's .env.sh
+// configures, and, in a swarm (docs/swarm.md section 11, Finding the
+// swarm), the swarm's variables as its verbs resolve them, eight
+// characters of each at most. The files are parsed, never run
+// (env.ParseShellEnv); a variable a file does not assign is the
+// environment's, as after `source`. A line it cannot read is named on
+// stderr. Read-only.
+func CheckSecrets(c *Context) error {
 	m, err := env.Machine(c.Ops)
 	if err != nil {
 		return err

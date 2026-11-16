@@ -8,19 +8,17 @@ import (
 	"daisy/internal/todo"
 )
 
-// Tasks searches todo.txt and done.txt and prints the matching lines, bare.
-// Two axes: scope, this workspace's projects (`+tag`) unless --all; files,
-// both unless --todo or --done. The pattern is a literal, case-insensitive
-// substring. Read-only.
-var Tasks = readOnly(tasks)
-
 // tasksReport is the matching lines, verbatim.
 type tasksReport struct {
 	Tasks []string `json:"tasks"`
 	warned
 }
 
-func tasks(c *Context) error {
+// Tasks searches todo.txt and done.txt and prints the matching lines, bare.
+// Two axes: scope, this workspace's projects (`+tag`) unless --all; files,
+// both unless --todo or --done. The pattern is a literal, case-insensitive
+// substring. Read-only.
+func Tasks(c *Context) error {
 	return printReport(c, func() (*tasksReport, error) { return readTasks(c) }, func(r *tasksReport) {
 		for _, l := range r.Tasks {
 			fmt.Fprintln(c.Stdout, l)

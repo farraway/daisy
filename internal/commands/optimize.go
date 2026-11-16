@@ -19,9 +19,7 @@ import (
 // count — and every active prompt or skill whose rules are past the
 // rewrite threshold. Read-only; the agent is the model, `optimize apply`
 // writes what it proposes.
-var Optimize = readOnly(optimize)
-
-func optimize(c *Context) error {
+func Optimize(c *Context) error {
 	fsys := c.Ops.FS()
 	var scope *feedback.Target
 	if wf, ok := c.Value("--workflow", "-w"); ok {

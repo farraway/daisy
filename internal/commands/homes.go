@@ -17,7 +17,7 @@ import (
 )
 
 // HomeList prints each registered home and where it lives. Read-only.
-var HomeList = readOnly(func(c *Context) error {
+func HomeList(c *Context) error {
 	m, err := env.Machine(c.Ops)
 	if err != nil {
 		return err
@@ -37,7 +37,7 @@ var HomeList = readOnly(func(c *Context) error {
 		}
 	}
 	return nil
-})
+}
 
 // HomeAdd registers an existing home directory under a name.
 func HomeAdd(c *Context) error {
@@ -228,7 +228,7 @@ var HomeNewHealth = readOnly(func(c *Context) error {
 
 // IdentityList prints every identity across the registered homes and the
 // home it belongs to. Read-only.
-var IdentityList = readOnly(func(c *Context) error {
+func IdentityList(c *Context) error {
 	m, err := env.Machine(c.Ops)
 	if err != nil {
 		return err
@@ -243,7 +243,7 @@ var IdentityList = readOnly(func(c *Context) error {
 		return errors.New(b.String())
 	}
 	return nil
-})
+}
 
 func unregisteredName(fs ops.FS, m env.Env, name string) error {
 	if !env.NameOK(name) {
