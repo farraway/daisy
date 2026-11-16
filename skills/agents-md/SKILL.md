@@ -30,11 +30,14 @@ explicit about package managers and tool versions.
 ```
 
 **Code style** — conventions to follow. Agents apply explicit rules well.
+A convention a tool the project runs can check is configured in that
+tool, and AGENTS.md names the command that runs it; prose is kept for what
+needs judgment.
 
 ```markdown
 ## Code style
-- TypeScript strict mode
-- Single quotes, no semicolons
+- Lint and format: `pnpm lint` (the ESLint and Prettier configs hold the style rules)
+- Type-check: `pnpm typecheck` (TypeScript strict mode)
 - Use functional patterns where possible
 - Prefer named exports over default exports
 - Error handling: use Result types, not try/catch
@@ -94,6 +97,14 @@ repo/
 
 - Good: "Use `pnpm test --filter api` to run API tests"
 - Bad: "Make sure to test your changes"
+
+**Put a checkable convention in its tool.** A rule that a linter,
+formatter or type checker the project runs can enforce is configured
+there, and AGENTS.md names the command that runs it, so the check holds it
+on every run; the prose holds it only when an agent reads it.
+
+- Good: "Run `pnpm lint`; the ESLint config holds the style rules"
+- Bad: "Always use `===`, never `==`"
 
 **Include what you'd tell a new teammate on day one** — build and test
 commands, deployment steps, naming conventions, security gotchas, how the

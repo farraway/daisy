@@ -14,6 +14,11 @@ coercion, `const` over reassignable bindings, declared fields over emergent
 ones. Where the modern standard library has a purpose-built method, use it
 over the older idiom it replaced.
 
+Where the project runs ESLint, turn on the rules that check part of this:
+[`eqeqeq`](https://eslint.org/docs/latest/rules/eqeqeq),
+[`prefer-const`](https://eslint.org/docs/latest/rules/prefer-const) and
+[`no-var`](https://eslint.org/docs/latest/rules/no-var).
+
 ## Strict mode
 
 Put `"use strict"` at the top of every script and function; treat it as the

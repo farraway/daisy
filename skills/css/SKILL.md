@@ -13,6 +13,12 @@ Layout source for the eight core compositions is in
 [`compositions.md`](compositions.md) — read it when building or modifying
 layout, not for token, colour, or utility questions.
 
+Where the project runs stylelint, turn on the rules that check part of
+this:
+[`property-layout-mappings`](https://stylelint.io/user-guide/rules/property-layout-mappings/)
+set to `"flow-relative"` (core since stylelint 17.8) and
+[`declaration-no-important`](https://stylelint.io/user-guide/rules/declaration-no-important/).
+
 ## Principles
 
 - **Work with the cascade** — global styles do most of the work;
