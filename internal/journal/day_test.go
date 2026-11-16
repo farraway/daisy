@@ -44,6 +44,30 @@ func TestCarry(t *testing.T) {
 
 // The template's placeholders filled; each section a `- [ ] ` line per
 // task; the file ends in exactly one newline whatever the template's tail.
+// Place is Carry's rule for one line: the section and the text.
+func TestPlace(t *testing.T) {
+	for _, tc := range []struct {
+		line string
+		s    journal.Section
+		text string
+		ok   bool
+	}{
+		{"(A) 2026-07-27 Now task", journal.Now, "Now task", true},
+		{"(B) 2026-07-27 Next task", journal.Next, "Next task", true},
+		{"2026-07-27 Inbox task", journal.Inbox, "Inbox task", true},
+		{"(C) 2026-07-27 Review PR @github", journal.GitHub, "Review PR @github", true},
+		{"(A) Undated", journal.Now, "(A) Undated", true},
+		{"(C) 2026-07-27 Soon", "", "", false},
+		{"Undated inbox", "", "", false},
+		{"x 2026-07-28 2026-07-27 Done", "", "", false},
+	} {
+		s, text, ok := journal.Place(tc.line)
+		if s != tc.s || text != tc.text || ok != tc.ok {
+			t.Errorf("Place(%q) = %q, %q, %v", tc.line, s, text, ok)
+		}
+	}
+}
+
 func TestFillDayTemplate(t *testing.T) {
 	tpl := read(t, "../../templates/journal-day.md")
 	now := time.Date(2026, 12, 31, 7, 5, 0, 0, time.UTC)

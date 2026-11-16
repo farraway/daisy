@@ -107,11 +107,13 @@ behind each one.
 **Tasks.** `tasks/todo.txt` is the one task list, in
 [todo.txt](docs/todotxt.md) form with four priorities: `(A)` now, `(B)`
 next, `(C)` soon, `(D)` someday; a task without one is inbox, to be
-prioritised. `daisy done
-<pattern>` completes a task in both `todo.txt` and the day's `today.md`;
+prioritised. `daisy add
+<description> <priority>`, `daisy done <pattern>`, `daisy cancel
+<pattern>` and `daisy priority <pattern> <priority>` add, complete, cancel
+and reprioritise a task in `todo.txt`, and in the day's `today.md` where
+it belongs there;
 `daisy tasks` searches the workspace's projects' tasks (`--all` widens to
-every project, `--todo` or `--done` selects a file). Adding a task, changing
-a priority and cancelling are done by the agent, by instruction.
+every project, `--todo` or `--done` selects a file).
 
 **The day and the week.** `daisy new-day` archives yesterday's `today.md`
 into `journal.md` and writes a fresh `today.md` from the day template with
@@ -473,9 +475,9 @@ now, which is what to run before a root commit.
 /daisy start a new week
 ```
 
-The agent reads `.daisy/AGENTS.md`, runs `daisy new-day`, `daisy done`,
-`daisy log` and `daisy new-week` for the mechanics, and edits `todo.txt`
-and the project files for what needs judgment. People are written as
+The agent reads `.daisy/AGENTS.md`, runs `daisy new-day`, `daisy add`,
+`daisy done`, `daisy log` and `daisy new-week` for the mechanics, and
+edits `todo.txt` and the project files for what needs judgment. People are written as
 `~alias`, resolved through `tasks/alias.txt`. Each change the agent makes
 through one of those commands ends in a commit in the home (`feedback` and
 `plan new` leave theirs for the next); `daisy commit <message>` commits

@@ -94,3 +94,53 @@ func TestTick(t *testing.T) {
 		t.Errorf("no trailing newline: %q", got)
 	}
 }
+
+func TestCancel(t *testing.T) {
+	in := "**Now:**\n- [x] Alpha\n- [ ] Alpha\n- [ ] Alpha\n"
+	if got, ok := journal.Cancel(in, "Alpha"); !ok || got != "**Now:**\n- [x] Alpha\n- [z] Alpha\n- [ ] Alpha\n" {
+		t.Errorf("ok %v got %q", ok, got)
+	}
+	if got, ok := journal.Cancel(in, "Beta"); ok || got != in {
+		t.Errorf("absent: ok %v changed %v", ok, got != in)
+	}
+}
+
+func TestRemove(t *testing.T) {
+	in := "**Now:**\n- [x] Alpha\n- [ ] Alpha\n- [ ] Alpha more\n\n**Next:**\n"
+	if got, ok := journal.Remove(in, "Alpha"); !ok || got != "**Now:**\n- [x] Alpha\n- [ ] Alpha more\n\n**Next:**\n" {
+		t.Errorf("ok %v got %q", ok, got)
+	}
+	if got, ok := journal.Remove(in, "Alpha mo"); ok || got != in {
+		t.Errorf("a part of a line: ok %v got %q", ok, got)
+	}
+}
+
+// Add puts the line after the section's last non-blank line, the label's
+// own when it has none, so the blank lines before the next label or
+// heading stay; the section ends at the next label or heading.
+func TestAdd(t *testing.T) {
+	day := read(t, "../../templates/journal-day.md")
+	for _, tc := range []struct {
+		in   string
+		s    journal.Section
+		want string
+	}{
+		{"**Now:**\n- [ ] a\n\n\n**Next:**\n", journal.Now, "**Now:**\n- [ ] a\n- [ ] n\n\n\n**Next:**\n"},
+		{"**Now:**\n\n\n**Next:**\n- [ ] b\n", journal.Now, "**Now:**\n- [ ] n\n\n\n**Next:**\n- [ ] b\n"},
+		{"**Next:**\n- [ ] b\n#### Log\n- 0900 x\n", journal.Next, "**Next:**\n- [ ] b\n- [ ] n\n#### Log\n- 0900 x\n"},
+		{"**GitHub PRs:**", journal.GitHub, "**GitHub PRs:**\n- [ ] n\n"},
+		{"**Inbox:**\n- [ ] Workout\n", journal.Inbox, "**Inbox:**\n- [ ] Workout\n- [ ] n\n"},
+	} {
+		if got, ok := journal.Add(tc.in, tc.s, "n"); !ok || got != tc.want {
+			t.Errorf("%s in %q: ok %v\n got %q\nwant %q", tc.s, tc.in, ok, got, tc.want)
+		}
+	}
+	if got, ok := journal.Add("**Now:**\n", journal.Next, "n"); ok || got != "**Now:**\n" {
+		t.Errorf("no such section: ok %v got %q", ok, got)
+	}
+	for _, s := range []journal.Section{journal.Now, journal.Next, journal.Inbox, journal.GitHub} {
+		if _, ok := journal.Add(day, s, "n"); !ok {
+			t.Errorf("the day template has no %s section", s)
+		}
+	}
+}

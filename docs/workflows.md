@@ -63,105 +63,83 @@ plan (when `PLAN.md` links one).
 
 ## Add Task
 
-**Command:** "add task [description]"
+**Command:** "add task [description]" (`daisy add "description" <priority>`)
 
 ```
-1. Parse user input:
-   a. Extract description after "add task" or "new task"
-   b. Identify @context labels in description
-   c. Identify +PROJECT tags in description
-   d. Check for due:YYYY-MM-DD
-   e. Check for priority hint: "(A)", "(B)", "(C)", "(D)" in description
+1. Before the command (the agent's part):
+   a. The description is the text after "add task" or "new task", its
+      @context labels, +PROJECT tags and due:YYYY-MM-DD kept as written.
+   b. The priority: a hint in the request ("(A)", "urgent", ...) is it,
+      and is left out of the description; otherwise ask "Priority?
+      (A=urgent, B=this week, C=soon, D=someday, or none for inbox)" and
+      wait. Enter, or no preference, is none.
+   c. Call `daisy add "<description>" A|B|C|D|none`. The command never
+      asks: the priority is its second argument, and a missing or unknown
+      one is a usage error. A description starting "(A) " is refused.
 
-2. Determine priority:
-   a. If explicit priority in description, use it
-   b. If no priority, ask: "Priority? (A=urgent, B=this week, C=soon, D=someday, or Enter for inbox)"
-   c. Wait for user response
-   d. Default to no priority (inbox) if user just presses Enter
+2. todo.txt: the line "({priority}) {today} {description}"
+   ("{today} {description}" for none), inserted after the last open line
+   that sorts at or before it, in todo.txt's order: (A), (B), none, (C),
+   (D), then (E)-(Z) (task-format.md, File Organization). At the top when
+   no line does; a closed (x/z) or blank line is never the anchor. So a
+   (B) task follows the last (B), and an inbox task follows every (B)
+   and comes before the first (C).
 
-3. Get current date as YYYY-MM-DD
+3. today.md, for an (A) or (B) task: "- [ ] {description}", the text
+   after the priority and date as written (as `new-day` carries it, so
+   `daisy done` can tick it), at the end of the section a new day would
+   carry it to (A → Now, B → Next, a task with @git → GitHub PRs): after
+   the section's last non-blank line, the blank lines before the next
+   section kept.
+   A (C), (D) or inbox task is not added to today.md: the next new day
+   carries an inbox task to Inbox and any task with @git to GitHub PRs,
+   and does not carry another (C) or (D).
+   today.md absent, or without the section: a warning; todo.txt still
+   takes the task.
 
-4. Format for todo.txt:
-   a. If priority provided: "({priority}) {date} {description}"
-   b. If no priority: "{date} {description}"
-   c. Preserve all @context and +PROJECT tags
-   d. Preserve due:YYYY-MM-DD if present
+4. Commit the home once: "Added: ({priority}) {description}".
 
-5. Add to todo.txt:
-   a. Read tasks/todo.txt
-   b. Find insertion point:
-      - If has priority: after last task with same priority, before next priority
-      - If no priority: after all (B) tasks, before (C) tasks
-   c. Insert new task at correct position
-   d. Write updated todo.txt
-   e. Report: "Added to todo.txt: {formatted_task}"
-
-6. Add to today.md (if high priority):
-   a. If priority is (A) or (B):
-      - Convert to markdown format: "- [ ] {description}", the text after the priority and date as written (as `new-day` carries it, so `daisy done` can tick it)
-      - Find appropriate section in today.md
-      - Append to section
-      - Report: "Added to today.md: {formatted_task}"
-   b. If priority is (C), (D), or none:
-      - Report: "Low priority - not added to today.md. Will appear on next 'new day'"
-
-7. Commit changes (`daisy commit "<message>"`)
+5. On success: one line, "✅ Added: {todo.txt line}; today.md: {outcome}
+   (commit {hash})".
 ```
 
 ## Change Priority
 
-**Command:** "priority [pattern] to [A|B|C|D]"
+**Command:** "priority [pattern] to [A|B|C|D|none]" (`daisy priority "pattern" <priority>`)
 
 ```
-1. Parse command:
-   a. Extract task pattern (substring to search)
-   b. Extract target priority (A, B, C, D, or none/inbox)
-   c. If target priority not specified, ask: "Change to which priority? (A/B/C/D/none)"
+1. Before the command (the agent's part): if the request names no
+   target priority, ask "Change to which priority? (A/B/C/D/none)".
+   Then call `daisy priority "<pattern>" A|B|C|D|none`.
 
-2. Find matching task in todo.txt:
-   a. Read tasks/todo.txt
-   b. Search for active tasks (not starting with "x " or "z ") matching pattern
-   c. If multiple matches:
-      - List all with numbers
-      - Ask: "Which one? (1-N, or provide more specific pattern)"
-      - Wait for user response
-   d. If no match:
-      - Report: "No task found matching: {pattern}"
-      - Return
+2. Resolve exactly one task from todo.txt's active lines, as Complete
+   Task does: no match, or several (each listed), refuses with nothing
+   touched; relay the candidates and re-run with a more specific
+   pattern. The priority the task already has changes nothing.
 
-3. Update todo.txt:
-   a. Parse matched task: ^(\([A-D]\) )?({date} )(.*)$
-   b. Extract date (group 2) and description (group 3)
-   c. Remove from current position
-   d. Reformat with new priority:
-      - If target is A/B/C/D: "({priority}) {date} {description}"
-      - If target is "none" or "inbox": "{date} {description}"
-   e. Find new insertion point (among tasks with same priority)
-   f. Insert task at new position
-   g. Write updated todo.txt
-   h. Report: "Updated todo.txt: {old_priority} -> {new_priority}"
+3. todo.txt: the line, its creation date and description kept, written
+   with the new priority ("({priority}) {date} {description}", or
+   "{date} {description}" for none) and moved to that priority's place,
+   as Add Task step 2 places a new line.
 
-4. Update today.md (if exists in today.md):
-   a. Read today.md
-   b. Search for matching task line (case-insensitive)
-   c. If found:
-      - Determine old section (Now, Next, Inbox, etc.)
-      - Remove from old section
-      - Determine new section based on new priority:
-        * (A) -> Now
-        * (B) -> Next
-        * None -> Inbox
-        * (C) or (D) -> Not in today.md (remove if present)
-      - If new priority is (A) or (B), add to appropriate section
-      - Write updated today.md
-      - Report: "Updated today.md: moved to {new_section}"
-   d. If not found and new priority is (A) or (B):
-      - Ask: "Task not in today.md. Add it now?"
-      - If yes, convert to markdown and add to appropriate section
-   e. If not found and priority is (C), (D), or none:
-      - Report: "Task will appear in today.md at next 'new day'"
+4. today.md: the task's line ("- [ ] {description}", or the line as
+   new-day carried it) is found by whole-line equality, as Complete Task
+   finds it, then:
+   - found: removed, and written at the end of the section a new day
+     would carry the new line to: (A) → Now, (B) → Next, none (dated)
+     → Inbox, @git → GitHub PRs; (C) or (D) without @git → not written
+     back (removed from today.md).
+   - not found, new priority (A) or (B): added to that section (today.md
+     holds every (A) and (B) task: Sync Validation 3c).
+   - not found otherwise: today.md unchanged; the next new day carries an
+     inbox task to Inbox.
+   When the new section is missing, today.md is left as it was, with a
+   warning.
 
-5. Commit changes (`daisy commit "<message>"`)
+5. Commit the home once: "Priority: {description} {old} → {new}".
+
+6. On success: one line, "✅ Priority: {description} {old} → {new};
+   today.md: {outcome} (commit {hash})".
 ```
 
 ## New Day
@@ -339,19 +317,23 @@ checked off manually (or by new-day/new-week), not via this command.
 
 ## Cancel Task
 
-**Command:** "Daisy, cancel [pattern]"
+**Command:** "Daisy, cancel [pattern]" (`daisy cancel "pattern"`)
 
 ```
-1. Find task by pattern (case-insensitive)
+1. Resolve exactly one task from todo.txt's active lines, as Complete
+   Task does (case-insensitive literal substring; no match, or several,
+   refuses with nothing touched).
 
-2. Mark cancelled in today.md:
-   - Change "- [ ]" to "- [z]" on the matching line
+2. todo.txt: strip the priority, add "z YYYY-MM-DD " (creation date
+   preserved), move the line to the bottom, where the cancelled lines
+   wait (task-format.md, File Organization).
 
-3. Mark cancelled in todo.txt:
-   - Strip priority prefix
-   - Add "z YYYY-MM-DD " prefix
+3. today.md: the task's line, found as Complete Task finds it, has its
+   "- [ ]" made "- [z]". Absent from today.md is a warning, not a failure.
 
-4. Auto-commit
+4. Commit the home once: "Cancelled: {description}". No log entry.
+
+5. On success: one line, "✅ Cancelled: {description} (commit {hash})".
 
 NOTE: Cancelled tasks are soft-deleted. They remain in todo.txt
 with the "z" prefix until the next `daisy new-day` or `daisy new-week`

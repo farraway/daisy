@@ -67,8 +67,9 @@ is marked `ReadOnly` in the table and the cli runs it under `ReadOnly`, so
 it cannot write by accident; its help prints the mark as `(read-only)`,
 never written by hand, and `docs/cli.md` names each command's wrapper. Each command's `--healthcheck` hook is a `Health`
 function in the table; `daisy healthcheck` runs them in-process as its
-`Component:` lines, and `log`, `done`, `new-day` and `new-week` run the
-whole check in-process before they write.
+`Component:` lines, and every command that writes the day's tasks or
+log (`log`, `done`, `add`, `cancel`, `priority`, `new-day`, `new-week`)
+runs the whole check in-process before it writes.
 
 **Errors:** a new error in a domain package is a lower-case Go error
 wrapping its cause with `%w` ([Go Code Review Comments, Error
@@ -141,7 +142,7 @@ trimmed, blank lines and lines starting with `#` aside. A line skips the
 term it equals without case, never a part of a term or a longer term
 holding it (`notes` does not skip `notes@example.net`). Every scan
 `daisy healthcheck` prints (not a cached pass, nor the silent check
-`done`, `log`, `new-day` and `new-week` run first) says `⚠ Publication
+the commands that write the day's tasks or log run first) says `⚠ Publication
 hygiene: skipping declared term(s) …` with the file's path, names a line
 that matches no derived term as unused, and skips nothing when the file
 cannot be read. Declaring a term that does identify someone (the OS
@@ -232,7 +233,10 @@ then replace the block below with the output of `daisy help --markdown`.
 | Day | `daisy new-day [--quick]` | Start a new day, unless today has started (--quick: a week if one turned) |
 | Day | `daisy new-week [--quick]` | Start a new week, unless this week has started (--quick: as new-day --quick) |
 | Day | `daisy log <message...>` | Add a log entry to today.md, quick-starting a stale day |
+| Day | `daisy add <description> A\|B\|C\|D\|none` | Add a task to todo.txt, and to today.md when (A) or (B) |
 | Day | `daisy done <pattern>` | Mark a task complete |
+| Day | `daisy cancel <pattern>` | Cancel a task; the next new day deletes it |
+| Day | `daisy priority <pattern> A\|B\|C\|D\|none` | Change a task's priority, and its section in today.md |
 | Day | `daisy tasks [--all] [--todo\|--done] [--json] [pattern]` | Search tasks (read-only) |
 | Day | `daisy projects [--archived] [--json]` | List active or archived projects (read-only) |
 | Day | `daisy rotate` | Rotate journal.md into window files |

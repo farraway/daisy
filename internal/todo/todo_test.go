@@ -134,6 +134,44 @@ func TestComplete(t *testing.T) {
 	}
 }
 
+func TestCancel(t *testing.T) {
+	for _, tc := range []struct{ line, date, want string }{
+		{"(B) 2026-01-16 Old task @jira", "2026-01-16", "z 2026-01-16 2026-01-16 Old task @jira"},
+		{"(A) Undated task", "2026-01-16", "z 2026-01-16 Undated task"},
+	} {
+		if got := todo.Parse(tc.line).Cancel(tc.date).Format(); got != tc.want {
+			t.Errorf("Cancel(%q, %s) = %q, want %q", tc.line, tc.date, got, tc.want)
+		}
+	}
+}
+
+// Insert puts a line after the last open line that sorts at or before it,
+// (A), (B), none, (C), (D), then (E) to (Z); at the top when none does.
+func TestInsert(t *testing.T) {
+	file := []string{"(A) a", "(B) b", "i", "(C) c", "(D) d", "(F) f", "x 2026-01-01 done", "z 2026-01-01 gone"}
+	for _, tc := range []struct {
+		line string
+		at   int
+	}{{"(A) n", 1}, {"(B) n", 2}, {"n", 3}, {"(C) n", 4}, {"(D) n", 5}, {"(E) n", 5}, {"(Z) n", 6}} {
+		want := append(append(append([]string{}, file[:tc.at]...), tc.line), file[tc.at:]...)
+		if got := todo.Insert(file, tc.line); strings.Join(got, "|") != strings.Join(want, "|") {
+			t.Errorf("Insert(%q) = %q", tc.line, got)
+		}
+	}
+	if got := todo.Insert([]string{"(C) c", "(B) b"}, "(A) n"); strings.Join(got, "|") != "(A) n|(C) c|(B) b" {
+		t.Errorf("at the top: %q", got)
+	}
+	if got := todo.Insert([]string{"(C) c", "(B) b", "(D) d"}, "n"); strings.Join(got, "|") != "(C) c|(B) b|n|(D) d" {
+		t.Errorf("unsorted: %q", got)
+	}
+	if got := todo.Insert([]string{"(A) a", "", "x 2026-01-01 done"}, "n"); strings.Join(got, "|") != "(A) a|n||x 2026-01-01 done" {
+		t.Errorf("closed and blank lines are no anchors: %q", got)
+	}
+	if got := todo.Insert(nil, "n"); strings.Join(got, "|") != "n" {
+		t.Errorf("empty: %q", got)
+	}
+}
+
 func TestProjects(t *testing.T) {
 	for _, tc := range []struct {
 		line string
@@ -189,7 +227,8 @@ func TestContainsFold(t *testing.T) {
 }
 
 // FuzzParse: every line, whatever it holds, formats back to itself, and
-// the task `done` makes of it (Complete) reads back as the same task.
+// the tasks `done` and `cancel` make of it (Complete, Cancel) read back as
+// the same tasks.
 // The seeds are the documents' odd shapes; `make fuzz` generates more.
 func FuzzParse(f *testing.F) {
 	for _, l := range []string{"", "x ", "(A) 2011-03-02 Call Mom +Family", "x 2011-03-03 2011-03-01 2011-02-01 three dates", "z 2026-01-15 2026-01-14 Old task @context", "(A)  2011-03-02 two spaces", "x 2011-03-03 (A) priority after x", "2011-03-02 ", "\tindented\r"} {
@@ -200,9 +239,10 @@ func FuzzParse(f *testing.F) {
 		if got := task.Format(); got != line {
 			t.Fatalf("Format(Parse(%q)) = %q", line, got)
 		}
-		done := task.Complete("2026-11-16")
-		if got := todo.Parse(done.Format()); got != done {
-			t.Fatalf("Parse(%q) = %+v, want the completed task %+v", done.Format(), got, done)
+		for _, closed := range []todo.Task{task.Complete("2026-11-16"), task.Cancel("2026-11-16")} {
+			if got := todo.Parse(closed.Format()); got != closed {
+				t.Fatalf("Parse(%q) = %+v, want the closed task %+v", closed.Format(), got, closed)
+			}
 		}
 	})
 }

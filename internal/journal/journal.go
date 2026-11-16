@@ -1,10 +1,12 @@
-// Package journal edits today.md: the log entry and the done tick. Both
-// change exactly the lines they mean to and leave every other byte alone.
+// Package journal edits today.md: the log entry, and a task's line ticked,
+// cancelled, removed or added to its section. Each changes exactly the
+// lines it means to and leaves every other byte alone.
 package journal
 
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -56,16 +58,51 @@ func Log(content, time, message string) (string, error) {
 
 // Tick flips the first line that is exactly `- [ ] <text>` to `- [x] <text>`.
 // ok is false, and the content unchanged, when there is none.
-func Tick(content, text string) (out string, ok bool) {
-	target := "- [ ] " + text
+func Tick(content, text string) (out string, ok bool) { return mark(content, text, "- [x] ") }
+
+// Cancel flips the first line that is exactly `- [ ] <text>` to
+// `- [z] <text>`, as Tick.
+func Cancel(content, text string) (out string, ok bool) { return mark(content, text, "- [z] ") }
+
+// Remove deletes the first line that is exactly `- [ ] <text>`, as Tick.
+func Remove(content, text string) (out string, ok bool) { return mark(content, text, "") }
+
+// mark rewrites the first open line of text with box in its place, or,
+// box empty, deletes it.
+func mark(content, text, box string) (string, bool) {
 	lines := split(content)
 	for i, l := range lines {
-		if l == target {
-			lines[i] = "- [x] " + text
+		if l == "- [ ] "+text {
+			if box == "" {
+				return join(append(lines[:i], lines[i+1:]...)), true
+			}
+			lines[i] = box + text
 			return join(lines), true
 		}
 	}
 	return content, false
+}
+
+var label = regexp.MustCompile(`^\*\*[^*]+:\*\*$`)
+
+// Add writes `- [ ] <text>` at the end of the section: after its last
+// non-blank line, the label's own when it has none, so the blank lines
+// before what follows stay. The section runs from its label line,
+// `**<name>:**`, to the next label or heading. ok is false, and the
+// content unchanged, when there is no such label.
+func Add(content string, s Section, text string) (out string, ok bool) {
+	lines := split(content)
+	start := slices.Index(lines, "**"+string(s)+":**")
+	if start < 0 {
+		return content, false
+	}
+	at := start + 1
+	for i := start + 1; i < len(lines) && !label.MatchString(lines[i]) && !heading.MatchString(lines[i]); i++ {
+		if lines[i] != "" {
+			at = i + 1
+		}
+	}
+	return join(slices.Insert(lines, at, "- [ ] "+text)), true
 }
 
 // split and join keep the file's lines; the result always ends in a

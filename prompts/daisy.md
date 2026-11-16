@@ -15,7 +15,7 @@ Key files in `.daisy/`:
 - `tasks/alias.txt` — people references; use `~alias` notation
 - `projects/` — one file per active project; referenced with `+project` notation
 
-Commands: `daisy log`, `daisy done`, `daisy new-day`, `daisy new-week` (see `daisy help`)
+Commands: `daisy log`, `daisy add`, `daisy done`, `daisy cancel`, `daisy priority`, `daisy new-day`, `daisy new-week` (see `daisy help`)
 
 Run `daisy list` to see every active prompt and installed skill for this workspace, with a one-line trigger/description each — the discovery surface for what's available without loading it all up front.
 
@@ -55,7 +55,7 @@ Priorities: (A) now, (B) next, (C) soon, (D) someday, none = inbox.
 ## Rules
 
 1. **todo.txt is canonical.** It is the single source of truth for all tasks; when todo.txt and today.md disagree, todo.txt wins.
-2. **Bidirectional sync.** Any task change must update both `todo.txt` AND `today.md`.
+2. **Bidirectional sync.** Any task change keeps `todo.txt` and `today.md` in step: of todo.txt's open tasks, today.md holds every (A) and (B) task and none a new day would not carry.
 3. **Strip priority on completion.** Completed (`x`) and cancelled (`z`) tasks must never have a priority prefix.
 4. **Completion ≠ archival.** Marking a task done keeps it in `todo.txt`; it only moves to `done.txt` during "new week".
 5. **Cancelled tasks are soft-deleted.** They stay in `todo.txt` with a `z` prefix until the next "new day" or "new week" removes them.
@@ -89,13 +89,17 @@ All workflows are invoked via the `daisy` CLI (e.g. `daisy new-day`). Commands t
 
 **Quick Start:** `daisy log` on a today.md dated before today starts the day first (a new week when the ISO week has turned) and prints `⚡ Quick start: …` naming the steps it skipped; relay that line to the user. `daisy new-day --quick` (or `new-week --quick`) does the same start without a log entry, and nothing when today has started. → [`docs/workflows.md`](docs/workflows.md)
 
+**Add Task:** Call `daisy add "description" <priority>`, the priority `A`, `B`, `C`, `D` or `none` (inbox). A priority the request states ("(A)", "urgent") is the argument, left out of the description. The command never asks: when the user gave no priority, ask "Priority? (A=urgent, B=this week, C=soon, D=someday, or none for inbox)" before calling it. → [`docs/workflows.md`](docs/workflows.md)
+
 **Complete Task:** Call `daisy done "pattern"` (case-insensitive). Task stays in todo.txt until new-week.
 
-**Cancel Task** *(agent-performed — no CLI command)***:** Mark `[z]` in today.md, `z YYYY-MM-DD` prefix in todo.txt, auto-commit. Deleted at next new-day/new-week.
+**Cancel Task:** Call `daisy cancel "pattern"`. The task stays in todo.txt, marked `z`, until the next new-day/new-week deletes it.
 
-**Add Task** *(agent-performed — no CLI command)***:** Parse description for @context/+PROJECT/due:; ask priority if not given; add to todo.txt; add to today.md if A or B; auto-commit. → [`docs/workflows.md`](docs/workflows.md)
+**Change Priority:** Call `daisy priority "pattern" <priority>` (`A`, `B`, `C`, `D` or `none`); when the user named no new priority, ask "Change to which priority? (A/B/C/D/none)" first. It updates today.md to match, and its output line says how. → [`docs/workflows.md`](docs/workflows.md)
 
-**Change Priority** *(agent-performed — no CLI command)***:** Find task, update priority and section in today.md, auto-commit. → [`docs/workflows.md`](docs/workflows.md)
+`done`, `cancel` and `priority` each change exactly one active task: when the pattern matches several, they change nothing and list the candidates; relay them and re-run with a more specific pattern.
+
+`add`, `done`, `cancel` and `priority` keep both files in step as rule 2 says, and commit them; do not edit either file after them. So today.md `not added`, `not in it` or `removed` is the sync done, and so is `done`'s or `cancel`'s "Task not found in today.md" for a task today.md does not hold. The exception is today.md `unchanged`, which comes with a warning that today.md is missing or lacks the task's section: relay it.
 
 **Sync / Status / Home:** See [`docs/workflows.md`](docs/workflows.md).
 

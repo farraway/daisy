@@ -89,6 +89,40 @@ func (t Task) Complete(date string) Task {
 	return Task{State: Done, Closed: date, Created: t.Created, Text: t.Text}
 }
 
+// Cancel is the task cancelled on date: `z <date> <created> <text>`, the
+// priority dropped, as Complete.
+func (t Task) Cancel(date string) Task {
+	return Task{State: Cancelled, Closed: date, Created: t.Created, Text: t.Text}
+}
+
+// Insert is lines with line added after the last open line that sorts at
+// or before it, at the top when none does: todo.txt groups (A), (B), the
+// inbox (no priority), (C), (D), then (E) to (Z) (docs/task-format.md),
+// and in a file out of that order the new line still follows every line
+// that should come first. A closed or blank line is never the anchor.
+func Insert(lines []string, line string) []string {
+	r := rank(Parse(line).Priority)
+	at := 0
+	for i, l := range lines {
+		if t := Parse(l); l != "" && t.State == Open && rank(t.Priority) <= r {
+			at = i + 1
+		}
+	}
+	return append(append(append(make([]string, 0, len(lines)+1), lines[:at]...), line), lines[at:]...)
+}
+
+// rank orders priorities as todo.txt groups them, the inbox between (B)
+// and (C).
+func rank(p byte) int {
+	switch {
+	case p == 0:
+		return 2
+	case p <= 'B':
+		return int(p - 'A')
+	}
+	return int(p-'C') + 3
+}
+
 // Projects are the `+tag` words of the text, in order.
 func (t Task) Projects() []string {
 	var out []string

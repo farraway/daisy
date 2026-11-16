@@ -684,11 +684,14 @@ func TestDayWritesGoThroughLinks(t *testing.T) {
 	}{
 		{m.dayOps(m.ws, true), []string{"log", "Linked entry"}, "journal/today.md", "- 1423 Linked entry\n"},
 		{m.dayOps(m.ws, true), []string{"done", "Alpha"}, "tasks/todo.txt", "x 2026-07-28 2026-07-27 Alpha task +daisy\n"},
+		{m.dayOps(m.ws, true), []string{"add", "Linked task", "A"}, "journal/today.md", "- [ ] Linked task\n"},
+		{m.dayOps(m.ws, true), []string{"priority", "Linked task", "B"}, "tasks/todo.txt", "(B) 2026-07-28 Linked task\n"},
+		{m.dayOps(m.ws, true), []string{"cancel", "Linked task"}, "journal/today.md", "- [z] Linked task\n"},
 		{m.at(time.Date(2026, 7, 29, 8, 0, 0, 0, time.Local)), []string{"new-day"}, "journal/journal.md", "### 2026-07-28 Tuesday\n"},
 		{m.at(time.Date(2026, 8, 3, 8, 0, 0, 0, time.Local)), []string{"new-week"}, "tasks/done.txt", "x 2026-07-28 2026-07-27 Alpha task +daisy\n"},
 	}
 	for i, s := range steps {
-		if i == 3 { // six blocks once today.md is archived: one rotates
+		if i == 6 { // six blocks once today.md is archived: one rotates
 			os.WriteFile(target["journal/journal.md"], []byte(days("2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26")), 0o644)
 		}
 		if code, _, errs := runWith(s.o, s.args...); code != 0 {

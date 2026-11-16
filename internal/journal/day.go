@@ -28,26 +28,30 @@ type Carried struct {
 	Now, Next, Inbox, GitHub []string
 }
 
-// Carry sorts the open lines of todo.txt into today's sections. A line
-// mentioning @git (so @github too) goes to GitHub whatever its priority;
-// otherwise (A) is Now, (B) is Next and a dated line without a priority is
-// Inbox; anything else stays in todo.txt only. The description is the line
-// less its priority and creation date — when it has a date; an undated
-// (A) line, or a GitHub line whose priority is outside A–D, is carried
-// whole.
+// Section is one of today.md's task sections, by the name in its label
+// line, `**<name>:**`.
+type Section string
+
+const (
+	Now    Section = "Now"
+	Next   Section = "Next"
+	Inbox  Section = "Inbox"
+	GitHub Section = "GitHub PRs"
+)
+
+// Carry sorts the open lines of todo.txt into today's sections, each where
+// Place puts it.
 func Carry(lines []string) Carried {
 	var c Carried
 	for _, l := range lines {
-		text, ok := Entry(l)
-		if !ok {
-			continue
-		}
-		switch t := todo.Parse(l); {
-		case strings.Contains(l, "@git"):
+		s, text, ok := Place(l)
+		switch {
+		case !ok:
+		case s == GitHub:
 			c.GitHub = append(c.GitHub, text)
-		case t.Priority == 'A':
+		case s == Now:
 			c.Now = append(c.Now, text)
-		case t.Priority == 'B':
+		case s == Next:
 			c.Next = append(c.Next, text)
 		default:
 			c.Inbox = append(c.Inbox, text)
@@ -56,9 +60,32 @@ func Carry(lines []string) Carried {
 	return c
 }
 
+// Place is where a new day writes a todo.txt line in today.md: the
+// section and the text after `- [ ] `, and whether it carries the line at
+// all. A line mentioning @git (so @github too) goes to GitHub whatever its
+// priority; otherwise (A) is Now, (B) is Next and a dated line without a
+// priority is Inbox; anything else stays in todo.txt only. The text is
+// Entry's.
+func Place(line string) (s Section, text string, ok bool) {
+	text, ok = Entry(line)
+	switch t := todo.Parse(line); {
+	case !ok:
+		return "", "", false
+	case strings.Contains(line, "@git"):
+		return GitHub, text, true
+	case t.Priority == 'A':
+		return Now, text, true
+	case t.Priority == 'B':
+		return Next, text, true
+	}
+	return Inbox, text, true
+}
+
 // Entry is the text a new day writes for a todo.txt line, after `- [ ] `,
-// and whether it carries the line at all (Carry's rules): `done` ticks the
-// line by it.
+// and whether it carries the line at all (Place's rules): the line less
+// its priority and creation date when it has a date; an undated (A) or (B)
+// line, or an @git line whose priority is outside A–D, whole. `done`,
+// `cancel` and `priority` find the line by it.
 func Entry(line string) (string, bool) {
 	t := todo.Parse(line)
 	if t.State != todo.Open || line == "" {
