@@ -42,7 +42,7 @@ Prefer one good step over a batch of unreviewed steps.
 
 ## Maintaining the Plan
 
-If working from a PLAN.md:
+If working from a PLAN.md (under `/daisy execute` or `/daisy resume`, the step agent hands back its deviations, Deferred candidates and questions, and the orchestrator checks off the step and writes them; `prompts/plan.md` rule 20):
 
 - Check off the completed step.
 - If you deviated from the plan, record why in the Decisions section.

@@ -84,7 +84,8 @@ as before") are each one claim.
 0. Run `daisy files` and use the resolved "current plan" real path
    for every write below — PLAN.md at the workspace root is a
    symlink, and writing through it fails with "Refusing to write
-   through symlink".
+   through symlink". Every write to the plan is the orchestrator's;
+   a step agent never writes it.
 
 1. Read PLAN.md; confirm at least one unchecked "- [ ]" step exists,
    and that Decisions records the model and effort the step agents
@@ -94,33 +95,43 @@ as before") are each one claim.
 
 3. Work through steps in order, each in a fresh sub-agent (not
    a fork). The main agent orchestrates and does not implement.
-   Brief the step agent with:
-   - the plan's real path and the step's text
+   Brief the step agent with the step written in, not the plan's
+   path:
+   - the plan's Goal in a sentence
+   - the step's text
+   - the Decisions that name the step or bear on it
+   - the Constraints
    - $DAISY_ROOT/prompts/praxis.md and the testing skill
    - the review gate and its cap
    - the hand-back's shape
    - its reviewer's model and effort (from Decisions)
+   - that it neither reads nor writes the plan file
 
-4. The step agent reads praxis.md, states the step's claim,
-   does the step, reviews it to the gate, commits and checks off
-   the step (neither when it stops at the cap), and updates
-   PLAN.md:
-   - Record decisions or deviations in Decisions if any
-   - Move anything out of scope to Deferred
+4. The step agent, which neither reads nor writes the plan
+   file, reads praxis.md, states the step's claim, does the
+   step, reviews it to the gate, commits (not when it stops at
+   the cap) and hands back, with:
+   - the decisions it made, each with the alternative considered
+   - its Deferred candidates (scope that surfaced)
+   - its open questions
 
 5. The orchestrator verifies the hand-back (claim, tests,
-   daisy healthcheck --force, hygiene, commits, plan marks;
-   for a hand-back stopped at the review cap, that the step
-   has neither a commit nor its "- [x]", and its Decisions and
-   Deferred as for any step), keeps in Deferred each out-of-gate
-   remark the hand-back reports that names a defect at a file and
-   line, and records the step's metrics with daisy metrics add, two
+   daisy healthcheck --force, hygiene, commits; for a hand-back
+   stopped at the review cap, that the step has no commit), then
+   writes the plan at its real path:
+   - marks the step "- [x]" (not a step stopped at the cap)
+   - records its decisions in Decisions
+   - adds its Deferred candidates to Deferred, and keeps there
+     each out-of-gate remark the hand-back reports that names a
+     defect at a file and line
+   - adds its open questions to Open Questions
+   It then records the step's metrics with daisy metrics add, two
    rows: --role step (the step's commit range and repository,
    the step agent's model, effort and tokens) and --role review
    (the reviewers' model and effort, --review-rounds, all review
    passes' tokens summed; no range, so no lines); a step stopped
    at the review cap is recorded too, with no range and
-   --outcome "held at cap", its tokens and rounds. Then it logs
+   --outcome "held at cap", its tokens and rounds. Last it logs
    the step via daisy log, before launching the next step. It
    does not ask the user between steps.
 
@@ -155,8 +166,25 @@ findings accepted as is; the out-of-gate remarks, each with its file
 and line; at the cap,
 the open findings and the proposed fixes left uncommitted; the
 verification lines; the commits, with the step's commit range and
-its repository; the decisions; the tokens used, the step agent's and
-each reviewer's, each with its model and effort.
+its repository; the decisions made, the Deferred candidates and the
+open questions, which the orchestrator writes into the plan; the tokens
+used, the step agent's and each reviewer's, each with its model and
+effort.
+
+**The brief, not the plan.** Until 2026-11-15 each step agent was given
+the plan's real path and read the whole plan (90–104 KB, about 25k
+tokens, every step and every past decision), then wrote its own mark,
+Decisions and Deferred there, which made rule 17's symlink trap one of
+its duties (design review of 2026-11-15, effectiveness R3, P20). Now the
+orchestrator writes the step into the brief: the plan's Goal in a
+sentence, the step's text, the Decisions that name the step or bear on
+it, and the Constraints. Rule 13 already makes the step's text the
+contract (files named, code shown, a claim), so that is what the agent
+needs. Everything the agent would have written into the plan comes back
+in the hand-back, and the orchestrator writes it after verifying the
+step (the maintainer's choice, 2026-11-15). The cost is the plan's
+history: a Decision the orchestrator does not judge to bear on the step
+is one the step agent does not see.
 
 **Metrics:** `daisy metrics add` appends the step's row to
 `<home>/metrics/metrics.csv`, the one record across plans, and writes
