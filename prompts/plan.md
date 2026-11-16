@@ -84,7 +84,7 @@ Read the full `$DAISY_ROOT/prompts/plan.md` when:
 ## /daisy archive PLAN.md
 
 1. Warn if `**Status:**` is not `built` — confirm the user wants to archive anyway.
-2. **Rehome the Deferred list.** For each item under `## Deferred`, verify it against the code before moving it — some will already be done. Move the live ones into the project file's `## Deferred` section (creating it if absent), with the context that makes them intelligible; strike through and date any found already resolved. Then they live in one mutable place instead of being copied into the next plan, where a resolved item keeps looking overdue. An item becomes a `todo.txt` task when it is scheduled, not before.
+2. **Rehome the Deferred list.** For each item under the plan's `## Deferred`, verify it against the code before moving it — some will already be done. Move the live ones into the project file's `## Deferred` section (creating it if absent), with the context that makes them intelligible. Strike through and date each item found resolved, the plan's and any in the project file's `## Deferred` that the plan closed, and move it, its text kept, to `.daisy/projects/_deferred-closed/<project>.md` (creating it if absent) under a new heading at the top that names the date and the plan; the project file's `## Deferred` keeps live items only. Then the open items sit in one mutable place instead of being copied into the next plan, where a resolved item keeps looking overdue, and the closed ones stay findable without being re-read at every research phase. An item becomes a `todo.txt` task when it is scheduled, not before.
 3. Call `daisy plan archive`
 4. Log the archive event to `today.md` via `daisy log`.
 

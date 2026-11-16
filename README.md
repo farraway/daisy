@@ -99,7 +99,7 @@ behind each one.
 ├── templates/         # optional journal-day.md, journal-week.md used in place of the root's
 ├── tasks/             # todo.txt, done.txt, alias.txt
 ├── journal/           # today.md, journal.md and the rotated window files
-├── projects/          # one file per active project, and an _archive directory
+├── projects/          # one file per active project, the _archive and _deferred-closed directories
 ├── plans/             # the plan files, and an archive directory
 └── feedback/          # feedback.md, archive.md
 ```

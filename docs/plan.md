@@ -150,11 +150,30 @@ run in a scratch workspace), and tear it down afterward.
 1. Warn if "**Status:**" is not "built" — confirm the user
    wants to archive anyway.
 
-2. Call daisy plan archive
+2. Rehome the plan's Deferred list:
+   - Verify each item against the code
+   - Live: move it to the project file's ## Deferred
+   - Resolved (the plan's, or the project file's that the plan
+     closed): strike through, date, and move it, its text kept,
+     to .daisy/projects/_deferred-closed/<project>.md under a
+     new heading at the top naming the date and the plan
 
-3. Log the archive event to today.md via:
+3. Call daisy plan archive
+
+4. Log the archive event to today.md via:
    daisy log
 ```
+
+**Why closed items leave the project file.** Until 2026-11-15 a resolved
+item was struck and kept in place, and Daisy's own project file's Deferred
+section reached 561 bullets, 417 of them struck, which every research
+phase and every triage read again (design review of 2026-11-15, P23).
+The project file now holds the open work only. The closed items go to one
+file per project, not one per archive, so a single path answers "was this
+done?"; the newest heading sits at the top, where that question usually
+lands. The file lives in a directory, `_deferred-closed/` beside
+`_archive/` in the home's `projects/`, because `daisy projects` lists every
+`*.md` at the top of `projects/` as an active project.
 
 **Note:** `/daisy archive` only applies to plans created via `/daisy plan` — it requires a `PLAN.md` symlink in the workspace. Plans created by Claude's `/plan` mode are stored in `~/.claude/plans/` and are not Daisy plans; there is nothing to archive.
 

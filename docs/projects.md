@@ -14,7 +14,9 @@
 {home}/projects/
 ├── {project-name}.md          # Active projects
 ├── {project-name}.md
-└── _archive/                  # Closed projects
+├── _archive/                  # Closed projects
+│   └── {project-name}.md
+└── _deferred-closed/          # A project's resolved Deferred items, moved at each plan's archive
     └── {project-name}.md
 ```
 
