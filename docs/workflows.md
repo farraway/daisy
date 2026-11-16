@@ -168,11 +168,15 @@ plan (when `PLAN.md` links one).
 
 **Command:** "Daisy, start a new day" or "new day"
 
-**Pre-workflow:** Check yesterday's retrospective in today.md. If the Retrospective section is incomplete, offer to complete it before proceeding.
+**Pre-workflow:** Check yesterday's retrospective in today.md (in journal.md's last day-block when today.md is already dated today). If the Retrospective section is incomplete, offer to complete it before proceeding.
 
 ```
 1. Call `daisy new-day`
-   What it does:
+   When today.md is already dated today, the day has started (a `daisy
+   log` quick start or an earlier start began it): it prints "✅ Day
+   already started: today.md is dated <date>; nothing rotated" and writes
+   and commits nothing. Carry on with the post-workflow on the current day.
+   Otherwise, what it does:
    a. Archives yesterday's today.md content to journal.md
    b. Deletes tasks with "z" prefix from todo.txt (cancelled tasks)
    c. Reads todo.txt and extracts:
@@ -209,7 +213,15 @@ absent from todo.txt.
 
 ```
 1. Call `daisy new-week`
-   What it does (everything new-day does, PLUS):
+   When today.md is already dated in the current ISO week (Monday first),
+   the week has started (a `daisy log` quick start or an earlier start
+   began it): it prints "✅ Week already started: today.md is dated
+   <date>; nothing rotated" and writes and commits nothing. Carry on with
+   steps 2-4 and the post-workflow on the current week. A week begun by a
+   day's start (`daisy new-day` earlier in the week) has started too: its
+   completed tasks stay in todo.txt, and today.md keeps the day template,
+   until the next week's start.
+   Otherwise, what it does (everything new-day does, PLUS):
    a. Archives completed tasks (x prefix) from todo.txt → done.txt
       (This is the ONLY workflow that moves tasks to done.txt)
    b. Uses journal-week.md template, which adds:
@@ -255,7 +267,8 @@ by hand.
 ```
 1. Read the date of today.md's first `### YYYY-MM-DD` heading.
    - Today or later: the day has started. `--quick` prints
-     "✅ Day already started" and writes nothing; `log` just logs.
+     "✅ Day already started: today.md is dated <date>; nothing rotated"
+     and writes nothing; `log` just logs.
    - Before today: start the day, as below.
    - No today.md, or no dated heading: `--quick` starts the command's own
      (day or week); `log` refuses as it always did.
@@ -270,6 +283,10 @@ by hand.
 The quick start is the command alone. The New Day and New Week pre- and
 post-workflow steps (the retrospective check, `daisy optimize`, the
 checklist reminder) do not run; the notice line names what was skipped.
+A New Day or New Week workflow run afterwards finds its period started:
+its command prints "… already started …; nothing rotated", rotates
+nothing a second time, and the workflow does those steps on the current
+day or week.
 
 ---
 

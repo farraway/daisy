@@ -420,6 +420,9 @@ func TestOneCommitPerMutationScripted(t *testing.T) {
 		m.seed(t)
 		var calls []string
 		o := m.dayOps(m.ws, true)
+		if args[0] == "new-day" || args[0] == "new-week" { // the next week: a period not yet started
+			o.NowFn = func() time.Time { return time.Date(2026, 8, 3, 9, 0, 0, 0, time.Local) }
+		}
 		o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
 			if name != "git" {
 				return nil, nil, nil // the health check

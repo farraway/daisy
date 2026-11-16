@@ -20,7 +20,9 @@ assert_eq "$(grep -c '^- \[ \] Check calendar' <<<"$today")" "1" "and no other c
 
 # The refusals, with the run-time health check passed so the hook's own
 # message is the one seen whatever stamp an earlier run left.
+# today.md back to 2026-07-28, so neither start finds its period started.
 export DAISY_HEALTHCHECK_PASSED=1
+seed_today_basic
 rm "$FIXTURE_ROOT/templates/journal-day.md" "$home/templates/journal-day.md"
 fixture_run_cli new-day
 assert_eq "$RUN_EXIT" "1" "new-day with neither template exits 1"

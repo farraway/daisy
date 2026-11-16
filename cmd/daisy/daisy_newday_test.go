@@ -133,6 +133,8 @@ func TestNewWeek(t *testing.T) {
 		t.Errorf("commits %s", m.commits(t))
 	}
 	// a done.txt without a final newline is left alone when nothing moves
+	// (today.md back in the week before, so each run starts a week)
+	writeFile(t, filepath.Join(m.home, "journal", "today.md"), todayBasic)
 	writeFile(t, filepath.Join(m.home, "tasks", "done.txt"), "x 2026-07-01 2026-06-01 Old")
 	writeFile(t, filepath.Join(m.home, "tasks", "todo.txt"), "(A) 2026-08-01 Open\n")
 	runWith(m.at(now.Add(time.Minute)), "new-week")
@@ -140,6 +142,7 @@ func TestNewWeek(t *testing.T) {
 		t.Errorf("done.txt touched with nothing to archive: %q", got)
 	}
 	// and is not glued to when something does
+	writeFile(t, filepath.Join(m.home, "journal", "today.md"), todayBasic)
 	writeFile(t, filepath.Join(m.home, "tasks", "done.txt"), "x 2026-07-01 2026-06-01 Old")
 	writeFile(t, filepath.Join(m.home, "tasks", "todo.txt"), "x 2026-08-03 2026-08-01 New\n")
 	runWith(m.at(now.Add(time.Hour)), "new-week")
@@ -180,7 +183,8 @@ func TestNewDayRefusals(t *testing.T) {
 	}
 
 	os.Remove(filepath.Join(m.root, "templates", "journal-week.md"))
-	if code, _, errs := runWith(m.at(now), "new-week"); code != 1 || errs != templateMissing(m, "journal-week.md") {
+	nextWeek := time.Date(2026, 8, 3, 8, 5, 0, 0, time.Local) // today.md's week has started
+	if code, _, errs := runWith(m.at(nextWeek), "new-week"); code != 1 || errs != templateMissing(m, "journal-week.md") {
 		t.Errorf("no template: exit %d err %q", code, errs)
 	}
 	os.Remove(filepath.Join(m.home, "tasks", "todo.txt"))
@@ -254,7 +258,7 @@ func TestQuickStart(t *testing.T) {
 	// already started: nothing written, nothing committed
 	for _, cmd := range []string{"new-day", "new-week"} {
 		code, out, errs := runWith(m.at(time.Date(2026, 7, 28, 18, 0, 0, 0, time.Local)), cmd, "--quick")
-		if code != 0 || errs != "" || out != "✅ Day already started: 2026-07-28 Tuesday\n" {
+		if code != 0 || errs != "" || out != "✅ Day already started: today.md is dated 2026-07-28; nothing rotated\n" {
 			t.Errorf("%s --quick, started: exit %d out %q err %q", cmd, code, out, errs)
 		}
 	}
@@ -289,6 +293,79 @@ func TestQuickStart(t *testing.T) {
 	}
 	if m.commits(t) != "5" {
 		t.Errorf("commits %s, want one per start", m.commits(t))
+	}
+}
+
+// A start rotates only into a period not yet started. After a log
+// quick-starts the week, plain new-week and new-day write nothing and
+// commit nothing, to the week's last day; new-day on a later day of the
+// week starts that day, after which new-week still finds its week started;
+// the next ISO week's new-week rotates as before.
+func TestStartSkipsAPeriodStarted(t *testing.T) {
+	m := newMachine(t)
+	m.seed(t) // today.md is 2026-07-28 Tuesday, ISO week 31
+	writeFile(t, filepath.Join(m.home, "tasks", "todo.txt"), todoForNewDay)
+	writeFile(t, filepath.Join(m.home, "tasks", "done.txt"), "x 2026-07-01 2026-06-01 Old\n")
+	m.initHomeRepo(t)
+	snapshot := func() map[string]string {
+		got := map[string]string{"HEAD": m.git(t, "rev-parse", "HEAD")}
+		for _, f := range []string{"journal/today.md", "journal/journal.md", "tasks/todo.txt", "tasks/done.txt"} {
+			got[f] = m.read(t, f)
+		}
+		return got
+	}
+	mon := time.Date(2026, 8, 3, 8, 5, 0, 0, time.Local)
+	if code, out, errs := runWith(m.at(mon), "log", "First", "thing"); code != 0 || !strings.Contains(out, "✅ New week started: 2026-08-03 Monday\n") {
+		t.Fatalf("log: exit %d out %q err %q", code, out, errs)
+	}
+	// a completed task, which a second week's start would move to done.txt
+	if code, _, errs := runWith(m.at(mon.Add(time.Minute)), "done", "Ship the release"); code != 0 {
+		t.Fatalf("done: exit %d err %q", code, errs)
+	}
+
+	want := snapshot()
+	for _, tc := range []struct {
+		cmd, line string
+		at        time.Time
+	}{
+		{"new-week", "✅ Week already started: today.md is dated 2026-08-03; nothing rotated\n", mon.Add(time.Hour)},
+		{"new-day", "✅ Day already started: today.md is dated 2026-08-03; nothing rotated\n", mon.Add(2 * time.Hour)},
+		{"new-week", "✅ Week already started: today.md is dated 2026-08-03; nothing rotated\n", time.Date(2026, 8, 9, 20, 0, 0, 0, time.Local)},
+	} {
+		code, out, errs := runWith(m.at(tc.at), tc.cmd)
+		if code != 0 || errs != "" || out != tc.line {
+			t.Errorf("%s on %s: exit %d out %q err %q", tc.cmd, tc.at.Format(time.DateOnly), code, out, errs)
+		}
+		if got := snapshot(); !maps.Equal(got, want) {
+			t.Errorf("%s on %s wrote or committed:\n%q\nwant\n%q", tc.cmd, tc.at.Format(time.DateOnly), got, want)
+		}
+	}
+
+	// a later day of the week is a day not yet started; the week stays started
+	wed := time.Date(2026, 8, 5, 8, 0, 0, 0, time.Local)
+	if code, out, errs := runWith(m.at(wed), "new-day"); code != 0 || !strings.Contains(out, "✅ New day started: 2026-08-05 Wednesday\n") {
+		t.Fatalf("new-day on Wednesday: exit %d out %q err %q", code, out, errs)
+	}
+	want = snapshot()
+	if code, out, errs := runWith(m.at(wed.Add(time.Hour)), "new-week"); code != 0 || errs != "" || out != "✅ Week already started: today.md is dated 2026-08-05; nothing rotated\n" {
+		t.Errorf("new-week after Wednesday's new-day: exit %d out %q err %q", code, out, errs)
+	}
+	if got := snapshot(); !maps.Equal(got, want) {
+		t.Errorf("new-week after Wednesday's new-day wrote or committed")
+	}
+
+	// the next ISO week rotates as before
+	next := time.Date(2026, 8, 10, 8, 0, 0, 0, time.Local)
+	code, out, errs := runWith(m.at(next), "new-week")
+	if code != 0 || errs != "" || !strings.HasPrefix(out, "📦 Archived yesterday to journal.md\n") ||
+		!strings.Contains(out, "📦 Archived 1 completed task(s) to done.txt\n✅ New week started: 2026-08-10 Monday\n") {
+		t.Errorf("new-week, next week: exit %d out %q err %q", code, out, errs)
+	}
+	if got := m.read(t, "journal/journal.md"); !strings.HasSuffix(got, "\n---\n\n"+want["journal/today.md"]) {
+		t.Errorf("journal.md does not end with Wednesday's today.md:\n%s", got)
+	}
+	if got := m.read(t, "tasks/done.txt"); got != "x 2026-07-01 2026-06-01 Old\nx 2026-07-28 2026-07-02 Finished one\nx 2026-07-28 2026-07-03 Finished two +daisy\nx 2026-08-03 2026-07-27 Ship the release +daisy\n" {
+		t.Errorf("done.txt:\n%s", got)
 	}
 }
 
@@ -424,6 +501,7 @@ func TestNewDayHomeTemplate(t *testing.T) {
 		if code, out, errs := runWith(m.dayOps(m.ws, true), cmd, "--healthcheck"); code != 0 || out != "" || errs != "" {
 			t.Errorf("%s --healthcheck, the home's template only: exit %d out %q err %q", cmd, code, out, errs)
 		}
+		writeFile(t, filepath.Join(m.home, "journal", "today.md"), todayBasic) // a period not yet started
 		if code, _, errs := runWith(m.at(now.Add(time.Hour)), cmd); code != 0 || errs != "" {
 			t.Errorf("%s, the home's template only: exit %d err %q", cmd, code, errs)
 		}

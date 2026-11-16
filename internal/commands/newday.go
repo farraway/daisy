@@ -29,8 +29,8 @@ var (
 
 // NewDay archives today.md into journal.md, rotates the journal, drops
 // cancelled tasks, writes a new today.md from the day template with the
-// open tasks carried over, and commits the home once. With --quick it is
-// quickStart.
+// open tasks carried over, and commits the home once. A day already
+// started is left as it is (started). With --quick it is quickStart.
 func NewDay(c *Context) error { return startCommand(c, day) }
 
 // NewWeek is NewDay with the week template, and todo.txt's completed tasks
@@ -41,48 +41,75 @@ func startCommand(c *Context, s start) error {
 	if err := preflight(c); err != nil {
 		return err
 	}
-	if !c.Flag("--quick") {
-		return startDay(c, s)
+	if c.Flag("--quick") {
+		return quickStart(c, s)
 	}
-	started, err := quickStart(c, s)
-	if err != nil || started {
+	last, ok, err := todayDate(c)
+	if err != nil {
+		return err
+	}
+	if ok && s.started(last, c.Ops.Now()) {
+		alreadyStarted(c, s, last)
+		return nil
+	}
+	return startDay(c, s)
+}
+
+// started reports whether a today.md dated last is in s's period holding
+// now, or later: dated today for a day, in now's ISO week (Monday first)
+// for a week. A start rotates only into a period not yet started.
+func (s start) started(last, now time.Time) bool {
+	first := now
+	if s == week {
+		first = now.AddDate(0, 0, -((int(now.Weekday()) + 6) % 7))
+	}
+	return last.Format(time.DateOnly) >= first.Format(time.DateOnly)
+}
+
+func alreadyStarted(c *Context, s start, last time.Time) {
+	fmt.Fprintf(c.Stdout, "✅ %s already started: today.md is dated %s; nothing rotated\n",
+		strings.ToUpper(s.noun[:1])+s.noun[1:], last.Format(time.DateOnly))
+}
+
+// todayDate is the date of today.md's first `### YYYY-MM-DD` heading; ok
+// is false when today.md is absent or has none.
+func todayDate(c *Context) (last time.Time, ok bool, err error) {
+	b, err := c.Ops.FS().ReadFile(todayFile(c))
+	if errors.Is(err, fs.ErrNotExist) {
+		return time.Time{}, false, nil
+	} else if err != nil {
+		return time.Time{}, false, err
+	}
+	last, ok = journal.Date(string(b), c.Ops.Now().Location())
+	return last, ok, nil
+}
+
+// quickStart starts the largest period today.md is not yet in: a new week
+// when its date is in an earlier ISO week, else a new day, whichever
+// command asked; a day already started is left as it is. A today.md that
+// is absent or has no date starts s. It prints one line naming what an
+// agent's workflow does around the start and this one did not. The caller
+// has run preflight.
+func quickStart(c *Context, s start) error {
+	last, ok, err := todayDate(c)
+	if err != nil {
 		return err
 	}
 	now := c.Ops.Now()
-	fmt.Fprintf(c.Stdout, "✅ Day already started: %s %s\n", now.Format(time.DateOnly), now.Format("Monday"))
-	return nil
-}
-
-// quickStart starts the day when today.md is dated before today: a new
-// week when that date is in an earlier ISO week, else a new day, whichever
-// command asked. A today.md that is absent or has no date starts s. It
-// prints one line naming what an agent's workflow does around the start
-// and this one did not, and reports false when today was already started.
-// The caller has run preflight.
-func quickStart(c *Context, s start) (bool, error) {
-	b, err := c.Ops.FS().ReadFile(todayFile(c))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return false, err
-	}
-	now := c.Ops.Now()
-	if last, ok := journal.Date(string(b), now.Location()); ok {
-		if last.Format(time.DateOnly) >= now.Format(time.DateOnly) {
-			return false, nil
-		}
-		s = day
-		if ly, lw := last.ISOWeek(); !sameWeek(now, ly, lw) {
-			s = week
-		}
-		fmt.Fprintf(c.Stdout, "⚡ Quick start: today.md was %s; %s\n", last.Format(time.DateOnly), skipped(s))
-	} else {
+	if !ok {
 		fmt.Fprintf(c.Stdout, "⚡ Quick start: %s\n", skipped(s))
+		return startDay(c, s)
 	}
-	return true, startDay(c, s)
-}
-
-func sameWeek(t time.Time, year, week int) bool {
-	y, w := t.ISOWeek()
-	return y == year && w == week
+	if day.started(last, now) {
+		alreadyStarted(c, day, last)
+		return nil
+	}
+	s = day
+	if !week.started(last, now) {
+		s = week
+	}
+	fmt.Fprintf(c.Stdout, "⚡ Quick start: today.md was %s; %s\n", last.Format(time.DateOnly), skipped(s))
+	return startDay(c, s)
 }
 
 // skipped is what the agent's New Day or New Week workflow does around

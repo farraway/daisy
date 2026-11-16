@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"daisy/internal/journal"
 	"daisy/internal/ops"
@@ -21,8 +20,8 @@ func Log(c *Context) error {
 	}
 	if b, err := c.Ops.FS().ReadFile(todayFile(c)); err == nil {
 		now := c.Ops.Now()
-		if last, ok := journal.Date(string(b), now.Location()); ok && last.Format(time.DateOnly) < now.Format(time.DateOnly) {
-			if _, err := quickStart(c, day); err != nil {
+		if last, ok := journal.Date(string(b), now.Location()); ok && !day.started(last, now) {
+			if err := quickStart(c, day); err != nil {
 				return err
 			}
 		}
