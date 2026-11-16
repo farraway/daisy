@@ -14,7 +14,21 @@ import (
 // substring. Read-only.
 var Tasks = readOnly(tasks)
 
+// tasksReport is the matching lines, verbatim.
+type tasksReport struct {
+	Tasks []string `json:"tasks"`
+	warned
+}
+
 func tasks(c *Context) error {
+	return printReport(c, func() (*tasksReport, error) { return readTasks(c) }, func(r *tasksReport) {
+		for _, l := range r.Tasks {
+			fmt.Fprintln(c.Stdout, l)
+		}
+	})
+}
+
+func readTasks(c *Context) (*tasksReport, error) {
 	fs := c.Ops.FS()
 	files := []string{c.todoFile(), c.doneFile()}
 	for _, f := range c.Flags {
@@ -40,7 +54,7 @@ func tasks(c *Context) error {
 		for i, f := range files {
 			names[i] = filepath.Base(f)
 		}
-		return fmt.Errorf("Error: no task file to search: %s in %s", strings.Join(names, ", "), filepath.Dir(c.todoFile()))
+		return nil, fmt.Errorf("Error: no task file to search: %s in %s", strings.Join(names, ", "), filepath.Dir(c.todoFile()))
 	}
 
 	var scope []string
@@ -61,18 +75,16 @@ func tasks(c *Context) error {
 		pattern = c.Args[0]
 	}
 
-	printed := 0
+	r := &tasksReport{Tasks: []string{}}
 	for _, l := range lines {
-		if l == "" || !inScope(l, scope) || !todo.ContainsFold(l, pattern) {
-			continue
+		if l != "" && inScope(l, scope) && todo.ContainsFold(l, pattern) {
+			r.Tasks = append(r.Tasks, l)
 		}
-		fmt.Fprintln(c.Stdout, l)
-		printed++
 	}
-	if pattern != "" && printed == 0 {
-		return fmt.Errorf("No tasks match: %s", pattern)
+	if pattern != "" && len(r.Tasks) == 0 {
+		return nil, fmt.Errorf("No tasks match: %s", pattern)
 	}
-	return nil
+	return r, nil
 }
 
 // inScope: the line carries one of the projects; an empty scope is every line.

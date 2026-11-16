@@ -20,22 +20,68 @@ var (
 	logEntry      = regexp.MustCompile(`^- [0-9]{4} `)
 )
 
+// workspaceReport is status's report: the binding, the workspace's
+// projects, today's counts (nil without today.md), the backlog (nil
+// without todo.txt) and the current plan (nil unless PLAN.md is a link).
+// The text stops at a missing today.md; the report reads on.
+type workspaceReport struct {
+	Home      string            `json:"home"`
+	Identity  string            `json:"identity"`
+	Workspace string            `json:"workspace"`
+	Projects  workspaceProjects `json:"workspace_projects"`
+	Today     *todayCounts      `json:"today"`
+	Backlog   *int              `json:"backlog"`
+	Plan      *currentPlan      `json:"plan"`
+	warned
+}
+
+type todayCounts struct {
+	Pending    int `json:"pending"`
+	Completed  int `json:"completed"`
+	LogEntries int `json:"log_entries"`
+}
+
+// currentPlan is the plan PLAN.md links to: its first line, less a
+// heading's marks, and its real path.
+type currentPlan struct {
+	Title string `json:"title"`
+	Path  string `json:"path"`
+}
+
 func status(c *Context) error {
-	fs := c.Ops.FS()
+	if c.Flag(JSONFlag) {
+		return writeJSON(c, func() (jsonDoc, error) {
+			reportDrift(c)
+			return readWorkspace(c), nil
+		})
+	}
+	r := readWorkspace(c)
 	fmt.Fprintln(c.Stdout, header(c))
 	reportDrift(c)
 	fmt.Fprintf(c.Stdout, "Projects: %s\n\n", c.Env.ProjectsSummary())
-
-	today, err := fs.ReadFile(filepath.Join(c.Env.Home, "journal", "today.md"))
-	if err != nil {
+	if r.Today == nil {
 		fmt.Fprintln(c.Stdout, "  No today.md — run 'daisy new-day' to start.")
 		return nil
 	}
-	lines := strings.Split(string(today), "\n")
-	pending, completed := countMatching(lines, pendingLine), countMatching(lines, completedLine)
-	fmt.Fprintf(c.Stdout, "Tasks:  %d pending, %d completed today\n", pending, completed)
-	fmt.Fprintf(c.Stdout, "Log:    %d entries\n", countLogEntries(lines))
+	fmt.Fprintf(c.Stdout, "Tasks:  %d pending, %d completed today\n", r.Today.Pending, r.Today.Completed)
+	fmt.Fprintf(c.Stdout, "Log:    %d entries\n", r.Today.LogEntries)
+	if r.Backlog != nil {
+		fmt.Fprintf(c.Stdout, "Backlog: %d tasks in todo.txt\n", *r.Backlog)
+	}
+	if r.Plan != nil {
+		fmt.Fprintf(c.Stdout, "\nPlan:   %s\n        %s\n", r.Plan.Title, r.Plan.Path)
+	}
+	return nil
+}
 
+// readWorkspace reads status's report.
+func readWorkspace(c *Context) *workspaceReport {
+	fs := c.Ops.FS()
+	r := &workspaceReport{Home: c.Env.HomeName, Identity: c.Env.Identity, Workspace: c.Env.Workspace, Projects: projectsOf(c.Env)}
+	if today, err := fs.ReadFile(filepath.Join(c.Env.Home, "journal", "today.md")); err == nil {
+		lines := strings.Split(string(today), "\n")
+		r.Today = &todayCounts{countMatching(lines, pendingLine), countMatching(lines, completedLine), countLogEntries(lines)}
+	}
 	if b, err := fs.ReadFile(filepath.Join(c.Env.Home, "tasks", "todo.txt")); err == nil {
 		backlog := 0
 		for _, l := range todo.Lines(string(b)) {
@@ -43,23 +89,20 @@ func status(c *Context) error {
 				backlog++
 			}
 		}
-		fmt.Fprintf(c.Stdout, "Backlog: %d tasks in todo.txt\n", backlog)
+		r.Backlog = &backlog
 	}
-
 	plan := filepath.Join(c.Env.Workspace, "PLAN.md")
 	if fi, err := fs.Lstat(plan); err == nil && fi.Mode()&fsModeSymlink != 0 {
-		path := env.RealPath(fs, plan)
-		title := ""
-		if b, err := fs.ReadFile(path); err == nil {
+		r.Plan = &currentPlan{Path: env.RealPath(fs, plan)}
+		if b, err := fs.ReadFile(r.Plan.Path); err == nil {
 			first, _, _ := strings.Cut(string(b), "\n")
-			title = first
+			r.Plan.Title = first
 			if t, ok := strings.CutPrefix(first, "#"); ok {
-				title = strings.TrimLeft(strings.TrimLeft(t, "#"), " ")
+				r.Plan.Title = strings.TrimLeft(strings.TrimLeft(t, "#"), " ")
 			}
 		}
-		fmt.Fprintf(c.Stdout, "\nPlan:   %s\n        %s\n", title, path)
 	}
-	return nil
+	return r
 }
 
 func countMatching(lines []string, re *regexp.Regexp) int {

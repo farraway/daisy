@@ -287,7 +287,7 @@ A point marked *not established as of <date>* is one no recorded run had
 settled by that date; it stays open until a run settles it, and section
 13's Established by the first real run records what the runs settled.
 The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
-`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill`, `swarm status [--json]`, `swarm list`, `swarm journal [--mark <run>]`, `swarm pause [<n>]`, `swarm
+`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill`, `swarm status [--json]`, `swarm list [--json]`, `swarm journal [--json|--mark <run>]`, `swarm pause [<n>]`, `swarm
 resume [<n>]`, `swarm restart`, and the maintainer's `swarm triage <n>`, `swarm accept
 <n>`, `swarm class <n> routine|architecture`, `swarm approve <n>`, `swarm
 merge <n>`, `swarm unblock <n> <comment...>`, `swarm block <n> --by <m>`,
@@ -5148,10 +5148,10 @@ to within a cent per model of `status`'s.
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm list`, anywhere: in a clone or not, in a Daisy workspace or not; any argument is usage (exit 2) |
+| Usage | `daisy swarm list [--json]`, anywhere: in a clone or not, in a Daisy workspace or not; any argument is usage (exit 2) |
 | Reads | the directories under `$DAISY_LOCAL/swarm/` three levels down, `<forge-host>/<owner>/<repo>`, each a `<state>` (`credentials/`, the login slots, left out); in each, `clone`, `home` and `paused`; the `swarm.json` of the recorded clone and of the clone the working folder is in (its forge fields, to name its `<state>`); no secret, no forge call, no Docker |
 | Writes | nothing, anywhere |
-| Stdout | `Swarms on this machine ($DAISY_LOCAL/swarm):`, then one line per `<state>`, in path order: `  <owner>/<repo> on <forge-host>: ` and, separated by `; `, `clone <path>` (`clone not recorded` when `<state>/clone` is absent; `clone <path> (not a clone of it now)` when the path holds no clone's top or a clone of another swarm), `home <name>` or `no home` (`<state>/home`), `not paused` or `paused since <time>[: <reason>]` (`<state>/paused`), and `here <swarm>` when the working folder is in a clone of that swarm (Finding the swarm, above); with none, `No swarm on this machine ($DAISY_LOCAL/swarm holds no swarm's state)` |
+| Stdout | `Swarms on this machine ($DAISY_LOCAL/swarm):`, then one line per `<state>`, in path order: `  <owner>/<repo> on <forge-host>: ` and, separated by `; `, `clone <path>` (`clone not recorded` when `<state>/clone` is absent; `clone <path> (not a clone of it now)` when the path holds no clone's top or a clone of another swarm), `home <name>` or `no home` (`<state>/home`), `not paused` or `paused since <time>[: <reason>]` (`<state>/paused`), and `here <swarm>` when the working folder is in a clone of that swarm (Finding the swarm, above); with none, `No swarm on this machine ($DAISY_LOCAL/swarm holds no swarm's state)`; with `--json`, the same facts as one JSON document (docs/cli.md, `--json` and `daisy swarm list`) |
 | Exit codes | 0, with or without swarms; 1 a directory under `$DAISY_LOCAL/swarm` unreadable; 2 usage |
 | Ops | ReadOnly |
 
@@ -5169,11 +5169,11 @@ as the service restarts could refuse it.
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm journal [--mark <run>]`, in the clone; a positional argument is usage (exit 2) |
+| Usage | `daisy swarm journal [--json\|--mark <run>]`, in the clone; a positional argument, or `--json` with `--mark`, is usage (exit 2) |
 | Reads | `swarm.json`'s forge fields (to name `<state>`); the journal as this machine holds it: `journal/<YYYY-MM-DD>.md` in `<state>/notes`, the host's clone the journal is pushed from (7.6, The run's record), then the lines `<state>/journal` queues; `<state>/connect-seen`; no secret, no forge call, no Docker |
 | Writes | without `--mark`, nothing; with it, `<state>/connect-seen` (section 2) |
-| Stdout | the lines after the one `<state>/connect-seen` names, each `<YYYY-MM-DD> - <HHMM> <run>: …` under `Journal of <owner>/<repo> since <run> (marked seen <time>): <k> lines`, then `Mark them seen: daisy swarm journal --mark <run>`, the last line's run; none after it, `Journal of <owner>/<repo>: nothing since <run> (marked seen <time>)`; no mark, or one naming a run the journal does not hold, the newest day's lines under `Journal of <owner>/<repo>, <YYYY-MM-DD> (no line marked seen): <k> lines`; no line at all, `Journal of <owner>/<repo>: no line yet`. With `--mark`, `✓ Marked the journal seen through <run> (<state>/connect-seen)` |
-| Stderr | `⚠ <state>/connect-seen names <run>, which the journal does not hold: showing its newest day` |
+| Stdout | the lines after the one `<state>/connect-seen` names, each `<YYYY-MM-DD> - <HHMM> <run>: …` under `Journal of <owner>/<repo> since <run> (marked seen <time>): <k> lines`, then `Mark them seen: daisy swarm journal --mark <run>`, the last line's run; none after it, `Journal of <owner>/<repo>: nothing since <run> (marked seen <time>)`; no mark, or one naming a run the journal does not hold, the newest day's lines under `Journal of <owner>/<repo>, <YYYY-MM-DD> (no line marked seen): <k> lines`; no line at all, `Journal of <owner>/<repo>: no line yet`. With `--mark`, `✓ Marked the journal seen through <run> (<state>/connect-seen)`. With `--json`, the same facts as one JSON document (docs/cli.md, `--json` and `daisy swarm journal`) |
+| Stderr | `⚠ <state>/connect-seen names <run>, which the journal does not hold: showing its newest day`; with `--json`, under the document's `warnings`, stderr empty |
 | Exit codes | 0; 1 no swarm found, invalid forge fields, a journal file or the queue unreadable, with `--mark` a run the journal holds no line of (`Error: swarm journal --mark: the journal holds no line of <run>; mark a run its lines name`, nothing written) or the write failing; 2 usage |
 | Ops | ReadOnly; with `--mark`, Real |
 

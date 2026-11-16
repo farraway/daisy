@@ -103,53 +103,138 @@ var List = readOnly(list)
 // ListHealth: the workspace and its home resolve, which the cli has checked.
 var ListHealth = readOnly(func(*Context) error { return nil })
 
+// listReport is list's report: the home's prompts in include.txt's order
+// (nil without include.txt) and the installed skills. read is how far
+// the reading got: the text prints what was read before a failure, as
+// the listing always has, and --json prints only a whole report.
+type listReport struct {
+	Home    string       `json:"home"`
+	Prompts []listPrompt `json:"prompts"`
+	Skills  []listSkill  `json:"skills"`
+	read    listRead
+	warned
+}
+
+// listRead is how far readList got: the ledger (the header printed), the
+// prompts (the Skills section begun), or the whole listing.
+type listRead int
+
+const (
+	readLedger listRead = iota + 1
+	readPrompts
+	readAll
+)
+
+// listPrompt is an include.txt entry: lazy or always loaded; a lazy
+// one's trigger summary, nil when it has none; the path looked up when
+// the prompt is missing, else nil; and the home's override.
+type listPrompt struct {
+	Name    string  `json:"name"`
+	Lazy    bool    `json:"lazy"`
+	Trigger *string `json:"trigger"`
+	Missing *string `json:"missing"`
+	override
+}
+
+// listSkill is an installed skill: its short_description (its
+// description with --full, or without one) and the home's override.
+type listSkill struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	override
+}
+
+// override is a home's override of a root file: "layered", "full" or nil,
+// and behind, a full one the root has changed since.
+type override struct {
+	Form   *string `json:"override"`
+	Behind bool    `json:"behind"`
+}
+
 func list(c *Context) error {
+	if c.Flag(JSONFlag) {
+		return writeJSON(c, func() (jsonDoc, error) { return readList(c) })
+	}
+	r, err := readList(c)
+	if r.read >= readLedger {
+		fmt.Fprintf(c.Stdout, "Prompts (%s):\n", r.Home)
+	}
+	if r.read >= readPrompts && r.Prompts == nil {
+		fmt.Fprintln(c.Stdout, "  (no include.txt found)")
+	}
+	for _, p := range r.Prompts {
+		switch {
+		case p.Missing != nil:
+			fmt.Fprintf(c.Stdout, "  %s (missing: %s)\n", pad(p.Name, 20), *p.Missing)
+		case p.Lazy && p.Trigger == nil:
+			fmt.Fprintf(c.Stdout, "  %s (lazy, no trigger summary)%s\n", pad(p.Name, 20), p.tag())
+		case p.Lazy:
+			fmt.Fprintf(c.Stdout, "  %s %s%s\n", pad(p.Name, 20), *p.Trigger, p.tag())
+		default:
+			fmt.Fprintf(c.Stdout, "  %s (always loaded)%s\n", pad(p.Name, 20), p.tag())
+		}
+	}
+	if r.read >= readPrompts {
+		fmt.Fprintln(c.Stdout)
+		fmt.Fprintln(c.Stdout, "Skills:")
+	}
+	if r.read == readAll && len(r.Skills) == 0 {
+		fmt.Fprintf(c.Stdout, "  (none installed — run: daisy init %s)\n", r.Home)
+	}
+	for _, s := range r.Skills {
+		fmt.Fprintf(c.Stdout, "  %s %s%s\n", pad(s.Name, 20), s.Description, s.tag())
+	}
+	return err
+}
+
+// readList reads list's report.
+func readList(c *Context) (*listReport, error) {
 	fs := c.Ops.FS()
+	r := &listReport{Home: c.Env.HomeName, Skills: []listSkill{}}
 	ledger, err := prompt.ReadLedger(fs, c.Env.Home)
 	if err != nil {
-		return fmt.Errorf("Error: cannot read %s: %v", filepath.Join(c.Env.Home, prompt.LedgerRel), err)
+		return r, fmt.Errorf("Error: cannot read %s: %v", filepath.Join(c.Env.Home, prompt.LedgerRel), err)
 	}
-	fmt.Fprintf(c.Stdout, "Prompts (%s):\n", c.Env.HomeName)
+	r.read = readLedger
 	include := filepath.Join(c.Env.Home, "include.txt")
-	if fi, err := fs.Stat(include); err != nil || !fi.Mode().IsRegular() {
-		fmt.Fprintln(c.Stdout, "  (no include.txt found)")
-	} else {
+	if fi, err := fs.Stat(include); err == nil && fi.Mode().IsRegular() {
 		data, err := fs.ReadFile(include)
 		if err != nil {
-			return fmt.Errorf("Error: cannot read %s: %v", include, err)
+			return r, fmt.Errorf("Error: cannot read %s: %v", include, err)
 		}
 		entries, err := prompt.ParseInclude(data)
 		if err != nil {
-			return fmt.Errorf("Error: %s: %v", include, err)
+			return r, fmt.Errorf("Error: %s: %v", include, err)
 		}
+		r.Prompts = []listPrompt{}
 		for _, en := range entries {
+			p := listPrompt{Name: en.Name, Lazy: en.Lazy}
 			path, ok := prompt.Lookup(fs, c.Env.Home, c.Env.Root, en.Name)
 			src := prompt.Locate(fs, c.Env.Home, c.Env.Root, "prompts/"+en.Name+".md")
 			switch {
 			case !ok:
-				fmt.Fprintf(c.Stdout, "  %s (missing: %s)\n", pad(en.Name, 20), path)
+				p.Missing = &path
 			case en.Lazy:
 				body, err := src.Text(fs)
 				if err != nil {
-					return fmt.Errorf("Error: %v", err)
+					return r, fmt.Errorf("Error: %v", err)
 				}
-				fmt.Fprintf(c.Stdout, "  %s %s%s\n", pad(en.Name, 20), triggerSummary(body), overrideTag(fs, src, ledger))
+				if t := triggerSummary(body); t != "" {
+					p.Trigger = &t
+				}
+				p.override = overrideOf(fs, src, ledger)
 			default:
-				fmt.Fprintf(c.Stdout, "  %s (always loaded)%s\n", pad(en.Name, 20), overrideTag(fs, src, ledger))
+				p.override = overrideOf(fs, src, ledger)
 			}
+			r.Prompts = append(r.Prompts, p)
 		}
 	}
-	fmt.Fprintln(c.Stdout)
+	r.read = readPrompts
 
-	fmt.Fprintln(c.Stdout, "Skills:")
-	skills := skill.All(fs, skill.InstalledDirs(c.Ops.Getenv("HOME"), c.Env.Workspace))
-	if len(skills) == 0 {
-		fmt.Fprintf(c.Stdout, "  (none installed — run: daisy init %s)\n", c.Env.HomeName)
-	}
-	for _, s := range skills {
+	for _, s := range skill.All(fs, skill.InstalledDirs(c.Ops.Getenv("HOME"), c.Env.Workspace)) {
 		doc, err := fs.ReadFile(s.Path)
 		if err != nil {
-			return fmt.Errorf("Error: cannot read %s: %v", s.Path, err)
+			return r, fmt.Errorf("Error: cannot read %s: %v", s.Path, err)
 		}
 		text, _ := skill.Field(doc, "description")
 		if !c.Flag("--full") {
@@ -159,28 +244,42 @@ func list(c *Context) error {
 		}
 		text = strings.TrimPrefix(strings.TrimSuffix(text, `"`), `"`)
 		src := prompt.Locate(fs, c.Env.Home, c.Env.Root, "skills/"+s.Name+"/SKILL.md")
-		fmt.Fprintf(c.Stdout, "  %s %s%s\n", pad(s.Name, 20), text, overrideTag(fs, src, ledger))
+		r.Skills = append(r.Skills, listSkill{s.Name, text, overrideOf(fs, src, ledger)})
 	}
-	return nil
+	r.read = readAll
+	return r, nil
 }
 
-// overrideTag marks a home override: ` [layered]`, ` [full]`, or
-// ` [full, behind]` when the root has changed since the copy.
-func overrideTag(fs ops.FS, src prompt.Source, ledger map[string]string) string {
-	switch {
-	case src.Form == prompt.Layered:
-		return " [layered]"
-	case src.Behind(fs, ledger):
-		return " [full, behind]"
-	case src.Form == prompt.Full:
-		return " [full]"
+// overrideOf is src's override: layered, full, or full and behind, the
+// root changed since the copy; none for the root's own.
+func overrideOf(fs ops.FS, src prompt.Source, ledger map[string]string) override {
+	var form string
+	switch src.Form {
+	case prompt.Layered:
+		form = "layered"
+	case prompt.Full:
+		form = "full"
+	default:
+		return override{}
 	}
-	return ""
+	return override{&form, src.Behind(fs, ledger)}
+}
+
+// tag is the text's mark of the override: ` [layered]`, ` [full]` or
+// ` [full, behind]`.
+func (o override) tag() string {
+	switch {
+	case o.Form == nil:
+		return ""
+	case o.Behind:
+		return " [" + *o.Form + ", behind]"
+	}
+	return " [" + *o.Form + "]"
 }
 
 // triggerSummary is the first line of the trigger that says something: not
 // the `Read the full …` pointer, a list marker dropped, not empty; cut to
-// 97 characters and `...` past 100.
+// 97 characters and `...` past 100; "" when none does.
 func triggerSummary(body []byte) string {
 	for _, line := range prompt.Trigger(body) {
 		if strings.HasPrefix(line, "Read the full") {
@@ -195,7 +294,7 @@ func triggerSummary(body []byte) string {
 		}
 		return line
 	}
-	return "(lazy, no trigger summary)"
+	return ""
 }
 
 // pad left-justifies s in width bytes, as the bash's printf %-Ns did.

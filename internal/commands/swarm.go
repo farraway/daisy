@@ -1024,8 +1024,7 @@ func issueList(ns []int) string {
 func readStateNotes(fs ops.FS, state string, noBrief bool) statusState {
 	s := statusState{Path: state, NoActiveBrief: noBrief}
 	if b, err := fs.ReadFile(filepath.Join(state, "paused")); err == nil {
-		since, reason, _ := strings.Cut(strings.TrimPrefix(firstLine(b), "paused "), ": ")
-		s.Paused = &statusSince{since, reason}
+		s.Paused = pausedSince(b)
 	}
 	if b, err := fs.ReadFile(reconcile.RestartFile(state)); err == nil {
 		at := strings.TrimPrefix(firstLine(b), "restart ")
@@ -1040,6 +1039,13 @@ func readStateNotes(fs ops.FS, state string, noBrief bool) statusState {
 		s.OwnerHeld = &statusHold{since, reason, append([]int{}, waits...)}
 	}
 	return s
+}
+
+// pausedSince is <state>/paused's note: since when, and why ("" when it
+// gives no reason).
+func pausedSince(b []byte) *statusSince {
+	since, reason, _ := strings.Cut(strings.TrimPrefix(firstLine(b), "paused "), ": ")
+	return &statusSince{since, reason}
 }
 
 // stateNotes is the State line's tail.

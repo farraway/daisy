@@ -378,11 +378,11 @@ func TestHelpForms(t *testing.T) {
 	m := newMachine(t)
 	for _, args := range [][]string{{}, {"help"}, {"--help"}, {"-h"}} {
 		code, out, errs := m.run(t, m.ws, args...)
-		if code != 0 || errs != "" || !strings.HasPrefix(out, "Usage: daisy <command> [args...]\n\nWorkspace\n") || !strings.Contains(out, "\n  status                            Home, identity, projects, today's counts, active plan\n") {
+		if code != 0 || errs != "" || !strings.HasPrefix(out, "Usage: daisy <command> [args...]\n\nWorkspace\n") || !strings.Contains(out, "\n  status [--json]                   Home, identity, projects, today's counts, active plan\n") {
 			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)
 		}
 	}
-	for usage, args := range map[string][]string{"status": {"status", "--help"}, "files [--json|<name>]": {"files", "-h"}} {
+	for usage, args := range map[string][]string{"status [--json]": {"status", "--help"}, "files [--json|<name>]": {"files", "-h"}} {
 		code, out, errs := m.run(t, m.ws, args...)
 		if code != 0 || errs != "" || !strings.HasPrefix(out, "Usage: daisy "+usage+"\n") {
 			t.Errorf("%v: exit %d out %q err %q", args, code, out, errs)
@@ -394,7 +394,7 @@ func TestHelpForms(t *testing.T) {
 	if !strings.Contains(out, "\n  plan new ") || !strings.Contains(out, "\nSwarm\n  swarm init [--defaults] [--api <url>]") || !strings.Contains(out, "\n  swarm resume ") {
 		t.Errorf("tree does not describe this build:\n%s", out)
 	}
-	if !strings.Contains(out, "\n  tasks [--all] [--todo|--done] [pattern]\n                                    Search tasks (read-only)\n") {
+	if !strings.Contains(out, "\n  tasks [--all] [--todo|--done] [--json] [pattern]\n                                    Search tasks (read-only)\n") {
 		t.Errorf("long usage not wrapped:\n%s", out)
 	}
 }

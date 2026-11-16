@@ -20,73 +20,153 @@ import (
 // --since, the rows written at or after that time.
 var Metrics = readOnly(metricsSummary)
 
+// metricsReport is the summary: the CSV, whether it exists, the flags
+// that took its rows, the rows taken and how many of them a later record
+// supersedes, and a group per kind and model.
+type metricsReport struct {
+	File      string `json:"file"`
+	Exists    bool   `json:"exists"`
+	RowsTaken struct {
+		Swarm *string `json:"swarm"`
+		Since *string `json:"since"`
+	} `json:"rows_taken"`
+	Rows       int            `json:"rows"`
+	Superseded int            `json:"superseded"`
+	Groups     []metricsGroup `json:"groups"`
+	warned
+}
+
+// metricsGroup is the rows of one kind and model (nil, the text's
+// (none), when left empty): each sum over the rows that have the value,
+// nil when none does, and how many do; the lines over the measured rows,
+// nil when none is.
+type metricsGroup struct {
+	Kind              string        `json:"kind"`
+	Model             *string       `json:"model"`
+	Rows              int           `json:"rows"`
+	Tokens            *int          `json:"tokens"`
+	RowsWithTokens    int           `json:"rows_with_tokens"`
+	Cost              *float64      `json:"cost"`
+	RowsWithCost      int           `json:"rows_with_cost"`
+	Estimated         *float64      `json:"estimated"`
+	RowsWithEstimated int           `json:"rows_with_estimated"`
+	Measured          int           `json:"measured"`
+	Code              *metricsLines `json:"code"`
+	Tests             *metricsLines `json:"tests"`
+	Prose             *metricsLines `json:"prose"`
+}
+
+type metricsLines struct {
+	Added   int `json:"added"`
+	Removed int `json:"removed"`
+}
+
+func (l *metricsLines) String() string { return fmt.Sprintf("+%d/-%d", l.Added, l.Removed) }
+
 func metricsSummary(c *Context) error {
+	return printReport(c, func() (*metricsReport, error) { return readMetrics(c) }, func(r *metricsReport) {
+		if !r.Exists {
+			fmt.Fprintf(c.Stdout, "No metrics recorded yet (%s does not exist)\n  Record a plan step: daisy metrics add --step <n> --range <a>..<b>\n", r.File)
+			return
+		}
+		fmt.Fprintf(c.Stdout, "Metrics: %s\n", r.File)
+		var given []string
+		if v := r.RowsTaken.Swarm; v != nil {
+			given = append(given, "--swarm "+*v)
+		}
+		if v := r.RowsTaken.Since; v != nil {
+			given = append(given, "--since "+*v)
+		}
+		if len(given) > 0 {
+			fmt.Fprintf(c.Stdout, "  Rows taken: %s\n", strings.Join(given, " "))
+		}
+		fmt.Fprintf(c.Stdout, "  %d rows, %d superseded by a later record of the same step or run\n", r.Rows, r.Superseded)
+		if len(r.Groups) == 0 {
+			return
+		}
+		fmt.Fprintln(c.Stdout)
+		w := tabwriter.NewWriter(c.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "  kind\tmodel\trows\ttokens\tcost\testimated\tmeasured\tcode\ttests\tprose")
+		for _, g := range r.Groups {
+			model := "(none)"
+			if g.Model != nil {
+				model = *g.Model
+			}
+			code, tests, prose := "—", "—", "—"
+			if g.Code != nil {
+				code, tests, prose = g.Code.String(), g.Tests.String(), g.Prose.String()
+			}
+			fmt.Fprintf(w, "  %s\t%s\t%d\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n", g.Kind, model, g.Rows,
+				some(g.Tokens, "%d", g.RowsWithTokens, g.Rows), some(g.Cost, "$%.2f", g.RowsWithCost, g.Rows),
+				some(g.Estimated, "$%.2f", g.RowsWithEstimated, g.Rows), g.Measured, code, tests, prose)
+		}
+		w.Flush()
+		fmt.Fprintln(c.Stdout, "\n  A sum counts only the rows that have the value: (k/n) when k of the n do.")
+	})
+}
+
+// readMetrics reads the summary of the home's metrics CSV.
+func readMetrics(c *Context) (*metricsReport, error) {
 	var f metrics.Filter
-	var given []string
+	r := &metricsReport{File: env.MetricsFile(c.Env.Home), Groups: []metricsGroup{}}
 	if v, ok := c.Value("--swarm"); ok {
-		f.Swarm = v
-		given = append(given, "--swarm "+v)
+		f.Swarm, r.RowsTaken.Swarm = v, &v
 	}
 	if v, ok := c.Value("--since"); ok {
 		t, err := time.Parse(time.RFC3339, v)
 		if err != nil {
-			return fmt.Errorf("Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: %s)", v)
+			return nil, fmt.Errorf("Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: %s)", v)
 		}
-		f.Since = t
-		given = append(given, "--since "+v)
+		f.Since, r.RowsTaken.Since = t, &v
 	}
-	file := env.MetricsFile(c.Env.Home)
-	b, err := c.Ops.FS().ReadFile(file)
-	if errors.Is(err, fs.ErrNotExist) && !lexists(c.Ops.FS(), file) {
-		fmt.Fprintf(c.Stdout, "No metrics recorded yet (%s does not exist)\n  Record a plan step: daisy metrics add --step <n> --range <a>..<b>\n", file)
-		return nil
+	b, err := c.Ops.FS().ReadFile(r.File)
+	if errors.Is(err, fs.ErrNotExist) && !lexists(c.Ops.FS(), r.File) {
+		return r, nil
 	}
 	if err != nil {
-		return fmt.Errorf("Error: cannot read %s: %v", file, err)
+		return nil, fmt.Errorf("Error: cannot read %s: %v", r.File, err)
 	}
 	s, err := metrics.Summarize(b, f)
 	if err != nil {
-		return fmt.Errorf("Error: cannot read %s: %v", file, err)
+		return nil, fmt.Errorf("Error: cannot read %s: %v", r.File, err)
 	}
-	fmt.Fprintf(c.Stdout, "Metrics: %s\n", file)
-	if len(given) > 0 {
-		fmt.Fprintf(c.Stdout, "  Rows taken: %s\n", strings.Join(given, " "))
-	}
-	fmt.Fprintf(c.Stdout, "  %d rows, %d superseded by a later record of the same step or run\n", s.Rows, s.Superseded)
-	if len(s.Groups) == 0 {
-		return nil
-	}
-	fmt.Fprintln(c.Stdout)
-	w := tabwriter.NewWriter(c.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "  kind\tmodel\trows\ttokens\tcost\testimated\tmeasured\tcode\ttests\tprose")
+	r.Exists, r.Rows, r.Superseded = true, s.Rows, s.Superseded
 	for _, g := range s.Groups {
-		model := g.Model
-		if model == "" {
-			model = "(none)"
+		mg := metricsGroup{Kind: string(g.Kind), Rows: g.Rows, RowsWithTokens: g.WithTokens, RowsWithCost: g.WithCost,
+			RowsWithEstimated: g.WithEstimate, Measured: g.Measured}
+		if g.Model != "" {
+			mg.Model = &g.Model
 		}
-		code, tests, prose := "—", "—", "—"
+		if g.WithTokens > 0 {
+			mg.Tokens = &g.Tokens
+		}
+		if g.WithCost > 0 {
+			mg.Cost = &g.Cost
+		}
+		if g.WithEstimate > 0 {
+			mg.Estimated = &g.Estimate
+		}
 		if g.Measured > 0 {
-			code, tests, prose = g.Lines.Code(), g.Lines.Tests(), g.Lines.Prose()
+			l := g.Lines
+			mg.Code = &metricsLines{l.CodeAdded, l.CodeRemoved}
+			mg.Tests = &metricsLines{l.TestsAdded, l.TestsRemoved}
+			mg.Prose = &metricsLines{l.ProseAdded, l.ProseRemoved}
 		}
-		fmt.Fprintf(w, "  %s\t%s\t%d\t%s\t%s\t%s\t%d\t%s\t%s\t%s\n", g.Kind, model, g.Rows,
-			some(fmt.Sprint(g.Tokens), g.WithTokens, g.Rows), some(fmt.Sprintf("$%.2f", g.Cost), g.WithCost, g.Rows),
-			some(fmt.Sprintf("$%.2f", g.Estimate), g.WithEstimate, g.Rows), g.Measured, code, tests, prose)
+		r.Groups = append(r.Groups, mg)
 	}
-	w.Flush()
-	fmt.Fprintln(c.Stdout, "\n  A sum counts only the rows that have the value: (k/n) when k of the n do.")
-	return nil
+	return r, nil
 }
 
-// some is a sum over the k of n rows that have the value: "—" for none,
-// the sum and (k/n) for some.
-func some(sum string, k, n int) string {
+// some is a sum over the k of n rows that have the value, in format: "—"
+// for none, the sum and (k/n) for some.
+func some[T any](sum *T, format string, k, n int) string {
 	switch {
-	case k == 0:
+	case sum == nil:
 		return "—"
 	case k < n:
-		return fmt.Sprintf("%s (%d/%d)", sum, k, n)
+		return fmt.Sprintf(format+" (%d/%d)", *sum, k, n)
 	}
-	return sum
+	return fmt.Sprintf(format, *sum)
 }
 
 // metricsCells are the flags whose values are cells CheckCell rules on.

@@ -21,6 +21,21 @@ type warned struct {
 
 func (w *warned) warn(lines []string) { w.Warnings = lines }
 
+// printReport prints the report read reads: with --json as one JSON
+// document (writeJSON), else as text, printed once every read is made.
+// Both forms come from the one value, so they cannot drift.
+func printReport[R jsonDoc](c *Context, read func() (R, error), text func(R)) error {
+	if c.Flag(JSONFlag) {
+		return writeJSON(c, func() (jsonDoc, error) { return read() })
+	}
+	r, err := read()
+	if err != nil {
+		return err
+	}
+	text(r)
+	return nil
+}
+
 // writeJSON runs report with c.Stderr held. On success the document it
 // returns, the held lines as its warnings, is written to stdout and
 // nothing to stderr. On a failure stdout stays empty and the held lines

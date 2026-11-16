@@ -195,21 +195,21 @@ then replace the block below with the output of `daisy help --markdown`.
 |---|---|---|
 | Workspace | `daisy init [<identity> [path]]` | Bind a workspace to an identity and its home (bare: re-initialize this one) |
 | Workspace | `daisy clean [-f]` | Remove Daisy from this workspace |
-| Workspace | `daisy status` | Home, identity, projects, today's counts, active plan |
+| Workspace | `daisy status [--json]` | Home, identity, projects, today's counts, active plan |
 | Workspace | `daisy files [--json\|<name>]` | Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …) |
-| Workspace | `daisy list` | Active prompts and installed skills |
+| Workspace | `daisy list [--json]` | Active prompts and installed skills |
 | Workspace | `daisy help [<command>\|<skill>\|--markdown]` | This help, detail for one command or skill, or the Command Reference |
 | Day | `daisy new-day [--quick]` | Start a new day (--quick: only if not started; a week if one turned) |
 | Day | `daisy new-week [--quick]` | Start a new week (--quick: as new-day --quick) |
 | Day | `daisy log <message...>` | Add a log entry to today.md, quick-starting a stale day |
 | Day | `daisy done <pattern>` | Mark a task complete |
-| Day | `daisy tasks [--all] [--todo\|--done] [pattern]` | Search tasks (read-only) |
-| Day | `daisy projects [--archived]` | List active or archived projects |
+| Day | `daisy tasks [--all] [--todo\|--done] [--json] [pattern]` | Search tasks (read-only) |
+| Day | `daisy projects [--archived] [--json]` | List active or archived projects |
 | Day | `daisy rotate` | Rotate journal.md into window files |
 | Plans | `daisy plan new [--spec] <description> [+project]` | Create a plan (or an unregistered spec draft) |
 | Plans | `daisy plan pickup <path>` | Promote a spec draft into a tracked plan |
 | Plans | `daisy plan archive` | Archive the active plan |
-| Plans | `daisy metrics [--swarm <owner>/<repo>] [--since <time>]` | Summary of the home's metrics CSV, by kind and model (read-only) |
+| Plans | `daisy metrics [--swarm <owner>/<repo>] [--since <time>] [--json]` | Summary of the home's metrics CSV, by kind and model (read-only) |
 | Plans | `daisy metrics add --step <s> [--plan <p>] [--range <r> [--repo <dir>]] [<flag> <value>...]` | Record a plan step: a row in the home's metrics CSV and in the plan's ## Metrics table |
 | Homes and identities | `daisy home new <name> [path]` | Create a home; prompts for identity and location |
 | Homes and identities | `daisy home add <name> <path>` | Register an existing home |
@@ -227,8 +227,8 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm apply [--once]` | Reconcile the forge: launch members, post their output, move labels |
 | Swarm | `daisy swarm metrics --backfill` | Write a metrics row for each collected run the home's CSV has none for |
 | Swarm | `daisy swarm status [--json]` | Stages, gates, what waits for you, running members (read-only) |
-| Swarm | `daisy swarm list` | The swarms this machine runs: clone, home, pause; from anywhere (read-only) |
-| Swarm | `daisy swarm journal [--mark <run>]` | The journal since the line marked seen (read-only); --mark moves the mark |
+| Swarm | `daisy swarm list [--json]` | The swarms this machine runs: clone, home, pause; from anywhere (read-only) |
+| Swarm | `daisy swarm journal [--json\|--mark <run>]` | The journal since the line marked seen (read-only); --mark moves the mark |
 | Swarm | `daisy swarm pause [<n>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue) |
 | Swarm | `daisy swarm resume [<n>]` | Launch members again and release the owner's held batch (with <n>, that issue) |
 | Swarm | `daisy swarm restart` | Have the running apply re-execute itself, onto the installed build, once no member runs |

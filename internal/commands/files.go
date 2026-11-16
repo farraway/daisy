@@ -64,11 +64,24 @@ type filesReport struct {
 	PreRotation     *string            `json:"pre_rotation"`
 	JournalWindows  []namedPath        `json:"journal_windows"` // the rolling windows, then the closed ones
 	FeedbackArchive *string            `json:"feedback_archive"`
-	Projects        struct {
-		Names  []string           `json:"names"`
-		Source env.ProjectsSource `json:"source"`
-	} `json:"workspace_projects"`
+	Projects        workspaceProjects  `json:"workspace_projects"`
 	warned
+}
+
+// workspaceProjects is the projects the workspace resolves to and where
+// from: what the text's `workspace` and `Projects:` rows summarise.
+type workspaceProjects struct {
+	Names  []string           `json:"names"`
+	Source env.ProjectsSource `json:"source"`
+}
+
+// projectsOf is the workspace's projects, [] for none.
+func projectsOf(e env.Env) workspaceProjects {
+	p := workspaceProjects{e.Projects, e.ProjectsSource}
+	if p.Names == nil {
+		p.Names = []string{}
+	}
+	return p
 }
 
 // namedPath is a row whose name varies: its file's name and real path.
@@ -192,10 +205,7 @@ func listFiles(c *Context) *filesReport {
 	if p := filepath.Join(home, "feedback", "archive.md"); exists(p) {
 		r.FeedbackArchive = real(p)
 	}
-	r.Projects.Names, r.Projects.Source = c.Env.Projects, c.Env.ProjectsSource
-	if r.Projects.Names == nil {
-		r.Projects.Names = []string{}
-	}
+	r.Projects = projectsOf(c.Env)
 	return r
 }
 

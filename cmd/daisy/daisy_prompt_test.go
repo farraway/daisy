@@ -137,6 +137,37 @@ func TestList(t *testing.T) {
 	}
 }
 
+// A failure part-way through the listing leaves on stdout what was read
+// before it, as the listing always has; with --json, nothing.
+func TestListPrintsWhatItReadBeforeAFailure(t *testing.T) {
+	m := promptMachine(t)
+	writeFile(t, filepath.Join(m.home, "include.txt"), "full\n\"broken\n")
+	for _, args := range [][]string{{"list"}, {"list", "--json"}} {
+		code, out, errs := m.run(t, m.ws, args...)
+		want := "Prompts (testhome):\n"
+		if len(args) == 2 {
+			want = ""
+		}
+		if code != 1 || out != want || !strings.HasPrefix(errs, "Error: "+filepath.Join(m.home, "include.txt")+": ") {
+			t.Errorf("%v, include.txt unparsable: exit %d out %q err %q", args, code, out, errs)
+		}
+	}
+	writeFile(t, filepath.Join(m.home, "include.txt"), "full\n")
+	skill := filepath.Join(m.ws, ".claude", "skills", "locked", "SKILL.md")
+	writeFile(t, skill, "---\ndescription: d\n---\n")
+	os.Chmod(skill, 0)
+	for _, args := range [][]string{{"list"}, {"list", "--json"}} {
+		code, out, errs := m.run(t, m.ws, args...)
+		want := "Prompts (testhome):\n  full                 (always loaded)\n\nSkills:\n"
+		if len(args) == 2 {
+			want = ""
+		}
+		if code != 1 || out != want || !strings.HasPrefix(errs, "Error: cannot read "+skill) {
+			t.Errorf("%v, a SKILL.md unreadable: exit %d out %q err %q", args, code, out, errs)
+		}
+	}
+}
+
 // A trigger's first line longer than 100 characters is cut to 97 and `...`.
 func TestListCutsLongTriggers(t *testing.T) {
 	m := promptMachine(t)
@@ -177,7 +208,7 @@ func TestHelpForASkill(t *testing.T) {
 func TestHelpForACommand(t *testing.T) {
 	m := newMachine(t)
 	code, out, errs := m.run(t, m.ws, "help", "status")
-	usage := "Usage: daisy status\n\nHome, identity, projects, today's counts, active plan\n"
+	usage := "Usage: daisy status [--json]\n\nHome, identity, projects, today's counts, active plan\n"
 	if code != 0 || errs != "" || out != usage {
 		t.Errorf("exit %d out %q err %q", code, out, errs)
 	}

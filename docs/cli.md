@@ -51,9 +51,9 @@ Usage: daisy <command> [args...]
 Workspace
   init [<identity> [path]]          Bind a workspace to an identity and its home (bare: re-initialize this one)
   clean [-f]                        Remove Daisy from this workspace
-  status                            Home, identity, projects, today's counts, active plan
+  status [--json]                   Home, identity, projects, today's counts, active plan
   files [--json|<name>]             Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …)
-  list                              Active prompts and installed skills
+  list [--json]                     Active prompts and installed skills
   help [<command>|<skill>|--markdown]
                                     This help, detail for one command or skill, or the Command Reference
 
@@ -62,9 +62,9 @@ Day
   new-week [--quick]                Start a new week (--quick: as new-day --quick)
   log <message...>                  Add a log entry to today.md, quick-starting a stale day
   done <pattern>                    Mark a task complete
-  tasks [--all] [--todo|--done] [pattern]
+  tasks [--all] [--todo|--done] [--json] [pattern]
                                     Search tasks (read-only)
-  projects [--archived]             List active or archived projects
+  projects [--archived] [--json]    List active or archived projects
   rotate                            Rotate journal.md into window files
 
 Plans
@@ -72,7 +72,7 @@ Plans
                                     Create a plan (or an unregistered spec draft)
   plan pickup <path>                Promote a spec draft into a tracked plan
   plan archive                      Archive the active plan
-  metrics [--swarm <owner>/<repo>] [--since <time>]
+  metrics [--swarm <owner>/<repo>] [--since <time>] [--json]
                                     Summary of the home's metrics CSV, by kind and model (read-only)
   metrics add --step <s> [--plan <p>] [--range <r> [--repo <dir>]] [<flag> <value>...]
                                     Record a plan step: a row in the home's metrics CSV and in the plan's ## Metrics table
@@ -101,8 +101,9 @@ Swarm
   swarm apply [--once]              Reconcile the forge: launch members, post their output, move labels
   swarm metrics --backfill          Write a metrics row for each collected run the home's CSV has none for
   swarm status [--json]             Stages, gates, what waits for you, running members (read-only)
-  swarm list                        The swarms this machine runs: clone, home, pause; from anywhere (read-only)
-  swarm journal [--mark <run>]      The journal since the line marked seen (read-only); --mark moves the mark
+  swarm list [--json]               The swarms this machine runs: clone, home, pause; from anywhere (read-only)
+  swarm journal [--json|--mark <run>]
+                                    The journal since the line marked seen (read-only); --mark moves the mark
   swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
   swarm resume [<n>]                Launch members again and release the owner's held batch (with <n>, that issue)
   swarm restart                     Have the running apply re-execute itself, onto the installed build, once no member runs
@@ -223,7 +224,7 @@ home's name; a value that is not a name is refused: `not an identity
 name` [77], exit 1.
 
 **Binding drift.** `status` and `files` (without a name) print one warning line per fault on
-stderr (`files --json` under its `warnings`, below), each ending with the fix `daisy init` [76] `<identity>`: a missing
+stderr (with `--json`, under their `warnings`, below), each ending with the fix `daisy init` [76] `<identity>`: a missing
 or wrong link (naming the file, `today.md` [76]), a git key whose value is
 not the recorded identity's (naming the key, `user.email` [76]; `differs`
 [77]), an identity file that `does not match what init recorded` [77], a
@@ -232,26 +233,34 @@ applied identity nothing claims (naming the author, `Pelican Moorhen` [79]).
 A clean binding prints nothing on stderr (asserted empty in 76, 77, 79).
 
 **`--json`.** A read-only command that takes `--json` among its leading
-flags (as built, `files` and `swarm status`; a command without it refuses
-it as an unknown flag, exit 2) prints, with it, its report as one JSON
+flags (as built, `status`, `files`, `list`, `tasks`, `projects`,
+`metrics`, `swarm status`, `swarm list` and `swarm journal`; a command
+without it refuses it as an unknown flag, exit 2) prints, with it, its
+report as one JSON
 document on stdout and nothing else: an object, indented two spaces,
-ending in a newline. The text stays the default, unchanged. The document
+ending in a newline. The text stays the default, unchanged, and both
+forms are printed from one report (the document only once it is read
+whole; `list`'s text, as before, also from what it read before a
+failure). The document
 carries the facts the text prints, not its rendering: one key per label,
 in `snake_case` (but the names a command already gives a thing, the
 `files <name>` names, a stage's label); an issue is a number, a stage its
-label (`swarm:plan-0-posted`), a path the real path the text prints. Every key
+label (`swarm:plan-0-posted`), a path the real path the text prints, and
+a fact two commands print under one key in both (`workspace_projects`). Every key
 is always present: `null` where the text prints nothing for a value
 that is absent (no current plan, no budget), `[]` where it lists none.
 The keys are pinned by tests (`TestFilesJSON`, `TestSwarmStatusJSON`,
-`TestSwarmStatusJSONThroughGitea`), so a change to one is a change to
+`TestSwarmStatusJSONThroughGitea`, `TestReadOnlyJSON`), so a change to one is a change to
 this contract. Every document has `warnings`: the lines the command
 would have written on stderr (drift, a secrets file's problem, a
 blocker naming no issue), each as the text form prints it, `[]` when
 none, so on success stderr carries nothing. A failure writes no
 document, partial or whole: stdout stays empty, the exit code is the
 text form's, and stderr carries the held warnings and then the error, as
-without the flag; a caller tells success by the exit code alone *(Step 9
-of the plan remediating the 2026-11-15 design review, P1a)*.
+without the flag (`tasks --json <pattern>` matching nothing is exit 1,
+`No tasks match: <pattern>`, no document); a caller tells success by the exit code alone *(Step 9
+of the plan remediating the 2026-11-15 design review, P1a; the other
+read-only commands its Step 10, P1b)*.
 
 **Environment read.** `DAISY_ROOT` (required: without it a command exits 1
 with `Error: DAISY_ROOT not set` and the `~/.zshenv` line to add;
@@ -382,19 +391,40 @@ and that `init` in a subdirectory of a linked worktree is allowed.
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 17): Go |
+| Status | as built (Step 17): Go; `--json` since Step 10 of the plan remediating the 2026-11-15 design review |
 | Legacy | `daisy status` → built in to `daisy.sh` (`cmd_status`), deleted in Step 24 |
-| Usage | `daisy status` |
+| Usage | `daisy status [--json]` |
 | Exit codes | 0; 1 outside a workspace or when the home does not resolve (`cannot be a home` [68], `not registered` [68]); 2 with any argument (the bash ignored them) |
-| Stdout | line 1 `Daisy \| home: <home> \| identity: <identity> \| workspace: <path>` (asserted below; `home: second` [68], `workspace: ` [78]); `Projects: <+tags> (from .daisy/project)` / `(from directory name)` or `Projects: (none)` (`+chessgrid` [45]); blank; `Tasks:  N pending, N completed today`, `Log:    N entries`, `Backlog: N tasks in todo.txt`; `Plan:   <title>` and its path when `PLAN.md` is a symlink; or `  No today.md — run 'daisy new-day' to start.` |
-| Stderr | drift warnings (Common behaviour); empty on a clean binding |
+| Stdout | line 1 `Daisy \| home: <home> \| identity: <identity> \| workspace: <path>` (asserted below; `home: second` [68], `workspace: ` [78]); `Projects: <+tags> (from .daisy/project)` / `(from directory name)` or `Projects: (none)` (`+chessgrid` [45]); blank; `Tasks:  N pending, N completed today`, `Log:    N entries`, `Backlog: N tasks in todo.txt`; `Plan:   <title>` and its path when `PLAN.md` is a symlink; or `  No today.md — run 'daisy new-day' to start.`. With `--json`: one document (below) |
+| Stderr | drift warnings (Common behaviour); empty on a clean binding; with `--json`, empty, the warnings under `warnings` |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |
-| Cases | 45 |
+| Cases | 45; `TestStatusCountsAndPlan`, `TestReadOnlyJSON` |
 
 The first line is asserted with the pipes: `home: testhome | identity: testhome` [76]
 and `home: testhome | identity: pelicanmoor` [77].
+
+`status --json` (Common behaviour, `--json`) has `home`, `identity` and
+`workspace`, the first line's three; `workspace_projects`, the Projects
+line, as `files --json` gives it; `today`, `{"pending", "completed",
+"log_entries"}`, `null` without `today.md`; `backlog`, the open tasks in
+`todo.txt`, `null` without it; `plan`, `{"title", "path"}`, `null` when
+`PLAN.md` is not a link; and `warnings`. The text stops at a missing
+`today.md`; the document still gives `backlog` and `plan`:
+
+```json
+{
+  "home": "work",
+  "identity": "work",
+  "workspace": "/srv/ws/chessgrid.260807",
+  "workspace_projects": {"names": ["chessgrid"], "source": "convention"},
+  "today": {"pending": 2, "completed": 1, "log_entries": 2},
+  "backlog": 2,
+  "plan": {"title": "The Plan", "path": "/srv/homes/work/plans/261116.the-plan.plan.md"},
+  "warnings": []
+}
+```
 
 ### daisy files
 
@@ -451,16 +481,37 @@ of `explicit` (`.daisy/project`), `convention` (the directory name) and
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 20): Go |
+| Status | as built (Step 20): Go; `--json` since Step 10 of the plan remediating the 2026-11-15 design review |
 | Legacy | `daisy list` → the bash `list` script, deleted in Step 20 |
-| Usage | `daisy list [--full]` (`--full` prints each skill's `description` instead of `short_description`; not in the help line, kept as an unasserted flag) |
-| Exit codes | 0; 1 outside a workspace, for an `include.txt` that cannot be read or a line of it with an unmatched quote (where the bash died mid-listing), or a prompt or SKILL.md that cannot be read; 2 with any other argument |
-| Stdout | `Prompts (<home>):` then one `  %-20s <trigger summary or (always loaded)>` per `include.txt` entry (the width in bytes, as the bash's `printf`), `(missing: <path>)` for an absent prompt, `(no include.txt found)`; the summary is the trigger's first line that is not `Read the full…` and not empty once a leading `- ` is dropped, cut to 97 characters and `...` past 100, else `(lazy, no trigger summary)`; a home override then ` [layered]`, ` [full]` or ` [full, behind]` (the root changed since the copy, `feedback/.overrides`) [88], skills too; blank; `Skills:` then one `  %-20s <text>` per installed skill, user-level (`~/.claude/skills`) then workspace (`.claude/skills`), workspace overriding by name, in byte order of name (the bash's `sort` collated by locale); `<text>` is `short_description`, else `description`, one surrounding `"` dropped; or `(none installed — run: daisy init <home>)` |
+| Usage | `daisy list [--full] [--json]` (`--full` prints each skill's `description` instead of `short_description`; not in the help line, kept as an unasserted flag) |
+| Exit codes | 0; 1 outside a workspace, for an `include.txt` that cannot be read or a line of it with an unmatched quote (where the bash died mid-listing), or a prompt or SKILL.md that cannot be read, stdout then holding the listing read before the failure (`TestListPrintsWhatItReadBeforeAFailure`; with `--json`, nothing); 2 with any other argument |
+| Stdout | `Prompts (<home>):` then one `  %-20s <trigger summary or (always loaded)>` per `include.txt` entry (the width in bytes, as the bash's `printf`), `(missing: <path>)` for an absent prompt, `(no include.txt found)`; the summary is the trigger's first line that is not `Read the full…` and not empty once a leading `- ` is dropped, cut to 97 characters and `...` past 100, else `(lazy, no trigger summary)`; a home override then ` [layered]`, ` [full]` or ` [full, behind]` (the root changed since the copy, `feedback/.overrides`) [88], skills too; blank; `Skills:` then one `  %-20s <text>` per installed skill, user-level (`~/.claude/skills`) then workspace (`.claude/skills`), workspace overriding by name, in byte order of name (the bash's `sort` collated by locale); `<text>` is `short_description`, else `description`, one surrounding `"` dropped; or `(none installed — run: daisy init <home>)`. With `--json`: one document (below) |
 | Stderr | the refusals above |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |
-| Cases | 85 |
+| Cases | 85; `TestList`, `TestListPrintsWhatItReadBeforeAFailure`, `TestReadOnlyJSON` |
+
+`list --json` (Common behaviour, `--json`) has `home`; `prompts`, one
+per `include.txt` entry in its order, `null` without `include.txt`, each
+`name`, `lazy`, `trigger` (a lazy prompt's summary as the text prints
+it, `null` for one without and for a prompt always loaded), `missing`
+(the path looked up, `null` when found), `override` (`layered`, `full`
+or `null`) and `behind` (`true` for ` [full, behind]`); `skills`, in the
+text's order, each `name`, `description` (the text's, `--full`
+included), `override` and `behind`; and `warnings`:
+
+```json
+{
+  "home": "work",
+  "prompts": [
+    {"name": "daisy", "lazy": false, "trigger": null, "missing": null, "override": null, "behind": false},
+    {"name": "plan", "lazy": true, "trigger": "When the user says plan.", "missing": null, "override": "full", "behind": true}
+  ],
+  "skills": [{"name": "testing", "description": "Claims, seams, fakes, probes", "override": null, "behind": false}],
+  "warnings": []
+}
+```
 
 ### daisy help
 
@@ -542,31 +593,31 @@ of `explicit` (`.daisy/project`), `convention` (the directory name) and
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 18): Go |
+| Status | as built (Step 18): Go; `--json` since Step 10 of the plan remediating the 2026-11-15 design review |
 | Legacy | `daisy tasks [--all] [--todo\|--done] [pattern]` → the bash `tasks` script, deleted in Step 18 |
-| Usage | `daisy tasks [--all] [--todo\|--done] [pattern]` |
+| Usage | `daisy tasks [--all] [--todo\|--done] [--json] [pattern]` |
 | Arguments | scope: this workspace's projects by default — a line is in scope when one of its `+tag` words (whitespace-delimited, compared without case) is a workspace project — `--all` every project [19, 46, 47]; files: both by default [22], `--todo` = `todo.txt` [20], `--done` = `done.txt` [21], the last of the two given wins; `[pattern]`: literal, case-insensitive substring [24] (an empty pattern is none), a leading `-` is a pattern (`-1 point deduction task` [25]) once the three flags above have been consumed — except the sole-argument `--help`/`-h` and `--healthcheck`, and a word shaped like a long flag, an unknown flag (Common behaviour); flags before the pattern; a second positional is a usage error, exit 2 |
 | Exit codes | 0 when at least one line is printed [19–25, 27, 29, 46–48], and with no pattern whatever the scope matched; 1 when a pattern is given and matches nothing, with empty stdout [26] and `No tasks match: <pattern>` on stderr; 1 when none of the selected files exists (`Error: no task file to search: …`); a missing `done.txt` alone is not an error [27] |
-| Stdout | the matching lines verbatim and nothing else — no header (`Active projects` [29]), no decoration [29], blank lines skipped; every task line when no pattern is given [23] |
-| Stderr | when the workspace resolves to no project and `--all` was not given: `⚠️  This workspace resolves to no project; listing every project's tasks.` (`no project` [48]) and `  Bind it by creating .daisy/project, or pass --all to ask for this deliberately.`; the `.daisy/project` typo warnings, as `status` prints them |
+| Stdout | the matching lines verbatim and nothing else — no header (`Active projects` [29]), no decoration [29], blank lines skipped; every task line when no pattern is given [23]. With `--json`, `{"tasks": [<line>, …], "warnings": [...]}`, the same lines in the same order, `[]` for none (a pattern matching none is the failure above) |
+| Stderr | when the workspace resolves to no project and `--all` was not given: `⚠️  This workspace resolves to no project; listing every project's tasks.` (`no project` [48]) and `  Bind it by creating .daisy/project, or pass --all to ask for this deliberately.`; the `.daisy/project` typo warnings, as `status` prints them; with `--json`, empty on success, these lines under `warnings` |
 | Ops | ReadOnly (`todo.txt` and `done.txt` byte-identical and no commit after a query [28]) |
 | Writes | none |
 | Commits | none |
-| Cases | 19-30, 46, 47, 48 |
+| Cases | 19-30, 46, 47, 48; `TestReadOnlyJSON` |
 
 ### daisy projects
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 18): Go |
+| Status | as built (Step 18): Go; `--json` since Step 10 of the plan remediating the 2026-11-15 design review |
 | Legacy | `daisy projects [--archived]` → the bash `projects` script, deleted in Step 18 |
-| Usage | `daisy projects [--archived]` |
+| Usage | `daisy projects [--archived] [--json]` |
 | Exit codes | 0; 1 outside a workspace; 2 with a positional argument |
-| Stdout | `Active projects:` (or `Archived projects:` for `projects/_archive/`) then `  %-30s <real path>` per `*.md` file, in byte order; `Active projects: none` when there are none |
+| Stdout | `Active projects:` (or `Archived projects:` for `projects/_archive/`) then `  %-30s <real path>` per `*.md` file, in byte order; `Active projects: none` when there are none. With `--json`, `{"archived": <bool>, "projects": [{"name", "path"}, …], "warnings": []}`, the same files in the same order, `[]` for none |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |
-| Cases | none (cases 42–44 pin project *resolution* through `files`) |
+| Cases | none (cases 42–44 pin project *resolution* through `files`); `TestReadOnlyJSON` |
 
 ### daisy rotate
 
@@ -631,15 +682,42 @@ of `explicit` (`.daisy/project`), `convention` (the directory name) and
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 16a of the plan that clears the Deferred list, 2026-11-12): Go (`internal/metrics`, `internal/commands/metrics.go`) |
+| Status | as built (Step 16a of the plan that clears the Deferred list, 2026-11-12): Go (`internal/metrics`, `internal/commands/metrics.go`); `--json` since Step 10 of the plan remediating the 2026-11-15 design review |
 | Legacy | none |
-| Usage | `daisy metrics [--swarm <owner>/<repo>] [--since <time>]`: `--swarm` takes only that swarm's runs (kind `swarm-run`, `plan_or_swarm` the value), `--since` (an RFC 3339 time) only the rows whose `when` is not before it, both together the swarm's runs since then (Step 15 of the plan for the inbox requests F27-F35, for `/daisy swarm connect`'s metrics since a model or prompt change); a positional argument is usage, exit 2 |
+| Usage | `daisy metrics [--swarm <owner>/<repo>] [--since <time>] [--json]`: `--swarm` takes only that swarm's runs (kind `swarm-run`, `plan_or_swarm` the value), `--since` (an RFC 3339 time) only the rows whose `when` is not before it, both together the swarm's runs since then (Step 15 of the plan for the inbox requests F27-F35, for `/daisy swarm connect`'s metrics since a model or prompt change); a positional argument is usage, exit 2 |
 | Exit codes | 0, the summary or none recorded yet; 1 outside a workspace, `--since` not RFC 3339 (`Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: <value>)`), or when the CSV cannot be read, its header is not the columns `metrics add` writes, or a row has the wrong number of cells or a cell `metrics add` would refuse (the row named), or, with `--since`, a row's `when` is not RFC 3339 (`row <i>: when is not an RFC 3339 time (got: <value>)`) |
-| Stdout | `No metrics recorded yet (<path> does not exist)` and the line that records one; else `Metrics: <path>`, with a flag `  Rows taken: --swarm <owner>/<repo> --since <time>` (the flags given, in that order), `  N rows, K superseded by a later record of the same step or run` (N the rows the flags take, K those of them a later row of the same key supersedes, whether or not the flags take that row) (a later row with the same kind, plan or swarm, step or run and role supersedes an earlier one: the CSV is only appended to, so a correction is a new row), then one line per kind and model, in that order: rows, tokens (`tokens_total`, else `tokens_in` and `tokens_out` added), cost (`cost_reported`), estimated (`cost_estimated`), measured (rows with lines), code, tests and prose (`+added/-removed` over the measured rows); a sum over only some of the rows reads `<sum> (k/n)`, over none `—`; a model left empty is `(none)` |
+| Stdout | `No metrics recorded yet (<path> does not exist)` and the line that records one; else `Metrics: <path>`, with a flag `  Rows taken: --swarm <owner>/<repo> --since <time>` (the flags given, in that order), `  N rows, K superseded by a later record of the same step or run` (N the rows the flags take, K those of them a later row of the same key supersedes, whether or not the flags take that row) (a later row with the same kind, plan or swarm, step or run and role supersedes an earlier one: the CSV is only appended to, so a correction is a new row), then one line per kind and model, in that order: rows, tokens (`tokens_total`, else `tokens_in` and `tokens_out` added), cost (`cost_reported`), estimated (`cost_estimated`), measured (rows with lines), code, tests and prose (`+added/-removed` over the measured rows); a sum over only some of the rows reads `<sum> (k/n)`, over none `—`; a model left empty is `(none)`. With `--json`: one document (below) |
 | Ops | ReadOnly |
 | Writes | none |
 | Commits | none |
-| Cases | none; `TestMetricsAddRecordsAStep`, `TestSummarize`, `TestSummarizeFilter`, `TestSwarmConnectBriefing` |
+| Cases | none; `TestMetricsAddRecordsAStep`, `TestSummarize`, `TestSummarizeFilter`, `TestSwarmConnectBriefing`, `TestReadOnlyJSON` |
+
+`metrics --json` (Common behaviour, `--json`) has `file`, the CSV's
+path; `exists`, `false` for none recorded yet (the rest then zero, `null`
+and `[]`); `rows_taken`, `{"swarm", "since"}`, each flag's value or
+`null`; `rows` and `superseded`; `groups`, one per kind and model in the
+text's order, each `kind`, `model` (`null` for `(none)`), `rows`,
+`tokens`, `cost` and `estimated` (each the sum, `null` for the text's
+`—`, beside `rows_with_tokens`, `rows_with_cost` and
+`rows_with_estimated`, the text's `k`), `measured`, and `code`, `tests`
+and `prose`, each `{"added", "removed"}`, `null` when no row is
+measured; and `warnings`. A cost is in dollars, unrounded. Abridged:
+
+```json
+{
+  "file": "/srv/homes/work/metrics/metrics.csv",
+  "exists": true,
+  "rows_taken": {"swarm": null, "since": "2026-11-01T00:00:00Z"},
+  "rows": 3,
+  "superseded": 0,
+  "groups": [
+    {"kind": "plan-step", "model": "claude-opus-5-5", "rows": 2, "tokens": 1200, "rows_with_tokens": 1,
+     "cost": 1.5, "rows_with_cost": 1, "estimated": null, "rows_with_estimated": 0, "measured": 1,
+     "code": {"added": 10, "removed": 2}, "tests": {"added": 5, "removed": 0}, "prose": {"added": 3, "removed": 1}}
+  ],
+  "warnings": []
+}
+```
 
 ### daisy metrics add
 
@@ -923,30 +1001,68 @@ else `null`); and `warnings`. Abridged:
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 15 of the plan for the inbox requests F27-F35): Go (`internal/commands/swarm_connect.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Step 15 of the plan for the inbox requests F27-F35): Go (`internal/commands/swarm_connect.go`); the contract is [docs/swarm.md](swarm.md) section 11; `--json` since Step 10 of the plan remediating the 2026-11-15 design review |
 | Legacy | none |
-| Usage | `daisy swarm list`: anywhere, in a clone or not, with no Daisy workspace needed; any argument is usage on stderr, exit 2 |
+| Usage | `daisy swarm list [--json]`: anywhere, in a clone or not, with no Daisy workspace needed; any argument is usage on stderr, exit 2 |
 | Exit codes | 0, also with no swarm; 1 a directory under `$DAISY_LOCAL/swarm` unreadable; 2 usage |
-| Stdout | `Swarms on this machine ($DAISY_LOCAL/swarm):`, then per `<state>` in path order `  <owner>/<repo> on <forge-host>: clone <path>; home <name>; not paused` (`clone not recorded`, `clone <path> (not a clone of it now)`; `no home`; `paused since <time>[: <reason>]`), and `; here <swarm>` when the working folder is in a clone of that swarm; with none, `No swarm on this machine ($DAISY_LOCAL/swarm holds no swarm's state)` |
+| Stdout | `Swarms on this machine ($DAISY_LOCAL/swarm):`, then per `<state>` in path order `  <owner>/<repo> on <forge-host>: clone <path>; home <name>; not paused` (`clone not recorded`, `clone <path> (not a clone of it now)`; `no home`; `paused since <time>[: <reason>]`), and `; here <swarm>` when the working folder is in a clone of that swarm; with none, `No swarm on this machine ($DAISY_LOCAL/swarm holds no swarm's state)`. With `--json`: one document (below) |
 | Ops | ReadOnly |
 | Writes | nothing |
 | Commits | none |
-| Cases | none; `TestSwarmConnectBriefing`, `TestSwarmListStates` |
+| Cases | none; `TestSwarmConnectBriefing`, `TestSwarmListStates`, `TestReadOnlyJSON` |
+
+`swarm list --json` (Common behaviour, `--json`) has `dir`,
+`$DAISY_LOCAL/swarm`; `swarms`, in the text's order, `[]` with none,
+each `repository`, `host`, `clone` (`{"path", "current"}`, `current`
+`false` for the text's `(not a clone of it now)`, `null` for `clone not
+recorded`), `home` (`null` for `no home`), `paused` (`{"since",
+"reason"}` as `swarm status --json` gives it, `null` for `not paused`)
+and `here` (the clone the working folder is in, else `null`); and
+`warnings`:
+
+```json
+{
+  "dir": "/srv/local/daisy/swarm",
+  "swarms": [
+    {"repository": "acme/swarm-app", "host": "forge.example.net", "clone": {"path": "/srv/swarm-app", "current": true},
+     "home": "work", "paused": {"since": "2026-11-06T15:00:00Z", "reason": "swarm fault: docker gone"}, "here": null}
+  ],
+  "warnings": []
+}
+```
 
 ### daisy swarm journal
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 15 of the plan for the inbox requests F27-F35): Go (`internal/commands/swarm_connect.go`, `internal/swarm/reconcile/record.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Status | as built (Step 15 of the plan for the inbox requests F27-F35): Go (`internal/commands/swarm_connect.go`, `internal/swarm/reconcile/record.go`); the contract is [docs/swarm.md](swarm.md) section 11; `--json` since Step 10 of the plan remediating the 2026-11-15 design review |
 | Legacy | none |
-| Usage | `daisy swarm journal [--mark <run>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); a positional argument is usage on stderr, exit 2 |
-| Exit codes | 0; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the journal unreadable, with `--mark` a run the journal holds no line of (`Error: swarm journal --mark: the journal holds no line of <run>; mark a run its lines name`) or the write failing; 2 usage |
-| Stdout | the lines after the one `<state>/connect-seen` marks: `Journal of <owner>/<repo> since <run> (marked seen <time>): <k> lines`, each line as `<YYYY-MM-DD> - <HHMM> <run>: …`, then `Mark them seen: daisy swarm journal --mark <run>` naming the last; none after it, `Journal of <owner>/<repo>: nothing since <run> (marked seen <time>)`; no mark, or one the journal does not hold, the newest day's lines under `Journal of <owner>/<repo>, <YYYY-MM-DD> (no line marked seen): <k> lines`; an empty journal, `Journal of <owner>/<repo>: no line yet`. With `--mark`, `✓ Marked the journal seen through <run> (<state>/connect-seen)` |
-| Stderr | `⚠ <state>/connect-seen names <run>, which the journal does not hold: showing its newest day` |
+| Usage | `daisy swarm journal [--json\|--mark <run>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); a positional argument is usage on stderr, exit 2 |
+| Exit codes | 0; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the journal unreadable, with `--mark` a run the journal holds no line of (`Error: swarm journal --mark: the journal holds no line of <run>; mark a run its lines name`) or the write failing; 2 usage, `--json` with `--mark` among it (`Error: --json prints the journal and moves no mark; give --mark alone`, then the usage) |
+| Stdout | the lines after the one `<state>/connect-seen` marks: `Journal of <owner>/<repo> since <run> (marked seen <time>): <k> lines`, each line as `<YYYY-MM-DD> - <HHMM> <run>: …`, then `Mark them seen: daisy swarm journal --mark <run>` naming the last; none after it, `Journal of <owner>/<repo>: nothing since <run> (marked seen <time>)`; no mark, or one the journal does not hold, the newest day's lines under `Journal of <owner>/<repo>, <YYYY-MM-DD> (no line marked seen): <k> lines`; an empty journal, `Journal of <owner>/<repo>: no line yet`. With `--mark`, `✓ Marked the journal seen through <run> (<state>/connect-seen)`. With `--json`: one document (below) |
+| Stderr | `⚠ <state>/connect-seen names <run>, which the journal does not hold: showing its newest day`; with `--json`, empty, the line under `warnings` |
 | Ops | ReadOnly; with `--mark`, Real |
 | Writes | with `--mark`, `<state>/connect-seen`; else nothing |
 | Commits | none |
-| Cases | none; `TestSwarmConnectBriefing` |
+| Cases | none; `TestSwarmConnectBriefing`, `TestReadOnlyJSON` |
+
+`swarm journal --json` (Common behaviour, `--json`) has `repository`;
+`marked`, `{"run", "at"}`, the mark when the journal holds its line,
+else `null`; `day`, the newest day when no line is marked and its lines
+are shown, else `null` (both `null`: the journal has no line yet);
+`lines`, the lines shown, each `day`, `run` and `line` (as the journal
+holds it, `- <HHMM> <run>: …`), `[]` for none (`nothing since`); and
+`warnings`. To mark them seen, `--mark` the last line's `run`:
+
+```json
+{
+  "repository": "acme/swarm-app",
+  "marked": {"run": "1-architect-1", "at": "2026-11-05T10:00:00Z"},
+  "day": null,
+  "lines": [{"day": "2026-11-06", "run": "2-worker-1", "line": "- 1501 2-worker-1: posted; pull request #3"}],
+  "warnings": []
+}
+```
 
 ### daisy swarm apply
 
