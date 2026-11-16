@@ -308,6 +308,29 @@ func TestInitInstallsRootSkills(t *testing.T) {
 	}
 }
 
+// Cursor reaches each installed skill through a stub in .cursor/rules/
+// that reads the copy in .claude/skills/: init and clean say so on stdout
+// whenever they install or remove a skill, and not when there is none.
+func TestInitAndCleanSayCursorSkillsReadClaude(t *testing.T) {
+	const note = "  · Cursor reads each skill's copy in .claude/skills/ (its rule in .cursor/rules/ points there): removing .claude/ disables the skills in Cursor\n"
+	for name, m := range map[string]*machine{"skills": initMachine(t), "no skill": newMachine(t)} {
+		ws := scratch(t)
+		code, out, errs := m.pinned(t, ws, "init", "testhome")
+		if code != 0 {
+			t.Fatalf("%s: init exit %d: %s", name, code, errs)
+		}
+		if strings.Contains(out, note) != (name == "skills") {
+			t.Errorf("%s: init's note %v:\n%s", name, strings.Contains(out, note), out)
+		}
+		if code, out, errs = m.pinned(t, ws, "clean", "-f"); code != 0 {
+			t.Fatalf("%s: clean exit %d: %s", name, code, errs)
+		}
+		if strings.Contains(out, note) != (name == "skills") {
+			t.Errorf("%s: clean's note %v:\n%s", name, strings.Contains(out, note), out)
+		}
+	}
+}
+
 // A root skill whose name the workspace already uses for a skill or a
 // Cursor rule of its own (one init's stub does not claim) is not
 // installed: init warns, writes none of its copies, stub or ignore lines,

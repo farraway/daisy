@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Invocation: sourced by tests/run.sh — not executed directly.
 # `daisy list`: one line per include.txt entry (the trigger's first line for
-# a lazy prompt, `(always loaded)`, `(missing: …)`), then every installed
-# skill, user-level then workspace, the workspace's copy winning by name,
-# its short_description else its description. Read-only.
+# a lazy prompt, `(loaded with .daisy/AGENTS.md)` for a full one,
+# `(missing: …)`), then every installed skill, user-level then workspace,
+# the workspace's copy winning by name, its short_description else its
+# description. Read-only.
 
 home="$(fixture_home_dir)"
 printf 'fixfull\n~fixlazy\nfixmissing\n' > "$home/include.txt"
@@ -19,7 +20,7 @@ status_before=$(git -C "$home" status --porcelain)
 fixture_run_cli list
 assert_eq "$RUN_EXIT" "0" "list exits 0"
 assert_contains "$RUN_STDOUT" "Prompts (testhome):" "names the home"
-assert_contains "$RUN_STDOUT" "  fixfull              (always loaded)" "a full prompt"
+assert_contains "$RUN_STDOUT" "  fixfull              (loaded with .daisy/AGENTS.md)" "a full prompt"
 assert_contains "$RUN_STDOUT" "  fixlazy              When a lazy thing happens." "a lazy prompt's trigger line"
 assert_contains "$RUN_STDOUT" "  fixmissing           (missing: $FIXTURE_ROOT/prompts/fixmissing.md)" "a missing prompt"
 assert_contains "$RUN_STDOUT" "  both                 the workspace copy" "the workspace copy wins"

@@ -120,7 +120,7 @@ const (
 	readAll
 )
 
-// listPrompt is an include.txt entry: lazy or always loaded; a lazy
+// listPrompt is an include.txt entry: lazy or included in full; a lazy
 // one's trigger summary, nil when it has none; the path looked up when
 // the prompt is missing, else nil; and the home's override.
 type listPrompt struct {
@@ -169,7 +169,7 @@ func List(c *Context) error {
 		case p.Lazy:
 			fmt.Fprintf(c.Stdout, "  %s %s%s\n", pad(p.Name, 20), *p.Trigger, p.tag())
 		default:
-			fmt.Fprintf(c.Stdout, "  %s (always loaded)%s\n", pad(p.Name, 20), p.tag())
+			fmt.Fprintf(c.Stdout, "  %s (loaded with .daisy/AGENTS.md)%s\n", pad(p.Name, 20), p.tag())
 		}
 	}
 	if r.read >= readPrompts {

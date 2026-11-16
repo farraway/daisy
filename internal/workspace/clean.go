@@ -147,6 +147,7 @@ func Clean(o ops.Ops, m env.Env, b Binding, out io.Writer) error {
 			fs.Remove(at(".cursor", "rules", n+".mdc"))
 		}
 		fmt.Fprintf(out, "  ✓ Removed %d skill(s) from .claude/skills/, .agents/skills/ and .cursor/rules/\n", len(skills))
+		fmt.Fprintln(out, cursorReadsClaude)
 	}
 
 	// 4. What init added to the ignore files and the settings.

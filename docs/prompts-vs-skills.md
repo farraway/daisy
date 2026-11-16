@@ -11,7 +11,9 @@ scatters Daisy's own invariants across artifacts that have to stand alone.
 Less than it looks. A skill's `description` and a lazy prompt's `## Trigger`
 are the same construct — a context pointer with an on-demand body. Both are
 progressive disclosure; both keep a short summary in front of the agent and
-load the rest when it becomes relevant. Nor is scope a difference: `daisy
+load the rest when it becomes relevant (a prompt's summary once the
+workspace's `.daisy/AGENTS.md` has loaded: [Where the generated file
+loads](#where-the-generated-file-loads)). Nor is scope a difference: `daisy
 init` copies the root's skills and a home's into the workspace's
 `.claude/skills/` (and its Codex twin, `.agents/skills/`), and prompts
 compile per-home and per-workspace, so either format can be narrow or
@@ -33,6 +35,46 @@ motivating it:
   its `description`, so it is written to stand alone — it may be invoked
   with no Daisy persona in context. A prompt *is* part of that persona, free
   to reference `todo.txt`, `today.md`, `journal.md`, `projects/`, `PLAN.md`.
+
+## Where the generated file loads
+
+A full prompt's text and a lazy prompt's trigger sit in the workspace's
+generated `.daisy/AGENTS.md`, so they reach the agent when that file does.
+Claude Code and Codex do not load it when a session starts: each reads
+`AGENTS.md` at the start only along the path to the working directory
+(Claude Code from the working directory and the directories above it,
+Codex from the repository's root down to it), and `.daisy/` is a
+subdirectory. Each agent reaches it through a loader `daisy init` writes,
+and this is by design: Daisy's prompts arrive when Daisy is asked for.
+
+| Agent | Loader `init` writes (from) | Its words | When `.daisy/AGENTS.md` loads |
+|---|---|---|---|
+| Claude Code | `.claude/commands/daisy.md`, the `/daisy` command (`templates/claude-command.md`) | ``Read `.daisy/AGENTS.md` to understand the Daisy productivity system, then execute this request: $ARGUMENTS`` | When the command runs: `/daisy <request>`. Claude Code also loads a subdirectory's `AGENTS.md` when it reads a file there, but the Daisy prompt's Trigger block has the agent reach Daisy's files by their real paths, never through `.daisy/` |
+| Codex | `.agents/skills/daisy/SKILL.md`, the `daisy` skill (`templates/agents-skill.md`) | ``description: Daisy productivity system. Use when the user addresses Daisy, starts a day or week, manages tasks, logs work, works with projects, or runs a retrospective.`` and ``Read `.daisy/AGENTS.md` to understand the Daisy productivity system, then execute the user's request.`` | When the skill runs: `$daisy <request>`, or a request Codex matches to the skill's description |
+| Cursor | `.cursor/rules/daisy.mdc` (`templates/cursor-rule.mdc`) | ``alwaysApply: true`` and ``When the user addresses **"Daisy"** by name`` … ``**Read `.daisy/AGENTS.md`** to understand and execute the request.`` | The rule is in every session (`alwaysApply`); it has the agent read the file when the user addresses Daisy or the agent does one of the actions it lists, even unaddressed: a day or week, tasks, logging work, projects, a retrospective, status or task sync. With `daisy-logging.mdc` (below) that includes the first log of any session in which the agent works for the user |
+
+So in Claude Code and Codex a full prompt such as `personal` applies only
+in a session that has asked for Daisy, and a lazy prompt's trigger (`plan`,
+`socrates`) can fire only after that. Cursor has two more core rules:
+`daisy-logging.mdc`, also `alwaysApply`, which has the agent log what it
+does for the user and read the Daisy prompt's logging rule (in the root
+`.daisy/AGENTS.md` names) before its first log of the session, and
+`daisy-plan.mdc`, which Cursor applies by its description.
+
+Skills load without the generated file: Claude Code matches the copies in
+`.claude/skills/` and Codex those in `.agents/skills/` by their
+descriptions. Cursor has no skills directory, so `init` writes a rule per
+skill, `.cursor/rules/<skill>.mdc` (not `alwaysApply`; Cursor applies it by
+the skill's description), whose words are ``Read `.claude/skills/<skill>/SKILL.md` when:``
+and the description. Cursor's skills therefore depend on `.claude/`:
+removing it disables them, which `init` and `clean` print beside the
+skills.
+
+Sources: Claude Code, [How Claude remembers your
+project](https://code.claude.com/docs/en/memory); Codex,
+[AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+and [Build skills](https://learn.chatgpt.com/docs/build-skills); Cursor,
+[Rules](https://cursor.com/docs/context/rules).
 
 ## The criterion: situation or artifact?
 

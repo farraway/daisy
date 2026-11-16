@@ -408,3 +408,44 @@ func TestCliMdOpsIsTheMarker(t *testing.T) {
 		t.Errorf("checked %d entries' Ops rows, %d ReadOnly", checked, readOnly)
 	}
 }
+
+// docs/prompts-vs-skills.md's loader table quotes each agent's loader:
+// every code span in a row's third column, Its words, is text of the
+// template the row names, so a loader reworded without the table fails.
+func TestLoaderTableQuotesTheTemplates(t *testing.T) {
+	const doc = "docs/prompts-vs-skills.md"
+	rows := map[int][]codeSpan{}
+	for _, s := range codeSpans(t, doc) {
+		if s.section == "Where the generated file loads" && strings.HasPrefix(s.rowPrefix, "|") {
+			rows[s.line] = append(rows[s.line], s)
+		}
+	}
+	quoted := map[string]int{}
+	for line, spans := range rows {
+		var tmpl string
+		for _, s := range spans {
+			if strings.HasPrefix(s.text, "templates/") {
+				tmpl = s.text
+			}
+		}
+		agent := strings.TrimSpace(strings.Split(spans[0].rowPrefix, "|")[1])
+		for _, s := range spans {
+			if strings.Count(s.rowPrefix, "|") != 3 {
+				continue
+			}
+			b, err := os.ReadFile(tmpl)
+			if err != nil {
+				t.Fatalf("%s:%d: the row quoting %q names no template it can read: %v", doc, line, s.text, err)
+			}
+			if !strings.Contains(string(b), strings.TrimSpace(s.text)) {
+				t.Errorf("%s:%d: %q is not in %s", doc, line, s.text, tmpl)
+			}
+			quoted[agent]++
+		}
+	}
+	for _, a := range []string{"Claude Code", "Codex", "Cursor"} {
+		if quoted[a] == 0 {
+			t.Errorf("%s: no row quotes %s's loader (quoted: %v)", doc, a, quoted)
+		}
+	}
+}

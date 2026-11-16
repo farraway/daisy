@@ -431,11 +431,17 @@ home and identity it is bound to: run it after updating the root, so the
 workspace's `AGENTS.md`, skills, rules and settings are the root's as it
 is now. A workspace keeps what its last `init` wrote until then.
 
-| Tool | What `init` writes | How to address Daisy |
-|------|--------------------|----------------------|
-| Claude Code | `.claude/commands/daisy.md` (the `/daisy` command), `.claude/settings.local.json` (permissions), the root's and the home's skills in `.claude/skills/` | `/daisy <request>` |
-| Cursor | `.cursor/rules/daisy.mdc`, `daisy-logging.mdc`, `daisy-plan.mdc`, `.cursorignore` entries | `Daisy, <request>` |
-| Codex | `.agents/skills/daisy/SKILL.md` (the `daisy` skill), the root's and the home's skills in `.agents/skills/` | `$daisy <request>`, or by matching the skill's description |
+| Tool | What `init` writes | How to address Daisy | When `.daisy/AGENTS.md` loads |
+|------|--------------------|----------------------|-------------------------------|
+| Claude Code | `.claude/commands/daisy.md` (the `/daisy` command), `.claude/settings.local.json` (permissions), the root's and the home's skills in `.claude/skills/` | `/daisy <request>` | When `/daisy` runs; not when a session starts |
+| Cursor | `.cursor/rules/daisy.mdc`, `daisy-logging.mdc`, `daisy-plan.mdc`, a rule per skill that reads its copy in `.claude/skills/`, `.cursorignore` entries | `Daisy, <request>` | When you address Daisy or the agent does a Daisy action, its first log of a session included, as `daisy.mdc` and `daisy-logging.mdc`, rules in every session (`alwaysApply`), tell it |
+| Codex | `.agents/skills/daisy/SKILL.md` (the `daisy` skill), the root's and the home's skills in `.agents/skills/` | `$daisy <request>`, or by matching the skill's description | When the `daisy` skill runs; not when a session starts |
+
+The generated file, and every prompt it carries, loads when Daisy is
+asked for (in Cursor, also when the agent does a Daisy action, logging its
+work included), by design; [docs/prompts-vs-skills.md](docs/prompts-vs-skills.md#where-the-generated-file-loads)
+quotes each loader. Cursor's skill rules depend on `.claude/`: removing
+it disables them, as `init` and `clean` print.
 
 The examples below use the Claude Code form.
 
@@ -588,7 +594,9 @@ Daisy owns: `daisy` (tasks, journal, projects), `plan`, `praxis`,
 prompts that load for it, and `daisy prompt build` compiles them into the
 generated `AGENTS.md`: a name alone includes the whole prompt; a name with
 a `~` prefix includes only its `## Trigger` section, and the agent reads
-the full file when the trigger fires. A home may add prompts of its own and
+the full file when the trigger fires. Either reaches the agent only when
+the workspace's `.daisy/AGENTS.md` loads, which is when Daisy is asked for
+(the table under [Bind a workspace](#bind-a-workspace)). A home may add prompts of its own and
 may override a root prompt by name, in layered or full form (above).
 
 A **skill** (`skills/`) is craft. It knows the work, not you. Six assume

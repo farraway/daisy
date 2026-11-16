@@ -528,6 +528,9 @@ func (p *initPlan) writeFiles(fs ops.FS, out io.Writer) error {
 		}
 	}
 	fmt.Fprintf(out, "  ✓ Installed %d skill(s) into .claude/skills/, .agents/skills/ and .cursor/rules/\n", len(p.skills))
+	if len(p.skills) > 0 {
+		fmt.Fprintln(out, cursorReadsClaude)
+	}
 	for _, n := range p.staleStubs {
 		if err := fs.Remove(at(".cursor", "rules", n+".mdc")); err != nil {
 			return fmt.Errorf("Error: %v", err)

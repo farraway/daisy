@@ -108,7 +108,7 @@ func TestList(t *testing.T) {
 	writeFile(t, filepath.Join(m.ws, ".claude", "skills", "both", "SKILL.md"), "---\ndescription: workspace copy\n---\n")
 	code, out, errs := m.run(t, m.ws, "list")
 	want := "Prompts (testhome):\n" +
-		"  full                 (always loaded)\n" +
+		"  full                 (loaded with .daisy/AGENTS.md)\n" +
 		"  lazy                 When a lazy thing happens. [full]\n" + // the home's over the root's
 		"  notrig               (lazy, no trigger summary)\n" +
 		"  missing              (missing: " + m.root + "/prompts/missing.md)\n" +
@@ -158,7 +158,7 @@ func TestListPrintsWhatItReadBeforeAFailure(t *testing.T) {
 	os.Chmod(skill, 0)
 	for _, args := range [][]string{{"list"}, {"list", "--json"}} {
 		code, out, errs := m.run(t, m.ws, args...)
-		want := "Prompts (testhome):\n  full                 (always loaded)\n\nSkills:\n"
+		want := "Prompts (testhome):\n  full                 (loaded with .daisy/AGENTS.md)\n\nSkills:\n"
 		if len(args) == 2 {
 			want = ""
 		}

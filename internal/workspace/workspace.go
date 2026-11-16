@@ -108,6 +108,10 @@ func stub(name string, doc []byte) []byte {
 	return stubText(name, desc)
 }
 
+// cursorReadsClaude is the line init and clean print beside the skills:
+// each Cursor stub reads its skill from the .claude/skills/ copy.
+const cursorReadsClaude = "  · Cursor reads each skill's copy in .claude/skills/ (its rule in .cursor/rules/ points there): removing .claude/ disables the skills in Cursor"
+
 func stubText(name, desc string) []byte {
 	return []byte("---\ndescription: " + desc + "\nalwaysApply: false\n---\n\n# " + name + "\n\nRead `.claude/skills/" + name + "/SKILL.md` when: " + desc + "\n")
 }

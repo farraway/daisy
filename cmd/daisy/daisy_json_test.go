@@ -53,7 +53,7 @@ func TestReadOnlyJSON(t *testing.T) {
 	writeFile(t, filepath.Join(m.home, "plans", "p.plan.md"), "## The Plan\n\nbody\n")
 	os.Symlink(filepath.Join(m.home, "plans", "p.plan.md"), filepath.Join(proj, "PLAN.md"))
 
-	// The prompts and skills: always loaded, a full override the root has
+	// The prompts and skills: one included in full, a full override the root has
 	// moved past, a lazy prompt with no trigger, one missing.
 	writeFile(t, filepath.Join(m.home, "include.txt"), "full\n~lazy\n~notrig\nmissing\n")
 	writeFile(t, filepath.Join(m.root, "prompts", "full.md"), "# Full\n")

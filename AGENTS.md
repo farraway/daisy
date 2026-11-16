@@ -354,6 +354,15 @@ trigger condition is met. The build takes everything between `## Trigger`
 and the next line starting with `#`; a prompt without a `## Trigger`
 section is included in full, with a warning.
 
+Either form reaches the agent only when the workspace's
+`.daisy/AGENTS.md` loads, by design: on `/daisy` in Claude Code and
+through the `daisy` skill in Codex, neither loading it when a session
+starts, and in Cursor when the `alwaysApply` rules `daisy.mdc` and
+`daisy-logging.mdc` send the agent to it (Daisy addressed, or a Daisy
+action, logging its work included). The per-agent table quoting each loader is in
+[`docs/prompts-vs-skills.md`](docs/prompts-vs-skills.md), Where the
+generated file loads.
+
 ### Home overrides
 
 Homes consume the root. A home file at a root prompt's path

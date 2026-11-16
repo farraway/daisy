@@ -5,7 +5,7 @@
 # Prefix with ~ for lazy loading (only ## Trigger section included in AGENTS.md)
 # No prefix = full prompt included in AGENTS.md
 
-# Core daisy system (always loaded in full)
+# Core daisy system (included in full: it loads with .daisy/AGENTS.md)
 daisy
 
 # Lazy-loaded prompts (trigger section only, full prompt read on demand)

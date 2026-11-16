@@ -49,7 +49,7 @@ The build pipeline (`daisy prompt build`) extracts only the `## Trigger` section
 
 ### `personal.md` — full inclusion is correct
 
-`personal` has no `~` prefix: it is fully included on every session. This is the right call — communication style and personal context should always be present, not conditional on a trigger. The resource supports this: progressive disclosure applies to task-specific context. Session-invariant context (who the user is, how to communicate) belongs in the static load.
+`personal` has no `~` prefix: its full text is in the generated `.daisy/AGENTS.md`, so it is present in every session that loads that file (in Claude Code and Codex, once Daisy is asked for; in Cursor, when its rules send the agent there: [Where the generated file loads](../prompts-vs-skills.md#where-the-generated-file-loads)). Including it in full is the right call — communication style and personal context should always be present, not conditional on a trigger. The resource supports this: progressive disclosure applies to task-specific context. Session-invariant context (who the user is, how to communicate) belongs in the static load.
 
 Note: `personal.md` contains a `## Trigger` section, which renders inline as a heading in the generated AGENTS.md rather than functioning as a lazy-load trigger. This is harmless but slightly misleading. The heading could be renamed to `## When to apply` or `## Context` to make it clear it's not a lazy-load trigger.
 
@@ -61,7 +61,7 @@ A future extension could support `@include <prompt-name>` references within prom
 
 ### Trigger stub length
 
-The `daisy.md` trigger stub (~14 lines) is the longest. The others are 4–6 lines. These are all within the static context window. They're already fairly tight; no changes needed.
+The `daisy.md` trigger stub (~14 lines) is the longest. The others are 4–6 lines. These are all within the generated file's static load (present whenever it is). They're already fairly tight; no changes needed.
 
 ---
 
@@ -72,6 +72,6 @@ The `daisy.md` trigger stub (~14 lines) is the longest. The others are 4–6 lin
 | Lazy-load context on demand | ✅ Implemented — `~` prefix in include.txt |
 | Static context should be minimal stubs only | ✅ Only `## Trigger` sections in AGENTS.md |
 | Memory as simple markdown files | ✅ Core design (today.md, todo.txt, journal.md) |
-| Always-needed context fully included | ✅ `personal.md` without `~` |
+| Always-needed context fully included | ✅ `personal.md` without `~`, present whenever `.daisy/AGENTS.md` is loaded |
 | Hierarchical sub-prompt chaining | Not implemented — future extension |
 | `personal.md` trigger heading is misleading | Minor — rename `## Trigger` → `## Context` |
