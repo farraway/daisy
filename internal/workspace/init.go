@@ -706,7 +706,7 @@ func (p *initPlan) bind(o ops.Ops, out, warn io.Writer) (err error) {
 			fmt.Fprintf(warn, "  ⚠ %s could not be removed; remove it by hand (the next init or clean will try again)\n", l)
 		}
 	}
-	fmt.Fprint(out, "\nDone. Daisy is ready in this workspace.\nStart a Cursor session and say: \"Daisy, start a new day\"\nOr use /daisy in Claude Code: \"/daisy start a new day\"\nOr use $daisy in Codex: \"$daisy start a new day\"\n")
+	fmt.Fprint(out, "\nDone. Daisy is ready in this workspace.\n")
 	return nil
 }
 

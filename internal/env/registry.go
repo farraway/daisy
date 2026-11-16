@@ -15,6 +15,12 @@ const fsModeSymlink = iofs.ModeSymlink
 // HomesFile is the registry: one `name=/abs/path` per line.
 func (e Env) HomesFile() string { return filepath.Join(e.Config, "homes") }
 
+// NoHomeFix is the fix every command needing a home gives when none is
+// registered: the two ways to get one, for the home called name.
+func NoHomeFix(name string) string {
+	return fmt.Sprintf("Run 'daisy home new %s' to create one, or 'daisy home add %s <path>' to register an existing home", name, name)
+}
+
 // Home is one registry line: a name and the path it is registered at.
 type Home struct{ Name, Path string }
 

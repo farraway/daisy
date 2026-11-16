@@ -129,12 +129,12 @@ func Install(c *Context) error {
 		fmt.Fprint(c.Stdout, "\nDone.\n")
 		return nil
 	}
-	fmt.Fprintf(c.Stdout, "\nDone. To activate, run:\n  source %s\n\n", rc)
+	fmt.Fprintf(c.Stdout, "\nDone. To activate, run:\n  source %s\n", rc)
 	m := env.Env{Config: env.ConfigDir(c.Ops)}
 	if homes := env.Homes(fs, m.HomesFile()); len(homes) == 0 {
-		fmt.Fprint(c.Stdout, "Then create a home and initialize Daisy in a workspace:\n  daisy home new <name>\n  cd /path/to/project\n  daisy init <name>\n")
+		printNext(c, "daisy home new <name> (or 'daisy home add <name> <path>' for a home you already have)")
 	} else {
-		fmt.Fprintf(c.Stdout, "Then initialize Daisy in a workspace:\n  cd /path/to/project\n  daisy init %s\n", homes[0].Name)
+		printNext(c, "daisy init "+homes[0].Name+" (in the folder you work in)")
 	}
 	return nil
 }

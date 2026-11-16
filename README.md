@@ -388,7 +388,10 @@ copies and permissions an earlier install put there. To update the root later
 to what its remote has, run `make -C "$DAISY_ROOT" install-dev`: it pulls
 fast-forward, builds, runs `daisy install --update` and fails unless the
 installed `daisy version` is the root's HEAD. Open a new shell (or source the
-rc file `install` named), then create a home if you have none:
+rc file `install` named), then create a home if you have none (`install`,
+`home new`, `home add` and `init <identity>` each end with a `Next:` line
+naming the command after them; `install --update` and the bare `init` do
+not):
 
 ```bash
 daisy home new work

@@ -1490,3 +1490,99 @@ func TestCopiesTakeTheUmask(t *testing.T) {
 		}
 	}
 }
+
+// A newcomer's path ends each step's success output with one Next: line on
+// stdout naming the next command: install (home new, or home add for a
+// home that exists; init once a home is registered), home new and home add
+// (init), init <identity> (the agent). The maintenance forms, install
+// --update and the bare init, print none. With no home registered, init
+// fails naming both ways to get one, on stderr.
+func TestNewcomersNextLines(t *testing.T) {
+	m := newMachine(t)
+	writeFile(t, filepath.Join(m.config, "homes"), "")
+	m.vars["SHELL"] = "/bin/zsh"
+	nexts := func(out string) []string {
+		var lines []string
+		for _, l := range strings.Split(out, "\n") {
+			if strings.HasPrefix(l, "Next:") {
+				lines = append(lines, l)
+			}
+		}
+		return lines
+	}
+	endsWith := func(step, out, want string) {
+		t.Helper()
+		if n := nexts(out); len(n) != 1 || !strings.HasSuffix(out, "\n\n"+want+"\n") {
+			t.Errorf("%s: want the output to end with the one line %q, got Next lines %q in:\n%s", step, want, n, out)
+		}
+	}
+	noNext := func(step, out string) {
+		t.Helper()
+		if n := nexts(out); len(n) > 0 {
+			t.Errorf("%s: want no Next line, got %q", step, n)
+		}
+	}
+
+	code, out, errs := m.pinned(t, m.ws, "install")
+	if code != 0 {
+		t.Fatalf("install exit %d: %s%s", code, out, errs)
+	}
+	endsWith("install, no home", out, "Next: daisy home new <name> (or 'daisy home add <name> <path>' for a home you already have)")
+
+	ws := scratch(t)
+	code, out, errs = m.pinned(t, ws, "init", "fresh")
+	if code != 1 || out != "" {
+		t.Errorf("init with no home: exit %d, stdout %q", code, out)
+	}
+	for _, want := range []string{"no home is registered", "'daisy home new fresh'", "'daisy home add fresh <path>'"} {
+		if !strings.Contains(errs, want) {
+			t.Errorf("init with no home: stderr lacks %q:\n%s", want, errs)
+		}
+	}
+	code, out, errs = m.pinned(t, ws, "init")
+	if code != 2 || out != "" {
+		t.Errorf("bare init with no home: exit %d, stdout %q", code, out)
+	}
+	for _, want := range []string{"no home is registered", "'daisy home new <name>'", "'daisy home add <name> <path>'"} {
+		if !strings.Contains(errs, want) {
+			t.Errorf("bare init with no home: stderr lacks %q:\n%s", want, errs)
+		}
+	}
+
+	fresh := filepath.Join(t.TempDir(), "fresh")
+	o := &ops.Fake{GetenvFn: func(k string) string { return m.vars[k] }, GetwdFn: func() (string, error) { return ws, nil }}
+	var outb, errb bytes.Buffer
+	if code := cli.Run(o, strings.NewReader("Jane Doe\njane@example.net\n"), &outb, &errb, []string{"home", "new", "fresh", fresh}); code != 0 {
+		t.Fatalf("home new exit %d: %s%s", code, outb.String(), errb.String())
+	}
+	endsWith("home new", outb.String(), "Next: daisy init fresh (in the folder you work in)")
+
+	code, out, errs = m.pinned(t, ws, "init", "fresh")
+	if code != 0 {
+		t.Fatalf("init exit %d: %s%s", code, out, errs)
+	}
+	endsWith("init", out, "Next: /daisy start a new day in Claude Code ('$daisy start a new day' in Codex; 'Daisy, start a new day' in Cursor)")
+	if code, out, errs = m.pinned(t, ws, "init"); code != 0 {
+		t.Fatalf("bare init exit %d: %s%s", code, out, errs)
+	}
+	noNext("bare init", out)
+
+	if code, out, errs = m.pinned(t, m.ws, "home", "remove", "fresh"); code != 0 {
+		t.Fatalf("home remove exit %d: %s", code, errs)
+	}
+	noNext("home remove", out)
+	if code, out, errs = m.pinned(t, m.ws, "home", "add", "fresh", fresh); code != 0 {
+		t.Fatalf("home add exit %d: %s", code, errs)
+	}
+	endsWith("home add", out, "Next: daisy init fresh (in the folder you work in)")
+
+	if code, out, errs = m.pinned(t, m.ws, "install", "--update"); code != 0 {
+		t.Fatalf("install --update exit %d: %s", code, errs)
+	}
+	noNext("install --update", out)
+	m.vars["HOME"] = t.TempDir()
+	if code, out, errs = m.pinned(t, m.ws, "install"); code != 0 {
+		t.Fatalf("install with a home exit %d: %s", code, errs)
+	}
+	endsWith("install, a home registered", out, "Next: daisy init fresh (in the folder you work in)")
+}

@@ -160,8 +160,10 @@ func TestDocsNameOnlyTableCommands(t *testing.T) {
 		t.Fatalf("read %d commands from the table", len(usage))
 	}
 	// A program path ending bin/daisy counts where it starts the span
-	// (`<root>/bin/daisy install`, `~/bin/daisy …`); elsewhere a bare daisy.
-	useRe := regexp.MustCompile(`(?:^ *[^ ]*bin/|(?:^|[^/\w.-]))daisy((?: +[^ ]+)+)`)
+	// (`<root>/bin/daisy install`, `~/bin/daisy …`); elsewhere a bare daisy,
+	// not an agent's own invocation (`/daisy …` in Claude Code, `$daisy …`
+	// in Codex).
+	useRe := regexp.MustCompile(`(?:^ *[^ ]*bin/|(?:^|[^/$\w.-]))daisy((?: +[^ ]+)+)`)
 	for _, f := range docFiles(t) {
 		for _, s := range codeSpans(t, f) {
 			if f == "docs/cli.md" && (strings.HasPrefix(s.rowPrefix, "| Legacy |") ||

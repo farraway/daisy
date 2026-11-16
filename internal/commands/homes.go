@@ -25,7 +25,7 @@ func HomeList(c *Context) error {
 	fs := c.Ops.FS()
 	homes := env.Homes(fs, m.HomesFile())
 	if len(homes) == 0 {
-		fmt.Fprintf(c.Stderr, "No homes registered in %s\n  Run 'daisy home new <name>' to create one, or 'daisy home add <name> <path>' to register an existing home\n", m.HomesFile())
+		fmt.Fprintf(c.Stderr, "No homes registered in %s\n  %s\n", m.HomesFile(), env.NoHomeFix("<name>"))
 		return nil
 	}
 	for _, h := range homes {
@@ -76,6 +76,7 @@ func HomeAdd(c *Context) error {
 		return err
 	}
 	fmt.Fprintf(c.Stdout, "✓ Registered home '%s' at %s\n", name, real)
+	printNext(c, "daisy init "+name+" (in the folder you work in)")
 	return nil
 }
 
@@ -167,7 +168,8 @@ func HomeNew(c *Context) error {
 	if err != nil {
 		fmt.Fprintf(c.Stderr, "%v\n  ⚠ AGENTS.md not built; run 'daisy prompt build %s'\n", err, name)
 	}
-	fmt.Fprintf(c.Stdout, "\n✅ Created home: %s\n   Location: %s\n\n📋 Next steps:\n   1. Edit %s/include.txt to choose which prompts to load\n      Common prompts: daisy, retrospective, github\n      Work-specific: add your own under %s/prompts/\n   2. To use in a workspace: daisy init %s\n", name, real, real, real, name)
+	fmt.Fprintf(c.Stdout, "\n✅ Created home: %s\n   Location: %s\n   Prompts: %s/include.txt chooses which load; your own go in %s/prompts/\n", name, real, real, real)
+	printNext(c, "daisy init "+name+" (in the folder you work in)")
 	return nil
 }
 

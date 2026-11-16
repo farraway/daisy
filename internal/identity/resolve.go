@@ -83,6 +83,9 @@ func HomeOf(o ops.Ops, m env.Env, name string) (string, error) {
 	case 1:
 		return homes[0], nil
 	case 0:
+		if len(usable) == 0 {
+			return "", fmt.Errorf("Error: no home is registered, so '%s' is neither a home nor an identity of one\n  %s", name, env.NoHomeFix(name))
+		}
 		return "", fmt.Errorf("Error: '%s' is neither a registered home nor an identity of one\n  Identities on this machine (identity, home):\n%s  To add an identity: write name=, email= and optionally sshkey= to <home>/identities/%s\n  To create a new home: daisy home new %s",
 			name, FormatList(List(fs, m), "    "), name, name)
 	}

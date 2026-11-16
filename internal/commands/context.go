@@ -9,6 +9,7 @@ package commands
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 
@@ -84,4 +85,11 @@ func readOnly(run func(*Context) error) func(*Context) error {
 		c.Ops = ops.ReadOnly(c.Ops)
 		return run(c)
 	}
+}
+
+// printNext ends a command's success output on the newcomer's path
+// (install, home new, home add, init) with the next command to run, after
+// a blank line: clig.dev's "suggest the next command".
+func printNext(c *Context, command string) {
+	fmt.Fprintf(c.Stdout, "\nNext: %s\n", command)
 }

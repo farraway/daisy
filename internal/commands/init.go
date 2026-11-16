@@ -29,7 +29,11 @@ func Init(c *Context) error {
 	if target, err = absolute(c, target); err != nil {
 		return err
 	}
-	return workspace.Init(c.Ops, m, c.Args[0], target, c.Stdout, c.Stderr)
+	if err := workspace.Init(c.Ops, m, c.Args[0], target, c.Stdout, c.Stderr); err != nil {
+		return err
+	}
+	printNext(c, "/daisy start a new day in Claude Code ('$daisy start a new day' in Codex; 'Daisy, start a new day' in Cursor)")
+	return nil
 }
 
 func reinit(c *Context, m env.Env) error {
@@ -39,6 +43,9 @@ func reinit(c *Context, m env.Env) error {
 	}
 	ws, err := env.FindWorkspace(c.Ops.FS(), m.Root, cwd)
 	if errors.Is(err, env.ErrNoWorkspace) {
+		if len(env.Homes(c.Ops.FS(), m.HomesFile())) == 0 {
+			return UsageError("missing argument\n  No binding here to re-initialize, and no home is registered\n  " + env.NoHomeFix("<name>") + ", then run 'daisy init <name>' here")
+		}
 		return UsageError("missing argument\n  No binding here to re-initialize: run 'daisy init <identity>' to bind this folder ('daisy identity list' lists the identities)")
 	}
 	if err != nil {
