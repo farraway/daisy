@@ -125,6 +125,7 @@ System
   version                           The commit this binary was built from; also --version (read-only)
 
 Every command also accepts --help/-h (as the sole argument) to print its usage.
+Every command that commits (its usage says so) also takes --co-author "Name <email>".
 
 Environment:
   DAISY_ROOT    Path to the daisy repository (required)
@@ -157,7 +158,8 @@ word starts the positionals, `tasks "-1 point"`, `done "--dry-run support"`
 arguments have places, every one but `log` and `feedback`, whose words are
 one text — an empty word before a given one, `Error: empty argument`, so
 that `plan new "" +proj` is not the description `+proj` *(D37, Step 22)*;
-`swarm close`, `swarm unblock` and `swarm replan` refuse one in `<n>`'s place), with
+`swarm close`, `swarm unblock` and `swarm replan` refuse one in `<n>`'s place,
+and a `--co-author` value that is not one line `Name <email>`, Commits below), with
 the command's usage on stderr. The bash exits 1 for usage
 errors too; no case asserts a usage exit code, so 2 is free to take
 *(built in Step 17)*. A value the command refuses — an unknown identity, an
@@ -174,7 +176,8 @@ never reaches the bash)*. Not asserted.
 **`--help` / `-h`.** As the sole argument of any command prints that
 command's usage on stdout and exits 0 without running it; the bash reads it
 from the script's header comment, the binary from the `cli` table (`Usage:
-daisy <usage>`, blank, the description). `daisy`, `daisy help`, `daisy --help`,
+daisy <usage>`, blank, the description; for a command that commits, a
+blank line and `It commits: --co-author …`, Commits below). `daisy`, `daisy help`, `daisy --help`,
 `daisy -h` print the help: the tree above, from the `cli` table, in its
 groups and order (`plan new`, `plan pickup`, `plan archive`, `home new`,
 `home add`, `home list` and `home remove` one row each) — the tree never
@@ -233,7 +236,7 @@ with `Error: DAISY_ROOT not set` and the `~/.zshenv` line to add;
 `install` alone finds its root without it, from the binary's own path,
 Step 21, and refuses one naming another root, Step 35), `DAISY_CONFIG`, `DAISY_LOCAL`, `HOME`, `USER`,
 `DAISY_HEALTHCHECK_TTL`, `DAISY_HEALTHCHECK_PASSED` (see `healthcheck`),
-`DAISY_CO_AUTHOR` (every committing command, see Commits below), `SHELL` (`install` picks the rc file by it), `PATH` (`test` puts the
+`DAISY_CO_AUTHOR` (every committing command without `--co-author`, see Commits below), `SHELL` (`install` picks the rc file by it), `PATH` (`test` puts the
 root's `bin/` first on it for the suite), the variables `check-secrets`
 reports, and the swarm's: the variable `forge.token_env` names (`swarm
 init`, `apply`, `status`; the maintainer's verbs only to compare it), each
@@ -290,17 +293,29 @@ them up *(decided, D37 for `plan new`, D38 for the other two; `metrics add`
 as `feedback`, Step 16a of the plan that clears the Deferred list)*. The root
 is committed only by `commit --root`, by the developer's hand: `optimize
 apply` never writes a root target, it writes the home's override of it
-(D49). With `DAISY_CO_AUTHOR` set, as an agent running Daisy sets it to
-its model's line (`Claude Opus 5.5 <noreply@anthropic.com>`), each of
-these commits ends with one `Co-Authored-By: <value>` trailer, added by
-git's `--trailer`, so a message already ending with it gets no second;
-unset, there is none (a person at the keyboard). A value that is not one
-line `Name <email>` is warned about on stderr, `⚠ DAISY_CO_AUTHOR
-"<value>" is not one line 'Name <email>': committing without
-Co-Authored-By`, and left out: the commit is made and the exit code is
-unchanged (`TestHomeCommitsCoAuthor`). The swarm's commits do not read
-it: a member's carry its persona's `co_author` (docs/swarm.md) *(Step 10
-of the plan for the inbox requests F27–F35)*.
+(D49). Each committing command takes `--co-author "Name <email>"` among
+the flags leading its arguments, as an agent running Daisy gives its
+model's line (`Claude Opus 5.5 <noreply@anthropic.com>`), as in
+`daisy log --co-author "<line>" <message>`; without the flag,
+`DAISY_CO_AUTHOR` gives the value, and the flag wins when both are set. With either, each
+of these commits ends with one `Co-Authored-By: <value>` trailer, added
+by git's `--trailer`, so a message already ending with it gets no second;
+with neither, there is none (a person at the keyboard). A flag value that
+is not one line `Name <email>` is a usage error before anything is
+written: `Error: --co-author "<value>" is not one line 'Name <email>'`,
+the usage, exit 2 (`TestCoAuthorFlag`). An environment value of another
+shape is warned about on stderr, `⚠ DAISY_CO_AUTHOR "<value>" is not one
+line 'Name <email>': committing without Co-Authored-By`, and left out:
+the commit is made and the exit code is unchanged
+(`TestHomeCommitsCoAuthor`). The flag is a command's, not global, and
+only the committing commands take it (`daisy help <command>` says `It
+commits`); any other refuses it as an unknown flag. It exists because an
+agent's environment assignment (`DAISY_CO_AUTHOR=… daisy log …`) does not
+match a permission rule for the bare `daisy` command, where the flag
+does. The swarm's commits read neither: a member's carry its persona's
+`co_author` (docs/swarm.md) *(Step 10 of the plan for the inbox requests
+F27–F35; the flag, Step 7 of the plan remediating the 2026-11-15 design
+review, P19)*.
 
 ## Workspace
 

@@ -87,10 +87,14 @@ after the maintainer has said yes to that write.
    (`role=reconciler kind=command`) and the swarm's journal.
 8. **Log each write as it is done.** After each verb you run that
    writes, and each edit you make to a brief, `swarm.json`, a prompt or
-   a repository's notes, run `daisy log` with what it did (`daisy log
-   "swarm: merged lib#5 at its approved head, closed #10"`), with
-   `DAISY_CO_AUTHOR` set to your model's co-author line so its commit
-   says you wrote it, before you report it; a verb that refused is a
+   a repository's notes, run `daisy log` with what it did, and with
+   `--co-author "<your line>"` before the message so its commit says you
+   wrote it, the line being the one your model signs commits with, one
+   line `Name <email>` (a Claude model's is
+   `Claude <model> <noreply@anthropic.com>`; `daisy log` refuses another
+   shape, and a flag after the message would land in the journal):
+   `daisy log --co-author "<your line>" "swarm: merged lib#5, closed #10"`,
+   before you report it; a verb that refused is a
    blocker, logged the same way. The forge's comments and labels, the
    runs' files and a plan are not the maintainer's journal. Outside a Daisy workspace `daisy log` refuses
    (`Not in a Daisy workspace`): say so once and go on.

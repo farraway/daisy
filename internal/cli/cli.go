@@ -65,6 +65,11 @@ func Run(o ops.Ops, stdin io.Reader, stdout, stderr io.Writer, args []string) in
 		return usageError(stderr, cmd, "unknown flag: "+positional[0])
 	}
 	c.Flags, c.Values, c.Args, c.EmptyWords = flags, values, positional, empty
+	for _, v := range values {
+		if v.Flag == commands.CoAuthorFlag && !commands.IsCoAuthor(v.Value) {
+			return usageError(stderr, cmd, fmt.Sprintf("%s %q is not one line 'Name <email>'", v.Flag, v.Value))
+		}
+	}
 	if emptyBefore(cmd, rest) {
 		return usageError(stderr, cmd, "empty argument")
 	}
@@ -177,11 +182,11 @@ func leading(cmd Command, args []string) (rest, flags []string, values []command
 		switch {
 		case slices.Contains(cmd.Flags, args[0]):
 			flags, args = append(flags, args[0]), args[1:]
-		case slices.Contains(cmd.Values, args[0]):
+		case slices.Contains(cmd.values(), args[0]):
 			// The value is the next word, unless that is one of the
 			// command's own flags: `--rules --yes` is a missing value,
 			// not a file named --yes.
-			if len(args) < 2 || args[1] == "" || slices.Contains(cmd.Flags, args[1]) || slices.Contains(cmd.Values, args[1]) {
+			if len(args) < 2 || args[1] == "" || slices.Contains(cmd.Flags, args[1]) || slices.Contains(cmd.values(), args[1]) {
 				return nil, nil, nil, fmt.Errorf("%s needs a value", args[0])
 			}
 			values, args = append(values, commands.Value{Flag: args[0], Value: args[1]}), args[2:]
@@ -252,6 +257,9 @@ func usageError(stderr io.Writer, cmd Command, msg string) int {
 
 func writeUsage(w io.Writer, cmd Command) {
 	fmt.Fprintf(w, "Usage: daisy %s\n\n%s\n", cmd.Usage, cmd.Help)
+	if cmd.Commits {
+		fmt.Fprintf(w, "\nIt commits: %s \"Name <email>\", leading its arguments, ends the commit with that Co-Authored-By trailer; without the flag, DAISY_CO_AUTHOR's.\n", commands.CoAuthorFlag)
+	}
 }
 
 // helpColumn is where a description starts; a usage that reaches it gets
@@ -276,6 +284,7 @@ func writeTree(w io.Writer) {
 		}
 	}
 	b.WriteString("\nEvery command also accepts --help/-h (as the sole argument) to print its usage.\n")
+	b.WriteString("Every command that commits (its usage says so) also takes --co-author \"Name <email>\".\n")
 	b.WriteString("\nEnvironment:\n  DAISY_ROOT    Path to the daisy repository (required)\n")
 	io.WriteString(w, b.String())
 }

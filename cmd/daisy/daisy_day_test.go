@@ -207,6 +207,68 @@ func TestHomeCommitsCoAuthor(t *testing.T) {
 	}
 }
 
+// --co-author "Name <email>", leading a committing command's arguments,
+// ends its commit with exactly that one trailer, over DAISY_CO_AUTHOR
+// (which is then not read: a malformed one draws no warning). A value of
+// another shape is a usage error before anything is written; a command
+// that does not commit does not take the flag.
+func TestCoAuthorFlag(t *testing.T) {
+	const who = "X <x@y>"
+	m := newMachine(t)
+	m.seed(t)
+	m.initHomeRepo(t)
+	body := func() string { return m.git(t, "log", "-1", "--format=%B") }
+	code, _, errs := runWith(m.dayOps(m.ws, true), "log", "--co-author", who, "m")
+	if code != 0 || errs != "" {
+		t.Fatalf("log: exit %d stderr %q", code, errs)
+	}
+	if got := body(); got != "Log: 1423 - m\n\nCo-Authored-By: "+who {
+		t.Errorf("log: message %q", got)
+	}
+	for _, env := range []string{"Claude Opus 5.5 <noreply@anthropic.com>", "not a line"} {
+		m.vars["DAISY_CO_AUTHOR"] = env
+		code, _, errs = runWith(m.dayOps(m.ws, true), "log", "--co-author", who, "over", env)
+		if code != 0 || errs != "" {
+			t.Fatalf("over %q: exit %d stderr %q", env, code, errs)
+		}
+		if got := body(); got != "Log: 1423 - over "+env+"\n\nCo-Authored-By: "+who {
+			t.Errorf("over %q: message %q", env, got)
+		}
+	}
+	delete(m.vars, "DAISY_CO_AUTHOR")
+	code, _, errs = runWith(m.dayOps(m.ws, true), "done", "--co-author", who, "Delta")
+	if code != 0 || body() != "Completed: Delta target task +daisy\n\nCo-Authored-By: "+who {
+		t.Errorf("done: exit %d stderr %q message %q", code, errs, body())
+	}
+	writeFile(t, filepath.Join(m.home, "tasks", "inbox.txt"), "x\n")
+	code, _, errs = runWith(m.dayOps(m.ws, true), "commit", "--co-author", who, "Add inbox")
+	if code != 0 || body() != "Add inbox\n\nCo-Authored-By: "+who {
+		t.Errorf("commit: exit %d stderr %q message %q", code, errs, body())
+	}
+	today := m.read(t, "journal/today.md")
+	for _, bad := range [][]string{{"X"}, {"x@y"}, {"<x@y>"}, {" X <x@y>"}, {"X <x@y>\nCo-Authored-By: Y <y@z>"}, {"X", "--co-author", who}} {
+		before := m.commits(t)
+		code, out, errs := runWith(m.dayOps(m.ws, true), append(append([]string{"log", "--co-author"}, bad...), "bad")...)
+		if code != 2 || out != "" || !strings.HasPrefix(errs, "Error: --co-author ") || !strings.Contains(errs, "'Name <email>'") || !strings.Contains(errs, "Usage: daisy log") {
+			t.Errorf("%q: exit %d stdout %q stderr %q", bad, code, out, errs)
+		}
+		if m.commits(t) != before || m.read(t, "journal/today.md") != today {
+			t.Errorf("%q: written or committed", bad)
+		}
+	}
+	code, _, errs = runWith(m.dayOps(m.ws, true), "tasks", "--co-author", who)
+	if code != 2 || !strings.HasPrefix(errs, "Error: unknown flag: --co-author\n") {
+		t.Errorf("tasks: exit %d stderr %q", code, errs)
+	}
+	_, out, _ := runWith(m.dayOps(m.ws, true), "log", "--help")
+	if !strings.Contains(out, "--co-author \"Name <email>\"") || !strings.Contains(out, "DAISY_CO_AUTHOR") {
+		t.Errorf("log --help: %q", out)
+	}
+	if _, out, _ = runWith(m.dayOps(m.ws, true), "tasks", "--help"); strings.Contains(out, "--co-author") {
+		t.Errorf("tasks --help: %q", out)
+	}
+}
+
 func TestLogRefusals(t *testing.T) {
 	m := newMachine(t)
 	m.seed(t)
