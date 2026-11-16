@@ -362,14 +362,60 @@ func TestIsTerminal(t *testing.T) {
 	defer r.Close()
 	defer w.Close()
 	for name, in := range map[string]io.Reader{"/dev/null": null, "a pipe": r, "a string": strings.NewReader("")} {
-		if ops.IsTerminal(in) {
+		if ops.Real().IsTerminal(in) {
 			t.Errorf("%s is a terminal", name)
 		}
 	}
 	if tty, err := os.Open("/dev/tty"); err == nil {
 		defer tty.Close()
-		if !ops.IsTerminal(tty) {
+		if !ops.Real().IsTerminal(tty) {
 			t.Error("/dev/tty is no terminal")
+		}
+	}
+}
+
+// Colour: a stream takes colour when it is a terminal, NO_COLOR is unset
+// or empty (no-color.org: "present and not an empty string (regardless of
+// its value)") and TERM is not dumb (clig.dev); each stream is asked for
+// itself, so a piped stdout leaves stderr's colour as its terminal has it.
+func TestColour(t *testing.T) {
+	var stdout, stderr strings.Builder
+	for _, c := range []struct {
+		name     string
+		terminal io.Writer
+		env      map[string]string
+		out, err bool
+	}{
+		{"both terminals", nil, nil, true, true},
+		{"stdout piped", &stderr, nil, false, true},
+		{"stderr piped", &stdout, nil, true, false},
+		{"NO_COLOR=1", nil, map[string]string{"NO_COLOR": "1"}, false, false},
+		{"NO_COLOR=0, any value", nil, map[string]string{"NO_COLOR": "0"}, false, false},
+		{"NO_COLOR empty", nil, map[string]string{"NO_COLOR": ""}, true, true},
+		{"TERM=dumb", nil, map[string]string{"TERM": "dumb"}, false, false},
+		{"TERM=xterm", nil, map[string]string{"TERM": "xterm-256color"}, true, true},
+	} {
+		o := &ops.Fake{
+			GetenvFn:     func(k string) string { return c.env[k] },
+			IsTerminalFn: func(s any) bool { return c.terminal == nil || s == c.terminal },
+		}
+		if got := ops.Colour(o, &stdout); got != c.out {
+			t.Errorf("%s: stdout colour %v, want %v", c.name, got, c.out)
+		}
+		if got := ops.Colour(o, &stderr); got != c.err {
+			t.Errorf("%s: stderr colour %v, want %v", c.name, got, c.err)
+		}
+	}
+	// Real asks the stream itself: a buffer or a pipe is no terminal.
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	for name, s := range map[string]io.Writer{"a pipe": w, "a buffer": &stdout} {
+		if ops.Colour(ops.Real(), s) {
+			t.Errorf("%s takes colour", name)
 		}
 	}
 }

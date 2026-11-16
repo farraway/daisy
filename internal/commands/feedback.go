@@ -33,7 +33,7 @@ func Feedback(c *Context) error {
 	given := len(c.Args) > 0 || c.EmptyWords
 	if given {
 		message = strings.Join(c.Args, " ")
-	} else if !ops.IsTerminal(c.Stdin) {
+	} else if !c.Ops.IsTerminal(c.Stdin) {
 		b, err := io.ReadAll(c.Stdin)
 		if err != nil {
 			return fmt.Errorf("Error: cannot read stdin: %v", err)
@@ -197,7 +197,7 @@ func evalRecord(c *Context) error {
 	if result != "pass" && result != "fail" {
 		return fmt.Errorf("Error: result must be 'pass' or 'fail' (got: %s)", result)
 	}
-	if notes == "" && ops.IsTerminal(c.Stdin) {
+	if notes == "" && c.Ops.IsTerminal(c.Stdin) {
 		var err error
 		if notes, err = c.Ops.Prompt(c.Stdin, c.Stderr, "Notes (optional): "); err != nil && !errors.Is(err, io.EOF) {
 			return fmt.Errorf("Error: cannot read the notes: %v\nNothing was recorded.", err)

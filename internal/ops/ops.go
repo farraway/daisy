@@ -89,14 +89,20 @@ type Ops interface {
 	// Prompt writes question to w and reads one line from r, without the
 	// trailing newline.
 	Prompt(r io.Reader, w io.Writer, question string) (string, error)
+	// IsTerminal: stream, a reader or a writer, is a terminal, as `[ -t 0 ]`
+	// asks — a file the terminal driver answers for, not merely a
+	// character device (/dev/null is one and no terminal). A command asks
+	// before prompting on stdin or waiting for piped input that will not
+	// come; Colour asks of the stream it writes. A stream that is not a
+	// file is no terminal.
+	IsTerminal(stream any) bool
 }
 
-// IsTerminal: r is a terminal, as `[ -t 0 ]` asks — a file the terminal
-// driver answers for, not merely a character device (/dev/null is one
-// and no terminal). A command asks before prompting on r or before
-// waiting for piped input that will not come. A reader that is not a file
-// is no terminal.
-func IsTerminal(r io.Reader) bool {
-	f, ok := r.(interface{ Fd() uintptr })
-	return ok && isatty(f.Fd())
+// Colour: what Daisy writes to stream may carry ANSI colour, the one
+// place that decides it. Only a terminal takes colour, each stream asked
+// for itself (clig.dev, Output: a piped stdout leaves stderr's colours);
+// NO_COLOR present and not empty, whatever its value, takes it away
+// (https://no-color.org), and so does TERM=dumb (clig.dev).
+func Colour(o Ops, stream io.Writer) bool {
+	return o.Getenv("NO_COLOR") == "" && o.Getenv("TERM") != "dumb" && o.IsTerminal(stream)
 }

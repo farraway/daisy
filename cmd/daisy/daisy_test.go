@@ -403,3 +403,39 @@ type fakeProcess struct{ code int }
 
 func (p fakeProcess) Wait() (int, error) { return p.code, nil }
 func (p fakeProcess) Kill() error        { return nil }
+
+// Off a terminal, or under NO_COLOR, healthcheck's marks are the marks
+// alone: no escape byte on either stream (Step 15 of the plan remediating
+// the 2026-11-15 design review, P12). On terminals, with neither, the
+// colours are there, so the plain runs are not plain by accident.
+func TestHealthcheckPlainOffATerminalAndUnderNoColor(t *testing.T) {
+	m := newMachine(t)
+	for _, c := range []struct {
+		name     string
+		terminal bool
+		noColor  string
+		colour   bool
+	}{
+		{"piped", false, "", false},
+		{"terminals, NO_COLOR=1", true, "1", false},
+		{"terminals", true, "", true},
+	} {
+		m.vars["NO_COLOR"] = c.noColor
+		o := &ops.Fake{
+			GetenvFn:     func(k string) string { return m.vars[k] },
+			GetwdFn:      func() (string, error) { return m.ws, nil },
+			IsTerminalFn: func(any) bool { return c.terminal },
+		}
+		// The temp root is no repository, so a ✓ goes to stdout and a ✗ to stderr.
+		_, out, errs := runWith(o, "healthcheck", "--force")
+		if !strings.Contains(out, "✓") || !strings.Contains(errs, "✗") {
+			t.Fatalf("%s: no marks: out %q err %q", c.name, out, errs)
+		}
+		if got := strings.Contains(out, "\x1b"); got != c.colour {
+			t.Errorf("%s: an escape byte on stdout %v, want %v: %q", c.name, got, c.colour, out)
+		}
+		if got := strings.Contains(errs, "\x1b"); got != c.colour {
+			t.Errorf("%s: an escape byte on stderr %v, want %v: %q", c.name, got, c.colour, errs)
+		}
+	}
+}

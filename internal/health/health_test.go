@@ -3,8 +3,10 @@ package health_test
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -272,7 +274,7 @@ func TestHygieneDeclaredTerms(t *testing.T) {
 	skip := filepath.Join(m.config, "hygiene-skip")
 	m.write(skip, "# ordinary words\n  NOTES  \n\nretired\n")
 	ok, out, errs := m.run(health.Options{Force: true})
-	w := "\033[1;33m⚠\033[0m "
+	w := "⚠ "
 	if want := w + "Publication hygiene: skipping declared term(s) 'notes' (" + skip + ") — the scan does not look for them\n" +
 		w + "Publication hygiene: unused declared term(s) 'retired' in " + skip + " (no term the scan derives) — remove them\n"; !ok || errs != want {
 		t.Errorf("declared: ok %v stderr\n%s\nwant\n%s", ok, errs, want)
@@ -538,7 +540,7 @@ func TestComponentFailureCountsOnce(t *testing.T) {
 	if ok || strings.Contains(out, "Component: plan new") {
 		t.Fatalf("%v %q", ok, out)
 	}
-	if !strings.Contains(errs, "✗\033[0m Component: plan new failed health check\n  Error: plans directory not found\n  second line\n") || !strings.Contains(errs, "1 issue(s) found") {
+	if !strings.Contains(errs, "✗ Component: plan new failed health check\n  Error: plans directory not found\n  second line\n") || !strings.Contains(errs, "1 issue(s) found") {
 		t.Errorf("stderr %q", errs)
 	}
 	os.RemoveAll(filepath.Join(m.root, "skills"))
@@ -547,23 +549,84 @@ func TestComponentFailureCountsOnce(t *testing.T) {
 	}
 }
 
-// The healthy run, line by line, as the bash printed it.
+// The healthy run, line by line, as the bash printed it: off a terminal
+// the marks alone, on one the bash's colours around them.
 func TestHealthyOutput(t *testing.T) {
 	m := newMachine(t)
 	m.write(filepath.Join(m.home, "feedback", "feedback.md"), "# Feedback\n\n## 2026-10-01 0900\nx\n")
 	m.write(filepath.Join(m.home, "feedback", ".last-optimized"), "2026-10-02 1000 prompts/daisy\n")
-	ok, out, errs := m.run(health.Options{Force: true})
 	head, _, _ := ops.Real().Exec(m.root, "git", "rev-parse", "--short", "HEAD")
-	g := "\033[0;32m✓\033[0m "
-	want := g + "DAISY_ROOT: " + m.root + "\n" +
-		g + "DAISY_HOME: " + m.home + " (home: testhome)\n" +
-		g + "Git repository: " + string(head) +
-		g + "today.md format valid\n" +
-		g + "Publication hygiene: no identifying terms outside the homes\n" +
-		g + "Feedback: 1 entries (last optimized: 2026-10-02 1000 prompts/daisy)\n" +
-		"\n" + g + "System healthy\n"
-	if !ok || out != want || errs != "" {
-		t.Errorf("ok %v stderr %q stdout\n%s\nwant\n%s", ok, errs, out, want)
+	for _, terminal := range []bool{false, true} {
+		o := m.ops()
+		o.IsTerminalFn = func(any) bool { return terminal }
+		var outb, errb bytes.Buffer
+		ok := health.Run(o, &outb, &errb, health.Options{Force: true, Reference: ref})
+		out, errs := outb.String(), errb.String()
+		g := "✓ "
+		if terminal {
+			g = "\033[0;32m✓\033[0m "
+		}
+		want := g + "DAISY_ROOT: " + m.root + "\n" +
+			g + "DAISY_HOME: " + m.home + " (home: testhome)\n" +
+			g + "Git repository: " + string(head) +
+			g + "today.md format valid\n" +
+			g + "Publication hygiene: no identifying terms outside the homes\n" +
+			g + "Feedback: 1 entries (last optimized: 2026-10-02 1000 prompts/daisy)\n" +
+			"\n" + g + "System healthy\n"
+		if !ok || out != want || errs != "" {
+			t.Errorf("terminal %v: ok %v stderr %q stdout\n%s\nwant\n%s", terminal, ok, errs, out, want)
+		}
+	}
+}
+
+// Each stream's marks are coloured only when that stream takes colour
+// (ops.Colour): a piped stdout leaves stderr's colour, a piped stderr
+// stdout's, and NO_COLOR or TERM=dumb uncolours both.
+func TestMarksColourOnlyOnATerminal(t *testing.T) {
+	m := newMachine(t)
+	m.write(filepath.Join(m.config, "hygiene-skip"), "retired\n")
+	var out, errb bytes.Buffer
+	const ok, warn = "\033[0;32m✓\033[0m System healthy\n", "\033[1;33m⚠\033[0m Publication hygiene: unused"
+	for _, c := range []struct {
+		name     string
+		terminal []io.Writer
+		env      string
+		out, err bool
+	}{
+		{"both terminals", []io.Writer{&out, &errb}, "", true, true},
+		{"stdout piped", []io.Writer{&errb}, "", false, true},
+		{"stderr piped", []io.Writer{&out}, "", true, false},
+		{"neither", nil, "", false, false},
+		{"NO_COLOR=1", []io.Writer{&out, &errb}, "NO_COLOR=1", false, false},
+		{"TERM=dumb", []io.Writer{&out, &errb}, "TERM=dumb", false, false},
+	} {
+		out.Reset()
+		errb.Reset()
+		o := m.ops()
+		o.IsTerminalFn = func(s any) bool { return slices.Contains(c.terminal, s.(io.Writer)) }
+		if k, v, found := strings.Cut(c.env, "="); found {
+			o.GetenvFn = func(key string) string {
+				if key == k {
+					return v
+				}
+				return m.vars[key]
+			}
+		}
+		if !health.Run(o, &out, &errb, health.Options{Force: true, Reference: ref}) {
+			t.Fatalf("%s: unhealthy: %s", c.name, errb.String())
+		}
+		if got := strings.Contains(out.String(), ok); got != c.out {
+			t.Errorf("%s: stdout coloured %v, want %v:\n%q", c.name, got, c.out, out.String())
+		}
+		if got := strings.Contains(errb.String(), warn); got != c.err {
+			t.Errorf("%s: stderr coloured %v, want %v:\n%q", c.name, got, c.err, errb.String())
+		}
+		if !c.out && bytes.IndexByte(out.Bytes(), 0x1b) >= 0 {
+			t.Errorf("%s: an escape byte on stdout: %q", c.name, out.String())
+		}
+		if !c.err && bytes.IndexByte(errb.Bytes(), 0x1b) >= 0 {
+			t.Errorf("%s: an escape byte on stderr: %q", c.name, errb.String())
+		}
 	}
 }
 
@@ -587,7 +650,7 @@ func TestReferenceDrift(t *testing.T) {
 	}
 	m.write(filepath.Join(m.root, "AGENTS.md"), ref)
 	_, _, errs := m.run(health.Options{Force: true, Reference: "x"})
-	if !strings.Contains(errs, "⚠\033[0m AGENTS.md's Command Reference differs") {
+	if !strings.Contains(errs, "⚠ AGENTS.md's Command Reference differs") {
 		t.Errorf("not warned: %q", errs)
 	}
 }

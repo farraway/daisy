@@ -97,6 +97,11 @@ func (real) Getwd() (string, error)      { return os.Getwd() }
 func (real) Executable() (string, error) { return os.Executable() }
 func (real) HTTP() Doer                  { return http.DefaultClient }
 
+func (real) IsTerminal(stream any) bool {
+	f, ok := stream.(interface{ Fd() uintptr })
+	return ok && isatty(f.Fd())
+}
+
 func (real) Prompt(r io.Reader, w io.Writer, question string) (string, error) {
 	if _, err := io.WriteString(w, question); err != nil {
 		return "", err

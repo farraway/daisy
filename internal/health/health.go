@@ -48,27 +48,30 @@ const DefaultTTL = 300
 // StampName is the cache file in the home: the unix time the pass expires.
 const StampName = ".healthcheck.ttl"
 
-// The marks the bash printed, colours included, whatever the stream is.
-const (
-	okMark   = "\033[0;32m✓\033[0m "
-	warnMark = "\033[1;33m⚠\033[0m "
-	failMark = "\033[0;31m✗\033[0m "
-)
-
 type run struct {
-	o         ops.Ops
-	out, errw io.Writer
-	issues    int
-	stamp     string
-	fs        ops.FS
-	root      string
-	e         env.Env
+	o                          ops.Ops
+	out, errw                  io.Writer
+	okMark, warnMark, failMark string
+	issues                     int
+	stamp                      string
+	fs                         ops.FS
+	root                       string
+	e                          env.Env
 }
 
-func (r *run) ok(format string, a ...any)   { fmt.Fprintf(r.out, okMark+format+"\n", a...) }
-func (r *run) warn(format string, a ...any) { fmt.Fprintf(r.errw, warnMark+format+"\n", a...) }
+// mark is a line's mark as the bash printed it, its colour (an SGR
+// parameter) kept only when the stream takes colour (ops.Colour).
+func mark(o ops.Ops, w io.Writer, m, colour string) string {
+	if ops.Colour(o, w) {
+		return "\033[" + colour + "m" + m + "\033[0m "
+	}
+	return m + " "
+}
+
+func (r *run) ok(format string, a ...any)   { fmt.Fprintf(r.out, r.okMark+format+"\n", a...) }
+func (r *run) warn(format string, a ...any) { fmt.Fprintf(r.errw, r.warnMark+format+"\n", a...) }
 func (r *run) fail(format string, a ...any) {
-	fmt.Fprintf(r.errw, failMark+format+"\n", a...)
+	fmt.Fprintf(r.errw, r.failMark+format+"\n", a...)
 	r.issues++
 }
 
@@ -78,7 +81,8 @@ func (r *run) fail(format string, a ...any) {
 // cached pass outlives a failure. DAISY_HEALTHCHECK_PASSED=1 from outside
 // is a pass without a look, unless Force.
 func Run(o ops.Ops, stdout, stderr io.Writer, opt Options) bool {
-	r := &run{o: o, out: stdout, errw: stderr, fs: o.FS()}
+	r := &run{o: o, out: stdout, errw: stderr, fs: o.FS(),
+		okMark: mark(o, stdout, "✓", "0;32"), warnMark: mark(o, stderr, "⚠", "1;33"), failMark: mark(o, stderr, "✗", "0;31")}
 	ttl := TTL(o.Getenv("DAISY_HEALTHCHECK_TTL"))
 	if !opt.Force && o.Getenv("DAISY_HEALTHCHECK_PASSED") == "1" {
 		return true

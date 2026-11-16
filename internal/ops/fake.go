@@ -24,6 +24,8 @@ type Fake struct {
 	ReexecFn     func(path string, args ...string) error
 	HTTPFn       func() Doer
 	PromptFn     func(r io.Reader, w io.Writer, question string) (string, error)
+	// IsTerminalFn stands a terminal in for a test's buffer.
+	IsTerminalFn func(stream any) bool
 }
 
 func (f *Fake) FS() FS { return Real().FS() }
@@ -101,6 +103,13 @@ func (f *Fake) HTTP() Doer {
 		return f.HTTPFn()
 	}
 	return Real().HTTP()
+}
+
+func (f *Fake) IsTerminal(stream any) bool {
+	if f.IsTerminalFn != nil {
+		return f.IsTerminalFn(stream)
+	}
+	return Real().IsTerminal(stream)
 }
 
 func (f *Fake) Prompt(r io.Reader, w io.Writer, question string) (string, error) {
