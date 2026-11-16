@@ -314,11 +314,14 @@ func TestFirstHeaderReadAndExtended(t *testing.T) {
 // Step 28's per-plan figure: a plan's plan-step rows, every role's (the
 // step's, its review's, the orchestrator's), a superseded row left out:
 // their tokens over the code lines their measured rows added; a plan
-// with no code added has no figure; a swarm's rows are no plan's.
+// with no code added has no figure; a swarm's rows are no plan's. Step
+// 29's: a plan's ranges, each once, a superseded row's left out, and the
+// swarms named.
 func TestSummarizePlans(t *testing.T) {
 	var b []byte
+	ranges := map[string]string{"9999": "x..y", "1000": "a..b", "500": "a..b", "": "c^!"}
 	add := func(source, step, role, tokens string, lines *Lines) {
-		r := Row{When: "2026-11-12T10:00:00Z", Kind: PlanStep, Source: source, Unit: step, Role: role, Model: "m", TokensTotal: tokens, Lines: lines}
+		r := Row{When: "2026-11-12T10:00:00Z", Kind: PlanStep, Source: source, Unit: step, Role: role, Model: "m", TokensTotal: tokens, Lines: lines, Range: ranges[tokens]}
 		var err error
 		if b, err = AppendCSV(b, r); err != nil {
 			t.Fatal(err)
@@ -340,7 +343,7 @@ func TestSummarizePlans(t *testing.T) {
 	}
 	want := []Plan{
 		{Name: "261110.b", Rows: 1, WithTokens: 1, Tokens: 100, Measured: 1, CodeAdded: 0},
-		{Name: "261111.a", Rows: 4, WithTokens: 2, Tokens: 1500, Measured: 2, CodeAdded: 12},
+		{Name: "261111.a", Rows: 4, WithTokens: 2, Tokens: 1500, Measured: 2, CodeAdded: 12, Ranges: []string{"a..b", "c^!"}},
 	}
 	if fmt.Sprint(s.Plans) != fmt.Sprint(want) {
 		t.Fatalf("Plans = %+v\nwant %+v", s.Plans, want)
@@ -353,5 +356,8 @@ func TestSummarizePlans(t *testing.T) {
 	}
 	if s, _ := Summarize(b, Filter{Swarm: "acme/swarm-app"}); len(s.Plans) != 0 {
 		t.Errorf("a swarm's rows as plans: %+v", s.Plans)
+	}
+	if fmt.Sprint(s.Swarms) != "[acme/swarm-app]" {
+		t.Errorf("Swarms = %q", s.Swarms)
 	}
 }

@@ -143,6 +143,7 @@ Running: none
   cost         $0.00 today, $0.00 in all (0 runs without a cost)
   budget       none
   approved     0 pull requests; at the round limit 0, blocked there 0
+  reverted     0 of 0 merged pull requests (no mirror fetched)
   auto         0 gates passed for routine jobs (triage 0, plan 0)
   stage time   none
 Briefs: none active
@@ -301,7 +302,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 			`"owner":{"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},"sympathetic":{"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},` +
 			`"worker":{"effort":"medium","model":"claude-sonnet-5-5","provider":"anthropic"}}`,
 		"throughput": `{"approved":{"at_round_limit":0,"blocked_at_round_limit":0,"pull_requests":0},"auto":{"plan":0,"triage":0},"budget":{"per_day":10,"total":100},` +
-			`"cost":{"all":0.5,"runs_without_cost":0,"today":0.5},"runs":{"blocked":0,"failed":0,"faults":0,"other":0,"posted":1,"total":1},` +
+			`"cost":{"all":0.5,"runs_without_cost":0,"today":0.5},"reverted":{"fetched":null,"merged_pulls":0,"reverted_pulls":0},"runs":{"blocked":0,"failed":0,"faults":0,"other":0,"posted":1,"total":1},` +
 			`"stage_time":{"swarm:proposal-accepted":{"median_seconds":600,"runs":1}}}`,
 		"corrections": `[{"blocks":0,"issue":3,"plan_revisions":0,"pulls":[]},{"blocks":0,"issue":4,"plan_revisions":0,"pulls":[]},{"blocks":1,"issue":7,"plan_revisions":0,"pulls":[]}]`,
 		"briefs": `[{"met_run":null,"milestones":[{"closed":0,"heading":"M1","on_forge":false,"open":0}],"name":"next","path":"docs/briefs/next.md","shares_name_with":null},` +
@@ -392,6 +393,7 @@ func TestSwarmStatusThroughput(t *testing.T) {
   cost         $2.75 today, $4.00 in all (11 runs without a cost)
   budget       none
   approved     3 pull requests; at the round limit 4, blocked there 2
+  reverted     0 of 0 merged pull requests (no mirror fetched)
 `
 	if !strings.Contains(s.stdout.String(), want) {
 		t.Errorf("stdout:\n%s\nwant:\n%s", s.stdout.String(), want)
@@ -422,6 +424,56 @@ func TestSwarmStatusRefusals(t *testing.T) {
 }
 
 // runResult writes a run's result, and its out.md when out is not "".
+// The Throughput's reverted line (Step 29 of the plan remediating the
+// 2026-11-15 design review, talk A13): the swarm pull requests merged on
+// base in app's mirror, by a merge commit whose second parent a worker
+// run pushed, and the one a revert on base names, as the mirror's last
+// fetch left them; a merge of a head no run pushed is not one.
+func TestSwarmStatusReverts(t *testing.T) {
+	s := newStatusWS(t)
+	work := t.TempDir()
+	gitIn(t, work, "init", "-q", "-b", "main")
+	gitIn(t, work, "commit", "-q", "--allow-empty", "-m", "first")
+	merged := map[string]string{} // a branch's merge commit
+	for i, b := range []string{"swarm/1-1", "swarm/2-1", "feature"} {
+		gitIn(t, work, "checkout", "-q", "-b", b, "main")
+		os.WriteFile(filepath.Join(work, fmt.Sprint(i)), []byte(b), 0o644)
+		gitIn(t, work, "add", "-A")
+		gitIn(t, work, "commit", "-q", "-m", b)
+		if b != "feature" {
+			s.runResult(fmt.Sprintf("%d-worker-1", i+1), "branch "+b+" in app\npushed "+gitIn(t, work, "rev-parse", "HEAD")+"\noutcome posted\ncollected\n", "")
+		}
+		gitIn(t, work, "checkout", "-q", "main")
+		gitIn(t, work, "merge", "-q", "--no-ff", "-m", "Merge "+b, b)
+		merged[b] = gitIn(t, work, "rev-parse", "HEAD")
+	}
+	gitIn(t, work, "revert", "--no-edit", "-m", "1", merged["swarm/2-1"])
+	gitIn(t, work, "revert", "--no-edit", "-m", "1", merged["feature"])
+	mirror := s.state("git/app")
+	os.MkdirAll(mirror, 0o755)
+	gitIn(t, mirror, "init", "-q", "--bare")
+	gitIn(t, mirror, "fetch", "-q", work, "+refs/heads/*:refs/heads/*")
+	at := time.Date(2026, 11, 6, 7, 0, 0, 0, time.UTC)
+	os.Chtimes(filepath.Join(mirror, "FETCH_HEAD"), at, at)
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	if want := "\n  reverted     1 of 2 merged pull requests (as of the mirrors' last fetch, 2026-11-06T07:00:00Z)\n"; !strings.Contains(s.stdout.String(), want) {
+		t.Errorf("stdout:\n%s\nwant within:\n%s", s.stdout.String(), want)
+	}
+	s.flags = []string{"--json"}
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Throughput struct{ Reverted any }
+	}
+	json.Unmarshal(s.stdout.Bytes(), &doc)
+	if got, _ := json.Marshal(doc.Throughput.Reverted); string(got) != `{"fetched":"2026-11-06T07:00:00Z","merged_pulls":2,"reverted_pulls":1}` {
+		t.Errorf("throughput.reverted = %s", got)
+	}
+}
+
 func (s *statusWS) runResult(name, result, out string) {
 	s.t.Helper()
 	os.MkdirAll(s.state("runs/"+name+"/io"), 0o755)
@@ -568,6 +620,7 @@ func TestSwarmStatusStep7(t *testing.T) {
   cost         $0.00 today, $0.00 in all (12 runs without a cost)
   budget       none
   approved     2 pull requests; at the round limit 0, blocked there 0
+  reverted     0 of 0 merged pull requests (no mirror fetched)
   auto         0 gates passed for routine jobs (triage 0, plan 0)
   stage time   batch 2m45s (2), proposal-accepted 6m9s (1), plan-1-accepted 2m14s (2), review-0-ready 2m14s (6), review-3-changes-requested 2m14s (1), check 18s (3)
   #6           plan revisions 0, blocks 0; lib#1 rounds 2, maintainer comments 0; lib#2 rounds 1, maintainer comments 0

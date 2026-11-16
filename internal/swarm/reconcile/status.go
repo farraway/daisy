@@ -133,6 +133,15 @@ type StatusThroughput struct {
 		AtRoundLimit int `json:"at_round_limit"`
 		BlockedThere int `json:"blocked_at_round_limit"`
 	} `json:"approved"`
+	// Reverted is the merged swarm pull requests and those a revert on
+	// base took back, read from the mirrors as their last fetch left them
+	// (ReadPullReverts); Fetched the oldest of those fetches, RFC 3339,
+	// null when no mirror holding base was read.
+	Reverted struct {
+		MergedPulls   int     `json:"merged_pulls"`
+		RevertedPulls int     `json:"reverted_pulls"`
+		Fetched       *string `json:"fetched"`
+	} `json:"reverted"`
 	Auto struct {
 		Triage int `json:"triage"`
 		Plan   int `json:"plan"`
@@ -301,6 +310,15 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 		return nil, fmt.Errorf("reading the runs: %w", err)
 	}
 	r.Throughput.Budget = cfg.Budget
+	pr, err := ReadPullReverts(o, state, cfg.Base, time.Time{})
+	if err != nil {
+		return nil, fmt.Errorf("reading the reverts in the mirrors: %w", err)
+	}
+	r.Throughput.Reverted.MergedPulls, r.Throughput.Reverted.RevertedPulls = pr.Merged, pr.Reverted
+	if !pr.Fetched.IsZero() {
+		at := pr.Fetched.Format(time.RFC3339)
+		r.Throughput.Reverted.Fetched = &at
+	}
 	for _, a := range auto {
 		r.Throughput.Auto.Triage += a[0]
 		r.Throughput.Auto.Plan += a[1]

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -12,12 +13,15 @@ import (
 	"daisy/internal/env"
 	"daisy/internal/metrics"
 	"daisy/internal/ops"
+	"daisy/internal/swarm/reconcile"
 	"daisy/internal/verb"
 )
 
 // metricsReport is the summary: the CSV, whether it exists, the flags
 // that took its rows, the rows taken and how many of them a later record
-// supersedes, a group per kind and model, and a plan's figures per plan.
+// supersedes, a group per kind and model, a plan's figures per plan, the
+// repositories a plan step's range is looked up in for its reverts, and
+// a swarm's merged and reverted pull requests per swarm.
 type metricsReport struct {
 	File      string `json:"file"`
 	Exists    bool   `json:"exists"`
@@ -25,25 +29,48 @@ type metricsReport struct {
 		Swarm *string `json:"swarm"`
 		Since *string `json:"since"`
 	} `json:"rows_taken"`
-	Rows       int            `json:"rows"`
-	Superseded int            `json:"superseded"`
-	Groups     []metricsGroup `json:"groups"`
-	Plans      []planFigures  `json:"plans"`
+	Rows         int            `json:"rows"`
+	Superseded   int            `json:"superseded"`
+	Groups       []metricsGroup `json:"groups"`
+	Plans        []planFigures  `json:"plans"`
+	Repositories []string       `json:"repositories"`
+	Swarms       []swarmFigures `json:"swarms"`
 	verb.Warned
 }
 
 // planFigures is a plan's plan-step rows, every role's: their tokens
 // (nil when none reports them), the code lines their measured rows added
-// (nil when none is measured), and the tokens per code line (nil without
-// tokens or code).
+// (nil when none is measured), the tokens per code line (nil without
+// tokens or code), and its steps' reverts: the distinct ranges its rows
+// record, those a repository holds, those reverted, and the rate (nil
+// with none found).
 type planFigures struct {
-	Plan              string `json:"plan"`
-	Rows              int    `json:"rows"`
-	Tokens            *int   `json:"tokens"`
-	RowsWithTokens    int    `json:"rows_with_tokens"`
-	Measured          int    `json:"measured"`
-	CodeAdded         *int   `json:"code_added"`
-	TokensPerCodeLine *int   `json:"tokens_per_code_line"`
+	Plan              string   `json:"plan"`
+	Rows              int      `json:"rows"`
+	Tokens            *int     `json:"tokens"`
+	RowsWithTokens    int      `json:"rows_with_tokens"`
+	Measured          int      `json:"measured"`
+	CodeAdded         *int     `json:"code_added"`
+	TokensPerCodeLine *int     `json:"tokens_per_code_line"`
+	Steps             int      `json:"steps"`
+	StepsFound        int      `json:"steps_found"`
+	StepsReverted     int      `json:"steps_reverted"`
+	RevertRate        *float64 `json:"revert_rate"`
+}
+
+// swarmFigures is a swarm's pull requests merged and reverted, read from
+// one <state>'s mirrors (reconcile.ReadPullReverts), on the base its
+// mirrored swarm.json names; Problem says why there are none (no state
+// on this machine, no base), the counts then nil.
+type swarmFigures struct {
+	Swarm         string   `json:"swarm"`
+	State         *string  `json:"state"`
+	Base          *string  `json:"base"`
+	MergedPulls   *int     `json:"merged_pulls"`
+	RevertedPulls *int     `json:"reverted_pulls"`
+	RevertRate    *float64 `json:"revert_rate"`
+	Fetched       *string  `json:"fetched"`
+	Problem       *string  `json:"problem"`
 }
 
 // metricsGroup is the rows of one kind and model (nil, the text's
@@ -77,9 +104,10 @@ func (l *metricsLines) String() string { return fmt.Sprintf("+%d/-%d", l.Added, 
 
 // Metrics prints the summary of the home's metrics CSV: its rows grouped
 // by kind and model, a row a later one for the same step or run
-// supersedes left out, then a plan's tokens per code line it added, per
-// plan; with --swarm, that swarm's runs alone, and with --since, the
-// rows written at or after that time.
+// supersedes left out, then a plan's tokens per code line it added and
+// its reverted steps, per plan, and a swarm's reverted pull requests,
+// per swarm; with --swarm, that swarm's runs alone, and with --since,
+// the rows written at or after that time.
 func Metrics(c *Context) error {
 	return verb.PrintReport(c, func() (*metricsReport, error) { return readMetrics(c) }, func(r *metricsReport) {
 		if !r.Exists {
@@ -121,12 +149,35 @@ func Metrics(c *Context) error {
 		if len(r.Plans) > 0 {
 			fmt.Fprintln(c.Stdout)
 			w = tabwriter.NewWriter(c.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "  plan\trows\ttokens\tcode added\ttokens per code line")
+			fmt.Fprintln(w, "  plan\trows\ttokens\tcode added\ttokens per code line\treverted")
 			for _, p := range r.Plans {
-				fmt.Fprintf(w, "  %s\t%d\t%s\t%s\t%s\n", p.Plan, p.Rows, some(p.Tokens, "%d", p.RowsWithTokens, p.Rows),
-					some(p.CodeAdded, "+%d", p.Measured, p.Rows), some(p.TokensPerCodeLine, "%d", 1, 1))
+				fmt.Fprintf(w, "  %s\t%d\t%s\t%s\t%s\t%s\n", p.Plan, p.Rows, some(p.Tokens, "%d", p.RowsWithTokens, p.Rows),
+					some(p.CodeAdded, "+%d", p.Measured, p.Rows), some(p.TokensPerCodeLine, "%d", 1, 1), stepsReverted(p))
 			}
 			w.Flush()
+			where := "no repository (neither the working directory nor $DAISY_ROOT is in one)"
+			if len(r.Repositories) > 0 {
+				where = strings.Join(r.Repositories, ", then ")
+			}
+			fmt.Fprintf(c.Stdout, "\n  A step is reverted when a commit on HEAD says \"This reverts commit <sha>\" of a commit in its range,\n  each range looked up in %s.\n", where)
+		}
+		if len(r.Swarms) > 0 {
+			fmt.Fprintln(c.Stdout)
+			w = tabwriter.NewWriter(c.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "  swarm\tmerged pulls\treverted\tas of")
+			for _, sw := range r.Swarms {
+				if sw.Problem != nil {
+					fmt.Fprintf(w, "  %s\t—\t—\t%s\n", sw.Swarm, *sw.Problem)
+					continue
+				}
+				asOf := "no mirror fetched"
+				if sw.Fetched != nil {
+					asOf = "the mirrors' last fetch, " + *sw.Fetched
+				}
+				fmt.Fprintf(w, "  %s\t%d\t%s\t%s\n", sw.Swarm, *sw.MergedPulls, ofRate(*sw.RevertedPulls, *sw.MergedPulls), asOf)
+			}
+			w.Flush()
+			fmt.Fprintln(c.Stdout, "\n  A swarm's pull request is merged by a merge commit on its base whose second parent a worker run pushed,\n  and reverted when a commit on base says \"This reverts commit <sha>\" of it; no fetch is made.")
 		}
 		fmt.Fprintln(c.Stdout, "\n  A sum counts only the rows that have the value: (k/n) when k of the n do.")
 	})
@@ -135,7 +186,7 @@ func Metrics(c *Context) error {
 // readMetrics reads the summary of the home's metrics CSV.
 func readMetrics(c *Context) (*metricsReport, error) {
 	var f metrics.Filter
-	r := &metricsReport{File: env.MetricsFile(c.Env.Home), Groups: []metricsGroup{}, Plans: []planFigures{}}
+	r := &metricsReport{File: env.MetricsFile(c.Env.Home), Groups: []metricsGroup{}, Plans: []planFigures{}, Repositories: []string{}, Swarms: []swarmFigures{}}
 	if v, ok := c.Value("--swarm"); ok {
 		f.Swarm, r.RowsTaken.Swarm = v, &v
 	}
@@ -197,7 +248,122 @@ func readMetrics(c *Context) (*metricsReport, error) {
 		}
 		r.Plans = append(r.Plans, mp)
 	}
+	if len(s.Plans) > 0 {
+		if err := planReverts(c, r, s.Plans); err != nil {
+			return nil, err
+		}
+	}
+	for _, name := range s.Swarms {
+		figures, err := swarmReverts(c, name, f.Since)
+		if err != nil {
+			return nil, err
+		}
+		r.Swarms = append(r.Swarms, figures...)
+	}
 	return r, nil
+}
+
+// planReverts fills each plan's reverted steps: each of its ranges looked
+// up in the working directory's repository, then $DAISY_ROOT's
+// (metrics.StepReverts), the repositories named in r.
+func planReverts(c *Context, r *metricsReport, plans []metrics.Plan) error {
+	cwd, err := c.Ops.Getwd()
+	if err != nil {
+		return fmt.Errorf("Error: cannot read the working directory: %v", err)
+	}
+	for _, dir := range []string{cwd, c.Env.Root} {
+		out, _, err := c.Ops.Exec(dir, "git", "rev-parse", "--show-toplevel")
+		if top := strings.TrimSpace(string(out)); err == nil && top != "" && !slices.Contains(r.Repositories, top) {
+			r.Repositories = append(r.Repositories, top)
+		}
+	}
+	check := metrics.StepReverts{O: c.Ops, Dirs: r.Repositories}
+	for i, p := range plans {
+		mp := &r.Plans[i]
+		mp.Steps = len(p.Ranges)
+		for _, rng := range p.Ranges {
+			dir, reverted, err := check.Check(rng)
+			if err != nil {
+				return fmt.Errorf("Error: cannot read the reverts in %s: %v", dir, err)
+			}
+			if dir != "" {
+				mp.StepsFound++
+			}
+			if reverted {
+				mp.StepsReverted++
+			}
+		}
+		if mp.StepsFound > 0 {
+			rate := float64(mp.StepsReverted) / float64(mp.StepsFound)
+			mp.RevertRate = &rate
+		}
+	}
+	return nil
+}
+
+// swarmReverts is the swarm's figures, one per <state> of it on this
+// machine, merges made since since (all of them when zero); one with its
+// Problem when there is none, or its mirrored swarm.json names no base.
+func swarmReverts(c *Context, name string, since time.Time) ([]swarmFigures, error) {
+	states, err := reconcile.States(c.Ops.FS(), c.Env.Local, name)
+	if err != nil {
+		return nil, fmt.Errorf("Error: cannot read %s: %v", filepath.Join(c.Env.Local, "swarm"), err)
+	}
+	if len(states) == 0 {
+		problem := "no state on this machine"
+		return []swarmFigures{{Swarm: name, Problem: &problem}}, nil
+	}
+	var out []swarmFigures
+	for _, state := range states {
+		sf := swarmFigures{Swarm: name, State: &state}
+		base, err := reconcile.MirroredBase(c.Ops, state, name)
+		if err != nil {
+			problem := err.Error()
+			sf.Problem = &problem
+			out = append(out, sf)
+			continue
+		}
+		sf.Base = &base
+		pr, err := reconcile.ReadPullReverts(c.Ops, state, base, since)
+		if err != nil {
+			return nil, fmt.Errorf("Error: cannot read the reverts in %s's mirrors: %v", state, err)
+		}
+		sf.MergedPulls, sf.RevertedPulls = &pr.Merged, &pr.Reverted
+		if pr.Merged > 0 {
+			rate := float64(pr.Reverted) / float64(pr.Merged)
+			sf.RevertRate = &rate
+		}
+		if !pr.Fetched.IsZero() {
+			at := pr.Fetched.Format(time.RFC3339)
+			sf.Fetched = &at
+		}
+		out = append(out, sf)
+	}
+	return out, nil
+}
+
+// stepsReverted is a plan's reverted cell: `<k> of <n> (<p>%)` over the
+// steps found, then how many were not; `—` for a plan with no range.
+func stepsReverted(p planFigures) string {
+	missing := p.Steps - p.StepsFound
+	switch {
+	case p.Steps == 0:
+		return "—"
+	case p.StepsFound == 0:
+		return fmt.Sprintf("%d not found", missing)
+	case missing > 0:
+		return ofRate(p.StepsReverted, p.StepsFound) + fmt.Sprintf(", %d not found", missing)
+	}
+	return ofRate(p.StepsReverted, p.StepsFound)
+}
+
+// ofRate is `<k> of <n>`, with the rate as a whole percentage when n is
+// not 0.
+func ofRate(k, n int) string {
+	if n == 0 {
+		return fmt.Sprintf("%d of %d", k, n)
+	}
+	return fmt.Sprintf("%d of %d (%.0f%%)", k, n, 100*float64(k)/float64(n))
 }
 
 // some is a sum over the k of n rows that have the value, in format: "—"

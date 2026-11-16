@@ -13,20 +13,25 @@ import (
 // Summary is the CSV read back: its rows, those a later row for the same
 // kind, plan or swarm, step or run and role supersedes (a correction is
 // appended, never written over the row it corrects), and the rest
-// grouped by kind and model, and, of kind plan-step, by plan.
+// grouped by kind and model, and, of kind plan-step, by plan; Swarms
+// names the swarms of the rest of kind swarm-run, in name order.
 type Summary struct {
 	Rows, Superseded int
 	Groups           []Group
 	Plans            []Plan
+	Swarms           []string
 }
 
 // Plan is a plan's plan-step rows, every role's (the step's, its
 // reviews', the orchestrator's): their tokens, over those that report
-// them, and the code lines their measured rows added.
+// them, the code lines their measured rows added, and the distinct
+// commit ranges they record, in row order (a step's, recorded by more
+// than one role, once).
 type Plan struct {
 	Name                       string
 	Rows, WithTokens, Measured int
 	Tokens, CodeAdded          int
+	Ranges                     []string
 }
 
 // TokensPerCodeLine is the plan's tokens per code line it added,
@@ -92,6 +97,7 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 	}
 	groups := map[[2]string]*Group{}
 	plans := map[string]*Plan{}
+	swarms := map[string]bool{}
 	for i, rec := range recs {
 		keep, err := f.keeps(rec, i+2, col)
 		if err != nil {
@@ -123,7 +129,11 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 			}
 			p.add(rec, col)
 		}
+		if k[0] == string(SwarmRun) {
+			swarms[rec[col("plan_or_swarm")]] = true
+		}
 	}
+	s.Swarms = slices.Sorted(maps.Keys(swarms))
 	for _, name := range slices.Sorted(maps.Keys(plans)) {
 		s.Plans = append(s.Plans, *plans[name])
 	}
@@ -179,6 +189,9 @@ func (p *Plan) add(rec []string, col func(string) int) {
 	if c := rec[col("code_added")]; c != "" {
 		p.CodeAdded += atoi(c)
 		p.Measured++
+	}
+	if r := rec[col("range")]; r != "" && !slices.Contains(p.Ranges, r) {
+		p.Ranges = append(p.Ranges, r)
 	}
 }
 

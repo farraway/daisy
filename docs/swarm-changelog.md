@@ -286,3 +286,8 @@ they write.
   `swarm metrics --reprice [--dry-run]` supersedes the rows written
   before; sections 1, 2, 7.6, 9 and 11; decision
   [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md).
+- 2026-11-16, Step 29 of the plan remediating the 2026-11-15 design
+  review (talk A13): `swarm status`'s Throughput gains the `reverted`
+  line, the merged swarm pull requests and those a revert on `base`
+  names, read from the mirrors as last fetched; section 11; decision
+  [141](swarm/decisions/0141-reverts-counted-from-the-mirrors.md).

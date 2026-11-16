@@ -1,12 +1,15 @@
 package main_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"daisy/internal/metrics"
 	"daisy/internal/ops"
 )
 
@@ -198,9 +201,127 @@ func TestMetricsTokensPerCodeLine(t *testing.T) {
 		t.Errorf("the step's row has no tokens_cached:\n%s", b)
 	}
 	code, out, errs := runWith(o, "metrics")
-	want := "\n  plan                         rows  tokens      code added  tokens per code line\n" +
-		"  " + planName + "  3     1800 (2/3)  +3 (1/3)    600\n"
+	want := "\n  plan                         rows  tokens      code added  tokens per code line  reverted\n" +
+		"  " + planName + "  3     1800 (2/3)  +3 (1/3)    600                   1 not found\n"
 	if code != 0 || errs != "" || !strings.Contains(out, want) || !strings.Contains(out, "  plan-step  (none)  3     1800 (2/3)  1000 (1/3)") {
 		t.Fatalf("metrics = %d:\n%s\nwant within:\n%s\n%s", code, out, want, errs)
+	}
+}
+
+// Step 29's claim (the plan remediating the 2026-11-15 design review,
+// talk A13): a plan whose steps' ranges are in the root, one of the
+// three reverted by `git revert`, reads 1 of 3; a fourth step, measured
+// in a repository neither the working directory nor $DAISY_ROOT is in,
+// is not found; a range two roles record counts once.
+func TestMetricsStepReverts(t *testing.T) {
+	m := newMachine(t)
+	o := m.metricsOps(m.ws)
+	if code, _, errs := runWith(o, "plan", "new", "Measure things"); code != 0 {
+		t.Fatalf("plan new = %d: %s", code, errs)
+	}
+	gitIn(t, m.root, "init", "-q")
+	steps := []string{commitAll(t, m.root, "base")}
+	for _, f := range []string{"one.go", "two.go", "three.go"} {
+		writeFile(t, filepath.Join(m.root, f), "package x\n")
+		steps = append(steps, commitAll(t, m.root, "step "+f))
+	}
+	gitIn(t, m.root, "-c", "user.name=S", "-c", "user.email=s@x", "revert", "--no-edit", steps[2])
+	other, base, head := stepRepo(t)
+	for _, args := range [][]string{
+		{"--step", "1", "--range", steps[0][:7] + ".." + steps[1][:7], "--repo", m.root},
+		{"--step", "2", "--range", steps[1] + ".." + steps[2], "--repo", m.root},
+		{"--step", "2", "--role", "review", "--range", steps[1] + ".." + steps[2], "--repo", m.root},
+		{"--step", "3", "--range", steps[3] + "^!", "--repo", m.root},
+		{"--step", "4", "--range", base + ".." + head, "--repo", other},
+	} {
+		if code, _, errs := runWith(o, append([]string{"metrics", "add", "--root-sha", "abcdef1", "--home-sha", "abcdef2"}, args...)...); code != 0 {
+			t.Fatalf("metrics add %v = %d: %s", args, code, errs)
+		}
+	}
+	code, out, errs := runWith(o, "metrics")
+	if code != 0 || errs != "" || !strings.Contains(out, "  1 of 3 (33%), 1 not found\n") ||
+		!strings.Contains(out, "\n  A step is reverted when a commit on HEAD says \"This reverts commit <sha>\" of a commit in its range,\n  each range looked up in "+m.root+".\n") {
+		t.Fatalf("metrics = %d:\n%s\n%s", code, out, errs)
+	}
+	code, out, errs = runWith(o, "metrics", "--json")
+	var doc struct {
+		Repositories []string
+		Plans        []map[string]any
+	}
+	if err := json.Unmarshal([]byte(out), &doc); code != 0 || err != nil || len(doc.Plans) != 1 {
+		t.Fatalf("metrics --json = %d %v:\n%s\n%s", code, err, out, errs)
+	}
+	p := doc.Plans[0]
+	if fmt.Sprint(doc.Repositories) != "["+m.root+"]" || p["steps"] != 4.0 || p["steps_found"] != 3.0 || p["steps_reverted"] != 1.0 || p["revert_rate"] != 1.0/3 {
+		t.Errorf("repositories %q, plan %v", doc.Repositories, p)
+	}
+}
+
+// Step 29's claim for a swarm: its state's mirror of app holds three
+// merges of heads its worker runs pushed and a fourth of a branch none
+// pushed; the revert of one of the three and of the fourth on base, the
+// base the swarm repository's mirrored swarm.json names, reads 1 of 3,
+// as of the mirror's last fetch; a swarm the CSV names with no state on
+// this machine has no count.
+func TestMetricsSwarmReverts(t *testing.T) {
+	m := newMachine(t)
+	o := m.metricsOps(m.ws)
+	state := filepath.Join(m.local, "swarm", "forge.example.net", "acme", "swarm-app")
+	work := t.TempDir()
+	gitIn(t, work, "init", "-q", "-b", "trunk")
+	writeFile(t, filepath.Join(work, "README"), "app\n")
+	commitAll(t, work, "first")
+	merges := map[string]string{}
+	for i, b := range []string{"swarm/1-1", "swarm/2-1", "swarm/3-1", "feature"} {
+		gitIn(t, work, "checkout", "-q", "-b", b, "trunk")
+		writeFile(t, filepath.Join(work, b), b)
+		head := commitAll(t, work, b)
+		if b != "feature" {
+			writeFile(t, filepath.Join(state, "runs", fmt.Sprintf("%d-worker-1", i+1), "result"), "branch "+b+" in app\npushed "+head+"\noutcome posted\n")
+		}
+		gitIn(t, work, "checkout", "-q", "trunk")
+		gitIn(t, work, "-c", "user.name=S", "-c", "user.email=s@x", "merge", "-q", "--no-ff", "-m", "Merge "+b, b)
+		merges[b] = strings.TrimSpace(gitIn(t, work, "rev-parse", "HEAD"))
+	}
+	for _, b := range []string{"swarm/2-1", "feature"} {
+		gitIn(t, work, "-c", "user.name=S", "-c", "user.email=s@x", "revert", "--no-edit", "-m", "1", merges[b])
+	}
+	swarmRepo := t.TempDir()
+	gitIn(t, swarmRepo, "init", "-q", "-b", "main")
+	writeFile(t, filepath.Join(swarmRepo, "swarm.json"), `{"base": "trunk", "a_field_this_daisy_lacks": 1}`)
+	commitAll(t, swarmRepo, "swarm")
+	at := time.Date(2026, 11, 16, 8, 0, 0, 0, time.UTC)
+	for name, from := range map[string]string{"app": work, "swarm-app": swarmRepo} {
+		mirror := filepath.Join(state, "git", name)
+		os.MkdirAll(mirror, 0o755)
+		gitIn(t, mirror, "init", "-q", "--bare")
+		gitIn(t, mirror, "fetch", "-q", from, "+refs/heads/*:refs/heads/*")
+		gitIn(t, mirror, "symbolic-ref", "HEAD", "refs/heads/main")
+		os.Chtimes(filepath.Join(mirror, "FETCH_HEAD"), at, at)
+	}
+	var csv []byte
+	for _, r := range []metrics.Row{
+		{When: "2026-11-12T10:00:00Z", Kind: metrics.SwarmRun, Source: "acme/swarm-app", Unit: "1-worker-1", Role: "worker"},
+		{When: "2026-11-12T10:00:00Z", Kind: metrics.SwarmRun, Source: "acme/elsewhere", Unit: "1-worker-1", Role: "worker"},
+	} {
+		var err error
+		if csv, err = metrics.AppendCSV(csv, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile(t, filepath.Join(m.home, "metrics", "metrics.csv"), string(csv))
+	code, out, errs := runWith(o, "metrics")
+	want := "\n  swarm           merged pulls  reverted      as of\n" +
+		"  acme/elsewhere  —             —             no state on this machine\n" +
+		"  acme/swarm-app  3             1 of 3 (33%)  the mirrors' last fetch, 2026-11-16T08:00:00Z\n"
+	if code != 0 || errs != "" || !strings.Contains(out, want) {
+		t.Fatalf("metrics = %d:\n%s\nwant within:\n%s\n%s", code, out, want, errs)
+	}
+	code, out, _ = runWith(o, "metrics", "--swarm", "acme/swarm-app", "--json")
+	var doc struct{ Swarms []any }
+	json.Unmarshal([]byte(out), &doc)
+	got, _ := json.Marshal(doc.Swarms)
+	if wantJSON := `[{"base":"trunk","fetched":"2026-11-16T08:00:00Z","merged_pulls":3,"problem":null,"revert_rate":0.3333333333333333,"reverted_pulls":1,"state":"` + state + `","swarm":"acme/swarm-app"}]`; code != 0 || string(got) != wantJSON {
+		t.Errorf("metrics --swarm --json = %d, swarms:\n%s\nwant\n%s", code, got, wantJSON)
 	}
 }

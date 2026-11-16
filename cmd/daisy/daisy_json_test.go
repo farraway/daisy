@@ -141,7 +141,11 @@ func TestReadOnlyJSON(t *testing.T) {
 				 "code": {"added": 10, "removed": 2}, "tests": {"added": 5, "removed": 0}, "prose": {"added": 3, "removed": 1}},
 				{"kind": "swarm-run", "model": null, "rows": 1, "tokens": 50, "rows_with_tokens": 1, "tokens_cached": 40, "rows_with_tokens_cached": 1, "cost": null, "rows_with_cost": 0,
 				 "estimated": 0.25, "rows_with_estimated": 1, "measured": 0, "code": null, "tests": null, "prose": null}],
-			"plans": [{"plan": "p", "rows": 2, "tokens": 1200, "rows_with_tokens": 1, "measured": 1, "code_added": 10, "tokens_per_code_line": 120}],
+			"plans": [{"plan": "p", "rows": 2, "tokens": 1200, "rows_with_tokens": 1, "measured": 1, "code_added": 10, "tokens_per_code_line": 120,
+				"steps": 0, "steps_found": 0, "steps_reverted": 0, "revert_rate": null}],
+			"repositories": [],
+			"swarms": [{"swarm": "acme/swarm-app", "state": "<local>/swarm/forge.example.net/acme/swarm-app", "base": "main",
+				"merged_pulls": 0, "reverted_pulls": 0, "revert_rate": null, "fetched": null, "problem": null}],
 			"warnings": []}`},
 		{name: "swarm list", cwd: clone, args: []string{"swarm", "list", "--json"}, want: `{
 			"dir": "<local>/swarm",
@@ -172,7 +176,7 @@ func TestReadOnlyJSON(t *testing.T) {
 			"warnings": ["⚠️  the binding link .daisy/today.md is missing or does not point into the home; re-run 'daisy init testhome'"]}`},
 		{name: "metrics with no CSV", cwd: proj, args: []string{"metrics", "--json"}, setup: func() { os.Remove(csv) }, want: `{
 			"file": "<home>/metrics/metrics.csv", "exists": false, "rows_taken": {"swarm": null, "since": null},
-			"rows": 0, "superseded": 0, "groups": [], "plans": [], "warnings": []}`},
+			"rows": 0, "superseded": 0, "groups": [], "plans": [], "repositories": [], "swarms": [], "warnings": []}`},
 		{name: "swarm journal, the mark lost", cwd: clone, args: []string{"swarm", "journal", "--json"}, setup: func() { writeFile(t, seen, "9-gone-1 2026-11-05T10:00:00Z\n") }, want: `{
 			"repository": "acme/swarm-app", "marked": null, "day": "2026-11-06",
 			"lines": [

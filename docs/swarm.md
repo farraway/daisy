@@ -4694,10 +4694,10 @@ outcome.
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm status [--json] [--waiting]` |
-| Reads | `swarm.json` in the clone (validated as `apply` validates it, the prompts included), `<state>/env` (the token), `<state>/paused`, `<state>/restart`, `<state>/owner-held`, `<state>/auto`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under `resources` in the mirrors at their last fetch (their `Status:` lines and `## ` headings, section 4; `status` fetches nothing), and for Drift (below) the clone's `swarm.json` and `prompts/` against the swarm repository's mirror, and the mirror's `swarm/notes-*` branches (`for-each-ref`); the forge: `Login()`, `Issues(Open, label)` for each of the nine stages and `Issues(Closed, label)` for each of them and the two terminals, `Issue(m)` for each blocker an open issue's newest maintainer comment names (`Blocked by #<m>`), `Milestones()` when a brief is `active`, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
+| Reads | `swarm.json` in the clone (validated as `apply` validates it, the prompts included), `<state>/env` (the token), `<state>/paused`, `<state>/restart`, `<state>/owner-held`, `<state>/auto`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under `resources` in the mirrors at their last fetch (their `Status:` lines and `## ` headings, section 4; `status` fetches nothing), and for Drift (below) the clone's `swarm.json` and `prompts/` against the swarm repository's mirror, and the mirror's `swarm/notes-*` branches (`for-each-ref`), and for the reverted line (Throughput, below) each worker run's mirror's base at its last fetch (`git log`) and its `FETCH_HEAD`'s time; the forge: `Login()`, `Issues(Open, label)` for each of the nine stages and `Issues(Closed, label)` for each of them and the two terminals, `Issue(m)` for each blocker an open issue's newest maintainer comment names (`Blocked by #<m>`), `Milestones()` when a brief is `active`, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
 | Writes | nothing, anywhere |
 | Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]`, ` — restart requested at <time>` (`<state>/restart`, The restart, below) and ` — owner batch held: <reason>` when so (`<reason>` `owner-held`'s, followed by ` (released once #<n> … is closed)` or `are closed)` when the hold waits on issues, section 6, G0), and ` — owner batch held: no brief is active` when no brief under `resources` is `active` (section 6); `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per stage, `  %-26s %d` and the issue numbers (`  proposal-posted            2  #20 #21`); `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role, `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief in path order (below), or `Briefs: none active`; last, nearest the prompt after a long report, `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `next slice #…`, `close #…`, `pull closed #…`, `question #…`, `blocked #…`, `notes swarm/notes-<n>-<role>-<k> …`, separated by `; `, each issue `#<n>` under `triage` and `plan` and `#<n> (<class>)` under the others (section 5's list, a `review-2-approved` issue under the one of `merge`, `next slice`, `close` and `pull closed` its current pull request calls for, below), or `nothing`; `Held: ` then `paused #…` and `#<n> blocked by #<m>` for each issue held by an open blocker, separated by `; `, or `nothing`; the report is written whole once every read is made, so a failure prints none of it; with `--waiting`, the `Waiting for you: ` line alone; with `--json`, the same facts as one JSON document, the stderr lines under its `warnings` and nothing on stderr, with `--waiting` too only `waiting` and `warnings` (docs/cli.md, `--json` and `daisy swarm status`) |
-| Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`; a drift warning on stderr changes nothing); 1 no swarm found, `swarm.json` invalid, `<state>/env` readable by others, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief, `<state>/auto`, a run's `result` or a batch run's `out.md` unreadable; 2 with any argument |
+| Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`; a drift warning on stderr changes nothing); 1 no swarm found, `swarm.json` invalid, `<state>/env` readable by others, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief, `<state>/auto`, a run's `result` or a batch run's `out.md` unreadable, or a mirror's history git cannot read for the reverted line (`Error: swarm: reading the reverts in the mirrors: …`); 2 with any argument |
 | Ops | ReadOnly, which since Step 4 of the swarm build lets through an `HTTP` request whose method is `GET` or `HEAD` and the `Exec` of `docker ps` for every command it wraps (decision [31](swarm/decisions/0031-status-runs-under-a-widened-readonly.md)), and from Step 4 of revision 6's plan the `Exec` of git's reading commands on a mirror (`ls-tree`, `cat-file`, `hash-object` without `-w`), which the briefs and Drift read, and from Step 8 of the plan for the inbox requests F27–F35 `for-each-ref`, which the notes' branches read; every other write, `Exec` and `Start` stays refused |
 
 **Waiting for you.** The line lists the open issues that are gated, by
@@ -4764,6 +4764,7 @@ Throughput:
   cost         $<today> today, $<all> in all (<u> runs without a cost)
   budget       $<per_day> per day, $<total> in all        (or: none)
   approved     <a> pull requests; at the round limit <b>, blocked there <c>
+  reverted     <k> of <m> merged pull requests (as of the mirrors' last fetch, <time>)        (or: (no mirror fetched))
   auto         <t+p> gates passed for routine jobs (triage <t>, plan <p>)
   stage time   <stage> <median> (<runs>), …        (or: none)
   #<n>         plan revisions <v>, blocks <k>; <name>#<m> rounds <d>, maintainer comments <c>; …
@@ -4779,7 +4780,27 @@ stage (`swarm:review-0-ready` or `swarm:review-1-in-progress`) to
 `outcome posted` and a relabel from a review stage to
 `swarm:plan-0-posted` or `swarm:proposal-accepted`, or `flagged
 swarm:blocked` (T11; a reviewer run that failed or wrote `BLOCKED:` is
-not `posted`), and `<c>` the latter. `auto` counts the gates Daisy
+not `posted`), and `<c>` the latter. `reverted` reads the mirrors
+under `<state>/git` as their last fetch left them (`status` fetches
+nothing, so a revert pushed since counts from the next pass's fetch):
+`<m>` counts the swarm pull requests merged, each a merge commit on
+`base`'s first-parent line in the mirror of the repository a worker
+run's `branch … in <name>` line names, whose second parent is a head
+such a run's `pushed <sha>` line names (the forge merges at the head
+both reviews approved, with a merge commit, section 10); `<k>` those of
+them a commit on `base` reverts, its message holding git's own line
+`This reverts commit <sha>` (`git revert`'s, `-m 1` for a merge) with
+`<sha>`, in full or abbreviated, naming the merge commit. A pull request
+merged otherwise (squashed or rebased by hand on the forge), a revert
+written under another message, one on a branch other than `base` and
+one of a commit inside the pull request rather than its merge are not
+counted. `<time>` is the oldest of those mirrors' `FETCH_HEAD` times,
+RFC 3339 in UTC; `(no mirror fetched)` when no mirror holds `base`.
+`daisy metrics` prints the same counts per swarm (docs/cli.md), reading
+`base` from the swarm repository's mirror, whose clone it does not
+read (decision
+[141](swarm/decisions/0141-reverts-counted-from-the-mirrors.md)).
+`auto` counts the gates Daisy
 passed for routine jobs, which the maintainer did not read, by the stage
 each names: per issue, the larger of its lines in `<state>/auto`
 (section 2) and, for the open issues and those the batch prompt counts as
