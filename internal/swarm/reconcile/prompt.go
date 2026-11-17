@@ -42,6 +42,8 @@ type Job struct {
 
 	Resources []Listed   // each resource and reference path, as # Resources lists them (section 7.3)
 	Artifacts []Artifact // the screenshots of the worker run that pushed the current head, which a reviewer's prompt lists (section 7.3)
+	Outputs   []string   // the runs on the issue whose output the launch can copy whole (Outputs), each `<n>-<role>-<k>`
+	cut       []string   // the runs of Outputs whose text Render showed cut, in the order the prompt shows them (Cut)
 
 	Rulings  []string // the architect's on plan-1-accepted: the rulings changed since the plan, each `<name>:<path>` (section 6)
 	Replan   *Entry   // the architect's on plan-1-accepted: the maintainer's re-plan request since the plan (section 6, The re-plan)
@@ -83,9 +85,17 @@ func stamp(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 // (faultPause).
 func endStamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
-// Render is the run's system.md and prompt.md.
+// Render is the run's system.md and prompt.md; the runs whose text the
+// prompt shows cut are left in j for the launch (Cut).
 func Render(j *Job) (system, prompt string) {
+	j.cut = nil
 	head := fmt.Sprintf("%s#%d %s run %d, %s -->", j.Cfg.Forge.Repo, j.N, j.Role, j.K, stamp(j.Time))
+	// The prompt first: the Task text names the cut texts it shows, in
+	// the order it shows them.
+	prompt = j.prompt(head)
+	slices.SortStableFunc(j.cut, func(a, b string) int {
+		return strings.Index(prompt, OutputsMount+"/"+a+".md") - strings.Index(prompt, OutputsMount+"/"+b+".md")
+	})
 	sys := []string{"<!-- daisy-swarm system: " + head, "# Persona", Shift(trim(j.Persona), 1), "# Task", j.task()}
 	if readsPraxis(j.Role) {
 		for _, b := range [][2]string{{"# Praxis", j.Praxis}, {"# Testing", skillBody(j.Testing)}} {
@@ -97,13 +107,17 @@ func Render(j *Job) (system, prompt string) {
 	for _, n := range j.Repos {
 		sys = append(sys, "# Repository notes: "+n.Name, Shift(trim(n.Text), 1))
 	}
-	system = doc(append(sys, "# Resources", j.resources())...)
+	return doc(append(sys, "# Resources", j.resources())...), prompt
+}
+
+// prompt is the run's prompt.md.
+func (j *Job) prompt(head string) string {
 	blocks := []string{"<!-- daisy-swarm prompt: " + head, j.repository()}
 	if j.Cfg.Notes && writesNotes(j.Role) {
 		blocks = append(blocks, "# Research notes", j.notes())
 	}
 	if j.Batch != nil {
-		return system, doc(append(blocks, j.Batch.sections(j)...)...)
+		return doc(append(blocks, j.Batch.sections(j)...)...)
 	}
 	blocks = append(blocks, j.issue())
 	cur, open := j.current()
@@ -130,7 +144,7 @@ func Render(j *Job) (system, prompt string) {
 			blocks = append(blocks, "# Artifacts", j.artifactsSection())
 		}
 	}
-	return system, doc(blocks...)
+	return doc(blocks...)
 }
 
 // PraxisFile and TestingFile are the installed root's praxis and testing
@@ -404,7 +418,7 @@ func (j *Job) issue() string {
 func (j *Job) entry(level int, e Entry, suffix string) string {
 	h := strings.Repeat("#", level)
 	if m, ok := Swarms(e, j.SwarmLogin); ok {
-		return doc(fmt.Sprintf("%s %s, run %d, at %s%s", h, m.Role, m.Run, stamp(e.Created), suffix), Shift(trim(swarmText(e.Body)), level))
+		return doc(fmt.Sprintf("%s %s, run %d, at %s%s", h, m.Role, m.Run, stamp(e.Created), suffix), Shift(trim(j.uncut(m, swarmText(e.Body))), level))
 	}
 	if !j.trusted(e.Author) {
 		return fmt.Sprintf("%s %s at %s%s (not trusted; content omitted)", h, e.Author, stamp(e.Created), suffix)
@@ -455,6 +469,47 @@ func (j *Job) thread() string {
 	return orNone(out)
 }
 
+// OutputsMount is where a member finds whole each text its prompt shows
+// cut, the copy of the run's out.md the launch makes (section 7.3).
+const OutputsMount = "/work/.swarm/outputs"
+
+// cutNote is the line that ends a text Daisy cut, naming where the whole
+// text is: on the forge runs/<n>-<role>-<k>, in a prompt the member's copy
+// (section 7.5).
+func cutNote(where string) string {
+	return "[truncated by Daisy; the whole output is in " + where + "]"
+}
+
+// outputRun is the run directory's name of the run whose entry mark is
+// on issue n, and outputFile the member's copy of its output.
+func outputRun(n int, m Mark) string { return fmt.Sprintf("%d-%s-%d", n, m.Role, m.Run) }
+
+func outputFile(n int, m Mark) string { return OutputsMount + "/" + outputRun(n, m) + ".md" }
+
+// uncut is the text of the swarm entry marked m as a prompt shows it
+// (section 7.3): when Daisy cut it on the forge, the note it ends with
+// naming m's own run, and that run is one of j.Outputs, the note names
+// the member's copy instead, which the launch makes, and the run is
+// recorded for it (Cut); any other text as it is, so that a note a text
+// quotes, or one of a run whose output cannot be copied, stays as posted.
+func (j *Job) uncut(m Mark, text string) string {
+	run := outputRun(j.N, m)
+	note := cutNote("runs/" + run)
+	i := strings.LastIndex(text, "\n"+note)
+	if m.Kind != "" || i < 0 || !slices.Contains(j.Outputs, run) {
+		return text
+	}
+	if !slices.Contains(j.cut, run) {
+		j.cut = append(j.cut, run)
+	}
+	return text[:i+1] + cutNote(outputFile(j.N, m)) + text[i+1+len(note):]
+}
+
+// Cut is the runs whose text the prompt Render made last shows cut, each
+// `<n>-<role>-<k>`, in the order it shows them: the outputs the launch
+// copies to the member's /work/.swarm/outputs/<run>.md.
+func (j *Job) Cut() []string { return slices.Clone(j.cut) }
+
 func same(a, b Entry) bool {
 	return a.Author == b.Author && a.Body == b.Body && a.Created.Equal(b.Created)
 }
@@ -466,6 +521,7 @@ func (j *Job) plan() string {
 	}
 	text := swarmText(e.Body)
 	S := max(1, len(Slices(text)))
+	text = j.uncut(m, text)
 	s, repo := 0, ""
 	if j.Role == "worker" {
 		s, repo, _ = j.WorkerSlice()
@@ -694,7 +750,14 @@ func (j *Job) pullRequest(p forge.Pull) string {
 			}
 			switch md {
 			case roundFindings:
-				items = append(items, item{r.Submitted, doc(fmt.Sprintf("### %s, run %d, at %s%s", m.Role, m.Run, stamp(r.Submitted), suffix), strings.Join(blockingLines(swarmText(r.Body)), "\n"))})
+				// A review cut on the forge keeps its note, so the
+				// findings past the cut are found in its file.
+				text := swarmText(r.Body)
+				findings := blockingLines(text)
+				if shown := j.uncut(m, text); shown != text {
+					findings = append(findings, cutNote(outputFile(j.N, m)))
+				}
+				items = append(items, item{r.Submitted, doc(fmt.Sprintf("### %s, run %d, at %s%s", m.Role, m.Run, stamp(r.Submitted), suffix), strings.Join(findings, "\n"))})
 			case roundFull:
 				items = append(items, item{r.Submitted, j.entry(3, e, suffix)})
 			}
@@ -713,8 +776,8 @@ func (j *Job) pullRequest(p forge.Pull) string {
 	// The body is its opener's entry (section 6): the swarm's, marked;
 	// a trusted login's as written; anyone else's omitted.
 	body := p.Body
-	if _, ok := Swarms(Entry{p.Author, p.Body, p.Created}, j.SwarmLogin); ok {
-		body = swarmText(p.Body)
+	if m, ok := Swarms(Entry{p.Author, p.Body, p.Created}, j.SwarmLogin); ok {
+		body = j.uncut(m, swarmText(p.Body))
 	} else if !j.trusted(p.Author) {
 		body = fmt.Sprintf("Opened by %s, not trusted; content omitted.", p.Author)
 	}

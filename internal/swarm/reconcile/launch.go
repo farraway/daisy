@@ -125,6 +125,12 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	if emptyField(prompt) {
 		return failed("launch-failed "+ended(), "fault: prompt: prompt.md: empty field")
 	}
+	// The whole output of each text the prompt shows cut, where its note
+	// points (section 7.3).
+	if err := copyOutputs(fs, s.state(), ioDir, j.Cut()); err != nil {
+		fs.RemoveAll(r.Dir)
+		return false, err
+	}
 	if j.Role == "adversary" || j.Role == "sympathetic" {
 		// The screenshots # Artifacts lists, where the reviewer opens
 		// them (section 7.3).

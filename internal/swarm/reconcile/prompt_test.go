@@ -718,3 +718,67 @@ func TestEmptyField(t *testing.T) {
 		}
 	}
 }
+
+// A cut's note names the copy in the member's container only for a swarm
+// entry's own run whose output the launch can copy (Outputs), and the
+// run is recorded for the launch (Cut) once: a swarm entry quoting
+// another run's note, a trusted login's comment carrying one, and a run
+// not in Outputs keep the note as posted, and nothing of theirs is
+// copied (section 7.3).
+func TestRenderCutNote(t *testing.T) {
+	note := func(where string) string { return "[truncated by Daisy; the whole output is in " + where + "]" }
+	f, at := fixture()
+	f.Comment(at, marker("architect", 1)+archPlan+"\n"+note("runs/1-architect-1"))
+	f.Comment(at, marker("adversary", 1)+"The plan's end reads:\n"+note("runs/1-architect-9"))
+	f.Say(at, "jane", "Quoted:\n"+note("runs/1-owner-3"))
+	f.Comment(at, marker("owner", 4)+"Long.\n"+note("runs/1-owner-4"))
+	j := job(f, at.N, "architect", "swarm:proposal-accepted")
+	j.Outputs = []string{"1-architect-1", "1-architect-9", "1-adversary-1", "1-owner-3"}
+	sys, prompt := Render(j)
+	has(t, "prompt.md", prompt, []string{
+		"it works.\n\n" + note("/work/.swarm/outputs/1-architect-1.md") + "\n",
+		"The plan's end reads:\n" + note("runs/1-architect-9") + "\n",
+		"Quoted:\n" + note("runs/1-owner-3") + "\n",
+		"Long.\n" + note("runs/1-owner-4") + "\n",
+	}, note("runs/1-architect-1"), "outputs/1-architect-9", "outputs/1-owner-3", "outputs/1-owner-4")
+	has(t, "system.md", sys, []string{"were cut: the plan, whole in /work/.swarm/outputs/1-architect-1.md. In each, a line"})
+	if got := j.Cut(); len(got) != 1 || got[0] != "1-architect-1" {
+		t.Errorf("Cut: %v", got)
+	}
+	j.Outputs = nil
+	sys, prompt = Render(j)
+	has(t, "prompt.md", prompt, []string{"it works.\n\n" + note("runs/1-architect-1") + "\n"}, "/work/.swarm/outputs")
+	has(t, "system.md", sys, nil, "/work/.swarm/outputs", "60,000", "**Check:**")
+	if got := j.Cut(); len(got) != 0 {
+		t.Errorf("Cut without Outputs: %v", got)
+	}
+}
+
+// Outputs is the runs of the issue whose out.md is a regular file, but a
+// run failed for a secret in its output (never posted): a link, a
+// missing file and another issue's run are not given (section 7.3).
+func TestOutputs(t *testing.T) {
+	state := t.TempDir()
+	fs := ops.Real().FS()
+	write := func(run, out, result string) {
+		dir := filepath.Join(state, "runs", run)
+		os.MkdirAll(filepath.Join(dir, "io"), 0o755)
+		if out != "" {
+			os.WriteFile(filepath.Join(dir, "io", "out.md"), []byte(out), 0o644)
+		}
+		os.WriteFile(filepath.Join(dir, "result"), []byte(result), 0o644)
+	}
+	write("1-architect-1", "the plan\n", "posted comment\n")
+	write("1-worker-1", "", "failed: no output\n")
+	write("1-adversary-1", "token\n", "failed: secret in output: out.md\n")
+	write("2-architect-1", "another plan\n", "posted comment\n")
+	write("1-owner-1", "", "")
+	os.Symlink(filepath.Join(state, "runs", "1-architect-1", "io", "out.md"), filepath.Join(state, "runs", "1-owner-1", "io", "out.md"))
+	runs, err := Runs(fs, state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Outputs(fs, runs, 1); !reflect.DeepEqual(got, []string{"1-architect-1"}) {
+		t.Errorf("Outputs: %v", got)
+	}
+}

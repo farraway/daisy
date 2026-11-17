@@ -607,7 +607,7 @@ func postable(out string, r Run, room int) string {
 	if len(out) <= limit {
 		return out
 	}
-	note := "\n[truncated by Daisy; the whole output is in runs/" + filepath.Base(r.Dir) + "]"
+	note := "\n" + cutNote("runs/"+filepath.Base(r.Dir))
 	limit = max(limit-len(note), 0)
 	cut := strings.LastIndex(out[:limit], "\n")
 	if cut < 0 {

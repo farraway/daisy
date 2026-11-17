@@ -558,6 +558,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				}
 			}
 			marks := marksOf(IssueThread(is), s.SwarmLogin)
+			j.Outputs = Outputs(fs, runs, n)
 			if open {
 				if j.Pull == nil {
 					if j.Pull, err = s.pullThread(cur); err != nil {

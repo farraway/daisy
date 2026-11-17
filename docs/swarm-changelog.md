@@ -348,3 +348,11 @@ they write.
   its own `/work/.swarm/artifacts/`, with a Task sentence asking it to
   judge them; sections 2, 7.3, 7.4, 7.6, 7.7, 10 and 13; decision
   [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md).
+- 2026-11-17, Step 38b of the plan remediating the 2026-11-15 design
+  review (request F40): a member's text Daisy cut on the forge reaches
+  each later member that acts on it whole: the run's `out.md` copied to
+  the member's `/work/.swarm/outputs/<n>-<role>-<k>.md`, the cut's note
+  in its prompt naming that file, and a Task sentence listing the files,
+  the plan by name; the plan, a review and a pull request's description
+  alike; sections 2, 7.2, 7.3, 7.4, 7.5 and 13; decision
+  [148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md).
