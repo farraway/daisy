@@ -328,3 +328,10 @@ they write.
   (`waiting.no_check`), which notify tells; never refused; sections 2,
   3, 5, 11 and 12; decision
   [145](swarm/decisions/0145-a-merge-with-no-check-is-warned-of.md).
+- 2026-11-16, Step 36 of the plan remediating the 2026-11-15 design
+  review (talk A15): the lifecycle is explored, every sequence of up to
+  five events over two issues checked against four invariants and
+  section 5's table (`TestExploreLifecycle` in `internal/swarm/reconcile`),
+  `forge.Fake` gaining `Clone(o)` to fork the forge at each state;
+  sections 10 and 13; decision
+  [146](swarm/decisions/0146-the-lifecycle-is-explored.md).

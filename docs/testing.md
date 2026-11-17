@@ -488,7 +488,14 @@ that breaks it, where an example finds only what its author thought of.
 Go's form, which Daisy uses, is the fuzz target (`testing.F`, Go 1.18):
 `go test` runs its seeds and every input it has failed on (Go keeps each
 in the package's testdata directory), and `make fuzz` runs each target on
-generated inputs for a set time.
+generated inputs for a set time. The same idea over sequences of events
+is a bounded model check: the swarm's lifecycle explorer
+(`TestExploreLifecycle` in `internal/swarm/reconcile`) runs every
+interleaving of passes, members' ends, the maintainer's verbs, CI
+statuses and forge refusals over two issues up to a bound, checks the
+lifecycle's invariants after each event and reports the shortest
+sequence that breaks one, where an example test walks only the paths
+its author wrote down.
 
 ---
 

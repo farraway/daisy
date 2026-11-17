@@ -499,3 +499,45 @@ func TestFakeEditIssueAndPullURL(t *testing.T) {
 		t.Errorf("Pulls: %+v", ps)
 	}
 }
+
+// Clone copies the whole forge: with the same clock, its state equals
+// the original's field for field (a field Clone leaves out is zero in
+// the copy and fails here, every field being set first), and then a
+// write to either is not in the other.
+func TestFakeClone(t *testing.T) {
+	f := fakeForge(t)
+	f.RefuseLabels()
+	f.RefuseMilestones()
+	f.RefuseRepository()
+	f.AddRepository()
+	f.SetSSHURL("git@forge.example.net:acme/app.git")
+	f.fakeState.repository.Collaborators = map[string]string{"jane": "write by swarm-bot"}
+	n, _ := f.CreateIssue("A", "body", []string{"swarm:review-2-approved"})
+	f.Comment(Ref{"app", n}, "a comment")
+	id, _ := f.EnsureMilestone("M1")
+	f.SetMilestone(n, id)
+	m, _ := f.CreatePull("lib", "swarm/1-1", "main", "P", "Refs acme/app#1")
+	pr := Ref{"lib", m}
+	f.Push(pr, "abc1234")
+	f.Review(pr, Approve, "fine")
+	f.SayOnLine(pr, "jane", "main.go", 1, "here")
+	f.SetStatus("lib", "abc1234", "ci", "pending")
+	f.RequireChecks("lib", "main")
+	c := f.Clone(f.o)
+	if !reflect.DeepEqual(f.fakeState, c.fakeState) || c.account != f.account {
+		t.Fatal("the clone differs from the original")
+	}
+	c.Relabel(Ref{"app", n}, "swarm:review-2-approved", "swarm:blocked")
+	c.Comment(pr, "on the copy")
+	c.Push(pr, "def5678")
+	c.SetStatus("lib", "abc1234", "ci", "success")
+	c.Merge(pr, "def5678")
+	is, _ := f.Issue(n)
+	ps, _ := f.Pulls(1, []string{"swarm-bot"})
+	checks, _ := f.Status("lib", "abc1234")
+	comments, _ := f.PullComments(pr)
+	if !slices.Equal(is.Labels, []string{"swarm:review-2-approved"}) || len(ps) != 1 || ps[0].HeadSHA != "abc1234" || ps[0].Merged ||
+		checks[0].State != "pending" || len(comments) != 0 {
+		t.Errorf("the copy's writes reached the original: %v %+v %v %v", is.Labels, ps, checks, comments)
+	}
+}

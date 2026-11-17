@@ -312,22 +312,26 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	s.given[r.Dir] = secrets
 	s.watch(r.Dir, c, slot, "")
 	fmt.Fprintf(s.Out, "%slaunched\n", runHead(r))
-	// The in-progress stage, once the container has started: a refused
-	// launch never moves the issue, and the collection moves it on from
-	// either stage, or back (section 5).
-	if to := InProgress(j.Role, j.Label); to != "" {
-		if err := s.Forge.Relabel(forge.Ref{Repo: rp, N: j.N}, j.Label, to); err != nil {
-			return true, err
-		}
-		s.moved(j.N, to)
-		fmt.Fprintf(s.Out, "%s%s → %s\n", runHead(r), j.Label, to)
-		from := j.Label
-		j.Label = to // the issue's stage now, which the pair's second is launched on
-		if err := r.Append(fs, "relabelled "+from+" "+to); err != nil {
-			return true, err
-		}
+	return true, s.inProgress(j, r)
+}
+
+// inProgress writes the in-progress stage of run r of j once its container
+// has started (T20, T21): a refused launch never moves the issue, and the
+// collection moves it on from either stage, or back (section 5). j.Label
+// is then the issue's stage, which the pair's second is launched on.
+func (s *Swarm) inProgress(j *Job, r Run) error {
+	to := InProgress(j.Role, j.Label)
+	if to == "" {
+		return nil
 	}
-	return true, nil
+	if err := s.Forge.Relabel(forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: j.N}, j.Label, to); err != nil {
+		return err
+	}
+	s.moved(j.N, to)
+	fmt.Fprintf(s.Out, "%s%s → %s\n", runHead(r), j.Label, to)
+	from := j.Label
+	j.Label = to
+	return r.Append(s.O.FS(), "relabelled "+from+" "+to)
 }
 
 // exitScript runs the provider's argv under sh and, once the CLI has

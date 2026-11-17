@@ -109,6 +109,37 @@ func NewFake(o ops.Ops, repo string, names []string, account Account) *Fake {
 // forge's, and its writes are authored by account.
 func (f *Fake) As(account Account) *Fake { return &Fake{f.fakeState, account} }
 
+// Clone is a copy of this forge under the same token, its clock o: what
+// either is given from now on, the other does not hold, so a test that
+// explores what may happen next forks the forge at each state.
+func (f *Fake) Clone(o ops.Ops) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c := fakeState{o: o, owner: f.owner, repo: f.repo, names: slices.Clone(f.names), labels: slices.Clone(f.labels), refuse: f.refuse,
+		items: make(map[Ref]*item, len(f.items)), next: maps.Clone(f.next), reviewID: f.reviewID, commentID: f.commentID,
+		milestones: slices.Clone(f.milestones), refuseMs: f.refuseMs, sshURL: f.sshURL, refuseRepo: f.refuseRepo,
+		statuses: make(map[[2]string][]Check, len(f.statuses)), requires: maps.Clone(f.requires)}
+	for at, it := range f.items {
+		cp := *it
+		cp.labels, cp.comments, cp.events = slices.Clone(it.labels), slices.Clone(it.comments), slices.Clone(it.events)
+		if it.pull != nil {
+			pull := *it.pull
+			pull.reviews, pull.lines = slices.Clone(it.pull.reviews), slices.Clone(it.pull.lines)
+			cp.pull = &pull
+		}
+		c.items[at] = &cp
+	}
+	if f.repository != nil {
+		held := *f.repository
+		held.Collaborators = maps.Clone(f.repository.Collaborators)
+		c.repository = &held
+	}
+	for k, v := range f.statuses {
+		c.statuses[k] = slices.Clone(v)
+	}
+	return &Fake{&c, f.account}
+}
+
 // Events is the timeline of the issue or pull request at, oldest first.
 func (f *Fake) Events(at Ref) []Event {
 	f.mu.Lock()
