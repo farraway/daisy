@@ -133,6 +133,12 @@ type Adapter interface {
 	// never one (section 10).
 	Pulls(n int, openers []string) ([]Pull, error)
 	CreatePull(repo, head, base, title, body string) (int, error)
+	// Attach uploads data as a file named name to the pull request pr,
+	// where the forge shows it with the pull request, and is the URL the
+	// forge serves it at; a refusal of the file (attachments off, its
+	// size or type beyond the forge's limits) is ErrNotAttached (section
+	// 10).
+	Attach(pr Ref, name string, data []byte) (url string, err error)
 	PullComments(pr Ref) ([]Comment, error)
 	Reviews(pr Ref) ([]Review, error)
 	ReviewComments(pr Ref) ([]ReviewComment, error)
@@ -278,6 +284,9 @@ const (
 
 // ErrNotMergeable is a merge the forge refused.
 var ErrNotMergeable = errors.New("forge: not mergeable")
+
+// ErrNotAttached is a file the forge refused to attach (Attach).
+var ErrNotAttached = errors.New("forge: not attached")
 
 // ErrNotFound matches the forge's 404: Issue(n) of a number it does not
 // hold.

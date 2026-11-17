@@ -39,6 +39,7 @@ type fakeState struct {
 	names       []string // the declared repositories
 	labels      []string
 	refuse      bool
+	refuseFiles bool
 	items       map[Ref]*item
 	next        map[string]int
 	reviewID    int64
@@ -74,7 +75,15 @@ type item struct {
 	milestone           int64
 	comments            []Comment
 	events              []Event
+	files               []Attachment
 	pull                *pullState
+}
+
+// Attachment is a file the Fake holds attached to an issue or a pull
+// request (Attach): its name, the URL it is served at and its bytes.
+type Attachment struct {
+	Name, URL string
+	Data      []byte
 }
 
 // Event is a write the Fake keeps on an issue's or a pull request's
@@ -115,13 +124,13 @@ func (f *Fake) As(account Account) *Fake { return &Fake{f.fakeState, account} }
 func (f *Fake) Clone(o ops.Ops) *Fake {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c := fakeState{o: o, owner: f.owner, repo: f.repo, names: slices.Clone(f.names), labels: slices.Clone(f.labels), refuse: f.refuse,
+	c := fakeState{o: o, owner: f.owner, repo: f.repo, names: slices.Clone(f.names), labels: slices.Clone(f.labels), refuse: f.refuse, refuseFiles: f.refuseFiles,
 		items: make(map[Ref]*item, len(f.items)), next: maps.Clone(f.next), reviewID: f.reviewID, commentID: f.commentID,
 		milestones: slices.Clone(f.milestones), refuseMs: f.refuseMs, sshURL: f.sshURL, refuseRepo: f.refuseRepo,
 		statuses: make(map[[2]string][]Check, len(f.statuses)), requires: maps.Clone(f.requires)}
 	for at, it := range f.items {
 		cp := *it
-		cp.labels, cp.comments, cp.events = slices.Clone(it.labels), slices.Clone(it.comments), slices.Clone(it.events)
+		cp.labels, cp.comments, cp.events, cp.files = slices.Clone(it.labels), slices.Clone(it.comments), slices.Clone(it.events), slices.Clone(it.files)
 		if it.pull != nil {
 			pull := *it.pull
 			pull.reviews, pull.lines = slices.Clone(it.pull.reviews), slices.Clone(it.pull.lines)
@@ -449,6 +458,37 @@ func (f *Fake) CreatePull(repo, head, base, title, body string) (int, error) {
 	}
 	it := &item{title: title, body: body, author: f.account.Login, created: f.o.Now(), open: true, pull: &pullState{head: head, base: base, mergeable: MergeableYes}}
 	return f.add(repo, it), nil
+}
+
+// Attach holds data as a file named name attached to the issue or pull
+// request pr, served at a URL on the forge's host; once RefuseAttachments
+// is called, it refuses each file as the forge refuses one beyond its
+// limits (413), ErrNotAttached.
+func (f *Fake) Attach(pr Ref, name string, data []byte) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	it, err := f.find(pr)
+	if err != nil {
+		return "", err
+	}
+	if f.refuseFiles {
+		return "", fmt.Errorf("%w: forge: POST /repos/%s/%s/issues/%d/assets: 413 file size exceeds the limit", ErrNotAttached, f.owner, pr.Repo, pr.N)
+	}
+	sum := sha1.Sum([]byte(fmt.Sprintf("%s#%d %d %s", pr.Repo, pr.N, len(it.files), name)))
+	a := Attachment{Name: name, URL: "https://" + fakeHost + "/attachments/" + hex.EncodeToString(sum[:8]), Data: slices.Clone(data)}
+	it.files = append(it.files, a)
+	return a.URL, nil
+}
+
+// RefuseAttachments makes every later Attach be refused.
+func (f *Fake) RefuseAttachments() { f.mu.Lock(); defer f.mu.Unlock(); f.refuseFiles = true }
+
+// Attachments is the files attached to the issue or pull request at,
+// oldest first.
+func (f *Fake) Attachments(at Ref) []Attachment {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(must(f.find(at)).files)
 }
 
 // Push moves a pull request's head to sha.

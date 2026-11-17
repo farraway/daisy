@@ -125,6 +125,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 			}
 			return nil
 		}}, reason: "secret in output: commits", kept: true},
+		{name: "secret in a screenshot", canned: screenshot(artifacts(map[string]string{"home.png": png + secret})), reason: "secret in output: artifacts/home.png", kept: true},
 		{name: "secret in the check's tail", canned: work("v1"), check: runner.Canned{Stdout: "env: " + secret + "\n"}, reason: "secret in output: check.out", kept: true},
 		{name: "secret in the dependency step's tail", canned: work("v1"), deps: runner.Canned{Code: 1, Stderr: "env: " + secret + "\n"}, setup: func(a *applyWS) { a.withDeps(goDeps) },
 			reason: "secret in output: deps.out", kept: true},

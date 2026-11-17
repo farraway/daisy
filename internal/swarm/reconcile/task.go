@@ -8,8 +8,12 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
-// closing ends every Task text (section 7.4).
-const closing = "Write your output to /work/.swarm/out.md; that file is the only thing read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead."
+// closing ends every Task text (section 7.4), and workerClosing the
+// worker's, whose screenshots are read back too.
+const (
+	closing       = "Write your output to /work/.swarm/out.md; that file is the only thing read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead."
+	workerClosing = "Write your output to /work/.swarm/out.md; that file and the screenshots in /work/.swarm/artifacts/ are the only things read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead."
+)
 
 const planHeadings = `"## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions".`
 
@@ -116,11 +120,15 @@ func (j *Job) task() string {
 		if planned && s > 1 {
 			add(`A pin to an earlier slice's change names its merged commit, listed under Earlier pull requests, never a branch or an unmerged head; if this slice needs an earlier slice that is not merged, write "BLOCKED: slice <i> is not merged".`)
 		}
+		add(`If the change on your branch alters what a page of the product shows, render each page it alters once your last commit is made, the way the repository notes give, and save a screenshot of each directly in /work/.swarm/artifacts/ as a .png, .jpg, .jpeg or .webp file in the format its extension names, whose name is letters, digits, ".", "-" and "_", beginning with a letter or a digit, and says which page it shows: Daisy attaches them to the pull request and shows them to the reviewers, and skips any other file there. List under "Not established:" each page you could not render, and why, a page the repository notes give no way to render among them.`)
 	default: // the reviewers
 		s := sliceOf(cur, j.N)
 		add(`Review pull request %s#%d, slice %d of issue #%d. The change is "git diff %s...HEAD" in /work, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding. The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.`, cur.Repo, cur.Number, s, j.N, j.Cfg.Base)
 		if j.Role == "adversary" {
 			add(`For each test that slice %d's item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against %s's code: in /work, a throwaway clone, put everything the change touches except its tests back as %s has it (check out %s's version of each path, deleting those %s lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against %s's code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against %s already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against %s by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.`, s, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base)
+		}
+		if len(j.Artifacts) > 0 {
+			add(`The worker saved screenshots of pages the change alters, listed under "# Artifacts": open each from /work/.swarm/artifacts/ (the URL beside it is the pull request's copy, and "not attached" means the forge refused the file) and judge what the page shows against what the plan and the slice claim, as you judge the diff. A page that does not show what is claimed is a finding, naming the screenshot and the file and line that render what it shows. If you cannot open an image, say so in the review and judge that page from the diff alone.`)
 		}
 		switch r, prev := j.round(cur); {
 		case r > 1 && prev == cur.HeadSHA && !j.answeredSince(prev):
@@ -141,6 +149,9 @@ func (j *Job) task() string {
 		if p := j.protected(); p != "" {
 			add(`These paths are protected: %s. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.`, p)
 		}
+	}
+	if j.Role == "worker" {
+		return strings.Join(t, " ") + "\n\n" + workerClosing
 	}
 	return strings.Join(t, " ") + "\n\n" + closing
 }

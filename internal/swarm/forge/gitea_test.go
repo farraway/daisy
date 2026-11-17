@@ -1,9 +1,12 @@
 package forge
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"reflect"
 	"strings"
@@ -95,6 +98,19 @@ import (
 // recorded here as an empty CombinedStatus, its state "" and its
 // statuses null, *not established as of 2026-11-14*.
 
+// Step 38's, from the Swagger of version 29.0.0+dev-160-g55186ca39b
+// (read 2026-11-17): issueCreateIssueAttachment (`POST
+// /repos/{owner}/{repo}/issues/{index}/assets`, consumes
+// multipart/form-data: the file in the form field attachment, query name;
+// 201 Attachment, 400, 404, 413, 422, 423; Attachment: id, name, size,
+// download_count, created_at, uuid, browser_download_url). Gitea numbers
+// a pull request as an issue, so the call takes one's number. Its
+// app.example.ini (read the same day) sets the limits a 413 or a 422
+// answers: [attachment] MAX_SIZE, 100 (MB) by default, and ALLOWED_TYPES,
+// whose default holds .png, .jpg, .jpeg and .webp. The 413's and the
+// 422's messages are not in the Swagger: recorded here as plausible
+// text, *not established as of 2026-11-17*.
+
 // pair is one recorded request and its response.
 type pair struct {
 	method, path, body string // path relative to forge.api, with its query; body JSON or ""
@@ -133,7 +149,10 @@ func (s *script) Do(req *http.Request) (*http.Response, error) {
 	if req.Body != nil {
 		body, _ = io.ReadAll(req.Body)
 	}
-	if !sameJSON(string(body), p.body) {
+	if mt, params, _ := mime.ParseMediaType(req.Header.Get("Content-Type")); mt == "multipart/form-data" {
+		body = []byte(formText(s.t, body, params["boundary"]))
+	}
+	if string(body) != p.body && !sameJSON(string(body), p.body) {
 		s.t.Errorf("request %d body: %s, want %s", s.next, body, p.body)
 	}
 	return &http.Response{StatusCode: p.status, Body: io.NopCloser(strings.NewReader(p.resp)), Header: http.Header{}}, nil
@@ -143,6 +162,25 @@ func (s *script) done() {
 	s.t.Helper()
 	if s.next != len(s.pairs) {
 		s.t.Errorf("%d of %d recorded requests made", s.next, len(s.pairs))
+	}
+}
+
+// formText is a multipart/form-data body as a pair records it: each part
+// as `<field> <file name>: <content>`, one per line.
+func formText(t *testing.T, body []byte, boundary string) string {
+	t.Helper()
+	r := multipart.NewReader(bytes.NewReader(body), boundary)
+	var parts []string
+	for {
+		p, err := r.NextPart()
+		if err == io.EOF {
+			return strings.Join(parts, "\n")
+		}
+		if err != nil {
+			t.Fatalf("multipart body: %v", err)
+		}
+		data, _ := io.ReadAll(p)
+		parts = append(parts, p.FormName()+" "+p.FileName()+": "+string(data))
 	}
 }
 
@@ -1048,4 +1086,42 @@ func TestGiteaAddCollaborator(t *testing.T) {
 			s.done()
 		})
 	}
+}
+
+// Attach uploads the file as the pull request's attachment, its name in
+// the query and the form, and is its browser_download_url; a 413 or a
+// 422 is ErrNotAttached, naming the endpoint (section 10).
+func TestGiteaAttach(t *testing.T) {
+	const path = "/repos/acme/lib/issues/5/assets?name=home.png"
+	const form = "attachment home.png: \x89PNG"
+	g, s := gitea(t, []string{"app", "lib"}, pair{"POST", path, form, 201,
+		`{"id":3,"name":"home.png","size":4,"download_count":0,"created_at":"2026-11-17T09:00:00Z","uuid":"0f1e","browser_download_url":"https://forge.example.net/attachments/0f1e"}`})
+	if u, err := g.Attach(Ref{"lib", 5}, "home.png", []byte("\x89PNG")); u != "https://forge.example.net/attachments/0f1e" || err != nil {
+		t.Errorf("Attach = %q, %v", u, err)
+	}
+	s.done()
+
+	for _, tc := range []struct {
+		status int
+		resp   string
+		err    string
+	}{
+		{413, `{"message":"file size exceeds the limit","url":""}`, "forge: not attached: forge: POST " + path + ": 413 file size exceeds the limit"},
+		{422, `{"message":"this file cannot be uploaded or modified due to a forbidden file extension or type","url":""}`,
+			"forge: not attached: forge: POST " + path + ": 422 this file cannot be uploaded or modified due to a forbidden file extension or type"},
+	} {
+		g, s := gitea(t, []string{"app", "lib"}, pair{"POST", path, form, tc.status, tc.resp})
+		u, err := g.Attach(Ref{"lib", 5}, "home.png", []byte("\x89PNG"))
+		if u != "" || !errors.Is(err, ErrNotAttached) || errText(err) != tc.err {
+			t.Errorf("%d: Attach = %q, %v", tc.status, u, err)
+		}
+		s.done()
+	}
+
+	oops := pair{"POST", path, form, 500, `<html>oops</html>`}
+	g, s = gitea(t, []string{"app", "lib"}, oops, oops, oops, oops)
+	if _, err := g.Attach(Ref{"lib", 5}, "home.png", []byte("\x89PNG")); errors.Is(err, ErrNotAttached) || errText(err) != "forge: POST "+path+": 500 Internal Server Error" {
+		t.Errorf("a 500 after the retries: %v, want an error that is no refusal", err)
+	}
+	s.done()
 }

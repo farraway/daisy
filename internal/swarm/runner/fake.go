@@ -13,7 +13,9 @@ import (
 )
 
 // Canned is one scripted run: what the member writes to out.md ("" writes
-// nothing), what it does in its clone (Work, given the directory mounted
+// nothing), what else it writes or reads there (IO, given the directory
+// mounted at /work/.swarm: a worker's screenshots, a reviewer's copy of
+// them), what it does in its clone (Work, given the directory mounted
 // at /work: a worker's commits) and in its copy of the research notes
 // (Notes, given the directory mounted at /work/.notes: an architect's
 // notes) and what it reads of its resources (Resources, given the
@@ -23,6 +25,7 @@ import (
 // its Stdout and Stderr its output.
 type Canned struct {
 	Out            string
+	IO             func(io string) error
 	Work           func(work string) error
 	Notes          func(notes string) error
 	Resources      func(resources string) error
@@ -92,13 +95,20 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 	}
 	for _, m := range s.Mounts {
 		switch {
-		case m.Dst == "/work/.swarm" && c.Out != "":
+		case m.Dst == "/work/.swarm":
 			fs := f.FS
 			if fs == nil {
 				fs = ops.Real().FS()
 			}
-			if err := fs.WriteFile(filepath.Join(m.Src, "out.md"), []byte(c.Out), 0o644); err != nil {
-				return nil, err
+			if c.Out != "" {
+				if err := fs.WriteFile(filepath.Join(m.Src, "out.md"), []byte(c.Out), 0o644); err != nil {
+					return nil, err
+				}
+			}
+			if c.IO != nil {
+				if err := c.IO(m.Src); err != nil {
+					return nil, err
+				}
 			}
 		case m.Dst == "/work" && c.Work != nil:
 			if err := c.Work(m.Src); err != nil {

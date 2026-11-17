@@ -523,6 +523,7 @@ func TestFakeClone(t *testing.T) {
 	f.SayOnLine(pr, "jane", "main.go", 1, "here")
 	f.SetStatus("lib", "abc1234", "ci", "pending")
 	f.RequireChecks("lib", "main")
+	f.Attach(pr, "home.png", []byte("png"))
 	c := f.Clone(f.o)
 	if !reflect.DeepEqual(f.fakeState, c.fakeState) || c.account != f.account {
 		t.Fatal("the clone differs from the original")
@@ -532,12 +533,13 @@ func TestFakeClone(t *testing.T) {
 	c.Push(pr, "def5678")
 	c.SetStatus("lib", "abc1234", "ci", "success")
 	c.Merge(pr, "def5678")
+	c.Attach(pr, "copy.png", []byte("png"))
 	is, _ := f.Issue(n)
 	ps, _ := f.Pulls(1, []string{"swarm-bot"})
 	checks, _ := f.Status("lib", "abc1234")
 	comments, _ := f.PullComments(pr)
 	if !slices.Equal(is.Labels, []string{"swarm:review-2-approved"}) || len(ps) != 1 || ps[0].HeadSHA != "abc1234" || ps[0].Merged ||
-		checks[0].State != "pending" || len(comments) != 0 {
-		t.Errorf("the copy's writes reached the original: %v %+v %v %v", is.Labels, ps, checks, comments)
+		checks[0].State != "pending" || len(comments) != 0 || len(f.Attachments(pr)) != 1 {
+		t.Errorf("the copy's writes reached the original: %v %+v %v %v %v", is.Labels, ps, checks, comments, f.Attachments(pr))
 	}
 }

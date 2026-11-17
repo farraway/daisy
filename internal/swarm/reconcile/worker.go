@@ -132,10 +132,10 @@ func (c *collection) keep() error {
 // worker is a worker run's steps after its output was read (section 7.6):
 // no commits, which on review-3-changes-requested with a NO CHANGE: answer
 // is that answer posted on the pull request and T12; the secret check of
-// every object the push would send, then protected paths; the check,
-// started and collected when it ends, its posted tail checked for
-// secrets; the push; then the pull request opened or commented on, and T8
-// or T12.
+// every object the push would send, then protected paths; the artifacts
+// read; the check, started and collected when it ends, its posted tail
+// checked for secrets; the push; then the pull request opened or
+// commented on, the artifacts attached to it, and T8 or T12.
 func (c *collection) worker(out, text string, pull *forge.Pull) error {
 	s := c.s
 	if !c.commits() {
@@ -175,6 +175,10 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 			return c.fail("protected path changed: " + strings.Join(hits, ", "))
 		}
 	}
+	arts, clean, err := c.artifacts(secrets)
+	if err != nil || !clean {
+		return err
+	}
 	block := "**Check:** none declared."
 	if len(repo.Check) > 0 {
 		if step := nextStep(repo, c.lines); step != "" {
@@ -209,10 +213,12 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 	// so that the two together hold to maxPost (section 7.5).
 	sep := "\n\n"
 	posted := strings.TrimRight(postable(out, c.r, len(sep)+len(block)), "\r\n") + sep + block
+	var pr forge.Ref
 	if c.label == forge.ChangesRequested || pull != nil && pull.Open {
 		if err := c.onPull(*pull, posted); err != nil {
 			return err
 		}
+		pr = forge.Ref{Repo: pull.Repo, N: pull.Number}
 	} else {
 		issue := fmt.Sprintf("#%d", c.r.N)
 		if name != repoName(s.Cfg.Forge.Repo) {
@@ -225,7 +231,9 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 		mark := marker("worker", c.r.K)
 		created := false
 		for _, p := range pulls {
-			created = created || p.Open && p.Head == branch && strings.HasPrefix(p.Body, mark) && strings.EqualFold(p.Author, s.SwarmLogin)
+			if p.Open && p.Head == branch && strings.HasPrefix(p.Body, mark) && strings.EqualFold(p.Author, s.SwarmLogin) {
+				created, pr = true, forge.Ref{Repo: p.Repo, N: p.Number}
+			}
 		}
 		if !created {
 			sl := strings.TrimPrefix(branch, fmt.Sprintf("swarm/%d-", c.r.N))
@@ -237,7 +245,11 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 			if err := c.step(fmt.Sprintf("created pull %d", m)); err != nil {
 				return err
 			}
+			pr = forge.Ref{Repo: name, N: m}
 		}
+	}
+	if err := c.attach(pr, arts); err != nil {
+		return err
 	}
 	if err := c.relabel(forge.ReviewReady); err != nil {
 		return err

@@ -40,7 +40,8 @@ type Job struct {
 	Praxis  string // PraxisFile in the installed root, as read, for the roles that readsPraxis
 	Testing string // TestingFile there, as read
 
-	Resources []Listed // each resource and reference path, as # Resources lists them (section 7.3)
+	Resources []Listed   // each resource and reference path, as # Resources lists them (section 7.3)
+	Artifacts []Artifact // the screenshots of the worker run that pushed the current head, which a reviewer's prompt lists (section 7.3)
 
 	Rulings  []string // the architect's on plan-1-accepted: the rulings changed since the plan, each `<name>:<path>` (section 6)
 	Replan   *Entry   // the architect's on plan-1-accepted: the maintainer's re-plan request since the plan (section 6, The re-plan)
@@ -124,6 +125,9 @@ func Render(j *Job) (system, prompt string) {
 		blocks = append(blocks, j.questions(), j.earlier())
 		if open || j.Label == forge.ChangesRequested || reviewer {
 			blocks = append(blocks, j.pullRequest(cur), "# Check", j.Check)
+		}
+		if reviewer && len(j.Artifacts) > 0 {
+			blocks = append(blocks, "# Artifacts", j.artifactsSection())
 		}
 	}
 	return system, doc(blocks...)

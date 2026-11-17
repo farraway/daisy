@@ -281,6 +281,7 @@ Stages of a software factory the version leaves out, each by choice:
     ├── io/prompt.md                 # the material: issue, thread, plan, pull request (section 7.3)
     ├── io/out.md                    # what the member wrote
     ├── io/exit                      # the CLI's exit status, written by the sh it runs under once it has exited (section 7.2)
+    ├── io/artifacts/                # a worker's screenshots of the pages its change alters (7.4, 7.6); a reviewer's copies of those its prompt lists (7.3)
     ├── stdout, stderr               # the provider CLI's raw output
     ├── result                       # how the run ended, what it cost and what was posted (below)
     ├── check.out                    # a worker run's check output (section 7.6)
@@ -324,8 +325,9 @@ Every file Daisy writes, and nothing else:
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
 | `<run>/io/out.md` | the member's output | the member (in the container) | during the run |
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
+| `<run>/io/artifacts/<name>` | a worker run's: a screenshot of a page its change alters (7.4), which its collection reads (7.6, The screenshots); a reviewer run's: a copy of one its prompt lists (7.3, `# Artifacts`) | the worker (in the container); for a reviewer, `swarm apply` | during the run; for a reviewer, before the launch |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
-| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: decision [61](swarm/decisions/0061-what-step-5-built-of-the-provider-and-runner-seams-and-apply.md)), then `question` for the architect's or the owner's run on an issue carrying `swarm:question` (section 6, The question), which its collection reads, for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there), `<in>` every input token, those written to and read from the CLI's cache included (section 9, `Report`'s `InTokens`), followed by ` cached <c>` when the output reported the part read from the cache, every turn's for `codex`, `<c>` (`codex`'s `cached_input_tokens`, `claude`'s and `grok`'s `cache_read_input_tokens`; a `codex` run recorded before Step 11b of the plan for the inbox requests F27–F35 has none, and a `claude` or `grok` run recorded before Step 28 of the plan remediating the 2026-11-15 design review has none and an `<in>` that leaves its cache out: decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, with the repository's test services file `services <worker\|check> up <service> …` before they are started, `services <worker\|check> down` once they are removed, and `services <worker\|check> refused: <reason>` for a file not run (7.6, step 4; the worker's `up` or `refused` at its launch, before `started`), `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `flagged swarm:question`, `kept refs/swarm-runs/<n>-worker-<k>`, `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|question\|blocked\|failed\|fault\|stale\|abandoned\|discarded>` (`question` a member's question posted, section 6); last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
+| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: decision [61](swarm/decisions/0061-what-step-5-built-of-the-provider-and-runner-seams-and-apply.md)), then `question` for the architect's or the owner's run on an issue carrying `swarm:question` (section 6, The question), which its collection reads, for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there), `<in>` every input token, those written to and read from the CLI's cache included (section 9, `Report`'s `InTokens`), followed by ` cached <c>` when the output reported the part read from the cache, every turn's for `codex`, `<c>` (`codex`'s `cached_input_tokens`, `claude`'s and `grok`'s `cache_read_input_tokens`; a `codex` run recorded before Step 11b of the plan for the inbox requests F27–F35 has none, and a `claude` or `grok` run recorded before Step 28 of the plan remediating the 2026-11-15 design review has none and an `<in>` that leaves its cache out: decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, with the repository's test services file `services <worker\|check> up <service> …` before they are started, `services <worker\|check> down` once they are removed, and `services <worker\|check> refused: <reason>` for a file not run (7.6, step 4; the worker's `up` or `refused` at its launch, before `started`), `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `flagged swarm:question`, `kept refs/swarm-runs/<n>-worker-<k>`, `artifact <name> attached <url>`, `artifact <name> not attached: <error>` or `artifact "<name>" skipped: <reason>` (7.6, The screenshots), `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|question\|blocked\|failed\|fault\|stale\|abandoned\|discarded>` (`question` a member's question posted, section 6); last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
 | `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names, never a second for a run it holds a row of but a row superseding it; created with its header when absent | `swarm apply`; `swarm metrics --backfill` and `--reprice` (each under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | `apply`: at each run's collection, when `<state>/home` names a usable home, and at a posted review's, a row superseding each earlier review's of its role on the issue whose `review_effect` it decides (7.6, The run's record); `metrics --backfill`: on the command, for each collected run without a row; `metrics --reprice`: on the command, a superseding row for each run whose row its output, or for a reviewer the runs' effect, now reads otherwise (section 11) |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/deps.out` | with the repository's `deps` (section 3), the dependency step's standard output and error, as written | `swarm apply` | when the dependency step ends |
@@ -2355,7 +2357,7 @@ an `apply` that died left, is the same.
 | `/deps` | with `deps`, `<state>/deps/<name>`, the swarm's dependency cache for the declared repository `<name>`: read-write for its dependency step, read-only for its check; none for a member, and none without `deps`. A directory on the host, made by `apply` when absent and owned by the host user, bind-mounted: a Docker volume new to a container is root's, which `--user` could not write (request F28's failure again; decision [122](swarm/decisions/0122-a-dependency-step-and-the-swarms-cache.md)). Kept from run to run, so each step fetches only what is new; pruning it is the maintainer's (`rm -rf <state>/deps/<name>`) |
 | `/work` | the member's clone, read-write for every role: a reviewer's clone is a throwaway that is never fetched or pushed, so it may build and test there; for the owner and the architect, a directory holding a throwaway clone of each declared repository at `/work/<name>`; for the check, a fresh clone of the fetched head; for the dependency step, such a clone, read-only, so that the step writes the cache alone |
 | `<image>` | the run's repository's `image` (7.1 step 3) for the worker, the reviewers, the dependency step and the check; the first repository's for the owner and the architect |
-| `/work/.swarm` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out, and `exit` |
+| `/work/.swarm` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out, and `exit`; and `artifacts/`, a worker's screenshots out (7.6, The screenshots) and a reviewer's copies of them in (7.3, `# Artifacts`) |
 | `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's exit status to `/work/.swarm/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*). A container killed outright (a reboot, `docker stop`'s kill) writes none. The check and the dependency step run their argv as it is |
 | `/work/.notes` | with `notes`, `<run>/notes`, the run's copy of the research notes, the swarm repository's `notes/` directory (7.1, step 2): read-write for the owner and the architect, whose changes Daisy pushes after the run (7.6, The notes), and given to their CLI as a directory beside its workdir when that is `/work/<name>`; read-only for the worker and the reviewers, inside their clone, whose `.git/info/exclude` names it; none for the check |
 | `/work/.resources` | `<run>/resources`, read-only: each resource at `/work/.resources/<repository>/<path>`, checked out at the pass's commit (7.1, step 3: one the commit does not hold is *resource refused*, 7.7), never a working tree; none when `resources` and `references` name nothing; none for the check. Under `/work`, so a CLI confined to its working directory reaches it (section 9, `grok`); its mount point is made in `<run>/work` before the launch, as `.notes` is, so Docker makes none there, and a clone's `.git/info/exclude` names `/.resources/` (7.1, step 3) |
@@ -2585,6 +2587,10 @@ Branch swarm/<n>-<s> into <base>; head <sha>.
 # Check
 
 <check> on <sha>: exit <code>
+
+# Artifacts
+
+- /work/.swarm/artifacts/<name> (<url>)
 ```
 
 The pull request's `<body>` is its opener's entry (section 6): the
@@ -2611,6 +2617,7 @@ Which sections a prompt holds, by role:
 | `# Earlier pull requests` (`None.` when there are none) | the architect, when the current pull request is open (after T11, or a relabel by the maintainer), or on `swarm:plan-1-accepted` (section 6, The rulings) | yes | yes | yes |
 | `# Pull request`, its `## Earlier rounds` (left out when no round is a line) and its `## Thread` (`None.` when no entry is shown in it), compacted as below | the architect, when the current pull request is open (the rounds): every round's blocking findings | when the current pull request is open: the latest round in full, the earlier as lines | yes: the latest round in full, the earlier as lines | yes: the previous round's blocking findings, the earlier as lines, never the current round |
 | `# Check` | the architect, when the current pull request is open | when the current pull request is open | yes | yes |
+| `# Artifacts` (left out when the worker run that pushed the head took no screenshot, 7.6) | — | — | — | yes |
 
 - **`# Research notes`**, with `notes` (section 3), comes after
   `# Repository` in the owner's prompts, the batch's included, and the
@@ -2725,6 +2732,18 @@ Which sections a prompt holds, by role:
   step's failure) indented by four spaces; `No check result for this
   head.` when no such run exists (the maintainer pushed it), and
   `No check is declared.` when `check` is `[]`.
+- **`# Artifacts`**, in the reviewers' prompts alone, lists the
+  screenshots the worker run that pushed the current head took (the run
+  `# Check` reads; 7.6, The screenshots), in the order its collection
+  recorded them, each as its path in the reviewer's container and the
+  URL the forge serves it at, `(not attached)` in its place when the
+  forge refused the file; the section is left out when there is none.
+  Before the launch each file is copied from that run's
+  `<run>/io/artifacts/<name>`, read only as a regular file (`Lstat`), to
+  the reviewer's own, `/work/.swarm/artifacts/<name>` in its container,
+  where the reviewer opens it; a copy that fails is the pass's error,
+  nothing launched. The reviewers judge the page as the worker rendered
+  it beside the diff (decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)).
 
 The owner's batch prompt has no issue, thread or pull request; in their
 place:
@@ -2778,13 +2797,17 @@ batch text name each declared repository whose `protected` is not `[]`,
 as `<name>: <patterns>`). A `<…>` that stands for what the member writes
 (`<your question>` below, `<why>`, `<title>`, `<files>`, or `<i>` in
 `slice <i>`) is left as written, for the member to fill. Every text ends
-with the same paragraph:
+with the same paragraph, but for one phrase of the worker's:
 
 > Write your output to /work/.swarm/out.md; that file is the only thing
 > read back, and nothing you write elsewhere outside /work survives. If you
 > cannot do this without an answer from the maintainer, write
 > `BLOCKED: <your question>` as the first line of /work/.swarm/out.md
 > instead.
+
+The worker's reads `that file and the screenshots in
+/work/.swarm/artifacts/ are the only things read back` in place of
+`that file is the only thing read back` (7.6, The screenshots).
 
 | Role, label | Task text (before the closing paragraph) |
 |---|---|
@@ -2817,7 +2840,10 @@ result.`, or `No check command is declared; say how you tested.` when
 `check` is `[]`; then `End what you write with a line "Not established:"
 and list what you did not run or could not verify (live services, other
 platforms, behaviour that needs a network), or "none".` (decision
-[45](swarm/decisions/0045-not-established.md)); with a plan and `<s>` > 1, `A pin to an earlier slice's change names its merged commit, listed under Earlier pull requests, never a branch or an unmerged head; if this slice needs an earlier slice that is not merged, write "BLOCKED: slice <i> is not merged".`
+[45](swarm/decisions/0045-not-established.md)); with a plan and `<s>` > 1, `A pin to an earlier slice's change names its merged commit, listed under Earlier pull requests, never a branch or an unmerged head; if this slice needs an earlier slice that is not merged, write "BLOCKED: slice <i> is not merged".`; and last, `If the change on your branch alters what a page of the product shows, render each page it alters once your last commit is made, the way the repository notes give, and save a screenshot of each directly in /work/.swarm/artifacts/ as a .png, .jpg, .jpeg or .webp file in the format its extension names, whose name is letters, digits, ".", "-" and "_", beginning with a letter or a digit, and says which page it shows: Daisy attaches them to the pull request and shows them to the reviewers, and skips any other file there. List under "Not established:" each page you could not render, and why, a page the repository notes give no way to render among them.` (7.6, The screenshots; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)).
+Every reviewer text adds, after its row's text and the adversary's
+addition and before the round's, when its prompt holds `# Artifacts`
+(7.3): `The worker saved screenshots of pages the change alters, listed under "# Artifacts": open each from /work/.swarm/artifacts/ (the URL beside it is the pull request's copy, and "not attached" means the forge refused the file) and judge what the page shows against what the plan and the slice claim, as you judge the diff. A page that does not show what is claimed is a finding, naming the screenshot and the file and line that render what it shows. If you cannot open an image, say so in the review and judge that page from the diff alone.`
 Every worker and reviewer text adds, after its row's text and the
 additions above: `When the plan, the issue and its thread leave open something your work depends on, do not guess: write "QUESTION: <one question>" as the first line of your output instead; the architect answers it, and you run again with the answer under "# Questions".`
 (section 6, The question).
@@ -2940,11 +2966,12 @@ under the slot's lock at the launch and again when `docker run` returns
 stand), and held in memory only (a collection retried
 by another `apply` reads the slot as it is then). `apply` searches
 `<run>/io/out.md` for each as an exact byte string, and for a worker run
-the fetched commits (step 3 below) and, before its post, the check
+the fetched commits (step 3 below), the screenshots it takes (The
+screenshots, below) and, before its post, the check
 block's last 20 lines of `check.out` (or `deps.out`, step 4). A hit is
 the failure *secret in output* (7.7): nothing is posted or pushed, and
-the note names where (`out.md`, the commits, `check.out` or
-`deps.out`), never the value.
+the note names where (`out.md`, the commits, `artifacts/<name>`,
+`check.out` or `deps.out`), never the value.
 
 **A worker run, before posting.** After every worker run whose container
 ran, whatever its end:
@@ -3088,6 +3115,44 @@ not be the one the member's report describes. Built with the worker's
 collection (Step 6 of the swarm build); the hook and the identity are
 Step 5's (7.1).
 
+**The screenshots** (Step 38 of the plan remediating the 2026-11-15
+design review; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)). A worker may save screenshots of the
+pages its change alters under `/work/.swarm/artifacts/` (7.4),
+`<run>/io/artifacts/` on the host, which the member wrote and Daisy
+reads as untrusted; without that directory nothing here is done. After
+step 3, before the check, at each collection of a run with commits:
+the directory is read with `Lstat`, and one that is not a directory (a
+link among them, wherever it leads) is skipped whole; each entry at its
+top is read with `Lstat` too, so no link is followed and no
+subdirectory descended, and is taken when it is a regular file whose
+name matches `^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|webp)$` (a
+single path element that cannot begin with `.` or `-`) and whose
+content, read whole, sniffs as its extension's type (Go's
+`http.DetectContentType`: image/png, image/jpeg or image/webp).
+Every other entry is skipped: `⚠ #<n> worker run <k>: artifact "<name>"
+skipped: <reason>` on stderr and the same line, from `artifact`, in
+`<run>/result`, once, `<name>` Go-quoted as the member wrote it and
+`<reason>` one of `not a directory`, `the directory cannot be read`,
+`not a regular file`, `not a name of letters, digits, ".", "-" and "_"
+ending .png, .jpg, .jpeg or .webp`, `it cannot be read` and `its
+content is <type>, not <type>`. Each file taken is searched for the
+member's secrets (The secret check, above): a hit is the failure
+*secret in output*, `artifacts/<name>`, nothing pushed. The container
+has exited, so nothing writes the directory between the read and the
+upload. Once the pull request is opened or commented on, each file
+taken that `<run>/result` does not yet name is attached to it, in name
+order, `Attach(m, <name>, <bytes>)` (section 10): `artifact <name>
+attached <url>`; a file the forge refuses (`ErrNotAttached`) is `⚠ #<n>
+worker run <k>: artifact <name> not attached: <error>` and `artifact
+<name> not attached: <error>`, never a failure, the run posted as any;
+any other error is the pass's, the collection retried, and a reply
+lost after the forge stored the file attaches it again (no `Adapter`
+call lists a pull request's files). A run with no commits, a `NO
+CHANGE:` answer, a question or `BLOCKED:` attaches nothing. Daisy sets
+no bound of its own on the files' number or size: the forge's limits
+refuse a file (Gitea's `[attachment] MAX_SIZE`, `413`). The reviewers'
+prompts list the files (7.3, `# Artifacts`).
+
 **The notes.** With `notes`, an owner's or architect's run whose result
 holds `notes-base <sha>` and whose container ran (any end line but
 `launch-failed`; an abandoned run has none of this) first has its notes
@@ -3178,8 +3243,8 @@ line, and the fenced tail.
 | architect, `proposal-accepted` | `Comment(n, <marked text>)`; `Relabel(n, "swarm:proposal-accepted", "swarm:plan-0-posted")` with the plan gate on (T5), `Relabel(n, "swarm:proposal-accepted", "swarm:plan-1-accepted")` with it off (T6) |
 | architect, `plan-0-posted` | `Comment(n, <marked text>)` |
 | architect, `plan-1-accepted` (section 6, The rulings) | `Comment(n, <marked text>)`; a revised plan, with the plan gate on, `Relabel(n, "swarm:plan-1-accepted", "swarm:plan-0-posted")` (T27); `STANDS:`, or the gate off, nothing more |
-| worker, `plan-1-accepted` | the worker steps above; `Pulls(n)`: the current pull request open on `swarm/<n>-<s>`, `Comment(m, <posted text>)`; none, `CreatePull(<name>, "swarm/<n>-<s>", <base>, "<issue> slice <s>: <issue title>", <posted text> + "\n\nRefs <issue>")`, `<issue>` being `#<n>` when `<name>` is `forge.repo`'s and `<owner>/<repo>#<n>` otherwise (both skipped when its body carries this run's marker); `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")` (T8) |
-| worker, `review-3-changes-requested` | the worker steps above; `Comment(m, <posted text>)`, or with no commit and `NO CHANGE:` `Comment(m, <marked text>)` alone (step 1); `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")` (T12) |
+| worker, `plan-1-accepted` | the worker steps above; `Pulls(n)`: the current pull request open on `swarm/<n>-<s>`, `Comment(m, <posted text>)`; none, `CreatePull(<name>, "swarm/<n>-<s>", <base>, "<issue> slice <s>: <issue title>", <posted text> + "\n\nRefs <issue>")`, `<issue>` being `#<n>` when `<name>` is `forge.repo`'s and `<owner>/<repo>#<n>` otherwise (both skipped when its body carries this run's marker); `Attach(m, <name>, <bytes>)` for each screenshot not yet recorded (The screenshots); `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")` (T8) |
+| worker, `review-3-changes-requested` | the worker steps above; `Comment(m, <posted text>)` and `Attach(m, <name>, <bytes>)` for each screenshot not yet recorded (The screenshots), or with no commit and `NO CHANGE:` `Comment(m, <marked text>)` alone (step 1); `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")` (T12) |
 | adversary or sympathetic, `review-0-ready` or `review-1-in-progress` | `Pulls(n)`; `Review(m, <verdict>, <marked text>)`; `Reviews(m)` and `PullComments(m)`: when both roles have a review on the head since its newest reopening, the worker's answer without a commit or the maintainer's comment (the pair is complete, section 6), then, from `swarm:review-1-in-progress`: both approve, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-2-approved")` (T9); one requests changes and the rounds are below `max_rounds`, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-3-changes-requested")` (T10); one requests changes at `max_rounds` or more, `Comment(n, <reconciler note>)` (the first-time or the second-time note below) and `Relabel(n, "swarm:review-1-in-progress", "swarm:plan-0-posted")` with the plan gate on or `Relabel(n, "swarm:review-1-in-progress", "swarm:proposal-accepted")` with it off, or `Relabel(n, "", "swarm:blocked")`, the stage kept, when the issue thread already holds a round-limit note on this pull request other than this run's own (told by text, below; the own note found on a retried collection does not count) (T11). When the pair is not complete, nothing more: the label stays `review-1-in-progress` |
 | any role, `BLOCKED:` | the role's text, `Comment(m, <marked text>)` for the worker in `review-3-changes-requested` and the reviewers, `Comment(n, <marked text>)` for the others; `Comment(n, <reconciler note>)`; T22 for a worker and a reviewer; `Relabel(n, "", "swarm:blocked")` (T17) |
 | any run that ends without moving the issue on (a swarm fault, abandoned, stale, discarded with its pull request closed) | T22: `Relabel(n, <in-progress>, <home>)`, `<home>` `swarm:review-0-ready` for a reviewer and the run's label for a worker; nothing for the owner and the architect, whose launch writes no stage |
@@ -3372,7 +3437,7 @@ relabel and what it names.
 | bad slices (architect; a worker whose slice's repository no longer resolves, or whose continued pull request's repository the revised plan no longer names) | work | 7.5; 7.1 step 2, before the launch (`launch-failed <time>`) | `failed: bad slices: <slice numbers>` | T17, the note naming the slices |
 | no commits (worker, but for the answer without a commit, 7.5) | work | 7.6 | `failed: no commits` | T17 |
 | protected path changed (worker) | work | 7.6 | `failed: protected path changed: <paths>` | T17, the note naming the paths |
-| secret in output | work | 7.6, the secret check: `out.md`, a worker's commits or the posted tail of `check.out` or `deps.out` holds a secret the member was given | `failed: secret in output: <out.md, commits, check.out or deps.out>` | T17, the note naming where, never the value; nothing posted or pushed |
+| secret in output | work | 7.6, the secret check: `out.md`, a worker's commits, a screenshot it took or the posted tail of `check.out` or `deps.out` holds a secret the member was given | `failed: secret in output: <out.md, commits, artifacts/<name>, check.out or deps.out>` | T17, the note naming where, never the value; nothing posted or pushed |
 | push rejected (worker) | work | 7.6 | `failed: push rejected` | T17 |
 | the clone reaches outside itself (worker) | work | 7.6 | `failed: the clone reaches outside itself: <what>` | T17 |
 | fetch failed (worker) | work | 7.6, step 1: the run's second failed fetch in a row from its clone, whatever the run's end (a fault too); the first is the pass's error, retried | `fetch failed: <error>` for each, then `failed: fetch: <error>` (the second's), unless the run failed already | T17, the note naming the error; a run that failed already names its own failure, then `Its commits could not be fetched from its clone: <error>.` |
@@ -3795,6 +3860,7 @@ type Adapter interface {
     CloseIssue(n int) error
     Pulls(n int, openers []string) ([]Pull, error)     // the swarm's pull requests for issue n in every declared repository, opened by one of openers, by slice
     CreatePull(repo, head, base, title, body string) (int, error) // in the declared repository repo
+    Attach(pr Ref, name string, data []byte) (url string, err error) // a file attached to the pull request, served at url; ErrNotAttached when the forge refuses it
     PullComments(pr Ref) ([]Comment, error)            // oldest first
     Reviews(pr Ref) ([]Review, error)
     ReviewComments(pr Ref) ([]ReviewComment, error)    // line comments, oldest first
@@ -3873,25 +3939,28 @@ type Verdict int // Approve, RequestChanges, Commented
 type Check struct{ Context, State string } // a context's name and its state as the forge names it: pending, success, failure, error, or another (Gitea's warning, skipped)
 var ErrNotMergeable error // wraps the forge's message
 var ErrNotFound error     // matches the forge's 404 (errors.Is)
+var ErrNotAttached error  // a file the forge refused to attach: its attachments off, the file's size or type beyond its limits (errors.Is)
 ```
 
-These twenty-six methods are every call Daisy makes to the forge; the only
+These twenty-seven methods are every call Daisy makes to the forge; the only
 other traffic with it is host-side git (fetch and push, 7.1 and 7.6, and
 `init`'s clone and push, section 11). The last three are `init`'s alone,
 made with the maintainer's token (section 11, init), each on `forge.repo`
 as the adapter is built for it.
 **As built (Steps 1, 4, 9 and 10 of the swarm build; Step 6 of revision
-6's plan; Steps 1 and 7 of the plan for the inbox requests F27–F35).** The interface holds
-twenty-five: `Board` joins it with the step that builds the board, which
+6's plan; Steps 1 and 7 of the plan for the inbox requests F27–F35;
+Step 38 of the plan remediating the 2026-11-15 design review).** The interface holds
+twenty-six: `Board` joins it with the step that builds the board, which
 waits for a run that needs it, as the GitHub adapter does (`forge.New`
 answers kind `github` with `forge: kind github has no adapter yet; it is
 built when a run needs it (docs/swarm.md section 10)`). The `gitea`
-adapter and `forge.Fake` implement all twenty-five (Step 1 what `swarm init`
+adapter and `forge.Fake` implement all twenty-six (Step 1 what `swarm init`
 calls, Step 4 the rest but the milestones and `Approve`, Step 9 the
 milestones, Step 10 `Approve`, Step 6 of revision 6's plan the three
 repository calls, Step 1 of the plan for the inbox requests F27–F35,
 2026-11-14, `Status` and `RequiresChecks`, and its Step 7, 2026-11-14,
-`EditIssue` and `Pull.URL`), the label id map with a repository's label
+`EditIssue` and `Pull.URL`, and Step 38 of the plan remediating the
+2026-11-15 design review, 2026-11-17, `Attach`), the label id map with a repository's label
 shadowing the organization's included, read by the first `CreateIssue`
 or `Relabel` of each repository and held until the next pass (from Step
 28 of the swarm build: `Swarm.Pass` drops it at its start through the
@@ -4102,6 +4171,7 @@ the last, and a list whose first page is short reads one more, empty
 | `EditIssue` | `PATCH` | `/repos/{o}/{r}/issues/{n}` | `{"body": <body>}` | `201`; `403` to an account that may not edit the issue, the error |
 | `Pulls` | `GET` | `/repos/{o}/{r}/pulls?state=all&page=<p>&limit=50` | — | `[].number`, `html_url`, `title`, `body`, `head.ref`, `head.sha`, `base.ref`, `state`, `merged`, `mergeable` (`true` or `false`; absent or `null`, unknown), `merge_commit_sha` (read only when `merged`), `user.login`, `labels[].name`, `created_at` |
 | `CreatePull` | `POST` | `/repos/{o}/{r}/pulls` | `{"head", "base", "title", "body"}` | `201`: `number` |
+| `Attach` | `POST` | `/repos/{o}/{r}/issues/{pr}/assets?name=<name>` (issueCreateIssueAttachment: Gitea numbers a pull request as an issue; the name query-escaped) | multipart/form-data, the file in the field `attachment` | `201`: `browser_download_url`; a `4xx` other than `429` (`413` beyond the instance's `[attachment] MAX_SIZE`, 100 MB by default; `422` a type outside its `ALLOWED_TYPES`, whose default holds the three; `404` with attachments off) is `ErrNotAttached` |
 | `PullComments` | `GET` | `/repos/{o}/{r}/issues/{pr}/comments` (no paging, as for `Issue`) | — | `[].id`, `[].body`, `[].user.login`, `[].created_at`, `[].updated_at` |
 | `Reviews` | `GET` | `/repos/{o}/{r}/pulls/{pr}/reviews?page=<p>&limit=50` | — | `[].id`, `[].body`, `[].state` (`APPROVED`, `REQUEST_CHANGES`, `COMMENT`; an entry in `PENDING` or `REQUEST_REVIEW`, a review not yet submitted or a request for one, is left out), `[].commit_id`, `[].user.login`, `[].submitted_at` |
 | `ReviewComments` | `GET` per review | `/repos/{o}/{r}/pulls/{pr}/reviews/{id}/comments`, for each id `Reviews` returns (no paging) | — | `[].body`, `[].path`, `[].position`, `[].commit_id`, `[].user.login`, `[].created_at` |
@@ -4157,7 +4227,14 @@ with a `CombinedStatus`, `400` or `404`, whose `statuses` are
 `404`), and its Step 7 `EditIssue`'s from `issueEditIssue` again (as
 Steps 4 and 9 read it: its `EditIssueOption`'s fields each optional,
 `body` among them, answering `201`), with `Pulls`' `html_url`
-(`PullRequest`'s). Step
+(`PullRequest`'s), and Step 38 of the plan remediating the 2026-11-15
+design review `Attach`'s from the Swagger of version
+29.0.0+dev-160-g55186ca39b (read 2026-11-17; by operationId
+`issueCreateIssueAttachment`, consuming multipart/form-data with the
+file in `attachment` and the query `name`, answering `201` with an
+`Attachment`, whose fields include `name`, `size`, `uuid` and
+`browser_download_url`, or `400`, `404`, `413`, `422` or `423`), the
+limits from Gitea's `app.example.ini` read the same day. Step
 4's pairs settle four of the points left open:
 the comment endpoints take no page (`since` and `before` only) and the
 review comments' none; the review `event`s are `APPROVED`,
@@ -4210,7 +4287,11 @@ the branch (the Swagger names no permission); that a commit's statuses
 past the first page are none the merge needs (more contexts than the
 instance's page size are not read); and how the instance treats
 `warning` and `skipped` at the merge (the merge step leaves both to the
-forge's answer).
+forge's answer). *Not established as of 2026-11-17*, for `Attach`: the
+messages of its `413` and `422` (the recorded pairs write their own);
+that the instance has attachments on and its `ALLOWED_TYPES` holds
+`.png`, `.jpg`, `.jpeg` and `.webp`, as the default does; and that a
+file attached through the API shows with the pull request on its page.
 
 ### GitHub (REST v3)
 
@@ -4233,6 +4314,7 @@ Labels are named in paths and bodies (a name in a path is escaped:
 | `EditIssue` | `PATCH` | `/repos/{o}/{r}/issues/{n}` | `{"body": <body>}` | — |
 | `Pulls` | `GET`, then `GET` per open swarm pull request | `/repos/{o}/{r}/pulls?state=all&per_page=100&page=<p>`; `/repos/{o}/{r}/pulls/{pr}` (the list carries no `mergeable`) | — | `[].number`, `html_url`, `title`, `body`, `head.ref`, `head.sha`, `base.ref`, `state`, `merged_at`, `merge_commit_sha` (read only when `merged_at` is set: GitHub fills it for an open or closed unmerged pull request too, with a test merge), `user.login`, `labels[].name`, `created_at`; `mergeable` (`null` while GitHub computes it: unknown) |
 | `CreatePull` | `POST` | `/repos/{o}/{r}/pulls` | `{"title", "head", "base", "body"}` | `number` |
+| `Attach` | none | not supported: GitHub's REST API uploads no file to an issue or a pull request (the web's attachments have no endpoint); a release asset would need a release of the product's own, and a commit would write the declared repository's tree, which Daisy never does (section 2). The adapter answers every call with `ErrNotAttached` naming this, so each screenshot is recorded not attached and still reaches the reviewers from the host (7.3, `# Artifacts`; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)) | — | — |
 | `PullComments` | `GET` | `/repos/{o}/{r}/issues/{pr}/comments?per_page=100&page=<p>` | — | `[].id`, `[].body`, `[].user.login`, `[].created_at`, `[].updated_at` |
 | `Reviews` | `GET` | `/repos/{o}/{r}/pulls/{pr}/reviews?per_page=100&page=<p>` | — | `[].id`, `[].body`, `[].state` (`APPROVED`, `CHANGES_REQUESTED`, `COMMENTED`), `[].commit_id`, `[].user.login`, `[].submitted_at` |
 | `ReviewComments` | `GET` | `/repos/{o}/{r}/pulls/{pr}/comments?per_page=100&page=<p>` | — | `[].body`, `[].path`, `[].line`, `[].commit_id`, `[].user.login`, `[].created_at` |
@@ -4353,6 +4435,14 @@ review).** `Clone(o)` is a copy of the forge under the same token, its
 clock `o`: what either is given after, the other does not hold. The
 lifecycle's explorer (section 13) forks the forge with it at each state
 it reaches.
+
+**As built (Step 38 of the plan remediating the 2026-11-15 design
+review).** `Attach` holds the file on the issue or pull request, served
+at `https://forge.example.net/attachments/<id>`, and refuses one the
+forge does not hold as its `404`; `RefuseAttachments()` makes every
+later `Attach` the forge's `413`, `ErrNotAttached`; and `Attachments(at)`
+is the files attached to an issue or a pull request, oldest first, with
+their bytes, which a test asserts on. `Clone` copies them.
 
 ## 11. The verbs
 
@@ -5744,6 +5834,7 @@ interface with the step that builds the board.
 | 29 | the hold released by its issues (Step 17 of the plan for the inbox requests F27–F35) | `forge.Fake`, `runner.Fake` | a batch run's `BLOCKED: waiting on #1, #2, #3: …` with #2 closed: `owner-held` recording `0-owner-1 waits #1 #3`, the stdout line and `status`'s `State:` line naming them; #1 closed, still held; #3 closed, released at the next pass with its stdout and journal lines and the batch run in that pass; released while the maintainer's pause stands, the pause kept and the batch run only after `resume`; a `BLOCKED:` naming only a closed issue, an issue that does not exist, or an open one in passing, and *proposed nothing*, each holding with no second line and not released once the issue closes; `WaitingOn` over the form and its near misses |
 | 29 | `pause`, `resume`, the lock | temp `<state>`, `forge.Fake`, `runner.Fake` | `pause` mid-lifecycle stops launches and `resume` continues; `apply` runs `EnsureLabels` after taking the lock, creating a deleted label again, and after `RefuseLabels()` and a deleted label exiting 1 before any pass; two concurrent `apply --once` launch each role once, the second exiting with the holder's name |
 | 29 | `reconcile`, the lifecycle explored (Step 36 of the plan remediating the 2026-11-15 design review; decision [146](swarm/decisions/0146-the-lifecycle-is-explored.md)) | `forge.Fake` and its `Clone`, `runner.Fake`, an in-memory file system; `apply`'s pass but the launch's preparation and the worker's collection, which reach git | every sequence of up to five events (a pass; a member's end, a reviewer's verdict or `BLOCKED:`, the worker's push; the maintainer's pause, resume, unblock, block and accept; a CI status; a merge refused, a mergeability unknown, checks required, a relabel refused) over #1 approved and #2 ready for review, the merge gate off, each state expanded once: each open issue carries exactly one stage, no pull request merges with a check failed or pending on its head, nothing launches on an issue blocked, paused or held by its `Blocked by #<m>`, and every label Daisy writes is a row of section 5's table, which the test holds to the table's text; the shortest sequence that breaks one is the failure (`TestExploreLifecycle`, `TestSectionFiveTable`; `-explore.depth` explores deeper) |
+| 29 | `reconcile`, the screenshots (Step 38 of the plan remediating the 2026-11-15 design review; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)) | `forge.Fake` (`Attachments`, `RefuseAttachments`), `runner.Fake` writing a worker's `/work/.swarm/artifacts/`; the `gitea` adapter's recorded pairs | a worker run's screenshot attached to its pull request and recorded, each reviewer's prompt ending in `# Artifacts` with its path and URL, the file copied to the reviewer's `/work/.swarm/artifacts/` and the reviewer's Task sentence; every worker's Task sentence; without screenshots no `artifact` line, no attachment and no `# Artifacts`; a link to a host file, a link out of the directory, the directory itself a link, a subdirectory, a name beginning `.` or `-` or holding a space, another extension and a content not of its extension's type each skipped, warned of and recorded once; a file the forge refuses recorded `not attached`, the run posted and the reviewers given it; a secret in a screenshot *secret in output*, nothing pushed; `Attach`'s `201`, `413`, `422` and a `500` after its retries (`TestSwarmWorkerArtifactsReachThePullAndTheReviewers`, `TestSwarmWorkerWithoutArtifacts`, `TestSwarmWorkerArtifactsUntrusted`, `TestSwarmWorkerArtifactsDirectoryLink`, `TestSwarmWorkerArtifactRefused`, `TestSwarmApplyWorkFailures`, `TestGiteaAttach`) |
 | 30 | the real run | a real product workspace declaring two repositories of one organization (the product, then a library it depends on), the issue in the product's, and the Gitea instance, every gate on | one real issue through the lifecycle over two slices, the first in the library and the second in the product moving the product's pin to the first's merge commit, each pull request merged by the maintainer, then the issue closed by the maintainer; the library's pull request carrying `Refs <owner>/<repo>#<n>`, and whether Gitea shows it as a cross-reference recorded; the second slice's check with the moved pin under `--network none` recorded as passed or failed for want of the upstream (decision [51](swarm/decisions/0051-dependency-order-and-pins.md)); every comment the swarm posted carries the marker and is authored by the swarm's account, and the maintainer's approval is a formal review; `status`'s Throughput is the cost recorded |
 
 **Not established by Step 39**, which ran the five roles by hand, so not

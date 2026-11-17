@@ -125,6 +125,14 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	if emptyField(prompt) {
 		return failed("launch-failed "+ended(), "fault: prompt: prompt.md: empty field")
 	}
+	if j.Role == "adversary" || j.Role == "sympathetic" {
+		// The screenshots # Artifacts lists, where the reviewer opens
+		// them (section 7.3).
+		if err := copyArtifacts(fs, ioDir, j.Artifacts); err != nil {
+			fs.RemoveAll(r.Dir)
+			return false, err
+		}
+	}
 
 	// The resources, checked out of the mirrors at the pass's commits
 	// (section 7.1, step 3).

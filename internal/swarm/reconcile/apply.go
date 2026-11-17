@@ -565,6 +565,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 					}
 				}
 				j.Check = CheckSection(fs, runs, n, cur.HeadSHA, s.repoCheck(cur.Repo), s.Cfg.Timeout)
+				j.Artifacts = Artifacts(fs, runs, n, cur.HeadSHA)
 				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
 			}
 			turn := Turn{Label: label, Running: s.busy(running, runs, n)}

@@ -335,3 +335,16 @@ they write.
   `forge.Fake` gaining `Clone(o)` to fork the forge at each state;
   sections 10 and 13; decision
   [146](swarm/decisions/0146-the-lifecycle-is-explored.md).
+- 2026-11-17, Step 38 of the plan remediating the 2026-11-15 design
+  review (talk A16): every worker's Task text asks for a screenshot of
+  each page its change alters, under `/work/.swarm/artifacts/`; the
+  collection takes each regular PNG, JPEG or WebP file at the
+  directory's top, never through a link, warns of and records anything
+  else, searches it for the member's secrets and attaches it to the pull
+  request through the new forge method `Attach` (Gitea's
+  `issueCreateIssueAttachment`; GitHub's adapter will refuse it, having
+  no such endpoint), a refusal recorded `not attached`; each reviewer's
+  prompt lists the head's screenshots under `# Artifacts`, copied into
+  its own `/work/.swarm/artifacts/`, with a Task sentence asking it to
+  judge them; sections 2, 7.3, 7.4, 7.6, 7.7, 10 and 13; decision
+  [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md).

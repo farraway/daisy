@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"slices"
@@ -77,8 +78,14 @@ func (g *Gitea) call(method, path string, in any, want int, out any) error {
 		}
 		payload = b
 	}
+	return g.callWith(method, path, "application/json", payload, want, out)
+}
+
+// callWith is call with the request's body as it is sent, of type
+// contentType.
+func (g *Gitea) callWith(method, path, contentType string, payload []byte, want int, out any) error {
 	for attempt := 0; ; attempt++ {
-		status, data, header, err := g.send(method, path, payload)
+		status, data, header, err := g.send(method, path, contentType, payload)
 		if err != nil {
 			return err
 		}
@@ -100,7 +107,7 @@ func (g *Gitea) call(method, path string, in any, want int, out any) error {
 }
 
 // send makes one request and reads its whole response.
-func (g *Gitea) send(method, path string, payload []byte) (int, []byte, http.Header, error) {
+func (g *Gitea) send(method, path, contentType string, payload []byte) (int, []byte, http.Header, error) {
 	var body io.Reader
 	if payload != nil {
 		body = bytes.NewReader(payload)
@@ -112,7 +119,7 @@ func (g *Gitea) send(method, path string, payload []byte) (int, []byte, http.Hea
 	req.Header.Set("Authorization", "token "+g.token)
 	req.Header.Set("Accept", "application/json")
 	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", contentType)
 	}
 	resp, err := g.o.HTTP().Do(req)
 	if err != nil {
@@ -569,6 +576,37 @@ func (g *Gitea) CreatePull(repo, head, base, title, body string) (int, error) {
 		return 0, err
 	}
 	return out.Number, nil
+}
+
+// Attach uploads data as the pull request's attachment, a form's file
+// (issueCreateIssueAttachment: Gitea numbers a pull request as an
+// issue); a 4xx other than 429 is ErrNotAttached (section 10).
+func (g *Gitea) Attach(pr Ref, name string, data []byte) (string, error) {
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	part, err := w.CreateFormFile("attachment", name)
+	if err == nil {
+		_, err = part.Write(data)
+	}
+	if err == nil {
+		err = w.Close()
+	}
+	path := fmt.Sprintf("%s/issues/%d/assets?name=%s", g.repoPath(pr.Repo), pr.N, url.QueryEscape(name))
+	if err != nil {
+		return "", fmt.Errorf("forge: POST %s: %v", path, err)
+	}
+	var out struct {
+		URL string `json:"browser_download_url"`
+	}
+	err = g.callWith("POST", path, w.FormDataContentType(), body.Bytes(), http.StatusCreated, &out)
+	var api *apiError
+	if errors.As(err, &api) && api.status >= 400 && api.status < 500 && api.status != http.StatusTooManyRequests {
+		return "", fmt.Errorf("%w: %v", ErrNotAttached, err)
+	}
+	if err != nil {
+		return "", err
+	}
+	return out.URL, nil
 }
 
 // PullComments reads a pull request's comments, oldest first.
