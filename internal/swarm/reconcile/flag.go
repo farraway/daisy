@@ -127,22 +127,51 @@ var gateHead = regexp.MustCompile(`^\*\*reconciler:\*\* gated at (\S+): `)
 // round limit, T11). An issue with no gate note (its note refused, or the
 // flag set by hand) is not.
 func (s *Swarm) regated(is forge.Issue, labels []string) bool {
-	stage, _ := StageOf(forge.Issue{Labels: labels})
+	note := newestGateNote(is, s.SwarmLogin)
+	return note != nil && regatedSince(is, labels, *note, s.SwarmLogin)
+}
+
+// newestGateNote is the newest of the swarm's gate notes on is, nil when
+// it has none.
+func newestGateNote(is forge.Issue, swarmLogin string) *forge.Comment {
 	var note *forge.Comment
 	for i, c := range is.Comments {
-		if m, ok := Swarms(Entry{c.Author, c.Body, c.Created}, s.SwarmLogin); ok && m.Kind == "gate" && (note == nil || !c.Created.Before(note.Created)) {
+		if m, ok := Swarms(Entry{c.Author, c.Body, c.Created}, swarmLogin); ok && m.Kind == "gate" && (note == nil || !c.Created.Before(note.Created)) {
 			note = &is.Comments[i]
 		}
 	}
-	if note == nil {
-		return false
-	}
+	return note
+}
+
+// regatedSince is regated's test of the issue's newest gate note.
+func regatedSince(is forge.Issue, labels []string, note forge.Comment, swarmLogin string) bool {
+	stage, _ := StageOf(forge.Issue{Labels: labels})
 	_, rest, _ := strings.Cut(note.Body, "\n")
 	if h := gateHead.FindStringSubmatch(rest); h == nil || "swarm:"+h[1] != stage || strings.HasPrefix(rest[len(h[0]):], blockedWhy) {
 		return true
 	}
-	plan, _, ok := (&Job{SwarmLogin: s.SwarmLogin, Issue: is}).Plan()
+	plan, _, ok := (&Job{SwarmLogin: swarmLogin, Issue: is}).Plan()
 	return stage == forge.PlanPosted && ok && plan.Created.After(note.Created)
+}
+
+// CurrentGateNote is the text after the marker line of the gate note
+// that put is, read with its comments, in Waiting for you, as the flag
+// step posted it (section 5): the newest of its gate notes, while is
+// carries swarm:gated and that note is of its gating now, the blocked
+// gate's for a blocked issue, else one regated finds no gating since; ok
+// is false when no such note is on it yet (the next pass posts it).
+func CurrentGateNote(is forge.Issue, swarmLogin string) (text string, ok bool) {
+	note := newestGateNote(is, swarmLogin)
+	if note == nil || !slices.Contains(is.Labels, forge.Gated) {
+		return "", false
+	}
+	if slices.Contains(is.Labels, forge.Blocked) {
+		ok = blockedGate(note.Body)
+	} else {
+		ok = !regatedSince(is, is.Labels, *note, swarmLogin)
+	}
+	_, text, _ = strings.Cut(note.Body, "\n")
+	return text, ok
 }
 
 // Unflag clears flag from the issue at, whose labels are labels, when it

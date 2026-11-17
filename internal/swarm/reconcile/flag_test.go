@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"testing"
+	"time"
 
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
@@ -62,4 +63,41 @@ func TestBatchLinesNameTheStage(t *testing.T) {
 	b.Batch = &Batch{Open: []forge.Issue{read(1)}, Closed: []Closed{{Issue: read(2)}, {Issue: read(3)}}, Propose: 1}
 	_, prompt := Render(b)
 	has(t, "batch prompt.md", prompt, []string{"- #1 [proposal-posted] Open\n", "- #2 [done] Done: closed ", "- #3 [rejected] Dropped: closed "}, "[gated]")
+}
+
+// The gate note `swarm connect` shows (section 11, swarm connect): the
+// newest gate note while the issue carries swarm:gated and the note is of
+// its gating now; none for an issue without the flag, a note of another
+// stage, a plan posted after the note, or a blocked issue whose newest
+// note is not the blocked gate's, and the blocked gate's for one.
+func TestCurrentGateNote(t *testing.T) {
+	at := func(m int) time.Time { return time.Date(2026, 11, 6, 15, m, 0, 0, time.UTC) }
+	note := func(m int, text string) forge.Comment {
+		return forge.Comment{Author: "swarm-bot", Body: gateMarker + "\n" + text, Created: at(m)}
+	}
+	plan := forge.Comment{Author: "swarm-bot", Body: "<!-- daisy-swarm role=architect run=2 -->\n**architect:**\n\n## Steps\n\n1. app: x.\n", Created: at(5)}
+	atPlan := "**reconciler:** gated at plan-0-posted: the plan gate holds the plan until the maintainer accepts it.\n\nDecide: accept."
+	atTriage := "**reconciler:** gated at proposal-posted: the triage gate holds a proposal until the maintainer triages it.\n\nDecide: triage."
+	blocked := "**reconciler:** gated at plan-0-posted: " + blockedWhy + ".\n\nDecide: unblock."
+	for _, c := range []struct {
+		name     string
+		labels   []string
+		comments []forge.Comment
+		want     string // "" for none
+	}{
+		{"the newest, of this gating", []string{forge.PlanPosted, forge.Gated}, []forge.Comment{note(1, atTriage), note(3, atPlan)}, atPlan},
+		{"not flagged", []string{forge.PlanPosted}, []forge.Comment{note(3, atPlan)}, ""},
+		{"no note", []string{forge.PlanPosted, forge.Gated}, nil, ""},
+		{"a note of another stage", []string{forge.PlanPosted, forge.Gated}, []forge.Comment{note(1, atTriage)}, ""},
+		{"a plan after the note", []string{forge.PlanPosted, forge.Gated}, []forge.Comment{note(3, atPlan), plan}, ""},
+		{"blocked, the blocked gate's", []string{forge.PlanPosted, forge.Gated, forge.Blocked}, []forge.Comment{note(3, atPlan), note(4, blocked)}, blocked},
+		{"blocked, another gate's", []string{forge.PlanPosted, forge.Gated, forge.Blocked}, []forge.Comment{note(3, atPlan)}, ""},
+		{"not blocked, the blocked gate's", []string{forge.PlanPosted, forge.Gated}, []forge.Comment{note(4, blocked)}, ""},
+		{"another's note", []string{forge.PlanPosted, forge.Gated}, []forge.Comment{{Author: "jane", Body: gateMarker + "\n" + atPlan, Created: at(3)}}, ""},
+	} {
+		text, ok := CurrentGateNote(forge.Issue{Number: 4, Open: true, Labels: c.labels, Comments: c.comments}, "swarm-bot")
+		if ok != (c.want != "") || ok && text != c.want {
+			t.Errorf("%s: %v %q, want %q", c.name, ok, text, c.want)
+		}
+	}
 }

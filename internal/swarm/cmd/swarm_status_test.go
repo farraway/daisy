@@ -74,7 +74,11 @@ func (s *statusWS) state(rel string) string {
 
 // status is `swarm status` under ReadOnly, as the cli runs it, over the
 // Fake forge.
-func (s *statusWS) status(f forge.Adapter) error {
+func (s *statusWS) status(f forge.Adapter) error { return s.readOnly(swarmStatus, f) }
+
+// readOnly runs a verb that reads the forge, status or connect, under
+// ReadOnly, as the cli runs it, over the forge f, with s.flags.
+func (s *statusWS) readOnly(run func(*Context, opener) error, f forge.Adapter) error {
 	s.stdout.Reset()
 	s.stderr.Reset()
 	o := &ops.Fake{
@@ -102,7 +106,7 @@ func (s *statusWS) status(f forge.Adapter) error {
 	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr, Flags: s.flags}
 	return verb.ReadOnly(func(c *Context) error {
 		return s.at(c, false, func(c *Context) error {
-			return swarmStatus(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
+			return run(c, func(_ ops.Ops, _ declare.Forge, _ []string, token string) (forge.Adapter, error) {
 				s.tokens = append(s.tokens, token)
 				return f, nil
 			})

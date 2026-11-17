@@ -34,10 +34,10 @@ entries cross-reference it in prose.
 `daisy --help` as built, rendered from the `cli` table; `daisy
 help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm prompt build`, `swarm apply`,
-`swarm metrics`, `swarm status`, `swarm list`, `swarm journal`, `swarm pause`, `swarm resume`, `swarm restart`, and the maintainer's
+`swarm metrics`, `swarm status`, `swarm list`, `swarm journal`, `swarm connect`, `swarm pause`, `swarm resume`, `swarm restart`, and the maintainer's
 `swarm triage`, `swarm accept`, `swarm class`, `swarm approve`, `swarm
 merge`, `swarm unblock`, `swarm block`, `swarm replan` and `swarm close`) joined the
-table a verb at a time as each was built; all nineteen are in it, and the tree never names a command the binary does
+table a verb at a time as each was built; all twenty are in it, and the tree never names a command the binary does
 not run. Their entries below give docs/swarm.md's revision 6 (the swarm
 repository as the swarm's root, run from its clone with no Daisy
 workspace needed, the secrets in the swarm's `<state>/env`), which
@@ -108,6 +108,7 @@ Swarm
   swarm list [--json]               The swarms this machine runs: clone, home, pause; from anywhere (read-only)
   swarm journal [--json] [--issue <n>] | --mark <run>
                                     The journal since the line marked seen (--issue: one issue's lines); --mark moves the mark, its one write
+  swarm connect [--json]            The connect briefing: journal by issue, waits with gate notes, questions, AUTHORITIES.md, metrics (read-only)
   swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
   swarm resume [<n>]                Launch members again and release the owner's held batch (with <n>, that issue)
   swarm restart                     Have the running apply re-execute itself, onto the installed build, once no member runs
@@ -212,7 +213,7 @@ init, or `.daisy/` with no `home` file. Commands that need no workspace:
 `install`, `init` (bare, it re-initializes the one it is in, and outside one
 the identity is the missing argument), `home`, `identity list`, `help` (tree or command),
 `prompt build <home>`, and `test`, whose bash dispatcher required one although the script read
-only the root *(decided, D30; built in Step 24)*, and the nineteen
+only the root *(decided, D30; built in Step 24)*, and the twenty
 `swarm` verbs, which find their swarm themselves (docs/swarm.md section
 11, Finding the swarm: a swarm repository's clone; Step 2 of revision
 6's plan, the old layout's workspace no longer read since its Step 7),
@@ -248,7 +249,8 @@ A clean binding prints nothing on stderr (asserted empty in 76, 77, 79).
 
 **`--json`.** A read-only command that takes `--json` among its leading
 flags (as built, `status`, `files`, `list`, `tasks`, `projects`,
-`metrics`, `swarm status`, `swarm list` and `swarm journal`; a command
+`metrics`, `swarm status`, `swarm list`, `swarm journal` and `swarm
+connect`; a command
 without it refuses it as an unknown flag, exit 2) prints, with it, its
 report as one JSON
 document on stdout and nothing else: an object, indented two spaces,
@@ -264,7 +266,7 @@ a fact two commands print under one key in both (`workspace_projects`). Every ke
 is always present: `null` where the text prints nothing for a value
 that is absent (no current plan, no budget), `[]` where it lists none.
 The keys are pinned by tests (`TestFilesJSON`, `TestSwarmStatusJSON`,
-`TestSwarmStatusJSONThroughGitea`, `TestReadOnlyJSON`), so a change to one is a change to
+`TestSwarmStatusJSONThroughGitea`, `TestReadOnlyJSON`, `TestSwarmConnectThroughGitea`), so a change to one is a change to
 this contract. Every document has `warnings`: the lines the command
 would have written on stderr (drift, a secrets file's problem, a
 blocker naming no issue), each as the text form prints it, `[]` when
@@ -1199,6 +1201,66 @@ document without `--issue`):
   "marked": {"run": "1-architect-1", "at": "2026-11-05T10:00:00Z"},
   "day": null,
   "lines": [{"day": "2026-11-06", "run": "2-worker-1", "line": "- 1501 2-worker-1: posted; pull request #3"}],
+  "warnings": []
+}
+```
+
+### daisy swarm connect
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 33 of the plan remediating the 2026-11-15 design review, P21): Go (`internal/swarm/cmd/swarm_connect.go`, `internal/swarm/reconcile/briefing.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
+| Legacy | none |
+| Usage | `daisy swarm connect [--json]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); any argument is usage on stderr, exit 2 |
+| Exit codes | 0, also when the metrics cannot be read (the report says why); 1 as `swarm status` (no swarm found, `swarm.json` invalid, the token unset, a forge call failing, a run's file or a mirror unreadable), the journal unreadable, or `AUTHORITIES.md` present and unreadable (`Error: swarm connect: <error>`); 2 usage; with exit 1, nothing on stdout: the report is written whole once every read is made |
+| Stdout | the briefing of `prompts/swarm-connect.md` rule 2 (docs/swarm.md section 11, `daisy swarm connect`): `Swarm: <owner>/<repo> on <forge-host>, clone <swarm>`, the `State:` and `Running:` lines as `swarm status` prints them; `Since the last connect: ` and `swarm journal`'s first line, its lines under `  #<n>` per issue in issue order and `  no issue` last, indented four spaces, and its `Mark them seen: daisy swarm journal --mark <run>`; `Waiting for you: …` as `swarm status` prints it, each issue in it followed by `  #<n>, its gate note:` and that note's text after its marker line, indented four spaces (`  #<n>: no gate note of this gating on the issue` when the issue carries none of its gating now); `Held: …`; `Runs: <k> (<p> posted, <b> blocked, <f> failed, <x> faults, <o> other)`; `Questions the swarm answers: #<n> for the <architect\|owner>; …` (or `none`), each with `  #<n>, <role> run <k> at <time>:` and the question, indented; `Authorities: <swarm>/AUTHORITIES.md, quoted verbatim; Daisy acts on none of it`, the file's bytes, `End of AUTHORITIES.md`, or `Authorities: none granted (no AUTHORITIES.md in <swarm>)`; `Metrics of the swarm's runs: <csv> (home <name>)`, `  since the last model or prompt change, <time> <sha> <subject> (the clone's newest commit to swarm.json or prompts/):` and a line per model, `  in all:` and a line per model (`    <model>  <k> rows, tokens <t>, cost $<c>, estimated $<e>`, sums as `daisy metrics` gives them), or `Metrics of the swarm's runs: none (<why>)`; each part after the first opens with a blank line. With `--json`: one document (below) |
+| Stderr | as `swarm status` and `swarm journal`; with `--json`, empty on success, each line under `warnings` |
+| Ops | ReadOnly, widened as for `swarm status` |
+| Writes | nothing |
+| Commits | none |
+| Cases | none; `TestSwarmConnect`, `TestSwarmConnectThroughGitea`, `TestCurrentGateNote` |
+
+It reads `AUTHORITIES.md` only to quote it: Daisy acts on none of it
+(docs/swarm.md section 2, The authorities). `swarm connect --json`
+(Common behaviour, `--json`) has `repository`, `host` and `clone`, the
+Swarm line; `state` and `running` as `swarm status --json` gives them;
+`journal`: `marked` and `day` as `swarm journal --json` gives them,
+`issues`, each `issue` (`null` for the lines of no issue) and its
+`lines` (each `day`, `run`, `line`), and `mark`, the run `--mark`
+takes (`null` with no line); `waiting`, `swarm status --json`'s with
+each issue's `gate_note`, the note's text after its marker line, or
+`null`; `held` and `runs` (`total`, `posted`, `blocked`, `failed`,
+`faults`, `other`) as `swarm status --json` gives them; `questions`,
+each `issue`, `answerer` and `asked` (`role`, `run`, `at`, `text`, or
+`null`); `authorities`, `{"path", "text"}`, `text` the file's bytes,
+or `null` with no file; `metrics`: `home` and `file` (`null` when not
+read), `change` (`at`, `commit`, `subject`, or `null`),
+`since_change` and `all`, each model's `model` (`null` when left
+empty), `rows`, `tokens`, `rows_with_tokens`, `cost`, `rows_with_cost`,
+`estimated` and `rows_with_estimated` (a sum `null` when no row has
+it), and `problem`, why there are none, else `null`; and `warnings`.
+Abridged:
+
+```json
+{
+  "repository": "acme/swarm-app", "host": "forge.example.net", "clone": "/srv/swarm-app",
+  "state": {"path": "<state>", "paused": null, "restart_requested_at": null, "owner_held": null, "no_active_brief": false},
+  "running": {"members": [], "error": null},
+  "journal": {"marked": null, "day": "2026-11-06", "mark": "0-owner-2", "issues": [
+    {"issue": 2, "lines": [{"day": "2026-11-06", "run": "2-architect-1", "line": "- 1502 2-architect-1: posted; the plan; #2"}]},
+    {"issue": null, "lines": [{"day": "2026-11-06", "run": "0-owner-2", "line": "- 1503 0-owner-2: posted; batch"}]}]},
+  "waiting": {"issues": [{"item": "plan", "issue": 2, "class": "architecture",
+    "gate_note": "**reconciler:** gated at plan-0-posted: the plan gate holds the plan until the maintainer accepts it.\n\n- Class: architecture.\n…\n\nDecide: `daisy swarm accept 2`, …"}], "notes": []},
+  "held": {"paused": [3], "blocked_by": []},
+  "runs": {"total": 3, "posted": 2, "blocked": 0, "failed": 0, "faults": 0, "other": 1},
+  "questions": [{"issue": 1, "answerer": "architect",
+    "asked": {"role": "worker", "run": 1, "at": "2026-11-06T15:02:00Z", "text": "QUESTION: Should main.go say v1 or v1.0?\n"}}],
+  "authorities": {"path": "/srv/swarm-app/AUTHORITIES.md", "text": "# Authorities\n\nA1. …\n"},
+  "metrics": {"home": "work", "file": "/srv/work/metrics/metrics.csv",
+    "change": {"at": "2026-11-06T15:01:30Z", "commit": "e9c2508", "subject": "Worker: keep main.go short"},
+    "since_change": [{"model": "claude-fable-5-1", "rows": 1, "tokens": 30, "rows_with_tokens": 1, "cost": 0.25, "rows_with_cost": 1, "estimated": 0.001, "rows_with_estimated": 1}],
+    "all": [{"model": "claude-fable-5-1", "rows": 2, "tokens": 60, "rows_with_tokens": 2, "cost": 0.5, "rows_with_cost": 2, "estimated": 0.002, "rows_with_estimated": 2}],
+    "problem": null},
   "warnings": []
 }
 ```

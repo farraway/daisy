@@ -263,6 +263,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm status [--json] [--waiting]` | Stages, gates, running members, what waits for you (--waiting: that alone) (read-only) |
 | Swarm | `daisy swarm list [--json]` | The swarms this machine runs: clone, home, pause; from anywhere (read-only) |
 | Swarm | `daisy swarm journal [--json] [--issue <n>] \| --mark <run>` | The journal since the line marked seen (--issue: one issue's lines); --mark moves the mark, its one write |
+| Swarm | `daisy swarm connect [--json]` | The connect briefing: journal by issue, waits with gate notes, questions, AUTHORITIES.md, metrics (read-only) |
 | Swarm | `daisy swarm pause [<n>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue) |
 | Swarm | `daisy swarm resume [<n>]` | Launch members again and release the owner's held batch (with <n>, that issue) |
 | Swarm | `daisy swarm restart` | Have the running apply re-execute itself, onto the installed build, once no member runs |
@@ -532,7 +533,7 @@ The reference source itself is never modified or deleted by adoption: copy
 ## Reference Documentation
 
 - [`docs/cli.md`](docs/cli.md) — The `daisy` CLI contract: the command tree as built, each command's arguments, flags, exit codes, asserted stdout/stderr, `Ops` wrapper, writes and commits; the renames table
-- [`docs/swarm.md`](docs/swarm.md) — The swarm's contract (the nineteen verbs built; the board, the GitHub adapter and the budget specified ahead of their build): `swarm.json`, the brief, the label lifecycle and trigger rule, the marker, the member container and its image, the credential rule, the provider and forge seams, the verbs (the maintainer's nine among them, with the `swarm` skill as their guide), the merge gate
+- [`docs/swarm.md`](docs/swarm.md) — The swarm's contract (the twenty verbs built; the board, the GitHub adapter and the budget specified ahead of their build): `swarm.json`, the brief, the label lifecycle and trigger rule, the marker, the member container and its image, the credential rule, the provider and forge seams, the verbs (the maintainer's nine among them, with the `swarm` skill as their guide), the merge gate
 - [`docs/swarm/decisions/`](docs/swarm/decisions/) — The swarm's decision records, one file per decision (`NNNN-<slug>.md`): each place `docs/swarm.md` chose between readings, filled a gap or took a change, with its alternative
 - [`docs/swarm-changelog.md`](docs/swarm-changelog.md) — How `docs/swarm.md` came to say what it says: its revisions and each step's change to it
 - [`docs/home-management.md`](docs/home-management.md) — Root and homes as separate repositories, the registry, identities, per-workspace resolution, the health check

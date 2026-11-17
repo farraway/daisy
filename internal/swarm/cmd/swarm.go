@@ -446,33 +446,44 @@ type statusReport struct {
 }
 
 // readStatus makes every read status makes and returns the report: the
-// declaration, the token and the forge here, the rest reconcile.ReadStatus.
+// declaration, the token and the forge here (openStatus), the rest
+// reconcile.ReadStatus.
 func readStatus(c *Context, open opener) (*statusReport, error) {
-	o := c.Ops
-	cfg, err := loadSwarm(o, c.Swarm)
+	cfg, f, err := openStatus(c, open)
 	if err != nil {
 		return nil, err
 	}
-	vars, err := readSecrets(c, cfg, c.Stderr, cfg.Forge.TokenEnv)
-	if err != nil {
-		return nil, err
-	}
-	token := vars[cfg.Forge.TokenEnv]
-	if token == "" {
-		return nil, unsetErr(c, cfg, cfg.Forge.TokenEnv)
-	}
-	warnCloneEnv(c, cfg)
-	warnDrift(c, cfg)
-	names := repoNames(cfg)
-	f, err := open(o, cfg.Forge, names, token)
-	if err != nil {
-		return nil, fmt.Errorf("Error: swarm: %v", err)
-	}
-	s, err := reconcile.ReadStatus(o, c.Swarm, cfg, c.Env.Local, f, c.Stderr)
+	s, err := reconcile.ReadStatus(c.Ops, c.Swarm, cfg, c.Env.Local, f, c.Stderr)
 	if err != nil {
 		return nil, fmt.Errorf("Error: swarm: %v", err)
 	}
 	return &statusReport{Status: *s}, nil
+}
+
+// openStatus is what status reads before the forge, and the forge: the
+// declaration, the swarm's token, the warnings on the clone's .env.sh and
+// its drift, and the forge opened with the token.
+func openStatus(c *Context, open opener) (declare.Config, forge.Adapter, error) {
+	o := c.Ops
+	cfg, err := loadSwarm(o, c.Swarm)
+	if err != nil {
+		return cfg, nil, err
+	}
+	vars, err := readSecrets(c, cfg, c.Stderr, cfg.Forge.TokenEnv)
+	if err != nil {
+		return cfg, nil, err
+	}
+	token := vars[cfg.Forge.TokenEnv]
+	if token == "" {
+		return cfg, nil, unsetErr(c, cfg, cfg.Forge.TokenEnv)
+	}
+	warnCloneEnv(c, cfg)
+	warnDrift(c, cfg)
+	f, err := open(o, cfg.Forge, repoNames(cfg), token)
+	if err != nil {
+		return cfg, nil, fmt.Errorf("Error: swarm: %v", err)
+	}
+	return cfg, f, nil
 }
 
 // writeStatus writes the report as text (docs/swarm.md section 11).
@@ -665,10 +676,15 @@ func runningLine(r reconcile.StatusRunning) string {
 	return strings.Join(s, ", ")
 }
 
+// runsLine is Throughput's runs line after its label.
+func runsLine(r reconcile.StatusRuns) string {
+	return fmt.Sprintf("%d (%d posted, %d blocked, %d failed, %d faults, %d other)", r.Total, r.Posted, r.Blocked, r.Failed, r.Faults, r.Other)
+}
+
 // writeThroughput writes section 11's Throughput block.
 func writeThroughput(out io.Writer, t reconcile.StatusThroughput) {
 	fmt.Fprintln(out, "Throughput:")
-	fmt.Fprintf(out, "  %-12s %d (%d posted, %d blocked, %d failed, %d faults, %d other)\n", "runs", t.Runs.Total, t.Runs.Posted, t.Runs.Blocked, t.Runs.Failed, t.Runs.Faults, t.Runs.Other)
+	fmt.Fprintf(out, "  %-12s %s\n", "runs", runsLine(t.Runs))
 	fmt.Fprintf(out, "  %-12s $%.2f today, $%.2f in all (%d runs without a cost)\n", "cost", t.Cost.Today, t.Cost.All, t.Cost.Uncosted)
 	if t.Budget == nil {
 		fmt.Fprintf(out, "  %-12s none\n", "budget")

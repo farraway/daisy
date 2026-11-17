@@ -196,8 +196,12 @@ reports the stages, the gates, what waits for you, the running members,
 throughput and the briefs, and writes nothing. `daisy swarm list`
 names, from anywhere, each swarm this machine runs and its clone, and
 `daisy swarm journal` prints the swarm's journal since the line last
-marked seen; in a Daisy workspace, `/daisy swarm connect` briefs you
-from them, then works the swarm with you through the `swarm` skill.
+marked seen; `daisy swarm connect` prints, in one report, the journal
+by issue, what waits for you with each issue's gate note, the open
+questions, the repository's `AUTHORITIES.md` as written and the metrics
+since the last model or prompt change; in a Daisy workspace, `/daisy
+swarm connect` briefs you from it, then works the swarm with you
+through the `swarm` skill.
 `daisy swarm pause` and
 `daisy swarm resume` hold and release launches, for the whole swarm or,
 given an issue's number, for that issue alone; `daisy swarm restart`

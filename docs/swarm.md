@@ -1,8 +1,8 @@
 # The swarm — Specification
 
-**Status.** Revision 6, built: the nineteen verbs; the board, the GitHub
+**Status.** Revision 6, built: the twenty verbs; the board, the GitHub
 adapter and the `budget` wait for a run that needs them. This document is
-the contract for the nineteen verbs, the configuration they read, the
+the contract for the twenty verbs, the configuration they read, the
 forge calls they make, the containers they run and every file they write;
 `docs/cli.md`'s entry for the Swarm group points here. The maintainer
 reads the sections each code step's hand-back cites (the plan's decision
@@ -57,12 +57,12 @@ A point marked *not established as of <date>* is one no recorded run had
 settled by that date; it stays open until a run settles it, and section
 13's Established by the first real run records what the runs settled.
 The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
-`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill | --reprice [--dry-run]`, `swarm status [--json] [--waiting]`, `swarm list [--json]`, `swarm journal [--json] [--issue <n>] | --mark <run>`, `swarm pause [<n>]`, `swarm
+`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill | --reprice [--dry-run]`, `swarm status [--json] [--waiting]`, `swarm list [--json]`, `swarm journal [--json] [--issue <n>] | --mark <run>`, `swarm connect [--json]`, `swarm pause [<n>]`, `swarm
 resume [<n>]`, `swarm restart`, and the maintainer's `swarm triage <n>`, `swarm accept
 <n>`, `swarm class <n> routine|architecture`, `swarm approve <n>`, `swarm
 merge <n>`, `swarm unblock <n> <comment...>`, `swarm block <n> --by <m>`,
 `swarm replan <n> [direction...]` and `swarm close <n> [comment...]`):
-all nineteen are rows of the `cli` table.
+all twenty are rows of the `cli` table.
 
 **Sources.** Revision 2 draws on five talks on software factories:
 *Software Engineering Is Becoming Factory Engineering*; *What It Actually
@@ -256,7 +256,7 @@ Stages of a software factory the version leaves out, each by choice:
 ├── docs/                            # the docs that span the products, a `resources` entry by default
 ├── repos/<name>.md                  # the swarm's notes about declared repository <name>, in its members' system prompt (section 4)
 ├── README.md                        # what the repository is
-├── AUTHORITIES.md                   # optional, the maintainer's: standing authorities for an agent acting through `/daisy swarm connect` (below); Daisy neither writes nor reads it
+├── AUTHORITIES.md                   # optional, the maintainer's: standing authorities for an agent acting through `/daisy swarm connect` (below); Daisy never writes it and reads it only to quote it in `swarm connect`'s report
 └── .gitignore                       # `.env.sh`: no secret is committed by accident
 <state>/                             # $DAISY_LOCAL/swarm/<forge-host>/<owner>/<repo>/, this machine's runtime state
 ├── env                              # the secrets, mode 0600 (section 3, Secret values)
@@ -389,9 +389,12 @@ root) may make without asking, each under a label (`A1`, …) the agent
 cites in the write's log line and in any comment the write posts.
 Anything the file does not grant is asked, one write at a time, as the
 `swarm` skill's rule 3 says; with no file, nothing is granted. The
-maintainer writes it: `init` does not seed it, and Daisy's code does
-not read it; it is for the agent, which reads it in the clone during
-its briefing (decision [139](swarm/decisions/0139-written-authorities-for-a-connected-agent.md)).
+maintainer writes it: `init` does not seed it, and Daisy's code acts on
+none of it, reading it only for `swarm connect` (section 11), which
+quotes it whole, byte for byte, and interprets nothing; it is for the
+agent, which reads it there in its briefing (decisions
+[139](swarm/decisions/0139-written-authorities-for-a-connected-agent.md)
+and [143](swarm/decisions/0143-the-connect-briefing-as-one-report.md)).
 
 ## 3. `swarm.json`
 
@@ -4341,14 +4344,16 @@ not, as the folder it makes the clone in (below). *As built (Step 7,
 workspace's `swarm/` is no swarm, so a verb run there finds none (`init`
 takes the workspace as its folder), and nothing reads the old layout's
 `repos[].path`, workspace `resources`, `<ws>/.env.sh` or `wiki` (Moving
-a swarm into its repository, below). The nineteen
+a swarm into its repository, below). The twenty
 are built (Steps 1, 4, 5 and 6 of the plan that builds the swarm,
 `status`'s correction counts at Step 8, the maintainer's six at
 Step 10, at Step 15 `swarm block` and the issue's `pause` and
 `resume`, at Step 20 `swarm class`, `prompt build` at Step 7 of
 the plan that clears the Deferred list, `metrics` at Step 5 of
 the plan for the inbox requests F27–F35, `list` and `journal` at
-its Step 15, `restart` at its Step 19 and `replan` at its Step 20: `apply`'s
+its Step 15, `restart` at its Step 19, `replan` at its Step 20 and
+`connect` at Step 33 of the plan remediating the 2026-11-15 design
+review: `apply`'s
 As built paragraph says what it leaves out); the board, the GitHub
 adapter and the `budget` are specified here ahead of their build wherever this section names them: `swarm.json`
 validates their fields as section 3 says and nothing acts on them until
@@ -5042,6 +5047,31 @@ mirror, fetched before the pass's push. **The mark** is moved only by
 `--mark`, to a run the journal holds, so reading the journal writes
 nothing, and a connect marks the lines it has shown, never one
 collected while it read.
+
+### daisy swarm connect
+
+| Field | Value |
+|---|---|
+| Usage | `daisy swarm connect [--json]`, in the clone; any argument is usage (exit 2) |
+| Reads | what `status` reads (above: `swarm.json`, `<state>/env`, the state's files, the runs, the mirrors and the forge, the same calls and no other); what `journal` reads (above); `AUTHORITIES.md` at the clone's top (section 2), as it stands in the clone; `<state>/home`, the registry (`$DAISY_CONFIG/homes`) and that home's metrics CSV; and in the clone `git log -1 --format=%cI %h %s -- swarm.json prompts/` |
+| Writes | nothing, anywhere: the mark moves only by `journal --mark` |
+| Stdout | the briefing of `prompts/swarm-connect.md` rule 2, in its order: `Swarm: <owner>/<repo> on <forge-host>, clone <swarm>`, `status`'s `State:` line and its `Running:` line; a blank line and `Since the last connect: ` followed by `journal`'s first line, then its lines by the issue each names (`journal --issue`'s rule), `  #<n>` over each issue's in issue order and `  no issue` over the lines of no issue last, each line indented four spaces, then `journal`'s `Mark them seen: daisy swarm journal --mark <run>` when a line is shown; a blank line and `status`'s `Waiting for you:` line, then for each issue in it `  #<n>, its gate note:` and the text of the gate note that put it there (section 5, the gate note: the newest of the swarm's gate notes on it, while it carries `swarm:gated` and the note is of its gating now, the blocked gate's for a blocked issue and otherwise one at its stage with no plan posted after it), after its marker line, each line indented four spaces, or `  #<n>: no gate note of this gating on the issue`; `status`'s `Held:` line; `Runs: ` and Throughput's runs line; a blank line and `Questions the swarm answers: ` then `#<n> for the <architect|owner>` for each open issue carrying `swarm:question` (section 6, The question; the answerer as the question run's rule finds it), separated by `; `, or `none`, and for each `  #<n>, <role> run <k> at <time>:` and the newest of the swarm's questions on it, indented four spaces (`  #<n>: no question of the swarm's on the issue` for a flag set by hand); a blank line and `Authorities: <swarm>/AUTHORITIES.md, quoted verbatim; Daisy acts on none of it`, the file's bytes as they stand (a newline added when it ends without one), then `End of AUTHORITIES.md`, or with no file `Authorities: none granted (no AUTHORITIES.md in <swarm>)`; a blank line and `Metrics of the swarm's runs: <csv> (home <name>)`, the swarm's `swarm-run` rows of the metrics CSV of the home `<state>/home` names (`daisy metrics --swarm <owner>/<repo>`'s rows), `  since the last model or prompt change, <time> <short sha> <subject> (the clone's newest commit to swarm.json or prompts/):` (`  no commit to swarm.json or prompts/ in the clone` when none is) and the rows written since that commit's time, then `  in all:` and every row, each a line per model, `    <model>  <k> rows, tokens <t>, cost $<c>, estimated $<e>` (`1 row` for one; `<time>` in UTC; a sum over some of the rows `<sum> (k/n)`, over none `—`, a model left empty `(none)`; `    none` for no row); or `Metrics of the swarm's runs: none (<why>)`: `<state>/home names no Daisy home`, `<state>/home names <name>: <the registry's refusal>`, `no metrics recorded yet: <csv> does not exist`, or the read that failed. The report is written whole once every read is made; with `--json`, the same facts as one JSON document (docs/cli.md, `daisy swarm connect`) |
+| Stderr | `status`'s and `journal`'s lines; with `--json`, under the document's `warnings`, stderr empty |
+| Exit codes | 0 (the metrics' problem is a line of the report, not an exit code); 1 as `status` (no swarm found, `swarm.json` invalid, the token unset, a forge call failing, a file of the runs or a mirror unreadable), the journal unreadable, or `AUTHORITIES.md` present and unreadable (`Error: swarm connect: <error>`: a file Daisy cannot read is no "none granted"); 2 usage |
+| Ops | ReadOnly, widened as for `status` (its forge `GET`s, `docker ps`, git's reading commands, `log` among them) |
+
+It is the briefing `/daisy swarm connect` opens with: the reads that
+were eight commands of the agent's (decision
+[143](swarm/decisions/0143-the-connect-briefing-as-one-report.md)) are
+one report, and what needs judgment, a summary per issue, each item's
+decision and evidence, what each authority grants, the comparison of
+the metrics, stays the agent's. **It quotes `AUTHORITIES.md` and acts on
+none of it**: no line of the file changes what the command reads or
+prints (section 2, The authorities). The journal is grouped, not
+filtered: the mark stays the whole journal's, and the `Mark them seen`
+line names the last line shown, as `journal` prints it. The metrics are
+the rows of the home the swarm records its runs in, `<state>/home`'s,
+whatever workspace the session is in.
 
 ### daisy swarm pause and daisy swarm resume
 

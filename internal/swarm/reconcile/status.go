@@ -112,16 +112,20 @@ type StatusPersona struct {
 	Effort   string `json:"effort"`
 }
 
+// StatusRuns is the runs line of Throughput: the runs collected, by
+// outcome.
+type StatusRuns struct {
+	Total   int `json:"total"`
+	Posted  int `json:"posted"`
+	Blocked int `json:"blocked"`
+	Failed  int `json:"failed"`
+	Faults  int `json:"faults"`
+	Other   int `json:"other"`
+}
+
 // StatusThroughput is section 11's Throughput block.
 type StatusThroughput struct {
-	Runs struct {
-		Total   int `json:"total"`
-		Posted  int `json:"posted"`
-		Blocked int `json:"blocked"`
-		Failed  int `json:"failed"`
-		Faults  int `json:"faults"`
-		Other   int `json:"other"`
-	} `json:"runs"`
+	Runs StatusRuns `json:"runs"`
 	Cost struct {
 		Today    float64 `json:"today"`
 		All      float64 `json:"all"`
@@ -193,10 +197,23 @@ type StatusMilestone struct {
 // forge f is open (docs/swarm.md section 11) and returns the report; local
 // is $DAISY_LOCAL, and warn takes the lines a read warns with.
 func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f forge.Adapter, warn io.Writer) (*Status, error) {
+	r, _, err := readStatus(o, at, cfg, local, f, warn)
+	return r, err
+}
+
+// statusRead is what status read on the forge besides its report: the
+// issues, open and recently closed, by number, and the swarm's login.
+type statusRead struct {
+	issues map[int]statusIssue
+	login  string
+}
+
+// readStatus is ReadStatus, with what it read on the forge.
+func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f forge.Adapter, warn io.Writer) (*Status, statusRead, error) {
 	ws, names := at.Root, repoNames(cfg)
 	acct, err := f.Login()
 	if err != nil {
-		return nil, err
+		return nil, statusRead{}, err
 	}
 	r := &Status{Repository: cfg.Forge.Repo, Forge: StatusForge{cfg.Forge.ForgeHost(), cfg.Forge.Kind}, Repositories: names, Stages: map[string][]int{}}
 	for _, l := range forge.Stages {
@@ -207,7 +224,7 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 		for _, l := range forge.SwarmLabels(state) {
 			issues, err := f.Issues(state, l)
 			if err != nil {
-				return nil, err
+				return nil, statusRead{}, err
 			}
 			for _, is := range issues {
 				listed := func(in []forge.Issue) bool {
@@ -229,7 +246,7 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	recent, _ := Recent(closed, o.Now())
 	issues, err := readIssues(f, append(slices.Clone(opened), recent...), acct.Login, cfg.Trusted)
 	if err != nil {
-		return nil, err
+		return nil, statusRead{}, err
 	}
 	// What waits for the maintainer: the open issues Gated holds
 	// for, the predicate apply flags them by, by item (Waiting,
@@ -250,7 +267,7 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 			if m := BlockedBy(is, acct.Login, cfg.Trusted); m != 0 {
 				held, err := Blocker(f, n, m, warn)
 				if err != nil {
-					return nil, err
+					return nil, statusRead{}, err
 				}
 				if held {
 					r.Held.BlockedBy = append(r.Held.BlockedBy, StatusBlock{n, m})
@@ -273,13 +290,13 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	}
 	briefs, err := Briefs(o, at, cfg, cfg.Forge.State(local), nil)
 	if err != nil {
-		return nil, fmt.Errorf("reading the briefs: %w", err)
+		return nil, statusRead{}, fmt.Errorf("reading the briefs: %w", err)
 	}
 	// The runs' notes that conflicted with the head, each on its branch
 	// for the maintainer to merge by hand (section 7.6, The notes).
 	notes, err := NotesBranches(Git{O: o, WS: ws, State: cfg.Forge.State(local)}, cfg.Forge.Repo)
 	if err != nil {
-		return nil, fmt.Errorf("reading the notes' branches: %w", err)
+		return nil, statusRead{}, fmt.Errorf("reading the notes' branches: %w", err)
 	}
 	r.Waiting.Notes = append([]string{}, notes...)
 
@@ -297,7 +314,7 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	// keeps an issue gone from the forge's window.
 	auto, err := AutoRecorded(o.FS(), state)
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", filepath.Join(state, "auto"), err)
+		return nil, statusRead{}, fmt.Errorf("reading %s: %w", filepath.Join(state, "auto"), err)
 	}
 	if auto == nil {
 		auto = map[int][2]int{}
@@ -307,12 +324,12 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 		auto[n] = [2]int{max(auto[n][0], t), max(auto[n][1], p)}
 	}
 	if r.Throughput, err = throughput(o, state); err != nil {
-		return nil, fmt.Errorf("reading the runs: %w", err)
+		return nil, statusRead{}, fmt.Errorf("reading the runs: %w", err)
 	}
 	r.Throughput.Budget = cfg.Budget
 	pr, err := ReadPullReverts(o, state, cfg.Base, time.Time{})
 	if err != nil {
-		return nil, fmt.Errorf("reading the reverts in the mirrors: %w", err)
+		return nil, statusRead{}, fmt.Errorf("reading the reverts in the mirrors: %w", err)
 	}
 	r.Throughput.Reverted.MergedPulls, r.Throughput.Reverted.RevertedPulls = pr.Merged, pr.Reverted
 	if !pr.Fetched.IsZero() {
@@ -337,7 +354,7 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	}
 	metRun, met, err := lastMet(o.FS(), state)
 	if err != nil {
-		return nil, fmt.Errorf("reading the runs: %w", err)
+		return nil, statusRead{}, fmt.Errorf("reading the runs: %w", err)
 	}
 	var milestones []forge.Milestone
 	slugs := map[string]string{} // a slug → the active brief that has it, as apply mirrors them
@@ -358,7 +375,7 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 		slugs[b.Slug()] = b.Path
 		if milestones == nil {
 			if milestones, err = f.Milestones(); err != nil {
-				return nil, err
+				return nil, statusRead{}, err
 			}
 		}
 		for _, m := range b.Milestones() {
@@ -370,7 +387,7 @@ func ReadStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 		}
 		r.Briefs = append(r.Briefs, sb)
 	}
-	return r, nil
+	return r, statusRead{issues, acct.Login}, nil
 }
 
 // statusIssue is one issue as status reads it: the issue with its

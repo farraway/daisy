@@ -298,3 +298,12 @@ they write.
   `swarm metrics --reprice` making it for runs recorded before; 7.6,
   section 11; decision
   [142](swarm/decisions/0142-a-reviews-effect-read-from-the-runs.md).
+- 2026-11-16, Step 33 of the plan remediating the 2026-11-15 design
+  review (P21): `daisy swarm connect [--json]`, the twentieth verb,
+  prints the connect briefing as one read-only report: status's
+  State, Running, Waiting for you with each issue's gate note, Held
+  and runs lines, the journal since the mark by issue, the open
+  questions, `AUTHORITIES.md` quoted verbatim and the swarm's metrics
+  since the last model or prompt change; Daisy reads `AUTHORITIES.md`
+  only to quote it; sections 2 and 11; decision
+  [143](swarm/decisions/0143-the-connect-briefing-as-one-report.md).

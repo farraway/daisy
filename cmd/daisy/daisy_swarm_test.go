@@ -662,3 +662,73 @@ func TestSwarmVerbsWithoutAWorkspace(t *testing.T) {
 		t.Errorf("no swarm: exit %d %q", code, errs)
 	}
 }
+
+// Step 33's keys (the plan remediating the 2026-11-15 design review,
+// P21): `swarm connect --json` through the cli and the gitea adapter, run
+// read-only, is one document whose keys are pinned, every one present
+// with no AUTHORITIES.md (null) and no home (the metrics' problem); the
+// text names the same; an argument is usage.
+func TestSwarmConnectThroughGitea(t *testing.T) {
+	m := newMachine(t)
+	g := newGitea(t)
+	clone := m.swarm(t, g)
+	g.issue1 = []string{"swarm:proposal-posted", "swarm:paused"}
+	o := m.swarmOps(clone, g)
+	o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
+		if name == "docker" {
+			return nil, nil, nil
+		}
+		return ops.Real().Exec(dir, name, args...)
+	}
+	state := filepath.Join(m.local, "swarm", "forge.example.net", "acme", "swarm-app")
+	writeFile(t, filepath.Join(state, "notes", "journal", "2026-11-06.md"), "# 2026-11-06\n\n- 1500 0-owner-2: posted; batch\n- 1501 1-architect-1: posted; the plan; #1\n")
+	code, out, errs := runWith(o, "swarm", "connect", "--json")
+	var doc map[string]any
+	if code != 0 || errs != "" || json.Unmarshal([]byte(out), &doc) != nil {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
+	}
+	for path, want := range map[string][]string{
+		"":        {"authorities", "clone", "held", "host", "journal", "metrics", "questions", "repository", "running", "runs", "state", "waiting", "warnings"},
+		"state":   {"no_active_brief", "owner_held", "path", "paused", "restart_requested_at"},
+		"running": {"error", "members"},
+		"journal": {"day", "issues", "mark", "marked"},
+		"waiting": {"issues", "notes"},
+		"held":    {"blocked_by", "paused"},
+		"runs":    {"blocked", "failed", "faults", "other", "posted", "total"},
+		"metrics": {"all", "change", "file", "home", "problem", "since_change"},
+	} {
+		var v any = doc
+		for _, k := range strings.Split(path, ".") {
+			if k != "" {
+				v = v.(map[string]any)[k]
+			}
+		}
+		if got := objectKeys(t, v); !slices.Equal(got, want) {
+			t.Errorf("%q keys %q, want %q", path, got, want)
+		}
+	}
+	var want any
+	json.Unmarshal([]byte(`{
+		"journal": {"marked": null, "day": "2026-11-06", "mark": "1-architect-1", "issues": [
+			{"issue": 1, "lines": [{"day": "2026-11-06", "run": "1-architect-1", "line": "- 1501 1-architect-1: posted; the plan; #1"}]},
+			{"issue": null, "lines": [{"day": "2026-11-06", "run": "0-owner-2", "line": "- 1500 0-owner-2: posted; batch"}]}]},
+		"waiting": {"issues": [{"item": "triage", "issue": 1, "class": "architecture", "gate_note": null}], "notes": []},
+		"questions": [], "authorities": null,
+		"metrics": {"home": null, "file": null, "change": null, "since_change": [], "all": [], "problem": "`+filepath.Join(state, "home")+` names no Daisy home"}}`), &want)
+	for k, v := range want.(map[string]any) {
+		if !reflect.DeepEqual(doc[k], v) {
+			got, _ := json.Marshal(doc[k])
+			t.Errorf("%s: %s", k, got)
+		}
+	}
+	code, out, errs = runWith(o, "swarm", "connect")
+	if code != 0 || errs != "" || !strings.HasPrefix(out, "Swarm: acme/swarm-app on forge.example.net, clone "+clone+"\n") ||
+		!strings.Contains(out, "\nWaiting for you: triage #1\n  #1: no gate note of this gating on the issue\nHeld: paused #1\n") ||
+		!strings.Contains(out, "\nAuthorities: none granted (no AUTHORITIES.md in "+clone+")\n") {
+		t.Errorf("text: exit %d\n%s\n%s", code, out, errs)
+	}
+	code, out, errs = runWith(o, "swarm", "connect", "extra")
+	if code != 2 || out != "" || !strings.Contains(errs, "Usage: daisy swarm connect [--json]") {
+		t.Errorf("usage: exit %d %q %q", code, out, errs)
+	}
+}
