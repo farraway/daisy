@@ -70,7 +70,11 @@ func (s *Swarm) mergeStep() error {
 			continue
 		}
 		ref := forge.Ref{Repo: cur.Repo, N: cur.Number}
-		S, sl := planSlices(is, s.SwarmLogin), sliceOf(cur, n)
+		S, err := planSlices(is, s.SwarmLogin, s.outputs())
+		if err != nil {
+			return err
+		}
+		sl := sliceOf(cur, n)
 		at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}
 		if !cur.Merged {
 			reviews, err := s.Forge.Reviews(ref)
@@ -412,39 +416,51 @@ func (s *Swarm) stillApproved(n int) ([]string, bool, error) {
 	return is.Labels, true, nil
 }
 
-// planSlices is the number of slices is's accepted plan declares; a plan
-// without slice lines, or none, is one slice (section 5).
-func planSlices(is forge.Issue, swarmLogin string) int {
-	if plan, _, ok := (&Job{SwarmLogin: swarmLogin, Issue: is}).Plan(); ok {
-		return max(1, len(Slices(swarmText(plan.Body))))
+// planSlices is the number of slices is's accepted plan declares, read
+// whole through o (Job.PlanText); a plan without slice lines, or none, is
+// one slice (section 5).
+func planSlices(is forge.Issue, swarmLogin string, o Outputs) (int, error) {
+	j, err := issueJob(is, swarmLogin, o)
+	if err != nil {
+		return 0, fmt.Errorf("#%d: %w", is.Number, err)
 	}
-	return 1
+	if plan, ok := j.PlanText(); ok {
+		return max(1, len(Slices(plan))), nil
+	}
+	return 1, nil
 }
 
 // Slice is the slice of is's pull request p and the number of slices
-// its accepted plan declares, as the merge step counts them.
-func Slice(is forge.Issue, p forge.Pull, swarmLogin string) (s, S int) {
-	return sliceOf(p, is.Number), planSlices(is, swarmLogin)
+// its accepted plan declares, read whole through o, as the merge step
+// counts them.
+func Slice(is forge.Issue, p forge.Pull, swarmLogin string, o Outputs) (s, S int, err error) {
+	S, err = planSlices(is, swarmLogin, o)
+	return sliceOf(p, is.Number), S, err
 }
 
 // AfterApproval is what an approved issue waits for with the merge gate
 // on (section 12): "merge" until its current pull request is merged, then
 // "next slice" when the accepted plan declares a slice after it (T13) or
 // "close" when it was the last (T19); "pull closed" when it was closed
-// unmerged, which neither `swarm merge` nor the merge step merges.
-func AfterApproval(is forge.Issue, pulls []forge.Pull, swarmLogin string) string {
+// unmerged, which neither `swarm merge` nor the merge step merges. The
+// plan is read whole through o.
+func AfterApproval(is forge.Issue, pulls []forge.Pull, swarmLogin string, o Outputs) (string, error) {
 	switch {
 	case len(pulls) == 0:
-		return "merge"
+		return "merge", nil
 	case !pulls[len(pulls)-1].Merged && !pulls[len(pulls)-1].Open:
-		return "pull closed"
+		return "pull closed", nil
 	case !pulls[len(pulls)-1].Merged:
-		return "merge"
+		return "merge", nil
 	}
-	if sliceOf(pulls[len(pulls)-1], is.Number) < planSlices(is, swarmLogin) {
-		return "next slice"
+	S, err := planSlices(is, swarmLogin, o)
+	if err != nil {
+		return "", err
 	}
-	return "close"
+	if sliceOf(pulls[len(pulls)-1], is.Number) < S {
+		return "next slice", nil
+	}
+	return "close", nil
 }
 
 // ApprovedHead is the commit both the newest adversary review and the

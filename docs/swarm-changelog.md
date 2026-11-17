@@ -356,3 +356,14 @@ they write.
   the plan by name; the plan, a review and a pull request's description
   alike; sections 2, 7.2, 7.3, 7.4, 7.5 and 13; decision
   [148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md).
+- 2026-11-17, Step 38c of the plan remediating the 2026-11-15 design
+  review (request F40): Daisy reads a member's text it cut on the forge
+  whole, from the run's `out.md` under Step 38b's rules, wherever it
+  reads more than its first lines: the plan's slices (the worker's
+  slice, its Task text and `# Plan` heading, the merge step, `swarm
+  merge`, `status` and notify), the plan and merge gates' notes, and a
+  review's `[blocking]` lines and their count in a later prompt, so a
+  plan whose `## Steps` the cut reaches is no longer closed after its
+  first slice; with the out.md gone, the forge's text as before;
+  sections 7.3, 7.5 and 13; decision
+  [149](swarm/decisions/0149-daisy-reads-a-text-it-cut-whole.md).

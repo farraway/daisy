@@ -64,7 +64,10 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 		decide = verb("triage") + ", " + verb("close") + ", " + routine + ", after which Daisy passes this gate and the plan's, or a comment here, which the owner answers"
 	case stage == forge.PlanPosted:
 		why = "the plan gate holds the plan until the maintainer accepts it"
-		items = s.planItems(is)
+		var err error
+		if items, err = s.planItems(is); err != nil {
+			return "", err
+		}
 		decide = verb("accept") + ", " + routine + ", after which Daisy accepts it, or a comment here, from which the architect revises the plan"
 	default: // review-2-approved under the merge gate
 		var err error
@@ -138,13 +141,17 @@ var itemMark = regexp.MustCompile(`^(?:[-*+]|[0-9]+[.)]|#{1,6})[ \t]+`)
 
 // planItems: the accepted plan's slice count and titles, its Open
 // Questions as written and its Risks' first lines (each line of the
-// section that is not indented: an item's, a heading's or a paragraph's).
-func (s *Swarm) planItems(is forge.Issue) []string {
-	plan, _, ok := (&Job{SwarmLogin: s.SwarmLogin, Issue: is}).Plan()
-	if !ok {
-		return []string{"- Plan: none; the thread holds no plan of the architect's."}
+// section that is not indented: an item's, a heading's or a paragraph's),
+// the plan read whole (Job.PlanText).
+func (s *Swarm) planItems(is forge.Issue) ([]string, error) {
+	j, err := issueJob(is, s.SwarmLogin, s.outputs())
+	if err != nil {
+		return nil, fmt.Errorf("#%d: %w", is.Number, err)
 	}
-	text := swarmText(plan.Body)
+	text, ok := j.PlanText()
+	if !ok {
+		return []string{"- Plan: none; the thread holds no plan of the architect's."}, nil
+	}
 	var items []string
 	if lines := sliceLines(text); len(lines) == 0 {
 		items = append(items, "- Slices: 1; the plan numbers none under `## Steps`.")
@@ -170,9 +177,9 @@ func (s *Swarm) planItems(is forge.Issue) []string {
 		}
 	}
 	if len(risks) == 0 {
-		return append(items, "- Risks: none in the plan.")
+		return append(items, "- Risks: none in the plan."), nil
 	}
-	return append(append(items, "- Risks:"), risks...)
+	return append(append(items, "- Risks:"), risks...), nil
 }
 
 // mergeItems is the merge gate's why, naming the current pull request,
@@ -213,20 +220,30 @@ func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
 	case !cur.Open:
 		subject = " " + pullLink(s.owner(), cur) + ", closed unmerged"
 	}
+	// The plan and the reviews read whole (readWhole).
+	j := &Job{SwarmLogin: s.SwarmLogin, N: is.Number, Issue: is, Outputs: s.outputs(), Pulls: pulls, Pull: &PullThread{Comments: comments, Reviews: reviews}}
+	if err := j.readWhole(); err != nil {
+		return "", nil, fmt.Errorf("#%d: %w", is.Number, err)
+	}
+	S := 1
+	if plan, ok := j.PlanText(); ok {
+		S = max(1, len(Slices(plan)))
+	}
 	items := []string{
 		fmt.Sprintf("- Pull request %s/%s#%d, %s (%s).", s.owner(), cur.Repo, cur.Number, cur.Title, state),
-		fmt.Sprintf("- Slice %d of %d.", sliceOf(cur, is.Number), planSlices(is, s.SwarmLogin)),
+		fmt.Sprintf("- Slice %d of %d.", sliceOf(cur, is.Number), S),
 		fmt.Sprintf("- Review rounds: %d.", Rounds(reviews, Reopenings(pullComments(comments), s.SwarmLogin, s.Cfg.Trusted), s.SwarmLogin, time.Time{}, "")),
 	}
 	var findings []string
 	for _, role := range []string{"adversary", "sympathetic"} {
 		var last forge.Review
+		var mark Mark
 		for _, r := range reviews {
 			if m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, s.SwarmLogin); ok && m.Role == role && r.Commit == head && !r.Submitted.Before(last.Submitted) {
-				last = r
+				last, mark = r, m
 			}
 		}
-		for _, l := range strings.Split(swarmText(last.Body), "\n") {
+		for _, l := range strings.Split(j.whole(mark, swarmText(last.Body)), "\n") {
 			if l = strings.TrimRight(l, "\r "); strings.HasPrefix(l, "[non-blocking]") {
 				findings = append(findings, "  - "+role+": "+cut(l))
 			}

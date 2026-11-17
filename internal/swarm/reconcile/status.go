@@ -280,7 +280,10 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 				continue
 			}
 			classes[n] = class
-			item := Waiting(is, issues[n].Pulls, acct.Login)
+			item, err := Waiting(is, issues[n].Pulls, acct.Login, Outputs{FS: o.FS(), State: cfg.Forge.State(local)})
+			if err != nil {
+				return nil, statusRead{}, err
+			}
 			waits[item] = append(waits[item], n)
 		}
 	}

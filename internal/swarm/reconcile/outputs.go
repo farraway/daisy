@@ -1,7 +1,9 @@
 package reconcile
 
 import (
+	"errors"
 	"fmt"
+	iofs "io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -9,26 +11,39 @@ import (
 	"daisy/internal/ops"
 )
 
-// Outputs is the runs on issue n whose output a later member can be
-// given whole when the forge holds it cut (section 7.3): each whose
-// <run>/io/out.md is a regular file, but a run failed for a secret in its
-// output, never posted, each `<n>-<role>-<k>`.
-func Outputs(fs ops.FS, runs []Run, n int) []string {
-	var out []string
-	for _, r := range runs {
-		if r.N != n || n == 0 {
-			continue
-		}
-		if fi, err := fs.Lstat(filepath.Join(r.Dir, "io", "out.md")); err != nil || !fi.Mode().IsRegular() {
-			continue
-		}
-		lines, _ := r.Result(fs)
-		if slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, "failed: secret in output") }) {
-			continue
-		}
-		out = append(out, filepath.Base(r.Dir))
+// Outputs is where Daisy finds whole the output of a run whose text the
+// forge holds cut (sections 7.3 and 7.5): the swarm's <state>, read
+// through FS. The zero Outputs finds none.
+type Outputs struct {
+	FS    ops.FS
+	State string
+}
+
+// Text is run `<n>-<role>-<k>`'s output whole, its out.md as Output
+// reads it (a regular file, never through a link). ok is false, with no
+// error, when the output cannot be given whole: out.md missing or not a
+// regular file, the run failed for a secret in its output (never
+// posted), a name not a run's, the zero Outputs; a failed read is err.
+func (o Outputs) Text(run string) (text string, ok bool, err error) {
+	if o.FS == nil || !runName.MatchString(run) {
+		return "", false, nil
 	}
-	return out
+	r := Run{Dir: filepath.Join(o.State, "runs", run)}
+	out, err := r.Output(o.FS)
+	if errors.Is(err, iofs.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	lines, err := r.Result(o.FS)
+	if err != nil {
+		return "", false, err
+	}
+	if slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, "failed: secret in output") }) {
+		return "", false, nil
+	}
+	return string(out), true, nil
 }
 
 // copyOutputs puts the output of each run the prompt shows cut (Cut) in

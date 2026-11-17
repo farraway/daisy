@@ -89,6 +89,10 @@ func (s *Swarm) stopping() bool { return s.Stopping != nil && s.Stopping() }
 func (s *Swarm) state() string { return s.Cfg.Forge.State(s.Local) }
 func (s *Swarm) owner() string { return owner(s.Cfg) }
 
+// outputs is where the pass reads whole a run's output the forge holds
+// cut (Outputs).
+func (s *Swarm) outputs() Outputs { return Outputs{FS: s.O.FS(), State: s.state()} }
+
 func (s *Swarm) git() Git { return Git{O: s.O, WS: s.WS, State: s.state()} }
 
 func (s *Swarm) repo(name string) (declare.Repo, bool) {
@@ -520,7 +524,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 					continue
 				}
 			}
-			j := &Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, N: n, Label: label, Time: s.O.Now(), Issue: is, Pulls: pulls, Known: s.mirrors()}
+			j := &Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, N: n, Label: label, Time: s.O.Now(), Issue: is, Pulls: pulls, Known: s.mirrors(), Outputs: s.outputs()}
 			cur, open := j.current()
 			if open {
 				if err := s.copyLabel(n, cur, label); err != nil {
@@ -558,7 +562,6 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				}
 			}
 			marks := marksOf(IssueThread(is), s.SwarmLogin)
-			j.Outputs = Outputs(fs, runs, n)
 			if open {
 				if j.Pull == nil {
 					if j.Pull, err = s.pullThread(cur); err != nil {
@@ -568,6 +571,9 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				j.Check = CheckSection(fs, runs, n, cur.HeadSHA, s.repoCheck(cur.Repo), s.Cfg.Timeout)
 				j.Artifacts = Artifacts(fs, runs, n, cur.HeadSHA)
 				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
+			}
+			if err := j.readWhole(); err != nil {
+				return fmt.Errorf("#%d: %w", n, err)
 			}
 			turn := Turn{Label: label, Running: s.busy(running, runs, n)}
 			questioned := slices.Contains(is.Labels, forge.Question)

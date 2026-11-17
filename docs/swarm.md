@@ -2750,8 +2750,8 @@ Which sections a prompt holds, by role:
   it beside the diff (decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)).
 - **A text cut on the forge** reaches the member whole, in any role and
   section: a swarm entry the prompt shows (the plan, a thread's comment,
-  a review, its `[blocking]` lines alone included, a pull request's
-  description) whose text ends, cut, in the note naming its own run,
+  a review, a pull request's description) whose text ends, cut, in the
+  note naming its own run,
   `[truncated by Daisy; the whole output is in runs/<n>-<role>-<k>]`
   (7.5; the worker's before its check block), the run being the one its
   marker names on the issue, `<n>-<role>-<k>`. When that run's
@@ -2762,7 +2762,9 @@ Which sections a prompt holds, by role:
   file is copied, read only as a regular file (`Lstat`), to the member's
   own `/work/.swarm/outputs/<n>-<role>-<k>.md`; a copy that fails is the
   pass's error, nothing launched. A review shown as its `[blocking]`
-  lines alone keeps the note after them. Any other note stays as posted:
+  lines alone has them listed, and an earlier round's line counts them,
+  from the review read whole as Daisy reads it (7.5), with no note and
+  no copy. Any other note stays as posted:
   one a text quotes, one naming another run, one in an entry not the
   swarm's, one of a run whose output is gone. The Task text names each
   such file (7.4). A later member acts on the whole plan, review or
@@ -2946,9 +2948,27 @@ that leaves room for
 after it within that length; a worker's text is cut so that the text,
 one blank line and its check block (7.6) together hold to it, the block
 never cut. A later member whose prompt shows the text is given it whole,
-in its own `/work/.swarm/outputs/` (7.3, A text cut on the forge); Daisy's
-own reads of a posted plan (its slices, the gate note) read the forge's
-text.
+in its own `/work/.swarm/outputs/` (7.3, A text cut on the forge), and
+Daisy reads it whole too, wherever it reads more of a member's text than
+its first lines: the accepted plan's slices (the worker's slice and its
+repository, the count in its Task text and under `# Plan`, the merge
+step's and `swarm merge`'s count, which decides between the next slice
+and the close, and `status`'s and notify's `next slice` or `close`), the
+plan gate's note (the slices, Open Questions and Risks), the merge gate's
+note's non-blocking findings, and a review's `[blocking]` lines and their
+count in a later prompt (7.3). Each is read from the run's `out.md` when
+the text ends in the note naming its own run and that output can be
+given whole, the same run and the same rules as the member's copy (7.3,
+A text cut on the forge: never a run a text names, a regular file, a run
+not failed for a secret); otherwise, the out.md gone among them, from
+the forge's text, as before. An out.md that is there but cannot be read
+is an error, never the text as posted: the pass's, as a failed copy is,
+nothing launched or merged for the issue, and `swarm merge`'s and
+`status`'s, nothing merged. The first lines a text is classed by
+(`BLOCKED:`, `QUESTION:`, `ANSWER:`, `STANDS:`, `NO CHANGE:`, the verdict)
+come before any cut and are read as posted, and the issue's body, which
+holds the `Brief:` and `Class:` lines, is never cut (decision
+[149](swarm/decisions/0149-daisy-reads-a-text-it-cut-whole.md)).
 
 The **slices** of a plan are the lines matching `^[0-9]+\. ` between its
 `## Steps` line and the next line beginning `## ` (a slice's text may run
@@ -5873,7 +5893,8 @@ interface with the step that builds the board.
 | 29 | `pause`, `resume`, the lock | temp `<state>`, `forge.Fake`, `runner.Fake` | `pause` mid-lifecycle stops launches and `resume` continues; `apply` runs `EnsureLabels` after taking the lock, creating a deleted label again, and after `RefuseLabels()` and a deleted label exiting 1 before any pass; two concurrent `apply --once` launch each role once, the second exiting with the holder's name |
 | 29 | `reconcile`, the lifecycle explored (Step 36 of the plan remediating the 2026-11-15 design review; decision [146](swarm/decisions/0146-the-lifecycle-is-explored.md)) | `forge.Fake` and its `Clone`, `runner.Fake`, an in-memory file system; `apply`'s pass but the launch's preparation and the worker's collection, which reach git | every sequence of up to five events (a pass; a member's end, a reviewer's verdict or `BLOCKED:`, the worker's push; the maintainer's pause, resume, unblock, block and accept; a CI status; a merge refused, a mergeability unknown, checks required, a relabel refused) over #1 approved and #2 ready for review, the merge gate off, each state expanded once: each open issue carries exactly one stage, no pull request merges with a check failed or pending on its head, nothing launches on an issue blocked, paused or held by its `Blocked by #<m>`, and every label Daisy writes is a row of section 5's table, which the test holds to the table's text; the shortest sequence that breaks one is the failure (`TestExploreLifecycle`, `TestSectionFiveTable`; `-explore.depth` explores deeper) |
 | 29 | `reconcile`, the screenshots (Step 38 of the plan remediating the 2026-11-15 design review; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)) | `forge.Fake` (`Attachments`, `RefuseAttachments`), `runner.Fake` writing a worker's `/work/.swarm/artifacts/`; the `gitea` adapter's recorded pairs | a worker run's screenshot attached to its pull request and recorded, each reviewer's prompt ending in `# Artifacts` with its path and URL, the file copied to the reviewer's `/work/.swarm/artifacts/` and the reviewer's Task sentence; every worker's Task sentence; without screenshots no `artifact` line, no attachment and no `# Artifacts`; a link to a host file, a link out of the directory, the directory itself a link, a subdirectory, a name beginning `.` or `-` or holding a space, another extension and a content not of its extension's type each skipped, warned of and recorded once; a file the forge refuses recorded `not attached`, the run posted and the reviewers given it; a secret in a screenshot *secret in output*, nothing pushed; `Attach`'s `201`, `413`, `422` and a `500` after its retries (`TestSwarmWorkerArtifactsReachThePullAndTheReviewers`, `TestSwarmWorkerWithoutArtifacts`, `TestSwarmWorkerArtifactsUntrusted`, `TestSwarmWorkerArtifactsDirectoryLink`, `TestSwarmWorkerArtifactRefused`, `TestSwarmApplyWorkFailures`, `TestGiteaAttach`) |
-| 29 | `reconcile`, a text cut on the forge (Step 38b of the plan remediating the 2026-11-15 design review, request F40; decision [148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md)) | `forge.Fake`, `runner.Fake` writing outputs over 60 000 bytes; a scratch `<state>` | a plan, a worker's description and a review each over the limit, posted cut with the note naming the run; the worker and each reviewer given the plan whole in `/work/.swarm/outputs/<run>.md`, the reviewers the description, the worker answering the review that review, the round-2 reviewers the review's `[blocking]` lines with its note, each prompt's note naming the copy and each Task text listing the files in the prompt's order; a plan within the limit copied nowhere and named nowhere; a note a swarm text quotes, one naming another run, one in a trusted login's comment and one of a run not copyable left as posted; a run whose out.md is a link, missing, of another issue or failed for a secret never given (`TestSwarmCutTextReachesTheMemberWhole`, `TestSwarmUncutTextIsNotCopied`, `TestRenderCutNote`, `TestOutputs`) |
+| 29 | `reconcile`, a text cut on the forge (Step 38b of the plan remediating the 2026-11-15 design review, request F40; decision [148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md)) | `forge.Fake`, `runner.Fake` writing outputs over 60 000 bytes; a scratch `<state>` | a plan, a worker's description and a review each over the limit, posted cut with the note naming the run; the worker and each reviewer given the plan whole in `/work/.swarm/outputs/<run>.md`, the reviewers the description, the worker answering the review that review, the round-2 reviewers the review's `[blocking]` lines read whole (Step 38c), each prompt's note naming the copy and each Task text listing the files in the prompt's order; a plan within the limit copied nowhere and named nowhere; a note a swarm text quotes, one naming another run, one in a trusted login's comment and one of a run not copyable left as posted; a run whose out.md is a link, missing, of another issue or failed for a secret never given (`TestSwarmCutTextReachesTheMemberWhole`, `TestSwarmUncutTextIsNotCopied`, `TestRenderCutNote`, `TestOutputs`) |
+| 29 | `reconcile`, Daisy's own reads of a cut text (Step 38c of the plan remediating the 2026-11-15 design review, request F40; decision [149](swarm/decisions/0149-daisy-reads-a-text-it-cut-whole.md)) | `forge.Fake`, `runner.Fake` writing a plan over 60 000 bytes with its `## Steps` past the cut and a review with a finding past it; a scratch `<state>` | the plan gate's note counting two slices; the worker given slice 1 of 2 in its Task text and under `# Plan`; the merge step merging slice 1 and handing the issue back, not closing it, and the worker given slice 2 of 2; with the run's out.md gone, the forge's text as before (no slice line, so with two repositories the worker's launch fails as bad slices and blocks); the merge gate's note's slice count and the non-blocking finding past the cut, `status` waiting on the next slice; `swarm merge` handing the issue back, closing it when the note names another run, and refusing, nothing merged, when the out.md cannot be read; an earlier round's blocking count and the previous round's `[blocking]` lines read whole; a note naming another run or issue, a link, a missing out.md, a run failed for a secret, a reconciler's note, a comment not the swarm's and no state read as posted, an unreadable out.md an error (`TestSwarmCutPlanIsReadWhole`, `TestSwarmCutTextsTheMaintainerIsToldOf`, `TestSwarmMergeVerbReadsTheCutPlanWhole`, `TestRenderCutReviewFindingsWhole`, `TestOutputs`) |
 | 30 | the real run | a real product workspace declaring two repositories of one organization (the product, then a library it depends on), the issue in the product's, and the Gitea instance, every gate on | one real issue through the lifecycle over two slices, the first in the library and the second in the product moving the product's pin to the first's merge commit, each pull request merged by the maintainer, then the issue closed by the maintainer; the library's pull request carrying `Refs <owner>/<repo>#<n>`, and whether Gitea shows it as a cross-reference recorded; the second slice's check with the moved pin under `--network none` recorded as passed or failed for want of the upstream (decision [51](swarm/decisions/0051-dependency-order-and-pins.md)); every comment the swarm posted carries the marker and is authored by the swarm's account, and the maintainer's approval is a formal review; `status`'s Throughput is the cost recorded |
 
 **Not established by Step 39**, which ran the five roles by hand, so not

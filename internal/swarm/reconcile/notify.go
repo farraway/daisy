@@ -42,20 +42,20 @@ func (s *Swarm) mention() string {
 // `question` (a question passed to the maintainer) or `blocked` at any
 // stage, else `triage`, `plan`, or at review-2-approved what its current
 // pull request calls for (AfterApproval, of pulls, its pull requests);
-// "" for an issue with no stage, or two.
-func Waiting(is forge.Issue, pulls []forge.Pull, swarmLogin string) string {
+// "" for an issue with no stage, or two. The plan is read whole through o.
+func Waiting(is forge.Issue, pulls []forge.Pull, swarmLogin string, o Outputs) (string, error) {
 	stage, ok := StageOf(is)
 	switch {
 	case !ok:
-		return ""
+		return "", nil
 	case slices.Contains(is.Labels, forge.Blocked) && AtAQuestion(is, swarmLogin):
-		return "question"
+		return "question", nil
 	case slices.Contains(is.Labels, forge.Blocked):
-		return "blocked"
+		return "blocked", nil
 	case stage == forge.ReviewApproved:
-		return AfterApproval(is, pulls, swarmLogin)
+		return AfterApproval(is, pulls, swarmLogin, o)
 	}
-	return map[string]string{forge.ProposalPosted: "triage", forge.PlanPosted: "plan"}[stage]
+	return map[string]string{forge.ProposalPosted: "triage", forge.PlanPosted: "plan"}[stage], nil
 }
 
 // NoCheck is the declared repositories, by name in repos' order, whose
@@ -155,7 +155,10 @@ func (s *Swarm) waiting() ([]waitItem, error) {
 				return nil, err
 			}
 		}
-		item := Waiting(is, pulls, s.SwarmLogin)
+		item, err := Waiting(is, pulls, s.SwarmLogin, s.outputs())
+		if err != nil {
+			return nil, err
+		}
 		if item == "" {
 			continue
 		}

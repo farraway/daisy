@@ -47,6 +47,9 @@ of a posted plan (its slices for the worker's branch and the merge
 step's count, the gate note's summary) read the forge's text, so a plan
 whose `## Steps` the cut reaches is read with fewer slices; that is
 recorded as Deferred, since reading it from the run asks for a file
-system where those reads have none. Tests:
+system where those reads have none. (Amended by item 149: Daisy's own
+reads of a text it cut read it whole from the same run, the plan's
+slices and the gate notes among them, and a review shown as its
+`[blocking]` lines alone has them listed whole, with no note.) Tests:
 `TestSwarmCutTextReachesTheMemberWhole`, `TestSwarmUncutTextIsNotCopied`,
 `TestRenderCutNote` and `TestOutputs`.

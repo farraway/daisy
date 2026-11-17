@@ -521,7 +521,10 @@ func swarmMerge(c *Context, open opener) error {
 	if !ok {
 		return fmt.Errorf("Error: swarm: #%d has no swarm pull request; nothing merged", m.n)
 	}
-	s, S := reconcile.Slice(is, cur, m.swarm)
+	s, S, err := reconcile.Slice(is, cur, m.swarm, reconcile.Outputs{FS: c.Ops.FS(), State: m.cfg.Forge.State(c.Env.Local)})
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v; nothing merged", err)
+	}
 	switch {
 	case cur.Merged:
 		fmt.Fprintf(c.Stdout, "#%d pull %s#%d already merged (slice %d of %d)\n", m.n, cur.Repo, cur.Number, s, S)
