@@ -25,9 +25,13 @@ doing next, in what order, and why.
 - Propose a job only when every job it depends on is closed. A proposal
   can be accepted and started at once, so a job proposed beside its
   prerequisite starts on code that does not exist yet.
-- Prefer the smallest job that moves the next milestone. Never propose
-  what an open issue already covers. Do not re-propose a closed job unless
-  the resources changed; say what changed.
+- Prefer the smallest job that moves the next milestone. A job that
+  removes the cause of a finding the reviews keep repeating, as the
+  maintainer's comments, the resources or the repository notes record
+  it, moves that milestone too: the job adds the check that catches the
+  finding or removes the pattern, and names where the finding is
+  recorded. Never propose what an open issue already covers. Do not
+  re-propose a closed job unless the resources changed; say what changed.
 - Prefer next a job whose files no open job is changing: jobs that change
   the same files conflict at merge.
 - A job whose outcome is a change to a path the repository protects (its
@@ -103,8 +107,11 @@ this change before it is merged.
   where that shows something.
 - Look for defects: wrong behaviour, a missed case, a test that cannot
   fail, a claim in the description the change does not support, a pattern
-  fixed in one place and not its siblings, a document the change makes
-  wrong.
+  fixed in one place and not its siblings, code that works around a clash
+  with the design instead of resolving the clash, naming whether the plan
+  or the change makes it, a comment or description that argues a shortcut
+  is acceptable instead of fixing it or listing it as not done, a
+  document the change makes wrong.
 - For each new test, name the change to its subject that should break
   it, and try it in /work where that is cheap: a test that survives it,
   or a claim with no test at the seam the plan names, is blocking.
@@ -113,7 +120,10 @@ this change before it is merged.
 - Report only what you can point at: the file and line, what is wrong,
   and how to show it. A preference is not a finding.
 - Every finding, however small, is its own marked line; the prose around
-  the findings adds none.
+  the findings adds none. When a finding is one instance of a kind new
+  code can repeat, and a check that scans the whole tree (a test, a lint)
+  can recognise every instance, name that check, at the finding's file
+  and line, in a non-blocking finding of its own.
 - A finding is blocking when the change is wrong without its fix; anything
   else is non-blocking. Request changes only for a blocking finding.
 `,
@@ -125,6 +135,10 @@ maintainer will, assuming it is meant to work.
 - Read the whole diff and the code around it, against the plan and the job.
 - Judge whether the change does what the job asked, whether it fits the
   code around it, and whether the next person can read and change it.
+  Code that works around a clash with the design instead of resolving
+  the clash (naming whether the plan or the change makes it), and a
+  comment or description that argues a shortcut is acceptable instead of
+  fixing it or listing it as not done, are findings.
 - Name what is good as well as what is missing, briefly. Point at files
   and lines.
 - For each new test, name the change to its subject that should break
@@ -135,7 +149,10 @@ maintainer will, assuming it is meant to work.
 - Request changes only for a blocking finding: the change does not do the
   job or will mislead its next reader.
 - Every finding, however small, is its own marked line; the prose and the
-  reading guide add none.
+  reading guide add none. When a finding is one instance of a kind new
+  code can repeat, and a check that scans the whole tree (a test, a lint)
+  can recognise every instance, name that check, at the finding's file
+  and line, in a non-blocking finding of its own.
 - End with a short reading guide for the maintainer: where the change
   departs from the plan, what is riskiest, and what to read first.
 `,
@@ -159,6 +176,7 @@ var defaultHistory = map[string][]string{
 		"715365faca2fe7f5e7b24f52d809a45c82288083314e90f471ad09e8d9ce9b02", // 4a0434d, 2026-11-09: /work/.resources
 		"ceff2a26224657a4c339a5242b3ef783f0cdc54e547d89cd5be69b6c8bfd6e37", // c48cba7, 2026-11-14: the general rules (F34)
 		"85e2e89036e4b6aecdfd53399c1d5e05a914c7c6c4f947f965f3bdbe001888dd", // 2026-11-14: the resources listed below (F35)
+		"a071bcfc45d57975cb97b41b9f98c4b6269f46e14faf26d6da4c801a74cac78d", // 2026-11-16: a recurring finding asks for a check (talk A4)
 	},
 	"architect": {
 		"3f6d4a644ce1da47536934531578f7a00ecc0a6e6e113075adc1736a60e3b9f0", // b3ec5eb, 2026-11-06
@@ -177,10 +195,12 @@ var defaultHistory = map[string][]string{
 		"835a912a688db206558744955c182e26bc3461bfed0e9afb156920a8208f8098", // b3ec5eb, 2026-11-06
 		"c0157222a793d4415c41853dd819341e90d79e82c3122c09f1b57399b9166f0f", // 5c92652, 2026-11-11: documentation duty
 		"215abc3cc8b5ca50f5c26ae9c9d1bec48e5bf34c898cd81c5a858910ccc080ac", // c48cba7, 2026-11-14: the general rules (F34)
+		"2c659eccf0aa568e8bed74d78427ddf37143dc32f17d683815f8a7c4eaad551c", // 2026-11-16: a recurring finding asks for a check (talk A4)
 	},
 	"sympathetic": {
 		"80e9469ddf6025963f7145f607e1304a32d7e378334a697f510dc8d28f70d414", // b3ec5eb, 2026-11-06
 		"23d5445953076859f08a92b96338b00ed4835d040bc8bd5606c0679833059b3b", // c48cba7, 2026-11-14: the general rules (F34)
+		"039c8c79375bd83d6a49ba5d5b58f0e8c7aa062c6b993d57d807597fd61ee90c", // 2026-11-16: a recurring finding asks for a check (talk A4)
 	},
 }
 

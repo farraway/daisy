@@ -307,3 +307,14 @@ they write.
   since the last model or prompt change; Daisy reads `AUTHORITIES.md`
   only to quote it; sections 2 and 11; decision
   [143](swarm/decisions/0143-the-connect-briefing-as-one-report.md).
+- 2026-11-16, Step 34 of the plan remediating the 2026-11-15 design
+  review (talk A4): the default reviewers name, in a non-blocking
+  finding of its own, a check over the whole tree that can recognise
+  every instance of a finding's kind, and count as findings a
+  workaround of a design clash (naming whether the plan or the change
+  makes it) and a comment or description arguing a shortcut is
+  acceptable instead of fixing it or listing it as not done; the
+  owner's smallest job may be one that removes the cause of a
+  repeated review finding the maintainer's comments, the resources or
+  the repository notes record; section 4; decision
+  [144](swarm/decisions/0144-a-recurring-finding-asks-for-a-check.md).
