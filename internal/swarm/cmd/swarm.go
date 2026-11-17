@@ -528,7 +528,7 @@ func writeStatus(out io.Writer, r *statusReport) {
 }
 
 // waitingLine is the Waiting for you line: the gated issues by item, then
-// the notes' branches, or nothing.
+// the notes' branches, then the repositories with no check, or nothing.
 func waitingLine(w reconcile.StatusWaiting) string {
 	var waiting []string
 	for i, ws := 0, w.Issues; i < len(ws); {
@@ -547,6 +547,9 @@ func waitingLine(w reconcile.StatusWaiting) string {
 	}
 	if len(w.Notes) > 0 {
 		waiting = append(waiting, "notes "+strings.Join(w.Notes, " "))
+	}
+	if len(w.NoCheck) > 0 {
+		waiting = append(waiting, "no check "+strings.Join(w.NoCheck, " "))
 	}
 	if len(waiting) == 0 {
 		waiting = []string{"nothing"}

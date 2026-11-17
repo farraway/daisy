@@ -9,6 +9,24 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
+// warnUnchecked is apply's warning of each repository the merge step
+// would merge with no check run (declare's Unchecked, section 3): on
+// stderr at the process's first pass and again only when the set of
+// warnings changes, as Drift's lines are. It holds nothing up.
+func (s *Swarm) warnUnchecked() {
+	var lines []string
+	for _, i := range s.Cfg.Unchecked() {
+		lines = append(lines, s.Cfg.UncheckedWarning(i))
+	}
+	if slices.Equal(lines, s.unchecked) {
+		return
+	}
+	s.unchecked = lines
+	for _, l := range lines {
+		fmt.Fprintln(s.Err, "⚠ "+l)
+	}
+}
+
 // mergeStep is pass step (6), with the merge gate off (section 12): for
 // each open approved issue neither blocked nor paused, its current pull
 // request merged at the head both its newest swarm reviews approve (or

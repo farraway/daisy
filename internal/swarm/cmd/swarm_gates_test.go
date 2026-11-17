@@ -6,7 +6,9 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
@@ -502,5 +504,89 @@ func TestSwarmApplyCopiesTheLabel(t *testing.T) {
 	a.pass()
 	if got := a.pulls(1)[0].Labels; !reflect.DeepEqual(got, []string{"needs-docs", "swarm:plan-0-posted"}) || !strings.Contains(a.stdout.String(), "#1 pull app#1: swarm:plan-0-posted\n") {
 		t.Errorf("labels %v\n%s", got, a.stdout.String())
+	}
+}
+
+// uncheckedWarning is apply's warning of repos[1], lib, which declares no
+// check, with the merge gate off (section 3).
+const uncheckedWarning = "⚠ swarm.json: repos[1] (lib) has no check and gates.merge is false: no check of Daisy's runs on its pull requests before the merge step merges them\n"
+
+// Step 35's claim (plan remediating the 2026-11-15 design review, talk
+// A6): with the merge gate off, a repository with no check merges on the
+// pair's approvals alone (section 12), and the maintainer sees it without
+// being stopped by it: apply --once warns of lib and not of app, which
+// declares one, and goes on; status lists it under Waiting for you (with
+// --json under waiting.no_check), notify tells it once, and connect
+// shows status's line. With the gate on, none of them names it.
+func TestSwarmMergeWithoutACheck(t *testing.T) {
+	a := newApplyWS(t)
+	notified := a.notifying()
+	a.pass()
+	applied := a.stderr.String() // apply's, before status resets it
+	if _, line := a.waitingSet(); strings.Contains(applied, "has no check") || line != "Waiting for you: nothing" || notified() != nil {
+		t.Fatalf("the gate on: %q %q %q", applied, line, notified())
+	}
+
+	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	for range 2 {
+		a.pass()
+		if got := a.stderr.String(); strings.Count(got, uncheckedWarning) != 1 || strings.Contains(got, "(app)") ||
+			!strings.Contains(a.stdout.String(), "Pass ") {
+			t.Fatalf("apply --once's stderr:\n%s\nstdout:\n%s", got, a.stdout.String())
+		}
+	}
+	if got := notified(); !reflect.DeepEqual(got, []string{"acme/swarm-app waits for you: no check lib"}) {
+		t.Errorf("notified %q", got)
+	}
+	if _, line := a.waitingSet(); line != "Waiting for you: no check lib" {
+		t.Errorf("status: %q", line)
+	}
+	a.flags = []string{"--waiting", "--json"}
+	if err := a.status(a.forge); err != nil || !strings.Contains(a.stdout.String(), `"no_check": [`+"\n"+`      "lib"`+"\n") {
+		t.Errorf("--waiting --json: %v\n%s", err, a.stdout.String())
+	}
+	a.flags = nil
+	if err := a.readOnly(swarmConnect, a.forge); err != nil || !strings.Contains(a.stdout.String(), "\nWaiting for you: no check lib\n") {
+		t.Errorf("connect: %v\n%s", err, a.stdout.String())
+	}
+	a.flags = []string{"--json"}
+	if err := a.readOnly(swarmConnect, a.forge); err != nil || !strings.Contains(a.stdout.String(), `"no_check": [`) {
+		t.Errorf("connect --json: %v\n%s", err, a.stdout.String())
+	}
+	a.flags = nil
+
+	// The loop warns at its first pass and again only when the set
+	// changes: pass 2 the same, pass 3 with app's check removed too. No
+	// notify, whose timeout the waits below would end at once.
+	a.edit(func(c *declare.Config) { c.Notify = nil })
+	a.signals = make(chan os.Signal, 1)
+	waits := 0
+	var mu sync.Mutex
+	a.after = func(time.Duration) <-chan time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		waits++
+		switch waits {
+		case 2:
+			a.edit(func(c *declare.Config) { c.Repos[0].Check = nil })
+		case 3:
+			a.signals <- os.Interrupt
+		}
+		c := make(chan time.Time, 1)
+		c <- time.Time{}
+		return c
+	}
+	if err := a.apply(a.git()); err != nil {
+		t.Fatal(err)
+	}
+	var got string // the drift's lines aside: the edits are not pushed
+	for _, l := range strings.SplitAfter(a.stderr.String(), "\n") {
+		if !strings.HasPrefix(l, "⚠ Drift: ") {
+			got += l
+		}
+	}
+	both := strings.Replace(uncheckedWarning, "repos[1] (lib)", "repos[0] (app)", 1) + uncheckedWarning
+	if got != uncheckedWarning+both || strings.Count(a.stdout.String(), "Pass ") != 3 {
+		t.Errorf("the loop's stderr:\n%s\nwant:\n%s\nstdout:\n%s", got, uncheckedWarning+both, a.stdout.String())
 	}
 }

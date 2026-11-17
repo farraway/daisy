@@ -259,7 +259,7 @@ Running: #0 owner, #8 adversary, #12 check
 	if err := s.status(s.forge); err != nil {
 		t.Fatal(err)
 	}
-	for _, line := range []string{"Gates: triage off, plan off, merge off\n", "Waiting for you: blocked #7 (architecture)\n",
+	for _, line := range []string{"Gates: triage off, plan off, merge off\n", "Waiting for you: blocked #7 (architecture); no check app lib\n",
 		"Running: unknown (docker: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?)\n",
 		"  budget       $10.00 per day, $100.00 in all\n"} {
 		if !strings.Contains(s.stdout.String(), line) {
@@ -299,7 +299,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 			`"swarm:review-0-ready":[8],"swarm:review-1-in-progress":[],"swarm:review-2-approved":[6],"swarm:review-3-changes-requested":[]}`,
 		"waiting": `{"issues":[{"class":"architecture","issue":1,"item":"triage"},{"class":"architecture","issue":2,"item":"triage"},` +
 			`{"class":"architecture","issue":3,"item":"plan"},{"class":"architecture","issue":4,"item":"plan"},{"class":"architecture","issue":5,"item":"plan"},` +
-			`{"class":"architecture","issue":6,"item":"merge"},{"class":"architecture","issue":7,"item":"blocked"}],"notes":[]}`,
+			`{"class":"architecture","issue":6,"item":"merge"},{"class":"architecture","issue":7,"item":"blocked"}],"no_check":[],"notes":[]}`,
 		"held":    `{"blocked_by":[{"by":3,"issue":12}],"paused":[11]}`,
 		"running": `{"error":null,"members":[{"issue":0,"role":"owner"},{"issue":8,"role":"adversary"},{"issue":12,"role":"check"}]}`,
 		"personas": `{"adversary":{"effort":"high","model":"gpt-6.1-sol","provider":"openai"},"architect":{"effort":"high","model":"claude-fable-5-1","provider":"anthropic"},` +

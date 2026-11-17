@@ -318,3 +318,13 @@ they write.
   repeated review finding the maintainer's comments, the resources or
   the repository notes record; section 4; decision
   [144](swarm/decisions/0144-a-recurring-finding-asks-for-a-check.md).
+- 2026-11-16, Step 35 of the plan remediating the 2026-11-15 design
+  review (talk A6): with `gates.merge` false, each repository whose
+  `check` is empty is warned of by `apply` (`⚠ swarm.json: repos[<i>]
+  (<name>) has no check and gates.merge is false: no check of Daisy's
+  runs on its pull requests before the merge step merges them`, at the
+  first pass and when the set changes) and listed by `status` and
+  `connect` under Waiting for you as `no check <name>`
+  (`waiting.no_check`), which notify tells; never refused; sections 2,
+  3, 5, 11 and 12; decision
+  [145](swarm/decisions/0145-a-merge-with-no-check-is-warned-of.md).

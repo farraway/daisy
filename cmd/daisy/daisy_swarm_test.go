@@ -380,7 +380,7 @@ func TestSwarmStatusJSONThroughGitea(t *testing.T) {
 		"state":               {"no_active_brief", "owner_held", "path", "paused", "restart_requested_at"},
 		"gates":               {"merge", "plan", "triage"},
 		"stages":              {"swarm:plan-0-posted", "swarm:plan-1-accepted", "swarm:plan-2-in-progress", "swarm:proposal-accepted", "swarm:proposal-posted", "swarm:review-0-ready", "swarm:review-1-in-progress", "swarm:review-2-approved", "swarm:review-3-changes-requested"},
-		"waiting":             {"issues", "notes"},
+		"waiting":             {"issues", "no_check", "notes"},
 		"held":                {"blocked_by", "paused"},
 		"running":             {"error", "members"},
 		"personas":            {"adversary", "architect", "owner", "sympathetic", "worker"},
@@ -447,7 +447,7 @@ func TestSwarmStatusWaitingThroughGitea(t *testing.T) {
 	}
 	code, out, errs = runWith(o, "swarm", "status", "--waiting", "--json")
 	var doc, want any
-	json.Unmarshal([]byte(`{"waiting": {"issues": [{"item": "triage", "issue": 1, "class": "architecture"}], "notes": []}, "warnings": []}`), &want)
+	json.Unmarshal([]byte(`{"waiting": {"issues": [{"item": "triage", "issue": 1, "class": "architecture"}], "notes": [], "no_check": []}, "warnings": []}`), &want)
 	if code != 0 || errs != "" || json.Unmarshal([]byte(out), &doc) != nil || !reflect.DeepEqual(doc, want) {
 		t.Errorf("--waiting --json: exit %d\n%s\n%s", code, out, errs)
 	}
@@ -692,7 +692,7 @@ func TestSwarmConnectThroughGitea(t *testing.T) {
 		"state":   {"no_active_brief", "owner_held", "path", "paused", "restart_requested_at"},
 		"running": {"error", "members"},
 		"journal": {"day", "issues", "mark", "marked"},
-		"waiting": {"issues", "notes"},
+		"waiting": {"issues", "no_check", "notes"},
 		"held":    {"blocked_by", "paused"},
 		"runs":    {"blocked", "failed", "faults", "other", "posted", "total"},
 		"metrics": {"all", "change", "file", "home", "problem", "since_change"},
@@ -712,7 +712,7 @@ func TestSwarmConnectThroughGitea(t *testing.T) {
 		"journal": {"marked": null, "day": "2026-11-06", "mark": "1-architect-1", "issues": [
 			{"issue": 1, "lines": [{"day": "2026-11-06", "run": "1-architect-1", "line": "- 1501 1-architect-1: posted; the plan; #1"}]},
 			{"issue": null, "lines": [{"day": "2026-11-06", "run": "0-owner-2", "line": "- 1500 0-owner-2: posted; batch"}]}]},
-		"waiting": {"issues": [{"item": "triage", "issue": 1, "class": "architecture", "gate_note": null}], "notes": []},
+		"waiting": {"issues": [{"item": "triage", "issue": 1, "class": "architecture", "gate_note": null}], "notes": [], "no_check": []},
 		"questions": [], "authorities": null,
 		"metrics": {"home": null, "file": null, "change": null, "since_change": [], "all": [], "problem": "`+filepath.Join(state, "home")+` names no Daisy home"}}`), &want)
 	for k, v := range want.(map[string]any) {

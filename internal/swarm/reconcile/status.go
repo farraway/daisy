@@ -71,10 +71,12 @@ type StatusGates struct {
 }
 
 // StatusWaiting is what waits for the maintainer: the gated issues, by
-// item in the line's order, and the notes' branches to merge by hand.
+// item in the line's order, the notes' branches to merge by hand, and
+// the repositories whose pull requests merge with no check (NoCheck).
 type StatusWaiting struct {
-	Issues []StatusWait `json:"issues"`
-	Notes  []string     `json:"notes"`
+	Issues  []StatusWait `json:"issues"`
+	Notes   []string     `json:"notes"`
+	NoCheck []string     `json:"no_check"`
 }
 
 type StatusWait struct {
@@ -299,6 +301,7 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 		return nil, statusRead{}, fmt.Errorf("reading the notes' branches: %w", err)
 	}
 	r.Waiting.Notes = append([]string{}, notes...)
+	r.Waiting.NoCheck = append([]string{}, NoCheck(cfg)...)
 
 	state := cfg.Forge.State(local)
 	r.State = readStateNotes(o.FS(), state, NoActiveBrief(briefs))

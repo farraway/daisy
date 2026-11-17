@@ -55,6 +55,7 @@ type Swarm struct {
 	pinErr     map[string]error    // a reference's pin this pass's fetch did not bring, by its name
 	driftSeen  bool                // a pass has compared the configuration with the pushed head (drift)
 	drifting   []string            // the paths that drifted at the last comparison
+	unchecked  []string            // the warnings warnUnchecked printed last
 }
 
 // Openers is whose pull requests are the swarm's (section 10, Pulls):
@@ -99,7 +100,9 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 	return declare.Repo{}, false
 }
 
-// Pass is one pass of `apply` (section 11): (2) the containers this
+// Pass is one pass of `apply` (section 11): first, with the merge gate
+// off, the warning of each repository with no check (warnUnchecked);
+// (2) the containers this
 // process started that have ended, and every run left uncollected,
 // collected; (3) the abandoned and the orphans over time, then the
 // owner's hold released when every issue it waits on is closed; (4) paused;
@@ -123,6 +126,7 @@ func (s *Swarm) Pass(wait bool) error {
 	if p, ok := s.Forge.(interface{ NewPass() }); ok {
 		p.NewPass() // an adapter's reads held for one pass (the gitea adapter's label ids)
 	}
+	s.warnUnchecked()
 	running, err := s.Runner.Running()
 	if err != nil {
 		return err

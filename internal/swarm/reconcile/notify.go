@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 )
 
@@ -55,6 +56,18 @@ func Waiting(is forge.Issue, pulls []forge.Pull, swarmLogin string) string {
 		return AfterApproval(is, pulls, swarmLogin)
 	}
 	return map[string]string{forge.ProposalPosted: "triage", forge.PlanPosted: "plan"}[stage]
+}
+
+// NoCheck is the declared repositories, by name in repos' order, whose
+// pull requests the merge step merges with no check run on them
+// (declare's Unchecked), as status's Waiting for you lists them under
+// `no check` and notify tells them.
+func NoCheck(cfg declare.Config) []string {
+	var names []string
+	for _, i := range cfg.Unchecked() {
+		names = append(names, cfg.Repos[i].Name)
+	}
+	return names
 }
 
 // waitItem is one thing waiting for the maintainer, as notify tells it:
@@ -114,7 +127,8 @@ func (s *Swarm) notify() {
 // <state>/paused line, which `status` shows); each open issue carrying
 // swarm:gated, by number, its item Waiting's and its key naming the
 // reconciler's note that put it there (waitNote), so a new block or a
-// new gating event is a new item; and each notes branch `status` lists.
+// new gating event is a new item; each notes branch `status` lists; and
+// each repository it lists under `no check` (NoCheck), by its name.
 func (s *Swarm) waiting() ([]waitItem, error) {
 	repo := s.Cfg.Forge.Repo
 	var out []waitItem
@@ -154,6 +168,9 @@ func (s *Swarm) waiting() ([]waitItem, error) {
 	}
 	for _, b := range branches {
 		out = append(out, waitItem{"notes " + b, repo + " waits for you: notes " + b})
+	}
+	for _, name := range NoCheck(s.Cfg) {
+		out = append(out, waitItem{"no check " + name, repo + " waits for you: no check " + name})
 	}
 	return out, nil
 }

@@ -466,8 +466,9 @@ type journalIssue struct {
 // connectWaiting is status's waiting, each issue with the text of its
 // gate note (reconcile.CurrentGateNote), nil when none is on it.
 type connectWaiting struct {
-	Issues []connectWait `json:"issues"`
-	Notes  []string      `json:"notes"`
+	Issues  []connectWait `json:"issues"`
+	Notes   []string      `json:"notes"`
+	NoCheck []string      `json:"no_check"`
 }
 
 type connectWait struct {
@@ -538,7 +539,7 @@ func readConnect(c *Context, open opener) (*connectReport, error) {
 	}
 	r := &connectReport{Repository: s.Repository, Host: s.Forge.Host, Clone: c.Swarm.Root, State: s.State, Running: s.Running,
 		Journal: byIssue(j), Held: s.Held, Runs: s.Throughput.Runs, Questions: b.Questions}
-	r.Waiting = connectWaiting{Issues: []connectWait{}, Notes: s.Waiting.Notes}
+	r.Waiting = connectWaiting{Issues: []connectWait{}, Notes: s.Waiting.Notes, NoCheck: s.Waiting.NoCheck}
 	for _, w := range s.Waiting.Issues {
 		cw := connectWait{StatusWait: w}
 		if text, ok := b.GateNotes[w.Issue]; ok {
@@ -687,7 +688,7 @@ func writeConnect(out io.Writer, r *connectReport) {
 		fmt.Fprintln(out, "Mark them seen: daisy swarm journal --mark "+*j.Mark)
 	}
 
-	waiting := reconcile.StatusWaiting{Issues: []reconcile.StatusWait{}, Notes: r.Waiting.Notes}
+	waiting := reconcile.StatusWaiting{Issues: []reconcile.StatusWait{}, Notes: r.Waiting.Notes, NoCheck: r.Waiting.NoCheck}
 	for _, w := range r.Waiting.Issues {
 		waiting.Issues = append(waiting.Issues, w.StatusWait)
 	}

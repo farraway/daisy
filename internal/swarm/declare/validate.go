@@ -237,6 +237,30 @@ func checkRepos(f Forge, repos []Repo) *Error {
 	return nil
 }
 
+// Unchecked is each declared repository, by its index in repos, whose
+// pull requests the merge step merges with no check of Daisy's run on
+// them: with gates.merge false, each whose check is empty (section 12).
+// Validate refuses neither: apply warns of each (UncheckedWarning), and
+// status lists each under Waiting for you, which notify tells.
+func (c Config) Unchecked() []int {
+	if c.Gates.Merge {
+		return nil
+	}
+	var out []int
+	for i, r := range c.Repos {
+		if len(r.Check) == 0 {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// UncheckedWarning is apply's warning of repos[i], an index Unchecked
+// returns (section 3).
+func (c Config) UncheckedWarning(i int) string {
+	return fmt.Sprintf("swarm.json: repos[%d] (%s) has no check and gates.merge is false: no check of Daisy's runs on its pull requests before the merge step merges them", i, c.Repos[i].Name)
+}
+
 // checkDeps is a repository's dependency step, when declared: an argv of
 // non-empty arguments, run only before a check, so the repository
 // declares one, and each env name a variable name.
