@@ -15,9 +15,6 @@ import (
 	"daisy/internal/swarm/runner"
 )
 
-// maxPost is the longest text posted (section 7.5).
-const maxPost = 60000
-
 // collection is one run's collection (section 7.6): each step first
 // checked on the forge and skipped when done there, each step done
 // appended to the result, so a collection interrupted by an error is
@@ -132,8 +129,8 @@ func (s *Swarm) collect(r Run) error {
 	if hit(out, s.secretsOf(r, c.lines)) {
 		return c.fail("secret in output: out.md")
 	}
-	text := postable(string(out), r, 0)
-	first, _, _ := strings.Cut(string(out), "\n")
+	text := string(out)
+	first, _, _ := strings.Cut(text, "\n")
 	_, questionRun := Has(lines, "question")
 	switch {
 	case strings.HasPrefix(strings.TrimRight(first, "\r "), "BLOCKED:"):
@@ -143,7 +140,7 @@ func (s *Swarm) collect(r Run) error {
 	case asks(r.Role, first, questionRun):
 		return c.ask(text)
 	case questionRun:
-		return c.answer(string(out))
+		return c.answer(text)
 	}
 	switch r.Role {
 	case "owner":
@@ -181,9 +178,9 @@ func (s *Swarm) collect(r Run) error {
 			}
 		}
 	case "worker":
-		return c.worker(string(out), text, pull)
+		return c.worker(text, pull)
 	default:
-		return c.review(string(out), text, *pull)
+		return c.review(text, *pull)
 	}
 	return c.end("posted")
 }
@@ -246,22 +243,34 @@ func (c *collection) dropNotes() error {
 	return c.s.O.FS().RemoveAll(filepath.Join(c.r.Dir, "notes"))
 }
 
-// say posts text marked for role and this run at at, unless existing (its
-// comments) holds it: a reconciler note is told by its whole body, since
-// its marker carries the reported run's number.
+// say posts text marked for role and this run at at (sayLong).
 func (c *collection) say(at forge.Ref, existing []forge.Comment, role, text string) error {
-	body := marker(role, c.r.K) + text
-	for _, e := range existing {
-		m, ok := Swarms(Entry{e.Author, e.Body, e.Created}, c.s.SwarmLogin)
-		if ok && m.Role == role && m.Run == c.r.K && (role != "reconciler" || e.Body == body) {
-			return nil
-		}
-	}
-	if err := c.s.Forge.Comment(at, body); err != nil {
+	return c.sayLong(at, existing, role, c.runText(role, text, ""))
+}
+
+// sayLong posts l marked for role and this run at at, by section 7.5's
+// rule (prepare), unless existing (its comments) holds it: a reconciler
+// note is told by its whole body, since its marker carries the reported
+// run's number; then its continuations (continued).
+func (c *collection) sayLong(at forge.Ref, existing []forge.Comment, role string, l long) error {
+	text, more, err := c.prepare(l)
+	if err != nil {
 		return err
 	}
-	fmt.Fprintln(c.s.Out, c.head+"posted comment")
-	return c.step("posted comment")
+	body := marker(role, c.r.K) + text
+	if !slices.ContainsFunc(existing, func(e forge.Comment) bool {
+		m, ok := Swarms(Entry{e.Author, e.Body, e.Created}, c.s.SwarmLogin)
+		return ok && m.Role == role && m.Run == c.r.K && (role != "reconciler" || e.Body == body)
+	}) {
+		if err := c.s.Forge.Comment(at, body); err != nil {
+			return err
+		}
+		fmt.Fprintln(c.s.Out, c.head+"posted comment")
+		if err := c.step("posted comment"); err != nil {
+			return err
+		}
+	}
+	return c.continued(at, existing, l, more)
 }
 
 // comment posts on the issue.
@@ -460,13 +469,15 @@ func (c *collection) flag(flag string, home bool) error {
 // leaves as it is, gets head and kept then notBlocked in place of resume,
 // a note that blocked nothing (blocks) and mentions no one.
 func (c *collection) note(head, resume, kept, outcome string) error {
-	text := head + " " + resume + kept + c.s.mention()
+	tail := " " + resume + kept + c.s.mention()
 	if now, moved, err := c.movedAway(true); err != nil {
 		return err
 	} else if moved {
-		text = head + kept + " " + notBlocked(now)
+		tail = kept + " " + notBlocked(now)
 	}
-	if err := c.comment("reconciler", text); err != nil {
+	// The head, which may name a member's paths, is cut by the rule; the
+	// note's end, which says what to do and whom it tells, never is.
+	if err := c.sayLong(c.at, c.is.Comments, "reconciler", c.runText("reconciler", head, tail)); err != nil {
 		return err
 	}
 	if err := c.block(); err != nil {
@@ -597,21 +608,4 @@ func repoNames(cfg declare.Config) []string {
 		out = append(out, r.Name)
 	}
 	return out
-}
-
-// postable is the output as posted, leaving room bytes for what follows
-// it (a worker's check block): cut at the last line break before maxPost
-// less room bytes, the note naming the run included (section 7.5).
-func postable(out string, r Run, room int) string {
-	limit := maxPost - room
-	if len(out) <= limit {
-		return out
-	}
-	note := "\n" + cutNote("runs/"+filepath.Base(r.Dir))
-	limit = max(limit-len(note), 0)
-	cut := strings.LastIndex(out[:limit], "\n")
-	if cut < 0 {
-		cut = limit
-	}
-	return out[:cut] + note
 }

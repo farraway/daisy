@@ -39,15 +39,40 @@ func cutNote(where string) string {
 	return "[truncated by Daisy; the whole output is in " + where + "]"
 }
 
+// forgeNote is the note that ends run's text on the forge, cut, its whole
+// output attached to issue 1 as <run>.md (section 7.5).
+func (a *applyWS) forgeNote(run string) string {
+	a.t.Helper()
+	for _, f := range a.forge.Attachments(issue1) {
+		if f.Name == run+".md" {
+			return "[truncated by Daisy; the whole output is in runs/" + run + " and attached as [" + run + ".md](" + f.URL + ")]"
+		}
+	}
+	a.t.Fatalf("no %s.md attached to #1: %v", run, names(a.forge.Attachments(issue1)))
+	return ""
+}
+
 // The claim of Step 38b (request F40): an accepted plan longer than the
 // forge's comment is posted cut, as before, and each member that acts on
 // it, the worker and each reviewer of its slice, finds it whole as a
 // file in its workspace, /work/.swarm/outputs/<run>.md, its Task text
 // naming the file and the cut's note in its prompt pointing at it; the
 // principle holds for any cut text a later member acts on, a reviewer's
-// review that the worker answers among them (section 7.3).
+// review that the worker answers among them (section 7.3). It holds as
+// well where the forge refuses the files and the texts' rest follows in
+// continuations (Step 38d), which no prompt shows: each text is shown
+// once, cut, its note pointing at the member's copy (section 7.5).
 func TestSwarmCutTextReachesTheMemberWhole(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		t.Run(map[bool]string{false: "attached", true: "refused"}[refused], func(t *testing.T) { cutTextReachesTheMemberWhole(t, refused) })
+	}
+}
+
+func cutTextReachesTheMemberWhole(t *testing.T, refused bool) {
 	a := newApplyWS(t)
+	if refused {
+		a.forge.RefuseAttachments()
+	}
 	a.planned(bigPlan)
 	posted := ""
 	for _, c := range a.issue(1).Comments {
@@ -55,7 +80,11 @@ func TestSwarmCutTextReachesTheMemberWhole(t *testing.T) {
 			posted = c.Body
 		}
 	}
-	if !strings.HasSuffix(posted, "\n"+cutNote("runs/1-architect-1")) || strings.Contains(posted, "Last: the builder's final step.") {
+	note := "[truncated by Daisy; the whole output is in runs/1-architect-1; the rest follows in 1 comment]"
+	if !refused {
+		note = a.forgeNote("1-architect-1")
+	}
+	if !strings.HasSuffix(posted, "\n"+note) || strings.Contains(posted, "Last: the builder's final step.") {
 		t.Fatalf("the plan as posted ends:\n%s", posted[max(0, len(posted)-200):])
 	}
 	planFile := "/work/.swarm/outputs/1-architect-1.md"
@@ -65,7 +94,7 @@ func TestSwarmCutTextReachesTheMemberWhole(t *testing.T) {
 			t.Errorf("%s's copy of %s: %d bytes, want %d", run, file, len(got), len(text))
 		}
 		prompt := a.file(run, "io/prompt.md")
-		if !strings.Contains(prompt, "\n"+cutNote(file)+"\n") || strings.Contains(prompt, cutNote("runs/"+strings.TrimSuffix(filepath.Base(file), ".md"))) {
+		if !strings.Contains(prompt, "\n"+cutNote(file)+"\n") || strings.Contains(prompt, "the whole output is in runs/") || strings.Contains(prompt, "Continued from") {
 			t.Errorf("%s's prompt does not point the cut at %s:\n%s", run, file, prompt[max(0, strings.Index(prompt, "[truncated")-200):])
 		}
 		if sys := a.file(run, "io/system.md"); !strings.Contains(sys, cutTask(what)) {
@@ -90,6 +119,16 @@ func TestSwarmCutTextReachesTheMemberWhole(t *testing.T) {
 	for _, run := range []string{"1-adversary-1", "1-sympathetic-1"} {
 		whole(run, planFile, bigPlan, plan+report)
 		whole(run, reportFile, longReport, plan+report)
+	}
+	// The review cut on the pull request, its rest in a comment there
+	// when refused, its verdict the pair's one: T10.
+	p := a.pulls(1)[0]
+	pr := forge.Ref{Repo: p.Repo, N: p.Number}
+	if conts := a.continuations(pr); refused != (len(conts) == 2) || refused && (!strings.HasPrefix(conts[0], continuedMark+"Continued from worker run 1's text (part 1 of 1):") || !strings.HasPrefix(conts[1], continuedMark+"Continued from adversary run 1's text (part 1 of 1):")) {
+		t.Errorf("continuations on the pull request: %d", len(conts))
+	}
+	if got := labels(a.issue(1)); !slices.Equal(got, []string{"swarm:review-3-changes-requested"}) {
+		t.Fatalf("after the pair: %v\n%s", got, a.stdout.String())
 	}
 
 	// The worker answers the review cut on the forge.
@@ -162,7 +201,7 @@ func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 			a.runner.Script(1, "architect", runner.Canned{Out: bigSlices})
 			a.pass()
 			plan := a.issue(1).Comments[0].Body
-			if !strings.HasSuffix(plan, "\n"+cutNote("runs/1-architect-1")) || strings.Contains(plan, "## Steps") {
+			if !strings.HasSuffix(plan, "\n"+a.forgeNote("1-architect-1")) || strings.Contains(plan, "## Steps") {
 				t.Fatalf("the plan as posted ends:\n%s", plan[max(0, len(plan)-200):])
 			}
 			if notes := a.gateNotes(1); len(notes) == 0 || !strings.Contains(notes[len(notes)-1], "- Slices: 2.\n  1. app: change main.go to v1; the test proves it.\n  2. app: add notes.md.\n") {

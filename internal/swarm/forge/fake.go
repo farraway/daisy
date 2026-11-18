@@ -461,20 +461,20 @@ func (f *Fake) CreatePull(repo, head, base, title, body string) (int, error) {
 }
 
 // Attach holds data as a file named name attached to the issue or pull
-// request pr, served at a URL on the forge's host; once RefuseAttachments
+// request at, served at a URL on the forge's host; once RefuseAttachments
 // is called, it refuses each file as the forge refuses one beyond its
 // limits (413), ErrNotAttached.
-func (f *Fake) Attach(pr Ref, name string, data []byte) (string, error) {
+func (f *Fake) Attach(at Ref, name string, data []byte) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	it, err := f.find(pr)
+	it, err := f.find(at)
 	if err != nil {
 		return "", err
 	}
 	if f.refuseFiles {
-		return "", fmt.Errorf("%w: forge: POST /repos/%s/%s/issues/%d/assets: 413 file size exceeds the limit", ErrNotAttached, f.owner, pr.Repo, pr.N)
+		return "", fmt.Errorf("%w: forge: POST /repos/%s/%s/issues/%d/assets: 413 file size exceeds the limit", ErrNotAttached, f.owner, at.Repo, at.N)
 	}
-	sum := sha1.Sum([]byte(fmt.Sprintf("%s#%d %d %s", pr.Repo, pr.N, len(it.files), name)))
+	sum := sha1.Sum([]byte(fmt.Sprintf("%s#%d %d %s", at.Repo, at.N, len(it.files), name)))
 	a := Attachment{Name: name, URL: "https://" + fakeHost + "/attachments/" + hex.EncodeToString(sum[:8]), Data: slices.Clone(data)}
 	it.files = append(it.files, a)
 	return a.URL, nil

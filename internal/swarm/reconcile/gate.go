@@ -16,28 +16,53 @@ import (
 // given it swarm:gated (section 5): which gate holds it and why, what the
 // maintainer examines, drawn from the issue as it is now, and the
 // decision's verbs. open is the open swarm issues as the flag step listed
-// them, for the triage gate's overlap.
+// them, for the triage gate's overlap. A note longer than the limit is
+// posted by section 7.5's rule, its decision and mention never cut: its
+// whole text attached as <n>-gate.md, or, the forge refusing it, its rest
+// in continuations after it; the file goes with the note when flags
+// tries it again (regated), and a continuation refused after the note is
+// posted is not tried again.
 func (s *Swarm) gateNote(n int, open []forge.Issue) error {
 	is, err := s.Forge.Issue(n)
 	if err != nil {
 		return err
 	}
-	text, err := s.gateText(is, open)
+	text, decision, err := s.gateText(is, open)
 	if err != nil {
 		return err
 	}
-	if err := s.Forge.Comment(forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}, gateMarker+"\n"+text); err != nil {
+	at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}
+	l := long{text: text, tail: decision, file: fmt.Sprintf("%d-gate.md", n), what: "the gate note"}
+	url := ""
+	if !l.fits() {
+		u, refused, err := s.attachWhole(at, l)
+		if err != nil {
+			return err
+		}
+		if refused != nil {
+			fmt.Fprintf(s.Err, "⚠ #%d: %s not attached: %s; the rest follows in comments\n", n, l.file, oneLine.Replace(refused.Error()))
+		}
+		url = u
+	}
+	body, more := l.posted(url)
+	if err := s.Forge.Comment(at, gateMarker+"\n"+body); err != nil {
 		return err
 	}
 	fmt.Fprintf(s.Out, "#%d gate note posted\n", n)
+	for _, c := range more {
+		if err := s.Forge.Comment(at, c); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 // gateText is the gate note after its marker line: `**reconciler:** gated
-// at <stage>: <why>.`, a blank line, the bullets (the job's class first),
-// a blank line and the decision, then, but at the blocked gate, whose
-// blocking note mentioned the maintainer, the maintainer's mention.
-func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
+// at <stage>: <why>.`, a blank line and the bullets (the job's class
+// first); then its decision, a blank line and the decision's verbs, then,
+// but at the blocked gate, whose blocking note mentioned the maintainer,
+// the maintainer's mention.
+func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (text, decision string, err error) {
 	n := is.Number
 	stage, _ := StageOf(is)
 	verb := func(v string) string { return fmt.Sprintf("`daisy swarm %s %d`", v, n) }
@@ -51,7 +76,7 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 		why, mention = blockedWhy, "" // the note that blocked it mentioned the maintainer
 		pulls, err := s.pulls(n)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		if len(pulls) > 0 && pulls[len(pulls)-1].Open {
 			why += "; its pull request is " + pullLink(s.owner(), pulls[len(pulls)-1])
@@ -66,18 +91,18 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (string, error) {
 		why = "the plan gate holds the plan until the maintainer accepts it"
 		var err error
 		if items, err = s.planItems(is); err != nil {
-			return "", err
+			return "", "", err
 		}
 		decide = verb("accept") + ", " + routine + ", after which Daisy accepts it, or a comment here, from which the architect revises the plan"
 	default: // review-2-approved under the merge gate
 		var err error
 		if why, items, err = s.mergeItems(is); err != nil {
-			return "", err
+			return "", "", err
 		}
 		decide = verb("merge") + ", " + verb("approve") + " first when the forge wants an approving review, or a comment"
 	}
 	items = append([]string{"- Class: " + class + "."}, items...)
-	return fmt.Sprintf("**reconciler:** gated at %s: %s.\n\n%s\n\nDecide: %s.%s", strings.TrimPrefix(stage, "swarm:"), why, strings.Join(items, "\n"), decide, mention), nil
+	return fmt.Sprintf("**reconciler:** gated at %s: %s.\n\n%s", strings.TrimPrefix(stage, "swarm:"), why, strings.Join(items, "\n")), "\n\nDecide: " + decide + "." + mention, nil
 }
 
 // blockedWhy is the blocked gate's why in its note.

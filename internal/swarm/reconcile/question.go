@@ -125,7 +125,7 @@ func (c *collection) answer(out string) error {
 	if !strings.HasPrefix(out, answer) {
 		out = answer + " " + out
 	}
-	if err := c.comment(c.r.Role, postable(out, c.r, 0)); err != nil {
+	if err := c.comment(c.r.Role, out); err != nil {
 		return err
 	}
 	is, err := c.s.Forge.Issue(c.r.N)

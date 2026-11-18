@@ -329,7 +329,7 @@ Every file Daisy writes, and nothing else:
 | `<run>/io/artifacts/<name>` | a worker run's: a screenshot of a page its change alters (7.4), which its collection reads (7.6, The screenshots); a reviewer run's: a copy of one its prompt lists (7.3, `# Artifacts`) | the worker (in the container); for a reviewer, `swarm apply` | during the run; for a reviewer, before the launch |
 | `<run>/io/outputs/<n>-<role>-<k>.md` | a copy of `runs/<n>-<role>-<k>/io/out.md`, the whole output of a run whose text the run's prompt shows cut on the forge (7.3, A text cut on the forge) | `swarm apply` | before the launch |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
-| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: decision [61](swarm/decisions/0061-what-step-5-built-of-the-provider-and-runner-seams-and-apply.md)), then `question` for the architect's or the owner's run on an issue carrying `swarm:question` (section 6, The question), which its collection reads, for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there), `<in>` every input token, those written to and read from the CLI's cache included (section 9, `Report`'s `InTokens`), followed by ` cached <c>` when the output reported the part read from the cache, every turn's for `codex`, `<c>` (`codex`'s `cached_input_tokens`, `claude`'s and `grok`'s `cache_read_input_tokens`; a `codex` run recorded before Step 11b of the plan for the inbox requests F27–F35 has none, and a `claude` or `grok` run recorded before Step 28 of the plan remediating the 2026-11-15 design review has none and an `<in>` that leaves its cache out: decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, with the repository's test services file `services <worker\|check> up <service> …` before they are started, `services <worker\|check> down` once they are removed, and `services <worker\|check> refused: <reason>` for a file not run (7.6, step 4; the worker's `up` or `refused` at its launch, before `started`), `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `flagged swarm:question`, `kept refs/swarm-runs/<n>-worker-<k>`, `artifact <name> attached <url>`, `artifact <name> not attached: <error>` or `artifact "<name>" skipped: <reason>` (7.6, The screenshots), `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|question\|blocked\|failed\|fault\|stale\|abandoned\|discarded>` (`question` a member's question posted, section 6); last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
+| `<run>/result` | `start <sha>` (the owner and the architect: `start <name> <sha>` per repository; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: decision [61](swarm/decisions/0061-what-step-5-built-of-the-provider-and-runner-seams-and-apply.md)), then `question` for the architect's or the owner's run on an issue carrying `swarm:question` (section 6, The question), which its collection reads, for the owner's batch run no `label` line but `propose <p>` (the number its pacing allowed, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there), `<in>` every input token, those written to and read from the CLI's cache included (section 9, `Report`'s `InTokens`), followed by ` cached <c>` when the output reported the part read from the cache, every turn's for `codex`, `<c>` (`codex`'s `cached_input_tokens`, `claude`'s and `grok`'s `cache_read_input_tokens`; a `codex` run recorded before Step 11b of the plan for the inbox requests F27–F35 has none, and a `claude` or `grok` run recorded before Step 28 of the plan remediating the 2026-11-15 design review has none and an `<in>` that leaves its cache out: decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, with the repository's test services file `services <worker\|check> up <service> …` before they are started, `services <worker\|check> down` once they are removed, and `services <worker\|check> refused: <reason>` for a file not run (7.6, step 4; the worker's `up` or `refused` at its launch, before `started`), `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `flagged swarm:question`, `kept refs/swarm-runs/<n>-worker-<k>`, `artifact <name> attached <url>`, `artifact <name> not attached: <error>` or `artifact "<name>" skipped: <reason>` (7.6, The screenshots), `attached <file> <url>`, `not attached <file>: <error>` and `continued <file> <i> of <c>` (7.5, The posting rule), `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|question\|blocked\|failed\|fault\|stale\|abandoned\|discarded>` (`question` a member's question posted, section 6); last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
 | `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names, never a second for a run it holds a row of but a row superseding it; created with its header when absent | `swarm apply`; `swarm metrics --backfill` and `--reprice` (each under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | `apply`: at each run's collection, when `<state>/home` names a usable home, and at a posted review's, a row superseding each earlier review's of its role on the issue whose `review_effect` it decides (7.6, The run's record); `metrics --backfill`: on the command, for each collected run without a row; `metrics --reprice`: on the command, a superseding row for each run whose row its output, or for a reviewer the runs' effect, now reads otherwise (section 11) |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/deps.out` | with the repository's `deps` (section 3), the dependency step's standard output and error, as written | `swarm apply` | when the dependency step ends |
@@ -1016,7 +1016,14 @@ on). The relabel comes first: a refused relabel posts nothing until a
 later pass adds the flag, and a refused note is a warning, that event
 left without its note (but not a gating again with the flag on, whose note
 the next pass tries again while the newest gate note is still the
-earlier one). A gate note is no counted entry (section 6): it
+earlier one). A note longer than 60 000 bytes is posted by 7.5's rule,
+`Decide: …` and the mention never cut: its text whole attached as
+`<n>-gate.md`, or, the forge refusing it, its rest in continuations
+after it. Its file and its continuations go with the note: a note not
+posted on a first gating is not tried again, nor is its file, and one
+of a gating again is tried again, its file attached again, at the next
+pass (above); a continuation refused once the note is posted is not
+tried again (each a warning). A gate note is no counted entry (section 6): it
 wakes no role, no prompt shows it (7.3), and it is none of the
 reconciler's notes that blocked the issue, which `status` counts and
 `unblock` reads; `status` and the flag are as they were without it. A
@@ -1464,13 +1471,15 @@ note (section 5) reports on no run: its first line is
 `<!-- daisy-swarm role=reconciler kind=gate -->`, and its second
 `**reconciler:** gated at …`, its text; nor does the auto note (section
 5, The job class), `<!-- daisy-swarm role=reconciler kind=auto -->`
-then `**reconciler:** auto at …`; nor does a command's answer (The
+then `**reconciler:** auto at …`; nor does a continuation (7.5, The
+posting rule), `<!-- daisy-swarm role=reconciler kind=continued -->`
+then `Continued from …`; nor does a command's answer (The
 comment commands, below), whose first line,
 `<!-- daisy-swarm role=reconciler kind=command of=<id> -->`, names the
 comment it answers. An entry is
 the swarm's exactly when its first line, without a trailing `\r`, matches
 `^<!-- daisy-swarm role=(owner|architect|worker|adversary|sympathetic|reconciler) run=([1-9][0-9]*) -->$`
-or is the gate note's, the auto note's or a command's answer's
+or is the gate note's, the auto note's, a continuation's or a command's answer's
 (`^<!-- daisy-swarm role=reconciler kind=command of=([1-9][0-9]*) -->$`),
 its run or comment id fitting a 64-bit integer (a larger one is no
 marker's), and its author is `<swarm-login>`, the token's own login (`Login()`, read
@@ -1484,12 +1493,13 @@ login's text, a maintainer's included, from passing as the swarm's. A
 table test asserts both (Step 28).
 
 **Trust.** An entry is *counted* when it is the swarm's or its author is
-in `trusted`, and it is no gate note, no auto note, no command's answer,
+in `trusted`, and it is no gate note, no auto note, no continuation, no command's answer,
 no class statement (section 5, The job class) and no command comment
 (The comment commands, below): the notes and the answers are the
-maintainer's to read, and a class statement and a command are the
+maintainer's to read, a continuation is the forge's reader's (its
+post's run holds its text whole, 7.5), and a class statement and a command are the
 maintainer's word to Daisy, none a member's to answer, so none is ever
-"the newest entry" below, and no prompt shows the notes or the answers
+"the newest entry" below, and no prompt shows the notes, the continuations or the answers
 (7.3; a command comment is shown as a trusted comment is, The comment
 commands, below). Any other entry that is not counted
 appears in a prompt as its login and time with its content omitted, and
@@ -2752,13 +2762,14 @@ Which sections a prompt holds, by role:
   section: a swarm entry the prompt shows (the plan, a thread's comment,
   a review, a pull request's description) whose text ends, cut, in the
   note naming its own run,
-  `[truncated by Daisy; the whole output is in runs/<n>-<role>-<k>]`
-  (7.5; the worker's before its check block), the run being the one its
-  marker names on the issue, `<n>-<role>-<k>`. When that run's
+  `[truncated by Daisy; the whole output is in runs/<n>-<role>-<k>` and
+  the file's link or the continuations' count, then `]` (7.5, in any of
+  its forms; the worker's before its check block), the run being the
+  one its marker names on the issue, `<n>-<role>-<k>`. When that run's
   `<run>/io/out.md` is a regular file and its result holds no `failed:
-  secret in output` (so it is the text Daisy posted), the note reads
-  `[truncated by Daisy; the whole output is in
-  /work/.swarm/outputs/<n>-<role>-<k>.md]`, and before the launch the
+  secret in output` (so it is the text Daisy posted), the note's line
+  reads `[truncated by Daisy; the whole output is in
+  /work/.swarm/outputs/<n>-<role>-<k>.md]`, no link and no count; before the launch the
   file is copied, read only as a regular file (`Lstat`), to the member's
   own `/work/.swarm/outputs/<n>-<role>-<k>.md`; a copy that fails is the
   pass's error, nothing launched. A review shown as its `[blocking]`
@@ -2766,7 +2777,8 @@ Which sections a prompt holds, by role:
   from the review read whole as Daisy reads it (7.5), with no note and
   no copy. Any other note stays as posted:
   one a text quotes, one naming another run, one in an entry not the
-  swarm's, one of a run whose output is gone. The Task text names each
+  swarm's, one of a run whose output is gone. No continuation is shown,
+  whichever note its post ends in (7.5). The Task text names each
   such file (7.4). A later member acts on the whole plan, review or
   report, not on the part the forge holds (request F40; decision
   [148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md)).
@@ -2942,12 +2954,71 @@ or trailing spaces.
 | the batch run's | proposals: each line matching `^## (.+)$` starts one, its title the match trimmed (1 to 200 characters), its body the lines up to the next such line, blank lines trimmed at both ends; before the first, lines matching `^Met: (.+)$` are the owner's report of briefs met, read from `<run>/io/out.md` by `status` (section 11), and the rest is ignored; the first `<p>` are taken; none is *proposed nothing*. A body's first line is expected to be `Brief: <path> — <milestone>` (section 4) and its second `Class: routine` or `Class: architecture` (section 5, The job class); Daisy posts the body as written either way, so a missing line shows at triage, and creates the issue with `swarm:class-architecture` unless that second line is `Class: routine` (whitespace at either end aside) |
 | anything else | the text to post |
 
-A text longer than 60 000 bytes is posted cut at the last line break
-that leaves room for
-`[truncated by Daisy; the whole output is in runs/<n>-<role>-<k>]`
-after it within that length; a worker's text is cut so that the text,
-one blank line and its check block (7.6) together hold to it, the block
-never cut. A later member whose prompt shows the text is given it whole,
+**The posting rule.** A text Daisy posts on the forge reaches it
+whole: a member's text, as a comment, a review or a pull request's
+description, and Daisy's own notes that carry a member's words, the
+reconciler's notes on a run (7.6, 7.7: a failure's reason may name the
+member's paths, a passed question is its line) and the gate note
+(section 5: the plan's questions, the reviews' findings). (Not yet the
+merge step's notes and the rulings note, sections 6 and 12, which name
+the forge's answer and the base's files and are posted as they are, nor
+a proposal's body, which opens its issue as written, below.) One longer than 60 000 bytes with what
+Daisy writes after it is posted cut at its last line break that leaves
+room, within that length, for a note on its own line and, after the
+note, what Daisy writes after the text, which is never cut: a worker's
+check block after one blank line (7.6), a reconciler's note's last
+sentences, which say what to do and whom the note tells, and the gate
+note's decision and mention. A line longer than the limit is cut
+before a character, never inside one. Before the post the text whole,
+as Daisy would have posted it (an answer's beginning `ANSWER:`) but
+without what Daisy writes after it, which the post holds, is attached
+to the issue,
+`Attach(n, <file>, <text>)` (section 10), `<file>` being
+`<n>-<role>-<k>.md` for a member's text, its run's name,
+`<n>-<role>-<k>-note.md` for the reconciler's note on that run, and
+`<n>-gate.md` for the gate note, and the note links it:
+`[truncated by Daisy; the whole output is in runs/<n>-<role>-<k> and attached as [<n>-<role>-<k>.md](<url>)]`
+for a member's text,
+`[truncated by Daisy; the whole note is attached as [<file>](<url>)]`
+for a note. Where the forge refuses the file (`ErrNotAttached`: its
+attachments off, the file's size or type beyond the instance's limits,
+or a forge with no upload at all, as GitHub's adapter answers every
+call), the rest of the text follows the post in *continuations*,
+comments on the same thread (the pull request's for a review or a
+description), each holding the next part of the text cut the same way
+within 60 000 bytes, so that the post's text and theirs together are
+the text, and the note counts them:
+`[truncated by Daisy; the whole output is in runs/<n>-<role>-<k>; the rest follows in <c> comments]`,
+or for a note `[truncated by Daisy; the rest follows in <c> comments]`
+(`1 comment` for one). A continuation reads
+
+```
+<!-- daisy-swarm role=reconciler kind=continued -->
+Continued from <what> (part <i> of <c>):
+
+<the part>
+```
+
+`<what>` being `<role> run <k>'s text`, `the note on <role> run <k>` or
+`the gate note`. Its marker is the reconciler's and of a kind (section
+6), so no rule reads it as a role's entry: it is not counted, so it
+wakes no role and is no plan, verdict or answer; it is no blocking
+note, no gate note and no question; and no prompt shows it (7.3). Its
+text begins `Continued from`, so no reader of a text's first line takes
+the part for one. Daisy and the members read the text whole from its
+run's `out.md` instead (below): the continuations, like the file, are
+the forge's readers'. The limit leaves room under GitHub's 65 536
+characters for a comment for the marker lines; the instance's
+attachment settings decide whether the file is taken (on the project's
+Gitea, read 2026-11-17: attachments on, `.md` among `allowed_types`,
+`max_size` 100 MB). A retried collection attaches and continues once
+(7.6). Before Step 38d of the plan remediating the 2026-11-15 design
+review the text was cut alone, its note
+`[truncated by Daisy; the whole output is in runs/<n>-<role>-<k>]`,
+which Daisy still reads as the cut (decision
+[150](swarm/decisions/0150-a-long-text-is-posted-whole.md)).
+
+A later member whose prompt shows the text is given it whole,
 in its own `/work/.swarm/outputs/` (7.3, A text cut on the forge), and
 Daisy reads it whole too, wherever it reads more of a member's text than
 its first lines: the accepted plan's slices (the worker's slice and its
@@ -2957,7 +3028,9 @@ and the close, and `status`'s and notify's `next slice` or `close`), the
 plan gate's note (the slices, Open Questions and Risks), the merge gate's
 note's non-blocking findings, and a review's `[blocking]` lines and their
 count in a later prompt (7.3). Each is read from the run's `out.md` when
-the text ends in the note naming its own run and that output can be
+the text ends in the note naming its own run (in any of its forms
+above, its line the text's last that begins it, what Daisy wrote after
+it aside) and that output can be
 given whole, the same run and the same rules as the member's copy (7.3,
 A text cut on the forge: never a run a text names, a regular file, a run
 not failed for a secret); otherwise, the out.md gone among them, from
@@ -2998,7 +3071,16 @@ run exists, a reconciler note being told by its text as well, since its
 marker carries the reported run's number, which counts per role; an open pull request whose body carries this run's marker
 exists; the label already moved; for the batch run, a `creating <i>` line
 for proposal i is in `<run>/result`, written before its `CreateIssue`, so
-a proposal is created at most once even when the reply was lost), so a
+a proposal is created at most once even when the reply was lost; for a
+text longer than the limit, 7.5's rule, its file's `attached <file>
+<url>` or `not attached <file>: <error>` line in `<run>/result`, the
+refusal warned of once, `⚠ #<n> <role> run <k>: <file> not attached:
+<error>; the rest follows in comments`, so the file is attached once and
+the post built from the same link, and a continuation's `continued
+<file> <i> of <c>` line, or a comment of the swarm's with its body on
+the thread; a reply lost after the forge stored the file attaches it
+again, no `Adapter` call listing an issue's files, as for a
+screenshot), so a
 collection interrupted by a forge or network error is retried whole at
 the next pass without posting twice. Each step done is appended to
 `<run>/result`; `outcome` and then `collected` end it, and `<run>/work`
@@ -3293,6 +3375,14 @@ or `timeout after <timeout>` (or the dependency step's failure, step
 the dependency step's failure) in a fenced block (or `**Check:** none declared.`); as
 built, ``**Check:** `<check>` on <short sha>: exit <code>``, a blank
 line, and the fenced tail.
+
+Each `Comment`, `Review` and `CreatePull` below that posts a text posts
+it by 7.5's rule: a text longer than the limit is preceded by
+`Attach(n, <file>, <text>)` and, where the forge refused the file,
+followed by `Comment(<the same thread>, <continuation>)` for each part of
+its rest, a review's and a description's on the pull request; a worker
+run whose pull request it opened in an earlier attempt posts the
+continuations not yet posted there.
 
 | Run | Steps, in order |
 |---|---|
@@ -3918,7 +4008,7 @@ type Adapter interface {
     CloseIssue(n int) error
     Pulls(n int, openers []string) ([]Pull, error)     // the swarm's pull requests for issue n in every declared repository, opened by one of openers, by slice
     CreatePull(repo, head, base, title, body string) (int, error) // in the declared repository repo
-    Attach(pr Ref, name string, data []byte) (url string, err error) // a file attached to the pull request, served at url; ErrNotAttached when the forge refuses it
+    Attach(at Ref, name string, data []byte) (url string, err error) // a file attached to an issue or a pull request, served at url; ErrNotAttached when the forge refuses it
     PullComments(pr Ref) ([]Comment, error)            // oldest first
     Reviews(pr Ref) ([]Review, error)
     ReviewComments(pr Ref) ([]ReviewComment, error)    // line comments, oldest first
@@ -4229,7 +4319,7 @@ the last, and a list whose first page is short reads one more, empty
 | `EditIssue` | `PATCH` | `/repos/{o}/{r}/issues/{n}` | `{"body": <body>}` | `201`; `403` to an account that may not edit the issue, the error |
 | `Pulls` | `GET` | `/repos/{o}/{r}/pulls?state=all&page=<p>&limit=50` | — | `[].number`, `html_url`, `title`, `body`, `head.ref`, `head.sha`, `base.ref`, `state`, `merged`, `mergeable` (`true` or `false`; absent or `null`, unknown), `merge_commit_sha` (read only when `merged`), `user.login`, `labels[].name`, `created_at` |
 | `CreatePull` | `POST` | `/repos/{o}/{r}/pulls` | `{"head", "base", "title", "body"}` | `201`: `number` |
-| `Attach` | `POST` | `/repos/{o}/{r}/issues/{pr}/assets?name=<name>` (issueCreateIssueAttachment: Gitea numbers a pull request as an issue; the name query-escaped) | multipart/form-data, the file in the field `attachment` | `201`: `browser_download_url`; a `4xx` other than `429` (`413` beyond the instance's `[attachment] MAX_SIZE`, 100 MB by default; `422` a type outside its `ALLOWED_TYPES`, whose default holds the three; `404` with attachments off) is `ErrNotAttached` |
+| `Attach` | `POST` | `/repos/{o}/{r}/issues/{n}/assets?name=<name>` (issueCreateIssueAttachment, on an issue or a pull request, which Gitea numbers as an issue; the name query-escaped) | multipart/form-data, the file in the field `attachment` | `201`: `browser_download_url`; a `4xx` other than `429` (`413` beyond the instance's `[attachment] MAX_SIZE`, 100 MB by default; `422` a type outside its `ALLOWED_TYPES`, whose default holds the three; `404` with attachments off) is `ErrNotAttached` |
 | `PullComments` | `GET` | `/repos/{o}/{r}/issues/{pr}/comments` (no paging, as for `Issue`) | — | `[].id`, `[].body`, `[].user.login`, `[].created_at`, `[].updated_at` |
 | `Reviews` | `GET` | `/repos/{o}/{r}/pulls/{pr}/reviews?page=<p>&limit=50` | — | `[].id`, `[].body`, `[].state` (`APPROVED`, `REQUEST_CHANGES`, `COMMENT`; an entry in `PENDING` or `REQUEST_REVIEW`, a review not yet submitted or a request for one, is left out), `[].commit_id`, `[].user.login`, `[].submitted_at` |
 | `ReviewComments` | `GET` per review | `/repos/{o}/{r}/pulls/{pr}/reviews/{id}/comments`, for each id `Reviews` returns (no paging) | — | `[].body`, `[].path`, `[].position`, `[].commit_id`, `[].user.login`, `[].created_at` |
@@ -4372,7 +4462,7 @@ Labels are named in paths and bodies (a name in a path is escaped:
 | `EditIssue` | `PATCH` | `/repos/{o}/{r}/issues/{n}` | `{"body": <body>}` | — |
 | `Pulls` | `GET`, then `GET` per open swarm pull request | `/repos/{o}/{r}/pulls?state=all&per_page=100&page=<p>`; `/repos/{o}/{r}/pulls/{pr}` (the list carries no `mergeable`) | — | `[].number`, `html_url`, `title`, `body`, `head.ref`, `head.sha`, `base.ref`, `state`, `merged_at`, `merge_commit_sha` (read only when `merged_at` is set: GitHub fills it for an open or closed unmerged pull request too, with a test merge), `user.login`, `labels[].name`, `created_at`; `mergeable` (`null` while GitHub computes it: unknown) |
 | `CreatePull` | `POST` | `/repos/{o}/{r}/pulls` | `{"title", "head", "base", "body"}` | `number` |
-| `Attach` | none | not supported: GitHub's REST API uploads no file to an issue or a pull request (the web's attachments have no endpoint); a release asset would need a release of the product's own, and a commit would write the declared repository's tree, which Daisy never does (section 2). The adapter answers every call with `ErrNotAttached` naming this, so each screenshot is recorded not attached and still reaches the reviewers from the host (7.3, `# Artifacts`; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)) | — | — |
+| `Attach` | none | not supported: GitHub's REST API uploads no file to an issue or a pull request (the web's attachments have no endpoint); a release asset would need a release of the product's own, and a commit would write the declared repository's tree, which Daisy never does (section 2). The adapter answers every call with `ErrNotAttached` naming this, so each screenshot is recorded not attached and still reaches the reviewers from the host (7.3, `# Artifacts`; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)), and a text longer than the limit continues in comments (7.5; decision [150](swarm/decisions/0150-a-long-text-is-posted-whole.md)) | — | — |
 | `PullComments` | `GET` | `/repos/{o}/{r}/issues/{pr}/comments?per_page=100&page=<p>` | — | `[].id`, `[].body`, `[].user.login`, `[].created_at`, `[].updated_at` |
 | `Reviews` | `GET` | `/repos/{o}/{r}/pulls/{pr}/reviews?per_page=100&page=<p>` | — | `[].id`, `[].body`, `[].state` (`APPROVED`, `CHANGES_REQUESTED`, `COMMENTED`), `[].commit_id`, `[].user.login`, `[].submitted_at` |
 | `ReviewComments` | `GET` | `/repos/{o}/{r}/pulls/{pr}/comments?per_page=100&page=<p>` | — | `[].body`, `[].path`, `[].line`, `[].commit_id`, `[].user.login`, `[].created_at` |
@@ -5895,6 +5985,7 @@ interface with the step that builds the board.
 | 29 | `reconcile`, the screenshots (Step 38 of the plan remediating the 2026-11-15 design review; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)) | `forge.Fake` (`Attachments`, `RefuseAttachments`), `runner.Fake` writing a worker's `/work/.swarm/artifacts/`; the `gitea` adapter's recorded pairs | a worker run's screenshot attached to its pull request and recorded, each reviewer's prompt ending in `# Artifacts` with its path and URL, the file copied to the reviewer's `/work/.swarm/artifacts/` and the reviewer's Task sentence; every worker's Task sentence; without screenshots no `artifact` line, no attachment and no `# Artifacts`; a link to a host file, a link out of the directory, the directory itself a link, a subdirectory, a name beginning `.` or `-` or holding a space, another extension and a content not of its extension's type each skipped, warned of and recorded once; a file the forge refuses recorded `not attached`, the run posted and the reviewers given it; a secret in a screenshot *secret in output*, nothing pushed; `Attach`'s `201`, `413`, `422` and a `500` after its retries (`TestSwarmWorkerArtifactsReachThePullAndTheReviewers`, `TestSwarmWorkerWithoutArtifacts`, `TestSwarmWorkerArtifactsUntrusted`, `TestSwarmWorkerArtifactsDirectoryLink`, `TestSwarmWorkerArtifactRefused`, `TestSwarmApplyWorkFailures`, `TestGiteaAttach`) |
 | 29 | `reconcile`, a text cut on the forge (Step 38b of the plan remediating the 2026-11-15 design review, request F40; decision [148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md)) | `forge.Fake`, `runner.Fake` writing outputs over 60 000 bytes; a scratch `<state>` | a plan, a worker's description and a review each over the limit, posted cut with the note naming the run; the worker and each reviewer given the plan whole in `/work/.swarm/outputs/<run>.md`, the reviewers the description, the worker answering the review that review, the round-2 reviewers the review's `[blocking]` lines read whole (Step 38c), each prompt's note naming the copy and each Task text listing the files in the prompt's order; a plan within the limit copied nowhere and named nowhere; a note a swarm text quotes, one naming another run, one in a trusted login's comment and one of a run not copyable left as posted; a run whose out.md is a link, missing, of another issue or failed for a secret never given (`TestSwarmCutTextReachesTheMemberWhole`, `TestSwarmUncutTextIsNotCopied`, `TestRenderCutNote`, `TestOutputs`) |
 | 29 | `reconcile`, Daisy's own reads of a cut text (Step 38c of the plan remediating the 2026-11-15 design review, request F40; decision [149](swarm/decisions/0149-daisy-reads-a-text-it-cut-whole.md)) | `forge.Fake`, `runner.Fake` writing a plan over 60 000 bytes with its `## Steps` past the cut and a review with a finding past it; a scratch `<state>` | the plan gate's note counting two slices; the worker given slice 1 of 2 in its Task text and under `# Plan`; the merge step merging slice 1 and handing the issue back, not closing it, and the worker given slice 2 of 2; with the run's out.md gone, the forge's text as before (no slice line, so with two repositories the worker's launch fails as bad slices and blocks); the merge gate's note's slice count and the non-blocking finding past the cut, `status` waiting on the next slice; `swarm merge` handing the issue back, closing it when the note names another run, and refusing, nothing merged, when the out.md cannot be read; an earlier round's blocking count and the previous round's `[blocking]` lines read whole; a note naming another run or issue, a link, a missing out.md, a run failed for a secret, a reconciler's note, a comment not the swarm's and no state read as posted, an unreadable out.md an error (`TestSwarmCutPlanIsReadWhole`, `TestSwarmCutTextsTheMaintainerIsToldOf`, `TestSwarmMergeVerbReadsTheCutPlanWhole`, `TestRenderCutReviewFindingsWhole`, `TestOutputs`) |
+| 29 | `reconcile`, a long text posted whole (Step 38d of the plan remediating the 2026-11-15 design review, request F40; decision [150](swarm/decisions/0150-a-long-text-is-posted-whole.md)) | `forge.Fake` (`Attachments`, `RefuseAttachments`), a Fake whose comment fails once, `runner.Fake` writing outputs over 60 000 bytes; a scratch `<state>` | a 70 KB plan posted cut, its comment ending in the link to the plan whole, attached to the issue as `1-architect-1.md`, attached once and posted once across a collection retried after a failed comment; with the forge refusing files, a plan over two comments' length cut and followed by two continuations, each within the limit, which with the post hold the plan whole, each posted once across a collection retried between them, the refusal recorded and not tried again; no second plan counted, no architect woken, and the worker's prompt showing the plan once with no continuation; the plan gate's note over the limit cut before `Decide:` and the mention, attached as `1-gate.md` or continued, one gate note, the issue waiting once; a worker's description and a review over the limit continued on the pull request, the pair's verdict T10 alone; a text within the limit with no file, no continuation and no line; the post and its continuations rejoining the text at line breaks, inside a wide line before a character, and over bytes that are no text; the note's forms; the cut read in every form, the earlier included, and in no other (`TestSwarmLongTextIsAttachedWhole`, `TestSwarmLongTextContinuedWhenRefused`, `TestSwarmLongGateNote`, `TestSwarmShortTextIsPostedAsBefore`, `TestSwarmCutTextReachesTheMemberWhole`, `TestLongPosted`, `TestLongNote`, `TestCutRun`, `TestRenderCutNoteForms`) |
 | 30 | the real run | a real product workspace declaring two repositories of one organization (the product, then a library it depends on), the issue in the product's, and the Gitea instance, every gate on | one real issue through the lifecycle over two slices, the first in the library and the second in the product moving the product's pin to the first's merge commit, each pull request merged by the maintainer, then the issue closed by the maintainer; the library's pull request carrying `Refs <owner>/<repo>#<n>`, and whether Gitea shows it as a cross-reference recorded; the second slice's check with the moved pin under `--network none` recorded as passed or failed for want of the upstream (decision [51](swarm/decisions/0051-dependency-order-and-pins.md)); every comment the swarm posted carries the marker and is authored by the swarm's account, and the maintainer's approval is a formal review; `status`'s Throughput is the cost recorded |
 
 **Not established by Step 39**, which ran the five roles by hand, so not

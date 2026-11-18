@@ -136,16 +136,16 @@ func (c *collection) keep() error {
 // read; the check, started and collected when it ends, its posted tail
 // checked for secrets; the push; then the pull request opened or
 // commented on, the artifacts attached to it, and T8 or T12.
-func (c *collection) worker(out, text string, pull *forge.Pull) error {
+func (c *collection) worker(out string, pull *forge.Pull) error {
 	s := c.s
 	if !c.commits() {
-		if c.label != forge.ChangesRequested || !strings.HasPrefix(text, noChange) {
+		if c.label != forge.ChangesRequested || !strings.HasPrefix(out, noChange) {
 			return c.fail("no commits")
 		}
 		if err := c.keep(); err != nil { // the run's ref dropped
 			return err
 		}
-		if err := c.onPull(*pull, text); err != nil {
+		if err := c.onPull(*pull, c.runText("worker", out, "")); err != nil {
 			return err
 		}
 		if err := c.relabel(forge.ReviewReady); err != nil {
@@ -209,17 +209,20 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 			return err
 		}
 	}
-	// One blank line between the text and the block, and the text cut
-	// so that the two together hold to maxPost (section 7.5).
-	sep := "\n\n"
-	posted := strings.TrimRight(postable(out, c.r, len(sep)+len(block)), "\r\n") + sep + block
+	// One blank line between the text and the block, the block never
+	// cut (section 7.5).
+	l := c.runText("worker", strings.TrimRight(out, "\r\n"), "\n\n"+block)
 	var pr forge.Ref
 	if c.label == forge.ChangesRequested || pull != nil && pull.Open {
-		if err := c.onPull(*pull, posted); err != nil {
+		if err := c.onPull(*pull, l); err != nil {
 			return err
 		}
 		pr = forge.Ref{Repo: pull.Repo, N: pull.Number}
 	} else {
+		posted, more, err := c.prepare(l)
+		if err != nil {
+			return err
+		}
 		issue := fmt.Sprintf("#%d", c.r.N)
 		if name != repoName(s.Cfg.Forge.Repo) {
 			issue = s.Cfg.Forge.Repo + issue
@@ -246,6 +249,15 @@ func (c *collection) worker(out, text string, pull *forge.Pull) error {
 				return err
 			}
 			pr = forge.Ref{Repo: name, N: m}
+		}
+		if len(more) > 0 {
+			existing, err := s.Forge.PullComments(pr)
+			if err != nil {
+				return err
+			}
+			if err := c.continued(pr, existing, l, more); err != nil {
+				return err
+			}
 		}
 	}
 	if err := c.attach(pr, arts); err != nil {
@@ -276,24 +288,29 @@ func nextStep(repo declare.Repo, lines []string) string {
 }
 
 // onPull posts the worker's text as a comment on its open pull request,
-// unless it is the one this run opened.
-func (c *collection) onPull(p forge.Pull, posted string) error {
-	if strings.HasPrefix(p.Body, marker("worker", c.r.K)) && strings.EqualFold(p.Author, c.s.SwarmLogin) {
-		return nil
-	}
+// unless it is the one this run opened, whose description holds it: then
+// only the continuations not yet posted (section 7.5).
+func (c *collection) onPull(p forge.Pull, l long) error {
 	ref := forge.Ref{Repo: p.Repo, N: p.Number}
 	existing, err := c.s.Forge.PullComments(ref)
 	if err != nil {
 		return err
 	}
-	return c.say(ref, existing, "worker", posted)
+	if strings.HasPrefix(p.Body, marker("worker", c.r.K)) && strings.EqualFold(p.Author, c.s.SwarmLogin) {
+		_, more, err := c.prepare(l)
+		if err != nil {
+			return err
+		}
+		return c.continued(ref, existing, l, more)
+	}
+	return c.sayLong(ref, existing, "worker", l)
 }
 
 // review is a reviewer run's steps (section 7.6): its verdict read and
 // checked against its findings' severity (7.5), the review posted, and
 // once the pair on the head is complete, T9, T10 or T11, from the stage
 // the run is at (review-1-in-progress, or the stage it was launched on).
-func (c *collection) review(out, text string, pull forge.Pull) error {
+func (c *collection) review(out string, pull forge.Pull) error {
 	s := c.s
 	verdict := verdictOf(out)
 	blocking := len(blockingLines(out)) > 0
@@ -315,6 +332,11 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
 		posted = posted || ok && m.Role == c.r.Role && m.Run == c.r.K
 	}
+	l := c.runText(c.r.Role, out, "")
+	text, more, err := c.prepare(l)
+	if err != nil {
+		return err
+	}
 	if !posted {
 		v := forge.Approve
 		if verdict == "request-changes" {
@@ -330,6 +352,11 @@ func (c *collection) review(out, text string, pull forge.Pull) error {
 		if reviews, err = s.Forge.Reviews(ref); err != nil {
 			return err
 		}
+	}
+	// A review's continuations are the pull request's comments: no review
+	// but the one carries its verdict.
+	if err := c.continued(ref, comments, l, more); err != nil {
+		return err
 	}
 	pair := map[string]string{}
 	at := map[string]time.Time{}

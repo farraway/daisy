@@ -578,10 +578,10 @@ func (g *Gitea) CreatePull(repo, head, base, title, body string) (int, error) {
 	return out.Number, nil
 }
 
-// Attach uploads data as the pull request's attachment, a form's file
-// (issueCreateIssueAttachment: Gitea numbers a pull request as an
-// issue); a 4xx other than 429 is ErrNotAttached (section 10).
-func (g *Gitea) Attach(pr Ref, name string, data []byte) (string, error) {
+// Attach uploads data as the issue's or pull request's attachment, a
+// form's file (issueCreateIssueAttachment: Gitea numbers a pull request
+// as an issue); a 4xx other than 429 is ErrNotAttached (section 10).
+func (g *Gitea) Attach(at Ref, name string, data []byte) (string, error) {
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
 	part, err := w.CreateFormFile("attachment", name)
@@ -591,7 +591,7 @@ func (g *Gitea) Attach(pr Ref, name string, data []byte) (string, error) {
 	if err == nil {
 		err = w.Close()
 	}
-	path := fmt.Sprintf("%s/issues/%d/assets?name=%s", g.repoPath(pr.Repo), pr.N, url.QueryEscape(name))
+	path := fmt.Sprintf("%s/issues/%d/assets?name=%s", g.repoPath(at.Repo), at.N, url.QueryEscape(name))
 	if err != nil {
 		return "", fmt.Errorf("forge: POST %s: %v", path, err)
 	}

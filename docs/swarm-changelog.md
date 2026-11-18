@@ -367,3 +367,18 @@ they write.
   first slice; with the out.md gone, the forge's text as before;
   sections 7.3, 7.5 and 13; decision
   [149](swarm/decisions/0149-daisy-reads-a-text-it-cut-whole.md).
+- 2026-11-17, Step 38d of the plan remediating the 2026-11-15 design
+  review (request F40): every text Daisy posts on the forge that carries
+  a member's words (a member's text, the reconciler's notes on a run,
+  the gate note; not yet the merge step's notes, the rulings note or a
+  proposal's body) reaches it whole: one longer than 60 000 bytes is
+  posted cut, what Daisy writes
+  after it (a worker's check block, a note's last sentences, the gate
+  note's decision and mention) never cut, its whole text attached to
+  the issue as `<n>-<role>-<k>.md` (`<n>-gate.md` for the gate note)
+  and linked from the cut's note, or, where the forge refuses the file
+  (GitHub among them), its rest in numbered continuations after it,
+  marked `role=reconciler kind=continued`, which no rule counts and no
+  prompt shows; `Attach` takes an issue as well; sections 5, 6, 7.3,
+  7.5, 7.6, 10 and 13; decision
+  [150](swarm/decisions/0150-a-long-text-is-posted-whole.md).

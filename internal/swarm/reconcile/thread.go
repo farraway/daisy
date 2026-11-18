@@ -28,9 +28,9 @@ const (
 )
 
 // Mark is what a marker names: the role and the run's number, or for a
-// gate note or an auto note the reconciler and Kind, `gate` or `auto`,
-// with no run, and for a command's answer Kind `command` and Of, the id
-// of the comment it answers.
+// gate note, an auto note or a continuation the reconciler and Kind,
+// `gate`, `auto` or `continued`, with no run, and for a command's answer
+// Kind `command` and Of, the id of the comment it answers.
 type Mark struct {
 	Role string
 	Run  int
@@ -69,9 +69,9 @@ func Swarms(e Entry, swarmLogin string) (Mark, bool) {
 }
 
 // Marked is body's mark when its first line, without a trailing `\r`, is
-// the marker, or the gate note's, the auto note's or a command's
-// answer's, whoever wrote it; a run or a comment id past a 64-bit integer
-// is no marker's (section 6).
+// the marker, or the gate note's, the auto note's, a continuation's or a
+// command's answer's, whoever wrote it; a run or a comment id past a
+// 64-bit integer is no marker's (section 6).
 func Marked(body string) (Mark, bool) {
 	first, _, _ := strings.Cut(body, "\n")
 	first = strings.TrimSuffix(first, "\r")
@@ -80,6 +80,8 @@ func Marked(body string) (Mark, bool) {
 		return Mark{Role: "reconciler", Kind: "gate"}, true
 	case autoMarker:
 		return Mark{Role: "reconciler", Kind: "auto"}, true
+	case continuedMarker:
+		return Mark{Role: "reconciler", Kind: "continued"}, true
 	}
 	if m := answerRe.FindStringSubmatch(first); m != nil {
 		if of, err := strconv.ParseInt(m[1], 10, 64); err == nil {
@@ -97,7 +99,8 @@ func Marked(body string) (Mark, bool) {
 
 // counted is section 6's Trust: e is the swarm's, or its author is in
 // trusted, and it is no gate note, auto note or command's answer, which
-// are the maintainer's to read, no class statement (classComment), which
+// are the maintainer's to read, no continuation, whose text its post's
+// run holds whole (section 7.5), no class statement (classComment), which
 // is Daisy's, and no command (IsCommand), which is the maintainer's to
 // Daisy: none is a member's to answer.
 func counted(e Entry, swarmLogin string, trusted []string) bool {

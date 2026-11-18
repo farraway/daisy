@@ -269,7 +269,7 @@ func (j *Job) readWhole() error {
 		if !ok {
 			continue
 		}
-		run, at := cutRun(j.N, m, swarmText(e.Body))
+		run, at, _ := cutRun(j.N, m, swarmText(e.Body))
 		if _, read := j.wholes[run]; at < 0 || read {
 			continue
 		}
@@ -524,11 +524,11 @@ func (j *Job) thread() string {
 // cut, the copy of the run's out.md the launch makes (section 7.3).
 const OutputsMount = "/work/.swarm/outputs"
 
-// cutNote is the line that ends a text Daisy cut, naming where the whole
-// text is: on the forge runs/<n>-<role>-<k>, in a prompt the member's copy
-// (section 7.5).
+// cutNote is the line that ends a text Daisy cut as a prompt shows it,
+// naming the member's copy of the whole output (section 7.3); on the
+// forge it is long.note's.
 func cutNote(where string) string {
-	return "[truncated by Daisy; the whole output is in " + where + "]"
+	return truncated + "the whole output is in " + where + "]"
 }
 
 // outputRun is the run directory's name of the run whose entry mark is
@@ -538,18 +538,30 @@ func outputRun(n int, m Mark) string { return fmt.Sprintf("%d-%s-%d", n, m.Role,
 func outputFile(n int, m Mark) string { return OutputsMount + "/" + outputRun(n, m) + ".md" }
 
 // cutRun is the run whose output the text of the swarm entry marked m on
-// issue n holds cut (section 7.5), and where its note begins: the note
-// Daisy ends a cut text with, naming m's own run `<n>-<role>-<k>`; ""
-// and -1 for any other text, so that a note a text quotes, or one naming
-// another run, is never read as the cut.
-func cutRun(n int, m Mark, text string) (run string, at int) {
+// issue n holds cut (section 7.5), and where its note's line begins and
+// ends: the last line of the text beginning the note Daisy ends a cut
+// text with, naming m's own run `<n>-<role>-<k>`, which is that note
+// whole (cutTail); "" and -1 for any other text, so that a note a text
+// quotes, or one naming another run, is never read as the cut.
+func cutRun(n int, m Mark, text string) (run string, at, end int) {
 	run = outputRun(n, m)
-	at = strings.LastIndex(text, "\n"+cutNote("runs/"+run))
+	begin := "\n" + truncated + "the whole output is in runs/" + run
+	at = strings.LastIndex(text, begin)
 	if m.Kind != "" || n == 0 || at < 0 {
-		return "", -1
+		return "", -1, -1
 	}
-	return run, at + 1
+	line, _, _ := strings.Cut(text[at+1:], "\n")
+	if !cutTail.MatchString(line[len(begin)-1:]) {
+		return "", -1, -1
+	}
+	return run, at + 1, at + 1 + len(line)
 }
+
+// cutTail is what follows the run in a cut's note to the end of its line
+// (long.note): the file's link, the continuations' count, or, in a note
+// posted before Step 38d of the plan remediating the 2026-11-15 design
+// review, nothing.
+var cutTail = regexp.MustCompile(`^(?: and attached as \[[^\]\n]*\]\([^)\s]*\)|; the rest follows in [1-9][0-9]* comments?)?\]$`)
 
 // whole is the text of the swarm entry marked m on the Job's issue as its
 // member wrote it (section 7.5): when Daisy cut it on the forge (cutRun)
@@ -558,7 +570,7 @@ func cutRun(n int, m Mark, text string) (run string, at int) {
 // past its first lines reads it so: the plan's slices, Open Questions and
 // Risks (PlanText) and a review's findings.
 func (j *Job) whole(m Mark, text string) string {
-	if run, at := cutRun(j.N, m, text); at >= 0 {
+	if run, at, _ := cutRun(j.N, m, text); at >= 0 {
 		if out, ok := j.wholes[run]; ok {
 			return out
 		}
@@ -573,14 +585,14 @@ func (j *Job) whole(m Mark, text string) string {
 // any other text as it is, so that a note a text quotes, or one of a run
 // whose output cannot be copied, stays as posted.
 func (j *Job) uncut(m Mark, text string) string {
-	run, at := cutRun(j.N, m, text)
+	run, at, end := cutRun(j.N, m, text)
 	if _, ok := j.wholes[run]; at < 0 || !ok {
 		return text
 	}
 	if !slices.Contains(j.cut, run) {
 		j.cut = append(j.cut, run)
 	}
-	return text[:at] + cutNote(outputFile(j.N, m)) + text[at+len(cutNote("runs/"+run)):]
+	return text[:at] + cutNote(outputFile(j.N, m)) + text[end:]
 }
 
 // Cut is the runs whose text the prompt Render made last shows cut, each
