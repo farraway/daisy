@@ -147,3 +147,34 @@ func TestSwarmPromptBuild(t *testing.T) {
 		t.Errorf("current:\n%s", s.stdout.String())
 	}
 }
+
+// A swarm.json declaring the QA has `swarm prompt build` write its
+// default prompt, absent, with the five (section 11, prompt build); an
+// undeclared QA's prompt is no file of the clone's.
+func TestSwarmPromptBuildWritesTheQAPrompt(t *testing.T) {
+	s := newSwarmWS(t)
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("init: %v\n%s", err, s.stderr.String())
+	}
+	s.cloned()
+	git(t, s.root, "init", "-q")
+	git(t, s.root, "commit", "-q", "--allow-empty", "-m", "the root")
+	if _, err := os.Stat(filepath.Join(s.ws, "prompts", "qa.md")); err == nil {
+		t.Error("init wrote the QA's prompt undeclared")
+	}
+	c, _, err := declare.Load(ops.Real().FS(), s.ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	merges := 10
+	c.QA = &declare.QA{Merges: &merges}
+	c.Personas[declare.QARole] = c.Personas["owner"]
+	s.write("swarm.json", string(declare.Format(c)))
+	s.publish("the QA")
+	if err := s.promptBuild(); err != nil {
+		t.Fatalf("prompt build: %v\n%s", err, s.stdout.String())
+	}
+	if !strings.Contains(s.stdout.String(), "  Unchanged prompts/sympathetic.md\n✓ Wrote prompts/qa.md\n") || s.read("prompts/qa.md") != declare.DefaultPrompts[declare.QARole] {
+		t.Errorf("stdout:\n%s", s.stdout.String())
+	}
+}

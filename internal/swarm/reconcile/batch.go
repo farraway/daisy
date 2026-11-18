@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"daisy/internal/ops"
 	"daisy/internal/swarm/brief"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
@@ -29,7 +30,7 @@ import (
 // and it proposes the difference.
 func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	fs := s.O.FS()
-	if _, err := fs.Stat(filepath.Join(s.state(), "owner-held")); err == nil {
+	if _, err := fs.Stat(heldFile(s.state(), "owner")); err == nil {
 		return nil
 	}
 	runs, err := Runs(fs, s.state())
@@ -88,6 +89,107 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	}
 	return launch(&Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, Role: "owner", K: NextK(runs, 0, "owner", nil),
 		Time: s.O.Now(), Persona: string(persona), Batch: b})
+}
+
+// heldFile is <state>/<role>-held, the hold on a batch run's trigger
+// (section 2): the owner's owner-held, the QA's qa-held.
+func heldFile(state, role string) string { return filepath.Join(state, role+"-held") }
+
+// qa is pass step (7)'s second trigger, the QA's (section 6,
+// The QA trigger): with swarm.json declaring it, the QA
+// runs as issue 0 when nothing runs or waits to be collected on issue 0,
+// <state>/qa-held is absent and its trigger holds on the first
+// repository's base at the pass's commit (qaDue); it reports at
+// most owner.max_open_proposals failures, and reads the open and the
+// recently closed swarm issues so as to report none twice.
+func (s *Swarm) qa(running []runner.Running, launch func(*Job) error) error {
+	if s.Cfg.QA == nil {
+		return nil
+	}
+	fs := s.O.FS()
+	if _, err := fs.Stat(heldFile(s.state(), declare.QARole)); err == nil {
+		return nil
+	}
+	runs, err := Runs(fs, s.state())
+	if err != nil {
+		return err
+	}
+	if len(s.busy(running, runs, 0)) > 0 {
+		return nil
+	}
+	if err := s.fetch(); err != nil {
+		return err
+	}
+	if due, err := s.qaDue(runs); err != nil || !due {
+		return err
+	}
+	b := &Batch{Propose: s.Cfg.Owner.MaxOpenProposals}
+	if b.Open, err = s.issues(forge.Open); err != nil {
+		return err
+	}
+	if b.Closed, err = s.recentlyClosed(nil); err != nil {
+		return err
+	}
+	persona, err := fs.ReadFile(declare.PromptFile(s.Place.Root, declare.QARole))
+	if err != nil {
+		return err
+	}
+	return launch(&Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, Role: declare.QARole, K: NextK(runs, 0, declare.QARole, nil),
+		Time: s.O.Now(), Persona: string(persona), Batch: b})
+}
+
+// qaDue: the QA trigger holds (section 6, The QA
+// trigger): on the first repository's base at the pass's commit, since
+// the commit the newest completed exploration explored (LastQA; with
+// none, since the branch began), qa.merges commits or more on the
+// first-parent line, or a tag matching qa.tag.
+func (s *Swarm) qaDue(runs []Run) (bool, error) {
+	product := s.Cfg.Repos[0].Name
+	head := s.commits[product]
+	if head == "" {
+		return false, nil
+	}
+	from, err := LastQA(s.O.FS(), runs, product)
+	if err != nil {
+		return false, err
+	}
+	e, g := s.Cfg.QA, s.git()
+	if e.Merges != nil {
+		n, err := g.Merges(product, head, from)
+		if err != nil || n >= *e.Merges {
+			return err == nil, err
+		}
+	}
+	if e.Tag != nil {
+		tags, err := g.TagsSince(product, *e.Tag, head, from)
+		return len(tags) > 0, err
+	}
+	return false, nil
+}
+
+// LastQA is the commit of the first repository, product, that the
+// newest completed exploration explored: the `start <product> <sha>`
+// line of the newest qa run whose outcome is posted (it reported
+// its failures, or none); "" when no run has.
+func LastQA(fs ops.FS, runs []Run, product string) (string, error) {
+	runs = slices.Clone(runs)
+	slices.SortFunc(runs, func(a, b Run) int { return b.K - a.K })
+	for _, r := range runs {
+		if r.N != 0 || r.Role != declare.QARole {
+			continue
+		}
+		lines, err := r.Result(fs)
+		if err != nil {
+			return "", err
+		}
+		if !slices.Contains(lines, "outcome posted") {
+			continue
+		}
+		if l, ok := Has(lines, "start "+product); ok {
+			return strings.TrimPrefix(l, "start "+product+" "), nil
+		}
+	}
+	return "", nil
 }
 
 // briefs is the briefs the batch reads (section 7.3): at the pass's
@@ -193,6 +295,10 @@ var (
 	proposalLine = regexp.MustCompile(`^## (.+)$`)
 	metLine      = regexp.MustCompile(`^Met: (.+)$`)
 )
+
+// noFailure begins the QA's output when every route and control it
+// drove worked (section 7.5).
+const noFailure = "NO FAILURE:"
 
 // Proposal is one job a batch run proposes (section 7.5).
 type Proposal struct{ Title, Body string }
@@ -313,7 +419,7 @@ func HoldWaits(held []byte) (k int, waits []int) {
 // left; an issue that names none no longer is a warning, the hold kept.
 func (s *Swarm) release() error {
 	fs := s.O.FS()
-	path := filepath.Join(s.state(), "owner-held")
+	path := heldFile(s.state(), "owner")
 	held, err := fs.ReadFile(path)
 	if errors.Is(err, iofs.ErrNotExist) {
 		return nil
@@ -364,21 +470,23 @@ func issueList(ns []int) string {
 	return strings.Join(s, " ")
 }
 
-// batch collects the owner's batch run (sections 6, 7.5 and 7.6): each
-// proposal created in order, with swarm:class-architecture unless its
-// Class: line says routine, `creating <i>` recorded before its
-// CreateIssue so none is created twice; a failure, BLOCKED: or nothing
-// proposed writes <state>/owner-held and creates nothing, a BLOCKED:
-// waiting on open issues recording them (WaitingOn, stillOpen); a swarm
-// fault writes no owner-held.
+// batch collects a batch run, the owner's or the QA's (sections
+// 6, 7.5 and 7.6): each proposal created in order, marked as its role's,
+// with swarm:class-architecture unless its Class: line says routine,
+// `creating <i>` recorded before its CreateIssue so none is created
+// twice; the QA's NO FAILURE: creates none and completes the run;
+// a failure, BLOCKED: or nothing proposed writes <state>/<role>-held and
+// creates nothing, the owner's BLOCKED: waiting on open issues recording
+// them (WaitingOn, stillOpen); a swarm fault writes no hold.
 func (c *collection) batch() error {
 	s, fs := c.s, c.s.O.FS()
+	qa := c.r.Role == declare.QARole
 	if l, ok := Has(c.lines, "fault"); ok {
 		fmt.Fprintf(s.Out, "%sfault (%s)\n", c.head, strings.TrimPrefix(l, "fault: "))
 		return c.end("fault")
 	}
 	hold := func(reason, outcome string, waits []int) error {
-		path := filepath.Join(s.state(), "owner-held")
+		path := heldFile(s.state(), c.r.Role)
 		body, until := "held "+stamp(s.O.Now())+": "+reason+"\n", ""
 		if len(waits) > 0 {
 			body += fmt.Sprintf("0-owner-%d waits %s\n", c.r.K, issueList(waits))
@@ -387,7 +495,11 @@ func (c *collection) batch() error {
 		if err := fs.WriteFile(path, []byte(body), 0o644); err != nil {
 			return err
 		}
-		fmt.Fprintf(s.Out, "%s%s; batch held%s (%s)\n", c.head, reason, until, path)
+		what := "batch"
+		if qa {
+			what = "qa"
+		}
+		fmt.Fprintf(s.Out, "%s%s; %s held%s (%s)\n", c.head, reason, what, until, path)
 		return c.end(outcome)
 	}
 	failed := func(reason string) error {
@@ -411,7 +523,14 @@ func (c *collection) batch() error {
 	if hit(out, s.secretsOf(c.r, c.lines)) {
 		return failed("secret in output: out.md")
 	}
+	if first, _, _ := strings.Cut(strings.TrimLeft(string(out), "\n"), "\n"); qa && strings.HasPrefix(first, noFailure) {
+		fmt.Fprintf(s.Out, "%sno failure\n", c.head)
+		return c.end("posted")
+	}
 	_, blocked, isBlocked, ps := Proposals(string(out))
+	if isBlocked && qa {
+		return hold("blocked: "+blocked, "blocked", nil)
+	}
 	if isBlocked {
 		waits, err := s.stillOpen(WaitingOn(blocked))
 		if err != nil {
@@ -440,10 +559,10 @@ func (c *collection) batch() error {
 			return err
 		}
 		labels := []string{label}
-		if ProposalClass(pr.Body) != Routine {
+		if ProposalClass(c.r.Role, pr.Body) != Routine {
 			labels = append(labels, forge.ClassArchitecture) // unclassed is architecture
 		}
-		n, err := s.Forge.CreateIssue(pr.Title, marker("owner", c.r.K)+pr.Body, labels)
+		n, err := s.Forge.CreateIssue(pr.Title, marker(c.r.Role, c.r.K)+pr.Body, labels)
 		if err != nil {
 			return err
 		}

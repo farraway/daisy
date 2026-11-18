@@ -112,7 +112,8 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 // owner's hold released when every issue it waits on is closed; (4) paused;
 // (5) each stage's issues, their pull requests given the issue's label,
 // and the role rule's launches up to max_members; (6) the merge step with
-// the merge gate off; (7) the owner's batch trigger; (8) unless
+// the merge gate off; (7) the owner's batch trigger, then the
+// QA's; (8) unless
 // signalled, the maintainer's flag set and cleared by the stages, each
 // open issue's pull requests listed in its body, then the forge
 // milestones mirroring the briefs, and with notify each new item
@@ -170,7 +171,7 @@ func (s *Swarm) Pass(wait bool) error {
 			if !s.Cfg.Gates.Merge && s.paused() == "" && !s.stopping() {
 				errs = append(errs, s.mergeStep())
 			}
-			errs = append(errs, s.batch(running, launch))
+			errs = append(errs, s.batch(running, launch), s.qa(running, launch))
 		}
 	}
 	if wait {

@@ -48,6 +48,7 @@ type StatusState struct {
 	RestartRequestedAt *string      `json:"restart_requested_at"` // <state>/restart
 	OwnerHeld          *StatusHold  `json:"owner_held"`           // <state>/owner-held
 	NoActiveBrief      bool         `json:"no_active_brief"`      // the owner's batch held for one
+	QAHeld             *StatusHold  `json:"qa_held"`              // <state>/qa-held
 }
 
 // StatusSince is a note's time and its reason, "" when it gives none.
@@ -311,7 +312,7 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	r.Gates = StatusGates{cfg.Gates.Triage, cfg.Gates.Plan, cfg.Gates.Merge}
 	r.Running = runningMembers(o, ws, cfg.Forge.Repo)
 	r.Personas = map[string]StatusPersona{}
-	for _, role := range declare.Roles {
+	for _, role := range cfg.DeclaredRoles() {
 		p := cfg.Personas[role]
 		r.Personas[role] = StatusPersona{p.Provider, p.Model, p.Effort}
 	}
@@ -437,9 +438,9 @@ func readIssues(f forge.Adapter, listed []forge.Issue, swarmLogin string, truste
 	return out, nil
 }
 
-// lastMet is the newest batch run whose out.md is not empty, by its
-// number, and the briefs its Met: lines report met; 0 and none without
-// such a run.
+// lastMet is the owner's newest batch run whose out.md is not empty, by
+// its number, and the briefs its Met: lines report met; 0 and none
+// without such a run.
 func lastMet(fs ops.FS, state string) (int, []string, error) {
 	runs, err := Runs(fs, state)
 	if err != nil {
@@ -447,7 +448,7 @@ func lastMet(fs ops.FS, state string) (int, []string, error) {
 	}
 	slices.SortFunc(runs, func(a, b Run) int { return b.K - a.K })
 	for _, r := range runs {
-		if r.N != 0 {
+		if r.N != 0 || r.Role != "owner" {
 			continue
 		}
 		out, err := r.Output(fs)
@@ -464,10 +465,10 @@ func lastMet(fs ops.FS, state string) (int, []string, error) {
 }
 
 // readStateNotes is the State line's facts: since when and why the swarm
-// is paused, since when a restart is requested, and since when and why
-// the owner's batch is held and the issues whose closing releases it
-// (section 2's three files), and noBrief, no brief under resources being
-// active (section 6).
+// is paused, since when a restart is requested, since when and why the
+// owner's batch is held and the issues whose closing releases it, and
+// since when and why the QA is held (section 2's four files), and
+// noBrief, no brief under resources being active (section 6).
 func readStateNotes(fs ops.FS, state string, noBrief bool) StatusState {
 	s := StatusState{Path: state, NoActiveBrief: noBrief}
 	if b, err := fs.ReadFile(filepath.Join(state, "paused")); err == nil {
@@ -477,15 +478,25 @@ func readStateNotes(fs ops.FS, state string, noBrief bool) StatusState {
 		at := strings.TrimPrefix(firstLine(b), "restart ")
 		s.RestartRequestedAt = &at
 	}
-	if b, err := fs.ReadFile(filepath.Join(state, "owner-held")); err == nil {
-		since, reason, found := strings.Cut(strings.TrimPrefix(firstLine(b), "held "), ": ")
-		if !found {
-			since, reason = "", firstLine(b)
-		}
+	if b, err := fs.ReadFile(heldFile(state, "owner")); err == nil {
+		s.OwnerHeld = readHold(b)
 		_, waits := HoldWaits(b)
-		s.OwnerHeld = &StatusHold{since, reason, append([]int{}, waits...)}
+		s.OwnerHeld.Waits = append(s.OwnerHeld.Waits, waits...)
+	}
+	if b, err := fs.ReadFile(heldFile(state, declare.QARole)); err == nil {
+		s.QAHeld = readHold(b)
 	}
 	return s
+}
+
+// readHold is a <role>-held file's first line, `held <time>: <reason>`
+// (section 2), its issues none.
+func readHold(b []byte) *StatusHold {
+	since, reason, found := strings.Cut(strings.TrimPrefix(firstLine(b), "held "), ": ")
+	if !found {
+		since, reason = "", firstLine(b)
+	}
+	return &StatusHold{since, reason, []int{}}
 }
 
 // PausedSince is <state>/paused's note: since when, and why ("" when it

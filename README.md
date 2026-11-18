@@ -332,7 +332,10 @@ chosen for a reason:
 - *Five roles, one from another vendor.* Owner, architect, worker,
   adversary and sympathetic reviewer, each a persona prompt the maintainer
   may edit plus a Task text Daisy fixes, so an edited persona cannot break
-  the output contract. The adversary runs on a different vendor's model so
+  the output contract. A sixth, the QA, runs only where the
+  maintainer declares it: after a set number of merges or a release tag it
+  uses the product as its users do and files what fails as proposals.
+  The adversary runs on a different vendor's model so
   that the two reviews do not come from one model. In the first live run
   the adversary found one real defect by reading the code, which the
   product's own test corpus had passed; one run does not show that the

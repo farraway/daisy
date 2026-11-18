@@ -168,7 +168,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	clone := func(rp declare.Repo, branch, dir string, also ...string) (string, error) {
 		return s.git().Clone(rp, branch, s.Cfg.Base, dir, j.Role, s.Cfg.Forge.CommitEmail, persona.CoAuthor, also...)
 	}
-	if j.Role == "owner" || j.Role == "architect" {
+	if clonesEvery(j.Role) {
 		// The architect revising with the issue's pull request open sees
 		// its head, a branch of that repository's clone (section 7.1).
 		cur, open := j.current()
@@ -361,11 +361,11 @@ func exitMarked(argv []string) []string {
 	return append([]string{"sh", "-c", exitScript, "sh"}, argv...)
 }
 
-// runHead is the run's prefix on stdout: `#<n> <role> run <k>: `, the
-// batch run's `owner run <k>: `.
+// runHead is the run's prefix on stdout: `#<n> <role> run <k>: `, a
+// batch run's `<role> run <k>: ` (the owner's, the QA's).
 func runHead(r Run) string {
 	if r.N == 0 {
-		return fmt.Sprintf("owner run %d: ", r.K)
+		return fmt.Sprintf("%s run %d: ", r.Role, r.K)
 	}
 	return fmt.Sprintf("#%d %s run %d: ", r.N, r.Role, r.K)
 }

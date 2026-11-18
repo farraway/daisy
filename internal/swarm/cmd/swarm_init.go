@@ -194,7 +194,7 @@ func writeSeeds(c *Context, at declare.Place, cfg declare.Config) (written []str
 // initFiles are the clone's files of section 2's table, relative to it.
 func initFiles(cfg declare.Config) []string {
 	files := []string{"swarm.json"}
-	for _, role := range declare.Roles {
+	for _, role := range cfg.DeclaredRoles() {
 		files = append(files, filepath.Join("prompts", role+".md"))
 	}
 	for _, r := range cfg.Repos {

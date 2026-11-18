@@ -7,21 +7,29 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
-// A proposal's class is the line right after its opening Brief: line, and
-// nothing else (section 7.5).
+// A proposal's class is the line right after the owner's opening Brief:
+// line, and the QA's first line, and nothing else (section 7.5).
 func TestProposalClass(t *testing.T) {
-	for _, tc := range []struct{ text, want string }{
-		{"Brief: docs/briefs/a.md — M1\nClass: routine\nDo it.", Routine},
-		{"\nBrief: docs/briefs/a.md — M1\r\nClass: architecture  \nDo it.", Architecture},
-		{"Brief: docs/briefs/a.md — M1\nDo it.\nClass: routine", ""},
-		{"Class: routine\nBrief: docs/briefs/a.md — M1", ""},
-		{"Do it.\nClass: routine", ""},
-		{"Brief: docs/briefs/a.md — M1\nClass: Routine", ""},
-		{"Brief: docs/briefs/a.md — M1\nClass: routine, small", ""},
-		{"Brief: docs/briefs/a.md — M1", ""},
+	for _, tc := range []struct{ role, text, want string }{
+		{"", "Brief: docs/briefs/a.md — M1\nClass: routine\nDo it.", Routine},
+		{"", "\nBrief: docs/briefs/a.md — M1\r\nClass: architecture  \nDo it.", Architecture},
+		{"", "Brief: docs/briefs/a.md — M1\nDo it.\nClass: routine", ""},
+		{"", "Class: routine\nBrief: docs/briefs/a.md — M1", ""},
+		{"", "Do it.\nClass: routine", ""},
+		{"", "Brief: docs/briefs/a.md — M1\nClass: Routine", ""},
+		{"", "Brief: docs/briefs/a.md — M1\nClass: routine, small", ""},
+		{"", "Brief: docs/briefs/a.md — M1", ""},
+		{"qa", "Class: routine\nThe page fails.", Routine},
+		{"qa", "\nClass: architecture\r\nThe page fails.", Architecture},
+		{"qa", "Brief: docs/briefs/a.md — M1\nClass: routine", ""},
+		{"qa", "The page fails.\nClass: routine", ""},
+		{"qa", "", ""},
 	} {
-		if got := ProposalClass(tc.text); got != tc.want {
-			t.Errorf("%q: %q, want %q", tc.text, got, tc.want)
+		if tc.role == "" {
+			tc.role = "owner"
+		}
+		if got := ProposalClass(tc.role, tc.text); got != tc.want {
+			t.Errorf("%s %q: %q, want %q", tc.role, tc.text, got, tc.want)
 		}
 	}
 }
@@ -45,6 +53,8 @@ func TestClassOf(t *testing.T) {
 		{"the owner's unclassed", "swarm-bot", marker("owner", 1) + "Brief: docs/briefs/a.md — M1\nDo it.", nil, nil, Architecture},
 		{"the line in a maintainer's body", "jane", "Brief: docs/briefs/a.md — M1\nClass: routine\n", nil, nil, Architecture},
 		{"the line in an architect's entry", "swarm-bot", marker("architect", 1) + "Brief: docs/briefs/a.md — M1\nClass: routine\n", nil, nil, Architecture},
+		{"the QA's routine", "swarm-bot", marker("qa", 1) + "Class: routine\nThe page fails.", nil, nil, Routine},
+		{"the QA's unclassed", "swarm-bot", marker("qa", 1) + "The page fails.\nClass: routine", nil, nil, Architecture},
 		{"a maintainer's routine", "jane", "Fix it.", nil, []forge.Comment{{Author: "Jane", Body: "Class: routine"}}, Routine},
 		{"the newest statement", "swarm-bot", routine, nil, []forge.Comment{{Author: "jane", Body: "Class: architecture"}}, Architecture},
 		{"and back", "swarm-bot", routine, nil, []forge.Comment{{Author: "jane", Body: "Class: architecture"}, {Author: "jane", Body: "Class: routine\n"}}, Routine},

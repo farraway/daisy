@@ -248,7 +248,7 @@ func TestProviderDefaults(t *testing.T) {
 		for _, r := range Roles {
 			personas[r] = Persona{Provider: name}
 		}
-		if err := checkKeys(map[string]Key{name: defaultKey(name)}, personas); err != nil {
+		if err := checkKeys(map[string]Key{name: defaultKey(name)}, personas, Roles); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
 	}

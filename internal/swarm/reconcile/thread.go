@@ -17,7 +17,7 @@ import (
 )
 
 // markerRe is an entry's first line when Daisy posted it (section 6).
-var markerRe = regexp.MustCompile(`^<!-- daisy-swarm role=(owner|architect|worker|adversary|sympathetic|reconciler) run=([1-9][0-9]*) -->$`)
+var markerRe = regexp.MustCompile(`^<!-- daisy-swarm role=(owner|architect|worker|adversary|sympathetic|qa|reconciler) run=([1-9][0-9]*) -->$`)
 
 // gateMarker and autoMarker are the first lines of the gate note and the
 // auto note (section 5): the reconciler's, naming no run, since the notes

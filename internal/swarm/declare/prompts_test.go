@@ -13,7 +13,7 @@ import (
 // here, so that `swarm prompt build` would not take the new default for
 // an edited prompt (section 11, prompt build).
 func TestDefaultHistoryHoldsEachCurrentDefault(t *testing.T) {
-	for _, role := range Roles {
+	for _, role := range AllRoles {
 		sum := fmt.Sprintf("%x", sha256.Sum256([]byte(DefaultPrompts[role])))
 		h := defaultHistory[role]
 		if len(h) == 0 || h[len(h)-1] != sum {
@@ -25,8 +25,8 @@ func TestDefaultHistoryHoldsEachCurrentDefault(t *testing.T) {
 			}
 		}
 	}
-	if len(defaultHistory) != len(Roles) {
-		t.Errorf("defaultHistory has %d roles, want %d", len(defaultHistory), len(Roles))
+	if len(defaultHistory) != len(AllRoles) {
+		t.Errorf("defaultHistory has %d roles, want %d", len(defaultHistory), len(AllRoles))
 	}
 }
 
@@ -68,16 +68,16 @@ func TestComparePrompt(t *testing.T) {
 	}
 }
 
-// No default names a resource's path: the owner and the architect read
+// No default names a resource's path: the owner, the architect and the QA read
 // the resources listed below, system.md's # Resources, which Daisy writes
 // from swarm.json (section 7.3).
 func TestDefaultPromptsNameNoResourcePath(t *testing.T) {
-	for _, role := range Roles {
+	for _, role := range AllRoles {
 		if strings.Contains(DefaultPrompts[role], "/work/.resources") {
 			t.Errorf("%s's default names a path under /work/.resources", role)
 		}
 	}
-	for _, role := range []string{"owner", "architect"} {
+	for _, role := range []string{"owner", "architect", "qa"} {
 		if !strings.Contains(DefaultPrompts[role], "the resources listed below") {
 			t.Errorf("%s's default does not read the resources listed below", role)
 		}

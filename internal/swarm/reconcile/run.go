@@ -20,7 +20,7 @@ type Run struct {
 	Role string
 }
 
-var runName = regexp.MustCompile(`^(0|[1-9][0-9]*)-(owner|architect|worker|adversary|sympathetic)-([1-9][0-9]*)$`)
+var runName = regexp.MustCompile(`^(0|[1-9][0-9]*)-(owner|architect|worker|adversary|sympathetic|qa)-([1-9][0-9]*)$`)
 
 // Runs is every run directory under state, in no particular order.
 func Runs(fs ops.FS, state string) ([]Run, error) {

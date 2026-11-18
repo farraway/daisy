@@ -17,7 +17,8 @@ import (
 
 // Job is what one run's two prompt files are rendered from (section 7.3):
 // the declaration, the run, and the forge and <state> as read in this
-// pass. The owner's batch run is issue 0 with Batch set.
+// pass. A batch run, the owner's or the QA's, is issue 0 with
+// Batch set.
 type Job struct {
 	Cfg        declare.Config
 	Host       string // <forge-host>
@@ -33,7 +34,7 @@ type Job struct {
 	Known []string     // the repositories the swarm holds a mirror of (SliceRepos)
 	Pull  *PullThread  // the current pull request's thread, when it is open
 	Check string       // the # Check section's text for the current head
-	Batch *Batch       // the owner's batch
+	Batch *Batch       // a batch run's, the owner's or the QA's
 	Notes []Note       // the research notes in the run's copy, with `notes`
 	Repos []RepoNote   // the swarm's notes about each repository the run works in (section 4), in a swarm repository's clone
 
@@ -59,9 +60,10 @@ type PullThread struct {
 	Lines    []forge.ReviewComment
 }
 
-// Batch is the owner's batch prompt's material (section 7.3): the briefs
-// under the resources (the active ones are shown), the open and the
-// recently closed swarm issues, and how many jobs the pacing allows.
+// Batch is a batch prompt's material (section 7.3): the briefs under the
+// resources (the active ones are shown; the QA's has none), the
+// open and the recently closed swarm issues, and how many jobs the run
+// may propose.
 type Batch struct {
 	Briefs  []brief.Brief
 	Open    []forge.Issue
@@ -373,15 +375,15 @@ func (j *Job) repository() string {
 		}
 		lines = append(lines, fmt.Sprintf("- Clone %s: %s/%s, branch %s, base %s, %s", path, owner(j.Cfg), name, branch, j.Cfg.Base, check))
 	}
-	switch j.Role {
-	case "owner", "architect":
+	switch {
+	case clonesEvery(j.Role):
 		for _, n := range j.names() {
 			clone("/work/"+n, n, j.Cfg.Base)
 		}
 		if names := j.names(); Workdir(j.Cfg, j.Role) == "/work" && len(names) > 0 {
 			lines = append(lines, "- Working directory: /work, holding every clone; the repository is /work/"+names[0])
 		}
-	case "worker":
+	case j.Role == "worker":
 		s, r, _ := j.WorkerSlice()
 		clone("/work", r, fmt.Sprintf("swarm/%d-%d", j.N, s))
 	default:
@@ -422,13 +424,20 @@ func (j *Job) resources() string {
 // it (sections 7.2 and 9); a clone's .git/info/exclude names it.
 const ResourcesMount = "/work/.resources"
 
+// clonesEvery: role works over every declared repository, each cloned at
+// base under /work/<name> (section 7.1, step 3): the owner, the
+// architect and the QA.
+func clonesEvery(role string) bool {
+	return role == "owner" || role == "architect" || role == declare.QARole
+}
+
 // Workdir is the member's working directory, section 7.2's <W>: /work,
-// and for the owner and the architect the first repository's clone
-// /work/<name>, unless their provider is Confined to its working
+// and for a role that clonesEvery repository the first repository's clone
+// /work/<name>, unless its provider is Confined to its working
 // directory (section 9): then /work, which holds every clone, /work/.swarm,
 // the notes and the resources.
 func Workdir(cfg declare.Config, role string) string {
-	if (role == "owner" || role == "architect") && len(cfg.Repos) > 0 && !provider.Providers[cfg.Personas[role].Provider].Confined {
+	if clonesEvery(role) && len(cfg.Repos) > 0 && !provider.Providers[cfg.Personas[role].Provider].Confined {
 		return "/work/" + cfg.Repos[0].Name
 	}
 	return "/work"
@@ -936,7 +945,11 @@ func (b *Batch) sections(j *Job) []string {
 		}
 		return strings.Join(items, "\n")
 	}
-	return []string{"# Briefs", orNone(briefs), "# Open swarm issues", list(open), "# Recently closed", list(closed)}
+	issues := []string{"# Open swarm issues", list(open), "# Recently closed", list(closed)}
+	if j.Role == declare.QARole {
+		return issues // it reports failures, toward no brief
+	}
+	return append([]string{"# Briefs", orNone(briefs)}, issues...)
 }
 
 func (b *Batch) active() []brief.Brief {

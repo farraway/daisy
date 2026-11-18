@@ -276,6 +276,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 	s := stagedStatus(t)
 	inMilestone(t, s.forge, "roadmap: M0", 1)
 	os.WriteFile(s.state("owner-held"), []byte("held 2026-11-06T09:00:00Z: waits on the jobs\n0-owner-3 waits #1 #2\n"), 0o644)
+	os.WriteFile(s.state("qa-held"), []byte("held 2026-11-06T09:30:00Z: blocked: no browser\n"), 0o644)
 	os.WriteFile(s.state("restart"), []byte("restart 2026-11-06T11:00:00Z\n"), 0o644)
 	s.runResult("3-architect-1", "label swarm:proposal-accepted\nstarted 2026-11-06T08:00:00Z\nexited 0 2026-11-06T08:10:00Z\ncost 0.50 tokens 10/20 turns 3\noutcome posted\ncollected\n", "")
 	s.edit(func(c *declare.Config) { c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
@@ -293,7 +294,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 		"forge":        `{"host":"forge.example.net","kind":"gitea"}`,
 		"repositories": `["app","lib"]`,
 		"state": `{"no_active_brief":false,"owner_held":{"reason":"waits on the jobs","since":"2026-11-06T09:00:00Z","waits":[1,2]},"path":"` + s.state("") +
-			`","paused":{"reason":"swarm fault: docker: no such image","since":"2026-11-06T10:00:00Z"},"restart_requested_at":"2026-11-06T11:00:00Z"}`,
+			`","paused":{"reason":"swarm fault: docker: no such image","since":"2026-11-06T10:00:00Z"},"qa_held":{"reason":"blocked: no browser","since":"2026-11-06T09:30:00Z","waits":[]},"restart_requested_at":"2026-11-06T11:00:00Z"}`,
 		"gates": `{"merge":true,"plan":true,"triage":true}`,
 		"stages": `{"swarm:plan-0-posted":[3,4,5],"swarm:plan-1-accepted":[7,11],"swarm:plan-2-in-progress":[],"swarm:proposal-accepted":[12,13],"swarm:proposal-posted":[1,2],` +
 			`"swarm:review-0-ready":[8],"swarm:review-1-in-progress":[],"swarm:review-2-approved":[6],"swarm:review-3-changes-requested":[]}`,
@@ -727,8 +728,9 @@ Briefs:
 	}
 }
 
-// Met: is read from the newest batch run with an output, never from a
-// member's run, however new (section 11, status).
+// Met: is read from the owner's newest batch run with an output, never
+// from a member's run or the QA's, however new (section 11,
+// status).
 func TestSwarmStatusMetFromBatchRunsOnly(t *testing.T) {
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) { c.Resources = declare.Paths("docs/") })
@@ -737,6 +739,7 @@ func TestSwarmStatusMetFromBatchRunsOnly(t *testing.T) {
 	s.fetchMirror() // status reads the briefs as the last pass left the mirror
 	s.runResult("0-owner-2", ran("", "09:00:00", "3m", "outcome posted\ncollected\n"), "Met: docs/briefs/m0.md\n")
 	s.runResult("1-architect-3", ran("planning", "10:00:00", "3m", "outcome posted\ncollected\n"), "Met: docs/briefs/other.md\n\n## Research\nplan\n")
+	s.runResult("0-qa-3", ran("", "11:00:00", "3m", "outcome posted\ncollected\n"), "NO FAILURE: /login\n")
 	if err := s.status(s.forge); err != nil {
 		t.Fatal(err)
 	}

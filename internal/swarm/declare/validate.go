@@ -66,6 +66,7 @@ func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
 		func() *Error { return checkDuration("timeout", c.Timeout) },
 		func() *Error { return checkDuration("interval", c.Interval) },
 		func() *Error { return checkRange("owner.max_open_proposals", c.Owner.MaxOpenProposals, 1, 20) },
+		func() *Error { return checkQA(c.QA) },
 		func() *Error { return checkResources(c) },
 		func() *Error { return checkReferences(c) },
 		func() *Error {
@@ -76,8 +77,8 @@ func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
 		},
 		func() *Error { return checkNotify(c.Notify) },
 		func() *Error { return checkBudget(c.Gates, c.Budget) },
-		func() *Error { return checkKeys(c.Keys, c.Personas) },
-		func() *Error { return checkPersonas(o, p, c.Personas, skip) },
+		func() *Error { return checkKeys(c.Keys, c.Personas, c.DeclaredRoles()) },
+		func() *Error { return checkPersonas(o, p, c, skip) },
 	}
 	for _, check := range checks {
 		if err := check(); err != nil {
@@ -530,19 +531,49 @@ func checkBudget(g Gates, b *Budget) *Error {
 	return nil
 }
 
-func checkPersonas(o ops.Ops, at Place, personas map[string]Persona, skip Skip) *Error {
+// checkQA: the QA trigger, when declared, names merges, a
+// tag pattern or both (section 3, qa); Daisy picks no number.
+func checkQA(e *QA) *Error {
+	switch {
+	case e == nil:
+		return nil
+	case e.Merges == nil && e.Tag == nil:
+		return fieldErr("qa", "no trigger (merges or tag is required)")
+	case e.Merges != nil && *e.Merges < 1:
+		return fieldErr("qa.merges", "%d is not greater than 0", *e.Merges)
+	case e.Tag != nil && !tagPattern(*e.Tag):
+		return fieldErr("qa.tag", "%q is not a tag pattern", *e.Tag)
+	}
+	return nil
+}
+
+// tagPattern: one git argument naming tags by a pattern, `v*`: not
+// empty, not read as an option, without whitespace or a control
+// character.
+func tagPattern(v string) bool {
+	return v != "" && !strings.HasPrefix(v, "-") && !strings.ContainsFunc(v, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) })
+}
+
+func checkPersonas(o ops.Ops, at Place, c Config, skip Skip) *Error {
+	personas := c.Personas
 	var extra []string
 	for r := range personas {
-		if !slices.Contains(Roles, r) {
+		if !slices.Contains(AllRoles, r) {
 			extra = append(extra, r)
 		}
 	}
 	if len(extra) > 0 {
 		slices.Sort(extra)
-		return fieldErr("personas."+extra[0], "not a role (%s)", strings.Join(Roles, ", "))
+		return fieldErr("personas."+extra[0], "not a role (%s)", strings.Join(AllRoles, ", "))
 	}
-	for _, r := range Roles {
+	if _, ok := personas[QARole]; ok && c.QA == nil {
+		return fieldErr("personas."+QARole, "no trigger runs it; declare qa, or remove personas.qa")
+	}
+	for _, r := range c.DeclaredRoles() {
 		p, ok := personas[r]
+		if !ok && r == QARole {
+			return fieldErr("personas."+r, "missing (required when qa is declared)")
+		}
 		if !ok {
 			return fieldErr("personas."+r, "missing")
 		}
@@ -623,7 +654,7 @@ func checkCoAuthor(field, v string) *Error {
 
 // checkKeys runs before checkPersonas (section 3's order), so a persona
 // missing or naming a provider without an adapter is left to it.
-func checkKeys(keys map[string]Key, personas map[string]Persona) *Error {
+func checkKeys(keys map[string]Key, personas map[string]Persona, roles []string) *Error {
 	names := make([]string, 0, len(keys))
 	for k := range keys {
 		names = append(names, k)
@@ -650,7 +681,7 @@ func checkKeys(keys map[string]Key, personas map[string]Persona) *Error {
 			}
 		}
 	}
-	for _, r := range Roles {
+	for _, r := range roles {
 		p, ok := personas[r]
 		if _, adapter := providers[p.Provider]; !ok || !adapter {
 			continue

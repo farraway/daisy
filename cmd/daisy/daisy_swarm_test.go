@@ -377,7 +377,7 @@ func TestSwarmStatusJSONThroughGitea(t *testing.T) {
 	for path, want := range map[string][]string{
 		"":                    {"briefs", "corrections", "forge", "gates", "held", "personas", "repositories", "repository", "running", "stages", "state", "throughput", "waiting", "warnings"},
 		"forge":               {"host", "kind"},
-		"state":               {"no_active_brief", "owner_held", "path", "paused", "restart_requested_at"},
+		"state":               {"no_active_brief", "owner_held", "path", "paused", "qa_held", "restart_requested_at"},
 		"gates":               {"merge", "plan", "triage"},
 		"stages":              {"swarm:plan-0-posted", "swarm:plan-1-accepted", "swarm:plan-2-in-progress", "swarm:proposal-accepted", "swarm:proposal-posted", "swarm:review-0-ready", "swarm:review-1-in-progress", "swarm:review-2-approved", "swarm:review-3-changes-requested"},
 		"waiting":             {"issues", "no_check", "notes"},
@@ -689,7 +689,7 @@ func TestSwarmConnectThroughGitea(t *testing.T) {
 	}
 	for path, want := range map[string][]string{
 		"":        {"authorities", "clone", "held", "host", "journal", "metrics", "questions", "repository", "running", "runs", "state", "waiting", "warnings"},
-		"state":   {"no_active_brief", "owner_held", "path", "paused", "restart_requested_at"},
+		"state":   {"no_active_brief", "owner_held", "path", "paused", "qa_held", "restart_requested_at"},
 		"running": {"error", "members"},
 		"journal": {"day", "issues", "mark", "marked"},
 		"waiting": {"issues", "no_check", "notes"},

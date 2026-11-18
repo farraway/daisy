@@ -17,10 +17,11 @@ type RepoNote struct{ Name, Text string }
 func RepoNotesFile(name string) string { return "repos/" + name + ".md" }
 
 // noteRepos is the declared repositories whose notes the run reads
-// (section 4): the owner's and the architect's every one, in repos'
-// order; the worker's and a reviewer's the one it works in.
+// (section 4): the owner's, the architect's and the QA's every
+// one, in repos' order; the worker's and a reviewer's the one it works
+// in.
 func (s *Swarm) noteRepos(j *Job, repo declare.Repo) []string {
-	if j.Role == "owner" || j.Role == "architect" {
+	if clonesEvery(j.Role) {
 		return repoNames(s.Cfg)
 	}
 	if repo.Name == "" {

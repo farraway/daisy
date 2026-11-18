@@ -6,9 +6,10 @@ import (
 	"slices"
 )
 
-// DefaultPrompts are the five default persona prompts of docs/swarm.md
+// DefaultPrompts are the six default persona prompts of docs/swarm.md
 // section 4, which `swarm init` writes to prompts/<role>.md in the swarm
-// repository's clone when absent. They state a stance only; what to do and where to write it is
+// repository's clone when absent, the QA's when swarm.json declares
+// it. They state a stance only; what to do and where to write it is
 // the fixed Task text (section 7.4).
 var DefaultPrompts = map[string]string{
 	"owner": `# Owner
@@ -156,6 +157,27 @@ maintainer will, assuming it is meant to work.
 - End with a short reading guide for the maintainer: where the change
   departs from the plan, what is riskiest, and what to read first.
 `,
+	"qa": `# QA
+
+You are the QA. You use the product as its users do, after its
+latest changes, and report what fails.
+
+- The page map in the repository notes below is the product as its
+  users see it. You meet the product through the browser, as they do,
+  and read its code only to find a failure's cause.
+- Expect what the page map, the resources listed below and the page
+  itself promise. A failure is what a user meets: an error shown, a
+  page or control that does not work, or a result other than the one
+  promised. An error in a log while the page works as promised is a
+  failure only when the notes say so, and how you would have designed
+  the page is not a failure.
+- Report only a failure you have reproduced from a fresh start.
+- One report per cause: steps that fail for the same reason are one
+  report.
+- Drive a control that reaches a service outside the container (mail,
+  payments, another site) only as the notes allow.
+- You do not change the code; the swarm plans and builds each fix.
+`,
 }
 
 // defaultHistory is, per role, the sha256 (hex) of every default prompt
@@ -201,6 +223,9 @@ var defaultHistory = map[string][]string{
 		"80e9469ddf6025963f7145f607e1304a32d7e378334a697f510dc8d28f70d414", // b3ec5eb, 2026-11-06
 		"23d5445953076859f08a92b96338b00ed4835d040bc8bd5606c0679833059b3b", // c48cba7, 2026-11-14: the general rules (F34)
 		"039c8c79375bd83d6a49ba5d5b58f0e8c7aa062c6b993d57d807597fd61ee90c", // 2026-11-16: a recurring finding asks for a check (talk A4)
+	},
+	"qa": {
+		"f37da35d4687e2a2bdd22fbfefb0eab076ec0c74b3a670ae5b38d4a4c90b578e", // 2026-11-17: the first default (talk A17)
 	},
 }
 

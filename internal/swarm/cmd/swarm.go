@@ -208,7 +208,7 @@ func writeDeclaration(c *Context, at declare.Place, cfg declare.Config) (written
 		fmt.Fprintln(c.Stdout, "✓ Wrote swarm.json")
 		written = append(written, "swarm.json")
 	}
-	for _, role := range declare.Roles {
+	for _, role := range cfg.DeclaredRoles() {
 		rel := filepath.Join("prompts", role+".md")
 		w, err := writeAbsent(c, at.Root, rel, declare.DefaultPrompts[role])
 		if err != nil {
@@ -501,8 +501,11 @@ func writeStatus(out io.Writer, r *statusReport) {
 	}
 	fmt.Fprintf(out, "Running: %s\n", runningLine(r.Running))
 	fmt.Fprintln(out, "Personas:")
-	for _, role := range declare.Roles {
-		p := r.Personas[role]
+	for _, role := range declare.AllRoles {
+		p, ok := r.Personas[role]
+		if !ok {
+			continue // the QA, undeclared
+		}
 		fmt.Fprintf(out, "  %-12s %-10s %s %s\n", role, p.Provider, p.Model, p.Effort)
 	}
 	writeThroughput(out, r.Throughput)
@@ -654,6 +657,9 @@ func stateNotes(s reconcile.StatusState) string {
 	}
 	if s.NoActiveBrief {
 		notes += " — owner batch held: no brief is active"
+	}
+	if s.QAHeld != nil {
+		notes += " — qa held: " + s.QAHeld.Reason
 	}
 	return notes
 }
@@ -973,7 +979,8 @@ func pauseSwarm(c *Context) error {
 }
 
 // resumeSwarm is `daisy swarm resume` (docs/swarm.md section 11):
-// <state>/paused removed, whoever wrote it, and <state>/owner-held.
+// <state>/paused removed, whoever wrote it, <state>/owner-held and
+// <state>/qa-held.
 func resumeSwarm(c *Context) error {
 	state, err := swarmStateOnly(c)
 	if err != nil {
@@ -981,7 +988,7 @@ func resumeSwarm(c *Context) error {
 	}
 	fs := c.Ops.FS()
 	removed := map[string]bool{}
-	for _, name := range []string{"paused", "owner-held"} {
+	for _, name := range []string{"paused", "owner-held", "qa-held"} {
 		path := filepath.Join(state, name)
 		if _, err := fs.Lstat(path); err != nil {
 			continue
@@ -996,6 +1003,9 @@ func resumeSwarm(c *Context) error {
 	}
 	if removed["owner-held"] {
 		fmt.Fprintln(c.Stdout, "Owner batch released")
+	}
+	if removed["qa-held"] {
+		fmt.Fprintln(c.Stdout, "QA released")
 	}
 	if len(removed) == 0 {
 		fmt.Fprintln(c.Stdout, "Not paused")
@@ -1111,7 +1121,7 @@ func promptBuild(c *Context) error {
 
 	var actions []promptAction
 	var roles []string // the roles whose prompt is written
-	for _, role := range declare.Roles {
+	for _, role := range cfg.DeclaredRoles() {
 		a := promptAction{role: role, rel: filepath.Join("prompts", role+".md")}
 		b, err := o.FS().ReadFile(filepath.Join(at.Root, a.rel))
 		switch {

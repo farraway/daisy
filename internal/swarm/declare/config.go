@@ -19,8 +19,26 @@ import (
 	"daisy/internal/ops"
 )
 
-// Roles are the five personas, in the order the file and the wizard list them.
+// Roles are the five personas every swarm declares, in the order the
+// file and the wizard list them.
 var Roles = []string{"owner", "architect", "worker", "adversary", "sympathetic"}
+
+// QARole is the sixth persona, which a swarm declares with the
+// QA trigger alone (section 3, qa).
+const QARole = "qa"
+
+// AllRoles is every persona swarm.json may declare, in the order the
+// file lists them.
+var AllRoles = append(slices.Clone(Roles), QARole)
+
+// DeclaredRoles is the personas c declares: the five, and the QA
+// with its trigger.
+func (c Config) DeclaredRoles() []string {
+	if c.QA != nil {
+		return AllRoles
+	}
+	return Roles
+}
 
 // MaintainerTokenEnv is the variable holding the maintainer's own token,
 // which only the maintainer's verbs read (section 8, rule 5; section 11).
@@ -37,6 +55,7 @@ type Config struct {
 	Timeout    string             `json:"timeout"`
 	Interval   string             `json:"interval"`
 	Owner      Owner              `json:"owner"`
+	QA         *QA                `json:"qa,omitempty"`
 	Resources  []Resource         `json:"resources"`
 	References []Reference        `json:"references,omitempty"`
 	Notes      bool               `json:"notes,omitempty"`
@@ -177,6 +196,14 @@ func (r Resource) MarshalJSON() ([]byte, error) {
 
 type Owner struct {
 	MaxOpenProposals int `json:"max_open_proposals"`
+}
+
+// QA is the QA trigger (section 3, qa): the number
+// of merges on the product's base since its last exploration, a tag
+// pattern, or both, each nil when absent.
+type QA struct {
+	Merges *int    `json:"merges,omitempty"`
+	Tag    *string `json:"tag,omitempty"`
 }
 
 type Gates struct {
@@ -415,8 +442,11 @@ func Format(c Config) []byte {
 		`"timeout": ` + inline(c.Timeout),
 		`"interval": ` + inline(c.Interval),
 		`"owner": ` + inline(c.Owner),
-		`"resources": ` + inline(nonNil(c.Resources)),
 	}
+	if c.QA != nil {
+		top = append(top, `"qa": `+inline(*c.QA))
+	}
+	top = append(top, `"resources": `+inline(nonNil(c.Resources)))
 	if len(c.References) > 0 {
 		var refs []string
 		for _, r := range c.References {
@@ -450,7 +480,7 @@ func Format(c Config) []byte {
 // next field starts in the same column on every line.
 func personaLines(personas map[string]Persona) string {
 	var roles []string
-	for _, r := range Roles {
+	for _, r := range AllRoles {
 		if _, ok := personas[r]; ok {
 			roles = append(roles, r)
 		}

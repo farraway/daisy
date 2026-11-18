@@ -6,7 +6,8 @@ short_description: Guide a Daisy swarm: status, briefs, gates
 
 The swarm is Daisy's reconciler over a forge: `daisy swarm apply`, as the
 maintainer's user service, launches the five roles (owner, architect, worker,
-adversary, sympathetic) and moves each issue's `swarm:*` label. Its
+adversary, sympathetic), and the QA when `swarm.json` declares it,
+and moves each issue's `swarm:*` label. Its
 contract is `docs/swarm.md` in the Daisy root. This skill is the
 maintainer's side of it: you read, explain and draft; the maintainer
 decides; a forge write happens only through one of the verbs below, run
@@ -170,6 +171,16 @@ highest-priority `active` brief, and writes `Met: <path>` when a brief's
 milestones are all met: that is when to suggest flipping its `Status`.
 With no brief `active` the owner proposes nothing: its batch is held, and
 `status`'s `State:` line says `owner batch held: no brief is active`.
+
+The QA, when `swarm.json` declares `qa` and its persona,
+runs after the set number of merges or a release tag, drives the
+product from the page map the maintainer keeps in the first
+repository's `repos/<name>.md`, and files each failure as a proposal,
+which the gates handle as the owner's. When it fails or writes
+`BLOCKED:` (no page map, no browser in the image), `status`'s `State:`
+line says `qa held: <reason>`; `daisy swarm resume` releases it
+once the maintainer has fixed the cause (`docs/swarm.md` section 6, The
+QA trigger).
 
 The briefs live in the swarm repository's `briefs/` (`forge.repo`, by
 convention `<owner>/swarm-<name>`), declared as a `resources` entry.

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"daisy/internal/ops"
@@ -103,7 +104,8 @@ func (g Git) recordAt(m, url string, ssh *string) error {
 
 // Fetch brings the repository's mirror up to date from its origin as the
 // mirror's config records it, creating the mirror when absent (section
-// 7.1, step 1).
+// 7.1, step 1); git brings with the branches each tag that points into
+// them, which the QA trigger reads (TagsSince).
 func (g Git) Fetch(r declare.Repo) error {
 	m, err := g.record(r)
 	if err != nil {
@@ -111,6 +113,38 @@ func (g Git) Fetch(r declare.Repo) error {
 	}
 	_, err = g.run(m, "fetch", "--quiet", "--prune", "origin", "+refs/heads/*:refs/heads/*")
 	return err
+}
+
+// Merges is the number of commits on head's first-parent line in the
+// repository's mirror that from does not hold, every one with from "":
+// the merges the QA trigger counts (section 6, The QA
+// trigger).
+func (g Git) Merges(name, head, from string) (int, error) {
+	args := []string{"rev-list", "--count", "--first-parent", head}
+	if from != "" {
+		args = append(args, "^"+from)
+	}
+	out, err := g.run(g.Mirror(name), args...)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(out)
+}
+
+// TagsSince is the tags matching pattern in the repository's mirror that
+// head holds and from does not, every one head holds with from "": the
+// release tags the QA trigger reads (section 6, The QA
+// trigger).
+func (g Git) TagsSince(name, pattern, head, from string) ([]string, error) {
+	args := []string{"tag", "--list", "--merged", head}
+	if from != "" {
+		args = append(args, "--no-merged", from)
+	}
+	out, err := g.run(g.Mirror(name), append(args, pattern)...)
+	if err != nil || out == "" {
+		return nil, err
+	}
+	return strings.Split(out, "\n"), nil
 }
 
 // FetchSwarm brings the swarm repository's mirror, <state>/git/<repo>,

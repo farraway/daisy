@@ -382,3 +382,17 @@ they write.
   prompt shows; `Attach` takes an issue as well; sections 5, 6, 7.3,
   7.5, 7.6, 10 and 13; decision
   [150](swarm/decisions/0150-a-long-text-is-posted-whole.md).
+- 2026-11-17, Step 39 of the plan remediating the 2026-11-15 design
+  review (talk A17): QA, a sixth role a swarm declares or not
+  (`qa`, `{"merges": <n>, "tag": <pattern>}`, with
+  `personas.qa`; no default number), runs as issue 0 after that
+  many commits on the first repository's `base` first-parent line, or
+  a tag matching the pattern, since its last completed exploration;
+  it drives the product from the page map the maintainer keeps in the
+  first repository's notes, in that repository's image, and files each
+  failure as a proposal marked `role=qa`, classed by its first
+  line, which enters at T1 or T2 as the owner's do, or writes `NO
+  FAILURE:`; a failure, `BLOCKED:` or nothing proposed writes
+  `<state>/qa-held`, which `status` names and `resume` removes;
+  sections 2, 3, 4, 5, 6, 7.1–7.7, 11 and 13; decision
+  [151](swarm/decisions/0151-a-qa-run-after-merges.md).

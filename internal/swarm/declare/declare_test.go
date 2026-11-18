@@ -131,7 +131,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: budget: missing (required when a gate is false)`, func(c *Config) { c.Gates.Merge = false }},
 		{`swarm.json: budget.per_day: 0 is not greater than 0`, func(c *Config) { c.Budget = &Budget{PerDay: 0, Total: 10} }},
 		{`swarm.json: budget.total: -1.5 is not greater than 0`, func(c *Config) { c.Budget = &Budget{PerDay: 1, Total: -1.5} }},
-		{`swarm.json: personas.tester: not a role (owner, architect, worker, adversary, sympathetic)`, func(c *Config) { c.Personas["tester"] = c.Personas["worker"] }},
+		{`swarm.json: personas.tester: not a role (owner, architect, worker, adversary, sympathetic, qa)`, func(c *Config) { c.Personas["tester"] = c.Personas["worker"] }},
 		{`swarm.json: personas.owner: missing`, func(c *Config) { delete(c.Personas, "owner") }},
 		{`swarm.json: personas.adversary.provider: "gemini" has no adapter`, func(c *Config) { setPersona(c, "adversary", func(p *Persona) { p.Provider = "gemini" }) }},
 		{`swarm.json: personas.adversary.model: empty; every role names its model`, func(c *Config) { setPersona(c, "adversary", func(p *Persona) { p.Model = "" }) }},
@@ -195,6 +195,87 @@ func TestValidateNamesTheField(t *testing.T) {
 	c.Trusted, c.Forge.CommitEmail = nil, ""
 	if err := Validate(ops.Real(), p, c, SkipPrompts|SkipAccount); err != nil {
 		t.Errorf("init's first validation: %v", err)
+	}
+}
+
+// The QA is declared by its trigger and its persona together
+// (section 3, qa): each row of its errors byte for byte, its
+// prompt required once declared, and a valid declaration of each form.
+func TestValidateTheQA(t *testing.T) {
+	_, clone := cloneFolder(t)
+	p := Clone(clone)
+	declareQA := func(c *Config, e QA) {
+		c.QA = &e
+		c.Personas[QARole] = c.Personas["owner"]
+	}
+	if got := errText(Validate(ops.Real(), p, func() Config { c := valid(); declareQA(&c, QA{Merges: ptr(10)}); return c }(), 0)); got != "swarm.json: personas.qa: prompt prompts/qa.md is missing or empty" {
+		t.Errorf("no QA prompt: %s", got)
+	}
+	write(t, PromptFile(clone, QARole), DefaultPrompts[QARole])
+	for _, tc := range []struct {
+		want string
+		edit func(c *Config)
+	}{
+		{`swarm.json: qa: no trigger (merges or tag is required)`, func(c *Config) { declareQA(c, QA{}) }},
+		{`swarm.json: qa.merges: 0 is not greater than 0`, func(c *Config) { declareQA(c, QA{Merges: ptr(0)}) }},
+		{`swarm.json: qa.merges: -3 is not greater than 0`, func(c *Config) { declareQA(c, QA{Merges: ptr(-3), Tag: ptr("v*")}) }},
+		{`swarm.json: qa.tag: "" is not a tag pattern`, func(c *Config) { declareQA(c, QA{Tag: ptr("")}) }},
+		{`swarm.json: qa.tag: "--list" is not a tag pattern`, func(c *Config) { declareQA(c, QA{Tag: ptr("--list")}) }},
+		{`swarm.json: qa.tag: "v *" is not a tag pattern`, func(c *Config) { declareQA(c, QA{Tag: ptr("v *")}) }},
+		{`swarm.json: qa.tag: "v\n" is not a tag pattern`, func(c *Config) { declareQA(c, QA{Tag: ptr("v\n")}) }},
+		{`swarm.json: personas.qa: missing (required when qa is declared)`, func(c *Config) { c.QA = &QA{Merges: ptr(10)} }},
+		{`swarm.json: personas.qa: no trigger runs it; declare qa, or remove personas.qa`, func(c *Config) { c.Personas[QARole] = c.Personas["owner"] }},
+		{`swarm.json: personas.qa.effort: "Very High" is not one lowercase word`, func(c *Config) {
+			declareQA(c, QA{Merges: ptr(10)})
+			setPersona(c, QARole, func(p *Persona) { p.Effort = "Very High" })
+		}},
+		{`swarm.json: keys: no credential for provider "xai"`, func(c *Config) {
+			declareQA(c, QA{Merges: ptr(10)})
+			setPersona(c, QARole, func(p *Persona) { p.Provider, p.Model, p.CoAuthor = "xai", "grok-4.5", "" })
+		}},
+	} {
+		c := valid()
+		tc.edit(&c)
+		if got := errText(Validate(ops.Real(), p, c, 0)); got != tc.want {
+			t.Errorf("got  %s\nwant %s", got, tc.want)
+		}
+	}
+	for _, e := range []QA{{Merges: ptr(1)}, {Tag: ptr("v*")}, {Merges: ptr(10), Tag: ptr("release-*")}} {
+		c := valid()
+		declareQA(&c, e)
+		if err := Validate(ops.Real(), p, c, 0); err != nil {
+			t.Errorf("qa %s: %v", inline(e), err)
+		}
+		if got := c.DeclaredRoles(); !reflect.DeepEqual(got, AllRoles) {
+			t.Errorf("declared roles: %v", got)
+		}
+	}
+	if got := valid().DeclaredRoles(); !reflect.DeepEqual(got, Roles) {
+		t.Errorf("declared roles without the QA: %v", got)
+	}
+}
+
+// The QA trigger is written after owner, one line, and its
+// persona last among the personas; both are read back; without them the
+// file is as before (section 3).
+func TestFormatQA(t *testing.T) {
+	c := valid()
+	if out := string(Format(c)); strings.Contains(out, "qa") {
+		t.Errorf("Format wrote a QA run undeclared:\n%s", out)
+	}
+	c.QA = &QA{Merges: ptr(10), Tag: ptr("v*")}
+	c.Personas[QARole] = c.Personas["owner"]
+	out := string(Format(c))
+	for _, want := range []string{
+		`  "owner": {"max_open_proposals": 5},` + "\n" + `  "qa": {"merges": 10, "tag": "v*"},` + "\n" + `  "resources": `,
+		`    "qa":          {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high",   "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}` + "\n  }\n}\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Format lacks %q:\n%s", want, out)
+		}
+	}
+	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("round trip: %v", err)
 	}
 }
 
@@ -462,7 +543,7 @@ func TestDefaultPromptsAreSectionFours(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range Roles {
+	for _, r := range AllRoles {
 		m := regexp.MustCompile("(?s)\n### " + r + "\n\n```markdown\n(.*?)```").FindSubmatch(doc)
 		if m == nil || string(m[1]) != DefaultPrompts[r] {
 			t.Errorf("%s's prompt differs from section 4", r)

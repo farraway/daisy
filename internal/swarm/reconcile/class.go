@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"daisy/internal/ops"
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 )
 
@@ -22,8 +23,9 @@ const (
 	Architecture = "architecture"
 )
 
-// classRe is a class statement's line: the owner's after a proposal's
-// Brief: line, or a maintainer's comment, which `swarm class` posts.
+// classRe is a class statement's line: a proposal's, the owner's after
+// its Brief: line or the QA's first, or a maintainer's comment,
+// which `swarm class` posts.
 var classRe = regexp.MustCompile(`^Class: (routine|architecture)$`)
 
 // classOfText is the class text states when it is a class statement alone,
@@ -36,10 +38,15 @@ func classOfText(text string) string {
 }
 
 // ProposalClass is the class a proposal's text (after the marker lines)
-// states on the line right after the `Brief:` line it opens with; "" when
-// it opens with no Brief: line or that line is no class statement.
-func ProposalClass(text string) string {
+// states: the owner's on the line right after the `Brief:` line it opens
+// with, the QA's, which names no brief, on its first line; "" when
+// that line is no class statement, or the owner's opens with no Brief:
+// line.
+func ProposalClass(role, text string) string {
 	lines := strings.SplitN(strings.TrimLeft(text, "\n"), "\n", 3)
+	if role == declare.QARole {
+		return classOfText(lines[0])
+	}
 	if len(lines) < 2 || !strings.HasPrefix(strings.TrimRight(lines[0], "\r "), "Brief: ") {
 		return ""
 	}
@@ -49,7 +56,7 @@ func ProposalClass(text string) string {
 // ClassOf is the job class of is, read with its comments (section 5):
 // architecture when it carries swarm:class-architecture; otherwise its
 // newest class statement's class, and architecture when it has none. The
-// statements are the owner's, the line after its proposal's Brief: line
+// statements are a proposal's, the owner's or the QA's
 // (ProposalClass), and each comment by a login in trusted other than the
 // swarm's that is `Class: <class>` alone.
 func ClassOf(is forge.Issue, swarmLogin string, trusted []string) string {
@@ -58,8 +65,8 @@ func ClassOf(is forge.Issue, swarmLogin string, trusted []string) string {
 	}
 	class := ""
 	body := bodyEntry(is)
-	if m, ok := Swarms(body, swarmLogin); ok && m.Role == "owner" {
-		class = ProposalClass(swarmText(body.Body))
+	if m, ok := Swarms(body, swarmLogin); ok && (m.Role == "owner" || m.Role == declare.QARole) {
+		class = ProposalClass(m.Role, swarmText(body.Body))
 	}
 	for _, c := range is.Comments {
 		if c := maintainerClass(c, swarmLogin, trusted); c != "" {

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 )
 
@@ -95,7 +96,7 @@ func Launch(t Turn, swarmLogin string, trusted []string) []string {
 		}
 		e, ok := NewestCounted(t.Thread, swarmLogin, trusted)
 		for _, role := range roles {
-			if m, swarm := Swarms(e, swarmLogin); !ok || !swarm || m.Role != role {
+			if m, swarm := Swarms(e, swarmLogin); !ok || !swarm || !answered(role, m.Role) {
 				return []string{role}
 			}
 		}
@@ -117,6 +118,14 @@ func Launch(t Turn, swarmLogin string, trusted []string) []string {
 		}
 	}
 	return out
+}
+
+// answered: an entry of the swarm's marked by role by leaves role nothing
+// to answer (section 6, rule 3): role's own, or for the owner the
+// QA's proposal, which stands at proposal-posted as the owner's
+// would.
+func answered(role, by string) bool {
+	return by == role || role == "owner" && by == declare.QARole
 }
 
 // Held is the flag that holds an issue whatever its stage (section 6,
