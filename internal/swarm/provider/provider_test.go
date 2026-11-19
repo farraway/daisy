@@ -148,12 +148,14 @@ func TestSlots(t *testing.T) {
 	}
 }
 
-// Estimate is a model's tokens at its list price (section 9): the
-// models whose price is known, in and out at their own rates, the
-// cached part of the input at the cached rate; a model not in the table
-// has no estimate, never a zero one, nor has cached input of a model
-// with no cached rate.
+// Estimate is a model's tokens at its list price (section 9): each
+// model whose price is known, in and out at their own rates, the cached
+// part of the input at the cached rate (each figure the provider's page
+// that Prices cites); a model not in the table has no estimate, never a
+// zero one, nor has cached input of a model with no cached rate.
 func TestEstimate(t *testing.T) {
+	Prices["no-cached-rate"] = Price{In: 1, Out: 1}
+	t.Cleanup(func() { delete(Prices, "no-cached-rate") })
 	for _, tc := range []struct {
 		model           string
 		in, cached, out int
@@ -161,15 +163,27 @@ func TestEstimate(t *testing.T) {
 		ok              bool
 	}{
 		{"claude-opus-5-5", 1_000_000, 0, 500_000, 14, true},
+		{"claude-opus-5-5", 1_000_000, 1_000_000, 0, 0.2, true},
 		{"claude-sonnet-5-5", 2_000_000, 0, 100_000, 5, true},
+		{"claude-sonnet-5-5", 1_000_000, 1_000_000, 0, 0.1, true},
 		{"claude-fable-5-1", 10, 0, 20, 0.0011, true},
+		{"claude-fable-5-1", 1_000_000, 1_000_000, 0, 0.25, true},
+		{"claude-fable-5-2", 1_000_000, 0, 1_000_000, 48, true},
+		{"claude-fable-5-2", 1_000_000, 1_000_000, 0, 0.2, true},
 		{"gpt-6.1-sol", 1_000_000, 0, 1_000_000, 12, true},
 		{"gpt-6.1-sol", 1_000_000, 1_000_000, 0, 0.1, true},
 		// 93-worker-1: 86625 uncached at $2, 3390208 cached at $0.10,
 		// 12969 out at $10.
 		{"gpt-6.1-sol", 3476833, 3390208, 12969, 0.6419608, true},
-		{"claude-opus-5-5", 1_000_000, 1, 0, 0, false},
-		{"grok-4.7", 1_000_000, 0, 1_000_000, 0, false},
+		{"gpt-6.2-astra", 1_000_000, 0, 1_000_000, 48, true},
+		{"gpt-6.2-astra", 1_000_000, 1_000_000, 0, 0.4, true},
+		{"gpt-6-luna", 1_000_000, 0, 1_000_000, 0.6, true},
+		{"gpt-6-luna", 1_000_000, 1_000_000, 0, 0.01, true},
+		{"grok-4.7", 1_000_000, 0, 1_000_000, 8, true},
+		{"grok-4.7", 1_000_000, 1_000_000, 0, 0.5, true},
+		{"no-cached-rate", 1_000_000, 0, 1_000_000, 2, true},
+		{"no-cached-rate", 1_000_000, 1, 0, 0, false},
+		{"no-price", 1_000_000, 0, 1_000_000, 0, false},
 	} {
 		got, ok := Estimate(tc.model, tc.in, tc.cached, tc.out)
 		if ok != tc.ok || math.Abs(got-tc.want) > 1e-12 {

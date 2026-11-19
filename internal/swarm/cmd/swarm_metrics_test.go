@@ -489,8 +489,9 @@ func (a *applyWS) metricsVerb(flags ...string) error {
 // reads each run's stdout through its provider's adapter and appends a
 // row superseding each: the codex row's tokens_cached 3390208,
 // tokens_total and its estimate, $0.641961; the claude row's tokens_in
-// with the cache's 852044 and its lower-bound estimate dropped (no
-// cached rate); every other cell carried over, the notes ending
+// with the cache's 852044 and its estimate, $1.17044 (52044 uncached at
+// $10, 800000 cached at $0.25, 9000 out at $50, where the held row priced
+// the 44 alone); every other cell carried over, the notes ending
 // `repriced`. A run without stdout is unread, one without a row or not
 // collected not counted; --dry-run writes nothing; a second reprice
 // writes nothing.
@@ -529,7 +530,7 @@ func TestSwarmMetricsReprice(t *testing.T) {
 	if err := a.metricsVerb("--reprice", "--dry-run"); err != nil {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
-	if want := "  1-architect-1 anthropic claude-fable-5-1: tokens_in 44 → 852044, tokens_cached — → 800000, tokens_total — → 861044, cost_estimated 0.45044 → —\n" +
+	if want := "  1-architect-1 anthropic claude-fable-5-1: tokens_in 44 → 852044, tokens_cached — → 800000, tokens_total — → 861044, cost_estimated 0.45044 → 1.17044\n" +
 		"  93-worker-1 openai gpt-6.1-sol: tokens_in 3476833 → 3476833, tokens_cached — → 3390208, tokens_total — → 3489802, cost_estimated — → 0.641961\n" +
 		"Would reprice 2 rows in " + csvFile + " " + counts + "; nothing written\n"; a.stdout.String() != want || a.stderr.Len() != 0 {
 		t.Errorf("dry run: stdout:\n%s\nwant:\n%s\nstderr:\n%s", a.stdout.String(), want, a.stderr.String())
@@ -547,7 +548,7 @@ func TestSwarmMetricsReprice(t *testing.T) {
 	b, _ := os.ReadFile(csvFile)
 	_, oldRows, _ := strings.Cut(held, "\n")
 	want := strings.Join(metrics.Header, ",") + "\n" + oldRows +
-		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,852044,9000,861044,1.2,,,,,,,,,,\"#1, 20 turns, repriced\",800000,\n" +
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,852044,9000,861044,1.2,1.17044,,,,,,,,,\"#1, 20 turns, repriced\",800000,\n" +
 		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,3489802,,0.641961,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns, repriced\",3390208,\n"
 	if string(b) != want {
 		t.Fatalf("csv:\n%s\nwant:\n%s", b, want)
@@ -563,7 +564,7 @@ func TestSwarmMetricsReprice(t *testing.T) {
 		if g.Model == "gpt-6.1-sol" && (g.Rows != 1 || g.Estimate != 0.641961 || g.Cached != 3390208 || g.Tokens != 3489802) {
 			t.Errorf("gpt-6.1-sol group %+v", g)
 		}
-		if g.Model == "claude-fable-5-1" && (g.Rows != 1 || g.WithEstimate != 0 || g.Tokens != 861044) {
+		if g.Model == "claude-fable-5-1" && (g.Rows != 1 || g.Estimate != 1.17044 || g.Tokens != 861044) {
 			t.Errorf("claude-fable-5-1 group %+v", g)
 		}
 	}

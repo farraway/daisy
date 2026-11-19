@@ -32,7 +32,7 @@ lower bound; a model with no cached rate, every Anthropic model in
 the table, has none for a run that read its cache, so a `claude` run's
 estimate is now mostly empty beside the cost it reports, rather than a
 figure far below it. No cached or cache-write rate is added for the
-Anthropic models: none is in the root or its sources. **The rows
+Anthropic models: none is in the root or its sources. (Amended by item 152, which gives the Claude models their cached rates and prices `claude-fable-5-2`, `gpt-6-luna`, `gpt-6.2-astra` and `grok-4.7` from their providers' pages; cache writes stay at the input rate.) **The rows
 already written are superseded, not rewritten**: the CSV stays
 append-only, and normalizing at read time cannot work, since a row
 does not hold its cache's tokens; `daisy swarm metrics --reprice`

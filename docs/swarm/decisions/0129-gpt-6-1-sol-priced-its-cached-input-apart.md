@@ -27,7 +27,7 @@ provider says so (`InputHoldsCached`), since `claude`'s line without
 a count is complete. A model with a price and no cached rate (the
 Claude models) is not estimated for cached input it reports, so no
 cached rate is guessed; `claude` reports none on the line (its cache
-reads and writes lie outside `input_tokens`). **No reprice**: a
+reads and writes lie outside `input_tokens`). (Amended by item 152, which gives the Claude models their cached rates and prices `claude-fable-5-2`, `gpt-6-luna`, `gpt-6.2-astra` and `grok-4.7` from their providers' pages.) **No reprice**: a
 price added reprices no row already written, and `swarm metrics
 --backfill` writes none for a run the CSV holds. A `--reprice`
 appending a superseding row (`metrics` keeps the CSV append-only and

@@ -34,7 +34,7 @@ is per machine rather than beside the CSV, where the home's next
 commit would sweep it up. The list prices are Anthropic's published
 rates for the three Claude models the swarm uses; `gpt-6.1-sol` and
 the `grok` models have none in the root, so no estimate, never a
-guessed one (item 129 prices `gpt-6.1-sol`). The turns go in the row's notes: a new column would
+guessed one (item 129 prices `gpt-6.1-sol`; amended by item 152, which gives the Claude models their cached rates and prices `claude-fable-5-2`, `gpt-6-luna`, `gpt-6.2-astra` and `grok-4.7` from their providers' pages). The turns go in the row's notes: a new column would
 make every existing CSV's header refuse (`docs/cli.md`, `metrics`).
 Tests: `TestSwarmApplyRecordsEachRun` (two runs, one reporting its
 cost and one not: two journal lines pushed by the reconciler, two

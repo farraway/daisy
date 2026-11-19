@@ -3963,8 +3963,9 @@ var Providers = map[string]Provider{ "anthropic": …, "openai": …, "xai": …
 // record), in US dollars per million tokens of input, of input read from
 // the cache (0: no cached rate known) and of output.
 type Price struct{ In, Cached, Out float64 }
-var Prices = map[string]Price{ "claude-fable-5-1": {10, 0, 50}, "claude-opus-5-5": {4, 0, 20},
-    "claude-sonnet-5-5": {2, 0, 10}, "gpt-6.1-sol": {2, 0.10, 10} }
+var Prices = map[string]Price{ "claude-fable-5-1": {10, 0.25, 50}, "claude-fable-5-2": {8, 0.20, 40},
+    "claude-opus-5-5": {4, 0.20, 20}, "claude-sonnet-5-5": {2, 0.10, 10}, "gpt-6-luna": {0.10, 0.01, 0.50},
+    "gpt-6.1-sol": {2, 0.10, 10}, "gpt-6.2-astra": {8, 0.40, 40}, "grok-4.7": {2, 0.50, 6} }
 // in holds cached (InTokens, CachedTokens); ok false for a model not in
 // Prices, or cached > 0 for a model with no cached rate
 func Estimate(model string, in, cached, out int) (usd float64, ok bool)
@@ -4071,14 +4072,27 @@ incomplete, which drops the cost). A provider that reports no cost makes
 line then reads `-`, never `0` (section 2).
 
 **List prices.** `Prices` holds the price of each model whose price the
-root knows: Anthropic's published API rates as of 2026-10-06 for
-`claude-fable-5-1`, `claude-opus-5-5` and `claude-sonnet-5-5` (Step 16b
-of the plan that clears the Deferred list), and OpenAI's for
-`gpt-6.1-sol`, $2 input, $0.10 cached input and $10 output per million
-tokens, as its launch post was quoted on 2026-11-15 (Step 11b of the
-plan for the inbox requests F27–F35; the post itself was not read). No
-price for a `grok` model is in the root or the sources it was written
-from, so those models have none, and their runs' records no estimate:
+root knows, each provider's standard rate per million tokens as its
+pricing page read on 2026-11-19 (Step 3 of the plan implementing the
+2026-11-19 swarm roadmap; `claude-fable-5-1`'s, `claude-opus-5-5`'s and
+`claude-sonnet-5-5`'s input and output rates were first Anthropic's of
+2026-10-06, Step 16b of the plan that clears the Deferred list, and `gpt-6.1-sol`'s its launch post's as quoted on
+2026-11-15, Step 11b of the plan for the inbox requests F27–F35, which
+the page confirms):
+
+| Model | Input | Cached input | Output | Source |
+|---|---|---|---|---|
+| `claude-fable-5-1` | $10 | $0.25 | $50 | [Anthropic's pricing](https://platform.claude.com/docs/en/about-claude/pricing) (cached: "cache hits and refreshes") |
+| `claude-fable-5-2` | $8 | $0.20 | $40 | the same |
+| `claude-opus-5-5` | $4 | $0.20 | $20 | the same |
+| `claude-sonnet-5-5` | $2 | $0.10 | $10 | the same |
+| `gpt-6-luna` | $0.10 | $0.01 | $0.50 | [OpenAI's pricing](https://developers.openai.com/api/docs/pricing) (Standard) |
+| `gpt-6.1-sol` | $2 | $0.10 | $10 | the same |
+| `gpt-6.2-astra` | $8 | $0.40 | $40 | the same |
+| `grok-4.7` | $2 | $0.50 | $6 | [xAI's models and pricing](https://docs.x.ai/docs/models) (below 200,000 prompt tokens) |
+
+A model not in the table (another `grok` model among them) has no
+price, and its runs' records no estimate:
 an absent price is never guessed or taken as 0. A price is added by a
 change to the table, and reprices no row already written (decision [129](swarm/decisions/0129-gpt-6-1-sol-priced-its-cached-input-apart.md))
 until `daisy swarm metrics --reprice` supersedes it (section 11).
@@ -4092,10 +4106,14 @@ which the adapter adds to it, the cache's reads its cached part.
 its `output_tokens` holds its `reasoning_output_tokens`, and its
 `cache_write_input_tokens`, 0 in every live run, is input. The estimate
 prices the cached part at the cached rate and the rest of the input,
-the cache's writes included, at the input rate, so it is below the
-bill of a provider that charges more for a cache write. A model with no
-cached rate (every Anthropic model's in the table) is not estimated for
-a run that reports cached input, and a run whose `cost` line has no
+the cache's writes included, at the input rate, and every request at the
+table's one rate, so it is below the bill wherever a provider charges
+more than that rate: for a cache write (Anthropic's and OpenAI's pages
+price one above the input rate), and for a request past a long-context
+threshold (xAI doubles `grok-4.7`'s rates for a prompt of 200,000 tokens
+or more), since a result reports the run's sums, not each request's
+prompt. A model with no cached rate (none in the table) is not
+estimated for a run that reports cached input, and a run whose `cost` line has no
 cached count (a `codex` run recorded before Step 11b or with a turn
 that did not report it; a `claude` or `grok` run recorded before Step
 28 of the plan remediating the 2026-11-15 design review) has no
@@ -5385,8 +5403,8 @@ reprice writes nothing. `--dry-run` makes and prints the rows and takes
 no lock. A `codex` run recorded before gpt-6.1-sol was priced gets its
 cached count and its estimate (93-worker-1: 3,390,208 of 3,476,833
 cached, $0.641961); a `claude` or `grok` run recorded before Step 28 its
-cache's tokens in `tokens_in` and, for a model with no cached rate, no
-estimate.
+cache's tokens in `tokens_in`; and a run of a model priced since its row
+was written, or given its cached rate since (decision [152](swarm/decisions/0152-every-model-in-use-priced-from-its-providers-page.md)), its estimate.
 
 **Its costs and `status`'s.** After a backfill the swarm's rows hold a
 row per collected run, and their `cost_reported` sums to `status`'s

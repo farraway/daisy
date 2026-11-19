@@ -396,3 +396,12 @@ they write.
   `<state>/qa-held`, which `status` names and `resume` removes;
   sections 2, 3, 4, 5, 6, 7.1–7.7, 11 and 13; decision
   [151](swarm/decisions/0151-a-qa-run-after-merges.md).
+- 2026-11-19, Step 3 of the plan implementing the 2026-11-19 swarm
+  roadmap (R0): the models the live swarm ran without a price each have
+  a list price from their provider's pricing page, the cached input
+  apart, `claude-fable-5-2`, `gpt-6.2-astra`, `gpt-6-luna` and `grok-4.7`
+  added, and the cached rates of `claude-fable-5-1`, `claude-opus-5-5`
+  and `claude-sonnet-5-5`; one rate per model, so the estimate is below
+  the bill for a cache write and for a `grok-4.7` request past 200,000
+  prompt tokens; section 9; decision
+  [152](swarm/decisions/0152-every-model-in-use-priced-from-its-providers-page.md).

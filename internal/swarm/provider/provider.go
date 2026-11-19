@@ -139,14 +139,22 @@ func fill(word, arg, placeholder string) (string, bool) {
 type Price struct{ In, Cached, Out float64 }
 
 // Prices is the list price of each model whose price this Daisy knows
-// (section 9): Anthropic's published API rates as of 2026-10-06, and
-// OpenAI's for gpt-6.1-sol as its launch post was quoted on 2026-11-15.
+// (section 9), each provider's standard rate as its pricing page read on
+// 2026-11-19: Anthropic's (platform.claude.com/docs/en/about-claude/pricing;
+// the cached rate its "cache hits and refreshes"), OpenAI's
+// (developers.openai.com/api/docs/pricing, its Standard table) and xAI's
+// (docs.x.ai/docs/models; grok-4.7's rate below its long-context
+// threshold of 200,000 prompt tokens, past which a request costs twice).
 // A model not here has no estimate; no price is guessed.
 var Prices = map[string]Price{
-	"claude-fable-5-1":  {In: 10, Out: 50},
-	"claude-opus-5-5":   {In: 4, Out: 20},
-	"claude-sonnet-5-5": {In: 2, Out: 10},
+	"claude-fable-5-1":  {In: 10, Cached: 0.25, Out: 50},
+	"claude-fable-5-2":  {In: 8, Cached: 0.20, Out: 40},
+	"claude-opus-5-5":   {In: 4, Cached: 0.20, Out: 20},
+	"claude-sonnet-5-5": {In: 2, Cached: 0.10, Out: 10},
+	"gpt-6-luna":        {In: 0.10, Cached: 0.01, Out: 0.50},
 	"gpt-6.1-sol":       {In: 2, Cached: 0.10, Out: 10},
+	"gpt-6.2-astra":     {In: 8, Cached: 0.40, Out: 40},
+	"grok-4.7":          {In: 2, Cached: 0.50, Out: 6},
 }
 
 // Estimate is what in input tokens, cached of them read from the cache,
