@@ -337,17 +337,26 @@ func (grok) Report(stdout []byte) Report {
 	return rep
 }
 
-// faultWords are what a provider fault's message names: authentication,
-// a quota or a rate limit (section 7.7; the messages are to confirm on a
-// real fault). The last five are grok 1.0.70's own messages ("Not signed
-// in.", "You hit your weekly limit.", "out of credits or over your
-// spending limit", "usage balance exhausted").
-var faultWords = []string{"authentication", "unauthorized", "api key", "oauth", "login", "401", "403", "quota", "rate limit", "rate_limit", "usage limit", "429", "credit balance",
-	"not signed in", "weekly limit", "out of credits", "spending limit", "usage balance"}
+// What a provider fault's message names (section 7.7; the messages are
+// to confirm on a real fault): signInWords authentication, limitWords a
+// quota, a rate or usage limit or the credit. The last of each are grok
+// 1.0.70's own messages ("Not signed in.", "You hit your weekly limit.",
+// "out of credits or over your spending limit", "usage balance
+// exhausted").
+var (
+	signInWords = []string{"authentication", "unauthorized", "api key", "oauth", "login", "401", "403", "not signed in"}
+	limitWords  = []string{"quota", "rate limit", "rate_limit", "usage limit", "429", "credit balance", "weekly limit", "out of credits", "spending limit", "usage balance"}
+)
 
-func isFault(msg string) bool {
+func isFault(msg string) bool { return names(msg, signInWords) || Capacity(msg) }
+
+// Capacity: a provider fault's message names a limit, a quota or the
+// credit, not the sign-in (section 7.5, The stop's cause: `capacity`).
+func Capacity(fault string) bool { return names(fault, limitWords) }
+
+func names(msg string, words []string) bool {
 	lower := strings.ToLower(msg)
-	for _, w := range faultWords {
+	for _, w := range words {
 		if strings.Contains(lower, w) {
 			return true
 		}

@@ -51,8 +51,10 @@ func SwarmMerge(c *Context) error {
 	return inSwarm(c, func() error { return swarmMerge(c, openForge) })
 }
 
-// SwarmUnblock is `daisy swarm unblock <n> <comment...>`: G4, T18, the
-// comment then swarm:blocked cleared.
+// SwarmUnblock is `daisy swarm unblock <n> [--cause <word>]
+// <comment...>`: G4, T18, the comment then swarm:blocked cleared; with
+// --cause, the released stop's metrics row superseded with that cause
+// first.
 func SwarmUnblock(c *Context) error {
 	return inSwarm(c, func() error { return swarmUnblock(c, openForge) })
 }
@@ -89,7 +91,7 @@ var commentVerbs = []commentVerb{
 	{"class", " routine|architecture", func(n int) bool { return n == 1 }, swarmClass},
 	{"approve", "", none, swarmApprove},
 	{"merge", "", none, swarmMerge},
-	{"unblock", " <comment...>", func(n int) bool { return n > 0 }, swarmUnblock},
+	{"unblock", " [--cause <word>] <comment...>", func(n int) bool { return n > 0 }, swarmUnblock},
 	{"block", " --by <m>", func(n int) bool { return n == 2 }, swarmBlock},
 	{"pause", "", none, func(c *Context, open opener) error { return swarmHold(c, open, true) }},
 	{"resume", "", none, func(c *Context, open opener) error { return swarmHold(c, open, false) }},
@@ -627,12 +629,21 @@ func (m *maintainer) sayOnPull(p forge.Pull, text string) error {
 
 // swarmUnblock posts the maintainer's comment, then clears swarm:blocked
 // from the issue, whose stage the block kept, so the role that stage runs
-// reads the comment when it runs.
+// reads the comment when it runs. With --cause, the metrics row of the
+// run whose stop set the block is superseded with that cause first
+// (section 7.5, The stop's cause), so a run again after a refused forge
+// write finds it written.
 func swarmUnblock(c *Context, open opener) error {
 	if _, err := issueArg(c); err != nil {
 		return err
 	}
-	text, err := comment(c)
+	cause, args, err := causeArg(c)
+	if err != nil {
+		return err
+	}
+	rest := *c
+	rest.Args = args
+	text, err := comment(&rest)
 	if err != nil {
 		return err
 	}
@@ -657,6 +668,11 @@ func swarmUnblock(c *Context, open opener) error {
 	if (stage == forge.ReviewInProgress || stage == forge.ReviewReady) && reconcile.AtTheRoundLimit(is, m.swarm) {
 		return fmt.Errorf("Error: swarm: #%d: blocked at the review round limit, where both reviewers have reviewed the head and %s runs no one; relabel it on the forge first, %s for one more fix round or %s to re-plan, then unblock it; nothing changed", m.n, stage, forge.ChangesRequested, forge.PlanPosted)
 	}
+	if cause != "" {
+		if err := m.retag(cause); err != nil {
+			return err
+		}
+	}
 	if !m.trusted() {
 		fmt.Fprintf(c.Stderr, "⚠ %s is not in trusted: no member reads your comment (docs/swarm.md section 6)\n", m.login)
 	}
@@ -679,6 +695,52 @@ func swarmUnblock(c *Context, open opener) error {
 		return err
 	}
 	return m.lift()
+}
+
+// causeFlag is unblock's flag naming the released stop's cause.
+const causeFlag = "--cause"
+
+// causeArg is unblock's --cause <word>, leading as the cli reads a value
+// flag or right after <n> as the usage writes it, and the arguments
+// without it; "" when it is not given. No word, or one outside the
+// vocabulary (section 7.5, The stop's cause), is usage.
+func causeArg(c *Context) (string, []string, error) {
+	word, given := c.Value(causeFlag)
+	args := c.Args
+	if !given && len(args) > 1 && args[1] == causeFlag {
+		if len(args) == 2 {
+			return "", nil, UsageError("--cause takes a word, one of " + reconcile.CauseWords())
+		}
+		word, given, args = args[2], true, append([]string{args[0]}, args[3:]...)
+	}
+	if given && !reconcile.IsCause(word) {
+		return "", nil, UsageError(fmt.Sprintf("--cause takes one of %s, not %q", reconcile.CauseWords(), word))
+	}
+	return word, args, nil
+}
+
+// retag supersedes the metrics row of the run whose stop set the block
+// with cause (reconcile.Retag), a refusal before any write.
+func (m *maintainer) retag(cause string) error {
+	c := m.c
+	s := &reconcile.Swarm{O: c.Ops, Place: c.Swarm, WS: c.Swarm.Root, Root: c.Env.Root, Config: c.Env.Config, Local: c.Env.Local, Cfg: m.cfg, Out: c.Stdout, Err: c.Stderr}
+	t, err := s.Retag(m.n, cause)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: #%d: --cause: %v; nothing changed", m.n, err)
+	}
+	if t.From.Cause == cause {
+		fmt.Fprintf(c.Stdout, "#%d %s cause already %s\n", m.n, t.To.Unit, cause)
+		return nil
+	}
+	if _, err := s.WriteRetag(t); err != nil {
+		return fmt.Errorf("Error: swarm: #%d: --cause: %v; nothing changed", m.n, err)
+	}
+	from := t.From.Cause
+	if from == "" {
+		from = "—"
+	}
+	fmt.Fprintf(c.Stdout, "#%d %s cause %s → %s\n", m.n, t.To.Unit, from, cause)
+	return nil
 }
 
 // lift clears swarm:blocked, then swarm:gated unless the stage the block

@@ -417,3 +417,14 @@ they write.
   a word outside the vocabulary; Daisy's own stops name none yet;
   sections 7.4, 7.5, 7.6 and 11; decision
   [153](swarm/decisions/0153-a-cause-on-every-member-stop.md).
+- 2026-11-19, Step 5 of the plan implementing the 2026-11-19 swarm
+  roadmap (R0): Daisy's own stops record a cause from the same nine
+  words, read from the run's `fault:` or `failed:` line: a fault
+  `environment`, a provider's limit, quota or credit `capacity`, bad
+  slices `plan`, a protected path `scope`, a failed fetch
+  `environment`, every other failure empty; the merge step's blocks
+  have no record; `swarm unblock <n> --cause <word>` supersedes the row
+  of the run whose stop it releases with that cause, by the metrics
+  CSV's own rule for a correction, before its comment; sections 7.5,
+  7.6, 7.7 and 11; decision
+  [154](swarm/decisions/0154-daisys-own-stops-carry-a-cause.md).

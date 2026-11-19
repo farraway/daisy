@@ -63,7 +63,7 @@ type Row struct {
 	TokensIn, TokensOut, TokensTotal string // tokens_in holds the input read from a cache
 	TokensCached                     string // the part of TokensIn read from a cache
 	ReviewEffect                     string // a review's in-gate findings that were fixed
-	Cause                            string // why a swarm member's run stopped, its Cause: word
+	Cause                            string // why a swarm run stopped: its member's Cause: word, or Daisy's own stop's
 	CostReported, CostEstimated      string // in US dollars
 	Lines                            *Lines
 	Range                            string // the commit range Lines was measured over

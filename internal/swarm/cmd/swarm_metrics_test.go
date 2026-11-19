@@ -16,6 +16,7 @@ import (
 	"daisy/internal/metrics"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
 
@@ -800,3 +801,150 @@ const causeSentence = "Write one line `Cause: <word>` under any line beginning `
 	"`ruling` (only the maintainer's ruling settles it), " +
 	"`scope` (whether you may change what the plan or the job leaves out), " +
 	"or `capacity` (a provider's limit, quota or credit stopped the work)."
+
+// Step 5's claim, (a) (the plan implementing the 2026-11-19 swarm
+// roadmap, R0; section 7.5, The stop's cause, Daisy's own stops): a run
+// that ends in a stop of Daisy's own records the cause section 7.5 names
+// for it, read from its fault: or failed: line: a check that cannot
+// start, and any fault of the machine, `environment`; a provider's
+// limit `capacity`, its sign-in `environment`; a worker's protected path
+// `scope`; an architect's bad slices `plan`; a failure no word names (a
+// non-zero exit) none.
+func TestSwarmApplyRecordsDaisysOwnCause(t *testing.T) {
+	for _, tc := range []struct {
+		name, role   string
+		canned       runner.Canned
+		check        runner.Canned
+		outcome      string
+		cause, fault string
+	}{
+		{name: "a check that cannot start", role: "worker", canned: work("v1"), check: runner.Canned{Code: 125}, outcome: "fault", cause: "environment", fault: "fault: check: exit 125"},
+		{name: "the image missing", role: "worker", canned: runner.Canned{Code: 125}, outcome: "fault", cause: "environment", fault: "fault: exit 125"},
+		{name: "a provider's limit", role: "worker", canned: runner.Canned{Code: 1, Stdout: `{"type":"result","is_error":true,"result":"Claude AI usage limit reached"}`}, outcome: "fault", cause: "capacity", fault: "fault: provider: Claude AI usage limit reached"},
+		{name: "a provider's sign-in", role: "worker", canned: runner.Canned{Code: 1, Stdout: `{"type":"result","is_error":true,"result":"Invalid API key · Please run /login"}`}, outcome: "fault", cause: "environment", fault: "fault: provider: Invalid API key · Please run /login"},
+		{name: "a protected path", role: "worker", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n"}, "v1")}, outcome: "failed", cause: "scope", fault: "failed: protected path changed: .gitea/workflows/ci.yml"},
+		{name: "bad slices", role: "architect", canned: runner.Canned{Out: "## Steps\n\n1. app: one.\n2. other: two.\n"}, outcome: "failed", cause: "plan", fault: "failed: bad slices: 2"},
+		{name: "a non-zero exit", role: "worker", canned: runner.Canned{Out: "x\n", Code: 2}, outcome: "failed", cause: "", fault: "failed: exit 2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			home := a.metricsHome()
+			if tc.role == "worker" {
+				a.planned(oneSlice)
+			} else {
+				a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+			}
+			a.runner.Script(1, tc.role, tc.canned)
+			a.runner.Script(1, "check", tc.check)
+			a.pass()
+			run := "1-" + tc.role + "-1"
+			if r := a.result(run); !strings.Contains(r, "\n"+tc.fault+"\n") || !strings.HasSuffix(r, "outcome "+tc.outcome+"\ncollected\n") {
+				t.Fatalf("result:\n%s\n%s", r, a.stdout.String())
+			}
+			var row map[string]string
+			for _, r := range rows(t, home) {
+				if r["step_or_run"] == run {
+					row = r
+				}
+			}
+			if row == nil || row["cause"] != tc.cause {
+				t.Errorf("row %v: cause %q, want %q", row, row["cause"], tc.cause)
+			}
+		})
+	}
+}
+
+// Step 5's claim, (b) (section 11, unblock): `swarm unblock <n> --cause
+// <word>` supersedes the metrics row of the run whose stop it releases
+// by the CSV's own rule, a later row of the run's key: the held row with
+// the word in its cause cell and its notes ending `retagged`, every
+// other cell carried over; a word outside the vocabulary, after <n> or
+// leading as the cli reads a value flag, or no word, is usage before
+// anything is written; a block no run's collection set (by hand) is
+// refused, nothing changed.
+func TestSwarmUnblockRetagsTheCause(t *testing.T) {
+	a := newApplyWS(t)
+	home := a.metricsHome()
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: may I rename main.go?\nCause: plan\n"})
+	a.pass()
+	csvFile := filepath.Join(home, "metrics", "metrics.csv")
+	held, _ := os.ReadFile(csvFile)
+	m := &maintainerWS{statusWS: a.statusWS}
+	m.secrets(bothTokens)
+	m.as = map[string]*forge.Fake{"tok-123": a.forge, "jane-456": a.forge.As(forge.Account{Login: "jane"})}
+	before := m.writes(1)
+	var u UsageError
+	for _, tc := range []struct {
+		values []Value
+		args   []string
+	}{
+		{nil, []string{"1", "--cause", "whim", "Rename it."}},
+		{[]Value{{Flag: "--cause", Value: "whim"}}, []string{"1", "Rename it."}},
+		{nil, []string{"1", "--cause"}},
+		{nil, []string{"1", "--cause", "scope"}},
+	} {
+		m.values = tc.values
+		if err := m.verb(swarmUnblock, tc.args...); !errors.As(err, &u) {
+			t.Errorf("%v %q: %v, want usage", tc.values, tc.args, err)
+		}
+	}
+	m.values = nil
+	if after, _ := os.ReadFile(csvFile); !bytes.Equal(after, held) || !slices.Equal(m.writes(1), before) {
+		t.Fatalf("a usage error wrote:\n%s\n%q", after, m.writes(1)[len(before):])
+	}
+	if err := m.verb(swarmUnblock, "1", "--cause", "scope", "Rename", "it."); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(m.stdout.String(), "#1 1-worker-1 cause plan → scope\n#1 commented\n#1 blocked cleared\n#1 gated cleared\n") {
+		t.Errorf("stdout:\n%s", m.stdout.String())
+	}
+	if b := a.bodies(1); b[len(b)-1] != "Rename it." {
+		t.Errorf("comment %q", b[len(b)-1])
+	}
+	var got []map[string]string
+	for _, r := range rows(t, home) {
+		if r["step_or_run"] == "1-worker-1" {
+			got = append(got, r)
+		}
+	}
+	if len(got) != 2 || got[0]["cause"] != "plan" || got[1]["cause"] != "scope" || got[1]["notes"] != got[0]["notes"]+", retagged" {
+		t.Fatalf("rows %v", got)
+	}
+	for _, c := range metrics.Header {
+		if c != "cause" && c != "notes" && got[1][c] != got[0][c] {
+			t.Errorf("%s: %q, held %q", c, got[1][c], got[0][c])
+		}
+	}
+
+	// The worker runs again, and the block set by hand since is no run's.
+	a.runner.Script(1, "worker", work("v1"))
+	a.pass()
+	a.forge.Relabel(issue1, "", forge.Blocked)
+	held, _ = os.ReadFile(csvFile)
+	before = m.writes(1)
+	err := m.verb(swarmUnblock, "1", "--cause", "ruling", "Go on.")
+	if want := "Error: swarm: #1: --cause: no run's stop set this block (run 1-worker-1, whose stop flagged it, ended before run 1-worker-2 started: the block was set again since, by the merge step or by hand); unblock it without --cause; nothing changed"; errText(err) != want {
+		t.Errorf("%v\nwant %s", err, want)
+	}
+	if after, _ := os.ReadFile(csvFile); !bytes.Equal(after, held) || !slices.Equal(m.writes(1), before) {
+		t.Errorf("a refusal wrote:\n%s\n%q", after, m.writes(1)[len(before):])
+	}
+
+	t.Run("a block set by hand", func(t *testing.T) {
+		a := newApplyWS(t)
+		home := a.metricsHome()
+		a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:plan-1-accepted", forge.Blocked})
+		m := &maintainerWS{statusWS: a.statusWS}
+		m.secrets(bothTokens)
+		m.as = map[string]*forge.Fake{"tok-123": a.forge, "jane-456": a.forge.As(forge.Account{Login: "jane"})}
+		before := m.writes(1)
+		err := m.verb(swarmUnblock, "1", "--cause", "scope", "Go on.")
+		if want := "Error: swarm: #1: --cause: no run's stop set this block (no run of the issue flagged it swarm:blocked); unblock it without --cause; nothing changed"; errText(err) != want {
+			t.Errorf("%v\nwant %s", err, want)
+		}
+		if _, err := os.Stat(filepath.Join(home, "metrics", "metrics.csv")); err == nil || !slices.Equal(m.writes(1), before) {
+			t.Errorf("wrote: %v %q", err, m.writes(1)[len(before):])
+		}
+	})
+}

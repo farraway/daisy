@@ -529,11 +529,22 @@ type Backfilled struct {
 // its started line's.
 func endTime(lines []string) (time.Time, bool) {
 	for _, prefix := range []string{Ended(lines), "started"} {
-		if l, ok := Has(lines, prefix); prefix != "" && ok {
-			f := strings.Fields(l)
-			if t, err := time.Parse(time.RFC3339Nano, f[len(f)-1]); err == nil {
-				return t.UTC(), true
-			}
+		if prefix == "" {
+			continue
+		}
+		if t, ok := lineTime(lines, prefix); ok {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+// lineTime is the time the result's line beginning prefix ends with.
+func lineTime(lines []string, prefix string) (time.Time, bool) {
+	if l, ok := Has(lines, prefix); ok {
+		f := strings.Fields(l)
+		if t, err := time.Parse(time.RFC3339Nano, f[len(f)-1]); err == nil {
+			return t.UTC(), true
 		}
 	}
 	return time.Time{}, false
