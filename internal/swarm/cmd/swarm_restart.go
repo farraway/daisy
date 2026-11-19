@@ -15,7 +15,9 @@ import (
 // restart): <state>/restart written, so that the running apply loop
 // re-executes itself at its first pass with no member running.
 func SwarmRestart(c *Context) error {
-	return inSwarm(c, func() error { return restartSwarm(c) })
+	return inSwarm(c, func() error {
+		return typed(commentVerb{name: "restart", run: func(c *Context, _ opener) error { return restartSwarm(c) }})(c, openForge)
+	})
 }
 
 func restartSwarm(c *Context) error {

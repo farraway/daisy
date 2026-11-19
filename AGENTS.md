@@ -264,18 +264,19 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm list [--json]` | The swarms this machine runs: clone, home, pause; from anywhere (read-only) |
 | Swarm | `daisy swarm journal [--json] [--issue <n>] \| --mark <run>` | The journal since the line marked seen (--issue: one issue's lines); --mark moves the mark, its one write |
 | Swarm | `daisy swarm connect [--json]` | The connect briefing: journal by issue, waits with gate notes, questions, AUTHORITIES.md, metrics (read-only) |
-| Swarm | `daisy swarm pause [<n>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue) |
-| Swarm | `daisy swarm resume [<n>]` | Launch members again and release the owner's held batch (with <n>, that issue) |
-| Swarm | `daisy swarm restart` | Have the running apply re-execute itself, onto the installed build, once no member runs |
-| Swarm | `daisy swarm triage <n>` | As the maintainer: triage a proposal, proposal-posted to proposal-accepted |
-| Swarm | `daisy swarm accept <n>` | As the maintainer: accept the plan, plan-0-posted to plan-1-accepted |
-| Swarm | `daisy swarm class <n> routine\|architecture` | As the maintainer: set the job's class; Daisy passes a routine job's triage and plan |
-| Swarm | `daisy swarm approve <n>` | As the maintainer: approve the issue's open pull request |
-| Swarm | `daisy swarm merge <n>` | As the maintainer: merge the approved pull request, then next slice or close |
-| Swarm | `daisy swarm unblock <n> [--cause <word>] <comment...>` | As the maintainer: comment, then clear swarm:blocked from the issue (--cause: retag the stop's cause) |
-| Swarm | `daisy swarm block <n> --by <m>` | As the maintainer: hold the issue's job until #m is closed |
-| Swarm | `daisy swarm replan <n> [direction...]` | As the maintainer: have the architect re-plan the job, from your direction |
-| Swarm | `daisy swarm close <n> [comment...]` | As the maintainer: close the issue, after the comment when given |
+| Swarm | `daisy swarm pause [<n>] [--type <type>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue; --type: record the intervention) |
+| Swarm | `daisy swarm resume [<n>] [--type <type>]` | Launch members again and release the owner's held batch (with <n>, that issue; --type: record the intervention) |
+| Swarm | `daisy swarm restart [--type <type>]` | Have the running apply re-execute itself, onto the installed build, once no member runs (--type: record the intervention) |
+| Swarm | `daisy swarm triage <n> [--type <type>]` | As the maintainer: triage a proposal, proposal-posted to proposal-accepted |
+| Swarm | `daisy swarm accept <n> [--type <type>]` | As the maintainer: accept the plan, plan-0-posted to plan-1-accepted |
+| Swarm | `daisy swarm class <n> [--type <type>] routine\|architecture` | As the maintainer: set the job's class; Daisy passes a routine job's triage and plan |
+| Swarm | `daisy swarm approve <n> [--type <type>]` | As the maintainer: approve the issue's open pull request |
+| Swarm | `daisy swarm merge <n> [--type <type>]` | As the maintainer: merge the approved pull request, then next slice or close |
+| Swarm | `daisy swarm unblock <n> [--cause <word>] [--type <type>] <comment...>` | As the maintainer: comment, then clear swarm:blocked from the issue (--cause: retag the stop's cause) |
+| Swarm | `daisy swarm block <n> --by <m> [--type <type>]` | As the maintainer: hold the issue's job until #m is closed |
+| Swarm | `daisy swarm replan <n> [--type <type>] [direction...]` | As the maintainer: have the architect re-plan the job, from your direction |
+| Swarm | `daisy swarm close <n> [--type <type>] [comment...]` | As the maintainer: close the issue, after the comment when given |
+| Swarm | `daisy swarm intervene --type <type> <note...>` | As the maintainer: record an intervention no verb makes (a hand edit of swarm.json, a hand-published patch) |
 | System | `daisy commit [--root] <message>` | Commit the home repo (or the root repo) |
 | System | `daisy healthcheck [--force]` | Run the system health check |
 | System | `daisy check-secrets` | Check which secrets/tokens are configured (read-only) |

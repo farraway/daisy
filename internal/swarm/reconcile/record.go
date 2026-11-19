@@ -253,21 +253,38 @@ func ReadJournal(fs ops.FS, state string) ([]JournalLine, error) {
 	return lines, nil
 }
 
+// journalLocked runs change under <state>/journal.lock, the queue's lock,
+// which every rewrite of <state>/journal takes: apply queueing a line or
+// dropping the lines it pushed, and a maintainer's verb queueing its
+// intervention's (section 11, The interventions' record), each its own
+// process.
+func (s *Swarm) journalLocked(change func() error) error {
+	lock := filepath.Join(s.state(), "journal.lock")
+	release, err := metrics.Lock(s.O, lock, "swarm "+s.Cfg.Forge.Repo+" since "+s.O.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return fmt.Errorf("cannot take %s: %v", lock, err)
+	}
+	defer release()
+	return change()
+}
+
 // queue adds the line to <state>/journal under day, unless the run's line
 // is there already (a collection retried before its `recorded` line).
 func (s *Swarm) queue(day, line string) error {
-	fs := s.O.FS()
-	old, err := fs.ReadFile(s.journalQueue())
-	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		return err
-	}
-	run := strings.Fields(line)[2] // `- HHMM <run>: …`
-	for _, q := range strings.Split(string(old), "\n") {
-		if f := strings.Fields(q); len(f) > 3 && f[3] == run {
-			return nil
+	return s.journalLocked(func() error {
+		fs := s.O.FS()
+		old, err := fs.ReadFile(s.journalQueue())
+		if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+			return err
 		}
-	}
-	return fs.WriteFile(s.journalQueue(), append(old, day+" "+line+"\n"...), 0o644)
+		run := strings.Fields(line)[2] // `- HHMM <run>: …`
+		for _, q := range strings.Split(string(old), "\n") {
+			if f := strings.Fields(q); len(f) > 3 && f[3] == run {
+				return nil
+			}
+		}
+		return fs.WriteFile(s.journalQueue(), append(old, day+" "+line+"\n"...), 0o644)
+	})
 }
 
 // homeName is the Daisy home <state>/home names, "" for none.
@@ -592,7 +609,7 @@ func (s *Swarm) Journal() error {
 		}
 	}
 	if len(queued) == 0 {
-		return fs.Remove(s.journalQueue())
+		return s.unqueue(nil)
 	}
 	w, err := s.notesRepo()
 	if err != nil {
@@ -610,7 +627,33 @@ func (s *Swarm) Journal() error {
 		fmt.Fprintf(s.Err, "⚠ journal not pushed (%s); its %d %s kept in %s for the next pass\n", reason, len(queued), map[bool]string{true: "line is", false: "lines are"}[len(queued) == 1], s.journalQueue())
 		return nil
 	}
-	return fs.Remove(s.journalQueue())
+	return s.unqueue(queued)
+}
+
+// unqueue drops the pushed lines from <state>/journal under its lock,
+// keeping a line queued since they were read, and removes the file when
+// none is left.
+func (s *Swarm) unqueue(pushed []string) error {
+	return s.journalLocked(func() error {
+		fs := s.O.FS()
+		b, err := fs.ReadFile(s.journalQueue())
+		if errors.Is(err, iofs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		var kept []byte
+		for _, l := range strings.Split(string(b), "\n") {
+			if strings.TrimSpace(l) != "" && !slices.Contains(pushed, l) {
+				kept = append(kept, l+"\n"...)
+			}
+		}
+		if len(kept) == 0 {
+			return fs.Remove(s.journalQueue())
+		}
+		return fs.WriteFile(s.journalQueue(), kept, 0o644)
+	})
 }
 
 // Journal appends the queued lines (`<YYYY-MM-DD> <line>`) to their days'

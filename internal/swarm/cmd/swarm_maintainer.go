@@ -23,32 +23,32 @@ const MaintainerTokenEnv = declare.MaintainerTokenEnv
 // SwarmTriage is `daisy swarm triage <n>`: G1, T3 (proposal-posted →
 // proposal-accepted).
 func SwarmTriage(c *Context) error {
-	return inSwarm(c, func() error { return swarmTriage(c, openForge) })
+	return inSwarm(c, func() error { return maintainerVerb("triage")(c, openForge) })
 }
 
 // SwarmAccept is `daisy swarm accept <n>`: G2, T7 (plan-0-posted →
 // plan-1-accepted).
 func SwarmAccept(c *Context) error {
-	return inSwarm(c, func() error { return swarmAccept(c, openForge) })
+	return inSwarm(c, func() error { return maintainerVerb("accept")(c, openForge) })
 }
 
 // SwarmClass is `daisy swarm class <n> routine|architecture`: the job's
 // class (section 5), swarm:class-architecture set or cleared, then the
 // statement `Class: <class>` posted as the maintainer.
 func SwarmClass(c *Context) error {
-	return inSwarm(c, func() error { return swarmClass(c, openForge) })
+	return inSwarm(c, func() error { return maintainerVerb("class")(c, openForge) })
 }
 
 // SwarmApprove is `daisy swarm approve <n>`: a formal approving review of
 // the issue's current open pull request at its head (section 12).
 func SwarmApprove(c *Context) error {
-	return inSwarm(c, func() error { return swarmApprove(c, openForge) })
+	return inSwarm(c, func() error { return maintainerVerb("approve")(c, openForge) })
 }
 
 // SwarmMerge is `daisy swarm merge <n>`: G3, the approved head merged,
 // then T13 or the last slice's close (section 12).
 func SwarmMerge(c *Context) error {
-	return inSwarm(c, func() error { return swarmMerge(c, openForge) })
+	return inSwarm(c, func() error { return maintainerVerb("merge")(c, openForge) })
 }
 
 // SwarmUnblock is `daisy swarm unblock <n> [--cause <word>]
@@ -56,7 +56,7 @@ func SwarmMerge(c *Context) error {
 // --cause, the released stop's metrics row superseded with that cause
 // first.
 func SwarmUnblock(c *Context) error {
-	return inSwarm(c, func() error { return swarmUnblock(c, openForge) })
+	return inSwarm(c, func() error { return maintainerVerb("unblock")(c, openForge) })
 }
 
 // SwarmReplan is `daisy swarm replan <n> [direction...]`: the
@@ -64,19 +64,19 @@ func SwarmUnblock(c *Context) error {
 // architect revises the plan, or writes it, at the next pass (section 6,
 // The re-plan).
 func SwarmReplan(c *Context) error {
-	return inSwarm(c, func() error { return swarmReplan(c, openForge) })
+	return inSwarm(c, func() error { return maintainerVerb("replan")(c, openForge) })
 }
 
 // SwarmBlock is `daisy swarm block <n> --by <m>`: #m flagged
 // swarm:blocking, then `Blocked by #<m>` on #n, which holds #n's job while
 // #m is open (section 6, rule 1).
 func SwarmBlock(c *Context) error {
-	return inSwarm(c, func() error { return swarmBlock(c, openForge) })
+	return inSwarm(c, func() error { return maintainerVerb("block")(c, openForge) })
 }
 
 // SwarmClose is `daisy swarm close <n> [comment...]`: T19.
 func SwarmClose(c *Context) error {
-	return inSwarm(c, func() error { return swarmClose(c, openForge) })
+	return inSwarm(c, func() error { return maintainerVerb("close")(c, openForge) })
 }
 
 // commentVerbs is the maintainer's verbs a comment command runs (section
@@ -86,25 +86,34 @@ func SwarmClose(c *Context) error {
 // whose <state>/paused is the host's. prompt build writes the clone, so
 // no comment runs it.
 var commentVerbs = []commentVerb{
-	{"triage", "", none, swarmTriage},
-	{"accept", "", none, swarmAccept},
-	{"class", " routine|architecture", func(n int) bool { return n == 1 }, swarmClass},
-	{"approve", "", none, swarmApprove},
-	{"merge", "", none, swarmMerge},
-	{"unblock", " [--cause <word>] <comment...>", func(n int) bool { return n > 0 }, swarmUnblock},
-	{"block", " --by <m>", func(n int) bool { return n == 2 }, swarmBlock},
-	{"pause", "", none, func(c *Context, open opener) error { return swarmHold(c, open, true) }},
-	{"resume", "", none, func(c *Context, open opener) error { return swarmHold(c, open, false) }},
-	{"replan", " [direction...]", func(int) bool { return true }, swarmReplan},
-	{"close", " [comment...]", func(int) bool { return true }, swarmClose},
+	{"triage", "", none, nil, swarmTriage},
+	{"accept", "", none, nil, swarmAccept},
+	{"class", " routine|architecture", func(n int) bool { return n == 1 }, nil, swarmClass},
+	{"approve", "", none, nil, swarmApprove},
+	{"merge", "", none, nil, swarmMerge},
+	{"unblock", " [--cause <word>] <comment...>", func(n int) bool { return n > 0 }, []string{causeFlag}, swarmUnblock},
+	{"block", " --by <m>", func(n int) bool { return n == 2 }, []string{"--by"}, swarmBlock},
+	{"pause", "", none, nil, func(c *Context, open opener) error { return swarmHold(c, open, true) }},
+	{"resume", "", none, nil, func(c *Context, open opener) error { return swarmHold(c, open, false) }},
+	{"replan", " [direction...]", func(int) bool { return true }, nil, swarmReplan},
+	{"close", " [comment...]", func(int) bool { return true }, nil, swarmClose},
 }
 
 // commentVerb is one of commentVerbs: its name, its arguments as its
-// usage writes them, whether it takes n of them, and the verb.
+// usage writes them (each also takes --type <type>, typed), whether it
+// takes n of them, the value flags it reads after <n>, and the verb.
 type commentVerb struct {
 	name, args string
 	takes      func(n int) bool
+	flags      []string
 	run        func(*Context, opener) error
+}
+
+// maintainerVerb is the verb of commentVerbs named name with its --type
+// (typed), as the terminal and a comment run it.
+func maintainerVerb(name string) func(*Context, opener) error {
+	v := commentVerbs[slices.IndexFunc(commentVerbs, func(v commentVerb) bool { return v.name == name })]
+	return typed(v)
 }
 
 func none(n int) bool { return n == 0 }
@@ -157,12 +166,13 @@ func runComment(c *Context, open opener, n int, words []string, out *bytes.Buffe
 		return fmt.Errorf("Error: swarm: %s is no comment command; %s", words[0], commentRuns())
 	}
 	v := commentVerbs[i]
-	if !v.takes(len(words) - 1) {
-		return fmt.Errorf("Error: swarm: usage: /swarm %s%s (on the issue or its pull request)", v.name, v.args)
+	usage := fmt.Errorf("Error: swarm: usage: /swarm %s [--type <type>]%s (on the issue or its pull request)", v.name, v.args)
+	if _, _, rest, err := typeAfter(words[1:], v.flags); err != nil || !v.takes(len(rest)) {
+		return usage
 	}
 	sub := &Context{Ops: c.Ops, Env: c.Env, Swarm: c.Swarm, Stdin: strings.NewReader(""), Stdout: out, Stderr: c.Stderr,
 		Args: append([]string{strconv.Itoa(n)}, words[1:]...)}
-	return v.run(sub, open)
+	return maintainerVerb(v.name)(sub, open)
 }
 
 // maintainer is the forge as one of the maintainer's verbs reaches it:
@@ -845,13 +855,13 @@ func swarmReplan(c *Context, open opener) error {
 // hold on issue n, swarm:paused set (section 6, rule 1); without, the
 // whole swarm paused (pauseSwarm).
 func SwarmPause(c *Context) error {
-	return inSwarm(c, func() error { return swarmHold(c, openForge, true) })
+	return inSwarm(c, func() error { return maintainerVerb("pause")(c, openForge) })
 }
 
 // SwarmResume is `daisy swarm resume [<n>]`: with <n>, swarm:paused
 // cleared from issue n; without, the whole swarm resumed (resumeSwarm).
 func SwarmResume(c *Context) error {
-	return inSwarm(c, func() error { return swarmHold(c, openForge, false) })
+	return inSwarm(c, func() error { return maintainerVerb("resume")(c, openForge) })
 }
 
 func swarmHold(c *Context, open opener, pause bool) error {

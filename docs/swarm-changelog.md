@@ -428,3 +428,16 @@ they write.
   CSV's own rule for a correction, before its comment; sections 7.5,
   7.6, 7.7 and 11; decision
   [154](swarm/decisions/0154-daisys-own-stops-carry-a-cause.md).
+- 2026-11-19, Step 6 of the plan implementing the 2026-11-19 swarm
+  roadmap (R0): the maintainer's interventions are recorded: every verb
+  that changes the swarm's state on the maintainer's behalf (`triage`,
+  `accept`, `class`, `approve`, `merge`, `unblock`, `block`, `replan`,
+  `close`, `pause`, `resume` and `restart`; also from a comment
+  command) takes `--type <type>`, one of the catalogue's `I1` to `I14`,
+  and once its writes are made records the intervention, a metrics row
+  of a new kind, `intervention` (the type in `cause`, the verb in
+  `outcome`, run `<n>-intervention-<k>`), and a journal line; `daisy
+  swarm intervene --type <type> <note...>` records an act no verb
+  makes; the journal queue takes `<state>/journal.lock` and its push
+  keeps a line queued since; sections 2, 6, 7.6 and 11; decision
+  [155](swarm/decisions/0155-interventions-recorded.md).

@@ -127,6 +127,17 @@ Each verb in the table runs in the swarm repository's clone; one given an issue 
 | a new Daisy build to put in service, or `State: … — restart requested at <time>` | `daisy swarm restart` | the running `apply` loop re-executes itself at its first pass with no member running (it does so by itself when the installed binary changes); a swarm never idle waits: `daisy swarm pause`, then `resume` once the journal shows `0-restart-…` |
 | `Held: paused #n` | `daisy swarm pause <n>`, `daisy swarm resume <n>` | `swarm:paused` set or cleared on that issue alone: nothing launches on it and the merge step skips it, so other jobs go first or an urgent fix jumps the queue |
 | `Held: #n blocked by #m` | `daisy swarm block <n> --by <m>` | `swarm:blocking` on #m, then the comment `Blocked by #m` on #n: no member launches on #n while #m is open and that comment is the maintainer's newest on #n |
+| a step-in no verb makes: a hand edit of `swarm.json`, a hand-published patch, a notes branch merged by hand, a check rerun | `daisy swarm intervene --type <type> <note...>` | the intervention's record alone, a row of kind `intervention` in the home's metrics CSV and a line in the swarm's journal; no forge call |
+
+**Interventions.** Every verb in the table but `intervene` also takes
+`--type <type>` (right after `<n>`, or leading): when the maintainer
+steps in where the swarm should have gone on alone, the verb's writes
+are made and the intervention recorded with its type, one of the
+catalogue's `I1` to `I14` (docs/swarm.md section 11, The interventions'
+record, lists them), so the interventions a day are counted from the
+record. Propose the type with the verb when you ask for the
+maintainer's yes; a type outside `I1` to `I14` is refused, nothing
+written.
 
 A verb that refuses changes nothing; read its message to the maintainer
 and do not work around it (a wrong stage, a merge the forge refused, an

@@ -36,8 +36,8 @@ help --markdown` renders the same table as AGENTS.md's Command Reference.
 The `Swarm` group (`swarm init`, `swarm prompt build`, `swarm apply`,
 `swarm metrics`, `swarm status`, `swarm list`, `swarm journal`, `swarm connect`, `swarm pause`, `swarm resume`, `swarm restart`, and the maintainer's
 `swarm triage`, `swarm accept`, `swarm class`, `swarm approve`, `swarm
-merge`, `swarm unblock`, `swarm block`, `swarm replan` and `swarm close`) joined the
-table a verb at a time as each was built; all twenty are in it, and the tree never names a command the binary does
+merge`, `swarm unblock`, `swarm block`, `swarm replan`, `swarm close` and `swarm intervene`) joined the
+table a verb at a time as each was built; all twenty-one are in it, and the tree never names a command the binary does
 not run. Their entries below give docs/swarm.md's revision 6 (the swarm
 repository as the swarm's root, run from its clone with no Daisy
 workspace needed, the secrets in the swarm's `<state>/env`), which
@@ -109,20 +109,26 @@ Swarm
   swarm journal [--json] [--issue <n>] | --mark <run>
                                     The journal since the line marked seen (--issue: one issue's lines); --mark moves the mark, its one write
   swarm connect [--json]            The connect briefing: journal by issue, waits with gate notes, questions, AUTHORITIES.md, metrics (read-only)
-  swarm pause [<n>]                 Launch no new member until resumed (with <n>, as the maintainer, on that issue)
-  swarm resume [<n>]                Launch members again and release the owner's held batch (with <n>, that issue)
-  swarm restart                     Have the running apply re-execute itself, onto the installed build, once no member runs
-  swarm triage <n>                  As the maintainer: triage a proposal, proposal-posted to proposal-accepted
-  swarm accept <n>                  As the maintainer: accept the plan, plan-0-posted to plan-1-accepted
-  swarm class <n> routine|architecture
+  swarm pause [<n>] [--type <type>] Launch no new member until resumed (with <n>, as the maintainer, on that issue; --type: record the intervention)
+  swarm resume [<n>] [--type <type>]
+                                    Launch members again and release the owner's held batch (with <n>, that issue; --type: record the intervention)
+  swarm restart [--type <type>]     Have the running apply re-execute itself, onto the installed build, once no member runs (--type: record the intervention)
+  swarm triage <n> [--type <type>]  As the maintainer: triage a proposal, proposal-posted to proposal-accepted
+  swarm accept <n> [--type <type>]  As the maintainer: accept the plan, plan-0-posted to plan-1-accepted
+  swarm class <n> [--type <type>] routine|architecture
                                     As the maintainer: set the job's class; Daisy passes a routine job's triage and plan
-  swarm approve <n>                 As the maintainer: approve the issue's open pull request
-  swarm merge <n>                   As the maintainer: merge the approved pull request, then next slice or close
-  swarm unblock <n> [--cause <word>] <comment...>
+  swarm approve <n> [--type <type>] As the maintainer: approve the issue's open pull request
+  swarm merge <n> [--type <type>]   As the maintainer: merge the approved pull request, then next slice or close
+  swarm unblock <n> [--cause <word>] [--type <type>] <comment...>
                                     As the maintainer: comment, then clear swarm:blocked from the issue (--cause: retag the stop's cause)
-  swarm block <n> --by <m>          As the maintainer: hold the issue's job until #m is closed
-  swarm replan <n> [direction...]   As the maintainer: have the architect re-plan the job, from your direction
-  swarm close <n> [comment...]      As the maintainer: close the issue, after the comment when given
+  swarm block <n> --by <m> [--type <type>]
+                                    As the maintainer: hold the issue's job until #m is closed
+  swarm replan <n> [--type <type>] [direction...]
+                                    As the maintainer: have the architect re-plan the job, from your direction
+  swarm close <n> [--type <type>] [comment...]
+                                    As the maintainer: close the issue, after the comment when given
+  swarm intervene --type <type> <note...>
+                                    As the maintainer: record an intervention no verb makes (a hand edit of swarm.json, a hand-published patch)
 
 System
   commit [--root] <message>         Commit the home repo (or the root repo)
@@ -866,7 +872,7 @@ Abridged:
 | Stderr | errors; `⚠️  root_sha left empty: …` when `$DAISY_ROOT` is no clone and no `--root-sha` is given, `⚠️  home_sha left empty: …` when the home has no commit and no `--home-sha` is given |
 | Ops | Real |
 | Lock | `$DAISY_LOCAL/metrics.lock` (`env.MetricsLock`), taken before the CSV is read and held until the plan is written (or the CSV put back), so that a row `swarm apply` appends meanwhile (a swarm's run, `docs/swarm.md` 7.6, The run's record) is not written over; held by another writer, it waits, and past 30 seconds refuses, naming the holder (`Error: cannot take <lock>: <lock> is held: <holder> pid <pid>`, `Nothing was recorded.`). One lock a machine, outside the home, whose next commit would sweep a lock file up |
-| Writes | `<home>/metrics/metrics.csv` (`env.MetricsFile`; directory created; written atomically, through a link): the header (the columns, in order: `when`, `kind` — `plan-step` here, `swarm-run` for a swarm's run, which `swarm apply` appends to the home `<state>/home` names (`docs/swarm.md` 7.6, The run's record) —, `plan_or_swarm` the plan's file name without `.plan.md`, `step_or_run`, `role`, `provider`, `model`, `effort`, `root_sha`, `home_sha` (empty for a row with no home), `prompt_hash`, `outcome`, `review_rounds`, `tokens_in`, `tokens_out`, `tokens_total`, `cost_reported`, `cost_estimated`, `code_added`, `code_removed`, `tests_added`, `tests_removed`, `prose_added`, `prose_removed`, `binary_files`, `range`, `notes`, `tokens_cached`, `review_effect`, `cause` — a swarm run's stop's cause, `docs/swarm.md` 7.5, empty here) when the file is new, then one row, quoted as CSV quotes (Go's CSV writer); the bytes before it are the file's, which must start with that header or an older one, the columns up to `notes` (the header before Step 28 of the plan remediating the 2026-11-15 design review) or up to `tokens_cached` (before its Step 30) or up to `review_effect` (before Step 4 of the plan implementing the 2026-11-19 swarm roadmap; else refused, nothing written): an older header's line is rewritten to this one and the rows under it kept as they are, each as short as the header it was written under, read with the columns it lacks empty (a column is only ever added at the end). The plan, at its real path (never through `PLAN.md`): the step's row of the `## Metrics` table (`\| Step \| Role \| Model \| Effort \| Root \| Home \| Outcome \| Reviews \| Tokens \| Cost \| Code \| Tests \| Prose \| Range \| Notes \|`, the two shas cut to 7 digits, a cell's `\|` escaped and its line ends made spaces): the row of the same step and role replaced when the table has one, else this one appended; no table, it is added at the end of the section; no section, the section goes after `## Decisions`, else at the end of the plan; every other byte of the plan as it was, but the blank line before an added section |
+| Writes | `<home>/metrics/metrics.csv` (`env.MetricsFile`; directory created; written atomically, through a link): the header (the columns, in order: `when`, `kind` — `plan-step` here, `swarm-run` for a swarm's run, which `swarm apply` appends to the home `<state>/home` names (`docs/swarm.md` 7.6, The run's record), `intervention` for a swarm maintainer's intervention (`docs/swarm.md` section 11, The interventions' record) —, `plan_or_swarm` the plan's file name without `.plan.md`, `step_or_run`, `role`, `provider`, `model`, `effort`, `root_sha`, `home_sha` (empty for a row with no home), `prompt_hash`, `outcome`, `review_rounds`, `tokens_in`, `tokens_out`, `tokens_total`, `cost_reported`, `cost_estimated`, `code_added`, `code_removed`, `tests_added`, `tests_removed`, `prose_added`, `prose_removed`, `binary_files`, `range`, `notes`, `tokens_cached`, `review_effect`, `cause` — a swarm run's stop's cause, `docs/swarm.md` 7.5, or an intervention's type, empty here) when the file is new, then one row, quoted as CSV quotes (Go's CSV writer); the bytes before it are the file's, which must start with that header or an older one, the columns up to `notes` (the header before Step 28 of the plan remediating the 2026-11-15 design review) or up to `tokens_cached` (before its Step 30) or up to `review_effect` (before Step 4 of the plan implementing the 2026-11-19 swarm roadmap; else refused, nothing written): an older header's line is rewritten to this one and the rows under it kept as they are, each as short as the header it was written under, read with the columns it lacks empty (a column is only ever added at the end). The plan, at its real path (never through `PLAN.md`): the step's row of the `## Metrics` table (`\| Step \| Role \| Model \| Effort \| Root \| Home \| Outcome \| Reviews \| Tokens \| Cost \| Code \| Tests \| Prose \| Range \| Notes \|`, the two shas cut to 7 digits, a cell's `\|` escaped and its line ends made spaces): the row of the same step and role replaced when the table has one, else this one appended; no table, it is added at the end of the section; no section, the section goes after `## Decisions`, else at the end of the plan; every other byte of the plan as it was, but the blank line before an added section |
 | Commits | none: the next home commit sweeps both files up, as for `feedback` |
 | Cases | none; `TestMetricsAddRecordsAStep`, `TestMetricsAddRefusals`, `TestMetricsTokensPerCodeLine`, `TestMetricsReviewEffect`, `TestFirstHeaderReadAndExtended`, `TestStep28HeaderReadAndExtended`, `TestClassify`, `TestCount`, `TestAppendCSV`, `TestPlanRowInsertsAfterDecisions`, `TestPlanRowPlacement`, `TestAppendUnderTheLockLosesNoRow`, `TestLockGivesUpNamingTheHolder` |
 
@@ -1306,7 +1312,7 @@ Abridged:
 |---|---|
 | Status | as built (Step 6 of the swarm build; `<n>` at Step 15; finding the swarm at Step 2 of revision 6's plan): Go (`internal/swarm/cmd/swarm.go`, `internal/swarm/cmd/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
-| Usage | `daisy swarm pause [<n>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone (the maintainer's verbs' start, below); a second argument is usage on stderr, exit 2 |
+| Usage | `daisy swarm pause [<n>] [--type <type>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone (the maintainer's verbs' start, below); `--type` records the intervention (The maintainer's verbs, below); a second argument but `--type <type>` is usage on stderr, exit 2 |
 | Exit codes | 0 paused or already paused; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the write failing, and with `<n>` the maintainer's verbs' refusals and a forge failure; 2 usage |
 | Stdout | `Paused: no new member will launch (<state>/paused); running members finish and are posted` [92], or `Already paused since <time>` [92], then `: <reason>` when the file carries one; with `<n>`, `Maintainer <login> on <owner>/<repo>`, then `#<n> paused` or `#<n> already paused` |
 | Ops | Real |
@@ -1320,7 +1326,7 @@ Abridged:
 |---|---|
 | Status | as built (Step 6 of the swarm build; `<n>` at Step 15; finding the swarm at Step 2 of revision 6's plan): Go (`internal/swarm/cmd/swarm.go`, `internal/swarm/cmd/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
 | Legacy | none |
-| Usage | `daisy swarm resume [<n>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone; a second argument is usage on stderr, exit 2 |
+| Usage | `daisy swarm resume [<n>] [--type <type>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); without `<n>`, the whole swarm; with it, as the maintainer, issue `<n>` alone; `--type` records the intervention (The maintainer's verbs, below); a second argument but `--type <type>` is usage on stderr, exit 2 |
 | Exit codes | 0; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, a removal failing, and with `<n>` the maintainer's verbs' refusals and a forge failure; 2 usage |
 | Stdout | `Resumed: members launch at the next pass` [92] when `<state>/paused` was present, `Owner batch released` when `<state>/owner-held` was, `QA released` when `<state>/qa-held` was; `Not paused` [92] when none was; with `<n>`, `Maintainer <login> on <owner>/<repo>`, then `#<n> paused cleared` or `#<n> not paused` |
 | Ops | Real |
@@ -1334,7 +1340,7 @@ Abridged:
 |---|---|
 | Status | as built (Step 19 of the plan for the inbox requests F27–F35): Go (`internal/swarm/cmd/swarm_restart.go`); the contract is [docs/swarm.md](swarm.md) section 11, daisy swarm restart and The restart |
 | Legacy | none |
-| Usage | `daisy swarm restart`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); an argument is usage on stderr, exit 2 |
+| Usage | `daisy swarm restart [--type <type>]`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); `--type`, a leading value flag, records the intervention on no issue (The maintainer's verbs, below); an argument is usage on stderr, exit 2 |
 | Exit codes | 0 requested or already requested; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, the write failing; 2 usage |
 | Stdout | `Restart requested (<state>/restart): the running apply re-executes itself at its first pass with no member running`, or `Restart already requested at <time>` |
 | Ops | Real |
@@ -1375,7 +1381,8 @@ which must be open and carry exactly one stage label, the flags
 #<n> is closed; nothing changed`, `… carries no stage label; nothing
 changed`, `… carries <label> and <label>; remove all but one on the
 forge first`, `… is <label>, not <label>; nothing changed`). None writes
-a file (but `unblock --cause`, its row in the home's metrics CSV),
+a file (but `unblock --cause`, its row in the home's metrics CSV, and
+`--type`, below),
 launches a member or runs a process (git aside, for the validation), or
 commits; a refusal writes nothing. A relabel, or
 `unblock`'s clearing of `swarm:blocked`, of an issue carrying
@@ -1400,12 +1407,35 @@ marker: a comment opening with it is refused (`Error: swarm: the comment
 opens with the swarm's marker, which only the swarm's entries carry;
 nothing posted`).
 
+**`--type <type>`** (Step 6 of the plan implementing the 2026-11-19
+swarm roadmap; docs/swarm.md section 11, The interventions' record):
+each of these verbs, and `swarm restart`, also takes `--type <type>`,
+right after `<n>` (in either order with `unblock`'s `--cause` and
+`block`'s `--by`) or leading as a value flag, and from a comment
+command right after the verb's name: the maintainer's intervention,
+`<type>` one of the catalogue's `I1` to `I14`. A type outside them,
+`--type` with no type or given twice is usage (exit 2) before anything
+is read; `<state>/home` naming no usable home, or its metrics CSV not
+this Daisy's, is `Error: swarm: --type: <reason>; nothing changed`
+(exit 1) before the forge is read. Once the verb's writes are made
+(exit 0), the intervention is recorded: a row of kind `intervention`
+appended to `<home>/metrics/metrics.csv` under
+`$DAISY_LOCAL/metrics.lock` (`step_or_run` `<n>-intervention-<k>`,
+`<n>` `0` for the whole swarm's `pause`, `resume` and `restart`;
+`role` `maintainer`; `outcome` the verb's name; `cause` the type;
+`notes` `#<n>`), its line `- <HHMM> <n>-intervention-<k>: <type>;
+<verb>; #<n>` queued in `<state>/journal` under
+`<state>/journal.lock`, and `Intervention <n>-intervention-<k>
+recorded: <type>` the last line of stdout; the record refused after the
+writes is `Error: swarm: intervention not recorded: <reason>` (exit 1),
+recorded then by `swarm intervene`. A verb refused records nothing.
+
 ### daisy swarm triage
 
 | Field | Value |
 |---|---|
 | Status | as built (Step 10 of the swarm build; finding the swarm and `<state>/env` at Step 2 of revision 6's plan): Go (`internal/swarm/cmd/swarm_maintainer.go`); the contract is [docs/swarm.md](swarm.md) section 11 |
-| Usage | `daisy swarm triage <n>`: G1, T3, for an issue at `swarm:proposal-posted` |
+| Usage | `daisy swarm triage <n> [--type <type>]`: G1, T3, for an issue at `swarm:proposal-posted` |
 | Exit codes | 0 relabelled; 1 the maintainer's verbs' refusals (above), a forge call failing (`Error: swarm: forge: …`); 2 usage |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> swarm:proposal-posted → swarm:proposal-accepted`, and `#<n> gated cleared` when it carried the flag and is not blocked |
 | Ops | Real |
@@ -1418,7 +1448,7 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 10 of the swarm build), as `swarm triage` |
-| Usage | `daisy swarm accept <n>`: G2, T7, for an issue at `swarm:plan-0-posted` |
+| Usage | `daisy swarm accept <n> [--type <type>]`: G2, T7, for an issue at `swarm:plan-0-posted` |
 | Exit codes | as `swarm triage` |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> swarm:plan-0-posted → swarm:plan-1-accepted`, and `#<n> gated cleared` when it carried the flag and is not blocked |
 | Ops | Real |
@@ -1431,7 +1461,7 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 20 of the swarm build), as `swarm triage` |
-| Usage | `daisy swarm class <n> routine\|architecture`: the job class of issue `<n>`, at any stage (docs/swarm.md section 5): `architecture` sets `swarm:class-architecture`, `routine` clears it, and either then posts the class statement `Class: <class>`, which Daisy reads and no member answers; an issue of that class already is left as it is, but for an architecture job without `swarm:class-architecture` (no class statement, or the maintainer's own issue), which is given the flag alone |
+| Usage | `daisy swarm class <n> [--type <type>] routine\|architecture`: the job class of issue `<n>`, at any stage (docs/swarm.md section 5): `architecture` sets `swarm:class-architecture`, `routine` clears it, and either then posts the class statement `Class: <class>`, which Daisy reads and no member answers; an issue of that class already is left as it is, but for an architecture job without `swarm:class-architecture` (no class statement, or the maintainer's own issue), which is given the flag alone |
 | Exit codes | 0 classed, or already of the class; 1 the maintainer's verbs' refusals, `routine` by a login not in `trusted`, whose statement Daisy would not read (`Error: swarm: <login> is not in trusted, so Daisy would not read your class statement; add the login to trusted in swarm.json (docs/swarm.md section 3); nothing changed`), a forge failure; 2 usage, a word other than `routine` and `architecture` among it (`not a class: <word>; swarm class takes routine or architecture`) |
 | Stdout | `Maintainer <login> on <owner>/<repo>`; `#<n> class-architecture` (architecture) or `#<n> class-architecture cleared` (routine, when it carried the flag), then `#<n> commented`; `#<n> class-architecture` alone (an architecture job given the flag); or `#<n> already <class>` |
 | Ops | Real |
@@ -1444,7 +1474,7 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 10 of the swarm build), as `swarm triage` |
-| Usage | `daisy swarm approve <n>`: a formal approving review of issue `<n>`'s current pull request, open, at its head, at any stage |
+| Usage | `daisy swarm approve <n> [--type <type>]`: a formal approving review of issue `<n>`'s current pull request, open, at its head, at any stage |
 | Exit codes | 0 approved; 1 the maintainer's verbs' refusals, no open swarm pull request (`Error: swarm: #<n> has no open swarm pull request; nothing approved`), the forge refusing the approval, a `422` for one's own pull request among the causes (`Error: swarm: approving pull <name>#<m>: forge: POST …: 422 <message>`), another forge failure; 2 usage |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> approved pull <name>#<m> at <short sha>` |
 | Ops | Real |
@@ -1457,7 +1487,7 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 10 of the swarm build), as `swarm triage` |
-| Usage | `daisy swarm merge <n>`: G3 for an issue at `swarm:review-2-approved`: its current pull request merged at the head both the swarm's newest reviews approve, as the merge step merges (`do: merge`, `head_commit_id`), or found merged; then T13 when the accepted plan declares a slice after it, else the issue closed and labelled `swarm:done`; a merge the forge refuses of a pull request it reports not mergeable (`base` moved since the branch took it in) is T25 instead: the direction to merge `base` posted on the pull request (docs/swarm.md section 12) and the issue relabelled `swarm:review-3-changes-requested`, nothing merged; the verb reads the forge alone, so its direction names no file; a head sent back once already, the thread holding a direction on it before its last comment, is refused |
+| Usage | `daisy swarm merge <n> [--type <type>]`: G3 for an issue at `swarm:review-2-approved`: its current pull request merged at the head both the swarm's newest reviews approve, as the merge step merges (`do: merge`, `head_commit_id`), or found merged; then T13 when the accepted plan declares a slice after it, else the issue closed and labelled `swarm:done`; a merge the forge refuses of a pull request it reports not mergeable (`base` moved since the branch took it in) is T25 instead: the direction to merge `base` posted on the pull request (docs/swarm.md section 12) and the issue relabelled `swarm:review-3-changes-requested`, nothing merged; the verb reads the forge alone, so its direction names no file; a head sent back once already, the thread holding a direction on it before its last comment, is refused |
 | Exit codes | 0 merged (or found merged) and relabelled or closed, or sent back to the worker (T25); 1 the maintainer's verbs' refusals, no swarm pull request, one closed unmerged, no head both reviews approve, the forge refusing the merge of a pull request it reports mergeable (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; nothing changed`: no note and no block, unlike the merge step) or whose mergeability it has not computed (`Error: swarm: #<n>: merge of pull <name>#<m> at <short sha> refused: <message>; the forge has not yet computed whether it merges, so run merge again shortly; nothing changed`), a head sent back once already that the forge still reports not mergeable (`Error: swarm: #<n>: pull <name>#<m> was sent back to merge <base> at <short sha> once already, was approved again at that head, and the forge still reports it not mergeable; merge <base> into swarm/<n>-<s>, or relabel the issue; nothing changed`), another forge failure; 2 usage |
 | Stdout | `Maintainer <login> on <owner>/<repo>`; `#<n> merged pull <name>#<m> (slice <s> of <S>)` or `#<n> pull <name>#<m> already merged (slice <s> of <S>)`; then `#<n> swarm:review-2-approved → swarm:plan-1-accepted` or `#<n> closed (last slice merged)` and `#<n> swarm:review-2-approved → swarm:done`; `#<n> <flag> cleared` for each flag the close cleared, or `#<n> gated cleared` after the relabel (not for an issue still blocked); sent back, `#<n> not mergeable: back to the worker`, `#<n> commented on pull <name>#<m>` (`#<n> comment already posted on pull <name>#<m>` when the direction is the thread's newest already, a re-run), `#<n> swarm:review-2-approved → swarm:review-3-changes-requested` and `#<n> gated cleared` when it carried the flag |
 | Ops | Real |
@@ -1470,7 +1500,7 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 10 of the swarm build; `swarm:blocked` a flag at Step 15; `--cause` at Step 5 of the plan implementing the 2026-11-19 swarm roadmap), as `swarm triage` |
-| Usage | `daisy swarm unblock <n> [--cause <word>] <comment...>`: G4, T18, for an issue carrying `swarm:blocked` beside its stage, which the block kept: the comment, then the flag cleared; refused at the round limit's `swarm:review-1-in-progress` (or `swarm:review-0-ready`, T21's write refused), where no role runs; the words after `<n>` are one comment, saying what changed. `--cause <word>`, right after `<n>` or leading as the cli reads a value flag, retags the stop the unblock releases (docs/swarm.md 7.5, The stop's cause): the metrics row of the run whose collection set the block, in the home `<state>/home` names, is superseded first by one with that cause, its notes ending `retagged`, as `swarm metrics --reprice` supersedes a row; the word one of `plan`, `prerequisite`, `main-red`, `environment`, `forge-fact`, `kept-work`, `ruling`, `scope`, `capacity`. Also `/swarm unblock [--cause <word>] <comment...>` in a comment |
+| Usage | `daisy swarm unblock <n> [--cause <word>] [--type <type>] <comment...>`: G4, T18, for an issue carrying `swarm:blocked` beside its stage, which the block kept: the comment, then the flag cleared; refused at the round limit's `swarm:review-1-in-progress` (or `swarm:review-0-ready`, T21's write refused), where no role runs; the words after `<n>` are one comment, saying what changed. `--cause <word>`, right after `<n>` or leading as the cli reads a value flag, retags the stop the unblock releases (docs/swarm.md 7.5, The stop's cause): the metrics row of the run whose collection set the block, in the home `<state>/home` names, is superseded first by one with that cause, its notes ending `retagged`, as `swarm metrics --reprice` supersedes a row; the word one of `plan`, `prerequisite`, `main-red`, `environment`, `forge-fact`, `kept-work`, `ruling`, `scope`, `capacity`. Also `/swarm unblock [--cause <word>] <comment...>` in a comment |
 | Exit codes | 0 commented and unblocked; 1 the maintainer's verbs' refusals, the issue not blocked (`Error: swarm: #<n> is not blocked; nothing changed`), blocked at the round limit (`Error: swarm: #<n>: blocked at the review round limit, …; nothing changed`, naming the relabels `swarm:review-3-changes-requested` and `swarm:plan-0-posted` to make first), with `--cause` a block no run's stop set (`Error: swarm: #<n>: --cause: no run's stop set this block (<why>); unblock it without --cause; nothing changed`: none flagged it, or a run of the issue started after the one that did ended, the block set since by the merge step or by hand), no usable home or no row of the run (`Error: swarm: #<n>: --cause: <reason>; nothing changed`), a forge failure; 2 usage (no comment, or blank words only, `--cause` without a word, or a word outside the nine, among them), before anything is read or written |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, with `--cause` `#<n> <run> cause <old> → <word>` (`—` for an empty cell; `#<n> <run> cause already <word>` when it is, nothing written), `#<n> commented` (or `#<n> commented on pull <name>#<m>`, at `swarm:review-3-changes-requested` with the pull request open; `#<n> comment already posted`, `… on pull <name>#<m>`, when it is the thread's newest already, a re-run), `#<n> blocked cleared`, then `#<n> gated cleared` (a blocked issue carries the flag after a pass) unless the stage the block kept is a gate that is on and holds its class, where the flag stays |
 | Stderr | `⚠ <login> is not in trusted: no member reads your comment (docs/swarm.md section 6)`, never an exit code |
@@ -1485,7 +1515,7 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 15 of the swarm build), as `swarm triage` |
-| Usage | `daisy swarm block <n> --by <m>`: hold issue `<n>`'s job until issue `<m>` of `forge.repo`, open, is closed: `#<m>` given `swarm:blocking`, then the maintainer's comment `Blocked by #<m>` on `#<n>`, which the role rule reads while it is `#<n>`'s newest maintainer comment (docs/swarm.md section 6, rule 1); `--by <m>` may also lead, as the cli reads a value flag |
+| Usage | `daisy swarm block <n> --by <m> [--type <type>]`: hold issue `<n>`'s job until issue `<m>` of `forge.repo`, open, is closed: `#<m>` given `swarm:blocking`, then the maintainer's comment `Blocked by #<m>` on `#<n>`, which the role rule reads while it is `#<n>`'s newest maintainer comment (docs/swarm.md section 6, rule 1); `--by <m>` may also lead, as the cli reads a value flag |
 | Exit codes | 0 flagged and commented; 1 the maintainer's verbs' refusals for `#<n>`, `#<m>` the same issue (`Error: swarm: #<n> cannot block itself; nothing changed`), closed or a pull request (`Error: swarm: #<m> is not an open issue; nothing changed`), a forge failure; 2 usage, `--by` missing or `<m>` not an issue number among it |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, `#<m> blocking` (none when it carries the flag already), `#<n> commented` (`#<n> comment already posted` when it is `#<n>`'s newest comment already) |
 | Stderr | `⚠ <login> is not in trusted: the role rule does not read your Blocked by #<m>, so it holds nothing (docs/swarm.md section 6)`, never an exit code |
@@ -1499,7 +1529,7 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 20 of the plan for the inbox requests F27–F35), as `swarm triage`; the contract is [docs/swarm.md](swarm.md) section 11, daisy swarm replan, and section 6, The re-plan |
-| Usage | `daisy swarm replan <n> [direction...]`: the architect re-plans the job from the maintainer's direction at `apply`'s next pass, no block or unblock needed; the words after `<n>`, when given, are the direction, posted as `Re-plan: <direction>` (`Re-plan.` with none), a comment the architect answers. Between slices (`swarm:plan-1-accepted` with a plan) the architect revises the remaining slices, merged ones kept, or confirms they stand; at `swarm:proposal-accepted` and `swarm:plan-0-posted` it plans or revises from the comment; a job with no plan goes to `swarm:proposal-accepted`, and one in review whose pull request is closed or merged to `swarm:plan-1-accepted` (T31). Also `/swarm replan [direction...]` in a comment |
+| Usage | `daisy swarm replan <n> [--type <type>] [direction...]`: the architect re-plans the job from the maintainer's direction at `apply`'s next pass, no block or unblock needed; the words after `<n>`, when given, are the direction, posted as `Re-plan: <direction>` (`Re-plan.` with none), a comment the architect answers. Between slices (`swarm:plan-1-accepted` with a plan) the architect revises the remaining slices, merged ones kept, or confirms they stand; at `swarm:proposal-accepted` and `swarm:plan-0-posted` it plans or revises from the comment; a job with no plan goes to `swarm:proposal-accepted`, and one in review whose pull request is closed or merged to `swarm:plan-1-accepted` (T31). Also `/swarm replan [direction...]` in a comment |
 | Exit codes | 0 commented, and relabelled where the stage moves; 1 the maintainer's verbs' refusals, the maintainer not in `trusted`, `swarm:proposal-posted` (triage first), `swarm:plan-2-in-progress`, a run on the issue not yet collected, an open pull request at `swarm:plan-1-accepted` or in review (`Error: swarm: #<n>: pull request <owner>/<name>#<m> (<url>) is open (<stage>); close or merge it first, then replan; nothing changed`), `swarm:question` on the issue, a direction holding a command line, a forge failure; 2 usage |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented` (`#<n> comment already posted` when it is the issue's newest already, a re-run), then `#<n> <stage> → <to>` and `#<n> gated cleared` for a relabel |
 | Ops | Real; reads `<state>/runs` for runs not yet collected |
@@ -1512,13 +1542,28 @@ nothing posted`).
 | Field | Value |
 |---|---|
 | Status | as built (Step 10 of the swarm build), as `swarm triage` |
-| Usage | `daisy swarm close <n> [comment...]`: T19, at any stage, the rejection (a job done is closed by `swarm merge`, as `swarm:done`); the words after `<n>`, when given, are one comment posted first |
+| Usage | `daisy swarm close <n> [--type <type>] [comment...]`: T19, at any stage, the rejection (a job done is closed by `swarm merge`, as `swarm:done`); the words after `<n>`, when given, are one comment posted first |
 | Exit codes | 0 closed and relabelled; 1 the maintainer's verbs' refusals, the terminal refused after the close, a flag's removal refused after the terminal, a forge failure; 2 usage |
 | Stdout | `Maintainer <login> on <owner>/<repo>`, `#<n> commented` when a comment was given (`#<n> comment already posted` when it is the issue's newest already, a re-run after a refused close), `#<n> closed`, `#<n> <stage> → swarm:rejected`, and `#<n> <flag> cleared` for each flag it carried |
 | Ops | Real |
 | Writes | on the forge, `Comment(n, <comment>)` when given, then `CloseIssue(n)`, `Relabel(n, <stage>, "swarm:rejected")` and the removal of each flag it carried; the pull requests are left as they are |
 | Commits | none |
 | Cases | none; `TestSwarmMaintainerCloseUnblockMerged`, `TestSwarmMaintainerFlagAndTerminals`, `TestSwarmMaintainerRefusals`, `TestSwarmMaintainerBlankComment`, `TestSwarmMaintainerRunAgainPostsOnce`, `TestSwarmMaintainerFlagRemovalRefused` |
+
+### daisy swarm intervene
+
+| Field | Value |
+|---|---|
+| Status | as built (Step 6 of the plan implementing the 2026-11-19 swarm roadmap): Go (`internal/swarm/cmd/swarm_intervene.go`, `internal/swarm/reconcile/intervention.go`); the contract is [docs/swarm.md](swarm.md) section 11, The interventions' record |
+| Legacy | none |
+| Usage | `daisy swarm intervene --type <type> <note...>`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); the record of an intervention no verb makes (a hand edit of `swarm.json`, a hand-published patch), `<type>` one of `I1` to `I14`, a leading value flag; the words after it are the note, their whitespace made single spaces; without `--type`, a type outside them, or no note: usage on stderr, exit 2, before anything is read |
+| Exit codes | 0 recorded; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, `<state>/home` naming no usable home or its CSV not this Daisy's (`Error: swarm: --type: <reason>; nothing changed`), the metrics lock held past 30 seconds or a write failing (`Error: swarm: intervention not recorded: <reason>`); 2 usage |
+| Stdout | `Intervention 0-intervention-<k> recorded: <type>` |
+| Ops | Real |
+| Lock | `$DAISY_LOCAL/metrics.lock` for the row, `<state>/journal.lock` for the journal line, each for one read and one rewrite |
+| Writes | one row of kind `intervention` appended to `<home>/metrics/metrics.csv` of the home `<state>/home` names (`step_or_run` `0-intervention-<k>`, `role` `maintainer`, `outcome` `intervene`, `cause` the type, `notes` the note), then the line `- <HHMM> 0-intervention-<k>: <type>; intervene; <note>` queued in `<state>/journal`, which `apply`'s next pass pushes; no forge call, no secret read |
+| Commits | none |
+| Cases | none; `TestSwarmIntervene`, `TestSwarmInterventionRefused`, `TestSwarmVerbRecordsItsIntervention`, `TestSwarmApplyCommandRecordsItsIntervention`, `TestSwarmJournalKeepsALineQueuedDuringItsPush`, `TestIsInterventionType` |
 
 ## System
 

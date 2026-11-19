@@ -28,6 +28,10 @@ type Kind string
 const (
 	PlanStep Kind = "plan-step"
 	SwarmRun Kind = "swarm-run"
+	// Intervention is a swarm maintainer's intervention (docs/swarm.md
+	// section 11, The interventions' record): its type in `cause`, the
+	// verb that made it in `outcome`.
+	Intervention Kind = "intervention"
 )
 
 // Header is the CSV's columns, in their one order. A column is only ever
@@ -63,7 +67,7 @@ type Row struct {
 	TokensIn, TokensOut, TokensTotal string // tokens_in holds the input read from a cache
 	TokensCached                     string // the part of TokensIn read from a cache
 	ReviewEffect                     string // a review's in-gate findings that were fixed
-	Cause                            string // why a swarm run stopped: its member's Cause: word, or Daisy's own stop's
+	Cause                            string // why a swarm run stopped: its member's Cause: word, or Daisy's own stop's; an intervention's type
 	CostReported, CostEstimated      string // in US dollars
 	Lines                            *Lines
 	Range                            string // the commit range Lines was measured over
@@ -261,8 +265,8 @@ func parseRow(rec []string) Row {
 
 // Check is why r cannot be written, nil when it can.
 func (r Row) Check() error {
-	if r.Kind != PlanStep && r.Kind != SwarmRun {
-		return fmt.Errorf("kind must be %s or %s (got: %s)", PlanStep, SwarmRun, r.Kind)
+	if r.Kind != PlanStep && r.Kind != SwarmRun && r.Kind != Intervention {
+		return fmt.Errorf("kind must be %s, %s or %s (got: %s)", PlanStep, SwarmRun, Intervention, r.Kind)
 	}
 	if r.When == "" || r.Source == "" || r.Unit == "" {
 		return errors.New("a row needs its when, its plan or swarm, and its step or run")
