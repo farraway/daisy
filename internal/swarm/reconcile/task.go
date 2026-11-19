@@ -12,9 +12,9 @@ import (
 
 // closing ends every Task text (section 7.4), and workerClosing the
 // worker's, whose screenshots are read back too.
-const (
-	closing       = "Write your output to /work/.swarm/out.md; that file is the only thing read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead."
-	workerClosing = "Write your output to /work/.swarm/out.md; that file and the screenshots in /work/.swarm/artifacts/ are the only things read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead."
+var (
+	closing       = "Write your output to /work/.swarm/out.md; that file is the only thing read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead. " + causeSentence
+	workerClosing = "Write your output to /work/.swarm/out.md; that file and the screenshots in /work/.swarm/artifacts/ are the only things read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead. " + causeSentence
 )
 
 const planHeadings = `"## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions".`

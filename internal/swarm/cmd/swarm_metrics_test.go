@@ -548,8 +548,8 @@ func TestSwarmMetricsReprice(t *testing.T) {
 	b, _ := os.ReadFile(csvFile)
 	_, oldRows, _ := strings.Cut(held, "\n")
 	want := strings.Join(metrics.Header, ",") + "\n" + oldRows +
-		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,852044,9000,861044,1.2,1.17044,,,,,,,,,\"#1, 20 turns, repriced\",800000,\n" +
-		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,3489802,,0.641961,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns, repriced\",3390208,\n"
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,852044,9000,861044,1.2,1.17044,,,,,,,,,\"#1, 20 turns, repriced\",800000,,\n" +
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,3489802,,0.641961,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns, repriced\",3390208,,\n"
 	if string(b) != want {
 		t.Fatalf("csv:\n%s\nwant:\n%s", b, want)
 	}
@@ -698,9 +698,9 @@ func TestSwarmMetricsRepriceReviewEffect(t *testing.T) {
 	b, _ := os.ReadFile(csvFile)
 	_, oldRows, _ := strings.Cut(held, "\n")
 	want := strings.Join(metrics.Header, ",") + "\n" + oldRows +
-		"2026-11-12T08:00:00Z,swarm-run,acme/swarm-app,2-adversary-1,adversary,xai,grok-4.7,high,,,,posted,1,100,10,110,,,,,,,,,,,\"#2, 3 turns, repriced\",,2\n" +
-		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,2-adversary-2,adversary,xai,grok-4.7,high,,,,posted,2,300,30,330,,,,,,,,,,,\"#2, 3 turns, repriced\",,0\n" +
-		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,2-sympathetic-1,sympathetic,xai,grok-4.7,high,,,,posted,1,200,20,220,,,,,,,,,,,\"#2, 3 turns, repriced\",,0\n"
+		"2026-11-12T08:00:00Z,swarm-run,acme/swarm-app,2-adversary-1,adversary,xai,grok-4.7,high,,,,posted,1,100,10,110,,,,,,,,,,,\"#2, 3 turns, repriced\",,2,\n" +
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,2-adversary-2,adversary,xai,grok-4.7,high,,,,posted,2,300,30,330,,,,,,,,,,,\"#2, 3 turns, repriced\",,0,\n" +
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,2-sympathetic-1,sympathetic,xai,grok-4.7,high,,,,posted,1,200,20,220,,,,,,,,,,,\"#2, 3 turns, repriced\",,0,\n"
 	if string(b) != want {
 		t.Fatalf("csv:\n%s\nwant:\n%s", b, want)
 	}
@@ -711,3 +711,92 @@ func TestSwarmMetricsRepriceReviewEffect(t *testing.T) {
 		t.Errorf("second reprice: stdout:\n%s\ncsv:\n%s", a.stdout.String(), after)
 	}
 }
+
+// Step 4's claim (the plan implementing the 2026-11-19 swarm roadmap,
+// R0; section 7.5, The stop's cause): a member's stop, BLOCKED: or
+// QUESTION:, records the word of the Cause: line under it in its row's
+// cause column; a word outside the vocabulary records it empty with a
+// warning, and a stop without the line records it empty without one.
+// The owner's batch reads the line under its BLOCKED:, after any Met:
+// lines; a run that did not stop records none, though its text holds
+// the lines (an architect's QUESTION: on a stage that reads no question
+// is its plan). Every Task text asks for the line.
+func TestSwarmApplyRecordsTheStopsCause(t *testing.T) {
+	warning := `⚠ #1 worker run 1: cause left empty: "whim" is not one of plan, prerequisite, main-red, environment, forge-fact, kept-work, ruling, scope, capacity` + "\n"
+	for _, tc := range []struct {
+		name, out, outcome, cause, stderr string
+	}{
+		{"blocked", "BLOCKED: the plan's fixture says v2, main.go says v1.\nCause: plan\n", "blocked", "plan", ""},
+		{"question after a blank line", "QUESTION: May I rename main.go?\n\nCause: scope\n", "question", "scope", ""},
+		{"an unknown word", "QUESTION: Should main.go say v1 or v1.0?\nCause: whim\n", "question", "", warning},
+		{"no line", "BLOCKED: what now?\n", "blocked", "", ""},
+		{"not a stop", "v1\n\nCause: plan\n\nNot established: none\n", "posted", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			home := a.metricsHome()
+			a.planned(oneSlice)
+			canned := runner.Canned{Out: tc.out}
+			if tc.outcome == "posted" {
+				canned.Work = commit(map[string]string{"main.go": "v1\n"}, "v1")
+			}
+			a.runner.Script(1, "worker", canned)
+			a.pass()
+			if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, causeSentence) {
+				t.Errorf("worker's Task lacks the cause sentence:\n%s", sys)
+			}
+			if r := a.result("1-worker-1"); !strings.HasSuffix(r, "outcome "+tc.outcome+"\ncollected\n") {
+				t.Fatalf("result:\n%s\n%s", r, a.stdout.String())
+			}
+			var row map[string]string
+			for _, r := range rows(t, home) {
+				if r["step_or_run"] == "1-worker-1" {
+					row = r
+				}
+			}
+			if row == nil || row["cause"] != tc.cause || row["outcome"] != tc.outcome {
+				t.Errorf("row %v: cause %q, want %q", row, row["cause"], tc.cause)
+			}
+			if got := a.stderr.String(); got != tc.stderr {
+				t.Errorf("stderr:\n%s\nwant:\n%s", got, tc.stderr)
+			}
+		})
+	}
+	t.Run("a QUESTION: line no stage reads as a stop", func(t *testing.T) {
+		a := newApplyWS(t)
+		home := a.metricsHome()
+		a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+		a.runner.Script(1, "architect", runner.Canned{Out: "QUESTION: is this a plan?\nCause: plan\n\n" + oneSlice})
+		a.pass()
+		got := rows(t, home)
+		if len(got) != 1 || got[0]["outcome"] != "posted" || got[0]["cause"] != "" {
+			t.Errorf("rows %v", got)
+		}
+	})
+	t.Run("the owner's batch", func(t *testing.T) {
+		a := newApplyWS(t)
+		home := a.metricsHome()
+		a.release()
+		a.runner.Script(0, "owner", runner.Canned{Out: "Met: docs/briefs/a.md\n\nBLOCKED: nothing to propose until the library lands\nCause: prerequisite\n"})
+		a.pass()
+		if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, causeSentence) {
+			t.Errorf("owner's Task lacks the cause sentence:\n%s", sys)
+		}
+		got := rows(t, home)
+		if len(got) != 1 || got[0]["step_or_run"] != "0-owner-1" || got[0]["outcome"] != "blocked" || got[0]["cause"] != "prerequisite" {
+			t.Errorf("rows %v", got)
+		}
+	})
+}
+
+// causeSentence ends every Task text's closing paragraph (section 7.4).
+const causeSentence = "Write one line `Cause: <word>` under any line beginning `BLOCKED:` or `QUESTION:` that you write, even one this text calls the only line, the word naming why you stopped: " +
+	"`plan` (the plan, or the issue where there is none, is wrong, unclear or cannot be followed), " +
+	"`prerequisite` (work the job depends on is not merged), " +
+	"`main-red` (the base branch is broken: its check fails without your change), " +
+	"`environment` (a tool, the image, a service or the network the run needs fails or is missing), " +
+	"`forge-fact` (a fact on the forge you need cannot be read), " +
+	"`kept-work` (work Daisy was to keep or give you is missing: a plan cut short, a kept commit not given back), " +
+	"`ruling` (only the maintainer's ruling settles it), " +
+	"`scope` (whether you may change what the plan or the job leaves out), " +
+	"or `capacity` (a provider's limit, quota or credit stopped the work)."

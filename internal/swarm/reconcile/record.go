@@ -73,6 +73,7 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	if isReviewer(c.r.Role) {
 		r.ReviewEffect = c.reviewEffect(outcome)
 	}
+	r.Cause = c.cause(outcome)
 	var turns string
 	if l, ok := Has(c.lines, "cost"); ok {
 		// cost <usd|-> tokens <in>/<out> turns <t>[ cached <c>] (section

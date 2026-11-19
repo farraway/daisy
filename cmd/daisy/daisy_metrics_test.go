@@ -82,8 +82,8 @@ func TestMetricsAddRecordsAStep(t *testing.T) {
 	}
 
 	csvFile := filepath.Join(m.home, "metrics", "metrics.csv")
-	wantCSV := "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds,tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed,binary_files,range,notes,tokens_cached,review_effect\n" +
-		"2026-11-12T14:05:00+01:00,plan-step," + planName + ",3,step,claude,claude-opus-5-5,high," + rootSHA + "," + homeSHA + ",,committed,2,1200,340,,1.25,,3,1,6,0,4,1,0," + rng + ",\"worker model changed, \"\"again\"\"\",,\n"
+	wantCSV := "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds,tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed,binary_files,range,notes,tokens_cached,review_effect,cause\n" +
+		"2026-11-12T14:05:00+01:00,plan-step," + planName + ",3,step,claude,claude-opus-5-5,high," + rootSHA + "," + homeSHA + ",,committed,2,1200,340,,1.25,,3,1,6,0,4,1,0," + rng + ",\"worker model changed, \"\"again\"\"\",,,\n"
 	if b, err := os.ReadFile(csvFile); err != nil || string(b) != wantCSV {
 		t.Fatalf("metrics.csv (%v):\n%s\nwant\n%s", err, b, wantCSV)
 	}
@@ -116,7 +116,7 @@ func TestMetricsAddRecordsAStep(t *testing.T) {
 	}
 	b, _ := os.ReadFile(csvFile)
 	if lines := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n"); len(lines) != 3 || !strings.HasPrefix(string(b), wantCSV) ||
-		lines[2] != "2026-11-12T14:05:00+01:00,plan-step,"+planName+",3,step,,,,abcdef1,"+homeSHA+",,,,,,9,,,,,,,,,,,,," {
+		lines[2] != "2026-11-12T14:05:00+01:00,plan-step,"+planName+",3,step,,,,abcdef1,"+homeSHA+",,,,,,9,,,,,,,,,,,,,," {
 		t.Fatalf("metrics.csv after the second record:\n%s", b)
 	}
 	got = m.read(t, filepath.Join("plans", planName+".plan.md"))
@@ -198,7 +198,7 @@ func TestMetricsTokensPerCodeLine(t *testing.T) {
 			t.Errorf("plan has no %q:\n%s", row, plan)
 		}
 	}
-	if b, _ := os.ReadFile(filepath.Join(m.home, "metrics", "metrics.csv")); !strings.Contains(string(b), ",1500,,,3,1,6,0,4,1,0,"+base+".."+head+",,1000,\n") {
+	if b, _ := os.ReadFile(filepath.Join(m.home, "metrics", "metrics.csv")); !strings.Contains(string(b), ",1500,,,3,1,6,0,4,1,0,"+base+".."+head+",,1000,,\n") {
 		t.Errorf("the step's row has no tokens_cached:\n%s", b)
 	}
 	code, out, errs := runWith(o, "metrics")
@@ -212,7 +212,7 @@ func TestMetricsTokensPerCodeLine(t *testing.T) {
 // Step 30's claim, the plan's side (the plan remediating the 2026-11-15
 // design review, P29): `metrics add --role review --review-effect <n>`
 // records a step's review passes' findings fixed in review_effect, the
-// CSV's last column; `daisy metrics` sums the review rows by role and
+// CSV's 29th column; `daisy metrics` sums the review rows by role and
 // model, the effect over the rows that record one (a row recorded
 // without it counted apart), and the tokens per effect over the rows
 // with both: 1200 + 800 tokens over 3 + 1 findings, 500.
@@ -232,8 +232,8 @@ func TestMetricsReviewEffect(t *testing.T) {
 			t.Fatalf("metrics add %v = %d: %s", args, code, errs)
 		}
 	}
-	if b, _ := os.ReadFile(filepath.Join(m.home, "metrics", "metrics.csv")); !strings.HasSuffix(strings.SplitN(string(b), "\n", 2)[0], ",tokens_cached,review_effect") ||
-		!strings.Contains(string(b), ",1,review,,opus,,abcdef1,abcdef2,,,,,,1200,,,,,,,,,,,,,3\n") {
+	if b, _ := os.ReadFile(filepath.Join(m.home, "metrics", "metrics.csv")); !strings.HasSuffix(strings.SplitN(string(b), "\n", 2)[0], ",tokens_cached,review_effect,cause") ||
+		!strings.Contains(string(b), ",1,review,,opus,,abcdef1,abcdef2,,,,,,1200,,,,,,,,,,,,,3,\n") {
 		t.Errorf("csv:\n%s", b)
 	}
 	code, out, errs := runWith(o, "metrics")

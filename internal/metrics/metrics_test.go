@@ -74,7 +74,7 @@ func TestAppendCSV(t *testing.T) {
 		t.Fatal(err)
 	}
 	header := strings.Join(Header, ",") + "\n"
-	first := "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,,,\n"
+	first := "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,,,,\n"
 	if string(b) != header+first {
 		t.Fatalf("first append:\n%s", b)
 	}
@@ -85,7 +85,7 @@ func TestAppendCSV(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := header + first + "2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,,,10,,,1,0,0,0,0,0,0,,\"a, \"\"b\"\"\nc\",,\n"; string(b) != want {
+	if want := header + first + "2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,,,10,,,1,0,0,0,0,0,0,,\"a, \"\"b\"\"\nc\",,,\n"; string(b) != want {
 		t.Fatalf("second append:\n%q\nwant\n%q", b, want)
 	}
 	// A file without its final newline gets one before the row.
@@ -284,9 +284,9 @@ func TestFirstHeaderReadAndExtended(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.TrimSuffix(firstHeader, "\n") + ",tokens_cached,review_effect\n" +
+	want := strings.TrimSuffix(firstHeader, "\n") + ",tokens_cached,review_effect,cause\n" +
 		"2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,\n" +
-		"2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,40,2,42,,,,,,,,,,,,30,\n"
+		"2026-11-12T14:05:00+01:00,plan-step,p,2,step,,m,,,,,,,40,2,42,,,,,,,,,,,,30,,\n"
 	if string(b) != want {
 		t.Fatalf("appended:\n%s\nwant\n%s", b, want)
 	}
@@ -300,7 +300,7 @@ func TestFirstHeaderReadAndExtended(t *testing.T) {
 	for _, c := range []struct{ file, want string }{
 		{firstHeader + "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,\n", "row 2 has 26 cells, not 27"},
 		{firstHeader + "2026-11-12T14:05:00+01:00,plan-step,p,1,step,,m,,,,,,,,,10,,,,,,,,,,,,\n", "row 2 has 28 cells, not 27"},
-		{want + "2026-11-12T14:05:00+01:00,plan-step,p,3,step,,m,,,,,,,,,10,,,,,,,,,,\n", "row 4 has 26 cells, not 27 to 29"},
+		{want + "2026-11-12T14:05:00+01:00,plan-step,p,3,step,,m,,,,,,,,,10,,,,,,,,,,\n", "row 4 has 26 cells, not 27 to 30"},
 	} {
 		if _, err := Summarize([]byte(c.file), Filter{}); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("Summarize = %v, want %q", err, c.want)
@@ -337,8 +337,8 @@ func TestStep28HeaderReadAndExtended(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.TrimSuffix(step28Header, "\n") + ",review_effect\n" + rows +
-		"2026-11-12T14:05:00+01:00,plan-step,p,3,review,,m,,,,,,,,,10,,,,,,,,,,,,,2\n"
+	want := strings.TrimSuffix(step28Header, "\n") + ",review_effect,cause\n" + rows +
+		"2026-11-12T14:05:00+01:00,plan-step,p,3,review,,m,,,,,,,,,10,,,,,,,,,,,,,2,\n"
 	if string(b) != want {
 		t.Fatalf("appended:\n%s\nwant\n%s", b, want)
 	}
@@ -348,6 +348,50 @@ func TestStep28HeaderReadAndExtended(t *testing.T) {
 	}
 	if latest, err := Latest(b); err != nil || latest[r.Key()].ReviewEffect != "2" {
 		t.Fatalf("Latest = %+v, %v", latest, err)
+	}
+}
+
+// step30Header is the header the CSV had from Step 30 of the plan
+// remediating the 2026-11-15 design review to Step 4 of the plan
+// implementing the 2026-11-19 swarm roadmap: cause not yet added.
+const step30Header = "when,kind,plan_or_swarm,step_or_run,role,provider,model,effort,root_sha,home_sha,prompt_hash,outcome,review_rounds," +
+	"tokens_in,tokens_out,tokens_total,cost_reported,cost_estimated,code_added,code_removed,tests_added,tests_removed,prose_added,prose_removed," +
+	"binary_files,range,notes,tokens_cached,review_effect\n"
+
+// Step 4's schema change (the plan implementing the 2026-11-19 swarm
+// roadmap), as Step 30's: a CSV under Step 30's header, holding a row of
+// each width it allows (27, 28 and 29 cells), is read, cause empty; an
+// append rewrites the header line alone, every row's bytes kept and the
+// new row whole under it, its cause read back.
+func TestStep30HeaderReadAndExtended(t *testing.T) {
+	rows := "2026-11-12T14:05:00+01:00,swarm-run,acme/app,1-worker-1,worker,,m,,,,,blocked,,,,10,,,,,,,,,,,\n" +
+		"2026-11-13T14:05:00+01:00,swarm-run,acme/app,1-worker-2,worker,,m,,,,,blocked,,,,20,,,,,,,,,,,,5\n" +
+		"2026-11-14T14:05:00+01:00,swarm-run,acme/app,1-worker-3,worker,,m,,,,,blocked,,,,30,,,,,,,,,,,,5,\n"
+	old := step30Header + rows
+	latest, err := Latest([]byte(old))
+	if err != nil || len(latest) != 3 {
+		t.Fatalf("Latest(Step 30's header) = %+v, %v", latest, err)
+	}
+	for k, r := range latest {
+		if r.Cause != "" {
+			t.Errorf("%q: cause %q", k, r.Cause)
+		}
+	}
+	r := Row{When: "2026-11-15T14:05:00+01:00", Kind: SwarmRun, Source: "acme/app", Unit: "1-worker-4", Role: "worker", Model: "m", Outcome: "question", TokensTotal: "40", Cause: "plan"}
+	b, err := AppendCSV([]byte(old), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.TrimSuffix(step30Header, "\n") + ",cause\n" + rows +
+		"2026-11-15T14:05:00+01:00,swarm-run,acme/app,1-worker-4,worker,,m,,,,,question,,,,40,,,,,,,,,,,,,,plan\n"
+	if string(b) != want {
+		t.Fatalf("appended:\n%s\nwant\n%s", b, want)
+	}
+	if latest, err := Latest(b); err != nil || latest[r.Key()].Cause != "plan" {
+		t.Fatalf("Latest = %+v, %v", latest, err)
+	}
+	if s, err := Summarize(b, Filter{}); err != nil || s.Rows != 4 {
+		t.Fatalf("Summarize(extended) = %+v, %v", s, err)
 	}
 }
 

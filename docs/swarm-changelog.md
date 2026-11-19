@@ -405,3 +405,15 @@ they write.
   the bill for a cache write and for a `grok-4.7` request past 200,000
   prompt tokens; section 9; decision
   [152](swarm/decisions/0152-every-model-in-use-priced-from-its-providers-page.md).
+- 2026-11-19, Step 4 of the plan implementing the 2026-11-19 swarm
+  roadmap (R0): a member's stop names its cause, one line `Cause:
+  <word>` under its `BLOCKED:` or `QUESTION:` line, which every Task
+  text's closing paragraph asks for, the word one of the roadmap's
+  `plan`, `prerequisite`, `main-red`, `environment`, `forge-fact`,
+  `kept-work`, `ruling`, `scope` and `capacity`, each defined in one
+  line; the run's metrics row records it in a new last column,
+  `cause`, for a run whose outcome is `blocked` or `question`, empty
+  for any other, for a stop without the line and, with a warning, for
+  a word outside the vocabulary; Daisy's own stops name none yet;
+  sections 7.4, 7.5, 7.6 and 11; decision
+  [153](swarm/decisions/0153-a-cause-on-every-member-stop.md).

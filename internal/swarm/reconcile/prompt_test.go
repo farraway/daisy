@@ -74,6 +74,13 @@ func TestRenderArchitectReady(t *testing.T) {
 	}
 }
 
+// wantCauseSentence ends the closing paragraph (section 7.4).
+const wantCauseSentence = "Write one line `Cause: <word>` under any line beginning `BLOCKED:` or `QUESTION:` that you write, even one this text calls the only line, the word naming why you stopped: " +
+	"`plan` (the plan, or the issue where there is none, is wrong, unclear or cannot be followed), `prerequisite` (work the job depends on is not merged), " +
+	"`main-red` (the base branch is broken: its check fails without your change), `environment` (a tool, the image, a service or the network the run needs fails or is missing), " +
+	"`forge-fact` (a fact on the forge you need cannot be read), `kept-work` (work Daisy was to keep or give you is missing: a plan cut short, a kept commit not given back), " +
+	"`ruling` (only the maintainer's ruling settles it), `scope` (whether you may change what the plan or the job leaves out), or `capacity` (a provider's limit, quota or credit stopped the work)."
+
 const wantArchitectSystem = `<!-- daisy-swarm system: acme/app#1 architect run 1, 2026-11-06T15:00:00Z -->
 
 # Persona
@@ -90,7 +97,7 @@ You do it.
 
 Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
 
-Write your output to /work/.swarm/out.md; that file is the only thing read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /work/.swarm/out.md instead.
+Write your output to /work/.swarm/out.md; that file is the only thing read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /work/.swarm/out.md instead. ` + wantCauseSentence + `
 
 # Resources
 
