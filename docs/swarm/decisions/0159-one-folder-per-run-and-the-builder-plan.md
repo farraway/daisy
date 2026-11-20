@@ -106,3 +106,11 @@ whose round can no longer complete is written to `texts/` at the first
 collection on the issue after that, so that `texts/` holds every
 member text and a reviewer still never finds its pair's review of the
 round it reviews.
+
+**Amended by decision [160](0160-one-declared-check-environment.md)
+(Step 10 of the plan implementing the 2026-11-19 swarm roadmap, R3),
+before any of it was built.** The check and the dependency step take
+their clone at `/job/work/<name>`, the path a member's checkout has,
+with nothing beside it but the dependency cache, once the members are
+at `/job`; R3 adopts this decision's layout for the resources and the
+notes as it stands.

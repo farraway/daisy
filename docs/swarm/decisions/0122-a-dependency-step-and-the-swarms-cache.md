@@ -58,3 +58,11 @@ argv is edited in the file; it keeps the file's `deps`. Tests:
 `TestSwarmApplyWorkFailures` (a secret in `deps.out`), `TestArgs`,
 `TestValidateNamesTheField`, `TestParseNamesTheField`,
 `TestFormatDeps` and `TestWizardKeepsTheFilesDeps`.
+
+**Amended by decision [160](0160-one-declared-check-environment.md)
+(Step 10 of the plan implementing the 2026-11-19 swarm roadmap, R3),
+specified ahead of its build.** `deps.env` stays the cache's place, the
+dependency step's and the check's alone; the variables of the check
+environment every run that executes the product is given are a new
+field, `repos[].env`, a name declared in both refused. The step's
+clone is mounted at `/job/work/<name>`.

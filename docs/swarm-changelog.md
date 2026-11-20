@@ -513,3 +513,28 @@ they write.
   and 11; decision
   [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md)
   (0158 amended).
+- 2026-11-19, Step 10 of the plan implementing the 2026-11-19 swarm
+  roadmap (R3, one check, one environment, failures classified;
+  specified ahead of its build, section 7.9): the product's check
+  environment declared once, `repos[].image`, `check` and `deps`, the
+  test services file (gaining `ulimits` and block scalars) and a new
+  `repos[].env`, given to the worker's and the reviewers' runs, the
+  dependency step and the check; the check's and the dependency step's
+  clone at `/job/work/<name>` once the members are there; the
+  resources and the notes outside every checkout as decision 159 lays
+  them out; test services beside a reviewer; the workflows CI runs on a
+  pull request compared with the declaration (targets, services,
+  variables) at `<base>`, a difference a warning on `apply`'s stderr,
+  `status`'s Waiting for you (`ci differs <name>`), notify and `init`'s
+  readiness, never a block. A check failure in packages the change does
+  not touch (Go: the failing packages against the change's files and
+  the module's imports) or holding one of five infrastructure
+  signatures is run again once before any post; one that persists is
+  the failure *check environment*, the issue blocked with cause
+  `environment`, nothing posted for the worker or the reviewers; a
+  worker run that starts from unpushed kept commits and adds none is
+  not *no commits*. Sections 1, 2, 3, 5, 7.2, 7.5 to 7.9 and 11;
+  decisions
+  [160](swarm/decisions/0160-one-declared-check-environment.md) and
+  [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
+  (0122, 0134 and 0159 amended).

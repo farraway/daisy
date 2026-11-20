@@ -64,3 +64,10 @@ build and test too: not asked for. Tests:
 `TestParseServicesRefused`, `TestArgs`, `TestServicesArgs`,
 `TestDockerServices`, `TestValidateNamesTheField`, `TestFormatDeps`
 and `TestWizardKeepsTheFilesDeps`.
+
+**Amended by decision [160](0160-one-declared-check-environment.md)
+(Step 10 of the plan implementing the 2026-11-19 swarm roadmap, R3),
+specified ahead of its build.** The subset gains `ulimits` (run as
+`--ulimit`) and, in its YAML, literal and folded block scalars; and a
+reviewer's run is given the services and `x-daisy-env` as a worker's
+is, read at the head it reviews.
