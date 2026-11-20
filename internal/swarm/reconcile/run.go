@@ -72,9 +72,8 @@ func (r Run) ioFile(fs ops.FS, name string) ([]byte, error) {
 }
 
 // An unusableError is a file of a job, one of its runs' or of its
-// workspace, that Daisy cannot use: there and not readable, or a run's
-// out.md whose text as its collection posted it its records cannot give
-// again (section 7.7, a job's file Daisy cannot use). It is the job's
+// workspace, that Daisy cannot use: there and not readable (section
+// 7.7, a job's file Daisy cannot use). It is the job's
 // own failure, which blocks its issue alone (blockUnusable), where any
 // other error, a forge's, a mirror's or a write's, is the pass's.
 type unusableError struct {

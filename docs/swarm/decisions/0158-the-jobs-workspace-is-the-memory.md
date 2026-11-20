@@ -136,3 +136,15 @@ whole, from whose `## Slice <s>` sections `slice.md` is cut. `swarm
 merge` refuses a job with no workspace yet whose cut plan's `out.md` is
 gone, and a revised plan's `Start: base` line resets the start as an
 answer's does.
+
+**Amended by the maintainer's answer of 2026-11-20 (Open Question 12 of
+the plan implementing the 2026-11-19 swarm roadmap; built at its Step
+R1-12).** The rollout replays a worker's report with the check block its
+run's records give, the one it was posted with: a run that records no
+check result posted `**Check:** none declared.`, and is replayed with it
+though its repository has declared a check since. It no longer blocks
+its issue, which needed the maintainer to remove the run's `out.md` and
+lose its text to the post. Alternative: the block it replaced, which
+kept the replay from writing a block the repository no longer declares,
+at the cost of a stop whose remedy discards the run's own text. Test:
+`TestReplayOfAReportWithNoCheck`.

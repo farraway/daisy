@@ -385,7 +385,8 @@ func (c *collection) replayedText(jr jobRun) (text string, ok bool, err error) {
 		out, err := jr.Output(c.s.O.FS())
 		switch {
 		case err == nil:
-			return c.textOf(string(out))
+			text, ok := c.textOf(string(out))
+			return text, ok, nil
 		case !errors.Is(err, iofs.ErrNotExist):
 			return "", false, err
 		}
@@ -400,36 +401,38 @@ func (c *collection) replayedText(jr jobRun) (text string, ok bool, err error) {
 // textOf is the text the collection of the run, collected here, posted
 // for its output out (collect's switch on textKind); ok is false for a
 // review.
-func (c *collection) textOf(out string) (string, bool, error) {
+func (c *collection) textOf(out string) (string, bool) {
 	_, questionRun := Has(c.lines, "question")
 	switch textKind(c.r.Role, out, questionRun) {
 	case textAnswer:
-		return answerText(out), true, nil
+		return answerText(out), true
 	case textOwn:
 	default:
-		return out, true, nil
+		return out, true
 	}
 	switch c.r.Role {
 	case "adversary", "sympathetic":
-		return "", false, nil
+		return "", false
 	case "worker":
 	default:
-		return out, true, nil
+		return out, true
 	}
 	if !c.commits() {
-		return out, true, nil // NO CHANGE:, posted as it is
+		return out, true // NO CHANGE:, posted as it is
 	}
 	repo, _ := c.s.repo(branchRepo(c.lines))
 	block := noCheckBlock
 	if len(repo.Check) > 0 {
-		result, checked, _, ok := checkResult(c.s.O.FS(), c.r, c.lines, c.s.Cfg.Timeout)
-		if !ok {
-			return "", false, c.r.unusable("io/out.md", errors.New("its run records no check result, which its repository now declares"))
+		// A run that records no check result was collected while its
+		// repository declared none, and posted the no-check block: it is
+		// replayed with it, whatever the repository declares since
+		// (section 7.8, Rollout; the maintainer's answer of 2026-11-20).
+		if result, checked, _, ok := checkResult(c.s.O.FS(), c.r, c.lines, c.s.Cfg.Timeout); ok {
+			block = checkBlock(repo.Check, c.fetched(), result, strings.Join(lastLines(checked), "\n"))
 		}
-		block = checkBlock(repo.Check, c.fetched(), result, strings.Join(lastLines(checked), "\n"))
 	}
 	text, tail := report(out, block)
-	return text + tail, true, nil
+	return text + tail, true
 }
 
 // replayedWork is a worker run's failed check's log and its slice's

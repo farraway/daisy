@@ -4091,7 +4091,7 @@ honest word among the nine, and none for a row that is no stop.
 | stale (reviewer) | — | 7.6: the pull request's head moved during the run | `stale <sha>`, `outcome stale`, `collected` | T22 only; relaunched on the new head | none: no stop |
 | discarded | — | 7.6: the issue was closed, or the run's pull request is no longer open | `outcome discarded`, `collected` | T22 only, when the pull request closed; none for a closed issue | none: no stop |
 | the batch run, any work failure above, or *proposed nothing* | work | as above | as above | none: `<state>/owner-held` written, the QA's `<state>/qa-held` | as above; *proposed nothing* empty |
-| a job's file Daisy cannot use | — | pass step (5), before the role rule (the replay of a job without `built`, 7.8, Rollout, and the read of its `plan.md`, 7.8, Daisy's own reads), at a launch (a worker's: its slice's `kept`, the kept run's `<run>/result` and the architect's texts in `texts/`, 7.8, The start; every role's on an issue: the files `# Job` reads and the member texts its prompt shows, 7.8, The prompt), and the merge step (its read of the plan, `plan.md`, 7.8, Daisy's own reads): a file of one of the job's runs (`<run>/result`, `<run>/io/out.md`, `<run>/io/builder.md`) or of its workspace that is there and cannot be read, or, for the replay, a worker's report posted with no check result whose repository now declares a check, whose text as posted its records cannot make again; never a forge's read, a mirror's git error or a write, which are the pass's | none: the block is a pass's, no run's | T17 beside its stage, `swarm:question` cleared, and the reconciler's note, marked with the run's number, `Daisy cannot use <file>: <cause> (docs/swarm.md section 7.8, Rollout). Make the file readable, or remove it if it is an out.md, its run's text then taken from its post, or under jobs/<n>/, which the replay writes again; then remove swarm:blocked to resume.` and the maintainer's mention (`<file>` from `<state>`, `<cause>` the read's error without its path, or `its run records no check result, which its repository now declares`), not posted again when the issue holds it; no `built` written, nothing launched or merged for the issue, and the pass goes on with the others | none: no metrics row |
+| a job's file Daisy cannot use | — | pass step (5), before the role rule (the replay of a job without `built`, 7.8, Rollout, and the read of its `plan.md`, 7.8, Daisy's own reads), at a launch (a worker's: its slice's `kept`, the kept run's `<run>/result` and the architect's texts in `texts/`, 7.8, The start; every role's on an issue: the files `# Job` reads and the member texts its prompt shows, 7.8, The prompt), and the merge step (its read of the plan, `plan.md`, 7.8, Daisy's own reads): a file of one of the job's runs (`<run>/result`, `<run>/io/out.md`, `<run>/io/builder.md`) or of its workspace that is there and cannot be read; never a forge's read, a mirror's git error or a write, which are the pass's | none: the block is a pass's, no run's | T17 beside its stage, `swarm:question` cleared, and the reconciler's note, marked with the run's number, `Daisy cannot use <file>: <cause> (docs/swarm.md section 7.8, Rollout). Make the file readable, or remove it if it is an out.md, its run's text then taken from its post, or under jobs/<n>/, which the replay writes again; then remove swarm:blocked to resume.` and the maintainer's mention (`<file>` from `<state>`, `<cause>` the read's error without its path), not posted again when the issue holds it; no `built` written, nothing launched or merged for the issue, and the pass goes on with the others | none: no metrics row |
 | a forge or git error while collecting | — | 7.6 | the steps done so far; no `collected` | none further this pass; retried at the next (`--once`: exit 1) | none: no record until the collection ends |
 
 ### 7.8 The job's workspace
@@ -4601,7 +4601,12 @@ rounds from the pull requests' reviews (section 6's rounds, each
 review's text from its run), the checks from `check.out` and
 `deps.out` (none for a run that faulted, whose collection ends at the
 fault before step 4), and the reviews held for their rounds as a collection then
-would write them. A replay over a job's runs is byte for byte the
+would write them. A worker's report is replayed with the check block
+its run's records give, which is the one it was posted with: a run
+that records no check result was collected while its repository
+declared none and posted `**Check:** none declared.`, and is replayed
+with it though its repository has declared a check since (the
+maintainer's answer of 2026-11-20). A replay over a job's runs is byte for byte the
 workspace their collections write; over a workspace that holds some
 files already, it rewrites only the files its rows rewrite, a file of
 `texts/`, `rounds/` or `checks/` that is there left as it is (The
@@ -4629,9 +4634,7 @@ fails on the way leaves none and is made again whole at the next pass.
 A failure that is the job's own blocks its issue alone (7.7, a job's
 file Daisy cannot use; the maintainer's rule of 2026-11-18): a file of
 one of its runs (`result`, `out.md`, `builder.md`) or of its workspace
-that is there and cannot be read, or a worker's report posted with no
-check result whose repository now declares a check, whose text as
-posted its records cannot make again. The reconciler's note names the
+that is there and cannot be read. The reconciler's note names the
 file and the cause, posted once; no `built` is written, the issue is
 passed over for the rest of step (5) (its comment commands, the
 maintainer's word and the role rule wait for its replay), and the pass
@@ -4643,9 +4646,8 @@ from its post) the next pass builds it, and the maintainer's removal of
 a mirror's git error, a write to the workspace) is not the job's: it is
 the pass's error, as every per-issue forge read is, and the replay is
 made again at the next pass. Daisy tells the two apart by where the
-failure is, never by its message: a read of the job's own files, and
-the replay's one condition, are the job's; anything else is the
-pass's.
+failure is, never by its message: a read of the job's own files is
+the job's; anything else is the pass's.
 `apply` prints `#<n> workspace built from <c> runs` for a replay over
 at least one run. A new issue is replayed over no run at its first
 pass, so no collection writes `built`. `status` and the maintainer's

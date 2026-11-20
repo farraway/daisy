@@ -816,3 +816,14 @@ they write.
   5 and 7.8. Decision
   [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md)
   amended, its open question answered.
+- 2026-11-20, Step R1-12 of the plan implementing the 2026-11-19 swarm
+  roadmap (the maintainer's answer to its Open Question 12): a worker's
+  report posted with no check result, whose repository has declared a
+  check since, is replayed with the no-check block it was posted with,
+  `**Check:** none declared.`, the block its run's records give, and
+  the job is built, where it blocked its issue (R1-4b) with a note whose
+  only remedy was removing the run's `out.md`. A job's own failure is
+  now only a file of it there that cannot be read. Sections 7.7 (a
+  job's file Daisy cannot use) and 7.8 (Rollout). Decision
+  [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md)
+  amended.

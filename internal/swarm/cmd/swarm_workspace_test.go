@@ -813,10 +813,12 @@ func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
 }
 
 // A worker's report posted with no check result, its repository then
-// declaring none, cannot be replayed once the repository declares one
-// (section 7.8, Rollout): the issue is blocked with the reconciler's
-// note naming the run's out.md and the condition, and no built marker.
-func TestReplayOfAReportWithNoCheckBlocks(t *testing.T) {
+// declaring none, is replayed once the repository declares one with the
+// no-check block it was posted with (section 7.8, Rollout; the
+// maintainer's answer of 2026-11-20): the job is built, its workspace
+// the collection's, texts/ holding the report as posted, and nothing
+// blocked.
+func TestReplayOfAReportWithNoCheck(t *testing.T) {
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Repos[0].Check = nil })
 	a.planned(oneSlice)
@@ -825,16 +827,20 @@ func TestReplayOfAReportWithNoCheckBlocks(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) {
 		t.Fatalf("the worker's report was not posted: %v\n%s", got, a.stdout.String())
 	}
+	collected := a.tree(1)
+	if report, _ := a.text(1, "1-worker-1"); !strings.Contains(report, "\n**Check:** none declared.") {
+		t.Fatalf("the collection's report has no no-check block:\n%s", report)
+	}
 	a.edit(func(c *declare.Config) { c.Repos[0].Check = []string{"make", "check"} })
 	os.RemoveAll(a.state("jobs/1"))
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	before := len(a.bodies(1))
 	a.pass()
-	note := unusableNote(1, 1, "runs/1-worker-1/io/out.md", "its run records no check result, which its repository now declares")
-	if bs := a.bodies(1); bs[len(bs)-1] != note {
-		t.Errorf("the thread's last:\n%q\nwant:\n%q", bs[len(bs)-1], note)
+	if got := a.tree(1); !reflect.DeepEqual(got, collected) || !a.built(1) {
+		t.Errorf("replayed (built %v):\n%v\nthe collection's:\n%v\n%s", a.built(1), got, collected, a.stdout.String())
 	}
-	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || a.built(1) {
-		t.Errorf("after the replay: %v, built %v", got, a.built(1))
+	if got := labels(a.issue(1)); slices.Contains(got, forge.Blocked) || len(a.bodies(1)) != before {
+		t.Errorf("after the replay: %v, notes %q", got, a.bodies(1)[before:])
 	}
 }
 
