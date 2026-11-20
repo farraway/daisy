@@ -18,12 +18,12 @@ import (
 
 // The research notes (section 7.3, # Research notes; section 7.6, The
 // notes): with `notes`, the notes/ directory of the swarm repository
-// (section 3), cloned on the host at <state>/notes, its notes copied into each run as <run>/notes and mounted at /work/.notes,
+// (section 3), cloned on the host at <state>/notes, its notes copied into each run as <run>/notes and mounted at /job/notes,
 // writable for the owner and the architect, whose changes Daisy commits
 // and pushes after the run.
 
 // NotesMount is where a run's copy of the notes is mounted.
-const NotesMount = "/work/.notes"
+const NotesMount = JobMount + "/notes"
 
 // writesNotes: the role's copy of the notes is writable, and its changes
 // are pushed (section 7.2).

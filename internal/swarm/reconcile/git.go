@@ -665,9 +665,8 @@ func Protected(paths, patterns []string) []string {
 // and a local branch for each of also (the revising architect's pull
 // request head) from the mirror's, which the clone fetched; no remote, the role's identity `<role> (Daisy swarm) <commit_email>`, a
 // commit-msg hook stamping `Co-Authored-By: <co_author>` on every commit
-// (none for an empty co_author: no trailer), and `/.swarm/` and the mount
-// points of the notes, `/.notes/`, and of the resources, `/.resources/`,
-// excluded. It returns the head commit.
+// (none for an empty co_author: no trailer); no mount point is in it
+// (section 7.8, The run's folder). It returns the head commit.
 func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor string, also ...string) (string, error) {
 	if _, err := g.run("", "clone", "--no-local", "--quiet", "--branch", branch, g.Mirror(r.Name), dir); err != nil {
 		return "", err
@@ -689,17 +688,6 @@ func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor stri
 	}
 	fs := g.O.FS()
 	if err := forgetHost(fs, dir); err != nil {
-		return "", err
-	}
-	exclude := filepath.Join(dir, ".git", "info", "exclude")
-	old, _ := fs.ReadFile(exclude)
-	if len(old) > 0 && old[len(old)-1] != '\n' {
-		old = append(old, '\n')
-	}
-	if err := fs.MkdirAll(filepath.Dir(exclude), 0o755); err != nil {
-		return "", err
-	}
-	if err := fs.WriteFile(exclude, append(old, "/.swarm/\n/.notes/\n/.resources/\n"...), 0o644); err != nil {
 		return "", err
 	}
 	if coAuthor != "" {

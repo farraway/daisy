@@ -47,7 +47,7 @@ func (o Outputs) Text(run string) (text string, ok bool, err error) {
 }
 
 // copyOutputs puts the output of each run the prompt shows cut (Cut) in
-// the member's io, as /work/.swarm/outputs/<run>.md in its container:
+// the member's io, as /job/io/outputs/<run>.md in its container:
 // read from <state>/runs/<run>/io/out.md only as a regular file, never
 // through a link (Output).
 func copyOutputs(fs ops.FS, state, ioDir string, cut []string) error {

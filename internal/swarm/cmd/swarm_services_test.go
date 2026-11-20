@@ -65,7 +65,7 @@ func TestSwarmServicesBesideTheCheck(t *testing.T) {
 			a := newApplyWS(t)
 			a.planned(oneSlice)
 			a.land("app", map[string]string{"compose.test.yaml": gridappFile}, "test services")
-			a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: commit(map[string]string{"main.go": "v1\n"}, "v1")})
+			a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
 			a.runner.Script(1, "check", tc.canned)
 			a.pass()
 			want := []runner.Services{{Network: workerNet, List: gridappList}, {Network: checkNet, Internal: true, List: gridappList}}
@@ -102,7 +102,7 @@ func TestSwarmServicesBesideTheCheck(t *testing.T) {
 func TestSwarmNoServicesFile(t *testing.T) {
 	a := newApplyWS(t)
 	a.planned(oneSlice)
-	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: commit(map[string]string{"main.go": "v1\n"}, "v1")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
 	a.pass()
 	workers, checks := a.launched("worker"), a.launched("check")
 	if len(a.runner.Ups) != 0 || len(workers) != 1 || workers[0].Network != "" || workers[0].Env != nil || len(checks) != 1 || checks[0].Network != "none" ||
@@ -128,7 +128,7 @@ func TestSwarmServicesRefused(t *testing.T) {
 	a.edit(func(c *declare.Config) { c.Repos[0].Services = &file })
 	a.publish("services")
 	a.fetchMirror()
-	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: commit(map[string]string{"main.go": "v1\n"}, "v1")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
 	a.pass()
 	reason := "test/compose.yaml: services.mongo.ports: not in the subset Daisy runs (image, tmpfs, environment, command)"
 	workers := a.launched("worker")
@@ -174,7 +174,7 @@ func TestSwarmServicesCannotStart(t *testing.T) {
 		a := newApplyWS(t)
 		a.planned(oneSlice)
 		a.runner.UpErr = missing
-		a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: commit(map[string]string{"main.go": "v1\n", "compose.test.yaml": gridappFile}, "v1")})
+		a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n", "compose.test.yaml": gridappFile}, "v1"))})
 		a.pass()
 		r := a.result("1-worker-1")
 		if len(a.launched("check")) != 0 || len(a.runner.Ups) != 1 || len(a.runner.Networks) != 0 || !strings.Contains(r, "\nfault: services: "+missing.Error()+"\n") ||

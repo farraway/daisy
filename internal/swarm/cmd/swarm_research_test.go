@@ -69,7 +69,7 @@ func boardNote(pin string) string {
 }
 
 // The claim of Step 19 (docs/swarm/decisions/0079-the-research-wiki.md): an architect
-// that researches writes a note into /work/.notes, writable for it, which
+// that researches writes a note into /job/notes, writable for it, which
 // Daisy commits by the role's identity with the marker in the message and
 // pushes after the run; a second architect, on another issue, is given
 // the note in its prompt's # Research notes, with the commits its source
@@ -120,13 +120,13 @@ func TestSwarmApplyResearchNotes(t *testing.T) {
 	}
 	spec := a.runner.Launches()[0]
 	run := a.state("runs/1-architect-1")
-	if !slices.Contains(spec.Mounts, runner.Mount{Src: run + "/notes", Dst: "/work/.notes"}) || !slices.Contains(spec.Argv, "/work/.notes") {
+	if !slices.Contains(spec.Mounts, runner.Mount{Src: run + "/notes", Dst: "/job/notes"}) || !slices.Contains(spec.Argv, "/job") {
 		t.Errorf("the architect's mounts %+v, argv %q", spec.Mounts, spec.Argv)
 	}
 	if _, err := os.Stat(filepath.Join(run, "notes")); err == nil {
 		t.Error("the run's copy of the notes kept after they were pushed")
 	}
-	if p := a.file("1-architect-1", "io/prompt.md"); !strings.Contains(p, "- Research notes: /work/.notes, notes/ in acme/swarm-app, pushed by Daisy after the run\n\n# Research notes\n\nNone.\n\n# Issue #1") {
+	if p := a.file("1-architect-1", "io/prompt.md"); !strings.Contains(p, "- Research notes: /job/notes, notes/ in acme/swarm-app, pushed by Daisy after the run\n\n# Research notes\n\nNone.\n\n# Issue #1") {
 		t.Errorf("run 1's prompt:\n%s", p)
 	}
 	if s := a.file("1-architect-1", "io/system.md"); !strings.Contains(s, `"Written: 2026-11-06 by architect run 1 on #1"`) || !strings.Contains(s, `Your plan's "## Research" then names the note`) {
@@ -139,7 +139,7 @@ func TestSwarmApplyResearchNotes(t *testing.T) {
 	a.forge.CreateIssue("Board moves", "Add moves.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(2, "architect", runner.Canned{Out: archPlan})
 	a.pass()
-	want := "# Research notes\n\n- /work/.notes/Board-model.md: the board model; source app " + pin + ", 1 commit on app's main since the pin; written 2026-11-06 by architect run 1 on #1; checked 2026-11-06 (today)\n\n# Issue #2"
+	want := "# Research notes\n\n- /job/notes/Board-model.md: the board model; source app " + pin + ", 1 commit on app's main since the pin; written 2026-11-06 by architect run 1 on #1; checked 2026-11-06 (today)\n\n# Issue #2"
 	if p := a.file("2-architect-1", "io/prompt.md"); !strings.Contains(p, want) {
 		t.Errorf("the second architect's prompt lacks the note:\n%s", p)
 	}
@@ -150,12 +150,12 @@ func TestSwarmApplyResearchNotes(t *testing.T) {
 		t.Errorf("a run that wrote nothing pushed:\n%s", a.result("2-architect-1"))
 	}
 
-	// The worker: the notes read-only, no section, its mount point never
-	// committed.
+	// The worker: the notes read-only, outside its checkout, no section.
 	a.forge.SetLabel(a.ref(2), "swarm:plan-1-accepted")
 	a.runner.Script(2, "worker", runner.Canned{Out: "Done.\n", Work: func(work string) error {
-		if err := os.WriteFile(filepath.Join(work, ".notes", "stray.md"), []byte("x\n"), 0o644); err != nil {
-			return err
+		work = filepath.Join(work, "app") // the checkout, under /job/work
+		if _, err := os.Lstat(filepath.Join(work, ".notes")); err == nil {
+			return fmt.Errorf("a mount point in the checkout")
 		}
 		return commit(map[string]string{"main.go": "v1\n"}, "v1")(work)
 	}})
@@ -166,14 +166,14 @@ func TestSwarmApplyResearchNotes(t *testing.T) {
 			worker = l
 		}
 	}
-	if !slices.Contains(worker.Mounts, runner.Mount{Src: a.state("runs/2-worker-1/notes"), Dst: "/work/.notes", ReadOnly: true}) {
+	if !slices.Contains(worker.Mounts, runner.Mount{Src: a.state("runs/2-worker-1/notes"), Dst: "/job/notes", ReadOnly: true}) {
 		t.Errorf("the worker's mounts %+v", worker.Mounts)
 	}
-	if p := a.file("2-worker-1", "io/prompt.md"); !strings.Contains(p, "- Research notes (read-only): /work/.notes\n") || strings.Contains(p, "# Research notes") {
+	if p := a.file("2-worker-1", "io/prompt.md"); !strings.Contains(p, "- Research notes (read-only): /job/notes\n") || strings.Contains(p, "# Research notes") {
 		t.Errorf("the worker's prompt:\n%s", p)
 	}
-	if files := gitIn(t, a.upstream("app"), "ls-tree", "-r", "--name-only", "swarm/2-1"); strings.Contains(files, ".notes") {
-		t.Errorf("the worker's branch holds the mount point:\n%s", files)
+	if r := a.result("2-worker-1"); strings.Contains(r, "launch-failed") {
+		t.Errorf("the worker's run:\n%s", r)
 	}
 }
 

@@ -76,7 +76,7 @@ func tree(t *testing.T, dir string) map[string]string {
 // The claim of revision 6's plan, Step 4 (section 13, its row): an edit
 // to a brief in the swarm repository's clone, not pushed, reaches no
 // prompt and no mount, and pushed it reaches the next pass's; the brief
-// mounted at /work/.resources/<repo>/<path>, a checkout without .git,
+// mounted at /job/resources/<repo>/<path>, a checkout without .git,
 // the run's result naming the commit it was read at, the checkout gone
 // once the run is collected; status reads the briefs in the mirror as the
 // last pass fetched it.
@@ -110,11 +110,11 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 	}
 
 	prompt, result, _ := batch(1)
-	heading := "## docs/briefs/a.md (Status: active; mounted at /work/.resources/swarm-app/docs/briefs/a.md)"
+	heading := "## docs/briefs/a.md (Status: active; mounted at /job/resources/swarm-app/docs/briefs/a.md)"
 	if !strings.Contains(prompt, heading) || !strings.Contains(prompt, "\nv1\n") {
 		t.Fatalf("run 1's prompt:\n%s\nstdout:\n%s\nstderr:\n%s", prompt, a.stdout.String(), a.stderr.String())
 	}
-	if system := a.file("0-owner-1", "io/system.md"); !strings.HasSuffix(system, "\n# Resources\n\nMounted read-only:\n\n- /work/.resources/swarm-app/docs (index: /work/.resources/swarm-app/docs/README.md)\n") {
+	if system := a.file("0-owner-1", "io/system.md"); !strings.HasSuffix(system, "\n# Resources\n\nMounted read-only:\n\n- /job/resources/swarm-app/docs (index: /job/resources/swarm-app/docs/README.md)\n") {
 		t.Errorf("run 1's system.md:\n%s", system)
 	}
 	if !strings.Contains(result, "\nresource swarm-app "+v1+"\n") {
@@ -153,7 +153,7 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 // 13, revision 6's Step 4): a swarm-repository path, a path in a declared
 // repository (<name>:<path>, at base, a link in it checked out as a
 // link), a reference at a tag and one at a commit, each at
-// /work/.resources/<repository>/<path> under one read-only mount, each
+// /job/resources/<repository>/<path> under one read-only mount, each
 // repository's commit in the result; a reference fetched once, so its
 // tag moved or its upstream gone changes nothing; a brief in a declared repository named
 // <name>:<path>. The architect's system.md lists each (section 7.3,
@@ -200,22 +200,22 @@ func TestSwarmResourcesAtTheirCommits(t *testing.T) {
 	spec := a.runner.Launched[0]
 	var mounts []string
 	for _, m := range spec.Mounts {
-		if strings.HasPrefix(m.Dst, "/work/.resources") {
+		if strings.HasPrefix(m.Dst, "/job/resources") {
 			mounts = append(mounts, m.Dst+" "+strings.TrimPrefix(m.Src, a.state("runs/1-architect-1")+"/")+" "+map[bool]string{true: "ro", false: "rw"}[m.ReadOnly])
 		}
 	}
-	if !reflect.DeepEqual(mounts, []string{"/work/.resources resources ro"}) {
+	if !reflect.DeepEqual(mounts, []string{"/job/resources resources ro"}) {
 		t.Errorf("mounts %q", mounts)
 	}
 	listed := "\n# Resources\n\nMounted read-only:\n\n" +
-		"- /work/.resources/swarm-app/docs (index: /work/.resources/swarm-app/docs/README.md) — the swarm's docs; the ADRs under adr/ are rulings\n" +
-		"- /work/.resources/lib/guide\n" +
-		"- /work/.resources/spec/SPEC.md — the standard\n" +
-		"- /work/.resources/std/lib\n"
+		"- /job/resources/swarm-app/docs (index: /job/resources/swarm-app/docs/README.md) — the swarm's docs; the ADRs under adr/ are rulings\n" +
+		"- /job/resources/lib/guide\n" +
+		"- /job/resources/spec/SPEC.md — the standard\n" +
+		"- /job/resources/std/lib\n"
 	if system := a.file("1-architect-1", "io/system.md"); !strings.HasSuffix(system, listed) {
 		t.Errorf("system.md:\n%s\nwant it to end with:%s", system, listed)
 	}
-	if prompt := a.file("1-architect-1", "io/prompt.md"); strings.Contains(prompt, "/work/.resources") {
+	if prompt := a.file("1-architect-1", "io/prompt.md"); strings.Contains(prompt, "/job/resources") {
 		t.Errorf("prompt.md names a resource:\n%s", prompt)
 	}
 	lines := "\nresource swarm-app " + swarmAt + "\nresource lib " + libHead + "\nresource spec " + specAt + "\nresource std " + stdAt + "\n"

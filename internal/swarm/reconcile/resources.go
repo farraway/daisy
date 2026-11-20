@@ -93,7 +93,7 @@ const indexPage = "README.md"
 
 // listing is each resource and each reference's path as the run's
 // system.md lists it, in swarm.json's order: mounted at
-// /work/.resources/<repository>/<path>, its index the indexPage at its
+// /job/resources/<repository>/<path>, its index the indexPage at its
 // root when the pass's commit holds one as a regular file.
 func (s *Swarm) listing() ([]Listed, error) {
 	g := s.git()

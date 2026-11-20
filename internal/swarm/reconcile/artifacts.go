@@ -30,7 +30,7 @@ type artifact struct {
 	data []byte
 }
 
-// artifacts is what the worker run left under /work/.swarm/artifacts/
+// artifacts is what the worker run left under /job/io/artifacts/
 // (<run>/io/artifacts) that the collection takes, in name order: each
 // regular file at its top whose name is artifactName's and whose content
 // sniffs as its extension's type. Nothing is followed: the directory and
@@ -181,13 +181,13 @@ func (j *Job) artifactsSection() string {
 		if at == "" {
 			at = "not attached"
 		}
-		lines = append(lines, fmt.Sprintf("- /work/.swarm/artifacts/%s (%s)", a.Name, at))
+		lines = append(lines, fmt.Sprintf("- %s/artifacts/%s (%s)", IOMount, a.Name, at))
 	}
 	return strings.Join(lines, "\n")
 }
 
 // copyArtifacts puts each of a reviewer's screenshots in its io, as
-// /work/.swarm/artifacts/<name> in its container: read from the worker
+// /job/io/artifacts/<name> in its container: read from the worker
 // run's io only as a regular file, never through a link.
 func copyArtifacts(fs ops.FS, ioDir string, arts []Artifact) error {
 	if len(arts) == 0 {

@@ -70,13 +70,24 @@ func (c *collection) fetchReason(err error) string {
 	return reason
 }
 
+// workerClone is the worker run's clone, which step 1 reads (section
+// 7.6): <run>/work/<name>, <name> its repository; a run launched before
+// the run's folder, which has no <run>/job, has it at <run>/work.
+func (c *collection) workerClone() string {
+	work := filepath.Join(c.r.Dir, "work")
+	if _, err := c.s.O.FS().Lstat(filepath.Join(c.r.Dir, "job")); err != nil {
+		return work
+	}
+	return filepath.Join(work, branchRepo(c.lines))
+}
+
 // fetchRef is fetch but for its failure: a clone that reaches outside
 // itself is ErrForeignClone, nothing fetched or recorded.
 func (c *collection) fetchRef() error {
 	if _, ok := Has(c.lines, "fetched"); ok {
 		return nil
 	}
-	sha, err := c.s.git().FetchRun(branchRepo(c.lines), filepath.Join(c.r.Dir, "work"), runBranch(c.lines), runRef(c.r))
+	sha, err := c.s.git().FetchRun(branchRepo(c.lines), c.workerClone(), runBranch(c.lines), runRef(c.r))
 	if err != nil {
 		return err
 	}

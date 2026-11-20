@@ -60,7 +60,7 @@ func TestSwarmRepositoryNotes(t *testing.T) {
 	a.pass()
 	sys = a.file("1-worker-1", "io/system.md")
 	if got := notesOf(sys); strings.Join(got, "|") != "# Repository notes: lib" || strings.Contains(sys, "App's notes") || strings.Contains(sys, "UNPUSHED") ||
-		!strings.Contains(sys, "in acme/lib, on the branch checked out in /work (swarm/1-1)") {
+		!strings.Contains(sys, "in acme/lib, on the branch checked out in /job/work/lib (swarm/1-1)") {
 		t.Fatalf("worker's notes %q:\n%s\nstderr:\n%s", got, sys, a.stderr.String())
 	}
 	a.pass()

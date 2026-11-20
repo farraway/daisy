@@ -23,13 +23,12 @@ func (a *applyWS) planned(plan string) {
 	a.forge.SetLabel(issue1, "swarm:plan-1-accepted")
 }
 
-// A step of the clone's preparation after the clone that fails (the
-// product repository tracks a file where the worker's clone takes a mount
-// point: .swarm, .notes with notes on, .resources with a resource) is the
-// swarm fault clone failed, recorded as a launch's and collected at once,
-// the issue left at its stage, never the pass's error with a run
-// directory no pass collects (sections 7.1 and 7.7).
-func TestSwarmApplyMountPointRefused(t *testing.T) {
+// A product repository that tracks a file named as a mount point once was
+// in a clone (.swarm, .notes with notes on, .resources with a resource)
+// no longer refuses the launch: no mount point is in a clone (sections
+// 7.1, 7.7 and 7.8, The run's folder), so the worker launches and finds
+// the file as its tree holds it.
+func TestSwarmApplyProductFileNamedAsAMountPoint(t *testing.T) {
 	for _, point := range []string{".swarm", ".notes", ".resources"} {
 		t.Run(point, func(t *testing.T) {
 			a := newApplyWS(t) // docs/ its one resource
@@ -45,14 +44,15 @@ func TestSwarmApplyMountPointRefused(t *testing.T) {
 			gitIn(t, dir, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "-m", "a file "+point)
 			gitIn(t, dir, "push", "-q", "origin", "HEAD:main")
 			a.planned(oneSlice)
+			var seen string
+			a.runner.Script(1, "worker", runner.Canned{Out: "Done.\n", Work: in("app", func(work string) error {
+				b, err := os.ReadFile(filepath.Join(work, point))
+				seen = string(b)
+				return err
+			})})
 			a.pass()
-			r := a.result("1-worker-1")
-			if !strings.HasPrefix(r, "label swarm:plan-1-accepted\nlaunch-failed ") || !strings.Contains(r, "\nfault: clone: mkdir ") || !strings.Contains(r, point+": not a directory\n") ||
-				!strings.HasSuffix(r, "outcome fault\ncollected\n") {
-				t.Errorf("result:\n%s", r)
-			}
-			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-1-accepted"}) || len(a.runner.Launches()) != 1 {
-				t.Errorf("labels %v, launched %d", got, len(a.runner.Launches()))
+			if r := a.result("1-worker-1"); strings.Contains(r, "launch-failed") || !strings.Contains(r, "\nstarted ") || seen != "the product's own\n" {
+				t.Errorf("the file %q, result:\n%s", seen, r)
 			}
 		})
 	}
@@ -75,38 +75,42 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 		reason string
 		kept   bool
 	}{
-		{name: "timeout", canned: runner.Canned{Out: "half\n", TimedOut: true, Code: 137, Work: commit(map[string]string{"main.go": "half\n"}, "Half")}, reason: "timeout after 45m", kept: true},
+		{name: "timeout", canned: runner.Canned{Out: "half\n", TimedOut: true, Code: 137, Work: in("app", commit(map[string]string{"main.go": "half\n"}, "Half"))}, reason: "timeout after 45m", kept: true},
 		{name: "non-zero exit", canned: runner.Canned{Out: "x\n", Code: 2}, reason: "exit 2"},
-		{name: "no output", canned: runner.Canned{Work: commit(map[string]string{"main.go": "v1\n"}, "v1")}, reason: "no output", kept: true},
+		{name: "no output", canned: runner.Canned{Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))}, reason: "no output", kept: true},
 		{name: "no commits", canned: runner.Canned{Out: "Nothing to do.\n"}, reason: "no commits"},
-		{name: "protected path", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n", "docs/AGENTS.md": "x\n"}, "v1")},
+		{name: "protected path", canned: runner.Canned{Out: "Done.\n", Work: in("app", commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n", "docs/AGENTS.md": "x\n"}, "v1"))},
 			reason: "protected path changed: .gitea/workflows/ci.yml, docs/AGENTS.md", kept: true},
 		{name: "a clone reaching outside itself", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			work = filepath.Join(work, "app") // the checkout, under /job/work
 			if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
 				return err
 			}
 			return os.WriteFile(filepath.Join(work, ".git", "objects", "info", "alternates"), []byte("/elsewhere/objects\n"), 0o644)
 		}}, reason: "the clone reaches outside itself: it holds .git/objects/info/alternates"},
 		{name: "a clone with a link named by a secret", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			work = filepath.Join(work, "app") // the checkout, under /job/work
 			if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
 				return err
 			}
 			return os.Symlink("x", filepath.Join(work, ".git", "refs", secret))
 		}}, reason: "the clone reaches outside itself: .git holds a link"},
 		{name: "a clone with an unreadable directory", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			work = filepath.Join(work, "app") // the checkout, under /job/work
 			if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
 				return err
 			}
 			os.Mkdir(filepath.Join(work, ".git", "closed"), 0o755)
 			return os.Chmod(filepath.Join(work, ".git", "closed"), 0)
 		}}, reason: "the clone reaches outside itself: a directory in .git cannot be read"},
-		{name: "a protected path with a newline", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n", ".gitea/x\ncost 4242.5": "x\n"}, "v1")},
+		{name: "a protected path with a newline", canned: runner.Canned{Out: "Done.\n", Work: in("app", commit(map[string]string{"main.go": "v1\n", ".gitea/x\ncost 4242.5": "x\n"}, "v1"))},
 			reason: `protected path changed: .gitea/x\ncost 4242.5`, kept: true},
-		{name: "secret in a blob", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"sub/key.txt": secret + "\n"}, "v1")}, reason: "secret in output: commits", kept: true},
-		{name: "secret in a protected path's name", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{".gitea/workflows/" + secret + ".yml": "on: push\n"}, "v1")}, reason: "secret in output: commits", kept: true},
-		{name: "secret in a commit message", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n"}, "token "+secret)}, reason: "secret in output: commits", kept: true},
-		{name: "secret in a commit header", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n"}, "v1", "--author="+secret+" <a@example.net>")}, reason: "secret in output: commits", kept: true},
+		{name: "secret in a blob", canned: runner.Canned{Out: "Done.\n", Work: in("app", commit(map[string]string{"sub/key.txt": secret + "\n"}, "v1"))}, reason: "secret in output: commits", kept: true},
+		{name: "secret in a protected path's name", canned: runner.Canned{Out: "Done.\n", Work: in("app", commit(map[string]string{".gitea/workflows/" + secret + ".yml": "on: push\n"}, "v1"))}, reason: "secret in output: commits", kept: true},
+		{name: "secret in a commit message", canned: runner.Canned{Out: "Done.\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "token "+secret))}, reason: "secret in output: commits", kept: true},
+		{name: "secret in a commit header", canned: runner.Canned{Out: "Done.\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1", "--author="+secret+" <a@example.net>"))}, reason: "secret in output: commits", kept: true},
 		{name: "secret on a merged branch", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			work = filepath.Join(work, "app") // the checkout, under /job/work
 			// The secret is in a commit the merge brings in, not in the head's tree.
 			if _, errb, err := ops.Real().Exec(work, "git", "checkout", "-q", "-b", "side"); err != nil {
 				return &execErr{[]string{"checkout"}, string(errb)}
@@ -211,7 +215,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 func TestSwarmApplyReportsAnUnstampedCommit(t *testing.T) {
 	a := newApplyWS(t)
 	a.planned(oneSlice)
-	a.runner.Script(1, "worker", runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n"}, "Unhooked", "--no-verify")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "Done.\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "Unhooked", "--no-verify"))})
 	a.pass()
 	ps := a.pulls(1)
 	if len(ps) != 1 {
@@ -636,6 +640,7 @@ func TestSwarmApplyCollectsARunAnotherApplyStarted(t *testing.T) {
 // own failure and then the fetch's.
 func TestSwarmApplyFetchFailsTwice(t *testing.T) {
 	unreadable := func(work string) error {
+		work = filepath.Join(work, "app") // the checkout, under /job/work
 		if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
 			return err
 		}
@@ -651,6 +656,7 @@ func TestSwarmApplyFetchFailsTwice(t *testing.T) {
 		{name: "a run that faulted", canned: runner.Canned{Code: 125, Work: unreadable}},
 		{name: "a run that timed out", canned: runner.Canned{Out: "half\n", TimedOut: true, Code: 137, Work: unreadable}, failed: "timeout after 45m"},
 		{name: "git quoting the clone's secret", canned: runner.Canned{Out: "Done.\n", Work: func(work string) error {
+			work = filepath.Join(work, "app") // the checkout, under /job/work
 			if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
 				return err
 			}
@@ -682,7 +688,7 @@ func TestSwarmApplyFetchFailsTwice(t *testing.T) {
 				t.Fatalf("after the second:\n%s", r)
 			}
 			reason, _, _ := strings.Cut(reasons[2], "\n")
-			if tc.reason != "" && reason != tc.reason || tc.reason == "" && !strings.HasPrefix(reason, "git fetch --quiet --no-tags <state>/runs/1-worker-1/work ") || strings.Contains(reason, a.state("")) || strings.Contains(r, "oauth-token") {
+			if tc.reason != "" && reason != tc.reason || tc.reason == "" && !strings.HasPrefix(reason, "git fetch --quiet --no-tags <state>/runs/1-worker-1/work/app ") || strings.Contains(reason, a.state("")) || strings.Contains(r, "oauth-token") {
 				t.Errorf("the reason: %q", reason)
 			}
 			note := mark("reconciler", 1) + "worker run 1 failed: fetch: " + reason + " (at swarm:plan-1-accepted). Remove swarm:blocked to resume."

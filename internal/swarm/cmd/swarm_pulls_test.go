@@ -71,7 +71,7 @@ func TestSwarmPullsBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.forge.SetLabel(issue1, forge.PlanAccepted) // T13
-	a.runner.Script(1, "worker", runner.Canned{Out: "Notes.\n\nNot established: none\n", Work: commit(map[string]string{"notes.md": "n\n"}, "Add notes")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "Notes.\n\nNot established: none\n", Work: in("app", commit(map[string]string{"notes.md": "n\n"}, "Add notes"))})
 	a.pass() // T8: app#2 opened
 	if body := a.issue(1).Body; body != mark("owner", 1)+pullsBlock("slice 1 "+appPull("1")+" merged · slice 2 "+appPull("2")+" open, review round 1")+text || a.edits(1) != 3 {
 		t.Fatalf("one merged, one open, %d edits:\n%s", a.edits(1), body)

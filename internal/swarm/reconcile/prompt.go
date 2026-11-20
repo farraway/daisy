@@ -365,6 +365,19 @@ func (j *Job) RunRepo() string {
 	return cur.Repo
 }
 
+// workRepo is the repository whose checkout is the member's working
+// directory (section 7.2's <W>): the run's, the first declared for a role
+// that clonesEvery repository; "" when none is declared.
+func (j *Job) workRepo() string {
+	if !clonesEvery(j.Role) {
+		return j.RunRepo()
+	}
+	if names := j.names(); len(names) > 0 {
+		return names[0]
+	}
+	return ""
+}
+
 func (j *Job) repository() string {
 	lines := []string{"# Repository", "", "- Issues: " + j.Cfg.Forge.Repo + " on " + j.Host}
 	clone := func(path, name, branch string) {
@@ -378,17 +391,17 @@ func (j *Job) repository() string {
 	switch {
 	case clonesEvery(j.Role):
 		for _, n := range j.names() {
-			clone("/work/"+n, n, j.Cfg.Base)
-		}
-		if names := j.names(); Workdir(j.Cfg, j.Role) == "/work" && len(names) > 0 {
-			lines = append(lines, "- Working directory: /work, holding every clone; the repository is /work/"+names[0])
+			clone(WorkMount+"/"+n, n, j.Cfg.Base)
 		}
 	case j.Role == "worker":
 		s, r, _ := j.WorkerSlice()
-		clone("/work", r, fmt.Sprintf("swarm/%d-%d", j.N, s))
+		clone(WorkMount+"/"+r, r, fmt.Sprintf("swarm/%d-%d", j.N, s))
 	default:
 		cur, _ := j.current()
-		clone("/work", cur.Repo, cur.Head)
+		clone(WorkMount+"/"+cur.Repo, cur.Repo, cur.Head)
+	}
+	if repo := j.workRepo(); repo != "" && Workdir(j.Cfg, j.Role, repo) == JobMount {
+		lines = append(lines, "- Working directory: "+JobMount+", holding every clone under "+WorkMount+"; the repository is "+WorkMount+"/"+repo)
 	}
 	switch {
 	case j.Cfg.Notes && writesNotes(j.Role):
@@ -419,28 +432,37 @@ func (j *Job) resources() string {
 	return "Mounted read-only:\n\n" + strings.Join(lines, "\n")
 }
 
-// ResourcesMount is the directory under which each resource is mounted,
-// inside /work so that a CLI confined to its working directory reaches
-// it (sections 7.2 and 9); a clone's .git/info/exclude names it.
-const ResourcesMount = "/work/.resources"
+// The run's folder (sections 7.2 and 7.8): <run>/job mounted at JobMount,
+// holding only the mount points of its children, every one outside each
+// checkout, so that a CLI confined to /job reaches all the run is given
+// (section 9): the checkouts at WorkMount/<name>, the run's io at IOMount,
+// the notes at NotesMount and the resources at ResourcesMount.
+const (
+	JobMount  = "/job"
+	WorkMount = JobMount + "/work"
+	IOMount   = JobMount + "/io"
+)
+
+// ResourcesMount is the directory under which each resource is mounted.
+const ResourcesMount = JobMount + "/resources"
 
 // clonesEvery: role works over every declared repository, each cloned at
-// base under /work/<name> (section 7.1, step 3): the owner, the
+// base under /job/work/<name> (section 7.1, step 3): the owner, the
 // architect and the QA.
 func clonesEvery(role string) bool {
 	return role == "owner" || role == "architect" || role == declare.QARole
 }
 
-// Workdir is the member's working directory, section 7.2's <W>: /work,
-// and for a role that clonesEvery repository the first repository's clone
-// /work/<name>, unless its provider is Confined to its working
-// directory (section 9): then /work, which holds every clone, /work/.swarm,
-// the notes and the resources.
-func Workdir(cfg declare.Config, role string) string {
-	if clonesEvery(role) && len(cfg.Repos) > 0 && !provider.Providers[cfg.Personas[role].Provider].Confined {
-		return "/work/" + cfg.Repos[0].Name
+// Workdir is the member's working directory, section 7.2's <W>: its
+// checkout of repo, /job/work/<repo> (repo the run's repository, the
+// first declared for a role that clonesEvery repository), unless its
+// provider is Confined to its working directory (section 9): then /job,
+// which holds every checkout and all else the run is given.
+func Workdir(cfg declare.Config, role, repo string) string {
+	if provider.Providers[cfg.Personas[role].Provider].Confined {
+		return JobMount
 	}
-	return "/work"
+	return WorkMount + "/" + repo
 }
 
 var safeWord = regexp.MustCompile(`^[A-Za-z0-9_./:=@%+,-]+$`)
@@ -531,7 +553,7 @@ func (j *Job) thread() string {
 
 // OutputsMount is where a member finds whole each text its prompt shows
 // cut, the copy of the run's out.md the launch makes (section 7.3).
-const OutputsMount = "/work/.swarm/outputs"
+const OutputsMount = IOMount + "/outputs"
 
 // cutNote is the line that ends a text Daisy cut as a prompt shows it,
 // naming the member's copy of the whole output (section 7.3); on the
@@ -606,7 +628,7 @@ func (j *Job) uncut(m Mark, text string) string {
 
 // Cut is the runs whose text the prompt Render made last shows cut, each
 // `<n>-<role>-<k>`, in the order it shows them: the outputs the launch
-// copies to the member's /work/.swarm/outputs/<run>.md.
+// copies to the member's /job/io/outputs/<run>.md.
 func (j *Job) Cut() []string { return slices.Clone(j.cut) }
 
 func same(a, b Entry) bool {

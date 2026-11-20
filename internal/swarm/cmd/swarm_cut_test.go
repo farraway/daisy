@@ -55,7 +55,7 @@ func (a *applyWS) forgeNote(run string) string {
 // The claim of Step 38b (request F40): an accepted plan longer than the
 // forge's comment is posted cut, as before, and each member that acts on
 // it, the worker and each reviewer of its slice, finds it whole as a
-// file in its workspace, /work/.swarm/outputs/<run>.md, its Task text
+// file in its workspace, /job/io/outputs/<run>.md, its Task text
 // naming the file and the cut's note in its prompt pointing at it; the
 // principle holds for any cut text a later member acts on, a reviewer's
 // review that the worker answers among them (section 7.3). It holds as
@@ -87,7 +87,7 @@ func cutTextReachesTheMemberWhole(t *testing.T, refused bool) {
 	if !strings.HasSuffix(posted, "\n"+note) || strings.Contains(posted, "Last: the builder's final step.") {
 		t.Fatalf("the plan as posted ends:\n%s", posted[max(0, len(posted)-200):])
 	}
-	planFile := "/work/.swarm/outputs/1-architect-1.md"
+	planFile := "/job/io/outputs/1-architect-1.md"
 	whole := func(run, file, text, what string) {
 		t.Helper()
 		if got := a.file(run, "io/outputs/"+filepath.Base(file)); got != text {
@@ -102,12 +102,12 @@ func cutTextReachesTheMemberWhole(t *testing.T, refused bool) {
 		}
 	}
 
-	reportFile, reviewFile := "/work/.swarm/outputs/1-worker-1.md", "/work/.swarm/outputs/1-adversary-1.md"
+	reportFile, reviewFile := "/job/io/outputs/1-worker-1.md", "/job/io/outputs/1-adversary-1.md"
 	plan := "the plan, whole in " + planFile
 	report := "; worker run 1's text, whole in " + reportFile
 	review := "; adversary run 1's text, whole in " + reviewFile
 
-	a.runner.Script(1, "worker", runner.Canned{Out: longReport, Work: commit(map[string]string{"main.go": "v1\n"}, "v1")})
+	a.runner.Script(1, "worker", runner.Canned{Out: longReport, Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
 	a.pass()
 	whole("1-worker-1", planFile, bigPlan, plan)
 
@@ -155,7 +155,7 @@ func cutTextReachesTheMemberWhole(t *testing.T, refused bool) {
 
 // With a plan within the forge's limit nothing changes: no copy in the
 // member's io, no Task sentence, and the prompt names no file of
-// /work/.swarm/outputs/.
+// /job/io/outputs/.
 func TestSwarmUncutTextIsNotCopied(t *testing.T) {
 	a := newApplyWS(t)
 	a.planned(oneSlice)
@@ -169,7 +169,7 @@ func TestSwarmUncutTextIsNotCopied(t *testing.T) {
 			t.Errorf("%s's io holds outputs: %v", run, err)
 		}
 		for _, f := range []string{"io/prompt.md", "io/system.md"} {
-			if text := a.file(run, f); text == "" || strings.Contains(text, "/work/.swarm/outputs") || strings.Contains(text, "truncated") {
+			if text := a.file(run, f); text == "" || strings.Contains(text, "/job/io/outputs") || strings.Contains(text, "truncated") {
 				t.Errorf("%s's %s:\n%s", run, f, text)
 			}
 		}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -20,7 +21,28 @@ const oneSlice = "## Steps\n\n1. app: change main.go.\n\n## Test Plan\n\n1. main
 
 // work is a worker run that commits main.go with text and reports it.
 func work(text string) runner.Canned {
-	return runner.Canned{Out: text + "\n\nNot established: none\n", Work: commit(map[string]string{"main.go": text + "\n"}, text)}
+	return runner.Canned{Out: text + "\n\nNot established: none\n", Work: checkout(commit(map[string]string{"main.go": text + "\n"}, text))}
+}
+
+// checkout is f run in the member's one checkout, the worker's or a
+// reviewer's, under the folder of checkouts mounted at /job/work.
+func checkout(f func(string) error) func(string) error {
+	return func(work string) error {
+		es, err := os.ReadDir(work)
+		if err != nil {
+			return err
+		}
+		if len(es) != 1 {
+			return fmt.Errorf("%d checkouts in %s", len(es), work)
+		}
+		return f(filepath.Join(work, es[0].Name()))
+	}
+}
+
+// in is f run in the member's checkout of the repository name, under the
+// folder of checkouts mounted at /job/work (section 7.8).
+func in(name string, f func(string) error) func(string) error {
+	return func(work string) error { return f(filepath.Join(work, name)) }
 }
 
 // inReview takes a new ready issue #1 through the architect (plan) and,

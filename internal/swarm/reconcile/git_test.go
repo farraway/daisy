@@ -36,8 +36,9 @@ func productIn(t *testing.T) (ws, up string) {
 
 // The clone a member sees (section 7.1, step 3), with real git: no remote,
 // a local base, the role's identity at the commit address, no automatic
-// maintenance (a commit starts no detached writer in .git), /.swarm/ and
-// /.notes/ excluded, and the hook stamping the role's co-author on each
+// maintenance (a commit starts no detached writer in .git), nothing
+// excluded for a mount point, none being in a clone (section 7.8, The
+// run's folder), and the hook stamping the role's co-author on each
 // commit the member makes, once, even when the message already carries it.
 func TestCloneAndTheCommitMsgHook(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
@@ -76,18 +77,8 @@ func TestCloneAndTheCommitMsgHook(t *testing.T) {
 	if m := git(dir, "config", "maintenance.auto"); m != "false" {
 		t.Errorf("maintenance.auto %q", m)
 	}
-	// The mount points under /work are excluded: a worker's `git add -A`
-	// commits nothing of /work/.swarm, the notes or a resource.
-	for _, f := range []string{".swarm/out.md", ".notes/n.md", ".resources/docs/README.md"} {
-		os.MkdirAll(filepath.Dir(filepath.Join(dir, f)), 0o755)
-		os.WriteFile(filepath.Join(dir, f), []byte("x"), 0o644)
-	}
-	git(dir, "add", "-A")
-	if staged := git(dir, "diff", "--cached", "--name-only"); staged != "" {
-		t.Errorf("git add -A staged %q", staged)
-	}
-	for _, f := range []string{".swarm", ".notes", ".resources"} {
-		os.RemoveAll(filepath.Join(dir, f))
+	if ex, _ := os.ReadFile(filepath.Join(dir, ".git", "info", "exclude")); strings.Contains(string(ex), "/.swarm/") || strings.Contains(string(ex), "/.notes/") || strings.Contains(string(ex), "/.resources/") {
+		t.Errorf("a mount point excluded:\n%s", ex)
 	}
 	os.WriteFile(filepath.Join(dir, "a"), []byte("a"), 0o644)
 	git(dir, "add", "a")

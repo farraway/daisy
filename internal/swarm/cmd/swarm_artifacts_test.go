@@ -14,7 +14,7 @@ import (
 // png is the bytes of a file that sniffs as image/png.
 const png = "\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR"
 
-// artifacts is a worker's writes under /work/.swarm/artifacts/: each
+// artifacts is a worker's writes under /job/io/artifacts/: each
 // file with its content.
 func artifacts(files map[string]string) func(string) error {
 	return func(io string) error {
@@ -32,7 +32,7 @@ func artifacts(files map[string]string) func(string) error {
 }
 
 // screenshot is a worker run that commits main.go and saves files under
-// /work/.swarm/artifacts/ (section 7.4).
+// /job/io/artifacts/ (section 7.4).
 func screenshot(io func(string) error) runner.Canned {
 	c := work("v1")
 	c.IO = io
@@ -44,15 +44,15 @@ var app1 = forge.Ref{Repo: "app", N: 1}
 // The Task texts' sentences on screenshots (section 7.4): every worker
 // text's, and a reviewer's when the head's worker run saved any.
 const (
-	workerArtifacts   = `If the change on your branch alters what a page of the product shows, render each page it alters once your last commit is made, the way the repository notes give, and save a screenshot of each directly in /work/.swarm/artifacts/ as a .png, .jpg, .jpeg or .webp file in the format its extension names, whose name is letters, digits, ".", "-" and "_", beginning with a letter or a digit, and says which page it shows: Daisy attaches them to the pull request and shows them to the reviewers, and skips any other file there. List under "Not established:" each page you could not render, and why, a page the repository notes give no way to render among them.`
-	reviewerArtifacts = `The worker saved screenshots of pages the change alters, listed under "# Artifacts": open each from /work/.swarm/artifacts/ (the URL beside it is the pull request's copy, and "not attached" means the forge refused the file) and judge what the page shows against what the plan and the slice claim, as you judge the diff. A page that does not show what is claimed is a finding, naming the screenshot and the file and line that render what it shows. If you cannot open an image, say so in the review and judge that page from the diff alone.`
+	workerArtifacts   = `If the change on your branch alters what a page of the product shows, render each page it alters once your last commit is made, the way the repository notes give, and save a screenshot of each directly in /job/io/artifacts/ as a .png, .jpg, .jpeg or .webp file in the format its extension names, whose name is letters, digits, ".", "-" and "_", beginning with a letter or a digit, and says which page it shows: Daisy attaches them to the pull request and shows them to the reviewers, and skips any other file there. List under "Not established:" each page you could not render, and why, a page the repository notes give no way to render among them.`
+	reviewerArtifacts = `The worker saved screenshots of pages the change alters, listed under "# Artifacts": open each from /job/io/artifacts/ (the URL beside it is the pull request's copy, and "not attached" means the forge refused the file) and judge what the page shows against what the plan and the slice claim, as you judge the diff. A page that does not show what is claimed is a finding, naming the screenshot and the file and line that render what it shows. If you cannot open an image, say so in the review and judge that page from the diff alone.`
 )
 
 // The claim of Step 38 (talk A16): a worker run that saved a screenshot
-// under /work/.swarm/artifacts/ has it attached to its pull request
+// under /job/io/artifacts/ has it attached to its pull request
 // (Attach, section 10) and recorded, and each reviewer's prompt lists it
 // under # Artifacts, the file copied to the reviewer's own
-// /work/.swarm/artifacts/, with the Task text's sentence; the worker's
+// /job/io/artifacts/, with the Task text's sentence; the worker's
 // Task text asks for screenshots in every case (section 7.4).
 func TestSwarmWorkerArtifactsReachThePullAndTheReviewers(t *testing.T) {
 	a := newApplyWS(t)
@@ -60,7 +60,7 @@ func TestSwarmWorkerArtifactsReachThePullAndTheReviewers(t *testing.T) {
 	a.runner.Script(1, "worker", screenshot(artifacts(map[string]string{"home.png": png})))
 	a.pass()
 	if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, workerArtifacts) ||
-		!strings.Contains(sys, "\n\nWrite your output to /work/.swarm/out.md; that file and the screenshots in /work/.swarm/artifacts/ are the only things read back,") {
+		!strings.Contains(sys, "\n\nWrite your output to /job/io/out.md; that file and the screenshots in /job/io/artifacts/ are the only things read back,") {
 		t.Errorf("the worker's Task text does not ask for screenshots:\n%s", a.file("1-worker-1", "io/system.md"))
 	}
 	files := a.forge.Attachments(app1)
@@ -77,7 +77,7 @@ func TestSwarmWorkerArtifactsReachThePullAndTheReviewers(t *testing.T) {
 	for _, role := range []string{"adversary", "sympathetic"} {
 		run := "1-" + role + "-1"
 		prompt := a.file(run, "io/prompt.md")
-		want := "\n# Artifacts\n\n- /work/.swarm/artifacts/home.png (" + files[0].URL + ")\n"
+		want := "\n# Artifacts\n\n- /job/io/artifacts/home.png (" + files[0].URL + ")\n"
 		if !strings.Contains(prompt, want) || !strings.HasSuffix(strings.TrimRight(prompt, "\n"), strings.TrimRight(want, "\n")) {
 			t.Errorf("%s's prompt does not end with %q:\n%s", role, want, prompt)
 		}
@@ -92,7 +92,7 @@ func TestSwarmWorkerArtifactsReachThePullAndTheReviewers(t *testing.T) {
 
 // Without a screenshot nothing changes: nothing is attached, no result
 // line names one, and the reviewers' prompts and Task texts are as
-// before, their /work/.swarm holding no artifacts directory.
+// before, their /job/io holding no artifacts directory.
 func TestSwarmWorkerWithoutArtifacts(t *testing.T) {
 	a := newApplyWS(t)
 	a.planned(oneSlice)
@@ -121,7 +121,7 @@ func TestSwarmWorkerWithoutArtifacts(t *testing.T) {
 	}
 }
 
-// What a member leaves under /work/.swarm/artifacts/ is untrusted: only
+// What a member leaves under /job/io/artifacts/ is untrusted: only
 // a regular file at its top whose name is letters, digits, ".", "-" and
 // "_", beginning with a letter or a digit, ending .png, .jpg, .jpeg or
 // .webp, and whose content sniffs as that type is attached; a link
@@ -217,7 +217,7 @@ func TestSwarmWorkerArtifactRefused(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass()
-	if p := a.file("1-adversary-1", "io/prompt.md"); !strings.Contains(p, "\n# Artifacts\n\n- /work/.swarm/artifacts/home.webp (not attached)\n") {
+	if p := a.file("1-adversary-1", "io/prompt.md"); !strings.Contains(p, "\n# Artifacts\n\n- /job/io/artifacts/home.webp (not attached)\n") {
 		t.Errorf("the adversary's prompt:\n%s", p)
 	}
 }

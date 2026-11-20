@@ -14,15 +14,16 @@ import (
 
 // Canned is one scripted run: what the member writes to out.md ("" writes
 // nothing), what else it writes or reads there (IO, given the directory
-// mounted at /work/.swarm: a worker's screenshots, a reviewer's copy of
-// them), what it does in its clone (Work, given the directory mounted
-// at /work: a worker's commits) and in its copy of the research notes
-// (Notes, given the directory mounted at /work/.notes: an architect's
-// notes) and what it reads of its resources (Resources, given the
-// directory mounted at /work/.resources), its exit
+// mounted at /job/io: a worker's screenshots, a reviewer's copy of
+// them), what it does in its checkouts (Work, given the directory mounted
+// at /job/work, which holds each at <name>: a worker's commits) and in its
+// copy of the research notes (Notes, given the directory mounted at
+// /job/notes: an architect's notes) and what it reads of its resources
+// (Resources, given the directory mounted at /job/resources), its exit
 // status, its standard output and error, and whether the wall clock
 // stopped it. A check is scripted the same way under the role "check",
-// its Stdout and Stderr its output.
+// its Stdout and Stderr its output, its Work given its clone, mounted at
+// /work.
 type Canned struct {
 	Out            string
 	IO             func(io string) error
@@ -95,7 +96,7 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 	}
 	for _, m := range s.Mounts {
 		switch {
-		case m.Dst == "/work/.swarm":
+		case m.Dst == "/job/io":
 			fs := f.FS
 			if fs == nil {
 				fs = ops.Real().FS()
@@ -110,15 +111,15 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 					return nil, err
 				}
 			}
-		case m.Dst == "/work" && c.Work != nil:
+		case (m.Dst == "/job/work" || m.Dst == "/work") && c.Work != nil:
 			if err := c.Work(m.Src); err != nil {
 				return nil, err
 			}
-		case m.Dst == "/work/.notes" && c.Notes != nil:
+		case m.Dst == "/job/notes" && c.Notes != nil:
 			if err := c.Notes(m.Src); err != nil {
 				return nil, err
 			}
-		case m.Dst == "/work/.resources" && c.Resources != nil:
+		case m.Dst == "/job/resources" && c.Resources != nil:
 			if err := c.Resources(m.Src); err != nil {
 				return nil, err
 			}

@@ -74,12 +74,12 @@ func TestRenderResearchNotes(t *testing.T) {
 		{File: "loose.md", Subject: "no pin", Source: "lib", Repo: "lib", Behind: -1, Checked: "someday"},
 	}
 	system, prompt := Render(j)
-	has(t, "prompt", prompt, []string{"base main, no check declared\n- Research notes: /work/.notes, notes/ in acme/swarm-x, pushed by Daisy after the run\n\n# Research notes\n\n" +
-		"- /work/.notes/ruleslib.md: ruleslib's rules; source https://example.net/ruleslib v2.0.0, an external source (its pin and its date alone date it); written 2026-11-01 by architect run 3 on #14; checked 2026-11-04 (2 days ago)\n" +
-		"- /work/.notes/board.md: the board; source app 1a2b3c4, 12 commits on app's main since the pin; written 2026-11-06 by owner run 1; checked 2026-11-06 (today)\n" +
-		"- /work/.notes/gone.md: a lost pin; source lib deadbee, a pin not in lib's history; no Written: line; never checked\n" +
-		"- /work/.notes/loose.md: no pin; source lib, no pin; no Written: line; checked someday\n\n# Issue #1"})
-	has(t, "system", system, []string{`"Written: 2026-11-06 by architect run 1 on #1" and "Checked: 2026-11-06"`, "one of app, lib, or a URL", `Your plan's "## Research" then names the note rather than repeating it. Daisy commits and pushes /work/.notes after the run; delete no note.`})
+	has(t, "prompt", prompt, []string{"base main, no check declared\n- Research notes: /job/notes, notes/ in acme/swarm-x, pushed by Daisy after the run\n\n# Research notes\n\n" +
+		"- /job/notes/ruleslib.md: ruleslib's rules; source https://example.net/ruleslib v2.0.0, an external source (its pin and its date alone date it); written 2026-11-01 by architect run 3 on #14; checked 2026-11-04 (2 days ago)\n" +
+		"- /job/notes/board.md: the board; source app 1a2b3c4, 12 commits on app's main since the pin; written 2026-11-06 by owner run 1; checked 2026-11-06 (today)\n" +
+		"- /job/notes/gone.md: a lost pin; source lib deadbee, a pin not in lib's history; no Written: line; never checked\n" +
+		"- /job/notes/loose.md: no pin; source lib, no pin; no Written: line; checked someday\n\n# Issue #1"})
+	has(t, "system", system, []string{`"Written: 2026-11-06 by architect run 1 on #1" and "Checked: 2026-11-06"`, "one of app, lib, or a URL", `Your plan's "## Research" then names the note rather than repeating it. Daisy commits and pushes /job/notes after the run; delete no note.`})
 
 	j.Notes = nil
 	_, prompt = Render(j)
@@ -95,7 +95,7 @@ func TestRenderResearchNotes(t *testing.T) {
 	w := job(f, at.N, "worker", forge.PlanAccepted)
 	w.Cfg.Notes = true
 	system, prompt = Render(w)
-	has(t, "worker", prompt, []string{"- Research notes (read-only): /work/.notes\n"}, "# Research notes")
+	has(t, "worker", prompt, []string{"- Research notes (read-only): /job/notes\n"}, "# Research notes")
 	has(t, "worker task", system, nil, "Research notes", ".notes")
 
 	j.Cfg.Notes = false

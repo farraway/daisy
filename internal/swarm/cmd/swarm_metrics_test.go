@@ -199,7 +199,7 @@ func TestSwarmApplyRecordsWorkerLinesAndReviewRounds(t *testing.T) {
 	home := a.metricsHome()
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n",
-		Work: commit(map[string]string{"main.go": "v1\nv1b\n", "main_test.go": "t\n", "README.md": "r\n"}, "v1")})
+		Work: in("app", commit(map[string]string{"main.go": "v1\nv1b\n", "main_test.go": "t\n", "README.md": "r\n"}, "v1"))})
 	a.runner.Script(1, "check", runner.Canned{Work: func(string) error { a.tick(); return nil }})
 	a.pass()
 	ended := strings.Fields(lineOf(a.result("1-worker-1"), "exited "))
@@ -396,7 +396,7 @@ func TestSwarmMetricsBackfill(t *testing.T) {
 	if _, errb, err := a.exec(a.state("git/app"), "git", "fetch", "-q", "origin", "+refs/heads/*:refs/heads/*"); err != nil {
 		t.Fatalf("fetch: %v %s", err, errb)
 	}
-	a.oldRun("0-owner-1", false, "claude\n-p\n--model\nclaude-sonnet-5-5\n--effort\nlow\n--append-system-prompt-file\n/work/.swarm/system.md",
+	a.oldRun("0-owner-1", false, "claude\n-p\n--model\nclaude-sonnet-5-5\n--effort\nlow\n--append-system-prompt-file\n/job/io/system.md",
 		"start app "+start+"\npropose 5\nstarted 2026-11-05T10:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\nexited 0 2026-11-05T10:05:00Z\n"+
 			"cost 0.5 tokens 1000/3000 turns 3\ncreating 1\noutcome posted\ncollected\n")
 	a.oldRun("2-adversary-1", true, "codex\nexec\n--json\n--model\ngpt-6.1-sol\n-c\nmodel_reasoning_effort=medium\n--dangerously-bypass-approvals-and-sandbox\n--cd\n/work/app",
@@ -813,7 +813,7 @@ func TestSwarmApplyRecordsTheStopsCause(t *testing.T) {
 			a.planned(oneSlice)
 			canned := runner.Canned{Out: tc.out}
 			if tc.outcome == "posted" {
-				canned.Work = commit(map[string]string{"main.go": "v1\n"}, "v1")
+				canned.Work = in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))
 			}
 			a.runner.Script(1, "worker", canned)
 			a.pass()
@@ -896,7 +896,7 @@ func TestSwarmApplyRecordsDaisysOwnCause(t *testing.T) {
 		{name: "the image missing", role: "worker", canned: runner.Canned{Code: 125}, outcome: "fault", cause: "environment", fault: "fault: exit 125"},
 		{name: "a provider's limit", role: "worker", canned: runner.Canned{Code: 1, Stdout: `{"type":"result","is_error":true,"result":"Claude AI usage limit reached"}`}, outcome: "fault", cause: "capacity", fault: "fault: provider: Claude AI usage limit reached"},
 		{name: "a provider's sign-in", role: "worker", canned: runner.Canned{Code: 1, Stdout: `{"type":"result","is_error":true,"result":"Invalid API key · Please run /login"}`}, outcome: "fault", cause: "environment", fault: "fault: provider: Invalid API key · Please run /login"},
-		{name: "a protected path", role: "worker", canned: runner.Canned{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n"}, "v1")}, outcome: "failed", cause: "scope", fault: "failed: protected path changed: .gitea/workflows/ci.yml"},
+		{name: "a protected path", role: "worker", canned: runner.Canned{Out: "Done.\n", Work: in("app", commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n"}, "v1"))}, outcome: "failed", cause: "scope", fault: "failed: protected path changed: .gitea/workflows/ci.yml"},
 		{name: "bad slices", role: "architect", canned: runner.Canned{Out: "## Steps\n\n1. app: one.\n2. other: two.\n"}, outcome: "failed", cause: "plan", fault: "failed: bad slices: 2"},
 		{name: "a non-zero exit", role: "worker", canned: runner.Canned{Out: "x\n", Code: 2}, outcome: "failed", cause: "", fault: "failed: exit 2"},
 	} {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -54,7 +53,7 @@ func job(f *forge.Fake, n int, role, label string) *Job {
 	pulls, _ := f.Pulls(n, []string{"swarm-bot"})
 	return &Job{Cfg: cfg(), Host: "forge.example.net", SwarmLogin: "swarm-bot", N: n, K: 1, Role: role, Label: label, Time: t0,
 		Persona: "# " + role + "\n\nYou do it.\n\n```\n# not a heading\n```\n", Issue: is, Pulls: pulls,
-		Resources: []Listed{{Mount: "/work/.resources/app/docs"}}}
+		Resources: []Listed{{Mount: "/job/resources/app/docs"}}}
 }
 
 // The architect's two files on ready, byte for byte (section 7.3 and 7.4):
@@ -95,28 +94,28 @@ You do it.
 
 # Task
 
-Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. ` + wantBuilderSentence + ` The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
+Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. ` + wantBuilderSentence + ` The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
 
-Write your output to /work/.swarm/out.md; that file and the builder plan in /work/.swarm/builder.md are the only things read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /work/.swarm/out.md instead. ` + wantCauseSentence + `
+Write your output to /job/io/out.md; that file and the builder plan in /job/io/builder.md are the only things read back, and nothing you write elsewhere outside /job survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /job/io/out.md instead. ` + wantCauseSentence + `
 
 # Resources
 
 Mounted read-only:
 
-- /work/.resources/app/docs
+- /job/resources/app/docs
 `
 
 // wantBuilderSentence follows the plan's text in each architect Task text
 // that asks for a plan (section 7.4).
-const wantBuilderSentence = `Then write the builder plan to /work/.swarm/builder.md, a document of its own, not posted: the plan consolidated for whoever builds it, one section "## Slice <s>" per slice under "## Steps", in their order, each holding all a builder needs for that slice (its files, types and signatures, claim and test, and what of the research, constraints and decisions bears on it), so that it reads without the plan. Write it whole each time you write the plan.`
+const wantBuilderSentence = `Then write the builder plan to /job/io/builder.md, a document of its own, not posted: the plan consolidated for whoever builds it, one section "## Slice <s>" per slice under "## Steps", in their order, each holding all a builder needs for that slice (its files, types and signatures, claim and test, and what of the research, constraints and decisions bears on it), so that it reads without the plan. Write it whole each time you write the plan.`
 
 const wantArchitectPrompt = `<!-- daisy-swarm prompt: acme/app#1 architect run 1, 2026-11-06T15:00:00Z -->
 
 # Repository
 
 - Issues: acme/app on forge.example.net
-- Clone /work/app: acme/app, branch main, base main, check make check
-- Clone /work/lib: acme/lib, branch main, base main, no check declared
+- Clone /job/work/app: acme/app, branch main, base main, check make check
+- Clone /job/work/lib: acme/lib, branch main, base main, no check declared
 
 # Issue #1: Drift check
 
@@ -204,8 +203,8 @@ func TestRenderArchitectOpenSlice(t *testing.T) {
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`Revise your plan for issue #1 in answer to the latest comment.`,
 		`a diagram where a slice touches more than one component. ` + wantBuilderSentence + ` A worker sees only`,
-		`that file and the builder plan in /work/.swarm/builder.md are the only things read back`,
-		`Pull request lib#1, slice 1, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/1-1 in /work/lib, beside main: "git diff main...swarm/1-1" there is the change they judged. Revise the plan`})
+		`that file and the builder plan in /job/io/builder.md are the only things read back`,
+		`Pull request lib#1, slice 1, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/1-1 in /job/work/lib, beside main: "git diff main...swarm/1-1" there is the change they judged. Revise the plan`})
 	has(t, "prompt.md", prompt, []string{"# Earlier pull requests\n\nNone.\n\n# Pull request lib#1: #1 slice 1: Drift check\n\nBranch swarm/1-1 into main; head aaa.\n\nDid it.\n\nRefs acme/app#1\n\n## Thread\n\n",
 		"### adversary, run 1, at 2026-11-06T15:07:00Z, on aaa: request-changes\n\n[blocking] x.go:1 wrong\n\n### sympathetic, run 1, at 2026-11-06T15:08:00Z, on aaa: approve\n\n### jane at 2026-11-06T15:09:00Z, on x.go:3 at aaa\n\nwhy?",
 		"# Check\n\nmake check on aaa: exit 2\n\n    line 6\n", "    line 25\n"},
@@ -229,7 +228,7 @@ func TestRenderArchitectOpenSliceWithoutAPlan(t *testing.T) {
 	j.Pull, j.Check = thread(f, pr), "No check result for this head."
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: `,
-		`Pull request lib#1, slice 1, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/1-1 in /work/lib, beside main`},
+		`Pull request lib#1, slice 1, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/1-1 in /job/work/lib, beside main`},
 		"Revise your plan")
 	has(t, "prompt.md", prompt, []string{"# Pull request lib#1: #1 slice 1: Drift check\n\nBranch swarm/1-1 into main; head aaa.\n", "[blocking] x.go:1 wrong", "# Check\n\nNo check result for this head."})
 }
@@ -247,11 +246,11 @@ func TestRenderWorkerNextSlice(t *testing.T) {
 	j := job(f, at.N, "worker", "swarm:plan-1-accepted")
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{
-		`Implement slice 2 of the accepted plan for issue #1 (it declares 2) in acme/app, on the branch checked out in /work (swarm/1-2).`,
+		`Implement slice 2 of the accepted plan for issue #1 (it declares 2) in acme/app, on the branch checked out in /job/work/app (swarm/1-2).`,
 		`Commit with git; do not push.`, `Run "make check" before you finish and quote its last result.`,
 		`End what you write with a line "Not established:"`,
 		`write "BLOCKED: slice <i> is not merged".`, `These paths are protected: .gitea/, AGENTS.md.`, mergeBase})
-	has(t, "prompt.md", prompt, []string{"- Clone /work: acme/app, branch swarm/1-2, base main, check make check\n",
+	has(t, "prompt.md", prompt, []string{"- Clone /job/work/app: acme/app, branch swarm/1-2, base main, check make check\n",
 		"# Plan\n\n## architect, run 1, at 2026-11-06T15:04:00Z: slice 2 of 2, in app\n\n#### Research\n",
 		"```mermaid\n1. app: not a slice\n```",
 		"# Direction\n\n## jane at 2026-11-06T15:05:00Z\n\nGo ahead.\n\n# Earlier pull requests\n\n- lib#1 swarm/1-1 merged " + pulls[0].MergeSHA + ": #1 slice 1: Drift check\n"},
@@ -267,7 +266,7 @@ func TestRenderWorkerFastLane(t *testing.T) {
 	has(t, "system.md", sys, []string{`There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #1.`,
 		mergeBase + ` Commit with git`},
 		"slice <i>")
-	has(t, "prompt.md", prompt, []string{"# Plan\n\nNone: there is no plan.", "# Direction\n\n## jane at", "- Clone /work: acme/app, branch swarm/1-1,"})
+	has(t, "prompt.md", prompt, []string{"# Plan\n\nNone: there is no plan.", "# Direction\n\n## jane at", "- Clone /job/work/app: acme/app, branch swarm/1-1,"})
 }
 
 // The adversary on round 2: the other reviewer's review of the head left
@@ -281,11 +280,11 @@ func TestRenderAdversaryRoundTwo(t *testing.T) {
 	j := job(f, at.N, "adversary", "swarm:review-0-ready")
 	j.Pulls, j.Pull, j.Check = pulls, thread(f, pr), "No check result for this head."
 	sys, prompt := Render(j)
-	has(t, "system.md", sys, []string{`Review pull request lib#1, slice 1 of issue #1. The change is "git diff main...HEAD" in /work`,
+	has(t, "system.md", sys, []string{`Review pull request lib#1, slice 1 of issue #1. The change is "git diff main...HEAD" in /job/work/lib, a throwaway clone`,
 		`For each test that slice 1's item under the plan's Steps names`,
 		`This is round 2. First say, for each blocking finding of your review of aaa, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since aaa in the files the pull request changes ("git diff --name-only -z main...HEAD | xargs -0 -r git diff aaa..HEAD --"): what a merge of main brought in is not this pull request's change.`},
 		"These paths are protected")
-	has(t, "prompt.md", prompt, []string{"- Clone /work: acme/lib, branch swarm/1-1, base main, no check declared", "on aaa: request-changes", "# Check\n\nNo check result for this head."},
+	has(t, "prompt.md", prompt, []string{"- Clone /job/work/lib: acme/lib, branch swarm/1-1, base main, no check declared", "on aaa: request-changes", "# Check\n\nNo check result for this head."},
 		"still fine", "# Direction")
 }
 
@@ -498,7 +497,7 @@ func TestRenderOwner(t *testing.T) {
 	b.Batch = &Batch{Briefs: briefs, Propose: 3}
 	sys, prompt = Render(b)
 	has(t, "batch system.md", sys, []string{`Propose up to 3 new jobs for acme/app, most important first, toward the first milestone`})
-	has(t, "batch prompt.md", prompt, []string{"# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /work/.resources/swarm-app/docs/briefs/a.md)\n\n### A\nStatus: active\nFirst.\n\n#### M1\n",
+	has(t, "batch prompt.md", prompt, []string{"# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /job/resources/swarm-app/docs/briefs/a.md)\n\n### A\nStatus: active\nFirst.\n\n#### M1\n",
 		"# Open swarm issues\n\nNone.\n\n# Recently closed\n\nNone.\n"}, "b.md", "notes.md", "# Issue", "# Thread")
 }
 
@@ -625,7 +624,7 @@ func TestRenderWorkerFirstSlice(t *testing.T) {
 	f.Comment(at, marker("architect", 1)+archPlan)
 	sys, prompt := Render(job(f, at.N, "worker", "swarm:plan-1-accepted"))
 	has(t, "system.md", sys, []string{"Implement slice 1 of the accepted plan for issue #1 (it declares 2) in acme/lib"}, "slice <i>", "These paths are protected")
-	has(t, "prompt.md", prompt, []string{"- Clone /work: acme/lib, branch swarm/1-1, base main, no check declared"})
+	has(t, "prompt.md", prompt, []string{"- Clone /job/work/lib: acme/lib, branch swarm/1-1, base main, no check declared"})
 }
 
 // Praxis and the testing skill, as the launch read them from the
@@ -671,14 +670,14 @@ func TestRenderPraxisAndTesting(t *testing.T) {
 func TestRenderResources(t *testing.T) {
 	f, at := fixture()
 	listed := []Listed{
-		{Mount: "/work/.resources/app/docs", Index: "/work/.resources/app/docs/README.md", Note: "the swarm's docs; reviewers review against the practice pages under practices/"},
-		{Mount: "/work/.resources/lib/docs/adr", Note: "the ADRs, which are rulings"},
-		{Mount: "/work/.resources/toupee/src"},
+		{Mount: "/job/resources/app/docs", Index: "/job/resources/app/docs/README.md", Note: "the swarm's docs; reviewers review against the practice pages under practices/"},
+		{Mount: "/job/resources/lib/docs/adr", Note: "the ADRs, which are rulings"},
+		{Mount: "/job/resources/toupee/src"},
 	}
 	const want = "\n\n# Resources\n\nMounted read-only:\n\n" +
-		"- /work/.resources/app/docs (index: /work/.resources/app/docs/README.md) — the swarm's docs; reviewers review against the practice pages under practices/\n" +
-		"- /work/.resources/lib/docs/adr — the ADRs, which are rulings\n" +
-		"- /work/.resources/toupee/src\n"
+		"- /job/resources/app/docs (index: /job/resources/app/docs/README.md) — the swarm's docs; reviewers review against the practice pages under practices/\n" +
+		"- /job/resources/lib/docs/adr — the ADRs, which are rulings\n" +
+		"- /job/resources/toupee/src\n"
 	for _, c := range []struct{ role, label string }{
 		{"owner", "swarm:proposal-posted"}, {"architect", "swarm:proposal-accepted"}, {"worker", "swarm:plan-1-accepted"},
 		{"adversary", "swarm:review-0-ready"}, {"sympathetic", "swarm:review-0-ready"},
@@ -690,7 +689,7 @@ func TestRenderResources(t *testing.T) {
 		if !strings.HasSuffix(sys, "\n\n## App\n\nNotes."+want) {
 			t.Errorf("%s's system.md does not end with # Resources:\n%s", c.role, sys)
 		}
-		has(t, c.role+"'s prompt.md", prompt, nil, "/work/.resources", "Resources")
+		has(t, c.role+"'s prompt.md", prompt, nil, "/job/resources", "Resources")
 		j.Resources = nil
 		if sys, _ := Render(j); !strings.HasSuffix(sys, "\n\n# Resources\n\nNone.\n") {
 			t.Errorf("%s's system.md without resources:\n%s", c.role, sys)
@@ -698,23 +697,11 @@ func TestRenderResources(t *testing.T) {
 	}
 }
 
-// The mounts a member is given leave to reach: those outside its working
-// directory.
-func TestOutside(t *testing.T) {
-	dirs := []string{"/work/.swarm", "/work/lib", "/work/.resources/docs", "/workshop"}
-	if got := outside("/work", dirs); !reflect.DeepEqual(got, []string{"/workshop"}) {
-		t.Errorf("in /work: %q", got)
-	}
-	if got := outside("/work/app", dirs); !reflect.DeepEqual(got, dirs) {
-		t.Errorf("in /work/app: %q", got)
-	}
-}
-
 // The empty-field check reads Daisy's own lines only (section 7.1, step
 // 2): a quoted body's `- Clone ` or `- Issues:` bullet, or a fenced
 // `# Issue` line, is no field of the prompt.
 func TestEmptyField(t *testing.T) {
-	head := "# Repository\n\n- Issues: acme/app on forge.example.net\n- Clone /work: acme/app, branch main, base main, no check declared\n\n"
+	head := "# Repository\n\n- Issues: acme/app on forge.example.net\n- Clone /job/work/app: acme/app, branch main, base main, no check declared\n\n"
 	for _, c := range []struct {
 		prompt string
 		empty  bool
@@ -722,7 +709,7 @@ func TestEmptyField(t *testing.T) {
 		{head + "# Issue #1: Drift\n\n- Clone the repo first.\n- Issues: none\n\n```sh\n# Issue tracker\n# Pull request\n```\n", false},
 		{head + "# Issue #1: \n", true},
 		{"# Repository\n\n- Issues: acme/app on \n", true},
-		{"# Repository\n\n- Clone /work: acme/app, branch , base main, x\n", true},
+		{"# Repository\n\n- Clone /job/work/app: acme/app, branch , base main, x\n", true},
 		{head + "# Issue #1: Drift\n\n# Pull request app#2: \n", true},
 		{head + "# Issue #1: Drift\n\n~~~\n```\n# Issue x\n~~~\n# Issue #1: \n", true},
 		{head + "# Issue #1: Drift\n\n" + Shift("a pasted log, its fence left open:\n```\n# Pull request x", 1) + "\n\n# Pull request app#2: \n", true},
@@ -753,12 +740,12 @@ func TestRenderCutNote(t *testing.T) {
 	}
 	sys, prompt := Render(j)
 	has(t, "prompt.md", prompt, []string{
-		"it works.\n\n" + note("/work/.swarm/outputs/1-architect-1.md") + "\n",
+		"it works.\n\n" + note("/job/io/outputs/1-architect-1.md") + "\n",
 		"The plan's end reads:\n" + note("runs/1-architect-9") + "\n",
 		"Quoted:\n" + note("runs/1-owner-3") + "\n",
 		"Long.\n" + note("runs/1-owner-4") + "\n",
 	}, note("runs/1-architect-1"), "outputs/1-architect-9", "outputs/1-owner-3", "outputs/1-owner-4")
-	has(t, "system.md", sys, []string{"were cut: the plan, whole in /work/.swarm/outputs/1-architect-1.md. In each, a line"})
+	has(t, "system.md", sys, []string{"were cut: the plan, whole in /job/io/outputs/1-architect-1.md. In each, a line"})
 	if got := j.Cut(); len(got) != 1 || got[0] != "1-architect-1" {
 		t.Errorf("Cut: %v", got)
 	}
@@ -767,8 +754,8 @@ func TestRenderCutNote(t *testing.T) {
 		t.Fatal(err)
 	}
 	sys, prompt = Render(j)
-	has(t, "prompt.md", prompt, []string{"it works.\n\n" + note("runs/1-architect-1") + "\n"}, "/work/.swarm/outputs")
-	has(t, "system.md", sys, nil, "/work/.swarm/outputs", "60,000", "**Check:**")
+	has(t, "prompt.md", prompt, []string{"it works.\n\n" + note("runs/1-architect-1") + "\n"}, "/job/io/outputs")
+	has(t, "system.md", sys, nil, "/job/io/outputs", "60,000", "**Check:**")
 	if got := j.Cut(); len(got) != 0 {
 		t.Errorf("Cut without Outputs: %v", got)
 	}

@@ -17,7 +17,7 @@ import (
 // Brief is one brief: its path, as the batch prompt and a proposal's
 // `Brief:` line name it (its path in the swarm repository, or
 // `<name>:<path>` in a declared one), its Status, its text, and where it
-// is mounted under /work/.resources (`<repository>/<path>`).
+// is mounted under /job/resources (`<repository>/<path>`).
 type Brief struct{ Path, Status, Text, Mount string }
 
 // Read is the brief at path whose text is data, mounted at mount; ok is

@@ -252,8 +252,8 @@ func (c *collection) step(line string) error {
 	return nil
 }
 
-// end records the run (record), then the outcome and `collected`, and removes the run's clones
-// and its checkout of the resources.
+// end records the run (record), then the outcome and `collected`, and removes the run's clones,
+// its folder and its checkout of the resources.
 func (c *collection) end(outcome string) error {
 	fs := c.s.O.FS()
 	if err := c.record(outcome); err != nil {
@@ -267,7 +267,7 @@ func (c *collection) end(outcome string) error {
 		c.s.faulted = append(c.s.faulted, c.r.Dir)
 	}
 	delete(c.s.given, c.r.Dir)
-	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "check")), removeTree(fs, filepath.Join(c.r.Dir, "resources")), c.dropNotes())
+	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "job")), removeTree(fs, filepath.Join(c.r.Dir, "check")), removeTree(fs, filepath.Join(c.r.Dir, "resources")), c.dropNotes())
 }
 
 // removeTree removes a tree a member or a check wrote: when RemoveAll

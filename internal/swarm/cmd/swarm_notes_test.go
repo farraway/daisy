@@ -56,8 +56,8 @@ func TestSwarmApplyNotesInTheSwarmRepository(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:proposal-accepted"}) || a.stderr.Len() != 0 {
 		t.Fatalf("the batch's proposal: %v\nstdout:\n%s\nstderr:\n%s", got, a.stdout.String(), a.stderr.String())
 	}
-	if p := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(p, "## briefs/m0.md (Status: active; mounted at /work/.resources/swarm-app/briefs/m0.md)") ||
-		!strings.Contains(p, "- Research notes: /work/.notes, notes/ in acme/swarm-app, pushed by Daisy after the run\n\n# Research notes\n\nNone.\n") {
+	if p := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(p, "## briefs/m0.md (Status: active; mounted at /job/resources/swarm-app/briefs/m0.md)") ||
+		!strings.Contains(p, "- Research notes: /job/notes, notes/ in acme/swarm-app, pushed by Daisy after the run\n\n# Research notes\n\nNone.\n") {
 		t.Errorf("the batch's prompt:\n%s", p)
 	}
 	if got := a.milestoneTitles(); !reflect.DeepEqual(got, []string{"m0: M1 The board"}) || a.milestoneOf(1) != "m0: M1 The board" {
@@ -86,11 +86,11 @@ func TestSwarmApplyNotesInTheSwarmRepository(t *testing.T) {
 	}) {
 		t.Fatalf("the plan on acme/swarm-app#1: %v %+v", got, is.Comments)
 	}
-	if p := a.file("1-architect-1", "io/prompt.md"); !strings.Contains(p, "# Research notes\n\n- /work/.notes/Ruleslib.md: ruleslib's rules; source https://example.net/ruleslib v2.0.0, an external source") || strings.Contains(p, "/work/.notes/README.md") {
+	if p := a.file("1-architect-1", "io/prompt.md"); !strings.Contains(p, "# Research notes\n\n- /job/notes/Ruleslib.md: ruleslib's rules; source https://example.net/ruleslib v2.0.0, an external source") || strings.Contains(p, "/job/notes/README.md") {
 		t.Errorf("the architect's index:\n%s", p)
 	}
 	arch := a.runner.Launches()[1]
-	if arch.Label != "acme/swarm-app#1/architect" || !slices.Contains(arch.Mounts, runner.Mount{Src: a.state("runs/1-architect-1/notes"), Dst: "/work/.notes"}) {
+	if arch.Label != "acme/swarm-app#1/architect" || !slices.Contains(arch.Mounts, runner.Mount{Src: a.state("runs/1-architect-1/notes"), Dst: "/job/notes"}) {
 		t.Errorf("the architect's spec %+v", arch)
 	}
 	if files := gitIn(t, up, "ls-tree", "-r", "--name-only", "main", "briefs/", "notes/"); files != "briefs/README.md\nbriefs/m0.md\nnotes/Board-model.md\nnotes/README.md\nnotes/Ruleslib.md" {
@@ -118,7 +118,7 @@ func TestSwarmApplyNotesInTheSwarmRepository(t *testing.T) {
 			worker = l
 		}
 	}
-	if worker.Image != "daisy-member:1" || worker.Label != "acme/swarm-app#1/worker" || !slices.Contains(worker.Mounts, runner.Mount{Src: a.state("runs/1-worker-1/notes"), Dst: "/work/.notes", ReadOnly: true}) {
+	if worker.Image != "daisy-member:1" || worker.Label != "acme/swarm-app#1/worker" || !slices.Contains(worker.Mounts, runner.Mount{Src: a.state("runs/1-worker-1/notes"), Dst: "/job/notes", ReadOnly: true}) {
 		t.Errorf("the worker's spec %+v", worker)
 	}
 	if _, err := os.Stat(a.state("notes/.git")); err != nil {

@@ -181,7 +181,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("stdout:\n%s", a.stdout.String())
 	}
 	prompt := a.file("0-owner-1", "io/prompt.md")
-	if !strings.Contains(prompt, "# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /work/.resources/swarm-app/docs/briefs/a.md)\n") ||
+	if !strings.Contains(prompt, "# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /job/resources/swarm-app/docs/briefs/a.md)\n") ||
 		!strings.Contains(prompt, "## docs/briefs/b.md (Status: active") || strings.Contains(prompt, "docs/briefs/c.md") {
 		t.Errorf("batch prompt:\n%s", prompt)
 	}
@@ -202,7 +202,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	}
 
 	a.forge.SetLabel(ref, "swarm:plan-1-accepted") // T7
-	a.runner.Script(1, "worker", runner.Canned{Out: "Slice 1: main.go says v1.\n\nNot established: none\n", Work: commit(map[string]string{"main.go": "v1\n"}, "Say v1")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "Slice 1: main.go says v1.\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "Say v1"))})
 	a.runner.Script(1, "check", runner.Canned{Stdout: "ok 1 test\n"})
 	a.pass()
 	ps := a.pulls(1)
@@ -273,7 +273,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("the sympathetic reviewer read the adversary's review of its head:\n%s", sys)
 	}
 
-	a.runner.Script(1, "worker", runner.Canned{Out: "Now v2.\n\nNot established: none\n", Work: commit(map[string]string{"main.go": "v2\n"}, "Say v2")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "Now v2.\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v2\n"}, "Say v2"))})
 	a.runner.Script(1, "check", runner.Canned{Stdout: "ok 2 tests\n"})
 	a.pass() // T12
 	pr = a.pulls(1)[0]
@@ -306,7 +306,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.forge.SetLabel(ref, "swarm:plan-1-accepted") // T13
-	a.runner.Script(1, "worker", runner.Canned{Out: "Notes.\n\nNot established: none\n", Work: commit(map[string]string{"notes.md": "n\n"}, "Add notes")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "Notes.\n\nNot established: none\n", Work: in("app", commit(map[string]string{"notes.md": "n\n"}, "Add notes"))})
 	a.pass()
 	ps = a.pulls(1)
 	merged := a.pulls(1)[0]

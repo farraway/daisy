@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -90,6 +91,7 @@ func TestSwarmApplyNotMergeableBackToTheWorker(t *testing.T) {
 	}
 
 	a.runner.Script(1, "worker", runner.Canned{Out: "Merged main; main.go keeps both.\n\nNot established: none\n", Work: func(work string) error {
+		work = filepath.Join(work, "app") // the checkout, under /job/work
 		if _, _, err := ops.Real().Exec(work, "git", "merge", "--no-edit", "main"); err == nil {
 			t.Error("main merged without a conflict")
 		}

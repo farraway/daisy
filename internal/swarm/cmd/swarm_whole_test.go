@@ -182,7 +182,7 @@ func TestSwarmLongTextContinuedWhenRefused(t *testing.T) {
 	a.pass()
 	p := a.file("1-worker-1", "io/prompt.md")
 	if strings.Count(p, "## For the builder") != 1 || strings.Contains(p, "Continued from") || strings.Contains(p, "Last: the builder's final step.") ||
-		!strings.Contains(p, "\n"+cutNote("/work/.swarm/outputs/1-architect-1.md")+"\n") {
+		!strings.Contains(p, "\n"+cutNote("/job/io/outputs/1-architect-1.md")+"\n") {
 		t.Errorf("worker run 1's prompt:\n%s", p[max(0, strings.Index(p, "# Plan")-100):])
 	}
 	if got := a.file("1-worker-1", "io/outputs/1-architect-1.md"); got != hugePlan {

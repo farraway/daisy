@@ -74,13 +74,13 @@ func TestSwarmQAAfterMerges(t *testing.T) {
 	if len(runs) != 1 {
 		t.Fatalf("QA launches after the merge: %d\n%s%s", len(runs), a.stdout.String(), a.stderr.String())
 	}
-	if s := runs[0]; s.Image != "daisy-member:1" || s.Workdir != "/work/app" {
+	if s := runs[0]; s.Image != "daisy-member:1" || s.Workdir != "/job/work/app" {
 		t.Errorf("launched in %s at %s", s.Image, s.Workdir)
 	}
 	sys, prompt := a.file("0-qa-1", "io/system.md"), a.file("0-qa-1", "io/prompt.md")
 	for _, want := range []string{
 		"# Persona\n\n## QA\n",
-		`# Task` + "\n\n" + `Use app as its users do and report what fails. In its clone /work/app, at main, start the app and its browser as "# Repository notes: app" says, and drive each route and control of the page map those notes keep.`,
+		`# Task` + "\n\n" + `Use app as its users do and report what fails. In its clone /job/work/app, at main, start the app and its browser as "# Repository notes: app" says, and drive each route and control of the page map those notes keep.`,
 		`Report each failure as a job for acme/swarm-app, at most 5, the most serious first;`,
 		"# Repository notes: app\n\n## app\n\n### Page map\n\n- /login: the sign-in form;",
 	} {
@@ -88,7 +88,7 @@ func TestSwarmQAAfterMerges(t *testing.T) {
 			t.Errorf("system.md lacks %q:\n%s", want, sys)
 		}
 	}
-	for _, want := range []string{"- Clone /work/app: acme/app, branch main, base main", "- Clone /work/lib: acme/lib", "# Open swarm issues\n\nNone.", "# Recently closed\n\nNone."} {
+	for _, want := range []string{"- Clone /job/work/app: acme/app, branch main, base main", "- Clone /job/work/lib: acme/lib", "# Open swarm issues\n\nNone.", "# Recently closed\n\nNone."} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("prompt.md lacks %q:\n%s", want, prompt)
 		}

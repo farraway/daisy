@@ -655,3 +655,32 @@ they write.
   Rollout, Daisy's own reads) state it. No decision: it applies the
   maintainer's rule of 2026-11-18, that an unreadable `out.md` blocks
   only its issue with a note naming the file.
+- 2026-11-20, Step R1-5 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, built: the run's folder, `/job`, but for `/job/memory`):
+  every member's container mounts `<run>/job` at `/job` and in it
+  `/job/work` (`<run>/work`, a folder of clones, `/job/work/<name>` for
+  every role, the worker's and a reviewer's included), `/job/io` (was
+  `/work/.swarm`), `/job/notes` and `/job/resources` (were `/work/.notes`
+  and `/work/.resources`); their mount points are made in `<run>/job`,
+  none in a clone, and a clone's `.git/info/exclude` gains no line for
+  them, so a product's tree holding `.swarm`, `.notes` or `.resources`
+  no longer refuses the launch (*clone failed*'s mount-point case gone;
+  a mount point that cannot be made in `<run>/job` is the pass's error,
+  as the launch's other writes are). A CLI that is not confined starts
+  in its checkout, `/job/work/<name>`, with `D` `/job` alone; `grok`
+  starts in `/job`, and its prompt's `Working directory` line names the
+  checkout for every role. Every path Daisy's own texts name moved with
+  the mounts: the provider's argv (`/job/io/system.md`,
+  `/job/io/prompt.md`, `/job/io/out.md`), the exit mark, the Task texts
+  (the closing paragraph, the builder plan at `/job/io/builder.md`, the
+  screenshots at `/job/io/artifacts/`, each clone at
+  `/job/work/<name>`), the prompt's `# Repository`, `# Research notes`,
+  `# Resources`, `# Briefs` and `# Artifacts` lines, and the copies of
+  a cut text at `/job/io/outputs/`. The collection reads the worker's
+  clone at `<run>/work/<name>` (at `<run>/work` for a run launched
+  before, which has no `<run>/job`) and removes `<run>/job` with
+  `<run>/work`. The persona prompts' defaults and the `swarm` skill
+  still name `/work` until R1-6; the check and the dependency step keep
+  `/work` until R3. Sections 2, 3, 7.1 to 7.4, 7.6 to 7.9 and 9 state
+  it. No decision: it builds decision
+  [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).

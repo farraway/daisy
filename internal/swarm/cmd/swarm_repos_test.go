@@ -59,7 +59,7 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 	plan := "## Steps\n\n1. lib: add the check.\n2. app: move the pin to slice 1's merge.\n"
 	a.planned(plan)
 	arch := a.runner.Launches()[0]
-	if arch.Workdir != "/work/app" || arch.Image != "daisy-member:1" || !strings.Contains(a.result("1-architect-1"), "start app ") || !strings.Contains(a.result("1-architect-1"), "\nstart lib ") {
+	if arch.Workdir != "/job/work/app" || arch.Image != "daisy-member:1" || !strings.Contains(a.result("1-architect-1"), "start app ") || !strings.Contains(a.result("1-architect-1"), "\nstart lib ") {
 		t.Errorf("architect: %+v\n%s", arch, a.result("1-architect-1"))
 	}
 	a.runner.Script(1, "worker", work("lib v1"))
@@ -68,10 +68,10 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 	a.pass()
 	ls := a.runner.Launches()
 	w, check := ls[1], ls[2]
-	if w.Image != "daisy-member-lib:1" || w.Workdir != "/work" || check.Image != "daisy-member-lib:1" || !reflect.DeepEqual(check.Argv, []string{"go", "test", "./..."}) {
+	if w.Image != "daisy-member-lib:1" || w.Workdir != "/job/work/lib" || check.Image != "daisy-member-lib:1" || !reflect.DeepEqual(check.Argv, []string{"go", "test", "./..."}) {
 		t.Errorf("slice 1's specs: %+v %+v", w, check)
 	}
-	if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, "in acme/lib, on the branch checked out in /work (swarm/1-1)") || !strings.Contains(sys, "These paths are protected: go.sum.") {
+	if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, "in acme/lib, on the branch checked out in /job/work/lib (swarm/1-1)") || !strings.Contains(sys, "These paths are protected: go.sum.") {
 		t.Errorf("slice 1's Task:\n%s", sys)
 	}
 	ps := a.pulls(1)

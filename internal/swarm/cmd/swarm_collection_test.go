@@ -226,7 +226,7 @@ func TestSwarmWorkerPostHoldsToTheLimitWithItsCheckBlock(t *testing.T) {
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	long := strings.Repeat("A line of the worker's report, long enough to count.\n", 1300) // about 69 KB
-	a.runner.Script(1, "worker", runner.Canned{Out: long, Work: commit(map[string]string{"main.go": "v1\n"}, "v1")})
+	a.runner.Script(1, "worker", runner.Canned{Out: long, Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
 	a.runner.Script(1, "check", runner.Canned{Stdout: strings.Repeat("ok\n", 30)})
 	a.pass()
 	ps := a.pulls(1)
@@ -246,7 +246,7 @@ func TestSwarmWorkerPostHoldsToTheLimitWithItsCheckBlock(t *testing.T) {
 func TestSwarmWorkerPostTakesOffACRLFEnd(t *testing.T) {
 	a := newApplyWS(t)
 	a.planned(oneSlice)
-	a.runner.Script(1, "worker", runner.Canned{Out: "Done.\r\nNot established: none\r\n", Work: commit(map[string]string{"main.go": "v1\n"}, "v1")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "Done.\r\nNot established: none\r\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
 	a.pass()
 	ps := a.pulls(1)
 	if len(ps) != 1 || !strings.HasPrefix(ps[0].Body, mark("worker", 1)+"Done.\r\nNot established: none\n\n**Check:** ") {
@@ -328,6 +328,7 @@ func TestSwarmCollectionRemovesAnUnreadableDirectory(t *testing.T) {
 	os.MkdirAll(filepath.Join(outside, "sub"), 0o755)
 	os.Chmod(outside, 0)
 	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n", Work: func(work string) error {
+		work = filepath.Join(work, "app") // the checkout, under /job/work
 		if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {
 			return err
 		}

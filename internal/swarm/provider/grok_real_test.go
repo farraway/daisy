@@ -12,12 +12,12 @@ import (
 // The real grok over the argv Command builds (section 9, the xai row; a
 // check of docs/swarm/decisions/0087-grok-sees-only-its-working-folder.md): a headless session is created from it,
 // so no flag is refused, and the member reads a resource under its
-// working directory, laid out as a member's /work is. Opt-in: it runs only
+// working directory, laid out as a member's /job is. Opt-in: it runs only
 // with DAISY_TEST_GROK_HOME naming a scratch copy of a logged-in grok
 // home (never a swarm's login slot), since it needs the login and the
 // network; DAISY_TEST_GROK_MODEL names the model (grok-4.7, the wizard's
 // default, when unset). The argv's closing line names
-// /work/.swarm/out.md, which the host lacks: what is checked is the
+// /job/io/out.md, which the host lacks: what is checked is the
 // session and the reply, not the output file.
 func TestRealGrokTakesTheArgv(t *testing.T) {
 	home := os.Getenv("DAISY_TEST_GROK_HOME")
@@ -34,9 +34,9 @@ func TestRealGrokTakesTheArgv(t *testing.T) {
 	w := t.TempDir()
 	token := "daisy-resource-token-5f3a9c"
 	for f, text := range map[string]string{
-		".swarm/system.md":          "Reply with the one word on the first line of " + filepath.Join(w, ".resources/docs/README.md") + " and nothing else. Do not write any file.\n",
-		".swarm/prompt.md":          "There is no material.\n",
-		".resources/docs/README.md": token + "\n",
+		"io/system.md":             "Reply with the one word on the first line of " + filepath.Join(w, "resources/docs/README.md") + " and nothing else. Do not write any file.\n",
+		"io/prompt.md":             "There is no material.\n",
+		"resources/docs/README.md": token + "\n",
 	} {
 		p := filepath.Join(w, f)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -46,8 +46,8 @@ func TestRealGrokTakesTheArgv(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	argv := Providers["xai"].Adapter.Command(model, "high", w, filepath.Join(w, ".swarm/system.md"), filepath.Join(w, ".swarm/prompt.md"),
-		[]string{filepath.Join(w, ".resources/docs"), t.TempDir()})
+	argv := Providers["xai"].Adapter.Command(model, "high", w, filepath.Join(w, "io/system.md"), filepath.Join(w, "io/prompt.md"),
+		[]string{filepath.Join(w, "resources/docs"), t.TempDir()})
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = w
 	cmd.Env = append(os.Environ(), "GROK_HOME="+home)

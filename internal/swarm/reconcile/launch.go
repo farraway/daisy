@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -154,14 +155,13 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 
 	persona := s.Cfg.Personas[j.Role]
 	work := filepath.Join(r.Dir, "work")
-	var startLines, reads []string
+	var startLines []string
 	var svc *runner.Services // the worker's test services (section 7.6)
 	var svcEnv []string
-	workdir, image := Workdir(s.Cfg, j.Role), repo.Image
-	// A clone that fails, or a step of its preparation (a mount point the
-	// product's own tree holds as a file, say), is a swarm fault recorded
-	// as a launch's (section 7.7), collected at once, so the pair's second
-	// reviewer's issue goes home.
+	image, workRepo := repo.Image, repo.Name
+	// A clone that fails, or a step of its preparation, is a swarm fault
+	// recorded as a launch's (section 7.7), collected at once, so the
+	// pair's second reviewer's issue goes home.
 	cloneFailed := func(err error) (bool, error) {
 		return failed("launch-failed "+ended(), "fault: clone: "+err.Error())
 	}
@@ -183,22 +183,18 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			}
 			startLines = append(startLines, "start "+rp.Name+" "+sha)
 		}
-		image = s.Cfg.Repos[0].Image
-		reads = append(reads, "/work/.swarm")
-		for _, rp := range s.Cfg.Repos[1:] {
-			reads = append(reads, "/work/"+rp.Name)
-		}
+		image, workRepo = s.Cfg.Repos[0].Image, s.Cfg.Repos[0].Name
 	} else {
 		from := branch
 		if newBranch {
 			from = s.Cfg.Base
 		}
-		sha, err := clone(repo, from, work)
+		sha, err := clone(repo, from, filepath.Join(work, repo.Name))
 		if err != nil {
 			return cloneFailed(err)
 		}
 		if newBranch {
-			if err := s.git().Branch(work, branch); err != nil {
+			if err := s.git().Branch(filepath.Join(work, repo.Name), branch); err != nil {
 				return cloneFailed(err)
 			}
 		}
@@ -222,35 +218,37 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			}
 		}
 	}
-	if err := fs.MkdirAll(filepath.Join(work, ".swarm"), 0o755); err != nil {
-		return cloneFailed(err)
-	}
 
-	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
-	mounts := []runner.Mount{{Src: work, Dst: "/work"}, {Src: ioDir, Dst: "/work/.swarm"}}
+	// The run's folder, <run>/job at /job, and its children (sections 7.2
+	// and 7.8): their mount points made in it as the host user's, so
+	// Docker makes none, and none in a checkout.
+	jobDir := filepath.Join(r.Dir, "job")
+	mounts := []runner.Mount{{Src: jobDir, Dst: JobMount}, {Src: work, Dst: WorkMount}, {Src: ioDir, Dst: IOMount}}
 	if s.Cfg.Notes {
-		if err := fs.MkdirAll(filepath.Join(work, ".notes"), 0o755); err != nil {
-			return cloneFailed(err)
-		}
 		mounts = append(mounts, runner.Mount{Src: notesDir, Dst: NotesMount, ReadOnly: !writesNotes(j.Role)})
-		if workdir != "/work" {
-			reads = append(reads, NotesMount)
-		}
 		startLines = append(startLines, "notes-base "+notesSHA)
 	}
 	if len(resourceLines) > 0 {
-		// One read-only mount of the run's checkout, its mount point made
-		// in the run's own tree, as /work/.notes is.
-		if err := fs.MkdirAll(filepath.Join(work, ".resources"), 0o755); err != nil {
-			return cloneFailed(err)
-		}
 		mounts = append(mounts, runner.Mount{Src: resDir, Dst: ResourcesMount, ReadOnly: true})
-		reads = append(reads, ResourcesMount)
 		startLines = append(startLines, resourceLines...)
 	}
+	for _, m := range mounts[1:] {
+		if err := fs.MkdirAll(filepath.Join(jobDir, path.Base(m.Dst)), 0o755); err != nil {
+			fs.RemoveAll(r.Dir)
+			return false, err
+		}
+	}
+	// A CLI that is not confined starts in its checkout and is given
+	// /job, which holds all else (section 9's D).
+	workdir := Workdir(s.Cfg, j.Role, workRepo)
+	var reads []string
+	if workdir != JobMount {
+		reads = []string{JobMount}
+	}
+	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
 	spec := runner.Spec{Name: s.containerName(j.N, j.Role, j.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, j.N, j.Role), User: s.User,
 		Mounts: mounts, Workdir: workdir, Image: image,
-		Argv: exitMarked(provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, "/work/.swarm/system.md", "/work/.swarm/prompt.md", outside(workdir, reads)))}
+		Argv: exitMarked(provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, IOMount+"/system.md", IOMount+"/prompt.md", reads))}
 	if svc != nil {
 		// Its own network, not internal: the CLI reaches its API through
 		// it as through Docker's default bridge (section 7.2).
@@ -349,12 +347,12 @@ func (s *Swarm) inProgress(j *Job, r Run) error {
 }
 
 // exitScript runs the provider's argv under sh and, once the CLI has
-// exited, writes its exit status to /work/.swarm/exit (<run>/io/exit):
+// exited, writes its exit status to /job/io/exit (<run>/io/exit):
 // the mark that the member finished, which a later apply reads when the
 // apply that started the run died (sections 7.2 and 7.7, ended). A
 // container killed outright writes none. It is the image's own sh, so no
 // image is rebuilt for it.
-const exitScript = `"$@"; s=$?; echo "$s" >/work/.swarm/exit; exit "$s"`
+const exitScript = `"$@"; s=$?; echo "$s" >` + IOMount + `/exit; exit "$s"`
 
 // exitMarked is argv run under exitScript.
 func exitMarked(argv []string) []string {
@@ -371,18 +369,6 @@ func runHead(r Run) string {
 }
 
 func (s *Swarm) slotDir(p string) string { return filepath.Join(s.Local, "swarm", "credentials", p) }
-
-// outside is the mounts a member started in workdir must be given leave
-// to reach: those not under it.
-func outside(workdir string, dirs []string) []string {
-	var out []string
-	for _, d := range dirs {
-		if d != workdir && !strings.HasPrefix(d, workdir+"/") {
-			out = append(out, d)
-		}
-	}
-	return out
-}
 
 // watch waits for a started container in the background, a member or
 // a worker run's step ("deps" or "check"): once `docker run` has

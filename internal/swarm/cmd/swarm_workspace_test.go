@@ -283,7 +283,7 @@ func TestWorkspaceKept(t *testing.T) {
 	mirror := a.state("git/app")
 	unblock := func() { a.forge.Relabel(issue1, forge.Blocked, "") }
 
-	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: which version?\n", Work: commit(map[string]string{"main.go": "half\n"}, "Half")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: which version?\n", Work: in("app", commit(map[string]string{"main.go": "half\n"}, "Half"))})
 	a.pass()
 	first := "1-worker-1 " + a.gitRunIn(mirror, "rev-parse", "refs/swarm-runs/1-worker-1") + "\n"
 	if got, ok := a.jobFile(1, "slices/1/kept"); !ok || got != first {
@@ -291,9 +291,9 @@ func TestWorkspaceKept(t *testing.T) {
 	}
 
 	for i, canned := range []runner.Canned{
-		{Out: "Done.\n", Work: commit(map[string]string{"sub/key.txt": secret + "\n"}, "v1")},
-		{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n"}, "v1")},
-		{Out: "BLOCKED: stuck.\n", Work: commit(map[string]string{"main.go": "token " + secret + "\n"}, "v1")},
+		{Out: "Done.\n", Work: in("app", commit(map[string]string{"sub/key.txt": secret + "\n"}, "v1"))},
+		{Out: "Done.\n", Work: in("app", commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n"}, "v1"))},
+		{Out: "BLOCKED: stuck.\n", Work: in("app", commit(map[string]string{"main.go": "token " + secret + "\n"}, "v1"))},
 	} {
 		unblock()
 		a.runner.Script(1, "worker", canned)
@@ -411,6 +411,7 @@ func TestWorkspaceRoundFile(t *testing.T) {
 
 	a.land("app", map[string]string{"other.txt": "another slice\n"}, "another slice merged")
 	a.runner.Script(1, "worker", runner.Canned{Out: "v2, main merged.\n\nNot established: none\n", Work: func(work string) error {
+		work = filepath.Join(work, "app") // the checkout, under /job/work
 		if _, errb, err := ops.Real().Exec(work, "git", "merge", "-q", "--no-edit", "main"); err != nil {
 			return &execErr{[]string{"merge"}, string(errb)}
 		}
@@ -472,7 +473,7 @@ func TestWorkspaceRoundFileCommitGone(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.gitRunIn(src, "push", "-q", "--force", "origin", "swarm/1-1")
-	a.runner.Script(1, "worker", runner.Canned{Out: "v2.\n\nNot established: none\n", Work: commit(map[string]string{"main.go": "v2\n"}, "v2")})
+	a.runner.Script(1, "worker", runner.Canned{Out: "v2.\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v2\n"}, "v2"))})
 	a.pass()
 	h2 := a.pulls(1)[0].HeadSHA
 	if got := labels(a.issue(1)); h2 == h1 || !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) {
