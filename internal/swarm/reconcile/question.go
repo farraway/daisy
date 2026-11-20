@@ -122,10 +122,7 @@ func (c *collection) ask(text string) error {
 // swarm:question (T29): the asker's stage resumes, its role reading the
 // answer as the newest counted entry.
 func (c *collection) answer(out string) error {
-	if !strings.HasPrefix(out, answer) {
-		out = answer + " " + out
-	}
-	if err := c.comment(c.r.Role, out); err != nil {
+	if err := c.comment(c.r.Role, answerText(out)); err != nil {
 		return err
 	}
 	is, err := c.s.Forge.Issue(c.r.N)
@@ -138,6 +135,15 @@ func (c *collection) answer(out string) error {
 		}
 	}
 	return c.end("posted")
+}
+
+// answerText is an answer as Daisy posts it: marked ANSWER: when its
+// text does not begin so.
+func answerText(out string) string {
+	if !strings.HasPrefix(out, answer) {
+		return answer + " " + out
+	}
+	return out
 }
 
 // toMaintainer is the owner's question passed to the maintainer (T30): its

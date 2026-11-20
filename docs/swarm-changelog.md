@@ -617,3 +617,25 @@ they write.
   returned the diff's error and the issue waited at every pass; any
   other failure of the diff is still an error of the collection.
   Section 7.8's round-file form states the sentence; no decision.
+- 2026-11-19, Step R1-4 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, the rollout): a job open at a stage without the new
+  marker `<state>/jobs/<n>/built` is built once, in pass step (5)
+  before the role rule reads it, by replaying its collected runs'
+  collection writes in the order they ended, through the functions that
+  write at collection, so the replay is byte for byte the workspace
+  their collections write; `built`, an empty file, is written last, and
+  a new issue is replayed over no run before its first launch. The
+  marker, not the directory's absence, is the trigger, since every
+  collection since `texts/` makes the directory. A file of `texts/`,
+  `rounds/` or `checks/` that is there is never rewritten, so a replay
+  over a partial workspace completes it without rewriting what a
+  collection wrote; the plan's text is read from `texts/` when it is
+  there. A run collected elsewhere, pruned, or whose `out.md` is gone
+  adds its text from its post, a cut's note replaced by `[truncated by
+  Daisy; the rest is not available to you]`; when the plan `plan.md` is
+  left holding is so taken, the replay blocks the issue with the
+  reconciler's note naming the missing `out.md`. `swarm merge` refuses
+  a job without `built` whose plan the replay would take cut, before any
+  write. Sections 2, 7.6, 7.8 and 11 state the marker, the order, the
+  written-once files, the note's text and what is built; `status`'s and
+  the other verbs' in-memory build comes with their reads. No decision.

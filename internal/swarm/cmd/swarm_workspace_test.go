@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -233,8 +234,9 @@ func TestWorkspacePlanBuilderAndSlices(t *testing.T) {
 // A builder plan is secret-checked as the plan's text is (section 7.6,
 // The secret check): a token in it fails the run, secret in output
 // naming builder.md, and nothing of the run is written or posted but the
-// note. A run whose text is no plan (BLOCKED:) has no builder plan, and
-// its builder.md is not read.
+// note (the workspace holds its built marker alone, written before the
+// launch). A run whose text is no plan (BLOCKED:) has no builder plan,
+// and its builder.md is not read.
 func TestSecretInBuilderPlan(t *testing.T) {
 	token := "oauth-token-0123456789abcdef0123456789" // the architect's env value
 	t.Run("a plan", func(t *testing.T) {
@@ -249,8 +251,8 @@ func TestSecretInBuilderPlan(t *testing.T) {
 		if bs := a.bodies(1); !reflect.DeepEqual(bs, want) {
 			t.Errorf("the thread: %q", bs)
 		}
-		if _, err := os.Stat(a.state(filepath.Join("jobs", "1"))); !errors.Is(err, iofs.ErrNotExist) {
-			t.Errorf("the workspace was written: %v %q", err, a.texts(1))
+		if tree := a.tree(1); len(tree) > 0 {
+			t.Errorf("the workspace was written: %q", tree)
 		}
 	})
 	t.Run("no plan", func(t *testing.T) {
@@ -495,5 +497,246 @@ func TestWorkspaceRoundFileCommitGone(t *testing.T) {
 	}
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", "swarm:gated"}) {
 		t.Errorf("after round 2: %v, want T9's approved, held at the merge gate\n%s", got, a.stdout.String())
+	}
+}
+
+// tree is every file of issue n's workspace but its built marker, by its
+// path in the workspace, with its bytes.
+func (a *applyWS) tree(n int) map[string]string {
+	a.t.Helper()
+	root := a.state(filepath.Join("jobs", strconv.Itoa(n)))
+	out := map[string]string{}
+	err := filepath.WalkDir(root, func(p string, d iofs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, _ := filepath.Rel(root, p)
+		if rel != "built" {
+			b, err := os.ReadFile(p)
+			out[rel] = string(b)
+			return err
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		a.t.Fatal(err)
+	}
+	return out
+}
+
+// built: issue n's workspace holds its built marker (section 7.8,
+// Rollout).
+func (a *applyWS) built(n int) bool {
+	_, err := os.Lstat(a.state(filepath.Join("jobs", strconv.Itoa(n), "built")))
+	return err == nil
+}
+
+// The claim of Step R1-4 (section 7.8, Rollout): a job's workspace
+// replayed over its runs is byte-identical to the one its collections
+// wrote. A job runs through a plan with a builder plan (two slices), a
+// worker's question and the architect's answer, a report whose check
+// failed, a round requesting changes, a revision and an approving round,
+// to the merge gate, where no role runs. Its workspace, removed whole,
+// is built again by the next pass, file for file; `status` before it
+// writes none. Removed but for texts/, as a job the R1-1 build collected
+// holds it, it is completed the same way, nothing in texts/ duplicated;
+// a replay that fails on the way (an out.md it cannot read) writes no
+// built marker, which it writes last, and the pass after it completes
+// the workspace.
+func TestWorkspaceReplay(t *testing.T) {
+	plan := "## Steps\n\n1. app: change main.go to v1; the test proves it.\n2. app: add notes.md.\n\n## Test Plan\n\n1. main.go says v1.\n"
+	builder := "## Slice 1\n\nEdit main.go.\n\n## Slice 2\n\nWrite notes.md.\n"
+	a := newApplyWS(t)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
+	a.runner.Script(1, "architect", runner.Canned{Out: plan, IO: builderPlan(builder)})
+	a.pass()
+	a.forge.SetLabel(issue1, forge.PlanAccepted)
+	a.runner.Script(1, "worker", runner.Canned{Out: "QUESTION: v1 or v1.0?\n"})
+	a.pass()
+	a.runner.Script(1, "architect", runner.Canned{Out: "v1.\n"})
+	a.pass()
+	a.runner.Script(1, "worker", work("v1"))
+	a.runner.Script(1, "check", runner.Canned{Code: 1, Stdout: "FAIL main_test.go\n"})
+	a.pass()
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.pass()
+	a.runner.Script(1, "worker", work("v2"))
+	a.runner.Script(1, "check", runner.Canned{Stdout: "ok\n"})
+	a.pass()
+	a.pass()
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", "swarm:gated"}) {
+		t.Fatalf("the job did not reach the merge gate: %v\n%s", got, a.stdout.String())
+	}
+	collected := a.tree(1)
+	for _, f := range []string{"plan.md", "builder.md", "slices/1/slice.md", "slices/2/slice.md", "slices/1/kept", "slices/1/rounds/1.md", "slices/1/rounds/2.md",
+		"texts/1-architect-1.md", "texts/1-worker-1.md", "texts/1-architect-2.md", "texts/1-worker-2.md", "texts/1-adversary-1.md", "texts/1-sympathetic-1.md",
+		"texts/1-worker-3.md", "texts/1-adversary-2.md", "texts/1-sympathetic-2.md"} {
+		if _, ok := collected[f]; !ok {
+			t.Fatalf("the collections wrote no %s: %q", f, a.texts(1))
+		}
+	}
+	if len(collected) != 17 || !a.built(1) {
+		t.Fatalf("the collections' workspace (built %v): %d files\n%v", a.built(1), len(collected), collected)
+	}
+	job := a.state("jobs/1")
+	same := func(when string) {
+		t.Helper()
+		got := a.tree(1)
+		for f, want := range collected {
+			if got[f] != want {
+				t.Errorf("%s: %s differs from the collection's:\n%s\nwant:\n%s", when, f, got[f], want)
+			}
+		}
+		for f := range got {
+			if _, ok := collected[f]; !ok {
+				t.Errorf("%s: %s, which no collection wrote", when, f)
+			}
+		}
+		if !a.built(1) {
+			t.Errorf("%s: no built marker", when)
+		}
+	}
+
+	if err := os.RemoveAll(job); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.status(a.forge); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(job); !errors.Is(err, iofs.ErrNotExist) {
+		t.Fatalf("status wrote the workspace: %v", err)
+	}
+	a.pass()
+	same("rebuilt whole")
+
+	for f := range collected {
+		if !strings.HasPrefix(f, "texts/") {
+			os.Remove(filepath.Join(job, f))
+		}
+	}
+	os.Remove(filepath.Join(job, "built"))
+	out := a.state("runs/1-worker-3/io/out.md")
+	if err := os.Chmod(out, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	a.tick()
+	if err := a.apply(a.git(), "--once"); err == nil || a.built(1) {
+		t.Fatalf("a replay that cannot read an out.md: %v, built %v\n%s", err, a.built(1), a.stdout.String())
+	}
+	os.Chmod(out, 0o644)
+	a.pass()
+	same("completed over texts/")
+}
+
+// A plan taken cut from its post (section 7.8, Rollout): the plan's
+// out.md gone and the job without a workspace, the replay writes the
+// plan and its text as the forge holds them, the cut's note replaced by
+// one that says the rest is not available, and blocks the issue beside
+// its stage, the reconciler's note naming the missing file, rather than
+// count its slices short. Another pass posts no second note. A workspace
+// whose texts/ holds the plan whole, as a collection since R1-1 wrote
+// it, is completed from it: the whole plan, its text left as it is, and
+// no block.
+func TestWorkspaceReplayCutPlan(t *testing.T) {
+	t.Run("texts/ holds it whole", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
+		a.runner.Script(1, "architect", runner.Canned{Out: bigPlan})
+		a.pass()
+		if err := os.Remove(a.state("runs/1-architect-1/io/out.md")); err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range []string{"plan.md", "slices", "built"} {
+			if err := os.RemoveAll(a.state("jobs/1/" + f)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		a.pass()
+		for _, f := range []string{"plan.md", "texts/1-architect-1.md"} {
+			if got, ok := a.jobFile(1, f); !ok || got != bigPlan {
+				t.Errorf("%s (%v) ends:\n%s", f, ok, got[max(0, len(got)-200):])
+			}
+		}
+		if got := labels(a.issue(1)); slices.Contains(got, "swarm:blocked") || !a.built(1) {
+			t.Errorf("after the replay: %v, built %v", got, a.built(1))
+		}
+	})
+
+	a := newApplyWS(t)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
+	a.runner.Script(1, "architect", runner.Canned{Out: bigPlan})
+	a.pass()
+	posted := a.issue(1).Comments[0].Body
+	cut := strings.LastIndex(posted, "\n[truncated by Daisy; ")
+	if cut < 0 {
+		t.Fatalf("the plan was not cut on the forge:\n%s", posted[max(0, len(posted)-300):])
+	}
+	want := strings.TrimPrefix(posted[:cut], mark("architect", 1)) + "\n[truncated by Daisy; the rest is not available to you]"
+	if err := os.Remove(a.state("runs/1-architect-1/io/out.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(a.state("jobs/1")); err != nil {
+		t.Fatal(err)
+	}
+	a.pass()
+	for _, f := range []string{"plan.md", "texts/1-architect-1.md"} {
+		if got, ok := a.jobFile(1, f); !ok || got != want {
+			t.Errorf("%s (%v) ends:\n%s", f, ok, got[max(0, len(got)-200):])
+		}
+	}
+	if got, ok := a.jobFile(1, "slices/1/slice.md"); !ok || got != "1. app: change main.go.\n" {
+		t.Errorf("slices/1/slice.md (%v): %q", ok, got)
+	}
+	note := mark("reconciler", 1) + "The plan of 1-architect-1 is cut on the forge and runs/1-architect-1/io/out.md is gone, so its slices cannot be counted (docs/swarm.md section 7.8, Rollout). Restore the file and remove <state>/jobs/1, or relabel the issue swarm:proposal-accepted for a new plan; then remove swarm:blocked to resume.\n\ncc @jane"
+	is := a.issue(1)
+	if got := labels(is); !reflect.DeepEqual(got, []string{"swarm:plan-0-posted", "swarm:blocked", "swarm:gated"}) || !a.built(1) {
+		t.Errorf("after the replay: %v, built %v\n%s", got, a.built(1), a.stdout.String())
+	}
+	if bs := a.bodies(1); len(bs) != 2 || bs[1] != note {
+		t.Errorf("the thread's last: %q", bs[len(bs)-1])
+	}
+	os.Remove(a.state("jobs/1/built"))
+	a.pass()
+	if bs := a.bodies(1); len(bs) != 2 {
+		t.Errorf("a second replay posted again: %d comments", len(bs))
+	}
+}
+
+// swarm merge refuses a job with no built workspace whose plan, as the
+// replay builds it, is taken cut from its post, its out.md gone (section
+// 11, From R1; section 7.8, Rollout): exit 1 with the spec's text before
+// any write, nothing changed on the forge or on disk. With the
+// workspace built, the verb counts as before.
+func TestSwarmMergeRefusesACutPlanWithoutWorkspace(t *testing.T) {
+	for _, built := range []bool{false, true} {
+		t.Run(map[bool]string{false: "no workspace", true: "built"}[built], func(t *testing.T) {
+			m := newMaintainerWS(t)
+			m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
+			cut := bigSlices[:strings.LastIndex(bigSlices[:59000], "\n")] + "\n" + cutNote("runs/1-architect-1")
+			m.forge.Comment(m.ref(1), mark("architect", 1)+cut)
+			pr := m.approvedPull(1, "c1")
+			if built {
+				os.MkdirAll(m.state("jobs/1"), 0o755)
+				os.WriteFile(m.state("jobs/1/built"), nil, 0o644)
+				m.ok(swarmMerge, "Maintainer jane on acme/swarm-app\n#1 merged pull app#1 (slice 1 of 1)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n#1 pull requests listed\n", "1")
+				return
+			}
+			before := m.writesAt(m.ref(1), pr)
+			err := m.verb(swarmMerge, "1")
+			want := "Error: swarm: #1: the plan of 1-architect-1 is cut on the forge and runs/1-architect-1/io/out.md is gone, so its slices cannot be counted (docs/swarm.md section 7.8, Rollout); nothing changed"
+			if err == nil || err.Error() != want {
+				t.Errorf("merge: %v\nwant: %s", err, want)
+			}
+			if after := m.writesAt(m.ref(1), pr); !reflect.DeepEqual(after, before) {
+				t.Errorf("writes on the forge:\n%q\nbefore:\n%q", after, before)
+			}
+			if p, _ := m.forge.Pulls(1, []string{"swarm-bot"}); len(p) != 1 || p[0].Merged {
+				t.Errorf("merged: %+v", p)
+			}
+			if _, err := os.Stat(m.state("jobs")); !errors.Is(err, iofs.ErrNotExist) {
+				t.Errorf("the verb wrote the workspace: %v", err)
+			}
+		})
 	}
 }

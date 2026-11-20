@@ -514,6 +514,17 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			if !ok {
 				continue
 			}
+			// The job's workspace built once, before any launch on it
+			// (section 7.8, Rollout).
+			if blocked, err := s.replay(is, pulls); err != nil {
+				return fmt.Errorf("#%d: workspace: %w", n, err)
+			} else if blocked {
+				if is, pulls, ok, err = s.atStage(n, label); err != nil {
+					return err
+				} else if !ok {
+					continue
+				}
+			}
 			// The comment commands before the role rule, so that what
 			// they wrote is read as it is now (section 6).
 			if ran, err := s.commands(is, pulls); err != nil {

@@ -202,7 +202,7 @@ func (c *collection) worker(out string, pull *forge.Pull) error {
 	if err != nil || !clean {
 		return err
 	}
-	block := "**Check:** none declared."
+	block := noCheckBlock
 	if len(repo.Check) > 0 {
 		if step := nextStep(repo, c.lines); step != "" {
 			if err := s.startStep(c.r, c.lines, step); err != nil {
@@ -230,7 +230,7 @@ func (c *collection) worker(out string, pull *forge.Pull) error {
 				return err
 			}
 		}
-		block = fmt.Sprintf("**Check:** `%s` on %s: %s\n\n```\n%s\n```", shellQuote(repo.Check), short(sha), result, tail)
+		block = checkBlock(repo.Check, sha, result, tail)
 	}
 	if !pushed {
 		err := s.git().Push(repo, runRef(c.r), branch, sha)
@@ -248,9 +248,8 @@ func (c *collection) worker(out string, pull *forge.Pull) error {
 	if err := c.writeKept(); err != nil {
 		return err
 	}
-	// One blank line between the text and the block, the block never
-	// cut (section 7.5).
-	l := c.runText("worker", strings.TrimRight(out, "\r\n"), "\n\n"+block)
+	text, tail := report(out, block)
+	l := c.runText("worker", text, tail)
 	var pr forge.Ref
 	if c.label == forge.ChangesRequested || pull != nil && pull.Open {
 		if err := c.onPull(*pull, l); err != nil {
@@ -306,6 +305,22 @@ func (c *collection) worker(out string, pull *forge.Pull) error {
 		return err
 	}
 	return c.end("posted")
+}
+
+// noCheckBlock is the check block of a repository that declares no check.
+const noCheckBlock = "**Check:** none declared."
+
+// checkBlock is the worker's report's check block (section 7.6): the
+// check run on sha, its result and the tail of its output.
+func checkBlock(check []string, sha, result, tail string) string {
+	return fmt.Sprintf("**Check:** `%s` on %s: %s\n\n```\n%s\n```", shellQuote(check), short(sha), result, tail)
+}
+
+// report is the worker's report as its collection posts it, its text out
+// and, after one blank line, the check block, which is never cut
+// (section 7.5).
+func report(out, block string) (text, tail string) {
+	return strings.TrimRight(out, "\r\n"), "\n\n" + block
 }
 
 // nextStep is the container a worker run's collection starts next
@@ -399,7 +414,7 @@ func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) err
 		return err
 	}
 	// The round this review completes is written with it (section 7.8).
-	if err := s.writeReviews(c.r.N, pull, reviews, answers); err != nil {
+	if err := s.writeReviews(c.r.N, pull, reviews, answers, false); err != nil {
 		return err
 	}
 	if err := c.writeRound(pull, pulls, reviews, comments, answers); err != nil {

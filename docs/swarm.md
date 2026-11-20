@@ -300,7 +300,8 @@ Stages of a software factory the version leaves out, each by choice:
 │   ├── slices/<s>/kept              # the slice's newest worker run with commits: the next worker run's start
 │   ├── slices/<s>/rounds/<r>.md     # each completed review round of the slice: its head, its findings, the changes since the round before
 │   ├── checks/<sha>.log             # the output of a check that failed on head <sha>
-│   └── texts/<n>-<role>-<k>.md      # each member text posted on the job, whole
+│   ├── texts/<n>-<role>-<k>.md      # each member text posted on the job, whole
+│   └── built                        # empty: the workspace is built (a job in flight replayed, a new one before its first launch); written last
 └── runs/<n>-<role>-<k>/             # one role run, kept for audit (the owner's batch run is <n> = 0)
     ├── argv                         # the `docker run` argv, one argument per line (no secret in it)
     ├── io/system.md                 # the persona and the Task (mounted at /work/.swarm; from R1 at /job/io)
@@ -356,7 +357,7 @@ Every file Daisy writes, and nothing else:
 | `<state>/references/<ref>/` | per reference (section 3), a bare repository holding its pin, its config's `remote.origin.url` its `url` | `swarm apply` (`git init --bare`, `config`, `fetch`) | before a pass's first launch, when the pin is not in it |
 | `<state>/notes/` | a clone of the swarm repository at its head as last fetched, its branch the one the clone checked out (the forge's default): with `notes` (section 3) the notes', and the journal's (7.6, The run's record) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, the notes' commits and the journal's, 7.6) | with `notes`, before each pass's first launch and at the collection of each owner's and architect's run; at the end of each pass that collected a run |
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
-| `<state>/jobs/<n>/` and its files | R1, specified ahead of its build but for `texts/`, `plan.md`, `builder.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md` and `checks/<sha>.log`, which are written and read by nothing yet (7.8): issue n's workspace, `plan.md`, `builder.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log` and `texts/<n>-<role>-<k>.md`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names (a job open when the build arrives: once, by replaying its collected runs, 7.8, Rollout); the directory, empty, before the first launch on a new issue; never removed by Daisy |
+| `<state>/jobs/<n>/` and its files | R1, specified ahead of its build but for `texts/`, `plan.md`, `builder.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log` and `built`, which are written and read by nothing yet but `apply`'s replay and `swarm merge`'s refusal (7.8, Rollout): issue n's workspace, `plan.md`, `builder.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log`, `texts/<n>-<role>-<k>.md` and `built`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names; at the first pass that finds the issue open at a stage without `built`, before the role rule reads it, every file its collected runs' collections write, replayed, then `built` (7.8, Rollout), so a new issue's directory holds `built` alone before its first launch; never removed by Daisy |
 | `<run>/io/branches.md` | R1, specified ahead of its build: a line per open swarm branch but the run's own, its issue, slice, head and the files it changes against `<base>` (7.8) | `swarm apply` | before the launch of a worker's, a reviewer's or the architect's run, from the pass's mirrors |
 | `<run>/io/builder.md` | R1 (built; the Task text names it `/work/.swarm/builder.md` until the run's folder is built): the architect's builder plan, beside the plan it wrote to `out.md` (7.8, The builder plan) | the architect (in the container) | during the run |
 | `<run>/job/` | R1, specified ahead of its build: the run's folder, mounted at `/job`, holding only the mount points of its children, `work`, `io` and, as the run has them, `notes`, `resources` and `memory` (7.8, The run's folder), and whatever the member writes at its top, which nothing reads | `swarm apply` (the directory and its mount points), then the member | before the launch; removed with `<run>/work` |
@@ -3995,8 +3996,9 @@ collects a run, as it does with `notes`: pull before pushing.
 **The job's workspace** (R1, specified ahead of its build, but for
 `texts/`, built at Step R1-1 of the plan implementing the 2026-11-19
 swarm roadmap, `plan.md`, `builder.md`, the slices' `slice.md` and
-the builder plan's secret check, built at Step R1-2, and the slices'
-`kept` and `rounds/` and `checks/`, built at Step R1-3; 7.8). The
+the builder plan's secret check, built at Step R1-2, the slices'
+`kept` and `rounds/` and `checks/`, built at Step R1-3, and the replay
+of a job in flight, built at Step R1-4; 7.8). The
 collection of a run on an issue writes the
 job's workspace,
 `<state>/jobs/<n>/`, at the steps 7.8's table names: a member's text to
@@ -4015,7 +4017,8 @@ slice's `rounds/`. The secret check reads an architect's
 `<run>/io/builder.md` as it reads `out.md`, a hit naming `builder.md`.
 A step's write is checked and skipped when the file already holds what
 it would write, as a forge step is, so a collection retried writes each
-once. The workspace changes no step above and no forge write: the
+once; a file of `texts/`, `rounds/` or `checks/` that is there is never
+rewritten (7.8). The workspace changes no step above and no forge write: the
 outcome, the posts, the notes and the record are as before. Step 1
 reads the worker's clone where 7.1 makes it: its check is of
 `<run>/work/<name>/.git`, and its fetch `git -C <state>/git fetch
@@ -4091,7 +4094,7 @@ steps that build it each keep the thread path working, each run given
 its thread so far (7.3), until the last switches the members over, so
 that no member reads from two memories half built; until then sections
 2 to 7.7 hold as written, each marking what R1 changes there. **Built
-so far** (Steps R1-1 to R1-3 of the plan implementing the 2026-11-19
+so far** (Steps R1-1 to R1-4 of the plan implementing the 2026-11-19
 swarm roadmap): `texts/` (R1-1); `plan.md`, `builder.md` and each
 slice's `slice.md` with the builder plan itself (R1-2: the architect's
 texts that ask for a plan ask for it, 7.4, and its collection reads,
@@ -4099,9 +4102,14 @@ checks and writes it); and each slice's `kept` and `rounds/` and
 `checks/` (R1-3, the secret check reading a failed check's whole
 output), each written at collection as its row below says and read by
 nothing, no post or read of Daisy's changed by them and no prompt but
-the architect's Task text; `amendments/` (R5), the run's folder, the
-mount, the start, the prompt and Daisy's reads are still specified
-ahead of their build.
+the architect's Task text; and the Rollout's replay, its `built`
+marker, the block of a plan taken cut and `swarm merge`'s refusal
+(R1-4), what it writes read by nothing but `built`, by the pass and
+the refusal; `amendments/`
+(R5), the run's folder, the mount, the start, the prompt, Daisy's
+reads, and the in-memory build of `status` and the verbs that read
+the workspace, which comes with their reads, are still specified ahead
+of their build.
 
 **The principle.** Members have no memory, but each job has a workspace
 Daisy keeps, and the forge thread is its human record: its posts may be
@@ -4119,10 +4127,11 @@ at the collection of a run on the issue (7.6), each file whole under a
 temporary name in its directory and then renamed into place, so that a
 member or a read of Daisy's never meets half a file. No member writes it
 (it is mounted read-only), nor a check, nor a maintainer's verb, nor
-`status`; outside a collection it writes only its directory, made
-empty before the launch of the first run on a new issue, so that the
-mount has a source, and the collections' writes replayed for a job in
-flight (Rollout, below). Only text that passed its run's secret check (7.6)
+`status`; outside a collection it writes only the collections' writes
+replayed and the `built` marker after them (Rollout, below), which for
+a new issue, replayed over no run, make its directory, holding `built`
+alone, before the launch of its first run, so that the mount has a
+source. Only text that passed its run's secret check (7.6)
 is written, so the workspace holds nothing a post could not have held.
 It is kept after the issue closes and never removed by Daisy (a reopened
 issue goes on with it); pruning it is the maintainer's, `rm -rf
@@ -4142,7 +4151,16 @@ machine's, as the mirrors are: a swarm moved to another machine takes
 | `slices/<s>/kept` | one line, `<n>-worker-<k> <sha>`: the slice's newest worker run, by its end, whose commits Daisy holds and may be built on, and the commit fetched from it; absent while no run of the slice has one | at the collection of each worker run on slice s whose fetched commit is past its `start` (7.6, step 1), whatever its outcome: pushed (the commit then the branch's), failed, blocked, a question, a fault or abandoned (its run ref kept, 7.6 step 2); never for commits that failed the secret check or changed a protected path, which no run builds on (their ref stays for the maintainer, as now): step 2 makes step 3's two checks again before it writes `kept`, so the commits of a run that ended before step 3 (blocked, a question, a fault, abandoned, or failed earlier) are checked too, and a hit leaves `kept` as it was, the run's own failure, if any, unchanged | the worker's launch, for its start (The start, below); the worker and the architect, in `# Job` |
 | `slices/<s>/rounds/<r>.md` | review round r of the slice's pull request, in the form below: its head, its reviews' findings, and the changes since the round before. `<r>` counts the slice's completed rounds from 1, in the order they completed (a round completes with the first review that gives it both roles), over the life of the slice's pull requests (a plan revision does not start it again, as it starts the Task text's `This is round <r>`, 7.4, nor does a new pull request on the slice's branch after one closed), so no file is rewritten | at the collection of the review that completes the round, the pair's second on the head as it stands (section 6), whose collection makes T9, T10 or T11 (section 5); the round's reviews are written to `texts/` with it and not before, so that a reviewer never finds its pair's review of the round it reviews (a review whose round never completes: the `texts/` row) | the worker (the latest), the reviewers (those before the current round; R6's later rounds review the changes since the last from here), the architect (every round) |
 | `checks/<sha>.log` | for a head `<sha>` whose check failed (it exited non-zero or timed out, its dependency step failed, or its test services file was refused, 7.6, step 4): the `# Check` line (7.3), then, after an empty line, the whole output as the step wrote it, `<run>/check.out`, `<run>/deps.out` for the dependency step's failure, or the refusal's reason | at the collection of the worker run whose check it is, after step 4, once the whole output has passed the secret check (a hit writes none, and is the failure 7.6 names); from R3 (7.9, specified ahead of its build), of a classified failure run again the rerun's alone, and none for a run that failed *check environment*, which no worker or reviewer sees | the worker, the reviewers and the architect, by the pointer in `# Job` |
-| `texts/<n>-<role>-<k>.md` | each member text Daisy posts for the job, on the issue or one of its pull requests, whole, as Daisy would post it uncut: the run's `out.md` (an answer with the `ANSWER:` Daisy adds, 7.5), then what Daisy writes after it (a worker's check block) | at the collection that posts it, once its secret check has passed and before its post; a review's with its round, above, and a review whose round can no longer complete (before its pair's other review of that head was collected, the pull request's head moved, the pull request was reopened by an answer without a commit or the maintainer's comment, section 6, or it was closed or merged) at the first collection on the issue after that, whatever its role, but for a fault's or an abandoned run's, which post nothing, read from its run's `out.md` as its collection posted it, since no review can then complete its round; a job closed first keeps such a review in its run's `out.md` alone, and so does a review whose `out.md` is gone (its run pruned, or collected on another machine) | every role: a member text a prompt shows is read from here, never from its post (The prompt, below); Daisy's own reads of a text past its first lines (7.5) |
+| `texts/<n>-<role>-<k>.md` | each member text Daisy posts for the job, on the issue or one of its pull requests, whole, as Daisy would post it uncut: the run's `out.md` (an answer with the `ANSWER:` Daisy adds, 7.5), then what Daisy writes after it (a worker's check block) | at the collection that posts it, once its secret check has passed and before its post; a review's with its round, above, and a review whose round can no longer complete (before its pair's other review of that head was collected, the pull request's head moved, the pull request was reopened by an answer without a commit or the maintainer's comment, section 6, or it was closed or merged) at the first collection on the issue after that, whatever its role, but for a fault's or an abandoned run's, which post nothing, read from its run's `out.md` as its collection posted it, since no review can then complete its round; a job closed first keeps such a review in its run's `out.md` alone, and a collection writes none whose `out.md` is gone (its run pruned, or collected on another machine), which only a replay takes from its post (Rollout, below) | every role: a member text a prompt shows is read from here, never from its post (The prompt, below); Daisy's own reads of a text past its first lines (7.5) |
+| `built` | nothing: an empty file, whose presence says the workspace is built, its job's runs replayed (Rollout, below) | by the replay alone, last, once every file it writes is written and the issue blocked when its plan is taken cut, so that a replay interrupted is made again whole at the next pass; for a new issue, by its replay over no run before its first launch | `apply`'s pass, which replays a job without it; `swarm merge`, which refuses a job without it whose plan the replay would take cut (Rollout); `status` and the verbs that read the workspace, which build it in memory without it |
+
+**A text, a round or a failed check is written once.** A file of
+`texts/`, `slices/<s>/rounds/` or `checks/` that is there is never
+rewritten, by a collection or a replay: it holds what the collection
+that wrote it read, a text's out.md among them, which a later reader
+may no longer have (a replay taking the text from its cut post). The
+other files are rewritten as their rows say, the newest writer's
+standing.
 
 **The CI job's log** in `checks/<sha>.log` is later work: the forge
 seam reads a head's checks as each context's state and URL (`Status`,
@@ -4441,34 +4459,65 @@ choice, as adopting them was); the reconciler's notes, the gate notes
 and the pulls block; and the labels, which stay the job's stage.
 
 **Rollout.** A job open when a build with the workspace arrives (an
-issue in flight, its runs collected by earlier builds) has none, and
-does not keep the thread path: one memory, never two. At the first pass
-that finds an open issue with a stage label and no `<state>/jobs/<n>/`,
-after the pass's collections and before its first launch, `apply`
-builds it by replaying, in the order they ended, the collection's writes
-above for each collected run of the issue under `<state>/runs/<n>-*`,
+issue in flight, its runs collected by earlier builds) has a partial
+workspace or none (an earlier build of R1's steps wrote `texts/` and
+some files after it), and does not keep the thread path: one memory,
+never two. Its trigger is the marker `built`, an empty file of the
+workspace, not the directory's absence, which any collection since
+`texts/` makes. At the first pass that finds an open issue with a stage
+label and no `<state>/jobs/<n>/built`, in pass step (5) before the role
+rule reads the issue, so after the pass's collections and before any
+launch on it, `apply` builds it by replaying, in the order they ended,
+the collection's writes above for each run of the issue collected under
+`<state>/runs/<n>-*` (one not yet collected is left to its own
+collection), through the functions that write them at collection,
 reading each run's `result`, `out.md` and, for an architect's,
-`builder.md`, and the mirrors as its collection would have: the texts,
-the plan, the builder plan and the slices, each slice's
-`kept` from its worker runs' `branch`, `fetched`, `pushed` and `failed:`
-lines, the rounds from the pull requests' reviews as the forge holds
-them (section 6's rounds, each review's text from its run), and the
-checks from `check.out` and `deps.out`. A run collected elsewhere, or
-whose `<run>` was pruned, adds only its text (an architect's no builder
-plan, its slices then their steps alone), taken from its post as the
-forge holds it; a post cut in any of 7.5's forms whose whole is gone is
-written with its note replaced by `[truncated by Daisy; the rest is not
-available to you]`, and a plan so taken blocks its issue, `swarm:blocked`
-beside its stage and the reconciler's note naming the missing
-`runs/<run>/io/out.md`, rather than have its slices counted short (the
-maintainer's yes of 2026-11-18). `status` and the maintainer's verbs
-that read a job's workspace build it the same way in memory for a job
-without one, and write nothing. `swarm merge`, which counts the slices
-to choose between T13 and the close, refuses a job so built whose plan
-is taken cut from its post, its `out.md` gone (the maintainer's yes at
-the stop of Step 9, 2026-11-19), before any write, rather than count
-the slices short and close the issue early (section 11, The
-maintainer's verbs).
+`builder.md`, the mirrors, and the threads as the forge holds them
+then: the texts, the plan, the builder plan and the slices (the plan's
+text read from `texts/` when a collection wrote it there, else from
+`out.md`), each slice's `kept` from its worker runs' `branch`,
+`fetched`, `start`, `pushed`, `outcome` and `failed:` lines (none for a
+commit the mirror no longer holds, which no run can be given), the
+rounds from the pull requests' reviews (section 6's rounds, each
+review's text from its run), the checks from `check.out` and
+`deps.out`, and the reviews held for their rounds as a collection then
+would write them. A replay over a job's runs is byte for byte the
+workspace their collections write; over a workspace that holds some
+files already, it rewrites only the files its rows rewrite, a file of
+`texts/`, `rounds/` or `checks/` that is there left as it is (The
+files, above), so nothing is written twice and nothing reordered. A run
+collected elsewhere, or whose `<run>` was pruned, adds only its text (an
+architect's no builder plan, its slices then their steps alone), taken
+from its post as the forge holds it (its marker, and a description's
+`Refs` line, left out); so does a run collected here whose `out.md` is
+gone, its review too. A post cut in any of 7.5's forms whose whole is
+gone is written with its note replaced by `[truncated by Daisy; the
+rest is not available to you]`, and when the plan `plan.md` is left
+holding is so taken, the replay blocks its issue (T17, the maintainer's
+yes of 2026-11-18), rather than have its slices counted short:
+`swarm:blocked` beside its stage, `swarm:question` cleared, and the
+reconciler's note, marked with the architect run's number, `The plan of
+<run> is cut on the forge and runs/<run>/io/out.md is gone, so its
+slices cannot be counted (docs/swarm.md section 7.8, Rollout). Restore
+the file and remove <state>/jobs/<n>, or relabel the issue
+swarm:proposal-accepted for a new plan; then remove swarm:blocked to
+resume.` and the maintainer's mention, not posted again when the issue
+holds it; an earlier plan so taken, which a later plan replaced, blocks
+nothing. The block is a pass's, no run's: no metrics row, and so no
+cause. `built` is written last, after the block, so a replay that
+fails on the way (an `out.md` that is there but cannot be read, a
+forge error) leaves none and is made again whole at the next pass.
+`apply` prints `#<n> workspace built from <c> runs` for a replay over
+at least one run. A new issue is replayed over no run at its first
+pass, so no collection writes `built`. `status` and the maintainer's
+verbs that read a job's workspace build it the same way in memory for
+a job without one, and write nothing (each with its read; until then
+`swarm merge` alone builds, in memory, the plan it would leave).
+`swarm merge`, which counts the slices to choose between T13 and the
+close, refuses a job so built whose plan is taken cut from its post,
+its `out.md` gone (the maintainer's yes at the stop of Step 9,
+2026-11-19), before any write, rather than count the slices short and
+close the issue early (section 11, The maintainer's verbs).
 
 ### 7.9 The check's environment
 
@@ -6956,7 +7005,10 @@ The start), which stay in the job's workspace and the mirror; the verb
 reads and writes nothing more for it. `swarm merge` counts the slices
 from the job's `plan.md`, as `status` and notify do; for a job without
 a workspace each builds it in memory as 7.8's Rollout builds it, and
-writes nothing. `swarm merge` refuses such a job, before any write,
+writes nothing. `swarm merge` refuses such a job (built at Step R1-4 of
+the plan implementing the 2026-11-19 swarm roadmap, its plan built in
+memory as the replay would leave it, a job without `built`; the count
+from `plan.md` is still ahead of its build), before any write,
 when its plan, so built, is taken from a post cut on the forge whose
 run's `out.md` is gone (the rollout window; the maintainer's yes at the
 stop of Step 9, 2026-11-19): `Error: swarm: #<n>: the plan of <run> is

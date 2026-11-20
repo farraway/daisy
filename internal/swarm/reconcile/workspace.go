@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -15,10 +16,11 @@ import (
 )
 
 // The job's workspace, <state>/jobs/<n> (section 7.8), written by the
-// collection of a run on issue n alone. Of its files this build writes
+// collection of a run on issue n and by the replay that builds it once
+// for a job in flight (replay.go). Of its files this build writes
 // texts/, plan.md, builder.md, slices/<s>/slice.md, slices/<s>/kept,
-// slices/<s>/rounds/<r>.md and checks/<sha>.log, and nothing reads them
-// yet.
+// slices/<s>/rounds/<r>.md, checks/<sha>.log and built, and nothing
+// reads them yet.
 
 // workspace is issue n's workspace.
 func (s *Swarm) workspace(n int) string { return filepath.Join(s.state(), "jobs", strconv.Itoa(n)) }
@@ -26,13 +28,14 @@ func (s *Swarm) workspace(n int) string { return filepath.Join(s.state(), "jobs"
 // writeWorkspace writes data to the file rel of issue n's workspace,
 // whole under a temporary name in its directory and then renamed into
 // place (ops.FS's WriteFile), unless the file holds data already, so a
-// collection retried writes it once (section 7.6).
+// collection retried writes it once (section 7.6), or is a file written
+// once (writtenOnce) that is there.
 func (s *Swarm) writeWorkspace(n int, rel string, data []byte) error {
 	fs := s.O.FS()
 	p := filepath.Join(s.workspace(n), rel)
 	old, err := fs.ReadFile(p)
 	switch {
-	case err == nil && bytes.Equal(old, data):
+	case err == nil && (bytes.Equal(old, data) || writtenOnce(rel)):
 		return nil
 	case err != nil && !errors.Is(err, iofs.ErrNotExist):
 		return err
@@ -41,6 +44,16 @@ func (s *Swarm) writeWorkspace(n int, rel string, data []byte) error {
 		return err
 	}
 	return fs.WriteFile(p, data, 0o644)
+}
+
+// writtenOnce: the workspace's file rel, a member's text, a round's or
+// a failed check's (texts/, slices/<s>/rounds/, checks/), is never
+// rewritten: one there is what the collection that wrote it read, which
+// a replay that reads less (a text's out.md gone) leaves as it is
+// (section 7.8, Rollout).
+func writtenOnce(rel string) bool {
+	dir := filepath.ToSlash(filepath.Dir(rel))
+	return dir == "texts" || dir == "checks" || path.Base(dir) == "rounds"
 }
 
 // writePlan writes an architect's plan, collected on issue n, to
@@ -80,21 +93,25 @@ func (s *Swarm) writeText(n int, run, text string) error {
 // or merged, its head moved past the round's or reopened since (answers,
 // Reopenings: none read for a closed p). Each is read from its run's
 // out.md as its collection posted it; one whose out.md is gone, its run
-// pruned or collected on another machine, is not written.
-func (s *Swarm) writeReviews(n int, p forge.Pull, reviews []forge.Review, answers []time.Time) error {
+// pruned or collected on another machine, is not written, unless posted,
+// for a replay, which then takes it from its post (postedText).
+func (s *Swarm) writeReviews(n int, p forge.Pull, reviews []forge.Review, answers []time.Time, posted bool) error {
 	for _, rd := range roundsOf(reviews, answers, s.SwarmLogin) {
 		if _, complete := rd.completed(s.SwarmLogin); !complete && p.Open && rd.commit == p.HeadSHA && rd.answers == len(answers) {
 			continue // its round may still complete
 		}
 		for _, rv := range rd.reviews {
-			m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
+			e := Entry{rv.Author, rv.Body, rv.Submitted}
+			m, _ := Swarms(e, s.SwarmLogin)
 			run := outputRun(n, m)
 			text, ok, err := s.outputs().Text(run)
-			if err != nil {
+			switch {
+			case err != nil:
 				return err
-			}
-			if !ok {
+			case !ok && !posted:
 				continue
+			case !ok:
+				text, _ = postedText(n, m, post{Entry: e, review: true})
 			}
 			if err := s.writeText(n, run, text); err != nil {
 				return err
@@ -122,7 +139,7 @@ func (c *collection) writeHeld(pulls []forge.Pull) error {
 			}
 			answers = Reopenings(pullComments(comments), c.s.SwarmLogin, c.s.Cfg.Trusted)
 		}
-		if err := c.s.writeReviews(c.r.N, p, reviews, answers); err != nil {
+		if err := c.s.writeReviews(c.r.N, p, reviews, answers, false); err != nil {
 			return err
 		}
 	}

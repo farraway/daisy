@@ -136,9 +136,10 @@ func (s *Swarm) collect(r Run) error {
 	text := string(out)
 	first, _, _ := strings.Cut(text, "\n")
 	_, questionRun := Has(lines, "question")
+	kind := textKind(r.Role, text, questionRun)
 	// An architect's text that is a plan comes with its builder plan, or
 	// none, read and checked as out.md is (section 7.8, The builder plan).
-	plan := r.Role == "architect" && !questionRun && onThePlan(text) && !strings.HasPrefix(text, stands)
+	plan := isPlan(r.Role, text, questionRun)
 	var builder []byte
 	if plan {
 		if builder, err = r.Builder(s.O.FS()); err != nil && !errors.Is(err, iofs.ErrNotExist) {
@@ -151,14 +152,14 @@ func (s *Swarm) collect(r Run) error {
 			builder = nil
 		}
 	}
-	switch {
-	case strings.HasPrefix(strings.TrimRight(first, "\r "), "BLOCKED:"):
+	switch kind {
+	case textBlocked:
 		return c.blocked(text, pull)
-	case asks(r.Role, first, questionRun) && r.Role == "owner":
+	case textPassedOn:
 		return c.toMaintainer(text, first)
-	case asks(r.Role, first, questionRun):
+	case textAsked:
 		return c.ask(text)
-	case questionRun:
+	case textAnswer:
 		return c.answer(text)
 	}
 	switch r.Role {
@@ -207,6 +208,40 @@ func (s *Swarm) collect(r Run) error {
 		return c.review(text, *pull, pulls)
 	}
 	return c.end("posted")
+}
+
+// The kinds of a run's text by its first line (section 7.5), which its
+// collection posts as textKind says.
+const (
+	textBlocked  = iota // BLOCKED:, posted as it is
+	textPassedOn        // the owner's question, passed to the maintainer
+	textAsked           // a question, posted as it is
+	textAnswer          // an answer, posted marked ANSWER: (answerText)
+	textOwn             // the role's own: a plan, a report or a review
+)
+
+// textKind is the kind of role's text, out.md as the collection read it,
+// on a question run or not.
+func textKind(role, text string, questionRun bool) int {
+	first, _, _ := strings.Cut(text, "\n")
+	switch {
+	case strings.HasPrefix(strings.TrimRight(first, "\r "), "BLOCKED:"):
+		return textBlocked
+	case asks(role, first, questionRun) && role == "owner":
+		return textPassedOn
+	case asks(role, first, questionRun):
+		return textAsked
+	case questionRun:
+		return textAnswer
+	}
+	return textOwn
+}
+
+// isPlan: role's text, on a question run or not, is an architect's plan,
+// which its collection writes to the job's workspace with its builder
+// plan (section 7.8).
+func isPlan(role, text string, questionRun bool) bool {
+	return role == "architect" && !questionRun && onThePlan(text) && !strings.HasPrefix(text, stands)
 }
 
 func (c *collection) step(line string) error {

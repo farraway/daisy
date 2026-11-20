@@ -456,14 +456,10 @@ func (e NotInMirror) Error() string { return e.Commit + " is not in " + e.Repo +
 func (g Git) RoundDiff(name, base, prev, sha string) (string, error) {
 	m := g.Mirror(name)
 	for _, c := range []string{prev, sha} {
-		// Exit 1 is rev-parse --verify --quiet finding no such commit.
-		_, errb, err := g.O.Exec(m, "git", "rev-parse", "--verify", "--quiet", c+"^{commit}")
-		var exit *exec.ExitError
-		switch {
-		case errors.As(err, &exit) && exit.ExitCode() == 1:
+		if held, err := g.Holds(name, c); err != nil {
+			return "", err
+		} else if !held {
 			return "", NotInMirror{name, c}
-		case err != nil:
-			return "", fmt.Errorf("git rev-parse --verify --quiet %s^{commit}: %v: %s", c, err, strings.TrimSpace(string(errb)))
 		}
 	}
 	files, errb, err := g.O.Exec(m, "git", "diff", "--name-only", "-z", "refs/heads/"+base+"..."+sha)
@@ -479,6 +475,20 @@ func (g Git) RoundDiff(name, base, prev, sha string) (string, error) {
 		return "", fmt.Errorf("git diff %s..%s: %v: %s", prev, sha, err, strings.TrimSpace(string(errb)))
 	}
 	return string(out), nil
+}
+
+// Holds: the repository's mirror holds commit sha.
+func (g Git) Holds(name, sha string) (bool, error) {
+	// Exit 1 is rev-parse --verify --quiet finding no such commit.
+	_, errb, err := g.O.Exec(g.Mirror(name), "git", "rev-parse", "--verify", "--quiet", sha+"^{commit}")
+	var exit *exec.ExitError
+	switch {
+	case errors.As(err, &exit) && exit.ExitCode() == 1:
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("git rev-parse --verify --quiet %s^{commit}: %v: %s", sha, err, strings.TrimSpace(string(errb)))
+	}
+	return true, nil
 }
 
 // paths is `git diff --name-only` over revs in the repository's mirror.
