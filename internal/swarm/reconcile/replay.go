@@ -383,8 +383,8 @@ func (c *collection) textOf(out string) (string, bool, error) {
 
 // replayedWork is a worker run's failed check's log and its slice's
 // kept as its collection wrote them (section 7.8): the check that ended
-// and failed, unless its whole output holds a secret the member was
-// given; then, for a run whose commits are past its start and that was
+// and failed, unless the run faulted, whose collection ends before step
+// 4, or its whole output holds a secret the member was given; then, for a run whose commits are past its start and that was
 // not discarded, its kept, unless the mirror no longer holds its commit
 // or, not pushed, they fail the secret check or change a protected path
 // (refused).
@@ -394,7 +394,8 @@ func (c *collection) replayedWork() error {
 	}
 	s, name, sha := c.s, branchRepo(c.lines), c.fetched()
 	repo, _ := s.repo(name)
-	if result, out, _, ok := checkResult(s.O.FS(), c.r, c.lines, s.Cfg.Timeout); ok && result != "exit 0" && !hit([]byte(out), s.secretsOf(c.r, c.lines)) {
+	_, fault := Has(c.lines, "fault") // its collection ended at the fault, before step 4
+	if result, out, _, ok := checkResult(s.O.FS(), c.r, c.lines, s.Cfg.Timeout); ok && !fault && result != "exit 0" && !hit([]byte(out), s.secretsOf(c.r, c.lines)) {
 		if err := c.writeCheck(sha, checkLine(repo.Check, sha, result), out); err != nil {
 			return err
 		}

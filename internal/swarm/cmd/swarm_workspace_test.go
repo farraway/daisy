@@ -629,6 +629,30 @@ func TestWorkspaceReplay(t *testing.T) {
 	same("completed over texts/")
 }
 
+// A worker run that faulted at its check (exit 125: the check could not
+// run) keeps its commits and writes no checks/ file, its collection
+// ending at the fault before step 4; its replay writes the same.
+func TestWorkspaceReplayFaultedCheck(t *testing.T) {
+	a := newApplyWS(t)
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", work("v1"))
+	a.runner.Script(1, "check", runner.Canned{Code: 125})
+	a.pass()
+	if r := a.result("1-worker-1"); !strings.Contains(r, "\noutcome fault\n") {
+		t.Fatalf("the run did not fault:\n%s", r)
+	}
+	collected := a.tree(1)
+	if _, ok := collected["slices/1/kept"]; !ok {
+		t.Fatalf("the collection kept nothing: %v", collected)
+	}
+	os.RemoveAll(a.state("jobs/1"))
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	a.pass()
+	if got := a.tree(1); !reflect.DeepEqual(got, collected) || !a.built(1) {
+		t.Errorf("replayed (built %v):\n%v\nthe collection's:\n%v", a.built(1), got, collected)
+	}
+}
+
 // A plan taken cut from its post (section 7.8, Rollout): the plan's
 // out.md gone and the job without a workspace, the replay writes the
 // plan and its text as the forge holds them, the cut's note replaced by

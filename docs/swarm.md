@@ -3429,7 +3429,8 @@ holds the `Brief:` and `Class:` lines, is never cut (decision
 **From R1** (7.8, specified ahead of its build). Each member text the
 posting rule posts on a job is first written whole to the job's workspace,
 `texts/<n>-<role>-<k>.md` (7.8; built, and read by nothing until the
-reads below are), and every later reader of it, member or
+reads below are but the Rollout's replay and `swarm merge`'s refusal,
+which read an architect's plan there), and every later reader of it, member or
 Daisy, reads it there: the post, cut or not, is the human record, and
 the attachment and the continuations above stay for the forge's readers
 alone. Daisy's own reads past a text's first lines (the plan's slices,
@@ -4104,8 +4105,9 @@ output), each written at collection as its row below says and read by
 nothing, no post or read of Daisy's changed by them and no prompt but
 the architect's Task text; and the Rollout's replay, its `built`
 marker, the block of a plan taken cut and `swarm merge`'s refusal
-(R1-4), what it writes read by nothing but `built`, by the pass and
-the refusal; `amendments/`
+(R1-4), what it writes read by nothing but the replay and the
+refusal, which read `built` and an architect's plan in `texts/`;
+`amendments/`
 (R5), the run's folder, the mount, the start, the prompt, Daisy's
 reads, and the in-memory build of `status` and the verbs that read
 the workspace, which comes with their reads, are still specified ahead
@@ -4480,7 +4482,8 @@ text read from `texts/` when a collection wrote it there, else from
 commit the mirror no longer holds, which no run can be given), the
 rounds from the pull requests' reviews (section 6's rounds, each
 review's text from its run), the checks from `check.out` and
-`deps.out`, and the reviews held for their rounds as a collection then
+`deps.out` (none for a run that faulted, whose collection ends at the
+fault before step 4), and the reviews held for their rounds as a collection then
 would write them. A replay over a job's runs is byte for byte the
 workspace their collections write; over a workspace that holds some
 files already, it rewrites only the files its rows rewrite, a file of
