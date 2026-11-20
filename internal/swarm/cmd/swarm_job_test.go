@@ -156,3 +156,34 @@ func TestSwarmCollectsAWorkerOfTheEarlierLayout(t *testing.T) {
 		t.Errorf("pulls %+v, result:\n%s", ps, r)
 	}
 }
+
+// A worker run of the run's folder whose apply died is abandoned as one
+// of the earlier layout is (sections 2, 7.6 and 7.7): its commits fetched
+// from its clone at <run>/work/<name> and kept, and <run>/job, where the
+// member may have written at its top, removed with <run>/work.
+func TestSwarmAbandonedWorkerOfTheRunsFolder(t *testing.T) {
+	a := newApplyWS(t)
+	a.planned(oneSlice)
+	head := a.orphanWorker()
+	run := a.state("runs/1-worker-1")
+	if err := os.Rename(filepath.Join(run, "work"), filepath.Join(run, "clone")); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{"work", "job/work", "job/io"} {
+		os.MkdirAll(filepath.Join(run, d), 0o755)
+	}
+	if err := os.Rename(filepath.Join(run, "clone"), filepath.Join(run, "work", "app")); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(run, "job", "scratch.txt"), []byte("the member's\n"), 0o644)
+	a.runner.Script(1, "worker", work("v1"))
+	a.pass()
+	if r := a.result("1-worker-1"); !strings.Contains(r, "\nfetched "+head+"\n") || !strings.HasSuffix(r, "outcome abandoned\ncollected\n") {
+		t.Errorf("result:\n%s", r)
+	}
+	for _, d := range []string{"work", "job"} {
+		if _, err := os.Lstat(filepath.Join(run, d)); err == nil {
+			t.Errorf("%s/ kept after the abandoned run's collection", d)
+		}
+	}
+}

@@ -458,7 +458,7 @@ func (c *collection) abandoned() error {
 	if err := c.r.Append(fs, "outcome abandoned", "collected"); err != nil {
 		return err
 	}
-	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "resources")), c.dropNotes())
+	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "work")), removeTree(fs, filepath.Join(c.r.Dir, "job")), removeTree(fs, filepath.Join(c.r.Dir, "resources")), c.dropNotes())
 }
 
 // abandonedFetch is an abandoned worker run's steps 1 and 2 (section 7.6):
