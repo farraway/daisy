@@ -47,3 +47,25 @@ the maintainer did not ask for; recorded as a question). Tests:
 `TestSwarmCutPlanIsReadWhole`, `TestSwarmCutTextsTheMaintainerIsToldOf`,
 `TestSwarmMergeVerbReadsTheCutPlanWhole`,
 `TestRenderCutReviewFindingsWhole` and `TestOutputs`.
+
+**Amended by decision [158](0158-the-jobs-workspace-is-the-memory.md)
+(Steps R1-9 and R1-10b of the plan implementing the 2026-11-19 swarm
+roadmap, 2026-11-20).** The principle stands, a text Daisy cut reaches
+whoever acts on it whole, Daisy included, but the reads move to the
+job's workspace: the plan's slices and the plan gate's note read
+`plan.md` (`Outputs.JobPlan`, Step R1-9), and the merge gate's note,
+the architect's text a `Start: base` line is looked for in and every
+member text a prompt shows, a review's `[blocking]` lines and their
+count among them, read `texts/` (`Job.text`; the prompt's at Step
+R1-10b, through `Job.shownText`). A run's `out.md` is read, by the rules
+above, only for a text with no file in `texts/`. `Job.readWhole`, which
+read every cut text on the threads once per pass, is retired, and with
+it this record's "the one place a read can fail", which was not true
+(the launch's copy, `copyOutputs`, read each output again, and is
+retired too): each reader now reads the files it needs, and a file of
+the job's that is there and cannot be read blocks its issue alone
+where it is read (in pass step (5), at a launch or at the merge step;
+section 7.7), the maintainer's rule of 2026-11-18. The prompt's
+rendering now reads the texts it shows. Tests:
+`TestSwarmCutPlanIsReadWhole`, `TestRenderTextsFromTheWorkspace`,
+`TestOutputs`, `TestUnreadableOutputBlocksItsIssueAlone`.

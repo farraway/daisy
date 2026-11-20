@@ -384,3 +384,27 @@ func TestJobSectionBlocksAPairOnce(t *testing.T) {
 		t.Errorf("%d notes, labels %v\n%s", notes, labels(a.issue(1)), a.stdout.String())
 	}
 }
+
+// A member text the prompt shows that is in the job's texts/ and cannot
+// be read, the review whose [blocking] lines the worker answers, blocks
+// the issue before the run is launched, the reconciler's note naming it
+// (sections 7.7 and 7.8, The prompt), rather than a prompt showing the
+// review cut or the pass failing.
+func TestUnreadableTextBlocksTheLaunch(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	a.changesRequested()
+	closed := a.state("jobs/1/texts/1-adversary-1.md")
+	if err := os.Chmod(closed, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(closed, 0o644) })
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	if _, err := os.Stat(a.state("runs/1-worker-2")); err == nil {
+		t.Errorf("worker run 2 launched:\n%s", a.result("1-worker-2"))
+	}
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || !strings.Contains(a.lastComment(1), "Daisy cannot use jobs/1/texts/1-adversary-1.md: permission denied") {
+		t.Errorf("not blocked: %v, last comment:\n%s", got, a.lastComment(1))
+	}
+}

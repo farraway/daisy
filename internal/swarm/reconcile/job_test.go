@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"daisy/internal/ops"
+	"daisy/internal/swarm/forge"
 )
 
 // jobFiles writes each file of issue n's workspace under state, as the
@@ -367,4 +368,78 @@ func TestRenderJobShortCommits(t *testing.T) {
 	has(t, "prompt.md", prompt, []string{"\n- Start: the pull request's head ddddddd\n",
 		"\n- Rounds: /job/memory/slices/1/rounds/, 4 completed; the latest, 10 on ddddddd: adversary approve, sympathetic approve, 0 blocking\n",
 		"\n- Check: /job/memory/checks/" + head + ".log, make check on ddddddd: exit 2\n"})
+}
+
+// Every member text a prompt shows is read from the job's workspace,
+// texts/<run>.md, whole, never from its post (section 7.8, The prompt):
+// an owner's text cut on the forge reads whole in the architect's
+// # Thread, with no note; a review cut on the forge has its [blocking]
+// lines listed whole, the one past the cut among them, and counted so
+// in its round's line; a note a comment quotes stays as written. No Task
+// text names a copy.
+func TestRenderTextsFromTheWorkspace(t *testing.T) {
+	note := func(run string) string { return "[truncated by Daisy; the whole output is in runs/" + run + "]" }
+	f, at, pr, state := planned(t)
+	f.Say(at, "jane", "Quoting:\n"+note("1-owner-9"))
+	f.Comment(at, marker("owner", 4)+"Long.\n"+note("1-owner-4"))
+	f.Push(pr, "bbb")
+	f.Review(pr, forge.Commented, marker("adversary", 2)+"VERDICT: request-changes\n[blocking] a.go:2 seen\n"+note("1-adversary-2"))
+	f.Review(pr, forge.Commented, marker("sympathetic", 2)+"VERDICT: approve\n")
+	f.Push(pr, "ccc")
+	planWorkspace(t, state)
+	jobFiles(t, state, 1, map[string]string{
+		"texts/1-owner-4.md":     "Long.\nThe rest of the owner's text.\n",
+		"texts/1-adversary-2.md": "VERDICT: request-changes\n[blocking] a.go:2 seen\n" + filler + "\n[blocking] z.go:2 past the cut\n",
+	})
+	io := filepath.Join(state, "runs", "1-owner-9", "io")
+	os.MkdirAll(io, 0o755)
+	os.WriteFile(filepath.Join(io, "out.md"), []byte("never read\n"), 0o644)
+
+	arch := memoryJob(t, "architect", "swarm:plan-0-posted")
+	arch.Outputs.State = state
+	arch.Issue, _ = f.Issue(at.N)
+	arch.Pull = thread(f, pr)
+	arch.Pulls, _ = f.Pulls(at.N, []string{"swarm-bot"})
+	if err := arch.readMemory(); err != nil {
+		t.Fatal(err)
+	}
+	sys, prompt := Render(arch)
+	has(t, "architect's prompt.md", prompt, []string{"\n\nLong.\nThe rest of the owner's text.\n", "Quoting:\n" + note("1-owner-9") + "\n",
+		", on bbb: request-changes\n\n[blocking] a.go:2 seen\n[blocking] z.go:2 past the cut\n"},
+		note("1-owner-4"), "outputs", "never read", note("1-adversary-2"))
+	has(t, "architect's system.md", sys, nil, "60,000", "outputs")
+
+	adv := memoryJob(t, "adversary", "swarm:review-0-ready")
+	adv.Outputs.State = state
+	adv.Issue, _ = f.Issue(at.N)
+	adv.Pull = thread(f, pr)
+	adv.Pulls, _ = f.Pulls(at.N, []string{"swarm-bot"})
+	if err := adv.readMemory(); err != nil {
+		t.Fatal(err)
+	}
+	_, prompt = Render(adv)
+	has(t, "adversary's prompt.md", prompt, []string{"- round on aaa: 1 blocking, revised in bbb\n",
+		", on bbb: request-changes\n\n[blocking] a.go:2 seen\n[blocking] z.go:2 past the cut\n"}, "truncated", "outputs")
+}
+
+// A text file of the workspace a prompt shows that is there and cannot
+// be read is the job's own failure (section 7.7), the run not launched.
+func TestReadTextUnusable(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads a file of mode 000")
+	}
+	f, at, pr, state := planned(t)
+	planWorkspace(t, state)
+	jobFiles(t, state, 1, map[string]string{"texts/1-adversary-1.md": "VERDICT: request-changes\n[blocking] x.go:1 wrong\n"})
+	os.Chmod(filepath.Join(state, "jobs", "1", "texts", "1-adversary-1.md"), 0o000)
+	j := jobOn(f, at, pr, "worker", "swarm:review-3-changes-requested")
+	j.Outputs = Outputs{FS: ops.Real().FS(), State: state}
+	if err := j.readMemory(); err != nil {
+		t.Fatal(err)
+	}
+	Render(j)
+	var u *unusableError
+	if err := j.TextErr(); !errors.As(err, &u) || u.file != "jobs/1/texts/1-adversary-1.md" {
+		t.Errorf("an unreadable text: %v", err)
+	}
 }

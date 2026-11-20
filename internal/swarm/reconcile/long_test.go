@@ -121,27 +121,24 @@ func TestCutRun(t *testing.T) {
 	}
 }
 
-// A prompt shows a text cut on the forge once, in whichever form its note
-// took there, the note naming the member's copy, and no continuation:
-// the copy holds the rest (sections 7.3 and 7.5).
+// A prompt shows a text cut on the forge once, whole, in whichever form
+// its note took there, and no continuation: the text is read as Daisy
+// reads it past its first lines, here its run's out.md, the job not yet
+// built (sections 7.3 and 7.8, The prompt).
 func TestRenderCutNoteForms(t *testing.T) {
-	note := func(where string) string { return "[truncated by Daisy; the whole output is in " + where + "]" }
 	f, at := fixture()
 	f.Comment(at, marker("architect", 1)+archPlan+"\n[truncated by Daisy; the whole output is in runs/1-architect-1 and attached as [1-architect-1.md](https://forge.example.net/attachments/a1)]")
 	f.Comment(at, marker("owner", 3)+"Long.\n[truncated by Daisy; the whole output is in runs/1-owner-3; the rest follows in 1 comment]")
 	f.Comment(at, continuedMarker+"\nContinued from owner run 3's text (part 1 of 1):\n\nQUESTION: the rest of the owner's text")
 	j := job(f, at.N, "architect", "swarm:proposal-accepted")
-	j.Outputs = outputsAt(t, map[string]string{"1-architect-1": "", "1-owner-3": ""})
-	if err := j.readWhole(); err != nil {
-		t.Fatal(err)
-	}
+	j.Outputs = outputsAt(t, map[string]string{"1-architect-1": "", "1-owner-3": "Long.\nThe rest of the owner's text.\n"})
 	_, prompt := Render(j)
 	has(t, "prompt.md", prompt, []string{
 		"(the accepted plan: whole in /job/memory/plan.md)\n",
-		"Long.\n" + note("/job/io/outputs/1-owner-3.md") + "\n",
-	}, "runs/1-", "attached as", "the rest follows", "Continued from", "QUESTION:", "reconciler, run", "it works.")
-	if got := j.Cut(); strings.Join(got, " ") != "1-owner-3" {
-		t.Errorf("Cut: %v", got)
+		"Long.\nThe rest of the owner's text.\n",
+	}, "truncated", "attached as", "the rest follows", "Continued from", "QUESTION:", "reconciler, run", "it works.")
+	if err := j.TextErr(); err != nil {
+		t.Error(err)
 	}
 	if _, ok := newestQuestion(j.Issue, "swarm-bot"); ok {
 		t.Errorf("a continuation beginning QUESTION: read as a question")

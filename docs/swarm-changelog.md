@@ -787,3 +787,22 @@ they write.
   builds decisions
   [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md) and
   [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).
+- 2026-11-20, Step R1-10 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, the switch, its second part, R1-10b: the prompt's reads):
+  every member text a prompt shows (an entry of `# Thread` or
+  `# Questions`, the architect's view of a pull request's description
+  and thread, a review's `[blocking]` lines and their count) is read
+  from the job's workspace, `texts/`, as the prompt is rendered, for
+  the texts it shows alone; with no file there, as Daisy's own reads
+  take it (its run's `out.md` when Daisy cut it, else as posted). No cut
+  text reaches a prompt: decision 148's copies to `/job/io/outputs/`,
+  its rewritten note and its Task sentence are retired, and so is the
+  pass's read of every cut text on the threads (`readWhole`); a text
+  file that cannot be read blocks the issue at the launch (7.7), so a
+  built job's `out.md` that cannot be read no longer blocks it, nothing
+  reading it. Decisions
+  [148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md)
+  and [149](swarm/decisions/0149-daisy-reads-a-text-it-cut-whole.md)
+  amended (149's "the one place a read can fail" corrected). Sections 2,
+  7.2, 7.3, 7.4, 7.5, 7.7, 7.8 and 13. No new decision: it builds
+  decision [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md).

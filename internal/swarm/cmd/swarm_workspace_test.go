@@ -740,12 +740,14 @@ func unusableNote(n, k int, file, cause string) string {
 // maintainer's rule of 2026-11-18): an out.md that cannot be read blocks
 // its issue alone. Two issues wait for their worker; the first's plan,
 // cut on the forge, has an out.md that cannot be read. Read by the
-// replay of a job without its workspace, or by the read of the cut plan
-// whole for a job built, it blocks the first issue with the reconciler's
-// note naming the file, writes no built marker, launches nothing for it,
-// and the pass goes on: the second issue's worker is launched and apply
-// exits 0. The next pass posts no second note. So does a workspace
-// directory that cannot be read, its built marker's read failing.
+// replay of a job without its workspace, it blocks the first issue with
+// the reconciler's note naming the file, writes no built marker,
+// launches nothing for it, and the pass goes on: the second issue's
+// worker is launched and apply exits 0. The next pass posts no second
+// note. So does a workspace directory that cannot be read, its built
+// marker's read failing. For a job built, nothing reads that out.md any
+// more, the plan being in plan.md and texts/ (Step R1-10b of the plan
+// implementing the 2026-11-19 swarm roadmap): its worker is launched.
 func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
 	for _, c := range []struct {
 		name         string
@@ -753,7 +755,7 @@ func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
 		closed, file string // closed made unreadable, the file the note names
 	}{
 		{"the replay", true, "runs/1-architect-1/io/out.md", "runs/1-architect-1/io/out.md"},
-		{"a whole read", false, "runs/1-architect-1/io/out.md", "runs/1-architect-1/io/out.md"},
+		{"a built job's out.md, read by nothing", false, "runs/1-architect-1/io/out.md", ""},
 		{"the workspace", false, "jobs/1", "jobs/1/built"},
 	} {
 		replay := c.replay
@@ -783,6 +785,12 @@ func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
 			t.Cleanup(func() { os.Chmod(closed, fi.Mode().Perm()) })
 			before := len(a.bodies(1))
 			a.pass()
+			if c.file == "" {
+				if got := labels(a.issue(1)); slices.Contains(got, forge.Blocked) || !strings.Contains(a.result("1-worker-1"), "\ncollected\n") || len(a.bodies(1)) != before {
+					t.Errorf("#1: %v, its worker:\n%s", got, a.result("1-worker-1"))
+				}
+				return
+			}
 			note := unusableNote(1, 1, c.file, "permission denied")
 			if bs := a.bodies(1); len(bs) != before+1 || bs[len(bs)-1] != note {
 				t.Errorf("the thread's last:\n%q\nwant:\n%q", bs[len(bs)-1], note)

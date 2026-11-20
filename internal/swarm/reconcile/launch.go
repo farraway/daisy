@@ -145,6 +145,13 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	}
 
 	system, prompt := Render(j)
+	// A member text it shows that cannot be read from the job's
+	// workspace blocks the issue alone (section 7.8, The prompt).
+	if err := j.TextErr(); err != nil {
+		fs.RemoveAll(r.Dir)
+		_, err = s.blockUnusable(j.Issue, err)
+		return false, err
+	}
 	for _, f := range []struct{ name, text string }{{"system.md", system}, {"prompt.md", prompt}} {
 		p := filepath.Join(ioDir, f.name)
 		if err := fs.WriteFile(p, []byte(f.text), 0o644); err != nil {
@@ -157,12 +164,6 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	}
 	if emptyField(prompt) {
 		return failed("launch-failed "+ended(), "fault: prompt: prompt.md: empty field")
-	}
-	// The whole output of each text the prompt shows cut, where its note
-	// points (section 7.3).
-	if err := copyOutputs(fs, s.state(), ioDir, j.Cut()); err != nil {
-		fs.RemoveAll(r.Dir)
-		return false, err
 	}
 	if j.Role == "adversary" || j.Role == "sympathetic" {
 		// The screenshots # Artifacts lists, where the reviewer opens

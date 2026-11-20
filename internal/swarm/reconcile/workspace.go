@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"daisy/internal/ops"
 	"daisy/internal/swarm/forge"
 )
 
@@ -21,8 +22,10 @@ import (
 // texts/, plan.md, builder.md, slices/<s>/slice.md, slices/<s>/kept,
 // slices/<s>/rounds/<r>.md, checks/<sha>.log and built, and of them
 // Daisy reads built (the replay), kept (the worker's launch, start.go),
-// plan.md (its slices and the plan gate's note, Outputs.JobPlan) and
-// texts/ (past a text's first lines, Job.text); no prompt reads any yet.
+// plan.md (its slices and the plan gate's note, Outputs.JobPlan),
+// texts/ (past a text's first lines, Job.text, and every member text a
+// prompt shows, Job.shownText), and what the prompt's # Job summarises
+// (job.go); a member reads them all, mounted at /job/memory.
 
 // workspace is issue n's workspace.
 func (s *Swarm) workspace(n int) string { return filepath.Join(s.state(), "jobs", strconv.Itoa(n)) }
@@ -66,6 +69,41 @@ func workspaceUnusable(n int, rel string, k int, err error) error {
 func writtenOnce(rel string) bool {
 	dir := filepath.ToSlash(filepath.Dir(rel))
 	return dir == "texts" || dir == "checks" || path.Base(dir) == "rounds"
+}
+
+// Outputs is where Daisy reads a job's workspace and its runs' outputs
+// (sections 7.5 and 7.8): the swarm's <state>, read through FS. The zero
+// Outputs finds none.
+type Outputs struct {
+	FS    ops.FS
+	State string
+}
+
+// Text is run `<n>-<role>-<k>`'s output whole, its out.md as Output
+// reads it (a regular file, never through a link). ok is false, with no
+// error, when the output cannot be given whole: out.md missing or not a
+// regular file, the run failed for a secret in its output (never
+// posted), a name not a run's, the zero Outputs; a failed read is err.
+func (o Outputs) Text(run string) (text string, ok bool, err error) {
+	if o.FS == nil || !runName.MatchString(run) {
+		return "", false, nil
+	}
+	r := Run{Dir: filepath.Join(o.State, "runs", run)}
+	out, err := r.Output(o.FS)
+	if errors.Is(err, iofs.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	lines, err := r.Result(o.FS)
+	if err != nil {
+		return "", false, err
+	}
+	if slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, "failed: secret in output") }) {
+		return "", false, nil
+	}
+	return string(out), true, nil
 }
 
 // text is the member text of the swarm entry marked m on the Job's

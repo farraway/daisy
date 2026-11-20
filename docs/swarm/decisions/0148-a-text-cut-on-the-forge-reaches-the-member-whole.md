@@ -53,3 +53,22 @@ slices and the gate notes among them, and a review shown as its
 `[blocking]` lines alone has them listed whole, with no note.) Tests:
 `TestSwarmCutTextReachesTheMemberWhole`, `TestSwarmUncutTextIsNotCopied`,
 `TestRenderCutNote` and `TestOutputs`.
+
+**Amended by decision [158](0158-the-jobs-workspace-is-the-memory.md)
+(Step R1-10b of the plan implementing the 2026-11-19 swarm roadmap,
+2026-11-20).** The principle stands, a text cut on the forge reaches
+each later member that acts on it whole, but the means is retired: no
+copy is made in the member's `/job/io/outputs/`, no note is rewritten
+to name one and no Task text lists them. Every member text a prompt
+shows is read whole from the job's workspace, `texts/<n>-<role>-<k>.md`
+(the run still the one the entry's marker names), and, with no file
+there (a job not yet built, a review held for its round), whole from
+its run's `out.md` by this decision's rules (its own run's note, a
+regular file, a run not failed for a secret), else as posted; the plan,
+the builder plan, the slice and the worker's report are not in the
+prompt at all, `# Job` pointing at them under `/job/memory` (section
+7.8, The prompt). A file there that cannot be read blocks the issue at
+the launch (section 7.7), where a failed copy was the pass's error.
+Tests: `TestSwarmCutTextReachesTheMemberWhole` (rewritten),
+`TestRenderTextsFromTheWorkspace`, `TestReadTextUnusable`,
+`TestUnreadableTextBlocksTheLaunch`; `TestRenderCutNote` retired.

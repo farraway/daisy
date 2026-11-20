@@ -733,47 +733,6 @@ func TestEmptyField(t *testing.T) {
 	}
 }
 
-// A cut's note names the copy in the member's container only for a swarm
-// entry's own run whose output the launch can copy (Outputs), and the
-// run is recorded for the launch (Cut) once: a swarm entry quoting
-// another run's note, a trusted login's comment carrying one, and a run
-// not in Outputs keep the note as posted, and nothing of theirs is
-// copied (section 7.3).
-func TestRenderCutNote(t *testing.T) {
-	note := func(where string) string { return "[truncated by Daisy; the whole output is in " + where + "]" }
-	f, at := fixture()
-	f.Comment(at, marker("architect", 1)+archPlan+"\n"+note("runs/1-architect-1"))
-	f.Comment(at, marker("adversary", 1)+"The plan's end reads:\n"+note("runs/1-architect-9"))
-	f.Say(at, "jane", "Quoted:\n"+note("runs/1-owner-3"))
-	f.Comment(at, marker("owner", 4)+"Long.\n"+note("runs/1-owner-4"))
-	j := job(f, at.N, "architect", "swarm:proposal-accepted")
-	j.Outputs = outputsAt(t, map[string]string{"1-architect-1": "", "1-architect-9": "", "1-adversary-1": "", "1-owner-3": "", "1-owner-4": ""})
-	if err := j.readWhole(); err != nil {
-		t.Fatal(err)
-	}
-	sys, prompt := Render(j)
-	has(t, "prompt.md", prompt, []string{
-		"(the accepted plan: whole in /job/memory/plan.md)\n",
-		"The plan's end reads:\n" + note("runs/1-architect-9") + "\n",
-		"Quoted:\n" + note("runs/1-owner-3") + "\n",
-		"Long.\n" + note("/job/io/outputs/1-owner-4.md") + "\n",
-	}, "it works.", "outputs/1-architect-", "outputs/1-owner-3", note("runs/1-owner-4"))
-	has(t, "system.md", sys, []string{"were cut: owner run 4's text, whole in /job/io/outputs/1-owner-4.md. In each, a line"})
-	if got := j.Cut(); len(got) != 1 || got[0] != "1-owner-4" {
-		t.Errorf("Cut: %v", got)
-	}
-	j.Outputs = Outputs{}
-	if err := j.readWhole(); err != nil {
-		t.Fatal(err)
-	}
-	sys, prompt = Render(j)
-	has(t, "prompt.md", prompt, []string{"Long.\n" + note("runs/1-owner-4") + "\n"}, "/job/io/outputs")
-	has(t, "system.md", sys, nil, "/job/io/outputs", "60,000", "**Check:**")
-	if got := j.Cut(); len(got) != 0 {
-		t.Errorf("Cut without Outputs: %v", got)
-	}
-}
-
 // outputsAt is a scratch <state> holding run's out.md, as the collection
 // left it, for each run of runs, and the Outputs reading it.
 func outputsAt(t *testing.T, runs map[string]string) Outputs {
@@ -789,13 +748,14 @@ func outputsAt(t *testing.T, runs map[string]string) Outputs {
 // A run's output can be given whole when its out.md is a regular file and
 // the run did not fail for a secret in its output (never posted): a link,
 // a missing file and a name not a run's are not given, and a file that
-// cannot be read is an error (section 7.3). A swarm entry's text is read
-// whole (readWhole, whole) only when it ends, cut, in the note naming its
-// own run on the issue, and that run's output can be given; otherwise it
-// is read as posted: a note naming another run, or the same run on
-// another issue, a run whose output cannot be given, a text with no
-// note, a reconciler's note, a comment not the swarm's, and a Job with no
-// Outputs (section 7.5).
+// cannot be read is an error (section 7.3). A swarm entry's text a prompt
+// shows, with no file in the job's texts/ (a job not yet built), is read
+// whole (shownText, Job.text) only when it ends, cut, in the note naming
+// its own run on the issue, and that run's output can be given;
+// otherwise it is shown as posted: a note naming another run, or the
+// same run on another issue, a run whose output cannot be given, a text
+// with no note, a note of Daisy's, and a Job with no Outputs (sections
+// 7.5 and 7.8).
 func TestOutputs(t *testing.T) {
 	o := outputsAt(t, map[string]string{"1-architect-1": "the plan\n", "1-architect-9": "another plan\n", "1-adversary-1": "token\n"})
 	fs := ops.Real().FS()
@@ -828,24 +788,20 @@ func TestOutputs(t *testing.T) {
 		{1, "swarm-bot", Mark{Role: "worker", Run: 1}, "v1" + note("1-worker-1"), o, ""},
 		{1, "swarm-bot", arch, "the pl", o, ""},
 		{1, "swarm-bot", Mark{Role: "architect", Run: 1, Kind: "gate"}, "the pl" + note("1-architect-1"), o, ""},
-		{1, "jane", arch, "the pl" + note("1-architect-1"), o, ""},
 		{1, "swarm-bot", arch, "the pl" + note("1-architect-1"), Outputs{}, ""},
 	} {
-		is := forge.Issue{Number: c.n, Comments: []forge.Comment{{Author: c.author, Body: marker(c.m.Role, c.m.Run) + c.text}}}
-		j := &Job{SwarmLogin: "swarm-bot", N: c.n, Issue: is, Outputs: c.o}
-		if err := j.readWhole(); err != nil {
-			t.Fatal(err)
-		}
-		if want, got := cmp.Or(c.want, c.text), j.whole(c.m, c.text); got != want {
-			t.Errorf("#%d %s %+v %q: %q, want %q", c.n, c.author, c.m, c.text, got, want)
+		j := &Job{SwarmLogin: "swarm-bot", N: c.n, Outputs: c.o}
+		if want, got := cmp.Or(c.want, c.text), j.shownText(c.m, c.text); got != want || j.TextErr() != nil {
+			t.Errorf("#%d %s %+v %q: %q, %v; want %q", c.n, c.author, c.m, c.text, got, j.TextErr(), want)
 		}
 	}
 
-	// An out.md that cannot be read is the error, never the text as posted.
+	// An out.md that cannot be read is the error, never taken for the
+	// text as posted.
 	os.Chmod(filepath.Join(o.State, "runs", "1-architect-1", "io", "out.md"), 0o000)
-	is := forge.Issue{Number: 1, Comments: []forge.Comment{{Author: "swarm-bot", Body: marker("architect", 1) + "the pl" + note("1-architect-1")}}}
-	if err := (&Job{SwarmLogin: "swarm-bot", N: 1, Issue: is, Outputs: o}).readWhole(); err == nil || !strings.Contains(err.Error(), "output 1-architect-1: ") {
-		t.Errorf("an unreadable out.md: %v", err)
+	j := &Job{SwarmLogin: "swarm-bot", N: 1, Outputs: o}
+	if j.shownText(arch, "the pl"+note("1-architect-1")); j.TextErr() == nil || !strings.Contains(j.TextErr().Error(), "output 1-architect-1: ") {
+		t.Errorf("an unreadable out.md: %v", j.TextErr())
 	}
 }
 
@@ -874,16 +830,10 @@ func TestRenderCutReviewFindingsWhole(t *testing.T) {
 	f.Push(pr, "c3")
 	j := jobOn(f, at, pr, "adversary", "swarm:review-0-ready")
 	j.Outputs = outputsAt(t, whole)
-	if err := j.readWhole(); err != nil {
-		t.Fatal(err)
-	}
 	_, prompt := Render(j)
 	has(t, "prompt.md", prompt, []string{"- round on c1: 2 blocking, revised in c2\n",
 		", on c2: request-changes\n\n[blocking] a.go:2 finding A2\n[blocking] z.go:2 past the cut\n\n"}, "truncated")
 	j.Outputs = Outputs{}
-	if err := j.readWhole(); err != nil {
-		t.Fatal(err)
-	}
 	_, prompt = Render(j)
 	has(t, "prompt.md", prompt, []string{"- round on c1: 1 blocking, revised in c2\n",
 		", on c2: request-changes\n\n[blocking] a.go:2 finding A2\n\n"}, "z.go")

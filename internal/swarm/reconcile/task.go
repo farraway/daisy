@@ -2,7 +2,6 @@ package reconcile
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -174,12 +173,6 @@ func (j *Job) task() string {
 			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since %s in the files the pull request changes ("git diff --name-only -z %s...HEAD | xargs -0 -r git diff %s..HEAD --"): what a merge of %s brought in is not this pull request's change.`, r, prev, prev, j.Cfg.Base, prev, j.Cfg.Base)
 		}
 	}
-	if texts := j.cutTexts(); texts != "" {
-		add(`Daisy cuts a text longer than 60,000 bytes when it posts it on the forge, and these texts in your prompt were cut: %s. In each, a line "[truncated by Daisy; the whole output is in <file>]" marks the cut and names the file that holds the member's whole output; read the file before you act on the text, since what was cut off may be what you must act on.`, texts)
-		if slices.ContainsFunc(j.cut, func(run string) bool { return strings.Contains(run, "-worker-") }) {
-			add(`A worker's text keeps Daisy's "**Check:**" result after that line, which the file does not hold.`)
-		}
-	}
 	if j.Role == "worker" || j.Role == "adversary" || j.Role == "sympathetic" {
 		add(`When the plan, the issue and its thread leave open something your work depends on, do not guess: write "QUESTION: <one question>" as the first line of your output instead; the architect answers it, and you run again with the answer under "# Questions".`)
 	}
@@ -192,23 +185,6 @@ func (j *Job) task() string {
 		}
 	}
 	return strings.Join(t, " ") + "\n\n" + end
-}
-
-// cutTexts is the Task text's list of the texts the prompt shows cut
-// (Cut), each with the file that holds it whole: the plan named so, any
-// other by its role and run; "" when none is cut.
-func (j *Job) cutTexts() string {
-	_, pm, planned := j.Plan()
-	var out []string
-	for _, run := range j.cut {
-		f := strings.Split(run, "-")
-		what := fmt.Sprintf("%s run %s's text", f[1], f[2])
-		if planned && run == outputRun(j.N, pm) {
-			what = "the plan"
-		}
-		out = append(out, what+", whole in "+OutputsMount+"/"+run+".md")
-	}
-	return strings.Join(out, "; ")
 }
 
 // commented: the issue has a counted comment (section 6).

@@ -41,13 +41,12 @@ type Job struct {
 	Praxis  string // PraxisFile in the installed root, as read, for the roles that readsPraxis
 	Testing string // TestingFile there, as read
 
-	Resources []Listed          // each resource and reference path, as # Resources lists them (section 7.3)
-	Artifacts []Artifact        // the screenshots of the worker run that pushed the current head, which a reviewer's prompt lists (section 7.3)
-	Outputs   Outputs           // where the output of a run whose text the forge holds cut is read whole (readWhole) and the launch copies it from
-	wholes    map[string]string // the outputs readWhole read, by run `<n>-<role>-<k>`
-	planText  string            // the accepted plan as readPlan read it from the job's workspace (Outputs.JobPlan)
-	planned   bool              // readPlan found a plan
-	cut       []string          // the runs whose text Render showed cut, in the order the prompt shows them (Cut)
+	Resources []Listed   // each resource and reference path, as # Resources lists them (section 7.3)
+	Artifacts []Artifact // the screenshots of the worker run that pushed the current head, which a reviewer's prompt lists (section 7.3)
+	Outputs   Outputs    // <state>, where the job's workspace and its runs are read
+	planText  string     // the accepted plan as readPlan read it from the job's workspace (Outputs.JobPlan)
+	planned   bool       // readPlan found a plan
+	textErr   error      // the first read of a member text Render showed (shownText) that failed
 
 	Rulings  []string // the architect's on plan-1-accepted: the rulings changed since the plan, each `<name>:<path>` (section 6)
 	Replan   *Entry   // the architect's on plan-1-accepted: the maintainer's re-plan request since the plan (section 6, The re-plan)
@@ -95,17 +94,13 @@ func stamp(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 // (faultPause).
 func endStamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
-// Render is the run's system.md and prompt.md; the runs whose text the
-// prompt shows cut are left in j for the launch (Cut).
+// Render is the run's system.md and prompt.md. Each member text the
+// prompt shows is read from the job's workspace (shownText); a read that
+// failed is left in j for the launch (TextErr).
 func Render(j *Job) (system, prompt string) {
-	j.cut = nil
+	j.textErr = nil
 	head := fmt.Sprintf("%s#%d %s run %d, %s -->", j.Cfg.Forge.Repo, j.N, j.Role, j.K, stamp(j.Time))
-	// The prompt first: the Task text names the cut texts it shows, in
-	// the order it shows them.
 	prompt = j.prompt(head)
-	slices.SortStableFunc(j.cut, func(a, b string) int {
-		return strings.Index(prompt, OutputsMount+"/"+a+".md") - strings.Index(prompt, OutputsMount+"/"+b+".md")
-	})
 	sys := []string{"<!-- daisy-swarm system: " + head, "# Persona", Shift(trim(j.Persona), 1), "# Task", j.task()}
 	if readsPraxis(j.Role) {
 		for _, b := range [][2]string{{"# Praxis", j.Praxis}, {"# Testing", skillBody(j.Testing)}} {
@@ -256,39 +251,6 @@ func (j *Job) readPlan() error {
 	var err error
 	j.planText, j.planned, _, err = j.Outputs.JobPlan(j.Issue, j.SwarmLogin)
 	return err
-}
-
-// readWhole reads, through Outputs, the output of each run whose text on
-// the Job's issue, or on its current pull request when its thread is
-// read (Pull), Daisy cut on the forge (cutRun): what whole and uncut
-// give, and the launch copies (the prompt's, until the switch, R1-10). A run whose output cannot be given whole
-// is left out, its text read as posted; a failed read is the error, as a
-// failed copy is (section 7.5).
-func (j *Job) readWhole() error {
-	j.wholes = map[string]string{}
-	entries := IssueThread(j.Issue)
-	if j.Pull != nil {
-		cur, _ := j.current()
-		entries = append(entries, j.pullEntries(cur)...)
-	}
-	for _, e := range entries {
-		m, ok := Swarms(e, j.SwarmLogin)
-		if !ok {
-			continue
-		}
-		run, at, _ := cutRun(j.N, m, swarmText(e.Body))
-		if _, read := j.wholes[run]; at < 0 || read {
-			continue
-		}
-		text, ok, err := j.Outputs.Text(run)
-		if err != nil {
-			return fmt.Errorf("output %s: %w", run, err)
-		}
-		if ok {
-			j.wholes[run] = text
-		}
-	}
-	return nil
 }
 
 // newestArchitect is the newest of the architect's issue comments that
@@ -513,7 +475,7 @@ func (j *Job) issue() string {
 func (j *Job) entry(level int, e Entry, suffix string) string {
 	h := strings.Repeat("#", level)
 	if m, ok := Swarms(e, j.SwarmLogin); ok {
-		return doc(fmt.Sprintf("%s %s, run %d, at %s%s", h, m.Role, m.Run, stamp(e.Created), suffix), Shift(trim(j.uncut(m, swarmText(e.Body))), level))
+		return doc(fmt.Sprintf("%s %s, run %d, at %s%s", h, m.Role, m.Run, stamp(e.Created), suffix), Shift(trim(j.shownText(m, swarmText(e.Body))), level))
 	}
 	if !j.trusted(e.Author) {
 		return fmt.Sprintf("%s %s at %s%s (not trusted; content omitted)", h, e.Author, stamp(e.Created), suffix)
@@ -567,22 +529,9 @@ func (j *Job) thread() string {
 	return orNone(out)
 }
 
-// OutputsMount is where a member finds whole each text its prompt shows
-// cut, the copy of the run's out.md the launch makes (section 7.3).
-const OutputsMount = IOMount + "/outputs"
-
-// cutNote is the line that ends a text Daisy cut as a prompt shows it,
-// naming the member's copy of the whole output (section 7.3); on the
-// forge it is long.note's.
-func cutNote(where string) string {
-	return truncated + "the whole output is in " + where + "]"
-}
-
 // outputRun is the run directory's name of the run whose entry mark is
-// on issue n, and outputFile the member's copy of its output.
+// on issue n.
 func outputRun(n int, m Mark) string { return fmt.Sprintf("%d-%s-%d", n, m.Role, m.Run) }
-
-func outputFile(n int, m Mark) string { return OutputsMount + "/" + outputRun(n, m) + ".md" }
 
 // cutRun is the run whose output the text of the swarm entry marked m on
 // issue n holds cut (section 7.5), and where its note's line begins and
@@ -610,42 +559,29 @@ func cutRun(n int, m Mark, text string) (run string, at, end int) {
 // review, nothing.
 var cutTail = regexp.MustCompile(`^(?: and attached as \[[^\]\n]*\]\([^)\s]*\)|; the rest follows in [1-9][0-9]* comments?)?\]$`)
 
-// whole is the text of the swarm entry marked m on the Job's issue as its
-// member wrote it (section 7.5): when Daisy cut it on the forge (cutRun)
-// and the run's output was read whole (readWhole), the run's out.md;
-// text as posted otherwise. A prompt reads a review's findings so until
-// the switch (R1-10); Daisy's own reads read the workspace (text,
-// PlanText).
-func (j *Job) whole(m Mark, text string) string {
-	if run, at, _ := cutRun(j.N, m, text); at >= 0 {
-		if out, ok := j.wholes[run]; ok {
-			return out
+// shownText is the text of the swarm entry marked m, posted its text as
+// posted, as a prompt shows it (section 7.8, The prompt): its member's
+// text whole, read from the job's workspace as Daisy reads a text past
+// its first lines (Job.text), so that no cut text reaches a prompt; with
+// no workspace to read (no Outputs), as posted. A read that fails is kept for the launch, which
+// blocks the issue on it (TextErr), and the text shown as posted.
+func (j *Job) shownText(m Mark, posted string) string {
+	if j.Outputs.FS == nil {
+		return posted
+	}
+	text, err := j.text(m, posted)
+	if err != nil {
+		if j.textErr == nil {
+			j.textErr = err
 		}
+		return posted
 	}
 	return text
 }
 
-// uncut is the text of the swarm entry marked m as a prompt shows it
-// (section 7.3): when Daisy cut it on the forge (cutRun) and the run's
-// output was read whole (readWhole), the note names the member's copy
-// instead, which the launch makes, and the run is recorded for it (Cut);
-// any other text as it is, so that a note a text quotes, or one of a run
-// whose output cannot be copied, stays as posted.
-func (j *Job) uncut(m Mark, text string) string {
-	run, at, end := cutRun(j.N, m, text)
-	if _, ok := j.wholes[run]; at < 0 || !ok {
-		return text
-	}
-	if !slices.Contains(j.cut, run) {
-		j.cut = append(j.cut, run)
-	}
-	return text[:at] + cutNote(outputFile(j.N, m)) + text[end:]
-}
-
-// Cut is the runs whose text the prompt Render made last shows cut, each
-// `<n>-<role>-<k>`, in the order it shows them: the outputs the launch
-// copies to the member's /job/io/outputs/<run>.md.
-func (j *Job) Cut() []string { return slices.Clone(j.cut) }
+// TextErr is the first read of a member text the prompt Render made last
+// shows that failed, nil when none did.
+func (j *Job) TextErr() error { return j.textErr }
 
 func same(a, b Entry) bool {
 	return a.Author == b.Author && a.Body == b.Body && a.Created.Equal(b.Created)
@@ -805,8 +741,8 @@ func (j *Job) shown(rounds []round, current roundKey) []int {
 // Task text's round number counts other rounds (section 7.3), with its
 // blocking findings counted and what followed it: a revision, the
 // worker's answer without a commit (one of answers, Answers) or, with
-// none between, the maintainer's comment. A review cut on the forge is
-// counted whole (whole).
+// none between, the maintainer's comment. A review is counted whole, as
+// shownText reads it.
 func (j *Job) roundLines(rounds []round, modes []int, answers []time.Time) []string {
 	var out []string
 	for i, rd := range rounds {
@@ -817,7 +753,7 @@ func (j *Job) roundLines(rounds []round, modes []int, answers []time.Time) []str
 		for _, r := range rd.reviews {
 			text := r.Body
 			if m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, j.SwarmLogin); ok {
-				text = j.whole(m, swarmText(r.Body))
+				text = j.shownText(m, swarmText(r.Body))
 			}
 			b += len(blockingLines(text))
 		}
@@ -885,9 +821,9 @@ func (j *Job) pullRequest(p forge.Pull) string {
 			}
 			switch md {
 			case roundFindings:
-				// A review cut on the forge is read whole, so the
-				// findings past the cut are listed too.
-				findings := blockingLines(j.whole(m, swarmText(r.Body)))
+				// A review is read whole (shownText), so the findings
+				// past a cut on the forge are listed too.
+				findings := blockingLines(j.shownText(m, swarmText(r.Body)))
 				items = append(items, item{r.Submitted, doc(fmt.Sprintf("### %s, run %d, at %s%s", m.Role, m.Run, stamp(r.Submitted), suffix), strings.Join(findings, "\n"))})
 			case roundFull:
 				items = append(items, item{r.Submitted, j.entry(3, e, suffix)})
@@ -912,7 +848,7 @@ func (j *Job) pullRequest(p forge.Pull) string {
 	if m, ok := Swarms(Entry{p.Author, p.Body, p.Created}, j.SwarmLogin); ok && j.Role != "architect" {
 		body = ""
 	} else if ok {
-		body = j.uncut(m, swarmText(p.Body))
+		body = j.shownText(m, swarmText(p.Body))
 	} else if !j.trusted(p.Author) {
 		body = fmt.Sprintf("Opened by %s, not trusted; content omitted.", p.Author)
 	}
