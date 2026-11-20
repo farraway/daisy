@@ -127,8 +127,6 @@ func TestWorkerStartsFromKept(t *testing.T) {
 		kept := a.keptOf()
 		mirror := a.state("git/app")
 		a.gitRunIn(mirror, "update-ref", "-d", "refs/swarm-runs/1-worker-1")
-		a.gitRunIn(mirror, "reflog", "expire", "--expire=now", "--all")
-		a.gitRunIn(mirror, "gc", "-q", "--prune=now")
 		a.say(issue1, "jane", "v1.")
 		var got seen
 		a.runner.Script(1, "worker", look(&got, "v1"))
@@ -138,6 +136,51 @@ func TestWorkerStartsFromKept(t *testing.T) {
 		}
 		if w := "⚠ #1 worker run 2: kept commit " + kept[:7] + " of 1-worker-1 is not in app's mirror; started as with no kept run\n"; !strings.Contains(a.stderr.String(), w) {
 			t.Errorf("stderr lacks %q:\n%s", w, a.stderr.String())
+		}
+	})
+
+	t.Run("a kept commit pruned, the pull request open", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.inReview(oneSlice)
+		h1 := a.pulls(1)[0].HeadSHA
+		a.changesRequested()
+		a.runner.Script(1, "worker", half("BLOCKED: v2 or v2.0?\n"))
+		a.pass()
+		kept := a.keptOf()
+		mirror := a.state("git/app")
+		a.gitRunIn(mirror, "update-ref", "-d", "refs/swarm-runs/1-worker-2")
+		a.gitRunIn(mirror, "reflog", "expire", "--expire=now", "--all")
+		a.gitRunIn(mirror, "gc", "-q", "--prune=now")
+		a.say(app1Pull, "jane", "v2.")
+		var got seen
+		a.runner.Script(1, "worker", look(&got, "v2"))
+		a.pass()
+		if got.head != h1 {
+			t.Fatalf("worker run 3 started at %s, want the head %s\n%s", got.head, h1, a.stderr.String())
+		}
+		if w := "⚠ #1 worker run 3: kept commit " + kept[:7] + " of 1-worker-2 is not in app's mirror; started as with no kept run\n"; !strings.Contains(a.stderr.String(), w) {
+			t.Errorf("stderr lacks %q:\n%s", w, a.stderr.String())
+		}
+	})
+
+	t.Run("a kept commit the branch holds, its run's ref gone", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.inReview(oneSlice)
+		a.changesRequested()
+		a.runner.Script(1, "worker", half("BLOCKED: v2 or v2.0?\n"))
+		a.pass()
+		kept := a.keptOf()
+		mirror := a.state("git/app")
+		// The maintainer pushes the kept commit to the slice's branch and
+		// prunes the run's ref.
+		gitIn(t, mirror, "push", "-q", a.upstream("app"), kept+":refs/heads/swarm/1-1")
+		a.gitRunIn(mirror, "update-ref", "-d", "refs/swarm-runs/1-worker-2")
+		a.say(app1Pull, "jane", "v2.")
+		var got seen
+		a.runner.Script(1, "worker", look(&got, "v2"))
+		a.pass()
+		if got.head != kept || strings.Contains(a.stderr.String(), "kept commit") {
+			t.Fatalf("worker run 3 started at %s, want the kept %s\n%s", got.head, kept, a.stderr.String())
 		}
 	})
 

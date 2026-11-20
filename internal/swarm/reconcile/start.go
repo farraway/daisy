@@ -29,8 +29,9 @@ type Start struct {
 	// head, moved past the kept run by a push not the run's.
 	From string
 	// SHA is the commit the clone's branch is made or moved to for
-	// "kept" and "moved"; "" for the others, which the clone gives.
-	SHA string
+	// "kept" and "moved", fetched from the mirror's Ref; "" for the
+	// others, which the clone gives.
+	SHA, Ref string
 	// Kept is the kept run, `<n>-worker-<k>`, and KeptSHA its commit;
 	// "" when there is none, or the mirror no longer holds it.
 	Kept, KeptSHA string
@@ -76,13 +77,26 @@ func (s *Swarm) start(j *Job, sl int, repo declare.Repo, branch string, open boo
 	if err != nil || !ok {
 		return none, err
 	}
+	// The kept commit is held while the kept run's ref names it, or the
+	// slice's branch holds it (pushed); an object no ref reaches, its run's
+	// ref pruned by the maintainer, is none to start from, as the replay
+	// writes no kept for it.
 	g := s.git()
-	if held, err := g.Holds(repo.Name, sha); err != nil {
-		return none, err
-	} else if !held {
-		// A kept commit gone from the mirror, its ref pruned by the
-		// maintainer: none to start from, as the replay writes no kept
-		// for it.
+	m := g.Mirror(repo.Name)
+	ref, head := "refs/swarm-runs/"+filepath.Base(run.Dir), g.Head(m, "refs/heads/"+branch)
+	if g.Head(m, ref) != sha {
+		ref = ""
+		if held, err := g.Holds(repo.Name, sha); err != nil {
+			return none, err
+		} else if held && head != "" {
+			if in, err := g.IsAncestor(repo.Name, sha, head); err != nil {
+				return none, err
+			} else if in {
+				ref = "refs/heads/" + branch
+			}
+		}
+	}
+	if ref == "" {
 		fmt.Fprintf(s.Err, "⚠ #%d worker run %d: kept commit %s of %s is not in %s's mirror; started as with no kept run\n", j.N, j.K, short(sha), filepath.Base(run.Dir), repo.Name)
 		return none, nil
 	}
@@ -97,15 +111,14 @@ func (s *Swarm) start(j *Job, sl int, repo declare.Repo, branch string, open boo
 			return none, nil
 		}
 	}
-	head := g.Head(g.Mirror(repo.Name), "refs/heads/"+branch)
 	if head != "" {
 		if under, err := g.IsAncestor(repo.Name, head, sha); err != nil {
 			return none, err
 		} else if !under {
-			return Start{From: "moved", SHA: head, Kept: none.Kept, KeptSHA: sha}, nil
+			return Start{From: "moved", SHA: head, Ref: "refs/heads/" + branch, Kept: none.Kept, KeptSHA: sha}, nil
 		}
 	}
-	return Start{From: "kept", SHA: sha, Kept: none.Kept, KeptSHA: sha}, nil
+	return Start{From: "kept", SHA: sha, Ref: ref, Kept: none.Kept, KeptSHA: sha}, nil
 }
 
 // startBase is the newest `Start: base` line written since the kept run

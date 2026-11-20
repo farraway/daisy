@@ -4280,8 +4280,9 @@ have whole seconds; a kept run with no end Daisy can read (its run
 pruned) has no `Start: base` line since it, so the run starts from the
 kept commit. The architect's text is read whole, as Daisy's other reads
 past a text's first lines are (7.5). A kept commit the mirror no longer
-holds (its run's ref pruned) is no kept run, as the replay writes none
-for it: the run starts as with none, with the warning `⚠ #<n> worker
+holds by a ref, the kept run's ref naming it or the slice's branch
+holding it (its run's ref pruned, the commit never pushed), is no kept
+run, whether or not git has yet removed the object: the run starts as with none, with the warning `⚠ #<n> worker
 run <k>: kept commit <short sha> of <n>-worker-<j> is not in <name>'s
 mirror; started as with no kept run`. A `kept` that cannot be read, or
 is not Daisy's one line, is a file of the job's Daisy cannot use (7.7),

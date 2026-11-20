@@ -730,7 +730,8 @@ they write.
   ref stay. Where 7.8 left it open, stated there: the kept run's end
   read from its result (none readable: no line counts), an entry in the
   second it ended counted, the architect's text read whole, a kept
-  commit the mirror no longer holds taken as none with a warning, and a
+  commit no ref of the mirror holds (the kept run's ref naming it, or
+  the slice's branch holding it) taken as none with a warning, and a
   `kept` Daisy cannot use blocking the issue (7.7). The worker's
   `# Job` line naming its start comes with the switch (R1-10). Sections
   7.1, 7.7, 7.8 and 11. No decision: it builds decisions

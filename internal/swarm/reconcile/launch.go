@@ -224,17 +224,9 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		if j.Role == "worker" && j.Start.SHA != "" && j.Start.SHA != sha {
 			// The branch made or moved to the kept commit, or to the
 			// branch's head past it, fetched from the mirror's run ref
-			// while it holds one, else from the branch, once pushed.
-			ref := "refs/heads/" + branch
-			if j.Start.From == "kept" {
-				run := "refs/swarm-runs/" + j.Start.Kept
-				if held, err := s.git().Holds(repo.Name, run); err != nil {
-					return cloneFailed(err)
-				} else if held {
-					ref = run
-				}
-			}
-			if err := s.git().StartAt(repo.Name, filepath.Join(work, repo.Name), branch, ref, j.Start.SHA); err != nil {
+			// while it names the commit, else from the branch, once
+			// pushed (start).
+			if err := s.git().StartAt(repo.Name, filepath.Join(work, repo.Name), branch, j.Start.Ref, j.Start.SHA); err != nil {
 				return cloneFailed(err)
 			}
 			sha = j.Start.SHA
