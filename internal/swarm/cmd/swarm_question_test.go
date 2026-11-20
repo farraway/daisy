@@ -57,7 +57,8 @@ func TestSwarmApplyQuestionAnswered(t *testing.T) {
 	if r := a.result("1-architect-2"); !strings.Contains(r, "label swarm:plan-1-accepted\nquestion\n") || strings.Contains(r, "relabelled") || !strings.HasSuffix(r, "outcome posted\ncollected\n") {
 		t.Errorf("architect run 2:\n%s", r)
 	}
-	if sys := a.file("1-architect-2", "io/system.md"); !strings.Contains(sys, `Worker run 1 asks a question on issue #1, its comment beginning "QUESTION:" under "# Thread". Answer it from the plan, the thread and the resources`) {
+	if sys := a.file("1-architect-2", "io/system.md"); !strings.Contains(sys, `Worker run 1 asks a question on issue #1, its comment beginning "QUESTION:" under "# Thread". Answer it from the plan, the thread and the resources`) ||
+		strings.Contains(sys, "builder.md") || !strings.Contains(sys, "that file is the only thing read back") {
 		t.Errorf("architect's system.md:\n%s", sys)
 	}
 	if !strings.Contains(a.stdout.String(), "#1 question cleared\n") {

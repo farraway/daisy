@@ -49,8 +49,16 @@ func Runs(fs ops.FS, state string) ([]Run, error) {
 // followed, so it cannot make the host read and post a file of the
 // host's. A link or anything else not a regular file is
 // iofs.ErrNotExist: no output.
-func (r Run) Output(fs ops.FS) ([]byte, error) {
-	p := filepath.Join(r.Dir, "io", "out.md")
+func (r Run) Output(fs ops.FS) ([]byte, error) { return r.ioFile(fs, "out.md") }
+
+// Builder is the architect run's builder plan, `io/builder.md` (section
+// 7.8, The builder plan), read as Output reads out.md.
+func (r Run) Builder(fs ops.FS) ([]byte, error) { return r.ioFile(fs, "builder.md") }
+
+// ioFile is the member's file name in the run's io, read only when it is
+// a regular file (Output).
+func (r Run) ioFile(fs ops.FS, name string) ([]byte, error) {
+	p := filepath.Join(r.Dir, "io", name)
 	fi, err := fs.Lstat(p)
 	if err != nil {
 		return nil, err

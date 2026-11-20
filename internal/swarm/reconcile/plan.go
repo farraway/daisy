@@ -41,6 +41,73 @@ func sliceLines(plan string) []string {
 	return out
 }
 
+// sliceText is slices/<s>/slice.md (section 7.8): slice s's item under
+// plan's ## Steps, its numbered line and the lines under it to the next
+// slice line or the section's end, then, after a blank line, its section
+// of builder (builderSection); the item alone when builder has none. A
+// plan without slice lines has one slice, whose item is its whole ##
+// Steps section. Empty lines at either end of each part are dropped.
+func sliceText(plan, builder string, s int) string {
+	steps := section(plan, "Steps")
+	var starts []int
+	for i, line := range steps {
+		if !line.fenced && sliceLine.MatchString(line.text) {
+			starts = append(starts, i)
+		}
+	}
+	var item []planLine
+	switch {
+	case len(starts) == 0 && s == 1:
+		item = steps
+	case s >= 1 && s <= len(starts):
+		end := len(steps)
+		if s < len(starts) {
+			end = starts[s]
+		}
+		item = steps[starts[s-1]:end]
+	}
+	parts := []string{}
+	for _, part := range [][]string{lineTexts(item), builderSection(builder, s)} {
+		if t := strings.Trim(strings.Join(part, "\n"), "\n"); t != "" {
+			parts = append(parts, t+"\n")
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+// builderSection is slice s's section of a builder plan (section 7.8):
+// its lines from the first heading `## Slice <s>`, alone or followed by a
+// character that is not a digit, to the next `## ` line, each outside a
+// fenced block, without a trailing `\r`; none when it has no such
+// heading.
+func builderSection(builder string, s int) []string {
+	heading := "## Slice " + strconv.Itoa(s)
+	var out []string
+	in, fences := false, fence.Scan{}
+	for _, line := range strings.Split(builder, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if !fences.Line(line) && strings.HasPrefix(line, "## ") {
+			if in {
+				break
+			}
+			rest, ok := strings.CutPrefix(line, heading)
+			in = ok && (rest == "" || rest[0] < '0' || rest[0] > '9')
+		}
+		if in {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+func lineTexts(lines []planLine) []string {
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		out[i] = l.text
+	}
+	return out
+}
+
 // planLine is a line of a plan section, and whether it is inside a fenced
 // block (its fence lines included).
 type planLine struct {

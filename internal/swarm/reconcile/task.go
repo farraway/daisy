@@ -10,12 +10,23 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
-// closing ends every Task text (section 7.4), and workerClosing the
-// worker's, whose screenshots are read back too.
+// closing ends every Task text (section 7.4), workerClosing the
+// worker's, whose screenshots are read back too, and planClosing the
+// architect's that ask for a plan, whose builder plan is.
 var (
-	closing       = "Write your output to /work/.swarm/out.md; that file is the only thing read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead. " + causeSentence
-	workerClosing = "Write your output to /work/.swarm/out.md; that file and the screenshots in /work/.swarm/artifacts/ are the only things read back, and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead. " + causeSentence
+	closing       = closingOf("that file is the only thing read back")
+	workerClosing = closingOf("that file and the screenshots in /work/.swarm/artifacts/ are the only things read back")
+	planClosing   = closingOf("that file and the builder plan in /work/.swarm/builder.md are the only things read back")
 )
+
+func closingOf(readBack string) string {
+	return "Write your output to /work/.swarm/out.md; " + readBack + ", and nothing you write elsewhere outside /work survives. If you cannot do this without an answer from the maintainer, write `BLOCKED: <your question>` as the first line of /work/.swarm/out.md instead. " + causeSentence
+}
+
+// builderSentence follows the plan's text in each architect Task text
+// that asks for a plan or a revised plan (section 7.4; 7.8, The builder
+// plan).
+const builderSentence = `Then write the builder plan to /work/.swarm/builder.md, a document of its own, not posted: the plan consolidated for whoever builds it, one section "## Slice <s>" per slice under "## Steps", in their order, each holding all a builder needs for that slice (its files, types and signatures, claim and test, and what of the research, constraints and decisions bears on it), so that it reads without the plan. Write it whole each time you write the plan.`
 
 const planHeadings = `"## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions".`
 
@@ -24,6 +35,12 @@ const planHeadings = `"## Research" (what exists: the files and seams the job to
 func (j *Job) task() string {
 	var t []string
 	add := func(format string, args ...any) { t = append(t, fmt.Sprintf(format, args...)) }
+	end := closing
+	if j.Role == "worker" {
+		end = workerClosing
+	}
+	// A text that asks for a plan asks for its builder plan with it.
+	builderPlan := func() { add("%s", builderSentence); end = planClosing }
 	cur, open := j.current()
 	names := strings.Join(j.names(), ", ")
 	switch {
@@ -81,6 +98,7 @@ func (j *Job) task() string {
 			add(`Pull request %s#%d, slice %d, was closed unmerged: keep its line, its number being taken, and put what it was to do, if it is still wanted, in a later slice.`, cur.Repo, cur.Number, sliceOf(cur, j.N))
 		}
 		add(`To revise, write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s. If the remaining slices stand as they are, write "STANDS: <why>" as the first line of your output instead, then %s.`, names, why)
+		builderPlan()
 		if j.Cfg.Gates.Plan {
 			add(`A revised plan goes to the maintainer as a plan does; one that stands goes on to the next slice.`)
 		} else {
@@ -92,8 +110,10 @@ func (j *Job) task() string {
 	case j.Role == "architect":
 		if _, _, planned := j.Plan(); j.Label == forge.PlanPosted && planned {
 			add(`Revise your plan for issue #%d in answer to the latest comment. Write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, a slice that moves a pin to another slice's change after that slice, a diagram where a slice touches more than one component.`, j.N, names)
+			builderPlan()
 		} else {
 			add(`Write the plan for issue #%d as a Daisy plan, under these "## " headings in this order: `+planHeadings+` When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step.`, j.N, names)
+			builderPlan()
 			if j.Cfg.Gates.Plan {
 				add(`The maintainer reads "## Research" first, then the plan, before any code is written.`)
 			} else {
@@ -165,10 +185,7 @@ func (j *Job) task() string {
 			add(`These paths are protected: %s. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.`, p)
 		}
 	}
-	if j.Role == "worker" {
-		return strings.Join(t, " ") + "\n\n" + workerClosing
-	}
-	return strings.Join(t, " ") + "\n\n" + closing
+	return strings.Join(t, " ") + "\n\n" + end
 }
 
 // cutTexts is the Task text's list of the texts the prompt shows cut

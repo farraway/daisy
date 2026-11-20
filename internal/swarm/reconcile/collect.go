@@ -129,12 +129,28 @@ func (s *Swarm) collect(r Run) error {
 	if len(bytes.TrimSpace(out)) == 0 {
 		return c.fail("no output")
 	}
-	if hit(out, s.secretsOf(r, c.lines)) {
+	secrets := s.secretsOf(r, c.lines)
+	if hit(out, secrets) {
 		return c.fail("secret in output: out.md")
 	}
 	text := string(out)
 	first, _, _ := strings.Cut(text, "\n")
 	_, questionRun := Has(lines, "question")
+	// An architect's text that is a plan comes with its builder plan, or
+	// none, read and checked as out.md is (section 7.8, The builder plan).
+	plan := r.Role == "architect" && !questionRun && onThePlan(text) && !strings.HasPrefix(text, stands)
+	var builder []byte
+	if plan {
+		if builder, err = r.Builder(s.O.FS()); err != nil && !errors.Is(err, iofs.ErrNotExist) {
+			return err
+		}
+		if hit(builder, secrets) {
+			return c.fail("secret in output: builder.md")
+		}
+		if len(bytes.TrimSpace(builder)) == 0 {
+			builder = nil
+		}
+	}
 	switch {
 	case strings.HasPrefix(strings.TrimRight(first, "\r "), "BLOCKED:"):
 		return c.blocked(text, pull)
@@ -162,6 +178,11 @@ func (s *Swarm) collect(r Run) error {
 		confirms := c.label == forge.PlanAccepted && strings.HasPrefix(strings.TrimRight(first, "\r "), stands)
 		if _, bad := SliceRepos(string(out), repoNames(s.Cfg), s.mirrors()); len(bad) > 0 && !confirms {
 			return c.fail("bad slices: " + numbers(bad))
+		}
+		if plan {
+			if err := s.writePlan(r.N, text, builder); err != nil {
+				return err
+			}
 		}
 		if err := c.comment(r.Role, text); err != nil {
 			return err

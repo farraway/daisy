@@ -10,6 +10,31 @@ import (
 	"daisy/internal/swarm/fence"
 )
 
+// A slice's slice.md (section 7.8): its item under ## Steps, a fenced
+// numbered line inside it, then its first ## Slice <s> section of the
+// builder plan, the lines before the first such heading in none; the
+// item alone with no builder plan or no section for s; a plan without
+// slice lines has one slice, its ## Steps section whole; a `\r` before
+// a line's end is dropped.
+func TestSliceText(t *testing.T) {
+	plan := "## Steps\r\n\r\nFirst the parser.\r\n\r\n1. app: parse.\r\n   ```\r\n2. app: fenced\r\n   ```\r\n2. lib: print.\r\n\r\n## Risks\r\n\r\n3. app: no slice\r\n"
+	builder := "Before any slice.\n## Slice 1\nparse it\n\n## Slice 1 again\nnot read\n## Slice 3\nno such slice\n"
+	for _, tc := range []struct {
+		name, plan, builder string
+		s                   int
+		want                string
+	}{
+		{"slice 1", plan, builder, 1, "1. app: parse.\n   ```\n2. app: fenced\n   ```\n\n## Slice 1\nparse it\n"},
+		{"no section for slice 2", plan, builder, 2, "2. lib: print.\n"},
+		{"no builder plan", plan, "", 1, "1. app: parse.\n   ```\n2. app: fenced\n   ```\n"},
+		{"no slice lines", "## Steps\n\nDo it.\nThen test it.\n\n## Risks\n", "## Slice 1\n\nAll of it.\n", 1, "Do it.\nThen test it.\n\n## Slice 1\n\nAll of it.\n"},
+	} {
+		if got := sliceText(tc.plan, tc.builder, tc.s); got != tc.want {
+			t.Errorf("%s: %q", tc.name, got)
+		}
+	}
+}
+
 // The slices of a plan (section 7.5): the numbered lines under ## Steps
 // only, a fenced block's lines excepted; each in a declared repository,
 // and with one repository declared, a prefix naming no repository the

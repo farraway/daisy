@@ -567,3 +567,21 @@ they write.
   not a fault's or an abandoned run's, which post nothing) and
   that one whose `out.md` is gone is not written; sections 2, 7.5, 7.6
   and 7.8 mark `texts/` built.
+- 2026-11-19, Step R1-2 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, built: `plan.md`, `builder.md`, the slices' `slice.md`):
+  the architect's texts that ask for a plan ask for the builder plan
+  too, in `/work/.swarm/builder.md` (the builder sentence, and the plan
+  closing naming it read back); the collection of an architect's plan
+  reads it as `out.md` is read, secret-checked with it (*secret in
+  output* naming `builder.md`), never posted, and writes `plan.md`, the
+  plan whole, `builder.md`, or removes it when the run wrote none, and
+  each declared slice's `slice.md`, its item under `## Steps` and then
+  its `## Slice <s>` section; nothing reads them yet, and no post, and
+  no prompt but the architect's, changes. Section 7.4 states the builder
+  sentence and the plan closing, the sentence telling the architect
+  that Daisy gives each worker its section joining at the switch;
+  section 7.8's rows say a failed run writes no plan, a `builder.md`
+  holding only whitespace is none, and how a slice is cut (fenced
+  lines, the first section, a plan without slice lines); sections 2,
+  7.5, 7.6, 7.7, 7.8 and 13 mark them built and name `builder.md`
+  where the secret check is listed.

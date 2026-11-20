@@ -13,7 +13,8 @@ import (
 
 // The job's workspace, <state>/jobs/<n> (section 7.8), written by the
 // collection of a run on issue n alone. Of its files this build writes
-// texts/ only, and nothing reads it yet.
+// texts/, plan.md, builder.md and slices/<s>/slice.md, and nothing reads
+// them yet.
 
 // workspace is issue n's workspace.
 func (s *Swarm) workspace(n int) string { return filepath.Join(s.state(), "jobs", strconv.Itoa(n)) }
@@ -36,6 +37,30 @@ func (s *Swarm) writeWorkspace(n int, rel string, data []byte) error {
 		return err
 	}
 	return fs.WriteFile(p, data, 0o644)
+}
+
+// writePlan writes an architect's plan, collected on issue n, to
+// plan.md whole (no amendment is written yet), its builder plan to
+// builder.md, or, with none, removes builder.md, so that no builder plan
+// outlives its plan; then each slice the plan declares its slice.md
+// (sliceText). A slice the plan no longer declares keeps its directory.
+func (s *Swarm) writePlan(n int, plan string, builder []byte) error {
+	if err := s.writeWorkspace(n, "plan.md", []byte(plan)); err != nil {
+		return err
+	}
+	if builder != nil {
+		if err := s.writeWorkspace(n, "builder.md", builder); err != nil {
+			return err
+		}
+	} else if err := s.O.FS().Remove(filepath.Join(s.workspace(n), "builder.md")); err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return err
+	}
+	for i := 1; i <= max(1, len(Slices(plan))); i++ {
+		if err := s.writeWorkspace(n, filepath.Join("slices", strconv.Itoa(i), "slice.md"), []byte(sliceText(plan, string(builder), i))); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // writeText writes run's member text, whole as Daisy would post it

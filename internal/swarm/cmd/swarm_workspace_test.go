@@ -5,6 +5,7 @@ import (
 	iofs "io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,14 +19,7 @@ import (
 // whether it is there.
 func (a *applyWS) text(n int, run string) (string, bool) {
 	a.t.Helper()
-	b, err := os.ReadFile(a.state(filepath.Join("jobs", strconv.Itoa(n), "texts", run+".md")))
-	if errors.Is(err, iofs.ErrNotExist) {
-		return "", false
-	}
-	if err != nil {
-		a.t.Fatal(err)
-	}
-	return string(b), true
+	return a.jobFile(n, filepath.Join("texts", run+".md"))
 }
 
 // texts is the names in issue n's texts/, sorted.
@@ -158,6 +152,116 @@ func TestWorkspaceHoldsAReviewUntilItsRound(t *testing.T) {
 		}
 		if got, ok := a.text(1, "1-adversary-1"); !ok || got != requestChanges {
 			t.Errorf("the review whose round can no longer complete (%v): %q", ok, got)
+		}
+	})
+}
+
+// jobFile is issue n's workspace file rel (section 7.8), and whether it is
+// there.
+func (a *applyWS) jobFile(n int, rel string) (string, bool) {
+	a.t.Helper()
+	b, err := os.ReadFile(a.state(filepath.Join("jobs", strconv.Itoa(n), rel)))
+	if errors.Is(err, iofs.ErrNotExist) {
+		return "", false
+	}
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	return string(b), true
+}
+
+// builderPlan writes the architect's builder plan to its run's io
+// (section 7.8, The builder plan).
+func builderPlan(text string) func(string) error {
+	return func(io string) error { return os.WriteFile(filepath.Join(io, "builder.md"), []byte(text), 0o644) }
+}
+
+// The plan, the builder plan and the slices (section 7.8): the
+// collection of an architect's plan writes plan.md, the plan whole;
+// builder.md, the builder plan its run wrote beside it, whole and not
+// posted; and each declared slice's slice.md, its item under ## Steps
+// whole, then its ## Slice <s> section of the builder plan (## Slice
+// 20 is not slice 2's), which ends at the next ## line outside a fenced
+// block, or the builder plan's end. A revised plan written without a builder plan removes builder.md
+// and leaves each slice its step alone. The posts are as before.
+func TestWorkspacePlanBuilderAndSlices(t *testing.T) {
+	a := newApplyWS(t)
+	plan := "## Research\n\n- /work/app/main.go: the entry point.\n\n## Steps\n\n1. app: change main.go to v1; the test proves it.\n2. app: add notes.md.\n   Its claim: notes.md lists v1.\n\n   ```text\n   notes.md\n   ```\n\n## Test Plan\n\n1. main.go says v1.\n"
+	builder := "# Builder plan\n\nRead before any slice.\n\n## Slice 1\n\nEdit main.go: print v1.\n\n## Slice 20\n\nNot slice 2.\n\n## Slice 2: notes\n\nWrite notes.md:\n\n```markdown\n## Slice 1\nv1\n```\n"
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
+	a.runner.Script(1, "architect", runner.Canned{Out: plan, IO: builderPlan(builder)})
+	a.pass()
+	if got, ok := a.jobFile(1, "plan.md"); !ok || got != plan {
+		t.Errorf("plan.md (%v): %q", ok, got)
+	}
+	if got, ok := a.jobFile(1, "builder.md"); !ok || got != builder {
+		t.Errorf("builder.md (%v): %q", ok, got)
+	}
+	for s, want := range map[int]string{
+		1: "1. app: change main.go to v1; the test proves it.\n\n## Slice 1\n\nEdit main.go: print v1.\n",
+		2: "2. app: add notes.md.\n   Its claim: notes.md lists v1.\n\n   ```text\n   notes.md\n   ```\n\n## Slice 2: notes\n\nWrite notes.md:\n\n```markdown\n## Slice 1\nv1\n```\n",
+	} {
+		if got, ok := a.jobFile(1, filepath.Join("slices", strconv.Itoa(s), "slice.md")); !ok || got != want {
+			t.Errorf("slices/%d/slice.md (%v):\n%s", s, ok, got)
+		}
+	}
+	if bs := a.bodies(1); len(bs) != 1 || bs[0] != mark("architect", 1)+plan {
+		t.Errorf("the thread: %q", bs)
+	}
+
+	revised := "## Steps\n\n1. app: change main.go to v2.\n2. app: add notes.md listing v2.\n\n## Test Plan\n\n1. main.go says v2.\n"
+	a.forge.Say(issue1, "jane", "Make it v2.")
+	a.runner.Script(1, "architect", runner.Canned{Out: revised})
+	a.pass()
+	if got, ok := a.jobFile(1, "plan.md"); !ok || got != revised {
+		t.Errorf("plan.md after the revision (%v): %q", ok, got)
+	}
+	if _, ok := a.jobFile(1, "builder.md"); ok {
+		t.Error("builder.md outlived its plan")
+	}
+	for s, want := range map[int]string{1: "1. app: change main.go to v2.\n", 2: "2. app: add notes.md listing v2.\n"} {
+		if got, ok := a.jobFile(1, filepath.Join("slices", strconv.Itoa(s), "slice.md")); !ok || got != want {
+			t.Errorf("slices/%d/slice.md after the revision (%v): %q", s, ok, got)
+		}
+	}
+	if bs := a.bodies(1); len(bs) != 3 || bs[2] != mark("architect", 2)+revised || strings.Contains(strings.Join(bs, "\n"), "Builder plan") {
+		t.Errorf("the thread: %q", bs)
+	}
+}
+
+// A builder plan is secret-checked as the plan's text is (section 7.6,
+// The secret check): a token in it fails the run, secret in output
+// naming builder.md, and nothing of the run is written or posted but the
+// note. A run whose text is no plan (BLOCKED:) has no builder plan, and
+// its builder.md is not read.
+func TestSecretInBuilderPlan(t *testing.T) {
+	token := "oauth-token-0123456789abcdef0123456789" // the architect's env value
+	t.Run("a plan", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
+		a.runner.Script(1, "architect", runner.Canned{Out: archPlan, IO: builderPlan("## Slice 1\n\nleak " + token + "\n")})
+		a.pass()
+		if r := a.result("1-architect-1"); !strings.Contains(r, "failed: secret in output: builder.md\n") {
+			t.Errorf("result:\n%s", r)
+		}
+		want := []string{mark("reconciler", 1) + "architect run 1 failed: secret in output: builder.md (at swarm:proposal-accepted). Remove swarm:blocked to resume.\n\ncc @jane"}
+		if bs := a.bodies(1); !reflect.DeepEqual(bs, want) {
+			t.Errorf("the thread: %q", bs)
+		}
+		if _, err := os.Stat(a.state(filepath.Join("jobs", "1"))); !errors.Is(err, iofs.ErrNotExist) {
+			t.Errorf("the workspace was written: %v %q", err, a.texts(1))
+		}
+	})
+	t.Run("no plan", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
+		a.runner.Script(1, "architect", runner.Canned{Out: "BLOCKED: which repository?\n", IO: builderPlan("leak " + token + "\n")})
+		a.pass()
+		if r := a.result("1-architect-1"); !strings.HasSuffix(r, "outcome blocked\ncollected\n") {
+			t.Errorf("result:\n%s", r)
+		}
+		if _, ok := a.jobFile(1, "builder.md"); ok {
+			t.Error("a BLOCKED: run's builder.md was written")
 		}
 	})
 }
