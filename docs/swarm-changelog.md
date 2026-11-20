@@ -463,3 +463,11 @@ they write.
   7.6 and 11; decision
   [156](swarm/decisions/0156-a-scorecard-per-merged-slice.md) (0141
   amended).
+- 2026-11-19, Step 8a of the plan implementing the 2026-11-19 swarm
+  roadmap (R0): `daisy swarm metrics --scorecard` takes `--until
+  <time>`, inclusive as `--since` is, leaving out every record and
+  merge after it, of the slices' lines as of the summary, the window
+  ending at it or now, whichever is earlier; `--until` before
+  `--since`, or without `--scorecard`, is usage; section 11; decision
+  [157](swarm/decisions/0157-the-scorecard-window-ends-at-until.md)
+  (0156 amended).

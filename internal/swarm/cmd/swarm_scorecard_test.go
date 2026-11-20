@@ -68,8 +68,10 @@ const scorecardCSV = "" +
 // retag's, a question's, Daisy's own capacity stop) and the
 // interventions by type (the merge verb's on the slice it merged), and
 // the summary over every record; with --since, the slices merged since
-// then and a summary over the records since; dropping one run's row
-// changes its slice's row; nothing is written.
+// then and a summary over the records since; with --until (Step 8a),
+// neither the merges nor the records after it, in the rows or the
+// summary, the window ending at it or now, whichever is earlier;
+// dropping one run's row changes its slice's row; nothing is written.
 func TestScorecardRowPerMergedSlice(t *testing.T) {
 	a := newApplyWS(t)
 	home := a.metricsHome()
@@ -135,6 +137,27 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 	if got := a.stdout.String(); got != want {
 		t.Errorf("--since: stdout:\n%s\nwant:\n%s", got, want)
 	}
+
+	// --until at #1's first merge: the merges after it and the records
+	// after it, the merge verb's intervention five seconds later among
+	// them, are left out of the rows and the summary, the window ending
+	// at it; an --until after now ends the window now.
+	if err := a.scorecard(Value{Flag: "--until", Value: "2026-11-06T18:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	want = head + strings.Replace(one1, "interventions I3 1, I7 1", "interventions I3 1", 1) +
+		"Summary, until 2026-11-06T18:00:00Z (0.2 days): 1 slices merged; 9 runs, 9.0 per merge; input 12000 tokens per merge; worker stop rate 50% (2 of 4 worker runs); 1 interventions, 6.0 a day\n"
+	if got := a.stdout.String(); got != want {
+		t.Errorf("--until: stdout:\n%s\nwant:\n%s", got, want)
+	}
+	if err := a.scorecard(Value{Flag: "--since", Value: "2026-11-06T19:00:00Z"}, Value{Flag: "--until", Value: "2026-12-01T00:00:00+01:00"}); err != nil {
+		t.Fatal(err)
+	}
+	want = head + two1 + one2 +
+		"Summary, since 2026-11-06T19:00:00Z until 2026-11-30T23:00:00Z (1.8 days): 2 slices merged; 2 runs, 1.0 per merge; input 375 tokens per merge; worker stop rate 0% (0 of 1 worker runs); 1 interventions, 0.6 a day\n"
+	if got := a.stdout.String(); got != want {
+		t.Errorf("--until after now: stdout:\n%s\nwant:\n%s", got, want)
+	}
 	if b, _ := os.ReadFile(csvFile); string(b) != held {
 		t.Errorf("the CSV was written:\n%s", b)
 	}
@@ -150,9 +173,10 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 	}
 }
 
-// --scorecard is one action of the verb: with another, or --since
-// without it, usage; a --since that is not RFC 3339, an error; no home
-// named, the backfill's error; no slice merged, a line saying so.
+// --scorecard is one action of the verb: with another, or --since or
+// --until without it, usage; a --since or --until that is not RFC 3339,
+// an error; no home named, the backfill's error; no slice merged, a
+// line saying so; --until before --since, usage before anything is read.
 func TestScorecardRefusals(t *testing.T) {
 	a := newApplyWS(t)
 	home := a.metricsHome()
@@ -168,8 +192,15 @@ func TestScorecardRefusals(t *testing.T) {
 	if err := a.at(c, false, func(c *Context) error { return swarmMetrics(c, openForge) }); !errors.As(err, &usage) || string(usage) != "--since goes with --scorecard" {
 		t.Errorf("--since with --backfill = %v", err)
 	}
+	c.Values = []Value{{Flag: "--until", Value: "2026-11-06T00:00:00Z"}}
+	if err := a.at(c, false, func(c *Context) error { return swarmMetrics(c, openForge) }); !errors.As(err, &usage) || string(usage) != "--until goes with --scorecard" {
+		t.Errorf("--until with --backfill = %v", err)
+	}
 	if err := a.scorecard(Value{Flag: "--since", Value: "2026-11-06"}); errText(err) != "Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: 2026-11-06)" {
 		t.Errorf("a date for --since = %v", err)
+	}
+	if err := a.scorecard(Value{Flag: "--until", Value: "tomorrow"}); errText(err) != "Error: --until must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: tomorrow)" {
+		t.Errorf("a word for --until = %v", err)
 	}
 	if err := a.scorecard(); err != nil || a.stdout.String() != "Scorecard of acme/swarm-app: runs and interventions from "+filepath.Join(home, "metrics", "metrics.csv")+
 		", merges from no mirror fetched\n  no slice merged\nSummary, every record (no record): 0 slices merged; 0 runs, — per merge; input — tokens per merge; worker stop rate — (0 of 0 worker runs); 0 interventions, — a day\n" {
@@ -178,5 +209,10 @@ func TestScorecardRefusals(t *testing.T) {
 	os.Remove(a.state("home"))
 	if err := a.scorecard(); errText(err) != "Error: swarm metrics --scorecard: "+a.state("home")+" names no Daisy home, whose metrics CSV would take the rows; write a registered home's name in it" {
 		t.Errorf("no home = %v", err)
+	}
+	// Before anything is read: with no home named, the window still refused.
+	usage = ""
+	if err := a.scorecard(Value{Flag: "--since", Value: "2026-11-06T12:00:00+01:00"}, Value{Flag: "--until", Value: "2026-11-06T10:59:59Z"}); !errors.As(err, &usage) || string(usage) != "--until 2026-11-06T10:59:59Z is before --since 2026-11-06T12:00:00+01:00: the window would hold nothing" {
+		t.Errorf("--until before --since = %v", err)
 	}
 }

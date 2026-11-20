@@ -1015,7 +1015,8 @@ func resumeSwarm(c *Context) error {
 }
 
 // SwarmMetrics is `daisy swarm metrics --backfill | --reprice
-// [--dry-run] | --scorecard [--since <time>]` (docs/swarm.md section 11):
+// [--dry-run] | --scorecard [--since <time>] [--until <time>]`
+// (docs/swarm.md section 11):
 // in the metrics CSV of the home <state>/home names, a row for each
 // collected run it holds none for, or a row superseding each run's whose
 // output now reads otherwise; or the scorecard read from it, writing
@@ -1027,6 +1028,7 @@ func SwarmMetrics(c *Context) error {
 func swarmMetrics(c *Context, open opener) error {
 	backfill, reprice, scorecard, dryRun := c.Flag("--backfill"), c.Flag("--reprice"), c.Flag("--scorecard"), c.Flag("--dry-run")
 	_, since := c.Value("--since")
+	_, until := c.Value("--until")
 	actions := 0
 	for _, a := range []bool{backfill, reprice, scorecard} {
 		if a {
@@ -1040,6 +1042,8 @@ func swarmMetrics(c *Context, open opener) error {
 		return UsageError("--dry-run goes with --reprice")
 	case since && !scorecard:
 		return UsageError("--since goes with --scorecard")
+	case until && !scorecard:
+		return UsageError("--until goes with --scorecard")
 	}
 	if scorecard {
 		return swarmScorecard(c, open)
@@ -1097,17 +1101,23 @@ func swarmReprice(c *Context, s *reconcile.Swarm, dryRun bool) error {
 	return nil
 }
 
-// swarmScorecard is `swarm metrics --scorecard [--since <time>]`, run
-// read-only: a line per slice merged since then, then the summary.
+// swarmScorecard is `swarm metrics --scorecard [--since <time>] [--until
+// <time>]`, run read-only: a line per slice merged in the window, then
+// the summary.
 func swarmScorecard(c *Context, open opener) error {
 	c.Ops = ops.ReadOnly(c.Ops)
-	var since time.Time
-	if v, ok := c.Value("--since"); ok {
-		t, err := time.Parse(time.RFC3339, v)
-		if err != nil {
-			return fmt.Errorf("Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: %s)", v)
-		}
-		since = t.UTC()
+	since, err := timeValue(c, "--since")
+	if err != nil {
+		return err
+	}
+	until, err := timeValue(c, "--until")
+	if err != nil {
+		return err
+	}
+	if !since.IsZero() && !until.IsZero() && until.Before(since) {
+		s, _ := c.Value("--since")
+		u, _ := c.Value("--until")
+		return UsageError(fmt.Sprintf("--until %s is before --since %s: the window would hold nothing", u, s))
 	}
 	cfg, err := forgeOnly(c)
 	if err != nil {
@@ -1126,12 +1136,26 @@ func swarmScorecard(c *Context, open opener) error {
 		return fmt.Errorf("Error: swarm: %v", err)
 	}
 	s := &reconcile.Swarm{O: c.Ops, Place: c.Swarm, WS: c.Swarm.Root, Root: c.Env.Root, Config: c.Env.Config, Local: c.Env.Local, Cfg: cfg, Forge: f, Out: c.Stdout, Err: c.Stderr}
-	sc, err := s.Scorecard(since)
+	sc, err := s.Scorecard(since, until)
 	if err != nil {
 		return fmt.Errorf("Error: swarm metrics --scorecard: %v", err)
 	}
 	writeScorecard(c.Stdout, cfg.Forge.Repo, sc)
 	return nil
+}
+
+// timeValue is the RFC 3339 time a value flag gives, in UTC; zero when
+// the flag is not given.
+func timeValue(c *Context, flag string) (time.Time, error) {
+	v, ok := c.Value(flag)
+	if !ok {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return t, fmt.Errorf("Error: %s must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: %s)", flag, v)
+	}
+	return t.UTC(), nil
 }
 
 // writeScorecard writes the scorecard (docs/swarm.md section 11, The
@@ -1155,9 +1179,16 @@ func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
 			roleCounts(r.Runs), r.Uncached, r.Cached, r.Output, without(r.NoUsage, "usage"), r.Cost, without(r.Unpriced, "an estimate"),
 			r.Rounds, keyCounts(r.Stops), keyCounts(r.Interventions))
 	}
-	window := "every record"
+	var bounds []string
 	if !sc.Since.IsZero() {
-		window = "since " + sc.Since.Format(time.RFC3339)
+		bounds = append(bounds, "since "+sc.Since.Format(time.RFC3339))
+	}
+	if !sc.Until.IsZero() {
+		bounds = append(bounds, "until "+sc.Until.Format(time.RFC3339))
+	}
+	window := "every record"
+	if len(bounds) > 0 {
+		window = strings.Join(bounds, " ")
 	}
 	sm := sc.Summary
 	days := "no record"

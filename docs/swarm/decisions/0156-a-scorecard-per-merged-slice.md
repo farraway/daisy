@@ -111,3 +111,10 @@ Tests: `TestScorecardRowPerMergedSlice`, `TestScorecardRefusals`,
 `TestSwarmStatusJSON`, `TestSwarmApplyRecordsWorkerLinesAndReviewRounds`,
 `TestJournalLineUnknownPersona`, `TestSwarmMetricsBackfill`,
 `TestSwarmMetricsReprice`, `TestSwarmMetricsRepriceReviewEffect`.
+
+**Amended by decision [157](0157-the-scorecard-window-ends-at-until.md)
+(Step 8a of the plan implementing the 2026-11-19 swarm roadmap).** The
+open question of the window's end is answered: `--until <time>`,
+inclusive as `--since` is, leaves out every record and merge after it,
+of the slices' lines as of the summary, and the window ends at it or
+now, whichever is earlier.

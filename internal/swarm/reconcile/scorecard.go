@@ -17,15 +17,17 @@ import (
 // writes nothing.
 
 // Scorecard is the swarm's scorecard: the CSV it read, the mirrors' last
-// fetch, the window (Since, zero for every record; Start, Since or else
-// the swarm's first record or merge; End, now), a row per slice merged
-// in the window, in the order of the merges, and the window's summary.
+// fetch, the window (Since, zero for every record; Until, zero for none;
+// Start, Since or else the swarm's first record or merge not after
+// Until; End, Until or now, whichever is earlier), a row per slice
+// merged in the window, in the order of the merges, and the window's
+// summary.
 type Scorecard struct {
-	File              string
-	Fetched           time.Time
-	Since, Start, End time.Time
-	Slices            []SliceScore
-	Summary           ScoreSummary
+	File                     string
+	Fetched                  time.Time
+	Since, Until, Start, End time.Time
+	Slices                   []SliceScore
+	Summary                  ScoreSummary
 }
 
 // SliceScore is one merged slice's row: its merge; From, when its time
@@ -80,9 +82,14 @@ type scoreRecord struct {
 
 // Scorecard reads the scorecard of the records and merges at or after
 // since (every one when it is zero), its slices' openings through
-// s.Forge.
-func (s *Swarm) Scorecard(since time.Time) (Scorecard, error) {
-	c := Scorecard{Since: since, Start: since, End: s.O.Now().UTC()}
+// s.Forge. The records and merges after until (none when it is zero)
+// are left out altogether, of the slices' rows as of the summary.
+func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
+	c := Scorecard{Since: since, Until: until, Start: since, End: s.O.Now().UTC()}
+	after := func(t time.Time) bool { return !until.IsZero() && t.After(until) }
+	if !until.IsZero() && until.Before(c.End) {
+		c.End = until
+	}
 	file, b, err := s.metricsCSV()
 	c.File = file
 	if err != nil {
@@ -101,6 +108,9 @@ func (s *Swarm) Scorecard(since time.Time) (Scorecard, error) {
 		if err != nil {
 			return c, fmt.Errorf("%s: %s's when is not an RFC 3339 time (got: %s)", file, r.Unit, r.When)
 		}
+		if after(when) {
+			continue
+		}
 		n, err := strconv.Atoi(strings.SplitN(r.Unit, "-", 2)[0])
 		if err != nil {
 			return c, fmt.Errorf("%s: %s names no issue", file, r.Unit)
@@ -113,6 +123,7 @@ func (s *Swarm) Scorecard(since time.Time) (Scorecard, error) {
 		return c, err
 	}
 	c.Fetched = fetched
+	merges = slices.DeleteFunc(merges, func(m Merge) bool { return after(m.At) })
 	if c.Start.IsZero() {
 		if len(recs) > 0 {
 			c.Start = recs[0].when

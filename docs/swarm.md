@@ -57,7 +57,7 @@ A point marked *not established as of <date>* is one no recorded run had
 settled by that date; it stays open until a run settles it, and section
 13's Established by the first real run records what the runs settled.
 The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
-`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill | --reprice [--dry-run] | --scorecard [--since <time>]`, `swarm status [--json] [--waiting]`, `swarm list [--json]`, `swarm journal [--json] [--issue <n>] | --mark <run>`, `swarm connect [--json]`, `swarm pause [<n>] [--type <type>]`, `swarm
+`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill | --reprice [--dry-run] | --scorecard [--since <time>] [--until <time>]`, `swarm status [--json] [--waiting]`, `swarm list [--json]`, `swarm journal [--json] [--issue <n>] | --mark <run>`, `swarm connect [--json]`, `swarm pause [<n>] [--type <type>]`, `swarm
 resume [<n>] [--type <type>]`, `swarm restart [--type <type>]`, and the maintainer's `swarm triage <n> [--type <type>]`, `swarm accept
 <n> [--type <type>]`, `swarm class <n> [--type <type>] routine|architecture`, `swarm approve <n> [--type <type>]`, `swarm
 merge <n> [--type <type>]`, `swarm unblock <n> [--cause <word>] [--type <type>] <comment...>`, `swarm block <n> --by <m> [--type <type>]`,
@@ -5463,12 +5463,12 @@ its drift, and a loop restarted prints it again at its first pass.
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm metrics --backfill \| --reprice [--dry-run] \| --scorecard [--since <time>]`; none of the three actions or more than one, `--dry-run` without `--reprice`, or `--since` without `--scorecard`, usage (exit 2) |
+| Usage | `daisy swarm metrics --backfill \| --reprice [--dry-run] \| --scorecard [--since <time>] [--until <time>]`; none of the three actions or more than one, `--dry-run` without `--reprice`, `--since` or `--until` without `--scorecard`, or `--until` before `--since` (`--until <value> is before --since <value>: the window would hold nothing`, before anything is read), usage (exit 2) |
 | Reads | `swarm.json`'s forge fields (to name `<state>`) and its personas; `<state>/home`, the registry, `<run>/result`, `<run>/argv` and `<run>/io/system.md` (`--backfill`), `<run>/stdout` (`--reprice`), a reviewer's `<run>/io/out.md` (both) and a stopped run's (`--backfill`, its cause), the home's metrics CSV; a worker's range in its mirror (`git diff --numstat`); no secret, no forge call, no Docker. `--scorecard`: `swarm.json`'s forge fields and `base`, `<state>/home`, the registry, the home's metrics CSV, each worker run's `<run>/result` (its `branch` and `pushed` lines), each such repository's mirror's `base` (`git log --first-parent --merges`, the reverts' `git log`) and its `FETCH_HEAD`'s time, as `status`'s reverted line reads them; `<state>/env` (the token) and the forge's `Issue(n)` for each issue whose first merged slice is in the window; no Docker |
 | Writes | the metrics CSV of the home `<state>/home` names (section 2): `--backfill`, a `swarm-run` row for each collected run (its `result` holding `collected`) the CSV holds no row of, in the order of their times, in one rewrite, then, in a second, a row superseding each earlier review's whose effect a backfilled review decides (below); `--reprice`, in one rewrite, a row superseding the row of each collected run the CSV holds whose output, or for a reviewer the runs' effect, now reads otherwise (below), in the order of the runs' names; `--dry-run` and `--scorecard`, nothing; no journal line |
 | Stdout | `✓ Backfilled <w> rows into <file> (<c> runs collected, <h> with its row already)`, then `; <e> earlier reviews' rows superseded with their review_effect` when it superseded any; `✓ Repriced <w> rows into <file> (<c> runs collected, <h> with a row: <k> current, <u> with no usage to read)` (`<k>` the rows left as they are whose usage was read); with `--dry-run`, a line per row it would write, `  <run> <provider> <model>: tokens_in <a> → <b>, tokens_cached <a> → <b>, tokens_total <a> → <b>, cost_estimated <a> → <b>` (`—` for empty), a reviewer's ending `, review_effect <a> → <b>`, then `Would reprice <w> rows in <file> (…); nothing written`; `--scorecard`, The scorecard (below) |
 | Stderr | `⚠ #<n> worker run <k>: lines not counted: <reason>`; `⚠ #<n> <role> run <k>: cause left empty: …` (7.6, The run's record); `⚠ #<n> <role> run <k>: no row: its result has no end line or started line to date it`; `--scorecard`, a warning of the secrets file (section 3) |
-| Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no home or one that cannot be used, the CSV's header not this Daisy's nor an older one (the columns up to `notes`, `tokens_cached` or `review_effect`), the lock held past 30 seconds, a read or the write failing; `--scorecard`: `--since` not an RFC 3339 time (`Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: <value>)`), the token unset, a row's `when` not an RFC 3339 time, a mirror's or the forge's read failing (`Error: swarm metrics --scorecard: <reason>`); 2 usage |
+| Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no home or one that cannot be used, the CSV's header not this Daisy's nor an older one (the columns up to `notes`, `tokens_cached` or `review_effect`), the lock held past 30 seconds, a read or the write failing; `--scorecard`: `--since` or `--until` not an RFC 3339 time (`Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: <value>)`, `--until` likewise), the token unset, a row's `when` not an RFC 3339 time, a mirror's or the forge's read failing (`Error: swarm metrics --scorecard: <reason>`); 2 usage |
 | Ops | Real; `--scorecard` `ops.ReadOnly` |
 
 Each row is the one the run's collection makes (7.6, The run's record),
@@ -5584,14 +5584,24 @@ once its merge is made, so it is the slice's whose merge is the last of
 yet merged), of the batch (issue 0) or of an issue never merged is no
 slice's, and counts in the summary alone.
 
+`--until <time>` (decision
+[157](swarm/decisions/0157-the-scorecard-window-ends-at-until.md))
+bounds the other side, inclusive as `--since` is: a record dated after
+it and a merge whose time is after it are left out altogether, of the
+slices' lines as of the summary, so a slice merged at or before it
+reads without the records made after it (the `merge` verb's
+intervention recorded once the bound has passed among them), and a
+record whose slice merged only after it is no slice's and counts in the
+summary alone.
+
 One line per slice merged at or after `--since` (every one without
-it), in the order of the merges:
+it) and not after `--until`, in the order of the merges:
 
 ```
 Scorecard of <owner>/<repo>: runs and interventions from <csv>, merges from the mirrors as last fetched, <time>        (or: no mirror fetched)
   #<n> slice <s> in <name>, merged <time>, <wall> after the issue's opening: runs <r> (<role> <k>, …); tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; review rounds <d>; stops <cause> <k>, …; interventions <type> <k>, …
   …        (or:   no slice merged)
-Summary, since <time> (<d> days): <m> slices merged; <r> runs, <r/m> per merge; input <i/m> tokens per merge; worker stop rate <p>% (<s> of <w> worker runs); <v> interventions, <v/d> a day
+Summary, since <time> until <time> (<d> days): <m> slices merged; <r> runs, <r/m> per merge; input <i/m> tokens per merge; worker stop rate <p>% (<s> of <w> worker runs); <v> interventions, <v/d> a day
 ```
 
 - **wall**, as Go writes a duration (`3h0m0s`), runs from the issue's opening on the forge (`Issue(n)`'s
@@ -5619,9 +5629,12 @@ Summary, since <time> (<d> days): <m> slices merged; <r> runs, <r/m> per merge; 
 - **interventions**, the slice's `intervention` records by type (their
   `cause`, section 11, The interventions' record), `none` for none.
 
-The summary is over the window, `--since` to now (`Summary, since
-<time>`), or without it from the swarm's first record or merge
-(`Summary, every record`), its length in days to one decimal
+The summary is over the window: from `--since`, else from the swarm's
+first record or merge not after `--until`, to `--until` or now,
+whichever is earlier. Its heading names the bounds given, in UTC
+(`Summary, since <time>`, `Summary, until <time>` or `Summary, since
+<time> until <time>`), `Summary, every record` with neither; the
+window's length in days to one decimal
 (`no record` and `—` for the rates when there is none): `<m>` the
 slices merged in it; of the records dated in it, every issue's and the
 batch's, merged or not, `<r>` the runs, `<i>` their `tokens_in` (the
@@ -5630,8 +5643,9 @@ counts it), `<w>` the worker runs and `<s>` those whose `outcome` is
 `blocked` or `question`, and `<v>` the interventions; `<r/m>` and
 `<v/d>` to one decimal, `<i/m>` whole, `<p>` whole; a rate with no
 merge or no worker run is `—`. A slice's line takes its records
-whatever their dates, so a slice merged in the window counts runs made
-before it, while the summary's counts take only the window's records.
+whatever their dates up to `--until`, so a slice merged in the window
+counts runs made before `--since`, while the summary's counts take only
+the window's records.
 
 ### daisy swarm list
 
