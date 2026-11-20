@@ -440,6 +440,28 @@ func (g Git) Since(name, sha, base string) ([]string, error) {
 	return g.paths(name, sha, "refs/heads/"+base)
 }
 
+// RoundDiff is the changes from prev to sha in the files the branch at
+// sha changes against base, in the repository's mirror, so that what a
+// merge of base brought in is left out: 7.4's round r > 1 diff (section
+// 7.8, A round's file); "" when the branch changes no file. Each path is
+// given literally, as `xargs -0` gives it whole.
+func (g Git) RoundDiff(name, base, prev, sha string) (string, error) {
+	m := g.Mirror(name)
+	files, errb, err := g.O.Exec(m, "git", "diff", "--name-only", "-z", "refs/heads/"+base+"..."+sha)
+	if err != nil {
+		return "", fmt.Errorf("git diff --name-only -z refs/heads/%s...%s: %v: %s", base, sha, err, strings.TrimSpace(string(errb)))
+	}
+	if len(files) == 0 {
+		return "", nil
+	}
+	args := append([]string{"--literal-pathspecs", "diff", prev + ".." + sha, "--"}, strings.Split(strings.TrimSuffix(string(files), "\x00"), "\x00")...)
+	out, errb, err := g.O.Exec(m, "git", args...)
+	if err != nil {
+		return "", fmt.Errorf("git diff %s..%s: %v: %s", prev, sha, err, strings.TrimSpace(string(errb)))
+	}
+	return string(out), nil
+}
+
 // paths is `git diff --name-only` over revs in the repository's mirror.
 func (g Git) paths(name string, revs ...string) ([]string, error) {
 	// -z: each path as it is, NUL-ended, never quoted (core.quotePath

@@ -814,25 +814,31 @@ func CheckSection(fs ops.FS, runs []Run, n int, head string, check []string, tim
 		if !slices.Contains(lines, "pushed "+head) {
 			continue
 		}
-		result, tail, _, ok := checkResult(fs, r, lines, timeout)
+		result, out, _, ok := checkResult(fs, r, lines, timeout)
 		if !ok {
 			break
 		}
+		tail := lastLines(out)
 		for i := range tail {
 			tail[i] = "    " + tail[i]
 		}
-		return shellQuote(check) + " on " + head + ": " + result + "\n\n" + strings.Join(tail, "\n")
+		return checkLine(check, head, result) + "\n\n" + strings.Join(tail, "\n")
 	}
 	return "No check result for this head."
 }
 
+// checkLine is the `# Check` section's line for a check run on head
+// with its result (section 7.3).
+func checkLine(check []string, head, result string) string {
+	return shellQuote(check) + " on " + head + ": " + result
+}
+
 // checkResult is a worker run's check as it ended, `exit <code>` or
 // `timeout after <timeout>`, or its dependency step's failure or its test
-// services file's refusal, either of which ran no check, and the last 20
-// lines of the output of the one that ended the check, file (check.out
-// or deps.out), or the refusal and the services file; ok is false when
-// it has no end.
-func checkResult(fs ops.FS, r Run, lines []string, timeout string) (result string, tail []string, file string, ok bool) {
+// services file's refusal, either of which ran no check, and the whole
+// output of the one that ended the check, file (check.out or deps.out),
+// or the refusal and the services file; ok is false when it has no end.
+func checkResult(fs ops.FS, r Run, lines []string, timeout string) (result, out, file string, ok bool) {
 	const noCheck = "; the check did not run"
 	file = "check.out"
 	if code := depsFailed(lines); code != "" {
@@ -841,20 +847,23 @@ func checkResult(fs ops.FS, r Run, lines []string, timeout string) (result strin
 		result, file = "dependency step timed out after "+timeout+noCheck, "deps.out"
 	} else if reason := servicesRefused(lines); reason != "" {
 		file, _, _ = strings.Cut(reason, ": ")
-		return "test services refused" + noCheck, []string{reason}, file, true
+		return "test services refused" + noCheck, reason, file, true
 	} else if l, ok := Has(lines, "check exited"); ok {
 		result = "exit " + strings.Fields(l)[2]
 	} else if _, ok := Has(lines, "check timeout"); ok {
 		result = "timeout after " + timeout
 	} else {
-		return "", nil, "", false
+		return "", "", "", false
 	}
-	out, _ := fs.ReadFile(filepath.Join(r.Dir, file))
-	tail = strings.Split(strings.TrimRight(string(out), "\n"), "\n")
-	if len(tail) > 20 {
-		tail = tail[len(tail)-20:]
-	}
-	return result, tail, file, true
+	b, _ := fs.ReadFile(filepath.Join(r.Dir, file))
+	return result, string(b), file, true
+}
+
+// lastLines is the tail of a check's output the report and the `# Check`
+// section carry: its last 20 lines.
+func lastLines(out string) []string {
+	tail := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	return tail[max(0, len(tail)-20):]
 }
 
 // depsFailed is the exit status of the run's dependency step when it

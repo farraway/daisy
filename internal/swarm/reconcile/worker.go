@@ -115,7 +115,8 @@ func (c *collection) commits() bool {
 }
 
 // keep is step 2: a worker run that does not push keeps its commits as
-// the run's ref, `kept <ref>`; one with none drops the ref.
+// the run's ref, `kept <ref>`, and names them in its slice's kept unless
+// they are refused (section 7.8); one with none drops the ref.
 func (c *collection) keep() error {
 	if _, ok := Has(c.lines, "fetched"); !ok {
 		return nil
@@ -123,19 +124,52 @@ func (c *collection) keep() error {
 	if !c.commits() {
 		return c.s.git().DropRef(branchRepo(c.lines), runRef(c.r))
 	}
-	if _, ok := Has(c.lines, "kept"); ok {
-		return nil
+	if _, ok := Has(c.lines, "kept"); !ok {
+		if err := c.step("kept " + runRef(c.r)); err != nil {
+			return err
+		}
 	}
-	return c.step("kept " + runRef(c.r))
+	if reason, err := c.refused(); err != nil || reason != "" {
+		return err
+	}
+	return c.writeKept()
+}
+
+// refused is why no run may build on the worker run's commits (section
+// 7.6, step 3): "secret in output: commits" when an object the push
+// would send holds a secret the member was given, then "protected path
+// changed: <paths>" when they change a protected path; "" when neither.
+// The secret check comes first: the protected-path note names paths, and
+// a path is the member's text too.
+func (c *collection) refused() (string, error) {
+	s, name, sha := c.s, branchRepo(c.lines), c.fetched()
+	objects, err := s.git().Objects(name, s.Cfg.Base, sha)
+	if err != nil {
+		return "", err
+	}
+	if hit(objects, s.secretsOf(c.r, c.lines)) {
+		return "secret in output: commits", nil
+	}
+	changed, err := s.git().Changed(name, s.Cfg.Base, sha)
+	if err != nil {
+		return "", err
+	}
+	repo, _ := s.repo(name)
+	if hits := Protected(changed, repo.Protected); len(hits) > 0 {
+		return "protected path changed: " + strings.Join(hits, ", "), nil
+	}
+	return "", nil
 }
 
 // worker is a worker run's steps after its output was read (section 7.6):
 // no commits, which on review-3-changes-requested with a NO CHANGE: answer
 // is that answer posted on the pull request and T12; the secret check of
-// every object the push would send, then protected paths; the artifacts
-// read; the check, started and collected when it ends, its posted tail
-// checked for secrets; the push; then the pull request opened or
-// commented on, the artifacts attached to it, and T8 or T12.
+// every object the push would send, then protected paths (refused); the
+// artifacts read; the check, started and collected when it ends, its
+// posted tail checked for secrets, or its whole output when it failed,
+// which is then written to checks/; the push, and the slice's kept; then
+// the pull request opened or commented on, the artifacts attached to it,
+// and T8 or T12.
 func (c *collection) worker(out string, pull *forge.Pull) error {
 	s := c.s
 	if !c.commits() {
@@ -158,21 +192,10 @@ func (c *collection) worker(out string, pull *forge.Pull) error {
 	secrets := s.secretsOf(c.r, c.lines)
 	_, pushed := Has(c.lines, "pushed")
 	if !pushed {
-		// The secret check first: the protected-path note names paths,
-		// and a path is the member's text too.
-		objects, err := s.git().Objects(name, s.Cfg.Base, sha)
-		if err != nil {
+		if reason, err := c.refused(); err != nil {
 			return err
-		}
-		if hit(objects, secrets) {
-			return c.fail("secret in output: commits")
-		}
-		changed, err := s.git().Changed(name, s.Cfg.Base, sha)
-		if err != nil {
-			return err
-		}
-		if hits := Protected(changed, repo.Protected); len(hits) > 0 {
-			return c.fail("protected path changed: " + strings.Join(hits, ", "))
+		} else if reason != "" {
+			return c.fail(reason)
 		}
 	}
 	arts, clean, err := c.artifacts(secrets)
@@ -190,11 +213,24 @@ func (c *collection) worker(out string, pull *forge.Pull) error {
 			}
 			return nil
 		}
-		result, tail, file, _ := checkResult(s.O.FS(), c.r, c.lines, s.Cfg.Timeout)
-		if hit([]byte(strings.Join(tail, "\n")), secrets) {
+		result, out, file, _ := checkResult(s.O.FS(), c.r, c.lines, s.Cfg.Timeout)
+		tail := strings.Join(lastLines(out), "\n")
+		// A check that failed is written whole to the workspace (section
+		// 7.8, checks/), so its whole output is checked; else the tail
+		// posted.
+		failed, checked := result != "exit 0", tail
+		if failed {
+			checked = out
+		}
+		if hit([]byte(checked), secrets) {
 			return c.fail("secret in output: " + file)
 		}
-		block = fmt.Sprintf("**Check:** `%s` on %s: %s\n\n```\n%s\n```", shellQuote(repo.Check), short(sha), result, strings.Join(tail, "\n"))
+		if failed {
+			if err := c.writeCheck(sha, checkLine(repo.Check, sha, result), out); err != nil {
+				return err
+			}
+		}
+		block = fmt.Sprintf("**Check:** `%s` on %s: %s\n\n```\n%s\n```", shellQuote(repo.Check), short(sha), result, tail)
 	}
 	if !pushed {
 		err := s.git().Push(repo, runRef(c.r), branch, sha)
@@ -208,6 +244,9 @@ func (c *collection) worker(out string, pull *forge.Pull) error {
 		if err := c.step("pushed " + sha); err != nil {
 			return err
 		}
+	}
+	if err := c.writeKept(); err != nil {
+		return err
 	}
 	// One blank line between the text and the block, the block never
 	// cut (section 7.5).
@@ -310,7 +349,7 @@ func (c *collection) onPull(p forge.Pull, l long) error {
 // checked against its findings' severity (7.5), the review posted, and
 // once the pair on the head is complete, T9, T10 or T11, from the stage
 // the run is at (review-1-in-progress, or the stage it was launched on).
-func (c *collection) review(out string, pull forge.Pull) error {
+func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) error {
 	s := c.s
 	verdict := verdictOf(out)
 	blocking := len(blockingLines(out)) > 0
@@ -361,6 +400,9 @@ func (c *collection) review(out string, pull forge.Pull) error {
 	}
 	// The round this review completes is written with it (section 7.8).
 	if err := s.writeReviews(c.r.N, pull, reviews, answers); err != nil {
+		return err
+	}
+	if err := c.writeRound(pull, pulls, reviews, comments, answers); err != nil {
 		return err
 	}
 	pair := map[string]string{}
@@ -519,10 +561,15 @@ func roundsOf(reviews []forge.Review, answers []time.Time, swarmLogin string) []
 
 // blockingLines is a review text's blocking findings: its lines that
 // begin "[blocking]" (section 7.4).
-func blockingLines(text string) []string {
+func blockingLines(text string) []string { return linesBeginning(text, "[blocking]") }
+
+// linesBeginning is text's lines that begin with one of prefixes, in
+// order, each without the spaces and `\r` at its end.
+func linesBeginning(text string, prefixes ...string) []string {
 	var out []string
 	for _, l := range strings.Split(text, "\n") {
-		if l = strings.TrimRight(l, "\r "); strings.HasPrefix(l, "[blocking]") {
+		l = strings.TrimRight(l, "\r ")
+		if slices.ContainsFunc(prefixes, func(p string) bool { return strings.HasPrefix(l, p) }) {
 			out = append(out, l)
 		}
 	}

@@ -585,3 +585,25 @@ they write.
   lines, the first section, a plan without slice lines); sections 2,
   7.5, 7.6, 7.7, 7.8 and 13 mark them built and name `builder.md`
   where the secret check is listed.
+- 2026-11-19, Step R1-3 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, built: the slices' `kept` and `rounds/`, and `checks/`):
+  a worker run with commits writes its slice's `kept`, `<n>-worker-<k>
+  <sha>`, whatever its outcome, at step 2 for a run that keeps its ref
+  and after the push for one that pushed, unless its commits fail step
+  3's secret check or change a protected path, which step 2 now checks
+  again before it writes, so a blocked, question, fault or abandoned
+  run's commits are checked too (the run's outcome and its ref
+  unchanged); a check that failed writes `checks/<sha>.log`, its `#
+  Check` line and its whole output, which the secret check now reads
+  whole (a hit outside the posted tail is *secret in output* naming the
+  file, nothing written, posted or pushed); and the review that
+  completes a round writes its slice's `rounds/<r>.md`, numbered over
+  the life of the slice's pull requests, holding the head, each
+  review's verdict and finding lines, and the diff since the round
+  before in the pull request's files, computed in the mirror. Nothing
+  reads them yet. Section 7.8 states the round file's two cases it left
+  open (the maintainer's comment reopening the head, and commits that
+  change none of the pull request's files), where the findings are read
+  from and the diff's fence; sections 2, 7.6, 7.7, 7.8, 8 and 13 mark
+  them built and name the failed check's whole output where the secret
+  check is listed.

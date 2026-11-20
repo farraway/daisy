@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
@@ -264,4 +265,179 @@ func TestSecretInBuilderPlan(t *testing.T) {
 			t.Error("a BLOCKED: run's builder.md was written")
 		}
 	})
+}
+
+// A worker run with commits writes its slice's kept, whatever its
+// outcome (section 7.8, slices/<s>/kept): a blocked run, `1-worker-1
+// <the commit fetched from it>`, its run ref kept as before. A run whose
+// commits fail the secret check, or change a protected path, writes
+// none, the earlier kept staying; and so does a blocked run whose
+// commits hold a secret, never checked before. A pushed run names its
+// commit, the branch's.
+func TestWorkspaceKept(t *testing.T) {
+	secret := "oauth-token-0123456789abcdef0123456789" // the worker's env value
+	a := newApplyWS(t)
+	a.planned(oneSlice)
+	mirror := a.state("git/app")
+	unblock := func() { a.forge.Relabel(issue1, forge.Blocked, "") }
+
+	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: which version?\n", Work: commit(map[string]string{"main.go": "half\n"}, "Half")})
+	a.pass()
+	first := "1-worker-1 " + a.gitRunIn(mirror, "rev-parse", "refs/swarm-runs/1-worker-1") + "\n"
+	if got, ok := a.jobFile(1, "slices/1/kept"); !ok || got != first {
+		t.Fatalf("kept after the blocked run (%v): %q, want %q\n%s", ok, got, first, a.result("1-worker-1"))
+	}
+
+	for i, canned := range []runner.Canned{
+		{Out: "Done.\n", Work: commit(map[string]string{"sub/key.txt": secret + "\n"}, "v1")},
+		{Out: "Done.\n", Work: commit(map[string]string{"main.go": "v1\n", ".gitea/workflows/ci.yml": "on: push\n"}, "v1")},
+		{Out: "BLOCKED: stuck.\n", Work: commit(map[string]string{"main.go": "token " + secret + "\n"}, "v1")},
+	} {
+		unblock()
+		a.runner.Script(1, "worker", canned)
+		a.pass()
+		run := "1-worker-" + strconv.Itoa(i+2)
+		if r := a.result(run); !strings.Contains(r, "\nkept refs/swarm-runs/"+run+"\n") {
+			t.Fatalf("%s kept no ref:\n%s", run, r)
+		}
+		if got, _ := a.jobFile(1, "slices/1/kept"); got != first {
+			t.Errorf("kept after %s: %q, want %q\n%s", run, got, first, a.result(run))
+		}
+	}
+
+	unblock()
+	a.runner.Script(1, "worker", work("v1"))
+	a.pass()
+	head := a.pulls(1)[0].HeadSHA
+	if got, ok := a.jobFile(1, "slices/1/kept"); !ok || got != "1-worker-5 "+head+"\n" {
+		t.Errorf("kept after the push (%v): %q, the branch's head %s\n%s", ok, got, head, a.result("1-worker-5"))
+	}
+}
+
+// A check that failed writes checks/<sha>.log (section 7.8): the `#
+// Check` line, then its whole output, not the 20 lines of the tail the
+// report carries; a check that passed writes none. The whole output is
+// secret-checked before the file is written: a secret outside the tail is
+// the failure secret in output naming check.out, and no file is written.
+func TestWorkspaceCheckLog(t *testing.T) {
+	var lines []string
+	for i := 1; i <= 30; i++ {
+		lines = append(lines, "line "+strconv.Itoa(i))
+	}
+	output := strings.Join(lines, "\n") + "\n"
+
+	t.Run("failed", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", work("v1"))
+		a.runner.Script(1, "check", runner.Canned{Code: 1, Stdout: output})
+		a.pass()
+		head := a.pulls(1)[0].HeadSHA
+		want := "make check on " + head + ": exit 1\n\n" + output
+		if got, ok := a.jobFile(1, "checks/"+head+".log"); !ok || got != want {
+			t.Errorf("checks/%s.log (%v):\n%s", head, ok, got)
+		}
+		if body := a.pulls(1)[0].Body; strings.Contains(body, "line 10\n") || !strings.Contains(body, "line 11\n") {
+			t.Errorf("the report's tail is not the last 20 lines:\n%s", body)
+		}
+	})
+
+	t.Run("passed", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", work("v1"))
+		a.runner.Script(1, "check", runner.Canned{Stdout: output})
+		a.pass()
+		if len(a.pulls(1)) != 1 {
+			t.Fatalf("no pull request:\n%s", a.result("1-worker-1"))
+		}
+		if _, err := os.Stat(a.state("jobs/1/checks")); !errors.Is(err, iofs.ErrNotExist) {
+			t.Errorf("a passed check wrote checks/: %v", err)
+		}
+	})
+
+	t.Run("a secret outside the tail", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", work("v1"))
+		a.runner.Script(1, "check", runner.Canned{Code: 1, Stdout: "env: oauth-token-0123456789abcdef0123456789\n" + output})
+		a.pass()
+		if r := a.result("1-worker-1"); !strings.Contains(r, "\nfailed: secret in output: check.out\n") {
+			t.Errorf("result:\n%s", r)
+		}
+		if _, err := os.Stat(a.state("jobs/1/checks")); !errors.Is(err, iofs.ErrNotExist) {
+			t.Errorf("checks/ was written: %v", err)
+		}
+	})
+}
+
+// roundFile is slice 1's rounds/<r>.md of issue 1, and whether it is
+// there.
+func (a *applyWS) roundFile(r int) (string, bool) {
+	a.t.Helper()
+	return a.jobFile(1, filepath.Join("slices", "1", "rounds", strconv.Itoa(r)+".md"))
+}
+
+// A round's file is written once the round completes (section 7.8,
+// slices/<s>/rounds/<r>.md), not before: with one member a pass, the
+// adversary's review alone writes none, the sympathetic reviewer's
+// completes round 1 and writes its head and both reviews' finding lines,
+// the adversary's first. A revision that merges main, which another
+// slice moved, then changes main.go is reviewed in round 2, whose file
+// holds the diff since round 1 in the pull request's files: main.go's
+// change, not the merged file's. The worker's answer without a commit is
+// reviewed in round 3, on the same head, which names the answer.
+func TestWorkspaceRoundFile(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
+	a.inReview(oneSlice)
+	h1 := a.pulls(1)[0].HeadSHA
+	nonBlocking := "VERDICT: approve\n\nFine.\n[non-blocking] main.go:1 could say why.\n"
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: nonBlocking}, runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.pass()
+	if _, ok := a.roundFile(1); ok {
+		t.Fatal("round 1 was written before it completed")
+	}
+	a.pass()
+	want1 := "# Round 1 on " + h1 + "\n\nSlice 1, pull request app#1. The round before: none.\n\n" +
+		"## adversary, run 1: request-changes\n\nWhole: /job/memory/texts/1-adversary-1.md\n\n[blocking] main.go:1 says v1; the plan wants v2.\n\n" +
+		"## sympathetic, run 1: approve\n\nWhole: /job/memory/texts/1-sympathetic-1.md\n\n[non-blocking] main.go:1 could say why.\n"
+	if got, ok := a.roundFile(1); !ok || got != want1 {
+		t.Fatalf("rounds/1.md (%v):\n%s\nwant:\n%s", ok, got, want1)
+	}
+
+	a.land("app", map[string]string{"other.txt": "another slice\n"}, "another slice merged")
+	a.runner.Script(1, "worker", runner.Canned{Out: "v2, main merged.\n\nNot established: none\n", Work: func(work string) error {
+		if _, errb, err := ops.Real().Exec(work, "git", "merge", "-q", "--no-edit", "main"); err != nil {
+			return &execErr{[]string{"merge"}, string(errb)}
+		}
+		return commit(map[string]string{"main.go": "v2\n"}, "v2")(work)
+	}})
+	a.pass()
+	h2 := a.pulls(1)[0].HeadSHA
+	if got := labels(a.issue(1)); h2 == h1 || !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) {
+		t.Fatalf("the revision: %v, head %s\n%s", got, h2, a.result("1-worker-2"))
+	}
+	a.pass()
+	a.pass()
+	got, ok := a.roundFile(2)
+	head2 := "# Round 2 on " + h2 + "\n\nSlice 1, pull request app#1. The round before: 1 on " + h1 + ".\n\n" +
+		"## adversary, run 2: request-changes\n\nWhole: /job/memory/texts/1-adversary-2.md\n\n[blocking] main.go:1 says v1; the plan wants v2.\n\n" +
+		"## sympathetic, run 2: approve\n\nWhole: /job/memory/texts/1-sympathetic-2.md\n\n## Changes since round 1\n\n```diff\ndiff --git a/main.go b/main.go\n"
+	if !ok || !strings.HasPrefix(got, head2) || !strings.HasSuffix(got, "\n@@ -1 +1 @@\n-v1\n+v2\n```\n") || strings.Contains(got, "other.txt") {
+		t.Fatalf("rounds/2.md (%v):\n%s", ok, got)
+	}
+
+	a.runner.Script(1, "worker", runner.Canned{Out: "NO CHANGE: main.go:1 says v2 already.\n\nNot established: none\n"})
+	a.pass()
+	a.pass()
+	a.pass()
+	want3 := "# Round 3 on " + h2 + "\n\nSlice 1, pull request app#1. The round before: 2 on " + h2 + ".\n\n" +
+		"## adversary, run 3: approve\n\nWhole: /job/memory/texts/1-adversary-3.md\n\n" +
+		"## sympathetic, run 3: approve\n\nWhole: /job/memory/texts/1-sympathetic-3.md\n\n" +
+		"## Changes since round 2\n\nNo commit since round 2: the worker answered without a commit, /job/memory/texts/1-worker-3.md.\n"
+	if got, ok := a.roundFile(3); !ok || got != want3 {
+		t.Errorf("rounds/3.md (%v):\n%s\nwant:\n%s\n%s", ok, got, want3, a.stdout.String())
+	}
 }

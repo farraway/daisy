@@ -3,9 +3,12 @@ package reconcile
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	iofs "io/fs"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"daisy/internal/swarm/forge"
@@ -13,8 +16,9 @@ import (
 
 // The job's workspace, <state>/jobs/<n> (section 7.8), written by the
 // collection of a run on issue n alone. Of its files this build writes
-// texts/, plan.md, builder.md and slices/<s>/slice.md, and nothing reads
-// them yet.
+// texts/, plan.md, builder.md, slices/<s>/slice.md, slices/<s>/kept,
+// slices/<s>/rounds/<r>.md and checks/<sha>.log, and nothing reads them
+// yet.
 
 // workspace is issue n's workspace.
 func (s *Swarm) workspace(n int) string { return filepath.Join(s.state(), "jobs", strconv.Itoa(n)) }
@@ -79,13 +83,7 @@ func (s *Swarm) writeText(n int, run, text string) error {
 // pruned or collected on another machine, is not written.
 func (s *Swarm) writeReviews(n int, p forge.Pull, reviews []forge.Review, answers []time.Time) error {
 	for _, rd := range roundsOf(reviews, answers, s.SwarmLogin) {
-		roles := map[string]bool{}
-		for _, rv := range rd.reviews {
-			m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
-			roles[m.Role] = true
-		}
-		complete := roles["adversary"] && roles["sympathetic"]
-		if !complete && p.Open && rd.commit == p.HeadSHA && rd.answers == len(answers) {
+		if _, complete := rd.completed(s.SwarmLogin); !complete && p.Open && rd.commit == p.HeadSHA && rd.answers == len(answers) {
 			continue // its round may still complete
 		}
 		for _, rv := range rd.reviews {
@@ -129,4 +127,175 @@ func (c *collection) writeHeld(pulls []forge.Pull) error {
 		}
 	}
 	return nil
+}
+
+// writeKept names the worker run and its fetched commit in its slice's
+// kept (section 7.8): the slice's newest worker run whose commits a run
+// may build on.
+func (c *collection) writeKept() error {
+	sl := strings.TrimPrefix(runBranch(c.lines), fmt.Sprintf("swarm/%d-", c.r.N))
+	return c.s.writeWorkspace(c.r.N, filepath.Join("slices", sl, "kept"), []byte(fmt.Sprintf("%d-worker-%d %s\n", c.r.N, c.r.K, c.fetched())))
+}
+
+// writeCheck writes a check that failed on head to checks/<head>.log
+// (section 7.8): its `# Check` line, then its whole output.
+func (c *collection) writeCheck(head, line, out string) error {
+	text := line + "\n"
+	if out != "" {
+		text += "\n" + out
+	}
+	return c.s.writeWorkspace(c.r.N, filepath.Join("checks", head+".log"), []byte(text))
+}
+
+// completed is when the round completed, its first review that gives it
+// a review of each of the pair's roles (section 6's rounds), and whether
+// it has.
+func (rd round) completed(swarmLogin string) (time.Time, bool) {
+	roles := map[string]bool{}
+	for _, rv := range rd.reviews {
+		m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, swarmLogin)
+		if roles[m.Role] = true; roles["adversary"] && roles["sympathetic"] {
+			return rv.Submitted, true
+		}
+	}
+	return time.Time{}, false
+}
+
+// writeRound writes the round the run's review completes on pull request
+// p, the issue's current one, to its slice's rounds/<r>.md (section 7.8,
+// A round's file), r counting the slice's completed rounds, over the
+// life of its pull requests, in the order they completed; nothing when
+// the review is in no completed round. Each review is in one round, so
+// no other run's collection writes the file. reviews, comments and
+// answers are p's.
+func (c *collection) writeRound(p forge.Pull, pulls []forge.Pull, reviews []forge.Review, comments []forge.Comment, answers []time.Time) error {
+	s, sl := c.s, sliceOf(p, c.r.N)
+	type done struct {
+		round
+		pull int
+		at   time.Time
+	}
+	var all []done
+	for _, q := range pulls {
+		if q.Repo != p.Repo || sliceOf(q, c.r.N) != sl {
+			continue
+		}
+		rs, as := reviews, answers
+		if q.Number != p.Number {
+			ref := forge.Ref{Repo: q.Repo, N: q.Number}
+			var err error
+			if rs, err = s.Forge.Reviews(ref); err != nil {
+				return err
+			}
+			cs, err := s.Forge.PullComments(ref)
+			if err != nil {
+				return err
+			}
+			as = Reopenings(pullComments(cs), s.SwarmLogin, s.Cfg.Trusted)
+		}
+		for _, rd := range roundsOf(rs, as, s.SwarmLogin) {
+			if at, ok := rd.completed(s.SwarmLogin); ok {
+				all = append(all, done{rd, q.Number, at})
+			}
+		}
+	}
+	slices.SortStableFunc(all, func(a, b done) int { return a.at.Compare(b.at) })
+	r := slices.IndexFunc(all, func(d done) bool {
+		return d.pull == p.Number && slices.ContainsFunc(d.reviews, func(rv forge.Review) bool {
+			m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
+			return m.Role == c.r.Role && m.Run == c.r.K
+		})
+	}) + 1
+	if r == 0 {
+		return nil
+	}
+	cur := all[r-1]
+	var b strings.Builder
+	fmt.Fprintf(&b, "# Round %d on %s\n\nSlice %d, pull request %s#%d. The round before: ", r, cur.commit, sl, p.Repo, p.Number)
+	if r == 1 {
+		b.WriteString("none.\n")
+	} else {
+		fmt.Fprintf(&b, "%d on %s.\n", r-1, all[r-2].commit)
+	}
+	reviewsOf := slices.Clone(cur.reviews)
+	adversary := func(rv forge.Review) bool {
+		m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
+		return m.Role == "adversary"
+	}
+	slices.SortStableFunc(reviewsOf, func(x, y forge.Review) int { // the adversary's first
+		switch {
+		case adversary(x) && !adversary(y):
+			return -1
+		case adversary(y) && !adversary(x):
+			return 1
+		}
+		return 0
+	})
+	for _, rv := range reviewsOf {
+		m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
+		run := outputRun(c.r.N, m)
+		text, ok, err := s.outputs().Text(run)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			text = swarmText(rv.Body)
+		}
+		fmt.Fprintf(&b, "\n## %s, run %d: %s\n\nWhole: /job/memory/texts/%s.md\n", m.Role, m.Run, verdictOf(text), run)
+		if f := linesBeginning(text, "[blocking]", "[non-blocking]"); len(f) > 0 {
+			b.WriteString("\n" + strings.Join(f, "\n") + "\n")
+		}
+	}
+	if r > 1 {
+		prev := all[r-2]
+		fmt.Fprintf(&b, "\n## Changes since round %d\n\n", r-1)
+		if prev.commit == cur.commit {
+			b.WriteString(c.noCommitSince(r-1, prev.at, cur.reviews[0].Submitted, comments))
+		} else {
+			diff, err := s.git().RoundDiff(p.Repo, s.Cfg.Base, prev.commit, cur.commit)
+			if err != nil {
+				return err
+			}
+			if diff == "" {
+				fmt.Fprintf(&b, "No change since round %d in the files the pull request changes.\n", r-1)
+			} else {
+				f := fenceFor(diff)
+				fmt.Fprintf(&b, "%sdiff\n%s%s\n", f, diff, f)
+			}
+		}
+	}
+	return s.writeWorkspace(c.r.N, filepath.Join("slices", strconv.Itoa(sl), "rounds", strconv.Itoa(r)+".md"), []byte(b.String()))
+}
+
+// noCommitSince is the last section of a round's file on the same head as
+// round prev, which completed at from, the round's first review submitted
+// at to: the newest answer of the worker's without a commit between them
+// on the pull request's thread, comments; else the maintainer's comment,
+// the other reopening without a commit (section 6).
+func (c *collection) noCommitSince(prev int, from, to time.Time, comments []forge.Comment) string {
+	run, at := "", from
+	for _, e := range pullComments(comments) {
+		if m, ok := Swarms(e, c.s.SwarmLogin); ok && m.Role == "worker" && strings.HasPrefix(swarmText(e.Body), noChange) && e.Created.After(at) && e.Created.Before(to) {
+			run, at = outputRun(c.r.N, m), e.Created
+		}
+	}
+	if run == "" {
+		return fmt.Sprintf("No commit since round %d: the maintainer commented in the thread.\n", prev)
+	}
+	return fmt.Sprintf("No commit since round %d: the worker answered without a commit, /job/memory/texts/%s.md.\n", prev, run)
+}
+
+// fenceFor is a run of backticks that opens and closes a fenced block
+// around text: one longer than any run in it, and at least three.
+func fenceFor(text string) string {
+	n, run := 3, 0
+	for _, ch := range text {
+		if ch != '`' {
+			run = 0
+			continue
+		}
+		run++
+		n = max(n, run+1)
+	}
+	return strings.Repeat("`", n)
 }

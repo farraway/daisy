@@ -204,7 +204,7 @@ func (s *Swarm) collect(r Run) error {
 	case "worker":
 		return c.worker(text, pull)
 	default:
-		return c.review(text, *pull)
+		return c.review(text, *pull, pulls)
 	}
 	return c.end("posted")
 }
@@ -435,10 +435,7 @@ func (c *collection) abandoned() error {
 func (c *collection) abandonedFetch() error {
 	err := c.fetchRef()
 	if _, fetched := Has(c.lines, "fetched"); fetched {
-		if kerr := c.keep(); kerr != nil {
-			return kerr
-		}
-		return err
+		return errors.Join(err, c.keep())
 	}
 	if !errors.Is(err, ErrForeignClone) && !errors.Is(err, ErrNoBranch) {
 		if err := c.step("fetch failed: " + c.fetchReason(err)); err != nil {
