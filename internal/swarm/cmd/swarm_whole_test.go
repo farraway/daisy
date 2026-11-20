@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
@@ -355,5 +358,106 @@ func TestSwarmShortTextIsPostedAsBefore(t *testing.T) {
 	}
 	if _, err := os.Stat(a.state(filepath.Join("runs", "1-worker-1", "io", "outputs"))); !os.IsNotExist(err) {
 		t.Errorf("outputs: %v", err)
+	}
+}
+
+// The claim of Step R1-14b (the merge step's notes): T26's note naming
+// more failed checks than one comment holds is posted cut on the pull
+// request, its last sentence kept after the note, its whole text
+// attached to the issue as 1-merge-<time>.md or, the file refused, its
+// rest continued on the pull request; a merge step interrupted after the
+// note (its relabel refused) posts neither again at the next pass
+// (sections 7.5 and 12).
+func TestLongMergeNoteAttached(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		t.Run(map[bool]string{false: "attached", true: "refused"}[refused], func(t *testing.T) {
+			a := newApplyWS(t)
+			head := a.approvedGateOff()
+			if refused {
+				a.forge.RefuseAttachments()
+			}
+			var named []string
+			for i := range 1500 {
+				ctx := fmt.Sprintf("ci / test %04d of the long matrix", i)
+				a.forge.SetStatus("app", head, ctx, "failure")
+				named = append(named, "`"+ctx+"` (failure)")
+			}
+			tail := " Fix what they report on swarm/1-1 and commit; the reviewers then review the new head."
+			text := strings.TrimSuffix(checksFailed(head, strings.Join(named, ", ")), tail)
+			a.tick()
+			if err := a.apply(&failing{Fake: a.forge, relabels: 1}, "--once"); err == nil || !strings.Contains(err.Error(), "502 Bad Gateway") {
+				t.Fatalf("pass 1: %v", err)
+			}
+			a.pass()
+			pr := forge.Ref{Repo: "app", N: 1}
+			comments, _ := a.forge.PullComments(pr)
+			var notes []string
+			for _, c := range comments {
+				if after, ok := strings.CutPrefix(c.Body, mark("reconciler", 1)); ok && c.Author == "swarm-bot" {
+					notes = append(notes, after)
+				}
+			}
+			if len(notes) != 1 || !strings.HasSuffix(notes[0], "]"+tail) || len(notes[0]) > 60000 {
+				t.Fatalf("%d notes; the first ends:\n%s", len(notes), notes[0][max(0, len(notes[0])-300):])
+			}
+			post := strings.TrimSuffix(notes[0], tail)
+			cut := strings.LastIndex(post, "\n[truncated by Daisy; ") // within the one line: the note on its own
+			files, conts := a.forge.Attachments(issue1), a.continuations(pr)
+			if refused {
+				got := post[:cut]
+				for k, c := range conts {
+					head := continuedMark + fmt.Sprintf("Continued from the merge step's note (part %d of %d):\n\n", k+1, len(conts))
+					got += strings.TrimPrefix(c, head)
+				}
+				if len(files) != 0 || len(conts) != 1 || post[cut:] != "\n[truncated by Daisy; the rest follows in 1 comment]" || got != text {
+					t.Errorf("%d files, %d continuations; the note's end %q; rejoined %d bytes of %d", len(files), len(conts), post[cut:], len(got), len(text))
+				}
+			} else if len(files) != 1 || !regexp.MustCompile(`^1-merge-20261106T\d{6}Z\.md$`).MatchString(files[0].Name) || string(files[0].Data) != text ||
+				post[cut:] != "\n[truncated by Daisy; the whole note is attached as ["+files[0].Name+"]("+files[0].URL+")]" || len(conts) != 0 || !strings.HasPrefix(text, post[:cut]) {
+				t.Errorf("attached %v, %d continuations; the note's end %q", names(files), len(conts), post[cut:])
+			}
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ChangesRequested}) {
+				t.Errorf("labels: %v\n%s", got, a.stderr.String())
+			}
+		})
+	}
+}
+
+// created: issue n exists on the forge.
+func (a *applyWS) created(n int) bool { _, err := a.forge.Issue(n); return err == nil }
+
+// The claim of Step R1-14b (a proposal's body): the owner's proposal
+// longer than one comment opens its issue cut, its note naming the batch
+// run, its rest in a continuation on the new issue, posted once across a
+// collection retried after it failed; the body and the continuation hold
+// the proposal whole, and the architect's prompt shows it whole, with no
+// note and no continuation (sections 6, 7.3 and 7.5).
+func TestLongProposalBodyContinued(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.Gates.Triage = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	a.release()
+	body := "Brief: docs/briefs/a.md — M1 The drift\nClass: architecture\n" + strings.Repeat("Check the drift in each module, then report it.\n", 1500) + "The last line."
+	a.runner.Script(0, "owner", runner.Canned{Out: "## Drift\n" + body + "\n"})
+	a.tick()
+	if err := a.apply(&failing{Fake: a.forge, comments: 1}, "--once"); err == nil || !strings.Contains(err.Error(), "502 Bad Gateway") {
+		t.Fatalf("pass 1: %v\n%s", err, a.stderr.String())
+	}
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	a.pass()
+	is := a.issue(1)
+	post, ok := strings.CutPrefix(is.Body, mark("owner", 1))
+	conts := a.continuations(issue1)
+	if !ok || len(post) > 60000 || !strings.HasSuffix(post, "\n[truncated by Daisy; the whole output is in runs/0-owner-1; the rest follows in 1 comment]") || len(conts) != 1 {
+		t.Fatalf("%d continuations; the body ends:\n%s", len(conts), post[max(0, len(post)-300):])
+	}
+	if got := rejoin(t, post, "proposal 1 of owner run 1", conts); got != body {
+		t.Errorf("the issue holds %d bytes of the proposal's %d", len(got), len(body))
+	}
+	if r := a.result("0-owner-1"); strings.Count(r, "\ncreated 1 #1\n") != 1 || strings.Count(r, "\ncontinued 0-owner-1-1.md 1 of 1\n") != 1 || a.created(2) {
+		t.Errorf("result:\n%s", r)
+	}
+	p := a.file("1-architect-1", "io/prompt.md")
+	if !strings.Contains(p, "\nThe last line.\n") || strings.Contains(p, "truncated by Daisy") || strings.Contains(p, "Continued from") {
+		t.Errorf("the architect's prompt:\n%s", p[:min(len(p), 2000)])
 	}
 }

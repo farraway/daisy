@@ -132,8 +132,90 @@ func (s *Swarm) attachWhole(at forge.Ref, l long) (url string, refused error) {
 	return url, nil
 }
 
-// noteFile is the file a note of the pass's own on issue n, of kind (a
-// gate note's `gate`), is attached as: `<n>-<kind>-<time>.md`, its time
+// postedAs: body is l as posted marked mark (posted), with whichever
+// file its note links: a retry's note is named for its own pass.
+func (l long) postedAs(mark, body string) bool {
+	rest, ok := strings.CutPrefix(body, mark)
+	if !ok {
+		return false
+	}
+	if b, _ := l.posted(""); rest == b {
+		return true // whole, or continued
+	}
+	rest, ok = strings.CutSuffix(rest, l.tail)
+	i := strings.LastIndex(rest, "\n"+truncated+"the whole note is attached as [")
+	return ok && i >= 0 && !strings.Contains(rest[i+1:], "\n") && strings.HasPrefix(l.text, rest[:i])
+}
+
+// lastWord is the index of the thread's last word, its newest comment
+// that is no continuation of the swarm's (section 7.5): a cut note's
+// continuations passed by; -1 when it has none.
+func lastWord(comments []forge.Comment, swarmLogin string) int {
+	for i := len(comments) - 1; i >= 0; i-- {
+		if m, ok := Swarms(Entry{comments[i].Author, comments[i].Body, comments[i].Created}, swarmLogin); !ok || m.Kind != "continued" {
+			return i
+		}
+	}
+	return -1
+}
+
+// lastNote is the thread's last word when it is the swarm's and l
+// posted marked mark (postedAs): a retry finds its note posted; nil
+// otherwise.
+func (s *Swarm) lastNote(comments []forge.Comment, mark string, l long) *forge.Comment {
+	if i := lastWord(comments, s.SwarmLogin); i >= 0 && strings.EqualFold(comments[i].Author, s.SwarmLogin) && l.postedAs(mark, comments[i].Body) {
+		return &comments[i]
+	}
+	return nil
+}
+
+// postNote posts l, marked mark, on the thread at of issue n by section
+// 7.5's rule, for a note of the pass's own, which no run's result
+// records (the gate note, the merge step's notes, the rulings note): a
+// note that does not fit has its text whole attached to the issue first
+// (noteFile), or, the forge refusing the file or the upload failing, the
+// failure warned of and its rest in continuations after it. posted is
+// the note as its caller found it on the thread, whose comments are
+// comments, nil when it is not there: then the note is neither posted nor
+// attached again, and, when it was posted with l's continuations, each
+// the thread does not hold is posted. said, when not "", is the line
+// stdout gets once the note is posted.
+func (s *Swarm) postNote(n int, at forge.Ref, comments []forge.Comment, mark string, l long, posted *forge.Comment, said string) error {
+	var more []string
+	if posted == nil {
+		url := ""
+		if !l.fits() {
+			u, refused := s.attachWhole(forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}, l)
+			if refused != nil {
+				fmt.Fprintf(s.Err, "⚠ #%d: %s not attached: %s; the rest follows in comments\n", n, l.file, oneLine.Replace(refused.Error()))
+			}
+			url = u
+		}
+		var body string
+		body, more = l.posted(url)
+		if err := s.Forge.Comment(at, mark+body); err != nil {
+			return err
+		}
+		if said != "" {
+			fmt.Fprintln(s.Out, said)
+		}
+		comments = nil
+	} else if body, m := l.posted(""); posted.Body == mark+body {
+		more = m
+	}
+	for _, c := range more {
+		if slices.ContainsFunc(comments, func(e forge.Comment) bool { return e.Body == c && strings.EqualFold(e.Author, s.SwarmLogin) }) {
+			continue
+		}
+		if err := s.Forge.Comment(at, c); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// noteFile is the file a note of the pass's own on issue n, of kind
+// (`gate`, `merge` or `rulings`), is attached as: `<n>-<kind>-<time>.md`, its time
 // the pass's in UTC to the second, so that each note, each gating's among
 // them, has its own (section 7.5).
 func (s *Swarm) noteFile(n int, kind string) string {

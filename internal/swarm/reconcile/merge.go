@@ -156,15 +156,14 @@ func (s *Swarm) mergeStep() error {
 				if head != "" {
 					onHead = " at " + short(head)
 				}
-				note := marker("reconciler", max(k, 1)) + fmt.Sprintf("merge of pull request %s%s refused: %s (at %s). Resolve it, then remove %s.", pullLink(s.owner(), cur), onHead, msg, forge.ReviewApproved, forge.Blocked) + s.mention()
+				mk := marker("reconciler", max(k, 1))
+				l := s.mergeNote(n, fmt.Sprintf("merge of pull request %s%s refused: %s (at %s).", pullLink(s.owner(), cur), onHead, msg, forge.ReviewApproved),
+					fmt.Sprintf(" Resolve it, then remove %s.", forge.Blocked)+s.mention())
 				// Posted already only when it is the issue's last word and
 				// the swarm's: a retry after a failed relabel, not another
 				// login's copy or an earlier block's same note.
-				last := len(is.Comments) - 1
-				if last < 0 || is.Comments[last].Body != note || !strings.EqualFold(is.Comments[last].Author, s.SwarmLogin) {
-					if err := s.Forge.Comment(at, note); err != nil {
-						return err
-					}
+				if err := s.postNote(n, at, is.Comments, mk, l, s.lastNote(is.Comments, mk, l), ""); err != nil {
+					return err
 				}
 				if err := s.mergeBlock(n, at); err != nil {
 					return err
@@ -209,22 +208,22 @@ func (s *Swarm) backToWorker(is forge.Issue, p forge.Pull, head string, k int, f
 	at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: is.Number}
 	if SentBack(comments, s.owner(), p, head, s.SwarmLogin, s.Cfg.Trusted) {
 		fmt.Fprintf(s.Out, "#%d not mergeable a second time at %s: blocked\n", is.Number, short(head))
-		note := marker("reconciler", max(k, 1)) + SentBackAgain(s.owner(), s.Cfg.Base, is.Number, p, head, files) + s.mention()
-		last := len(is.Comments) - 1
-		if last < 0 || is.Comments[last].Body != note || !strings.EqualFold(is.Comments[last].Author, s.SwarmLogin) {
-			if err := s.Forge.Comment(at, note); err != nil {
-				return err
-			}
+		mk := marker("reconciler", max(k, 1))
+		text, tail := sentBackAgainNote(s.owner(), s.Cfg.Base, is.Number, p, head, files)
+		l := s.mergeNote(is.Number, text, tail+s.mention())
+		if err := s.postNote(is.Number, at, is.Comments, mk, l, s.lastNote(is.Comments, mk, l), ""); err != nil {
+			return err
 		}
 		return s.mergeBlock(is.Number, at)
 	}
 	fmt.Fprintf(s.Out, "#%d not mergeable: back to the worker\n", is.Number)
-	last := len(comments) - 1
-	if last < 0 || !strings.EqualFold(comments[last].Author, s.SwarmLogin) || !isDirection(swarmText(comments[last].Body), s.owner(), p, head) {
-		note := marker("reconciler", max(k, 1)) + Direction(s.owner(), s.Cfg.Base, is.Number, p, head, files)
-		if err := s.Forge.Comment(ref, note); err != nil {
-			return err
-		}
+	var posted *forge.Comment // a direction on this head, whatever files it named
+	if last := lastWord(comments, s.SwarmLogin); last >= 0 && strings.EqualFold(comments[last].Author, s.SwarmLogin) && isDirection(swarmText(comments[last].Body), s.owner(), p, head) {
+		posted = &comments[last]
+	}
+	text, tail := directionNote(s.owner(), s.Cfg.Base, is.Number, p, head, files)
+	if err := s.postNote(is.Number, ref, comments, marker("reconciler", max(k, 1)), s.mergeNote(is.Number, text, tail), posted, ""); err != nil {
+		return err
 	}
 	return s.mergeRelabel(is.Number, at, forge.ChangesRequested)
 }
@@ -282,12 +281,26 @@ func HeadChecks(f forge.Adapter, repo, base, head string) (Checks, error) {
 // (T26), naming each: the merge step posts it as the reconciler's note,
 // `swarm merge` as the maintainer.
 func ChecksFailed(owner string, n int, p forge.Pull, head string, failed []forge.Check) string {
+	text, tail := checksFailedNote(owner, n, p, head, failed)
+	return text + tail
+}
+
+// checksFailedNote is ChecksFailed's text and its last sentence, which says
+// what to do and is never cut (section 7.5).
+func checksFailedNote(owner string, n int, p forge.Pull, head string, failed []forge.Check) (text, tail string) {
 	named := make([]string, len(failed))
 	for i, k := range failed {
 		named[i] = fmt.Sprintf("`%s` (%s)", k.Context, k.State)
 	}
-	return fmt.Sprintf("The checks on pull request %s failed at its approved head %s: %s. Fix what they report on swarm/%d-%d and commit; the reviewers then review the new head.",
-		pullLink(owner, p), short(head), strings.Join(named, ", "), n, sliceOf(p, n))
+	return fmt.Sprintf("The checks on pull request %s failed at its approved head %s: %s.", pullLink(owner, p), short(head), strings.Join(named, ", ")),
+		fmt.Sprintf(" Fix what they report on swarm/%d-%d and commit; the reviewers then review the new head.", n, sliceOf(p, n))
+}
+
+// mergeNote is a merge step's note on issue n (section 12), text then
+// tail, by section 7.5's rule: attached, when it does not fit, as
+// <n>-merge-<time>.md.
+func (s *Swarm) mergeNote(n int, text, tail string) long {
+	return long{text: text, tail: tail, file: s.noteFile(n, "merge"), what: "the merge step's note"}
 }
 
 // checksFailed is T26 by the merge step: ChecksFailed posted on the pull
@@ -304,12 +317,11 @@ func (s *Swarm) checksFailed(is forge.Issue, p forge.Pull, head string, k int, f
 		return err
 	}
 	fmt.Fprintf(s.Out, "#%d checks failed at %s: back to the worker\n", is.Number, short(head))
-	note := marker("reconciler", max(k, 1)) + ChecksFailed(s.owner(), is.Number, p, head, failed)
-	last := len(comments) - 1
-	if last < 0 || comments[last].Body != note || !strings.EqualFold(comments[last].Author, s.SwarmLogin) {
-		if err := s.Forge.Comment(ref, note); err != nil {
-			return err
-		}
+	mk := marker("reconciler", max(k, 1))
+	text, tail := checksFailedNote(s.owner(), is.Number, p, head, failed)
+	l := s.mergeNote(is.Number, text, tail)
+	if err := s.postNote(is.Number, ref, comments, mk, l, s.lastNote(comments, mk, l), ""); err != nil {
+		return err
 	}
 	return s.mergeRelabel(is.Number, forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: is.Number}, forge.ChangesRequested)
 }
@@ -322,13 +334,20 @@ func (s *Swarm) checksFailed(is forge.Issue, p forge.Pull, head string, k int, f
 // The merge step posts it as the reconciler's note, `swarm merge` as the
 // maintainer.
 func Direction(owner, base string, n int, p forge.Pull, head string, files []string) string {
+	text, tail := directionNote(owner, base, n, p, head, files)
+	return text + tail
+}
+
+// directionNote is Direction's text and its last sentence, which says what
+// to do and is never cut (section 7.5).
+func directionNote(owner, base string, n int, p forge.Pull, head string, files []string) (text, tail string) {
 	branch := fmt.Sprintf("swarm/%d-%d", n, sliceOf(p, n))
 	why := fmt.Sprintf("the forge reports it not mergeable into %s, which has moved since %s last took it in.", base, branch)
 	if len(files) > 0 {
 		why = fmt.Sprintf("it does not merge into %s, which has moved since %s last took it in: they conflict in %s.", base, branch, quoted(files))
 	}
-	return fmt.Sprintf("%s%s Merge %s into %s with a merge commit (\"git merge --no-edit %s\"), resolve each conflict, keeping what both sides meant, and commit; the reviewers then review the new head.",
-		directionHead(owner, p, head), why, base, branch, base)
+	return directionHead(owner, p, head) + why,
+		fmt.Sprintf(" Merge %s into %s with a merge commit (\"git merge --no-edit %s\"), resolve each conflict, keeping what both sides meant, and commit; the reviewers then review the new head.", base, branch, base)
 }
 
 // directionHead is how every direction on p at head begins, which tells
@@ -358,10 +377,11 @@ func quoted(paths []string) string {
 // SentBack: pull request p's thread holds a direction on head (T25), the
 // swarm's or a trusted login's, before its last comment: the head was
 // sent back to the worker once already, and approved again without a
-// commit. The thread's last comment is not counted, a direction there
-// being the one a retry after a refused relabel finds.
+// commit. The thread's last word (lastWord, a cut direction's
+// continuations passed by) is not counted, a direction there being the
+// one a retry after a refused relabel finds.
 func SentBack(comments []forge.Comment, owner string, p forge.Pull, head, swarmLogin string, trusted []string) bool {
-	for _, c := range comments[:max(len(comments)-1, 0)] {
+	for _, c := range comments[:max(lastWord(comments, swarmLogin), 0)] {
 		text, ok := c.Body, false
 		if _, swarm := Swarms(Entry{c.Author, c.Body, c.Created}, swarmLogin); swarm {
 			text, ok = swarmText(c.Body), true
@@ -379,13 +399,21 @@ func SentBack(comments []forge.Comment, owner string, p forge.Pull, head, swarmL
 // back once already (SentBack) does not merge a second time, which blocks
 // it at review-2-approved.
 func SentBackAgain(owner, base string, n int, p forge.Pull, head string, files []string) string {
+	text, tail := sentBackAgainNote(owner, base, n, p, head, files)
+	return text + tail
+}
+
+// sentBackAgainNote is SentBackAgain's text and its last sentence, which says
+// what to do and is never cut (section 7.5).
+func sentBackAgainNote(owner, base string, n int, p forge.Pull, head string, files []string) (text, tail string) {
 	branch := fmt.Sprintf("swarm/%d-%d", n, sliceOf(p, n))
 	conflict := ""
 	if len(files) > 0 {
 		conflict = " (they conflict in " + quoted(files) + ")"
 	}
-	return fmt.Sprintf("Pull request %s was sent back to merge %s at %s once already, was approved again at that head, and still does not merge into %s%s (at %s). Merge %s into %s, or relabel the issue, then remove %s.",
-		pullLink(owner, p), base, short(head), base, conflict, forge.ReviewApproved, base, branch, forge.Blocked)
+	return fmt.Sprintf("Pull request %s was sent back to merge %s at %s once already, was approved again at that head, and still does not merge into %s%s (at %s).",
+			pullLink(owner, p), base, short(head), base, conflict, forge.ReviewApproved),
+		fmt.Sprintf(" Merge %s into %s, or relabel the issue, then remove %s.", base, branch, forge.Blocked)
 }
 
 // mergeRelabel is T14: approved to `to`, the labels read again right

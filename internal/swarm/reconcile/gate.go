@@ -33,25 +33,7 @@ func (s *Swarm) gateNote(n int, open []forge.Issue) error {
 	}
 	at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}
 	l := long{text: text, tail: decision, file: s.noteFile(n, "gate"), what: "the gate note"}
-	url := ""
-	if !l.fits() {
-		u, refused := s.attachWhole(at, l)
-		if refused != nil {
-			fmt.Fprintf(s.Err, "⚠ #%d: %s not attached: %s; the rest follows in comments\n", n, l.file, oneLine.Replace(refused.Error()))
-		}
-		url = u
-	}
-	body, more := l.posted(url)
-	if err := s.Forge.Comment(at, gateMarker+"\n"+body); err != nil {
-		return err
-	}
-	fmt.Fprintf(s.Out, "#%d gate note posted\n", n)
-	for _, c := range more {
-		if err := s.Forge.Comment(at, c); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.postNote(n, at, nil, gateMarker+"\n", l, nil, fmt.Sprintf("#%d gate note posted", n))
 }
 
 // gateText is the gate note after its marker line: `**reconciler:** gated
@@ -135,8 +117,8 @@ func (s *Swarm) triageItems(is forge.Issue, open []forge.Issue) []string {
 	}
 	e := bodyEntry(is)
 	body := e.Body
-	if _, ok := Swarms(e, s.SwarmLogin); ok {
-		body = swarmText(body)
+	if m, ok := Swarms(e, s.SwarmLogin); ok {
+		body = (&Job{Outputs: s.outputs()}).proposal(m, swarmText(body))
 	}
 	var named []string
 	seen := map[int]bool{is.Number: true}

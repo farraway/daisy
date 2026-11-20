@@ -2,7 +2,10 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -235,5 +238,40 @@ func TestSwarmApplyRulingNotedOnce(t *testing.T) {
 	}
 	if is := a.issue(1); is.Comments[len(is.Comments)-1].Body != mark("architect", 3)+"STANDS: no slice names a role.\n" {
 		t.Errorf("last comment %q", is.Comments[len(is.Comments)-1].Body)
+	}
+}
+
+// The claim of Step R1-14b (the rulings note): rulings changed in more
+// files than one comment names post the reconciler's note cut, its last
+// sentence kept after the note, its whole text attached to the issue as
+// 1-rulings-<time>.md, once, and the architect runs (sections 6 and 7.5).
+func TestLongRulingsNote(t *testing.T) {
+	a := newApplyWS(t)
+	a.betweenSlices(nil)
+	adrs := map[string]string{}
+	var named []string
+	for i := range 1100 {
+		p := fmt.Sprintf("docs/adr/%04d-a-ruling-on-the-roles-of-the-swarm.md", i)
+		adrs[p] = "# A ruling\n"
+		named = append(named, "app:"+p)
+	}
+	slices.Sort(named)
+	a.land("app", adrs, "ADRs")
+	a.runner.Script(1, "architect", runner.Canned{Out: "STANDS: no slice names a role.\n", Stdout: claudeResult})
+	a.pass()
+	notes := a.rulingsNotes()
+	text := "Rulings changed since the plan (architect run 1): `" + strings.Join(named, "`, `") + "`."
+	tail := " The architect revises the remaining slices or confirms they stand."
+	files := a.forge.Attachments(issue1)
+	if len(notes) != 1 || len(files) != 1 || !regexp.MustCompile(`^1-rulings-20261106T\d{6}Z\.md$`).MatchString(files[0].Name) || string(files[0].Data) != text ||
+		!strings.HasSuffix(notes[0], "\n[truncated by Daisy; the whole note is attached as ["+files[0].Name+"]("+files[0].URL+")]"+tail) || len(strings.TrimPrefix(notes[0], mark("reconciler", 1))) > 60000 {
+		t.Fatalf("%d notes, attached %v; the note ends:\n%s", len(notes), names(files), notes[0][max(0, len(notes[0])-300):])
+	}
+	if got := a.launchedRoles(); !slices.Contains(got, "architect") {
+		t.Errorf("launched %q", got)
+	}
+	a.pass()
+	if len(a.rulingsNotes()) != 1 || len(a.forge.Attachments(issue1)) != 1 {
+		t.Errorf("noted again")
 	}
 }

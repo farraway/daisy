@@ -846,3 +846,15 @@ they write.
   each gating's its own. Sections 5 and 7.5, 7.6's retry, and the tests
   row. Decision
   [150](swarm/decisions/0150-a-long-text-is-posted-whole.md) amended.
+- 2026-11-20, Step R1-14b of the plan implementing the 2026-11-19 swarm
+  roadmap (attach-or-split's reach, scheduled by the maintainer's answer
+  of 2026-11-18): the merge step's notes and the rulings note are posted
+  by 7.5's rule, their last sentence never cut, attached as
+  `<n>-merge-<time>.md` and `<n>-rulings-<time>.md` or continued, their
+  retries reading the thread's last word past the swarm's
+  continuations; a proposal's body longer than the limit opens its issue
+  cut and continues on it (`created <i> #<m>` recorded), and a member
+  and the triage gate note read it whole from the batch run's
+  `out.md`. Sections 6 (the rulings), 7.5, 7.6 (the result's lines) and
+  12, and the tests row. Decision
+  [150](swarm/decisions/0150-a-long-text-is-posted-whole.md) amended.

@@ -551,10 +551,31 @@ func (c *collection) batch() error {
 		label = forge.ProposalAccepted
 	}
 	for i, pr := range ps {
-		creating := fmt.Sprintf("creating %d", i+1)
-		if slices.Contains(c.lines, creating) {
-			continue
+		if err := c.propose(i+1, pr, label); err != nil {
+			return err
 		}
+	}
+	return c.end("posted")
+}
+
+// propose creates the batch run's proposal i, pr, as an issue labelled
+// label, marked as its role's, with swarm:class-architecture unless its
+// Class: line says routine; `creating <i>` recorded before its
+// CreateIssue so none is created twice. A body longer than the limit
+// opens its issue cut (section 7.5), its note naming the batch run, whose
+// out.md holds it whole, and its rest follows in continuations on the
+// new issue, recorded as a run's are under the name `<run>-<i>.md`, its
+// number recorded `created <i> #<m>` so that a retried collection posts
+// those not yet posted; no file is attached, the issue not existing
+// before its body.
+func (c *collection) propose(i int, pr Proposal, label string) error {
+	s := c.s
+	run := filepath.Base(c.r.Dir)
+	l := long{text: pr.Body, run: run, file: fmt.Sprintf("%s-%d.md", run, i), what: fmt.Sprintf("proposal %d of %s run %d", i, c.r.Role, c.r.K)}
+	body, more := l.posted("")
+	creating, created := fmt.Sprintf("creating %d", i), fmt.Sprintf("created %d", i)
+	retried := slices.Contains(c.lines, creating)
+	if !retried {
 		if err := c.step(creating); err != nil {
 			return err
 		}
@@ -562,11 +583,33 @@ func (c *collection) batch() error {
 		if ProposalClass(c.r.Role, pr.Body) != Routine {
 			labels = append(labels, forge.ClassArchitecture) // unclassed is architecture
 		}
-		n, err := s.Forge.CreateIssue(pr.Title, marker(c.r.Role, c.r.K)+pr.Body, labels)
+		n, err := s.Forge.CreateIssue(pr.Title, marker(c.r.Role, c.r.K)+body, labels)
 		if err != nil {
 			return err
 		}
 		fmt.Fprintf(s.Out, "%sproposed #%d %s\n", c.head, n, pr.Title)
+		if len(more) > 0 {
+			if err := c.step(fmt.Sprintf("%s #%d", created, n)); err != nil {
+				return err
+			}
+		}
 	}
-	return c.end("posted")
+	if len(more) == 0 {
+		return nil
+	}
+	line, ok := Has(c.lines, created)
+	n, err := strconv.Atoi(strings.TrimPrefix(line, created+" #"))
+	if !ok || err != nil {
+		fmt.Fprintf(s.Err, "⚠ %sproposal %d's continuations not posted: its issue's number was not recorded (its creation's reply lost)\n", c.head, i)
+		return nil
+	}
+	var existing []forge.Comment // a retry's: a continuation posted whose line was not recorded
+	if retried {
+		is, err := s.Forge.Issue(n)
+		if err != nil {
+			return err
+		}
+		existing = is.Comments
+	}
+	return c.continued(forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}, existing, l, more)
 }

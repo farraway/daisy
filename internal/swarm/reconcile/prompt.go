@@ -461,7 +461,7 @@ func (j *Job) issue() string {
 	body := e.Body
 	if m, ok := Swarms(e, j.SwarmLogin); ok {
 		opened = fmt.Sprintf("Opened by %s, run %d, at %s.", m.Role, m.Run, stamp(is.Created))
-		body = swarmText(body)
+		body = j.proposal(m, swarmText(body))
 	} else if !j.trusted(is.Author) {
 		// The body is its opener's entry (section 6), and it can be edited
 		// after the maintainer labelled the issue.
@@ -540,17 +540,58 @@ func outputRun(n int, m Mark) string { return fmt.Sprintf("%d-%s-%d", n, m.Role,
 // whole (cutTail); "" and -1 for any other text, so that a note a text
 // quotes, or one naming another run, is never read as the cut.
 func cutRun(n int, m Mark, text string) (run string, at, end int) {
+	if m.Kind != "" || n == 0 {
+		return "", -1, -1
+	}
 	run = outputRun(n, m)
+	if at, end = cutOf(run, text); at < 0 {
+		return "", -1, -1
+	}
+	return run, at, end
+}
+
+// cutOf is where the note that ends text, cut by Daisy as run's output
+// (section 7.5), begins and ends: its last line, that note whole; -1
+// when text ends in no such note.
+func cutOf(run, text string) (at, end int) {
 	begin := "\n" + truncated + "the whole output is in runs/" + run
 	at = strings.LastIndex(text, begin)
-	if m.Kind != "" || n == 0 || at < 0 {
-		return "", -1, -1
+	if at < 0 {
+		return -1, -1
 	}
 	line, _, _ := strings.Cut(text[at+1:], "\n")
 	if !cutTail.MatchString(line[len(begin)-1:]) {
-		return "", -1, -1
+		return -1, -1
 	}
-	return run, at + 1, at + 1 + len(line)
+	return at + 1, at + 1 + len(line)
+}
+
+// proposal is the issue body of the swarm's marked m, posted its text as
+// posted: when Daisy cut it on the forge (section 7.5), the proposal
+// whole, read from its batch run's out.md (Outputs.Text), the proposal
+// there whose body begins as the post's text before the note does; else
+// as posted. A read that fails is kept for the launch (TextErr), the
+// body shown as posted.
+func (j *Job) proposal(m Mark, posted string) string {
+	run := outputRun(0, m)
+	at, _ := cutOf(run, posted)
+	if at < 0 || m.Kind != "" || j.Outputs.FS == nil {
+		return posted
+	}
+	out, ok, err := j.Outputs.Text(run)
+	if err != nil && j.textErr == nil {
+		j.textErr = fmt.Errorf("output %s: %w", run, err)
+	}
+	if !ok {
+		return posted
+	}
+	_, _, _, ps := Proposals(out)
+	for _, p := range ps {
+		if strings.HasPrefix(p.Body, posted[:at-1]) {
+			return p.Body
+		}
+	}
+	return posted
 }
 
 // cutTail is what follows the run in a cut's note to the end of its line

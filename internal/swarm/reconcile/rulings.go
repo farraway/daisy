@@ -77,28 +77,31 @@ func (s *Swarm) replan(j *Job) ([]string, error) {
 			files = append(files, r.Name+":"+p)
 		}
 	}
-	if len(files) == 0 || s.rulingsNoted(j.Issue, basis) {
+	if len(files) == 0 {
 		return files, nil
 	}
-	note := fmt.Sprintf("%s (architect run %d): `%s`. %s", rulingsHead, m.Run, strings.Join(files, "`, `"), rulingsTail)
-	if err := s.Forge.Comment(forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: j.N}, marker("reconciler", m.Run)+note); err != nil {
-		return nil, err
+	noted := s.rulingsNoted(j.Issue, basis)
+	l := long{text: fmt.Sprintf("%s (architect run %d): `%s`.", rulingsHead, m.Run, strings.Join(files, "`, `")), tail: " " + rulingsTail,
+		file: s.noteFile(j.N, "rulings"), what: "the rulings note"}
+	at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: j.N}
+	if err := s.postNote(j.N, at, j.Issue.Comments, marker("reconciler", m.Run), l, noted, fmt.Sprintf("#%d rulings note posted", j.N)); err != nil || noted != nil {
+		return files, err
 	}
-	fmt.Fprintf(s.Out, "#%d rulings note posted\n", j.N)
 	if j.Issue, err = s.Forge.Issue(j.N); err != nil {
 		return nil, err
 	}
 	return files, nil
 }
 
-// rulingsNoted: a reconciler note that rulings changed follows basis on
-// is, so the rulings it names are noted once.
-func (s *Swarm) rulingsNoted(is forge.Issue, basis Entry) bool {
-	for _, c := range is.Comments {
+// rulingsNoted is the reconciler's note that rulings changed following
+// basis on is, nil when there is none, so the rulings it names are
+// noted once (a cut note keeps its last sentence, section 7.5).
+func (s *Swarm) rulingsNoted(is forge.Issue, basis Entry) *forge.Comment {
+	for i, c := range is.Comments {
 		m, ok := Swarms(Entry{c.Author, c.Body, c.Created}, s.SwarmLogin)
 		if ok && m.Role == "reconciler" && c.Created.After(basis.Created) && strings.HasPrefix(swarmText(c.Body), rulingsHead) && strings.HasSuffix(swarmText(c.Body), rulingsTail) {
-			return true
+			return &is.Comments[i]
 		}
 	}
-	return false
+	return nil
 }

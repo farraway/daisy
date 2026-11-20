@@ -93,3 +93,37 @@ text would not reach the forge whole); an ordinal per gating,
 `<n>-gate-<g>.md` (one count per kind of note, where the time names
 every note of the pass's own alike). Tests:
 `TestGateNotePostedWhenAttachFails`, `TestSwarmGateNoteFilePerGating`.
+
+**Amended at Step R1-14b of the plan implementing the 2026-11-19 swarm
+roadmap (2026-11-20; the maintainer's answer of 2026-11-18 scheduled
+it): the merge step's notes, the rulings note and a proposal's body are
+posted by the rule too.** The merge step's notes (the direction, the
+second sending back, a refused merge's, failed checks) and the rulings
+note keep their last sentence, with the mention, after the cut, and
+attach as `<n>-merge-<time>.md` and `<n>-rulings-<time>.md` or continue
+on their thread. Their retries read the thread's last word, its newest
+comment that is no continuation of the swarm's, so a continuation no
+longer hides a posted note: a merge step's note is posted already when
+that word is the note by the swarm, whichever file its link names (the
+direction: any direction on that head, as before), the rulings note
+when one follows the basis; neither is attached or posted again, and its
+continuations the thread lacks are posted. **A proposal's body** opens
+its issue cut, its note naming the batch run, and continues on the new
+issue, never as a file: the issue, where every other file goes, does
+not exist before its body, and linking a file would take an
+`EditIssue` of the body after it, a second write racing the pulls
+block's own edit (section 5). Its collection records `created <i> #<m>`
+and each `continued <run>-<i>.md <j> of <c>`, so a retry posts each
+continuation once; one whose `CreateIssue` reply was lost has no number
+and is warned of, not continued. A member is given the proposal whole
+(7.3) and the triage gate note reads it whole: from the batch run's
+`out.md`, the proposal whose body begins as the post's text before the
+note does, so no cut proposal reaches a prompt. Alternatives: a
+proposal's body attached after its creation and linked by an
+`EditIssue` (two more writes on every forge, the body rewritten, and
+still continuations on GitHub); its rest as a first comment linking
+nothing (the same continuations, named otherwise); leaving the merge
+step's notes and the rulings note as they were (a long list of files
+or checks refused by GitHub's limit, the issue never told). Tests:
+`TestLongMergeNoteAttached`, `TestLongRulingsNote`,
+`TestLongProposalBodyContinued`.
