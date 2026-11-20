@@ -51,9 +51,15 @@ func fixture() (*forge.Fake, forge.Ref) {
 func job(f *forge.Fake, n int, role, label string) *Job {
 	is, _ := f.Issue(n)
 	pulls, _ := f.Pulls(n, []string{"swarm-bot"})
-	return &Job{Cfg: cfg(), Host: "forge.example.net", SwarmLogin: "swarm-bot", N: n, K: 1, Role: role, Label: label, Time: t0,
+	j := &Job{Cfg: cfg(), Host: "forge.example.net", SwarmLogin: "swarm-bot", N: n, K: 1, Role: role, Label: label, Time: t0,
 		Persona: "# " + role + "\n\nYou do it.\n\n```\n# not a heading\n```\n", Issue: is, Pulls: pulls,
 		Resources: []Listed{{Mount: "/job/resources/app/docs"}}}
+	// The accepted plan as its collection would have written plan.md
+	// (readPlan): the thread's, none of these fixtures' cut.
+	if e, _, ok := j.Plan(); ok {
+		j.planText, j.planned = swarmText(e.Body), true
+	}
+	return j
 }
 
 // The architect's two files on ready, byte for byte (section 7.3 and 7.4):

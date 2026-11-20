@@ -20,7 +20,9 @@ import (
 // for a job in flight (replay.go). Of its files this build writes
 // texts/, plan.md, builder.md, slices/<s>/slice.md, slices/<s>/kept,
 // slices/<s>/rounds/<r>.md, checks/<sha>.log and built, and of them
-// only kept is read yet, by the worker's launch (start.go).
+// Daisy reads built (the replay), kept (the worker's launch, start.go),
+// plan.md (its slices and the plan gate's note, Outputs.JobPlan) and
+// texts/ (past a text's first lines, Job.text); no prompt reads any yet.
 
 // workspace is issue n's workspace.
 func (s *Swarm) workspace(n int) string { return filepath.Join(s.state(), "jobs", strconv.Itoa(n)) }
@@ -64,6 +66,25 @@ func workspaceUnusable(n int, rel string, k int, err error) error {
 func writtenOnce(rel string) bool {
 	dir := filepath.ToSlash(filepath.Dir(rel))
 	return dir == "texts" || dir == "checks" || path.Base(dir) == "rounds"
+}
+
+// text is the member text of the swarm entry marked m on the Job's
+// threads, posted its text as posted (swarmText), as Daisy reads it past
+// its first lines (section 7.8, Daisy's own reads): its file in the
+// job's workspace, texts/<n>-<role>-<k>.md, as its collection wrote it;
+// with none there (a job not yet built, or a review held for its round),
+// as the replay would take it, whole (whole). A file there that cannot
+// be read is the error, the job's own (unusableError).
+func (j *Job) text(m Mark, posted string) (string, error) {
+	rel := path.Join("texts", fmt.Sprintf("%d-%s-%d.md", j.N, m.Role, m.Run))
+	b, err := j.Outputs.FS.ReadFile(filepath.Join(j.Outputs.State, "jobs", strconv.Itoa(j.N), filepath.FromSlash(rel)))
+	if err == nil {
+		return string(b), nil
+	}
+	if err = workspaceUnusable(j.N, rel, m.Run, err); !errors.Is(err, iofs.ErrNotExist) {
+		return "", err
+	}
+	return j.whole(m, posted), nil
 }
 
 // writePlan writes an architect's plan, collected on issue n, to

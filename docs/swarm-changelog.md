@@ -737,3 +737,24 @@ they write.
   7.1, 7.7, 7.8 and 11. No decision: it builds decisions
   [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md) and
   [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).
+- 2026-11-20, Step R1-9 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, Daisy's own reads): Daisy's reads past a member text's
+  first lines read the job's workspace. The plan's slices and their
+  repositories (the worker's slice, the count in its Task text and
+  under `# Plan`'s heading, the merge step's, `swarm merge`'s,
+  `status`'s and notify's) and the plan gate's note from `plan.md`; the
+  merge gate's note's non-blocking findings and the architect's text a
+  `Start: base` line is looked for in from `texts/`. A file there that
+  cannot be read is met as an `out.md` is (7.5, 7.7). Where 7.8 left it
+  open, stated there: a job without `built`, or whose `plan.md` is not
+  there, has its plan built in memory as the replay would write it (so
+  a file removed from a built workspace is read again from the runs,
+  never taken for no plan), a text with no file in `texts/` is read as
+  the replay would take it, and a plan so built that is taken cut from
+  its post is blocked at the merge step as the replay blocks it. A
+  review's `[blocking]` lines and their count stay a prompt's read until
+  the switch (R1-10). Sections 2, 7.5, 7.7, 7.8 and 11, and section
+  13's row.
+  No decision: it builds decisions
+  [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md) and
+  [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).

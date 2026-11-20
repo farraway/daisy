@@ -588,7 +588,11 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				j.Artifacts = Artifacts(fs, runs, n, cur.HeadSHA)
 				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
 			}
-			if err := j.readWhole(); err != nil {
+			err = j.readWhole()
+			if err == nil {
+				err = j.readPlan()
+			}
+			if err != nil {
 				if _, err = s.blockUnusable(is, err); err != nil {
 					return fmt.Errorf("#%d: %w", n, err)
 				}

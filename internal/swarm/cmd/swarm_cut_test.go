@@ -187,11 +187,12 @@ var bigSlices = "## Research\n\n" + strings.Repeat("- /work/app/main.go: the ent
 // it. With `## Steps` past the cut, the plan gate's note counts two
 // slices, the worker is given slice 1 of 2, the merge step merges it
 // and hands the issue back for slice 2 instead of closing it, and the
-// worker is given slice 2 of 2. With the run's out.md gone after the
-// gate's note, Daisy reads the forge's text as before: it numbers no
-// slice, and with two repositories declared the plan's one slice is in
-// none, so the worker's launch fails as bad slices and blocks the issue
-// (section 7.5).
+// worker is given slice 2 of 2. With the run's out.md deleted after the
+// gate's note, the same: Daisy's own reads of the plan, its slices
+// counted for the worker's slice and Task text, the prompt's heading
+// and the merge step, read the job's workspace, plan.md, which its
+// collection wrote whole (section 7.8, Daisy's own reads; Step R1-9 of
+// the plan implementing the 2026-11-19 swarm roadmap).
 func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 	for _, gone := range []bool{false, true} {
 		t.Run(map[bool]string{false: "whole", true: "out.md gone"}[gone], func(t *testing.T) {
@@ -216,11 +217,8 @@ func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 			a.forge.SetLabel(issue1, "swarm:plan-1-accepted")
 			a.runner.Script(1, "worker", work("v1"))
 			a.pass()
-			if gone {
-				if is := a.issue(1); !slices.Contains(is.Labels, "swarm:blocked") || !strings.Contains(a.stdout.String(), "#1 worker run 1: failed (bad slices: 1)\n") {
-					t.Errorf("out.md gone: %v\n%s", labels(is), a.stdout.String())
-				}
-				return
+			if is := a.issue(1); slices.Contains(is.Labels, "swarm:blocked") {
+				t.Fatalf("blocked: %v\n%s", labels(is), a.stdout.String())
 			}
 			if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, "Implement slice 1 of the accepted plan for issue #1 (it declares 2) in acme/app") {
 				t.Errorf("worker run 1's Task text:\n%s\n%s", sys, a.stdout.String())
@@ -254,14 +252,27 @@ func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 // slice count and the approving review's non-blocking finding past the
 // cut, and, the pull request merged by hand, status's Waiting for you,
 // which waits on the next slice, not the close (sections 7.5, 11 and 12).
+// Each reads the job's workspace (section 7.8, Daisy's own reads), so
+// with every run's out.md deleted before the gate note it holds.
 func TestSwarmCutTextsTheMaintainerIsToldOf(t *testing.T) {
 	a := newApplyWS(t)
 	a.inReview(bigSlices)
 	long := "VERDICT: approve\n\n" + strings.Repeat("The reviewer explains its approval at length, line after line.\n", 1100) + "[non-blocking] main.go:1 a finding past the cut.\n"
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: long})
-	a.pass() // the pair: T9
-	a.pass() // the gate note
+	a.pass() // the pair: T9, and the gate note
+	// The outputs deleted and the note tidied away, so that the next pass
+	// posts it again: the plan read from plan.md, the review from texts/
+	// (section 7.8, Daisy's own reads).
+	outs, _ := filepath.Glob(a.state("runs/1-*/io/out.md"))
+	for _, o := range outs {
+		if err := os.Remove(o); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cs := a.issue(1).Comments
+	a.forge.EditComment(issue1, cs[len(cs)-1].ID, "tidied")
+	a.pass() // the gate note again
 	if notes := a.gateNotes(1); len(notes) == 0 || !strings.Contains(notes[len(notes)-1], "- Slice 1 of 2.\n") ||
 		!strings.Contains(notes[len(notes)-1], "  - sympathetic: [non-blocking] main.go:1 a finding past the cut.\n") {
 		t.Errorf("the merge gate's note: %q", notes)
@@ -283,38 +294,83 @@ func TestSwarmCutTextsTheMaintainerIsToldOf(t *testing.T) {
 // naming another run than the plan's own is left as posted, that run's
 // output never read, and the plan as posted counts one slice, so its
 // merge closes the issue; an out.md that cannot be read is the verb's
-// error, nothing merged (section 7.5).
+// error, nothing merged (section 7.5). A job whose workspace is built
+// reads plan.md, its run's out.md gone, and a plan.md that cannot be
+// read is the verb's error too (section 7.8, Daisy's own reads).
 func TestSwarmMergeVerbReadsTheCutPlanWhole(t *testing.T) {
 	const head = "Maintainer jane on acme/swarm-app\n"
 	for _, c := range []struct {
 		name, noted string
+		built       bool // the job's workspace built, its plan.md holding the plan whole and no out.md
 		mode        os.FileMode
 		want        string
 	}{
-		{"its own run", "1-architect-1", 0o644, head + "#1 merged pull app#1 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n#1 pull requests listed\n"},
-		{"another run", "1-architect-9", 0o644, head + "#1 merged pull app#1 (slice 1 of 1)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n#1 pull requests listed\n"},
-		{"unreadable", "1-architect-1", 0o000, ""},
+		{"its own run", "1-architect-1", false, 0o644, head + "#1 merged pull app#1 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n#1 pull requests listed\n"},
+		{"another run", "1-architect-9", false, 0o644, head + "#1 merged pull app#1 (slice 1 of 1)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n#1 pull requests listed\n"},
+		{"unreadable", "1-architect-1", false, 0o000, ""},
+		{"plan.md, out.md gone", "1-architect-1", true, 0o644, head + "#1 merged pull app#1 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n#1 pull requests listed\n"},
+		{"plan.md unreadable", "1-architect-1", true, 0o000, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			m := newMaintainerWS(t)
 			m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 			cut := bigSlices[:strings.LastIndex(bigSlices[:59000], "\n")] + "\n" + cutNote("runs/"+c.noted)
 			m.forge.Comment(m.ref(1), mark("architect", 1)+cut)
-			io := m.state("runs/" + c.noted + "/io")
-			os.MkdirAll(io, 0o755)
-			os.WriteFile(filepath.Join(io, "out.md"), []byte(bigSlices), c.mode)
+			file, wantErr := filepath.Join(m.state("runs/"+c.noted+"/io"), "out.md"), "Error: swarm: #1: output 1-architect-1: "
+			if c.built {
+				file, wantErr = m.state("jobs/1/plan.md"), "Error: swarm: #1: "
+				os.MkdirAll(m.state("jobs/1"), 0o755)
+				os.WriteFile(m.state("jobs/1/built"), nil, 0o644)
+			}
+			os.MkdirAll(filepath.Dir(file), 0o755)
+			os.WriteFile(file, []byte(bigSlices), c.mode)
+			if c.noted == "1-architect-1" {
+				// The plan's run, collected here (a run not collected is
+				// left to its own collection, section 7.8, Rollout).
+				os.WriteFile(m.state("runs/1-architect-1/result"), []byte("label swarm:proposal-accepted\noutcome posted\ncollected\n"), 0o644)
+			}
 			m.approvedPull(1, "c1")
 			if c.want != "" {
 				m.ok(swarmMerge, c.want, "1")
 				return
 			}
 			err := m.verb(swarmMerge, "1")
-			if want := "Error: swarm: #1: output 1-architect-1: "; err == nil || !strings.HasPrefix(err.Error(), want) || !strings.HasSuffix(err.Error(), "; nothing merged") {
-				t.Errorf("an unreadable out.md: %v", err)
+			if err == nil || !strings.HasPrefix(err.Error(), wantErr) || !strings.Contains(err.Error(), "permission denied") || !strings.HasSuffix(err.Error(), "; nothing merged") {
+				t.Errorf("an unreadable file: %v", err)
 			}
 			if p, _ := m.forge.Pulls(1, []string{"swarm-bot"}); len(p) != 1 || p[0].Merged {
 				t.Errorf("merged with the plan unread: %+v", p)
 			}
 		})
+	}
+}
+
+// A built job whose plan.md is not there has its plan read as the replay
+// would write it, built in memory from its runs; with its texts/ file
+// and its out.md gone too it is taken cut from its post, and the merge
+// step blocks the issue as the replay would, nothing merged, rather than
+// count its slices short and close it (section 7.8, Daisy's own reads
+// and Rollout).
+func TestSwarmMergeStepBlocksAPlanBuiltCut(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	a.inReview(bigSlices)
+	for _, f := range []string{"jobs/1/plan.md", "jobs/1/texts/1-architect-1.md", "runs/1-architect-1/io/out.md"} {
+		if err := os.Remove(a.state(f)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass() // the pair: T9
+	a.pass() // the merge step
+	is := a.issue(1)
+	if !slices.Contains(is.Labels, "swarm:blocked") || !slices.ContainsFunc(is.Comments, func(c forge.Comment) bool {
+		return strings.Contains(c.Body, "The plan of 1-architect-1 is cut on the forge and runs/1-architect-1/io/out.md is gone, so its slices cannot be counted")
+	}) {
+		t.Errorf("not blocked: %v\n%s", labels(is), a.stdout.String())
+	}
+	if p := a.pulls(1); len(p) != 1 || p[0].Merged {
+		t.Errorf("merged: %+v", p)
 	}
 }

@@ -45,6 +45,8 @@ type Job struct {
 	Artifacts []Artifact        // the screenshots of the worker run that pushed the current head, which a reviewer's prompt lists (section 7.3)
 	Outputs   Outputs           // where the output of a run whose text the forge holds cut is read whole (readWhole) and the launch copies it from
 	wholes    map[string]string // the outputs readWhole read, by run `<n>-<role>-<k>`
+	planText  string            // the accepted plan as readPlan read it from the job's workspace (Outputs.JobPlan)
+	planned   bool              // readPlan found a plan
 	cut       []string          // the runs whose text Render showed cut, in the order the prompt shows them (Cut)
 
 	Rulings  []string // the architect's on plan-1-accepted: the rulings changed since the plan, each `<name>:<path>` (section 6)
@@ -237,27 +239,26 @@ func (j *Job) Plan() (Entry, Mark, bool) {
 	return j.newestArchitect(func(text string) bool { return !strings.HasPrefix(text, stands) })
 }
 
-// PlanText is the accepted plan's text (Plan) read whole (whole): what
-// Daisy reads the plan's slices and its gate note's summary from.
+// PlanText is the accepted plan's text as Daisy reads its slices, their
+// repositories and their count (section 7.8, Daisy's own reads): the
+// job's plan.md, as readPlan read it; ok is false for no plan.
 func (j *Job) PlanText() (string, bool) {
-	e, m, ok := j.Plan()
-	if !ok {
-		return "", false
-	}
-	return j.whole(m, swarmText(e.Body)), true
+	return j.planText, j.planned
 }
 
-// issueJob is a Job for reading is's thread outside a run, the swarm's
-// texts on it read whole through o (readWhole).
-func issueJob(is forge.Issue, swarmLogin string, o Outputs) (*Job, error) {
-	j := &Job{SwarmLogin: swarmLogin, N: is.Number, Issue: is, Outputs: o}
-	return j, j.readWhole()
+// readPlan reads the accepted plan from the job's workspace through
+// Outputs (JobPlan), for PlanText; a file of the job's that cannot be
+// read is the error, its own (unusableError).
+func (j *Job) readPlan() error {
+	var err error
+	j.planText, j.planned, _, err = j.Outputs.JobPlan(j.Issue, j.SwarmLogin)
+	return err
 }
 
 // readWhole reads, through Outputs, the output of each run whose text on
 // the Job's issue, or on its current pull request when its thread is
 // read (Pull), Daisy cut on the forge (cutRun): what whole and uncut
-// give, and the launch copies. A run whose output cannot be given whole
+// give, and the launch copies (the prompt's, until the switch, R1-10). A run whose output cannot be given whole
 // is left out, its text read as posted; a failed read is the error, as a
 // failed copy is (section 7.5).
 func (j *Job) readWhole() error {
@@ -603,9 +604,9 @@ var cutTail = regexp.MustCompile(`^(?: and attached as \[[^\]\n]*\]\([^)\s]*\)|;
 // whole is the text of the swarm entry marked m on the Job's issue as its
 // member wrote it (section 7.5): when Daisy cut it on the forge (cutRun)
 // and the run's output was read whole (readWhole), the run's out.md;
-// text as posted otherwise. Every read of Daisy's own of a member's text
-// past its first lines reads it so: the plan's slices, Open Questions and
-// Risks (PlanText) and a review's findings.
+// text as posted otherwise. A prompt reads a review's findings so until
+// the switch (R1-10); Daisy's own reads read the workspace (text,
+// PlanText), and whole only for a text it does not hold.
 func (j *Job) whole(m Mark, text string) string {
 	if run, at, _ := cutRun(j.N, m, text); at >= 0 {
 		if out, ok := j.wholes[run]; ok {

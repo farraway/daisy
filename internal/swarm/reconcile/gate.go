@@ -167,13 +167,12 @@ var itemMark = regexp.MustCompile(`^(?:[-*+]|[0-9]+[.)]|#{1,6})[ \t]+`)
 // planItems: the accepted plan's slice count and titles, its Open
 // Questions as written and its Risks' first lines (each line of the
 // section that is not indented: an item's, a heading's or a paragraph's),
-// the plan read whole (Job.PlanText).
+// the plan read from the job's workspace, plan.md (Outputs.JobPlan).
 func (s *Swarm) planItems(is forge.Issue) ([]string, error) {
-	j, err := issueJob(is, s.SwarmLogin, s.outputs())
+	text, ok, _, err := s.outputs().JobPlan(is, s.SwarmLogin)
 	if err != nil {
 		return nil, fmt.Errorf("#%d: %w", is.Number, err)
 	}
-	text, ok := j.PlanText()
 	if !ok {
 		return []string{"- Plan: none; the thread holds no plan of the architect's."}, nil
 	}
@@ -245,9 +244,13 @@ func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
 	case !cur.Open:
 		subject = " " + pullLink(s.owner(), cur) + ", closed unmerged"
 	}
-	// The plan and the reviews read whole (readWhole).
+	// The plan and the reviews read from the job's workspace (readPlan,
+	// text), a review it does not hold read whole (readWhole).
 	j := &Job{SwarmLogin: s.SwarmLogin, N: is.Number, Issue: is, Outputs: s.outputs(), Pulls: pulls, Pull: &PullThread{Comments: comments, Reviews: reviews}}
 	if err := j.readWhole(); err != nil {
+		return "", nil, fmt.Errorf("#%d: %w", is.Number, err)
+	}
+	if err := j.readPlan(); err != nil {
 		return "", nil, fmt.Errorf("#%d: %w", is.Number, err)
 	}
 	S := 1
@@ -268,7 +271,14 @@ func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
 				last, mark = r, m
 			}
 		}
-		for _, l := range strings.Split(j.whole(mark, swarmText(last.Body)), "\n") {
+		if mark.Role == "" {
+			continue
+		}
+		text, err := j.text(mark, swarmText(last.Body))
+		if err != nil {
+			return "", nil, fmt.Errorf("#%d: %w", is.Number, err)
+		}
+		for _, l := range strings.Split(text, "\n") {
 			if l = strings.TrimRight(l, "\r "); strings.HasPrefix(l, "[non-blocking]") {
 				findings = append(findings, "  - "+role+": "+cut(l))
 			}

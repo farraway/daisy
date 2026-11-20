@@ -190,33 +190,47 @@ func (o Outputs) planOf(n int, jr jobRun) (text string, builder []byte, plan, cu
 	return text, builder, true, cut, nil
 }
 
-// CutPlan is the run whose plan the workspace of issue is would take cut
-// from its post, its out.md gone, as the replay builds it (section 7.8,
-// Rollout), built in memory and written nowhere; "" when it would not,
-// or when the workspace is built. swarm merge refuses such a job, whose
-// slices would be counted short (section 11).
-func CutPlan(o Outputs, is forge.Issue, swarmLogin string) (string, error) {
-	if built, err := Built(o.FS, o.State, is.Number); err != nil || built {
-		return "", err
-	}
-	runs, err := o.jobRuns(is.Number, swarmLogin, issuePosts(is))
+// JobPlan is issue is's accepted plan as Daisy reads it past its first
+// lines, its slices and its plan gate's note (section 7.8, Daisy's own
+// reads): plan.md of its workspace, when the workspace is built and the
+// file is there; else, for a job without built or a plan.md not there,
+// the plan the replay would leave there (planOf over jobRuns), built in
+// memory and written nowhere, with cut the run whose plan is then taken
+// cut from its post, its out.md gone ("" otherwise), which would count
+// its slices short. ok is false for no plan. A file of the job's that is
+// there and cannot be read is the error, its own (unusableError).
+func (o Outputs) JobPlan(is forge.Issue, swarmLogin string) (text string, ok bool, cut string, err error) {
+	n := is.Number
+	built, err := Built(o.FS, o.State, n)
 	if err != nil {
-		return "", err
+		return "", false, "", err
 	}
-	cut := ""
+	if built {
+		b, err := o.FS.ReadFile(filepath.Join(o.State, "jobs", strconv.Itoa(n), "plan.md"))
+		if err == nil {
+			return string(b), true, "", nil
+		}
+		if err = workspaceUnusable(n, "plan.md", 0, err); !errors.Is(err, iofs.ErrNotExist) {
+			return "", false, "", err
+		}
+	}
+	runs, err := o.jobRuns(n, swarmLogin, issuePosts(is))
+	if err != nil {
+		return "", false, "", err
+	}
 	for _, jr := range runs {
-		_, _, plan, c, err := o.planOf(is.Number, jr)
+		t, _, plan, c, err := o.planOf(n, jr)
 		if err != nil {
-			return "", fmt.Errorf("output %s: %w", jr.name(), err)
+			return "", false, "", fmt.Errorf("output %s: %w", jr.name(), err)
 		}
 		if plan {
-			cut = ""
+			text, ok, cut = t, true, ""
 			if c {
 				cut = jr.name()
 			}
 		}
 	}
-	return cut, nil
+	return text, ok, cut, nil
 }
 
 // replay builds the workspace of issue is, open at a stage with its pull
@@ -311,7 +325,7 @@ func (s *Swarm) replay(is forge.Issue, pulls []forge.Pull) (blocked bool, err er
 		}
 	}
 	if cut != nil {
-		if err := s.blockCut(is, *cut); err != nil {
+		if err := s.blockCut(is, cut.name()); err != nil {
 			return false, err
 		}
 	}
@@ -418,12 +432,14 @@ func (c *collection) replayedWork() error {
 	return c.writeKept()
 }
 
-// blockCut is T17 for a job whose replayed plan is taken cut from its
-// post, its out.md gone (section 7.8, Rollout), rather than have its
-// slices counted short: the reconciler's note naming the missing file.
-func (s *Swarm) blockCut(is forge.Issue, jr jobRun) error {
-	return s.block(is, jr.K, fmt.Sprintf("The plan of %s is cut on the forge and runs/%s/io/out.md is gone, so its slices cannot be counted (docs/swarm.md section 7.8, Rollout). Restore the file and remove <state>/jobs/%d, or relabel the issue %s for a new plan; then remove %s to resume.",
-		jr.name(), jr.name(), is.Number, forge.ProposalAccepted, forge.Blocked))
+// blockCut is T17 for a job whose plan, replayed or built in memory
+// (JobPlan), is taken cut from its post, run's out.md gone (section 7.8,
+// Rollout), rather than have its slices counted short: the reconciler's
+// note naming the missing file.
+func (s *Swarm) blockCut(is forge.Issue, run string) error {
+	r, _ := runOf(run)
+	return s.block(is, r.K, fmt.Sprintf("The plan of %s is cut on the forge and runs/%s/io/out.md is gone, so its slices cannot be counted (docs/swarm.md section 7.8, Rollout). Restore the file and remove <state>/jobs/%d, or relabel the issue %s for a new plan; then remove %s to resume.",
+		run, run, is.Number, forge.ProposalAccepted, forge.Blocked))
 }
 
 // blockUnusable is T17 for a job one of whose files Daisy cannot use

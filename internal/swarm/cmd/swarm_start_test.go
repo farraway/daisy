@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -323,6 +324,30 @@ func TestStartBaseLine(t *testing.T) {
 		}
 		a.runner.Script(1, "architect", runner.Canned{Out: "v1; the half-done main.go is wrong.\n\nStart: base\n", Stdout: claudeResult})
 		a.pass()
+		next(t, a, 2, base)
+	})
+
+	// Read past its first lines from the job's workspace (section 7.8,
+	// Daisy's own reads): the line past the forge's cut counts with the
+	// answer's out.md deleted.
+	t.Run("the architect's answer cut, its out.md gone", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		base := a.gitRunIn(a.state("git/app"), "rev-parse", "refs/heads/main")
+		a.runner.Script(1, "worker", half("QUESTION: v1 or v1.0?\n"))
+		a.pass()
+		long := "v1; the half-done main.go is wrong.\n\n" + strings.Repeat("The architect explains why at length, line after line.\n", 1300) + "Start: base\n"
+		a.runner.Script(1, "architect", runner.Canned{Out: long, Stdout: claudeResult})
+		a.pass()
+		outs, _ := filepath.Glob(a.state("runs/1-architect-*/io/out.md"))
+		for _, o := range outs {
+			if err := os.Remove(o); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if cs := a.issue(1).Comments; strings.Contains(cs[len(cs)-1].Body, "Start: base") {
+			t.Fatalf("the answer was not cut on the forge")
+		}
 		next(t, a, 2, base)
 	})
 

@@ -534,15 +534,13 @@ func swarmMerge(c *Context, open opener) error {
 		return fmt.Errorf("Error: swarm: #%d has no swarm pull request; nothing merged", m.n)
 	}
 	outputs := reconcile.Outputs{FS: c.Ops.FS(), State: m.cfg.Forge.State(c.Env.Local)}
-	s, S, err := reconcile.Slice(is, cur, m.swarm, outputs)
+	// The plan read from the job's workspace, or built in memory for a
+	// job without one (docs/swarm.md section 7.8, Daisy's own reads); one
+	// whose plan the replay would take cut from its post would count its
+	// slices short (section 7.8, Rollout): refused before any write.
+	s, S, run, err := reconcile.Slice(is, cur, m.swarm, outputs)
 	if err != nil {
 		return fmt.Errorf("Error: swarm: %v; nothing merged", err)
-	}
-	// A job without its workspace whose plan the replay would take cut
-	// from its post would count its slices short (docs/swarm.md section
-	// 7.8, Rollout): refused before any write.
-	if run, err := reconcile.CutPlan(outputs, is, m.swarm); err != nil {
-		return fmt.Errorf("Error: swarm: #%d: %v; nothing merged", m.n, err)
 	} else if run != "" {
 		return fmt.Errorf("Error: swarm: #%d: the plan of %s is cut on the forge and runs/%s/io/out.md is gone, so its slices cannot be counted (docs/swarm.md section 7.8, Rollout); nothing changed", m.n, run, run)
 	}

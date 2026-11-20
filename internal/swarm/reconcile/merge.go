@@ -70,9 +70,17 @@ func (s *Swarm) mergeStep() error {
 			continue
 		}
 		ref := forge.Ref{Repo: cur.Repo, N: cur.Number}
-		S, err := planSlices(is, s.SwarmLogin, s.outputs())
+		S, cut, err := planSlices(is, s.SwarmLogin, s.outputs())
 		if err != nil {
 			if _, err = s.blockUnusable(is, err); err != nil {
+				return err
+			}
+			continue
+		}
+		if cut != "" {
+			// Its plan taken cut from its post, the slices would be
+			// counted short (section 7.8, Rollout).
+			if err := s.blockCut(is, cut); err != nil {
 				return err
 			}
 			continue
@@ -420,25 +428,27 @@ func (s *Swarm) stillApproved(n int) ([]string, bool, error) {
 }
 
 // planSlices is the number of slices is's accepted plan declares, read
-// whole through o (Job.PlanText); a plan without slice lines, or none, is
-// one slice (section 5).
-func planSlices(is forge.Issue, swarmLogin string, o Outputs) (int, error) {
-	j, err := issueJob(is, swarmLogin, o)
+// from its workspace through o (JobPlan), with cut the run whose plan is
+// taken cut from its post, its out.md gone, for a job whose plan is
+// built in memory; a plan without slice lines, or none, is one slice
+// (section 5).
+func planSlices(is forge.Issue, swarmLogin string, o Outputs) (S int, cut string, err error) {
+	plan, ok, cut, err := o.JobPlan(is, swarmLogin)
 	if err != nil {
-		return 0, fmt.Errorf("#%d: %w", is.Number, err)
+		return 0, "", fmt.Errorf("#%d: %w", is.Number, err)
 	}
-	if plan, ok := j.PlanText(); ok {
-		return max(1, len(Slices(plan))), nil
+	if !ok {
+		return 1, "", nil
 	}
-	return 1, nil
+	return max(1, len(Slices(plan))), cut, nil
 }
 
 // Slice is the slice of is's pull request p and the number of slices
-// its accepted plan declares, read whole through o, as the merge step
-// counts them.
-func Slice(is forge.Issue, p forge.Pull, swarmLogin string, o Outputs) (s, S int, err error) {
-	S, err = planSlices(is, swarmLogin, o)
-	return sliceOf(p, is.Number), S, err
+// its accepted plan declares, read through o as the merge step counts
+// them (planSlices), with cut as planSlices gives it.
+func Slice(is forge.Issue, p forge.Pull, swarmLogin string, o Outputs) (s, S int, cut string, err error) {
+	S, cut, err = planSlices(is, swarmLogin, o)
+	return sliceOf(p, is.Number), S, cut, err
 }
 
 // AfterApproval is what an approved issue waits for with the merge gate
@@ -446,7 +456,7 @@ func Slice(is forge.Issue, p forge.Pull, swarmLogin string, o Outputs) (s, S int
 // "next slice" when the accepted plan declares a slice after it (T13) or
 // "close" when it was the last (T19); "pull closed" when it was closed
 // unmerged, which neither `swarm merge` nor the merge step merges. The
-// plan is read whole through o.
+// plan is read from the job's workspace through o (planSlices).
 func AfterApproval(is forge.Issue, pulls []forge.Pull, swarmLogin string, o Outputs) (string, error) {
 	switch {
 	case len(pulls) == 0:
@@ -456,7 +466,7 @@ func AfterApproval(is forge.Issue, pulls []forge.Pull, swarmLogin string, o Outp
 	case !pulls[len(pulls)-1].Merged:
 		return "merge", nil
 	}
-	S, err := planSlices(is, swarmLogin, o)
+	S, _, err := planSlices(is, swarmLogin, o)
 	if err != nil {
 		return "", err
 	}

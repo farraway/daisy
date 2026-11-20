@@ -861,10 +861,11 @@ func TestReplayForgeErrorIsThePasss(t *testing.T) {
 	}
 }
 
-// With the merge gate off, an approved job whose cut plan's out.md
-// cannot be read is blocked by the merge step, which reads the plan
-// whole to count its slices, with the note naming the file, and nothing
-// merged; apply exits 0 (section 7.7).
+// With the merge gate off, an approved job whose plan.md cannot be read
+// is blocked by the merge step, which reads the plan from the job's
+// workspace to count its slices (section 7.8, Daisy's own reads), with
+// the note naming the file, and nothing merged; apply exits 0 (section
+// 7.7).
 func TestMergeStepUnreadablePlanBlocks(t *testing.T) {
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
@@ -875,13 +876,13 @@ func TestMergeStepUnreadablePlanBlocks(t *testing.T) {
 	if got := labels(a.issue(1)); got[0] != forge.ReviewApproved {
 		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
 	}
-	out := a.state("runs/1-architect-1/io/out.md")
-	if err := os.Chmod(out, 0o000); err != nil {
+	plan := a.state("jobs/1/plan.md")
+	if err := os.Chmod(plan, 0o000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chmod(out, 0o644) })
+	t.Cleanup(func() { os.Chmod(plan, 0o644) })
 	a.pass()
-	note := unusableNote(1, 1, "runs/1-architect-1/io/out.md", "permission denied")
+	note := unusableNote(1, 1, "jobs/1/plan.md", "permission denied")
 	if bs := a.bodies(1); bs[len(bs)-1] != note {
 		t.Errorf("the thread's last:\n%q\nwant:\n%q", bs[len(bs)-1], note)
 	}
@@ -893,11 +894,17 @@ func TestMergeStepUnreadablePlanBlocks(t *testing.T) {
 // swarm merge refuses a job with no built workspace whose plan, as the
 // replay builds it, is taken cut from its post, its out.md gone (section
 // 11, From R1; section 7.8, Rollout): exit 1 with the spec's text before
-// any write, nothing changed on the forge or on disk. With the
-// workspace built, the verb counts as before.
+// any write, nothing changed on the forge or on disk; so does a built
+// job whose plan.md is not there, its plan built in memory the same way
+// (section 7.8, Daisy's own reads). With the workspace built, the verb
+// counts the slices of its plan.md.
 func TestSwarmMergeRefusesACutPlanWithoutWorkspace(t *testing.T) {
-	for _, built := range []bool{false, true} {
-		t.Run(map[bool]string{false: "no workspace", true: "built"}[built], func(t *testing.T) {
+	for _, c := range []struct {
+		name        string
+		built, plan bool
+	}{{"no workspace", false, false}, {"built, no plan.md", true, false}, {"built", true, true}} {
+		built := c.built
+		t.Run(c.name, func(t *testing.T) {
 			m := newMaintainerWS(t)
 			m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 			cut := bigSlices[:strings.LastIndex(bigSlices[:59000], "\n")] + "\n" + cutNote("runs/1-architect-1")
@@ -906,7 +913,10 @@ func TestSwarmMergeRefusesACutPlanWithoutWorkspace(t *testing.T) {
 			if built {
 				os.MkdirAll(m.state("jobs/1"), 0o755)
 				os.WriteFile(m.state("jobs/1/built"), nil, 0o644)
-				m.ok(swarmMerge, "Maintainer jane on acme/swarm-app\n#1 merged pull app#1 (slice 1 of 1)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n#1 pull requests listed\n", "1")
+			}
+			if c.plan {
+				os.WriteFile(m.state("jobs/1/plan.md"), []byte(bigSlices), 0o644)
+				m.ok(swarmMerge, "Maintainer jane on acme/swarm-app\n#1 merged pull app#1 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n#1 pull requests listed\n", "1")
 				return
 			}
 			before := m.writesAt(m.ref(1), pr)
@@ -921,7 +931,7 @@ func TestSwarmMergeRefusesACutPlanWithoutWorkspace(t *testing.T) {
 			if p, _ := m.forge.Pulls(1, []string{"swarm-bot"}); len(p) != 1 || p[0].Merged {
 				t.Errorf("merged: %+v", p)
 			}
-			if _, err := os.Stat(m.state("jobs")); !errors.Is(err, iofs.ErrNotExist) {
+			if _, err := os.Stat(m.state("jobs")); !built && !errors.Is(err, iofs.ErrNotExist) {
 				t.Errorf("the verb wrote the workspace: %v", err)
 			}
 		})

@@ -106,7 +106,11 @@ func (s *Swarm) start(j *Job, sl int, repo declare.Repo, branch string, open boo
 		return none, err
 	}
 	if ended, known := endTime(lines); known {
-		if by, at, reset := j.startBase(ended); reset {
+		by, at, reset, err := j.startBase(ended)
+		if err != nil {
+			return none, err
+		}
+		if reset {
 			none.By, none.At = by, at
 			return none, nil
 		}
@@ -128,7 +132,9 @@ func (s *Swarm) start(j *Job, sl int, repo declare.Repo, branch string, open boo
 // issue or its current pull request, whose thread j.Pull holds when it
 // is open; by is its author's login, or `architect run <k>`. A forge
 // time has whole seconds, so an entry in the second the run ended counts.
-func (j *Job) startBase(ended time.Time) (by string, at time.Time, ok bool) {
+// The architect's text is read from the job's workspace (Job.text); a
+// file there that cannot be read is the error, the job's own.
+func (j *Job) startBase(ended time.Time) (by string, at time.Time, ok bool, err error) {
 	since := ended.Truncate(time.Second)
 	entries := IssueThread(j.Issue)[1:]
 	if j.Pull != nil {
@@ -140,8 +146,14 @@ func (j *Job) startBase(ended time.Time) (by string, at time.Time, ok bool) {
 		}
 		who, text := "", ""
 		if m, swarm := Swarms(e, j.SwarmLogin); swarm {
-			t := j.whole(m, swarmText(e.Body))
-			if m.Role == "architect" && m.Kind == "" && (strings.HasPrefix(t, answer) || onThePlan(t) && !strings.HasPrefix(t, stands)) {
+			if m.Role != "architect" || m.Kind != "" {
+				continue
+			}
+			t, err := j.text(m, swarmText(e.Body))
+			if err != nil {
+				return "", time.Time{}, false, err
+			}
+			if strings.HasPrefix(t, answer) || onThePlan(t) && !strings.HasPrefix(t, stands) {
 				who, text = "architect run "+strconv.Itoa(m.Run), t
 			}
 		} else if maintainerWord(e, j.SwarmLogin, j.Cfg.Trusted) {
@@ -151,7 +163,7 @@ func (j *Job) startBase(ended time.Time) (by string, at time.Time, ok bool) {
 			by, at, ok = who, e.Created, true
 		}
 	}
-	return by, at, ok
+	return by, at, ok, nil
 }
 
 // startBaseLine: text holds the line `Start: base` alone, whitespace at

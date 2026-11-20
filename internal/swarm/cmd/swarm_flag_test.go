@@ -267,6 +267,9 @@ func TestSwarmApplyGateNoteOnEachGating(t *testing.T) {
 	revised := strings.Replace(gatePlan, "2. lib: add notes.md.", "2. lib: add notes.md.\n3. lib: add a test.", 1)
 	a.tick()
 	a.forge.Comment(issue1, mark("architect", 2)+revised)
+	// The revised plan's collection would write the job's plan.md, which
+	// the gate note reads (docs/swarm.md section 7.8, Daisy's own reads).
+	os.WriteFile(a.state("jobs/1/plan.md"), []byte(revised), 0o644)
 	a.forge.SetLabel(a.ref(2), "swarm:plan-0-posted")
 	a.forge.Comment(a.ref(2), mark("architect", 1)+gatePlan)
 	a.forge.Relabel(a.ref(3), "", forge.Blocked)
