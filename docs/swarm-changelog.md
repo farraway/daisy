@@ -715,3 +715,24 @@ they write.
   and 9 mark them built. No decision: it builds decisions
   [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md) and
   [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).
+- 2026-11-20, Step R1-8 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, the start): a worker run on a slice starts from the
+  slice's kept commit (`slices/<s>/kept`, read at its launch), its
+  branch `swarm/<n>-<s>` made, or moved forward, there in its clone, the
+  commit fetched from the mirror's run ref, or from the branch once
+  pushed, so that its push is a fast-forward; from the branch's head
+  when a push not the run's moved the branch past the kept run; and
+  where it would with no kept run (`<base>`, or the open pull request's
+  head) when the architect's answer or revised plan, or the
+  maintainer's counted comment on the issue or its current pull request
+  (`swarm unblock`'s, or the word that lifts the block), carries the
+  line `Start: base` since the kept run ended. The kept commit and its
+  ref stay. Where 7.8 left it open, stated there: the kept run's end
+  read from its result (none readable: no line counts), an entry in the
+  second it ended counted, the architect's text read whole, a kept
+  commit the mirror no longer holds taken as none with a warning, and a
+  `kept` Daisy cannot use blocking the issue (7.7). The worker's
+  `# Job` line naming its start comes with the switch (R1-10). Sections
+  7.1, 7.7, 7.8 and 11. No decision: it builds decisions
+  [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md) and
+  [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).

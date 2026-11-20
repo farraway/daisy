@@ -19,8 +19,8 @@ import (
 // collection of a run on issue n and by the replay that builds it once
 // for a job in flight (replay.go). Of its files this build writes
 // texts/, plan.md, builder.md, slices/<s>/slice.md, slices/<s>/kept,
-// slices/<s>/rounds/<r>.md, checks/<sha>.log and built, and nothing
-// reads them yet.
+// slices/<s>/rounds/<r>.md, checks/<sha>.log and built, and of them
+// only kept is read yet, by the worker's launch (start.go).
 
 // workspace is issue n's workspace.
 func (s *Swarm) workspace(n int) string { return filepath.Join(s.state(), "jobs", strconv.Itoa(n)) }

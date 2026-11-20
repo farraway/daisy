@@ -491,6 +491,34 @@ func (g Git) Holds(name, sha string) (bool, error) {
 	return true, nil
 }
 
+// IsAncestor: commit a is commit b or an ancestor of it in the
+// repository's mirror (`git merge-base --is-ancestor`, whose exit 1 says
+// it is not).
+func (g Git) IsAncestor(name, a, b string) (bool, error) {
+	_, errb, err := g.O.Exec(g.Mirror(name), "git", "merge-base", "--is-ancestor", a, b)
+	var exit *exec.ExitError
+	switch {
+	case errors.As(err, &exit) && exit.ExitCode() == 1:
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("git merge-base --is-ancestor %s %s: %v: %s", a, b, err, strings.TrimSpace(string(errb)))
+	}
+	return true, nil
+}
+
+// StartAt makes or moves branch, checked out in the clone dir, to sha,
+// fetched into the clone from the mirror's ref, the kept run's ref or the
+// branch (section 7.8, The start), before any container sees the clone;
+// what host git wrote in doing so is removed (forgetHost).
+func (g Git) StartAt(name, dir, branch, ref, sha string) error {
+	for _, args := range [][]string{{"fetch", "--quiet", "--no-tags", g.Mirror(name), ref}, {"checkout", "--quiet", "-B", branch, sha}} {
+		if _, err := g.run(dir, args...); err != nil {
+			return err
+		}
+	}
+	return forgetHost(g.O.FS(), dir)
+}
+
 // paths is `git diff --name-only` over revs in the repository's mirror.
 func (g Git) paths(name string, revs ...string) ([]string, error) {
 	// -z: each path as it is, NUL-ended, never quoted (core.quotePath

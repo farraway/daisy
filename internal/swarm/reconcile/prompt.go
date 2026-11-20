@@ -50,6 +50,7 @@ type Job struct {
 	Rulings  []string // the architect's on plan-1-accepted: the rulings changed since the plan, each `<name>:<path>` (section 6)
 	Replan   *Entry   // the architect's on plan-1-accepted: the maintainer's re-plan request since the plan (section 6, The re-plan)
 	Question bool     // the architect's or the owner's run answers the issue's question (swarm:question, section 6)
+	Start    Start    // a worker's: where its clone starts and why (section 7.8, The start)
 }
 
 // PullThread is the current pull request's comments, reviews and line

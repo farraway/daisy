@@ -65,6 +65,16 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		repo, branch = rp, fmt.Sprintf("swarm/%d-%d", j.N, sl)
 		_, newBranch = j.current()
 		newBranch = !newBranch
+		// Where the run starts, from the slice's kept commit unless a
+		// `Start: base` line says otherwise (section 7.8, The start); a
+		// kept file it cannot use blocks the issue alone.
+		st, err := s.start(j, sl, repo, branch, !newBranch)
+		if err != nil {
+			fs.RemoveAll(r.Dir)
+			_, err = s.blockUnusable(j.Issue, err)
+			return false, err
+		}
+		j.Start = st
 	case "adversary", "sympathetic":
 		cur, _ := j.current()
 		repo, _ = s.repo(cur.Repo)
@@ -210,6 +220,24 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			if err := s.git().Branch(filepath.Join(work, repo.Name), branch); err != nil {
 				return cloneFailed(err)
 			}
+		}
+		if j.Role == "worker" && j.Start.SHA != "" && j.Start.SHA != sha {
+			// The branch made or moved to the kept commit, or to the
+			// branch's head past it, fetched from the mirror's run ref
+			// while it holds one, else from the branch, once pushed.
+			ref := "refs/heads/" + branch
+			if j.Start.From == "kept" {
+				run := "refs/swarm-runs/" + j.Start.Kept
+				if held, err := s.git().Holds(repo.Name, run); err != nil {
+					return cloneFailed(err)
+				} else if held {
+					ref = run
+				}
+			}
+			if err := s.git().StartAt(repo.Name, filepath.Join(work, repo.Name), branch, ref, j.Start.SHA); err != nil {
+				return cloneFailed(err)
+			}
+			sha = j.Start.SHA
 		}
 		startLines = append(startLines, "start "+sha)
 		if j.Role == "worker" {
