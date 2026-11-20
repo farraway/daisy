@@ -1075,7 +1075,14 @@ with its stage, or no open swarm issue), the owner stating dependencies
 in prose (section 4); deciding `swarm triage <n>`, `swarm close <n>`,
 `swarm class <n> routine` (after which Daisy passes this gate and the
 plan's), or a comment the owner answers. At `swarm:plan-0-posted` (the plan): the
-accepted plan's slice count and slice lines, its `## Open Questions` as
+accepted plan's slice count and slice lines; its builder plan, which is
+not posted (7.8, The builder plan), named by its file on the swarm's
+host, `<state>` written for the state directory so that no host path is
+posted, with its size, `` - Builder plan: `<state>/<file>` on the
+swarm's host, <b> bytes; not posted. `` (`<file>` `jobs/<n>/builder.md`,
+or, with the plan read in memory, its run's `runs/<run>/io/builder.md`,
+7.8, Daisy's own reads), or `- Builder plan: none; each slice's worker
+is given its step alone.`; its `## Open Questions` as
 written, and the first line of each unindented line of its `## Risks`;
 deciding `swarm accept <n>`, `swarm class <n> routine` (after which Daisy
 accepts it), or a comment the architect revises from.
@@ -4163,7 +4170,7 @@ machine's, as the mirrors are: a swarm moved to another machine takes
 | File | Holds | Written | Read by |
 |---|---|---|---|
 | `plan.md` | the accepted plan whole (7.3: the architect's newest plan on the issue), as the architect wrote it, its run's `out.md`; then each amendment collected since it, in the order collected, each under a heading of its own, `## Amendment <a>: <role> run <k>, <time>` | at the collection of an architect's run whose text is a plan (7.5: beginning none of `BLOCKED:`, `QUESTION:`, `ANSWER:` and `STANDS:`, and not a question run's answer), before its post, rewritten with no amendment at each new plan (a run that fails, its plan's slices bad or a secret in its `out.md` or its builder plan, writes none); at the collection of an amendment, rewritten with it last | the worker, the reviewers, the architect revising, the owner; Daisy: the slices and their repositories (7.5), the plan gate's note |
-| `builder.md` | the builder plan (The builder plan, below): the plan consolidated for the builder, a `## Slice <s>` section per slice, whole as the architect wrote it to its run's `<run>/io/builder.md`; absent while no run since the accepted plan wrote one | at the collection of an architect's run whose text is a plan, with `plan.md`: its builder plan, or, when it wrote none, the file removed, so that no builder plan outlives its plan (a `builder.md` that is not a regular file, read as `out.md` is, 7.5, or holds only whitespace is none); at the collection of a later architect run that re-issues it (an amendment's, R5), replaced whole; never edited or appended to | the worker, the reviewers, the architect revising (each slice by its `slice.md`) |
+| `builder.md` | the builder plan (The builder plan, below): the plan consolidated for the builder, a `## Slice <s>` section per slice, whole as the architect wrote it to its run's `<run>/io/builder.md`; absent while no run since the accepted plan wrote one | at the collection of an architect's run whose text is a plan, with `plan.md`: its builder plan, or, when it wrote none, the file removed, so that no builder plan outlives its plan (a `builder.md` that is not a regular file, read as `out.md` is, 7.5, or holds only whitespace is none); at the collection of a later architect run that re-issues it (an amendment's, R5), replaced whole; never edited or appended to | the worker, the reviewers, the architect revising (each slice by its `slice.md`); Daisy: the plan gate's note names it and its size (section 5) |
 | `amendments/<a>.md` | each amendment's text as collected, `<a>` counted from 1 over the job's life, so no file is rewritten; `plan.md` applies those collected since the accepted plan. R5's rule (amendments go into the file) decides which collected text is an amendment and what its text holds; this section fixes only its file, its number and its place, after the plan, in order. Until R5 is built none is written | at the collection of the run whose text it is, before its post | as `plan.md`, which holds them |
 | `slices/<s>/slice.md` | slice s's item under the plan's `## Steps`, whole (its numbered line and the lines under it to the next slice line or the section's end, 7.5, the slices; for the one slice of a plan without slice lines, the whole `## Steps` section), then, after an empty line, its section of `builder.md`: the lines from the first heading `## Slice <s>`, alone or followed by a character that is not a digit, to the next line beginning `## `, each outside a fenced block as the slice lines are; the step alone when there is no builder plan or it has no section for s. Empty lines at either end of each part are dropped, and a `\r` before a line's end, as the plan's other reads drop it | with `plan.md`, and again whenever `builder.md` is replaced, for each slice the plan declares (none for a job with no plan, the fast lane); the directory of a slice a new plan no longer declares is left as it is | the worker (its slice), the reviewers (the current pull request's), the architect |
 | `slices/<s>/kept` | one line, `<n>-worker-<k> <sha>`: the slice's newest worker run, by its end, whose commits Daisy holds and may be built on, and the commit fetched from it; absent while no run of the slice has one | at the collection of each worker run on slice s whose fetched commit is past its `start` (7.6, step 1), whatever its outcome: pushed (the commit then the branch's), failed, blocked, a question, a fault or abandoned (its run ref kept, 7.6 step 2); never for commits that failed the secret check or changed a protected path, which no run builds on (their ref stays for the maintainer, as now): step 2 makes step 3's two checks again before it writes `kept`, so the commits of a run that ended before step 3 (blocked, a question, a fault, abandoned, or failed earlier) are checked too, and a hit leaves `kept` as it was, the run's own failure, if any, unchanged | the worker's launch, for its start (The start, below); the worker and the architect, in `# Job` |
@@ -4413,7 +4420,12 @@ collection's secret check reads it as it reads `out.md`, a hit being
 *secret in output* naming `builder.md`, nothing posted. It is not
 posted: the forge's human record holds the plan the maintainer accepts
 at G2, and the builder plan, the members' material, is kept in the
-workspace, `builder.md`, and in its run's io for audit.
+workspace, `builder.md`, and in its run's io for audit; the plan
+gate's note names its file on the swarm's host, or that there is none
+(section 5, the gate note; Dean's answer of 2026-11-20 to the question
+decision 159 left open, built at Step R1-11 of the plan implementing the
+2026-11-19 swarm roadmap), so that the maintainer deciding on the plan
+knows whether its workers have one and where to read it.
 `slices/<s>/slice.md` is cut from it (the table above). A plan written with no builder plan
 is collected as before, `builder.md` removed and each slice's
 `slice.md` its step alone.
@@ -4518,7 +4530,9 @@ batch prompt is unchanged.
 lines (7.5, The posting rule) reads the workspace: the plan's slices and
 their repositories (the worker's slice, the counts in the Task text and
 under `# Job`, the merge step's, `swarm merge`'s, `status`'s and
-notify's) and the plan gate's note from `plan.md`; the merge gate's
+notify's) and the plan gate's note from `plan.md`, the note naming
+the builder plan read with it, `builder.md` beside it or, with the plan
+built in memory, the plan run's own (section 5); the merge gate's
 note's non-blocking findings, the architect's text a `Start: base` line
 is looked for in (The start, above) and a review's `[blocking]` lines
 from `texts/`. Each reads the files it needs, never every text on the

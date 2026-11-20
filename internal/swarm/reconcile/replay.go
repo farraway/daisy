@@ -200,37 +200,70 @@ func (o Outputs) planOf(n int, jr jobRun) (text string, builder []byte, plan, cu
 // its slices short. ok is false for no plan. A file of the job's that is
 // there and cannot be read is the error, its own (unusableError).
 func (o Outputs) JobPlan(is forge.Issue, swarmLogin string) (text string, ok bool, cut string, err error) {
+	p, err := o.jobPlan(is, swarmLogin)
+	return p.text, p.ok, p.cut, err
+}
+
+// A jobPlan is the plan JobPlan reads and, read with it, its builder plan
+// (section 7.8, The builder plan): the file, from <state>, and its bytes;
+// builder is "" for none.
+type jobPlan struct {
+	text, cut string
+	ok        bool
+	builder   string
+	size      int64
+}
+
+// jobPlan is JobPlan's plan with its builder plan, read from where the
+// plan is: with plan.md read, the workspace's builder.md, a file there
+// being the one its collection wrote (Job.size); with the plan built in
+// memory, the plan run's io/builder.md, as planOf reads it (a file not
+// regular, or holding only whitespace, being none).
+func (o Outputs) jobPlan(is forge.Issue, swarmLogin string) (jobPlan, error) {
 	n := is.Number
 	built, err := Built(o.FS, o.State, n)
 	if err != nil {
-		return "", false, "", err
+		return jobPlan{}, err
 	}
 	if built {
 		b, err := o.FS.ReadFile(filepath.Join(o.State, "jobs", strconv.Itoa(n), "plan.md"))
 		if err == nil {
-			return string(b), true, "", nil
+			p := jobPlan{text: string(b), ok: true}
+			rel := path.Join("jobs", strconv.Itoa(n), "builder.md")
+			fi, err := o.FS.Lstat(filepath.Join(o.State, rel))
+			switch {
+			case err == nil:
+				p.builder, p.size = rel, fi.Size()
+			case !errors.Is(err, iofs.ErrNotExist):
+				return jobPlan{}, workspaceUnusable(n, "builder.md", 0, err)
+			}
+			return p, nil
 		}
 		if err = workspaceUnusable(n, "plan.md", 0, err); !errors.Is(err, iofs.ErrNotExist) {
-			return "", false, "", err
+			return jobPlan{}, err
 		}
 	}
 	runs, err := o.jobRuns(n, swarmLogin, issuePosts(is))
 	if err != nil {
-		return "", false, "", err
+		return jobPlan{}, err
 	}
+	var p jobPlan
 	for _, jr := range runs {
-		t, _, plan, c, err := o.planOf(n, jr)
+		t, builder, plan, c, err := o.planOf(n, jr)
 		if err != nil {
-			return "", false, "", fmt.Errorf("output %s: %w", jr.name(), err)
+			return jobPlan{}, fmt.Errorf("output %s: %w", jr.name(), err)
 		}
 		if plan {
-			text, ok, cut = t, true, ""
+			p = jobPlan{text: t, ok: true}
 			if c {
-				cut = jr.name()
+				p.cut = jr.name()
+			}
+			if builder != nil {
+				p.builder, p.size = path.Join("runs", jr.name(), "io", "builder.md"), int64(len(builder))
 			}
 		}
 	}
-	return text, ok, cut, nil
+	return p, nil
 }
 
 // replay builds the workspace of issue is, open at a stage with its pull

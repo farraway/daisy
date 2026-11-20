@@ -114,3 +114,17 @@ their clone at `/job/work/<name>`, the path a member's checkout has,
 with nothing beside it but the dependency cache, once the members are
 at `/job`; R3 adopts this decision's layout for the resources and the
 notes as it stands.
+
+**Amended by Dean's answer of 2026-11-20 to the question left open
+above (Open Question 7 of the plan implementing the 2026-11-19 swarm
+roadmap; built at its Step R1-11).** The maintainer sees at G2 where the
+builder plan is, not the builder plan itself: the plan gate's note
+gains a line naming its file on the swarm's host, `<state>` written for
+the state directory so that no host path is posted, and its size, or
+saying there is none and that each slice's worker is then given its
+step alone (section 5, the gate note). It stays not posted, so this
+decision's reasons stand. Attaching it to the issue and linking the
+attachment from the line was the alternative: the forge's record would
+then hold a second architect text after all, and GitHub's adapter
+attaches nothing (section 10), so the line would still need a host
+path there. Test: `TestPlanGateNoteNamesTheBuilderPlan`.

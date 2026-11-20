@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -196,6 +198,7 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 			"Decide: `daisy swarm triage 1`, `daisy swarm close 1`, `daisy swarm class 1 routine`, after which Daisy passes this gate and the plan's, or a comment here, which the owner answers.\n\ncc @jane",
 		3: "**reconciler:** gated at plan-0-posted: the plan gate holds the plan until the maintainer accepts it.\n\n" +
 			"- Class: architecture.\n- Slices: 2.\n  1. app: change main.go to v1; the test proves it.\n  2. lib: add notes.md.\n" +
+			"- Builder plan: none; each slice's worker is given its step alone.\n" +
 			"- Open questions, as the plan has them:\n  1. Should main.go say v1 or v2?\n" +
 			"- Risks:\n  - **The corpus drifts.** It moves under us.\n  - A second risk.\n\n" +
 			"Decide: `daisy swarm accept 3`, `daisy swarm class 3 routine`, after which Daisy accepts it, or a comment here, from which the architect revises the plan.\n\ncc @jane",
@@ -438,5 +441,54 @@ func TestSwarmBatchReadsTheTerminals(t *testing.T) {
 	a.pass()
 	if p := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(p, "- #2 [rejected] Closed swarm:rejected: closed ") || !strings.Contains(p, "- #1 [done] Closed swarm:done: closed ") {
 		t.Errorf("batch prompt:\n%s", p)
+	}
+}
+
+// The plan gate's note names the builder plan (section 5; 7.8, The
+// builder plan): not posted, it is named by its file on the swarm's host,
+// `<state>` standing for the state directory, so that no host path
+// reaches the forge, with its size: the workspace's builder.md, or, with
+// no plan.md there (the plan read in memory, 7.8, Daisy's own reads), the
+// plan run's io/builder.md; with none, a line saying so and what each
+// slice's worker is then given.
+func TestPlanGateNoteNamesTheBuilderPlan(t *testing.T) {
+	builder := "# Builder plan\n\n## Slice 1\n\nEdit main.go: print v1.\n\n## Slice 2\n\nWrite notes.md.\n"
+	size := strconv.Itoa(len(builder))
+	a := newApplyWS(t)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
+	a.runner.Script(1, "architect", runner.Canned{Out: gatePlan, IO: builderPlan(builder)})
+	a.pass()
+	line := "\n  2. lib: add notes.md.\n- Builder plan: `<state>/jobs/1/builder.md` on the swarm's host, " + size + " bytes; not posted.\n- Open questions, as the plan has them:\n"
+	notes := a.gateNotes(1)
+	if len(notes) != 1 || !strings.Contains(notes[0], line) {
+		t.Fatalf("the plan gate's note, want %q:\n%q", line, notes)
+	}
+	if strings.Contains(notes[0], a.state("")) || strings.Contains(notes[0], filepath.Dir(a.state(""))) {
+		t.Errorf("the note names a host path:\n%s", notes[0])
+	}
+
+	// plan.md gone: the plan is read from its run, and so is the
+	// builder plan.
+	if err := os.Remove(a.state("jobs/1/plan.md")); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	a.forge.SetLabel(issue1, "swarm:plan-1-accepted")
+	a.pass()
+	a.forge.SetLabel(issue1, "swarm:plan-0-posted") // gated again
+	a.pass()
+	line = "\n- Builder plan: `<state>/runs/1-architect-1/io/builder.md` on the swarm's host, " + size + " bytes; not posted.\n"
+	if notes := a.gateNotes(1); len(notes) != 2 || !strings.Contains(notes[1], line) {
+		t.Errorf("the note with plan.md gone, want %q:\n%q", line, notes)
+	}
+
+	// No builder plan.
+	b := newApplyWS(t)
+	b.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
+	b.runner.Script(1, "architect", runner.Canned{Out: gatePlan})
+	b.pass()
+	line = "\n  2. lib: add notes.md.\n- Builder plan: none; each slice's worker is given its step alone.\n- Open questions, as the plan has them:\n"
+	if notes := b.gateNotes(1); len(notes) != 1 || !strings.Contains(notes[0], line) {
+		t.Errorf("the note with no builder plan, want %q:\n%q", line, notes)
 	}
 }

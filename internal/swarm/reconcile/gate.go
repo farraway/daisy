@@ -164,15 +164,19 @@ func (s *Swarm) triageItems(is forge.Issue, open []forge.Issue) []string {
 // itemMark is a Markdown list item's or heading's mark.
 var itemMark = regexp.MustCompile(`^(?:[-*+]|[0-9]+[.)]|#{1,6})[ \t]+`)
 
-// planItems: the accepted plan's slice count and titles, its Open
-// Questions as written and its Risks' first lines (each line of the
-// section that is not indented: an item's, a heading's or a paragraph's),
-// the plan read from the job's workspace, plan.md (Outputs.JobPlan).
+// planItems: the accepted plan's slice count and titles, its builder
+// plan, not posted, by its file on the swarm's host, `<state>` standing
+// for the state directory so that no host path is posted, and its size,
+// or none; its Open Questions as written and its Risks' first lines (each
+// line of the section that is not indented: an item's, a heading's or a
+// paragraph's), the plan read from the job's workspace, plan.md, and the
+// builder plan with it (Outputs.jobPlan).
 func (s *Swarm) planItems(is forge.Issue) ([]string, error) {
-	text, ok, _, err := s.outputs().JobPlan(is, s.SwarmLogin)
+	p, err := s.outputs().jobPlan(is, s.SwarmLogin)
 	if err != nil {
 		return nil, fmt.Errorf("#%d: %w", is.Number, err)
 	}
+	text, ok := p.text, p.ok
 	if !ok {
 		return []string{"- Plan: none; the thread holds no plan of the architect's."}, nil
 	}
@@ -184,6 +188,11 @@ func (s *Swarm) planItems(is forge.Issue) ([]string, error) {
 		for _, l := range lines {
 			items = append(items, "  "+cut(l))
 		}
+	}
+	if p.builder == "" {
+		items = append(items, "- Builder plan: none; each slice's worker is given its step alone.")
+	} else {
+		items = append(items, fmt.Sprintf("- Builder plan: `<state>/%s` on the swarm's host, %s; not posted.", p.builder, plural(int(p.size), "byte")))
 	}
 	var questions []string
 	for _, l := range section(text, "Open Questions") {
