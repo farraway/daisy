@@ -858,3 +858,13 @@ they write.
   `out.md`. Sections 6 (the rulings), 7.5, 7.6 (the result's lines) and
   12, and the tests row. Decision
   [150](swarm/decisions/0150-a-long-text-is-posted-whole.md) amended.
+- 2026-11-20, Step R0-7 of the plan implementing the 2026-11-19 swarm
+  roadmap (the maintainer's answer to its Open Question 4): `swarm
+  intervene --type <type> --issue <n> <note...>` records the
+  intervention on issue `<n>`, `<n>-intervention-<k>`, its notes and
+  journal line ending `#<n>`, so the scorecard counts it on the issue's
+  slice; without `--issue` it stays on issue 0; `<n>` is not looked up
+  on the forge, and one not an issue number, or `--issue` twice, is
+  usage. The opening's list of the verbs, and section 11 (The
+  interventions' record, daisy swarm intervene). Decision
+  [155](swarm/decisions/0155-interventions-recorded.md) amended.

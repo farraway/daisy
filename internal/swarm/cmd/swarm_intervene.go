@@ -12,9 +12,13 @@ import (
 // (docs/swarm.md section 11, The interventions' record).
 const typeFlag = "--type"
 
-// SwarmIntervene is `daisy swarm intervene --type <type> <note...>`: the
-// record of an intervention no verb makes, a hand edit of swarm.json or
-// a hand-published patch; it writes nothing else.
+// issueFlag names the issue an intervention no verb makes was on.
+const issueFlag = "--issue"
+
+// SwarmIntervene is `daisy swarm intervene --type <type> [--issue <n>]
+// <note...>`: the record of an intervention no verb makes, a hand edit
+// of swarm.json or a hand-published patch, on issue <n> or on none; it
+// writes nothing else, and reads no forge, so <n> is not checked there.
 func SwarmIntervene(c *Context) error {
 	return inSwarm(c, func() error { return swarmIntervene(c) })
 }
@@ -27,6 +31,16 @@ func swarmIntervene(c *Context) error {
 	if err := checkType(typ); err != nil {
 		return err
 	}
+	n := 0 // no issue
+	if word, given := c.Value(issueFlag); given {
+		if len(slices.DeleteFunc(slices.Clone(c.Values), func(v Value) bool { return v.Flag != issueFlag })) > 1 {
+			return UsageError("--issue is given twice")
+		}
+		var err error
+		if n, err = parseIssue(word); err != nil {
+			return err
+		}
+	}
 	note := strings.Join(strings.Fields(strings.Join(c.Args, " ")), " ")
 	if note == "" {
 		return UsageError("swarm intervene takes a note after --type <type>, saying what you did")
@@ -35,7 +49,7 @@ func swarmIntervene(c *Context) error {
 	if err != nil {
 		return err
 	}
-	return record(c, s, reconcile.Intervention{Type: typ, Verb: "intervene", Note: note})
+	return record(c, s, reconcile.Intervention{Type: typ, Verb: "intervene", Note: note, N: n})
 }
 
 // checkType refuses a type outside the catalogue's, as usage.

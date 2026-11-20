@@ -127,8 +127,8 @@ Swarm
                                     As the maintainer: have the architect re-plan the job, from your direction
   swarm close <n> [--type <type>] [comment...]
                                     As the maintainer: close the issue, after the comment when given
-  swarm intervene --type <type> <note...>
-                                    As the maintainer: record an intervention no verb makes (a hand edit of swarm.json, a hand-published patch)
+  swarm intervene --type <type> [--issue <n>] <note...>
+                                    As the maintainer: record an intervention no verb makes (a hand edit of swarm.json, a hand-published patch; --issue: on that issue)
 
 System
   commit [--root] <message>         Commit the home repo (or the root repo)
@@ -1555,16 +1555,16 @@ recorded then by `swarm intervene`. A verb refused records nothing.
 
 | Field | Value |
 |---|---|
-| Status | as built (Step 6 of the plan implementing the 2026-11-19 swarm roadmap): Go (`internal/swarm/cmd/swarm_intervene.go`, `internal/swarm/reconcile/intervention.go`); the contract is [docs/swarm.md](swarm.md) section 11, The interventions' record |
+| Status | as built (Steps 6 and R0-7, `--issue`, of the plan implementing the 2026-11-19 swarm roadmap): Go (`internal/swarm/cmd/swarm_intervene.go`, `internal/swarm/reconcile/intervention.go`); the contract is [docs/swarm.md](swarm.md) section 11, The interventions' record |
 | Legacy | none |
-| Usage | `daisy swarm intervene --type <type> <note...>`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); the record of an intervention no verb makes (a hand edit of `swarm.json`, a hand-published patch), `<type>` one of `I1` to `I14`, a leading value flag; the words after it are the note, their whitespace made single spaces; without `--type`, a type outside them, or no note: usage on stderr, exit 2, before anything is read |
+| Usage | `daisy swarm intervene --type <type> [--issue <n>] <note...>`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); the record of an intervention no verb makes (a hand edit of `swarm.json`, a hand-published patch), `<type>` one of `I1` to `I14`; `--issue <n>`, the issue the act was on, a positive issue number (not looked up on the forge); both leading value flags, in either order; the words after them are the note, their whitespace made single spaces; without `--type`, a type outside them, `--issue` not an issue number or given twice, or no note: usage on stderr, exit 2, before anything is read |
 | Exit codes | 0 recorded; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, `<state>/home` naming no usable home or its CSV not this Daisy's (`Error: swarm: --type: <reason>; nothing changed`), the metrics lock held past 30 seconds or a write failing (`Error: swarm: intervention not recorded: <reason>`); 2 usage |
-| Stdout | `Intervention 0-intervention-<k> recorded: <type>` |
+| Stdout | `Intervention <n>-intervention-<k> recorded: <type>`, `<n>` the `--issue` given, else `0` |
 | Ops | Real |
 | Lock | `$DAISY_LOCAL/metrics.lock` for the row, `<state>/journal.lock` for the journal line, each for one read and one rewrite |
-| Writes | one row of kind `intervention` appended to `<home>/metrics/metrics.csv` of the home `<state>/home` names (`step_or_run` `0-intervention-<k>`, `role` `maintainer`, `outcome` `intervene`, `cause` the type, `notes` the note), then the line `- <HHMM> 0-intervention-<k>: <type>; intervene; <note>` queued in `<state>/journal`, which `apply`'s next pass pushes; no forge call, no secret read |
+| Writes | one row of kind `intervention` appended to `<home>/metrics/metrics.csv` of the home `<state>/home` names (`step_or_run` `<n>-intervention-<k>`, `role` `maintainer`, `outcome` `intervene`, `cause` the type, `notes` the note, then `, #<n>` with `--issue`), then the line `- <HHMM> <n>-intervention-<k>: <type>; intervene; <note>` (then `; #<n>` with `--issue`) queued in `<state>/journal`, which `apply`'s next pass pushes; no forge call, no secret read |
 | Commits | none |
-| Cases | none; `TestSwarmIntervene`, `TestSwarmInterventionRefused`, `TestSwarmVerbRecordsItsIntervention`, `TestSwarmApplyCommandRecordsItsIntervention`, `TestSwarmJournalKeepsALineQueuedDuringItsPush`, `TestIsInterventionType` |
+| Cases | none; `TestSwarmIntervene`, `TestSwarmInterveneIssue`, `TestSwarmInterventionRefused`, `TestSwarmVerbRecordsItsIntervention`, `TestSwarmApplyCommandRecordsItsIntervention`, `TestSwarmJournalKeepsALineQueuedDuringItsPush`, `TestIsInterventionType` |
 
 ## System
 

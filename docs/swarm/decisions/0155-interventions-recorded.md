@@ -86,8 +86,26 @@ record names no login: the maintainer's verbs act under the one
 maintainer's token, and a comment command's author is in its own
 journal line.
 
+**Amended by the maintainer's answer of 2026-11-20 (Open Question 4 of
+the plan implementing the 2026-11-19 swarm roadmap; built at its Step
+R0-7).** `intervene` takes an optional `--issue <n>`, a leading value
+flag as `--type` is: an act no verb makes can belong to one issue (a
+hand-published patch, `I13`), and its record is then on that issue,
+`<n>-intervention-<k>` numbered with the issue's verbs' records, its
+notes and journal line ending `#<n>` as theirs do, so the scorecard
+counts it on the issue's slice. Without `--issue` the record stays on
+issue 0, as above. `<n>` is checked as every verb's issue number is (a
+positive number, no leading zero; `--issue` twice is usage), and is not
+looked up on the forge: `intervene` reads no token and makes no forge
+call, and an issue the forge does not hold is the maintainer's word as
+the note is. Alternatives: the issue read from the forge before the
+record (a token and a forge read for a verb that otherwise needs
+neither, and a closed or transferred issue's act refused); the issue
+taken from the note's `#<n>` (a note naming two issues, or citing one
+it was not on, would be guessed). Test: `TestSwarmInterveneIssue`.
+
 Tests: `TestSwarmVerbRecordsItsIntervention`, `TestSwarmIntervene`,
-`TestSwarmInterventionRefused`,
+`TestSwarmInterveneIssue`, `TestSwarmInterventionRefused`,
 `TestSwarmApplyCommandRecordsItsIntervention`,
 `TestSwarmJournalKeepsALineQueuedDuringItsPush`,
 `TestIsInterventionType`.

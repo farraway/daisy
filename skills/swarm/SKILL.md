@@ -127,7 +127,7 @@ Each verb in the table runs in the swarm repository's clone; one given an issue 
 | a new Daisy build to put in service, or `State: … — restart requested at <time>` | `daisy swarm restart` | the running `apply` loop re-executes itself at its first pass with no member running (it does so by itself when the installed binary changes); a swarm never idle waits: `daisy swarm pause`, then `resume` once the journal shows `0-restart-…` |
 | `Held: paused #n` | `daisy swarm pause <n>`, `daisy swarm resume <n>` | `swarm:paused` set or cleared on that issue alone: nothing launches on it and the merge step skips it, so other jobs go first or an urgent fix jumps the queue |
 | `Held: #n blocked by #m` | `daisy swarm block <n> --by <m>` | `swarm:blocking` on #m, then the comment `Blocked by #m` on #n: no member launches on #n while #m is open and that comment is the maintainer's newest on #n |
-| a step-in no verb makes: a hand edit of `swarm.json`, a hand-published patch, a notes branch merged by hand, a check rerun | `daisy swarm intervene --type <type> <note...>` | the intervention's record alone, a row of kind `intervention` in the home's metrics CSV and a line in the swarm's journal; no forge call |
+| a step-in no verb makes: a hand edit of `swarm.json`, a hand-published patch, a notes branch merged by hand, a check rerun | `daisy swarm intervene --type <type> [--issue <n>] <note...>` (`--issue`: the act was on issue `<n>`) | the intervention's record alone, a row of kind `intervention` in the home's metrics CSV and a line in the swarm's journal; no forge call |
 
 **Interventions.** Every verb in the table but `intervene` also takes
 `--type <type>` (right after `<n>`, or leading): when the maintainer

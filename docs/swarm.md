@@ -61,7 +61,7 @@ The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
 resume [<n>] [--type <type>]`, `swarm restart [--type <type>]`, and the maintainer's `swarm triage <n> [--type <type>]`, `swarm accept
 <n> [--type <type>]`, `swarm class <n> [--type <type>] routine|architecture`, `swarm approve <n> [--type <type>]`, `swarm
 merge <n> [--type <type>]`, `swarm unblock <n> [--cause <word>] [--start base] [--type <type>] <comment...>`, `swarm block <n> --by <m> [--type <type>]`,
-`swarm replan <n> [--type <type>] [direction...]`, `swarm close <n> [--type <type>] [comment...]` and `swarm intervene --type <type> <note...>`):
+`swarm replan <n> [--type <type>] [direction...]`, `swarm close <n> [--type <type>] [comment...]` and `swarm intervene --type <type> [--issue <n>] <note...>`):
 all twenty-one are rows of the `cli` table.
 
 **Sources.** Revision 2 draws on five talks on software factories:
@@ -7277,7 +7277,8 @@ clone's prompts to the installed build's defaults, an upgrade's act,
 recorded, when it is run to step in, as any edit of the clone is. An act
 no verb makes, a hand edit of `swarm.json`, a hand-published patch, a
 notes branch merged by hand, a check rerun, is recorded by `daisy swarm
-intervene --type <type> <note...>`.
+intervene --type <type> [--issue <n>] <note...>`, on issue `<n>` when the
+act was on one.
 
 **The types** are the catalogue's, the maintainer's (2026-11-18), fixed
 as section 7.5's causes are: `I` and a number from 1 to 14, `I1` to
@@ -7307,7 +7308,7 @@ names and one line in the swarm's journal. The row is of kind
 `intervention`: `when` the time it is recorded; `plan_or_swarm`
 `<owner>/<repo>`; `step_or_run` `<n>-intervention-<k>`, `<n>` the
 issue the verb acted on (`0` for none: the whole swarm's `pause`,
-`resume` and `restart`, and `intervene`) and `<k>` one more than the
+`resume` and `restart`, and `intervene` without `--issue`) and `<k>` one more than the
 highest the CSV's rows of kind `intervention` of the swarm and the
 journal as this machine holds it name for `<n>`, found under the
 metrics lock; `role` `maintainer`; `outcome` the verb's name
@@ -7335,10 +7336,10 @@ intervene`.
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm intervene --type <type> <note...>`, in the clone, `--type` a leading value flag, the words after it the note; without `--type`, a type outside `I1` to `I14`, or with no note (blank words are none): usage (exit 2), before anything is read |
+| Usage | `daisy swarm intervene --type <type> [--issue <n>] <note...>`, in the clone, `--type` and `--issue` leading value flags in either order, the words after them the note; `--issue <n>` the issue the act was on, a positive issue number written without a leading zero, not looked up on the forge (Step R0-7 of the plan implementing the 2026-11-19 swarm roadmap); without `--type`, a type outside `I1` to `I14`, `--issue` not an issue number or given twice, or with no note (blank words are none): usage (exit 2), before anything is read |
 | Reads | `swarm.json`'s forge fields (to name `<state>`), `<state>/home`, the registry, the home's metrics CSV, the journal as this machine holds it; no secret, no forge call, no Docker |
-| Writes | the intervention's record (above), its row in the home's metrics CSV and its line in `<state>/journal`, on no issue: `0-intervention-<k>`; nothing else |
-| Stdout | `Intervention 0-intervention-<k> recorded: <type>` |
+| Writes | the intervention's record (above), its row in the home's metrics CSV and its line in `<state>/journal`, on issue `<n>` with `--issue` (`<n>-intervention-<k>`, the notes and the line ending `#<n>`, the scorecard counting it on the issue's slice), else on no issue (`0-intervention-<k>`); nothing else |
+| Stdout | `Intervention <n>-intervention-<k> recorded: <type>` (`<n>` `0` without `--issue`) |
 | Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no usable home or its CSV not this Daisy's (`Error: swarm: --type: <reason>; nothing changed`), the record refused (`Error: swarm: intervention not recorded: <reason>`); 2 usage |
 | Ops | Real |
 

@@ -276,7 +276,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm block <n> --by <m> [--type <type>]` | As the maintainer: hold the issue's job until #m is closed |
 | Swarm | `daisy swarm replan <n> [--type <type>] [direction...]` | As the maintainer: have the architect re-plan the job, from your direction |
 | Swarm | `daisy swarm close <n> [--type <type>] [comment...]` | As the maintainer: close the issue, after the comment when given |
-| Swarm | `daisy swarm intervene --type <type> <note...>` | As the maintainer: record an intervention no verb makes (a hand edit of swarm.json, a hand-published patch) |
+| Swarm | `daisy swarm intervene --type <type> [--issue <n>] <note...>` | As the maintainer: record an intervention no verb makes (a hand edit of swarm.json, a hand-published patch; --issue: on that issue) |
 | System | `daisy commit [--root] <message>` | Commit the home repo (or the root repo) |
 | System | `daisy healthcheck [--force]` | Run the system health check |
 | System | `daisy check-secrets` | Check which secrets/tokens are configured (read-only) |

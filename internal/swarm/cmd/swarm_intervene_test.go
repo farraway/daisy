@@ -119,6 +119,72 @@ func TestSwarmIntervene(t *testing.T) {
 	}
 }
 
+// The claim of Step R0-7 of the plan implementing the 2026-11-19 swarm
+// roadmap (section 11, The interventions' record): swarm intervene with
+// --issue <n>, leading in either order with --type, records on issue n,
+// `<n>-intervention-<k>` numbered after the issue's verbs' records, its
+// notes and journal line ending `#<n>`, with no forge call (an issue
+// the forge does not hold recorded as well); --issue that is not a
+// positive issue number, or given twice, is usage, nothing written.
+func TestSwarmInterveneIssue(t *testing.T) {
+	a, m, home := interventionWS(t)
+	intervene := func(c *Context, _ opener) error { return swarmIntervene(c) }
+	if err := m.verb(maintainerVerb("block"), "2", "--type", "I7", "--by", "1"); err != nil {
+		t.Fatal(err)
+	}
+	m.opened = nil
+	before := m.writes(1, 2)
+	var u UsageError
+	for _, issue := range [][]string{{"0"}, {"x"}, {"02"}, {"-3"}, {"2", "2"}} {
+		m.values = []Value{{Flag: "--type", Value: "I13"}}
+		for _, n := range issue {
+			m.values = append(m.values, Value{Flag: "--issue", Value: n})
+		}
+		if err := m.verb(intervene, "Published", "a", "patch."); !errors.As(err, &u) {
+			t.Errorf("--issue %q: %v, want usage", issue, err)
+		}
+	}
+	if got := interventions(t, home); len(got) != 1 {
+		t.Fatalf("a usage error wrote a row: %v", got)
+	}
+
+	m.values = []Value{{Flag: "--issue", Value: "2"}, {Flag: "--type", Value: "I13"}}
+	if err := m.verb(intervene, "Published", "58d0dbe", "as", "a", "patch."); err != nil {
+		t.Fatal(err)
+	}
+	if want := "Intervention 2-intervention-2 recorded: I13\n"; m.stdout.String() != want {
+		t.Errorf("stdout %q", m.stdout.String())
+	}
+	m.values = []Value{{Flag: "--type", Value: "I9"}, {Flag: "--issue", Value: "9"}}
+	if err := m.verb(intervene, "Merged", "the", "notes."); err != nil {
+		t.Fatal(err)
+	}
+	m.values = nil
+	if m.opened != nil || !slices.Equal(m.writes(1, 2), before) {
+		t.Errorf("forge: opened %q, writes %q", m.opened, m.writes(1, 2)[len(before):])
+	}
+	got := interventions(t, home)
+	if len(got) != 3 {
+		t.Fatalf("rows %v", got)
+	}
+	for i, want := range []map[string]string{
+		{"step_or_run": "2-intervention-2", "outcome": "intervene", "cause": "I13", "notes": "Published 58d0dbe as a patch., #2"},
+		{"step_or_run": "9-intervention-1", "outcome": "intervene", "cause": "I9", "notes": "Merged the notes., #9"},
+	} {
+		for c, v := range want {
+			if got[i+1][c] != v {
+				t.Errorf("row %d %s: %q, want %q", i+2, c, got[i+1][c], v)
+			}
+		}
+	}
+	queue, _ := os.ReadFile(a.state("journal"))
+	if want := "2026-11-06 - 1500 2-intervention-1: I7; block; #2\n" +
+		"2026-11-06 - 1500 2-intervention-2: I13; intervene; Published 58d0dbe as a patch.; #2\n" +
+		"2026-11-06 - 1500 9-intervention-1: I9; intervene; Merged the notes.; #9\n"; string(queue) != want {
+		t.Errorf("queue:\n%s\nwant:\n%s", queue, want)
+	}
+}
+
 // A type outside the catalogue's, --type without one or twice, words
 // after <n> the verb does not take once --type is read out, and intervene
 // without --type or a note are usage, refused before anything
