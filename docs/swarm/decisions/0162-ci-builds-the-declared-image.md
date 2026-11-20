@@ -87,7 +87,8 @@ with `-f <dockerfile>` (or `--file`) and the checkout's root as its
 context; none differs (`no workflow job builds the image from
 <dockerfile>`). The targets, services and variables are then read
 from the image jobs alone: the check's targets from the words after
-`make` in each `docker run` of a step after the build (a target the
+`make` in each `docker run` that follows the build, in its step
+or a later one (a target the
 check runs that no such run runs differs, as one a step runs that the
 check does not); the services from each image job's `services`, and a
 run of the check's targets that is not on the job's network
