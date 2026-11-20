@@ -9,6 +9,7 @@ import (
 	"maps"
 	"math"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,7 +38,13 @@ func (c *collection) record(outcome string) error {
 	}
 	s := c.s
 	now := s.O.Now().UTC()
-	row, turns := c.row(outcome, now)
+	// The row is dated by the run's end, as a backfill dates it; the
+	// journal line by its collection.
+	when, ok := endTime(c.lines)
+	if !ok {
+		when = now
+	}
+	row, turns := c.row(outcome, when)
 	if err := s.queue(now.Format("2006-01-02"), journalLine(row, turns, now)); err != nil {
 		return err
 	}
@@ -76,21 +83,14 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	r.Cause = c.cause(outcome)
 	var turns string
 	if l, ok := Has(c.lines, "cost"); ok {
-		// cost <usd|-> tokens <in>/<out> turns <t>[ cached <c>] (section
-		// 2). A run launched before the persona line wrote a cost its CLI
+		// A run launched before the persona line wrote a cost its CLI
 		// did not report as 0 (codex's always), where it now writes `-`.
-		f := strings.Fields(l)
-		if (len(f) == 6 || len(f) == 8 && f[6] == "cached") && f[2] == "tokens" && f[4] == "turns" {
-			if f[1] != "-" && (since16b || f[1] != "0") {
-				r.CostReported = f[1]
+		if u, ok := readCost(l); ok {
+			if u.usd != "-" && (since16b || u.usd != "0") {
+				r.CostReported = u.usd
 			}
-			in, out, _ := strings.Cut(f[3], "/")
-			cached := ""
-			if len(f) == 8 {
-				cached = f[7]
-			}
-			usage(&r, in, out, cached)
-			turns = f[5]
+			usage(&r, u.in, u.out, u.cached)
+			turns = u.turns
 		}
 	}
 	if b, err := s.O.FS().ReadFile(filepath.Join(c.r.Dir, "io", "system.md")); err == nil {
@@ -122,6 +122,24 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 		r.Notes += ", lines not counted"
 	}
 	return r, turns
+}
+
+// costUsage is a result's cost line read: `cost <usd|-> tokens
+// <in>/<out> turns <t>[ cached <c>]` (section 2), cached "" when the
+// line has no count.
+type costUsage struct{ usd, in, out, turns, cached string }
+
+func readCost(line string) (costUsage, bool) {
+	f := strings.Fields(line)
+	if !((len(f) == 6 || len(f) == 8 && f[6] == "cached") && f[0] == "cost" && f[2] == "tokens" && f[4] == "turns") {
+		return costUsage{}, false
+	}
+	u := costUsage{usd: f[1], turns: f[5]}
+	u.in, u.out, _ = strings.Cut(f[3], "/")
+	if len(f) == 8 {
+		u.cached = f[7]
+	}
+	return u, true
 }
 
 // usage sets the row's usage cells from in input tokens, out output
@@ -158,7 +176,11 @@ func (s *Swarm) runKey(r Run) metrics.Row {
 // log` writes a day's log: `- HHMM <run>: <outcome>; <persona>; <usage>;
 // <cost>`, then a worker's lines and the issue.
 func journalLine(r metrics.Row, turns string, now time.Time) string {
-	parts := []string{r.Outcome, strings.Join(slices.DeleteFunc([]string{r.Provider, r.Model, r.Effort}, func(s string) bool { return s == "" }), " ")}
+	persona := strings.Join(slices.DeleteFunc([]string{r.Provider, r.Model, r.Effort}, func(s string) bool { return s == "" }), " ")
+	if persona == "" {
+		persona = "unknown persona"
+	}
+	parts := []string{r.Outcome, persona}
 	if r.ReviewRounds != "" {
 		parts = append(parts, "round "+r.ReviewRounds)
 	}
@@ -350,10 +372,14 @@ func (s *Swarm) locked(write func(ops.FS, string, ...metrics.Row) (int, error), 
 // the home <state>/home names holds none for (section 11, swarm
 // metrics): the row a collection makes (row), at the time of the run's
 // end line, its root's and home's commits unknown, its notes ending
-// `backfilled`. Every row is made, a worker's lines measured, before the
-// metrics lock is taken; under it, the CSV is read and rewritten once,
-// so a live apply waits on it no longer than on its own row. No journal
-// line is written.
+// `backfilled`; then, for each issue and reviewer role of a backfilled
+// review, the row of each review of that role on the issue whose known
+// effect the runs now give otherwise is superseded, as a collection
+// supersedes it (earlierEffects). Every row is made, a worker's lines
+// measured, before the metrics lock is taken; under it, the CSV is read
+// and rewritten once for the new rows and once for the superseding
+// ones, so a live apply waits on it no longer than on two rows. No
+// journal line is written.
 func (s *Swarm) Backfill() (Backfilled, error) {
 	var b Backfilled
 	var before []byte
@@ -372,6 +398,7 @@ func (s *Swarm) Backfill() (Backfilled, error) {
 		return b, err
 	}
 	var rows []metrics.Row
+	reviewed := map[string]Run{} // a backfilled review's issue and role, by one of its runs
 	undated := 0
 	for _, r := range runs {
 		lines, err := r.Result(s.O.FS())
@@ -396,9 +423,37 @@ func (s *Swarm) Backfill() (Backfilled, error) {
 		row, _ := c.row(strings.TrimPrefix(outcome, "outcome "), when)
 		row.Notes += ", backfilled"
 		rows = append(rows, row)
+		if isReviewer(r.Role) {
+			reviewed[fmt.Sprintf("%d-%s", r.N, r.Role)] = r
+		}
 	}
 	slices.SortStableFunc(rows, func(a, b metrics.Row) int { return strings.Compare(a.When, b.When) })
-	b.Written, err = s.locked(metrics.Append, b.File, "swarm metrics --backfill", rows...)
+	// A backfilled review may decide the effect of an earlier review of
+	// its role on the issue whose row the CSV holds: superseded as a
+	// collection supersedes it (earlierEffects).
+	var effects [][]runEffect
+	for _, k := range slices.Sorted(maps.Keys(reviewed)) {
+		e, err := s.reviewEffects(reviewed[k], "")
+		if err != nil {
+			return b, err
+		}
+		effects = append(effects, e)
+	}
+	write := func(fsys ops.FS, file string, rows ...metrics.Row) (int, error) {
+		n, err := metrics.Append(fsys, file, rows...)
+		if err != nil {
+			return n, err
+		}
+		for i, k := range slices.Sorted(maps.Keys(reviewed)) {
+			m, err := s.supersedeEffects(fsys, file, reviewed[k].Role, effects[i])
+			if err != nil {
+				return n, err
+			}
+			b.Superseded += m
+		}
+		return n, nil
+	}
+	b.Written, err = s.locked(write, b.File, "swarm metrics --backfill", rows...)
 	b.Had = b.Collected - undated - b.Written
 	return b, err
 }
@@ -428,9 +483,11 @@ func (s *Swarm) metricsCSV() (string, []byte, error) {
 // adapter of the row's provider, gives other usage cells than the row's
 // (usage: tokens_in with the cache's input, tokens_cached, tokens_total,
 // cost_estimated at today's list price), or, for a reviewer's run, the
-// runs give another review_effect (reviewEffects): the new row is the
-// held row with those cells, every other cell carried over, its notes
-// ending `repriced`. A run without stdout, one whose stdout reports no
+// runs give another known review_effect (reviewEffects; an unknown one
+// keeps the held row's, which may be set by hand), or its notes still
+// hold `<c> cached input` beside a tokens_cached: the new row is the
+// held row with those cells, that part of its notes dropped, every
+// other cell carried over, its notes ending `repriced`. A run without stdout, one whose stdout reports no
 // usage, or a row naming a provider the adapter table lacks is unread,
 // its usage cells left as they are. Every row is made before the
 // metrics lock is taken; under
@@ -494,13 +551,14 @@ func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
 				}
 			}
 			for _, e := range effects[k] {
-				if e.k == r.K {
+				if e.k == r.K && e.effect != "" { // unknown keeps the held effect, which may be set by hand
 					row.ReviewEffect = e.effect
 				}
 			}
 		}
+		row.Notes = withoutCachedNote(row)
 		if row.TokensIn == held.TokensIn && row.TokensOut == held.TokensOut && row.TokensCached == held.TokensCached &&
-			row.TokensTotal == held.TokensTotal && row.CostEstimated == held.CostEstimated && row.ReviewEffect == held.ReviewEffect {
+			row.TokensTotal == held.TokensTotal && row.CostEstimated == held.CostEstimated && row.ReviewEffect == held.ReviewEffect && row.Notes == held.Notes {
 			if rep.Known {
 				p.Current++
 			}
@@ -522,6 +580,21 @@ func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
 	return p, err
 }
 
+// cachedNote is the notes' part a row recorded before Step 28 of the
+// plan remediating the 2026-11-15 design review held its cached input
+// in, `<c> cached input`, which tokens_cached now holds.
+var cachedNote = regexp.MustCompile(`^[0-9]+ cached input$`)
+
+// withoutCachedNote is the row's notes without that part once its
+// tokens_cached is set.
+func withoutCachedNote(r metrics.Row) string {
+	if r.TokensCached == "" {
+		return r.Notes
+	}
+	parts := strings.Split(r.Notes, ", ")
+	return strings.Join(slices.DeleteFunc(parts, cachedNote.MatchString), ", ")
+}
+
 // Repriced is what a reprice did: the CSV, the rows it made (each from
 // the row it supersedes) and those it wrote, the runs collected, those
 // of them the CSV holds a row of, and of those the rows already current,
@@ -536,10 +609,11 @@ type Repriced struct {
 type Change struct{ From, To metrics.Row }
 
 // Backfilled is what a backfill did: the CSV it wrote to, the rows it
-// wrote, the runs collected and those of them the CSV held a row for.
+// wrote, the runs collected and those of them the CSV held a row for,
+// and the earlier reviews' rows it superseded with their effect.
 type Backfilled struct {
-	File                    string
-	Written, Collected, Had int
+	File                                string
+	Written, Collected, Had, Superseded int
 }
 
 // endTime is when the run ended, its end line's time (section 2), else

@@ -32,3 +32,15 @@ per revert; computed when read, the count is always the mirrors' or
 the repository's present one. `daisy metrics`, which reads no clone,
 takes `base` from `swarm.json` on the swarm repository's default branch
 in its mirror, reading that field alone.
+
+**Amended by decision [156](0156-a-scorecard-per-merged-slice.md)
+(Step 7 of the plan implementing the 2026-11-19 swarm roadmap; the
+maintainer's answer of 2026-11-18).** A revert that a later revert in
+effect names (a reapply, git's `Reapply "…"`) no longer takes its
+commit back, and the chain is followed, so a change reverted,
+reapplied and reverted again is reverted: `metrics.Reverted` reads
+each revert with its own sha and settles the reverts newest first
+(`git log --topo-order`). A plan's steps, a swarm's pull requests and
+the scorecard's merges are all read through it. The merges themselves
+are read once, by `ReadMerges`, which the reverted line and the
+scorecard share.

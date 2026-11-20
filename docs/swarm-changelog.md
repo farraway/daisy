@@ -441,3 +441,25 @@ they write.
   makes; the journal queue takes `<state>/journal.lock` and its push
   keeps a line queued since; sections 2, 6, 7.6 and 11; decision
   [155](swarm/decisions/0155-interventions-recorded.md).
+- 2026-11-19, Step 7 of the plan implementing the 2026-11-19 swarm
+  roadmap (R0): `daisy swarm metrics --scorecard [--since <time>]`
+  prints a row per merged slice (a merge commit in the mirrors whose
+  second parent a worker run pushed, as the reverted line reads one),
+  computed from the metrics CSV's last rows, the mirrors and each
+  issue's opening on the forge, and writes nothing: the runs by role,
+  the uncached, cached and output tokens, the estimate at list price, a
+  row without one counted $0 and named, the wall-clock from the issue's
+  opening (or the previous slice's merge), the review rounds, the stops
+  by cause and the interventions by type, then a summary of the
+  roadmap's baseline figures over the window; a revert that a later
+  revert names (a reapply) no longer counts, in `status`, `daisy
+  metrics` and the scorecard; `status`'s Throughput counts runs ending
+  in a question apart and adds the runs' estimate at list price; a
+  run's row is dated by its end, as a backfill dates it; a journal line
+  with no persona says `unknown persona`; `--backfill` supersedes the
+  earlier reviews' rows whose effect a backfilled review decides,
+  `--reprice` keeps an effect the runs read unknown and drops `<c>
+  cached input` from a row's notes beside `tokens_cached`; sections 2,
+  7.6 and 11; decision
+  [156](swarm/decisions/0156-a-scorecard-per-merged-slice.md) (0141
+  amended).

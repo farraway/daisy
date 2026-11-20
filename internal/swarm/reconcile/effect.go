@@ -143,26 +143,37 @@ func (c *collection) earlierEffects(outcome string) {
 		warn(err)
 		return
 	}
+	effects = slices.DeleteFunc(effects, func(e runEffect) bool { return e.k >= c.r.K })
 	supersede := func(fsys ops.FS, file string, _ ...metrics.Row) (int, error) {
-		b, err := fsys.ReadFile(file)
-		if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-			return 0, err
-		}
-		latest, err := metrics.Latest(b)
-		if err != nil {
-			return 0, err
-		}
-		var rows []metrics.Row
-		for _, e := range effects {
-			held, ok := latest[metrics.Row{Kind: metrics.SwarmRun, Source: s.Cfg.Forge.Repo, Unit: e.run, Role: c.r.Role}.Key()]
-			if e.k < c.r.K && ok && held.ReviewEffect != e.effect {
-				held.ReviewEffect = e.effect
-				rows = append(rows, held)
-			}
-		}
-		return metrics.Supersede(fsys, file, rows...)
+		return s.supersedeEffects(fsys, file, c.r.Role, effects)
 	}
 	if _, err := s.locked(supersede, env.MetricsFile(home), "swarm apply"); err != nil {
 		warn(err)
 	}
+}
+
+// supersedeEffects appends to the CSV at file, for each of effects (runs
+// of role) whose effect is known and differs from its run's last row's,
+// that row with the effect, every other cell carried over; a run the CSV
+// holds no row of is left to its own record. An unknown effect never
+// supersedes a row, so one set by hand stays. The caller holds the
+// metrics lock.
+func (s *Swarm) supersedeEffects(fsys ops.FS, file, role string, effects []runEffect) (int, error) {
+	b, err := fsys.ReadFile(file)
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return 0, err
+	}
+	latest, err := metrics.Latest(b)
+	if err != nil {
+		return 0, err
+	}
+	var rows []metrics.Row
+	for _, e := range effects {
+		held, ok := latest[metrics.Row{Kind: metrics.SwarmRun, Source: s.Cfg.Forge.Repo, Unit: e.run, Role: role}.Key()]
+		if ok && e.effect != "" && held.ReviewEffect != e.effect {
+			held.ReviewEffect = e.effect
+			rows = append(rows, held)
+		}
+	}
+	return metrics.Supersede(fsys, file, rows...)
 }

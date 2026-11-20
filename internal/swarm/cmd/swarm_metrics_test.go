@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"daisy/internal/metrics"
 	"daisy/internal/ops"
@@ -138,7 +139,7 @@ func TestSwarmApplyRecordsEachRun(t *testing.T) {
 	if err := a.status(a.forge); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(a.stdout.String(), "  cost         $0.25 today, $0.25 in all (1 runs without a cost)\n") {
+	if !strings.Contains(a.stdout.String(), "  cost         $0.25 today, $0.25 in all (1 runs without a cost); estimated $0.00 in all at list price (0 runs without an estimate)\n") {
 		t.Errorf("status:\n%s", a.stdout.String())
 	}
 }
@@ -189,14 +190,23 @@ func TestSwarmApplyPricesCachedInputApart(t *testing.T) {
 
 // A worker's row carries its pushed commits' lines per class, start to
 // pushed in its repository's mirror, and a reviewer's its round; with no
-// <state>/home, the journal alone is written.
+// <state>/home, the journal alone is written. From Step 7 of the plan
+// implementing the 2026-11-19 swarm roadmap (L329): the row is dated by
+// the run's end, its exited line's time, as a backfill dates it, though
+// its check ran a minute past it; the journal line by its collection.
 func TestSwarmApplyRecordsWorkerLinesAndReviewRounds(t *testing.T) {
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n",
 		Work: commit(map[string]string{"main.go": "v1\nv1b\n", "main_test.go": "t\n", "README.md": "r\n"}, "v1")})
+	a.runner.Script(1, "check", runner.Canned{Work: func(string) error { a.tick(); return nil }})
 	a.pass()
+	ended := strings.Fields(lineOf(a.result("1-worker-1"), "exited "))
+	collected := a.Now().UTC()
+	if len(ended) != 3 || !collected.After(mustTime(t, ended[2])) {
+		t.Fatalf("the check did not move the clock past the worker's end: %v, now %s", ended, collected)
+	}
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass()
@@ -205,6 +215,9 @@ func TestSwarmApplyRecordsWorkerLinesAndReviewRounds(t *testing.T) {
 		byRun[r["step_or_run"]] = r
 	}
 	w := byRun["1-worker-1"]
+	if w == nil || w["when"] != ended[2] {
+		t.Errorf("worker row's when %q, want its end %s", w["when"], ended[2])
+	}
 	if w == nil || w["code_added"] != "2" || w["code_removed"] != "0" || w["tests_added"] != "1" || w["prose_added"] != "1" ||
 		w["binary_files"] != "0" || !strings.HasSuffix(w["range"], ".."+strings.TrimPrefix(lineOf(a.result("1-worker-1"), "pushed "), "pushed ")) {
 		t.Errorf("worker row %v\nresult:\n%s", w, a.result("1-worker-1"))
@@ -218,7 +231,7 @@ func TestSwarmApplyRecordsWorkerLinesAndReviewRounds(t *testing.T) {
 		t.Errorf("architect row %v", r)
 	}
 	journal := gitIn(t, a.upstreams[swarmURL], "show", "main:journal/2026-11-06.md")
-	if !strings.Contains(journal, " 1-worker-1: posted; anthropic claude-sonnet-5-5 medium; no usage reported; code +2/-0, tests +1/-0, prose +1/-0 (") ||
+	if !strings.Contains(journal, "- "+collected.Format("1504")+" 1-worker-1: posted; anthropic claude-sonnet-5-5 medium; no usage reported; code +2/-0, tests +1/-0, prose +1/-0 (") ||
 		!strings.Contains(journal, " 1-adversary-1: posted; openai gpt-6.1-sol high; round 1; no usage reported; #1\n") {
 		t.Errorf("journal:\n%s", journal)
 	}
@@ -236,6 +249,15 @@ func TestSwarmApplyRecordsWorkerLinesAndReviewRounds(t *testing.T) {
 	if !strings.Contains(gitIn(t, a.upstreams[swarmURL], "show", "main:journal/2026-11-06.md"), " 2-architect-1: posted;") {
 		t.Error("no journal line without a home")
 	}
+}
+
+func mustTime(t *testing.T, s string) time.Time {
+	t.Helper()
+	at, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return at
 }
 
 // lineOf is result's first line starting with prefix, "" for none.
@@ -331,7 +353,7 @@ func (a *applyWS) backfill() error {
 	a.stderr.Reset()
 	o := &ops.Fake{NowFn: a.Now, ExecFn: a.exec}
 	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &a.stdout, Stderr: &a.stderr, Flags: []string{"--backfill"}}
-	return a.at(c, false, swarmMetrics)
+	return a.at(c, false, func(c *Context) error { return swarmMetrics(c, openForge) })
 }
 
 // oldRun writes run as a run collected before Step 16b of the plan that
@@ -432,7 +454,7 @@ func TestSwarmMetricsBackfill(t *testing.T) {
 	if err := a.status(a.forge); err != nil {
 		t.Fatal(err)
 	}
-	if fmt.Sprintf("$%.2f", sum) != "$0.77" || !strings.Contains(a.stdout.String(), "  cost         $0.25 today, $0.77 in all (1 runs without a cost)\n") {
+	if fmt.Sprintf("$%.2f", sum) != "$0.77" || !strings.Contains(a.stdout.String(), "  cost         $0.25 today, $0.77 in all (1 runs without a cost); estimated $0.00 in all at list price (4 runs without an estimate)\n") {
 		t.Errorf("rows sum to $%.2f; status:\n%s", sum, a.stdout.String())
 	}
 
@@ -441,6 +463,41 @@ func TestSwarmMetricsBackfill(t *testing.T) {
 	}
 	if after, _ := os.ReadFile(csvFile); !bytes.Equal(after, b) || a.stdout.String() != "✓ Backfilled 0 rows into "+csvFile+" (4 runs collected, 4 with its row already)\n" {
 		t.Errorf("second backfill: stdout:\n%s\ncsv:\n%s", a.stdout.String(), after)
+	}
+
+	// From Step 7 of the plan implementing the 2026-11-19 swarm roadmap
+	// (L381): a review requesting changes is backfilled with its effect
+	// unknown; its next review, approving a new head in the next round,
+	// backfilled later, supersedes the first's row with its two blocking
+	// findings, as a collection would, every other cell carried over.
+	h1, h2 := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	review := func(round, head string) string {
+		return "start " + head + "\nround " + round + "\nstarted 2026-11-05T13:00:00Z\nexited 0 2026-11-05T13:10:00Z\nposted review\noutcome posted\ncollected\n"
+	}
+	a.runResult("5-adversary-1", review("1", h1), "VERDICT: request-changes\n\n[blocking] main.go:1 wrong.\n[blocking] main.go:2 untested.\n")
+	if err := a.backfill(); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	first := rows(t, home)
+	if r := first[len(first)-1]; r["step_or_run"] != "5-adversary-1" || r["review_effect"] != "" {
+		t.Fatalf("first review's row %v", r)
+	}
+	a.runResult("5-adversary-2", review("2", h2), approve)
+	if err := a.backfill(); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	if want := "✓ Backfilled 1 rows into " + csvFile + " (6 runs collected, 5 with its row already); 1 earlier reviews' rows superseded with their review_effect\n"; a.stdout.String() != want {
+		t.Errorf("stdout:\n%s\nwant:\n%s", a.stdout.String(), want)
+	}
+	got = rows(t, home)
+	if len(got) != len(first)+2 || got[len(got)-2]["step_or_run"] != "5-adversary-2" || got[len(got)-2]["review_effect"] != "0" {
+		t.Fatalf("rows %v", got[len(first):])
+	}
+	sup, held := got[len(got)-1], first[len(first)-1]
+	for _, col := range metrics.Header {
+		if want := held[col]; col == "review_effect" && sup[col] != "2" || col != "review_effect" && sup[col] != want {
+			t.Errorf("5-adversary-1's superseding %s: %q (held %q)", col, sup[col], want)
+		}
 	}
 }
 
@@ -479,7 +536,7 @@ func (a *applyWS) metricsVerb(flags ...string) error {
 	a.stderr.Reset()
 	o := &ops.Fake{NowFn: a.Now, ExecFn: a.exec}
 	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &a.stdout, Stderr: &a.stderr, Flags: flags}
-	return a.at(c, false, swarmMetrics)
+	return a.at(c, false, func(c *Context) error { return swarmMetrics(c, openForge) })
 }
 
 // Step 28's claim (the plan remediating the 2026-11-15 design review,
@@ -495,7 +552,9 @@ func (a *applyWS) metricsVerb(flags ...string) error {
 // the 44 alone); every other cell carried over, the notes ending
 // `repriced`. A run without stdout is unread, one without a row or not
 // collected not counted; --dry-run writes nothing; a second reprice
-// writes nothing.
+// writes nothing. From Step 7 of the plan implementing the 2026-11-19
+// swarm roadmap (L381): the codex row's notes, recorded before Step 28
+// with `3390208 cached input`, lose that part once tokens_cached holds it.
 func TestSwarmMetricsReprice(t *testing.T) {
 	a := newApplyWS(t)
 	home := a.metricsHome()
@@ -505,7 +564,7 @@ func TestSwarmMetricsReprice(t *testing.T) {
 		"binary_files,range,notes\n" +
 		"2026-11-12T08:00:00Z,swarm-run,acme/swarm-app,0-owner-1,owner,anthropic,claude-opus-5-5,low,,,,posted,,30,40,,0.1,0.00092,,,,,,,,,\"batch, 2 turns\"\n" +
 		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,44,9000,,1.2,0.45044,,,,,,,,,\"#1, 20 turns\"\n" +
-		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,,,,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns\"\n"
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,,,,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns, 3390208 cached input\"\n"
 	os.MkdirAll(filepath.Dir(csvFile), 0o755)
 	os.WriteFile(csvFile, []byte(held), 0o644)
 	for run, stdout := range map[string]string{
@@ -662,7 +721,8 @@ func TestSwarmApplyRecordsReviewEffect(t *testing.T) {
 // new head; the sympathetic reviewer's approval), a reprice supersedes
 // each with the effect the runs give, 2, 0 and 0, its usage cells as
 // they were when its output reports none; the dry run names the effect;
-// a second reprice writes nothing.
+// a second reprice writes nothing; an unknown effect keeps one set by
+// hand.
 func TestSwarmMetricsRepriceReviewEffect(t *testing.T) {
 	a := newApplyWS(t)
 	home := a.metricsHome()
@@ -710,6 +770,20 @@ func TestSwarmMetricsRepriceReviewEffect(t *testing.T) {
 	}
 	if after, _ := os.ReadFile(csvFile); !bytes.Equal(after, b) || a.stdout.String() != "✓ Repriced 0 rows into "+csvFile+" "+counts+"\n" {
 		t.Errorf("second reprice: stdout:\n%s\ncsv:\n%s", a.stdout.String(), after)
+	}
+
+	// From Step 7 of the plan implementing the 2026-11-19 swarm roadmap
+	// (L381): a review whose effect the runs read unknown (changes
+	// requested, no next review) keeps the effect its row holds, set by
+	// hand: nothing written.
+	held3 := string(b) + "2026-11-12T11:00:00Z,swarm-run,acme/swarm-app,3-adversary-1,adversary,xai,grok-4.7,high,,,,posted,1,100,10,110,,,,,,,,,,,\"#3, 3 turns\",,1,\n"
+	os.WriteFile(csvFile, []byte(held3), 0o644)
+	a.runResult("3-adversary-1", result("1", h1), "VERDICT: request-changes\n\n[blocking] main.go:1 wrong.\n")
+	if err := a.metricsVerb("--reprice"); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := os.ReadFile(csvFile); string(after) != held3 || !strings.HasPrefix(a.stdout.String(), "✓ Repriced 0 rows into ") {
+		t.Errorf("a hand-set effect: stdout:\n%s\ncsv:\n%s", a.stdout.String(), after)
 	}
 }
 

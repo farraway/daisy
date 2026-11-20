@@ -60,7 +60,7 @@ func InProgress(role, stage string) string {
 // since the plan or the maintainer asked to re-plan (Replan), so the
 // architect runs in the worker's place;
 // and, on an issue carrying swarm:question, the role that answers it
-// (Question, section 6, The question), which runs in place of the
+// (Answerer, section 6, The question), which runs in place of the
 // stage's, reading the issue thread.
 type Turn struct {
 	Label    string
@@ -69,12 +69,12 @@ type Turn struct {
 	Head     string
 	Running  []string
 	Replan   bool
-	Question string
+	Answerer string
 }
 
 // Launch is the roles the trigger rule launches (section 6, rules 1–3):
 // the first of the label's roles that has something to answer (on
-// plan-1-accepted with Replan, the architect's; with Question, that
+// plan-1-accepted with Replan, the architect's; with Answerer, that
 // role's, at any stage), and in a
 // review stage each reviewer that has (the pair launches in one pass,
 // blind to each other on the head); none when nothing is to answer. A
@@ -83,14 +83,14 @@ type Turn struct {
 // stage the other reviewer's run, which holds only itself. Rule 1's holds
 // (Held) and rule 4 (paused, max_members, a free slot) are the caller's.
 func Launch(t Turn, swarmLogin string, trusted []string) []string {
-	if !reviewing(t.Label) || t.Question != "" {
+	if !reviewing(t.Label) || t.Answerer != "" {
 		if len(t.Running) > 0 {
 			return nil
 		}
 		roles := stageRoles[t.Label]
 		switch {
-		case t.Question != "":
-			roles = []string{t.Question}
+		case t.Answerer != "":
+			roles = []string{t.Answerer}
 		case t.Replan && t.Label == forge.PlanAccepted:
 			roles = []string{"architect"}
 		}

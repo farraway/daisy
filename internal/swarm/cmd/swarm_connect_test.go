@@ -270,7 +270,7 @@ func TestSwarmConnect(t *testing.T) {
 		"\n  no issue\n    2026-11-06 - 1503 0-release-1: the owner's batch released\nMark them seen: daisy swarm journal --mark 0-release-1\n",
 		"\nWaiting for you: plan #2\n  #2, its gate note:\n    **reconciler:** gated at plan-0-posted: the plan gate holds the plan until the maintainer accepts it.\n",
 		"\n    Decide: `daisy swarm accept 2`, `daisy swarm class 2 routine`, after which Daisy accepts it, or a comment here, from which the architect revises the plan.",
-		"\nHeld: paused #3\nRuns: 3 (2 posted, 0 blocked, 0 failed, 0 faults, 1 other)\n",
+		"\nHeld: paused #3\nRuns: 3 (2 posted, 0 blocked, 1 questions, 0 failed, 0 faults, 0 other)\n",
 		"\nQuestions the swarm answers: #1 for the architect\n  #1, worker run 1 at 2026-11-06T15:02:00Z:\n    QUESTION: Should main.go say v1 or v1.0?\n",
 		"\nAuthorities: " + filepath.Join(a.ws, "AUTHORITIES.md") + ", quoted verbatim; Daisy acts on none of it\n" + authorities + "\nEnd of AUTHORITIES.md\n",
 		"\nMetrics of the swarm's runs: " + filepath.Join(home, "metrics", "metrics.csv") + " (home testhome)\n",

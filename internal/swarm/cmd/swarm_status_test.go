@@ -143,8 +143,8 @@ Gates: triage on, plan on, merge on
   review-3-changes-requested 0
 Running: none
 ` + statusPersonas + `Throughput:
-  runs         0 (0 posted, 0 blocked, 0 failed, 0 faults, 0 other)
-  cost         $0.00 today, $0.00 in all (0 runs without a cost)
+  runs         0 (0 posted, 0 blocked, 0 questions, 0 failed, 0 faults, 0 other)
+  cost         $0.00 today, $0.00 in all (0 runs without a cost); estimated $0.00 in all at list price (0 runs without an estimate)
   budget       none
   approved     0 pull requests; at the round limit 0, blocked there 0
   reverted     0 of 0 merged pull requests (no mirror fetched)
@@ -307,7 +307,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 			`"owner":{"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},"sympathetic":{"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},` +
 			`"worker":{"effort":"medium","model":"claude-sonnet-5-5","provider":"anthropic"}}`,
 		"throughput": `{"approved":{"at_round_limit":0,"blocked_at_round_limit":0,"pull_requests":0},"auto":{"plan":0,"triage":0},"budget":{"per_day":10,"total":100},` +
-			`"cost":{"all":0.5,"runs_without_cost":0,"today":0.5},"reverted":{"fetched":null,"merged_pulls":0,"reverted_pulls":0},"runs":{"blocked":0,"failed":0,"faults":0,"other":0,"posted":1,"total":1},` +
+			`"cost":{"all":0.5,"estimated":0,"runs_without_cost":0,"runs_without_estimate":1,"today":0.5},"reverted":{"fetched":null,"merged_pulls":0,"reverted_pulls":0},"runs":{"blocked":0,"failed":0,"faults":0,"other":0,"posted":1,"questions":0,"total":1},` +
 			`"stage_time":{"swarm:proposal-accepted":{"median_seconds":600,"runs":1}}}`,
 		"corrections": `[{"blocks":0,"issue":3,"plan_revisions":0,"pulls":[]},{"blocks":0,"issue":4,"plan_revisions":0,"pulls":[]},{"blocks":1,"issue":7,"plan_revisions":0,"pulls":[]}]`,
 		"briefs": `[{"met_run":null,"milestones":[{"closed":0,"heading":"M1","on_forge":false,"open":0}],"name":"next","path":"docs/briefs/next.md","shares_name_with":null},` +
@@ -363,12 +363,18 @@ func TestSwarmStatusWaiting(t *testing.T) {
 	}
 }
 
-// Throughput, from runs/ only.
+// Throughput, from runs/ only. From Step 7 of the plan implementing the
+// 2026-11-19 swarm roadmap (L329, L362): a run ending in a question is
+// counted under questions, not other; the cost line adds the runs'
+// estimate at list price, from each run's persona and cost lines, the
+// runs with no persona line or no cached count counted without one.
 func TestSwarmStatusThroughput(t *testing.T) {
 	s := newStatusWS(t)
 	today, yesterday := "started 2026-11-06T08:00:00Z\n", "started 2026-11-05T23:59:59Z\n"
 	for name, result := range map[string]string{
-		"3-architect-1":   today + "exited 0 2026-11-06T08:10:00Z\ncost 0.50 tokens 10/20 turns 3\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\noutcome posted\ncollected\n",
+		"3-architect-1":   today + "persona anthropic claude-fable-5-1 high\nexited 0 2026-11-06T08:10:00Z\ncost 0.50 tokens 10/20 turns 3 cached 0\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\noutcome posted\ncollected\n",
+		"12-worker-1":     today + "outcome question\ncollected\n",
+		"13-worker-1":     today + "persona openai gpt-6.1-sol medium\ncost - tokens 3476833/12969 turns 1 cached 3390208\noutcome posted\ncollected\n",
 		"3-adversary-1":   yesterday + "cost 1.25 tokens 1/2 turns 1\nrelabelled swarm:review-0-ready swarm:review-2-approved\noutcome posted\ncollected\n",
 		"3-sympathetic-2": today + "relabelled swarm:review-0-ready swarm:plan-0-posted\noutcome posted\ncollected\n",
 		"4-adversary-3":   today + "cost 0.25 tokens 1/2 turns 1\nrelabelled swarm:review-0-ready swarm:blocked\noutcome posted\ncollected\n",
@@ -394,8 +400,8 @@ func TestSwarmStatusThroughput(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `Throughput:
-  runs         15 (9 posted, 1 blocked, 3 failed, 1 faults, 1 other)
-  cost         $2.75 today, $4.00 in all (11 runs without a cost)
+  runs         17 (10 posted, 1 blocked, 1 questions, 3 failed, 1 faults, 1 other)
+  cost         $2.75 today, $4.00 in all (13 runs without a cost); estimated $0.64 in all at list price (15 runs without an estimate)
   budget       none
   approved     3 pull requests; at the round limit 4, blocked there 2
   reverted     0 of 0 merged pull requests (no mirror fetched)
@@ -621,8 +627,8 @@ func TestSwarmStatusStep7(t *testing.T) {
 	}
 	wantTail := `Running: none
 ` + statusPersonas + `Throughput:
-  runs         12 (12 posted, 0 blocked, 0 failed, 0 faults, 0 other)
-  cost         $0.00 today, $0.00 in all (12 runs without a cost)
+  runs         12 (12 posted, 0 blocked, 0 questions, 0 failed, 0 faults, 0 other)
+  cost         $0.00 today, $0.00 in all (12 runs without a cost); estimated $0.00 in all at list price (12 runs without an estimate)
   budget       none
   approved     2 pull requests; at the round limit 0, blocked there 0
   reverted     0 of 0 merged pull requests (no mirror fetched)

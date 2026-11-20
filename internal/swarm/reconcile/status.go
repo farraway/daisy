@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"daisy/internal/metrics"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
@@ -118,21 +119,26 @@ type StatusPersona struct {
 // StatusRuns is the runs line of Throughput: the runs collected, by
 // outcome.
 type StatusRuns struct {
-	Total   int `json:"total"`
-	Posted  int `json:"posted"`
-	Blocked int `json:"blocked"`
-	Failed  int `json:"failed"`
-	Faults  int `json:"faults"`
-	Other   int `json:"other"`
+	Total     int `json:"total"`
+	Posted    int `json:"posted"`
+	Blocked   int `json:"blocked"`
+	Questions int `json:"questions"`
+	Failed    int `json:"failed"`
+	Faults    int `json:"faults"`
+	Other     int `json:"other"`
 }
 
 // StatusThroughput is section 11's Throughput block.
 type StatusThroughput struct {
 	Runs StatusRuns `json:"runs"`
+	// Cost is the runs' reported cost, and their estimate at list price
+	// (section 9), which a run reporting its cost has too.
 	Cost struct {
-		Today    float64 `json:"today"`
-		All      float64 `json:"all"`
-		Uncosted int     `json:"runs_without_cost"`
+		Today       float64 `json:"today"`
+		All         float64 `json:"all"`
+		Uncosted    int     `json:"runs_without_cost"`
+		Estimated   float64 `json:"estimated"`
+		Unestimated int     `json:"runs_without_estimate"`
 	} `json:"cost"`
 	Budget   *declare.Budget `json:"budget"`
 	Approved struct {
@@ -559,6 +565,7 @@ func throughput(o ops.Ops, state string) (StatusThroughput, error) {
 		var started, ended, checkStarted, checkEnded time.Time
 		stage := "batch"
 		cost, costed := 0.0, false
+		var model, costLine string
 		var moves [][2]string // the run's relabels, by the stages' current names
 		lines := strings.Split(string(data), "\n")
 		for _, line := range lines {
@@ -583,6 +590,9 @@ func throughput(o ops.Ops, state string) (StatusThroughput, error) {
 				if v, err := strconv.ParseFloat(f[1], 64); err == nil {
 					cost, costed = v, true
 				}
+				costLine = line
+			case len(f) == 4 && f[0] == "persona":
+				model = f[2]
 			}
 		}
 		for _, span := range []struct {
@@ -598,6 +608,8 @@ func throughput(o ops.Ops, state string) (StatusThroughput, error) {
 			t.Runs.Posted++
 		case "blocked":
 			t.Runs.Blocked++
+		case "question":
+			t.Runs.Questions++
 		case "failed":
 			t.Runs.Failed++
 		case "fault":
@@ -609,6 +621,18 @@ func throughput(o ops.Ops, state string) (StatusThroughput, error) {
 		t.Cost.All += cost
 		if !started.Before(midnight) {
 			t.Cost.Today += cost
+		}
+		// The estimate as the run's row makes it (7.6, The run's record),
+		// none for a run with no persona line, which names the model, or
+		// no cached count.
+		est := metrics.Row{Model: model}
+		if u, ok := readCost(costLine); ok && model != "" {
+			usage(&est, u.in, u.out, u.cached)
+		}
+		if v, err := strconv.ParseFloat(est.CostEstimated, 64); err == nil {
+			t.Cost.Estimated += v
+		} else {
+			t.Cost.Unestimated++
 		}
 		// A reviewer's moves: from review-0-ready (as a run recorded
 		// before the in-progress stages names in-review) or
@@ -633,7 +657,7 @@ func throughput(o ops.Ops, state string) (StatusThroughput, error) {
 			t.Approved.BlockedThere++
 		}
 	}
-	t.Runs.Other = t.Runs.Total - t.Runs.Posted - t.Runs.Blocked - t.Runs.Failed - t.Runs.Faults
+	t.Runs.Other = t.Runs.Total - t.Runs.Posted - t.Runs.Blocked - t.Runs.Questions - t.Runs.Failed - t.Runs.Faults
 	t.StageTime = map[string]StatusTime{}
 	for _, stage := range TimedStages() {
 		if d := times[strings.TrimPrefix(stage, "swarm:")]; len(d) > 0 {

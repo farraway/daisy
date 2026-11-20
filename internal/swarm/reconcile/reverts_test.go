@@ -15,8 +15,10 @@ import (
 // design review, talk A13): a swarm whose mirror holds N merged swarm
 // pull requests, one of them reverted on base, reads 1 of N. Not
 // counted: a merge of a branch no worker run pushed, its revert, a
-// revert on a branch that is not base, a pushed head never merged, and,
-// with since, a merge made before it.
+// revert on a branch that is not base, a merge reverted then reapplied
+// (a revert of its revert, Step 7 of the plan implementing the
+// 2026-11-19 swarm roadmap), a pushed head never merged, and, with
+// since, a merge made before it.
 func TestPullReverts(t *testing.T) {
 	o := ops.Real()
 	git := func(dir string, args ...string) string {
@@ -52,14 +54,17 @@ func TestPullReverts(t *testing.T) {
 		}
 		return git(work, "rev-parse", "HEAD")
 	}
-	h1, h2, h3, other := branch("swarm/1-1"), branch("swarm/2-1"), branch("swarm/3-1"), branch("feature")
+	h1, h2, h3, h7, other := branch("swarm/1-1"), branch("swarm/2-1"), branch("swarm/3-1"), branch("swarm/7-1"), branch("feature")
 	unmerged := branch("swarm/4-1")
 	merge("swarm/1-1", "2026-11-01")
 	m2 := merge("swarm/2-1", "2026-11-02")
 	m3 := merge("swarm/3-1", "2026-11-03")
 	mOther := merge("feature", "2026-11-04")
+	m7 := merge("swarm/7-1", "2026-11-05")
 	git(work, "revert", "--no-edit", "-m", "1", m2)
 	git(work, "revert", "--no-edit", "-m", "1", mOther)
+	git(work, "revert", "--no-edit", "-m", "1", m7)
+	git(work, "revert", "--no-edit", "HEAD") // m7 reapplied
 	git(work, "checkout", "-q", "-b", "elsewhere")
 	git(work, "revert", "--no-edit", "-m", "1", m3) // not on base
 	git(work, "checkout", "-q", "main")
@@ -77,6 +82,7 @@ func TestPullReverts(t *testing.T) {
 		"2-worker-1": "branch swarm/2-1 in app\npushed " + h2 + "\noutcome posted\n",
 		"3-worker-2": "branch swarm/3-1 in app\npushed " + h3 + "\noutcome posted\n",
 		"4-worker-1": "branch swarm/4-1 in app\npushed " + unmerged + "\noutcome posted\n",
+		"7-worker-1": "branch swarm/7-1 in app\npushed " + h7 + "\noutcome posted\n",
 		// A reviewer's run names the head it read, never a push.
 		"5-adversary-1": "start " + other + "\noutcome posted\n",
 		// A repository the swarm has no mirror of: nothing to read.
@@ -90,12 +96,12 @@ func TestPullReverts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (PullReverts{Merged: 3, Reverted: 1, Fetched: fetched}); !got.Fetched.Equal(want.Fetched) || got.Merged != want.Merged || got.Reverted != want.Reverted {
+	if want := (PullReverts{Merged: 4, Reverted: 1, Fetched: fetched}); !got.Fetched.Equal(want.Fetched) || got.Merged != want.Merged || got.Reverted != want.Reverted {
 		t.Errorf("ReadPullReverts = %+v, want %+v", got, want)
 	}
 	since := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
-	if got, err := ReadPullReverts(o, state, "main", since); err != nil || got.Merged != 2 || got.Reverted != 1 {
-		t.Errorf("ReadPullReverts since %s = %+v, %v; want 1 of 2", since, got, err)
+	if got, err := ReadPullReverts(o, state, "main", since); err != nil || got.Merged != 3 || got.Reverted != 1 {
+		t.Errorf("ReadPullReverts since %s = %+v, %v; want 1 of 3", since, got, err)
 	}
 	// A base the mirror does not hold, and a state with no mirror: none.
 	for _, c := range []struct{ state, base string }{{state, "trunk"}, {t.TempDir(), "main"}} {

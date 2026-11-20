@@ -595,7 +595,7 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			case questioned:
 				// The question's answerer reads the issue thread, where
 				// the question is, at any stage (section 6).
-				turn.Question, j.Question = Answerer(is, s.SwarmLogin), true
+				turn.Answerer, j.Question = Answerer(is, s.SwarmLogin), true
 			case review:
 				turn.Thread, turn.Reviews, turn.Head = j.roleThread(cur), j.Pull.Reviews, cur.HeadSHA
 			}

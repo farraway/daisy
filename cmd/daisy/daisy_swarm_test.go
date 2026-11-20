@@ -387,8 +387,8 @@ func TestSwarmStatusJSONThroughGitea(t *testing.T) {
 		"personas.owner":      {"effort", "model", "provider"},
 		"throughput":          {"approved", "auto", "budget", "cost", "reverted", "runs", "stage_time"},
 		"throughput.reverted": {"fetched", "merged_pulls", "reverted_pulls"},
-		"throughput.runs":     {"blocked", "failed", "faults", "other", "posted", "total"},
-		"throughput.cost":     {"all", "runs_without_cost", "today"},
+		"throughput.runs":     {"blocked", "failed", "faults", "other", "posted", "questions", "total"},
+		"throughput.cost":     {"all", "estimated", "runs_without_cost", "runs_without_estimate", "today"},
 		"throughput.approved": {"at_round_limit", "blocked_at_round_limit", "pull_requests"},
 		"throughput.auto":     {"plan", "triage"},
 	} {
@@ -694,7 +694,7 @@ func TestSwarmConnectThroughGitea(t *testing.T) {
 		"journal": {"day", "issues", "mark", "marked"},
 		"waiting": {"issues", "no_check", "notes"},
 		"held":    {"blocked_by", "paused"},
-		"runs":    {"blocked", "failed", "faults", "other", "posted", "total"},
+		"runs":    {"blocked", "failed", "faults", "other", "posted", "questions", "total"},
 		"metrics": {"all", "change", "file", "home", "problem", "since_change"},
 	} {
 		var v any = doc

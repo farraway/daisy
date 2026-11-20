@@ -687,14 +687,15 @@ func runningLine(r reconcile.StatusRunning) string {
 
 // runsLine is Throughput's runs line after its label.
 func runsLine(r reconcile.StatusRuns) string {
-	return fmt.Sprintf("%d (%d posted, %d blocked, %d failed, %d faults, %d other)", r.Total, r.Posted, r.Blocked, r.Failed, r.Faults, r.Other)
+	return fmt.Sprintf("%d (%d posted, %d blocked, %d questions, %d failed, %d faults, %d other)", r.Total, r.Posted, r.Blocked, r.Questions, r.Failed, r.Faults, r.Other)
 }
 
 // writeThroughput writes section 11's Throughput block.
 func writeThroughput(out io.Writer, t reconcile.StatusThroughput) {
 	fmt.Fprintln(out, "Throughput:")
 	fmt.Fprintf(out, "  %-12s %s\n", "runs", runsLine(t.Runs))
-	fmt.Fprintf(out, "  %-12s $%.2f today, $%.2f in all (%d runs without a cost)\n", "cost", t.Cost.Today, t.Cost.All, t.Cost.Uncosted)
+	fmt.Fprintf(out, "  %-12s $%.2f today, $%.2f in all (%d runs without a cost); estimated $%.2f in all at list price (%d runs without an estimate)\n",
+		"cost", t.Cost.Today, t.Cost.All, t.Cost.Uncosted, t.Cost.Estimated, t.Cost.Unestimated)
 	if t.Budget == nil {
 		fmt.Fprintf(out, "  %-12s none\n", "budget")
 	} else {
@@ -1014,20 +1015,34 @@ func resumeSwarm(c *Context) error {
 }
 
 // SwarmMetrics is `daisy swarm metrics --backfill | --reprice
-// [--dry-run]` (docs/swarm.md section 11): in the metrics CSV of the home
-// <state>/home names, a row for each collected run it holds none for, or
-// a row superseding each run's whose output now reads otherwise.
+// [--dry-run] | --scorecard [--since <time>]` (docs/swarm.md section 11):
+// in the metrics CSV of the home <state>/home names, a row for each
+// collected run it holds none for, or a row superseding each run's whose
+// output now reads otherwise; or the scorecard read from it, writing
+// nothing.
 func SwarmMetrics(c *Context) error {
-	return inSwarm(c, func() error { return swarmMetrics(c) })
+	return inSwarm(c, func() error { return swarmMetrics(c, openForge) })
 }
 
-func swarmMetrics(c *Context) error {
-	backfill, reprice, dryRun := c.Flag("--backfill"), c.Flag("--reprice"), c.Flag("--dry-run")
+func swarmMetrics(c *Context, open opener) error {
+	backfill, reprice, scorecard, dryRun := c.Flag("--backfill"), c.Flag("--reprice"), c.Flag("--scorecard"), c.Flag("--dry-run")
+	_, since := c.Value("--since")
+	actions := 0
+	for _, a := range []bool{backfill, reprice, scorecard} {
+		if a {
+			actions++
+		}
+	}
 	switch {
-	case backfill == reprice:
-		return UsageError("give --backfill or --reprice: each is one action of the verb")
+	case actions != 1:
+		return UsageError("give --backfill, --reprice or --scorecard: each is one action of the verb")
 	case dryRun && !reprice:
 		return UsageError("--dry-run goes with --reprice")
+	case since && !scorecard:
+		return UsageError("--since goes with --scorecard")
+	}
+	if scorecard {
+		return swarmScorecard(c, open)
 	}
 	cfg, err := forgeOnly(c)
 	if err != nil {
@@ -1041,7 +1056,11 @@ func swarmMetrics(c *Context) error {
 	if err != nil {
 		return fmt.Errorf("Error: swarm metrics --backfill: %v", err)
 	}
-	fmt.Fprintf(c.Stdout, "✓ Backfilled %d rows into %s (%d runs collected, %d with its row already)\n", b.Written, b.File, b.Collected, b.Had)
+	superseded := ""
+	if b.Superseded > 0 {
+		superseded = fmt.Sprintf("; %d earlier reviews' rows superseded with their review_effect", b.Superseded)
+	}
+	fmt.Fprintf(c.Stdout, "✓ Backfilled %d rows into %s (%d runs collected, %d with its row already)%s\n", b.Written, b.File, b.Collected, b.Had, superseded)
 	return nil
 }
 
@@ -1076,6 +1095,130 @@ func swarmReprice(c *Context, s *reconcile.Swarm, dryRun bool) error {
 	}
 	fmt.Fprintf(c.Stdout, "Would reprice %d rows in %s %s; nothing written\n", len(p.Changes), p.File, counts)
 	return nil
+}
+
+// swarmScorecard is `swarm metrics --scorecard [--since <time>]`, run
+// read-only: a line per slice merged since then, then the summary.
+func swarmScorecard(c *Context, open opener) error {
+	c.Ops = ops.ReadOnly(c.Ops)
+	var since time.Time
+	if v, ok := c.Value("--since"); ok {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return fmt.Errorf("Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: %s)", v)
+		}
+		since = t.UTC()
+	}
+	cfg, err := forgeOnly(c)
+	if err != nil {
+		return err
+	}
+	vars, err := readSecrets(c, cfg, c.Stderr, cfg.Forge.TokenEnv)
+	if err != nil {
+		return err
+	}
+	token := vars[cfg.Forge.TokenEnv]
+	if token == "" {
+		return unsetErr(c, cfg, cfg.Forge.TokenEnv)
+	}
+	f, err := open(c.Ops, cfg.Forge, repoNames(cfg), token)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	s := &reconcile.Swarm{O: c.Ops, Place: c.Swarm, WS: c.Swarm.Root, Root: c.Env.Root, Config: c.Env.Config, Local: c.Env.Local, Cfg: cfg, Forge: f, Out: c.Stdout, Err: c.Stderr}
+	sc, err := s.Scorecard(since)
+	if err != nil {
+		return fmt.Errorf("Error: swarm metrics --scorecard: %v", err)
+	}
+	writeScorecard(c.Stdout, cfg.Forge.Repo, sc)
+	return nil
+}
+
+// writeScorecard writes the scorecard (docs/swarm.md section 11, The
+// scorecard).
+func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
+	fetched := "no mirror fetched"
+	if !sc.Fetched.IsZero() {
+		fetched = "the mirrors as last fetched, " + sc.Fetched.Format(time.RFC3339)
+	}
+	fmt.Fprintf(out, "Scorecard of %s: runs and interventions from %s, merges from %s\n", repo, sc.File, fetched)
+	if len(sc.Slices) == 0 {
+		fmt.Fprintln(out, "  no slice merged")
+	}
+	for _, r := range sc.Slices {
+		from := "the previous slice's merge"
+		if r.FromOpening {
+			from = "the issue's opening"
+		}
+		fmt.Fprintf(out, "  #%d slice %d in %s, merged %s, %s after %s: runs %s; tokens %d uncached, %d cached, %d out%s; estimated $%.2f at list price%s; review rounds %d; stops %s; interventions %s\n",
+			r.N, r.Slice, r.Repo, r.At.Format(time.RFC3339), r.At.Sub(r.From).Round(time.Second), from,
+			roleCounts(r.Runs), r.Uncached, r.Cached, r.Output, without(r.NoUsage, "usage"), r.Cost, without(r.Unpriced, "an estimate"),
+			r.Rounds, keyCounts(r.Stops), keyCounts(r.Interventions))
+	}
+	window := "every record"
+	if !sc.Since.IsZero() {
+		window = "since " + sc.Since.Format(time.RFC3339)
+	}
+	sm := sc.Summary
+	days := "no record"
+	if !sc.Start.IsZero() {
+		days = fmt.Sprintf("%.1f days", sc.Days())
+	}
+	perMerge := func(n int, format string) string {
+		if sm.Merges == 0 {
+			return "—"
+		}
+		return fmt.Sprintf(format, float64(n)/float64(sm.Merges))
+	}
+	stopRate := "—"
+	if sm.WorkerRuns > 0 {
+		stopRate = fmt.Sprintf("%.0f%%", 100*float64(sm.WorkerStops)/float64(sm.WorkerRuns))
+	}
+	perDay := "—"
+	if d := sc.Days(); !sc.Start.IsZero() && d > 0 {
+		perDay = fmt.Sprintf("%.1f", float64(sm.Interventions)/d)
+	}
+	fmt.Fprintf(out, "Summary, %s (%s): %d slices merged; %d runs, %s per merge; input %s tokens per merge; worker stop rate %s (%d of %d worker runs); %d interventions, %s a day\n",
+		window, days, sm.Merges, sm.Runs, perMerge(sm.Runs, "%.1f"), perMerge(sm.Input, "%.0f"), stopRate, sm.WorkerStops, sm.WorkerRuns, sm.Interventions, perDay)
+}
+
+// roleCounts is a slice's runs, `<k> (<role> <k>, …)` in the roles'
+// order, the QA's last.
+func roleCounts(runs map[string]int) string {
+	total, parts := 0, []string{}
+	for _, role := range append(slices.Clone(declare.Roles), "qa") {
+		if k := runs[role]; k > 0 {
+			total += k
+			parts = append(parts, fmt.Sprintf("%s %d", role, k))
+		}
+	}
+	if total == 0 {
+		return "0"
+	}
+	return fmt.Sprintf("%d (%s)", total, strings.Join(parts, ", "))
+}
+
+// keyCounts is `<key> <k>, …` in the keys' order, `none` for no key.
+func keyCounts(m map[string]int) string {
+	if len(m) == 0 {
+		return "none"
+	}
+	var parts []string
+	for _, k := range slices.Sorted(maps.Keys(m)) {
+		parts = append(parts, fmt.Sprintf("%s %d", k, m[k]))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// without is ` (<k> runs without <what>)`, "" for none.
+func without(k int, what string) string {
+	switch k {
+	case 0:
+		return ""
+	case 1:
+		return " (1 run without " + what + ")"
+	}
+	return fmt.Sprintf(" (%d runs without %s)", k, what)
 }
 
 // SwarmPromptBuild is `daisy swarm prompt build [--force] [--dry-run]`

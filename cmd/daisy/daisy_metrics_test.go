@@ -258,7 +258,9 @@ func TestMetricsReviewEffect(t *testing.T) {
 
 // Step 29's claim (the plan remediating the 2026-11-15 design review,
 // talk A13): a plan whose steps' ranges are in the root, one of the
-// three reverted by `git revert`, reads 1 of 3; a fourth step, measured
+// three reverted by `git revert`, reads 1 of 3, a third reverted and
+// reapplied (its revert reverted, Step 7 of the plan implementing the
+// 2026-11-19 swarm roadmap) not counted; a fourth step, measured
 // in a repository neither the working directory nor $DAISY_ROOT is in,
 // is not found; a range two roles record counts once.
 func TestMetricsStepReverts(t *testing.T) {
@@ -274,6 +276,8 @@ func TestMetricsStepReverts(t *testing.T) {
 		steps = append(steps, commitAll(t, m.root, "step "+f))
 	}
 	gitIn(t, m.root, "-c", "user.name=S", "-c", "user.email=s@x", "revert", "--no-edit", steps[2])
+	gitIn(t, m.root, "-c", "user.name=S", "-c", "user.email=s@x", "revert", "--no-edit", steps[3])
+	gitIn(t, m.root, "-c", "user.name=S", "-c", "user.email=s@x", "revert", "--no-edit", "HEAD")
 	other, base, head := stepRepo(t)
 	for _, args := range [][]string{
 		{"--step", "1", "--range", steps[0][:7] + ".." + steps[1][:7], "--repo", m.root},

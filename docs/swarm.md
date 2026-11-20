@@ -57,7 +57,7 @@ A point marked *not established as of <date>* is one no recorded run had
 settled by that date; it stays open until a run settles it, and section
 13's Established by the first real run records what the runs settled.
 The commands named are the Swarm group (`swarm init [--defaults] [--api <url>]`,
-`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill | --reprice [--dry-run]`, `swarm status [--json] [--waiting]`, `swarm list [--json]`, `swarm journal [--json] [--issue <n>] | --mark <run>`, `swarm connect [--json]`, `swarm pause [<n>] [--type <type>]`, `swarm
+`swarm prompt build [--force] [--dry-run]`, `swarm apply [--once]`, `swarm metrics --backfill | --reprice [--dry-run] | --scorecard [--since <time>]`, `swarm status [--json] [--waiting]`, `swarm list [--json]`, `swarm journal [--json] [--issue <n>] | --mark <run>`, `swarm connect [--json]`, `swarm pause [<n>] [--type <type>]`, `swarm
 resume [<n>] [--type <type>]`, `swarm restart [--type <type>]`, and the maintainer's `swarm triage <n> [--type <type>]`, `swarm accept
 <n> [--type <type>]`, `swarm class <n> [--type <type>] routine|architecture`, `swarm approve <n> [--type <type>]`, `swarm
 merge <n> [--type <type>]`, `swarm unblock <n> [--cause <word>] [--type <type>] <comment...>`, `swarm block <n> --by <m> [--type <type>]`,
@@ -334,7 +334,7 @@ Every file Daisy writes, and nothing else:
 | `<run>/io/outputs/<n>-<role>-<k>.md` | a copy of `runs/<n>-<role>-<k>/io/out.md`, the whole output of a run whose text the run's prompt shows cut on the forge (7.3, A text cut on the forge) | `swarm apply` | before the launch |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
 | `<run>/result` | `start <sha>` (the owner, the architect and the QA: `start <name> <sha>` per repository, the QA trigger reading its own, section 6; the worker adds `branch swarm/<n>-<s> in <name>`), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: decision [61](swarm/decisions/0061-what-step-5-built-of-the-provider-and-runner-seams-and-apply.md)), then `question` for the architect's or the owner's run on an issue carrying `swarm:question` (section 6, The question), which its collection reads, for a batch run no `label` line but `propose <p>` (the number its pacing allowed, the QA's `owner.max_open_proposals`, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there), `<in>` every input token, those written to and read from the CLI's cache included (section 9, `Report`'s `InTokens`), followed by ` cached <c>` when the output reported the part read from the cache, every turn's for `codex`, `<c>` (`codex`'s `cached_input_tokens`, `claude`'s and `grok`'s `cache_read_input_tokens`; a `codex` run recorded before Step 11b of the plan for the inbox requests F27–F35 has none, and a `claude` or `grok` run recorded before Step 28 of the plan remediating the 2026-11-15 design review has none and an `<in>` that leaves its cache out: decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, with the repository's test services file `services <worker\|check> up <service> …` before they are started, `services <worker\|check> down` once they are removed, and `services <worker\|check> refused: <reason>` for a file not run (7.6, step 4; the worker's `up` or `refused` at its launch, before `started`), `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `flagged swarm:question`, `kept refs/swarm-runs/<n>-worker-<k>`, `artifact <name> attached <url>`, `artifact <name> not attached: <error>` or `artifact "<name>" skipped: <reason>` (7.6, The screenshots), `attached <file> <url>`, `not attached <file>: <error>` and `continued <file> <i> of <c>` (7.5, The posting rule), `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|question\|blocked\|failed\|fault\|stale\|abandoned\|discarded>` (`question` a member's question posted, section 6); last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
-| `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names, never a second for a run it holds a row of but a row superseding it; per intervention recorded, one row of kind `intervention` (section 11, The interventions' record); created with its header when absent | `swarm apply`; `swarm metrics --backfill` and `--reprice`; a maintainer's verb with `--type` and `swarm intervene` (each under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | `apply`: at each run's collection, when `<state>/home` names a usable home, and at a posted review's, a row superseding each earlier review's of its role on the issue whose `review_effect` it decides (7.6, The run's record); `metrics --backfill`: on the command, for each collected run without a row; `metrics --reprice`: on the command, a superseding row for each run whose row its output, or for a reviewer the runs' effect, now reads otherwise (section 11); a verb with `--type`, once its writes are made, and `intervene`, on the command |
+| `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names, never a second for a run it holds a row of but a row superseding it; per intervention recorded, one row of kind `intervention` (section 11, The interventions' record); created with its header when absent | `swarm apply`; `swarm metrics --backfill` and `--reprice`; a maintainer's verb with `--type` and `swarm intervene` (each under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | `apply`: at each run's collection, when `<state>/home` names a usable home, and at a posted review's, a row superseding each earlier review's of its role on the issue whose `review_effect` it decides (7.6, The run's record); `metrics --backfill`: on the command, for each collected run without a row, and a row superseding each earlier review's whose `review_effect` a backfilled review decides (section 11); `metrics --reprice`: on the command, a superseding row for each run whose row its output, or for a reviewer the runs' effect, now reads otherwise (section 11); a verb with `--type`, once its writes are made, and `intervene`, on the command |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/deps.out` | with the repository's `deps` (section 3), the dependency step's standard output and error, as written | `swarm apply` | when the dependency step ends |
 | `<run>/check/` | a clone of the fetched head for the dependency step and the check | `swarm apply` (`git clone` from `<state>/git/<name>`), then the check | before the dependency step and again before the check; removed when the run is collected |
@@ -3645,7 +3645,10 @@ made once, before the `outcome` line (`recorded`): a line in the swarm's
 journal and, when `<state>/home` names a Daisy home, a row in that
 home's metrics CSV, `<home>/metrics/metrics.csv` (the file `daisy
 metrics` summarizes, `docs/cli.md`). The row is of kind `swarm-run`:
-`plan_or_swarm` is `<owner>/<repo>`; `step_or_run` the run's directory
+`when` the run's end, its end line's time (section 2; else its
+`started` line's, else the collection's), as a backfill dates it (from
+Step 7 of the plan implementing the 2026-11-19 swarm roadmap; before
+it, the collection's time); `plan_or_swarm` is `<owner>/<repo>`; `step_or_run` the run's directory
 name, `<n>-<role>-<k>`; `role`; `provider`, `model` and `effort` the
 run's `persona` line, the persona it was launched with (a run without
 the line, launched by an older Daisy or refused before its credential,
@@ -3706,7 +3709,8 @@ adds a row superseding it, never a row of a run the CSV lacks. A
 posted review's collection decides the effect of its role's review
 before it on the issue: after its own row it appends, for each earlier
 run of its role on the issue whose last row's `review_effect` the runs
-now give otherwise, that row with the new effect, every other cell
+now give otherwise and known (an effect they read unknown supersedes
+nothing, so one set by hand stays), that row with the new effect, every other cell
 carried over (its `when` too), so a review requesting changes is
 written unknown and superseded once at its next review's collection;
 its failure is a warning, `⚠ #<n> <role> run <k>: earlier
@@ -3717,7 +3721,8 @@ home that is not registered or cannot be used, the lock held past 30
 seconds, or a write refused is a warning, `⚠ #<n> <role> run <k>:
 metrics row not written: <reason>`, and the run is collected all the
 same. The journal line is `- <HHMM> <n>-<role>-<k>: <outcome>; <provider>
-<model> <effort>`, then `; round <r>` for a reviewer, `; tokens
+<model> <effort>` (`unknown persona` when none of the three is known),
+then `; round <r>` for a reviewer, `; tokens
 <in>/<out>, <t> turns` (`; tokens <in>/<out> (<c> cached), <t> turns`
 with a cached count; or `; no usage reported`), `; cost $<usd>` (or
 `; cost not reported (~$<estimate> at list price)`, or `; cost not
@@ -5304,8 +5309,8 @@ forge:
 
 ```
 Throughput:
-  runs         <r> (<posted> posted, <blocked> blocked, <failed> failed, <fault> faults, <other> other)
-  cost         $<today> today, $<all> in all (<u> runs without a cost)
+  runs         <r> (<posted> posted, <blocked> blocked, <question> questions, <failed> failed, <fault> faults, <other> other)
+  cost         $<today> today, $<all> in all (<u> runs without a cost); estimated $<e> in all at list price (<v> runs without an estimate)
   budget       $<per_day> per day, $<total> in all        (or: none)
   approved     <a> pull requests; at the round limit <b>, blocked there <c>
   reverted     <k> of <m> merged pull requests (as of the mirrors' last fetch, <time>)        (or: (no mirror fetched))
@@ -5318,7 +5323,16 @@ Throughput:
 runs started since 00:00 UTC, and `<u>` counts the runs with no `cost`
 line or with `cost -`, whose CLI reported no cost (section 3; a run
 recorded before Step 16b of the plan that clears the Deferred list
-holds `cost 0` there and counts as costed). `approved` counts the runs whose `result` holds a relabel from a review
+holds `cost 0` there and counts as costed). `runs` counts each run
+with a `result` under the outcome its `outcome` line names, `posted`,
+`blocked`, `question` (a member's question, section 6, The question),
+`failed` or `fault`, and under `other` a run with none yet or another.
+`estimated` sums each run's estimate at its model's list price, made as
+its row's `cost_estimated` is (7.6, The run's record) from its `persona`
+line's model and its `cost` line, a run reporting its cost included, and
+`<v>` counts the runs with none: no `persona` line (launched before
+Step 16b of the plan that clears the Deferred list), no `cost` line, no
+`cached <c>` on it, or a model section 9's table does not price. `approved` counts the runs whose `result` holds a relabel from a review
 stage (`swarm:review-0-ready` or `swarm:review-1-in-progress`) to
 `swarm:review-2-approved`, the round-limit count those holding both
 `outcome posted` and a relabel from a review stage to
@@ -5334,7 +5348,10 @@ such a run's `pushed <sha>` line names (the forge merges at the head
 both reviews approved, with a merge commit, section 10); `<k>` those of
 them a commit on `base` reverts, its message holding git's own line
 `This reverts commit <sha>` (`git revert`'s, `-m 1` for a merge) with
-`<sha>`, in full or abbreviated, naming the merge commit. A pull request
+`<sha>`, in full or abbreviated, naming the merge commit, a revert that
+a later revert in effect names (a reapply, git's `Reapply "…"`) taking
+nothing back, the chain followed, so a merge reverted, reapplied and
+reverted again is reverted (decision [141](swarm/decisions/0141-reverts-counted-from-the-mirrors.md)). A pull request
 merged otherwise (squashed or rebased by hand on the forge), a revert
 written under another message, one on a branch other than `base` and
 one of a commit inside the pull request rather than its merge are not
@@ -5446,13 +5463,13 @@ its drift, and a loop restarted prints it again at its first pass.
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm metrics --backfill \| --reprice [--dry-run]`; neither or both, or `--dry-run` without `--reprice`, usage (exit 2) |
-| Reads | `swarm.json`'s forge fields (to name `<state>`) and its personas; `<state>/home`, the registry, `<run>/result`, `<run>/argv` and `<run>/io/system.md` (`--backfill`), `<run>/stdout` (`--reprice`), a reviewer's `<run>/io/out.md` (both) and a stopped run's (`--backfill`, its cause), the home's metrics CSV; a worker's range in its mirror (`git diff --numstat`); no secret, no forge call, no Docker |
-| Writes | the metrics CSV of the home `<state>/home` names (section 2), in one rewrite: `--backfill`, a `swarm-run` row for each collected run (its `result` holding `collected`) the CSV holds no row of, in the order of their times; `--reprice`, a row superseding the row of each collected run the CSV holds whose output, or for a reviewer the runs' effect, now reads otherwise (below), in the order of the runs' names; `--dry-run`, nothing; no journal line |
-| Stdout | `✓ Backfilled <w> rows into <file> (<c> runs collected, <h> with its row already)`; `✓ Repriced <w> rows into <file> (<c> runs collected, <h> with a row: <k> current, <u> with no usage to read)` (`<k>` the rows left as they are whose usage was read); with `--dry-run`, a line per row it would write, `  <run> <provider> <model>: tokens_in <a> → <b>, tokens_cached <a> → <b>, tokens_total <a> → <b>, cost_estimated <a> → <b>` (`—` for empty), a reviewer's ending `, review_effect <a> → <b>`, then `Would reprice <w> rows in <file> (…); nothing written` |
-| Stderr | `⚠ #<n> worker run <k>: lines not counted: <reason>`; `⚠ #<n> <role> run <k>: cause left empty: …` (7.6, The run's record); `⚠ #<n> <role> run <k>: no row: its result has no end line or started line to date it` |
-| Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no home or one that cannot be used, the CSV's header not this Daisy's nor an older one (the columns up to `notes`, `tokens_cached` or `review_effect`), the lock held past 30 seconds, a read or the write failing; 2 usage |
-| Ops | Real |
+| Usage | `daisy swarm metrics --backfill \| --reprice [--dry-run] \| --scorecard [--since <time>]`; none of the three actions or more than one, `--dry-run` without `--reprice`, or `--since` without `--scorecard`, usage (exit 2) |
+| Reads | `swarm.json`'s forge fields (to name `<state>`) and its personas; `<state>/home`, the registry, `<run>/result`, `<run>/argv` and `<run>/io/system.md` (`--backfill`), `<run>/stdout` (`--reprice`), a reviewer's `<run>/io/out.md` (both) and a stopped run's (`--backfill`, its cause), the home's metrics CSV; a worker's range in its mirror (`git diff --numstat`); no secret, no forge call, no Docker. `--scorecard`: `swarm.json`'s forge fields and `base`, `<state>/home`, the registry, the home's metrics CSV, each worker run's `<run>/result` (its `branch` and `pushed` lines), each such repository's mirror's `base` (`git log --first-parent --merges`, the reverts' `git log`) and its `FETCH_HEAD`'s time, as `status`'s reverted line reads them; `<state>/env` (the token) and the forge's `Issue(n)` for each issue whose first merged slice is in the window; no Docker |
+| Writes | the metrics CSV of the home `<state>/home` names (section 2): `--backfill`, a `swarm-run` row for each collected run (its `result` holding `collected`) the CSV holds no row of, in the order of their times, in one rewrite, then, in a second, a row superseding each earlier review's whose effect a backfilled review decides (below); `--reprice`, in one rewrite, a row superseding the row of each collected run the CSV holds whose output, or for a reviewer the runs' effect, now reads otherwise (below), in the order of the runs' names; `--dry-run` and `--scorecard`, nothing; no journal line |
+| Stdout | `✓ Backfilled <w> rows into <file> (<c> runs collected, <h> with its row already)`, then `; <e> earlier reviews' rows superseded with their review_effect` when it superseded any; `✓ Repriced <w> rows into <file> (<c> runs collected, <h> with a row: <k> current, <u> with no usage to read)` (`<k>` the rows left as they are whose usage was read); with `--dry-run`, a line per row it would write, `  <run> <provider> <model>: tokens_in <a> → <b>, tokens_cached <a> → <b>, tokens_total <a> → <b>, cost_estimated <a> → <b>` (`—` for empty), a reviewer's ending `, review_effect <a> → <b>`, then `Would reprice <w> rows in <file> (…); nothing written`; `--scorecard`, The scorecard (below) |
+| Stderr | `⚠ #<n> worker run <k>: lines not counted: <reason>`; `⚠ #<n> <role> run <k>: cause left empty: …` (7.6, The run's record); `⚠ #<n> <role> run <k>: no row: its result has no end line or started line to date it`; `--scorecard`, a warning of the secrets file (section 3) |
+| Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no home or one that cannot be used, the CSV's header not this Daisy's nor an older one (the columns up to `notes`, `tokens_cached` or `review_effect`), the lock held past 30 seconds, a read or the write failing; `--scorecard`: `--since` not an RFC 3339 time (`Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: <value>)`), the token unset, a row's `when` not an RFC 3339 time, a mirror's or the forge's read failing (`Error: swarm metrics --scorecard: <reason>`); 2 usage |
+| Ops | Real; `--scorecard` `ops.ReadOnly` |
 
 Each row is the one the run's collection makes (7.6, The run's record),
 read from what the run left in `<run>`: the persona from its `persona`
@@ -5471,12 +5488,22 @@ the backfill; `root_sha` and `home_sha` are empty, the commits in use
 when the run ran being unknown; and the notes end `, backfilled`. A run
 is skipped when the CSV holds a row of its key (its kind, the swarm,
 the run and its role), the key a collection writes, so a run recorded
-live is never backfilled and a second backfill writes nothing. Every
+live is never backfilled and a second backfill writes nothing. A
+backfilled review may decide the effect of an earlier review of its
+role on the issue whose row the CSV holds (a review requesting changes
+recorded live while the next was collected with no home, or backfilled
+before it): for each issue and reviewer role of a backfilled review,
+the last row of each review of that role on the issue whose effect the
+runs now give otherwise and known is superseded, as a collection
+supersedes it (7.6, The run's record), every other cell carried over,
+an unknown effect superseding nothing (from Step 7 of the plan
+implementing the 2026-11-19 swarm roadmap). Every
 row is made, and each worker's range measured, before
 `$DAISY_LOCAL/metrics.lock` is taken; under it, the CSV is read once,
 the runs it now holds a row of dropped, and the rest written in one
-rewrite, so a live `apply` collecting a run meanwhile waits for one
-read and one rewrite of the file, as it does for `metrics add`. It
+rewrite, then the superseding rows in a second, so a live `apply`
+collecting a run meanwhile waits for two reads and rewrites of the
+file. It
 takes no `<state>/lock` and runs beside `apply`: a run is backfilled
 only once collected, and a collection writes its row before its
 `collected` line, so a run `apply` is collecting is left to `apply`.
@@ -5493,10 +5520,15 @@ line (7.6, The run's record): `tokens_in` every input token,
 price; for a reviewer's run, `review_effect` as a collection makes it
 from its role's runs on the issue (7.6, decision [142](swarm/decisions/0142-a-reviews-effect-read-from-the-runs.md)), so the
 reviews recorded before Step 30 of the plan remediating the 2026-11-15
-design review get their effect. When any of the six differs from the
-held row's, it writes a row superseding it: the held row with those
-cells, every other cell carried over (its `when`, its commits, its
-cost, its lines), its notes ending `, repriced` (once). A run without
+design review get their effect, while an effect the runs read unknown
+keeps the held row's, which may have been set by hand; and the notes
+without `<c> cached input`, which a row recorded before Step 28 holds
+beside, once repriced, `tokens_cached` (from Step 7 of the plan
+implementing the 2026-11-19 swarm roadmap). When any of the six cells
+or the notes differs from the held row's, it writes a row superseding
+it: the held row with those cells and notes, every other cell carried
+over (its `when`, its commits, its cost, its lines), its notes ending
+`, repriced` (once). A run without
 `<run>/stdout`, one whose output reports no usage, or a row naming no
 provider of the table is counted as with no usage to read, its usage
 cells left as they are (a reviewer's effect still made); a run the CSV
@@ -5523,6 +5555,83 @@ metrics` sums a home's rows by kind and model, every swarm whose
 `<state>/home` names that home together, each to the cent: the swarm's
 total is the sum of those lines only when it is the home's one swarm,
 to within a cent per model of `status`'s.
+
+**The scorecard** (R0 of the 2026-11-19 swarm roadmap; decision
+[156](swarm/decisions/0156-a-scorecard-per-merged-slice.md)). `--scorecard`
+reads what each merged slice cost and why its runs stopped, and writes
+nothing: no row is stored, each figure computed when read from the
+records the CSV and the mirrors already hold.
+
+A *merged slice* is a swarm pull request's merge as `status`'s
+reverted line reads one (Throughput, above): a merge commit on `base`'s
+first-parent line in the mirror of the repository a worker run's
+`branch swarm/<n>-<s> in <name>` line names, whose second parent is a
+head that run's `pushed <sha>` line names; its issue `<n>` and slice
+`<s>` are that branch's, its time the merge commit's committer time.
+The mirrors are read as their last fetch left them, no fetch made. A
+slice merged by hand otherwise (squashed or rebased) is not one.
+
+A *record* is the last row of a key in the CSV (a retag's or a
+reprice's correction in place of the row it corrects) of kind
+`swarm-run` or `intervention` whose `plan_or_swarm` is the swarm's,
+dated by its `when`, of the issue its `step_or_run` names. A record of
+issue `<n>` is the slice's whose merge is the first of `<n>`'s merges
+not before it: a run ends, and a verb's act is made, before the merge
+they lead to, so the issue's records after its previous merge and up to
+this one are this slice's. The `merge` verb's intervention is recorded
+once its merge is made, so it is the slice's whose merge is the last of
+`<n>`'s not after it. A record after the issue's last merge (a slice not
+yet merged), of the batch (issue 0) or of an issue never merged is no
+slice's, and counts in the summary alone.
+
+One line per slice merged at or after `--since` (every one without
+it), in the order of the merges:
+
+```
+Scorecard of <owner>/<repo>: runs and interventions from <csv>, merges from the mirrors as last fetched, <time>        (or: no mirror fetched)
+  #<n> slice <s> in <name>, merged <time>, <wall> after the issue's opening: runs <r> (<role> <k>, …); tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; review rounds <d>; stops <cause> <k>, …; interventions <type> <k>, …
+  …        (or:   no slice merged)
+Summary, since <time> (<d> days): <m> slices merged; <r> runs, <r/m> per merge; input <i/m> tokens per merge; worker stop rate <p>% (<s> of <w> worker runs); <v> interventions, <v/d> a day
+```
+
+- **wall**, as Go writes a duration (`3h0m0s`), runs from the issue's opening on the forge (`Issue(n)`'s
+  creation: the owner's or the QA's proposal posted, or the issue the
+  maintainer filed) to the merge for the issue's first merged slice,
+  and from the issue's previous merge (`after the previous slice's
+  merge`) for a later one, so the slices' times add up to the issue's;
+- **runs**, the slice's `swarm-run` records, by role in the roles'
+  order (the QA's last), only the roles with one;
+- **tokens**: over the records that report usage, `tokens_in` less
+  `tokens_cached` (uncached; all of `tokens_in` for a row with no
+  `tokens_cached`, which `--reprice` fills where the run's output tells
+  it), `tokens_cached` and `tokens_out`; a record with no `tokens_in`
+  is counted `without usage`;
+- **estimated**, the records' `cost_estimated` summed, the
+  billed-equivalent cost at the list price of section 9 (decision
+  [152](swarm/decisions/0152-every-model-in-use-priced-from-its-providers-page.md)),
+  a record with none counted as $0 and named `without an estimate`;
+- **review rounds**, the highest `review_rounds` of the slice's
+  records, 0 for none;
+- **stops**, the records whose `outcome` is `blocked` or `question` (a
+  member's stop) or whose `cause` is set (Daisy's own, 7.5), by
+  `cause` in its order, a stop without one under `none` (`none <k>`),
+  and `none` alone for no stop;
+- **interventions**, the slice's `intervention` records by type (their
+  `cause`, section 11, The interventions' record), `none` for none.
+
+The summary is over the window, `--since` to now (`Summary, since
+<time>`), or without it from the swarm's first record or merge
+(`Summary, every record`), its length in days to one decimal
+(`no record` and `—` for the rates when there is none): `<m>` the
+slices merged in it; of the records dated in it, every issue's and the
+batch's, merged or not, `<r>` the runs, `<i>` their `tokens_in` (the
+cache's included, as the roadmap's input per merged pull request
+counts it), `<w>` the worker runs and `<s>` those whose `outcome` is
+`blocked` or `question`, and `<v>` the interventions; `<r/m>` and
+`<v/d>` to one decimal, `<i/m>` whole, `<p>` whole; a rate with no
+merge or no worker run is `—`. A slice's line takes its records
+whatever their dates, so a slice merged in the window counts runs made
+before it, while the summary's counts take only the window's records.
 
 ### daisy swarm list
 
