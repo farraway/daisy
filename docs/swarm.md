@@ -292,7 +292,7 @@ Stages of a software factory the version leaves out, each by choice:
 ├── references/<ref>/                # bare mirror of each reference, holding its pin (section 3)
 ├── deps/<name>/                     # with a repository's deps, the swarm's dependency cache for it: written by its dependency steps, read by its checks (section 7.2)
 ├── notes/                           # the host's clone of the swarm repository, for the notes (with `notes`) and the journal: never mounted (section 7.1)
-├── jobs/<n>/                        # R1, specified ahead of its build (7.8): issue n's workspace, its members' memory, mounted read-only at /job/memory; kept after the issue closes
+├── jobs/<n>/                        # R1, specified ahead of its build but for texts/ (7.8): issue n's workspace, its members' memory, mounted read-only at /job/memory; kept after the issue closes
 │   ├── plan.md                      # the accepted plan whole, then its amendments in order
 │   ├── builder.md                   # the builder plan: the plan consolidated for the builder, a ## Slice <s> section per slice, re-issued whole
 │   ├── amendments/<a>.md            # each amendment as collected (R5's rule decides what one is)
@@ -356,7 +356,7 @@ Every file Daisy writes, and nothing else:
 | `<state>/references/<ref>/` | per reference (section 3), a bare repository holding its pin, its config's `remote.origin.url` its `url` | `swarm apply` (`git init --bare`, `config`, `fetch`) | before a pass's first launch, when the pin is not in it |
 | `<state>/notes/` | a clone of the swarm repository at its head as last fetched, its branch the one the clone checked out (the forge's default): with `notes` (section 3) the notes', and the journal's (7.6, The run's record) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, the notes' commits and the journal's, 7.6) | with `notes`, before each pass's first launch and at the collection of each owner's and architect's run; at the end of each pass that collected a run |
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
-| `<state>/jobs/<n>/` and its files | R1, specified ahead of its build: issue n's workspace, `plan.md`, `builder.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log` and `texts/<n>-<role>-<k>.md`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names (a job open when the build arrives: once, by replaying its collected runs, 7.8, Rollout); the directory, empty, before the first launch on a new issue; never removed by Daisy |
+| `<state>/jobs/<n>/` and its files | R1, specified ahead of its build but for `texts/`, which is written and read by nothing yet (7.8): issue n's workspace, `plan.md`, `builder.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log` and `texts/<n>-<role>-<k>.md`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names (a job open when the build arrives: once, by replaying its collected runs, 7.8, Rollout); the directory, empty, before the first launch on a new issue; never removed by Daisy |
 | `<run>/io/branches.md` | R1, specified ahead of its build: a line per open swarm branch but the run's own, its issue, slice, head and the files it changes against `<base>` (7.8) | `swarm apply` | before the launch of a worker's, a reviewer's or the architect's run, from the pass's mirrors |
 | `<run>/io/builder.md` | R1, specified ahead of its build: the architect's builder plan, beside the plan it wrote to `out.md` (7.8, The builder plan) | the architect (in the container) | during the run |
 | `<run>/job/` | R1, specified ahead of its build: the run's folder, mounted at `/job`, holding only the mount points of its children, `work`, `io` and, as the run has them, `notes`, `resources` and `memory` (7.8, The run's folder), and whatever the member writes at its top, which nothing reads | `swarm apply` (the directory and its mount points), then the member | before the launch; removed with `<run>/work` |
@@ -3411,7 +3411,8 @@ holds the `Brief:` and `Class:` lines, is never cut (decision
 
 **From R1** (7.8, specified ahead of its build). Each member text the
 posting rule posts on a job is first written whole to the job's workspace,
-`texts/<n>-<role>-<k>.md` (7.8), and every later reader of it, member or
+`texts/<n>-<role>-<k>.md` (7.8; built, and read by nothing until the
+reads below are), and every later reader of it, member or
 Daisy, reads it there: the post, cut or not, is the human record, and
 the attachment and the continuations above stay for the forge's readers
 alone. Daisy's own reads past a text's first lines (the plan's slices,
@@ -3968,8 +3969,10 @@ notes' index does not list it, and Drift does not compare it. The
 maintainer's clone falls behind the default branch at each pass that
 collects a run, as it does with `notes`: pull before pushing.
 
-**The job's workspace** (R1, specified ahead of its build; 7.8). The
-collection of a run on an issue writes the job's workspace,
+**The job's workspace** (R1, specified ahead of its build, but for
+`texts/`, built at Step R1-1 of the plan implementing the 2026-11-19
+swarm roadmap; 7.8). The collection of a run on an issue writes the
+job's workspace,
 `<state>/jobs/<n>/`, at the steps 7.8's table names: a member's text to
 `texts/` once its secret check has passed and before its post (a
 review's with its round, and a review whose round can no longer
@@ -4059,7 +4062,12 @@ run's folder and its builder plan as revised at that step's stop, decision
 steps that build it each keep the thread path working, each run given
 its thread so far (7.3), until the last switches the members over, so
 that no member reads from two memories half built; until then sections
-2 to 7.7 hold as written, each marking what R1 changes there.
+2 to 7.7 hold as written, each marking what R1 changes there. **Built
+so far** (Step R1-1 of the plan implementing the 2026-11-19 swarm
+roadmap): `texts/`, written at collection as its row below says and read
+by nothing, no prompt, post or read of Daisy's changed by it; the other
+files, the run's folder, the mount, the start, the prompt and Daisy's
+reads are still specified ahead of their build.
 
 **The principle.** Members have no memory, but each job has a workspace
 Daisy keeps, and the forge thread is its human record: its posts may be
@@ -4100,7 +4108,7 @@ machine's, as the mirrors are: a swarm moved to another machine takes
 | `slices/<s>/kept` | one line, `<n>-worker-<k> <sha>`: the slice's newest worker run, by its end, whose commits Daisy holds and may be built on, and the commit fetched from it; absent while no run of the slice has one | at the collection of each worker run on slice s whose fetched commit is past its `start` (7.6, step 1), whatever its outcome: pushed (the commit then the branch's), failed, blocked, a question, a fault or abandoned (its run ref kept, 7.6 step 2); never for commits that failed the secret check or changed a protected path, which no run builds on (their ref stays for the maintainer, as now) | the worker's launch, for its start (The start, below); the worker and the architect, in `# Job` |
 | `slices/<s>/rounds/<r>.md` | review round r of the slice's pull request, in the form below: its head, its reviews' findings, and the changes since the round before. `<r>` counts the slice's completed rounds from 1, in the order they completed, over the pull request's life (a plan revision does not start it again, as it starts the Task text's `This is round <r>`, 7.4), so no file is rewritten | at the collection of the review that completes the round, the pair's second on the head as it stands (section 6), whose collection makes T9, T10 or T11 (section 5); the round's reviews are written to `texts/` with it and not before, so that a reviewer never finds its pair's review of the round it reviews (a review whose round never completes: the `texts/` row) | the worker (the latest), the reviewers (those before the current round; R6's later rounds review the changes since the last from here), the architect (every round) |
 | `checks/<sha>.log` | for a head `<sha>` whose check failed (it exited non-zero or timed out, its dependency step failed, or its test services file was refused, 7.6, step 4): the `# Check` line (7.3), then the whole output, `<run>/check.out`, `<run>/deps.out` for the dependency step's failure, or the refusal's reason | at the collection of the worker run whose check it is, after step 4, once the whole output has passed the secret check (a hit writes none, and is the failure 7.6 names); from R3 (7.9, specified ahead of its build), of a classified failure run again the rerun's alone, and none for a run that failed *check environment*, which no worker or reviewer sees | the worker, the reviewers and the architect, by the pointer in `# Job` |
-| `texts/<n>-<role>-<k>.md` | each member text Daisy posts for the job, on the issue or one of its pull requests, whole, as Daisy would post it uncut: the run's `out.md` (an answer with the `ANSWER:` Daisy adds, 7.5), then what Daisy writes after it (a worker's check block) | at the collection that posts it, once its secret check has passed and before its post; a review's with its round, above, and a review whose round can no longer complete (before its pair's other review of that head was collected, the pull request's head moved, the pull request was reopened by an answer without a commit or the maintainer's comment, section 6, or it was closed or merged) at the first collection on the issue after that, whatever its role, read from its run's `out.md` as its collection posted it, since no review can then complete its round; a job closed first keeps such a review in its run's `out.md` alone | every role: a member text a prompt shows is read from here, never from its post (The prompt, below); Daisy's own reads of a text past its first lines (7.5) |
+| `texts/<n>-<role>-<k>.md` | each member text Daisy posts for the job, on the issue or one of its pull requests, whole, as Daisy would post it uncut: the run's `out.md` (an answer with the `ANSWER:` Daisy adds, 7.5), then what Daisy writes after it (a worker's check block) | at the collection that posts it, once its secret check has passed and before its post; a review's with its round, above, and a review whose round can no longer complete (before its pair's other review of that head was collected, the pull request's head moved, the pull request was reopened by an answer without a commit or the maintainer's comment, section 6, or it was closed or merged) at the first collection on the issue after that, whatever its role, but for a fault's or an abandoned run's, which post nothing, read from its run's `out.md` as its collection posted it, since no review can then complete its round; a job closed first keeps such a review in its run's `out.md` alone, and so does a review whose `out.md` is gone (its run pruned, or collected on another machine) | every role: a member text a prompt shows is read from here, never from its post (The prompt, below); Daisy's own reads of a text past its first lines (7.5) |
 
 **The CI job's log** in `checks/<sha>.log` is later work: the forge
 seam reads a head's checks as each context's state and URL (`Status`,

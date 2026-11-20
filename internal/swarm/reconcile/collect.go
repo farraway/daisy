@@ -90,12 +90,15 @@ func (s *Swarm) collect(r Run) error {
 		fmt.Fprintf(s.Err, "⚠ #%d closed during the run; nothing posted\n", r.N)
 		return c.end("discarded")
 	}
+	pulls, err := s.pulls(r.N)
+	if err != nil {
+		return err
+	}
+	if err := c.writeHeld(pulls); err != nil {
+		return err
+	}
 	var pull *forge.Pull
 	if r.Role == "worker" || r.Role == "adversary" || r.Role == "sympathetic" {
-		pulls, err := s.pulls(r.N)
-		if err != nil {
-			return err
-		}
 		pull = c.runPull(pulls)
 		onPull := r.Role != "worker" || c.label == forge.ChangesRequested
 		if pull != nil && !pull.Open || pull == nil && onPull && Ended(lines) != "launch-failed" {

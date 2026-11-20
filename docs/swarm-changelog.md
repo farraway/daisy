@@ -557,3 +557,13 @@ they write.
   7.6, 7.7 and 7.9; decision
   [162](swarm/decisions/0162-ci-builds-the-declared-image.md) (0160 and
   0161 amended).
+- 2026-11-19, Step R1-1 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, built: `texts/`): the collection of a run on an issue
+  writes each member text it posts whole to the job's workspace,
+  `<state>/jobs/<n>/texts/<n>-<role>-<k>.md`, before its post, a review
+  held until its round completes or can no longer complete; nothing
+  reads the files yet. Section 7.8's `texts/` row says which collection
+  writes a review whose round can no longer complete (the first that is
+  not a fault's or an abandoned run's, which post nothing) and
+  that one whose `out.md` is gone is not written; sections 2, 7.5, 7.6
+  and 7.8 mark `texts/` built.

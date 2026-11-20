@@ -25,13 +25,15 @@ const truncated = "[truncated by Daisy; "
 // long is a text Daisy posts by section 7.5's rule: the text, what Daisy
 // writes after it and never cuts (tail: a worker's check block, a note's
 // last sentences), the name it is attached as when it does not fit, the
-// run whose output it is ("" for a note of Daisy's own), and what its
-// continuations call it.
+// run whose output it is ("" for a note of Daisy's own), what its
+// continuations call it, and whether it is a review, which the job's
+// workspace holds until its round (writeReviews).
 type long struct {
 	text, tail string
 	file       string
 	run        string
 	what       string
+	review     bool
 }
 
 // fits: the text and its tail are posted as they are.
@@ -139,12 +141,19 @@ func (c *collection) runText(role, text, tail string) long {
 	return long{text: text, tail: tail, file: run + ".md", run: run, what: fmt.Sprintf("%s run %d's text", c.r.Role, c.r.K)}
 }
 
-// prepare is l's post and its continuations (posted): a text that does
-// not fit is first attached whole to the issue, once, recorded
-// `attached <file> <url>`, or, the forge refusing it, warned of and
-// recorded `not attached <file>: <error>`, and continued; a retried
-// collection reads the line and does not attach it again.
+// prepare is l's post and its continuations (posted): a member's text
+// but a review first written whole to the job's workspace (section 7.8,
+// texts/); a text that does not fit is first attached whole to the
+// issue, once, recorded `attached <file> <url>`, or, the forge refusing
+// it, warned of and recorded `not attached <file>: <error>`, and
+// continued; a retried collection reads the line and does not attach it
+// again.
 func (c *collection) prepare(l long) (string, []string, error) {
+	if l.run != "" && !l.review {
+		if err := c.s.writeText(c.r.N, l.run, l.text+l.tail); err != nil {
+			return "", nil, err
+		}
+	}
 	if l.fits() {
 		body, _ := l.posted("")
 		return body, nil, nil

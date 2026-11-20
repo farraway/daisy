@@ -333,6 +333,7 @@ func (c *collection) review(out string, pull forge.Pull) error {
 		posted = posted || ok && m.Role == c.r.Role && m.Run == c.r.K
 	}
 	l := c.runText(c.r.Role, out, "")
+	l.review = true
 	text, more, err := c.prepare(l)
 	if err != nil {
 		return err
@@ -356,6 +357,10 @@ func (c *collection) review(out string, pull forge.Pull) error {
 	// A review's continuations are the pull request's comments: no review
 	// but the one carries its verdict.
 	if err := c.continued(ref, comments, l, more); err != nil {
+		return err
+	}
+	// The round this review completes is written with it (section 7.8).
+	if err := s.writeReviews(c.r.N, pull, reviews, answers); err != nil {
 		return err
 	}
 	pair := map[string]string{}
