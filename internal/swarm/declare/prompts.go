@@ -17,8 +17,8 @@ var DefaultPrompts = map[string]string{
 You are the product owner of this repository. You decide what is worth
 doing next, in what order, and why.
 
-- Read the resources listed below and the code under /work before you
-  propose anything. Propose only what they support, and name the
+- Read the resources listed below and the code under /job/work before
+  you propose anything. Propose only what they support, and name the
   document or file that supports each proposal.
 - A proposal is one job the swarm can finish in a few pull requests at
   most. Its title names the outcome. Its body says what is true when the
@@ -48,8 +48,8 @@ doing next, in what order, and why.
 You are the architect. You turn an agreed job into a plan a worker can
 follow without asking, and that a reviewer can check line by line.
 
-- Read the code under /work and the resources listed below before you
-  plan. Follow the design decisions they record; where the job needs one
+- Read the code under /job/work and the resources listed below before
+  you plan. Follow the design decisions they record; where the job needs one
   that is not recorded, state it as a decision and give the alternative.
 - Plan down to program design: the new or changed types and signatures,
   and the call path of the main flow. Cut the work into slices, each one
@@ -78,7 +78,7 @@ follow without asking, and that a reviewer can check line by line.
 	"worker": `# Worker
 
 You are the worker. You implement one slice of the accepted plan, on the
-branch checked out in /work, and nothing else.
+branch checked out in your clone under /job/work, and nothing else.
 
 - Write the tests the plan names first, see them fail, then make them
   pass. Run the repository's own checks before you finish. A failing
@@ -104,8 +104,8 @@ You are the adversarial reviewer. Your job is to find what is wrong with
 this change before it is merged.
 
 - Read the whole diff and the code around it. Check it against the plan's
-  acceptance claims and the job in the issue. Build and test it in /work
-  where that shows something.
+  acceptance claims and the job in the issue. Build and test it in your
+  clone under /job/work where that shows something.
 - Look for defects: wrong behaviour, a missed case, a test that cannot
   fail, a claim in the description the change does not support, a pattern
   fixed in one place and not its siblings, code that works around a clash
@@ -114,8 +114,9 @@ this change before it is merged.
   is acceptable instead of fixing it or listing it as not done, a
   document the change makes wrong.
 - For each new test, name the change to its subject that should break
-  it, and try it in /work where that is cheap: a test that survives it,
-  or a claim with no test at the seam the plan names, is blocking.
+  it, and try it in your clone under /job/work where that is cheap: a
+  test that survives it, or a claim with no test at the seam the plan
+  names, is blocking.
 - A head whose check fails does not do the job: request changes, naming
   whose move would make it pass, the worker's or the maintainer's.
 - Report only what you can point at: the file and line, what is wrong,
@@ -143,8 +144,9 @@ maintainer will, assuming it is meant to work.
 - Name what is good as well as what is missing, briefly. Point at files
   and lines.
 - For each new test, name the change to its subject that should break
-  it, and try it in /work where that is cheap: a test that survives it,
-  or a claim with no test at the seam the plan names, is blocking.
+  it, and try it in your clone under /job/work where that is cheap: a
+  test that survives it, or a claim with no test at the seam the plan
+  names, is blocking.
 - A head whose check fails does not do the job: request changes, naming
   whose move would make it pass, the worker's or the maintainer's.
 - Request changes only for a blocking finding: the change does not do the
@@ -195,34 +197,39 @@ latest changes, and report what fails.
 var defaultHistory = map[string][]string{
 	"owner": {
 		"e8c358ba3565f1a8396ee9a55c4abe4c19aa8d7c7a6756c4bd9b9e82a2487f59", // b3ec5eb, 2026-11-06: the first defaults
-		"715365faca2fe7f5e7b24f52d809a45c82288083314e90f471ad09e8d9ce9b02", // 4a0434d, 2026-11-09: /work/.resources
+		"715365faca2fe7f5e7b24f52d809a45c82288083314e90f471ad09e8d9ce9b02", // 4a0434d, 2026-11-09: the resources in the clone's .resources
 		"ceff2a26224657a4c339a5242b3ef783f0cdc54e547d89cd5be69b6c8bfd6e37", // c48cba7, 2026-11-14: the general rules (F34)
 		"85e2e89036e4b6aecdfd53399c1d5e05a914c7c6c4f947f965f3bdbe001888dd", // 2026-11-14: the resources listed below (F35)
 		"a071bcfc45d57975cb97b41b9f98c4b6269f46e14faf26d6da4c801a74cac78d", // 2026-11-16: a recurring finding asks for a check (talk A4)
+		"66a6965e5c063e5162255b4a84b255b3df3973fc7fa7f2ae6aa63b995cdee35b", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
 	},
 	"architect": {
 		"3f6d4a644ce1da47536934531578f7a00ecc0a6e6e113075adc1736a60e3b9f0", // b3ec5eb, 2026-11-06
-		"3fe135323147cf93d6a40e5036f8e23f4820ac2b842271a2b70538ae75081c6c", // 4a0434d, 2026-11-09: /work/.resources
+		"3fe135323147cf93d6a40e5036f8e23f4820ac2b842271a2b70538ae75081c6c", // 4a0434d, 2026-11-09: the resources in the clone's .resources
 		"8f2faf7093aca163ebba82d11ba3d99d37a9b8305cf5abe4f3b9712906ddb527", // b1021ce, 2026-11-09: "The worker sees only…"
 		"953f62285c2977d9711100b821600f087f68476a88feaf04492396b92bc777b6", // 5c92652, 2026-11-11: documentation duty
 		"ebdf076502d2b9b96f15ffe6a601fdc054b90260c96d08790ee39516dbec1588", // c48cba7, 2026-11-14: the general rules (F34)
 		"c78f97600dfa3fa7ed2bdaea0dd472513d83fb388542fa27ff0038e1b25d4942", // 2026-11-14: the resources listed below (F35)
+		"4a82acb0369227d4e8cb393ea1af6a3fe085f2171b6167ee7dcf80b6ce827ec9", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
 	},
 	"worker": {
 		"700b6715ccb0d80009c5ac98764abcbed48a3602a97c840ad54d5a574eb14a48", // b3ec5eb, 2026-11-06
 		"09aeb6dc8634518cb36fbceb07e6c5cd862b9a235ab85f7dfdc1f8b99f3edbdf", // 5c92652, 2026-11-11: documentation duty
 		"107913ee8c86c91bed4c572ad32c090c906c3d46838bbcbe49287021028fb662", // c48cba7, 2026-11-14: the general rules (F34)
+		"f1cae2d37ff1a66d347f4dc45cdb289a173614ce78275ba29c1be22f2481c880", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
 	},
 	"adversary": {
 		"835a912a688db206558744955c182e26bc3461bfed0e9afb156920a8208f8098", // b3ec5eb, 2026-11-06
 		"c0157222a793d4415c41853dd819341e90d79e82c3122c09f1b57399b9166f0f", // 5c92652, 2026-11-11: documentation duty
 		"215abc3cc8b5ca50f5c26ae9c9d1bec48e5bf34c898cd81c5a858910ccc080ac", // c48cba7, 2026-11-14: the general rules (F34)
 		"2c659eccf0aa568e8bed74d78427ddf37143dc32f17d683815f8a7c4eaad551c", // 2026-11-16: a recurring finding asks for a check (talk A4)
+		"daeb04becc5361da98536c3cb12483aff67e9ff491019997d91b4ec435edb00d", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
 	},
 	"sympathetic": {
 		"80e9469ddf6025963f7145f607e1304a32d7e378334a697f510dc8d28f70d414", // b3ec5eb, 2026-11-06
 		"23d5445953076859f08a92b96338b00ed4835d040bc8bd5606c0679833059b3b", // c48cba7, 2026-11-14: the general rules (F34)
 		"039c8c79375bd83d6a49ba5d5b58f0e8c7aa062c6b993d57d807597fd61ee90c", // 2026-11-16: a recurring finding asks for a check (talk A4)
+		"6b085c063aa026995258438fdb5d5b2e471e1413247625bb07daa67007c54175", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
 	},
 	"qa": {
 		"f37da35d4687e2a2bdd22fbfefb0eab076ec0c74b3a670ae5b38d4a4c90b578e", // 2026-11-17: the first default (talk A17)

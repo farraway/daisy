@@ -165,10 +165,23 @@ edited prompt, draft the default's changes into it as rule 6 says,
 from the printed diff; `daisy swarm prompt build --force`, which
 overwrites the edits, only on the maintainer's yes to losing them, named
 prompt by prompt. A reading list written into a prompt (paths under
-`/work/.resources`) belongs in `swarm.json` instead: give each resource
+`/job/resources`) belongs in `swarm.json` instead: give each resource
 a one-line `note` (`{"path": "<path>", "note": "<what it is, for whom>"}`),
 which every run's `system.md` lists beside its path under
 `# Resources`, and the prompt's own line can return to the default's.
+
+Every path a member has is under `/job`, the run's folder
+(`docs/swarm.md` section 7.2): its clones at `/job/work/<name>`, its
+io at `/job/io`, the research notes at `/job/notes` and each resource
+at `/job/resources/<repository>/<path>`. Before that layout a member's
+clone was `/work`, holding `.swarm`, `.notes` and `.resources`. An
+edited prompt, or a repository's notes (`repos/<name>.md`, which
+`prompt build` never writes), that still names `/work` or a path under
+it points the member at a path it no longer has: after a `prompt build`
+that keeps an edited prompt, and whenever the maintainer asks whether
+the swarm's text is current, look (`grep -n '/work' prompts/*.md
+repos/*.md` in the clone) and draft each line's move to `/job` as rule
+6 says.
 
 ## Briefs
 

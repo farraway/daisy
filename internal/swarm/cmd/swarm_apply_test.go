@@ -549,8 +549,8 @@ var absPath = regexp.MustCompile("(?:^|[\\s(`\"'])(/[A-Za-z0-9._/-]*[A-Za-z0-9_/
 // in /job, which every path its argv and prompt files name lies under,
 // and each mount but the credential mounted there; repo is the checkout
 // its prompt names as the repository. The persona is the swarm
-// repository's prompt, the maintainer's text, not Daisy's, and is not
-// read for paths.
+// repository's prompt, here init's default (section 4), so it is read
+// for paths too.
 func confined(t *testing.T, spec runner.Spec, run, repo string) {
 	t.Helper()
 	argv := spec.Argv[len(exitPrefix):]
@@ -565,12 +565,7 @@ func confined(t *testing.T, spec runner.Spec, run, repo string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		text := string(b)
-		if p, rest, ok := strings.Cut(text, "\n# Persona\n"); ok {
-			_, task, _ := strings.Cut(rest, "\n# Task\n")
-			text = p + "\n# Task\n" + task
-		}
-		texts = append(texts, text)
+		texts = append(texts, string(b))
 	}
 	if want := "- Working directory: /job, holding every clone under /job/work; the repository is " + repo + "\n"; !strings.Contains(texts[2], want) {
 		t.Errorf("prompt.md names no repository:\n%s", texts[2])

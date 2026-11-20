@@ -178,3 +178,41 @@ func TestSwarmPromptBuildWritesTheQAPrompt(t *testing.T) {
 		t.Errorf("stdout:\n%s", s.stdout.String())
 	}
 }
+
+// The claim of Step R1-6 of the plan implementing the 2026-11-19 swarm
+// roadmap (docs/swarm.md sections 4 and 11, prompt build): a swarm whose
+// five prompts are the defaults as they stood before the run's folder
+// (testdata/prompts-8fbb98a, each `git show 8fbb98a:…/prompts.go`'s
+// DefaultPrompts[role], naming /work) has `swarm prompt build` rewrite
+// each as an earlier default, to the current one, which names no /work.
+func TestSwarmPromptBuildRewritesTheDefaultsBeforeTheRunsFolder(t *testing.T) {
+	s := newSwarmWS(t)
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("init: %v\n%s", err, s.stderr.String())
+	}
+	s.cloned()
+	git(t, s.root, "init", "-q")
+	git(t, s.root, "commit", "-q", "--allow-empty", "-m", "the root")
+	for _, r := range declare.Roles {
+		b, err := os.ReadFile(filepath.Join("testdata", "prompts-8fbb98a", r+".md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), " /work") {
+			t.Fatalf("testdata %s.md names no /work: not the earlier default", r)
+		}
+		s.write("prompts/"+r+".md", string(b))
+	}
+	s.publish("the defaults of 8fbb98a")
+	if err := s.promptBuild(); err != nil {
+		t.Fatalf("prompt build: %v\n%s", err, s.stdout.String())
+	}
+	for _, r := range declare.Roles {
+		if line := "✓ Rebuilt prompts/" + r + ".md (an earlier default)\n"; !strings.Contains(s.stdout.String(), line) {
+			t.Errorf("no %q in:\n%s", line, s.stdout.String())
+		}
+		if got := s.read("prompts/" + r + ".md"); got != declare.DefaultPrompts[r] || strings.Contains(got, " /work") {
+			t.Errorf("prompts/%s.md:\n%s", r, got)
+		}
+	}
+}

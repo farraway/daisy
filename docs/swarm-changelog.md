@@ -684,3 +684,17 @@ they write.
   `/work` until R3. Sections 2, 3, 7.1 to 7.4, 7.6 to 7.9 and 9 state
   it. No decision: it builds decision
   [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).
+- 2026-11-20, Step R1-6 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, the persona prompts on `/job`): the default persona
+  prompts name the checkouts under `/job/work` where they named `/work`
+  (the owner's and the architect's code under `/job/work`, the worker's
+  branch and each reviewer's build in its clone under `/job/work`), each
+  new default's sha256 appended to `defaultHistory`, so that `swarm
+  prompt build` rewrites a prompt still at the default before it; the
+  `swarm` skill names `/job`'s paths and has the maintainer's agent look
+  for `/work` in an edited prompt and the repositories' notes, which
+  `prompt build` never writes. Sections 4, 7.4 (the adversary's rollback
+  sentence named `/work` where the Task text names `/job/work/<name>`),
+  7.8 (the move's costs) and 11 (prompt build's table of earlier
+  defaults) state it. No decision: it builds decision
+  [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).

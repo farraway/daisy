@@ -3,6 +3,7 @@ package declare
 import (
 	"crypto/sha256"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -68,14 +69,31 @@ func TestComparePrompt(t *testing.T) {
 	}
 }
 
+// absPath is an absolute path in a prompt: a slash after the start, a
+// space or an opening mark, then the path's characters.
+var absPath = regexp.MustCompile("(?:^|[\\s(`\"'])(/[A-Za-z0-9._/<>-]*[A-Za-z0-9_/>-])")
+
 // No default names a resource's path: the owner, the architect and the QA read
 // the resources listed below, system.md's # Resources, which Daisy writes
-// from swarm.json (section 7.3).
+// from swarm.json (section 7.3). Every path a default names is under
+// /job, the run's folder (sections 7.2 and 7.8), where a member's
+// checkouts, /job/work/<name>, are (Step R1-6 of the plan implementing
+// the 2026-11-19 swarm roadmap).
 func TestDefaultPromptsNameNoResourcePath(t *testing.T) {
+	seen := 0
 	for _, role := range AllRoles {
-		if strings.Contains(DefaultPrompts[role], "/work/.resources") {
-			t.Errorf("%s's default names a path under /work/.resources", role)
+		if strings.Contains(DefaultPrompts[role], "resources/") {
+			t.Errorf("%s's default names a path under a resources mount", role)
 		}
+		for _, m := range absPath.FindAllStringSubmatch(DefaultPrompts[role], -1) {
+			seen++
+			if m[1] != "/job" && !strings.HasPrefix(m[1], "/job/") {
+				t.Errorf("%s's default names %s, outside /job", role, m[1])
+			}
+		}
+	}
+	if seen == 0 {
+		t.Error("no default names a path")
 	}
 	for _, role := range []string{"owner", "architect", "qa"} {
 		if !strings.Contains(DefaultPrompts[role], "the resources listed below") {
