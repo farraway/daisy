@@ -555,6 +555,48 @@ func TestConflicts(t *testing.T) {
 	}
 }
 
+// RoundDiff on a mirror that lacks a commit (section 7.8, A round's
+// file): a previous head it does not hold is NotInMirror naming it, and
+// so is a head; a base it does not hold is an error but not NotInMirror.
+func TestRoundDiffNotInMirror(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	o := ops.Real()
+	state := t.TempDir()
+	m := filepath.Join(state, "git", "app")
+	os.MkdirAll(m, 0o755)
+	git := func(args ...string) string {
+		t.Helper()
+		out, errb, err := o.Exec(m, "git", append([]string{"-c", "user.name=T", "-c", "user.email=t@example.net"}, args...)...)
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q", "-b", "main")
+	os.WriteFile(filepath.Join(m, "a.go"), []byte("a\n"), 0o644)
+	git("add", "-A")
+	git("commit", "-q", "-m", "base")
+	git("checkout", "-q", "-b", "swarm/1-1")
+	os.WriteFile(filepath.Join(m, "a.go"), []byte("slice\n"), 0o644)
+	git("commit", "-q", "-am", "slice")
+	head, gone := git("rev-parse", "HEAD"), "1234567890abcdef1234567890abcdef12345678"
+	g := Git{O: o, State: state}
+	if diff, err := g.RoundDiff("app", "main", head+"~1", head); err != nil || !strings.Contains(diff, "+slice") {
+		t.Errorf("both held: %q %v", diff, err)
+	}
+	for _, c := range []struct{ prev, sha string }{{gone, head}, {head, gone}, {gone, "abcdef1234567890abcdef1234567890abcdef12"}} {
+		var e NotInMirror
+		if _, err := g.RoundDiff("app", "main", c.prev, c.sha); !errors.As(err, &e) || e != (NotInMirror{"app", gone}) {
+			t.Errorf("%s..%s: %v, want NotInMirror naming %s", c.prev, c.sha, err, gone)
+		}
+	}
+	var e NotInMirror
+	if _, err := g.RoundDiff("app", "trunk", head+"~1", head); err == nil || errors.As(err, &e) {
+		t.Errorf("no base: %v, want an error that is not NotInMirror", err)
+	}
+}
+
 // The mirrors' remotes (section 7.1, step 1; section 13, revision 6's
 // Step 3, the first row), with real git and upstream bare repositories
 // reached by URL: an entry named by its repo is reached at the swarm

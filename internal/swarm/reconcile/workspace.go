@@ -253,12 +253,15 @@ func (c *collection) writeRound(p forge.Pull, pulls []forge.Pull, reviews []forg
 			b.WriteString(c.noCommitSince(r-1, prev.at, cur.reviews[0].Submitted, comments))
 		} else {
 			diff, err := s.git().RoundDiff(p.Repo, s.Cfg.Base, prev.commit, cur.commit)
-			if err != nil {
+			var gone NotInMirror
+			switch {
+			case errors.As(err, &gone): // the round's transition must not wait on a commit no pass brings back
+				fmt.Fprintf(&b, "The changes since round %d cannot be shown: %s is not in the mirror.\n", r-1, gone.Commit)
+			case err != nil:
 				return err
-			}
-			if diff == "" {
+			case diff == "":
 				fmt.Fprintf(&b, "No change since round %d in the files the pull request changes.\n", r-1)
-			} else {
+			default:
 				f := fenceFor(diff)
 				fmt.Fprintf(&b, "%sdiff\n%s%s\n", f, diff, f)
 			}

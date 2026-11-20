@@ -441,3 +441,59 @@ func TestWorkspaceRoundFile(t *testing.T) {
 		t.Errorf("rounds/3.md (%v):\n%s\nwant:\n%s\n%s", ok, got, want3, a.stdout.String())
 	}
 }
+
+// A round whose previous round's head is no longer in the mirror (section
+// 7.8, A round's file): the maintainer force-pushes the slice's branch
+// past round 1's head, the worker's revision builds on the new branch,
+// and the mirror loses round 1's head; round 2's file says in one
+// sentence that the changes cannot be shown, naming the head, and its
+// review's collection still makes its transition, T9 on two approvals
+// (the issue then held at the merge gate).
+func TestWorkspaceRoundFileCommitGone(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
+	a.inReview(oneSlice)
+	h1 := a.pulls(1)[0].HeadSHA
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.pass()
+	a.pass()
+	if _, ok := a.roundFile(1); !ok {
+		t.Fatalf("no rounds/1.md\n%s", a.stdout.String())
+	}
+
+	// The maintainer rewrites swarm/1-1 from main, without round 1's head.
+	src := t.TempDir()
+	a.gitRunIn("", "clone", "-q", a.upstream("app"), src)
+	a.gitRunIn(src, "checkout", "-q", "-B", "swarm/1-1", "origin/main")
+	if err := commit(map[string]string{"main.go": "v1, rewritten\n"}, "v1 rewritten")(src); err != nil {
+		t.Fatal(err)
+	}
+	a.gitRunIn(src, "push", "-q", "--force", "origin", "swarm/1-1")
+	a.runner.Script(1, "worker", runner.Canned{Out: "v2.\n\nNot established: none\n", Work: commit(map[string]string{"main.go": "v2\n"}, "v2")})
+	a.pass()
+	h2 := a.pulls(1)[0].HeadSHA
+	if got := labels(a.issue(1)); h2 == h1 || !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) {
+		t.Fatalf("the revision: %v, head %s\n%s", got, h2, a.result("1-worker-2"))
+	}
+	mirror := a.state("git/app")
+	a.gitRunIn(mirror, "reflog", "expire", "--expire=now", "--all")
+	a.gitRunIn(mirror, "gc", "-q", "--prune=now")
+	if _, _, err := ops.Real().Exec(mirror, "git", "cat-file", "-e", h1+"^{commit}"); err == nil {
+		t.Fatalf("round 1's head %s is still in the mirror", h1)
+	}
+
+	a.pass()
+	a.pass()
+	got, ok := a.roundFile(2)
+	want := "# Round 2 on " + h2 + "\n\nSlice 1, pull request app#1. The round before: 1 on " + h1 + ".\n\n" +
+		"## adversary, run 2: approve\n\nWhole: /job/memory/texts/1-adversary-2.md\n\n" +
+		"## sympathetic, run 2: approve\n\nWhole: /job/memory/texts/1-sympathetic-2.md\n\n" +
+		"## Changes since round 1\n\nThe changes since round 1 cannot be shown: " + h1 + " is not in the mirror.\n"
+	if !ok || got != want {
+		t.Errorf("rounds/2.md (%v):\n%s\nwant:\n%s\n%s", ok, got, want, a.stdout.String())
+	}
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", "swarm:gated"}) {
+		t.Errorf("after round 2: %v, want T9's approved, held at the merge gate\n%s", got, a.stdout.String())
+	}
+}

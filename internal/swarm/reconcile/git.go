@@ -440,13 +440,32 @@ func (g Git) Since(name, sha, base string) ([]string, error) {
 	return g.paths(name, sha, "refs/heads/"+base)
 }
 
+// NotInMirror is a commit the repository's mirror does not hold, its
+// branch force-pushed past it and the commit pruned, or the mirror made
+// again since: no retry brings it back.
+type NotInMirror struct{ Repo, Commit string }
+
+func (e NotInMirror) Error() string { return e.Commit + " is not in " + e.Repo + "'s mirror" }
+
 // RoundDiff is the changes from prev to sha in the files the branch at
 // sha changes against base, in the repository's mirror, so that what a
 // merge of base brought in is left out: 7.4's round r > 1 diff (section
 // 7.8, A round's file); "" when the branch changes no file. Each path is
-// given literally, as `xargs -0` gives it whole.
+// given literally, as `xargs -0` gives it whole. prev or sha the mirror
+// does not hold is NotInMirror, prev's first.
 func (g Git) RoundDiff(name, base, prev, sha string) (string, error) {
 	m := g.Mirror(name)
+	for _, c := range []string{prev, sha} {
+		// Exit 1 is rev-parse --verify --quiet finding no such commit.
+		_, errb, err := g.O.Exec(m, "git", "rev-parse", "--verify", "--quiet", c+"^{commit}")
+		var exit *exec.ExitError
+		switch {
+		case errors.As(err, &exit) && exit.ExitCode() == 1:
+			return "", NotInMirror{name, c}
+		case err != nil:
+			return "", fmt.Errorf("git rev-parse --verify --quiet %s^{commit}: %v: %s", c, err, strings.TrimSpace(string(errb)))
+		}
+	}
 	files, errb, err := g.O.Exec(m, "git", "diff", "--name-only", "-z", "refs/heads/"+base+"..."+sha)
 	if err != nil {
 		return "", fmt.Errorf("git diff --name-only -z refs/heads/%s...%s: %v: %s", base, sha, err, strings.TrimSpace(string(errb)))

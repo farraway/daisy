@@ -607,3 +607,13 @@ they write.
   from and the diff's fence; sections 2, 7.6, 7.7, 7.8, 8 and 13 mark
   them built and name the failed check's whole output where the secret
   check is listed.
+- 2026-11-19, Step R1-3b of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, the round file never holds a transition back): a round
+  whose head, or the round before's, the mirror no longer holds (the
+  branch force-pushed past it and the commit pruned, or the mirror made
+  again) writes its file with `The changes since round <r-1> cannot be
+  shown: <sha> is not in the mirror.` in place of the diff, and the
+  review's collection makes T9, T10 or T11 as it would, where it
+  returned the diff's error and the issue waited at every pass; any
+  other failure of the diff is still an error of the collection.
+  Section 7.8's round-file form states the sentence; no decision.

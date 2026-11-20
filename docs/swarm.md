@@ -4198,7 +4198,14 @@ the maintainer's comment put the head back to the pair (section 6),
 and for a round whose commits since the round before change none of the
 pull request's files (a merge of `<base>` alone), `No change since round
 <r-1> in the files the pull request changes.` in place of an empty
-block. A review's finding lines and its verdict are read from its text
+block; and for a round whose head, or the round before's, the mirror
+no longer holds (the branch force-pushed past it and the commit
+pruned, or the mirror made again since), `The changes since round
+<r-1> cannot be shown: <sha> is not in the mirror.`, naming the
+commit, the round before's when neither is held, so that the round's
+T9, T10 or T11 never waits on a commit no later pass brings back; any
+other failure of the diff is an error of the collection.
+A review's finding lines and its verdict are read from its text
 whole, its run's `out.md` (its post when that is gone, as `texts/`
 keeps none then), each line without the spaces at its end; a review
 with none has its `Whole:` line alone. The diff's fence is a run of
