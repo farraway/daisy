@@ -72,7 +72,10 @@ func (s *Swarm) mergeStep() error {
 		ref := forge.Ref{Repo: cur.Repo, N: cur.Number}
 		S, err := planSlices(is, s.SwarmLogin, s.outputs())
 		if err != nil {
-			return err
+			if _, err = s.blockUnusable(is, err); err != nil {
+				return err
+			}
+			continue
 		}
 		sl := sliceOf(cur, n)
 		at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -61,12 +62,39 @@ func (r Run) ioFile(fs ops.FS, name string) ([]byte, error) {
 	p := filepath.Join(r.Dir, "io", name)
 	fi, err := fs.Lstat(p)
 	if err != nil {
-		return nil, err
+		return nil, r.unusable(path.Join("io", name), err)
 	}
 	if !fi.Mode().IsRegular() {
 		return nil, iofs.ErrNotExist
 	}
-	return fs.ReadFile(p)
+	b, err := fs.ReadFile(p)
+	return b, r.unusable(path.Join("io", name), err)
+}
+
+// An unusableError is a file of a job, one of its runs' or of its
+// workspace, that Daisy cannot use: there and not readable, or a run's
+// out.md whose text as its collection posted it its records cannot give
+// again (section 7.7, a job's file Daisy cannot use). It is the job's
+// own failure, which blocks its issue alone (blockUnusable), where any
+// other error, a forge's, a mirror's or a write's, is the pass's.
+type unusableError struct {
+	file string // from <state>: runs/<run>/io/out.md, jobs/<n>/texts/<run>.md
+	k    int    // the number of the run whose file it is, 0 for none
+	err  error
+}
+
+func (e *unusableError) Error() string { return e.err.Error() }
+func (e *unusableError) Unwrap() error { return e.err }
+
+// unusable is err, the failed read of the run's file rel, as the job's
+// own (unusableError); nil and a file not there (iofs.ErrNotExist) as
+// they are.
+func (r Run) unusable(rel string, err error) error {
+	if err == nil || errors.Is(err, iofs.ErrNotExist) {
+		return err
+	}
+	run, _ := runOf(r.Dir)
+	return &unusableError{file: path.Join("runs", filepath.Base(r.Dir), rel), k: run.K, err: err}
 }
 
 // Finished reads how a run another apply started ended, its container
@@ -111,7 +139,7 @@ func (r Run) Result(fs ops.FS) ([]string, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, r.unusable("result", err)
 	}
 	return strings.Split(strings.TrimSuffix(string(b), "\n"), "\n"), nil
 }

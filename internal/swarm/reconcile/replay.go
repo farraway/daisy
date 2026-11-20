@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -161,6 +162,7 @@ func (o Outputs) planOf(n int, jr jobRun) (text string, builder []byte, plan, cu
 		return "", nil, false, false, nil
 	}
 	b, err := o.FS.ReadFile(filepath.Join(o.State, "jobs", strconv.Itoa(n), "texts", jr.name()+".md"))
+	err = workspaceUnusable(n, path.Join("texts", jr.name()+".md"), jr.K, err)
 	if errors.Is(err, iofs.ErrNotExist) {
 		b, err = jr.Output(o.FS)
 	}
@@ -373,7 +375,7 @@ func (c *collection) textOf(out string) (string, bool, error) {
 	if len(repo.Check) > 0 {
 		result, checked, _, ok := checkResult(c.s.O.FS(), c.r, c.lines, c.s.Cfg.Timeout)
 		if !ok {
-			return "", false, fmt.Errorf("its report was posted with no check result")
+			return "", false, c.r.unusable("io/out.md", errors.New("its run records no check result, which its repository now declares"))
 		}
 		block = checkBlock(repo.Check, c.fetched(), result, strings.Join(lastLines(checked), "\n"))
 	}
@@ -416,13 +418,38 @@ func (c *collection) replayedWork() error {
 
 // blockCut is T17 for a job whose replayed plan is taken cut from its
 // post, its out.md gone (section 7.8, Rollout), rather than have its
-// slices counted short: the reconciler's note naming the missing file,
-// unless the issue holds it, then swarm:blocked beside the stage, and
-// swarm:question cleared.
+// slices counted short: the reconciler's note naming the missing file.
 func (s *Swarm) blockCut(is forge.Issue, jr jobRun) error {
+	return s.block(is, jr.K, fmt.Sprintf("The plan of %s is cut on the forge and runs/%s/io/out.md is gone, so its slices cannot be counted (docs/swarm.md section 7.8, Rollout). Restore the file and remove <state>/jobs/%d, or relabel the issue %s for a new plan; then remove %s to resume.",
+		jr.name(), jr.name(), is.Number, forge.ProposalAccepted, forge.Blocked))
+}
+
+// blockUnusable is T17 for a job one of whose files Daisy cannot use
+// (unusableError), met by its replay or by a read of a run's text whole
+// (section 7.7, a job's file Daisy cannot use; the maintainer's rule of
+// 2026-11-18), rather than stop the pass for every issue: the
+// reconciler's note naming the file and the cause. blocked is false, with
+// err as it is, for any other error, which is the pass's.
+func (s *Swarm) blockUnusable(is forge.Issue, err error) (blocked bool, _ error) {
+	var u *unusableError
+	if !errors.As(err, &u) {
+		return false, err
+	}
+	cause := u.err
+	if pe := (*iofs.PathError)(nil); errors.As(cause, &pe) {
+		cause = pe.Err // the path is the state's, which the note names from <state>
+	}
+	return true, s.block(is, max(u.k, 1), fmt.Sprintf("Daisy cannot use %s: %v (docs/swarm.md section 7.8, Rollout). Make the file readable, or remove it if it is an out.md, its run's text then taken from its post, or under jobs/%d/, which the replay writes again; then remove %s to resume.",
+		u.file, cause, is.Number, forge.Blocked))
+}
+
+// block is T17 by a pass, no run's (section 7.8, Rollout): the
+// reconciler's note, text marked with run k and the maintainer's
+// mention, unless the issue holds it, then swarm:blocked beside the
+// stage, and swarm:question cleared.
+func (s *Swarm) block(is forge.Issue, k int, text string) error {
 	at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: is.Number}
-	body := marker("reconciler", jr.K) + fmt.Sprintf("The plan of %s is cut on the forge and runs/%s/io/out.md is gone, so its slices cannot be counted (docs/swarm.md section 7.8, Rollout). Restore the file and remove <state>/jobs/%d, or relabel the issue %s for a new plan; then remove %s to resume.",
-		jr.name(), jr.name(), is.Number, forge.ProposalAccepted, forge.Blocked) + s.mention()
+	body := marker("reconciler", k) + text + s.mention()
 	if !slices.ContainsFunc(is.Comments, func(c forge.Comment) bool { return c.Body == body && strings.EqualFold(c.Author, s.SwarmLogin) }) {
 		if err := s.Forge.Comment(at, body); err != nil {
 			return err

@@ -639,3 +639,19 @@ they write.
   write. Sections 2, 7.6, 7.8 and 11 state the marker, the order, the
   written-once files, the note's text and what is built; `status`'s and
   the other verbs' in-memory build comes with their reads. No decision.
+- 2026-11-20, Step R1-4b of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, a replay failure blocks only its issue): a failure that
+  is the job's own, met by the replay of its workspace, by the read of
+  its texts whole in pass step (5) or by the merge step's read of its
+  plan, blocks its issue alone (T17, the reconciler's note naming the
+  file and the cause, posted once), writes no `built` and launches or
+  merges nothing for it, and the pass goes on with every other issue,
+  where it returned the pass's error and stopped every launch of the
+  swarm: a file of one of its runs or of its workspace that is there
+  and cannot be read, or a worker's report posted with no check result
+  whose repository now declares a check. A forge's read refused, a
+  mirror's git error or a write is still the pass's error. Sections
+  7.5, 7.7 (a new row, a job's file Daisy cannot use) and 7.8 (the
+  Rollout, Daisy's own reads) state it. No decision: it applies the
+  maintainer's rule of 2026-11-18, that an unreadable `out.md` blocks
+  only its issue with a note naming the file.

@@ -38,12 +38,22 @@ func (s *Swarm) writeWorkspace(n int, rel string, data []byte) error {
 	case err == nil && (bytes.Equal(old, data) || writtenOnce(rel)):
 		return nil
 	case err != nil && !errors.Is(err, iofs.ErrNotExist):
-		return err
+		return workspaceUnusable(n, filepath.ToSlash(rel), 0, err)
 	}
 	if err := fs.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
 	return fs.WriteFile(p, data, 0o644)
+}
+
+// workspaceUnusable is err, the failed read of the file rel of issue n's
+// workspace, of run k's (0 for none), as the job's own (unusableError);
+// nil and a file not there (iofs.ErrNotExist) as they are.
+func workspaceUnusable(n int, rel string, k int, err error) error {
+	if err == nil || errors.Is(err, iofs.ErrNotExist) {
+		return err
+	}
+	return &unusableError{file: path.Join("jobs", strconv.Itoa(n), rel), k: k, err: err}
 }
 
 // writtenOnce: the workspace's file rel, a member's text, a round's or

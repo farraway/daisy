@@ -515,9 +515,13 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				continue
 			}
 			// The job's workspace built once, before any launch on it
-			// (section 7.8, Rollout).
+			// (section 7.8, Rollout); a file of the job's it cannot use
+			// blocks the issue alone, its workspace not built.
 			if blocked, err := s.replay(is, pulls); err != nil {
-				return fmt.Errorf("#%d: workspace: %w", n, err)
+				if _, err = s.blockUnusable(is, err); err != nil {
+					return fmt.Errorf("#%d: workspace: %w", n, err)
+				}
+				continue
 			} else if blocked {
 				if is, pulls, ok, err = s.atStage(n, label); err != nil {
 					return err
@@ -585,7 +589,10 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
 			}
 			if err := j.readWhole(); err != nil {
-				return fmt.Errorf("#%d: %w", n, err)
+				if _, err = s.blockUnusable(is, err); err != nil {
+					return fmt.Errorf("#%d: %w", n, err)
+				}
+				continue
 			}
 			turn := Turn{Label: label, Running: s.busy(running, runs, n)}
 			questioned := slices.Contains(is.Labels, forge.Question)

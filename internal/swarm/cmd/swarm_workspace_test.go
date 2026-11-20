@@ -540,9 +540,9 @@ func (a *applyWS) built(n int) bool {
 // is built again by the next pass, file for file; `status` before it
 // writes none. Removed but for texts/, as a job the R1-1 build collected
 // holds it, it is completed the same way, nothing in texts/ duplicated;
-// a replay that fails on the way (an out.md it cannot read) writes no
-// built marker, which it writes last, and the pass after it completes
-// the workspace.
+// a replay that cannot read an out.md blocks the issue and writes no
+// built marker, which it writes last, and once the file is readable and
+// the block removed, the pass after it completes the workspace.
 func TestWorkspaceReplay(t *testing.T) {
 	plan := "## Steps\n\n1. app: change main.go to v1; the test proves it.\n2. app: add notes.md.\n\n## Test Plan\n\n1. main.go says v1.\n"
 	builder := "## Slice 1\n\nEdit main.go.\n\n## Slice 2\n\nWrite notes.md.\n"
@@ -620,11 +620,12 @@ func TestWorkspaceReplay(t *testing.T) {
 	if err := os.Chmod(out, 0o000); err != nil {
 		t.Fatal(err)
 	}
-	a.tick()
-	if err := a.apply(a.git(), "--once"); err == nil || a.built(1) {
-		t.Fatalf("a replay that cannot read an out.md: %v, built %v\n%s", err, a.built(1), a.stdout.String())
+	a.pass()
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || a.built(1) {
+		t.Fatalf("a replay that cannot read an out.md: %v, built %v\n%s", got, a.built(1), a.stdout.String())
 	}
 	os.Chmod(out, 0o644)
+	a.forge.Relabel(issue1, forge.Blocked, "")
 	a.pass()
 	same("completed over texts/")
 }
@@ -724,6 +725,153 @@ func TestWorkspaceReplayCutPlan(t *testing.T) {
 	a.pass()
 	if bs := a.bodies(1); len(bs) != 2 {
 		t.Errorf("a second replay posted again: %d comments", len(bs))
+	}
+}
+
+// unusableNote is the reconciler's note that blocks issue n, marked with
+// run k, for its file Daisy cannot use (section 7.7, a job's file Daisy
+// cannot use).
+func unusableNote(n, k int, file, cause string) string {
+	return mark("reconciler", k) + "Daisy cannot use " + file + ": " + cause + " (docs/swarm.md section 7.8, Rollout). Make the file readable, or remove it if it is an out.md, its run's text then taken from its post, or under jobs/" + strconv.Itoa(n) + "/, which the replay writes again; then remove swarm:blocked to resume.\n\ncc @jane"
+}
+
+// The claim of Step R1-4b (sections 7.7 and 7.8, Rollout; the
+// maintainer's rule of 2026-11-18): an out.md that cannot be read blocks
+// its issue alone. Two issues wait for their worker; the first's plan,
+// cut on the forge, has an out.md that cannot be read. Read by the
+// replay of a job without its workspace, or by the read of the cut plan
+// whole for a job built, it blocks the first issue with the reconciler's
+// note naming the file, writes no built marker, launches nothing for it,
+// and the pass goes on: the second issue's worker is launched and apply
+// exits 0. The next pass posts no second note.
+func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
+	for _, replay := range []bool{true, false} {
+		t.Run(map[bool]string{true: "the replay", false: "a whole read"}[replay], func(t *testing.T) {
+			a := newApplyWS(t)
+			issue2 := forge.Ref{Repo: issue1.Repo, N: 2}
+			a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
+			a.forge.CreateIssue("Notes", "Add notes.", []string{forge.ProposalAccepted})
+			a.runner.Script(1, "architect", runner.Canned{Out: bigPlan})
+			a.runner.Script(2, "architect", runner.Canned{Out: oneSlice})
+			a.pass()
+			a.forge.SetLabel(issue1, forge.PlanAccepted)
+			a.forge.SetLabel(issue2, forge.PlanAccepted)
+			a.runner.Script(1, "worker", work("v1"))
+			a.runner.Script(2, "worker", work("v1"))
+			if replay {
+				os.RemoveAll(a.state("jobs/1"))
+			}
+			out := a.state("runs/1-architect-1/io/out.md")
+			if err := os.Chmod(out, 0o000); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.Chmod(out, 0o644) })
+			before := len(a.bodies(1))
+			a.pass()
+			note := unusableNote(1, 1, "runs/1-architect-1/io/out.md", "permission denied")
+			if bs := a.bodies(1); len(bs) != before+1 || bs[len(bs)-1] != note {
+				t.Errorf("the thread's last:\n%q\nwant:\n%q", bs[len(bs)-1], note)
+			}
+			if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || a.built(1) != !replay {
+				t.Errorf("#1: %v, built %v\n%s", got, a.built(1), a.stdout.String())
+			}
+			if a.result("1-worker-1") != "" {
+				t.Errorf("#1's worker was launched:\n%s", a.result("1-worker-1"))
+			}
+			if !strings.Contains(a.result("2-worker-1"), "\ncollected\n") {
+				t.Errorf("#2's worker was not launched:\n%s", a.stdout.String())
+			}
+			a.pass()
+			if bs := a.bodies(1); len(bs) != before+1 {
+				t.Errorf("a second pass posted again: %q", bs[before:])
+			}
+		})
+	}
+}
+
+// A worker's report posted with no check result, its repository then
+// declaring none, cannot be replayed once the repository declares one
+// (section 7.8, Rollout): the issue is blocked with the reconciler's
+// note naming the run's out.md and the condition, and no built marker.
+func TestReplayOfAReportWithNoCheckBlocks(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.Repos[0].Check = nil })
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", work("v1"))
+	a.pass()
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) {
+		t.Fatalf("the worker's report was not posted: %v\n%s", got, a.stdout.String())
+	}
+	a.edit(func(c *declare.Config) { c.Repos[0].Check = []string{"make", "check"} })
+	os.RemoveAll(a.state("jobs/1"))
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	a.pass()
+	note := unusableNote(1, 1, "runs/1-worker-1/io/out.md", "its run records no check result, which its repository now declares")
+	if bs := a.bodies(1); bs[len(bs)-1] != note {
+		t.Errorf("the thread's last:\n%q\nwant:\n%q", bs[len(bs)-1], note)
+	}
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || a.built(1) {
+		t.Errorf("after the replay: %v, built %v", got, a.built(1))
+	}
+}
+
+// refusesReviews is the git-following forge whose Reviews fails, as a
+// forge that refuses a read does.
+type refusesReviews struct{ gitForge }
+
+func (refusesReviews) Reviews(forge.Ref) ([]forge.Review, error) {
+	return nil, errors.New("503 Service Unavailable")
+}
+
+// A forge's error during a replay is not the job's (section 7.8,
+// Rollout): it is the pass's error, as any per-issue forge read's is,
+// the issue not blocked, no note posted and no built marker written, so
+// the next pass replays the job again.
+func TestReplayForgeErrorIsThePasss(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	os.RemoveAll(a.state("jobs/1"))
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	before := len(a.bodies(1))
+	a.tick()
+	if err := a.apply(refusesReviews{a.git()}, "--once"); err == nil || !strings.Contains(err.Error(), "503 Service Unavailable") {
+		t.Errorf("apply: %v", err)
+	}
+	if got := labels(a.issue(1)); slices.Contains(got, forge.Blocked) || len(a.bodies(1)) != before || a.built(1) {
+		t.Errorf("after a forge error: %v, %d notes, built %v", got, len(a.bodies(1))-before, a.built(1))
+	}
+	a.pass()
+	if !a.built(1) {
+		t.Errorf("the next pass did not replay the job")
+	}
+}
+
+// With the merge gate off, an approved job whose cut plan's out.md
+// cannot be read is blocked by the merge step, which reads the plan
+// whole to count its slices, with the note naming the file, and nothing
+// merged; apply exits 0 (section 7.7).
+func TestMergeStepUnreadablePlanBlocks(t *testing.T) {
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	a.inReview(bigSlices)
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass() // the pair: T9
+	if got := labels(a.issue(1)); got[0] != forge.ReviewApproved {
+		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
+	}
+	out := a.state("runs/1-architect-1/io/out.md")
+	if err := os.Chmod(out, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(out, 0o644) })
+	a.pass()
+	note := unusableNote(1, 1, "runs/1-architect-1/io/out.md", "permission denied")
+	if bs := a.bodies(1); bs[len(bs)-1] != note {
+		t.Errorf("the thread's last:\n%q\nwant:\n%q", bs[len(bs)-1], note)
+	}
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || a.pulls(1)[0].Merged {
+		t.Errorf("after the merge step: %v, merged %v\n%s", got, a.pulls(1)[0].Merged, a.stdout.String())
 	}
 }
 
