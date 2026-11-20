@@ -91,10 +91,20 @@ the issue's body and the accepted plan as context, never the design debate.
 One issue may carry several pull requests, one per slice of its plan.
 **Daisy is a reconciler:** `swarm apply` reads the forge, runs the members
 whose turn it is, posts what they wrote and moves the label. **Members have
-no memory:** each run is a fresh container given its thread so far; the
-threads are the memory. All durable state is on the forge; `<state>` holds
-only what one machine needs to run members (a lock, a pause flag, a git
-mirror per repository, the audit record of each run). **One job may span
+no memory, but each job has a workspace Daisy keeps, and the forge thread
+is its human record: its posts may be cut, because no member reads them
+back to do its work** (the maintainer's ruling of 2026-11-19, decision
+[158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md)). Each
+run is a fresh container given its job's workspace read-only (7.8): the
+accepted plan whole, its slice, the slice's kept commits, the failed
+checks' output, the review rounds and every member text of the job,
+written by Daisy alone as it collects the job's runs, which the prompt
+points into. The forge holds each job's stage (its labels) and its human
+record; `<state>` holds what one machine needs to run members (a lock, a
+pause flag, a git mirror per repository, the audit record of each run)
+and each job's workspace. *Specified ahead of its build* (R1, 7.8): until
+its last step is built, each run is given its thread so far and the
+threads are the memory. **One job may span
 repositories:** the issue lives in `forge.repo`, and each slice of its
 plan is built in one of the repositories `swarm.json` declares, all owned
 by `<owner>`.
@@ -173,7 +183,7 @@ The components and one pass of `apply`:
 flowchart TB
   M["Maintainer: terminal or agent session, own token<br/>writes the briefs; decides the gates G1 triage, G2 plan, G3 merge, G4 unblock"]
   B[("Briefs: briefs/ in the swarm repository, under resources<br/>Status: active · a priority · one ## heading per milestone")]
-  subgraph F["Forge (Gitea API v1 or GitHub REST v3): the interface and the memory"]
+  subgraph F["Forge (Gitea API v1 or GitHub REST v3): the interface and the human record"]
     I["Issue #n = the job, its body opening Brief: path, milestone<br/>label swarm:stage = the state<br/>design thread: proposal, plan (a Daisy plan: Research, Steps as slices), direction"]
     P["Pull request on swarm/n-s = one slice, Refs #n<br/>implementation thread: description, reviews, line comments, check tail"]
     L["16 organization labels: 9 stages, 5 flags, 2 terminals · the swarm's own account · trusted logins · marker on every swarm entry"]
@@ -187,10 +197,10 @@ flowchart TB
     S5 --> S6["6 merge step (G3 off only)"]
     S6 --> S7["7 owner batch trigger (G0: a brief active, none posted, fewer than max_open_proposals waiting); then the QA's, when declared (merges or a tag since its last exploration)"]
     S7 --> S8["8 a routine job's triage and plan gates passed; the gated flag; the milestones; the summary line"]
-    ST[("state: env · lock · paused · owner-held · qa-held<br/>git/name mirrors · runs/k audit")]
+    ST[("state: env · lock · paused · owner-held · qa-held<br/>git/name mirrors · jobs/n workspaces (R1) · runs/k audit")]
   end
   subgraph C["Containers, one per run, no memory"]
-    MC["Member: system.md (persona and Task) and prompt.md (the thread so far)<br/>vendor CLI claude or codex · one credential (env or slot)<br/>clone at /work · writes /work/.swarm/out.md: VERDICT: or BLOCKED: lines"]
+    MC["Member: system.md (persona and Task) and prompt.md (the thread so far; from R1 pointers into /work/.job)<br/>vendor CLI claude or codex · one credential (env or slot)<br/>clone at /work (from R1 /work/name) · writes /work/.swarm/out.md: VERDICT: or BLOCKED: lines"]
     CC["Check: the product's check on the worker's head<br/>keyless, network none (or an internal one with the product's test services) · tail posted on the pull request"]
   end
   M -- "writes, flips Status" --> B
@@ -198,6 +208,7 @@ flowchart TB
   M -- "own token, by the verbs or by hand: triage T3, accept T7, class, approve, merge then T13 or close, unblock T18, block, pause and resume an issue, replan T31, close T19" --> F
   B -- "pushed, read from the mirror at the pass's commit into the batch prompt's Briefs section" --> A
   B -- "a checkout at that commit, read-only under /work/.resources" --> MC
+  ST -- "R1: jobs/n read-only at /work/.job, written at each collection" --> MC
   F -- "Issues, Issue, Pulls, Reviews, comments" --> A
   A -- "CreateIssue, Comment, Relabel, CreatePull, Review; Merge and CloseIssue with G3 off" --> F
   A -- "launch" --> MC
@@ -277,10 +288,19 @@ Stages of a software factory the version leaves out, each by choice:
 ├── references/<ref>/                # bare mirror of each reference, holding its pin (section 3)
 ├── deps/<name>/                     # with a repository's deps, the swarm's dependency cache for it: written by its dependency steps, read by its checks (section 7.2)
 ├── notes/                           # the host's clone of the swarm repository, for the notes (with `notes`) and the journal: never mounted (section 7.1)
+├── jobs/<n>/                        # R1, specified ahead of its build (7.8): issue n's workspace, its members' memory, mounted read-only at /work/.job; kept after the issue closes
+│   ├── plan.md                      # the accepted plan whole, then its amendments in order
+│   ├── amendments/<a>.md            # each amendment as collected (R5's rule decides what one is)
+│   ├── slices/<s>/slice.md          # slice s's step and its part of the plan's ## For the builder
+│   ├── slices/<s>/kept              # the slice's newest worker run with commits: the next worker run's start
+│   ├── slices/<s>/rounds/<r>.md     # each completed review round of the slice: its head, its findings, the changes since the round before
+│   ├── checks/<sha>.log             # the output of a check that failed on head <sha>
+│   └── texts/<n>-<role>-<k>.md      # each member text posted on the job, whole
 └── runs/<n>-<role>-<k>/             # one role run, kept for audit (the owner's batch run is <n> = 0)
     ├── argv                         # the `docker run` argv, one argument per line (no secret in it)
     ├── io/system.md                 # the persona and the Task (mounted at /work/.swarm)
     ├── io/prompt.md                 # the material: issue, thread, plan, pull request (section 7.3)
+    ├── io/branches.md               # R1 (7.8): the open swarm branches and the files each changes, as the pass fetched them
     ├── io/out.md                    # what the member wrote
     ├── io/exit                      # the CLI's exit status, written by the sh it runs under once it has exited (section 7.2)
     ├── io/artifacts/                # a worker's screenshots of the pages its change alters (7.4, 7.6); a reviewer's copies of those its prompt lists (7.3)
@@ -328,6 +348,8 @@ Every file Daisy writes, and nothing else:
 | `<state>/references/<ref>/` | per reference (section 3), a bare repository holding its pin, its config's `remote.origin.url` its `url` | `swarm apply` (`git init --bare`, `config`, `fetch`) | before a pass's first launch, when the pin is not in it |
 | `<state>/notes/` | a clone of the swarm repository at its head as last fetched, its branch the one the clone checked out (the forge's default): with `notes` (section 3) the notes', and the journal's (7.6, The run's record) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, the notes' commits and the journal's, 7.6) | with `notes`, before each pass's first launch and at the collection of each owner's and architect's run; at the end of each pass that collected a run |
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
+| `<state>/jobs/<n>/` and its files | R1, specified ahead of its build: issue n's workspace, `plan.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log` and `texts/<n>-<role>-<k>.md`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names (a job open when the build arrives: once, by replaying its collected runs, 7.8, Rollout); the directory, empty, before the first launch on a new issue; never removed by Daisy |
+| `<run>/io/branches.md` | R1, specified ahead of its build: a line per open swarm branch but the run's own, its issue, slice, head and the files it changes against `<base>` (7.8) | `swarm apply` | before the launch of a run on an issue, from the pass's mirrors |
 | `<run>/io/out.md` | the member's output | the member (in the container) | during the run |
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/io/artifacts/<name>` | a worker run's: a screenshot of a page its change alters (7.4), which its collection reads (7.6, The screenshots); a reviewer run's: a copy of one its prompt lists (7.3, `# Artifacts`) | the worker (in the container); for a reviewer, `swarm apply` | during the run; for a reviewer, before the launch |
@@ -359,7 +381,8 @@ working tree or `.git` of a declared repository (Daisy keeps none: it
 reaches each through its mirror, and reads its readiness, its briefs
 and its resources there), not to `~/.config`, under `$DAISY_LOCAL/swarm/` only `<state>` and
 the slots' locks and clearing, and never into a container except through
-the bind mounts of `<run>` and the slot. The claim of Step 30 of the
+the bind mounts of `<run>` and the slot (from R1, 7.8, also the job's
+workspace, read-only). The claim of Step 30 of the
 plan that specified this document (section 13's row 30, the first real
 run) checks it on the real run.
 
@@ -2337,6 +2360,18 @@ After the container starts, host-side git never runs inside
 git command that reads it is a `fetch` from it into the mirror (7.6), and
 the directory is then deleted.
 
+**From R1** (7.8, specified ahead of its build). Step 3's clone of the
+worker and of a reviewer is made in `<run>/work/<name>`, `<name>` the
+run's repository, as the owner's and the architect's are, so
+`<run>/work` is the run's folder and never a clone, and every mount
+point is made in it beside the clones, none in a clone (7.8, The run's
+folder). A worker starting a slice, or continuing its open pull
+request, starts from the slice's kept commit where 7.8's start rule
+says, fetched into its clone from the mirror, its branch made or moved
+there before any container sees the clone. Before the launch of a run on
+an issue, `<run>/io/branches.md` is written from the pass's mirrors
+(7.8).
+
 ### 7.2 The container contract
 
 The member:
@@ -2496,6 +2531,26 @@ alone has none. With a product's test services, the worker is instead
 on a bridge network of its own, shared with its services alone, with
 the same route out, and the check on an internal network shared with
 its services alone, with none.
+
+**From R1** (7.8, specified ahead of its build). A member's argv gains,
+for a run on an issue (every role but the owner's and the QA's batch
+runs, which have no job), after the `/work/.swarm` mount:
+
+```
+  --mount type=bind,src=<state>/jobs/<n>,dst=/work/.job,readonly      (job)
+```
+
+and `/work` is the run's folder for every role: the worker's and a
+reviewer's clone is `/work/<name>`, beside `/work/.swarm`, `/work/.job`,
+`/work/.notes` and `/work/.resources`, none of them in a clone; `<W>` is
+the run's clone, `/work/<name>` (the owner's, the architect's and the
+QA's the first repository's, as now), and `/work` for a provider
+`Confined` to its working directory (section 9), so a `grok` member of
+any role starts where it reaches every mount (7.8, The run's folder).
+The check and the dependency step are unchanged: their `/work` is their
+clone, and nothing is mounted beside it. The workspace is read-only for
+every role and written by Daisy alone, so the mount principle (section
+8) holds: nothing writable that the next run reads.
 
 **The entrypoint**, `images/member/entrypoint.sh`, runs before every
 member, dependency step and check: it sets `HOME` to `/home/member` (writable by any uid,
@@ -2890,6 +2945,19 @@ Which sections a prompt holds, by role:
   report, not on the part the forge holds (request F40; decision
   [148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md)).
 
+**From R1** (7.8, specified ahead of its build), a prompt on an issue
+carries pointers into the job's workspace and a few lines of summary in
+place of the bodies the workspace holds: a `# Job` section after
+`# Issue` takes the place of `# Plan`; the accepted plan in `# Thread`
+is its heading and pointer; the pull request's description and the
+latest round's reviews are pointers, the `[blocking]` lines staying;
+and every member text a prompt still shows is read from the workspace's
+`texts/`, never from its post, so no cut text reaches a prompt and the
+copy to `/work/.swarm/outputs/` above is retired. Section 7.8, The
+prompt, gives the section and each role's pointers. `# Repository`
+gains `- Job workspace (read-only): /work/.job`, and its `Clone` line
+names `/work/<name>` for every role.
+
 A batch prompt has no issue, thread or pull request; in their place,
 the owner's has:
 
@@ -2946,6 +3014,15 @@ does, the first's holding the page map (section 4), and neither praxis
 nor the testing skill.
 
 ### 7.4 The Task texts
+
+**From R1** (7.8, specified ahead of its build): the worker's and the
+reviewers' texts name their clone `/work/<name>` where they name `/work`,
+and tell the member to read its slice, `/work/.job/slices/<s>/slice.md`,
+before the plan, `/work/.job/plan.md`; the architect's plan headings
+gain `"## For the builder"`, one `### Slice <s>` subsection per slice,
+from which `slice.md` is cut; the architect's answer to a question may
+carry the line `Start: base` (7.8, The start); the cut texts' sentence
+below is retired with the copies it names.
 
 Daisy's fixed text, by role and label; `<…>` filled in, `<names>` being
 the declared repositories' names, comma-separated, and `check` and
@@ -3240,6 +3317,20 @@ nothing launched or merged for the issue, and `swarm merge`'s and
 come before any cut and are read as posted, and the issue's body, which
 holds the `Brief:` and `Class:` lines, is never cut (decision
 [149](swarm/decisions/0149-daisy-reads-a-text-it-cut-whole.md)).
+
+**From R1** (7.8, specified ahead of its build). Each member text the
+posting rule posts on a job is first written whole to the job's workspace,
+`texts/<n>-<role>-<k>.md` (7.8), and every later reader of it, member or
+Daisy, reads it there: the post, cut or not, is the human record, and
+the attachment and the continuations above stay for the forge's readers
+alone. Daisy's own reads past a text's first lines (the plan's slices,
+the gate notes, a review's `[blocking]` lines) read the workspace, and
+the reads from `<run>/io/out.md` through the cut's note above are
+retired. The first lines a text is classed by are read as now. An
+architect's answer (`ANSWER:`, section 6, The question) may carry a line
+`Start: base`, and so may the maintainer's comment that lifts a block:
+read by the next worker run's launch, never by the collection (7.8, The
+start), and posted with the rest of the text.
 
 The **slices** of a plan are the lines matching `^[0-9]+\. ` between its
 `## Steps` line and the next line beginning `## ` (a slice's text may run
@@ -3764,6 +3855,21 @@ notes' index does not list it, and Drift does not compare it. The
 maintainer's clone falls behind the default branch at each pass that
 collects a run, as it does with `notes`: pull before pushing.
 
+**The job's workspace** (R1, specified ahead of its build; 7.8). The
+collection of a run on an issue writes the job's workspace,
+`<state>/jobs/<n>/`, at the steps 7.8's table names: a member's text to
+`texts/` once its secret check has passed and before its post (a
+review's with its round); an architect's plan to `plan.md` and every
+slice's `slice.md`; a worker run with commits, whatever its outcome, to
+its slice's `kept` after step 2, but for commits that failed the secret
+check or changed a protected path; a check that failed to `checks/`
+after step 4, once its whole output passed the secret check; and the
+review that completes a round to its slice's `rounds/`. A step's write
+is checked and skipped when the file already holds what it would
+write, as a forge step is, so a collection retried writes each once.
+The workspace changes no step above and no forge write: the outcome,
+the posts, the notes and the record are as before.
+
 ### 7.7 Failure paths
 
 A **swarm fault** is a failure of the machine, not of the work: it writes
@@ -3819,6 +3925,273 @@ honest word among the nine, and none for a row that is no stop.
 | discarded | — | 7.6: the issue was closed, or the run's pull request is no longer open | `outcome discarded`, `collected` | T22 only, when the pull request closed; none for a closed issue | none: no stop |
 | the batch run, any work failure above, or *proposed nothing* | work | as above | as above | none: `<state>/owner-held` written, the QA's `<state>/qa-held` | as above; *proposed nothing* empty |
 | a forge or git error while collecting | — | 7.6 | the steps done so far; no `collected` | none further this pass; retried at the next (`--once`: exit 1) | none: no record until the collection ends |
+
+### 7.8 The job's workspace
+
+*Specified ahead of its build* (Step 9 of the plan implementing the
+2026-11-19 swarm roadmap, R1; decision
+[158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md)). The
+steps that build it each keep the thread path working, each run given
+its thread so far (7.3), until the last switches the members over, so
+that no member reads from two memories half built; until then sections
+2 to 7.7 hold as written, each marking what R1 changes there.
+
+**The principle.** Members have no memory, but each job has a workspace
+Daisy keeps, and the forge thread is its human record: its posts may be
+cut, because no member reads them back to do its work (section 1).
+Whatever a later member acts on, the plan, its slice, the work an
+earlier run kept, a failed check's output, the reviews and the worker's
+report, is a file of the job's workspace, whole, which the prompt
+points into; what is on the forge is for people.
+
+**Where it lives and who writes it.** Issue n's workspace is
+`<state>/jobs/<n>/`, beside the mirrors and the runs on the machine that
+runs the swarm: a job is one issue (section 1), and a batch run, the
+owner's or the QA's (issue 0), has none. `swarm apply` alone writes it,
+at the collection of a run on the issue (7.6), each file whole under a
+temporary name in its directory and then renamed into place, so that a
+member or a read of Daisy's never meets half a file. No member writes it
+(it is mounted read-only), nor a check, nor a maintainer's verb, nor
+`status`; outside a collection it writes only its directory, made
+empty before the launch of the first run on a new issue, so that the
+mount has a source, and the collections' writes replayed for a job in
+flight (Rollout, below). Only text that passed its run's secret check (7.6)
+is written, so the workspace holds nothing a post could not have held.
+It is kept after the issue closes and never removed by Daisy (a reopened
+issue goes on with it); pruning it is the maintainer's, `rm -rf
+<state>/jobs/<n>`, as the runs and the mirrors' run refs are. It is this
+machine's, as the mirrors are: a swarm moved to another machine takes
+`<state>/jobs` with it, or has its open jobs' workspaces built again
+(Rollout, below).
+
+**The files.**
+
+| File | Holds | Written | Read by |
+|---|---|---|---|
+| `plan.md` | the accepted plan whole (7.3: the architect's newest plan on the issue), as the architect wrote it, its run's `out.md`; then each amendment collected since it, in the order collected, each under a heading of its own, `## Amendment <a>: <role> run <k>, <time>` | at the collection of an architect's run whose text is a plan (7.5: beginning none of `BLOCKED:`, `QUESTION:`, `ANSWER:` and `STANDS:`), before its post, rewritten with no amendment at each new plan; at the collection of an amendment, rewritten with it last | the worker, the reviewers, the architect revising, the owner; Daisy: the slices and their repositories (7.5), the plan gate's note |
+| `amendments/<a>.md` | each amendment's text as collected, `<a>` counted from 1 over the job's life, so no file is rewritten; `plan.md` applies those collected since the accepted plan. R5's rule (amendments go into the file) decides which collected text is an amendment and what its text holds; this section fixes only its file, its number and its place, after the plan, in order. Until R5 is built none is written | at the collection of the run whose text it is, before its post | as `plan.md`, which holds them |
+| `slices/<s>/slice.md` | slice s's item under the plan's `## Steps`, whole (its numbered line and the lines under it, 7.5, the slices), then the part of the plan's `## For the builder` for it: the lines from a heading `### Slice <s>`, alone or followed by a character that is not a digit, to the next `### ` or `## ` heading; the step alone when the plan has no such part | with `plan.md`, for each slice the plan declares (none for a job with no plan, the fast lane); the directory of a slice a new plan no longer declares is left as it is | the worker (its slice), the reviewers (the current pull request's), the architect |
+| `slices/<s>/kept` | one line, `<n>-worker-<k> <sha>`: the slice's newest worker run, by its end, whose commits Daisy holds and may be built on, and the commit fetched from it; absent while no run of the slice has one | at the collection of each worker run on slice s whose fetched commit is past its `start` (7.6, step 1), whatever its outcome: pushed (the commit then the branch's), failed, blocked, a question, a fault or abandoned (its run ref kept, 7.6 step 2); never for commits that failed the secret check or changed a protected path, which no run builds on (their ref stays for the maintainer, as now) | the worker's launch, for its start (The start, below); the worker and the architect, in `# Job` |
+| `slices/<s>/rounds/<r>.md` | review round r of the slice's pull request, in the form below: its head, its reviews' findings, and the changes since the round before. `<r>` counts the slice's completed rounds from 1, in the order they completed, over the pull request's life (a plan revision does not start it again, as it starts the Task text's `This is round <r>`, 7.4), so no file is rewritten | at the collection of the review that completes the round, the pair's second on the head as it stands (section 6), whose collection makes T9, T10 or T11 (section 5); the round's reviews are written to `texts/` with it and not before, so that a reviewer never finds its pair's review of the round it reviews | the worker (the latest), the reviewers (those before the current round; R6's later rounds review the changes since the last from here), the architect (every round) |
+| `checks/<sha>.log` | for a head `<sha>` whose check failed (it exited non-zero or timed out, its dependency step failed, or its test services file was refused, 7.6, step 4): the `# Check` line (7.3), then the whole output, `<run>/check.out`, `<run>/deps.out` for the dependency step's failure, or the refusal's reason | at the collection of the worker run whose check it is, after step 4, once the whole output has passed the secret check (a hit writes none, and is the failure 7.6 names) | the worker, the reviewers and the architect, by the pointer in `# Job` |
+| `texts/<n>-<role>-<k>.md` | each member text Daisy posts for the job, on the issue or one of its pull requests, whole, as Daisy would post it uncut: the run's `out.md` (an answer with the `ANSWER:` Daisy adds, 7.5), then what Daisy writes after it (a worker's check block) | at the collection that posts it, once its secret check has passed and before its post (a review's with its round, above) | every role: a member text a prompt shows is read from here, never from its post (The prompt, below); Daisy's own reads of a text past its first lines (7.5) |
+
+**The CI job's log** in `checks/<sha>.log` is later work: the forge
+seam reads a head's checks as each context's state and URL (`Status`,
+section 10), not a job's log, which the forge does not serve to the
+member (request F42's #155). A read of a failed job's log is specified
+with section 10 when it is built; until then the file holds Daisy's
+check alone, and R3's one declared environment (the worker's run,
+Daisy's check and CI in one image and one make target) makes Daisy's
+check's output the CI's.
+
+**The open branches**, `branches.md`, are the run's view, not the job's
+memory: other jobs' pushes and merges change them, which no collection
+of this job sees. Before the launch of a run on an issue,
+`<run>/io/branches.md`, `/work/.swarm/branches.md` in its container, is
+written from the mirrors as the pass fetched them (7.1, step 1): a line
+per branch `refs/heads/swarm/<n'>-<s'>` of each declared repository
+that is not the run's own and not merged into `<base>` (`git merge-base
+--is-ancestor <branch> refs/heads/<base>` false), `- <name>
+swarm/<n'>-<s'> (#<n'>, slice <s'>) at <short sha>: <files>`, its files
+those of `git diff --name-only -z refs/heads/<base>...<branch>` in the
+mirror, comma-separated; `None.` when there is none.
+
+**A round's file:**
+
+```markdown
+# Round <r> on <sha>
+
+Slice <s>, pull request <name>#<m>. The round before: <r-1> on <sha'>.
+
+## <role>, run <k>: <approve|request-changes>
+
+Whole: /work/.job/texts/<n>-<role>-<k>.md
+
+<each line of the review beginning [blocking] or [non-blocking], in order>
+
+## Changes since round <r-1>
+
+<the diff, in a fenced diff block>
+```
+
+one `## <role>` section per review of the round, the adversary's first;
+for the first round `The round before: none.` and no last section, the
+round having reviewed the whole pull request; for a round on the same
+head as the round before, the last section reads `No commit since round
+<r-1>: the worker answered without a commit,
+/work/.job/texts/<n>-worker-<k>.md.` The diff is the one 7.4's round
+r > 1 text has a reviewer make, `git diff --name-only -z
+refs/heads/<base>...<sha> | xargs -0 -r git diff <sha'>..<sha> --`, run
+in the mirror, so what a merge of `<base>` brought in is left out.
+
+**The start.** The maintainer's ruling of 2026-11-19: the next worker
+run of a slice starts from the last run's kept commit unless the
+architect's answer or the maintainer's unblock says start from base,
+and nothing discards kept work automatically. A worker run on slice s,
+whether it starts the slice or continues its open pull request, starts
+from:
+
+1. where it would start with no kept run, `<base>` for a slice not yet
+   pushed and the open pull request's head as the pass fetched it
+   otherwise (7.1, step 3), when `slices/<s>/kept` is absent, or when,
+   since the kept run ended, the architect wrote the line `Start: base`
+   in an answer (its text beginning `ANSWER:`, section 6, The question)
+   or the maintainer in a counted comment (a `trusted` login not the
+   swarm's, section 6) on the issue or its current pull request: the
+   comment `swarm unblock` posts, or the maintainer's word that lifts
+   the block (section 6, The maintainer's word). The line is `Start:
+   base` alone on a line, whitespace at either end aside, outside a
+   fenced block;
+2. else the kept commit, when the slice's branch as the pass fetched it
+   is absent, or is the kept commit or an ancestor of it (`git
+   merge-base --is-ancestor`): the branch `swarm/<n>-<s>` is made, or
+   moved forward, there in the clone, the commit fetched into it from
+   the mirror's run ref (or the branch, once pushed), so the run's push
+   is a fast-forward;
+3. else the branch's head: the branch moved past the kept run since
+   that run started, by a push not the run's (the maintainer's), and
+   that newer work is not overwritten; the prompt names the kept
+   commit, which stays in the mirror.
+
+Daisy never discards a kept commit: `kept` is rewritten only by a later
+worker run's collection, the run's ref stays until the maintainer
+prunes it (7.6, step 2), and a start from base leaves both as they
+were. The worker's `# Job` names its start and why: `- Start: <short
+sha>, worker run <k>'s kept commits`, `- Start: <base>` or `- Start: the
+pull request's head <short sha>` with no kept run, `- Start: <base>
+(Start: base, <login or architect run k> at <time>); worker run <k>'s
+kept commits <short sha> are left as they are`, or `- Start: the pull
+request's head <short sha>, which moved past worker run <k>'s kept
+commits <short sha>`.
+
+**The run's folder.** The maintainer's ruling of 2026-11-19: the
+resources, the notes and the job's workspace mount outside `/work`
+(the checkout), never under it, in a layout that a CLI confined to its
+working folder (`grok`, decision
+[87](swarm/decisions/0087-grok-sees-only-its-working-folder.md))
+allows. Every run's `/work` becomes a folder holding its clones, never a
+clone itself: each checkout is `/work/<name>` (the worker's and a
+reviewer's one, its run's repository; the owner's, the architect's and
+the QA's one per declared repository, as now), and beside the
+checkouts, in none of them, `/work/.swarm`, `/work/.job`, `/work/.notes`
+and `/work/.resources`. The checkout moves down a level, rather than the
+mounts out of `/work`, so that a CLI confined to its working directory
+(section 9's `Confined`) starts in `/work` and reaches every mount, as a
+`grok` owner and architect do now, while every other CLI starts in its
+checkout, `/work/<name>`, reads the repository's own instructions there,
+and is given the mounts beside it by `--add-dir` (section 9). No mount
+is under a checkout, so a check or a test that walks the checkout never
+meets one (intervention I14, a worker's `make check test` broken by the
+resources mounted in its clone), and a clone's `.git/info/exclude`
+needs no line for them. R3's resources and notes reuse the layout: a
+mount R3 adds or moves goes beside the checkouts, never in one, and
+reaches a confined CLI with nothing more. The costs: a `grok` worker or
+reviewer, started in `/work`, no longer reads the repository's
+instructions from its working directory, as a `grok` owner or architect
+does not (decision 87); and each path the Task texts, the persona
+prompts and a repository's notes name under `/work` for the worker and
+the reviewers moves under `/work/<name>`, where the architect's plans
+name a repository's files already. The check and the dependency step
+keep `/work` as their clone, with nothing beside it. A run launched
+under the earlier layout is collected from its clone where it is.
+
+**The mount.** `<state>/jobs/<n>` at `/work/.job`, read-only (7.2), for
+each run on issue n: the worker's, the adversary's, the sympathetic
+reviewer's, the architect's and the owner's on an issue; none for a
+batch run (the owner's or the QA's), the check, the dependency step or a
+test service. Its mount point is made in `<run>/work` before the launch,
+as `.swarm`'s is.
+
+**The prompt.** A prompt on an issue carries pointers and a few lines
+of summary in place of the bodies the workspace holds, in a section
+after `# Issue`:
+
+```markdown
+# Job
+
+- Workspace: /work/.job, read-only, kept by Daisy; the forge holds its texts for people, cut when long
+- Plan: /work/.job/plan.md, architect run <k>, <bytes> bytes, <S> slices[, <a> amendments]
+- Slice: /work/.job/slices/<s>/slice.md, slice <s> of <S> in <name>: <its line under ## Steps, after its number and repository>
+- Start: <as The start words it>
+- Report: /work/.job/texts/<n>-worker-<k>.md, the worker's newest report on slice <s>
+- Rounds: /work/.job/slices/<s>/rounds/, <c> completed; the latest, <r> on <short sha>: <verdicts>, <b> blocking
+- Check: /work/.job/checks/<sha>.log, <check> on <short sha>: <result>
+- Kept: slice <s>: <short sha>, worker run <k>
+- Branches: /work/.swarm/branches.md, <c> other open swarm branches
+```
+
+each line left out when it names nothing, but `- Plan: none: there is no
+plan.` for a job with none (the fast lane). By role:
+
+| Role | `# Job`'s lines | No longer in the prompt, the workspace holding it | In the prompt as now |
+|---|---|---|---|
+| worker | Workspace, Plan, Slice, Start, Report (continuing an open pull request), Rounds, Check (its head's, when it failed), Branches | `# Plan`, the plan whole; the pull request's description and the worker's earlier reports; the latest round's reviews in full, their `[blocking]` lines staying under their headings | `# Repository`, `# Issue`, `# Direction`, `# Questions`, `# Earlier pull requests`, the pull request's heading and branch line, `## Earlier rounds`, its thread's entries that are not the swarm's, `# Check`'s line and tail |
+| adversary, sympathetic | Workspace, Plan, Slice, Report (the newest, which the review checks), Rounds (those before the current round), Check, Branches | `# Plan`; the pull request's description | as the worker's, with the previous round's `[blocking]` lines and `# Artifacts` |
+| architect | Workspace, Plan, Kept (a line per slice with a kept commit), Branches; Rounds and Check while the current pull request is open | the accepted plan in `# Thread`, which shows its heading `## architect, run <k>, at <time> (the accepted plan: whole in /work/.job/plan.md)` | `# Thread`'s other entries, `# Earlier pull requests`, `# Pull request` with every round's `[blocking]` lines, `# Check` |
+| owner, on an issue | Workspace, Plan, when there is one | the accepted plan in `# Thread`, as the architect's | `# Thread`'s other entries |
+
+A member text a prompt still shows (an entry of `# Thread` or `# Questions`,
+a review's `[blocking]` lines) is read from `texts/` whole, never from
+its post, so no cut text reaches a prompt. `# Direction` holds the
+maintainer's comments since the plan's newest basis, the plan or the
+architect's newest `STANDS:` after it (section 6, The re-plan), so a
+re-plan request the architect answered `STANDS:` is no longer shown to
+the worker as direction. The Task texts (7.4) send the member to its
+slice first and to the plan as it needs it. A batch prompt is unchanged.
+
+**Daisy's own reads.** Every read of Daisy's past a member text's first
+lines (7.5, The posting rule) reads the workspace: the plan's slices and
+their repositories (the worker's slice, the counts in the Task text and
+under `# Job`, the merge step's, `swarm merge`'s, `status`'s and
+notify's) and the plan gate's note from `plan.md`; the merge gate's
+note's non-blocking findings and a review's `[blocking]` lines from
+`texts/`. Each reads the files it needs, never every text on the
+threads; a file that is there and cannot be read is an error, as an
+`out.md` is now (7.5). The first lines a text is classed by are read
+as now (7.5).
+
+**What it makes unnecessary**, once its last step is built: decision
+[148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md)'s
+copies of a cut text in the member's `/work/.swarm/outputs/`, the note
+rewritten to name them and the Task text's list of them, since a prompt
+reads every member text from `texts/`; decision
+[149](swarm/decisions/0149-daisy-reads-a-text-it-cut-whole.md)'s reads of
+a cut text from its run's `out.md` (`Outputs`, `Job.readWhole`, the cut
+plan read through its note), since Daisy reads `plan.md` and `texts/`;
+the run refs in the mirrors as the only home of kept work, since `kept`
+makes the newest the next run's start (the refs stay, where the commits
+are, and the reconciler's note still names them); and the threads as the
+place a member finds the plan, its slice, the reviews or the worker's
+report. **What stays, as the human record:** the posts on the forge, cut
+by the posting rule's limit, with decision
+[150](swarm/decisions/0150-a-long-text-is-posted-whole.md)'s attachment
+or continuations for their readers (retiring those is the maintainer's
+choice, as adopting them was); the reconciler's notes, the gate notes
+and the pulls block; and the labels, which stay the job's stage.
+
+**Rollout.** A job open when a build with the workspace arrives (an
+issue in flight, its runs collected by earlier builds) has none, and
+does not keep the thread path: one memory, never two. At the first pass
+that finds an open issue with a stage label and no `<state>/jobs/<n>/`,
+after the pass's collections and before its first launch, `apply`
+builds it by replaying, in the order they ended, the collection's writes
+above for each collected run of the issue under `<state>/runs/<n>-*`,
+reading each run's `result` and `out.md` and the mirrors as its
+collection would have: the texts, the plan and its slices, each slice's
+`kept` from its worker runs' `branch`, `fetched`, `pushed` and `failed:`
+lines, the rounds from the pull requests' reviews as the forge holds
+them (section 6's rounds, each review's text from its run), and the
+checks from `check.out` and `deps.out`. A run collected elsewhere, or
+whose `<run>` was pruned, adds only its text, taken from its post as the
+forge holds it; a post cut in any of 7.5's forms whose whole is gone is
+written with its note replaced by `[truncated by Daisy; the rest is not
+available to you]`, and a plan so taken blocks its issue, `swarm:blocked`
+beside its stage and the reconciler's note naming the missing
+`runs/<run>/io/out.md`, rather than have its slices counted short (the
+maintainer's yes of 2026-11-18). `status` and the maintainer's verbs
+that read a job's workspace build it the same way in memory for a job
+without one, and write nothing.
 
 ## 8. The credential rule
 
@@ -4111,7 +4484,10 @@ session refuses `--add-dir` outright. The `xai` provider is therefore
 whatever `D` holds, and every folder its member reads lies under `<W>`:
 the resources are mounted under `/work/.resources` for every provider
 (one layout), and its owner and architect start in `/work` (7.2) rather
-than in the first clone (decision [87](swarm/decisions/0087-grok-sees-only-its-working-folder.md)). The argv carries
+than in the first clone (decision [87](swarm/decisions/0087-grok-sees-only-its-working-folder.md)); from R1 (7.8, The run's
+folder, specified ahead of its build) every role's `/work` holds its
+clones beside its mounts, and a confined member of any role starts
+there. The argv carries
 `--trust` (a flag its `--help` omits and its guide documents: it trusts
 the working folder for project instructions, hooks and MCP servers, as
 Claude Code reads a repository's own).
@@ -5893,6 +6269,15 @@ the maintainer's comment answering a block, on a thread the stage's
 role reads, lifts it at `apply`'s next pass (section 6, The
 maintainer's word). The flag is removed under the swarm's token; the
 maintainer's is not read for it.
+
+**From R1** (7.8, specified ahead of its build). `unblock`'s comment,
+and the maintainer's word that lifts a block, may carry the line `Start:
+base`: the slice's next worker run then starts where it would without
+its kept commits (7.8, The start), which stay in the job's workspace and
+the mirror; the verb reads and writes nothing more for it. `swarm merge`
+counts the slices from the job's `plan.md`, as `status` and notify do;
+for a job without a workspace each builds it in memory as 7.8's Rollout
+builds it, and writes nothing.
 
 **The `swarm` skill** (`skills/swarm/SKILL.md`), which `daisy init`
 installs in each workspace with the root's other skills (a clone or a

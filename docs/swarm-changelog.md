@@ -471,3 +471,22 @@ they write.
   `--since`, or without `--scorecard`, is usage; section 11; decision
   [157](swarm/decisions/0157-the-scorecard-window-ends-at-until.md)
   (0156 amended).
+- 2026-11-19, Step 9 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, design): the job's workspace is the memory, specified
+  ahead of its build. Section 1's principle amended: members have no
+  memory, but each job has a workspace Daisy keeps, and the forge
+  thread is its human record, whose posts may be cut; section 7.8 gives
+  `<state>/jobs/<n>/` (`plan.md` with its amendments' slot,
+  `slices/<s>/slice.md`, `kept` and `rounds/<r>.md`, `checks/<sha>.log`
+  and `texts/`), written by `apply` alone at collection, mounted
+  read-only at `/work/.job`, kept after the issue closes; the open
+  branches in each run's io at its launch; the next worker run's start
+  from the slice's kept commit unless a `Start: base` line of the
+  architect's answer or the maintainer's unblocking comment says
+  otherwise; every checkout at `/work/<name>`, the mounts beside the
+  checkouts, a confined CLI started in `/work`; the prompt's `# Job`
+  pointers in place of the bodies; Daisy's own reads from the
+  workspace; decisions 148 and 149 retired once built, 150 kept as the
+  human record's; a job in flight built by replaying its runs; sections
+  1, 2, 7.1 to 7.6, 7.8, 9 and 11; decision
+  [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md).
