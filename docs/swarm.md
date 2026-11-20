@@ -3058,7 +3058,8 @@ worker's and the reviewers' texts tell the member to read its slice,
 `/job/memory/slices/<s>/slice.md`, before the builder plan,
 `/job/memory/builder.md`, and the plan, `/job/memory/plan.md`. The
 architect's plan headings are unchanged: its texts that ask for a plan
-(`proposal-accepted`, and `plan-0-posted`'s revision) add, after the
+or a revised plan (`proposal-accepted`, `plan-0-posted`'s revision, and
+`plan-1-accepted`'s for changed rulings or a re-plan) add, after the
 plan's, `Then write the builder plan to /job/io/builder.md, a document
 of its own, not posted: the plan consolidated for whoever builds it,
 one section "## Slice <s>" per slice under "## Steps", in their order,
@@ -4229,9 +4230,10 @@ is collected as before, `builder.md` removed and each slice's
 
 **The builder plan kept consolidated.** It is never edited or appended
 to: it is re-issued whole, and each re-issue replaces `builder.md` and
-cuts every declared slice's `slice.md` again. A revised plan (7.5,
-`plan-0-posted`'s revision or the open-slice revision) comes with its
-own, as the first did. An amendment (R5) is applied to `plan.md` and
+cuts every declared slice's `slice.md` again. A revised plan (7.5:
+`plan-0-posted`'s revision, the open-slice revision, or
+`plan-1-accepted`'s for changed rulings or a re-plan, 7.4) comes with
+its own, as the first did. An amendment (R5) is applied to `plan.md` and
 leaves `builder.md` as it is until an architect's run re-issues the
 builder plan consolidated with it, writing `builder.md` beside an
 `out.md` that is the amendment, its own or a later one: that run's
