@@ -3825,7 +3825,8 @@ line, and the fenced tail.
 
 Each `Comment`, `Review` and `CreatePull` below that posts a text posts
 it by 7.5's rule: a text longer than the limit is preceded by
-`Attach(n, <file>, <text>)` and, where the forge refused the file,
+`Attach(n, <file>, <text>)` and, where the forge refused the file or
+the upload failed,
 followed by `Comment(<the same thread>, <continuation>)` for each part of
 its rest, a review's and a description's on the pull request; a worker
 run whose pull request it opened in an earlier attempt posts the
