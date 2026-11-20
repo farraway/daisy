@@ -70,3 +70,26 @@ a cap on a note's length (a limit the maintainer did not set). Tests:
 `TestSwarmCutTextReachesTheMemberWhole` (both forms),
 `TestLongPosted`, `TestLongNote`, `TestCutRun` and
 `TestRenderCutNoteForms`.
+
+**Amended at Step R1-14a of the plan implementing the 2026-11-19 swarm
+roadmap (2026-11-20): a failed upload continues the text, and each
+gating's note has its own file.** An upload that fails with any error
+other than a refusal (a forge's `5xx`, a network error) is taken as a
+refusal: the text is posted cut, its rest in continuations, the failure
+warned of and, in a collection, recorded `not attached <file>: <error>`.
+Before, a first gating's note was lost on such an error (posted on no
+later pass) and a run stayed uncollected while it lasted, a forge whose
+uploads failed persistently holding it for good. The gate note's file
+is `<n>-gate-<time>.md`, `<time>` the pass's in UTC to the second, so
+that each gating's note attaches its own file rather than another
+`<n>-gate.md`; a retried note is attached under its pass's time. The
+reconciler's note on a run keeps `<n>-<role>-<k>-note.md`: a collection
+posts one reconciler note at most, each of its paths ending the
+collection after it, and its `attached` line is read by that name.
+Alternatives: retrying the upload at the next pass (a persistent
+failure would hold the run and the note for good, or need a retry cap
+the maintainer did not set); posting the note cut with no rest (the
+text would not reach the forge whole); an ordinal per gating,
+`<n>-gate-<g>.md` (one count per kind of note, where the time names
+every note of the pass's own alike). Tests:
+`TestGateNotePostedWhenAttachFails`, `TestSwarmGateNoteFilePerGating`.

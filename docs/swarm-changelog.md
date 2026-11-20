@@ -837,3 +837,12 @@ they write.
   comment commands), 7.8 (The start) and 11. Decision
   [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md)
   amended.
+- 2026-11-20, Step R1-14a of the plan implementing the 2026-11-19 swarm
+  roadmap (attach-or-split's files and failures, scheduled by the
+  maintainer's answer of 2026-11-18): an upload that fails with any
+  error, not only a refusal, continues the text in comments, so a
+  forge's `5xx` on its uploads neither keeps a run uncollected nor loses
+  a first gating's note; the gate note's file is `<n>-gate-<time>.md`,
+  each gating's its own. Sections 5 and 7.5, 7.6's retry, and the tests
+  row. Decision
+  [150](swarm/decisions/0150-a-long-text-is-posted-whole.md) amended.

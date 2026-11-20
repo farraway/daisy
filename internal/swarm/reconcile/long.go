@@ -1,7 +1,6 @@
 package reconcile
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -120,14 +119,25 @@ func cutAt(s string, limit int) string {
 }
 
 // attachWhole attaches l's text whole to the issue at as l.file, and is
-// the URL the forge serves it at; "" and the refusal when the forge
-// refuses it (ErrNotAttached), any other error the caller's.
-func (s *Swarm) attachWhole(at forge.Ref, l long) (url string, refused, err error) {
-	url, err = s.Forge.Attach(at, l.file, []byte(l.text))
-	if errors.Is(err, forge.ErrNotAttached) {
-		return "", err, nil
+// the URL the forge serves it at; "" and the error when the forge refuses
+// the file (ErrNotAttached) or the upload fails (any other error, a
+// forge's 5xx or a network error among them): either way the rest of the
+// text follows in continuations (section 7.5), so that a forge whose
+// uploads fail neither keeps a run uncollected nor loses a note.
+func (s *Swarm) attachWhole(at forge.Ref, l long) (url string, refused error) {
+	url, err := s.Forge.Attach(at, l.file, []byte(l.text))
+	if err != nil {
+		return "", err
 	}
-	return url, nil, err
+	return url, nil
+}
+
+// noteFile is the file a note of the pass's own on issue n, of kind (a
+// gate note's `gate`), is attached as: `<n>-<kind>-<time>.md`, its time
+// the pass's in UTC to the second, so that each note, each gating's among
+// them, has its own (section 7.5).
+func (s *Swarm) noteFile(n int, kind string) string {
+	return fmt.Sprintf("%d-%s-%s.md", n, kind, s.O.Now().UTC().Format("20060102T150405Z"))
 }
 
 // runText is the run's text as the collection posts it, by role: a
@@ -145,8 +155,8 @@ func (c *collection) runText(role, text, tail string) long {
 // but a review first written whole to the job's workspace (section 7.8,
 // texts/); a text that does not fit is first attached whole to the
 // issue, once, recorded `attached <file> <url>`, or, the forge refusing
-// it, warned of and recorded `not attached <file>: <error>`, and
-// continued; a retried collection reads the line and does not attach it
+// it or the upload failing, warned of and recorded `not attached <file>:
+// <error>`, and continued; a retried collection reads the line and does not attach it
 // again.
 func (c *collection) prepare(l long) (string, []string, error) {
 	if l.run != "" && !l.review {
@@ -166,10 +176,7 @@ func (c *collection) prepare(l long) (string, []string, error) {
 		known = known || strings.HasPrefix(line, "not attached "+l.file+": ")
 	}
 	if !known {
-		u, refused, err := c.s.attachWhole(c.at, l)
-		if err != nil {
-			return "", nil, err
-		}
+		u, refused := c.s.attachWhole(c.at, l)
 		line := "attached " + l.file + " " + u
 		if refused != nil {
 			line = "not attached " + l.file + ": " + oneLine.Replace(refused.Error())

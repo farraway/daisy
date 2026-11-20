@@ -198,7 +198,7 @@ var openQuestions = oneSlice + "\n## Open Questions\n\n" + strings.Repeat("- Sho
 
 // Daisy's own note is posted by the same rule: the plan gate's note
 // longer than the limit is cut, its decision and mention kept after the
-// note, its whole text attached as 1-gate.md or, refused, continued; the
+// note, its whole text attached as 1-gate-<time>.md or, refused, continued; the
 // continuations are no gate note, so no second note is posted and the
 // issue waits once (sections 5 and 7.5).
 func TestSwarmLongGateNote(t *testing.T) {
@@ -234,12 +234,12 @@ func TestSwarmLongGateNote(t *testing.T) {
 				}
 				whole = rejoin(t, post, "the gate note", gate)
 			} else {
-				i := slices.IndexFunc(a.forge.Attachments(issue1), func(f forge.Attachment) bool { return f.Name == "1-gate.md" })
+				i := slices.IndexFunc(a.forge.Attachments(issue1), func(f forge.Attachment) bool { return f.Name == "1-gate-20261106T150100Z.md" })
 				if i < 0 {
 					t.Fatalf("attached: %v", names(a.forge.Attachments(issue1)))
 				}
 				file := a.forge.Attachments(issue1)[i]
-				if !strings.Contains(post, "[truncated by Daisy; the whole note is attached as [1-gate.md]("+file.URL+")]"+decide) {
+				if !strings.Contains(post, "[truncated by Daisy; the whole note is attached as [1-gate-20261106T150100Z.md]("+file.URL+")]"+decide) {
 					t.Errorf("the note's cut:\n%s", post[max(0, len(post)-400):])
 				}
 				whole = string(file.Data)
@@ -261,6 +261,73 @@ func TestSwarmLongGateNote(t *testing.T) {
 				t.Errorf("status:\n%s", out)
 			}
 		})
+	}
+}
+
+// The claim of Step R1-14 (an upload that fails): with every Attach
+// failing as a forge's 5xx does, not refused, the architect's long plan
+// and the plan gate's long note are each posted cut at the first pass,
+// their rest in continuations, the failure warned of and, for the run,
+// recorded `not attached`: the run is collected and the gate note posted
+// on its first gating (section 7.5).
+func TestGateNotePostedWhenAttachFails(t *testing.T) {
+	a := newApplyWS(t)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: openQuestions})
+	f := &failing{Fake: a.forge, uploads: true}
+	a.tick()
+	if err := a.apply(f, "--once"); err != nil {
+		t.Fatalf("pass 1: %v\n%s", err, a.stderr.String())
+	}
+	upload := "forge: POST /repos/acme/swarm-app/issues/1/assets: 502 Bad Gateway"
+	if r := a.result("1-architect-1"); !strings.Contains(r, "\nnot attached 1-architect-1.md: "+upload+"\n") || !strings.HasSuffix(r, "\ncollected\n") {
+		t.Errorf("result:\n%s", r)
+	}
+	for _, w := range []string{
+		"⚠ #1 architect run 1: 1-architect-1.md not attached: " + upload + "; the rest follows in comments\n",
+		"⚠ #1: 1-gate-20261106T150100Z.md not attached: " + upload + "; the rest follows in comments\n",
+	} {
+		if !strings.Contains(a.stderr.String(), w) {
+			t.Errorf("stderr lacks %q:\n%s", w, a.stderr.String())
+		}
+	}
+	notes := a.gateNotes(1)
+	decide := "\n\nDecide: `daisy swarm accept 1`, `daisy swarm class 1 routine`, after which Daisy accepts it, or a comment here, from which the architect revises the plan."
+	if len(notes) != 1 || !strings.Contains(notes[0], "[truncated by Daisy; the rest follows in 1 comment]"+decide) {
+		t.Fatalf("gate notes: %d\n%s", len(notes), a.stdout.String())
+	}
+	var gate []string
+	for _, c := range a.continuations(issue1) {
+		if strings.HasPrefix(c, continuedMark+"Continued from the gate note") {
+			gate = append(gate, c)
+		}
+	}
+	if whole := rejoin(t, strings.TrimPrefix(notes[0], gateNote), "the gate note", gate); !strings.HasSuffix(whole, "  - The last question.\n- Risks: none in the plan.") {
+		t.Errorf("the whole note (%d bytes) ends:\n%s", len(whole), whole[max(0, len(whole)-200):])
+	}
+}
+
+// Each gating's note that does not fit attaches its own file (section
+// 7.5): the plan gate's note on the plan, then on the architect's revised
+// plan, attached as 1-gate-<time>.md at each pass's time, two files.
+func TestSwarmGateNoteFilePerGating(t *testing.T) {
+	a := newApplyWS(t)
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	a.forge.CreateIssue("Planned", "Plan it.", []string{"swarm:plan-0-posted"})
+	a.forge.Comment(issue1, mark("architect", 1)+openQuestions)
+	a.pass()
+	revised := strings.Replace(openQuestions, "- The last question.", "- The last question, revised.", 1)
+	a.tick()
+	a.forge.Comment(issue1, mark("architect", 2)+revised)
+	os.WriteFile(a.state("jobs/1/plan.md"), []byte(revised), 0o644)
+	a.pass()
+	files := a.forge.Attachments(issue1)
+	if got := names(files); !slices.Equal(got, []string{"1-gate-20261106T150100Z.md", "1-gate-20261106T150300Z.md"}) {
+		t.Fatalf("attached: %v\n%s", got, a.stderr.String())
+	}
+	notes := a.gateNotes(1)
+	if len(notes) != 2 || !strings.Contains(notes[1], "[1-gate-20261106T150300Z.md]("+files[1].URL+")") || !strings.HasSuffix(string(files[1].Data), "  - The last question, revised.\n- Risks: none in the plan.") {
+		t.Errorf("%d gate notes; the second file ends:\n%s", len(notes), files[len(files)-1].Data[max(0, len(files[len(files)-1].Data)-100):])
 	}
 }
 

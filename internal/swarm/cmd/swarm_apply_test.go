@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -279,6 +280,14 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 type failing struct {
 	*forge.Fake
 	comments, relabels int
+	uploads            bool // every Attach fails, as a forge's 5xx on its uploads does
+}
+
+func (f *failing) Attach(at forge.Ref, name string, data []byte) (string, error) {
+	if f.uploads {
+		return "", fmt.Errorf("forge: POST /repos/acme/%s/issues/%d/assets: 502 Bad Gateway", at.Repo, at.N)
+	}
+	return f.Fake.Attach(at, name, data)
 }
 
 func (f *failing) Comment(at forge.Ref, body string) error {

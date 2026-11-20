@@ -18,8 +18,8 @@ import (
 // decision's verbs. open is the open swarm issues as the flag step listed
 // them, for the triage gate's overlap. A note longer than the limit is
 // posted by section 7.5's rule, its decision and mention never cut: its
-// whole text attached as <n>-gate.md, or, the forge refusing it, its rest
-// in continuations after it; the file goes with the note when flags
+// whole text attached as <n>-gate-<time>.md (noteFile), or, the forge
+// refusing it or the upload failing, its rest in continuations after it; the file goes with the note when flags
 // tries it again (regated), and a continuation refused after the note is
 // posted is not tried again.
 func (s *Swarm) gateNote(n int, open []forge.Issue) error {
@@ -32,13 +32,10 @@ func (s *Swarm) gateNote(n int, open []forge.Issue) error {
 		return err
 	}
 	at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}
-	l := long{text: text, tail: decision, file: fmt.Sprintf("%d-gate.md", n), what: "the gate note"}
+	l := long{text: text, tail: decision, file: s.noteFile(n, "gate"), what: "the gate note"}
 	url := ""
 	if !l.fits() {
-		u, refused, err := s.attachWhole(at, l)
-		if err != nil {
-			return err
-		}
+		u, refused := s.attachWhole(at, l)
 		if refused != nil {
 			fmt.Fprintf(s.Err, "⚠ #%d: %s not attached: %s; the rest follows in comments\n", n, l.file, oneLine.Replace(refused.Error()))
 		}
