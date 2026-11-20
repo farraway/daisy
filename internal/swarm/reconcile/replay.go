@@ -32,13 +32,15 @@ const builtFile = "built"
 // whole is gone, in place of the cut's note (section 7.8, Rollout).
 const notAvailable = truncated + "the rest is not available to you]"
 
-// Built: issue n's workspace under state holds its built marker.
+// Built: issue n's workspace under state holds its built marker; a
+// marker that cannot be read, its directory closed, is the job's own
+// failure (unusableError).
 func Built(fs ops.FS, state string, n int) (bool, error) {
 	_, err := fs.Lstat(filepath.Join(state, "jobs", strconv.Itoa(n), builtFile))
 	if errors.Is(err, iofs.ErrNotExist) {
 		return false, nil
 	}
-	return err == nil, err
+	return err == nil, workspaceUnusable(n, builtFile, 0, err)
 }
 
 // post is a swarm entry as the forge holds it: a comment, a review

@@ -743,10 +743,20 @@ func unusableNote(n, k int, file, cause string) string {
 // whole for a job built, it blocks the first issue with the reconciler's
 // note naming the file, writes no built marker, launches nothing for it,
 // and the pass goes on: the second issue's worker is launched and apply
-// exits 0. The next pass posts no second note.
+// exits 0. The next pass posts no second note. So does a workspace
+// directory that cannot be read, its built marker's read failing.
 func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
-	for _, replay := range []bool{true, false} {
-		t.Run(map[bool]string{true: "the replay", false: "a whole read"}[replay], func(t *testing.T) {
+	for _, c := range []struct {
+		name         string
+		replay       bool
+		closed, file string // closed made unreadable, the file the note names
+	}{
+		{"the replay", true, "runs/1-architect-1/io/out.md", "runs/1-architect-1/io/out.md"},
+		{"a whole read", false, "runs/1-architect-1/io/out.md", "runs/1-architect-1/io/out.md"},
+		{"the workspace", false, "jobs/1", "jobs/1/built"},
+	} {
+		replay := c.replay
+		t.Run(c.name, func(t *testing.T) {
 			a := newApplyWS(t)
 			issue2 := forge.Ref{Repo: issue1.Repo, N: 2}
 			a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
@@ -761,18 +771,22 @@ func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
 			if replay {
 				os.RemoveAll(a.state("jobs/1"))
 			}
-			out := a.state("runs/1-architect-1/io/out.md")
-			if err := os.Chmod(out, 0o000); err != nil {
+			closed := a.state(c.closed)
+			fi, err := os.Stat(closed)
+			if err != nil {
 				t.Fatal(err)
 			}
-			t.Cleanup(func() { os.Chmod(out, 0o644) })
+			if err := os.Chmod(closed, 0o000); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.Chmod(closed, fi.Mode().Perm()) })
 			before := len(a.bodies(1))
 			a.pass()
-			note := unusableNote(1, 1, "runs/1-architect-1/io/out.md", "permission denied")
+			note := unusableNote(1, 1, c.file, "permission denied")
 			if bs := a.bodies(1); len(bs) != before+1 || bs[len(bs)-1] != note {
 				t.Errorf("the thread's last:\n%q\nwant:\n%q", bs[len(bs)-1], note)
 			}
-			if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || a.built(1) != !replay {
+			if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || (c.closed != "jobs/1" && a.built(1) != !replay) {
 				t.Errorf("#1: %v, built %v\n%s", got, a.built(1), a.stdout.String())
 			}
 			if a.result("1-worker-1") != "" {
