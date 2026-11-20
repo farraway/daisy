@@ -807,7 +807,7 @@ they write.
   7.2, 7.3, 7.4, 7.5, 7.7, 7.8 and 13. No new decision: it builds
   decision [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md).
 - 2026-11-20, Step R1-11 of the plan implementing the 2026-11-19 swarm
-  roadmap (Dean's answer to its Open Question 7): the plan gate's note
+  roadmap (the maintainer's answer to its Open Question 7): the plan gate's note
   names the builder plan after the slices, `` - Builder plan:
   `<state>/<file>` on the swarm's host, <b> bytes; not posted. ``, the
   workspace's `builder.md` or, with the plan read in memory, its run's

@@ -4422,7 +4422,7 @@ posted: the forge's human record holds the plan the maintainer accepts
 at G2, and the builder plan, the members' material, is kept in the
 workspace, `builder.md`, and in its run's io for audit; the plan
 gate's note names its file on the swarm's host, or that there is none
-(section 5, the gate note; Dean's answer of 2026-11-20 to the question
+(section 5, the gate note; the maintainer's answer of 2026-11-20 to the question
 decision 159 left open, built at Step R1-11 of the plan implementing the
 2026-11-19 swarm roadmap), so that the maintainer deciding on the plan
 knows whether its workers have one and where to read it.

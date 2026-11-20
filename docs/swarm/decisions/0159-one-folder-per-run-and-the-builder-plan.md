@@ -115,7 +115,7 @@ with nothing beside it but the dependency cache, once the members are
 at `/job`; R3 adopts this decision's layout for the resources and the
 notes as it stands.
 
-**Amended by Dean's answer of 2026-11-20 to the question left open
+**Amended by the maintainer's answer of 2026-11-20 to the question left open
 above (Open Question 7 of the plan implementing the 2026-11-19 swarm
 roadmap; built at its Step R1-11).** The maintainer sees at G2 where the
 builder plan is, not the builder plan itself: the plan gate's note
