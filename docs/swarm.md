@@ -2549,8 +2549,9 @@ QA's the first repository's, as now), and `/work` for a provider
 any role starts where it reaches every mount (7.8, The run's folder).
 The check and the dependency step are unchanged: their `/work` is their
 clone, and nothing is mounted beside it. The workspace is read-only for
-every role and written by Daisy alone, so the mount principle (section
-8) holds: nothing writable that the next run reads.
+every role and written by Daisy alone: the one mount that is not the
+run's own, which section 8's principle names, nothing in it writable
+that the next run reads.
 
 **The entrypoint**, `images/member/entrypoint.sh`, runs before every
 member, dependency step and check: it sets `HOME` to `/home/member` (writable by any uid,
@@ -4042,7 +4043,9 @@ from:
    comment `swarm unblock` posts, or the maintainer's word that lifts
    the block (section 6, The maintainer's word). The line is `Start:
    base` alone on a line, whitespace at either end aside, outside a
-   fenced block;
+   fenced block. On a slice whose pull request is open it leaves out
+   only the kept commits not pushed: the run continues from the branch's
+   head, since the swarm never forces a push (7.6, step 5);
 2. else the kept commit, when the slice's branch as the pass fetched it
    is absent, or is the kept commit or an ancestor of it (`git
    merge-base --is-ancestor`): the branch `swarm/<n>-<s>` is made, or
@@ -4061,7 +4064,9 @@ were. The worker's `# Job` names its start and why: `- Start: <short
 sha>, worker run <k>'s kept commits`, `- Start: <base>` or `- Start: the
 pull request's head <short sha>` with no kept run, `- Start: <base>
 (Start: base, <login or architect run k> at <time>); worker run <k>'s
-kept commits <short sha> are left as they are`, or `- Start: the pull
+kept commits <short sha> are left as they are` (with the pull request
+open, `- Start: the pull request's head <short sha> (Start: base, …);
+…`, the same words after it), or `- Start: the pull
 request's head <short sha>, which moved past worker run <k>'s kept
 commits <short sha>`.
 
@@ -4203,7 +4208,12 @@ holds the host's login) nor leave state a later run loads (`codex` reads
 `config.toml`, skills, plugins and agents from its `GROK_HOME`). A run's copy of
 the research notes (7.2) is its own: what it writes there reaches a later run only
 as its comments do, published by Daisy after the secret check (7.6, The
-notes).
+notes). From R1 (7.8, specified ahead of its build), the job's
+workspace is the one mount that is not the run's own: `<state>/jobs/<n>`
+itself, shared by the job's runs, mounted read-only and written by
+Daisy alone, at collection, with text that passed the secret check, so
+a run reaches no other host state through it and leaves nothing in it
+that the next run reads.
 
 1. **One credential per member, none for the check.** A member receives
    exactly one credential, of its provider's kind in `keys` (section 3):

@@ -54,6 +54,9 @@ per run (kept for audit, immune to a write during the run) was the
 alternative; Daisy writes only whole files by rename, the one pair of
 runs on an issue at once is kept apart by the round's timing above, and
 a copy per launch would repeat the plan and every text for each run.
+It is the one mount that is not the run's own, so section 8's mount
+principle names it: read-only, written by Daisy alone with text that
+passed the secret check.
 
 **The run's folder and `grok`.** The maintainer's ruling of 2026-11-19
 puts the resources, the notes and the job's workspace outside `/work`
@@ -88,7 +91,9 @@ nothing discards kept work automatically. Chosen: the line `Start: base`
 in the architect's `ANSWER:` text, or in the maintainer's counted
 comment since the kept run (the one `swarm unblock` posts, or the
 maintainer's word that lifts the block), read at the next worker run's
-launch; `kept` is written only at collection and never cleared, the run
+launch, a slice whose pull request is open then continuing from the
+branch's head without the kept commits not pushed, since the swarm
+never forces a push; `kept` is written only at collection and never cleared, the run
 ref stays, and a branch moved past the kept commit by the maintainer's
 push starts from the branch's head, since the swarm never forces a
 push. Alternatives: a flag on `swarm unblock` writing the reset into
