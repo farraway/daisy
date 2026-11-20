@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -165,7 +166,8 @@ func TestSwarmLongTextContinuedWhenRefused(t *testing.T) {
 	}
 
 	// The thread read: one plan, the architect not woken by the
-	// continuations, and the worker shown the plan once.
+	// continuations, and the worker pointed at the plan whole in the
+	// job's workspace (section 7.8, The prompt).
 	launched := len(a.runner.Launched)
 	a.pass()
 	if len(a.runner.Launched) != launched {
@@ -181,12 +183,12 @@ func TestSwarmLongTextContinuedWhenRefused(t *testing.T) {
 	a.runner.Script(1, "worker", work("v1"))
 	a.pass()
 	p := a.file("1-worker-1", "io/prompt.md")
-	if strings.Count(p, "## For the builder") != 1 || strings.Contains(p, "Continued from") || strings.Contains(p, "Last: the builder's final step.") ||
-		!strings.Contains(p, "\n"+cutNote("/job/io/outputs/1-architect-1.md")+"\n") {
-		t.Errorf("worker run 1's prompt:\n%s", p[max(0, strings.Index(p, "# Plan")-100):])
+	if strings.Contains(p, "## For the builder") || strings.Contains(p, "Continued from") || strings.Contains(p, "truncated") ||
+		!strings.Contains(p, fmt.Sprintf("\n- Plan: /job/memory/plan.md, architect run 1, %d bytes, 1 slice\n", len(hugePlan))) {
+		t.Errorf("worker run 1's prompt:\n%s", p)
 	}
-	if got := a.file("1-worker-1", "io/outputs/1-architect-1.md"); got != hugePlan {
-		t.Errorf("worker run 1's copy: %d bytes, want %d", len(got), len(hugePlan))
+	if got := readFile(t, a.state("jobs/1/plan.md")); got != hugePlan {
+		t.Errorf("the job's plan.md: %d bytes, want %d", len(got), len(hugePlan))
 	}
 }
 

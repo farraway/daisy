@@ -10,6 +10,7 @@ import (
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
 
@@ -326,5 +327,33 @@ func TestBranchesFile(t *testing.T) {
 		if got := a.file(run, "io/branches.md"); got != want {
 			t.Errorf("%s's branches.md:\n%s\nwant:\n%s", run, got, want)
 		}
+	}
+	// The prompt's # Job counts them (section 7.8, The prompt): the file
+	// is written before the prompt.
+	for run, c := range map[string]string{"1-worker-1": "0 other open swarm branches", "2-architect-1": "4 other open swarm branches", "1-adversary-1": "3 other open swarm branches"} {
+		if p := a.file(run, "io/prompt.md"); !strings.Contains(p, "\n- Branches: /job/io/branches.md, "+c+"\n") {
+			t.Errorf("%s's prompt does not count %s:\n%s", run, c, p)
+		}
+	}
+}
+
+// A file # Job reads that is there and is not Daisy's, a round's file
+// whose first line is not its heading, blocks the issue before the run is
+// launched, the reconciler's note naming it (sections 7.7 and 7.8, The
+// prompt), rather than a prompt summarising it wrong or the pass failing.
+func TestJobSectionBlocksOnAFileItCannotUse(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	a.changesRequested()
+	if err := os.WriteFile(a.state("jobs/1/slices/1/rounds/1.md"), []byte("not a round\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	if _, err := os.Stat(a.state("runs/1-worker-2")); err == nil {
+		t.Errorf("worker run 2 launched:\n%s", a.result("1-worker-2"))
+	}
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || !strings.Contains(a.lastComment(1), "Daisy cannot use jobs/1/slices/1/rounds/1.md: not a round's file: its first line is not `# Round <r> on <sha>`") {
+		t.Errorf("not blocked: %v, last comment:\n%s", got, a.lastComment(1))
 	}
 }

@@ -73,7 +73,7 @@ func TestSwarmApplyQuestionAnswered(t *testing.T) {
 	prompt := a.file("1-worker-2", "io/prompt.md")
 	_, questions, _ := strings.Cut(prompt, "\n# Questions\n\n")
 	if !strings.Contains(questions, "## worker, run 1, at ") || !strings.Contains(questions, "\n\nQUESTION: Should main.go say v1 or v1.0?\n\n## architect, run 2, at ") ||
-		!strings.Contains(questions, "\n\nANSWER: v1, as the Test Plan's first claim says.\n") || !strings.Contains(prompt, "# Plan\n\n## architect, run 1, at ") {
+		!strings.Contains(questions, "\n\nANSWER: v1, as the Test Plan's first claim says.\n") || !strings.Contains(prompt, "\n- Plan: /job/memory/plan.md, architect run 1, ") || strings.Contains(prompt, "# Plan") {
 		t.Errorf("worker run 2's prompt.md:\n%s", prompt)
 	}
 	if sys := a.file("1-worker-2", "io/system.md"); !strings.Contains(sys, "Implement slice 1 of the accepted plan for issue #1 (it declares 1)") {

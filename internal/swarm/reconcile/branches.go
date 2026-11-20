@@ -87,9 +87,10 @@ func (g Git) OpenBranches(name, base, skip string) ([]OpenBranch, error) {
 // the architect's run (section 7.8, The open branches): a line per open
 // swarm branch of each declared repository, in their declared order, but
 // the run's own (ownRepo's ownBranch; none for the architect), as the
-// pass fetched them; "None." when there is none.
-func (s *Swarm) writeBranches(ioDir, ownRepo, ownBranch string) error {
-	var lines []string
+// pass fetched them; "None." when there is none. lines is how many
+// branches it lists.
+func (s *Swarm) writeBranches(ioDir, ownRepo, ownBranch string) (lines int, err error) {
+	var out []string
 	for _, rp := range s.Cfg.Repos {
 		skip := ""
 		if rp.Name == ownRepo {
@@ -97,20 +98,21 @@ func (s *Swarm) writeBranches(ioDir, ownRepo, ownBranch string) error {
 		}
 		open, err := s.git().OpenBranches(rp.Name, s.Cfg.Base, skip)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		for _, b := range open {
 			files := strings.Join(b.Files, ", ")
 			if b.Unrelated {
 				files = "no history in common with " + s.Cfg.Base
 			}
-			lines = append(lines, fmt.Sprintf("- %s %s (#%d, slice %d) at %s: %s", b.Repo, b.Branch, b.N, b.S, short(b.Head), files))
+			out = append(out, fmt.Sprintf("- %s %s (#%d, slice %d) at %s: %s", b.Repo, b.Branch, b.N, b.S, short(b.Head), files))
 		}
 	}
-	if len(lines) == 0 {
-		lines = []string{"None."}
+	lines = len(out)
+	if lines == 0 {
+		out = []string{"None."}
 	}
-	return s.O.FS().WriteFile(filepath.Join(ioDir, "branches.md"), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	return lines, s.O.FS().WriteFile(filepath.Join(ioDir, "branches.md"), []byte(strings.Join(out, "\n")+"\n"), 0o644)
 }
 
 // readsBranches: role's runs are given branches.md (section 7.8): the

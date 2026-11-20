@@ -122,6 +122,28 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 	}
 
+	// The open branches, from the mirrors as the pass fetched them
+	// (section 7.8): the architect has no branch of its own. Written
+	// before the prompt, whose # Job counts them.
+	if readsBranches(j.Role) {
+		ownRepo, ownBranch := repo.Name, branch
+		if j.Role == "architect" {
+			ownRepo, ownBranch = "", ""
+		}
+		if j.Branches, err = s.writeBranches(ioDir, ownRepo, ownBranch); err != nil {
+			fs.RemoveAll(r.Dir)
+			return false, err
+		}
+	}
+
+	// What the prompt's # Job points to in the job's workspace (section
+	// 7.8, The prompt); a file there it cannot use blocks the issue alone.
+	if err := j.readMemory(); err != nil {
+		fs.RemoveAll(r.Dir)
+		_, err = s.blockUnusable(j.Issue, err)
+		return false, err
+	}
+
 	system, prompt := Render(j)
 	for _, f := range []struct{ name, text string }{{"system.md", system}, {"prompt.md", prompt}} {
 		p := filepath.Join(ioDir, f.name)
@@ -146,19 +168,6 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		// The screenshots # Artifacts lists, where the reviewer opens
 		// them (section 7.3).
 		if err := copyArtifacts(fs, ioDir, j.Artifacts); err != nil {
-			fs.RemoveAll(r.Dir)
-			return false, err
-		}
-	}
-
-	// The open branches, from the mirrors as the pass fetched them
-	// (section 7.8): the architect has no branch of its own.
-	if readsBranches(j.Role) {
-		ownRepo, ownBranch := repo.Name, branch
-		if j.Role == "architect" {
-			ownRepo, ownBranch = "", ""
-		}
-		if err := s.writeBranches(ioDir, ownRepo, ownBranch); err != nil {
 			fs.RemoveAll(r.Dir)
 			return false, err
 		}

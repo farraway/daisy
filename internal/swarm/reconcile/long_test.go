@@ -137,10 +137,10 @@ func TestRenderCutNoteForms(t *testing.T) {
 	}
 	_, prompt := Render(j)
 	has(t, "prompt.md", prompt, []string{
-		"it works.\n\n" + note("/job/io/outputs/1-architect-1.md") + "\n",
+		"(the accepted plan: whole in /job/memory/plan.md)\n",
 		"Long.\n" + note("/job/io/outputs/1-owner-3.md") + "\n",
-	}, "runs/1-", "attached as", "the rest follows", "Continued from", "QUESTION:", "reconciler, run")
-	if got := j.Cut(); strings.Join(got, " ") != "1-architect-1 1-owner-3" {
+	}, "runs/1-", "attached as", "the rest follows", "Continued from", "QUESTION:", "reconciler, run", "it works.")
+	if got := j.Cut(); strings.Join(got, " ") != "1-owner-3" {
 		t.Errorf("Cut: %v", got)
 	}
 	if _, ok := newestQuestion(j.Issue, "swarm-bot"); ok {

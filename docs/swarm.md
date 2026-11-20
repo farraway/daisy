@@ -357,7 +357,7 @@ Every file Daisy writes, and nothing else:
 | `<state>/references/<ref>/` | per reference (section 3), a bare repository holding its pin, its config's `remote.origin.url` its `url` | `swarm apply` (`git init --bare`, `config`, `fetch`) | before a pass's first launch, when the pin is not in it |
 | `<state>/notes/` | a clone of the swarm repository at its head as last fetched, its branch the one the clone checked out (the forge's default): with `notes` (section 3) the notes', and the journal's (7.6, The run's record) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, the notes' commits and the journal's, 7.6) | with `notes`, before each pass's first launch and at the collection of each owner's and architect's run; at the end of each pass that collected a run |
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
-| `<state>/jobs/<n>/` and its files | R1, specified ahead of its build but for `texts/`, `plan.md`, `builder.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log` and `built`, which are written and read by nothing yet but `apply`'s replay and `swarm merge`'s refusal (7.8, Rollout), for `kept` the worker's launch (7.8, The start), and for `plan.md` and `texts/` Daisy's own reads (7.8, Daisy's own reads): issue n's workspace, `plan.md`, `builder.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log`, `texts/<n>-<role>-<k>.md` and `built`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names; at the first pass that finds the issue open at a stage without `built`, before the role rule reads it, every file its collected runs' collections write, replayed, then `built` (7.8, Rollout), so a new issue's directory holds `built` alone before its first launch; never removed by Daisy |
+| `<state>/jobs/<n>/` and its files | R1, specified ahead of its build but for `texts/`, `plan.md`, `builder.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log` and `built`, which are written and read by nothing yet but `apply`'s replay and `swarm merge`'s refusal (7.8, Rollout), for `kept` the worker's launch (7.8, The start), for `plan.md` and `texts/` Daisy's own reads (7.8, Daisy's own reads), and for those `# Job` points to the launch that summarises them and the members (7.8, The prompt): issue n's workspace, `plan.md`, `builder.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log`, `texts/<n>-<role>-<k>.md` and `built`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names; at the first pass that finds the issue open at a stage without `built`, before the role rule reads it, every file its collected runs' collections write, replayed, then `built` (7.8, Rollout), so a new issue's directory holds `built` alone before its first launch; never removed by Daisy |
 | `<run>/io/branches.md` | R1 (built at Step R1-7 of the plan implementing the 2026-11-19 swarm roadmap): a line per open swarm branch but the run's own, its issue, slice, head and the files it changes against `<base>` (7.8) | `swarm apply` | before the launch of a worker's, a reviewer's or the architect's run, from the pass's mirrors |
 | `<run>/io/builder.md` | R1 (built): the architect's builder plan, beside the plan it wrote to `out.md` (7.8, The builder plan) | the architect (in the container) | during the run |
 | `<run>/job/` | R1 (built at Steps R1-5 and, for `memory`, R1-7 of the plan implementing the 2026-11-19 swarm roadmap): the run's folder, mounted at `/job`, holding only the mount points of its children, `work`, `io` and, as the run has them, `notes`, `resources` and `memory` (7.8, The run's folder), and whatever the member writes at its top, which nothing reads | `swarm apply` (the directory and its mount points), then the member | before the launch; removed with `<run>/work` |
@@ -2748,6 +2748,7 @@ an empty one adds no section. Together they add about 3,100 words to each such r
 - Issues: <owner>/<repo> on <forge-host>
 - Clone /job/work/<name>: <owner>/<name>, branch <branch>, base <base>, check <check, as one shell-quoted line> (or: no check declared)
 - Working directory: /job, holding every clone under /job/work; the repository is /job/work/<name> (a confined provider only, section 9; <name> the run's repository, the first declared for the owner, the architect and the QA)
+- Job workspace (read-only): /job/memory (a run on an issue)
 - Research notes: /job/notes, notes/ in <owner>/<repo>, pushed by Daisy after the run
 
 # Research notes
@@ -2760,6 +2761,10 @@ Opened by <login> at <time>. Labels: <labels, comma-separated>.
 
 <body>
 
+# Job
+
+<pointers into the job's workspace, 7.8, The prompt>
+
 # Thread
 
 ## <login> at <time>
@@ -2770,15 +2775,11 @@ Opened by <login> at <time>. Labels: <labels, comma-separated>.
 
 <swarm comment>
 
+## architect, run <k>, at <time> (the accepted plan: whole in /job/memory/plan.md)
+
 ## <role>, run <k>, at <time> (superseded by run <k'>; content omitted)
 
 ## <login> at <time> (not trusted; content omitted)
-
-# Plan
-
-## architect, run <k>, at <time>: slice <s> of <S>, in <name>
-
-<the accepted plan>
 
 # Direction
 
@@ -2804,7 +2805,7 @@ ANSWER: <the answer>
 
 Branch swarm/<n>-<s> into <base>; head <sha>.
 
-<body>
+<body, the architect's alone when it is the swarm's>
 
 ## Earlier rounds
 
@@ -2834,8 +2835,11 @@ Branch swarm/<n>-<s> into <base>; head <sha>.
 ```
 
 The pull request's `<body>` is its opener's entry (section 6): the
-swarm's without its marker, a `trusted` login's as written, and anyone
-else's `Opened by <login>, not trusted; content omitted.` The issue's
+swarm's without its marker, in the architect's prompt alone (it is the
+worker's report, which the worker and the reviewers read from the job's
+workspace by `# Job`'s Report line, 7.8, The prompt), a `trusted`
+login's as written, and anyone else's `Opened by <login>, not trusted;
+content omitted.` The issue's
 `<body>` likewise, without the pulls block (section 5, The pull requests
 on the issue), which `# Earlier pull requests` and `# Pull request`
 give the members already: an issue opened by a login not in `trusted` reads
@@ -2849,13 +2853,13 @@ Which sections a prompt holds, by role:
 | Section | Owner and architect | Worker, `plan-1-accepted` | Worker, `review-3-changes-requested` | Reviewers |
 |---|---|---|---|---|
 | `# Repository` (one `Clone` line: `/job/work/<name>` for the run's repository; for the owner, the architect and the QA, one per declared repository), `# Issue` (none in a batch run's) | yes | yes | yes | yes |
+| `- Job workspace (read-only): /job/memory` in `# Repository`, and `# Job` (7.8, The prompt; none in a batch run's) | yes | yes | yes | yes |
 | `- Research notes:` in `# Repository`, and `# Research notes` (`None.` when the copy holds no note), with `notes` | yes | the line alone, `- Research notes (read-only): /job/notes` | the line alone | the line alone |
 | `# Thread` (the issue thread's comments, oldest first, but the gate notes and the auto notes, section 5, and the commands' answers, section 6, compacted as below; `None.` when there are none) | yes | — | — | — |
-| `# Plan` | — | yes | yes | yes |
 | `# Direction` (`None.` when there are none) | — | yes | — | — |
 | `# Questions` (left out when the issue thread holds no question) | — | yes | yes | yes |
 | `# Earlier pull requests` (`None.` when there are none) | the architect, when the current pull request is open (after T11, or a relabel by the maintainer), or on `swarm:plan-1-accepted` (section 6, The rulings) | yes | yes | yes |
-| `# Pull request`, its `## Earlier rounds` (left out when no round is a line) and its `## Thread` (`None.` when no entry is shown in it), compacted as below | the architect, when the current pull request is open (the rounds): every round's blocking findings | when the current pull request is open: the latest round in full, the earlier as lines | yes: the latest round in full, the earlier as lines | yes: the previous round's blocking findings, the earlier as lines, never the current round |
+| `# Pull request`, its `## Earlier rounds` (left out when no round is a line) and its `## Thread` (`None.` when no entry is shown in it), compacted as below | the architect, when the current pull request is open (the rounds): every round's blocking findings | when the current pull request is open: the latest round's blocking findings, the earlier as lines | yes: the latest round's blocking findings, the earlier as lines | yes: the previous round's blocking findings, the earlier as lines, never the current round |
 | `# Check` | the architect, when the current pull request is open | when the current pull request is open | yes | yes |
 | `# Artifacts` (left out when the worker run that pushed the head took no screenshot, 7.6) | — | — | — | yes |
 
@@ -2891,22 +2895,29 @@ Which sections a prompt holds, by role:
   pull-request thread is (below; decision [95](swarm/decisions/0095-the-prompts.md)), so that the
   owner's and the architect's prompts stop growing with the plan's
   revisions: an entry that is not the swarm's is shown whatever its age,
-  as the pull-request thread shows it; of the swarm's entries, each
-  role's newest (the owner's, the architect's, the reconciler's note)
-  and the accepted plan are shown whole, and every older one is its
-  heading alone, `## <role>, run <k>, at <time> (superseded by run <k'>;
-  content omitted)`, `<k'>` being the run of that role's newest entry,
-  in its place in the thread. The accepted plan stays whole when the
-  architect's newest entry is a `BLOCKED:` question, being what a
-  revision revises.
+  as the pull-request thread shows it; of the swarm's entries, the
+  accepted plan is its heading and the pointer to the job's `plan.md`,
+  `## architect, run <k>, at <time> (the accepted plan: whole in
+  /job/memory/plan.md)` (7.8, The prompt), even when it is the
+  architect's newest entry or that entry is a `BLOCKED:` question, the
+  plan being what a revision revises; each role's newest other entry
+  (the owner's, the architect's, the reconciler's note) is shown whole,
+  and every older one is its heading alone, `## <role>, run <k>, at
+  <time> (superseded by run <k'>; content omitted)`, `<k'>` being the
+  run of that role's newest entry, in its place in the thread.
 - **The accepted plan** is the newest counted issue comment marked
   `role=architect` whose text begins none of `BLOCKED:`, `STANDS:`,
   `QUESTION:` and `ANSWER:` (section 6, The question); `<S>` is the
-  number of its slices (7.4). With no such comment, `# Plan` reads
-  `None: there is no plan.` and the worker's Task text is the fast lane's.
+  number of its slices (7.4). No prompt holds its body: `# Job`'s Plan
+  line points to it in the job's workspace (7.8, The prompt). With no
+  such comment, that line reads `- Plan: none: there is no plan.` and the
+  worker's Task text is the fast lane's.
 - **`# Direction`** holds the counted issue comments that are not the
-  swarm's and come after the accepted plan (all of them when there is no
-  plan): the maintainer's word on the job since the plan.
+  swarm's and come after the plan's newest basis, the accepted plan or
+  the architect's newest `STANDS:` after it (section 6, The re-plan), so
+  that a re-plan request the architect answered `STANDS:` is no longer
+  shown as direction (all of them when there is no plan): the
+  maintainer's word on the job since the plan.
 - **`# Questions`** holds, from the issue thread's first comment of
   the swarm's that begins `QUESTION:` on, the swarm's comments beginning
   `QUESTION:` or `ANSWER:` and the counted comments that are not the
@@ -2928,10 +2939,12 @@ Which sections a prompt holds, by role:
   The swarm's comments are shown from the **worker's newest report** on:
   the newest of the pull request's entries that are the swarm's and
   marked `role=worker`, its body (the description, shown above the
-  thread in every case) or a comment (a revision's report, an answer
+  thread in the architect's prompt) or a comment (a revision's report, an answer
   without a commit, a `BLOCKED:`); the older ones are the history the
   round lines summarise, and a command's answer (section 6, The comment
-  commands) is never shown. The swarm reviewers' reviews fall into
+  commands) is never shown. The worker's and the reviewers' prompts
+  show none of the worker's reports, the newest among them: `# Job`'s
+  Report line points to it in the job's workspace (7.8, The prompt). The swarm reviewers' reviews fall into
   **rounds**: a round is a head commit together with the worker's
   answers without a commit before its reviews (section 6), so a head
   answered `NO CHANGE:` begins a new round on the same commit, and a head
@@ -2949,7 +2962,9 @@ Which sections a prompt holds, by role:
     findings the round `r > 1` Task text asks about, whose resolutions
     the worker's newest report states; and gives every earlier round a
     line.
-  - The worker's prompt shows the latest round's reviews in full and
+  - The worker's prompt shows the latest round's reviews as their
+    headings with their `[blocking]` lines alone, each review whole in
+    the job's workspace (`# Job`'s Rounds line, 7.8, The prompt), and
     gives every earlier round a line.
   - The architect's prompt shows every round's reviews as their headings
     with their `[blocking]` lines alone (it reworks the plan from them),
@@ -2985,9 +3000,9 @@ Which sections a prompt holds, by role:
   nothing launched. The reviewers judge the page as the worker rendered
   it beside the diff (decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)).
 - **A text cut on the forge** reaches the member whole, in any role and
-  section: a swarm entry the prompt shows (the plan, a thread's comment,
-  a review, a pull request's description) whose text ends, cut, in the
-  note naming its own run,
+  section: a swarm entry the prompt shows (a thread's comment, a review,
+  a pull request's description in the architect's prompt) whose text
+  ends, cut, in the note naming its own run,
   `[truncated by Daisy; the whole output is in runs/<n>-<role>-<k>` and
   the file's link or the continuations' count, then `]` (7.5, in any of
   its forms; the worker's before its check block), the run being the
@@ -3009,23 +3024,26 @@ Which sections a prompt holds, by role:
   report, not on the part the forge holds (request F40; decision
   [148](swarm/decisions/0148-a-text-cut-on-the-forge-reaches-the-member-whole.md)).
 
-**From R1** (7.8, specified ahead of its build), a prompt on an issue
-carries pointers into the job's workspace and a few lines of summary in
-place of the bodies the workspace holds: a `# Job` section after
-`# Issue` takes the place of `# Plan`; the accepted plan in `# Thread`
-is its heading and pointer; the pull request's description and the
-latest round's reviews are pointers, the `[blocking]` lines staying;
-and every member text a prompt still shows is read from the workspace's
-`texts/`, never from its post, so no cut text reaches a prompt and the
-copy to `/job/io/outputs/` above is retired. Section 7.8, The
-prompt, gives the section and each role's pointers. Every path a prompt
-names moves into the run's folder (7.8, The run's folder): `# Repository`
-gains `- Job workspace (read-only): /job/memory`, its `Clone` line names
-`/job/work/<name>` for every role, its `Working directory` line reads
-`/job, holding every clone under /job/work; the repository is
-/job/work/<first name>` for a confined provider of any role, and its
-`Research notes` line `/job/notes`; `# Research notes` names
-`/job/notes/<file>` and `# Briefs` `mounted at /job/resources/…`.
+**From R1** (7.8; built at Step R1-10 of the plan implementing the
+2026-11-19 swarm roadmap, but for the reads from `texts/`), a prompt on
+an issue carries pointers into the job's workspace and a few lines of
+summary in place of the bodies the workspace holds: a `# Job` section
+after `# Issue`, which took the place of `# Plan`; the accepted plan in
+`# Thread` is its heading and pointer; the worker's reports, the pull
+request's description among them, are `# Job`'s Report line in the
+worker's and the reviewers' prompts, and the latest round's reviews are
+their `[blocking]` lines in the worker's, as above; section 7.8, The
+prompt, gives the section and each role's pointers. Still to come
+(R1-10b): every member text a prompt still shows read from the
+workspace's `texts/`, never from its post, so that no cut text reaches
+a prompt and the copy to `/job/io/outputs/` above is retired. Every path
+a prompt names is in the run's folder (7.8, The run's folder):
+`# Repository`'s `- Job workspace (read-only): /job/memory`, its
+`Clone` line's `/job/work/<name>` for every role, its `Working
+directory` line, `/job, holding every clone under /job/work; the
+repository is /job/work/<first name>`, for a confined provider of any
+role, and its `Research notes` line's `/job/notes`; `# Research notes`
+names `/job/notes/<file>` and `# Briefs` `mounted at /job/resources/…`.
 
 A batch prompt has no issue, thread or pull request; in their place,
 the owner's has:
@@ -3084,22 +3102,20 @@ nor the testing skill.
 
 ### 7.4 The Task texts
 
-**From R1** (7.8, specified ahead of its build; every path the texts
-name moved into the run's folder, 7.8, The run's folder, at Step R1-5
-of the plan implementing the 2026-11-19 swarm roadmap): the
-worker's and the reviewers' texts tell the member to read its slice,
-`/job/memory/slices/<s>/slice.md`, before the builder plan,
-`/job/memory/builder.md`, and the plan, `/job/memory/plan.md`. The
-architect's plan headings are unchanged, and its texts that ask for a
-plan or a revised plan already ask for the builder plan (built at Step
-R1-2 of the plan implementing the 2026-11-19 swarm roadmap: the
-builder sentence and the plan closing, below); the
-switch adds to the builder sentence, after `so that it reads without
-the plan.`, `Daisy gives each worker its slice's step and section.`,
-which is not true before it. The architect's answer to a
-question, and its revised plan, may carry the line `Start: base` (7.8,
-The start). The cut texts' sentence below is retired with the copies
-it names.
+**From R1** (7.8; every path the texts name moved into the run's
+folder, 7.8, The run's folder, at Step R1-5 of the plan implementing
+the 2026-11-19 swarm roadmap; the slice sentence and the builder
+sentence's last addition built at Step R1-10): the worker's and the
+reviewers' texts send the member to its slice first, then to the
+builder plan and the plan as it needs them (the **slice sentence**,
+below). The architect's plan headings are unchanged, and its texts that
+ask for a plan or a revised plan ask for the builder plan (built at
+Step R1-2: the builder sentence and the plan closing, below), the
+builder sentence ending, since the switch gives each worker its slice,
+`Daisy gives each worker its slice's step and section.` The architect's
+answer to a question, and its revised plan, may carry the line `Start:
+base` (7.8, The start). The cut texts' sentence below is retired with
+the copies it names (R1-10b).
 
 Daisy's fixed text, by role and label; `<…>` filled in, `<names>` being
 the declared repositories' names, comma-separated, and `check` and
@@ -3148,8 +3164,19 @@ plan consolidated for whoever builds it, one section "## Slice <s>" per
 slice under "## Steps", in their order, each holding all a builder
 needs for that slice (its files, types and signatures, claim and test,
 and what of the research, constraints and decisions bears on it), so
-that it reads without the plan. Write it whole each time you write the
-plan.` The architect's answer to a question asks for none.
+that it reads without the plan. Daisy gives each worker its slice's step
+and section. Write it whole each time you write the plan.` The
+architect's answer to a question asks for none.
+
+The **slice sentence** follows the row's text in every worker text and
+every reviewer text whose job has a plan, before the additions below:
+`Read slice <s>, /job/memory/slices/<s>/slice.md, first; then the
+builder plan, /job/memory/builder.md, and the plan,
+/job/memory/plan.md, as you need them.`, or, when the job's workspace
+holds no builder plan, `Read slice <s>, /job/memory/slices/<s>/slice.md,
+first; then the plan, /job/memory/plan.md, as you need it.`, `<s>` the
+slice `# Job`'s Slice line names (7.8, The prompt); none when that line
+is left out (no plan, the fast lane).
 
 | Role, label | Task text (before the closing paragraph) |
 |---|---|
@@ -3423,13 +3450,13 @@ holds the `Brief:` and `Class:` lines, is never cut (decision
 posting rule posts on a job is first written whole to the job's workspace,
 `texts/<n>-<role>-<k>.md` (7.8; built, and read by Daisy's own reads,
 the Rollout's replay and `swarm merge`'s refusal, by no prompt until
-the switch, R1-10), and every later reader of it, member or
+the switch, R1-10b), and every later reader of it, member or
 Daisy, reads it there: the post, cut or not, is the human record, and
 the attachment and the continuations above stay for the forge's readers
 alone. Daisy's own reads past a text's first lines (the plan's slices,
 the gate notes, a review's `[blocking]` lines) read the workspace (7.8,
 Daisy's own reads; built but for the `[blocking]` lines a prompt
-shows, R1-10), and
+shows, R1-10b), and
 the reads from `<run>/io/out.md` through the cut's note above are
 retired, but for a text the workspace does not hold. The first lines a text is classed by are read as now. An
 architect's answer (`ANSWER:`, section 6, The question) or revised plan
@@ -4096,9 +4123,9 @@ texts that ask for a plan ask for it, 7.4, and its collection reads,
 checks and writes it); and each slice's `kept` and `rounds/` and
 `checks/` (R1-3, the secret check reading a failed check's whole
 output), each written at collection as its row below says and read by
-nothing but `kept` by the worker's launch (R1-8) and `plan.md` and
-`texts/` by Daisy's own reads (R1-9), no post changed by them and no prompt but
-the architect's Task text; and the Rollout's replay, its `built`
+nothing but `kept` by the worker's launch (R1-8), `plan.md` and
+`texts/` by Daisy's own reads (R1-9) and the files `# Job` points to
+by the launch that summarises them (R1-10), no post changed by them; and the Rollout's replay, its `built`
 marker, the block of a plan taken cut and `swarm merge`'s refusal
 (R1-4), and the block of a job whose file Daisy cannot use (R1-4b),
 what it writes read by the replay and the
@@ -4106,14 +4133,18 @@ refusal, which read `built` and an architect's plan in `texts/`, and by
 Daisy's own reads (R1-9); the
 run's folder (R1-5, with the persona prompts' defaults at R1-6); and the
 mount and the open branches (R1-7), the workspace mounted at
-`/job/memory` and `branches.md` written for the roles that read it, which
-no prompt or Task text names until the switch (R1-10); and the start
+`/job/memory` and `branches.md` written for the roles that read it; and the start
 (R1-8), each worker run's clone started where The start, below, says,
-with `slices/<s>/kept` read at its launch, its `# Job` line coming with
-the prompt (R1-10); and Daisy's own reads (R1-9), `plan.md` and
+with `slices/<s>/kept` read at its launch; and Daisy's own reads (R1-9), `plan.md` and
 `texts/` read past a text's first lines, below, with the in-memory
-build of the plan that `status` and `swarm merge` read; `amendments/`
-(R5) and the prompt are still specified ahead of their build.
+build of the plan that `status` and `swarm merge` read; and the
+prompt's pointers (R1-10), `# Job` and `# Repository`'s workspace line,
+the accepted plan's pointer in `# Thread`, the worker's reports and
+the latest round's reviews left to the workspace, `# Direction` from
+the plan's newest basis, and the Task texts' slice sentence, The
+prompt, below; `amendments/` (R5) and the prompt's reads of the texts
+it still shows from `texts/` (R1-10b) are still specified ahead of
+their build.
 
 **The principle.** Members have no memory, but each job has a workspace
 Daisy keeps, and the forge thread is its human record: its posts may be
@@ -4244,7 +4275,7 @@ refs/heads/<base>...<sha> | xargs -0 -r git diff <sha'>..<sha> --`, run
 in the mirror, so what a merge of `<base>` brought in is left out.
 
 **The start** (built at Step R1-8 of the plan implementing the
-2026-11-19 swarm roadmap, but for the worker's `# Job` line, R1-10). The maintainer's ruling of 2026-11-19: the next worker
+2026-11-19 swarm roadmap, the worker's `# Job` line at Step R1-10). The maintainer's ruling of 2026-11-19: the next worker
 run of a slice starts from the last run's kept commit unless the
 architect's answer or the maintainer's unblock says start from base,
 and nothing discards kept work automatically; at the stop of Step 9, a
@@ -4443,14 +4474,46 @@ plan.` for a job with none (the fast lane). By role:
 
 | Role | `# Job`'s lines | No longer in the prompt, the workspace holding it | In the prompt as now |
 |---|---|---|---|
-| worker | Workspace, Plan, Builder plan, Slice, Start, Report (continuing an open pull request), Rounds, Check (its head's, when it failed), Branches | `# Plan`, the plan whole; the pull request's description and the worker's earlier reports; the latest round's reviews in full, their `[blocking]` lines staying under their headings | `# Repository`, `# Issue`, `# Direction`, `# Questions`, `# Earlier pull requests`, the pull request's heading and branch line, `## Earlier rounds`, its thread's entries that are not the swarm's, `# Check`'s line and tail |
-| adversary, sympathetic | Workspace, Plan, Builder plan, Slice, Report (the newest, which the review checks), Rounds (those before the current round), Check, Branches | `# Plan`; the pull request's description | as the worker's, with the previous round's `[blocking]` lines and `# Artifacts` |
+| worker | Workspace, Plan, Builder plan, Slice, Start, Report (continuing an open pull request), Rounds, Check (its head's, when it failed), Branches | `# Plan`, the plan whole; the pull request's description and the worker's reports, its newest among them (Report); the latest round's reviews in full, their `[blocking]` lines staying under their headings | `# Repository`, `# Issue`, `# Direction`, `# Questions`, `# Earlier pull requests`, the pull request's heading and branch line, `## Earlier rounds`, its thread's entries that are not the swarm's, `# Check`'s line and tail |
+| adversary, sympathetic | Workspace, Plan, Builder plan, Slice, Report (the newest, which the review checks), Rounds (those before the current round), Check, Branches | `# Plan`; the pull request's description and the worker's reports, as the worker's | as the worker's, with the previous round's `[blocking]` lines and `# Artifacts` |
 | architect | Workspace, Plan, Builder plan, Kept (a line per slice with a kept commit), Branches; Rounds and Check while the current pull request is open | the accepted plan in `# Thread`, which shows its heading `## architect, run <k>, at <time> (the accepted plan: whole in /job/memory/plan.md)` | `# Thread`'s other entries, `# Earlier pull requests`, `# Pull request` with every round's `[blocking]` lines, `# Check` |
 | owner, on an issue | Workspace, Plan, when there is one | the accepted plan in `# Thread`, as the architect's | `# Thread`'s other entries |
 
+What the lines read, where the table leaves it open (built at Step
+R1-10 of the plan implementing the 2026-11-19 swarm roadmap): the
+launch reads them from the workspace before it renders the prompt, and
+a line whose file is not there names nothing and is left out (the
+builder plan's, the slice's, the Report's, whose run's `texts/` file is
+not there, the Rounds' and the Check's); the owner's has no Plan line
+for a job with none. Plan's `<bytes>` are `plan.md`'s and `<k>` the
+accepted plan's architect run, as are the builder plan's (an
+amendment's re-issue, R5, comes with R5), `[, <a> amendments]` left out
+until R5 writes one, and a count of one reads in the singular (`1
+slice`, `1 other open swarm branch`). Slice's line is the slice's item
+under `## Steps` as the plan wrote it, after `<i>. <name>: `; a plan
+without slice lines names its one slice with no text after `in <name>`.
+Report's run is the worker's newest report on the current pull request
+(7.3, the pull-request thread), the worker's own only while it
+continues one. Rounds counts the files of `slices/<s>/rounds/` and
+summarises the newest by its number from its file: its head, each
+review's role and verdict as the file heads them, adversary first and
+comma-separated (`adversary request-changes, sympathetic approve`), and
+its reviews' `[blocking]` lines; a reviewer's rounds/
+holds those before the current round only, since a round's file is
+written when it completes. Check names `checks/<head>.log` when it is
+there for the current pull request's head, with the head's `# Check`
+line, its commit short. Kept is a line per `slices/<s>/kept` there, in
+slice order. Branches counts the lines of the run's `branches.md`,
+which the launch writes before the prompt. A file there that Daisy
+cannot read, or not Daisy's (a round's file whose first line is not
+its `# Round <r> on <sha>`, a `kept` that is not its one line), is a
+file of the job's Daisy cannot use (7.7), which blocks the issue before
+the run is launched.
+
 A member text a prompt still shows (an entry of `# Thread` or `# Questions`,
 a review's `[blocking]` lines) is read from `texts/` whole, never from
-its post, so no cut text reaches a prompt. `# Direction` holds the
+its post, so no cut text reaches a prompt (R1-10b, specified ahead of
+its build). `# Direction` holds the
 maintainer's comments since the plan's newest basis, the plan or the
 architect's newest `STANDS:` after it (section 6, The re-plan), so a
 re-plan request the architect answered `STANDS:` is no longer shown to
@@ -4470,7 +4533,7 @@ threads; a file that is there and cannot be read is met as an
 `out.md` is now (7.5): in the pass it blocks its issue alone (7.7). The first lines a text is classed by are read
 as now (7.5). Built (Step R1-9 of the plan implementing the 2026-11-19
 swarm roadmap) but for a review's `[blocking]` lines and their count,
-which a prompt shows and which come with the prompt (R1-10), a
+which a prompt shows and which come with the prompt's reads (R1-10b), a
 prompt's read until then (7.3). A job without `built`, or whose
 `plan.md` is not there, has its plan read as the replay would write it,
 built in memory and written nowhere (Rollout, below), and a text with

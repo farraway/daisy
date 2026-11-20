@@ -53,6 +53,9 @@ type Job struct {
 	Replan   *Entry   // the architect's on plan-1-accepted: the maintainer's re-plan request since the plan (section 6, The re-plan)
 	Question bool     // the architect's or the owner's run answers the issue's question (swarm:question, section 6)
 	Start    Start    // a worker's: where its clone starts and why (section 7.8, The start)
+	Branches int      // the lines of the run's branches.md, for the roles that readsBranches (section 7.8, The open branches)
+	mem      memory   // what # Job points to in the job's workspace, as readMemory read it
+
 }
 
 // PullThread is the current pull request's comments, reviews and line
@@ -125,7 +128,7 @@ func (j *Job) prompt(head string) string {
 	if j.Batch != nil {
 		return doc(append(blocks, j.Batch.sections(j)...)...)
 	}
-	blocks = append(blocks, j.issue())
+	blocks = append(blocks, j.issue(), j.jobSection())
 	cur, open := j.current()
 	reviewer := j.Role == "adversary" || j.Role == "sympathetic"
 	switch {
@@ -138,7 +141,6 @@ func (j *Job) prompt(head string) string {
 			blocks = append(blocks, j.earlier())
 		}
 	default:
-		blocks = append(blocks, "# Plan", j.plan())
 		if j.Role == "worker" && j.Label == forge.PlanAccepted {
 			blocks = append(blocks, "# Direction", j.direction())
 		}
@@ -405,6 +407,9 @@ func (j *Job) repository() string {
 	if repo := j.workRepo(); repo != "" && Workdir(j.Cfg, j.Role, repo) == JobMount {
 		lines = append(lines, "- Working directory: "+JobMount+", holding every clone under "+WorkMount+"; the repository is "+WorkMount+"/"+repo)
 	}
+	if j.Batch == nil {
+		lines = append(lines, "- Job workspace (read-only): "+MemoryMount)
+	}
 	switch {
 	case j.Cfg.Notes && writesNotes(j.Role):
 		lines = append(lines, "- Research notes: "+NotesMount+", "+notesHome(j.Cfg)+", pushed by Daisy after the run")
@@ -529,9 +534,10 @@ func orNone(blocks []string) string {
 // thread is the issue thread's comments but the gate notes and the auto
 // notes, which are the maintainer's, compacted as the pull-request thread
 // is (section 7.3): an entry not the swarm's whole whatever its age; of
-// the swarm's, each role's newest entry and the accepted plan whole, and
-// every older one its heading alone, so that a prompt stops growing with
-// the plan's revisions.
+// the swarm's, the accepted plan its heading and the pointer to the job's
+// plan.md (section 7.8, The prompt), each role's newest other entry
+// whole, and every older one its heading alone, so that a prompt stops
+// growing with the plan's revisions.
 func (j *Job) thread() string {
 	newest := map[string]Entry{}
 	runs := map[string]int{}
@@ -549,7 +555,9 @@ func (j *Job) thread() string {
 		switch {
 		case ok && m.Kind != "":
 			continue
-		case ok && !same(e, newest[m.Role]) && !(planned && same(e, plan)):
+		case planned && same(e, plan):
+			out = append(out, fmt.Sprintf("## %s, run %d, at %s (the accepted plan: whole in %s/plan.md)", m.Role, m.Run, stamp(e.Created), MemoryMount))
+		case ok && !same(e, newest[m.Role]):
 			out = append(out, fmt.Sprintf("## %s, run %d, at %s (superseded by run %d; content omitted)", m.Role, m.Run, stamp(e.Created), runs[m.Role]))
 		default:
 			out = append(out, trim(j.entry(2, e, "")))
@@ -642,30 +650,20 @@ func same(a, b Entry) bool {
 	return a.Author == b.Author && a.Body == b.Body && a.Created.Equal(b.Created)
 }
 
-func (j *Job) plan() string {
-	e, m, ok := j.Plan()
-	if !ok {
-		return "None: there is no plan."
-	}
-	whole, _ := j.PlanText()
-	S := max(1, len(Slices(whole)))
-	text := j.uncut(m, swarmText(e.Body))
-	s, repo := 0, ""
-	if j.Role == "worker" {
-		s, repo, _ = j.WorkerSlice()
-	} else {
-		cur, _ := j.current()
-		s, repo = sliceOf(cur, j.N), cur.Repo
-	}
-	return doc(fmt.Sprintf("## architect, run %d, at %s: slice %d of %d, in %s", m.Run, stamp(e.Created), s, S, repo), Shift(trim(text), 2))
-}
-
+// direction is the maintainer's comments since the plan's newest basis
+// (section 7.8, The prompt): the accepted plan, or the architect's newest
+// STANDS: after it (section 6, The re-plan), so that a re-plan request
+// the architect answered STANDS: is no longer shown as direction; every
+// one when there is no plan.
 func (j *Job) direction() string {
-	plan, _, hasPlan := j.Plan()
+	basis, _, hasPlan := j.Plan()
+	if st, _, ok := j.newestArchitect(func(text string) bool { return strings.HasPrefix(text, stands) }); hasPlan && ok && st.Created.After(basis.Created) {
+		basis = st
+	}
 	var out []string
 	for _, c := range j.Issue.Comments {
 		e := Entry{c.Author, c.Body, c.Created}
-		if _, swarm := Swarms(e, j.SwarmLogin); swarm || !j.trusted(c.Author) || (hasPlan && !c.Created.After(plan.Created)) {
+		if _, swarm := Swarms(e, j.SwarmLogin); swarm || !j.trusted(c.Author) || (hasPlan && !c.Created.After(basis.Created)) {
 			continue
 		}
 		out = append(out, trim(j.entry(2, e, "")))
@@ -768,7 +766,8 @@ const (
 // shown is how each of the pull request's rounds is shown to the run's
 // role: a reviewer sees the previous round's findings and every earlier
 // round as a line, never the current round (the other reviewer's review
-// of the head as it stands); the worker the latest round in full and the
+// of the head as it stands); the worker the latest round's findings, the
+// reviews whole in the job's workspace (section 7.8, The prompt), and the
 // rest as lines; the architect every round's findings.
 func (j *Job) shown(rounds []round, current roundKey) []int {
 	modes := make([]int, len(rounds))
@@ -790,7 +789,7 @@ func (j *Job) shown(rounds []round, current roundKey) []int {
 			modes[i] = roundLine
 		}
 		if len(rounds) > 0 {
-			modes[len(rounds)-1] = roundFull
+			modes[len(rounds)-1] = roundFindings
 		}
 	default:
 		for i := range rounds {
@@ -856,13 +855,15 @@ func (j *Job) pullRequest(p forge.Pull) string {
 		for i, rd := range rounds {
 			mode[rd.roundKey] = modes[i]
 		}
-		report := j.newestReport(p)
+		report, _, _ := j.newestReport(p)
 		// A swarm comment older than the newest report is the history the
 		// round lines summarise; a command's answer is the maintainer's
-		// (section 6).
+		// (section 6); the worker's reports are the worker's and the
+		// reviewers' to read from the job's workspace, by # Job's Report
+		// line (section 7.8, The prompt).
 		omitted := func(e Entry) bool {
 			m, swarm := Swarms(e, j.SwarmLogin)
-			return swarm && (e.Created.Before(report) || m.Kind != "")
+			return swarm && (e.Created.Before(report) || m.Kind != "" || m.Role == "worker" && j.Role != "architect")
 		}
 		for _, c := range j.Pull.Comments {
 			if e := (Entry{c.Author, c.Body, c.Created}); !omitted(e) {
@@ -902,10 +903,14 @@ func (j *Job) pullRequest(p forge.Pull) string {
 	for _, it := range items {
 		thread = append(thread, trim(it.text))
 	}
-	// The body is its opener's entry (section 6): the swarm's, marked;
-	// a trusted login's as written; anyone else's omitted.
+	// The body is its opener's entry (section 6): the swarm's, marked,
+	// the worker's report, which the worker and the reviewers read from
+	// the job's workspace (# Job's Report); a trusted login's as written;
+	// anyone else's omitted.
 	body := p.Body
-	if m, ok := Swarms(Entry{p.Author, p.Body, p.Created}, j.SwarmLogin); ok {
+	if m, ok := Swarms(Entry{p.Author, p.Body, p.Created}, j.SwarmLogin); ok && j.Role != "architect" {
+		body = ""
+	} else if ok {
 		body = j.uncut(m, swarmText(p.Body))
 	} else if !j.trusted(p.Author) {
 		body = fmt.Sprintf("Opened by %s, not trusted; content omitted.", p.Author)
@@ -918,23 +923,22 @@ func (j *Job) pullRequest(p forge.Pull) string {
 		fmt.Sprintf("Branch %s into %s; head %s.", p.Head, p.Base, p.HeadSHA), Shift(trim(body), 1), earlier, "## Thread", orNone(thread))
 }
 
-// newestReport is when the worker's newest report was posted: the newest
-// of the pull request's entries that are the swarm's and marked
+// newestReport is the worker's newest report on the pull request and its
+// mark: the newest of its entries that are the swarm's and marked
 // role=worker, its body (the description) or a comment (a revision's
-// report, an answer without a commit, a BLOCKED:); zero when there is
-// none.
-func (j *Job) newestReport(p forge.Pull) time.Time {
-	var at time.Time
+// report, an answer without a commit, a BLOCKED:); ok is false, the time
+// zero, when there is none.
+func (j *Job) newestReport(p forge.Pull) (at time.Time, m Mark, ok bool) {
 	entries := []Entry{{p.Author, p.Body, p.Created}}
 	if j.Pull != nil {
 		entries = append(entries, pullComments(j.Pull.Comments)...)
 	}
 	for _, e := range entries {
-		if m, ok := Swarms(e, j.SwarmLogin); ok && m.Role == "worker" && !e.Created.Before(at) {
-			at = e.Created
+		if mk, swarm := Swarms(e, j.SwarmLogin); swarm && mk.Role == "worker" && !e.Created.Before(at) {
+			at, m, ok = e.Created, mk, true
 		}
 	}
-	return at
+	return at, m, ok
 }
 
 func (b *Batch) sections(j *Job) []string {

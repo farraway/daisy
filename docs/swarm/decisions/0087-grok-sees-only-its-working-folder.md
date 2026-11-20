@@ -41,3 +41,21 @@ maintainer edits. *To confirm at the next `xai` run* (and by the
 opt-in `TestRealGrokTakesTheArgv` with a scratch copy of a
 logged-in home): the session is created and the member reads a
 resource under its `--cwd`.
+
+**Amended by decision [159](0159-one-folder-per-run-and-the-builder-plan.md)
+(built at Steps R1-5 and R1-6 of the plan implementing the 2026-11-19
+swarm roadmap; recorded here at Step R1-10).** The layout above is
+replaced by one folder per run: `grok`, of every role, starts in
+`/job`, which holds every clone at `/job/work/<name>`, the run's io at
+`/job/io`, the notes, the resources at `/job/resources/<repository>/<path>`
+and, on an issue, the job's workspace at `/job/memory`; no mount point
+is made in a clone, and a clone's `.git/info/exclude` gains no line for
+one (`/.resources/` among them). `# Repository`'s line reads `-
+Working directory: /job, holding every clone under /job/work; the
+repository is /job/work/<name>`, `<name>` the run's repository (the
+first declared for the owner, the architect and the QA), for a
+confined provider of any role; every other CLI starts in its checkout
+`/job/work/<name>` with `/job` added. `grok` still passes no
+`--add-dir`, and still does not read a repository's own instructions
+from its working directory, now in every role. The default persona
+prompts name `/job/resources` and the code under `/job/work` (R1-6).

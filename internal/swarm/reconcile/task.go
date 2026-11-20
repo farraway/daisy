@@ -26,7 +26,7 @@ func closingOf(readBack string) string {
 // builderSentence follows the plan's text in each architect Task text
 // that asks for a plan or a revised plan (section 7.4; 7.8, The builder
 // plan).
-const builderSentence = `Then write the builder plan to /job/io/builder.md, a document of its own, not posted: the plan consolidated for whoever builds it, one section "## Slice <s>" per slice under "## Steps", in their order, each holding all a builder needs for that slice (its files, types and signatures, claim and test, and what of the research, constraints and decisions bears on it), so that it reads without the plan. Write it whole each time you write the plan.`
+const builderSentence = `Then write the builder plan to /job/io/builder.md, a document of its own, not posted: the plan consolidated for whoever builds it, one section "## Slice <s>" per slice under "## Steps", in their order, each holding all a builder needs for that slice (its files, types and signatures, claim and test, and what of the research, constraints and decisions bears on it), so that it reads without the plan. Daisy gives each worker its slice's step and section. Write it whole each time you write the plan.`
 
 const planHeadings = `"## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions".`
 
@@ -138,6 +138,9 @@ func (j *Job) task() string {
 		default:
 			add(`There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #%d. Keep the change small; if it needs a plan, write "BLOCKED: needs a plan". Work on the branch checked out in /job/work/%s (swarm/%d-%d) and write the pull request's description.`, j.N, repo, j.N, s)
 		}
+		if read := j.sliceSentence(); read != "" {
+			add("%s", read)
+		}
 		add(`Before anything else, run "git merge --no-edit %s"; if it conflicts, resolve each conflict, keeping what both sides meant, and commit the merge, or, if you cannot, write "BLOCKED: %s conflicts in <files>" instead, naming the conflicting files.`, j.Cfg.Base, j.Cfg.Base)
 		add(`Commit with git; do not push. Never amend, rebase or reset a commit that is already on the branch; add commits.`)
 		if check := j.repo(repo).Check; len(check) > 0 {
@@ -153,6 +156,9 @@ func (j *Job) task() string {
 	default: // the reviewers
 		s := sliceOf(cur, j.N)
 		add(`Review pull request %s#%d, slice %d of issue #%d. The change is "git diff %s...HEAD" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding. The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.`, cur.Repo, cur.Number, s, j.N, j.Cfg.Base, cur.Repo)
+		if read := j.sliceSentence(); read != "" {
+			add("%s", read)
+		}
 		if j.Role == "adversary" {
 			add(`For each test that slice %d's item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against %s's code: in /job/work/%s, a throwaway clone, put everything the change touches except its tests back as %s has it (check out %s's version of each path, deleting those %s lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against %s's code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against %s already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against %s by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.`, s, j.Cfg.Base, cur.Repo, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base)
 		}

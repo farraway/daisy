@@ -758,3 +758,30 @@ they write.
   No decision: it builds decisions
   [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md) and
   [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).
+- 2026-11-20, Step R1-10 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, the switch, its first part, R1-10a: the pointers): a
+  prompt on an issue carries `# Job` after `# Issue`, pointers into the
+  job's workspace by role (7.8, The prompt), and `# Repository`'s line
+  `- Job workspace (read-only): /job/memory`; `# Plan` is gone, the
+  accepted plan in `# Thread` is its heading and pointer, the worker's
+  reports (the pull request's description among them) are `# Job`'s
+  Report line in the worker's and the reviewers' prompts, the worker's
+  latest round is its reviews' `[blocking]` lines, and `# Direction`
+  starts at the plan's newest basis, the plan or the architect's newest
+  `STANDS:` after it. The worker's and the reviewers' Task texts gain
+  the slice sentence, and the architect's builder sentence its last
+  sentence, `Daisy gives each worker its slice's step and section.` The
+  launch writes `branches.md` before the prompt, which counts its
+  lines. Where 7.8 left it open, stated there: what each line reads, a
+  line left out when its file is not there, the verdicts' form, the
+  singular for one, and a file there Daisy cannot use (a round's file
+  or a `kept` not Daisy's) blocking the issue (7.7). Decisions
+  [24](swarm/decisions/0024-the-container.md) and
+  [87](swarm/decisions/0087-grok-sees-only-its-working-folder.md)
+  amended to the run's folder. Sections 2, 7.3, 7.4, 7.5 and 7.8. The
+  prompt's reads of the texts it shows from `texts/`, and the retirement
+  of the copies to `/job/io/outputs/` and of decisions 148's and 149's
+  reads, are the switch's second part (R1-10b). No new decision: it
+  builds decisions
+  [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md) and
+  [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).

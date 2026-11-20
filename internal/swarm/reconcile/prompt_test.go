@@ -113,7 +113,7 @@ Mounted read-only:
 
 // wantBuilderSentence follows the plan's text in each architect Task text
 // that asks for a plan (section 7.4).
-const wantBuilderSentence = `Then write the builder plan to /job/io/builder.md, a document of its own, not posted: the plan consolidated for whoever builds it, one section "## Slice <s>" per slice under "## Steps", in their order, each holding all a builder needs for that slice (its files, types and signatures, claim and test, and what of the research, constraints and decisions bears on it), so that it reads without the plan. Write it whole each time you write the plan.`
+const wantBuilderSentence = `Then write the builder plan to /job/io/builder.md, a document of its own, not posted: the plan consolidated for whoever builds it, one section "## Slice <s>" per slice under "## Steps", in their order, each holding all a builder needs for that slice (its files, types and signatures, claim and test, and what of the research, constraints and decisions bears on it), so that it reads without the plan. Daisy gives each worker its slice's step and section. Write it whole each time you write the plan.`
 
 const wantArchitectPrompt = `<!-- daisy-swarm prompt: acme/app#1 architect run 1, 2026-11-06T15:00:00Z -->
 
@@ -122,6 +122,7 @@ const wantArchitectPrompt = `<!-- daisy-swarm prompt: acme/app#1 architect run 1
 - Issues: acme/app on forge.example.net
 - Clone /job/work/app: acme/app, branch main, base main, check make check
 - Clone /job/work/lib: acme/lib, branch main, base main, no check declared
+- Job workspace (read-only): /job/memory
 
 # Issue #1: Drift check
 
@@ -132,6 +133,12 @@ Brief: docs/briefs/b.md — M0
 ## Why
 
 It drifts.
+
+# Job
+
+- Workspace: /job/memory, read-only, kept by Daisy; the forge holds its texts for people, cut when long
+- Plan: none: there is no plan.
+- Branches: /job/io/branches.md, 0 other open swarm branches
 
 # Thread
 
@@ -241,8 +248,8 @@ func TestRenderArchitectOpenSliceWithoutAPlan(t *testing.T) {
 
 // The worker on planned, slice 2 after slice 1 merged: its repository from
 // the plan, the pin sentence, Not established, the protected paths, the
-// plan and the Direction since it, slice 1 under Earlier with its merge
-// commit, no pull request yet.
+// plan's pointer in # Job and not its body, the Direction since it, slice
+// 1 under Earlier with its merge commit, no pull request yet.
 func TestRenderWorkerNextSlice(t *testing.T) {
 	f, at, pr, _ := planned(t)
 	if err := f.Merge(pr, "aaa"); err != nil {
@@ -257,10 +264,9 @@ func TestRenderWorkerNextSlice(t *testing.T) {
 		`End what you write with a line "Not established:"`,
 		`write "BLOCKED: slice <i> is not merged".`, `These paths are protected: .gitea/, AGENTS.md.`, mergeBase})
 	has(t, "prompt.md", prompt, []string{"- Clone /job/work/app: acme/app, branch swarm/1-2, base main, check make check\n",
-		"# Plan\n\n## architect, run 1, at 2026-11-06T15:04:00Z: slice 2 of 2, in app\n\n#### Research\n",
-		"```mermaid\n1. app: not a slice\n```",
+		"\n- Plan: /job/memory/plan.md, architect run 1, 143 bytes, 2 slices\n",
 		"# Direction\n\n## jane at 2026-11-06T15:05:00Z\n\nGo ahead.\n\n# Earlier pull requests\n\n- lib#1 swarm/1-1 merged " + pulls[0].MergeSHA + ": #1 slice 1: Drift check\n"},
-		"# Pull request", "# Check", "Yes.")
+		"# Pull request", "# Check", "Yes.", "# Plan", "#### Research", "```mermaid")
 }
 
 // The fast lane: no plan, the issue body and the comments are the job.
@@ -272,7 +278,7 @@ func TestRenderWorkerFastLane(t *testing.T) {
 	has(t, "system.md", sys, []string{`There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #1.`,
 		mergeBase + ` Commit with git`},
 		"slice <i>")
-	has(t, "prompt.md", prompt, []string{"# Plan\n\nNone: there is no plan.", "# Direction\n\n## jane at", "- Clone /job/work/app: acme/app, branch swarm/1-1,"})
+	has(t, "prompt.md", prompt, []string{"\n- Plan: none: there is no plan.\n", "# Direction\n\n## jane at", "- Clone /job/work/app: acme/app, branch swarm/1-1,"}, "# Plan")
 }
 
 // The adversary on round 2: the other reviewer's review of the head left
@@ -379,24 +385,23 @@ func fullThread(j *Job) int {
 	return n
 }
 
-// The review prompt on round 7 (section 7.3): the plan, the description,
-// the worker's newest report, the previous round's blocking findings
-// without the reviews' bodies, every earlier round as one line, and the
-// maintainer's comment and line comment in full; under a quarter of the
-// thread it summarises.
+// The review prompt on round 7 (sections 7.3 and 7.8): no plan, no
+// description and no report of the worker's, which # Job points to; the
+// previous round's blocking findings without the reviews' bodies, every
+// earlier round as one line, and the maintainer's comment and line
+// comment in full; under a quarter of the thread it summarises.
 func TestRenderReviewCompact(t *testing.T) {
 	f, at, pr := reviewed(t, 6)
 	j := jobOn(f, at, pr, "adversary", "swarm:review-0-ready")
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{"This is round 7. First say, for each blocking finding of your review of c6,"})
-	has(t, "prompt.md", prompt, []string{"# Plan\n\n## architect, run 1,",
-		"Branch swarm/1-1 into main; head c7.\n\nReport 1.\n\n",
+	has(t, "prompt.md", prompt, []string{
+		"Branch swarm/1-1 into main; head c7.\n\n## Earlier rounds\n",
 		"## Earlier rounds\n\n- round on c1: 3 blocking, revised in c2\n- round on c2: 3 blocking, revised in c3\n- round on c3: 3 blocking, revised in c4\n- round on c4: 3 blocking, revised in c5\n- round on c5: 3 blocking, revised in c6\n\n## Thread\n\n### jane at ",
 		"\n\nKeep the API as it is.\n\n### jane at ", ", on a.go:7 at c1\n\nNot here.\n\n### adversary, run 6, at ",
 		", on c6: request-changes\n\n[blocking] a.go:6 finding A6\n[blocking] b.go:6 finding B6\n\n### sympathetic, run 6, at ",
-		", on c6: request-changes\n\n[blocking] s.go:6 finding S6\n\n### worker, run 7, at ",
-		"\n\nReport 7.\n\n" + filler + "\n\n# Check\n"},
-		"Report 6.", "finding A5", "[non-blocking]", "VERDICT:", "round on c6:")
+		", on c6: request-changes\n\n[blocking] s.go:6 finding S6\n\n# Check\n"},
+		"Report", "# Plan", "finding A5", "[non-blocking]", "VERDICT:", "round on c6:", filler)
 	if full := fullThread(j); len(prompt)*4 >= full {
 		t.Errorf("prompt.md is %d bytes, not under a quarter of the thread's %d", len(prompt), full)
 	} else {
@@ -424,8 +429,10 @@ func TestRenderReviewStopsGrowing(t *testing.T) {
 	}
 }
 
-// The worker's revision prompt: the latest round's reviews in full, the
-// rest as lines, its own newest report and the maintainer's entries.
+// The worker's revision prompt: the latest round's reviews as their
+// headings and blocking findings, whole in the job's workspace, the rest
+// as lines, the maintainer's entries, and no report of its own, which
+// # Job points to (section 7.8, The prompt).
 func TestRenderWorkerRevisionCompact(t *testing.T) {
 	f, at, pr := reviewed(t, 3)
 	f.Review(pr, forge.Commented, marker("adversary", 4)+"VERDICT: request-changes\n[blocking] a.go:4 finding A4\n\nWhy A4.")
@@ -434,10 +441,10 @@ func TestRenderWorkerRevisionCompact(t *testing.T) {
 	_, prompt := Render(j)
 	has(t, "prompt.md", prompt, []string{
 		"## Earlier rounds\n\n- round on c1: 3 blocking, revised in c2\n- round on c2: 3 blocking, revised in c3\n- round on c3: 3 blocking, revised in c4\n\n## Thread\n\n### jane at ",
-		"\n\nKeep the API as it is.\n\n", "\n\nNot here.\n\n### worker, run 4, at ", "\n\nReport 4.\n\n",
-		", on c4: request-changes\n\nVERDICT: request-changes\n[blocking] a.go:4 finding A4\n\nWhy A4.\n\n### sympathetic, run 4, at ",
-		", on c4: approve\n\nVERDICT: approve\n[non-blocking] c.go:9 later\n\nWhy not.\n\n# Check"},
-		"Report 3.", "finding A3", "### adversary, run 3")
+		"\n\nKeep the API as it is.\n\n", "\n\nNot here.\n\n### adversary, run 4, at ",
+		", on c4: request-changes\n\n[blocking] a.go:4 finding A4\n\n### sympathetic, run 4, at ",
+		", on c4: approve\n\n# Check"},
+		"Report", "finding A3", "### adversary, run 3", "Why A4.", "VERDICT:", "[non-blocking]")
 }
 
 // The architect's revision prompt keeps every round's blocking findings
@@ -461,22 +468,22 @@ func TestRenderArchitectKeepsEveryFinding(t *testing.T) {
 // An answer without a commit ends its round as a line says, and the
 // previous round on the same head shows both reviewers' findings: the
 // other reviewer's review of the head before the answer is the previous
-// round's, not this one's.
+// round's, not this one's. The worker's answers are # Job's Report.
 func TestRenderRoundLinesAnswer(t *testing.T) {
 	f, at, pr, _ := planned(t)
 	f.Comment(pr, marker("worker", 2)+"NO CHANGE: x.go:1 is right.\n\nNot established: none")
 	j := jobOn(f, at, pr, "sympathetic", "swarm:review-0-ready")
 	_, prompt := Render(j)
-	has(t, "prompt.md", prompt, []string{"## Thread\n\n### adversary, run 1, at 2026-11-06T15:07:00Z, on aaa: request-changes\n\n[blocking] x.go:1 wrong\n\n### sympathetic, run 1, at 2026-11-06T15:08:00Z, on aaa: approve\n\n### jane at 2026-11-06T15:09:00Z, on x.go:3 at aaa\n\nwhy?\n\n### worker, run 2, at 2026-11-06T15:10:00Z\n\nNO CHANGE: x.go:1 is right."},
-		"## Earlier rounds")
+	has(t, "prompt.md", prompt, []string{"## Thread\n\n### adversary, run 1, at 2026-11-06T15:07:00Z, on aaa: request-changes\n\n[blocking] x.go:1 wrong\n\n### sympathetic, run 1, at 2026-11-06T15:08:00Z, on aaa: approve\n\n### jane at 2026-11-06T15:09:00Z, on x.go:3 at aaa\n\nwhy?\n\n# Check"},
+		"## Earlier rounds", "NO CHANGE:")
 	f.Review(pr, forge.Commented, marker("adversary", 2)+"VERDICT: request-changes\n[blocking] x.go:1 still wrong")
 	f.Review(pr, forge.Commented, marker("sympathetic", 2)+"VERDICT: approve\nfine")
 	f.Push(pr, "bbb")
 	f.Comment(pr, marker("worker", 3)+"Fixed x.go:1.")
 	j = jobOn(f, at, pr, "adversary", "swarm:review-0-ready")
 	_, prompt = Render(j)
-	has(t, "prompt.md", prompt, []string{"## Earlier rounds\n\n- round on aaa: 1 blocking, answered without a commit\n\n## Thread\n\n### jane at 2026-11-06T15:09:00Z, on x.go:3 at aaa\n\nwhy?\n\n### adversary, run 2, at 2026-11-06T15:11:00Z, on aaa: request-changes\n\n[blocking] x.go:1 still wrong\n\n### sympathetic, run 2, at 2026-11-06T15:12:00Z, on aaa: approve\n\n### worker, run 3, at 2026-11-06T15:13:00Z\n\nFixed x.go:1.\n\n# Check"},
-		"NO CHANGE:", "x.go:1 wrong")
+	has(t, "prompt.md", prompt, []string{"## Earlier rounds\n\n- round on aaa: 1 blocking, answered without a commit\n\n## Thread\n\n### jane at 2026-11-06T15:09:00Z, on x.go:3 at aaa\n\nwhy?\n\n### adversary, run 2, at 2026-11-06T15:11:00Z, on aaa: request-changes\n\n[blocking] x.go:1 still wrong\n\n### sympathetic, run 2, at 2026-11-06T15:12:00Z, on aaa: approve\n\n# Check"},
+		"NO CHANGE:", "x.go:1 wrong", "Fixed x.go:1.")
 }
 
 // The owner on a proposed issue without a counted comment, and the batch
@@ -541,23 +548,23 @@ func issueRevisions(n int) (*forge.Fake, forge.Ref) {
 	return f, at
 }
 
-// The architect's revision prompt (section 7.3): the newest plan and the
-// owner's newest entry whole, each earlier plan its heading alone, every
-// comment not the swarm's whole.
+// The architect's revision prompt (sections 7.3 and 7.8): the newest
+// plan, the accepted one, its heading and pointer; the owner's newest
+// entry whole, each earlier plan its heading alone, every comment not the
+// swarm's whole.
 func TestRenderIssueThreadCompact(t *testing.T) {
 	f, at := issueRevisions(3)
 	_, prompt := Render(job(f, at.N, "architect", "swarm:plan-0-posted"))
 	has(t, "prompt.md", prompt, []string{
 		"# Thread\n\n## jane at 2026-11-06T15:02:00Z\n\nYes.\n#### Scope\nsmall\n\n## mallory at 2026-11-06T15:03:00Z (not trusted; content omitted)\n\n## owner, run 3, at 2026-11-06T15:04:00Z\n\nThe job, restated.\n\n",
-		"## architect, run 1, at 2026-11-06T15:05:00Z (superseded by run 3; content omitted)\n\n## jane at 2026-11-06T15:06:00Z\n\nAnswer 1.\n\n## architect, run 2, at 2026-11-06T15:07:00Z (superseded by run 3; content omitted)\n\n## jane at 2026-11-06T15:08:00Z\n\nAnswer 2.\n\n## architect, run 3, at 2026-11-06T15:09:00Z\n\n#### Research\n\nPlan 3.\n\n",
-		"\n\n## jane at 2026-11-06T15:10:00Z\n\nAnswer 3.\n"},
-		"Plan 1.", "Plan 2.")
-	if c := strings.Count(prompt, filler); c != 1 {
+		"## architect, run 1, at 2026-11-06T15:05:00Z (superseded by run 3; content omitted)\n\n## jane at 2026-11-06T15:06:00Z\n\nAnswer 1.\n\n## architect, run 2, at 2026-11-06T15:07:00Z (superseded by run 3; content omitted)\n\n## jane at 2026-11-06T15:08:00Z\n\nAnswer 2.\n\n## architect, run 3, at 2026-11-06T15:09:00Z (the accepted plan: whole in /job/memory/plan.md)\n\n## jane at 2026-11-06T15:10:00Z\n\nAnswer 3.\n"},
+		"Plan 1.", "Plan 2.", "Plan 3.")
+	if c := strings.Count(prompt, filler); c != 0 {
 		t.Errorf("prompt.md holds %d plan bodies:\n%s", c, prompt)
 	}
 	o := job(f, at.N, "owner", "swarm:proposal-posted")
 	_, prompt = Render(o)
-	has(t, "owner prompt.md", prompt, []string{"The job, restated.", "(superseded by run 3; content omitted)", "Plan 3."}, "Plan 2.")
+	has(t, "owner prompt.md", prompt, []string{"The job, restated.", "(superseded by run 3; content omitted)", "(the accepted plan: whole in /job/memory/plan.md)"}, "Plan 2.", "Plan 3.")
 }
 
 // The thread stops growing with the plan's revisions: from the fifth plan
@@ -577,13 +584,13 @@ func TestRenderIssueThreadStopsGrowing(t *testing.T) {
 	}
 }
 
-// The accepted plan stays whole when the architect's newest entry is a
-// BLOCKED: question: the plan is what the revision revises.
+// The accepted plan keeps its pointer when the architect's newest entry
+// is a BLOCKED: question: the plan is what the revision revises.
 func TestRenderIssueThreadKeepsPlan(t *testing.T) {
 	f, at := issueRevisions(2)
 	f.Comment(at, marker("architect", 3)+"BLOCKED: which API?")
 	_, prompt := Render(job(f, at.N, "architect", "swarm:plan-0-posted"))
-	has(t, "prompt.md", prompt, []string{"## architect, run 1, at 2026-11-06T15:05:00Z (superseded by run 3; content omitted)", "Plan 2.", "BLOCKED: which API?"}, "Plan 1.")
+	has(t, "prompt.md", prompt, []string{"## architect, run 1, at 2026-11-06T15:05:00Z (superseded by run 3; content omitted)", "## architect, run 2, at 2026-11-06T15:07:00Z (the accepted plan: whole in /job/memory/plan.md)", "BLOCKED: which API?"}, "Plan 1.", "Plan 2.")
 }
 
 // The reconciler's notes in # Thread (section 7.3): the newest whole, an
@@ -740,19 +747,19 @@ func TestRenderCutNote(t *testing.T) {
 	f.Say(at, "jane", "Quoted:\n"+note("runs/1-owner-3"))
 	f.Comment(at, marker("owner", 4)+"Long.\n"+note("runs/1-owner-4"))
 	j := job(f, at.N, "architect", "swarm:proposal-accepted")
-	j.Outputs = outputsAt(t, map[string]string{"1-architect-1": "", "1-architect-9": "", "1-adversary-1": "", "1-owner-3": ""})
+	j.Outputs = outputsAt(t, map[string]string{"1-architect-1": "", "1-architect-9": "", "1-adversary-1": "", "1-owner-3": "", "1-owner-4": ""})
 	if err := j.readWhole(); err != nil {
 		t.Fatal(err)
 	}
 	sys, prompt := Render(j)
 	has(t, "prompt.md", prompt, []string{
-		"it works.\n\n" + note("/job/io/outputs/1-architect-1.md") + "\n",
+		"(the accepted plan: whole in /job/memory/plan.md)\n",
 		"The plan's end reads:\n" + note("runs/1-architect-9") + "\n",
 		"Quoted:\n" + note("runs/1-owner-3") + "\n",
-		"Long.\n" + note("runs/1-owner-4") + "\n",
-	}, note("runs/1-architect-1"), "outputs/1-architect-9", "outputs/1-owner-3", "outputs/1-owner-4")
-	has(t, "system.md", sys, []string{"were cut: the plan, whole in /job/io/outputs/1-architect-1.md. In each, a line"})
-	if got := j.Cut(); len(got) != 1 || got[0] != "1-architect-1" {
+		"Long.\n" + note("/job/io/outputs/1-owner-4.md") + "\n",
+	}, "it works.", "outputs/1-architect-", "outputs/1-owner-3", note("runs/1-owner-4"))
+	has(t, "system.md", sys, []string{"were cut: owner run 4's text, whole in /job/io/outputs/1-owner-4.md. In each, a line"})
+	if got := j.Cut(); len(got) != 1 || got[0] != "1-owner-4" {
 		t.Errorf("Cut: %v", got)
 	}
 	j.Outputs = Outputs{}
@@ -760,7 +767,7 @@ func TestRenderCutNote(t *testing.T) {
 		t.Fatal(err)
 	}
 	sys, prompt = Render(j)
-	has(t, "prompt.md", prompt, []string{"it works.\n\n" + note("runs/1-architect-1") + "\n"}, "/job/io/outputs")
+	has(t, "prompt.md", prompt, []string{"Long.\n" + note("runs/1-owner-4") + "\n"}, "/job/io/outputs")
 	has(t, "system.md", sys, nil, "/job/io/outputs", "60,000", "**Check:**")
 	if got := j.Cut(); len(got) != 0 {
 		t.Errorf("Cut without Outputs: %v", got)
