@@ -219,7 +219,8 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	if spec.Name != "daisy-swarm.acme."+a.iss()+".1.architect.1" || spec.Label != "acme/"+a.iss()+"#1/architect" || spec.User != "1000:1000" ||
 		spec.EnvVar != "CLAUDE_CODE_OAUTH_TOKEN" || spec.EnvValue != a.vars["CLAUDE_CODE_OAUTH_TOKEN"] || spec.Credential != "" ||
 		spec.Workdir != "/job/work/app" || spec.Image != "daisy-member:1" || !reflect.DeepEqual(spec.Argv, append(slices.Clone(exitPrefix), wantArgv...)) ||
-		!reflect.DeepEqual(spec.Mounts, []runner.Mount{{Src: run + "/job", Dst: "/job"}, {Src: run + "/work", Dst: "/job/work"}, {Src: run + "/io", Dst: "/job/io"}, resMount}) {
+		!reflect.DeepEqual(spec.Mounts, []runner.Mount{{Src: run + "/job", Dst: "/job"}, {Src: run + "/work", Dst: "/job/work"}, {Src: run + "/io", Dst: "/job/io"}, resMount,
+			{Src: a.state("jobs/1"), Dst: "/job/memory", ReadOnly: true}}) {
 		t.Errorf("spec %+v", spec)
 	}
 	result := a.result("1-architect-1")

@@ -436,7 +436,8 @@ func (j *Job) resources() string {
 // holding only the mount points of its children, every one outside each
 // checkout, so that a CLI confined to /job reaches all the run is given
 // (section 9): the checkouts at WorkMount/<name>, the run's io at IOMount,
-// the notes at NotesMount and the resources at ResourcesMount.
+// the notes at NotesMount, the resources at ResourcesMount and, on an
+// issue, the job's workspace at MemoryMount.
 const (
 	JobMount  = "/job"
 	WorkMount = JobMount + "/work"
@@ -445,6 +446,10 @@ const (
 
 // ResourcesMount is the directory under which each resource is mounted.
 const ResourcesMount = JobMount + "/resources"
+
+// MemoryMount is where a run on an issue reads its job's workspace,
+// <state>/jobs/<n>, read-only (section 7.8, The mount).
+const MemoryMount = JobMount + "/memory"
 
 // clonesEvery: role works over every declared repository, each cloned at
 // base under /job/work/<name> (section 7.1, step 3): the owner, the

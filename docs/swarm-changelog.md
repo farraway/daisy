@@ -698,3 +698,20 @@ they write.
   7.8 (the move's costs) and 11 (prompt build's table of earlier
   defaults) state it. No decision: it builds decision
   [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).
+- 2026-11-20, Step R1-7 of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, the workspace's mount and the open branches): a run on an
+  issue (every role's but the owner's and the QA's batch runs) mounts
+  `<state>/jobs/<n>` read-only at `/job/memory`, after the resources'
+  line, its mount point made in `<run>/job` with the others; before the
+  launch of a worker's, a reviewer's or the architect's run,
+  `<run>/io/branches.md` is written from the pass's mirrors, a line per
+  open swarm branch but the run's own, in the repositories' declared
+  order, then by issue and slice, a branch with no merge base with
+  `<base>` saying `no history in common with <base>` in place of its
+  files (the order, that line, and that the architect's run has no own
+  branch, stated in 7.8, The open branches, where the spec left them
+  open). No prompt or Task
+  text names either until the switch (R1-10). Sections 2, 7.1, 7.2, 7.8
+  and 9 mark them built. No decision: it builds decisions
+  [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md) and
+  [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md).

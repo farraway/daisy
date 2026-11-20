@@ -141,6 +141,19 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 	}
 
+	// The open branches, from the mirrors as the pass fetched them
+	// (section 7.8): the architect has no branch of its own.
+	if readsBranches(j.Role) {
+		ownRepo, ownBranch := repo.Name, branch
+		if j.Role == "architect" {
+			ownRepo, ownBranch = "", ""
+		}
+		if err := s.writeBranches(ioDir, ownRepo, ownBranch); err != nil {
+			fs.RemoveAll(r.Dir)
+			return false, err
+		}
+	}
+
 	// The resources, checked out of the mirrors at the pass's commits
 	// (section 7.1, step 3).
 	resDir := filepath.Join(r.Dir, "resources")
@@ -231,6 +244,11 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	if len(resourceLines) > 0 {
 		mounts = append(mounts, runner.Mount{Src: resDir, Dst: ResourcesMount, ReadOnly: true})
 		startLines = append(startLines, resourceLines...)
+	}
+	if j.Batch == nil {
+		// The job's workspace, read-only, for a run on an issue (section
+		// 7.8, The mount); a batch run has no job.
+		mounts = append(mounts, runner.Mount{Src: s.workspace(j.N), Dst: MemoryMount, ReadOnly: true})
 	}
 	for _, m := range mounts[1:] {
 		if err := fs.MkdirAll(filepath.Join(jobDir, path.Base(m.Dst)), 0o755); err != nil {

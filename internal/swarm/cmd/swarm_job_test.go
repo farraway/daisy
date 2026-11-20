@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/runner"
 )
@@ -15,9 +16,10 @@ import (
 // The run's folder (sections 7.1, 7.2, 7.8 and 9; decision 159): every
 // member mounts exactly <run>/job at /job and its children in it, the
 // checkouts' folder at /job/work, the io at /job/io, the notes at
-// /job/notes and the resources at /job/resources (and a slot at
-// /credential); a CLI that is not confined starts in its checkout,
-// /job/work/<name>, given /job alone by --add-dir, and grok starts in
+// /job/notes, the resources at /job/resources and the job's workspace
+// at /job/memory (and a slot at /credential); a CLI that is not
+// confined starts in its checkout, /job/work/<name>, given /job alone
+// by --add-dir, and grok starts in
 // /job with no --add-dir; the mount points are made in <run>/job, and no
 // clone holds one, nor a line for one in its .git/info/exclude.
 func TestMemberArgvMountsTheRunsFolder(t *testing.T) {
@@ -76,7 +78,7 @@ func TestMemberArgvMountsTheRunsFolder(t *testing.T) {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve, Work: look("1-sympathetic-1", nil)})
 	a.pass()
 
-	children := "job/io\njob/notes\njob/resources\njob/work\n"
+	children := "job/io\njob/memory\njob/notes\njob/resources\njob/work\n"
 	for _, tc := range []struct {
 		run, workdir string
 		addDir       []string // nil: grok, confined
@@ -97,7 +99,8 @@ func TestMemberArgvMountsTheRunsFolder(t *testing.T) {
 		}
 		spec, run := a.runner.Launched[i], a.state("runs/"+tc.run)
 		want := []runner.Mount{{Src: run + "/job", Dst: "/job"}, {Src: run + "/work", Dst: "/job/work"}, {Src: run + "/io", Dst: "/job/io"},
-			{Src: run + "/notes", Dst: "/job/notes", ReadOnly: !tc.notesRW}, {Src: run + "/resources", Dst: "/job/resources", ReadOnly: true}}
+			{Src: run + "/notes", Dst: "/job/notes", ReadOnly: !tc.notesRW}, {Src: run + "/resources", Dst: "/job/resources", ReadOnly: true},
+			{Src: a.state("jobs/1"), Dst: "/job/memory", ReadOnly: true}}
 		got := slices.DeleteFunc(slices.Clone(spec.Mounts), func(m runner.Mount) bool { return tc.slot && m.Dst == "/credential" })
 		if !reflect.DeepEqual(got, want) || spec.Workdir != tc.workdir {
 			t.Errorf("%s: mounts %+v in %s\nwant %+v in %s", tc.run, spec.Mounts, spec.Workdir, want, tc.workdir)
@@ -184,6 +187,144 @@ func TestSwarmAbandonedWorkerOfTheRunsFolder(t *testing.T) {
 	for _, d := range []string{"work", "job"} {
 		if _, err := os.Lstat(filepath.Join(run, d)); err == nil {
 			t.Errorf("%s/ kept after the abandoned run's collection", d)
+		}
+	}
+}
+
+// The job's workspace at /job/memory (sections 7.1, 7.2 and 7.8, The
+// mount): a run on an issue mounts <state>/jobs/<n> read-only at
+// /job/memory, after the resources' line, its mount point made in
+// <run>/job and the workspace there (built) at its launch; a batch run,
+// the owner's, has no job, so no such mount and no mount point.
+func TestArgvMountsJobMemory(t *testing.T) {
+	a := newApplyWS(t)
+	a.release()
+	seen := map[string]string{}
+	look := func(run string) func(string) error {
+		return func(work string) error {
+			var b strings.Builder
+			if _, err := os.Lstat(filepath.Join(filepath.Dir(work), "job", "memory")); err == nil {
+				b.WriteString("mount point job/memory\n")
+			}
+			if n, _, _ := strings.Cut(run, "-"); n != "0" {
+				if _, err := os.Lstat(a.state("jobs/" + n + "/built")); err == nil {
+					b.WriteString("jobs/" + n + "/built\n")
+				}
+			}
+			seen[run] = b.String()
+			return nil
+		}
+	}
+	a.runner.Script(0, "owner", runner.Canned{Out: "## One\nA.\n", Work: look("0-owner-1")})
+	a.pass()
+	a.forge.SetLabel(issue1, "swarm:proposal-accepted")
+	a.runner.Script(1, "architect", runner.Canned{Out: oneSlice, Work: look("1-architect-1")})
+	a.pass()
+
+	for _, tc := range []struct {
+		run, seen string
+		memory    *runner.Mount
+	}{
+		{run: "0-owner-1", seen: ""},
+		{run: "1-architect-1", seen: "mount point job/memory\njobs/1/built\n", memory: &runner.Mount{Src: a.state("jobs/1"), Dst: "/job/memory", ReadOnly: true}},
+	} {
+		i := slices.IndexFunc(a.runner.Launched, func(s runner.Spec) bool {
+			return s.Name == "daisy-swarm.acme."+a.iss()+"."+strings.ReplaceAll(tc.run, "-", ".")
+		})
+		if i < 0 {
+			t.Errorf("%s was not launched:\n%s", tc.run, a.stdout.String())
+			continue
+		}
+		ms := a.runner.Launched[i].Mounts
+		var got *runner.Mount
+		for k, m := range ms {
+			if m.Dst == "/job/memory" {
+				got = &ms[k]
+				if k == 0 || ms[k-1].Dst != "/job/resources" {
+					t.Errorf("%s: /job/memory not after the resources: %+v", tc.run, ms)
+				}
+			}
+		}
+		if !reflect.DeepEqual(got, tc.memory) {
+			t.Errorf("%s: /job/memory mounted %+v, want %+v", tc.run, got, tc.memory)
+		}
+		if seen[tc.run] != tc.seen {
+			t.Errorf("%s at its launch:\n%swant:\n%s", tc.run, seen[tc.run], tc.seen)
+		}
+	}
+}
+
+// branch pushes branch, made at base's head with files committed (none:
+// base's head itself), to the upstream of the declared repository name.
+func (a *applyWS) branch(name, branch string, files map[string]string) string {
+	a.t.Helper()
+	src := a.t.TempDir()
+	for _, args := range [][]string{{"clone", "-q", a.upstream(name), src}, {"-C", src, "config", "user.name", "T"},
+		{"-C", src, "config", "user.email", "t@example.net"}, {"-C", src, "checkout", "-q", "-b", branch}} {
+		if _, errb, err := ops.Real().Exec("", "git", args...); err != nil {
+			a.t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+	}
+	if files != nil {
+		if err := commit(files, "on "+branch)(src); err != nil {
+			a.t.Fatal(err)
+		}
+	}
+	if _, errb, err := ops.Real().Exec(src, "git", "push", "-q", "origin", branch); err != nil {
+		a.t.Fatalf("push: %v %s", err, errb)
+	}
+	return a.gitRunIn(src, "rev-parse", "HEAD")
+}
+
+// The open branches (section 7.8, The open branches): before the launch
+// of a worker's, a reviewer's or the architect's run, <run>/io/branches.md
+// holds a line per swarm branch of each declared repository, as the pass
+// fetched it, that is neither the run's own nor merged into main, with
+// the files it changes against main, by repository, then issue and
+// slice (#3 before #12), a branch sharing no history with main saying so
+// in place of its files; None. when there is none. A branch
+// at main's head (merged) and a branch not named swarm/<n>-<s> are left
+// out, and the reviewers of #1 do not see swarm/1-1, their own.
+func TestBranchesFile(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	h1 := a.pulls(1)[0].HeadSHA
+	for _, run := range []string{"1-architect-1", "1-worker-1"} {
+		if got := a.file(run, "io/branches.md"); got != "None.\n" {
+			t.Errorf("%s's branches.md: %q", run, got)
+		}
+	}
+	other := a.branch("lib", "swarm/3-2", map[string]string{"lib.go": "x\n", "sub/b.txt": "y\n"})
+	later := a.branch("lib", "swarm/12-1", map[string]string{"c.txt": "c\n"})
+	a.branch("app", "swarm/4-1", nil)
+	// a branch of the name, sharing no history with main
+	src := t.TempDir()
+	for _, args := range [][]string{{"init", "-q", "-b", "x", src}, {"-C", src, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "other"},
+		{"-C", src, "push", "-q", a.upstream("app"), "x:refs/heads/swarm/5-1"}} {
+		if _, errb, err := ops.Real().Exec("", "git", args...); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+	}
+	unrelated := a.gitRunIn(src, "rev-parse", "HEAD")
+	a.branch("app", "feature-1", map[string]string{"f.txt": "z\n"})
+	if _, err := a.forge.CreateIssue("Another", "Another job.", []string{"swarm:proposal-accepted"}); err != nil {
+		t.Fatal(err)
+	}
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.runner.Script(2, "architect", runner.Canned{Out: oneSlice})
+	a.pass()
+
+	app5 := "- app swarm/5-1 (#5, slice 1) at " + unrelated[:7] + ": no history in common with main\n"
+	lib := "- lib swarm/3-2 (#3, slice 2) at " + other[:7] + ": lib.go, sub/b.txt\n" +
+		"- lib swarm/12-1 (#12, slice 1) at " + later[:7] + ": c.txt\n"
+	for run, want := range map[string]string{
+		"2-architect-1":   "- app swarm/1-1 (#1, slice 1) at " + h1[:7] + ": main.go\n" + app5 + lib,
+		"1-adversary-1":   app5 + lib,
+		"1-sympathetic-1": app5 + lib,
+	} {
+		if got := a.file(run, "io/branches.md"); got != want {
+			t.Errorf("%s's branches.md:\n%s\nwant:\n%s", run, got, want)
 		}
 	}
 }

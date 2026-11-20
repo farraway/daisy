@@ -306,7 +306,7 @@ Stages of a software factory the version leaves out, each by choice:
     ├── argv                         # the `docker run` argv, one argument per line (no secret in it)
     ├── io/system.md                 # the persona and the Task (mounted at /job/io)
     ├── io/prompt.md                 # the material: issue, thread, plan, pull request (section 7.3)
-    ├── io/branches.md               # R1 (7.8): the open swarm branches and the files each changes, as the pass fetched them
+    ├── io/branches.md               # R1 (7.8; built): the open swarm branches and the files each changes, as the pass fetched them
     ├── io/builder.md                # R1 (7.8; built): an architect's builder plan, written beside the plan's out.md
     ├── io/out.md                    # what the member wrote
     ├── io/exit                      # the CLI's exit status, written by the sh it runs under once it has exited (section 7.2)
@@ -358,9 +358,9 @@ Every file Daisy writes, and nothing else:
 | `<state>/notes/` | a clone of the swarm repository at its head as last fetched, its branch the one the clone checked out (the forge's default): with `notes` (section 3) the notes', and the journal's (7.6, The run's record) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, the notes' commits and the journal's, 7.6) | with `notes`, before each pass's first launch and at the collection of each owner's and architect's run; at the end of each pass that collected a run |
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
 | `<state>/jobs/<n>/` and its files | R1, specified ahead of its build but for `texts/`, `plan.md`, `builder.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log` and `built`, which are written and read by nothing yet but `apply`'s replay and `swarm merge`'s refusal (7.8, Rollout): issue n's workspace, `plan.md`, `builder.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log`, `texts/<n>-<role>-<k>.md` and `built`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names; at the first pass that finds the issue open at a stage without `built`, before the role rule reads it, every file its collected runs' collections write, replayed, then `built` (7.8, Rollout), so a new issue's directory holds `built` alone before its first launch; never removed by Daisy |
-| `<run>/io/branches.md` | R1, specified ahead of its build: a line per open swarm branch but the run's own, its issue, slice, head and the files it changes against `<base>` (7.8) | `swarm apply` | before the launch of a worker's, a reviewer's or the architect's run, from the pass's mirrors |
+| `<run>/io/branches.md` | R1 (built at Step R1-7 of the plan implementing the 2026-11-19 swarm roadmap): a line per open swarm branch but the run's own, its issue, slice, head and the files it changes against `<base>` (7.8) | `swarm apply` | before the launch of a worker's, a reviewer's or the architect's run, from the pass's mirrors |
 | `<run>/io/builder.md` | R1 (built): the architect's builder plan, beside the plan it wrote to `out.md` (7.8, The builder plan) | the architect (in the container) | during the run |
-| `<run>/job/` | R1 (built at Step R1-5 of the plan implementing the 2026-11-19 swarm roadmap, but for `memory`): the run's folder, mounted at `/job`, holding only the mount points of its children, `work`, `io` and, as the run has them, `notes`, `resources` and `memory` (7.8, The run's folder), and whatever the member writes at its top, which nothing reads | `swarm apply` (the directory and its mount points), then the member | before the launch; removed with `<run>/work` |
+| `<run>/job/` | R1 (built at Steps R1-5 and, for `memory`, R1-7 of the plan implementing the 2026-11-19 swarm roadmap): the run's folder, mounted at `/job`, holding only the mount points of its children, `work`, `io` and, as the run has them, `notes`, `resources` and `memory` (7.8, The run's folder), and whatever the member writes at its top, which nothing reads | `swarm apply` (the directory and its mount points), then the member | before the launch; removed with `<run>/work` |
 | `<run>/io/out.md` | the member's output | the member (in the container) | during the run |
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/io/artifacts/<name>` | a worker run's: a screenshot of a page its change alters (7.4), which its collection reads (7.6, The screenshots); a reviewer run's: a copy of one its prompt lists (7.3, `# Artifacts`) | the worker (in the container); for a reviewer, `swarm apply` | during the run; for a reviewer, before the launch |
@@ -2386,8 +2386,9 @@ git command that reads it is a `fetch` from it into the mirror (7.6), and
 the directory is then deleted.
 
 **From R1** (7.8; the run's folder above built at Step R1-5 of the
-plan implementing the 2026-11-19 swarm roadmap, the rest of this
-paragraph specified ahead of its build). Step 3 also makes `memory`'s
+plan implementing the 2026-11-19 swarm roadmap, `memory`'s mount
+point and `branches.md` at Step R1-7; the start is specified ahead of
+its build). Step 3 also makes `memory`'s
 mount point in `<run>/job` for a run on an issue. A worker
 starting a slice, or continuing its open pull request, starts from the
 slice's kept commit where 7.8's start rule says, fetched into its clone
@@ -2571,7 +2572,8 @@ are not members and have no job: their `/work` is their clone, and
 nothing is mounted beside it (R3 moves that clone to
 `/job/work/<name>`, the path a member's checkout has, below).
 
-**From R1** (7.8, specified ahead of its build). A run on an issue
+**From R1** (7.8; built at Step R1-7 of the plan implementing the
+2026-11-19 swarm roadmap). A run on an issue
 (every role but the owner's and the QA's batch runs, which have no job)
 also mounts the job's workspace, after the resources' line:
 
@@ -4086,7 +4088,7 @@ steps that build it each keep the thread path working, each run given
 its thread so far (7.3), until the last switches the members over, so
 that no member reads from two memories half built; until then sections
 2 to 7.7 hold as written, each marking what R1 changes there. **Built
-so far** (Steps R1-1 to R1-4 of the plan implementing the 2026-11-19
+so far** (Steps R1-1 to R1-7 of the plan implementing the 2026-11-19
 swarm roadmap): `texts/` (R1-1); `plan.md`, `builder.md` and each
 slice's `slice.md` with the builder plan itself (R1-2: the architect's
 texts that ask for a plan ask for it, 7.4, and its collection reads,
@@ -4098,9 +4100,12 @@ the architect's Task text; and the Rollout's replay, its `built`
 marker, the block of a plan taken cut and `swarm merge`'s refusal
 (R1-4), and the block of a job whose file Daisy cannot use (R1-4b),
 what it writes read by nothing but the replay and the
-refusal, which read `built` and an architect's plan in `texts/`;
-`amendments/`
-(R5), the run's folder, the mount, the start, the prompt, Daisy's
+refusal, which read `built` and an architect's plan in `texts/`; the
+run's folder (R1-5, with the persona prompts' defaults at R1-6); and the
+mount and the open branches (R1-7), the workspace mounted at
+`/job/memory` and `branches.md` written for the roles that read it, which
+no prompt or Task text names until the switch (R1-10); `amendments/`
+(R5), the start, the prompt, Daisy's
 reads, and the in-memory build of `status` and the verbs that read
 the workspace, which comes with their reads, are still specified ahead
 of their build.
@@ -4178,7 +4183,13 @@ that is not the run's own and not merged into `<base>` (`git merge-base
 --is-ancestor <branch> refs/heads/<base>` false), `- <name>
 swarm/<n'>-<s'> (#<n'>, slice <s'>) at <short sha>: <files>`, its files
 those of `git diff --name-only -z refs/heads/<base>...<branch>` in the
-mirror, comma-separated; `None.` when there is none.
+mirror, comma-separated, or `no history in common with <base>` for a
+branch that has no merge base with `<base>`, which that diff cannot
+compare; `None.` when there is none. The lines follow
+the repositories' declared order, then the issue's number and the
+slice's; the run's own branch is the worker's slice's and a reviewer's
+pull request's, and the architect, which has none, sees every open
+branch, its own job's among them.
 
 **A round's file:**
 
@@ -4273,7 +4284,7 @@ request's head <short sha>, which moved past worker run <k>'s kept
 commits <short sha>`.
 
 **The run's folder** (built at Step R1-5 of the plan implementing the
-2026-11-19 swarm roadmap, but for `/job/memory`). The maintainer's ruling of 2026-11-19: the
+2026-11-19 swarm roadmap, `/job/memory` at Step R1-7). The maintainer's ruling of 2026-11-19: the
 resources, the notes and the job's workspace mount outside the
 checkout, never in it, in a layout that a CLI confined to its working
 folder (`grok`, decision
@@ -4933,7 +4944,8 @@ holds the host's login) nor leave state a later run loads (`codex` reads
 `config.toml`, skills, plugins and agents from its `GROK_HOME`). A run's copy of
 the research notes (7.2) is its own: what it writes there reaches a later run only
 as its comments do, published by Daisy after the secret check (7.6, The
-notes). From R1 (7.8, specified ahead of its build), the run's folder
+notes). From R1 (7.8; built at Steps R1-5 and R1-7 of the plan
+implementing the 2026-11-19 swarm roadmap), the run's folder
 `/job` is `<run>/job`, the run's own, and its children the mounts above
 under new paths (7.8, The run's folder); the job's workspace is the one
 mount that is not the run's own: `<state>/jobs/<n>` itself, at

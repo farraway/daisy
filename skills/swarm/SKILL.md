@@ -172,8 +172,9 @@ which every run's `system.md` lists beside its path under
 
 Every path a member has is under `/job`, the run's folder
 (`docs/swarm.md` section 7.2): its clones at `/job/work/<name>`, its
-io at `/job/io`, the research notes at `/job/notes` and each resource
-at `/job/resources/<repository>/<path>`. Before that layout a member's
+io at `/job/io`, the research notes at `/job/notes`, each resource
+at `/job/resources/<repository>/<path>` and, for a run on an issue, the
+job's workspace, read-only, at `/job/memory`. Before that layout a member's
 clone was `/work`, holding `.swarm`, `.notes` and `.resources`. An
 edited prompt, or a repository's notes (`repos/<name>.md`, which
 `prompt build` never writes), that still names `/work` or a path under
