@@ -55,6 +55,7 @@ type Job struct {
 	Start    Start    // a worker's: where its clone starts and why (section 7.8, The start)
 	Branches int      // the lines of the run's branches.md, for the roles that readsBranches (section 7.8, The open branches)
 	mem      memory   // what # Job points to in the job's workspace, as readMemory read it
+	blocked  bool     // the launch blocked the issue on a file of the job's it cannot use, so the pair's second reviewer is not launched
 
 }
 
@@ -555,7 +556,7 @@ func (j *Job) thread() string {
 		switch {
 		case ok && m.Kind != "":
 			continue
-		case planned && same(e, plan):
+		case planned && same(e, plan) && !j.mem.noPlanFile:
 			out = append(out, fmt.Sprintf("## %s, run %d, at %s (the accepted plan: whole in %s/plan.md)", m.Role, m.Run, stamp(e.Created), MemoryMount))
 		case ok && !same(e, newest[m.Role]):
 			out = append(out, fmt.Sprintf("## %s, run %d, at %s (superseded by run %d; content omitted)", m.Role, m.Run, stamp(e.Created), runs[m.Role]))

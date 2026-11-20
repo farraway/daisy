@@ -301,3 +301,70 @@ func TestReadMemoryUnusable(t *testing.T) {
 		}
 	}
 }
+
+// Each line is left out when its file is not in the job's workspace
+// (section 7.8, The prompt): with no texts/ file for the report, no
+// checks/ log for the head and no slice.md, the worker has no Report,
+// Check or Slice line and its Task text no slice sentence; with no
+// plan.md (a built job's removed, its plan read in memory from the
+// runs), no Plan line and no pointer in # Thread, the plan shown as
+// its entry instead.
+func TestRenderJobLinesLeftOut(t *testing.T) {
+	f, at, pr, state := planned(t)
+	planWorkspace(t, state)
+	for _, rel := range []string{"texts/1-worker-1.md", "checks/aaa.log", "slices/1/slice.md"} {
+		os.Remove(filepath.Join(state, "jobs", "1", filepath.FromSlash(rel)))
+	}
+	j := jobOn(f, at, pr, "worker", "swarm:review-3-changes-requested")
+	j.Outputs, j.Check = Outputs{FS: ops.Real().FS(), State: state}, "make check on aaa: exit 2\n\n    line 25"
+	if err := j.readMemory(); err != nil {
+		t.Fatal(err)
+	}
+	sys, prompt := Render(j)
+	has(t, "prompt.md", prompt, []string{"\n- Plan: /job/memory/plan.md, ", "\n- Rounds: "}, "- Report:", "- Check:", "- Slice:")
+	has(t, "system.md", sys, nil, "Read slice")
+
+	os.Remove(filepath.Join(state, "jobs", "1", "plan.md"))
+	for _, role := range []string{"worker", "architect"} {
+		j := jobOn(f, at, pr, role, map[string]string{"worker": "swarm:review-3-changes-requested", "architect": "swarm:plan-0-posted"}[role])
+		j.Outputs = Outputs{FS: ops.Real().FS(), State: state}
+		if err := j.readMemory(); err != nil {
+			t.Fatal(err)
+		}
+		_, prompt := Render(j)
+		has(t, role+"'s prompt.md without plan.md", prompt, nil, "/job/memory/plan.md", "- Plan: none")
+	}
+	a := jobOn(f, at, pr, "architect", "swarm:plan-0-posted")
+	a.Outputs = Outputs{FS: ops.Real().FS(), State: state}
+	if err := a.readMemory(); err != nil {
+		t.Fatal(err)
+	}
+	_, prompt = Render(a)
+	has(t, "architect's prompt.md without plan.md", prompt, []string{"## architect, run 1, at 2026-11-06T15:04:00Z\n\n#### Research\n"})
+}
+
+// Commits are named short wherever # Job names one (section 7.8): the
+// head in Check and in a Start from the pull request's head, a round's
+// head in Rounds; the latest round is the highest numbered, 10 after 9
+// and 2.
+func TestRenderJobShortCommits(t *testing.T) {
+	const head = "dddddddddddddddddddddddddddddddddddddddd"
+	f, at, pr, state := planned(t)
+	f.Push(pr, head)
+	planWorkspace(t, state)
+	files := map[string]string{"checks/" + head + ".log": "make check on " + head + ": exit 2\n"}
+	for _, r := range []int{1, 2, 9, 10} {
+		files["slices/1/rounds/"+itoa(r)+".md"] = "# Round " + itoa(r) + " on " + head + "\n\n## adversary, run " + itoa(r) + ": approve\n\n## sympathetic, run " + itoa(r) + ": approve\n"
+	}
+	jobFiles(t, state, 1, files)
+	j := jobOn(f, at, pr, "worker", "swarm:review-3-changes-requested")
+	j.Outputs, j.Check = Outputs{FS: ops.Real().FS(), State: state}, "make check on "+head+": exit 2\n\n    line 25"
+	j.Start = Start{From: "head"}
+	if err := j.readMemory(); err != nil {
+		t.Fatal(err)
+	}
+	_, prompt := Render(j)
+	has(t, "prompt.md", prompt, []string{"\n- Start: the pull request's head ddddddd\n",
+		"\n- Rounds: /job/memory/slices/1/rounds/, 4 completed; the latest, 10 on ddddddd: adversary approve, sympathetic approve, 0 blocking\n",
+		"\n- Check: /job/memory/checks/" + head + ".log, make check on ddddddd: exit 2\n"})
+}

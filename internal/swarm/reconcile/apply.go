@@ -633,6 +633,9 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				if err := launch(&run); err != nil {
 					return err
 				}
+				if run.blocked {
+					break // the issue is blocked, its note posted once (section 7.8, Rollout)
+				}
 				// The pair's second is launched on the stage the first's
 				// launch wrote, so the in-progress write is made once.
 				j.Label = run.Label

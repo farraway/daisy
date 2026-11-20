@@ -140,7 +140,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	// 7.8, The prompt); a file there it cannot use blocks the issue alone.
 	if err := j.readMemory(); err != nil {
 		fs.RemoveAll(r.Dir)
-		_, err = s.blockUnusable(j.Issue, err)
+		j.blocked, err = s.blockUnusable(j.Issue, err)
 		return false, err
 	}
 

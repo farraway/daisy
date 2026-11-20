@@ -29,6 +29,7 @@ type memory struct {
 	latest     string // the latest round, `<r> on <short sha>: <verdicts>, <b> blocking`
 	check      bool   // checks/<head>.log is there for the current pull request's head
 	kept       []string
+	noPlanFile bool // plan.md is not there, the plan read in memory from the runs (Outputs.JobPlan)
 }
 
 // readMemory reads, from the job's workspace through Outputs, what the
@@ -41,7 +42,17 @@ type memory struct {
 // (unusableError).
 func (j *Job) readMemory() error {
 	j.mem = memory{}
-	if j.Batch != nil || j.Role == "owner" {
+	if j.Batch != nil {
+		return nil
+	}
+	if _, planned := j.PlanText(); planned {
+		sz, err := j.size("plan.md")
+		if err != nil {
+			return err
+		}
+		j.mem.noPlanFile = sz < 0
+	}
+	if j.Role == "owner" {
 		return nil
 	}
 	cur, open := j.current()
@@ -209,6 +220,7 @@ func (j *Job) jobSection() string {
 	_, pm, _ := j.Plan()
 	S := max(1, len(Slices(plan)))
 	switch {
+	case planned && j.mem.noPlanFile: // its line names nothing: the plan is its entry in # Thread
 	case planned:
 		lines = append(lines, fmt.Sprintf("- Plan: %s, architect run %d, %s, %s", at("plan.md"), pm.Run, plural(len(plan), "byte"), plural(S, "slice")))
 	case j.Role != "owner":

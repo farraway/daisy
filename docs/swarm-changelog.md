@@ -774,8 +774,10 @@ they write.
   launch writes `branches.md` before the prompt, which counts its
   lines. Where 7.8 left it open, stated there: what each line reads, a
   line left out when its file is not there, the verdicts' form, the
-  singular for one, and a file there Daisy cannot use (a round's file
-  or a `kept` not Daisy's) blocking the issue (7.7). Decisions
+  singular for one, a `plan.md` not there leaving the Plan line out and
+  the plan as its `# Thread` entry, and a file there Daisy cannot use (a
+  round's file or a `kept` not Daisy's) blocking the issue (7.7), the
+  pair's second reviewer not launched after it. Decisions
   [24](swarm/decisions/0024-the-container.md) and
   [87](swarm/decisions/0087-grok-sees-only-its-working-folder.md)
   amended to the run's folder. Sections 2, 7.3, 7.4, 7.5 and 7.8. The

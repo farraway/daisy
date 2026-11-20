@@ -357,3 +357,30 @@ func TestJobSectionBlocksOnAFileItCannotUse(t *testing.T) {
 		t.Errorf("not blocked: %v, last comment:\n%s", got, a.lastComment(1))
 	}
 }
+
+// A pair of reviewers launched on one pass meets the same file # Job
+// cannot use: the issue is blocked once, the reconciler's note posted
+// once (section 7.8, Rollout), neither reviewer launched.
+func TestJobSectionBlocksAPairOnce(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	a.changesRequested()
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	if err := os.WriteFile(a.state("jobs/1/slices/1/rounds/1.md"), []byte("not a round\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	before := len(a.bodies(1))
+	a.pass()
+	notes := 0
+	for _, b := range a.bodies(1)[before:] {
+		if strings.Contains(b, "Daisy cannot use jobs/1/slices/1/rounds/1.md") {
+			notes++
+		}
+	}
+	if notes != 1 || !slices.Contains(labels(a.issue(1)), forge.Blocked) || a.result("1-adversary-2") != "" || a.result("1-sympathetic-2") != "" {
+		t.Errorf("%d notes, labels %v\n%s", notes, labels(a.issue(1)), a.stdout.String())
+	}
+}
