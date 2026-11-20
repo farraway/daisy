@@ -272,7 +272,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm class <n> [--type <type>] routine\|architecture` | As the maintainer: set the job's class; Daisy passes a routine job's triage and plan |
 | Swarm | `daisy swarm approve <n> [--type <type>]` | As the maintainer: approve the issue's open pull request |
 | Swarm | `daisy swarm merge <n> [--type <type>]` | As the maintainer: merge the approved pull request, then next slice or close |
-| Swarm | `daisy swarm unblock <n> [--cause <word>] [--type <type>] <comment...>` | As the maintainer: comment, then clear swarm:blocked from the issue (--cause: retag the stop's cause) |
+| Swarm | `daisy swarm unblock <n> [--cause <word>] [--start base] [--type <type>] <comment...>` | As the maintainer: comment, then clear swarm:blocked from the issue (--cause: retag the stop's cause; --start base: the slice's next worker run starts as with no kept run) |
 | Swarm | `daisy swarm block <n> --by <m> [--type <type>]` | As the maintainer: hold the issue's job until #m is closed |
 | Swarm | `daisy swarm replan <n> [--type <type>] [direction...]` | As the maintainer: have the architect re-plan the job, from your direction |
 | Swarm | `daisy swarm close <n> [--type <type>] [comment...]` | As the maintainer: close the issue, after the comment when given |

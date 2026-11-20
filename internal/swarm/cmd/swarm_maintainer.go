@@ -51,10 +51,11 @@ func SwarmMerge(c *Context) error {
 	return inSwarm(c, func() error { return maintainerVerb("merge")(c, openForge) })
 }
 
-// SwarmUnblock is `daisy swarm unblock <n> [--cause <word>]
-// <comment...>`: G4, T18, the comment then swarm:blocked cleared; with
-// --cause, the released stop's metrics row superseded with that cause
-// first.
+// SwarmUnblock is `daisy swarm unblock <n> [--cause <word>] [--start
+// base] <comment...>`: G4, T18, the comment then swarm:blocked cleared;
+// with --cause, the released stop's metrics row superseded with that
+// cause first; with --start base, the comment opens with the line
+// `Start: base` (section 7.8, The start).
 func SwarmUnblock(c *Context) error {
 	return inSwarm(c, func() error { return maintainerVerb("unblock")(c, openForge) })
 }
@@ -91,7 +92,7 @@ var commentVerbs = []commentVerb{
 	{"class", " routine|architecture", func(n int) bool { return n == 1 }, nil, swarmClass},
 	{"approve", "", none, nil, swarmApprove},
 	{"merge", "", none, nil, swarmMerge},
-	{"unblock", " [--cause <word>] <comment...>", func(n int) bool { return n > 0 }, []string{causeFlag}, swarmUnblock},
+	{"unblock", " [--cause <word>] [--start base] <comment...>", func(n int) bool { return n > 0 }, []string{causeFlag, startFlag}, swarmUnblock},
 	{"block", " --by <m>", func(n int) bool { return n == 2 }, []string{"--by"}, swarmBlock},
 	{"pause", "", none, nil, func(c *Context, open opener) error { return swarmHold(c, open, true) }},
 	{"resume", "", none, nil, func(c *Context, open opener) error { return swarmHold(c, open, false) }},
@@ -649,12 +650,15 @@ func (m *maintainer) sayOnPull(p forge.Pull, text string) error {
 // reads the comment when it runs. With --cause, the metrics row of the
 // run whose stop set the block is superseded with that cause first
 // (section 7.5, The stop's cause), so a run again after a refused forge
-// write finds it written.
+// write finds it written. With --start base the comment opens with the
+// line `Start: base` and a blank line, so the slice's next worker run
+// starts where it would with no kept run (section 7.8, The start): on
+// its first line, no fence the comment opens can hold it.
 func swarmUnblock(c *Context, open opener) error {
 	if _, err := issueArg(c); err != nil {
 		return err
 	}
-	cause, args, err := causeArg(c)
+	cause, base, args, err := unblockArgs(c)
 	if err != nil {
 		return err
 	}
@@ -666,6 +670,9 @@ func swarmUnblock(c *Context, open opener) error {
 	}
 	if text == "" {
 		return UsageError("swarm unblock takes a comment after <n>, saying what changed")
+	}
+	if base {
+		text = reconcile.StartBase + "\n\n" + text
 	}
 	m, err := asMaintainer(c, open)
 	if err != nil {
@@ -714,26 +721,51 @@ func swarmUnblock(c *Context, open opener) error {
 	return m.lift()
 }
 
-// causeFlag is unblock's flag naming the released stop's cause.
-const causeFlag = "--cause"
+// causeFlag is unblock's flag naming the released stop's cause, and
+// startFlag the one that starts the slice's next worker run from base.
+const (
+	causeFlag = "--cause"
+	startFlag = "--start"
+)
 
-// causeArg is unblock's --cause <word>, leading as the cli reads a value
-// flag or right after <n> as the usage writes it, and the arguments
-// without it; "" when it is not given. No word, or one outside the
-// vocabulary (section 7.5, The stop's cause), is usage.
-func causeArg(c *Context) (string, []string, error) {
-	word, given := c.Value(causeFlag)
-	args := c.Args
-	if !given && len(args) > 1 && args[1] == causeFlag {
-		if len(args) == 2 {
-			return "", nil, UsageError("--cause takes a word, one of " + reconcile.CauseWords())
+// unblockArgs is unblock's --cause <word> and --start base, each leading
+// as the cli reads a value flag or right after <n>, in either order, as
+// the usage writes them, and the arguments without them: cause "" when
+// it is not given, base whether --start is. A flag given twice, one
+// without its word, a cause outside the vocabulary (section 7.5, The
+// stop's cause) and any word for --start but base are usage.
+func unblockArgs(c *Context) (cause string, base bool, args []string, err error) {
+	word := map[string]string{}
+	given := map[string]bool{}
+	for _, f := range []string{causeFlag, startFlag} {
+		word[f], given[f] = c.Value(f)
+	}
+	args = c.Args
+	for len(args) > 1 && (args[1] == causeFlag || args[1] == startFlag) {
+		f := args[1]
+		if given[f] {
+			return "", false, nil, UsageError(f + " is given twice")
 		}
-		word, given, args = args[2], true, append([]string{args[0]}, args[3:]...)
+		if len(args) == 2 {
+			return "", false, nil, UsageError(takes(f))
+		}
+		word[f], given[f], args = args[2], true, append([]string{args[0]}, args[3:]...)
 	}
-	if given && !reconcile.IsCause(word) {
-		return "", nil, UsageError(fmt.Sprintf("--cause takes one of %s, not %q", reconcile.CauseWords(), word))
+	if given[causeFlag] && !reconcile.IsCause(word[causeFlag]) {
+		return "", false, nil, UsageError(fmt.Sprintf("--cause takes one of %s, not %q", reconcile.CauseWords(), word[causeFlag]))
 	}
-	return word, args, nil
+	if given[startFlag] && word[startFlag] != "base" {
+		return "", false, nil, UsageError(fmt.Sprintf("%s, not %q", takes(startFlag), word[startFlag]))
+	}
+	return word[causeFlag], given[startFlag], args, nil
+}
+
+// takes is unblock's usage for flag f given without its word.
+func takes(f string) string {
+	if f == startFlag {
+		return "--start takes base"
+	}
+	return "--cause takes a word, one of " + reconcile.CauseWords()
 }
 
 // retag supersedes the metrics row of the run whose stop set the block

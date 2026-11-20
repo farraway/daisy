@@ -166,12 +166,17 @@ func (j *Job) startBase(ended time.Time) (by string, at time.Time, ok bool, err 
 	return by, at, ok, nil
 }
 
-// startBaseLine: text holds the line `Start: base` alone, whitespace at
+// StartBase is the line that starts a slice's next worker run where it
+// would with no kept run (section 7.8, The start), which `swarm unblock
+// --start base` writes.
+const StartBase = "Start: base"
+
+// startBaseLine: text holds the line StartBase alone, whitespace at
 // either end aside, outside a fenced block (section 7.8, The start).
 func startBaseLine(text string) bool {
 	var fences fence.Scan
 	for _, line := range strings.Split(text, "\n") {
-		if !fences.Line(line) && strings.TrimSpace(line) == "Start: base" {
+		if !fences.Line(line) && strings.TrimSpace(line) == StartBase {
 			return true
 		}
 	}

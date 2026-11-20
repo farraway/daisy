@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"daisy/internal/ops"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
+	"daisy/internal/verb"
 )
 
 // app1Pull is issue #1's first pull request, on app.
@@ -394,5 +396,115 @@ func TestStartBaseWithOpenPullKeepsHead(t *testing.T) {
 	}
 	if held := a.gitRunIn(a.state("git/app"), "cat-file", "-t", kept); held != "commit" {
 		t.Errorf("the kept commit %s is gone from the mirror: %q", kept, held)
+	}
+}
+
+// `swarm unblock --start base` (section 11; the maintainer's answer of
+// 2026-11-20 to the plan's Open Question 16): the verb, with the flag
+// leading or right after <n>, and the comment command `/swarm unblock
+// --start base <comment...>`, each post the comment with the line
+// `Start: base` alone on its first line, so the next worker run starts
+// where it would with no kept run: base, for a slice not yet pushed.
+// Without the flag the run starts from the kept commit; any other word
+// for --start is usage.
+func TestSwarmUnblockStartBase(t *testing.T) {
+	blocked := func(t *testing.T) (*applyWS, string, string) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		base := a.gitRunIn(a.state("git/app"), "rev-parse", "refs/heads/main")
+		a.runner.Script(1, "worker", half("BLOCKED: which version?\n"))
+		a.pass()
+		return a, base, a.keptOf()
+	}
+	maint := func(a *applyWS) *maintainerWS {
+		a.tick()
+		m := &maintainerWS{statusWS: a.statusWS}
+		m.secrets(bothTokens)
+		m.as = map[string]*forge.Fake{"tok-123": a.forge, "jane-456": a.forge.As(forge.Account{Login: "jane"})}
+		return m
+	}
+	started := func(t *testing.T, a *applyWS, got seen, want string) {
+		t.Helper()
+		if got.branch != "swarm/1-1" || got.head != want {
+			t.Fatalf("worker run 2 started on %q at %s, want %s\n%s\n%s", got.branch, got.head, want, a.result("1-worker-2"), a.stdout.String())
+		}
+	}
+	const posted = "Start: base\n\nStart over."
+
+	for _, c := range []struct {
+		name   string
+		args   []string
+		values []verb.Value
+		base   bool
+	}{
+		{"the flag after <n>", []string{"1", "--start", "base", "Start", "over."}, nil, true},
+		{"the flag after --type", []string{"1", "--type", "I2", "--start", "base", "Start", "over."}, nil, true},
+		{"the flag leading", []string{"1", "Start", "over."}, []verb.Value{{Flag: "--start", Value: "base"}}, true},
+		{"no flag", []string{"1", "Start", "over."}, nil, false},
+	} {
+		t.Run("the verb: "+c.name, func(t *testing.T) {
+			a, base, kept := blocked(t)
+			if c.args[1] == "--type" {
+				a.metricsHome()
+			}
+			m := maint(a)
+			m.values = c.values
+			if err := m.verb(maintainerVerb("unblock"), c.args...); err != nil {
+				t.Fatalf("%v\n%s", err, m.stderr.String())
+			}
+			want, body := kept, "Start over."
+			if c.base {
+				want, body = base, posted
+			}
+			if b := a.bodies(1); b[len(b)-1] != body {
+				t.Errorf("the comment posted %q, want %q", b[len(b)-1], body)
+			}
+			var got seen
+			a.runner.Script(1, "worker", look(&got, "v1"))
+			a.pass()
+			started(t, a, got, want)
+		})
+	}
+
+	for _, c := range []struct{ line, recorded string }{
+		{"/swarm unblock --start base Start over.", ""},
+		{"/swarm unblock --start base --type I2 Start over.", "    Intervention 1-intervention-1 recorded: I2\n"},
+	} {
+		t.Run("the comment command "+c.line, func(t *testing.T) {
+			a, base, _ := blocked(t)
+			a.metricsHome()
+			a.maintainer()
+			id := a.say(issue1, "jane", c.line)
+			var got seen
+			a.runner.Script(1, "worker", look(&got, "v1"))
+			a.pass()
+			if want := answer(id, c.line, "Done:\n\n    Maintainer jane on acme/swarm-app\n    #1 commented\n    #1 blocked cleared\n    #1 gated cleared\n"+c.recorded); !slices.Contains(a.answers(issue1), want) {
+				t.Errorf("answers %q\nwant %q", a.answers(issue1), want)
+			}
+			if b := a.bodies(1); !slices.Contains(b, posted) {
+				t.Errorf("comments %q lack %q", b, posted)
+			}
+			started(t, a, got, base)
+		})
+	}
+
+	for _, args := range [][]string{
+		{"1", "--start", "head", "Start", "over."},
+		{"1", "--start"},
+		{"1", "--start", "base", "--start", "base", "Start", "over."},
+		{"1", "--start", "base"},
+	} {
+		t.Run("usage: "+strings.Join(args, " "), func(t *testing.T) {
+			a, _, _ := blocked(t)
+			m := maint(a)
+			before := len(a.issue(1).Comments)
+			err := m.verb(maintainerVerb("unblock"), args...)
+			if u := UsageError(""); !errors.As(err, &u) {
+				t.Fatalf("%v, want a usage error", err)
+			}
+			if len(a.issue(1).Comments) != before || !slices.Contains(labels(a.issue(1)), forge.Blocked) {
+				t.Errorf("a usage error wrote to the forge: %q", a.bodies(1))
+			}
+		})
 	}
 }

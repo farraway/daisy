@@ -148,3 +148,19 @@ lose its text to the post. Alternative: the block it replaced, which
 kept the replay from writing a block the repository no longer declares,
 at the cost of a stop whose remedy discards the run's own text. Test:
 `TestReplayOfAReportWithNoCheck`.
+
+**Amended by the maintainer's answer of 2026-11-20 (Open Question 16 of
+the plan implementing the 2026-11-19 swarm roadmap; built at its Step
+R1-13).** `swarm unblock <n> --start base <comment...>`, and the
+comment command `/swarm unblock --start base <comment...>`, write the
+line `Start: base` for the maintainer, first in the comment the verb
+posts and followed by a blank line, so that the start's reset needs no
+quoted multi-line argument at the terminal and can be given from a
+comment, whose own line `Start: base` would not count (a command
+comment is no counted entry). The flag writes into the comment, the
+forge record, as before, not into the workspace, the alternative the
+start above declined. Alternatives: the line last in the comment
+(where a fenced block the comment leaves open would hold it); the
+flag's word left out, `--start` alone (the cli's value flags take a
+word, and `base` leaves room for no other start the ruling does not
+name). Test: `TestSwarmUnblockStartBase`.

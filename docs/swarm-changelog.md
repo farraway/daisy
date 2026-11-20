@@ -827,3 +827,13 @@ they write.
   job's file Daisy cannot use) and 7.8 (Rollout). Decision
   [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md)
   amended.
+- 2026-11-20, Step R1-13 of the plan implementing the 2026-11-19 swarm
+  roadmap (the maintainer's answer to its Open Question 16): `swarm
+  unblock <n> --start base <comment...>`, and `/swarm unblock --start
+  base <comment...>` in a comment, post the comment with the line
+  `Start: base` and a blank line first, so the slice's next worker run
+  starts where it would with no kept run; `--start` takes `base` alone,
+  and `--cause` or `--start` given twice is usage. Sections 6 (The
+  comment commands), 7.8 (The start) and 11. Decision
+  [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md)
+  amended.
