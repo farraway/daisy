@@ -20,14 +20,16 @@ not the change's.
 **Where it runs.** In the collection's step 4 (section 7.6), once the
 check, or the dependency step whose failure is the check's result
 (decision [122](0122-a-dependency-step-and-the-swarms-cache.md)), has
-exited non-zero, its test services removed, and before the push, the
+exited non-zero or timed out, its test services removed, and before the push, the
 post and the workspace's `checks/` (decision
 [158](0158-the-jobs-workspace-is-the-memory.md)): so nothing of the
 first failure is posted, pushed for CI to report or written where a
-member reads. A check that timed out at the wall clock, one Docker
-could not run (a fault already), and a test services file refused (the
-product's file, which the worker fixes) are not classified: none
-names a failing package, and the last two are settled as before.
+member reads. A check, or dependency step, that timed out at the wall
+clock is a check failure too, classified by the signatures alone in the
+output it wrote before it was stopped, since `go test` names no failing
+package for a run it did not end. One Docker could not run (a fault
+already) and a test services file refused (the product's file, which
+the worker fixes) are not classified, and are settled as before.
 
 **A package the change does not touch, for Go.** The swarm's products
 are Go, and `go test` names each failing package on a line of its own,

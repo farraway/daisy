@@ -3627,7 +3627,7 @@ ran, whatever its end:
 **From R3** (7.9, specified ahead of its build; decision
 [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)).
 In step 4, a check or dependency step that exited non-zero (not 125 to
-127) is classified once its services are removed, before step 5 and
+127) or timed out at the wall clock is classified once its services are removed, before step 5 and
 any post: a failure in packages the change does not touch, or whose
 output holds one of five infrastructure signatures, is run again once
 (`check rerun: <reason>`, its first output kept as `check-1.out` or
@@ -4542,7 +4542,8 @@ nothing.
 
 **The classification** (R3c; decision 161). In the collection's step 4
 (7.6), when the check exited non-zero, or the dependency step did,
-neither 125 to 127 (a swarm fault, as now), after its services are
+neither 125 to 127 (a swarm fault, as now), or either timed out at the
+wall clock, after its services are
 removed and before the push, the post and the workspace's `checks/`:
 
 - **A package the change does not touch.** For Go: the failed step's
@@ -4566,8 +4567,11 @@ removed and before the push, the post and the workspace's `checks/`:
   ignoring case: `i/o timeout`, `server selection error`, `connection
   refused`, `network not found`, `too many open files`.
 
-A check that timed out at the wall clock, a test services file refused
-and a check or step that could not start are not classified. A failure
+A check or dependency step that timed out at the wall clock is
+classified by the signatures alone, in the output it wrote before it
+was stopped: `go test` names no failing package for a run it did not
+end. A test services file refused and a check or step that could not
+start are not classified. A failure
 classified is **run again once**, as it ran: `check rerun: <reason>` is
 recorded, `<reason>` `untouched packages <path>, …`, `signature
 "<signature>"` or both separated by `; `, the packages searched for the
