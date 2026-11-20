@@ -112,7 +112,10 @@ reader refused by line, so the reader gains literal and folded block
 scalars, for both files: one reader, one subset; a workflow it still
 cannot read is named, not compared.
 
-**CI in the product's image** is not specified: the image is local to
+*Amended by decision [162](0162-ci-builds-the-declared-image.md): CI
+builds the declared image and runs the check's targets in it; the
+paragraph below is the decision as first taken.* **CI in the product's
+image** is not specified: the image is local to
 the swarm's host (`--pull never`), and CI can run in it only from a
 registry its runner pulls. The ruling's "CI uses it" holds for the
 targets, the services and the variables, which the comparison keeps
@@ -126,3 +129,17 @@ variables, and a check that runs the integration lane
 swarm's notes about gridapp, a `PATH` and a `GOMODCACHE` to set by
 hand, an image to rebuild for each module, and the rule to say in a
 pull request that only CI runs a MongoDB-only test, are deleted (R3d).
+
+**Amended by decision [162](0162-ci-builds-the-declared-image.md)
+(Step 10b of the plan implementing the 2026-11-19 swarm roadmap, R3),
+specified ahead of its build.** On the maintainer's answer at the
+checkpoint, CI builds the declared image itself, from the product's
+Dockerfile, which `repos[].dockerfile` names, with the repository's
+root as its context, in a step on the runner's Docker (never as a
+job's `container:`, which `force_pull` would pull), and runs the
+check's targets in it, the checkout copied in at `/job/work/<name>`
+and the job's network joined; the comparison checks that a job builds
+from the declared Dockerfile and reads the targets, the services and
+the variables from those jobs' runs in the image. A mismatch stays a
+warning. The limit: a runner whose Docker does not hold the base
+cannot build the image.

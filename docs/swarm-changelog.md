@@ -538,3 +538,22 @@ they write.
   [160](swarm/decisions/0160-one-declared-check-environment.md) and
   [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
   (0122, 0134 and 0159 amended).
+- 2026-11-19, Step 10b of the plan implementing the 2026-11-19 swarm
+  roadmap (R3, the maintainer's answers at the checkpoint; specified
+  ahead of its build, section 7.9): CI builds the declared image itself,
+  from the product's Dockerfile, which a new `repos[].dockerfile` names
+  (the repository's root its context), in a step on the runner's
+  Docker, whose base is local to the swarm's host (never as a job's
+  `container:`, which the runner's `force_pull` would pull), the
+  daemon's layer cache shared with the maintainer's builds, and runs
+  the check's targets in it, the checkout copied in at
+  `/job/work/<name>` and the job's network joined; the comparison with
+  CI checks that a job builds from the declared Dockerfile and reads
+  the targets, the services and the variables from those jobs' runs in
+  the image, a mismatch still a warning; the limit, a runner whose
+  Docker does not hold the base, stated. A signature classifies a
+  failure as the environment's only when no package the change touches
+  fails: a touched package's failure is the worker's. Sections 1, 3,
+  7.6, 7.7 and 7.9; decision
+  [162](swarm/decisions/0162-ci-builds-the-declared-image.md) (0160 and
+  0161 amended).

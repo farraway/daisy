@@ -243,7 +243,7 @@ label events was considered and rejected (decision [1](swarm/decisions/0001-why-
 | One job across the repositories of one organization: the issue in `forge.repo`, each slice in a declared repository (section 5) | Repositories of several owners or forges in one swarm |
 | A board as a view: with `forge.board`, each open swarm issue's card kept in the column of its stage on a Gitea organization's project; the label stays the only state (specified ahead of its build: `swarm.json` validates the field and nothing acts on it until a run needs the board) | A board on GitHub (Projects v2, not mapped in this revision); a board that drives the lifecycle |
 | Container limits: only what the run owns mounted, one credential, a wall clock; `protected` paths never pushed; the exact secret a member was given refused in what is posted or pushed | Network egress filtering and further hardening |
-| The product's `check`, run by Daisy in a keyless container on each worker head; from R3 (7.9, specified ahead of its build), its environment declared once (the image, the dependency step, the test services and `repos[].env`), used by the worker's and the reviewers' runs and the check on the same paths, and compared with the workflows CI runs on a pull request (a warning); a failure in packages the change does not touch, or holding one of five infrastructure signatures, run again once, and one that persists sent to the maintainer with cause `environment`, never to the worker or the reviewers | Reading the forge's CI status for a head: recorded, not built (decision [23](swarm/decisions/0023-the-member-image-is-a-base-daisy-runs-the-products-check.md)); from R3, CI run in the product's image, the image's toolchain compared with CI's, and a failing package known for a language other than Go |
+| The product's `check`, run by Daisy in a keyless container on each worker head; from R3 (7.9, specified ahead of its build), its environment declared once (the image, the dependency step, the test services and `repos[].env`), used by the worker's and the reviewers' runs and the check on the same paths; the image built by CI too, from the product's declared Dockerfile, the check's targets run in it, which a comparison with the workflows CI runs on a pull request checks (a warning); a failure in packages the change does not touch, or holding one of five infrastructure signatures with no touched package failing, run again once, and one that persists sent to the maintainer with cause `environment`, never to the worker or the reviewers; a failure in a touched package always the worker's | Reading the forge's CI status for a head: recorded, not built (decision [23](swarm/decisions/0023-the-member-image-is-a-base-daisy-runs-the-products-check.md)); from R3, CI on a runner whose Docker does not hold the image's base (a hosted runner; a registry for the base), Daisy building the swarm's `image` from the declared Dockerfile, and a failing package known for a language other than Go |
 | Every worker run merges `base` into its branch first and resolves the conflicts it can; an approved pull request the forge reports not mergeable, which conflicts on the mirror too, goes back to the worker (T25) with the files named; the same head a second time blocks the issue | A conflict the worker cannot resolve: it writes `BLOCKED:`, the issue is `blocked` and the maintainer resolves it (decisions [20](swarm/decisions/0020-no-history-rewrites-base-drift.md), [81](swarm/decisions/0081-conflicts-handled-by-the-swarm.md) and [93](swarm/decisions/0093-the-collection-and-the-merge-step.md)) |
 | Cost, tokens, turns and an outcome per run; a Throughput block in `status`; a `budget` (specified ahead of its build: validated, not enforced, until a run needs it) | An observer that turns runs and the maintainer's corrections into prompt changes (the meta loop): the signals are in `runs/` and on the forge, the swarm repository's `prompts/*.md` are the files it would change, and decision [58](swarm/decisions/0058-the-meta-loops-data-contract.md) is its data contract |
 | `apply` from the maintainer's terminal or a systemd user service | `apply` inside an agent session: the agent's sandbox has no Docker socket, and the swarm must not depend on a chat being open |
@@ -491,7 +491,8 @@ product and its library declares both, the product first:
 a repository entry's `ssh_command`, when present, comes after `repo`,
 and its `deps`, when present, after `check`, its `services`, when
 present, after `deps`, from R3 its `env`, when present, after
-`services`, and its `rulings`, when present, after
+`services`, and its `dockerfile`, when present, after `image`, and its
+`rulings`, when present, after
 `protected`, last, on the same line.
 `notify`, when present, comes after `trusted`, on one line; `init`
 keeps it from an existing file and never adds one.
@@ -531,6 +532,7 @@ yet or not (Step 6 of revision 6's plan; decision [109](swarm/decisions/0109-ini
 | `repos[].services` | string | absent (`init` writes none, and keeps the file's): read as `compose.test.yaml` | optional; the path, in the repository, of its **test services file**: relative, clean (`path.Clean`'s own), without `..`, not ending `/`, one line. The file is the product's, read from the commit run (the head a check checks, the commit a worker starts from), never from `swarm.json`; with none there, absent or not, nothing of this (the check as before, byte for byte); with the field, the file absent at that commit is refused, as a file outside the subset is. It is YAML of a subset Daisy reads without a YAML library (block mappings and lists, a list at its key's indentation, one-line flow collections, plain, single- and double-quoted scalars, comments, a leading `---`; never an anchor, alias, tag, block scalar, second document or tab in an indentation) and of a subset of Compose Daisy runs with `docker` itself, not Compose: a mapping of exactly `services`, one or more, each named `^[A-Za-z0-9][A-Za-z0-9_.-]*$`, and optional `x-daisy-env`; each service a mapping of `image` (required, not beginning `-`, so it is never read as a `docker run` option), `tmpfs` (an absolute path, or a list of them), `environment` (a mapping of variable to value, or a list of `<VAR>=<value>`) and `command` (a list; a string is refused, its words shown as the list to write), nothing else (`ports`, `volumes`, `healthcheck`, `depends_on`… are refused by name: a file is run whole or not at all); `x-daisy-env` a mapping of variable to value, given to the check and the worker beside the services, so that the product's tests find them (`GRIDAPP_TEST_MONGO_URI: mongodb://mongo:27017`): each service is reached on the network by its name. Every value is text (`1`, `true` as written); `~`, `null` and an empty value are no value, refused in an environment. For gridapp (request F29): `services: {mongo: {image: "mongo:7", tmpfs: [/data/db]}, redis: {image: "redis:7"}}` and `x-daisy-env: {GRIDAPP_TEST_MONGO_URI: "mongodb://mongo:27017", GRIDAPP_TEST_REDIS_URI: "redis://redis:6379"}`, written as block mappings or as these. The same file can serve the product's own `make test-services` (`docker compose -f compose.test.yaml up`) and its CI, so the three agree. Daisy waits for no service to be ready: the product's tests wait for their server as they do in CI. How they run is 7.2 and 7.6, step 4; a file refused is the check's result, an image not on the host a swarm fault (7.7) *From R3* (7.9, specified ahead of its build; decision [160](swarm/decisions/0160-one-declared-check-environment.md)): a service may also hold `ulimits`, a mapping of a limit's name (`^[a-z]+$`, `nofile`) to one integer or to a mapping of exactly `soft` and `hard`, integers, run as `--ulimit <name>=<soft>:<hard>` (`<n>:<n>` for one integer; gridapp's `mongo:7` takes `nofile: 64000`, as its CI gives it), and the subset gains literal and folded block scalars (`\|` and `>`, with or without `-` or `+`), which the workflows CI runs use (7.9, The comparison with CI); the file is also given to a reviewer's run, read at the head it reviews (7.9, Beside a reviewer) |
 | `repos[].env` | object | absent (`init` writes none, and keeps the file's) | *R3, specified ahead of its build* (7.9; decision [160](swarm/decisions/0160-one-declared-check-environment.md)): optional; the variables of the repository's check environment, `{"<VAR>": "<value>", …}`, each name a variable name (`^[A-Za-z_][A-Za-z0-9_]*$`), none a secret's (`forge.token_env`, a `keys` `env`, `DAISY_MAINTAINER_TOKEN`: section 3, Secret values) and none also in `deps.env`, each value one line, as written (no secret: the file is the swarm repository's); given, as `--env` lines in name order before `deps.env`'s and `x-daisy-env`'s, to the worker's and the reviewers' runs on the repository, its dependency step and its check (7.2), and compared with the variables CI's jobs set (7.9, The comparison with CI); `{}` or absent, none. For a choice of how the image runs the product (`GOTOOLCHAIN`, `CGO_ENABLED`), not the cache's place, which is `deps.env`'s |
 | `repos[].image` | string | `daisy-member:1` | non-empty; a local image (`docker run --pull never`): the base image, or a product image built `FROM` it (section 7.2) |
+| `repos[].dockerfile` | string | absent (`init` writes none, and keeps the file's) | *R3, specified ahead of its build* (7.9, CI builds the image; decision [162](swarm/decisions/0162-ci-builds-the-declared-image.md)): optional; the path, in the repository, of the Dockerfile that builds `image`, with the repository's root at the commit built as its context: relative, clean (`path.Clean`'s own), without `..`, not ending `/`, one line, as `services` is. Daisy builds nothing from it: the maintainer builds `image` from it at `<base>`, the product's CI builds it at each head and runs the check's targets in it, and 7.9's comparison with CI reads it to check that CI does. Absent, CI has no declared image to build, which the comparison names |
 | `repos[].protected` | array of strings | `[".github/", ".gitea/", ".forgejo/", ".claude/", ".grok/", "AGENTS.md", "CLAUDE.md"]`: the forges' workflows, and the settings, hooks and instructions a member's CLI loads from the repository (`.claude/` and `.grok/` since Step 35 of the swarm build, decision [96](swarm/decisions/0096-the-configuration-and-the-unit.md); `init` keeps an existing entry's list) | path patterns in the repository a worker's change may not touch (7.6): an entry ending `/` matches every path under that directory; an entry without `/` matches a path whose last element it matches (`path.Match`), at any depth; any other entry matches the whole path (`path.Match`); each non-empty, relative, without `..`; `[]` protects nothing |
 | `repos[].rulings` | array of strings | absent (`init` writes none, and keeps the file's): read as `["docs/adr/"]` when `protected` holds the entry `docs/adr/`, else as `[]` | optional; path patterns in the repository, as `protected`'s (each matched as a `protected` entry is, and refused as one is), naming its **rulings**: the files whose change since a job's plan was written re-opens the plan between slices (section 6, The rulings); `[]` names none, so a repository that protects `docs/adr/` turns the default off with `"rulings": []` (Step 9 of the plan for the inbox requests F27–F35, decision [128](swarm/decisions/0128-a-ruling-re-opens-a-plan.md)) |
 | `base` | string | `main` | a branch name: `^[A-Za-z0-9._][A-Za-z0-9._/-]*$`, no `..`, not ending in `/` or `.lock`; the branch pull requests target and new slices start from (it need not be the forge's default branch: nothing closes on a merge, section 12) |
@@ -622,6 +624,7 @@ failure is reported and the verb exits 1; the message is
 | an empty `check` element | `swarm.json: repos[0].check[0]: empty argument` |
 | a dependency step refused | `swarm.json: repos[0].deps.run: no argument (at least one is required)`, `swarm.json: repos[0].deps.run[1]: empty argument`, `swarm.json: repos[0].deps.env.GO-FLAGS: "GO-FLAGS" is not a variable name`, `swarm.json: repos[1].deps: no check to run it before; declare check, or remove deps` (`deps` with `check` `[]`) |
 | a test services path refused | `swarm.json: repos[0].services: "../compose.yaml" is not a file's path in the repository` (likewise `""`, an absolute path, one ending `/`, one `path.Clean` would change, or a newline) |
+| from R3 (7.9, specified ahead of its build), a Dockerfile path refused | `swarm.json: repos[0].dockerfile: "../Dockerfile" is not a file's path in the repository` (likewise as a test services path) |
 | from R3 (7.9, specified ahead of its build), a check variable refused | `swarm.json: repos[0].env.GO-FLAGS: "GO-FLAGS" is not a variable name`, `swarm.json: repos[0].env.GOFLAGS: also in deps.env; declare it once`, `swarm.json: repos[0].env.GITEA_TOKEN: a secret's variable is never given this way`, `swarm.json: repos[0].env.TZ: a value holds a newline` |
 | a protected pattern refused | `swarm.json: repos[0].protected[2]: "<value>" is not a relative pattern without ..` (also when empty; a `rulings` pattern likewise, `repos[0].rulings[1]: …`) |
 | `trusted` empty, or a login refused | `swarm.json: trusted: no login (at least one is required)`, `swarm.json: trusted[0]: "<value>" is not a forge login` |
@@ -3309,7 +3312,7 @@ stops of section 5 that 7.7 does not list:
 | the merge refused while the forge reports the pull request mergeable (T16), the issue blocked | none, as above | — |
 | a check failing on the approved head (T26), sent back to the worker | none: no run, no stop | — |
 | a worker's check or dependency step failing (7.6, step 4) | none: not a failure, its result posted for the reviewers | — |
-| from R3 (7.9, specified ahead of its build), a worker's check or dependency step failing in packages the change does not touch or with an infrastructure signature, again after its one rerun (7.7, check environment) | the worker run's row, outcome `failed` | `environment` |
+| from R3 (7.9, specified ahead of its build), a worker's check or dependency step failing in packages the change does not touch, or with an infrastructure signature and no touched package failing, again after its one rerun (7.7, check environment) | the worker run's row, outcome `failed` | `environment` |
 | a plan cut short, or a kept commit not given back | none of Daisy's: Daisy detects neither; the member that meets it stops, naming `kept-work` | the member's |
 
 A block no run's row records, the merge step's or one set by hand, has
@@ -3629,7 +3632,9 @@ ran, whatever its end:
 In step 4, a check or dependency step that exited non-zero (not 125 to
 127) or timed out at the wall clock is classified once its services are removed, before step 5 and
 any post: a failure in packages the change does not touch, or whose
-output holds one of five infrastructure signatures, is run again once
+output holds one of five infrastructure signatures while no package the
+change touches fails, is run again once (a touched package's failure is
+the worker's, whatever its output holds)
 (`check rerun: <reason>`, its first output kept as `check-1.out` or
 `deps-1.out`), and the rerun's result is the check's; one classified
 again is the failure *check environment* (7.7), nothing pushed or
@@ -4033,7 +4038,7 @@ honest word among the nine, and none for a row that is no stop.
 | push rejected (worker) | work | 7.6 | `failed: push rejected` | T17 | empty |
 | the clone reaches outside itself (worker) | work | 7.6 | `failed: the clone reaches outside itself: <what>` | T17 | empty |
 | fetch failed (worker) | work | 7.6, step 1: the run's second failed fetch in a row from its clone, whatever the run's end (a fault too); the first is the pass's error, retried | `fetch failed: <error>` for each, then `failed: fetch: <error>` (the second's), unless the run failed already | T17, the note naming the error; a run that failed already names its own failure, then `Its commits could not be fetched from its clone: <error>.` | `environment` |
-| check environment (worker; R3, specified ahead of its build: 7.9) | work | 7.6, step 4: the check, or the dependency step, failed in packages the change does not touch or with an infrastructure signature, and failed so again on its one rerun | `check rerun: <reason>`, the rerun's lines, then `failed: check environment: <reason>`; `kept refs/swarm-runs/<n>-worker-<k>` | T17, the note naming the reason; nothing pushed, nothing posted on the pull request | `environment` |
+| check environment (worker; R3, specified ahead of its build: 7.9) | work | 7.6, step 4: the check, or the dependency step, failed in packages the change does not touch, or with an infrastructure signature and no touched package failing, and failed so again on its one rerun | `check rerun: <reason>`, the rerun's lines, then `failed: check environment: <reason>`; `kept refs/swarm-runs/<n>-worker-<k>` | T17, the note naming the reason; nothing pushed, nothing posted on the pull request | `environment` |
 | abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/exit` that is a regular file holding a number (7.2), whatever `out.md` holds: an empty or partial `out.md` of a member killed mid-run is never read; a run launched before the mark (its `argv` without the `sh -c` line) by no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`; for a worker, 7.6 steps 1 and 2 (`fetched <sha>`, and `kept refs/swarm-runs/<n>-worker-<k>` when it has commits; a fetch that fails with git's error is recorded, `fetch failed: <error>`, and is the pass's error, retried at the next pass as a worker run's is; a clone that reaches outside itself or holds no branch, or a second failed fetch in a row, keeps nothing, with `⚠ #<n> worker run <k>: abandoned; commits not kept (<reason>)` on stderr, and the run is collected); then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 | none: no stop, the role relaunched |
 | ended | — | a pass finds a run not its own with `started`, no end line, no container by the run's name and a `<run>/io/exit` that is a regular file holding a number (a run launched before the mark: a `<run>/io/out.md` that is a regular file): its member finished after the `apply` that started it died, whose `docker run` took the streams with it | `ended <time>`, with the status `exit` holds read as `docker run`'s (125–127 `fault: exit <code>`, any other non-zero `failed: exit <code>`), then the collection of 7.6 from `out.md`: no `cost` line, and a provider's fault the lost standard output reported is not seen | as the run's collection (posted, blocked, failed, stale or discarded) | as the run's collection |
 | orphan over time | — | a pass finds a container by the run's name, the run not its own, `started` more than `timeout` ago | `docker stop --time 30 <name>` sent; then abandoned as above, whatever `out.md` holds | as abandoned | as abandoned |
@@ -4409,7 +4414,9 @@ maintainer's verbs).
 *Specified ahead of its build* (Step 10 of the plan implementing the
 2026-11-19 swarm roadmap, R3; decisions
 [160](swarm/decisions/0160-one-declared-check-environment.md) and
-[161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)).
+[161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md),
+both amended by
+[162](swarm/decisions/0162-ci-builds-the-declared-image.md)).
 Until the steps that build it are built, sections 2 to 7.8 and 11 hold
 as written, each marking what R3 changes there.
 
@@ -4421,18 +4428,23 @@ declaration (R3a). Resources and notes mount outside the checkout
 (R3b). A check failure in a package the change does not touch, or one
 matching an infrastructure signature, is run again once automatically;
 one that persists goes to the maintainer with cause `environment`;
-neither kind reaches the worker or the reviewers (R3c).
+neither kind reaches the worker or the reviewers (R3c). And, at the
+checkpoint of the same day: CI builds the declared image itself and
+runs the check's targets in it, which the comparison with CI checks;
+and a signature classifies a failure as the environment's only when no
+package the change touches fails: a failure in a touched package always
+goes to the worker.
 
 **The declaration** is a repository's entry in `swarm.json` and its
 test services file (section 3), each part declared once:
 
 | Part | Declared in | The worker's and the reviewers' runs | The dependency step | The check | CI (compared, below) |
 |---|---|---|---|---|---|
-| the image | `repos[].image` | run in it | run in it | run in it | not compared: CI's toolchain is the product's to pin |
-| the check | `repos[].check` | named in the worker's and the reviewers' Task texts (7.4) | — | its argv | its `make` targets, or its whole argv |
+| the image | `repos[].image`, built from the product's `repos[].dockerfile` | run in it | run in it | run in it | built by CI from `dockerfile` at the head it checks, the check's targets run in it (CI builds the image, below) |
+| the check | `repos[].check` | named in the worker's and the reviewers' Task texts (7.4) | — | its argv | its `make` targets, run in the built image, or its whole argv |
 | the dependency step | `repos[].deps` | none: on the network, the tool fetches into the image's own cache, which the image makes writable by the run's uid | its `run`, and `deps.env`, the cache's place | `deps.env` and the cache, read-only, offline | not compared: CI fetches on its network |
-| the test services | the product's file, `repos[].services` or `compose.test.yaml`, at the commit run | its services on its own network, with `x-daisy-env` | none | its services on an internal network, with `x-daisy-env` | each job's `services`, and `x-daisy-env` against the jobs' variables |
-| the variables | `repos[].env` | given | given | given | against the jobs' variables |
+| the test services | the product's file, `repos[].services` or `compose.test.yaml`, at the commit run | its services on its own network, with `x-daisy-env` | none | its services on an internal network, with `x-daisy-env` | each job's `services`, whose network the image's container joins, and `x-daisy-env` against the variables given to that container |
+| the variables | `repos[].env` | given | given | given | against the variables given to the image's container |
 
 The variables are given in one order, each `--env` line after the
 last: `env`, then `deps.env` (the dependency step and the check), then
@@ -4472,6 +4484,96 @@ of when refused and removed as a worker's are (7.6, step 4), and its
 repository's `env` and `x-daisy-env`, so that a reviewer that runs the
 suite to probe a claim runs it as the worker and the check do.
 
+**CI builds the image** (decision
+[162](swarm/decisions/0162-ci-builds-the-declared-image.md)). The
+product's CI builds the image the swarm runs, from the same Dockerfile,
+and runs the check's targets in it. The Dockerfile is the product's:
+`repos[].dockerfile` (section 3) names its path in the repository, and
+the build context is the repository's root at the commit built, so the
+one file builds the swarm's `image` (the maintainer's build at `<base>`,
+`git -C <clone> archive <base> | docker build -t <image> -f <dockerfile> -`)
+and CI's (at the head CI checks, from its checkout). Four facts fix how:
+
+- **The base is local to the swarm's host.** The Dockerfile builds
+  `FROM` the member base (`daisy-member:1`) or a product base built from
+  it (gridapp's `daisy-member-gridapp:1`), images no registry holds. CI
+  reaches it because its runner's jobs use the swarm's host's Docker
+  (the host's socket mounted into each job, as the Gitea runner beside
+  the swarm has it), and a `docker build` without `--pull` takes a
+  `FROM` image that is local without pulling it.
+- **The image is built in a step, never named as a job's `container:`.**
+  A runner's `force_pull` governs the images the runner itself starts,
+  a job's `container:`, its `services` and a Docker action, each pulled
+  by name before the job's steps, a failed pull failing the job (act's
+  pull, read in its source; the Gitea fork's is *to confirm live*); a
+  step's `docker build` is the docker CLI's own call to the daemon,
+  which `force_pull` does not touch. A local-only tag as `container:`
+  would be pulled and fail, and a tag a step builds does not exist yet
+  when the job's container is made.
+- **The layer cache is the daemon's.** CI's builds and the maintainer's
+  share it, so a build whose base, Dockerfile and copied files are
+  unchanged reuses every layer; nothing passes `--no-cache`, and the
+  cache is pruned only as the host prunes its Docker.
+- **The checkout is copied into the image, not mounted.** The job's
+  workspace lives in the job's container (a Docker volume, or a path
+  inside it), which a sibling container cannot bind by its path, and
+  `--volumes-from` would hand the check the job's Docker socket too; so
+  a second build adds the checkout at `/job/work/<name>`, the path
+  Daisy's check and a worker's checkout have (The paths, above), owned
+  by the uid the check runs as.
+
+The job, in reference form (`<name>` the repository's, `<dockerfile>`
+its declared path, `<uid>:<gid>` the uid Daisy's check runs as, the
+swarm host's user's, 7.2; the variables and services gridapp's):
+
+```yaml
+  check:
+    runs-on: ubuntu-latest
+    services:                                # the test services file's
+      mongo:
+        image: mongo:7
+        options: --tmpfs /data/db --ulimit nofile=64000:64000
+      redis:
+        image: redis:7
+    env:                                     # repos[].env and x-daisy-env
+      GRIDAPP_TEST_MONGO_URI: mongodb://mongo:27017
+      GRIDAPP_TEST_REDIS_URI: redis://redis:6379
+    steps:
+      - uses: actions/checkout@v4
+      - name: build the declared image
+        run: docker build -t daisy-ci-<name>:${{ github.run_id }}-${{ github.run_attempt }} -f <dockerfile> .
+      - name: run the check in it
+        run: |
+          tag=daisy-ci-<name>:${{ github.run_id }}-${{ github.run_attempt }}
+          printf 'FROM %s\nCOPY --chown=<uid>:<gid> . /job/work/<name>\n' "$tag" | docker build -t "$tag-src" -f - .
+          docker run --rm --user <uid>:<gid> --network container:"$HOSTNAME" --env GRIDAPP_TEST_MONGO_URI --env GRIDAPP_TEST_REDIS_URI --workdir /job/work/<name> "$tag-src" make check test test-integration
+      - name: remove the tags
+        if: always()
+        run: docker image rm daisy-ci-<name>:${{ github.run_id }}-${{ github.run_attempt }} daisy-ci-<name>:${{ github.run_id }}-${{ github.run_attempt }}-src || true
+```
+
+The tag is the run's own, so two jobs that build different Dockerfiles
+at once (two pull requests) never run each other's image; removing the
+tags leaves the layers in the cache. `--network container:"$HOSTNAME"`
+puts the check in the job container's network, where the job's
+services answer by their names as they do to the job's own steps;
+`$HOSTNAME` is the job container's id because the runner names no
+hostname (act's, read in its source; the Gitea fork's is *to confirm
+live*). The check's targets run in one container, as Daisy's check
+runs them. Unlike Daisy's check, CI's is on the job's network, not an
+internal one, and fetches the head's modules itself, so the dependency
+step is not compared.
+
+**The limit.** CI can build the image only where its runner's Docker
+holds the base: a runner that shares the swarm's host's Docker, as the
+Gitea runner beside this swarm does, or one that builds the base itself
+first (Daisy's `images/member/`, then the product base's own
+Dockerfile), which this revision does not specify. A hosted runner
+(GitHub's) has neither: its build fails at `FROM`, which CI reports as
+a failure and the comparison, reading the workflow alone, cannot see.
+A registry holding the base, which a runner anywhere pulls, would lift
+the limit; it is not specified.
+
 **The comparison with CI.** Daisy reads, at each declared repository's
 `<base>` as the pass fetched it, the workflows its forge runs on a pull
 request: for kind `gitea`, the first of `.gitea/workflows/`,
@@ -4483,45 +4585,76 @@ default `protected`), so no job of the swarm's changes them. They are
 read with section 3's YAML subset, which gains literal and folded block
 scalars (`|` and `>`, with or without `-` or `+`) for every file it
 reads: a workflow's `run: |`. A file the subset still refuses is not
-compared, and says so. Three things are compared, the declaration and
-the test services file at the same commit:
+compared, and says so. A step's `run` is read as commands: each line,
+a line ending `\` joined to the next, cut at `&&`, `||`, `;` and `|`,
+its words split at blanks with their quotes removed and nothing
+expanded. Four things are compared, the declaration and the test
+services file at the same commit:
 
-1. **The targets.** When `check` is `make` and its targets, every
-   command of a step's `run` (each line, cut at `&&`, `||`, `;` and
-   `|`) whose first word is `make` runs the targets among its words
-   that begin with neither `-` nor `$` and hold no `=` (the argument of
-   a separate `-C`, `-f`, `-I`, `-o` or `-W` is no target). Each of the
-   check's targets that no step runs differs, and so does each target
-   a step runs that the check does not. When `check` is not `make`, a
-   step whose command is the check's argv, word for word, runs it, and
-   none differs.
-2. **The services.** Each service of the file is in some job's
-   `services`, by name, with the same `image`; each job's service is in
-   the file; and a service in both has the same `--tmpfs` paths and
-   `--ulimit` limits (CI's from its `options` words, `--tmpfs <path>` or
-   `--tmpfs=<path>`, `--ulimit <limit>` or `--ulimit=<limit>`; any other
-   option is not compared) and the same `env` as the file's
-   `environment`. A repository with no file at `<base>` and no job's
-   services has nothing to compare here.
-3. **The variables.** Each `env` and `x-daisy-env` variable is set, to
-   the same text, by some job that runs one of the check's targets (or,
-   for a check not `make`, the job whose step runs it): the step's
-   `env` over its job's over its workflow's. A variable no such job
-   sets differs, and so does one each such job sets otherwise. CI's
-   other variables (a runner's cache places, `GOCACHE`) are not
-   compared.
+1. **The image.** With `dockerfile` declared, a job is an **image job**
+   when a step of it runs `docker build` (or `docker image build`, or
+   `docker buildx build`) with the declared Dockerfile, `-f <dockerfile>`,
+   `-f=<dockerfile>`, `--file <dockerfile>` or `--file=<dockerfile>`,
+   and the checkout's root as its context (`.`, in a step with no
+   `working-directory`); the targets, the services and the variables
+   below are read from the image jobs alone, and from each the commands
+   `docker run` or `docker container run` that follow that build, in
+   its step or a later one (**the image's runs**). No image job differs. Which image a run
+   names is not traced through the shell's variables, and a build's
+   other options (`--build-arg`, `--target`) are not compared. With
+   `dockerfile` absent, CI has no declared image to build: that is one
+   difference, and the parts below read every job and every step's
+   command, as if each ran in the image.
+2. **The targets.** When `check` is `make` and its targets, an image's
+   run (with `dockerfile` absent, any command whose first word is
+   `make`) runs the targets among the words after its first word
+   `make` that begin with neither `-` nor `$` and hold no `=` (the
+   argument of a separate `-C`, `-f`, `-I`, `-o` or `-W` is no target).
+   Each of the check's targets that no image's run runs differs, and
+   so does each target a workflow step runs, in the image or not, that
+   the check does not. When `check` is not `make`, an image's run whose
+   words end with the check's argv, word for word, runs it, and none
+   differs.
+3. **The services.** Each service of the file is in some image job's
+   `services`, by name, with the same `image`; each image job's service
+   is in the file; and a service in both has the same `--tmpfs` paths
+   and `--ulimit` limits (CI's from its `options` words, `--tmpfs
+   <path>` or `--tmpfs=<path>`, `--ulimit <limit>` or
+   `--ulimit=<limit>`; any other option is not compared) and the same
+   `env` as the file's `environment`. An image job with services whose
+   run of the check's targets is not on the job's network
+   (`--network container:<id>` or `--network=container:<id>`, any
+   `<id>`) differs: its check reaches none of them. A repository with
+   no file at `<base>` and no image job's services has nothing to
+   compare here.
+4. **The variables.** Each `env` and `x-daisy-env` variable is set, to
+   the same text, in some image's run of one of the check's targets
+   (or, for a check not `make`, the run of its argv): given by the
+   run's own words, `--env <VAR>=<value>`,
+   `-e <VAR>=<value>` or `--env=<VAR>=<value>`, or passed through by
+   name, `--env <VAR>`, `-e <VAR>` or `--env=<VAR>`, from the step's
+   `env` over its job's over its workflow's (with `dockerfile` absent,
+   that `env` alone, of a job that runs one of the check's targets). A
+   variable no such run is given differs, and so does one each such run
+   is given otherwise. CI's other variables (a runner's
+   cache places, `GOCACHE`) are not compared.
 
 Each difference is one line,
 `⚠ <name>: CI differs from the declared check environment: <difference>`,
-`<difference>` one of `the check runs make <target>, which no workflow
-step runs`, `<file>, job <job> runs make <target>, which the check does
-not`, `no workflow step runs <check, as one shell-quoted line>`,
-`service <service>: image <image> in the test services file, <image> in
-<file>, job <job>`, `service <service> is in the test services file
-and in no workflow job`, `<file>, job <job>: service <service> is not
-in the test services file`, `service <service>: tmpfs <paths or none>
-in the test services file, <paths or none> in <file>, job <job>` (and
-`ulimits`, `environment`, likewise), `variable <VAR> is <value> in the
+`<difference>` one of `no workflow job builds the image from
+<dockerfile>`, `no dockerfile is declared, so CI does not build the
+check's image`, `the check runs make <target>, which no workflow step
+runs in the declared image` (`which no workflow step runs` with
+`dockerfile` absent), `<file>, job <job> runs make <target>, which the
+check does not`, `no workflow step runs <check, as one shell-quoted
+line>`, `service <service>: image <image> in the test services file,
+<image> in <file>, job <job>`, `service <service> is in the test
+services file and in no workflow job`, `<file>, job <job>: service
+<service> is not in the test services file`, `service <service>: tmpfs
+<paths or none> in the test services file, <paths or none> in <file>,
+job <job>` (and `ulimits`, `environment`, likewise), `<file>, job
+<job>: the check's container is not on the job's network, so it
+reaches none of its services`, `variable <VAR> is <value> in the
 declaration, <value> in <file>, job <job>`, `variable <VAR> is set by
 no job that runs the check's targets` and `<file>: not compared: line
 <l>: <reason>`. A repository whose forge runs no workflow on a pull
@@ -4538,7 +4671,9 @@ tells once (`<owner>/<repo> waits for you: ci differs <name>`, known
 by the repository's name); and `init`'s readiness prints them, each as
 `⚠ Readiness: <name>: CI differs from the declared check environment:
 <difference>` (section 11). Each is read from the mirrors, writing
-nothing.
+nothing. The comparison reads the workflow, not CI's results: that the
+image builds on the runner, and that the check passes in it, are CI's
+to report.
 
 **The classification** (R3c; decision 161). In the collection's step 4
 (7.6), when the check exited non-zero, or the dependency step did,
@@ -4546,32 +4681,40 @@ neither 125 to 127 (a swarm fault, as now), or either timed out at the
 wall clock, after its services are
 removed and before the push, the post and the workspace's `checks/`:
 
-- **A package the change does not touch.** For Go: the failed step's
-  output names a failing package on each line `FAIL<tab><import
-  path>`, with or without a time or a bracketed note (`[build
-  failed]`). The failure is in untouched packages when the output names
-  at least one and none is touched; an output that names none is not.
-  A package's directory is its import path below the module path of
-  the root `go.mod` at the head; a package outside that module is
-  touched. A package is touched when a file of the change (step 3's
-  `git diff --name-only <base>...<fetched>`) lies in its directory,
-  below it or above it, or when it imports, directly or through the
-  module's other packages, its test files' imports included, a package
-  so touched; the imports are read on the host from every `.go` file of
-  the head in the mirror (Go's parser, imports only), whatever its
-  build tags. For another language, and for a Go module below the root
-  or a `go.work`, no package is known untouched: only a signature
-  classifies.
+- **The failing packages.** For Go: the failed step's output names a
+  failing package on each line `FAIL<tab><import path>`, with or
+  without a time or a bracketed note (`[build failed]`). A package's
+  directory is its import path below the module path of the root
+  `go.mod` at the head; a package outside that module is touched. A
+  package is touched when a file of the change (step 3's `git diff
+  --name-only <base>...<fetched>`) lies in its directory, below it or
+  above it, or when it imports, directly or through the module's other
+  packages, its test files' imports included, a package so touched; the
+  imports are read on the host from every `.go` file of the head in the
+  mirror (Go's parser, imports only), whatever its build tags. For a Go
+  module below the root, or a `go.work`, every failing package it names
+  is outside the root module and so touched. For another language
+  Daisy reads no failing package.
 - **An infrastructure signature**: the failed step's whole output
   (`check.out`, or `deps.out`) holds one of exactly these five, matched
   ignoring case: `i/o timeout`, `server selection error`, `connection
   refused`, `network not found`, `too many open files`.
 
-A check or dependency step that timed out at the wall clock is
-classified by the signatures alone, in the output it wrote before it
-was stopped: `go test` names no failing package for a run it did not
-end. A test services file refused and a check or step that could not
-start are not classified. A failure
+A failure whose output names a failing package the change touches is
+the change's, whatever signature the output holds: it is never
+classified, and goes to the worker as any failing check (the
+maintainer's answer of 2026-11-19). Any other failure is classified
+when it is **in untouched packages**, its output naming at least one
+failing package and the step having ended by itself, or when its output
+holds **a signature**: a signature classifies a failure only when no
+package the change touches fails. So an output that names no failing
+package (another language's runner, a `gofmt` or `vet` step, the
+dependency step) is classified by a signature alone; and a check or
+dependency step that timed out at the wall clock is classified by the
+signatures alone, in the output it wrote before it was stopped (`go
+test` names no failing package for a run it did not end), unless that
+output already names a touched one. A test services file refused and a
+check or step that could not start are not classified. A failure
 classified is **run again once**, as it ran: `check rerun: <reason>` is
 recorded, `<reason>` `untouched packages <path>, …`, `signature
 "<signature>"` or both separated by `; `, the packages searched for the
@@ -4594,11 +4737,11 @@ then the check, as at first. The collection then reads the lines after
 The note reads `worker run <k> failed: check environment: <reason> (at
 swarm:<label>). Remove swarm:blocked to resume. Its commits are kept in
 the swarm's mirror as refs/swarm-runs/<n>-worker-<k>.` (7.6), and the
-two outputs are the run's `check-1.out` and `check.out`. A signature in
-a package the change touches persists to the maintainer as any other
-(the ruling's "or"): the maintainer who finds the failure the change's
-says so in the comment that lifts the block, and may retag the row
-(`swarm unblock <n> --cause <word>`). Once the block is lifted the role
+two outputs are the run's `check-1.out` and `check.out`. A failure the
+maintainer finds the change's after all (an untouched package failing
+through a coupling no import shows) is said so in the comment that
+lifts the block, and the row may be retagged (`swarm unblock <n>
+--cause <word>`). Once the block is lifted the role
 rule launches the next worker run, which starts from the held run's
 kept commits (7.8, The start); its check is a new check, classified and
 run again at most once as any, so no check is run again twice. A
@@ -4632,9 +4775,20 @@ the images pulled on the swarm's host (`docker pull mongo:7 redis:7`),
 and a `check` that runs the integration lane beside them (`make
 test-integration`, which needs both variables), so that the lane CI
 runs at merge runs in Daisy's check, and in the worker's and the
-reviewers' runs, before review. The comparison then names what still
-differs (gridapp's CI runs `make build`, which its check does not).
-Once that holds, the workarounds in the swarm's notes about gridapp, a
+reviewers' runs, before review. Its image's Dockerfile moves from the
+swarm repository (its `images/` directory, built from archives of
+gridapp's branches the maintainer copies beside it) into gridapp, at a
+path its `swarm.json` entry declares as `dockerfile` and its
+`protected` holds, as the workflows are, so that no job changes the
+image CI builds: `FROM daisy-member-gridapp:1`, the module cache warmed
+from the root's `go.mod` and `go.sum` and left writable by the run's
+uid (decision 160's fix to its image), built at `<base>` as the swarm's
+`image` and by CI at each head. Its CI workflow, the maintainer's file,
+then builds that image and runs the check's targets in it, in the
+reference form above, in place of `setup-go` on the runner's own image;
+the comparison names what still differs (gridapp's CI runs `make
+build`, which its check does not, until one of the two changes). Once
+that holds, the workarounds in the swarm's notes about gridapp, a
 `PATH` and a `GOMODCACHE` to set by hand, an image to rebuild for each
 module, and the rule to say in a pull request that only CI runs a
 MongoDB-only test, are deleted (R3d).
@@ -5736,8 +5890,9 @@ what is missing, on stderr, without refusing:
 (these two once per declared repository),
 `⚠ Readiness: resources is empty; the owner proposes from the code alone` and
 `⚠ Readiness: trusted holds no maintainer login; no comment of yours reaches a member`.
-From R3 (7.9, specified ahead of its build; decision
-[160](swarm/decisions/0160-one-declared-check-environment.md)), once
+From R3 (7.9, specified ahead of its build; decisions
+[160](swarm/decisions/0160-one-declared-check-environment.md) and
+[162](swarm/decisions/0162-ci-builds-the-declared-image.md)), once
 the mirrors are fetched, `⚠ Readiness: <name>: CI differs from the
 declared check environment: <difference>` for each difference 7.9's
 comparison with CI finds at the repository's `<base>`, never a refusal.

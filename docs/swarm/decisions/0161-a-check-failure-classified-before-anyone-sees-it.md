@@ -88,8 +88,12 @@ pushed, nothing is posted on the pull request, no `checks/<sha>.log` is
 written, so neither the worker nor the reviewers see it. The reason
 names the failing packages or the signature, the two outputs are in
 the run's directory, and the note is on the issue, which no worker's or
-reviewer's prompt shows. A signature in a package the change touches
-persists to the maintainer too, as the ruling reads; the maintainer who
+reviewer's prompt shows. (*Amended by decision
+[162](0162-ci-builds-the-declared-image.md): a failure in a package the
+change touches is the worker's, whatever signature its output holds;
+the next sentence is the decision as first taken.*) A signature in a
+package the change touches persists to the maintainer too, as the
+ruling reads; the maintainer who
 finds it the change's says so in the comment that lifts the block and
 retags the cause (`swarm unblock <n> --cause <word>`, decision 154).
 Holding the collection itself at step 4 until the block is lifted, and
@@ -113,3 +117,13 @@ run's `result`, whatever its end; a failure that persists as the
 issue's block, its note, `status`'s Waiting for you (`blocked`) and the
 row's cause, which R3's measure counts (stops with cause
 `environment`: 0).
+
+**Amended by decision [162](0162-ci-builds-the-declared-image.md)
+(Step 10b of the plan implementing the 2026-11-19 swarm roadmap, R3),
+specified ahead of its build.** On the maintainer's answer at the
+checkpoint, a signature classifies a failure as the environment's only
+when no package the change touches fails: a failure whose output names
+a touched failing package is never classified and goes to the worker,
+whatever signature it holds. An output naming no failing package is
+classified by a signature alone, as before, and a timeout likewise
+unless its output already names a touched failing package.
