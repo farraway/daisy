@@ -245,11 +245,8 @@ func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
 		subject = " " + pullLink(s.owner(), cur) + ", closed unmerged"
 	}
 	// The plan and the reviews read from the job's workspace (readPlan,
-	// text), a review it does not hold read whole (readWhole).
+	// text), each file it needs alone.
 	j := &Job{SwarmLogin: s.SwarmLogin, N: is.Number, Issue: is, Outputs: s.outputs(), Pulls: pulls, Pull: &PullThread{Comments: comments, Reviews: reviews}}
-	if err := j.readWhole(); err != nil {
-		return "", nil, fmt.Errorf("#%d: %w", is.Number, err)
-	}
 	if err := j.readPlan(); err != nil {
 		return "", nil, fmt.Errorf("#%d: %w", is.Number, err)
 	}

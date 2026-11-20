@@ -42,7 +42,8 @@ func (s *Swarm) mention() string {
 // `question` (a question passed to the maintainer) or `blocked` at any
 // stage, else `triage`, `plan`, or at review-2-approved what its current
 // pull request calls for (AfterApproval, of pulls, its pull requests);
-// "" for an issue with no stage, or two. The plan is read whole through o.
+// "" for an issue with no stage, or two. The plan is read from the job's
+// workspace through o (planSlices).
 func Waiting(is forge.Issue, pulls []forge.Pull, swarmLogin string, o Outputs) (string, error) {
 	stage, ok := StageOf(is)
 	switch {

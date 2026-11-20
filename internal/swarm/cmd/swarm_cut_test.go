@@ -209,8 +209,12 @@ func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 				t.Errorf("the plan gate's note: %q", notes)
 			}
 			if gone {
-				if err := os.Remove(a.state("runs/1-architect-1/io/out.md")); err != nil {
-					t.Fatal(err)
+				// Its texts/ file too, which a plan built in memory would
+				// read: plan.md alone holds the plan whole.
+				for _, f := range []string{"runs/1-architect-1/io/out.md", "jobs/1/texts/1-architect-1.md"} {
+					if err := os.Remove(a.state(f)); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 
@@ -253,7 +257,8 @@ func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 // cut, and, the pull request merged by hand, status's Waiting for you,
 // which waits on the next slice, not the close (sections 7.5, 11 and 12).
 // Each reads the job's workspace (section 7.8, Daisy's own reads), so
-// with every run's out.md deleted before the gate note it holds.
+// with the reviews' out.md deleted and the plan's unreadable before the
+// gate note it holds.
 func TestSwarmCutTextsTheMaintainerIsToldOf(t *testing.T) {
 	a := newApplyWS(t)
 	a.inReview(bigSlices)
@@ -261,12 +266,19 @@ func TestSwarmCutTextsTheMaintainerIsToldOf(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: long})
 	a.pass() // the pair: T9, and the gate note
-	// The outputs deleted and the note tidied away, so that the next pass
-	// posts it again: the plan read from plan.md, the review from texts/
-	// (section 7.8, Daisy's own reads).
+	// The reviews' outputs deleted, the plan's made unreadable, and the
+	// note tidied away, so that the next pass posts it again: the plan
+	// read from plan.md, the review from texts/, and no other file read
+	// (section 7.8, Daisy's own reads: the files it needs, never every
+	// text on the threads).
 	outs, _ := filepath.Glob(a.state("runs/1-*/io/out.md"))
 	for _, o := range outs {
-		if err := os.Remove(o); err != nil {
+		if strings.Contains(o, "architect") {
+			if err := os.Chmod(o, 0o000); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.Chmod(o, 0o644) })
+		} else if err := os.Remove(o); err != nil {
 			t.Fatal(err)
 		}
 	}

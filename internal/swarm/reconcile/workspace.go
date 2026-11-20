@@ -73,8 +73,10 @@ func writtenOnce(rel string) bool {
 // its first lines (section 7.8, Daisy's own reads): its file in the
 // job's workspace, texts/<n>-<role>-<k>.md, as its collection wrote it;
 // with none there (a job not yet built, or a review held for its round),
-// as the replay would take it, whole (whole). A file there that cannot
-// be read is the error, the job's own (unusableError).
+// as the replay would take it: when Daisy cut it on the forge (cutRun),
+// its own run's out.md, read alone, if that output can be given whole
+// (Outputs.Text), else as posted. A file there that cannot be read is
+// the error, the job's own (unusableError).
 func (j *Job) text(m Mark, posted string) (string, error) {
 	rel := path.Join("texts", fmt.Sprintf("%d-%s-%d.md", j.N, m.Role, m.Run))
 	b, err := j.Outputs.FS.ReadFile(filepath.Join(j.Outputs.State, "jobs", strconv.Itoa(j.N), filepath.FromSlash(rel)))
@@ -84,7 +86,16 @@ func (j *Job) text(m Mark, posted string) (string, error) {
 	if err = workspaceUnusable(j.N, rel, m.Run, err); !errors.Is(err, iofs.ErrNotExist) {
 		return "", err
 	}
-	return j.whole(m, posted), nil
+	if run, at, _ := cutRun(j.N, m, posted); at >= 0 {
+		text, ok, err := j.Outputs.Text(run)
+		if err != nil {
+			return "", fmt.Errorf("output %s: %w", run, err)
+		}
+		if ok {
+			return text, nil
+		}
+	}
+	return posted, nil
 }
 
 // writePlan writes an architect's plan, collected on issue n, to

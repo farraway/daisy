@@ -606,7 +606,7 @@ var cutTail = regexp.MustCompile(`^(?: and attached as \[[^\]\n]*\]\([^)\s]*\)|;
 // and the run's output was read whole (readWhole), the run's out.md;
 // text as posted otherwise. A prompt reads a review's findings so until
 // the switch (R1-10); Daisy's own reads read the workspace (text,
-// PlanText), and whole only for a text it does not hold.
+// PlanText).
 func (j *Job) whole(m Mark, text string) string {
 	if run, at, _ := cutRun(j.N, m, text); at >= 0 {
 		if out, ok := j.wholes[run]; ok {
