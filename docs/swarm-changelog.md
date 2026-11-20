@@ -490,3 +490,26 @@ they write.
   human record's; a job in flight built by replaying its runs; sections
   1, 2, 7.1 to 7.6, 7.8, 9 and 11; decision
   [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md).
+- 2026-11-19, Step 9b of the plan implementing the 2026-11-19 swarm
+  roadmap (R1, design revised at Step 9's stop): every member run is
+  one folder, `/job` (`<run>/job`, read-write, the run's own), its
+  checkouts at `/job/work/<name>` for every role, its io at `/job/io`
+  (was `/work/.swarm`), its notes and resources at `/job/notes` and
+  `/job/resources`, the job's workspace read-only at `/job/memory` (was
+  `/work/.job`); a confined CLI starts in `/job`, every other in its
+  checkout with `/job` its one `--add-dir`; no mount in a checkout and
+  none in a read-only mount; the check and the dependency step keep
+  `/work`. The architect's builder plan is a document of its own,
+  `<run>/io/builder.md` beside the plan's `out.md`, secret-checked, not
+  posted, kept as the workspace's `builder.md` and re-issued whole with
+  each revised plan (and, R5 deciding when, an amendment), each
+  `slice.md` the slice's step and its `## Slice <s>` section; the plan's
+  required `## For the builder` section is retired. `swarm merge`
+  refuses a job with no workspace yet whose cut plan's `out.md` is
+  gone; a revised plan's `Start: base` line resets the start; the
+  collection's step 1 reads `<run>/work/<name>/.git`; `branches.md`'s
+  readers named; a review whose round can no longer complete written to
+  `texts/` at the next collection. Sections 1, 2, 7.1 to 7.6, 7.8, 8, 9
+  and 11; decision
+  [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md)
+  (0158 amended).

@@ -120,3 +120,19 @@ retired by the step that switches the members over (decisions 24, 87,
 148 and 149 are amended then). Decision 150's attachment and
 continuations stay, as the human record's, the maintainer having chosen
 them for the forge's readers.
+
+**Amended by decision [159](0159-one-folder-per-run-and-the-builder-plan.md)
+(Step 9b of the plan implementing the 2026-11-19 swarm roadmap), before
+any of it was built.** The run's folder and the mount above are
+replaced: every member run is one folder, `/job` (`<run>/job`, the
+run's own), its checkouts at `/job/work/<name>`, its io at `/job/io`,
+its notes and resources at `/job/notes` and `/job/resources`, and the
+workspace read-only at `/job/memory`, not at `/work/.job`; a confined
+CLI starts in `/job`, every other in its checkout with `/job` given by
+`--add-dir`. The plan carries no `## For the builder` section: the
+architect writes a builder plan of its own, `<run>/io/builder.md`
+beside `out.md`, kept in the workspace as `builder.md` and re-issued
+whole, from whose `## Slice <s>` sections `slice.md` is cut. `swarm
+merge` refuses a job with no workspace yet whose cut plan's `out.md` is
+gone, and a revised plan's `Start: base` line resets the start as an
+answer's does.
