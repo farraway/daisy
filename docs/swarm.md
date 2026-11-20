@@ -4505,7 +4505,8 @@ Step R1-10b of the plan implementing the 2026-11-19 swarm roadmap): as
 the prompt is rendered, for the texts it shows alone, with a text with
 no file in `texts/` read as Daisy's own reads take it (below), and a
 file there that cannot be read blocking the issue before the run is
-launched (7.7). `# Direction` holds the
+launched (7.7), and before the pair's second reviewer is, its note
+posted once. `# Direction` holds the
 maintainer's comments since the plan's newest basis, the plan or the
 architect's newest `STANDS:` after it (section 6, The re-plan), so a
 re-plan request the architect answered `STANDS:` is no longer shown to

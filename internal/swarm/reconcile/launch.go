@@ -71,7 +71,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		st, err := s.start(j, sl, repo, branch, !newBranch)
 		if err != nil {
 			fs.RemoveAll(r.Dir)
-			_, err = s.blockUnusable(j.Issue, err)
+			j.blocked, err = s.blockUnusable(j.Issue, err)
 			return false, err
 		}
 		j.Start = st
@@ -149,7 +149,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	// workspace blocks the issue alone (section 7.8, The prompt).
 	if err := j.TextErr(); err != nil {
 		fs.RemoveAll(r.Dir)
-		_, err = s.blockUnusable(j.Issue, err)
+		j.blocked, err = s.blockUnusable(j.Issue, err)
 		return false, err
 	}
 	for _, f := range []struct{ name, text string }{{"system.md", system}, {"prompt.md", prompt}} {

@@ -408,3 +408,32 @@ func TestUnreadableTextBlocksTheLaunch(t *testing.T) {
 		t.Errorf("not blocked: %v, last comment:\n%s", got, a.lastComment(1))
 	}
 }
+
+// A pair of reviewers whose prompts show a text in texts/ that cannot be
+// read, the round's review, blocks the issue once, the note posted once,
+// neither reviewer launched (sections 7.7 and 7.8, The prompt).
+func TestUnreadableTextBlocksAPairOnce(t *testing.T) {
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	a.changesRequested()
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	closed := a.state("jobs/1/texts/1-adversary-1.md")
+	if err := os.Chmod(closed, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(closed, 0o644) })
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	before := len(a.bodies(1))
+	a.pass()
+	notes := 0
+	for _, b := range a.bodies(1)[before:] {
+		if strings.Contains(b, "Daisy cannot use jobs/1/texts/1-adversary-1.md") {
+			notes++
+		}
+	}
+	if notes != 1 || !slices.Contains(labels(a.issue(1)), forge.Blocked) || a.result("1-adversary-2") != "" || a.result("1-sympathetic-2") != "" {
+		t.Errorf("%d notes, labels %v\n%s", notes, labels(a.issue(1)), a.stdout.String())
+	}
+}
