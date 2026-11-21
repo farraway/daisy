@@ -76,6 +76,12 @@ func TestClassify(t *testing.T) {
 	vendors.Packages["ws/vendor/github.com/dep/w"] = GoPackage{}
 	vendors.Packages["api"] = GoPackage{Imports: []string{"github.com/dep/y"}}
 	vendors.Packages["report"] = GoPackage{Imports: []string{"github.com/dep/w"}}
+	libSub := appFacts()
+	libSub.Packages["lib/sub"] = GoPackage{}
+	libSub.Packages["api"] = GoPackage{Imports: []string{"example.com/lib/sub"}}
+	unreadAt := appFacts()
+	unreadAt.Modules[2].Path = ""
+	unreadAt.Packages["tools"] = GoPackage{}
 	unreadRoot := appFacts()
 	unreadRoot.Modules[0].Path = ""
 	deleted := appFacts()
@@ -127,6 +133,10 @@ func TestClassify(t *testing.T) {
 		{"a package in a submodule", fail("example.com/app/ext/sub/pkg") + refused, storeGo, sub, false, Classification{}},
 		{"a submodule the change leaves", fail(appAPI), storeGo, sub, false, Classification{Untouched: []string{appAPI}}},
 		{"a submodule the change leaves, an importer elsewhere", fail(appWeb), storeGo, sub, false, Classification{Untouched: []string{appWeb}}},
+		{"imported from a package of a module below the root", fail(appAPI), []string{"lib/sub/x.go"}, libSub, false, Classification{}},
+		{"an untouched package's build failed", "FAIL\texample.com/app/web [build failed]\n", storeGo, appFacts(), false, Classification{Untouched: []string{appWeb}}},
+		{"the root package, nothing changed", fail("example.com/app"), nil, rootPkg, false, Classification{Untouched: []string{"example.com/app"}}},
+		{"a module below the root at its own directory, its path not read", fail("example.com/app/tools") + refused, storeGo, unreadAt, false, Classification{}},
 		{"a go.work at the root", fail(appWeb) + refused, storeGo, work, false, Classification{}},
 		{"a go.work above the package", fail(appWeb) + refused, storeGo, workBelow, false, Classification{}},
 		{"a go.work elsewhere", fail(appTestutil), storeGo, workBelow, false, Classification{Untouched: []string{appTestutil}}},
