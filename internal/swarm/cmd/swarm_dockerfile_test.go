@@ -32,6 +32,7 @@ func TestDeclaredDockerfileIsProtected(t *testing.T) {
 		name      string
 		base      string   // a file landed on base before the run
 		protected []string // added to app's protected
+		none      bool     // app's protected is []
 		work      func(string) error
 		reason    string // "" when the run is pushed
 	}{
@@ -52,6 +53,8 @@ func TestDeclaredDockerfileIsProtected(t *testing.T) {
 		{name: "beside a protected path", base: df, work: in("app", commit(map[string]string{".gitea/workflows/ci.yml": "on: push\n", "main.go": "v1\n", df: "FROM elsewhere:1\n"}, "v1")),
 			reason: "protected path changed: .gitea/workflows/ci.yml, " + df},
 		{name: "a file of the same name elsewhere", base: df, work: in("app", commit(map[string]string{"main.go": "v1\n", "Dockerfile": "FROM x:1\n", "images/Dockerfile": "FROM x:1\n", "images/ci/dockerfile": "FROM x:1\n", "images/ci/Dockerfile.dev": "FROM x:1\n"}, "v1"))},
+		{name: "protected empty", base: df, none: true, work: in("app", commit(map[string]string{"main.go": "v1\n", df: "FROM elsewhere:1\n"}, "v1")),
+			reason: "protected path changed: " + df},
 		{name: "renamed in", base: "images/ci/Dockerfile.new", work: mv("images/ci/Dockerfile.new", df), reason: "protected path changed: " + df},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -61,6 +64,9 @@ func TestDeclaredDockerfileIsProtected(t *testing.T) {
 			a.edit(func(c *declare.Config) {
 				c.Repos[0].Dockerfile = ptr(df)
 				c.Repos[0].Protected = append(c.Repos[0].Protected, tc.protected...)
+				if tc.none {
+					c.Repos[0].Protected = []string{}
+				}
 				declared = c.Repos[0].Protected
 			})
 			if tc.base != "" {
@@ -89,6 +95,9 @@ func TestDeclaredDockerfileIsProtected(t *testing.T) {
 			want := "These paths are protected: " + strings.Join(append(declared, df), ", ") + "."
 			if tc.protected != nil {
 				want = "These paths are protected: " + strings.Join(declared, ", ") + "."
+			}
+			if tc.none {
+				want = "These paths are protected: images/ci/Dockerfile."
 			}
 			if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, want) {
 				t.Errorf("the Task text lacks %q:\n%s", want, sys)
