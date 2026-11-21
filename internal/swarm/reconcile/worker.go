@@ -138,18 +138,24 @@ func (c *collection) toPush() bool {
 
 // keep is step 2: a worker run that does not push keeps its commits as
 // the run's ref, `kept <ref>`, and names them in its slice's kept unless
-// they are refused (section 7.8); one with none drops the ref.
+// they are refused (section 7.8); one with none drops the ref. A run with
+// only the kept commits it started from to push (toPush) keeps them as
+// its ref too, so its note names them, and leaves kept naming the kept
+// run, its fetched commit not past its start.
 func (c *collection) keep() error {
 	if _, ok := Has(c.lines, "fetched"); !ok {
 		return nil
 	}
-	if !c.commits() {
+	if !c.toPush() {
 		return c.s.git().DropRef(branchRepo(c.lines), runRef(c.r))
 	}
 	if _, ok := Has(c.lines, "kept"); !ok {
 		if err := c.step("kept " + runRef(c.r)); err != nil {
 			return err
 		}
+	}
+	if !c.commits() {
+		return nil
 	}
 	if reason, err := c.refused(); err != nil || reason != "" {
 		return err

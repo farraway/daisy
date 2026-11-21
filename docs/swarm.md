@@ -3641,7 +3641,9 @@ ran, whatever its end:
    check block, its run's ref dropped and nothing pushed, then T12.
 2. When the run failed, wrote `BLOCKED:`, ended in a swarm fault or was
    abandoned (7.7: step 1 is made for it too, its clone otherwise
-   unread) and has commits past `start`, the ref stays (`kept refs/swarm-runs/<n>-worker-<k>`);
+   unread) and has commits past `start`, or, from a start at kept
+   commits not yet on the slice's branch, those to push (7.9, The
+   classification; from Step R3-8), the ref stays (`kept refs/swarm-runs/<n>-worker-<k>`);
    for a failure or `BLOCKED:` the reconciler note names it (a fault
    posts nothing, 7.7), so the maintainer can read the work or
    continue from it; pruning these refs is the maintainer's. Collection
@@ -4159,7 +4161,7 @@ honest word among the nine, and none for a row that is no stop.
 | no output | work | 7.5 | `failed: no output` | T17 | empty |
 | bad verdict | work | 7.5 | `failed: bad verdict` | T17 | empty |
 | bad slices (architect; a worker whose slice's repository no longer resolves, or whose continued pull request's repository the revised plan no longer names) | work | 7.5; 7.1 step 2, before the launch (`launch-failed <time>`) | `failed: bad slices: <slice numbers>` | T17, the note naming the slices | `plan` |
-| no commits (worker, but for the answer without a commit, 7.5) | work | 7.6 | `failed: no commits` | T17 | empty |
+| no commits (worker, but for the answer without a commit, 7.5, and a start at kept commits not yet on the slice's branch, which has those to push, 7.9, The classification) | work | 7.6 | `failed: no commits` | T17 | empty |
 | protected path changed (worker) | work | 7.6 | `failed: protected path changed: <paths>` | T17, the note naming the paths | `scope` |
 | secret in output | work | 7.6, the secret check: `out.md`, an architect's builder plan, a worker's commits, a screenshot it took or the posted tail of `check.out` or `deps.out`, or its whole output when the check failed (7.8, `checks/`), holds a secret the member was given | `failed: secret in output: <out.md, builder.md, commits, artifacts/<name>, check.out or deps.out>` | T17, the note naming where, never the value; nothing posted or pushed | empty |
 | push rejected (worker) | work | 7.6 | `failed: push rejected` | T17 | empty |
@@ -5312,11 +5314,15 @@ its check block, then T8 or T12; a `NO CHANGE:` first line on
 `review-3-changes-requested` is then a revision's text, not an answer
 without a commit, since the head the pair reviews moves. Its fetched
 commit is not past its `start`, so its collection leaves `kept`
-naming the kept run (7.8, `slices/<s>/kept`), as the replay writes it,
-and drops its own run's ref, the kept run's holding the commit; its
-row's lines are `start..pushed`'s, none (the kept commits' lines are
-on no row, as for any start from kept since Step R1-8). A run launched before this build records no
-`unpushed` line, and its collection is as it was. Tests:
+naming the kept run (7.8, `slices/<s>/kept`), as the replay writes it;
+one that does not push (a failure, `check environment` among them, a
+`BLOCKED:`, a question, a fault or abandoned) keeps the commits as its
+own run's ref, `kept refs/swarm-runs/<n>-worker-<k>`, which its note
+names (7.6, step 2), as a run with commits of its own does. Its row's
+lines are `start..pushed`'s, none (the kept commits' lines are on no
+row, as for any start from kept since Step R1-8). A run launched
+before this build records no `unpushed` line, and its collection is as
+it was. Tests:
 `TestSwarmKeptStartPushedWithoutNewCommits`.
 
 **gridapp's adoption** is its maintainer's change to gridapp, not

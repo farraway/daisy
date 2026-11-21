@@ -134,6 +134,67 @@ func TestSwarmKeptStartPushedWithoutNewCommits(t *testing.T) {
 		}
 	})
 
+	// A collection retried after its push (here, the pull request
+	// refused once) reads its launch's line again: pushed once, then
+	// posted, not no commits.
+	t.Run("retried after its push", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", half("BLOCKED: which version?\n"))
+		a.pass()
+		kept := a.keptOf()
+		a.say(issue1, "jane", "v1; half is it.")
+		a.runner.Script(1, "worker", nothing("main.go as kept is v1's."))
+		refuse := true
+		a.tick()
+		if err := a.apply(pullRefused{a.git(), &refuse}, "--once"); err == nil || !strings.Contains(err.Error(), "the forge is down") {
+			t.Fatalf("apply: %v\n%s", err, a.stdout.String())
+		}
+		if r := a.result("1-worker-2"); !strings.Contains(r, "\npushed "+kept+"\n") || strings.Contains(r, "outcome") {
+			t.Fatalf("not pushed, or collected:\n%s", r)
+		}
+		refuse = false
+		a.pass() // the collection, then the pair, unscripted
+		r := a.result("1-worker-2")
+		if strings.Count(r, "\npushed ") != 1 || strings.Contains(r, "failed") || !strings.HasSuffix(r, "outcome posted\ncollected\n") {
+			t.Errorf("not pushed once and posted:\n%s", r)
+		}
+		if p := a.pulls(1); len(p) != 1 || p[0].HeadSHA != kept {
+			t.Errorf("the pull request %+v, want one on the kept %s", p, kept)
+		}
+	})
+
+	// A check held in the environment (section 7.9, The classification):
+	// nothing pushed, the kept commits held as the run's ref, which the
+	// note names, and kept still naming the kept run.
+	t.Run("the check held in the environment", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.goApp()
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: which version?\n", Work: in("app", commit(map[string]string{"store/store.go": "package store\n\n// half\n"}, "Half"))})
+		a.pass()
+		kept := a.keptOf()
+		a.say(issue1, "jane", "v1; half is it.")
+		a.runner.Script(1, "worker", nothing("store.go as kept is v1's."))
+		a.runner.Script(1, "check", runner.Canned{Code: 1, Stdout: webFailed}, runner.Canned{Code: 1, Stdout: webFailed})
+		a.pass()
+		r := a.result("1-worker-2")
+		inOrder(t, r, "\nunpushed "+kept+"\n", "\ncheck rerun: untouched packages example.com/app/web\n", "\nfailed: check environment: untouched packages example.com/app/web\n", "\nkept refs/swarm-runs/1-worker-2\n", "\noutcome failed\n")
+		if strings.Contains(r, "\npushed ") || len(a.pulls(1)) != 0 {
+			t.Errorf("pushed or posted:\n%s", r)
+		}
+		b := a.bodies(1)
+		if note := "Its commits are kept in the swarm's mirror as refs/swarm-runs/1-worker-2."; !strings.Contains(b[len(b)-1], note) {
+			t.Errorf("note %q", b[len(b)-1])
+		}
+		if ref := a.gitRunIn(a.state("git/app"), "rev-parse", "refs/swarm-runs/1-worker-2"); ref != kept {
+			t.Errorf("the run's ref %q, want the kept %s", ref, kept)
+		}
+		if k, _ := a.jobFile(1, "slices/1/kept"); !strings.HasPrefix(k, "1-worker-1 ") {
+			t.Errorf("kept %q, want the kept run 1-worker-1's", k)
+		}
+	})
+
 	// The slice's branch already holds the kept commit, pushed by hand
 	// with no pull request opened: nothing to push.
 	t.Run("a kept commit pushed by hand, no pull request", func(t *testing.T) {

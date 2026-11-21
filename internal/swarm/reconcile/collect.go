@@ -598,7 +598,7 @@ func (c *collection) keptNote() (string, error) {
 		}
 		return " Its commits could not be fetched from its clone: " + f[len(f)-1] + ".", nil
 	}
-	if !c.commits() {
+	if !c.toPush() {
 		return "", nil
 	}
 	return " Its commits are kept in the swarm's mirror as " + runRef(c.r) + ".", nil

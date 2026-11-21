@@ -239,5 +239,8 @@ a commit, the kept commits left unpushed, was the alternative, and
 would let the pair approve, and the merge step merge, a head without
 the work the worker vouched for. The run's fetched commit is not past
 its start, so `kept` still names the kept run, as the replay writes
-it. Section 7.9's As built for the step has the rest. Tests:
+it; one that does not push keeps the commits as its own run's ref,
+which its note names, as the note's text says (dropping the ref, the
+kept run's still holding the commit, was the alternative: the note
+would then name no ref). Section 7.9's As built for the step has the rest. Tests:
 `TestSwarmKeptStartPushedWithoutNewCommits`.
