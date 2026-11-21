@@ -20,13 +20,14 @@ import (
 // review_effect, read from what the runs left, no model judging a
 // finding. A review not posted raised none; nor did one approving. A
 // review requesting changes is credited its `[blocking]` findings when
-// its role's next posted review on the issue is of the next round (the
-// same pull request, its rounds counted on), on another head (the
-// worker pushed since) and approves; 0 when that review is on the same
-// head (the findings answered, not fixed) or requests changes again;
-// unknown while no next review is collected, or when the next is of
-// another round (a re-plan counts the rounds again; another pull
-// request starts at 1).
+// its role's next posted review on the issue is on the same pull
+// request, whatever round (a later round: the rounds counted on; the
+// other reviewer may have completed the rounds between alone, decision
+// 163), on another head (the worker pushed since) and approves; 0 when
+// that review is on the same head (the findings answered, not fixed) or
+// requests changes again; unknown while no next review is collected, or
+// when the next is of a round not after its own (a re-plan counts the
+// rounds again; another pull request starts at 1).
 
 // runEffect is a reviewer run's review_effect, "" for unknown.
 type runEffect struct {
@@ -98,7 +99,7 @@ func effectOf(r reviewRun, after []reviewRun) string {
 	}
 	i := slices.IndexFunc(after, func(n reviewRun) bool { return n.posted })
 	switch {
-	case i < 0 || r.round == 0 || after[i].round != r.round+1:
+	case i < 0 || r.round == 0 || after[i].round <= r.round:
 		return ""
 	case after[i].head == r.head || !after[i].approves:
 		return "0"

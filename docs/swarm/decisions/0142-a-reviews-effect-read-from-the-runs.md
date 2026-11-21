@@ -40,3 +40,17 @@ other cell carried over, and `swarm metrics --reprice` makes the same
 row for runs recorded before; the plan's review rows, which no runs
 back, take the same column from `metrics add --review-effect`, so one
 column holds both and `daisy metrics` sums it by role and model.
+
+**Amended by Step R3-12 of the plan implementing the 2026-11-19 swarm
+roadmap (2026-11-21).** Since decision
+[163](0163-the-sympathetic-reviewer-after-the-adversary-approves.md) the
+adversary may complete a round alone, so the sympathetic reviewer's
+next review after it requests changes can be two or more rounds later,
+which the next-round rule read as unknown. A review requesting changes
+is now credited from its role's next posted review on the same pull
+request whatever round: one whose `round` line is higher than its own
+(the rounds counted on); a next review whose round is not higher (a
+re-plan counting the rounds again, another pull request starting at 1)
+leaves it unknown, as before. The pull request is read from the rounds
+alone, as before: no run records which pull request it reviewed.
+Test: `TestSwarmReviewEffectAcrossAnAdversaryOnlyRound`.

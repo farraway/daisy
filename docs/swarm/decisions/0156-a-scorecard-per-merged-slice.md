@@ -118,3 +118,11 @@ open question of the window's end is answered: `--until <time>`,
 inclusive as `--since` is, leaves out every record and merge after it,
 of the slices' lines as of the summary, and the window ends at it or
 now, whichever is earlier.
+
+**Amended by Step R3-12 of the plan implementing the 2026-11-19 swarm
+roadmap (2026-11-21).** The scorecard adds, after its summary, the
+window's runs by role and configuration (the rows' `provider`,
+`model`, `effort` and `prompt_hash`), a line each with its runs,
+tokens, estimate, stops and, for a reviewer, its review effect, so two
+setups of one role compare side by side (section 11, The scorecard, By
+configuration). Test: `TestScorecardByConfiguration`.

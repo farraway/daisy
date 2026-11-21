@@ -1225,6 +1225,29 @@ func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
 	}
 	fmt.Fprintf(out, "Summary, %s (%s): %d slices merged; %d runs, %s per merge; input %s tokens per merge; worker stop rate %s (%d of %d worker runs); %d interventions, %s a day\n",
 		window, days, sm.Merges, sm.Runs, perMerge(sm.Runs, "%.1f"), perMerge(sm.Input, "%.0f"), stopRate, sm.WorkerStops, sm.WorkerRuns, sm.Interventions, perDay)
+	fmt.Fprintf(out, "By configuration, %s:\n", window)
+	if len(sc.Configs) == 0 {
+		fmt.Fprintln(out, "  no run")
+	}
+	dash := func(v string) string {
+		if v == "" {
+			return "—"
+		}
+		return v
+	}
+	for _, g := range sc.Configs {
+		hash := "—"
+		if g.PromptHash != "" {
+			hash = g.PromptHash[:min(12, len(g.PromptHash))]
+		}
+		effect := ""
+		if g.Role == "adversary" || g.Role == "sympathetic" {
+			effect = fmt.Sprintf("; review effect %d (%d of %d runs known)", g.Effect, g.Known, g.Runs)
+		}
+		fmt.Fprintf(out, "  %s %s %s %s, prompt %s: runs %d; tokens %d uncached, %d cached, %d out%s; estimated $%.2f at list price%s; stops %d%s\n",
+			g.Role, dash(g.Provider), dash(g.Model), dash(g.Effort), hash, g.Runs, g.Uncached, g.Cached, g.Output, without(g.NoUsage, "usage"),
+			g.Cost, without(g.Unpriced, "an estimate"), g.Stops, effect)
+	}
 }
 
 // roleCounts is a slice's runs, `<k> (<role> <k>, …)` in the roles'

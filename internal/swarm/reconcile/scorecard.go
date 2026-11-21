@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"daisy/internal/metrics"
+	"daisy/internal/swarm/declare"
 )
 
 // The scorecard (section 11, swarm metrics --scorecard; decision 0156):
@@ -21,13 +22,39 @@ import (
 // Start, Since or else the swarm's first record or merge not after
 // Until; End, Until or now, whichever is earlier), a row per slice
 // merged in the window, in the order of the merges, and the window's
-// summary.
+// summary, and the window's runs by configuration (R3-12).
 type Scorecard struct {
 	File                     string
 	Fetched                  time.Time
 	Since, Until, Start, End time.Time
 	Slices                   []SliceScore
 	Summary                  ScoreSummary
+	Configs                  []ConfigScore
+}
+
+// Usage is a set of records' usage: the input not read from a cache
+// (tokens_in less tokens_cached, all of it for a row with no
+// tokens_cached), the cached and the output tokens, over the rows that
+// report usage, NoUsage those that do not; the estimate at list price
+// (cost_estimated), Unpriced the rows with none, counted as $0.
+type Usage struct {
+	Uncached, Cached, Output int
+	NoUsage                  int
+	Cost                     float64
+	Unpriced                 int
+}
+
+// ConfigScore is one role's runs under one configuration, its provider,
+// model, effort and prompt hash as their rows record them (R3-12): the
+// runs, their usage, the stops (as a slice's are counted), and for a
+// reviewer, the review_effect summed over the runs that record one,
+// Known of them.
+type ConfigScore struct {
+	Role, Provider, Model, Effort, PromptHash string
+	Runs                                      int
+	Usage
+	Stops         int
+	Effect, Known int
 }
 
 // SliceScore is one merged slice's row: its merge; From, when its time
@@ -36,26 +63,19 @@ type Scorecard struct {
 // figures (a record is the slice's when it is of the issue and dated
 // after the previous merge and not after this one; the record of the
 // `merge` verb's intervention, made once the merge is, is the slice's
-// whose merge is the last not after it): the runs by role; the input not
-// read from a cache (tokens_in less tokens_cached, all of it for a row
-// with no tokens_cached), the cached and the output tokens, over the
-// rows that report usage, NoUsage those that do not; the estimate at
-// list price (cost_estimated), Unpriced the rows with none, counted as
-// $0; the highest review round; the stops by cause (runs whose outcome
-// is blocked or question, or whose cause is set; "none" for a stop with
-// no cause); the interventions by type.
+// whose merge is the last not after it): the runs by role; their usage;
+// the highest review round; the stops by cause (runs whose outcome is
+// blocked or question, or whose cause is set; "none" for a stop with no
+// cause); the interventions by type.
 type SliceScore struct {
 	Merge
-	From                     time.Time
-	FromOpening              bool
-	Runs                     map[string]int
-	Uncached, Cached, Output int
-	NoUsage                  int
-	Cost                     float64
-	Unpriced                 int
-	Rounds                   int
-	Stops                    map[string]int
-	Interventions            map[string]int
+	From        time.Time
+	FromOpening bool
+	Runs        map[string]int
+	Usage
+	Rounds        int
+	Stops         map[string]int
+	Interventions map[string]int
 }
 
 // ScoreSummary is the window's figures: the slices merged in it, and of
@@ -141,6 +161,7 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 	for i, m := range merges {
 		rows[i] = SliceScore{Merge: m, Runs: map[string]int{}, Stops: map[string]int{}, Interventions: map[string]int{}}
 	}
+	configs := map[string]int{} // a configuration's index in c.Configs
 	for _, r := range recs {
 		if i, ok := sliceOfRecord(r, merges, byIssue[r.n]); ok {
 			rows[i].add(r)
@@ -152,6 +173,14 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 		case metrics.Intervention:
 			c.Summary.Interventions++
 		case metrics.SwarmRun:
+			key := strings.Join([]string{r.Role, r.Provider, r.Model, r.Effort, r.PromptHash}, "\x00")
+			i, ok := configs[key]
+			if !ok {
+				i = len(c.Configs)
+				configs[key] = i
+				c.Configs = append(c.Configs, ConfigScore{Role: r.Role, Provider: r.Provider, Model: r.Model, Effort: r.Effort, PromptHash: r.PromptHash})
+			}
+			c.Configs[i].add(r)
 			c.Summary.Runs++
 			c.Summary.Input += atoi(r.TokensIn)
 			if r.Role == "worker" {
@@ -162,6 +191,15 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 			}
 		}
 	}
+	// The roles in their order, the QA's last and any other after it;
+	// each role's configurations in the order of their first run.
+	order := func(role string) int {
+		if i := slices.Index(declare.AllRoles, role); i >= 0 {
+			return i
+		}
+		return len(declare.AllRoles)
+	}
+	slices.SortStableFunc(c.Configs, func(a, b ConfigScore) int { return order(a.Role) - order(b.Role) })
 	opened := map[int]time.Time{}
 	for i, m := range merges {
 		if m.At.Before(since) {
@@ -214,27 +252,51 @@ func (sc *SliceScore) add(r scoreRecord) {
 		return
 	}
 	sc.Runs[r.Role]++
-	if r.TokensIn == "" {
-		sc.NoUsage++
-	} else {
-		in, cached := atoi(r.TokensIn), atoi(r.TokensCached)
-		sc.Uncached += in - cached
-		sc.Cached += cached
-		sc.Output += atoi(r.TokensOut)
-	}
-	if v, err := strconv.ParseFloat(r.CostEstimated, 64); err == nil {
-		sc.Cost += v
-	} else {
-		sc.Unpriced++
-	}
+	sc.Usage.add(r.Row)
 	sc.Rounds = max(sc.Rounds, atoi(r.ReviewRounds))
-	if r.Outcome == "blocked" || r.Outcome == "question" || r.Cause != "" {
+	if stopped(r.Row) {
 		cause := r.Cause
 		if cause == "" {
 			cause = "none"
 		}
 		sc.Stops[cause]++
 	}
+}
+
+// add counts a run of the configuration's.
+func (cs *ConfigScore) add(r scoreRecord) {
+	cs.Runs++
+	cs.Usage.add(r.Row)
+	if stopped(r.Row) {
+		cs.Stops++
+	}
+	if e, err := strconv.Atoi(r.ReviewEffect); err == nil {
+		cs.Effect += e
+		cs.Known++
+	}
+}
+
+// add counts a run's usage.
+func (u *Usage) add(r metrics.Row) {
+	if r.TokensIn == "" {
+		u.NoUsage++
+	} else {
+		in, cached := atoi(r.TokensIn), atoi(r.TokensCached)
+		u.Uncached += in - cached
+		u.Cached += cached
+		u.Output += atoi(r.TokensOut)
+	}
+	if v, err := strconv.ParseFloat(r.CostEstimated, 64); err == nil {
+		u.Cost += v
+	} else {
+		u.Unpriced++
+	}
+}
+
+// stopped is whether a run's row is a stop: its outcome blocked or
+// question (a member's), or its cause set (Daisy's own).
+func stopped(r metrics.Row) bool {
+	return r.Outcome == "blocked" || r.Outcome == "question" || r.Cause != ""
 }
 
 // atoi reads a cell metrics wrote; an empty or unreadable one is 0.

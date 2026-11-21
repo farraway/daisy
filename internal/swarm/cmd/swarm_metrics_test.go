@@ -729,6 +729,50 @@ func TestSwarmApplyRecordsReviewEffect(t *testing.T) {
 	}
 }
 
+// R3-12's claim (the plan implementing the 2026-11-19 swarm roadmap;
+// section 7.6, The run's record): with the sympathetic reviewer after
+// the adversary's approval (decision 163), the sympathetic reviewer
+// requests changes with one blocking finding in round 1, the worker
+// pushes v2, the adversary requests changes alone in round 2, the worker
+// pushes v3, both approve it in round 3: the sympathetic reviewer's
+// first review is credited its finding, 1, read from its role's next
+// review on the pull request though that review is of round 3, not 2.
+func TestSwarmReviewEffectAcrossAnAdversaryOnlyRound(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	home := a.metricsHome()
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: requestChanges})
+	a.pass()
+	a.pass() // the sympathetic reviewer, once the adversary approved: T10
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+	a.pass() // round 2, the adversary's alone: T10
+	a.runner.Script(1, "worker", work("v3"))
+	a.pass()
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	a.pass() // T9
+	if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-2-approved") {
+		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
+	}
+	last := map[string]map[string]string{}
+	for _, r := range rows(t, home) {
+		last[r["step_or_run"]] = r
+	}
+	for run, want := range map[string][2]string{
+		"1-sympathetic-1": {"1", "1"}, "1-sympathetic-2": {"3", "0"},
+		"1-adversary-1": {"1", "0"}, "1-adversary-2": {"2", "1"}, "1-adversary-3": {"3", "0"},
+	} {
+		if r := last[run]; r == nil || r["review_rounds"] != want[0] || r["review_effect"] != want[1] {
+			t.Errorf("%s: round %q, review_effect %q; want round %s, effect %q", run, r["review_rounds"], r["review_effect"], want[0], want[1])
+		}
+	}
+}
+
 // Step 30's reprice (section 11, swarm metrics): over a fixture CSV
 // under Step 28's header, holding the rows a collection wrote before the
 // review_effect column for one issue's three reviews (the adversary's

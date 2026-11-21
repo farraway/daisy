@@ -96,3 +96,11 @@ the second such round, no sympathetic run; the round limit's second
 time reached by sympathetic run 1 after adversary run 1's first),
 `TestLaunchInReview`,
 `TestPullState`, `TestDefaultHistoryHoldsEachCurrentDefault`.
+
+**Amended by Step R3-12 of the plan implementing the 2026-11-19 swarm
+roadmap (2026-11-21).** The scorecard paragraph's last sentence no
+longer holds: a review's effect is read from its role's next posted
+review on the same pull request whatever round (decision
+[142](0142-a-reviews-effect-read-from-the-runs.md), amended), so a
+sympathetic request for changes whose next sympathetic review follows a
+round the adversary alone completed is credited as any other.

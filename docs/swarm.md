@@ -4024,11 +4024,15 @@ findings it raised that were fixed (decision [142](swarm/decisions/0142-a-review
 posted (its outcome other than `posted`) or approving (`<run>/io/out.md`'s
 first line `VERDICT: approve`); for one requesting changes, the count
 of its `[blocking]` lines when its role's next posted review on the
-issue is of the next round (its `round` line one more), on another head
-(its `start` line another commit) and approves, `0` when that review is
-on the same head or requests changes again, and empty, unknown, while
-no next review is collected, when the run has no `round` line, or when
-the next review is of another round (a re-plan, another pull request);
+issue is on the same pull request, whatever round (its `round` line
+higher: the rounds counted on, the other reviewer having completed any
+round between alone, section 6; until Step R3-12 of the plan
+implementing the 2026-11-19 swarm roadmap, the next round only), on
+another head (its `start` line another commit) and approves, `0` when
+that review is on the same head or requests changes again, and empty,
+unknown, while no next review is collected, when the run has no `round`
+line, or when the next review's round is not higher (a re-plan, another
+pull request);
 another role's run leaves it empty; `cause` a stop's cause (7.5, The
 stop's cause): a member's, the word of its `Cause:` line, read from
 `<run>/io/out.md` for a run whose outcome is `blocked` or `question`;
@@ -7223,6 +7227,9 @@ Scorecard of <owner>/<repo>: runs and interventions from <csv>, merges from the 
   #<n> slice <s> in <name>, merged <time>, <wall> after the issue's opening: runs <r> (<role> <k>, …); tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; review rounds <d>; stops <cause> <k>, …; interventions <type> <k>, …
   …        (or:   no slice merged)
 Summary, since <time> until <time> (<d> days): <m> slices merged; <r> runs, <r/m> per merge; input <i/m> tokens per merge; worker stop rate <p>% (<s> of <w> worker runs); <v> interventions, <v/d> a day
+By configuration, since <time> until <time>:
+  <role> <provider> <model> <effort>, prompt <hash>: runs <r>; tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; stops <s>[; review effect <f> (<k> of <r> runs known)]
+  …        (or:   no run)
 ```
 
 - **wall**, as Go writes a duration (`3h0m0s`), runs from the issue's opening on the forge (`Issue(n)`'s
@@ -7267,6 +7274,27 @@ merge or no worker run is `—`. A slice's line takes its records
 whatever their dates up to `--until`, so a slice merged in the window
 counts runs made before `--since`, while the summary's counts take only
 the window's records.
+
+**By configuration** (Step R3-12 of the plan implementing the
+2026-11-19 swarm roadmap) groups the window's `swarm-run` records, those
+the summary counts, by role and configuration: the row's `provider`,
+`model`, `effort` and `prompt_hash` (7.6, The run's record: the sha256
+of the run's `system.md`, so a changed persona prompt, Task, repository
+notes or praxis is another configuration), so two setups of one role
+read side by side. Its heading names the window as the summary's does.
+One line per role and configuration, the roles in their order (the
+QA's last) and a role's configurations in the order of their first run;
+`<hash>` the hash's first 12 characters, and `—` for an empty cell.
+As recorded, `prompt_hash` hashes the run's whole `system.md`, whose
+first line names the run and its time (its Task and repository notes
+may also differ by issue and stage), so each run reads as a configuration of its own until a hash over the
+configuration's text alone is recorded (an open question of Step
+R3-12). The figures: **runs**, **tokens**, **estimated** as a slice's
+line counts them;
+**stops** the runs counted as a slice's stops are; and for the
+adversary and the sympathetic reviewer, **review effect** `<f>` the
+`review_effect` of the runs that record one summed, `<k>` how many do
+(an effect still unknown, 7.6, is not counted).
 
 ### daisy swarm list
 

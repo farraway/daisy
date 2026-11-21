@@ -1031,3 +1031,15 @@ they write.
   [78](swarm/decisions/0078-the-pass-does-not-wait-the-pair-in-one-pass.md)
   and
   [14](swarm/decisions/0014-sequential-reviewers-each-blind-to-the-other-on-the-head.md).
+- 2026-11-21, Step R3-12 of the plan implementing the 2026-11-19 swarm
+  roadmap: each role's effect measurable in the new order. A review's
+  `review_effect` is read from its role's next review on the same pull
+  request whatever round (a higher `round` line), not the next round
+  only; the scorecard groups the window's runs by role and
+  configuration (provider, model, effort, prompt hash). Sections 7.6
+  (The run's record) and 11 (The scorecard). Decisions
+  [142](swarm/decisions/0142-a-reviews-effect-read-from-the-runs.md)
+  and [156](swarm/decisions/0156-a-scorecard-per-merged-slice.md)
+  amended, and decision
+  [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)'s
+  scorecard paragraph.
