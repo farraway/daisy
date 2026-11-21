@@ -92,12 +92,13 @@ func TestDeclaredDockerfileIsProtected(t *testing.T) {
 			if got := a.Cfg().Repos[0].Protected; strings.Join(got, ",") != strings.Join(declared, ",") || strings.Contains(strings.Join(got, ","), df) {
 				t.Errorf("protected changed: %q", got)
 			}
-			want := "These paths are protected: " + strings.Join(append(declared, df), ", ") + "."
+			// The dockerfile, then the test services file (Step R3-3c).
+			want := "These paths are protected: " + strings.Join(append(declared, df, "compose.test.yaml"), ", ") + "."
 			if tc.protected != nil {
-				want = "These paths are protected: " + strings.Join(declared, ", ") + "."
+				want = "These paths are protected: " + strings.Join(append(declared, "compose.test.yaml"), ", ") + "."
 			}
 			if tc.none {
-				want = "These paths are protected: images/ci/Dockerfile."
+				want = "These paths are protected: images/ci/Dockerfile, compose.test.yaml."
 			}
 			if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, want) {
 				t.Errorf("the Task text lacks %q:\n%s", want, sys)

@@ -72,7 +72,7 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 	if w.Image != "daisy-member-lib:1" || w.Workdir != "/job/work/lib" || check.Image != "daisy-member-lib:1" || !reflect.DeepEqual(check.Argv, []string{"go", "test", "./..."}) {
 		t.Errorf("slice 1's specs: %+v %+v", w, check)
 	}
-	if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, "in acme/lib, on the branch checked out in /job/work/lib (swarm/1-1)") || !strings.Contains(sys, "These paths are protected: go.sum.") {
+	if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, "in acme/lib, on the branch checked out in /job/work/lib (swarm/1-1)") || !strings.Contains(sys, "These paths are protected: go.sum, compose.test.yaml.") {
 		t.Errorf("slice 1's Task:\n%s", sys)
 	}
 	ps := a.pulls(1)

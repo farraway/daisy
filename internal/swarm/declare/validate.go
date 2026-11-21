@@ -299,10 +299,12 @@ func checkDeps(at string, r Repo) *Error {
 
 // isFilePath is a file's path in a repository, as services and
 // dockerfile are declared (section 3): relative, clean (path.Clean's
-// own), without .., not the repository's root (.) nor ending /, one line.
+// own), without .. or .git, not the repository's root (.) nor ending /,
+// one line without a NUL, and no space at either end.
 func isFilePath(p string) bool {
-	return p != "" && p != "." && !filepath.IsAbs(p) && !strings.HasSuffix(p, "/") && !strings.ContainsAny(p, "\n\r") &&
-		!slices.Contains(strings.Split(p, "/"), "..") && path.Clean(p) == p
+	parts := strings.Split(p, "/")
+	return p != "" && p != "." && !filepath.IsAbs(p) && !strings.HasSuffix(p, "/") && !strings.ContainsAny(p, "\n\r\x00") &&
+		strings.Trim(p, " ") == p && !slices.Contains(parts, "..") && !slices.Contains(parts, ".git") && path.Clean(p) == p
 }
 
 // checkEnv is a repository's env, in name order: each name a variable

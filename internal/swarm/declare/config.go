@@ -106,7 +106,8 @@ type Forge struct {
 // Repo is one declared repository: the forge repository <owner>/<Name>,
 // declared by Repo, `<owner>/<name>`, with an optional SSHCommand, an
 // optional dependency step run before its check, an optional test
-// services file (ServicesPath), optional Env, the variables of its check
+// services file (ServicesPath), protected by default (decision 166),
+// optional Env, the variables of its check
 // environment (EnvLines), an optional Dockerfile, the path of the file
 // that builds Image, protected by default (decision 162), and optional
 // Rulings, nil when absent, so that an explicit [] is kept (section 3).

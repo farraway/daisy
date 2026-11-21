@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -218,12 +219,17 @@ func TestSwarmServicesCannotStart(t *testing.T) {
 	})
 	t.Run("check", func(t *testing.T) {
 		a := newApplyWS(t)
+		a.land("app", map[string]string{"compose.test.yaml": gridappFile}, "test services")
 		a.planned(oneSlice)
-		a.runner.UpErr = missing
-		a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n", "compose.test.yaml": gridappFile}, "v1"))})
+		// The worker's services start; once it runs (the Fake runs its
+		// work under its lock), the check's cannot.
+		a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: func(work string) error {
+			a.runner.UpErr = missing
+			return in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))(work)
+		}})
 		a.pass()
 		r := a.result("1-worker-1")
-		if len(a.launched("check")) != 0 || len(a.runner.Ups) != 1 || len(a.runner.Networks) != 0 || !strings.Contains(r, "\nfault: services: "+missing.Error()+"\n") ||
+		if len(a.launched("check")) != 0 || len(a.runner.Ups) != 2 || len(a.runner.Networks) != 0 || !strings.Contains(r, "\nfault: services: "+missing.Error()+"\n") ||
 			!strings.Contains(r, "\nservices check down\n") || !strings.Contains(r, "\noutcome fault\n") || len(a.pulls(1)) != 0 ||
 			!reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:plan-1-accepted"}) {
 			t.Errorf("checks %d, ups %d, networks %+v, labels %v\n%s", len(a.launched("check")), len(a.runner.Ups), a.runner.Networks, labels(a.issue(1)), r)
@@ -237,8 +243,8 @@ func TestSwarmServicesCannotStart(t *testing.T) {
 func TestSwarmServicesRestartedAfterTheirApplyDied(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
-	a.planned(oneSlice)
 	a.land("app", map[string]string{"compose.test.yaml": gridappFile}, "test services")
+	a.planned(oneSlice)
 	head := a.orphanWorker("exited 0 2026-11-06T15:10:00Z")
 	a.gitRunIn(a.state("git/app"), "fetch", "-q", "--no-tags", a.state("runs/1-worker-1/work"), "+refs/heads/swarm/1-1:refs/swarm-runs/1-worker-1")
 	run := a.state("runs/1-worker-1")
@@ -281,8 +287,9 @@ func TestSwarmServicesBesideAReviewer(t *testing.T) {
 	})
 	a.publish("env")
 	a.fetchMirror()
+	a.land("app", map[string]string{"compose.test.yaml": gridappFile}, "test services")
 	a.planned(oneSlice)
-	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n", "compose.test.yaml": gridappFile}, "v1"))},
+	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))},
 		runner.Canned{Out: "v2\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v2\n"}, "v2"))})
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve}, runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
@@ -298,7 +305,7 @@ func TestSwarmServicesBesideAReviewer(t *testing.T) {
 	net := func(role string, k int) runner.Services {
 		return runner.Services{Network: fmt.Sprintf("daisy-swarm.acme.swarm-app.1.%s.%d", role, k), Internal: role == "check", List: gridappList}
 	}
-	want := []runner.Services{net("check", 1), net("adversary", 1), net("sympathetic", 1), net("worker", 2), net("check", 2), net("adversary", 2), net("sympathetic", 2)}
+	want := []runner.Services{net("worker", 1), net("check", 1), net("adversary", 1), net("sympathetic", 1), net("worker", 2), net("check", 2), net("adversary", 2), net("sympathetic", 2)}
 	if !reflect.DeepEqual(a.runner.Ups, want) {
 		t.Errorf("ups:\n got %+v\nwant %+v", a.runner.Ups, want)
 	}
@@ -320,8 +327,14 @@ func TestSwarmServicesBesideAReviewer(t *testing.T) {
 			if r.Network != reviewerNet(role, k) || !reflect.DeepEqual(r.Env, env) {
 				t.Errorf("%s run %d: network %q, env %q", role, k, r.Network, r.Env)
 			}
+			// The adversary's slot home after the declared variables
+			// (section 7.2; Step R3-3c).
+			after := "--mount\n"
+			if role == "adversary" {
+				after = "--env\nCODEX_HOME=/credential\n--mount\n"
+			}
 			argv := a.file(fmt.Sprintf("1-%s-%d", role, k), "argv")
-			if !strings.Contains(argv, "\n--stop-timeout\n30\n--network\n"+reviewerNet(role, k)+"\n") || !strings.Contains(argv, "\n"+strings.Join(flags, "\n")+"\n--mount\n") {
+			if !strings.Contains(argv, "\n--stop-timeout\n30\n--network\n"+reviewerNet(role, k)+"\n") || !strings.Contains(argv, "\n"+strings.Join(flags, "\n")+"\n"+after) {
 				t.Errorf("%s run %d's argv:\n%s", role, k, argv)
 			}
 			inOrder(t, a.result(fmt.Sprintf("1-%s-%d", role, k)), "\nstarted ", "\nservices "+role+" up mongo redis\n", "\nexited 0 ", "\nservices "+role+" down\n", "\noutcome posted\n")
@@ -424,4 +437,102 @@ func TestSwarmServicesOfAReviewerRemoved(t *testing.T) {
 			inOrder(t, a.result("1-"+role+"-1"), "\nservices "+role+" up mongo redis\n", "\nlaunch-failed ", "\nfault: services: "+missing.Error()+"\n", "\nservices "+role+" down\n", "\noutcome fault\ncollected\n")
 		}
 	})
+}
+
+// The test services file is protected by default (section 3,
+// repos[].services; 7.6, step 3; Step R3-3c), as a declared dockerfile
+// is: a worker's change to the file its repository runs, the default
+// compose.test.yaml or the one services names, changed or created, is
+// the failure "protected path changed", nothing pushed, so no run beside
+// it reads a variable the worker wrote; with another file declared,
+// compose.test.yaml is a file as any. The worker's Task text names it
+// among the protected paths.
+func TestSwarmServicesFileIsProtected(t *testing.T) {
+	t.Parallel()
+	redirect := gridappFile + "  HTTPS_PROXY: http://proxy.example.net:3128\n"
+	for _, tc := range []struct {
+		name     string
+		declared string            // services, "" for the default
+		base     map[string]string // landed on main before the run
+		work     map[string]string
+		reason   string // "" when the run is pushed
+	}{
+		{name: "the default file changed", base: map[string]string{"compose.test.yaml": gridappFile}, work: map[string]string{"compose.test.yaml": redirect},
+			reason: "protected path changed: compose.test.yaml"},
+		{name: "the default file created", work: map[string]string{"compose.test.yaml": redirect}, reason: "protected path changed: compose.test.yaml"},
+		{name: "the declared file changed", declared: "test/services.yaml", base: map[string]string{"test/services.yaml": gridappFile},
+			work: map[string]string{"test/services.yaml": redirect}, reason: "protected path changed: test/services.yaml"},
+		{name: "the default name beside a declared file", declared: "test/services.yaml", base: map[string]string{"test/services.yaml": gridappFile},
+			work: map[string]string{"compose.test.yaml": redirect}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			a := newApplyWS(t)
+			if tc.declared != "" {
+				a.edit(func(c *declare.Config) { c.Repos[0].Services = &tc.declared })
+				a.publish("services")
+				a.fetchMirror()
+			}
+			if tc.base != nil {
+				a.land("app", tc.base, "test services")
+			}
+			a.planned(oneSlice)
+			a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(tc.work, "v1"))})
+			a.runner.Script(1, "check", runner.Canned{Stdout: "ok\n"})
+			a.pass()
+			r := a.result("1-worker-1")
+			if tc.reason == "" {
+				if strings.Contains(r, "failed:") || len(a.pulls(1)) != 1 {
+					t.Fatalf("not pushed:\n%s", r)
+				}
+			} else if !strings.Contains(r, "failed: "+tc.reason+"\n") || len(a.pulls(1)) != 0 || len(a.launched("check")) != 0 {
+				t.Fatalf("want failed: %s, %d pull requests:\n%s", tc.reason, len(a.pulls(1)), r)
+			}
+			file := cmp.Or(tc.declared, "compose.test.yaml")
+			if sys := a.file("1-worker-1", "io/system.md"); !strings.Contains(sys, "These paths are protected: "+strings.Join(a.Cfg().Repos[0].Protected, ", ")+", "+file+".") {
+				t.Errorf("the Task text does not name %s:\n%s", file, sys)
+			}
+		})
+	}
+}
+
+// No declared variable overrides a credential (section 7.2; Step
+// R3-3c): an x-daisy-env naming the adversary's slot home leaves
+// `CODEX_HOME=/credential` the last value for it on the adversary's
+// argv, and one naming the worker's env credential's variable is not
+// on the worker's argv, Docker ranking every --env above --env-file.
+func TestSwarmCredentialAfterDeclaredEnv(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	file := gridappFile + "  CODEX_HOME: /job/work/app/.codex\n  CLAUDE_CODE_OAUTH_TOKEN: a-declared-value\n"
+	a.land("app", map[string]string{"compose.test.yaml": file}, "test services")
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
+	a.runner.Script(1, "check", runner.Canned{Stdout: "ok\n"})
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.pass() // the worker and its check
+	a.pass() // the adversary
+	last := func(argv []string, name string) string {
+		v := ""
+		for i, w := range argv {
+			if i > 0 && argv[i-1] == "--env" && strings.HasPrefix(w, name+"=") {
+				v = strings.TrimPrefix(w, name+"=")
+			}
+		}
+		return v
+	}
+	advs, workers := a.launched("adversary"), a.launched("worker")
+	if len(advs) != 1 || len(workers) != 1 {
+		t.Fatalf("%d adversary runs, %d worker runs", len(advs), len(workers))
+	}
+	if argv := advs[0].Args(); last(argv, "CODEX_HOME") != "/credential" || !slices.Contains(argv, "CODEX_HOME=/job/work/app/.codex") {
+		t.Errorf("the adversary's argv, CODEX_HOME last %q:\n%q", last(argv, "CODEX_HOME"), argv)
+	}
+	if argv := workers[0].Args(); last(argv, "CLAUDE_CODE_OAUTH_TOKEN") != "" || !slices.Contains(argv, "/dev/stdin") || !slices.Contains(argv, "CODEX_HOME=/job/work/app/.codex") {
+		t.Errorf("the worker's argv:\n%q", argv)
+	}
+	// The check, holding no credential, is given the file's variables whole.
+	if checks := a.launched("check"); len(checks) != 1 || last(checks[0].Args(), "CLAUDE_CODE_OAUTH_TOKEN") != "a-declared-value" {
+		t.Errorf("checks %+v", checks)
+	}
 }

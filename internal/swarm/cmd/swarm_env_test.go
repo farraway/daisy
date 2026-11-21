@@ -104,7 +104,11 @@ func TestSwarmEnvWithoutDepsOrServices(t *testing.T) {
 		if len(rs) != 1 || rs[0].Network != "" || !reflect.DeepEqual(rs[0].Env, []string{"TZ=UTC"}) {
 			t.Errorf("%s %+v", role, rs)
 		}
-		if argv := a.file("1-"+role+"-1", "argv"); !strings.Contains(argv, "\n--env\nTZ=UTC\n--mount\n") || strings.Contains(argv, "--network") {
+		after := "--mount\n" // the adversary's slot home after it (section 7.2)
+		if role == "adversary" {
+			after = "--env\nCODEX_HOME=/credential\n--mount\n"
+		}
+		if argv := a.file("1-"+role+"-1", "argv"); !strings.Contains(argv, "\n--env\nTZ=UTC\n"+after) || strings.Contains(argv, "--network") {
 			t.Errorf("the %s's argv:\n%s", role, argv)
 		}
 	}

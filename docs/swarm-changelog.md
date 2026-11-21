@@ -1086,3 +1086,19 @@ they write.
   [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
   and [162](swarm/decisions/0162-ci-builds-the-declared-image.md) name
   the steps that built them. No decision of its own: no choice is made.
+- 2026-11-21, Step R3-3c of the plan implementing the 2026-11-19 swarm
+  roadmap, on the maintainer's answers to its Open Questions 29, 32 and
+  35: the test services file (`repos[].services`, else
+  `compose.test.yaml`) protected by default, as the declared Dockerfile
+  is, and named in the Task texts' protected paths; a slot's `--env
+  <home>=/credential` after every declared `--env`, and a member's
+  declared line naming its `env` credential's variable left out;
+  `dockerfile` and `services` refusing a NUL, a `.git` element and a
+  space at either end; a dependency step's failure classified by a
+  signature whatever the head. Sections 3, 7.2, 7.4, 7.6 (step 3) and
+  7.9. Decision
+  [166](swarm/decisions/0166-the-services-file-protected-and-the-credential-last.md),
+  amending decisions
+  [160](swarm/decisions/0160-one-declared-check-environment.md),
+  [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
+  and [162](swarm/decisions/0162-ci-builds-the-declared-image.md).

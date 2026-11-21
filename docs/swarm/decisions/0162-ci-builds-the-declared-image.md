@@ -1,6 +1,6 @@
 # 0162. CI builds the declared image, and a touched package's failure is the worker's
 
-From Step 10b of the plan implementing the 2026-11-19 swarm roadmap (R3, the maintainer's answers at the checkpoint of 2026-11-19). Specified before its build: `docs/swarm.md` section 7.9 (CI builds the image, The comparison with CI, The classification), with the changes it makes marked in sections 1, 3, 7.6 and 7.7. Amends decisions [160](0160-one-declared-check-environment.md) and [161](0161-a-check-failure-classified-before-anyone-sees-it.md). Built at Steps R3-1b, R3-4, R3-5, R3-6 and R3-7 of that plan (each *As built* below, and decision 161's); the CI workflow and the Dockerfile are the product's.
+From Step 10b of the plan implementing the 2026-11-19 swarm roadmap (R3, the maintainer's answers at the checkpoint of 2026-11-19). Specified before its build: `docs/swarm.md` section 7.9 (CI builds the image, The comparison with CI, The classification), with the changes it makes marked in sections 1, 3, 7.6 and 7.7. Amends decisions [160](0160-one-declared-check-environment.md) and [161](0161-a-check-failure-classified-before-anyone-sees-it.md). Built at Steps R3-1b, R3-4, R3-5, R3-6 and R3-7 of that plan (each *As built* below, and decision 161's); the CI workflow and the Dockerfile are the product's. Amended by decision [166](0166-the-services-file-protected-and-the-credential-last.md) (Step R3-3c): the test services file protected by default beside the Dockerfile, and both paths refusing a NUL, a `.git` element and a space at either end.
 
 **The maintainer's answers of 2026-11-19.** Decision 160 left CI out
 of the image ("CI can run in it only from a registry its runner
@@ -123,7 +123,7 @@ timeout whose output already names a touched failing package is the
 worker's. (*Amended at Step R3-7, on the maintainer's answer of
 2026-11-21: for a Go head, one holding a `go.mod`, a `go.work` or a
 `.go` file, an output naming no failing package is not classified,
-whatever signature it holds; decision
+whatever signature it holds (a dependency step's failure excepted since Step R3-3c, decision [166](0166-the-services-file-protected-and-the-credential-last.md), classified by a signature whatever the head); decision
 [161](0161-a-check-failure-classified-before-anyone-sees-it.md)'s As
 built.*) A Go module below the root, or a `go.work`, names packages
 outside the root module, which count as touched, so its failures,

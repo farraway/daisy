@@ -167,7 +167,7 @@ func (c *collection) keep() error {
 // 7.6, step 3): "secret in output: commits" when an object the push
 // would send holds a secret the member was given, then "protected path
 // changed: <paths>" when they change a protected path (its declared
-// dockerfile among them); "" when neither.
+// dockerfile and its test services file among them); "" when neither.
 // The secret check comes first: the protected-path note names paths, and
 // a path is the member's text too.
 func (c *collection) refused() (string, error) {
@@ -381,25 +381,34 @@ func (c *collection) startCheck(step string) error {
 // once (`check rerun: <reason>`, the stdout line, then the step started
 // again), or, classified on its rerun, is the failure check
 // environment, nothing pushed or posted on the pull request and no
-// checks/ file written. The change and the head's Go facts are read
-// from the mirror only for an output Classify could classify.
+// checks/ file written. A dependency step's failure is classified by a
+// signature alone, whatever the head; the change and the head's Go facts
+// are read from the mirror only for a check's output Classify could
+// classify.
 func (c *collection) classify(repo declare.Repo, out string) (held bool, err error) {
 	s, lines := c.s, c.checkLines()
 	if servicesRefused(lines) != "" || !MayClassify([]byte(out)) {
 		return false, nil
 	}
-	name, sha := branchRepo(c.lines), c.fetched()
-	changed, err := s.git().Changed(name, s.Cfg.Base, sha)
-	if err != nil {
-		return false, err
-	}
-	facts, err := s.git().GoFacts(name, sha)
-	if err != nil {
-		return false, err
-	}
 	_, checkTimedOut := Has(lines, "check timeout")
 	_, depsTimedOut := Has(lines, "deps timeout")
-	cl := Classify([]byte(out), changed, facts, checkTimedOut || depsTimedOut)
+	var cl Classification
+	if depsTimedOut || depsFailed(lines) != "" {
+		// The dependency step builds nothing of the change: a signature
+		// alone classifies its failure, whatever the head (Step R3-3c).
+		cl.Signature = signature([]byte(out))
+	} else {
+		name, sha := branchRepo(c.lines), c.fetched()
+		changed, err := s.git().Changed(name, s.Cfg.Base, sha)
+		if err != nil {
+			return false, err
+		}
+		facts, err := s.git().GoFacts(name, sha)
+		if err != nil {
+			return false, err
+		}
+		cl = Classify([]byte(out), changed, facts, checkTimedOut)
+	}
 	if !cl.Classified() {
 		return false, nil
 	}

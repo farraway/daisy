@@ -1,6 +1,6 @@
 # 0160. One declared check environment
 
-From Step 10 of the plan implementing the 2026-11-19 swarm roadmap (R3, one check, one environment, failures classified, 2026-11-19). Specified before its build: `docs/swarm.md` section 7.9, with the changes it makes marked in sections 1 to 3, 5, 7.2, 7.5 to 7.8 and 11. Built at Steps R3-1, R3-2, R3-3, R3-3b and R3-9 of that plan (each *As built* below).
+From Step 10 of the plan implementing the 2026-11-19 swarm roadmap (R3, one check, one environment, failures classified, 2026-11-19). Specified before its build: `docs/swarm.md` section 7.9, with the changes it makes marked in sections 1 to 3, 5, 7.2, 7.5 to 7.8 and 11. Built at Steps R3-1, R3-2, R3-3, R3-3b and R3-9 of that plan (each *As built* below). Amended by decision [166](0166-the-services-file-protected-and-the-credential-last.md) (Step R3-3c): the test services file protected by default, and a member's credential after every declared variable.
 
 **The maintainer's ruling of 2026-11-19 (R3a, R3b):** the product
 declares its check environment once (its image, its dependency step,

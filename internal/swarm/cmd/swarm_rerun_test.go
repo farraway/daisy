@@ -133,6 +133,30 @@ func TestSwarmCheckRerunOnceThenPosted(t *testing.T) {
 		a.noChecks()
 	})
 
+	t.Run("a Go head's dependency step, on a signature", func(t *testing.T) {
+		// The dependency step builds nothing of the change: a signature
+		// classifies its failure whatever the head, though its output
+		// names no failing package (Step R3-3c).
+		a := newApplyWS(t)
+		a.withDeps(goDeps)
+		a.goApp()
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", storeWork("v1"))
+		timeout := "go: example.com/dep@v1.2.0: Get \"https://proxy.golang.org/example.com/dep/@v/v1.2.0.mod\": dial tcp 142.250.0.1:443: i/o timeout\n"
+		a.runner.Script(1, "deps", runner.Canned{Code: 1, Stderr: timeout}, runner.Canned{})
+		a.runner.Script(1, "check", runner.Canned{Stdout: webPassed})
+		a.pass()
+		r := a.result("1-worker-1")
+		if d, c := len(a.launched("deps")), len(a.launched("check")); d != 2 || c != 1 {
+			t.Fatalf("%d dependency steps and %d checks launched, want 2 and 1:\n%s", d, c, r)
+		}
+		inOrder(t, r, "\ndeps exited 1 ", "\n"+`check rerun: signature "i/o timeout"`+"\n", "\ndeps started ", "\ndeps exited 0 ", "\ncheck started ", "\ncheck exited 0 ", "\npushed ", "\noutcome posted\n")
+		if got := a.file("1-worker-1", "deps-1.out"); got != timeout {
+			t.Errorf("deps-1.out %q", got)
+		}
+		a.noChecks()
+	})
+
 	t.Run("the check's failure beside a dependency step", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.withDeps(goDeps)

@@ -114,6 +114,11 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: repos[0].services: "test/./compose.yaml" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr("test/./compose.yaml") }},
 		{`swarm.json: repos[0].services: "test/" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr("test/") }},
 		{`swarm.json: repos[0].services: "." is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr(".") }},
+		{`swarm.json: repos[0].services: "compose\x00.yaml" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr("compose\x00.yaml") }},
+		{`swarm.json: repos[0].services: ".git/compose.yaml" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr(".git/compose.yaml") }},
+		{`swarm.json: repos[0].services: "vendor/x/.git/config" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr("vendor/x/.git/config") }},
+		{`swarm.json: repos[0].services: " compose.yaml" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr(" compose.yaml") }},
+		{`swarm.json: repos[0].services: "compose.yaml " is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr("compose.yaml ") }},
 		{`swarm.json: repos[0].env.GO-FLAGS: "GO-FLAGS" is not a variable name`, func(c *Config) { c.Repos[0].Env = map[string]string{"CGO_ENABLED": "0", "GO-FLAGS": "-mod=mod"} }},
 		{`swarm.json: repos[0].env.GOFLAGS: also in deps.env; declare it once`, func(c *Config) {
 			c.Repos[0].Deps = &Deps{Run: []string{"go", "mod", "download"}, Env: map[string]string{"GOFLAGS": "-modcacherw"}}
@@ -136,6 +141,11 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: repos[0].dockerfile: "." is not a file's path in the repository`, func(c *Config) { c.Repos[0].Dockerfile = ptr(".") }},
 		{`swarm.json: repos[0].dockerfile: "Dockerfile\n" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Dockerfile = ptr("Dockerfile\n") }},
 		{`swarm.json: repos[0].dockerfile: "Dockerfile\r" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Dockerfile = ptr("Dockerfile\r") }},
+		{`swarm.json: repos[0].dockerfile: "Docker\x00file" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Dockerfile = ptr("Docker\x00file") }},
+		{`swarm.json: repos[0].dockerfile: ".git/Dockerfile" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Dockerfile = ptr(".git/Dockerfile") }},
+		{`swarm.json: repos[0].dockerfile: ".git" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Dockerfile = ptr(".git") }},
+		{`swarm.json: repos[0].dockerfile: " Dockerfile" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Dockerfile = ptr(" Dockerfile") }},
+		{`swarm.json: repos[0].dockerfile: "images/ci/Dockerfile " is not a file's path in the repository`, func(c *Config) { c.Repos[0].Dockerfile = ptr("images/ci/Dockerfile ") }},
 		{`swarm.json: repos[1].dockerfile: "../Dockerfile" is not a file's path in the repository`, func(c *Config) { c.Repos[1].Dockerfile = ptr("../Dockerfile") }},
 		{`swarm.json: repos[0].protected[2]: "../ci/" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Protected = []string{"a/", "b", "../ci/"} }},
 		{`swarm.json: repos[0].protected[0]: "" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Protected = []string{""} }},
@@ -203,6 +213,13 @@ func TestValidateNamesTheField(t *testing.T) {
 		if err := Validate(ops.Real(), p, x, 0); err != nil {
 			t.Errorf("xai %+v: %v", k, err)
 		}
+	}
+	// A path naming no .git component, edged by no space, is a file's
+	// path however close it comes (Step R3-3c).
+	near := valid()
+	near.Repos[0].Services, near.Repos[0].Dockerfile = ptr(".gitea/compose test.yaml"), ptr("images/.github/x.git/Dockerfile")
+	if err := Validate(ops.Real(), p, near, 0); err != nil {
+		t.Errorf("a path near the refused ones: %v", err)
 	}
 	none := valid()
 	setPersona(&none, "worker", func(p *Persona) { p.CoAuthor = "" })

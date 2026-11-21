@@ -40,7 +40,8 @@ type Spec struct {
 	Network string
 	// Env is the repository's env, the dependency step's variables and
 	// the test services' x-daisy-env, `<name>=<value>` each, one --env
-	// each, in order.
+	// each, in order, before a slot's home; one naming an env
+	// credential's variable is not given.
 	Env            []string
 	Mounts         []Mount
 	Workdir, Image string
@@ -60,12 +61,17 @@ func (s Spec) Args() []string {
 	}
 	if s.Credential != "" {
 		a = append(a, "--label", "daisy.credential="+s.Credential, "--mount", "type=bind,"+mountField("src", s.Slot)+","+mountField("dst", "/credential"))
-		if s.Home != "" {
-			a = append(a, "--env", s.Home+"=/credential")
+	}
+	// No declared variable overrides the credential (section 7.2): one
+	// naming the env credential's is left out, since Docker ranks every
+	// --env above --env-file, and the slot's home comes after them all.
+	for _, e := range s.Env {
+		if name, _, _ := strings.Cut(e, "="); s.EnvVar == "" || name != s.EnvVar {
+			a = append(a, "--env", e)
 		}
 	}
-	for _, e := range s.Env {
-		a = append(a, "--env", e)
+	if s.Credential != "" && s.Home != "" {
+		a = append(a, "--env", s.Home+"=/credential")
 	}
 	for _, m := range s.Mounts {
 		v := "type=bind," + mountField("src", m.Src) + "," + mountField("dst", m.Dst)

@@ -215,13 +215,16 @@ func (j *Job) protected() string {
 }
 
 // protectedPaths is a repository's protected paths as the Task texts name
-// them (7.4): its protected patterns, then its declared dockerfile, unless
-// one of them already matches it (decision 162).
+// them (7.4): its protected patterns, then its files protected by
+// default (defaultProtected), each unless a pattern already matches it.
 func protectedPaths(r declare.Repo) []string {
-	if r.Dockerfile == nil || len(Protected([]string{*r.Dockerfile}, r.Protected)) > 0 {
-		return r.Protected
+	out := slices.Clone(r.Protected)
+	for _, p := range defaultProtected(r) {
+		if len(Protected([]string{p}, r.Protected)) == 0 && !slices.Contains(out, p) {
+			out = append(out, p)
+		}
 	}
-	return append(slices.Clone(r.Protected), *r.Dockerfile)
+	return out
 }
 
 // answeredSince: the worker answered without a commit (Answers) after

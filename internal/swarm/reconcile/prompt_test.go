@@ -100,7 +100,7 @@ You do it.
 
 # Task
 
-Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. ` + wantBuilderSentence + ` The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
+Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. ` + wantBuilderSentence + ` The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md, compose.test.yaml; lib: compose.test.yaml. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
 
 Write your output to /job/io/out.md; that file and the builder plan in /job/io/builder.md are the only things read back, and nothing you write elsewhere outside /job survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /job/io/out.md instead. ` + wantCauseSentence + `
 
@@ -262,7 +262,7 @@ func TestRenderWorkerNextSlice(t *testing.T) {
 		`Implement slice 2 of the accepted plan for issue #1 (it declares 2) in acme/app, on the branch checked out in /job/work/app (swarm/1-2).`,
 		`Commit with git; do not push.`, `Run "make check" before you finish and quote its last result.`,
 		`End what you write with a line "Not established:"`,
-		`write "BLOCKED: slice <i> is not merged".`, `These paths are protected: .gitea/, AGENTS.md.`, mergeBase})
+		`write "BLOCKED: slice <i> is not merged".`, `These paths are protected: .gitea/, AGENTS.md, compose.test.yaml.`, mergeBase})
 	has(t, "prompt.md", prompt, []string{"- Clone /job/work/app: acme/app, branch swarm/1-2, base main, check make check\n",
 		"\n- Plan: /job/memory/plan.md, architect run 1, 143 bytes, 2 slices\n",
 		"# Direction\n\n## jane at 2026-11-06T15:05:00Z\n\nGo ahead.\n\n# Earlier pull requests\n\n- lib#1 swarm/1-1 merged " + pulls[0].MergeSHA + ": #1 slice 1: Drift check\n"},
@@ -631,12 +631,12 @@ func TestRenderWorkerMergesBase(t *testing.T) {
 	}
 }
 
-// The worker's first slice of a plan: no pin sentence.
+// The worker's first slice of a plan: no pin sentence; lib, protecting nothing of its own, protects its test services file (Step R3-3c).
 func TestRenderWorkerFirstSlice(t *testing.T) {
 	f, at := fixture()
 	f.Comment(at, marker("architect", 1)+archPlan)
 	sys, prompt := Render(job(f, at.N, "worker", "swarm:plan-1-accepted"))
-	has(t, "system.md", sys, []string{"Implement slice 1 of the accepted plan for issue #1 (it declares 2) in acme/lib"}, "slice <i>", "These paths are protected")
+	has(t, "system.md", sys, []string{"Implement slice 1 of the accepted plan for issue #1 (it declares 2) in acme/lib", "These paths are protected: compose.test.yaml."}, "slice <i>")
 	has(t, "prompt.md", prompt, []string{"- Clone /job/work/lib: acme/lib, branch swarm/1-1, base main, no check declared"})
 }
 

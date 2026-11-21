@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +93,42 @@ func TestArgs(t *testing.T) {
 	want[15] = "daisy-swarm.acme.app.3.check.1"
 	if got := check.Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("check with services:\n got %q\nwant %q", got, want)
+	}
+}
+
+// A member's declared variables (repos[].env, x-daisy-env) never
+// override its credential (section 7.2; Step R3-3c): a slot's `--env
+// <home>=/credential` comes after every declared --env, so the last
+// value for <home> is the slot's; and a declared --env naming an env
+// credential's variable is left out, since Docker ranks every --env
+// above --env-file whatever their order.
+func TestArgsCredentialAfterDeclaredEnv(t *testing.T) {
+	declared := []string{"CODEX_HOME=/elsewhere", "CLAUDE_CODE_OAUTH_TOKEN=a-declared-value", "APP_TEST_REDIS_URI=redis://redis:6379"}
+	head := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.architect.1", "--label", "daisy.swarm=acme/app#3/architect",
+		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30"}
+	mounts := []string{"--mount", "type=bind,src=/s/runs/3-architect-1/work,dst=/work", "--mount", "type=bind,src=/s/runs/3-architect-1/io,dst=/work/.swarm",
+		"--mount", "type=bind,src=/ws/docs,dst=/resources/docs,readonly", "--workdir", "/work/app", "daisy-member-app:2", "claude", "-p"}
+	slot := member()
+	slot.Env = declared
+	slot.Credential, slot.Slot, slot.Home = "openai/2", "/l/swarm/credentials/openai/2", "CODEX_HOME"
+	want := slices.Concat(head, []string{"--label", "daisy.credential=openai/2", "--mount", "type=bind,src=/l/swarm/credentials/openai/2,dst=/credential",
+		"--env", "CODEX_HOME=/elsewhere", "--env", "CLAUDE_CODE_OAUTH_TOKEN=a-declared-value", "--env", "APP_TEST_REDIS_URI=redis://redis:6379",
+		"--env", "CODEX_HOME=/credential"}, mounts)
+	if got := slot.Args(); !reflect.DeepEqual(got, want) {
+		t.Errorf("slot member:\n got %q\nwant %q", got, want)
+	}
+	env := member()
+	env.Env = declared
+	env.EnvVar, env.EnvValue = "CLAUDE_CODE_OAUTH_TOKEN", "sk-secret"
+	want = slices.Concat(head, []string{"--env-file", "/dev/stdin", "--env", "CODEX_HOME=/elsewhere", "--env", "APP_TEST_REDIS_URI=redis://redis:6379"}, mounts)
+	if got := env.Args(); !reflect.DeepEqual(got, want) {
+		t.Errorf("env member:\n got %q\nwant %q", got, want)
+	}
+	// The check, with no credential, is given every declared variable.
+	check := member()
+	check.Env = declared
+	if got, want := check.Args(), slices.Concat(head, []string{"--env", declared[0], "--env", declared[1], "--env", declared[2]}, mounts); !reflect.DeepEqual(got, want) {
+		t.Errorf("no credential:\n got %q\nwant %q", got, want)
 	}
 }
 

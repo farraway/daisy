@@ -690,16 +690,29 @@ func Protected(paths, patterns []string) []string {
 
 // ProtectedIn is the paths a worker's change may not touch in r (section
 // 3; 7.6, step 3), in paths' order, each once: those matching one of its
-// protected patterns, and its declared dockerfile, protected by default
-// and matched as written, whole (decision 162).
+// protected patterns, and its files protected by default, each matched
+// as written, whole (defaultProtected).
 func ProtectedIn(paths []string, r declare.Repo) []string {
 	var hit []string
 	for _, p := range paths {
-		if (r.Dockerfile != nil && p == *r.Dockerfile) || len(Protected([]string{p}, r.Protected)) > 0 {
+		if slices.Contains(defaultProtected(r), p) || len(Protected([]string{p}, r.Protected)) > 0 {
 			hit = append(hit, p)
 		}
 	}
 	return hit
+}
+
+// defaultProtected is r's files protected whatever its protected list
+// says (section 3): its declared dockerfile (decision 162), then its
+// test services file, the one services names or compose.test.yaml
+// (Step R3-3c), so that a worker changes neither what the image builds
+// nor what the runs beside it are given.
+func defaultProtected(r declare.Repo) []string {
+	var out []string
+	if r.Dockerfile != nil {
+		out = append(out, *r.Dockerfile)
+	}
+	return append(out, r.ServicesPath())
 }
 
 // Clone makes dir a clone of the repository's mirror on branch, prepared

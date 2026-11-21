@@ -1,6 +1,6 @@
 # 0161. A check failure classified before anyone sees it
 
-From Step 10 of the plan implementing the 2026-11-19 swarm roadmap (R3c, 2026-11-19). Specified before its build: `docs/swarm.md` section 7.9, The classification, with the changes it makes marked in sections 2, 7.5 to 7.8 and 11. Built at Steps R3-6, R3-7 and R3-8 of that plan (each *As built* below).
+From Step 10 of the plan implementing the 2026-11-19 swarm roadmap (R3c, 2026-11-19). Specified before its build: `docs/swarm.md` section 7.9, The classification, with the changes it makes marked in sections 2, 7.5 to 7.8 and 11. Built at Steps R3-6, R3-7 and R3-8 of that plan (each *As built* below). Amended by decision [166](0166-the-services-file-protected-and-the-credential-last.md) (Step R3-3c): a dependency step's failure is classified by a signature whatever the head.
 
 **The maintainer's ruling of 2026-11-19 (R3c):** a check failure in a
 package the change does not touch, or one matching an infrastructure
@@ -30,7 +30,7 @@ output it wrote before it was stopped, since `go test` names no failing
 package for a run it did not end. (*Amended at Step R3-7, on the
 maintainer's answer of 2026-11-21: for a Go head, one holding a
 `go.mod`, a `go.work` or a `.go` file, an output naming no failing
-package is not classified, whatever signature it holds; this
+package is not classified, whatever signature it holds (a dependency step's failure excepted since Step R3-3c, decision [166](0166-the-services-file-protected-and-the-credential-last.md), classified by a signature whatever the head); this
 decision's As built for that step, below.*) One Docker could not run
 (a fault already) and a test services file refused (the product's
 file, which the worker fixes) are not classified, and are settled as
@@ -137,7 +137,7 @@ classified by a signature alone, as before, and a timeout likewise
 unless its output already names a touched failing package. (*Amended
 at Step R3-7, on the maintainer's answer of 2026-11-21: for a Go head,
 one holding a `go.mod`, a `go.work` or a `.go` file, an output naming
-no failing package is not classified, whatever signature it holds;
+no failing package is not classified, whatever signature it holds (a dependency step's failure excepted since Step R3-3c, decision [166](0166-the-services-file-protected-and-the-credential-last.md), classified by a signature whatever the head);
 this decision's As built for that step, below.*)
 
 **As built: the classification as a function (Step R3-6 of the plan
@@ -199,7 +199,7 @@ environment: <reason>`, cause `environment`, nothing pushed, posted on
 the pull request or written to `checks/`. On the maintainer's answer
 of 2026-11-21 ("don't classify"), an output that names no failing
 package is not classified when the head is Go's, whatever signature it
-holds, since `go test -json`, gotestsum or a prefixer hides the
+holds (a dependency step's failure excepted since Step R3-3c: decision [166](0166-the-services-file-protected-and-the-credential-last.md)), since `go test -json`, gotestsum or a prefixer hides the
 `FAIL<tab>` lines a touched package's failure would be read from. A
 head is Go's by its facts alone: a `go.mod`, a `go.work` or a `.go`
 file, the test that already decides whether its `FAIL<tab>` lines are
