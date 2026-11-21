@@ -38,8 +38,9 @@ type Spec struct {
 	// "none" the check's without test services, or the network of the
 	// run's or check's test services (Services).
 	Network string
-	// Env is the dependency step's variables and the test services'
-	// x-daisy-env, `<name>=<value>` each, one --env each, in order.
+	// Env is the repository's env, the dependency step's variables and
+	// the test services' x-daisy-env, `<name>=<value>` each, one --env
+	// each, in order.
 	Env            []string
 	Mounts         []Mount
 	Workdir, Image string

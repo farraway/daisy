@@ -190,7 +190,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	work := filepath.Join(r.Dir, "work")
 	var startLines []string
 	var svc *runner.Services // the worker's test services (section 7.6)
-	var svcEnv []string
+	var env []string         // the worker's variables: its repository's env, then x-daisy-env's (7.9)
 	image, workRepo := repo.Image, repo.Name
 	// A clone that fails, or a step of its preparation, is a swarm fault
 	// recorded as a launch's (section 7.7), collected at once, so the
@@ -243,6 +243,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 		startLines = append(startLines, "start "+sha)
 		if j.Role == "worker" {
+			env = repo.EnvLines()
 			startLines = append(startLines, "branch "+branch+" in "+repo.Name)
 			// The services at the commit the worker starts from; one the
 			// file refuses runs beside none, its check reporting the
@@ -257,7 +258,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 				startLines = append(startLines, "services worker refused: "+refused)
 			case ok:
 				v := s.services(r, "worker", ts)
-				svc, svcEnv = &v, ts.Env
+				svc, env = &v, append(env, ts.Env...)
 			}
 		}
 	}
@@ -296,11 +297,12 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
 	spec := runner.Spec{Name: s.containerName(j.N, j.Role, j.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, j.N, j.Role), User: s.User,
 		Mounts: mounts, Workdir: workdir, Image: image,
-		Argv: exitMarked(provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, IOMount+"/system.md", IOMount+"/prompt.md", reads))}
+		Argv: exitMarked(provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, IOMount+"/system.md", IOMount+"/prompt.md", reads)),
+		Env:  env}
 	if svc != nil {
 		// Its own network, not internal: the CLI reaches its API through
 		// it as through Docker's default bridge (section 7.2).
-		spec.Network, spec.Env = svc.Network, svcEnv
+		spec.Network = svc.Network
 	}
 
 	key := s.Cfg.Keys[persona.Provider]
@@ -508,7 +510,8 @@ func runRef(r Run) string { return fmt.Sprintf("refs/swarm-runs/%d-worker-%d", r
 // dependency step ("deps") on Docker's default network, the clone
 // read-only and the swarm's cache for the repository read-write; or the
 // check, with no network and, when the repository declares deps, that
-// cache read-only; both given deps' env. With the head's test services
+// cache read-only; both given the repository's env, then deps' env
+// (section 7.9). With the head's test services
 // file, the check runs beside its services on their internal network,
 // given x-daisy-env too; a file refused runs no check, its refusal the
 // check's result. One that cannot start, services included, is a swarm
@@ -547,7 +550,7 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	}
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
 	spec := runner.Spec{Name: s.containerName(r.N, step, r.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, r.N, step), User: s.User, Network: "none",
-		Mounts: []runner.Mount{{Src: dir, Dst: "/work"}}, Workdir: "/work", Image: repo.Image, Argv: repo.Check}
+		Env: repo.EnvLines(), Mounts: []runner.Mount{{Src: dir, Dst: "/work"}}, Workdir: "/work", Image: repo.Image, Argv: repo.Check}
 	if d := repo.Deps; d != nil {
 		cache := s.depsCache(repo.Name)
 		if err := fs.MkdirAll(cache, 0o755); err != nil {

@@ -113,6 +113,16 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: repos[0].services: "../compose.yaml" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr("../compose.yaml") }},
 		{`swarm.json: repos[0].services: "test/./compose.yaml" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr("test/./compose.yaml") }},
 		{`swarm.json: repos[0].services: "test/" is not a file's path in the repository`, func(c *Config) { c.Repos[0].Services = ptr("test/") }},
+		{`swarm.json: repos[0].env.GO-FLAGS: "GO-FLAGS" is not a variable name`, func(c *Config) { c.Repos[0].Env = map[string]string{"CGO_ENABLED": "0", "GO-FLAGS": "-mod=mod"} }},
+		{`swarm.json: repos[0].env.GOFLAGS: also in deps.env; declare it once`, func(c *Config) {
+			c.Repos[0].Deps = &Deps{Run: []string{"go", "mod", "download"}, Env: map[string]string{"GOFLAGS": "-modcacherw"}}
+			c.Repos[0].Env = map[string]string{"GOFLAGS": "-mod=mod"}
+		}},
+		{`swarm.json: repos[0].env.GITEA_TOKEN: a secret's variable is never given this way`, func(c *Config) { c.Repos[0].Env = map[string]string{"GITEA_TOKEN": "x"} }},
+		{`swarm.json: repos[1].env.CLAUDE_CODE_OAUTH_TOKEN: a secret's variable is never given this way`, func(c *Config) { c.Repos[1].Env = map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "x"} }},
+		{`swarm.json: repos[0].env.DAISY_MAINTAINER_TOKEN: a secret's variable is never given this way`, func(c *Config) { c.Repos[0].Env = map[string]string{"DAISY_MAINTAINER_TOKEN": "x"} }},
+		{`swarm.json: repos[0].env.TZ: a value holds a newline`, func(c *Config) { c.Repos[0].Env = map[string]string{"TZ": "UTC\nX=1"} }},
+		{`swarm.json: repos[0].env.TZ: a value holds a newline`, func(c *Config) { c.Repos[0].Env = map[string]string{"TZ": "UTC\r"} }},
 		{`swarm.json: repos[0].image: empty`, func(c *Config) { c.Repos[0].Image = "" }},
 		{`swarm.json: repos[0].protected[2]: "../ci/" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Protected = []string{"a/", "b", "../ci/"} }},
 		{`swarm.json: repos[0].protected[0]: "" is not a relative pattern without ..`, func(c *Config) { c.Repos[0].Protected = []string{""} }},
@@ -417,18 +427,20 @@ func TestFormatNotify(t *testing.T) {
 }
 
 // A repository's deps is written on its line after check, its env's
-// names in order, and its services after deps, and read back; with none
-// the line is as before (section 3).
+// names in order, its services after deps and its env after services,
+// names in order, and read back; with none the line is as before
+// (section 3).
 func TestFormatDeps(t *testing.T) {
 	c := valid()
 	c.Repos[0].Deps = &Deps{Run: []string{"sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"}, Env: map[string]string{"GOMODCACHE": "/deps/go/mod", "GOFLAGS": "-modcacherw"}}
 	c.Repos[1].Check = []string{"make"}
 	c.Repos[1].Deps = &Deps{Run: []string{"npm", "ci"}}
 	c.Repos[1].Services = ptr("test/compose.yaml")
+	c.Repos[1].Env = map[string]string{"TZ": "UTC", "CGO_ENABLED": "0"}
 	out := string(Format(c))
 	for _, want := range []string{
 		`"check": ["make", "check"], "deps": {"run": ["sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"], "env": {"GOFLAGS": "-modcacherw", "GOMODCACHE": "/deps/go/mod"}}, "image": `,
-		`"check": ["make"], "deps": {"run": ["npm", "ci"]}, "services": "test/compose.yaml", "image": `,
+		`"check": ["make"], "deps": {"run": ["npm", "ci"]}, "services": "test/compose.yaml", "env": {"CGO_ENABLED": "0", "TZ": "UTC"}, "image": `,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("Format lacks %q:\n%s", want, out)
@@ -441,8 +453,8 @@ func TestFormatDeps(t *testing.T) {
 	if err := Validate(ops.Real(), Clone(clone), c, 0); err != nil {
 		t.Errorf("valid deps: %v", err)
 	}
-	if strings.Contains(string(Format(valid())), "deps") {
-		t.Errorf("deps written with none:\n%s", Format(valid()))
+	if f := string(Format(valid())); strings.Contains(f, "deps") || strings.Contains(f, `"env": {`) {
+		t.Errorf("deps or env written with none:\n%s", f)
 	}
 }
 

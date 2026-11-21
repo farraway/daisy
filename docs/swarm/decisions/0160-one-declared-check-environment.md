@@ -143,3 +143,29 @@ from the declared Dockerfile and reads the targets, the services and
 the variables from those jobs' runs in the image. A mismatch stays a
 warning. The limit: a runner whose Docker does not hold the base
 cannot build the image.
+
+**As built: `repos[].env` (Step R3-1 of the plan implementing the
+2026-11-19 swarm roadmap).** The worker's run, the dependency step and
+the check are given the repository's `env`, one `--env` per name in
+name order, before `deps.env`'s (the dependency step and the check) and
+`x-daisy-env`'s (the worker and the check, beside the services); a name
+in `env` and `x-daisy-env` is given twice, the file's last, which Docker
+keeps. Without `env` each argv is as before, byte for byte. Validation
+reads each name in order and names the field: not a variable name, a
+secret's (`forge.token_env`, a `keys` `env`, `DAISY_MAINTAINER_TOKEN`,
+the names `<state>/env` holds), also in `deps.env`, or a value holding a
+newline or a carriage return (`\r`, as `ssh_command` and `services`
+refuse it). `init` keeps the file's `env`, as it keeps `deps`, and
+writes a `{}` as absent, which means the same. Narrowed here, each the
+spec's least: a provider's credential variable that `keys` does not
+name (an `ANTHROPIC_API_KEY` beside a `CLAUDE_CODE_OAUTH_TOKEN` key) is
+not refused, since only the swarm's own secrets are named by the spec
+and Daisy holds no other; the reviewers' runs are built with their
+services by the step that builds those (R3-3), so until it a reviewer
+is launched as before; the comparison with CI is R3-4's. Alternatives:
+refusing every provider variable (a rule the spec does not make);
+giving the reviewers `env` now without their services (half of 7.9's
+Beside a reviewer, and a second change to the same launch at R3-3).
+Tests: `TestSwarmEnvGivenToEveryRunOfTheRepository`,
+`TestSwarmEnvWithoutDepsOrServices`, `TestValidateNamesTheField`,
+`TestFormatDeps`, `TestWizardKeepsTheFilesDeps`.

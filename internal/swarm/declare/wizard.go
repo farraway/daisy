@@ -361,7 +361,7 @@ func (w *Wizard) defaultNames() string {
 // named is question 1's answer as entries:
 // each `<owner>/<name>`, named by its <name>, its ssh_command the file's
 // for the same repository, else the core.sshCommand of the clone
-// detection finds of it; the file's check, deps, image and protected kept. The
+// detection finds of it; the file's check, deps, services, env, image, protected and rulings kept. The
 // origins are what detection reads for the forge's questions: the swarm
 // repository's clone's origin, else the first repository's clone's.
 func (w *Wizard) named(answer string) ([]Repo, []Origin, *Error) {
@@ -392,7 +392,7 @@ func (w *Wizard) named(answer string) ([]Repo, []Origin, *Error) {
 		if w.File != nil {
 			for _, f := range w.File.Repos {
 				if strings.EqualFold(f.Repo, a) {
-					r.Check, r.Deps, r.Services, r.Image, r.Protected, r.Rulings, r.SSHCommand = f.Check, f.Deps, f.Services, f.Image, f.Protected, f.Rulings, f.SSHCommand
+					r.Check, r.Deps, r.Services, r.Env, r.Image, r.Protected, r.Rulings, r.SSHCommand = f.Check, f.Deps, f.Services, f.Env, f.Image, f.Protected, f.Rulings, f.SSHCommand
 				}
 			}
 		}

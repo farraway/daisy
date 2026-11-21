@@ -59,7 +59,7 @@ func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
 	checks := []func() *Error{
 		func() *Error { return checkForge(c.Forge, skip) },
 		func() *Error { return checkClone(o, p, c.Forge) },
-		func() *Error { return checkRepos(c.Forge, c.Repos) },
+		func() *Error { return checkRepos(c) },
 		func() *Error { return checkBase(c.Base) },
 		func() *Error { return checkRange("max_members", c.MaxMembers, 1, 16) },
 		func() *Error { return checkRange("max_rounds", c.MaxRounds, 1, 10) },
@@ -192,8 +192,10 @@ func IsCloneOf(o ops.Ops, dir string, f Forge) bool {
 }
 
 // checkRepos checks each declared repository: its repo, `<owner>/<name>`
-// beside the swarm repository, and its ssh_command.
-func checkRepos(f Forge, repos []Repo) *Error {
+// beside the swarm repository, its ssh_command and its env, which names
+// no secret of c's.
+func checkRepos(c Config) *Error {
+	f, repos := c.Forge, c.Repos
 	if len(repos) == 0 {
 		return fieldErr("repos", "no repository (at least one is required)")
 	}
@@ -220,6 +222,9 @@ func checkRepos(f Forge, repos []Repo) *Error {
 		if p := r.Services; p != nil && (*p == "" || filepath.IsAbs(*p) || strings.HasSuffix(*p, "/") || strings.ContainsAny(*p, "\n\r") ||
 			slices.Contains(strings.Split(*p, "/"), "..") || path.Clean(*p) != *p) {
 			return fieldErr(at+".services", "%q is not a file's path in the repository", *p)
+		}
+		if err := checkEnv(at, r, c.SecretNames()); err != nil {
+			return err
 		}
 		if r.Image == "" {
 			return fieldErr(at+".image", "empty")
@@ -288,6 +293,29 @@ func checkDeps(at string, r Repo) *Error {
 	}
 	return nil
 }
+
+// checkEnv is a repository's env, in name order: each name a variable
+// name, none a secret's (section 3, Secret values: the file is the swarm
+// repository's) and none also in deps.env, so a variable has one
+// declared value; each value one line.
+func checkEnv(at string, r Repo, secrets []string) *Error {
+	for _, k := range slices.Sorted(maps.Keys(r.Env)) {
+		field := at + ".env." + k
+		switch {
+		case !varShape.MatchString(k):
+			return fieldErr(field, "%q is not a variable name", k)
+		case slices.Contains(secrets, k):
+			return fieldErr(field, "a secret's variable is never given this way")
+		case r.Deps != nil && hasKey(r.Deps.Env, k):
+			return fieldErr(field, "also in deps.env; declare it once")
+		case strings.ContainsAny(r.Env[k], "\n\r"):
+			return fieldErr(field, "a value holds a newline")
+		}
+	}
+	return nil
+}
+
+func hasKey(m map[string]string, k string) bool { _, ok := m[k]; return ok }
 
 // checkNamedRepo is a declared repository's entry: not the swarm
 // repository, repo `<owner>/<name>` (owner forge.repo's, name the

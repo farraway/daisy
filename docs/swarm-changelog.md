@@ -868,3 +868,13 @@ they write.
   usage. The opening's list of the verbs, and section 11 (The
   interventions' record, daisy swarm intervene). Decision
   [155](swarm/decisions/0155-interventions-recorded.md) amended.
+- 2026-11-20, Step R3-1 of the plan implementing the 2026-11-19 swarm
+  roadmap (R3, one declared check environment): `repos[].env` built
+  for the worker's run, the dependency step and the check, given before
+  `deps.env`'s and `x-daisy-env`'s, refused when a name is not a
+  variable name, is a secret's or is also in `deps.env`, or a value
+  holds a newline; `init` keeps it. The reviewers' runs wait for R3-3.
+  Sections 3 (`repos[].env`, the field order, the error table), 7.2
+  (`--env`, the R3 block) and 7.9's opening. Decision
+  [160](swarm/decisions/0160-one-declared-check-environment.md)
+  amended.
