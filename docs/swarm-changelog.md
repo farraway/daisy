@@ -997,8 +997,10 @@ they write.
   the push, and a `NO CHANGE:` first line from such a start is a
   revision's text; `kept` still names the kept run, and a run that
   does not push keeps the commits as its own ref, which its note
-  names. Sections 2, 7.1, 7.5, 7.6 (steps 1 and 2, the R3
-  paragraph), 7.7 (no commits), 7.8 (Rollout) and 7.9 (the rerun's
-  table, the classification's As built). Decision
+  names. Sections 2, 5 (T12), 6 (an answer without a commit), 7.1,
+  7.5, 7.6 (steps 1 and 2, the R3 paragraph, the trailer, the
+  screenshots and the worker's row of the calls), 7.7 (no commits),
+  7.8 (Rollout) and 7.9 (the rerun's table, the classification's As
+  built). Decision
   [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)'s
   After the block is lifted, built.

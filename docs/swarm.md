@@ -5326,8 +5326,9 @@ commit is not past its `start`, so its collection leaves `kept`
 naming the kept run (7.8, `slices/<s>/kept`), as the replay writes it;
 one that does not push (a failure, `check environment` among them, a
 `BLOCKED:`, a question, a fault or abandoned) keeps the commits as its
-own run's ref, `kept refs/swarm-runs/<n>-worker-<k>`, which its note
-names (7.6, step 2), as a run with commits of its own does. Its row's
+own run's ref, `kept refs/swarm-runs/<n>-worker-<k>`, which the note
+of a failure or a `BLOCKED:` names (7.6, step 2), as for a run with
+commits of its own. Its row's
 lines are counted over `start..pushed`, an empty range, so 0 (the kept
 commits' lines are on no row, as for any start from kept since Step
 R1-8). A run launched
