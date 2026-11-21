@@ -940,3 +940,16 @@ they write.
   Sections 3 (`repos[].env`, `repos[].dockerfile`) and 7.9 (the opening,
   the comparison with CI). Decision
   [162](swarm/decisions/0162-ci-builds-the-declared-image.md) amended.
+- 2026-11-20, Step R3-5 of the plan implementing the 2026-11-19 swarm
+  roadmap (R3): the comparison with CI told, read from each declared
+  repository's mirror at `<base>` with git's read commands alone:
+  `apply` prints its lines on stderr in step (8) at the process's first
+  pass and again when the set changes, `status` lists `ci differs
+  <name>` after `no check` (`waiting.ci_differs`, `connect` too),
+  notify tells `<owner>/<repo> waits for you: ci differs <name>` once,
+  and `init`'s readiness prints each line as `⚠ Readiness: …`; a test
+  services file refused at `<base>` is a line of its own and the
+  comparison is made without it. Sections 2 (`<state>/notified`), 3
+  (`repos[].env`, `repos[].dockerfile`), 5 (Notify), 7.9 (the opening,
+  the comparison with CI) and 11 (`init`, `apply`, `status`). Decision
+  [162](swarm/decisions/0162-ci-builds-the-declared-image.md) amended.

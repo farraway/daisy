@@ -8,14 +8,13 @@ import (
 	"daisy/internal/swarm/runner"
 )
 
-// testServices is the repository's test services file at commit in its
+// TestServices is the repository's test services file at commit in its
 // mirror (sections 3 and 7.6): ok when the commit holds it, refused the
 // reason the file is not run (not a regular file, outside the subset, or
 // the file its services field names absent), the file's path first; an
 // error is git's.
-func (s *Swarm) testServices(rp declare.Repo, commit string) (ts declare.TestServices, ok bool, refused string, err error) {
+func (g Git) TestServices(rp declare.Repo, commit string) (ts declare.TestServices, ok bool, refused string, err error) {
 	p := rp.ServicesPath()
-	g := s.git()
 	entries, err := g.Tree(g.Mirror(rp.Name), commit, p)
 	if err != nil {
 		return ts, false, "", err

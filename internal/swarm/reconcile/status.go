@@ -73,12 +73,15 @@ type StatusGates struct {
 }
 
 // StatusWaiting is what waits for the maintainer: the gated issues, by
-// item in the line's order, the notes' branches to merge by hand, and
-// the repositories whose pull requests merge with no check (NoCheck).
+// item in the line's order, the notes' branches to merge by hand, the
+// repositories whose pull requests merge with no check (NoCheck), and
+// those whose CI differs from their declared check environment
+// (CIDiffers).
 type StatusWaiting struct {
-	Issues  []StatusWait `json:"issues"`
-	Notes   []string     `json:"notes"`
-	NoCheck []string     `json:"no_check"`
+	Issues    []StatusWait `json:"issues"`
+	Notes     []string     `json:"notes"`
+	NoCheck   []string     `json:"no_check"`
+	CIDiffers []string     `json:"ci_differs"`
 }
 
 type StatusWait struct {
@@ -312,6 +315,13 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	}
 	r.Waiting.Notes = append([]string{}, notes...)
 	r.Waiting.NoCheck = append([]string{}, NoCheck(cfg)...)
+	// The comparison with CI, read from the mirrors as their last fetch
+	// left them (section 7.9).
+	ci, err := CIDiffers(Git{O: o, WS: ws, State: cfg.Forge.State(local)}, cfg)
+	if err != nil {
+		return nil, statusRead{}, err
+	}
+	r.Waiting.CIDiffers = CIDifferNames(ci)
 
 	state := cfg.Forge.State(local)
 	r.State = readStateNotes(o.FS(), state, NoActiveBrief(briefs))

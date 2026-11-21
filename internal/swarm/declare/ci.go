@@ -23,6 +23,10 @@ var workflowDirs = map[string][]string{
 	"github": {".github/workflows/"},
 }
 
+// WorkflowDirs is the directories the forge kind runs workflows from, in
+// the order it looks, each ending in `/`.
+func WorkflowDirs(kind string) []string { return slices.Clone(workflowDirs[kind]) }
+
 // WorkflowFiles is, of a tree's paths, the workflow files the forge kind
 // runs, in path order: the .yml and .yaml files directly in the first of
 // its directories that holds one.
@@ -87,9 +91,27 @@ type ciJob struct {
 // difference's line, none when CI agrees or no workflow runs on a pull
 // request. It reads nothing but its arguments.
 func CompareCI(kind string, r Repo, svcs *TestServices, files []Workflow) []string {
-	var out []string
+	diffs, _ := compareCI(kind, r, svcs, files)
+	return ciLines(r.Name, diffs)
+}
+
+// CompareCIRefused is CompareCI for a repository whose test services file
+// was refused for reason (section 7.9, As built): the refusal's line,
+// `<file>: not compared: <reason>`, first, then the lines of the
+// comparison made without the file; none when no workflow file the kind
+// runs is read on a pull request or refused, as CompareCI tells none.
+func CompareCIRefused(kind string, r Repo, reason string, files []Workflow) []string {
+	diffs, compared := compareCI(kind, r, nil, files)
+	if !compared && len(diffs) == 0 {
+		return nil
+	}
+	return ciLines(r.Name, append([]string{r.ServicesPath() + ": not compared: " + reason}, diffs...))
+}
+
+// compareCI is CompareCI's differences, and whether a workflow file was
+// compared.
+func compareCI(kind string, r Repo, svcs *TestServices, files []Workflow) (out []string, compared bool) {
 	var jobs []ciJob
-	compared := false
 	for _, p := range WorkflowFiles(kind, workflowPaths(files)) {
 		i := slices.IndexFunc(files, func(f Workflow) bool { return f.Path == p })
 		root, err := readYAML(files[i].Data)
@@ -104,7 +126,7 @@ func CompareCI(kind string, r Repo, svcs *TestServices, files []Workflow) []stri
 		jobs = append(jobs, workflowJobs(p, root)...)
 	}
 	if !compared {
-		return ciLines(r.Name, out)
+		return out, false
 	}
 	declared := r.Dockerfile != nil
 	var image []ciJob
@@ -268,7 +290,7 @@ func CompareCI(kind string, r Repo, svcs *TestServices, files []Workflow) []stri
 			out = append(out, otherwise...)
 		}
 	}
-	return ciLines(r.Name, out)
+	return out, true
 }
 
 // ciLines is each difference as its line, each once, in order.

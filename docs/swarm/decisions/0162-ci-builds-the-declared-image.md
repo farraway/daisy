@@ -205,3 +205,33 @@ reference job, verbatim from 7.9, gives none), `TestCompareCIMutations`,
 `TestCompareCICommands`, `TestCompareCIWorkflows`,
 `TestCompareCITwoImageJobs`, `TestCompareCICheckNotMake`,
 `TestCompareCIRealistic`.
+
+**As built: the comparison told (Step R3-5 of the plan implementing
+the 2026-11-19 swarm roadmap).** `reconcile.CIDiffers` reads, for each
+declared repository, its mirror at `<base>` with git's read commands
+alone (the kind's workflow directories, `declare.WorkflowDirs`, and
+the test services file at the same commit) and is the one source of
+`apply`'s stderr lines, `status`'s `ci differs <name>`
+(`waiting.ci_differs`, and `connect`'s), notify's item and `init`'s
+readiness lines. It fetches nothing: `apply` reads it in step (8), so
+as the pass's own fetch left the mirrors when the pass fetched, else
+as an earlier fetch did (fetching for it in a pass that fetches
+nothing, a paused one, was the alternative: 7.9's "writing nothing"
+and a paused swarm's quiet weighed against a line a fetch late). The
+lines last printed are the process's memory, never a file (7.9's "the
+process's first pass", as for a merge with no check, decision
+[145](0145-a-merge-with-no-check-is-warned-of.md)), and the set is
+every repository's lines together, printed whole when it changes
+(each repository's lines apart was the alternative: the precedent's
+one set kept). Notify's record is `<state>/notified`'s `ci differs
+<name>`, by name, as 7.9 has it. Where 7.9 was silent: a test services
+file refused at `<base>` is its own line,
+`<file>: not compared: <reason>`, first, and the comparison made
+without it (`declare.CompareCIRefused`; leaving the repository
+uncompared until the file reads was the alternative, hiding CI's
+differences behind a file the check refuses anyway), told only when a
+workflow runs on a pull request, as every line is; a mirror git cannot
+read is a warning on `apply`'s and `init`'s stderr with nothing told
+by notify that pass, and `status`'s error, as its other reads are.
+Tests: `TestSwarmCIDiffersTold`, `TestSwarmCIDiffersServicesFile`,
+`TestSwarmInitReadinessCIDiffers`.

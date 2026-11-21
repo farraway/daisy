@@ -301,7 +301,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 		"gates": `{"merge":true,"plan":true,"triage":true}`,
 		"stages": `{"swarm:plan-0-posted":[3,4,5],"swarm:plan-1-accepted":[7,11],"swarm:plan-2-in-progress":[],"swarm:proposal-accepted":[12,13],"swarm:proposal-posted":[1,2],` +
 			`"swarm:review-0-ready":[8],"swarm:review-1-in-progress":[],"swarm:review-2-approved":[6],"swarm:review-3-changes-requested":[]}`,
-		"waiting": `{"issues":[{"class":"architecture","issue":1,"item":"triage"},{"class":"architecture","issue":2,"item":"triage"},` +
+		"waiting": `{"ci_differs":[],"issues":[{"class":"architecture","issue":1,"item":"triage"},{"class":"architecture","issue":2,"item":"triage"},` +
 			`{"class":"architecture","issue":3,"item":"plan"},{"class":"architecture","issue":4,"item":"plan"},{"class":"architecture","issue":5,"item":"plan"},` +
 			`{"class":"architecture","issue":6,"item":"merge"},{"class":"architecture","issue":7,"item":"blocked"}],"no_check":[],"notes":[]}`,
 		"held":    `{"blocked_by":[{"by":3,"issue":12}],"paused":[11]}`,

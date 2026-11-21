@@ -128,8 +128,9 @@ func (s *Swarm) notify() {
 // <state>/paused line, which `status` shows); each open issue carrying
 // swarm:gated, by number, its item Waiting's and its key naming the
 // reconciler's note that put it there (waitNote), so a new block or a
-// new gating event is a new item; each notes branch `status` lists; and
-// each repository it lists under `no check` (NoCheck), by its name.
+// new gating event is a new item; each notes branch `status` lists; each
+// repository it lists under `no check` (NoCheck), and under `ci differs`
+// (as warnCI read them this pass), by its name.
 func (s *Swarm) waiting() ([]waitItem, error) {
 	repo := s.Cfg.Forge.Repo
 	var out []waitItem
@@ -175,6 +176,12 @@ func (s *Swarm) waiting() ([]waitItem, error) {
 	}
 	for _, name := range NoCheck(s.Cfg) {
 		out = append(out, waitItem{"no check " + name, repo + " waits for you: no check " + name})
+	}
+	if s.ciErr != nil {
+		return nil, s.ciErr
+	}
+	for _, name := range CIDifferNames(s.ci) {
+		out = append(out, waitItem{"ci differs " + name, repo + " waits for you: ci differs " + name})
 	}
 	return out, nil
 }

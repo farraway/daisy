@@ -251,7 +251,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		// a file refused runs beside none, the worker's check reporting
 		// the refusal if the head still holds it.
 		env = repo.EnvLines()
-		ts, ok, refused, err := s.testServices(repo, sha)
+		ts, ok, refused, err := s.git().TestServices(repo, sha)
 		switch {
 		case err != nil:
 			fs.RemoveAll(r.Dir)
@@ -542,7 +542,7 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	var svc bool
 	if step == "check" {
 		var refused string
-		if ts, svc, refused, err = s.testServices(repo, sha); err != nil {
+		if ts, svc, refused, err = s.git().TestServices(repo, sha); err != nil {
 			return err
 		}
 		if refused != "" {

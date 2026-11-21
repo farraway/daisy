@@ -282,14 +282,24 @@ func writeRepoNotes(c *Context, at declare.Place, g reconcile.Git, cfg declare.C
 }
 
 // readiness names, on stderr, what a product lacks for a swarm to improve
-// it; never a refusal. Its instructions are read in its mirror at base.
+// it; never a refusal. Its instructions and the comparison with its CI
+// (section 7.9) are read in its mirror at base.
 func readiness(c *Context, g reconcile.Git, cfg declare.Config, swarmLogin string) {
+	ci, err := reconcile.CIDiffers(g, cfg)
+	if err != nil {
+		fmt.Fprintf(c.Stderr, "⚠ Readiness: %v\n", err)
+	}
 	for _, r := range cfg.Repos {
 		if !g.HasFile(r.Name, cfg.Base, "AGENTS.md") && !g.HasFile(r.Name, cfg.Base, "CLAUDE.md") {
 			fmt.Fprintf(c.Stderr, "⚠ Readiness: %s has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n", r.Name)
 		}
 		if len(r.Check) == 0 {
 			fmt.Fprintf(c.Stderr, "⚠ Readiness: %s: check is empty; no member's work is executed (set it in swarm.json)\n", r.Name)
+		}
+		if i := slices.IndexFunc(ci, func(d reconcile.CIDiffer) bool { return d.Name == r.Name }); i >= 0 {
+			for _, l := range ci[i].Lines {
+				fmt.Fprintln(c.Stderr, "⚠ Readiness: "+strings.TrimPrefix(l, "⚠ "))
+			}
 		}
 	}
 	if len(cfg.Resources) == 0 {
@@ -531,7 +541,8 @@ func writeStatus(out io.Writer, r *statusReport) {
 }
 
 // waitingLine is the Waiting for you line: the gated issues by item, then
-// the notes' branches, then the repositories with no check, or nothing.
+// the notes' branches, then the repositories with no check, then those
+// whose CI differs, or nothing.
 func waitingLine(w reconcile.StatusWaiting) string {
 	var waiting []string
 	for i, ws := 0, w.Issues; i < len(ws); {
@@ -553,6 +564,9 @@ func waitingLine(w reconcile.StatusWaiting) string {
 	}
 	if len(w.NoCheck) > 0 {
 		waiting = append(waiting, "no check "+strings.Join(w.NoCheck, " "))
+	}
+	if len(w.CIDiffers) > 0 {
+		waiting = append(waiting, "ci differs "+strings.Join(w.CIDiffers, " "))
 	}
 	if len(waiting) == 0 {
 		waiting = []string{"nothing"}

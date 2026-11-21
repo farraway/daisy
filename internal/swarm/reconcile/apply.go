@@ -56,6 +56,9 @@ type Swarm struct {
 	driftSeen  bool                // a pass has compared the configuration with the pushed head (drift)
 	drifting   []string            // the paths that drifted at the last comparison
 	unchecked  []string            // the warnings warnUnchecked printed last
+	ci         []CIDiffer          // the repositories whose CI differs, as warnCI read them this pass
+	ciErr      error               // warnCI's read refused this pass: notify tells nothing
+	ciTold     []string            // the lines warnCI printed last
 }
 
 // Openers is whose pull requests are the swarm's (section 10, Pulls):
@@ -113,7 +116,7 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 // (5) each stage's issues, their pull requests given the issue's label,
 // and the role rule's launches up to max_members; (6) the merge step with
 // the merge gate off; (7) the owner's batch trigger, then the
-// QA's; (8) unless
+// QA's; (8) the comparison with CI told (warnCI), then unless
 // signalled, the maintainer's flag set and cleared by the stages, each
 // open issue's pull requests listed in its body, then the forge
 // milestones mirroring the briefs, and with notify each new item
@@ -177,6 +180,7 @@ func (s *Swarm) Pass(wait bool) error {
 	if wait {
 		errs = append(errs, s.Drain(nil))
 	}
+	s.warnCI()
 	if !s.stopping() {
 		open := s.flags()
 		s.copyMoved()
