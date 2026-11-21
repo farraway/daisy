@@ -219,8 +219,7 @@ func checkRepos(c Config) *Error {
 		if err := checkDeps(at, r); err != nil {
 			return err
 		}
-		if p := r.Services; p != nil && (*p == "" || filepath.IsAbs(*p) || strings.HasSuffix(*p, "/") || strings.ContainsAny(*p, "\n\r") ||
-			slices.Contains(strings.Split(*p, "/"), "..") || path.Clean(*p) != *p) {
+		if p := r.Services; p != nil && !isFilePath(*p) {
 			return fieldErr(at+".services", "%q is not a file's path in the repository", *p)
 		}
 		if err := checkEnv(at, r, c.SecretNames()); err != nil {
@@ -228,6 +227,9 @@ func checkRepos(c Config) *Error {
 		}
 		if r.Image == "" {
 			return fieldErr(at+".image", "empty")
+		}
+		if p := r.Dockerfile; p != nil && !isFilePath(*p) {
+			return fieldErr(at+".dockerfile", "%q is not a file's path in the repository", *p)
 		}
 		for _, list := range []struct {
 			field    string
@@ -292,6 +294,14 @@ func checkDeps(at string, r Repo) *Error {
 		return fieldErr(at+".deps", "no check to run it before; declare check, or remove deps")
 	}
 	return nil
+}
+
+// isFilePath is a file's path in a repository, as services and
+// dockerfile are declared (section 3): relative, clean (path.Clean's
+// own), without .., not the repository's root (.) nor ending /, one line.
+func isFilePath(p string) bool {
+	return p != "" && p != "." && !filepath.IsAbs(p) && !strings.HasSuffix(p, "/") && !strings.ContainsAny(p, "\n\r") &&
+		!slices.Contains(strings.Split(p, "/"), "..") && path.Clean(p) == p
 }
 
 // checkEnv is a repository's env, in name order: each name a variable

@@ -185,8 +185,9 @@ func TestWizardKeepsTheFilesXAIForm(t *testing.T) {
 	}
 }
 
-// A file's deps, services, env and rulings are kept by the wizard, as its check
-// is: none is asked (section 11).
+// A file's deps, services, env, dockerfile and rulings are kept by the
+// wizard, as its check is: none is asked (section 11); its dockerfile is
+// written back byte for byte.
 func TestWizardKeepsTheFilesDeps(t *testing.T) {
 	_, clone := cloneFolder(t)
 	o, _ := scripted(make([]string, 40)...)
@@ -195,6 +196,7 @@ func TestWizardKeepsTheFilesDeps(t *testing.T) {
 	file.Repos[0].Rulings = &[]string{}
 	file.Repos[0].Services = ptr("test/compose.yaml")
 	file.Repos[0].Env = map[string]string{"CGO_ENABLED": "0"}
+	file.Repos[0].Dockerfile = ptr("images/ci/Dockerfile")
 	file.Notify = []string{"ntfy", "publish", "swarm-app"}
 	w := &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
 	c, err := w.Ask()
@@ -212,6 +214,12 @@ func TestWizardKeepsTheFilesDeps(t *testing.T) {
 	}
 	if !reflect.DeepEqual(c.Repos[0].Env, file.Repos[0].Env) || c.Repos[1].Env != nil {
 		t.Errorf("env %v, %v", c.Repos[0].Env, c.Repos[1].Env)
+	}
+	if c.Repos[0].Dockerfile == nil || *c.Repos[0].Dockerfile != "images/ci/Dockerfile" || c.Repos[1].Dockerfile != nil {
+		t.Errorf("dockerfile %v, %v", c.Repos[0].Dockerfile, c.Repos[1].Dockerfile)
+	}
+	if want := `"image": "daisy-member:1", "dockerfile": "images/ci/Dockerfile", "protected": `; !strings.Contains(string(Format(c)), want) {
+		t.Errorf("init's file lacks %q:\n%s", want, Format(c))
 	}
 	if !reflect.DeepEqual(c.Notify, file.Notify) {
 		t.Errorf("notify %q", c.Notify)

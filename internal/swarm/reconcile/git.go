@@ -688,6 +688,20 @@ func Protected(paths, patterns []string) []string {
 	return hit
 }
 
+// ProtectedIn is the paths a worker's change may not touch in r (section
+// 3; 7.6, step 3), in paths' order, each once: those matching one of its
+// protected patterns, and its declared dockerfile, protected by default
+// and matched as written, whole (decision 162).
+func ProtectedIn(paths []string, r declare.Repo) []string {
+	var hit []string
+	for _, p := range paths {
+		if (r.Dockerfile != nil && p == *r.Dockerfile) || len(Protected([]string{p}, r.Protected)) > 0 {
+			hit = append(hit, p)
+		}
+	}
+	return hit
+}
+
 // Clone makes dir a clone of the repository's mirror on branch, prepared
 // before any container sees it (section 7.1, step 3): a local base branch,
 // and a local branch for each of also (the revising architect's pull

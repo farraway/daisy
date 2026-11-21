@@ -149,7 +149,8 @@ func (c *collection) keep() error {
 // refused is why no run may build on the worker run's commits (section
 // 7.6, step 3): "secret in output: commits" when an object the push
 // would send holds a secret the member was given, then "protected path
-// changed: <paths>" when they change a protected path; "" when neither.
+// changed: <paths>" when they change a protected path (its declared
+// dockerfile among them); "" when neither.
 // The secret check comes first: the protected-path note names paths, and
 // a path is the member's text too.
 func (c *collection) refused() (string, error) {
@@ -166,7 +167,7 @@ func (c *collection) refused() (string, error) {
 		return "", err
 	}
 	repo, _ := s.repo(name)
-	if hits := Protected(changed, repo.Protected); len(hits) > 0 {
+	if hits := ProtectedIn(changed, repo); len(hits) > 0 {
 		return "protected path changed: " + strings.Join(hits, ", "), nil
 	}
 	return "", nil

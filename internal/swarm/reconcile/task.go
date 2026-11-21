@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -197,20 +198,30 @@ func (j *Job) commented() bool {
 	return false
 }
 
-// protected is the Task text's list: the run's repository's patterns for
-// the worker, each declared repository's as `<name>: <patterns>` for the
-// architect.
+// protected is the Task text's list: the run's repository's protected
+// paths for the worker, each declared repository's as `<name>: <paths>`
+// for the architect.
 func (j *Job) protected() string {
 	if j.Role == "worker" {
-		return strings.Join(j.repo(j.RunRepo()).Protected, ", ")
+		return strings.Join(protectedPaths(j.repo(j.RunRepo())), ", ")
 	}
 	var parts []string
 	for _, r := range j.Cfg.Repos {
-		if len(r.Protected) > 0 {
-			parts = append(parts, r.Name+": "+strings.Join(r.Protected, ", "))
+		if ps := protectedPaths(r); len(ps) > 0 {
+			parts = append(parts, r.Name+": "+strings.Join(ps, ", "))
 		}
 	}
 	return strings.Join(parts, "; ")
+}
+
+// protectedPaths is a repository's protected paths as the Task texts name
+// them (7.4): its protected patterns, then its declared dockerfile, unless
+// one of them already matches it (decision 162).
+func protectedPaths(r declare.Repo) []string {
+	if r.Dockerfile == nil || len(Protected([]string{*r.Dockerfile}, r.Protected)) > 0 {
+		return r.Protected
+	}
+	return append(slices.Clone(r.Protected), *r.Dockerfile)
 }
 
 // answeredSince: the worker answered without a commit (Answers) after

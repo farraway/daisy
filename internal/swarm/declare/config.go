@@ -106,8 +106,9 @@ type Forge struct {
 // declared by Repo, `<owner>/<name>`, with an optional SSHCommand, an
 // optional dependency step run before its check, an optional test
 // services file (ServicesPath), optional Env, the variables of its check
-// environment (EnvLines), and optional Rulings, nil when absent, so that
-// an explicit [] is kept (section 3).
+// environment (EnvLines), an optional Dockerfile, the path of the file
+// that builds Image, protected by default (decision 162), and optional
+// Rulings, nil when absent, so that an explicit [] is kept (section 3).
 type Repo struct {
 	Name       string            `json:"name"`
 	Repo       string            `json:"repo,omitempty"`
@@ -117,6 +118,7 @@ type Repo struct {
 	Services   *string           `json:"services,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Image      string            `json:"image"`
+	Dockerfile *string           `json:"dockerfile,omitempty"`
 	Protected  []string          `json:"protected"`
 	Rulings    *[]string         `json:"rulings,omitempty"`
 }

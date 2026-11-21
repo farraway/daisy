@@ -878,3 +878,15 @@ they write.
   (`--env`, the R3 block) and 7.9's opening. Decision
   [160](swarm/decisions/0160-one-declared-check-environment.md)
   amended.
+- 2026-11-20, Step R3-1b of the plan implementing the 2026-11-19 swarm
+  roadmap (R3; the maintainer's answer to its Open Question 8):
+  `repos[].dockerfile` built as a field: a relative, clean path, not
+  `.` nor ending `/`, one line, as `services` is (which now refuses `.`
+  too), written after `image` and kept by `init`; the declared file is
+  protected by default, a worker's change to it the failure *protected
+  path changed* without the path in `protected`, matched whole, and the
+  Task texts name it among the protected paths. The comparison with CI
+  waits for R3-4. Sections 3 (the field order, `repos[].dockerfile`,
+  `repos[].protected`, the error table), 7.4, 7.6 (step 3), 7.9 and 11
+  (daisy swarm init, the fields not asked). Decision [162](swarm/decisions/0162-ci-builds-the-declared-image.md)
+  amended.

@@ -128,3 +128,33 @@ failure sends no longer says that a signature in a touched package
 reaches the maintainer; the maintainer may still find a classified
 failure the change's (an untouched package failing through a coupling
 no import shows) and retag the row when lifting the block.
+
+**Amended: the declared Dockerfile is protected by default (the
+maintainer's answer of 2026-11-20 to Open Question 8 of the plan
+implementing the 2026-11-19 swarm roadmap; as built at its Step
+R3-1b).** Where "Where the Dockerfile lives" left the path to the
+maintainer's `protected` list, a default being a new stop for a
+worker's change, the maintainer has made that stop: a worker's change
+to the file `repos[].dockerfile` names (changed, deleted, renamed
+away, or created where there was none) is the failure *protected path
+changed*, as a change to a `protected` path is (7.6, step 3), its note
+naming the path among the others, each once, in the diff's order. The
+path joins the same check rather than being written into the file's
+`protected`, so `init` keeps the maintainer's list as written and a
+`protected` of `[]` still protects the declared Dockerfile. It is
+matched as written, whole: `protected`'s rule for an entry without `/`
+(its last element, at any depth) would make a root `Dockerfile` protect
+every file of that name in the repository, which the field does not
+declare. The Task texts name it among the protected paths (7.4),
+after the patterns and only when none of them matches it already, so a
+worker is told before its change is refused rather than after. As
+built, the field is read and written: a relative, clean path, not `.`
+nor ending `/`, one line, as `services` is (whose rule now refuses `.`
+too, the repository's root being no file's path), written after
+`image` and kept by `init`. Alternatives: copying the path into
+`protected` when `init` writes the file (a list the maintainer edits
+would then lose it silently); matching it as a `protected` pattern
+(the reach above); leaving the Task texts as they were (a worker
+refused for a path it was never told of). Tests:
+`TestDeclaredDockerfileIsProtected`, `TestValidateNamesTheField`,
+`TestFormatDeps`, `TestWizardKeepsTheFilesDeps`.
