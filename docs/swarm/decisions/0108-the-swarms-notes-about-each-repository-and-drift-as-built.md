@@ -40,3 +40,8 @@ fails is one `⚠ Drift: <error>` line. The old layout has neither
 `repos/<name>.md` nor Drift. Tests: the clone fixture's `status`
 and `apply` start from a pushed `init` whose mirror holds it, as
 Step 6's `init` will leave them.
+
+**Amended by decision
+[167](0167-the-system-prompt-stable-blocks-first.md)
+(Step E1 of the plan implementing the 2026-11-19 swarm roadmap).**
+The repository notes are added to `system.md` before the resources and the run's `# Task`, which now come last.

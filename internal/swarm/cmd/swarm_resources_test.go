@@ -115,7 +115,7 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 	if !strings.Contains(prompt, heading) || !strings.Contains(prompt, "\nv1\n") {
 		t.Fatalf("run 1's prompt:\n%s\nstdout:\n%s\nstderr:\n%s", prompt, a.stdout.String(), a.stderr.String())
 	}
-	if system := a.file("0-owner-1", "io/system.md"); !strings.HasSuffix(system, "\n# Resources\n\nMounted read-only:\n\n- /job/resources/swarm-app/docs (index: /job/resources/swarm-app/docs/README.md)\n") {
+	if system := a.file("0-owner-1", "io/system.md"); !strings.Contains(system, "\n# Resources\n\nMounted read-only:\n\n- /job/resources/swarm-app/docs (index: /job/resources/swarm-app/docs/README.md)\n\n<!-- daisy-swarm system: ") {
 		t.Errorf("run 1's system.md:\n%s", system)
 	}
 	if !strings.Contains(result, "\nresource swarm-app "+v1+"\n") {
@@ -214,8 +214,9 @@ func TestSwarmResourcesAtTheirCommits(t *testing.T) {
 		"- /job/resources/lib/guide\n" +
 		"- /job/resources/spec/SPEC.md — the standard\n" +
 		"- /job/resources/std/lib\n"
-	if system := a.file("1-architect-1", "io/system.md"); !strings.HasSuffix(system, listed) {
-		t.Errorf("system.md:\n%s\nwant it to end with:%s", system, listed)
+	// The last block every run shares, before the run's header (Step E1).
+	if system := a.file("1-architect-1", "io/system.md"); !strings.Contains(system, listed+"\n<!-- daisy-swarm system: ") {
+		t.Errorf("system.md:\n%s\nwant it to end its shared blocks with:%s", system, listed)
 	}
 	if prompt := a.file("1-architect-1", "io/prompt.md"); strings.Contains(prompt, "/job/resources") {
 		t.Errorf("prompt.md names a resource:\n%s", prompt)

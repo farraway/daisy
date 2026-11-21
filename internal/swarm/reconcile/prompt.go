@@ -101,16 +101,18 @@ func endStamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
 // Render is the run's system.md and prompt.md. Each member text the
 // prompt shows is read from the job's workspace (shownText); a read that
-// failed is left in j for the launch (TextErr).
+// failed is left in j for the launch (TextErr). system.md writes the
+// blocks every run of the role shares first and the run's own header
+// and # Task last, so that runs of one role share a prefix a provider's
+// prompt cache keeps (section 7.3).
 func Render(j *Job) (system, prompt string) {
 	j.textErr = nil
 	head := fmt.Sprintf("%s#%d %s run %d, %s -->", j.Cfg.Forge.Repo, j.N, j.Role, j.K, stamp(j.Time))
 	prompt = j.prompt(head)
-	sys := []string{"<!-- daisy-swarm system: " + head, "# Persona", Shift(trim(j.Persona), 1)}
+	sys := []string{"# Persona", Shift(trim(j.Persona), 1)}
 	for _, p := range j.Parts {
 		sys = append(sys, "# Prompt part: "+p.Path, Shift(trim(p.Text), 1))
 	}
-	sys = append(sys, "# Task", j.task())
 	if readsPraxis(j.Role) {
 		for _, b := range [][2]string{{"# Praxis", j.Praxis}, {"# Testing", skillBody(j.Testing)}} {
 			if text := trim(b[1]); strings.TrimSpace(text) != "" {
@@ -121,7 +123,7 @@ func Render(j *Job) (system, prompt string) {
 	for _, n := range j.Repos {
 		sys = append(sys, "# Repository notes: "+n.Name, Shift(trim(n.Text), 1))
 	}
-	return doc(append(sys, "# Resources", j.resources())...), prompt
+	return doc(append(sys, "# Resources", j.resources(), "<!-- daisy-swarm system: "+head, "# Task", j.task())...), prompt
 }
 
 // prompt is the run's prompt.md.

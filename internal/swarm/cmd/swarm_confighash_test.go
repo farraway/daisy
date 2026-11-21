@@ -16,14 +16,15 @@ import (
 )
 
 // configText is the configuration's text of a run's system.md as section
-// 7.6 names it: from its `# Persona` line up to its `# Task` line.
+// 7.6 names it: from its `# Persona` line up to the block after its
+// prompt parts, here the architect's `# Praxis` (Step E1).
 func configText(t *testing.T, sys string) string {
 	t.Helper()
-	at, task := strings.Index(sys, "\n# Persona\n"), strings.Index(sys, "\n# Task\n")
-	if at < 0 || task < at {
-		t.Fatalf("no # Persona then # Task:\n%s", sys)
+	at, next := strings.Index(sys, "# Persona\n"), strings.Index(sys, "\n# Praxis\n")
+	if at != 0 || next < at {
+		t.Fatalf("no # Persona first, then # Praxis:\n%s", sys)
 	}
-	return sys[at+1 : task+1]
+	return sys[at : next+1]
 }
 
 func sha(text string) string {

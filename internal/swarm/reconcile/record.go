@@ -128,30 +128,31 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 
 // configHash is the sha256 of the run's configuration as its system.md
 // holds it (section 7.6, The run's record): the text from its `# Persona`
-// line up to its `# Task` line, the role's prompt and its prompt parts
-// under their headings, which Render writes alike for every run of the
-// role whatever its issue, stage or time; "" when the file has no
-// `# Persona` line followed by a `# Task` line. A line in a fenced block
-// is neither.
+// line up to the first block after its prompt parts, the role's prompt
+// and its parts under their headings, which Render writes alike for
+// every run of the role whatever its issue, stage or time. That block is
+// `# Task` in a system.md written before Step E1 of the plan implementing
+// the 2026-11-19 swarm roadmap, and `# Praxis`, `# Repository notes:
+// <name>` or `# Resources` since, so one persona and its parts hash
+// alike in either order; "" when the file has no `# Persona` line
+// followed by another block's. A line in a fenced block is neither, and
+// Render shifts every heading of the persona and the parts below `# `.
 func configHash(system []byte) string {
 	var fences fence.Scan
 	start, at := -1, 0
 	for _, line := range strings.SplitAfter(string(system), "\n") {
 		from := at
 		at += len(line)
-		if fences.Line(strings.TrimSuffix(line, "\n")) {
+		l := strings.TrimSuffix(line, "\n")
+		if fences.Line(l) || !strings.HasPrefix(l, "# ") {
 			continue
 		}
-		switch strings.TrimSuffix(line, "\n") {
-		case "# Persona":
-			if start < 0 {
-				start = from
-			}
-		case "# Task":
-			if start >= 0 {
-				sum := sha256.Sum256(system[start:from])
-				return hex.EncodeToString(sum[:])
-			}
+		switch {
+		case start < 0 && l == "# Persona":
+			start = from
+		case start >= 0 && !strings.HasPrefix(l, "# Prompt part: "):
+			sum := sha256.Sum256(system[start:from])
+			return hex.EncodeToString(sum[:])
 		}
 	}
 	return ""

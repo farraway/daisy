@@ -497,7 +497,8 @@ func TestSwarmApplyPraxisFromTheRoot(t *testing.T) {
 	}
 	sys, _ := os.ReadFile(a.state("runs/1-architect-1/io/system.md"))
 	want := "\n\n# Praxis\n\n### Trigger\n\nRead it.\n\n### Rules\n\n1. **Read before inventing.** The root's praxis.\n\n# Testing\n\nA test is an instrument.\n\n# Repository notes: app\n"
-	if task := strings.Index(string(sys), "\n# Task\n"); task < 0 || strings.Index(string(sys), want) < task || strings.Contains(string(sys), "name: testing") {
+	// Before the run's own # Task, which comes last (Step E1).
+	if task, at := strings.Index(string(sys), "\n# Task\n"), strings.Index(string(sys), want); at < 0 || task < at || strings.Contains(string(sys), "name: testing") {
 		t.Errorf("architect's system.md:\n%s", sys)
 	}
 

@@ -750,7 +750,9 @@ swarm repository, for the declared repository `<name>`, is the
 maintainer's word about that repository to every member working in it,
 which the product repository itself does not carry (it holds no swarm
 material: its `AGENTS.md` is any contributor's). Read at the pass's
-commit (7.1), it is added to the member's `system.md` after `# Task`,
+commit (7.1), it is added to the member's `system.md` before the
+resources and the run's `# Task` (7.3, The order; after `# Task` until
+Step E1 of the plan implementing the 2026-11-19 swarm roadmap),
 under `# Repository notes: <name>`, verbatim but for its headings,
 shifted as the persona's are (7.3): the worker's for its slice's
 repository, a reviewer's for its pull request's, and the owner's and the
@@ -2743,8 +2745,9 @@ ends.
 
 Two files, so that the thread never travels in a system-prompt channel:
 `<run>/io/system.md` holds Daisy's and the maintainer's words (the persona
-and its prompt parts, the Task, the swarm's notes about a repository, the resources with their
-notes and, for the architect and the worker, Daisy's praxis and testing skill), and `<run>/io/prompt.md`
+and its prompt parts, for the architect and the worker Daisy's praxis and
+testing skill, the swarm's notes about a repository, the resources with
+their notes, then the run's header and the Task: The order, below), and `<run>/io/prompt.md`
 holds the material (the issue, the threads, the plan, the pull request),
 which anyone who can comment may have written. The member sees them as
 `/job/io/system.md` and `/job/io/prompt.md`; section 9 says how
@@ -2763,8 +2766,6 @@ text cut on the forge is shown whole, read from the job's workspace (A
 text cut on the forge, below).
 
 ```markdown
-<!-- daisy-swarm system: <owner>/<repo>#<n> <role> run <k>, <time> -->
-
 # Persona
 
 <prompts/<role>.md, verbatim but for its headings, shifted as below>
@@ -2772,10 +2773,6 @@ text cut on the forge, below).
 # Prompt part: <path>
 
 <the file at <path> in the swarm repository's clone, verbatim but for its headings, shifted as below; one such section per `prompt_parts` entry naming the run's role (section 3), in that list's order, none when no entry names it>
-
-# Task
-
-<the Task text for the role and label, 7.4>
 
 # Praxis
 
@@ -2794,10 +2791,29 @@ text cut on the forge, below).
 Mounted read-only:
 
 - /job/resources/<repository>/<path> (index: /job/resources/<repository>/<path>/README.md) — <note>
+
+<!-- daisy-swarm system: <owner>/<repo>#<n> <role> run <k>, <time> -->
+
+# Task
+
+<the Task text for the role and label, 7.4>
 ```
 
-**`# Resources`** comes last in every role's `system.md`, as every role
-has the mount (7.2): a line per `resources` entry, then per reference
+**The order** (Step E1 of the plan implementing the 2026-11-19 swarm
+roadmap, decision
+[167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md)):
+the blocks every run of a role shares come first, the persona, its
+prompt parts, praxis and the testing skill, the repository notes and
+the resources, and the run's own come last, its header line, naming
+the issue, the run and its time, and `# Task`, so that two runs of one
+role, on any issues, share every byte of `system.md` up to the header:
+the prefix a provider's prompt cache keeps from one run to the next.
+Before that step the header came first and `# Task` after the prompt
+parts.
+
+**`# Resources`** comes last of the blocks every run shares, before
+the run's header and `# Task`, in every role's `system.md`, as every
+role has the mount (7.2): a line per `resources` entry, then per reference
 path, in `swarm.json`'s order, each its mount, `/job/resources/<repository>/<path>`
 (`<path>` cleaned, without a trailing `/`), then
 ` (index: …/README.md)` when the commit the run mounts holds a
@@ -4053,15 +4069,20 @@ with no such argv the one `swarm.json` declares at the collection); `root_sha`
 (each empty, with a warning, when git cannot say); `prompt_hash` the
 sha256 of `<run>/io/system.md`, so a change to a persona prompt, a
 prompt part (Step R3-13), the Task, the repository notes or praxis
-shows (each run's its own, the file's first line naming the run and its
-time); `config_hash` (from Step R3-12b of the plan implementing the
+shows (each run's its own, the file's header line naming the run and its
+time, its first line until Step E1 and since then the line before
+`# Task`); `config_hash` (from Step R3-12b of the plan implementing the
 2026-11-19 swarm roadmap, decision
 [165](swarm/decisions/0165-a-configuration-hash.md)) the sha256 of the configuration's text in
-that file, from its `# Persona` line up to its `# Task` line (a line in
-a fenced block being neither): the role's prompt and its prompt parts
-under their headings (7.3), the text the maintainer configures, alike
-for every run of the role whatever its issue, stage or time, and empty
-when the file is missing or holds no such lines; `outcome` the run's;
+that file, from its `# Persona` line up to the first block after its
+prompt parts (a line in a fenced block being neither): the role's
+prompt and its prompt parts under their headings (7.3), the text the
+maintainer configures, alike for every run of the role whatever its
+issue, stage or time, and empty when the file is missing or holds no
+such lines. That block is `# Task` in a `system.md` written before Step
+E1 of the plan implementing the 2026-11-19 swarm roadmap and `# Praxis`,
+`# Repository notes: <name>` or `# Resources` since (7.3, The order),
+so one persona with its parts hashes alike in either order; `outcome` the run's;
 `review_rounds` a reviewer's `round` line, its round as section 6
 counts it at the launch; `review_effect` a reviewer's effect, the
 findings it raised that were fixed (decision [142](swarm/decisions/0142-a-reviews-effect-read-from-the-runs.md)): `0` for a review not

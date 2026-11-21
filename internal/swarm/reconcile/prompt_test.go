@@ -86,9 +86,7 @@ const wantCauseSentence = "Write one line `Cause: <word>` under any line beginni
 	"`forge-fact` (a fact on the forge you need cannot be read), `kept-work` (work Daisy was to keep or give you is missing: a plan cut short, a kept commit not given back), " +
 	"`ruling` (only the maintainer's ruling settles it), `scope` (whether you may change what the plan or the job leaves out), or `capacity` (a provider's limit, quota or credit stopped the work)."
 
-const wantArchitectSystem = `<!-- daisy-swarm system: acme/app#1 architect run 1, 2026-11-06T15:00:00Z -->
-
-# Persona
+const wantArchitectSystem = `# Persona
 
 ## architect
 
@@ -98,17 +96,19 @@ You do it.
 # not a heading
 ` + "```" + `
 
-# Task
-
-Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. ` + wantBuilderSentence + ` The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md, compose.test.yaml; lib: compose.test.yaml. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
-
-Write your output to /job/io/out.md; that file and the builder plan in /job/io/builder.md are the only things read back, and nothing you write elsewhere outside /job survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /job/io/out.md instead. ` + wantCauseSentence + `
-
 # Resources
 
 Mounted read-only:
 
 - /job/resources/app/docs
+
+<!-- daisy-swarm system: acme/app#1 architect run 1, 2026-11-06T15:00:00Z -->
+
+# Task
+
+Write the plan for issue #1 as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of app, lib, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step. ` + wantBuilderSentence + ` The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md, compose.test.yaml; lib: compose.test.yaml. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
+
+Write your output to /job/io/out.md; that file and the builder plan in /job/io/builder.md are the only things read back, and nothing you write elsewhere outside /job survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /job/io/out.md instead. ` + wantCauseSentence + `
 `
 
 // wantBuilderSentence follows the plan's text in each architect Task text
@@ -642,7 +642,8 @@ func TestRenderWorkerFirstSlice(t *testing.T) {
 
 // Praxis and the testing skill, as the launch read them from the
 // installed root, are the architect's and the worker's system.md only
-// (section 7.3): after # Task and before the repository notes, praxis
+// (section 7.3): after the persona and before the repository notes and
+// # Task (Step E1), praxis
 // whole and the skill without its frontmatter, each shifted under its
 // heading; the owner's, the adversary's and the sympathetic's carry
 // neither.
@@ -670,16 +671,17 @@ func TestRenderPraxisAndTesting(t *testing.T) {
 		}
 		has(t, c.role+"'s system.md", sys, []string{"\n\n# Praxis\n\n### Trigger\n\nRead it.\n\n### Rules\n\n" + firstRule + " Understand what exists.\n\n# Testing\n\nA test is an instrument.\n\n### Rules\n\n1. One claim.\n\n# Repository notes: app\n\n## App\n\nNotes.\n"},
 			"name: testing", "description: Testing as falsification.")
-		if task, praxis := strings.Index(sys, "\n# Task\n"), strings.Index(sys, "\n# Praxis\n"); task < 0 || praxis < task {
-			t.Errorf("%s's # Praxis is not after # Task:\n%s", c.role, sys)
+		if task, praxis := strings.Index(sys, "\n# Task\n"), strings.Index(sys, "\n# Praxis\n"); praxis < 0 || task < praxis {
+			t.Errorf("%s's # Praxis is not before # Task:\n%s", c.role, sys)
 		}
 	}
 }
 
-// system.md's # Resources (section 7.3), last, for every role: a line
-// per resource in swarm.json's order, its mount, its index page when it
-// has one and its note, or None. when none is declared; prompt.md names
-// no resource.
+// system.md's # Resources (section 7.3), the last block every run of
+// the role shares, before the run's header and # Task (Step E1), for
+// every role: a line per resource in swarm.json's order, its mount, its
+// index page when it has one and its note, or None. when none is
+// declared; prompt.md names no resource.
 func TestRenderResources(t *testing.T) {
 	f, at := fixture()
 	listed := []Listed{
@@ -699,12 +701,12 @@ func TestRenderResources(t *testing.T) {
 		j.Resources = listed
 		j.Repos = []RepoNote{{Name: "app", Text: "# App\n\nNotes.\n"}}
 		sys, prompt := Render(j)
-		if !strings.HasSuffix(sys, "\n\n## App\n\nNotes."+want) {
-			t.Errorf("%s's system.md does not end with # Resources:\n%s", c.role, sys)
+		if !strings.Contains(sys, "\n\n## App\n\nNotes."+want+"\n<!-- daisy-swarm system: ") {
+			t.Errorf("%s's system.md does not end its shared blocks with # Resources:\n%s", c.role, sys)
 		}
 		has(t, c.role+"'s prompt.md", prompt, nil, "/job/resources", "Resources")
 		j.Resources = nil
-		if sys, _ := Render(j); !strings.HasSuffix(sys, "\n\n# Resources\n\nNone.\n") {
+		if sys, _ := Render(j); !strings.Contains(sys, "\n\n# Resources\n\nNone.\n\n<!-- daisy-swarm system: ") {
 			t.Errorf("%s's system.md without resources:\n%s", c.role, sys)
 		}
 	}

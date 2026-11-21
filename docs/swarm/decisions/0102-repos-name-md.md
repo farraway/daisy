@@ -9,3 +9,8 @@ repository through `system.md`, after `# Task`, as the maintainer's
 words; the owner and the architect, who work across every declared
 repository, get every one. `init` seeds each from its readiness
 facts when absent.
+
+**Amended by decision
+[167](0167-the-system-prompt-stable-blocks-first.md)
+(Step E1 of the plan implementing the 2026-11-19 swarm roadmap).**
+`repos/<name>.md` is added to `system.md` before the resources and the run's `# Task`, which now come last.

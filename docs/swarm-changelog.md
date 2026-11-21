@@ -1102,3 +1102,19 @@ they write.
   [160](swarm/decisions/0160-one-declared-check-environment.md),
   [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
   and [162](swarm/decisions/0162-ci-builds-the-declared-image.md).
+- 2026-11-21, Step E1 of the plan implementing the 2026-11-19 swarm
+  roadmap: the system prompt's stable blocks first. `system.md` writes
+  the persona, its prompt parts, praxis and the testing skill, the
+  repository notes and the resources first, and the run's header line
+  and `# Task` last, so that runs of one role share a prefix a
+  provider's prompt cache keeps; `config_hash` reads from `# Persona`
+  to the first block after the prompt parts, so one persona with its
+  parts hashes alike in either order. Sections 4 (The swarm's notes
+  about a repository), 7.3 (the layout, The order) and 7.6 (The run's
+  record). Decision
+  [167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md),
+  amending decisions [102](swarm/decisions/0102-repos-name-md.md),
+  [108](swarm/decisions/0108-the-swarms-notes-about-each-repository-and-drift-as-built.md),
+  [116](swarm/decisions/0116-the-architect-and-the-worker-read-daisys-praxis-and-testing.md),
+  [164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md)
+  and [165](swarm/decisions/0165-a-configuration-hash.md).

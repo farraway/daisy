@@ -27,3 +27,8 @@ pauses the swarm at its second. Tests: `TestRenderPraxisAndTesting`
 skill's frontmatter left out, and in no other role's),
 `TestSwarmApplyPraxisFromTheRoot` (read in `$DAISY_ROOT`; praxis
 removed there, `fault: prompt: system.md:`, nothing launched).
+
+**Amended by decision
+[167](0167-the-system-prompt-stable-blocks-first.md)
+(Step E1 of the plan implementing the 2026-11-19 swarm roadmap).**
+`# Praxis` and `# Testing` follow the persona and its prompt parts, before the repository notes, the resources and the run's `# Task`, which now come last.

@@ -50,7 +50,7 @@ func TestSwarmRepositoryNotes(t *testing.T) {
 	}
 	task := strings.Index(sys, "\n# Task\n")
 	app := strings.Index(sys, "\n# Repository notes: app\n\n## App\n\nApp's notes.\n\n# Repository notes: lib\n\n## Lib\n\nLib's notes.\n\n### Testing\n\nRun go test.\n")
-	if task < 0 || app < task || !strings.Contains(sys, "Run go test.\n\n# Resources\n") || strings.Contains(sys, "UNPUSHED") {
+	if app < 0 || task < app || !strings.Contains(sys, "Run go test.\n\n# Resources\n") || strings.Contains(sys, "UNPUSHED") { // the notes before the run's # Task (Step E1)
 		t.Errorf("architect's system.md:\n%s", sys)
 	}
 

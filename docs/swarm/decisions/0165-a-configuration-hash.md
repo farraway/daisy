@@ -47,3 +47,8 @@ question asked for a second hash).
 
 Tests: `TestSwarmConfigHash`, `TestConfigHash`,
 `TestCauseHeaderReadAndExtended`, `TestScorecardByConfiguration`.
+
+**Amended by decision
+[167](0167-the-system-prompt-stable-blocks-first.md)
+(Step E1 of the plan implementing the 2026-11-19 swarm roadmap).**
+The region runs from `# Persona` to the first block after the prompt parts, `# Task` in a `system.md` written before that step and `# Praxis`, `# Repository notes: <name>` or `# Resources` since, so the hash of one persona with its parts is unchanged.

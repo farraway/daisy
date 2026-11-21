@@ -55,3 +55,8 @@ read in the working tree, and a part is its continuation).
 
 Tests: `TestSwarmPromptParts`, `TestRenderPromptParts`,
 `TestValidatePromptParts`, `TestFormatPromptParts`.
+
+**Amended by decision
+[167](0167-the-system-prompt-stable-blocks-first.md)
+(Step E1 of the plan implementing the 2026-11-19 swarm roadmap).**
+The parts still follow the persona, now before `# Praxis`, the repository notes and the resources, the run's header and `# Task` coming last.
