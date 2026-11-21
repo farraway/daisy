@@ -1,6 +1,6 @@
 # 0160. One declared check environment
 
-From Step 10 of the plan implementing the 2026-11-19 swarm roadmap (R3, one check, one environment, failures classified, 2026-11-19). Specified ahead of its build: `docs/swarm.md` section 7.9, with the changes it makes marked in sections 1 to 3, 5, 7.2, 7.5 to 7.8 and 11.
+From Step 10 of the plan implementing the 2026-11-19 swarm roadmap (R3, one check, one environment, failures classified, 2026-11-19). Specified before its build: `docs/swarm.md` section 7.9, with the changes it makes marked in sections 1 to 3, 5, 7.2, 7.5 to 7.8 and 11. Built at Steps R3-1, R3-2, R3-3, R3-3b and R3-9 of that plan (each *As built* below).
 
 **The maintainer's ruling of 2026-11-19 (R3a, R3b):** the product
 declares its check environment once (its image, its dependency step,
@@ -132,7 +132,7 @@ pull request that only CI runs a MongoDB-only test, are deleted (R3d).
 
 **Amended by decision [162](0162-ci-builds-the-declared-image.md)
 (Step 10b of the plan implementing the 2026-11-19 swarm roadmap, R3),
-specified ahead of its build.** On the maintainer's answer at the
+built at its Steps R3-1b, R3-4 and R3-5 (decision 162's *As built*).** On the maintainer's answer at the
 checkpoint, CI builds the declared image itself, from the product's
 Dockerfile, which `repos[].dockerfile` names, with the repository's
 root as its context, in a step on the runner's Docker (never as a
@@ -162,7 +162,9 @@ name (an `ANTHROPIC_API_KEY` beside a `CLAUDE_CODE_OAUTH_TOKEN` key) is
 not refused, since only the swarm's own secrets are named by the spec
 and Daisy holds no other; the reviewers' runs are built with their
 services by the step that builds those (R3-3), so until it a reviewer
-is launched as before; the comparison with CI is R3-4's. Alternatives:
+is launched as before; the comparison with CI is R3-4's (both built
+since: this decision's As built for Step R3-3, below, and decision
+162's for Steps R3-4 and R3-5). Alternatives:
 refusing every provider variable (a rule the spec does not make);
 giving the reviewers `env` now without their services (half of 7.9's
 Beside a reviewer, and a second change to the same launch at R3-3).

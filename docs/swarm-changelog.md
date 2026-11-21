@@ -1065,3 +1065,24 @@ they write.
   [165](swarm/decisions/0165-a-configuration-hash.md), amending
   decisions [156](swarm/decisions/0156-a-scorecard-per-merged-slice.md)
   and [164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md).
+- 2026-11-21, Step R3-11 of the plan implementing the 2026-11-19 swarm
+  roadmap: the spec reconciled with R1's and R3's build, prose only.
+  The markers "specified ahead of its build" of what R1 and R3 have
+  built now say built, with their steps: sections 1 (the principle,
+  the scope's check row), 2 (the layout's `jobs/<n>/` and
+  `check-1.out`, the files' `jobs/<n>/` row, the result's `check
+  rerun`), 7.2 (From R3), 7.6 (From R3), 7.7 (The job's workspace),
+  7.8 (its head), 7.9 (its head, naming what R3 leaves to the product
+  and its maintainer) and 11 (From R1); `amendments/` (R5), the board,
+  the GitHub adapter and the budget stay specified ahead of their
+  build. Section 7.9's rulings gain the Go head's qualifier of Step
+  R3-7, its paths no longer say the check's clone is `/work`, and
+  section 7.6's step 2 names a worker's question among the runs that
+  keep their ref. Decisions
+  [134](swarm/decisions/0134-a-products-test-services-beside-its-check.md),
+  [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md),
+  [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md),
+  [160](swarm/decisions/0160-one-declared-check-environment.md),
+  [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
+  and [162](swarm/decisions/0162-ci-builds-the-declared-image.md) name
+  the steps that built them. No decision of its own: no choice is made.

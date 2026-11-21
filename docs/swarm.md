@@ -106,9 +106,10 @@ written by Daisy alone as it collects the job's runs, which the prompt
 points into. The forge holds each job's stage (its labels) and its human
 record; `<state>` holds what one machine needs to run members (a lock, a
 pause flag, a git mirror per repository, the audit record of each run)
-and each job's workspace. *Specified ahead of its build* (R1, 7.8): until
-its last step is built, each run is given its thread so far and the
-threads are the memory. **One job may span
+and each job's workspace (R1, 7.8; built at Steps R1-1 to R1-10 of
+the plan implementing the 2026-11-19 swarm roadmap, before whose last
+each run was given its thread so far and the threads were the memory;
+its `amendments/`, R5's, specified ahead of its build). **One job may span
 repositories:** the issue lives in `forge.repo`, and each slice of its
 plan is built in one of the repositories `swarm.json` declares, all owned
 by `<owner>`.
@@ -243,7 +244,7 @@ label events was considered and rejected (decision [1](swarm/decisions/0001-why-
 | One job across the repositories of one organization: the issue in `forge.repo`, each slice in a declared repository (section 5) | Repositories of several owners or forges in one swarm |
 | A board as a view: with `forge.board`, each open swarm issue's card kept in the column of its stage on a Gitea organization's project; the label stays the only state (specified ahead of its build: `swarm.json` validates the field and nothing acts on it until a run needs the board) | A board on GitHub (Projects v2, not mapped in this revision); a board that drives the lifecycle |
 | Container limits: only what the run owns mounted, one credential, a wall clock; `protected` paths never pushed; the exact secret a member was given refused in what is posted or pushed | Network egress filtering and further hardening |
-| The product's `check`, run by Daisy in a keyless container on each worker head; from R3 (7.9, specified ahead of its build), its environment declared once (the image, the dependency step, the test services and `repos[].env`), used by the worker's and the reviewers' runs and the check on the same paths; the image built by CI too, from the product's declared Dockerfile, the check's targets run in it, which a comparison with the workflows CI runs on a pull request checks (a warning); a failure in packages the change does not touch, or holding one of five infrastructure signatures with no touched package failing (for a Go head, beside a failing package it names), run again once, and one that persists sent to the maintainer with cause `environment`, never to the worker or the reviewers; a failure in a touched package always the worker's | Reading the forge's CI status for a head: recorded, not built (decision [23](swarm/decisions/0023-the-member-image-is-a-base-daisy-runs-the-products-check.md)); from R3, CI on a runner whose Docker does not hold the image's base (a hosted runner; a registry for the base), Daisy building the swarm's `image` from the declared Dockerfile, and a failing package known for a language other than Go |
+| The product's `check`, run by Daisy in a keyless container on each worker head; from R3 (7.9; built at Steps R3-1 to R3-9 of the plan implementing the 2026-11-19 swarm roadmap), its environment declared once (the image, the dependency step, the test services and `repos[].env`), used by the worker's and the reviewers' runs and the check on the same paths; the image built by CI too, from the product's declared Dockerfile, the check's targets run in it, which a comparison with the workflows CI runs on a pull request checks (a warning); a failure in packages the change does not touch, or holding one of five infrastructure signatures with no touched package failing (for a Go head, beside a failing package it names), run again once, and one that persists sent to the maintainer with cause `environment`, never to the worker or the reviewers; a failure in a touched package always the worker's | Reading the forge's CI status for a head: recorded, not built (decision [23](swarm/decisions/0023-the-member-image-is-a-base-daisy-runs-the-products-check.md)); from R3, CI on a runner whose Docker does not hold the image's base (a hosted runner; a registry for the base), Daisy building the swarm's `image` from the declared Dockerfile, and a failing package known for a language other than Go |
 | Every worker run merges `base` into its branch first and resolves the conflicts it can; an approved pull request the forge reports not mergeable, which conflicts on the mirror too, goes back to the worker (T25) with the files named; the same head a second time blocks the issue | A conflict the worker cannot resolve: it writes `BLOCKED:`, the issue is `blocked` and the maintainer resolves it (decisions [20](swarm/decisions/0020-no-history-rewrites-base-drift.md), [81](swarm/decisions/0081-conflicts-handled-by-the-swarm.md) and [93](swarm/decisions/0093-the-collection-and-the-merge-step.md)) |
 | Cost, tokens, turns and an outcome per run; a Throughput block in `status`; a `budget` (specified ahead of its build: validated, not enforced, until a run needs it) | An observer that turns runs and the maintainer's corrections into prompt changes (the meta loop): the signals are in `runs/` and on the forge, the swarm repository's `prompts/*.md` are the files it would change, and decision [58](swarm/decisions/0058-the-meta-loops-data-contract.md) is its data contract |
 | `apply` from the maintainer's terminal or a systemd user service | `apply` inside an agent session: the agent's sandbox has no Docker socket, and the swarm must not depend on a chat being open |
@@ -292,7 +293,7 @@ Stages of a software factory the version leaves out, each by choice:
 ├── references/<ref>/                # bare mirror of each reference, holding its pin (section 3)
 ├── deps/<name>/                     # with a repository's deps, the swarm's dependency cache for it: written by its dependency steps, read by its checks (section 7.2)
 ├── notes/                           # the host's clone of the swarm repository, for the notes (with `notes`) and the journal: never mounted (section 7.1)
-├── jobs/<n>/                        # R1, specified ahead of its build but for every file below except amendments/ (7.8): issue n's workspace, its members' memory, mounted read-only at /job/memory; kept after the issue closes
+├── jobs/<n>/                        # R1 (7.8; built, but for amendments/, R5's, specified ahead of its build): issue n's workspace, its members' memory, mounted read-only at /job/memory; kept after the issue closes
 │   ├── plan.md                      # the accepted plan whole, then its amendments in order
 │   ├── builder.md                   # the builder plan: the plan consolidated for the builder, a ## Slice <s> section per slice, re-issued whole
 │   ├── amendments/<a>.md            # each amendment as collected (R5's rule decides what one is)
@@ -315,7 +316,7 @@ Stages of a software factory the version leaves out, each by choice:
     ├── result                       # how the run ended, what it cost and what was posted (below)
     ├── check.out                    # a worker run's check output (section 7.6)
     ├── deps.out                     # with its repository's deps, the dependency step's output (section 7.6)
-    ├── check-1.out                  # R3 (7.9): a classified failure's first output, before its one rerun (deps-1.out for the dependency step's)
+    ├── check-1.out                  # R3 (7.9; built at Step R3-7): a classified failure's first output, before its one rerun (deps-1.out for the dependency step's)
     ├── check/                       # the check's clone of the fetched head; removed once collected
     ├── job/                         # R1 (7.8; built): the run's folder, mounted at /job: only the mount points of its children; removed once the run is collected
     ├── work/                        # the member's clones, <name>/ per repository, mounted at /job/work; removed once the run is collected
@@ -356,7 +357,7 @@ Every file Daisy writes, and nothing else:
 | `<state>/references/<ref>/` | per reference (section 3), a bare repository holding its pin, its config's `remote.origin.url` its `url` | `swarm apply` (`git init --bare`, `config`, `fetch`) | before a pass's first launch, when the pin is not in it |
 | `<state>/notes/` | a clone of the swarm repository at its head as last fetched, its branch the one the clone checked out (the forge's default): with `notes` (section 3) the notes', and the journal's (7.6, The run's record) | `swarm apply` (`git clone`, `fetch`, `reset --hard`, `clean`, the notes' commits and the journal's, 7.6) | with `notes`, before each pass's first launch and at the collection of each owner's and architect's run; at the end of each pass that collected a run |
 | `<run>/argv`, `<run>/io/system.md`, `<run>/io/prompt.md` | as above | `swarm apply` | before the launch |
-| `<state>/jobs/<n>/` and its files | R1, specified ahead of its build but for `texts/`, `plan.md`, `builder.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log` and `built`, which are written and read by nothing yet but `apply`'s replay and `swarm merge`'s refusal (7.8, Rollout), for `kept` the worker's launch (7.8, The start), for `plan.md` and `texts/` Daisy's own reads (7.8, Daisy's own reads), and for those `# Job` points to the launch that summarises them and the members (7.8, The prompt): issue n's workspace, `plan.md`, `builder.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log`, `texts/<n>-<role>-<k>.md` and `built`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names; at the first pass that finds the issue open at a stage without `built`, before the role rule reads it, every file its collected runs' collections write, replayed, then `built` (7.8, Rollout), so a new issue's directory holds `built` alone before its first launch; never removed by Daisy |
+| `<state>/jobs/<n>/` and its files | R1 (7.8; built at Steps R1-1 to R1-10 of the plan implementing the 2026-11-19 swarm roadmap, but for `amendments/<a>.md`, R5's, specified ahead of its build): issue n's workspace, `plan.md`, `builder.md`, `amendments/<a>.md`, `slices/<s>/slice.md`, `slices/<s>/kept`, `slices/<s>/rounds/<r>.md`, `checks/<sha>.log`, `texts/<n>-<role>-<k>.md` and `built`, each as section 7.8 says; each file written whole under a temporary name in its directory and renamed into place | `swarm apply` alone | at the collection of a run on issue n, each file at the step 7.8's table names; at the first pass that finds the issue open at a stage without `built`, before the role rule reads it, every file its collected runs' collections write, replayed, then `built` (7.8, Rollout), so a new issue's directory holds `built` alone before its first launch; never removed by Daisy |
 | `<run>/io/branches.md` | R1 (built at Step R1-7 of the plan implementing the 2026-11-19 swarm roadmap): a line per open swarm branch but the run's own, its issue, slice, head and the files it changes against `<base>` (7.8) | `swarm apply` | before the launch of a worker's, a reviewer's or the architect's run, from the pass's mirrors |
 | `<run>/io/builder.md` | R1 (built): the architect's builder plan, beside the plan it wrote to `out.md` (7.8, The builder plan) | the architect (in the container) | during the run |
 | `<run>/job/` | R1 (built at Steps R1-5 and, for `memory`, R1-7 of the plan implementing the 2026-11-19 swarm roadmap): the run's folder, mounted at `/job`, holding only the mount points of its children, `work`, `io` and, as the run has them, `notes`, `resources` and `memory` (7.8, The run's folder), and whatever the member writes at its top, which nothing reads | `swarm apply` (the directory and its mount points), then the member | before the launch; removed with `<run>/work` |
@@ -364,7 +365,7 @@ Every file Daisy writes, and nothing else:
 | `<run>/io/exit` | one line, the CLI's exit status | the `sh` the member's argv runs under (in the container, 7.2) | once the CLI has exited |
 | `<run>/io/artifacts/<name>` | a worker run's: a screenshot of a page its change alters (7.4), which its collection reads (7.6, The screenshots); a reviewer run's: a copy of one its prompt lists (7.3, `# Artifacts`) | the worker (in the container); for a reviewer, `swarm apply` | during the run; for a reviewer, before the launch |
 | `<run>/stdout`, `<run>/stderr` | the CLI's streams, as written | `swarm apply` (copying the container's streams) | when the run ends |
-| `<run>/result` | `start <sha>` (the owner, the architect and the QA: `start <name> <sha>` per repository, the QA trigger reading its own, section 6; the worker adds `branch swarm/<n>-<s> in <name>`, then `unpushed <sha>` when it starts from kept commits not yet on the slice's branch, `<sha>` the kept commit, 7.9, The classification, from Step R3-8 of the plan implementing the 2026-11-19 swarm roadmap), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: decision [61](swarm/decisions/0061-what-step-5-built-of-the-provider-and-runner-seams-and-apply.md)), then `question` for the architect's or the owner's run on an issue carrying `swarm:question` (section 6, The question), which its collection reads, for a batch run no `label` line but `propose <p>` (the number its pacing allowed, the QA's `owner.max_open_proposals`, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there), `<in>` every input token, those written to and read from the CLI's cache included (section 9, `Report`'s `InTokens`), followed by ` cached <c>` when the output reported the part read from the cache, every turn's for `codex`, `<c>` (`codex`'s `cached_input_tokens`, `claude`'s and `grok`'s `cache_read_input_tokens`; a `codex` run recorded before Step 11b of the plan for the inbox requests F27–F35 has none, and a `claude` or `grok` run recorded before Step 28 of the plan remediating the 2026-11-15 design review has none and an `<in>` that leaves its cache out: decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, with the repository's test services file `services <step> up <service> …` before they are started, `services <step> down` once they are removed, and `services <step> refused: <reason>` for a file not run, `<step>` `worker`, `check`, or a reviewer's role, `adversary` or `sympathetic` (from Step R3-3 of the plan implementing the 2026-11-19 swarm roadmap) (7.6, step 4; the worker's `refused` at its launch, before `started`, its `up` after the launch's lines and before its container starts, and a reviewer's likewise), from R3 (7.9, specified ahead of its build) `check rerun: <reason>` before a classified failure's one rerun, the rerun's own lines after it, and `failed: check environment: <reason>` when it persists, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `flagged swarm:question`, `kept refs/swarm-runs/<n>-worker-<k>`, `artifact <name> attached <url>`, `artifact <name> not attached: <error>` or `artifact "<name>" skipped: <reason>` (7.6, The screenshots), `attached <file> <url>`, `not attached <file>: <error>` and `continued <file> <i> of <c>` (7.5, The posting rule), `created <i> #<m>` after a batch proposal's `CreateIssue` when its body is continued (7.5), `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|question\|blocked\|failed\|fault\|stale\|abandoned\|discarded>` (`question` a member's question posted, section 6); last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
+| `<run>/result` | `start <sha>` (the owner, the architect and the QA: `start <name> <sha>` per repository, the QA trigger reading its own, section 6; the worker adds `branch swarm/<n>-<s> in <name>`, then `unpushed <sha>` when it starts from kept commits not yet on the slice's branch, `<sha>` the kept commit, 7.9, The classification, from Step R3-8 of the plan implementing the 2026-11-19 swarm roadmap), with `notes` `notes-base <sha>` (the commit of the notes' clone the run's copy was made from), `resource <repository> <sha>` for each repository a resource of the run was checked out from (7.1, step 3), `label swarm:<label>` (the stage the run was launched on, which its collection reads: decision [61](swarm/decisions/0061-what-step-5-built-of-the-provider-and-runner-seams-and-apply.md)), then `question` for the architect's or the owner's run on an issue carrying `swarm:question` (section 6, The question), which its collection reads, for a batch run no `label` line but `propose <p>` (the number its pacing allowed, the QA's `owner.max_open_proposals`, which its collection takes at most, section 6), `started <time>` and the credential, `credential <provider> env <VAR>` or `credential <provider> slot <j>` (never a value), `persona <provider> <model> <effort>` (the persona it is launched with, which its record names), for a reviewer `round <r>` (its round, section 6); for a worker's run and a reviewer's launched on `review-0-ready`, `relabelled <label> <in-progress stage>` once the container has started (section 5, T20 and T21); then the end line, `exited <code> <time>`, `timeout <time>`, `launch-failed <time>`, `abandoned <time>` or `ended <time>` (a run another `apply` started, its container gone and its `<run>/io/exit` written: 7.7), its `<time>` to the nanosecond (RFC 3339 with its fraction; a run recorded before Step 27 of the swarm build has the whole second) and, for a container this process started, when its `docker run` returned, so that runs ended within one second keep their order (7.7); then `cost <usd> tokens <in>/<out> turns <t>` when the CLI's output reports usage, `<usd>` `-` when it reports no cost (section 9; a run recorded before Step 16b of the plan that clears the Deferred list has `0` there), `<in>` every input token, those written to and read from the CLI's cache included (section 9, `Report`'s `InTokens`), followed by ` cached <c>` when the output reported the part read from the cache, every turn's for `codex`, `<c>` (`codex`'s `cached_input_tokens`, `claude`'s and `grok`'s `cache_read_input_tokens`; a `codex` run recorded before Step 11b of the plan for the inbox requests F27–F35 has none, and a `claude` or `grok` run recorded before Step 28 of the plan remediating the 2026-11-15 design review has none and an `<in>` that leaves its cache out: decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); then `failed: <reason>` or `fault: <reason>` when it failed (7.7); then one line per step done at collection (`fetched <sha>`, or `fetch failed: <error>` for each fetch from a worker's clone that failed, 7.6, `deps started <time>`, `deps exited <code> <time>` or `deps timeout <time>` with the repository's `deps`, `check started <time>`, `check exited <code> <time>`, with the repository's test services file `services <step> up <service> …` before they are started, `services <step> down` once they are removed, and `services <step> refused: <reason>` for a file not run, `<step>` `worker`, `check`, or a reviewer's role, `adversary` or `sympathetic` (from Step R3-3 of the plan implementing the 2026-11-19 swarm roadmap) (7.6, step 4; the worker's `refused` at its launch, before `started`, its `up` after the launch's lines and before its container starts, and a reviewer's likewise), from R3 (7.9; built at Step R3-7 of the plan implementing the 2026-11-19 swarm roadmap) `check rerun: <reason>` before a classified failure's one rerun, the rerun's own lines after it, and `failed: check environment: <reason>` when it persists, `creating <i>` before each batch proposal, `posted comment`, `pushed <sha>`, `created pull <m>`, `relabelled <from> <to>`, `flagged swarm:blocked`, `flagged swarm:question`, `kept refs/swarm-runs/<n>-worker-<k>`, `artifact <name> attached <url>`, `artifact <name> not attached: <error>` or `artifact "<name>" skipped: <reason>` (7.6, The screenshots), `attached <file> <url>`, `not attached <file>: <error>` and `continued <file> <i> of <c>` (7.5, The posting rule), `created <i> #<m>` after a batch proposal's `CreateIssue` when its body is continued (7.5), `stale <sha>`, an owner's or architect's `notes pushed <sha>`, `notes unchanged`, `notes branch swarm/notes-<n>-<role>-<k> <sha>` or `notes kept: <reason>` (7.6, The notes), …); `recorded` once the run's record is made (7.6, The run's record); a run recorded before Step 15 of the swarm build names the stages by their old names, read as the new (section 5, The rename); then `outcome <posted\|question\|blocked\|failed\|fault\|stale\|abandoned\|discarded>` (`question` a member's question posted, section 6); last `collected`, which every run ends with; a line holds no newline (a reason quoting one writes it `\n`) | `swarm apply` | at each event |
 | `<home>/metrics/metrics.csv` | per run collected, one row of kind `swarm-run` (`docs/cli.md`, `metrics add`'s columns; 7.6, The run's record), the home the one `<state>/home` names, never a second for a run it holds a row of but a row superseding it; per intervention recorded, one row of kind `intervention` (section 11, The interventions' record); created with its header when absent | `swarm apply`; `swarm metrics --backfill` and `--reprice`; a maintainer's verb with `--type` and `swarm intervene` (each under `$DAISY_LOCAL/metrics.lock`, which `daisy metrics add` takes too) | `apply`: at each run's collection, when `<state>/home` names a usable home, and at a posted review's, a row superseding each earlier review's of its role on the issue whose `review_effect` it decides (7.6, The run's record); `metrics --backfill`: on the command, for each collected run without a row, and a row superseding each earlier review's whose `review_effect` a backfilled review decides (section 11); `metrics --reprice`: on the command, a superseding row for each run whose row its output, or for a reviewer the runs' effect, now reads otherwise (section 11); a verb with `--type`, once its writes are made, and `intervene`, on the command |
 | `<run>/check.out` | the check container's standard output and error, as written | `swarm apply` | when the check ends |
 | `<run>/deps.out` | with the repository's `deps` (section 3), the dependency step's standard output and error, as written | `swarm apply` | when the dependency step ends |
@@ -2652,10 +2653,11 @@ role and written by Daisy alone: the one mount that is not the run's
 own, which section 8's principle names, nothing in it writable that the
 next run reads.
 
-**From R3** (7.9, specified ahead of its build; decision
+**From R3** (7.9; built at Steps R3-1, R3-2, R3-3 and R3-9 of the
+plan implementing the 2026-11-19 swarm roadmap; decision
 [160](swarm/decisions/0160-one-declared-check-environment.md)). The
 check and the dependency step take their clone at the path a member's
-checkout has, once R1 has moved the members to `/job`:
+checkout has, since R1 moved the members to `/job`:
 
 ```
   --env <VAR>=<value>                                     (env)
@@ -2666,10 +2668,10 @@ checkout has, once R1 has moved the members to `/job`:
   --workdir /job/work/<name>
 ```
 
-in place of their `/work` lines, the clone `readonly` for the
-dependency step and the cache `readonly` for the check, as now, and
+in place of their `/work` lines before Step R3-9, the clone `readonly`
+for the dependency step and the cache `readonly` for the check, and
 nothing else mounted beside them; `<name>` is the run's repository
-(the paths built at Step R3-9, in the argvs above).
+(the argvs above).
 The lines marked `(env)` are each `repos[].env` entry, in name order,
 before `deps.env`'s, for the worker, the adversary and the sympathetic
 reviewer too (built at Step R3-1 for the check, the dependency step,
@@ -3686,13 +3688,14 @@ ran, whatever its end:
    whose output's first line begins `NO CHANGE:`, whose marked text is
    posted on the pull request, `Comment(m, <marked text>)`, without a
    check block, its run's ref dropped and nothing pushed, then T12.
-2. When the run failed, wrote `BLOCKED:`, ended in a swarm fault or was
+2. When the run failed, wrote `BLOCKED:` or `QUESTION:` (section 6,
+   The question), ended in a swarm fault or was
    abandoned (7.7: step 1 is made for it too, its clone otherwise
    unread) and has commits past `start`, or, from a start at kept
    commits not yet on the slice's branch, those to push (7.9, The
    classification; from Step R3-8), the ref stays (`kept refs/swarm-runs/<n>-worker-<k>`);
    for a failure or `BLOCKED:` the reconciler note names it (a fault
-   posts nothing, 7.7), so the maintainer can read the work or
+   posts nothing, 7.7, and a question's post is the member's text alone), so the maintainer can read the work or
    continue from it; pruning these refs is the maintainer's. Collection
    then goes to the failure's own steps.
 3. **The secret check, then protected paths.** First the secret check
@@ -3795,9 +3798,9 @@ ran, whatever its end:
    `git -C <state>/git update-ref -d refs/swarm-runs/<n>-worker-<k>`
    (`pushed <sha>`).
 
-**From R3** (7.9, specified ahead of its build but for step 4's
-classification and its one rerun, built at Step R3-7, and step 1's
-kept start, built at Step R3-8; decision
+**From R3** (7.9; step 4's classification and its one rerun built at
+Step R3-7 of the plan implementing the 2026-11-19 swarm roadmap, step
+1's kept start at Step R3-8, the clone's path at Step R3-9; decision
 [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)).
 In step 4, a check or dependency step that exited non-zero (not 125 to
 127) or timed out at the wall clock is classified once its services are removed, before step 5 and
@@ -3813,8 +3816,8 @@ posted on the pull request and no `checks/` file written (7.9, The
 classification). In step 1, a run that starts from kept commits not yet
 on the slice's branch and fetches its start unchanged has those commits
 to push and is not *no commits*. The check's and the dependency step's
-clone is mounted at `/job/work/<name>` once the members' checkouts are
-there (7.2).
+clone is mounted at `/job/work/<name>`, where the members' checkouts
+are (7.2).
 
 **The trailer.** After the fetch (step 1), with the worker's `co_author`
 not empty, each commit of `refs/heads/<base>..<fetched>` whose message
@@ -4157,8 +4160,8 @@ notes' index does not list it, and Drift does not compare it. The
 maintainer's clone falls behind the default branch at each pass that
 collects a run, as it does with `notes`: pull before pushing.
 
-**The job's workspace** (R1, specified ahead of its build, but for
-`texts/`, built at Step R1-1 of the plan implementing the 2026-11-19
+**The job's workspace** (R1, built:
+`texts/` at Step R1-1 of the plan implementing the 2026-11-19
 swarm roadmap, `plan.md`, `builder.md`, the slices' `slice.md` and
 the builder plan's secret check, built at Step R1-2, the slices'
 `kept` and `rounds/` and `checks/`, built at Step R1-3, and the replay
@@ -4245,17 +4248,16 @@ honest word among the nine, and none for a row that is no stop.
 
 ### 7.8 The job's workspace
 
-*Specified ahead of its build* (Step 9 of the plan implementing the
-2026-11-19 swarm roadmap, R1; decision
+*Built* (specified at Step 9 of the plan implementing the 2026-11-19
+swarm roadmap, R1; decision
 [158](swarm/decisions/0158-the-jobs-workspace-is-the-memory.md); its
 run's folder and its builder plan as revised at that step's stop, decision
 [159](swarm/decisions/0159-one-folder-per-run-and-the-builder-plan.md)). The
-steps that build it each keep the thread path working, each run given
-its thread so far (7.3), until the last switches the members over, so
-that no member reads from two memories half built; until then sections
-2 to 7.7 hold as written, each marking what R1 changes there. **Built
-so far** (Steps R1-1 to R1-9 of the plan implementing the 2026-11-19
-swarm roadmap): `texts/` (R1-1); `plan.md`, `builder.md` and each
+steps that built it each kept the thread path working, each run given
+its thread so far (7.3), until the last switched the members over
+(R1-10), so that no member read from two memories half built. **Built**
+(Steps R1-1 to R1-10 of the plan implementing the 2026-11-19 swarm
+roadmap): `texts/` (R1-1); `plan.md`, `builder.md` and each
 slice's `slice.md` with the builder plan itself (R1-2: the architect's
 texts that ask for a plan ask for it, 7.4, and its collection reads,
 checks and writes it); and each slice's `kept` and `rounds/` and
@@ -4817,14 +4819,13 @@ close the issue early (section 11, The maintainer's verbs).
 
 ### 7.9 The check's environment
 
-*Specified ahead of its build* (Step 10 of the plan implementing the
-2026-11-19 swarm roadmap, R3; decisions
+*Built* (specified at Step 10 of the plan implementing the 2026-11-19
+swarm roadmap, R3; decisions
 [160](swarm/decisions/0160-one-declared-check-environment.md) and
 [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md),
 both amended by
-[162](swarm/decisions/0162-ci-builds-the-declared-image.md)).
-Until the steps that build it are built, sections 2 to 7.8 and 11 hold
-as written, each marking what R3 changes there. Built: `repos[].env`
+[162](swarm/decisions/0162-ci-builds-the-declared-image.md)). Sections
+2 to 7.8 and 11 mark where each step of R3 changed them. Built: `repos[].env`
 for the worker's run, the dependency step and the check (Step R3-1 of
 that plan); `repos[].dockerfile`, declared, kept by `init` and
 protected by default (Step R3-1b); the test services file's `ulimits`
@@ -4835,7 +4836,13 @@ lines told by `apply`, `status`, notify and `init` (Step R3-5); the
 classification, as a function of what it reads, and the reading of
 the head's Go facts from the mirror (Step R3-6); and the
 classification called by the collection, the one rerun and the
-environment failure (Step R3-7).
+environment failure (Step R3-7); a kept start pushed without new
+commits (Step R3-8); and the check's and the dependency step's clone
+at `/job/work/<name>` (Step R3-9). What R3 leaves to the product and
+its maintainer is not Daisy's to build: the CI workflow that builds the
+declared image (CI builds the image, below; Daisy compares it, never
+writes it), the image's Dockerfile, and the notes' workarounds, deleted
+once those hold (R3d).
 
 **The rulings.** The maintainer's, of 2026-11-19: the product declares
 its check environment once, its image, its dependency step, its test
@@ -4850,7 +4857,9 @@ checkpoint of the same day: CI builds the declared image itself and
 runs the check's targets in it, which the comparison with CI checks;
 and a signature classifies a failure as the environment's only when no
 package the change touches fails: a failure in a touched package always
-goes to the worker.
+goes to the worker. And, on 2026-11-21 (Step R3-7): for a Go head, an
+output that names no failing package is not classified at all, a
+signature in it notwithstanding (The classification, below).
 
 **The declaration** is a repository's entry in `swarm.json` and its
 test services file (section 3), each part declared once:
@@ -4879,12 +4888,12 @@ members fetch on the network, and the cache's place decides no result
 **The paths.** A worker's `make check` and Daisy's check run the same
 argv on the same absolute paths: the check's clone, and the dependency
 step's, are mounted at `/job/work/<name>`, their working directory, as
-a member's checkout is (7.8, The run's folder), in place of `/work`
-(7.2), with nothing mounted beside it but the cache at `/deps`; the
+a member's checkout is (7.8, The run's folder), `/work` before Step
+R3-9 (7.2), with nothing mounted beside it but the cache at `/deps`; the
 mount point is made by Docker in the container's own layer, not in a
-bind source on the host. The move follows R1's step that moved the
-members to `/job` (Step R1-5): until it, the check's clone is `/work`.
-*As built* (Step R3-9 of the plan implementing the 2026-11-19 swarm
+bind source on the host. The move followed R1's step that moved the
+members to `/job` (Step R1-5): until Step R3-9, the check's clone was
+`/work`. *As built* (Step R3-9 of the plan implementing the 2026-11-19 swarm
 roadmap): the check's and the dependency step's clone, `<run>/check`,
 is mounted at `/job/work/<name>` and is their `--workdir`, `<name>` the
 run's repository; nothing else of their argv changed. Tests:
@@ -7582,9 +7591,8 @@ role reads, lifts it at `apply`'s next pass (section 6, The
 maintainer's word). The flag is removed under the swarm's token; the
 maintainer's is not read for it.
 
-**From R1** (7.8, specified ahead of its build, but for the line
-`Start: base`, built at Step R1-8 of the plan implementing the
-2026-11-19 swarm roadmap). `unblock`'s comment,
+**From R1** (7.8; the line `Start: base` built at Step R1-8 of the
+plan implementing the 2026-11-19 swarm roadmap). `unblock`'s comment,
 and the maintainer's word that lifts a block, may carry the line `Start:
 base`, as the architect's answer or revised plan may: the slice's next
 worker run then starts where it would without its kept commits (7.8,

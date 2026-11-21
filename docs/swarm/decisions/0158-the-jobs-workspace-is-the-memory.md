@@ -1,6 +1,6 @@
 # 0158. The job's workspace is the memory
 
-From Step 9 of the plan implementing the 2026-11-19 swarm roadmap (R1, the job's workspace is the memory, 2026-11-19). Specified ahead of its build: `docs/swarm.md` section 7.8, with the changes it makes marked in sections 1, 2, 7.1 to 7.6, 9 and 11.
+From Step 9 of the plan implementing the 2026-11-19 swarm roadmap (R1, the job's workspace is the memory, 2026-11-19). Specified before its build: `docs/swarm.md` section 7.8, with the changes it makes marked in sections 1, 2, 7.1 to 7.6, 9 and 11. Built at Steps R1-1 to R1-10 of that plan (section 7.8), but for `amendments/`, which R5 builds.
 
 **The principle, amended by the maintainer's ruling of 2026-11-19:**
 Members have no memory, but each job has a workspace Daisy keeps, and

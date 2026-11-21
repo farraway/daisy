@@ -1,6 +1,6 @@
 # 0162. CI builds the declared image, and a touched package's failure is the worker's
 
-From Step 10b of the plan implementing the 2026-11-19 swarm roadmap (R3, the maintainer's answers at the checkpoint of 2026-11-19). Specified ahead of its build: `docs/swarm.md` section 7.9 (CI builds the image, The comparison with CI, The classification), with the changes it makes marked in sections 1, 3, 7.6 and 7.7. Amends decisions [160](0160-one-declared-check-environment.md) and [161](0161-a-check-failure-classified-before-anyone-sees-it.md).
+From Step 10b of the plan implementing the 2026-11-19 swarm roadmap (R3, the maintainer's answers at the checkpoint of 2026-11-19). Specified before its build: `docs/swarm.md` section 7.9 (CI builds the image, The comparison with CI, The classification), with the changes it makes marked in sections 1, 3, 7.6 and 7.7. Amends decisions [160](0160-one-declared-check-environment.md) and [161](0161-a-check-failure-classified-before-anyone-sees-it.md). Built at Steps R3-1b, R3-4, R3-5, R3-6 and R3-7 of that plan (each *As built* below, and decision 161's); the CI workflow and the Dockerfile are the product's.
 
 **The maintainer's answers of 2026-11-19.** Decision 160 left CI out
 of the image ("CI can run in it only from a registry its runner
@@ -170,7 +170,8 @@ compares, from what it is given alone (the forge's kind, the
 repository's declaration, its test services file or none, and the
 workflow files' paths and contents as read), and returns section
 7.9's lines; telling them (`apply`, `status`, notify, `init`) and
-reading the files from the mirrors at `<base>` are Step R3-5's. Which
+reading the files from the mirrors at `<base>` are Step R3-5's (its
+As built, below). Which
 files the kind reads is `declare.WorkflowFiles`, so the step that
 reads them can read those alone. Where 7.9 is silent, the smallest
 reading consistent with it, each written into 7.9's *As built*: a

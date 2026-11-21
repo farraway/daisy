@@ -1,6 +1,6 @@
 # 0161. A check failure classified before anyone sees it
 
-From Step 10 of the plan implementing the 2026-11-19 swarm roadmap (R3c, 2026-11-19). Specified ahead of its build: `docs/swarm.md` section 7.9, The classification, with the changes it makes marked in sections 2, 7.5 to 7.8 and 11.
+From Step 10 of the plan implementing the 2026-11-19 swarm roadmap (R3c, 2026-11-19). Specified before its build: `docs/swarm.md` section 7.9, The classification, with the changes it makes marked in sections 2, 7.5 to 7.8 and 11. Built at Steps R3-6, R3-7 and R3-8 of that plan (each *As built* below).
 
 **The maintainer's ruling of 2026-11-19 (R3c):** a check failure in a
 package the change does not touch, or one matching an infrastructure
@@ -128,7 +128,7 @@ row's cause, which R3's measure counts (stops with cause
 
 **Amended by decision [162](0162-ci-builds-the-declared-image.md)
 (Step 10b of the plan implementing the 2026-11-19 swarm roadmap, R3),
-specified ahead of its build.** On the maintainer's answer at the
+built at its Steps R3-6 and R3-7.** On the maintainer's answer at the
 checkpoint, a signature classifies a failure as the environment's only
 when no package the change touches fails: a failure whose output names
 a touched failing package is never classified and goes to the worker,

@@ -1,6 +1,6 @@
 # 0159. One folder per run, `/job`, and the builder plan
 
-From Step 9b of the plan implementing the 2026-11-19 swarm roadmap (R1, the job's workspace is the memory, 2026-11-19). Specified ahead of its build, as decision [158](0158-the-jobs-workspace-is-the-memory.md) is: `docs/swarm.md` section 7.8, with the changes it makes marked in sections 1, 2, 7.1 to 7.6, 8, 9 and 11.
+From Step 9b of the plan implementing the 2026-11-19 swarm roadmap (R1, the job's workspace is the memory, 2026-11-19). Specified before its build, as decision [158](0158-the-jobs-workspace-is-the-memory.md) is: `docs/swarm.md` section 7.8, with the changes it makes marked in sections 1, 2, 7.1 to 7.6, 8, 9 and 11. Built at Steps R1-1 to R1-10 of that plan (section 7.8), but for `amendments/`, which R5 builds.
 
 Decision 158 put the job's workspace at `/work/.job`, beside the
 checkouts in a `/work` that held them, and asked the architect for a
