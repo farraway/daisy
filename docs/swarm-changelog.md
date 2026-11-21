@@ -954,3 +954,18 @@ they write.
   the comparison with CI) and 11 (`init`, `apply`, `status`), and the
   swarm skill's Waiting for you table. Decision
   [162](swarm/decisions/0162-ci-builds-the-declared-image.md) amended.
+- 2026-11-20, Step R3-6 of the plan implementing the 2026-11-19 swarm
+  roadmap (R3): the classification built as a function,
+  `reconcile.Classify`, of the failed step's output, the change's
+  paths, the head's Go facts and whether the step timed out, and the
+  facts' reading from the mirror, `Git.GoFacts` (not yet called: R3-7);
+  where 7.9 was silent it reads a `FAIL<tab>` line's path to its first
+  blank or tab, resolves imports through every module and `vendor`
+  directory of the head, counts a package's test files' imports for it
+  alone, holds every package at or below a `go.work` or a module below
+  the root, naming no package directory, or with a file whose imports
+  Go's parser refuses as touched, ignores ASCII case alone and names
+  the earliest signature. Section 7.9 (the opening, the
+  classification). Decision
+  [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
+  amended.

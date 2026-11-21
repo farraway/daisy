@@ -127,3 +127,38 @@ a touched failing package is never classified and goes to the worker,
 whatever signature it holds. An output naming no failing package is
 classified by a signature alone, as before, and a timeout likewise
 unless its output already names a touched failing package.
+
+**As built: the classification as a function (Step R3-6 of the plan
+implementing the 2026-11-19 swarm roadmap).** `reconcile.Classify`
+classifies from what it is given alone (the failed step's output, the
+change's paths, the head's Go facts and whether the step timed out),
+and `Git.GoFacts` reads the facts from the mirror with `ls-tree` and
+`cat-file`, Go's parser reading imports only; the rerun and the
+environment failure that call them are Step R3-7's. Where section 7.9
+is silent, each reading errs toward touched, as this decision's import
+reading does. Imports resolve through every module of the head and
+every `vendor` directory, not the root module's alone (the alternative:
+a root package importing a module below the root through a `replace`
+or a `go.work`, or a vendored package, that the change alters would
+have been untouched). A package's test files' imports count for it
+alone (counting them for its importers was the alternative: exact in
+no direction and only more often touched, since Go builds a package's
+tests into no other). A path at or below a `go.work`'s directory is
+outside the root module, so a `go.work` at the root makes every
+failing package touched (the maintainer's answer of 2026-11-20 that a
+module under a `go.work` counts as touched; reading the `go.work`'s
+`use` lines was the alternative, which a module it names outside the
+repository would have defeated). A failing package naming no directory
+of the head that holds a `.go` file, and a directory whose file Go's
+parser refuses, are touched (untouched was the alternative, the
+dangerous direction). A `FAIL<tab>` line's path ends at its first
+blank or tab, whatever follows it (reading only the time and the
+bracketed notes `go test` writes was the alternative: a form not
+foreseen would hide a touched package and let a signature classify
+it); a head with no `go.mod`, `go.work` or `.go` file reads none, as
+another language's. A signature is matched ignoring ASCII case alone
+(Unicode's folding was the alternative, a Kelvin sign then reading as
+`k`), and the reason names the one that comes first in the output (the
+list's first was the alternative). Tests: `TestClassify`,
+`TestClassifyFailLines`, `TestClassifySignatures`,
+`TestClassificationReason`, `TestGoFacts`.

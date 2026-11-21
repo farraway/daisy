@@ -4752,7 +4752,11 @@ protected by default (Step R3-1b); the test services file's `ulimits`
 and its YAML's literal and folded block scalars (Step R3-2); the test
 services and `repos[].env` beside a reviewer (Step R3-3); the
 comparison with CI, as a function of what it reads (Step R3-4), its
-lines told by `apply`, `status`, notify and `init` (Step R3-5).
+lines told by `apply`, `status`, notify and `init` (Step R3-5); the
+classification, as a function of what it reads, and the reading of
+the head's Go facts from the mirror (Step R3-6), neither yet called by
+the collection (the one rerun and the environment failure are Step
+R3-7's).
 
 **The rulings.** The maintainer's, of 2026-11-19: the product declares
 its check environment once, its image, its dependency step, its test
@@ -5172,6 +5176,51 @@ check, the check and the push. A job's workspace built by replay
 (7.8, Rollout) reads the check's result as the collection did: the
 lines after the last `check rerun`, no `checks/` file for a run that
 failed `check environment`, and never `check-1.out`.
+
+*As built* (Step R3-6 of the plan implementing the 2026-11-19 swarm
+roadmap; decision
+[161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)),
+where the above is silent. `reconcile.Classify` takes the failed
+step's output, the change's paths (step 3's diff, a renamed file by
+both its paths), the head's Go facts and whether the step timed out at
+the wall clock, reads nothing else, and returns the untouched failing
+packages, the signature, both or neither; its `Reason` is `check
+rerun`'s `<reason>`, the secret search of the packages being the
+collection's (Step R3-7, which calls it). `Git.GoFacts` reads the
+facts at a commit in the mirror with git's read commands alone
+(`ls-tree`, `cat-file`): each `go.mod`'s directory and module path,
+each `go.work`'s directory, and for each directory holding a `.go`
+file the imports of its files, its `_test.go` files' apart. A failing
+package's line begins the line: `FAIL`, a tab, the path up to the
+next blank or tab, a line's ending carriage return dropped; an
+indented line, `FAIL` alone and `--- FAIL:` name none, and each
+package is named once, in the order first named. A head with no
+`go.mod`, no `go.work` and no `.go` file is another language's, its
+`FAIL<tab>` lines naming no package; one with no root `go.mod`, or
+whose module line is not read, has every failing package outside the
+root module. Outside it too (the maintainer's answer of 2026-11-20:
+a Go module below the root, or under a `go.work`, counts its failing
+packages as touched): a path in a module below the root, by that
+module's path or by a directory at or below the module's; a directory
+at or below a `go.work`'s, so a `go.work` at the root makes every
+failing package touched; and a path naming no directory of the head
+holding a `.go` file. "In its directory, below it or above it" is by
+whole path elements (a file in a directory webs touches no package in
+web). An import is read as each module of the head (the root's and
+those below it) and
+each `vendor` directory of the root, of a module and of a `go.work`
+could resolve it, so a package importing a vendored package, or a
+package of a module below the root, that the change touches is
+touched. A package's test files' imports count for it alone: a
+package whose tests import a touched package is touched, its
+importers not through it, since its tests are built into no other
+package. A directory with a file Go's parser refuses at its package
+clause or imports (a link's text, which git holds as the link's
+content, among them) is touched. Case is ignored for ASCII letters
+alone (the signatures are ASCII, so a Kelvin sign is no `k`), and the
+signature named is the one that comes first in the output. Tests:
+`TestClassify`, `TestClassifyFailLines`, `TestClassifySignatures`,
+`TestClassificationReason`, `TestGoFacts`.
 
 **gridapp's adoption** is its maintainer's change to gridapp, not
 Daisy's: a test services file at its root, `compose.test.yaml`,
