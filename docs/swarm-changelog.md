@@ -928,3 +928,15 @@ they write.
   CI). Decision
   [160](swarm/decisions/0160-one-declared-check-environment.md)
   amended.
+- 2026-11-20, Step R3-4 of the plan implementing the 2026-11-19 swarm
+  roadmap (R3): the comparison with CI built as a function,
+  `declare.CompareCI`, of the forge's kind, the declaration, the test
+  services file and the workflow files as read, returning 7.9's lines
+  (not yet told: R3-5); where 7.9 was silent it reads a step's `run` as
+  the shell splits it, a `${{ … }}` within its word, docker's options as
+  docker does, a build without `-f` as of `Dockerfile`, a job's or
+  workflow's `defaults.run.working-directory` as the step's, the
+  network's line with `dockerfile` declared alone, and orders the lines.
+  Sections 3 (`repos[].env`, `repos[].dockerfile`) and 7.9 (the opening,
+  the comparison with CI). Decision
+  [162](swarm/decisions/0162-ci-builds-the-declared-image.md) amended.

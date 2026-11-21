@@ -351,7 +351,7 @@ func (j *Job) repository() string {
 		r := j.repo(name)
 		check := "no check declared"
 		if len(r.Check) > 0 {
-			check = "check " + shellQuote(r.Check)
+			check = "check " + declare.ShellLine(r.Check)
 		}
 		lines = append(lines, fmt.Sprintf("- Clone %s: %s/%s, branch %s, base %s, %s", path, owner(j.Cfg), name, branch, j.Cfg.Base, check))
 	}
@@ -438,20 +438,6 @@ func Workdir(cfg declare.Config, role, repo string) string {
 		return JobMount
 	}
 	return WorkMount + "/" + repo
-}
-
-var safeWord = regexp.MustCompile(`^[A-Za-z0-9_./:=@%+,-]+$`)
-
-func shellQuote(argv []string) string {
-	q := make([]string, len(argv))
-	for i, a := range argv {
-		if safeWord.MatchString(a) {
-			q[i] = a
-		} else {
-			q[i] = "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
-		}
-	}
-	return strings.Join(q, " ")
 }
 
 func (j *Job) issue() string {

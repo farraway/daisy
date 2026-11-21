@@ -144,7 +144,7 @@ func (j *Job) task() string {
 		add(`Before anything else, run "git merge --no-edit %s"; if it conflicts, resolve each conflict, keeping what both sides meant, and commit the merge, or, if you cannot, write "BLOCKED: %s conflicts in <files>" instead, naming the conflicting files.`, j.Cfg.Base, j.Cfg.Base)
 		add(`Commit with git; do not push. Never amend, rebase or reset a commit that is already on the branch; add commits.`)
 		if check := j.repo(repo).Check; len(check) > 0 {
-			add(`Run "%s" before you finish and quote its last result.`, shellQuote(check))
+			add(`Run "%s" before you finish and quote its last result.`, declare.ShellLine(check))
 		} else {
 			add(`No check command is declared; say how you tested.`)
 		}

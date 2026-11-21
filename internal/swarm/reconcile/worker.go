@@ -325,7 +325,7 @@ const noCheckBlock = "**Check:** none declared."
 // checkBlock is the worker's report's check block (section 7.6): the
 // check run on sha, its result and the tail of its output.
 func checkBlock(check []string, sha, result, tail string) string {
-	return fmt.Sprintf("**Check:** `%s` on %s: %s\n\n```\n%s\n```", shellQuote(check), short(sha), result, tail)
+	return fmt.Sprintf("**Check:** `%s` on %s: %s\n\n```\n%s\n```", declare.ShellLine(check), short(sha), result, tail)
 }
 
 // report is the worker's report as its collection posts it, its text out

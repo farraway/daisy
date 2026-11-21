@@ -38,7 +38,10 @@ otherwise see.
 
 **Standard library only** holds with the two formats read today by
 parsers written by hand, the shell subset of `.env.sh`
-(`internal/env/shellenv.go`) and the YAML subset of a test services file
+(`internal/env/shellenv.go`; a workflow step's `run` is split into
+words the same way, without expansion, by
+`internal/swarm/declare/ci.go`), and the YAML subset of a test
+services file and a workflow
 (`internal/swarm/declare/services.go`, about 950 lines, refusing a whole
 file it does not read in full); another non-JSON format is the trigger
 to revisit it, since a third such parser would cost more than the

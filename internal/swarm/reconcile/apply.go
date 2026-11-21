@@ -851,7 +851,7 @@ func CheckSection(fs ops.FS, runs []Run, n int, head string, check []string, tim
 // checkLine is the `# Check` section's line for a check run on head
 // with its result (section 7.3).
 func checkLine(check []string, head, result string) string {
-	return shellQuote(check) + " on " + head + ": " + result
+	return declare.ShellLine(check) + " on " + head + ": " + result
 }
 
 // checkResult is a worker run's check as it ended, `exit <code>` or

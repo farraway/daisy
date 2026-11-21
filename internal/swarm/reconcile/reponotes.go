@@ -81,7 +81,7 @@ func RepoNotesSeed(c declare.Config, r declare.Repo, instructions []string) stri
 	if len(r.Check) == 0 {
 		b.WriteString("- Check: none declared in swarm.json; no member's work is executed.\n")
 	} else {
-		fmt.Fprintf(&b, "- Check: `%s`, as swarm.json declares it.\n", shellQuote(r.Check))
+		fmt.Fprintf(&b, "- Check: `%s`, as swarm.json declares it.\n", declare.ShellLine(r.Check))
 	}
 	if len(r.Protected) == 0 {
 		b.WriteString("- Protected: none declared in swarm.json.\n")

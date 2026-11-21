@@ -158,3 +158,50 @@ would then lose it silently); matching it as a `protected` pattern
 refused for a path it was never told of). Tests:
 `TestDeclaredDockerfileIsProtected`, `TestValidateNamesTheField`,
 `TestFormatDeps`, `TestWizardKeepsTheFilesDeps`.
+
+**As built: the comparison as a function (Step R3-4 of the plan
+implementing the 2026-11-19 swarm roadmap).** `declare.CompareCI`
+compares, from what it is given alone (the forge's kind, the
+repository's declaration, its test services file or none, and the
+workflow files' paths and contents as read), and returns section
+7.9's lines; telling them (`apply`, `status`, notify, `init`) and
+reading the files from the mirrors at `<base>` are Step R3-5's. Which
+files the kind reads is `declare.WorkflowFiles`, so the step that
+reads them can read those alone. Where 7.9 is silent, the smallest
+reading consistent with it, each written into 7.9's *As built*: a
+step's `run` split as the shell splits it (quotes hold a blank, a cut
+and a line break; `\` takes the next character), not by lines first,
+so a quoted `&&` cuts nothing (splitting at blanks before removing
+quotes was the alternative: `printf 'FROM %s\n…'` would be words of
+the quote's text); a workflow expression `${{ … }}` one word's text,
+since the reference form's tag holds one with blanks and would
+otherwise read as five arguments, so as no build; a redirection a
+word, since the reference form's `-f <dockerfile>` would otherwise read
+as a redirection; `sh -c`'s string not read as commands (7.9's
+"nothing expanded"; reading it was the alternative, a second shell
+inside the first). Docker's options read as its flag parser reads
+them, every option taking a value but a fixed list of those that take
+none, so that a build's context is found among options in any order
+and a run's command begins after its image (the last word as the
+context was the alternative: `docker build . -t x` is common). A build
+without `-f` builds `Dockerfile`, as docker does (requiring `-f` was
+the alternative: a declared `Dockerfile` built the default way would
+have been warned of as not built); the paths compared clean (`./x` is
+`x`). A `defaults.run.working-directory` of the job or the workflow is
+a step's `working-directory`, as the runner applies it. The network's
+line only with `dockerfile` declared: absent, the targets run on the
+runner in the job's container, which is on the job's network (applying
+it there was the alternative, a line on every such job). A CI limit
+without `:<hard>` is `<n>:<n>`, as docker reads it. A variable given
+otherwise names each run of the check given it otherwise (one line for
+the first was the alternative, hiding a second job's). The lines in a
+fixed order, each once; a file refused, when no file is compared, its
+line alone (the image's and the others' would describe a file not
+read). Kept as 7.9 has them: with no image job, the targets, the
+services and the variables are read from none, so the build's line
+comes with the check's targets, the file's services and the
+variables, each as run by none. Tests: `TestCompareCIReference` (the
+reference job, verbatim from 7.9, gives none), `TestCompareCIMutations`,
+`TestCompareCICommands`, `TestCompareCIWorkflows`,
+`TestCompareCITwoImageJobs`, `TestCompareCICheckNotMake`,
+`TestCompareCIRealistic`.
