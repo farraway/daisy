@@ -5189,8 +5189,9 @@ rerun`'s `<reason>`, the secret search of the packages being the
 collection's (Step R3-7, which calls it). `Git.GoFacts` reads the
 facts at a commit in the mirror with git's read commands alone
 (`ls-tree`, `cat-file`): each `go.mod`'s directory and module path,
-each `go.work`'s directory, and for each directory holding a `.go`
-file the imports of its files, its `_test.go` files' apart. A failing
+each `go.work`'s directory, each submodule's directory (its files not
+in the mirror), and for each directory holding a `.go` file the
+imports of its files, its `_test.go` files' apart. A failing
 package's line begins the line: `FAIL`, a tab, the path up to the
 next blank or tab, a line's ending carriage return dropped; an
 indented line, `FAIL` alone and `--- FAIL:` name none, and each
@@ -5208,16 +5209,18 @@ holding a `.go` file. "In its directory, below it or above it" is by
 whole path elements (a file in a directory webs touches no package in
 web), and a directory holding no `.go` file at the head is touched by
 a changed file in it or below it, not above it: so a package the
-change deletes or moves away is touched, and its importers with it.
+change deletes or moves away is touched, and its importers with it;
+a directory at or below a changed path is touched too, a submodule's
+change being its directory's path.
 An import is read as each module of the head (the root's and those
 below it) and each `vendor` directory of the root, of a module and of
 a `go.work` could resolve it, so a package importing a vendored
 package, or a package of a module below the root, that the change
 touches is touched; a module below the root whose path is not read
 (its `go.mod`'s `module` line, or the first line of a `module ( … )`
-block, is what is read) is imported, for all the reading knows, by
-every package with an import, each touched when a directory at or
-below the module's is. A package's test files' imports count for it alone: a
+block, is what is read), and a submodule, are imported, for all the
+reading knows, by every package with an import, each touched when a
+directory at or below the module's or the submodule's is. A package's test files' imports count for it alone: a
 package whose tests import a touched package is touched, its
 importers not through it, since its tests are built into no other
 package. A directory with a file Go's parser refuses at its package

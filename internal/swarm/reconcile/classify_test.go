@@ -66,6 +66,16 @@ func TestClassify(t *testing.T) {
 	shadow.Modules = append(shadow.Modules, GoModule{"other", "example.com/app/extra"})
 	shadow.Packages["extra"] = GoPackage{}
 	shadow.Packages["other"] = GoPackage{}
+	sub := appFacts()
+	sub.Submodules = []string{"ext/sub", "third_party/foo"}
+	sub.Packages["api"] = GoPackage{Imports: []string{"example.com/app/ext/sub/pkg"}}
+	sub.Packages["report"] = GoPackage{Imports: []string{"example.com/foo/x"}}
+	vendors := appFacts()
+	vendors.Workspaces = []string{"ws"}
+	vendors.Packages["tools/vendor/github.com/dep/y"] = GoPackage{}
+	vendors.Packages["ws/vendor/github.com/dep/w"] = GoPackage{}
+	vendors.Packages["api"] = GoPackage{Imports: []string{"github.com/dep/y"}}
+	vendors.Packages["report"] = GoPackage{Imports: []string{"github.com/dep/w"}}
 	unreadRoot := appFacts()
 	unreadRoot.Modules[0].Path = ""
 	deleted := appFacts()
@@ -110,6 +120,13 @@ func TestClassify(t *testing.T) {
 		{"imported from a module below the root", fail("example.com/app/report"), []string{"lib/lib.go"}, appFacts(), false, Classification{}},
 		{"imported from vendor", fail(appWeb), []string{"vendor/github.com/dep/x/x.go"}, appFacts(), false, Classification{}},
 		{"a directory the head lacks is not touched from above", fail(appWeb), []string{"lib/lib.go"}, appFacts(), false, Classification{Untouched: []string{appWeb}}},
+		{"imported from a module's vendor directory", fail(appAPI), []string{"tools/vendor/github.com/dep/y/y.go"}, vendors, false, Classification{}},
+		{"imported from a go.work's vendor directory", fail("example.com/app/report"), []string{"ws/vendor/github.com/dep/w/w.go"}, vendors, false, Classification{}},
+		{"a submodule the change moves, imported below it", fail(appAPI) + refused, []string{"ext/sub"}, sub, false, Classification{}},
+		{"a submodule the change moves, imported by another path", fail("example.com/app/report") + refused, []string{"third_party/foo"}, sub, false, Classification{}},
+		{"a package in a submodule", fail("example.com/app/ext/sub/pkg") + refused, storeGo, sub, false, Classification{}},
+		{"a submodule the change leaves", fail(appAPI), storeGo, sub, false, Classification{Untouched: []string{appAPI}}},
+		{"a submodule the change leaves, an importer elsewhere", fail(appWeb), storeGo, sub, false, Classification{Untouched: []string{appWeb}}},
 		{"a go.work at the root", fail(appWeb) + refused, storeGo, work, false, Classification{}},
 		{"a go.work above the package", fail(appWeb) + refused, storeGo, workBelow, false, Classification{}},
 		{"a go.work elsewhere", fail(appTestutil), storeGo, workBelow, false, Classification{Untouched: []string{appTestutil}}},
@@ -287,7 +304,8 @@ func TestGoFacts(t *testing.T) {
 		"block/go.mod":         {"100644", "module (\n\t// the block's\n\t\"example.com/block\" // path\n)\r\n"},
 		"linked":               {"040000", ""},
 		"linked/go.mod":        {"120000", "../go.mod"},
-		"ext":                  {"160000", ""},
+		"ext":                  {"040000", ""},
+		"ext/sub":              {"160000", ""},
 	}
 	g.O = fakeTree(m, "abc123", files)
 	got, err := g.GoFacts("app", "abc123")
@@ -297,6 +315,7 @@ func TestGoFacts(t *testing.T) {
 	want := GoFacts{
 		Modules:    []GoModule{{"", "example.com/app"}, {"block", "example.com/block"}, {"linked", ""}, {"odd", ""}, {"tools", "example.com/app/tools"}},
 		Workspaces: []string{""},
+		Submodules: []string{"ext/sub"},
 		Packages: map[string]GoPackage{
 			"":             {Imports: []string{"os"}},
 			"api":          {Imports: []string{"embed", "example.com/app/store"}},

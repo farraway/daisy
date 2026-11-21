@@ -157,8 +157,11 @@ or moves away is touched and its importers with it (reading touched
 packages among the head's alone was the alternative: an importer
 failing on the deleted package would have been untouched, as the
 review of the step found); a module below the root whose path is not
-read is held imported by every package with an import (its importers
-otherwise unknown). A `FAIL<tab>` line's path ends at its first
+read, and a submodule (whose files the mirror does not hold, its
+change a changed path naming its directory), are held imported by
+every package with an import (their importers otherwise unknown;
+reading the root `go.mod`'s `replace` lines was the alternative, which
+a submodule's module path, unread, would still have defeated). A `FAIL<tab>` line's path ends at its first
 blank or tab, whatever follows it (reading only the time and the
 bracketed notes `go test` writes was the alternative: a form not
 foreseen would hide a touched package and let a signature classify

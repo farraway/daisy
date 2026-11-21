@@ -31,11 +31,13 @@ type GoPackage struct {
 
 // GoFacts is what the classification knows of the head's Go code
 // (section 7.9, The classification): its modules, the directory of each
-// go.work and every package directory. A head with none of them is
+// go.work, each submodule's (whose files the mirror does not hold) and
+// every package directory. A head with none of them is
 // another language's, whose output names no failing package.
 type GoFacts struct {
 	Modules    []GoModule
 	Workspaces []string
+	Submodules []string
 	Packages   map[string]GoPackage
 }
 
@@ -114,7 +116,9 @@ func (f GoFacts) failing(out []byte) []string {
 // touched is whether a directory the change touches: a changed file
 // in it, below it or, for a package directory of the head, above it (a
 // package the change deletes or moves away holds none, and is touched
-// by its files, and so are its importers); or a package importing,
+// by its files, and so are its importers); a directory at or below a
+// changed path (a submodule's, whose pointer is the change's path); or
+// a package importing,
 // directly or
 // through other packages, a directory so touched, its test files'
 // imports counted for itself alone (a package's tests are not built
@@ -127,7 +131,7 @@ func (f GoFacts) touched(changed []string) func(string) bool {
 		if cd == "." {
 			cd = ""
 		}
-		dirs = append(dirs, cd)
+		dirs = append(dirs, cd, c)
 	}
 	t := map[string]bool{}
 	near := func(d string) bool {
@@ -135,8 +139,9 @@ func (f GoFacts) touched(changed []string) func(string) bool {
 			return true
 		}
 		_, pkg := f.Packages[d]
-		for _, cd := range dirs {
-			if cd == d || within(cd, d) || pkg && within(d, cd) {
+		for i := 0; i < len(dirs); i += 2 {
+			cd, c := dirs[i], dirs[i+1]
+			if cd == d || within(cd, d) || pkg && within(d, cd) || d == c || within(d, c) {
 				return true
 			}
 		}
@@ -162,8 +167,9 @@ func (f GoFacts) touched(changed []string) func(string) bool {
 // importsTouched: one of imports is a touched directory, each import
 // path read as every module of the head and every vendor directory of
 // a module or workspace could resolve it; and any import, when a
-// module below the root whose path is not read has a touched directory
-// (its importers' paths for it unknown).
+// directory whose import paths the reading does not know (a module
+// below the root whose path is not read, a submodule) has a touched
+// directory at or below it.
 func (f GoFacts) importsTouched(imports []string, touched func(string) bool) bool {
 	if len(imports) == 0 {
 		return false
@@ -171,7 +177,9 @@ func (f GoFacts) importsTouched(imports []string, touched func(string) bool) boo
 	roots := []string{""}
 	for _, m := range f.Modules {
 		roots = append(roots, m.Dir)
-		if m.Path == "" && m.Dir != "" && f.subtreeTouched(m.Dir, touched) {
+	}
+	for _, d := range f.opaque() {
+		if f.subtreeTouched(d, touched) {
 			return true
 		}
 	}
@@ -197,6 +205,18 @@ func (f GoFacts) importsTouched(imports []string, touched func(string) bool) boo
 	return false
 }
 
+// opaque is each directory whose import paths the reading does not
+// know: a module below the root whose path is not read, a submodule.
+func (f GoFacts) opaque() []string {
+	var ds []string
+	for _, m := range f.Modules {
+		if m.Path == "" && m.Dir != "" {
+			ds = append(ds, m.Dir)
+		}
+	}
+	return append(ds, f.Submodules...)
+}
+
 // subtreeTouched: dir, or a package directory below it, is touched.
 func (f GoFacts) subtreeTouched(dir string, touched func(string) bool) bool {
 	if touched(dir) {
@@ -214,7 +234,7 @@ func (f GoFacts) subtreeTouched(dir string, touched func(string) bool) bool {
 // lies outside the root module: no root go.mod or none whose path is
 // read, a path not below the root module's, in another module of the
 // head (by its path or its directory) or at or below a go.work, or no
-// package directory of the head.
+// package directory of the head (a submodule's packages among them).
 func (f GoFacts) touches(p string, touched func(string) bool) bool {
 	i := slices.IndexFunc(f.Modules, func(m GoModule) bool { return m.Dir == "" })
 	if i < 0 || f.Modules[i].Path == "" {
@@ -288,6 +308,9 @@ func (g Git) GoFacts(name, commit string) (GoFacts, error) {
 	facts := GoFacts{Packages: map[string]GoPackage{}}
 	fset := token.NewFileSet()
 	for _, e := range entries {
+		if e.Type == "commit" {
+			facts.Submodules = append(facts.Submodules, e.Path)
+		}
 		if e.Type != "blob" {
 			continue
 		}
@@ -336,6 +359,7 @@ func (g Git) GoFacts(name, commit string) (GoFacts, error) {
 	}
 	slices.SortFunc(facts.Modules, func(a, b GoModule) int { return strings.Compare(a.Dir, b.Dir) })
 	slices.Sort(facts.Workspaces)
+	slices.Sort(facts.Submodules)
 	return facts, nil
 }
 
