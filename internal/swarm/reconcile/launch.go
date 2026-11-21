@@ -189,8 +189,8 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	persona := s.Cfg.Personas[j.Role]
 	work := filepath.Join(r.Dir, "work")
 	var startLines []string
-	var svc *runner.Services // the worker's test services (section 7.6)
-	var env []string         // the worker's variables: its repository's env, then x-daisy-env's (7.9)
+	var svc *runner.Services // the worker's or a reviewer's test services (sections 7.6 and 7.9)
+	var env []string         // its variables: its repository's env, then x-daisy-env's (7.9)
 	image, workRepo := repo.Image, repo.Name
 	// A clone that fails, or a step of its preparation, is a swarm fault
 	// recorded as a launch's (section 7.7), collected at once, so the
@@ -243,23 +243,25 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 		startLines = append(startLines, "start "+sha)
 		if j.Role == "worker" {
-			env = repo.EnvLines()
 			startLines = append(startLines, "branch "+branch+" in "+repo.Name)
-			// The services at the commit the worker starts from; one the
-			// file refuses runs beside none, its check reporting the
-			// refusal if the head still holds it.
-			ts, ok, refused, err := s.testServices(repo, sha)
-			switch {
-			case err != nil:
-				fs.RemoveAll(r.Dir)
-				return false, err
-			case refused != "":
-				fmt.Fprintf(s.Err, "⚠ %stest services refused (%s): launched without them\n", runHead(r), refused)
-				startLines = append(startLines, "services worker refused: "+refused)
-			case ok:
-				v := s.services(r, "worker", ts)
-				svc, env = &v, append(env, ts.Env...)
-			}
+		}
+		// The worker's and a reviewer's variables and test services, at
+		// the commit its clone starts from, a reviewer's the head it
+		// reviews (sections 7.6, step 4, and 7.9, Beside a reviewer);
+		// a file refused runs beside none, the worker's check reporting
+		// the refusal if the head still holds it.
+		env = repo.EnvLines()
+		ts, ok, refused, err := s.testServices(repo, sha)
+		switch {
+		case err != nil:
+			fs.RemoveAll(r.Dir)
+			return false, err
+		case refused != "":
+			fmt.Fprintf(s.Err, "⚠ %stest services refused (%s): launched without them\n", runHead(r), refused)
+			startLines = append(startLines, "services "+j.Role+" refused: "+refused)
+		case ok:
+			v := s.services(r, j.Role, ts)
+			svc, env = &v, append(env, ts.Env...)
 		}
 	}
 
@@ -352,7 +354,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return false, err
 	}
 	if svc != nil {
-		fault, err := s.servicesUp(r, "worker", *svc)
+		fault, err := s.servicesUp(r, j.Role, *svc)
 		if err != nil || fault != "" {
 			if slot != nil {
 				slot.Release()

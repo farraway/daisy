@@ -210,3 +210,39 @@ without a panic. Tests: `TestParseServices` (section 7.9's draft of
 gridapp's file), `TestParseServicesRefused`,
 `TestParseYAMLBlockScalars`, `TestServicesArgs`,
 `FuzzParseServices`.
+
+**As built: services and `env` beside a reviewer (Step R3-3 of the
+plan implementing the 2026-11-19 swarm roadmap).** The adversary's and
+the sympathetic reviewer's runs are launched as a worker's on their
+repository: the repository's `env`, one `--env` per name in name
+order, then, with the test services file read from the mirror at the
+head the reviewer's clone is of (the head it reviews), each
+`x-daisy-env` entry, and the services on a network of the run's own,
+not internal, named as its container
+(`daisy-swarm.<owner>.<repo>.<n>.<role>.<k>`), its services
+`<net>.<service>`, so neither reviewer of a pair, nor a later round's,
+nor the worker's or the check's, shares a name. The same code makes,
+records and removes them: `services <role> up <service> …` before they
+start, and `services <role> down` at the collection's first step,
+whatever ends the run (exited, stale, discarded, abandoned after its
+`apply` died, a launch refused, or services that cannot start); the
+removal reads the run's own role and the check's from its result, so a
+batch run, which records none, removes none. Narrowed here, where the
+spec says "as a worker's are": a file refused at the reviewer's head is
+the worker's warning with the reviewer's run head (`⚠ #<n> <role> run
+<k>: test services refused (<reason>): launched without them`) and
+`services <role> refused: <reason>`, the reviewer launched without
+them, its prompt unchanged (its `# Check` already shows the check's
+refusal at that head); services that cannot start are the reviewer's
+launch's fault (`fault: services: …`), the issue taken home as for any
+reviewer's launch that fails; and the reviewer's step in its result's
+lines is its role, not a word shared by both. With neither `env` nor
+the file, a reviewer's argv is as before, byte for byte. Alternatives:
+one network for the pair (two reviewers' suites would share one
+database); a reviewer launched without services, with a warning, when
+they cannot start (a review that cannot run what it is asked to probe,
+and a second rule where the worker's stands); a `services reviewer`
+step word (two names for one run's network). Tests:
+`TestSwarmServicesBesideAReviewer`, `TestSwarmServicesOfAReviewerRemoved`,
+`TestSwarmServicesRefused`, `TestSwarmEnvWithoutDepsOrServices`,
+`TestSwarmNoServicesFile`.

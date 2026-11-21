@@ -70,8 +70,9 @@ func TestSwarmEnvGivenToEveryRunOfTheRepository(t *testing.T) {
 	inOrder(t, a.result("1-worker-1"), "\nfetched ", "\ndeps exited 0 ", "\ncheck exited 0 ", "\npushed ", "\noutcome posted\n")
 }
 
-// Without services, the worker's run is given env alone, on Docker's
-// default network, and the check env alone, offline (section 7.2).
+// Without services, the worker's and the reviewers' runs are given env
+// alone, on Docker's default network, and the check env alone, offline
+// (section 7.2).
 func TestSwarmEnvWithoutDepsOrServices(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -91,5 +92,19 @@ func TestSwarmEnvWithoutDepsOrServices(t *testing.T) {
 		"--mount", "type=bind,src=" + run + "/check,dst=/work", "--workdir", "/work", "daisy-member:1", "make", "check"}
 	if len(checks) != 1 || !reflect.DeepEqual(checks[0].Args(), want) {
 		t.Errorf("checks %+v", checks)
+	}
+	// The reviewers too, on the default network (section 7.9, Beside a
+	// reviewer).
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	for _, role := range []string{"adversary", "sympathetic"} {
+		rs := a.launched(role)
+		if len(rs) != 1 || rs[0].Network != "" || !reflect.DeepEqual(rs[0].Env, []string{"TZ=UTC"}) {
+			t.Errorf("%s %+v", role, rs)
+		}
+		if argv := a.file("1-"+role+"-1", "argv"); !strings.Contains(argv, "\n--env\nTZ=UTC\n--mount\n") || strings.Contains(argv, "--network") {
+			t.Errorf("the %s's argv:\n%s", role, argv)
+		}
 	}
 }

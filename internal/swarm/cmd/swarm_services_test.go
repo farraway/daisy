@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -98,8 +100,9 @@ func TestSwarmServicesBesideTheCheck(t *testing.T) {
 }
 
 // Without a services file, nothing of this: no network, no service, the
-// worker launched on Docker's default network without variables, and
-// the check offline as before (its argv is TestSwarmCheckWithoutDepsUnchanged's).
+// worker launched on Docker's default network without variables, the
+// check offline as before (its argv is TestSwarmCheckWithoutDepsUnchanged's),
+// and the reviewers launched as before Step R3-3, byte for byte.
 func TestSwarmNoServicesFile(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -113,6 +116,30 @@ func TestSwarmNoServicesFile(t *testing.T) {
 	}
 	if argv := a.file("1-worker-1", "argv"); strings.Contains(argv, "--network") || strings.Contains(argv, "--env\n") {
 		t.Errorf("the worker's argv:\n%s", argv)
+	}
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass()
+	// The reviewers', without services or env, as before R3-3, byte for
+	// byte to their image: the adversary's slot, the sympathetic
+	// reviewer's env credential, and no --network or --env of their own.
+	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
+	for _, tc := range []struct{ role, credential string }{
+		{"adversary", "--label\ndaisy.credential=openai/1\n--mount\ntype=bind,src=" + slot + ",dst=/credential\n--env\nCODEX_HOME=/credential\n"},
+		{"sympathetic", "--env-file\n/dev/stdin\n"},
+	} {
+		run, jobs := a.state("runs/1-"+tc.role+"-1"), a.state("jobs/1")
+		want := "docker\nrun\n--rm\n--pull\nnever\n--name\ndaisy-swarm.acme.swarm-app.1." + tc.role + ".1\n--label\ndaisy.swarm=acme/swarm-app#1/" + tc.role +
+			"\n--user\n1000:1000\n--security-opt\nno-new-privileges\n--stop-timeout\n30\n" + tc.credential +
+			"--mount\ntype=bind,src=" + run + "/job,dst=/job\n--mount\ntype=bind,src=" + run + "/work,dst=/job/work\n--mount\ntype=bind,src=" + run + "/io,dst=/job/io\n" +
+			"--mount\ntype=bind,src=" + run + "/resources,dst=/job/resources,readonly\n--mount\ntype=bind,src=" + jobs + ",dst=/job/memory,readonly\n" +
+			"--workdir\n/job/work/app\ndaisy-member:1\nsh\n-c\n"
+		if argv := a.file("1-"+tc.role+"-1", "argv"); !strings.HasPrefix(argv, want) {
+			t.Errorf("the %s's argv:\n%s\nwant it to begin:\n%s", tc.role, argv, want)
+		}
+		if r := a.result("1-" + tc.role + "-1"); strings.Contains(r, "services") {
+			t.Errorf("the %s's result:\n%s", tc.role, r)
+		}
 	}
 }
 
@@ -151,6 +178,18 @@ func TestSwarmServicesRefused(t *testing.T) {
 	a.pass()
 	if p := a.file("1-adversary-1", "io/prompt.md"); !strings.Contains(p, "# Check\n\nmake check on "+ps[0].HeadSHA+": test services refused; the check did not run\n\n    "+reason) {
 		t.Errorf("the reviewer's # Check:\n%s", p)
+	}
+	// Each reviewer, on the head's file, is launched without services
+	// and warned of it, as the worker is (section 7.9, Beside a reviewer).
+	for _, role := range []string{"adversary", "sympathetic"} {
+		rs := a.launched(role)
+		if len(a.runner.Ups) != 0 || len(rs) != 1 || rs[0].Network != "" || rs[0].Env != nil {
+			t.Errorf("ups %+v, %s %+v", a.runner.Ups, role, rs)
+		}
+		if want := "⚠ #1 " + role + " run 1: test services refused (" + reason + "): launched without them\n"; !strings.Contains(a.stderr.String(), want) {
+			t.Errorf("stderr lacks %q:\n%s", want, a.stderr.String())
+		}
+		inOrder(t, a.result("1-"+role+"-1"), "\nservices "+role+" refused: "+reason+"\n", "\nstarted ", "\noutcome posted\n")
 	}
 }
 
@@ -211,4 +250,143 @@ func TestSwarmServicesRestartedAfterTheirApplyDied(t *testing.T) {
 		t.Fatalf("ups %d, networks %+v, checks %d\n%s", len(a.runner.Ups), a.runner.Networks, len(a.launched("check")), r)
 	}
 	inOrder(t, r, "\ncheck started ", "\nservices check down\n", "\nservices check up mongo redis\n", "\ncheck started ", "\ncheck exited 0 ", "\nservices check down\n", "\npushed "+head+"\n")
+}
+
+// reviewerNet is the network of issue 1's reviewer run k (section 7.9,
+// Beside a reviewer).
+func reviewerNet(role string, k int) string {
+	return fmt.Sprintf("daisy-swarm.acme.swarm-app.1.%s.%d", role, k)
+}
+
+// A reviewer's run (sections 7.2, 7.6, step 4, and 7.9, Beside a
+// reviewer): each of the pair, launched in one pass, runs beside the
+// test services file read at the head it reviews (main holds none: the
+// worker's commit adds it, so worker run 1 has none), on a network of
+// its own, not internal, named as its container, given the
+// repository's env then x-daisy-env's, as the worker is; the
+// collection takes each down. Round 2's pair, after changes were
+// requested, runs on networks of its own again, beside worker run 2's
+// and its check's, and nothing is left up.
+func TestSwarmServicesBesideAReviewer(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) {
+		c.Repos[0].Env = map[string]string{"GRIDAPP_TEST_REDIS_URI": "redis://elsewhere:6379", "CGO_ENABLED": "0"}
+	})
+	a.publish("env")
+	a.fetchMirror()
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n", "compose.test.yaml": gridappFile}, "v1"))},
+		runner.Canned{Out: "v2\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v2\n"}, "v2"))})
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.pass() // worker run 1 and its check
+	a.pass() // the pair, round 1
+	a.pass() // worker run 2 and its check
+	a.pass() // the pair, round 2
+	if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-2-approved") {
+		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
+	}
+	net := func(role string, k int) runner.Services {
+		return runner.Services{Network: fmt.Sprintf("daisy-swarm.acme.swarm-app.1.%s.%d", role, k), Internal: role == "check", List: gridappList}
+	}
+	want := []runner.Services{net("check", 1), net("adversary", 1), net("sympathetic", 1), net("worker", 2), net("check", 2), net("adversary", 2), net("sympathetic", 2)}
+	if !reflect.DeepEqual(a.runner.Ups, want) {
+		t.Errorf("ups:\n got %+v\nwant %+v", a.runner.Ups, want)
+	}
+	if len(a.runner.Networks) != 0 {
+		t.Errorf("networks left up: %+v", a.runner.Networks)
+	}
+	env := append([]string{"CGO_ENABLED=0", "GRIDAPP_TEST_REDIS_URI=redis://elsewhere:6379"}, gridappEnv...)
+	var flags []string
+	for _, v := range env {
+		flags = append(flags, "--env", v)
+	}
+	for _, role := range []string{"adversary", "sympathetic"} {
+		rs := a.launched(role)
+		if len(rs) != 2 {
+			t.Fatalf("%d %s runs", len(rs), role)
+		}
+		for i, r := range rs {
+			k := i + 1
+			if r.Network != reviewerNet(role, k) || !reflect.DeepEqual(r.Env, env) {
+				t.Errorf("%s run %d: network %q, env %q", role, k, r.Network, r.Env)
+			}
+			argv := a.file(fmt.Sprintf("1-%s-%d", role, k), "argv")
+			if !strings.Contains(argv, "\n--stop-timeout\n30\n--network\n"+reviewerNet(role, k)+"\n") || !strings.Contains(argv, "\n"+strings.Join(flags, "\n")+"\n--mount\n") {
+				t.Errorf("%s run %d's argv:\n%s", role, k, argv)
+			}
+			inOrder(t, a.result(fmt.Sprintf("1-%s-%d", role, k)), "\nstarted ", "\nservices "+role+" up mongo redis\n", "\nexited 0 ", "\nservices "+role+" down\n", "\noutcome posted\n")
+		}
+	}
+	if !strings.Contains(a.stdout.String(), "#1 sympathetic run 2: services sympathetic up mongo redis\n") ||
+		!strings.Contains(a.stdout.String(), "#1 sympathetic run 2: services sympathetic down\n") {
+		t.Errorf("stdout:\n%s", a.stdout.String())
+	}
+}
+
+// A reviewer's services are removed whatever ends its run (sections 7.6,
+// step 4, and 7.7): a run whose apply died after they were up (the
+// pair's second, abandoned at the next pass), a launch refused once they
+// were up, and services that cannot start, the launch's fault; each a
+// fault or abandoned, the issue taken home, nothing left up.
+func TestSwarmServicesOfAReviewerRemoved(t *testing.T) {
+	t.Parallel()
+	setup := func(t *testing.T) *applyWS {
+		a := newApplyWS(t)
+		a.land("app", map[string]string{"compose.test.yaml": gridappFile}, "test services")
+		a.inReview(oneSlice)
+		if len(a.runner.Networks) != 0 {
+			t.Fatalf("networks up before the review: %+v", a.runner.Networks)
+		}
+		return a
+	}
+	home := func(t *testing.T, a *applyWS) {
+		t.Helper()
+		if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-0-ready") || slices.Contains(got, "swarm:review-1-in-progress") {
+			t.Errorf("labels %v", got)
+		}
+		if len(a.runner.Networks) != 0 {
+			t.Errorf("networks left up: %+v", a.runner.Networks)
+		}
+	}
+	t.Run("abandoned", func(t *testing.T) {
+		a := setup(t)
+		net := reviewerNet("sympathetic", 1)
+		run := a.state("runs/1-sympathetic-1")
+		os.MkdirAll(filepath.Join(run, "io"), 0o755)
+		lines := []string{"start " + a.pulls(1)[0].HeadSHA, "label swarm:review-1-in-progress", "started 2026-11-06T14:59:00Z", "credential anthropic env CLAUDE_CODE_OAUTH_TOKEN",
+			"persona anthropic claude-opus-5-5 high", "round 1", "services sympathetic up mongo redis"}
+		os.WriteFile(filepath.Join(run, "result"), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+		a.forge.SetLabel(issue1, "swarm:review-1-in-progress")
+		a.runner.Networks = map[string]runner.Services{net: {Network: net, List: gridappList}}
+		if err := a.verb(SwarmPause); err != nil {
+			t.Fatal(err)
+		}
+		a.pass()
+		home(t, a)
+		inOrder(t, a.result("1-sympathetic-1"), "\nservices sympathetic up mongo redis\n", "\nabandoned ", "\nservices sympathetic down\n", "\noutcome abandoned\ncollected\n")
+	})
+	t.Run("launch refused", func(t *testing.T) {
+		a := setup(t)
+		a.runner.StartErr = errors.New("no socket")
+		a.pass()
+		home(t, a)
+		for _, role := range []string{"adversary", "sympathetic"} {
+			inOrder(t, a.result("1-"+role+"-1"), "\nservices "+role+" up mongo redis\n", "\nlaunch-failed ", "\nfault: launch: no socket\n", "\nservices "+role+" down\n", "\noutcome fault\ncollected\n")
+		}
+	})
+	t.Run("cannot start", func(t *testing.T) {
+		a := setup(t)
+		missing := errors.New("redis: docker: Error response from daemon: No such image: redis:7.")
+		a.runner.UpErr = missing
+		a.pass()
+		home(t, a)
+		if n := len(a.launched("adversary")) + len(a.launched("sympathetic")); n != 0 {
+			t.Errorf("%d reviewers launched", n)
+		}
+		for _, role := range []string{"adversary", "sympathetic"} {
+			inOrder(t, a.result("1-"+role+"-1"), "\nservices "+role+" up mongo redis\n", "\nlaunch-failed ", "\nfault: services: "+missing.Error()+"\n", "\nservices "+role+" down\n", "\noutcome fault\ncollected\n")
+		}
+	})
 }

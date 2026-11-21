@@ -43,8 +43,8 @@ func (s *Swarm) testServices(rp declare.Repo, commit string) (ts declare.TestSer
 }
 
 // services is ts as the runner starts it beside run r's step (the
-// worker, or the check), on the network named as the step's container;
-// a check's network is internal.
+// worker, a reviewer, or the check), on the network named as the step's
+// container; a check's network is internal.
 func (s *Swarm) services(r Run, step string, ts declare.TestServices) runner.Services {
 	sv := runner.Services{Network: s.containerName(r.N, step, r.K), Internal: step == "check"}
 	for _, t := range ts.Services {
@@ -73,12 +73,13 @@ func (s *Swarm) servicesUp(r Run, step string, sv runner.Services) (fault string
 }
 
 // servicesDown takes down each step's test services the result says were
-// started more often than taken down (section 7.6, step 4): once the
-// step's container has ended, whatever its outcome, and before a check
-// whose apply died is started again. It returns the result's lines with
-// each `services <step> down` it wrote.
+// started more often than taken down (section 7.6, step 4): the run's
+// own (a worker's or a reviewer's, its role the step) and its check's,
+// once the step's container has ended, whatever its outcome, and before
+// a check whose apply died is started again. It returns the result's
+// lines with each `services <step> down` it wrote.
 func (s *Swarm) servicesDown(r Run, lines []string) ([]string, error) {
-	for _, step := range []string{"worker", "check"} {
+	for _, step := range []string{r.Role, "check"} {
 		up, down := 0, 0
 		for _, l := range lines {
 			switch {

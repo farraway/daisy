@@ -901,3 +901,16 @@ they write.
   `docker run`, the R3 block) and 7.9 (the opening, the comparison with
   CI). Decision [160](swarm/decisions/0160-one-declared-check-environment.md)
   amended.
+- 2026-11-20, Step R3-3 of the plan implementing the 2026-11-19 swarm
+  roadmap (R3): the adversary's and the sympathetic reviewer's runs get
+  their repository's `env` and the test services file read at the head
+  they review, on a network of their own named as the run's container,
+  with `x-daisy-env`, made, warned of when refused and removed at the
+  collection as a worker's are (`services <role> up|down|refused`);
+  without either, a reviewer's argv is unchanged. Sections 2 (the
+  result's lines), 3 (`repos[].services`, `repos[].env`), 7.2 (the
+  member's `(variables)` and `(services)` lines, the arguments, the R3
+  block), 7.6 (step 4), 7.7, 7.9 (the opening, Beside a reviewer), 11
+  (stdout, stderr) and the test plan. Decision
+  [160](swarm/decisions/0160-one-declared-check-environment.md)
+  amended.
