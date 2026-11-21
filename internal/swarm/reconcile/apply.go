@@ -625,12 +625,12 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			}
 			decided[n] = true
 			for _, role := range Launch(turn, s.SwarmLogin, s.Cfg.Trusted) {
-				persona, err := fs.ReadFile(declare.PromptFile(s.Place.Root, role))
+				persona, parts, err := s.persona(role)
 				if err != nil {
 					return err
 				}
 				run := *j
-				run.Role, run.Persona = role, string(persona)
+				run.Role, run.Persona, run.Parts = role, persona, parts
 				run.K = NextK(runs, n, role, marks)
 				if err := launch(&run); err != nil {
 					return err

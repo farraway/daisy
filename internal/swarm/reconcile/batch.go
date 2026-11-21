@@ -83,12 +83,12 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	if b.Closed, err = s.recentlyClosed(b.active()); err != nil {
 		return err
 	}
-	persona, err := fs.ReadFile(declare.PromptFile(s.Place.Root, "owner"))
+	persona, parts, err := s.persona("owner")
 	if err != nil {
 		return err
 	}
 	return launch(&Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, Role: "owner", K: NextK(runs, 0, "owner", nil),
-		Time: s.O.Now(), Persona: string(persona), Batch: b})
+		Time: s.O.Now(), Persona: persona, Parts: parts, Batch: b})
 }
 
 // heldFile is <state>/<role>-held, the hold on a batch run's trigger
@@ -130,12 +130,12 @@ func (s *Swarm) qa(running []runner.Running, launch func(*Job) error) error {
 	if b.Closed, err = s.recentlyClosed(nil); err != nil {
 		return err
 	}
-	persona, err := fs.ReadFile(declare.PromptFile(s.Place.Root, declare.QARole))
+	persona, parts, err := s.persona(declare.QARole)
 	if err != nil {
 		return err
 	}
 	return launch(&Job{Cfg: s.Cfg, Host: s.Cfg.Forge.ForgeHost(), SwarmLogin: s.SwarmLogin, Role: declare.QARole, K: NextK(runs, 0, declare.QARole, nil),
-		Time: s.O.Now(), Persona: string(persona), Batch: b})
+		Time: s.O.Now(), Persona: persona, Parts: parts, Batch: b})
 }
 
 // qaDue: the QA trigger holds (section 6, The QA

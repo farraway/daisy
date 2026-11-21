@@ -497,7 +497,9 @@ present, after `deps`, its `env`, when present, after
 keeps it from an existing file and never adds one.
 `qa`, when present, comes after `owner`, on one line, and its
 persona last in `personas`; `init` keeps both from an existing file and
-never adds them.
+never adds them. `prompt_parts`, when present, comes last, after
+`personas`, an entry a line; `init` keeps it from an existing file and
+never adds one.
 `budget` comes after `gates` when present; `init --defaults` writes none,
 since every gate is on. `references`, then `notes`, come
 after `resources`, in that order, `references` written only when it
@@ -557,6 +559,7 @@ yet or not (Step 6 of revision 6's plan; decision [109](swarm/decisions/0109-ini
 | `personas.<role>.effort` | string | as in the example | passed through, but must match `^[a-z]+$` (the "bad effort" Step 27 tests); the vendor's list is not checked |
 | `personas.<role>.co_author` | string | `<model> <noreply@anthropic.com>` (anthropic), `<model> <noreply@openai.com>` (openai) or `<model> <noreply@x.ai>` (xai); with a file, its value while the role's provider and model are unchanged | required: the whole value of the `Co-Authored-By:` trailer the role's commits carry, `<name> <<email>>`, stamped verbatim by the hook Step 5 installs (decision [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)); or `""`, no trailer: the clone gets no hook and the collection reports no commit unstamped (Step 15 of the swarm build, decision [74](swarm/decisions/0074-the-label-vocabulary.md)) |
 | (each persona) | — | — | `prompts/<role>.md` in the swarm repository's clone exists and is non-empty (`swarm prompt build` writes the QA's default once `qa` is declared, section 11) |
+| `prompt_parts` | array of objects | absent (`init` writes none, and keeps the file's) | optional; each `{"path": <path>, "roles": [<role>, …]}`, exactly these fields: a **prompt part**, a file in the swarm repository's clone (by convention `prompts/parts/<name>.md`) added to the `system.md` of every run of each role it names, after `prompts/<role>.md`, as its own section, the parts in this list's order (7.3), so the swarm's additions to a role's prompt live beside Daisy's default rather than edited into it (Step R3-13 of the plan implementing the 2026-11-19 swarm roadmap; decision [164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md)); `path` relative and without `..`, the file there not empty, read as `prompts/<role>.md` is, in the clone's working tree at each launch; `roles` one or more, each one of `owner`, `architect`, `worker`, `adversary`, `sympathetic`, `qa`; written after `personas`, an entry a line |
 
 **The budget** is specified ahead of its build (section 1): `swarm.json`
 validates it (required when a gate is off, the table above) and `status`
@@ -604,6 +607,7 @@ failure is reported and the verb exits 1; the message is
 | not one of the roles | `swarm.json: personas.tester: not a role (owner, architect, worker, adversary, sympathetic, qa)` |
 | the QA refused | `swarm.json: qa: no trigger (merges or tag is required)`; `swarm.json: qa.merges: 0 is not greater than 0`; `swarm.json: qa.tag: "<value>" is not a tag pattern`; `swarm.json: personas.qa: missing (required when qa is declared)`; `swarm.json: personas.qa: no trigger runs it; declare qa, or remove personas.qa` |
 | missing prompt | `swarm.json: personas.architect: prompt prompts/architect.md is missing or empty` |
+| a prompt part refused | `swarm.json: prompt_parts[1].path: "/etc/passwd" is outside the clone` (absolute, empty, or through `..`); `swarm.json: prompt_parts[1].path: prompts/parts/css.md is missing or empty`; `swarm.json: prompt_parts[1].roles: no role (at least one is required)`; `swarm.json: prompt_parts[1].roles[1]: "tester" is not a role (owner, architect, worker, adversary, sympathetic, qa)` |
 | bad effort | `swarm.json: personas.worker.effort: "Very High" is not one lowercase word` |
 | model with whitespace | `swarm.json: personas.worker.model: "a b" contains whitespace` |
 | model with a control or format character | `swarm.json: personas.worker.model: "a\u200bb" contains a control or format character` (the value as Go's `%q` writes it) |
@@ -789,6 +793,19 @@ The default prompts follow. `swarm init` writes each to
 QA's only when `swarm.json` declares it. They state a persona's stance only:
 what to do and where to write it is Daisy's fixed Task text (section 7.4),
 so an edited persona prompt cannot break the output contract.
+
+**Prompt parts.** What a swarm adds to a role's stance for its own
+products (CSS rules, the browser to drive, a practice of its product)
+is a prompt part, a file of its own in the swarm repository (by
+convention `prompts/parts/<name>.md`), which `swarm.json`'s
+`prompt_parts` (section 3) names with the roles it is added to: each
+run of such a role reads it after `prompts/<role>.md`, as its own
+section (7.3), as a Daisy workspace's `AGENTS.md` combines prompts. A
+role's prompt then stays Daisy's default, which `swarm prompt build`
+replaces whole when a newer Daisy changes it (section 11), the swarm's
+additions living in the parts (Step R3-13 of the plan implementing the
+2026-11-19 swarm roadmap; decision
+[164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md)).
 
 ### owner
 
@@ -2716,8 +2733,8 @@ ends.
 ### 7.3 The prompt files
 
 Two files, so that the thread never travels in a system-prompt channel:
-`<run>/io/system.md` holds Daisy's and the maintainer's words (the persona,
-the Task, the swarm's notes about a repository, the resources with their
+`<run>/io/system.md` holds Daisy's and the maintainer's words (the persona
+and its prompt parts, the Task, the swarm's notes about a repository, the resources with their
 notes and, for the architect and the worker, Daisy's praxis and testing skill), and `<run>/io/prompt.md`
 holds the material (the issue, the threads, the plan, the pull request),
 which anyone who can comment may have written. The member sees them as
@@ -2742,6 +2759,10 @@ text cut on the forge, below).
 # Persona
 
 <prompts/<role>.md, verbatim but for its headings, shifted as below>
+
+# Prompt part: <path>
+
+<the file at <path> in the swarm repository's clone, verbatim but for its headings, shifted as below; one such section per `prompt_parts` entry naming the run's role (section 3), in that list's order, none when no entry names it>
 
 # Task
 
@@ -4016,8 +4037,9 @@ section 9, lies in it and the model and effort that argv names, and
 with no such argv the one `swarm.json` declares at the collection); `root_sha`
 `$DAISY_ROOT`'s `HEAD` and `home_sha` the home's, at the collection
 (each empty, with a warning, when git cannot say); `prompt_hash` the
-sha256 of `<run>/io/system.md`, so a change to a persona prompt, the
-Task, the repository notes or praxis shows; `outcome` the run's;
+sha256 of `<run>/io/system.md`, so a change to a persona prompt, a
+prompt part (Step R3-13), the Task, the repository notes or praxis
+shows; `outcome` the run's;
 `review_rounds` a reviewer's `round` line, its round as section 6
 counts it at the launch; `review_effect` a reviewer's effect, the
 findings it raised that were fixed (decision [142](swarm/decisions/0142-a-reviews-effect-read-from-the-runs.md)): `0` for a review not
@@ -6707,7 +6729,12 @@ passphrase prompt, or an agent the user manager can reach).
 `init` writes a persona prompt only where none is, so a change to a
 default (section 4) reaches a new swarm only. `prompt build` brings an
 existing swarm's prompts to this Daisy's defaults where the maintainer
-has not edited them, and shows where they have.
+has not edited them, and shows where they have. A swarm whose
+additions to a role's prompt are prompt parts (`prompt_parts`, section
+3; Step R3-13 of the plan implementing the 2026-11-19 swarm roadmap)
+keeps `prompts/<role>.md` unedited, so `prompt build` replaces it whole
+with each newer default, the parts, which it never reads or writes,
+staying as they are.
 
 | Field | Value |
 |---|---|

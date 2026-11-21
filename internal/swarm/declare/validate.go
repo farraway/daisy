@@ -79,6 +79,7 @@ func Validate(o ops.Ops, p Place, c Config, skip Skip) error {
 		func() *Error { return checkBudget(c.Gates, c.Budget) },
 		func() *Error { return checkKeys(c.Keys, c.Personas, c.DeclaredRoles()) },
 		func() *Error { return checkPersonas(o, p, c, skip) },
+		func() *Error { return checkPromptParts(o, p, c, skip) },
 	}
 	for _, check := range checks {
 		if err := check(); err != nil {
@@ -622,6 +623,35 @@ func checkPersonas(o ops.Ops, at Place, c Config, skip Skip) *Error {
 			b, err := o.FS().ReadFile(PromptFile(at.Root, r))
 			if err != nil || len(b) == 0 {
 				return fieldErr("personas."+r, "prompt %s is missing or empty", filepath.Join("prompts", r+".md"))
+			}
+		}
+	}
+	return nil
+}
+
+// checkPromptParts: each prompt_parts entry's path is relative and
+// without `..`, so in the clone, and names a file there that is not
+// empty (unless the prompts are skipped, as at init's first
+// validation); its roles are one at least, each a role swarm.json may
+// declare (section 3, prompt_parts).
+func checkPromptParts(o ops.Ops, at Place, c Config, skip Skip) *Error {
+	for i, part := range c.PromptParts {
+		field := fmt.Sprintf("prompt_parts[%d]", i)
+		if part.Path == "" || filepath.IsAbs(part.Path) || slices.Contains(strings.Split(filepath.ToSlash(part.Path), "/"), "..") {
+			return fieldErr(field+".path", "%q is outside the clone", part.Path)
+		}
+		if len(part.Roles) == 0 {
+			return fieldErr(field+".roles", "no role (at least one is required)")
+		}
+		for j, r := range part.Roles {
+			if !slices.Contains(AllRoles, r) {
+				return fieldErr(fmt.Sprintf("%s.roles[%d]", field, j), "%q is not a role (%s)", r, strings.Join(AllRoles, ", "))
+			}
+		}
+		if skip&SkipPrompts == 0 {
+			b, err := o.FS().ReadFile(filepath.Join(at.Root, part.Path))
+			if err != nil || len(b) == 0 {
+				return fieldErr(field+".path", "%s is missing or empty", part.Path)
 			}
 		}
 	}

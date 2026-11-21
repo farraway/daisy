@@ -47,24 +47,25 @@ const MaintainerTokenEnv = "DAISY_MAINTAINER_TOKEN"
 // Config is swarm.json. Its field order is section 3's, which is the
 // order Format writes; a field without omitempty is required.
 type Config struct {
-	Forge      Forge              `json:"forge"`
-	Repos      []Repo             `json:"repos"`
-	Base       string             `json:"base"`
-	MaxMembers int                `json:"max_members"`
-	MaxRounds  int                `json:"max_rounds"`
-	Timeout    string             `json:"timeout"`
-	Interval   string             `json:"interval"`
-	Owner      Owner              `json:"owner"`
-	QA         *QA                `json:"qa,omitempty"`
-	Resources  []Resource         `json:"resources"`
-	References []Reference        `json:"references,omitempty"`
-	Notes      bool               `json:"notes,omitempty"`
-	Trusted    []string           `json:"trusted"`
-	Notify     []string           `json:"notify,omitempty"`
-	Gates      Gates              `json:"gates"`
-	Budget     *Budget            `json:"budget,omitempty"`
-	Keys       map[string]Key     `json:"keys"`
-	Personas   map[string]Persona `json:"personas"`
+	Forge       Forge              `json:"forge"`
+	Repos       []Repo             `json:"repos"`
+	Base        string             `json:"base"`
+	MaxMembers  int                `json:"max_members"`
+	MaxRounds   int                `json:"max_rounds"`
+	Timeout     string             `json:"timeout"`
+	Interval    string             `json:"interval"`
+	Owner       Owner              `json:"owner"`
+	QA          *QA                `json:"qa,omitempty"`
+	Resources   []Resource         `json:"resources"`
+	References  []Reference        `json:"references,omitempty"`
+	Notes       bool               `json:"notes,omitempty"`
+	Trusted     []string           `json:"trusted"`
+	Notify      []string           `json:"notify,omitempty"`
+	Gates       Gates              `json:"gates"`
+	Budget      *Budget            `json:"budget,omitempty"`
+	Keys        map[string]Key     `json:"keys"`
+	Personas    map[string]Persona `json:"personas"`
+	PromptParts []PromptPart       `json:"prompt_parts,omitempty"`
 }
 
 // SecretNames are the swarm's variables (section 3, Secret values):
@@ -246,6 +247,15 @@ type Persona struct {
 	Model    string `json:"model"`
 	Effort   string `json:"effort"`
 	CoAuthor string `json:"co_author"`
+}
+
+// PromptPart is a prompt_parts entry (section 3): a file in the swarm
+// repository's clone, by convention under prompts/parts/, added after
+// prompts/<role>.md, as its own section, to the system.md of every run
+// of each role it names (section 7.3).
+type PromptPart struct {
+	Path  string   `json:"path"`
+	Roles []string `json:"roles"`
 }
 
 // Error is a swarm.json problem: the dotted path of the field and what is
@@ -487,7 +497,16 @@ func Format(c Config) []byte {
 	}
 	b.WriteString("  \"personas\": {\n")
 	b.WriteString(personaLines(c.Personas))
-	b.WriteString("  }\n}\n")
+	b.WriteString("  }")
+	if len(c.PromptParts) > 0 {
+		var parts []string
+		for _, p := range c.PromptParts {
+			p.Roles = nonNil(p.Roles)
+			parts = append(parts, inline(p))
+		}
+		b.WriteString(",\n  \"prompt_parts\": [\n    " + strings.Join(parts, ",\n    ") + "\n  ]")
+	}
+	b.WriteString("\n}\n")
 	return []byte(b.String())
 }
 

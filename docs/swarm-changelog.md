@@ -1043,3 +1043,13 @@ they write.
   amended, and decision
   [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)'s
   scorecard paragraph.
+- 2026-11-21, Step R3-13 of the plan implementing the 2026-11-19 swarm
+  roadmap: prompt parts, added to a role's prompt rather than edited
+  into it. `swarm.json`'s `prompt_parts` names files in the clone and
+  the roles each is added to, after `prompts/<role>.md`, as its own
+  section, in the list's order; validation refuses a path outside the
+  clone, a missing or empty file, an unknown role and an empty `roles`;
+  the run's `prompt_hash` covers them; `swarm prompt build` replaces an
+  unedited prompt whole, the swarm's additions in parts. Sections 3, 4,
+  7.3, 7.6 and 11, and the swarm skill. Decision
+  [164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md).

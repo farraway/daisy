@@ -171,6 +171,20 @@ a one-line `note` (`{"path": "<path>", "note": "<what it is, for whom>"}`),
 which every run's `system.md` lists beside its path under
 `# Resources`, and the prompt's own line can return to the default's.
 
+The swarm's own additions to a role's prompt (CSS rules, the browser
+to drive, a product's practice) belong in a prompt part, not in
+`prompts/<role>.md`: a file of their own, `prompts/parts/<name>.md`,
+named in `swarm.json`'s `prompt_parts` with the roles it is added to
+(`{"path": "prompts/parts/<name>.md", "roles": ["worker", "adversary"]}`;
+docs/swarm.md section 3), which every run of those roles reads after its
+role's prompt, as its own section. A prompt whose additions live in
+parts stays Daisy's default, so `prompt build` replaces it whole with a
+newer default and the parts stay as they are. When an edited prompt
+holds such additions, draft their move into a part (the file, the
+`prompt_parts` entry, and the prompt back to the default) as rule 6
+says; on the maintainer's yes, the prompt is then at the default and
+`prompt build` brings it current from then on.
+
 Every path a member has is under `/job`, the run's folder
 (`docs/swarm.md` section 7.2): its clones at `/job/work/<name>`, its
 io at `/job/io`, the research notes at `/job/notes`, each resource

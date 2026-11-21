@@ -27,7 +27,8 @@ type Job struct {
 	Role       string
 	Label      string // the stage the run is launched on
 	Time       time.Time
-	Persona    string // prompts/<role>.md as read
+	Persona    string       // prompts/<role>.md as read
+	Parts      []PromptPart // the prompt parts swarm.json adds to the role's prompt, in its order (section 7.3)
 
 	Issue forge.Issue  // with its comments
 	Pulls []forge.Pull // Pulls(n), by slice
@@ -57,6 +58,10 @@ type Job struct {
 	blocked  bool     // the launch blocked the issue on a file of the job's it cannot use, so the pair's second reviewer is not launched
 
 }
+
+// PromptPart is a prompt_parts file as read for a run: its path in the
+// swarm repository's clone and its text.
+type PromptPart struct{ Path, Text string }
 
 // PullThread is the current pull request's comments, reviews and line
 // comments, as the forge returns them.
@@ -101,7 +106,11 @@ func Render(j *Job) (system, prompt string) {
 	j.textErr = nil
 	head := fmt.Sprintf("%s#%d %s run %d, %s -->", j.Cfg.Forge.Repo, j.N, j.Role, j.K, stamp(j.Time))
 	prompt = j.prompt(head)
-	sys := []string{"<!-- daisy-swarm system: " + head, "# Persona", Shift(trim(j.Persona), 1), "# Task", j.task()}
+	sys := []string{"<!-- daisy-swarm system: " + head, "# Persona", Shift(trim(j.Persona), 1)}
+	for _, p := range j.Parts {
+		sys = append(sys, "# Prompt part: "+p.Path, Shift(trim(p.Text), 1))
+	}
+	sys = append(sys, "# Task", j.task())
 	if readsPraxis(j.Role) {
 		for _, b := range [][2]string{{"# Praxis", j.Praxis}, {"# Testing", skillBody(j.Testing)}} {
 			if text := trim(b[1]); strings.TrimSpace(text) != "" {
@@ -174,6 +183,29 @@ func (s *Swarm) praxis() (praxis, testing string, err error) {
 		text[i] = string(b)
 	}
 	return text[0], text[1], nil
+}
+
+// persona is role's prompt, prompts/<role>.md, and the prompt parts
+// swarm.json adds to it, in its order, each read in the swarm
+// repository's clone (section 7.3).
+func (s *Swarm) persona(role string) (string, []PromptPart, error) {
+	fs := s.O.FS()
+	b, err := fs.ReadFile(declare.PromptFile(s.Place.Root, role))
+	if err != nil {
+		return "", nil, err
+	}
+	var parts []PromptPart
+	for _, p := range s.Cfg.PromptParts {
+		if !slices.Contains(p.Roles, role) {
+			continue
+		}
+		text, err := fs.ReadFile(filepath.Join(s.Place.Root, p.Path))
+		if err != nil {
+			return "", nil, err
+		}
+		parts = append(parts, PromptPart{Path: p.Path, Text: string(text)})
+	}
+	return string(b), parts, nil
 }
 
 // skillBody is a SKILL.md without its frontmatter, the lines from a first
