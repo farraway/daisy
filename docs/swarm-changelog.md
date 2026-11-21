@@ -951,5 +951,6 @@ they write.
   services file refused at `<base>` is a line of its own and the
   comparison is made without it. Sections 2 (`<state>/notified`), 3
   (`repos[].env`, `repos[].dockerfile`), 5 (Notify), 7.9 (the opening,
-  the comparison with CI) and 11 (`init`, `apply`, `status`). Decision
+  the comparison with CI) and 11 (`init`, `apply`, `status`), and the
+  swarm skill's Waiting for you table. Decision
   [162](swarm/decisions/0162-ci-builds-the-declared-image.md) amended.

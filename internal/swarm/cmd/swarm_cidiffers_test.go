@@ -66,6 +66,31 @@ func (a *applyWS) fetchProduct(name string) {
 	}
 }
 
+// breakTree removes the tree object of base's commit in the mirror at
+// m, so that its commit reads and the commit's tree does not: a mirror
+// git cannot read. It returns what puts it back.
+func breakTree(t *testing.T, m string) func() {
+	t.Helper()
+	out, errb, err := ops.Real().Exec(m, "git", "rev-parse", "refs/heads/main^{tree}")
+	if err != nil {
+		t.Fatalf("rev-parse: %v %s", err, errb)
+	}
+	tree := strings.TrimSpace(string(out))
+	loose := filepath.Join(m, "objects", tree[:2], tree[2:])
+	data, err := os.ReadFile(loose)
+	if err != nil {
+		t.Fatalf("the tree is not a loose object: %v", err)
+	}
+	if err := os.Remove(loose); err != nil {
+		t.Fatal(err)
+	}
+	return func() {
+		if err := os.WriteFile(loose, data, 0o444); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // ciLines is CompareCI's lines for app as swarm.json declares it, over
 // the workflow at .gitea/workflows/ci.yml and the test services file
 // svcs: what each surface must show.
@@ -133,6 +158,13 @@ func TestSwarmCIDiffersTold(t *testing.T) {
 		}
 	}
 	a.beforeGit = nil
+	// A paused pass tells them too.
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
+	a.pass()
+	os.Remove(a.state("paused"))
+	if got := told(a.stderr.String()); !slices.Equal(got, want) || !strings.Contains(a.stdout.String(), "launching nothing") {
+		t.Fatalf("a paused pass's stderr:\n%s\nwant:\n%s", a.stderr.String(), strings.Join(want, "\n"))
+	}
 	if !slices.Contains(verbs, "ls-tree") || !slices.Contains(verbs, "cat-file") {
 		t.Errorf("app's mirror not read: %q", verbs)
 	}
@@ -164,6 +196,29 @@ func TestSwarmCIDiffersTold(t *testing.T) {
 	if b, _ := os.ReadFile(a.state("notified")); string(b) != "ci differs app\n" || len(notified()) != 1 {
 		t.Errorf("<state>/notified: %q, notified %q", b, notified())
 	}
+	restore := breakTree(t, mirror)
+	if err := a.status(a.forge); err == nil || !strings.Contains(err.Error(), "comparing app's CI: git ls-tree ") {
+		t.Errorf("status over a mirror git cannot read: %v\n%s", err, a.stdout.String())
+	}
+	restore()
+
+	// Lines that change, the repository still differing, are printed and
+	// not told again; a mirror with no base yet gives no line, and status
+	// reads it.
+	a.edit(func(c *declare.Config) { c.Repos[0].Env = map[string]string{"APP_MODE": "test"} })
+	a.pass()
+	if got := told(a.stderr.String()); !slices.Equal(got, append(slices.Clone(want), ciDiffers+"variable APP_MODE is set by no job that runs the check's targets")) || len(notified()) != 1 {
+		t.Errorf("changed lines: %q, notified %q", got, notified())
+	}
+	a.edit(func(c *declare.Config) { c.Repos[0].Env = nil; c.Base = "trunk" })
+	a.pass()
+	if got := a.stderr.String(); told(got) != nil || strings.Contains(got, "comparing") {
+		t.Errorf("no base in the mirror:\n%s", got)
+	}
+	if _, line := a.waitingSet(); line != "Waiting for you: nothing" {
+		t.Errorf("status with no base: %q", line)
+	}
+	a.edit(func(c *declare.Config) { c.Base = "main" })
 	if _, line := a.waitingSet(); line != "Waiting for you: ci differs app" {
 		t.Errorf("status: %q", line)
 	}
@@ -237,6 +292,33 @@ func TestSwarmCIDiffersTold(t *testing.T) {
 	if _, line := a.waitingSet(); line != "Waiting for you: nothing" {
 		t.Errorf("status: %q", line)
 	}
+	pushUp(t, a.upstream("app"), map[string]string{".gitea/workflows/ci.yml": ciWorkflow})
+	a.fetchProduct("app")
+	a.pass()
+	if got := notified(); !reflect.DeepEqual(got, []string{"acme/swarm-app waits for you: ci differs app"}) {
+		t.Errorf("back again: notified %q", got)
+	}
+}
+
+// A gitea product whose workflows are in .github/workflows alone, the
+// kind's third directory, has them compared; a .gitea/workflows holding
+// no .yml or .yaml file is passed over.
+func TestSwarmCIDiffersLaterDirectory(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	pushUp(t, a.upstream("lib"), map[string]string{".github/workflows/ci.yml": ciWorkflow, ".gitea/workflows/README.md": "Not here.\n"})
+	a.fetchProduct("lib")
+	a.pass()
+	want := declare.CompareCI("gitea", a.config().Repos[1], nil, []declare.Workflow{{Path: ".github/workflows/ci.yml", Data: []byte(ciWorkflow)}})
+	if len(want) == 0 || want[0] != "⚠ lib: CI differs from the declared check environment: no dockerfile is declared, so CI does not build the check's image" {
+		t.Fatalf("the fixture's lines: %q", want)
+	}
+	if got := told(a.stderr.String()); !slices.Equal(got, want) {
+		t.Errorf("apply's stderr:\n%s\nwant:\n%s", a.stderr.String(), strings.Join(want, "\n"))
+	}
+	if _, line := a.waitingSet(); line != "Waiting for you: ci differs lib" {
+		t.Errorf("status: %q", line)
+	}
 }
 
 // The test services file at base is compared with the workflow's
@@ -302,8 +384,8 @@ func TestSwarmInitReadinessCIDiffers(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := declare.CompareCI("gitea", c.Repos[0], nil, []declare.Workflow{{Path: ".gitea/workflows/ci.yml", Data: []byte(ciWorkflow)}})
-	if len(lines) == 0 {
-		t.Fatal("the fixture gives no line")
+	if len(lines) == 0 || lines[0] != ciDiffers+"no dockerfile is declared, so CI does not build the check's image" {
+		t.Fatalf("the fixture's lines: %q", lines)
 	}
 	wantErr := "⚠ Readiness: app has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n" +
 		"⚠ Readiness: app: check is empty; no member's work is executed (set it in swarm.json)\n"
@@ -315,5 +397,16 @@ func TestSwarmInitReadinessCIDiffers(t *testing.T) {
 		"⚠ Readiness: trusted holds no maintainer login; no comment of yours reaches a member\n"
 	if s.stderr.String() != wantErr {
 		t.Errorf("stderr:\n%s\nwant:\n%s", s.stderr.String(), wantErr)
+	}
+
+	// A mirror git cannot read is a warning, and init goes on.
+	s.cwd = s.ws
+	restore := breakTree(t, filepath.Join(s.local, "swarm", "forge.example.net", "acme", "swarm-app", "git", "app"))
+	defer restore()
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	if got := s.stderr.String(); !strings.Contains(got, "⚠ Readiness: comparing app's CI: git ls-tree ") || strings.Contains(got, "CI differs") {
+		t.Errorf("an unreadable mirror:\n%s", got)
 	}
 }

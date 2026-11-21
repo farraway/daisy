@@ -5092,7 +5092,7 @@ printed kept and notify telling nothing that pass, its record kept
 `status` fails with it, as for its other reads. `init` prints a
 repository's lines after its own two readiness warnings. Tests:
 `TestSwarmCIDiffersTold`, `TestSwarmCIDiffersServicesFile`,
-`TestSwarmInitReadinessCIDiffers`.
+`TestSwarmCIDiffersLaterDirectory`, `TestSwarmInitReadinessCIDiffers`.
 
 **The classification** (R3c; decision 161). In the collection's step 4
 (7.6), when the check exited non-zero, or the dependency step did,

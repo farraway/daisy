@@ -234,4 +234,4 @@ workflow runs on a pull request, as every line is; a mirror git cannot
 read is a warning on `apply`'s and `init`'s stderr with nothing told
 by notify that pass, and `status`'s error, as its other reads are.
 Tests: `TestSwarmCIDiffersTold`, `TestSwarmCIDiffersServicesFile`,
-`TestSwarmInitReadinessCIDiffers`.
+`TestSwarmCIDiffersLaterDirectory`, `TestSwarmInitReadinessCIDiffers`.
