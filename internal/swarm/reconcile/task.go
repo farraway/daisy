@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"fmt"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -155,7 +156,17 @@ func (j *Job) task() string {
 		add(`If the change on your branch alters what a page of the product shows, render each page it alters once your last commit is made, the way the repository notes give, and save a screenshot of each directly in /job/io/artifacts/ as a .png, .jpg, .jpeg or .webp file in the format its extension names, whose name is letters, digits, ".", "-" and "_", beginning with a letter or a digit, and says which page it shows: Daisy attaches them to the pull request and shows them to the reviewers, and skips any other file there. List under "Not established:" each page you could not render, and why, a page the repository notes give no way to render among them.`)
 	default: // the reviewers
 		s := sliceOf(cur, j.N)
-		add(`Review pull request %s#%d, slice %d of issue #%d. The change is "git diff %s...HEAD" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding. The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.`, cur.Repo, cur.Number, s, j.N, j.Cfg.Base, cur.Repo)
+		r, prev := j.round(cur)
+		const verdict = `The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.`
+		if delta := r > 1 && prev != "" && prev != cur.HeadSHA; delta {
+			// A delta review (Step E2): the previous round's findings and
+			// what changed since the head the reviewer last reviewed, its
+			// own, the full change readable but not the task.
+			add(`This is round %d of pull request %s#%d, slice %d of issue #%d: review what changed since %s, the head you last reviewed. The change to review is "git diff --name-only -z %s...HEAD | xargs -0 -r git diff %s..HEAD --" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of %s brought in is not this pull request's change. The whole change, "git diff %s...HEAD", is there to read where the revision needs it; reviewing it again is not the task. First, for each blocking finding of the previous round, %s, and of your review of %s, say whether it is closed, or answered with a reason you accept. Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims. Raise a new blocking finding only on code changed since %s; a finding on code unchanged since then is non-blocking. `+verdict,
+				r, cur.Repo, cur.Number, s, j.N, prev, j.Cfg.Base, prev, cur.Repo, j.Cfg.Base, j.Cfg.Base, j.previousFindings(), prev, prev)
+		} else {
+			add(`Review pull request %s#%d, slice %d of issue #%d. The change is "git diff %s...HEAD" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding. `+verdict, cur.Repo, cur.Number, s, j.N, j.Cfg.Base, cur.Repo)
+		}
 		if read := j.sliceSentence(); read != "" {
 			add("%s", read)
 		}
@@ -165,13 +176,11 @@ func (j *Job) task() string {
 		if len(j.Artifacts) > 0 {
 			add(`The worker saved screenshots of pages the change alters, listed under "# Artifacts": open each from /job/io/artifacts/ (the URL beside it is the pull request's copy, and "not attached" means the forge refused the file) and judge what the page shows against what the plan and the slice claim, as you judge the diff. A page that does not show what is claimed is a finding, naming the screenshot and the file and line that render what it shows. If you cannot open an image, say so in the review and judge that page from the diff alone.`)
 		}
-		switch r, prev := j.round(cur); {
+		switch {
 		case r > 1 && prev == cur.HeadSHA && !j.answeredSince(prev):
 			add(`This is round %d, on the head you reviewed before (%s): the maintainer commented in the thread, with no commit since. First answer the maintainer's comment; then say, for each blocking finding of your previous review, whether it still stands in its light, and raise a new blocking finding only where the comment shows one.`, r, prev)
 		case r > 1 && prev == cur.HeadSHA:
 			add(`This is round %d, on the head you reviewed before (%s): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.`, r, prev)
-		case r > 1:
-			add(`This is round %d. First say, for each blocking finding of your review of %s, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since %s in the files the pull request changes ("git diff --name-only -z %s...HEAD | xargs -0 -r git diff %s..HEAD --"): what a merge of %s brought in is not this pull request's change.`, r, prev, prev, j.Cfg.Base, prev, j.Cfg.Base)
 		}
 	}
 	if j.Role == "worker" || j.Role == "adversary" || j.Role == "sympathetic" {
@@ -225,6 +234,17 @@ func protectedPaths(r declare.Repo) []string {
 		}
 	}
 	return out
+}
+
+// previousFindings is where a delta review's Task text sends the
+// reviewer for the previous round's findings (section 7.4; Step E2): the
+// slice's latest round's file in the job's workspace, or, with none
+// there, the previous round's reviews the prompt shows.
+func (j *Job) previousFindings() string {
+	if j.mem.lastRound == 0 {
+		return `under "# Pull request"`
+	}
+	return MemoryMount + "/" + path.Join("slices", itoa(j.mem.slice), "rounds", itoa(j.mem.lastRound)+".md")
 }
 
 // answeredSince: the worker answered without a commit (Answers) after

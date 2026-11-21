@@ -26,6 +26,7 @@ type memory struct {
 	hasBuilder bool   // builder.md is there
 	report     string // the run of the worker's newest report on the slice, its texts/ file there
 	rounds     int    // the slice's completed rounds, its rounds/ files
+	lastRound  int    // the latest round's number, its file rounds/<lastRound>.md
 	latest     string // the latest round, `<r> on <short sha>: <verdicts>, <b> blocking`
 	check      bool   // checks/<head>.log is there for the current pull request's head
 	kept       []string
@@ -170,6 +171,7 @@ func (j *Job) readRounds() error {
 			blocking++
 		}
 	}
+	j.mem.lastRound = latest
 	j.mem.latest = fmt.Sprintf("%d on %s: %s, %d blocking", latest, short(h[2]), strings.Join(verdicts, ", "), blocking)
 	return nil
 }

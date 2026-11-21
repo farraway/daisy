@@ -283,7 +283,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	}
 	events := len(a.forge.Events(ref))
 	a.pass() // round 2: the adversary approves, T21 by its launch
-	if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2.") {
+	if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2 of pull request app#1") {
 		t.Errorf("round 2's Task:\n%s", sys)
 	}
 	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-1-in-progress", forge.ClassArchitecture}) || a.result("1-sympathetic-1") != "" {
@@ -307,7 +307,9 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		slices.Contains(a.forge.Events(ref)[events+n+1:], forge.Event{Actor: "swarm-bot", What: "labeled swarm:review-1-in-progress"}) {
 		t.Errorf("review-1-in-progress written other than once in round 2: %v", a.forge.Events(ref))
 	}
-	if sys := a.file("1-sympathetic-1", "io/system.md"); !strings.Contains(sys, "This is round 2.") {
+	// Its first review, in round 2: no head of its own to start from, so
+	// the whole change (Step E2).
+	if sys := a.file("1-sympathetic-1", "io/system.md"); !strings.Contains(sys, `The change is "git diff main...HEAD"`) || strings.Contains(sys, "This is round") {
 		t.Errorf("the sympathetic reviewer's Task:\n%s", sys)
 	}
 	if p := a.file("1-sympathetic-1", "io/prompt.md"); strings.Contains(p, "The v2 head reads well") {

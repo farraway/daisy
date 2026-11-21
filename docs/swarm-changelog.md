@@ -1118,3 +1118,18 @@ they write.
   [116](swarm/decisions/0116-the-architect-and-the-worker-read-daisys-praxis-and-testing.md),
   [164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md)
   and [165](swarm/decisions/0165-a-configuration-hash.md).
+- 2026-11-21, Step E2 of the plan implementing the 2026-11-19 swarm
+  roadmap: a delta review. A reviewer's round r > 1 on a head with
+  commits since its own last review is given the previous round's
+  findings (the slice's latest round's file in the job's workspace) and
+  the change since that review as its task, the whole change readable
+  but not the task; a finding on code unchanged since is non-blocking;
+  a reviewer with no review of its own on the pull request reviews the
+  whole change; round 1 and the rounds on an unchanged head are as
+  before. The scorecard reads its before and after as two windows.
+  Sections 7.4 (the reviewers' row) and 11 (The scorecard). Decision
+  [168](swarm/decisions/0168-a-delta-review.md), amending decisions
+  [15](swarm/decisions/0015-severity-per-finding.md),
+  [63](swarm/decisions/0063-the-adversarys-fail-against-base-check-is-bounded.md)
+  and
+  [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md).

@@ -104,3 +104,8 @@ review on the same pull request whatever round (decision
 [142](0142-a-reviews-effect-read-from-the-runs.md), amended), so a
 sympathetic request for changes whose next sympathetic review follows a
 round the adversary alone completed is credited as any other.
+
+**Amended by decision
+[168](0168-a-delta-review.md)
+(Step E2 of the plan implementing the 2026-11-19 swarm roadmap).**
+Each reviewer's round r > 1 text starts from its own last review, so the sympathetic reviewer's delta may span several heads; a sympathetic reviewer whose first review falls in a later round reviews the whole change, with no round sentence.

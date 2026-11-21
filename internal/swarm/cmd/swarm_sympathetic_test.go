@@ -90,7 +90,7 @@ func TestSwarmSympatheticAfterTheAdversaryApproves(t *testing.T) {
 		a.runner.Script(1, "worker", work("v2"))
 		a.pass() // T12
 		a.pass() // round 2: the adversary alone again, at max_rounds: T11
-		if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2.") {
+		if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2 of pull request app#1") {
 			t.Errorf("round 2's Task:\n%s", sys)
 		}
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:plan-0-posted", forge.Gated}) {

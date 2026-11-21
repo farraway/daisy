@@ -481,7 +481,7 @@ func TestRoundDiffLeavesOutABaseMerge(t *testing.T) {
 	j := job(f, at.N, "adversary", "swarm:review-0-ready")
 	j.Pulls, j.Pull = pulls, thread(f, pr)
 	sys, _ := Render(j)
-	m := regexp.MustCompile(`code changed since[^(]*\("([^"]+)"\)`).FindStringSubmatch(sys)
+	m := regexp.MustCompile(`The change to review is "([^"]+)"`).FindStringSubmatch(sys)
 	if m == nil {
 		t.Fatalf("no diff in the round 2 Task:\n%s", sys)
 	}

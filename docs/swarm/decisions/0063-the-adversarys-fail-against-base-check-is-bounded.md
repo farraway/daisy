@@ -19,3 +19,8 @@ finding is resolved or answered with a reason it accepts, so a
 procedural finding ends in one round rather than at `max_rounds`.
 The alternative, dropping the rollback probe, was rejected: it is the
 one check that catches a test which passes without the change.
+
+**Amended by decision
+[168](0168-a-delta-review.md)
+(Step E2 of the plan implementing the 2026-11-19 swarm roadmap).**
+The round r > 1 text is a delta review's on a head with commits since the reviewer's last review: it asks whether each blocking finding of the previous round and of the reviewer's own last review is closed or answered with a reason it accepts; the fail-against-base check is given as in round 1.

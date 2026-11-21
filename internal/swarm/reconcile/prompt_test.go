@@ -281,9 +281,43 @@ func TestRenderWorkerFastLane(t *testing.T) {
 	has(t, "prompt.md", prompt, []string{"\n- Plan: none: there is no plan.\n", "# Direction\n\n## jane at", "- Clone /job/work/app: acme/app, branch swarm/1-1,"}, "# Plan")
 }
 
-// The adversary on round 2: the other reviewer's review of the head left
-// out, its own of the previous head and the round sentence in, the
-// named-test sentence.
+// deltaTask is a delta review's text (section 7.4; Step E2) for round r
+// of lib#1, slice 1 of issue #1, since prev, the previous round's
+// findings at findings.
+func deltaTask(r int, prev, findings string) string {
+	return `This is round ` + itoa(r) + ` of pull request lib#1, slice 1 of issue #1: review what changed since ` + prev + `, the head you last reviewed. ` +
+		`The change to review is "git diff --name-only -z main...HEAD | xargs -0 -r git diff ` + prev + `..HEAD --" in /job/work/lib, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of main brought in is not this pull request's change. ` +
+		`The whole change, "git diff main...HEAD", is there to read where the revision needs it; reviewing it again is not the task. ` +
+		`First, for each blocking finding of the previous round, ` + findings + `, and of your review of ` + prev + `, say whether it is closed, or answered with a reason you accept. ` +
+		`Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims. ` +
+		`Raise a new blocking finding only on code changed since ` + prev + `; a finding on code unchanged since then is non-blocking. ` +
+		`The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.`
+}
+
+// Each reviewer's delta starts from its own last review (Step E2;
+// decision 163's order): with the sympathetic reviewer's last review on
+// aaa and the adversary's on bbb, which it alone sent back, each reviews
+// the change since its own head on ccc, and both are sent to the
+// slice's latest round's file in the job's workspace.
+func TestRenderDeltaFromEachReviewersOwnHead(t *testing.T) {
+	f, at, pr, _ := planned(t)
+	f.Push(pr, "bbb")
+	f.Review(pr, forge.Commented, marker("adversary", 2)+"VERDICT: request-changes\n[blocking] y.go:2 still wrong")
+	f.Push(pr, "ccc")
+	pulls, _ := f.Pulls(1, []string{"swarm-bot"})
+	for role, prev := range map[string]string{"adversary": "bbb", "sympathetic": "aaa"} {
+		j := job(f, at.N, role, "swarm:review-1-in-progress")
+		j.Pulls, j.Pull, j.Check = pulls, thread(f, pr), "No check result for this head."
+		j.mem.slice, j.mem.lastRound = 1, 2
+		sys, _ := Render(j)
+		has(t, role+"'s system.md", sys, []string{deltaTask(3, prev, "/job/memory/slices/1/rounds/2.md")}, `The change is "git diff main...HEAD"`)
+	}
+}
+
+// The adversary on round 2, a delta review (Step E2): the other
+// reviewer's review of the head left out, its own of the previous head
+// in; its Task the previous round's findings and the change since the
+// head it last reviewed, not the whole change; the named-test sentence.
 func TestRenderAdversaryRoundTwo(t *testing.T) {
 	f, at, pr, _ := planned(t)
 	f.Push(pr, "bbb")
@@ -292,10 +326,9 @@ func TestRenderAdversaryRoundTwo(t *testing.T) {
 	j := job(f, at.N, "adversary", "swarm:review-0-ready")
 	j.Pulls, j.Pull, j.Check = pulls, thread(f, pr), "No check result for this head."
 	sys, prompt := Render(j)
-	has(t, "system.md", sys, []string{`Review pull request lib#1, slice 1 of issue #1. The change is "git diff main...HEAD" in /job/work/lib, a throwaway clone`,
-		`For each test that slice 1's item under the plan's Steps names`,
-		`This is round 2. First say, for each blocking finding of your review of aaa, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since aaa in the files the pull request changes ("git diff --name-only -z main...HEAD | xargs -0 -r git diff aaa..HEAD --"): what a merge of main brought in is not this pull request's change.`},
-		"These paths are protected")
+	has(t, "system.md", sys, []string{deltaTask(2, "aaa", `under "# Pull request"`),
+		`For each test that slice 1's item under the plan's Steps names`},
+		"These paths are protected", `The change is "git diff main...HEAD"`, "This is round 2. First say")
 	has(t, "prompt.md", prompt, []string{"- Clone /job/work/lib: acme/lib, branch swarm/1-1, base main, no check declared", "on aaa: request-changes", "# Check\n\nNo check result for this head."},
 		"still fine", "# Direction")
 }
@@ -394,7 +427,7 @@ func TestRenderReviewCompact(t *testing.T) {
 	f, at, pr := reviewed(t, 6)
 	j := jobOn(f, at, pr, "adversary", "swarm:review-0-ready")
 	sys, prompt := Render(j)
-	has(t, "system.md", sys, []string{"This is round 7. First say, for each blocking finding of your review of c6,"})
+	has(t, "system.md", sys, []string{deltaTask(7, "c6", `under "# Pull request"`)})
 	has(t, "prompt.md", prompt, []string{
 		"Branch swarm/1-1 into main; head c7.\n\n## Earlier rounds\n",
 		"## Earlier rounds\n\n- round on c1: 3 blocking, revised in c2\n- round on c2: 3 blocking, revised in c3\n- round on c3: 3 blocking, revised in c4\n- round on c4: 3 blocking, revised in c5\n- round on c5: 3 blocking, revised in c6\n\n## Thread\n\n### jane at ",

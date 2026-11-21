@@ -125,7 +125,7 @@ func TestSwarmApplyNotMergeableBackToTheWorker(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the adversary on the new head, approving
-	if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2. First say, for each blocking finding of your review of "+approved) {
+	if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2 of pull request app#1, slice 1 of issue #1: review what changed since "+approved+", the head you last reviewed.") {
 		t.Errorf("the adversary's second round:\n%s", sys)
 	}
 	a.pass() // the sympathetic reviewer, once the adversary approved: T9
