@@ -961,7 +961,8 @@ they write.
   facts' reading from the mirror, `Git.GoFacts` (not yet called: R3-7);
   where 7.9 was silent it reads a `FAIL<tab>` line's path to its first
   blank or tab, resolves imports through every module and `vendor`
-  directory of the head, counts a package's test files' imports for it
+  directory of the head, each local `replace` and each symbolic link to
+  a directory, counts a package's test files' imports for it
   alone, holds every package at or below a `go.work` or a module below
   the root, naming no package directory, or with a file whose imports
   Go's parser refuses as touched, holds a package the change deletes or

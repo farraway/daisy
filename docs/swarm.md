@@ -5190,8 +5190,13 @@ collection's (Step R3-7, which calls it). `Git.GoFacts` reads the
 facts at a commit in the mirror with git's read commands alone
 (`ls-tree`, `cat-file`): each `go.mod`'s directory and module path,
 each `go.work`'s directory, each submodule's directory (its files not
-in the mirror), and for each directory holding a `.go` file the
-imports of its files, its `_test.go` files' apart. A failing
+in the mirror), each `replace` of a `go.mod` or `go.work` whose target
+is a directory of the repository (`./…` or `../…`, alone or in a
+`replace ( … )` block: the replaced module's path and that
+directory), each symbolic link, but a `.go` file's, whose text names
+a directory of the repository (neither absolute nor above its root),
+and for each directory holding a `.go` file the imports of its files,
+its `_test.go` files' apart. A failing
 package's line begins the line: `FAIL`, a tab, the path up to the
 next blank or tab, a line's ending carriage return dropped; an
 indented line, `FAIL` alone and `--- FAIL:` name none, and each
@@ -5213,8 +5218,10 @@ change deletes or moves away is touched, and its importers with it;
 a directory at or below a changed path is touched too, a submodule's
 change being its directory's path.
 An import is read as each module of the head (the root's and those
-below it) and each `vendor` directory of the root, of a module and of
-a `go.work` could resolve it, so a package importing a vendored
+below it), each local `replace` and each `vendor` directory of the
+root, of a module and of a `go.work` could resolve it, and each
+directory so named as the head's links name it (a link to a link
+followed), so a package importing a vendored
 package, or a package of a module below the root, that the change
 touches is touched; a module below the root whose path is not read
 (its `go.mod`'s `module` line, or the first line of a `module ( … )`

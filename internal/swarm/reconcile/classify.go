@@ -31,13 +31,18 @@ type GoPackage struct {
 
 // GoFacts is what the classification knows of the head's Go code
 // (section 7.9, The classification): its modules, the directory of each
-// go.work, each submodule's (whose files the mirror does not hold) and
+// go.work, each submodule's (whose files the mirror does not hold),
+// each local replace of a go.mod or go.work (the replaced module's path
+// and the directory it names), each symbolic link that names a
+// directory of the repository (its path and that directory's), and
 // every package directory. A head with none of them is
 // another language's, whose output names no failing package.
 type GoFacts struct {
 	Modules    []GoModule
 	Workspaces []string
 	Submodules []string
+	Replaces   []GoModule
+	Links      map[string]string
 	Packages   map[string]GoPackage
 }
 
@@ -185,24 +190,49 @@ func (f GoFacts) importsTouched(imports []string, touched func(string) bool) boo
 	}
 	roots = append(roots, f.Workspaces...)
 	for _, imp := range imports {
-		for _, m := range f.Modules {
+		var dirs []string
+		for _, m := range append(slices.Clone(f.Modules), f.Replaces...) {
 			if m.Path == "" {
 				continue
 			}
-			if imp == m.Path && touched(m.Dir) {
-				return true
+			if imp == m.Path {
+				dirs = append(dirs, m.Dir)
 			}
-			if rel, ok := strings.CutPrefix(imp, m.Path+"/"); ok && touched(path.Join(m.Dir, rel)) {
-				return true
+			if rel, ok := strings.CutPrefix(imp, m.Path+"/"); ok {
+				dirs = append(dirs, path.Join(m.Dir, rel))
 			}
 		}
 		for _, r := range roots {
-			if touched(path.Join(r, "vendor", imp)) {
+			dirs = append(dirs, path.Join(r, "vendor", imp))
+		}
+		for _, d := range f.linked(dirs) {
+			if touched(d) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// linked is dirs and every directory one of them names through the
+// head's symbolic links (a link to a link followed, each once).
+func (f GoFacts) linked(dirs []string) []string {
+	seen := map[string]bool{}
+	for i := 0; i < len(dirs); i++ {
+		d := dirs[i]
+		if seen[d] {
+			continue
+		}
+		seen[d] = true
+		for l, target := range f.Links {
+			if d == l {
+				dirs = append(dirs, target)
+			} else if rel, ok := strings.CutPrefix(d, l+"/"); ok {
+				dirs = append(dirs, path.Join(target, rel))
+			}
+		}
+	}
+	return dirs
 }
 
 // opaque is each directory whose import paths the reading does not
@@ -323,8 +353,25 @@ func (g Git) GoFacts(name, commit string) (GoFacts, error) {
 				return GoFacts{}, err
 			}
 			facts.Modules = append(facts.Modules, GoModule{dir, modulePath(data)})
+			facts.Replaces = append(facts.Replaces, replaces(data, dir)...)
 		case base == "go.work":
+			data, err := g.Blob(m, e.Object)
+			if err != nil {
+				return GoFacts{}, err
+			}
 			facts.Workspaces = append(facts.Workspaces, dir)
+			facts.Replaces = append(facts.Replaces, replaces(data, dir)...)
+		case e.Mode == "120000" && !strings.HasSuffix(base, ".go"):
+			data, err := g.Blob(m, e.Object)
+			if err != nil {
+				return GoFacts{}, err
+			}
+			if t, ok := inRepo(dir, string(data)); ok {
+				if facts.Links == nil {
+					facts.Links = map[string]string{}
+				}
+				facts.Links[e.Path] = t
+			}
 		case strings.HasSuffix(base, ".go"):
 			p := facts.Packages[dir]
 			data, err := g.Blob(m, e.Object)
@@ -360,6 +407,7 @@ func (g Git) GoFacts(name, commit string) (GoFacts, error) {
 	slices.SortFunc(facts.Modules, func(a, b GoModule) int { return strings.Compare(a.Dir, b.Dir) })
 	slices.Sort(facts.Workspaces)
 	slices.Sort(facts.Submodules)
+	slices.SortFunc(facts.Replaces, func(a, b GoModule) int { return strings.Compare(a.Dir+"\x00"+a.Path, b.Dir+"\x00"+b.Path) })
 	return facts, nil
 }
 
@@ -397,4 +445,58 @@ func pathWord(w string) string {
 		return ""
 	}
 	return w
+}
+
+// replaces is each replace line of a go.mod or go.work in dir, alone or
+// in a `replace ( … )` block, whose target is a local directory in the
+// repository: the replaced module's path and that directory.
+func replaces(data []byte, dir string) []GoModule {
+	var rs []GoModule
+	block := false
+	for _, line := range strings.Split(string(data), "\n") {
+		line, _, _ = strings.Cut(line, "//")
+		f := strings.Fields(line)
+		switch {
+		case block && len(f) == 1 && f[0] == ")":
+			block = false
+			continue
+		case len(f) == 2 && f[0] == "replace" && f[1] == "(":
+			block = true
+			continue
+		case !block && len(f) > 0 && f[0] == "replace":
+			f = f[1:]
+		case !block:
+			continue
+		}
+		i := slices.Index(f, "=>")
+		if i < 1 || i+1 >= len(f) {
+			continue
+		}
+		target := pathWord(f[i+1])
+		if !strings.HasPrefix(target, "./") && !strings.HasPrefix(target, "../") {
+			continue
+		}
+		if t, ok := inRepo(dir, target); ok {
+			if old := pathWord(f[0]); old != "" {
+				rs = append(rs, GoModule{t, old})
+			}
+		}
+	}
+	return rs
+}
+
+// inRepo is the relative path target names from dir, cleaned, when it
+// lies in the repository (not absolute, not above its root).
+func inRepo(dir, target string) (string, bool) {
+	if strings.HasPrefix(target, "/") {
+		return "", false
+	}
+	t := path.Join(dir, target)
+	if t == ".." || strings.HasPrefix(t, "../") {
+		return "", false
+	}
+	if t == "." {
+		t = ""
+	}
+	return t, true
 }

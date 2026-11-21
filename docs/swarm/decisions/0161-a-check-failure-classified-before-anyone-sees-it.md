@@ -161,7 +161,13 @@ read, and a submodule (whose files the mirror does not hold, its
 change a changed path naming its directory), are held imported by
 every package with an import (their importers otherwise unknown;
 reading the root `go.mod`'s `replace` lines was the alternative, which
-a submodule's module path, unread, would still have defeated). A `FAIL<tab>` line's path ends at its first
+a submodule's module path, unread, would still have defeated). A local
+`replace` of a `go.mod` or a `go.work`, and a symbolic link naming a
+directory of the repository, resolve an import as Go does (reading
+modules by their declared paths alone was the alternative: a
+`replace` whose directory declares another path, or an import through
+a linked directory, would have left its importer untouched, as the
+review of the step found). A `FAIL<tab>` line's path ends at its first
 blank or tab, whatever follows it (reading only the time and the
 bracketed notes `go test` writes was the alternative: a form not
 foreseen would hide a touched package and let a signature classify

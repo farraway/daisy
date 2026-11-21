@@ -82,6 +82,14 @@ func TestClassify(t *testing.T) {
 	unreadAt := appFacts()
 	unreadAt.Modules[2].Path = ""
 	unreadAt.Packages["tools"] = GoPackage{}
+	replaced := appFacts()
+	replaced.Replaces = []GoModule{{"tools", "example.com/x"}}
+	replaced.Packages["api"] = GoPackage{Imports: []string{"example.com/x/gen"}}
+	linked := appFacts()
+	linked.Links = map[string]string{"alias": "store", "far": "alias"}
+	linked.Packages["web"] = GoPackage{Imports: []string{"example.com/app/alias"}}
+	linked.Packages["api"] = GoPackage{Imports: []string{"example.com/app/far/sub"}}
+	linked.Packages["store/sub"] = GoPackage{}
 	unreadRoot := appFacts()
 	unreadRoot.Modules[0].Path = ""
 	deleted := appFacts()
@@ -137,6 +145,11 @@ func TestClassify(t *testing.T) {
 		{"an untouched package's build failed", "FAIL\texample.com/app/web [build failed]\n", storeGo, appFacts(), false, Classification{Untouched: []string{appWeb}}},
 		{"the root package, nothing changed", fail("example.com/app"), nil, rootPkg, false, Classification{Untouched: []string{"example.com/app"}}},
 		{"a module below the root at its own directory, its path not read", fail("example.com/app/tools") + refused, storeGo, unreadAt, false, Classification{}},
+		{"imported through a replace", fail(appAPI), []string{"tools/gen/gen.go"}, replaced, false, Classification{}},
+		{"a replace the change leaves", fail(appAPI), storeGo, replaced, false, Classification{Untouched: []string{appAPI}}},
+		{"imported through a link to a directory", fail(appWeb), storeGo, linked, false, Classification{}},
+		{"imported through a link to a link", fail(appAPI), []string{"store/sub/x.go"}, linked, false, Classification{}},
+		{"a link the change leaves", fail(appWeb), []string{"testutil/u.go"}, linked, false, Classification{Untouched: []string{appWeb}}},
 		{"a go.work at the root", fail(appWeb) + refused, storeGo, work, false, Classification{}},
 		{"a go.work above the package", fail(appWeb) + refused, storeGo, workBelow, false, Classification{}},
 		{"a go.work elsewhere", fail(appTestutil), storeGo, workBelow, false, Classification{Untouched: []string{appTestutil}}},
@@ -287,8 +300,12 @@ func TestGoFacts(t *testing.T) {
 	g := Git{State: state}
 	m := g.Mirror("app")
 	files := map[string][2]string{
-		"go.mod":               {"100644", "// the app\nmodule example.com/app // its path\n\ngo 1.27\n"},
-		"go.work":              {"100644", "go 1.27\n\nuse .\n"},
+		"go.mod":               {"100644", "// the app\nmodule example.com/app // its path\n\ngo 1.27\n\nreplace example.com/x v1.2.0 => ./tools // local\nreplace example.com/far => example.com/fork v1.0.0\nreplace (\n\t\"example.com/y\" => ../outside\n\texample.com/z => ./odd/\r\n)\n"},
+		"go.work":              {"100644", "go 1.27\n\nuse .\n\nreplace example.com/w => ./web\n"},
+		"alias":                {"120000", "store"},
+		"up":                   {"120000", "../elsewhere"},
+		"abs":                  {"120000", "/srv/x"},
+		"web/back":             {"120000", "../tools/./gen"},
 		"main.go":              {"100644", "package main\n\nimport \"os\"\n"},
 		"README.md":            {"100644", "import \"nothing\"\n"},
 		"store":                {"040000", ""},
@@ -326,6 +343,8 @@ func TestGoFacts(t *testing.T) {
 		Modules:    []GoModule{{"", "example.com/app"}, {"block", "example.com/block"}, {"linked", ""}, {"odd", ""}, {"tools", "example.com/app/tools"}},
 		Workspaces: []string{""},
 		Submodules: []string{"ext/sub"},
+		Replaces:   []GoModule{{"odd", "example.com/z"}, {"tools", "example.com/x"}, {"web", "example.com/w"}},
+		Links:      map[string]string{"alias": "store", "web/back": "tools/gen"},
 		Packages: map[string]GoPackage{
 			"":             {Imports: []string{"os"}},
 			"api":          {Imports: []string{"embed", "example.com/app/store"}},
