@@ -154,7 +154,8 @@ func maintainerWord(e Entry, swarmLogin string, trusted []string) bool {
 // without a commit, oldest first: the worker's answers without a commit
 // (Answers) and the maintainer's comments (maintainerWord), thread being
 // its comments. A review stands on the head only when submitted after
-// the newest (standsOnHead), so each reopening runs both reviewers again.
+// the newest (standsOnHead), so each reopening runs the pair again, the
+// adversary first.
 func Reopenings(thread []Entry, swarmLogin string, trusted []string) []time.Time {
 	out := Answers(thread, swarmLogin)
 	for _, e := range thread {

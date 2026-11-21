@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
@@ -319,7 +320,7 @@ func (c *collection) sayLong(at forge.Ref, existing []forge.Comment, role string
 	body := marker(role, c.r.K) + text
 	if !slices.ContainsFunc(existing, func(e forge.Comment) bool {
 		m, ok := Swarms(Entry{e.Author, e.Body, e.Created}, c.s.SwarmLogin)
-		return ok && m.Role == role && m.Run == c.r.K && (role != "reconciler" || e.Body == body)
+		return ok && m.Role == role && m.Run == c.r.K && (role != "reconciler" || c.ownNote(e, body))
 	}) {
 		if err := c.s.Forge.Comment(at, body); err != nil {
 			return err
@@ -330,6 +331,20 @@ func (c *collection) sayLong(at forge.Ref, existing []forge.Comment, role string
 		}
 	}
 	return c.continued(at, existing, l, more)
+}
+
+// ownNote: e, a reconciler note marked with this run's number, is this
+// run's own, told by its whole body and its time, at or after the run
+// started: a run of the other reviewer with the same number may have
+// posted the same words before it, the reviewers' numbers no longer
+// advancing together (decision
+// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)).
+func (c *collection) ownNote(e forge.Comment, body string) bool {
+	var started time.Time
+	if l, ok := Has(c.lines, "started"); ok {
+		started, _ = time.Parse(time.RFC3339, strings.TrimPrefix(l, "started "))
+	}
+	return e.Body == body && !e.Created.Before(started)
 }
 
 // comment posts on the issue.

@@ -102,19 +102,23 @@ func cutTextReachesTheMemberWhole(t *testing.T, refused bool) {
 	whole("1-worker-1", "Plan", "plan.md", bigPlan)
 
 	// The reviewers act on the plan and on the worker's report, the pull
-	// request's description, both cut.
-	a.runner.Script(1, "adversary", runner.Canned{Out: longReview})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
+	// request's description, both cut: the adversary approves, and the
+	// sympathetic reviewer, launched once it has (decision
+	// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)),
+	// requests changes in the cut review.
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: longReview})
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T10
 	for _, run := range []string{"1-adversary-1", "1-sympathetic-1"} {
 		whole(run, "Plan", "plan.md", bigPlan)
 		whole(run, "Report", "texts/1-worker-1.md", longReport)
 	}
 	// The review cut on the pull request, its rest in a comment there
-	// when refused, its verdict the pair's one: T10.
+	// when refused, its verdict the pair's: T10.
 	p := a.pulls(1)[0]
 	pr := forge.Ref{Repo: p.Repo, N: p.Number}
-	if conts := a.continuations(pr); refused != (len(conts) == 2) || refused && (!strings.HasPrefix(conts[0], continuedMark+"Continued from worker run 1's text (part 1 of 1):") || !strings.HasPrefix(conts[1], continuedMark+"Continued from adversary run 1's text (part 1 of 1):")) {
+	if conts := a.continuations(pr); refused != (len(conts) == 2) || refused && (!strings.HasPrefix(conts[0], continuedMark+"Continued from worker run 1's text (part 1 of 1):") || !strings.HasPrefix(conts[1], continuedMark+"Continued from sympathetic run 1's text (part 1 of 1):")) {
 		t.Errorf("continuations on the pull request: %d", len(conts))
 	}
 	if got := labels(a.issue(1)); !slices.Equal(got, []string{"swarm:review-3-changes-requested"}) {
@@ -125,18 +129,17 @@ func cutTextReachesTheMemberWhole(t *testing.T, refused bool) {
 	// listed whole, the finding past the cut among them, and its round's
 	// file pointing at the review whole.
 	a.runner.Script(1, "worker", work("v2"))
-	a.pass()
-	a.pass()
+	a.pass() // worker run 2: T12
 	whole("1-worker-2", "Plan", "plan.md", bigPlan)
 	whole("1-worker-2", "Rounds", "slices/1/rounds/", "")
 	whole("1-worker-2", "Report", "texts/1-worker-1.md", longReport)
 	if p := a.file("1-worker-2", "io/prompt.md"); !strings.Contains(p, "[blocking] main.go:1 says v1; the plan wants v2.\n[blocking] main.go:2 the finding past the cut.\n") {
 		t.Errorf("worker run 2's prompt does not list the cut review's findings whole:\n%s", p)
 	}
-	if round := readFile(t, a.state("jobs/1/slices/1/rounds/1.md")); !strings.Contains(round, "Whole: /job/memory/texts/1-adversary-1.md\n") {
+	if round := readFile(t, a.state("jobs/1/slices/1/rounds/1.md")); !strings.Contains(round, "Whole: /job/memory/texts/1-sympathetic-1.md\n") {
 		t.Errorf("round 1's file:\n%s", round)
 	}
-	if got := readFile(t, a.state("jobs/1/texts/1-adversary-1.md")); got != longReview {
+	if got := readFile(t, a.state("jobs/1/texts/1-sympathetic-1.md")); got != longReview {
 		t.Errorf("the review in texts/: %d bytes, want %d", len(got), len(longReview))
 	}
 
@@ -145,7 +148,11 @@ func cutTextReachesTheMemberWhole(t *testing.T, refused bool) {
 	// the cut among them (Step 38c).
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
+	if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-2-approved") {
+		t.Errorf("round 2: %v\n%s", got, a.stdout.String())
+	}
 	for _, run := range []string{"1-adversary-2", "1-sympathetic-2"} {
 		whole(run, "Plan", "plan.md", bigPlan)
 		p := a.file(run, "io/prompt.md")
@@ -173,7 +180,8 @@ func TestSwarmUncutTextIsNotCopied(t *testing.T) {
 	a.pass()
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved
 	for _, run := range []string{"1-worker-1", "1-adversary-1", "1-sympathetic-1"} {
 		if _, err := os.Lstat(a.state(filepath.Join("runs", run, "io", "outputs"))); !os.IsNotExist(err) {
 			t.Errorf("%s's io holds outputs: %v", run, err)
@@ -244,7 +252,8 @@ func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 			a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 			a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 			a.runner.Script(1, "worker", work("v2"))
-			a.pass() // the pair: T9
+			a.pass() // the adversary approves
+			a.pass() // the sympathetic reviewer, once the adversary approved: T9
 			a.pass() // the merge step
 			if is := a.issue(1); !is.Open || !strings.Contains(a.stdout.String(), "#1 merged pull app#1 (slice 1 of 2)\n") || strings.Contains(a.stdout.String(), "closed") {
 				t.Fatalf("the merge step closed the job after slice 1: open %v, %v\n%s", is.Open, labels(is), a.stdout.String())
@@ -277,7 +286,11 @@ func TestSwarmCutTextsTheMaintainerIsToldOf(t *testing.T) {
 	long := "VERDICT: approve\n\n" + strings.Repeat("The reviewer explains its approval at length, line after line.\n", 1100) + "[non-blocking] main.go:1 a finding past the cut.\n"
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: long})
-	a.pass() // the pair: T9, and the gate note
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9, and the gate note
+	if notes := a.gateNotes(1); len(notes) == 0 || !strings.Contains(notes[len(notes)-1], "gated at review-2-approved") {
+		t.Fatalf("the merge gate's notes before the tidy: %q\n%s", notes, a.stdout.String())
+	}
 	// The reviews' outputs deleted, the plan's made unreadable, and the
 	// note tidied away, so that the next pass posts it again: the plan
 	// read from plan.md, the review from texts/, and no other file read
@@ -388,7 +401,8 @@ func TestSwarmMergeStepBlocksAPlanBuiltCut(t *testing.T) {
 	}
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	a.pass() // the merge step
 	is := a.issue(1)
 	if !slices.Contains(is.Labels, "swarm:blocked") || !slices.ContainsFunc(is.Comments, func(c forge.Comment) bool {

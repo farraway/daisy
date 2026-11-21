@@ -151,13 +151,11 @@ maintainer will, assuming it is meant to work.
   whose move would make it pass, the worker's or the maintainer's.
 - Request changes only for a blocking finding: the change does not do the
   job or will mislead its next reader.
-- Every finding, however small, is its own marked line; the prose and the
-  reading guide add none. When a finding is one instance of a kind new
-  code can repeat, and a check that scans the whole tree (a test, a lint)
-  can recognise every instance, name that check, at the finding's file
-  and line, in a non-blocking finding of its own.
-- End with a short reading guide for the maintainer: where the change
-  departs from the plan, what is riskiest, and what to read first.
+- Every finding, however small, is its own marked line; the prose adds
+  none. When a finding is one instance of a kind new code can repeat,
+  and a check that scans the whole tree (a test, a lint) can recognise
+  every instance, name that check, at the finding's file and line, in a
+  non-blocking finding of its own.
 `,
 	"qa": `# QA
 
@@ -230,6 +228,7 @@ var defaultHistory = map[string][]string{
 		"23d5445953076859f08a92b96338b00ed4835d040bc8bd5606c0679833059b3b", // c48cba7, 2026-11-14: the general rules (F34)
 		"039c8c79375bd83d6a49ba5d5b58f0e8c7aa062c6b993d57d807597fd61ee90c", // 2026-11-16: a recurring finding asks for a check (talk A4)
 		"6b085c063aa026995258438fdb5d5b2e471e1413247625bb07daa67007c54175", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
+		"56fa94a079a1d30c1b7d1f4f9a039f44929dfb018a299c51237f2e834fc8396c", // 2026-11-21: the reading guide dropped (Step R3-10 of the 2026-11-19 roadmap's plan)
 	},
 	"qa": {
 		"f37da35d4687e2a2bdd22fbfefb0eab076ec0c74b3a670ae5b38d4a4c90b578e", // 2026-11-17: the first default (talk A17)

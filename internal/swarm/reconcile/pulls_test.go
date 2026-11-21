@@ -81,7 +81,8 @@ func TestPullsBlockKeepsTheReaders(t *testing.T) {
 
 // A pull request's state in the block: merged, closed (unmerged), or
 // open, approved when both newest reviews approve its head, else in the
-// round one more than those both reviewers have completed (section 6).
+// round one more than those the pair has completed, an adversary's
+// request for changes completing one alone (section 6).
 func TestPullState(t *testing.T) {
 	t0 := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
 	review := func(role, verdict, commit string, h int) forge.Review {
@@ -97,7 +98,8 @@ func TestPullState(t *testing.T) {
 		{"merged", forge.Pull{Merged: true}, nil, "merged"},
 		{"closed", forge.Pull{}, nil, "closed"},
 		{"no review yet", open, nil, "open, review round 1"},
-		{"one review of the first round", open, []forge.Review{review("adversary", "request-changes", "c1", 1)}, "open, review round 1"},
+		{"the adversary's approval alone", open, []forge.Review{review("adversary", "approve", "c1", 1)}, "open, review round 1"},
+		{"the adversary's request for changes alone", open, []forge.Review{review("adversary", "request-changes", "c1", 1)}, "open, review round 2"},
 		{"a round done", open, []forge.Review{review("adversary", "request-changes", "c1", 1), review("sympathetic", "approve", "c1", 2)}, "open, review round 2"},
 		{"approved", open, []forge.Review{review("adversary", "request-changes", "c1", 1), review("sympathetic", "approve", "c1", 2),
 			review("adversary", "approve", "c2", 3), review("sympathetic", "approve", "c2", 4)}, "open, approved"},

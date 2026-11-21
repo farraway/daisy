@@ -275,17 +275,22 @@ func (m *moveOnReview) Review(pr forge.Ref, v forge.Verdict, body string) error 
 	return m.gitForge.Review(pr, v, body)
 }
 
-// The pair's second reviewer, launched on review-1-in-progress, finds the
-// issue moved to review-0-ready during its run: T9 is skipped with the
-// warning, not made from review-0-ready (section 7.6).
+// The pair's second reviewer, the sympathetic, launched on
+// review-1-in-progress once the adversary approved (decision 163), finds
+// the issue moved to review-0-ready during its run: T9 is skipped with
+// the warning, not made from review-0-ready (section 7.6).
 func TestSwarmSecondReviewerSkipsAMoveToReviewReady(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass() // the adversary approves
+	if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-1-in-progress") {
+		t.Fatalf("the adversary's approval: %v", got)
+	}
 	a.tick()
-	if err := a.apply(&moveOnReview{gitForge: a.git()}, "--once"); err != nil {
+	if err := a.apply(&moveOnReview{gitForge: a.git(), reviews: 1}, "--once"); err != nil { // the adversary's review counted: the sympathetic's is the second
 		t.Fatal(err)
 	}
 	r := a.result("1-sympathetic-1")

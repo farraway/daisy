@@ -80,7 +80,8 @@ func TestSwarmApplyRoutineJob(t *testing.T) {
 	a.pass() // T8
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9, and the merge gate holds a routine job
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9, and the merge gate holds a routine job
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) {
 		t.Fatalf("T9: %v\n%s", got, a.stdout.String())
 	}

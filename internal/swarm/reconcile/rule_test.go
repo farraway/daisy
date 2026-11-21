@@ -66,18 +66,28 @@ func TestLaunchInReview(t *testing.T) {
 	review := func(role, commit, author string) forge.Review {
 		return forge.Review{Author: author, Body: "<!-- daisy-swarm role=" + role + " run=1 -->\n**" + role + ":**\n\nVERDICT: approve", Commit: commit}
 	}
+	changes := func(r forge.Review) forge.Review {
+		r.Body = strings.Replace(r.Body, "VERDICT: approve", "VERDICT: request-changes", 1)
+		return r
+	}
+	// The sympathetic reviewer only once the adversary's review of the
+	// head approves (decision 163).
 	for _, tc := range []struct {
 		name    string
 		reviews []forge.Review
 		running []string
 		want    string
 	}{
-		{"none", nil, nil, "adversary,sympathetic"},
-		{"the adversary's", []forge.Review{review("adversary", "h2", "swarm-bot")}, nil, "sympathetic"},
+		{"none", nil, nil, "adversary"},
+		{"the adversary's approval", []forge.Review{review("adversary", "h2", "swarm-bot")}, nil, "sympathetic"},
+		{"the adversary's request for changes", []forge.Review{changes(review("adversary", "h2", "swarm-bot"))}, nil, ""},
 		{"both", []forge.Review{review("adversary", "h2", "swarm-bot"), review("sympathetic", "h2", "swarm-bot")}, nil, ""},
-		{"both on the old head", []forge.Review{review("adversary", "h1", "swarm-bot"), review("sympathetic", "h1", "swarm-bot")}, nil, "adversary,sympathetic"},
+		{"both on the old head", []forge.Review{review("adversary", "h1", "swarm-bot"), review("sympathetic", "h1", "swarm-bot")}, nil, "adversary"},
 		{"the marker by jane", []forge.Review{review("adversary", "h2", "jane"), review("sympathetic", "h2", "swarm-bot")}, nil, "adversary"},
-		{"the adversary running", nil, []string{"adversary"}, "sympathetic"},
+		{"the sympathetic's alone", []forge.Review{review("sympathetic", "h2", "swarm-bot")}, nil, "adversary"},
+		{"the adversary running", nil, []string{"adversary"}, ""},
+		{"the sympathetic running", nil, []string{"sympathetic"}, "adversary"},
+		{"the adversary's approval, the sympathetic running", []forge.Review{review("adversary", "h2", "swarm-bot")}, []string{"sympathetic"}, ""},
 		{"both running", nil, []string{"sympathetic", "adversary"}, ""},
 		{"a worker's run uncollected", nil, []string{"worker"}, ""},
 	} {
@@ -102,7 +112,7 @@ func TestLaunchInReview(t *testing.T) {
 		reviews []forge.Review
 		want    string
 	}{
-		{"answered", []Entry{answer}, before, "adversary,sympathetic"},
+		{"answered", []Entry{answer}, before, "adversary"},
 		{"the adversary since", []Entry{answer}, append(before, at(review("adversary", "h2", "swarm-bot"), 6)), "sympathetic"},
 		{"both since", []Entry{answer}, append(before, at(review("adversary", "h2", "swarm-bot"), 6), at(review("sympathetic", "h2", "swarm-bot"), 7)), ""},
 		{"the words by an untrusted login", []Entry{{"mallory", answer.Body, answer.Created}}, before, ""},
@@ -110,7 +120,9 @@ func TestLaunchInReview(t *testing.T) {
 		// The maintainer's comment on the pull request (section 6, The
 		// maintainer's word): both reviewers again, whoever it names; not
 		// the swarm's notes, a command, or a Blocked by #<m>.
-		{"jane's comment", []Entry{{"jane", "Adversary: the v1 is right.", answer.Created}}, before, "adversary,sympathetic"},
+		{"jane's comment", []Entry{{"jane", "Adversary: the v1 is right.", answer.Created}}, before, "adversary"},
+		{"jane's comment, the sympathetic's since", []Entry{{"jane", "Look again.", answer.Created}}, append(before, at(review("sympathetic", "h2", "swarm-bot"), 6)), "adversary"},
+		{"jane's comment, the adversary's request for changes since", []Entry{{"jane", "Look again.", answer.Created}}, append(before, at(changes(review("adversary", "h2", "swarm-bot")), 6)), ""},
 		{"jane's comment, the adversary since", []Entry{{"jane", "Look again.", answer.Created}}, append(before, at(review("adversary", "h2", "swarm-bot"), 6)), "sympathetic"},
 		{"jane's comment before the reviews", []Entry{{"jane", "Look again.", t1}}, before, ""},
 		{"the reconciler's note", []Entry{{"swarm-bot", marker("reconciler", 1) + "The checks failed.", answer.Created}}, before, ""},

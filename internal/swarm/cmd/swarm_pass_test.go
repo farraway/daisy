@@ -85,7 +85,8 @@ func TestSwarmMergeStepSkipsTwoLabels(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	if got := labels(a.issue(1)); len(got) != 1 || got[0] != "swarm:review-2-approved" {
 		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
 	}
@@ -179,7 +180,8 @@ func TestSwarmPausedPassMergesNothing(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9, approved
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9, approved
 	if err := a.verb(SwarmPause); err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +206,7 @@ func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T10, reviewed
+	a.pass() // the adversary's request for changes alone: T10, reviewed
 	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: should main.go say v2 or v3?\n"})
 	a.pass() // T17: blocked
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-3-changes-requested", forge.Blocked, forge.Gated}) {
@@ -302,7 +304,8 @@ func TestSwarmMergeStepRelabelReadsTheLabelsAgain(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 1})
 	a.tick()
 	a.apply(&relabelOnMerge{gitForge: a.git()}, "--once")
@@ -312,23 +315,37 @@ func TestSwarmMergeStepRelabelReadsTheLabelsAgain(t *testing.T) {
 }
 
 // An issue's roles are decided once a pass (section 6): with the
-// adversary's launch refused (its slot has no login) and the sympathetic
-// reviewer's moving the issue to review-1-in-progress, which the pass
-// reads later, the adversary is not launched again in that pass.
+// adversary's launch on review-0-ready refused (its slot has no login)
+// and the issue moved to review-1-in-progress before the pass reads that
+// stage, the adversary is not launched again in that pass. Under decision
+// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)
+// the adversary launches alone on review-0-ready, so no sibling launch of
+// the pass moves the issue on (the sympathetic reviewer's used to); the
+// maintainer's relabel while the pass runs (section 5: "at any time")
+// stands in for it.
 func TestSwarmPassDecidesAnIssueOnce(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	os.Remove(filepath.Join(a.local, "swarm", "credentials", "openai", "1", "auth.json"))
 	a.inReview(oneSlice)
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
+	a.tick()
+	f := &relabelOnList{Fake: a.forge, on: "swarm:review-1-in-progress", to: "swarm:review-1-in-progress", id: issue1}
+	if err := a.apply(f, "--once"); err != nil {
+		t.Fatal(err)
+	}
+	if !f.done {
+		t.Fatal("the pass did not read review-1-in-progress")
+	}
 	if r := a.result("1-adversary-1"); strings.Count(r, "launch-failed") != 1 || !strings.HasSuffix(r, "outcome fault\ncollected\n") {
 		t.Errorf("the adversary launched again in the pass:\n%s", r)
 	}
 	if _, err := os.Stat(a.state("runs/1-adversary-2")); err == nil {
 		t.Error("adversary run 2 in the same pass")
 	}
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress"}) || !strings.Contains(a.result("1-sympathetic-1"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") {
-		t.Errorf("labels %v\n%s", got, a.result("1-sympathetic-1"))
+	if _, err := os.Stat(a.state("runs/1-sympathetic-1")); err == nil {
+		t.Error("the sympathetic reviewer launched before the adversary approved")
+	}
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress"}) {
+		t.Errorf("labels %v\n%s", got, a.stdout.String())
 	}
 }

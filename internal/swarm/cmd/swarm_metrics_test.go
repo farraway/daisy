@@ -213,6 +213,7 @@ func TestSwarmApplyRecordsWorkerLinesAndReviewRounds(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass()
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	byRun := map[string]map[string]string{}
 	for _, r := range rows(t, home) {
 		byRun[r["step_or_run"]] = r
@@ -660,19 +661,20 @@ func TestSwarmMetricsReprice(t *testing.T) {
 // Step 30's claim, the swarm's side (the plan remediating the 2026-11-15
 // design review, P29; section 7.6, The run's record): a pull request
 // reviewed in two rounds, the adversary requesting changes with one
-// blocking finding, the worker pushing v2, both reviewers approving it:
-// the adversary's first row is written with its effect unknown, and the
-// collection of its second review supersedes it with effect 1, every
-// other cell carried over; each approving review's effect is 0, the
-// worker's row has none; `daisy metrics` sums them by role and model.
+// blocking finding, which completes round 1 alone (decision 163), the
+// worker pushing v2, both reviewers approving it, the sympathetic
+// reviewer once the adversary approved: the adversary's first row is
+// written with its effect unknown, and the collection of its second
+// review supersedes it with effect 1, every other cell carried over;
+// each approving review's effect is 0, the worker's row has none;
+// `daisy metrics` sums them by role and model.
 func TestSwarmApplyRecordsReviewEffect(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // T10
+	a.pass() // T10, by the adversary alone
 	first := map[string]map[string]string{}
 	for _, r := range rows(t, home) {
 		first[r["step_or_run"]] = r
@@ -684,7 +686,8 @@ func TestSwarmApplyRecordsReviewEffect(t *testing.T) {
 	a.pass()
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // T9
+	a.pass()
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-2-approved") {
 		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
 	}
@@ -695,7 +698,10 @@ func TestSwarmApplyRecordsReviewEffect(t *testing.T) {
 		last[r["step_or_run"]] = r
 		count[r["step_or_run"]]++
 	}
-	for run, want := range map[string]string{"1-adversary-1": "1", "1-sympathetic-1": "0", "1-adversary-2": "0", "1-sympathetic-2": "0", "1-worker-1": "", "1-worker-2": ""} {
+	if _, ok := last["1-sympathetic-2"]; ok {
+		t.Errorf("a second sympathetic run: %v", last["1-sympathetic-2"])
+	}
+	for run, want := range map[string]string{"1-adversary-1": "1", "1-adversary-2": "0", "1-sympathetic-1": "0", "1-worker-1": "", "1-worker-2": ""} {
 		if r := last[run]; r == nil || r["review_effect"] != want {
 			t.Errorf("%s: review_effect %q, want %q", run, r["review_effect"], want)
 		}
@@ -718,7 +724,7 @@ func TestSwarmApplyRecordsReviewEffect(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(s.Reviews) != 2 || s.Reviews[0].Role != "adversary" || s.Reviews[0].Rows != 2 || s.Reviews[0].Effect != 1 || s.Reviews[0].WithEffect != 2 ||
-		s.Reviews[1].Role != "sympathetic" || s.Reviews[1].Effect != 0 || s.Reviews[1].WithEffect != 2 {
+		s.Reviews[1].Role != "sympathetic" || s.Reviews[1].Rows != 1 || s.Reviews[1].Effect != 0 || s.Reviews[1].WithEffect != 1 {
 		t.Errorf("reviews %+v", s.Reviews)
 	}
 }

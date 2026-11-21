@@ -95,20 +95,24 @@ func TestWorkspaceTexts(t *testing.T) {
 }
 
 // A review is held until its round completes (section 7.8, texts/): with
-// one member a pass, the adversary's review of head H is posted and not
-// written; the sympathetic reviewer's of H completes the round, and both
-// are written. A push before the pair's second review leaves the first's
-// round unable to complete: it is written at the next collection on the
-// issue, from its run's out.md, whatever that collection posts (here a
-// reviewer's BLOCKED: text, no review).
+// one member a pass, the adversary's approval of head H is posted and not
+// written; the sympathetic reviewer's of H, launched once the adversary
+// approved (decision
+// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)),
+// completes the round, and both are written. The adversary's request for
+// changes completes its round alone, and is written at once. A push
+// before the pair's second review leaves the first's round unable to
+// complete: it is written at the next collection on the issue, from its
+// run's out.md, whatever that collection posts (here a reviewer's
+// BLOCKED: text, no review).
 func TestWorkspaceHoldsAReviewUntilItsRound(t *testing.T) {
 	t.Parallel()
 	t.Run("the round completes", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
 		a.inReview(oneSlice)
-		a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
-		a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+		a.runner.Script(1, "sympathetic", runner.Canned{Out: requestChanges})
 		a.pass()
 		if strings.Contains(a.stdout.String(), "sympathetic run 1: launched") || !strings.Contains(a.result("1-adversary-1"), "\nposted review\n") {
 			t.Fatalf("pass 1 is not the adversary's alone:\n%s", a.stdout.String())
@@ -118,13 +122,28 @@ func TestWorkspaceHoldsAReviewUntilItsRound(t *testing.T) {
 		}
 		a.pass()
 		reviews, _ := a.forge.Reviews(forge.Ref{Repo: "app", N: 1})
-		if len(reviews) != 2 || reviews[0].Body != mark("adversary", 1)+requestChanges || reviews[1].Body != mark("sympathetic", 1)+approve {
+		if len(reviews) != 2 || reviews[0].Body != mark("adversary", 1)+approve || reviews[1].Body != mark("sympathetic", 1)+requestChanges {
 			t.Fatalf("the reviews as posted: %+v", reviews)
 		}
-		for run, want := range map[string]string{"1-adversary-1": requestChanges, "1-sympathetic-1": approve} {
+		for run, want := range map[string]string{"1-adversary-1": approve, "1-sympathetic-1": requestChanges} {
 			if got, ok := a.text(1, run); !ok || got != want {
 				t.Errorf("texts/%s.md (%v): %q", run, ok, got)
 			}
+		}
+	})
+
+	t.Run("a request for changes completes it alone", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
+		a.inReview(oneSlice)
+		a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+		a.pass()
+		reviews, _ := a.forge.Reviews(forge.Ref{Repo: "app", N: 1})
+		if len(reviews) != 1 || reviews[0].Body != mark("adversary", 1)+requestChanges {
+			t.Fatalf("the reviews as posted: %+v", reviews)
+		}
+		if got, ok := a.text(1, "1-adversary-1"); !ok || got != requestChanges {
+			t.Errorf("texts/1-adversary-1.md (%v): %q", ok, got)
 		}
 	})
 
@@ -133,8 +152,7 @@ func TestWorkspaceHoldsAReviewUntilItsRound(t *testing.T) {
 		a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
 		a.inReview(oneSlice)
 		blocked := "BLOCKED: the head moved under the review.\n"
-		a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: blocked})
-		a.runner.Script(1, "sympathetic", runner.Canned{Out: blocked})
+		a.runner.Script(1, "adversary", runner.Canned{Out: approve}, runner.Canned{Out: blocked})
 		a.pass()
 		if _, ok := a.text(1, "1-adversary-1"); ok {
 			t.Fatal("the adversary's review was written before its round completed")
@@ -145,16 +163,15 @@ func TestWorkspaceHoldsAReviewUntilItsRound(t *testing.T) {
 		gitIn(t, dir, "commit", "-q", "-am", "The maintainer's fix")
 		gitIn(t, dir, "push", "-q", "origin", "swarm/1-1")
 		a.pass()
-		var next string
-		for _, run := range []string{"1-adversary-2", "1-sympathetic-1"} {
-			if strings.Contains(a.result(run), "\nposted comment\n") {
-				next = run
-			}
+		// The new head has no review: the adversary's again, the
+		// sympathetic reviewer's not yet.
+		if _, err := os.Stat(a.state("runs/1-sympathetic-1")); err == nil {
+			t.Errorf("the sympathetic reviewer launched on a head the adversary has not approved:\n%s", a.stdout.String())
 		}
-		if got, ok := a.text(1, next); next == "" || !ok || got != blocked {
-			t.Fatalf("pass 2's BLOCKED: text (%s, %v): %q\n%s", next, ok, got, a.stdout.String())
+		if got, ok := a.text(1, "1-adversary-2"); !strings.Contains(a.result("1-adversary-2"), "\nposted comment\n") || !ok || got != blocked {
+			t.Fatalf("pass 2's BLOCKED: text (%v): %q\n%s", ok, got, a.stdout.String())
 		}
-		if got, ok := a.text(1, "1-adversary-1"); !ok || got != requestChanges {
+		if got, ok := a.text(1, "1-adversary-1"); !ok || got != approve {
 			t.Errorf("the review whose round can no longer complete (%v): %q", ok, got)
 		}
 	})
@@ -388,13 +405,17 @@ func (a *applyWS) roundFile(r int) (string, bool) {
 
 // A round's file is written once the round completes (section 7.8,
 // slices/<s>/rounds/<r>.md), not before: with one member a pass, the
-// adversary's review alone writes none, the sympathetic reviewer's
+// adversary's approval alone writes none, the sympathetic reviewer's
+// review, launched once the adversary approved (decision
+// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)),
 // completes round 1 and writes its head and both reviews' finding lines,
 // the adversary's first. A revision that merges main, which another
-// slice moved, then changes main.go is reviewed in round 2, whose file
-// holds the diff since round 1 in the pull request's files: main.go's
-// change, not the merged file's. The worker's answer without a commit is
-// reviewed in round 3, on the same head, which names the answer.
+// slice moved, then changes main.go is reviewed in round 2, which the
+// adversary's request for changes completes alone, and whose file holds
+// its one review and the diff since round 1 in the pull request's files:
+// main.go's change, not the merged file's. The worker's answer without a
+// commit is reviewed in round 3, on the same head, which names the
+// answer.
 func TestWorkspaceRoundFile(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -402,16 +423,16 @@ func TestWorkspaceRoundFile(t *testing.T) {
 	a.inReview(oneSlice)
 	h1 := a.pulls(1)[0].HeadSHA
 	nonBlocking := "VERDICT: approve\n\nFine.\n[non-blocking] main.go:1 could say why.\n"
-	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: nonBlocking}, runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.runner.Script(1, "adversary", runner.Canned{Out: nonBlocking}, runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
 	a.pass()
 	if _, ok := a.roundFile(1); ok {
 		t.Fatal("round 1 was written before it completed")
 	}
 	a.pass()
 	want1 := "# Round 1 on " + h1 + "\n\nSlice 1, pull request app#1. The round before: none.\n\n" +
-		"## adversary, run 1: request-changes\n\nWhole: /job/memory/texts/1-adversary-1.md\n\n[blocking] main.go:1 says v1; the plan wants v2.\n\n" +
-		"## sympathetic, run 1: approve\n\nWhole: /job/memory/texts/1-sympathetic-1.md\n\n[non-blocking] main.go:1 could say why.\n"
+		"## adversary, run 1: approve\n\nWhole: /job/memory/texts/1-adversary-1.md\n\n[non-blocking] main.go:1 could say why.\n\n" +
+		"## sympathetic, run 1: request-changes\n\nWhole: /job/memory/texts/1-sympathetic-1.md\n\n[blocking] main.go:1 says v1; the plan wants v2.\n"
 	if got, ok := a.roundFile(1); !ok || got != want1 {
 		t.Fatalf("rounds/1.md (%v):\n%s\nwant:\n%s", ok, got, want1)
 	}
@@ -429,12 +450,14 @@ func TestWorkspaceRoundFile(t *testing.T) {
 	if got := labels(a.issue(1)); h2 == h1 || !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) {
 		t.Fatalf("the revision: %v, head %s\n%s", got, h2, a.result("1-worker-2"))
 	}
-	a.pass()
-	a.pass()
+	a.pass() // the adversary's request for changes completes round 2 alone
+	if _, err := os.Stat(a.state("runs/1-sympathetic-2")); err == nil {
+		t.Errorf("the sympathetic reviewer launched on a head the adversary sent back:\n%s", a.stdout.String())
+	}
 	got, ok := a.roundFile(2)
 	head2 := "# Round 2 on " + h2 + "\n\nSlice 1, pull request app#1. The round before: 1 on " + h1 + ".\n\n" +
 		"## adversary, run 2: request-changes\n\nWhole: /job/memory/texts/1-adversary-2.md\n\n[blocking] main.go:1 says v1; the plan wants v2.\n\n" +
-		"## sympathetic, run 2: approve\n\nWhole: /job/memory/texts/1-sympathetic-2.md\n\n## Changes since round 1\n\n```diff\ndiff --git a/main.go b/main.go\n"
+		"## Changes since round 1\n\n```diff\ndiff --git a/main.go b/main.go\n"
 	if !ok || !strings.HasPrefix(got, head2) || !strings.HasSuffix(got, "\n@@ -1 +1 @@\n-v1\n+v2\n```\n") || strings.Contains(got, "other.txt") {
 		t.Fatalf("rounds/2.md (%v):\n%s", ok, got)
 	}
@@ -445,7 +468,7 @@ func TestWorkspaceRoundFile(t *testing.T) {
 	a.pass()
 	want3 := "# Round 3 on " + h2 + "\n\nSlice 1, pull request app#1. The round before: 2 on " + h2 + ".\n\n" +
 		"## adversary, run 3: approve\n\nWhole: /job/memory/texts/1-adversary-3.md\n\n" +
-		"## sympathetic, run 3: approve\n\nWhole: /job/memory/texts/1-sympathetic-3.md\n\n" +
+		"## sympathetic, run 2: approve\n\nWhole: /job/memory/texts/1-sympathetic-2.md\n\n" +
 		"## Changes since round 2\n\nNo commit since round 2: the worker answered without a commit, /job/memory/texts/1-worker-3.md.\n"
 	if got, ok := a.roundFile(3); !ok || got != want3 {
 		t.Errorf("rounds/3.md (%v):\n%s\nwant:\n%s\n%s", ok, got, want3, a.stdout.String())
@@ -465,8 +488,11 @@ func TestWorkspaceRoundFileCommitGone(t *testing.T) {
 	a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
 	a.inReview(oneSlice)
 	h1 := a.pulls(1)[0].HeadSHA
-	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	// Round 1: the adversary approves, then the sympathetic reviewer,
+	// launched once it has, requests changes (decision
+	// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)).
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
 	a.pass()
 	a.pass()
 	if _, ok := a.roundFile(1); !ok {
@@ -568,13 +594,18 @@ func TestWorkspaceReplay(t *testing.T) {
 	a.runner.Script(1, "worker", work("v1"))
 	a.runner.Script(1, "check", runner.Canned{Code: 1, Stdout: "FAIL main_test.go\n"})
 	a.pass()
-	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	// Round 1: the adversary approves, then the sympathetic reviewer,
+	// launched once it has, requests changes (decision
+	// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)).
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
+	a.pass()
 	a.pass()
 	a.runner.Script(1, "worker", work("v2"))
 	a.runner.Script(1, "check", runner.Canned{Stdout: "ok\n"})
 	a.pass()
-	a.pass()
+	a.pass() // round 2: the adversary approves
+	a.pass() // the sympathetic reviewer: T9
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", "swarm:gated"}) {
 		t.Fatalf("the job did not reach the merge gate: %v\n%s", got, a.stdout.String())
 	}
@@ -901,7 +932,8 @@ func TestMergeStepUnreadablePlanBlocks(t *testing.T) {
 	a.inReview(bigSlices)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	if got := labels(a.issue(1)); got[0] != forge.ReviewApproved {
 		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
 	}

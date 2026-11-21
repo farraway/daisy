@@ -79,6 +79,7 @@ func TestMemberArgvMountsTheRunsFolder(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve, Work: look("1-adversary-1", nil)})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve, Work: look("1-sympathetic-1", nil)})
 	a.pass()
+	a.pass() // the sympathetic reviewer, once the adversary approved
 
 	children := "job/io\njob/memory\njob/notes\njob/resources\njob/work\n"
 	for _, tc := range []struct {
@@ -320,6 +321,7 @@ func TestBranchesFile(t *testing.T) {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.runner.Script(2, "architect", runner.Canned{Out: oneSlice})
 	a.pass()
+	a.pass() // the sympathetic reviewer, once the adversary approved
 
 	app5 := "- app swarm/5-1 (#5, slice 1) at " + unrelated[:7] + ": no history in common with main\n"
 	lib := "- lib swarm/3-2 (#3, slice 2) at " + other[:7] + ": lib.go, sub/b.txt\n" +

@@ -63,7 +63,8 @@ func TestSwarmPullsBlock(t *testing.T) {
 
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // T9
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	a.pass() // approved: nothing runs, nothing changes
 	if body := a.issue(1).Body; body != mark("owner", 1)+pullsBlock("slice 1 "+appPull("1")+" open, approved")+text || a.edits(1) != 2 {
 		t.Fatalf("slice 1 approved, %d edits:\n%s", a.edits(1), body)
@@ -84,7 +85,8 @@ func TestSwarmPullsBlock(t *testing.T) {
 
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // T9, gated
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9, gated
 	head := a.pulls(1)[1].HeadSHA
 	notes := a.gateNotes(1)
 	note := notes[len(notes)-1]

@@ -119,7 +119,8 @@ func TestSwarmNoServicesFile(t *testing.T) {
 	}
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved
 	// The reviewers', without services or env, as before R3-3, byte for
 	// byte to their image: the adversary's slot, the sympathetic
 	// reviewer's env credential, and no --network or --env of their own.
@@ -175,13 +176,15 @@ func TestSwarmServicesRefused(t *testing.T) {
 	}
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
-	if p := a.file("1-adversary-1", "io/prompt.md"); !strings.Contains(p, "# Check\n\nmake check on "+ps[0].HeadSHA+": test services refused; the check did not run\n\n    "+reason) {
-		t.Errorf("the reviewer's # Check:\n%s", p)
-	}
 	// Each reviewer, on the head's file, is launched without services
-	// and warned of it, as the worker is (section 7.9, Beside a reviewer).
+	// and warned of it, as the worker is (section 7.9, Beside a reviewer):
+	// the adversary first, the sympathetic reviewer in the pass after its
+	// approval, each pass's stderr its own.
 	for _, role := range []string{"adversary", "sympathetic"} {
+		a.pass()
+		if p := a.file("1-"+role+"-1", "io/prompt.md"); !strings.Contains(p, "# Check\n\nmake check on "+ps[0].HeadSHA+": test services refused; the check did not run\n\n    "+reason) {
+			t.Errorf("the %s's # Check:\n%s", role, p)
+		}
 		rs := a.launched(role)
 		if len(a.runner.Ups) != 0 || len(rs) != 1 || rs[0].Network != "" || rs[0].Env != nil {
 			t.Errorf("ups %+v, %s %+v", a.runner.Ups, role, rs)
@@ -259,14 +262,17 @@ func reviewerNet(role string, k int) string {
 }
 
 // A reviewer's run (sections 7.2, 7.6, step 4, and 7.9, Beside a
-// reviewer): each of the pair, launched in one pass, runs beside the
+// reviewer): each of the pair, the sympathetic reviewer in the pass
+// after the adversary's approval (decision
+// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)),
+// runs beside the
 // test services file read at the head it reviews (main holds none: the
 // worker's commit adds it, so worker run 1 has none), on a network of
 // its own, not internal, named as its container, given the
 // repository's env then x-daisy-env's, as the worker is; the
-// collection takes each down. Round 2's pair, after changes were
-// requested, runs on networks of its own again, beside worker run 2's
-// and its check's, and nothing is left up.
+// collection takes each down. Round 2's pair, after the sympathetic
+// reviewer requested changes, runs on networks of its own again, beside
+// worker run 2's and its check's, and nothing is left up.
 func TestSwarmServicesBesideAReviewer(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -278,12 +284,14 @@ func TestSwarmServicesBesideAReviewer(t *testing.T) {
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n", "compose.test.yaml": gridappFile}, "v1"))},
 		runner.Canned{Out: "v2\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v2\n"}, "v2"))})
-	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
 	a.pass() // worker run 1 and its check
-	a.pass() // the pair, round 1
+	a.pass() // round 1: the adversary approves
+	a.pass() // round 1: the sympathetic reviewer requests changes, T10
 	a.pass() // worker run 2 and its check
-	a.pass() // the pair, round 2
+	a.pass() // round 2: the adversary approves
+	a.pass() // round 2: the sympathetic reviewer approves, T9
 	if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-2-approved") {
 		t.Fatalf("not approved: %v\n%s", got, a.stdout.String())
 	}
@@ -329,7 +337,12 @@ func TestSwarmServicesBesideAReviewer(t *testing.T) {
 // step 4, and 7.7): a run whose apply died after they were up (the
 // pair's second, abandoned at the next pass), a launch refused once they
 // were up, and services that cannot start, the launch's fault; each a
-// fault or abandoned, the issue taken home, nothing left up.
+// fault or abandoned, the issue taken home (review-0-ready, whichever of
+// the pair it was), nothing left up. The sympathetic reviewer launches
+// only once the adversary approved, on review-1-in-progress (decision
+// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)),
+// so its launch refused and its services that cannot start are a pass
+// after the adversary's approval.
 func TestSwarmServicesOfAReviewerRemoved(t *testing.T) {
 	t.Parallel()
 	setup := func(t *testing.T) *applyWS {
@@ -367,8 +380,24 @@ func TestSwarmServicesOfAReviewerRemoved(t *testing.T) {
 		home(t, a)
 		inOrder(t, a.result("1-sympathetic-1"), "\nservices sympathetic up mongo redis\n", "\nabandoned ", "\nservices sympathetic down\n", "\noutcome abandoned\ncollected\n")
 	})
+	// approved is the adversary's approval of the head, its run 2 after
+	// run 1's fault, with nothing failing: the sympathetic reviewer's
+	// turn, on review-1-in-progress.
+	approved := func(t *testing.T, a *applyWS) {
+		t.Helper()
+		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+		a.pass()
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress"}) || len(a.runner.Networks) != 0 {
+			t.Fatalf("the adversary's approval: %v, networks %+v\n%s", got, a.runner.Networks, a.stdout.String())
+		}
+	}
 	t.Run("launch refused", func(t *testing.T) {
 		a := setup(t)
+		a.runner.StartErr = errors.New("no socket")
+		a.pass()
+		home(t, a)
+		a.runner.StartErr = nil
+		approved(t, a)
 		a.runner.StartErr = errors.New("no socket")
 		a.pass()
 		home(t, a)
@@ -382,7 +411,13 @@ func TestSwarmServicesOfAReviewerRemoved(t *testing.T) {
 		a.runner.UpErr = missing
 		a.pass()
 		home(t, a)
-		if n := len(a.launched("adversary")) + len(a.launched("sympathetic")); n != 0 {
+		a.runner.UpErr = nil
+		approved(t, a)
+		a.runner.UpErr = missing
+		a.pass()
+		home(t, a)
+		// Only the adversary's run 2, with nothing failing, launched.
+		if n := len(a.launched("adversary")) + len(a.launched("sympathetic")); n != 1 {
 			t.Errorf("%d reviewers launched", n)
 		}
 		for _, role := range []string{"adversary", "sympathetic"} {

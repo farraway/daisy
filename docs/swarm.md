@@ -696,7 +696,7 @@ up by it, and two such faults in a row pause the swarm with that line.
 | architect | `swarm:proposal-accepted`, `swarm:plan-0-posted` | the issue thread, compacted as the owner's (7.3); while the issue's current pull request is open (after T11, or a relabel by the maintainer), the earlier pull requests, that pull request's thread with every round's blocking findings (7.3) and the check's result too | the whole plan, a standard Daisy plan in the form of section 7.4 | a comment on the issue |
 | worker | `swarm:plan-1-accepted`, `swarm:review-3-changes-requested` | the issue body, `# Job`'s pointers to the accepted plan, its builder plan and its slice in the job's workspace (7.8, The prompt), the maintainer's direction and the earlier pull requests; in `review-3-changes-requested` (and in `plan-1-accepted` when its pull request is open), the pull-request thread with its latest round's blocking findings and the earlier as lines (7.3), and the check's result | the pull request's description; in `review-3-changes-requested`, what it changed; and commits on `swarm/<n>-<s>` in the clone | a pushed branch and a pull request in the slice's repository (its `Refs` line, section 5); a comment on the pull request |
 | adversary | `swarm:review-0-ready`, `swarm:review-1-in-progress` | the issue body, `# Job`'s pointers to the accepted plan, its builder plan, its slice and the worker's newest report in the job's workspace (7.8, The prompt), the pull-request thread compacted (7.3: the previous round's blocking findings, each earlier round as a line, each entry not the swarm's whatever its age, a `trusted` login's as written and anyone else's as its login and time, never the current round), and the check's result; the change is `git diff <base>...HEAD` in its writable throwaway clone | `VERDICT: approve` or `VERDICT: request-changes`, then the review, each finding marked by severity | a pull request review |
-| sympathetic | `swarm:review-0-ready`, `swarm:review-1-in-progress` | as the adversary | as the adversary, ending with a reading guide | a pull request review |
+| sympathetic | `swarm:review-0-ready`, `swarm:review-1-in-progress`, once the adversary approves the head (section 6) | as the adversary | as the adversary | a pull request review |
 | qa | no issue (the batch run), only with `qa` declared (section 6, The QA trigger) | the open and recently closed swarm issues, and every declared repository's notes, the first's holding the page map (below) | failures, each `## <title>`, a `Class:` line and a body; or `NO FAILURE: <the routes it drove>` | new issues as the owner's batch's, labelled `swarm:proposal-posted` (`swarm:proposal-accepted` with the triage gate off) |
 
 Every role may instead write `BLOCKED: <reason>` as its first line
@@ -948,13 +948,11 @@ maintainer will, assuming it is meant to work.
   whose move would make it pass, the worker's or the maintainer's.
 - Request changes only for a blocking finding: the change does not do the
   job or will mislead its next reader.
-- Every finding, however small, is its own marked line; the prose and the
-  reading guide add none. When a finding is one instance of a kind new
-  code can repeat, and a check that scans the whole tree (a test, a lint)
-  can recognise every instance, name that check, at the finding's file
-  and line, in a non-blocking finding of its own.
-- End with a short reading guide for the maintainer: where the change
-  departs from the plan, what is riskiest, and what to read first.
+- Every finding, however small, is its own marked line; the prose adds
+  none. When a finding is one instance of a kind new code can repeat,
+  and a check that scans the whole tree (a test, a lint) can recognise
+  every instance, name that check, at the finding's file and line, in a
+  non-blocking finding of its own.
 ```
 
 ### qa
@@ -1023,8 +1021,8 @@ or changed by the copy, and no flag is copied.
 | `swarm:plan-0-posted` | a plan is in the thread, under discussion (with the maintainer, or with a slice's reviews after the round limit, T11) | architect, to answer the thread |
 | `swarm:plan-1-accepted` | the plan is accepted: build the next slice | worker; between slices, when rulings changed since the plan or the maintainer asked to re-plan, the architect (section 6, The rulings and The re-plan) |
 | `swarm:plan-2-in-progress` | a worker runs on the issue, a slice's first build or a revision (T20, below) | nobody: the worker's container is running (rule 2) |
-| `swarm:review-0-ready` | the current pull request awaits both reviews of its head | adversary and sympathetic, launched in the same pass |
-| `swarm:review-1-in-progress` | the pair is under way: from the launch of a reviewer on `review-0-ready` (T21) until the pair on the head completes | adversary and sympathetic: each that has not reviewed the head and is not running |
+| `swarm:review-0-ready` | the current pull request awaits the reviews of its head: the adversary's, then, once it approves, the sympathetic reviewer's | the adversary; the sympathetic reviewer when the adversary's review of the head approves (its own run having gone home, T22; section 6, decision [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)) |
+| `swarm:review-1-in-progress` | the pair is under way: from the launch of a reviewer on `review-0-ready` (T21) until the pair on the head completes | adversary and sympathetic: each that has not reviewed the head and is not running, the sympathetic reviewer only once the adversary's review of the head approves |
 | `swarm:review-2-approved` | both reviews of the head approve: merge it | nobody (with the merge gate off, Daisy's merge step, section 12) |
 | `swarm:review-3-changes-requested` | a review of the head requested changes, or the approved head does not merge into `base` (T25) or failed its checks (T26) | worker |
 
@@ -1321,12 +1319,14 @@ refused, `Ops.Start` failing, a worker's bad slices) writes none: every
 worker run, launched on `swarm:plan-1-accepted` or
 `swarm:review-3-changes-requested`, writes plan-2-in-progress (T20), and
 a reviewer launched on `swarm:review-0-ready` writes review-1-in-progress
-(T21); the second reviewer of a pair, launched on review-1-in-progress,
-writes none. The two reviewers launch in the same pass (section 6), the
-second on the stage the first's launch wrote, so the pair writes
-review-1-in-progress once; when the other is not launched in that pass
-(no free credential, `max_members` reached), it launches at a later pass
-on review-1-in-progress, and when its launch fails, T22 takes the issue
+(T21); the sympathetic reviewer, launched on review-1-in-progress,
+writes none. The adversary launches alone; its approval of the head
+leaves the issue at review-1-in-progress, and the sympathetic reviewer
+launches in the pass that collects it (section 6), on the stage the
+adversary's launch wrote, so the pair writes review-1-in-progress once;
+when it is not launched in that pass (no free credential, `max_members`
+reached), it launches at a later pass on review-1-in-progress, and when
+its launch fails, T22 takes the issue
 back to review-0-ready (7.7, launch fails), from which its relaunch
 writes review-1-in-progress again. `<run>/result` records the stage the run was launched on
 (its `label` line, section 2) and the write (`relabelled <stage>
@@ -1337,11 +1337,14 @@ reviewer's, whichever of the pair it is, to review-0-ready, and a
 worker's to the stage it was launched on: a swarm fault, an abandoned
 run, a stale reviewer's run, a run discarded because its pull request
 closed, and, before `swarm:blocked` is set beside the stage, a failure
-of the work and `BLOCKED:` (T17). A first reviewer's run that posts its
-review, the pair not complete, leaves review-1-in-progress for the
-second; the second's failure takes the issue back to review-0-ready,
-from which the role rule launches it again, the first's review standing
-on the head, and T21 writes review-1-in-progress again.
+of the work and `BLOCKED:` (T17). The adversary's run that posts an
+approval, the pair not complete, leaves review-1-in-progress for the
+sympathetic reviewer; the sympathetic reviewer's failure takes the
+issue back to review-0-ready, from which the role rule launches it
+again, the adversary's approval standing on the head, and T21 writes
+review-1-in-progress again; the adversary's failure takes it back there
+too, and the adversary is launched again, the sympathetic reviewer
+still waiting for its approval.
 
 **The rename (Step 15 of the swarm build).** Until then the stages were
 `swarm:proposed`, `swarm:ready`, `swarm:planning`, `swarm:planned`,
@@ -1457,7 +1460,7 @@ nothing: their trigger is the maintainer's decision.
 | T7 | `swarm:plan-0-posted` | `swarm:plan-1-accepted` | — | the maintainer accepts the plan (with G2 off, `plan-0-posted` is reached only by the maintainer's own relabel, or T11) | the maintainer: `swarm accept <n>`, or on the forge |
 | T8 | `swarm:plan-2-in-progress`, the worker launched on `plan-1-accepted` (T20) | `swarm:review-0-ready` | — | the worker's run succeeds (commits pushed, pull request open) | Daisy: `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")`, from `swarm:plan-1-accepted` when T20's write was refused |
 | T9 | `swarm:review-1-in-progress` | `swarm:review-2-approved` | — | a reviewer's run succeeds and its review completes the pair on the head, both approving | Daisy: `Relabel(n, "swarm:review-1-in-progress", "swarm:review-2-approved")`, from `swarm:review-0-ready` when T21's write was refused |
-| T10 | `swarm:review-1-in-progress` | `swarm:review-3-changes-requested` | — | a reviewer's run succeeds and its review completes the pair on the head, with a request for changes and the rounds below `max_rounds` | Daisy: `Relabel(n, "swarm:review-1-in-progress", "swarm:review-3-changes-requested")`, as T9 |
+| T10 | `swarm:review-1-in-progress` | `swarm:review-3-changes-requested` | — | a reviewer's run succeeds and its review completes the pair on the head, with a request for changes (the adversary's, which completes it alone, no sympathetic review made; or the sympathetic reviewer's, after the adversary approved: section 6) and the rounds below `max_rounds` | Daisy: `Relabel(n, "swarm:review-1-in-progress", "swarm:review-3-changes-requested")`, as T9 |
 | T11 | `swarm:review-1-in-progress` | the architect's stage, `swarm:plan-0-posted` (G2 on) or `swarm:proposal-accepted` (G2 off); the second time the same pull request reaches the limit, `swarm:review-1-in-progress` kept and `swarm:blocked` set | — (the target follows G2) | a reviewer's run succeeds and its review completes the pair on the head, with a request for changes and the rounds at `max_rounds` or more (section 6). The first time, the issue returns to the architect with the rounds as its input: the architect reads the pull request's thread (7.3) and revises the plan, which is accepted as a plan is at that gate (T7, or T6 with G2 off), the worker continues the pull request (section 5), and the rounds count again from the revised plan. The second time is told from the first by the issue thread, which already holds a round-limit note on this pull request other than this run's own, told by its text (7.6), and is the maintainer's (G4) | Daisy: `Comment(n, <reconciler note>)`, then `Relabel(n, "swarm:review-1-in-progress", "swarm:plan-0-posted")` or `Relabel(n, "swarm:review-1-in-progress", "swarm:proposal-accepted")` by G2 (as T9), or `Relabel(n, "", "swarm:blocked")` the second time |
 | T12 | `swarm:plan-2-in-progress`, the worker launched on `review-3-changes-requested` (T20) | `swarm:review-0-ready` | — | the worker's run succeeds (fixes pushed, or no commit and its output's first line begins `NO CHANGE:`, its answer posted on the pull request, 7.6; a run from kept commits not yet on the branch has those to push, and its `NO CHANGE:` is a revision's text, 7.9, The classification), and the pair reviews the head again (section 6) | Daisy: `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")`, as T8 |
 | T13 | `swarm:review-2-approved` | `swarm:plan-1-accepted` | G3 on | the maintainer has merged the current pull request and wants the next slice | the maintainer: `swarm merge <n>`, which merges and then relabels when the plan declares a slice after `<s>` (section 12), or on the forge |
@@ -1468,7 +1471,7 @@ nothing: their trigger is the maintainer's decision.
 | T18 | `swarm:blocked` set, at any stage | `swarm:blocked` cleared, the stage kept | G4 | the maintainer resumes the issue: the stage's role runs again at the next pass; or the maintainer's comment answers the block, on a thread the stage's role reads (section 6, The maintainer's word), and it runs in the pass that reads it | the maintainer: `swarm unblock <n> <comment>`, its comment first, then `Relabel(n, "swarm:blocked", "")`; or on the forge, the flag removed, and the stage relabelled when another is wanted; or Daisy, at step 5 of the pass that reads the answering comment: `Relabel(n, "swarm:blocked", "")` |
 | T19 | open, any label | closed, `swarm:done` or `swarm:rejected` | — | the maintainer closes the issue: the job done (with G3 on, after merging its last slice) or abandoned | the maintainer: `swarm merge <n>` of the last slice (`swarm:done`), or `swarm close <n> [comment]` (`swarm:rejected`), each then `Relabel(n, <stage>, <terminal>)` and each flag removed; or on the forge, the labels left as they are |
 | T20 | `swarm:plan-1-accepted` or `swarm:review-3-changes-requested` | `swarm:plan-2-in-progress` | — | the role rule launches the worker on the issue, and its container starts | Daisy: `Relabel(n, <stage>, "swarm:plan-2-in-progress")` |
-| T21 | `swarm:review-0-ready` | `swarm:review-1-in-progress` | — | the role rule launches a reviewer on `swarm:review-0-ready` (the pair's first, or either reviewer relaunched there after T22), and its container starts | Daisy: `Relabel(n, "swarm:review-0-ready", "swarm:review-1-in-progress")` |
+| T21 | `swarm:review-0-ready` | `swarm:review-1-in-progress` | — | the role rule launches a reviewer on `swarm:review-0-ready` (the adversary, or the sympathetic reviewer relaunched there after T22, the adversary's approval of the head standing), and its container starts | Daisy: `Relabel(n, "swarm:review-0-ready", "swarm:review-1-in-progress")` |
 | T22 | the in-progress stage a run's launch wrote (T20, T21), or `swarm:review-1-in-progress` for the pair's second reviewer | the run's home: `swarm:review-0-ready` for a reviewer, the stage the run was launched on for a worker | — | the run ends without moving the issue on: a swarm fault, abandoned, stale (a reviewer), discarded (its pull request closed), or before T17's flag | Daisy: `Relabel(n, <in-progress>, <home>)`, `<home>` the run's home |
 | T23 | `swarm:proposal-posted` | `swarm:proposal-accepted` | G1 on, a routine job | step 8 of a pass finds a routine job at `proposal-posted` that carries neither `swarm:blocked` nor `swarm:paused`, whose owner has nothing to answer, the swarm not paused (The job class, above) | Daisy: `Relabel(n, "swarm:proposal-posted", "swarm:proposal-accepted")`, then `Comment(n, <auto note>)` |
 | T24 | `swarm:plan-0-posted` | `swarm:plan-1-accepted` | G2 on, a routine job | step 8 of a pass finds a routine job at `plan-0-posted` as T23 does, its architect having nothing to answer (its plan, or its revision after a comment or T11, the newest counted entry) | Daisy: `Relabel(n, "swarm:plan-0-posted", "swarm:plan-1-accepted")`, then `Comment(n, <auto note>)` |
@@ -1541,9 +1544,9 @@ issue, and the architect on a `plan-1-accepted` issue whose output
 begins `STANDS:` or, with the plan gate off, revises the plan (section
 6, The rulings), and the architect and the owner on an issue carrying
 `swarm:question` (section 6, The question), at whatever stage, post a
-comment and leave the label; the first reviewer of a pair
+comment and leave the label; the adversary approving
 posts its review and leaves `review-1-in-progress`, the stage its launch
-wrote; a `review-2-approved` issue runs nobody and, with the merge gate
+wrote, for the sympathetic reviewer; a `review-2-approved` issue runs nobody and, with the merge gate
 on, waits for the maintainer.
 
 **Blocked waits; the rest goes on.** A blocked issue holds nothing but
@@ -1669,7 +1672,7 @@ when all of these hold:
 | `swarm:proposal-accepted` | architect | the issue thread | the newest counted entry is not marked `role=architect` |
 | `swarm:plan-0-posted` | architect | the issue thread | the newest counted entry is not marked `role=architect` |
 | `swarm:plan-1-accepted` | worker; the architect when rulings changed since the plan (The rulings, below) or the maintainer asked to re-plan (The re-plan, below) | the issue thread | the newest counted entry is not marked `role=<R>` (the worker's, or the architect's) |
-| `swarm:review-0-ready`, `swarm:review-1-in-progress` | adversary and sympathetic | the current pull request's thread, when the pull request is open | R has no review marked `role=R` on the pull request's head commit submitted after the head's newest reopening: the worker's newest answer without a commit on it, or the maintainer's newest comment on it (below, and The maintainer's word; any such review, when there is none) |
+| `swarm:review-0-ready`, `swarm:review-1-in-progress` | adversary and sympathetic | the current pull request's thread, when the pull request is open | R has no review marked `role=R` on the pull request's head commit submitted after the head's newest reopening: the worker's newest answer without a commit on it, or the maintainer's newest comment on it (below, and The maintainer's word; any such review, when there is none); and, for the sympathetic reviewer, the adversary's newest such review approves (decision [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)) |
 | `swarm:review-3-changes-requested` | worker | the current pull request's thread, when the pull request is open | the newest counted entry is not marked `role=worker` |
 | `swarm:plan-2-in-progress`, `swarm:review-2-approved` | nobody (a maintainer's comment there is held: The maintainer's word, below) | — | — |
 | any stage with a role, with `swarm:question` | the architect, or the owner when the newest question is the architect's (The question, below) | the issue thread | the newest counted entry is not marked `role=<R>` |
@@ -1684,7 +1687,7 @@ the checks that failed), so the worker runs. The worker never posts on the issue
 every blocked issue's last word is the reconciler's note, so clearing
 `swarm:blocked` runs the stage's role again, answered or not, but for the
 round limit's second note: its `swarm:review-1-in-progress` runs no one,
-both reviewers having reviewed the head (section 12 lists the relabels
+the pair having completed on the head (section 12 lists the relabels
 that resume such an issue), unless the maintainer's comment on the pull
 request reopens the head (The maintainer's word, below); and in `swarm:review-3-changes-requested`
 the worker reads the pull request's thread, where its own `BLOCKED:` is
@@ -1695,16 +1698,25 @@ and in an issue-thread stage that role runs and answers it. Within a
 pass, an issue's roles are decided once (an issue a launch moved to a
 stage read later in the pass is not decided again), and at most one
 launches, but in the review stages, where each reviewer that has
-something to answer launches in the same pass, the adversary first,
-each blind to the other's review of the head as before (7.3; decision
-[78](swarm/decisions/0078-the-pass-does-not-wait-the-pair-in-one-pass.md), which replaces decision [14](swarm/decisions/0014-sequential-reviewers-each-blind-to-the-other-on-the-head.md)'s sequence). An issue in
+something to answer launches in the same pass, the adversary first: the
+sympathetic reviewer has something to answer only once the adversary's
+review of the head approves, so it launches in the pass that collects
+that approval (a pass collects before it launches, section 11; with
+`--once`, whose drain collects after the pass's launches, at the next
+pass), never beside the adversary on a head, and blind to the
+adversary's review of the head as each reviewer is to the other's (7.3;
+decision [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md), which amends decision
+[78](swarm/decisions/0078-the-pass-does-not-wait-the-pair-in-one-pass.md)'s
+pair in one pass, itself replacing decision [14](swarm/decisions/0014-sequential-reviewers-each-blind-to-the-other-on-the-head.md)'s sequence). An issue in
 a review stage whose current pull request is not open is skipped with a
 warning.
 
-A **round** is a head commit both reviewers have reviewed; the rounds of a
-pull request are the number of distinct commits with a review marked
-`role=adversary` and one marked `role=sympathetic`, a commit counted once
-more for each **reopening** after which both reviewed it again (an
+A **round** is a head commit on which the pair is complete: the
+adversary's review requested changes, which completes it alone, or both
+reviewers reviewed it (decision [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)); the rounds of a
+pull request are the number of distinct commits on which the pair is
+complete, a commit counted once
+more for each **reopening** after which the pair completed on it again (an
 **answer without a commit**, or the maintainer's comment on the pull
 request, The maintainer's word, below), counting only reviews submitted after the accepted plan was posted
 (7.3; all of them when there is no plan). An answer without a commit is
@@ -1719,8 +1731,9 @@ begins `NO CHANGE:` although the run pushed commits (7.5) reads as an
 answer too; it changes nothing, the push preceding it, so every review
 of the new head follows both. It takes the pull request back to review as a push
 does: a review of the head counts as on the head only when submitted
-after the newest answer, so both reviewers run again on the unchanged
-head and judge the answer, the pair is complete once both have, and the
+after the newest answer, so the adversary runs again on the unchanged
+head and judges the answer, then the sympathetic reviewer once the
+adversary approves, the pair is complete as on any head, and the
 round counts toward `max_rounds` as any other. Rounds count per pull request, so each slice has
 its own `max_rounds`, and a plan revised after the limit (T11) starts
 the count again.
@@ -2028,7 +2041,8 @@ nothing (the issue's, in a review stage or in
 `swarm:review-3-changes-requested`, but at a question), and the issue
 waits for one it reads, or for `unblock`. At the round limit's second
 note (T11's second time), the maintainer's comment on the pull request
-is the answer: both reviewers review the head again with it and the
+is the answer: the adversary reviews the head again with it, then the
+sympathetic reviewer once the adversary approves, and the
 pair goes on (T9, T10, or the limit again, blocked with a new note);
 `unblock`, which posts on the issue, still refuses there. A block with
 no reconciler note (the flag set by hand) is lifted by no comment. The
@@ -2044,11 +2058,15 @@ comments reopens its head, as the worker's answer without a commit
 does: a review of the head stands only when submitted after the head's
 newest reopening, so in `swarm:review-0-ready` and
 `swarm:review-1-in-progress` both reviewers run again, whichever of them
-the comment names: rule 3 cannot tell whom a comment addresses, and the
+the comment names, in their order: the adversary, then the sympathetic
+reviewer once the adversary approves (a sympathetic review submitted
+after the comment, its run launched before it, stands): rule 3 cannot
+tell whom a comment addresses, and the
 pair is judged on the head together, so a pair completed by one review
 that read the comment and one that did not would decide on half of it.
-One comment costs two runs; the comments posted before the pair
-launches are answered by the same two. The collection completes the
+One comment costs the adversary's run and, when the adversary approves,
+the sympathetic reviewer's; the comments posted before the adversary
+launches are answered by the same runs. The collection completes the
 pair from the reviews after the comment, and the rounds count it as
 any reopening (above); the worker's `## Earlier rounds` line for a
 round so reopened reads `reviewed again after the maintainer's comment`
@@ -2989,9 +3007,12 @@ Which sections a prompt holds, by role:
   that one reviewer alone reviewed is a round here too. Rounds are
   ordered by their first review over the whole pull request and named
   by the head they reviewed, never numbered: the Task text's `This is
-  round <r>` counts the pairs since the accepted plan, which after a
-  plan revision (T11), or once a head was reviewed by one reviewer
-  alone, is another count (decision [90](swarm/decisions/0090-rounds-briefs-and-the-forge.md)).
+  round <r>` counts the rounds on which the pair completed since the
+  accepted plan (section 6: a head the adversary alone sent back is
+  one), which after a plan revision (T11), or once a head was reviewed
+  by one reviewer alone without the pair completing on it (the
+  adversary approving, the head moved before the sympathetic reviewer's
+  review), is another count (decision [90](swarm/decisions/0090-rounds-briefs-and-the-forge.md)).
   - A reviewer's prompt leaves out the **current round** (the head as it
     stands since its newest reopening: the worker's answer without a
     commit or the maintainer's comment, section 6), so the two reads stay
@@ -3928,7 +3949,7 @@ continuations not yet posted there.
 | architect, `plan-1-accepted` (section 6, The rulings) | `Comment(n, <marked text>)`; a revised plan, with the plan gate on, `Relabel(n, "swarm:plan-1-accepted", "swarm:plan-0-posted")` (T27); `STANDS:`, or the gate off, nothing more |
 | worker, `plan-1-accepted` | the worker steps above; `Pulls(n)`: the current pull request open on `swarm/<n>-<s>`, `Comment(m, <posted text>)`; none, `CreatePull(<name>, "swarm/<n>-<s>", <base>, "<issue> slice <s>: <issue title>", <posted text> + "\n\nRefs <issue>")`, `<issue>` being `#<n>` when `<name>` is `forge.repo`'s and `<owner>/<repo>#<n>` otherwise (both skipped when its body carries this run's marker); `Attach(m, <name>, <bytes>)` for each screenshot not yet recorded (The screenshots); `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")` (T8) |
 | worker, `review-3-changes-requested` | the worker steps above; `Comment(m, <posted text>)` and `Attach(m, <name>, <bytes>)` for each screenshot not yet recorded (The screenshots), or with no commit and `NO CHANGE:` `Comment(m, <marked text>)` alone (step 1; but from a start at kept commits not yet on the branch, which has those to push, the steps above, 7.9); `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")` (T12) |
-| adversary or sympathetic, `review-0-ready` or `review-1-in-progress` | `Pulls(n)`; `Review(m, <verdict>, <marked text>)`; `Reviews(m)` and `PullComments(m)`: when both roles have a review on the head since its newest reopening, the worker's answer without a commit or the maintainer's comment (the pair is complete, section 6), then, from `swarm:review-1-in-progress`: both approve, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-2-approved")` (T9); one requests changes and the rounds are below `max_rounds`, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-3-changes-requested")` (T10); one requests changes at `max_rounds` or more, `Comment(n, <reconciler note>)` (the first-time or the second-time note below) and `Relabel(n, "swarm:review-1-in-progress", "swarm:plan-0-posted")` with the plan gate on or `Relabel(n, "swarm:review-1-in-progress", "swarm:proposal-accepted")` with it off, or `Relabel(n, "", "swarm:blocked")`, the stage kept, when the issue thread already holds a round-limit note on this pull request other than this run's own (told by text, below; the own note found on a retried collection does not count) (T11). When the pair is not complete, nothing more: the label stays `review-1-in-progress` |
+| adversary or sympathetic, `review-0-ready` or `review-1-in-progress` | `Pulls(n)`; `Review(m, <verdict>, <marked text>)`; `Reviews(m)` and `PullComments(m)`: when the pair is complete on the head since its newest reopening, the worker's answer without a commit or the maintainer's comment (section 6: the adversary's review requests changes, or both roles have a review), then, from `swarm:review-1-in-progress`: both approve, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-2-approved")` (T9); one requests changes and the rounds are below `max_rounds`, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-3-changes-requested")` (T10); one requests changes at `max_rounds` or more, `Comment(n, <reconciler note>)` (the first-time or the second-time note below) and `Relabel(n, "swarm:review-1-in-progress", "swarm:plan-0-posted")` with the plan gate on or `Relabel(n, "swarm:review-1-in-progress", "swarm:proposal-accepted")` with it off, or `Relabel(n, "", "swarm:blocked")`, the stage kept, when the issue thread already holds a round-limit note on this pull request other than this run's own (told by text, below; the own note found on a retried collection does not count) (T11). When the pair is not complete, nothing more: the label stays `review-1-in-progress` |
 | any role, `BLOCKED:` | the role's text, `Comment(m, <marked text>)` for the worker in `review-3-changes-requested` and the reviewers, `Comment(n, <marked text>)` for the others; `Comment(n, <reconciler note>)`; T22 for a worker and a reviewer; `Relabel(n, "", "swarm:blocked")` (T17) |
 | any run that ends without moving the issue on (a swarm fault, abandoned, stale, discarded with its pull request closed) | T22: `Relabel(n, <in-progress>, <home>)`, `<home>` `swarm:review-0-ready` for a reviewer and the run's label for a worker; nothing for the owner and the architect, whose launch writes no stage |
 
@@ -4267,7 +4288,7 @@ machine's, as the mirrors are: a swarm moved to another machine takes
 | `amendments/<a>.md` | each amendment's text as collected, `<a>` counted from 1 over the job's life, so no file is rewritten; `plan.md` applies those collected since the accepted plan. R5's rule (amendments go into the file) decides which collected text is an amendment and what its text holds; this section fixes only its file, its number and its place, after the plan, in order. Until R5 is built none is written | at the collection of the run whose text it is, before its post | as `plan.md`, which holds them |
 | `slices/<s>/slice.md` | slice s's item under the plan's `## Steps`, whole (its numbered line and the lines under it to the next slice line or the section's end, 7.5, the slices; for the one slice of a plan without slice lines, the whole `## Steps` section), then, after an empty line, its section of `builder.md`: the lines from the first heading `## Slice <s>`, alone or followed by a character that is not a digit, to the next line beginning `## `, each outside a fenced block as the slice lines are; the step alone when there is no builder plan or it has no section for s. Empty lines at either end of each part are dropped, and a `\r` before a line's end, as the plan's other reads drop it | with `plan.md`, and again whenever `builder.md` is replaced, for each slice the plan declares (none for a job with no plan, the fast lane); the directory of a slice a new plan no longer declares is left as it is | the worker (its slice), the reviewers (the current pull request's), the architect |
 | `slices/<s>/kept` | one line, `<n>-worker-<k> <sha>`: the slice's newest worker run, by its end, whose commits Daisy holds and may be built on, and the commit fetched from it; absent while no run of the slice has one | at the collection of each worker run on slice s whose fetched commit is past its `start` (7.6, step 1), whatever its outcome: pushed (the commit then the branch's), failed, blocked, a question, a fault or abandoned (its run ref kept, 7.6 step 2); never for commits that failed the secret check or changed a protected path, which no run builds on (their ref stays for the maintainer, as now): step 2 makes step 3's two checks again before it writes `kept`, so the commits of a run that ended before step 3 (blocked, a question, a fault, abandoned, or failed earlier) are checked too, and a hit leaves `kept` as it was, the run's own failure, if any, unchanged | the worker's launch, for its start (The start, below); the worker and the architect, in `# Job` |
-| `slices/<s>/rounds/<r>.md` | review round r of the slice's pull request, in the form below: its head, its reviews' findings, and the changes since the round before. `<r>` counts the slice's completed rounds from 1, in the order they completed (a round completes with the first review that gives it both roles), over the life of the slice's pull requests (a plan revision does not start it again, as it starts the Task text's `This is round <r>`, 7.4, nor does a new pull request on the slice's branch after one closed), so no file is rewritten | at the collection of the review that completes the round, the pair's second on the head as it stands (section 6), whose collection makes T9, T10 or T11 (section 5); the round's reviews are written to `texts/` with it and not before, so that a reviewer never finds its pair's review of the round it reviews (a review whose round never completes: the `texts/` row) | the worker (the latest), the reviewers (those before the current round; R6's later rounds review the changes since the last from here), the architect (every round) |
+| `slices/<s>/rounds/<r>.md` | review round r of the slice's pull request, in the form below: its head, its reviews' findings, and the changes since the round before. `<r>` counts the slice's completed rounds from 1, in the order they completed (a round completes with the first review after which the pair is complete on it, section 6: the adversary's request for changes, or the review that gives it both roles), over the life of the slice's pull requests (a plan revision does not start it again, as it starts the Task text's `This is round <r>`, 7.4, nor does a new pull request on the slice's branch after one closed), so no file is rewritten | at the collection of the review that completes the round, on the head as it stands (section 6: the adversary's request for changes, or the sympathetic reviewer's review after the adversary approved), whose collection makes T9, T10 or T11 (section 5); the round's reviews are written to `texts/` with it and not before, so that a reviewer never finds its pair's review of the round it reviews (a review whose round never completes: the `texts/` row) | the worker (the latest), the reviewers (those before the current round; R6's later rounds review the changes since the last from here), the architect (every round) |
 | `checks/<sha>.log` | for a head `<sha>` whose check failed (it exited non-zero or timed out, its dependency step failed, or its test services file was refused, 7.6, step 4): the `# Check` line (7.3), then, after an empty line, the whole output as the step wrote it, `<run>/check.out`, `<run>/deps.out` for the dependency step's failure, or the refusal's reason | at the collection of the worker run whose check it is, after step 4, once the whole output has passed the secret check (a hit writes none, and is the failure 7.6 names); from R3 (7.9, built at Step R3-7), of a classified failure run again the rerun's alone, and none for a run that failed *check environment*, which no worker or reviewer sees | the worker, the reviewers and the architect, by the pointer in `# Job` |
 | `texts/<n>-<role>-<k>.md` | each member text Daisy posts for the job, on the issue or one of its pull requests, whole, as Daisy would post it uncut: the run's `out.md` (an answer with the `ANSWER:` Daisy adds, 7.5), then what Daisy writes after it (a worker's check block) | at the collection that posts it, once its secret check has passed and before its post; a review's with its round, above, and a review whose round can no longer complete (before its pair's other review of that head was collected, the pull request's head moved, the pull request was reopened by an answer without a commit or the maintainer's comment, section 6, or it was closed or merged) at the first collection on the issue after that, whatever its role, but for a fault's or an abandoned run's, which post nothing, read from its run's `out.md` as its collection posted it, since no review can then complete its round; a job closed first keeps such a review in its run's `out.md` alone, and a collection writes none whose `out.md` is gone (its run pruned, or collected on another machine), which only a replay takes from its post (Rollout, below) | every role: a member text a prompt shows is read from here, never from its post (The prompt, below); Daisy's own reads of a text past its first lines (7.5) |
 | `built` | nothing: an empty file, whose presence says the workspace is built, its job's runs replayed (Rollout, below) | by the replay alone, last, once every file it writes is written and the issue blocked when its plan is taken cut, so that a replay interrupted is made again whole at the next pass; for a new issue, by its replay over no run before its first launch | `apply`'s pass, which replays a job without it; `swarm merge`, which refuses a job without it, or without its `plan.md`, whose plan the replay would take cut (Rollout; Daisy's own reads); `status` and the verbs that read the workspace, which build it in memory without it |
@@ -6700,10 +6721,12 @@ distinct default the role has had since the defaults were introduced
 (b3ec5eb, Step 1 of the swarm build), oldest first and the current one
 last, from the root's history of that file, each the text `init` wrote,
 byte for byte. The owner has had six, the architect seven, the worker
-four, the adversary five, the sympathetic reviewer four, the QA
-one (talk A17); the last of each but the QA's moved its paths to
-`/job` (Step R1-6 of the plan implementing the 2026-11-19 swarm
-roadmap). A change to a
+four, the adversary five, the sympathetic reviewer five, the QA
+one (talk A17); the last of each but the QA's and the sympathetic
+reviewer's moved its paths to `/job` (Step R1-6 of the plan
+implementing the 2026-11-19 swarm roadmap), and the sympathetic
+reviewer's next-to-last did, its last dropping the reading guide (Step
+R3-10). A change to a
 default appends its hash: `TestDefaultHistoryHoldsEachCurrentDefault`
 fails while a role's current default is not its last entry, so a prompt
 still at the old default is rewritten rather than taken for an edit. No

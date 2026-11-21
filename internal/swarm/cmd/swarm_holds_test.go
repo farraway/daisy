@@ -17,8 +17,8 @@ import (
 
 // The in-progress stages taken back when a run does not move the issue
 // on (section 5): a worker's swarm fault leaves plan-1-accepted, unblocked;
-// the pair's second reviewer failing leaves review-0-ready, blocked, as the
-// first's does;
+// the sympathetic reviewer failing, launched once the adversary approved
+// (decision 163), leaves review-0-ready, blocked, as the adversary's does;
 // an abandoned worker run, whose apply died with the issue at
 // plan-2-in-progress, is restored before the worker runs again; a first
 // reviewer's stale run leaves review-0-ready; and a launch whose relabel
@@ -101,7 +101,8 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 		a.runner.Script(1, "sympathetic", runner.Canned{Out: "Looks fine.\n"}) // no verdict line
 
-		a.pass() // the pair, in one pass
+		a.pass() // the adversary approves
+		a.pass() // the sympathetic reviewer, once the adversary approved, fails
 		r := a.result("1-sympathetic-1")
 		b := a.bodies(1)
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready", forge.Blocked, forge.Gated}) ||
@@ -109,7 +110,7 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 			b[len(b)-1] != mark("reconciler", 1)+"sympathetic run 1 failed: bad verdict (at swarm:review-0-ready). Remove swarm:blocked to resume.\n\ncc @jane" {
 			t.Errorf("%v %q\n%s", got, b, r)
 		}
-		a.forge.Relabel(issue1, forge.Blocked, "") // T18: the second reviewer runs again, from review-0-ready
+		a.forge.Relabel(issue1, forge.Blocked, "") // T18: the sympathetic reviewer runs again alone, from review-0-ready, the adversary's approval standing
 		a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 		a.pass()
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) || !strings.Contains(a.result("1-sympathetic-2"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") {
@@ -177,23 +178,28 @@ func TestSwarmApplyHolds(t *testing.T) {
 		a.pass()
 		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 		a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-		// The adversary's slot busy: the sympathetic reviewer launches
-		// alone and writes review-1-in-progress.
+		// The adversary's slot busy: nothing launches, the sympathetic
+		// reviewer waiting for the adversary's approval (decision 163).
 		release, err := ops.Real().FS().Lock(filepath.Join(a.local, "swarm", "credentials", "openai", "1.lock"), "test")
 		if err != nil {
 			t.Fatal(err)
 		}
 		a.pass()
 		release()
-		a.forge.Relabel(issue1, "", forge.Paused) // paused between the pair's two reviews: the second waits
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready"}) || len(a.runner.Launches()) != 3 {
+			t.Fatalf("the adversary's slot busy: %v\n%s", got, a.stdout.String())
+		}
+		a.pass() // the adversary alone writes review-1-in-progress and approves
+		// Paused between the pair's two reviews: the sympathetic reviewer waits.
+		a.forge.Relabel(issue1, "", forge.Paused)
 		a.pass()
 		a.pass()
 		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress", forge.Paused}) || len(a.runner.Launches()) != 4 ||
-			!strings.Contains(a.result("1-sympathetic-1"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") {
+			!strings.Contains(a.result("1-adversary-1"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") {
 			t.Fatalf("paused mid-pair: %v\n%s", got, a.stdout.String())
 		}
 		a.forge.Relabel(issue1, forge.Paused, "")
-		a.pass() // T9
+		a.pass() // the sympathetic reviewer, once resumed: T9
 		a.forge.Relabel(issue1, "", forge.Paused)
 		a.pass()
 		if ps := a.pulls(1); ps[0].Merged || !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-2-approved", forge.Paused}) {
@@ -261,11 +267,12 @@ func gitRun(args ...string) error {
 	return nil
 }
 
-// The pair's second reviewer, launched on review-1-in-progress (the
-// first's write), takes the issue home to review-0-ready on every path
-// that does not move it on (section 5, T22; section 7.7), the first having
-// approved: its swarm fault, its launch refused by Docker, its clone
-// failing (the first's run took the branch from the mirror), and, its
+// The pair's second reviewer, the sympathetic, launched on
+// review-1-in-progress (the adversary's write) once the adversary
+// approved (decision 163), takes the issue home to review-0-ready on
+// every path that does not move it on (section 5, T22; section 7.7): its
+// swarm fault, its launch refused by Docker, its clone failing (the
+// branch taken from the mirror just before it), and, its
 // run collected by a later pass with launching paused, its stale,
 // discarded and abandoned ends.
 func TestSwarmSecondReviewerGoesHome(t *testing.T) {
@@ -287,7 +294,8 @@ func TestSwarmSecondReviewerGoesHome(t *testing.T) {
 			a.inReview(oneSlice)
 			a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 			a.runner.Script(1, "sympathetic", tc.second(a))
-			a.pass() // the pair, in one pass
+			a.pass() // the adversary approves
+			a.pass() // the sympathetic reviewer, once the adversary approved, on review-1-in-progress
 			r := a.result("1-sympathetic-1")
 			if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-0-ready") || slices.Contains(got, "swarm:review-1-in-progress") || slices.Contains(got, forge.Blocked) ||
 				!strings.Contains(r, "\nlabel swarm:review-1-in-progress\n") || !strings.Contains(r, "\n"+tc.line+"\n") || !strings.Contains(r, home+tc.outcome+"\ncollected\n") {
@@ -299,10 +307,18 @@ func TestSwarmSecondReviewerGoesHome(t *testing.T) {
 	t.Run("its clone failing", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.inReview(oneSlice)
-		a.runner.Script(1, "adversary", runner.Canned{Out: approve, Work: func(string) error {
-			return gitRun("-C", a.state("git/app"), "update-ref", "-d", "refs/heads/swarm/1-1")
-		}})
+		a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+		a.pass() // the adversary approves
+		// The sympathetic reviewer's clone finds no branch in the mirror:
+		// the branch is taken from it just before the clone.
+		mirror := a.state("git/app")
+		a.beforeGit = func(_ string, args []string) {
+			if slices.Contains(args, "clone") && slices.Contains(args, mirror) {
+				gitRun("-C", mirror, "update-ref", "-d", "refs/heads/swarm/1-1")
+			}
+		}
 		a.pass()
+		a.beforeGit = nil
 		r := a.result("1-sympathetic-1")
 		if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-0-ready") || slices.Contains(got, "swarm:review-1-in-progress") ||
 			!strings.HasPrefix(r, "label swarm:review-1-in-progress\nlaunch-failed ") || !strings.Contains(r, "\nfault: clone: ") || !strings.Contains(r, home+"fault\ncollected\n") {

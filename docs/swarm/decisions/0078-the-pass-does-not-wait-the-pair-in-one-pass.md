@@ -37,3 +37,12 @@ a reviewer whose launch had just failed, under the same run number.
 smaller was taken: no stdout line of its own for an `ended` run (its
 result says it), and `status`'s stage times leave it out, as they
 leave an abandoned run, its time being when a pass found it.
+
+**Amended by decision
+[163](0163-the-sympathetic-reviewer-after-the-adversary-approves.md)
+(Step R3-10 of the plan implementing the 2026-11-19 swarm roadmap).**
+The pair no longer launches in one pass: the adversary launches alone,
+and the sympathetic reviewer once the adversary's review of the head
+approves, in the pass that collects that approval; an adversary's
+request for changes completes the pair alone. Rule 2 is still read per
+reviewer, and an issue's roles are still decided once a pass.

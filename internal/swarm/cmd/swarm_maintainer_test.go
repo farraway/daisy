@@ -451,7 +451,7 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 		{"unblock at the round limit", func(m *maintainerWS) {
 			issue("swarm:review-1-in-progress", forge.Blocked)(m)
 			m.forge.Comment(issue1, mark("reconciler", 2)+"Review round 3 of 3 on app#1 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked.")
-		}, swarmUnblock, []string{"1", "go"}, "Error: swarm: #1: blocked at the review round limit, where both reviewers have reviewed the head and swarm:review-1-in-progress runs no one; relabel it on the forge first, swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then unblock it; nothing changed"},
+		}, swarmUnblock, []string{"1", "go"}, "Error: swarm: #1: blocked at the review round limit, where the pair has completed on the head and swarm:review-1-in-progress runs no one; relabel it on the forge first, swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then unblock it; nothing changed"},
 		{"unblock of an issue not blocked", issue("swarm:plan-1-accepted"), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 is not blocked; nothing changed"},
 		{"unblock of an issue blocked before blocked was a flag", issue(forge.Blocked), swarmUnblock, []string{"1", "go"}, "Error: swarm: #1 carries no stage label; nothing changed"},
 		{"block by itself", issue("swarm:plan-1-accepted"), swarmBlock, []string{"1", "--by", "1"}, "Error: swarm: #1 cannot block itself; nothing changed"},

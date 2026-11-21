@@ -75,6 +75,7 @@ func TestSwarmWorkerArtifactsReachThePullAndTheReviewers(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass()
+	a.pass() // the sympathetic reviewer, once the adversary approved
 	for _, role := range []string{"adversary", "sympathetic"} {
 		run := "1-" + role + "-1"
 		prompt := a.file(run, "io/prompt.md")

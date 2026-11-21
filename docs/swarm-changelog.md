@@ -1012,3 +1012,22 @@ they write.
   7.9 (The paths' As built). Decision
   [160](swarm/decisions/0160-one-declared-check-environment.md)'s
   paths, built.
+- 2026-11-21, Step R3-10 of the plan implementing the 2026-11-19 swarm
+  roadmap: the sympathetic reviewer after the adversary approves. On
+  `review-0-ready` the adversary launches alone; the sympathetic
+  reviewer launches on a head once the adversary's review of it
+  approves, in the pass that collects the approval; the adversary's
+  request for changes completes the pair with its one review (T10,
+  T11 at the limit); a round is a head on which the pair is complete,
+  so `max_rounds` counts review cycles as before; the default
+  sympathetic prompt drops its reading guide. Sections 4 (the
+  sympathetic's row and prompt), 5 (the stages, the in-progress
+  stages, T10, T21, Runs that do not move the label), 6 (rule 3's
+  table, the role rule, the rounds, The maintainer's word), 7.3 (the
+  rounds), 7.6 (the reviewers' calls), 7.8 (a round's file) and 11
+  (the defaults' history). Decision
+  [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md),
+  amending decisions
+  [78](swarm/decisions/0078-the-pass-does-not-wait-the-pair-in-one-pass.md)
+  and
+  [14](swarm/decisions/0014-sequential-reviewers-each-blind-to-the-other-on-the-head.md).

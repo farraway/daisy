@@ -690,7 +690,7 @@ func swarmUnblock(c *Context, open opener) error {
 	// refused: either way no role runs.
 	stage, _ := reconcile.StageOf(is)
 	if (stage == forge.ReviewInProgress || stage == forge.ReviewReady) && reconcile.AtTheRoundLimit(is, m.swarm) {
-		return fmt.Errorf("Error: swarm: #%d: blocked at the review round limit, where both reviewers have reviewed the head and %s runs no one; relabel it on the forge first, %s for one more fix round or %s to re-plan, then unblock it; nothing changed", m.n, stage, forge.ChangesRequested, forge.PlanPosted)
+		return fmt.Errorf("Error: swarm: #%d: blocked at the review round limit, where the pair has completed on the head and %s runs no one; relabel it on the forge first, %s for one more fix round or %s to re-plan, then unblock it; nothing changed", m.n, stage, forge.ChangesRequested, forge.PlanPosted)
 	}
 	if cause != "" {
 		if err := m.retag(cause); err != nil {

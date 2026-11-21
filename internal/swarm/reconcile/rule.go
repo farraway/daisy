@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
@@ -76,10 +77,13 @@ type Turn struct {
 // the first of the label's roles that has something to answer (on
 // plan-1-accepted with Replan, the architect's; with Answerer, that
 // role's, at any stage), and in a
-// review stage each reviewer that has (the pair launches in one pass,
-// blind to each other on the head); none when nothing is to answer. A
+// review stage each reviewer that has; none when nothing is to answer. A
 // reviewer has something to answer when it has no review of the head
-// since the head's newest reopening (Reopenings) in the thread. Anything running on the issue holds every role, but in a review
+// since the head's newest reopening (Reopenings) in the thread, and the
+// sympathetic reviewer only once the adversary's newest such review
+// approves (decision
+// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)).
+// Anything running on the issue holds every role, but in a review
 // stage the other reviewer's run, which holds only itself. Rule 1's holds
 // (Held) and rule 4 (paused, max_members, a free slot) are the caller's.
 func Launch(t Turn, swarmLogin string, trusted []string) []string {
@@ -102,22 +106,31 @@ func Launch(t Turn, swarmLogin string, trusted []string) []string {
 		}
 		return nil
 	}
-	reopened := Reopenings(t.Thread, swarmLogin, trusted)
+	verdicts := headVerdicts(t.Reviews, t.Head, Reopenings(t.Thread, swarmLogin, trusted), swarmLogin)
 	var out []string
 	for _, role := range stageRoles[t.Label] {
 		if slices.ContainsFunc(t.Running, func(r string) bool { return r == role || !slices.Contains(stageRoles[t.Label], r) }) {
 			continue
 		}
-		reviewed := false
-		for _, r := range t.Reviews {
-			m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
-			reviewed = reviewed || (ok && m.Role == role && r.Commit == t.Head && standsOnHead(reopened, r.Submitted))
+		if _, reviewed := verdicts[role]; reviewed || role == "sympathetic" && verdicts["adversary"] != "approve" {
+			continue
 		}
-		if !reviewed {
-			out = append(out, role)
-		}
+		out = append(out, role)
 	}
 	return out
+}
+
+// headVerdicts is the verdict of each swarm reviewer's newest review of
+// head standing since the head's newest reopening (answers), by role.
+func headVerdicts(reviews []forge.Review, head string, answers []time.Time, swarmLogin string) map[string]string {
+	verdicts, at := map[string]string{}, map[string]time.Time{}
+	for _, rv := range reviews {
+		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, swarmLogin)
+		if ok && isReviewer(m.Role) && rv.Commit == head && standsOnHead(answers, rv.Submitted) && !rv.Submitted.Before(at[m.Role]) {
+			verdicts[m.Role], at[m.Role] = verdictOf(swarmText(rv.Body)), rv.Submitted
+		}
+	}
+	return verdicts
 }
 
 // answered: an entry of the swarm's marked by role by leaves role nothing

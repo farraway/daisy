@@ -231,6 +231,7 @@ func TestSwarmApplyCommandOnThePullAndPause(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass()
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewApproved, forge.Gated}) {
 		t.Fatalf("not approved: %v", got)
 	}

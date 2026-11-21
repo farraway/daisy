@@ -64,7 +64,8 @@ func (a *applyWS) notMergeable() string {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	head := a.pulls(1)[0].HeadSHA
 	a.land("app", map[string]string{"main.go": "other\n"}, "another slice merged")
 	a.forge.SetMergeable(forge.Ref{Repo: "app", N: 1}, forge.MergeableNo)
@@ -123,10 +124,11 @@ func TestSwarmApplyNotMergeableBackToTheWorker(t *testing.T) {
 	a.forge.SetMergeable(pr, forge.MergeableYes) // the forge's check after the push
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair on the new head: T9
+	a.pass() // the adversary on the new head, approving
 	if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2. First say, for each blocking finding of your review of "+approved) {
 		t.Errorf("the adversary's second round:\n%s", sys)
 	}
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	a.pass() // the merge step: T15
 	ps := a.pulls(1)
 	if is := a.issue(1); is.Open || !ps[0].Merged || ps[0].HeadSHA != head || !strings.Contains(a.stdout.String(), "#1 merged pull app#1 (slice 1 of 1)\n#1 closed (last slice merged)\n") {
@@ -156,7 +158,8 @@ func TestSwarmApplyNotMergeableRetried(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary, approving
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	approved := a.pulls(1)[0].HeadSHA
 	pr := forge.Ref{Repo: "app", N: 1}
 	a.land("app", map[string]string{"main.go": "other\n"}, "another slice merged")
@@ -206,7 +209,8 @@ func TestSwarmMergeStepUnsettled(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary, approving
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	a.forge.SetMergeable(forge.Ref{Repo: "app", N: 1}, forge.MergeableUnknown)
 	a.pass()
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved"}) || len(a.bodies(1)) != 1 ||
@@ -239,7 +243,8 @@ func TestSwarmMergeStepUnsettled(t *testing.T) {
 		a.forge.SetLabel(a.ref(n), "swarm:plan-1-accepted")
 	}
 	a.pass() // the workers
-	a.pass() // the pairs: T9
+	a.pass() // the adversaries, approving
+	a.pass() // the sympathetic reviewers, once the adversaries approved: T9
 	second := a.pulls(2)[0]
 	a.forge.SetMergeable(forge.Ref{Repo: second.Repo, N: second.Number}, forge.MergeableNo)
 	a.pass()
@@ -265,7 +270,8 @@ func TestSwarmMergeStepRecomputing(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary, approving
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	pr := forge.Ref{Repo: "app", N: 1}
 	a.land("app", map[string]string{"other.go": "other\n"}, "another slice merged, touching no file of the slice")
 	a.forge.SetMergeable(pr, forge.MergeableNo)
@@ -296,7 +302,8 @@ func TestSwarmMergeStepSentBackTwice(t *testing.T) {
 	a.pass() // the worker: T12 without a commit
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair on the same head: T9
+	a.pass() // the adversary on the same head, approving
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved"}) || a.pulls(1)[0].HeadSHA != approved {
 		t.Fatalf("approved again: %v\n%s", got, a.stdout.String())
 	}
@@ -340,7 +347,8 @@ func TestSwarmMergeStepMirrorCannotTell(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary, approving
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	pr := forge.Ref{Repo: "app", N: 1}
 	a.forge.SetMergeable(pr, forge.MergeableNo)
 	a.tick()

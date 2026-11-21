@@ -315,7 +315,7 @@ func TestSwarmMaintainerStep29Refusals(t *testing.T) {
 
 	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:review-0-ready", forge.Blocked}) // #2
 	m.forge.Comment(m.ref(2), mark("reconciler", 3)+"Review round 3 of 3 on app#9 requested changes a second time (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked.")
-	if err := m.verb(swarmUnblock, "2", "go"); !strings.HasPrefix(errText(err), "Error: swarm: #2: blocked at the review round limit, where both reviewers have reviewed the head and swarm:review-0-ready runs no one;") || len(m.writes(2)) != 0 {
+	if err := m.verb(swarmUnblock, "2", "go"); !strings.HasPrefix(errText(err), "Error: swarm: #2: blocked at the review round limit, where the pair has completed on the head and swarm:review-0-ready runs no one;") || len(m.writes(2)) != 0 {
 		t.Errorf("unblock at the round limit, at review-0-ready: %v; writes %q", err, m.writes(2))
 	}
 

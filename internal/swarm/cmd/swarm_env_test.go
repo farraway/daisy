@@ -98,6 +98,7 @@ func TestSwarmEnvWithoutDepsOrServices(t *testing.T) {
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass()
+	a.pass() // the sympathetic reviewer, once the adversary approved
 	for _, role := range []string{"adversary", "sympathetic"} {
 		rs := a.launched(role)
 		if len(rs) != 1 || rs[0].Network != "" || !reflect.DeepEqual(rs[0].Env, []string{"TZ=UTC"}) {

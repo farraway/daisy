@@ -627,7 +627,8 @@ func TestSwarmApplyLoopSignalSkipsTheMergeStep(t *testing.T) {
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass() // the pair: T9
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved: T9
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved"}) {
 		t.Fatalf("not approved: %v", got)
 	}

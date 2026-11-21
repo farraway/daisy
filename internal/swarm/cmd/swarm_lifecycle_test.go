@@ -156,9 +156,11 @@ const (
 // (T5), the maintainer accepts (T7), the worker pushes swarm/1-1 and opens
 // app#1 with Refs #1 after its check (T8), the issue at
 // plan-2-in-progress from the worker's launch to its collection, the pair
-// reviews in two rounds (T10, T12, T9), both reviewers launched in one
-// pass and the issue at review-1-in-progress, written once, from the
-// first one's launch until the pair completes, the
+// reviews in two rounds (T10, T12, T9): the adversary alone completing
+// round 1 with its request for changes, and in round 2 the sympathetic
+// reviewer launched only after the adversary's approval, at the next
+// pass, the issue at review-1-in-progress, written once, from the
+// adversary's launch until the pair completes (decision 163), the
 // maintainer merges and relabels plan-1-accepted (T13), and the next slice
 // starts on swarm/1-2. The maintainer's flag rides along: on at the gated
 // stages, proposal-posted, plan-0-posted and review-2-approved, and cleared
@@ -243,15 +245,15 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("T8 through plan-2-in-progress:\n%s", a.stdout.String())
 	}
 
-	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve}, runner.Canned{Out: approve})
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: "VERDICT: approve\n\nThe v2 head reads well.\n"})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	before := len(a.runner.Launches())
-	a.pass() // the pair, round 1, in one pass: T21 by the first launched, then T10
+	a.pass() // round 1: the adversary alone, T21 by its launch, then T10 by its request for changes
 	var roles []string
 	for _, l := range a.runner.Launches()[before:] {
 		roles = append(roles, l.Label)
 	}
-	if !reflect.DeepEqual(roles, []string{"acme/swarm-app#1/adversary", "acme/swarm-app#1/sympathetic"}) {
+	if !reflect.DeepEqual(roles, []string{"acme/swarm-app#1/adversary"}) {
 		t.Errorf("round 1's pass launched %q", roles)
 	}
 	pr = a.pulls(1)[0]
@@ -262,16 +264,11 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("adversary's Task:\n%s", sys)
 	}
 	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-3-changes-requested", forge.ClassArchitecture}) || !strings.Contains(a.result("1-adversary-1"), "\nrelabelled swarm:review-0-ready swarm:review-1-in-progress\n") ||
-		!strings.Contains(a.result("1-sympathetic-1"), "\nlabel swarm:review-1-in-progress\n") || strings.Contains(a.result("1-sympathetic-1"), "relabelled swarm:review-0-ready") ||
-		!strings.Contains(a.result("1-sympathetic-1"), "\nrelabelled swarm:review-1-in-progress swarm:review-3-changes-requested\n") {
-		t.Fatalf("T21 once, then T10: %v\n%s\n%s", labels(a.issue(1)), a.result("1-adversary-1"), a.result("1-sympathetic-1"))
+		!strings.Contains(a.result("1-adversary-1"), "\nrelabelled swarm:review-1-in-progress swarm:review-3-changes-requested\n") || a.result("1-sympathetic-1") != "" {
+		t.Fatalf("T21, then T10 by the adversary alone: %v\n%s\n%s", labels(a.issue(1)), a.result("1-adversary-1"), a.result("1-sympathetic-1"))
 	}
-	if n := slices.Index(a.forge.Events(ref), forge.Event{Actor: "swarm-bot", What: "labeled swarm:review-1-in-progress"}); n < 0 ||
-		slices.Contains(a.forge.Events(ref)[n+1:], forge.Event{Actor: "swarm-bot", What: "labeled swarm:review-1-in-progress"}) {
-		t.Errorf("review-1-in-progress written other than once: %v", a.forge.Events(ref))
-	}
-	if sys := a.file("1-sympathetic-1", "io/prompt.md"); strings.Contains(sys, "says v1; the plan wants v2") {
-		t.Errorf("the sympathetic reviewer read the adversary's review of its head:\n%s", sys)
+	if rvs, _ := a.forge.Reviews(forge.Ref{Repo: "app", N: 1}); len(rvs) != 1 {
+		t.Errorf("round 1's reviews: %+v", rvs)
 	}
 
 	a.runner.Script(1, "worker", runner.Canned{Out: "Now v2.\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v2\n"}, "Say v2"))})
@@ -284,12 +281,37 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		!strings.Contains(cs[0].Body, "**Check:** `make check` on "+pr.HeadSHA[:7]+": exit 0") {
 		t.Fatalf("T12: %v %+v", labels(a.issue(1)), cs)
 	}
-	a.pass() // the pair, round 2: T9
+	events := len(a.forge.Events(ref))
+	a.pass() // round 2: the adversary approves, T21 by its launch
 	if sys := a.file("1-adversary-2", "io/system.md"); !strings.Contains(sys, "This is round 2.") {
 		t.Errorf("round 2's Task:\n%s", sys)
 	}
-	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-2-approved", forge.ClassArchitecture, forge.Gated}) {
-		t.Fatalf("T9: %v", labels(a.issue(1)))
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-1-in-progress", forge.ClassArchitecture}) || a.result("1-sympathetic-1") != "" {
+		t.Fatalf("the adversary's approval leaves review-1-in-progress: %v", labels(a.issue(1)))
+	}
+	before = len(a.runner.Launches())
+	a.pass() // the sympathetic reviewer, once the adversary approved, on review-1-in-progress: T9
+	roles = nil
+	for _, l := range a.runner.Launches()[before:] {
+		roles = append(roles, l.Label)
+	}
+	if !reflect.DeepEqual(roles, []string{"acme/swarm-app#1/sympathetic"}) {
+		t.Errorf("the sympathetic reviewer's pass launched %q", roles)
+	}
+	if !reflect.DeepEqual(labels(a.issue(1)), []string{"swarm:review-2-approved", forge.ClassArchitecture, forge.Gated}) ||
+		!strings.Contains(a.result("1-sympathetic-1"), "\nlabel swarm:review-1-in-progress\n") || strings.Contains(a.result("1-sympathetic-1"), "relabelled swarm:review-0-ready") ||
+		!strings.Contains(a.result("1-sympathetic-1"), "\nrelabelled swarm:review-1-in-progress swarm:review-2-approved\n") {
+		t.Fatalf("T9 by the sympathetic reviewer: %v\n%s", labels(a.issue(1)), a.result("1-sympathetic-1"))
+	}
+	if n := slices.Index(a.forge.Events(ref)[events:], forge.Event{Actor: "swarm-bot", What: "labeled swarm:review-1-in-progress"}); n < 0 ||
+		slices.Contains(a.forge.Events(ref)[events+n+1:], forge.Event{Actor: "swarm-bot", What: "labeled swarm:review-1-in-progress"}) {
+		t.Errorf("review-1-in-progress written other than once in round 2: %v", a.forge.Events(ref))
+	}
+	if sys := a.file("1-sympathetic-1", "io/system.md"); !strings.Contains(sys, "This is round 2.") {
+		t.Errorf("the sympathetic reviewer's Task:\n%s", sys)
+	}
+	if p := a.file("1-sympathetic-1", "io/prompt.md"); strings.Contains(p, "The v2 head reads well") {
+		t.Errorf("the sympathetic reviewer read the adversary's review of its head:\n%s", p)
 	}
 	a.pass() // approved runs nobody
 	on1 := 0
@@ -298,7 +320,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 			on1++
 		}
 	}
-	if on1 != 9 { // the architect, two workers with their checks, two pairs
+	if on1 != 8 { // the architect, two workers with their checks, two adversary runs and one sympathetic
 		t.Errorf("approved launched: %d launches on #1", on1)
 	}
 

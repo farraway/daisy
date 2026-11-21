@@ -154,18 +154,20 @@ func TestSwarmApplyQuestionToTheMaintainer(t *testing.T) {
 	}
 }
 
-// A reviewer's question: the adversary's QUESTION: takes the issue home
-// to review-0-ready with the flag, the sympathetic's review standing; the
+// A reviewer's question: the sympathetic reviewer's QUESTION:, launched
+// once the adversary approved (decision 163), takes the issue home to
+// review-0-ready with the flag, the adversary's review standing; the
 // architect answers it with the pull request in its prompt, and only the
-// adversary runs again, with the answer under # Questions.
+// sympathetic reviewer runs again, with the answer under # Questions.
 func TestSwarmApplyReviewerQuestion(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
-	a.runner.Script(1, "adversary", runner.Canned{Out: "QUESTION: Is v1 the release's name or the file's?\n"})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
-	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewReady, forge.Question}) || a.lastComment(1) != mark("adversary", 1)+"QUESTION: Is v1 the release's name or the file's?\n" {
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: "QUESTION: Is v1 the release's name or the file's?\n"})
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved, asks
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewReady, forge.Question}) || a.lastComment(1) != mark("sympathetic", 1)+"QUESTION: Is v1 the release's name or the file's?\n" {
 		t.Fatalf("labels %v, last %q\n%s", got, a.lastComment(1), a.stdout.String())
 	}
 	a.runner.Script(1, "architect", runner.Canned{Out: "ANSWER: the file's.\n", Stdout: claudeResult})
@@ -179,13 +181,13 @@ func TestSwarmApplyReviewerQuestion(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewReady}) || a.lastComment(1) != mark("architect", 2)+"ANSWER: the file's.\n" {
 		t.Fatalf("labels %v, last %q", got, a.lastComment(1))
 	}
-	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass()
-	if got := a.launchedRoles(); !reflect.DeepEqual(got, []string{"architect", "worker", "check", "adversary", "sympathetic", "architect", "adversary"}) {
+	if got := a.launchedRoles(); !reflect.DeepEqual(got, []string{"architect", "worker", "check", "adversary", "sympathetic", "architect", "sympathetic"}) {
 		t.Fatalf("launched %q\n%s", got, a.stdout.String())
 	}
-	if _, questions, _ := strings.Cut(a.file("1-adversary-2", "io/prompt.md"), "\n# Questions\n\n"); !strings.Contains(questions, "ANSWER: the file's.") {
-		t.Errorf("adversary run 2's # Questions:\n%s", questions)
+	if _, questions, _ := strings.Cut(a.file("1-sympathetic-2", "io/prompt.md"), "\n# Questions\n\n"); !strings.Contains(questions, "ANSWER: the file's.") {
+		t.Errorf("sympathetic run 2's # Questions:\n%s", questions)
 	}
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewApproved, forge.Gated}) {
 		t.Errorf("labels %v", got)

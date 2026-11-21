@@ -567,15 +567,8 @@ func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) err
 	if err := c.writeRound(pull, pulls, reviews, comments, answers); err != nil {
 		return err
 	}
-	pair := map[string]string{}
-	at := map[string]time.Time{}
-	for _, rv := range reviews {
-		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
-		if ok && rv.Commit == pull.HeadSHA && standsOnHead(answers, rv.Submitted) && (m.Role == "adversary" || m.Role == "sympathetic") && !rv.Submitted.Before(at[m.Role]) {
-			pair[m.Role], at[m.Role] = verdictOf(swarmText(rv.Body)), rv.Submitted
-		}
-	}
-	if len(pair) < 2 {
+	pair := headVerdicts(reviews, pull.HeadSHA, answers, s.SwarmLogin)
+	if !pairComplete(pair) {
 		return c.end("posted")
 	}
 	if pair["adversary"] == "approve" && pair["sympathetic"] == "approve" {
@@ -607,7 +600,7 @@ func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) err
 		m, ok := Swarms(Entry{cm.Author, cm.Body, cm.Created}, s.SwarmLogin)
 		t := swarmText(cm.Body)
 		again = again || ok && m.Role == "reconciler" && strings.HasPrefix(t, "Review round ") &&
-			(strings.Contains(t, " on "+on+" requested changes") || strings.Contains(t, " on "+unlinked+" requested changes")) && cm.Body != own[0] && cm.Body != own[1]
+			(strings.Contains(t, " on "+on+" requested changes") || strings.Contains(t, " on "+unlinked+" requested changes")) && !c.ownNote(cm, own[0]) && !c.ownNote(cm, own[1])
 	}
 	if again {
 		// The second time and each after, the stage stays and the issue
@@ -648,29 +641,42 @@ const architectRevises = "The architect revises the plan from the reviews."
 // head, so review-1-in-progress runs no one (section 6).
 const roundLimitAgain = "requested changes again"
 
-// Rounds is a pull request's review rounds (section 6): the heads with a
-// review marked role=adversary and one marked role=sympathetic, a head
+// pairComplete is whether the swarm reviewers' verdicts of one round, by
+// role, complete the pair (section 6; decision
+// [163](docs/swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)):
+// the adversary requested changes, its one review completing it, or
+// both reviewers reviewed.
+func pairComplete(verdicts map[string]string) bool {
+	_, adversary := verdicts["adversary"]
+	_, sympathetic := verdicts["sympathetic"]
+	return verdicts["adversary"] == "request-changes" || adversary && sympathetic
+}
+
+// Rounds is a pull request's review rounds (section 6): the heads on
+// which the pair is complete (pairComplete), a head
 // counted once more for each reopening without a commit (Reopenings,
 // answers: the worker's answers and the maintainer's comments) after
-// which both reviewed it again; counting only reviews submitted after
+// which the pair completed on it again; counting only reviews submitted after
 // since (all of them when since is zero), and not except's since the
 // newest reopening, the head as it stands.
 func Rounds(reviews []forge.Review, answers []time.Time, swarmLogin string, since time.Time, except string) int {
-	by := map[roundKey]map[string]bool{}
+	by := map[roundKey]map[string]string{}
 	for _, r := range reviews {
 		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
 		key := keyOf(r, answers)
-		if !ok || !since.IsZero() && !r.Submitted.After(since) || r.Commit == except && key.answers == len(answers) {
+		if !ok || !isReviewer(m.Role) || !since.IsZero() && !r.Submitted.After(since) || r.Commit == except && key.answers == len(answers) {
 			continue
 		}
 		if by[key] == nil {
-			by[key] = map[string]bool{}
+			by[key] = map[string]string{}
 		}
-		by[key][m.Role] = true
+		if v := verdictOf(swarmText(r.Body)); by[key][m.Role] != "request-changes" {
+			by[key][m.Role] = v
+		}
 	}
 	n := 0
-	for _, roles := range by {
-		if roles["adversary"] && roles["sympathetic"] {
+	for _, verdicts := range by {
+		if pairComplete(verdicts) {
 			n++
 		}
 	}

@@ -168,8 +168,8 @@ func (s *Swarm) writeText(n int, run, text string) error {
 
 // writeReviews writes to texts/ each swarm review on pull request p of
 // issue n held for its round (section 7.8): those of a round that
-// completed, the pair's two reviews on one head (section 6's rounds,
-// roundsOf), and those of a round that can no longer complete, p closed
+// completed, its reviews on one head with the pair complete (section
+// 6's rounds, roundsOf, pairComplete), and those of a round that can no longer complete, p closed
 // or merged, its head moved past the round's or reopened since (answers,
 // Reopenings: none read for a closed p). Each is read from its run's
 // out.md as its collection posted it; one whose out.md is gone, its run
@@ -244,14 +244,17 @@ func (c *collection) writeCheck(head, line, out string) error {
 	return c.s.writeWorkspace(c.r.N, filepath.Join("checks", head+".log"), []byte(text))
 }
 
-// completed is when the round completed, its first review that gives it
-// a review of each of the pair's roles (section 6's rounds), and whether
+// completed is when the round completed, its first review after which
+// the pair is complete (pairComplete, section 6's rounds), and whether
 // it has.
 func (rd round) completed(swarmLogin string) (time.Time, bool) {
-	roles := map[string]bool{}
+	verdicts := map[string]string{}
 	for _, rv := range rd.reviews {
 		m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, swarmLogin)
-		if roles[m.Role] = true; roles["adversary"] && roles["sympathetic"] {
+		if verdicts[m.Role] != "request-changes" {
+			verdicts[m.Role] = verdictOf(swarmText(rv.Body))
+		}
+		if pairComplete(verdicts) {
 			return rv.Submitted, true
 		}
 	}

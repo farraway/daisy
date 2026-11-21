@@ -50,21 +50,25 @@ func TestSwarmApplyBlockAnswered(t *testing.T) {
 
 // The maintainer's word in review (section 6, The maintainer's word): a
 // reviewer's failure blocks the issue at review-0-ready, the
-// sympathetic's approval standing; the maintainer's comment on the issue,
-// which neither reviewer reads, lifts nothing; one on the pull request
-// lifts the block and runs both reviewers again, the standing approval
-// counting no more, so the pair completes on the two new reviews (T10),
-// not on the old approval and the adversary's new one (T9); the
-// worker's earlier rounds then say the maintainer's comment reopened
-// the head.
+// adversary's approval standing (the sympathetic reviewer, launched once
+// it approved, failing; decision 163); the maintainer's comment on the
+// issue, which neither reviewer reads, lifts nothing; one on the pull
+// request lifts the block and runs both reviewers again, the standing
+// approval counting no more: the adversary first, not the sympathetic
+// reviewer alone on the old approval, and the sympathetic reviewer once
+// the adversary's new review approves, so the pair completes on the two
+// new reviews (T10); the worker's earlier rounds then say the
+// maintainer's comment reopened the head.
 func TestSwarmApplyReviewComment(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	pull := forge.Ref{Repo: "app", N: 1}
-	a.runner.Script(1, "adversary", runner.Canned{Out: "VERDICT: approve\n\n[blocking] none.\n"})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: "Looks fine.\n"}) // no verdict line
+
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved, fails
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewReady, forge.Blocked, forge.Gated}) {
 		t.Fatalf("not blocked: %v\n%s", got, a.stdout.String())
 	}
@@ -77,7 +81,11 @@ func TestSwarmApplyReviewComment(t *testing.T) {
 	a.say(pull, "jane", "The plan wants v1; review it against that.")
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: requestChanges})
-	a.pass()
+	a.pass() // the adversary again, its approval before the comment standing no more
+	if got := a.launchedRoles(); !reflect.DeepEqual(got, []string{"architect", "worker", "check", "adversary", "sympathetic", "adversary"}) {
+		t.Fatalf("after jane's pull request comment launched %q\n%s", got, a.stdout.String())
+	}
+	a.pass() // the sympathetic reviewer, once the adversary's new review approved
 	if got := a.launchedRoles(); !reflect.DeepEqual(got, []string{"architect", "worker", "check", "adversary", "sympathetic", "adversary", "sympathetic"}) {
 		t.Fatalf("after jane's pull request comment launched %q\n%s", got, a.stdout.String())
 	}
@@ -101,15 +109,17 @@ func TestSwarmApplyReviewComment(t *testing.T) {
 // A question passed to the maintainer at a review stage (section 6, The
 // question): the asker reads the issue's comments under # Questions, so
 // the maintainer's answer on the issue lifts the block, and only the
-// asker runs again, the sympathetic's approval standing, as unblock's
-// comment would.
+// asker runs again, the other's approval standing, as unblock's
+// comment would. The asker is the sympathetic reviewer, launched once the
+// adversary approved (decision 163), so the adversary's approval stands.
 func TestSwarmApplyQuestionAnsweredInReview(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
-	a.runner.Script(1, "adversary", runner.Canned{Out: "QUESTION: Is v1 the release's name or the file's?\n"})
-	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
-	a.pass()
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: "QUESTION: Is v1 the release's name or the file's?\n"})
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer, once the adversary approved, asks
 	a.runner.Script(1, "architect", runner.Canned{Out: "QUESTION: Does the brief name v1?\n", Stdout: claudeResult})
 	a.pass()
 	a.runner.Script(1, "owner", runner.Canned{Out: "QUESTION: Release or file?\n", Stdout: claudeResult})
@@ -118,13 +128,13 @@ func TestSwarmApplyQuestionAnsweredInReview(t *testing.T) {
 		t.Fatalf("not at the maintainer: %v\n%s", got, a.stdout.String())
 	}
 	a.say(issue1, "jane", "The file's.")
-	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass()
-	if got := a.launchedRoles(); !reflect.DeepEqual(got, []string{"architect", "worker", "check", "adversary", "sympathetic", "architect", "owner", "adversary"}) {
+	if got := a.launchedRoles(); !reflect.DeepEqual(got, []string{"architect", "worker", "check", "adversary", "sympathetic", "architect", "owner", "sympathetic"}) {
 		t.Fatalf("after jane's answer launched %q\n%s", got, a.stdout.String())
 	}
-	if _, questions, _ := strings.Cut(a.file("1-adversary-2", "io/prompt.md"), "\n# Questions\n\n"); !strings.Contains(questions, "The file's.") {
-		t.Errorf("adversary run 2's # Questions:\n%s", questions)
+	if _, questions, _ := strings.Cut(a.file("1-sympathetic-2", "io/prompt.md"), "\n# Questions\n\n"); !strings.Contains(questions, "The file's.") {
+		t.Errorf("sympathetic run 2's # Questions:\n%s", questions)
 	}
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewApproved, forge.Gated}) {
 		t.Errorf("labels %v", got)
