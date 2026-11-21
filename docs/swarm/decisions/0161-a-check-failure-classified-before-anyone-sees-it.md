@@ -27,9 +27,14 @@ first failure is posted, pushed for CI to report or written where a
 member reads. A check, or dependency step, that timed out at the wall
 clock is a check failure too, classified by the signatures alone in the
 output it wrote before it was stopped, since `go test` names no failing
-package for a run it did not end. (*Amended at Step R3-7, on the maintainer's answer of 2026-11-21: for a Go head, one holding a `go.mod`, a `go.work` or a `.go` file, an output naming no failing package is not classified, whatever signature it holds; this decision's As built for that step, below.*) One Docker could not run (a fault
-already) and a test services file refused (the product's file, which
-the worker fixes) are not classified, and are settled as before.
+package for a run it did not end. (*Amended at Step R3-7, on the
+maintainer's answer of 2026-11-21: for a Go head, one holding a
+`go.mod`, a `go.work` or a `.go` file, an output naming no failing
+package is not classified, whatever signature it holds; this
+decision's As built for that step, below.*) One Docker could not run
+(a fault already) and a test services file refused (the product's
+file, which the worker fixes) are not classified, and are settled as
+before.
 
 **A package the change does not touch, for Go.** The swarm's products
 are Go, and `go test` names each failing package on a line of its own,
@@ -37,8 +42,11 @@ are Go, and `go test` names each failing package on a line of its own,
 packages when its output names at least one failing package and every
 one is untouched; a failure that names none (a `gofmt`, `vet` or
 lint step, another language's runner) is the change's unless a
-signature matches. A failing package is mapped to its directory by the
-module path of the root `go.mod` at the head; one outside that module
+signature matches, for another language's head only since Step R3-7
+(for a Go head it is the change's, whatever signature it holds: this
+decision's As built for that step, below). A failing package is
+mapped to its directory by the module path of the root `go.mod` at
+the head; one outside that module
 counts as touched. It is touched when a file the change alters (step
 3's `git diff --name-only <base>...<fetched>`) lies in its directory,
 below it (its `testdata`, an embedded tree, a nested package, so that a
@@ -126,7 +134,11 @@ when no package the change touches fails: a failure whose output names
 a touched failing package is never classified and goes to the worker,
 whatever signature it holds. An output naming no failing package is
 classified by a signature alone, as before, and a timeout likewise
-unless its output already names a touched failing package. (*Amended at Step R3-7, on the maintainer's answer of 2026-11-21: for a Go head, one holding a `go.mod`, a `go.work` or a `.go` file, an output naming no failing package is not classified, whatever signature it holds; this decision's As built for that step, below.*)
+unless its output already names a touched failing package. (*Amended
+at Step R3-7, on the maintainer's answer of 2026-11-21: for a Go head,
+one holding a `go.mod`, a `go.work` or a `.go` file, an output naming
+no failing package is not classified, whatever signature it holds;
+this decision's As built for that step, below.*)
 
 **As built: the classification as a function (Step R3-6 of the plan
 implementing the 2026-11-19 swarm roadmap).** `reconcile.Classify`
