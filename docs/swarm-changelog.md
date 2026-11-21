@@ -985,6 +985,7 @@ they write.
   check's rerun beside a dependency step is the check's alone.
   Sections 1 (the scope's check row), 2, 7.5, 7.6, 7.7, 7.8, 7.9 (the
   opening, the classification) and 11 (apply's stdout), each R3 marker
-  of the rerun now built. Decision
+  of the rerun now built. Decisions
   [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
+  and [162](swarm/decisions/0162-ci-builds-the-declared-image.md)
   amended.

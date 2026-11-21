@@ -120,7 +120,7 @@ output that names no failing package (another language, a `gofmt` or
 `vet` step, the dependency step, a timeout before any package ended)
 has none touched, so a signature alone classifies it as before; a
 timeout whose output already names a touched failing package is the
-worker's. A Go module below the root, or a `go.work`, names packages
+worker's. (*Amended at Step R3-7, on the maintainer's answer of 2026-11-21: for a Go head, one holding a `go.mod`, a `go.work` or a `.go` file, an output naming no failing package is not classified, whatever signature it holds; decision [161](0161-a-check-failure-classified-before-anyone-sees-it.md)'s As built.*) A Go module below the root, or a `go.work`, names packages
 outside the root module, which count as touched, so its failures,
 signature or not, are the worker's: the reading errs toward the
 worker, as decision 161's import reading does. The note a persisting
