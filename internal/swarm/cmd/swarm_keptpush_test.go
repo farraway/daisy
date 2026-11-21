@@ -209,9 +209,9 @@ func TestSwarmKeptStartPushedWithoutNewCommits(t *testing.T) {
 		replayed(t, a, "1-worker-1")
 	})
 
-	// The secret check and protected paths (section 7.6, step 3) read
-	// the kept commits again: a path protected since the kept run is
-	// refused, nothing pushed, the commits held as the run's ref.
+	// Protected paths (section 7.6, step 3) read the kept commits again:
+	// a path protected since the kept run is refused, nothing pushed, the
+	// commits held as the run's ref.
 	t.Run("a protected path since the kept run", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.planned(oneSlice)
@@ -230,6 +230,51 @@ func TestSwarmKeptStartPushedWithoutNewCommits(t *testing.T) {
 		b := a.bodies(1)
 		if note := "Its commits are kept in the swarm's mirror as refs/swarm-runs/1-worker-2."; !strings.Contains(b[len(b)-1], note) {
 			t.Errorf("note %q", b[len(b)-1])
+		}
+		if k, _ := a.jobFile(1, "slices/1/kept"); !strings.HasPrefix(k, "1-worker-1 ") {
+			t.Errorf("kept %q, want the kept run 1-worker-1's", k)
+		}
+	})
+
+	// The secret check reads the kept commits again, with the secret the
+	// run was given: a credential rotated to a value the kept commits
+	// hold is refused, nothing pushed, the commits held as the run's ref.
+	t.Run("a secret since the kept run", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		rotated := "oauth-token-rotated-abcdef0123456789abcdef"
+		a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: which version?\n", Work: in("app", commit(map[string]string{"sub/key.txt": rotated + "\n"}, "Half"))})
+		a.pass()
+		kept := a.keptOf()
+		a.vars["CLAUDE_CODE_OAUTH_TOKEN"] = rotated
+		a.say(issue1, "jane", "v1; half is it.")
+		a.runner.Script(1, "worker", nothing("key.txt as kept is v1's."))
+		a.pass()
+		r := a.result("1-worker-2")
+		inOrder(t, r, "\nunpushed "+kept+"\n", "\nfailed: secret in output: commits\n", "\nkept refs/swarm-runs/1-worker-2\n", "\noutcome failed\n")
+		if strings.Contains(r, "\npushed ") || len(a.pulls(1)) != 0 {
+			t.Errorf("pushed or posted:\n%s", r)
+		}
+		if k, _ := a.jobFile(1, "slices/1/kept"); !strings.HasPrefix(k, "1-worker-1 ") {
+			t.Errorf("kept %q, want the kept run 1-worker-1's", k)
+		}
+	})
+
+	// A question from such a start pushes nothing and holds the commits
+	// as its run's ref, kept still naming the kept run.
+	t.Run("a question", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", half("BLOCKED: which version?\n"))
+		a.pass()
+		kept := a.keptOf()
+		a.say(issue1, "jane", "v1; half is it.")
+		a.runner.Script(1, "worker", runner.Canned{Out: "QUESTION: v1 or v1.0?\n"})
+		a.pass()
+		r := a.result("1-worker-2")
+		inOrder(t, r, "\nunpushed "+kept+"\n", "\nkept refs/swarm-runs/1-worker-2\n", "\noutcome question\n")
+		if strings.Contains(r, "\npushed ") || len(a.pulls(1)) != 0 {
+			t.Errorf("pushed or posted:\n%s", r)
 		}
 		if k, _ := a.jobFile(1, "slices/1/kept"); !strings.HasPrefix(k, "1-worker-1 ") {
 			t.Errorf("kept %q, want the kept run 1-worker-1's", k)

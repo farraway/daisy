@@ -1459,7 +1459,7 @@ nothing: their trigger is the maintainer's decision.
 | T9 | `swarm:review-1-in-progress` | `swarm:review-2-approved` | — | a reviewer's run succeeds and its review completes the pair on the head, both approving | Daisy: `Relabel(n, "swarm:review-1-in-progress", "swarm:review-2-approved")`, from `swarm:review-0-ready` when T21's write was refused |
 | T10 | `swarm:review-1-in-progress` | `swarm:review-3-changes-requested` | — | a reviewer's run succeeds and its review completes the pair on the head, with a request for changes and the rounds below `max_rounds` | Daisy: `Relabel(n, "swarm:review-1-in-progress", "swarm:review-3-changes-requested")`, as T9 |
 | T11 | `swarm:review-1-in-progress` | the architect's stage, `swarm:plan-0-posted` (G2 on) or `swarm:proposal-accepted` (G2 off); the second time the same pull request reaches the limit, `swarm:review-1-in-progress` kept and `swarm:blocked` set | — (the target follows G2) | a reviewer's run succeeds and its review completes the pair on the head, with a request for changes and the rounds at `max_rounds` or more (section 6). The first time, the issue returns to the architect with the rounds as its input: the architect reads the pull request's thread (7.3) and revises the plan, which is accepted as a plan is at that gate (T7, or T6 with G2 off), the worker continues the pull request (section 5), and the rounds count again from the revised plan. The second time is told from the first by the issue thread, which already holds a round-limit note on this pull request other than this run's own, told by its text (7.6), and is the maintainer's (G4) | Daisy: `Comment(n, <reconciler note>)`, then `Relabel(n, "swarm:review-1-in-progress", "swarm:plan-0-posted")` or `Relabel(n, "swarm:review-1-in-progress", "swarm:proposal-accepted")` by G2 (as T9), or `Relabel(n, "", "swarm:blocked")` the second time |
-| T12 | `swarm:plan-2-in-progress`, the worker launched on `review-3-changes-requested` (T20) | `swarm:review-0-ready` | — | the worker's run succeeds (fixes pushed, or no commit and its output's first line begins `NO CHANGE:`, its answer posted on the pull request, 7.6), and the pair reviews the head again (section 6) | Daisy: `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")`, as T8 |
+| T12 | `swarm:plan-2-in-progress`, the worker launched on `review-3-changes-requested` (T20) | `swarm:review-0-ready` | — | the worker's run succeeds (fixes pushed, or no commit and its output's first line begins `NO CHANGE:`, its answer posted on the pull request, 7.6; a run from kept commits not yet on the branch has those to push, and its `NO CHANGE:` is a revision's text, 7.9, The classification), and the pair reviews the head again (section 6) | Daisy: `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")`, as T8 |
 | T13 | `swarm:review-2-approved` | `swarm:plan-1-accepted` | G3 on | the maintainer has merged the current pull request and wants the next slice | the maintainer: `swarm merge <n>`, which merges and then relabels when the plan declares a slice after `<s>` (section 12), or on the forge |
 | T14 | `swarm:review-2-approved` | `swarm:plan-1-accepted` | G3 off | the merge step merges the current pull request (or finds it merged), and the plan declares a slice after `<s>` | Daisy: `Merge(m, <head>)`, then `Relabel(n, "swarm:review-2-approved", "swarm:plan-1-accepted")` |
 | T15 | `swarm:review-2-approved` | closed, `swarm:done` | G3 off | the merge step merges the current pull request (or finds it merged), and `<s>` is the plan's last slice | Daisy: `Merge(m, <head>)`, then `CloseIssue(n)` and `Relabel(n, "swarm:review-2-approved", "swarm:done")` |
@@ -1710,7 +1710,8 @@ request, The maintainer's word, below), counting only reviews submitted after th
 (7.3; all of them when there is no plan). An answer without a commit is
 a comment of the swarm's on the pull request marked `role=worker` whose
 text begins `NO CHANGE:` (7.6): the worker's revision that needs no
-change to the code. The answers are read from the pull request's
+change to the code (a run from kept commits not yet on the branch
+pushes them, its comment then a revision's, 7.9, The classification). The answers are read from the pull request's
 comments alone, by the trigger rule, the collection, the rounds and the
 gate note alike, never from its description. A revision's comment that
 begins `NO CHANGE:` although the run pushed commits (7.5) reads as an
@@ -3779,14 +3780,18 @@ or changed its clone's hook) is reported, `⚠ #<n> worker run <k>: commit
 maintainer, never a failure, since a commit rewritten after the run would
 not be the one the member's report describes. Built with the worker's
 collection (Step 6 of the swarm build); the hook and the identity are
-Step 5's (7.1).
+Step 5's (7.1). A run with no commit past its `start`, one from kept
+commits not yet on the branch among them, has none of its own to
+report: the kept run's collection reported its own (from Step R3-8).
 
 **The screenshots** (Step 38 of the plan remediating the 2026-11-15
 design review; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)). A worker may save screenshots of the
 pages its change alters under `/job/io/artifacts/` (7.4),
 `<run>/io/artifacts/` on the host, which the member wrote and Daisy
 reads as untrusted; without that directory nothing here is done. After
-step 3, before the check, at each collection of a run with commits:
+step 3, before the check, at each collection of a run with commits
+to push (its own, or the kept commits not yet on the branch it started
+from, 7.9, The classification):
 the directory is read with `Lstat`, and one that is not a directory (a
 link among them, wherever it leads) is skipped whole; each entry at its
 top is read with `Lstat` too, so no link is followed and no
@@ -3919,7 +3924,7 @@ continuations not yet posted there.
 | architect, `plan-0-posted` | `Comment(n, <marked text>)` |
 | architect, `plan-1-accepted` (section 6, The rulings) | `Comment(n, <marked text>)`; a revised plan, with the plan gate on, `Relabel(n, "swarm:plan-1-accepted", "swarm:plan-0-posted")` (T27); `STANDS:`, or the gate off, nothing more |
 | worker, `plan-1-accepted` | the worker steps above; `Pulls(n)`: the current pull request open on `swarm/<n>-<s>`, `Comment(m, <posted text>)`; none, `CreatePull(<name>, "swarm/<n>-<s>", <base>, "<issue> slice <s>: <issue title>", <posted text> + "\n\nRefs <issue>")`, `<issue>` being `#<n>` when `<name>` is `forge.repo`'s and `<owner>/<repo>#<n>` otherwise (both skipped when its body carries this run's marker); `Attach(m, <name>, <bytes>)` for each screenshot not yet recorded (The screenshots); `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")` (T8) |
-| worker, `review-3-changes-requested` | the worker steps above; `Comment(m, <posted text>)` and `Attach(m, <name>, <bytes>)` for each screenshot not yet recorded (The screenshots), or with no commit and `NO CHANGE:` `Comment(m, <marked text>)` alone (step 1); `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")` (T12) |
+| worker, `review-3-changes-requested` | the worker steps above; `Comment(m, <posted text>)` and `Attach(m, <name>, <bytes>)` for each screenshot not yet recorded (The screenshots), or with no commit and `NO CHANGE:` `Comment(m, <marked text>)` alone (step 1; but from a start at kept commits not yet on the branch, which has those to push, the steps above, 7.9); `Relabel(n, "swarm:plan-2-in-progress", "swarm:review-0-ready")` (T12) |
 | adversary or sympathetic, `review-0-ready` or `review-1-in-progress` | `Pulls(n)`; `Review(m, <verdict>, <marked text>)`; `Reviews(m)` and `PullComments(m)`: when both roles have a review on the head since its newest reopening, the worker's answer without a commit or the maintainer's comment (the pair is complete, section 6), then, from `swarm:review-1-in-progress`: both approve, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-2-approved")` (T9); one requests changes and the rounds are below `max_rounds`, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-3-changes-requested")` (T10); one requests changes at `max_rounds` or more, `Comment(n, <reconciler note>)` (the first-time or the second-time note below) and `Relabel(n, "swarm:review-1-in-progress", "swarm:plan-0-posted")` with the plan gate on or `Relabel(n, "swarm:review-1-in-progress", "swarm:proposal-accepted")` with it off, or `Relabel(n, "", "swarm:blocked")`, the stage kept, when the issue thread already holds a round-limit note on this pull request other than this run's own (told by text, below; the own note found on a retried collection does not count) (T11). When the pair is not complete, nothing more: the label stays `review-1-in-progress` |
 | any role, `BLOCKED:` | the role's text, `Comment(m, <marked text>)` for the worker in `review-3-changes-requested` and the reviewers, `Comment(n, <marked text>)` for the others; `Comment(n, <reconciler note>)`; T22 for a worker and a reviewer; `Relabel(n, "", "swarm:blocked")` (T17) |
 | any run that ends without moving the issue on (a swarm fault, abandoned, stale, discarded with its pull request closed) | T22: `Relabel(n, <in-progress>, <home>)`, `<home>` `swarm:review-0-ready` for a reviewer and the run's label for a worker; nothing for the owner and the architect, whose launch writes no stage |
@@ -5311,7 +5316,8 @@ before, a branch holding the kept commit with no pull request open (a
 push by hand) among them: the issue is blocked for the maintainer,
 where opening a pull request on commits no run pushed was the
 alternative. The kept commits are pushed and posted as any run's: the
-secret check and protected paths (step 3), the check, the push, the
+secret check and protected paths (step 3), the screenshots (The
+screenshots), the check, the push, the
 pull request opened on them or moved forward to them, the report with
 its check block, then T8 or T12; a `NO CHANGE:` first line on
 `review-3-changes-requested` is then a revision's text, not an answer

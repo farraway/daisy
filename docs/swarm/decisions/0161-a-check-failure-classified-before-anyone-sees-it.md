@@ -229,8 +229,8 @@ Step 12 checkpoint ("a kept start pushed without new commits stands"),
 a worker run that starts from kept commits not yet on the slice's
 branch, decided at its launch from the branch as the pass fetched it
 and recorded as `unpushed <sha>`, and that adds none, is collected as
-a run with commits: the secret check and protected paths, the check,
-the push and its report. Reading the mirror at the collection was the
+a run with commits: the secret check and protected paths, the
+screenshots, the check, the push and its report. Reading the mirror at the collection was the
 alternative; a collection retried after its own push would then find
 the commits on the branch and fail *no commits*. A `NO CHANGE:` first
 line from such a start is a revision's text, the kept commits pushed,
