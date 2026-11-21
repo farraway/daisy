@@ -68,6 +68,7 @@ func (a *applyWS) signalAt(last int, step func(pass int)) {
 // and was collected, with the lock still held, the same arguments, a
 // stdout line and a journal line.
 func TestSwarmApplyRestartsOntoANewBuild(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	a.forge.CreateIssue("Long", "x", []string{"swarm:proposal-accepted"})
@@ -115,6 +116,7 @@ func TestSwarmApplyRestartsOntoANewBuild(t *testing.T) {
 // removes it and re-executes the build at the same path, unchanged, and
 // the process it starts does not take the request again.
 func TestSwarmRestartRequested(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	if err := a.verb(SwarmRestart); err != nil || a.stdout.String() != "Restart requested ("+a.state("restart")+"): the running apply re-executes itself at its first pass with no member running\n" {
 		t.Fatalf("restart: %v %q", err, a.stdout.String())
@@ -158,6 +160,7 @@ func TestSwarmRestartRequested(t *testing.T) {
 // The same build written again (a rebuild of the same source): its
 // modification time changes, its content does not, and no pass restarts.
 func TestSwarmApplyRestartNotOnTheSameBuild(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	a.signalAt(4, func(pass int) {
@@ -177,6 +180,7 @@ func TestSwarmApplyRestartNotOnTheSameBuild(t *testing.T) {
 // loop goes on from the build it started with, and that build is not
 // tried again at the next idle pass.
 func TestSwarmApplyRestartExecFails(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	var execs []exec
@@ -216,6 +220,7 @@ func TestSwarmApplyRestartExecFails(t *testing.T) {
 // does (rule 2's holders): while its comment cannot be posted, no pass
 // re-executes.
 func TestSwarmApplyRestartWaitsForTheCollection(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
@@ -253,6 +258,7 @@ func (r signalledAtIdle) Running() ([]runner.Running, error) {
 // request kept for the next apply, and the drain at once, without
 // waiting out the interval.
 func TestSwarmApplyRestartSignalled(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	if err := a.verb(SwarmRestart); err != nil {
 		t.Fatal(err)

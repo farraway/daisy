@@ -29,6 +29,7 @@ func (a *applyWS) planned(plan string) {
 // 7.1, 7.7 and 7.8, The run's folder), so the worker launches and finds
 // the file as its tree holds it.
 func TestSwarmApplyProductFileNamedAsAMountPoint(t *testing.T) {
+	t.Parallel()
 	for _, point := range []string{".swarm", ".notes", ".resources"} {
 		t.Run(point, func(t *testing.T) {
 			a := newApplyWS(t) // docs/ its one resource
@@ -64,6 +65,7 @@ func TestSwarmApplyProductFileNamedAsAMountPoint(t *testing.T) {
 // stage in the note, and a failed worker's commits kept in the mirror;
 // then T18, the flag removed, runs the role again.
 func TestSwarmApplyWorkFailures(t *testing.T) {
+	t.Parallel()
 	secret := "oauth-token-0123456789abcdef0123456789"
 	for _, tc := range []struct {
 		name   string
@@ -213,6 +215,7 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 // The trailer (section 7.6): a commit the member made without its hook is
 // reported on stderr and as `unstamped <sha>`, and pushed as it is.
 func TestSwarmApplyReportsAnUnstampedCommit(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "Done.\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "Unhooked", "--no-verify"))})
@@ -232,6 +235,7 @@ func TestSwarmApplyReportsAnUnstampedCommit(t *testing.T) {
 // worker's commit is pushed without a Co-Authored-By line, and nothing is
 // reported unstamped.
 func TestSwarmApplyEmptyCoAuthor(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		w := c.Personas["worker"]
@@ -250,6 +254,7 @@ func TestSwarmApplyEmptyCoAuthor(t *testing.T) {
 // A secret read from the slot when docker run returned (a refresh during
 // the run) is refused in a reviewer's out.md: nothing posted.
 func TestSwarmApplySecretFromTheSlotAtReturn(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	refreshed := "refreshed-access-token-0123456789abcdefghij"
@@ -269,6 +274,7 @@ func TestSwarmApplySecretFromTheSlotAtReturn(t *testing.T) {
 // A slot without a login is its run's fault, met at the launch that needs
 // the slot, so a pass on other providers is unaffected.
 func TestSwarmApplyFaults(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
 	os.Remove(filepath.Join(slot, "auth.json"))
@@ -332,6 +338,7 @@ func (a *applyWS) collectedRun(name, end, reason string) {
 // newer was collected in a fault by this process: a fault this process
 // collects that ended before two others did pauses nothing.
 func TestSwarmFaultPauseOrder(t *testing.T) {
+	t.Parallel()
 	noLogin := func(a *applyWS) {
 		os.Remove(filepath.Join(a.local, "swarm", "credentials", "openai", "1", "auth.json"))
 		a.edit(func(c *declare.Config) {
@@ -378,6 +385,7 @@ func TestSwarmFaultPauseOrder(t *testing.T) {
 // Two faults in a row within one pass pause the swarm at once: the pass
 // launches nothing after them.
 func TestSwarmApplyFaultsInOnePass(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
@@ -401,6 +409,7 @@ func TestSwarmApplyFaultsInOnePass(t *testing.T) {
 // owner.max_open_proposals; a batch that writes BLOCKED:, proposes
 // nothing or fails holds the batch, and a fault does not.
 func TestSwarmApplyBatchTrigger(t *testing.T) {
+	t.Parallel()
 	t.Run("no active brief", func(t *testing.T) {
 		a := newApplyWS(t)
 		os.Remove(a.state("owner-held"))
@@ -494,6 +503,7 @@ func TestSwarmApplyBatchTrigger(t *testing.T) {
 // hold, with a journal line, and runs the batch, no resume needed; a
 // named issue already closed, or none, is not waited on.
 func TestSwarmApplyBatchReleasedByItsIssues(t *testing.T) {
+	t.Parallel()
 	t.Run("released at the pass its issues are closed", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.forge.CreateIssue("Library", "x", nil)
@@ -588,6 +598,7 @@ func TestSwarmApplyBatchReleasedByItsIssues(t *testing.T) {
 // abandoned; one whose container has outlived timeout is stopped, then
 // abandoned; one within its time is left running.
 func TestSwarmApplyAbandonedAndOrphans(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	for run, started := range map[string]string{"1-architect-1": "2026-11-06T14:59:00Z", "2-architect-1": "2026-11-06T14:00:00Z", "3-architect-1": "2026-11-06T14:59:00Z"} {
 		os.MkdirAll(a.state("runs/"+run+"/work"), 0o755)
@@ -610,6 +621,7 @@ func TestSwarmApplyAbandonedAndOrphans(t *testing.T) {
 // pass would have, its comment posted once and its issue moved on, not
 // abandoned; the role rule launches nothing more for it.
 func TestSwarmApplyCollectsARunAnotherApplyStarted(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	run := a.state("runs/1-architect-1")
@@ -639,6 +651,7 @@ func TestSwarmApplyCollectsARunAnotherApplyStarted(t *testing.T) {
 // failed or faulted already is blocked the same way, its note naming its
 // own failure and then the fetch's.
 func TestSwarmApplyFetchFailsTwice(t *testing.T) {
+	t.Parallel()
 	unreadable := func(work string) error {
 		work = filepath.Join(work, "app") // the checkout, under /job/work
 		if err := commit(map[string]string{"main.go": "v1\n"}, "v1")(work); err != nil {

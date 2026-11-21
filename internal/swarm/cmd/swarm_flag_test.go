@@ -69,6 +69,7 @@ func (a *applyWS) waitingSet() ([]int, string) {
 // pass; and status's Waiting line names exactly the open issues that
 // carry it.
 func TestSwarmApplyGatedFlag(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
 	for _, l := range forge.Stages { // #1 proposal-posted … #9 review-3-changes-requested
@@ -168,6 +169,7 @@ const gatePlan = `## Research
 // one; no note wakes a role, and status's Waiting line still names
 // exactly the flagged issues.
 func TestSwarmApplyGateNotes(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
 	a.forge.CreateIssue("Drift check", mark("owner", 1)+"Brief: docs/briefs/a.md — M1 The drift\nAfter #2 lands; not acme/lib#9 nor #1.\n", []string{"swarm:proposal-posted"}) // #1
@@ -253,6 +255,7 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 // that finds nothing new posts none; a blocked issue gets none, the note
 // that blocked it being the word.
 func TestSwarmApplyGateNoteOnEachGating(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
 	a.forge.CreateIssue("Planned", "Plan it.", []string{"swarm:plan-0-posted"}) // #1
@@ -300,6 +303,7 @@ func TestSwarmApplyGateNoteOnEachGating(t *testing.T) {
 // hand; the blocked gate's own earlier note tells nothing (a verb that
 // clears the flag of an issue still blocked).
 func TestSwarmApplyBlockedGateNote(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
 	long := "worker run 1 failed: " + strings.Repeat("x", 130)
@@ -364,6 +368,7 @@ func TestSwarmApplyBlockedGateNote(t *testing.T) {
 // or only a terminal is no swarm issue: nothing launches on it, no warning
 // names it, and status counts it under no stage.
 func TestSwarmFlagAndTerminalsAreNoStage(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Idea", mark("owner", 1)+"Do it.", []string{"swarm:proposal-posted", forge.Gated}) // #1
 	a.forge.Say(issue1, "jane", "Which file?")
@@ -401,6 +406,7 @@ func TestSwarmFlagAndTerminalsAreNoStage(t *testing.T) {
 // their closes leave a terminal in the stage's place and no flag: close is
 // swarm:rejected, merge of the last slice swarm:done.
 func TestSwarmMaintainerFlagAndTerminals(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"a", []string{"swarm:proposal-posted", forge.Gated})
 	const head = "Maintainer jane on acme/swarm-app\n"
@@ -431,6 +437,7 @@ func TestSwarmMaintainerFlagAndTerminals(t *testing.T) {
 // lists of closed ones: the batch prompt's Recently closed names it with
 // its terminal.
 func TestSwarmBatchReadsTheTerminals(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	for _, l := range []string{forge.Done, forge.Rejected} {
 		n, _ := a.forge.CreateIssue("Closed "+l, "", []string{l})
@@ -452,6 +459,7 @@ func TestSwarmBatchReadsTheTerminals(t *testing.T) {
 // plan run's io/builder.md; with none, a line saying so and what each
 // slice's worker is then given.
 func TestPlanGateNoteNamesTheBuilderPlan(t *testing.T) {
+	t.Parallel()
 	builder := "# Builder plan\n\n## Slice 1\n\nEdit main.go: print v1.\n\n## Slice 2\n\nWrite notes.md.\n"
 	size := strconv.Itoa(len(builder))
 	a := newApplyWS(t)

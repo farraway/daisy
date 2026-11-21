@@ -32,6 +32,7 @@ func notesOf(sys string) []string {
 // repos' order; a file absent at the pass's commit, or a link there, adds
 // nothing.
 func TestSwarmRepositoryNotes(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.write("repos/app.md", "# App\n\nApp's notes.\n")
 	a.write("repos/lib.md", "# Lib\n\nLib's notes.\n\n## Testing\n\nRun go test.\n")
@@ -100,6 +101,7 @@ func TestSwarmRepositoryNotes(t *testing.T) {
 // declares them; a second run keeps every one, a maintainer's edit
 // included.
 func TestSwarmInitSeedsRepositoryNotes(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	pushFiles(t, s.upstreams["git@forge.example.net:acme/app.git"], map[string]string{"AGENTS.md": "# App\n", "CLAUDE.md": "# App\n"})
 	if err := s.run("--defaults"); err != nil {
@@ -149,6 +151,7 @@ func TestSwarmInitSeedsRepositoryNotes(t *testing.T) {
 // changes, then, once a commit and a push clear it, `✓ Drift cleared`
 // once; nothing changes an exit code.
 func TestSwarmDrift(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	if err := a.status(a.forge); err != nil || strings.Contains(a.stderr.String(), "Drift") {
 		t.Fatalf("status with nothing drifting: %v\n%s", err, a.stderr.String())

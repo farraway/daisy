@@ -45,6 +45,7 @@ func (a *applyWS) milestoneOf(n int) string {
 // A second pass writes nothing and leaves the milestone the maintainer
 // moved an issue to; a paused pass mirrors too.
 func TestSwarmApplyMilestones(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "# A\n\nStatus: active\n\n## M1 First\n\n```\n## not a milestone\n```\n\n## M2 Second\n")
 	a.write("docs/briefs/b.md", "# B\n\nStatus: active\n\n## M1 Only\n")
@@ -114,6 +115,7 @@ func TestSwarmApplyMilestones(t *testing.T) {
 // the issues) is a warning each pass, never a fault or an exit code: the
 // pass goes on and nothing is paused.
 func TestSwarmApplyMilestonesRefused(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "Status: active\n\n## M1\n\n## M2\n")
 	a.publish("briefs")
@@ -160,6 +162,7 @@ func (f countingForge) Issues(s forge.State, label string) ([]forge.Issue, error
 // milestone a brief gained meanwhile, reads them again and puts the
 // closed issue naming it in it. Each pass begins with NewPass.
 func TestSwarmApplyLoopMilestonesReadClosedOnce(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "Status: active\n\n## M1\n")
 	a.publish("briefs")

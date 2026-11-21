@@ -39,6 +39,7 @@ func (a *applyWS) autoNotes(n int) []string {
 // architecture one, triaged, waits again at the plan gate. status names
 // each waiting issue's class and counts the two auto passes.
 func TestSwarmApplyRoutineJob(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nFirst.\n\n## M1 The drift\n\nA persona sees no drift.\n")
 	a.release()
@@ -121,6 +122,7 @@ func TestSwarmApplyRoutineJob(t *testing.T) {
 // is answered by the architect before Daisy passes the plan gate on the
 // revision; a paused routine job, or a paused swarm, is not passed.
 func TestSwarmApplyRoutineWaitsForItsRole(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.MaxRounds = 1 })
 	a.forge.CreateIssue("Drift check", mark("owner", 1)+"Brief: docs/briefs/a.md — M1\nClass: routine\nCheck it.", []string{"swarm:proposal-accepted"})
@@ -169,6 +171,7 @@ func TestSwarmApplyRoutineWaitsForItsRole(t *testing.T) {
 // `Class: routine` (as `swarm class` posts it) wakes no role, and the
 // next pass passes the triage gate, clearing the flag.
 func TestSwarmApplyMaintainerFiledClass(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.As(forge.Account{Login: "jane"}).CreateIssue("Fix the typo", "The README says teh.", []string{"swarm:proposal-posted"})
 	a.runner.Script(1, "owner", runner.Canned{Out: "Worth doing: one line.\n"})
@@ -194,6 +197,7 @@ func TestSwarmApplyMaintainerFiledClass(t *testing.T) {
 // architecture job the maintainer triaged, flagged or unclassed, does not
 // count.
 func TestSwarmBatchCountsRoutineProposals(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Owner.MaxOpenProposals = 2 })
 	routine := func(title string) string {
@@ -225,6 +229,7 @@ func TestSwarmBatchCountsRoutineProposals(t *testing.T) {
 // classes is usage, and a routine
 // statement by a login not in trusted is refused before any write.
 func TestSwarmMaintainerClass(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"Brief: docs/briefs/m0.md — First\nClass: routine\nPin it.", []string{"swarm:proposal-posted"})
 	head := "Maintainer jane on acme/" + m.iss() + "\n"

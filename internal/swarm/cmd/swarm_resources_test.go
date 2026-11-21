@@ -81,6 +81,7 @@ func tree(t *testing.T, dir string) map[string]string {
 // once the run is collected; status reads the briefs in the mirror as the
 // last pass fetched it.
 func TestSwarmMembersReadPushedContent(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	up := a.upstreams[swarmURL]
 	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nv1\n\n## M1 The drift\n")
@@ -161,6 +162,7 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 // mounted holds one as a regular file (a link, or one pushed after the
 // pin, is none), and its note.
 func TestSwarmResourcesAtTheirCommits(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	libHead := pushFiles(t, a.upstream("lib"), map[string]string{"guide/x.md": "# Guide\n", "guide/link": "-> ../README.md", "guide/README.md": "-> x.md",
 		"guide/b.md": "# B\n\nStatus: active\n\n## M1 Lib\n", "other.md": "not a resource\n"})
@@ -248,6 +250,7 @@ func TestSwarmResourcesAtTheirCommits(t *testing.T) {
 // its fetch did not bring each refuse the launch as a fault naming
 // section 3's field, nothing launched and the run collected.
 func TestSwarmResourceRefused(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		edit func(a *applyWS, c *declare.Config)
@@ -302,6 +305,7 @@ func TestSwarmResourceRefused(t *testing.T) {
 // step leaves the issue out of the brief's milestone, and a Met: line
 // naming it so marks no brief met in status.
 func TestSwarmOldBriefPathRetired(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\n\n## M1 The drift\n")
 	a.publish("brief")

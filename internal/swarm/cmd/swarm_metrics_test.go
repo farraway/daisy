@@ -81,6 +81,7 @@ func promptHash(t *testing.T, a *applyWS, run string) string {
 // estimate at the model's list price; `status` counts one run without a
 // cost.
 func TestSwarmApplyRecordsEachRun(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
@@ -155,6 +156,7 @@ func TestSwarmApplyRecordsEachRun(t *testing.T) {
 // 86625 uncached at $2, 3390208 cached at $0.10 and 12969 out at $10 per
 // million: $0.641961.
 func TestSwarmApplyPricesCachedInputApart(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.edit(func(c *declare.Config) {
@@ -195,6 +197,7 @@ func TestSwarmApplyPricesCachedInputApart(t *testing.T) {
 // the run's end, its exited line's time, as a backfill dates it, though
 // its check ran a minute past it; the journal line by its collection.
 func TestSwarmApplyRecordsWorkerLinesAndReviewRounds(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.planned(oneSlice)
@@ -274,6 +277,7 @@ func lineOf(result, prefix string) string {
 // home in <state>/home; a second init keeps the file as the maintainer
 // left it (section 2).
 func TestSwarmInitRecordsTheWorkspacesHome(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	os.MkdirAll(filepath.Join(s.dir, ".daisy"), 0o755)
 	os.WriteFile(filepath.Join(s.dir, ".daisy", "home"), []byte("testhome\n"), 0o644)
@@ -300,6 +304,7 @@ func TestSwarmInitRecordsTheWorkspacesHome(t *testing.T) {
 // never written through: the lines kept again (section 7.6, The run's
 // record).
 func TestSwarmJournalKeptForTheNextPass(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	up := a.upstreams[swarmURL]
 	refuse := filepath.Join(t.TempDir(), "refuse")
@@ -382,6 +387,7 @@ func (a *applyWS) oldRun(run string, wrapped bool, cli, result string) {
 // estimate; a run not collected gets none; the rows' costs sum to
 // status's; a second backfill writes nothing.
 func TestSwarmMetricsBackfill(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
@@ -505,6 +511,7 @@ func TestSwarmMetricsBackfill(t *testing.T) {
 // line cells empty and a note, and a warning; with no <state>/home the
 // backfill is refused, nothing written.
 func TestSwarmMetricsBackfillGoneShasAndNoHome(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	gone := strings.Repeat("ab", 20)
@@ -556,6 +563,7 @@ func (a *applyWS) metricsVerb(flags ...string) error {
 // swarm roadmap (L381): the codex row's notes, recorded before Step 28
 // with `3390208 cached input`, lose that part once tokens_cached holds it.
 func TestSwarmMetricsReprice(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	csvFile := filepath.Join(home, "metrics", "metrics.csv")
@@ -658,6 +666,7 @@ func TestSwarmMetricsReprice(t *testing.T) {
 // other cell carried over; each approving review's effect is 0, the
 // worker's row has none; `daisy metrics` sums them by role and model.
 func TestSwarmApplyRecordsReviewEffect(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.inReview(oneSlice)
@@ -724,6 +733,7 @@ func TestSwarmApplyRecordsReviewEffect(t *testing.T) {
 // a second reprice writes nothing; an unknown effect keeps one set by
 // hand.
 func TestSwarmMetricsRepriceReviewEffect(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	csvFile := filepath.Join(home, "metrics", "metrics.csv")
@@ -797,6 +807,7 @@ func TestSwarmMetricsRepriceReviewEffect(t *testing.T) {
 // the lines (an architect's QUESTION: on a stage that reads no question
 // is its plan). Every Task text asks for the line.
 func TestSwarmApplyRecordsTheStopsCause(t *testing.T) {
+	t.Parallel()
 	warning := `⚠ #1 worker run 1: cause left empty: "whim" is not one of plan, prerequisite, main-red, environment, forge-fact, kept-work, ruling, scope, capacity` + "\n"
 	for _, tc := range []struct {
 		name, out, outcome, cause, stderr string
@@ -885,6 +896,7 @@ const causeSentence = "Write one line `Cause: <word>` under any line beginning `
 // `scope`; an architect's bad slices `plan`; a failure no word names (a
 // non-zero exit) none.
 func TestSwarmApplyRecordsDaisysOwnCause(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, role   string
 		canned       runner.Canned
@@ -937,6 +949,7 @@ func TestSwarmApplyRecordsDaisysOwnCause(t *testing.T) {
 // anything is written; a block no run's collection set (by hand) is
 // refused, nothing changed.
 func TestSwarmUnblockRetagsTheCause(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.planned(oneSlice)

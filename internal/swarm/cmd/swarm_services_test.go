@@ -52,6 +52,7 @@ func inOrder(t *testing.T, r string, lines ...string) {
 // has ended, failing or timed out, the services and the network are
 // gone (the Fake refuses a network's removal while its check runs).
 func TestSwarmServicesBesideTheCheck(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		canned runner.Canned
@@ -100,6 +101,7 @@ func TestSwarmServicesBesideTheCheck(t *testing.T) {
 // worker launched on Docker's default network without variables, and
 // the check offline as before (its argv is TestSwarmCheckWithoutDepsUnchanged's).
 func TestSwarmNoServicesFile(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
@@ -120,6 +122,7 @@ func TestSwarmNoServicesFile(t *testing.T) {
 // a check's for the reviewers. A file the repository's services field
 // names is read in place of compose.test.yaml.
 func TestSwarmServicesRefused(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	refused := "services:\n  mongo:\n    image: mongo:7\n    ports: ['27017:27017']\n"
@@ -156,6 +159,7 @@ func TestSwarmServicesRefused(t *testing.T) {
 // worker's launch, a launch's; at the check, as a check that cannot
 // start; nothing posted, T22, and what was made of them taken down.
 func TestSwarmServicesCannotStart(t *testing.T) {
+	t.Parallel()
 	missing := errors.New("redis: docker: Error response from daemon: No such image: redis:7.")
 	t.Run("worker", func(t *testing.T) {
 		a := newApplyWS(t)
@@ -189,6 +193,7 @@ func TestSwarmServicesCannotStart(t *testing.T) {
 // them down before it starts the check again beside new ones, and takes
 // those down once it has ended (section 7.6, step 4).
 func TestSwarmServicesRestartedAfterTheirApplyDied(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.land("app", map[string]string{"compose.test.yaml": gridappFile}, "test services")

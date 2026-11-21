@@ -54,6 +54,7 @@ func (a *applyWS) orphanWorker(more ...string) string {
 // and its clone removed though the member left a directory in it that
 // cannot be read.
 func TestSwarmAbandonedWorkerKeepsItsCommits(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	head := a.orphanWorker()
@@ -81,6 +82,7 @@ func TestSwarmAbandonedWorkerKeepsItsCommits(t *testing.T) {
 // mid-run): nothing kept, the warning, and the run still collected and
 // its issue taken back (section 7.7).
 func TestSwarmAbandonedWorkerWithoutItsBranch(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.orphanWorker()
@@ -103,6 +105,7 @@ func TestSwarmAbandonedWorkerWithoutItsBranch(t *testing.T) {
 // second failure in a row keeps nothing, with the warning, and the run is
 // collected (7.7, abandoned).
 func TestSwarmAbandonedWorkerFetchRetried(t *testing.T) {
+	t.Parallel()
 	for _, mended := range []bool{true, false} {
 		t.Run(map[bool]string{true: "mended", false: "failing again"}[mended], func(t *testing.T) {
 			a := newApplyWS(t)
@@ -138,6 +141,7 @@ func TestSwarmAbandonedWorkerFetchRetried(t *testing.T) {
 // being done: the log's error is the pass's, and the next pass collects
 // the run (section 7.6, steps 1 and 2).
 func TestSwarmAbandonedWorkerKeepsWhatItFetched(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	head := a.orphanWorker()
@@ -168,6 +172,7 @@ func TestSwarmAbandonedWorkerKeepsWhatItFetched(t *testing.T) {
 // io/exit, whatever out.md holds; a run launched before the mark, by its
 // out.md.
 func TestSwarmOrphanEndedByTheExitMark(t *testing.T) {
+	t.Parallel()
 	marked := strings.Join(append([]string{"docker", "run"}, exitPrefix...), "\n") + "\nclaude\n"
 	for _, tc := range []struct {
 		name, argv, exit, out string
@@ -223,6 +228,7 @@ func TestSwarmOrphanEndedByTheExitMark(t *testing.T) {
 // one blank line and the check block hold to 60 000 bytes (section 7.5),
 // the block whole after it.
 func TestSwarmWorkerPostHoldsToTheLimitWithItsCheckBlock(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	long := strings.Repeat("A line of the worker's report, long enough to count.\n", 1300) // about 69 KB
@@ -244,6 +250,7 @@ func TestSwarmWorkerPostHoldsToTheLimitWithItsCheckBlock(t *testing.T) {
 // blank line and the check block is taken off whole, no "\r" left
 // before it (section 7.5).
 func TestSwarmWorkerPostTakesOffACRLFEnd(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "Done.\r\nNot established: none\r\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
@@ -272,6 +279,7 @@ func (m *moveOnReview) Review(pr forge.Ref, v forge.Verdict, body string) error 
 // issue moved to review-0-ready during its run: T9 is skipped with the
 // warning, not made from review-0-ready (section 7.6).
 func TestSwarmSecondReviewerSkipsAMoveToReviewReady(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
@@ -291,6 +299,7 @@ func TestSwarmSecondReviewerSkipsAMoveToReviewReady(t *testing.T) {
 // again by the next pass and the run collected from it (section 7.6,
 // step 4).
 func TestSwarmCheckRestartedAfterItsApplyDied(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	head := a.orphanWorker("exited 0 2026-11-06T15:10:00Z")
@@ -321,6 +330,7 @@ func TestSwarmCheckRestartedAfterItsApplyDied(t *testing.T) {
 // the run that cannot be read either is removed, never followed, so the
 // directory outside keeps its mode (section 7.6).
 func TestSwarmCollectionRemovesAnUnreadableDirectory(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	var closed string

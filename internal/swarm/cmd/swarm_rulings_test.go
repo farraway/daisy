@@ -67,6 +67,7 @@ const adrNote = "Rulings changed since the plan (architect run 1): `app:docs/adr
 // confirms the plan, the label kept, and the next pass runs the worker
 // on slice 2 with no note again and no maintainer step.
 func TestSwarmApplyRulingStands(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.betweenSlices(nil)
 	a.land("app", map[string]string{"docs/adr/0027-roles.md": "# 27. Roles\n"}, "ADR 0027")
@@ -111,6 +112,7 @@ func TestSwarmApplyRulingStands(t *testing.T) {
 // until the maintainer accepts it; with it off the revision is the
 // accepted plan and the worker runs on slice 2 at the next pass.
 func TestSwarmApplyRulingRevised(t *testing.T) {
+	t.Parallel()
 	revised := twoSlices + "\n"
 	revised = strings.Replace(revised, "2. app: add notes.md.", "2. app: add notes.md, its roles from ADR 0027.", 1)
 	for _, gate := range []bool{true, false} {
@@ -157,6 +159,7 @@ func TestSwarmApplyRulingRevised(t *testing.T) {
 // ADR merged where rulings is [], runs the worker on slice 2 with no
 // note; so does one before the plan's run.
 func TestSwarmApplyRulingUnchanged(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		edit  func(c *declare.Config)
@@ -196,6 +199,7 @@ func TestSwarmApplyRulingUnchanged(t *testing.T) {
 // plan-1-accepted, the worker continues it after an ADR merged, with no
 // note (section 6: only a job between slices is re-planned).
 func TestSwarmApplyRulingOpenSlice(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Repos[0].Protected = append(c.Repos[0].Protected, "docs/adr/") })
 	a.publish("rulings")
@@ -222,6 +226,7 @@ func TestSwarmApplyRulingOpenSlice(t *testing.T) {
 // launched again at the next pass by the note already posted, which is
 // not posted again.
 func TestSwarmApplyRulingNotedOnce(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.betweenSlices(nil)
 	a.land("app", map[string]string{"docs/adr/0027-roles.md": "# 27. Roles\n"}, "ADR 0027")
@@ -246,6 +251,7 @@ func TestSwarmApplyRulingNotedOnce(t *testing.T) {
 // sentence kept after the note, its whole text attached to the issue as
 // 1-rulings-<time>.md, once, and the architect runs (sections 6 and 7.5).
 func TestLongRulingsNote(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.betweenSlices(nil)
 	adrs := map[string]string{}

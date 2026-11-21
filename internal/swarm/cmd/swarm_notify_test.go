@@ -39,6 +39,7 @@ func (a *applyWS) notifying() func() []string {
 // answered and set again by a new note is a new item, notified again;
 // the gate notes mention the maintainer.
 func TestSwarmApplyNotifies(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	notified := a.notifying()
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
@@ -96,6 +97,7 @@ func TestSwarmApplyNotifies(t *testing.T) {
 
 // With no login in trusted but the swarm's, the notes mention no one.
 func TestSwarmApplyMentionsNoOne(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Trusted = []string{"swarm-bot"} })
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
@@ -110,6 +112,7 @@ func TestSwarmApplyMentionsNoOne(t *testing.T) {
 // once; a pause of the maintainer's tells nothing; a notify command that
 // fails is a warning, its item not tried again.
 func TestSwarmApplyNotifiesAFaultPause(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	notified := a.notifying()
 	a.collectedRun("8-architect-1", "launch-failed 2026-11-06T14:59:00Z", "clone: gone")
@@ -147,6 +150,7 @@ func TestSwarmApplyNotifiesAFaultPause(t *testing.T) {
 // A notify command that outlives the swarm's timeout is stopped, a
 // warning.
 func TestSwarmApplyNotifyTimeout(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Notify = []string{"sleep", "60"} })
 	a.after = func(d time.Duration) <-chan time.Time {

@@ -186,6 +186,7 @@ var issue1 = forge.Ref{Repo: "swarm-app", N: 1}
 // nobody, a trusted login's runs the architect again, which leaves the
 // label.
 func TestSwarmApplyReadyToPlanning(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	if _, err := a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"}); err != nil {
 		t.Fatal(err)
@@ -309,6 +310,7 @@ func (f *failing) Relabel(at forge.Ref, remove, add string) error {
 // A collection interrupted after its comment is retried at the next pass
 // and posts nothing twice (section 7.6); --once exits 1 on the error.
 func TestSwarmApplyRetriesAnInterruptedCollection(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
@@ -334,6 +336,7 @@ func TestSwarmApplyRetriesAnInterruptedCollection(t *testing.T) {
 // A run ended and not collected holds its issue (section 6, rule 2): while
 // its comment cannot be posted, no second run launches.
 func TestSwarmApplyUncollectedHoldsTheIssue(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan}, runner.Canned{Out: archPlan})
@@ -351,6 +354,7 @@ func TestSwarmApplyUncollectedHoldsTheIssue(t *testing.T) {
 // A collection that moved the label but died before recording it: the
 // next pass finds the label moved and records nothing more but the end.
 func TestSwarmApplyFindsTheLabelMoved(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.forge.Comment(issue1, "<!-- daisy-swarm role=architect run=1 -->\n**architect:**\n\n"+archPlan)
@@ -372,6 +376,7 @@ func TestSwarmApplyFindsTheLabelMoved(t *testing.T) {
 // bad slices are T17 with the reason; Docker's own exit is a swarm fault,
 // nothing on the forge.
 func TestSwarmApplyArchitectFailures(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		canned   runner.Canned
@@ -418,6 +423,7 @@ func TestSwarmApplyArchitectFailures(t *testing.T) {
 // The start: --once only, a slot without its login, the lock held, a
 // prompt with an empty heading field refused as a fault.
 func TestSwarmApplyStart(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	os.MkdirAll(a.state(""), 0o755)
 	release, err := ops.Real().FS().Lock(a.state("lock"), "apply --once since 2026-11-06T14:59:00Z")
@@ -444,6 +450,7 @@ func TestSwarmApplyStart(t *testing.T) {
 // fault prompt refused (sections 7.3 and 7.7): nothing launched, the
 // issue left at its stage.
 func TestSwarmApplyPromptReadBackDiffers(t *testing.T) {
+	t.Parallel()
 	for _, name := range []string{"system.md", "prompt.md"} {
 		t.Run(name, func(t *testing.T) {
 			a := newApplyWS(t)
@@ -481,6 +488,7 @@ func (c changedFS) ReadFile(name string) ([]byte, error) {
 // after # Task and before the repository notes; a root whose praxis cannot be read is the swarm fault
 // prompt refused (7.7), and nothing launches.
 func TestSwarmApplyPraxisFromTheRoot(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
@@ -511,6 +519,7 @@ func TestSwarmApplyPraxisFromTheRoot(t *testing.T) {
 // second run's error object naming a lapsed login is a provider fault,
 // posted nowhere.
 func TestSwarmApplyOnXAI(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	env := "XAI_API_KEY"
 	a.edit(func(c *declare.Config) {
@@ -603,6 +612,7 @@ func confined(t *testing.T, spec runner.Spec, run, repo string) {
 // docs/swarm/decisions/0087-grok-sees-only-its-working-folder.md): the
 // owner's batch, the worker and both reviewers.
 func TestSwarmApplyConfinedRoles(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	env := "XAI_API_KEY"
 	a.edit(func(c *declare.Config) {
@@ -638,6 +648,7 @@ func TestSwarmApplyConfinedRoles(t *testing.T) {
 // but auth.json and mounted at /credential under its label, codex's argv,
 // and the slot's lock released once docker run has returned.
 func TestSwarmApplyOnASlot(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
@@ -672,6 +683,7 @@ func TestSwarmApplyOnASlot(t *testing.T) {
 // the slot's long strings refused in a later run's out.md; the lock
 // released once docker run has returned.
 func TestSwarmApplyOnAnXAISlot(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	slots := 1
 	a.edit(func(c *declare.Config) {
@@ -723,6 +735,7 @@ func TestSwarmApplyOnAnXAISlot(t *testing.T) {
 // in out.md, so the read at the launch counts as the one at the return
 // does.
 func TestSwarmApplyXAISlotRotatedDuringTheRun(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	slots := 1
 	a.edit(func(c *declare.Config) {
@@ -752,6 +765,7 @@ func TestSwarmApplyXAISlotRotatedDuringTheRun(t *testing.T) {
 // refused*, with grok's login line naming the slot as GROK_HOME (section
 // 7.7); nothing is launched or posted.
 func TestSwarmApplyXAISlotWithoutALogin(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	slots := 1
 	a.edit(func(c *declare.Config) {
@@ -773,6 +787,7 @@ func TestSwarmApplyXAISlotWithoutALogin(t *testing.T) {
 // keys.xai declaring both forms, the key and a slot, is refused at the
 // configuration, before anything is launched (section 3).
 func TestSwarmApplyXAIBothForms(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	env, slots := "XAI_API_KEY", 1
 	a.edit(func(c *declare.Config) {

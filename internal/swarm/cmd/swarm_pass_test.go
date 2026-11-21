@@ -43,6 +43,7 @@ func (r *relabelOnList) Issues(st forge.State, label string) ([]forge.Issue, err
 // R is its role): an issue moved from ready to planned after its stage was
 // listed launches no architect.
 func TestSwarmPassActsOnTheIssueAsItIs(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
@@ -60,6 +61,7 @@ func TestSwarmPassActsOnTheIssueAsItIs(t *testing.T) {
 // member on, then relabelled by the maintainer to a later stage before
 // that stage is listed, gets no second member in the same pass.
 func TestSwarmPassLaunchesOnceAnIssue(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
@@ -77,6 +79,7 @@ func TestSwarmPassLaunchesOnceAnIssue(t *testing.T) {
 // approved: one the maintainer also labelled blocked is skipped, as step
 // (5) says, and neither merged nor closed.
 func TestSwarmMergeStepSkipsTwoLabels(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.inReview(oneSlice)
@@ -112,6 +115,7 @@ func (f *failIssue) Issue(n int) (forge.Issue, error) {
 // check started in step (3), collecting a run left uncollected, leaves no
 // room for a launch in step (5) of the same pass.
 func TestSwarmPassCountsAStartedCheck(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
 	a.planned(oneSlice)
@@ -135,6 +139,7 @@ func TestSwarmPassCountsAStartedCheck(t *testing.T) {
 // 7.5), so it cannot make apply read a host file and post it; the run has no
 // output.
 func TestSwarmOutputLinkIsNotFollowed(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	host := filepath.Join(a.ws, "host-secret.txt")
 	if err := os.WriteFile(host, []byte("HOST-SECRET-0123456789\n"), 0o600); err != nil {
@@ -153,6 +158,7 @@ func TestSwarmOutputLinkIsNotFollowed(t *testing.T) {
 // apply reports a problem of <state>/env once, at its start, however
 // often the pass then reads a secret (section 11, Stderr: as init).
 func TestSwarmApplyWarnsOnceAboutTheSecretsFile(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.secrets("export GITEA_TOKEN=\"tok-123\"\nsource ./other.sh\n")
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
@@ -167,6 +173,7 @@ func TestSwarmApplyWarnsOnceAboutTheSecretsFile(t *testing.T) {
 // off, an approved issue stays approved and its pull request open until
 // resume.
 func TestSwarmPausedPassMergesNothing(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.inReview(oneSlice)
@@ -192,6 +199,7 @@ func TestSwarmPausedPassMergesNothing(t *testing.T) {
 // so the worker runs again (section 6, rule 3), not on the issue, where
 // it would see its own BLOCKED: as the newest entry and run no more.
 func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
@@ -222,6 +230,7 @@ func TestSwarmUnblockReviewedRunsTheWorker(t *testing.T) {
 // A check another apply started, outlived its timeout: stopped, recorded
 // and said on stdout as any collection step is (section 11, Stdout).
 func TestSwarmOrphanCheckTimeoutIsSaid(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:plan-1-accepted"})
 	run := "1-worker-1"
@@ -256,6 +265,7 @@ func (r *relabelOnComment) Comment(at forge.Ref, body string) error {
 // move while the run was posted is kept, with the warning, never joined by
 // a second swarm:* label (section 5).
 func TestSwarmCollectionRelabelReadsTheLabelsAgain(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
@@ -286,6 +296,7 @@ func (r *relabelOnMerge) Merge(pr forge.Ref, head string) error {
 // The merge step reads the labels again right before its relabel: the
 // maintainer's move during the merge is kept, with the warning.
 func TestSwarmMergeStepRelabelReadsTheLabelsAgain(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.inReview(oneSlice)
@@ -305,6 +316,7 @@ func TestSwarmMergeStepRelabelReadsTheLabelsAgain(t *testing.T) {
 // reviewer's moving the issue to review-1-in-progress, which the pass
 // reads later, the adversary is not launched again in that pass.
 func TestSwarmPassDecidesAnIssueOnce(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	os.Remove(filepath.Join(a.local, "swarm", "credentials", "openai", "1", "auth.json"))
 	a.inReview(oneSlice)

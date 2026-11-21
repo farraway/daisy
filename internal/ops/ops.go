@@ -35,9 +35,11 @@ type FS interface {
 	Rename(oldpath, newpath string) error
 	// Lock takes an exclusive flock on name without waiting, creating the
 	// file, and writes holder and ` pid <pid>` as its one line. Another
-	// holder is a *LockedError naming the line it wrote. release drops the
-	// lock and leaves the file; the kernel drops it too when the process
-	// exits, however it exits.
+	// holder is a *LockedError naming the line it wrote; a lock this
+	// process released, held a moment longer by a child it forked
+	// meanwhile (until the child's exec), is waited for, not refused.
+	// release drops the lock and leaves the file; the kernel drops it too
+	// when the process exits, however it exits.
 	Lock(name, holder string) (release func(), err error)
 }
 

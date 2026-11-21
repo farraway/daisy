@@ -66,6 +66,7 @@ var hugePlan = oneSlice + "\n## For the builder\n\n" + strings.Repeat("Write mai
 // file was attached attaches it once (its `attached` line in the result
 // read at the retry), and the comment is posted once (section 7.5).
 func TestSwarmLongTextIsAttachedWhole(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: bigPlan})
@@ -131,6 +132,7 @@ func (f *failNth) Comment(at forge.Ref, body string) error {
 // worker's prompt shows the plan once, its note pointing at its copy
 // (sections 7.3 and 7.5).
 func TestSwarmLongTextContinuedWhenRefused(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.RefuseAttachments()
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
@@ -205,6 +207,7 @@ var openQuestions = oneSlice + "\n## Open Questions\n\n" + strings.Repeat("- Sho
 // continuations are no gate note, so no second note is posted and the
 // issue waits once (sections 5 and 7.5).
 func TestSwarmLongGateNote(t *testing.T) {
+	t.Parallel()
 	for _, refused := range []bool{false, true} {
 		t.Run(map[bool]string{false: "attached", true: "refused"}[refused], func(t *testing.T) {
 			a := newApplyWS(t)
@@ -274,6 +277,7 @@ func TestSwarmLongGateNote(t *testing.T) {
 // recorded `not attached`: the run is collected and the gate note posted
 // on its first gating (section 7.5).
 func TestGateNotePostedWhenAttachFails(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: openQuestions})
@@ -314,6 +318,7 @@ func TestGateNotePostedWhenAttachFails(t *testing.T) {
 // 7.5): the plan gate's note on the plan, then on the architect's revised
 // plan, attached as 1-gate-<time>.md at each pass's time, two files.
 func TestSwarmGateNoteFilePerGating(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644)
 	a.forge.CreateIssue("Planned", "Plan it.", []string{"swarm:plan-0-posted"})
@@ -337,6 +342,7 @@ func TestSwarmGateNoteFilePerGating(t *testing.T) {
 // A text within the limit is posted as before: no file attached, no
 // continuation, nothing recorded of either (section 7.5).
 func TestSwarmShortTextIsPostedAsBefore(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", work("v1"))
@@ -369,6 +375,7 @@ func TestSwarmShortTextIsPostedAsBefore(t *testing.T) {
 // note (its relabel refused) posts neither again at the next pass
 // (sections 7.5 and 12).
 func TestLongMergeNoteAttached(t *testing.T) {
+	t.Parallel()
 	for _, refused := range []bool{false, true} {
 		t.Run(map[bool]string{false: "attached", true: "refused"}[refused], func(t *testing.T) {
 			a := newApplyWS(t)
@@ -433,6 +440,7 @@ func (a *applyWS) created(n int) bool { _, err := a.forge.Issue(n); return err =
 // the proposal whole, and the architect's prompt shows it whole, with no
 // note and no continuation (sections 6, 7.3 and 7.5).
 func TestLongProposalBodyContinued(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Triage = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.release()

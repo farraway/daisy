@@ -27,6 +27,7 @@ import (
 // pushed. A variable unset at init is written commented out, so the
 // environment supplies it at apply (revision 6's plan, Step 6a).
 func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	if _, err := os.Stat(s.ws); err == nil {
 		t.Fatal("a clone before init")
@@ -137,6 +138,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 // line in <state>/env is commented out, so it shadows nothing apply's
 // environment supplies (section 11, init).
 func TestSwarmInitEnvTakesBlanksAsUnset(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = " \t "
 	if err := s.run("--defaults"); err != nil {
@@ -167,6 +169,7 @@ func readAbs(p string) string {
 // committed on top; and a clone of it already in the folder, holding no
 // swarm.json, taken as it is.
 func TestSwarmInitAdoptsTheSwarmRepository(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	s.forge.AddRepository()
 	up := s.upstreams[swarmURL]
@@ -201,6 +204,7 @@ func TestSwarmInitAdoptsTheSwarmRepository(t *testing.T) {
 // each before the write it guards: nothing created or cloned before the
 // tokens are checked; nothing after the refused write.
 func TestSwarmInitRefusesInAFolder(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		set     func(s *swarmWS)
@@ -259,6 +263,7 @@ func TestSwarmInitRefusesInAFolder(t *testing.T) {
 // the files the first run wrote and could not commit, kept by the second,
 // are committed and pushed by it, and nothing else of the clone.
 func TestSwarmInitCommitsWhatAFailedRunLeft(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	s.forge.AddRepository()
 	git(t, "", "clone", "-q", s.upstreams[swarmURL], s.ws)
@@ -289,6 +294,7 @@ func TestSwarmInitCommitsWhatAFailedRunLeft(t *testing.T) {
 // exists its forge.api is the default: the variable does not move it,
 // the flag does.
 func TestSwarmInitForgeAPI(t *testing.T) {
+	t.Parallel()
 	const port, other = "http://forge.example.net:3000/api/v1", "http://forge.example.net:3001/api/v1"
 	for _, tc := range []struct {
 		name  string

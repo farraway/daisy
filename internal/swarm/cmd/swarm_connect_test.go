@@ -67,6 +67,7 @@ func snapshot(t *testing.T, dirs ...string) map[string]string {
 // then moves the mark, so the next connect shows the line collected after
 // it alone.
 func TestSwarmConnectBriefing(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	up := a.upstreams[swarmURL]
@@ -188,6 +189,7 @@ func TestSwarmConnectBriefing(t *testing.T) {
 // `swarm list` with no state, and a recorded clone that moved: said, not
 // hidden; a paused swarm says since when and why.
 func TestSwarmListStates(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	elsewhere := t.TempDir()
 	os.RemoveAll(filepath.Join(a.local, "swarm"))
@@ -225,6 +227,7 @@ const authorities = "  # Authorities\n\nA1. Accept a plan whose `## Research` na
 // file changes. Without AUTHORITIES.md nothing is granted; without a
 // home the metrics say so.
 func TestSwarmConnect(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})

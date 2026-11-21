@@ -55,6 +55,7 @@ const (
 // /job/io/artifacts/, with the Task text's sentence; the worker's
 // Task text asks for screenshots in every case (section 7.4).
 func TestSwarmWorkerArtifactsReachThePullAndTheReviewers(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", screenshot(artifacts(map[string]string{"home.png": png})))
@@ -94,6 +95,7 @@ func TestSwarmWorkerArtifactsReachThePullAndTheReviewers(t *testing.T) {
 // line names one, and the reviewers' prompts and Task texts are as
 // before, their /job/io holding no artifacts directory.
 func TestSwarmWorkerWithoutArtifacts(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", work("v1"))
@@ -129,6 +131,7 @@ func TestSwarmWorkerWithoutArtifacts(t *testing.T) {
 // or content is skipped, warned of and recorded once, never read through
 // (section 7.6, The artifacts).
 func TestSwarmWorkerArtifactsUntrusted(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	outside := filepath.Join(t.TempDir(), "host.png") // a host file a link could reach
@@ -179,6 +182,7 @@ func TestSwarmWorkerArtifactsUntrusted(t *testing.T) {
 // A directory artifacts that is a link is never followed, though it
 // leads to a directory of screenshots: nothing is attached.
 func TestSwarmWorkerArtifactsDirectoryLink(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	elsewhere := t.TempDir()
@@ -201,6 +205,7 @@ func TestSwarmWorkerArtifactsDirectoryLink(t *testing.T) {
 // the run is posted, and the reviewers still get the file, listed as not
 // attached.
 func TestSwarmWorkerArtifactRefused(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.forge.RefuseAttachments()

@@ -49,6 +49,7 @@ func (a *applyWS) replans() []string {
 // text, slice 1's merged pull request kept; no block or unblock. Its
 // STANDS: keeps the plan, and the pass after runs the worker on slice 2.
 func TestSwarmReplan(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.betweenSlices(nil)
 	a.maintainer()
@@ -103,6 +104,7 @@ func TestSwarmReplan(t *testing.T) {
 // that slice 1's pull request was closed unmerged, so its work goes in
 // a later slice; its STANDS: runs the worker on slice 2 next.
 func TestSwarmReplanAfterTheClose(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(twoSlices)
 	a.maintainer()
@@ -136,6 +138,7 @@ func TestSwarmReplanAfterTheClose(t *testing.T) {
 // runs in the same pass with it, and its revised plan goes to the plan
 // gate (T27); a second pass runs and posts nothing more.
 func TestSwarmApplyCommandReplan(t *testing.T) {
+	t.Parallel()
 	revised := strings.Replace(twoSlices, "2. app: add notes.md.", "2. app: add notes.md, by ADR 0031.", 1)
 	a := newApplyWS(t)
 	a.betweenSlices(nil)
@@ -175,6 +178,7 @@ func TestSwarmApplyCommandReplan(t *testing.T) {
 // goes to plan-1-accepted with a plan, so the architect revises the
 // remaining slices. With no direction the comment is `Re-plan.`.
 func TestSwarmReplanStages(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	const head = "Maintainer jane on acme/swarm-app\n"
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{forge.ProposalAccepted}) // #1
@@ -210,6 +214,7 @@ func TestSwarmReplanStages(t *testing.T) {
 // answer, a maintainer not in trusted, and a direction holding a command
 // line.
 func TestSwarmReplanRefused(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{forge.ProposalPosted})               // #1
 	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{forge.PlanInProgress})               // #2

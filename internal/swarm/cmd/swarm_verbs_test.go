@@ -58,6 +58,7 @@ func (f *refuseOnce) CloseIssue(n int) error {
 // status writes its report whole, or nothing: a run's result that cannot
 // be read, read last, leaves stdout empty beside the error.
 func TestSwarmStatusWritesNothingOnAFailure(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	if err := os.MkdirAll(s.state("runs/1-worker-1/result"), 0o755); err != nil { // a directory: ReadFile fails
 		t.Fatal(err)
@@ -75,6 +76,7 @@ func TestSwarmStatusWritesNothingOnAFailure(t *testing.T) {
 // merges, not under `merge`; the class is named under every item but
 // triage and plan, where only an architecture job waits.
 func TestSwarmStatusPullClosedUnmerged(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	f := s.forge
 	n, _ := f.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:review-2-approved"})
@@ -93,6 +95,7 @@ func TestSwarmStatusPullClosedUnmerged(t *testing.T) {
 // milestone, and status says so on its line, with none of the first's
 // counts.
 func TestSwarmStatusBriefsShareAName(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) { c.Resources = declare.Paths("docs/") })
 	s.write("docs/a/plan.md", "Status: active\n\n## M1\n")
@@ -114,6 +117,7 @@ func TestSwarmStatusBriefsShareAName(t *testing.T) {
 // T17 leaves as it is, says it blocked nothing, and status counts no
 // block for it.
 func TestSwarmApplyNoteOnAMovedIssueBlocksNothing(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: "BLOCKED: which corpus?\n"})
@@ -154,6 +158,7 @@ func (m *moveOnComment) Comment(at forge.Ref, body string) error {
 // the maintainer's token among them, is dropped with the parse; a name it
 // does not assign is the environment's.
 func TestReadSecretsKeepsTheNamesAsked(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	s.secrets(bothTokens + "export OTHER=\"$GITEA_TOKEN-x\"\n")
 	o := &ops.Fake{GetenvFn: func(k string) string { return map[string]string{"FROM_ENV": "e"}[k] }}
@@ -168,6 +173,7 @@ func TestReadSecretsKeepsTheNamesAsked(t *testing.T) {
 // A blank comment is none: `unblock` with one is usage, writing nothing;
 // `close` with one posts nothing before the close.
 func TestSwarmMaintainerBlankComment(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted", forge.Blocked})
 	var u UsageError
@@ -184,6 +190,7 @@ func TestSwarmMaintainerBlankComment(t *testing.T) {
 // posts the comment once: `unblock` whose flag removal, and `close` whose
 // close, failed; `merge` sending a pull request back whose relabel failed.
 func TestSwarmMaintainerRunAgainPostsOnce(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted", forge.Blocked}) // #1
 	m.wrap = func(f *forge.Fake) forge.Adapter { return &refuseOnce{Fake: f, remove: forge.Blocked} }
@@ -211,6 +218,7 @@ func TestSwarmMaintainerRunAgainPostsOnce(t *testing.T) {
 // T25 by `swarm merge` run again after its relabel was refused finds the
 // direction posted on the pull request and goes on to the relabel.
 func TestSwarmMaintainerMergeBackRunAgain(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
@@ -233,6 +241,7 @@ func TestSwarmMaintainerMergeBackRunAgain(t *testing.T) {
 // gate keeps it, at plan-1-accepted clears it; `triage` of an issue still
 // blocked keeps it.
 func TestSwarmMaintainerKeepsTheFlagWhereGated(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted", forge.Blocked, forge.Gated}) // #1
 	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:plan-1-accepted", forge.Blocked, forge.Gated}) // #2
@@ -256,6 +265,7 @@ func TestSwarmMaintainerKeepsTheFlagWhereGated(t *testing.T) {
 // leaves it, is gated again: the next pass posts that gate's note, the
 // newest gate note being the blocked gate's at the same stage.
 func TestSwarmApplyGateNoteAfterABlockLifted(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644) // no role runs; the flag step still does
 	a.forge.CreateIssue("Plan", mark("owner", 1)+"a", []string{"swarm:plan-0-posted", forge.Blocked})
@@ -276,6 +286,7 @@ func TestSwarmApplyGateNoteAfterABlockLifted(t *testing.T) {
 // relabel is made (exit 0), and the next pass clears the flag; after a
 // close, with the terminal set, it is named for what it left undone.
 func TestSwarmMaintainerFlagRemovalRefused(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted", forge.Gated}) // #1
 	m.wrap = func(f *forge.Fake) forge.Adapter { return &refuseFlag{Fake: f, flag: forge.Gated} }
@@ -295,6 +306,7 @@ func TestSwarmMaintainerFlagRemovalRefused(t *testing.T) {
 // review-0-ready too when the round limit's second note blocked it (T21's
 // write refused), where no role runs.
 func TestSwarmMaintainerStep29Refusals(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", "", []string{forge.Gated}) // #1
 	if err := m.verb(swarmTriage, "1"); errText(err) != "Error: swarm: #1 carries no stage label; nothing changed" {
@@ -320,6 +332,7 @@ func TestSwarmMaintainerStep29Refusals(t *testing.T) {
 // relabel, and the merge step's T15, the merge gate since turned off,
 // clears it with the close.
 func TestSwarmFlagClearedOnEveryTransition(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-0-posted", forge.Gated})
 	const head = "Maintainer jane on acme/swarm-app\n"
@@ -354,6 +367,7 @@ func TestSwarmFlagClearedOnEveryTransition(t *testing.T) {
 // Daisy passes is recorded in <state>/auto, and status counts per issue
 // the larger of the record and the forge's auto notes.
 func TestSwarmStatusAutoKeepsOldJobs(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", mark("owner", 1)+"Brief: docs/briefs/a.md — M1\nClass: routine\nCheck.\n", []string{"swarm:proposal-posted"})
 	a.pass()

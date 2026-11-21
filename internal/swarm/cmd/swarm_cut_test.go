@@ -55,6 +55,7 @@ func (a *applyWS) forgeNote(run string) string {
 // It holds as well where the forge refuses the files and the texts' rest
 // follows in continuations (Step 38d), which no prompt shows.
 func TestSwarmCutTextReachesTheMemberWhole(t *testing.T) {
+	t.Parallel()
 	for _, refused := range []bool{false, true} {
 		t.Run(map[bool]string{false: "attached", true: "refused"}[refused], func(t *testing.T) { cutTextReachesTheMemberWhole(t, refused) })
 	}
@@ -165,6 +166,7 @@ func readFile(t *testing.T, p string) string {
 // member's io, no Task sentence, and the prompt names no file of
 // /job/io/outputs/.
 func TestSwarmUncutTextIsNotCopied(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", work("v1"))
@@ -202,6 +204,7 @@ var bigSlices = "## Research\n\n" + strings.Repeat("- /work/app/main.go: the ent
 // collection wrote whole (section 7.8, Daisy's own reads; Step R1-9 of
 // the plan implementing the 2026-11-19 swarm roadmap).
 func TestSwarmCutPlanIsReadWhole(t *testing.T) {
+	t.Parallel()
 	for _, gone := range []bool{false, true} {
 		t.Run(map[bool]string{false: "whole", true: "out.md gone"}[gone], func(t *testing.T) {
 			a := newApplyWS(t)
@@ -268,6 +271,7 @@ func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 // with the reviews' out.md deleted and the plan's unreadable before the
 // gate note it holds.
 func TestSwarmCutTextsTheMaintainerIsToldOf(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(bigSlices)
 	long := "VERDICT: approve\n\n" + strings.Repeat("The reviewer explains its approval at length, line after line.\n", 1100) + "[non-blocking] main.go:1 a finding past the cut.\n"
@@ -318,6 +322,7 @@ func TestSwarmCutTextsTheMaintainerIsToldOf(t *testing.T) {
 // reads plan.md, its run's out.md gone, and a plan.md that cannot be
 // read is the verb's error too (section 7.8, Daisy's own reads).
 func TestSwarmMergeVerbReadsTheCutPlanWhole(t *testing.T) {
+	t.Parallel()
 	const head = "Maintainer jane on acme/swarm-app\n"
 	for _, c := range []struct {
 		name, noted string
@@ -372,6 +377,7 @@ func TestSwarmMergeVerbReadsTheCutPlanWhole(t *testing.T) {
 // count its slices short and close it (section 7.8, Daisy's own reads
 // and Rollout).
 func TestSwarmMergeStepBlocksAPlanBuiltCut(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.inReview(bigSlices)

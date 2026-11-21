@@ -42,6 +42,7 @@ func (a *applyWS) texts(n int) []string {
 // which is no review and is not held. The owner's batch run has no
 // workspace, and the posts are as before.
 func TestWorkspaceTexts(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.release()
 	a.runner.Script(0, "owner", runner.Canned{Out: "## Drift check\nBrief: docs/briefs/a.md — M1 The drift\nCheck the drift.\n", Stdout: claudeResult})
@@ -101,6 +102,7 @@ func TestWorkspaceTexts(t *testing.T) {
 // issue, from its run's out.md, whatever that collection posts (here a
 // reviewer's BLOCKED: text, no review).
 func TestWorkspaceHoldsAReviewUntilItsRound(t *testing.T) {
+	t.Parallel()
 	t.Run("the round completes", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
@@ -187,6 +189,7 @@ func builderPlan(text string) func(string) error {
 // block, or the builder plan's end. A revised plan written without a builder plan removes builder.md
 // and leaves each slice its step alone. The posts are as before.
 func TestWorkspacePlanBuilderAndSlices(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	plan := "## Research\n\n- /work/app/main.go: the entry point.\n\n## Steps\n\n1. app: change main.go to v1; the test proves it.\n2. app: add notes.md.\n   Its claim: notes.md lists v1.\n\n   ```text\n   notes.md\n   ```\n\n## Test Plan\n\n1. main.go says v1.\n"
 	builder := "# Builder plan\n\nRead before any slice.\n\n## Slice 1\n\nEdit main.go: print v1.\n\n## Slice 20\n\nNot slice 2.\n\n## Slice 2: notes\n\nWrite notes.md:\n\n```markdown\n## Slice 1\nv1\n```\n"
@@ -238,6 +241,7 @@ func TestWorkspacePlanBuilderAndSlices(t *testing.T) {
 // launch). A run whose text is no plan (BLOCKED:) has no builder plan,
 // and its builder.md is not read.
 func TestSecretInBuilderPlan(t *testing.T) {
+	t.Parallel()
 	token := "oauth-token-0123456789abcdef0123456789" // the architect's env value
 	t.Run("a plan", func(t *testing.T) {
 		a := newApplyWS(t)
@@ -277,6 +281,7 @@ func TestSecretInBuilderPlan(t *testing.T) {
 // commits hold a secret, never checked before. A pushed run names its
 // commit, the branch's.
 func TestWorkspaceKept(t *testing.T) {
+	t.Parallel()
 	secret := "oauth-token-0123456789abcdef0123456789" // the worker's env value
 	a := newApplyWS(t)
 	a.planned(oneSlice)
@@ -322,6 +327,7 @@ func TestWorkspaceKept(t *testing.T) {
 // secret-checked before the file is written: a secret outside the tail is
 // the failure secret in output naming check.out, and no file is written.
 func TestWorkspaceCheckLog(t *testing.T) {
+	t.Parallel()
 	var lines []string
 	for i := 1; i <= 30; i++ {
 		lines = append(lines, "line "+strconv.Itoa(i))
@@ -390,6 +396,7 @@ func (a *applyWS) roundFile(r int) (string, bool) {
 // change, not the merged file's. The worker's answer without a commit is
 // reviewed in round 3, on the same head, which names the answer.
 func TestWorkspaceRoundFile(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
 	a.inReview(oneSlice)
@@ -453,6 +460,7 @@ func TestWorkspaceRoundFile(t *testing.T) {
 // review's collection still makes its transition, T9 on two approvals
 // (the issue then held at the merge gate).
 func TestWorkspaceRoundFileCommitGone(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
 	a.inReview(oneSlice)
@@ -545,6 +553,7 @@ func (a *applyWS) built(n int) bool {
 // built marker, which it writes last, and once the file is readable and
 // the block removed, the pass after it completes the workspace.
 func TestWorkspaceReplay(t *testing.T) {
+	t.Parallel()
 	plan := "## Steps\n\n1. app: change main.go to v1; the test proves it.\n2. app: add notes.md.\n\n## Test Plan\n\n1. main.go says v1.\n"
 	builder := "## Slice 1\n\nEdit main.go.\n\n## Slice 2\n\nWrite notes.md.\n"
 	a := newApplyWS(t)
@@ -635,6 +644,7 @@ func TestWorkspaceReplay(t *testing.T) {
 // run) keeps its commits and writes no checks/ file, its collection
 // ending at the fault before step 4; its replay writes the same.
 func TestWorkspaceReplayFaultedCheck(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", work("v1"))
@@ -665,6 +675,7 @@ func TestWorkspaceReplayFaultedCheck(t *testing.T) {
 // it, is completed from it: the whole plan, its text left as it is, and
 // no block.
 func TestWorkspaceReplayCutPlan(t *testing.T) {
+	t.Parallel()
 	t.Run("texts/ holds it whole", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalAccepted})
@@ -749,6 +760,7 @@ func unusableNote(n, k int, file, cause string) string {
 // more, the plan being in plan.md and texts/ (Step R1-10b of the plan
 // implementing the 2026-11-19 swarm roadmap): its worker is launched.
 func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name         string
 		replay       bool
@@ -819,6 +831,7 @@ func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
 // the collection's, texts/ holding the report as posted, and nothing
 // blocked.
 func TestReplayOfAReportWithNoCheck(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Repos[0].Check = nil })
 	a.planned(oneSlice)
@@ -857,6 +870,7 @@ func (refusesReviews) Reviews(forge.Ref) ([]forge.Review, error) {
 // the issue not blocked, no note posted and no built marker written, so
 // the next pass replays the job again.
 func TestReplayForgeErrorIsThePasss(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	os.RemoveAll(a.state("jobs/1"))
@@ -881,6 +895,7 @@ func TestReplayForgeErrorIsThePasss(t *testing.T) {
 // the note naming the file, and nothing merged; apply exits 0 (section
 // 7.7).
 func TestMergeStepUnreadablePlanBlocks(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.inReview(bigSlices)
@@ -913,6 +928,7 @@ func TestMergeStepUnreadablePlanBlocks(t *testing.T) {
 // (section 7.8, Daisy's own reads). With the workspace built, the verb
 // counts the slices of its plan.md.
 func TestSwarmMergeRefusesACutPlanWithoutWorkspace(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name        string
 		built, plan bool

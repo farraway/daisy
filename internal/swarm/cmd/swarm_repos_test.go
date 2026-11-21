@@ -52,6 +52,7 @@ func (a *applyWS) resume() {
 // commit under Earlier pull requests; the architect's clones at
 // /work/<name> in the first repository's image.
 func TestSwarmApplyTwoRepositories(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Repos[1].Image, c.Repos[1].Check, c.Repos[1].Protected = "daisy-member-lib:1", []string{"go", "test", "./..."}, []string{"go.sum"}
@@ -106,6 +107,7 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 // allows: a slice naming none, or with a prefix naming no repository the
 // swarm has a mirror of, but not one removed from repos since the plan.
 func TestSwarmApplyBadSlices(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, plan string
 		one        bool   // only app declared
@@ -160,6 +162,7 @@ func TestSwarmApplyBadSlices(t *testing.T) {
 // slice, so only the launch's guard stops it: bad slices, nothing
 // launched, T17 at the stage it was launched on.
 func TestSwarmApplyContinuedPullRepositoryRemoved(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview("## Steps\n\n1. lib: change main.go.\n")
 	if ps := a.pulls(1); len(ps) != 1 || ps[0].Repo != "lib" {
@@ -187,6 +190,7 @@ func TestSwarmApplyContinuedPullRepositoryRemoved(t *testing.T) {
 // merges while collection goes on; resume continues; both report what
 // they found.
 func TestSwarmPauseAndResume(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.release()
@@ -224,6 +228,7 @@ func TestSwarmPauseAndResume(t *testing.T) {
 // (docs/swarm/decisions/0074-the-label-vocabulary.md): every issue, open or closed, reads its new
 // stage, and the pass works on the new names.
 func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	f := forge.NewFake(fixedClock(), "acme/swarm-app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	f.AddLabels(forge.Labels[1:]...)
@@ -290,6 +295,7 @@ func (r gatedRun) Wait() (runner.Exit, error) { <-r.open; return r.Container.Wai
 // Two `apply --once` at once (section 11, Lock): the role launches once,
 // the second exits 1 naming the holder before reading the forge.
 func TestSwarmApplyConcurrently(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan}, runner.Canned{Out: archPlan})
@@ -342,6 +348,7 @@ func (c *countingRuns) Running() ([]runner.Running, error) { c.ps++; return c.Fa
 // the running members collected and exit 0; a second signal during that
 // exits at once with ErrInterrupted (130).
 func TestSwarmApplyLoop(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	waits := 0
@@ -405,6 +412,8 @@ func (h held) Start(s runner.Spec, d time.Duration) (runner.Container, error) {
 // #2's, proposed meanwhile, and the pass after that collects #2's; the
 // first pass after #1's member ends collects it, its comment posted and
 // its label moved once; the drain after the signal finds nothing left.
+// Not parallel: its guard is the wall clock's 10s, which the package's
+// other tests running beside it could use up.
 func TestSwarmApplyLoopCollectsALaterPass(t *testing.T) {
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
@@ -489,6 +498,7 @@ func (r signalling) Start(s runner.Spec, d time.Duration) (runner.Container, err
 // before it is collected, nothing launches after it, the drain starts
 // without waiting out the interval, and the exit is 0.
 func TestSwarmApplyLoopSignalledDuringAPass(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	waited := false
@@ -529,6 +539,7 @@ func (r signalledAtPs) Running() ([]runner.Running, error) {
 // Two signals during a pass that left no member running exit at once
 // with ErrInterrupted (130), as a second signal during the drain does.
 func TestSwarmApplyLoopTwoSignalsInAPass(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	waited := false
@@ -558,6 +569,7 @@ func (r heldAfterASignal) Start(s runner.Spec, d time.Duration) (runner.Containe
 // A signal during a pass, then a second while its member still runs:
 // ErrInterrupted (130), the member left running and its run uncollected.
 func TestSwarmApplyLoopSecondSignalAfterAPass(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	a.after = func(time.Duration) <-chan time.Time { t.Error("waited out the interval"); return nil }
@@ -574,6 +586,7 @@ func TestSwarmApplyLoopSecondSignalAfterAPass(t *testing.T) {
 // The loop takes no signal once it has returned: the drain's watcher for
 // a second signal ends with it.
 func TestSwarmApplyLoopLeavesNoWatcher(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	a.after = func(time.Duration) <-chan time.Time { a.signals <- os.Interrupt; return nil }
@@ -605,6 +618,7 @@ func (f signalledAtIssues) Issues(s forge.State, label string) ([]forge.Issue, e
 // A signal during a pass skips its merge step (section 11): an approved
 // issue with the merge gate off is not merged by it.
 func TestSwarmApplyLoopSignalSkipsTheMergeStep(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Gates.Merge = false
@@ -630,6 +644,7 @@ func TestSwarmApplyLoopSignalSkipsTheMergeStep(t *testing.T) {
 // changed forge.repo is refused before, by validation, since the clone's
 // origin is forge.repo.
 func TestSwarmApplyLoopForgeChanged(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.signals = make(chan os.Signal, 2)
 	waits := 0

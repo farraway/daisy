@@ -29,6 +29,7 @@ const askSentence = `When the plan, the issue and its thread leave open somethin
 // runs again, the answer under # Questions and the plan still the one
 // before.
 func TestSwarmApplyQuestionAnswered(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "QUESTION: Should main.go say v1 or v1.0?\n"})
@@ -92,6 +93,7 @@ func TestSwarmApplyQuestionAnswered(t *testing.T) {
 // it as a question; unblock's comment then runs the worker, which reads
 // the questions and the answer.
 func TestSwarmApplyQuestionToTheMaintainer(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "QUESTION: Should main.go keep the old flag?\n"})
@@ -157,6 +159,7 @@ func TestSwarmApplyQuestionToTheMaintainer(t *testing.T) {
 // architect answers it with the pull request in its prompt, and only the
 // adversary runs again, with the answer under # Questions.
 func TestSwarmApplyReviewerQuestion(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: "QUESTION: Is v1 the release's name or the file's?\n"})
@@ -195,6 +198,7 @@ func TestSwarmApplyReviewerQuestion(t *testing.T) {
 // runs the architect on it, rather than reading its answer as its word on
 // the plan and running no one.
 func TestSwarmApplyQuestionBeforeRulings(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.betweenSlices(nil)
 	a.runner.Script(1, "worker", runner.Canned{Out: "QUESTION: Does slice 2 keep notes.md's name?\n"})

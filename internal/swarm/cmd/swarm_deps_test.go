@@ -42,6 +42,7 @@ func (a *applyWS) launched(role string) []runner.Spec {
 // runs offline with the same cache read-only; both are given deps' env.
 // The worker's own container is launched as without deps.
 func TestSwarmDepsBeforeTheCheck(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.withDeps(goDeps)
 	a.planned(oneSlice)
@@ -110,6 +111,7 @@ func TestSwarmDepsBeforeTheCheck(t *testing.T) {
 // Without deps, the check is launched exactly as before deps existed
 // (section 7.2): its argv byte for byte.
 func TestSwarmCheckWithoutDepsUnchanged(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
@@ -137,6 +139,7 @@ func TestSwarmCheckWithoutDepsUnchanged(t *testing.T) {
 // likewise. One Docker cannot run (125) is a swarm fault: nothing
 // posted, T22.
 func TestSwarmDepsFailure(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		canned runner.Canned
@@ -191,6 +194,7 @@ func TestSwarmDepsFailure(t *testing.T) {
 // A dependency step whose apply died, gone with no end line, is started
 // again by the next pass, and the check follows it (section 7.6, step 4).
 func TestSwarmDepsRestartedAfterItsApplyDied(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.withDeps(goDeps)
 	a.planned(oneSlice)

@@ -16,6 +16,7 @@ import (
 // the maintainer's plain comment on the issue clears swarm:blocked and
 // the worker runs in the same pass, reading it under # Direction.
 func TestSwarmApplyBlockAnswered(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: v1 or v2?\n"})
@@ -57,6 +58,7 @@ func TestSwarmApplyBlockAnswered(t *testing.T) {
 // worker's earlier rounds then say the maintainer's comment reopened
 // the head.
 func TestSwarmApplyReviewComment(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	pull := forge.Ref{Repo: "app", N: 1}
@@ -102,6 +104,7 @@ func TestSwarmApplyReviewComment(t *testing.T) {
 // asker runs again, the sympathetic's approval standing, as unblock's
 // comment would.
 func TestSwarmApplyQuestionAnsweredInReview(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: "QUESTION: Is v1 the release's name or the file's?\n"})

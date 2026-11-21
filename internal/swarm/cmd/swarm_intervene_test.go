@@ -48,6 +48,7 @@ func interventionWS(t *testing.T) (*applyWS, *maintainerWS, string) {
 // own value flags, or leading as the cli reads a value flag; the issue's
 // interventions numbered in turn.
 func TestSwarmVerbRecordsItsIntervention(t *testing.T) {
+	t.Parallel()
 	a, m, home := interventionWS(t)
 	if err := m.verb(maintainerVerb("block"), "2", "--type", "I7", "--by", "1"); err != nil {
 		t.Fatal(err)
@@ -97,6 +98,7 @@ func TestSwarmVerbRecordsItsIntervention(t *testing.T) {
 // with the maintainer's note, and writes nothing else: no token read, no
 // forge call.
 func TestSwarmIntervene(t *testing.T) {
+	t.Parallel()
 	a, m, home := interventionWS(t)
 	before := m.writes(1, 2)
 	intervene := func(c *Context, _ opener) error { return swarmIntervene(c) }
@@ -127,6 +129,7 @@ func TestSwarmIntervene(t *testing.T) {
 // the forge does not hold recorded as well); --issue that is not a
 // positive issue number, or given twice, is usage, nothing written.
 func TestSwarmInterveneIssue(t *testing.T) {
+	t.Parallel()
 	a, m, home := interventionWS(t)
 	intervene := func(c *Context, _ opener) error { return swarmIntervene(c) }
 	if err := m.verb(maintainerVerb("block"), "2", "--type", "I7", "--by", "1"); err != nil {
@@ -191,6 +194,7 @@ func TestSwarmInterveneIssue(t *testing.T) {
 // is read or written; a type with no home to record it in is refused
 // before the verb's writes.
 func TestSwarmInterventionRefused(t *testing.T) {
+	t.Parallel()
 	a, m, home := interventionWS(t)
 	before := m.writes(1, 2)
 	intervene := func(c *Context, _ opener) error { return swarmIntervene(c) }
@@ -248,6 +252,7 @@ func TestSwarmInterventionRefused(t *testing.T) {
 // comment commands): its answer says the intervention is recorded, and
 // the journal holds the command's line and the intervention's.
 func TestSwarmApplyCommandRecordsItsIntervention(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.maintainer()
@@ -286,6 +291,7 @@ func TestSwarmApplyCommandRecordsItsIntervention(t *testing.T) {
 // next pass; the lines pushed are dropped (section 7.6, The run's
 // record).
 func TestSwarmJournalKeepsALineQueuedDuringItsPush(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	up := a.upstreams[swarmURL]
 	queue := a.state("journal")

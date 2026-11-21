@@ -79,6 +79,7 @@ func (a *applyWS) notMergeable() string {
 // conflict and the merge is pushed; the pair reviews the new head (round
 // 2) and the merge step merges it. The maintainer does nothing.
 func TestSwarmApplyNotMergeableBackToTheWorker(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	approved := a.notMergeable()
 	pr := forge.Ref{Repo: "app", N: 1}
@@ -149,6 +150,7 @@ func wroteAs(evs []forge.Event, login string) bool {
 // T25's relabel refused: the next pass posts the direction once, the
 // thread's last word already, and makes the relabel.
 func TestSwarmApplyNotMergeableRetried(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.inReview(oneSlice)
@@ -180,6 +182,7 @@ func TestSwarmApplyNotMergeableRetried(t *testing.T) {
 // existing BLOCKED: path, its text on the pull request and the issue
 // blocked at review-3-changes-requested for the maintainer.
 func TestSwarmApplyConflictBlocked(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.notMergeable()
 	a.runner.Script(1, "worker", runner.Canned{Out: "BLOCKED: main conflicts in main.go\n\nBoth sides rewrite main.go; which wins is the maintainer's call.\n"})
@@ -197,6 +200,7 @@ func TestSwarmApplyConflictBlocked(t *testing.T) {
 // reports unknown, and one read after the merge step merged into its
 // repository in the same pass (Gitea recomputing it reads false).
 func TestSwarmMergeStepUnsettled(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.inReview(oneSlice)
@@ -255,6 +259,7 @@ func TestSwarmMergeStepUnsettled(t *testing.T) {
 // posted, the issue left approved, and the next pass, the forge settled,
 // merges it.
 func TestSwarmMergeStepRecomputing(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.inReview(oneSlice)
@@ -283,6 +288,7 @@ func TestSwarmMergeStepRecomputing(t *testing.T) {
 // reconciler's note naming the file, no second direction posted; the
 // pass after posts nothing more.
 func TestSwarmMergeStepSentBackTwice(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	approved := a.notMergeable()
 	pr := forge.Ref{Repo: "app", N: 1}
@@ -328,6 +334,7 @@ func (u unknownHead) Reviews(pr forge.Ref) ([]forge.Review, error) {
 // An approved head the mirror cannot read: the merge step warns and the
 // forge's report stands, T25 with the direction naming no file.
 func TestSwarmMergeStepMirrorCannotTell(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
 	a.inReview(oneSlice)

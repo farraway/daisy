@@ -88,6 +88,7 @@ func (a *applyWS) janes(at forge.Ref) []string {
 // rule, so the worker of the stage it moved to runs in the same pass,
 // and answered once in its thread; a second pass runs nothing.
 func TestSwarmApplyCommand(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.maintainer()
 	a.posted()
@@ -132,6 +133,7 @@ func TestSwarmApplyCommand(t *testing.T) {
 // (section 6, rule 3), so the architect, whose plan is still the newest
 // counted entry, does not run.
 func TestSwarmApplyCommandRefused(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.maintainer()
 	a.posted()
@@ -156,6 +158,7 @@ func TestSwarmApplyCommandRefused(t *testing.T) {
 // maintainer's token missing from <state>/env, which the answer names by
 // <state>, not the host's path; each answered once, nothing changed.
 func TestSwarmApplyCommandNotRun(t *testing.T) {
+	t.Parallel()
 	const noToken = "export GITEA_TOKEN=\"tok-123\"\n"
 	for _, tc := range []struct {
 		name, body, outcome string
@@ -201,6 +204,7 @@ func TestSwarmApplyCommandNotRun(t *testing.T) {
 // worker's BLOCKED: here, and a comment of the swarm's account without
 // the marker leave the issue blocked and unanswered.
 func TestSwarmApplyCommandOfTheSwarm(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.maintainer()
 	a.planned(oneSlice)
@@ -220,6 +224,7 @@ func TestSwarmApplyCommandOfTheSwarm(t *testing.T) {
 // issue before the role rule reads it, so the worker the stage runs does
 // not launch in that pass.
 func TestSwarmApplyCommandOnThePullAndPause(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.maintainer()
 	a.inReview(oneSlice)
@@ -273,6 +278,7 @@ func TestSwarmApplyCommandOnThePullAndPause(t *testing.T) {
 // the answer edited away and the pause lifted by hand, the next pass
 // pauses nothing again and posts the answer again from the record, once.
 func TestSwarmApplyCommandAnswerEdited(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.maintainer()
 	a.planned(oneSlice)

@@ -75,6 +75,7 @@ func (a *applyWS) changesRequested() {
 // moved past the kept run by a push not the run's starts the next run at
 // the branch's head, which the push did not overwrite.
 func TestWorkerStartsFromKept(t *testing.T) {
+	t.Parallel()
 	t.Run("a slice not yet pushed", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.planned(oneSlice)
@@ -241,6 +242,7 @@ func TestWorkerStartsFromKept(t *testing.T) {
 // before the kept run ended, and one by a login not trusted start it
 // from the kept commit.
 func TestStartBaseLine(t *testing.T) {
+	t.Parallel()
 	blocked := func(t *testing.T) (*applyWS, string, string) {
 		a := newApplyWS(t)
 		a.planned(oneSlice)
@@ -380,6 +382,7 @@ func TestStartBaseLine(t *testing.T) {
 // from the pull request's head, since the swarm never forces a push, and
 // the kept commit stays in the mirror and in kept.
 func TestStartBaseWithOpenPullKeepsHead(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	h1 := a.pulls(1)[0].HeadSHA
@@ -408,6 +411,7 @@ func TestStartBaseWithOpenPullKeepsHead(t *testing.T) {
 // Without the flag the run starts from the kept commit; any other word
 // for --start is usage.
 func TestSwarmUnblockStartBase(t *testing.T) {
+	t.Parallel()
 	blocked := func(t *testing.T) (*applyWS, string, string) {
 		a := newApplyWS(t)
 		a.planned(oneSlice)

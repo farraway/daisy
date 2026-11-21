@@ -35,6 +35,7 @@ func checksFailed(head, contexts string) string {
 // approved, unblocked and with nothing posted, a line saying why; the
 // pass after the check succeeds merges it.
 func TestSwarmMergeStepWaitsForChecks(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, line string
 		report     func(a *applyWS, head string)
@@ -75,6 +76,7 @@ func TestSwarmMergeStepWaitsForChecks(t *testing.T) {
 // or errored, the issue goes to review-3-changes-requested with no note
 // on it and no block, and the worker's next run reads the note.
 func TestSwarmMergeStepChecksFailed(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	head := a.approvedGateOff()
 	a.forge.SetStatus("app", head, "ci / test", "failure")
@@ -102,6 +104,7 @@ func TestSwarmMergeStepChecksFailed(t *testing.T) {
 // Every check success and the merge refused all the same (a rule the
 // swarm's reviews do not satisfy) is still T16: the issue blocked.
 func TestSwarmMergeStepChecksPassedRefused(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	head := a.approvedGateOff()
 	a.forge.RequireChecks("app", "main")

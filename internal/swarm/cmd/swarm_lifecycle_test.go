@@ -164,6 +164,7 @@ const (
 // stages, proposal-posted, plan-0-posted and review-2-approved, and cleared
 // by the pass that moves the issue on from each.
 func TestSwarmApplyLifecycle(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nThe first priority.\n\n## M1 The drift\n\nA persona sees no drift.\n")
 	a.write("docs/briefs/b.md", "# Old\n\nStatus: active\nSecond.\n\n## M1 Done\n")

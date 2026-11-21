@@ -45,6 +45,7 @@ func ruleslibNote(by string) string {
 // host's clone is <state>/notes and the maintainer's clone is never
 // written.
 func TestSwarmApplyNotesInTheSwarmRepository(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	up := a.ownUp()
 	first := gitIn(t, up, "rev-parse", "main")
@@ -134,6 +135,7 @@ func TestSwarmApplyNotesInTheSwarmRepository(t *testing.T) {
 // empty, its note is kept with a warning, nothing is committed, and the
 // run is collected, its proposal posted.
 func TestSwarmApplyOwnNotesNotADirectory(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	up := a.ownUp()
 	dir := t.TempDir()
@@ -165,6 +167,7 @@ func TestSwarmApplyOwnNotesNotADirectory(t *testing.T) {
 // the warning, nothing committed, and the run collected, never the
 // collection's error at each pass (section 7.6, The notes).
 func TestSwarmApplyOwnNotesUnreadable(t *testing.T) {
+	t.Parallel()
 	for _, link := range []bool{true, false} {
 		t.Run(map[bool]string{true: "notes/ a link", false: "notes/ a directory"}[link], func(t *testing.T) {
 			a := newApplyWS(t)
@@ -209,6 +212,7 @@ func TestSwarmApplyOwnNotesUnreadable(t *testing.T) {
 // A notes/ that is not a directory on main keeps nothing of a run that
 // wrote no note: `notes unchanged`, no warning, the run's copy removed.
 func TestSwarmApplyOwnNotesNotADirectoryNothingWritten(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	up := a.ownUp()
 	dir := t.TempDir()
@@ -234,6 +238,7 @@ func TestSwarmApplyOwnNotesNotADirectoryNothingWritten(t *testing.T) {
 // written through: the run's note does not reach the link's target, on
 // main or in the host's clone, and is pushed to its own branch.
 func TestSwarmApplyOwnNotesBecomeALink(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	up := a.ownUp()
 	brief := gitIn(t, up, "rev-parse", "main:briefs")

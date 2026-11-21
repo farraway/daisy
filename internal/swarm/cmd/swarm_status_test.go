@@ -125,6 +125,7 @@ const statusPersonas = `Personas:
 // After init: zero issues per stage, the gates, the personas, nothing
 // running, no runs, no brief, so the owner's batch held (section 6).
 func TestSwarmStatusAfterInit(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	if err := s.status(s.forge); err != nil {
 		t.Fatal(err)
@@ -225,6 +226,7 @@ func stagedStatus(t *testing.T) *statusWS {
 // issue waits at its own stage; a paused one and one whose newest
 // maintainer comment names an open blocker are held.
 func TestSwarmStatusStages(t *testing.T) {
+	t.Parallel()
 	s := stagedStatus(t)
 	if err := s.status(s.forge); err != nil {
 		t.Fatal(err)
@@ -273,6 +275,7 @@ Running: #0 owner, #8 adversary, #12 check
 // stderr would carry are its warnings, stderr empty. A failure writes no
 // document: the error is returned and the held warnings go to stderr.
 func TestSwarmStatusJSON(t *testing.T) {
+	t.Parallel()
 	s := stagedStatus(t)
 	inMilestone(t, s.forge, "roadmap: M0", 1)
 	os.WriteFile(s.state("owner-held"), []byte("held 2026-11-06T09:00:00Z: waits on the jobs\n0-owner-3 waits #1 #2\n"), 0o644)
@@ -338,6 +341,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 // line the whole report ends near, Held and the rest left out; with --json
 // the document {waiting, warnings}, waiting as the whole report's.
 func TestSwarmStatusWaiting(t *testing.T) {
+	t.Parallel()
 	s := stagedStatus(t)
 	s.flags = []string{"--waiting"}
 	if err := s.status(s.forge); err != nil {
@@ -369,6 +373,7 @@ func TestSwarmStatusWaiting(t *testing.T) {
 // estimate at list price, from each run's persona and cost lines, the
 // runs with no persona line or no cached count counted without one.
 func TestSwarmStatusThroughput(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	today, yesterday := "started 2026-11-06T08:00:00Z\n", "started 2026-11-05T23:59:59Z\n"
 	for name, result := range map[string]string{
@@ -412,6 +417,7 @@ func TestSwarmStatusThroughput(t *testing.T) {
 }
 
 func TestSwarmStatusRefusals(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	s.secrets("")
 	if err := s.status(s.forge); strings.ReplaceAll(errText(err), s.state("env"), "<state>/env") != "Error: swarm: $GITEA_TOKEN is not set (in <state>/env or the environment)" {
@@ -441,6 +447,7 @@ func TestSwarmStatusRefusals(t *testing.T) {
 // run pushed, and the one a revert on base names, as the mirror's last
 // fetch left them; a merge of a head no run pushed is not one.
 func TestSwarmStatusReverts(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	work := t.TempDir()
 	gitIn(t, work, "init", "-q", "-b", "main")
@@ -544,6 +551,7 @@ const m0 = "Brief: docs/briefs/m0.md — lib measured against upstream 2.0.0\n\n
 // the one the forge shows by hand, and the Waiting line follows the
 // merges: merge, then next slice, then close.
 func TestSwarmStatusStep7(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) {
 		c.Trusted = []string{"jane", "swarm-bot"}
@@ -658,6 +666,7 @@ Held: nothing
 // batch run's Met: line is read from the newest batch run with an output;
 // a run's time from its start to its exit or timeout.
 func TestSwarmStatusCorrections(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) {
 		c.Trusted = []string{"jane", "swarm-bot"}
@@ -738,6 +747,7 @@ Briefs:
 // from a member's run or the QA's, however new (section 11,
 // status).
 func TestSwarmStatusMetFromBatchRunsOnly(t *testing.T) {
+	t.Parallel()
 	s := newStatusWS(t)
 	s.edit(func(c *declare.Config) { c.Resources = declare.Paths("docs/") })
 	s.write("docs/briefs/m0.md", "Status: active\n\n## First\n")

@@ -44,6 +44,7 @@ func (a *applyWS) edits(n int) int {
 // merged in the same pass; and an edit launches no member: the owner of
 // #2, a proposal with nothing to answer and a pull request, stays idle.
 func TestSwarmPullsBlock(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	text := "Brief: docs/briefs/a.md — M1 The drift\nClass: routine\nCheck the drift."
 	a.forge.CreateIssue("Drift check", mark("owner", 1)+text, []string{forge.ProposalAccepted})

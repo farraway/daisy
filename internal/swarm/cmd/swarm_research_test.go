@@ -77,6 +77,7 @@ func boardNote(pin string) string {
 // worker sees the notes read-only, without the section, and its mount
 // point is never committed.
 func TestSwarmApplyResearchNotes(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	up := a.notesUp(map[string]string{})
 	base := gitIn(t, up, "rev-parse", "main")
@@ -184,6 +185,7 @@ func TestSwarmApplyResearchNotes(t *testing.T) {
 // is not pushed and its copy kept, the host's clone left without it; a
 // host's clone deleted during the run is made again for the push.
 func TestSwarmApplyResearchNotesMerges(t *testing.T) {
+	t.Parallel()
 	secret := "oauth-token-0123456789abcdef0123456789"
 	for _, tc := range []struct {
 		name     string
@@ -276,6 +278,7 @@ func TestSwarmApplyResearchNotesMerges(t *testing.T) {
 // make the second's branch, which status lists under Waiting for you
 // once a pass has fetched it, and no more once it is deleted.
 func TestSwarmApplyResearchNotesRebased(t *testing.T) {
+	t.Parallel()
 	const old = "Subject: the board model\nSource: app main\nWritten: 2026-11-05 by hand\nChecked: 2026-11-05\n\n## Findings\n\nThe board is a grid.\n"
 	checked := func(day string) string { return strings.Replace(old, "Checked: 2026-11-05", "Checked: "+day, 1) }
 	const moves, scores = "\n## Moves (#1)\n\nA move is a pair.\n", "\n## Scores (#2)\n\nA score is a sum.\n"
@@ -365,6 +368,7 @@ func TestSwarmApplyResearchNotesRebased(t *testing.T) {
 // the new head and pushed again; refused with the head unmoved (a hook),
 // it is `notes kept: push rejected`, the run's copy kept.
 func TestSwarmApplyResearchNotesPushRefused(t *testing.T) {
+	t.Parallel()
 	note := "Subject: x\nSource: app main\n\nNew.\n"
 	for _, tc := range []struct {
 		name  string

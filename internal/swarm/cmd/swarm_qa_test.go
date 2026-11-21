@@ -60,6 +60,7 @@ func (a *applyWS) qaRuns() []runner.Spec {
 // own, a routine one passing triage by itself; it does not run again until two more
 // merges, and then reports no failure, creating nothing.
 func TestSwarmQAAfterMerges(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.qa(declare.QA{Merges: ptr(2)})
 	a.runner.Script(0, "qa", runner.Canned{Out: "## Sign in loses the board\nClass: routine\nOn /login, Sign in goes to /boards with no board listed.\n\n## New board fails\nOn /boards, New board answers 500.\n"})
@@ -156,6 +157,7 @@ func hasLabel(is forge.Issue, l string) bool {
 // exploration did not; a tag of another pattern runs nothing; with the
 // triage gate off its findings are proposal-accepted (T2).
 func TestSwarmQAAfterATag(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Gates.Triage = false
@@ -198,6 +200,7 @@ func TestSwarmQAAfterATag(t *testing.T) {
 // at once; a fault holds nothing; the owner's hold is not the
 // QA's.
 func TestSwarmQAHeld(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, held string
 		canned     runner.Canned
@@ -270,6 +273,7 @@ func ptr[T any](v T) *T { return &v }
 // A QA run not declared never runs, whatever lands on base; swarm.json
 // declaring it names its persona in status (section 11).
 func TestSwarmQAUndeclared(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.land("app", map[string]string{"login.go": "package app\n"}, "the login page")
 	a.tagUp("v1.0")
@@ -293,6 +297,7 @@ func TestSwarmQAUndeclared(t *testing.T) {
 // and the QA due in one pass, the owner's runs first and the
 // QA at the next pass.
 func TestSwarmQAAfterTheOwner(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.qa(declare.QA{Merges: ptr(1)})
 	a.release()

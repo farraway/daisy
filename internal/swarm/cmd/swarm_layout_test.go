@@ -19,6 +19,7 @@ import (
 // and prints the unit for the clone, %f the clone; apply's docker and id
 // run in the clone; status, pause and resume run there.
 func TestSwarmVerbsFromAClone(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	for dir := a.ws; ; dir = filepath.Dir(dir) {
 		if _, err := os.Lstat(filepath.Join(dir, ".daisy")); err == nil {
@@ -86,6 +87,7 @@ func TestSwarmVerbsFromAClone(t *testing.T) {
 // fallback, refused at mode 0640 or 0604 before it is read, a .env.sh in
 // the clone read by nothing and warned of by status and apply.
 func TestSwarmSecretsFile(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	env := a.secretsFile()
 	if env != a.state("env") {
@@ -157,6 +159,7 @@ func TestSwarmSecretsFile(t *testing.T) {
 // and removed in swarm.json is changed and unset in the mirror's config
 // at the next fetch.
 func TestSwarmProductsByForgeName(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	for _, name := range []string{"app", "lib"} {
 		if _, err := os.Stat(filepath.Join(a.dir, name)); err == nil {

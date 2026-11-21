@@ -52,8 +52,6 @@ type swarmWS struct {
 
 func newSwarmWS(t *testing.T) *swarmWS {
 	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	s := &swarmWS{t: t, dir: t.TempDir(), root: t.TempDir(), local: t.TempDir(), config: t.TempDir(), vars: map[string]string{}, upstreams: map[string]string{}}
 	s.ws = filepath.Join(s.dir, "swarm-app")
 	// The installed root's praxis and testing skill, which the architect's
@@ -83,14 +81,12 @@ func newSwarmWS(t *testing.T) *swarmWS {
 	}
 	// The swarm repository: on the forge once init creates it, its
 	// upstream empty, its default branch main. The maintainer's git
-	// identity commits in its clone.
+	// identity, the package's global config (TestMain), commits in its
+	// clone.
 	up := filepath.Join(t.TempDir(), "swarm-app.git")
 	git(t, "", "init", "-q", "--bare", "-b", "main", up)
 	s.upstreams[swarmURL] = up
 	s.forge.SetSSHURL(swarmURL)
-	global := filepath.Join(t.TempDir(), "gitconfig")
-	os.WriteFile(global, []byte("[user]\n\tname = Jane\n\temail = jane@example.net\n"), 0o644)
-	t.Setenv("GIT_CONFIG_GLOBAL", global)
 	s.place, s.cwd = declare.Clone(s.ws), s.dir
 	s.vars["GITEA_TOKEN"], s.vars["DAISY_MAINTAINER_TOKEN"] = "tok-123", "jane-456"
 	return s
@@ -322,6 +318,7 @@ func (s *swarmWS) units() string {
 // second run, from the clone, keeps a prompt the maintainer changed and a
 // swarm.json of the same values in the maintainer's own layout.
 func TestSwarmInitDefaults(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token"
 	if err := s.run("--defaults"); err != nil {
@@ -370,6 +367,7 @@ func TestSwarmInitDefaults(t *testing.T) {
 // warned of: init keeps what is there, and says what to do (section 11,
 // init).
 func TestSwarmInitWarnsOfAnUnusablePrompt(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token"
 	if err := s.run("--defaults"); err != nil {
@@ -399,6 +397,7 @@ func TestSwarmInitWarnsOfAnUnusablePrompt(t *testing.T) {
 // With the products' instructions pushed, a check, the resources and a
 // maintainer's login, init warns about nothing.
 func TestSwarmInitReadyWarnsNothing(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token"
 	editUp(t, s.upstreams["git@forge.example.net:acme/app.git"], "main", map[string]string{"AGENTS.md": "# App\n"})
@@ -427,6 +426,7 @@ func TestSwarmInitReadyWarnsNothing(t *testing.T) {
 // A refused label create: exit 1 with the missing names, the files
 // written; once the owner creates them, a re-run finds all seventeen.
 func TestSwarmInitRefusedLabels(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	s.forge.AddLabels("swarm:proposal-posted", "swarm:proposal-accepted")
 	s.forge.RefuseLabels()
@@ -457,6 +457,7 @@ func errText(err error) string {
 
 // Every failure before the files writes none of them, and makes no label.
 func TestSwarmInitWritesNothingBeforeTheForgeAnswers(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		edit func(s *swarmWS)
@@ -534,6 +535,7 @@ func TestSwarmInitWritesNothingBeforeTheForgeAnswers(t *testing.T) {
 // Question 33 refuses the swarm's login and asks again, and question 35's
 // yes declares the notes; EOF cancels and writes nothing.
 func TestSwarmInitMaintainerQuestion(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	s.answers = append(make([]string, 33), "swarm-bot", "jane", "", "yes")
 	if err := s.run(); err != nil {
@@ -564,6 +566,7 @@ func TestSwarmInitMaintainerQuestion(t *testing.T) {
 // doubled, and in ExecStart= a $ (a variable) doubled (section 11, The
 // unit file).
 func TestSwarmUnitQuotesItsValues(t *testing.T) {
+	t.Parallel()
 	var out bytes.Buffer
 	o := &ops.Fake{ExecutableFn: func() (string, error) { return `/opt/my daisy/100%/"b"\$HOME/daisy`, nil }}
 	c := &Context{Ops: o, Env: env.Env{Root: `/opt/my daisy/100%/"b"\$HOME`}, Stdout: &out}
@@ -581,6 +584,7 @@ func TestSwarmUnitQuotesItsValues(t *testing.T) {
 }
 
 func TestSystemdNotation(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string]string{"/home/jane/ws": "home-jane-ws", "/srv/my-ws/a.b": `srv-my\x2dws-a.b`, "/.hidden/x y": `\x2ehidden-x\x20y`, "/": "-"} {
 		if got := systemdEscapePath(in); got != want {
 			t.Errorf("systemdEscapePath(%q) = %q, want %q", in, got, want)

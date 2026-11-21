@@ -73,6 +73,7 @@ const scorecardCSV = "" +
 // summary, the window ending at it or now, whichever is earlier;
 // dropping one run's row changes its slice's row; nothing is written.
 func TestScorecardRowPerMergedSlice(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.setNow("2026-11-06T15:00:00Z")
@@ -178,6 +179,7 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 // an error; no home named, the backfill's error; no slice merged, a
 // line saying so; --until before --since, usage before anything is read.
 func TestScorecardRefusals(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	for _, flags := range [][]string{{"--scorecard", "--reprice"}, {"--scorecard", "--dry-run"}} {

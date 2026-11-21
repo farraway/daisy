@@ -25,6 +25,7 @@ import (
 // to plan-2-in-progress was refused is moved on from the stage it was
 // launched on.
 func TestSwarmInProgressTakenBack(t *testing.T) {
+	t.Parallel()
 	t.Run("a worker's fault", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.planned(oneSlice)
@@ -135,6 +136,7 @@ func TestSwarmInProgressTakenBack(t *testing.T) {
 // stage) is collected under the new name (forge.Renamed): the architect's
 // plan on a ready issue moves it from proposal-accepted on.
 func TestSwarmCollectsARunRecordedUnderTheOldNames(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	os.MkdirAll(a.state("runs/1-architect-1/io"), 0o755)
@@ -153,6 +155,7 @@ func TestSwarmCollectsARunRecordedUnderTheOldNames(t *testing.T) {
 // launches nothing while #m is open, and its role runs once #m is closed;
 // a later maintainer comment lifts the hold too. Collection is never held.
 func TestSwarmApplyHolds(t *testing.T) {
+	t.Parallel()
 	t.Run("paused", func(t *testing.T) {
 		a := newApplyWS(t)
 		a.edit(func(c *declare.Config) {
@@ -266,6 +269,7 @@ func gitRun(args ...string) error {
 // run collected by a later pass with launching paused, its stale,
 // discarded and abandoned ends.
 func TestSwarmSecondReviewerGoesHome(t *testing.T) {
+	t.Parallel()
 	home := "\nrelabelled swarm:review-1-in-progress swarm:review-0-ready\nrecorded\noutcome "
 	for _, tc := range []struct {
 		name    string

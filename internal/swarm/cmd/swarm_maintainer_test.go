@@ -148,6 +148,7 @@ func (m *maintainerWS) approvedPull(s int, sha string) forge.Ref {
 // last slice and the close; every write authored by jane, none marked,
 // and no process but git run.
 func TestSwarmMaintainerVerbs(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"Brief: docs/briefs/m0.md — First\n", []string{"swarm:proposal-posted"})
 	head := "Maintainer jane on acme/" + m.iss() + "\n"
@@ -196,6 +197,7 @@ func TestSwarmMaintainerVerbs(t *testing.T) {
 // swarm's; a trusted maintainer's own is current (here unreviewed, so
 // merge refuses it by name).
 func TestSwarmMaintainerCurrentPullOpeners(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
@@ -218,6 +220,7 @@ func TestSwarmMaintainerCurrentPullOpeners(t *testing.T) {
 // the gated flag with it) from the stage the block kept, its comment
 // first; a merge already made on the forge goes straight to the relabel.
 func TestSwarmMaintainerCloseUnblockMerged(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:proposal-accepted"})
@@ -266,6 +269,7 @@ func TestSwarmMaintainerCloseUnblockMerged(t *testing.T) {
 // request as jane, then review-2-approved → review-3-changes-requested
 // and the gated flag cleared; exit 0, nothing merged.
 func TestSwarmMaintainerMergeNotMergeable(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
@@ -291,6 +295,7 @@ func TestSwarmMaintainerMergeNotMergeable(t *testing.T) {
 // request as jane, then review-2-approved → review-3-changes-requested
 // and the gated flag cleared; exit 0, nothing merged.
 func TestSwarmMaintainerMergeChecksFailed(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
@@ -317,6 +322,7 @@ func TestSwarmMaintainerMergeChecksFailed(t *testing.T) {
 // it, and the pair's approval of the same head again; the forge still
 // reports it not mergeable, and the verb refuses, writing nothing.
 func TestSwarmMaintainerMergeSentBackTwice(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 	m.forge.Comment(issue1, mark("architect", 1)+twoSlices)
@@ -339,6 +345,7 @@ func TestSwarmMaintainerMergeSentBackTwice(t *testing.T) {
 // is a token of the swarm's account (refused after Login, before any
 // write).
 func TestSwarmMaintainerRefusesTheSwarmsToken(t *testing.T) {
+	t.Parallel()
 	verbs := []struct {
 		name string
 		run  func(*Context, opener) error
@@ -388,6 +395,7 @@ func TestSwarmMaintainerRefusesTheSwarmsToken(t *testing.T) {
 // --by; pause and resume of an issue not the swarm's; a comment carrying
 // the marker; a word that is not an issue number.
 func TestSwarmMaintainerRefusals(t *testing.T) {
+	t.Parallel()
 	type seed func(m *maintainerWS)
 	issue := func(labels ...string) seed {
 		return func(m *maintainerWS) { m.forge.CreateIssue("A", mark("owner", 1)+"a", labels) }
@@ -500,6 +508,7 @@ func TestSwarmMaintainerRefusals(t *testing.T) {
 // lookup of it would end, neither asks for it, and every forge they open
 // is under the swarm's token.
 func TestSwarmApplyAndStatusNeverReadTheMaintainersToken(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.vars[MaintainerTokenEnv] = "jane-456"
 	a.pass()
@@ -520,6 +529,7 @@ func resumeIssue(c *Context, open opener) error { return swarmHold(c, open, fals
 // swarm:blocking and then comments `Blocked by #<m>` on #n; nothing else
 // is written, and the bare pause and resume still act on the whole swarm.
 func TestSwarmMaintainerHolds(t *testing.T) {
+	t.Parallel()
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted"}) // #1
 	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:proposal-posted"}) // #2

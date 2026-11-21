@@ -18,6 +18,7 @@ import (
 // each argv is as before (TestSwarmDepsBeforeTheCheck,
 // TestSwarmCheckWithoutDepsUnchanged, TestSwarmNoServicesFile).
 func TestSwarmEnvGivenToEveryRunOfTheRepository(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Repos[0].Env = map[string]string{"GRIDAPP_TEST_REDIS_URI": "redis://elsewhere:6379", "CGO_ENABLED": "0"}
@@ -72,6 +73,7 @@ func TestSwarmEnvGivenToEveryRunOfTheRepository(t *testing.T) {
 // Without services, the worker's run is given env alone, on Docker's
 // default network, and the check env alone, offline (section 7.2).
 func TestSwarmEnvWithoutDepsOrServices(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Repos[0].Env = map[string]string{"TZ": "UTC"} })
 	a.publish("env")

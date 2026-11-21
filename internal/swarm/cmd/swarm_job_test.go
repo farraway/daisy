@@ -24,6 +24,7 @@ import (
 // /job with no --add-dir; the mount points are made in <run>/job, and no
 // clone holds one, nor a line for one in its .git/info/exclude.
 func TestMemberArgvMountsTheRunsFolder(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.notesUp(map[string]string{})
 	env := "XAI_API_KEY"
@@ -134,6 +135,7 @@ func TestMemberArgvMountsTheRunsFolder(t *testing.T) {
 // its commit fetched, pushed and its pull request opened, as a run of the
 // new layout's is.
 func TestSwarmCollectsAWorkerOfTheEarlierLayout(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	v1 := work("v1")
@@ -166,6 +168,7 @@ func TestSwarmCollectsAWorkerOfTheEarlierLayout(t *testing.T) {
 // from its clone at <run>/work/<name> and kept, and <run>/job, where the
 // member may have written at its top, removed with <run>/work.
 func TestSwarmAbandonedWorkerOfTheRunsFolder(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
 	head := a.orphanWorker()
@@ -198,6 +201,7 @@ func TestSwarmAbandonedWorkerOfTheRunsFolder(t *testing.T) {
 // <run>/job and the workspace there (built) at its launch; a batch run,
 // the owner's, has no job, so no such mount and no mount point.
 func TestArgvMountsJobMemory(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.release()
 	seen := map[string]string{}
@@ -287,6 +291,7 @@ func (a *applyWS) branch(name, branch string, files map[string]string) string {
 // at main's head (merged) and a branch not named swarm/<n>-<s> are left
 // out, and the reviewers of #1 do not see swarm/1-1, their own.
 func TestBranchesFile(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	h1 := a.pulls(1)[0].HeadSHA
@@ -342,6 +347,7 @@ func TestBranchesFile(t *testing.T) {
 // launched, the reconciler's note naming it (sections 7.7 and 7.8, The
 // prompt), rather than a prompt summarising it wrong or the pass failing.
 func TestJobSectionBlocksOnAFileItCannotUse(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	a.changesRequested()
@@ -362,6 +368,7 @@ func TestJobSectionBlocksOnAFileItCannotUse(t *testing.T) {
 // cannot use: the issue is blocked once, the reconciler's note posted
 // once (section 7.8, Rollout), neither reviewer launched.
 func TestJobSectionBlocksAPairOnce(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	a.changesRequested()
@@ -391,6 +398,7 @@ func TestJobSectionBlocksAPairOnce(t *testing.T) {
 // (sections 7.7 and 7.8, The prompt), rather than a prompt showing the
 // review cut or the pass failing.
 func TestUnreadableTextBlocksTheLaunch(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	a.changesRequested()
@@ -413,6 +421,7 @@ func TestUnreadableTextBlocksTheLaunch(t *testing.T) {
 // read, the round's review, blocks the issue once, the note posted once,
 // neither reviewer launched (sections 7.7 and 7.8, The prompt).
 func TestUnreadableTextBlocksAPairOnce(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	a.changesRequested()

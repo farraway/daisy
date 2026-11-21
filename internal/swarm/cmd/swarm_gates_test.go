@@ -110,6 +110,7 @@ func (f *flaky) Relabel(at forge.Ref, remove, add string) error {
 // or, the maintainer having moved the issue during the second reviewer's
 // run, not blocked, the second note saying so.
 func TestSwarmApplyRoundLimit(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ planGate, moved bool }{{true, false}, {false, false}, {true, true}} {
 		planGate := tc.planGate
 		name := map[bool]string{true: "plan gate on", false: "plan gate off"}[planGate]
@@ -233,6 +234,7 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 // untrusted login opens on the next slice's branch with the Refs line is
 // never the current pull request, so the pair reviews the swarm's.
 func TestSwarmApplyPullOpeners(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
 	evil, _ := a.forge.As(forge.Account{Login: "mallory"}).CreatePull("app", "swarm/1-2", "main", "slice", "Refs acme/swarm-app#1")
@@ -254,6 +256,7 @@ func TestSwarmApplyPullOpeners(t *testing.T) {
 // the architect's clone cannot make the head's branch, the swarm fault
 // clone failed (sections 7.1 and 7.7), nothing launched.
 func TestSwarmApplyRoundLimitHeadGone(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.MaxRounds = 1 })
 	a.inReview(oneSlice)
@@ -282,6 +285,7 @@ func TestSwarmApplyRoundLimitHeadGone(t *testing.T) {
 // without the line, or the line on plan-1-accepted, is the failure no
 // commits.
 func TestSwarmApplyNoChange(t *testing.T) {
+	t.Parallel()
 	const answer = "NO CHANGE: main.go:1 says v1, as the plan's Test Plan wants.\n\nNot established: none\n"
 	toChanges := func(t *testing.T) *applyWS {
 		a := newApplyWS(t)
@@ -347,6 +351,7 @@ func TestSwarmApplyNoChange(t *testing.T) {
 // head, made in the same second, still stands and only the sympathetic
 // is launched.
 func TestSwarmApplyDescriptionIsNoAnswer(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	if _, err := a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:plan-1-accepted"}); err != nil {
 		t.Fatal(err)
@@ -373,6 +378,7 @@ func TestSwarmApplyDescriptionIsNoAnswer(t *testing.T) {
 // close the issue (T15), with nothing from the maintainer; the budget is
 // validated and not enforced.
 func TestSwarmApplyGatesOff(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Gates = declare.Gates{Triage: false, Plan: false, Merge: false}
@@ -420,6 +426,7 @@ func TestSwarmApplyGatesOff(t *testing.T) {
 // T4: with the triage gate off, the owner's answer on a proposed issue
 // moves it to ready.
 func TestSwarmApplyOwnerAnswersWithTriageOff(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Gates.Triage = false
@@ -441,6 +448,7 @@ func TestSwarmApplyOwnerAnswersWithTriageOff(t *testing.T) {
 // review-2-approved with the reconciler's note naming the pull request and
 // the forge's message; the merge step skips it while it is blocked.
 func TestSwarmApplyMergeRefused(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Gates.Merge = false
@@ -467,6 +475,7 @@ func TestSwarmApplyMergeRefused(t *testing.T) {
 // T16 with no head both reviews approve (the issue relabelled
 // review-2-approved by hand): the note names no head.
 func TestSwarmApplyMergeRefusedNoHead(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Gates.Merge = false
@@ -485,6 +494,7 @@ func TestSwarmApplyMergeRefusedNoHead(t *testing.T) {
 // swarm (a retry): not when another login posted its text first, and again
 // when the maintainer has answered and the merge is refused once more.
 func TestSwarmApplyMergeRefusedNoteIsTheSwarms(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Gates.Merge = false
@@ -516,6 +526,7 @@ func TestSwarmApplyMergeRefusedNoteIsTheSwarms(t *testing.T) {
 // next pass when the maintainer moves the issue, the maintainer's own
 // labels on it kept, the issue's flags not copied.
 func TestSwarmApplyCopiesTheLabel(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.AddLabels("needs-docs")
 	a.inReview(oneSlice)
@@ -541,6 +552,7 @@ const uncheckedWarning = "⚠ swarm.json: repos[1] (lib) has no check and gates.
 // --json under waiting.no_check), notify tells it once, and connect
 // shows status's line. With the gate on, none of them names it.
 func TestSwarmMergeWithoutACheck(t *testing.T) {
+	t.Parallel()
 	a := newApplyWS(t)
 	notified := a.notifying()
 	a.pass()

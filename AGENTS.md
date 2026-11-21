@@ -25,7 +25,16 @@ the root. `cmd/daisy/main.go` is `os.Exit(cli.Run(ops.Real(), …))` and
 nothing else; `cmd/daisy` also holds the functional tests, which call the
 same `cli.Run` with an `ops.Fake` built around a temp machine. Every
 package's tests run under `internal/testenv`, which pins what the git they
-start reads: `HOME`, `USER`, no global git config.
+start reads: `HOME`, `USER`, no global git config but one a package sets
+once for all its tests (`MainWithGitConfig`; `internal/swarm/cmd`'s
+holds the maintainer's identity), so that its tests can call
+`t.Parallel`, as `internal/swarm/cmd`'s do; a test that changes
+process-wide state (`t.Setenv`, the working directory, a package-level
+variable) or fails when the wall clock outruns it does not. A lock this
+process released stays held by a child it forked meanwhile until the
+child's exec; `Lock` (`internal/ops`) waits for that child rather than
+refusing the process its own lock, as parallel tests forking git would
+otherwise see.
 
 **Standard library only** holds with the two formats read today by
 parsers written by hand, the shell subset of `.env.sh`

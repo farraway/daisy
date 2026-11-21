@@ -54,6 +54,7 @@ func (s *swarmWS) promptBuild(flags ...string) error {
 // it included; --force rewrites the edited prompt; a last run finds
 // nothing to write and commits nothing.
 func TestSwarmPromptBuild(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	if err := s.run("--defaults"); err != nil {
 		t.Fatalf("init: %v\n%s", err, s.stderr.String())
@@ -152,6 +153,7 @@ func TestSwarmPromptBuild(t *testing.T) {
 // default prompt, absent, with the five (section 11, prompt build); an
 // undeclared QA's prompt is no file of the clone's.
 func TestSwarmPromptBuildWritesTheQAPrompt(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	if err := s.run("--defaults"); err != nil {
 		t.Fatalf("init: %v\n%s", err, s.stderr.String())
@@ -186,6 +188,7 @@ func TestSwarmPromptBuildWritesTheQAPrompt(t *testing.T) {
 // DefaultPrompts[role], naming /work) has `swarm prompt build` rewrite
 // each as an earlier default, to the current one, which names no /work.
 func TestSwarmPromptBuildRewritesTheDefaultsBeforeTheRunsFolder(t *testing.T) {
+	t.Parallel()
 	s := newSwarmWS(t)
 	if err := s.run("--defaults"); err != nil {
 		t.Fatalf("init: %v\n%s", err, s.stderr.String())
