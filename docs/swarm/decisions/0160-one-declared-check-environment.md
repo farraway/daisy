@@ -246,3 +246,48 @@ step word (two names for one run's network). Tests:
 `TestSwarmServicesBesideAReviewer`, `TestSwarmServicesOfAReviewerRemoved`,
 `TestSwarmServicesRefused`, `TestSwarmEnvWithoutDepsOrServices`,
 `TestSwarmNoServicesFile`.
+
+**As built: a mapping as a list item (Step R3-3b of the plan
+implementing the 2026-11-19 swarm roadmap).** The YAML subset, which
+refused a mapping in a list by line, reads one, so a workflow's
+`steps`, `services` and `strategy.matrix.include` are read and the
+comparison with CI can compare them: an item whose text after its dash
+is a key (`- name: x`) or another item (`- - a`) is read as the block
+that begins where that text does, its further keys or items at that
+indentation and their nested mappings, lists and block scalars below
+them; a dash alone takes the block on the deeper lines after it, and a
+list may stand at its parent key's indentation (`steps:` then `- run:
+x`) as before. The values are PyYAML 6's for the same documents (null
+alone resolved, every other value text): a throwaway differential of
+560,000 generated documents and of 763 workflow files found on a
+development machine gave none read otherwise; 736 of the workflows
+read whole, the rest refused by line, each for a value over more than
+one line or an anchor. Comparing found forms the reader read as text
+where YAML reads otherwise, in every file it reads; each is now refused
+naming its line, or read as YAML does: a merge key (`<<`, which PyYAML
+merges) and a null key (`~:`); plain text, a key or a value, block or
+flow, beginning with what YAML reads otherwise (`- ` or `-` alone,
+`? `, `: `, `@`, `` ` ``, `%`, `#`, `,`, `[`, `]`, `{`, `}`, `|`, `>`);
+a tab outside a quoted value or a block scalar's text, and a line
+blank or a comment after a tab (PyYAML refuses both); in a flow
+collection, an empty entry (`[,a]`), a mapping of one pair in a list
+(`[a: b]`), plain text holding `?`, `[`, `]`, `{` or `}` or beginning
+with `:`, and a plain key ends only at a colon before a blank or a
+flow indicator (`{a:b}` is one key, and refused as without a value);
+a quote inside plain text is text, so a comment after it ends the line
+(`run: echo "a # b"` is `echo "a`), and a plain key's spaces before its
+colon (`a : 1`) are not part of it. Narrowed here: an empty list item
+(`-` with nothing deeper below it), which YAML reads as null, stays
+refused, as does a key given twice in one item, which PyYAML reads as
+its last. The services file's schema is unchanged: a field that takes
+no list refuses one with its own error (`services.mongo: not a
+mapping` for `services.mongo:` then `- image: mongo:7`), an
+environment's list item that is a mapping is `not a value`.
+Alternatives: reading an empty item as null (a value no field of the
+services file takes, and a form no workflow needs); reading a
+multi-line plain scalar or flow collection (about one workflow in
+thirty of the corpus uses one), left to a later step; leaving the
+forms the comparison found to a step of their own (each a value read
+otherwise than CI reads it, so a comparison built on them would be
+wrong, not merely incomplete). Tests: `TestParseYAMLMappingsInLists`,
+`TestParseServicesRefused`, `FuzzParseServices`.

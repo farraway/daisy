@@ -39,7 +39,7 @@ otherwise see.
 **Standard library only** holds with the two formats read today by
 parsers written by hand, the shell subset of `.env.sh`
 (`internal/env/shellenv.go`) and the YAML subset of a test services file
-(`internal/swarm/declare/services.go`, about 390 lines, refusing a whole
+(`internal/swarm/declare/services.go`, about 950 lines, refusing a whole
 file it does not read in full); another non-JSON format is the trigger
 to revisit it, since a third such parser would cost more than the
 dependency it avoids.

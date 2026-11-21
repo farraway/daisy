@@ -914,3 +914,17 @@ they write.
   (stdout, stderr) and the test plan. Decision
   [160](swarm/decisions/0160-one-declared-check-environment.md)
   amended.
+- 2026-11-20, Step R3-3b of the plan implementing the 2026-11-19 swarm
+  roadmap (R3): the YAML subset reads a mapping or a list as a list
+  item (`- name: x` with its further keys at its first key's
+  indentation, `- - a`, a dash alone with its item below), nested, so a
+  workflow's `steps`, `services` and matrix `include` are read; forms
+  it read as text where PyYAML reads otherwise (a merge or null key,
+  plain text beginning with an indicator, a tab outside quotes, flow
+  entries empty or of one pair, a quote inside plain text hiding a
+  comment) are refused by line or read as YAML does, an empty item
+  stays refused; the services file refuses a list where a field takes
+  none by that field's error. Sections 3 (`repos[].services`) and 7.9 (the comparison with
+  CI). Decision
+  [160](swarm/decisions/0160-one-declared-check-environment.md)
+  amended.

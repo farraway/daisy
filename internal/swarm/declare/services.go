@@ -52,9 +52,9 @@ var (
 )
 
 // ParseServices reads a test services file (section 3): YAML of the
-// subset Daisy reads (block mappings and lists, one-line flow
-// collections, plain and quoted scalars, literal and folded block
-// scalars, comments), a mapping of exactly
+// subset Daisy reads (block mappings and lists, a mapping or a list as a
+// list item, one-line flow collections, plain and quoted scalars,
+// literal and folded block scalars, comments), a mapping of exactly
 // services, one or more, each of the keys serviceKeys, and optional
 // x-daisy-env. Anything else is refused, never run in part.
 func ParseServices(data []byte) (TestServices, error) {
@@ -280,8 +280,11 @@ func envOf(at string, n *yNode) ([]string, error) {
 			return nil, fmt.Errorf("%s: not a mapping", at)
 		}
 		for i, it := range n.list {
+			if it.kind != yScalar {
+				return nil, fmt.Errorf("%s[%d]: not a value", at, i)
+			}
 			k, _, ok := strings.Cut(it.value, "=")
-			if it.kind != yScalar || !ok || !varShape.MatchString(k) {
+			if !ok || !varShape.MatchString(k) {
 				return nil, fmt.Errorf("%s[%d]: %q is not <name>=<value>", at, i, it.value)
 			}
 			out = append(out, it.value)
@@ -313,7 +316,9 @@ type yNode struct {
 
 // yLine is a line that holds YAML outside a block scalar: its number,
 // its indentation, its text without its comment, and why it is refused,
-// as the parser reads it (a block scalar's line is text).
+// as the parser reads it (a block scalar's line is text). A list item
+// whose mapping or list begins on its dash's line is read again as that
+// block's first line, its indentation where the block begins.
 type yLine struct {
 	n, indent int
 	text      string
@@ -336,9 +341,10 @@ func readYAML(data []byte) (*yNode, error) {
 		r = strings.TrimSuffix(r, "\r")
 		raw[i] = r
 		body := strings.TrimLeft(r, " ")
-		text := strings.TrimRight(uncomment(body), " \t")
-		if text == "" {
-			continue
+		kept, tab := uncomment(body)
+		text := strings.TrimRight(kept, " \t")
+		if text == "" && !strings.HasPrefix(body, "\t") {
+			continue // blank, or a comment
 		}
 		l := yLine{n: i + 1, indent: len(r) - len(body), text: text}
 		switch {
@@ -351,6 +357,9 @@ func readYAML(data []byte) (*yNode, error) {
 			l.err = lineErr(l.n, "a second document")
 		case strings.HasPrefix(text, "%"):
 			l.err = lineErr(l.n, "a directive (%%) is not read")
+		case tab:
+			// PyYAML's: a tab outside a quoted value is no separator.
+			l.err = lineErr(l.n, "a tab outside a quoted value")
 		}
 		lines = append(lines, l)
 	}
@@ -371,29 +380,59 @@ func readYAML(data []byte) (*yNode, error) {
 	return root, nil
 }
 
-// uncomment is a line without its comment: from a # at its start or
-// after a space, outside a quoted value.
-func uncomment(s string) string {
-	var quote byte
+// uncomment is a line without its comment, from a # at its start or
+// after a blank outside a quoted value, and whether a tab is outside a
+// quoted value before it. A quote begins a quoted value only where a
+// value or a key begins (the line's start, after a dash, a ? or a colon
+// before a blank, and in a flow collection after [, { or a comma); in
+// plain text it is text, as YAML reads it.
+func uncomment(s string) (string, bool) {
+	tab, start, depth := false, true, 0
+	blank := func(i int) bool { return i >= len(s) || s[i] == ' ' || s[i] == '\t' }
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		switch {
-		case quote == '"' && c == '\\':
-			i++
-		case quote != 0 && c == quote:
-			if quote == '\'' && i+1 < len(s) && s[i+1] == '\'' {
-				i++
-				continue
-			}
-			quote = 0
-		case quote != 0:
-		case (c == '"' || c == '\'') && (i == 0 || strings.IndexByte(" \t[{,:", s[i-1]) >= 0):
-			quote = c
 		case c == '#' && (i == 0 || s[i-1] == ' ' || s[i-1] == '\t'):
-			return s[:i]
+			return s[:i], tab
+		case c == ' ':
+		case c == '\t':
+			tab = true
+		case start && (c == '"' || c == '\''):
+			if i = closing(s, i); i == len(s) {
+				return s, tab // not closed: the parser refuses it
+			}
+			start = false
+		case c == ':' && (blank(i+1) || depth > 0 && strings.IndexByte(",[]{}", s[i+1]) >= 0),
+			start && (c == '-' || c == '?') && blank(i+1):
+			start = true
+		case (start || depth > 0) && (c == '[' || c == '{'):
+			start, depth = true, depth+1
+		case depth > 0 && c == ',':
+			start = true
+		case depth > 0 && (c == ']' || c == '}'):
+			start, depth = false, depth-1
+		default:
+			start = false
 		}
 	}
-	return s
+	return s, tab
+}
+
+// closing is the index of the quote that closes the one at s[i], or
+// len(s) when none does.
+func closing(s string, i int) int {
+	q := s[i]
+	for j := i + 1; j < len(s); j++ {
+		switch {
+		case q == '"' && s[j] == '\\':
+			j++
+		case s[j] == q && q == '\'' && j+1 < len(s) && s[j+1] == '\'':
+			j++
+		case s[j] == q:
+			return j
+		}
+	}
+	return len(s)
 }
 
 // yParser reads lines from the i-th; a block scalar reads raw, the
@@ -430,14 +469,27 @@ func (p *yParser) items(indent int) (*yNode, error) {
 			return nil, lineErr(l.n, "unexpected indentation")
 		}
 		rest := strings.TrimLeft(strings.TrimPrefix(l.text, "-"), " ")
-		if rest == "" {
-			return nil, lineErr(l.n, "an empty list item")
+		var v *yNode
+		var err error
+		switch {
+		case rest == "":
+			// A dash alone: its item is the block on the lines below it,
+			// deeper than the dash.
+			p.i++
+			if p.i == len(p.lines) || p.lines[p.i].indent <= indent {
+				return nil, lineErr(l.n, "an empty list item")
+			}
+			v, err = p.block(p.lines[p.i].indent)
+		case isItem(rest) || isKey(rest):
+			// A mapping or a list on the dash's line: read as the block
+			// whose first line begins where rest does, its further lines at
+			// that indentation.
+			p.lines[p.i].indent, p.lines[p.i].text = indent+len(l.text)-len(rest), rest
+			v, err = p.block(p.lines[p.i].indent)
+		default:
+			p.i++
+			v, err = p.value(rest, l.n, indent)
 		}
-		if !strings.ContainsAny(rest[:1], `[{"'`) && (strings.Contains(rest, ": ") || strings.HasSuffix(rest, ":")) {
-			return nil, lineErr(l.n, "a mapping in a list")
-		}
-		p.i++
-		v, err := p.value(rest, l.n, indent)
 		if err != nil {
 			return nil, err
 		}
@@ -581,6 +633,25 @@ func (p *yParser) blockScalar(head string, n, parent int) (*yNode, error) {
 	return &yNode{kind: yScalar, value: b.String()}, nil
 }
 
+// isKey is whether t, a list item's text after its dash, begins a
+// mapping: a key, plain or quoted, then a colon ending t or before a
+// space. A flow collection, a block scalar's header, an anchor, an alias
+// or a tag begins a value.
+func isKey(t string) bool {
+	if t[0] == '"' || t[0] == '\'' {
+		_, end, err := quoted(t, 0, 0)
+		if err != nil {
+			return false
+		}
+		after := strings.TrimLeft(t[end:], " ")
+		return after == ":" || strings.HasPrefix(after, ": ")
+	}
+	if strings.IndexByte("[{|>&*!", t[0]) >= 0 {
+		return false
+	}
+	return strings.Contains(t, ": ") || strings.HasSuffix(t, ":")
+}
+
 // splitKey is a block mapping line's key and the value after it, "" when
 // none.
 func splitKey(text string, n int) (key, rest string, err error) {
@@ -589,19 +660,53 @@ func splitKey(text string, n int) (key, rest string, err error) {
 		if err != nil {
 			return "", "", err
 		}
-		after := text[end:]
+		after := strings.TrimLeft(text[end:], " ")
 		if after != ":" && !strings.HasPrefix(after, ": ") {
 			return "", "", lineErr(n, "not a key: value")
 		}
 		return k, strings.TrimLeft(after[1:], " "), nil
 	}
-	if i := strings.Index(text, ": "); i > 0 {
-		return text[:i], strings.TrimLeft(text[i+2:], " "), nil
+	key, rest, ok := strings.Cut(text, ": ")
+	if !ok && strings.HasSuffix(text, ":") {
+		key, ok = text[:len(text)-1], true
 	}
-	if strings.HasSuffix(text, ":") && len(text) > 1 {
-		return text[:len(text)-1], "", nil
+	if key = strings.TrimRight(key, " "); !ok || key == "" {
+		return "", "", lineErr(n, "not a key: value")
 	}
-	return "", "", lineErr(n, "not a key: value")
+	if err := plainKey(key, n); err != nil {
+		return "", "", err
+	}
+	return key, strings.TrimLeft(rest, " "), nil
+}
+
+// plainKey refuses a plain key the subset does not read as text: a
+// merge key, a null (~, null), or one that YAML reads otherwise
+// (plainStart).
+func plainKey(k string, n int) error {
+	if k == "<<" {
+		return lineErr(n, "a merge key (<<) is not read")
+	}
+	if plain(k).null {
+		return lineErr(n, "%s: a null key is not read", k)
+	}
+	return plainStart(k, n)
+}
+
+// plainStart refuses plain text (a key or a value, not quoted) that
+// begins with what YAML reads as other than text: an anchor, an alias or
+// a tag, a reserved, flow or comment character, a directive's %,
+// or a -, ? or : alone or before a space (a list item, a complex key, a
+// value).
+func plainStart(s string, n int) error {
+	switch c := s[0]; {
+	case c == '&' || c == '*' || c == '!':
+		return lineErr(n, "an anchor, alias or tag (&, *, !) is not read")
+	case strings.IndexByte(",[]{}#|>%@`", c) >= 0:
+		return lineErr(n, "%q: plain text beginning %q is not read; quote it", s, s[:1])
+	case strings.IndexByte("-?:", c) >= 0 && (len(s) == 1 || s[1] == ' '):
+		return lineErr(n, "%q: plain text beginning %q is not read; quote it", s, s[:min(len(s), 2)])
+	}
+	return nil
 }
 
 // inlineValue is a value on its line: a one-line flow collection, a quoted
@@ -632,6 +737,9 @@ func inlineValue(s string, n int) (*yNode, error) {
 	}
 	if strings.Contains(s, ": ") || strings.HasSuffix(s, ":") {
 		return nil, lineErr(n, "a plain value holding \": \"; quote it")
+	}
+	if err := plainStart(s, n); err != nil {
+		return nil, err
 	}
 	return plain(s), nil
 }
@@ -758,7 +866,35 @@ func (f *flow) value() (*yNode, error) {
 	for f.i < len(f.s) && !strings.ContainsRune(",]}", rune(f.s[f.i])) {
 		f.i++
 	}
-	return plain(strings.TrimRight(f.s[start:f.i], " ")), nil
+	s := strings.TrimRight(f.s[start:f.i], " ")
+	if s == "" {
+		return nil, lineErr(f.n, "an empty entry in a flow collection")
+	}
+	if err := flowText(s, f.n); err != nil {
+		return nil, err
+	}
+	if strings.Contains(s, ": ") || strings.HasSuffix(s, ":") {
+		// A mapping of one pair in a list ([a: b]), or not YAML.
+		return nil, lineErr(f.n, "a plain value holding \": \"; quote it")
+	}
+	return plain(s), nil
+}
+
+// flowText refuses plain text in a flow collection, a key or a value,
+// that YAML reads otherwise: what plainStart refuses, text beginning with
+// a colon (there always a value's), or text holding ?, [, ], { or },
+// which end plain text there.
+func flowText(s string, n int) error {
+	if s[0] == ':' {
+		return lineErr(n, "%q: plain text beginning %q is not read; quote it", s, ":")
+	}
+	if err := plainStart(s, n); err != nil {
+		return err
+	}
+	if strings.ContainsAny(s, "?[]{}") {
+		return lineErr(n, "%q: plain text in a flow collection holding ?, [, ], { or }; quote it", s)
+	}
+	return nil
 }
 
 // next steps past the comma after an entry, or stops at close.
@@ -787,12 +923,25 @@ func (f *flow) key() (string, error) {
 			return "", err
 		}
 		k, f.i = v, end
+		f.space()
 	} else {
+		// A plain key ends at a colon before a space, a flow indicator or
+		// the line's end (a:b is one key).
 		start := f.i
-		for f.i < len(f.s) && f.s[f.i] != ':' && f.s[f.i] != ',' && f.s[f.i] != '}' {
+		for f.i < len(f.s) && f.s[f.i] != ',' && f.s[f.i] != '}' &&
+			(f.s[f.i] != ':' || f.i+1 < len(f.s) && strings.IndexByte(" ,[]{}", f.s[f.i+1]) < 0) {
 			f.i++
 		}
 		k = strings.TrimRight(f.s[start:f.i], " ")
+		if k == "" {
+			return "", lineErr(f.n, "a flow mapping's key missing")
+		}
+		if err := plainKey(k, f.n); err != nil {
+			return "", err
+		}
+		if err := flowText(k, f.n); err != nil {
+			return "", err
+		}
 	}
 	if f.i >= len(f.s) || f.s[f.i] != ':' {
 		if f.i >= len(f.s) {
