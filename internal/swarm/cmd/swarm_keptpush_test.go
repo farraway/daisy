@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
@@ -66,6 +67,7 @@ func TestSwarmKeptStartPushedWithoutNewCommits(t *testing.T) {
 
 	t.Run("a slice not yet pushed", func(t *testing.T) {
 		a := newApplyWS(t)
+		home := a.metricsHome()
 		a.planned(oneSlice)
 		a.runner.Script(1, "worker", half("BLOCKED: which version?\n"))
 		a.pass()
@@ -79,6 +81,16 @@ func TestSwarmKeptStartPushedWithoutNewCommits(t *testing.T) {
 		pushedKept(t, a, "1-worker-2", kept)
 		if p := a.pulls(1); len(p) == 1 && !strings.Contains(p[0].Body, "main.go as kept is v1's.") {
 			t.Errorf("the pull request's description:\n%s", p[0].Body)
+		}
+		// Its row's lines are counted over start..pushed, empty.
+		var row map[string]string
+		for _, rw := range rows(t, home) {
+			if rw["step_or_run"] == "1-worker-2" {
+				row = rw
+			}
+		}
+		if row == nil || row["code_added"] != "0" || row["range"] != kept+".."+kept {
+			t.Errorf("worker run 2's row %v", row)
 		}
 		replayed(t, a, "1-worker-1")
 	})
@@ -116,6 +128,7 @@ func TestSwarmKeptStartPushedWithoutNewCommits(t *testing.T) {
 		if last := cs[len(cs)-1].Body; !strings.Contains(last, "**Check:** `make check` on "+kept[:7]) {
 			t.Errorf("the answer was not posted as a revision:\n%s", last)
 		}
+		replayed(t, a, "1-worker-2")
 	})
 
 	t.Run("a kept commit the branch holds", func(t *testing.T) {
@@ -162,6 +175,9 @@ func TestSwarmKeptStartPushedWithoutNewCommits(t *testing.T) {
 		if p := a.pulls(1); len(p) != 1 || p[0].HeadSHA != kept {
 			t.Errorf("the pull request %+v, want one on the kept %s", p, kept)
 		}
+		if k, _ := a.jobFile(1, "slices/1/kept"); !strings.HasPrefix(k, "1-worker-1 ") {
+			t.Errorf("kept %q, want the kept run 1-worker-1's", k)
+		}
 	})
 
 	// A check held in the environment (section 7.9, The classification):
@@ -189,6 +205,31 @@ func TestSwarmKeptStartPushedWithoutNewCommits(t *testing.T) {
 		}
 		if ref := a.gitRunIn(a.state("git/app"), "rev-parse", "refs/swarm-runs/1-worker-2"); ref != kept {
 			t.Errorf("the run's ref %q, want the kept %s", ref, kept)
+		}
+		replayed(t, a, "1-worker-1")
+	})
+
+	// The secret check and protected paths (section 7.6, step 3) read
+	// the kept commits again: a path protected since the kept run is
+	// refused, nothing pushed, the commits held as the run's ref.
+	t.Run("a protected path since the kept run", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", half("BLOCKED: which version?\n"))
+		a.pass()
+		kept := a.keptOf()
+		a.edit(func(c *declare.Config) { c.Repos[0].Protected = append(c.Repos[0].Protected, "main.go") })
+		a.say(issue1, "jane", "v1; half is it.")
+		a.runner.Script(1, "worker", nothing("main.go as kept is v1's."))
+		a.pass()
+		r := a.result("1-worker-2")
+		inOrder(t, r, "\nunpushed "+kept+"\n", "\nfailed: protected path changed: main.go\n", "\nkept refs/swarm-runs/1-worker-2\n", "\noutcome failed\n")
+		if strings.Contains(r, "\npushed ") || len(a.pulls(1)) != 0 || len(a.launched("check")) != 0 {
+			t.Errorf("checked, pushed or posted:\n%s", r)
+		}
+		b := a.bodies(1)
+		if note := "Its commits are kept in the swarm's mirror as refs/swarm-runs/1-worker-2."; !strings.Contains(b[len(b)-1], note) {
+			t.Errorf("note %q", b[len(b)-1])
 		}
 		if k, _ := a.jobFile(1, "slices/1/kept"); !strings.HasPrefix(k, "1-worker-1 ") {
 			t.Errorf("kept %q, want the kept run 1-worker-1's", k)

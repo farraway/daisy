@@ -4693,7 +4693,10 @@ its run's records give, which is the one it was posted with: a run
 that records no check result was collected while its repository
 declared none and posted `**Check:** none declared.`, and is replayed
 with it though its repository has declared a check since (the
-maintainer's answer of 2026-11-20). A replay over a job's runs is byte for byte the
+maintainer's answer of 2026-11-20); a run whose `unpushed <sha>` line
+names its fetched commit is replayed as one with commits to push,
+posted with its check block (7.9, The classification; from Step R3-8),
+its slice's `kept` still from the lines above. A replay over a job's runs is byte for byte the
 workspace their collections write; over a workspace that holds some
 files already, it rewrites only the files its rows rewrite, a file of
 `texts/`, `rounds/` or `checks/` that is there left as it is (The
@@ -5176,7 +5179,7 @@ then the check, as at first. The collection then reads the lines after
 |---|---|---|
 | exits 0 | the run is collected as after any green check: pushed, posted with the rerun's check block | the green check; the first failure is in `<run>/result`, `check-1.out` and the stdout line alone |
 | fails, and is not classified | the change's failure: posted as any failing check, its check block and `checks/<sha>.log` the rerun's | the rerun's failure, which is the change's |
-| fails, and is classified again | the failure persists: `failed: check environment: <reason>` (the rerun's reason), a failure of the work (7.7): the reconciler's note on the issue, `swarm:blocked`, the run's row with cause `environment`; its commits kept as its run's ref and its slice's `kept` (7.6, step 2; 7.8); nothing pushed, nothing posted on the pull request, no `checks/<sha>.log` | nothing: no post, no check block, no workspace file; the note is on the issue, which no worker's or reviewer's prompt shows (7.3) |
+| fails, and is classified again | the failure persists: `failed: check environment: <reason>` (the rerun's reason), a failure of the work (7.7): the reconciler's note on the issue, `swarm:blocked`, the run's row with cause `environment`; its commits kept as its run's ref and its slice's `kept` (7.6, step 2; 7.8; from a start at kept commits not yet on the branch, `kept` still the kept run's, its As built for Step R3-8, below); nothing pushed, nothing posted on the pull request, no `checks/<sha>.log` | nothing: no post, no check block, no workspace file; the note is on the issue, which no worker's or reviewer's prompt shows (7.3) |
 
 The note reads `worker run <k> failed: check environment: <reason> (at
 swarm:<label>). Remove swarm:blocked to resume. Its commits are kept in
@@ -5319,8 +5322,9 @@ one that does not push (a failure, `check environment` among them, a
 `BLOCKED:`, a question, a fault or abandoned) keeps the commits as its
 own run's ref, `kept refs/swarm-runs/<n>-worker-<k>`, which its note
 names (7.6, step 2), as a run with commits of its own does. Its row's
-lines are `start..pushed`'s, none (the kept commits' lines are on no
-row, as for any start from kept since Step R1-8). A run launched
+lines are counted over `start..pushed`, an empty range, so 0 (the kept
+commits' lines are on no row, as for any start from kept since Step
+R1-8). A run launched
 before this build records no `unpushed` line, and its collection is as
 it was. Tests:
 `TestSwarmKeptStartPushedWithoutNewCommits`.
