@@ -101,3 +101,25 @@ func TestDefaultPromptsNameNoResourcePath(t *testing.T) {
 		}
 	}
 }
+
+// No default reviewer persona tells a later round to read the whole diff
+// regardless of the Task: since a delta review (decision 168), a later
+// round's Task names the change since the reviewer's last head and says
+// reviewing the whole change again is not the task, so each reviewer's
+// reading instruction yields to it, the whole diff in round 1 (Step E2b
+// of the plan implementing the 2026-11-19 swarm roadmap). A sentence
+// that names the whole diff names round 1 too, and the instruction reads
+// what the Task names in a later round.
+func TestDefaultReviewersReadWhatTheTaskNames(t *testing.T) {
+	for _, role := range []string{"adversary", "sympathetic"} {
+		text := strings.Join(strings.Fields(DefaultPrompts[role]), " ")
+		for _, s := range strings.SplitAfter(text, ". ") {
+			if strings.Contains(strings.ToLower(s), "whole diff") && !strings.Contains(s, "in round 1") {
+				t.Errorf("%s's default reads the whole diff in every round: %q", role, s)
+			}
+		}
+		if !strings.Contains(text, "in a later round what the Task names") {
+			t.Errorf("%s's default does not read what the Task names in a later round", role)
+		}
+	}
+}

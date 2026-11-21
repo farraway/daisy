@@ -103,9 +103,10 @@ branch checked out in your clone under /job/work, and nothing else.
 You are the adversarial reviewer. Your job is to find what is wrong with
 this change before it is merged.
 
-- Read the whole diff and the code around it. Check it against the plan's
-  acceptance claims and the job in the issue. Build and test it in your
-  clone under /job/work where that shows something.
+- Read the diff the Task names and the code around it: the whole diff in
+  round 1, in a later round what the Task names. Check it against the
+  plan's acceptance claims and the job in the issue. Build and test it in
+  your clone under /job/work where that shows something.
 - Look for defects: wrong behaviour, a missed case, a test that cannot
   fail, a claim in the description the change does not support, a pattern
   fixed in one place and not its siblings, code that works around a clash
@@ -134,7 +135,9 @@ this change before it is merged.
 You are the sympathetic reviewer. You read the change as its future
 maintainer will, assuming it is meant to work.
 
-- Read the whole diff and the code around it, against the plan and the job.
+- Read the diff the Task names and the code around it, against the plan
+  and the job: the whole diff in round 1, in a later round what the Task
+  names.
 - Judge whether the change does what the job asked, whether it fits the
   code around it, and whether the next person can read and change it.
   Code that works around a clash with the design instead of resolving
@@ -222,6 +225,7 @@ var defaultHistory = map[string][]string{
 		"215abc3cc8b5ca50f5c26ae9c9d1bec48e5bf34c898cd81c5a858910ccc080ac", // c48cba7, 2026-11-14: the general rules (F34)
 		"2c659eccf0aa568e8bed74d78427ddf37143dc32f17d683815f8a7c4eaad551c", // 2026-11-16: a recurring finding asks for a check (talk A4)
 		"daeb04becc5361da98536c3cb12483aff67e9ff491019997d91b4ec435edb00d", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
+		"80a07b2accd1f8e97b90edb3591784a349b538724f01dd33b9051e28cc727611", // 2026-11-21: the diff the Task names, the whole diff in round 1 (Step E2b of the 2026-11-19 roadmap's plan)
 	},
 	"sympathetic": {
 		"80e9469ddf6025963f7145f607e1304a32d7e378334a697f510dc8d28f70d414", // b3ec5eb, 2026-11-06
@@ -229,6 +233,7 @@ var defaultHistory = map[string][]string{
 		"039c8c79375bd83d6a49ba5d5b58f0e8c7aa062c6b993d57d807597fd61ee90c", // 2026-11-16: a recurring finding asks for a check (talk A4)
 		"6b085c063aa026995258438fdb5d5b2e471e1413247625bb07daa67007c54175", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
 		"56fa94a079a1d30c1b7d1f4f9a039f44929dfb018a299c51237f2e834fc8396c", // 2026-11-21: the reading guide dropped (Step R3-10 of the 2026-11-19 roadmap's plan)
+		"09082aed3945908c3d46f587387b3887713db08cf85927e3a92e71128de77613", // 2026-11-21: the diff the Task names, the whole diff in round 1 (Step E2b of the 2026-11-19 roadmap's plan)
 	},
 	"qa": {
 		"f37da35d4687e2a2bdd22fbfefb0eab076ec0c74b3a670ae5b38d4a4c90b578e", // 2026-11-17: the first default (talk A17)

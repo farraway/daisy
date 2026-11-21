@@ -916,9 +916,10 @@ branch checked out in your clone under /job/work, and nothing else.
 You are the adversarial reviewer. Your job is to find what is wrong with
 this change before it is merged.
 
-- Read the whole diff and the code around it. Check it against the plan's
-  acceptance claims and the job in the issue. Build and test it in your
-  clone under /job/work where that shows something.
+- Read the diff the Task names and the code around it: the whole diff in
+  round 1, in a later round what the Task names. Check it against the
+  plan's acceptance claims and the job in the issue. Build and test it in
+  your clone under /job/work where that shows something.
 - Look for defects: wrong behaviour, a missed case, a test that cannot
   fail, a claim in the description the change does not support, a pattern
   fixed in one place and not its siblings, code that works around a clash
@@ -951,7 +952,9 @@ this change before it is merged.
 You are the sympathetic reviewer. You read the change as its future
 maintainer will, assuming it is meant to work.
 
-- Read the whole diff and the code around it, against the plan and the job.
+- Read the diff the Task names and the code around it, against the plan
+  and the job: the whole diff in round 1, in a later round what the Task
+  names.
 - Judge whether the change does what the job asked, whether it fits the
   code around it, and whether the next person can read and change it.
   Code that works around a clash with the design instead of resolving
@@ -6815,12 +6818,14 @@ distinct default the role has had since the defaults were introduced
 (b3ec5eb, Step 1 of the swarm build), oldest first and the current one
 last, from the root's history of that file, each the text `init` wrote,
 byte for byte. The owner has had six, the architect seven, the worker
-four, the adversary five, the sympathetic reviewer five, the QA
-one (talk A17); the last of each but the QA's and the sympathetic
-reviewer's moved its paths to `/job` (Step R1-6 of the plan
-implementing the 2026-11-19 swarm roadmap), and the sympathetic
-reviewer's next-to-last did, its last dropping the reading guide (Step
-R3-10). A change to a
+four, the adversary six, the sympathetic reviewer six, the QA
+one (talk A17); the last of the owner's, the architect's and the
+worker's, and the adversary's next-to-last, moved its paths to `/job`
+(Step R1-6 of the plan implementing the 2026-11-19 swarm roadmap), as
+the sympathetic reviewer's fourth did, its fifth dropping the reading
+guide (Step R3-10); the last of each reviewer's reads the diff the Task
+names, the whole diff in round 1 (Step E2b, decision
+[168](swarm/decisions/0168-a-delta-review.md)). A change to a
 default appends its hash: `TestDefaultHistoryHoldsEachCurrentDefault`
 fails while a role's current default is not its last entry, so a prompt
 still at the old default is rewritten rather than taken for an edit. No

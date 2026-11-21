@@ -1133,3 +1133,13 @@ they write.
   [63](swarm/decisions/0063-the-adversarys-fail-against-base-check-is-bounded.md)
   and
   [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md).
+- 2026-11-21, Step E2b of the plan implementing the 2026-11-19 swarm
+  roadmap: the default reviewer personas follow the delta Task. The
+  adversary's and the sympathetic reviewer's defaults no longer say
+  "Read the whole diff": each reads the diff the Task names, the whole
+  diff in round 1 and what the Task names in a later round, so neither
+  contradicts a delta round's Task; their sha256 appended to the table
+  of earlier defaults. Sections 4 (the adversary's and the sympathetic
+  reviewer's default prompts) and 11 (The table of earlier defaults).
+  Decision [168](swarm/decisions/0168-a-delta-review.md), amended with
+  an As built note.

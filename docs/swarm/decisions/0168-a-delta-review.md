@@ -76,3 +76,21 @@ windows are cut at the install's time, not by `root_sha`). A hash of
 Daisy's fixed Task text recorded per row, so that the scorecard's By
 configuration would separate them itself, was the alternative: one more
 column for a change made once.
+
+**As built: the default reviewer personas (Step E2b of the plan
+implementing the 2026-11-19 swarm roadmap, 2026-11-21).** The
+adversary's and the sympathetic reviewer's default prompts (section 4)
+said "Read the whole diff and the code around it" in every round,
+against a delta round's Task, which names the change since the
+reviewer's last head and says reviewing the whole change again is not
+the task. Each now reads "the diff the Task names and the code around
+it": the whole diff in round 1, in a later round what the Task names
+(the whole change for a reviewer with no review of its own on the pull
+request). Wording only, no new rule; their sha256 are appended to the
+table of earlier defaults (section 11), so `swarm prompt build`
+rewrites a prompt still at the previous default. The sympathetic
+reviewer's "try it in your clone under /job/work where that is cheap"
+stays: a delta round's Task still gives the reviewer a throwaway clone
+to build and test in, and decision 163's order leaves the sympathetic
+reviewer's own probes of a new test as they were. Test:
+`TestDefaultReviewersReadWhatTheTaskNames`.
