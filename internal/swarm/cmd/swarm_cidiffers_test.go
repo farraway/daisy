@@ -406,7 +406,9 @@ func TestSwarmInitReadinessCIDiffers(t *testing.T) {
 	if err := s.run("--defaults"); err != nil {
 		t.Fatalf("%v\n%s", err, s.stderr.String())
 	}
-	if got := s.stderr.String(); !strings.Contains(got, "⚠ Readiness: comparing app's CI: git ls-tree ") || strings.Contains(got, "CI differs") {
+	if got := s.stderr.String(); !strings.Contains(got, "⚠ Readiness: comparing app's CI: git ls-tree ") || strings.Contains(got, "CI differs") ||
+		!strings.HasSuffix(got, "⚠ Readiness: lib: check is empty; no member's work is executed (set it in swarm.json)\n"+
+			"⚠ Readiness: trusted holds no maintainer login; no comment of yours reaches a member\n") {
 		t.Errorf("an unreadable mirror:\n%s", got)
 	}
 }
