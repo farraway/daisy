@@ -291,3 +291,13 @@ forms the comparison found to a step of their own (each a value read
 otherwise than CI reads it, so a comparison built on them would be
 wrong, not merely incomplete). Tests: `TestParseYAMLMappingsInLists`,
 `TestParseServicesRefused`, `FuzzParseServices`.
+
+**As built: the paths (Step R3-9 of the plan implementing the
+2026-11-19 swarm roadmap).** The check's and the dependency step's
+clone, `<run>/check`, is mounted at `/job/work/<name>`, `<name>` the
+run's repository, and is their working directory; nothing is mounted
+above it, so Docker makes its mount point in the container's own
+layer, and the rest of each argv (the cache at `/deps`, the variables,
+the network) is as before. Tests: `TestArgs`,
+`TestSwarmDepsBeforeTheCheck`, `TestSwarmCheckWithoutDepsUnchanged`,
+`TestSwarmApplyLifecycle`.

@@ -516,8 +516,9 @@ func (s *Swarm) settle(r Run) error {
 func runRef(r Run) string { return fmt.Sprintf("refs/swarm-runs/%d-worker-%d", r.N, r.K) }
 
 // startStep clones the worker run's fetched head from the mirror into
-// <run>/check and starts step on it (sections 7.2 and 7.6, step 4): the
-// dependency step ("deps") on Docker's default network, the clone
+// <run>/check, mounted at /job/work/<name> as a member's checkout is
+// (section 7.9, The paths), and starts step on it (sections 7.2 and 7.6,
+// step 4): the dependency step ("deps") on Docker's default network, the clone
 // read-only and the swarm's cache for the repository read-write; or the
 // check, with no network and, when the repository declares deps, that
 // cache read-only; both given the repository's env, then deps' env
@@ -559,8 +560,9 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 		}
 	}
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
+	clone := WorkMount + "/" + repo.Name
 	spec := runner.Spec{Name: s.containerName(r.N, step, r.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, r.N, step), User: s.User, Network: "none",
-		Env: repo.EnvLines(), Mounts: []runner.Mount{{Src: dir, Dst: "/work"}}, Workdir: "/work", Image: repo.Image, Argv: repo.Check}
+		Env: repo.EnvLines(), Mounts: []runner.Mount{{Src: dir, Dst: clone}}, Workdir: clone, Image: repo.Image, Argv: repo.Check}
 	if d := repo.Deps; d != nil {
 		cache := s.depsCache(repo.Name)
 		if err := fs.MkdirAll(cache, 0o755); err != nil {

@@ -527,7 +527,7 @@ yet or not (Step 6 of revision 6's plan; decision [109](swarm/decisions/0109-ini
 | `repos[].repo` | string | as found (question 1: a clone's `origin`'s `<owner>/<repo>`) | `<owner>/<name>`, `<owner>` `forge.repo`'s (decision [7](swarm/decisions/0007-every-declared-repository-is-owners-at-its-origin.md)) and `<name>` the entry's `name`: the repository on the forge where its branches are pushed and its pull requests opened, reached at `<url>`, the swarm repository's clone's `origin` URL with its last path element, `<repo>[.git]`, replaced by `<name>.git` (7.1, step 1; every declared repository lies on the swarm repository's forge, beside it) |
 | `repos[].ssh_command` | string | absent; the clone's `core.sshCommand` when question 1 found the repository's clone and it sets one | optional; non-empty, one line; recorded as `core.sshCommand` in its mirror's config (7.1, step 1), where every host git command that reaches the repository reads it (an identity's key); absent, git's own SSH command (the mirror's `core.sshCommand` unset) |
 | `repos[].check` | array of strings | `[]` | the repository's own checks as one argv (`["make", "check"]`), each element non-empty; named in the worker's and reviewers' Task texts and run by Daisy after each worker run (7.6); `[]` means none, which `init` warns about, and which with `gates.merge` false `apply` warns about and `status` lists under Waiting for you (A merge with no check, below) |
-| `repos[].deps` | object | absent (`init` writes none, and keeps the file's, as it keeps `check`) | optional; the repository's dependency step, `{"run": [<argument>, …], "env": {"<VAR>": "<value>", …}}`, exactly these fields, `env` optional: `run` one argv, each element non-empty, run by Daisy before each check of the repository (7.6, step 4), in a container of its `image` on Docker's default network, the head's clone read-only at `/work` and the swarm's dependency cache for the repository, `<state>/deps/<name>`, read-write at `/deps`; the check then runs offline with that cache read-only at `/deps` (7.2). `env`, each name a variable name (`^[A-Za-z_][A-Za-z0-9_]*$`), each value as written, is given to both, so that the tool writes its cache under `/deps` in the one and reads it there in the other; Daisy names no tool. A repository with `deps` declares `check`, which it runs before. A step that fails or times out is the check's result, named as the dependency step's (7.6). The worker's container gets neither the cache nor this `env`: it is on the default network and fetches what it needs itself (7.2; decision [122](swarm/decisions/0122-a-dependency-step-and-the-swarms-cache.md)). For Go: `{"run": ["sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"], "env": {"GOFLAGS": "-modcacherw", "GOMODCACHE": "/deps/go/mod"}}` (`-modcacherw` leaves the cache's files writable by their owner, so the maintainer can delete it with `rm -rf`). Two dependency steps of one repository may run at once (two workers' checks): Go's module cache is safe for that (the go command takes a lock file per module version, and extracts it behind a `.partial` mark readers skip); a tool whose cache is not serializes its own `run`, e.g. under `flock /deps/.lock` |
+| `repos[].deps` | object | absent (`init` writes none, and keeps the file's, as it keeps `check`) | optional; the repository's dependency step, `{"run": [<argument>, …], "env": {"<VAR>": "<value>", …}}`, exactly these fields, `env` optional: `run` one argv, each element non-empty, run by Daisy before each check of the repository (7.6, step 4), in a container of its `image` on Docker's default network, the head's clone read-only at `/job/work/<name>` and the swarm's dependency cache for the repository, `<state>/deps/<name>`, read-write at `/deps`; the check then runs offline with that cache read-only at `/deps` (7.2). `env`, each name a variable name (`^[A-Za-z_][A-Za-z0-9_]*$`), each value as written, is given to both, so that the tool writes its cache under `/deps` in the one and reads it there in the other; Daisy names no tool. A repository with `deps` declares `check`, which it runs before. A step that fails or times out is the check's result, named as the dependency step's (7.6). The worker's container gets neither the cache nor this `env`: it is on the default network and fetches what it needs itself (7.2; decision [122](swarm/decisions/0122-a-dependency-step-and-the-swarms-cache.md)). For Go: `{"run": ["sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"], "env": {"GOFLAGS": "-modcacherw", "GOMODCACHE": "/deps/go/mod"}}` (`-modcacherw` leaves the cache's files writable by their owner, so the maintainer can delete it with `rm -rf`). Two dependency steps of one repository may run at once (two workers' checks): Go's module cache is safe for that (the go command takes a lock file per module version, and extracts it behind a `.partial` mark readers skip); a tool whose cache is not serializes its own `run`, e.g. under `flock /deps/.lock` |
 | `repos[].services` | string | absent (`init` writes none, and keeps the file's): read as `compose.test.yaml` | optional; the path, in the repository, of its **test services file**: relative, clean (`path.Clean`'s own), without `..`, not `.` (the repository's root, refused since Step R3-1b of the plan implementing the 2026-11-19 swarm roadmap) nor ending `/`, one line. The file is the product's, read from the commit run (the head a check checks, the commit a worker starts from, the head a reviewer reviews), never from `swarm.json`; with none there, absent or not, nothing of this (the check as before, byte for byte); with the field, the file absent at that commit is refused, as a file outside the subset is. It is YAML of a subset Daisy reads without a YAML library (block mappings and lists, a list at its key's indentation, a mapping or a list as a list item (`- name: x`, the item's further keys at its first key's indentation, `- - a`, or a dash alone with its item on the deeper lines below), one-line flow collections, plain, single- and double-quoted scalars, literal and folded block scalars, `\|` and `>`, alone or with `-` or `+`, read as YAML reads them, and as libyaml (so Compose) does where a leading blank line is deeper than the block's first line, comments, a leading `---`; never an anchor, alias, tag, merge key (`<<`), null key, block scalar indentation indicator (`\|2`), second document, tab outside a quoted value or a block scalar's text, empty list item or flow entry, scalar or flow collection over more than one line, or plain text beginning with what YAML reads otherwise (`- `, `? `, `: `, `@`, `` ` ``, `%`, `#`, `,`, `]`, `}`), each refused naming its line; a quote inside plain text is text) and of a subset of Compose Daisy runs with `docker` itself, not Compose: a mapping of exactly `services`, one or more, each named `^[A-Za-z0-9][A-Za-z0-9_.-]*$`, and optional `x-daisy-env`; each service a mapping of `image` (required, not beginning `-`, so it is never read as a `docker run` option), `tmpfs` (an absolute path, or a list of them), `ulimits` (a mapping of a limit's name, `^[a-z]+$`, to one number, or to a mapping of exactly `soft` and `hard`, numbers, `soft` not above `hard`; each number digits alone, without a leading `0` (which Compose's YAML reads as octal), 0 to 9223372036854775807; run as `--ulimit <name>=<soft>:<hard>`, `<n>:<n>` for one number, in name order), `environment` (a mapping of variable to value, or a list of `<VAR>=<value>`) and `command` (a list; a string is refused, its words shown as the list to write), nothing else (`ports`, `volumes`, `healthcheck`, `depends_on`… are refused by name: a file is run whole or not at all); `x-daisy-env` a mapping of variable to value, given to the check, the worker and the reviewers beside the services, so that the product's tests find them (`GRIDAPP_TEST_MONGO_URI: mongodb://mongo:27017`): each service is reached on the network by its name. Every value is text (`1`, `true` as written); `~`, `null` and an empty value are no value, refused in an environment. For gridapp (request F29): `services: {mongo: {image: "mongo:7", tmpfs: [/data/db]}, redis: {image: "redis:7"}}` and `x-daisy-env: {GRIDAPP_TEST_MONGO_URI: "mongodb://mongo:27017", GRIDAPP_TEST_REDIS_URI: "redis://redis:6379"}`, written as block mappings or as these. The same file can serve the product's own `make test-services` (`docker compose -f compose.test.yaml up`) and its CI, so the three agree. Daisy waits for no service to be ready: the product's tests wait for their server as they do in CI. How they run is 7.2 and 7.6, step 4; a file refused is the check's result, an image not on the host a swarm fault (7.7) *From R3* (7.9; decision [160](swarm/decisions/0160-one-declared-check-environment.md)): `ulimits` (gridapp's `mongo:7` takes `nofile: 64000`, as its CI gives it) and the block scalars, which the workflows CI runs use (7.9, The comparison with CI), are built (Step R3-2 of the plan implementing the 2026-11-19 swarm roadmap), and so are mappings as list items, which a workflow's `steps` are (Step R3-3b); the file is also given to a reviewer's run, read at the head it reviews (7.9, Beside a reviewer), built at Step R3-3 |
 | `repos[].env` | object | absent (`init` writes none, and keeps the file's, a `{}` as absent) | *R3* (7.9; decision [160](swarm/decisions/0160-one-declared-check-environment.md)), *built at Step R3-1, the reviewers' runs at Step R3-3 (7.9, Beside a reviewer), the comparison with CI at Steps R3-4 and R3-5*: optional; the variables of the repository's check environment, `{"<VAR>": "<value>", …}`, each name a variable name (`^[A-Za-z_][A-Za-z0-9_]*$`), none a secret's (`forge.token_env`, a `keys` `env`, `DAISY_MAINTAINER_TOKEN`: section 3, Secret values) and none also in `deps.env`, each value one line, as written (no secret: the file is the swarm repository's); given, as `--env` lines in name order before `deps.env`'s and `x-daisy-env`'s, to the worker's and the reviewers' runs on the repository, its dependency step and its check (7.2), and compared with the variables CI's jobs set (7.9, The comparison with CI); `{}` or absent, none. For a choice of how the image runs the product (`GOTOOLCHAIN`, `CGO_ENABLED`), not the cache's place, which is `deps.env`'s |
 | `repos[].image` | string | `daisy-member:1` | non-empty; a local image (`docker run --pull never`): the base image, or a product image built `FROM` it (section 7.2) |
@@ -2474,9 +2474,9 @@ docker run --rm --pull never
   --network daisy-swarm.<owner>.<repo>.<n>.check.<k>      (services)
   --env <VAR>=<value>                                     (deps)
   --env <VAR>=<value>                                     (services)
-  --mount type=bind,src=<run>/check,dst=/work
+  --mount type=bind,src=<run>/check,dst=/job/work/<name>
   --mount type=bind,src=<state>/deps/<name>,dst=/deps,readonly  (deps)
-  --workdir /work
+  --workdir /job/work/<name>
   <image>
   <check>
 ```
@@ -2492,9 +2492,9 @@ docker run --rm --pull never
   --security-opt no-new-privileges
   --stop-timeout 30
   --env <VAR>=<value>
-  --mount type=bind,src=<run>/check,dst=/work,readonly
+  --mount type=bind,src=<run>/check,dst=/job/work/<name>,readonly
   --mount type=bind,src=<state>/deps/<name>,dst=/deps
-  --workdir /work
+  --workdir /job/work/<name>
   <image>
   <deps' run>
 ```
@@ -2566,13 +2566,13 @@ an `apply` that died left, is the same.
 | `/deps` | with `deps`, `<state>/deps/<name>`, the swarm's dependency cache for the declared repository `<name>`: read-write for its dependency step, read-only for its check; none for a member, and none without `deps`. A directory on the host, made by `apply` when absent and owned by the host user, bind-mounted: a Docker volume new to a container is root's, which `--user` could not write (request F28's failure again; decision [122](swarm/decisions/0122-a-dependency-step-and-the-swarms-cache.md)). Kept from run to run, so each step fetches only what is new; pruning it is the maintainer's (`rm -rf <state>/deps/<name>`) |
 | `/job` | `<run>/job`, read-write and the run's own: the run's folder (7.8), holding only the mount points of the paths below, which `apply` makes in it, so Docker makes none; whatever the member writes at its top, which nothing reads |
 | `/job/work` | `<run>/work`, read-write for every role: the folder of the member's clones, each at `/job/work/<name>`, never a clone itself: the worker's and a reviewer's one, its run's repository (a reviewer's clone is a throwaway that is never fetched or pushed, so it may build and test there); for the owner, the architect and the QA, a throwaway clone of each declared repository |
-| `/work` | the check's clone, a fresh clone of the fetched head; for the dependency step, such a clone, read-only, so that the step writes the cache alone |
+| `/job/work/<name>`, the check's | the check's clone, a fresh clone of the fetched head, at the path a member's checkout has, `<name>` the run's repository, with no `/job` or `/job/work` mounted above it; for the dependency step, such a clone, read-only, so that the step writes the cache alone |
 | `<image>` | the run's repository's `image` (7.1 step 3) for the worker, the reviewers, the dependency step and the check; the first repository's for the owner, the architect and the QA, which starts the product's app in it (section 4, The page map) |
 | `/job/io` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out, and `exit`; `artifacts/`, a worker's screenshots out (7.6, The screenshots) and a reviewer's copies of them in (7.3, `# Artifacts`); `branches.md` in, for the roles that read it, and the architect's `builder.md` out (7.8) |
 | `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's exit status to `/job/io/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*). A container killed outright (a reboot, `docker stop`'s kill) writes none. The check and the dependency step run their argv as it is |
 | `/job/notes` | with `notes`, `<run>/notes`, the run's copy of the research notes, the swarm repository's `notes/` directory (7.1, step 2): read-write for the owner and the architect, whose changes Daisy pushes after the run (7.6, The notes); read-only for the worker, the reviewers and the QA; outside every clone; none for the check |
 | `/job/resources` | `<run>/resources`, read-only: each resource at `/job/resources/<repository>/<path>`, checked out at the pass's commit (7.1, step 3: one the commit does not hold is *resource refused*, 7.7), never a working tree; none when `resources` and `references` name nothing; none for the check. Under `/job`, so a CLI confined to its working directory reaches it (section 9, `grok`), and outside every clone |
-| `--workdir <W>`, `--workdir /work` | the CLIs start in the run's clone, `<W>`, `/job/work/<name>` for every role, `<name>` the run's repository (the first declared for the owner, the architect and the QA), so the CLI reads the product's instructions from its tree, and are given `/job` beside it (section 9's `D`), unless their provider is confined to its working directory (section 9's `Confined`, `xai`): then `/job`, which holds every clone and all else the run is given, and the prompt's `# Repository` names `/job/work/<name>` as the repository (7.3); the check starts in its clone, `/work` |
+| `--workdir <W>`, the check's `--workdir` | the CLIs start in the run's clone, `<W>`, `/job/work/<name>` for every role, `<name>` the run's repository (the first declared for the owner, the architect and the QA), so the CLI reads the product's instructions from its tree, and are given `/job` beside it (section 9's `D`), unless their provider is confined to its working directory (section 9's `Confined`, `xai`): then `/job`, which holds every clone and all else the run is given, and the prompt's `# Repository` names `/job/work/<name>` as the repository (7.3); the check and the dependency step start in their clone, `/job/work/<name>` |
 
 **What is mounted** follows section 8's principle: `/job`, `/job/work`,
 `/job/io` and `/job/notes` are the run's (the notes a copy without
@@ -2597,9 +2597,10 @@ in a checkout, and no read-only mount holds another mount or anything
 writable. `<W>` is `/job` for a provider `Confined` to its working
 directory (section 9), so a `grok` member of any role starts where it
 reaches everything the run is given. The check and the dependency step
-are not members and have no job: their `/work` is their clone, and
-nothing is mounted beside it (R3 moves that clone to
-`/job/work/<name>`, the path a member's checkout has, below).
+are not members and have no job: their clone is at
+`/job/work/<name>`, the path a member's checkout has, and nothing is
+mounted beside it but the cache (From R3, below; until Step R3-9 it was
+`/work`).
 
 **From R1** (7.8; built at Step R1-7 of the plan implementing the
 2026-11-19 swarm roadmap). A run on an issue
@@ -2631,7 +2632,8 @@ checkout has, once R1 has moved the members to `/job`:
 
 in place of their `/work` lines, the clone `readonly` for the
 dependency step and the cache `readonly` for the check, as now, and
-nothing else mounted beside them; `<name>` is the run's repository.
+nothing else mounted beside them; `<name>` is the run's repository
+(the paths built at Step R3-9, in the argvs above).
 The lines marked `(env)` are each `repos[].env` entry, in name order,
 before `deps.env`'s, for the worker, the adversary and the sympathetic
 reviewer too (built at Step R3-1 for the check, the dependency step,
@@ -4480,10 +4482,10 @@ R1-6, so that `prompt build` rewrites a prompt still at an earlier
 default (section 11); an edited prompt and a repository's notes are the
 maintainer's, which the skill tells the maintainer's agent to look
 for). The check and the dependency step, which are not
-members and have no job, keep `/work` as their clone with nothing
-beside it (7.2), until R3 mounts that clone at `/job/work/<name>`, the
+members and have no job, kept `/work` as their clone with nothing
+beside it until Step R3-9 mounted that clone at `/job/work/<name>`, the
 path a member's checkout has, with nothing beside it but the cache
-(7.9, The paths). A run launched under the earlier layout is collected
+(7.2; 7.9, The paths). A run launched under the earlier layout is collected
 from its clone where it is.
 
 **The mount.** `<state>/jobs/<n>` at `/job/memory`, read-only (7.2),
@@ -4826,6 +4828,12 @@ a member's checkout is (7.8, The run's folder), in place of `/work`
 mount point is made by Docker in the container's own layer, not in a
 bind source on the host. The move follows R1's step that moved the
 members to `/job` (Step R1-5): until it, the check's clone is `/work`.
+*As built* (Step R3-9 of the plan implementing the 2026-11-19 swarm
+roadmap): the check's and the dependency step's clone, `<run>/check`,
+is mounted at `/job/work/<name>` and is their `--workdir`, `<name>` the
+run's repository; nothing else of their argv changed. Tests:
+`TestArgs`, `TestSwarmDepsBeforeTheCheck`,
+`TestSwarmCheckWithoutDepsUnchanged`, `TestSwarmApplyLifecycle`.
 
 **The resources and the notes** (R3b) mount outside every checkout, as
 decision

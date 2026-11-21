@@ -1004,3 +1004,11 @@ they write.
   built). Decision
   [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)'s
   After the block is lifted, built.
+- 2026-11-21, Step R3-9 of the plan implementing the 2026-11-19 swarm
+  roadmap (R3): the check's and the dependency step's clone mounted at
+  `/job/work/<name>`, their working directory, as a member's checkout
+  is. Sections 3 (`repos[].deps`), 7.2 (the check's and the dependency
+  step's argvs and rows, The run's folder, From R3), 7.8 (The costs) and
+  7.9 (The paths' As built). Decision
+  [160](swarm/decisions/0160-one-declared-check-environment.md)'s
+  paths, built.

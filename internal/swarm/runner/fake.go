@@ -23,7 +23,7 @@ import (
 // status, its standard output and error, and whether the wall clock
 // stopped it. A check is scripted the same way under the role "check",
 // its Stdout and Stderr its output, its Work given its clone, mounted at
-// /work.
+// /job/work/<name>.
 type Canned struct {
 	Out            string
 	IO             func(io string) error
@@ -111,7 +111,7 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 					return nil, err
 				}
 			}
-		case (m.Dst == "/job/work" || m.Dst == "/work") && c.Work != nil:
+		case (m.Dst == "/job/work" || strings.HasPrefix(m.Dst, "/job/work/")) && c.Work != nil:
 			if err := c.Work(m.Src); err != nil {
 				return nil, err
 			}

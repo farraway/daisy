@@ -65,13 +65,13 @@ func TestSwarmDepsBeforeTheCheck(t *testing.T) {
 		return append(out, rest...)
 	}
 	env := []string{"--env", "GOFLAGS=-modcacherw", "--env", "GOMODCACHE=/deps/go/mod"}
-	want := args("deps", append(env, "--mount", "type=bind,src="+run+"/check,dst=/work,readonly", "--mount", "type=bind,src="+cache+",dst=/deps",
-		"--workdir", "/work", "daisy-member:1", "sh", "-c", "go mod download && go list -deps -test ./... >/dev/null")...)
+	want := args("deps", append(env, "--mount", "type=bind,src="+run+"/check,dst=/job/work/app,readonly", "--mount", "type=bind,src="+cache+",dst=/deps",
+		"--workdir", "/job/work/app", "daisy-member:1", "sh", "-c", "go mod download && go list -deps -test ./... >/dev/null")...)
 	if got := deps[0].Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("deps:\n got %q\nwant %q", got, want)
 	}
-	want = args("check", append(append([]string{"--network", "none"}, env...), "--mount", "type=bind,src="+run+"/check,dst=/work",
-		"--mount", "type=bind,src="+cache+",dst=/deps,readonly", "--workdir", "/work", "daisy-member:1", "make", "check")...)
+	want = args("check", append(append([]string{"--network", "none"}, env...), "--mount", "type=bind,src="+run+"/check,dst=/job/work/app",
+		"--mount", "type=bind,src="+cache+",dst=/deps,readonly", "--workdir", "/job/work/app", "daisy-member:1", "make", "check")...)
 	if got := checks[0].Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("check:\n got %q\nwant %q", got, want)
 	}
@@ -120,7 +120,7 @@ func TestSwarmCheckWithoutDepsUnchanged(t *testing.T) {
 	checks := a.launched("check")
 	want := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1.check.1", "--label", "daisy.swarm=acme/swarm-app#1/check",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--network", "none",
-		"--mount", "type=bind,src=" + run + "/check,dst=/work", "--workdir", "/work", "daisy-member:1", "make", "check"}
+		"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app", "--workdir", "/job/work/app", "daisy-member:1", "make", "check"}
 	if len(checks) != 1 || !reflect.DeepEqual(checks[0].Args(), want) {
 		t.Errorf("checks %+v", checks)
 	}

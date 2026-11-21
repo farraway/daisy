@@ -85,7 +85,7 @@ func TestSwarmServicesBesideTheCheck(t *testing.T) {
 			run := a.state("runs/1-worker-1")
 			args := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1.check.1", "--label", "daisy.swarm=acme/swarm-app#1/check",
 				"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--network", checkNet,
-				"--env", gridappEnv[0], "--env", gridappEnv[1], "--mount", "type=bind,src=" + run + "/check,dst=/work", "--workdir", "/work", "daisy-member:1", "make", "check"}
+				"--env", gridappEnv[0], "--env", gridappEnv[1], "--mount", "type=bind,src=" + run + "/check,dst=/job/work/app", "--workdir", "/job/work/app", "daisy-member:1", "make", "check"}
 			if len(checks) != 1 || !reflect.DeepEqual(checks[0].Args(), args) {
 				t.Errorf("checks %+v", checks)
 			}
