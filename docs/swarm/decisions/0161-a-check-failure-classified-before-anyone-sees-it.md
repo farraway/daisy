@@ -151,7 +151,14 @@ module under a `go.work` counts as touched; reading the `go.work`'s
 repository would have defeated). A failing package naming no directory
 of the head that holds a `.go` file, and a directory whose file Go's
 parser refuses, are touched (untouched was the alternative, the
-dangerous direction). A `FAIL<tab>` line's path ends at its first
+dangerous direction). A directory with no `.go` file at the head is touched
+by a changed file in it or below it, so a package the change deletes
+or moves away is touched and its importers with it (reading touched
+packages among the head's alone was the alternative: an importer
+failing on the deleted package would have been untouched, as the
+review of the step found); a module below the root whose path is not
+read is held imported by every package with an import (its importers
+otherwise unknown). A `FAIL<tab>` line's path ends at its first
 blank or tab, whatever follows it (reading only the time and the
 bracketed notes `go test` writes was the alternative: a form not
 foreseen would hide a touched package and let a signature classify

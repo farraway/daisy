@@ -5206,12 +5206,18 @@ at or below a `go.work`'s, so a `go.work` at the root makes every
 failing package touched; and a path naming no directory of the head
 holding a `.go` file. "In its directory, below it or above it" is by
 whole path elements (a file in a directory webs touches no package in
-web). An import is read as each module of the head (the root's and
-those below it) and
-each `vendor` directory of the root, of a module and of a `go.work`
-could resolve it, so a package importing a vendored package, or a
-package of a module below the root, that the change touches is
-touched. A package's test files' imports count for it alone: a
+web), and a directory holding no `.go` file at the head is touched by
+a changed file in it or below it, not above it: so a package the
+change deletes or moves away is touched, and its importers with it.
+An import is read as each module of the head (the root's and those
+below it) and each `vendor` directory of the root, of a module and of
+a `go.work` could resolve it, so a package importing a vendored
+package, or a package of a module below the root, that the change
+touches is touched; a module below the root whose path is not read
+(its `go.mod`'s `module` line, or the first line of a `module ( … )`
+block, is what is read) is imported, for all the reading knows, by
+every package with an import, each touched when a directory at or
+below the module's is. A package's test files' imports count for it alone: a
 package whose tests import a touched package is touched, its
 importers not through it, since its tests are built into no other
 package. A directory with a file Go's parser refuses at its package

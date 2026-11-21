@@ -111,50 +111,69 @@ func (f GoFacts) failing(out []byte) []string {
 	return pkgs
 }
 
-// touched is every package directory the change touches: a changed
-// file in it, below it or above it; or its importing, directly or
-// through other packages, a package so touched, its test files'
+// touched is whether a directory the change touches: a changed file
+// in it, below it or, for a package directory of the head, above it (a
+// package the change deletes or moves away holds none, and is touched
+// by its files, and so are its importers); or a package importing,
+// directly or
+// through other packages, a directory so touched, its test files'
 // imports counted for itself alone (a package's tests are not built
 // into its importers). A directory whose imports were not read imports
 // one, so it is touched.
-func (f GoFacts) touched(changed []string) map[string]bool {
+func (f GoFacts) touched(changed []string) func(string) bool {
+	var dirs []string
+	for _, c := range changed {
+		cd := path.Dir(c)
+		if cd == "." {
+			cd = ""
+		}
+		dirs = append(dirs, cd)
+	}
 	t := map[string]bool{}
-	for d := range f.Packages {
-		for _, c := range changed {
-			cd := path.Dir(c)
-			if cd == "." {
-				cd = ""
-			}
-			if cd == d || within(cd, d) || within(d, cd) {
-				t[d] = true
-				break
+	near := func(d string) bool {
+		if t[d] {
+			return true
+		}
+		_, pkg := f.Packages[d]
+		for _, cd := range dirs {
+			if cd == d || within(cd, d) || pkg && within(d, cd) {
+				return true
 			}
 		}
+		return false
 	}
 	for grew := true; grew; {
 		grew = false
 		for d, p := range f.Packages {
-			if !t[d] && (p.Unread || f.importsTouched(p.Imports, t)) {
+			if !t[d] && (p.Unread || near(d) || f.importsTouched(p.Imports, near)) {
 				t[d], grew = true, true
 			}
 		}
 	}
 	tested := map[string]bool{}
 	for d, p := range f.Packages {
-		if t[d] || f.importsTouched(p.TestImports, t) {
+		if t[d] || f.importsTouched(p.TestImports, near) {
 			tested[d] = true
 		}
 	}
-	return tested
+	return func(d string) bool { return tested[d] || near(d) }
 }
 
-// importsTouched: one of imports is a touched package directory, each
-// import path read as every module of the head and every vendor
-// directory of a module or workspace could resolve it.
-func (f GoFacts) importsTouched(imports []string, t map[string]bool) bool {
+// importsTouched: one of imports is a touched directory, each import
+// path read as every module of the head and every vendor directory of
+// a module or workspace could resolve it; and any import, when a
+// module below the root whose path is not read has a touched directory
+// (its importers' paths for it unknown).
+func (f GoFacts) importsTouched(imports []string, touched func(string) bool) bool {
+	if len(imports) == 0 {
+		return false
+	}
 	roots := []string{""}
 	for _, m := range f.Modules {
 		roots = append(roots, m.Dir)
+		if m.Path == "" && m.Dir != "" && f.subtreeTouched(m.Dir, touched) {
+			return true
+		}
 	}
 	roots = append(roots, f.Workspaces...)
 	for _, imp := range imports {
@@ -162,15 +181,15 @@ func (f GoFacts) importsTouched(imports []string, t map[string]bool) bool {
 			if m.Path == "" {
 				continue
 			}
-			if imp == m.Path && t[m.Dir] {
+			if imp == m.Path && touched(m.Dir) {
 				return true
 			}
-			if rel, ok := strings.CutPrefix(imp, m.Path+"/"); ok && t[path.Join(m.Dir, rel)] {
+			if rel, ok := strings.CutPrefix(imp, m.Path+"/"); ok && touched(path.Join(m.Dir, rel)) {
 				return true
 			}
 		}
 		for _, r := range roots {
-			if t[path.Join(r, "vendor", imp)] {
+			if touched(path.Join(r, "vendor", imp)) {
 				return true
 			}
 		}
@@ -178,12 +197,25 @@ func (f GoFacts) importsTouched(imports []string, t map[string]bool) bool {
 	return false
 }
 
-// touches: the failing package p is touched, its directory in t, or it
+// subtreeTouched: dir, or a package directory below it, is touched.
+func (f GoFacts) subtreeTouched(dir string, touched func(string) bool) bool {
+	if touched(dir) {
+		return true
+	}
+	for d := range f.Packages {
+		if within(d, dir) && touched(d) {
+			return true
+		}
+	}
+	return false
+}
+
+// touches: the failing package p is touched, its directory touched, or it
 // lies outside the root module: no root go.mod or none whose path is
 // read, a path not below the root module's, in another module of the
 // head (by its path or its directory) or at or below a go.work, or no
 // package directory of the head.
-func (f GoFacts) touches(p string, t map[string]bool) bool {
+func (f GoFacts) touches(p string, touched func(string) bool) bool {
 	i := slices.IndexFunc(f.Modules, func(m GoModule) bool { return m.Dir == "" })
 	if i < 0 || f.Modules[i].Path == "" {
 		return true
@@ -212,7 +244,7 @@ func (f GoFacts) touches(p string, t map[string]bool) bool {
 	if _, ok := f.Packages[d]; !ok {
 		return true
 	}
-	return t[d]
+	return touched(d)
 }
 
 // within: directory a lies below directory b ("" the root).
@@ -307,22 +339,38 @@ func (g Git) GoFacts(name, commit string) (GoFacts, error) {
 	return facts, nil
 }
 
-// modulePath is the path of go.mod's module line, "" when it has none
-// or one Go would not read.
+// modulePath is the path of go.mod's module line, or of the first line
+// of a `module ( … )` block, "" when it has none or one Go would not
+// read.
 func modulePath(data []byte) string {
+	block := false
 	for _, line := range strings.Split(string(data), "\n") {
 		line, _, _ = strings.Cut(line, "//")
 		f := strings.Fields(line)
-		if len(f) != 2 || f[0] != "module" {
+		switch {
+		case block && len(f) == 0:
 			continue
-		}
-		if p, err := strconv.Unquote(f[1]); err == nil {
-			return p
-		}
-		if strings.ContainsAny(f[1], "\"`") {
+		case block && len(f) == 1 && f[0] != ")":
+			return pathWord(f[0])
+		case block:
 			return ""
+		case len(f) == 2 && f[0] == "module" && f[1] == "(":
+			block = true
+		case len(f) == 2 && f[0] == "module":
+			return pathWord(f[1])
 		}
-		return f[1]
 	}
 	return ""
+}
+
+// pathWord is a module path as go.mod writes it, quoted or not; "" for
+// a word Go would not read as one.
+func pathWord(w string) string {
+	if p, err := strconv.Unquote(w); err == nil {
+		return p
+	}
+	if strings.ContainsAny(w, "\"`()") {
+		return ""
+	}
+	return w
 }

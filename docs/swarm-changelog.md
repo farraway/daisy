@@ -964,8 +964,9 @@ they write.
   directory of the head, counts a package's test files' imports for it
   alone, holds every package at or below a `go.work` or a module below
   the root, naming no package directory, or with a file whose imports
-  Go's parser refuses as touched, ignores ASCII case alone and names
-  the earliest signature. Section 7.9 (the opening, the
+  Go's parser refuses as touched, holds a package the change deletes or
+  moves away touched with its importers, ignores ASCII case alone and
+  names the earliest signature. Section 7.9 (the opening, the
   classification). Decision
   [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
   amended.

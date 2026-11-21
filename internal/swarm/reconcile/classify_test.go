@@ -56,8 +56,20 @@ func TestClassify(t *testing.T) {
 	noRoot.Modules = noRoot.Modules[1:]
 	unreadBelow := appFacts()
 	unreadBelow.Modules[2].Path = ""
+	unreadLib := appFacts()
+	unreadLib.Modules[1].Path = ""
+	unreadLibSub := appFacts()
+	unreadLibSub.Modules[1].Path = ""
+	unreadLibSub.Packages["lib/sub"] = GoPackage{Imports: []string{"example.com/app/store"}}
+	unreadLibSub.Packages["report"] = GoPackage{Imports: []string{"example.com/lib/sub"}}
+	shadow := appFacts()
+	shadow.Modules = append(shadow.Modules, GoModule{"other", "example.com/app/extra"})
+	shadow.Packages["extra"] = GoPackage{}
+	shadow.Packages["other"] = GoPackage{}
 	unreadRoot := appFacts()
 	unreadRoot.Modules[0].Path = ""
+	deleted := appFacts()
+	deleted.Packages["api"] = GoPackage{Imports: []string{"example.com/app/old", "example.com/app/old/sub"}}
 	storeGo := []string{"store/store.go"}
 	refused := "    store_test.go:12: dial tcp 127.0.0.1:27017: connect: connection refused\n"
 	for _, tc := range []struct {
@@ -87,8 +99,17 @@ func TestClassify(t *testing.T) {
 		{"a module below the root, under the root's path", fail("example.com/app/tools/gen") + refused, storeGo, appFacts(), false, Classification{}},
 		{"a module below the root, under its own path", fail("example.com/lib") + refused, storeGo, appFacts(), false, Classification{}},
 		{"a module below the root, its path not read", fail("example.com/app/tools/gen") + refused, storeGo, unreadBelow, false, Classification{}},
+		{"importing a package the change deletes", "api/api.go:3:8: no required module provides package example.com/app/old\n" + "FAIL\texample.com/app/api [setup failed]\n", []string{"old/old.go"}, deleted, false, Classification{}},
+		{"importing a package below a directory the change deletes", "FAIL\texample.com/app/api [setup failed]\n", []string{"old/sub/x.go"}, deleted, false, Classification{}},
+		{"importing a package the change moves away", "FAIL\texample.com/app/api [setup failed]\n", []string{"old/old.go", "new/old.go"}, deleted, false, Classification{}},
+		{"a deletion elsewhere does not touch", "FAIL\texample.com/app/web\t0.1s\n", []string{"old/old.go"}, deleted, false, Classification{Untouched: []string{appWeb}}},
+		{"a module below the root, its path not read, imported", fail("example.com/app/report"), []string{"lib/lib.go"}, unreadLib, false, Classification{}},
+		{"a module below the root, its path not read, touched below by an import", fail("example.com/app/report"), storeGo, unreadLibSub, false, Classification{}},
+		{"a module below the root, its path not read, untouched", fail(appWeb), storeGo, unreadLib, false, Classification{Untouched: []string{appWeb}}},
+		{"a module below the root under a root package's path", fail("example.com/app/extra") + refused, storeGo, shadow, false, Classification{}},
 		{"imported from a module below the root", fail("example.com/app/report"), []string{"lib/lib.go"}, appFacts(), false, Classification{}},
 		{"imported from vendor", fail(appWeb), []string{"vendor/github.com/dep/x/x.go"}, appFacts(), false, Classification{}},
+		{"a directory the head lacks is not touched from above", fail(appWeb), []string{"lib/lib.go"}, appFacts(), false, Classification{Untouched: []string{appWeb}}},
 		{"a go.work at the root", fail(appWeb) + refused, storeGo, work, false, Classification{}},
 		{"a go.work above the package", fail(appWeb) + refused, storeGo, workBelow, false, Classification{}},
 		{"a go.work elsewhere", fail(appTestutil), storeGo, workBelow, false, Classification{Untouched: []string{appTestutil}}},
@@ -262,6 +283,8 @@ func TestGoFacts(t *testing.T) {
 		"tools/gen/gen.go":     {"100644", "package gen\n"},
 		"odd":                  {"040000", ""},
 		"odd/go.mod":           {"100644", "go 1.27\n"},
+		"block":                {"040000", ""},
+		"block/go.mod":         {"100644", "module (\n\t// the block's\n\t\"example.com/block\" // path\n)\r\n"},
 		"linked":               {"040000", ""},
 		"linked/go.mod":        {"120000", "../go.mod"},
 		"ext":                  {"160000", ""},
@@ -272,7 +295,7 @@ func TestGoFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := GoFacts{
-		Modules:    []GoModule{{"", "example.com/app"}, {"linked", ""}, {"odd", ""}, {"tools", "example.com/app/tools"}},
+		Modules:    []GoModule{{"", "example.com/app"}, {"block", "example.com/block"}, {"linked", ""}, {"odd", ""}, {"tools", "example.com/app/tools"}},
 		Workspaces: []string{""},
 		Packages: map[string]GoPackage{
 			"":             {Imports: []string{"os"}},
