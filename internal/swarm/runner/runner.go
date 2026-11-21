@@ -116,11 +116,12 @@ type Services struct {
 }
 
 // Service is one test service: its name, which is its address on the
-// network, its image, its tmpfs paths, its environment (`<name>=<value>`)
-// and its command, none for the image's own.
+// network, its image, its tmpfs paths, its limits
+// (`<name>=<soft>:<hard>`), its environment (`<name>=<value>`) and its
+// command, none for the image's own.
 type Service struct {
-	Name, Image         string
-	Tmpfs, Env, Command []string
+	Name, Image                  string
+	Tmpfs, Ulimits, Env, Command []string
 }
 
 // NetworkArgs is `docker network create`'s argv for s.
@@ -140,6 +141,9 @@ func (s Services) ServiceArgs(v Service) []string {
 		"--network", s.Network, "--network-alias", v.Name, "--security-opt", "no-new-privileges"}
 	for _, t := range v.Tmpfs {
 		a = append(a, "--tmpfs", t)
+	}
+	for _, u := range v.Ulimits {
+		a = append(a, "--ulimit", u)
 	}
 	for _, e := range v.Env {
 		a = append(a, "--env", e)

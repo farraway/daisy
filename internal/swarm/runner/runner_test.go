@@ -98,13 +98,14 @@ func TestArgs(t *testing.T) {
 // gridapp is a check's test services: mongo on tmpfs, redis with a
 // command and an environment.
 var gridapp = Services{Network: "daisy-swarm.acme.app.3.check.1", Internal: true, List: []Service{
-	{Name: "mongo", Image: "mongo:7", Tmpfs: []string{"/data/db"}},
-	{Name: "redis", Image: "redis:7", Env: []string{"A=1", "B=x y"}, Command: []string{"redis-server", "--save", ""}},
+	{Name: "mongo", Image: "mongo:7", Tmpfs: []string{"/data/db"}, Ulimits: []string{"nofile=64000:64000"}},
+	{Name: "redis", Image: "redis:7", Tmpfs: []string{"/a", "/b"}, Ulimits: []string{"core=0:0", "nproc=10:20"}, Env: []string{"A=1", "B=x y"}, Command: []string{"redis-server", "--save", ""}},
 }}
 
 // Section 7.2's services: the network, internal for a check, labelled
 // with its name; each service detached on it alone, by its name, from a
-// local image, never privileged, removed when stopped.
+// local image, never privileged, removed when stopped, its limits after
+// its tmpfs paths and before its environment, each in its order.
 func TestServicesArgs(t *testing.T) {
 	if got, want := gridapp.NetworkArgs(), []string{"network", "create", "--internal", "--label", "daisy.services=daisy-swarm.acme.app.3.check.1", "daisy-swarm.acme.app.3.check.1"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("network:\n got %q\nwant %q", got, want)
@@ -122,10 +123,10 @@ func TestServicesArgs(t *testing.T) {
 		}
 		return append(out, rest...)
 	}
-	if got, want := gridapp.ServiceArgs(gridapp.List[0]), args("mongo", "--tmpfs", "/data/db", "mongo:7"); !reflect.DeepEqual(got, want) {
+	if got, want := gridapp.ServiceArgs(gridapp.List[0]), args("mongo", "--tmpfs", "/data/db", "--ulimit", "nofile=64000:64000", "mongo:7"); !reflect.DeepEqual(got, want) {
 		t.Errorf("mongo:\n got %q\nwant %q", got, want)
 	}
-	if got, want := gridapp.ServiceArgs(gridapp.List[1]), args("redis", "--env", "A=1", "--env", "B=x y", "redis:7", "redis-server", "--save", ""); !reflect.DeepEqual(got, want) {
+	if got, want := gridapp.ServiceArgs(gridapp.List[1]), args("redis", "--tmpfs", "/a", "--tmpfs", "/b", "--ulimit", "core=0:0", "--ulimit", "nproc=10:20", "--env", "A=1", "--env", "B=x y", "redis:7", "redis-server", "--save", ""); !reflect.DeepEqual(got, want) {
 		t.Errorf("redis:\n got %q\nwant %q", got, want)
 	}
 }

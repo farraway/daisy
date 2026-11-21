@@ -133,7 +133,7 @@ func TestSwarmServicesRefused(t *testing.T) {
 	a.fetchMirror()
 	a.runner.Script(1, "worker", runner.Canned{Out: "v1\n\nNot established: none\n", Work: in("app", commit(map[string]string{"main.go": "v1\n"}, "v1"))})
 	a.pass()
-	reason := "test/compose.yaml: services.mongo.ports: not in the subset Daisy runs (image, tmpfs, environment, command)"
+	reason := "test/compose.yaml: services.mongo.ports: not in the subset Daisy runs (image, tmpfs, ulimits, environment, command)"
 	workers := a.launched("worker")
 	if len(a.runner.Ups) != 0 || len(a.launched("check")) != 0 || len(workers) != 1 || workers[0].Network != "" || workers[0].Env != nil {
 		t.Fatalf("ups %+v, checks %d, workers %+v", a.runner.Ups, len(a.launched("check")), workers)

@@ -169,3 +169,42 @@ Beside a reviewer, and a second change to the same launch at R3-3).
 Tests: `TestSwarmEnvGivenToEveryRunOfTheRepository`,
 `TestSwarmEnvWithoutDepsOrServices`, `TestValidateNamesTheField`,
 `TestFormatDeps`, `TestWizardKeepsTheFilesDeps`.
+
+**As built: `ulimits` and block scalars (Step R3-2 of the plan
+implementing the 2026-11-19 swarm roadmap).** A test service's
+`ulimits` is a mapping of a limit's name (`^[a-z]+$`) to one number,
+its soft and hard limit, or to exactly `soft` and `hard`; it is run as
+`--ulimit <name>=<soft>:<hard>`, one per limit in name order, after
+`--tmpfs` and before `--env`, and `{}` is none. Narrowed here, where
+the spec says "integers": a number is digits alone, 0 to
+9223372036854775807 (what Docker parses), written back as a number
+(`064000` runs as `64000`), so `-1`, `+1` and `64k` are refused; a
+`soft` above its `hard` is refused by the file, naming the limit, as
+`docker run` would refuse it at the service's start, a swarm fault
+rather than the file's reason; a name `^[a-z]+$` that Docker does not
+know is not refused here and fails at the start, the spec naming the
+shape alone. Alternatives: `-1` for "unlimited", which Docker takes
+for some limits and which would put a rule the spec does not make on
+which; Docker's list of limit names, which is Docker's to change. The
+YAML subset reads literal and folded block scalars, `|` and `>`, alone
+or with `-` or `+`, after a key or a list item's dash: the lines after
+the header that are blank or indented past the key or the dash, at the
+first such line's indentation, a comment, a `%` or a tab past that
+indentation being text, chomped and folded as YAML does, and the
+values PyYAML 6 gives for the same documents (22,927 generated ones
+compared on the code as built, none differing). Where YAML 1.2's text refuses a
+leading blank line deeper than the block's first line, the reader
+does as libyaml, and so Compose, does: the deeper line sets the
+indentation and the first line, less indented, ends the block. An
+indentation indicator (`|2`), or any other text after the indicator,
+is refused naming its line, and so is a tab before a block line's
+indentation (as PyYAML refuses it). A line the reader refuses (a tab
+in an indentation, a `%`, a second `---`) is refused only when it is
+read as YAML, not when it is a block scalar's text. Also fixed in the
+same reader: a flow mapping left open after `{` or a `,` at the end of
+its line (`mongo: {`) panicked; it is refused as any flow collection
+not closed on its line, and `FuzzParseServices` keeps the reader
+without a panic. Tests: `TestParseServices` (section 7.9's draft of
+gridapp's file), `TestParseServicesRefused`,
+`TestParseYAMLBlockScalars`, `TestServicesArgs`,
+`FuzzParseServices`.

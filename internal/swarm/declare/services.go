@@ -3,6 +3,7 @@ package declare
 import (
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"strconv"
@@ -33,21 +34,27 @@ type TestServices struct {
 
 // TestService is one service of the subset: its name (its address on
 // the private network), its image, the paths mounted as tmpfs, its
-// environment (`<name>=<value>`, in the file's order for a list, by name
-// for a mapping) and its command, none when absent.
+// limits (`<name>=<soft>:<hard>`, by name), its environment
+// (`<name>=<value>`, in the file's order for a list, by name for a
+// mapping) and its command, none when absent.
 type TestService struct {
-	Name, Image         string
-	Tmpfs, Env, Command []string
+	Name, Image                  string
+	Tmpfs, Ulimits, Env, Command []string
 }
 
 // serviceKeys is the subset of a Compose service Daisy runs.
-var serviceKeys = []string{"image", "tmpfs", "environment", "command"}
+var serviceKeys = []string{"image", "tmpfs", "ulimits", "environment", "command"}
 
-var serviceShape = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+var (
+	serviceShape = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+	ulimitShape  = regexp.MustCompile(`^[a-z]+$`)
+	digits       = regexp.MustCompile(`^[0-9]+$`)
+)
 
 // ParseServices reads a test services file (section 3): YAML of the
 // subset Daisy reads (block mappings and lists, one-line flow
-// collections, plain and quoted scalars, comments), a mapping of exactly
+// collections, plain and quoted scalars, literal and folded block
+// scalars, comments), a mapping of exactly
 // services, one or more, each of the keys serviceKeys, and optional
 // x-daisy-env. Anything else is refused, never run in part.
 func ParseServices(data []byte) (TestServices, error) {
@@ -130,6 +137,12 @@ func service(at, name string, n *yNode) (TestService, error) {
 		}
 		sv.Tmpfs = paths
 	}
+	if u, ok := n.items["ulimits"]; ok {
+		var err error
+		if sv.Ulimits, err = ulimitsOf(at+".ulimits", u); err != nil {
+			return sv, err
+		}
+	}
 	if e, ok := n.items["environment"]; ok {
 		var err error
 		if sv.Env, err = envOf(at+".environment", e); err != nil {
@@ -168,6 +181,76 @@ func scalars(at string, n *yNode, one bool) ([]string, error) {
 		out = append(out, it.value)
 	}
 	return out, nil
+}
+
+// ulimitsOf is limits as Compose's ulimits writes them, a mapping of a
+// limit's name to one number (its soft and hard limit) or to exactly
+// soft and hard, as docker run's --ulimit takes them:
+// `<name>=<soft>:<hard>`, by name.
+func ulimitsOf(at string, n *yNode) ([]string, error) {
+	if n.kind != yMap {
+		return nil, fmt.Errorf("%s: not a mapping", at)
+	}
+	var out []string
+	for _, k := range slices.Sorted(slices.Values(n.keys)) {
+		v, kat := n.items[k], at+"."+k
+		if !ulimitShape.MatchString(k) {
+			return nil, fmt.Errorf("%s: %q is not a limit's name", kat, k)
+		}
+		var soft, hard int64
+		switch v.kind {
+		case yScalar:
+			var err error
+			if soft, err = limitOf(kat, v); err != nil {
+				return nil, err
+			}
+			hard = soft
+		case yMap:
+			for _, l := range v.keys {
+				if l != "soft" && l != "hard" {
+					return nil, fmt.Errorf("%s.%s: not soft or hard", kat, l)
+				}
+			}
+			for _, l := range []struct {
+				name string
+				to   *int64
+			}{{"soft", &soft}, {"hard", &hard}} {
+				lv, ok := v.items[l.name]
+				if !ok {
+					return nil, fmt.Errorf("%s.%s: missing", kat, l.name)
+				}
+				var err error
+				if *l.to, err = limitOf(kat+"."+l.name, lv); err != nil {
+					return nil, err
+				}
+			}
+			if soft > hard {
+				// docker run refuses it, so the file is refused here.
+				return nil, fmt.Errorf("%s: soft %d is above hard %d", kat, soft, hard)
+			}
+		default:
+			return nil, fmt.Errorf("%s: not a number nor a mapping of soft and hard", kat)
+		}
+		out = append(out, fmt.Sprintf("%s=%d:%d", k, soft, hard))
+	}
+	return out, nil
+}
+
+// limitOf is a limit's number: digits, as docker run reads them.
+func limitOf(at string, v *yNode) (int64, error) {
+	switch {
+	case v.kind != yScalar:
+		return 0, fmt.Errorf("%s: not a number", at)
+	case v.null:
+		return 0, fmt.Errorf("%s: no value", at)
+	case !digits.MatchString(v.value):
+		return 0, fmt.Errorf("%s: %q is not a whole number, 0 or more", at, v.value)
+	}
+	l, err := strconv.ParseInt(v.value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %q is above %d", at, v.value, int64(math.MaxInt64))
+	}
+	return l, nil
 }
 
 // envOf is variables as Compose's environment writes them: a mapping of
@@ -225,9 +308,13 @@ type yNode struct {
 	list  []*yNode
 }
 
+// yLine is a line that holds YAML outside a block scalar: its number,
+// its indentation, its text without its comment, and why it is refused,
+// as the parser reads it (a block scalar's line is text).
 type yLine struct {
 	n, indent int
 	text      string
+	err       error
 }
 
 func lineErr(n int, format string, args ...any) error {
@@ -236,37 +323,46 @@ func lineErr(n int, format string, args ...any) error {
 
 // readYAML is data's one document, nil when it holds none.
 func readYAML(data []byte) (*yNode, error) {
+	raw := strings.Split(string(data), "\n")
+	eol := raw[len(raw)-1] == "" // the last line ends with a line break
+	if eol {
+		raw = raw[:len(raw)-1]
+	}
 	var lines []yLine
-	for i, raw := range strings.Split(string(data), "\n") {
-		raw = strings.TrimSuffix(raw, "\r")
-		body := strings.TrimLeft(raw, " ")
+	for i, r := range raw {
+		r = strings.TrimSuffix(r, "\r")
+		raw[i] = r
+		body := strings.TrimLeft(r, " ")
 		text := strings.TrimRight(uncomment(body), " \t")
 		if text == "" {
 			continue
 		}
-		n := i + 1
+		l := yLine{n: i + 1, indent: len(r) - len(body), text: text}
 		switch {
 		case strings.HasPrefix(body, "\t"):
-			return nil, lineErr(n, "a tab in the indentation")
-		case text == "---" && len(raw) == len(body):
-			if len(lines) > 0 {
-				return nil, lineErr(n, "a second document")
+			l.err = lineErr(l.n, "a tab in the indentation")
+		case text == "---" && len(r) == len(body):
+			if len(lines) == 0 {
+				continue
 			}
-			continue
+			l.err = lineErr(l.n, "a second document")
 		case strings.HasPrefix(text, "%"):
-			return nil, lineErr(n, "a directive (%%) is not read")
+			l.err = lineErr(l.n, "a directive (%%) is not read")
 		}
-		lines = append(lines, yLine{n, len(raw) - len(body), text})
+		lines = append(lines, l)
 	}
 	if len(lines) == 0 {
 		return nil, nil
 	}
-	p := &yParser{lines: lines}
+	p := &yParser{raw: raw, eol: eol, lines: lines}
 	root, err := p.block(lines[0].indent)
 	if err != nil {
 		return nil, err
 	}
 	if p.i < len(lines) {
+		if err := lines[p.i].err; err != nil {
+			return nil, err
+		}
 		return nil, lineErr(lines[p.i].n, "unexpected indentation")
 	}
 	return root, nil
@@ -297,7 +393,11 @@ func uncomment(s string) string {
 	return s
 }
 
+// yParser reads lines from the i-th; a block scalar reads raw, the
+// file's lines without their line breaks, eol whether the last has one.
 type yParser struct {
+	raw   []string
+	eol   bool
 	lines []yLine
 	i     int
 }
@@ -320,6 +420,9 @@ func (p *yParser) items(indent int) (*yNode, error) {
 		if l.indent < indent || l.indent == indent && !isItem(l.text) {
 			break
 		}
+		if l.err != nil {
+			return nil, l.err
+		}
 		if l.indent > indent {
 			return nil, lineErr(l.n, "unexpected indentation")
 		}
@@ -330,12 +433,12 @@ func (p *yParser) items(indent int) (*yNode, error) {
 		if !strings.ContainsAny(rest[:1], `[{"'`) && (strings.Contains(rest, ": ") || strings.HasSuffix(rest, ":")) {
 			return nil, lineErr(l.n, "a mapping in a list")
 		}
-		v, err := inlineValue(rest, l.n)
+		p.i++
+		v, err := p.value(rest, l.n, indent)
 		if err != nil {
 			return nil, err
 		}
 		node.list = append(node.list, v)
-		p.i++
 	}
 	return node, nil
 }
@@ -346,6 +449,9 @@ func (p *yParser) mapping(indent int) (*yNode, error) {
 		l := p.lines[p.i]
 		if l.indent < indent {
 			break
+		}
+		if l.err != nil {
+			return nil, l.err
 		}
 		if l.indent > indent || isItem(l.text) {
 			return nil, lineErr(l.n, "unexpected indentation")
@@ -361,7 +467,7 @@ func (p *yParser) mapping(indent int) (*yNode, error) {
 		v := &yNode{kind: yScalar, null: true}
 		switch {
 		case rest != "":
-			v, err = inlineValue(rest, l.n)
+			v, err = p.value(rest, l.n, indent)
 		case p.i < len(p.lines) && p.lines[p.i].indent > indent:
 			v, err = p.block(p.lines[p.i].indent)
 		case p.i < len(p.lines) && p.lines[p.i].indent == indent && isItem(p.lines[p.i].text):
@@ -373,6 +479,103 @@ func (p *yParser) mapping(indent int) (*yNode, error) {
 		node.keys, node.items[key] = append(node.keys, key), v
 	}
 	return node, nil
+}
+
+// value is the value rest on line n, after a key or an item's dash at
+// indent: a block scalar, read from the lines after it, or a value on
+// its line.
+func (p *yParser) value(rest string, n, indent int) (*yNode, error) {
+	if rest[0] == '|' || rest[0] == '>' {
+		return p.blockScalar(rest, n, indent)
+	}
+	return inlineValue(rest, n)
+}
+
+// blockScalar is the literal (|) or folded (>) block scalar whose header
+// head ends line n, after a key or a dash at parent: the lines after it
+// that are blank or indented past parent, at the first such line's
+// indentation, as YAML reads them, chomped as head says (- strips the
+// final line breaks, + keeps them, neither keeps one). The parser moves
+// past them.
+func (p *yParser) blockScalar(head string, n, parent int) (*yNode, error) {
+	if len(head) > 2 || len(head) == 2 && head[1] != '-' && head[1] != '+' {
+		return nil, lineErr(n, "%q: a block scalar header Daisy does not read (| or >, either alone or with - or +)", head)
+	}
+	folded, chomp := head[0] == '>', head[len(head)-1]
+	spaces := func(r string) int { return len(r) - len(strings.TrimLeft(r, " ")) }
+	// The lines: from the first after the header, each "" when blank (no
+	// more than indent spaces), else its text past indent; the first
+	// that is neither ends it.
+	var text []string
+	k, indent, blank := n, 0, 0
+	for ; k < len(p.raw); k++ {
+		r := p.raw[k]
+		s := spaces(r)
+		if s == len(r) {
+			text, blank = append(text, ""), max(blank, s)
+			continue
+		}
+		if s <= parent && r[s] == '\t' {
+			return nil, lineErr(k+1, "a tab in the indentation")
+		}
+		if s > parent {
+			// libyaml's, so Compose's: a leading blank line deeper than
+			// the first sets the indentation, and that line ends the block.
+			indent = max(s, blank)
+		}
+		break
+	}
+	for ; k < len(p.raw) && indent > 0; k++ {
+		r := p.raw[k]
+		s := spaces(r)
+		switch {
+		case s == len(r) && s <= indent:
+			text = append(text, "")
+			continue
+		case s < indent && r[s] == '\t':
+			return nil, lineErr(k+1, "a tab in the indentation")
+		case s < indent:
+		default:
+			text = append(text, r[indent:])
+			continue
+		}
+		break
+	}
+	for p.i < len(p.lines) && p.lines[p.i].n <= k {
+		p.i++
+	}
+	// Join them: a line's break kept, each blank line a break of its own;
+	// with > between two lines that begin with no blank, the break is
+	// folded: a space, or none before blank lines.
+	plain := func(t string) bool { return t[0] != ' ' && t[0] != '\t' }
+	var b strings.Builder
+	breaks, ended, prev := 0, false, ""
+	for j, t := range text {
+		broken := n+j < len(p.raw)-1 || p.eol // its line ends with a break
+		if t == "" {
+			if broken {
+				breaks++
+			}
+			continue
+		}
+		switch {
+		case prev == "":
+		case !folded || !plain(prev) || !plain(t):
+			b.WriteByte('\n')
+		case breaks == 0:
+			b.WriteByte(' ')
+		}
+		b.WriteString(strings.Repeat("\n", breaks))
+		b.WriteString(t)
+		breaks, ended, prev = 0, broken, t
+	}
+	if chomp != '-' && ended {
+		b.WriteByte('\n')
+	}
+	if chomp == '+' {
+		b.WriteString(strings.Repeat("\n", breaks))
+	}
+	return &yNode{kind: yScalar, value: b.String()}, nil
 }
 
 // splitKey is a block mapping line's key and the value after it, "" when
@@ -404,8 +607,6 @@ func inlineValue(s string, n int) (*yNode, error) {
 	switch s[0] {
 	case '&', '*', '!':
 		return nil, lineErr(n, "an anchor, alias or tag (&, *, !) is not read")
-	case '|', '>':
-		return nil, lineErr(n, "a block scalar (| or >) is not read; write the value on its line")
 	case '[', '{':
 		f := &flow{s: s, n: n}
 		v, err := f.value()
@@ -573,6 +774,9 @@ func (f *flow) next(close byte) error {
 
 // key is a flow mapping's key and the colon after it.
 func (f *flow) key() (string, error) {
+	if f.i >= len(f.s) {
+		return "", f.open()
+	}
 	var k string
 	if c := f.s[f.i]; c == '"' || c == '\'' {
 		v, end, err := quoted(f.s, f.i, f.n)
