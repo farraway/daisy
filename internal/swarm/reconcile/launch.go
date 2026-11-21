@@ -231,6 +231,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 				return cloneFailed(err)
 			}
 		}
+		unpushed := false
 		if j.Role == "worker" && j.Start.SHA != "" && j.Start.SHA != sha {
 			// The branch made or moved to the kept commit, or to the
 			// branch's head past it, fetched from the mirror's run ref
@@ -240,10 +241,17 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 				return cloneFailed(err)
 			}
 			sha = j.Start.SHA
+			unpushed = j.Start.Unpushed
 		}
 		startLines = append(startLines, "start "+sha)
 		if j.Role == "worker" {
 			startLines = append(startLines, "branch "+branch+" in "+repo.Name)
+		}
+		if unpushed {
+			// The kept commits the run starts from, not yet on the
+			// slice's branch: its collection pushes them though the run
+			// adds none (section 7.9, The classification; 7.6, step 1).
+			startLines = append(startLines, "unpushed "+sha)
 		}
 		// The worker's and a reviewer's variables and test services, at
 		// the commit its clone starts from, a reviewer's the head it

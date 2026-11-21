@@ -126,6 +126,16 @@ func (c *collection) commits() bool {
 	return c.fetched() != "" && "start "+c.fetched() != start
 }
 
+// toPush: the run has commits to push, its own past its start or, from
+// a start at kept commits not yet on the slice's branch (`unpushed`,
+// recorded at the launch), those commits fetched unchanged, which are
+// not the failure no commits (section 7.9, The classification; 7.6,
+// step 1).
+func (c *collection) toPush() bool {
+	_, unpushed := Has(c.lines, "unpushed "+c.fetched())
+	return c.commits() || c.fetched() != "" && unpushed
+}
+
 // keep is step 2: a worker run that does not push keeps its commits as
 // the run's ref, `kept <ref>`, and names them in its slice's kept unless
 // they are refused (section 7.8); one with none drops the ref.
@@ -185,7 +195,7 @@ func (c *collection) refused() (string, error) {
 // and T8 or T12.
 func (c *collection) worker(out string, pull *forge.Pull) error {
 	s := c.s
-	if !c.commits() {
+	if !c.toPush() {
 		if c.label != forge.ChangesRequested || !strings.HasPrefix(out, noChange) {
 			return c.fail("no commits")
 		}
@@ -257,8 +267,13 @@ func (c *collection) worker(out string, pull *forge.Pull) error {
 			return err
 		}
 	}
-	if err := c.writeKept(); err != nil {
-		return err
+	// A run that pushed only the kept commits it started from leaves kept
+	// naming the kept run: its fetched commit is not past its start
+	// (section 7.8, slices/<s>/kept), as the replay reads it.
+	if c.commits() {
+		if err := c.writeKept(); err != nil {
+			return err
+		}
 	}
 	text, tail := report(out, block)
 	l := c.runText("worker", text, tail)

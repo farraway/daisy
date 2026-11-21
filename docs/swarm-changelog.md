@@ -989,3 +989,14 @@ they write.
   [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
   and [162](swarm/decisions/0162-ci-builds-the-declared-image.md)
   amended.
+- 2026-11-21, Step R3-8 of the plan implementing the 2026-11-19 swarm
+  roadmap (R3): a worker run that starts from kept commits not yet on
+  the slice's branch records `unpushed <sha>` at its launch, and,
+  fetching its start unchanged, has those commits to push: not *no
+  commits*, its collection goes on to the secret check, the check and
+  the push, and a `NO CHANGE:` first line from such a start is a
+  revision's text; `kept` still names the kept run. Sections 2, 7.1,
+  7.5, 7.6 (step 1, the R3 paragraph) and 7.9 (the classification's
+  As built). Decision
+  [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)'s
+  After the block is lifted, built.

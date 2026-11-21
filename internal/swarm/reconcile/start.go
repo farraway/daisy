@@ -39,6 +39,11 @@ type Start struct {
 	// `architect run <k>`, and At when; "" when no line did.
 	By string
 	At time.Time
+	// Unpushed: for "kept", the kept commits are not yet on the slice's
+	// branch as the pass fetched it (the branch absent, or an ancestor of
+	// the kept commit), so the run has them to push though it adds none
+	// (section 7.9, The classification; 7.6, step 1).
+	Unpushed bool
 }
 
 // keptRe is a kept file's line (section 7.8, slices/<s>/kept).
@@ -122,7 +127,7 @@ func (s *Swarm) start(j *Job, sl int, repo declare.Repo, branch string, open boo
 			return Start{From: "moved", SHA: head, Ref: "refs/heads/" + branch, Kept: none.Kept, KeptSHA: sha}, nil
 		}
 	}
-	return Start{From: "kept", SHA: sha, Ref: ref, Kept: none.Kept, KeptSHA: sha}, nil
+	return Start{From: "kept", SHA: sha, Ref: ref, Kept: none.Kept, KeptSHA: sha, Unpushed: head != sha}, nil
 }
 
 // startBase is the newest `Start: base` line written since the kept run

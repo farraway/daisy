@@ -210,3 +210,22 @@ the first's success makes needless). Tests:
 `TestSwarmCheckNotRerun`, `TestSwarmCheckRerunRestartedAfterItsApplyDied`,
 `TestWorkspaceReplayRerunCheck`,
 `TestClassify`.
+
+**As built: the kept start pushed (Step R3-8 of the plan implementing
+the 2026-11-19 swarm roadmap).** On the maintainer's answer at the
+Step 12 checkpoint ("a kept start pushed without new commits stands"),
+a worker run that starts from kept commits not yet on the slice's
+branch, decided at its launch from the branch as the pass fetched it
+and recorded as `unpushed <sha>`, and that adds none, is collected as
+a run with commits: the secret check and protected paths, the check,
+the push and its report. Reading the mirror at the collection was the
+alternative; a collection retried after its own push would then find
+the commits on the branch and fail *no commits*. A `NO CHANGE:` first
+line from such a start is a revision's text, the kept commits pushed,
+since the head the pair reviews moves; posting it as an answer without
+a commit, the kept commits left unpushed, was the alternative, and
+would let the pair approve, and the merge step merge, a head without
+the work the worker vouched for. The run's fetched commit is not past
+its start, so `kept` still names the kept run, as the replay writes
+it. Section 7.9's As built for the step has the rest. Tests:
+`TestSwarmKeptStartPushedWithoutNewCommits`.

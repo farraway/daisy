@@ -417,7 +417,7 @@ func (c *collection) textOf(out string) (string, bool) {
 	default:
 		return out, true
 	}
-	if !c.commits() {
+	if !c.toPush() {
 		return out, true // NO CHANGE:, posted as it is
 	}
 	repo, _ := c.s.repo(branchRepo(c.lines))
