@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"strings"
 	"testing"
+	"time"
 )
 
 // R3-13's claim, the prompt hash (the plan implementing the 2026-11-19
@@ -30,5 +31,48 @@ func TestRenderPromptParts(t *testing.T) {
 	}
 	if sha256.Sum256([]byte(render("# CSS rules\n\nUse flex.\n"))) == sha256.Sum256([]byte(sys)) {
 		t.Error("a part's text changed, the hash did not")
+	}
+}
+
+// R3-12b's hash (the plan implementing the 2026-11-19 swarm roadmap;
+// section 7.6, The run's record): configHash reads system.md from its
+// `# Persona` line up to its `# Task` line, so two runs of one role on
+// other issues and times, their Task and header otherwise, hash alike;
+// a part's text changed, or a persona line after a fenced `# Task`
+// (a line Render does not shift), hashes otherwise; a file without
+// both headings has none.
+func TestConfigHash(t *testing.T) {
+	f, at := fixture()
+	other, _ := f.CreateIssue("Lint check", "Check the lint.", []string{"swarm:plan-1-accepted"})
+	render := func(n int, label, persona, part string, k int) []byte {
+		j := job(f, n, "architect", label)
+		j.K, j.Time = k, j.Time.Add(time.Duration(k)*time.Hour)
+		if persona != "" {
+			j.Persona = persona
+		}
+		j.Parts = []PromptPart{{Path: "prompts/parts/css.md", Text: part}}
+		sys, _ := Render(j)
+		return []byte(sys)
+	}
+	one := render(at.N, "swarm:proposal-accepted", "", "Use the grid.\n", 1)
+	two := render(other, "swarm:plan-1-accepted", "", "Use the grid.\n", 2)
+	if string(one) == string(two) {
+		t.Fatal("the two runs' system.md are the same")
+	}
+	if configHash(one) == "" || configHash(one) != configHash(two) {
+		t.Errorf("configHash %q and %q, want one, not empty", configHash(one), configHash(two))
+	}
+	if configHash(render(at.N, "swarm:proposal-accepted", "", "Use flex.\n", 1)) == configHash(one) {
+		t.Error("a part's text changed, the hash did not")
+	}
+	fenced := func(last string) string { return "# architect\n\n```\n# Task\n```\n\n" + last + "\n" }
+	if configHash(render(at.N, "swarm:proposal-accepted", fenced("Plan."), "Use the grid.\n", 1)) ==
+		configHash(render(at.N, "swarm:proposal-accepted", fenced("Plan more."), "Use the grid.\n", 1)) {
+		t.Error("a persona line after a fenced # Task left out of the hash")
+	}
+	for _, sys := range []string{"", "# Persona\n\nYou do it.\n", "<!-- head -->\n\n# Task\n\nDo it.\n"} {
+		if h := configHash([]byte(sys)); h != "" {
+			t.Errorf("configHash(%q) = %q, want none", sys, h)
+		}
 	}
 }

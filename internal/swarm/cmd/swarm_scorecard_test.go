@@ -127,10 +127,10 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 	want := head + one1 + two1 + one2 +
 		"Summary, every record (2.0 days): 3 slices merged; 12 runs, 4.0 per merge; input 4450 tokens per merge; worker stop rate 33% (2 of 6 worker runs); 3 interventions, 1.5 a day\n" +
 		"By configuration, every record:\n" +
-		"  owner anthropic claude-opus-5-5 low, prompt —: runs 1; tokens 1000 uncached, 4000 cached, 500 out; estimated $2.00 at list price; stops 0\n" +
-		"  architect anthropic claude-fable-5-2 high, prompt —: runs 3; tokens 350 uncached, 800 cached, 115 out; estimated $0.52 at list price; stops 0\n" +
-		"  worker xai grok-4.7 low, prompt —: runs 6; tokens 2800 uncached, 3900 cached, 670 out (1 run without usage); estimated $1.12 at list price (2 runs without an estimate); stops 3\n" +
-		"  adversary openai gpt-6.2-astra high, prompt —: runs 2; tokens 500 uncached, 0 cached, 50 out (1 run without usage); estimated $0.25 at list price (1 run without an estimate); stops 0; review effect 1 (2 of 2 runs known)\n"
+		"  owner anthropic claude-opus-5-5 low, config unknown: runs 1; tokens 1000 uncached, 4000 cached, 500 out; estimated $2.00 at list price; stops 0\n" +
+		"  architect anthropic claude-fable-5-2 high, config unknown: runs 3; tokens 350 uncached, 800 cached, 115 out; estimated $0.52 at list price; stops 0\n" +
+		"  worker xai grok-4.7 low, config unknown: runs 6; tokens 2800 uncached, 3900 cached, 670 out (1 run without usage); estimated $1.12 at list price (2 runs without an estimate); stops 3\n" +
+		"  adversary openai gpt-6.2-astra high, config unknown: runs 2; tokens 500 uncached, 0 cached, 50 out (1 run without usage); estimated $0.25 at list price (1 run without an estimate); stops 0; review effect 1 (2 of 2 runs known)\n"
 	if got := a.stdout.String(); got != want || a.stderr.Len() != 0 {
 		t.Errorf("stdout:\n%s\nwant:\n%s\nstderr:\n%s", got, want, a.stderr.String())
 	}
@@ -141,8 +141,8 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 	want = head + two1 + one2 +
 		"Summary, since 2026-11-06T19:00:00Z (1.8 days): 2 slices merged; 2 runs, 1.0 per merge; input 375 tokens per merge; worker stop rate 0% (0 of 1 worker runs); 1 interventions, 0.6 a day\n" +
 		"By configuration, since 2026-11-06T19:00:00Z:\n" +
-		"  architect anthropic claude-fable-5-2 high, prompt —: runs 1; tokens 50 uncached, 0 cached, 5 out; estimated $0.01 at list price; stops 0\n" +
-		"  worker xai grok-4.7 low, prompt —: runs 1; tokens 700 uncached, 0 cached, 70 out; estimated $0.07 at list price; stops 0\n"
+		"  architect anthropic claude-fable-5-2 high, config unknown: runs 1; tokens 50 uncached, 0 cached, 5 out; estimated $0.01 at list price; stops 0\n" +
+		"  worker xai grok-4.7 low, config unknown: runs 1; tokens 700 uncached, 0 cached, 70 out; estimated $0.07 at list price; stops 0\n"
 	if got := a.stdout.String(); got != want {
 		t.Errorf("--since: stdout:\n%s\nwant:\n%s", got, want)
 	}
@@ -157,10 +157,10 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 	want = head + strings.Replace(one1, "interventions I3 1, I7 1", "interventions I3 1", 1) +
 		"Summary, until 2026-11-06T18:00:00Z (0.2 days): 1 slices merged; 9 runs, 9.0 per merge; input 12000 tokens per merge; worker stop rate 50% (2 of 4 worker runs); 1 interventions, 6.0 a day\n" +
 		"By configuration, until 2026-11-06T18:00:00Z:\n" +
-		"  owner anthropic claude-opus-5-5 low, prompt —: runs 1; tokens 1000 uncached, 4000 cached, 500 out; estimated $2.00 at list price; stops 0\n" +
-		"  architect anthropic claude-fable-5-2 high, prompt —: runs 2; tokens 300 uncached, 800 cached, 110 out; estimated $0.51 at list price; stops 0\n" +
-		"  worker xai grok-4.7 low, prompt —: runs 4; tokens 1800 uncached, 3600 cached, 540 out (1 run without usage); estimated $1.02 at list price (2 runs without an estimate); stops 3\n" +
-		"  adversary openai gpt-6.2-astra high, prompt —: runs 2; tokens 500 uncached, 0 cached, 50 out (1 run without usage); estimated $0.25 at list price (1 run without an estimate); stops 0; review effect 1 (2 of 2 runs known)\n"
+		"  owner anthropic claude-opus-5-5 low, config unknown: runs 1; tokens 1000 uncached, 4000 cached, 500 out; estimated $2.00 at list price; stops 0\n" +
+		"  architect anthropic claude-fable-5-2 high, config unknown: runs 2; tokens 300 uncached, 800 cached, 110 out; estimated $0.51 at list price; stops 0\n" +
+		"  worker xai grok-4.7 low, config unknown: runs 4; tokens 1800 uncached, 3600 cached, 540 out (1 run without usage); estimated $1.02 at list price (2 runs without an estimate); stops 3\n" +
+		"  adversary openai gpt-6.2-astra high, config unknown: runs 2; tokens 500 uncached, 0 cached, 50 out (1 run without usage); estimated $0.25 at list price (1 run without an estimate); stops 0; review effect 1 (2 of 2 runs known)\n"
 	if got := a.stdout.String(); got != want {
 		t.Errorf("--until: stdout:\n%s\nwant:\n%s", got, want)
 	}
@@ -170,8 +170,8 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 	want = head + two1 + one2 +
 		"Summary, since 2026-11-06T19:00:00Z until 2026-11-30T23:00:00Z (1.8 days): 2 slices merged; 2 runs, 1.0 per merge; input 375 tokens per merge; worker stop rate 0% (0 of 1 worker runs); 1 interventions, 0.6 a day\n" +
 		"By configuration, since 2026-11-06T19:00:00Z until 2026-11-30T23:00:00Z:\n" +
-		"  architect anthropic claude-fable-5-2 high, prompt —: runs 1; tokens 50 uncached, 0 cached, 5 out; estimated $0.01 at list price; stops 0\n" +
-		"  worker xai grok-4.7 low, prompt —: runs 1; tokens 700 uncached, 0 cached, 70 out; estimated $0.07 at list price; stops 0\n"
+		"  architect anthropic claude-fable-5-2 high, config unknown: runs 1; tokens 50 uncached, 0 cached, 5 out; estimated $0.01 at list price; stops 0\n" +
+		"  worker xai grok-4.7 low, config unknown: runs 1; tokens 700 uncached, 0 cached, 70 out; estimated $0.07 at list price; stops 0\n"
 	if got := a.stdout.String(); got != want {
 		t.Errorf("--until after now: stdout:\n%s\nwant:\n%s", got, want)
 	}
@@ -238,9 +238,9 @@ func TestScorecardRefusals(t *testing.T) {
 // R3-12's claim, the scorecard's side (the plan implementing the
 // 2026-11-19 swarm roadmap; section 11, The scorecard): the window's
 // runs grouped by role and configuration (provider, model, effort,
-// prompt hash), the roles in their order and each role's
+// config hash since R3-12b), the roles in their order and each role's
 // configurations in the order of their first run: the adversary's runs
-// under two prompt hashes are two rows, each with its runs, tokens,
+// under two config hashes are two rows, each with its runs, tokens,
 // estimate, stops and review effect (its known effects summed, and how
 // many are known); a run before --since is no row's.
 func TestScorecardByConfiguration(t *testing.T) {
@@ -250,20 +250,21 @@ func TestScorecardByConfiguration(t *testing.T) {
 	ha, hb, hc := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
 	csvFile := filepath.Join(home, "metrics", "metrics.csv")
 	os.MkdirAll(filepath.Dir(csvFile), 0o755)
+	// Each run's prompt_hash is its own; the config_hash groups them.
 	os.WriteFile(csvFile, []byte(strings.Join(metrics.Header, ",")+"\n"+
-		"2026-11-06T10:00:00Z,swarm-run,acme/swarm-app,1-worker-1,worker,xai,grok-4.7,low,,,"+hc+",posted,,900,90,990,,0.09,,,,,,,,,#1,0,,\n"+
-		"2026-11-06T17:00:00Z,swarm-run,acme/swarm-app,1-adversary-1,adversary,openai,gpt-6.2-astra,high,,,"+ha+",posted,1,500,50,550,,0.25,,,,,,,,,#1,100,1,\n"+
-		"2026-11-06T17:10:00Z,swarm-run,acme/swarm-app,2-worker-1,worker,xai,grok-4.7,low,,,"+hc+",blocked,,200,20,220,,0.02,,,,,,,,,#2,0,,plan\n"+
-		"2026-11-06T17:20:00Z,swarm-run,acme/swarm-app,2-adversary-1,adversary,openai,gpt-6.2-astra,high,,,"+hb+",posted,1,400,40,440,,,,,,,,,,,#2,0,,\n"+
-		"2026-11-06T17:30:00Z,swarm-run,acme/swarm-app,1-adversary-2,adversary,openai,gpt-6.2-astra,high,,,"+ha+",posted,2,300,30,330,,0.1,,,,,,,,,#1,0,0,\n"), 0o644)
+		"2026-11-06T10:00:00Z,swarm-run,acme/swarm-app,1-worker-1,worker,xai,grok-4.7,low,,,p1,posted,,900,90,990,,0.09,,,,,,,,,#1,0,,,"+hc+"\n"+
+		"2026-11-06T17:00:00Z,swarm-run,acme/swarm-app,1-adversary-1,adversary,openai,gpt-6.2-astra,high,,,p2,posted,1,500,50,550,,0.25,,,,,,,,,#1,100,1,,"+ha+"\n"+
+		"2026-11-06T17:10:00Z,swarm-run,acme/swarm-app,2-worker-1,worker,xai,grok-4.7,low,,,p3,blocked,,200,20,220,,0.02,,,,,,,,,#2,0,,plan,"+hc+"\n"+
+		"2026-11-06T17:20:00Z,swarm-run,acme/swarm-app,2-adversary-1,adversary,openai,gpt-6.2-astra,high,,,p4,posted,1,400,40,440,,,,,,,,,,,#2,0,,,"+hb+"\n"+
+		"2026-11-06T17:30:00Z,swarm-run,acme/swarm-app,1-adversary-2,adversary,openai,gpt-6.2-astra,high,,,p5,posted,2,300,30,330,,0.1,,,,,,,,,#1,0,0,,"+ha+"\n"), 0o644)
 	a.setNow("2026-11-07T00:00:00Z")
 	if err := a.scorecard(Value{Flag: "--since", Value: "2026-11-06T12:00:00Z"}); err != nil {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
 	want := "By configuration, since 2026-11-06T12:00:00Z:\n" +
-		"  worker xai grok-4.7 low, prompt cccccccccccc: runs 1; tokens 200 uncached, 0 cached, 20 out; estimated $0.02 at list price; stops 1\n" +
-		"  adversary openai gpt-6.2-astra high, prompt aaaaaaaaaaaa: runs 2; tokens 700 uncached, 100 cached, 80 out; estimated $0.35 at list price; stops 0; review effect 1 (2 of 2 runs known)\n" +
-		"  adversary openai gpt-6.2-astra high, prompt bbbbbbbbbbbb: runs 1; tokens 400 uncached, 0 cached, 40 out; estimated $0.00 at list price (1 run without an estimate); stops 0; review effect 0 (0 of 1 runs known)\n"
+		"  worker xai grok-4.7 low, config cccccccccccc: runs 1; tokens 200 uncached, 0 cached, 20 out; estimated $0.02 at list price; stops 1\n" +
+		"  adversary openai gpt-6.2-astra high, config aaaaaaaaaaaa: runs 2; tokens 700 uncached, 100 cached, 80 out; estimated $0.35 at list price; stops 0; review effect 1 (2 of 2 runs known)\n" +
+		"  adversary openai gpt-6.2-astra high, config bbbbbbbbbbbb: runs 1; tokens 400 uncached, 0 cached, 40 out; estimated $0.00 at list price (1 run without an estimate); stops 0; review effect 0 (0 of 1 runs known)\n"
 	if got := a.stdout.String(); !strings.HasSuffix(got, want) {
 		t.Errorf("stdout:\n%s\nwant ending:\n%s", got, want)
 	}

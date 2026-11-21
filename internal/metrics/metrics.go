@@ -44,7 +44,7 @@ var Header = []string{
 	"root_sha", "home_sha", "prompt_hash", "outcome", "review_rounds",
 	"tokens_in", "tokens_out", "tokens_total", "cost_reported", "cost_estimated",
 	"code_added", "code_removed", "tests_added", "tests_removed", "prose_added", "prose_removed",
-	"binary_files", "range", "notes", "tokens_cached", "review_effect", "cause",
+	"binary_files", "range", "notes", "tokens_cached", "review_effect", "cause", "config_hash",
 }
 
 // firstColumns is how many of Header's columns the first header had
@@ -63,6 +63,7 @@ type Row struct {
 	Role, Provider, Model, Effort    string
 	RootSHA, HomeSHA                 string // the root and the home in use: every prompt and skill
 	PromptHash, Outcome              string
+	ConfigHash                       string // a swarm run's configuration: its persona and prompt parts as its system.md holds them
 	ReviewRounds                     string
 	TokensIn, TokensOut, TokensTotal string // tokens_in holds the input read from a cache
 	TokensCached                     string // the part of TokensIn read from a cache
@@ -242,7 +243,7 @@ func (r Row) cells() []string {
 	} else {
 		c = append(c, "", "", "", "", "", "", "")
 	}
-	return append(c, r.Range, r.Notes, r.TokensCached, r.ReviewEffect, r.Cause)
+	return append(c, r.Range, r.Notes, r.TokensCached, r.ReviewEffect, r.Cause, r.ConfigHash)
 }
 
 // parseRow is the row whose cells rec are (Header's, every one there):
@@ -255,7 +256,7 @@ func parseRow(rec []string) Row {
 		RootSHA: cell("root_sha"), HomeSHA: cell("home_sha"), PromptHash: cell("prompt_hash"), Outcome: cell("outcome"),
 		ReviewRounds: cell("review_rounds"), TokensIn: cell("tokens_in"), TokensOut: cell("tokens_out"), TokensTotal: cell("tokens_total"),
 		TokensCached: cell("tokens_cached"), ReviewEffect: cell("review_effect"), Cause: cell("cause"), CostReported: cell("cost_reported"), CostEstimated: cell("cost_estimated"),
-		Range: cell("range"), Notes: cell("notes")}
+		Range: cell("range"), Notes: cell("notes"), ConfigHash: cell("config_hash")}
 	if cell("code_added") != "" {
 		r.Lines = &Lines{atoi(cell("code_added")), atoi(cell("code_removed")), atoi(cell("tests_added")),
 			atoi(cell("tests_removed")), atoi(cell("prose_added")), atoi(cell("prose_removed")), atoi(cell("binary_files"))}

@@ -1107,6 +1107,9 @@ func swarmReprice(c *Context, s *reconcile.Swarm, dryRun bool) error {
 		if t.Role == "adversary" || t.Role == "sympathetic" {
 			effect = fmt.Sprintf(", review_effect %s → %s", cell(f.ReviewEffect), cell(t.ReviewEffect))
 		}
+		if f.ConfigHash != t.ConfigHash {
+			effect += fmt.Sprintf(", config_hash %s → %s", cell(f.ConfigHash), cell(t.ConfigHash))
+		}
 		fmt.Fprintf(c.Stdout, "  %s %s %s: tokens_in %s → %s, tokens_cached %s → %s, tokens_total %s → %s, cost_estimated %s → %s%s\n",
 			t.Unit, t.Provider, t.Model, cell(f.TokensIn), cell(t.TokensIn), cell(f.TokensCached), cell(t.TokensCached),
 			cell(f.TokensTotal), cell(t.TokensTotal), cell(f.CostEstimated), cell(t.CostEstimated), effect)
@@ -1236,15 +1239,15 @@ func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
 		return v
 	}
 	for _, g := range sc.Configs {
-		hash := "—"
-		if g.PromptHash != "" {
-			hash = g.PromptHash[:min(12, len(g.PromptHash))]
+		hash := "unknown"
+		if g.ConfigHash != "" {
+			hash = g.ConfigHash[:min(12, len(g.ConfigHash))]
 		}
 		effect := ""
 		if g.Role == "adversary" || g.Role == "sympathetic" {
 			effect = fmt.Sprintf("; review effect %d (%d of %d runs known)", g.Effect, g.Known, g.Runs)
 		}
-		fmt.Fprintf(out, "  %s %s %s %s, prompt %s: runs %d; tokens %d uncached, %d cached, %d out%s; estimated $%.2f at list price%s; stops %d%s\n",
+		fmt.Fprintf(out, "  %s %s %s %s, config %s: runs %d; tokens %d uncached, %d cached, %d out%s; estimated $%.2f at list price%s; stops %d%s\n",
 			g.Role, dash(g.Provider), dash(g.Model), dash(g.Effort), hash, g.Runs, g.Uncached, g.Cached, g.Output, without(g.NoUsage, "usage"),
 			g.Cost, without(g.Unpriced, "an estimate"), g.Stops, effect)
 	}

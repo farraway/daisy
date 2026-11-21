@@ -19,6 +19,7 @@ import (
 	"daisy/internal/metrics"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/fence"
 	"daisy/internal/swarm/provider"
 )
 
@@ -96,6 +97,7 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	if b, err := s.O.FS().ReadFile(filepath.Join(c.r.Dir, "io", "system.md")); err == nil {
 		sum := sha256.Sum256(b)
 		r.PromptHash = hex.EncodeToString(sum[:])
+		r.ConfigHash = configHash(b)
 	}
 	// A worker's lines are its pushed commits', start to pushed, counted
 	// in its repository's mirror.
@@ -122,6 +124,37 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 		r.Notes += ", lines not counted"
 	}
 	return r, turns
+}
+
+// configHash is the sha256 of the run's configuration as its system.md
+// holds it (section 7.6, The run's record): the text from its `# Persona`
+// line up to its `# Task` line, the role's prompt and its prompt parts
+// under their headings, which Render writes alike for every run of the
+// role whatever its issue, stage or time; "" when the file has no
+// `# Persona` line followed by a `# Task` line. A line in a fenced block
+// is neither.
+func configHash(system []byte) string {
+	var fences fence.Scan
+	start, at := -1, 0
+	for _, line := range strings.SplitAfter(string(system), "\n") {
+		from := at
+		at += len(line)
+		if fences.Line(strings.TrimSuffix(line, "\n")) {
+			continue
+		}
+		switch strings.TrimSuffix(line, "\n") {
+		case "# Persona":
+			if start < 0 {
+				start = from
+			}
+		case "# Task":
+			if start >= 0 {
+				sum := sha256.Sum256(system[start:from])
+				return hex.EncodeToString(sum[:])
+			}
+		}
+	}
+	return ""
 }
 
 // costUsage is a result's cost line read: `cost <usd|-> tokens
@@ -485,7 +518,9 @@ func (s *Swarm) metricsCSV() (string, []byte, error) {
 // cost_estimated at today's list price), or, for a reviewer's run, the
 // runs give another known review_effect (reviewEffects; an unknown one
 // keeps the held row's, which may be set by hand), or its notes still
-// hold `<c> cached input` beside a tokens_cached: the new row is the
+// hold `<c> cached input` beside a tokens_cached, or its kept
+// <run>/io/system.md gives another config_hash (configHash; a run
+// without one keeps the held row's): the new row is the
 // held row with those cells, that part of its notes dropped, every
 // other cell carried over, its notes ending `repriced`. A run without stdout, one whose stdout reports no
 // usage, or a row naming a provider the adapter table lacks is unread,
@@ -543,6 +578,15 @@ func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
 		} else {
 			p.Unread++
 		}
+		// The configuration's hash from the run's kept system.md; a run
+		// without one keeps the held row's.
+		if b, err := s.O.FS().ReadFile(filepath.Join(r.Dir, "io", "system.md")); err == nil {
+			if h := configHash(b); h != "" {
+				row.ConfigHash = h
+			}
+		} else if !errors.Is(err, iofs.ErrNotExist) {
+			return p, err
+		}
 		if isReviewer(r.Role) {
 			k := fmt.Sprintf("%d-%s", r.N, r.Role)
 			if effects[k] == nil {
@@ -558,7 +602,8 @@ func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
 		}
 		row.Notes = withoutCachedNote(row)
 		if row.TokensIn == held.TokensIn && row.TokensOut == held.TokensOut && row.TokensCached == held.TokensCached &&
-			row.TokensTotal == held.TokensTotal && row.CostEstimated == held.CostEstimated && row.ReviewEffect == held.ReviewEffect && row.Notes == held.Notes {
+			row.TokensTotal == held.TokensTotal && row.CostEstimated == held.CostEstimated && row.ReviewEffect == held.ReviewEffect && row.Notes == held.Notes &&
+			row.ConfigHash == held.ConfigHash {
 			if rep.Known {
 				p.Current++
 			}

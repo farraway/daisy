@@ -34,6 +34,11 @@ the hash. As recorded today that hash also differs from run to run
 scorecard by configuration reads as one configuration a run; a hash
 over the configuration's text alone is an open question of Step R3-12.
 
+**Amended by decision [165](0165-a-configuration-hash.md) (Step
+R3-12b).** That hash is recorded: `config_hash`, the sha256 of the
+persona and its parts as `system.md` holds them, which the scorecard
+groups by.
+
 **`swarm prompt build`** is unchanged: it compares and writes
 `prompts/<role>.md` alone, never a part. With the swarm's additions in
 parts, a role's prompt stays Daisy's default and the verb replaces it

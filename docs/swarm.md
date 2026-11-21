@@ -4039,7 +4039,15 @@ with no such argv the one `swarm.json` declares at the collection); `root_sha`
 (each empty, with a warning, when git cannot say); `prompt_hash` the
 sha256 of `<run>/io/system.md`, so a change to a persona prompt, a
 prompt part (Step R3-13), the Task, the repository notes or praxis
-shows; `outcome` the run's;
+shows (each run's its own, the file's first line naming the run and its
+time); `config_hash` (from Step R3-12b of the plan implementing the
+2026-11-19 swarm roadmap, decision
+[165](swarm/decisions/0165-a-configuration-hash.md)) the sha256 of the configuration's text in
+that file, from its `# Persona` line up to its `# Task` line (a line in
+a fenced block being neither): the role's prompt and its prompt parts
+under their headings (7.3), the text the maintainer configures, alike
+for every run of the role whatever its issue, stage or time, and empty
+when the file is missing or holds no such lines; `outcome` the run's;
 `review_rounds` a reviewer's `round` line, its round as section 6
 counts it at the launch; `review_effect` a reviewer's effect, the
 findings it raised that were fixed (decision [142](swarm/decisions/0142-a-reviews-effect-read-from-the-runs.md)): `0` for a review not
@@ -7117,10 +7125,10 @@ its drift, and a loop restarted prints it again at its first pass.
 |---|---|
 | Usage | `daisy swarm metrics --backfill \| --reprice [--dry-run] \| --scorecard [--since <time>] [--until <time>]`; none of the three actions or more than one, `--dry-run` without `--reprice`, `--since` or `--until` without `--scorecard`, or `--until` before `--since` (`--until <value> is before --since <value>: the window would hold nothing`, before anything is read), usage (exit 2) |
 | Reads | `swarm.json`'s forge fields (to name `<state>`) and its personas; `<state>/home`, the registry, `<run>/result`, `<run>/argv` and `<run>/io/system.md` (`--backfill`), `<run>/stdout` (`--reprice`), a reviewer's `<run>/io/out.md` (both) and a stopped run's (`--backfill`, its cause), the home's metrics CSV; a worker's range in its mirror (`git diff --numstat`); no secret, no forge call, no Docker. `--scorecard`: `swarm.json`'s forge fields and `base`, `<state>/home`, the registry, the home's metrics CSV, each worker run's `<run>/result` (its `branch` and `pushed` lines), each such repository's mirror's `base` (`git log --first-parent --merges`, the reverts' `git log`) and its `FETCH_HEAD`'s time, as `status`'s reverted line reads them; `<state>/env` (the token) and the forge's `Issue(n)` for each issue whose first merged slice is in the window; no Docker |
-| Writes | the metrics CSV of the home `<state>/home` names (section 2): `--backfill`, a `swarm-run` row for each collected run (its `result` holding `collected`) the CSV holds no row of, in the order of their times, in one rewrite, then, in a second, a row superseding each earlier review's whose effect a backfilled review decides (below); `--reprice`, in one rewrite, a row superseding the row of each collected run the CSV holds whose output, or for a reviewer the runs' effect, now reads otherwise (below), in the order of the runs' names; `--dry-run` and `--scorecard`, nothing; no journal line |
-| Stdout | `✓ Backfilled <w> rows into <file> (<c> runs collected, <h> with its row already)`, then `; <e> earlier reviews' rows superseded with their review_effect` when it superseded any; `✓ Repriced <w> rows into <file> (<c> runs collected, <h> with a row: <k> current, <u> with no usage to read)` (`<k>` the rows left as they are whose usage was read); with `--dry-run`, a line per row it would write, `  <run> <provider> <model>: tokens_in <a> → <b>, tokens_cached <a> → <b>, tokens_total <a> → <b>, cost_estimated <a> → <b>` (`—` for empty), a reviewer's ending `, review_effect <a> → <b>`, then `Would reprice <w> rows in <file> (…); nothing written`; `--scorecard`, The scorecard (below) |
+| Writes | the metrics CSV of the home `<state>/home` names (section 2): `--backfill`, a `swarm-run` row for each collected run (its `result` holding `collected`) the CSV holds no row of, in the order of their times, in one rewrite, then, in a second, a row superseding each earlier review's whose effect a backfilled review decides (below); `--reprice`, in one rewrite, a row superseding the row of each collected run the CSV holds whose output, or for a reviewer the runs' effect, or its kept `system.md`'s configuration, now reads otherwise (below), in the order of the runs' names; `--dry-run` and `--scorecard`, nothing; no journal line |
+| Stdout | `✓ Backfilled <w> rows into <file> (<c> runs collected, <h> with its row already)`, then `; <e> earlier reviews' rows superseded with their review_effect` when it superseded any; `✓ Repriced <w> rows into <file> (<c> runs collected, <h> with a row: <k> current, <u> with no usage to read)` (`<k>` the rows left as they are whose usage was read); with `--dry-run`, a line per row it would write, `  <run> <provider> <model>: tokens_in <a> → <b>, tokens_cached <a> → <b>, tokens_total <a> → <b>, cost_estimated <a> → <b>` (`—` for empty), a reviewer's ending `, review_effect <a> → <b>`, and a row whose `config_hash` changes then `, config_hash <a> → <b>`, then `Would reprice <w> rows in <file> (…); nothing written`; `--scorecard`, The scorecard (below) |
 | Stderr | `⚠ #<n> worker run <k>: lines not counted: <reason>`; `⚠ #<n> <role> run <k>: cause left empty: …` (7.6, The run's record); `⚠ #<n> <role> run <k>: no row: its result has no end line or started line to date it`; `--scorecard`, a warning of the secrets file (section 3) |
-| Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no home or one that cannot be used, the CSV's header not this Daisy's nor an older one (the columns up to `notes`, `tokens_cached` or `review_effect`), the lock held past 30 seconds, a read or the write failing; `--scorecard`: `--since` or `--until` not an RFC 3339 time (`Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: <value>)`, `--until` likewise), the token unset, a row's `when` not an RFC 3339 time, a mirror's or the forge's read failing (`Error: swarm metrics --scorecard: <reason>`); 2 usage |
+| Exit codes | 0; 1 no swarm found, invalid forge fields, `<state>/home` naming no home or one that cannot be used, the CSV's header not this Daisy's nor an older one (the columns up to `notes`, `tokens_cached`, `review_effect` or `cause`), the lock held past 30 seconds, a read or the write failing; `--scorecard`: `--since` or `--until` not an RFC 3339 time (`Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: <value>)`, `--until` likewise), the token unset, a row's `when` not an RFC 3339 time, a mirror's or the forge's read failing (`Error: swarm metrics --scorecard: <reason>`); 2 usage |
 | Ops | Real; `--scorecard` `ops.ReadOnly` |
 
 Each row is the one the run's collection makes (7.6, The run's record),
@@ -7176,7 +7184,11 @@ design review get their effect, while an effect the runs read unknown
 keeps the held row's, which may have been set by hand; and the notes
 without `<c> cached input`, which a row recorded before Step 28 holds
 beside, once repriced, `tokens_cached` (from Step 7 of the plan
-implementing the 2026-11-19 swarm roadmap). When any of the six cells
+implementing the 2026-11-19 swarm roadmap); and `config_hash` as a
+collection makes it from the run's kept `<run>/io/system.md` (from Step
+R3-12b), so a row recorded before the column gets it, while a run
+without the file, or one holding no configuration's text, keeps the
+held row's. When any of the seven cells
 or the notes differs from the held row's, it writes a row superseding
 it: the held row with those cells and notes, every other cell carried
 over (its `when`, its commits, its cost, its lines), its notes ending
@@ -7255,7 +7267,7 @@ Scorecard of <owner>/<repo>: runs and interventions from <csv>, merges from the 
   …        (or:   no slice merged)
 Summary, since <time> until <time> (<d> days): <m> slices merged; <r> runs, <r/m> per merge; input <i/m> tokens per merge; worker stop rate <p>% (<s> of <w> worker runs); <v> interventions, <v/d> a day
 By configuration, since <time> until <time>:
-  <role> <provider> <model> <effort>, prompt <hash>: runs <r>; tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; stops <s>[; review effect <f> (<k> of <r> runs known)]
+  <role> <provider> <model> <effort>, config <hash>: runs <r>; tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; stops <s>[; review effect <f> (<k> of <r> runs known)]
   …        (or:   no run)
 ```
 
@@ -7303,20 +7315,20 @@ counts runs made before `--since`, while the summary's counts take only
 the window's records.
 
 **By configuration** (Step R3-12 of the plan implementing the
-2026-11-19 swarm roadmap) groups the window's `swarm-run` records, those
-the summary counts, by role and configuration: the row's `provider`,
-`model`, `effort` and `prompt_hash` (7.6, The run's record: the sha256
-of the run's `system.md`, so a changed persona prompt, Task, repository
-notes or praxis is another configuration), so two setups of one role
-read side by side. Its heading names the window as the summary's does.
-One line per role and configuration, the roles in their order (the
-QA's last) and a role's configurations in the order of their first run;
-`<hash>` the hash's first 12 characters, and `—` for an empty cell.
-As recorded, `prompt_hash` hashes the run's whole `system.md`, whose
-first line names the run and its time (its Task and repository notes
-may also differ by issue and stage), so each run reads as a configuration of its own until a hash over the
-configuration's text alone is recorded (an open question of Step
-R3-12). The figures: **runs**, **tokens**, **estimated** as a slice's
+2026-11-19 swarm roadmap; the config hash since its Step R3-12b) groups
+the window's `swarm-run` records, those the summary counts, by role and
+configuration: the row's `provider`, `model`, `effort` and
+`config_hash` (7.6, The run's record: the sha256 of the role's prompt
+and its prompt parts as the run's `system.md` holds them, so a changed
+persona prompt or part is another configuration, and runs of one setup
+on other issues are one), so two setups of one role read side by side.
+Its heading names the window as the summary's does. One line per role
+and configuration, the roles in their order (the QA's last) and a
+role's configurations in the order of their first run; `<hash>` the
+hash's first 12 characters, `unknown` for a row without one (recorded
+before the column, and not yet given it by `--reprice`, or a run whose
+`system.md` is gone), those rows of a role and setup one line, and `—`
+for another empty cell. The figures: **runs**, **tokens**, **estimated** as a slice's
 line counts them;
 **stops** the runs counted as a slice's stops are; and for the
 adversary and the sympathetic reviewer, **review effect** `<f>` the

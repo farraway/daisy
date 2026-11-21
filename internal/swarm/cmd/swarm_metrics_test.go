@@ -617,8 +617,8 @@ func TestSwarmMetricsReprice(t *testing.T) {
 	b, _ := os.ReadFile(csvFile)
 	_, oldRows, _ := strings.Cut(held, "\n")
 	want := strings.Join(metrics.Header, ",") + "\n" + oldRows +
-		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,852044,9000,861044,1.2,1.17044,,,,,,,,,\"#1, 20 turns, repriced\",800000,,\n" +
-		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,3489802,,0.641961,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns, repriced\",3390208,,\n"
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,1-architect-1,architect,anthropic,claude-fable-5-1,high,abcdef1,1234567,ph,posted,,852044,9000,861044,1.2,1.17044,,,,,,,,,\"#1, 20 turns, repriced\",800000,,,\n" +
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,93-worker-1,worker,openai,gpt-6.1-sol,medium,abcdef1,1234567,ph,posted,,3476833,12969,3489802,,0.641961,120,4,80,0,3,1,0,aaaaaaa..bbbbbbb,\"#93, 1 turns, repriced\",3390208,,,\n"
 	if string(b) != want {
 		t.Fatalf("csv:\n%s\nwant:\n%s", b, want)
 	}
@@ -819,9 +819,9 @@ func TestSwarmMetricsRepriceReviewEffect(t *testing.T) {
 	b, _ := os.ReadFile(csvFile)
 	_, oldRows, _ := strings.Cut(held, "\n")
 	want := strings.Join(metrics.Header, ",") + "\n" + oldRows +
-		"2026-11-12T08:00:00Z,swarm-run,acme/swarm-app,2-adversary-1,adversary,xai,grok-4.7,high,,,,posted,1,100,10,110,,,,,,,,,,,\"#2, 3 turns, repriced\",,2,\n" +
-		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,2-adversary-2,adversary,xai,grok-4.7,high,,,,posted,2,300,30,330,,,,,,,,,,,\"#2, 3 turns, repriced\",,0,\n" +
-		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,2-sympathetic-1,sympathetic,xai,grok-4.7,high,,,,posted,1,200,20,220,,,,,,,,,,,\"#2, 3 turns, repriced\",,0,\n"
+		"2026-11-12T08:00:00Z,swarm-run,acme/swarm-app,2-adversary-1,adversary,xai,grok-4.7,high,,,,posted,1,100,10,110,,,,,,,,,,,\"#2, 3 turns, repriced\",,2,,\n" +
+		"2026-11-12T10:00:00Z,swarm-run,acme/swarm-app,2-adversary-2,adversary,xai,grok-4.7,high,,,,posted,2,300,30,330,,,,,,,,,,,\"#2, 3 turns, repriced\",,0,,\n" +
+		"2026-11-12T09:00:00Z,swarm-run,acme/swarm-app,2-sympathetic-1,sympathetic,xai,grok-4.7,high,,,,posted,1,200,20,220,,,,,,,,,,,\"#2, 3 turns, repriced\",,0,,\n"
 	if string(b) != want {
 		t.Fatalf("csv:\n%s\nwant:\n%s", b, want)
 	}

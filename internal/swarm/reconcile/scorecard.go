@@ -45,12 +45,13 @@ type Usage struct {
 }
 
 // ConfigScore is one role's runs under one configuration, its provider,
-// model, effort and prompt hash as their rows record them (R3-12): the
+// model, effort and config hash as their rows record them (R3-12, the
+// config hash since R3-12b; "" for rows without one): the
 // runs, their usage, the stops (as a slice's are counted), and for a
 // reviewer, the review_effect summed over the runs that record one,
 // Known of them.
 type ConfigScore struct {
-	Role, Provider, Model, Effort, PromptHash string
+	Role, Provider, Model, Effort, ConfigHash string
 	Runs                                      int
 	Usage
 	Stops         int
@@ -173,12 +174,12 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 		case metrics.Intervention:
 			c.Summary.Interventions++
 		case metrics.SwarmRun:
-			key := strings.Join([]string{r.Role, r.Provider, r.Model, r.Effort, r.PromptHash}, "\x00")
+			key := strings.Join([]string{r.Role, r.Provider, r.Model, r.Effort, r.ConfigHash}, "\x00")
 			i, ok := configs[key]
 			if !ok {
 				i = len(c.Configs)
 				configs[key] = i
-				c.Configs = append(c.Configs, ConfigScore{Role: r.Role, Provider: r.Provider, Model: r.Model, Effort: r.Effort, PromptHash: r.PromptHash})
+				c.Configs = append(c.Configs, ConfigScore{Role: r.Role, Provider: r.Provider, Model: r.Model, Effort: r.Effort, ConfigHash: r.ConfigHash})
 			}
 			c.Configs[i].add(r)
 			c.Summary.Runs++

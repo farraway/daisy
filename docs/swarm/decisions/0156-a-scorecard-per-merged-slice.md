@@ -126,3 +126,9 @@ window's runs by role and configuration (the rows' `provider`,
 tokens, estimate, stops and, for a reviewer, its review effect, so two
 setups of one role compare side by side (section 11, The scorecard, By
 configuration). Test: `TestScorecardByConfiguration`.
+
+**Amended by decision [165](0165-a-configuration-hash.md) (Step R3-12b
+of the plan implementing the 2026-11-19 swarm roadmap).** The
+configuration is the rows' `config_hash`, not their `prompt_hash`,
+which is a run's own: a role's runs of one setup are one line, rows
+without the hash one line, `config unknown`.

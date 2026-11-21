@@ -1053,3 +1053,15 @@ they write.
   unedited prompt whole, the swarm's additions in parts. Sections 3, 4,
   7.3, 7.6 and 11, and the swarm skill. Decision
   [164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md).
+- 2026-11-21, Step R3-12b of the plan implementing the 2026-11-19 swarm
+  roadmap: a configuration hash. The metrics CSV gains `config_hash`,
+  the sha256 of the role's prompt and its prompt parts as the run's
+  `system.md` holds them (its `# Persona` line up to its `# Task`
+  line), made at the collection and by `--backfill`, and by
+  `--reprice` from a run's kept `system.md`; the scorecard groups by
+  provider, model, effort and `config_hash` (`config <hash>`, `config
+  unknown` for rows without one), `prompt_hash` kept as it was. Sections
+  7.6 (The run's record) and 11 (the reprice, The scorecard). Decision
+  [165](swarm/decisions/0165-a-configuration-hash.md), amending
+  decisions [156](swarm/decisions/0156-a-scorecard-per-merged-slice.md)
+  and [164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md).
