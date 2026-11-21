@@ -996,8 +996,8 @@ they write.
   commits*, its collection goes on to the secret check, the check and
   the push, and a `NO CHANGE:` first line from such a start is a
   revision's text; `kept` still names the kept run, and a run that
-  does not push keeps the commits as its own ref, which its note
-  names. Sections 2, 5 (T12), 6 (an answer without a commit), 7.1,
+  does not push keeps the commits as its own ref, which the note of
+  a failure or a `BLOCKED:` names. Sections 2, 5 (T12), 6 (an answer without a commit), 7.1,
   7.5, 7.6 (steps 1 and 2, the R3 paragraph, the trailer, the
   screenshots and the worker's row of the calls), 7.7 (no commits),
   7.8 (Rollout) and 7.9 (the rerun's table, the classification's As

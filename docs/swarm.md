@@ -1711,7 +1711,8 @@ request, The maintainer's word, below), counting only reviews submitted after th
 a comment of the swarm's on the pull request marked `role=worker` whose
 text begins `NO CHANGE:` (7.6): the worker's revision that needs no
 change to the code (a run from kept commits not yet on the branch
-pushes them, its comment then a revision's, 7.9, The classification). The answers are read from the pull request's
+pushes them first, its comment then a revision's, which still reads as
+an answer, as below; 7.9, The classification). The answers are read from the pull request's
 comments alone, by the trigger rule, the collection, the rounds and the
 gate note alike, never from its description. A revision's comment that
 begins `NO CHANGE:` although the run pushed commits (7.5) reads as an
@@ -3818,8 +3819,8 @@ worker run <k>: artifact <name> not attached: <error>` and `artifact
 <name> not attached: <error>`, never a failure, the run posted as any;
 any other error is the pass's, the collection retried, and a reply
 lost after the forge stored the file attaches it again (no `Adapter`
-call lists a pull request's files). A run with no commits, a `NO
-CHANGE:` answer, a question or `BLOCKED:` attaches nothing. Daisy sets
+call lists a pull request's files). A run with no commits to push, an
+answer without a commit, a question or `BLOCKED:` attaches nothing. Daisy sets
 no bound of its own on the files' number or size: the forge's limits
 refuse a file (Gitea's `[attachment] MAX_SIZE`, `413`). The reviewers'
 prompts list the files (7.3, `# Artifacts`).

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -279,6 +280,96 @@ func TestSwarmKeptStartPushedWithoutNewCommits(t *testing.T) {
 		if k, _ := a.jobFile(1, "slices/1/kept"); !strings.HasPrefix(k, "1-worker-1 ") {
 			t.Errorf("kept %q, want the kept run 1-worker-1's", k)
 		}
+	})
+
+	// Its screenshots are read after step 3 and attached to the pull
+	// request, as any run's with commits to push (section 7.6, The
+	// screenshots).
+	t.Run("screenshots", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", half("BLOCKED: which version?\n"))
+		a.pass()
+		kept := a.keptOf()
+		a.say(issue1, "jane", "v1; half is it.")
+		c := nothing("main.go as kept is v1's.")
+		c.IO = artifacts(map[string]string{"home.png": png})
+		a.runner.Script(1, "worker", c)
+		a.pass()
+		pushedKept(t, a, "1-worker-2", kept)
+		files := a.forge.Attachments(app1)
+		if len(files) != 1 || files[0].Name != "home.png" {
+			t.Fatalf("attachments of app#1: %+v", files)
+		}
+		if r := a.result("1-worker-2"); !strings.Contains(r, "\nartifact home.png attached "+files[0].URL+"\n") {
+			t.Errorf("result:\n%s", r)
+		}
+	})
+
+	// A run from such a start that does not push, BLOCKED:, a fault or
+	// abandoned, holds the commits as its run's ref (section 7.6, step
+	// 2), kept still naming the kept run; the BLOCKED: note names the
+	// ref.
+	held := func(t *testing.T, a *applyWS, kept, outcome string) {
+		t.Helper()
+		r := a.result("1-worker-2")
+		inOrder(t, r, "\nunpushed "+kept+"\n", "\nfetched "+kept+"\n", "\nkept refs/swarm-runs/1-worker-2\n", "\noutcome "+outcome+"\n")
+		if strings.Contains(r, "\npushed ") || len(a.pulls(1)) != 0 {
+			t.Errorf("pushed or posted:\n%s", r)
+		}
+		if ref := a.gitRunIn(a.state("git/app"), "rev-parse", "refs/swarm-runs/1-worker-2"); ref != kept {
+			t.Errorf("the run's ref %q, want the kept %s", ref, kept)
+		}
+		if k, _ := a.jobFile(1, "slices/1/kept"); !strings.HasPrefix(k, "1-worker-1 ") {
+			t.Errorf("kept %q, want the kept run 1-worker-1's", k)
+		}
+	}
+	for _, tc := range []struct {
+		name, outcome string
+		run           runner.Canned
+	}{
+		{"BLOCKED:", "blocked", nothing("BLOCKED: still unsure.")},
+		{"a fault", "fault", runner.Canned{Code: 125}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.planned(oneSlice)
+			a.runner.Script(1, "worker", half("BLOCKED: which version?\n"))
+			a.pass()
+			kept := a.keptOf()
+			a.say(issue1, "jane", "v1; half is it.")
+			a.runner.Script(1, "worker", tc.run)
+			a.pass()
+			held(t, a, kept, tc.outcome)
+			if tc.outcome == "blocked" {
+				b := a.bodies(1)
+				if note := "Its commits are kept in the swarm's mirror as refs/swarm-runs/1-worker-2."; !strings.Contains(b[len(b)-1], note) {
+					t.Errorf("note %q", b[len(b)-1])
+				}
+			}
+		})
+	}
+
+	// Abandoned: worker run 2's apply died with its clone at the kept
+	// commit, as its launch left it.
+	t.Run("abandoned", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.planned(oneSlice)
+		a.runner.Script(1, "worker", half("BLOCKED: which version?\n"))
+		a.pass()
+		kept := a.keptOf()
+		run := a.state("runs/1-worker-2")
+		work := filepath.Join(run, "work")
+		os.MkdirAll(filepath.Join(run, "io"), 0o755)
+		a.gitRunIn("", "clone", "-q", a.state("git/app"), work)
+		a.gitRunIn(work, "checkout", "-q", "-b", "swarm/1-1", kept)
+		lines := []string{"start " + kept, "branch swarm/1-1 in app", "unpushed " + kept, "label swarm:plan-1-accepted", "started 2026-11-06T15:09:00Z",
+			"credential anthropic env CLAUDE_CODE_OAUTH_TOKEN", "relabelled swarm:plan-1-accepted swarm:plan-2-in-progress"}
+		os.WriteFile(filepath.Join(run, "result"), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+		a.forge.Relabel(issue1, forge.Blocked, "")
+		a.forge.SetLabel(issue1, "swarm:plan-2-in-progress")
+		a.pass()
+		held(t, a, kept, "abandoned")
 	})
 
 	// The slice's branch already holds the kept commit, pushed by hand
