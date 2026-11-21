@@ -4891,10 +4891,10 @@ read with section 3's YAML subset, which reads literal and folded block
 scalars (`|` and `>`, with or without `-` or `+`) in every file it
 reads, a workflow's `run: |` among them (built at Step R3-2). A file
 the subset still refuses is not compared, and says so. A step's `run`
-is read as commands: each line, a line ending `\` joined to the next, cut at `&&`, `||`, `;` and `|`,
-its words split at blanks with their quotes removed and nothing
-expanded. Four things are compared, the declaration and the test
-services file at the same commit:
+is read as commands: each line, a line ending `\` joined to the next,
+cut at `&&`, `||`, `;` and `|`, its words split at blanks with their
+quotes removed and nothing expanded. Four things are compared, the
+declaration and the test services file at the same commit:
 
 1. **The image.** With `dockerfile` declared, a job is an **image job**
    when a step of it runs `docker build` (or `docker image build`, or

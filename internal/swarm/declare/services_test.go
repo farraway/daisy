@@ -72,6 +72,7 @@ services:
     ulimits:
       nproc: {soft: 10, hard: 20}
       core: 0
+      memlock: {soft: 9223372036854775807, hard: 9223372036854775807}
   mongo:
     image: "mongo:7"
     tmpfs: /data/db
@@ -85,7 +86,7 @@ services:
 	want := TestServices{
 		Services: []TestService{
 			{Name: "mongo", Image: "mongo:7", Tmpfs: []string{"/data/db"}, Env: []string{"MONGO_INITDB_DATABASE=test", "N=1\t2"}, Command: []string{"mongod", "--quiet"}},
-			{Name: "redis", Image: "redis:7", Ulimits: []string{"core=0:0", "nproc=10:20"}, Env: []string{"REDIS_ARGS=--appendonly no"}, Command: []string{"redis-server", "--save", ""}},
+			{Name: "redis", Image: "redis:7", Ulimits: []string{"core=0:0", "memlock=9223372036854775807:9223372036854775807", "nproc=10:20"}, Env: []string{"REDIS_ARGS=--appendonly no"}, Command: []string{"redis-server", "--save", ""}},
 		},
 		Env: []string{"A_URI=x", "B_URI=it's: #1"},
 	}
@@ -112,6 +113,10 @@ func TestParseServicesRefused(t *testing.T) {
 		{"services:\n  mongo: {image: mongo:7, ulimits: [nofile=1]}\n", "services.mongo.ulimits: not a mapping"},
 		{"services:\n  mongo:\n    image: mongo:7\n    ulimits:\n", "services.mongo.ulimits: not a mapping"},
 		{"services:\n  mongo: {image: mongo:7, ulimits: {NOFILE: 1}}\n", `services.mongo.ulimits.NOFILE: "NOFILE" is not a limit's name`},
+		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile1: 1}}\n", `services.mongo.ulimits.nofile1: "nofile1" is not a limit's name`},
+		{"services:\n  mongo: {image: mongo:7, ulimits: {no_file: 1}}\n", `services.mongo.ulimits.no_file: "no_file" is not a limit's name`},
+		{"services:\n  mongo: {image: mongo:7, ulimits: {'': 1}}\n", `services.mongo.ulimits.: "" is not a limit's name`},
+		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: ''}}\n", `services.mongo.ulimits.nofile: "" is not a whole number, 0 or more`},
 		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: -1}}\n", `services.mongo.ulimits.nofile: "-1" is not a whole number, 0 or more`},
 		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: 64k}}\n", `services.mongo.ulimits.nofile: "64k" is not a whole number, 0 or more`},
 		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: +1}}\n", `services.mongo.ulimits.nofile: "+1" is not a whole number, 0 or more`},
