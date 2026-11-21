@@ -417,8 +417,7 @@ func (g Git) GoFacts(name, commit string) (GoFacts, error) {
 func modulePath(data []byte) string {
 	block := false
 	for _, line := range strings.Split(string(data), "\n") {
-		line, _, _ = strings.Cut(line, "//")
-		f := strings.Fields(line)
+		f := words(line)
 		switch {
 		case block && len(f) == 0:
 			continue
@@ -435,6 +434,18 @@ func modulePath(data []byte) string {
 	return ""
 }
 
+// words is a go.mod or go.work line's words, its comment dropped and a
+// verb's block opening apart from it (`replace(` as `replace (`, as Go
+// reads it).
+func words(line string) []string {
+	line, _, _ = strings.Cut(line, "//")
+	f := strings.Fields(line)
+	if len(f) == 1 && len(f[0]) > 1 && strings.HasSuffix(f[0], "(") {
+		f = []string{strings.TrimSuffix(f[0], "("), "("}
+	}
+	return f
+}
+
 // pathWord is a module path as go.mod writes it, quoted or not; "" for
 // a word Go would not read as one.
 func pathWord(w string) string {
@@ -449,13 +460,13 @@ func pathWord(w string) string {
 
 // replaces is each replace line of a go.mod or go.work in dir, alone or
 // in a `replace ( … )` block, whose target is a local directory in the
-// repository: the replaced module's path and that directory.
+// repository (`.`, `..`, `./…` or `../…`, as Go reads a directory):
+// the replaced module's path and that directory.
 func replaces(data []byte, dir string) []GoModule {
 	var rs []GoModule
 	block := false
 	for _, line := range strings.Split(string(data), "\n") {
-		line, _, _ = strings.Cut(line, "//")
-		f := strings.Fields(line)
+		f := words(line)
 		switch {
 		case block && len(f) == 1 && f[0] == ")":
 			block = false
@@ -473,7 +484,7 @@ func replaces(data []byte, dir string) []GoModule {
 			continue
 		}
 		target := pathWord(f[i+1])
-		if !strings.HasPrefix(target, "./") && !strings.HasPrefix(target, "../") {
+		if target != "." && target != ".." && !strings.HasPrefix(target, "./") && !strings.HasPrefix(target, "../") {
 			continue
 		}
 		if t, ok := inRepo(dir, target); ok {

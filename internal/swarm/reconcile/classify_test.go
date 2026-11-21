@@ -129,6 +129,7 @@ func TestClassify(t *testing.T) {
 		{"a deletion elsewhere does not touch", "FAIL\texample.com/app/web\t0.1s\n", []string{"old/old.go"}, deleted, false, Classification{Untouched: []string{appWeb}}},
 		{"a module below the root, its path not read, imported", fail("example.com/app/report"), []string{"lib/lib.go"}, unreadLib, false, Classification{}},
 		{"a module below the root, its path not read, touched below by an import", fail("example.com/app/report"), storeGo, unreadLibSub, false, Classification{}},
+		{"a module below the root, its path not read, a package without imports", fail(appTestutil), []string{"lib/lib.go"}, unreadLib, false, Classification{Untouched: []string{appTestutil}}},
 		{"a module below the root, its path not read, untouched", fail(appWeb), storeGo, unreadLib, false, Classification{Untouched: []string{appWeb}}},
 		{"a module below the root under a root package's path", fail("example.com/app/extra") + refused, storeGo, shadow, false, Classification{}},
 		{"imported from a module below the root", fail("example.com/app/report"), []string{"lib/lib.go"}, appFacts(), false, Classification{}},
@@ -300,7 +301,7 @@ func TestGoFacts(t *testing.T) {
 	g := Git{State: state}
 	m := g.Mirror("app")
 	files := map[string][2]string{
-		"go.mod":               {"100644", "// the app\nmodule example.com/app // its path\n\ngo 1.27\n\nreplace example.com/x v1.2.0 => ./tools // local\nreplace example.com/far => example.com/fork v1.0.0\nreplace (\n\t\"example.com/y\" => ../outside\n\texample.com/z => ./odd/\r\n)\n"},
+		"go.mod":               {"100644", "// the app\nmodule example.com/app // its path\n\ngo 1.27\n\nreplace example.com/x v1.2.0 => ./tools // local\nreplace example.com/far => example.com/fork v1.0.0\nreplace (\n\t\"example.com/y\" => ../outside\n\texample.com/z => ./odd/\r\n)\nreplace(\n\texample.com/self => .\n)\n"},
 		"go.work":              {"100644", "go 1.27\n\nuse .\n\nreplace example.com/w => ./web\n"},
 		"alias":                {"120000", "store"},
 		"up":                   {"120000", "../elsewhere"},
@@ -322,7 +323,7 @@ func TestGoFacts(t *testing.T) {
 		"web/testdata":         {"040000", ""},
 		"web/testdata/x.go":    {"100644", "package x\n\nimport \"net/http\"\n"},
 		"tools":                {"040000", ""},
-		"tools/go.mod":         {"100644", "module \"example.com/app/tools\"\n"},
+		"tools/go.mod":         {"100644", "module \"example.com/app/tools\"\n\nreplace example.com/app => ..\n"},
 		"tools/gen":            {"040000", ""},
 		"tools/gen/gen.go":     {"100644", "package gen\n"},
 		"odd":                  {"040000", ""},
@@ -343,7 +344,7 @@ func TestGoFacts(t *testing.T) {
 		Modules:    []GoModule{{"", "example.com/app"}, {"block", "example.com/block"}, {"linked", ""}, {"odd", ""}, {"tools", "example.com/app/tools"}},
 		Workspaces: []string{""},
 		Submodules: []string{"ext/sub"},
-		Replaces:   []GoModule{{"odd", "example.com/z"}, {"tools", "example.com/x"}, {"web", "example.com/w"}},
+		Replaces:   []GoModule{{"", "example.com/app"}, {"", "example.com/self"}, {"odd", "example.com/z"}, {"tools", "example.com/x"}, {"web", "example.com/w"}},
 		Links:      map[string]string{"alias": "store", "web/back": "tools/gen"},
 		Packages: map[string]GoPackage{
 			"":             {Imports: []string{"os"}},

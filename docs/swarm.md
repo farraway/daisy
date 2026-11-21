@@ -5191,9 +5191,9 @@ facts at a commit in the mirror with git's read commands alone
 (`ls-tree`, `cat-file`): each `go.mod`'s directory and module path,
 each `go.work`'s directory, each submodule's directory (its files not
 in the mirror), each `replace` of a `go.mod` or `go.work` whose target
-is a directory of the repository (`./…` or `../…`, alone or in a
-`replace ( … )` block: the replaced module's path and that
-directory), each symbolic link, but a `.go` file's, whose text names
+is a directory of the repository (`.`, `..`, `./…` or `../…`, alone
+or in a `replace ( … )` block, `replace(` read as Go reads it: the
+replaced module's path and that directory), each symbolic link, but a `.go` file's, whose text names
 a directory of the repository (neither absolute nor above its root),
 and for each directory holding a `.go` file the imports of its files,
 its `_test.go` files' apart. A failing
