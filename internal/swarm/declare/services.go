@@ -236,7 +236,8 @@ func ulimitsOf(at string, n *yNode) ([]string, error) {
 	return out, nil
 }
 
-// limitOf is a limit's number: digits, as docker run reads them.
+// limitOf is a limit's number: digits, as docker run reads them, with no
+// leading 0, which Compose's YAML reads as octal.
 func limitOf(at string, v *yNode) (int64, error) {
 	switch {
 	case v.kind != yScalar:
@@ -245,6 +246,8 @@ func limitOf(at string, v *yNode) (int64, error) {
 		return 0, fmt.Errorf("%s: no value", at)
 	case !digits.MatchString(v.value):
 		return 0, fmt.Errorf("%s: %q is not a whole number, 0 or more", at, v.value)
+	case len(v.value) > 1 && v.value[0] == '0':
+		return 0, fmt.Errorf("%s: %q begins with 0, which Compose reads as octal; write it without", at, v.value)
 	}
 	l, err := strconv.ParseInt(v.value, 10, 64)
 	if err != nil {

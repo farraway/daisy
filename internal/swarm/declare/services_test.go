@@ -119,6 +119,7 @@ func TestParseServicesRefused(t *testing.T) {
 		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: ''}}\n", `services.mongo.ulimits.nofile: "" is not a whole number, 0 or more`},
 		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: -1}}\n", `services.mongo.ulimits.nofile: "-1" is not a whole number, 0 or more`},
 		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: 64k}}\n", `services.mongo.ulimits.nofile: "64k" is not a whole number, 0 or more`},
+		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: 064000}}\n", `services.mongo.ulimits.nofile: "064000" begins with 0, which Compose reads as octal; write it without`},
 		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: +1}}\n", `services.mongo.ulimits.nofile: "+1" is not a whole number, 0 or more`},
 		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: 9223372036854775808}}\n", `services.mongo.ulimits.nofile: "9223372036854775808" is above 9223372036854775807`},
 		{"services:\n  mongo: {image: mongo:7, ulimits: {nofile: }}\n", "services.mongo.ulimits.nofile: no value"},

@@ -892,9 +892,9 @@ they write.
   amended.
 - 2026-11-20, Step R3-2 of the plan implementing the 2026-11-19 swarm
   roadmap (R3): the test services file's `ulimits` built, a limit's name
-  to one number or to exactly `soft` and `hard`, digits, `soft` not
-  above `hard`, run as `--ulimit <name>=<soft>:<hard>` in name order
-  after `--tmpfs`; the YAML subset reads literal and folded block
+  to one number or to exactly `soft` and `hard`, digits without a
+  leading `0`, `soft` not above `hard`, run as
+  `--ulimit <name>=<soft>:<hard>` in name order after `--tmpfs`; the YAML subset reads literal and folded block
   scalars (`|`, `>`, alone or with `-` or `+`), an indentation indicator
   refused by line; a flow mapping open at its line's end, which
   panicked, refused. Sections 3 (`repos[].services`), 7.2 (the services'

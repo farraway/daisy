@@ -177,8 +177,10 @@ its soft and hard limit, or to exactly `soft` and `hard`; it is run as
 `--ulimit <name>=<soft>:<hard>`, one per limit in name order, after
 `--tmpfs` and before `--env`, and `{}` is none. Narrowed here, where
 the spec says "integers": a number is digits alone, 0 to
-9223372036854775807 (what Docker parses), written back as a number
-(`064000` runs as `64000`), so `-1`, `+1` and `64k` are refused; a
+9223372036854775807 (what Docker parses), without a leading `0`
+(Compose's YAML, go-yaml v3, reads `064000` as the octal 26624, so the
+one file would give Compose and Daisy different limits), so `-1`, `+1`,
+`64k` and `064000` are refused; a
 `soft` above its `hard` is refused by the file, naming the limit, as
 `docker run` would refuse it at the service's start, a swarm fault
 rather than the file's reason; a name `^[a-z]+$` that Docker does not
