@@ -449,7 +449,10 @@ func (c *collection) replayedWork() error {
 	s, name, sha := c.s, branchRepo(c.lines), c.fetched()
 	repo, _ := s.repo(name)
 	_, fault := Has(c.lines, "fault") // its collection ended at the fault, before step 4
-	if result, out, _, ok := checkResult(s.O.FS(), c.r, c.lines, s.Cfg.Timeout); ok && !fault && result != "exit 0" && !hit([]byte(out), s.secretsOf(c.r, c.lines)) {
+	// A check that failed classified again wrote no checks/ file (section 7.9).
+	failed, _ := Has(c.lines, "failed")
+	environment := strings.HasPrefix(failed, "failed: "+checkEnvironment)
+	if result, out, _, ok := checkResult(s.O.FS(), c.r, c.lines, s.Cfg.Timeout); ok && !fault && !environment && result != "exit 0" && !hit([]byte(out), s.secretsOf(c.r, c.lines)) {
 		if err := c.writeCheck(sha, checkLine(repo.Check, sha, result), out); err != nil {
 			return err
 		}

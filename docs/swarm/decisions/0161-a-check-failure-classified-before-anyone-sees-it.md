@@ -178,3 +178,35 @@ another language's. A signature is matched ignoring ASCII case alone
 list's first was the alternative). Tests: `TestClassify`,
 `TestClassifyFailLines`, `TestClassifySignatures`,
 `TestClassificationReason`, `TestGoFacts`.
+
+**As built: the rerun and the environment failure (Step R3-7 of the
+plan implementing the 2026-11-19 swarm roadmap).** The collection calls
+the classification in step 4, before the push, and runs a classified
+failure again once; one classified on its rerun is `failed: check
+environment: <reason>`, cause `environment`, nothing pushed, posted on
+the pull request or written to `checks/`. On the maintainer's answer
+of 2026-11-21 ("don't classify"), an output that names no failing
+package is not classified when the head is Go's, whatever signature it
+holds, since `go test -json`, gotestsum or a prefixer hides the
+`FAIL<tab>` lines a touched package's failure would be read from. A
+head is Go's by its facts alone: a `go.mod`, a `go.work` or a `.go`
+file, the test that already decides whether its `FAIL<tab>` lines are
+read. Recognising Go's output by its text (`=== RUN`, `--- FAIL:`,
+`"Action":`, a `FAIL<tab>` not beginning its line) was the
+alternative: it keeps a Go product's dependency step, `gofmt` step and
+a check stopped before `go test` named a package classified by a
+signature, but a form not foreseen (another runner, another prefixer)
+would let a signature classify a touched package's failure, the
+dangerous direction; with the head's reading those failures reach the
+worker, as before R3. The change and the head's facts are read only
+for an output holding a `FAIL<tab>` line or a signature, the only ones
+that can be classified (reading them for every failure was the
+alternative, the facts costing one `cat-file` per `.go` file of the
+head). The dependency step runs again only when it failed before the
+rerun, so a check's rerun is the check's alone (the step and then the
+check, as at first, was the alternative: a second dependency step that
+the first's success makes needless). Tests:
+`TestSwarmCheckRerunOnceThenPosted`, `TestSwarmCheckEnvironmentHeld`,
+`TestSwarmCheckNotRerun`, `TestSwarmCheckRerunRestartedAfterItsApplyDied`,
+`TestWorkspaceReplayRerunCheck`,
+`TestClassify`.

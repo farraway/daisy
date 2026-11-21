@@ -75,12 +75,18 @@ func (c Classification) Reason() string {
 // out, given the paths the change alters (step 3's diff, a renamed file
 // by both its paths), the head's Go facts, and whether the step timed
 // out at the wall clock. A failure naming a failing package the change
-// touches is never classified, whatever signature the output holds; any
-// other is classified by its untouched failing packages when it names
-// one and ended by itself, and by the earliest of the five signatures
-// in the output. It reads nothing but its arguments.
+// touches is never classified, whatever signature the output holds; nor
+// is a Go head's output naming no failing package (`go test -json`,
+// gotestsum or a prefixer hides the `FAIL<tab>` lines it reads, so a
+// touched package may fail in it unseen); any other is classified by
+// its untouched failing packages when it names one and ended by itself,
+// and by the earliest of the five signatures in the output. It reads
+// nothing but its arguments.
 func Classify(out []byte, changed []string, facts GoFacts, timedOut bool) Classification {
 	failing := facts.failing(out)
+	if len(failing) == 0 && facts.goHead() {
+		return Classification{}
+	}
 	touched := facts.touched(changed)
 	for _, p := range failing {
 		if facts.touches(p, touched) {
@@ -95,13 +101,30 @@ func Classify(out []byte, changed []string, facts GoFacts, timedOut bool) Classi
 	return c
 }
 
+// MayClassify: Classify could classify out, whatever the change and the
+// head (it holds a `FAIL<tab>` line or a signature), so that a failure
+// that cannot be classified reads neither the change nor the head.
+func MayClassify(out []byte) bool { return signature(out) != "" || len(failLines(out)) > 0 }
+
+// goHead: the head is Go's, holding a go.mod, a go.work or a .go file;
+// another language's holds none.
+func (f GoFacts) goHead() bool {
+	return len(f.Modules) > 0 || len(f.Workspaces) > 0 || len(f.Packages) > 0
+}
+
 // failing is each package out names on a line `FAIL<tab><import path>`,
 // with or without a time or a bracketed note after it, once, in the
 // order first named; none for another language's head.
 func (f GoFacts) failing(out []byte) []string {
-	if len(f.Modules) == 0 && len(f.Workspaces) == 0 && len(f.Packages) == 0 {
+	if !f.goHead() {
 		return nil
 	}
+	return failLines(out)
+}
+
+// failLines is each path out's `FAIL<tab>` lines name, as failing reads
+// them.
+func failLines(out []byte) []string {
 	var pkgs []string
 	for _, line := range strings.Split(string(out), "\n") {
 		rest, ok := strings.CutPrefix(strings.TrimSuffix(line, "\r"), "FAIL\t")

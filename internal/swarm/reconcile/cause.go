@@ -128,6 +128,7 @@ var failedCauses = []struct{ reason, word string }{
 	{"bad slices: ", "plan"},
 	{"protected path changed: ", "scope"},
 	{"fetch: ", "environment"},
+	{checkEnvironment, "environment"},
 }
 
 // ownCause is the cause of a stop of Daisy's own, a run's fault: or

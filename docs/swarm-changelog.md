@@ -972,3 +972,19 @@ they write.
   classification). Decision
   [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
   amended.
+- 2026-11-21, Step R3-7 of the plan implementing the 2026-11-19 swarm
+  roadmap (R3): the collection classifies a worker's failed check or
+  dependency step before the push, runs a classified failure again
+  once (`check rerun: <reason>`, `check-1.out` or `deps-1.out`, the
+  stdout line) and holds one classified again as the failure check
+  environment, cause `environment`, nothing pushed, posted on the pull
+  request or written to `checks/`; on the maintainer's answer of
+  2026-11-21, a Go head's output naming no failing package is not
+  classified, whatever signature it holds; the change and the head's
+  facts are read only for an output that could be classified, and a
+  check's rerun beside a dependency step is the check's alone.
+  Sections 1 (the scope's check row), 2, 7.5, 7.6, 7.7, 7.8, 7.9 (the
+  opening, the classification) and 11 (apply's stdout), each R3 marker
+  of the rerun now built. Decision
+  [161](swarm/decisions/0161-a-check-failure-classified-before-anyone-sees-it.md)
+  amended.

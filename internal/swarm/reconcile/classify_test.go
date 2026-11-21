@@ -43,8 +43,11 @@ const (
 // failing package the change touches (by its directory, below it or
 // above it, by its imports, its test files' included, or by lying
 // outside the root module) is never classified, whatever signature the
-// output holds; any other is classified when it is in untouched
-// packages (the step having ended by itself) or holds a signature.
+// output holds; nor is a Go head's output that names no failing
+// package (go test -json, gotestsum, a prefixer's lines, a dependency
+// step: the head holds a go.mod, a go.work or a .go file); any other is
+// classified when it is in untouched packages (the step having ended by
+// itself) or holds a signature.
 func TestClassify(t *testing.T) {
 	rootPkg := appFacts()
 	rootPkg.Packages[""] = GoPackage{}
@@ -158,27 +161,45 @@ func TestClassify(t *testing.T) {
 		{"the root module's path not read", fail(appWeb) + refused, storeGo, unreadRoot, false, Classification{}},
 		{"a package not at the head", fail("example.com/app/gone") + refused, storeGo, appFacts(), false, Classification{}},
 		{"a package whose imports were not read", fail("example.com/app/legacy") + refused, storeGo, appFacts(), false, Classification{}},
-		{"no failing package, a signature", "store/store.go\nwrite tcp 10.0.0.2:5432: i/o timeout\n", storeGo, appFacts(), false, Classification{Signature: "i/o timeout"}},
-		{"a signature in a passing test's own output", "=== RUN   TestDial\n    dial_test.go:9: want connection refused\n--- PASS: TestDial (0.00s)\nok  \texample.com/app/web\t0.1s\nstore/store.go: not formatted\n", storeGo, appFacts(), false, Classification{Signature: "connection refused"}},
+		{"another language's output naming no package, a signature", "store/store.go\nwrite tcp 10.0.0.2:5432: i/o timeout\n", storeGo, GoFacts{}, false, Classification{Signature: "i/o timeout"}},
+		{"Go's output naming no failing package, a signature", "store/store.go\nwrite tcp 10.0.0.2:5432: i/o timeout\n", storeGo, appFacts(), false, Classification{}},
+		{"go test -json names no failing package", `{"Action":"output","Package":"example.com/app/store","Output":"    store_test.go:12: dial tcp: connection refused\n"}` + "\n" + `{"Action":"output","Package":"example.com/app/store","Output":"FAIL\texample.com/app/store\t0.012s\n"}` + "\n" + `{"Action":"fail","Package":"example.com/app/store","Elapsed":0.012}` + "\n", storeGo, appFacts(), false, Classification{}},
+		{"gotestsum names no failing package", "=== FAIL: store TestFind (0.00s)\n    store_test.go:12: dial tcp: connection refused\n\nDONE 3 tests, 1 failure in 0.512s\n", storeGo, appFacts(), false, Classification{}},
+		{"a prefixed FAIL line names no failing package", "app-1  | --- FAIL: TestFind (5.00s)\napp-1  | " + refused + "app-1  | FAIL\texample.com/app/store\t0.012s\n", storeGo, appFacts(), false, Classification{}},
+		{"a Go head's dependency step names no failing package", "go: example.com/dep@v1.0.0: Get \"https://proxy.golang.org/example.com/dep/@v/v1.0.0.zip\": dial tcp 10.0.0.9:443: i/o timeout\n", storeGo, appFacts(), false, Classification{}},
+		{"a head of go.mod alone is Go's", "write tcp 10.0.0.2:5432: i/o timeout\n", storeGo, GoFacts{Modules: []GoModule{{"", "example.com/app"}}}, false, Classification{}},
+		{"a head of a go.work alone is Go's", "write tcp 10.0.0.2:5432: i/o timeout\n", storeGo, GoFacts{Workspaces: []string{""}}, false, Classification{}},
+		{"a head of a .go file alone is Go's", "write tcp 10.0.0.2:5432: i/o timeout\n", storeGo, GoFacts{Packages: map[string]GoPackage{"": {}}}, false, Classification{}},
+		{"a signature in a passing test's own output", "=== RUN   TestDial\n    dial_test.go:9: want connection refused\n--- PASS: TestDial (0.00s)\nok  \texample.com/app/web\t0.1s\n" + fail(appTestutil), storeGo, appFacts(), false, Classification{Untouched: []string{appTestutil}, Signature: "connection refused"}},
 		{"no failing package, no signature", "store/store.go: not formatted\n", storeGo, appFacts(), false, Classification{}},
 		{"a timeout in untouched packages alone", fail(appWeb), storeGo, appFacts(), true, Classification{}},
 		{"a timeout in untouched packages, a signature", fail(appWeb) + refused, storeGo, appFacts(), true, Classification{Signature: "connection refused"}},
-		{"a timeout naming no package, a signature", "=== RUN TestMongo\nserver selection error: context deadline exceeded\n", storeGo, appFacts(), true, Classification{Signature: "server selection error"}},
+		{"a timeout naming no package, a signature, another language's", "=== RUN TestMongo\nserver selection error: context deadline exceeded\n", storeGo, GoFacts{}, true, Classification{Signature: "server selection error"}},
+		{"a timeout naming no package, a signature, Go's", "=== RUN TestMongo\nserver selection error: context deadline exceeded\n", storeGo, appFacts(), true, Classification{}},
 		{"another language's FAIL line is no package", fail(appStore) + refused, storeGo, GoFacts{}, false, Classification{Signature: "connection refused"}},
 		{"another language without a signature", "FAIL\tsrc/a.test.js\n", storeGo, GoFacts{}, false, Classification{}},
-		{"the earliest signature", "Too many open files\nnetwork not found\n", storeGo, appFacts(), false, Classification{Signature: "too many open files"}},
+		{"the earliest signature", "Too many open files\nnetwork not found\n", storeGo, GoFacts{}, false, Classification{Signature: "too many open files"}},
 		{"a FAIL line ending CRLF", "FAIL\texample.com/app/web\r\nFAIL\r\n", storeGo, appFacts(), false, Classification{Untouched: []string{appWeb}}},
 		{"a FAIL line with no line end", refused + strings.TrimSuffix(fail(appStore), "\n"), storeGo, appFacts(), false, Classification{}},
 	} {
 		if got := Classify([]byte(tc.out), tc.changed, tc.facts, tc.timedOut); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s: %+v, want %+v", tc.name, got, tc.want)
 		}
+		if tc.want.Classified() && !MayClassify([]byte(tc.out)) {
+			t.Errorf("%s: MayClassify false for an output Classify classifies", tc.name)
+		}
+	}
+	for _, out := range []string{"", "store/store.go: not formatted\n", "--- FAIL: TestFind (0.00s)\nFAIL\n", "    FAIL\texample.com/app/store\n", "FAIL example.com/app/store\n", "connection refuse\n"} {
+		if MayClassify([]byte(out)) {
+			t.Errorf("MayClassify(%q): true for an output with no FAIL<tab> line and no signature", out)
+		}
 	}
 }
 
 // A failing package is read from a line `FAIL<tab><import path>`, with
 // or without a time or a bracketed note, and from no other line: a
-// touched package's line read holds back the signature beside it.
+// touched package's line read holds back the untouched one and the
+// signature beside it.
 func TestClassifyFailLines(t *testing.T) {
 	for _, tc := range []struct {
 		line string
@@ -199,8 +220,8 @@ func TestClassifyFailLines(t *testing.T) {
 		{"xFAIL\texample.com/app/store", false},
 		{"ok  \texample.com/app/store\t0.012s", false},
 	} {
-		got := Classify([]byte("connection refused\n"+tc.line+"\n"), []string{"store/store.go"}, appFacts(), false)
-		want := Classification{Signature: "connection refused"}
+		got := Classify([]byte("connection refused\n"+fail(appWeb)+tc.line+"\n"), []string{"store/store.go"}, appFacts(), false)
+		want := Classification{Untouched: []string{appWeb}, Signature: "connection refused"}
 		if tc.read {
 			want = Classification{}
 		}
@@ -211,7 +232,8 @@ func TestClassifyFailLines(t *testing.T) {
 }
 
 // The five signatures, matched ignoring case anywhere in the whole
-// output, and nothing near them.
+// output, and nothing near them (another language's output, which names
+// no failing package).
 func TestClassifySignatures(t *testing.T) {
 	for _, tc := range []struct{ out, want string }{
 		{"dial tcp: i/o timeout", "i/o timeout"},
@@ -240,7 +262,7 @@ func TestClassifySignatures(t *testing.T) {
 		{"too many  open files", ""},
 		{"", ""},
 	} {
-		got := Classify([]byte(tc.out), []string{"store/store.go"}, appFacts(), false)
+		got := Classify([]byte(tc.out), []string{"store/store.go"}, GoFacts{}, false)
 		if got.Signature != tc.want || got.Untouched != nil {
 			t.Errorf("%q: %+v, want signature %q", tc.out, got, tc.want)
 		}

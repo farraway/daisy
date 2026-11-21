@@ -380,8 +380,10 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 
 // pending is the worker run's step, its dependency step ("deps") or its
 // check, that started and has no end line yet, and when it started; ""
-// when neither is.
+// when neither is. A rerun's step is read from the lines after `check
+// rerun` (section 7.9).
 func pending(lines []string) (step, at string) {
+	lines, _ = sinceRerun(lines)
 	for _, step := range []string{"deps", "check"} {
 		l, started := "", false
 		for _, line := range lines {
@@ -863,8 +865,11 @@ func checkLine(check []string, head, result string) string {
 // services file's refusal, either of which ran no check, and the whole
 // output of the one that ended the check, file (check.out or deps.out),
 // or the refusal and the services file; ok is false when it has no end.
+// A check run again is read from the lines after `check rerun`, the
+// rerun's result being the check's (section 7.9).
 func checkResult(fs ops.FS, r Run, lines []string, timeout string) (result, out, file string, ok bool) {
 	const noCheck = "; the check did not run"
+	lines, _ = sinceRerun(lines)
 	file = "check.out"
 	if code := depsFailed(lines); code != "" {
 		result, file = "dependency step exited "+code+noCheck, "deps.out"

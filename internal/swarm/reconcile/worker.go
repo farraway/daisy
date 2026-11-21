@@ -3,6 +3,7 @@ package reconcile
 import (
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -217,15 +218,14 @@ func (c *collection) worker(out string, pull *forge.Pull) error {
 	block := noCheckBlock
 	if len(repo.Check) > 0 {
 		if step := nextStep(repo, c.lines); step != "" {
-			if err := s.startStep(c.r, c.lines, step); err != nil {
-				return err
-			}
-			if s.live[c.r.Dir] == nil {
-				return s.collect(c.r) // the step could not start: a fault
-			}
-			return nil
+			return c.startCheck(step)
 		}
 		result, out, file, _ := checkResult(s.O.FS(), c.r, c.lines, s.Cfg.Timeout)
+		if result != "exit 0" && !pushed {
+			if held, err := c.classify(repo, out); err != nil || held {
+				return err
+			}
+		}
 		tail := strings.Join(lastLines(out), "\n")
 		// A check that failed is written whole to the workspace (section
 		// 7.8, checks/), so its whole output is checked; else the tail
@@ -335,14 +335,128 @@ func report(out, block string) (text, tail string) {
 	return strings.TrimRight(out, "\r\n"), "\n\n" + block
 }
 
+// startCheck starts step, the dependency step or the check, on the
+// worker run's head, a classified failure's first output kept first
+// (keepFirst); the run is collected again at once when the step could
+// not start, a fault.
+func (c *collection) startCheck(step string) error {
+	s := c.s
+	if err := c.keepFirst(); err != nil {
+		return err
+	}
+	if err := s.startStep(c.r, c.lines, step); err != nil {
+		return err
+	}
+	if s.live[c.r.Dir] == nil {
+		return s.collect(c.r) // the step could not start: a fault
+	}
+	return nil
+}
+
+// classify is section 7.9's classification of the worker run's failed
+// check, or dependency step, whose whole output is out: a failure not
+// classified (a test services file refused among them) is the change's,
+// and the collection goes on (held false); one classified is run again
+// once (`check rerun: <reason>`, the stdout line, then the step started
+// again), or, classified on its rerun, is the failure check
+// environment, nothing pushed or posted on the pull request and no
+// checks/ file written. The change and the head's Go facts are read
+// from the mirror only for an output Classify could classify.
+func (c *collection) classify(repo declare.Repo, out string) (held bool, err error) {
+	s, lines := c.s, c.checkLines()
+	if servicesRefused(lines) != "" || !MayClassify([]byte(out)) {
+		return false, nil
+	}
+	name, sha := branchRepo(c.lines), c.fetched()
+	changed, err := s.git().Changed(name, s.Cfg.Base, sha)
+	if err != nil {
+		return false, err
+	}
+	facts, err := s.git().GoFacts(name, sha)
+	if err != nil {
+		return false, err
+	}
+	_, checkTimedOut := Has(lines, "check timeout")
+	_, depsTimedOut := Has(lines, "deps timeout")
+	cl := Classify([]byte(out), changed, facts, checkTimedOut || depsTimedOut)
+	if !cl.Classified() {
+		return false, nil
+	}
+	reason := cl.Reason()
+	if hit([]byte(strings.Join(cl.Untouched, "\n")), s.secretsOf(c.r, c.lines)) {
+		reason = "untouched packages withheld: one holds a secret the member was given"
+		if cl.Signature != "" {
+			reason += "; " + Classification{Signature: cl.Signature}.Reason()
+		}
+	}
+	if _, again := Has(c.lines, rerun); again {
+		return true, c.fail(checkEnvironment + reason)
+	}
+	if err := c.step(rerun + ": " + reason); err != nil {
+		return true, err
+	}
+	fmt.Fprintf(s.Out, "%scheck failed in the environment (%s): run again\n", c.head, reason)
+	return true, c.startCheck(nextStep(repo, c.lines))
+}
+
+// rerun begins the line that records a classified failure's one rerun,
+// and checkEnvironment the reason of a failure classified again (section
+// 7.9).
+const (
+	rerun            = "check rerun"
+	checkEnvironment = "check environment: "
+)
+
+// checkLines is the worker run's lines its check is read from: those
+// after its rerun (sinceRerun).
+func (c *collection) checkLines() []string { l, _ := sinceRerun(c.lines); return l }
+
+// sinceRerun is the lines a worker run's check is read from (section
+// 7.9): those after its `check rerun`, every line when it has none; and
+// whether that rerun is the check's alone, its dependency step having
+// ended 0 before it, so that the step is not run again.
+func sinceRerun(lines []string) (after []string, checkAlone bool) {
+	for i, l := range lines {
+		if strings.HasPrefix(l, rerun+": ") {
+			before := lines[:i]
+			_, depsTimedOut := Has(before, "deps timeout")
+			return lines[i+1:], depsFailed(before) == "" && !depsTimedOut
+		}
+	}
+	return lines, false
+}
+
+// keepFirst keeps a classified failure's first output before its rerun
+// starts (section 7.9): <run>/check.out renamed check-1.out, or, for the
+// dependency step's failure, deps.out deps-1.out; once, so a rerun
+// started again after its apply died keeps the first output.
+func (c *collection) keepFirst() error {
+	i := slices.IndexFunc(c.lines, func(l string) bool { return strings.HasPrefix(l, rerun+": ") })
+	if i < 0 {
+		return nil
+	}
+	step := "check"
+	if _, checkAlone := sinceRerun(c.lines); !checkAlone {
+		step = "deps"
+	}
+	fs := c.s.O.FS()
+	first := filepath.Join(c.r.Dir, step+"-1.out")
+	if _, err := fs.Lstat(first); err == nil || !errors.Is(err, iofs.ErrNotExist) {
+		return err
+	}
+	return fs.Rename(filepath.Join(c.r.Dir, step+".out"), first)
+}
+
 // nextStep is the container a worker run's collection starts next
-// (section 7.6, step 4): the dependency step, when the repository
-// declares one and it has not started; else the check, unless it has
-// started, the dependency step failed or the head's test services file
-// was refused; "" when there is none to start.
+// (section 7.6, step 4), read from the lines after its rerun (7.9): the
+// dependency step, when the repository declares one and it has not
+// started (nor run before a rerun of the check alone); else the check,
+// unless it has started, the dependency step failed or the head's test
+// services file was refused; "" when there is none to start.
 func nextStep(repo declare.Repo, lines []string) string {
+	lines, checkAlone := sinceRerun(lines)
 	_, depsStarted := Has(lines, "deps started")
-	if repo.Deps != nil && !depsStarted {
+	if repo.Deps != nil && !depsStarted && !checkAlone {
 		return "deps"
 	}
 	_, checkStarted := Has(lines, "check started")
