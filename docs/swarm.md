@@ -2399,8 +2399,9 @@ On the host, in order, before `docker run`:
    in-progress stage (section 5, T20 and T21): `Relabel(n, <label>,
    <in-progress>)`, `#<n> <role> run <k>: <label> → <in-progress>` on
    stdout and `relabelled <label> <in-progress>` in `<run>/result`; the
-   pair's second reviewer, launched in the same pass, is launched on the
-   stage the first's write left (`label swarm:review-1-in-progress`) and
+   sympathetic reviewer, launched once the adversary's approval of the
+   head is collected (section 6), is launched on the stage the
+   adversary's write left (`label swarm:review-1-in-progress`) and
    writes none. A
    refused write is the pass's error, the container left running: its
    collection moves the issue on from the stage it was launched on.
@@ -2655,7 +2656,7 @@ nothing else mounted beside them; `<name>` is the run's repository
 The lines marked `(env)` are each `repos[].env` entry, in name order,
 before `deps.env`'s, for the worker, the adversary and the sympathetic
 reviewer too (built at Step R3-1 for the check, the dependency step,
-in their place before `deps.env`'s on their `/work` argv, and the
+in their place before `deps.env`'s on their argv, and the
 worker, before `x-daisy-env`'s; the reviewers' at Step R3-3, the
 member's `(variables)` line above); a
 reviewer's run gets the lines marked `(services)` as a
@@ -6826,10 +6827,13 @@ a launch never waits on another issue's run, and with `interval` at
 another `apply` started is collected from the disk alone, the running
 set saying its container is gone and `<run>/io/exit` whether its member
 finished, with its exit status (7.2); its cost and a provider's fault
-were held by the `apply` that died and are not recovered. Both reviewers launch in one
-pass when both have something to answer and a free credential: the
-first whose container starts writes review-1-in-progress, and the other
-is launched on it.
+were held by the `apply` that died and are not recovered. Until Step R3-10 both
+reviewers launched in one pass when both had something to answer and a
+free credential, the first whose container started writing
+review-1-in-progress and the other launched on it; since it the
+adversary launches alone and writes it, and the sympathetic reviewer is
+launched on it once the adversary's review of the head approves
+(section 6; decision [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)).
 
 **As built (Step 19 of the swarm build).** The table as written
 (decision [79](swarm/decisions/0079-the-research-wiki.md)). With `notes` (since Step 23 of the swarm build,
@@ -8290,7 +8294,9 @@ which the step's smoke reads.
 from disk and the pair in one pass are Go tests:
 `internal/swarm/reconcile` `TestLaunch` (a check holding the worker)
 and `TestLaunchInReview` (both reviewers returned together at either
-review stage, each held by its own run, a worker's run holding both), and
+review stage, each held by its own run, a worker's run holding both;
+since Step R3-10 the adversary alone, the sympathetic reviewer once the
+adversary's review of the head approves), and
 `internal/swarm/cmd` `TestSwarmApplyLoopCollectsALaterPass` (a member
 held over two intervals while the next pass launches another issue's
 run and a later one collects that; the held run collected by the first
@@ -8300,12 +8306,17 @@ it), `TestSwarmApplyCollectsARunAnotherApplyStarted` (`ended`, posted
 and relabelled once, nothing launched), `TestSwarmApplyAbandonedAndOrphans`
 (no `out.md`: still abandoned), `TestSwarmApplyLifecycle` (each round
 one pass: both reviewers launched in it, review-1-in-progress written
-once, the second's `label swarm:review-1-in-progress`),
+once, the second's `label swarm:review-1-in-progress`; since Step
+R3-10 the adversary's pass and the sympathetic reviewer's are two),
 `TestSwarmApplyHolds` (a busy slot splits the pair: the sympathetic
 reviewer alone writes review-1-in-progress, and the adversary follows
-once the hold is lifted), `TestSwarmPassDecidesAnIssueOnce` (the
+once the hold is lifted; since Step R3-10 a busy adversary's slot
+launches no one, the sympathetic reviewer waiting for the adversary's
+approval), `TestSwarmPassDecidesAnIssueOnce` (the
 adversary's launch refused is not tried again in the pass whose
-sympathetic launch moved the issue) and
+sympathetic launch moved the issue; since Step R3-10 the pass whose
+relabel by the maintainer moved it, the sympathetic reviewer not
+launched) and
 `TestSwarmInitDefaults` (the service). Not established: the real
 swarm's gap between a push and its first review, which the step's
 smoke reads.
