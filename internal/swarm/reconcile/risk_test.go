@@ -166,7 +166,8 @@ func TestTaskTextBlockingSentenceWithoutTrustBoundaries(t *testing.T) {
 			has(t, role+", "+name, task, nil, declaredBoundaries)
 		}
 	}
-	for name, text := range map[string]string{"": boundaries, "with CRLF": strings.ReplaceAll(boundaries, "\n", "\r\n"), "with spaces after it": "## Trust boundaries  \n"} {
+	for name, text := range map[string]string{"": boundaries, "with CRLF": strings.ReplaceAll(boundaries, "\n", "\r\n"), "with spaces after it": "## Trust boundaries  \n",
+		"as init seeds them": RepoNotesSeed(cfg(), cfg().Repos[1], nil)} {
 		sys, _ := Render(delta(t, "adversary", RepoNote{Name: "lib", Text: text}))
 		has(t, "notes that declare them "+name, taskOf(t, sys), []string{declaredBoundaries}, defaultBoundaries)
 	}
@@ -361,4 +362,23 @@ func TestTaskTextWorkerGatesSentence(t *testing.T) {
 		has(t, role, taskOf(t, sys), nil, "those gates are Daisy's", "they are Daisy's gates")
 	}
 	inSpec(t, gates("<check>"), none)
+}
+
+// The sympathetic reviewer's default prompt reads and runs nothing (the
+// maintainer's ruling of 2026-11-22; section 7.11, The defaults), so its
+// Task does not offer its clone to build and test in, as the adversary's
+// does, in round 1 and in a delta round.
+func TestTaskTextSympatheticReadsItsClone(t *testing.T) {
+	const build = "a throwaway clone you may build and test in; nothing you change there is kept"
+	for role, parts := range map[string][2][]string{
+		"adversary":   {{build}, nil},
+		"sympathetic": {{"a throwaway clone; nothing you change there is kept"}, {"build and test"}},
+	} {
+		one := memoryJob(t, role, "swarm:review-0-ready")
+		one.Pull.Reviews = nil
+		for name, j := range map[string]*Job{"round 1": one, "a delta round": delta(t, role)} {
+			sys, _ := Render(j)
+			has(t, role+", "+name, taskOf(t, sys), parts[0], parts[1]...)
+		}
+	}
 }

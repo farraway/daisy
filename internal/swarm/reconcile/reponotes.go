@@ -66,7 +66,9 @@ func (s *Swarm) repoNotes(names []string) ([]RepoNote, error) {
 // (section 4): the heading, what the file is for, and the readiness facts
 // init found, instructions the product's own instruction files at the
 // base branch (AGENTS.md, CLAUDE.md, those it has), and the repository's
-// check and protected paths as swarm.json declares them.
+// check and protected paths as swarm.json declares them; then the default
+// trust boundaries, the blocking sentence's, for the maintainer to replace
+// (section 7.11, rule 2).
 func RepoNotesSeed(c declare.Config, r declare.Repo, instructions []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", r.Name)
@@ -88,5 +90,6 @@ func RepoNotesSeed(c declare.Config, r declare.Repo, instructions []string) stri
 	} else {
 		fmt.Fprintf(&b, "- Protected: `%s`, as swarm.json declares them.\n", strings.Join(r.Protected, "`, `"))
 	}
+	fmt.Fprintf(&b, "\n## Trust boundaries\n\nTrusted: the product's own process environment, configuration, filesystem and umask, and the toolchain's settings. Not trusted: anything a user or a network peer sends (requests, uploads, imports). Replace this with what %s trusts and what it does not.\n", r.Name)
 	return b.String()
 }

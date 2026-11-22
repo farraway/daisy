@@ -795,8 +795,9 @@ The notes declare the repository's **trust boundaries** under a heading
 environment, umask, configuration and filesystem) and what it does not
 (what a user or a peer sends), which the reviewers' blocking sentence
 reads "realistic" by (7.4; 7.11, rule 2; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap).
-*R6, specified ahead of its build* (7.11, rule 2): `swarm init`'s seed adds, after its list, the heading and the
-default the blocking sentence states, for the maintainer to replace:
+`swarm init`'s seed adds, after its list, the heading and the
+default the blocking sentence states, for the maintainer to replace (the
+same step):
 
 ```markdown
 ## Trust boundaries
@@ -887,48 +888,10 @@ follow without asking, and that a reviewer can check line by line.
   it and where its test lives.
 - For each test a slice names, say whether it shows new behaviour (it
   fails against the base branch) or guards kept behaviour (it passes
-  against the base branch by design), and how a guard is shown to bite.
-- State a performance claim as a scaling or a ratio the check shows on
-  any machine, never as a time measured on one.
-- A slice's documents change with its code. Name, in each slice's
-  acceptance claims, the documents the slice changes.
-- Keep to the job as the thread states it. If the job is unclear or too
-  large, say so and propose how to cut it.
-- If the job builds on work that is not on the base branch yet and that
-  none of its slices builds, write BLOCKED: and name that work; a plan
-  against code that does not exist cannot be followed.
-- A slice whose check can pass only after the maintainer changes a
-  protected path is not ready: put that change under Open Questions and
-  plan no test that fails until it lands.
-- When the maintainer replies, revise the plan and write it out whole; the
-  worker reads only the accepted plan.
-- You do not write the code.
-```
-
-*R6, specified ahead of its build* (7.11, rules 3 and 4): the
-architect's default becomes the text below, its third bullet naming
-each test's probe and a new fourth the slice's unsupported setups:
-
-```markdown
-# Architect
-
-You are the architect. You turn an agreed job into a plan a worker can
-follow without asking, and that a reviewer can check line by line.
-
-- Read the code under /job/work and the resources listed below before
-  you plan. Follow the design decisions they record; where the job needs one
-  that is not recorded, state it as a decision and give the alternative.
-- Plan down to program design: the new or changed types and signatures,
-  and the call path of the main flow. Cut the work into slices, each one
-  pull request, in the order they are built, each saying what passes after
-  it. State acceptance as numbered claims, each with the check that proves
-  it and where its test lives.
-- For each test a slice names, say whether it shows new behaviour (it
-  fails against the base branch) or guards kept behaviour (it passes
   against the base branch by design), and name its probe: the change to
   the code under test that the test must fail on, one the code can
-  make and the test can tell. The reviewers check those probes; a probe
-  that cannot fail fails the slice's review, not the worker's.
+  make and the test can tell. The adversary checks those probes: a test
+  that survives its own holds the slice's review.
 - For each slice, name the setups it does not support (platforms,
   configurations, environments), or say none, reading the trust
   boundaries the repository notes declare: a fault met only there does
@@ -950,37 +913,11 @@ follow without asking, and that a reviewer can check line by line.
 - You do not write the code.
 ```
 
+Since Step R6-A of the plan implementing the 2026-11-19 swarm roadmap
+(7.11, rules 3 and 4) the third bullet names each test's probe and the
+fourth the slice's unsupported setups.
+
 ### worker
-
-```markdown
-# Worker
-
-You are the worker. You implement one slice of the accepted plan, on the
-branch checked out in your clone under /job/work, and nothing else.
-
-- Write the tests the plan names first, see them fail, then make them
-  pass. Run the repository's own checks before you finish. A failing
-  check is not a pull request: fix it, or write BLOCKED: when only the
-  maintainer can make it pass.
-- Make small commits with messages that say why.
-- Update, in the slice, the documents the plan names for it and any other
-  text your change makes wrong: when behaviour changes, every text that
-  describes it (a README, a package comment, a count).
-- Change only what the slice needs. If the plan is wrong or cannot be
-  followed, stop and say why instead of improvising.
-- When reviews request changes, address each blocking point or say why
-  you did not; do not rewrite what the reviewers did not question.
-- Report a claim done only when a test committed on this head shows it;
-  a check you ran and removed shows nothing.
-- The description you write is read by the reviewers and the maintainer:
-  what changed, how it was tested, each acceptance claim's status, and
-  anything left undone.
-```
-
-*R6, specified ahead of its build* (7.11, rules 1, 3 and 9): the
-worker's default becomes the text below, its first bullet applying the
-plan's probes and naming Daisy's gates, its fifth answering a finding
-that does not block:
 
 ```markdown
 # Worker
@@ -1012,49 +949,12 @@ branch checked out in your clone under /job/work, and nothing else.
   probe and what it showed, and anything left undone.
 ```
 
+Since Step R6-A of the plan implementing the 2026-11-19 swarm roadmap
+(7.11, rules 1, 3 and 9) the first bullet applies the plan's probes and
+names Daisy's gates, and the fifth answers a finding that does not
+block.
+
 ### adversary
-
-```markdown
-# Adversary
-
-You are the adversarial reviewer. Your job is to find what is wrong with
-this change before it is merged.
-
-- Read the diff the Task names and the code around it: the whole diff in
-  round 1, in a later round what the Task names. Check it against the
-  plan's acceptance claims and the job in the issue. Build and test it in
-  your clone under /job/work where that shows something.
-- Look for defects: wrong behaviour, a missed case, a test that cannot
-  fail, a claim in the description the change does not support, a pattern
-  fixed in one place and not its siblings, code that works around a clash
-  with the design instead of resolving the clash, naming whether the plan
-  or the change makes it, a comment or description that argues a shortcut
-  is acceptable instead of fixing it or listing it as not done, a
-  document the change makes wrong.
-- For each new test, name the change to its subject that should break
-  it, and try it in your clone under /job/work where that is cheap: a
-  test that survives it, or a claim with no test at the seam the plan
-  names, is blocking.
-- A head whose check fails does not do the job: request changes, naming
-  whose move would make it pass, the worker's or the maintainer's.
-- Report only what you can point at: the file and line, what is wrong,
-  and how to show it. A preference is not a finding.
-- Every finding, however small, is its own marked line; the prose around
-  the findings adds none. When a finding is one instance of a kind new
-  code can repeat, and a check that scans the whole tree (a test, a lint)
-  can recognise every instance, name that check, at the finding's file
-  and line, in a non-blocking finding of its own.
-- A finding is blocking when the change is wrong without its fix; anything
-  else is non-blocking. Request changes only for a blocking finding.
-```
-
-*R6, specified ahead of its build* (7.11, rules 1 to 5, and the token
-rules the maintainer ruled in on 2026-11-22): the adversary's default
-becomes the text below. Its first bullet runs only what the check
-cannot show, its third checks the plan's probes and leaves a probe of
-its own non-blocking, its fourth reads "realistic" from the trust
-boundaries, and its last points to the Task's list and ends the review
-once its scope is checked:
 
 ```markdown
 # Adversary
@@ -1101,45 +1001,15 @@ this change before it is merged, and to say plainly which of it blocks.
   named test in your review's scope has been checked.
 ```
 
+Since Step R6-A of the plan implementing the 2026-11-19 swarm roadmap
+(7.11, rules 1 to 5, and the token rules the maintainer ruled in on
+2026-11-22) the first bullet runs only what the check cannot show, the
+third checks the plan's probes and leaves a probe of its own
+non-blocking, the fourth reads "realistic" from the trust boundaries,
+and the last points to the Task's list and ends the review once its
+scope is checked.
+
 ### sympathetic
-
-```markdown
-# Sympathetic reviewer
-
-You are the sympathetic reviewer. You read the change as its future
-maintainer will, assuming it is meant to work.
-
-- Read the diff the Task names and the code around it, against the plan
-  and the job: the whole diff in round 1, in a later round what the Task
-  names.
-- Judge whether the change does what the job asked, whether it fits the
-  code around it, and whether the next person can read and change it.
-  Code that works around a clash with the design instead of resolving
-  the clash (naming whether the plan or the change makes it), and a
-  comment or description that argues a shortcut is acceptable instead of
-  fixing it or listing it as not done, are findings.
-- Name what is good as well as what is missing, briefly. Point at files
-  and lines.
-- For each new test, name the change to its subject that should break
-  it, and try it in your clone under /job/work where that is cheap: a
-  test that survives it, or a claim with no test at the seam the plan
-  names, is blocking.
-- A head whose check fails does not do the job: request changes, naming
-  whose move would make it pass, the worker's or the maintainer's.
-- Request changes only for a blocking finding: the change does not do the
-  job or will mislead its next reader.
-- Every finding, however small, is its own marked line; the prose adds
-  none. When a finding is one instance of a kind new code can repeat,
-  and a check that scans the whole tree (a test, a lint) can recognise
-  every instance, name that check, at the finding's file and line, in a
-  non-blocking finding of its own.
-```
-
-*R6, specified ahead of its build* (7.11, rules 1 to 5, and the token
-rules the maintainer ruled in on 2026-11-22): the sympathetic
-reviewer's default becomes the text below. Its fourth bullet reads the
-tests against the plan's probes and leaves running them to the
-adversary, and its sixth points to the Task's list:
 
 ```markdown
 # Sympathetic reviewer
@@ -1175,6 +1045,12 @@ maintainer will, assuming it is meant to work.
   every instance, name that check, at the finding's file and line, in a
   non-blocking finding of its own.
 ```
+
+Since Step R6-A of the plan implementing the 2026-11-19 swarm roadmap
+(7.11, rules 1 to 5, and the token rules the maintainer ruled in on
+2026-11-22) the fourth bullet reads the tests against the plan's probes
+and leaves running them to the adversary, and the sixth points to the
+Task's list.
 
 ### qa
 
@@ -3686,7 +3562,7 @@ is left out (no plan, the fast lane).
 | worker, `swarm:plan-1-accepted`, with a plan | `Implement slice <s> of the accepted plan for issue #<n> (it declares <S>) in <owner>/<name>, on the branch checked out in /job/work/<name> (swarm/<n>-<s>). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.`, then, a paragraph of its own, the probes it applies and reports (7.11, rule 3; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap) |
 | worker, `swarm:plan-1-accepted`, no plan (the fast lane) | `There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #<n>. Keep the change small; if it needs a plan, write "BLOCKED: needs a plan". Work on the branch checked out in /job/work/<name> (swarm/<n>-<s>) and write the pull request's description.` |
 | worker, `swarm:review-3-changes-requested` | `The newest entries of pull request <name>#<m>'s thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge <base>. Address each on the branch checked out in /job/work/<name> (swarm/<n>-<s>), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`, then, a paragraph of its own, how a blocking finding that is none of the kinds that block is answered (7.11, rule 5; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap) |
-| adversary or sympathetic, `swarm:review-0-ready` or `swarm:review-1-in-progress` | `Review pull request <name>#<m>, slice <s> of issue #<n>. The change is "git diff <base>...HEAD" in /job/work/<name>, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding.`, the closing followed by its reminder (above), the verdict being the role's `# Output`. The adversary's adds: `For each test that slice <s>'s item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against <base>'s code: in /job/work/<name>, a throwaway clone, put everything the change touches except its tests back as <base> has it (check out <base>'s version of each path, deleting those <base> lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against <base>'s code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against <base> already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against <base> by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.`, then, a paragraph of its own, the probes the plan names (7.11, rule 3; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). In round r > 1, on a head with commits since `<previous head>`, the review is a **delta review** (Step E2 of the plan implementing the 2026-11-19 swarm roadmap; decision [168](swarm/decisions/0168-a-delta-review.md)): the row's text (`Review pull request …` to `… a claim neither tested nor listed is a finding.`) is replaced by `This is round <r> of pull request <name>#<m>, slice <s> of issue #<n>: review what changed since <previous head>, the head you last reviewed. The change to review is "git diff --name-only -z <base>...HEAD \| xargs -0 -r git diff <previous head>..HEAD --" in /job/work/<name>, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of <base> brought in is not this pull request's change. The whole change, "git diff <base>...HEAD", is there to read where the revision needs it; reviewing it again is not the task. First, for each blocking finding of the previous round, <findings>, and of your review of <previous head>, say whether it is closed, or answered with a reason you accept. Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims.`, its blocking sentence followed by the **convergence sentence** (7.11, rule 5; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap; before that step the row's text ended `Raise a new blocking finding only on code changed since <previous head>; a finding on code unchanged since then is non-blocking.`), the reminder ending the text as in round 1, `<findings>` the slice's latest round's file in the job's workspace, `/job/memory/slices/<s>/rounds/<r'>.md` (7.8, A round's file), or, with none there, `under "# Pull request"`, whose previous round the prompt shows (7.3); the adversary's addition and the others below are as in round 1. Before Step E2 the row's text stayed and the round added `This is round <r>. First say, for each blocking finding of your review of <previous head>, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since <previous head> in the files the pull request changes ("git diff --name-only -z <base>...HEAD \| xargs -0 -r git diff <previous head>..HEAD --"): what a merge of <base> brought in is not this pull request's change.` (`<base>...HEAD` names the files the branch itself changes, so a revision that merged `<base>` does not show the reviewer other slices' files; `-z` and `xargs -0` pass each name whole, a space in it among them, and `-r` runs no diff when the branch changes no file, rather than one of the whole range; decisions [90](swarm/decisions/0090-rounds-briefs-and-the-forge.md) and [119](swarm/decisions/0119-reconciles-loose-ends.md)). `<previous head>` is the commit of the role's newest review on this pull request but those of the head since its newest reopening (the worker's answer without a commit, or the maintainer's comment, section 6): each reviewer's own, so under decision [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)'s order the sympathetic reviewer's may be several heads older than the adversary's. A reviewer with no such review (the sympathetic reviewer whose first review falls in a later round, the adversary alone having sent the earlier back) has nothing to start a delta from and reviews the whole change, with the row's text, its blocking sentence followed, in round r > 1, by the sentence that binds it to the round (7.11, rule 5). When that commit is the head itself and no answer of the worker's follows that review, the maintainer having commented, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the maintainer commented in the thread, with no commit since. First answer the maintainer's comment; then say, for each blocking finding of your previous review, whether it still stands in its light, and raise a new blocking finding only where the comment shows one.`; when that commit is the head itself, the worker having answered `NO CHANGE:`, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.` |
+| adversary or sympathetic, `swarm:review-0-ready` or `swarm:review-1-in-progress` | `Review pull request <name>#<m>, slice <s> of issue #<n>. The change is "git diff <base>...HEAD" in /job/work/<name>, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding.`, the closing followed by its reminder (above), the verdict being the role's `# Output`; the sympathetic reviewer's, which reads its clone and runs nothing (7.11, The defaults), has `a throwaway clone` in place of `a throwaway clone you may build and test in`, in this text and in a delta review's. The adversary's adds: `For each test that slice <s>'s item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against <base>'s code: in /job/work/<name>, a throwaway clone, put everything the change touches except its tests back as <base> has it (check out <base>'s version of each path, deleting those <base> lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against <base>'s code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against <base> already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against <base> by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.`, then, a paragraph of its own, the probes the plan names (7.11, rule 3; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). In round r > 1, on a head with commits since `<previous head>`, the review is a **delta review** (Step E2 of the plan implementing the 2026-11-19 swarm roadmap; decision [168](swarm/decisions/0168-a-delta-review.md)): the row's text (`Review pull request …` to `… a claim neither tested nor listed is a finding.`) is replaced by `This is round <r> of pull request <name>#<m>, slice <s> of issue #<n>: review what changed since <previous head>, the head you last reviewed. The change to review is "git diff --name-only -z <base>...HEAD \| xargs -0 -r git diff <previous head>..HEAD --" in /job/work/<name>, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of <base> brought in is not this pull request's change. The whole change, "git diff <base>...HEAD", is there to read where the revision needs it; reviewing it again is not the task. First, for each blocking finding of the previous round, <findings>, and of your review of <previous head>, say whether it is closed, or answered with a reason you accept. Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims.`, its blocking sentence followed by the **convergence sentence** (7.11, rule 5; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap; before that step the row's text ended `Raise a new blocking finding only on code changed since <previous head>; a finding on code unchanged since then is non-blocking.`), the reminder ending the text as in round 1, `<findings>` the slice's latest round's file in the job's workspace, `/job/memory/slices/<s>/rounds/<r'>.md` (7.8, A round's file), or, with none there, `under "# Pull request"`, whose previous round the prompt shows (7.3); the adversary's addition and the others below are as in round 1. Before Step E2 the row's text stayed and the round added `This is round <r>. First say, for each blocking finding of your review of <previous head>, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since <previous head> in the files the pull request changes ("git diff --name-only -z <base>...HEAD \| xargs -0 -r git diff <previous head>..HEAD --"): what a merge of <base> brought in is not this pull request's change.` (`<base>...HEAD` names the files the branch itself changes, so a revision that merged `<base>` does not show the reviewer other slices' files; `-z` and `xargs -0` pass each name whole, a space in it among them, and `-r` runs no diff when the branch changes no file, rather than one of the whole range; decisions [90](swarm/decisions/0090-rounds-briefs-and-the-forge.md) and [119](swarm/decisions/0119-reconciles-loose-ends.md)). `<previous head>` is the commit of the role's newest review on this pull request but those of the head since its newest reopening (the worker's answer without a commit, or the maintainer's comment, section 6): each reviewer's own, so under decision [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)'s order the sympathetic reviewer's may be several heads older than the adversary's. A reviewer with no such review (the sympathetic reviewer whose first review falls in a later round, the adversary alone having sent the earlier back) has nothing to start a delta from and reviews the whole change, with the row's text, its blocking sentence followed, in round r > 1, by the sentence that binds it to the round (7.11, rule 5). When that commit is the head itself and no answer of the worker's follows that review, the maintainer having commented, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the maintainer commented in the thread, with no commit since. First answer the maintainer's comment; then say, for each blocking finding of your previous review, whether it still stands in its light, and raise a new blocking finding only where the comment shows one.`; when that commit is the head itself, the worker having answered `NO CHANGE:`, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.` |
 
 The plan's **Acceptance**, wherever this document names it, is its
 `## Test Plan`: the numbered claims the worker reports on and the
@@ -6339,7 +6215,7 @@ that names no kind is read as before: Daisy parses the kind for nothing
 but the scorecard's count of blocking findings by kind (rule 7), a line
 without one counted `unnamed`, and never refuses a review for it.
 
-**The trust boundaries** (rule 2) are a section of the repository's
+**The trust boundaries** (rule 2; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap) are a section of the repository's
 notes, `repos/<name>.md` (section 4, The swarm's notes about a
 repository), under the heading `## Trust boundaries`: what the product
 trusts and what it does not, in the maintainer's words, which every
@@ -6552,7 +6428,7 @@ Daisy's gates, and a failure of theirs comes back to you.` A worker's
 `BLOCKED:` with cause `environment` stays what it was for a tool, image
 or service its own work needs and cannot reach; a gate is no longer one.
 
-**The defaults** (section 4). The adversary's, the sympathetic
+**The defaults** (section 4; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). The adversary's, the sympathetic
 reviewer's, the architect's and the worker's default prompts take the
 rules in their own words, each marked there, and the reviewers' take
 the token rules the live swarm's reviewers run under (roadmap R6(e),
@@ -6560,8 +6436,9 @@ F47; the maintainer's ruling of 2026-11-22): neither reviewer reruns the
 check Daisy ran, the adversary runs the probes and the tests of the
 packages the change touches and stops once every claim and named test
 in its scope is checked, and the sympathetic reviewer reads and runs
-nothing. Their sha256 are appended
-to the table of earlier defaults at the build (section 11), so `swarm
+nothing, so that its Task does not offer its clone to build and test in
+(7.4). Their sha256 are in the table of earlier defaults (section 11),
+so `swarm
 prompt build` brings a swarm still at the previous defaults to these.
 The live swarm's own reviewer part, which states a blocking bar, a
 convergence rule and a narrower probe rule in its product's words, is

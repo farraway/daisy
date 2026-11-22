@@ -95,6 +95,47 @@ func TestSwarmRepositoryNotes(t *testing.T) {
 	}
 }
 
+// seedBoundaries is the trust boundaries init seeds in name's notes
+// (section 4; 7.11, rule 2).
+func seedBoundaries(name string) string {
+	return "\n## Trust boundaries\n\nTrusted: the product's own process environment, configuration, filesystem and umask, and the toolchain's settings. Not trusted: anything a user or a network peer sends (requests, uploads, imports). Replace this with what " + name + " trusts and what it does not.\n"
+}
+
+// init seeds the heading `## Trust boundaries` in each repos/<name>.md it
+// writes, after its list, holding the default the blocking sentence
+// states (Step R6-A of the plan implementing the 2026-11-19 swarm
+// roadmap; sections 4 and 7.11, rule 2); a file that is there keeps what
+// the maintainer wrote, with the heading or without it.
+func TestInitSeedsTrustBoundaries(t *testing.T) {
+	t.Parallel()
+	s := newSwarmWS(t)
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	for _, name := range []string{"app", "lib"} {
+		if got := s.read("repos/" + name + ".md"); !strings.HasSuffix(got, ", as swarm.json declares them.\n"+seedBoundaries(name)) {
+			t.Errorf("repos/%s.md:\n%s", name, got)
+		}
+	}
+	s.cwd = s.ws
+	for name, text := range map[string]string{"app": "# App\n\nMine.\n", "lib": "# Lib\n\n## Trust boundaries\n\nOurs.\n"} {
+		s.write("repos/"+name+".md", text)
+		if err := s.run("--defaults"); err != nil {
+			t.Fatalf("%v\n%s", err, s.stderr.String())
+		}
+		if got := s.read("repos/" + name + ".md"); got != text {
+			t.Errorf("repos/%s.md after a second init:\n%s", name, got)
+		}
+	}
+	spec, err := os.ReadFile("../../../docs/swarm.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "\n```markdown" + seedBoundaries("<name>") + "```\n"; !strings.Contains(string(spec), want) {
+		t.Errorf("section 4 does not quote the seed %q", want)
+	}
+}
+
 // init seeds repos/<name>.md per declared repository when absent
 // (section 4; section 13, Step 5's row): the heading, what the file is
 // for, and the readiness facts, the product's instruction files read in
@@ -117,8 +158,8 @@ func TestSwarmInitSeedsRepositoryNotes(t *testing.T) {
 			", under `# Repository notes: " + name + "`; the repository itself carries no swarm material. Replace what follows with what a member should know about it.\n\nWhat `daisy swarm init` found:\n\n"
 	}
 	want := map[string]string{
-		"app": head("app") + "- Instructions: AGENTS.md and CLAUDE.md on main.\n- Check: none declared in swarm.json; no member's work is executed.\n" + protected,
-		"lib": head("lib") + "- Instructions: no AGENTS.md or CLAUDE.md on main; members start without the product's instructions.\n- Check: none declared in swarm.json; no member's work is executed.\n" + protected,
+		"app": head("app") + "- Instructions: AGENTS.md and CLAUDE.md on main.\n- Check: none declared in swarm.json; no member's work is executed.\n" + protected + seedBoundaries("app"),
+		"lib": head("lib") + "- Instructions: no AGENTS.md or CLAUDE.md on main; members start without the product's instructions.\n- Check: none declared in swarm.json; no member's work is executed.\n" + protected + seedBoundaries("lib"),
 	}
 	for name, w := range want {
 		if got := s.read("repos/" + name + ".md"); got != w {

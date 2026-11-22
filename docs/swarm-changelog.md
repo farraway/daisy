@@ -1363,3 +1363,13 @@ they write.
   container cannot run is listed, not a stop. Sections 7.4 and 7.11.
   Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
   built.
+- 2026-11-22, Step R6-A of the plan implementing the 2026-11-19 swarm
+  roadmap, the defaults (rules 1 to 5 and 9 of section 7.11): the
+  architect's, the worker's and the two reviewers' default prompts take
+  the rules, and the reviewers' the token rules the maintainer ruled in
+  (neither reruns the check; the adversary runs the probes and stops once
+  its scope is checked; the sympathetic reviewer reads and runs nothing,
+  its Task not offering its clone to build and test in); `swarm init`
+  seeds `## Trust boundaries` in the notes it writes. Sections 4, 7.4 and
+  7.11. Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md),
+  As built.

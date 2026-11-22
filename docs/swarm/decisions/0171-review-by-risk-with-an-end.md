@@ -407,6 +407,23 @@ own after the check sentence, in every worker text, the fast lane's
 among them, and the "Not established:" sentence begins the next. Test:
 `TestTaskTextWorkerGatesSentence`.
 
+**As built: the defaults and the seed (Step R6-A of the plan
+implementing the 2026-11-19 swarm roadmap).** The four defaults are
+section 4's designed texts, but for the architect's sentence `The
+reviewers check those probes; a probe that cannot fail fails the slice's
+review, not the worker's.`, which reads `The adversary checks those
+probes: a test that survives its own holds the slice's review.`: only
+the adversary runs them. The reviewers' Task offered both a clone `you
+may build and test in`, which the sympathetic reviewer's default now
+rules out; its Task says `a throwaway clone`, the last word it reads
+being the Task's (the Task left as it was, its permission against the
+persona's rule, was the alternative). The seed's heading is the one the
+blocking sentence looks for. `swarm prompt build` brings a swarm still
+at an earlier default to these; an edited prompt is kept. Tests:
+`TestDefaultPromptsAreSectionFours`,
+`TestDefaultHistoryHoldsEachCurrentDefault`, `TestInitSeedsTrustBoundaries`,
+`TestTaskTextSympatheticReadsItsClone`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

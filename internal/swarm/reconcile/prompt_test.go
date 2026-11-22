@@ -320,7 +320,11 @@ func TestRenderDeltaFromEachReviewersOwnHead(t *testing.T) {
 		j.Pulls, j.Pull, j.Check = pulls, thread(f, pr), "No check result for this head."
 		j.mem.slice, j.mem.lastRound = 1, 2
 		sys, _ := Render(j)
-		has(t, role+"'s system.md", sys, []string{deltaTask(3, prev, "/job/memory/slices/1/rounds/2.md")}, `The change is "git diff main...HEAD"`)
+		want := deltaTask(3, prev, "/job/memory/slices/1/rounds/2.md")
+		if role == "sympathetic" { // it reads its clone and runs nothing
+			want = strings.Replace(want, " you may build and test in", "", 1)
+		}
+		has(t, role+"'s system.md", sys, []string{want}, `The change is "git diff main...HEAD"`)
 	}
 }
 
