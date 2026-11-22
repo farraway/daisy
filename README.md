@@ -192,8 +192,9 @@ in its own container) whose turn it is, posts what they wrote and moves
 the labels, then waits for its members; `apply` without `--once`, what
 the service runs, loops itself until signalled, a pass every interval
 whatever runs, each run collected by the pass after it ends. `daisy swarm status`
-reports the stages, the gates, what waits for you, the running members,
-throughput and the briefs, and writes nothing. `daisy swarm list`
+reports the gates, the stages, the running members, the personas,
+throughput, the briefs and, last, what waits for you and what is held,
+and writes nothing. `daisy swarm list`
 names, from anywhere, each swarm this machine runs and its clone, and
 `daisy swarm journal` prints the swarm's journal since the line last
 marked seen; `daisy swarm connect` prints, in one report, the journal
@@ -531,6 +532,11 @@ commands run from that clone:
 daisy swarm init                 # the wizard: forge, repositories, personas, gates
 daisy swarm apply --once         # one pass; the printed service runs the loop, apply without --once
 daisy swarm status               # what the swarm did, and what waits for you
+daisy swarm list                 # from anywhere: each swarm this machine runs, and its clone
+daisy swarm journal              # the swarm's journal since the line last marked seen
+daisy swarm metrics --scorecard  # a row per merged slice
+daisy swarm prompt build         # rewrite the prompts from this Daisy's defaults; an edited one is kept
+daisy swarm restart              # have the running apply re-execute itself onto the installed build
 ```
 
 Write a brief, a Markdown file under a directory `swarm.json` lists as a
@@ -557,13 +563,14 @@ The same verbs run from the forge: a line `/swarm accept` (or `merge`,
 the issue or its pull request is run by `apply`'s next pass under your
 token, taken from the swarm's secrets file, and answered in the thread.
 
-In an agent session in that clone, or a workspace holding it, the `swarm` skill reads `status`,
+In an agent session in that clone, or in a folder holding one (the verbs run inside the clone), the `swarm` skill reads `status`,
 the briefs and the runs, explains what happened and what waits, drafts
 briefs and configuration changes, and runs a verb only on your yes,
 as the skill's rule 3 says (through `/daisy swarm connect`, an
 authority you granted in the swarm repository's `AUTHORITIES.md` is
 that yes for a write wholly within it). It never reaches the forge except through
-`daisy swarm` commands (`status` to read, the verbs to write); `init` and
+`daisy swarm` commands (`status` to read, the verbs to write) and a push
+of the clone's files you ask for; `init` and
 `apply` are yours, from a terminal.
 
 The contract for all of this is `docs/swarm.md`: the configuration file,

@@ -11,7 +11,7 @@ and moves each issue's `swarm:*` label. Its
 contract is `docs/swarm.md` in the Daisy root. This skill is the
 maintainer's side of it: you read, explain and draft; the maintainer
 decides; a forge write happens only through one of the verbs below, run
-as rule 3 says.
+as rule 3 says, or as a push the maintainer asks for (rule 4).
 
 ## Rules
 
@@ -26,11 +26,16 @@ as rule 3 says.
    `io/out.md` what it wrote). The briefs are the Markdown files with a
    `Status:` line under the `resources` paths of `swarm.json`; the
    swarm reads them as pushed, never as they stand in the clone.
+   `daisy swarm list`, from anywhere, names each swarm this machine runs
+   and its clone.
 2. **Say what was done, then what waits.** Report per issue: its stage,
    the runs since the maintainer last looked, and what each produced
    (a plan, a pull request, a review's verdict, a block and its reason),
    quoting the run's own words where they matter (of the lines `daisy
-   swarm journal` shows, `--issue <n>` prints one issue's). Then
+   swarm journal` shows, `--issue <n>` prints one issue's; `daisy swarm
+   metrics --scorecard` prints a row per merged slice and writes nothing,
+   while `--backfill` and `--reprice` write the home's metrics CSV, a
+   write under rule 3). Then
    "Waiting for you" from `status`, at its end before Held (`daisy swarm
    status --waiting` prints that line alone; on the forge, the same issues carry `swarm:gated`, and each gating posted a gate note on the issue naming what to examine and the verbs), each item with the decision it asks for and the
    evidence for it (for a plan, its `## Research` first: a wrong belief
@@ -42,7 +47,7 @@ as rule 3 says.
    on the issue and first reaches the maintainer at the merge, where it
    deserves the fuller reading. Say how many gates Daisy passed (the
    `auto` line under Throughput).
-3. **Confirm every write in words, one at a time.** Before running a verb,
+3. **Confirm every write, one at a time.** Before running a verb,
    state exactly what it will write: the verb, the issue, and its effect
    (`daisy swarm merge 10`: merges pull request lib#5 at its approved
    head, then closes #10, its plan's last slice). Run it only after the
@@ -52,12 +57,16 @@ as rule 3 says.
    authority the clone's `AUTHORITIES.md` grants has the maintainer's
    yes standing, and you cite the authority by its label in the log line
    and in any comment the write posts; with no file, none is granted.
-   Show the verb's output as printed. `pause` and `resume` are writes
-   too.
+   The connect's briefing reads the file, so an edit of it takes effect
+   at the next connect. In a thread on the forge the maintainer is the
+   login the reconciler's notes mention, the first of `trusted` in
+   `swarm.json` that is not the swarm's. Show the verb's output as printed.
+   `pause`, `resume` and `restart` are writes too.
 4. **Never reach the forge yourself.** No HTTP call, no API client, no
-   forge CLI, no `git push` to the forge, and never `daisy swarm apply`
+   forge CLI, no `git push` to the forge but one the maintainer asks for,
+   of the clone's own files (rule 6), and never `daisy swarm apply`
    or `daisy swarm init`, which are the maintainer's from a terminal. The
-   verbs are the only path, and they act with the maintainer's own token
+   verbs are the only other path, and they act with the maintainer's own token
    (`daisy swarm prompt build` pushes with the clone's own credentials:
    its push is the verb's, below).
 5. **Name no secret.** Never read, print or copy the swarm's secrets
@@ -72,7 +81,9 @@ as rule 3 says.
    `repos/<name>.md` in the clone; show the diff, run `daisy swarm status`
    after a `swarm.json` edit (it validates the file and names a bad field)
    and leave the commit and the push to the maintainer unless they ask
-   for them. An edit to `swarm.json` or a prompt applies at `apply`'s
+   for them; then run `git pull --ff-only` in the clone before the commit
+   and the push, since a pass that collects a run pushes a journal commit.
+   An edit to `swarm.json` or a prompt applies at `apply`'s
    next pass, and `status` warns of drift until it is pushed; a brief, a
    resource or a repository's notes reach the swarm only once pushed.
 7. **A comment to a member is the maintainer's.** To answer the owner or
@@ -91,7 +102,8 @@ as rule 3 says.
 8. **Log each write as it is done**, as rule 6 of the Daisy prompt
    (`prompts/daisy.md` in the Daisy root) says of all work: each verb you run that writes and each edit you make to
    a brief, `swarm.json`, a prompt or a repository's notes, before you
-   report it, and a verb that refused, as a blocker. Run `daisy log`
+   report it, a draft the maintainer then rejects, as rejected, and a
+   verb that refused, as a blocker. Run `daisy log`
    with what it did, and with `--co-author "<your line>"` before the
    message so its commit says you wrote it, the line being the one your
    model signs commits with, one line `Name <email>` (a Claude model's
@@ -106,7 +118,7 @@ as rule 3 says.
 `daisy swarm prompt build`, which reseeds the persona prompts from
 Daisy's current defaults, is under Reseeding the persona prompts, below.
 
-Each verb in the table runs in the swarm repository's clone; one given an issue `<n>` refuses before any write when its token is the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first, while the bare `pause`, `resume` and `restart` write only the state directory.
+Each verb in the table runs in the swarm repository's clone; one given an issue `<n>` refuses before any write when its token is the swarm's, and prints `Maintainer <login> on <owner>/<repo>` first, while the bare `pause` and `resume`, and `restart` (which takes no issue), write only the state directory.
 
 | Waiting for you | Verb | What it writes |
 |---|---|---|

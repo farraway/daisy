@@ -342,7 +342,8 @@ its contract is `docs/swarm.md`, its decisions one file each under
 `docs/swarm/decisions/` and its history `docs/swarm-changelog.md`, and
 `images/member/Dockerfile` with `images/member/entrypoint.sh` is the
 member image. A change to the contract edits the sections it changes and,
-in the same commit, adds a decision file and a line in the changelog
+in the same commit, adds a decision file and a line in the changelog; a
+wording-only change, which makes no choice, adds no decision file
 (`docs/swarm.md`, Changing this document). Three rules bind an agent
 working near it:
 

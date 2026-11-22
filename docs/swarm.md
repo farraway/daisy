@@ -23,7 +23,8 @@ it changes and, in the same commit, adds a decision file
 `docs/swarm/decisions/NNNN-<slug>.md` (the next number, a title line
 `# NNNN. <title>`, the choice and its alternative) and a line in
 [docs/swarm-changelog.md](swarm-changelog.md) naming the step, the
-sections and the decision.
+sections and the decision. A wording-only change, which makes no choice,
+adds no decision file.
 
 **Conventions.** As in [docs/cli.md](cli.md): tables, exact strings in
 backticks, exit codes. `<…>` is a placeholder: `<swarm>` the swarm repository's
@@ -153,15 +154,15 @@ login; none launches a member or posts a marked entry. `apply` and
 `status` never read it, and `init` reads it only for the writes on the
 swarm repository the swarm's account may not make (section 8, rule 5):
 the swarm's token and the maintainer's are read by disjoint code paths. An agent session in the
-swarm repository's clone, or in a workspace holding it, is the maintainer's guide over the verbs through the `swarm`
+swarm repository's clone, or in a folder holding one (the verbs run inside the clone), is the maintainer's guide over the verbs through the `swarm`
 skill (`skills/swarm/SKILL.md` in the Daisy root): it reads `swarm
 status`, the briefs and `<state>/runs/`, explains what was done and what
 waits, drafts a brief or flips its `Status` and edits `swarm.json` and
 the persona prompts, and runs a verb only on the maintainer's yes, as
 the skill's rule 3 says (through `/daisy swarm connect`, an authority
 the swarm repository's `AUTHORITIES.md` grants is that yes for a write
-wholly within it, section 2); it never reaches the forge itself
-and names no secret.
+wholly within it, section 2); it reaches the forge itself only to push
+the clone's files when the maintainer asks, and names no secret.
 
 **Four levels: brief, job, plan, slice.** A swarm is perpetual and bound
 to one product: one swarm repository holding its `swarm.json` (section
@@ -8715,8 +8716,8 @@ and runs a verb (or `pause`, `resume` and `prompt build`, whose
 `--dry-run` alone it may run unasked) only on the maintainer's yes,
 as the skill's rule 3 says (through `/daisy swarm connect`, an
 authority `AUTHORITIES.md` grants is that yes for a write wholly
-within it, section 2); it never reaches the forge
-itself, never runs `init` or `apply`, and names no secret but the
+within it, section 2); it reaches the forge itself only to push the
+clone's files when the maintainer asks, never runs `init` or `apply`, and names no secret but the
 variable `DAISY_MAINTAINER_TOKEN`.
 
 ### daisy swarm replan

@@ -1379,3 +1379,11 @@ they write.
   swarm pull request to name it on a `Defect in: <name>#<m>` line.
   Sections 7.4 and 7.11. Decision
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-22, Step D1–D2 of the plan implementing the 2026-11-19 swarm
+  roadmap (wording): a wording-only change adds no decision file
+  (Changing this document, and the root's `AGENTS.md`); the `swarm`
+  skill's reach is a clone or a folder holding one (section 1), and it
+  pushes the clone's files when the maintainer asks (sections 1 and 11).
+  Outside this document, the skill pulls (`git pull --ff-only`) before
+  that push, logs a rejected draft as rejected and names `swarm list`
+  and `swarm metrics`.
