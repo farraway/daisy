@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"daisy/internal/swarm/fence"
 	"daisy/internal/swarm/forge"
 )
 
@@ -221,25 +222,30 @@ func TestRenderOutputContractsEveryRole(t *testing.T) {
 
 // config_hash cuts the # Output block out by finding the next `# ` line
 // after it (section 7.6), so no Output text may hold a line that begins
-// `# `, in a fence or not, nor leave a fence open; every role has one,
-// and a role without a text gets no block.
+// `# `, in a fence or not, nor leave a fence open, as the fence scan
+// configHash reads the system.md with reads it (tildes, longer fences
+// and info strings included); every role has one, and a role without a
+// text gets no block.
 func TestOutputTextsHoldNoHeadingLine(t *testing.T) {
 	roles := []string{"owner", "architect", "worker", "adversary", "sympathetic", "qa"}
+	for role := range roleOutputs {
+		if !slices.Contains(roles, role) {
+			t.Errorf("%s has an # Output text this test does not check", role)
+		}
+	}
 	for _, role := range roles {
 		out := Output(role)
 		if out == "" {
 			t.Errorf("%s has no # Output text", role)
 		}
-		fenced := false
+		var fences fence.Scan
 		for _, l := range strings.Split(out, "\n") {
 			if strings.HasPrefix(l, "# ") {
 				t.Errorf("%s: a line of # Output begins `# `: %q", role, l)
 			}
-			if strings.HasPrefix(l, "```") {
-				fenced = !fenced
-			}
+			fences.Line(l)
 		}
-		if fenced {
+		if fences.Open() != "" {
 			t.Errorf("%s: # Output leaves a fence open:\n%s", role, out)
 		}
 	}
