@@ -42,7 +42,7 @@ modules exist, what crosses each boundary, is decided before the red/green
 loop starts. The loop fills a shape; it does not discover one. A test that
 reaches past the agreed seam into internals is wrong even when it passes.
 
-**The two seams every program has:**
+**The three seams every program has:**
 
 1. **The program entry.** One function, `Run(ops, stdin, stdout, stderr,
    args) -> exit code` or the equivalent, that `main` calls and that tests
@@ -51,6 +51,11 @@ reaches past the agreed seam into internals is wrong even when it passes.
 2. **The domain packages.** Each has a public surface a unit test can
    exercise with simple values. Tests here cover the logic the functional
    tests would need too many cases to pin.
+3. **The source tree.** The project's stated rules about its own code (a
+   layer imports only the one below it, every call of a kind goes through
+   one wrapper, a document is kept equal to another) are checked over the
+   whole tree, by an AST or grep test, a health-check line or a lint, so a
+   new instance fails with a message naming the fix (the Sweep, below).
 
 ## Ops: one boundary for every side effect
 
@@ -140,7 +145,10 @@ claim → seams agreed → red → green → probe → sweep → review
   the claim generates its inputs, as a fuzz target (Go's `testing.F`) or,
   in another language, a property test: its seeds run with the suite, its
   generated inputs run separately and for longer, and its probe is a
-  generated run that finds the break.
+  generated run that finds the break. Commit the failing input that run
+  finds as a corpus seed (Go's default: `go test -fuzz` writes it under
+  `<package>/testdata/fuzz/`), named in the commit message, so the suite
+  runs it from then on.
 - **Sweep.** A defect found once is a class. Search for its siblings before
   closing it, and fix them under the same test. Where the class can recur
   in new code and a check can recognise an instance by its text or shape

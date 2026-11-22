@@ -1,8 +1,8 @@
 # Testing
 
 This document is the long form of the `testing` skill. The skill, which an
-agent loads when it writes or reviews tests, is reproduced first and
-verbatim. The rest of the document is what a reader needs in order to
+agent loads when it writes or reviews tests, is reproduced first,
+verbatim but for its headings, each one level deeper. The rest of the document is what a reader needs in order to
 understand it: the vocabulary the skill uses, the literature each idea
 comes from, where this methodology agrees with that tradition and where it
 departs, two implementations of the design at different scales, and one
@@ -56,7 +56,7 @@ modules exist, what crosses each boundary, is decided before the red/green
 loop starts. The loop fills a shape; it does not discover one. A test that
 reaches past the agreed seam into internals is wrong even when it passes.
 
-**The two seams every program has:**
+**The three seams every program has:**
 
 1. **The program entry.** One function, `Run(ops, stdin, stdout, stderr,
    args) -> exit code` or the equivalent, that `main` calls and that tests
@@ -65,6 +65,11 @@ reaches past the agreed seam into internals is wrong even when it passes.
 2. **The domain packages.** Each has a public surface a unit test can
    exercise with simple values. Tests here cover the logic the functional
    tests would need too many cases to pin.
+3. **The source tree.** The project's stated rules about its own code (a
+   layer imports only the one below it, every call of a kind goes through
+   one wrapper, a document is kept equal to another) are checked over the
+   whole tree, by an AST or grep test, a health-check line or a lint, so a
+   new instance fails with a message naming the fix (the Sweep, below).
 
 ### Ops: one boundary for every side effect
 
@@ -154,7 +159,10 @@ claim → seams agreed → red → green → probe → sweep → review
   the claim generates its inputs, as a fuzz target (Go's `testing.F`) or,
   in another language, a property test: its seeds run with the suite, its
   generated inputs run separately and for longer, and its probe is a
-  generated run that finds the break.
+  generated run that finds the break. Commit the failing input that run
+  finds as a corpus seed (Go's default: `go test -fuzz` writes it under
+  `<package>/testdata/fuzz/`), named in the commit message, so the suite
+  runs it from then on.
 - **Sweep.** A defect found once is a class. Search for its siblings before
   closing it, and fix them under the same test. Where the class can recur
   in new code and a check can recognise an instance by its text or shape
@@ -296,7 +304,18 @@ than the exhaustive mechanical kind.
 
 **Sweep.** On finding a defect, search for its siblings before closing it.
 The defect is treated as an instance of a class; the fix and the test cover
-the class.
+the class. Where the class can recur in new code and a check can recognise
+an instance, the test runs over the whole tree, the source tree as a seam
+(an AST or grep test, a health-check line, a lint), so a new instance fails
+without anyone searching for it.
+
+**Repeated run.** Running each test many times (`go test -count=<n>`), the
+way a test that depends on order or timing shows itself. Go's default
+`-timeout` of 10 minutes bounds each package's whole run, all n repeats
+together, so a repeated run needs a `-timeout` above n times the slowest
+package's run. In Daisy that is `internal/swarm/cmd`, about 334 s a run
+(about 370 s under `-race`, as `make check` runs it): `-count=5` needs
+`-timeout 35m`.
 
 **Hermetic.** A test that depends on nothing outside what it builds for
 itself: no real home directory, no real registry, no inherited environment
@@ -428,9 +447,10 @@ resources they may touch, and requires the small ones to be hermetic.
 Spotify's *testing honeycomb* (2018) argues the opposite emphasis for
 service-shaped systems: most tests at the integration level, few unit tests.
 
-The skill takes a position between these. It names two seams, the program
-entry and the domain packages, and expects most of the pinning to happen
-at the entry, because that is where the contract is stated and where a
+The skill takes a position between these. It names three seams, the
+program entry, the domain packages and the source tree (for the project's
+rules about its own code), and expects most of the pinning to happen at
+the entry, because that is where the contract is stated and where a
 `Fake` makes the test both hermetic and fast. The pyramid's reason for
 avoiding end-to-end tests, that they are slow and non-deterministic, does
 not apply when the whole program runs in-process against a Fake.
@@ -509,7 +529,7 @@ places. Each departure has a cost, named here.
 |---|---|---|
 | Tests drive the design (Beck) | Design the seam first; test-drive inside it | Letting tests discover architecture produces one that is testable and little else. The architecture is a decision; the tests verify it |
 | Mock at the boundaries of each unit (London) | One Fake at `Ops`; nothing mocked above it | Interaction tests break on refactors that change no behaviour. A single Fake keeps every test state-based and the whole program runnable in-process |
-| Many unit tests, few end-to-end (pyramid) | Two seams; most pinning at the entry | With a Fake the entry test is as fast and hermetic as a unit test, and it is the only place the contract can be checked whole |
+| Many unit tests, few end-to-end (pyramid) | Three seams; most pinning at the entry | With a Fake the entry test is as fast and hermetic as a unit test, and it is the only place the contract can be checked whole |
 | Green is done | Green is no regression; probe, then review | Dijkstra's limit. A test that has not been seen to fail is not evidence |
 | Refactor inside the loop | Refactor at review | The loop's job is to reach a probed green; shape is judged against the whole step, not one cycle |
 | Characterization tests are transitional | They are the oracle for a port, and byte equality is the claim | A port with no oracle is a rewrite. The cost is below |
@@ -519,7 +539,8 @@ places. Each departure has a cost, named here.
 - *Pre-agreed seams can miss the unanticipated.* A test written only where
   the plan said one would go cannot catch a defect in a place no one
   named. The sweep rule and the review that attacks the claim are the
-  mitigations, and they depend on someone asking.
+  mitigations. Both depend on someone asking, except where the sweep has
+  become a whole-tree check, which fails on a new instance unasked.
 - *Characterization enshrines accidents.* An oracle pins the old program's
   mistakes as faithfully as its intent. During Daisy's port the review
   found several cases where the old implementation was wrong and the suite
@@ -560,7 +581,9 @@ Above `Ops` sit domain packages (`gitx`, `journal`, `todo`, `identity`,
 `commands` package, and a `cli` table that maps words to commands and also
 generates the help and the documentation's command reference. The
 dependency rule is `cli → commands → domain → ops`; nothing above `ops`
-imports the operating system.
+imports the operating system, but for the exemptions `TestDependencyRule`
+names (`cmd/daisy/rules_test.go`): `internal/testenv`, `cmd/daisy/main.go`,
+and `exec.ExitError`.
 
 The entry is `Run(ops, stdin, stdout, stderr, args) int`. `main` calls it
 with `Real`; the functional tests call it with a `Fake` built around a temp
