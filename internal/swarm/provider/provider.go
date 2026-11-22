@@ -387,7 +387,7 @@ func (grok) Report(stdout []byte) Report {
 // What a provider fault's message names (section 7.7; the messages are
 // to confirm on a real fault): signInWords authentication, limitWords a
 // quota, a rate or usage limit or the credit. The last of signInWords and
-// the five from "weekly limit" are grok 1.0.70's own messages ("Not signed
+// the four from "weekly limit" are grok 1.0.70's own messages ("Not signed
 // in.", "You hit your weekly limit.", "out of credits or over your
 // spending limit", "usage balance exhausted"), and "out of usage credits"
 // claude's ("You're out of usage credits. Switch to another model …"),
