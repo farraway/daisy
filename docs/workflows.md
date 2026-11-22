@@ -191,10 +191,11 @@ absent from todo.txt.
 
 ```
 1. Call `daisy new-week`
-   When today.md is already dated in the current ISO week (Monday first),
-   the week has started (a `daisy log` quick start or an earlier start
-   began it): it prints "✅ Week already started: today.md is dated
-   <date>; nothing rotated" and writes and commits nothing. Carry on with
+   When today.md is already dated today (or later) in the current ISO week
+   (Monday first), the week and the day have started (a `daisy log` quick
+   start or an earlier start began them): it prints "✅ Week already
+   started: today.md is dated <date>; nothing rotated" and writes and
+   commits nothing. Carry on with
    steps 2-4 and the post-workflow on the current week. When today.md is
    dated earlier in the week, the week has started and the day has not:
    it prints "✅ Week already started: today.md is dated <date>; starting
