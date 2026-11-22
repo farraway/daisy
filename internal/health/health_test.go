@@ -305,6 +305,30 @@ func TestHygieneDeclaredTerms(t *testing.T) {
 	if ok || !strings.Contains(errs, w+"Publication hygiene: cannot read "+skip+", so no term is skipped: ") || !strings.Contains(errs, "'notes' appears") {
 		t.Errorf("an unreadable list: ok %v stderr\n%s", ok, errs)
 	}
+	os.RemoveAll(skip)
+
+	// The ✓ line says how many declared terms the scan skipped.
+	m.write(skip, "notes\n")
+	if ok, out, _ := m.run(health.Options{Force: true}); !ok || !strings.Contains(out, "Publication hygiene: no identifying terms outside the homes (1 declared term(s) skipped)\n") {
+		t.Errorf("the ✓ line: ok %v stdout\n%s", ok, out)
+	}
+	m.write(filepath.Join(m.root, "README.md"), "Nothing.\n")
+	os.Remove(skip)
+	if _, out, _ := m.run(health.Options{Force: true}); !strings.Contains(out, "Publication hygiene: no identifying terms outside the homes\n") {
+		t.Errorf("the ✓ line, nothing skipped: stdout\n%s", out)
+	}
+
+	// A declared list inside the root would publish what it skips: Check
+	// 6c fails, and the list skips nothing.
+	m.write(filepath.Join(m.root, "README.md"), "Keep your notes in a home.\n")
+	inside := filepath.Join(m.root, "conf")
+	m.write(filepath.Join(inside, "homes"), "testhome="+m.home+"\nnotes="+filepath.Join(t.TempDir(), "notes")+"\n")
+	m.write(filepath.Join(inside, "hygiene-skip"), "notes\n")
+	m.vars["DAISY_CONFIG"] = inside
+	ok, out, errs = m.run(health.Options{Force: true})
+	if ok || !strings.Contains(errs, "✗ Publication hygiene: the declared list "+filepath.Join(inside, "hygiene-skip")+" lies inside the root") || !strings.Contains(errs, "'notes' appears") || strings.Contains(out, "no identifying terms") {
+		t.Errorf("a list inside the root: ok %v stdout\n%s\nstderr\n%s", ok, out, errs)
+	}
 }
 
 // A leak only in the index (staged, then cleaned in the worktree) is what
@@ -387,10 +411,18 @@ func TestHealthNeverOpensAFIFO(t *testing.T) {
 		}
 	}
 	m.write(filepath.Join(m.home, "feedback", "feedback.md"), "")
-	done := make(chan bool)
-	go func() { ok, _, _ := m.run(health.Options{Force: true}); done <- ok }()
+	// and the declared list's: said, not read, and nothing skipped
+	skip := filepath.Join(m.config, "hygiene-skip")
+	if err := syscall.Mkfifo(skip, 0o644); err != nil {
+		t.Skip(err)
+	}
+	done := make(chan string)
+	go func() { _, _, errs := m.run(health.Options{Force: true}); done <- errs }()
 	select {
-	case <-done:
+	case errs := <-done:
+		if !strings.Contains(errs, "Publication hygiene: cannot read "+skip+", so no term is skipped: not a regular file") {
+			t.Errorf("a FIFO at hygiene-skip: stderr\n%s", errs)
+		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("the health check hung on a FIFO")
 	}

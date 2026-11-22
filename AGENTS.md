@@ -158,7 +158,9 @@ holding it (`notes` does not skip `notes@example.net`). Every scan
 the commands that write the day's tasks or log run first) says `⚠ Publication
 hygiene: skipping declared term(s) …` with the file's path, names a line
 that matches no derived term as unused, and skips nothing when the file
-cannot be read. Declaring a term that does identify someone (the OS
+cannot be read or is not a regular file (a FIFO is never opened); a pass
+counts the terms it skipped. A list that resolves inside the root fails
+the check and skips nothing: a push would publish it. Declaring a term that does identify someone (the OS
 username, a real home's name, an email address) switches the gate off
 for that term: the scan no longer looks for it in any file. Declare only
 a word that system files use as a word.

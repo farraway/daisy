@@ -57,6 +57,7 @@ type run struct {
 	fs                         ops.FS
 	root                       string
 	e                          env.Env
+	skipped                    int // the declared terms Check 6c skipped
 }
 
 // mark is a line's mark as the bash printed it, its colour (an SGR
@@ -158,7 +159,11 @@ func Run(o ops.Ops, stdout, stderr io.Writer, opt Options) bool {
 
 	// Check 6c: publication hygiene; 6b the Command Reference (a warning).
 	if r.hygiene() {
-		r.ok("Publication hygiene: no identifying terms outside the homes")
+		if r.skipped > 0 {
+			r.ok("Publication hygiene: no identifying terms outside the homes (%d declared term(s) skipped)", r.skipped)
+		} else {
+			r.ok("Publication hygiene: no identifying terms outside the homes")
+		}
 	}
 	if problem := ReferenceDrift(r.fs, root, opt.Reference); problem != "" {
 		r.warn("%s", problem)

@@ -67,12 +67,21 @@ func Terms(o ops.Ops, e env.Env) []string {
 const skipName = "hygiene-skip"
 
 // declared reads the list at path: each line trimmed, comments and blank
-// lines dropped. A missing file declares nothing.
+// lines dropped. A missing file declares nothing; anything but a regular
+// file (a FIFO, whose open would wait for a writer) is not opened and is
+// an error.
 func declared(fs ops.FS, path string) ([]string, error) {
-	b, err := fs.ReadFile(path)
+	fi, err := fs.Stat(path)
 	if errors.Is(err, iofs.ErrNotExist) {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+	b, err := fs.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -90,18 +99,25 @@ func declared(fs ops.FS, path string) ([]string, error) {
 // line). Every scan says what it skipped and which lines name no term
 // (a cached pass and the silent pre-flight print nothing), so the
 // relaxation is never silent and a stale line surfaces; a list that
-// cannot be read skips nothing.
-func (r *run) skipDeclared(terms []string) []string {
+// cannot be read skips nothing. A list inside the root would publish the
+// terms it skips: it fails the check (ok false) and skips nothing.
+func (r *run) skipDeclared(terms []string) (kept []string, ok bool) {
 	path := filepath.Join(r.e.Config, skipName)
+	if _, err := r.fs.Lstat(path); err == nil {
+		if real, root := env.RealPath(r.fs, path), env.RealPath(r.fs, r.root); real == root || strings.HasPrefix(real, root+"/") {
+			r.fail("Publication hygiene: the declared list %s lies inside the root (%s), which publishes it; move $DAISY_CONFIG outside the root", path, real)
+			return terms, false
+		}
+	}
 	lines, err := declared(r.fs, path)
 	if err != nil {
 		r.warn("Publication hygiene: cannot read %s, so no term is skipped: %v", path, err)
-		return terms
+		return terms, true
 	}
 	in := func(list []string, t string) bool {
 		return slices.ContainsFunc(list, func(u string) bool { return strings.EqualFold(u, t) })
 	}
-	var kept, skipped, unused []string
+	var skipped, unused []string
 	for _, t := range terms {
 		if in(lines, t) {
 			skipped = append(skipped, t)
@@ -121,7 +137,8 @@ func (r *run) skipDeclared(terms []string) []string {
 	if len(unused) > 0 {
 		r.warn("Publication hygiene: unused declared term(s) %s in %s (no term the scan derives) — remove them", quoted(unused), path)
 	}
-	return kept
+	r.skipped = len(skipped)
+	return kept, true
 }
 
 // Publishable is the root's publishable surface, root-relative: every path
@@ -338,7 +355,9 @@ func (r *run) hygiene() bool {
 		}
 		read[i].texts = append(read[i].texts, blob)
 	}
-	for _, term := range r.skipDeclared(Terms(r.o, r.e)) {
+	terms, ok := r.skipDeclared(Terms(r.o, r.e))
+	clean = clean && ok
+	for _, term := range terms {
 		var hits []string
 		for _, t := range read {
 			if slices.ContainsFunc(t.texts, func(b []byte) bool { return Contains(b, term) }) {
