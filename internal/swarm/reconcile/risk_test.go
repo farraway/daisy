@@ -249,3 +249,79 @@ func TestTaskTextWorkerAnswersAFindingThatDoesNotBlock(t *testing.T) {
 	has(t, "a slice to build", taskOf(t, sys), nil, "is answered, not fixed")
 	inSpec(t, want)
 }
+
+// planLines is what an architect's text asks of the plan (section 7.11,
+// rules 3 and 4).
+const planLines = `The plan holds two lines the worker and the reviewers read:
+
+- under "## Test Plan", for each claim's test, "Probe: <the change to the code under test that the test must fail on>": a change the code can make and its test can tell (not an equivalent one, nor a fixture no test reads), or, for a guard of kept behaviour, the break of the live path it exercises;
+- in each slice's item under "## Steps", "Unsupported: <the setups the slice does not support>", or "Unsupported: none".`
+
+// The plan names its tests' probes and its slices' unsupported setups
+// (Step R6-A of the plan implementing the 2026-11-19 swarm roadmap;
+// section 7.11, rules 3 and 4): each architect's text that asks for a
+// plan or a revised plan asks for the two lines, after the text that
+// asks for the plan and before the builder sentence, whose slice section
+// holds both; its answer to a question asks for neither.
+func TestTaskTextPlanAsksForProbesAndUnsupported(t *testing.T) {
+	const builder = `(its files, types and signatures, claim and test, its tests' probes and its "Unsupported:" line, and what of the research, constraints and decisions bears on it)`
+	for _, c := range []struct{ name, label, ask string }{
+		{"the plan", "swarm:proposal-accepted", `in a fenced "mermaid" block under that step.`},
+		{"its revision", "swarm:plan-0-posted", `a diagram where a slice touches more than one component.`},
+		{"the accepted plan's revision", "swarm:plan-1-accepted", `If the remaining slices stand as they are, write "STANDS: <why>"`},
+	} {
+		sys, _ := Render(memoryJob(t, "architect", c.label))
+		task := taskOf(t, sys)
+		paragraphs(t, c.name, task, planLines)
+		has(t, c.name, task, []string{c.ask, "\n\nThen write the builder plan to /job/io/builder.md", builder})
+		if i := strings.Index(task, planLines); i < strings.Index(task, c.ask) || i > strings.Index(task, "Then write the builder plan") {
+			t.Errorf("%s: the two lines are not between the text that asks for the plan and the builder sentence:\n%s", c.name, task)
+		}
+	}
+	j := memoryJob(t, "architect", "swarm:plan-1-accepted")
+	j.Question = true
+	sys, _ := Render(j)
+	has(t, "an answer to a question", taskOf(t, sys), nil, "Probe:", "Unsupported:")
+	inSpec(t, planLines)
+}
+
+// The worker applies each probe its slice's plan names and reports what
+// it showed (section 7.11, rule 3): its Task on a slice of a plan says
+// so, a paragraph of its own after the row's text; the fast lane has no
+// plan to name one.
+func TestTaskTextWorkerReportsProbes(t *testing.T) {
+	const want = `For each test of this slice whose Test Plan claim names a Probe, apply the probe, run the test and restore the code: report, in the description or your comment, the test, the probe and the failure it showed, or that it survived.`
+	sys, _ := Render(memoryJob(t, "worker", "swarm:plan-1-accepted"))
+	task := taskOf(t, sys)
+	paragraphs(t, "a slice of a plan", task, want)
+	if i := strings.Index(task, want); i < strings.Index(task, "done, not in this slice, or failing.") || i > strings.Index(task, "Read slice 1, ") {
+		t.Errorf("the sentence is not between the row's text and the slice sentence:\n%s", task)
+	}
+	f, at := fixture()
+	sys, _ = Render(job(f, at.N, "worker", "swarm:plan-1-accepted"))
+	has(t, "the fast lane", taskOf(t, sys), nil, "names a Probe")
+	inSpec(t, want)
+}
+
+// The adversary checks the probes the plan names, after its rollback, and
+// a probe of its own is no ground to block (section 7.11, rule 3), a
+// paragraph of its own in every round; the sympathetic reviewer's Task
+// asks for none.
+func TestTaskTextAdversaryChecksTheNamedProbes(t *testing.T) {
+	const want = `Then apply, for each such test, the probe its Test Plan claim names, run the test and restore the head, comparing the worker's report of it: a test that survives its named probe is a "[blocking]" finding of kind "claim". A test that survives a probe of your own is a "[non-blocking]" finding, unless the change that survives shows that the head itself is wrong, which is then a defect, judged as any other.`
+	one := memoryJob(t, "adversary", "swarm:review-0-ready")
+	one.Pull.Reviews = nil
+	for name, j := range map[string]*Job{"round 1": one, "a delta round": delta(t, "adversary"), "an unchanged head's round": sameHead(t, "adversary")} {
+		sys, _ := Render(j)
+		task := taskOf(t, sys)
+		paragraphs(t, name, task, want)
+		if i := strings.Index(task, "A claim reported not in this slice is not checked here.\n\n"+want); i < 0 {
+			t.Errorf("%s: the probes do not follow the rollback:\n%s", name, task)
+		}
+	}
+	for _, j := range []*Job{memoryJob(t, "sympathetic", "swarm:review-0-ready"), delta(t, "sympathetic")} {
+		sys, _ := Render(j)
+		has(t, "the sympathetic reviewer", taskOf(t, sys), nil, "the probe its Test Plan claim names")
+	}
+	inSpec(t, want)
+}

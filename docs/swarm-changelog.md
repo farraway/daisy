@@ -1347,3 +1347,12 @@ they write.
   bound by the round; the worker answers, rather than fixes, a blocking
   finding that is none of the kinds. Sections 6, 7.4 and 7.11. Decision
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-22, Step R6-A of the plan implementing the 2026-11-19 swarm
+  roadmap, the probes and the unsupported setups (rules 3 and 4 of
+  section 7.11): each architect text that asks for a plan asks for a
+  `Probe:` line for each claim's test and an `Unsupported:` line in each
+  slice's item, which the builder plan's slice section holds; the worker
+  applies and reports each named probe; the adversary checks them after
+  its rollback, a probe of its own non-blocking. Sections 7.4 and 7.11.
+  Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
+  built.

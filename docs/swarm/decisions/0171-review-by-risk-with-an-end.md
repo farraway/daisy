@@ -386,6 +386,21 @@ Tests: `TestTaskTextConvergenceSentence`,
 `TestTaskTextLateFirstReviewIsBoundByTheRound`,
 `TestTaskTextWorkerAnswersAFindingThatDoesNotBlock`.
 
+**As built: the probes and the unsupported setups (Step R6-A of the
+plan implementing the 2026-11-19 swarm roadmap).** The two lines are
+asked for in a list of their own after the text that asks for the plan,
+not in the headings sentence's parentheses, where they would be two more
+clauses of a sentence of some 1,400 characters; and in each text that
+asks for a plan, the revision's and the accepted plan's as well as the
+`proposal-accepted` row's, since a revised plan is written whole by a
+run that does not see that row (the one row, which would leave a revised
+plan's probes to the persona, was the alternative). The worker's and the
+adversary's are paragraphs of their own, the worker's on a slice of a
+plan alone, the fast lane having no Test Plan. Tests:
+`TestTaskTextPlanAsksForProbesAndUnsupported`,
+`TestTaskTextWorkerReportsProbes`,
+`TestTaskTextAdversaryChecksTheNamedProbes`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

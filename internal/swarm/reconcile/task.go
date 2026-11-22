@@ -29,7 +29,17 @@ func closingOf(readBack string) string {
 // builderSentence follows the plan's text in each architect Task text
 // that asks for a plan or a revised plan (section 7.4; 7.8, The builder
 // plan).
-const builderSentence = `Then write the builder plan to /job/io/builder.md, a document of its own, not posted: the plan consolidated for whoever builds it, one section "## Slice <s>" per slice under "## Steps", in their order, each holding all a builder needs for that slice (its files, types and signatures, claim and test, and what of the research, constraints and decisions bears on it), so that it reads without the plan. Daisy gives each worker its slice's step and section. Write it whole each time you write the plan.`
+const builderSentence = `Then write the builder plan to /job/io/builder.md, a document of its own, not posted: the plan consolidated for whoever builds it, one section "## Slice <s>" per slice under "## Steps", in their order, each holding all a builder needs for that slice (its files, types and signatures, claim and test, its tests' probes and its "Unsupported:" line, and what of the research, constraints and decisions bears on it), so that it reads without the plan. Daisy gives each worker its slice's step and section. Write it whole each time you write the plan.`
+
+// probesSentence follows the plan's text, before the builder sentence, in
+// each architect Task text that asks for a plan or a revised plan
+// (section 7.11, rules 3 and 4): each test's probe and each slice's
+// unsupported setups, which the worker and the reviewers read and Daisy
+// does not.
+const probesSentence = `The plan holds two lines the worker and the reviewers read:
+
+- under "## Test Plan", for each claim's test, "Probe: <the change to the code under test that the test must fail on>": a change the code can make and its test can tell (not an equivalent one, nor a fixture no test reads), or, for a guard of kept behaviour, the break of the live path it exercises;
+- in each slice's item under "## Steps", "Unsupported: <the setups the slice does not support>", or "Unsupported: none".`
 
 const planHeadings = `"## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions".`
 
@@ -138,8 +148,9 @@ func (j *Job) task() string {
 	if j.Role == "worker" {
 		end = workerClosing
 	}
-	// A text that asks for a plan asks for its builder plan with it.
-	builderPlan := func() { add("%s", builderSentence); end = planClosing }
+	// A text that asks for a plan asks for its probes and its builder plan
+	// with it.
+	builderPlan := func() { para(probesSentence); add("%s", builderSentence); end = planClosing }
 	cur, open := j.current()
 	names := strings.Join(j.names(), ", ")
 	switch {
@@ -237,6 +248,7 @@ func (j *Job) task() string {
 		case planned:
 			plan, _ := j.PlanText()
 			add(`Implement slice %d of the accepted plan for issue #%d (it declares %d) in %s/%s, on the branch checked out in /job/work/%s (swarm/%d-%d). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.`, s, j.N, max(1, len(Slices(plan))), owner(j.Cfg), repo, repo, j.N, s)
+			para(`For each test of this slice whose Test Plan claim names a Probe, apply the probe, run the test and restore the code: report, in the description or your comment, the test, the probe and the failure it showed, or that it survived.`)
 		default:
 			add(`There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #%d. Keep the change small; if it needs a plan, write "BLOCKED: needs a plan". Work on the branch checked out in /job/work/%s (swarm/%d-%d) and write the pull request's description.`, j.N, repo, j.N, s)
 		}
@@ -281,6 +293,7 @@ func (j *Job) task() string {
 		}
 		if j.Role == "adversary" {
 			add(`For each test that slice %d's item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against %s's code: in /job/work/%s, a throwaway clone, put everything the change touches except its tests back as %s has it (check out %s's version of each path, deleting those %s lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against %s's code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against %s already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against %s by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.`, s, j.Cfg.Base, cur.Repo, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base, j.Cfg.Base)
+			para(`Then apply, for each such test, the probe its Test Plan claim names, run the test and restore the head, comparing the worker's report of it: a test that survives its named probe is a "[blocking]" finding of kind "claim". A test that survives a probe of your own is a "[non-blocking]" finding, unless the change that survives shows that the head itself is wrong, which is then a defect, judged as any other.`)
 		}
 		if len(j.Artifacts) > 0 {
 			add(`The worker saved screenshots of pages the change alters, listed under "# Artifacts": open each from /job/io/artifacts/ (the URL beside it is the pull request's copy, and "not attached" means the forge refused the file) and judge what the page shows against what the plan and the slice claim, as you judge the diff. A page that does not show what is claimed is a finding, naming the screenshot and the file and line that render what it shows. If you cannot open an image, say so in the review and judge that page from the diff alone.`)
