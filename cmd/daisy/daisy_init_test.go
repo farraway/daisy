@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strings"
@@ -1585,4 +1586,122 @@ func TestNewcomersNextLines(t *testing.T) {
 		t.Fatalf("install with a home exit %d: %s", code, errs)
 	}
 	endsWith("install, a home registered", out, "Next: daisy init fresh (in the folder you work in)")
+}
+
+// stamped is pinned's Fake, the binary carrying commit rev as a build in
+// a checkout does ("" for none, as a test binary carries).
+func (m *machine) stamped(t *testing.T, cwd, rev string, args ...string) (int, string, string) {
+	t.Helper()
+	o := &ops.Fake{
+		GetenvFn:     func(k string) string { return m.vars[k] },
+		GetwdFn:      func() (string, error) { return cwd, nil },
+		NowFn:        func() time.Time { return time.Date(2026, 11, 1, 9, 30, 0, 0, time.UTC) },
+		ExecutableFn: func() (string, error) { return filepath.Join(m.root, "bin", "daisy"), nil },
+		BuildInfoFn: func() (*debug.BuildInfo, bool) {
+			info := &debug.BuildInfo{}
+			if rev != "" {
+				info.Settings = []debug.BuildSetting{{Key: "vcs.revision", Value: rev}, {Key: "vcs.modified", Value: "false"}}
+			}
+			return info, true
+		},
+	}
+	var out, errb bytes.Buffer
+	code := cli.Run(o, strings.NewReader(""), &out, &errb, args)
+	return code, out.String(), errb.String()
+}
+
+// Step C4a's claim: init stamps the workspace with the commit `daisy
+// version` reports, .daisy/version, and its AGENTS.md's rebuild line
+// names `daisy init`; clean removes the stamp with .daisy/. A binary
+// carrying no commit writes no stamp, and a re-init by it leaves none.
+func TestInitStampsTheWorkspace(t *testing.T) {
+	m := initMachine(t)
+	const rev = "4fc70edd373e6e960399537f18ad76f218567a1c"
+	ws := scratch(t)
+	if code, _, errs := m.stamped(t, ws, rev, "init", "testhome"); code != 0 {
+		t.Fatalf("init exit %d: %s", code, errs)
+	}
+	code, version, _ := m.stamped(t, ws, rev, "version")
+	if b, err := os.ReadFile(filepath.Join(ws, ".daisy", "version")); code != 0 || err != nil || string(b) != version || version != rev+"\n" {
+		t.Errorf(".daisy/version = %q (%v), daisy version = %q (exit %d); want %q", b, err, version, code, rev+"\n")
+	}
+	if b, _ := os.ReadFile(filepath.Join(ws, ".daisy", "AGENTS.md")); !strings.Contains(string(b), "\n# To rebuild: daisy init\n") {
+		t.Errorf("AGENTS.md's header names no `daisy init`:\n%s", b)
+	}
+	if code, _, errs := m.stamped(t, ws, "", "init"); code != 0 {
+		t.Fatalf("bare init by an unstamped binary: exit %d: %s", code, errs)
+	}
+	if _, err := os.Lstat(filepath.Join(ws, ".daisy", "version")); err == nil {
+		t.Error("a binary carrying no commit left the old stamp in place")
+	}
+	if code, _, errs := m.stamped(t, ws, rev, "init"); code != 0 {
+		t.Fatalf("re-init: exit %d: %s", code, errs)
+	}
+	if code, _, errs := m.stamped(t, ws, rev, "clean", "-f"); code != 0 {
+		t.Fatalf("clean exit %d: %s", code, errs)
+	}
+	if _, err := os.Lstat(filepath.Join(ws, ".daisy", "version")); err == nil {
+		t.Error("clean left .daisy/version")
+	}
+}
+
+// Step C4b's claim: status notices a stamp that is not the running
+// binary's commit, naming `daisy init`, exit 0, on stderr (under
+// `warnings` with --json); a missing stamp too; a current stamp, or a
+// binary carrying no commit to compare, prints none.
+func TestStatusNoticesAStaleStamp(t *testing.T) {
+	m := initMachine(t)
+	const old, now = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
+	ws := scratch(t)
+	if code, _, errs := m.stamped(t, ws, old, "init", "testhome"); code != 0 {
+		t.Fatalf("init exit %d: %s", code, errs)
+	}
+	stale := "⚠️  The workspace was initialized by Daisy " + old + ", not this one (" + now + "): run 'daisy init' here to refresh it\n"
+	for _, c := range []struct {
+		name, rev, want string
+	}{
+		{"current", old, ""},
+		{"stale", now, stale},
+		{"no commit to compare", "", ""},
+	} {
+		code, _, errs := m.stamped(t, ws, c.rev, "status")
+		if code != 0 || errs != c.want {
+			t.Errorf("%s: exit %d, stderr %q; want 0, %q", c.name, code, errs, c.want)
+		}
+	}
+	if code, out, errs := m.stamped(t, ws, now, "status", "--json"); code != 0 || errs != "" || !strings.Contains(out, "\"warnings\": [\n    \""+strings.TrimSuffix(stale, "\n")+"\"\n  ]") {
+		t.Errorf("status --json: exit %d, stderr %q:\n%s", code, errs, out)
+	}
+	os.Remove(filepath.Join(ws, ".daisy", "version"))
+	missing := "⚠️  The workspace has no .daisy/version stamp, so it was initialized before this Daisy (" + now + "): run 'daisy init' here to refresh it\n"
+	if code, _, errs := m.stamped(t, ws, now, "status"); code != 0 || errs != missing {
+		t.Errorf("no stamp: exit %d, stderr %q; want 0, %q", code, errs, missing)
+	}
+}
+
+// Its healthcheck twin: Check 8c warns of the same stamps, the system
+// still healthy (exit 0); a current stamp gives no warning.
+func TestHealthcheckNoticesAStaleStamp(t *testing.T) {
+	m := initMachine(t)
+	m.initHomeRepo(t)
+	// A root the other checks pass: its directories, the suite's runner,
+	// a repository of its own.
+	os.MkdirAll(filepath.Join(m.root, "prompts"), 0o755)
+	writeFile(t, filepath.Join(m.root, "tests", "run.sh"), "#!/bin/sh\n")
+	os.Chmod(filepath.Join(m.root, "tests", "run.sh"), 0o755)
+	gitIn(t, m.root, "init", "-q")
+	gitIn(t, m.root, "-c", "user.name=S", "-c", "user.email=s@x", "commit", "-q", "--allow-empty", "-m", "root")
+	const old, now = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
+	ws := scratch(t)
+	if code, _, errs := m.stamped(t, ws, old, "init", "testhome"); code != 0 {
+		t.Fatalf("init exit %d: %s", code, errs)
+	}
+	notice := "The workspace was initialized by Daisy " + old + ", not this one (" + now + "): run 'daisy init' here to refresh it"
+	code, out, errs := m.stamped(t, ws, now, "healthcheck", "--force")
+	if code != 0 || !strings.Contains(errs, "⚠ "+notice+"\n") || !strings.Contains(out, "System healthy") {
+		t.Errorf("stale: exit %d\n%s\n%s", code, out, errs)
+	}
+	if code, out, errs := m.stamped(t, ws, old, "healthcheck", "--force"); code != 0 || strings.Contains(errs, "initialized") {
+		t.Errorf("current: exit %d\n%s\n%s", code, out, errs)
+	}
 }

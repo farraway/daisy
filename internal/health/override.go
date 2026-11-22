@@ -42,7 +42,7 @@ func (r *run) materialised() {
 	ws := filepath.Join(r.e.Workspace, ".daisy")
 	b, err := prompt.Build(r.fs, prompt.Spec{
 		Root: r.root, HomeName: r.e.HomeName, Home: r.e.Home,
-		Output: filepath.Join(ws, "AGENTS.md"), Rebuild: "daisy prompt build", Built: r.o.Now(),
+		Output: filepath.Join(ws, "AGENTS.md"), Rebuild: prompt.WorkspaceRebuild, Built: r.o.Now(),
 		Prompts: filepath.Join(ws, "prompts"),
 	})
 	built, _ := r.fs.ReadFile(filepath.Join(ws, "AGENTS.md"))

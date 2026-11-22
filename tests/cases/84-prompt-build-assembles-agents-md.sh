@@ -33,6 +33,7 @@ rm -f "$FIXTURE_WORKSPACE/.daisy/AGENTS.md"
 fixture_run_cli prompt build
 assert_eq "$RUN_EXIT" "0" "the workspace build exits 0"
 assert_contains "$(cat "$FIXTURE_WORKSPACE/.daisy/AGENTS.md")" "# Output: $FIXTURE_WORKSPACE/.daisy/AGENTS.md" "writes and names the workspace's file"
+assert_contains "$(cat "$FIXTURE_WORKSPACE/.daisy/AGENTS.md")" "# To rebuild: daisy init" "a workspace's file is rebuilt by init"
 assert_eq "$(fixture_commit_count)" "$before" "prompt build commits nothing"
 
 fixture_run_cli build testhome

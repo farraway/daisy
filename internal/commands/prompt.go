@@ -30,7 +30,7 @@ func PromptBuild(c *Context) error {
 		output, rebuild = filepath.Join(e.Home, "AGENTS.md"), "daisy prompt build "+c.Args[0]
 	} else {
 		e, err = env.Resolve(c.Ops)
-		output, rebuild = filepath.Join(e.Workspace, ".daisy", "AGENTS.md"), "daisy prompt build"
+		output, rebuild = filepath.Join(e.Workspace, ".daisy", "AGENTS.md"), prompt.WorkspaceRebuild
 		prompts = filepath.Join(e.Workspace, ".daisy", "prompts")
 	}
 	if err != nil {

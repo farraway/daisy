@@ -167,6 +167,10 @@ func Run(o ops.Ops, stdout, stderr io.Writer, opt Options) bool {
 	r.feedback()
 	r.overrides()
 	r.materialised()
+	// Check 8c: the workspace's stamp against this binary's commit.
+	if n := env.StampNotice(o, e.Workspace); n != "" {
+		r.warn("%s", n)
+	}
 
 	fmt.Fprintln(stdout)
 	if r.issues > 0 {

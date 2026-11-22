@@ -51,12 +51,14 @@ func Status(c *Context) error {
 	if c.Flag(verb.JSONFlag) {
 		return verb.WriteJSON(c, func() (verb.Doc, error) {
 			reportDrift(c)
+			reportStamp(c)
 			return readWorkspace(c), nil
 		})
 	}
 	r := readWorkspace(c)
 	fmt.Fprintln(c.Stdout, header(c))
 	reportDrift(c)
+	reportStamp(c)
 	fmt.Fprintf(c.Stdout, "Projects: %s\n\n", c.Env.ProjectsSummary())
 	if r.Today == nil {
 		fmt.Fprintln(c.Stdout, "  No today.md — run 'daisy new-day' to start.")
@@ -71,6 +73,14 @@ func Status(c *Context) error {
 		fmt.Fprintf(c.Stdout, "\nPlan:   %s\n        %s\n", r.Plan.Title, r.Plan.Path)
 	}
 	return nil
+}
+
+// reportStamp says on stderr when the workspace's stamp is not this
+// binary's commit (env.StampNotice).
+func reportStamp(c *Context) {
+	if n := env.StampNotice(c.Ops, c.Env.Workspace); n != "" {
+		fmt.Fprintf(c.Stderr, "⚠️  %s\n", n)
+	}
 }
 
 // readWorkspace reads status's report.

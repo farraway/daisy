@@ -46,6 +46,12 @@ func Substitute(data []byte, root string) []byte {
 	return bytes.ReplaceAll(data, []byte("$DAISY_ROOT"), []byte(root))
 }
 
+// WorkspaceRebuild is the rebuild line of a workspace's AGENTS.md,
+// whoever builds it (init, `prompt build`, the health check's
+// comparison): bare `daisy init` in the workspace rewrites the file with
+// the skills, rules and stamp beside it.
+const WorkspaceRebuild = "daisy init"
+
 // Spec is one build: whose prompts, from which root, and what the header
 // says about the file.
 type Spec struct {

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"slices"
 	"time"
 )
@@ -86,6 +87,7 @@ func (r readOnly) Getenv(key string) string               { return r.inner.Geten
 func (r readOnly) IsTerminal(stream any) bool             { return r.inner.IsTerminal(stream) }
 func (r readOnly) Getwd() (string, error)                 { return r.inner.Getwd() }
 func (r readOnly) Executable() (string, error)            { return r.inner.Executable() }
+func (r readOnly) BuildInfo() (*debug.BuildInfo, bool)    { return r.inner.BuildInfo() }
 func (r readOnly) HTTP() Doer                             { return readingDoer{r.inner.HTTP()} }
 
 func (r readOnly) Prompt(in io.Reader, out io.Writer, question string) (string, error) {

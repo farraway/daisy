@@ -1,15 +1,17 @@
-package commands
+package env
 
 import (
 	"runtime/debug"
 	"strings"
 	"testing"
+
+	"daisy/internal/ops"
 )
 
-// versionLine is the toolchain's stamp: vcs.revision, with `(modified)`
+// Commit is the toolchain's stamp, read through Ops.BuildInfo: vcs.revision, with `(modified)`
 // when vcs.modified is true; a binary without one is refused, not printed
 // as a version.
-func TestVersionLine(t *testing.T) {
+func TestCommit(t *testing.T) {
 	const sha = "4fc70edd373e6e960399537f18ad76f218567a1c"
 	stamp := func(kv ...string) *debug.BuildInfo {
 		info := &debug.BuildInfo{}
@@ -29,7 +31,8 @@ func TestVersionLine(t *testing.T) {
 		{"no build info", nil, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := versionLine(c.info)
+			o := &ops.Fake{BuildInfoFn: func() (*debug.BuildInfo, bool) { return c.info, c.info != nil }}
+			got, err := Commit(o)
 			if c.want != "" {
 				if err != nil || got != c.want {
 					t.Errorf("got %q, %v; want %q", got, err, c.want)

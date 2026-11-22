@@ -66,6 +66,7 @@ type initPlan struct {
 	oldHome, oldID     string
 	agents             []byte
 	agentsWarnings     []string
+	stamp              string            // the binary's commit, "" when it carries none
 	prompts            map[string][]byte // materialised prompts, by their path under .daisy/
 	merged             map[string]merged // layered skills, by name
 	rules              map[string][]byte // cursor rule name → content
@@ -201,13 +202,14 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 	fs := o.FS()
 	built, err := prompt.Build(fs, prompt.Spec{
 		Root: p.m.Root, HomeName: p.homeName, Home: p.home,
-		Output: filepath.Join(p.daisyDir, agentsFile), Rebuild: "daisy prompt build", Built: o.Now(),
+		Output: filepath.Join(p.daisyDir, agentsFile), Rebuild: prompt.WorkspaceRebuild, Built: o.Now(),
 		Prompts: filepath.Join(p.daisyDir, promptsDir),
 	})
 	if err != nil {
 		return err
 	}
 	p.agents, p.agentsWarnings, p.prompts = built.Text, built.Warnings, built.Materialised
+	p.stamp, _ = env.Commit(o) // none: no stamp, and status compares nothing
 
 	read := func(name string) ([]byte, error) {
 		b, err := fs.ReadFile(filepath.Join(p.m.Root, "templates", name))
@@ -731,7 +733,7 @@ func (p *initPlan) fillStage(fs ops.FS, stage string) error {
 	if err := fs.Chmod(stage, mode); err != nil {
 		return fmt.Errorf("Error: %v", err)
 	}
-	for _, f := range []string{homeFile, identityFile, recordFile, beforeFile, agentsFile} {
+	for _, f := range []string{homeFile, identityFile, recordFile, beforeFile, agentsFile, env.StampFile} {
 		if err := removeFile(fs, filepath.Join(stage, f)); err != nil {
 			return err
 		}
@@ -758,6 +760,11 @@ func (p *initPlan) fillStage(fs ops.FS, stage string) error {
 	}
 	if err := fs.WriteFile(filepath.Join(stage, agentsFile), p.agents, 0o644); err != nil {
 		return fmt.Errorf("Error: %v", err)
+	}
+	if p.stamp != "" {
+		if err := fs.WriteFile(filepath.Join(stage, env.StampFile), []byte(p.stamp+"\n"), 0o644); err != nil {
+			return fmt.Errorf("Error: %v", err)
+		}
 	}
 	return nil
 }

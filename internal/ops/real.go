@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -92,10 +93,11 @@ func (real) Signals() <-chan os.Signal {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	return c
 }
-func (real) Getenv(key string) string    { return os.Getenv(key) }
-func (real) Getwd() (string, error)      { return os.Getwd() }
-func (real) Executable() (string, error) { return os.Executable() }
-func (real) HTTP() Doer                  { return http.DefaultClient }
+func (real) Getenv(key string) string            { return os.Getenv(key) }
+func (real) Getwd() (string, error)              { return os.Getwd() }
+func (real) Executable() (string, error)         { return os.Executable() }
+func (real) BuildInfo() (*debug.BuildInfo, bool) { return debug.ReadBuildInfo() }
+func (real) HTTP() Doer                          { return http.DefaultClient }
 
 func (real) IsTerminal(stream any) bool {
 	f, ok := stream.(interface{ Fd() uintptr })

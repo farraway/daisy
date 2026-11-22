@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"time"
 )
 
@@ -80,6 +81,10 @@ type Ops interface {
 	Getwd() (string, error)
 	// Executable is the path of the running binary, links unresolved.
 	Executable() (string, error)
+	// BuildInfo is what the toolchain wrote into the running binary
+	// (debug.ReadBuildInfo): its vcs.revision is the commit `daisy
+	// version` reports and init stamps a workspace with.
+	BuildInfo() (*debug.BuildInfo, bool)
 	// Reexec replaces the running process with the program at path, run
 	// with args after its name, the process's environment and its working
 	// directory: the same PID, keeping only the descriptors without

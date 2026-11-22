@@ -46,7 +46,8 @@ func TestPromptBuildForAHome(t *testing.T) {
 }
 
 // Without a home, the workspace's .daisy/AGENTS.md for its bound home; the
-// rebuild line says to run the command there.
+// rebuild line names bare `daisy init`, run there, which rebuilds the file
+// with the skills, rules and stamp beside it.
 func TestPromptBuildForTheWorkspace(t *testing.T) {
 	m := promptMachine(t)
 	sub := filepath.Join(m.ws, "sub")
@@ -57,7 +58,7 @@ func TestPromptBuildForTheWorkspace(t *testing.T) {
 		t.Fatalf("exit %d out %q err %q", code, out, errs)
 	}
 	b, _ := os.ReadFile(target)
-	if !strings.Contains(string(b), "\n# Output: "+target+"\n") || !strings.Contains(string(b), "\n# To rebuild: daisy prompt build\n") {
+	if !strings.Contains(string(b), "\n# Output: "+target+"\n") || !strings.Contains(string(b), "\n# To rebuild: daisy init\n") {
 		t.Errorf("header:\n%s", b)
 	}
 	if _, err := os.Stat(filepath.Join(m.home, "AGENTS.md")); err == nil {

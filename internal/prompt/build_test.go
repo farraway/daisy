@@ -162,3 +162,19 @@ func TestBuildAsTheShellDid(t *testing.T) {
 		t.Errorf("lazy %q", got.Lazy)
 	}
 }
+
+// A workspace's build (a Prompts directory) names bare `daisy init` as
+// its rebuild line: init rewrites the file with the skills, rules and
+// stamp beside it, as `prompt build` alone does not.
+func TestWorkspaceBuildRebuildsWithInit(t *testing.T) {
+	root, home := t.TempDir(), t.TempDir()
+	write(t, filepath.Join(home, "include.txt"), "full\n")
+	write(t, filepath.Join(root, "prompts", "full.md"), "# Full\n")
+	got, err := Build(ops.Real().FS(), Spec{
+		Root: root, HomeName: "h", Home: home, Output: "/ws/.daisy/AGENTS.md",
+		Rebuild: WorkspaceRebuild, Built: time.Date(2026, 11, 1, 9, 5, 0, 0, time.UTC), Prompts: "/ws/.daisy/prompts",
+	})
+	if err != nil || !strings.Contains(string(got.Text), "\n# To rebuild: daisy init\n\n") {
+		t.Fatalf("%v:\n%s", err, got.Text)
+	}
+}

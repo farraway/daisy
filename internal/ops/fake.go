@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"runtime/debug"
 	"time"
 )
 
@@ -21,6 +22,7 @@ type Fake struct {
 	GetenvFn     func(key string) string
 	GetwdFn      func() (string, error)
 	ExecutableFn func() (string, error)
+	BuildInfoFn  func() (*debug.BuildInfo, bool)
 	ReexecFn     func(path string, args ...string) error
 	HTTPFn       func() Doer
 	PromptFn     func(r io.Reader, w io.Writer, question string) (string, error)
@@ -86,6 +88,13 @@ func (f *Fake) Executable() (string, error) {
 		return f.ExecutableFn()
 	}
 	return Real().Executable()
+}
+
+func (f *Fake) BuildInfo() (*debug.BuildInfo, bool) {
+	if f.BuildInfoFn != nil {
+		return f.BuildInfoFn()
+	}
+	return Real().BuildInfo()
 }
 
 // Reexec is ReexecFn's; none set, an error, never Real's: a test never
