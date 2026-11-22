@@ -366,7 +366,11 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	}
 	// The persona the run is launched with, which its record names
 	// whatever swarm.json says by its collection.
-	lines = append(append(lines, "started "+now(), credential, "persona "+persona.Provider+" "+persona.Model+" "+persona.Effort), round...)
+	// Its deadline, started plus timeout, which whichever apply holds the
+	// run enforces (section 7.10, rule 2).
+	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
+	at := s.O.Now()
+	lines = append(append(lines, "started "+stamp(at), "deadline "+stamp(at.Add(timeout)), credential, "persona "+persona.Provider+" "+persona.Model+" "+persona.Effort), round...)
 	if err := r.Append(fs, lines...); err != nil {
 		if slot != nil {
 			slot.Release()
@@ -385,7 +389,6 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			return false, errors.Join(r.Append(fs, "launch-failed "+ended(), fault), s.collect(r))
 		}
 	}
-	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
 	c, err := s.Runner.Start(spec, timeout)
 	// The slot's lock is held through the launch alone: the running
 	// container's daisy.credential label holds the slot after (section
@@ -674,7 +677,8 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	if err != nil {
 		return r.Append(fs, "fault: "+step+": "+err.Error())
 	}
-	if err := r.Append(fs, step+" started "+stamp(s.O.Now())); err != nil {
+	at := s.O.Now()
+	if err := r.Append(fs, step+" started "+stamp(at), step+" deadline "+stamp(at.Add(timeout))); err != nil {
 		return err
 	}
 	fmt.Fprintf(s.Out, "%s%s started\n", runHead(r), step)

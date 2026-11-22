@@ -287,3 +287,23 @@ step whose container is gone, its apply's or another's, with its
 whose apply died or a container killed outright, it is started again,
 as a step whose apply died was. Test:
 `TestSwarmCheckCollectedFromItsFiles`.
+
+**As built: any apply collects any run (Step R4-B of the plan
+implementing the 2026-11-19 swarm roadmap).** A launch records
+`deadline <time>` after `started <time>`, `started` plus `timeout`,
+and a step `<step> deadline <time>` after `<step> started <time>`: the
+line that tells a run launched detached, by this build, from one
+launched before it. At each pass a run with `started`, no end line and
+a `deadline` line whose container is gone is collected from its files:
+with `<run>/io/exit` holding a number, `exited <code> <time>` (the
+pass's time), its streams copied, its cost and its provider's fault
+read, as its own process's collection does; with none, abandoned. A
+run without the line is collected by the rules before (*ended*, its
+out.md and no cost). A run or a step of this process whose wait has
+not returned is collected the same way once its container is gone from
+the pass's running set and its status is written, its wait then
+forgotten (request F36): a wait is a wake-up, the files the record. A
+container gone with no status while its wait has not returned is left
+to its wait, which a timer's stop ends as a timeout. Tests:
+`TestSwarmApplyCollectsItsOwnFinishedRun`,
+`TestSwarmAdoptedRunKeepsItsCostAndFault`.

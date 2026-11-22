@@ -4468,7 +4468,7 @@ holds the run, and the T17 note posts the output the member had
 written (rule 5). *Ended*: a run whose container is gone and whose
 `<run>/io/exit` is written is collected by any `apply` with its stdout from
 `<run>/io/stdout`, its cost and its provider's fault read (rule 2), and is
-*exited*, not *ended*, once launched by the build; *orphan over time*
+*exited*, not *ended*, once launched by the build (built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap); *orphan over time*
 is a timeout of the run's own. Runs launched before the build are
 collected by the rows as they read.
 
@@ -5847,7 +5847,12 @@ next pass by any `apply` (request F36: a run of this process whose wait
 had not returned was skipped), and the wall clock is the run's, read
 from its record (decision
 [26](swarm/decisions/0026-the-wall-clock-is-applys-not-stop-timeouts.md)
-amended).
+amended). *Built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap*: the `deadline` and `<step> deadline`
+lines, and the collection of a run whose container is gone and whose
+status is written, whoever launched it, its own process's while its
+wait has not returned among them, `exited <code>` with its streams
+copied, its cost and its provider's fault (decision
+[170](swarm/decisions/0170-capacity.md), As built).
 
 **The restart** (rule 2). The loop re-executes at the end of the first
 pass after `swarm restart` or a new build, members running, the queued
@@ -5911,7 +5916,11 @@ text (a plan, a verdict, a proposal). A batch run's stays in its
 build are collected by the old rules (attached, no `deadline`), so a
 restart onto the build waits for nothing new; `<state>/capacity` is
 absent, every entry available; a persona without `fallback` or `slots`
-and a `keys` without `tokens` launch as before.
+and a `keys` without `tokens` launch as before. *Built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap*
+for the old build's runs: a run without the `deadline` line is
+collected by the rules before (*ended*, *abandoned*, *orphan over
+time*), its attached exit mark read as *ended* reads it, and none is
+held by a timer.
 
 ## 8. The credential rule
 
@@ -7361,7 +7370,9 @@ a launch never waits on another issue's run, and with `interval` at
 another `apply` started is collected from the disk alone, the running
 set saying its container is gone and `<run>/io/exit` whether its member
 finished, with its exit status (7.2); its cost and a provider's fault
-were held by the `apply` that died and are not recovered. Until Step R3-10 both
+were held by the `apply` that died and are not recovered (but for a run
+launched detached, from Step R4-B of the plan implementing the 2026-11-19 swarm roadmap, collected with both from its
+files: 7.10, The detached run). Until Step R3-10 both
 reviewers launched in one pass when both had something to answer and a
 free credential, the first whose container started writing
 review-1-in-progress and the other launched on it; since it the

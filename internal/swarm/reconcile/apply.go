@@ -313,7 +313,17 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 					continue
 				}
 			default:
-				continue
+				// Its wait has not returned: collected all the same once
+				// its container is gone and its status written (section
+				// 7.10, rule 2; request F36), else left to its wait.
+				name, status := s.containerName(r.N, r.Role, r.K), r.exitStatus
+				if l.step != "" {
+					name, status = s.containerName(r.N, l.step, r.K), r.stepStatus
+				}
+				if _, ok := status(fs); !ok || isRunning(name) {
+					continue
+				}
+				delete(s.live, r.Dir)
 			}
 		}
 		lines, err := r.Result(fs)
@@ -331,7 +341,10 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 			}
 			name := s.containerName(r.N, r.Role, r.K)
 			end, more := "abandoned ", []string(nil)
-			if isRunning(name) {
+			_, detached := Has(lines, "deadline") // launched detached, by this build (section 7.10, rule 2)
+			code, exited := r.exitStatus(fs)
+			switch {
+			case isRunning(name):
 				if !over(strings.TrimPrefix(started, "started ")) {
 					continue
 				}
@@ -339,13 +352,25 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 					errs = append(errs, err)
 					continue
 				}
-			} else if ended, lines := r.Finished(fs); ended {
-				end, more = "ended ", lines // its member finished: collected from out.md as its own pass would
+			case detached && exited:
+				// Collected from its files, with its cost and its
+				// provider's fault, whichever apply launched it.
+				end = ""
+				if err := s.exited(r, fmt.Sprintf("exited %d %s", code, now), code, false); err != nil {
+					return err
+				}
+			case detached:
+			default:
+				if ended, lines := r.Finished(fs); ended {
+					end, more = "ended ", lines // its member finished: collected from out.md as its own pass would
+				}
 			}
 			// The end line first: collect restores the issue's stage and
 			// only then records `collected`, so a forge error is retried.
-			if err := r.Append(fs, append([]string{end + now}, more...)...); err != nil {
-				return err
+			if end != "" {
+				if err := r.Append(fs, append([]string{end + now}, more...)...); err != nil {
+					return err
+				}
 			}
 		}
 		if step, at := pending(lines); step != "" {

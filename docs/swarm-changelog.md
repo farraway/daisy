@@ -1269,3 +1269,10 @@ they write.
   written is collected from those files by any `apply`, one with none
   started again. Sections 7.2 and 7.10. Decision
   [170](swarm/decisions/0170-capacity.md) amended.
+- 2026-11-22, Step R4-B of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, adoption): a launch records the run's `deadline`, a
+  step's `<step> deadline`; any `apply` collects a detached run whose
+  container is gone from its files, `exited <code>` with its cost and
+  its provider's fault, its own process's while its wait has not
+  returned among them (request F36). Sections 7.7 and 7.10. Decision
+  [170](swarm/decisions/0170-capacity.md) amended.

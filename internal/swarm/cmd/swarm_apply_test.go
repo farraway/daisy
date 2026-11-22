@@ -244,7 +244,7 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	result := a.result("1-architect-1")
 	lines := strings.Split(strings.TrimSuffix(result, "\n"), "\n")
 	if !strings.HasPrefix(lines[0], "start app ") || !strings.HasPrefix(lines[1], "start lib ") ||
-		strings.Join(lines[2:], "\n") != resLines+"label swarm:proposal-accepted\nstarted 2026-11-06T15:00:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\npersona anthropic claude-fable-5-1 high\nexited 0 2026-11-06T15:00:00Z\ncost 0.25 tokens 10/20 turns 4 cached 0\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\nrecorded\noutcome posted\ncollected" {
+		strings.Join(lines[2:], "\n") != resLines+"label swarm:proposal-accepted\nstarted 2026-11-06T15:00:00Z\ndeadline 2026-11-06T15:45:00Z\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\npersona anthropic claude-fable-5-1 high\nexited 0 2026-11-06T15:00:00Z\ncost 0.25 tokens 10/20 turns 4 cached 0\nposted comment\nrelabelled swarm:proposal-accepted swarm:plan-0-posted\nrecorded\noutcome posted\ncollected" {
 		t.Errorf("result:\n%s", result)
 	}
 	for _, f := range []string{"io/system.md", "io/prompt.md", "argv", "stdout"} {

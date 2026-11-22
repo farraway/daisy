@@ -5,7 +5,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"daisy/internal/swarm/runner"
 )
@@ -84,5 +87,102 @@ func TestSwarmCheckCollectedFromItsFiles(t *testing.T) {
 	}
 	if out, _ := os.ReadFile(b.state("runs/1-worker-1/check.out")); string(out) != "ok 2 tests\nwarn\n" || !strings.Contains(b.result("1-worker-1"), "\ncheck exited 0 ") {
 		t.Errorf("check.out %q\n%s", out, b.result("1-worker-1"))
+	}
+}
+
+// stuck is the runner whose members' Wait returns only once release is
+// closed, their containers gone from the running set at once: a member
+// that finished while this process's wait on it has not returned.
+type stuck struct {
+	*runner.Fake
+	release chan struct{}
+}
+
+func (s stuck) Start(spec runner.Spec, d time.Duration) (runner.Container, error) {
+	c, err := s.Fake.Start(spec, d)
+	if err != nil {
+		return nil, err
+	}
+	c.Wait() // the Fake's container gone, its files written
+	return gatedRun{c, s.release}, nil
+}
+
+// Any apply collects a run of its own whose container is gone and whose
+// io/exit is written, though its wait on it has not returned (section
+// 7.10, rule 2; request F36): #1's architect, launched at pass 1, is
+// collected at pass 2.
+// Not parallel: its guard is the wall clock's 10s.
+func TestSwarmApplyCollectsItsOwnFinishedRun(t *testing.T) {
+	a := newApplyWS(t)
+	a.signals = make(chan os.Signal, 2)
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Stdout: claudeResult})
+	release := make(chan struct{})
+	var once sync.Once
+	var forced atomic.Bool
+	end := func() { once.Do(func() { close(release) }) }
+	defer end()
+	guard := time.AfterFunc(10*time.Second, func() { forced.Store(true); end() })
+	defer guard.Stop()
+	a.signalAt(2, nil)
+	if err := a.applyTo(a.git(), stuck{a.runner, release}, &a.stdout, &a.stderr); err != nil {
+		t.Fatal(err)
+	}
+	out := a.stdout.String()
+	second := strings.Index(out, "Pass 15:01:00: launched 0, collected 1, running 0\n")
+	if forced.Load() || second < 0 || strings.Index(out, "#1 architect run 1: posted comment\n") > second ||
+		!strings.Contains(a.result("1-architect-1"), "\nexited 0 2026-11-06T15:01:00Z\ncost 0.25 tokens 10/20 turns 4 cached 0\n") {
+		t.Errorf("forced %v\n%s\n%s", forced.Load(), out, a.result("1-architect-1"))
+	}
+}
+
+// adopted writes run 1 of #1's architect as an apply that died left it:
+// its argv the detached one, its result to its persona line and its
+// deadline, its member's files in io/, no container.
+func (a *applyWS) adopted(started, deadline string, io map[string]string) string {
+	a.t.Helper()
+	run := a.state("runs/1-architect-1")
+	os.MkdirAll(filepath.Join(run, "io"), 0o755)
+	os.MkdirAll(filepath.Join(run, "work"), 0o755)
+	os.WriteFile(filepath.Join(run, "argv"), []byte(strings.Join(append([]string{"docker", "run", "--detach"}, exitPrefix...), "\n")+"\nclaude\n"), 0o644)
+	for name, b := range io {
+		os.WriteFile(filepath.Join(run, "io", name), []byte(b), 0o644)
+	}
+	head := "start app 0123\nlabel swarm:proposal-accepted\nstarted " + started + "\ndeadline " + deadline + "\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\npersona anthropic claude-fable-5-1 high\n"
+	os.WriteFile(filepath.Join(run, "result"), []byte(head), 0o644)
+	return head
+}
+
+// A run another apply launched detached, its container gone, is
+// collected from its files with its cost and its provider's fault
+// (section 7.10, rule 2): exited, not ended, its stdout copied.
+func TestSwarmAdoptedRunKeepsItsCostAndFault(t *testing.T) {
+	t.Parallel()
+	const failed = `{"type":"result","is_error":true,"result":"Invalid API key · Please run /login","total_cost_usd":0.01,"num_turns":1,"usage":{"input_tokens":5,"output_tokens":1}}`
+	for _, tc := range []struct {
+		name, exit, stdout, want string
+	}{
+		{"posted", "0\n", claudeResult, "exited 0 2026-11-06T15:01:00Z\ncost 0.25 tokens 10/20 turns 4 cached 0\nposted comment\n"},
+		{"a fault", "1\n", failed, "exited 1 2026-11-06T15:01:00Z\ncost 0.01 tokens 5/1 turns 1 cached 0\nfault: provider: Invalid API key · Please run /login\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+			head := a.adopted("2026-11-06T14:30:00Z", "2026-11-06T15:30:00Z", map[string]string{"out.md": archPlan, "exit": tc.exit, "stdout": tc.stdout, "stderr": "a warning\n"})
+			a.runner.Script(1, "architect", runner.Canned{Out: archPlan}) // run 2, after the fault
+			a.tick()
+			if err := a.apply(a.git(), "--once"); err != nil {
+				t.Fatalf("%v\n%s", err, a.stderr.String())
+			}
+			r := a.result("1-architect-1")
+			if !strings.HasPrefix(r, head+tc.want) {
+				t.Errorf("result:\n%s", r)
+			}
+			for name, want := range map[string]string{"stdout": tc.stdout, "stderr": "a warning\n"} {
+				if b, _ := os.ReadFile(a.state("runs/1-architect-1/" + name)); string(b) != want {
+					t.Errorf("%s: %q", name, b)
+				}
+			}
+		})
 	}
 }
