@@ -118,6 +118,8 @@ Write the plan for issue #1 as a Daisy plan, under these "## " headings in this 
 ` + wantBuilderSentence + ` The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md, compose.test.yaml; lib: compose.test.yaml. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
 
 Write your output to /job/io/out.md; that file and the builder plan in /job/io/builder.md are the only things read back, and nothing you write elsewhere outside /job survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /job/io/out.md instead. ` + wantCauseSentence + `
+
+Write your output to /job/io/out.md, not in your final message.
 `
 
 // wantBuilderSentence follows the plan's text in each architect Task text

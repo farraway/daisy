@@ -2976,8 +2976,11 @@ swarm roadmap (decision 167 as amended), the role's output contract,
 `# Output` (7.4, The output contract), comes right after `# Persona`,
 before the prompt parts: `# Persona`, `# Output`, the parts and the
 other shared blocks, then the header and `# Task` last, ending with the
-reminder line where the Task's first line is required. Its text is the
-role's alone, so it stays in the shared prefix.
+reminder where the Task's first line is required. Its text is the
+role's alone, so it stays in the shared prefix. Every role's `# Output`
+begins with the output's file and every Task's last line names it (built
+at Step SF-1 of the plan implementing the 2026-11-19 swarm roadmap; 7.4,
+The output file's two sentences).
 
 **`# Resources`** comes last of the blocks every run shares, before
 the run's header and `# Task`, in every role's `system.md`, as every
@@ -3410,8 +3413,8 @@ as `<name>: <patterns>`). A `<…>` that stands for what the member writes
 `slice <i>`, `<name>#<m>` in `Defect in: <name>#<m>`, or `<s>` in the
 builder sentence's `## Slice <s>`) is left
 as written, for the member to fill. Every text ends with the same
-paragraph, but for one phrase of the worker's and of the architect's
-plan closing:
+**closing paragraph**, but for one phrase of the worker's and of the
+architect's plan closing, and, after it, its last line (below):
 
 > Write your output to /job/io/out.md; that file is the only thing
 > read back, and nothing you write elsewhere outside /job survives. If you
@@ -3443,11 +3446,14 @@ The **output contract** (the verdict fix of the plan implementing the
 2026-11-19 swarm roadmap; decision
 [167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md) as
 amended): every role's `system.md` holds, right after `# Persona` (7.3),
-a block `# Output` naming the first lines its output may or must begin
-with, the same text for every run of the role, so that it stays in the
-prefix the role's runs share. The reviewers' (the adversary's and the
-sympathetic reviewer's) reads:
+a block `# Output` naming the output's file and the first lines the output
+may or must begin with, the same text for every run of the role, so that
+it stays in the prefix the role's runs share. The reviewers' (the
+adversary's and the sympathetic reviewer's) reads:
 
+> Write your output to the file `/job/io/out.md`: Daisy reads your output
+> from it alone, never from your final message.
+>
 > The first line of your output is exactly `VERDICT: approve` or
 > `VERDICT: request-changes`, alone on its line, before any heading or
 > other text. Then the review: each finding a line beginning
@@ -3476,9 +3482,10 @@ sympathetic reviewer's) reads:
 > `BLOCKED: <your question>`, when you cannot review without an answer
 > from the maintainer.
 
-The owner's names, each only where its Task asks for it, `ANSWER: <your
-answer>` or `QUESTION: <the question>` (on a question passed to it, one
-of the two required), a proposal run's `Met: <path>` lines and its jobs
+Every role's begins with that first paragraph, the same for every role.
+After it, the owner's names, each only where its Task asks for it,
+`ANSWER: <your answer>` or `QUESTION: <the question>` (on a question
+passed to it, one of the two required), a proposal run's `Met: <path>` lines and its jobs
 from `## <title>`, or `BLOCKED: <why>` as the only line after any
 `Met:` lines, and `BLOCKED: <your question>`; the architect's `STANDS:
 <why>` (an accepted plan's revision or confirmation), `ANSWER: <your
@@ -3487,14 +3494,25 @@ the two required) and `BLOCKED: <your question>`; the worker's, none
 required, `NO CHANGE: <why>`, `QUESTION: <one question>` and `BLOCKED:
 <why, or your question>`; the QA's one of three, its jobs from `## <title>`,
 `NO FAILURE: <the routes you drove>` or `BLOCKED: <why, or your
-question>`, the last two as the only line. The texts are `roleOutputs`
-and `reviewerOutput` in `internal/swarm/reconcile/task.go`. A contract
-the Task asks for only in a case (`STANDS:`, `NO CHANGE:`, a worker's
+question>`, the last two as the only line. The texts are `outputFile`,
+`roleOutputs` and `reviewerOutput` in
+`internal/swarm/reconcile/task.go`. A contract the Task asks for only in a case (`STANDS:`, `NO CHANGE:`, a worker's
 or a reviewer's `QUESTION:`, every `BLOCKED:`) keeps its sentence in the
 row's text, which names the case; the block says it is optional.
 
-The **reminder** ends, after the closing paragraph, each text whose
-first line is required, restating it: a reviewer's `Begin your output
+The **output file's two sentences** (built at Step SF-1 of the plan
+implementing the 2026-11-19 swarm roadmap; decision
+[167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md) as
+amended): every role's `# Output` begins with the sentence above, and
+every text's last line, a line of its own after the closing paragraph,
+begins `Write your output to /job/io/out.md, not in your final message.`,
+the same for every role and every kind of text. Until then `system.md` named the file only in the closing paragraph,
+near the end of some 29,700 characters, and a member that missed it gave
+a well-formed review as its final message and wrote no file, `failed: no
+output`.
+
+The **reminder** ends that last line in each text whose first line is
+required, restating it: a reviewer's `Begin your output
 with the line "VERDICT: approve" or "VERDICT: request-changes".`, the
 architect's on a question `Begin your output with the line "ANSWER:
 <your answer>", or with "QUESTION: <the question>" when the plan, the

@@ -88,7 +88,7 @@ func reviewerRuns(t *testing.T) map[string]string {
 // the line restating the verdict line, the Task stating the verdict
 // nowhere else.
 func TestRenderReviewerOutputContractFirst(t *testing.T) {
-	const reminder = `Begin your output with the line "VERDICT: approve" or "VERDICT: request-changes".`
+	const reminder = `Write your output to /job/io/out.md, not in your final message. Begin your output with the line "VERDICT: approve" or "VERDICT: request-changes".`
 	runs := reviewerRuns(t)
 	if !strings.Contains(runs["adversary, round 2"], "This is round 2 of pull request lib#1") {
 		t.Fatalf("round 2 is no delta review:\n%s", runs["adversary, round 2"])
@@ -169,8 +169,8 @@ func TestRenderOutputContractsEveryRole(t *testing.T) {
 		"qa":          {"`BLOCKED: ", "`NO FAILURE: ", "`## <title>`"},
 	}
 	reminders := map[string]string{
-		"owner":     `Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when only the maintainer can settle it.`,
-		"architect": `Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when the plan, the thread and the resources do not settle it.`,
+		"owner":     `Write your output to /job/io/out.md, not in your final message. Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when only the maintainer can settle it.`,
+		"architect": `Write your output to /job/io/out.md, not in your final message. Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when the plan, the thread and the resources do not settle it.`,
 	}
 	word := regexp.MustCompile(`\b[A-Z]{2,}(?: [A-Z]{2,})*:`)
 	seen, named := map[string]string{}, map[string][]string{}
@@ -220,6 +220,93 @@ func TestRenderOutputContractsEveryRole(t *testing.T) {
 	}
 }
 
+// Every role's `# Output` and every Task's last line name the output's
+// file (Step SF-1 of the plan implementing the 2026-11-19 swarm roadmap;
+// section 7.4, decision 167 as amended), in each kind of Task the texts
+// have: `# Output` begins with the sentence naming it, one for every
+// role, and the Task ends with a line of its own beginning with the
+// sentence naming it, then the reminder where its first line is
+// required. A member that missed it in the closing paragraph gave its
+// review as its final message and wrote no file.
+func TestRenderNamesTheOutputFile(t *testing.T) {
+	const (
+		block   = "Write your output to the file `/job/io/out.md`: Daisy reads your output from it alone, never from your final message."
+		last    = `Write your output to /job/io/out.md, not in your final message.`
+		verdict = ` Begin your output with the line "VERDICT: approve" or "VERDICT: request-changes".`
+		answer  = ` Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when the plan, the thread and the resources do not settle it.`
+		passed  = ` Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when only the maintainer can settle it.`
+	)
+	seen := map[string]bool{}
+	check := func(name, role, sys, reminder string) {
+		t.Helper()
+		seen[role] = true
+		bs := blocksOf(sys)
+		if len(bs) < 3 || bs[1].heading != "# Output" || bs[len(bs)-1].heading != "# Task" {
+			t.Errorf("%s: the blocks are %q, want # Persona, # Output … # Task", name, headings(bs))
+			return
+		}
+		if !strings.HasPrefix(bs[1].text, "\n"+block+"\n\n") {
+			t.Errorf("%s: # Output does not begin with the sentence naming the file:\n%s", name, bs[1].text)
+		}
+		task := bs[len(bs)-1].text
+		if !strings.HasSuffix(strings.TrimRight(task, "\n"), "\n\n"+last+reminder) {
+			t.Errorf("%s: the Task ends %q, want a line of its own %q", name, lastLine(task), last+reminder)
+		}
+	}
+	on := func(name string, j *Job, reminder string) {
+		t.Helper()
+		sys, _ := Render(j)
+		check(name, j.Role, sys, reminder)
+	}
+
+	f, at := fixture()
+	on("owner, answering", job(f, at.N, "owner", "swarm:proposal-posted"), "")
+	on("architect, a plan", job(f, at.N, "architect", "swarm:proposal-accepted"), "")
+	on("worker, the fast lane", job(f, at.N, "worker", "swarm:plan-1-accepted"), "")
+	bare, _ := f.CreateIssue("Bare", "x", []string{"swarm:proposal-posted"})
+	on("owner, no comment", job(f, bare, "owner", "swarm:proposal-posted"), "")
+
+	f, at, pr, _ := planned(t)
+	run := func(role, label string, set func(j *Job)) *Job {
+		pulls, _ := f.Pulls(at.N, []string{"swarm-bot"})
+		j := job(f, at.N, role, label)
+		j.Pulls, j.Pull, j.Check = pulls, thread(f, pr), "No check result for this head."
+		if set != nil {
+			set(j)
+		}
+		return j
+	}
+	ask := func(j *Job) { j.Question = true }
+	batch := func(j *Job) { j.N, j.Batch = 0, &Batch{Propose: 2} }
+	notes := func(j *Job) { j.Cfg.Notes = true }
+	on("owner, with notes", run("owner", "swarm:proposal-posted", notes), "")
+	on("owner, a question", run("owner", "swarm:plan-1-accepted", ask), passed)
+	on("owner, batch", run("owner", "", batch), "")
+	on("qa, batch", run("qa", "", batch), "")
+	on("architect, a question", run("architect", "swarm:plan-1-accepted", ask), answer)
+	on("architect, a revision", run("architect", "swarm:plan-0-posted", nil), "")
+	on("architect, the rulings", run("architect", "swarm:plan-1-accepted", func(j *Job) { j.Rulings = []string{"app:docs/r.md"} }), "")
+	on("architect, a re-plan", run("architect", "swarm:plan-1-accepted", func(j *Job) { j.Replan = &Entry{"jane", "Re-plan", t0} }), "")
+	on("worker, a slice", run("worker", "swarm:plan-1-accepted", nil), "")
+	on("worker, changes requested", run("worker", forge.ChangesRequested, nil), "")
+	// The reviewers: round 1 and a delta round, then a head reviewed
+	// again after the maintainer's comment and after the worker's answer.
+	for name, sys := range reviewerRuns(t) {
+		role, _, _ := strings.Cut(name, ", ")
+		check(name, role, sys, verdict)
+	}
+	screenshots := func(j *Job) { j.Artifacts = []Artifact{{}} }
+	f.Say(pr, "jane", "Adversary: x.go:1 is right.")
+	on("adversary, the maintainer's comment", run("adversary", "swarm:review-0-ready", nil), verdict)
+	f.Comment(pr, marker("worker", 2)+"NO CHANGE: x.go:1 is right.")
+	on("adversary, an answer", run("adversary", "swarm:review-0-ready", screenshots), verdict)
+	on("sympathetic, an answer", run("sympathetic", "swarm:review-1-in-progress", screenshots), verdict)
+
+	if len(seen) != 6 {
+		t.Errorf("roles seen %v, want all six", seen)
+	}
+}
+
 // config_hash cuts the # Output block out by finding the next `# ` line
 // after it (section 7.6), so no Output text may hold a line that begins
 // `# `, in a fence or not, nor leave a fence open, as the fence scan
@@ -254,9 +341,10 @@ func TestOutputTextsHoldNoHeadingLine(t *testing.T) {
 	}
 }
 
-// Section 7.4 quotes the reviewers' # Output and the three reminders as
-// the code has them: the spec's block quote, its wrapping undone, is
-// reviewerOutput word for word, and each reminder is in the spec.
+// Section 7.4 quotes the reviewers' # Output, the last line's sentence and
+// the three reminders as the code has them: the spec's block quote, its
+// wrapping undone, is their Output word for word, and each of the others
+// is in the spec.
 func TestSpecQuotesTheOutputTexts(t *testing.T) {
 	b, err := os.ReadFile("../../../docs/swarm.md")
 	if err != nil {
@@ -264,23 +352,24 @@ func TestSpecQuotesTheOutputTexts(t *testing.T) {
 	}
 	spec := string(b)
 	flat := func(s string) string { return strings.Join(strings.Fields(s), " ") }
-	_, rest, ok := strings.Cut(spec, "reads:\n\n> The first line of your output is exactly")
+	const opens = "> Write your output to the file `/job/io/out.md`"
+	_, rest, ok := strings.Cut(spec, "reads:\n\n"+opens)
 	if !ok {
 		t.Fatal("section 7.4 has no quote of the reviewers' # Output")
 	}
 	var quote []string
-	for _, l := range strings.Split("> The first line of your output is exactly"+rest, "\n") {
+	for _, l := range strings.Split(opens+rest, "\n") {
 		if !strings.HasPrefix(l, ">") {
 			break
 		}
 		quote = append(quote, strings.TrimPrefix(l, ">"))
 	}
-	if got, want := flat(strings.Join(quote, "\n")), flat(reviewerOutput); got != want {
+	if got, want := flat(strings.Join(quote, "\n")), flat(Output("adversary")); got != want {
 		t.Errorf("section 7.4's quote of the reviewers' # Output:\n%s\nthe code's:\n%s", got, want)
 	}
-	for _, r := range []string{verdictReminder, architectReminder, ownerReminder} {
+	for _, r := range []string{outputReminder, verdictReminder, architectReminder, ownerReminder} {
 		if !strings.Contains(flat(spec), flat(r)) {
-			t.Errorf("section 7.4 does not quote the reminder %q", r)
+			t.Errorf("section 7.4 does not quote %q", r)
 		}
 	}
 }

@@ -12,10 +12,10 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
-// closing ends every Task text (section 7.4) but for a reminder after
-// it, workerClosing the
-// worker's, whose screenshots are read back too, and planClosing the
-// architect's that ask for a plan, whose builder plan is.
+// closing is the paragraph before every Task text's last line (section
+// 7.4), workerClosing the worker's, whose screenshots are read back too,
+// and planClosing the architect's that ask for a plan, whose builder plan
+// is.
 var (
 	closing       = closingOf("that file is the only thing read back")
 	workerClosing = closingOf("that file and the screenshots in /job/io/artifacts/ are the only things read back")
@@ -47,11 +47,20 @@ const defectSentence = `When you find that a failure's cause is the change of a 
 
 const planHeadings = `"## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions".`
 
-// roleOutputs is each role's # Output block (sections 7.3 and 7.4; decision
-// 167 as amended by the verdict fix): the first lines its output may or
-// must begin with, which Render writes right after # Persona. Its text
-// is the role's alone, never the run's, so that it stays in the prefix
-// every run of the role shares.
+// outputFile begins every role's # Output block and outputReminder the last
+// line of every Task text (section 7.4; decision 167 as amended): the file
+// the member writes, which a member that met it only in the closing
+// paragraph left unwritten, its final message the output.
+const (
+	outputFile     = "Write your output to the file `/job/io/out.md`: Daisy reads your output from it alone, never from your final message."
+	outputReminder = `Write your output to /job/io/out.md, not in your final message.`
+)
+
+// roleOutputs is each role's # Output block after outputFile (sections 7.3
+// and 7.4; decision 167 as amended by the verdict fix): the first lines
+// its output may or must begin with, which Render writes right after
+// # Persona. Its text is the role's alone, never the run's, so that it
+// stays in the prefix every run of the role shares.
 var roleOutputs = map[string]string{
 	"owner": "Your output is what the Task asks for, and its first line is one of these only where the Task asks for it, alone on its line:\n\n" +
 		"- `ANSWER: <your answer>`, or `QUESTION: <the question>` when only the maintainer can settle it: on a question passed to you, one of the two is the required first line;\n" +
@@ -71,9 +80,9 @@ var roleOutputs = map[string]string{
 		"- `BLOCKED: <why, or your question>` as the only line, when you cannot start or drive the app.",
 }
 
-// reviewerOutput is the reviewers' # Output block: the verdict line
-// verdictOf reads, and the findings whose severity review checks
-// against it (sections 7.4 and 7.5).
+// reviewerOutput is the reviewers': the verdict line verdictOf reads, and
+// the findings whose severity review checks against it (sections 7.4 and
+// 7.5).
 const reviewerOutput = "The first line of your output is exactly `VERDICT: approve` or `VERDICT: request-changes`, alone on its line, before any heading or other text. Then the review: each finding a line beginning `[blocking]` or `[non-blocking]`, with its file and line. Request changes only for a blocking finding, of a kind the Task lists; approve otherwise. Daisy reads the verdict from the first line alone, so a review whose first line is anything else (`## Review`, a title, a blank line) fails. For example:\n\n" +
 	"```text\nVERDICT: request-changes\n[blocking] <kind> <file>:<line>: <what is wrong>; reproduced by <a command, a test or the steps>\n[non-blocking] <file>:<line>: <what could be better>\n```\n\n" +
 	"or, with no blocking finding:\n\n" +
@@ -82,15 +91,19 @@ const reviewerOutput = "The first line of your output is exactly `VERDICT: appro
 
 // Output is role's # Output block, "" for a role that has none.
 func Output(role string) string {
+	contract := roleOutputs[role]
 	if role == "adversary" || role == "sympathetic" {
-		return reviewerOutput
+		contract = reviewerOutput
 	}
-	return roleOutputs[role]
+	if contract == "" {
+		return ""
+	}
+	return outputFile + "\n\n" + contract
 }
 
-// The reminders end the Task texts whose first line is required (section
-// 7.4): the reviewers', and the architect's and the owner's on a
-// question.
+// The reminders end the last line of the Task texts whose first line is
+// required (section 7.4): the reviewers', and the architect's and the
+// owner's on a question.
 const (
 	verdictReminder   = `Begin your output with the line "VERDICT: approve" or "VERDICT: request-changes".`
 	architectReminder = `Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when the plan, the thread and the resources do not settle it.`
@@ -132,10 +145,11 @@ func (j *Job) trustBoundaries() bool {
 }
 
 // task is the run's Task text: section 7.4's row for its role and label,
-// its additions, the closing paragraph and, where the Task's first line
-// is required, the reminder restating it. What add adds runs on in one
-// paragraph; what para adds is a paragraph of its own, for an instruction
-// that is missed in the middle of one (decision 167).
+// its additions, the closing paragraph and the last line, the output's
+// file and, where the Task's first line is required, the reminder
+// restating it. What add adds runs on in one paragraph; what para adds is
+// a paragraph of its own, for an instruction that is missed in the middle
+// of one (decision 167).
 func (j *Job) task() string {
 	var t []string
 	alone := true
@@ -148,7 +162,7 @@ func (j *Job) task() string {
 		t[len(t)-1] += " " + text
 	}
 	para := func(text string) { t, alone = append(t, text), true }
-	end, reminder := closing, ""
+	end, last := closing, outputReminder
 	if j.Role == "worker" {
 		end = workerClosing
 	}
@@ -179,10 +193,10 @@ func (j *Job) task() string {
 			asker = fmt.Sprintf("%s run %d", strings.ToUpper(m.Role[:1])+m.Role[1:], m.Run)
 		}
 		add(`%s asks a question on issue #%d, its comment beginning "QUESTION:" under "# Thread". Answer it from the plan, the thread and the resources, then write what the asker needs with it; do not revise the plan here. If they do not settle it, restate the question for the owner, who answers it from the briefs or passes it to the maintainer.`, asker, j.N)
-		reminder = architectReminder
+		last += " " + architectReminder
 	case j.Question && j.Role == "owner":
 		add(`The architect passed you a question on issue #%d, its comment beginning "QUESTION:" under "# Thread", which the plan and the resources do not settle. Answer it from the briefs, the thread and the resources, then write what the asker needs with it. If only the maintainer can settle it, restate the question: Daisy blocks the issue with it for the maintainer.`, j.N)
-		reminder = ownerReminder
+		last += " " + ownerReminder
 	case j.Role == "owner":
 		if j.commented() {
 			add(`Answer the latest comment in the thread of issue #%d.`, j.N)
@@ -278,7 +292,7 @@ func (j *Job) task() string {
 	default: // the reviewers
 		s := sliceOf(cur, j.N)
 		r, prev := j.round(cur)
-		reminder = verdictReminder
+		last += " " + verdictReminder
 		// The sympathetic reviewer reads its clone and runs nothing (section
 		// 7.11, The defaults).
 		clone := "a throwaway clone you may build and test in"
@@ -330,10 +344,7 @@ func (j *Job) task() string {
 			add(`These paths are protected: %s. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.`, p)
 		}
 	}
-	if reminder != "" {
-		end += "\n\n" + reminder
-	}
-	return strings.Join(append(t, end), "\n\n")
+	return strings.Join(append(t, end, last), "\n\n")
 }
 
 // commented: the issue has a counted comment (section 6).

@@ -1387,3 +1387,11 @@ they write.
   Outside this document, the skill pulls (`git pull --ff-only`) before
   that push, logs a rejected draft as rejected and names `swarm list`
   and `swarm metrics`.
+- 2026-11-22, Step SF-1 of the plan implementing the 2026-11-19 swarm
+  roadmap, the output's file: every role's `# Output` begins with the
+  sentence naming `/job/io/out.md`, the file Daisy reads, never the final
+  message, and every Task text ends with a line of its own naming it, the
+  reminder, where there is one, after it. `prompt_hash` changes for every
+  role, no `config_hash`. Sections 7.3 and 7.4. Decision
+  [167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md), As
+  built.

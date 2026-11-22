@@ -79,3 +79,30 @@ the hash names, as a Task text is (decision
 [168](0168-a-delta-review.md)). Restating the verdict sentence at the
 Task's end alone was the other: it leaves the contract at the end of
 the prompt, where the smaller model missed it.
+
+**As built: the output's file named twice (Step SF-1 of the plan
+implementing the 2026-11-19 swarm roadmap, 2026-11-22; sections 7.3, The
+order, and 7.4, The output file's two sentences).** *What failed.* A
+sympathetic reviewer on `gpt-6-luna` gave a well-formed `VERDICT:
+request-changes` with its finding as its final message and wrote no
+file: `failed: no output`, as two runs before it had. The output contract
+at the head of the prompt said how the output begins, not where it goes;
+`system.md` named the file only in the closing paragraph, about character
+28,500 of 29,700, and its last line, the reminder, did not name it. *The rule.* A
+member's output file is stated where its output contract is and where its
+Task ends: every role's `# Output` begins ``Write your output to the file
+`/job/io/out.md`: Daisy reads your output from it alone, never from your
+final message.``, and every Task text ends with a line of its own
+beginning `Write your output to /job/io/out.md, not in your final
+message.`, to which a Task whose first line is required adds its
+reminder, unchanged. The sentences are one constant text for every role,
+so the block stays in the role's shared prefix, and `config_hash`, which
+leaves `# Output` out, is unchanged; `prompt_hash` changes for every role.
+The closing paragraph keeps its sentence, which says what else is read
+back. Stating the file in the last line of the three texts with a
+reminder alone was the alternative: every other text's last line is the
+closing paragraph, which names the file at its start, some 1,100
+characters before its end, so the same member would miss it there. Reading the
+final message when no file was written was the other: it would take a
+chat reply for the role's text, and a run whose file was never written is
+a failure by 7.7. Test: `TestRenderNamesTheOutputFile`.
