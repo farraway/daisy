@@ -96,8 +96,7 @@ as rule 3 says.
    message so its commit says you wrote it, the line being the one your
    model signs commits with, one line `Name <email>` (a Claude model's
    is `Claude <model> <noreply@anthropic.com>`; `daisy log` refuses
-   another shape, and a flag after the message would land in the
-   journal):
+   another shape, and a flag after the message is refused, exit 2):
    `daisy log --co-author "<your line>" "swarm: merged lib#5, closed #10"`.
    Outside a Daisy workspace `daisy log` refuses
    (`Not in a Daisy workspace`): say so once and go on.
