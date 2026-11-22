@@ -1,6 +1,6 @@
 # 0169. Integration control: declared dependencies, a merge queue and a red main
 
-From Step 12 of the plan implementing the 2026-11-19 swarm roadmap (R2, integration control, 2026-11-21). Specified before its build: `docs/swarm.md` section 12.1, with the changes it makes marked in sections 1, 2, 5, 6, 7.4, 7.7, 7.9, 11 and 12; to be built at Step 13 of that plan. Amends decisions [51](0051-dependency-order-and-pins.md) (dependency order beyond a job's slices), [81](0081-conflicts-handled-by-the-swarm.md) and [93](0093-the-collection-and-the-merge-step.md) (a conflict found before the merge is tried), and [135](0135-the-owners-hold-released-by-its-issues.md) (the hold's release is rule 1's test).
+From Step 12 of the plan implementing the 2026-11-19 swarm roadmap (R2, integration control, 2026-11-21). Specified before its build: `docs/swarm.md` section 12.1, with the changes it makes marked in sections 1, 2, 5, 6, 7.3, 7.4, 7.7, 7.8, 7.9, 10, 11 and 12; to be built at Step 13 of that plan. Amends decisions [51](0051-dependency-order-and-pins.md) (dependency order beyond a job's slices), [81](0081-conflicts-handled-by-the-swarm.md) and [93](0093-the-collection-and-the-merge-step.md) (a conflict found before the merge is tried), and [135](0135-the-owners-hold-released-by-its-issues.md) (the hold's release is rule 1's test).
 
 **The maintainer's rulings of 2026-11-19 (Step 1 of that plan, R2):**
 machine-read `Depends:` and `Touches:`, several blockers per issue,
@@ -91,7 +91,9 @@ pass, so no file can drift from the forge. One merge check runs per
 repository at a time, on the first queued head without a passed check
 on `base` as it is now; a passed head with the merge gate on waits for
 the maintainer without holding the next, so the maintainer merges in
-any order and each merge makes the others stale. A batched queue (the
+any order and each merge makes the others stale; with the gate off a merge
+ends the repository's merges for the pass, the step today going on to try
+the next head, whose check is stale. A batched queue (the
 heads merged together, bisected on a failure) was the alternative the
 ruling set aside. The merge check runs the repository's check in its
 declared environment (7.9), on a merge commit Daisy writes on the
@@ -124,7 +126,7 @@ run makes its branch's first commit the fix. Closed, or with no swarm
 merge to blame, the owner's next batch proposes the fix first, marked
 `Fixes: <name>`, released from `owner-held` by the red. A main check
 that fails in the environment, after 7.9's rerun, leaves `base`
-unchecked and holds the queue until `swarm resume`, the maintainer's,
+unchecked (a line of `<state>/main-unchecked`) and holds the queue until the bare `swarm resume`, the maintainer's,
 as R3c sends a persisting environment failure to the maintainer.
 
 **The owner's hold as the graph.** The owner held its batch because

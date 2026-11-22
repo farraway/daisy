@@ -1169,7 +1169,7 @@ they write.
   breaking job's when open, else the owner's next proposal; the owner
   proposes dependent work rather than holding its batch, its hold read
   as issue 0's dependencies; a required context not yet reported holds
-  a merge. Sections 1, 2, 5, 6, 7.4, 7.7, 7.9, 11 and 12, and the new
+  a merge. Sections 1, 2, 5, 6, 7.3, 7.4, 7.7, 7.8, 7.9, 10, 11 and 12, and the new
   12.1. Decision
   [169](swarm/decisions/0169-integration-control.md), amending
   decisions [51](swarm/decisions/0051-dependency-order-and-pins.md),

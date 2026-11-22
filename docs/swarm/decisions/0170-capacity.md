@@ -47,10 +47,10 @@ balance exhausted` (grok), the second stating no reset.
 3. **Slots per role.** A persona's, or a fallback's, `slots` names the
    slots of its provider it may take; `status` shows each role's queue
    and names the bottleneck.
-4. **Pacing.** A credential whose provider declares a token `budget` is
-   not given to a launch while the tokens of its runs started in the
-   last day, or the last week, have reached it; the money `budget`
-   stays shown and not enforced.
+4. **Pacing.** A credential whose provider declares `tokens` in `keys`
+   is not given to a launch while the tokens of its runs started in the
+   last 24 hours have reached `per_day`, or those of the last 7 days
+   `per_week`; the money `budget` stays shown and not enforced.
 5. **The deadline.** A member is told its deadline; at 80% of its
    `timeout` Daisy writes `/job/io/deadline`, asking it to write its
    output now or propose how to split the work; a run stopped at its

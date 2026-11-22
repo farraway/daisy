@@ -281,6 +281,7 @@ Stages of a software factory the version leaves out, each by choice:
 ├── connect-seen                     # the journal's line last marked seen, which `swarm journal` prints after (section 11)
 ├── paused                           # present while paused, with the reason when `apply` paused it
 ├── restart                          # present while `swarm restart` waits for the loop to re-execute itself (section 11, The restart)
+├── main-unchecked                   # R2 (12.1, specified ahead of its build): a line `<name> <sha>` per repository whose `base` commit a main check could not check (its environment failed), until swarm resume
 ├── capacity                         # R4 (7.10, specified ahead of its build): a line per model unavailable on a credential, until its reset or swarm resume
 ├── owner-held                       # present while the owner's batch trigger is held, with the issues it waits on (section 6)
 ├── qa-held                          # present while the QA trigger is held (section 6, The QA trigger)
@@ -558,7 +559,7 @@ yet or not (Step 6 of revision 6's plan; decision [109](swarm/decisions/0109-ini
 | `gates.triage`, `gates.plan`, `gates.merge` | booleans | `true` each | G1, G2 and G3 (section 5): `true` keeps the decision the maintainer's, G1's and G2's for an architecture job only (a routine job passes them by itself, section 5); `false` hands it to the swarm |
 | `budget` | object | absent | `{"per_day": <usd>, "total": <usd>}`, both numbers greater than 0; required when any gate is `false`; optional otherwise; validated, not enforced: no pass compares the spend with it until it is built (below) |
 | `keys` | object | `{"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}, "openai": {"slots": 1}}`, and, for a provider the wizard's answers give a persona and no key names, that provider's default: `{"env": "XAI_API_KEY"}` for `xai` (section 11) | provider name → its credential, an object with exactly one of two kinds (section 8): `env`, a variable name that is one of the provider's variables (section 9), resolved on the host as a secret value (below) and passed under the same name; `slots`, an integer 1 to 16, for a provider that takes a slot (`openai`, `xai`): slots 1 to that number. A provider declares one form or the other, never both (`needs exactly one of env, slots`, below). Every provider a persona uses must have one |
-| `keys.<provider>.tokens` | object | absent (`init` writes none, and keeps the file's) | *R4, specified ahead of its build* (7.10, rule 4): optional, `{"per_day": <tokens>, "per_week": <tokens>}`, one or both, integers greater than 0, no default; each credential of the provider (its `env`, or each slot) is given to a launch only while the tokens of its runs started in the 24 hours, or the 7 days, before it are below the figure |
+| `keys.<provider>.tokens` | object | absent (`init` writes none, and keeps the file's) | *R4, specified ahead of its build* (7.10, rule 4): optional, `{"per_day": <tokens>, "per_week": <tokens>}`, one or both, integers greater than 0, no default; each credential of the provider (its `env`, or each slot) is given to a launch only while the tokens of its runs started in the 24 hours before it are below `per_day` and those started in the 7 days before it below `per_week` |
 | `personas` | object | the five roles as in the example | exactly the keys `owner`, `architect`, `worker`, `adversary`, `sympathetic`, and `qa` exactly when `qa` is declared (the QA's persona, which `init` never writes) |
 | `personas.<role>.provider` | string | as in the example | a provider with an adapter: `anthropic`, `openai` or `xai` |
 | `personas.<role>.model` | string | as in the example | required: every role names the model it runs (decision [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)), so neither `""` nor `-` is accepted; otherwise passed through, but for one check: no whitespace, control character or format character such as a zero-width space (it is one argv word; decision [6](swarm/decisions/0006-additions-to-swarm-json.md); the control and format characters from Step 20 of the plan that clears the Deferred list, decision [120](swarm/decisions/0120-declare-forge-and-runner-loose-ends.md)) |
@@ -1114,7 +1115,9 @@ or, with the plan read in memory, its run's `runs/<run>/io/builder.md`,
 is given its step alone.`; its `## Open Questions` as
 written, and the first line of each unindented line of its `## Risks`;
 deciding `swarm accept <n>`, `swarm class <n> routine` (after which Daisy
-accepts it), or a comment the architect revises from.
+accepts it), or a comment the architect revises from. *R2, specified ahead of its build*
+(12.1, What `status` shows): the triage and plan gates' bullets gain
+`- Depends:` and `- Touches:`, and the merge gate's `- Merge check:`.
 At `swarm:review-2-approved` (the merge), its `<why>` `both reviews
 approve <pull link> at <short sha>, and the merge gate
 leaves the merge to the maintainer`, naming the current pull request,
@@ -1514,7 +1517,7 @@ nothing: their trigger is the maintainer's decision.
 | T30 | `swarm:question` set, at any stage | `swarm:question` cleared, `swarm:blocked` set, the stage kept | — | the owner's run on `swarm:question` passes the question on with its own `QUESTION:`: the maintainer's (G4), answered with `swarm unblock` (T18) | Daisy: `Comment(n, <the owner's text>)`, `Comment(n, <reconciler note naming the question>)`, then `Relabel(n, "", "swarm:blocked")` and `Relabel(n, "swarm:question", "")` |
 | T31 | `swarm:plan-1-accepted` with no plan, or a review stage whose current pull request is not open | `swarm:proposal-accepted` with no plan, `swarm:plan-1-accepted` with one | — | the maintainer asks the architect to re-plan the job (section 11, daisy swarm replan): at `swarm:plan-1-accepted` with a plan, and at `swarm:proposal-accepted` and `swarm:plan-0-posted`, the stage is kept and the request alone runs the architect (section 6, The re-plan; then T27, T5 or T6 as the architect's run goes) | the maintainer: `swarm replan <n> [direction...]`: `Comment(n, "Re-plan: <direction>")` (`Re-plan.` with none), then `Relabel(n, <stage>, <to>)`; or on the forge |
 
-*R2, specified ahead of its build* (12.1, rule 3): one transition is added, **T32**, `swarm:review-2-approved` to `swarm:review-3-changes-requested`, its row joining this table, and the explorer's, when it is built: the merge check of the approved head, the repository's check on the commit that merges it into `base` as it is now, fails, after 7.9's one rerun of a classified failure; Daisy's merge queue, under either gate, posts `Comment(m, <reconciler note naming the log>)` and relabels the issue; the worker merges `base`, fixes what fails, and the pair reviews the new head as any revision (T12, then T9 or T10); no block, each round counted towards the round limit (T11). A conflict the queue's merge finds is T25, sent back before the check, whichever the merge gate.
+*R2, specified ahead of its build* (12.1, rule 3): one transition is added, **T32**, `swarm:review-2-approved` to `swarm:review-3-changes-requested`, its row joining this table, and the explorer's, when it is built: the merge check of the approved head, the repository's check on the commit that merges it into `base` as it is now, fails, after 7.9's one rerun of a classified failure; Daisy's merge queue, under either gate, posts `Comment(m, <reconciler note naming the log>)` and relabels the issue; the worker merges `base`, fixes what fails, and the pair reviews the new head as any revision (T12, then T9 or T10); no block, each round counted towards the round limit (T11). A conflict the queue's merge finds is T25, sent back before the check, whichever the merge gate. A merge check that fails in the environment after its rerun is T17 from `swarm:review-2-approved`, which T17's row does not list as a from-stage until the build: the issue blocked, the stage kept, the note naming the reason, nothing posted on the pull request.
 
 The maintainer may also relabel any issue to any stage at any time; the
 next pass reads the new label and the role rule decides from there. That
@@ -3223,7 +3226,12 @@ after its title (`- #<n> [<stage>] <title>; Brief: <path> — <milestone>`,
 `<stage>` the stage without `swarm:`, never the flag, and for a closed
 issue its terminal or the stage it was closed at),
 so the owner can tell which milestones the closed issues meet; the
-bodies are read, as `Issues` returns them, and no call is added.
+bodies are read, as `Issues` returns them, and no call is added. *R2,
+specified ahead of its build* (12.1, The red main): while a repository's
+`base` is red and its fix is the owner's, the batch prompt gains `# Main`,
+each red repository with its breaking merges and a pointer to the
+check's output, `/job/io/main/<name>-<short sha>.log`, written before the
+launch.
 
 The QA's batch prompt (section 6, The QA trigger) is the
 owner's without `# Briefs`, and, with `notes`, with a reviewer's
@@ -4316,9 +4324,9 @@ honest word among the nine, and none for a row that is no stop.
 | the clone reaches outside itself (worker) | work | 7.6 | `failed: the clone reaches outside itself: <what>` | T17 | empty |
 | fetch failed (worker) | work | 7.6, step 1: the run's second failed fetch in a row from its clone, whatever the run's end (a fault too); the first is the pass's error, retried | `fetch failed: <error>` for each, then `failed: fetch: <error>` (the second's), unless the run failed already | T17, the note naming the error; a run that failed already names its own failure, then `Its commits could not be fetched from its clone: <error>.` | `environment` |
 | check environment (worker; R3, built at Step R3-7: 7.9) | work | 7.6, step 4: the check, or the dependency step, failed in packages the change does not touch, or with an infrastructure signature and no touched package failing (for a Go head, beside a failing package it names; a dependency step's by a signature whatever the head), and failed so again on its one rerun | `check rerun: <reason>`, the rerun's lines, then `failed: check environment: <reason>`; `kept refs/swarm-runs/<n>-worker-<k>` | T17, the note naming the reason; nothing pushed, nothing posted on the pull request | `environment` |
-| merge check failed (*R2, specified ahead of its build* (12.1, rule 3) | work | the merge queue's check on the commit that merges the approved head into `base` fails, after 7.9's one rerun of a classified failure | `<state>/runs/<n>-merge-<k>/result`: `merge <name> <head> into <base sha> at <merge sha>`, the check's lines, `failed: merge check: <exit code, timeout or the refusal>`, `collected` | T32: the note on the pull request naming `checks/<merge sha>.log`; no block | none: no member ran, no metrics row |
-| merge check environment (*R2, specified ahead of its build* (12.1, rule 3) | work | as a worker's *check environment*, on the merge check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | T17 beside `swarm:review-2-approved`, the note naming the reason; nothing posted on the pull request | none: no member ran |
-| main check failed (*R2, specified ahead of its build* (12.1, rule 4) | — | the check on a commit of `base` whose tree no check has passed fails | `<state>/runs/0-main-<k>/result`: `main <name> <sha> tree <tree>`, the check's lines, `failed: main check: <…>` | `base` red: the repository's worker launches held but the fix's; the note on the breaking job's issue when it is open, else the owner's batch released | none: no member ran |
+| merge check failed (*R2, specified ahead of its build* (12.1, rule 3)) | work | the merge queue's check on the commit that merges the approved head into `base` fails, after 7.9's one rerun of a classified failure | `<state>/runs/<n>-merge-<k>/result`: `merge <name> <head> into <base sha> at <merge sha>`, the check's lines, `failed: merge check: <exit code, timeout or the refusal>`, `collected` | T32: the note on the pull request naming `checks/<merge sha>.log`; no block | none: no member ran, no metrics row |
+| merge check environment (*R2, specified ahead of its build* (12.1, rule 3)) | work | as a worker's *check environment*, on the merge check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | T17 beside `swarm:review-2-approved`, the note naming the reason; nothing posted on the pull request | none: no member ran |
+| main check failed (*R2, specified ahead of its build* (12.1, rule 4)) | — | the check on a commit of `base` whose tree no check has passed fails | `<state>/runs/0-main-<k>/result`: `main <name> <sha> tree <tree>`, the check's lines, `failed: main check: <…>` | `base` red: the repository's worker launches held but the fix's; the note on the breaking job's issue when it is open, else the owner's batch released | none: no member ran |
 | abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/exit` that is a regular file holding a number (7.2), whatever `out.md` holds: an empty or partial `out.md` of a member killed mid-run is never read; a run launched before the mark (its `argv` without the `sh -c` line) by no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`; for a worker, 7.6 steps 1 and 2 (`fetched <sha>`, and `kept refs/swarm-runs/<n>-worker-<k>` when it has commits; a fetch that fails with git's error is recorded, `fetch failed: <error>`, and is the pass's error, retried at the next pass as a worker run's is; a clone that reaches outside itself or holds no branch, or a second failed fetch in a row, keeps nothing, with `⚠ #<n> worker run <k>: abandoned; commits not kept (<reason>)` on stderr, and the run is collected); then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 | none: no stop, the role relaunched |
 | ended | — | a pass finds a run not its own with `started`, no end line, no container by the run's name and a `<run>/io/exit` that is a regular file holding a number (a run launched before the mark: a `<run>/io/out.md` that is a regular file): its member finished after the `apply` that started it died, whose `docker run` took the streams with it | `ended <time>`, with the status `exit` holds read as `docker run`'s (125–127 `fault: exit <code>`, any other non-zero `failed: exit <code>`), then the collection of 7.6 from `out.md`: no `cost` line, and a provider's fault the lost standard output reported is not seen | as the run's collection (posted, blocked, failed, stale or discarded) | as the run's collection |
 | orphan over time | — | a pass finds a container by the run's name, the run not its own, `started` more than `timeout` ago | `docker stop --time 30 <name>` sent; then abandoned as above, whatever `out.md` holds | as abandoned | as abandoned |
@@ -4424,7 +4432,7 @@ machine's, as the mirrors are: a swarm moved to another machine takes
 | `slices/<s>/slice.md` | slice s's item under the plan's `## Steps`, whole (its numbered line and the lines under it to the next slice line or the section's end, 7.5, the slices; for the one slice of a plan without slice lines, the whole `## Steps` section), then, after an empty line, its section of `builder.md`: the lines from the first heading `## Slice <s>`, alone or followed by a character that is not a digit, to the next line beginning `## `, each outside a fenced block as the slice lines are; the step alone when there is no builder plan or it has no section for s. Empty lines at either end of each part are dropped, and a `\r` before a line's end, as the plan's other reads drop it | with `plan.md`, and again whenever `builder.md` is replaced, for each slice the plan declares (none for a job with no plan, the fast lane); the directory of a slice a new plan no longer declares is left as it is | the worker (its slice), the reviewers (the current pull request's), the architect |
 | `slices/<s>/kept` | one line, `<n>-worker-<k> <sha>`: the slice's newest worker run, by its end, whose commits Daisy holds and may be built on, and the commit fetched from it; absent while no run of the slice has one | at the collection of each worker run on slice s whose fetched commit is past its `start` (7.6, step 1), whatever its outcome: pushed (the commit then the branch's), failed, blocked, a question, a fault or abandoned (its run ref kept, 7.6 step 2); never for commits that failed the secret check or changed a protected path, which no run builds on (their ref stays for the maintainer, as now): step 2 makes step 3's two checks again before it writes `kept`, so the commits of a run that ended before step 3 (blocked, a question, a fault, abandoned, or failed earlier) are checked too, and a hit leaves `kept` as it was, the run's own failure, if any, unchanged | the worker's launch, for its start (The start, below); the worker and the architect, in `# Job` |
 | `slices/<s>/rounds/<r>.md` | review round r of the slice's pull request, in the form below: its head, its reviews' findings, and the changes since the round before. `<r>` counts the slice's completed rounds from 1, in the order they completed (a round completes with the first review after which the pair is complete on it, section 6: the adversary's request for changes, or the review that gives it both roles), over the life of the slice's pull requests (a plan revision does not start it again, as it starts the Task text's `This is round <r>`, 7.4, nor does a new pull request on the slice's branch after one closed), so no file is rewritten | at the collection of the review that completes the round, on the head as it stands (section 6: the adversary's request for changes, or the sympathetic reviewer's review after the adversary approved), whose collection makes T9, T10 or T11 (section 5); the round's reviews are written to `texts/` with it and not before, so that a reviewer never finds its pair's review of the round it reviews (a review whose round never completes: the `texts/` row) | the worker (the latest), the reviewers (those before the current round; R6's later rounds review the changes since the last from here), the architect (every round) |
-| `checks/<sha>.log` | for a head `<sha>` whose check failed (it exited non-zero or timed out, its dependency step failed, or its test services file was refused, 7.6, step 4): the `# Check` line (7.3), then, after an empty line, the whole output as the step wrote it, `<run>/check.out`, `<run>/deps.out` for the dependency step's failure, or the refusal's reason | at the collection of the worker run whose check it is, after step 4, once the whole output has passed the secret check (a hit writes none, and is the failure 7.6 names); from R3 (7.9, built at Step R3-7), of a classified failure run again the rerun's alone, and none for a run that failed *check environment*, which no worker or reviewer sees | the worker, the reviewers and the architect, by the pointer in `# Job` |
+| `checks/<sha>.log` | for a head `<sha>` whose check failed (it exited non-zero or timed out, its dependency step failed, or its test services file was refused, 7.6, step 4): the `# Check` line (7.3), then, after an empty line, the whole output as the step wrote it, `<run>/check.out`, `<run>/deps.out` for the dependency step's failure, or the refusal's reason | at the collection of the worker run whose check it is, after step 4 (*R2, specified ahead of its build*, 12.1, rule 3 and The red main: also at the collection of a merge check that failed, its `# Check` line naming the merge, and of a main check that failed, in the workspace of the breaking job when it is open), once the whole output has passed the secret check (a hit writes none, and is the failure 7.6 names); from R3 (7.9, built at Step R3-7), of a classified failure run again the rerun's alone, and none for a run that failed *check environment*, which no worker or reviewer sees | the worker, the reviewers and the architect, by the pointer in `# Job` |
 | `texts/<n>-<role>-<k>.md` | each member text Daisy posts for the job, on the issue or one of its pull requests, whole, as Daisy would post it uncut: the run's `out.md` (an answer with the `ANSWER:` Daisy adds, 7.5), then what Daisy writes after it (a worker's check block) | at the collection that posts it, once its secret check has passed and before its post; a review's with its round, above, and a review whose round can no longer complete (before its pair's other review of that head was collected, the pull request's head moved, the pull request was reopened by an answer without a commit or the maintainer's comment, section 6, or it was closed or merged) at the first collection on the issue after that, whatever its role, but for a fault's or an abandoned run's, which post nothing, read from its run's `out.md` as its collection posted it, since no review can then complete its round; a job closed first keeps such a review in its run's `out.md` alone, and a collection writes none whose `out.md` is gone (its run pruned, or collected on another machine), which only a replay takes from its post (Rollout, below) | every role: a member text a prompt shows is read from here, never from its post (The prompt, below); Daisy's own reads of a text past its first lines (7.5) |
 | `built` | nothing: an empty file, whose presence says the workspace is built, its job's runs replayed (Rollout, below) | by the replay alone, last, once every file it writes is written and the issue blocked when its plan is taken cut, so that a replay interrupted is made again whole at the next pass; for a new issue, by its replay over no run before its first launch | `apply`'s pass, which replays a job without it; `swarm merge`, which refuses a job without it, or without its `plan.md`, whose plan the replay would take cut (Rollout; Daisy's own reads); `status` and the verbs that read the workspace, which build it in memory without it |
 
@@ -5607,10 +5615,10 @@ inform it and ask it to consider breaking up the work."
 3. **Slots per role.** A persona's, or a fallback's, `slots` names the
    slots of its provider it may take; `status` shows each role's queue
    and names the bottleneck.
-4. **Pacing.** A credential whose provider declares a token `budget` is
-   not given to a launch while the tokens of its runs started in the
-   last day, or the last week, have reached it; the money `budget`
-   stays shown and not enforced.
+4. **Pacing.** A credential whose provider declares `tokens` in `keys`
+   is not given to a launch while the tokens of its runs started in the
+   last 24 hours have reached `per_day`, or those of the last 7 days
+   `per_week`; the money `budget` stays shown and not enforced.
 5. **The deadline.** A member is told its deadline; at 80% of its
    `timeout` Daisy writes `/job/io/deadline`, asking it to write its
    output now or propose how to split the work; a run stopped at its
@@ -5684,7 +5692,8 @@ running, it is left, unless its deadline has passed, when Daisy sends
 `<run>/stderr`, and is collected as any (7.6), its `cost` line and its
 provider's fault read from that stdout; gone with none, abandoned (7.7).
 The process holding a run, its launcher or the one that found it, arms
-a timer at its deadline and at 80% of its `timeout` (rule 5), so a
+a timer at its deadline, which does what the collection does then (the
+stop and `timeout <time>`), and at 80% of its `timeout` (rule 5), so a
 deadline is kept to the second, not to the pass. A run launched before
 the build (no `deadline` line) is collected as now: *ended*, its stdout
 lost, or *orphan over time*. So a finished run is collected at the
@@ -6430,7 +6439,12 @@ forge's order kept and its combined state not read: the merge step and
 `swarm merge` judge the contexts (section 12, T26). **`RequiresChecks`**
 is whether a branch's protection requires status checks before a merge,
 read only when no check has reported on the head, to tell a head whose
-checks have not started from one in a repository that has none.
+checks have not started from one in a repository that has none. *R2, specified ahead of its build*
+(12.1, folding in the merge step's read of required contexts): it returns
+the required contexts too, `RequiresChecks(repo, branch) (required bool,
+contexts []string, err error)`, Gitea's `status_check_contexts`, and is
+read for every head the merge step or `swarm merge` is about to merge,
+not only when no check has reported; GitHub's is not mapped, as now.
 **`Pull.Mergeable`** is the forge's own reading: Gitea's `mergeable` is a
 boolean computed by its pull request checker, `false` while the checker
 recomputes a pull request after a push to its base as well as when the
@@ -7784,7 +7798,9 @@ independent, and both hold an issue's launches. **With `--type
 maintainer's intervention, on issue `<n>` or, for the whole swarm, on
 none (The interventions' record, below). *R4, specified ahead of its build* (7.10, rule 1): the bare
 `resume` also removes `<state>/capacity`, so every model is tried
-again at the next pass.
+again at the next pass. *R2, specified ahead of its build* (12.1, The red main): it also
+removes `<state>/main-unchecked`, so a main check runs again on the
+commits it names.
 
 ### daisy swarm restart
 
@@ -8379,9 +8395,10 @@ the current Daisy's.
   folding in the merge step's read of required contexts): `RequiresChecks`
   also returns `<base>`'s required contexts (Gitea's
   `status_check_contexts`, each a glob), and a required context that has
-  not reported on the head holds the merge as a pending one does, `…
+  not reported on the head holds the merge as a pending one does (a failed context is T26
+  first), `…
   waits: <context> has not reported on <short sha>, and <base> requires
-  it; …`, whatever the others report. `swarm merge`
+  it; …`. `swarm merge`
   sends a failed head back as the step does (exit 0) and refuses a
   waiting one, `Error: swarm: #<n>: merge of pull <name>#<m> waits:
   <why>; run merge again when they have passed; nothing changed`: the
@@ -8462,7 +8479,7 @@ the current Daisy's.
 *R2, specified ahead of its build* (Step 12 of the plan implementing
 the 2026-11-19 swarm roadmap; decision
 [169](swarm/decisions/0169-integration-control.md)), to be built at
-Step 13 of that plan. Sections 1, 2, 5, 6, 7.4, 7.7, 7.9, 11 and 12 mark
+Step 13 of that plan. Sections 1, 2, 5, 6, 7.3, 7.4, 7.7, 7.8, 7.9, 10, 11 and 12 mark
 where R2 changes them, each mark naming this section; until the build,
 each reads as it did before.
 
@@ -8577,11 +8594,13 @@ merge step's approved head). Its place is the time its pair completed
 on that head (the later approving review's submission), the older
 first, ties by issue number. The queue is read from the forge and
 `<state>/runs` at each pass; no file holds it. At each pass, for each
-repository, after the collections and before the merge step (section
-11, step 6), Daisy takes the first queued head with no passed merge
-check on `base` as it is now and, when no merge check of that repository
-is running and its `base` is green (rule 4), starts one: it fetches the
-mirror, merges the head into `refs/heads/<base>` there with
+repository with a check that the merge step merged nothing into (a merge
+leaves the mirror behind `base` until the next pass's fetch), after that
+step (section 11, step 6) and the main check's start (rule 4, below),
+Daisy takes the first queued head with no passed merge check on `base`
+as it is now and, when no merge check of that repository is running and
+its `base` is green (rule 4), starts one: it fetches the mirror (once a
+pass, as the pass does), merges the head into `refs/heads/<base>` there with
 `git merge-tree --write-tree` (section 12's conflict test), and
   - on a conflict sends the head back at once, T25 with the files named
     (the merge step's direction, section 12), whichever the merge gate;
@@ -8596,6 +8615,11 @@ mirror, merges the head into `refs/heads/<base>` there with
     `max_members` as a check does and holds the issue under section
     6's rule 2.
 
+A merge check and a main check are Daisy's own launches: neither starts
+while the swarm is paused (nor does the merge step, section 11, pause) or
+when `max_members` containers are running (section 6, rule 4), and one
+started counts as a launch of the pass.
+
 A merge check **passed on `base` as it is now** is one whose run's
 result names the approved head and the commit `refs/heads/<base>` is at
 in the mirror as the pass fetched it, and ends `passed`; when `base`
@@ -8607,9 +8631,12 @@ does today, and `status` still lists it under `no check`.
 A **passed** head is merged: with the merge gate off, by the merge step,
 the first passed head of each repository at each pass, after the forge's
 checks (section 12, The checks), a merge into a repository ending that
-repository's merges for the pass as now; with it on, by the maintainer's
-`swarm merge`, which refuses a head without a passed merge check on
-`base` as it is now as it refuses one whose checks are pending,
+repository's merges for the pass (the other heads' checks are stale
+then; the step today goes on to try the next head of the repository,
+which is changed here); with it on, by the maintainer's `swarm merge`,
+which reads `base` as the mirror's last fetch left it and refuses a head
+without a passed merge check on `base` as it is now as it refuses one
+whose checks are pending,
 `Error: swarm: #<n>: merge of pull <name>#<m> waits: its merge check on
 <base> at <short sha> has not passed (queued at <p>, or running); run
 merge again when it has; nothing changed`. With the gate on a passed
@@ -8649,10 +8676,12 @@ naming the repository, the commit and its tree), its container
 `daisy.swarm=<owner>/<repo>#0/main`, the check run as a merge check's,
 7.9's classification and one rerun included. A main check that fails
 makes `base` **red** until a commit of `base` is green again. One that
-fails in the environment after its rerun leaves `base` **unchecked**:
-`status` lists `main unchecked <name>`, notify tells it, the queue
-checks no head of that repository, and no main check runs again on that
-commit until `swarm resume`.
+fails in the environment after its rerun leaves `base` **unchecked**: it
+writes `<state>/main-unchecked`, a line `<name> <sha>`, and the bare
+`swarm resume` removes the file (section 11, pause and resume); while a
+line names the repository's `base` commit, `status` lists `main unchecked <name>`,
+notify tells it, the queue checks no head of that repository and no main
+check runs again on that commit.
 
 While `base` is red, in that repository: no worker launches (section 6,
 rule 1), but on the fix's issue; the queue starts no merge check, but
@@ -8667,13 +8696,16 @@ job is open, it is **the fix's**: Daisy posts, once per red commit,
 `Comment(n, <reconciler note>)` on its issue, `<base> of <name> is red
 at <short sha>, after the merge of <pull link> (slice <s>): <check>
 fails; its output is /job/memory/checks/<sha>.log. This job's next
-worker run fixes it first.`, with the maintainer's mention; the note is
+worker run fixes it first.` (the main check's collection writes that log
+to the job's workspace, 7.8), with the maintainer's mention; the note is
 counted, so the stage's role answers it, and the worker's next run on
 the issue is told in its Task text (7.4) that `base` is red since its
 job's merge and to make its branch's first commit the fix. When the job
 is closed, or no merge is a swarm worker's (a push by hand), the fix is
 **the owner's next proposal**: the batch prompt gains `# Main` (7.3),
-each red repository with its breaking merges and the log's path, the
+each red repository with its breaking merges and the check's output,
+written before the launch to `<run>/io/main/<name>-<short sha>.log` and
+named by its `/job/io` path, the
 owner's Task text asks for one proposal per red repository first, with
 a `Fixes: <name>` line after its `Class:` line, the issue whose body
 the swarm created with that line being the fix's; a red `base` releases
