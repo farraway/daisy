@@ -7,6 +7,12 @@
 
 set -u
 
+# One filter, as `daisy test` takes one: a second word would be dropped.
+if [ "$#" -gt 1 ]; then
+    echo "Usage: tests/run.sh [name-substring]: one filter, not $# arguments" >&2
+    exit 2
+fi
+
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$TESTS_DIR/lib/fixture.sh"
 source "$TESTS_DIR/lib/assert.sh"

@@ -1,8 +1,11 @@
 package main_test
 
 import (
+	"bytes"
+	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -252,5 +255,20 @@ func TestCommandReferenceIsAgentsMd(t *testing.T) {
 		if strings.HasPrefix(line, "| ") && strings.Count(strings.ReplaceAll(line, `\|`, ""), "|") != 4 {
 			t.Errorf("row splits: %q", line)
 		}
+	}
+}
+
+// tests/run.sh takes one filter, as `daisy test` does: run directly with
+// two arguments, it is usage on stderr, exit 2, before any case runs
+// (L418).
+func TestRunShTakesOneFilter(t *testing.T) {
+	cmd := exec.Command("tests/run.sh", "a", "b")
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + t.TempDir()}
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	err := cmd.Run()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 2 || out.Len() != 0 || errb.String() != "Usage: tests/run.sh [name-substring]: one filter, not 2 arguments\n" {
+		t.Errorf("tests/run.sh a b: %v\nstdout %q\nstderr %q", err, out.String(), errb.String())
 	}
 }
