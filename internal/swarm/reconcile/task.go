@@ -233,6 +233,7 @@ func (j *Job) task() string {
 		switch {
 		case j.Label == forge.ChangesRequested:
 			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge %s. Address each on the branch checked out in /job/work/%s (swarm/%d-%d), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`, cur.Repo, cur.Number, j.Cfg.Base, repo, j.N, s)
+			para(`A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, a test the plan names missing or failing, a defect in the changed code a realistic user or input meets, a fault the revision introduced) is answered, not fixed: say which it is not, and why. A non-blocking finding needs no change; Daisy files it for the owner.`)
 		case planned:
 			plan, _ := j.PlanText()
 			add(`Implement slice %d of the accepted plan for issue #%d (it declares %d) in %s/%s, on the branch checked out in /job/work/%s (swarm/%d-%d). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.`, s, j.N, max(1, len(Slices(plan))), owner(j.Cfg), repo, repo, j.N, s)
@@ -258,16 +259,23 @@ func (j *Job) task() string {
 		s := sliceOf(cur, j.N)
 		r, prev := j.round(cur)
 		reminder = verdictReminder
-		if delta := r > 1 && prev != "" && prev != cur.HeadSHA; delta {
+		delta := r > 1 && prev != "" && prev != cur.HeadSHA
+		if delta {
 			// A delta review (Step E2): the previous round's findings and
 			// what changed since the head the reviewer last reviewed, its
 			// own, the full change readable but not the task.
-			add(`This is round %d of pull request %s#%d, slice %d of issue #%d: review what changed since %s, the head you last reviewed. The change to review is "git diff --name-only -z %s...HEAD | xargs -0 -r git diff %s..HEAD --" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of %s brought in is not this pull request's change. The whole change, "git diff %s...HEAD", is there to read where the revision needs it; reviewing it again is not the task. First, for each blocking finding of the previous round, %s, and of your review of %s, say whether it is closed, or answered with a reason you accept. Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims. Raise a new blocking finding only on code changed since %s; a finding on code unchanged since then is non-blocking.`,
-				r, cur.Repo, cur.Number, s, j.N, prev, j.Cfg.Base, prev, cur.Repo, j.Cfg.Base, j.Cfg.Base, j.previousFindings(), prev, prev)
+			add(`This is round %d of pull request %s#%d, slice %d of issue #%d: review what changed since %s, the head you last reviewed. The change to review is "git diff --name-only -z %s...HEAD | xargs -0 -r git diff %s..HEAD --" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of %s brought in is not this pull request's change. The whole change, "git diff %s...HEAD", is there to read where the revision needs it; reviewing it again is not the task. First, for each blocking finding of the previous round, %s, and of your review of %s, say whether it is closed, or answered with a reason you accept. Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims.`,
+				r, cur.Repo, cur.Number, s, j.N, prev, j.Cfg.Base, prev, cur.Repo, j.Cfg.Base, j.Cfg.Base, j.previousFindings(), prev)
 		} else {
 			add(`Review pull request %s#%d, slice %d of issue #%d. The change is "git diff %s...HEAD" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding.`, cur.Repo, cur.Number, s, j.N, j.Cfg.Base, cur.Repo)
 		}
 		para(j.blockingSentence(s))
+		switch { // a later round narrows the list (section 7.11, rule 5)
+		case delta:
+			para(fmt.Sprintf(`A blocking finding of the previous round or of your last review is closed when its own reproduction now passes on this head. From this round, only three kinds of finding block: an earlier blocking finding not closed, a fault this revision introduced, and a claim of slice %d that the head does not show; any other new finding, a new variant of a closed one among them, is non-blocking. A non-blocking finding the previous round or your last review already raised stands as written there: do not raise it again.`, s))
+		case r > 1 && prev == "": // the reviewer's first review, in a later round
+			para(fmt.Sprintf(`This is round %d of the pull request: a new finding blocks only when it is a claim of slice %d that the head does not show, or a fault the latest revision introduced; any other is non-blocking.`, r, s))
+		}
 		if read := j.sliceSentence(); read != "" {
 			add("%s", read)
 		}

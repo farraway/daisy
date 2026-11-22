@@ -15,7 +15,8 @@ import (
 // since the head it last reviewed, its own, not the full range, which
 // stays readable; a reviewer whose first review falls in round 2 (the
 // sympathetic reviewer, after the adversary alone sent round 1 back)
-// has no head of its own to start from, and reviews the whole change.
+// has no head of its own to start from, and reviews the
+// whole change, bound by the round (section 7.11, rule 5).
 func TestSwarmDeltaReview(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -43,7 +44,8 @@ func TestSwarmDeltaReview(t *testing.T) {
 		t.Error("the round's file the Task names is not in the job's workspace")
 	}
 	sym := a.file("1-sympathetic-1", "io/system.md")
-	if !strings.Contains(sym, full) || strings.Contains(sym, "This is round") {
+	late := `This is round 2 of the pull request: a new finding blocks only when it is a claim of slice 1`
+	if !strings.Contains(sym, full) || !strings.Contains(sym, late) || strings.Contains(sym, "This is round 2 of pull request") {
 		t.Errorf("the sympathetic reviewer's first review, in round 2:\n%s", sym)
 	}
 }

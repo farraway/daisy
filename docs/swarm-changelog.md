@@ -1338,3 +1338,12 @@ they write.
   `# Output` block defers to the list and its template shows a blocking
   finding's kind and reproduction. Sections 4, 6, 7.4 and 7.11. Decision
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-22, Step R6-A of the plan implementing the 2026-11-19 swarm
+  roadmap, convergence (rule 5 of section 7.11): after the list of what
+  blocks, a delta round's Task says when a blocking finding is closed and
+  that only an unclosed one, the revision's fault or a claim the head
+  fails blocks, in place of its sentence on code changed since the
+  previous head; a reviewer whose first review falls in a later round is
+  bound by the round; the worker answers, rather than fixes, a blocking
+  finding that is none of the kinds. Sections 6, 7.4 and 7.11. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.

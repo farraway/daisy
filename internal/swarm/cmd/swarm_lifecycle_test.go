@@ -308,8 +308,8 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("review-1-in-progress written other than once in round 2: %v", a.forge.Events(ref))
 	}
 	// Its first review, in round 2: no head of its own to start from, so
-	// the whole change (Step E2).
-	if sys := a.file("1-sympathetic-1", "io/system.md"); !strings.Contains(sys, `The change is "git diff main...HEAD"`) || strings.Contains(sys, "This is round") {
+	// the whole change (Step E2), bound by the round (section 7.11, rule 5).
+	if sys := a.file("1-sympathetic-1", "io/system.md"); !strings.Contains(sys, `The change is "git diff main...HEAD"`) || !strings.Contains(sys, "This is round 2 of the pull request: a new finding blocks only") || strings.Contains(sys, "This is round 2 of pull request") {
 		t.Errorf("the sympathetic reviewer's Task:\n%s", sys)
 	}
 	if p := a.file("1-sympathetic-1", "io/prompt.md"); strings.Contains(p, "The v2 head reads well") {

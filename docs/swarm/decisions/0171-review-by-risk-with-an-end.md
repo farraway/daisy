@@ -372,6 +372,20 @@ note's headings. The text says that Daisy files the non-blocking
 findings, which Step R6-B builds. Tests: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`.
 
+**As built: convergence (Step R6-A of the plan implementing the
+2026-11-19 swarm roadmap).** The convergence sentence, and the sentence
+of a reviewer whose first review falls in a later round, are the
+paragraph after the list of what blocks, not the row's last sentence
+(the delta's) nor the round's addition at the end: each narrows the
+list, and read before it the list of four would widen it again. "That
+round" and "your review" read "the previous round" and "your last
+review", away from the sentence they pointed to. The rounds on an
+unchanged head keep their sentences, at the end. The worker's sentence
+is a paragraph of its own after its `review-3-changes-requested` text.
+Tests: `TestTaskTextConvergenceSentence`,
+`TestTaskTextLateFirstReviewIsBoundByTheRound`,
+`TestTaskTextWorkerAnswersAFindingThatDoesNotBlock`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

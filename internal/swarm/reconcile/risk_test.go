@@ -172,3 +172,80 @@ func TestTaskTextBlockingSentenceWithoutTrustBoundaries(t *testing.T) {
 	}
 	inSpec(t, defaultBoundaries)
 }
+
+// convergence is the convergence sentence of slice s (section 7.11, rule 5).
+func convergence(s string) string {
+	return `A blocking finding of the previous round or of your last review is closed when its own reproduction now passes on this head. ` +
+		`From this round, only three kinds of finding block: an earlier blocking finding not closed, a fault this revision introduced, and a claim of slice ` + s + ` that the head does not show; any other new finding, a new variant of a closed one among them, is non-blocking. ` +
+		`A non-blocking finding the previous round or your last review already raised stands as written there: do not raise it again.`
+}
+
+// lateFirst is the text of a reviewer whose first review falls in round r.
+func lateFirst(r, s string) string {
+	return `This is round ` + r + ` of the pull request: a new finding blocks only when it is a claim of slice ` + s + ` that the head does not show, or a fault the latest revision introduced; any other is non-blocking.`
+}
+
+// The convergence sentence (Step R6-A of the plan implementing the
+// 2026-11-19 swarm roadmap; section 7.11, rule 5): a delta round's Task
+// narrows the list of what blocks, in the paragraph after it, for both
+// reviewers, in place of the sentence on code changed since the previous
+// head; round 1 and the rounds on an unchanged head are not narrowed by
+// it, and keep their own sentences.
+func TestTaskTextConvergenceSentence(t *testing.T) {
+	for _, role := range []string{"adversary", "sympathetic"} {
+		sys, _ := Render(delta(t, role, RepoNote{Name: "lib", Text: boundaries}))
+		task := taskOf(t, sys)
+		paragraphs(t, role, task, blockingList("1", declaredBoundaries), convergence("1"))
+		if strings.Index(task, "Read slice 1, ") < strings.Index(task, convergence("1")) {
+			t.Errorf("%s: the slice sentence comes before the convergence sentence:\n%s", role, task)
+		}
+		has(t, role, task, nil, "only on code changed since", "on code unchanged", "This is round 2 of the pull request:")
+		one := memoryJob(t, role, "swarm:review-0-ready")
+		one.Pull.Reviews = nil
+		for name, j := range map[string]*Job{"round 1": one, "an unchanged head's round": sameHead(t, role)} {
+			sys, _ := Render(j)
+			has(t, role+", "+name, taskOf(t, sys), nil, "only three kinds of finding block", "a new finding blocks only when")
+		}
+		sys, _ = Render(sameHead(t, role))
+		has(t, role+", an unchanged head's round", taskOf(t, sys), []string{"This is round 2, on the head you reviewed before (aaa): the maintainer commented", "raise a new blocking finding only where the comment shows one."})
+	}
+	inSpec(t, convergence("<s>"))
+}
+
+// A reviewer whose first review falls in a later round (the sympathetic
+// reviewer's, decision 163) reviews the whole change and is bound by the
+// round (section 7.11, rule 5): its Task says so in the paragraph after
+// the list of what blocks; in round 1, and with a review of its own, it
+// has no such sentence.
+func TestTaskTextLateFirstReviewIsBoundByTheRound(t *testing.T) {
+	j := delta(t, "sympathetic", RepoNote{Name: "lib", Text: boundaries})
+	j.Pull.Reviews = j.Pull.Reviews[:1] // the adversary's, on aaa
+	sys, _ := Render(j)
+	task := taskOf(t, sys)
+	has(t, "the late first review", task, []string{`Review pull request lib#1, slice 1 of issue #1. The change is "git diff main...HEAD"`}, "only three kinds of finding block", "This is round 2 of pull request lib#1")
+	paragraphs(t, "the late first review", task, blockingList("1", declaredBoundaries), lateFirst("2", "1"))
+	one := delta(t, "sympathetic")
+	one.Pull.Reviews = nil
+	for name, j := range map[string]*Job{"round 1": one, "a review of its own": delta(t, "sympathetic")} {
+		sys, _ := Render(j)
+		has(t, name, taskOf(t, sys), nil, "a new finding blocks only when")
+	}
+	inSpec(t, lateFirst("<r>", "<s>"))
+}
+
+// The worker answers, rather than fixes, a blocking finding that is none
+// of the kinds that block (section 7.11, rule 5): its Task on changes
+// requested says so, a paragraph of its own after the row's text; its
+// Task on a slice to build does not.
+func TestTaskTextWorkerAnswersAFindingThatDoesNotBlock(t *testing.T) {
+	const want = `A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, a test the plan names missing or failing, a defect in the changed code a realistic user or input meets, a fault the revision introduced) is answered, not fixed: say which it is not, and why. A non-blocking finding needs no change; Daisy files it for the owner.`
+	sys, _ := Render(memoryJob(t, "worker", "swarm:review-3-changes-requested"))
+	task := taskOf(t, sys)
+	paragraphs(t, "changes requested", task, want)
+	if i := strings.Index(task, want); i < strings.Index(task, "the reviewers judge it against the unchanged head.") || i > strings.Index(task, "Read slice 1, ") {
+		t.Errorf("the sentence is not between the row's text and the slice sentence:\n%s", task)
+	}
+	sys, _ = Render(memoryJob(t, "worker", "swarm:plan-1-accepted"))
+	has(t, "a slice to build", taskOf(t, sys), nil, "is answered, not fixed")
+	inSpec(t, want)
+}
