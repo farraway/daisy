@@ -1049,7 +1049,7 @@ this change before it is merged.
 ```
 
 *R6, specified ahead of its build* (7.11, rules 1 to 5, and the token
-rules of decision 171's open question on them): the adversary's default
+rules the maintainer ruled in on 2026-11-22): the adversary's default
 becomes the text below. Its first bullet runs only what the check
 cannot show, its third checks the plan's probes and leaves a probe of
 its own non-blocking, its fourth reads "realistic" from the trust
@@ -1136,7 +1136,7 @@ maintainer will, assuming it is meant to work.
 ```
 
 *R6, specified ahead of its build* (7.11, rules 1 to 5, and the token
-rules of decision 171's open question on them): the sympathetic
+rules the maintainer ruled in on 2026-11-22): the sympathetic
 reviewer's default becomes the text below. Its fourth bullet reads the
 tests against the plan's probes and leaves running them to the
 adversary, and its sixth points to the Task's list:
@@ -1715,7 +1715,7 @@ nothing: their trigger is the maintainer's decision.
 
 *R2, specified ahead of its build* (12.1, rule 3): one transition is added, **T32**, `swarm:review-2-approved` to `swarm:review-3-changes-requested`, its row joining this table, and the explorer's, when it is built: the merge check of the approved head, the repository's check on the commit that merges it into `base` as it is now, fails, after 7.9's one rerun of a classified failure; Daisy's merge queue, under either gate, posts `Comment(m, <reconciler note naming the log>)` and relabels the issue; the worker merges `base`, fixes what fails, and the pair reviews the new head as any revision (T12, then T9 or T10); no block, each round counted towards the round limit (T11). A conflict the queue's merge finds is T25, sent back before the check, whichever the merge gate. A merge check that fails in the environment after its rerun is T17 from `swarm:review-2-approved`, which T17's row does not list as a from-stage until the build: the issue blocked, the stage kept, the note naming the reason, nothing posted on the pull request.
 
-*R6, specified ahead of its build* (7.11, rules 6 and 8): no transition is added or changed until the maintainer rules on the round limit's outcome (rule 8; decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md) gives the options), so T11 reads as above. A swarm pull request the forge reports merged, which T13 (but not by `swarm merge`, 7.11, Follow-ups), T14, T15 and a merge on the forge all lead to, has its non-blocking review findings filed as a follow-up issue as the issue's pull requests are listed (The pull requests on the issue, below), before the block's write that shows it merged.
+*R6, specified ahead of its build* (7.11, rules 6 and 8): one transition is added, its row joining this table, and the explorer's, when it is built (7.11, The round limit): the architect's `OVERRULED:` at the round limit returns the issue from the stage T11 gave it to `swarm:review-1-in-progress`, the head standing as the adversary's approval would; T11 itself is unchanged. A swarm pull request the forge reports merged, which T13, T14, T15 and a merge on the forge all lead to, has its non-blocking review findings filed as a follow-up issue as the issue's pull requests are listed (The pull requests on the issue, below), before the block's write that shows it merged, by `swarm merge`, under the maintainer's token, where the verb merged it (7.11, Follow-ups).
 
 The maintainer may also relabel any issue to any stage at any time; the
 next pass reads the new label and the role rule decides from there. That
@@ -6199,10 +6199,12 @@ held by a timer.
 *R6, specified ahead of its build* (Step R6-design of the plan
 implementing the 2026-11-19 swarm roadmap: R6 and the parts of R5 it
 needs; decision
-[171](swarm/decisions/0171-review-by-risk-with-an-end.md)), to be built
-once the maintainer has ruled on its open questions. Sections 4, 5, 6,
-7.3, 7.4, 7.5, 7.6, 11 and 12 mark where R6 changes them, each mark
-naming this section; until the build, each reads as it did before.
+[171](swarm/decisions/0171-review-by-risk-with-an-end.md)), its open
+questions ruled on by the maintainer on 2026-11-22 (The rulings, below)
+and built a part at a time, each marked where it is built. Sections 4,
+5, 6, 7.3, 7.4, 7.5, 7.6, 11 and 12 mark where R6 changes them, each
+mark naming this section; until a part's build, each reads as it did
+before.
 
 **The rulings.** The maintainer's, of 2026-11-22: "I'm inclined to
 agree with your findings but I don't want to start making brittle
@@ -6216,8 +6218,13 @@ a new variant of a closed finding is non-blocking unless it breaks a
 claim; non-blocking findings are collected into a follow-up issue the
 owner triages; the escaped-defect side is measured beside the cost, by
 configuration; the round limit's outcome is his ruling; and the
-worker's Task names which gates are Daisy's to run. The evidence, the
-live swarm's adversary reviews, is decision 171's.
+worker's Task names which gates are Daisy's to run. His rulings on the
+design's questions, the same day: at the round limit the architect
+judges (rule 8); the token rules the live swarm's reviewers run under go
+into the default reviewer prompts (The defaults, below); the default
+trust boundaries stand as written; and `swarm merge` files the follow-up
+under the maintainer's token (Follow-ups, below). The evidence, the live
+swarm's adversary reviews, is decision 171's.
 
 **The rules.** Nine, each quoted in the same words by decision
 [171](swarm/decisions/0171-review-by-risk-with-an-end.md):
@@ -6270,10 +6277,13 @@ live swarm's adversary reviews, is decision 171's.
    later fixed, and shows both by configuration: the escapes against
    the reviewer configurations that approved the merged head, the
    follow-up items against those that raised them.
-8. **The round limit.** Its outcome when every outstanding blocking
-   finding is non-blocking by rules 1 and 5 is the maintainer's ruling,
-   asked at this design's checkpoint; until he rules, T11 stands as
-   section 5 gives it.
+8. **The round limit.** The first time a pull request reaches the round
+   limit, the architect judges each outstanding blocking finding against
+   rules 1 and 5. When none qualifies it writes `OVERRULED:`; the
+   sympathetic reviewer then reviews the head, its approval goes to the
+   merge gate, and the overruled findings go into the follow-up. When
+   one qualifies, the architect revises the plan. The second time, the
+   issue is blocked. `max_rounds` is unchanged.
 9. **Daisy's gates.** The worker's Task names the gates that are
    Daisy's to run (the declared check, in the repository's check
    environment with its test services, on the head the worker pushes,
@@ -6389,22 +6399,20 @@ requests on the issue), for each swarm pull request the forge reports
 merged whose item the issue's block does not yet show `merged`, before
 the block's write that shows it, so a pass whose filing fails files it
 at the next, and a pull request the block showed merged before the
-build files nothing. A merge whose issue is closed
-before any listing shows it files none either: no pass's listing reads
-a closed issue, and the listing `swarm merge` makes of the issue's
-pull requests (section 11) runs under the maintainer's token alone,
-which Daisy's filing does not use, so only the merge step, whose reads
-are Daisy's own, files for an issue it closes (T15). A merge by `swarm
-merge` files none, the issue left open (T13) or not: its listing
-writes the block showing the pull request merged before any pass reads
-the issue, so no pass finds it not yet shown.
-*By whom:* Daisy, as the reconciler, with no member's run: the findings
+build files nothing. A merge by `swarm merge`, the issue left open (T13) or closed, is filed
+by the verb, at the listing it makes of the issue's pull requests
+(section 11), before the block's write that shows it merged, under the
+maintainer's token, the one token the verb holds, so the follow-up is
+the maintainer's issue (the maintainer's ruling of 2026-11-22). A merge
+whose issue is closed by hand before any listing shows it files none:
+no pass's listing reads a closed issue.
+*By whom:* Daisy, as the reconciler or as `swarm merge`, with no member's run: the findings
 are read from the pull request's reviews by the swarm's account
 (`Reviews(m)`, each a marked text, section 6), every round's, the
 approving ones included, never from a prompt. *What:* each line
-beginning `[non-blocking]` of those reviews, and, of a pull request the
-maintainer's ruling on rule 8 lets merge with blocking findings
-outstanding, those too, marked `outstanding at the round limit`.
+beginning `[non-blocking]` of those reviews, and, of a pull request whose
+blocking findings the architect overruled at the round limit (rule 8),
+those too, marked `outstanding at the round limit`.
 *Deduplicated* three ways: at the source, the convergence sentence asks
 a later round not to raise again a non-blocking finding the previous
 round or its own last review raised; at the filing, a finding whose text, whitespace and case aside
@@ -6488,11 +6496,23 @@ first-parent log of `base` for the hand commits. What no line names is
 not established: a defect fixed by a job that does not say so, or
 reverted by hand in a commit that is not a revert.
 
-**The round limit** (rule 8). T11 is unchanged until the maintainer
-rules: the first time, the issue returns to the architect, which
-revises the plan from the reviews; the second, it is blocked. The
-options and the recommendation (the architect judges the outstanding
-findings against rules 1 and 5 first) are decision 171's.
+**The round limit** (rule 8; the maintainer's ruling of 2026-11-22,
+option (b) of decision 171). The first time, the open-slice sentence
+(7.4) asks the architect to judge each blocking finding of the last
+round against rules 1 and 5, the trust boundaries and the slice's
+unsupported setups with them. When none qualifies, the first line of
+its output is `OVERRULED: <why, finding by finding>`: Daisy posts it on
+the pull request, the head stands as the adversary's approval would,
+and the issue returns to `swarm:review-1-in-progress` (a transition the
+build adds), where the sympathetic reviewer reviews the head as after
+an approval. Its approval goes on as T9 does, to the merge gate; its
+request for changes is a round as any other. The overruled findings are
+filed in the follow-up, marked `outstanding at the round limit`. When
+one qualifies, the architect revises the plan from the reviews, as T11
+has it. The second time, the issue is blocked, as T11 has it, and
+`max_rounds` is unchanged. Until the build (Step R6-D of the plan
+implementing the 2026-11-19 swarm roadmap), T11 stands as section 5
+gives it.
 
 **Daisy's gates** (rule 9). Every worker text adds, after its check
 sentence (`Run "<check>" before you finish and quote its last result.`),
@@ -6511,7 +6531,7 @@ or service its own work needs and cannot reach; a gate is no longer one.
 reviewer's, the architect's and the worker's default prompts take the
 rules in their own words, each marked there, and the reviewers' take
 the token rules the live swarm's reviewers run under (roadmap R6(e),
-F47; an open question of decision 171): neither reviewer reruns the
+F47; the maintainer's ruling of 2026-11-22): neither reviewer reruns the
 check Daisy ran, the adversary runs the probes and the tests of the
 packages the change touches and stops once every claim and named test
 in its scope is checked, and the sympathetic reviewer reads and runs
@@ -9071,8 +9091,8 @@ the current Daisy's.
   finds a swarm pull request merged whose item the issue's pulls block
   does not yet show `merged`, it files the follow-up first: the non-blocking findings of the pull
   request's reviews, each once, `CreateIssue` with `swarm:follow-up`;
-  `swarm merge`, which holds only the maintainer's token, files none
-  (7.11, Follow-ups). The merge itself, its checks and its gates are
+  `swarm merge` files that of the pull request it merged, under the
+  maintainer's token (7.11, Follow-ups). The merge itself, its checks and its gates are
   unchanged.
 - **Two approvals are not evidence that the change is maintainable**: both
   reviewers are models, and the maintainer's reading at merge is the review

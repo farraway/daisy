@@ -1,6 +1,6 @@
 # 0171. Review by risk, with an end: a fixed list of what blocks, trust boundaries, agreed probes, convergence, follow-ups and the escaped-defect measure
 
-From Step R6-design of the plan implementing the 2026-11-19 swarm roadmap (R6, review by risk, with an end, and the parts of R5 it needs, 2026-11-22). Specified before its build: `docs/swarm.md` section 7.11, with the changes it makes marked in sections 4, 5, 6, 7.3, 7.4, 7.5, 7.6, 11 and 12; to be built once the maintainer has ruled on the open questions below. Amends decisions [15](0015-severity-per-finding.md) (what blocks is a fixed list), [63](0063-the-adversarys-fail-against-base-check-is-bounded.md) (the plan's probes beside the rollback), [144](0144-a-recurring-finding-asks-for-a-check.md) (a check finding reaches the owner as a follow-up), [156](0156-a-scorecard-per-merged-slice.md) (the scorecard's escaped-defect side) and [168](0168-a-delta-review.md) (from round 2, a claim the head fails blocks on any code, and nothing else new does).
+From Step R6-design of the plan implementing the 2026-11-19 swarm roadmap (R6, review by risk, with an end, and the parts of R5 it needs, 2026-11-22). Specified before its build: `docs/swarm.md` section 7.11, with the changes it makes marked in sections 4, 5, 6, 7.3, 7.4, 7.5, 7.6, 11 and 12; its open questions ruled on by the maintainer on 2026-11-22 (The rulings, below) and built a part at a time, as the As built notes at the end say. Amends decisions [15](0015-severity-per-finding.md) (what blocks is a fixed list), [63](0063-the-adversarys-fail-against-base-check-is-bounded.md) (the plan's probes beside the rollback), [144](0144-a-recurring-finding-asks-for-a-check.md) (a check finding reaches the owner as a follow-up), [156](0156-a-scorecard-per-merged-slice.md) (the scorecard's escaped-defect side) and [168](0168-a-delta-review.md) (from round 2, a claim the head fails blocks on any code, and nothing else new does).
 
 **The maintainer's direction of 2026-11-22**, on the analysis below: "I'm
 inclined to agree with your findings but I don't want to start making
@@ -95,10 +95,13 @@ runs that gate.
    later fixed, and shows both by configuration: the escapes against
    the reviewer configurations that approved the merged head, the
    follow-up items against those that raised them.
-8. **The round limit.** Its outcome when every outstanding blocking
-   finding is non-blocking by rules 1 and 5 is the maintainer's ruling,
-   asked at this design's checkpoint; until he rules, T11 stands as
-   section 5 gives it.
+8. **The round limit.** The first time a pull request reaches the round
+   limit, the architect judges each outstanding blocking finding against
+   rules 1 and 5. When none qualifies it writes `OVERRULED:`; the
+   sympathetic reviewer then reviews the head, its approval goes to the
+   merge gate, and the overruled findings go into the follow-up. When
+   one qualifies, the architect revises the plan. The second time, the
+   issue is blocked. `max_rounds` is unchanged.
 9. **Daisy's gates.** The worker's Task names the gates that are
    Daisy's to run (the declared check, in the repository's check
    environment with its test services, on the head the worker pushes,
@@ -232,12 +235,13 @@ spends a run's tokens on it; and the maintainer closing each follow-up
 (`Met:`'s way), which keeps him in a loop the direction aims to take him
 out of. The trigger is the issue's pulls block not yet showing the pull
 request merged, so the build files nothing for pull requests merged
-before it. A pull request merged by `swarm merge`, which holds only the
-maintainer's token, files nothing itself, and its own listing of the
-issue's pull requests writes the block showing the pull request merged
-before any pass reads the issue, so no pass files it either, whichever
-slice it is; nor is the follow-up of an issue closed by hand filed
-(open question 4). The eighteenth label is created, as the sixteenth was, by an
+before it. A pull request merged by `swarm merge` is filed by the verb,
+under the maintainer's token, the one it holds, before its own listing
+of the issue's pull requests writes the block showing the pull request
+merged (ruling 4); the alternative, the verb leaving the block's
+`merged` to the next pass for an issue it leaves open, files none for
+an issue it closes. The follow-up of an issue closed by hand is not
+filed: no pass lists a closed issue. The eighteenth label is created, as the sixteenth was, by an
 owner of the organization where the swarm's account cannot.
 
 **The balance** (rule 7). Cost is recorded already: runs, tokens,
@@ -269,7 +273,7 @@ outcome that needs no maintainer when every remaining adversary blocker
 is new. Under decision 163 the sympathetic reviewer reviews only a head
 the adversary approved, so "the sympathetic reviewer approves" and "the
 adversary requests changes" do not meet on one head without a change.
-The options, for the maintainer's ruling:
+The options put to the maintainer:
 
 - (a) T11 as today: the first time, the architect revises the plan from
   the reviews, and the rounds count again from the revised plan; the
@@ -299,8 +303,8 @@ The options, for the maintainer's ruling:
 - (d) A limit per class (the roadmap's R6(d), 2 for routine and 3 for
   architecture), with any of (a) to (c): a limit, the maintainer's.
 
-The recommendation: (b), and `max_rounds` left as it is until a week
-under rules 1 to 5 shows how many pull requests still reach it.
+The maintainer ruled (b) (ruling 1, below), as recommended, with
+`max_rounds` left as it is.
 
 **Daisy's gates** (rule 9). A worker stopped for a database its
 container lacked, the integration gate being Daisy's check's, which
@@ -315,9 +319,10 @@ rules in their own words. The reviewers' also take the token rules the
 live swarm's reviewers run under (the roadmap's R6(e), F47): neither
 reruns the check Daisy ran; the adversary runs the probes and the tests
 of the packages the change touches; the sympathetic reviewer reads and
-runs nothing; the adversary stops once its scope is checked. That last change
-reverses decision 168's note keeping the sympathetic reviewer's "try it
-in your clone where that is cheap", so it is an open question below.
+runs nothing; the adversary stops once its scope is checked. The
+sympathetic reviewer's reverses decision 168's note keeping its "try it
+in your clone where that is cheap"; the maintainer ruled them in
+(ruling 2, below).
 The swarm's own reviewer part, which states its bar in its product's
 words, is then the maintainer's to retire.
 
@@ -326,22 +331,26 @@ words, is then the maintainer's to retire.
 adversary approved; whether a routine job needs it at all waits on the
 week's figures. (b) The delta review: built at Step E2 (decision 168).
 (c) The severity rule: this decision. (d) A round limit per class: a
-limit, in the round limit's question. (e) The token rules: the defaults
+limit, option (d) of the round limit, not taken. (e) The token rules: the defaults
 above. And of R5: (a)'s architect run of each probe and its probe
 table, (b) normative and illustrative plan text, (c) amendments in the
 job's `plan.md`, and (d) the plan lint are R5's own design.
 
-**Open, for the maintainer.** 1. The round limit's outcome (rule 8):
-(b) recommended. 2. The token rules in the default reviewer prompts,
-the sympathetic reviewer reading and running nothing: recommended yes,
-as the live swarm runs them. 3. The default trust boundaries, stated
-where a repository's notes declare none: recommended as written, the
-maintainer's own terms. 4. The follow-up of a pull request merged by `swarm
-merge`, of any slice, or of an issue closed by hand, which nobody files:
-the verb filing it under the maintainer's token (the issue then his) is
-the option recommended; the verb leaving the block's `merged` to the
-next pass for an issue it leaves open, and a pass listing closed issues
-for the rest, is the other.
+**The rulings** (the maintainer's, of 2026-11-22, on the questions this
+design left open, each as recommended). 1. The round limit's outcome
+(rule 8) is option (b): the architect judges the outstanding blocking
+findings against rules 1 and 5; when none qualifies it writes
+`OVERRULED:`, the sympathetic reviewer then reviews, and an approval
+goes to the merge gate, the overruled findings going into the
+follow-up; `max_rounds` is unchanged. 2. The token rules the live
+swarm's reviewers run under go into the default reviewer prompts:
+neither reviewer reruns the check; the adversary runs the probes and
+stops once its scope is checked; the sympathetic reviewer reads and
+runs nothing. 3. The default trust boundaries, stated where a
+repository's notes declare none, stand as written. 4. `swarm merge`
+files the follow-up of the pull request it merges under the
+maintainer's token, the issue then the maintainer's; a pass listing
+closed issues, for an issue closed by hand, was the other option.
 
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,

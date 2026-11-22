@@ -1319,3 +1319,14 @@ they write.
   [144](swarm/decisions/0144-a-recurring-finding-asks-for-a-check.md),
   [156](swarm/decisions/0156-a-scorecard-per-merged-slice.md) and
   [168](swarm/decisions/0168-a-delta-review.md).
+- 2026-11-22, Step R6-A of the plan implementing the 2026-11-19 swarm
+  roadmap, the rulings: the maintainer ruled on decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md)'s open
+  questions. At the round limit the architect judges the outstanding
+  blocking findings and writes `OVERRULED:` when none qualifies, the
+  sympathetic reviewer then reviewing and its approval going to the
+  merge gate, `max_rounds` unchanged (specified ahead of its build, Step
+  R6-D); the live swarm's token rules go into the default reviewer
+  prompts; the default trust boundaries stand; `swarm merge` files the
+  follow-up under the maintainer's token (specified ahead of its build,
+  Step R6-B). Sections 5, 7.11 and 12 and the same decision.
