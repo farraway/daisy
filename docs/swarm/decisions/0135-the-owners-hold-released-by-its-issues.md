@@ -36,3 +36,5 @@ only by `swarm resume`. The release is a journal line,
 journal` and the connect's briefing show it as they show a command.
 Tests: `TestSwarmApplyBatchReleasedByItsIssues` and
 `TestWaitingOn`.
+
+**Amended by decision [169](0169-integration-control.md)** (R2, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): the owner proposes work that waits on open issues with a `Depends:` line rather than holding its batch, and a hold's `waits` line is read as issue 0's dependencies, released by the same test as an issue's, every one closed (`docs/swarm.md` section 12.1, rule 5).

@@ -44,3 +44,5 @@ needless worker run. The retry's check, the pull request's last
 comment being the direction, now matches any direction on the head
 by the swarm rather than the exact text, since the files named may
 differ between the two readings. No other limit was added.
+
+**Amended by decision [169](0169-integration-control.md)** (R2, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): the merge step merges only a head whose merge check, the repository's check on the commit that merges it into `base`, has passed on `base` as it is now, the first such head of each repository at each pass; a failed one is T32 (`docs/swarm.md` section 12.1).

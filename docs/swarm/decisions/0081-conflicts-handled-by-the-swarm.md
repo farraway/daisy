@@ -44,3 +44,5 @@ loop, the review rounds counting only requests for changes; a stop
 is the maintainer's to decide (footprints in the plan and a
 per-repository cap are deferred: one conflict in fourteen merges
 did not earn them).
+
+**Amended by decision [169](0169-integration-control.md)** (R2, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): the footprints this decision deferred are the slices' `Touches:` patterns, which hold a first build beside an overlapping open slice; and the merge queue finds a conflict with `base` on the mirror before the merge is tried, sending the head back (T25) whichever the merge gate (`docs/swarm.md` section 12.1).

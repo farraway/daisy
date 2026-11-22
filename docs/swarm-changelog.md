@@ -1152,3 +1152,27 @@ they write.
   list`, `daisy swarm connect`). Decision
   [141](swarm/decisions/0141-reverts-counted-from-the-mirrors.md),
   amended with an As built note.
+- 2026-11-21, Step 12 of the plan implementing the 2026-11-19 swarm
+  roadmap (R2, integration control; specified ahead of its build, to
+  be built at Step 13): machine-read `Depends:` declarations (the
+  proposal's, the plan's, a maintainer's comment; the newest stands)
+  and several `Blocked by` comments together hold a job while a
+  dependency is open; a slice's `Touches:` patterns hold its first
+  build while it overlaps an open slice of another issue, unless
+  marked `Safe with:`; a merge queue per repository checks the first
+  approved head without a passed merge check on `base` as it is now,
+  on the commit that merges it, and neither the merge step nor `swarm
+  merge` merges a head without one, a failure going back to the worker
+  with its log (T32) and a conflict found there at once (T25); `base`
+  is checked when its tree is one no check passed, and while it is red
+  the repository's worker launches and queue wait but for the fix, the
+  breaking job's when open, else the owner's next proposal; the owner
+  proposes dependent work rather than holding its batch, its hold read
+  as issue 0's dependencies; a required context not yet reported holds
+  a merge. Sections 1, 2, 5, 6, 7.4, 7.7, 7.9, 11 and 12, and the new
+  12.1. Decision
+  [169](swarm/decisions/0169-integration-control.md), amending
+  decisions [51](swarm/decisions/0051-dependency-order-and-pins.md),
+  [81](swarm/decisions/0081-conflicts-handled-by-the-swarm.md),
+  [93](swarm/decisions/0093-the-collection-and-the-merge-step.md) and
+  [135](swarm/decisions/0135-the-owners-hold-released-by-its-issues.md).

@@ -14,3 +14,5 @@ check runs without a network (7.2), so a check that fetches the newly
 pinned upstream fails for that slice unless the product's image or
 tree provides it; Step 30 of the plan that specified this document
 records which (section 13, Established by the first real run).
+
+**Amended by decision [169](0169-integration-control.md)** (R2, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): slice order stays dependency order within a job; between jobs, a `Depends:` declaration holds a job while an issue it names is open, and a slice's `Touches:` patterns hold its first build beside an overlapping open slice (`docs/swarm.md` section 12.1).
