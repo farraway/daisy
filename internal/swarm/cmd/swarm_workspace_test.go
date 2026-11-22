@@ -15,6 +15,7 @@ import (
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
+	"daisy/internal/testenv"
 )
 
 // text is issue n's workspace file texts/<run>.md (section 7.8), and
@@ -579,6 +580,7 @@ func (a *applyWS) built(n int) bool {
 // built marker, which it writes last, and once the file is readable and
 // the block removed, the pass after it completes the workspace.
 func TestWorkspaceReplay(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	plan := "## Steps\n\n1. app: change main.go to v1; the test proves it.\n2. app: add notes.md.\n\n## Test Plan\n\n1. main.go says v1.\n"
 	builder := "## Slice 1\n\nEdit main.go.\n\n## Slice 2\n\nWrite notes.md.\n"
@@ -791,6 +793,7 @@ func unusableNote(n, k int, file, cause string) string {
 // more, the plan being in plan.md and texts/ (Step R1-10b of the plan
 // implementing the 2026-11-19 swarm roadmap): its worker is launched.
 func TestUnreadableOutputBlocksItsIssueAlone(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	for _, c := range []struct {
 		name         string
@@ -926,6 +929,7 @@ func TestReplayForgeErrorIsThePasss(t *testing.T) {
 // the note naming the file, and nothing merged; apply exits 0 (section
 // 7.7).
 func TestMergeStepUnreadablePlanBlocks(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })

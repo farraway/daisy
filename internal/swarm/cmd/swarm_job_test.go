@@ -12,6 +12,7 @@ import (
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
+	"daisy/internal/testenv"
 )
 
 // The run's folder (sections 7.1, 7.2, 7.8 and 9; decision 159): every
@@ -400,6 +401,7 @@ func TestJobSectionBlocksAPairOnce(t *testing.T) {
 // (sections 7.7 and 7.8, The prompt), rather than a prompt showing the
 // review cut or the pass failing.
 func TestUnreadableTextBlocksTheLaunch(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)
@@ -423,6 +425,7 @@ func TestUnreadableTextBlocksTheLaunch(t *testing.T) {
 // read, the round's review, blocks the issue once, the note posted once,
 // neither reviewer launched (sections 7.7 and 7.8, The prompt).
 func TestUnreadableTextBlocksAPairOnce(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(oneSlice)

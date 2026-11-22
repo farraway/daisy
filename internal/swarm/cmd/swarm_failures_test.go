@@ -12,6 +12,7 @@ import (
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
+	"daisy/internal/testenv"
 )
 
 // planned is a new issue #1 with an accepted one-slice plan at planned.
@@ -65,6 +66,7 @@ func TestSwarmApplyProductFileNamedAsAMountPoint(t *testing.T) {
 // stage in the note, and a failed worker's commits kept in the mirror;
 // then T18, the flag removed, runs the role again.
 func TestSwarmApplyWorkFailures(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	secret := "oauth-token-0123456789abcdef0123456789"
 	for _, tc := range []struct {

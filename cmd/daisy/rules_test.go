@@ -173,3 +173,62 @@ func TestTestingDocQuotesTheSkill(t *testing.T) {
 		}
 	}
 }
+
+// TestChmodTestsSkipAsRoot holds every test that takes a file's or a
+// directory's permissions away (a Chmod to mode 0) to skip when run as
+// root, who reads, writes and removes it all the same: each function in a
+// _test.go file under cmd/ and internal/ that calls Chmod with the mode 0
+// calls testenv.SkipAsRoot too.
+func TestChmodTestsSkipAsRoot(t *testing.T) {
+	fset := token.NewFileSet()
+	for _, dir := range []string{"cmd", "internal"} {
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(path, "_test.go") {
+				return err
+			}
+			f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+			if err != nil {
+				return err
+			}
+			for _, decl := range f.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok || fn.Body == nil {
+					continue
+				}
+				var chmods []ast.Node
+				skips := false
+				ast.Inspect(fn.Body, func(n ast.Node) bool {
+					call, ok := n.(*ast.CallExpr)
+					if !ok {
+						return true
+					}
+					sel, ok := call.Fun.(*ast.SelectorExpr)
+					if !ok {
+						return true
+					}
+					if x, ok := sel.X.(*ast.Ident); ok && x.Name == "testenv" && sel.Sel.Name == "SkipAsRoot" {
+						skips = true
+					}
+					if sel.Sel.Name != "Chmod" || len(call.Args) != 2 {
+						return true
+					}
+					if lit, ok := call.Args[1].(*ast.BasicLit); ok && lit.Kind == token.INT {
+						if v, err := strconv.ParseInt(lit.Value, 0, 64); err == nil && v == 0 {
+							chmods = append(chmods, call)
+						}
+					}
+					return true
+				})
+				if !skips {
+					for _, c := range chmods {
+						t.Errorf("%s: %s sets mode 0 but does not call testenv.SkipAsRoot(t): run as root, the test reads and writes the file all the same", fset.Position(c.Pos()), fn.Name.Name)
+					}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}

@@ -12,6 +12,7 @@ import (
 
 	"daisy/internal/cli"
 	"daisy/internal/ops"
+	"daisy/internal/testenv"
 )
 
 const widgetPrompt = "## Trigger\n\nRead this when relevant.\n\n## Rules\n\n1. Measure before cutting.\n\n# Document Title\n\n## Next Section\n\nBody text.\n"
@@ -403,9 +404,7 @@ func TestOptimizeApplyAnswerUnreadable(t *testing.T) {
 // apply before any write (F8); a missing feedback.md names the fix that
 // works (F7).
 func TestOptimizeSaysWhatItCannotRead(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("root reads anything")
-	}
+	testenv.SkipAsRoot(t)
 	l := newLoop(t)
 	target := filepath.Join(l.home, "prompts", "widgetflow.md")
 	os.Chmod(target, 0)

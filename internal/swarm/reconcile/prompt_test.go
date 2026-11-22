@@ -13,6 +13,7 @@ import (
 	"daisy/internal/swarm/brief"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
+	"daisy/internal/testenv"
 )
 
 var t0 = time.Date(2026, 11, 6, 15, 0, 0, 0, time.UTC)
@@ -837,11 +838,14 @@ func TestOutputs(t *testing.T) {
 
 	// An out.md that cannot be read is the error, never taken for the
 	// text as posted.
-	os.Chmod(filepath.Join(o.State, "runs", "1-architect-1", "io", "out.md"), 0o000)
-	j := &Job{SwarmLogin: "swarm-bot", N: 1, Outputs: o}
-	if j.shownText(arch, "the pl"+note("1-architect-1")); j.TextErr() == nil || !strings.Contains(j.TextErr().Error(), "output 1-architect-1: ") {
-		t.Errorf("an unreadable out.md: %v", j.TextErr())
-	}
+	t.Run("unreadable", func(t *testing.T) {
+		testenv.SkipAsRoot(t)
+		os.Chmod(filepath.Join(o.State, "runs", "1-architect-1", "io", "out.md"), 0o000)
+		j := &Job{SwarmLogin: "swarm-bot", N: 1, Outputs: o}
+		if j.shownText(arch, "the pl"+note("1-architect-1")); j.TextErr() == nil || !strings.Contains(j.TextErr().Error(), "output 1-architect-1: ") {
+			t.Errorf("an unreadable out.md: %v", j.TextErr())
+		}
+	})
 }
 
 // Daisy reads a review's blocking findings from its text whole: a review

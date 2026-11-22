@@ -9,6 +9,7 @@ import (
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/forge"
+	"daisy/internal/testenv"
 )
 
 // jobFiles writes each file of issue n's workspace under state, as the
@@ -286,9 +287,7 @@ func TestTaskSendsToTheSlice(t *testing.T) {
 // A file of the workspace # Job reads that is there and cannot be read is
 // the job's own failure (section 7.7), never a line left out.
 func TestReadMemoryUnusable(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("root reads a file of mode 000")
-	}
+	testenv.SkipAsRoot(t)
 	for _, rel := range []string{"slices/1/rounds/1.md", "slices/1/kept"} {
 		f, at, pr, state := planned(t)
 		planWorkspace(t, state)
@@ -425,9 +424,7 @@ func TestRenderTextsFromTheWorkspace(t *testing.T) {
 // A text file of the workspace a prompt shows that is there and cannot
 // be read is the job's own failure (section 7.7), the run not launched.
 func TestReadTextUnusable(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("root reads a file of mode 000")
-	}
+	testenv.SkipAsRoot(t)
 	f, at, pr, state := planned(t)
 	planWorkspace(t, state)
 	jobFiles(t, state, 1, map[string]string{"texts/1-adversary-1.md": "VERDICT: request-changes\n[blocking] x.go:1 wrong\n"})

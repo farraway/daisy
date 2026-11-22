@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"daisy/internal/ops"
+	"daisy/internal/testenv"
 )
 
 const log = "# Feedback Log\n\n---\n\n## 2026-08-01 1000\n**Workflow:** prompts/widgetflow\n\nOne.\n\n## 2026-08-02 1100\n\nUnheadered.\n  \n\n## 2026-08-03 1200 extra\n**Workflow:**   plan  \n\nThree.\nlast line"
@@ -233,15 +234,16 @@ func TestBrief(t *testing.T) {
 	}
 	// A target that cannot be read is an error of the briefing, not a
 	// target without rules (review pass 1, F3).
-	os.Chmod(tr.path("root/prompts/plan.md"), 0)
-	os.Chmod(tr.path("root/skills/testing/SKILL.md"), 0)
-	if os.Getuid() != 0 {
+	t.Run("unreadable", func(t *testing.T) {
+		testenv.SkipAsRoot(t)
+		os.Chmod(tr.path("root/prompts/plan.md"), 0)
+		os.Chmod(tr.path("root/skills/testing/SKILL.md"), 0)
+		defer os.Chmod(tr.path("root/prompts/plan.md"), 0o644)
+		defer os.Chmod(tr.path("root/skills/testing/SKILL.md"), 0o644)
 		if e := Brief(fsys, tr.root, tr.home, l, active, nil).Errors; len(e) != 2 || !strings.Contains(e[0].Error(), "cannot read "+tr.path("root/prompts/plan.md")) {
 			t.Errorf("unreadable: %v", e)
 		}
-	}
-	os.Chmod(tr.path("root/prompts/plan.md"), 0o644)
-	os.Chmod(tr.path("root/skills/testing/SKILL.md"), 0o644)
+	})
 	retro, _ := Resolve(fsys, tr.root, tr.home, "retrospective")
 	if s := Brief(fsys, tr.root, tr.home, l, active, &retro); len(s.Pending) != 0 || len(s.Flagged) != 1 {
 		t.Errorf("scoped to an unpending flagged target: %+v", s)

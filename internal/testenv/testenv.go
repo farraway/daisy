@@ -50,3 +50,15 @@ func MainWithGitConfig(m *testing.M, config string) {
 	os.RemoveAll(home)
 	os.Exit(code)
 }
+
+// SkipAsRoot skips a test that takes a file's permissions away to see
+// Daisy fail to read, write or remove it: run as root, every one of those
+// succeeds whatever the mode, and the test would go red for the wrong
+// reason. TestChmodTestsSkipAsRoot (cmd/daisy/rules_test.go) holds every
+// test that sets mode 0 to call it.
+func SkipAsRoot(t testing.TB) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("run as root, who reads, writes and removes a file whatever its mode")
+	}
+}

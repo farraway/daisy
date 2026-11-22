@@ -19,6 +19,7 @@ import (
 
 	"daisy/internal/cli"
 	"daisy/internal/ops"
+	"daisy/internal/testenv"
 )
 
 // gitIn runs git in dir and returns its stdout.
@@ -400,6 +401,7 @@ func treeOf(t *testing.T, dir string) map[string]string {
 
 // A refused init writes nothing: every refusal is decided before the first write.
 func TestRefusedInitWritesNothing(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	m := initMachine(t)
 	ws := scratch(t)
 	m.pinned(t, ws, "init", "pelicanmoor")

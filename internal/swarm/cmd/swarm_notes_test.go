@@ -11,6 +11,7 @@ import (
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
+	"daisy/internal/testenv"
 )
 
 const ownBrief = "# M0\n\nStatus: active\nFirst.\n\n## M1 The board\n\nA persona sees the board.\n"
@@ -167,6 +168,7 @@ func TestSwarmApplyOwnNotesNotADirectory(t *testing.T) {
 // the warning, nothing committed, and the run collected, never the
 // collection's error at each pass (section 7.6, The notes).
 func TestSwarmApplyOwnNotesUnreadable(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	for _, link := range []bool{true, false} {
 		t.Run(map[bool]string{true: "notes/ a link", false: "notes/ a directory"}[link], func(t *testing.T) {

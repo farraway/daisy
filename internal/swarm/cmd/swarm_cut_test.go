@@ -10,6 +10,7 @@ import (
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
+	"daisy/internal/testenv"
 )
 
 // bigPlan is an accepted plan longer than a forge comment Daisy posts
@@ -280,6 +281,7 @@ func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 // with the reviews' out.md deleted and the plan's unreadable before the
 // gate note it holds.
 func TestSwarmCutTextsTheMaintainerIsToldOf(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(bigSlices)

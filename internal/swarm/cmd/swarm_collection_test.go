@@ -11,6 +11,7 @@ import (
 	"daisy/internal/ops"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
+	"daisy/internal/testenv"
 )
 
 // gitRunIn runs git in dir, failing the test on an error, and returns its
@@ -54,6 +55,7 @@ func (a *applyWS) orphanWorker(more ...string) string {
 // and its clone removed though the member left a directory in it that
 // cannot be read.
 func TestSwarmAbandonedWorkerKeepsItsCommits(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)
@@ -335,6 +337,7 @@ func TestSwarmCheckRestartedAfterItsApplyDied(t *testing.T) {
 // the run that cannot be read either is removed, never followed, so the
 // directory outside keeps its mode (section 7.6).
 func TestSwarmCollectionRemovesAnUnreadableDirectory(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	t.Parallel()
 	a := newApplyWS(t)
 	a.planned(oneSlice)

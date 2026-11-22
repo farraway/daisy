@@ -16,6 +16,7 @@ import (
 	"daisy/internal/env"
 	"daisy/internal/health"
 	"daisy/internal/ops"
+	"daisy/internal/testenv"
 )
 
 // machine is a temp root (a repository with the directories Check 4 asks
@@ -206,18 +207,21 @@ func TestPublishableAndTexts(t *testing.T) {
 	if len(texts) != 2 || string(texts[0]) != "AGENTS.md" || !strings.HasPrefix(string(texts[1]), "# Root") {
 		t.Errorf("link to a file: %q", texts)
 	}
-	locked := filepath.Join(t.TempDir(), "locked")
-	m.write(locked, "x")
-	os.Chmod(locked, 0)
-	os.Symlink(locked, filepath.Join(m.root, "lockedlink"))
-	if texts, err := health.Texts(fs, filepath.Join(m.root, "lockedlink")); os.Geteuid() != 0 && (err != nil || len(texts) != 1) {
-		t.Errorf("link to an unreadable file: %q %v", texts, err)
-	}
-	os.Chmod(filepath.Join(m.root, "AGENTS.md"), 0)
-	if _, err := health.Texts(fs, filepath.Join(m.root, "AGENTS.md")); os.Geteuid() != 0 && err == nil {
-		t.Error("an unreadable regular file was vouched for")
-	}
-	os.Chmod(filepath.Join(m.root, "AGENTS.md"), 0o644)
+	t.Run("unreadable", func(t *testing.T) {
+		testenv.SkipAsRoot(t)
+		locked := filepath.Join(t.TempDir(), "locked")
+		m.write(locked, "x")
+		os.Chmod(locked, 0)
+		os.Symlink(locked, filepath.Join(m.root, "lockedlink"))
+		if texts, err := health.Texts(fs, filepath.Join(m.root, "lockedlink")); err != nil || len(texts) != 1 {
+			t.Errorf("link to an unreadable file: %q %v", texts, err)
+		}
+		os.Chmod(filepath.Join(m.root, "AGENTS.md"), 0)
+		defer os.Chmod(filepath.Join(m.root, "AGENTS.md"), 0o644)
+		if _, err := health.Texts(fs, filepath.Join(m.root, "AGENTS.md")); err == nil {
+			t.Error("an unreadable regular file was vouched for")
+		}
+	})
 	if texts, _ := health.Texts(fs, filepath.Join(m.root, "prompts")); len(texts) != 0 {
 		t.Errorf("a directory has text: %q", texts)
 	}
@@ -430,9 +434,7 @@ func TestHealthNeverOpensAFIFO(t *testing.T) {
 
 // today.md that exists but cannot be read is a failure, not a pass.
 func TestUnreadableToday(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root reads anything")
-	}
+	testenv.SkipAsRoot(t)
 	m := newMachine(t)
 	p := filepath.Join(m.home, "journal", "today.md")
 	m.write(p, "#### Agenda\n")

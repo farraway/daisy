@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"daisy/internal/testenv"
 )
 
 // promptMachine is a machine whose home includes one full and one lazy
@@ -141,6 +143,7 @@ func TestList(t *testing.T) {
 // A failure part-way through the listing leaves on stdout what was read
 // before it, as the listing always has; with --json, nothing.
 func TestListPrintsWhatItReadBeforeAFailure(t *testing.T) {
+	testenv.SkipAsRoot(t)
 	m := promptMachine(t)
 	writeFile(t, filepath.Join(m.home, "include.txt"), "full\n\"broken\n")
 	for _, args := range [][]string{{"list"}, {"list", "--json"}} {
