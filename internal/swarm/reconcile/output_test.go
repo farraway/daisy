@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -184,6 +185,9 @@ func TestRenderOutputContractsEveryRole(t *testing.T) {
 			t.Errorf("%s: two runs' # Output differ:\n%s\n----\n%s", j.role, prev, out)
 		}
 		seen[j.role] = out
+		if strings.TrimSpace(out) != Output(j.role) {
+			t.Errorf("%s %s: # Output is not Output(%q), the role's alone:\n%s", j.role, j.label, j.role, out)
+		}
 		has(t, j.role+"'s # Output", out, contracts[j.role])
 		// The closing's Cause sentence names BLOCKED: and QUESTION: for
 		// every role, as lines it may write, not as its Task's first line.
@@ -211,6 +215,66 @@ func TestRenderOutputContractsEveryRole(t *testing.T) {
 			if !slices.Contains(named[role], w) {
 				t.Errorf("no %s Task rendered here names %q: %v", role, w, named[role])
 			}
+		}
+	}
+}
+
+// config_hash cuts the # Output block out by finding the next `# ` line
+// after it (section 7.6), so no Output text may hold a line that begins
+// `# `, in a fence or not, nor leave a fence open; every role has one,
+// and a role without a text gets no block.
+func TestOutputTextsHoldNoHeadingLine(t *testing.T) {
+	roles := []string{"owner", "architect", "worker", "adversary", "sympathetic", "qa"}
+	for _, role := range roles {
+		out := Output(role)
+		if out == "" {
+			t.Errorf("%s has no # Output text", role)
+		}
+		fenced := false
+		for _, l := range strings.Split(out, "\n") {
+			if strings.HasPrefix(l, "# ") {
+				t.Errorf("%s: a line of # Output begins `# `: %q", role, l)
+			}
+			if strings.HasPrefix(l, "```") {
+				fenced = !fenced
+			}
+		}
+		if fenced {
+			t.Errorf("%s: # Output leaves a fence open:\n%s", role, out)
+		}
+	}
+	if Output("reconciler") != "" {
+		t.Errorf("a role the swarm does not run has an # Output")
+	}
+}
+
+// Section 7.4 quotes the reviewers' # Output and the three reminders as
+// the code has them: the spec's block quote, its wrapping undone, is
+// reviewerOutput word for word, and each reminder is in the spec.
+func TestSpecQuotesTheOutputTexts(t *testing.T) {
+	b, err := os.ReadFile("../../../docs/swarm.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := string(b)
+	flat := func(s string) string { return strings.Join(strings.Fields(s), " ") }
+	_, rest, ok := strings.Cut(spec, "reads:\n\n> The first line of your output is exactly")
+	if !ok {
+		t.Fatal("section 7.4 has no quote of the reviewers' # Output")
+	}
+	var quote []string
+	for _, l := range strings.Split("> The first line of your output is exactly"+rest, "\n") {
+		if !strings.HasPrefix(l, ">") {
+			break
+		}
+		quote = append(quote, strings.TrimPrefix(l, ">"))
+	}
+	if got, want := flat(strings.Join(quote, "\n")), flat(reviewerOutput); got != want {
+		t.Errorf("section 7.4's quote of the reviewers' # Output:\n%s\nthe code's:\n%s", got, want)
+	}
+	for _, r := range []string{verdictReminder, architectReminder, ownerReminder} {
+		if !strings.Contains(flat(spec), flat(r)) {
+			t.Errorf("section 7.4 does not quote the reminder %q", r)
 		}
 	}
 }

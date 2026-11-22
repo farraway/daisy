@@ -162,4 +162,27 @@ func TestConfigHashAcrossTheOrders(t *testing.T) {
 	if got, want := configHash([]byte(persona+output+"# Resources\n\nNone.\n")), configHash([]byte(persona+"# Resources\n\nNone.\n")); got != want || got == "" {
 		t.Errorf("with # Output and no part: configHash %q, want %q, the persona's", got, want)
 	}
+	// A `# Output` line in a fenced block is no block, in the persona
+	// (the one and only # Output is still the one cut, and the fenced
+	// line stays in the hash) and in a part after it; and a system.md
+	// with a fenced one and no block of Daisy's hashes it whole, as
+	// before the fix.
+	fenced := "```\n# Output\n\nVERDICT: approve\n```\n\n"
+	persona2, parts2 := "# Persona\n\n## adversary\n\nYou do it.\n\n"+fenced, "# Prompt part: prompts/parts/css.md\n\n"+fenced+"Use the grid.\n\n"
+	sum = sha256.Sum256([]byte(persona2 + parts2))
+	for name, sys := range map[string]string{
+		"a fenced line in the persona and a part": persona2 + output + parts2 + "# Resources\n\nNone.\n",
+		"none of Daisy's":                         persona2 + parts2 + "# Resources\n\nNone.\n",
+	} {
+		if got, want := configHash([]byte(sys)), hex.EncodeToString(sum[:]); got != want {
+			t.Errorf("%s: configHash %q, want %q, the persona's and the parts' whole", name, got, want)
+		}
+	}
+	// With no part, the block hashes as the persona's alone, whatever
+	// block follows it.
+	for _, next := range []string{"# Praxis\n\nRules.\n", "# Repository notes: app\n\nRun it.\n"} {
+		if got, want := configHash([]byte(persona+output+next)), configHash([]byte(persona+next)); got != want || got == "" {
+			t.Errorf("with # Output before %q: configHash %q, want %q", next, got, want)
+		}
+	}
 }
