@@ -78,11 +78,12 @@ func (s *Swarm) pulls(n int) ([]forge.Pull, error) {
 // check: done is closed once its Wait has returned, with how and when it
 // ended.
 type live struct {
-	step string // "" for a member, "deps" or "check" for a worker run's step (section 7.6, step 4)
-	done chan struct{}
-	exit runner.Exit
-	err  error
-	at   time.Time // when its Wait returned: the run's end line's time
+	step    string // "" for a member, "deps" or "check" for a worker run's step (section 7.6, step 4)
+	adopted bool   // started by another process, held to its deadline (section 7.10, rule 2)
+	done    chan struct{}
+	exit    runner.Exit
+	err     error
+	at      time.Time // when its Wait returned: the run's end line's time
 }
 
 func (s *Swarm) stopping() bool { return s.Stopping != nil && s.Stopping() }
@@ -145,7 +146,7 @@ func (s *Swarm) Pass(wait bool) error {
 		}
 	}
 	s.collected, s.started, s.moves, s.fetched = 0, 0, map[int]string{}, false
-	errs := []error{s.collectAll(running), s.expireCapacity(), s.release()}
+	errs := []error{s.collectAll(running, !wait), s.expireCapacity(), s.release()}
 	launched := 0
 	if paused := s.paused(); paused != "" {
 		fmt.Fprintf(s.Out, "Paused since %s (%s): launching nothing\n", strings.TrimPrefix(paused, "paused "), filepath.Join(s.state(), "paused"))
@@ -244,14 +245,18 @@ var ErrInterrupted = errors.New("interrupted")
 // running.
 func (s *Swarm) Drain(stop <-chan struct{}) error {
 	var errs []error
-	for len(s.live) > 0 {
+	for {
+		// The runs it launched, not those it holds for another process.
 		dirs := slices.Sorted(func(yield func(string) bool) {
-			for d := range s.live {
-				if !yield(d) {
+			for d, l := range s.live {
+				if !l.adopted && !yield(d) {
 					return
 				}
 			}
 		})
+		if len(dirs) == 0 {
+			break
+		}
 		for _, dir := range dirs {
 			select {
 			case <-s.live[dir].done:
@@ -288,7 +293,7 @@ func runOf(dir string) (Run, bool) {
 // started whose container is gone, one whose member finished (Finished)
 // marked ended and collected from it, any other abandoned, and one whose
 // container has outlived timeout stopped and abandoned.
-func (s *Swarm) collectAll(running []runner.Running) error {
+func (s *Swarm) collectAll(running []runner.Running, adopt bool) error {
 	fs := s.O.FS()
 	runs, err := Runs(fs, s.state())
 	if err != nil {
@@ -343,7 +348,25 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 			end, more := "abandoned ", []string(nil)
 			_, detached := Has(lines, "deadline") // launched detached, by this build (section 7.10, rule 2)
 			code, exited := r.exitStatus(fs)
+			deadline, _ := lineTime(lines, "deadline")
 			switch {
+			case isRunning(name) && detached && s.O.Now().Before(deadline):
+				// Held to the deadline its record names, by a timer
+				// (section 7.10, rule 2): the loop adopts it.
+				if adopt {
+					s.hold(r.Dir, s.Runner.Watch(name, deadline), "", true)
+				}
+				continue
+			case isRunning(name) && detached:
+				// Past its deadline: stopped, a timeout of its own.
+				if err := s.Runner.Stop(name); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				end = ""
+				if err := s.exited(r, "timeout "+now, 0, true); err != nil {
+					return err
+				}
 			case isRunning(name):
 				if !over(strings.TrimPrefix(started, "started ")) {
 					continue
@@ -375,8 +398,14 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 		}
 		if step, at := pending(lines); step != "" {
 			name := s.containerName(r.N, step, r.K)
+			deadline, detached := stepDeadline(lines, step)
 			switch {
-			case isRunning(name) && over(at):
+			case isRunning(name) && detached && s.O.Now().Before(deadline):
+				if adopt {
+					s.hold(r.Dir, s.Runner.Watch(name, deadline), step, true)
+				}
+				continue
+			case isRunning(name) && (detached || over(at)):
 				if err := s.Runner.Stop(name); err != nil {
 					errs = append(errs, err)
 					continue
@@ -407,6 +436,22 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 	}
 	s.faultPause()
 	return errors.Join(errs...)
+}
+
+// stepDeadline is the deadline of the worker run's step that started
+// last, its `<step> deadline <time>` (section 7.10, rule 2), read from
+// the lines after `check rerun` as pending reads its start; ok is false
+// for a step launched attached, before the line.
+func stepDeadline(lines []string, step string) (time.Time, bool) {
+	lines, _ = sinceRerun(lines)
+	var at string
+	for _, l := range lines {
+		if t, ok := strings.CutPrefix(l, step+" deadline "); ok {
+			at = t
+		}
+	}
+	t, err := time.Parse(time.RFC3339, at)
+	return t, err == nil
 }
 
 // pending is the worker run's step, its dependency step ("deps") or its

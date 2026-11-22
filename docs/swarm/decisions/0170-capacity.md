@@ -307,3 +307,24 @@ container gone with no status while its wait has not returned is left
 to its wait, which a timer's stop ends as a timeout. Tests:
 `TestSwarmApplyCollectsItsOwnFinishedRun`,
 `TestSwarmAdoptedRunKeepsItsCostAndFault`.
+
+**As built: the deadline enforced whoever launched the run (Step R4-B
+of the plan implementing the 2026-11-19 swarm roadmap).** A pass that
+finds a run's container running, the run launched detached (its
+`deadline` line), compares the pass's time with the recorded deadline:
+past it, the container is stopped (`docker stop --time 30`) and the run
+recorded `timeout <time>` and `failed: timeout after <timeout>`, its
+streams copied and its cost read, and collected as a timeout (T17),
+not abandoned; before it, the loop holds the run as its own with a
+timer at that deadline (`Runner.Watch`: `docker wait`, and the stop at
+the deadline, a timeout), which a later pass records as it records its
+own launches. `--once` holds none, its passes stopping a run past its
+deadline. A step likewise by its `<step> deadline` line, stopped as a
+`<step> timeout`. This process's own launches keep their timer of
+`timeout`, now set to the deadline the launch recorded. A run launched
+before the build keeps *orphan over time*, by `started` and `timeout`.
+`failed: timeout after <timeout>` names `swarm.json`'s `timeout` as
+before, not the run's own recorded span. `--once`'s drain waits for
+the runs it launched, never for one it holds for another process.
+Tests: `TestSwarmAdoptedRunStoppedAtItsDeadline`,
+`TestDockerWatchStopsAtTheDeadline`.

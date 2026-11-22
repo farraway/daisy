@@ -362,6 +362,41 @@ func TestDockerStopFailingStillWaits(t *testing.T) {
 	}
 }
 
+// Watch holds a container another process started to the deadline its
+// run records (section 7.10, rule 2): a timer of the time left, then
+// its stop and a timeout.
+func TestDockerWatchStopsAtTheDeadline(t *testing.T) {
+	now := time.Date(2026, 11, 6, 15, 0, 0, 0, time.UTC)
+	fire := make(chan time.Time, 1)
+	waited := make(chan struct{})
+	var asked time.Duration
+	var mu sync.Mutex
+	var execs []string
+	o := &ops.Fake{
+		NowFn:   func() time.Time { return now },
+		AfterFn: func(d time.Duration) <-chan time.Time { asked = d; return fire },
+		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
+			mu.Lock()
+			execs = append(execs, name+" "+strings.Join(args, " "))
+			mu.Unlock()
+			if args[0] == "wait" {
+				<-waited
+				return []byte("137\n"), nil, nil
+			}
+			close(waited)
+			return nil, nil, nil
+		},
+	}
+	c := Docker{O: o, Dir: "/ws"}.Watch("daisy-swarm.acme.app.3.architect.1", now.Add(20*time.Minute))
+	fire <- time.Time{}
+	exit, err := c.Wait()
+	slices.Sort(execs)
+	if err != nil || !exit.TimedOut || asked != 20*time.Minute ||
+		!reflect.DeepEqual(execs, []string{"docker stop --time 30 daisy-swarm.acme.app.3.architect.1", "docker wait daisy-swarm.acme.app.3.architect.1"}) {
+		t.Errorf("exit %+v %v, timer %v, execs %q", exit, err, asked, execs)
+	}
+}
+
 func TestDockerRunning(t *testing.T) {
 	o := &ops.Fake{ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
 		if got := name + " " + strings.Join(args, " "); got != `docker ps --filter label=daisy.swarm --format {{.Names}} {{.Label "daisy.swarm"}} {{.Label "daisy.credential"}}` {

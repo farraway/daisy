@@ -413,7 +413,7 @@ func (w *world) pass() {
 			w.t.Fatalf("%s ended uncollected: its collection is world.end's, the real one reaching git", r.Dir)
 		}
 	}
-	errs := []error{s.collectAll(running)}
+	errs := []error{s.collectAll(running, false)}
 	if s.paused() != "" {
 		errs = append(errs, s.stages(running, nil))
 	} else if err := s.stages(running, w.launch); err != nil {

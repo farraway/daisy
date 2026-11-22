@@ -186,3 +186,62 @@ func TestSwarmAdoptedRunKeepsItsCostAndFault(t *testing.T) {
 		})
 	}
 }
+
+// A run another apply launched is stopped at the deadline its record
+// names, whichever apply holds it (section 7.10, rule 2): the loop that
+// finds its container running holds it with a timer at that deadline,
+// which stops it and makes it a timeout; a pass that finds one running
+// past its deadline stops it and records the timeout, not abandoned.
+func TestSwarmAdoptedRunStoppedAtItsDeadline(t *testing.T) {
+	t.Parallel()
+	const name = "daisy-swarm.acme.swarm-app.1.architect.1"
+	t.Run("held to its deadline", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+		a.adopted("2026-11-06T14:30:00Z", "2026-11-06T15:20:00Z", map[string]string{"stdout": claudeResult})
+		a.runner.Others = []runner.Running{{Name: name, Swarm: "acme/swarm-app#1/architect"}}
+		fire := make(chan time.Time, 1)
+		var asked []time.Duration
+		var mu sync.Mutex
+		a.runner.Now = a.Now
+		a.runner.After = func(d time.Duration) <-chan time.Time {
+			mu.Lock()
+			defer mu.Unlock()
+			asked = append(asked, d)
+			return fire
+		}
+		a.signals = make(chan os.Signal, 2)
+		a.signalAt(4, func(pass int) {
+			if pass == 1 {
+				fire <- time.Time{} // the timer at the deadline, when one was armed
+				for give := time.Now().Add(5 * time.Second); !slices.Contains(a.runner.Stops(), name) && time.Now().Before(give); {
+					time.Sleep(time.Millisecond)
+				}
+			}
+		})
+		if err := a.apply(a.git()); err != nil {
+			t.Fatal(err)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		r := a.result("1-architect-1")
+		if !slices.Equal(asked, []time.Duration{20 * time.Minute}) || !strings.Contains(r, "\ntimeout 2026-11-06T15:0") || !strings.Contains(r, "\nfailed: timeout after 45m\n") ||
+			!strings.HasSuffix(r, "outcome failed\ncollected\n") {
+			t.Errorf("timers %v\n%s\n%s", asked, r, a.stdout.String())
+		}
+	})
+	t.Run("found past its deadline", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+		a.adopted("2026-11-06T14:30:00Z", "2026-11-06T14:50:00Z", map[string]string{"stdout": claudeResult})
+		a.runner.Others = []runner.Running{{Name: name, Swarm: "acme/swarm-app#1/architect"}}
+		if err := a.apply(a.git(), "--once"); err != nil {
+			t.Fatal(err)
+		}
+		r := a.result("1-architect-1")
+		if !slices.Contains(a.runner.Stops(), name) || !strings.Contains(r, "\ntimeout 2026-11-06T15:00:00Z\ncost 0.25 tokens 10/20 turns 4 cached 0\nfailed: timeout after 45m\n") ||
+			!strings.HasSuffix(r, "outcome failed\ncollected\n") {
+			t.Errorf("stopped %v\n%s", a.runner.Stops(), r)
+		}
+	})
+}

@@ -161,6 +161,10 @@ func (s Services) ServiceArgs(v Service) []string {
 type Runner interface {
 	// Start runs s; timeout is its wall clock, at which it is stopped.
 	Start(s Spec, timeout time.Duration) (Container, error)
+	// Watch is a container another process started, by its name, held
+	// to deadline: its Wait returns once it is gone, or at deadline,
+	// when it is stopped (section 7.10, rule 2).
+	Watch(name string, deadline time.Time) Container
 	// Running is every container labelled daisy.swarm, of every swarm.
 	Running() ([]Running, error)
 	// Stop is `docker stop --time 30 <name>`: the wall clock's stop, and
@@ -206,6 +210,12 @@ func (d Docker) Start(s Spec, timeout time.Duration) (Container, error) {
 		return nil, err
 	}
 	return &detached{d: d, name: s.Name, timeout: timeout}, nil
+}
+
+// Watch holds the container name until deadline, as one Start started:
+// `docker wait`, and at deadline its stop.
+func (d Docker) Watch(name string, deadline time.Time) Container {
+	return &detached{d: d, name: name, timeout: deadline.Sub(d.O.Now())}
 }
 
 // detached is a container started `docker run --detach`.

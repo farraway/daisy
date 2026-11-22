@@ -389,7 +389,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			return false, errors.Join(r.Append(fs, "launch-failed "+ended(), fault), s.collect(r))
 		}
 	}
-	c, err := s.Runner.Start(spec, timeout)
+	c, err := s.Runner.Start(spec, at.Add(timeout).Sub(s.O.Now())) // to the deadline it records
 	// The slot's lock is held through the launch alone: the running
 	// container's daisy.credential label holds the slot after (section
 	// 7.10, rule 2; section 8).
@@ -471,9 +471,17 @@ func (s *Swarm) slotDir(p string) string { return filepath.Join(s.Local, "swarm"
 // a worker run's step ("deps" or "check"): once its Wait has returned,
 // done is closed.
 func (s *Swarm) watch(dir string, c runner.Container, step string) {
-	l := &live{step: step, done: make(chan struct{})}
-	s.live[dir] = l
 	s.started++
+	s.hold(dir, c, step, false)
+}
+
+// hold waits for c in the background, done closed once its Wait has
+// returned; adopted is a container another process started, which this
+// one holds to its deadline (section 7.10, rule 2) and Drain does not
+// wait for.
+func (s *Swarm) hold(dir string, c runner.Container, step string, adopted bool) {
+	l := &live{step: step, done: make(chan struct{}), adopted: adopted}
+	s.live[dir] = l
 	go func() {
 		defer close(l.done)
 		l.exit, l.err = c.Wait()

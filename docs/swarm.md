@@ -4464,8 +4464,8 @@ line to `<state>/capacity`, the role launched next on its next
 available entry, and counts towards no pause, which two faults in a
 row take only when neither is a capacity fault (rule 1). *Timeout*: the
 deadline is the run's `deadline` line, enforced by whichever `apply`
-holds the run, and the T17 note posts the output the member had
-written (rule 5). *Ended*: a run whose container is gone and whose
+holds the run (built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap), and the T17 note posts the output
+the member had written (rule 5). *Ended*: a run whose container is gone and whose
 `<run>/io/exit` is written is collected by any `apply` with its stdout from
 `<run>/io/stdout`, its cost and its provider's fault read (rule 2), and is
 *exited*, not *ended*, once launched by the build (built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap); *orphan over time*
@@ -5851,7 +5851,10 @@ amended). *Built at Step R4-B of the plan implementing the 2026-11-19 swarm road
 lines, and the collection of a run whose container is gone and whose
 status is written, whoever launched it, its own process's while its
 wait has not returned among them, `exited <code>` with its streams
-copied, its cost and its provider's fault (decision
+copied, its cost and its provider's fault; and the deadline: a
+container running past its recorded deadline stopped and its run a
+timeout, one before it held by the loop with a timer at that deadline,
+whichever `apply` launched it (decision
 [170](swarm/decisions/0170-capacity.md), As built).
 
 **The restart** (rule 2). The loop re-executes at the end of the first

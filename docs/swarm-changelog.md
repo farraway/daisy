@@ -1276,3 +1276,9 @@ they write.
   its provider's fault, its own process's while its wait has not
   returned among them (request F36). Sections 7.7 and 7.10. Decision
   [170](swarm/decisions/0170-capacity.md) amended.
+- 2026-11-22, Step R4-B of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, adoption): the run's recorded deadline enforced whoever
+  launched it: a container found running past it stopped and its run a
+  timeout, one before it held by the loop with a timer at it. Sections
+  7.7 and 7.10. Decision [170](swarm/decisions/0170-capacity.md)
+  amended.

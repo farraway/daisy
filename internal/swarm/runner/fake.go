@@ -57,7 +57,12 @@ type Fake struct {
 	Ups      []Services
 	Networks map[string]Services
 	UpErr    error
+	// Now and After are the clock a container Watch holds is stopped by
+	// at its deadline; with After nil, none is.
+	Now      func() time.Time
+	After    func(time.Duration) <-chan time.Time
 	canned   map[string][]Canned
+	stops    map[string]chan struct{} // a held container's, closed by its Stop
 	running  []Running
 	attached map[string]string // a running container's network, by name
 }
@@ -173,7 +178,54 @@ func (f *Fake) Stop(name string) error {
 	defer f.mu.Unlock()
 	f.Stopped = append(f.Stopped, name)
 	f.Others = slices.DeleteFunc(f.Others, func(r Running) bool { return r.Name == name })
+	f.running = slices.DeleteFunc(f.running, func(r Running) bool { return r.Name == name })
+	if c := f.stops[name]; c != nil {
+		close(c)
+		delete(f.stops, name)
+	}
 	return nil
+}
+
+// Stops is a copy of the names Stop was given.
+func (f *Fake) Stops() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.Stopped)
+}
+
+// Watch holds a running container this Fake did not start (one of
+// Others): its Wait returns once Stop is given it, or at deadline by
+// After, when it is stopped and a timeout.
+func (f *Fake) Watch(name string, deadline time.Time) Container {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.stops == nil {
+		f.stops = map[string]chan struct{}{}
+	}
+	stop := make(chan struct{})
+	f.stops[name] = stop
+	var at <-chan time.Time
+	if f.After != nil {
+		at = f.After(deadline.Sub(f.Now()))
+	}
+	return heldRun{f, name, stop, at}
+}
+
+type heldRun struct {
+	f    *Fake
+	name string
+	stop chan struct{}
+	at   <-chan time.Time
+}
+
+func (r heldRun) Wait() (Exit, error) {
+	select {
+	case <-r.stop:
+		return Exit{}, nil
+	case <-r.at:
+		r.f.Stop(r.name)
+		return Exit{TimedOut: true}, nil
+	}
 }
 
 // Up records s and makes its network, refusing one already up.
