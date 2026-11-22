@@ -1290,3 +1290,32 @@ they write.
   at its pass's end without a drain, exit 0, the exit 130 of a second
   signal gone. Sections 7.10 and 11. Decision
   [170](swarm/decisions/0170-capacity.md) amended.
+- 2026-11-22, Step R6-design of the plan implementing the 2026-11-19
+  swarm roadmap (R6, review by risk, with an end, and the parts of R5
+  it needs; specified ahead of its build, to be built once the
+  maintainer has ruled on its open questions): a review finding blocks
+  only when the slice's claim fails, a test the plan names is missing
+  or fails, a defect in the changed code meets a realistic user or
+  input, or the revision introduced a fault, a fixed list in Daisy's
+  Task text for both reviewers, each blocking finding naming its kind
+  and its reproduction; "realistic" read from each repository's notes'
+  `## Trust boundaries`, which `init` seeds; the plan's Test Plan names
+  each test's probe and each slice its unsupported setups, the worker
+  reporting each probe and the adversary checking them, a probe of its
+  own non-blocking; a finding closed by its own reproduction, and from
+  round 2 only an unclosed one, the revision's fault or a failing claim
+  blocking; every non-blocking finding of a merged pull request filed
+  once by Daisy as a follow-up issue (`swarm:follow-up`, the eighteenth
+  label), which the owner's batch triages (`# Follow-ups`, `Follow-up:`
+  and `Triaged:` lines); the scorecard's escapes (reverts, `Defect in:`
+  issues and hand fixes) and follow-up items proved real, by
+  configuration; the round limit's outcome left to the maintainer; the
+  worker's Task naming Daisy's gates; the default reviewer, architect
+  and worker prompts' designed text. Sections 4, 5, 6, 7.3, 7.4, 7.5,
+  7.6, 11 and 12, and the new 7.11. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), amending
+  decisions [15](swarm/decisions/0015-severity-per-finding.md),
+  [63](swarm/decisions/0063-the-adversarys-fail-against-base-check-is-bounded.md),
+  [144](swarm/decisions/0144-a-recurring-finding-asks-for-a-check.md),
+  [156](swarm/decisions/0156-a-scorecard-per-merged-slice.md) and
+  [168](swarm/decisions/0168-a-delta-review.md).

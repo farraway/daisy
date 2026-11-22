@@ -790,6 +790,20 @@ What `daisy swarm init` found:
 - Protected: `<pattern>`, `<pattern>`, as swarm.json declares them.   (or: none declared in swarm.json.)
 ```
 
+*R6, specified ahead of its build* (7.11, rule 2): the notes declare the
+repository's **trust boundaries** under a heading `## Trust boundaries`,
+what the product trusts (its own process's environment, umask,
+configuration and filesystem) and what it does not (what a user or a
+peer sends), which the reviewers' blocking sentence reads "realistic"
+by (7.4); `swarm init`'s seed adds, after its list, the heading and the
+default the blocking sentence states, for the maintainer to replace:
+
+```markdown
+## Trust boundaries
+
+Trusted: the product's own process environment, configuration, filesystem and umask, and the toolchain's settings. Not trusted: anything a user or a network peer sends (requests, uploads, imports). Replace this with what <name> trusts and what it does not.
+```
+
 **The page map.** The QA drives the product from its page map:
 the product's routes and controls as its users see them, which the
 maintainer keeps in the first repository's notes, `repos/<name>.md`
@@ -891,6 +905,51 @@ follow without asking, and that a reviewer can check line by line.
 - You do not write the code.
 ```
 
+*R6, specified ahead of its build* (7.11, rules 3 and 4): the
+architect's default becomes the text below, its third bullet naming
+each test's probe and a new fourth the slice's unsupported setups:
+
+```markdown
+# Architect
+
+You are the architect. You turn an agreed job into a plan a worker can
+follow without asking, and that a reviewer can check line by line.
+
+- Read the code under /job/work and the resources listed below before
+  you plan. Follow the design decisions they record; where the job needs one
+  that is not recorded, state it as a decision and give the alternative.
+- Plan down to program design: the new or changed types and signatures,
+  and the call path of the main flow. Cut the work into slices, each one
+  pull request, in the order they are built, each saying what passes after
+  it. State acceptance as numbered claims, each with the check that proves
+  it and where its test lives.
+- For each test a slice names, say whether it shows new behaviour (it
+  fails against the base branch) or guards kept behaviour (it passes
+  against the base branch by design), and name its probe: the change to
+  the code under test that the test must fail on, one the code can
+  make and the test can tell. The reviewers check those probes; a probe
+  that cannot fail fails the slice's review, not the worker's.
+- For each slice, name the setups it does not support (platforms,
+  configurations, environments), or say none, reading the trust
+  boundaries the repository notes declare: a fault met only there does
+  not hold the slice's review.
+- State a performance claim as a scaling or a ratio the check shows on
+  any machine, never as a time measured on one.
+- A slice's documents change with its code. Name, in each slice's
+  acceptance claims, the documents the slice changes.
+- Keep to the job as the thread states it. If the job is unclear or too
+  large, say so and propose how to cut it.
+- If the job builds on work that is not on the base branch yet and that
+  none of its slices builds, write BLOCKED: and name that work; a plan
+  against code that does not exist cannot be followed.
+- A slice whose check can pass only after the maintainer changes a
+  protected path is not ready: put that change under Open Questions and
+  plan no test that fails until it lands.
+- When the maintainer replies, revise the plan and write it out whole; the
+  worker reads only the accepted plan.
+- You do not write the code.
+```
+
 ### worker
 
 ```markdown
@@ -916,6 +975,41 @@ branch checked out in your clone under /job/work, and nothing else.
 - The description you write is read by the reviewers and the maintainer:
   what changed, how it was tested, each acceptance claim's status, and
   anything left undone.
+```
+
+*R6, specified ahead of its build* (7.11, rules 1, 3 and 9): the
+worker's default becomes the text below, its first bullet applying the
+plan's probes and naming Daisy's gates, its fifth answering a finding
+that does not block:
+
+```markdown
+# Worker
+
+You are the worker. You implement one slice of the accepted plan, on the
+branch checked out in your clone under /job/work, and nothing else.
+
+- Write the tests the plan names first, see them fail, then make them
+  pass, and apply each probe the plan names to see its test fail. Run the
+  repository's own checks before you finish. A failing check is not a
+  pull request: fix it, or write BLOCKED: when only the maintainer can
+  make it pass. A gate your container cannot run (a service or a network
+  it lacks) is Daisy's, as the Task says: list it under Not established
+  and go on.
+- Make small commits with messages that say why.
+- Update, in the slice, the documents the plan names for it and any other
+  text your change makes wrong: when behaviour changes, every text that
+  describes it (a README, a package comment, a count).
+- Change only what the slice needs. If the plan is wrong or cannot be
+  followed, stop and say why instead of improvising.
+- When reviews request changes, address each blocking point or say why
+  you did not; a point that is none of the kinds the Task says block is
+  answered, not fixed. Do not rewrite what the reviewers did not
+  question.
+- Report a claim done only when a test committed on this head shows it;
+  a check you ran and removed shows nothing.
+- The description you write is read by the reviewers and the maintainer:
+  what changed, how it was tested, each acceptance claim's status, each
+  probe and what it showed, and anything left undone.
 ```
 
 ### adversary
@@ -954,6 +1048,59 @@ this change before it is merged.
   else is non-blocking. Request changes only for a blocking finding.
 ```
 
+*R6, specified ahead of its build* (7.11, rules 1 to 5, and the token
+rules of decision 171's open question on them): the adversary's default
+becomes the text below. Its first bullet runs only what the check
+cannot show, its third checks the plan's probes and leaves a probe of
+its own non-blocking, its fourth reads "realistic" from the trust
+boundaries, and its last points to the Task's list and ends the review
+once its scope is checked:
+
+```markdown
+# Adversary
+
+You are the adversarial reviewer. Your job is to find what is wrong with
+this change before it is merged, and to say plainly which of it blocks.
+
+- Read the diff the Task names and the code around it: the whole diff in
+  round 1, in a later round what the Task names. Check it against the
+  plan's acceptance claims and the job in the issue. Build and test it in
+  your clone under /job/work where that shows what the check cannot: the
+  tests of the packages the change touches, and the probes. Daisy ran the
+  whole check on this head; do not run it again.
+- Look for defects: wrong behaviour, a missed case, a test that cannot
+  fail, a claim in the description the change does not support, a pattern
+  fixed in one place and not its siblings, code that works around a clash
+  with the design instead of resolving the clash, naming whether the plan
+  or the change makes it, a comment or description that argues a shortcut
+  is acceptable instead of fixing it or listing it as not done, a
+  document the change makes wrong.
+- For each test the plan names, apply the probe the plan names for it in
+  your clone under /job/work, running that test alone: a test that
+  survives it, or a claim with no test at the seam the plan names, is
+  blocking. Probe further where you doubt a test; a test that survives a
+  probe of your own is a non-blocking finding, unless the change that
+  survives shows the head itself is wrong.
+- Judge what is realistic by the trust boundaries the repository notes
+  declare and the setups the slice does not support: what crosses an
+  untrusted boundary is in scope whatever it holds; what needs a hostile
+  or unusual environment the product trusts is not.
+- A head whose check fails does not do the job: request changes, naming
+  whose move would make it pass, the worker's or the maintainer's.
+- Report only what you can point at: the file and line, what is wrong,
+  and how to show it. A preference is not a finding.
+- Every finding, however small, is its own marked line; the prose around
+  the findings adds none. When a finding is one instance of a kind new
+  code can repeat, and a check that scans the whole tree (a test, a lint)
+  can recognise every instance, name that check, at the finding's file
+  and line, in a non-blocking finding of its own.
+- What blocks is the Task's short list, the same for both reviewers;
+  every other finding is non-blocking, and Daisy keeps it for the owner,
+  so write it down rather than weigh whether it is worth a round. Request
+  changes only for a blocking finding. Stop when every claim and every
+  named test in your review's scope has been checked.
+```
+
 ### sympathetic
 
 ```markdown
@@ -981,6 +1128,47 @@ maintainer will, assuming it is meant to work.
   whose move would make it pass, the worker's or the maintainer's.
 - Request changes only for a blocking finding: the change does not do the
   job or will mislead its next reader.
+- Every finding, however small, is its own marked line; the prose adds
+  none. When a finding is one instance of a kind new code can repeat,
+  and a check that scans the whole tree (a test, a lint) can recognise
+  every instance, name that check, at the finding's file and line, in a
+  non-blocking finding of its own.
+```
+
+*R6, specified ahead of its build* (7.11, rules 1 to 5, and the token
+rules of decision 171's open question on them): the sympathetic
+reviewer's default becomes the text below. Its fourth bullet reads the
+tests against the plan's probes and leaves running them to the
+adversary, and its sixth points to the Task's list:
+
+```markdown
+# Sympathetic reviewer
+
+You are the sympathetic reviewer. You read the change as its future
+maintainer will, assuming it is meant to work.
+
+- Read the diff the Task names and the code around it, against the plan
+  and the job: the whole diff in round 1, in a later round what the Task
+  names.
+- Judge whether the change does what the job asked, whether it fits the
+  code around it, and whether the next person can read and change it.
+  Code that works around a clash with the design instead of resolving
+  the clash (naming whether the plan or the change makes it), and a
+  comment or description that argues a shortcut is acceptable instead of
+  fixing it or listing it as not done, are findings.
+- Name what is good as well as what is missing, briefly. Point at files
+  and lines.
+- Read each new test against the probe the plan names for it; do not
+  build or run tests, which Daisy's check and the adversary do. Where you
+  doubt that a test can fail, say so in a finding naming the change that
+  should break it. A claim with no test at the seam the plan names is
+  blocking.
+- A head whose check fails does not do the job: request changes, naming
+  whose move would make it pass, the worker's or the maintainer's.
+- What blocks is the Task's short list, the same for both reviewers: a
+  document that will mislead its next reader blocks when the slice's
+  claims name it. Every other finding is non-blocking, and Daisy keeps it
+  for the owner. Request changes only for a blocking finding.
 - Every finding, however small, is its own marked line; the prose adds
   none. When a finding is one instance of a kind new code can repeat,
   and a check that scans the whole tree (a test, a lint) can recognise
@@ -1058,6 +1246,13 @@ or changed by the copy, and no flag is copied.
 | `swarm:review-1-in-progress` | the pair is under way: from the launch of a reviewer on `review-0-ready` (T21) until the pair on the head completes | adversary and sympathetic: each that has not reviewed the head and is not running, the sympathetic reviewer only once the adversary's review of the head approves |
 | `swarm:review-2-approved` | both reviews of the head approve: merge it | nobody (with the merge gate off, Daisy's merge step, section 12) |
 | `swarm:review-3-changes-requested` | a review of the head requested changes, or the approved head does not merge into `base` (T25) or failed its checks (T26) | worker |
+
+*R6, specified ahead of its build* (7.11, rule 6): a seventh flag,
+`swarm:follow-up`, eighteen labels in all, marks an issue Daisy files
+with a merged pull request's non-blocking review findings; it is the
+only `swarm:*` label such an issue carries, so no role runs on it, and
+it is kept when the issue closes, so the scorecard finds it (7.11,
+Follow-ups).
 
 **The flags and the terminals.** The six flags sit beside the stage,
 never in its place: `swarm:gated`, the stage waits for the maintainer;
@@ -1520,6 +1715,8 @@ nothing: their trigger is the maintainer's decision.
 
 *R2, specified ahead of its build* (12.1, rule 3): one transition is added, **T32**, `swarm:review-2-approved` to `swarm:review-3-changes-requested`, its row joining this table, and the explorer's, when it is built: the merge check of the approved head, the repository's check on the commit that merges it into `base` as it is now, fails, after 7.9's one rerun of a classified failure; Daisy's merge queue, under either gate, posts `Comment(m, <reconciler note naming the log>)` and relabels the issue; the worker merges `base`, fixes what fails, and the pair reviews the new head as any revision (T12, then T9 or T10); no block, each round counted towards the round limit (T11). A conflict the queue's merge finds is T25, sent back before the check, whichever the merge gate. A merge check that fails in the environment after its rerun is T17 from `swarm:review-2-approved`, which T17's row does not list as a from-stage until the build: the issue blocked, the stage kept, the note naming the reason, nothing posted on the pull request.
 
+*R6, specified ahead of its build* (7.11, rules 6 and 8): no transition is added or changed until the maintainer rules on the round limit's outcome (rule 8; decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md) gives the options), so T11 reads as above. A swarm pull request the forge reports merged, which T15, T13 and a merge by hand all lead to, has its non-blocking review findings filed as a follow-up issue as the issue's pull requests are listed (The pull requests on the issue, below), before the block's write that shows it merged.
+
 The maintainer may also relabel any issue to any stage at any time; the
 next pass reads the new label and the role rule decides from there. That
 is the **fast lane**: a small, unambiguous job moved from
@@ -1642,6 +1839,12 @@ authorship tells the swarm's entries from the maintainer's at a glance;
 the marker names the role and run, and the author check keeps any other
 login's text, a maintainer's included, from passing as the swarm's. A
 table test asserts both (Step 28).
+
+*R6, specified ahead of its build* (7.11, rule 6): a follow-up issue's
+body reports on no run either: its first line is `<!-- daisy-swarm
+role=reconciler kind=follow-up -->` and its second `**reconciler:**
+follow-up of …`, the swarm's when its author is `<swarm-login>`, as the
+gate note's is; the issue has no stage, so no rule reads it as a thread.
 
 **Trust.** An entry is *counted* when it is the swarm's or its author is
 in `trusted`, and it is no gate note, no auto note, no continuation, no command's answer,
@@ -1787,6 +1990,14 @@ adversary approves, the pair is complete as on any head, and the
 round counts toward `max_rounds` as any other. Rounds count per pull request, so each slice has
 its own `max_rounds`, and a plan revised after the limit (T11) starts
 the count again.
+
+*R6, specified ahead of its build* (7.11, rules 1 and 5): what blocks
+in a round is a fixed list in the reviewers' Task text, and a blocking
+finding is *closed* when its own reproduction passes on the head, or it
+is answered with a reason the reviewer accepts; from round 2 only an
+earlier blocking finding not closed, a fault the revision introduced or
+a claim the head fails blocks. The count of rounds, what completes one
+and `max_rounds` are unchanged.
 
 **The rulings** (Step 9 of the plan for the inbox requests F27–F35;
 decision [128](swarm/decisions/0128-a-ruling-re-opens-a-plan.md)). A ruling (an ADR) that lands while a job is
@@ -3276,6 +3487,11 @@ specified ahead of its build* (12.1, The red main): while a repository's
 each red repository with its breaking merges and a pointer to the
 check's output, `/job/io/main/<name>-<short sha>.log`, written before the
 launch.
+*R6, specified ahead of its build* (7.11, rule 6): the owner's batch
+prompt gains, after `# Open swarm issues`, `# Follow-ups`: each open
+issue carrying `swarm:follow-up`, oldest first, as `## #<f>: <title>`
+and its numbered items as its body holds them (the marker lines and the
+first text line left out), or `None.`; the QA's batch prompt has none.
 
 The QA's batch prompt (section 6, The QA trigger) is the
 owner's without `# Briefs`, and, with `notes`, with a reviewer's
@@ -3535,6 +3751,25 @@ deadline and `/job/io/deadline`, which Daisy writes at 80% of
 `timeout`, asking the member to write its output then, or what it has
 and how the work could be split.
 
+*R6, specified ahead of its build* (7.11, rules 1 to 5 and 9): every
+reviewer text adds the **blocking sentence** (the list of what blocks,
+"realistic" read from the repository notes' `## Trust boundaries` and
+the slice's `Unsupported:` line, each blocking finding's kind and
+reproduction), in place of the verdict sentence's `Request changes only
+when a finding is blocking; approve otherwise.`; a delta round's last
+sentence becomes the **convergence sentence**, and a reviewer's first
+review in a later round adds its round's limit; the adversary's
+addition checks each test's named probe after its rollback; the
+architect's plan text asks for a `Probe:` line under each Test Plan
+claim and an `Unsupported:` line in each slice's item, and the builder
+sentence's slice section holds both; the worker's `plan-1-accepted`
+text asks for each probe's report, its `review-3-changes-requested`
+text says how a finding that does not block is answered, and every
+worker text adds the **gates sentence** after its check sentence; the
+owner's batch text reads `# Follow-ups` (`Follow-up:` and `Triaged:`
+lines), and the owner's and the QA's batch texts ask for a `Defect in:`
+line. Section 7.11 quotes each.
+
 ### 7.5 The output file
 
 `apply` reads `<run>/io/out.md` (the member's `/job/io/out.md`) once
@@ -3559,6 +3794,14 @@ or trailing spaces.
 | the batch run's | proposals: each line matching `^## (.+)$` starts one, its title the match trimmed (1 to 200 characters), its body the lines up to the next such line, blank lines trimmed at both ends; before the first, lines matching `^Met: (.+)$` are the owner's report of briefs met, read from `<run>/io/out.md` by `status` (section 11), and the rest is ignored; the first `<p>` are taken; none is *proposed nothing*. A body's first line is expected to be `Brief: <path> — <milestone>` (section 4) and its second `Class: routine` or `Class: architecture` (section 5, The job class); Daisy posts the body as written either way, so a missing line shows at triage, and creates the issue with `swarm:class-architecture` unless that second line is `Class: routine` (whitespace at either end aside) |
 | the QA's batch run's | first line beginning `NO FAILURE:`: a completed exploration (section 6, The QA trigger), nothing created; otherwise read as the owner's, the `Met:` lines ignored, each proposal a failure, with this difference: naming no brief, its body's first line is expected to be `Class: routine` or `Class: architecture`, and the issue is created with `swarm:class-architecture` unless that first line is `Class: routine` (whitespace at either end aside), the class an issue the QA opened keeps (section 5, The job class) |
 | anything else | the text to post |
+
+*R6, specified ahead of its build* (7.11, rules 6 and 7): before the
+batch run's first `## ` line, lines matching `^Triaged: #([0-9]+): (.+)$`
+are the owner's triage of follow-up issues, acted on at the collection
+(7.6), beside the `Met:` lines; a proposal's line `Follow-up: #<f> <i>,
+<j>` after its `Class:` line and a body's line `Defect in: <name>#<m>`
+are posted as written, as the `Brief:` and `Class:` lines are, and read
+by the scorecard alone (section 11).
 
 **The stop's cause** (Step 4 of the plan implementing the 2026-11-19
 swarm roadmap, R0). A member's stop, its `BLOCKED:` line or a
@@ -4177,6 +4420,14 @@ continuations not yet posted there.
 | adversary or sympathetic, `review-0-ready` or `review-1-in-progress` | `Pulls(n)`; `Review(m, <verdict>, <marked text>)`; `Reviews(m)` and `PullComments(m)`: when the pair is complete on the head since its newest reopening, the worker's answer without a commit or the maintainer's comment (section 6: the adversary's review requests changes, or both roles have a review), then, from `swarm:review-1-in-progress`: both approve, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-2-approved")` (T9); one requests changes and the rounds are below `max_rounds`, `Relabel(n, "swarm:review-1-in-progress", "swarm:review-3-changes-requested")` (T10); one requests changes at `max_rounds` or more, `Comment(n, <reconciler note>)` (the first-time or the second-time note below) and `Relabel(n, "swarm:review-1-in-progress", "swarm:plan-0-posted")` with the plan gate on or `Relabel(n, "swarm:review-1-in-progress", "swarm:proposal-accepted")` with it off, or `Relabel(n, "", "swarm:blocked")`, the stage kept, when the issue thread already holds a round-limit note on this pull request other than this run's own (told by text, below; the own note found on a retried collection does not count) (T11). When the pair is not complete, nothing more: the label stays `review-1-in-progress` |
 | any role, `BLOCKED:` | the role's text, `Comment(m, <marked text>)` for the worker in `review-3-changes-requested` and the reviewers, `Comment(n, <marked text>)` for the others; `Comment(n, <reconciler note>)`; T22 for a worker and a reviewer; `Relabel(n, "", "swarm:blocked")` (T17) |
 | any run that ends without moving the issue on (a swarm fault, abandoned, stale, discarded with its pull request closed) | T22: `Relabel(n, <in-progress>, <home>)`, `<home>` `swarm:review-0-ready` for a reviewer and the run's label for a worker; nothing for the owner and the architect, whose launch writes no stage |
+
+*R6, specified ahead of its build* (7.11, rule 6): the owner's batch
+collection, after its `CreateIssue` calls, acts on each `Triaged:
+#<f>: <why>` line (7.5) that names an open issue carrying
+`swarm:follow-up`: `Comment(f, <reconciler note: the owner's reason and
+the proposals of this batch whose body names #f on a Follow-up: line>)`
+then `CloseIssue(f)`, the flag kept; a line naming any other issue is
+ignored, with `⚠ #<f>: Triaged names no open follow-up issue; ignored`.
 
 Every relabel above is made from the stage of the run the issue carries
 when it is read again right before: the in-progress stage its launch
@@ -5937,6 +6188,327 @@ for the old build's runs: a run without the `deadline` line is
 collected by the rules before (*ended*, *abandoned*, *orphan over
 time*), its attached exit mark read as *ended* reads it, and none is
 held by a timer.
+
+### 7.11 Review by risk, with an end
+
+*R6, specified ahead of its build* (Step R6-design of the plan
+implementing the 2026-11-19 swarm roadmap: R6 and the parts of R5 it
+needs; decision
+[171](swarm/decisions/0171-review-by-risk-with-an-end.md)), to be built
+once the maintainer has ruled on its open questions. Sections 4, 5, 6,
+7.3, 7.4, 7.5, 7.6, 11 and 12 mark where R6 changes them, each mark
+naming this section; until the build, each reads as it did before.
+
+**The rulings.** The maintainer's, of 2026-11-22: "I'm inclined to
+agree with your findings but I don't want to start making brittle
+software. Similarly, I don't want the adversary making outlandish
+demands." The approach he agreed: what blocks is a short, fixed list,
+the same for every reviewer; "realistic" is defined by the product,
+once, as trust boundaries in each repository's notes; probes are agreed
+in the plan, and unsupported setups listed per slice, by the architect;
+a finding is closed when its own reproduction passes, and from round 2
+a new variant of a closed finding is non-blocking unless it breaks a
+claim; non-blocking findings are collected into a follow-up issue the
+owner triages; the escaped-defect side is measured beside the cost, by
+configuration; the round limit's outcome is his ruling; and the
+worker's Task names which gates are Daisy's to run. The evidence, the
+live swarm's adversary reviews, is decision 171's.
+
+**The rules.** Nine, each quoted in the same words by decision
+[171](swarm/decisions/0171-review-by-risk-with-an-end.md):
+
+1. **What blocks.** A review finding is blocking only when it is one of
+   four: the slice's claim fails (a claim of its Test Plan that the head
+   does not show); a test the plan names for the slice is missing on the
+   head or fails; a defect in the code the change adds or changes that a
+   realistic user or input meets (rule 2); or a fault the revision
+   introduced (behaviour that worked on a head reviewed before and fails
+   on this one). Every other finding is non-blocking, however sound. The
+   list is Daisy's fixed Task text, the same for both reviewers in every
+   round.
+2. **Realistic, by the trust boundaries.** Each repository's notes
+   declare its trust boundaries once: what the product trusts (its own
+   process's environment, umask, configuration and filesystem) and what
+   it does not (requests, uploads, imports: what a user or a peer
+   sends). An input across an untrusted boundary is realistic whatever
+   its content, so hardening there is in scope and can block; a fault
+   met only when something the product trusts is hostile or unusual is
+   non-blocking.
+3. **Probes agreed in the plan.** The plan's Test Plan names each
+   test's probe, the change to the code under test that the test must
+   fail on; the worker applies each and records the failure it saw, and
+   the adversary checks those probes. A test that survives its named
+   probe does not show its claim, and blocks as the claim's failure. A
+   test that survives a probe the reviewer invents is non-blocking,
+   unless the surviving change exposes a fault on the head, which is
+   then judged as a defect.
+4. **Unsupported setups per slice.** Each slice of the plan lists the
+   setups it does not support (platforms, configurations,
+   environments), or none, and a fault met only in one of them is
+   non-blocking.
+5. **Convergence.** A blocking finding gives its reproduction (a
+   command, a test or steps), and it is closed when that reproduction
+   now passes on the head, or answered with a reason the reviewer
+   accepts. From round 2, a finding is blocking only when it is an
+   earlier blocking finding not closed, a fault the revision introduced,
+   or a claim of the slice the head does not show; any other new
+   finding, a new variant of a closed one among them, is non-blocking.
+6. **Follow-ups.** No non-blocking finding is lost: when a slice's pull
+   request merges, Daisy files the non-blocking findings of its reviews,
+   each once, as one follow-up issue, and the owner triages it in its
+   next batch, proposing a job of what is worth doing; Daisy closes the
+   issue on the owner's word.
+7. **The balance, measured.** Beside each merged slice's cost (its
+   runs, tokens, review rounds and stops), the scorecard reads its
+   escapes (its merge reverted, a bug filed against it, a fix of it
+   pushed forward by hand) and its follow-up items that a merged job
+   later fixed, and shows both by configuration: the escapes against
+   the reviewer configurations that approved the merged head, the
+   follow-up items against those that raised them.
+8. **The round limit.** Its outcome when every outstanding blocking
+   finding is non-blocking by rules 1 and 5 is the maintainer's ruling,
+   asked at this design's checkpoint; until he rules, T11 stands as
+   section 5 gives it.
+9. **Daisy's gates.** The worker's Task names the gates that are
+   Daisy's to run (the declared check, in the repository's check
+   environment with its test services, on the head the worker pushes,
+   and the forge's required checks before the merge); a gate the
+   worker's container cannot run goes under "Not established:", and is
+   never a reason to stop.
+
+**The list, in the Task** (rules 1, 2 and 4). Every reviewer text adds,
+after its row's text and before the slice sentence (7.4), the
+**blocking sentence**, which replaces the verdict sentence's `Request
+changes only when a finding is blocking; approve otherwise.` wherever
+the output contract then holds it (the reviewers' `# Output` block,
+Step VF of that plan): `A finding is blocking only when it is one of
+four: a claim of slice <s> that the head does not show, a test that
+survives the probe the plan names for it among them; a test the plan
+names for slice <s> that is missing on this head or fails; a defect in
+the code the change adds or changes that a realistic user or input
+meets, "realistic" as "## Trust boundaries" in the repository notes and
+the slice's "Unsupported:" line define it; or a fault this revision
+introduced, behaviour that worked on a head reviewed before and fails on
+this one. Every other finding is non-blocking, however sound: hardening
+against what the notes trust, a fault met only in a setup the slice
+does not support, a probe of your own that a test survives (unless the
+change that survives shows the head itself is wrong), and wording.
+Write each blocking finding's kind after its marker ("claim", "test",
+"defect" or "introduced", and from round 2 "unclosed" for an earlier
+one not closed), then the reproduction that shows it: a command, a test
+or the steps. Request changes only for a blocking finding; Daisy files
+every non-blocking one for the owner when the pull request merges, so
+none is lost.` When the repository notes hold no `## Trust boundaries`
+heading, `"realistic" as "## Trust boundaries" in the repository notes
+and the slice's "Unsupported:" line define it` reads `"realistic" as
+the slice's "Unsupported:" line defines it, and, since the repository
+notes declare no trust boundaries, trusting the product's own process
+environment, configuration, filesystem and umask and the toolchain's
+settings, and nothing a user or a network peer sends`. A blocking line
+that names no kind is read as before: Daisy parses the kind for nothing
+but the scorecard's count of blocking findings by kind (rule 7), a line
+without one counted `unnamed`, and never refuses a review for it.
+
+**The trust boundaries** (rule 2) are a section of the repository's
+notes, `repos/<name>.md` (section 4, The swarm's notes about a
+repository), under the heading `## Trust boundaries`: what the product
+trusts and what it does not, in the maintainer's words, which every
+member working in the repository reads in its `system.md`. Daisy reads
+none of it but whether the heading is there (above); `swarm init` seeds
+the heading in each file it seeds, holding the default the blocking
+sentence states, for the maintainer to replace. Hardening is a finding
+only where it meets an untrusted boundary: a percent-encoded path in a
+request, a forged upload or a malformed import is realistic whatever its
+content; a umask of `0477`, a planted toolchain setting or a hand-edited
+configuration file is the trusted side's, non-blocking.
+
+**The probes and the unsupported setups** (rules 3 and 4, R5's part).
+The architect's plan text (7.4, the `proposal-accepted` row's headings)
+asks, under `"## Test Plan"`, that each claim's test carry a line
+`Probe: <the change to the code under test that the test must fail on>`,
+a change the code can make and its test can tell (not an equivalent one,
+nor a fixture no test reads), or, for a guard of kept behaviour, the
+break of the live path it exercises; and, in each slice's item under
+`"## Steps"`, a line `Unsupported: <the setups the slice does not
+support>`, or `Unsupported: none`. The builder sentence's slice section
+holds both (its claim and test, its tests' probes and its `Unsupported:`
+line), so a worker's slice carries them. The worker's `plan-1-accepted`
+text adds: `For each test of this slice whose Test Plan claim names a
+Probe, apply the probe, run the test and restore the code: report, in
+the description or your comment, the test, the probe and the failure it
+showed, or that it survived.` The adversary's addition (7.4) adds, after
+its rollback: `Then apply, for each such test, the probe its Test Plan
+claim names, run the test and restore the head, comparing the worker's
+report of it: a test that survives its named probe is a "[blocking]"
+finding of kind "claim". A test that survives a probe of your own is a
+"[non-blocking]" finding, unless the change that survives shows that the
+head itself is wrong, which is then a defect, judged as any other.` A
+plan whose claims name no probe (written before the build, or by an
+architect that left one out) leaves the rollback as the adversary's one
+named check, as before: no probe is invented to block. Daisy parses
+neither line; a plan without them is accepted as before (R5's plan lint
+is not part of this design).
+
+**Convergence** (rule 5). The delta review's last sentence (7.4,
+decision [168](swarm/decisions/0168-a-delta-review.md)), `Raise a new
+blocking finding only on code changed since <previous head>; a finding
+on code unchanged since then is non-blocking.`, is replaced by the
+**convergence sentence**: `A blocking finding of that round or of your
+review is closed when its own reproduction now passes on this head.
+From this round, only three kinds of finding block: an earlier blocking
+finding not closed, a fault this revision introduced, and a claim of
+slice <s> that the head does not show; any other new finding, a new
+variant of a closed one among them, is non-blocking. A non-blocking
+finding the previous round or your last review already raised stands as
+written there: do not raise it again.` So a claim
+the head fails blocks on any code, changed or not, and nothing else
+new does. The rounds on an unchanged head (the maintainer's comment,
+the worker's `NO CHANGE:`) keep their sentences, which raise no new
+blocking finding but where the comment shows one. A reviewer whose
+first review falls in a later round (the sympathetic reviewer, decision
+[163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md))
+reviews the whole change, and its text adds, in round r > 1, `This is
+round <r> of the pull request: a new finding blocks only when it is a
+claim of slice <s> that the head does not show, or a fault the latest
+revision introduced; any other is non-blocking.` The worker's
+`review-3-changes-requested` text adds: `A blocking finding that is none
+of the kinds that block (a claim of the slice the head does not show, a
+test the plan names missing or failing, a defect in the changed code a
+realistic user or input meets, a fault the revision introduced) is
+answered, not fixed: say which it is not, and why. A non-blocking
+finding needs no change; Daisy files it for the owner.`
+
+**Follow-ups** (rule 6). *When:* at step 8 of a pass, or at the merge
+step, as the issue's pull requests are listed (section 5, The pull
+requests on the issue), for each swarm pull request the forge reports
+merged whose item the issue's block does not yet show `merged`, before
+the block's write that shows it, so a pass whose filing fails files it
+at the next, and a pull request the block showed merged before the
+build files nothing. A merge whose issue is closed by hand on the forge
+before any listing shows it files none either: no listing reads a
+closed issue but the merge step's own.
+*By whom:* Daisy, as the reconciler, with no member's run: the findings
+are read from the pull request's reviews by the swarm's account
+(`Reviews(m)`, each a marked text, section 6), every round's, the
+approving ones included, never from a prompt. *What:* each line
+beginning `[non-blocking]` of those reviews, and, of a pull request the
+maintainer's ruling on rule 8 lets merge with blocking findings
+outstanding, those too, marked `outstanding at the round limit`.
+*Deduplicated* three ways: at the source, the convergence sentence asks
+a later round not to raise again a non-blocking finding the previous
+round or its own last review raised; at the filing, a finding whose text, whitespace and case aside
+and with the line number of its `<file>:<line>` reference dropped, is
+already listed is not listed again, the earliest round's kept; and at
+the triage, by the owner, who takes the findings of one cause as one
+(below). *Filed* when one finding or more is left: `CreateIssue(<title>,
+<body>, ["swarm:follow-up"])`, `<title>` `Follow-up: <owner>/<name>#<m>
+(#<n>, slice <s>)`, its body the marker lines
+`<!-- daisy-swarm role=reconciler kind=follow-up -->` and
+`**reconciler:** follow-up of [<owner>/<name>#<m>](<url>), merged at <short sha>, slice <s> of #<n>: the reviews' findings that did not block it.`,
+then a blank line and one numbered item per finding, `<i>. <role> run
+<k>, round <r>: <the finding's line>`. *Once each:* before it
+creates one, Daisy lists the issues carrying `swarm:follow-up`, open
+and closed, and creates none when one's marker line is the follow-up's
+and its second line links the pull request; a pass's lists read the
+flag's issues once.
+
+The flag **`swarm:follow-up`** (section 5) marks the issue as a
+follow-up and is the only `swarm:*` label it carries: no stage, so no
+role runs on it (an issue carrying only a flag is no swarm issue, section
+5), and it neither counts towards `owner.max_open_proposals` nor wakes
+the owner's batch. It is the eighteenth label, which `init` and `apply`
+ensure as the others, created by an owner of the organization once
+where the swarm's account cannot (section 10, as decision
+[80](swarm/decisions/0080-gates-by-job-class.md)'s sixteenth was).
+
+*The owner's triage.* The owner's batch prompt holds, after `# Open
+swarm issues`, a section `# Follow-ups` (7.3): each open follow-up
+issue, `## #<f>: <title>` and its numbered items as the body holds them,
+the oldest issue first. The batch's Task text adds, before its `BLOCKED:`
+sentence: `Each issue under "# Follow-ups" holds review findings that
+did not block a merge. Check each item against <base> under /job/work;
+a job that fixes items worth fixing (a defect a user can meet, a test
+that cannot fail, or a finding the reviews keep repeating) is proposed
+like any other, with a line "Follow-up: #<f> <i>, <j>" after its "Class:"
+line naming the issue and the items it fixes; findings of one cause are
+one job. When no item of a follow-up is left to propose (each proposed,
+fixed already, met only where the repository notes trust, in a setup
+the slice does not support, or not worth a job), write a line "Triaged:
+#<f>: <why>" before the first "## " line, beside any "Met:" lines: Daisy
+closes the issue with your reason.` At the batch's collection (7.6),
+for each `Triaged: #<f>: <why>` line naming an open follow-up issue,
+Daisy posts `Comment(f, <the reconciler's note: the owner's reason and
+the proposals of the batch that name #f>)` and `CloseIssue(f)`, the flag
+kept, so the scorecard still finds it; a line naming any other issue is
+ignored with a warning. A follow-up the owner leaves open stays in the
+next batch's prompt. The maintainer may close one on the forge; `swarm
+close` refuses an issue with no stage, as it does now.
+
+**The balance** (rule 7). An **escape** of a merged slice, its pull
+request `<name>#<m>`, is one of three: its merge reverted (`status`'s
+reverted line, a reapply cancelling it, decision
+[141](swarm/decisions/0141-reverts-counted-from-the-mirrors.md)); an
+issue of `forge.repo`, open or closed, whose body holds a line `Defect
+in: <name>#<m>` (a bug filed against it: the QA's failure, the owner's
+proposal, the maintainer's own issue); or a commit on `base`'s
+first-parent line in the mirror that is no swarm merge and whose message
+holds that line (a fix pushed forward by hand). The owner's and the
+QA's batch texts add: `When you find that a failure's cause is the
+change of a merged swarm pull request, name it in the job's body with a
+line "Defect in: <name>#<m>".` The maintainer writes the line himself in
+his own issues and hand commits. A **follow-up item proved real** is an
+item that a `Follow-up: #<f> <i>` line names in the body of an issue
+with a merged slice. `swarm metrics --scorecard` (section 11) adds to a
+slice's line `; escapes <e>[ (reverted, <b> filed, <h> fixed by hand)];
+follow-up <k> items, <p> proved real` (`escapes 0`, and `follow-up
+none` for no follow-up issue), and to the summary `; escapes <e> on <m>
+merged slices (<rv> reverted, <b> filed, <h> fixed by hand); follow-up
+items <f>, <p> proved real; blocking findings by kind <kind> <k>, …`.
+By configuration, an adversary's or a sympathetic reviewer's line adds
+`; merged heads approved <a>, escaped <e>; follow-up items raised <f>,
+<p> proved real`: an escape counts against each reviewer run whose
+approval of the merged head stood, a follow-up item against the run that
+raised it. A slice's escapes are counted whenever they were made, up to
+`--until`, so a later window reads more of them than an earlier one did.
+The reads are those the scorecard makes now, with `Issues` of
+`forge.repo`, open and closed, beside `Issue(n)`, and each mirror's
+first-parent log of `base` for the hand commits. What no line names is
+not established: a defect fixed by a job that does not say so, or
+reverted by hand in a commit that is not a revert.
+
+**The round limit** (rule 8). T11 is unchanged until the maintainer
+rules: the first time, the issue returns to the architect, which
+revises the plan from the reviews; the second, it is blocked. The
+options and the recommendation (the architect judges the outstanding
+findings against rules 1 and 5 first) are decision 171's.
+
+**Daisy's gates** (rule 9). Every worker text adds, after its check
+sentence (`Run "<check>" before you finish and quote its last result.`),
+the **gates sentence**: `Daisy runs "<check>" on the head you push, in
+the repository's declared check environment with its test services, and
+the forge's required checks run before the merge: those gates are
+Daisy's, and a failure of theirs comes back to you. A part of them your
+container cannot run (a service or a network it lacks) goes under "Not
+established:"; it is no reason to write BLOCKED:.`, or, with no check
+declared, `The forge's required checks run before the merge: they are
+Daisy's gates, and a failure of theirs comes back to you.` A worker's
+`BLOCKED:` with cause `environment` stays what it was for a tool, image
+or service its own work needs and cannot reach; a gate is no longer one.
+
+**The defaults** (section 4). The adversary's, the sympathetic
+reviewer's, the architect's and the worker's default prompts take the
+rules in their own words, each marked there, and the reviewers' take
+the token rules the live swarm's reviewers run under (roadmap R6(e),
+F47; an open question of decision 171): neither reviewer reruns the
+check Daisy ran, the adversary runs the probes and the tests of the
+packages the change touches and stops once every claim and named test
+in its scope is checked, and the sympathetic reviewer reads and runs
+nothing. Their sha256 are appended
+to the table of earlier defaults at the build (section 11), so `swarm
+prompt build` brings a swarm still at the previous defaults to these.
+The live swarm's own reviewer part, which states a blocking bar, a
+convergence rule and a narrower probe rule in its product's words, is
+then the maintainer's to retire.
 
 ## 8. The credential rule
 
@@ -7874,6 +8446,22 @@ windows, `--until` and `--since` the time its build was installed, each
 row's `root_sha` naming the root its run was collected under (decision
 [168](swarm/decisions/0168-a-delta-review.md)).
 
+*R6, specified ahead of its build* (7.11, rule 7): the scorecard reads
+the escaped-defect side beside the cost. A slice's line adds its
+escapes (its merge reverted, as the reverted line reads it; each issue
+of `forge.repo`, open or closed, whose body holds `Defect in:
+<name>#<m>` for its pull request; each commit on `base`'s first-parent
+line that is no swarm merge and whose message holds that line) and its
+follow-up items with those a merged job's `Follow-up:` line names; the
+summary adds their totals and the blocking findings counted by the kind
+each names; By configuration, an adversary's or a sympathetic
+reviewer's line adds the merged heads it approved and their escapes,
+and the follow-up items it raised and those proved real. It reads
+`Issues` of `forge.repo`, open and closed, and each mirror's
+first-parent log of `base` beside what it reads now, and writes
+nothing. `init` and `apply` ensure eighteen labels, `swarm:follow-up`
+among them (section 5).
+
 ### daisy swarm list
 
 | Field | Value |
@@ -8461,6 +9049,12 @@ the current Daisy's.
   `apply`'s, brought up to date by its passes), so its direction names
   no file. A head sent back once already (below) the verb refuses,
   nothing changed: the maintainer is there to read why.
+- *R6, specified ahead of its build* (7.11, rule 6): when the merge
+  step or a pass's listing (section 5, The pull requests on the issue)
+  finds a swarm pull request merged whose item the issue's pulls block
+  does not yet show `merged`, it files the follow-up first: the non-blocking findings of the pull
+  request's reviews, each once, `CreateIssue` with `swarm:follow-up`.
+  The merge itself, its checks and its gates are unchanged.
 - **Two approvals are not evidence that the change is maintainable**: both
   reviewers are models, and the maintainer's reading at merge is the review
   that certifies it (with the merge gate off, no one's is, and a

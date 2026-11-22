@@ -1,0 +1,349 @@
+# 0171. Review by risk, with an end: a fixed list of what blocks, trust boundaries, agreed probes, convergence, follow-ups and the escaped-defect measure
+
+From Step R6-design of the plan implementing the 2026-11-19 swarm roadmap (R6, review by risk, with an end, and the parts of R5 it needs, 2026-11-22). Specified before its build: `docs/swarm.md` section 7.11, with the changes it makes marked in sections 4, 5, 6, 7.3, 7.4, 7.5, 7.6, 11 and 12; to be built once the maintainer has ruled on the open questions below. Amends decisions [15](0015-severity-per-finding.md) (what blocks is a fixed list), [63](0063-the-adversarys-fail-against-base-check-is-bounded.md) (the plan's probes beside the rollback), [144](0144-a-recurring-finding-asks-for-a-check.md) (a check finding reaches the owner as a follow-up), [156](0156-a-scorecard-per-merged-slice.md) (the scorecard's escaped-defect side) and [168](0168-a-delta-review.md) (from round 2, a claim the head fails blocks on any code, and nothing else new does).
+
+**The maintainer's direction of 2026-11-22**, on the analysis below: "I'm
+inclined to agree with your findings but I don't want to start making
+brittle software. Similarly, I don't want the adversary making
+outlandish demands." The approach he agreed: what blocks is a short,
+fixed list, the same for every reviewer (the plan rules' own review
+classes, `prompts/plan.md` rule 22, applied to the swarm); "realistic"
+is defined by the product, once, as trust boundaries in each
+repository's notes; probes are agreed in the plan, the architect naming
+each test's breaking mutation and the worker recording it, and a mutant
+the adversary invents that survives is non-blocking unless it exposes a
+fault on the head; unsupported setups are listed per slice by the
+architect; a finding is closed when its own reproduction now passes,
+and from round 2 a new variant of a closed finding is a new finding,
+non-blocking unless it breaks a claim, so that only an unclosed blocker
+or a fault the revision introduced blocks; non-blocking findings are
+collected into a follow-up issue the owner triages, so the adversary's
+thoroughness still counts, as backlog and not as a veto; the balance is
+measured, the escaped-defect side beside the cost, by configuration; the
+round limit's outcome, a process rule, is his ruling; and the worker's
+Task names which gates are Daisy's to run.
+
+**The evidence.** 103 blocking findings of the live swarm's adversary
+reviews, read one by one: 49% about tests or probes (a mutant the
+reviewer invented survives; fixtures of one kind only); 24% hardening
+against hostile or unlikely setups (a umask of `0477`, a planted `GOENV`
+file, a percent-encoded path segment); 14% the slice's claim fails; 8%
+real defects outside the claim; 4% wording; none shown to be a misread.
+From round 2 on, 31 blocking findings: 18 new variants of a fixed
+finding on code the revision touched, 7 faults the revision introduced,
+5 weak new tests, 1 a true carry-over. Blocking findings per review fall
+6.5, 2.0, 1.6, 0.5 by round, but any one blocks: 70% of round-3 reviews
+still requested changes. Only 4 of 10 revision sets fixed a real defect;
+their test lines outnumber their production lines about 5 to 1, and
+about 85% of the production lines were hardening. The adversary's model
+matters: round-1 request-changes rates were 31% on grok-4.7, 43% on
+gpt-6.1-sol and 96% on gpt-6.2-astra at high effort. Workers never
+declined a blocking finding, and nobody judged scope until the round
+limit. The request of 2026-11-22 adds that twelve of 37 pull requests
+took four or more rounds, five reaching the round limit within four
+hours of a restart, and that a worker stopped with cause `environment`
+for a database and a cache its container lacked, although Daisy's check
+runs that gate.
+
+**The rules**, quoted in the same words by `docs/swarm.md` section 7.11:
+
+1. **What blocks.** A review finding is blocking only when it is one of
+   four: the slice's claim fails (a claim of its Test Plan that the head
+   does not show); a test the plan names for the slice is missing on the
+   head or fails; a defect in the code the change adds or changes that a
+   realistic user or input meets (rule 2); or a fault the revision
+   introduced (behaviour that worked on a head reviewed before and fails
+   on this one). Every other finding is non-blocking, however sound. The
+   list is Daisy's fixed Task text, the same for both reviewers in every
+   round.
+2. **Realistic, by the trust boundaries.** Each repository's notes
+   declare its trust boundaries once: what the product trusts (its own
+   process's environment, umask, configuration and filesystem) and what
+   it does not (requests, uploads, imports: what a user or a peer
+   sends). An input across an untrusted boundary is realistic whatever
+   its content, so hardening there is in scope and can block; a fault
+   met only when something the product trusts is hostile or unusual is
+   non-blocking.
+3. **Probes agreed in the plan.** The plan's Test Plan names each
+   test's probe, the change to the code under test that the test must
+   fail on; the worker applies each and records the failure it saw, and
+   the adversary checks those probes. A test that survives its named
+   probe does not show its claim, and blocks as the claim's failure. A
+   test that survives a probe the reviewer invents is non-blocking,
+   unless the surviving change exposes a fault on the head, which is
+   then judged as a defect.
+4. **Unsupported setups per slice.** Each slice of the plan lists the
+   setups it does not support (platforms, configurations,
+   environments), or none, and a fault met only in one of them is
+   non-blocking.
+5. **Convergence.** A blocking finding gives its reproduction (a
+   command, a test or steps), and it is closed when that reproduction
+   now passes on the head, or answered with a reason the reviewer
+   accepts. From round 2, a finding is blocking only when it is an
+   earlier blocking finding not closed, a fault the revision introduced,
+   or a claim of the slice the head does not show; any other new
+   finding, a new variant of a closed one among them, is non-blocking.
+6. **Follow-ups.** No non-blocking finding is lost: when a slice's pull
+   request merges, Daisy files the non-blocking findings of its reviews,
+   each once, as one follow-up issue, and the owner triages it in its
+   next batch, proposing a job of what is worth doing; Daisy closes the
+   issue on the owner's word.
+7. **The balance, measured.** Beside each merged slice's cost (its
+   runs, tokens, review rounds and stops), the scorecard reads its
+   escapes (its merge reverted, a bug filed against it, a fix of it
+   pushed forward by hand) and its follow-up items that a merged job
+   later fixed, and shows both by configuration: the escapes against
+   the reviewer configurations that approved the merged head, the
+   follow-up items against those that raised them.
+8. **The round limit.** Its outcome when every outstanding blocking
+   finding is non-blocking by rules 1 and 5 is the maintainer's ruling,
+   asked at this design's checkpoint; until he rules, T11 stands as
+   section 5 gives it.
+9. **Daisy's gates.** The worker's Task names the gates that are
+   Daisy's to run (the declared check, in the repository's check
+   environment with its test services, on the head the worker pushes,
+   and the forge's required checks before the merge); a gate the
+   worker's container cannot run goes under "Not established:", and is
+   never a reason to stop.
+
+**Why a fixed list, in Daisy's text.** Decision 15 gave each finding a
+severity because "a reviewer told to find fault always does"; the
+severity was the reviewer's own call, by a persona sentence ("blocking
+when the change is wrong without its fix") that every hardening finding
+meets. The list moves the call from the reviewer's taste to four things
+the head can be shown to do: fail a claim, lack or fail a named test,
+ship a defect a realistic user meets, or break what worked. They are
+`prompts/plan.md` rule 22's classes read for code (its "a document
+contradicts another" is a claim the slice makes about its documents,
+which the architect names among its claims). The list is in the Task
+text, not the persona, so an edited persona cannot move the bar (section
+4: a persona states a stance, the output contract is Daisy's), and it
+is the same for both reviewers: the request's sympathetic reviewer
+rarely blocks, but when it does it blocks by the same list. A blocking
+finding names its kind and its reproduction, which costs the reviewer a
+word and a line it should already give ("how to show it", section 4),
+and gives the worker, the architect at the limit and the scorecard
+something to read. Daisy parses the kind only to count it: it never
+demotes a blocking finding itself, and a line without a kind is
+counted `unnamed`, never refused, since a verdict Daisy overrides is
+the brittleness the direction rules out. The alternatives: a severity
+scale (critical, major, minor), which keeps the judgement where it was;
+a bar in the persona alone, which is the live swarm's (below) and
+which a swarm's edit can drop; Daisy demoting a blocking finding whose
+kind is not on the list, an override of the reviewer's verdict that a
+missing word would set off.
+
+**The live swarm's change, weighed.** The swarm's own reviewer prompts
+took, on 2026-11-21, a blocking bar (a claim broken, or a fault a
+visitor, a member of staff or an operator meets in a configuration the
+project supports; an unsupported or hostile environment non-blocking),
+a convergence rule from round 2 (only an unclosed blocker, or a fault
+the fix introduced that breaks a claim or what worked, blocks; a pull
+request whose previous blockers are closed is approved) and a narrower
+probe rule (a test that survives its probe blocks only when it is the
+only test of a claim). Daisy's defaults take the first two, generalised:
+the bar's "configuration the project supports" is each repository's
+trust boundaries and each slice's unsupported setups, declared once
+rather than in each reviewer's words; the convergence keeps a claim
+that fails blocking on any code, which the swarm's "approved once the
+previous blockers are closed" would let through. The probe rule is
+replaced rather than taken: "the only test of a claim" still blocks on
+a mutant the reviewer invents, half of the blocking findings above;
+the plan's agreed probe is a test's own bar, set before the code is
+written.
+
+**Trust boundaries** (rule 2). A finding about a umask of `0477`, and
+one about a malformed upload, read alike to a reviewer: each is an input
+the code mishandles. What tells them apart is the product's own word on
+what it trusts, which no persona can carry for every product: so each
+repository's notes, the maintainer's word to every member working in it
+(section 4), hold it under `## Trust boundaries`, and `swarm init`
+seeds a default in the maintainer's own terms of 2026-11-22 (the
+server's environment, umask, configuration and filesystem trusted; what
+a user or a peer sends not). Daisy reads only whether the heading is
+there, so the blocking sentence can state the default where it is not;
+a repository whose notes say nothing more is judged by the default. A
+declaration in `swarm.json` was the alternative: Daisy would read none
+of it either, and the notes are where the maintainer already writes
+what a member should know of a repository.
+
+**Probes in the plan, and unsupported setups per slice** (rules 3 and
+4; R5's part). Half the blocking findings were about tests, most of
+them a mutant the reviewer had chosen: a test bar set after the code by
+whoever reviews it, so each round could raise it again. The architect
+names each test's probe in the Test Plan, the worker applies it and
+reports what it showed, and the adversary checks that probe; one of its
+own that a test survives is a finding the owner may take up, not a
+veto, unless the surviving change shows the head is wrong, which is a
+defect and judged as one. The adversary's rollback (decision 63) stays
+beside it: it is Daisy's own named check, not an invented one, and
+catches a test that passes without the change. A plan without probes
+blocks on no invented one; the rollback alone is its named check, so
+the plans written before the build are judged as they would be after.
+The roadmap's R5(a) also had the architect apply each probe before
+posting, with a probe table; that is left to R5's own design: a new
+behaviour's test does not exist until the worker writes it, so the
+worker's record is the first one possible. The unsupported setups are
+the slice's own exclusions (a platform, a configuration), which the
+trust boundaries, stated once per repository, do not reach.
+
+**Convergence** (rule 5). From round 2, 18 of 31 blocking findings were
+new variants of a finding already fixed: the reviewer read the fix,
+found its edge, and raised it, so every revision bought a round. A
+finding is closed by its own reproduction, the one its blocking line
+gave, so a variant is a new finding; from round 2 it is non-blocking
+unless it breaks a claim. Decision 168 already made a finding on
+unchanged code non-blocking; this narrows changed code to the
+revision's own faults and widens unchanged code to the one thing that
+must not merge, a claim the head fails. The delta review's other text,
+the round's rounds on an unchanged head and the count of rounds are
+unchanged. A reviewer's first review in a later round (the sympathetic
+reviewer's, decision 163) is bound by the round, not by its own count:
+the pull request has had its rounds, and its findings beyond a failing
+claim or the latest revision's fault go to the follow-up. The worker
+answers, rather than fixes, a blocking finding that is none of the four
+kinds, saying which it is not: decision 63 already let a worker answer
+with a reason, and the evidence is that none did.
+
+**Follow-ups** (rule 6). *When:* at the merge, so that what is filed is
+about code that landed and the findings of every round, the approving
+ones included, are in; a pull request closed unmerged files nothing.
+*By whom:* Daisy, from the reviews on the forge, with no run, so the
+filing costs no tokens and cannot fail as a member's output can.
+*Deduplicated* three ways: the later round is told not to raise again
+a non-blocking finding the previous round or its own last review
+raised (it is given both since decision 168); the filing drops a finding whose text, its line
+number aside, is already listed; and the owner takes findings of one
+cause as one job. *Triaged* by the owner in its batch, which already
+reads the open issues and proposes: its prompt gains `# Follow-ups`, a
+job made of follow-up items says so on a `Follow-up:` line, and a
+`Triaged:` line closes a follow-up whose items are all dealt with, on
+the owner's word, as a `Met:` line reports a brief met. The issue
+carries a new flag, `swarm:follow-up`, and no stage, so no role runs on
+it and it holds no proposal's place. The alternatives: a follow-up at
+`swarm:proposal-posted`, which the owner would answer in a run of its
+own per merge (some 20 to 40 a day at the roadmap's rate, each with the
+owner's system prompt) and the triage gate would then hold for the
+maintainer one by one; filing at each round, which files findings about
+code the next revision changes; one rolling issue per repository, whose
+body grows without end and whose triage cannot close part of it; the
+reviewers filing issues themselves, which gives a member the forge and
+spends a run's tokens on it; and the maintainer closing each follow-up
+(`Met:`'s way), which keeps him in a loop the direction aims to take him
+out of. The trigger is the issue's pulls block not yet showing the pull
+request merged, so the build files nothing for pull requests merged
+before it. The eighteenth label is created, as the sixteenth was, by an
+owner of the organization where the swarm's account cannot.
+
+**The balance** (rule 7). Cost is recorded already: runs, tokens,
+rounds and stops per merged slice, by configuration (decisions 156 and
+165). A lower bar trades rounds for escapes, and what escapes was not
+counted beyond reverts (none so far). Three escapes are read from what
+the swarm and the maintainer already write: a revert, as `status`
+reads one (decision 141); a bug filed against the slice, an issue whose
+body holds `Defect in: <name>#<m>`, which the owner's and the QA's batch
+texts ask for when they find a failure's cause in a merged pull
+request's change, and the maintainer writes in his own; and a fix
+pushed forward by hand, a commit on `base` that is no swarm merge and
+whose message holds the same line. The fourth figure is the follow-up
+items a merged job names on its `Follow-up:` line: a non-blocking
+finding that proved real. Escapes count against the reviewer runs whose
+approval of the merged head stood, follow-up items against the runs
+that raised them, so the adversary's models (31% to 96% at round 1)
+read on both sides, by `config_hash`. Not established: a defect fixed
+by a job that does not name it, or reverted by hand without a revert
+commit. Alternatives: a window after the merge within which any hand
+commit to the slice's files counts (a heuristic with a limit no one has
+set, which would count refactors); a label for escapes (one more state
+on the forge for the maintainer to keep).
+
+**The round limit** (rule 8). The request of 2026-11-22 asks for an
+outcome that needs no maintainer when every remaining adversary blocker
+is new. Under decision 163 the sympathetic reviewer reviews only a head
+the adversary approved, so "the sympathetic reviewer approves" and "the
+adversary requests changes" do not meet on one head without a change.
+The options, for the maintainer's ruling:
+
+- (a) T11 as today: the first time, the architect revises the plan from
+  the reviews, and the rounds count again from the revised plan; the
+  second time, the issue is blocked. Rules 1 and 5 alone make fewer
+  pull requests reach the limit.
+- (b) The architect judges first: the first time, the architect's
+  open-slice text asks it to judge each blocking finding of the last
+  round against rules 1 and 5 (the trust boundaries and the slice's
+  unsupported setups with them). When none qualifies it writes
+  `OVERRULED: <why, finding by finding>` as its first line: Daisy posts
+  it on the pull request, the head stands as the adversary's approval
+  would, the issue returns to `swarm:review-1-in-progress` (a new
+  transition), the sympathetic reviewer reviews the head as after an
+  approval, and its approval goes to the merge gate as T9 does, the
+  overruled findings filed in the follow-up marked `outstanding at the
+  round limit`; its request for changes is a round as any other. When
+  any finding qualifies, the architect revises as in (a). The second
+  time, blocked as today. The plan's author judges its own claims, the
+  sympathetic reviewer keeps a second key, and the maintainer still
+  meets the head at the merge gate when it is on.
+- (c) Merge when the sympathetic reviewer approves and every remaining
+  blocker is new in the last round (the request's example): Daisy
+  would tell "new" from the kinds the blocking lines name, and a new
+  blocking finding of kind `claim` or `introduced` would still hold the
+  merge. It needs the sympathetic reviewer launched at the limit on a
+  head the adversary sent back, which decision 163's order does not do.
+- (d) A limit per class (the roadmap's R6(d), 2 for routine and 3 for
+  architecture), with any of (a) to (c): a limit, the maintainer's.
+
+The recommendation: (b), and `max_rounds` left as it is until a week
+under rules 1 to 5 shows how many pull requests still reach it.
+
+**Daisy's gates** (rule 9). A worker stopped for a database its
+container lacked, the integration gate being Daisy's check's, which
+runs the repository's test services (section 7.9). The worker's Task
+now says which gates are Daisy's and that one it cannot run is listed,
+not a stop. Its own `environment` stop, a tool or service its work
+needs, is unchanged.
+
+**The defaults** (section 4). The adversary's, the sympathetic
+reviewer's, the architect's and the worker's default prompts take the
+rules in their own words. The reviewers' also take the token rules the
+live swarm's reviewers run under (the roadmap's R6(e), F47): neither
+reruns the check Daisy ran; the adversary runs the probes and the tests
+of the packages the change touches; the sympathetic reviewer reads and
+runs nothing; the adversary stops once its scope is checked. That last change
+reverses decision 168's note keeping the sympathetic reviewer's "try it
+in your clone where that is cheap", so it is an open question below.
+The swarm's own reviewer part, which states its bar in its product's
+words, is then the maintainer's to retire.
+
+**What of R6 this leaves.** (a) One reviewer for routine jobs: decision
+163 already launches the sympathetic reviewer only on a head the
+adversary approved; whether a routine job needs it at all waits on the
+week's figures. (b) The delta review: built at Step E2 (decision 168).
+(c) The severity rule: this decision. (d) A round limit per class: a
+limit, in the round limit's question. (e) The token rules: the defaults
+above. And of R5: (a)'s architect run of each probe and its probe
+table, (b) normative and illustrative plan text, (c) amendments in the
+job's `plan.md`, and (d) the plan lint are R5's own design.
+
+**Open, for the maintainer.** 1. The round limit's outcome (rule 8):
+(b) recommended. 2. The token rules in the default reviewer prompts,
+the sympathetic reviewer reading and running nothing: recommended yes,
+as the live swarm runs them. 3. The default trust boundaries, stated
+where a repository's notes declare none: recommended as written, the
+maintainer's own terms.
+
+Tests, named for the build: `TestTaskTextBlockingSentence`,
+`TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
+`TestTaskTextConvergenceSentence`,
+`TestTaskTextLateFirstReviewIsBoundByTheRound`,
+`TestTaskTextAdversaryChecksTheNamedProbes`,
+`TestTaskTextPlanAsksForProbesAndUnsupported`,
+`TestTaskTextWorkerGatesSentence`, `TestInitSeedsTrustBoundaries`,
+`TestDefaultPromptsAreSectionFours` and
+`TestDefaultHistoryHoldsEachCurrentDefault` with the new defaults;
+`TestFollowUpFindings` (the dedup),
+`TestSwarmFollowUpFiledAtTheMerge`, `TestSwarmFollowUpFiledOnce`,
+`TestSwarmFollowUpNotFiledForPastMerges`,
+`TestSwarmOwnerBatchReadsFollowUps`,
+`TestSwarmTriagedClosesTheFollowUp`; `TestEscapes`,
+`TestScorecardEscapesAndFollowUps` and
+`TestScorecardEscapesByConfiguration`.

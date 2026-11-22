@@ -15,3 +15,5 @@ the floor and does not converge by itself).
 [168](0168-a-delta-review.md)
 (Step E2 of the plan implementing the 2026-11-19 swarm roadmap).**
 From round 2, on a head with commits since its last review, a reviewer is given the previous round's findings and the change since that review as its task, the whole change readable but not the task; a finding it raises on code unchanged since is non-blocking.
+
+**Amended by decision [171](0171-review-by-risk-with-an-end.md)** (R6, specified ahead of its build, Step R6-design of the plan implementing the 2026-11-19 swarm roadmap): a finding is blocking only when it is one of four (the slice's claim fails, a test the plan names is missing or fails, a defect in the changed code that a realistic user or input meets, a fault the revision introduced), a fixed list in Daisy's Task text the same for both reviewers; each blocking finding names its kind and its reproduction; from round 2 only an earlier blocking finding not closed, a fault the revision introduced or a claim the head fails blocks (`docs/swarm.md` section 7.11).

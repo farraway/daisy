@@ -54,3 +54,5 @@ Task text has no `Brief:` line for; review findings added to the
 owner's batch prompt, a change to 7.3 and its code left for later.
 Tests: `TestDefaultPromptsAreSectionFours` and
 `TestDefaultHistoryHoldsEachCurrentDefault`.
+
+**Amended by decision [171](0171-review-by-risk-with-an-end.md)** (R6, specified ahead of its build, Step R6-design of the plan implementing the 2026-11-19 swarm roadmap): the non-blocking check finding is no longer only offered: with every other non-blocking finding of a merged pull request's reviews, Daisy files it in a follow-up issue (`swarm:follow-up`), which the owner's batch reads under `# Follow-ups` and proposes from, a job naming its items on a `Follow-up:` line (`docs/swarm.md` section 7.11).

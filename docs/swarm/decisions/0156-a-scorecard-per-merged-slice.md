@@ -132,3 +132,5 @@ of the plan implementing the 2026-11-19 swarm roadmap).** The
 configuration is the rows' `config_hash`, not their `prompt_hash`,
 which is a run's own: a role's runs of one setup are one line, rows
 without the hash one line, `config unknown`.
+
+**Amended by decision [171](0171-review-by-risk-with-an-end.md)** (R6, specified ahead of its build, Step R6-design of the plan implementing the 2026-11-19 swarm roadmap): a slice's line, the summary and By configuration read the escaped-defect side beside the cost: the slice's merge reverted, each issue whose body holds `Defect in: <name>#<m>` for its pull request, each hand commit on `base` whose message holds it, and its follow-up items a merged job names; escapes count against the reviewer runs that approved the merged head, follow-up items against those that raised them (`docs/swarm.md` section 7.11).

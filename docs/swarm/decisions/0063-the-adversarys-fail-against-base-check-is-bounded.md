@@ -24,3 +24,5 @@ one check that catches a test which passes without the change.
 [168](0168-a-delta-review.md)
 (Step E2 of the plan implementing the 2026-11-19 swarm roadmap).**
 The round r > 1 text is a delta review's on a head with commits since the reviewer's last review: it asks whether each blocking finding of the previous round and of the reviewer's own last review is closed or answered with a reason it accepts; the fail-against-base check is given as in round 1.
+
+**Amended by decision [171](0171-review-by-risk-with-an-end.md)** (R6, specified ahead of its build, Step R6-design of the plan implementing the 2026-11-19 swarm roadmap): beside the rollback, the adversary checks the probe the plan's Test Plan names for each test, a test that survives it blocking as its claim's failure; a test that survives a probe the reviewer invents is non-blocking unless the surviving change shows the head is wrong; a plan with no probes leaves the rollback as the one named check (`docs/swarm.md` section 7.11).
