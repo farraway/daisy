@@ -313,7 +313,8 @@ func templateMachine(t *testing.T) *machine {
 // Step 21's claim (plan remediating the 2026-11-15 design review, talk
 // A9): a workspace whose home is the template's carries praxis's whole
 // ## Trigger in the AGENTS.md built from it, lazily: the trigger and none
-// of the rules.
+// of the rules. The trigger names its prompt as the other lazy ones do,
+// `$DAISY_ROOT/prompts/praxis.md`, which the build resolves to the root's.
 func TestTemplateListsPraxis(t *testing.T) {
 	m := templateMachine(t)
 	src, err := os.ReadFile(filepath.Join("prompts", "praxis.md"))
@@ -331,7 +332,11 @@ func TestTemplateListsPraxis(t *testing.T) {
 	}
 	b, _ := os.ReadFile(filepath.Join(m.ws, ".daisy", "AGENTS.md"))
 	_, stub, _ := strings.Cut(string(b), "# Prompt: praxis (lazy - read full prompt when triggered)\n")
+	trigger = strings.ReplaceAll(trigger, "$DAISY_ROOT", m.root)
 	if !strings.Contains(stub, trigger+"\n") || strings.Contains(string(b), "**Read before inventing.**") {
 		t.Errorf("AGENTS.md does not carry praxis's trigger %q alone:\n%s", trigger, b)
+	}
+	if !strings.HasPrefix(trigger, "Read the full `"+m.root+"/prompts/praxis.md` when") {
+		t.Errorf("praxis's trigger %q does not start by naming its prompt, \"Read the full `$DAISY_ROOT/prompts/praxis.md` when\"", trigger)
 	}
 }
