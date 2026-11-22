@@ -19,6 +19,7 @@ import (
 
 	"daisy/internal/cli"
 	"daisy/internal/ops"
+	"daisy/internal/prompt"
 	"daisy/internal/testenv"
 )
 
@@ -344,6 +345,8 @@ func TestInitAndCleanSayCursorSkillsReadClaude(t *testing.T) {
 func TestInitKeepsAWorkspacesOwnSkillOfARootName(t *testing.T) {
 	m := initMachine(t)
 	writeFile(t, filepath.Join(m.root, "skills", "css", "SKILL.md"), "---\nname: css\ndescription: the root's\n---\n")
+	js := filepath.Join(m.root, "skills", "js", "SKILL.md")
+	writeFile(t, js, "---\nname: js\ndescription: the root's, first\n---\n")
 	ws := scratch(t)
 	writeFile(t, filepath.Join(ws, ".claude", "skills", "rootskill", "SKILL.md"), "the project's own\n")
 	writeFile(t, filepath.Join(ws, ".cursor", "rules", "css.mdc"), "Use BEM.\n")
@@ -360,6 +363,15 @@ func TestInitKeepsAWorkspacesOwnSkillOfARootName(t *testing.T) {
 				t.Errorf("no warning %q: %s", want, errs)
 			}
 		}
+		// The root's js, which init installed, changed between the two
+		// inits: the second refreshes both its copies.
+		want := map[int]string{0: "---\nname: js\ndescription: the root's, first\n---\n", 1: "---\nname: js\ndescription: the root's, changed\n---\n"}[i]
+		for _, tree := range []string{".claude", ".agents"} {
+			if b, err := os.ReadFile(filepath.Join(ws, tree, "skills", "js", "SKILL.md")); err != nil || string(b) != want {
+				t.Errorf("init %d: %s/skills/js/SKILL.md is %q, %v; want the root's %q", i+1, tree, b, err, want)
+			}
+		}
+		writeFile(t, js, "---\nname: js\ndescription: the root's, changed\n---\n")
 	}
 	core := filepath.Join(m.root, "skills", "daisy-plan")
 	writeFile(t, filepath.Join(core, "SKILL.md"), "---\nname: daisy-plan\n---\n")
@@ -1181,24 +1193,31 @@ func TestPlanNewAddsNoLineGitAlreadyHas(t *testing.T) {
 // there, as before.
 func TestInitIgnoresThroughALinkedAgentDirectory(t *testing.T) {
 	m := initMachine(t)
-	for name, link := range map[string]func(ws string) (string, string){
-		".claude elsewhere": func(ws string) (string, string) { return t.TempDir(), filepath.Join(ws, ".claude") },
-		"a skill's copy elsewhere": func(ws string) (string, string) {
-			return t.TempDir(), filepath.Join(ws, ".claude", "skills", "myskill")
+	for name, link := range map[string]func(ws string) (string, string, error){
+		".claude elsewhere": func(ws string) (string, string, error) { return t.TempDir(), filepath.Join(ws, ".claude"), nil },
+		"a skill's copy elsewhere": func(ws string) (string, string, error) {
+			return t.TempDir(), filepath.Join(ws, ".claude", "skills", "myskill"), nil
 		},
-		"a skill's twin linked to its copy": func(ws string) (string, string) {
-			os.MkdirAll(filepath.Join(ws, ".claude", "skills", "myskill"), 0o755)
-			return "../../.claude/skills/myskill", filepath.Join(ws, ".agents", "skills", "myskill")
+		"a skill's twin linked to its copy": func(ws string) (string, string, error) {
+			err := os.MkdirAll(filepath.Join(ws, ".claude", "skills", "myskill"), 0o755)
+			return "../../.claude/skills/myskill", filepath.Join(ws, ".agents", "skills", "myskill"), err
 		},
 	} {
 		ws := scratch(t)
-		target, at := link(ws)
-		os.MkdirAll(filepath.Dir(at), 0o755)
-		if err := os.Symlink(target, at); err != nil {
-			t.Fatal(err)
+		target, at, err := link(ws)
+		if err == nil {
+			err = os.MkdirAll(filepath.Dir(at), 0o755)
+		}
+		if err == nil {
+			err = os.Symlink(target, at)
+		}
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
 		}
 		if code, _, errs := m.pinned(t, ws, "init", "testhome"); code != 0 {
-			t.Fatalf("%s: init exit %d: %s", name, code, errs)
+			t.Errorf("%s: init exit %d: %s", name, code, errs)
+			continue
 		}
 		b, _ := os.ReadFile(filepath.Join(ws, ".gitignore"))
 		for _, e := range []string{".claude/commands/daisy.md", ".claude/skills/myskill/", ".agents/skills/myskill/"} {
@@ -1251,7 +1270,7 @@ func twins(t *testing.T, ws string) {
 // Codex: init writes the daisy skill (front matter name and a one-line
 // description; the body sends the request through .daisy/AGENTS.md) and
 // every skill's copy in .agents/skills as in .claude/skills; re-init sweeps
-// a stale copy from both trees.
+// a stale copy from both trees and replaces the daisy skill whole.
 func TestInitWritesCodexTwinTree(t *testing.T) {
 	m := initMachine(t)
 	writeFile(t, filepath.Join(m.home, "skills", "other", "SKILL.md"), "---\nname: other\ndescription: o\n---\n")
@@ -1283,8 +1302,13 @@ func TestInitWritesCodexTwinTree(t *testing.T) {
 	twins(t, ws)
 
 	os.RemoveAll(filepath.Join(m.home, "skills", "other"))
+	stray := filepath.Join(ws, ".agents", "skills", "daisy", "stray.md")
+	writeFile(t, stray, "left by hand\n")
 	if code, _, errs := m.pinned(t, ws, "init", "testhome"); code != 0 {
 		t.Fatalf("re-init: %s", errs)
+	}
+	if _, err := os.Lstat(stray); err == nil {
+		t.Error("re-init left .agents/skills/daisy/stray.md: Codex's daisy skill is not replaced whole")
 	}
 	for _, tree := range []string{".claude", ".agents"} {
 		if _, err := os.Lstat(filepath.Join(ws, tree, "skills", "other")); err == nil {
@@ -1512,10 +1536,16 @@ func TestInitStartsARepositoryOnMain(t *testing.T) {
 // What Daisy copies for the user to keep, a new home from the template and
 // a skill installed in a workspace, takes the umask as `cp -r` did, not
 // the source's modes (L517): under umask 077 nothing of it is readable by
-// group or others, though the template and the root's skill are.
+// group or others, though the template and the root's skill are; so too a
+// root skill under a home's layered override, the root's files and the
+// home's both.
 func TestCopiesTakeTheUmask(t *testing.T) {
 	m := initMachine(t)
-	for _, dir := range []string{filepath.Join(m.root, "templates", "home"), filepath.Join(m.root, "skills", "rootskill")} {
+	writeFile(t, filepath.Join(m.root, "skills", "layered", "SKILL.md"), "---\nname: layered\ndescription: A skill.\n---\n\n## Rules\n\n1. root rule\n")
+	writeFile(t, filepath.Join(m.root, "skills", "layered", "ref.md"), "ref\n")
+	writeFile(t, filepath.Join(m.home, "skills", "layered", "SKILL.md"), prompt.Marker+"\n\n## Rules\n\n1. home rule\n")
+	writeFile(t, filepath.Join(m.home, "skills", "layered", "extra.md"), "extra\n")
+	for _, dir := range []string{filepath.Join(m.root, "templates", "home"), filepath.Join(m.root, "skills", "rootskill"), filepath.Join(m.root, "skills", "layered"), filepath.Join(m.home, "skills", "layered")} {
 		filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 			if err == nil {
 				mode := os.FileMode(0o644)
@@ -1544,6 +1574,9 @@ func TestCopiesTakeTheUmask(t *testing.T) {
 		home: 0o700, filepath.Join(home, "journal"): 0o700, filepath.Join(home, "include.txt"): 0o600, filepath.Join(home, "gitconfig"): 0o600,
 		filepath.Join(ws, ".claude", "skills", "rootskill"): 0o700, filepath.Join(ws, ".claude", "skills", "rootskill", "SKILL.md"): 0o600,
 		filepath.Join(ws, ".agents", "skills", "rootskill", "SKILL.md"): 0o600,
+		filepath.Join(ws, ".claude", "skills", "layered"):               0o700, filepath.Join(ws, ".claude", "skills", "layered", "ref.md"): 0o600,
+		filepath.Join(ws, ".claude", "skills", "layered", "extra.md"): 0o600, filepath.Join(ws, ".agents", "skills", "layered", "ref.md"): 0o600,
+		filepath.Join(ws, ".agents", "skills", "layered", "extra.md"): 0o600,
 	} {
 		if fi, err := os.Stat(p); err != nil {
 			t.Error(err)
