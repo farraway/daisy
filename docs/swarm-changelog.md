@@ -1373,3 +1373,9 @@ they write.
   seeds `## Trust boundaries` in the notes it writes. Sections 4, 7.4 and
   7.11. Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md),
   As built.
+- 2026-11-22, Step R6-A of the plan implementing the 2026-11-19 swarm
+  roadmap, `Defect in:` (rule 7 of section 7.11): the owner's and the
+  QA's batch texts ask a job whose failure is the change of a merged
+  swarm pull request to name it on a `Defect in: <name>#<m>` line.
+  Sections 7.4 and 7.11. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.

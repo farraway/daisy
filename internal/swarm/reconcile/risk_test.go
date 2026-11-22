@@ -382,3 +382,28 @@ func TestTaskTextSympatheticReadsItsClone(t *testing.T) {
 		}
 	}
 }
+
+// The owner's and the QA's batch texts ask for a `Defect in:` line (Step
+// R6-A of the plan implementing the 2026-11-19 swarm roadmap; section
+// 7.11, rule 7), a paragraph of its own after the row's text; the owner's
+// other texts and the other roles' do not.
+func TestTaskTextsAskForDefectIn(t *testing.T) {
+	const want = `When you find that a failure's cause is the change of a merged swarm pull request, name it in the job's body with a line "Defect in: <name>#<m>".`
+	for role, row := range map[string]string{
+		"owner": "and Daisy runs you again once they are all closed.",
+		"qa":    "Daisy then holds the QA until the maintainer resumes the swarm.",
+	} {
+		f, at := fixture()
+		j := job(f, at.N, role, "")
+		j.N, j.Batch = 0, &Batch{Propose: 2}
+		sys, _ := Render(j)
+		task := taskOf(t, sys)
+		paragraphs(t, role, task, want)
+		has(t, role, task, []string{row + "\n\n" + want + "\n\nThe protected paths are "})
+	}
+	for _, c := range []struct{ role, label string }{{"owner", "swarm:proposal-posted"}, {"architect", "swarm:plan-0-posted"}, {"worker", "swarm:plan-1-accepted"}, {"adversary", "swarm:review-0-ready"}} {
+		sys, _ := Render(memoryJob(t, c.role, c.label))
+		has(t, c.role, taskOf(t, sys), nil, "Defect in:")
+	}
+	inSpec(t, want)
+}

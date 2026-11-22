@@ -424,6 +424,12 @@ at an earlier default to these; an edited prompt is kept. Tests:
 `TestDefaultHistoryHoldsEachCurrentDefault`, `TestInitSeedsTrustBoundaries`,
 `TestTaskTextSympatheticReadsItsClone`.
 
+**As built: `Defect in:` (Step R6-A of the plan implementing the
+2026-11-19 swarm roadmap).** The sentence is a paragraph of its own in
+the owner's and the QA's batch texts, after the row's text and before
+the protected paths; nothing reads the line until Step R6-C's scorecard.
+Test: `TestTaskTextsAskForDefectIn`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

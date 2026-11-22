@@ -794,10 +794,10 @@ The notes declare the repository's **trust boundaries** under a heading
 `## Trust boundaries`, what the product trusts (its own process's
 environment, umask, configuration and filesystem) and what it does not
 (what a user or a peer sends), which the reviewers' blocking sentence
-reads "realistic" by (7.4; 7.11, rule 2; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap).
-`swarm init`'s seed adds, after its list, the heading and the
-default the blocking sentence states, for the maintainer to replace (the
-same step):
+reads "realistic" by (7.4; 7.11, rule 2; built at Step R6-A of the plan
+implementing the 2026-11-19 swarm roadmap). `swarm init`'s seed adds,
+after its list, the heading and the default the blocking sentence
+states, for the maintainer to replace (the same step):
 
 ```markdown
 ## Trust boundaries
@@ -1868,12 +1868,12 @@ its own `max_rounds`, and a plan revised after the limit (T11) starts
 the count again.
 
 What blocks in a round is a fixed list in the reviewers' Task text
-(7.11, rule 1; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap).
-A blocking
-finding is *closed* when its own reproduction passes on the head, or it
-is answered with a reason the reviewer accepts; from round 2 only an
-earlier blocking finding not closed, a fault the revision introduced or
-a claim the head fails blocks (7.11, rule 5; the same step). The count of rounds, what completes one
+(7.11, rule 1; built at Step R6-A of the plan implementing the
+2026-11-19 swarm roadmap). A blocking finding is *closed* when its own
+reproduction passes on the head, or it is answered with a reason the
+reviewer accepts; from round 2 only an earlier blocking finding not
+closed, a fault the revision introduced or a claim the head fails blocks
+(7.11, rule 5; the same step). The count of rounds, what completes one
 and `max_rounds` are unchanged.
 
 **The rulings** (Step 9 of the plan for the inbox requests F27–F35;
@@ -3406,7 +3406,8 @@ the declared repositories' names, comma-separated, and `check` and
 batch text name each declared repository whose `protected` is not `[]`,
 as `<name>: <patterns>`). A `<…>` that stands for what the member writes
 (`<your question>` below, `<why>`, `<title>`, `<files>`, `<word>`, `<i>` in
-`slice <i>`, or `<s>` in the builder sentence's `## Slice <s>`) is left
+`slice <i>`, `<name>#<m>` in `Defect in: <name>#<m>`, or `<s>` in the
+builder sentence's `## Slice <s>`) is left
 as written, for the member to fill. Every text ends with the same
 paragraph, but for one phrase of the worker's and of the architect's
 plan closing:
@@ -3509,10 +3510,11 @@ rows asked for `ANSWER:` and `QUESTION:` "as the first line" in their
 text, at the end of a system prompt of some 28,000 characters; how
 the verdict is read and checked (7.5, 7.6) is unchanged.
 
-The **probes sentence** (7.11, rules 3 and 4; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap) follows, in
-each architect text that asks for a plan or a revised plan, the text
-that asks for it, as a paragraph and a list of its own: the plan's
-`Probe:` and `Unsupported:` lines, as 7.11 quotes it.
+The **probes sentence** (7.11, rules 3 and 4; built at Step R6-A of the
+plan implementing the 2026-11-19 swarm roadmap) follows, in each
+architect text that asks for a plan or a revised plan, the text that
+asks for it, as a paragraph and a list of its own: the plan's `Probe:`
+and `Unsupported:` lines, as 7.11 quotes it.
 
 The **builder sentence** follows, in each architect text that asks for
 a plan or a revised plan, its probes sentence, before what the
@@ -3529,14 +3531,16 @@ plan. Daisy gives each worker its slice's step
 and section. Write it whole each time you write the plan.` The
 architect's answer to a question asks for none.
 
-The **blocking sentence** (7.11, rules 1, 2 and 4; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap, decision
+The **blocking sentence** (7.11, rules 1, 2 and 4; built at Step R6-A of
+the plan implementing the 2026-11-19 swarm roadmap, decision
 [171](swarm/decisions/0171-review-by-risk-with-an-end.md)) follows the
 row's text in every reviewer text, before the slice sentence, as
 paragraphs of its own (a list of the kinds of finding that block, then
 what every other finding is), which 7.11 quotes: a Task text's other
 sentences run on in one paragraph, where a smaller model misses one
-(decision [167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md)
-as amended).
+(decision
+[167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md) as
+amended).
 
 The **slice sentence** follows the row's text (a reviewer's, its
 blocking sentence) in every worker text and
@@ -3551,8 +3555,8 @@ is left out (no plan, the fast lane).
 
 | Role, label | Task text (before the closing paragraph) |
 |---|---|
-| owner, batch (issue 0) | `Propose up to <p> new jobs for <owner>/<repo>, most important first, toward the first milestone of the highest-priority brief under "# Briefs" that the closed issues do not yet meet, never proposing what an open issue already covers; a brief is a goal with milestones, each with a persona, an exit criterion and what it forces, and no steps: you cut it into jobs. Start each with a line "## <title>", then a line "Brief: <path> — <milestone>" naming the brief's path as "# Briefs" gives it and the milestone's heading, then a line "Class: routine" or "Class: architecture", then the job's body. A job is routine when it is cut from that milestone, takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. When every milestone of a brief is met by closed issues, write a line "Met: <path>" before the first "## " line; write nothing else before it. If there is nothing worth proposing, write "BLOCKED: <why>" as the only line after any "Met:" lines; when what is left waits on open issues, write it "BLOCKED: waiting on #<n>, #<m>: <why>", naming each of them, and Daisy runs you again once they are all closed.` (`<p>` is the number the pacing allows, section 6), then `The protected paths are <name>: <paths>; ….`, naming each repository as the architect's text does (before Step R3-3c, which protects every repository's test services file by default, only when any declared repository's `protected` was not `[]` or it declared a `dockerfile`). |
-| qa, batch (issue 0) | `Use <name> as its users do and report what fails. In its clone /job/work/<name>, at <base>, start the app and its browser as "# Repository notes: <name>" says, and drive each route and control of the page map those notes keep. Where the product differs from the page map because an issue under "# Recently closed" changed it on purpose, follow the product: that is no failure. Report each failure as a job for <owner>/<repo>, at most <p>, the most serious first; failures beyond these are found again at the next exploration. Never report one an open issue under "# Open swarm issues" already covers; a failure that an issue under "# Recently closed" was to fix and that still reproduces is a new job, naming that issue in its body. Start each job with a line "## <title>" naming what fails in at most 200 characters, then a line "Class: routine" or "Class: architecture", then the job's body: the route, the steps that reproduce the failure from a fresh start (the app restarted, a new browser session), what you expected, what happened, and the error text or log line it left. Every line beginning "## " starts a new job: inside a body use "### " or plain labels, and write no summary after the last job. A job is routine when its fix takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Class a failure routine only when you have found the code that causes it and its fix fits that rule; otherwise it is architecture. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. If the app does not start because of its own code (an error in its build or its start-up), that is a failure: report it as a job. If nothing fails, write "NO FAILURE: <the routes you drove>" as the only line. Name each route you could not drive, and why, at the end of that line ("; not driven: <route>: <why>"), or, when you report failures, in a last line of the last job's body. If you cannot start or drive the app for any other reason (the notes keep no page map or no way to start it, the image has no browser or lacks what the app needs), or you need the maintainer's answer to go on, write "BLOCKED: <why, or your question>" as the only line: Daisy then holds the QA until the maintainer resumes the swarm.` (`<name>` the first repository's, `<p>` `owner.max_open_proposals`, section 6), then `The protected paths are <name>: <paths>; ….`, as the owner's batch text names them (decision [151](swarm/decisions/0151-a-qa-run-after-merges.md)) |
+| owner, batch (issue 0) | `Propose up to <p> new jobs for <owner>/<repo>, most important first, toward the first milestone of the highest-priority brief under "# Briefs" that the closed issues do not yet meet, never proposing what an open issue already covers; a brief is a goal with milestones, each with a persona, an exit criterion and what it forces, and no steps: you cut it into jobs. Start each with a line "## <title>", then a line "Brief: <path> — <milestone>" naming the brief's path as "# Briefs" gives it and the milestone's heading, then a line "Class: routine" or "Class: architecture", then the job's body. A job is routine when it is cut from that milestone, takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. When every milestone of a brief is met by closed issues, write a line "Met: <path>" before the first "## " line; write nothing else before it. If there is nothing worth proposing, write "BLOCKED: <why>" as the only line after any "Met:" lines; when what is left waits on open issues, write it "BLOCKED: waiting on #<n>, #<m>: <why>", naming each of them, and Daisy runs you again once they are all closed.` (`<p>` is the number the pacing allows, section 6), then, a paragraph of its own, the `Defect in:` sentence (7.11, rule 7; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap), then `The protected paths are <name>: <paths>; ….`, naming each repository as the architect's text does (before Step R3-3c, which protects every repository's test services file by default, only when any declared repository's `protected` was not `[]` or it declared a `dockerfile`). |
+| qa, batch (issue 0) | `Use <name> as its users do and report what fails. In its clone /job/work/<name>, at <base>, start the app and its browser as "# Repository notes: <name>" says, and drive each route and control of the page map those notes keep. Where the product differs from the page map because an issue under "# Recently closed" changed it on purpose, follow the product: that is no failure. Report each failure as a job for <owner>/<repo>, at most <p>, the most serious first; failures beyond these are found again at the next exploration. Never report one an open issue under "# Open swarm issues" already covers; a failure that an issue under "# Recently closed" was to fix and that still reproduces is a new job, naming that issue in its body. Start each job with a line "## <title>" naming what fails in at most 200 characters, then a line "Class: routine" or "Class: architecture", then the job's body: the route, the steps that reproduce the failure from a fresh start (the app restarted, a new browser session), what you expected, what happened, and the error text or log line it left. Every line beginning "## " starts a new job: inside a body use "### " or plain labels, and write no summary after the last job. A job is routine when its fix takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Class a failure routine only when you have found the code that causes it and its fix fits that rule; otherwise it is architecture. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. If the app does not start because of its own code (an error in its build or its start-up), that is a failure: report it as a job. If nothing fails, write "NO FAILURE: <the routes you drove>" as the only line. Name each route you could not drive, and why, at the end of that line ("; not driven: <route>: <why>"), or, when you report failures, in a last line of the last job's body. If you cannot start or drive the app for any other reason (the notes keep no page map or no way to start it, the image has no browser or lacks what the app needs), or you need the maintainer's answer to go on, write "BLOCKED: <why, or your question>" as the only line: Daisy then holds the QA until the maintainer resumes the swarm.` (`<name>` the first repository's, `<p>` `owner.max_open_proposals`, section 6), then, a paragraph of its own, the `Defect in:` sentence, as the owner's batch text, then `The protected paths are <name>: <paths>; ….`, as the owner's batch text names them (decision [151](swarm/decisions/0151-a-qa-run-after-merges.md)) |
 | owner, `swarm:proposal-posted` | `Answer the latest comment in the thread of issue #<n>.`; when the issue has no counted comment (section 6), `Issue #<n> has no comment yet: say whether its body is a job the swarm can do and is worth doing next, and what is unclear in it.` With the triage gate off, it adds: `Then restate the whole job as it now stands: the architect plans from your answer.` |
 | architect, `swarm:proposal-accepted` | `Write the plan for issue #<n> as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step.` With the plan gate on, it adds `The maintainer reads "## Research" first, then the plan, before any code is written.`; off, `The plan is accepted as you write it: there is no revision round.` While the issue's current pull request is open (T11 with G2 off, or a relabel to `proposal-accepted` by the maintainer), it adds the open-slice sentence of the `plan-0-posted` row |
 | architect, `swarm:plan-0-posted` | `Revise your plan for issue #<n> in answer to the latest comment. Write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, a slice that moves a pin to another slice's change after that slice, a diagram where a slice touches more than one component.` While the issue's current pull request is open (after T11, or a relabel by the maintainer), it adds the **open-slice sentence**: `Pull request <name>#<m>, slice <s>, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/<n>-<s> in /job/work/<name>, beside <base>: "git diff <base>...swarm/<n>-<s>" there is the change they judged. Revise the plan so that the slice can pass review: slice <s> keeps its number, its repository and its branch, and the worker continues on them; what it does, how it is tested and the slices after it may change.` With no accepted plan in the thread (the fast lane reaching the limit), the text is the `proposal-accepted` row's, with the open-slice sentence |
@@ -3645,10 +3649,9 @@ deadline and `/job/io/deadline`, which Daisy writes at 80% of
 `timeout`, asking the member to write its output then, or what it has
 and how the work could be split.
 
-*R6, specified ahead of its build* (7.11, rules 6 and 7): the
+*R6, specified ahead of its build* (7.11, rule 6): the
 owner's batch text reads `# Follow-ups` (`Follow-up:` and `Triaged:`
-lines), and the owner's and the QA's batch texts ask for a `Defect in:`
-line. Section 7.11 quotes each.
+lines), as section 7.11 quotes it.
 
 ### 7.5 The output file
 
@@ -6171,8 +6174,9 @@ swarm's adversary reviews, is decision 171's.
    worker's container cannot run goes under "Not established:", and is
    never a reason to stop.
 
-**The list, in the Task** (rules 1, 2 and 4; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). Every reviewer text adds,
-after its row's text and before the slice sentence (7.4), the
+**The list, in the Task** (rules 1, 2 and 4; built at Step R6-A of the
+plan implementing the 2026-11-19 swarm roadmap). Every reviewer text
+adds, after its row's text and before the slice sentence (7.4), the
 **blocking sentence**, paragraphs of its own:
 
 > A finding is blocking only when it is one of these four kinds:
@@ -6215,23 +6219,25 @@ that names no kind is read as before: Daisy parses the kind for nothing
 but the scorecard's count of blocking findings by kind (rule 7), a line
 without one counted `unnamed`, and never refuses a review for it.
 
-**The trust boundaries** (rule 2; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap) are a section of the repository's
-notes, `repos/<name>.md` (section 4, The swarm's notes about a
-repository), under the heading `## Trust boundaries`: what the product
-trusts and what it does not, in the maintainer's words, which every
-member working in the repository reads in its `system.md`. Daisy reads
-none of it but whether the heading is there (above); `swarm init` seeds
-the heading in each file it seeds, holding the default the blocking
-sentence states, for the maintainer to replace. Hardening is a finding
-only where it meets an untrusted boundary: a percent-encoded path in a
-request, a forged upload or a malformed import is realistic whatever its
-content; a umask of `0477`, a planted toolchain setting or a hand-edited
-configuration file is the trusted side's, non-blocking.
+**The trust boundaries** (rule 2; built at Step R6-A of the plan
+implementing the 2026-11-19 swarm roadmap) are a section of the
+repository's notes, `repos/<name>.md` (section 4, The swarm's notes
+about a repository), under the heading `## Trust boundaries`: what the
+product trusts and what it does not, in the maintainer's words, which
+every member working in the repository reads in its `system.md`. Daisy
+reads none of it but whether the heading is there (above); `swarm init`
+seeds the heading in each file it seeds, holding the default the
+blocking sentence states, for the maintainer to replace. Hardening is a
+finding only where it meets an untrusted boundary: a percent-encoded
+path in a request, a forged upload or a malformed import is realistic
+whatever its content; a umask of `0477`, a planted toolchain setting or
+a hand-edited configuration file is the trusted side's, non-blocking.
 
 **The probes and the unsupported setups** (rules 3 and 4, R5's part;
-built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). Each architect text that asks for a plan or a revised
-plan adds, after the text that asks for it and before the builder
-sentence (7.4), the **probes sentence**:
+built at Step R6-A of the plan implementing the 2026-11-19 swarm
+roadmap). Each architect text that asks for a plan or a revised plan
+adds, after the text that asks for it and before the builder sentence
+(7.4), the **probes sentence**:
 
 > The plan holds two lines the worker and the reviewers read:
 >
@@ -6246,14 +6252,15 @@ sentence (7.4), the **probes sentence**:
 The builder sentence's slice section holds both (its claim and test, its
 tests' probes and its `Unsupported:` line), so a worker's slice carries
 them. The worker's `plan-1-accepted` text on a slice of a plan adds, a
-paragraph of its own after the row's text: `For each test of this slice whose Test Plan claim names a
-Probe, apply the probe, run the test and restore the code: report, in
-the description or your comment, the test, the probe and the failure it
-showed, or that it survived.` The adversary's addition (7.4) adds, a
-paragraph of its own after its rollback: `Then apply, for each such test, the probe its Test Plan
-claim names, run the test and restore the head, comparing the worker's
-report of it: a test that survives its named probe is a "[blocking]"
-finding of kind "claim". A test that survives a probe of your own is a
+paragraph of its own after the row's text: `For each test of this slice
+whose Test Plan claim names a Probe, apply the probe, run the test and
+restore the code: report, in the description or your comment, the test,
+the probe and the failure it showed, or that it survived.` The
+adversary's addition (7.4) adds, a paragraph of its own after its
+rollback: `Then apply, for each such test, the probe its Test Plan claim
+names, run the test and restore the head, comparing the worker's report
+of it: a test that survives its named probe is a "[blocking]" finding of
+kind "claim". A test that survives a probe of your own is a
 "[non-blocking]" finding, unless the change that survives shows that the
 head itself is wrong, which is then a defect, judged as any other.` A
 plan whose claims name no probe (written before the build, or by an
@@ -6262,7 +6269,8 @@ named check, as before: no probe is invented to block. Daisy parses
 neither line; a plan without them is accepted as before (R5's plan lint
 is not part of this design).
 
-**Convergence** (rule 5; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). The delta review's last sentence (7.4,
+**Convergence** (rule 5; built at Step R6-A of the plan implementing the
+2026-11-19 swarm roadmap). The delta review's last sentence (7.4,
 decision [168](swarm/decisions/0168-a-delta-review.md)), `Raise a new
 blocking finding only on code changed since <previous head>; a finding
 on code unchanged since then is non-blocking.`, is replaced by the
@@ -6274,25 +6282,24 @@ finding not closed, a fault this revision introduced, and a claim of
 slice <s> that the head does not show; any other new finding, a new
 variant of a closed one among them, is non-blocking. A non-blocking
 finding the previous round or your last review already raised stands as
-written there: do not raise it again.` So a claim
-the head fails blocks on any code, changed or not, and nothing else
-new does. The rounds on an unchanged head (the maintainer's comment,
-the worker's `NO CHANGE:`) keep their sentences, which raise no new
-blocking finding but where the comment shows one. A reviewer whose
-first review falls in a later round (the sympathetic reviewer, decision
+written there: do not raise it again.` So a claim the head fails blocks
+on any code, changed or not, and nothing else new does. The rounds on an
+unchanged head (the maintainer's comment, the worker's `NO CHANGE:`)
+keep their sentences, which raise no new blocking finding but where the
+comment shows one. A reviewer whose first review falls in a later round
+(the sympathetic reviewer, decision
 [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md))
 reviews the whole change, and its text adds, in round r > 1, in the same
-place, `This is
-round <r> of the pull request: a new finding blocks only when it is a
-claim of slice <s> that the head does not show, or a fault the latest
-revision introduced; any other is non-blocking.` The worker's
+place, `This is round <r> of the pull request: a new finding blocks only
+when it is a claim of slice <s> that the head does not show, or a fault
+the latest revision introduced; any other is non-blocking.` The worker's
 `review-3-changes-requested` text adds, a paragraph of its own after the
-row's text: `A blocking finding that is none
-of the kinds that block (a claim of the slice the head does not show, a
-test the plan names missing or failing, a defect in the changed code a
-realistic user or input meets, a fault the revision introduced) is
-answered, not fixed: say which it is not, and why. A non-blocking
-finding needs no change; Daisy files it for the owner.`
+row's text: `A blocking finding that is none of the kinds that block (a
+claim of the slice the head does not show, a test the plan names missing
+or failing, a defect in the changed code a realistic user or input
+meets, a fault the revision introduced) is answered, not fixed: say
+which it is not, and why. A non-blocking finding needs no change; Daisy
+files it for the owner.`
 
 **Follow-ups** (rule 6). *When:* at step 8 of a pass, or at the merge
 step, as the issue's pull requests are listed (section 5, The pull
@@ -6373,26 +6380,28 @@ issue of `forge.repo`, open or closed, whose body holds a line `Defect
 in: <name>#<m>` (a bug filed against it: the QA's failure, the owner's
 proposal, the maintainer's own issue); or a commit on `base`'s
 first-parent line in the mirror that is no swarm merge and whose message
-holds that line (a fix pushed forward by hand). The owner's and the
-QA's batch texts add: `When you find that a failure's cause is the
-change of a merged swarm pull request, name it in the job's body with a
-line "Defect in: <name>#<m>".` The maintainer writes the line himself in
-his own issues and hand commits. A **follow-up item proved real** is an
-item that a `Follow-up: #<f> <i>` line names in the body of an issue
-with a merged slice. `swarm metrics --scorecard` (section 11) adds to a
-slice's line `; escapes <e>[ (reverted, <b> filed, <h> fixed by hand)];
-follow-up <k> items, <p> proved real` (`escapes 0`, and `follow-up
-none` for no follow-up issue), and to the summary `; escapes <e> on <m>
-merged slices (<rv> reverted, <b> filed, <h> fixed by hand); follow-up
-items <f>, <p> proved real; blocking findings by kind <kind> <k>, …`.
-By configuration, an adversary's or a sympathetic reviewer's line adds
-`; merged heads approved <a>, escaped <e>; follow-up items raised <f>,
-<p> proved real`: an escape counts against each reviewer run whose
-approval of the merged head stood, a follow-up item against the run that
-raised it. A slice's escapes are counted whenever they were made, up to
-`--until`, so a later window reads more of them than an earlier one did.
-The reads are those the scorecard makes now, with `Issues(<state>, "")`
-(section 10) of `forge.repo`, open and closed, beside `Issue(n)`, and each mirror's
+holds that line (a fix pushed forward by hand). The owner's and the QA's
+batch texts add (built at Step R6-A of the plan implementing the
+2026-11-19 swarm roadmap), a paragraph of its own after the row's text:
+`When you find that a failure's cause is the change of a merged swarm
+pull request, name it in the job's body with a line "Defect in:
+<name>#<m>".` The maintainer writes the line himself in his own issues
+and hand commits. A **follow-up item proved real** is an item that a
+`Follow-up: #<f> <i>` line names in the body of an issue with a merged
+slice. `swarm metrics --scorecard` (section 11) adds to a slice's line
+`; escapes <e>[ (reverted, <b> filed, <h> fixed by hand)]; follow-up <k>
+items, <p> proved real` (`escapes 0`, and `follow-up none` for no
+follow-up issue), and to the summary `; escapes <e> on <m> merged slices
+(<rv> reverted, <b> filed, <h> fixed by hand); follow-up items <f>, <p>
+proved real; blocking findings by kind <kind> <k>, …`. By configuration,
+an adversary's or a sympathetic reviewer's line adds `; merged heads
+approved <a>, escaped <e>; follow-up items raised <f>, <p> proved real`:
+an escape counts against each reviewer run whose approval of the merged
+head stood, a follow-up item against the run that raised it. A slice's
+escapes are counted whenever they were made, up to `--until`, so a later
+window reads more of them than an earlier one did. The reads are those
+the scorecard makes now, with `Issues(<state>, "")` (section 10) of
+`forge.repo`, open and closed, beside `Issue(n)`, and each mirror's
 first-parent log of `base` for the hand commits. What no line names is
 not established: a defect fixed by a job that does not say so, or
 reverted by hand in a commit that is not a revert.
@@ -6415,33 +6424,35 @@ has it. The second time, the issue is blocked, as T11 has it, and
 implementing the 2026-11-19 swarm roadmap), T11 stands as section 5
 gives it.
 
-**Daisy's gates** (rule 9; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). Every worker text adds, after its check
+**Daisy's gates** (rule 9; built at Step R6-A of the plan implementing
+the 2026-11-19 swarm roadmap). Every worker text adds, after its check
 sentence (`Run "<check>" before you finish and quote its last result.`),
-the **gates sentence**, a paragraph of its own: `Daisy runs "<check>" on the head you push, in
-the repository's declared check environment with its test services, and
-the forge's required checks run before the merge: those gates are
-Daisy's, and a failure of theirs comes back to you. A part of them your
-container cannot run (a service or a network it lacks) goes under "Not
-established:"; it is no reason to write BLOCKED:.`, or, with no check
-declared, `The forge's required checks run before the merge: they are
-Daisy's gates, and a failure of theirs comes back to you.` A worker's
-`BLOCKED:` with cause `environment` stays what it was for a tool, image
-or service its own work needs and cannot reach; a gate is no longer one.
+the **gates sentence**, a paragraph of its own: `Daisy runs "<check>" on
+the head you push, in the repository's declared check environment with
+its test services, and the forge's required checks run before the merge:
+those gates are Daisy's, and a failure of theirs comes back to you. A
+part of them your container cannot run (a service or a network it lacks)
+goes under "Not established:"; it is no reason to write BLOCKED:.`, or,
+with no check declared, `The forge's required checks run before the
+merge: they are Daisy's gates, and a failure of theirs comes back to
+you.` A worker's `BLOCKED:` with cause `environment` stays what it was
+for a tool, image or service its own work needs and cannot reach; a gate
+is no longer one.
 
-**The defaults** (section 4; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). The adversary's, the sympathetic
+**The defaults** (section 4; built at Step R6-A of the plan implementing
+the 2026-11-19 swarm roadmap). The adversary's, the sympathetic
 reviewer's, the architect's and the worker's default prompts take the
-rules in their own words, each marked there, and the reviewers' take
-the token rules the live swarm's reviewers run under (roadmap R6(e),
-F47; the maintainer's ruling of 2026-11-22): neither reviewer reruns the
+rules in their own words, each marked there, and the reviewers' take the
+token rules the live swarm's reviewers run under (roadmap R6(e), F47;
+the maintainer's ruling of 2026-11-22): neither reviewer reruns the
 check Daisy ran, the adversary runs the probes and the tests of the
-packages the change touches and stops once every claim and named test
-in its scope is checked, and the sympathetic reviewer reads and runs
+packages the change touches and stops once every claim and named test in
+its scope is checked, and the sympathetic reviewer reads and runs
 nothing, so that its Task does not offer its clone to build and test in
 (7.4). Their sha256 are in the table of earlier defaults (section 11),
-so `swarm
-prompt build` brings a swarm still at the previous defaults to these.
-The live swarm's own reviewer part, which states a blocking bar, a
-convergence rule and a narrower probe rule in its product's words, is
+so `swarm prompt build` brings a swarm still at the previous defaults to
+these. The live swarm's own reviewer part, which states a blocking bar,
+a convergence rule and a narrower probe rule in its product's words, is
 then the maintainer's to retire.
 
 ## 8. The credential rule
