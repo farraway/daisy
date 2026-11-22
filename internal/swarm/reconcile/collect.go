@@ -74,6 +74,9 @@ func (s *Swarm) collect(r Run) error {
 	// be read.
 	if l, ok := Has(c.lines, "fault"); ok && !(worker && len(fetchFailures(c.lines)) >= 2) {
 		fmt.Fprintf(s.Out, "%sfault (%s)\n", c.head, strings.TrimPrefix(l, "fault: "))
+		if err := c.markCapacity(); err != nil {
+			return err
+		}
 		if worker {
 			if err := c.keep(); err != nil {
 				return err

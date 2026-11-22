@@ -358,7 +358,7 @@ func TestTakeSlot(t *testing.T) {
 	fs := ops.Real().FS()
 	dir := slots(t, 3)
 	r := &Fake{}
-	s, err := TakeSlot(fs, r, dir, "openai", 3, codexLogin, "acme/app#3/adversary run 1", nil)
+	s, err := TakeSlot(fs, r, dir, "openai", []int{1, 2, 3}, codexLogin, "acme/app#3/adversary run 1", nil)
 	if err != nil || s.J != 1 || s.Credential != "openai/1" {
 		t.Fatalf("%+v %v", s, err)
 	}
@@ -371,20 +371,20 @@ func TestTakeSlot(t *testing.T) {
 	// Slot 1's lock is held; slot 2 is busy in the snapshot; slot 3 busy
 	// only in the running set read again.
 	r.Others = []Running{{Name: "x", Swarm: "other/repo#1/adversary", Credential: "openai/3"}}
-	if _, err := TakeSlot(fs, r, dir, "openai", 3, codexLogin, "h", []Running{{Credential: "openai/2"}}); !errors.Is(err, ErrNoSlot) {
+	if _, err := TakeSlot(fs, r, dir, "openai", []int{1, 2, 3}, codexLogin, "h", []Running{{Credential: "openai/2"}}); !errors.Is(err, ErrNoSlot) {
 		t.Errorf("all busy: %v", err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(dir, "3.lock")); len(b) == 0 {
 		t.Error("slot 3 was not locked before the re-read")
 	}
 	r.Others = nil
-	s3, err := TakeSlot(fs, r, dir, "openai", 3, codexLogin, "h", []Running{{Credential: "openai/2"}})
+	s3, err := TakeSlot(fs, r, dir, "openai", []int{1, 2, 3}, codexLogin, "h", []Running{{Credential: "openai/2"}})
 	if err != nil || s3.J != 3 {
 		t.Fatalf("%+v %v", s3, err)
 	}
 	s3.Release()
 	s.Release()
-	if s, err := TakeSlot(fs, r, dir, "openai", 3, codexLogin, "h", nil); err != nil || s.J != 1 {
+	if s, err := TakeSlot(fs, r, dir, "openai", []int{1, 2, 3}, codexLogin, "h", nil); err != nil || s.J != 1 {
 		t.Errorf("after release: %+v %v", s, err)
 	} else {
 		s.Release()
@@ -401,7 +401,7 @@ func TestTakeSlotRefusesALink(t *testing.T) {
 	auth := filepath.Join(dir, "1", "auth.json")
 	os.Remove(auth)
 	os.Symlink(target, auth)
-	_, err := TakeSlot(fs, &Fake{}, dir, "openai", 1, codexLogin, "h", nil)
+	_, err := TakeSlot(fs, &Fake{}, dir, "openai", []int{1}, codexLogin, "h", nil)
 	var refused *SlotRefused
 	if !errors.As(err, &refused) || err.Error() != "slot openai/1: auth.json is not a regular file" {
 		t.Fatalf("%v", err)
@@ -421,7 +421,7 @@ func TestTakeSlotRefusesALink(t *testing.T) {
 // is (section 7.1, step 4).
 func TestTakeSlotWithoutTheProviderDirectory(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "openai")
-	_, err := TakeSlot(ops.Real().FS(), &Fake{}, dir, "openai", 1, codexLogin, "h", nil)
+	_, err := TakeSlot(ops.Real().FS(), &Fake{}, dir, "openai", []int{1}, codexLogin, "h", nil)
 	var refused *SlotRefused
 	if !errors.As(err, &refused) || err.Error() != "slot openai/1: no login; run 'CODEX_HOME="+filepath.Join(dir, "1")+" codex login -c cli_auth_credentials_store=file'" {
 		t.Fatalf("%v", err)
@@ -436,7 +436,7 @@ func TestTakeSlotRefusesAnXAISlotWithoutALogin(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "1", "auth.json"), nil, 0o600)
 	os.Remove(filepath.Join(dir, "2", "auth.json"))
 	for j, d := range []string{filepath.Join(dir, "1"), filepath.Join(dir, "2")} {
-		_, err := TakeSlot(ops.Real().FS(), &Fake{}, dir, "xai", 2, grokLogin, "h", []Running{{Credential: "xai/" + itoa(2-j)}})
+		_, err := TakeSlot(ops.Real().FS(), &Fake{}, dir, "xai", []int{1, 2}, grokLogin, "h", []Running{{Credential: "xai/" + itoa(2-j)}})
 		var refused *SlotRefused
 		want := "slot xai/" + itoa(j+1) + ": no login; run 'GROK_HOME=" + d + " grok login --device-auth'"
 		if !errors.As(err, &refused) || err.Error() != want {

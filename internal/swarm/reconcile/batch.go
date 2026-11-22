@@ -483,6 +483,9 @@ func (c *collection) batch() error {
 	qa := c.r.Role == declare.QARole
 	if l, ok := Has(c.lines, "fault"); ok {
 		fmt.Fprintf(s.Out, "%sfault (%s)\n", c.head, strings.TrimPrefix(l, "fault: "))
+		if err := c.markCapacity(); err != nil {
+			return err
+		}
 		return c.end("fault")
 	}
 	hold := func(reason, outcome string, waits []int) error {

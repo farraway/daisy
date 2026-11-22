@@ -111,7 +111,8 @@ func (s *Swarm) repo(name string) (declare.Repo, bool) {
 // off, the warning of each repository with no check (warnUnchecked);
 // (2) the containers this
 // process started that have ended, and every run left uncollected,
-// collected; (3) the abandoned and the orphans over time, then the
+// collected, then each line of <state>/capacity whose reset has passed
+// removed (section 7.10); (3) the abandoned and the orphans over time, then the
 // owner's hold released when every issue it waits on is closed; (4) paused;
 // (5) each stage's issues, their pull requests given the issue's label,
 // and the role rule's launches up to max_members; (6) the merge step with
@@ -146,7 +147,7 @@ func (s *Swarm) Pass(wait bool) error {
 		}
 	}
 	s.collected, s.started, s.moves, s.fetched = 0, 0, map[int]string{}, false
-	errs := []error{s.collectAll(running), s.release()}
+	errs := []error{s.collectAll(running), s.expireCapacity(), s.release()}
 	launched := 0
 	if paused := s.paused(); paused != "" {
 		fmt.Fprintf(s.Out, "Paused since %s (%s): launching nothing\n", strings.TrimPrefix(paused, "paused "), filepath.Join(s.state(), "paused"))
@@ -418,7 +419,8 @@ func (s *Swarm) paused() string {
 }
 
 // faultPause writes <state>/paused when the two most recently ended runs
-// both ended in a swarm fault (section 7.7), by their end lines' times
+// both ended in a swarm fault that is no capacity fault (section 7.7;
+// section 7.10, The fallback), by their end lines' times
 // (endStamp; a tie by run directory), and the newer was collected in a
 // fault by this process since faultPause last looked: a pause the
 // maintainer resumed is not taken again from the same two runs.
@@ -452,7 +454,11 @@ func (s *Swarm) faultPause() {
 			}
 		}
 		if l, ok := Has(lines, "fault"); ok {
-			e.reason = strings.TrimPrefix(l, "fault: ")
+			// A capacity fault counts towards no pause (section 7.10):
+			// it is read as no fault, so neither of two in a row is one.
+			if reason := strings.TrimPrefix(l, "fault: "); !isCapacity(reason) {
+				e.reason = reason
+			}
 		}
 		es = append(es, e)
 	}

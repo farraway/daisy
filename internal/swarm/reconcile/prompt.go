@@ -27,8 +27,9 @@ type Job struct {
 	Role       string
 	Label      string // the stage the run is launched on
 	Time       time.Time
-	Persona    string       // prompts/<role>.md as read
-	Parts      []PromptPart // the prompt parts swarm.json adds to the role's prompt, in its order (section 7.3)
+	Persona    string        // prompts/<role>.md as read
+	RunsOn     declare.Entry // the persona or the fallback entry the run launches on (section 7.10); unset, the persona
+	Parts      []PromptPart  // the prompt parts swarm.json adds to the role's prompt, in its order (section 7.3)
 
 	Issue forge.Issue  // with its comments
 	Pulls []forge.Pull // Pulls(n), by slice
@@ -405,7 +406,7 @@ func (j *Job) repository() string {
 		cur, _ := j.current()
 		clone(WorkMount+"/"+cur.Repo, cur.Repo, cur.Head)
 	}
-	if repo := j.workRepo(); repo != "" && Workdir(j.Cfg, j.Role, repo) == JobMount {
+	if repo := j.workRepo(); repo != "" && Workdir(j.provider(), repo) == JobMount {
 		lines = append(lines, "- Working directory: "+JobMount+", holding every clone under "+WorkMount+"; the repository is "+WorkMount+"/"+repo)
 	}
 	if j.Batch == nil {
@@ -469,13 +470,23 @@ func clonesEvery(role string) bool {
 // Workdir is the member's working directory, section 7.2's <W>: its
 // checkout of repo, /job/work/<repo> (repo the run's repository, the
 // first declared for a role that clonesEvery repository), unless its
-// provider is Confined to its working directory (section 9): then /job,
-// which holds every checkout and all else the run is given.
-func Workdir(cfg declare.Config, role, repo string) string {
-	if provider.Providers[cfg.Personas[role].Provider].Confined {
+// provider, prov, the entry's it launches on, is Confined to its working
+// directory (section 9): then /job, which holds every checkout and all
+// else the run is given.
+func Workdir(prov, repo string) string {
+	if provider.Providers[prov].Confined {
 		return JobMount
 	}
 	return WorkMount + "/" + repo
+}
+
+// provider is the provider the run launches on: its RunsOn entry's, else
+// the role's persona's.
+func (j *Job) provider() string {
+	if j.RunsOn.Provider != "" {
+		return j.RunsOn.Provider
+	}
+	return j.Cfg.Personas[j.Role].Provider
 }
 
 func (j *Job) issue() string {

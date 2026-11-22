@@ -997,8 +997,8 @@ func pauseSwarm(c *Context) error {
 }
 
 // resumeSwarm is `daisy swarm resume` (docs/swarm.md section 11):
-// <state>/paused removed, whoever wrote it, <state>/owner-held and
-// <state>/qa-held.
+// <state>/paused removed, whoever wrote it, <state>/owner-held,
+// <state>/qa-held and <state>/capacity (section 7.10).
 func resumeSwarm(c *Context) error {
 	state, err := swarmStateOnly(c)
 	if err != nil {
@@ -1006,7 +1006,7 @@ func resumeSwarm(c *Context) error {
 	}
 	fs := c.Ops.FS()
 	removed := map[string]bool{}
-	for _, name := range []string{"paused", "owner-held", "qa-held"} {
+	for _, name := range []string{"paused", "owner-held", "qa-held", filepath.Base(reconcile.CapacityFile(state))} {
 		path := filepath.Join(state, name)
 		if _, err := fs.Lstat(path); err != nil {
 			continue
@@ -1024,6 +1024,9 @@ func resumeSwarm(c *Context) error {
 	}
 	if removed["qa-held"] {
 		fmt.Fprintln(c.Stdout, "QA released")
+	}
+	if removed["capacity"] {
+		fmt.Fprintln(c.Stdout, "Capacity released: every model is tried again at the next pass")
 	}
 	if len(removed) == 0 {
 		fmt.Fprintln(c.Stdout, "Not paused")

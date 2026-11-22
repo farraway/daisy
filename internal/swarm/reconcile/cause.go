@@ -11,7 +11,6 @@ import (
 
 	"daisy/internal/metrics"
 	"daisy/internal/swarm/forge"
-	"daisy/internal/swarm/provider"
 )
 
 // causes are the words a member's stop names its cause by (section 7.5,
@@ -137,7 +136,7 @@ var failedCauses = []struct{ reason, word string }{
 // `capacity`; a failure's as failedCauses names it, else "".
 func ownCause(outcome, reason string) string {
 	if outcome == "fault" {
-		if msg, ok := strings.CutPrefix(reason, "provider: "); ok && provider.Capacity(msg) {
+		if _, ok := capacityFault(reason); ok {
 			return "capacity"
 		}
 		return "environment"

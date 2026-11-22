@@ -26,6 +26,17 @@ import (
 // recorded and collected at once; none is made when no slot is free.
 func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	fs := s.O.FS()
+	// The entry the run launches on, the persona or a fallback (section
+	// 7.10, The fallback); with none, the role waits, nothing made or
+	// posted.
+	capacity, err := ReadCapacity(fs, s.state())
+	if err != nil {
+		return false, err
+	}
+	var on bool
+	if j.RunsOn, on, err = s.runsOn(j.Role, capacity); err != nil || !on {
+		return false, err
+	}
 	r := Run{Dir: filepath.Join(s.state(), "runs", fmt.Sprintf("%d-%s-%d", j.N, j.Role, j.K)), N: j.N, K: j.K, Role: j.Role}
 	ioDir := filepath.Join(r.Dir, "io")
 	if err := fs.MkdirAll(ioDir, 0o755); err != nil {
@@ -102,7 +113,6 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 
 	// The swarm's notes about each repository the run works in, at the
 	// pass's commit (section 4).
-	var err error
 	if j.Repos, err = s.repoNotes(s.noteRepos(j, repo)); err != nil {
 		fs.RemoveAll(r.Dir)
 		return false, err
@@ -186,7 +196,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return failed("launch-failed "+ended(), "fault: "+refused)
 	}
 
-	persona := s.Cfg.Personas[j.Role]
+	persona := j.RunsOn
 	work := filepath.Join(r.Dir, "work")
 	var startLines []string
 	var svc *runner.Services // the worker's or a reviewer's test services (sections 7.6 and 7.9)
@@ -299,7 +309,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	}
 	// A CLI that is not confined starts in its checkout and is given
 	// /job, which holds all else (section 9's D).
-	workdir := Workdir(s.Cfg, j.Role, workRepo)
+	workdir := Workdir(persona.Provider, workRepo)
 	var reads []string
 	if workdir != JobMount {
 		reads = []string{JobMount}
@@ -327,7 +337,8 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		holder := fmt.Sprintf("%s#%d/%s run %d since %s", s.Cfg.Forge.Repo, j.N, j.Role, j.K, now())
 		var err error
 		prov := provider.Providers[persona.Provider]
-		slot, err = runner.TakeSlot(fs, s.Runner, s.slotDir(persona.Provider), persona.Provider, *key.Slots, prov.LoginHint, holder, running)
+		slots := freeSlots(persona, *key.Slots, capacity) // none a line names with the model (section 7.10)
+		slot, err = runner.TakeSlot(fs, s.Runner, s.slotDir(persona.Provider), persona.Provider, slots, prov.LoginHint, holder, running)
 		var refused *runner.SlotRefused
 		switch {
 		case errors.Is(err, runner.ErrNoSlot):

@@ -1229,3 +1229,13 @@ they write.
   <h>:<mm> <AM|PM>` as the first such time after the fault in UTC,
   none for `claude` and `grok`. Section 9. Decision
   [170](swarm/decisions/0170-capacity.md) amended.
+- 2026-11-21, Step R4-A of the plan implementing the 2026-11-19 swarm
+  roadmap (R4; the fallback): `<state>/capacity` built, a capacity
+  fault's line written at its collection until its stated reset or the
+  bare `swarm resume`; at a launch the first of the persona and its
+  fallback whose model is available on a free credential, the role
+  waiting with none, nothing made or posted; a capacity fault counting
+  towards no pause; a line removed at the first pass after its reset,
+  and the file by the bare `resume`; a fallback's commits carrying its
+  `co_author`. Sections 2 (the tree), 7.7, 7.10 and 11 (pause and
+  resume). Decision [170](swarm/decisions/0170-capacity.md) amended.

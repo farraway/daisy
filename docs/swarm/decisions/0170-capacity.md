@@ -190,3 +190,37 @@ it names is read as the next day's; any other shape states none.
 `claude`'s and `grok`'s state none, `claude`'s `usage limit
 reached|<number>` among them: the number is no reset a ruling read.
 Test: `TestReset`.
+
+**As built: the capacity line, the launch and no pause (Step R4-A of
+the plan implementing the 2026-11-19 swarm roadmap).** The collection of
+a run in a fault whose message is a capacity fault writes its line to
+`<state>/capacity`, the credential from its `credential` line
+(`<provider>/env` or `<provider>/<j>`), the model from its `persona`
+line, the time `Reset` reads from the run's end, RFC 3339 in UTC, the
+reason the provider's message as its `fault:` line holds it; a batch
+run's fault the same. A run without either line, launched by an older
+Daisy, writes none. Each launch reads the file first and takes the
+first entry with a credential: an `env` one no line names with the
+entry's model, or a slot of its provider that no running container
+holds (the running set read again then) and no line names with the
+model; the slot taken is then the first such that is free, as before.
+An entry passed over for a busy slot is passed over as a spent one is,
+so a role with a fallback no longer waits for its persona's slot. With
+none, the role waits before anything of the run is made: no run
+directory, nothing posted, and a block the launch's preparation would
+have found (a kept file it cannot use, bad slices) waits with it. A
+line not of the file's form is the pass's error naming the file and
+the line, which the bare `resume` clears. Two faults in a row pause
+only when neither is a capacity fault: a capacity fault is read as no
+fault by the pause's rule. A line whose time has passed is removed
+after the pass's collections and before its launches, its `Capacity:`
+line printed; its journal line is not queued, since the journal's
+lines are a run's each and this one names none (open, for the
+maintainer). The bare `resume` removes the file, printing `Capacity
+released: every model is tried again at the next pass`. The worker's
+commits, and a notes commit, carry the `co_author` of the entry the run
+launched on, found in `swarm.json` by its `persona` line (the persona's
+when none matches). `runner.TakeSlot` takes the slots it may take as a
+list, which rule 3 narrows. Tests: `TestSwarmFallbackOnACapacityFault`,
+`TestSwarmCapacityUntilTheReset`, `TestSwarmResumeClearsCapacity`,
+`TestSwarmRoleWaitsWithNoModelAvailable`.

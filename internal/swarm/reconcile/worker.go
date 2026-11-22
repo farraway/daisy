@@ -95,7 +95,7 @@ func (c *collection) fetchRef() error {
 	if err := c.step("fetched " + sha); err != nil {
 		return err
 	}
-	coAuthor := c.s.Cfg.Personas["worker"].CoAuthor
+	coAuthor := c.s.launchedEntry(c.r, c.lines).CoAuthor // a fallback's own (section 7.10)
 	if !c.commits() || coAuthor == "" {
 		return nil
 	}

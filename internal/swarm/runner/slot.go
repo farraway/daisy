@@ -46,18 +46,18 @@ type Slot struct {
 // Release drops the slot's lock: once docker run has returned.
 func (s *Slot) Release() { s.release() }
 
-// TakeSlot takes the lowest free slot of provider's count under dir
+// TakeSlot takes the first free slot of slots, provider's, under dir
 // (`$DAISY_LOCAL/swarm/credentials/<provider>`), as section 7.1, step 4:
 // a slot busy in the pass's snapshot, whose lock is held, or busy in the
 // running set read again under its lock is passed over; the one taken is
 // cleared of every entry but auth.json, which must be a regular file.
 // login is the command line that logs a slot's directory in, for the
 // hint of a slot refused without a login.
-func TakeSlot(fs ops.FS, r Runner, dir, provider string, count int, login func(slot string) string, holder string, snapshot []Running) (*Slot, error) {
+func TakeSlot(fs ops.FS, r Runner, dir, provider string, slots []int, login func(slot string) string, holder string, snapshot []Running) (*Slot, error) {
 	busy := func(set []Running, cred string) bool {
 		return slices.ContainsFunc(set, func(c Running) bool { return c.Credential == cred })
 	}
-	for j := 1; j <= count; j++ {
+	for _, j := range slots {
 		cred := provider + "/" + strconv.Itoa(j)
 		if busy(snapshot, cred) {
 			continue

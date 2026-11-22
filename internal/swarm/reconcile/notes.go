@@ -701,7 +701,7 @@ func (c *collection) notes() error {
 	}
 	mark, _, _ := strings.Cut(marker(c.r.Role, c.r.K), "\n")
 	msg := subject + "\n\n" + mark
-	if co := c.s.Cfg.Personas[c.r.Role].CoAuthor; co != "" {
+	if co := c.s.launchedEntry(c.r, c.lines).CoAuthor; co != "" {
 		msg += "\n\nCo-Authored-By: " + co
 	}
 	line, err := w.Publish(filepath.Join(c.r.Dir, "notes"), strings.TrimPrefix(base, "notes-base "), fmt.Sprintf("%s%d-%s-%d", notesBranch, c.r.N, c.r.Role, c.r.K),
