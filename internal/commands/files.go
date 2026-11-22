@@ -6,9 +6,11 @@ import (
 	"io/fs"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"daisy/internal/env"
+	"daisy/internal/ops"
 	"daisy/internal/verb"
 )
 
@@ -56,7 +58,7 @@ type filesReport struct {
 	Identity        string             `json:"identity"`
 	Workspace       string             `json:"workspace"`
 	Paths           map[string]*string `json:"paths"`
-	IdentityMissing bool               `json:"identity_missing"` // its path then as named, unresolved
+	IdentityMissing bool               `json:"identity_missing"` // its path then `files identity`'s, resolved as far as it exists
 	PreRotation     *string            `json:"pre_rotation"`
 	JournalWindows  []namedPath        `json:"journal_windows"` // the rolling windows, then the closed ones
 	FeedbackArchive *string            `json:"feedback_archive"`
@@ -176,10 +178,8 @@ func listFiles(c *Context) *filesReport {
 	for _, n := range fileNames(c.Env) {
 		r.Paths[n.name] = real(n.path)
 	}
-	if id := c.Env.IdentityFile; !exists(id) {
-		r.Paths["identity"], r.IdentityMissing = &id, true
-	}
-	if fi, err := fs.Lstat(filepath.Join(c.Env.Workspace, "PLAN.md")); err != nil || fi.Mode()&fsModeSymlink == 0 {
+	r.IdentityMissing = !exists(c.Env.IdentityFile)
+	if _, err := currentPlanFile(fs, filepath.Join(c.Env.Workspace, "PLAN.md")); err != nil {
 		r.Paths["plan"] = nil
 	}
 	if p := filepath.Join(home, "journal", "journal-pre-rotation.md"); exists(p) {
@@ -229,28 +229,65 @@ func fileByName(c *Context, name string) error {
 	return UsageError(fmt.Sprintf("unknown name: %s; one of %s", name, strings.Join(names, ", ")))
 }
 
-// printPlan prints the plan the link resolves to; no link, a file that is
-// not one or a link that resolves to nothing is no current plan. PLAN.md
-// reaches the home through .daisy/plans, so a broken link under a drifted
-// binding names init's repair first.
-func printPlan(c *Context, link string) error {
-	fsys := c.Ops.FS()
+// planProblem is why PLAN.md names no current plan: there is none, it is
+// not a link, the link is broken, or it resolves to a directory or to a
+// file not named *.plan.md (real, its target).
+type planProblem struct {
+	kind string // "none", "file", "broken", "not-a-plan", or "read" (err)
+	real string
+	err  error
+}
+
+func (p *planProblem) Error() string { return p.kind }
+
+// currentPlanFile is the plan PLAN.md at link resolves to, or why there is
+// none: the one rule `files plan` and `files --json`'s paths.plan read.
+func currentPlanFile(fsys ops.FS, link string) (string, error) {
 	fi, err := fsys.Lstat(link)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return errors.New("Error: no current plan: this workspace has no PLAN.md\n  Start one: daisy plan new <description> [+project]")
+		return "", &planProblem{kind: "none"}
 	case err != nil:
-		return fmt.Errorf("Error: cannot read %s: %w", link, err)
+		return "", &planProblem{kind: "read", err: err}
 	case fi.Mode()&fsModeSymlink == 0:
-		return fmt.Errorf("Error: no current plan: %s is not a link (a plan's PLAN.md links into the home's plans/)\n  Move it aside, then start one: daisy plan new <description> [+project]", link)
+		return "", &planProblem{kind: "file"}
 	}
 	real, err := fsys.EvalSymlinks(link)
 	if err != nil {
-		if drift := c.Env.LinkDrift(fsys); len(drift) > 0 {
-			return fmt.Errorf("Error: no current plan: %s is a broken link, and %s\n  Re-run 'daisy init %s'; if the link stays broken, remove it, then start one: daisy plan new <description> [+project]", link, strings.Join(drift, "; "), c.Env.Identity)
-		}
-		return fmt.Errorf("Error: no current plan: %s is a broken link\n  Remove it, then start one: daisy plan new <description> [+project]", link)
+		return "", &planProblem{kind: "broken"}
 	}
-	fmt.Fprintln(c.Stdout, real)
-	return nil
+	if fi, err := fsys.Stat(real); err != nil || fi.IsDir() || !strings.HasSuffix(real, ".plan.md") {
+		return "", &planProblem{kind: "not-a-plan", real: real}
+	}
+	return real, nil
+}
+
+// printPlan prints the plan the link resolves to; no link, a file that is
+// not one, a link that resolves to nothing, to a directory or to a file
+// not named *.plan.md is no current plan. PLAN.md reaches the home
+// through .daisy/plans, so a broken link while that binding link has
+// drifted names init's repair first.
+func printPlan(c *Context, link string) error {
+	fsys := c.Ops.FS()
+	real, err := currentPlanFile(fsys, link)
+	var p *planProblem
+	if !errors.As(err, &p) {
+		fmt.Fprintln(c.Stdout, real)
+		return nil
+	}
+	switch p.kind {
+	case "none":
+		return errors.New("Error: no current plan: this workspace has no PLAN.md\n  Start one: daisy plan new <description> [+project]")
+	case "read":
+		return fmt.Errorf("Error: cannot read %s: %w", link, p.err)
+	case "file":
+		return fmt.Errorf("Error: no current plan: %s is not a link (a plan's PLAN.md links into the home's plans/)\n  Move it aside, then start one: daisy plan new <description> [+project]", link)
+	case "not-a-plan":
+		return fmt.Errorf("Error: no current plan: %s links to %s, which is not a plan file (*.plan.md)\n  Remove it, then start one: daisy plan new <description> [+project]", link, p.real)
+	}
+	drift := slices.DeleteFunc(c.Env.LinkDrift(fsys), func(d string) bool { return !strings.Contains(d, " .daisy/plans ") })
+	if len(drift) > 0 {
+		return fmt.Errorf("Error: no current plan: %s is a broken link, and %s\n  Re-run 'daisy init %s'; if the link stays broken, remove it, then start one: daisy plan new <description> [+project]", link, strings.Join(drift, "; "), c.Env.Identity)
+	}
+	return fmt.Errorf("Error: no current plan: %s is a broken link\n  Remove it, then start one: daisy plan new <description> [+project]", link)
 }

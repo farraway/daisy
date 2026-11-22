@@ -222,10 +222,24 @@ func TestFilesNamePrintsOnePath(t *testing.T) {
 	if code != 1 || out != "" || !strings.Contains(errs, "no PLAN.md") || !strings.Contains(errs, "daisy plan new <description> [+project]") {
 		t.Errorf("no plan: exit %d out %q err %q", code, out, errs)
 	}
+	// A broken link whose binding has drifted only where PLAN.md does not
+	// pass (today.md's link is gone, .daisy/plans is whole): the plain
+	// repair, not init's.
 	os.Symlink(filepath.Join(m.home, "plans", "gone.plan.md"), filepath.Join(m.ws, "PLAN.md"))
 	code, out, errs = m.run(t, m.ws, "files", "plan")
-	if code != 1 || out != "" || !strings.Contains(errs, "PLAN.md is a broken link") {
+	if code != 1 || out != "" || !strings.Contains(errs, "PLAN.md is a broken link\n  Remove it, then start one: daisy plan new <description> [+project]") || strings.Contains(errs, "daisy init") {
 		t.Errorf("broken link: exit %d out %q err %q", code, out, errs)
+	}
+	// A link to a directory, or to a file not named *.plan.md, is no plan.
+	writeFile(t, filepath.Join(m.home, "plans", "notes.md"), "notes\n")
+	for _, target := range []string{filepath.Join(m.home, "plans"), filepath.Join(m.home, "plans", "notes.md")} {
+		os.Remove(filepath.Join(m.ws, "PLAN.md"))
+		os.Symlink(target, filepath.Join(m.ws, "PLAN.md"))
+		want := "Error: no current plan: " + filepath.Join(m.ws, "PLAN.md") + " links to " + strings.Replace(target, m.home, real, 1) + ", which is not a plan file (*.plan.md)\n"
+		code, out, errs = m.run(t, m.ws, "files", "plan")
+		if code != 1 || out != "" || !strings.HasPrefix(errs, want) {
+			t.Errorf("a link to %s: exit %d out %q err %q, want %q", target, code, out, errs, want)
+		}
 	}
 	os.Remove(filepath.Join(m.ws, "PLAN.md"))
 	writeFile(t, filepath.Join(m.ws, "PLAN.md"), "# Not linked\n")
@@ -309,8 +323,15 @@ func TestFilesJSON(t *testing.T) {
 		t.Errorf("warnings %#v", doc["warnings"])
 	}
 
-	// The conditional rows, a current plan, a missing identity file and
-	// drift: still nothing on stderr, the drift under warnings.
+	// The conditional rows, a current plan, a missing identity file (the
+	// home registered through a link, so its path as named is not its
+	// real one) and drift: still nothing on stderr, the drift under
+	// warnings.
+	homeLink := filepath.Join(t.TempDir(), "home-link")
+	if err := os.Symlink(m.home, homeLink); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(m.config, "homes"), "testhome="+homeLink+"\n")
 	writeFile(t, filepath.Join(m.home, "journal", "journal-pre-rotation.md"), "")
 	writeFile(t, filepath.Join(m.home, "feedback", "archive.md"), "")
 	writeFile(t, filepath.Join(m.home, "plans", "p.plan.md"), "# P\n")
@@ -320,8 +341,22 @@ func TestFilesJSON(t *testing.T) {
 	doc = decode("files", "--json")
 	paths = doc["paths"].(map[string]any)
 	if doc["pre_rotation"] != real+"/journal/journal-pre-rotation.md" || doc["feedback_archive"] != real+"/feedback/archive.md" ||
-		paths["plan"] != real+"/plans/p.plan.md" || doc["identity_missing"] != true || paths["identity"] != m.home+"/gitconfig" {
+		paths["plan"] != real+"/plans/p.plan.md" || doc["identity_missing"] != true || paths["identity"] != real+"/gitconfig" {
 		t.Errorf("document %v", doc)
+	}
+	// A missing identity file has one path, `files identity`'s.
+	if _, out, _ := m.run(t, proj, "files", "identity"); out != paths["identity"].(string)+"\n" {
+		t.Errorf("files identity %q, paths.identity %q", out, paths["identity"])
+	}
+	// plan is null wherever `files plan` finds no plan: a broken link, a
+	// link to a directory, one to a file not named *.plan.md.
+	writeFile(t, filepath.Join(m.home, "plans", "notes.md"), "notes\n")
+	for _, target := range []string{filepath.Join(m.home, "plans", "gone.plan.md"), filepath.Join(m.home, "plans"), filepath.Join(m.home, "plans", "notes.md")} {
+		os.Remove(filepath.Join(proj, "PLAN.md"))
+		os.Symlink(target, filepath.Join(proj, "PLAN.md"))
+		if p := decode("files", "--json")["paths"].(map[string]any); p["plan"] != nil {
+			t.Errorf("PLAN.md linked to %s: paths.plan %v, want null", target, p["plan"])
+		}
 	}
 	if w, _ := doc["warnings"].([]any); !slices.Contains(w, any("⚠️  the binding link .daisy/today.md is missing or does not point into the home; re-run 'daisy init testhome'")) {
 		t.Errorf("warnings %q", w)
