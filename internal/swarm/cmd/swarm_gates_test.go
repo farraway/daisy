@@ -565,8 +565,9 @@ func TestSwarmApplyCopiesTheLabel(t *testing.T) {
 const uncheckedWarning = "⚠ swarm.json: repos[1] (lib) has no check and gates.merge is false: no check of Daisy's runs on its pull requests before the merge step merges them\n"
 
 // Step 35's claim (plan remediating the 2026-11-15 design review, talk
-// A6): with the merge gate off, a repository with no check merges on the
-// pair's approvals alone (section 12), and the maintainer sees it without
+// A6): with the merge gate off, a repository with no check merges with no
+// check of Daisy's runs on its head, the forge's own checks read as for
+// any (section 12), and the maintainer sees it without
 // being stopped by it: apply --once warns of lib and not of app, which
 // declares one, and goes on; status lists it under Waiting for you (with
 // --json under waiting.no_check), notify tells it once, and connect

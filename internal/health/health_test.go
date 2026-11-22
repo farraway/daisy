@@ -637,7 +637,13 @@ func TestMarksColourOnlyOnATerminal(t *testing.T) {
 		out.Reset()
 		errb.Reset()
 		o := m.ops()
-		o.IsTerminalFn = func(s any) bool { return slices.Contains(c.terminal, s.(io.Writer)) }
+		o.IsTerminalFn = func(s any) bool {
+			w, ok := s.(io.Writer)
+			if !ok {
+				t.Errorf("%s: IsTerminal asked of %T, no io.Writer", c.name, s)
+			}
+			return ok && slices.Contains(c.terminal, w)
+		}
 		if k, v, found := strings.Cut(c.env, "="); found {
 			o.GetenvFn = func(key string) string {
 				if key == k {

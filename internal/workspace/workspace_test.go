@@ -134,30 +134,45 @@ func copyTree(t *testing.T, src, dst string) {
 func tree(t *testing.T, dir string) []string {
 	t.Helper()
 	var paths []string
-	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(dir, p)
+		rel, err := filepath.Rel(dir, p)
+		if err != nil {
+			return err
+		}
 		if rel == ".git" {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		fi, _ := os.Lstat(p)
+		fi, err := os.Lstat(p)
+		if err != nil {
+			return err
+		}
 		switch {
 		case fi.Mode()&fs.ModeSymlink != 0:
-			target, _ := os.Readlink(p)
+			target, err := os.Readlink(p)
+			if err != nil {
+				return err
+			}
 			paths = append(paths, rel+" -> "+target)
 		case fi.IsDir():
 			paths = append(paths, rel+"/")
 		default:
-			b, _ := os.ReadFile(p)
+			b, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
 			paths = append(paths, fmt.Sprintf("%s %q", rel, b))
 		}
 		return nil
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	sort.Strings(paths)
 	return paths
 }

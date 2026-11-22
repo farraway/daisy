@@ -440,7 +440,6 @@ func TestSwarmStatusRefusals(t *testing.T) {
 	}
 }
 
-// runResult writes a run's result, and its out.md when out is not "".
 // The Throughput's reverted line (Step 29 of the plan remediating the
 // 2026-11-15 design review, talk A13): the swarm pull requests merged on
 // base in app's mirror, by a merge commit whose second parent a worker
@@ -502,6 +501,7 @@ func TestSwarmStatusReverts(t *testing.T) {
 	}
 }
 
+// runResult writes a run's result, and its out.md when out is not "".
 func (s *statusWS) runResult(name, result, out string) {
 	s.t.Helper()
 	os.MkdirAll(s.state("runs/"+name+"/io"), 0o755)

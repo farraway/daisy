@@ -330,7 +330,8 @@ func TestFetchRunFindsTheBranch(t *testing.T) {
 // starts releases .git/objects/maintenance.lock, is skipped and the
 // branch fetched (the planted lock is .git/index.lock, which no git
 // process the test runs removes). A path that is there and cannot be read still refuses,
-// and a link still refuses after a skipped path.
+// and a link still refuses after a skipped path; .git itself gone between
+// its first look and the walk's listing is no clone, and refuses.
 func TestFetchRunSkipsAVanishedPath(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
@@ -349,8 +350,16 @@ func TestFetchRunSkipsAVanishedPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	lock := "index.lock"
-	plantLock := func(d string) { os.WriteFile(filepath.Join(d, lock), nil, 0o644) }
-	plantDir := func(d string) { os.MkdirAll(filepath.Join(d, "refs", "stale"), 0o755) }
+	plantLock := func(d string) {
+		if err := os.WriteFile(filepath.Join(d, lock), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plantDir := func(d string) {
+		if err := os.MkdirAll(filepath.Join(d, "refs", "stale"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, c := range []struct {
 		name    string
 		plant   func(dotgit string)
@@ -374,9 +383,14 @@ func TestFetchRunSkipsAVanishedPath(t *testing.T) {
 		}, true},
 		{"a link after a vanished file", func(d string) {
 			plantLock(d)
-			os.Symlink(filepath.Join(other, "objects"), filepath.Join(d, "refs", "link"))
+			if err := os.Symlink(filepath.Join(other, "objects"), filepath.Join(d, "refs", "link")); err != nil {
+				t.Fatal(err)
+			}
 		}, func(d string) racingFS {
 			return racingFS{gone: map[string]string{"readdir " + d: filepath.Join(d, lock)}}
+		}, true},
+		{".git gone before it is listed", func(string) {}, func(d string) racingFS {
+			return racingFS{gone: map[string]string{"lstat " + d: d}}
 		}, true},
 	} {
 		work := filepath.Join(t.TempDir(), "work")

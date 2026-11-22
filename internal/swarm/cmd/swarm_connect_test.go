@@ -234,7 +234,6 @@ func TestSwarmConnect(t *testing.T) {
 	a.runner.Script(1, "architect", runner.Canned{Out: oneSlice, Stdout: claudeResult})
 	a.pass() // 15:01, 1-architect-1
 	a.forge.SetLabel(issue1, "swarm:plan-1-accepted")
-	// The persona prompts changed after the first run.
 	// The persona prompts changed after the first run, committed at
 	// 15:01:30 (GIT_COMMITTER_DATE, which ops.Real's git does not pass).
 	if _, errb, err := a.exec(a.ws, "git", "-c", "user.name=T", "-c", "user.email=t@example.net", "pull", "-q", "--rebase", "origin", "main"); err != nil {
