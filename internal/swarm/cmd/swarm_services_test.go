@@ -123,7 +123,7 @@ func TestSwarmNoServicesFile(t *testing.T) {
 	a.pass() // the adversary approves
 	a.pass() // the sympathetic reviewer, once the adversary approved
 	// The reviewers', without services or env, as before R3-3, byte for
-	// byte to their image: the adversary's slot, the sympathetic
+	// byte to their image but for --detach (R4-B): the adversary's slot, the sympathetic
 	// reviewer's env credential, and no --network or --env of their own.
 	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
 	for _, tc := range []struct{ role, credential string }{
@@ -131,7 +131,7 @@ func TestSwarmNoServicesFile(t *testing.T) {
 		{"sympathetic", "--env-file\n/dev/stdin\n"},
 	} {
 		run, jobs := a.state("runs/1-"+tc.role+"-1"), a.state("jobs/1")
-		want := "docker\nrun\n--rm\n--pull\nnever\n--name\ndaisy-swarm.acme.swarm-app.1." + tc.role + ".1\n--label\ndaisy.swarm=acme/swarm-app#1/" + tc.role +
+		want := "docker\nrun\n--detach\n--rm\n--pull\nnever\n--name\ndaisy-swarm.acme.swarm-app.1." + tc.role + ".1\n--label\ndaisy.swarm=acme/swarm-app#1/" + tc.role +
 			"\n--user\n1000:1000\n--security-opt\nno-new-privileges\n--stop-timeout\n30\n" + tc.credential +
 			"--mount\ntype=bind,src=" + run + "/job,dst=/job\n--mount\ntype=bind,src=" + run + "/work,dst=/job/work\n--mount\ntype=bind,src=" + run + "/io,dst=/job/io\n" +
 			"--mount\ntype=bind,src=" + run + "/resources,dst=/job/resources,readonly\n--mount\ntype=bind,src=" + jobs + ",dst=/job/memory,readonly\n" +

@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -46,13 +47,21 @@ type Spec struct {
 	Mounts         []Mount
 	Workdir, Image string
 	Argv           []string
+	// Detach runs the container `docker run --detach` (section 7.10,
+	// rule 2): its sh writes its output and its exit status to files,
+	// and no process holds its streams.
+	Detach bool
 }
 
 // Args is the `docker` argv, section 7.2's lines in order; it holds no
 // secret value.
 func (s Spec) Args() []string {
-	a := []string{"run", "--rm", "--pull", "never", "--name", s.Name, "--label", "daisy.swarm=" + s.Label, "--user", s.User,
-		"--security-opt", "no-new-privileges", "--stop-timeout", "30"}
+	a := []string{"run"}
+	if s.Detach {
+		a = append(a, "--detach")
+	}
+	a = append(a, "--rm", "--pull", "never", "--name", s.Name, "--label", "daisy.swarm="+s.Label, "--user", s.User,
+		"--security-opt", "no-new-privileges", "--stop-timeout", "30")
 	if s.Network != "" {
 		a = append(a, "--network", s.Network)
 	}
@@ -96,14 +105,17 @@ func mountField(key, value string) string {
 }
 
 // Exit is how a container ended: docker run's exit status, whether the
-// wall clock stopped it, and its two streams.
+// wall clock stopped it, and its two streams; a detached container's is
+// whether the wall clock stopped it alone, its status and streams being
+// the files its sh wrote (section 7.10, rule 2).
 type Exit struct {
 	Code           int
 	TimedOut       bool
 	Stdout, Stderr []byte
 }
 
-// Container is a started container; Wait returns once `docker run` has.
+// Container is a started container; Wait returns once `docker run` has,
+// a detached one's once `docker wait` has.
 type Container interface{ Wait() (Exit, error) }
 
 // Running is one container of `docker ps`: its name and its two labels.
@@ -184,19 +196,33 @@ var _ Runner = Docker{}
 
 // Start starts `docker run` with the env credential on its standard input
 // as one line, and a timer of timeout: when it fires, `docker stop --time
-// 30` (section 7.2, the wall clock).
+// 30` (section 7.2, the wall clock). A detached container's `docker run
+// --detach` is run to its end, which is once the container has started:
+// a status other than 0 is the error, docker's first line in it.
 func (d Docker) Start(s Spec, timeout time.Duration) (Container, error) {
-	var stdin *strings.Reader
+	var stdin io.Reader
 	if s.EnvVar != "" {
 		stdin = strings.NewReader(s.EnvVar + "=" + s.EnvValue + "\n")
 	}
+	if s.Detach {
+		var stdout, stderr bytes.Buffer
+		p, err := d.O.Start(d.Dir, "docker", stdin, &stdout, &stderr, s.Args()...)
+		if err != nil {
+			return nil, err
+		}
+		code, err := p.Wait()
+		if err == nil && code != 0 {
+			msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n")
+			err = fmt.Errorf("docker run: exit %d: %s", code, msg)
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &detached{d: d, name: s.Name, timeout: timeout}, nil
+	}
 	c := &dockerRun{d: d, name: s.Name, timeout: timeout}
 	var err error
-	if stdin != nil {
-		c.p, err = d.O.Start(d.Dir, "docker", stdin, &c.stdout, &c.stderr, s.Args()...)
-	} else {
-		c.p, err = d.O.Start(d.Dir, "docker", nil, &c.stdout, &c.stderr, s.Args()...)
-	}
+	c.p, err = d.O.Start(d.Dir, "docker", stdin, &c.stdout, &c.stderr, s.Args()...)
 	if err != nil {
 		return nil, err
 	}
@@ -234,6 +260,40 @@ func (c *dockerRun) Wait() (Exit, error) {
 		return Exit{}, r.err
 	}
 	return Exit{Code: r.code, TimedOut: timedOut, Stdout: c.stdout.Bytes(), Stderr: c.stderr.Bytes()}, nil
+}
+
+// detached is a container started `docker run --detach`.
+type detached struct {
+	d       Docker
+	name    string
+	timeout time.Duration
+}
+
+// Wait is `docker wait` on the container, and at the wall clock its stop,
+// a timeout whatever it exits with, reported once docker wait has
+// returned. A container already gone (--rm) is no error: what it wrote is
+// in its run's directory.
+func (c *detached) Wait() (Exit, error) {
+	done := make(chan error, 1)
+	go func() {
+		_, stderr, err := c.d.O.Exec(c.d.Dir, "docker", "wait", c.name)
+		if err != nil && strings.Contains(string(stderr), "No such container") {
+			err = nil
+		}
+		if err != nil {
+			msg, _, _ := strings.Cut(strings.TrimSpace(string(stderr)), "\n")
+			err = fmt.Errorf("docker wait %s: %v %s", c.name, err, msg)
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		return Exit{}, err
+	case <-c.d.O.After(c.timeout):
+		c.d.Stop(c.name)
+		<-done
+		return Exit{TimedOut: true}, nil
+	}
 }
 
 // Stop sends the container its stop signal and, after 30 seconds, kills it.

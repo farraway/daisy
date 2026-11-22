@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,15 +25,16 @@ func member() Spec {
 	return Spec{Name: "daisy-swarm.acme.app.3.architect.1", Label: "acme/app#3/architect", User: "1000:1000",
 		Mounts: []Mount{{Src: "/s/runs/3-architect-1/work", Dst: "/work"}, {Src: "/s/runs/3-architect-1/io", Dst: "/work/.swarm"},
 			{Src: "/ws/docs", Dst: "/resources/docs", ReadOnly: true}},
-		Workdir: "/work/app", Image: "daisy-member-app:2", Argv: []string{"claude", "-p"}}
+		Workdir: "/work/app", Image: "daisy-member-app:2", Argv: []string{"claude", "-p"}, Detach: true}
 }
 
 // Section 7.2's two argvs: the member with an env credential, with a
-// slot, and the check, keyless and without a network.
+// slot, detached (section 7.10, rule 2), and the check, keyless and
+// without a network.
 func TestArgs(t *testing.T) {
 	env := member()
 	env.EnvVar, env.EnvValue = "CLAUDE_CODE_OAUTH_TOKEN", "sk-secret"
-	head := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.architect.1", "--label", "daisy.swarm=acme/app#3/architect",
+	head := []string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.architect.1", "--label", "daisy.swarm=acme/app#3/architect",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30"}
 	mounts := []string{"--mount", "type=bind,src=/s/runs/3-architect-1/work,dst=/work", "--mount", "type=bind,src=/s/runs/3-architect-1/io,dst=/work/.swarm",
 		"--mount", "type=bind,src=/ws/docs,dst=/resources/docs,readonly", "--workdir", "/work/app", "daisy-member-app:2", "claude", "-p"}
@@ -104,7 +106,7 @@ func TestArgs(t *testing.T) {
 // above --env-file whatever their order.
 func TestArgsCredentialAfterDeclaredEnv(t *testing.T) {
 	declared := []string{"CODEX_HOME=/elsewhere", "CLAUDE_CODE_OAUTH_TOKEN=a-declared-value", "APP_TEST_REDIS_URI=redis://redis:6379"}
-	head := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.architect.1", "--label", "daisy.swarm=acme/app#3/architect",
+	head := []string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.architect.1", "--label", "daisy.swarm=acme/app#3/architect",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30"}
 	mounts := []string{"--mount", "type=bind,src=/s/runs/3-architect-1/work,dst=/work", "--mount", "type=bind,src=/s/runs/3-architect-1/io,dst=/work/.swarm",
 		"--mount", "type=bind,src=/ws/docs,dst=/resources/docs,readonly", "--workdir", "/work/app", "daisy-member-app:2", "claude", "-p"}
@@ -229,12 +231,15 @@ type blocked struct {
 func (p *blocked) Wait() (int, error) { <-p.release; return p.code, nil }
 func (p *blocked) Kill() error        { return nil }
 
-// Docker.Start passes the env value on standard input only, and at the
-// wall clock stops the container by name and reports a timeout.
+// Docker.Start of a detached container (section 7.10, rule 2) runs
+// `docker run --detach` to its end, the env value on its standard input
+// only; Wait is `docker wait` on the container's name, and at the wall
+// clock it stops the container by name and reports a timeout.
 func TestDockerStartAndTheWallClock(t *testing.T) {
 	var stdin string
-	var stopped []string
-	proc := &blocked{release: make(chan struct{}), code: 137}
+	var started, execs []string
+	var mu sync.Mutex // execs: docker wait runs beside the stop
+	waited := make(chan struct{})
 	fire := make(chan time.Time, 1)
 	var asked time.Duration
 	o := &ops.Fake{
@@ -243,13 +248,22 @@ func TestDockerStartAndTheWallClock(t *testing.T) {
 				b, _ := io.ReadAll(in)
 				stdin = string(b)
 			}
-			io.WriteString(stdout, "out")
-			return proc, nil
+			started = append(started, name+" "+strings.Join(args[:2], " "))
+			io.WriteString(stdout, "0123abcd\n")
+			p := &blocked{release: make(chan struct{})}
+			close(p.release)
+			return p, nil
 		},
 		AfterFn: func(d time.Duration) <-chan time.Time { asked = d; return fire },
 		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
-			stopped = append(stopped, name+" "+strings.Join(args, " "))
-			close(proc.release)
+			mu.Lock()
+			execs = append(execs, name+" "+strings.Join(args, " "))
+			mu.Unlock()
+			if args[0] == "wait" {
+				<-waited
+				return []byte("137\n"), nil, nil
+			}
+			close(waited)
 			return nil, nil, nil
 		},
 	}
@@ -259,42 +273,73 @@ func TestDockerStartAndTheWallClock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if stdin != "CLAUDE_CODE_OAUTH_TOKEN=sk-secret\n" || !reflect.DeepEqual(started, []string{"docker run --detach"}) {
+		t.Errorf("stdin %q, started %q", stdin, started)
+	}
 	fire <- time.Time{}
 	exit, err := c.Wait()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stdin != "CLAUDE_CODE_OAUTH_TOKEN=sk-secret\n" || asked != 45*time.Minute {
-		t.Errorf("stdin %q, timer %v", stdin, asked)
-	}
-	if !exit.TimedOut || exit.Code != 137 || string(exit.Stdout) != "out" || !reflect.DeepEqual(stopped, []string{"docker stop --time 30 daisy-swarm.acme.app.3.architect.1"}) {
-		t.Errorf("exit %+v, stopped %q", exit, stopped)
+	slices.Sort(execs)
+	if asked != 45*time.Minute || !exit.TimedOut || !reflect.DeepEqual(execs, []string{"docker stop --time 30 daisy-swarm.acme.app.3.architect.1", "docker wait daisy-swarm.acme.app.3.architect.1"}) {
+		t.Errorf("timer %v, exit %+v, execs %q", asked, exit, execs)
 	}
 
-	// Without a timeout: the exit as docker run returns it, nothing stopped.
-	stopped, stdin = nil, "none"
-	proc = &blocked{release: make(chan struct{}), code: 0}
-	close(proc.release)
-	c, _ = Docker{O: o, Dir: "/ws"}.Start(member(), time.Hour)
-	exit, _ = c.Wait()
-	if exit.TimedOut || exit.Code != 0 || stopped != nil || stdin != "none" {
-		t.Errorf("exit %+v, stopped %q, stdin %q", exit, stopped, stdin)
+	// Without a timeout: Wait returns once docker wait has, nothing
+	// stopped; a container already gone (--rm) is no error.
+	for _, gone := range []bool{false, true} {
+		execs, stdin = nil, "none"
+		o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
+			execs = append(execs, name+" "+strings.Join(args, " "))
+			if gone {
+				return nil, []byte("Error response from daemon: No such container: daisy-swarm.acme.app.3.architect.1\n"), errors.New("exit status 1")
+			}
+			return []byte("0\n"), nil, nil
+		}
+		c, _ = Docker{O: o, Dir: "/ws"}.Start(member(), time.Hour)
+		exit, err = c.Wait()
+		if err != nil || exit.TimedOut || !reflect.DeepEqual(execs, []string{"docker wait daisy-swarm.acme.app.3.architect.1"}) || stdin != "none" {
+			t.Errorf("gone %v: exit %+v, err %v, execs %q, stdin %q", gone, exit, err, execs, stdin)
+		}
+	}
+}
+
+// A detached container docker cannot start (a missing image: `docker
+// run --detach` exits 125) is Start's error, docker's first line in it:
+// nothing started, nothing to wait for.
+func TestDockerStartRefused(t *testing.T) {
+	o := &ops.Fake{
+		StartFn: func(dir, name string, in io.Reader, stdout, stderr io.Writer, args ...string) (ops.Process, error) {
+			io.WriteString(stderr, "Unable to find image 'daisy-member-app:2' locally\ndocker: Error response from daemon: No such image\n")
+			p := &blocked{release: make(chan struct{}), code: 125}
+			close(p.release)
+			return p, nil
+		},
+	}
+	if _, err := (Docker{O: o, Dir: "/ws"}).Start(member(), time.Hour); err == nil || err.Error() != "docker run: exit 125: Unable to find image 'daisy-member-app:2' locally" {
+		t.Errorf("err %v", err)
 	}
 }
 
 // A stop that fails at the wall clock (the container gone already, --rm)
-// is still a timeout, reported once docker run has returned, never before:
-// the slot's lock is released only then (section 7.1).
+// is still a timeout, reported once docker wait has returned, never
+// before.
 func TestDockerStopFailingStillWaits(t *testing.T) {
-	proc := &blocked{release: make(chan struct{}), code: 137}
 	fire := make(chan time.Time, 1)
-	returned := make(chan struct{})
+	returned, waited := make(chan struct{}), make(chan struct{})
 	o := &ops.Fake{
 		StartFn: func(dir, name string, in io.Reader, stdout, stderr io.Writer, args ...string) (ops.Process, error) {
-			return proc, nil
+			p := &blocked{release: make(chan struct{})}
+			close(p.release)
+			return p, nil
 		},
 		AfterFn: func(time.Duration) <-chan time.Time { return fire },
 		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
+			if args[0] == "wait" {
+				<-waited
+				return []byte("137\n"), nil, nil
+			}
 			return nil, []byte("Error response from daemon: No such container"), errors.New("exit status 1")
 		},
 	}
@@ -307,12 +352,12 @@ func TestDockerStopFailingStillWaits(t *testing.T) {
 	go func() { exit, err = c.Wait(); close(returned) }()
 	select {
 	case <-returned:
-		t.Fatal("Wait returned before docker run did")
+		t.Fatal("Wait returned before docker wait did")
 	case <-time.After(50 * time.Millisecond):
 	}
-	close(proc.release)
+	close(waited)
 	<-returned
-	if err != nil || !exit.TimedOut || exit.Code != 137 {
+	if err != nil || !exit.TimedOut {
 		t.Errorf("exit %+v, err %v", exit, err)
 	}
 }

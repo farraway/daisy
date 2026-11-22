@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	iofs "io/fs"
 	"maps"
 	"path"
 	"path/filepath"
@@ -318,7 +319,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	spec := runner.Spec{Name: s.containerName(j.N, j.Role, j.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, j.N, j.Role), User: s.User,
 		Mounts: mounts, Workdir: workdir, Image: image,
 		Argv: exitMarked(provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, IOMount+"/system.md", IOMount+"/prompt.md", reads)),
-		Env:  env}
+		Env:  env, Detach: true}
 	if svc != nil {
 		// Its own network, not internal: the CLI reaches its API through
 		// it as through Docker's default bridge (section 7.2).
@@ -386,14 +387,17 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	}
 	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
 	c, err := s.Runner.Start(spec, timeout)
+	// The slot's lock is held through the launch alone: the running
+	// container's daisy.credential label holds the slot after (section
+	// 7.10, rule 2; section 8).
+	if slot != nil {
+		slot.Release()
+	}
 	if err != nil {
-		if slot != nil {
-			slot.Release()
-		}
 		return false, errors.Join(r.Append(fs, "launch-failed "+ended(), "fault: launch: "+err.Error()), s.collect(r))
 	}
 	s.given[r.Dir] = secrets
-	s.watch(r.Dir, c, slot, "")
+	s.watch(r.Dir, c, "")
 	fmt.Fprintf(s.Out, "%slaunched\n", runHead(r))
 	return true, errors.Join(s.capacityNote(j, r, capacity), s.inProgress(j, r))
 }
@@ -417,13 +421,18 @@ func (s *Swarm) inProgress(j *Job, r Run) error {
 	return r.Append(s.O.FS(), "relabelled "+from+" "+to)
 }
 
-// exitScript runs the provider's argv under sh and, once the CLI has
-// exited, writes its exit status to /job/io/exit (<run>/io/exit):
-// the mark that the member finished, which a later apply reads when the
-// apply that started the run died (sections 7.2 and 7.7, ended). A
-// container killed outright writes none. It is the image's own sh, so no
-// image is rebuilt for it.
-const exitScript = `"$@"; s=$?; echo "$s" >` + IOMount + `/exit; exit "$s"`
+// exitScript runs the provider's argv under sh, its standard output and
+// error to /job/io/stdout and /job/io/stderr, and once the CLI has exited
+// writes its exit status to /job/io/exit (<run>/io/exit): the files any
+// apply collects the run from, the container run detached (sections
+// 7.2 and 7.10, rule 2). A container killed outright writes no status.
+// It is the image's own sh, so no image is rebuilt for it.
+const exitScript = `"$@" >` + IOMount + `/stdout 2>` + IOMount + `/stderr; s=$?; echo "$s" >` + IOMount + `/exit; exit "$s"`
+
+// attachedExitScript is the exit mark of a run launched attached, before
+// the detached run (section 7.10, Rollout): its streams were docker run's,
+// its io/exit the same mark.
+const attachedExitScript = `"$@"; s=$?; echo "$s" >` + IOMount + `/exit; exit "$s"`
 
 // exitMarked is argv run under exitScript.
 func exitMarked(argv []string) []string {
@@ -442,10 +451,9 @@ func runHead(r Run) string {
 func (s *Swarm) slotDir(p string) string { return filepath.Join(s.Local, "swarm", "credentials", p) }
 
 // watch waits for a started container in the background, a member or
-// a worker run's step ("deps" or "check"): once `docker run` has
-// returned, a slot's secrets are read again and its lock released
-// (sections 7.1 and 7.6), and done is closed.
-func (s *Swarm) watch(dir string, c runner.Container, slot *runner.Slot, step string) {
+// a worker run's step ("deps" or "check"): once its Wait has returned,
+// done is closed.
+func (s *Swarm) watch(dir string, c runner.Container, step string) {
 	l := &live{step: step, done: make(chan struct{})}
 	s.live[dir] = l
 	s.started++
@@ -453,15 +461,12 @@ func (s *Swarm) watch(dir string, c runner.Container, slot *runner.Slot, step st
 		defer close(l.done)
 		l.exit, l.err = c.Wait()
 		l.at = s.O.Now()
-		if slot != nil {
-			l.again, _ = runner.SlotSecrets(s.O.FS(), slot.Dir)
-			slot.Release()
-		}
 	}()
 }
 
 // settle records how an ended container of this process ended (sections
-// 2 and 7.7): a member's streams, end line, cost and failure or fault; a
+// 2 and 7.7): a member's end line, its streams, cost and failure or fault
+// read from the files its sh wrote (exited, section 7.10, rule 2); a
 // step's output, <step>.out, and end line.
 func (s *Swarm) settle(r Run) error {
 	l := s.live[r.Dir]
@@ -486,24 +491,44 @@ func (s *Swarm) settle(r Run) error {
 		fmt.Fprintf(s.Out, "%s%s\n", runHead(r), said)
 		return r.Append(fs, lines...)
 	}
-	s.given[r.Dir] = append(s.given[r.Dir], l.again...)
 	if l.err != nil {
 		return r.Append(fs, "exited -1 "+now, "fault: wait: "+l.err.Error())
 	}
-	exit := l.exit
-	fs.WriteFile(filepath.Join(r.Dir, "stdout"), exit.Stdout, 0o644)
-	fs.WriteFile(filepath.Join(r.Dir, "stderr"), exit.Stderr, 0o644)
-	lines := []string{fmt.Sprintf("exited %d %s", exit.Code, now)}
-	if exit.TimedOut {
-		lines = []string{"timeout " + now}
+	if l.exit.TimedOut {
+		return s.exited(r, "timeout "+now, 0, true)
 	}
+	code, ok := r.exitStatus(fs)
+	if !ok {
+		return r.Append(fs, "abandoned "+now) // gone with no status: killed outright (section 7.7)
+	}
+	return s.exited(r, fmt.Sprintf("exited %d %s", code, now), code, false)
+}
+
+// exited records a member's end, end its end line, from the files its sh
+// wrote (section 7.10, rule 2): io/stdout and io/stderr copied to
+// <run>/stdout and <run>/stderr, its cost and its provider's fault read
+// from that stdout with the adapter of the run's own persona line, then
+// its failure or fault by its exit status code, or by the wall clock.
+func (s *Swarm) exited(r Run, end string, code int, timedOut bool) error {
+	fs := s.O.FS()
+	stdout, err := r.ioFile(fs, "stdout")
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return err
+	}
+	stderr, err := r.ioFile(fs, "stderr")
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return err
+	}
+	fs.WriteFile(filepath.Join(r.Dir, "stdout"), stdout, 0o644)
+	fs.WriteFile(filepath.Join(r.Dir, "stderr"), stderr, 0o644)
+	lines := []string{end}
 	result, err := r.Result(fs)
 	if err != nil {
 		return err
 	}
 	var rep provider.Report
 	if prov, _, _ := s.launched(r, result); provider.Providers[prov].Adapter != nil {
-		rep = provider.Providers[prov].Adapter.Report(exit.Stdout) // the launched persona's, not swarm.json's now (section 7.10)
+		rep = provider.Providers[prov].Adapter.Report(stdout) // the launched persona's, not swarm.json's now (section 7.10)
 	}
 	if rep.Known {
 		// A cost the CLI did not report is `-`, never 0 (section 3).
@@ -518,14 +543,14 @@ func (s *Swarm) settle(r Run) error {
 		lines = append(lines, line)
 	}
 	switch {
-	case exit.TimedOut:
+	case timedOut:
 		lines = append(lines, "failed: timeout after "+s.Cfg.Timeout)
-	case exit.Code >= 125 && exit.Code <= 127:
-		lines = append(lines, fmt.Sprintf("fault: exit %d", exit.Code))
+	case code >= 125 && code <= 127:
+		lines = append(lines, fmt.Sprintf("fault: exit %d", code))
 	case rep.Fault != "":
 		lines = append(lines, "fault: provider: "+rep.Fault)
-	case exit.Code != 0:
-		lines = append(lines, fmt.Sprintf("failed: exit %d", exit.Code))
+	case code != 0:
+		lines = append(lines, fmt.Sprintf("failed: exit %d", code))
 	}
 	return r.Append(fs, lines...)
 }
@@ -614,7 +639,7 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 		return err
 	}
 	fmt.Fprintf(s.Out, "%s%s started\n", runHead(r), step)
-	s.watch(r.Dir, c, nil, step)
+	s.watch(r.Dir, c, step)
 	return nil
 }
 

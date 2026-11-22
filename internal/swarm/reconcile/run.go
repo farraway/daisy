@@ -100,35 +100,38 @@ func (r Run) unusable(rel string, err error) error {
 // gone (section 7.7): ended, when its member finished, with the lines its
 // exit status adds (a fault for 125 to 127, a failure for any other
 // non-zero status, as a container of this process's); else abandoned.
-// A run launched under exitScript finished when its `io/exit` is a
-// regular file holding a status, whatever out.md holds; one launched
-// before the mark (its argv without the script) when its out.md is a
-// regular file.
+// A run launched under an exit mark, attached (attachedExitScript) or
+// detached (exitScript), finished when its `io/exit` is a regular file
+// holding a status, whatever out.md holds; one launched before the mark
+// (its argv without either) when its out.md is a regular file.
 func (r Run) Finished(fs ops.FS) (ended bool, lines []string) {
 	argv, _ := fs.ReadFile(filepath.Join(r.Dir, "argv"))
-	if !bytes.Contains(argv, []byte(exitScript)) {
+	if !bytes.Contains(argv, []byte(exitScript)) && !bytes.Contains(argv, []byte(attachedExitScript)) {
 		_, err := r.Output(fs)
 		return err == nil, nil
 	}
-	p := filepath.Join(r.Dir, "io", "exit")
-	fi, err := fs.Lstat(p)
-	if err != nil || !fi.Mode().IsRegular() {
-		return false, nil
-	}
-	b, err := fs.ReadFile(p)
-	if err != nil {
-		return false, nil
-	}
-	code, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	code, ok := r.exitStatus(fs)
 	switch {
-	case err != nil:
-		return false, nil // not the script's: the member's own, sh never wrote it
+	case !ok:
+		return false, nil
 	case code >= 125 && code <= 127:
 		return true, []string{fmt.Sprintf("fault: exit %d", code)}
 	case code != 0:
 		return true, []string{fmt.Sprintf("failed: exit %d", code)}
 	}
 	return true, nil
+}
+
+// exitStatus is the status the member's sh wrote to `io/exit`, ok when
+// it is a regular file holding a number (section 7.2): one that is not
+// the script's, the member's own, is none.
+func (r Run) exitStatus(fs ops.FS) (code int, ok bool) {
+	b, err := r.ioFile(fs, "exit")
+	if err != nil || b == nil {
+		return 0, false
+	}
+	code, err = strconv.Atoi(strings.TrimSpace(string(b)))
+	return code, err == nil
 }
 
 // Result is the run's result lines; none when it has no result yet.

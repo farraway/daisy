@@ -75,16 +75,14 @@ func (s *Swarm) pulls(n int) ([]forge.Pull, error) {
 }
 
 // live is a container this process started, a member or a worker run's
-// check: done is closed once `docker run` has returned, with how and when
-// it ended and, for a slot, the slot's secrets read again before its lock was
-// released.
+// check: done is closed once its Wait has returned, with how and when it
+// ended.
 type live struct {
-	step  string // "" for a member, "deps" or "check" for a worker run's step (section 7.6, step 4)
-	done  chan struct{}
-	exit  runner.Exit
-	err   error
-	at    time.Time // when `docker run` returned: the run's end line's time
-	again []string
+	step string // "" for a member, "deps" or "check" for a worker run's step (section 7.6, step 4)
+	done chan struct{}
+	exit runner.Exit
+	err  error
+	at   time.Time // when its Wait returned: the run's end line's time
 }
 
 func (s *Swarm) stopping() bool { return s.Stopping != nil && s.Stopping() }

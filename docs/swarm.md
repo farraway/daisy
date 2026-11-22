@@ -2491,7 +2491,7 @@ mirrors (7.8, The open branches).
 The member:
 
 ```
-docker run --rm --pull never
+docker run --detach --rm --pull never
   --name daisy-swarm.<owner>.<repo>.<n>.<role>.<k>
   --label daisy.swarm=<owner>/<repo>#<n>/<role>
   --user <uid>:<gid>
@@ -2511,9 +2511,14 @@ docker run --rm --pull never
   --mount type=bind,src=<run>/resources,dst=/job/resources,readonly    (resources)
   --workdir <W>
   <image>
-  sh -c '"$@"; s=$?; echo "$s" >/job/io/exit; exit "$s"' sh
+  sh -c '"$@" >/job/io/stdout 2>/job/io/stderr; s=$?; echo "$s" >/job/io/exit; exit "$s"' sh
   <the provider's argv (section 9)>
 ```
+
+(`--detach` and the streams to `/job/io/stdout` and `/job/io/stderr`
+from R4, 7.10, rule 2, built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap; before it, `docker run --rm`
+attached and `sh -c '"$@"; s=$?; echo "$s" >/job/io/exit; exit "$s"'
+sh`.)
 
 The line marked `(env)` is there for an `env` credential and the three
 marked `(slots)` for a slot, never both, `<home>` the variable that names
@@ -2650,7 +2655,7 @@ an `apply` that died left, is the same.
 | `/job/work/<name>`, the check's | the check's clone, a fresh clone of the fetched head, at the path a member's checkout has, `<name>` the run's repository, with no `/job` or `/job/work` mounted above it; for the dependency step, such a clone, read-only, so that the step writes the cache alone |
 | `<image>` | the run's repository's `image` (7.1 step 3) for the worker, the reviewers, the dependency step and the check; the first repository's for the owner, the architect and the QA, which starts the product's app in it (section 4, The page map) |
 | `/job/io` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out, and `exit`; `artifacts/`, a worker's screenshots out (7.6, The screenshots) and a reviewer's copies of them in (7.3, `# Artifacts`); `branches.md` in, for the roles that read it, and the architect's `builder.md` out (7.8) |
-| `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's exit status to `/job/io/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*). A container killed outright (a reboot, `docker stop`'s kill) writes none. The check and the dependency step run their argv as it is |
+| `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's standard output and error to `/job/io/stdout` and `/job/io/stderr` (from R4, 7.10, rule 2, built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap) and its exit status to `/job/io/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*), and the files its collection reads. A container killed outright (a reboot, `docker stop`'s kill) writes no status. The check and the dependency step run their argv as it is |
 | `/job/notes` | with `notes`, `<run>/notes`, the run's copy of the research notes, the swarm repository's `notes/` directory (7.1, step 2): read-write for the owner and the architect, whose changes Daisy pushes after the run (7.6, The notes); read-only for the worker, the reviewers and the QA; outside every clone; none for the check |
 | `/job/resources` | `<run>/resources`, read-only: each resource at `/job/resources/<repository>/<path>`, checked out at the pass's commit (7.1, step 3: one the commit does not hold is *resource refused*, 7.7), never a working tree; none when `resources` and `references` name nothing; none for the check. Under `/job`, so a CLI confined to its working directory reaches it (section 9, `grok`), and outside every clone |
 | `--workdir <W>`, the check's `--workdir` | the CLIs start in the run's clone, `<W>`, `/job/work/<name>` for every role, `<name>` the run's repository (the first declared for the owner, the architect and the QA), so the CLI reads the product's instructions from its tree, and are given `/job` beside it (section 9's `D`), unless their provider is confined to its working directory (section 9's `Confined`, `xai`): then `/job`, which holds every clone and all else the run is given, and the prompt's `# Repository` names `/job/work/<name>` as the repository (7.3); the check and the dependency step start in their clone, `/job/work/<name>` |
@@ -2779,6 +2784,15 @@ ends. *R4, specified ahead of its build* (7.10, rule 2): every container runs `d
 beside `/job/io/exit` (a step's, its output and status to `/job/step`,
 `<run>/step/`), the run's `deadline` recorded at its launch, and the
 collection, by whichever `apply`, reads them from those files.
+*Built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap* for a member: `docker run --detach`, run to its
+end, which is once the container has started, a status other than 0
+the launch's failure (`fault: launch: docker run: exit <code>: <docker's
+first line>`); the wall clock a timer of `timeout` from the launch
+beside `docker wait <name>`; and the collection of a member this
+process started reading its status, its streams, its cost and its
+provider's fault from `<run>/io/exit`, `<run>/io/stdout` and
+`<run>/io/stderr`, a container gone with no status abandoned (decision
+[170](swarm/decisions/0170-capacity.md), As built).
 
 ### 7.3 The prompt files
 
@@ -6097,7 +6111,9 @@ that the next run reads.
 a fallback entry, may take only the slots its `slots` lists, so the
 maintainer gives roles their own logins; a slot's lock is held through
 the launch alone, the running container's `daisy.credential` label
-holding the slot after, since no process waits on a detached container.
+holding the slot after, since no process waits on a detached container
+(the lock's release at the launch built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap, the slot's
+secrets read again at the collection beside the launch's).
 
 ## 9. The provider seam
 

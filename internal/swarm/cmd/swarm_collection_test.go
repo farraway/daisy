@@ -175,7 +175,7 @@ func TestSwarmAbandonedWorkerKeepsWhatItFetched(t *testing.T) {
 // out.md.
 func TestSwarmOrphanEndedByTheExitMark(t *testing.T) {
 	t.Parallel()
-	marked := strings.Join(append([]string{"docker", "run"}, exitPrefix...), "\n") + "\nclaude\n"
+	marked := strings.Join(append([]string{"docker", "run"}, attachedExitPrefix...), "\n") + "\nclaude\n"
 	for _, tc := range []struct {
 		name, argv, exit, out string
 		want                  string // the result's lines after the end line

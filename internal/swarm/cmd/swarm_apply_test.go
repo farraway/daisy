@@ -160,9 +160,14 @@ type withFS struct {
 
 func (w withFS) FS() ops.FS { return w.fs }
 
-// exitPrefix runs a member's argv under sh, which writes the CLI's exit
-// status to /job/io/exit once it has exited (section 7.2).
-var exitPrefix = []string{"sh", "-c", `"$@"; s=$?; echo "$s" >/job/io/exit; exit "$s"`, "sh"}
+// exitPrefix runs a member's argv under sh, which writes the CLI's
+// streams to /job/io/stdout and /job/io/stderr and its exit status to
+// /job/io/exit once it has exited (sections 7.2 and 7.10, rule 2);
+// attachedExitPrefix is the mark of a run launched attached, before.
+var (
+	exitPrefix         = []string{"sh", "-c", `"$@" >/job/io/stdout 2>/job/io/stderr; s=$?; echo "$s" >/job/io/exit; exit "$s"`, "sh"}
+	attachedExitPrefix = []string{"sh", "-c", `"$@"; s=$?; echo "$s" >/job/io/exit; exit "$s"`, "sh"}
+)
 
 func (a *applyWS) result(run string) string {
 	b, _ := os.ReadFile(a.state(filepath.Join("runs", run, "result")))
@@ -246,7 +251,7 @@ func TestSwarmApplyReadyToPlanning(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(run, "resources")); err == nil {
 		t.Error("resources/ kept after the collection")
 	}
-	if argv, _ := os.ReadFile(filepath.Join(run, "argv")); !strings.HasPrefix(string(argv), "docker\nrun\n--rm\n") || strings.Contains(string(argv), a.vars["CLAUDE_CODE_OAUTH_TOKEN"]) {
+	if argv, _ := os.ReadFile(filepath.Join(run, "argv")); !strings.HasPrefix(string(argv), "docker\nrun\n--detach\n--rm\n") || strings.Contains(string(argv), a.vars["CLAUDE_CODE_OAUTH_TOKEN"]) {
 		t.Errorf("argv:\n%s", argv)
 	}
 

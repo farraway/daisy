@@ -1252,3 +1252,12 @@ they write.
   `cached <c>` is over its `<in>`. Section 7.6 (The run's record).
   Decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md),
   amended with an As built note.
+- 2026-11-22, Step R4-B of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, adoption): a member runs `docker run --detach`, its
+  `sh` writing the CLI's standard output and error to `/job/io/stdout`
+  and `/job/io/stderr` beside `/job/io/exit`, and its collection reads
+  its status, streams, cost and fault from those files; a refused
+  `docker run --detach` is the launch's fault, a container gone with no
+  status abandoned; a slot's lock held through the launch alone.
+  Sections 7.2, 7.10 and 8. Decision
+  [170](swarm/decisions/0170-capacity.md) amended.

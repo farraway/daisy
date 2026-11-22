@@ -23,7 +23,9 @@ import (
 // status, its standard output and error, and whether the wall clock
 // stopped it. A check is scripted the same way under the role "check",
 // its Stdout and Stderr its output, its Work given its clone, mounted at
-// /job/work/<name>.
+// /job/work/<name>. A detached member's (section 7.10, rule 2) are the
+// files its sh writes: Stdout, Stderr and, unless the wall clock stopped
+// it, Code in io/stdout, io/stderr and io/exit.
 type Canned struct {
 	Out            string
 	IO             func(io string) error
@@ -106,6 +108,17 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 					return nil, err
 				}
 			}
+			if s.Detach {
+				files := map[string]string{"stdout": c.Stdout, "stderr": c.Stderr}
+				if !c.TimedOut {
+					files["exit"] = strconv.Itoa(c.Code) + "\n"
+				}
+				for name, b := range files {
+					if err := fs.WriteFile(filepath.Join(m.Src, name), []byte(b), 0o644); err != nil {
+						return nil, err
+					}
+				}
+			}
 			if c.IO != nil {
 				if err := c.IO(m.Src); err != nil {
 					return nil, err
@@ -130,7 +143,7 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 		f.attached = map[string]string{}
 	}
 	f.attached[s.Name] = s.Network
-	return &fakeRun{f, s.Name, c}, nil
+	return &fakeRun{f, s.Name, c, s.Detach}, nil
 }
 
 func (f *Fake) Running() ([]Running, error) {
@@ -178,9 +191,10 @@ func (f *Fake) Down(network string) error {
 }
 
 type fakeRun struct {
-	f    *Fake
-	name string
-	c    Canned
+	f      *Fake
+	name   string
+	c      Canned
+	detach bool
 }
 
 func (r *fakeRun) Wait() (Exit, error) {
@@ -188,5 +202,8 @@ func (r *fakeRun) Wait() (Exit, error) {
 	defer r.f.mu.Unlock()
 	r.f.running = slices.DeleteFunc(r.f.running, func(c Running) bool { return c.Name == r.name })
 	delete(r.f.attached, r.name)
+	if r.detach {
+		return Exit{TimedOut: r.c.TimedOut}, nil
+	}
 	return Exit{Code: r.c.Code, TimedOut: r.c.TimedOut, Stdout: []byte(r.c.Stdout), Stderr: []byte(r.c.Stderr)}, nil
 }

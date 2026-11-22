@@ -645,22 +645,23 @@ func hit(data []byte, secrets []string) bool {
 }
 
 // secretsOf is what the run's member was given (section 7.6): the env
-// value, or the slot's long strings read at the launch and the return; a
-// run this process did not launch reads them as they are now.
+// value, or the slot's long strings, those this process read at the
+// launch and those its credential holds now, read again at the
+// collection, since the CLI may have refreshed a slot's login during the
+// run and the slot's lock is held through the launch alone (section
+// 7.10, rule 2).
 func (s *Swarm) secretsOf(r Run, lines []string) []string {
-	if given, ok := s.given[r.Dir]; ok {
-		return given
-	}
+	given := slices.Clone(s.given[r.Dir])
 	l, _ := Has(lines, "credential")
 	f := strings.Fields(l)
 	switch {
 	case len(f) == 4 && f[2] == "env":
-		return []string{s.Secret(f[3])}
+		return append(given, s.Secret(f[3]))
 	case len(f) == 4 && f[2] == "slot":
 		sec, _ := runner.SlotSecrets(s.O.FS(), filepath.Join(s.slotDir(f[1]), f[3]))
-		return sec
+		return append(given, sec...)
 	}
-	return nil
+	return given
 }
 
 func repoName(repo string) string { _, r, _ := strings.Cut(repo, "/"); return r }

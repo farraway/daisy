@@ -243,3 +243,30 @@ belongs to no run (open, with the removal's line). Notify's item is
 each line of `<state>/capacity`, its key the line, told after a fault's
 pause. Tests: `TestSwarmCapacityNoteOnTheIssue`,
 `TestSwarmNotifiesCapacity`.
+
+**As built: the detached member (Step R4-B of the plan implementing
+the 2026-11-19 swarm roadmap).** A member runs `docker run --detach
+--rm`, its `sh` writing the CLI's streams to `/job/io/stdout` and
+`/job/io/stderr` beside `/job/io/exit`. `docker run --detach` is run
+to its end, once the container has started; a status other than 0 (a
+missing image's 125) is the launch's failure, `launch-failed` and
+`fault: launch: docker run: exit <code>: <docker's first line of
+error>`, since no container started and nothing is left to collect,
+where an attached run's was *Docker's own exit*, `exited <code>`;
+a 125 to 127 of the CLI's, which the `sh` writes, is still `fault:
+exit <code>`. This process waits on its member with `docker wait
+<name>`, a container already gone (`No such container`) no error, and
+keeps the wall clock as a timer of `timeout` from the launch, which
+stops it and makes it a timeout. Once the wait returns the collection
+reads `<run>/io/exit`: a status is `exited <code> <time>`, `<run>/io/stdout`
+and `<run>/io/stderr` copied to `<run>/stdout` and `<run>/stderr`, each read
+only when a regular file (a link is never followed, as `out.md`), the
+cost and the provider's fault read from that stdout; no status, the
+container killed outright, is `abandoned <time>` (7.7), where an
+attached run's was `failed: exit 137`. The slot's lock is released once
+`docker run --detach` has returned; the secret check reads the slot's
+login again at the collection, beside what the launch read. A run
+launched attached, before the build, keeps its exit mark,
+`"$@"; s=$?; …`, which *ended* still reads. Tests:
+`TestMemberArgvDetachedWithStdoutFile`, `TestArgs`,
+`TestDockerStartAndTheWallClock`, `TestDockerStartRefused`.
