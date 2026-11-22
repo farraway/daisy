@@ -15,7 +15,9 @@
 ├── {project-name}.md          # Active projects
 ├── {project-name}.md
 ├── _archive/                  # Closed projects
-│   └── {project-name}.md
+│   ├── {project-name}.md
+│   └── _deferred-closed/      # A closed project's resolved Deferred items
+│       └── {project-name}.md
 └── _deferred-closed/          # A project's resolved Deferred items, moved at each plan's archive
     └── {project-name}.md
 ```
@@ -105,7 +107,10 @@ already carry `+tags` verbatim.
    - Final status: completed | abandoned | superseded
    - Summary: one-paragraph retrospective
 4. Create projects/_archive/ if it doesn't exist
-5. Move file: projects/{name}.md → projects/_archive/{name}.md
+5. Move file: projects/{name}.md → projects/_archive/{name}.md,
+   and, when it exists, projects/_deferred-closed/{name}.md →
+   projects/_archive/_deferred-closed/{name}.md (creating the
+   directory), which keeps its relative links' depth
 6. Handle remaining tasks:
    a. Find active tasks with +{name} in todo.txt
    b. For each: ask "Cancel, reassign to another project, or keep?"

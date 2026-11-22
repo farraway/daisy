@@ -177,14 +177,15 @@ itself.
 The reviewer attacks the claim and reports only what it reproduces. A pass
 that finds nothing in gate is the expected result of a good step and is
 reported as such; it is not a failure of the review. Every in-gate finding
-stops the commit until it is fixed. A pass tests the claim: a prose-only
-claim has two tests (a document contradicts another; a required item
-missing or wrong), so one pass exhausts them and its fixes are committed
-without a second; any other claim's fixes go to the next pass, up to five,
-and at the fifth the step is held and the maintainer reads every finding.
-A finding the reviewer would not stake the commit on is out of gate: it
-is reported, not fixed and not sent to another pass. The reviewer does not
-learn the previous pass's count. Under a Daisy plan the gate, and where an
+is fixed before the work goes on. A pass tests the claim: the first pass
+reviews and fixes what it finds in gate, and a fresh second pass checks
+only those fixes, starting no new hunt. What is left then is recorded for
+later unless it changes behaviour (the claim fails, a test is red); a
+behaviour finding gets one more fix and one more check, and if it still
+stands the work stops and the maintainer reads it. A finding the reviewer
+would not stake the commit on is out of gate: it is reported, not fixed
+and not sent to another pass. The reviewer does not learn the previous
+pass's count. Under a Daisy plan the gate, and where a leftover or an
 out-of-gate remark goes, is `prompts/plan.md` rule 22.
 
 ### Oracles and expected values
@@ -527,9 +528,9 @@ places. Each departure has a cost, named here.
   explicitly on every characterization case.
 - *Falsification is expensive.* Review passes that attack the claim cost
   more than the implementation did on every step of Daisy's port where
-  the figures were kept, sometimes by three to one. The cap on passes
-  (five) exists because the search for a refutation has no natural end;
-  a prose-only claim, whose two tests one pass exhausts, takes one.
+  the figures were kept, sometimes by three to one. The review stops
+  after a fix and a check of it (one more of each for a behaviour
+  finding) because the search for a refutation has no natural end.
 - *A single Fake must be faithful.* Everything rests on the Fake behaving
   like Real at the seam. The parity check catches signature drift, not
   behavioural drift; a Fake file system that permits a write Real would
@@ -698,10 +699,10 @@ writes nothing" test fails. Each probe is recorded in the step's report.
 hand-set `user.name` values behind, which the restore would now bring
 back; its cleanup was fixed as a sibling of the same class.
 
-**Review.** Six passes, run before the cap of five was set; a step like
-this one is why it was. The first found writes that happened before a
-refusal, and a fix that checks every path before the first write. Passes
-two to five circled one seam, which skills belong to `init`, through
+**Review.** Six passes, run before the review had a cap (five, since
+replaced by a fix and a check); a step like this one is why it got one.
+The first found writes that happened before a refusal, and a fix that
+checks every path before the first write. Passes two to five circled one seam, which skills belong to `init`, through
 three patches, until the seam was reshaped to a single rule (a skill is
 `init`'s exactly when its rule file is byte-for-byte the stub `init`
 writes) and verified by a test rather than a seventh pass. Pass six's one

@@ -327,9 +327,10 @@ sync workflows.
 rules this root is built by: read before inventing, scope as relatedness,
 a claim per step that can fail (`skills/testing/SKILL.md`, with
 `docs/testing.md` as its long form), a hostile review of each diff to a
-stated gate, no silent failure, no dead code. Under a plan, the review
-gate and the cap of five passes are `prompts/plan.md` rule 22; a step not
-clean at the cap stops and hands back with its findings.
+stated gate, no silent failure, no dead code. Under a plan, the batches,
+the review gate and its two passes (review and fix, then a check of the
+fixes) are `prompts/plan.md` rule 22; a behaviour finding still open
+after one more fix and check stops the batch, which hands back with it.
 
 ## The swarm, from an agent session
 

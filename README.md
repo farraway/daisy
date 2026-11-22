@@ -67,9 +67,9 @@ With those four words, the goals:
    it is, so personal data lives only in homes, and a check before every
    root commit scans for identifying terms derived from the machine.
 6. **Work delegated to agents without losing the thread.** A plan is
-   executed one step per fresh agent, each step reviewed by another agent
-   to a stated gate (a fixed list of what counts as a finding) with a cap
-   on passes; a swarm takes a brief (a written goal, defined below) through
+   executed in batches of steps, one fresh agent per batch, each batch
+   reviewed by another agent to a stated gate (a fixed list of what counts
+   as a finding), a pass that fixes and a pass that checks the fixes; a swarm takes a brief (a written goal, defined below) through
    issues, plans and pull requests on a forge, with the person who runs
    it, the maintainer, deciding at the gates by default, and every exchange
    on the forge where it can be read later.
@@ -138,9 +138,9 @@ from `templates/plan.md` and links it as `PLAN.md` in the workspace;
 `--spec` writes a draft in the workspace instead, outside the home, which
 `daisy plan pickup <path>` later copies into the home as a plan; `daisy
 plan archive` archives the active plan. The plan
-workflow the agent follows (research, steps, one fresh agent per step,
-review to a gate, a cap of five passes) is `prompts/plan.md`; its
-reference is `docs/plan.md`.
+workflow the agent follows (research, steps, one fresh agent per batch
+of steps, review to a gate, a fix pass and a check) is `prompts/plan.md`;
+its reference is `docs/plan.md`.
 
 **Homes and identities.** `daisy home new`, `daisy home add`, `daisy home
 list` and `daisy home remove` manage the registry; `daisy identity list`
@@ -501,9 +501,9 @@ follows; `docs/examples.md` has walkthroughs.
 ```
 
 `plan` researches first, then scaffolds Goal, Steps and Decisions and asks
-before executing; `execute` runs each step in a fresh agent, reviewed by
-another to a stated gate with a cap of five passes, verifying each before
-the next; `resume` verifies the state of an interrupted plan before going
+before executing; `execute` runs the steps in batches, each in a fresh
+agent and reviewed by another to a stated gate, a fix pass then a check of
+the fixes, verifying each batch before the next; `resume` verifies the state of an interrupted plan before going
 on. `prompts/plan.md` has the rules; `docs/plan.md` the reference.
 
 ### Feedback
@@ -643,8 +643,8 @@ ideas into whatever you already use. The ideas travel without the tool: a
 task list and a journal the agent maintains in plain text under git; the
 line between what a command does exactly and what an instruction leaves to
 judgment; a correction recorded and compiled back into the instruction that
-failed; a plan executed one step per fresh agent, reviewed to a stated gate
-with a cap; a swarm whose state is the forge's labels, whose reviews come
+failed; a plan executed in batches, one fresh agent per batch, reviewed to
+a stated gate, a fix then a check; a swarm whose state is the forge's labels, whose reviews come
 from two vendors and whose gates are a person's.
 
 Adopt Daisy itself when the root and home split and the identity model are

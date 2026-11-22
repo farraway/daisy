@@ -4,7 +4,7 @@ Detailed algorithms for the `/daisy plan`, `/daisy execute`, and `/daisy archive
 
 ## Overview
 
-Plans are durable implementation artifacts. A plan is developed collaboratively before any code is written, executed one step per fresh sub-agent with `praxis.md` as a quality guide, and archived when complete. The plan file is the contract between planning and execution.
+Plans are durable implementation artifacts. A plan is developed collaboratively before any code is written, executed in batches of steps, one fresh sub-agent per batch, with `praxis.md` as a quality guide, and archived when complete. The plan file is the contract between planning and execution.
 
 ---
 
@@ -89,54 +89,75 @@ as before") are each one claim.
 
 1. Read PLAN.md; confirm at least one unchecked "- [ ]" step exists,
    and that Decisions records the model and effort the step agents
-   and the review agents use (ask it if not).
+   and the review agents use (ask it if not, recommending a
+   Sonnet-class model for the reviewers).
 
 2. Update "**Status:** executing" in the frontmatter block.
 
-3. Work through steps in order, each in a fresh sub-agent (not
-   a fork). The main agent orchestrates and does not implement.
-   Brief the step agent with the step written in, not the plan's
+3. Group the steps, in order, into batches, and work through the
+   batches, each in a fresh sub-agent, the step agent (not a fork).
+   The main agent orchestrates and does not implement. Brief the
+   step agent with the batch's steps written in, not the plan's
    path:
    - the plan's Goal in a sentence
-   - the step's text
-   - the Decisions that name the step or bear on it
+   - the Non-goals
+   - each step's text
+   - the Decisions that name a step or bear on it
    - the Constraints
    - $DAISY_ROOT/prompts/praxis.md and the testing skill
-   - the review gate and its cap
+   - the review and the gate
    - the hand-back's shape
-   - its reviewer's model and effort (from Decisions)
-   - that it neither reads nor writes the plan file
+   - its reviewers' model and effort (from Decisions)
+   - that it neither reads nor writes the plan file, and leaves
+     the journal to the orchestrator
 
 4. The step agent, which neither reads nor writes the plan
-   file, reads praxis.md, states the step's claim, does the
-   step, reviews it to the gate, commits (not when it stops at
-   the cap) and hands back, with:
+   file nor writes the journal, reads praxis.md and, for each
+   step in order, states its claim, does the step (its test red
+   first, then its probes) and commits it after a green cached
+   gate (none for a step it stops on). It then runs the batch's
+   review, runs the gate uncached and hands back, with, for each
+   step:
    - the decisions it made, each with the alternative considered
    - its Deferred candidates (scope that surfaced)
-   - its open questions
+   - its open questions, and any rule it proposes, marked as a
+     proposed rule
 
-5. The orchestrator verifies the hand-back (claim, tests,
-   daisy healthcheck --force, hygiene, commits; for a hand-back
-   stopped at the review cap, that the step has no commit), then
-   writes the plan at its real path:
-   - marks the step "- [x]" (not a step stopped at the cap)
-   - records its decisions in Decisions
-   - adds its Deferred candidates to Deferred, and keeps there
-     each out-of-gate remark the hand-back reports that names a
-     defect at a file and line
-   - adds its open questions to Open Questions
-   It then records the step's metrics with daisy metrics add, two
-   rows: --role step (the step's commit range and repository,
-   the step agent's model, effort and tokens) and --role review
-   (the reviewers' model and effort, --review-rounds, all review
-   passes' tokens summed; no range, so no lines); a step stopped
-   at the review cap is recorded too, with no range and
-   --outcome "held at cap", its tokens and rounds. Last it logs
-   the step via daisy log, before launching the next step. It
-   does not ask the user between steps.
+5. The orchestrator verifies the hand-back (each claim, the
+   gate uncached, daisy healthcheck --force, hygiene, commits;
+   for a hand-back stopped by the review or at another stop,
+   that nothing past the stop is committed), then writes the
+   plan at its real path:
+   - marks each step "- [x]" (not a step the batch stopped on)
+   - records the decisions in Decisions
+   - adds the Deferred candidates to Deferred, with the review's
+     leftovers that do not change behaviour and each out-of-gate
+     remark the hand-back reports that names a defect at a file
+     and line
+   - adds the open questions to Open Questions, a proposed rule
+     marked "Rule question", to be asked alone at the next stop
+     or at the run's end (it is not itself a stop)
+   It records Decisions and Deferred for a stopped batch too.
+   It then records the metrics with daisy metrics add: one
+   --role step row per step (the step's commit range and
+   repository, the step agent's model, effort and tokens), and
+   one --role review row per batch for each reviewer model and
+   effort its passes used (--step the batch's steps joined by
+   "+", that model and effort, --review-rounds, --review-effect
+   the in-gate findings fixed, the passes' tokens summed; no
+   range, so no lines). A step the batch stopped on keeps the
+   same two rows as a finished step, its step row (no range when
+   it has no commit) and its batch's review row, each with
+   --outcome "stopped: <stop>" ("stopped: review" at the
+   review's stop). Last it logs each step via daisy log, before
+   launching the next batch. It does not ask the user between
+   batches.
 
 6. Stop and report at the stops below, or if blocked; do not
-   skip steps or work around blockers silently.
+   skip steps or work around blockers silently. At the run's
+   end, record one --role orchestrator row (--step the last step
+   the run verified), with the orchestrator's own tokens when it
+   can count them, else empty.
 
 7. On all steps complete:
    - Append " *Built*" to the H1 title
@@ -146,9 +167,10 @@ as before") are each one claim.
    daisy log
 ```
 
-**Review gate and cap:** `prompts/plan.md` rule 22 is the gate, the
-passes and the cap; [The review gate](#the-review-gate) below gives the
-reasons and the history.
+**Batches, review and gate:** `prompts/plan.md` rule 22 is the batches,
+the claim and nothing beyond, the gate, the review's two passes and its
+stop; [The review gate](#the-review-gate) below gives the reasons and the
+history.
 
 **Stops:** the run stops when it needs something only the user can give
 and the plan does not record: a decision of theirs (the model and effort
@@ -156,29 +178,35 @@ of the step and review agents when Decisions has none; a rearchitecture
 that crosses a decision they made), an approval (a hard-to-reverse or
 outward-facing action the plan does not call for, such as a force-push,
 a deletion or a publication; a step the plan gives the user), or a way
-past a block (a step stopped at the review cap; the same mistake twice; a
+past a block (a batch stopped by its review; the same mistake twice; a
 permission refusal, which the orchestrator reports verbatim and never
-re-runs for the sub-agent). The plan's own checkpoints are stops too.
+re-runs for the sub-agent). The plan's own checkpoints are stops too. The
+orchestrator logs each stop with its reason (`prompts/plan.md` rule 9).
+A step stopped at one (the same mistake twice; a rearchitecture that
+crosses a decision) is not committed: the step agent hands back with the
+stop and its reason named and the step's work uncommitted, and its
+metrics rows carry `--outcome "stopped: <stop>"`.
 
-**Hand-back:** the claim and its probes; lines added and deleted; each
-review pass with its in-gate count; findings disputed with the reason;
-findings accepted as is; the out-of-gate remarks, each with its file
-and line; at the cap,
-the open findings and the proposed fixes left uncommitted; the
-verification lines; the commits, with the step's commit range and
-its repository; the decisions made, the Deferred candidates and the
-open questions, which the orchestrator writes into the plan; the tokens
-used, the step agent's and each reviewer's, each with its model and
-effort.
+**Hand-back:** for each step, the claim and its probes; lines added and
+deleted; its commit; the decisions made, each with the alternative
+considered; the Deferred candidates and the open questions, a proposed
+rule marked as one, which the orchestrator writes into the plan. For the
+batch, each review pass with its findings, each in-gate one with its fix
+and the fix's commit; the out-of-gate remarks, each with its file and
+line; the leftovers bound for Deferred; at a stop, the stop and its
+reason, the step or open finding it stopped on, and the proposed fix left
+uncommitted; the verification lines; the batch's commit range and its
+repository; the tokens used, the step agent's and each reviewer's, each
+with its model and effort.
 
 **The brief, not the plan.** Until 2026-11-15 each step agent was given
 the plan's real path and read the whole plan (90–104 KB, about 25k
 tokens, every step and every past decision), then wrote its own mark,
 Decisions and Deferred there, which made rule 17's symlink trap one of
 its duties (design review of 2026-11-15, effectiveness R3, P20). Now the
-orchestrator writes the step into the brief: the plan's Goal in a
-sentence, the step's text, the Decisions that name the step or bear on
-it, and the Constraints. Rule 13 already makes the step's text the
+orchestrator writes the batch's steps into the brief: the plan's Goal in
+a sentence, the Non-goals, each step's text, the Decisions that name a
+step or bear on it, and the Constraints. Rule 13 already makes the step's text the
 contract (files named, code shown, a claim), so that is what the agent
 needs. Everything the agent would have written into the plan comes back
 in the hand-back, and the orchestrator writes it after verifying the
@@ -186,7 +214,7 @@ step (the maintainer's choice, 2026-11-15). The cost is the plan's
 history: a Decision the orchestrator does not judge to bear on the step
 is one the step agent does not see.
 
-**Metrics:** `daisy metrics add` appends the step's row to
+**Metrics:** `daisy metrics add` appends each row to
 `<home>/metrics/metrics.csv`, the one record across plans, and writes
 the same row into the plan's `## Metrics` table. The lines added and
 removed per class (code, tests, prose) are measured from the step's
@@ -215,7 +243,10 @@ run in a scratch workspace), and tear it down afterward.
    - Resolved (the plan's, or the project file's that the plan
      closed): strike through, date, and move it, its text kept,
      to .daisy/projects/_deferred-closed/<project>.md under a
-     new heading at the top naming the date and the plan
+     new heading at the top naming the date and the plan by its
+     id (its file name's timestamp, not a link: daisy plan
+     archive repoints links in projects/ and projects/_archive/
+     only)
 
 3. Call daisy plan archive
 
@@ -240,28 +271,48 @@ lands. The file lives in a directory, `_deferred-closed/` beside
 
 ## The review gate
 
-`prompts/plan.md` rule 22 is the gate a step agent reviews its step to.
-This section holds why each part of it reads as it does and where it came
-from, so the rule can stay short; where the two differ, the rule wins.
-Most of it comes from an audit of the review loop on 2026-11-06 (one
-session's three step agents and twelve reviewers) and from the design
-review of 2026-11-15.
+`prompts/plan.md` rule 22 is how a batch of steps is built, gated and
+reviewed. This section holds why each part of it reads as it does and
+where it came from, so the rule can stay short; where the two differ, the
+rule wins. Most of it comes from an audit of the review loop on
+2026-11-06 (one session's three step agents and twelve reviewers), from
+the design review of 2026-11-15 and from the maintainer's change of
+2026-11-21.
+
+**Batches, the claim and nothing beyond, fix then check.** Until
+2026-11-21 each step ran in its own agent and was reviewed alone, up to
+five passes, the step agent fixing each pass's findings and a fresh
+reviewer reading each round of fixes. Two steps of one plan each
+used all five passes, the late passes finding test gaps and wording, not
+behaviour, and a step took about an hour and a half. So the maintainer
+chose a shorter loop. One step agent builds a batch of steps, one commit
+per step. A step builds what its claim names and nothing beyond: an edge
+case the claim does not name is a Deferred candidate, not code, and where
+the spec is silent the simplest reading consistent with it is taken and
+the alternative named as an open question. The batch is reviewed once:
+the first pass reviews and fixes, committing its fixes; a fresh second
+pass checks only those fix commits and starts no new hunt. Then the
+review closes, and what is left goes to Deferred unless it changes
+behaviour (a claim fails, a test is red). A behaviour finding earns one
+more fix and one more check, and then the batch stops for the user,
+since a fix that keeps failing is the signal of a seam patched twice
+(praxis rule 11). The gate runs cached between commits and uncached once
+per batch, before the hand-back, and the orchestrator runs it uncached
+again: one uncached run per batch keeps a stale test cache from hiding a
+red or a slow package, which cached runs had once done for a package that
+took 604 s uncached, without paying an uncached run per commit.
 
 **A pass tests the claim.** A review pass is an attempt to refute the
-step's `Claim:` line (rule 13; the testing skill, The claim), not a search
+steps' `Claim:` lines (rule 13; the testing skill, The claim), not a search
 for whatever can be found in the diff. The four classes are the ways a
 claim fails to hold: it fails outright, a required item is missing or
-wrong, a test is red, a document contradicts another. A claim about code
-is tested by the suite and the probes as well, and a fix can break them
-again, so its fixes go to another pass. A prose-only claim, one whose
-diff is documents, prompts or plan text, has only two tests, a document
-contradicts another and a required item is missing or wrong; one pass
-runs both, and a second would only re-read the wording. So its fixes are
-committed without a second pass, and the residue (findings disputed or
-out of gate) goes to the hand-back. This widens the principle rather than
-adding an exception: one rule, a pass tests the claim, decides how many
-passes a code step and a prose step take. The cost is that a wording
-defect a fix introduces may land. Before the change a prose step paid 4 to
+wrong, a test is red, a document contradicts another. From 2026-11-15 to
+2026-11-21 the claim also set the number of passes: a prose-only claim,
+one whose diff is documents, prompts or plan text, has only two tests, a
+document contradicts another and a required item is missing or wrong, so
+one pass ran both and its fixes were committed without a second, while a
+code claim's fixes went to another pass, up to the cap. The batch's two
+passes replaced that for every claim. Before it a prose step paid 4 to
 5 passes: in plan 261111115545, Step 25 (prose +26/-15) took 5 passes and
 306,203 review tokens and Step 18 (prose +155/-80) 4 passes and 341,000,
 and the late passes were the reviewer and the step agent negotiating
@@ -290,7 +341,8 @@ the files those hunks touch; it reports whether each finding is closed
 and whether a fix introduced an in-gate defect in the lines it changed,
 and a finding in text no fix touched is out of gate after pass 1. Praxis
 rule 12's "and again over the fixes" read either way and was rewritten
-with it.
+with it. A batch's second pass keeps this: it reads only the first pass's
+fix commits.
 
 **Four classes, and none added.** The gate widened in every brief, and
 the widening was cumulative. "A test is red" became "or a test cannot
@@ -312,20 +364,22 @@ numbering and the skip rule are pre-existing"). Earlier briefs that said
 "do not report as in gate a gap that existed equally before this change"
 converged (8, 6, 6, 3, 1 findings). So a contradiction is in gate only
 when the diff introduced it: a passage the diff did not touch, or an
-inconsistency that holds equally at HEAD, is out of gate (`git show
-HEAD:<file>` shows which). A hole two passages leave open in a design is
+inconsistency that holds equally at the range's base, is out of gate
+(`git show <base>:<file>` shows which). A hole two passages leave open in a design is
 not a contradiction: a reviewer building a scenario the text does not
 cover is reviewing the design by simulation, which is valuable and has no
 end, so the hole goes to Open Questions, where the user decides it.
 
-**Classify before fixing.** The step agent judges the gate. With no way to
-dispute, it disputed none of 46 in-gate findings across two steps, and
-fixed out-of-gate ones as well; each such fix was new text the next
-reviewer had not asked for. So it classifies every finding before fixing
-any: in gate (a named class, the reproduction holds), disputed (the
-reproduction does not hold or the class is not named: one sentence why,
-not fixed, reported in the hand-back) or out of gate, and fixes only the
-in-gate ones.
+**Classify before fixing.** Whoever fixes judges the gate. With no way to
+dispute, a step agent disputed none of 46 in-gate findings across two
+steps, and fixed out-of-gate ones as well; each such fix was new text the
+next reviewer had not asked for. So the step agent classified every
+finding before fixing any: in gate (a named class, the reproduction
+holds), disputed (the reproduction does not hold or the class is not
+named: one sentence why, not fixed, reported in the hand-back) or out of
+gate, and fixed only the in-gate ones. Since 2026-11-21 the first pass
+fixes what it finds, so it classifies its own findings, in gate or out
+of gate, before fixing any, and fixes only the in-gate ones.
 
 **Arrangements the contract does not support.** Rule 22's first version
 (2026-11-02) said Daisy's root/home contract is about paths, not the file
@@ -345,12 +399,14 @@ gate) and plan 261114125457 92 in 21 steps; the project file's Deferred
 section reached 561 bullets, 417 of them struck, and triaging it cost two
 steps and 1.4M review tokens (design review of 2026-11-15, effectiveness
 F2). Now the step agent reports the remarks in its hand-back, which the
-orchestrator reads once; the orchestrator keeps one in Deferred only when
+orchestrator reads once; the orchestrator adds one to Deferred only when
 it names a defect at a file and line (a test missing for a named case, a
 wrong passage), and a style, wording or line-width remark ends there. The
 cost is that some good remarks die; before, they died after the triage.
+Since 2026-11-21 an in-gate leftover that does not change behaviour goes
+to Deferred too, where it once took another pass.
 
-**The cap.** The first cap (2026-11-02) was 6 passes for a step that
+**The cap, and the stop that replaced it.** The first cap (2026-11-02) was 6 passes for a step that
 changes code and 3 for one that changes only documents and prompts, and
 at the cap the orchestrator chose between committing with the open
 findings in Deferred and stopping. On 2026-11-06 it became 5 passes for
@@ -362,8 +418,12 @@ On 2026-11-14 the stopped step was also left unmarked. The cap
 exists because the search for a refutation has no natural end
 (`docs/testing.md`, Part 4); with later passes scoped to the fixes,
 reaching it means the fixes themselves keep failing, the signal of a seam
-patched twice (praxis rule 11). The prose-only pass reaches by the claim
+patched twice (praxis rule 11). The prose-only pass reached by the claim
 what the first cap's 3 passes for documents reached by the kind of file.
+On 2026-11-21 the batch's review replaced the cap: after its check, only
+a behaviour finding still open earns one more fix and check, and if it is
+still open the batch stops, the finding and its proposed fix going to the
+user, its steps unmarked and no further pass run.
 
 **History.**
 
@@ -373,7 +433,8 @@ what the first cap's 3 passes for documents reached by the kind of file.
 | 2026-11-06 | 61bc5de | Cap of 5 for every step; a capped step hands back uncommitted; the proportion rule removed |
 | 2026-11-06 | 78d46b1 | The review-loop audit applied: later passes review the fixes only; the four classes fixed, with the green-test, HEAD and design-hole exclusions; no class added from a past pass; classify and dispute; arrangements the contract does not support |
 | 2026-11-14 | 166d0d0 | A step stopped at the cap is neither committed nor marked |
-| 2026-11-15 | (this change) | Rule 22 shortened, its reasons moved here; a pass tests the claim, so a prose-only claim takes one pass; out-of-gate remarks to the hand-back, kept in Deferred only when they name a defect at a file and line |
+| 2026-11-15 | 5a93a91 | Rule 22 shortened, its reasons moved here; a pass tests the claim, so a prose-only claim takes one pass; out-of-gate remarks to the hand-back, kept in Deferred only when they name a defect at a file and line |
+| 2026-11-21 | (this change) | Batches, one commit per step; the claim and nothing beyond; review and fix, then a check of the fix commits only; a leftover that does not change behaviour to Deferred, a behaviour finding one more fix and check, then a stop; the cap and the prose-only pass removed; the gate cached between commits, uncached once per batch |
 
 ---
 
@@ -402,8 +463,6 @@ One paragraph describing what this plan achieves.
 
 ## Steps
 
-> Read $DAISY_ROOT/prompts/praxis.md before each step.
-
 - [ ] Step 1: Description
   Claim: one sentence the reviewer can refute by a command, a test name or two quoted passages
 - [ ] Step 2: Description
@@ -415,7 +474,7 @@ One paragraph describing what this plan achieves.
 
 ## Metrics
 
-(a step row and a review row per step, written by daisy metrics add)
+(a step row per step and a review row per batch, written by daisy metrics add)
 
 ## Deferred
 
