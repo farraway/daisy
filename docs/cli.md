@@ -94,7 +94,8 @@ Prompts and skills
   optimize [--workflow <n>]         Briefing: pending entries per target, current rules, rewrite flags (read-only)
   optimize apply --workflow <n> (--rules|--rewrite) <file> [--yes]
                                     Apply a proposal: diff, approve, archive, commit
-  eval [<case>] [--record]          List, display, or record an eval case result
+  eval [--record] [<case> [<result>]]
+                                    List, display, or record an eval case result
 
 Swarm
   swarm init [--defaults] [--api <url>]
@@ -172,7 +173,11 @@ arguments have places, every one but `log` and `feedback`, whose words are
 one text — an empty word before a given one, `Error: empty argument`, so
 that `plan new "" +proj` is not the description `+proj` *(D37, Step 22)*;
 `swarm close`, `swarm unblock` and `swarm replan` refuse one in `<n>`'s place,
-and a `--co-author` value that is not one line `Name <email>`, Commits below), with
+a positional word that is one of the command's own flags, since flags
+lead, `Error: --co-author follows the arguments; flags lead: daisy log
+--co-author <x> <message...>`, the command not run (the maintainer's swarm
+verbs, which read `--type` and their own value flags right after `<n>`,
+aside; `TestATrailingFlagIsRefused`), and a `--co-author` value that is not one line `Name <email>`, Commits below), with
 the command's usage on stderr. The bash exits 1 for usage
 errors too; no case asserts a usage exit code, so 2 is free to take
 *(built in Step 17)*. A value the command refuses — an unknown identity, an
@@ -982,7 +987,7 @@ new home.
 |---|---|
 | Status | as built (Step 23): Go; the bash's bytes but where D38 says |
 | Legacy | `daisy eval [<case>] [--record]` → `eval.sh`, deleted in Step 23 |
-| Usage | `daisy eval` lists the cases in `$DAISY_ROOT/prompts/evals/*.md`; `daisy eval <case>` prints one; `daisy eval --record <case> pass\|fail ["notes"]` records a result (the help line `eval [<case>] [--record]` abbreviates this form; `--record` leads). With no notes and a terminal, asks `Notes (optional): ` through `Ops.Prompt` |
+| Usage | `daisy eval` lists the cases in `$DAISY_ROOT/prompts/evals/*.md`; `daisy eval <case>` prints one; `daisy eval --record <case> pass\|fail ["notes"]` records a result (the help line `eval [--record] [<case> [<result>]]` abbreviates this form, the notes left out; `--record` leads). With no notes and a terminal, asks `Notes (optional): ` through `Ops.Prompt` |
 | Exit codes | 0; 1 for a missing evals directory, an unknown case (`Error: Eval case not found: <case>`; a name holding `/` is none), a result other than `pass`/`fail`, `--record` without a case (its usage line); 2 for a second word without `--record` or a fourth with it |
 | Stdout | list: `No eval cases found in <dir>` (exit 0) or `Available eval cases:`, `  %-20s  <H1 title>` per regular `*.md` file in byte order, the two usage lines; one case: the file, then `  Record result: daisy eval --record <case> pass\|fail "notes"`; record: `  ✓ Recorded <result> for eval '<case>' (<YYYY-MM-DD HH:MM>)`, `  File: <path>` |
 | Ops | Real (decided, D30: one wrapper per command; `--record` writes) |

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"daisy/internal/env"
 	"daisy/internal/ops"
 	"daisy/internal/verb"
 )
@@ -105,6 +107,97 @@ func TestExamplesParse(t *testing.T) {
 		}
 		if err := parse(&verb.Context{}, c, rest); err != nil {
 			t.Errorf("%s: example %q: %v", c.Name, c.Example, err)
+		}
+	}
+}
+
+// A command's own flag after its arguments is refused as a usage error,
+// exit 2, before the command runs: `log "msg" --co-author X` would
+// otherwise put the flag into the journal and commit with no trailer.
+// The same words with the flag leading reach the command.
+func TestATrailingFlagIsRefused(t *testing.T) {
+	const line = "Jane Doe <jane@example.net>"
+	saved := table
+	t.Cleanup(func() { table = saved })
+	ran := ""
+	table = slices.Clone(saved)
+	for i := range table {
+		name := table[i].Name
+		table[i].Workspace = false // the stand-in writes nothing, so needs no workspace
+		table[i].Run = func(*verb.Context) error { ran = name; return nil }
+	}
+	for _, tc := range []struct{ name, arg, lead string }{
+		{"log", "Reviewed the change", "daisy log --co-author <x> <message...>"},
+		{"commit", "Notes", "daisy commit --co-author <x> <message>"},
+		{"done", "parser", "daisy done --co-author <x> <pattern>"},
+	} {
+		ran = ""
+		code, _, errs := run(t, tc.name, tc.arg, "--co-author", line)
+		want := "Error: --co-author follows the arguments; flags lead: " + tc.lead + "\n"
+		if code != Usage || !strings.HasPrefix(errs, want) || ran != "" {
+			t.Errorf("%s with a trailing --co-author: exit %d, ran %q, stderr %q; want exit 2, nothing run, %q", tc.name, code, ran, errs, want)
+		}
+		if code, _, errs := run(t, tc.name, "--co-author", line, tc.arg); code != OK || ran != tc.name {
+			t.Errorf("%s with --co-author leading: exit %d, ran %q, stderr %q", tc.name, code, ran, errs)
+		}
+	}
+}
+
+// A command that cannot resolve its workspace prints the error with the
+// `Error: ` prefix the errors rule gives (AGENTS.md, Errors), adding it
+// to a lower-case error and never doubling one already there.
+func TestInvokePrefixesAResolveError(t *testing.T) {
+	saved := resolve
+	t.Cleanup(func() { resolve = saved })
+	for _, tc := range []struct{ err, want string }{
+		{"the registry cannot be read", "Error: the registry cannot be read\n"},
+		{"Error: Not in a Daisy workspace", "Error: Not in a Daisy workspace\n"},
+	} {
+		resolve = func(ops.Ops) (env.Env, error) { return env.Env{}, errors.New(tc.err) }
+		if code, _, errs := run(t, "status"); code != Failure || errs != tc.want {
+			t.Errorf("resolve error %q: exit %d, stderr %q; want exit 1, %q", tc.err, code, errs, tc.want)
+		}
+	}
+}
+
+// usagePart is a word of a usage line with its brackets and alternatives
+// taken off: `[--todo|--done]` is `--todo`, `[<n>]` is `<n>`.
+func usagePart(word string) string {
+	part, _, _ := strings.Cut(strings.Trim(word, "[]()"), "|")
+	return part
+}
+
+// Flags lead (splitArgs), so a usage line puts none after a positional
+// placeholder (`eval [<case>] [--record]` read as if --record could
+// follow), but for a command marked FlagsAfter, which reads its value
+// flags after <n> itself. A placeholder right after a value flag is that
+// flag's value, not a positional.
+func TestUsageFlagsLead(t *testing.T) {
+	for _, c := range table {
+		if c.FlagsAfter {
+			continue
+		}
+		words := strings.Fields(strings.TrimPrefix(c.Usage, c.Name))
+		positional := ""
+		for i := 0; i < len(words); i++ {
+			w := words[i]
+			if strings.Trim(w, "[]()|") == "" {
+				continue // a bare `|` between forms
+			}
+			part := usagePart(w)
+			if !strings.HasPrefix(part, "-") {
+				positional = w
+				continue
+			}
+			if positional != "" {
+				t.Errorf("%s: usage %q puts %s after the positional %s", c.Name, c.Usage, w, positional)
+			}
+			for _, f := range strings.Split(strings.Trim(w, "[]()"), "|") {
+				if slices.Contains(c.values(), f) && !strings.HasSuffix(w, "]") && i+1 < len(words) {
+					i++ // the flag's value
+					break
+				}
+			}
 		}
 	}
 }

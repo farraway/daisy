@@ -75,6 +75,11 @@ func parse(c *verb.Context, cmd Command, rest []string) error {
 	if len(positional) > 0 && longFlag.MatchString(positional[0]) {
 		return errors.New("unknown flag: " + positional[0])
 	}
+	for _, a := range positional {
+		if !cmd.FlagsAfter && (slices.Contains(cmd.Flags, a) || slices.Contains(cmd.values(), a)) {
+			return fmt.Errorf("%s follows the arguments; flags lead: %s", a, leadingForm(cmd, a))
+		}
+	}
 	c.Flags, c.Values, c.Args, c.EmptyWords = flags, values, positional, empty
 	for _, v := range values {
 		if v.Flag == commands.CoAuthorFlag && !commands.IsCoAuthor(v.Value) {
@@ -178,7 +183,8 @@ func nounOnly(stdout, stderr io.Writer, noun, rest []string, group []Command) in
 // arguments, a value flag taking the word after it as its value; the first
 // other word starts the positionals (`tasks --todo "-1 point"` searches for
 // `-1 point`), except that Run refuses one shaped like a long flag as an
-// unknown flag (`plan new --specc …` is a mistyped flag, not a description). An empty word is no argument: `done ""`
+// unknown flag (`plan new --specc …` is a mistyped flag, not a description),
+// and any that is the command's own flag (`log "msg" --co-author X`; parse). An empty word is no argument: `done ""`
 // is a missing pattern, not one that matches every task; empty says one
 // was dropped. A value flag without a value, or with an empty one, is a
 // usage error.
@@ -192,6 +198,42 @@ func splitArgs(cmd Command, args []string) (flags []string, values []verb.Value,
 		}
 	}
 	return flags, values, positional, empty, err
+}
+
+// leadingForm is the command line with flag leading the arguments the
+// usage names: `daisy log --co-author <x> <message...>`. A value flag
+// takes the placeholder its usage gives it, else <x>; the usage's other
+// flags, and the `|` between its forms, are left out.
+func leadingForm(cmd Command, flag string) string {
+	form := "daisy " + cmd.Name + " " + flag
+	if slices.Contains(cmd.values(), flag) {
+		if m := regexp.MustCompile(`(?:^|[\s\[(|])` + regexp.QuoteMeta(flag) + `[|)\w-]*\s([^\s\]]+)`).FindStringSubmatch(cmd.Usage); m != nil {
+			form += " " + m[1]
+		} else {
+			form += " <x>"
+		}
+	}
+	words := strings.Fields(strings.TrimPrefix(cmd.Usage, cmd.Name))
+	for i := 0; i < len(words); i++ {
+		w := words[i]
+		if w == "|" {
+			continue // between forms
+		}
+		if !strings.HasPrefix(strings.TrimLeft(w, "[("), "-") {
+			form += " " + w
+			continue
+		}
+		// A flag: skip it with its value, or its whole bracket.
+		depth := strings.Count(w, "[") + strings.Count(w, "(") - strings.Count(w, "]") - strings.Count(w, ")")
+		if depth == 0 && slices.ContainsFunc(strings.Split(strings.Trim(w, "[]()"), "|"), func(f string) bool { return slices.Contains(cmd.values(), f) }) {
+			i++
+		}
+		for depth > 0 && i+1 < len(words) {
+			i++
+			depth += strings.Count(words[i], "[") + strings.Count(words[i], "(") - strings.Count(words[i], "]") - strings.Count(words[i], ")")
+		}
+	}
+	return form
 }
 
 // longFlag is a word shaped like a long flag: one before the positionals
@@ -240,14 +282,22 @@ func emptyBefore(cmd Command, args []string) bool {
 	return false
 }
 
+// resolve is env.Resolve, a variable so that a test can hand invoke an
+// error of its own.
+var resolve = env.Resolve
+
 // invoke resolves the workspace when the command needs one and runs fn,
 // under ReadOnly when the table marks the command so; the error it
 // returns is the message for stderr.
 func invoke(c *verb.Context, cmd Command, fn func(*verb.Context) error) int {
 	if cmd.Workspace {
-		e, err := env.Resolve(c.Ops)
+		e, err := resolve(c.Ops)
 		if err != nil {
-			fmt.Fprintln(c.Stderr, err)
+			msg := err.Error()
+			if !strings.HasPrefix(msg, "Error: ") {
+				msg = "Error: " + msg
+			}
+			fmt.Fprintln(c.Stderr, msg)
 			return Failure
 		}
 		c.Env = e

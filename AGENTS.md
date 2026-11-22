@@ -89,7 +89,8 @@ Strings](https://go.dev/wiki/CodeReviewComments#error-strings): it is
 combined into other messages); the command that returns it adds the
 `Error: ` prefix and the fix (`fmt.Errorf("Error: %w", err)`), since
 `cli.invoke` prints a command's error as it stands and prefixes only a
-usage error. The existing `Error: ` sites stay as they are.
+usage error, and the workspace's resolution error when it lacks the
+prefix (`TestInvokePrefixesAResolveError`). The existing `Error: ` sites stay as they are.
 
 **Build and gates.** `make build` writes `bin/daisy` (gitignored); `daisy
 install` links `~/bin/daisy` to it and does not build. `make install-dev`
@@ -267,7 +268,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Prompts and skills | `daisy feedback [--workflow <n>] <text>` | Record a prompt failure for optimization |
 | Prompts and skills | `daisy optimize [--workflow <n>]` | Briefing: pending entries per target, current rules, rewrite flags (read-only) |
 | Prompts and skills | `daisy optimize apply --workflow <n> (--rules\|--rewrite) <file> [--yes]` | Apply a proposal: diff, approve, archive, commit |
-| Prompts and skills | `daisy eval [<case>] [--record]` | List, display, or record an eval case result |
+| Prompts and skills | `daisy eval [--record] [<case> [<result>]]` | List, display, or record an eval case result |
 | Swarm | `daisy swarm init [--defaults] [--api <url>]` | Declare the swarm: swarm.json, prompts, labels |
 | Swarm | `daisy swarm prompt build [--force] [--dry-run]` | Reseed prompts/ from this Daisy's defaults; an edited prompt is kept |
 | Swarm | `daisy swarm apply [--once]` | Reconcile the forge: launch members, post their output, move labels |
