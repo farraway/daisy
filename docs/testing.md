@@ -729,9 +729,10 @@ checks every path before the first write. Passes two to five circled one seam, w
 three patches, until the seam was reshaped to a single rule (a skill is
 `init`'s exactly when its rule file is byte-for-byte the stub `init`
 writes) and verified by a test rather than a seventh pass. Pass six's one
-finding fell under the same rule. Under the rules as they stand, pass
-five would have held the step with the open findings for the maintainer,
-and passes two to five would have reviewed only each round's fixes.
+finding fell under the same rule. Under the rules as they stand, the
+first pass would have fixed what it found, a second would have checked
+only those fixes, and a behaviour finding still open after one more fix
+and check would have stopped the work for the maintainer.
 
 **What was accepted as is.** Four edges where `clean` is not a byte-exact
 inverse, each the old behaviour, each listed in the plan's deferred items
@@ -739,7 +740,7 @@ with the record that would close them.
 
 The step took about 490 thousand tokens of implementation and 510
 thousand of review. That ratio is the method's price, and the reason the
-pass cap exists.
+review is bounded.
 
 ---
 
