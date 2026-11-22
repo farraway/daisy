@@ -2597,13 +2597,16 @@ The lines marked `(deps)` are the check's when its repository declares
 `deps`; `--env` is one line per `env` name, in name order, none when
 `env` names none. Without `deps` the check's argv is as it was before
 `deps` existed, byte for byte, but for `repos[].env`'s lines, from R3
-(7.9), before every other `--env`. The lines marked `(services)` are the
+(7.9), before every other `--env`, and for the detached run's lines
+(`--detach`, the `<run>/step` mount and the `sh` line, from R4, built at
+Step R4-B of the plan implementing the 2026-11-19 swarm roadmap). The
+lines marked `(services)` are the
 check's when the head holds its repository's test services file
 (section 3, `repos[].services`), its network in place of `none`, its
 `--env` one line per `x-daisy-env` variable, in name order, after
 `deps`' (a name in both: the file's value, given last); without the
 file the check's argv is as it was before services existed, byte for
-byte.
+byte, but for those lines.
 
 Its test services, with that file, each run's or check's own (7.6,
 step 4), `<net>` the name of the container they are made for,
