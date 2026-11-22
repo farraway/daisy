@@ -3702,7 +3702,8 @@ the maintainer (7.5); then `Commit with git; do not
 push. Never amend, rebase or reset a commit that is already on the branch;
 add commits.`; then `Run "<check>" before you finish and quote its last
 result.`, or `No check command is declared; say how you tested.` when
-`check` is `[]`; then `End what you write with a line "Not established:"
+`check` is `[]`; then, a paragraph of its own, the **gates sentence**
+(7.11, rule 9; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap); then `End what you write with a line "Not established:"
 and list what you did not run or could not verify (live services, other
 platforms, behaviour that needs a network), or "none".` (decision
 [45](swarm/decisions/0045-not-established.md)); with a plan and `<s>` > 1, `A pin to an earlier slice's change names its merged commit, listed under Earlier pull requests, never a branch or an unmerged head; if this slice needs an earlier slice that is not merged, write "BLOCKED: slice <i> is not merged".`; and last, `If the change on your branch alters what a page of the product shows, render each page it alters once your last commit is made, the way the repository notes give, and save a screenshot of each directly in /job/io/artifacts/ as a .png, .jpg, .jpeg or .webp file in the format its extension names, whose name is letters, digits, ".", "-" and "_", beginning with a letter or a digit, and says which page it shows: Daisy attaches them to the pull request and shows them to the reviewers, and skips any other file there. List under "Not established:" each page you could not render, and why, a page the repository notes give no way to render among them.` (7.6, The screenshots; decision [147](swarm/decisions/0147-screenshots-reach-the-pull-request-and-the-reviewers.md)).
@@ -3768,8 +3769,7 @@ deadline and `/job/io/deadline`, which Daisy writes at 80% of
 `timeout`, asking the member to write its output then, or what it has
 and how the work could be split.
 
-*R6, specified ahead of its build* (7.11, rules 6, 7 and 9): every
-worker text adds the **gates sentence** after its check sentence; the
+*R6, specified ahead of its build* (7.11, rules 6 and 7): the
 owner's batch text reads `# Follow-ups` (`Follow-up:` and `Triaged:`
 lines), and the owner's and the QA's batch texts ask for a `Defect in:`
 line. Section 7.11 quotes each.
@@ -6539,9 +6539,9 @@ has it. The second time, the issue is blocked, as T11 has it, and
 implementing the 2026-11-19 swarm roadmap), T11 stands as section 5
 gives it.
 
-**Daisy's gates** (rule 9). Every worker text adds, after its check
+**Daisy's gates** (rule 9; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). Every worker text adds, after its check
 sentence (`Run "<check>" before you finish and quote its last result.`),
-the **gates sentence**: `Daisy runs "<check>" on the head you push, in
+the **gates sentence**, a paragraph of its own: `Daisy runs "<check>" on the head you push, in
 the repository's declared check environment with its test services, and
 the forge's required checks run before the merge: those gates are
 Daisy's, and a failure of theirs comes back to you. A part of them your

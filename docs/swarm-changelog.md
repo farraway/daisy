@@ -1356,3 +1356,10 @@ they write.
   its rollback, a probe of its own non-blocking. Sections 7.4 and 7.11.
   Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
   built.
+- 2026-11-22, Step R6-A of the plan implementing the 2026-11-19 swarm
+  roadmap, Daisy's gates (rule 9 of section 7.11): every worker's Task
+  says, after its check sentence, that the declared check and the forge's
+  required checks are Daisy's gates, and that a part of them its
+  container cannot run is listed, not a stop. Sections 7.4 and 7.11.
+  Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
+  built.

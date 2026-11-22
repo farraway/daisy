@@ -325,3 +325,40 @@ func TestTaskTextAdversaryChecksTheNamedProbes(t *testing.T) {
 	}
 	inSpec(t, want)
 }
+
+// Every worker's Task says which gates are Daisy's (Step R6-A of the plan
+// implementing the 2026-11-19 swarm roadmap; section 7.11, rule 9), a
+// paragraph of its own after its check sentence: the declared check and
+// the forge's checks, what the container cannot run being no reason to
+// stop, or, with no check declared, the forge's alone.
+func TestTaskTextWorkerGatesSentence(t *testing.T) {
+	gates := func(check string) string {
+		return `Daisy runs "` + check + `" on the head you push, in the repository's declared check environment with its test services, and the forge's required checks run before the merge: those gates are Daisy's, and a failure of theirs comes back to you. A part of them your container cannot run (a service or a network it lacks) goes under "Not established:"; it is no reason to write BLOCKED:.`
+	}
+	const none = `The forge's required checks run before the merge: they are Daisy's gates, and a failure of theirs comes back to you.`
+	f, at := fixture()
+	fast := job(f, at.N, "worker", "swarm:plan-1-accepted") // in app, whose check is declared
+	for name, c := range map[string]struct {
+		j            *Job
+		after, gates string
+		not          string
+	}{
+		"the fast lane, a check":           {fast, `Run "make check" before you finish and quote its last result.`, gates("make check"), none},
+		"a slice, no check":                {memoryJob(t, "worker", "swarm:plan-1-accepted"), `No check command is declared; say how you tested.`, none, "Daisy runs"},
+		"changes requested, with no check": {memoryJob(t, "worker", "swarm:review-3-changes-requested"), `No check command is declared; say how you tested.`, none, "Daisy runs"},
+	} {
+		sys, _ := Render(c.j)
+		task := taskOf(t, sys)
+		paragraphs(t, name, task, c.gates)
+		has(t, name, task, []string{c.after + "\n\n" + c.gates + "\n\n" + `End what you write with a line "Not established:"`}, c.not)
+	}
+	for _, role := range []string{"architect", "adversary", "sympathetic"} {
+		label := map[string]string{"architect": "swarm:plan-0-posted"}[role]
+		if label == "" {
+			label = "swarm:review-0-ready"
+		}
+		sys, _ := Render(memoryJob(t, role, label))
+		has(t, role, taskOf(t, sys), nil, "those gates are Daisy's", "they are Daisy's gates")
+	}
+	inSpec(t, gates("<check>"), none)
+}

@@ -259,8 +259,10 @@ func (j *Job) task() string {
 		add(`Commit with git; do not push. Never amend, rebase or reset a commit that is already on the branch; add commits.`)
 		if check := j.repo(repo).Check; len(check) > 0 {
 			add(`Run "%s" before you finish and quote its last result.`, declare.ShellLine(check))
+			para(fmt.Sprintf(`Daisy runs "%s" on the head you push, in the repository's declared check environment with its test services, and the forge's required checks run before the merge: those gates are Daisy's, and a failure of theirs comes back to you. A part of them your container cannot run (a service or a network it lacks) goes under "Not established:"; it is no reason to write BLOCKED:.`, declare.ShellLine(check)))
 		} else {
 			add(`No check command is declared; say how you tested.`)
+			para(`The forge's required checks run before the merge: they are Daisy's gates, and a failure of theirs comes back to you.`)
 		}
 		add(`End what you write with a line "Not established:" and list what you did not run or could not verify (live services, other platforms, behaviour that needs a network), or "none".`)
 		if planned && s > 1 {

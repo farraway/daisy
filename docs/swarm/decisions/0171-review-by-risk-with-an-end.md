@@ -401,6 +401,12 @@ plan alone, the fast lane having no Test Plan. Tests:
 `TestTaskTextWorkerReportsProbes`,
 `TestTaskTextAdversaryChecksTheNamedProbes`.
 
+**As built: Daisy's gates (Step R6-A of the plan implementing the
+2026-11-19 swarm roadmap).** The gates sentence is a paragraph of its
+own after the check sentence, in every worker text, the fast lane's
+among them, and the "Not established:" sentence begins the next. Test:
+`TestTaskTextWorkerGatesSentence`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,
