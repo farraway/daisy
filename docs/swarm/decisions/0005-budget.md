@@ -14,3 +14,5 @@ subscription login the figure is notional and the account's quota is
 the binding limit, met as a provider fault (section 3). Not built:
 `swarm.json` validates it and no pass reads the spend against it
 (section 3, The budget).
+
+**Amended by decision [170](0170-capacity.md)** (R4, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): the money `budget` stays validated, shown and not enforced; a provider's credential may be paced by a token budget per day or week declared in `keys.<provider>.tokens`, no default (`docs/swarm.md` section 7.10).

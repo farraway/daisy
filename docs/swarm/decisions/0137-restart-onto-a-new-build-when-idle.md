@@ -45,3 +45,5 @@ real exec, so no test replaces its process. Tests:
 `TestSwarmApplyRestartWaitsForTheCollection`,
 `TestSwarmApplyRestartSignalled`, `TestReexecRefused` and
 `TestLockIsReleasedByAnExec`.
+
+**Amended by decision [170](0170-capacity.md)** (R4, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): the loop re-executes at the end of the first pass after the request or a new build with members running, the new process holding each run by its record, and a new build is told by its change time too (`docs/swarm.md` section 7.10).

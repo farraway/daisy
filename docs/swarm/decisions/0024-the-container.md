@@ -24,3 +24,5 @@ run on an issue, the job's workspace `<state>/jobs/<n>` read-only at
 `/job/memory`, which the prompt's `# Job` points into (section 7.8, The
 run's folder and The prompt). The user, the pull policy, the name and
 the commits' author are as above.
+
+**Amended by decision [170](0170-capacity.md)** (R4, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): every container Daisy starts runs `docker run --detach`, its `sh` writing its streams and its exit status to files in its run's directory, so any `apply` collects it (`docs/swarm.md` section 7.10).

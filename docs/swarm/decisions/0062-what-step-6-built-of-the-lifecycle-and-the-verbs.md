@@ -22,3 +22,5 @@ loop's one new effect. The member image's Dockerfile copies the
 entrypoint and then sets its mode (`COPY` then `RUN chmod 0755`), not
 `COPY --chmod`, which only BuildKit builds (the Step 5 smoke's
 Docker had no buildx).
+
+**Amended by decision [170](0170-capacity.md)** (R4, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): two faults in a row pause the swarm only when neither is a capacity fault; a fault for a limit, a quota or the credit makes its model unavailable on its credential instead (`docs/swarm.md` section 7.10).

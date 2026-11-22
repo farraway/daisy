@@ -255,8 +255,8 @@ Stages of a software factory the version leaves out, each by choice:
 |---|---|
 | Monitoring, fed back into the inputs | Post-merge signals (CI on `base`, incidents, user reports) are not read; the maintainer files issues from them. *R2, specified ahead of its build* (12.1, rules 3 and 4): each approved head merges only after a merge queue's check on `base` plus the head, and Daisy checks `base` after every merge, holding the repository's worker launches while it is red and giving the fix to the breaking job's worker or the owner's next proposal; CI's status on `base` is still not read |
 | A user-testing validator | No member runs the built product; behavioural verification is the maintainer's at merge. `check` is the seam: a product whose `check` drives the served product (an end-to-end test) has the validator run on every worker head in the check container, with nothing added here |
-| Model routing and provider fallback | One model per role, chosen by the maintainer; no routing by difficulty and no fallback on a provider's failure (a swarm fault pauses the swarm instead, section 7.7) |
-| A spending limit | `budget`, specified to cap the whole swarm's spend per day and in all, not per role or per issue, is validated and not enforced: no pass reads the spend against it until a run needs it (section 3, The budget) |
+| Model routing and provider fallback | One model per role, chosen by the maintainer; no routing by difficulty and no fallback on a provider's failure (a swarm fault pauses the swarm instead, section 7.7); *R4, specified ahead of its build* (7.10, rule 1): a persona's `fallback` models, tried in order when a provider's fault for a limit, a quota or the credit makes a model unavailable on a credential until its stated reset, the fault pausing nothing; still no routing by difficulty |
+| A spending limit | `budget`, specified to cap the whole swarm's spend per day and in all, not per role or per issue, is validated and not enforced: no pass reads the spend against it until a run needs it (section 3, The budget); *R4, specified ahead of its build* (7.10, rule 4): a credential's launches paced to the token budget per day or week its provider declares in `keys`, the money `budget` unchanged |
 | Dependency ordering between issues | The owner's "depends on" is prose, and the default owner proposes a job only once every job it depends on is closed (section 4); the maintainer sequences jobs by when they move them to `proposal-accepted` (with the triage gate off, the owner's priority order does), by `swarm block <n> --by <m>`, and by `swarm pause <n>`; *R2, specified ahead of its build* (12.1, rules 1, 2 and 5): machine-read `Depends:` and `Touches:` lines hold a job while a dependency is open and a slice's first build while it overlaps an open slice, and the owner proposes dependent work rather than holding its batch |
 | Low latency | Every stage advance waits for the next pass and the reviewers run one after the other, so a review round costs about three passes; collecting and relaunching within one pass is later work |
 
@@ -281,6 +281,7 @@ Stages of a software factory the version leaves out, each by choice:
 ├── connect-seen                     # the journal's line last marked seen, which `swarm journal` prints after (section 11)
 ├── paused                           # present while paused, with the reason when `apply` paused it
 ├── restart                          # present while `swarm restart` waits for the loop to re-execute itself (section 11, The restart)
+├── capacity                         # R4 (7.10, specified ahead of its build): a line per model unavailable on a credential, until its reset or swarm resume
 ├── owner-held                       # present while the owner's batch trigger is held, with the issues it waits on (section 6)
 ├── qa-held                          # present while the QA trigger is held (section 6, The QA trigger)
 ├── auto                             # one line per gate Daisy passed for a routine job (section 5), which status counts
@@ -311,6 +312,9 @@ Stages of a software factory the version leaves out, each by choice:
     ├── io/builder.md                # R1 (7.8; built): an architect's builder plan, written beside the plan's out.md
     ├── io/out.md                    # what the member wrote
     ├── io/exit                      # the CLI's exit status, written by the sh it runs under once it has exited (section 7.2)
+    ├── io/stdout, io/stderr         # R4 (7.10, specified ahead of its build): the CLI's streams, written by the sh it runs under, which any apply collects
+    ├── io/deadline                  # R4 (7.10, specified ahead of its build): written at 80% of timeout, for the member to read
+    ├── step/                        # R4 (7.10, specified ahead of its build): a step's (check's, dependency step's) output and exit status, mounted at /job/step
     ├── io/artifacts/                # a worker's screenshots of the pages its change alters (7.4, 7.6); a reviewer's copies of those its prompt lists (7.3)
     ├── stdout, stderr               # the provider CLI's raw output
     ├── result                       # how the run ended, what it cost and what was posted (below)
@@ -554,11 +558,14 @@ yet or not (Step 6 of revision 6's plan; decision [109](swarm/decisions/0109-ini
 | `gates.triage`, `gates.plan`, `gates.merge` | booleans | `true` each | G1, G2 and G3 (section 5): `true` keeps the decision the maintainer's, G1's and G2's for an architecture job only (a routine job passes them by itself, section 5); `false` hands it to the swarm |
 | `budget` | object | absent | `{"per_day": <usd>, "total": <usd>}`, both numbers greater than 0; required when any gate is `false`; optional otherwise; validated, not enforced: no pass compares the spend with it until it is built (below) |
 | `keys` | object | `{"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}, "openai": {"slots": 1}}`, and, for a provider the wizard's answers give a persona and no key names, that provider's default: `{"env": "XAI_API_KEY"}` for `xai` (section 11) | provider name → its credential, an object with exactly one of two kinds (section 8): `env`, a variable name that is one of the provider's variables (section 9), resolved on the host as a secret value (below) and passed under the same name; `slots`, an integer 1 to 16, for a provider that takes a slot (`openai`, `xai`): slots 1 to that number. A provider declares one form or the other, never both (`needs exactly one of env, slots`, below). Every provider a persona uses must have one |
+| `keys.<provider>.tokens` | object | absent (`init` writes none, and keeps the file's) | *R4, specified ahead of its build* (7.10, rule 4): optional, `{"per_day": <tokens>, "per_week": <tokens>}`, one or both, integers greater than 0, no default; each credential of the provider (its `env`, or each slot) is given to a launch only while the tokens of its runs started in the 24 hours, or the 7 days, before it are below the figure |
 | `personas` | object | the five roles as in the example | exactly the keys `owner`, `architect`, `worker`, `adversary`, `sympathetic`, and `qa` exactly when `qa` is declared (the QA's persona, which `init` never writes) |
 | `personas.<role>.provider` | string | as in the example | a provider with an adapter: `anthropic`, `openai` or `xai` |
 | `personas.<role>.model` | string | as in the example | required: every role names the model it runs (decision [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)), so neither `""` nor `-` is accepted; otherwise passed through, but for one check: no whitespace, control character or format character such as a zero-width space (it is one argv word; decision [6](swarm/decisions/0006-additions-to-swarm-json.md); the control and format characters from Step 20 of the plan that clears the Deferred list, decision [120](swarm/decisions/0120-declare-forge-and-runner-loose-ends.md)) |
 | `personas.<role>.effort` | string | as in the example | passed through, but must match `^[a-z]+$` (the "bad effort" Step 27 tests); the vendor's list is not checked |
 | `personas.<role>.co_author` | string | `<model> <noreply@anthropic.com>` (anthropic), `<model> <noreply@openai.com>` (openai) or `<model> <noreply@x.ai>` (xai); with a file, its value while the role's provider and model are unchanged | required: the whole value of the `Co-Authored-By:` trailer the role's commits carry, `<name> <<email>>`, stamped verbatim by the hook Step 5 installs (decision [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)); or `""`, no trailer: the clone gets no hook and the collection reports no commit unstamped (Step 15 of the swarm build, decision [74](swarm/decisions/0074-the-label-vocabulary.md)) |
+| `personas.<role>.fallback` | array of objects | absent (`init` writes none, and keeps the file's) | *R4, specified ahead of its build* (7.10, rule 1): optional; models tried in order after the persona's own when it is unavailable, each `{"provider", "model", "effort", "co_author"}` and optionally `slots`, each field validated as the persona's, each provider with a credential in `keys`, no two entries (the persona among them) with the same provider, model and effort; on one line after `co_author` |
+| `personas.<role>.slots` | array of integers | absent (`init` writes none, and keeps the file's) | *R4, specified ahead of its build* (7.10, rule 3): optional, on the persona or a fallback entry whose provider takes slots; the slots of `keys.<provider>.slots` it may take, each 1 to that count, none twice, one or more; absent, every slot |
 | (each persona) | — | — | `prompts/<role>.md` in the swarm repository's clone exists and is non-empty (`swarm prompt build` writes the QA's default once `qa` is declared, section 11) |
 | `prompt_parts` | array of objects | absent (`init` writes none, and keeps the file's) | optional; each `{"path": <path>, "roles": [<role>, …]}`, exactly these fields: a **prompt part**, a file in the swarm repository's clone (by convention `prompts/parts/<name>.md`) added to the `system.md` of every run of each role it names, after `prompts/<role>.md`, as its own section, the parts in this list's order (7.3), so the swarm's additions to a role's prompt live beside Daisy's default rather than edited into it (Step R3-13 of the plan implementing the 2026-11-19 swarm roadmap; decision [164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md)); `path` relative and without `..`, the file there not empty, read as `prompts/<role>.md` is, in the clone's working tree at each launch; `roles` one or more, each one of `owner`, `architect`, `worker`, `adversary`, `sympathetic`, `qa`; written after `personas`, an entry a line |
 
@@ -635,6 +642,7 @@ failure is reported and the verb exits 1; the message is
 | a gate off without a budget | `swarm.json: budget: missing (required when a gate is false)` |
 | a budget limit not positive | `swarm.json: budget.per_day: 0 is not greater than 0` (also `budget.total`) |
 | a provider without a credential | `swarm.json: keys: no credential for provider "openai"` |
+| from R4 (7.10, specified ahead of its build), a fallback, a slot list or a token budget refused | `swarm.json: personas.architect.fallback[0].model: empty; every role names its model` (each field as the persona's), `swarm.json: personas.architect.fallback[1]: the same as personas.architect`, `swarm.json: personas.adversary.slots[0]: 3 is not between 1 and 2` (also `is listed twice`, `no slot`), `swarm.json: personas.worker.slots: anthropic takes no slot`, `swarm.json: keys.openai.tokens: no budget (per_day or per_week)`, `swarm.json: keys.openai.tokens.per_day: 0 is not greater than 0` |
 | a credential not of one kind (both forms declared, or neither) | `swarm.json: keys.openai: needs exactly one of env, slots` (`keys.xai: …` likewise) |
 | a credential for a provider without an adapter | `swarm.json: keys.gemini: "gemini" has no adapter` |
 | a variable the provider's CLI does not read | `swarm.json: keys.anthropic.env: "ANTHROPIC_KEY" is not one of anthropic's variables (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN)` |
@@ -1267,7 +1275,7 @@ together) shown then only, and the item is not told again: it stays in
 `status` and, for an issue, in the forge's notification of its
 mention. A read that fails (the forge's lists or an issue, the
 mirror's branches, `<state>/notified`) is `⚠ notify: <error>; nothing
-told this pass`, the record kept. Notify runs paused or not, and not
+told this pass`, the record kept. *R4, specified ahead of its build* (7.10, rule 1): each line of `<state>/capacity` is an item too, known by the line, told as `<owner>/<repo> capacity: <provider>/<credential> <model> unavailable until <time>: <reason>`. Notify runs paused or not, and not
 in a pass a signal ended. Without `notify` nothing is read or written;
 added later, it tells what waits at its first pass. For ntfy, the
 plan's example is `"notify": ["ntfy", "publish", "<topic>"]`, the CLI
@@ -1695,7 +1703,11 @@ when all of these hold:
    credential is `slots`, one of its slots is free: its lock is not
    held and no running container is labelled
    `daisy.credential=<provider>/<j>` (7.2), so a container whose `apply`
-   died keeps its slot.
+   died keeps its slot. *R4, specified ahead of its build* (7.10, rules 1, 3 and 4): R has a credential
+   for one of its persona's entries, the persona then its `fallback`s,
+   whose model `<state>/capacity` does not name on it, that the entry's
+   `slots` allow and whose token budget is not reached; with none, R
+   waits, and the pass goes on.
 
 | Label | R | The thread R's turn is read from | R has something to answer when |
 |---|---|---|---|
@@ -2755,7 +2767,11 @@ timer of `timeout`; when it fires, `apply` runs
 whatever it exits with. The container's standard output and error are
 copied to `<run>/stdout` and `<run>/stderr` (the check's to
 `<run>/check.out`, the dependency step's to `<run>/deps.out`) when it
-ends.
+ends. *R4, specified ahead of its build* (7.10, rule 2): every container runs `docker run --detach`, its
+`sh` writing the streams to `/job/io/stdout` and `/job/io/stderr`
+beside `/job/io/exit` (a step's, its output and status to `/job/step`,
+`<run>/step/`), the run's `deadline` recorded at its launch, and the
+collection, by whichever `apply`, reads them from those files.
 
 ### 7.3 The prompt files
 
@@ -3389,6 +3405,11 @@ with its `Fixes: <name>` line; the architect's asks for the plan's
 `Depends:` line and, in each slice's item, its `Touches:` line and any
 `Safe with:` line; a worker's whose job broke a red `base` asks it to
 make its branch's first commit the fix.
+
+*R4, specified ahead of its build* (7.10, rule 5): every Task text's closing paragraph names the run's
+deadline and `/job/io/deadline`, which Daisy writes at 80% of
+`timeout`, asking the member to write its output then, or what it has
+and how the work could be split.
 
 ### 7.5 The output file
 
@@ -4308,6 +4329,20 @@ honest word among the nine, and none for a row that is no stop.
 | the batch run, any work failure above, or *proposed nothing* | work | as above | as above | none: `<state>/owner-held` written, the QA's `<state>/qa-held` | as above; *proposed nothing* empty |
 | a job's file Daisy cannot use | — | pass step (5), before the role rule (the replay of a job without `built`, 7.8, Rollout, and the read of its `plan.md`, 7.8, Daisy's own reads), at a launch (a worker's: its slice's `kept`, the kept run's `<run>/result` and the architect's texts in `texts/`, 7.8, The start; every role's on an issue: the files `# Job` reads and the member texts its prompt shows, 7.8, The prompt), and the merge step (its read of the plan, `plan.md`, 7.8, Daisy's own reads): a file of one of the job's runs (`<run>/result`, `<run>/io/out.md`, `<run>/io/builder.md`) or of its workspace that is there and cannot be read; never a forge's read, a mirror's git error or a write, which are the pass's | none: the block is a pass's, no run's | T17 beside its stage, `swarm:question` cleared, and the reconciler's note, marked with the run's number, `Daisy cannot use <file>: <cause> (docs/swarm.md section 7.8, Rollout). Make the file readable, or remove it if it is an out.md, its run's text then taken from its post, or under jobs/<n>/, which the replay writes again; then remove swarm:blocked to resume.` and the maintainer's mention (`<file>` from `<state>`, `<cause>` the read's error without its path), not posted again when the issue holds it; no `built` written, nothing launched or merged for the issue, and the pass goes on with the others | none: no metrics row |
 | a forge or git error while collecting | — | 7.6 | the steps done so far; no `collected` | none further this pass; retried at the next (`--once`: exit 1) | none: no record until the collection ends |
+
+*R4, specified ahead of its build* (7.10): the rows change thus. *Provider authentication or quota*: a
+fault for a limit, a quota or the credit (cause `capacity`) writes its
+line to `<state>/capacity`, the role launched next on its next
+available entry, and counts towards no pause, which two faults in a
+row take only when neither is a capacity fault (rule 1). *Timeout*: the
+deadline is the run's `deadline` line, enforced by whichever `apply`
+holds the run, and the T17 note posts the output the member had
+written (rule 5). *Ended*: a run whose container is gone and whose
+`<run>/io/exit` is written is collected by any `apply` with its stdout from
+`<run>/io/stdout`, its cost and its provider's fault read (rule 2), and is
+*exited*, not *ended*, once launched by the build; *orphan over time*
+is a timeout of the run's own. Runs launched before the build are
+collected by the rows as they read.
 
 ### 7.8 The job's workspace
 
@@ -5531,6 +5566,198 @@ the merge commit or `base`'s, the dependency step first, the test
 services beside, `repos[].env`, and The classification below with its
 one rerun.
 
+### 7.10 Capacity
+
+*R4, specified ahead of its build* (Step 12 of the plan implementing
+the 2026-11-19 swarm roadmap; decision
+[170](swarm/decisions/0170-capacity.md)), to be built at Step 13 of
+that plan, the fallback and the adoption first. Sections 1, 2, 3, 5, 6,
+7.2, 7.4, 7.7, 8, 9 and 11 mark where R4 changes them, each mark naming
+this section; until the build, each reads as it did before.
+
+**The rulings.** The maintainer's, of 2026-11-19 (Step 1 of that plan,
+R4): ordered models per persona, across providers, a refused model or
+provider unavailable until its stated reset, the change noted on the
+issue and notified (R4a, reversing section 1's "no fallback on a
+provider's failure"); launches paced to token budgets per subscription
+provider that the maintainer declares in `swarm.json`, no defaults, the
+money `budget` shown and not enforced (R4c); a restart adopting the
+running containers, each run's standard output written to a file in its
+run directory, the new process enforcing their wall clock (R4d). And,
+of 2026-11-15 (request F37): "Once an agent consumes 80% of its limit
+inform it and ask it to consider breaking up the work."
+
+**The rules.** Five, each quoted in the same words by decision
+[170](swarm/decisions/0170-capacity.md):
+
+1. **Fallback.** A persona may list `fallback` models in order, and a
+   run of the role launches on the first of the persona and its
+   fallbacks whose model is available on a free credential of its
+   provider. A provider's fault for a limit, a quota or the credit makes
+   that model unavailable on that credential until the reset its
+   message states, or until `swarm resume` when it states none; it
+   pauses nothing and blocks nothing, and each change is noted on the
+   issue and notified.
+2. **Adoption.** Every container Daisy starts runs detached and writes
+   its output and its exit status to files in its run's directory, so
+   any `apply` collects a run whose container is gone, with its cost
+   and its fault, and stops one at the deadline its run records,
+   whichever `apply` launched it. A restart re-executes at the first
+   pass's end after the request or a new build, members running.
+3. **Slots per role.** A persona's, or a fallback's, `slots` names the
+   slots of its provider it may take; `status` shows each role's queue
+   and names the bottleneck.
+4. **Pacing.** A credential whose provider declares a token `budget` is
+   not given to a launch while the tokens of its runs started in the
+   last day, or the last week, have reached it; the money `budget`
+   stays shown and not enforced.
+5. **The deadline.** A member is told its deadline; at 80% of its
+   `timeout` Daisy writes `/job/io/deadline`, asking it to write its
+   output now or propose how to split the work; a run stopped at its
+   deadline has the output it had written posted with its failure.
+
+**The fallback** (rule 1). `personas.<role>.fallback` (section 3) is a
+list of entries, each a persona's four fields, tried after the persona
+itself in order; every provider an entry names has a credential in
+`keys`. A **capacity fault** is a provider's fault whose message names a
+limit, a quota or the credit (section 9, `Capacity`; its cause
+`capacity`, 7.5): its collection writes a line to `<state>/capacity`
+(section 2), `<provider>/<credential> <model> until <time>: <reason>`,
+`<credential>` `env` or the slot's number as the run's `credential`
+line names it, `<model>` its `persona` line's, `<time>` the reset its
+message states (`Reset`, section 9) or `resume` when it states none,
+replacing any line for the same credential and model. A run's
+collection reads its stdout with the adapter of its own `persona` line,
+never of the role's persona as `swarm.json` now has it. At a launch the
+role's entries are taken in order, the first launching that has a
+credential: an `env` credential when no line names it with the entry's
+model and its pacing allows it (rule 4); a slot, the first of the
+entry's slots (rule 3) that is free (section 6, rule 4), that no line
+names with the model and that its pacing allows. With none, the role
+waits: nothing launches for it this pass, nothing is posted, and
+`status` names why (rule 3). The faulted run is a swarm fault as
+before (T22, the role relaunched at run k+1, now on the next entry);
+it counts towards no pause (7.7: two faults in a row pause the swarm
+only when neither is a capacity fault), so no job fails and nothing
+pauses for capacity. A line is removed at the first pass after its
+`<time>`, printing `Capacity: <provider>/<credential> <model> available
+again` and queueing that journal line; `until resume` lines are removed
+by the bare `swarm resume` alone, as a fault's pause is (section 11).
+The worker's commits on a fallback carry the entry's `co_author`. **The
+note.** When a run on an issue launches on another entry than the role's
+newest run on that issue did, Daisy posts `Comment(n, <capacity note>)`:
+the marker line `<!-- daisy-swarm role=reconciler kind=capacity -->`
+and `**reconciler:** the <role> runs on <provider> <model> (<effort>)
+in place of <provider> <model> (<effort>): <the unavailable pairs, each
+"<provider>/<credential> <model> until <time>: <reason>">.`, or, back
+on the persona, `**reconciler:** the <role> runs on <provider> <model>
+(<effort>) again.`; it is no counted entry, as the gate note is not
+(section 6, Trust), so it wakes no role and no prompt shows it. A batch
+run has no issue: its change is a journal line. Notify tells each line
+of `<state>/capacity`, known by the line, `<owner>/<repo> capacity:
+<provider>/<credential> <model> unavailable until <time>: <reason>`
+(section 5, Notify). The scorecard's By configuration (section 11)
+already separates a fallback's runs by provider and model, so what a
+weaker model costs in rounds and stops is read there.
+
+**The detached run** (rule 2). Every container Daisy starts, a member's,
+a dependency step's, a check's, the merge and main checks' (12.1), runs
+`docker run --detach`, its command under the image's `sh` writing its
+output and its status to its run's directory: a member's
+`"$@" >/job/io/stdout 2>/job/io/stderr; s=$?; echo "$s" >/job/io/exit;
+exit "$s"` (7.2, the exit mark it extends), a step's the same over its
+`/job/step` mount, `<run>/step/` (emptied before each step starts),
+`out` holding stdout and stderr together and `exit` its status, which
+the collection renames to `<run>/check.out` or `<run>/deps.out` as the
+streams are written today. `docker run --detach` returns once the
+container is created: the launch records `started <time>` and `deadline
+<time>`, `started` plus `timeout` (a step's `<step> deadline <time>`),
+and no process waits on the container. A slot's lock is held through
+the launch alone; the running container's `daisy.credential` label
+holds the slot after (section 6, rule 4, which reads it already).
+**The collection** of every run with `started` and no end line,
+whoever launched it, at each pass: its container by the run's name
+running, it is left, unless its deadline has passed, when Daisy sends
+`docker stop --time 30` and records `timeout <time>`; gone, with
+`<run>/io/exit` a regular file holding a number, it records `exited <code>
+<time>`, copies `<run>/io/stdout` and `<run>/io/stderr` to `<run>/stdout` and
+`<run>/stderr`, and is collected as any (7.6), its `cost` line and its
+provider's fault read from that stdout; gone with none, abandoned (7.7).
+The process holding a run, its launcher or the one that found it, arms
+a timer at its deadline and at 80% of its `timeout` (rule 5), so a
+deadline is kept to the second, not to the pass. A run launched before
+the build (no `deadline` line) is collected as now: *ended*, its stdout
+lost, or *orphan over time*. So a finished run is collected at the
+next pass by any `apply` (request F36: a run of this process whose wait
+had not returned was skipped), and the wall clock is the run's, read
+from its record (decision
+[26](swarm/decisions/0026-the-wall-clock-is-applys-not-stop-timeouts.md)
+amended).
+
+**The restart** (rule 2). The loop re-executes at the end of the first
+pass after `swarm restart` or a new build, members running, the queued
+journal line naming them (`apply re-executed (<why>), <r> running`);
+the new process's first pass finds each run its predecessor launched by
+its record and holds it as its own. The wait for an idle pass, and its
+`Restart pending` line, go. The new build is told by its file's size,
+modification time and change time (ctime), the content hashed when one
+changed (triage item L345: a copy that keeps the times was missed),
+waiting one pass as now. A signal ends the loop at the end of its pass
+with no drain: the members run on and the next `apply` holds them;
+`--once` still drains the runs it launched.
+
+**The slots per role** (rule 3). `personas.<role>.slots`, and an
+entry's `slots`, list the slots of its provider it may take, each one
+`keys.<provider>.slots` counts; absent, every slot. `status` gains a
+`Capacity:` block after `Personas:`: one line per role, `  %-12s queue
+<q>, running <r>` and, when its queue waits, `: <why>` (`no free slot of
+<provider> <slots>`, `<provider>/<credential> <model> unavailable until
+<time>`, `<provider>/<credential> at its token budget until <time>`,
+`max_members reached`); a line per line of `<state>/capacity`; and
+`Bottleneck: <role> (<why>)`, the role with the most issues waiting for
+a credential (`max_members` named when that holds them), or
+`Bottleneck: none`. A role's **queue** is the issues on which it would
+launch at this pass but for section 6's rule 4. JSON `capacity`.
+
+**The pacing** (rule 4). `keys.<provider>.tokens`, `{"per_day":
+<tokens>, "per_week": <tokens>}`, one or both, positive integers, no
+default, is counted for each credential of the provider apart, each
+slot being one login whose quota it paces: the tokens of a run are its
+`cost` line's `<in>` (the cache's included) and `<out>`, and the runs a
+credential has taken are those whose `credential` line names it and
+whose `started` falls in the 24 hours, or the 7 days, before the launch.
+A credential that has reached either is passed over as an unavailable
+one is (rule 1), until enough of its runs leave the window, the time
+`status` shows; the runs in flight count from their collection, so the
+budget can be overshot by them, as the money `budget` would be. Without
+`tokens` nothing is counted. The money `budget` (section 3) stays
+validated, shown and not enforced.
+
+**The deadline** (rule 5). Every Task text's closing paragraph (7.4)
+gains `Your run is stopped at <deadline> (<timeout> after its start).
+If /job/io/deadline appears, 80% of that time is used: write your
+output now, or, if the work cannot finish in the time left, write what
+you have and propose how to split it.` At 80% of the run's `timeout`
+the process holding it writes `<run>/io/deadline`, `80% of your time is
+used (<used> of <timeout>); you are stopped at <deadline>. Write your
+output now; if the work cannot finish, write what you have and propose
+how to split it.`, and records `warned <time>`; a CLI has no channel
+into a running session, so the member reads the file between its
+steps, as its Task text asks. At the deadline it is stopped as now
+(`docker stop --time 30`, `failed: timeout after <timeout>`, T17);
+then, when `<run>/io/out.md` holds text, the T17 note ends with `Its output
+when it was stopped:` and that text, after the secret check (a secret:
+`Its output when it was stopped held a secret the member was given and
+is not posted.`), posted by 7.5's rule; it is never read as the role's
+text (a plan, a verdict, a proposal). A batch run's stays in its
+`<run>/io/out.md`, `owner-held` naming the timeout as now.
+
+**Rollout.** At the build's first pass the runs launched by the old
+build are collected by the old rules (attached, no `deadline`), so a
+restart onto the build waits for nothing new; `<state>/capacity` is
+absent, every entry available; a persona without `fallback` or `slots`
+and a `keys` without `tokens` launch as before.
+
 ## 8. The credential rule
 
 **The mount principle: mount only what the run owns, and leave nothing
@@ -5737,6 +5964,12 @@ that the next run reads.
    logins and those they would hand the verbs to (decision
 [131](swarm/decisions/0131-the-comment-commands.md)).
 
+*R4, specified ahead of its build* (7.10, rule 3): a slot is still one run's at a time, but a persona, or
+a fallback entry, may take only the slots its `slots` lists, so the
+maintainer gives roles their own logins; a slot's lock is held through
+the launch alone, the running container's `daisy.credential` label
+holding the slot after, since no process waits on a detached container.
+
 ## 9. The provider seam
 
 ```go
@@ -5859,7 +6092,13 @@ usage or rate limit (`rate_limit` too), a credit balance, or the status
 spending limit, a usage balance exhausted: its binary's strings); any
 other error result is the work's (its exit code decides, 7.7). The words
 are *to confirm* on a real fault, and for `grok` also that the fault
-reaches the JSON error object, not only its standard error.
+reaches the JSON error object, not only its standard error. *R4, specified ahead of its build* (7.10,
+rule 1): the adapter gains `Reset(fault string, at time.Time)
+(time.Time, bool)`, the reset a capacity fault's message states:
+`codex`'s `try again at <h>:<mm> <AM|PM>` read as the first such time
+after `at` in UTC, the container's zone (*to confirm* on the next such
+fault); none for `claude` and `grok` until a real message shows one
+(`grok`'s `usage balance exhausted` states none).
 
 `--append-system-prompt-file` adds the persona and Task to the CLI's own
 system prompt rather than replacing it, so the member keeps the harness it
@@ -6985,7 +7224,10 @@ outcome.
 each overlap that holds a first build, a `Queue <name>:` line per
 repository with a check follows `Running:`, and Waiting for you gains
 `main red <name>` and `main unchecked <name>`, which notify tells
-(section 5, Notify).
+(section 5, Notify). *R4, specified ahead of its build* (7.10, rule 3): a `Capacity:` block follows
+`Personas:`, each role's queue and what holds it, the unavailable
+models and the token budgets, and `Bottleneck: <role> (<why>)`; JSON
+`capacity`.
 
 | Field | Value |
 |---|---|
@@ -7540,7 +7782,9 @@ pass's other work goes on (section 5, The flags). Neither touches
 independent, and both hold an issue's launches. **With `--type
 <type>`** (after `<n>`, or leading as a value flag) either records the
 maintainer's intervention, on issue `<n>` or, for the whole swarm, on
-none (The interventions' record, below).
+none (The interventions' record, below). *R4, specified ahead of its build* (7.10, rule 1): the bare
+`resume` also removes `<state>/capacity`, so every model is tried
+again at the next pass.
 
 ### daisy swarm restart
 
@@ -7609,7 +7853,12 @@ the exec ends the loop as at any pass, the request kept for the next
 has a member in flight never restarts by itself; `swarm pause` lets it
 drain (its running members are collected, nothing launched), it then
 restarts, and `swarm resume` launches again from the new build. `--once`
-never restarts.
+never restarts. *R4, specified ahead of its build* (7.10, rule 2): the loop re-executes at the end of
+the first pass after the request or a new build, members running, the
+new process holding each run by its record; the wait for an idle pass,
+its `Restart pending` line and the bound it lacked go; the new build is
+told by its size, modification time and change time; and a signal ends
+the loop at its pass's end without draining.
 
 ### The maintainer's verbs: triage, accept, class, approve, merge, unblock, block and close
 

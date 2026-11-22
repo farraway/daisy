@@ -1176,3 +1176,26 @@ they write.
   [81](swarm/decisions/0081-conflicts-handled-by-the-swarm.md),
   [93](swarm/decisions/0093-the-collection-and-the-merge-step.md) and
   [135](swarm/decisions/0135-the-owners-hold-released-by-its-issues.md).
+- 2026-11-21, Step 12 of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, capacity; specified ahead of its build, to be built at
+  Step 13, the fallback and the adoption first): a persona's
+  `fallback` models, tried in order, a capacity fault making its model
+  unavailable on its credential until the reset its message states or
+  the bare `swarm resume`, pausing nothing, each change noted on the
+  issue and notified, and the collection reading a run with its own
+  persona's adapter; every container detached, writing its output and
+  exit status to its run's directory, so any `apply` collects any run
+  with its cost and fault and enforces its recorded deadline (F36), a
+  restart re-executing with members running and a new build told by
+  its change time too (L345); `slots` per persona and a `Capacity:`
+  block naming the bottleneck; `keys.<provider>.tokens` pacing each
+  credential over the last day and week; the deadline told, a warning
+  file at 80% of `timeout`, the partial output posted with a timeout
+  (F37). Sections 1, 2, 3, 5, 6, 7.2, 7.4, 7.7, 8, 9 and 11, and the
+  new 7.10. Decision [170](swarm/decisions/0170-capacity.md), amending
+  decisions [5](swarm/decisions/0005-budget.md),
+  [24](swarm/decisions/0024-the-container.md),
+  [26](swarm/decisions/0026-the-wall-clock-is-applys-not-stop-timeouts.md),
+  [62](swarm/decisions/0062-what-step-6-built-of-the-lifecycle-and-the-verbs.md),
+  [89](swarm/decisions/0089-the-pass-and-the-gates.md) and
+  [137](swarm/decisions/0137-restart-onto-a-new-build-when-idle.md).

@@ -28,3 +28,5 @@ pass's end for each issue the pass moved after step (5), one
 `Pulls(n)` each. **T16 with no approved head** names no head. **The
 loop** exits 130 on a second signal during the pass as during the
 drain, and its watcher for that signal ends with it.
+
+**Amended by decision [170](0170-capacity.md)** (R4, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): a capacity fault counts towards no pause; its model is unavailable on its credential until its stated reset or the bare `swarm resume`, and the role launches on its next `fallback` entry (`docs/swarm.md` section 7.10).

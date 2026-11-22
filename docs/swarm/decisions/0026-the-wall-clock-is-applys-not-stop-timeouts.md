@@ -7,3 +7,5 @@ Moved verbatim from `docs/swarm.md` section 14, item 26, on 2026-11-16. In the t
 kill, not a run limit. Chosen: `apply` runs `docker stop --time 30` at
 `timeout`; `--stop-timeout 30` stays on the argv. Alternative: the
 plan's `--stop-timeout` set to `timeout`, which would bound nothing.
+
+**Amended by decision [170](0170-capacity.md)** (R4, specified ahead of its build, Step 12 of the plan implementing the 2026-11-19 swarm roadmap): the wall clock stays Daisy's, but is the run's `deadline` line, `started` plus `timeout`, enforced by a timer of whichever `apply` holds the run, its launcher or one that adopted it (`docs/swarm.md` section 7.10).
