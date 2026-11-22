@@ -15,16 +15,14 @@ import (
 	"daisy/internal/commands"
 	"daisy/internal/env"
 	"daisy/internal/ops"
-	swarmcmd "daisy/internal/swarm/cmd"
 	"daisy/internal/verb"
 )
 
 // Exit codes.
 const (
-	OK          = 0
-	Failure     = 1
-	Usage       = 2
-	Interrupted = 130 // a second signal ended `swarm apply` at once
+	OK      = 0
+	Failure = 1
+	Usage   = 2
 )
 
 // Run dispatches args. Errors a command returns are printed as they are:
@@ -308,9 +306,6 @@ func invoke(c *verb.Context, cmd Command, fn func(*verb.Context) error) int {
 	if err := fn(c); err != nil {
 		if errors.Is(err, verb.ErrReported) {
 			return Failure
-		}
-		if errors.Is(err, swarmcmd.ErrInterrupted) {
-			return Interrupted
 		}
 		var u verb.UsageError
 		if errors.As(err, &u) {

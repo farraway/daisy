@@ -1282,3 +1282,11 @@ they write.
   timeout, one before it held by the loop with a timer at it. Sections
   7.7 and 7.10. Decision [170](swarm/decisions/0170-capacity.md)
   amended.
+- 2026-11-22, Step R4-B of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, adoption): the restart re-executes at the end of the
+  first pass after the request, or of the pass after the one that saw a
+  new build, its members running on and held by the process it starts;
+  the build told by its change time too (L345); a signal ends the loop
+  at its pass's end without a drain, exit 0, the exit 130 of a second
+  signal gone. Sections 7.10 and 11. Decision
+  [170](swarm/decisions/0170-capacity.md) amended.

@@ -178,7 +178,7 @@ func (s *Swarm) Pass(wait bool) error {
 		}
 	}
 	if wait {
-		errs = append(errs, s.Drain(nil))
+		errs = append(errs, s.Drain())
 	}
 	s.warnCI()
 	if !s.stopping() {
@@ -235,15 +235,10 @@ func (s *Swarm) fetch() error {
 	return nil
 }
 
-// ErrInterrupted: a second signal stopped the drain (section 11, apply
-// without --once).
-var ErrInterrupted = errors.New("interrupted")
-
 // Drain waits for every container this process started, collecting each
-// run as it ends (a worker run's check started and waited for in turn). A
-// signal on stop ends it at once with ErrInterrupted, the containers left
-// running.
-func (s *Swarm) Drain(stop <-chan struct{}) error {
+// run as it ends (a worker run's check started and waited for in turn):
+// `--once`'s, the loop draining nothing (section 7.10, rule 2).
+func (s *Swarm) Drain() error {
 	var errs []error
 	for {
 		// The runs it launched, not those it holds for another process.
@@ -258,11 +253,7 @@ func (s *Swarm) Drain(stop <-chan struct{}) error {
 			break
 		}
 		for _, dir := range dirs {
-			select {
-			case <-s.live[dir].done:
-			case <-stop:
-				return ErrInterrupted
-			}
+			<-s.live[dir].done
 			r, _ := runOf(dir)
 			if err := s.settle(r); err != nil {
 				errs = append(errs, err)

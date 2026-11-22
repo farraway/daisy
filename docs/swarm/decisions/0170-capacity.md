@@ -328,3 +328,29 @@ before, not the run's own recorded span. `--once`'s drain waits for
 the runs it launched, never for one it holds for another process.
 Tests: `TestSwarmAdoptedRunStoppedAtItsDeadline`,
 `TestDockerWatchStopsAtTheDeadline`.
+
+**As built: the restart and the signal (Step R4-B of the plan
+implementing the 2026-11-19 swarm roadmap).** After a pass that no
+signal ended, the loop re-executes when `<state>/restart` exists or a
+new build has stood a pass, whatever runs: no idle pass is waited for,
+and `Restart pending` is gone. `<r>` is the containers of this swarm a
+new read of the running set holds (a failed read is `⚠ restart:
+<error>; not restarted at this pass`, as before); stdout says `Restart
+(<why>): <r> running; re-executing <daisy> swarm apply` and the
+journal line `apply re-executed (<why>), <r> running`. Before the exec,
+and before the loop ends at a signal, each container this process held
+whose wait has returned has its end line written (`Record`), so the
+next process collects it as it ended, a timer's timeout among them,
+rather than as abandoned. The build's stamp is its size, modification
+time and change time (`ops.ChangeTime`, `st_ctim` on Linux,
+`st_ctimespec` on Darwin, FreeBSD and NetBSD, none elsewhere, where
+size and modification time tell it alone), the content hashed when one
+changed, a new build waiting a pass as before (L345). A signal ends
+the loop at its pass's end, exit 0, with no drain: the second signal's
+exit 130, which ended a drain, goes with it. `swarm restart` says
+`the running apply re-executes itself at the end of its next pass`.
+Tests: `TestSwarmApplyRestartsWithMembersRunning`,
+`TestSwarmApplyRestartSeesAPreservedTimesCopy`,
+`TestSwarmApplyRestartWaitsForTheCollection` (revised: an uncollected
+run no longer holds the restart, the next process collects it),
+`TestSwarmRestartRequested`, `TestSwarmApplyLoop`.

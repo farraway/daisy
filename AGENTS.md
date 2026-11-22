@@ -281,7 +281,7 @@ then replace the block below with the output of `daisy help --markdown`.
 | Swarm | `daisy swarm connect [--json]` | The connect briefing: journal by issue, waits with gate notes, questions, AUTHORITIES.md, metrics (read-only) |
 | Swarm | `daisy swarm pause [<n>] [--type <type>]` | Launch no new member until resumed (with <n>, as the maintainer, on that issue; --type: record the intervention) |
 | Swarm | `daisy swarm resume [<n>] [--type <type>]` | Launch members again and release the owner's held batch (with <n>, that issue; --type: record the intervention) |
-| Swarm | `daisy swarm restart [--type <type>]` | Have the running apply re-execute itself, onto the installed build, once no member runs (--type: record the intervention) |
+| Swarm | `daisy swarm restart [--type <type>]` | Have the running apply re-execute itself, onto the installed build, after its next pass (--type: record the intervention) |
 | Swarm | `daisy swarm triage <n> [--type <type>]` | As the maintainer: triage a proposal, proposal-posted to proposal-accepted |
 | Swarm | `daisy swarm accept <n> [--type <type>]` | As the maintainer: accept the plan, plan-0-posted to plan-1-accepted |
 | Swarm | `daisy swarm class <n> [--type <type>] routine\|architecture` | As the maintainer: set the job's class; Daisy passes a routine job's triage and plan |

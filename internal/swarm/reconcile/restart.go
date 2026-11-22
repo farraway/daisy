@@ -1,13 +1,14 @@
 package reconcile
 
 import (
+	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"daisy/internal/ops"
-	"daisy/internal/swarm/runner"
 )
 
 // RestartFile is <state>/restart, `daisy swarm restart`'s request that the
@@ -15,36 +16,39 @@ import (
 // restart).
 func RestartFile(state string) string { return filepath.Join(state, "restart") }
 
-// Idle: nothing of this swarm is in flight, so a re-exec loses nothing a
-// pass would collect: no container this process started, none of this
-// swarm's in the running set, and no run that started or ended without
-// `collected` (rule 2's holders, on no issue).
-func (s *Swarm) Idle() (bool, error) {
-	if len(s.live) > 0 {
-		return false, nil
-	}
+// Holding is how many of this swarm's containers a new read of the
+// running set holds: the members a restart leaves running for the
+// process it starts, which holds each by its run's record (section 7.10,
+// rule 2).
+func (s *Swarm) Holding() (int, error) {
 	running, err := s.Runner.Running()
 	if err != nil {
-		return false, err
+		return 0, err
 	}
-	if slices.ContainsFunc(running, func(c runner.Running) bool { return strings.HasPrefix(c.Swarm, s.Cfg.Forge.Repo+"#") }) {
-		return false, nil
-	}
-	fs := s.O.FS()
-	runs, err := Runs(fs, s.state())
-	if err != nil {
-		return false, err
-	}
-	for _, r := range runs {
-		lines, err := r.Result(fs)
-		if err != nil {
-			return false, err
-		}
-		if inFlight(lines) {
-			return false, nil
+	n := 0
+	for _, c := range running {
+		if strings.HasPrefix(c.Swarm, s.Cfg.Forge.Repo+"#") {
+			n++
 		}
 	}
-	return true, nil
+	return n, nil
+}
+
+// Record writes the end line of each container this process holds whose
+// wait has returned, before the process ends or is replaced: the next
+// apply then collects it as it ended (a timeout its timer stopped among
+// them) rather than abandoned, its record being all it holds of it.
+func (s *Swarm) Record() error {
+	var errs []error
+	for _, dir := range slices.Sorted(maps.Keys(s.live)) {
+		select {
+		case <-s.live[dir].done:
+			r, _ := runOf(dir)
+			errs = append(errs, s.settle(r))
+		default:
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // inFlight: a run's result says it started or ended, and it was not

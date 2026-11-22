@@ -344,9 +344,10 @@ type countingRuns struct {
 
 func (c *countingRuns) Running() ([]runner.Running, error) { c.ps++; return c.Fake.Running() }
 
-// Without --once (section 11): a pass every interval until a signal, then
-// the running members collected and exit 0; a second signal during that
-// exits at once with ErrInterrupted (130).
+// Without --once (section 11): a pass every interval until a signal,
+// which ends the loop at its pass's end, exit 0, with no drain (section
+// 7.10, rule 2): a member still running is left running, its run
+// uncollected for the next apply, however many signals came.
 func TestSwarmApplyLoop(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -384,11 +385,11 @@ func TestSwarmApplyLoop(t *testing.T) {
 	}
 	err := c.applyTo(c.git(), gated{c.runner, open}, &c.stdout, &c.stderr)
 	close(open)
-	if !errors.Is(err, ErrInterrupted) {
-		t.Errorf("second signal: %v", err)
+	if err != nil {
+		t.Errorf("two signals: %v", err)
 	}
-	if r := c.result("1-architect-1"); strings.Contains(r, "collected") {
-		t.Errorf("collected after the second signal:\n%s", r)
+	if r := c.result("1-architect-1"); strings.Contains(r, "collected") || !strings.Contains(r, "\nstarted ") {
+		t.Errorf("collected after the signal:\n%s", r)
 	}
 }
 
@@ -494,9 +495,10 @@ func (r signalling) Start(s runner.Spec, d time.Duration) (runner.Container, err
 	return r.Fake.Start(s, d)
 }
 
-// A signal during a pass ends that pass's launching: the member launched
-// before it is collected, nothing launches after it, the drain starts
-// without waiting out the interval, and the exit is 0.
+// A signal during a pass ends that pass's launching: nothing launches
+// after it, the loop ends at the pass's end without waiting out the
+// interval and without a drain, the member launched before it left for
+// the next apply (section 7.10, rule 2), and the exit is 0.
 func TestSwarmApplyLoopSignalledDuringAPass(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -513,7 +515,7 @@ func TestSwarmApplyLoopSignalledDuringAPass(t *testing.T) {
 		a.runner.Script(n, "architect", runner.Canned{Out: archPlan})
 	}
 	err := a.applyTo(a.git(), signalling{a.runner, a.signals}, &a.stdout, &a.stderr)
-	if err != nil || waited || len(a.runner.Launches()) != 1 || !strings.HasSuffix(a.result("1-architect-1"), "outcome posted\ncollected\n") {
+	if err != nil || waited || len(a.runner.Launches()) != 1 || strings.Contains(a.result("1-architect-1"), "collected") {
 		t.Errorf("%v: waited %v, launched %d\n%s", err, waited, len(a.runner.Launches()), a.stdout.String())
 	}
 }
@@ -536,8 +538,8 @@ func (r signalledAtPs) Running() ([]runner.Running, error) {
 	return r.Fake.Running()
 }
 
-// Two signals during a pass that left no member running exit at once
-// with ErrInterrupted (130), as a second signal during the drain does.
+// Two signals during a pass end the loop at its end as one does, exit 0
+// (section 7.10, rule 2: no drain, so no second signal to end it).
 func TestSwarmApplyLoopTwoSignalsInAPass(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -545,7 +547,7 @@ func TestSwarmApplyLoopTwoSignalsInAPass(t *testing.T) {
 	waited := false
 	a.after = func(time.Duration) <-chan time.Time { waited = true; return nil }
 	err := a.applyTo(a.git(), signalledAtPs{a.runner, a.signals, 2, &sync.Once{}}, &a.stdout, &a.stderr)
-	if !errors.Is(err, ErrInterrupted) || waited {
+	if err != nil || waited {
 		t.Errorf("%v, waited %v\n%s", err, waited, a.stdout.String())
 	}
 }
@@ -566,8 +568,9 @@ func (r heldAfterASignal) Start(s runner.Spec, d time.Duration) (runner.Containe
 	return gatedRun{c, r.open}, err
 }
 
-// A signal during a pass, then a second while its member still runs:
-// ErrInterrupted (130), the member left running and its run uncollected.
+// A signal during a pass, then a second while its member still runs: exit
+// 0, the member left running and its run uncollected (section 7.10, rule
+// 2).
 func TestSwarmApplyLoopSecondSignalAfterAPass(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -578,13 +581,12 @@ func TestSwarmApplyLoopSecondSignalAfterAPass(t *testing.T) {
 	open := make(chan struct{})
 	err := a.applyTo(a.git(), heldAfterASignal{a.runner, a.signals, open}, &a.stdout, &a.stderr)
 	close(open)
-	if !errors.Is(err, ErrInterrupted) || strings.Contains(a.result("1-architect-1"), "collected") {
+	if err != nil || strings.Contains(a.result("1-architect-1"), "collected") {
 		t.Errorf("%v\n%s", err, a.result("1-architect-1"))
 	}
 }
 
-// The loop takes no signal once it has returned: the drain's watcher for
-// a second signal ends with it.
+// The loop takes no signal once it has returned.
 func TestSwarmApplyLoopLeavesNoWatcher(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)

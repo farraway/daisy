@@ -41,6 +41,14 @@ func TestSwarmCollectsWithTheLaunchedPersona(t *testing.T) {
 		return make(chan time.Time)
 	}
 	err := a.applyTo(a.git(), held{a.runner, map[string]chan struct{}{"daisy-swarm.acme.swarm-app.1.architect.1": gate}}, &a.stdout, &a.stderr)
+	// The signal ends the loop without a drain (section 7.10, rule 2):
+	// the next apply collects the run, the member having ended.
+	for running, _ := a.runner.Running(); len(running) > 0; running, _ = a.runner.Running() {
+		time.Sleep(time.Millisecond)
+	}
+	if err == nil {
+		err = a.apply(a.git(), "--once")
+	}
 	r := a.result("1-architect-1")
 	if err != nil || waits != 2 || !strings.Contains(r, "\npersona anthropic claude-fable-5-1 high\n") ||
 		!strings.Contains(r, "\ncost 0.25 tokens 10/20 turns 4 cached 0\n") || !strings.HasSuffix(r, "outcome posted\ncollected\n") {

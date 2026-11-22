@@ -754,9 +754,6 @@ type runnerOpener func(o ops.Ops, dir string) runner.Runner
 
 func openRunner(o ops.Ops, dir string) runner.Runner { return runner.Docker{O: o, Dir: dir} }
 
-// ErrInterrupted: a second signal ended `apply`'s drain (exit 130).
-var ErrInterrupted = errors.New("interrupted")
-
 func swarmApply(c *Context, open opener, openRun runnerOpener) error {
 	o, ws := c.Ops, c.Swarm.Root
 	once := c.Flag("--once")
@@ -873,9 +870,10 @@ func loadSwarm(o ops.Ops, at declare.Place) (declare.Config, error) {
 // applyLoop is `apply` without --once (section 11): a pass every
 // interval, start to start, swarm.json re-read before each (a failure is
 // printed and the pass skipped) and a pass's error printed, each followed
-// by the restart (restarter.restart), until SIGINT or SIGTERM; then no
-// launch, the running members and checks collected as they exit, and
-// exit 0, or at once on a second signal (130).
+// by the restart (restarter.restart), until SIGINT or SIGTERM, which ends
+// the loop at its pass's end without a drain: the running members and
+// checks run on, each container whose wait returned recorded, and the
+// next apply holds them by their records (section 7.10, rule 2); exit 0.
 func applyLoop(c *Context, s *reconcile.Swarm) error {
 	o := c.Ops
 	restart := newRestarter(c)
@@ -912,7 +910,7 @@ func applyLoop(c *Context, s *reconcile.Swarm) error {
 			return nil // replaced by the exec: only a Fake's returns
 		}
 		if signalled {
-			break // signalled during the pass or the restart: drain now, not after the interval
+			break // signalled during the pass or the restart: end now, not after the interval
 		}
 		interval, _ := time.ParseDuration(s.Cfg.Interval) // validated
 		select {
@@ -921,30 +919,7 @@ func applyLoop(c *Context, s *reconcile.Swarm) error {
 		case <-o.After(interval - o.Now().Sub(begin)):
 		}
 	}
-	// A second signal ends the drain at once: one that came during the
-	// pass already, before any wait, and one that comes while it waits.
-	select {
-	case <-signals:
-		return ErrInterrupted
-	default:
-	}
-	second, done, gone := make(chan struct{}), make(chan struct{}), make(chan struct{})
-	go func() {
-		defer close(gone)
-		select {
-		case <-signals:
-			close(second)
-		case <-done:
-		}
-	}()
-	err := s.Drain(second)
-	close(done)
-	<-gone // the watcher ends with the drain, taking no later signal
-	if errors.Is(err, reconcile.ErrInterrupted) {
-		return ErrInterrupted
-	}
-	// The drain's collections in the journal, as a pass's are.
-	if err := errors.Join(err, s.Journal()); err != nil {
+	if err := s.Record(); err != nil {
 		fmt.Fprintf(c.Stderr, "Error: swarm: %v\n", err)
 	}
 	return nil
