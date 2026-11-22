@@ -73,6 +73,9 @@ var (
 	// claudeQuota is claude's result for a spent quota, a capacity fault
 	// stating no reset (section 9).
 	claudeQuota = runner.Canned{Code: 1, Stdout: `{"type":"result","is_error":true,"result":"Claude AI usage limit reached"}`}
+	// claudeCredits is claude's result for a model whose usage credits are
+	// spent (Step SF-2), a capacity fault stating no reset.
+	claudeCredits = runner.Canned{Code: 1, Stdout: `{"type":"result","subtype":"success","is_error":true,"api_error_status":429,"api_error":"model_requires_usage_credits","num_turns":1,"result":"You're out of usage credits. Switch to another model to continue.","total_cost_usd":0,"usage":{"input_tokens":0,"output_tokens":0}}`}
 	// codexLimit is codex's usage limit as the live journal holds it
 	// (2026-11-19), stating its reset.
 	codexLimit = runner.Canned{Code: 1, Stdout: `{"type":"turn.failed","error":{"message":"You’ve hit your usage limit. Visit https://chatgpt.com/settings/usage to purchase more credits or try again at 3:53 PM."}}` + "\n"}
@@ -95,34 +98,46 @@ func model(s runner.Spec) string {
 // a row included (7.7).
 func TestSwarmFallbackOnACapacityFault(t *testing.T) {
 	t.Parallel()
-	a := newApplyWS(t)
-	a.withFallback("architect", opusEntry)
-	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
-	a.forge.CreateIssue("Two", "x", []string{"swarm:proposal-accepted"})
-	a.runner.Script(1, "architect", claudeQuota, runner.Canned{Out: archPlan, Stdout: claudeResult})
-	a.runner.Script(2, "architect", claudeQuota, runner.Canned{Out: archPlan, Stdout: claudeResult})
-	a.pass()
-	for _, run := range []string{"1-architect-1", "2-architect-1"} {
-		if r := a.result(run); !strings.Contains(r, "\npersona anthropic claude-fable-5-1 high\n") || !strings.HasSuffix(r, "fault: provider: Claude AI usage limit reached\nrecorded\noutcome fault\ncollected\n") {
-			t.Fatalf("%s:\n%s", run, r)
-		}
-	}
-	if b, err := os.ReadFile(a.state("capacity")); err != nil || string(b) != "anthropic/env claude-fable-5-1 until resume: Claude AI usage limit reached\n" {
-		t.Fatalf("capacity %q %v", b, err)
-	}
-	if _, err := os.Stat(a.state("paused")); err == nil {
-		t.Fatal("two capacity faults in a row paused the swarm")
-	}
-	a.pass()
-	launches := a.runner.Launches()
-	if len(launches) != 4 || model(launches[2]) != "claude-opus-5-5" || model(launches[3]) != "claude-opus-5-5" {
-		t.Fatalf("%d launches, %v\n%s", len(launches), launches, a.stdout.String())
-	}
-	if r := a.result("1-architect-2"); !strings.Contains(r, "\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\npersona anthropic claude-opus-5-5 high\n") || !strings.HasSuffix(r, "outcome posted\ncollected\n") {
-		t.Errorf("run 2:\n%s", r)
-	}
-	if b := a.bodies(1); len(b) == 0 || b[len(b)-1] != mark("architect", 2)+archPlan {
-		t.Errorf("#1's plan: %q", b)
+	for _, tc := range []struct {
+		name   string
+		canned runner.Canned
+		reason string
+	}{
+		{"a quota", claudeQuota, "Claude AI usage limit reached"},
+		{"the usage credits", claudeCredits, "You're out of usage credits. Switch to another model to continue."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			a := newApplyWS(t)
+			a.withFallback("architect", opusEntry)
+			a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+			a.forge.CreateIssue("Two", "x", []string{"swarm:proposal-accepted"})
+			a.runner.Script(1, "architect", tc.canned, runner.Canned{Out: archPlan, Stdout: claudeResult})
+			a.runner.Script(2, "architect", tc.canned, runner.Canned{Out: archPlan, Stdout: claudeResult})
+			a.pass()
+			for _, run := range []string{"1-architect-1", "2-architect-1"} {
+				if r := a.result(run); !strings.Contains(r, "\npersona anthropic claude-fable-5-1 high\n") || !strings.HasSuffix(r, "fault: provider: "+tc.reason+"\nrecorded\noutcome fault\ncollected\n") {
+					t.Fatalf("%s:\n%s", run, r)
+				}
+			}
+			if b, err := os.ReadFile(a.state("capacity")); err != nil || string(b) != "anthropic/env claude-fable-5-1 until resume: "+tc.reason+"\n" {
+				t.Fatalf("capacity %q %v", b, err)
+			}
+			if _, err := os.Stat(a.state("paused")); err == nil {
+				t.Fatal("two capacity faults in a row paused the swarm")
+			}
+			a.pass()
+			launches := a.runner.Launches()
+			if len(launches) != 4 || model(launches[2]) != "claude-opus-5-5" || model(launches[3]) != "claude-opus-5-5" {
+				t.Fatalf("%d launches, %v\n%s", len(launches), launches, a.stdout.String())
+			}
+			if r := a.result("1-architect-2"); !strings.Contains(r, "\ncredential anthropic env CLAUDE_CODE_OAUTH_TOKEN\npersona anthropic claude-opus-5-5 high\n") || !strings.HasSuffix(r, "outcome posted\ncollected\n") {
+				t.Errorf("run 2:\n%s", r)
+			}
+			if b := a.bodies(1); len(b) == 0 || b[len(b)-1] != mark("architect", 2)+archPlan {
+				t.Errorf("#1's plan: %q", b)
+			}
+		})
 	}
 }
 

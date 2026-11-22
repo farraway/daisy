@@ -354,3 +354,26 @@ Tests: `TestSwarmApplyRestartsWithMembersRunning`,
 `TestSwarmApplyRestartWaitsForTheCollection` (revised: an uncollected
 run no longer holds the restart, the next process collects it),
 `TestSwarmRestartRequested`, `TestSwarmApplyLoop`.
+
+**As built: `claude`'s usage credits (Step SF-2 of the plan implementing
+the 2026-11-19 swarm roadmap, 2026-11-22).** A model that runs on usage
+credits the account has spent ends a `claude` run in an `is_error` result
+whose message is `You're out of usage credits. Switch to another model …`;
+its 429 and its code, `model_requires_usage_credits`, are the fields
+`api_error_status` and `api_error` beside it, so no word of the message
+was one of `Capacity`'s, and four architect runs on `claude-fable-5-2`
+ended `failed: exit 1` and blocked their issues. `out of usage credits`
+joins the limit's words, so the result is a provider fault and a capacity
+fault: `capacity` in its record, its line in `<state>/capacity` until
+`resume` (`claude`'s `Reset` reads none), the role launched on its next
+entry, nothing paused or blocked. The shape is read from Claude Code
+2.1.328's binary (the message's two forms in a headless run and the
+result's schema), and the status, the code and the message from the live
+runs' report; no run's own output was read, so it stays *to confirm*.
+Reading `api_error_status` 429 or the code instead was the alternative: it
+would catch the refusal's other texts (`<model> requires usage credits.`,
+a monthly spend limit, a team's pooled budget), but the fault's text is
+what `Capacity` reads again from the run's `fault:` line, so the code
+would have to be written into it, and those texts are not this step's
+claim. Tests: `TestClaudeOutOfUsageCredits`,
+`TestSwarmFallbackOnACapacityFault`, `TestSwarmApplyRecordsDaisysOwnCause`.

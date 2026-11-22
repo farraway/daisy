@@ -4585,7 +4585,7 @@ honest word among the nine, and none for a row that is no stop.
 | resource refused | fault | 7.1 step 3: a `resources` entry or a reference's path, read at the pass's commit, fails section 3's checks there (a path removed in the pushed head, say, or a pin the fetch did not bring) | `launch-failed <time>`, `fault: swarm.json: resources[<i>]: <problem>` | none, as a launch that fails | `environment` |
 | clone failed | fault | 7.1 step 3: the clone from the mirror, the worker's `checkout -b` or a step of the clone's preparation fails (a branch gone from the mirror, say; no mount point is in a clone since Step R1-5 of the plan implementing the 2026-11-19 swarm roadmap, so a product's tree can no longer refuse one) | `launch-failed <time>`, `fault: clone: <git's error>` | none, as a launch that fails | `environment` |
 | slot refused | fault | 7.1 step 4: `<slot>/auth.json` is not a regular file, or the slot has no login (absent or empty) | `launch-failed <time>`, `fault: slot <provider>/<j>: auth.json is not a regular file` or `fault: slot <provider>/<j>: no login; run '<login>'` (section 3, Secret values: `CODEX_HOME=<slot> codex login -c cli_auth_credentials_store=file`, `GROK_HOME=<slot> grok login --device-auth`) | none, as a launch that fails | `environment` |
-| provider authentication or quota | fault | `Report.Fault` (section 9): `claude`'s JSON result with `is_error` true, or an error event in `codex`'s stream, whose message names authentication, a quota or a rate limit. The fields and messages are *to confirm at Step 28*: Step 39 met no such error (checklist item 2) | `exited <code> <time>`, `fault: provider: <message>` | T22 only | `capacity` for a limit, a quota or the credit; `environment` for the sign-in |
+| provider authentication or quota | fault | `Report.Fault` (section 9): `claude`'s JSON result with `is_error` true, or an error event in `codex`'s stream, whose message names authentication, a quota, a rate limit or the credit (`claude`'s `out of usage credits` among them, built at Step SF-2 of the plan implementing the 2026-11-19 swarm roadmap). The fields and messages are *to confirm at Step 28*: Step 39 met no such error (checklist item 2) | `exited <code> <time>`, `fault: provider: <message>` | T22 only | `capacity` for a limit, a quota or the credit; `environment` for the sign-in |
 | the wait fails | fault | waiting on a started container returns an error | `exited -1 <time>`, `fault: wait: <error>` (a check's: `fault: check: wait: <error>`; a dependency step's: `fault: deps: wait: <error>`) | T22 only | `environment` |
 | check cannot start | fault | the check container's launch fails or exits 125–127 | `fault: check: <error>` (`fault: check: exit <code>`) | T22 only | `environment` |
 | test services cannot start | fault | 7.6, step 4: a test service's `docker run --detach` fails (an image not on the host: `--pull never`), or its network's creation does | `fault: services: <service>: <docker's first line of error>` (`fault: services: network <net>: …`); for a worker's or a reviewer's, at its launch, after `launch-failed <time>` | T22 only; what was made of them removed by the collection (`services <worker\|adversary\|sympathetic\|check> down`) | `environment` |
@@ -6807,7 +6807,13 @@ authentication, `unauthorized`, an API key, OAuth, a login, a quota, a
 usage or rate limit (`rate_limit` too), a credit balance, or the status
 401, 403 or 429, or carries one of `grok`
 1.0.70's own messages (`Not signed in`, a weekly limit, out of credits, a
-spending limit, a usage balance exhausted: its binary's strings); any
+spending limit, a usage balance exhausted: its binary's strings), or
+`claude`'s `out of usage credits` (built at Step SF-2 of the plan
+implementing the 2026-11-19 swarm roadmap: `You're out of usage credits.
+Switch to another model …`, a 429 whose status and code,
+`model_requires_usage_credits`, are fields of the result that `Report`
+does not read, a capacity fault naming no reset; its shape is Claude
+Code 2.1.328's binary's, *to confirm* on a real run's output); any
 other error result is the work's (its exit code decides, 7.7). The words
 are *to confirm* on a real fault, and for `grok` also that the fault
 reaches the JSON error object, not only its standard error. *R4* (7.10,

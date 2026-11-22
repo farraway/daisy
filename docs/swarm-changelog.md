@@ -1395,3 +1395,8 @@ they write.
   role, no `config_hash`. Sections 7.3 and 7.4. Decision
   [167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md), As
   built.
+- 2026-11-22, Step SF-2 of the plan implementing the 2026-11-19 swarm
+  roadmap: `claude`'s `You're out of usage credits. Switch to another
+  model …` (429, `model_requires_usage_credits`) is a capacity fault
+  naming no reset, no longer `failed: exit 1`. Sections 7.7 and 9.
+  Decision [170](swarm/decisions/0170-capacity.md), As built.

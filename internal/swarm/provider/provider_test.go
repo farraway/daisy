@@ -132,6 +132,35 @@ func TestReport(t *testing.T) {
 	}
 }
 
+// claude's result for a model that runs on usage credits the account has
+// spent (a 429, `model_requires_usage_credits`) reads as a capacity fault
+// naming no reset (Step SF-2 of the plan implementing the 2026-11-19
+// swarm roadmap; section 9 and section 7.10, rule 1), through Report:
+// the status and the code are fields of their own, so its message alone
+// says what it is. The texts are Claude Code 2.1.328's (its binary's
+// strings), without and with where to manage the credits (its URL a
+// placeholder); the fields the result carries beside them are its
+// schema's.
+func TestClaudeOutOfUsageCredits(t *testing.T) {
+	claude := Providers["anthropic"].Adapter
+	for _, msg := range []string{
+		"You're out of usage credits. Switch to another model to continue.",
+		"You're out of usage credits. Switch to another model, or manage usage credits at https://example.net/usage, to continue.",
+	} {
+		rep := claude.Report([]byte(`{"type":"result","subtype":"success","is_error":true,"api_error_status":429,"api_error":"model_requires_usage_credits","duration_ms":1204,"num_turns":1,"result":"` + msg +
+			`","stop_reason":"stop_sequence","session_id":"s","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0}}`))
+		if want := (Report{Known: true, CostKnown: true, CachedKnown: true, Turns: 1, Fault: msg}); rep != want {
+			t.Errorf("Report %+v, want %+v", rep, want)
+		}
+		if !Capacity(rep.Fault) {
+			t.Errorf("fault %q is no capacity fault", rep.Fault)
+		}
+		if at, ok := claude.Reset(rep.Fault, time.Date(2026, 11, 22, 16, 5, 0, 0, time.UTC)); ok {
+			t.Errorf("fault %q states the reset %v", rep.Fault, at)
+		}
+	}
+}
+
 // The slot form (section 8): openai and xai take a slot, each naming its
 // CLI's home and the login that fills it; anthropic takes none.
 func TestSlots(t *testing.T) {
