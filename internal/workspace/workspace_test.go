@@ -362,6 +362,49 @@ func TestInitSwitchingHomeSwapsTheIdentity(t *testing.T) {
 	}
 }
 
+// A re-init failing in its final step says what it changed: the files it
+// wrote before the step stay, and the previous git identity is said not
+// to be put back only when the keys, read again, differ from what they
+// held. A failed `git config --unset-all` changes nothing, so it is not
+// said; a failed --add after the keys were cleared leaves them changed,
+// so it is.
+func TestInitFailedUnsetSaysWhatChanged(t *testing.T) {
+	for _, tc := range []struct {
+		fail     string // the git config option that fails
+		putBack  bool   // whether the keys end as they were
+		wantKeys string
+	}{
+		{"--unset-all", true, `user.name="Fixture Author";user.email="fixture@example.invalid";core.sshCommand="";`},
+		{"--replace-all", false, noKeys},
+	} {
+		t.Run(tc.fail, func(t *testing.T) {
+			mc := newMachine(t)
+			mc.mustInit(t)
+			k := keys(t, mc.ws)
+			mc.o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
+				if name == "git" && len(args) > 2 && args[0] == "config" && (args[2] == tc.fail || args[2] == "--add") {
+					return nil, []byte("error: scripted failure"), fmt.Errorf("exit status 4")
+				}
+				return ops.Real().Exec(dir, name, args...)
+			}
+			_, _, err := mc.init(t, mc.homeName, mc.ws)
+			if err == nil {
+				t.Fatal("init did not fail")
+			}
+			msg := err.Error()
+			if !strings.Contains(msg, "init did not finish") || !strings.Contains(msg, "the Cursor rules, the Claude command, the skills, .claude/settings.local.json and the ignore lines it wrote before that step stay as written") {
+				t.Errorf("message %q", msg)
+			}
+			if said := strings.Contains(msg, "could not be put back"); said == tc.putBack {
+				t.Errorf("'could not be put back' said %v with the keys %s (were %s): %q", said, keys(t, mc.ws), k, msg)
+			}
+			if got := keys(t, mc.ws); got != tc.wantKeys {
+				t.Errorf("keys %s, want %s", got, tc.wantKeys)
+			}
+		})
+	}
+}
+
 // A home skill overriding a root skill installs as the root's skill
 // directory with the home's other files over it and the home's SKILL.md.
 func TestInitInstallsAnOverridingSkillOverTheRootsDirectory(t *testing.T) {

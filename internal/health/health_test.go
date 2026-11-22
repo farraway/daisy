@@ -718,6 +718,17 @@ func TestSkillDriftNamesRootCopies(t *testing.T) {
 			t.Errorf("%s warned: %q", n, errs)
 		}
 	}
+	// ~/.claude/skills a link into the root's skills/ holds no copy: the
+	// root's own skills are not an earlier install's leftovers.
+	if err := os.RemoveAll(skills); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(m.root, "skills"), skills); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, errs := m.run(health.Options{Force: true}); strings.Contains(errs, "is a copy of the root's skill") {
+		t.Errorf("a link into the root warned: %q", errs)
+	}
 }
 
 // Check 4b covers Codex's tree as it covers Claude Code's: a copy with no

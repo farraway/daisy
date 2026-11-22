@@ -230,10 +230,12 @@ func Cached(fs ops.FS, stamp string, ttl, now int64) (left int64, ok bool) {
 
 // skillDrift: Check 4b, a workspace skill (in either skill tree; the
 // daisy skill init generates for Codex aside) with no source in the root
-// or the home (the next init sweeps it); 4c, a copy of a root skill an
-// earlier `daisy install` left in ~/.claude/skills (skill.RootCopies:
-// never a user's own skill, an edited one or Claude Code's synced), which
-// install --update removes. Warnings.
+// or the home (the next init sweeps it when init's stub claims it; one
+// without is the workspace's own, to remove by hand); 4c, a copy of a root
+// skill an earlier `daisy install` left in ~/.claude/skills
+// (skill.RootCopies: never a user's own skill, an edited one or Claude
+// Code's synced, nor anything when the directory leads into the root),
+// which install --update removes. Warnings.
 func (r *run) skillDrift() {
 	if r.e.Workspace != "" {
 		known := skill.Discover(r.fs, filepath.Join(r.root, "skills"))

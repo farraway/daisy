@@ -24,9 +24,13 @@ import (
 // holding anything else (a user's edit, a file of their own) is kept, its
 // owner's to remove. A skill of another name, ClaudeCodeSynced, a hidden
 // name and a link are neither. A root that is not a repository has its
-// working tree alone.
+// working tree alone. A dir that leads into the root (IntoRoot) holds
+// neither: what is there is the root's own.
 func RootCopies(o ops.Ops, root, dir string) (copies, kept []string) {
 	fs := o.FS()
+	if _, in := IntoRoot(fs, root, dir); in {
+		return nil, nil
+	}
 	v := rootVersions(o, root)
 	entries, _ := fs.ReadDir(dir)
 	for _, e := range entries {
@@ -46,6 +50,22 @@ func RootCopies(o ops.Ops, root, dir string) (copies, kept []string) {
 	sort.Strings(copies)
 	sort.Strings(kept)
 	return copies, kept
+}
+
+// IntoRoot is dir with its links resolved, and whether that is the root or
+// lies inside it: ~/.claude/skills linked to the root's skills/ holds the
+// root's own skills, each byte for byte a version of itself, never copies
+// an install left there.
+func IntoRoot(fs ops.FS, root, dir string) (real string, in bool) {
+	real, err := fs.EvalSymlinks(dir)
+	if err != nil {
+		return "", false
+	}
+	r, err := fs.EvalSymlinks(root)
+	if err != nil {
+		return real, false
+	}
+	return real, real == r || strings.HasPrefix(real, r+"/")
 }
 
 // versions are the root's skills as they are and have been: the names of

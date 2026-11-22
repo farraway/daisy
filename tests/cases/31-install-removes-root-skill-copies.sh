@@ -37,7 +37,7 @@ before=$(snapshot)
 PATH="$FIXTURE_ROOT/bin:$PATH" fixture_run_cli install --update
 assert_eq "$RUN_EXIT" "0" "daisy install --update exits 0"
 assert_contains "$RUN_STDOUT" "Removed 1 copy of a root skill from ~/.claude/skills (testing)" "names the copy it removed"
-assert_contains "$RUN_STDOUT" "Kept ~/.claude/skills/git: named as a root skill but holding a file" "names the edited one it kept"
+assert_contains "$RUN_STDOUT" "Kept ~/.claude/skills/git: named as a root skill but not a copy of any version of it" "names the edited one it kept"
 
 [ -e "$skills/testing" ] && left=yes || left=no
 assert_eq "$left" "no" "the older root's copy is gone"

@@ -337,7 +337,9 @@ func TestInitAndCleanSayCursorSkillsReadClaude(t *testing.T) {
 // installed: init warns, writes none of its copies, stub or ignore lines,
 // and clean leaves the workspace's own as it was. A root skill init did
 // install is refreshed, and a home skill's name is still the home's
-// choice (TestStubIsTheRecordOfInstalledSkills).
+// choice (TestStubIsTheRecordOfInstalledSkills). A root skill named as a
+// core rule is refused, though the core rule init wrote stands at its
+// stub's path.
 func TestInitKeepsAWorkspacesOwnSkillOfARootName(t *testing.T) {
 	m := initMachine(t)
 	writeFile(t, filepath.Join(m.root, "skills", "css", "SKILL.md"), "---\nname: css\ndescription: the root's\n---\n")
@@ -358,6 +360,12 @@ func TestInitKeepsAWorkspacesOwnSkillOfARootName(t *testing.T) {
 			}
 		}
 	}
+	core := filepath.Join(m.root, "skills", "daisy-plan")
+	writeFile(t, filepath.Join(core, "SKILL.md"), "---\nname: daisy-plan\n---\n")
+	if code, _, errs := m.pinned(t, ws, "init", "testhome"); code != 1 || !strings.Contains(errs, "Error: the skill "+core+" cannot be installed under the name \"daisy-plan\"") {
+		t.Errorf("a root skill named as a core rule: exit %d stderr %q", code, errs)
+	}
+	os.RemoveAll(core)
 	if b, _ := os.ReadFile(filepath.Join(ws, ".claude", "skills", "rootskill", "SKILL.md")); string(b) != "the project's own\n" {
 		t.Errorf("the workspace's skill became %q", b)
 	}
@@ -547,6 +555,8 @@ func TestInstallRemovesOnlyRootSkillCopies(t *testing.T) {
 	gitIn(t, m.root, "-c", "user.name=R", "-c", "user.email=r@x", "commit", "-q", "-am", "two")
 	writeFile(t, filepath.Join(skills, "s", "SKILL.md"), "---\nname: s\n---\nv1\n") // the older root's copy
 	writeFile(t, filepath.Join(skills, "e", "SKILL.md"), "---\nname: e\n---\nmy edit\n")
+	writeFile(t, filepath.Join(skills, "n", "notes.md"), "no SKILL.md here\n") // named as the root's n
+	writeFile(t, filepath.Join(m.root, "skills", "n", "SKILL.md"), "---\nname: n\n---\n")
 	writeFile(t, filepath.Join(skills, "mine", "SKILL.md"), "mine\n")
 	writeFile(t, filepath.Join(skills, "synced", "abc", "SKILL.md"), "Claude Code's\n")
 	userOnly := "{\n  \"model\": \"x\",\n  \"permissions\": {\"allow\": [\"Bash(ls:*)\"]}\n}\n"
@@ -557,8 +567,13 @@ func TestInstallRemovesOnlyRootSkillCopies(t *testing.T) {
 	before := tree(t, filepath.Join(home, ".claude"))
 
 	code, out, errs := m.pinned(t, m.ws, "install", "--update")
-	if code != 0 || !strings.Contains(out, "Removed 1 copy of a root skill") || !strings.Contains(out, "skills/e") {
+	if code != 0 || !strings.Contains(out, "Removed 1 copy of a root skill") {
 		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	for _, n := range []string{"e", "n"} {
+		if want := "  · Kept ~/.claude/skills/" + n + ": named as a root skill but not a copy of any version of it (an edit, a file of your own, or no SKILL.md); remove it by hand if it is Daisy's\n"; !strings.Contains(out, want) {
+			t.Errorf("no line %q in %q", want, out)
+		}
 	}
 	after := tree(t, filepath.Join(home, ".claude"))
 	for k := range before {
@@ -593,6 +608,50 @@ func TestInstallRemovesOnlyRootSkillCopies(t *testing.T) {
 	m.pinned(t, m.ws, "install", "--update")
 	if _, err := os.Lstat(settingsPath); err == nil {
 		t.Error("a settings file holding only Daisy's rules was kept")
+	}
+}
+
+// ~/.claude/skills a link into the root's own skills/: what it holds is the
+// root's skills themselves, each a byte-for-byte "copy" of itself, so
+// install --update sweeps nothing there and says why, and Check 4c, which
+// sends the user to install --update, warns of none.
+func TestInstallUpdateKeepsTheRootsSkillsThroughALink(t *testing.T) {
+	m := newMachine(t)
+	home := m.vars["HOME"]
+	writeFile(t, filepath.Join(m.root, "skills", "s", "SKILL.md"), "---\nname: s\n---\n")
+	os.MkdirAll(filepath.Join(home, ".claude"), 0o755)
+	if err := os.Symlink(filepath.Join(m.root, "skills"), filepath.Join(home, ".claude", "skills")); err != nil {
+		t.Fatal(err)
+	}
+	before := tree(t, filepath.Join(m.root, "skills"))
+	code, out, errs := m.pinned(t, m.ws, "install", "--update")
+	if code != 0 {
+		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	if d := diffTrees(before, tree(t, filepath.Join(m.root, "skills"))); len(d) > 0 {
+		t.Errorf("the root's skills changed:\n%s", strings.Join(d, "\n"))
+	}
+	if want := "  · Left ~/.claude/skills as it is: it leads into the root (" + filepath.Join(m.root, "skills") + "), so it holds the root's own skills, not copies an install left\n"; !strings.Contains(out, want) || strings.Contains(out, "Removed") {
+		t.Errorf("stdout %q, want the line %q", out, want)
+	}
+}
+
+// install's Next: line names the first registered home whose directory
+// exists; with none that exists, the home new line, as with none
+// registered.
+func TestInstallNextSkipsAMissingHome(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "gone")
+	for _, tc := range []struct{ registry, want string }{
+		{"gone=" + gone + "\ntesthome=<home>\n", "Next: daisy init testhome (in the folder you work in)"},
+		{"gone=" + gone + "\n", "Next: daisy home new <name> (or 'daisy home add <name> <path>' for a home you already have)"},
+	} {
+		m := newMachine(t)
+		m.vars["SHELL"] = "/bin/zsh"
+		writeFile(t, filepath.Join(m.config, "homes"), strings.ReplaceAll(tc.registry, "<home>", m.home))
+		code, out, errs := m.pinned(t, m.ws, "install")
+		if code != 0 || !strings.HasSuffix(out, "\n\n"+tc.want+"\n") {
+			t.Errorf("registry %q: exit %d, want the output to end with %q:\n%s%s", tc.registry, code, tc.want, out, errs)
+		}
 	}
 }
 

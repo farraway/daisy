@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	iofs "io/fs"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -239,6 +241,17 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 	// and says so; a home skill's name is the home's choice.
 	homeSkills := skill.Discover(fs, filepath.Join(p.home, "skills"))
 	p.skills = skill.Discover(fs, filepath.Join(p.m.Root, "skills"))
+	// A skill's stub sits beside the core rules and its name is a line of
+	// .gitignore: it can be neither a core rule nor two lines. Refused
+	// before the workspace's own names are set aside, since the core rule
+	// init wrote stands at such a skill's stub path.
+	for _, set := range []map[string]string{p.skills, homeSkills} {
+		for n, dir := range set {
+			if isCoreRule(n+".mdc") || strings.ContainsAny(n, "\r\n") {
+				return fmt.Errorf("Error: the skill %s cannot be installed under the name %q (a core Cursor rule's name, or not one line); rename its directory", dir, n)
+			}
+		}
+	}
 	installed := map[string]bool{}
 	for _, n := range stubs(fs, p.target) {
 		installed[n] = true
@@ -258,12 +271,7 @@ func (p *initPlan) planFiles(o ops.Ops) error {
 	for n, dir := range homeSkills {
 		p.skills[n] = dir
 	}
-	for n, dir := range p.skills {
-		// A skill's stub sits beside the core rules and its name is a line
-		// of .gitignore: it can be neither a core rule nor two lines.
-		if isCoreRule(n+".mdc") || strings.ContainsAny(n, "\r\n") {
-			return fmt.Errorf("Error: the skill %s cannot be installed under the name %q (a core Cursor rule's name, or not one line); rename its directory", dir, n)
-		}
+	for _, dir := range p.skills {
 		if _, err := fs.ReadFile(filepath.Join(dir, "SKILL.md")); err != nil {
 			return fmt.Errorf("Error: cannot read %s: %v", filepath.Join(dir, "SKILL.md"), err)
 		}
@@ -589,7 +597,7 @@ func (p *initPlan) bind(o ops.Ops, out, warn io.Writer) (err error) {
 		}
 		var b strings.Builder
 		b.WriteString(err.Error())
-		b.WriteString("\nError: init did not finish; the binding and git identity are as they were before this run's final step")
+		b.WriteString("\nError: init did not finish; the binding and git identity are as they were before this run's final step, and the Cursor rules, the Claude command, the skills, .claude/settings.local.json and the ignore lines it wrote before that step stay as written")
 		if aside != "" && isDir(fs, aside) {
 			if exists(fs, p.daisyDir) {
 				fs.RemoveAll(p.daisyDir)
@@ -598,9 +606,13 @@ func (p *initPlan) bind(o ops.Ops, out, warn io.Writer) (err error) {
 				fmt.Fprintf(&b, "\n  the previous .daisy/ is at %s and could not be moved back", aside)
 			}
 		}
+		// A failed restore may have nothing to put back (a failed unset
+		// changes nothing): the keys, read again, say whether it did.
 		if touched {
 			if e := identity.Restore(o, p.target, snapshot); e != nil {
-				b.WriteString("\n  the previous git identity could not be put back; see 'daisy status'")
+				if now, e := identity.Snapshot(o, p.target); e != nil || !maps.EqualFunc(now, snapshot, slices.Equal) {
+					b.WriteString("\n  the previous git identity could not be put back; see 'daisy status'")
+				}
 			}
 		}
 		if stage != "" {

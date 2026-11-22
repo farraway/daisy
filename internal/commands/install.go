@@ -130,8 +130,10 @@ func Install(c *Context) error {
 		return nil
 	}
 	fmt.Fprintf(c.Stdout, "\nDone. To activate, run:\n  source %s\n", rc)
+	// The first registered home that can be one (its directory exists):
+	// init names no other.
 	m := env.Env{Config: env.ConfigDir(c.Ops)}
-	if homes := env.Homes(fs, m.HomesFile()); len(homes) == 0 {
+	if homes, _ := env.UsableHomes(fs, root, m.HomesFile()); len(homes) == 0 {
 		printNext(c, "daisy home new <name> (or 'daisy home add <name> <path>' for a home you already have)")
 	} else {
 		printNext(c, "daisy init "+homes[0].Name+" (in the folder you work in)")
@@ -168,8 +170,12 @@ func installRoot(o ops.Ops) (string, error) {
 
 // removeSkillCopies removes the copies of the root's skills earlier
 // installs left in dir and says which directories named as a root skill it
-// keeps, and why.
+// keeps, and why; a dir leading into the root it leaves whole, and says so.
 func removeSkillCopies(c *Context, root, dir string) error {
+	if real, in := skill.IntoRoot(c.Ops.FS(), root, dir); in {
+		fmt.Fprintf(c.Stdout, "  · Left ~/.claude/skills as it is: it leads into the root (%s), so it holds the root's own skills, not copies an install left\n", real)
+		return nil
+	}
 	copies, kept := skill.RootCopies(c.Ops, root, dir)
 	for _, n := range copies {
 		if err := c.Ops.FS().RemoveAll(filepath.Join(dir, n)); err != nil {
@@ -180,7 +186,7 @@ func removeSkillCopies(c *Context, root, dir string) error {
 		fmt.Fprintf(c.Stdout, "  ✓ Removed %s from ~/.claude/skills (%s); Daisy installs skills in each workspace now: run 'daisy init' there\n", plural(len(copies), "copy of a root skill", "copies of root skills"), strings.Join(copies, ", "))
 	}
 	for _, n := range kept {
-		fmt.Fprintf(c.Stdout, "  · Kept ~/.claude/skills/%s: named as a root skill but holding a file no version of it has (an edit, or a file of your own); remove it by hand if it is Daisy's\n", n)
+		fmt.Fprintf(c.Stdout, "  · Kept ~/.claude/skills/%s: named as a root skill but not a copy of any version of it (an edit, a file of your own, or no SKILL.md); remove it by hand if it is Daisy's\n", n)
 	}
 	return nil
 }
