@@ -1715,7 +1715,7 @@ nothing: their trigger is the maintainer's decision.
 
 *R2, specified ahead of its build* (12.1, rule 3): one transition is added, **T32**, `swarm:review-2-approved` to `swarm:review-3-changes-requested`, its row joining this table, and the explorer's, when it is built: the merge check of the approved head, the repository's check on the commit that merges it into `base` as it is now, fails, after 7.9's one rerun of a classified failure; Daisy's merge queue, under either gate, posts `Comment(m, <reconciler note naming the log>)` and relabels the issue; the worker merges `base`, fixes what fails, and the pair reviews the new head as any revision (T12, then T9 or T10); no block, each round counted towards the round limit (T11). A conflict the queue's merge finds is T25, sent back before the check, whichever the merge gate. A merge check that fails in the environment after its rerun is T17 from `swarm:review-2-approved`, which T17's row does not list as a from-stage until the build: the issue blocked, the stage kept, the note naming the reason, nothing posted on the pull request.
 
-*R6, specified ahead of its build* (7.11, rules 6 and 8): no transition is added or changed until the maintainer rules on the round limit's outcome (rule 8; decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md) gives the options), so T11 reads as above. A swarm pull request the forge reports merged, which T15, T13 and a merge by hand all lead to, has its non-blocking review findings filed as a follow-up issue as the issue's pull requests are listed (The pull requests on the issue, below), before the block's write that shows it merged.
+*R6, specified ahead of its build* (7.11, rules 6 and 8): no transition is added or changed until the maintainer rules on the round limit's outcome (rule 8; decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md) gives the options), so T11 reads as above. A swarm pull request the forge reports merged, which T13, T14, T15 and a merge on the forge all lead to, has its non-blocking review findings filed as a follow-up issue as the issue's pull requests are listed (The pull requests on the issue, below), before the block's write that shows it merged.
 
 The maintainer may also relabel any issue to any stage at any time; the
 next pass reads the new label and the role rule decides from there. That
@@ -3798,7 +3798,11 @@ or trailing spaces.
 *R6, specified ahead of its build* (7.11, rules 6 and 7): before the
 batch run's first `## ` line, lines matching `^Triaged: #([0-9]+): (.+)$`
 are the owner's triage of follow-up issues, acted on at the collection
-(7.6), beside the `Met:` lines; a proposal's line `Follow-up: #<f> <i>,
+(7.6), beside the `Met:` lines, which they join wherever this section
+reads past them: the `BLOCKED:` row's "its first line after any `Met:`
+lines" and the stop's cause's "neither blank nor a `Met:` line" read
+`Met:` or `Triaged:`, so a batch run that triages and proposes nothing
+still ends with its `BLOCKED:` line; a proposal's line `Follow-up: #<f> <i>,
 <j>` after its `Class:` line and a body's line `Defect in: <name>#<m>`
 are posted as written, as the `Brief:` and `Class:` lines are, and read
 by the scorecard alone (section 11).
@@ -4422,7 +4426,8 @@ continuations not yet posted there.
 | any run that ends without moving the issue on (a swarm fault, abandoned, stale, discarded with its pull request closed) | T22: `Relabel(n, <in-progress>, <home>)`, `<home>` `swarm:review-0-ready` for a reviewer and the run's label for a worker; nothing for the owner and the architect, whose launch writes no stage |
 
 *R6, specified ahead of its build* (7.11, rule 6): the owner's batch
-collection, after its `CreateIssue` calls, acts on each `Triaged:
+collection, after its `CreateIssue` calls (a `BLOCKED:` run's included,
+which makes none), acts on each `Triaged:
 #<f>: <why>` line (7.5) that names an open issue carrying
 `swarm:follow-up`: `Comment(f, <reconciler note: the owner's reason and
 the proposals of this batch whose body names #f on a Follow-up: line>)`
@@ -6384,9 +6389,13 @@ requests on the issue), for each swarm pull request the forge reports
 merged whose item the issue's block does not yet show `merged`, before
 the block's write that shows it, so a pass whose filing fails files it
 at the next, and a pull request the block showed merged before the
-build files nothing. A merge whose issue is closed by hand on the forge
-before any listing shows it files none either: no listing reads a
-closed issue but the merge step's own.
+build files nothing. A merge whose issue is closed
+before any listing shows it files none either: no pass's listing reads
+a closed issue, and the listing `swarm merge` makes of the issue it
+closes (section 11) runs under the maintainer's token alone, which
+Daisy's filing does not use, so only the merge step, whose reads are
+Daisy's own, files for an issue it closes (T15); a merge by `swarm
+merge` that leaves the issue open (T13) is filed by the next pass.
 *By whom:* Daisy, as the reconciler, with no member's run: the findings
 are read from the pull request's reviews by the swarm's account
 (`Reviews(m)`, each a marked text, section 6), every round's, the
@@ -6434,8 +6443,9 @@ line naming the issue and the items it fixes; findings of one cause are
 one job. When no item of a follow-up is left to propose (each proposed,
 fixed already, met only where the repository notes trust, in a setup
 the slice does not support, or not worth a job), write a line "Triaged:
-#<f>: <why>" before the first "## " line, beside any "Met:" lines: Daisy
-closes the issue with your reason.` At the batch's collection (7.6),
+#<f>: <why>" among the "Met:" lines, before the first "## " line or your
+"BLOCKED:" line: those lines alone may come before it. Daisy closes the
+issue with your reason.` At the batch's collection (7.6),
 for each `Triaged: #<f>: <why>` line naming an open follow-up issue,
 Daisy posts `Comment(f, <the reconciler's note: the owner's reason and
 the proposals of the batch that name #f>)` and `CloseIssue(f)`, the flag
@@ -6470,8 +6480,8 @@ By configuration, an adversary's or a sympathetic reviewer's line adds
 approval of the merged head stood, a follow-up item against the run that
 raised it. A slice's escapes are counted whenever they were made, up to
 `--until`, so a later window reads more of them than an earlier one did.
-The reads are those the scorecard makes now, with `Issues` of
-`forge.repo`, open and closed, beside `Issue(n)`, and each mirror's
+The reads are those the scorecard makes now, with `Issues(<state>, "")`
+(section 10) of `forge.repo`, open and closed, beside `Issue(n)`, and each mirror's
 first-parent log of `base` for the hand commits. What no line names is
 not established: a defect fixed by a job that does not say so, or
 reverted by hand in a commit that is not a revert.
@@ -7115,7 +7125,12 @@ only issues that carry the label (Gitea drops a `labels` filter naming no
 label it has and answers every issue; whether the filter resolves an
 organization label's name is *not established as of 2026-11-13*: Step
 1's smoke saw it answer `200`, not that it filters), and is sorted by
-number. `Pulls` reads every pull request, open and closed, of
+number. *R6, specified ahead of its build* (7.11, rule 7): `Issues(state,
+"")`, an empty label, lists every issue in the state, the label query
+left out and no filter kept, which the scorecard's read of an issue with
+no swarm label (the maintainer's own, carrying `Defect in:`) needs; both
+adapters and the fake take it at the build, and a call with a label reads
+as above. `Pulls` reads every pull request, open and closed, of
 each declared repository, one list per repository, and returns those
 opened (`user.login`) by one of `openers`, in any case (the callers pass
 `trusted`'s logins and the swarm's own: a maintainer's pull request
@@ -8457,7 +8472,7 @@ summary adds their totals and the blocking findings counted by the kind
 each names; By configuration, an adversary's or a sympathetic
 reviewer's line adds the merged heads it approved and their escapes,
 and the follow-up items it raised and those proved real. It reads
-`Issues` of `forge.repo`, open and closed, and each mirror's
+`Issues(<state>, "")` of `forge.repo`, open and closed (section 10), and each mirror's
 first-parent log of `base` beside what it reads now, and writes
 nothing. `init` and `apply` ensure eighteen labels, `swarm:follow-up`
 among them (section 5).
@@ -9053,8 +9068,10 @@ the current Daisy's.
   step or a pass's listing (section 5, The pull requests on the issue)
   finds a swarm pull request merged whose item the issue's pulls block
   does not yet show `merged`, it files the follow-up first: the non-blocking findings of the pull
-  request's reviews, each once, `CreateIssue` with `swarm:follow-up`.
-  The merge itself, its checks and its gates are unchanged.
+  request's reviews, each once, `CreateIssue` with `swarm:follow-up`;
+  `swarm merge`, which holds only the maintainer's token, files none
+  (7.11, Follow-ups). The merge itself, its checks and its gates are
+  unchanged.
 - **Two approvals are not evidence that the change is maintainable**: both
   reviewers are models, and the maintainer's reading at merge is the review
   that certifies it (with the merge gate off, no one's is, and a

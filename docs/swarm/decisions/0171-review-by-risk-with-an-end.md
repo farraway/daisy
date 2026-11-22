@@ -232,7 +232,10 @@ spends a run's tokens on it; and the maintainer closing each follow-up
 (`Met:`'s way), which keeps him in a loop the direction aims to take him
 out of. The trigger is the issue's pulls block not yet showing the pull
 request merged, so the build files nothing for pull requests merged
-before it. The eighteenth label is created, as the sixteenth was, by an
+before it. A pull request merged by `swarm merge`, which holds only the
+maintainer's token, files nothing itself: a slice with another after it
+is filed by the next pass, and the last slice's, whose issue the verb
+closes, or an issue closed by hand, files nothing (open question 4). The eighteenth label is created, as the sixteenth was, by an
 owner of the organization where the swarm's account cannot.
 
 **The balance** (rule 7). Cost is recorded already: runs, tokens,
@@ -243,7 +246,9 @@ the swarm and the maintainer already write: a revert, as `status`
 reads one (decision 141); a bug filed against the slice, an issue whose
 body holds `Defect in: <name>#<m>`, which the owner's and the QA's batch
 texts ask for when they find a failure's cause in a merged pull
-request's change, and the maintainer writes in his own; and a fix
+request's change, and the maintainer writes in his own, which carries no swarm label, so the
+scorecard's `Issues` takes an empty label as every issue of the state (a seam
+change, section 10); and a fix
 pushed forward by hand, a commit on `base` that is no swarm merge and
 whose message holds the same line. The fourth figure is the follow-up
 items a merged job names on its `Follow-up:` line: a non-blocking
@@ -329,7 +334,10 @@ job's `plan.md`, and (d) the plan lint are R5's own design.
 the sympathetic reviewer reading and running nothing: recommended yes,
 as the live swarm runs them. 3. The default trust boundaries, stated
 where a repository's notes declare none: recommended as written, the
-maintainer's own terms.
+maintainer's own terms. 4. The follow-up of a last slice merged by `swarm
+merge`, or of an issue closed by hand, which nobody files: the verb filing
+it under the maintainer's token (the issue then his) is the option
+recommended; the pass listing closed issues for it is the other.
 
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
