@@ -5052,7 +5052,10 @@ and CI's (at the head CI checks, from its checkout). Four facts fix how:
   A runner's `force_pull` governs the images the runner itself starts,
   a job's `container:`, its `services` and a Docker action, each pulled
   by name before the job's steps, a failed pull failing the job (act's
-  pull, read in its source; the Gitea fork's is *to confirm live*); a
+  pull, read in its source; on the Gitea fork, with `force_pull` on, a
+  step's build from a base only the host holds succeeded, confirmed by
+  the reference form's first run, Step L-E of the plan implementing the
+  2026-11-19 swarm roadmap); a
   step's `docker build` is the docker CLI's own call to the daemon,
   which `force_pull` does not touch. A local-only tag as `container:`
   would be pulled and fail, and a tag a step builds does not exist yet
@@ -5105,8 +5108,9 @@ tags leaves the layers in the cache. `--network container:"$HOSTNAME"`
 puts the check in the job container's network, where the job's
 services answer by their names as they do to the job's own steps;
 `$HOSTNAME` is the job container's id because the runner names no
-hostname (act's, read in its source; the Gitea fork's is *to confirm
-live*). The check's targets run in one container, as Daisy's check
+hostname (act's, read in its source; on the Gitea fork, a job
+container's `$HOSTNAME` is its short id and the check reached the job's
+services through it, confirmed at Step L-E). The check's targets run in one container, as Daisy's check
 runs them. Unlike Daisy's check, CI's is on the job's network, not an
 internal one, and fetches the head's modules itself, so the dependency
 step is not compared.

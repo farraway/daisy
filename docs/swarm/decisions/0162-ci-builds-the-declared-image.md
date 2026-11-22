@@ -28,7 +28,9 @@ swarm's host, its jobs given the host's Docker socket, so a job's
   the runner itself starts, a job's `container:`, its `services` and a
   Docker action, before the job's steps, and a failed pull fails the
   job (read in act's source, its Docker pull executor; the Gitea
-  fork's, *to confirm live*); a step's `docker build` is the docker
+  fork's, confirmed at Step L-E of the plan implementing the
+  2026-11-19 swarm roadmap: with `force_pull` on, a step's build from a
+  base only the host holds succeeded); a step's `docker build` is the docker
   CLI's own call to the daemon, which `force_pull` does not reach. A
   local-only tag named as `container:` would be pulled and fail, and a
   tag a step builds does not exist when the job's container is made.
@@ -51,7 +53,8 @@ swarm's host, its jobs given the host's Docker socket, so a job's
   joins the job container's network (`--network container:$HOSTNAME`),
   where the job's `services` answer by their names. That `$HOSTNAME` is
   the job container's id holds because the runner sets no hostname
-  (act's source; *to confirm live*). Running the services in steps
+  (act's source; confirmed at Step L-E: the job container's
+  `$HOSTNAME` is its short id, and the check reached the services). Running the services in steps
   with `docker run`, on a network the step makes, as Daisy's check
   does, was the alternative: it depends on no runner's internals, but
   the comparison would then have to read `docker run`'s every option
