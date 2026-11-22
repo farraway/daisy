@@ -5728,7 +5728,10 @@ line names it, `<model>` its `persona` line's, `<time>` the reset its
 message states (`Reset`, section 9) or `resume` when it states none,
 replacing any line for the same credential and model. A run's
 collection reads its stdout with the adapter of its own `persona` line,
-never of the role's persona as `swarm.json` now has it. At a launch the
+never of the role's persona as `swarm.json` now has it (built at Step
+R4-A of the plan implementing the 2026-11-19 swarm roadmap; a run
+without the line, launched by an older Daisy, by its argv's, as its
+metrics row is read). At a launch the
 role's entries are taken in order, the first launching that has a
 credential: an `env` credential when no line names it with the entry's
 model and its pacing allows it (rule 4); a slot, the first of the

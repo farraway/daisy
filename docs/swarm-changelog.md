@@ -1218,3 +1218,8 @@ they write.
   `init`. An entry's `slots` waits for R4-C. Section 3 (the field, the
   error table). Decision [170](swarm/decisions/0170-capacity.md)
   amended.
+- 2026-11-21, Step R4-A of the plan implementing the 2026-11-19 swarm
+  roadmap (R4; the fallback): a collected run's output read with the
+  adapter of its own `persona` line, not the role's persona as
+  `swarm.json` has it at the collection. Section 7.10 (The fallback).
+  Decision [170](swarm/decisions/0170-capacity.md) amended.

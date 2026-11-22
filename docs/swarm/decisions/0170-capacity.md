@@ -84,8 +84,9 @@ balance fails as the first did.
 **The collection reads the run as it was launched.** A run's stdout is
 read with the adapter of its own `persona` line: the role's persona in
 `swarm.json` may be another by the time the run is collected, the
-moment a fallback or a hand edit makes it so (as built, the collection
-read the current one).
+moment a fallback or a hand edit makes it so (built at Step R4-A of
+the plan implementing the 2026-11-19 swarm roadmap; before it, the
+collection read the current one).
 
 **The note is the issue's, not a stage's.** A run on an issue
 launched on another entry than the role's previous run there gets one
@@ -169,3 +170,12 @@ line, each entry as one object; `init` asks nothing of it and keeps the
 file's, whatever its answers for the persona. Tests:
 `TestValidateNamesTheField`, `TestFormatFallback`,
 `TestWizardKeepsFallback`.
+
+**As built: the collection reads the launched persona (Step R4-A of the
+plan implementing the 2026-11-19 swarm roadmap).** The adapter that
+reads a collected run's stdout, its usage, cost and provider fault, is
+its record's `persona` line's; a run without the line, launched before
+Step 16b of the plan that clears the Deferred list or refused before its
+credential, is read by the provider its argv names, and failing that
+by `swarm.json`'s, the order its metrics row already took, now one
+function for both. Test: `TestSwarmCollectsWithTheLaunchedPersona`.

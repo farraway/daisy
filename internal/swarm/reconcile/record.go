@@ -62,19 +62,8 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 	s := c.s
 	r := s.runKey(c.r)
 	r.When, r.Outcome = now.Format(time.RFC3339), outcome
-	// The persona the launch recorded; a run without the line (launched
-	// by an older Daisy, or refused before its credential) the one its
-	// argv launched, else the one swarm.json declares now.
-	p := s.Cfg.Personas[c.r.Role]
-	r.Provider, r.Model, r.Effort = p.Provider, p.Model, p.Effort
-	persona, since16b := Has(c.lines, "persona")
-	if f := strings.Fields(persona); len(f) == 4 {
-		r.Provider, r.Model, r.Effort = f[1], f[2], f[3]
-	} else if argv, err := s.O.FS().ReadFile(filepath.Join(c.r.Dir, "argv")); err == nil {
-		if name, model, effort, ok := provider.Persona(strings.Split(string(argv), "\n")); ok {
-			r.Provider, r.Model, r.Effort = name, model, effort
-		}
-	}
+	r.Provider, r.Model, r.Effort = s.launched(c.r, c.lines)
+	_, since16b := Has(c.lines, "persona")
 	if l, ok := Has(c.lines, "round"); ok {
 		r.ReviewRounds = strings.TrimPrefix(l, "round ")
 	}
@@ -124,6 +113,27 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 		r.Notes += ", lines not counted"
 	}
 	return r, turns
+}
+
+// launched is the provider, model and effort run r was launched with,
+// its result's lines being lines: the persona line the launch recorded; a
+// run without it (launched by an older Daisy, or refused before its
+// credential) the one its argv launched, else the one swarm.json
+// declares now. The collection reads the run's output with this
+// provider's adapter, never the role's as swarm.json has it by then
+// (section 7.10, The fallback).
+func (s *Swarm) launched(r Run, lines []string) (prov, model, effort string) {
+	persona, _ := Has(lines, "persona")
+	if f := strings.Fields(persona); len(f) == 4 {
+		return f[1], f[2], f[3]
+	}
+	if argv, err := s.O.FS().ReadFile(filepath.Join(r.Dir, "argv")); err == nil {
+		if name, model, effort, ok := provider.Persona(strings.Split(string(argv), "\n")); ok {
+			return name, model, effort
+		}
+	}
+	p := s.Cfg.Personas[r.Role]
+	return p.Provider, p.Model, p.Effort
 }
 
 // configHash is the sha256 of the run's configuration as its system.md

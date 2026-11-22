@@ -486,7 +486,14 @@ func (s *Swarm) settle(r Run) error {
 	if exit.TimedOut {
 		lines = []string{"timeout " + now}
 	}
-	rep := provider.Providers[s.Cfg.Personas[r.Role].Provider].Adapter.Report(exit.Stdout)
+	result, err := r.Result(fs)
+	if err != nil {
+		return err
+	}
+	var rep provider.Report
+	if prov, _, _ := s.launched(r, result); provider.Providers[prov].Adapter != nil {
+		rep = provider.Providers[prov].Adapter.Report(exit.Stdout) // the launched persona's, not swarm.json's now (section 7.10)
+	}
 	if rep.Known {
 		// A cost the CLI did not report is `-`, never 0 (section 3).
 		cost := "-"
