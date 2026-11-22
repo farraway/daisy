@@ -125,7 +125,8 @@ func (s *Swarm) notify() {
 
 // waiting is what waits for the maintainer after the pass's flags, as
 // notify tells it: a pause the swarm took on two faults (its
-// <state>/paused line, which `status` shows); each open issue carrying
+// <state>/paused line, which `status` shows); each line of
+// <state>/capacity, by the line (section 7.10); each open issue carrying
 // swarm:gated, by number, its item Waiting's and its key naming the
 // reconciler's note that put it there (waitNote), so a new block or a
 // new gating event is a new item; each notes branch `status` lists; each
@@ -136,6 +137,13 @@ func (s *Swarm) waiting() ([]waitItem, error) {
 	var out []waitItem
 	if l := s.paused(); strings.Contains(l, ": swarm fault: ") {
 		out = append(out, waitItem{l, repo + " waits for you: " + l})
+	}
+	capacity, err := ReadCapacity(s.O.FS(), s.state())
+	if err != nil {
+		return nil, err
+	}
+	for _, u := range capacity { // known by the line (section 7.10, The note)
+		out = append(out, waitItem{u.String(), fmt.Sprintf("%s capacity: %s %s unavailable until %s: %s", repo, u.Credential, u.Model, u.Until, u.Reason)})
 	}
 	gated, err := s.Forge.Issues(forge.Open, forge.Gated)
 	if err != nil {

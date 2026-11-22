@@ -395,7 +395,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	s.given[r.Dir] = secrets
 	s.watch(r.Dir, c, slot, "")
 	fmt.Fprintf(s.Out, "%slaunched\n", runHead(r))
-	return true, s.inProgress(j, r)
+	return true, errors.Join(s.capacityNote(j, r, capacity), s.inProgress(j, r))
 }
 
 // inProgress writes the in-progress stage of run r of j once its container

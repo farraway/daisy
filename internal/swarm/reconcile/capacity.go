@@ -12,6 +12,7 @@ import (
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/provider"
 	"daisy/internal/swarm/runner"
 )
@@ -226,4 +227,72 @@ func (s *Swarm) launchedEntry(r Run, lines []string) declare.Entry {
 		}
 	}
 	return entries[0]
+}
+
+// capacityMarker is the capacity note's first line (section 7.10, The
+// note): the reconciler's, naming no run, and no counted entry.
+const capacityMarker = "<!-- daisy-swarm role=reconciler kind=capacity -->"
+
+// capacityNote posts the capacity note on run r's issue when j launched
+// on another entry than the role's newest run there did, that run's
+// persona line read, the persona standing for it when the issue has no
+// such run (section 7.10, The note): on a fallback, `**reconciler:** the
+// <role> runs on <provider> <model> (<effort>) in place of the persona's,
+// and, after a colon, the lines of capacity that name an entry passed
+// over, `; ` between them; back on the persona, `… again.`. A batch run
+// has no issue, and gets none.
+func (s *Swarm) capacityNote(j *Job, r Run, capacity []Unavailable) error {
+	if j.N == 0 {
+		return nil
+	}
+	entries := s.Cfg.Personas[j.Role].Entries()
+	prev := entries[0]
+	runs, err := Runs(s.O.FS(), s.state())
+	if err != nil {
+		return err
+	}
+	newest := 0
+	for _, o := range runs {
+		if o.N != j.N || o.Role != j.Role || o.K >= j.K || o.K < newest {
+			continue
+		}
+		lines, err := o.Result(s.O.FS())
+		if err != nil {
+			return err
+		}
+		if l, ok := Has(lines, "persona"); ok {
+			if f := strings.Fields(l); len(f) == 4 {
+				prev, newest = declare.Entry{Provider: f[1], Model: f[2], Effort: f[3]}, o.K
+			}
+		}
+	}
+	on := j.RunsOn
+	if on.Provider == prev.Provider && on.Model == prev.Model && on.Effort == prev.Effort {
+		return nil
+	}
+	what := func(e declare.Entry) string { return fmt.Sprintf("%s %s (%s)", e.Provider, e.Model, e.Effort) }
+	text := fmt.Sprintf("**reconciler:** the %s runs on %s again.", j.Role, what(on))
+	if p := entries[0]; on.Provider != p.Provider || on.Model != p.Model || on.Effort != p.Effort {
+		var pairs []string
+		for _, e := range entries {
+			if e == on {
+				break
+			}
+			for _, u := range capacity {
+				if strings.HasPrefix(u.Credential, e.Provider+"/") && u.Model == e.Model {
+					pairs = append(pairs, u.String())
+				}
+			}
+		}
+		text = fmt.Sprintf("**reconciler:** the %s runs on %s in place of %s", j.Role, what(on), what(p))
+		if len(pairs) > 0 {
+			text += ": " + strings.Join(pairs, "; ")
+		}
+		text += "."
+	}
+	if err := s.Forge.Comment(forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: j.N}, capacityMarker+"\n"+text); err != nil {
+		return err
+	}
+	fmt.Fprintf(s.Out, "#%d capacity note posted\n", j.N)
+	return nil
 }

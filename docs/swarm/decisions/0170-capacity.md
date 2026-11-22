@@ -224,3 +224,22 @@ when none matches). `runner.TakeSlot` takes the slots it may take as a
 list, which rule 3 narrows. Tests: `TestSwarmFallbackOnACapacityFault`,
 `TestSwarmCapacityUntilTheReset`, `TestSwarmResumeClearsCapacity`,
 `TestSwarmRoleWaitsWithNoModelAvailable`.
+
+**As built: the note and notify (Step R4-A of the plan implementing the
+2026-11-19 swarm roadmap).** At a launch on an issue, once its
+container has started, the entry it launched on is compared with the
+`persona` line of the role's newest run there by number that has one;
+an issue with none is compared with the persona, so a first run on a
+fallback is noted and a first run on the persona is not. On a fallback
+the note names the persona in `in place of` (not the previous run's
+entry) and, after a colon, each line of `<state>/capacity` whose
+provider and model are an entry's passed over, `; ` between them; an
+entry passed over for a busy slot alone has no line, and with no line
+the note ends at the persona. Back on the persona it is `… again.` Its
+marker is a reconciler's kind, so no count, trigger or prompt reads
+it; `apply` prints `#<n> capacity note posted`. A batch run's change is
+not written: the journal's lines are a run's each, and that line
+belongs to no run (open, with the removal's line). Notify's item is
+each line of `<state>/capacity`, its key the line, told after a fault's
+pause. Tests: `TestSwarmCapacityNoteOnTheIssue`,
+`TestSwarmNotifiesCapacity`.

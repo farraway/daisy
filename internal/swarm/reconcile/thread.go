@@ -69,8 +69,8 @@ func Swarms(e Entry, swarmLogin string) (Mark, bool) {
 }
 
 // Marked is body's mark when its first line, without a trailing `\r`, is
-// the marker, or the gate note's, the auto note's, a continuation's or a
-// command's answer's, whoever wrote it; a run or a comment id past a
+// the marker, or the gate note's, the auto note's, a continuation's, a
+// capacity note's or a command's answer's, whoever wrote it; a run or a comment id past a
 // 64-bit integer is no marker's (section 6).
 func Marked(body string) (Mark, bool) {
 	first, _, _ := strings.Cut(body, "\n")
@@ -82,6 +82,8 @@ func Marked(body string) (Mark, bool) {
 		return Mark{Role: "reconciler", Kind: "auto"}, true
 	case continuedMarker:
 		return Mark{Role: "reconciler", Kind: "continued"}, true
+	case capacityMarker:
+		return Mark{Role: "reconciler", Kind: "capacity"}, true
 	}
 	if m := answerRe.FindStringSubmatch(first); m != nil {
 		if of, err := strconv.ParseInt(m[1], 10, 64); err == nil {
@@ -98,7 +100,7 @@ func Marked(body string) (Mark, bool) {
 }
 
 // counted is section 6's Trust: e is the swarm's, or its author is in
-// trusted, and it is no gate note, auto note or command's answer, which
+// trusted, and it is no gate note, auto note, capacity note or command's answer, which
 // are the maintainer's to read, no continuation, whose text its post's
 // run holds whole (section 7.5), no class statement (classComment), which
 // is Daisy's, and no command (IsCommand), which is the maintainer's to

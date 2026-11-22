@@ -1239,3 +1239,11 @@ they write.
   and the file by the bare `resume`; a fallback's commits carrying its
   `co_author`. Sections 2 (the tree), 7.7, 7.10 and 11 (pause and
   resume). Decision [170](swarm/decisions/0170-capacity.md) amended.
+- 2026-11-21, Step R4-A of the plan implementing the 2026-11-19 swarm
+  roadmap (R4; the fallback): the `kind=capacity` note on the issue when
+  a run launches on another entry than the role's newest run there, and
+  when it is back on the persona, no counted entry; notify telling each
+  line of `<state>/capacity` once. A batch run's journal line waits.
+  Sections 2 (`<state>/notified`), 5 (Notify), 6 (Trust), 7.10 and 11
+  (apply's stdout). Decision [170](swarm/decisions/0170-capacity.md)
+  amended.

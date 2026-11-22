@@ -210,3 +210,82 @@ func TestSwarmRoleWaitsWithNoModelAvailable(t *testing.T) {
 		t.Errorf("the worker beside it:\n%s", out)
 	}
 }
+
+// capacityNotes is issue n's capacity notes, in order.
+func (a *applyWS) capacityNotes(n int) []string {
+	var out []string
+	for _, b := range a.bodies(n) {
+		if text, ok := strings.CutPrefix(b, "<!-- daisy-swarm role=reconciler kind=capacity -->\n"); ok {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+// A run on an issue launched on another entry than the role's newest run
+// there gets one kind=capacity note, naming the pairs unavailable, and
+// one more when it is back on the persona (section 7.10, The note); a
+// run on the same entry as the one before it gets none. The note is no
+// counted entry: no prompt shows it.
+func TestSwarmCapacityNoteOnTheIssue(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.withFallback("architect", opusEntry)
+	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+	blocked := runner.Canned{Out: "BLOCKED: which repository?\n"}
+	a.runner.Script(1, "architect", claudeQuota, blocked, blocked, runner.Canned{Out: archPlan})
+	a.pass()
+	if notes := a.capacityNotes(1); len(notes) != 0 {
+		t.Fatalf("a note at the persona's own run: %q", notes)
+	}
+	a.pass()
+	in := "**reconciler:** the architect runs on anthropic claude-opus-5-5 (high) in place of anthropic claude-fable-5-1 (high): anthropic/env claude-fable-5-1 until resume: Claude AI usage limit reached."
+	if notes := a.capacityNotes(1); !reflect.DeepEqual(notes, []string{in}) || !strings.Contains(a.stdout.String(), "#1 capacity note posted\n") {
+		t.Fatalf("notes %q\n%s", notes, a.stdout.String())
+	}
+	// jane's answer wakes the architect, on opus still: no second note,
+	// and its prompt shows none.
+	a.tick()
+	a.say(issue1, "jane", "The app repository.")
+	a.pass()
+	if notes := a.capacityNotes(1); len(notes) != 1 || !strings.Contains(a.result("1-architect-3"), "\npersona anthropic claude-opus-5-5 high\n") {
+		t.Fatalf("notes %q\n%s", notes, a.stdout.String())
+	}
+	if p := a.file("1-architect-3", "io/prompt.md"); !strings.Contains(p, "The app repository.") || strings.Contains(p, "runs on anthropic") {
+		t.Errorf("the prompt:\n%s", p)
+	}
+	a.resume()
+	a.tick()
+	a.say(issue1, "jane", "The app repository, I said.")
+	a.pass()
+	again := "**reconciler:** the architect runs on anthropic claude-fable-5-1 (high) again."
+	if notes := a.capacityNotes(1); !reflect.DeepEqual(notes, []string{in, again}) || !strings.HasSuffix(a.result("1-architect-4"), "outcome posted\ncollected\n") {
+		t.Errorf("notes %q\n%s", notes, a.stdout.String())
+	}
+}
+
+// Notify tells each line of <state>/capacity once, known by the line
+// (section 5, Notify; section 7.10): told at the pass that wrote it, not
+// again while it holds, and dropped from <state>/notified once resume
+// removes it.
+func TestSwarmNotifiesCapacity(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	notified := a.notifying()
+	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", claudeQuota, runner.Canned{Out: archPlan})
+	a.pass()
+	want := []string{"acme/swarm-app capacity: anthropic/env claude-fable-5-1 unavailable until resume: Claude AI usage limit reached"}
+	if got := notified(); !reflect.DeepEqual(got, want) || !strings.Contains(a.stdout.String(), "\nNotified: "+want[0]+"\n") {
+		t.Fatalf("notified %q\n%s", got, a.stdout.String())
+	}
+	a.pass()
+	if got := notified(); !reflect.DeepEqual(got, want) {
+		t.Errorf("told again: %q", got)
+	}
+	a.resume()
+	a.pass()
+	if b, _ := os.ReadFile(a.state("notified")); strings.Contains(string(b), "capacity") || strings.Contains(string(b), "claude-fable-5-1") {
+		t.Errorf("the record keeps the line: %q", b)
+	}
+}
