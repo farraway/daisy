@@ -397,7 +397,8 @@ model's line (`Claude Opus 5.5 <noreply@anthropic.com>`), as in
 `daisy log --co-author "<line>" <message>`; without the flag,
 `DAISY_CO_AUTHOR` gives the value, and the flag wins when both are set. With either, each
 of these commits ends with one `Co-Authored-By: <value>` trailer, added
-by git's `--trailer`, so a message already ending with it gets no second;
+by git's `--trailer` under `trailer.ifexists=addIfDifferent`, pinned over
+the user's own setting, so a message already holding it gets no second;
 with neither, there is none (a person at the keyboard). A flag value that
 is not one line `Name <email>` is a usage error before anything is
 written: `Error: --co-author "<value>" is not one line 'Name <email>'`,

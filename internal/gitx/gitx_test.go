@@ -11,7 +11,8 @@ import (
 	"daisy/internal/ops"
 )
 
-// script answers git by verb and records every call.
+// script answers git by verb (the word after any leading -c <key=value>)
+// and records every call.
 type script struct {
 	calls   []string
 	status  string
@@ -24,6 +25,9 @@ func (s *script) exec(dir, name string, args ...string) ([]byte, []byte, error) 
 	s.calls = append(s.calls, name+" "+strings.Join(args, " "))
 	if name != "git" {
 		return nil, nil, errors.New("not git")
+	}
+	if args[0] == "-c" {
+		args = args[2:]
 	}
 	if args[0] == s.fail {
 		return nil, []byte("fatal: scripted failure"), errors.New("exit status 1")
@@ -60,13 +64,13 @@ func TestCommitIsOneCommit(t *testing.T) {
 	if err != nil || !committed || hash != "abc1234" {
 		t.Fatalf("hash %q committed %v err %v", hash, committed, err)
 	}
-	want := []string{"git status --porcelain --untracked-files=all -- .", "git add -- .", "git commit -m Log: 1423 - x", "git rev-parse --short HEAD"}
+	want := []string{"git status --porcelain --untracked-files=all -- .", "git add -- .", "git -c trailer.ifexists=addIfDifferent commit -m Log: 1423 - x", "git rev-parse --short HEAD"}
 	if strings.Join(s.calls, "|") != strings.Join(want, "|") {
 		t.Errorf("calls %q", s.calls)
 	}
 	commits := 0
 	for _, c := range s.calls {
-		if strings.HasPrefix(c, "git commit") {
+		if strings.HasPrefix(c, "git -c trailer.ifexists=addIfDifferent commit") {
 			commits++
 		}
 	}
@@ -175,7 +179,7 @@ func TestCommitExcludes(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec := "-- . :(exclude,literal)data/zebranest :(exclude,literal)a b"
-	want := []string{"git status --porcelain --untracked-files=all " + spec, "git add " + spec, "git commit -m m " + spec, "git rev-parse --short HEAD"}
+	want := []string{"git status --porcelain --untracked-files=all " + spec, "git add " + spec, "git -c trailer.ifexists=addIfDifferent commit -m m " + spec, "git rev-parse --short HEAD"}
 	if strings.Join(s.calls, "|") != strings.Join(want, "|") {
 		t.Errorf("calls %q", s.calls)
 	}

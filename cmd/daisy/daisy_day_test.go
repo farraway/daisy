@@ -5,11 +5,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"daisy/internal/cli"
+	"daisy/internal/commands"
 	"daisy/internal/env"
 	"daisy/internal/ops"
 )
@@ -153,12 +156,14 @@ func TestLogAppendsAndCommitsOnce(t *testing.T) {
 // Co-Authored-By trailer; unset (a person at the keyboard) there is none,
 // and a value not shaped `Name <email>` is warned about and left out, the
 // commit made all the same. A message already ending with the trailer
-// does not get a second.
+// does not get a second, whatever the user's trailer.ifexists says (here
+// `add`, which alone would add it again).
 func TestHomeCommitsCoAuthor(t *testing.T) {
 	const who = "Claude Opus 5.5 <noreply@anthropic.com>"
 	m := newMachine(t)
 	m.seed(t)
 	m.initHomeRepo(t)
+	m.git(t, "config", "trailer.ifexists", "add")
 	trailers := func() string {
 		return m.git(t, "log", "-1", "--format=%(trailers:key=Co-Authored-By,valueonly,separator=|)")
 	}
@@ -266,6 +271,113 @@ func TestCoAuthorFlag(t *testing.T) {
 	}
 	if _, out, _ = runWith(m.dayOps(m.ws, true), "tasks", "--help"); strings.Contains(out, "--co-author") {
 		t.Errorf("tasks --help: %q", out)
+	}
+}
+
+// Every command the table marks as committing, driven with --co-author,
+// ends the commit it makes with that one trailer. The table is read, not
+// listed here: a committing command without a case below fails this test
+// until it gets one.
+func TestEveryCommittingCommandCarriesTheTrailer(t *testing.T) {
+	const who = "X <x@y>"
+	type run struct {
+		o     ops.Ops
+		stdin string
+		repo  string // where the commit lands
+	}
+	day := func(t *testing.T, at time.Time) run {
+		m := newMachine(t)
+		m.seed(t)
+		m.initHomeRepo(t)
+		o := m.dayOps(m.ws, true)
+		if !at.IsZero() {
+			o.NowFn = func() time.Time { return at }
+		}
+		return run{o: o, repo: m.home}
+	}
+	cases := map[string]struct {
+		setup func(t *testing.T) run
+		args  []string
+	}{
+		"log":      {func(t *testing.T) run { return day(t, time.Time{}) }, []string{"m"}},
+		"add":      {func(t *testing.T) run { return day(t, time.Time{}) }, []string{"New task", "C"}},
+		"done":     {func(t *testing.T) run { return day(t, time.Time{}) }, []string{"Delta"}},
+		"cancel":   {func(t *testing.T) run { return day(t, time.Time{}) }, []string{"Gamma"}},
+		"priority": {func(t *testing.T) run { return day(t, time.Time{}) }, []string{"Gamma", "A"}},
+		"new-day":  {func(t *testing.T) run { return day(t, time.Date(2026, 7, 29, 8, 0, 0, 0, time.Local)) }, nil},
+		"new-week": {func(t *testing.T) run { return day(t, time.Date(2026, 8, 3, 8, 0, 0, 0, time.Local)) }, nil},
+		"commit": {func(t *testing.T) run {
+			r := day(t, time.Time{})
+			writeFile(t, filepath.Join(r.repo, "tasks", "inbox.txt"), "x\n")
+			return r
+		}, []string{"Add inbox"}},
+		"plan pickup": {func(t *testing.T) run {
+			m := newMachine(t)
+			m.initHomeRepo(t)
+			writeFile(t, filepath.Join(m.ws, "x_PLAN.md"), "# A draft — +testproj\n")
+			return run{o: m.planOps(m.ws), repo: m.home}
+		}, []string{"x_PLAN.md"}},
+		"plan archive": {func(t *testing.T) run {
+			m := newMachine(t)
+			m.archiveFixture(t)
+			return run{o: m.planOps(m.ws), repo: m.home}
+		}, nil},
+		"home new": {func(t *testing.T) run {
+			m := newMachine(t)
+			return run{o: m.planOps(m.ws), stdin: "Jane Doe\njane@example.net\n", repo: filepath.Join(m.config, "fresh")}
+		}, []string{"fresh", "<repo>"}},
+		"optimize apply": {func(t *testing.T) run {
+			l := newLoop(t)
+			return run{o: l.ops(), repo: l.home}
+		}, []string{"--workflow", "widgetflow", "--rewrite", "<proposal>", "--yes"}},
+	}
+	rowRe := regexp.MustCompile("^\\| [^|]+ \\| `daisy ([a-z -]+?)(?: [^a-z]|`)")
+	seen := map[string]bool{}
+	for _, l := range strings.Split(cli.Reference(), "\n") {
+		row := rowRe.FindStringSubmatch(l)
+		if row == nil {
+			continue
+		}
+		name := strings.TrimSpace(row[1])
+		if flags, _, _ := cli.Flags(name); !slices.Contains(flags, commands.CoAuthorFlag) {
+			continue
+		}
+		seen[name] = true
+		tc, ok := cases[name]
+		if !ok {
+			t.Errorf("%s commits, and this test has no case for it: add one", name)
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			r := tc.setup(t)
+			args := append(strings.Fields(name), commands.CoAuthorFlag, who)
+			for _, a := range tc.args {
+				switch a {
+				case "<repo>":
+					a = r.repo
+				case "<proposal>":
+					a = filepath.Join(t.TempDir(), "new.md")
+					writeFile(t, a, "## Trigger\n\nNew.\n")
+				}
+				args = append(args, a)
+			}
+			var out, errb bytes.Buffer
+			if code := cli.Run(r.o, strings.NewReader(r.stdin), &out, &errb, args); code != 0 {
+				t.Fatalf("%q: exit %d stdout %q stderr %q", args, code, out.String(), errb.String())
+			}
+			got, errs, err := ops.Real().Exec(r.repo, "git", "log", "-1", "--format=%(trailers:key=Co-Authored-By,valueonly,separator=|)")
+			if err != nil {
+				t.Fatalf("git log: %v %s", err, errs)
+			}
+			if strings.TrimSpace(string(got)) != who {
+				t.Errorf("%q: trailers %q, want %q", args, got, who)
+			}
+		})
+	}
+	for name := range cases {
+		if !seen[name] {
+			t.Errorf("%s has a case here but does not commit: drop it", name)
+		}
 	}
 }
 
@@ -451,7 +563,7 @@ func TestOneCommitPerMutationScripted(t *testing.T) {
 		}
 		commits := 0
 		for _, c := range calls {
-			if strings.HasPrefix(c, m.home+": git commit") {
+			if strings.HasPrefix(c, m.home+": git -c trailer.ifexists=addIfDifferent commit") {
 				commits++
 			}
 		}
