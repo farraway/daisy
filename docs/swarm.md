@@ -2606,7 +2606,8 @@ check's when the head holds its repository's test services file
 `--env` one line per `x-daisy-env` variable, in name order, after
 `deps`' (a name in both: the file's value, given last); without the
 file the check's argv is as it was before services existed, byte for
-byte, but for those lines.
+byte, but for the two sets of lines named above, `repos[].env`'s and the
+detached run's, not the lines marked `(services)`.
 
 Its test services, with that file, each run's or check's own (7.6,
 step 4), `<net>` the name of the container they are made for,
