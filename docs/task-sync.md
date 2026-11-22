@@ -7,16 +7,14 @@
 **ANY task change must update BOTH `todo.txt` and `today.md`:**
 
 1. **Adding a new task:**
-   - Add to `todo.txt` with priority (A/B/C/D), creation date, tags
-   - Add to `today.md` if priority is (A) or (B) and working on it today
+   - `daisy add "<description>" A|B|C|D|none` adds it to `todo.txt` with its creation date and, when it is (A) or (B), to `today.md`
 
 2. **Completing a task:**
    - Mark [x] in `today.md`
    - Update in `todo.txt`: strip priority, add `x YYYY-MM-DD` prefix, move to end
 
 3. **Changing priority:**
-   - Update priority (A)/(B)/(C)/(D) in `todo.txt`
-   - Update section in `today.md` (Now, Next, Inbox)
+   - `daisy priority "<pattern>" A|B|C|D|none` changes it in `todo.txt` and moves the task to its section in `today.md`, or out of it
 
 4. **Changing due dates:**
    - Update `due:YYYY-MM-DD` in `todo.txt`
@@ -30,7 +28,7 @@
 
 **Priority mismatches:**
 - Task is (A) in `today.md` but (B) in `todo.txt`
-- **Fix:** Update `todo.txt` to match intended priority
+- **Fix:** `todo.txt` wins: move the task to its section in `today.md`. When `today.md` has the intended priority, `daisy priority "<pattern>" A|B|C|D|none`
 - **Cause:** Priority changed in one file but not the other
 
 **Completion status mismatches:**
@@ -40,8 +38,8 @@
 
 **Missing tasks:**
 - Task exists in `todo.txt` but not in `today.md`
-- **Fix:** Usually intentional (lower priority not pulled into today)
-- **Cause:** Only (A) and (B) tasks are extracted during "new day"
+- **Fix:** An open (A) or (B) task belongs in `today.md` (`prompts/daisy.md` rule 2): add it to its section (Now, Next, or GitHub PRs for one with `@git`). Any other may be absent: "new day" brings in an inbox task and one with `@git`, and leaves out a (C) or (D) without `@git`
+- **Cause:** `todo.txt` was edited without `today.md`
 
 ## Sync Validation Algorithm
 
@@ -65,7 +63,7 @@
 1. Priority mismatch:
    today.md: (A) Certificate training
    todo.txt: (B) Certificate training
-   → Should be (A) in todo.txt
+   → todo.txt wins: (B) in today.md (or, if (A) is intended: daisy priority "Certificate training" A)
 
 2. Completion mismatch:
    today.md: [x] PagerDuty migration

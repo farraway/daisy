@@ -215,8 +215,9 @@ prompts edit. When modifying any of them, preserve the format exactly.
 - Completed: `x YYYY-MM-DD YYYY-MM-DD Description +Project @context` (no priority)
 - Cancelled: `z YYYY-MM-DD YYYY-MM-DD Description +Project @context` (no priority)
 - Never change the date format (always `YYYY-MM-DD`); never add or remove
-  the priority parentheses on an active task; never keep a priority on a
-  completed or cancelled task; never reorder fields; preserve every space.
+  the priority parentheses on an active task by hand (`daisy priority`
+  changes a priority); never keep a priority on a completed or cancelled
+  task; never reorder fields; preserve every space.
 
 **Today.md** (`docs/templates.md`):
 - Preserve the heading levels (`####`) and the checkbox forms `- [ ]`,

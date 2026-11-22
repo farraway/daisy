@@ -19,9 +19,9 @@ connect to an internal GitHub Enterprise instance.
 
 ### Opening a PR — Add Task
 
-When a PR is opened, add to todo.txt:
-```
-(C) YYYY-MM-DD @git {PR title} [{owner}/{repo}/PR#{num}](url) +PROJECT
+When a PR is opened, add its task, which `daisy add` writes to todo.txt as `(C) YYYY-MM-DD @git …`:
+```bash
+daisy add "@git {PR title} [{owner}/{repo}/PR#{num}](url) +PROJECT" C
 ```
 
 ### Checking PR Status

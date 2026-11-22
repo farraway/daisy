@@ -9,7 +9,7 @@ Read the full `$DAISY_ROOT/prompts/github.md` when:
 
 ## Rules
 
-1. **Add a task when a PR is opened.** Create a todo.txt entry with `@git` context: `(C) YYYY-MM-DD @git {title} [{owner}/{repo}/PR#{num}](url) +PROJECT`.
+1. **Add a task when a PR is opened.** Call `daisy add "@git {title} [{owner}/{repo}/PR#{num}](url) +PROJECT" C`, which writes the dated todo.txt entry.
 2. **Mark complete and log when a PR is merged.** Mark the `@git` task done in todo.txt and log the merge in today.md.
 3. **Never merge without green CI.** Fix all failing checks before requesting review or merging.
 4. **Use the `git` skill for conflicts.** When a merge or rebase conflict blocks a PR, resolve it via the `git` skill rather than improvising.
