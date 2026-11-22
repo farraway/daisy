@@ -233,9 +233,11 @@ spends a run's tokens on it; and the maintainer closing each follow-up
 out of. The trigger is the issue's pulls block not yet showing the pull
 request merged, so the build files nothing for pull requests merged
 before it. A pull request merged by `swarm merge`, which holds only the
-maintainer's token, files nothing itself: a slice with another after it
-is filed by the next pass, and the last slice's, whose issue the verb
-closes, or an issue closed by hand, files nothing (open question 4). The eighteenth label is created, as the sixteenth was, by an
+maintainer's token, files nothing itself, and its own listing of the
+issue's pull requests writes the block showing the pull request merged
+before any pass reads the issue, so no pass files it either, whichever
+slice it is; nor is the follow-up of an issue closed by hand filed
+(open question 4). The eighteenth label is created, as the sixteenth was, by an
 owner of the organization where the swarm's account cannot.
 
 **The balance** (rule 7). Cost is recorded already: runs, tokens,
@@ -334,10 +336,12 @@ job's `plan.md`, and (d) the plan lint are R5's own design.
 the sympathetic reviewer reading and running nothing: recommended yes,
 as the live swarm runs them. 3. The default trust boundaries, stated
 where a repository's notes declare none: recommended as written, the
-maintainer's own terms. 4. The follow-up of a last slice merged by `swarm
-merge`, or of an issue closed by hand, which nobody files: the verb filing
-it under the maintainer's token (the issue then his) is the option
-recommended; the pass listing closed issues for it is the other.
+maintainer's own terms. 4. The follow-up of a pull request merged by `swarm
+merge`, of any slice, or of an issue closed by hand, which nobody files:
+the verb filing it under the maintainer's token (the issue then his) is
+the option recommended; the verb leaving the block's `merged` to the
+next pass for an issue it leaves open, and a pass listing closed issues
+for the rest, is the other.
 
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,

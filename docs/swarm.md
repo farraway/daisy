@@ -1715,7 +1715,7 @@ nothing: their trigger is the maintainer's decision.
 
 *R2, specified ahead of its build* (12.1, rule 3): one transition is added, **T32**, `swarm:review-2-approved` to `swarm:review-3-changes-requested`, its row joining this table, and the explorer's, when it is built: the merge check of the approved head, the repository's check on the commit that merges it into `base` as it is now, fails, after 7.9's one rerun of a classified failure; Daisy's merge queue, under either gate, posts `Comment(m, <reconciler note naming the log>)` and relabels the issue; the worker merges `base`, fixes what fails, and the pair reviews the new head as any revision (T12, then T9 or T10); no block, each round counted towards the round limit (T11). A conflict the queue's merge finds is T25, sent back before the check, whichever the merge gate. A merge check that fails in the environment after its rerun is T17 from `swarm:review-2-approved`, which T17's row does not list as a from-stage until the build: the issue blocked, the stage kept, the note naming the reason, nothing posted on the pull request.
 
-*R6, specified ahead of its build* (7.11, rules 6 and 8): no transition is added or changed until the maintainer rules on the round limit's outcome (rule 8; decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md) gives the options), so T11 reads as above. A swarm pull request the forge reports merged, which T13, T14, T15 and a merge on the forge all lead to, has its non-blocking review findings filed as a follow-up issue as the issue's pull requests are listed (The pull requests on the issue, below), before the block's write that shows it merged.
+*R6, specified ahead of its build* (7.11, rules 6 and 8): no transition is added or changed until the maintainer rules on the round limit's outcome (rule 8; decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md) gives the options), so T11 reads as above. A swarm pull request the forge reports merged, which T13 (but not by `swarm merge`, 7.11, Follow-ups), T14, T15 and a merge on the forge all lead to, has its non-blocking review findings filed as a follow-up issue as the issue's pull requests are listed (The pull requests on the issue, below), before the block's write that shows it merged.
 
 The maintainer may also relabel any issue to any stage at any time; the
 next pass reads the new label and the role rule decides from there. That
@@ -6391,11 +6391,13 @@ the block's write that shows it, so a pass whose filing fails files it
 at the next, and a pull request the block showed merged before the
 build files nothing. A merge whose issue is closed
 before any listing shows it files none either: no pass's listing reads
-a closed issue, and the listing `swarm merge` makes of the issue it
-closes (section 11) runs under the maintainer's token alone, which
-Daisy's filing does not use, so only the merge step, whose reads are
-Daisy's own, files for an issue it closes (T15); a merge by `swarm
-merge` that leaves the issue open (T13) is filed by the next pass.
+a closed issue, and the listing `swarm merge` makes of the issue's
+pull requests (section 11) runs under the maintainer's token alone,
+which Daisy's filing does not use, so only the merge step, whose reads
+are Daisy's own, files for an issue it closes (T15). A merge by `swarm
+merge` files none, the issue left open (T13) or not: its listing
+writes the block showing the pull request merged before any pass reads
+the issue, so no pass finds it not yet shown.
 *By whom:* Daisy, as the reconciler, with no member's run: the findings
 are read from the pull request's reviews by the swarm's account
 (`Reviews(m)`, each a marked text, section 6), every round's, the
