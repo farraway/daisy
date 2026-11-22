@@ -17,7 +17,6 @@ Part 1 is the skill again, its headings one level deeper.
 
 ## Part 1 — The skill
 
-
 A test is an instrument for falsifying a claim. It earns its place when it
 has been seen to fail for the right reason, and it stays only while it can
 still fail. Everything below follows from that: what a claim is, where the

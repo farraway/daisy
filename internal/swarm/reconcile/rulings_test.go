@@ -8,7 +8,7 @@ import (
 )
 
 // The trigger rule on plan-1-accepted when rulings changed since the plan
-// (section 6, Replan): the architect runs in the worker's place, woken by
+// (section 6, The rulings): the architect runs in the worker's place, woken by
 // the reconciler's note, and has nothing to answer once its own word is
 // the newest; anything running holds it; Replan changes no other stage.
 func TestLaunchReplan(t *testing.T) {

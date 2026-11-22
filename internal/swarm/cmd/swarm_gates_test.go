@@ -100,7 +100,7 @@ func (f *flaky) Relabel(at forge.Ref, remove, add string) error {
 	return f.gitForge.Relabel(at, remove, add)
 }
 
-// The round limit (section 6, T11) with the plan gate on and off: the
+// The round limit (section 5, T11) with the plan gate on and off: the
 // first time to the architect's stage with the first note, the retried
 // collection of that run not taken for a second time; the architect's
 // revision with the open-slice sentence and the pull request in its

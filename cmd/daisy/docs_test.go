@@ -467,7 +467,8 @@ func TestLoaderTableQuotesTheTemplates(t *testing.T) {
 // (https://agentskills.io/specification), counted as its validator
 // counts, in Unicode code points, not bytes. The description is one
 // line, as skill.Field reads it: a YAML block scalar (`>` or `|`) would
-// be measured as its indicator alone.
+// be measured as its indicator alone, and a plain scalar continued on an
+// indented line as its first line alone.
 func TestSkillDescriptionsFitTheCap(t *testing.T) {
 	files, err := filepath.Glob("skills/*/SKILL.md")
 	if err != nil || len(files) == 0 {
@@ -479,11 +480,15 @@ func TestSkillDescriptionsFitTheCap(t *testing.T) {
 			t.Fatal(err)
 		}
 		d, ok := skill.Field(b, "description")
+		_, next, _ := strings.Cut(string(b), "\ndescription:")
+		_, next, _ = strings.Cut(next, "\n")
 		switch n := utf8.RuneCountInString(d); {
 		case !ok || n == 0:
 			t.Errorf("%s: no description", f)
 		case strings.HasPrefix(d, ">") || strings.HasPrefix(d, "|"):
 			t.Errorf("%s: the description is a block scalar (%q); write it on the description: line", f, d)
+		case strings.HasPrefix(next, " ") || strings.HasPrefix(next, "\t"):
+			t.Errorf("%s: the description continues on an indented line (%q); write it whole on the description: line", f, strings.SplitN(next, "\n", 2)[0])
 		case n > 1024:
 			t.Errorf("%s: the description is %d characters, over the 1,024 the Agent Skills specification allows; move detail into the body", f, n)
 		}
@@ -559,19 +564,117 @@ func specCitations(t *testing.T) []specCitation {
 	}
 }
 
+// specParagraphs reads, for each numbered section of docs/swarm.md, the
+// names its paragraphs go by, its subsections' among them: each heading's
+// text (a numbered one's after its number), each bold or italic span and
+// a tag in parentheses inside one (`**The owner's batch trigger (G0).**`),
+// and each table row's first cell, alone and after its header's (`Step
+// 27`, the row `| 27 |` under `| Step |`).
+func specParagraphs(t *testing.T) map[string][]string {
+	t.Helper()
+	b, err := os.ReadFile("docs/swarm.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	numbered := regexp.MustCompile(`^(#+) (\d+(?:\.\d+)*)\.? (.*)$`)
+	heading := regexp.MustCompile(`^(#+) (.*)$`)
+	emphasis := regexp.MustCompile(`\*\*([^*]+)\*\*|(?:^|[^*\w])\*([^*\s][^*]*)\*`)
+	tag := regexp.MustCompile(`\(([^()]+)\)`)
+	type open struct {
+		level int
+		n     string
+	}
+	var in []open
+	names := map[string][]string{}
+	add := func(name string) {
+		name = strings.Trim(strings.Join(strings.Fields(name), " "), "`")
+		for _, o := range in {
+			names[o.n] = append(names[o.n], name)
+		}
+	}
+	fence, header, prev := false, "", ""
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(strings.TrimLeft(l, " "), "```") {
+			fence = !fence
+		}
+		if fence {
+			continue
+		}
+		if m := numbered.FindStringSubmatch(l); m != nil {
+			for len(in) > 0 && in[len(in)-1].level >= len(m[1]) {
+				in = in[:len(in)-1]
+			}
+			in = append(in, open{len(m[1]), m[2]})
+			add(m[3])
+		} else if m := heading.FindStringSubmatch(l); m != nil {
+			for len(in) > 0 && in[len(in)-1].level >= len(m[1]) {
+				in = in[:len(in)-1]
+			}
+			add(m[2])
+		}
+		if cells := strings.Split(l, "|"); strings.HasPrefix(l, "| ") && len(cells) > 2 {
+			cell := strings.Trim(strings.TrimSpace(cells[1]), "*`")
+			if !strings.HasPrefix(prev, "|") {
+				header = cell
+			}
+			add(cell)
+			add(header + " " + cell)
+		}
+		for _, m := range emphasis.FindAllStringSubmatch(l, -1) {
+			span := m[1] + m[2]
+			add(span)
+			for _, tm := range tag.FindAllStringSubmatch(span, -1) {
+				add(tm[1])
+			}
+		}
+		prev = l
+	}
+	return names
+}
+
+// citedParagraph is a section cited with the paragraph it names: `section
+// 11, Finding the swarm`, the name running to the first stop, comma,
+// colon, parenthesis, quote or backquote.
+var citedParagraph = regexp.MustCompile("(?:\\b[Ss]ection\\s+|§\\s*)(\\d+(?:\\.\\d+)*),\\s+([A-Z][^.,;:()\"`]*)")
+
+// paragraphNamed: some name of section n's paragraphs starts with name,
+// as a whole word; a row's name may end `'s row` or `'s second row`, and
+// `T23 and T24` names two.
+func paragraphNamed(names map[string][]string, n, name string) bool {
+	name = regexp.MustCompile(`'s (?:\w+ )?rows?$`).ReplaceAllString(strings.Join(strings.Fields(name), " "), "")
+	for _, part := range strings.Split(name, " and ") {
+		if !slices.ContainsFunc(names[n], func(p string) bool {
+			rest, ok := strings.CutPrefix(p, part)
+			return ok && (rest == "" || !regexp.MustCompile(`^\w`).MatchString(rest))
+		}) {
+			return false
+		}
+	}
+	return true
+}
+
 // Every section of docs/swarm.md a Go comment or string under cmd/ and
 // internal/ cites (`section 7.3`, `sections 7.2 and 9`, `sections 5–7`,
 // `§5`) is one of its numbered headings, and every decision it cites, by
 // its number (`item 74`, as the items of that list were cited) or by its
 // file (`docs/swarm/decisions/0074-the-label-vocabulary.md`), has its
-// file, so a spec that moves or renumbers cannot leave the code citing
-// what is no longer there. A product's ADR (`ADR 0027`,
+// file, and every paragraph a section is cited with (`section 11, Finding
+// the swarm`) is one of that section's (specParagraphs), so a spec that
+// moves or renumbers cannot leave the code citing what is no longer there. A product's ADR (`ADR 0027`,
 // `docs/adr/0027-roles.md` in the rulings tests) is no form of these.
 func TestCodeCitesExistingSpecSections(t *testing.T) {
 	forms := specCitations(t)
+	paragraphs := specParagraphs(t)
 	fset := token.NewFileSet()
-	cited := 0
+	cited, named := 0, 0
 	check := func(pos token.Pos, text string) {
+		for _, m := range citedParagraph.FindAllStringSubmatchIndex(text, -1) {
+			line := fset.Position(pos).Line + strings.Count(text[:m[0]], "\n")
+			named++
+			if n, name := text[m[2]:m[3]], text[m[4]:m[5]]; !paragraphNamed(paragraphs, n, name) {
+				t.Errorf("%s:%d: cites section %s's paragraph %q, which is no heading, bold or italic lead or table row of that section: %q", fset.Position(pos).Filename, line, n, strings.Join(strings.Fields(name), " "), strings.Join(strings.Fields(text[m[0]:m[1]]), " "))
+			}
+		}
 		for _, f := range forms {
 			for _, m := range f.re.FindAllStringSubmatchIndex(text, -1) {
 				line := fset.Position(pos).Line + strings.Count(text[:m[0]], "\n")
@@ -617,7 +720,7 @@ func TestCodeCitesExistingSpecSections(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if cited < 700 {
-		t.Errorf("read %d citations of the spec; the patterns no longer find them", cited)
+	if cited < 700 || named < 200 {
+		t.Errorf("read %d citations of the spec, %d of them naming a paragraph; the patterns no longer find them", cited, named)
 	}
 }

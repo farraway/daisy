@@ -45,7 +45,7 @@ func layer(pkg string) int {
 // (or os/signal, os/user), names any of os/exec but its ExitError type, or
 // reads or waits on the clock through the time package. internal/testenv sets the environment of
 // a test process, and cmd/daisy/main.go hands the process's streams to
-// cli.Run: those two import os.
+// cli.Run: those two import os. No non-test file imports internal/testenv.
 func TestDependencyRule(t *testing.T) {
 	fset := token.NewFileSet()
 	for _, dir := range []string{"cmd", "internal"} {
@@ -96,6 +96,10 @@ func ruleViolations(fset *token.FileSet, path string, f *ast.File) []string {
 			watched[name] = imp
 		case strings.HasPrefix(imp, "daisy/"):
 			to := strings.TrimPrefix(imp, "daisy/")
+			if to == "internal/testenv" {
+				fail(spec, "imports internal/testenv, which sets a test process's environment: only a _test.go file imports it")
+				continue
+			}
 			if a, b := layer(pkg), layer(to); b > a || b == a && a != 1 {
 				fail(spec, "%s imports %s: imports run cli → {commands, swarm/cmd} → {domain packages} → ops", pkg, to)
 			}
@@ -125,7 +129,9 @@ func ruleViolations(fset *token.FileSet, path string, f *ast.File) []string {
 
 // TestTestingDocQuotesTheSkill holds docs/testing.md's Part 1 to what it
 // says it is: skills/testing/SKILL.md without its frontmatter, verbatim but
-// for its headings, each one level deeper under the Part's own.
+// for its headings, each one level deeper under the Part's own. The text
+// between the Part's heading and its closing --- is compared whole, blank
+// lines at its edges included.
 func TestTestingDocQuotesTheSkill(t *testing.T) {
 	skill, err := os.ReadFile("skills/testing/SKILL.md")
 	if err != nil {
@@ -137,7 +143,7 @@ func TestTestingDocQuotesTheSkill(t *testing.T) {
 	}
 	var want []string
 	fence := false
-	for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
+	for _, line := range strings.Split(body, "\n") {
 		if strings.HasPrefix(line, "```") {
 			fence = !fence
 		}
@@ -158,8 +164,8 @@ func TestTestingDocQuotesTheSkill(t *testing.T) {
 	if !ok {
 		t.Fatalf("docs/testing.md: no Part 1 between %q and %q", start, end)
 	}
-	first := strings.Count(before, "\n") + 3 + strings.Count(part, "\n") - strings.Count(strings.TrimLeft(part, "\n"), "\n")
-	got := strings.Split(strings.TrimSpace(part), "\n")
+	first := strings.Count(before, "\n") + 3
+	got := strings.Split(part, "\n")
 	for i := 0; i < max(len(got), len(want)); i++ {
 		g, w := "(end of Part 1)", "(end of the skill)"
 		if i < len(got) {

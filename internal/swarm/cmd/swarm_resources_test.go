@@ -157,7 +157,7 @@ func TestSwarmMembersReadPushedContent(t *testing.T) {
 // /job/resources/<repository>/<path> under one read-only mount, each
 // repository's commit in the result; a reference fetched once, so its
 // tag moved or its upstream gone changes nothing; a brief in a declared repository named
-// <name>:<path>. The architect's system.md lists each (section 7.3,
+// <name>:<path>. The architect's system.md lists each (section 7.3;
 // F35's Step 4): its mount, its README.md as its index when the commit
 // mounted holds one as a regular file (a link, or one pushed after the
 // pin, is none), and its note.

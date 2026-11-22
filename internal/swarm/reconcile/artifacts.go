@@ -15,7 +15,7 @@ import (
 )
 
 // artifactName is a name the collection reads under the run's
-// io/artifacts (section 7.6, The artifacts): letters, digits, ".", "-"
+// io/artifacts (section 7.6, The screenshots): letters, digits, ".", "-"
 // and "_", beginning with a letter or a digit, ending in an image's
 // extension.
 var artifactName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|webp)$`)
@@ -97,7 +97,7 @@ func (c *collection) skip(name, reason string) error {
 }
 
 // attach uploads each artifact to the pull request pr not yet recorded
-// (section 7.6, The artifacts): `artifact <name> attached <url>`, or, a
+// (section 7.6, The screenshots): `artifact <name> attached <url>`, or, a
 // file the forge refuses (ErrNotAttached), the warning and `artifact
 // <name> not attached: <error>`; any other error is the pass's, the
 // collection retried.

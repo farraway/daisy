@@ -130,7 +130,7 @@ func TestSwarmWorkerWithoutArtifacts(t *testing.T) {
 // .webp, and whose content sniffs as that type is attached; a link
 // (whatever it points at), a directory (never descended), any other name
 // or content is skipped, warned of and recorded once, never read through
-// (section 7.6, The artifacts).
+// (section 7.6, The screenshots).
 func TestSwarmWorkerArtifactsUntrusted(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
