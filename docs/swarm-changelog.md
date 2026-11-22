@@ -1199,3 +1199,15 @@ they write.
   [62](swarm/decisions/0062-what-step-6-built-of-the-lifecycle-and-the-verbs.md),
   [89](swarm/decisions/0089-the-pass-and-the-gates.md) and
   [137](swarm/decisions/0137-restart-onto-a-new-build-when-idle.md).
+- 2026-11-21, the verdict fix of the plan implementing the 2026-11-19
+  swarm roadmap: every role's `system.md` holds its output contract,
+  `# Output`, right after `# Persona` and before the prompt parts, one
+  text per role naming the first lines its output may or must begin
+  with (a reviewer's literal `VERDICT:` lines with a template); a Task
+  whose first line is required, a reviewer's and a question's, ends
+  with a reminder restating it, and the reviewer's verdict sentence
+  leaves its row's text; `config_hash` leaves the block out. A smaller
+  model's reviews had lost their verdict line under Step E1's order.
+  Sections 7.3, 7.4, 7.6 and 11. Decision
+  [167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md)
+  amended.

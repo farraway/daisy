@@ -40,3 +40,42 @@ the hash it gave. Naming the blocks that may follow the parts (`# Task`,
 `# Praxis`, `# Testing`, `# Repository notes:`, `# Resources`) was the
 alternative: a block added later between the parts and the Task would
 fall into the hash until the list named it.
+
+**Amended 2026-11-21: the output contract first** (the verdict fix of
+the plan implementing the 2026-11-19 swarm roadmap; sections 7.3, The
+order, 7.4, The output contract and The reminder, and 7.6,
+`config_hash`). *What failed.* The order above put a reviewer's output
+contract, that the first line be exactly `VERDICT: approve` or
+`VERDICT: request-changes`, at the very end of a system prompt of some
+28,000 characters, as one sentence in the middle of a Task paragraph of
+some 2,500. On a smaller model, 11 of 11 reviews began with a correct
+verdict line under the order before this decision, the Task right after
+the persona, and 9 of 12 under this one: the other 3 began `## Review:
+approved`, `## Review` and `## Review: round 5`, and each ended `failed:
+bad verdict`, a stop for the maintainer. A larger model stayed at 33 of
+33 under this order. The fault is the contract's place with a smaller
+model, not the reading of the verdict, which is unchanged.
+
+*The new order.* `# Persona`, then `# Output`, the role's output
+contract: Daisy's text, one per role, naming the first lines its output
+may or must begin with (for a reviewer the literal verdict lines, the
+`[blocking]` and `[non-blocking]` finding lines, when to request
+changes, and a template), then each `# Prompt part: <path>`, `# Praxis`
+and `# Testing`, each `# Repository notes: <name>`, `# Resources`, the
+header and `# Task` last. A Task whose first line is required (a
+reviewer's, the architect's and the owner's on a question) ends, after
+its closing paragraph, with a reminder restating it (`Begin your output
+with the line "VERDICT: approve" or "VERDICT: request-changes".`), and
+states it nowhere else; a contract asked for only in a case (`STANDS:`,
+`NO CHANGE:`, a worker's or a reviewer's `QUESTION:`, every `BLOCKED:`)
+keeps its sentence in the Task, which names the case, and the block
+says it is optional. Since the block is the role's alone, it stays in
+the prefix every run of the role shares, and the cache order holds.
+`config_hash` leaves the block out, its bytes cut from the region
+between `# Persona` and the first block after the parts, so one persona
+with its parts hashes alike before and after the fix; hashing it with
+them was the alternative, but it is Daisy's text, not the configuration
+the hash names, as a Task text is (decision
+[168](0168-a-delta-review.md)). Restating the verdict sentence at the
+Task's end alone was the other: it leaves the contract at the end of
+the prompt, where the smaller model missed it.

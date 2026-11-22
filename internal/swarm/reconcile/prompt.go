@@ -104,12 +104,16 @@ func endStamp(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 // failed is left in j for the launch (TextErr). system.md writes the
 // blocks every run of the role shares first and the run's own header
 // and # Task last, so that runs of one role share a prefix a provider's
-// prompt cache keeps (section 7.3).
+// prompt cache keeps (section 7.3), the role's # Output contract right
+// after # Persona, before the prompt parts (decision 167 as amended).
 func Render(j *Job) (system, prompt string) {
 	j.textErr = nil
 	head := fmt.Sprintf("%s#%d %s run %d, %s -->", j.Cfg.Forge.Repo, j.N, j.Role, j.K, stamp(j.Time))
 	prompt = j.prompt(head)
 	sys := []string{"# Persona", Shift(trim(j.Persona), 1)}
+	if out := Output(j.Role); out != "" {
+		sys = append(sys, "# Output", out)
+	}
 	for _, p := range j.Parts {
 		sys = append(sys, "# Prompt part: "+p.Path, Shift(trim(p.Text), 1))
 	}

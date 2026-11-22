@@ -11,7 +11,8 @@ import (
 	"daisy/internal/swarm/forge"
 )
 
-// closing ends every Task text (section 7.4), workerClosing the
+// closing ends every Task text (section 7.4) but for a reminder after
+// it, workerClosing the
 // worker's, whose screenshots are read back too, and planClosing the
 // architect's that ask for a plan, whose builder plan is.
 var (
@@ -31,12 +32,63 @@ const builderSentence = `Then write the builder plan to /job/io/builder.md, a do
 
 const planHeadings = `"## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of %s, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions".`
 
+// roleOutputs is each role's # Output block (sections 7.3 and 7.4; decision
+// 167 as amended by the verdict fix): the first lines its output may or
+// must begin with, which Render writes right after # Persona. Its text
+// is the role's alone, never the run's, so that it stays in the prefix
+// every run of the role shares.
+var roleOutputs = map[string]string{
+	"owner": "Your output is what the Task asks for, and its first line is one of these only where the Task asks for it, alone on its line:\n\n" +
+		"- `ANSWER: <your answer>`, or `QUESTION: <the question>` when only the maintainer can settle it: on a question passed to you, one of the two is the required first line;\n" +
+		"- in a proposal run, any lines `Met: <path>` first, then each job from its line `## <title>`; or `BLOCKED: <why>` as the only line after any `Met:` lines;\n" +
+		"- `BLOCKED: <your question>`, only when you cannot do the Task without an answer from the maintainer.",
+	"architect": "Your output is what the Task asks for, and its first line is one of these only where the Task asks for it, alone on its line:\n\n" +
+		"- `STANDS: <why>`, only when the Task asks you to revise an accepted plan or confirm it and its remaining slices stand;\n" +
+		"- `ANSWER: <your answer>`, or `QUESTION: <the question>` restated for the owner when the plan, the thread and the resources do not settle it: on a member's question, one of the two is the required first line;\n" +
+		"- `BLOCKED: <your question>`, only when you cannot do the Task without an answer from the maintainer.",
+	"worker": "Your output is your report, which Daisy posts as the pull request's description or as your comment on it. Its first line is one of these only in the case the Task names for it, alone on its line, and none is required:\n\n" +
+		"- `NO CHANGE: <why>`, only when you answer a pull request's thread and no point needs a change to the code;\n" +
+		"- `QUESTION: <one question>`, only when the plan, the issue and its thread leave open something your work depends on;\n" +
+		"- `BLOCKED: <why, or your question>`, only when you cannot go on without the maintainer, as the Task says.",
+	declare.QARole: "Your output's first line is one of these three, as the Task says:\n\n" +
+		"- each failure's job from its line `## <title>`;\n" +
+		"- `NO FAILURE: <the routes you drove>` as the only line, when nothing fails;\n" +
+		"- `BLOCKED: <why, or your question>` as the only line, when you cannot start or drive the app.",
+}
+
+// reviewerOutput is the reviewers' # Output block: the verdict line
+// verdictOf reads, and the findings whose severity review checks
+// against it (sections 7.4 and 7.5).
+const reviewerOutput = "The first line of your output is exactly `VERDICT: approve` or `VERDICT: request-changes`, alone on its line, before any heading or other text. Then the review: each finding a line beginning `[blocking]` or `[non-blocking]`, with its file and line. Request changes only when a finding is blocking; approve otherwise. Daisy reads the verdict from the first line alone, so a review whose first line is anything else (`## Review`, a title, a blank line) fails. For example:\n\n" +
+	"```text\nVERDICT: request-changes\n[blocking] <file>:<line>: <what is wrong, and why it blocks>\n[non-blocking] <file>:<line>: <what could be better>\n```\n\n" +
+	"or, with no blocking finding:\n\n" +
+	"```text\nVERDICT: approve\n[non-blocking] <file>:<line>: <what could be better>\n```\n\n" +
+	"Two other first lines replace the verdict, each only in the case the Task names for it: `QUESTION: <one question>`, when the plan, the issue and its thread leave open something your review depends on, and `BLOCKED: <your question>`, when you cannot review without an answer from the maintainer."
+
+// Output is role's # Output block, "" for a role that has none.
+func Output(role string) string {
+	if role == "adversary" || role == "sympathetic" {
+		return reviewerOutput
+	}
+	return roleOutputs[role]
+}
+
+// The reminders end the Task texts whose first line is required (section
+// 7.4): the reviewers', and the architect's and the owner's on a
+// question.
+const (
+	verdictReminder   = `Begin your output with the line "VERDICT: approve" or "VERDICT: request-changes".`
+	architectReminder = `Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when the plan, the thread and the resources do not settle it.`
+	ownerReminder     = `Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when only the maintainer can settle it.`
+)
+
 // task is the run's Task text: section 7.4's row for its role and label,
-// its additions, and the closing paragraph.
+// its additions, the closing paragraph and, where the Task's first line
+// is required, the reminder restating it.
 func (j *Job) task() string {
 	var t []string
 	add := func(format string, args ...any) { t = append(t, fmt.Sprintf(format, args...)) }
-	end := closing
+	end, reminder := closing, ""
 	if j.Role == "worker" {
 		end = workerClosing
 	}
@@ -63,9 +115,11 @@ func (j *Job) task() string {
 			m, _ := Swarms(e, j.SwarmLogin)
 			asker = fmt.Sprintf("%s run %d", strings.ToUpper(m.Role[:1])+m.Role[1:], m.Run)
 		}
-		add(`%s asks a question on issue #%d, its comment beginning "QUESTION:" under "# Thread". Answer it from the plan, the thread and the resources: write "ANSWER: <your answer>" as the first line of your output, then what the asker needs with it; do not revise the plan here. If they do not settle it, write "QUESTION: <the question>" as the first line instead, restated for the owner, who answers it from the briefs or passes it to the maintainer.`, asker, j.N)
+		add(`%s asks a question on issue #%d, its comment beginning "QUESTION:" under "# Thread". Answer it from the plan, the thread and the resources, then write what the asker needs with it; do not revise the plan here. If they do not settle it, restate the question for the owner, who answers it from the briefs or passes it to the maintainer.`, asker, j.N)
+		reminder = architectReminder
 	case j.Question && j.Role == "owner":
-		add(`The architect passed you a question on issue #%d, its comment beginning "QUESTION:" under "# Thread", which the plan and the resources do not settle. Answer it from the briefs, the thread and the resources: write "ANSWER: <your answer>" as the first line of your output, then what the asker needs with it. If only the maintainer can settle it, write "QUESTION: <the question>" as the first line instead: Daisy blocks the issue with it for the maintainer.`, j.N)
+		add(`The architect passed you a question on issue #%d, its comment beginning "QUESTION:" under "# Thread", which the plan and the resources do not settle. Answer it from the briefs, the thread and the resources, then write what the asker needs with it. If only the maintainer can settle it, restate the question: Daisy blocks the issue with it for the maintainer.`, j.N)
+		reminder = ownerReminder
 	case j.Role == "owner":
 		if j.commented() {
 			add(`Answer the latest comment in the thread of issue #%d.`, j.N)
@@ -157,15 +211,15 @@ func (j *Job) task() string {
 	default: // the reviewers
 		s := sliceOf(cur, j.N)
 		r, prev := j.round(cur)
-		const verdict = `The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.`
+		reminder = verdictReminder
 		if delta := r > 1 && prev != "" && prev != cur.HeadSHA; delta {
 			// A delta review (Step E2): the previous round's findings and
 			// what changed since the head the reviewer last reviewed, its
 			// own, the full change readable but not the task.
-			add(`This is round %d of pull request %s#%d, slice %d of issue #%d: review what changed since %s, the head you last reviewed. The change to review is "git diff --name-only -z %s...HEAD | xargs -0 -r git diff %s..HEAD --" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of %s brought in is not this pull request's change. The whole change, "git diff %s...HEAD", is there to read where the revision needs it; reviewing it again is not the task. First, for each blocking finding of the previous round, %s, and of your review of %s, say whether it is closed, or answered with a reason you accept. Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims. Raise a new blocking finding only on code changed since %s; a finding on code unchanged since then is non-blocking. `+verdict,
+			add(`This is round %d of pull request %s#%d, slice %d of issue #%d: review what changed since %s, the head you last reviewed. The change to review is "git diff --name-only -z %s...HEAD | xargs -0 -r git diff %s..HEAD --" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of %s brought in is not this pull request's change. The whole change, "git diff %s...HEAD", is there to read where the revision needs it; reviewing it again is not the task. First, for each blocking finding of the previous round, %s, and of your review of %s, say whether it is closed, or answered with a reason you accept. Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims. Raise a new blocking finding only on code changed since %s; a finding on code unchanged since then is non-blocking.`,
 				r, cur.Repo, cur.Number, s, j.N, prev, j.Cfg.Base, prev, cur.Repo, j.Cfg.Base, j.Cfg.Base, j.previousFindings(), prev, prev)
 		} else {
-			add(`Review pull request %s#%d, slice %d of issue #%d. The change is "git diff %s...HEAD" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding. `+verdict, cur.Repo, cur.Number, s, j.N, j.Cfg.Base, cur.Repo)
+			add(`Review pull request %s#%d, slice %d of issue #%d. The change is "git diff %s...HEAD" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding.`, cur.Repo, cur.Number, s, j.N, j.Cfg.Base, cur.Repo)
 		}
 		if read := j.sliceSentence(); read != "" {
 			add("%s", read)
@@ -193,6 +247,9 @@ func (j *Job) task() string {
 		if p := j.protected(); p != "" {
 			add(`These paths are protected: %s. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.`, p)
 		}
+	}
+	if reminder != "" {
+		end += "\n\n" + reminder
 	}
 	return strings.Join(t, " ") + "\n\n" + end
 }

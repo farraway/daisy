@@ -2780,8 +2780,8 @@ collection, by whichever `apply`, reads them from those files.
 ### 7.3 The prompt files
 
 Two files, so that the thread never travels in a system-prompt channel:
-`<run>/io/system.md` holds Daisy's and the maintainer's words (the persona
-and its prompt parts, for the architect and the worker Daisy's praxis and
+`<run>/io/system.md` holds Daisy's and the maintainer's words (the persona,
+the role's output contract and the prompt parts, for the architect and the worker Daisy's praxis and
 testing skill, the swarm's notes about a repository, the resources with
 their notes, then the run's header and the Task: The order, below), and `<run>/io/prompt.md`
 holds the material (the issue, the threads, the plan, the pull request),
@@ -2805,6 +2805,10 @@ text cut on the forge, below).
 # Persona
 
 <prompts/<role>.md, verbatim but for its headings, shifted as below>
+
+# Output
+
+<the role's output contract, Daisy's text, one per role (7.4, The output contract)>
 
 # Prompt part: <path>
 
@@ -2845,7 +2849,13 @@ the issue, the run and its time, and `# Task`, so that two runs of one
 role, on any issues, share every byte of `system.md` up to the header:
 the prefix a provider's prompt cache keeps from one run to the next.
 Before that step the header came first and `# Task` after the prompt
-parts.
+parts. Since the verdict fix of the plan implementing the 2026-11-19
+swarm roadmap (decision 167 as amended), the role's output contract,
+`# Output` (7.4, The output contract), comes right after `# Persona`,
+before the prompt parts: `# Persona`, `# Output`, the parts and the
+other shared blocks, then the header and `# Task` last, ending with the
+reminder line where the Task's first line is required. Its text is the
+role's alone, so it stays in the shared prefix.
 
 **`# Resources`** comes last of the blocks every run shares, before
 the run's header and `# Task`, in every role's `system.md`, as every
@@ -3301,6 +3311,78 @@ plan (each with the builder sentence, below), `that file and the
 builder plan in /job/io/builder.md are the only things read back`
 (7.8, The builder plan).
 
+The **output contract** (the verdict fix of the plan implementing the
+2026-11-19 swarm roadmap; decision
+[167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md) as
+amended): every role's `system.md` holds, right after `# Persona` (7.3),
+a block `# Output` naming the first lines its output may or must begin
+with, the same text for every run of the role, so that it stays in the
+prefix the role's runs share. The reviewers' (the adversary's and the
+sympathetic reviewer's) reads:
+
+> The first line of your output is exactly `VERDICT: approve` or
+> `VERDICT: request-changes`, alone on its line, before any heading or
+> other text. Then the review: each finding a line beginning
+> `[blocking]` or `[non-blocking]`, with its file and line. Request
+> changes only when a finding is blocking; approve otherwise. Daisy
+> reads the verdict from the first line alone, so a review whose first
+> line is anything else (`## Review`, a title, a blank line) fails. For
+> example:
+>
+> ```text
+> VERDICT: request-changes
+> [blocking] <file>:<line>: <what is wrong, and why it blocks>
+> [non-blocking] <file>:<line>: <what could be better>
+> ```
+>
+> or, with no blocking finding:
+>
+> ```text
+> VERDICT: approve
+> [non-blocking] <file>:<line>: <what could be better>
+> ```
+>
+> Two other first lines replace the verdict, each only in the case the
+> Task names for it: `QUESTION: <one question>`, when the plan, the
+> issue and its thread leave open something your review depends on, and
+> `BLOCKED: <your question>`, when you cannot review without an answer
+> from the maintainer.
+
+The owner's names, each only where its Task asks for it, `ANSWER: <your
+answer>` or `QUESTION: <the question>` (on a question passed to it, one
+of the two required), a proposal run's `Met: <path>` lines and its jobs
+from `## <title>`, or `BLOCKED: <why>` as the only line after any
+`Met:` lines, and `BLOCKED: <your question>`; the architect's `STANDS:
+<why>` (an accepted plan's revision or confirmation), `ANSWER: <your
+answer>` or `QUESTION: <the question>` (on a member's question, one of
+the two required) and `BLOCKED: <your question>`; the worker's, none
+required, `NO CHANGE: <why>`, `QUESTION: <one question>` and `BLOCKED:
+<why, or your question>`; the QA's one of three, its jobs from `## <title>`,
+`NO FAILURE: <the routes you drove>` or `BLOCKED: <why, or your
+question>`, the last two as the only line. The texts are `roleOutputs`
+and `reviewerOutput` in `internal/swarm/reconcile/task.go`. A contract
+the Task asks for only in a case (`STANDS:`, `NO CHANGE:`, a worker's
+or a reviewer's `QUESTION:`, every `BLOCKED:`) keeps its sentence in the
+row's text, which names the case; the block says it is optional.
+
+The **reminder** ends, after the closing paragraph, each text whose
+first line is required, restating it: a reviewer's `Begin your output
+with the line "VERDICT: approve" or "VERDICT: request-changes".`, the
+architect's on a question `Begin your output with the line "ANSWER:
+<your answer>", or with "QUESTION: <the question>" when the plan, the
+thread and the resources do not settle it.`, the owner's on a question
+`Begin your output with the line "ANSWER: <your answer>", or with
+"QUESTION: <the question>" when only the maintainer can settle it.`
+These rows' texts state their first line nowhere else. Before the fix
+the reviewer's row ended with its verdict sentence, `The first line of
+your output must be exactly "VERDICT: approve" or "VERDICT:
+request-changes"; then the review, each finding a line beginning
+"[blocking]" or "[non-blocking]" with its file and line. Request changes
+only when a finding is blocking; approve otherwise.`, and the question
+rows asked for `ANSWER:` and `QUESTION:` "as the first line" in their
+text, at the end of a system prompt of some 28,000 characters; how
+the verdict is read and checked (7.5, 7.6) is unchanged.
+
 The **builder sentence** follows, in each architect text that asks for
 a plan or a revised plan, the text that asks for it, before what the
 row adds after it: the first quoted text of the `proposal-accepted` and
@@ -3333,12 +3415,12 @@ is left out (no plan, the fast lane).
 | architect, `swarm:proposal-accepted` | `Write the plan for issue #<n> as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step.` With the plan gate on, it adds `The maintainer reads "## Research" first, then the plan, before any code is written.`; off, `The plan is accepted as you write it: there is no revision round.` While the issue's current pull request is open (T11 with G2 off, or a relabel to `proposal-accepted` by the maintainer), it adds the open-slice sentence of the `plan-0-posted` row |
 | architect, `swarm:plan-0-posted` | `Revise your plan for issue #<n> in answer to the latest comment. Write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, a slice that moves a pin to another slice's change after that slice, a diagram where a slice touches more than one component.` While the issue's current pull request is open (after T11, or a relabel by the maintainer), it adds the **open-slice sentence**: `Pull request <name>#<m>, slice <s>, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/<n>-<s> in /job/work/<name>, beside <base>: "git diff <base>...swarm/<n>-<s>" there is the change they judged. Revise the plan so that the slice can pass review: slice <s> keeps its number, its repository and its branch, and the worker continues on them; what it does, how it is tested and the slices after it may change.` With no accepted plan in the thread (the fast lane reaching the limit), the text is the `proposal-accepted` row's, with the open-slice sentence |
 | architect, `swarm:plan-1-accepted` (the rulings and the re-plan, section 6) | with changed rulings, `Rulings changed since your plan for issue #<n> was written or last confirmed: <rulings>; revise the remaining slices or confirm they stand.`, `<rulings>` the changed rulings, `<name>:<path>`, comma-separated; with a re-plan request, `The maintainer asks you to re-plan issue #<n>: the comment of <login> at <time>, beginning "Re-plan" under "# Thread", is the direction. Revise the remaining slices as it directs, or confirm they stand.`, `<time>` the request's, as `# Thread` writes it (RFC 3339, UTC); then, when the issue has a pull request, `Slice 1 has a pull request, under "# Earlier pull requests": keep its line as it is, with its number and repository.`, or with `<s>` > 1 the current pull request's slice, `Slices 1 to <s> have pull requests, under "# Earlier pull requests": keep their lines as they are, with their numbers and repositories.`; when that pull request was closed unmerged (the maintainer closed it to re-plan, section 11, daisy swarm replan), `Pull request <name>#<m>, slice <s>, was closed unmerged: keep its line, its number being taken, and put what it was to do, if it is still wanted, in a later slice.`; then `To revise, write the whole revised plan under the same "## " headings in the same order, not the changes to it, each slice beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>. If the remaining slices stand as they are, write "STANDS: <why>" as the first line of your output instead, then <what>.`, `<what>` `for each changed ruling, why they agree with it`, with a re-plan request too `for each changed ruling, why they agree with it, and why they answer the maintainer's comment`, with the request alone `why they answer the maintainer's comment`; with the plan gate on, `A revised plan goes to the maintainer as a plan does; one that stands goes on to the next slice.`, off, `A revised plan is accepted as you write it.` |
-| architect, any stage, with `swarm:question` (section 6, The question) | `<Asker> asks a question on issue #<n>, its comment beginning "QUESTION:" under "# Thread". Answer it from the plan, the thread and the resources: write "ANSWER: <your answer>" as the first line of your output, then what the asker needs with it; do not revise the plan here. If they do not settle it, write "QUESTION: <the question>" as the first line instead, restated for the owner, who answers it from the briefs or passes it to the maintainer.`, `<Asker>` the role of the newest of the swarm's issue comments beginning `QUESTION:`, capitalised, and its run, `Worker run <k>` (`A member` when there is none, the flag set by hand); with more than one repository, the architect's sentence on quoting another repository's text is not added |
-| owner, any stage, with `swarm:question` | `The architect passed you a question on issue #<n>, its comment beginning "QUESTION:" under "# Thread", which the plan and the resources do not settle. Answer it from the briefs, the thread and the resources: write "ANSWER: <your answer>" as the first line of your output, then what the asker needs with it. If only the maintainer can settle it, write "QUESTION: <the question>" as the first line instead: Daisy blocks the issue with it for the maintainer.` |
+| architect, any stage, with `swarm:question` (section 6, The question) | `<Asker> asks a question on issue #<n>, its comment beginning "QUESTION:" under "# Thread". Answer it from the plan, the thread and the resources, then write what the asker needs with it; do not revise the plan here. If they do not settle it, restate the question for the owner, who answers it from the briefs or passes it to the maintainer.`, the closing followed by its reminder (above), `<Asker>` the role of the newest of the swarm's issue comments beginning `QUESTION:`, capitalised, and its run, `Worker run <k>` (`A member` when there is none, the flag set by hand); with more than one repository, the architect's sentence on quoting another repository's text is not added |
+| owner, any stage, with `swarm:question` | `The architect passed you a question on issue #<n>, its comment beginning "QUESTION:" under "# Thread", which the plan and the resources do not settle. Answer it from the briefs, the thread and the resources, then write what the asker needs with it. If only the maintainer can settle it, restate the question: Daisy blocks the issue with it for the maintainer.`, the closing followed by its reminder (above) |
 | worker, `swarm:plan-1-accepted`, with a plan | `Implement slice <s> of the accepted plan for issue #<n> (it declares <S>) in <owner>/<name>, on the branch checked out in /job/work/<name> (swarm/<n>-<s>). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.` |
 | worker, `swarm:plan-1-accepted`, no plan (the fast lane) | `There is no plan: the issue body and the maintainer's comments under Direction are the job of issue #<n>. Keep the change small; if it needs a plan, write "BLOCKED: needs a plan". Work on the branch checked out in /job/work/<name> (swarm/<n>-<s>) and write the pull request's description.` |
 | worker, `swarm:review-3-changes-requested` | `The newest entries of pull request <name>#<m>'s thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge <base>. Address each on the branch checked out in /job/work/<name> (swarm/<n>-<s>), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.` |
-| adversary or sympathetic, `swarm:review-0-ready` or `swarm:review-1-in-progress` | `Review pull request <name>#<m>, slice <s> of issue #<n>. The change is "git diff <base>...HEAD" in /job/work/<name>, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding. The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.` The adversary's adds: `For each test that slice <s>'s item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against <base>'s code: in /job/work/<name>, a throwaway clone, put everything the change touches except its tests back as <base> has it (check out <base>'s version of each path, deleting those <base> lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against <base>'s code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against <base> already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against <base> by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.` In round r > 1, on a head with commits since `<previous head>`, the review is a **delta review** (Step E2 of the plan implementing the 2026-11-19 swarm roadmap; decision [168](swarm/decisions/0168-a-delta-review.md)): the row's text up to its verdict sentence (`Review pull request …` to `… a claim neither tested nor listed is a finding.`) is replaced by `This is round <r> of pull request <name>#<m>, slice <s> of issue #<n>: review what changed since <previous head>, the head you last reviewed. The change to review is "git diff --name-only -z <base>...HEAD \| xargs -0 -r git diff <previous head>..HEAD --" in /job/work/<name>, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of <base> brought in is not this pull request's change. The whole change, "git diff <base>...HEAD", is there to read where the revision needs it; reviewing it again is not the task. First, for each blocking finding of the previous round, <findings>, and of your review of <previous head>, say whether it is closed, or answered with a reason you accept. Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims. Raise a new blocking finding only on code changed since <previous head>; a finding on code unchanged since then is non-blocking.`, the verdict sentence following as in round 1, `<findings>` the slice's latest round's file in the job's workspace, `/job/memory/slices/<s>/rounds/<r'>.md` (7.8, A round's file), or, with none there, `under "# Pull request"`, whose previous round the prompt shows (7.3); the adversary's addition and the others below are as in round 1. Before Step E2 the row's text stayed and the round added `This is round <r>. First say, for each blocking finding of your review of <previous head>, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since <previous head> in the files the pull request changes ("git diff --name-only -z <base>...HEAD \| xargs -0 -r git diff <previous head>..HEAD --"): what a merge of <base> brought in is not this pull request's change.` (`<base>...HEAD` names the files the branch itself changes, so a revision that merged `<base>` does not show the reviewer other slices' files; `-z` and `xargs -0` pass each name whole, a space in it among them, and `-r` runs no diff when the branch changes no file, rather than one of the whole range; decisions [90](swarm/decisions/0090-rounds-briefs-and-the-forge.md) and [119](swarm/decisions/0119-reconciles-loose-ends.md)). `<previous head>` is the commit of the role's newest review on this pull request but those of the head since its newest reopening (the worker's answer without a commit, or the maintainer's comment, section 6): each reviewer's own, so under decision [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)'s order the sympathetic reviewer's may be several heads older than the adversary's. A reviewer with no such review (the sympathetic reviewer whose first review falls in a later round, the adversary alone having sent the earlier back) has nothing to start a delta from and reviews the whole change, with the row's text and no round sentence. When that commit is the head itself and no answer of the worker's follows that review, the maintainer having commented, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the maintainer commented in the thread, with no commit since. First answer the maintainer's comment; then say, for each blocking finding of your previous review, whether it still stands in its light, and raise a new blocking finding only where the comment shows one.`; when that commit is the head itself, the worker having answered `NO CHANGE:`, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.` |
+| adversary or sympathetic, `swarm:review-0-ready` or `swarm:review-1-in-progress` | `Review pull request <name>#<m>, slice <s> of issue #<n>. The change is "git diff <base>...HEAD" in /job/work/<name>, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding.`, the closing followed by its reminder (above), the verdict being the role's `# Output`. The adversary's adds: `For each test that slice <s>'s item under the plan's Steps names, and for each Test Plan claim the worker's newest report (the description, or its comment when it continued the pull request) reports done, check that its test exists on this head and that it fails against <base>'s code: in /job/work/<name>, a throwaway clone, put everything the change touches except its tests back as <base> has it (check out <base>'s version of each path, deleting those <base> lacks), run the test as the head has it (a build failure counts as failing), then restore the head ("git checkout HEAD -- ." and remove what it adds back). A test that is missing, or that passes against <base>'s code, is a "[blocking]" finding. Three cases that rollback cannot judge are checked another way, and are findings only when the test does not exercise its claim: a test whose subject the change keeps in test files (the rollback leaves them in place), and a claim met by a test the change does not touch (it passed against <base> already), both checked by reading; and a test of behaviour the change keeps, where the plan or the report says the change removes code, restructures it or changes its cost but not its results (such a test passes against <base> by design), checked by breaking the live path it exercises in the throwaway clone and seeing it fail, or by the worker's own report of that probe. A claim reported not in this slice is not checked here.` In round r > 1, on a head with commits since `<previous head>`, the review is a **delta review** (Step E2 of the plan implementing the 2026-11-19 swarm roadmap; decision [168](swarm/decisions/0168-a-delta-review.md)): the row's text (`Review pull request …` to `… a claim neither tested nor listed is a finding.`) is replaced by `This is round <r> of pull request <name>#<m>, slice <s> of issue #<n>: review what changed since <previous head>, the head you last reviewed. The change to review is "git diff --name-only -z <base>...HEAD \| xargs -0 -r git diff <previous head>..HEAD --" in /job/work/<name>, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of <base> brought in is not this pull request's change. The whole change, "git diff <base>...HEAD", is there to read where the revision needs it; reviewing it again is not the task. First, for each blocking finding of the previous round, <findings>, and of your review of <previous head>, say whether it is closed, or answered with a reason you accept. Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims. Raise a new blocking finding only on code changed since <previous head>; a finding on code unchanged since then is non-blocking.`, the reminder ending the text as in round 1, `<findings>` the slice's latest round's file in the job's workspace, `/job/memory/slices/<s>/rounds/<r'>.md` (7.8, A round's file), or, with none there, `under "# Pull request"`, whose previous round the prompt shows (7.3); the adversary's addition and the others below are as in round 1. Before Step E2 the row's text stayed and the round added `This is round <r>. First say, for each blocking finding of your review of <previous head>, whether it is resolved, or answered with a reason you accept; raise new blocking findings only on code changed since <previous head> in the files the pull request changes ("git diff --name-only -z <base>...HEAD \| xargs -0 -r git diff <previous head>..HEAD --"): what a merge of <base> brought in is not this pull request's change.` (`<base>...HEAD` names the files the branch itself changes, so a revision that merged `<base>` does not show the reviewer other slices' files; `-z` and `xargs -0` pass each name whole, a space in it among them, and `-r` runs no diff when the branch changes no file, rather than one of the whole range; decisions [90](swarm/decisions/0090-rounds-briefs-and-the-forge.md) and [119](swarm/decisions/0119-reconciles-loose-ends.md)). `<previous head>` is the commit of the role's newest review on this pull request but those of the head since its newest reopening (the worker's answer without a commit, or the maintainer's comment, section 6): each reviewer's own, so under decision [163](swarm/decisions/0163-the-sympathetic-reviewer-after-the-adversary-approves.md)'s order the sympathetic reviewer's may be several heads older than the adversary's. A reviewer with no such review (the sympathetic reviewer whose first review falls in a later round, the adversary alone having sent the earlier back) has nothing to start a delta from and reviews the whole change, with the row's text and no round sentence. When that commit is the head itself and no answer of the worker's follows that review, the maintainer having commented, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the maintainer commented in the thread, with no commit since. First answer the maintainer's comment; then say, for each blocking finding of your previous review, whether it still stands in its light, and raise a new blocking finding only where the comment shows one.`; when that commit is the head itself, the worker having answered `NO CHANGE:`, it adds instead: `This is round <r>, on the head you reviewed before (<head>): the worker answered in the thread with "NO CHANGE:" and no commit. First say, for each blocking finding of your previous review, whether the answer resolves it with a reason you accept; raise no new blocking finding, since the code has not changed.` |
 
 The plan's **Acceptance**, wherever this document names it, is its
 `## Test Plan`: the numbered claims the worker reports on and the
@@ -4140,7 +4222,11 @@ issue, stage or time, and empty when the file is missing or holds no
 such lines. That block is `# Task` in a `system.md` written before Step
 E1 of the plan implementing the 2026-11-19 swarm roadmap and `# Praxis`,
 `# Repository notes: <name>` or `# Resources` since (7.3, The order),
-so one persona with its parts hashes alike in either order; `outcome` the run's;
+so one persona with its parts hashes alike in either order; the
+role's `# Output` block, between `# Persona` and the parts since the
+verdict fix (7.4, The output contract), is Daisy's text and is left
+out, its bytes cut from the region, so one persona with its parts
+hashes alike before and after the fix; `outcome` the run's;
 `review_rounds` a reviewer's `round` line, its round as section 6
 counts it at the launch; `review_effect` a reviewer's effect, the
 findings it raised that were fixed (decision [142](swarm/decisions/0142-a-reviews-effect-read-from-the-runs.md)): `0` for a review not
@@ -7698,8 +7784,8 @@ adversary and the sympathetic reviewer, **review effect** `<f>` the
 `review_effect` of the runs that record one summed, `<k>` how many do
 (an effect still unknown, 7.6, is not counted). A change to Daisy's own
 Task texts, as the delta review of Step E2 of the plan implementing the
-2026-11-19 swarm roadmap, changes no `config_hash`, which covers the
-persona and its parts alone: its before and after are read as two
+2026-11-19 swarm roadmap, or to a role's `# Output` (the verdict fix),
+changes no `config_hash`, which covers the persona and its parts alone: its before and after are read as two
 windows, `--until` and `--since` the time its build was installed, each
 row's `root_sha` naming the root its run was collected under (decision
 [168](swarm/decisions/0168-a-delta-review.md)).

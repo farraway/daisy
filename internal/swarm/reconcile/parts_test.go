@@ -13,9 +13,9 @@ import (
 
 // R3-13's claim, the prompt hash (the plan implementing the 2026-11-19
 // swarm roadmap; section 7.3): a run's prompt parts follow its persona
-// in system.md, each its own section in list order, its headings
-// shifted, before the blocks after them (# Resources here; # Task before
-// Step E1); system.md, whose sha256 is the run's
+// in system.md, after its # Output (the verdict fix), each its own
+// section in list order, its headings shifted, before the blocks after
+// them (# Resources here; # Task before Step E1); system.md, whose sha256 is the run's
 // prompt_hash (7.6), changes with a part's text and with nothing else
 // of the job changed.
 func TestRenderPromptParts(t *testing.T) {
@@ -27,7 +27,7 @@ func TestRenderPromptParts(t *testing.T) {
 		return sys
 	}
 	sys := render("# CSS rules\n\nUse the grid.\n")
-	want := "# not a heading\n```\n\n# Prompt part: prompts/parts/css.md\n\n## CSS rules\n\nUse the grid.\n\n# Prompt part: prompts/parts/tokens.md\n\nSpend few tokens.\n\n# Resources\n"
+	want := "# not a heading\n```\n\n# Output\n\n" + Output("architect") + "\n\n# Prompt part: prompts/parts/css.md\n\n## CSS rules\n\nUse the grid.\n\n# Prompt part: prompts/parts/tokens.md\n\nSpend few tokens.\n\n# Resources\n"
 	if !strings.Contains(sys, want) {
 		t.Errorf("system.md:\n%s\nwant within:\n%s", sys, want)
 	}
@@ -113,7 +113,7 @@ func TestRenderStableBlocksFirst(t *testing.T) {
 			headings = append(headings, strings.Fields(l + " ")[0]+" "+strings.SplitN(l, " ", 3)[1])
 		}
 	}
-	want := []string{"# Persona", "# Prompt", "# Praxis", "# Testing", "# Repository", "# Resources", "<!-- daisy-swarm", "# Task"}
+	want := []string{"# Persona", "# Output", "# Prompt", "# Praxis", "# Testing", "# Repository", "# Resources", "<!-- daisy-swarm", "# Task"}
 	if !slices.Equal(headings, want) {
 		t.Errorf("the blocks' order %q, want %q:\n%s", headings, want, one)
 	}
@@ -149,5 +149,17 @@ func TestConfigHashAcrossTheOrders(t *testing.T) {
 		if got := configHash([]byte(sys)); got != want {
 			t.Errorf("%s: configHash %q, want %q", name, got, want)
 		}
+	}
+	// Since the verdict fix the role's # Output sits between # Persona and
+	// the parts: Daisy's text, left out of the hash, so the persona and
+	// its parts hash as they did without it.
+	persona, parts := "# Persona\n\n## adversary\n\nYou do it.\n\n", "# Prompt part: prompts/parts/css.md\n\nUse the grid.\n\n"
+	output := "# Output\n\nThe first line of your output is exactly `VERDICT: approve`.\n\n```text\nVERDICT: approve\n# not a heading\n```\n\n"
+	sum = sha256.Sum256([]byte(persona + parts))
+	if got, want := configHash([]byte(persona+output+parts+"# Resources\n\nNone.\n\n# Task\n\nReview.\n")), hex.EncodeToString(sum[:]); got != want {
+		t.Errorf("with # Output: configHash %q, want %q, the persona's and the parts'", got, want)
+	}
+	if got, want := configHash([]byte(persona+output+"# Resources\n\nNone.\n")), configHash([]byte(persona+"# Resources\n\nNone.\n")); got != want || got == "" {
+		t.Errorf("with # Output and no part: configHash %q, want %q, the persona's", got, want)
 	}
 }

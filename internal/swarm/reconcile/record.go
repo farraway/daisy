@@ -134,12 +134,17 @@ func (c *collection) row(outcome string, now time.Time) (metrics.Row, string) {
 // `# Task` in a system.md written before Step E1 of the plan implementing
 // the 2026-11-19 swarm roadmap, and `# Praxis`, `# Repository notes:
 // <name>` or `# Resources` since, so one persona and its parts hash
-// alike in either order; "" when the file has no `# Persona` line
-// followed by another block's. A line in a fenced block is neither, and
-// Render shifts every heading of the persona and the parts below `# `.
+// alike in either order. The role's `# Output` block, between the
+// persona and the parts since the verdict fix, is Daisy's text, not the
+// configuration, and is left out, so one persona and its parts hash
+// alike with it and without it. "" when the file has no `# Persona`
+// line followed by another block's. A line in a fenced block is
+// neither, and Render shifts every heading of the persona and the parts
+// below `# `.
 func configHash(system []byte) string {
 	var fences fence.Scan
 	start, at := -1, 0
+	output, outputEnd := -1, -1 // the # Output block's bytes, once seen
 	for _, line := range strings.SplitAfter(string(system), "\n") {
 		from := at
 		at += len(line)
@@ -147,11 +152,20 @@ func configHash(system []byte) string {
 		if fences.Line(l) || !strings.HasPrefix(l, "# ") {
 			continue
 		}
+		if output >= 0 && outputEnd < 0 {
+			outputEnd = from
+		}
 		switch {
 		case start < 0 && l == "# Persona":
 			start = from
+		case start >= 0 && l == "# Output" && output < 0:
+			output = from
 		case start >= 0 && !strings.HasPrefix(l, "# Prompt part: "):
-			sum := sha256.Sum256(system[start:from])
+			text := system[start:from]
+			if output >= 0 {
+				text = append(slices.Clone(system[start:output]), system[outputEnd:from]...)
+			}
+			sum := sha256.Sum256(text)
 			return hex.EncodeToString(sum[:])
 		}
 	}

@@ -17,14 +17,15 @@ import (
 
 // configText is the configuration's text of a run's system.md as section
 // 7.6 names it: from its `# Persona` line up to the block after its
-// prompt parts, here the architect's `# Praxis` (Step E1).
+// prompt parts, here the architect's `# Praxis` (Step E1), less its
+// `# Output` block (the verdict fix).
 func configText(t *testing.T, sys string) string {
 	t.Helper()
-	at, next := strings.Index(sys, "# Persona\n"), strings.Index(sys, "\n# Praxis\n")
-	if at != 0 || next < at {
-		t.Fatalf("no # Persona first, then # Praxis:\n%s", sys)
+	at, out, part, next := strings.Index(sys, "# Persona\n"), strings.Index(sys, "\n# Output\n"), strings.Index(sys, "\n# Prompt part: "), strings.Index(sys, "\n# Praxis\n")
+	if at != 0 || out < at || part < out || next < part {
+		t.Fatalf("no # Persona first, then # Output, a part and # Praxis:\n%s", sys)
 	}
-	return sys[at : next+1]
+	return sys[at:out+1] + sys[part+1:next+1]
 }
 
 func sha(text string) string {
@@ -84,6 +85,12 @@ func TestSwarmConfigHash(t *testing.T) {
 	one := sha(configText(t, a.file("1-architect-1", "io/system.md")))
 	if !strings.Contains(configText(t, a.file("1-architect-1", "io/system.md")), "# Prompt part: prompts/parts/style.md\n\n## Style\n\nShort plans.\n") {
 		t.Fatalf("the part is not in the configuration's text:\n%s", a.file("1-architect-1", "io/system.md"))
+	}
+	// Since the verdict fix the role's # Output contract sits between the
+	// persona and its parts, Daisy's text and no part of the
+	// configuration's.
+	if sys := a.file("1-architect-1", "io/system.md"); !strings.Contains(sys, "\n# Output\n\n") || strings.Index(sys, "\n# Output\n") > strings.Index(sys, "\n# Prompt part: ") || strings.Contains(configText(t, sys), "# Output") {
+		t.Fatalf("no # Output between the persona and the part, or # Output in the configuration's text:\n%s", sys)
 	}
 	for i, r := range got {
 		if r["config_hash"] != one {

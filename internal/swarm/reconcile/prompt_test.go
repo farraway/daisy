@@ -86,7 +86,7 @@ const wantCauseSentence = "Write one line `Cause: <word>` under any line beginni
 	"`forge-fact` (a fact on the forge you need cannot be read), `kept-work` (work Daisy was to keep or give you is missing: a plan cut short, a kept commit not given back), " +
 	"`ruling` (only the maintainer's ruling settles it), `scope` (whether you may change what the plan or the job leaves out), or `capacity` (a provider's limit, quota or credit stopped the work)."
 
-const wantArchitectSystem = `# Persona
+var wantArchitectSystem = `# Persona
 
 ## architect
 
@@ -95,6 +95,10 @@ You do it.
 ` + "```" + `
 # not a heading
 ` + "```" + `
+
+# Output
+
+` + Output("architect") + `
 
 # Resources
 
@@ -283,15 +287,15 @@ func TestRenderWorkerFastLane(t *testing.T) {
 
 // deltaTask is a delta review's text (section 7.4; Step E2) for round r
 // of lib#1, slice 1 of issue #1, since prev, the previous round's
-// findings at findings.
+// findings at findings; the verdict is the role's # Output and the
+// Task's last line (TestRenderReviewerOutputContractFirst).
 func deltaTask(r int, prev, findings string) string {
 	return `This is round ` + itoa(r) + ` of pull request lib#1, slice 1 of issue #1: review what changed since ` + prev + `, the head you last reviewed. ` +
 		`The change to review is "git diff --name-only -z main...HEAD | xargs -0 -r git diff ` + prev + `..HEAD --" in /job/work/lib, a throwaway clone you may build and test in; nothing you change there is kept, and what a merge of main brought in is not this pull request's change. ` +
 		`The whole change, "git diff main...HEAD", is there to read where the revision needs it; reviewing it again is not the task. ` +
 		`First, for each blocking finding of the previous round, ` + findings + `, and of your review of ` + prev + `, say whether it is closed, or answered with a reason you accept. ` +
 		`Then review what changed: check each claim of the plan's Test Plan the revision bears on against it and the check's result, and the worker's "Not established:" lists against what the revision claims. ` +
-		`Raise a new blocking finding only on code changed since ` + prev + `; a finding on code unchanged since then is non-blocking. ` +
-		`The first line of your output must be exactly "VERDICT: approve" or "VERDICT: request-changes"; then the review, each finding a line beginning "[blocking]" or "[non-blocking]" with its file and line. Request changes only when a finding is blocking; approve otherwise.`
+		`Raise a new blocking finding only on code changed since ` + prev + `; a finding on code unchanged since then is non-blocking.`
 }
 
 // Each reviewer's delta starts from its own last review (Step E2;
