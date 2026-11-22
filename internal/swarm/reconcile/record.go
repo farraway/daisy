@@ -205,10 +205,11 @@ func readCost(line string) (costUsage, bool) {
 // reported): tokens_in, tokens_out and tokens_cached as given,
 // tokens_total in and out added, and cost_estimated those tokens at the
 // model's list price (section 9), none when the cached part is not
-// known: on a cost line written before Step 28 of the plan remediating
+// known (on a cost line written before Step 28 of the plan remediating
 // the 2026-11-15 design review, claude's and grok's input count left the
 // cache out, and codex's before Step 11b of the plan for the inbox
-// requests F27-F35 held a cached part it did not say.
+// requests F27-F35 held a cached part it did not say) or is over the
+// input, which holds it.
 func usage(r *metrics.Row, in, out, cached string) {
 	r.TokensIn, r.TokensOut, r.TokensCached, r.TokensTotal, r.CostEstimated = in, out, cached, "", ""
 	i, err1 := strconv.Atoi(in)
@@ -217,7 +218,7 @@ func usage(r *metrics.Row, in, out, cached string) {
 		return
 	}
 	r.TokensTotal = strconv.Itoa(i + o)
-	if c, err := strconv.Atoi(cached); err == nil {
+	if c, err := strconv.Atoi(cached); err == nil && c <= i {
 		if est, ok := provider.Estimate(r.Model, i, c, o); ok {
 			r.CostEstimated = strconv.FormatFloat(math.Round(est*1e6)/1e6, 'f', -1, 64)
 		}

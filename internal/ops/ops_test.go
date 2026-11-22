@@ -452,3 +452,17 @@ func TestRewriteWritesThroughLinks(t *testing.T) {
 		}
 	}
 }
+
+// A Fake without StartFn starts no process: Start fails, and what the
+// process would have done is not done.
+func TestFakeStartsNoProcessOfItsOwn(t *testing.T) {
+	dir := t.TempDir()
+	p, err := (&ops.Fake{}).Start(dir, "sh", nil, io.Discard, io.Discard, "-c", "touch started")
+	if err == nil {
+		p.Wait()
+		t.Error("Start without StartFn started sh")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "started")); err == nil {
+		t.Error("the process ran")
+	}
+}

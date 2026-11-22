@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -311,5 +312,203 @@ func TestSwarmApplyCommandAnswerEdited(t *testing.T) {
 	a.pass()
 	if got := a.answers(issue1); len(got) != 1 {
 		t.Errorf("posted again twice: %q", got)
+	}
+}
+
+// noIDs is the forge with jane's comments read without their ids, as a
+// forge that reported none would give them.
+type noIDs struct{ gitForge }
+
+func (f noIDs) Issue(n int) (forge.Issue, error) {
+	is, err := f.gitForge.Issue(n)
+	for i := range is.Comments {
+		if is.Comments[i].Author == "jane" {
+			is.Comments[i].ID = 0
+		}
+	}
+	return is, err
+}
+
+// What guards a command beside its own run (section 6, The comment
+// commands): a record that says its outcome is not known (an apply
+// stopped while the verb ran) is posted as the answer and the verb not
+// run again; an answer that names the comment, its record lost, keeps it
+// from running; and a command whose comment has no id on the forge, so
+// that no record could be written, is warned of and not run.
+func TestSwarmApplyCommandGuards(t *testing.T) {
+	t.Parallel()
+	const notKnown = "Not known: apply stopped while the verb ran, so its outcome was not recorded; read the issue's labels and timeline before posting the command again.\n"
+	for _, tc := range []string{"a record whose outcome is not known", "an answer with no record", "no comment id"} {
+		t.Run(tc, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.maintainer()
+			a.posted()
+			id := a.say(issue1, "jane", "/swarm accept")
+			want := []string{answer(id, "/swarm accept", notKnown)}
+			f := forge.Adapter(a.git())
+			switch tc {
+			case "a record whose outcome is not known":
+				if err := os.MkdirAll(a.state("commands"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(a.state(fmt.Sprintf("commands/%d", id)), []byte(want[0]), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			case "an answer with no record":
+				a.tick()
+				a.forge.Comment(issue1, want[0])
+			case "no comment id":
+				f, want = noIDs{a.git()}, nil
+			}
+			if err := a.apply(f, "--once"); err != nil {
+				t.Fatal(err)
+			}
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.PlanPosted, forge.Gated}) || a.janes(issue1) != nil || len(a.runner.Launches()) != 1 {
+				t.Errorf("run: labels %v, jane's writes %q, launched %q\n%s", got, a.janes(issue1), a.launchedRoles(), a.stdout.String())
+			}
+			if got := a.answers(issue1); !reflect.DeepEqual(got, want) {
+				t.Errorf("answers %q\nwant %q", got, want)
+			}
+			if warned := strings.Contains(a.stderr.String(), "⚠ #1: a command by jane has no comment id on the forge, so its run could not be recorded; not run\n"); warned != (tc == "no comment id") {
+				t.Errorf("warned %v:\n%s", warned, a.stderr.String())
+			}
+		})
+	}
+}
+
+// An answer names the host's paths as the spec names them, the
+// narrowest first: under the state directory <state>, the swarm's clone
+// <swarm>, $DAISY_LOCAL, and ~ for $HOME (section 6, The comment
+// commands); here in the refusal of a word that is no comment command.
+func TestSwarmApplyCommandAnswerHidesPaths(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.maintainer()
+	a.posted()
+	home := a.vars["HOME"]
+	if home == "" {
+		home = t.TempDir()
+		a.vars["HOME"] = home
+	}
+	refused := func(word string) string {
+		return "Refused:\n\n    Error: swarm: " + word + " is no comment command; a comment runs triage, accept, class, approve, merge, unblock, block, pause, resume, replan or close\n"
+	}
+	var want []string
+	for _, p := range [][2]string{{a.state("x"), "<state>/x"}, {filepath.Join(a.ws, "x"), "<swarm>/x"}, {filepath.Join(a.local, "x"), "$DAISY_LOCAL/x"}, {filepath.Join(home, "x"), "~/x"}} {
+		id := a.say(issue1, "jane", "/swarm "+p[0])
+		want = append(want, answer(id, "/swarm "+p[0], refused(p[1])))
+	}
+	a.pass()
+	if got := a.answers(issue1); !reflect.DeepEqual(got, want) {
+		t.Errorf("answers %q\nwant %q", got, want)
+	}
+}
+
+// Commands on the issue thread and on its current pull request's run in
+// the order they were posted, across the two (section 6, The comment
+// commands): a pause on the pull request, then a resume on the issue,
+// leaves the issue unpaused.
+func TestSwarmApplyCommandsInTheOrderPosted(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.maintainer()
+	a.inReview(oneSlice)
+	pause := a.say(forge.Ref{Repo: "app", N: 1}, "jane", "/swarm pause")
+	resume := a.say(issue1, "jane", "/swarm resume")
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.pass()
+	out := a.stdout.String()
+	p, r := strings.Index(out, fmt.Sprintf("(comment %d): done\n", pause)), strings.Index(out, fmt.Sprintf("(comment %d): done\n", resume))
+	if p < 0 || r < p || slices.Contains(labels(a.issue(1)), forge.Paused) {
+		t.Errorf("pause at %d, resume at %d, labels %v\n%s", p, r, labels(a.issue(1)), out)
+	}
+}
+
+// A command on a pull request no longer open is not read: the merged
+// slice 1's thread, with slice 2 to build, is no thread of the issue's
+// (section 6, The comment commands).
+func TestSwarmApplyCommandOnAClosedPull(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.maintainer()
+	a.betweenSlices(nil)
+	merged := forge.Ref{Repo: "app", N: a.pulls(1)[0].Number}
+	a.say(merged, "jane", "/swarm pause")
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	if got := labels(a.issue(1)); slices.Contains(got, forge.Paused) || a.answers(merged) != nil || a.janes(issue1) != nil {
+		t.Errorf("labels %v, answers on the merged pull %q, jane's writes %q\n%s", got, a.answers(merged), a.janes(issue1), a.stdout.String())
+	}
+}
+
+// A command is no comment that lifts a block (section 6, The comment
+// commands): the blocked gate's note still names the reconciler's note
+// that set swarm:blocked after the maintainer's /swarm accept, which the
+// verb refuses, so that the command is the one comment of hers.
+func TestSwarmApplyCommandLiftsNoBlock(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.maintainer()
+	a.forge.CreateIssue("Blocked", "Build it.", []string{"swarm:review-0-ready", forge.Blocked})
+	a.forge.Comment(issue1, mark("reconciler", 1)+"worker run 1 failed: no commits (at swarm:review-0-ready). Remove swarm:blocked to resume.")
+	id := a.say(issue1, "jane", "/swarm accept")
+	a.pass()
+	notes := a.gateNotes(1)
+	if len(notes) == 0 || !strings.Contains(notes[len(notes)-1], "\n- The note that set it, at 2026-11-06T15:00:00Z: worker run 1 failed: no commits") {
+		t.Errorf("gate notes %q", notes)
+	}
+	if got := a.answers(issue1); len(got) != 1 || !strings.HasPrefix(got[0], answer(id, "/swarm accept", "Refused:")) {
+		t.Errorf("answers %q", got)
+	}
+}
+
+// triage, class, block and close through a comment run as their verbs
+// do (section 6, The comment commands; section 11): the proposal
+// triaged, the plan's gate passed for a routine job, the job held by
+// #2, the issue closed and rejected.
+func TestSwarmApplyCommandVerbs(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, body string }{
+		{"triage", "/swarm triage"}, {"class", "/swarm class routine"}, {"block", "/swarm block --by 2"}, {"close", "/swarm close Not this one."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.maintainer()
+			if tc.name == "triage" {
+				a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalPosted})
+				a.runner.Script(1, "architect", runner.Canned{Out: oneSlice})
+			} else {
+				a.posted()
+				a.runner.Script(1, "worker", work("v1"))
+			}
+			if tc.name == "block" {
+				a.forge.CreateIssue("First", "Do it first.", []string{forge.ProposalPosted})
+			}
+			id := a.say(issue1, "jane", tc.body)
+			a.pass()
+			if got := a.answers(issue1); len(got) != 1 || !strings.HasPrefix(got[0], answer(id, tc.body, "Done:")) {
+				t.Fatalf("answers %q\n%s", got, a.stdout.String())
+			}
+			is := a.issue(1)
+			switch tc.name {
+			case "triage":
+				if got := a.janes(issue1); !slices.Contains(got, "labeled "+forge.ProposalAccepted) {
+					t.Errorf("jane's writes %q", got)
+				}
+			case "class":
+				if !slices.Contains(is.Labels, forge.PlanAccepted) {
+					t.Errorf("the routine job's plan gate not passed: labels %v", is.Labels)
+				}
+			case "block":
+				two := a.issue(2)
+				if !slices.Contains(two.Labels, forge.Blocking) || !slices.ContainsFunc(is.Comments, func(c forge.Comment) bool { return c.Author == "jane" && c.Body == "Blocked by #2" }) {
+					t.Errorf("#2's labels %v, #1's comments %+v", two.Labels, is.Comments)
+				}
+			case "close":
+				if is.Open || !slices.Contains(is.Labels, forge.Rejected) {
+					t.Errorf("open %v, labels %v", is.Open, is.Labels)
+				}
+			}
+		})
 	}
 }

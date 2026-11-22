@@ -506,16 +506,21 @@ func TestFakeEditIssueAndPullURL(t *testing.T) {
 // write to either is not in the other.
 func TestFakeClone(t *testing.T) {
 	f := fakeForge(t)
+	n, _ := f.CreateIssue("A", "body", []string{"swarm:review-2-approved"})
+	id, err := f.EnsureMilestone("M1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetMilestone(n, id); err != nil {
+		t.Fatal(err)
+	}
 	f.RefuseLabels()
 	f.RefuseMilestones()
 	f.RefuseRepository()
 	f.AddRepository()
 	f.SetSSHURL("git@forge.example.net:acme/app.git")
 	f.fakeState.repository.Collaborators = map[string]string{"jane": "write by swarm-bot"}
-	n, _ := f.CreateIssue("A", "body", []string{"swarm:review-2-approved"})
 	f.Comment(Ref{"app", n}, "a comment")
-	id, _ := f.EnsureMilestone("M1")
-	f.SetMilestone(n, id)
 	m, _ := f.CreatePull("lib", "swarm/1-1", "main", "P", "Refs acme/app#1")
 	pr := Ref{"lib", m}
 	f.Push(pr, "abc1234")

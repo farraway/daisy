@@ -9,9 +9,10 @@ import (
 )
 
 // Fake is an Ops whose every operation can be replaced by a function; a nil
-// field falls back to Real(). Tests use it to pin the clock, script a git
-// answer, set the environment or the working directory, or capture what a
-// command starts. The file system is never faked: tests use real temp
+// field falls back to Real(), but StartFn, ReexecFn and SignalsFn: a Fake
+// starts no process, replaces none and takes no signal it was not given.
+// Tests use it to pin the clock, script a git answer, set the environment
+// or the working directory, or capture what a command starts. The file system is never faked: tests use real temp
 // directories.
 type Fake struct {
 	ExecFn       func(dir, name string, args ...string) (stdout, stderr []byte, err error)
@@ -39,11 +40,14 @@ func (f *Fake) Exec(dir, name string, args ...string) ([]byte, []byte, error) {
 	return Real().Exec(dir, name, args...)
 }
 
+// Start is StartFn's process; none set, an error, never Real's: a test
+// starts only the processes it names (praxis rule 14), a real one by
+// giving Real().Start.
 func (f *Fake) Start(dir, name string, stdin io.Reader, stdout, stderr io.Writer, args ...string) (Process, error) {
 	if f.StartFn != nil {
 		return f.StartFn(dir, name, stdin, stdout, stderr, args...)
 	}
-	return Real().Start(dir, name, stdin, stdout, stderr, args...)
+	return nil, errors.New("ops: Fake.Start " + name + " " + joinArgs(args) + ": no StartFn set, so no process started")
 }
 
 func (f *Fake) Now() time.Time {

@@ -645,3 +645,22 @@ func TestSwarmMergeWithoutACheck(t *testing.T) {
 		t.Errorf("the loop's stderr:\n%s\nwant:\n%s\nstdout:\n%s", got, uncheckedWarning+both, a.stdout.String())
 	}
 }
+
+// The round-limit note in its form before the pull request was linked in
+// it (`on app#1`, Step 7 of the plan for the inbox requests F27–F35) is
+// the first time's (section 5, T11): with it on the issue, the round
+// limit reached again blocks the issue with the second note.
+func TestRoundLimitReadsTheUnlinkedNote(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.MaxRounds = 1 })
+	a.inReview(oneSlice)
+	a.tick()
+	a.forge.Comment(issue1, mark("reconciler", 1)+"Review round 1 of 1 on app#1 requested changes (was swarm:review-1-in-progress). The architect revises the plan from the reviews.")
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+	a.pass()
+	second := mark("reconciler", 1) + "Review round 1 of 1 on [acme/app#1](https://forge.example.net/acme/app/pulls/1) requested changes again (at swarm:review-1-in-progress)."
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || !slices.ContainsFunc(a.bodies(1), func(b string) bool { return strings.HasPrefix(b, second) }) {
+		t.Errorf("labels %v, comments %q\n%s", got, a.bodies(1), a.stdout.String())
+	}
+}

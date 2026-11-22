@@ -4264,8 +4264,9 @@ report was written `0`: codex's always); `tokens_total` `<in>` and
 `<out>` added; `cost_estimated` those tokens at the model's list price
 (section 9's table), the `cached <c>` at the model's cached rate and
 the rest of the input at its input rate, empty for a model not in the
-table, for cached input of a model with no cached rate, and for a line
-without `cached <c>`, whose cached part is not known (decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); for a worker run that pushed, the
+table, for cached input of a model with no cached rate, for a line
+without `cached <c>`, whose cached part is not known, and for a `<c>`
+over `<in>`, which holds it (decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md)); for a worker run that pushed, the
 lines per class of `<start>..<pushed>` in its repository's mirror,
 counted as `metrics add` counts a step's (`git diff --numstat -z -M`),
 and that range (a range the mirror cannot diff, its commits gone, leaves

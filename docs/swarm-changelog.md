@@ -1247,3 +1247,8 @@ they write.
   Sections 2 (`<state>/notified`), 5 (Notify), 6 (Trust), 7.10 and 11
   (apply's stdout). Decision [170](swarm/decisions/0170-capacity.md)
   amended.
+- 2026-11-21, Step T5a–d of the plan implementing the 2026-11-19 swarm
+  roadmap: a run's row has no `cost_estimated` when its `cost` line's
+  `cached <c>` is over its `<in>`. Section 7.6 (The run's record).
+  Decision [140](swarm/decisions/0140-every-providers-input-count-holds-its-cache.md),
+  amended with an As built note.

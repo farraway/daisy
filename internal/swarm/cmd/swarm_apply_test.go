@@ -122,6 +122,8 @@ func (a *applyWS) applyTo(f forge.Adapter, run runner.Runner, stdout, stderr io.
 			}
 			return a.exec(dir, name, args...)
 		},
+		// git cat-file --batch and notify, real as ExecFn's git is.
+		StartFn:      ops.Real().Start,
 		PromptFn:     func(io.Reader, io.Writer, string) (string, error) { a.t.Error("apply prompted"); return "", io.EOF },
 		ExecutableFn: func() (string, error) { return a.binary, nil },
 		ReexecFn: func(path string, args ...string) error {

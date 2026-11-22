@@ -49,3 +49,29 @@ func TestJournalLineUnknownPersona(t *testing.T) {
 		}
 	}
 }
+
+// A cost line gives an estimate only in its two forms, six words or
+// eight whose seventh is `cached` and whose count is a number, and only
+// with the cached count within the input (section 7.6, The run's
+// record): eight words with another seventh, a count that is no number
+// and a cached count over the input give the row no estimate, the line
+// of the form an estimate.
+func TestRunRowCostLineForms(t *testing.T) {
+	for _, c := range []struct {
+		line     string
+		estimate bool
+	}{
+		{"cost 0.50 tokens 1000/200 turns 3 cached 400", true},
+		{"cost 0.50 tokens 1000/200 turns 3 kept 400", false},
+		{"cost 0.50 tokens 1000/200 turns 3 cached many", false},
+		{"cost 0.50 tokens 1000/200 turns 3 cached 1001", false},
+	} {
+		r := metrics.Row{Model: "claude-sonnet-5-5"}
+		if u, ok := readCost(c.line); ok {
+			usage(&r, u.in, u.out, u.cached)
+		}
+		if got := r.CostEstimated != ""; got != c.estimate {
+			t.Errorf("%q: estimate %q, want one: %v", c.line, r.CostEstimated, c.estimate)
+		}
+	}
+}

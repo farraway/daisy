@@ -20,8 +20,10 @@ import (
 
 // connect runs a command of the connect's briefing, as the cli does, from
 // cwd: $DAISY_ROOT and $DAISY_LOCAL the scratch machine's, home the
-// workspace's home, values the value flags.
-func (a *applyWS) connect(fn func(*Context) error, cwd, home string, values ...Value) error {
+// workspace's home, values the value flags; a command the cli table
+// marks read-only (swarm list, metrics) under ops.ReadOnly, as the cli
+// runs it.
+func (a *applyWS) connect(fn func(*Context) error, readOnly bool, cwd, home string, values ...Value) error {
 	a.stdout.Reset()
 	a.stderr.Reset()
 	o := &ops.Fake{
@@ -33,6 +35,9 @@ func (a *applyWS) connect(fn func(*Context) error, cwd, home string, values ...V
 		},
 	}
 	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &a.stdout, Stderr: &a.stderr, Values: values}
+	if readOnly {
+		c.Ops = ops.ReadOnly(o)
+	}
 	c.Env.Home = home
 	return fn(c)
 }
@@ -89,7 +94,7 @@ func TestSwarmConnectBriefing(t *testing.T) {
 
 	before := snapshot(t, a.state(""), a.ws, home)
 	elsewhere := t.TempDir()
-	if err := a.connect(SwarmList, elsewhere, ""); err != nil {
+	if err := a.connect(SwarmList, true, elsewhere, ""); err != nil {
 		t.Fatal(err)
 	}
 	want := "Swarms on this machine (" + filepath.Join(a.local, "swarm") + "):\n" +
@@ -97,12 +102,12 @@ func TestSwarmConnectBriefing(t *testing.T) {
 	if a.stdout.String() != want || a.stderr.Len() != 0 {
 		t.Errorf("list from elsewhere:\n%s\nwant:\n%s\n%s", a.stdout.String(), want, a.stderr.String())
 	}
-	if err := a.connect(SwarmList, filepath.Join(a.ws, "prompts"), ""); err != nil ||
+	if err := a.connect(SwarmList, true, filepath.Join(a.ws, "prompts"), ""); err != nil ||
 		a.stdout.String() != strings.TrimSuffix(want, "\n")+"; here "+a.ws+"\n" {
 		t.Errorf("list from the clone: %v\n%s", err, a.stdout.String())
 	}
 
-	if err := a.connect(SwarmJournal, a.ws, ""); err != nil {
+	if err := a.connect(SwarmJournal, false, a.ws, ""); err != nil {
 		t.Fatal(err)
 	}
 	lines := strings.Split(a.stdout.String(), "\n")
@@ -117,14 +122,14 @@ func TestSwarmConnectBriefing(t *testing.T) {
 	}
 
 	since := Value{Flag: "--since", Value: "2026-11-06T15:02:00Z"}
-	if err := a.connect(commands.Metrics, a.ws, home, Value{Flag: "--swarm", Value: "acme/swarm-app"}, since); err != nil {
+	if err := a.connect(commands.Metrics, true, a.ws, home, Value{Flag: "--swarm", Value: "acme/swarm-app"}, since); err != nil {
 		t.Fatal(err)
 	}
 	if out := a.stdout.String(); !strings.Contains(out, "  Rows taken: --swarm acme/swarm-app --since 2026-11-06T15:02:00Z\n  1 rows, 0 superseded") ||
 		!strings.Contains(out, "  swarm-run  claude-fable-5-1  1 ") {
 		t.Errorf("metrics:\n%s", out)
 	}
-	if err := a.connect(commands.Metrics, a.ws, home, Value{Flag: "--since", Value: "yesterday"}); err == nil ||
+	if err := a.connect(commands.Metrics, true, a.ws, home, Value{Flag: "--since", Value: "yesterday"}); err == nil ||
 		err.Error() != "Error: --since must be an RFC 3339 time, such as 2026-11-12T14:05:00+01:00 (got: yesterday)" {
 		t.Errorf("a bad --since: %v", err)
 	}
@@ -141,18 +146,18 @@ func TestSwarmConnectBriefing(t *testing.T) {
 		}
 	}
 
-	if err := a.connect(SwarmJournal, a.ws, "", Value{Flag: "--mark", Value: "9-worker-1"}); err == nil ||
+	if err := a.connect(SwarmJournal, false, a.ws, "", Value{Flag: "--mark", Value: "9-worker-1"}); err == nil ||
 		err.Error() != "Error: swarm journal --mark: the journal holds no line of 9-worker-1; mark a run its lines name" {
 		t.Errorf("an unknown run: %v", err)
 	}
 	if _, err := os.Stat(a.state("connect-seen")); err == nil {
 		t.Error("a refused mark was written")
 	}
-	if err := a.connect(SwarmJournal, a.ws, "", Value{Flag: "--mark", Value: "2-architect-1"}); err != nil ||
+	if err := a.connect(SwarmJournal, false, a.ws, "", Value{Flag: "--mark", Value: "2-architect-1"}); err != nil ||
 		a.stdout.String() != "✓ Marked the journal seen through 2-architect-1 ("+a.state("connect-seen")+")\n" {
 		t.Fatalf("mark: %v %q", err, a.stdout.String())
 	}
-	if err := a.connect(SwarmJournal, a.ws, ""); err != nil ||
+	if err := a.connect(SwarmJournal, false, a.ws, ""); err != nil ||
 		a.stdout.String() != "Journal of acme/swarm-app: nothing since 2-architect-1 (marked seen 2026-11-06T15:02:00Z)\n" {
 		t.Errorf("nothing new: %v %q", err, a.stdout.String())
 	}
@@ -161,7 +166,7 @@ func TestSwarmConnectBriefing(t *testing.T) {
 	a.forge.CreateIssue("Docs check", "Check the docs.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(3, "architect", runner.Canned{Out: archPlan, Stdout: claudeResult})
 	a.pass() // both queued lines pushed: 2-architect-1's once
-	if err := a.connect(SwarmJournal, a.ws, ""); err != nil {
+	if err := a.connect(SwarmJournal, false, a.ws, ""); err != nil {
 		t.Fatal(err)
 	}
 	lines = strings.Split(a.stdout.String(), "\n")
@@ -174,13 +179,13 @@ func TestSwarmConnectBriefing(t *testing.T) {
 	// between the push and the removal) is one line.
 	pushed := strings.Split(gitIn(t, up, "show", "main:journal/2026-11-06.md"), "\n")[4]
 	os.WriteFile(a.state("journal"), []byte("2026-11-06 "+pushed+"\n"), 0o644)
-	if err := a.connect(SwarmJournal, a.ws, ""); err != nil || a.stdout.String() != strings.Join(lines, "\n") {
+	if err := a.connect(SwarmJournal, false, a.ws, ""); err != nil || a.stdout.String() != strings.Join(lines, "\n") {
 		t.Errorf("pushed and queued:\n%s", a.stdout.String())
 	}
 
 	// A mark the journal does not hold: the newest day, with a warning.
 	os.WriteFile(a.state("connect-seen"), []byte("7-owner-1 2026-11-01T00:00:00Z\n"), 0o644)
-	if err := a.connect(SwarmJournal, a.ws, ""); err != nil || !strings.HasPrefix(a.stdout.String(), "Journal of acme/swarm-app, 2026-11-06 (no line marked seen): 3 lines\n") ||
+	if err := a.connect(SwarmJournal, false, a.ws, ""); err != nil || !strings.HasPrefix(a.stdout.String(), "Journal of acme/swarm-app, 2026-11-06 (no line marked seen): 3 lines\n") ||
 		a.stderr.String() != "⚠ "+a.state("connect-seen")+" names 7-owner-1, which the journal does not hold: showing its newest day\n" {
 		t.Errorf("a lost mark: %v\n%s\n%s", err, a.stdout.String(), a.stderr.String())
 	}
@@ -193,18 +198,18 @@ func TestSwarmListStates(t *testing.T) {
 	a := newApplyWS(t)
 	elsewhere := t.TempDir()
 	os.RemoveAll(filepath.Join(a.local, "swarm"))
-	if err := a.connect(SwarmList, elsewhere, ""); err != nil || a.stdout.String() != "No swarm on this machine ("+filepath.Join(a.local, "swarm")+" holds no swarm's state)\n" {
+	if err := a.connect(SwarmList, true, elsewhere, ""); err != nil || a.stdout.String() != "No swarm on this machine ("+filepath.Join(a.local, "swarm")+" holds no swarm's state)\n" {
 		t.Errorf("none: %v %q", err, a.stdout.String())
 	}
 	os.MkdirAll(a.state(""), 0o755)
 	os.MkdirAll(filepath.Join(a.local, "swarm", "credentials", "openai", "1"), 0o755)
-	if err := a.connect(SwarmList, elsewhere, ""); err != nil ||
+	if err := a.connect(SwarmList, true, elsewhere, ""); err != nil ||
 		a.stdout.String() != "Swarms on this machine ("+filepath.Join(a.local, "swarm")+"):\n  acme/swarm-app on forge.example.net: clone not recorded; no home; not paused\n" {
 		t.Errorf("unrecorded: %v %q", err, a.stdout.String())
 	}
 	os.WriteFile(a.state("clone"), []byte(elsewhere+"\n"), 0o644)
 	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T15:00:00Z: swarm fault: docker gone\n"), 0o644)
-	if err := a.connect(SwarmList, elsewhere, ""); err != nil ||
+	if err := a.connect(SwarmList, true, elsewhere, ""); err != nil ||
 		!strings.HasSuffix(a.stdout.String(), ": clone "+elsewhere+" (not a clone of it now); no home; paused since 2026-11-06T15:00:00Z: swarm fault: docker gone\n") {
 		t.Errorf("moved and paused: %v %q", err, a.stdout.String())
 	}

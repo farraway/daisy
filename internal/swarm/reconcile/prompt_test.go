@@ -713,6 +713,16 @@ func TestRenderPraxisAndTesting(t *testing.T) {
 			t.Errorf("%s's # Praxis is not before # Task:\n%s", c.role, sys)
 		}
 	}
+	// A praxis or a testing skill that is empty, or whitespace alone, is
+	// no section of the system.md of either role that reads them.
+	for _, c := range []struct{ role, label string }{{"architect", "swarm:proposal-accepted"}, {"worker", "swarm:plan-1-accepted"}} {
+		for _, blank := range []string{"", " \n\t\n  "} {
+			j := job(f, at.N, c.role, c.label)
+			j.Praxis, j.Testing = blank, blank
+			sys, _ := Render(j)
+			has(t, fmt.Sprintf("%s's system.md with praxis and testing %q", c.role, blank), sys, nil, "# Praxis", "# Testing")
+		}
+	}
 }
 
 // system.md's # Resources (section 7.3), the last block every run of

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -217,5 +218,121 @@ func TestSwarmApplyQuestionBeforeRulings(t *testing.T) {
 	}
 	if notes := a.rulingsNotes(); len(notes) != 1 || a.lastComment(1) != mark("architect", 3)+"STANDS: no slice names a role.\n" {
 		t.Errorf("notes %q, last %q", notes, a.lastComment(1))
+	}
+}
+
+// An answer and an architect's question are no plan revisions (section
+// 6, The question): the worker asks, the architect passes the question
+// on, the owner answers, and status's Throughput counts no revision of
+// the one plan.
+func TestSwarmQuestionsAreNoPlanRevisions(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", runner.Canned{Out: "QUESTION: Should main.go keep the old flag?\n"})
+	a.pass()
+	a.runner.Script(1, "architect", runner.Canned{Out: "QUESTION: Does the brief want the old flag kept?\n", Stdout: claudeResult})
+	a.pass()
+	a.runner.Script(1, "owner", runner.Canned{Out: "ANSWER: drop it.\n", Stdout: claudeResult})
+	a.pass()
+	if got := a.launchedRoles(); !reflect.DeepEqual(got, []string{"architect", "worker", "architect", "owner"}) || a.lastComment(1) != mark("owner", 1)+"ANSWER: drop it.\n" {
+		t.Fatalf("launched %q, last %q\n%s", got, a.lastComment(1), a.stdout.String())
+	}
+	if err := a.status(a.forge); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(a.stdout.String(), "\n  #1           plan revisions 0, blocks 0") {
+		t.Errorf("status:\n%s", a.stdout.String())
+	}
+}
+
+// The adversary's question (section 6, The question): its QUESTION:
+// takes the issue home to review-0-ready with the flag, the architect
+// answers it, and the adversary runs again, the answer under
+// # Questions.
+func TestSwarmApplyAdversaryQuestion(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: "QUESTION: Is v1 the release's name or the file's?\n"})
+	a.pass()
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewReady, forge.Question}) || a.lastComment(1) != mark("adversary", 1)+"QUESTION: Is v1 the release's name or the file's?\n" {
+		t.Fatalf("labels %v, last %q\n%s", got, a.lastComment(1), a.stdout.String())
+	}
+	a.runner.Script(1, "architect", runner.Canned{Out: "ANSWER: the file's.\n", Stdout: claudeResult})
+	a.pass()
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.pass()
+	if got := a.launchedRoles(); !reflect.DeepEqual(got, []string{"architect", "worker", "check", "adversary", "architect", "adversary"}) {
+		t.Fatalf("launched %q\n%s", got, a.stdout.String())
+	}
+	if _, questions, _ := strings.Cut(a.file("1-adversary-2", "io/prompt.md"), "\n# Questions\n\n"); !strings.Contains(questions, "ANSWER: the file's.") {
+		t.Errorf("adversary run 2's # Questions:\n%s", questions)
+	}
+}
+
+// A question below the maintainer's level waits for no one but the
+// swarm (section 6, The question; section 11): while the architect is
+// to answer the worker's question, status's Waiting line names nothing.
+func TestSwarmStatusQuestionBelowTheMaintainer(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", runner.Canned{Out: "QUESTION: Should main.go say v1 or v1.0?\n"})
+	a.pass()
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.Question) {
+		t.Fatalf("labels %v", got)
+	}
+	if ns, line := a.waitingSet(); ns != nil || line != "Waiting for you: nothing" {
+		t.Errorf("waiting %v: %q", ns, line)
+	}
+}
+
+// The worker's question at review-3-changes-requested (section 6, The
+// question): posted on the issue, its pull request's thread left as it
+// was; the architect answers with the pull request in its prompt; the
+// worker then runs again on the review it was to answer, and pushes.
+func TestSwarmApplyQuestionAtChangesRequested(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	a.changesRequested()
+	pull := forge.Ref{Repo: "app", N: 1}
+	before, _ := a.forge.PullComments(pull)
+	a.runner.Script(1, "worker", runner.Canned{Out: "QUESTION: Which of the two findings comes first?\n"})
+	a.pass()
+	after, _ := a.forge.PullComments(pull)
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ChangesRequested, forge.Question}) || a.lastComment(1) != mark("worker", 2)+"QUESTION: Which of the two findings comes first?\n" || len(after) != len(before) {
+		t.Fatalf("labels %v, last %q, pull comments %d → %d\n%s", got, a.lastComment(1), len(before), len(after), a.stdout.String())
+	}
+	a.runner.Script(1, "architect", runner.Canned{Out: "ANSWER: the blocking one.\n", Stdout: claudeResult})
+	a.pass()
+	if prompt := a.file("1-architect-2", "io/prompt.md"); !strings.Contains(prompt, "# Pull request app#1: ") {
+		t.Errorf("architect's prompt.md:\n%s", prompt)
+	}
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewReady}) {
+		t.Errorf("labels %v\n%s", got, a.stdout.String())
+	}
+	if _, questions, _ := strings.Cut(a.file("1-worker-3", "io/prompt.md"), "\n# Questions\n\n"); !strings.Contains(questions, "ANSWER: the blocking one.") {
+		t.Errorf("worker run 3's # Questions:\n%s", questions)
+	}
+}
+
+// An architect's BLOCKED: on a question is T17 (section 6, The
+// question): the issue blocked and swarm:question cleared, the question
+// the maintainer's.
+func TestSwarmApplyQuestionBlocked(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", runner.Canned{Out: "QUESTION: Should main.go keep the old flag?\n"})
+	a.pass()
+	a.runner.Script(1, "architect", runner.Canned{Out: "BLOCKED: neither the plan nor the brief says.\n", Stdout: claudeResult})
+	a.pass()
+	got := labels(a.issue(1))
+	if !slices.Contains(got, forge.Blocked) || slices.Contains(got, forge.Question) || !slices.Contains(got, forge.PlanAccepted) {
+		t.Errorf("labels %v\n%s", got, a.stdout.String())
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -238,6 +239,10 @@ func (w *world) ops() ops.Ops {
 		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
 			w.t.Errorf("the explorer ran %s %q in %s: a path it drives reached git or docker", name, args, dir)
 			return nil, nil, errors.New("no process in the explorer")
+		},
+		StartFn: func(dir, name string, _ io.Reader, _, _ io.Writer, args ...string) (ops.Process, error) {
+			w.t.Errorf("the explorer started %s %q in %s: a path it drives reached git, docker or notify", name, args, dir)
+			return nil, errors.New("no process in the explorer")
 		},
 	}, w.fs}
 }

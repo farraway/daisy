@@ -47,3 +47,11 @@ rows in place, which would end the CSV's one guarantee. Tests:
 `TestReport`, `TestSwarmMetricsReprice`, `TestSwarmApplyRecordsEachRun`,
 `TestSwarmApplyPricesCachedInputApart`, `TestSwarmMetricsBackfill`,
 `TestFirstHeaderReadAndExtended`, `TestSupersede`.
+
+**As built: a cached count over the input (Step T5a–d of the plan
+implementing the 2026-11-19 swarm roadmap, 2026-11-21).** Every input
+count holds its cache, so a `cost` line whose `cached <c>` is over its
+`<in>` reports a count no run can have: its row now has no estimate,
+where the rest of the input was priced as a negative count. A line of
+eight words whose seventh is not `cached`, or whose count is not a
+number, has none as before (`TestRunRowCostLineForms`).

@@ -180,9 +180,14 @@ func TestSectionFiveTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, five, ok := strings.Cut(string(b), "\n## 5. ")
+	five, _, _ = strings.Cut(five, "\n## 6. ")
+	if !ok {
+		t.Fatal("docs/swarm.md has no section 5 heading, ## 5.")
+	}
 	rows := map[string]string{}
 	var ids []string
-	for _, l := range strings.Split(string(b), "\n") {
+	for _, l := range strings.Split(five, "\n") {
 		if m := sectionFiveRow.FindStringSubmatch(l); m != nil {
 			rows[m[1]] = l
 			ids = append(ids, m[1])

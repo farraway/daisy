@@ -102,6 +102,33 @@ func TestSwarmMergeStepChecksFailed(t *testing.T) {
 	}
 }
 
+// T26's retry posts no second note (section 12, T26): the relabel to
+// review-3-changes-requested refused, the pass fails with the note
+// posted; the next pass finds it the pull request's last word and the
+// swarm's, posts none, and relabels.
+func TestSwarmMergeStepChecksFailedRetryPostsOnce(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	head := a.approvedGateOff()
+	a.forge.SetStatus("app", head, "ci / test", "failure")
+	a.tick()
+	if err := a.apply(&flaky{gitForge: a.git(), relabels: 1, to: forge.ChangesRequested}, "--once"); err == nil {
+		t.Fatal("the pass whose relabel was refused exited 0")
+	}
+	a.pass()
+	note := mark("reconciler", 1) + checksFailed(head, "`ci / test` (failure)")
+	comments, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
+	notes := 0
+	for _, c := range comments {
+		if c.Body == note {
+			notes++
+		}
+	}
+	if got := labels(a.issue(1)); notes != 1 || !reflect.DeepEqual(got, []string{forge.ChangesRequested}) {
+		t.Errorf("after the retry: %d notes, labels %v\n%+v\n%s", notes, got, comments, a.stdout.String())
+	}
+}
+
 // Every check success and the merge refused all the same (a rule the
 // swarm's reviews do not satisfy) is still T16: the issue blocked.
 func TestSwarmMergeStepChecksPassedRefused(t *testing.T) {
