@@ -242,12 +242,30 @@ type Key struct {
 }
 
 // Persona is one role's provider, model, effort and the Co-Authored-By
-// trailer value its commits carry.
+// trailer value its commits carry, and the entries tried after it in
+// order when its model is unavailable (section 7.10, rule 1).
 type Persona struct {
+	Provider string  `json:"provider"`
+	Model    string  `json:"model"`
+	Effort   string  `json:"effort"`
+	CoAuthor string  `json:"co_author"`
+	Fallback []Entry `json:"fallback,omitempty"`
+}
+
+// Entry is a model a role may run on: the persona's own, or one of its
+// fallback entries, each a persona's four fields (section 3,
+// personas.<role>.fallback).
+type Entry struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Effort   string `json:"effort"`
 	CoAuthor string `json:"co_author"`
+}
+
+// Entries is the persona's own entry, then its fallback's, in the order
+// a launch tries them (section 7.10, The fallback).
+func (p Persona) Entries() []Entry {
+	return append([]Entry{{p.Provider, p.Model, p.Effort, p.CoAuthor}}, p.Fallback...)
 }
 
 // PromptPart is a prompt_parts entry (section 3): a file in the swarm
@@ -439,8 +457,8 @@ func join(path, name string) string {
 // Format is c as `swarm init` writes it (section 3): two-space indented,
 // fields in section 3's order, `forge`, `repos` and `personas` expanded
 // with each repository and each persona on one line (the personas'
-// fields aligned), the other objects and arrays on one line each, and a
-// trailing newline.
+// fields aligned, a fallback after co_author on the persona's line), the
+// other objects and arrays on one line each, and a trailing newline.
 func Format(c Config) []byte {
 	var b strings.Builder
 	b.WriteString("{\n  \"forge\": {\n")
@@ -525,6 +543,9 @@ func personaLines(personas map[string]Persona) string {
 	for i, r := range roles {
 		p := personas[r]
 		cells[i] = []string{inline(r) + ":", `"provider": ` + inline(p.Provider) + ",", `"model": ` + inline(p.Model) + ",", `"effort": ` + inline(p.Effort) + ",", `"co_author": ` + inline(p.CoAuthor)}
+		if len(p.Fallback) > 0 {
+			cells[i][4] += `, "fallback": ` + inline(p.Fallback)
+		}
 		for j, c := range cells[i] {
 			width[j] = max(width[j], len([]rune(c)))
 		}

@@ -660,18 +660,45 @@ func checkPromptParts(o ops.Ops, at Place, c Config, skip Skip) *Error {
 	return nil
 }
 
+// checkPersona: the persona's fields, then each fallback entry's as the
+// persona's, no entry (the persona among them) naming the provider,
+// model and effort of an earlier one (section 3,
+// personas.<role>.fallback).
 func checkPersona(role string, p Persona) *Error {
 	at := "personas." + role
-	if err := checkProvider(at+".provider", p.Provider); err != nil {
+	entries := p.Entries()
+	for i, e := range entries {
+		field := at
+		if i > 0 {
+			field = fmt.Sprintf("%s.fallback[%d]", at, i-1)
+		}
+		if err := checkEntry(field, e); err != nil {
+			return err
+		}
+		for j, was := range entries[:i] {
+			if was.Provider == e.Provider && was.Model == e.Model && was.Effort == e.Effort {
+				same := at
+				if j > 0 {
+					same = fmt.Sprintf("%s.fallback[%d]", at, j-1)
+				}
+				return fieldErr(field, "the same as %s", same)
+			}
+		}
+	}
+	return nil
+}
+
+func checkEntry(at string, e Entry) *Error {
+	if err := checkProvider(at+".provider", e.Provider); err != nil {
 		return err
 	}
-	if err := checkModel(at+".model", p.Model); err != nil {
+	if err := checkModel(at+".model", e.Model); err != nil {
 		return err
 	}
-	if !effortShape.MatchString(p.Effort) {
-		return fieldErr(at+".effort", "%q is not one lowercase word", p.Effort)
+	if !effortShape.MatchString(e.Effort) {
+		return fieldErr(at+".effort", "%q is not one lowercase word", e.Effort)
 	}
-	return checkCoAuthor(at+".co_author", p.CoAuthor)
+	return checkCoAuthor(at+".co_author", e.CoAuthor)
 }
 
 func checkProvider(field, v string) *Error {
@@ -753,11 +780,16 @@ func checkKeys(keys map[string]Key, personas map[string]Persona, roles []string)
 	}
 	for _, r := range roles {
 		p, ok := personas[r]
-		if _, adapter := providers[p.Provider]; !ok || !adapter {
+		if !ok {
 			continue
 		}
-		if _, ok := keys[p.Provider]; !ok {
-			return fieldErr("keys", "no credential for provider %q", p.Provider)
+		for _, e := range p.Entries() { // the persona's provider, then each fallback entry's (section 3)
+			if _, adapter := providers[e.Provider]; !adapter {
+				continue
+			}
+			if _, ok := keys[e.Provider]; !ok {
+				return fieldErr("keys", "no credential for provider %q", e.Provider)
+			}
 		}
 	}
 	return nil

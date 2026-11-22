@@ -180,6 +180,20 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: personas.worker.co_author: "m <a b@x.y>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m <a b@x.y>" }) }},
 		{`swarm.json: personas.worker.co_author: "m  <a@b>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m  <a@b>" }) }},
 		{`swarm.json: personas.worker.co_author: "m\rx <a@b>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m\rx <a@b>" }) }},
+		// R4 (7.10, rule 1): each fallback entry's field as the persona's,
+		// its provider's credential, and no entry twice.
+		{`swarm.json: personas.architect.fallback[0].provider: "gemini" has no adapter`, func(c *Config) { fallback(c, "architect", Entry{"gemini", "g-1", "high", ""}) }},
+		{`swarm.json: personas.architect.fallback[0].model: empty; every role names its model`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "", "high", ""}) }},
+		{`swarm.json: personas.architect.fallback[1].model: "a b" contains whitespace`, func(c *Config) { fallback(c, "architect", opus, Entry{"anthropic", "a b", "high", ""}) }},
+		{`swarm.json: personas.architect.fallback[0].effort: "Very High" is not one lowercase word`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "claude-opus-5-5", "Very High", ""}) }},
+		{`swarm.json: personas.architect.fallback[0].co_author: "claude-opus-5-5" is not <name> <email>`, func(c *Config) {
+			fallback(c, "architect", Entry{"anthropic", "claude-opus-5-5", "high", "claude-opus-5-5"})
+		}},
+		{`swarm.json: personas.architect.fallback[1]: the same as personas.architect`, func(c *Config) {
+			fallback(c, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "high", ""})
+		}},
+		{`swarm.json: personas.architect.fallback[1]: the same as personas.architect.fallback[0]`, func(c *Config) { fallback(c, "architect", opus, opus) }},
+		{`swarm.json: keys: no credential for provider "xai"`, func(c *Config) { fallback(c, "worker", Entry{"xai", "grok-4.7", "high", ""}) }},
 		{`swarm.json: keys: no credential for provider "openai"`, func(c *Config) { delete(c.Keys, "openai") }},
 		{`swarm.json: keys.openai: needs exactly one of env, slots`, func(c *Config) { c.Keys["openai"] = Key{Env: ptr("OPENAI_API_KEY"), Slots: ptr(1)} }},
 		{`swarm.json: keys.openai: needs exactly one of env, slots`, func(c *Config) { c.Keys["openai"] = Key{} }},
@@ -220,6 +234,12 @@ func TestValidateNamesTheField(t *testing.T) {
 	near.Repos[0].Services, near.Repos[0].Dockerfile = ptr(".gitea/compose test.yaml"), ptr("images/.github/x.git/Dockerfile")
 	if err := Validate(ops.Real(), p, near, 0); err != nil {
 		t.Errorf("a path near the refused ones: %v", err)
+	}
+	// The same model at another effort is another entry (section 3).
+	fb := valid()
+	fallback(&fb, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "medium", ""}, Entry{"openai", "gpt-6.1-sol", "high", "gpt-6.1-sol <noreply@openai.com>"})
+	if err := Validate(ops.Real(), p, fb, 0); err != nil {
+		t.Errorf("a fallback: %v", err)
 	}
 	none := valid()
 	setPersona(&none, "worker", func(p *Persona) { p.CoAuthor = "" })
@@ -317,6 +337,14 @@ func TestFormatQA(t *testing.T) {
 	if back, err := Parse([]byte(out)); err != nil || !reflect.DeepEqual(back, c) {
 		t.Errorf("round trip: %v", err)
 	}
+}
+
+// opus is a fallback entry of the architect's (section 3's example).
+var opus = Entry{"anthropic", "claude-opus-5-5", "high", "claude-opus-5-5 <noreply@anthropic.com>"}
+
+// fallback gives role's persona the fallback entries.
+func fallback(c *Config, role string, entries ...Entry) {
+	setPersona(c, role, func(p *Persona) { p.Fallback = entries })
 }
 
 func setPersona(c *Config, role string, edit func(*Persona)) {
@@ -664,5 +692,32 @@ func TestForgeHostAndState(t *testing.T) {
 		if h, p := tc.f.ForgeHost(), tc.f.State("/l"); h != tc.host || p != tc.path {
 			t.Errorf("%+v: %q %q", tc.f, h, p)
 		}
+	}
+}
+
+// A persona's fallback is written on its line after co_author, each
+// entry's fields in the persona's order, and read back; with none the
+// line is as before (section 3, personas.<role>.fallback).
+func TestFormatFallback(t *testing.T) {
+	c := valid()
+	before := string(Format(c))
+	if strings.Contains(before, `"fallback"`) {
+		t.Errorf("Format wrote a fallback unset:\n%s", before)
+	}
+	fallback(&c, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", ""})
+	out := string(Format(c))
+	want := `"co_author": "claude-fable-5-1 <noreply@anthropic.com>", "fallback": [{"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}, {"provider": "openai", "model": "gpt-6.1-sol", "effort": "high", "co_author": ""}]},` + "\n"
+	if !strings.Contains(out, `    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high",   `+want) {
+		t.Errorf("Format lacks %q on the architect's line:\n%s", want, out)
+	}
+	if strings.Count(out, "\n") != strings.Count(before, "\n") {
+		t.Errorf("the fallback took a line of its own:\n%s", out)
+	}
+	back, err := Parse([]byte(out))
+	if err != nil || !reflect.DeepEqual(back, c) {
+		t.Errorf("round trip: %v\n%+v", err, back.Personas["architect"])
+	}
+	if again := string(Format(back)); again != out {
+		t.Errorf("written again:\n%s", again)
 	}
 }

@@ -123,7 +123,7 @@ func TestWizardHonoursEachOverride(t *testing.T) {
 		t.Errorf("trusted %q", c.Trusted)
 	}
 	for _, r := range Roles {
-		if c.Personas[r] != (Persona{Provider: "openai", Model: r + "-model", Effort: "low", CoAuthor: r + " Bot <" + r + "@example.net>"}) {
+		if !reflect.DeepEqual(c.Personas[r], Persona{Provider: "openai", Model: r + "-model", Effort: "low", CoAuthor: r + " Bot <" + r + "@example.net>"}) {
 			t.Errorf("%s: %+v", r, c.Personas[r])
 		}
 	}
@@ -150,7 +150,7 @@ func TestWizardMovesARoleToXAI(t *testing.T) {
 		"sympathetic model [grok-4.7]: ", "sympathetic effort [high]: ", "sympathetic co-author (- for none) [grok-4.7 <noreply@x.ai>]: "}) {
 		t.Errorf("asked %q", got)
 	}
-	if c.Personas["sympathetic"] != (Persona{Provider: "xai", Model: "grok-4.7", Effort: "high", CoAuthor: "grok-4.7 <noreply@x.ai>"}) {
+	if !reflect.DeepEqual(c.Personas["sympathetic"], Persona{Provider: "xai", Model: "grok-4.7", Effort: "high", CoAuthor: "grok-4.7 <noreply@x.ai>"}) {
 		t.Errorf("sympathetic %+v", c.Personas["sympathetic"])
 	}
 	if k := c.Keys["xai"]; k.Env == nil || *k.Env != "XAI_API_KEY" || k.Slots != nil || len(c.Keys) != 3 {
@@ -182,6 +182,32 @@ func TestWizardKeepsTheFilesXAIForm(t *testing.T) {
 	}
 	if !reflect.DeepEqual(c.Keys, file.Keys) {
 		t.Errorf("keys %+v", c.Keys)
+	}
+}
+
+// A file's fallback is kept by the wizard, whatever the persona's
+// answers: it is not asked (section 3, personas.<role>.fallback: init
+// writes none, and keeps the file's), and init's file writes it back.
+func TestWizardKeepsFallback(t *testing.T) {
+	_, clone := cloneFolder(t)
+	answers := make([]string, 40)
+	answers[6+1*4+1] = "claude-sonnet-5-5" // the architect's model
+	o, _ := scripted(answers...)
+	file := valid()
+	fallback(&file, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", ""})
+	w := &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
+	c, err := w.Ask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.Personas["architect"]; got.Model != "claude-sonnet-5-5" || !reflect.DeepEqual(got.Fallback, file.Personas["architect"].Fallback) {
+		t.Errorf("architect %+v", got)
+	}
+	if got := c.Personas["worker"].Fallback; got != nil {
+		t.Errorf("worker's fallback %+v", got)
+	}
+	if want := `"fallback": [{"provider": "anthropic", "model": "claude-opus-5-5"`; !strings.Contains(string(Format(c)), want) {
+		t.Errorf("init's file lacks %q:\n%s", want, Format(c))
 	}
 }
 

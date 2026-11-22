@@ -152,3 +152,20 @@ is stopped as before (`docker stop --time 30`, no new grace period),
 and the output it had written is posted with the timeout's note, after
 the secret check, never read as the role's text, so a half plan informs
 the maintainer without becoming the plan.
+
+**As built: `fallback` declared (Step R4-A of the plan implementing the
+2026-11-19 swarm roadmap).** `personas.<role>.fallback` is read
+strictly, each entry exactly the persona's four fields; an entry's
+`slots` waits for rule 3's build and is refused until then as an
+unknown field. Validation reads the persona, then each entry in order,
+each field by the persona's rule, naming `fallback[<i>]`; an entry with
+the provider, model and effort of an earlier one is refused naming the
+earlier (`the same as personas.<role>` or `the same as
+personas.<role>.fallback[<j>]`), so one model at another effort is
+another entry. An entry's provider without a credential is refused as a
+persona's is, `keys: no credential for provider "<p>"`, after `keys`'
+own checks. `Format` writes the list after `co_author` on the persona's
+line, each entry as one object; `init` asks nothing of it and keeps the
+file's, whatever its answers for the persona. Tests:
+`TestValidateNamesTheField`, `TestFormatFallback`,
+`TestWizardKeepsFallback`.

@@ -1210,4 +1210,11 @@ they write.
   model's reviews had lost their verdict line under Step E1's order.
   Sections 7.3, 7.4, 7.6 and 11. Decision
   [167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md)
+- 2026-11-21, Step R4-A of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, capacity; the fallback): `personas.<role>.fallback`
+  built as a field, each entry the persona's four fields, validated as
+  the persona's, its provider with a credential in `keys`, no entry
+  twice; written after `co_author` on the persona's line and kept by
+  `init`. An entry's `slots` waits for R4-C. Section 3 (the field, the
+  error table). Decision [170](swarm/decisions/0170-capacity.md)
   amended.
