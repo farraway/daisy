@@ -76,8 +76,8 @@ sshkey=~/.ssh/id_ed25519_jane
 ```
 
 Each key's first line counts, its value read without the white space
-around it. `sshkey=` is optional and must be one plain path (no spaces or
-comment on the line); git expands a leading `~` itself, so the same file
+around it. `sshkey=` is optional and must be one plain path (no spaces
+inside the path and no comment on the line); git expands a leading `~` itself, so the same file
 serves every machine.
 
 - `<home>/gitconfig` is the home's **default identity**, named by the home's
@@ -176,8 +176,9 @@ final step rolls the git config back and removes the stage. Other workspaces are
 A bare `daisy init`, anywhere in the workspace, does the same with the
 binding's own home (`.daisy/home`) and identity (`.daisy/identity`, else
 the home's default): the identity is taken back and applied again, so its
-record and what the keys held before stay as they were, and everything
-else `init` writes is rebuilt from the root and the home as they are now.
+record follows the identity file as it is now, what the keys held before
+stays as it was, and everything else `init` writes is rebuilt from the
+root and the home as they are now.
 It is how a workspace takes up an update of the root.
 
 ## Health Check
