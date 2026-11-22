@@ -59,7 +59,7 @@ new code.
 ```markdown
 ## PR instructions
 - Title format: [package-name] Short description
-- Always run `pnpm lint && pnpm test` before committing
+- Always run `pnpm lint && pnpm typecheck && pnpm test` before committing
 - Squash commits before merging
 ```
 

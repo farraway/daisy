@@ -5,7 +5,8 @@ short_description: CUBE CSS and Every Layout conventions
 ---
 
 Follow the CUBE CSS methodology (Composition, Utility, Block, Exception) and
-Every Layout principles.
+Every Layout principles. Follow these unless the existing codebase has
+established conventions that conflict.
 
 The **composition** is the unit that carries layout. Blocks are small, own no
 external spacing, and configure compositions rather than reimplementing them.
@@ -14,7 +15,8 @@ Layout source for the eight core compositions is in
 layout, not for token, colour, or utility questions.
 
 Where the project runs stylelint, turn on the rules that check part of
-this:
+this, or, when the task is not the lint config, propose turning them on
+(`prompts/praxis.md` rule 4 in the Daisy root):
 [`property-layout-mappings`](https://stylelint.io/user-guide/rules/property-layout-mappings/)
 set to `"flow-relative"` (core since stylelint 17.8) and
 [`declaration-no-important`](https://stylelint.io/user-guide/rules/declaration-no-important/).

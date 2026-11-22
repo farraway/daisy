@@ -1,5 +1,12 @@
 # Progressive Disclosure in Claude Code
 
+> **Historical (2026-11-22).** A record of the 2026-06-09 session, no
+> longer Daisy's account of itself. What loads when, and what belongs in a
+> prompt or a skill, is in
+> [docs/prompts-vs-skills.md](../prompts-vs-skills.md): a full prompt,
+> `personal` included, loads with `.daisy/AGENTS.md`, when Daisy is asked
+> for.
+
 **Source:** Developers Digest — "Progressive Disclosure in Claude Code"
 **Applied in Daisy:** Session 2026-06-09 — architecture confirmed; trigger stub cleanup; personal.md heading clarified
 
