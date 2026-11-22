@@ -319,7 +319,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	spec := runner.Spec{Name: s.containerName(j.N, j.Role, j.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, j.N, j.Role), User: s.User,
 		Mounts: mounts, Workdir: workdir, Image: image,
 		Argv: exitMarked(provider.Providers[persona.Provider].Adapter.Command(persona.Model, persona.Effort, workdir, IOMount+"/system.md", IOMount+"/prompt.md", reads)),
-		Env:  env, Detach: true}
+		Env:  env}
 	if svc != nil {
 		// Its own network, not internal: the CLI reaches its API through
 		// it as through Docker's default bridge (section 7.2).
@@ -429,10 +429,24 @@ func (s *Swarm) inProgress(j *Job, r Run) error {
 // It is the image's own sh, so no image is rebuilt for it.
 const exitScript = `"$@" >` + IOMount + `/stdout 2>` + IOMount + `/stderr; s=$?; echo "$s" >` + IOMount + `/exit; exit "$s"`
 
+// stepScript runs a step's argv, the check's or the dependency step's,
+// under sh, its standard output and error together to /job/step/out and
+// once it has exited its status to /job/step/exit (<run>/step/), the
+// files any apply collects the step from (section 7.10, rule 2).
+const stepScript = `"$@" >` + StepMount + `/out 2>&1; s=$?; echo "$s" >` + StepMount + `/exit; exit "$s"`
+
+// StepMount is where a step's <run>/step/ is mounted.
+const StepMount = "/job/step"
+
 // attachedExitScript is the exit mark of a run launched attached, before
 // the detached run (section 7.10, Rollout): its streams were docker run's,
 // its io/exit the same mark.
 const attachedExitScript = `"$@"; s=$?; echo "$s" >` + IOMount + `/exit; exit "$s"`
+
+// stepMarked is a step's argv run under stepScript.
+func stepMarked(argv []string) []string {
+	return append([]string{"sh", "-c", stepScript, "sh"}, argv...)
+}
 
 // exitMarked is argv run under exitScript.
 func exitMarked(argv []string) []string {
@@ -474,22 +488,17 @@ func (s *Swarm) settle(r Run) error {
 	fs := s.O.FS()
 	now := endStamp(l.at)
 	if step := l.step; step != "" {
-		if l.err != nil {
-			return r.Append(fs, "fault: "+step+": wait: "+l.err.Error())
-		}
-		if err := fs.WriteFile(filepath.Join(r.Dir, step+".out"), append(l.exit.Stdout, l.exit.Stderr...), 0o644); err != nil {
-			return err
-		}
-		said := fmt.Sprintf("%s exited %d", step, l.exit.Code)
-		lines := []string{said + " " + now}
 		switch {
+		case l.err != nil:
+			return r.Append(fs, "fault: "+step+": wait: "+l.err.Error())
 		case l.exit.TimedOut:
-			said, lines = step+" timeout", []string{step + " timeout " + now}
-		case l.exit.Code >= 125 && l.exit.Code <= 127:
-			lines = append(lines, fmt.Sprintf("fault: %s: exit %d", step, l.exit.Code))
+			return s.stepEnded(r, step, step+" timeout", 0, now)
 		}
-		fmt.Fprintf(s.Out, "%s%s\n", runHead(r), said)
-		return r.Append(fs, lines...)
+		code, ok := r.stepStatus(fs)
+		if !ok {
+			return nil // gone with no status: started again, as a step whose apply died (collectAll)
+		}
+		return s.stepEnded(r, step, fmt.Sprintf("%s exited %d", step, code), code, now)
 	}
 	if l.err != nil {
 		return r.Append(fs, "exited -1 "+now, "fault: wait: "+l.err.Error())
@@ -555,6 +564,27 @@ func (s *Swarm) exited(r Run, end string, code int, timedOut bool) error {
 	return r.Append(fs, lines...)
 }
 
+// stepEnded records a step's end, said its end line's words without the
+// time, now: <run>/step/out renamed to <run>/<step>.out (an empty one when
+// the step left none), a status of 125 to 127 its fault (section 7.10,
+// rule 2).
+func (s *Swarm) stepEnded(r Run, step, said string, code int, now string) error {
+	fs := s.O.FS()
+	out, err := r.stepFile(fs, "out")
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return err
+	}
+	if err := fs.WriteFile(filepath.Join(r.Dir, step+".out"), out, 0o644); err != nil {
+		return err
+	}
+	lines := []string{said + " " + now}
+	if code >= 125 && code <= 127 {
+		lines = append(lines, fmt.Sprintf("fault: %s: exit %d", step, code))
+	}
+	fmt.Fprintf(s.Out, "%s%s\n", runHead(r), said)
+	return r.Append(fs, lines...)
+}
+
 // runRef is the mirror's ref for a worker run's commits (section 7.6).
 func runRef(r Run) string { return fmt.Sprintf("refs/swarm-runs/%d-worker-%d", r.N, r.K) }
 
@@ -583,8 +613,16 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	}
 	fetched, _ := Has(lines, "fetched")
 	sha := strings.TrimPrefix(fetched, "fetched ")
-	dir := filepath.Join(r.Dir, "check")
+	dir, stepDir := filepath.Join(r.Dir, "check"), filepath.Join(r.Dir, "step")
 	if err := fs.RemoveAll(dir); err != nil {
+		return err
+	}
+	// The step's files, emptied before each step starts (section 7.10,
+	// rule 2).
+	if err := fs.RemoveAll(stepDir); err != nil {
+		return err
+	}
+	if err := fs.MkdirAll(stepDir, 0o755); err != nil {
 		return err
 	}
 	if err := s.git().CheckClone(repo.Name, dir, runRef(r), sha); err != nil {
@@ -605,7 +643,7 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
 	clone := WorkMount + "/" + repo.Name
 	spec := runner.Spec{Name: s.containerName(r.N, step, r.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, r.N, step), User: s.User, Network: "none",
-		Env: repo.EnvLines(), Mounts: []runner.Mount{{Src: dir, Dst: clone}}, Workdir: clone, Image: repo.Image, Argv: repo.Check}
+		Env: repo.EnvLines(), Mounts: []runner.Mount{{Src: dir, Dst: clone}}, Workdir: clone, Image: repo.Image, Argv: stepMarked(repo.Check)}
 	if d := repo.Deps; d != nil {
 		cache := s.depsCache(repo.Name)
 		if err := fs.MkdirAll(cache, 0o755); err != nil {
@@ -616,9 +654,10 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 		}
 		spec.Mounts = append(spec.Mounts, runner.Mount{Src: cache, Dst: declare.DepsMount, ReadOnly: step == "check"})
 		if step == "deps" {
-			spec.Network, spec.Mounts[0].ReadOnly, spec.Argv = "", true, d.Run
+			spec.Network, spec.Mounts[0].ReadOnly, spec.Argv = "", true, stepMarked(d.Run)
 		}
 	}
+	spec.Mounts = append(spec.Mounts, runner.Mount{Src: stepDir, Dst: StepMount})
 	if svc {
 		sv := s.services(r, step, ts)
 		spec.Network, spec.Env = sv.Network, append(spec.Env, ts.Env...)

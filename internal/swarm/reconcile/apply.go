@@ -356,17 +356,24 @@ func (s *Swarm) collectAll(running []runner.Running) error {
 					errs = append(errs, err)
 					continue
 				}
-				if err := r.Append(fs, step+" timeout "+now); err != nil {
+				if err := s.stepEnded(r, step, step+" timeout", 0, now); err != nil {
 					return err
 				}
-				fmt.Fprintf(s.Out, "%s%s timeout\n", runHead(r), step)
 			case isRunning(name):
 				continue
 			default:
-				if err := s.startStep(r, lines, step); err != nil {
-					errs = append(errs, err)
+				// Gone: collected from the files its sh wrote, or with
+				// none started again (section 7.10, rule 2).
+				code, ok := r.stepStatus(fs)
+				if !ok {
+					if err := s.startStep(r, lines, step); err != nil {
+						errs = append(errs, err)
+					}
+					continue
 				}
-				continue
+				if err := s.stepEnded(r, step, fmt.Sprintf("%s exited %d", step, code), code, now); err != nil {
+					return err
+				}
 			}
 		}
 		if err := s.collect(r); err != nil {

@@ -229,7 +229,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 	check := launches[len(launches)-1]
 	run := a.state("runs/1-worker-1")
 	if check.Name != "daisy-swarm.acme.swarm-app.1.check.1" || check.Label != "acme/swarm-app#1/check" || check.Network != "none" || check.EnvVar != "" || check.Credential != "" ||
-		!reflect.DeepEqual(check.Mounts, []runner.Mount{{Src: run + "/check", Dst: "/job/work/app"}}) || !reflect.DeepEqual(check.Argv, []string{"make", "check"}) || check.Workdir != "/job/work/app" {
+		!reflect.DeepEqual(check.Mounts, []runner.Mount{{Src: run + "/check", Dst: "/job/work/app"}, {Src: run + "/step", Dst: "/job/step"}}) || !reflect.DeepEqual(check.Argv, append(slices.Clone(stepPrefix), "make", "check")) || check.Workdir != "/job/work/app" {
 		t.Errorf("check spec %+v", check)
 	}
 	for _, l := range []string{"branch swarm/1-1 in app", "label swarm:plan-1-accepted", "check started ", "check exited 0 ", "pushed " + pr.HeadSHA, "relabelled swarm:plan-1-accepted swarm:plan-2-in-progress", "created pull 1", "relabelled swarm:plan-2-in-progress swarm:review-0-ready", "outcome posted"} {

@@ -2550,7 +2550,7 @@ holds no credential, is given it).
 The check of worker run k (7.6):
 
 ```
-docker run --rm --pull never
+docker run --detach --rm --pull never
   --name daisy-swarm.<owner>.<repo>.<n>.check.<k>
   --label daisy.swarm=<owner>/<repo>#<n>/check
   --user <uid>:<gid>
@@ -2562,8 +2562,10 @@ docker run --rm --pull never
   --env <VAR>=<value>                                     (services)
   --mount type=bind,src=<run>/check,dst=/job/work/<name>
   --mount type=bind,src=<state>/deps/<name>,dst=/deps,readonly  (deps)
+  --mount type=bind,src=<run>/step,dst=/job/step
   --workdir /job/work/<name>
   <image>
+  sh -c '"$@" >/job/step/out 2>&1; s=$?; echo "$s" >/job/step/exit; exit "$s"' sh
   <check>
 ```
 
@@ -2571,7 +2573,7 @@ Its dependency step, before it, with the repository's `deps` (section 3;
 7.6, step 4):
 
 ```
-docker run --rm --pull never
+docker run --detach --rm --pull never
   --name daisy-swarm.<owner>.<repo>.<n>.deps.<k>
   --label daisy.swarm=<owner>/<repo>#<n>/deps
   --user <uid>:<gid>
@@ -2580,10 +2582,16 @@ docker run --rm --pull never
   --env <VAR>=<value>
   --mount type=bind,src=<run>/check,dst=/job/work/<name>,readonly
   --mount type=bind,src=<state>/deps/<name>,dst=/deps
+  --mount type=bind,src=<run>/step,dst=/job/step
   --workdir /job/work/<name>
   <image>
+  sh -c '"$@" >/job/step/out 2>&1; s=$?; echo "$s" >/job/step/exit; exit "$s"' sh
   <deps' run>
 ```
+
+(`--detach`, the `<run>/step` mount and the `sh` line from R4, 7.10,
+rule 2, built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap: before it, both steps ran
+`docker run --rm` attached, their argv as it is.)
 
 The lines marked `(deps)` are the check's when its repository declares
 `deps`; `--env` is one line per `env` name, in name order, none when
@@ -2655,7 +2663,7 @@ an `apply` that died left, is the same.
 | `/job/work/<name>`, the check's | the check's clone, a fresh clone of the fetched head, at the path a member's checkout has, `<name>` the run's repository, with no `/job` or `/job/work` mounted above it; for the dependency step, such a clone, read-only, so that the step writes the cache alone |
 | `<image>` | the run's repository's `image` (7.1 step 3) for the worker, the reviewers, the dependency step and the check; the first repository's for the owner, the architect and the QA, which starts the product's app in it (section 4, The page map) |
 | `/job/io` | `<run>/io`, read-write for every role: the two prompt files in, `out.md` out, and `exit`; `artifacts/`, a worker's screenshots out (7.6, The screenshots) and a reviewer's copies of them in (7.3, `# Artifacts`); `branches.md` in, for the roles that read it, and the architect's `builder.md` out (7.8) |
-| `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's standard output and error to `/job/io/stdout` and `/job/io/stderr` (from R4, 7.10, rule 2, built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap) and its exit status to `/job/io/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*), and the files its collection reads. A container killed outright (a reboot, `docker stop`'s kill) writes no status. The check and the dependency step run their argv as it is |
+| `sh -c '…' sh` | the provider's argv run by the image's `sh`, which writes the CLI's standard output and error to `/job/io/stdout` and `/job/io/stderr` (from R4, 7.10, rule 2, built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap) and its exit status to `/job/io/exit` once it has exited: the mark that the member finished, which a later `apply` reads when the one that started the run died (7.7, *ended*), and the files its collection reads. A container killed outright (a reboot, `docker stop`'s kill) writes no status. The check and the dependency step run their argv under the same `sh`, their output together to `/job/step/out` and their status to `/job/step/exit` (built at Step R4-B of the plan implementing the 2026-11-19 swarm roadmap) |
 | `/job/notes` | with `notes`, `<run>/notes`, the run's copy of the research notes, the swarm repository's `notes/` directory (7.1, step 2): read-write for the owner and the architect, whose changes Daisy pushes after the run (7.6, The notes); read-only for the worker, the reviewers and the QA; outside every clone; none for the check |
 | `/job/resources` | `<run>/resources`, read-only: each resource at `/job/resources/<repository>/<path>`, checked out at the pass's commit (7.1, step 3: one the commit does not hold is *resource refused*, 7.7), never a working tree; none when `resources` and `references` name nothing; none for the check. Under `/job`, so a CLI confined to its working directory reaches it (section 9, `grok`), and outside every clone |
 | `--workdir <W>`, the check's `--workdir` | the CLIs start in the run's clone, `<W>`, `/job/work/<name>` for every role, `<name>` the run's repository (the first declared for the owner, the architect and the QA), so the CLI reads the product's instructions from its tree, and are given `/job` beside it (section 9's `D`), unless their provider is confined to its working directory (section 9's `Confined`, `xai`): then `/job`, which holds every clone and all else the run is given, and the prompt's `# Repository` names `/job/work/<name>` as the repository (7.3); the check and the dependency step start in their clone, `/job/work/<name>` |
@@ -2791,7 +2799,11 @@ first line>`); the wall clock a timer of `timeout` from the launch
 beside `docker wait <name>`; and the collection of a member this
 process started reading its status, its streams, its cost and its
 provider's fault from `<run>/io/exit`, `<run>/io/stdout` and
-`<run>/io/stderr`, a container gone with no status abandoned (decision
+`<run>/io/stderr`, a container gone with no status abandoned; for a
+step, its `<run>/step/`, emptied before it starts and mounted at
+`/job/step`, its `out` renamed to `<run>/check.out` or `<run>/deps.out`
+at its end, one gone with its `exit` written collected from it whoever
+started it, and one gone with none started again (decision
 [170](swarm/decisions/0170-capacity.md), As built).
 
 ### 7.3 The prompt files

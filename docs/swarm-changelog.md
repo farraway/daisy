@@ -1261,3 +1261,11 @@ they write.
   status abandoned; a slot's lock held through the launch alone.
   Sections 7.2, 7.10 and 8. Decision
   [170](swarm/decisions/0170-capacity.md) amended.
+- 2026-11-22, Step R4-B of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, adoption): the check and the dependency step run
+  detached, their `sh` writing their output and status to
+  `<run>/step/` (`out`, `exit`), emptied before each step and renamed
+  to `check.out` or `deps.out` at its end; a step gone with its status
+  written is collected from those files by any `apply`, one with none
+  started again. Sections 7.2 and 7.10. Decision
+  [170](swarm/decisions/0170-capacity.md) amended.

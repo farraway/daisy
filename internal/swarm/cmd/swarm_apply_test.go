@@ -167,7 +167,16 @@ func (w withFS) FS() ops.FS { return w.fs }
 var (
 	exitPrefix         = []string{"sh", "-c", `"$@" >/job/io/stdout 2>/job/io/stderr; s=$?; echo "$s" >/job/io/exit; exit "$s"`, "sh"}
 	attachedExitPrefix = []string{"sh", "-c", `"$@"; s=$?; echo "$s" >/job/io/exit; exit "$s"`, "sh"}
+	// stepPrefix runs a check's or a dependency step's argv under sh,
+	// which writes its output and its status to /job/step (section 7.10,
+	// rule 2).
+	stepPrefix = []string{"sh", "-c", `"$@" >/job/step/out 2>&1; s=$?; echo "$s" >/job/step/exit; exit "$s"`, "sh"}
 )
+
+// stepMount is a step's --mount of run's step/ at /job/step.
+func stepMount(run string) []string {
+	return []string{"--mount", "type=bind,src=" + run + "/step,dst=/job/step"}
+}
 
 func (a *applyWS) result(run string) string {
 	b, _ := os.ReadFile(a.state(filepath.Join("runs", run, "result")))

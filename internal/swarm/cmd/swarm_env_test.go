@@ -54,16 +54,16 @@ func TestSwarmEnvGivenToEveryRunOfTheRepository(t *testing.T) {
 
 	run, cache := a.state("runs/1-worker-1"), a.state("deps/app")
 	head := func(role string) []string {
-		return []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1." + role + ".1", "--label", "daisy.swarm=acme/swarm-app#1/" + role,
+		return []string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1." + role + ".1", "--label", "daisy.swarm=acme/swarm-app#1/" + role,
 			"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30"}
 	}
-	want := cat(head("deps"), flags(cat(env, deps)), []string{"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app,readonly", "--mount", "type=bind,src=" + cache + ",dst=/deps",
-		"--workdir", "/job/work/app", "daisy-member:1", "sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"})
+	want := cat(head("deps"), flags(cat(env, deps)), []string{"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app,readonly", "--mount", "type=bind,src=" + cache + ",dst=/deps"},
+		stepMount(run), []string{"--workdir", "/job/work/app", "daisy-member:1"}, stepPrefix, []string{"sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"})
 	if got := depSteps[0].Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("deps:\n got %q\nwant %q", got, want)
 	}
 	want = cat(head("check"), []string{"--network", checkNet}, flags(cat(env, deps, gridappEnv)), []string{"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app",
-		"--mount", "type=bind,src=" + cache + ",dst=/deps,readonly", "--workdir", "/job/work/app", "daisy-member:1", "make", "check"})
+		"--mount", "type=bind,src=" + cache + ",dst=/deps,readonly"}, stepMount(run), []string{"--workdir", "/job/work/app", "daisy-member:1"}, stepPrefix, []string{"make", "check"})
 	if got := checks[0].Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("check:\n got %q\nwant %q", got, want)
 	}
@@ -87,9 +87,9 @@ func TestSwarmEnvWithoutDepsOrServices(t *testing.T) {
 		t.Errorf("workers %+v", workers)
 	}
 	run := a.state("runs/1-worker-1")
-	want := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1.check.1", "--label", "daisy.swarm=acme/swarm-app#1/check",
+	want := slices.Concat([]string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1.check.1", "--label", "daisy.swarm=acme/swarm-app#1/check",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--network", "none", "--env", "TZ=UTC",
-		"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app", "--workdir", "/job/work/app", "daisy-member:1", "make", "check"}
+		"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app"}, stepMount(run), []string{"--workdir", "/job/work/app", "daisy-member:1"}, stepPrefix, []string{"make", "check"})
 	if len(checks) != 1 || !reflect.DeepEqual(checks[0].Args(), want) {
 		t.Errorf("checks %+v", checks)
 	}

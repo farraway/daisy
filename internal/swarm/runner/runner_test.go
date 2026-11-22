@@ -25,7 +25,7 @@ func member() Spec {
 	return Spec{Name: "daisy-swarm.acme.app.3.architect.1", Label: "acme/app#3/architect", User: "1000:1000",
 		Mounts: []Mount{{Src: "/s/runs/3-architect-1/work", Dst: "/work"}, {Src: "/s/runs/3-architect-1/io", Dst: "/work/.swarm"},
 			{Src: "/ws/docs", Dst: "/resources/docs", ReadOnly: true}},
-		Workdir: "/work/app", Image: "daisy-member-app:2", Argv: []string{"claude", "-p"}, Detach: true}
+		Workdir: "/work/app", Image: "daisy-member-app:2", Argv: []string{"claude", "-p"}}
 }
 
 // Section 7.2's two argvs: the member with an env credential, with a
@@ -64,7 +64,7 @@ func TestArgs(t *testing.T) {
 	}
 	check := Spec{Name: "daisy-swarm.acme.app.3.check.1", Label: "acme/app#3/check", User: "1000:1000", Network: "none",
 		Mounts: []Mount{{Src: "/s/runs/3-worker-1/check", Dst: "/job/work/gridapp"}}, Workdir: "/job/work/gridapp", Image: "daisy-member-app:2", Argv: []string{"make", "check"}}
-	want := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.check.1", "--label", "daisy.swarm=acme/app#3/check",
+	want := []string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.check.1", "--label", "daisy.swarm=acme/app#3/check",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--network", "none",
 		"--mount", "type=bind,src=/s/runs/3-worker-1/check,dst=/job/work/gridapp", "--workdir", "/job/work/gridapp", "daisy-member-app:2", "make", "check"}
 	if got := check.Args(); !reflect.DeepEqual(got, want) {
@@ -76,7 +76,7 @@ func TestArgs(t *testing.T) {
 	depsEnv := []string{"GOFLAGS=-modcacherw", "GOMODCACHE=/deps/go/mod"}
 	deps := Spec{Name: "daisy-swarm.acme.app.3.deps.1", Label: "acme/app#3/deps", User: "1000:1000", Env: depsEnv,
 		Mounts: []Mount{{Src: "/s/runs/3-worker-1/check", Dst: "/job/work/gridapp", ReadOnly: true}, {Src: "/s/deps/app", Dst: "/deps"}}, Workdir: "/job/work/gridapp", Image: "daisy-member-app:2", Argv: []string{"go", "mod", "download"}}
-	want = []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.deps.1", "--label", "daisy.swarm=acme/app#3/deps",
+	want = []string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.deps.1", "--label", "daisy.swarm=acme/app#3/deps",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--env", "GOFLAGS=-modcacherw", "--env", "GOMODCACHE=/deps/go/mod",
 		"--mount", "type=bind,src=/s/runs/3-worker-1/check,dst=/job/work/gridapp,readonly", "--mount", "type=bind,src=/s/deps/app,dst=/deps", "--workdir", "/job/work/gridapp", "daisy-member-app:2", "go", "mod", "download"}
 	if got := deps.Args(); !reflect.DeepEqual(got, want) {
@@ -84,7 +84,7 @@ func TestArgs(t *testing.T) {
 	}
 	check.Env = depsEnv
 	check.Mounts = append(check.Mounts, Mount{Src: "/s/deps/app", Dst: "/deps", ReadOnly: true})
-	want = []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.check.1", "--label", "daisy.swarm=acme/app#3/check",
+	want = []string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.app.3.check.1", "--label", "daisy.swarm=acme/app#3/check",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--network", "none", "--env", "GOFLAGS=-modcacherw", "--env", "GOMODCACHE=/deps/go/mod",
 		"--mount", "type=bind,src=/s/runs/3-worker-1/check,dst=/job/work/gridapp", "--mount", "type=bind,src=/s/deps/app,dst=/deps,readonly", "--workdir", "/job/work/gridapp", "daisy-member-app:2", "make", "check"}
 	if got := check.Args(); !reflect.DeepEqual(got, want) {
@@ -92,7 +92,7 @@ func TestArgs(t *testing.T) {
 	}
 	// With test services: the check on their network in place of none.
 	check.Network = "daisy-swarm.acme.app.3.check.1"
-	want[15] = "daisy-swarm.acme.app.3.check.1"
+	want[16] = "daisy-swarm.acme.app.3.check.1"
 	if got := check.Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("check with services:\n got %q\nwant %q", got, want)
 	}

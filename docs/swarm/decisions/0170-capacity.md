@@ -270,3 +270,20 @@ launched attached, before the build, keeps its exit mark,
 `"$@"; s=$?; …`, which *ended* still reads. Tests:
 `TestMemberArgvDetachedWithStdoutFile`, `TestArgs`,
 `TestDockerStartAndTheWallClock`, `TestDockerStartRefused`.
+
+**As built: the step's files (Step R4-B of the plan implementing the
+2026-11-19 swarm roadmap).** The check and the dependency step run
+`docker run --detach`, their argv under `sh -c '"$@" >/job/step/out
+2>&1; s=$?; echo "$s" >/job/step/exit; exit "$s"' sh`, `<run>/step/`
+removed and made again before each step starts (a rerun's too, 7.9)
+and mounted at `/job/step` after the step's other mounts; every
+container Daisy starts is now detached, so the attached `docker run`
+and its streams are gone from the runner. At a step's end its `out` is
+written to `<run>/check.out` or `<run>/deps.out` (an empty one when it
+left none, and at a timeout what it had written), its `exit` the
+status of `<step> exited <code>`, 125 to 127 its fault as before. A
+step whose container is gone, its apply's or another's, with its
+`exit` written is collected from these files; with none, a step
+whose apply died or a container killed outright, it is started again,
+as a step whose apply died was. Test:
+`TestSwarmCheckCollectedFromItsFiles`.

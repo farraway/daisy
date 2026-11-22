@@ -21,11 +21,12 @@ import (
 // /job/notes: an architect's notes) and what it reads of its resources
 // (Resources, given the directory mounted at /job/resources), its exit
 // status, its standard output and error, and whether the wall clock
-// stopped it. A check is scripted the same way under the role "check",
-// its Stdout and Stderr its output, its Work given its clone, mounted at
-// /job/work/<name>. A detached member's (section 7.10, rule 2) are the
-// files its sh writes: Stdout, Stderr and, unless the wall clock stopped
-// it, Code in io/stdout, io/stderr and io/exit.
+// stopped it, which are the files its sh writes (section 7.10, rule 2):
+// Stdout, Stderr and, unless the wall clock stopped it, Code in
+// io/stdout, io/stderr and io/exit. A check is scripted the same way
+// under the role "check", its Stdout then Stderr its output, written with
+// its Code to step/out and step/exit, its Work given its clone, mounted
+// at /job/work/<name>.
 type Canned struct {
 	Out            string
 	IO             func(io string) error
@@ -99,30 +100,23 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 	for _, m := range s.Mounts {
 		switch {
 		case m.Dst == "/job/io":
-			fs := f.FS
-			if fs == nil {
-				fs = ops.Real().FS()
-			}
+			fs := f.fs()
 			if c.Out != "" {
 				if err := fs.WriteFile(filepath.Join(m.Src, "out.md"), []byte(c.Out), 0o644); err != nil {
 					return nil, err
 				}
 			}
-			if s.Detach {
-				files := map[string]string{"stdout": c.Stdout, "stderr": c.Stderr}
-				if !c.TimedOut {
-					files["exit"] = strconv.Itoa(c.Code) + "\n"
-				}
-				for name, b := range files {
-					if err := fs.WriteFile(filepath.Join(m.Src, name), []byte(b), 0o644); err != nil {
-						return nil, err
-					}
-				}
+			if err := c.write(fs, m.Src, map[string]string{"stdout": c.Stdout, "stderr": c.Stderr}); err != nil {
+				return nil, err
 			}
 			if c.IO != nil {
 				if err := c.IO(m.Src); err != nil {
 					return nil, err
 				}
+			}
+		case m.Dst == "/job/step":
+			if err := c.write(f.fs(), m.Src, map[string]string{"out": c.Stdout + c.Stderr}); err != nil {
+				return nil, err
 			}
 		case (m.Dst == "/job/work" || strings.HasPrefix(m.Dst, "/job/work/")) && c.Work != nil:
 			if err := c.Work(m.Src); err != nil {
@@ -143,7 +137,28 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 		f.attached = map[string]string{}
 	}
 	f.attached[s.Name] = s.Network
-	return &fakeRun{f, s.Name, c, s.Detach}, nil
+	return &fakeRun{f, s.Name, c}, nil
+}
+
+func (f *Fake) fs() ops.FS {
+	if f.FS == nil {
+		return ops.Real().FS()
+	}
+	return f.FS
+}
+
+// write writes files into dir, and the exit status unless the wall clock
+// stopped the container.
+func (c Canned) write(fs ops.FS, dir string, files map[string]string) error {
+	if !c.TimedOut {
+		files["exit"] = strconv.Itoa(c.Code) + "\n"
+	}
+	for name, b := range files {
+		if err := fs.WriteFile(filepath.Join(dir, name), []byte(b), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (f *Fake) Running() ([]Running, error) {
@@ -191,10 +206,9 @@ func (f *Fake) Down(network string) error {
 }
 
 type fakeRun struct {
-	f      *Fake
-	name   string
-	c      Canned
-	detach bool
+	f    *Fake
+	name string
+	c    Canned
 }
 
 func (r *fakeRun) Wait() (Exit, error) {
@@ -202,8 +216,5 @@ func (r *fakeRun) Wait() (Exit, error) {
 	defer r.f.mu.Unlock()
 	r.f.running = slices.DeleteFunc(r.f.running, func(c Running) bool { return c.Name == r.name })
 	delete(r.f.attached, r.name)
-	if r.detach {
-		return Exit{TimedOut: r.c.TimedOut}, nil
-	}
-	return Exit{Code: r.c.Code, TimedOut: r.c.TimedOut, Stdout: []byte(r.c.Stdout), Stderr: []byte(r.c.Stderr)}, nil
+	return Exit{TimedOut: r.c.TimedOut}, nil
 }

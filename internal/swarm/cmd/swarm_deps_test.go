@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -55,7 +56,7 @@ func TestSwarmDepsBeforeTheCheck(t *testing.T) {
 	if len(deps) != 1 || len(checks) != 1 || len(workers) != 1 {
 		t.Fatalf("launched %d deps, %d checks, %d workers", len(deps), len(checks), len(workers))
 	}
-	head := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1.%s.1", "--label", "daisy.swarm=acme/swarm-app#1/%s",
+	head := []string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1.%s.1", "--label", "daisy.swarm=acme/swarm-app#1/%s",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30"}
 	args := func(role string, rest ...string) []string {
 		var out []string
@@ -65,13 +66,13 @@ func TestSwarmDepsBeforeTheCheck(t *testing.T) {
 		return append(out, rest...)
 	}
 	env := []string{"--env", "GOFLAGS=-modcacherw", "--env", "GOMODCACHE=/deps/go/mod"}
-	want := args("deps", append(env, "--mount", "type=bind,src="+run+"/check,dst=/job/work/app,readonly", "--mount", "type=bind,src="+cache+",dst=/deps",
-		"--workdir", "/job/work/app", "daisy-member:1", "sh", "-c", "go mod download && go list -deps -test ./... >/dev/null")...)
+	want := args("deps", slices.Concat(env, []string{"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app,readonly", "--mount", "type=bind,src=" + cache + ",dst=/deps"}, stepMount(run),
+		[]string{"--workdir", "/job/work/app", "daisy-member:1"}, stepPrefix, []string{"sh", "-c", "go mod download && go list -deps -test ./... >/dev/null"})...)
 	if got := deps[0].Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("deps:\n got %q\nwant %q", got, want)
 	}
-	want = args("check", append(append([]string{"--network", "none"}, env...), "--mount", "type=bind,src="+run+"/check,dst=/job/work/app",
-		"--mount", "type=bind,src="+cache+",dst=/deps,readonly", "--workdir", "/job/work/app", "daisy-member:1", "make", "check")...)
+	want = args("check", slices.Concat([]string{"--network", "none"}, env, []string{"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app",
+		"--mount", "type=bind,src=" + cache + ",dst=/deps,readonly"}, stepMount(run), []string{"--workdir", "/job/work/app", "daisy-member:1"}, stepPrefix, []string{"make", "check"})...)
 	if got := checks[0].Args(); !reflect.DeepEqual(got, want) {
 		t.Errorf("check:\n got %q\nwant %q", got, want)
 	}
@@ -118,9 +119,9 @@ func TestSwarmCheckWithoutDepsUnchanged(t *testing.T) {
 	a.pass()
 	run := a.state("runs/1-worker-1")
 	checks := a.launched("check")
-	want := []string{"run", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1.check.1", "--label", "daisy.swarm=acme/swarm-app#1/check",
+	want := slices.Concat([]string{"run", "--detach", "--rm", "--pull", "never", "--name", "daisy-swarm.acme.swarm-app.1.check.1", "--label", "daisy.swarm=acme/swarm-app#1/check",
 		"--user", "1000:1000", "--security-opt", "no-new-privileges", "--stop-timeout", "30", "--network", "none",
-		"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app", "--workdir", "/job/work/app", "daisy-member:1", "make", "check"}
+		"--mount", "type=bind,src=" + run + "/check,dst=/job/work/app"}, stepMount(run), []string{"--workdir", "/job/work/app", "daisy-member:1"}, stepPrefix, []string{"make", "check"})
 	if len(checks) != 1 || !reflect.DeepEqual(checks[0].Args(), want) {
 		t.Errorf("checks %+v", checks)
 	}

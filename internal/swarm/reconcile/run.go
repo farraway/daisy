@@ -122,6 +122,32 @@ func (r Run) Finished(fs ops.FS) (ended bool, lines []string) {
 	return true, nil
 }
 
+// stepFile is the step's file name in <run>/step/, read only when it is
+// a regular file, as ioFile reads the member's.
+func (r Run) stepFile(fs ops.FS, name string) ([]byte, error) {
+	p := filepath.Join(r.Dir, "step", name)
+	fi, err := fs.Lstat(p)
+	if err != nil {
+		return nil, r.unusable(path.Join("step", name), err)
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, iofs.ErrNotExist
+	}
+	b, err := fs.ReadFile(p)
+	return b, r.unusable(path.Join("step", name), err)
+}
+
+// stepStatus is the status a step's sh wrote to <run>/step/exit, ok when
+// it is a regular file holding a number (section 7.10, rule 2).
+func (r Run) stepStatus(fs ops.FS) (code int, ok bool) {
+	b, err := r.stepFile(fs, "exit")
+	if err != nil || b == nil {
+		return 0, false
+	}
+	code, err = strconv.Atoi(strings.TrimSpace(string(b)))
+	return code, err == nil
+}
+
 // exitStatus is the status the member's sh wrote to `io/exit`, ok when
 // it is a regular file holding a number (section 7.2): one that is not
 // the script's, the member's own, is none.
