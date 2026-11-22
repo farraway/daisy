@@ -312,6 +312,7 @@ Stages of a software factory the version leaves out, each by choice:
     ├── io/branches.md               # R1 (7.8; built): the open swarm branches and the files each changes, as the pass fetched them
     ├── io/builder.md                # R1 (7.8; built): an architect's builder plan, written beside the plan's out.md
     ├── io/out.md                    # what the member wrote
+    ├── io/main/<name>-<short sha>.log  # R2 (12.1, The red main, specified ahead of its build): the owner's batch run's copy of a red main's check output, written before the launch
     ├── io/exit                      # the CLI's exit status, written by the sh it runs under once it has exited (section 7.2)
     ├── io/stdout, io/stderr         # R4 (7.10, specified ahead of its build): the CLI's streams, written by the sh it runs under, which any apply collects
     ├── io/deadline                  # R4 (7.10, specified ahead of its build): written at 80% of timeout, for the member to read
@@ -559,7 +560,7 @@ yet or not (Step 6 of revision 6's plan; decision [109](swarm/decisions/0109-ini
 | `gates.triage`, `gates.plan`, `gates.merge` | booleans | `true` each | G1, G2 and G3 (section 5): `true` keeps the decision the maintainer's, G1's and G2's for an architecture job only (a routine job passes them by itself, section 5); `false` hands it to the swarm |
 | `budget` | object | absent | `{"per_day": <usd>, "total": <usd>}`, both numbers greater than 0; required when any gate is `false`; optional otherwise; validated, not enforced: no pass compares the spend with it until it is built (below) |
 | `keys` | object | `{"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}, "openai": {"slots": 1}}`, and, for a provider the wizard's answers give a persona and no key names, that provider's default: `{"env": "XAI_API_KEY"}` for `xai` (section 11) | provider name → its credential, an object with exactly one of two kinds (section 8): `env`, a variable name that is one of the provider's variables (section 9), resolved on the host as a secret value (below) and passed under the same name; `slots`, an integer 1 to 16, for a provider that takes a slot (`openai`, `xai`): slots 1 to that number. A provider declares one form or the other, never both (`needs exactly one of env, slots`, below). Every provider a persona uses must have one |
-| `keys.<provider>.tokens` | object | absent (`init` writes none, and keeps the file's) | *R4, specified ahead of its build* (7.10, rule 4): optional, `{"per_day": <tokens>, "per_week": <tokens>}`, one or both, integers greater than 0, no default; each credential of the provider (its `env`, or each slot) is given to a launch only while the tokens of its runs started in the 24 hours before it are below `per_day` and those started in the 7 days before it below `per_week` |
+| `keys.<provider>.tokens` | object | absent (`init` writes none, and keeps the file's) | *R4, specified ahead of its build* (7.10, rule 4): optional, `{"per_day": <tokens>, "per_week": <tokens>}`, one or both, integers greater than 0, no default; each credential of the provider (its `env`, or each slot) is given to a launch only while the tokens of its runs started in the 24 hours before it are below `per_day`, when declared, and those started in the 7 days before it below `per_week`, when declared |
 | `personas` | object | the five roles as in the example | exactly the keys `owner`, `architect`, `worker`, `adversary`, `sympathetic`, and `qa` exactly when `qa` is declared (the QA's persona, which `init` never writes) |
 | `personas.<role>.provider` | string | as in the example | a provider with an adapter: `anthropic`, `openai` or `xai` |
 | `personas.<role>.model` | string | as in the example | required: every role names the model it runs (decision [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)), so neither `""` nor `-` is accepted; otherwise passed through, but for one check: no whitespace, control character or format character such as a zero-width space (it is one argv word; decision [6](swarm/decisions/0006-additions-to-swarm-json.md); the control and format characters from Step 20 of the plan that clears the Deferred list, decision [120](swarm/decisions/0120-declare-forge-and-runner-loose-ends.md)) |
@@ -4327,6 +4328,7 @@ honest word among the nine, and none for a row that is no stop.
 | merge check failed (*R2, specified ahead of its build* (12.1, rule 3)) | work | the merge queue's check on the commit that merges the approved head into `base` fails, after 7.9's one rerun of a classified failure | `<state>/runs/<n>-merge-<k>/result`: `merge <name> <head> into <base sha> at <merge sha>`, the check's lines, `failed: merge check: <exit code, timeout or the refusal>`, `collected` | T32: the note on the pull request naming `checks/<merge sha>.log`; no block | none: no member ran, no metrics row |
 | merge check environment (*R2, specified ahead of its build* (12.1, rule 3)) | work | as a worker's *check environment*, on the merge check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | T17 beside `swarm:review-2-approved`, the note naming the reason; nothing posted on the pull request | none: no member ran |
 | main check failed (*R2, specified ahead of its build* (12.1, rule 4)) | — | the check on a commit of `base` whose tree no check has passed fails | `<state>/runs/0-main-<k>/result`: `main <name> <sha> tree <tree>`, the check's lines, `failed: main check: <…>` | `base` red: the repository's worker launches held but the fix's; the note on the breaking job's issue when it is open, else the owner's batch released | none: no member ran |
+| main check environment (*R2, specified ahead of its build* (12.1, rule 4)) | — | as a worker's *check environment*, on the main check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | `base` unchecked: a line `<name> <sha>` in `<state>/main-unchecked`, `main unchecked <name>` in `status` and notify; no note, no block | none: no member ran |
 | abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/exit` that is a regular file holding a number (7.2), whatever `out.md` holds: an empty or partial `out.md` of a member killed mid-run is never read; a run launched before the mark (its `argv` without the `sh -c` line) by no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`; for a worker, 7.6 steps 1 and 2 (`fetched <sha>`, and `kept refs/swarm-runs/<n>-worker-<k>` when it has commits; a fetch that fails with git's error is recorded, `fetch failed: <error>`, and is the pass's error, retried at the next pass as a worker run's is; a clone that reaches outside itself or holds no branch, or a second failed fetch in a row, keeps nothing, with `⚠ #<n> worker run <k>: abandoned; commits not kept (<reason>)` on stderr, and the run is collected); then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 | none: no stop, the role relaunched |
 | ended | — | a pass finds a run not its own with `started`, no end line, no container by the run's name and a `<run>/io/exit` that is a regular file holding a number (a run launched before the mark: a `<run>/io/out.md` that is a regular file): its member finished after the `apply` that started it died, whose `docker run` took the streams with it | `ended <time>`, with the status `exit` holds read as `docker run`'s (125–127 `fault: exit <code>`, any other non-zero `failed: exit <code>`), then the collection of 7.6 from `out.md`: no `cost` line, and a provider's fault the lost standard output reported is not seen | as the run's collection (posted, blocked, failed, stale or discarded) | as the run's collection |
 | orphan over time | — | a pass finds a container by the run's name, the run not its own, `started` more than `timeout` ago | `docker stop --time 30 <name>` sent; then abandoned as above, whatever `out.md` holds | as abandoned | as abandoned |
@@ -7798,8 +7800,8 @@ independent, and both hold an issue's launches. **With `--type
 maintainer's intervention, on issue `<n>` or, for the whole swarm, on
 none (The interventions' record, below). *R4, specified ahead of its build* (7.10, rule 1): the bare
 `resume` also removes `<state>/capacity`, so every model is tried
-again at the next pass. *R2, specified ahead of its build* (12.1, The red main): it also
-removes `<state>/main-unchecked`, so a main check runs again on the
+again at the next pass. *R2, specified ahead of its build* (12.1, The red main): the bare
+`resume` also removes `<state>/main-unchecked`, so a main check runs again on the
 commits it names.
 
 ### daisy swarm restart
@@ -8596,7 +8598,7 @@ first, ties by issue number. The queue is read from the forge and
 `<state>/runs` at each pass; no file holds it. At each pass, for each
 repository with a check that the merge step merged nothing into (a merge
 leaves the mirror behind `base` until the next pass's fetch), after that
-step (section 11, step 6) and the main check's start (rule 4, below),
+step (section 11, `apply`, step 6) and the main check's start (rule 4, below),
 Daisy takes the first queued head with no passed merge check on `base`
 as it is now and, when no merge check of that repository is running and
 its `base` is green (rule 4), starts one: it fetches the mirror (once a
@@ -8616,7 +8618,7 @@ pass, as the pass does), merges the head into `refs/heads/<base>` there with
     6's rule 2.
 
 A merge check and a main check are Daisy's own launches: neither starts
-while the swarm is paused (nor does the merge step, section 11, pause) or
+while the swarm is paused (nor does the merge step: section 11, `apply`, step 4) or
 when `max_members` containers are running (section 6, rule 4), and one
 started counts as a launch of the pass.
 

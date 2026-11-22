@@ -126,7 +126,7 @@ run makes its branch's first commit the fix. Closed, or with no swarm
 merge to blame, the owner's next batch proposes the fix first, marked
 `Fixes: <name>`, released from `owner-held` by the red. A main check
 that fails in the environment, after 7.9's rerun, leaves `base`
-unchecked (a line of `<state>/main-unchecked`) and holds the queue until the bare `swarm resume`, the maintainer's,
+unchecked (a line of `<state>/main-unchecked`) and holds the queue on that commit until the bare `swarm resume`, the maintainer's,
 as R3c sends a persisting environment failure to the maintainer.
 
 **The owner's hold as the graph.** The owner held its batch because
