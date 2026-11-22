@@ -352,6 +352,26 @@ files the follow-up of the pull request it merges under the
 maintainer's token, the issue then the maintainer's; a pass listing
 closed issues, for an issue closed by hand, was the other option.
 
+**As built: the blocking sentence (Step R6-A of the plan implementing
+the 2026-11-19 swarm roadmap).** The list is the Task's, after the row's
+text and before the slice sentence, as paragraphs of its own with a list
+item per kind, not a sentence run on in the row's paragraph: a sentence
+in the middle of a paragraph is what decision
+[167](0167-the-system-prompt-stable-blocks-first.md)'s amendment found a
+smaller model to miss. Each item's kind stands before it, in place of a
+sentence naming the four after. The `# Output` block stays one text per
+role: its sentence on when to request changes defers to the Task's list
+rather than leaving the block, so the block still says it, and its
+template's blocking line shows the kind and the reproduction; the
+alternative, the template left as it was, would show a form the Task
+contradicts. The verdict's statement and its reading are unchanged. The
+reproduction is asked for on the finding's own line, since a round's
+file keeps only the lines that begin with a marker. The notes' heading
+is named `"Trust boundaries"`, without its `##`, as the prompt shifts a
+note's headings. The text says that Daisy files the non-blocking
+findings, which Step R6-B builds. Tests: `TestTaskTextBlockingSentence`,
+`TestTaskTextBlockingSentenceWithoutTrustBoundaries`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

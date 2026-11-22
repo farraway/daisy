@@ -1330,3 +1330,11 @@ they write.
   prompts; the default trust boundaries stand; `swarm merge` files the
   follow-up under the maintainer's token (specified ahead of its build,
   Step R6-B). Sections 5, 7.11 and 12 and the same decision.
+- 2026-11-22, Step R6-A of the plan implementing the 2026-11-19 swarm
+  roadmap, the blocking sentence (rules 1, 2 and 4 of section 7.11):
+  every reviewer's Task lists the four kinds of finding that block, as
+  paragraphs of its own, "realistic" read by the repository notes'
+  `## Trust boundaries` or, with none, the default; the reviewers'
+  `# Output` block defers to the list and its template shows a blocking
+  finding's kind and reproduction. Sections 4, 6, 7.4 and 7.11. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.

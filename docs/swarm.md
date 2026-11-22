@@ -790,12 +790,12 @@ What `daisy swarm init` found:
 - Protected: `<pattern>`, `<pattern>`, as swarm.json declares them.   (or: none declared in swarm.json.)
 ```
 
-*R6, specified ahead of its build* (7.11, rule 2): the notes declare the
-repository's **trust boundaries** under a heading `## Trust boundaries`,
-what the product trusts (its own process's environment, umask,
-configuration and filesystem) and what it does not (what a user or a
-peer sends), which the reviewers' blocking sentence reads "realistic"
-by (7.4); `swarm init`'s seed adds, after its list, the heading and the
+The notes declare the repository's **trust boundaries** under a heading
+`## Trust boundaries`, what the product trusts (its own process's
+environment, umask, configuration and filesystem) and what it does not
+(what a user or a peer sends), which the reviewers' blocking sentence
+reads "realistic" by (7.4; 7.11, rule 2; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap).
+*R6, specified ahead of its build* (7.11, rule 2): `swarm init`'s seed adds, after its list, the heading and the
 default the blocking sentence states, for the maintainer to replace:
 
 ```markdown
@@ -1991,8 +1991,9 @@ round counts toward `max_rounds` as any other. Rounds count per pull request, so
 its own `max_rounds`, and a plan revised after the limit (T11) starts
 the count again.
 
-*R6, specified ahead of its build* (7.11, rules 1 and 5): what blocks
-in a round is a fixed list in the reviewers' Task text, and a blocking
+What blocks in a round is a fixed list in the reviewers' Task text
+(7.11, rule 1; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap).
+*R6, specified ahead of its build* (7.11, rule 5): a blocking
 finding is *closed* when its own reproduction passes on the head, or it
 is answered with a reason the reviewer accepts; from round 2 only an
 earlier blocking finding not closed, a fault the revision introduced or
@@ -3573,14 +3574,14 @@ sympathetic reviewer's) reads:
 > `VERDICT: request-changes`, alone on its line, before any heading or
 > other text. Then the review: each finding a line beginning
 > `[blocking]` or `[non-blocking]`, with its file and line. Request
-> changes only when a finding is blocking; approve otherwise. Daisy
-> reads the verdict from the first line alone, so a review whose first
-> line is anything else (`## Review`, a title, a blank line) fails. For
-> example:
+> changes only for a blocking finding, of a kind the Task lists; approve
+> otherwise. Daisy reads the verdict from the first line alone, so a
+> review whose first line is anything else (`## Review`, a title, a blank
+> line) fails. For example:
 >
 > ```text
 > VERDICT: request-changes
-> [blocking] <file>:<line>: <what is wrong, and why it blocks>
+> [blocking] <kind> <file>:<line>: <what is wrong>; reproduced by <a command, a test or the steps>
 > [non-blocking] <file>:<line>: <what could be better>
 > ```
 >
@@ -3646,7 +3647,17 @@ that it reads without the plan. Daisy gives each worker its slice's step
 and section. Write it whole each time you write the plan.` The
 architect's answer to a question asks for none.
 
-The **slice sentence** follows the row's text in every worker text and
+The **blocking sentence** (7.11, rules 1, 2 and 4; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap, decision
+[171](swarm/decisions/0171-review-by-risk-with-an-end.md)) follows the
+row's text in every reviewer text, before the slice sentence, as
+paragraphs of its own (a list of the kinds of finding that block, then
+what every other finding is), which 7.11 quotes: a Task text's other
+sentences run on in one paragraph, where a smaller model misses one
+(decision [167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md)
+as amended).
+
+The **slice sentence** follows the row's text (a reviewer's, its
+blocking sentence) in every worker text and
 every reviewer text whose job has a plan, before the additions below:
 `Read slice <s>, /job/memory/slices/<s>/slice.md, first; then the
 builder plan, /job/memory/builder.md, and the plan,
@@ -3751,12 +3762,7 @@ deadline and `/job/io/deadline`, which Daisy writes at 80% of
 `timeout`, asking the member to write its output then, or what it has
 and how the work could be split.
 
-*R6, specified ahead of its build* (7.11, rules 1 to 5 and 9): every
-reviewer text adds the **blocking sentence** (the list of what blocks,
-"realistic" read from the repository notes' `## Trust boundaries` and
-the slice's `Unsupported:` line, each blocking finding's kind and
-reproduction), in place of the verdict sentence's `Request changes only
-when a finding is blocking; approve otherwise.`; a delta round's last
+*R6, specified ahead of its build* (7.11, rules 3, 5 and 9): a delta round's last
 sentence becomes the **convergence sentence**, and a reviewer's first
 review in a later round adds its round's limit; the adversary's
 addition checks each test's named probe after its rollback; the
@@ -6291,35 +6297,46 @@ swarm's adversary reviews, is decision 171's.
    worker's container cannot run goes under "Not established:", and is
    never a reason to stop.
 
-**The list, in the Task** (rules 1, 2 and 4). Every reviewer text adds,
+**The list, in the Task** (rules 1, 2 and 4; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap). Every reviewer text adds,
 after its row's text and before the slice sentence (7.4), the
-**blocking sentence**, which replaces the verdict sentence's `Request
-changes only when a finding is blocking; approve otherwise.` wherever
-the output contract then holds it (the reviewers' `# Output` block,
-Step VF of that plan): `A finding is blocking only when it is one of
-four: a claim of slice <s> that the head does not show, a test that
-survives the probe the plan names for it among them; a test the plan
-names for slice <s> that is missing on this head or fails; a defect in
-the code the change adds or changes that a realistic user or input
-meets, "realistic" as "## Trust boundaries" in the repository notes and
-the slice's "Unsupported:" line define it; or a fault this revision
-introduced, behaviour that worked on a head reviewed before and fails on
-this one. Every other finding is non-blocking, however sound: hardening
-against what the notes trust, a fault met only in a setup the slice
-does not support, a probe of your own that a test survives (unless the
-change that survives shows the head itself is wrong), and wording.
-Write each blocking finding's kind after its marker ("claim", "test",
-"defect" or "introduced", and from round 2 "unclosed" for an earlier
-one not closed), then the reproduction that shows it: a command, a test
-or the steps. Request changes only for a blocking finding; Daisy files
-every non-blocking one for the owner when the pull request merges, so
-none is lost.` When the repository notes hold no `## Trust boundaries`
-heading, `"realistic" as "## Trust boundaries" in the repository notes
-and the slice's "Unsupported:" line define it` reads `"realistic" as
-the slice's "Unsupported:" line defines it, and, since the repository
-notes declare no trust boundaries, trusting the product's own process
-environment, configuration, filesystem and umask and the toolchain's
-settings, and nothing a user or a network peer sends`. A blocking line
+**blocking sentence**, paragraphs of its own:
+
+> A finding is blocking only when it is one of these four kinds:
+>
+> - claim: a claim of slice `<s>` that the head does not show, a test
+>   that survives the probe the plan names for it among them;
+> - test: a test the plan names for slice `<s>` that is missing on this
+>   head or fails;
+> - defect: a defect in the code the change adds or changes that a
+>   realistic user or input meets, "realistic" as "Trust boundaries" in
+>   the repository notes and the slice's "Unsupported:" line define it;
+> - introduced: a fault this revision introduced, behaviour that worked
+>   on a head reviewed before and fails on this one.
+>
+> Every other finding is non-blocking, however sound: hardening against
+> what the notes trust, a fault met only in a setup the slice does not
+> support, a probe of your own that a test survives (unless the change
+> that survives shows the head itself is wrong), and wording. Write a
+> blocking finding's kind after its marker (from round 2, "unclosed" for
+> an earlier one not closed) and, on the same line, the reproduction
+> that shows it: a command, a test or the steps. Request changes only
+> for a blocking finding; Daisy files every non-blocking one for the
+> owner when the pull request merges, so none is lost.
+
+The list needs the slice and the repository's notes, so it is the
+Task's and not the `# Output` block's, which is one text for every run
+of the role (7.3, The order): the block's `Request changes only when a
+finding is blocking; approve otherwise.` reads `Request changes only for
+a blocking finding, of a kind the Task lists; approve otherwise.`, and
+its template's blocking line shows the kind and the reproduction (7.4).
+The reproduction is on the finding's line, since a round's file keeps
+the finding lines alone (7.8, A round's file). When the notes of the
+repository the slice changes hold no line `## Trust boundaries`, outside
+a fenced block, the text after `"realistic" as` reads `the slice's
+"Unsupported:" line defines it, and, since the repository notes declare
+no trust boundaries, trusting the product's own process environment,
+configuration, filesystem and umask and the toolchain's settings, and
+nothing a user or a network peer sends`. A blocking line
 that names no kind is read as before: Daisy parses the kind for nothing
 but the scorecard's count of blocking findings by kind (rule 7), a line
 without one counted `unnamed`, and never refuses a review for it.

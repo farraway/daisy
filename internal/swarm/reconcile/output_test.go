@@ -110,7 +110,7 @@ func TestRenderReviewerOutputContractFirst(t *testing.T) {
 			!slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, "[non-blocking] ") }) {
 			t.Errorf("%s: # Output has no finding line in its template:\n%s", name, out)
 		}
-		has(t, name+"'s # Output", out, []string{"Request changes only when a finding is blocking"})
+		has(t, name+"'s # Output", out, []string{"Request changes only for a blocking finding"})
 		task := bs[len(bs)-1]
 		if task.heading != "# Task" || lastLine(task.text) != reminder {
 			t.Errorf("%s: the last block %q ends %q, want # Task ending %q", name, task.heading, lastLine(task.text), reminder)

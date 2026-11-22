@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/fence"
 	"daisy/internal/swarm/forge"
 )
 
@@ -59,8 +60,8 @@ var roleOutputs = map[string]string{
 // reviewerOutput is the reviewers' # Output block: the verdict line
 // verdictOf reads, and the findings whose severity review checks
 // against it (sections 7.4 and 7.5).
-const reviewerOutput = "The first line of your output is exactly `VERDICT: approve` or `VERDICT: request-changes`, alone on its line, before any heading or other text. Then the review: each finding a line beginning `[blocking]` or `[non-blocking]`, with its file and line. Request changes only when a finding is blocking; approve otherwise. Daisy reads the verdict from the first line alone, so a review whose first line is anything else (`## Review`, a title, a blank line) fails. For example:\n\n" +
-	"```text\nVERDICT: request-changes\n[blocking] <file>:<line>: <what is wrong, and why it blocks>\n[non-blocking] <file>:<line>: <what could be better>\n```\n\n" +
+const reviewerOutput = "The first line of your output is exactly `VERDICT: approve` or `VERDICT: request-changes`, alone on its line, before any heading or other text. Then the review: each finding a line beginning `[blocking]` or `[non-blocking]`, with its file and line. Request changes only for a blocking finding, of a kind the Task lists; approve otherwise. Daisy reads the verdict from the first line alone, so a review whose first line is anything else (`## Review`, a title, a blank line) fails. For example:\n\n" +
+	"```text\nVERDICT: request-changes\n[blocking] <kind> <file>:<line>: <what is wrong>; reproduced by <a command, a test or the steps>\n[non-blocking] <file>:<line>: <what could be better>\n```\n\n" +
 	"or, with no blocking finding:\n\n" +
 	"```text\nVERDICT: approve\n[non-blocking] <file>:<line>: <what could be better>\n```\n\n" +
 	"Two other first lines replace the verdict, each only in the case the Task names for it: `QUESTION: <one question>`, when the plan, the issue and its thread leave open something your review depends on, and `BLOCKED: <your question>`, when you cannot review without an answer from the maintainer."
@@ -82,12 +83,57 @@ const (
 	ownerReminder     = `Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when only the maintainer can settle it.`
 )
 
+// blockingSentence is the list of what blocks a review (section 7.11,
+// rule 1; decision 171), the same for both reviewers in every round of
+// slice s but for the repository notes' trust boundaries: "realistic" is
+// read by them, or by the default where the notes declare none (rule 2).
+func (j *Job) blockingSentence(s int) string {
+	realistic := `"Trust boundaries" in the repository notes and the slice's "Unsupported:" line define it`
+	if !j.trustBoundaries() {
+		realistic = `the slice's "Unsupported:" line defines it, and, since the repository notes declare no trust boundaries, trusting the product's own process environment, configuration, filesystem and umask and the toolchain's settings, and nothing a user or a network peer sends`
+	}
+	return fmt.Sprintf(`A finding is blocking only when it is one of these four kinds:
+
+- claim: a claim of slice %d that the head does not show, a test that survives the probe the plan names for it among them;
+- test: a test the plan names for slice %d that is missing on this head or fails;
+- defect: a defect in the code the change adds or changes that a realistic user or input meets, "realistic" as %s;
+- introduced: a fault this revision introduced, behaviour that worked on a head reviewed before and fails on this one.
+
+Every other finding is non-blocking, however sound: hardening against what the notes trust, a fault met only in a setup the slice does not support, a probe of your own that a test survives (unless the change that survives shows the head itself is wrong), and wording. Write a blocking finding's kind after its marker (from round 2, "unclosed" for an earlier one not closed) and, on the same line, the reproduction that shows it: a command, a test or the steps. Request changes only for a blocking finding; Daisy files every non-blocking one for the owner when the pull request merges, so none is lost.`, s, s, realistic)
+}
+
+// trustBoundaries is whether the notes of the repository the run works in
+// hold the heading `## Trust boundaries`, outside a fenced block (section
+// 4; 7.11, rule 2).
+func (j *Job) trustBoundaries() bool {
+	for _, n := range j.Repos {
+		var fences fence.Scan
+		for _, l := range strings.Split(n.Text, "\n") {
+			if !fences.Line(l) && strings.TrimRight(l, " \t\r") == "## Trust boundaries" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // task is the run's Task text: section 7.4's row for its role and label,
 // its additions, the closing paragraph and, where the Task's first line
-// is required, the reminder restating it.
+// is required, the reminder restating it. What add adds runs on in one
+// paragraph; what para adds is a paragraph of its own, for an instruction
+// that is missed in the middle of one (decision 167).
 func (j *Job) task() string {
 	var t []string
-	add := func(format string, args ...any) { t = append(t, fmt.Sprintf(format, args...)) }
+	alone := true
+	add := func(format string, args ...any) {
+		text := fmt.Sprintf(format, args...)
+		if alone {
+			t, alone = append(t, text), false
+			return
+		}
+		t[len(t)-1] += " " + text
+	}
+	para := func(text string) { t, alone = append(t, text), true }
 	end, reminder := closing, ""
 	if j.Role == "worker" {
 		end = workerClosing
@@ -221,6 +267,7 @@ func (j *Job) task() string {
 		} else {
 			add(`Review pull request %s#%d, slice %d of issue #%d. The change is "git diff %s...HEAD" in /job/work/%s, a throwaway clone you may build and test in; nothing you change there is kept. Check each claim of the plan's Test Plan against the diff and the check's result, and the worker's "Not established:" lists against what the change claims: a claim neither tested nor listed is a finding.`, cur.Repo, cur.Number, s, j.N, j.Cfg.Base, cur.Repo)
 		}
+		para(j.blockingSentence(s))
 		if read := j.sliceSentence(); read != "" {
 			add("%s", read)
 		}
@@ -251,7 +298,7 @@ func (j *Job) task() string {
 	if reminder != "" {
 		end += "\n\n" + reminder
 	}
-	return strings.Join(t, " ") + "\n\n" + end
+	return strings.Join(append(t, end), "\n\n")
 }
 
 // commented: the issue has a counted comment (section 6).
