@@ -141,6 +141,7 @@ func TestAddTaskRefusals(t *testing.T) {
 	}
 	for desc, want := range map[string]string{
 		"(A) Call Mom":     "Error: the description starts with a priority, (A); give it as the priority argument: daisy add \"Call Mom\" A\n",
+		"(E) x":            "Error: the description starts with a priority, (E), which add does not take; give A, B, C, D or none as the priority argument: daisy add \"x\" A|B|C|D|none\n",
 		"Two\nlines":       "Error: a task is one line; the description holds a line break\n",
 		"Carriage\rreturn": "Error: a task is one line; the description holds a line break\n",
 		"   ":              "Error: the description is blank\n",

@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -444,6 +445,14 @@ func TestDoneCompletesAndCommitsOnce(t *testing.T) {
 	if msg := m.git(t, "log", "-1", "--format=%s"); msg != "Completed: Delta target task +daisy" {
 		t.Errorf("message %q", msg)
 	}
+	// the completed line goes before the cancelled ones (docs/task-format.md)
+	writeFile(t, filepath.Join(m.home, "tasks", "todo.txt"), "(A) 2026-07-27 Open task\nx 2026-07-28 2026-07-01 Earlier done\nz 2026-07-28 2026-07-02 Dropped\n")
+	if code, _, errs := runWith(m.dayOps(m.ws, true), "done", "Open task"); code != 0 {
+		t.Fatalf("with a z line: exit %d err %q", code, errs)
+	}
+	if got := m.read(t, "tasks/todo.txt"); got != "x 2026-07-28 2026-07-01 Earlier done\nx 2026-07-28 2026-07-27 Open task\nz 2026-07-28 2026-07-02 Dropped\n" {
+		t.Errorf("with a z line: todo.txt:\n%s", got)
+	}
 }
 
 func TestDoneRefusals(t *testing.T) {
@@ -634,6 +643,18 @@ func TestProjects(t *testing.T) {
 	}
 	if code, _, errs := runWith(m.dayOps(m.ws, true), "projects", "x"); code != 2 || !strings.Contains(errs, "Usage: daisy projects") {
 		t.Errorf("surplus argument: exit %d err %q", code, errs)
+	}
+	// a .daisy/project naming a missing project is said on stderr, and
+	// under warnings with --json, as status and tasks say it
+	writeFile(t, filepath.Join(m.ws, ".daisy", "project"), "ghost\n")
+	warning := "⚠️  .daisy/project names 'ghost', but " + filepath.Join(m.home, "projects", "ghost.md") + " does not exist"
+	if code, out, errs := runWith(m.dayOps(m.ws, true), "projects"); code != 0 || errs != warning+"\n" || !strings.HasPrefix(out, "Active projects:\n") {
+		t.Errorf("a missing project: exit %d out %q err %q", code, out, errs)
+	}
+	code, out, errs = runWith(m.dayOps(m.ws, true), "projects", "--json")
+	var doc struct{ Warnings []string }
+	if err := json.Unmarshal([]byte(out), &doc); code != 0 || errs != "" || err != nil || !slices.Equal(doc.Warnings, []string{warning}) {
+		t.Errorf("--json: exit %d out %q err %q (%v)", code, out, errs, err)
 	}
 }
 

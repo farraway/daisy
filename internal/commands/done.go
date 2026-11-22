@@ -11,7 +11,8 @@ import (
 )
 
 // Done completes the one active task matching the pattern: in todo.txt the
-// line becomes `x <today> <created> <text>` at the end of the file, in
+// line becomes `x <today> <created> <text>` after the other lines but the
+// cancelled ones, before the first `z` line (docs/task-format.md), in
 // today.md its `- [ ]` becomes `- [x]`, the Log section gets `Done: <text>`,
 // and the home is committed once. Zero or several matches refuse without
 // touching anything.
@@ -30,7 +31,12 @@ func Done(c *Context) error {
 	}
 	task, forms := todo.Parse(lines[i]), todayForms(lines[i])
 	today := c.Ops.Now().Format("2006-01-02")
-	lines = append(slices.Delete(lines, i, i+1), task.Complete(today).Format())
+	lines = slices.Delete(lines, i, i+1)
+	at := slices.IndexFunc(lines, func(l string) bool { return todo.Parse(l).State == todo.Cancelled })
+	if at < 0 {
+		at = len(lines)
+	}
+	lines = slices.Insert(lines, at, task.Complete(today).Format())
 	if err := ops.Rewrite(fs, todoFile(c), []byte(todo.Content(lines)), 0o644); err != nil {
 		return err
 	}

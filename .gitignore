@@ -15,14 +15,15 @@ bin/
 # the home: `daisy init` (the binding, its stage and set-aside names, the
 # agent files, every skill's copies in .claude/skills and Codex's
 # .agents/skills, and their Cursor stubs) and `daisy plan new` (PLAN.md,
-# <slug>_PLAN.md with --spec). Whole directories, under this comment rather
-# than init's header: init adds no line git already ignores here, so it
-# writes no block into this file, and clean finds none to strip.
+# <slug>_PLAN.md with --spec, both at the top only). Whole directories, under
+# this comment rather than init's header: init adds no line git already
+# ignores here, so it writes no block into this file, and clean finds none
+# to strip.
 .daisy/
 .daisy.stage.*
 .daisy.previous.*
-PLAN.md
-*_PLAN.md
+/PLAN.md
+/*_PLAN.md
 .claude/skills/
 .claude/commands/daisy.md
 .claude/settings.local.json

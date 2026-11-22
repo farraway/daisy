@@ -18,7 +18,8 @@ type projectsReport struct {
 }
 
 // Projects lists the home's active projects (or, with --archived, the
-// archived ones), each with the real path of its file. Read-only.
+// archived ones), each with the real path of its file; the .daisy/project
+// typo warnings go to stderr, as tasks prints them. Read-only.
 func Projects(c *Context) error {
 	return verb.PrintReport(c, func() (*projectsReport, error) { return readProjects(c), nil }, func(r *projectsReport) {
 		label := "Active projects"
@@ -38,6 +39,9 @@ func Projects(c *Context) error {
 
 func readProjects(c *Context) *projectsReport {
 	fs := c.Ops.FS()
+	for _, w := range c.Env.Warnings {
+		fmt.Fprintln(c.Stderr, w)
+	}
 	r := &projectsReport{Archived: c.Flag("--archived"), Projects: []namedPath{}}
 	dir := filepath.Join(c.Env.Home, "projects")
 	if r.Archived {

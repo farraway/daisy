@@ -28,8 +28,10 @@ func Add(c *Context) error {
 		return errors.New("Error: a task is one line; the description holds a line break")
 	case strings.TrimSpace(text) == "":
 		return errors.New("Error: the description is blank")
-	case t.Priority != 0:
+	case t.Priority >= 'A' && t.Priority <= 'D':
 		return fmt.Errorf("Error: the description starts with a priority, (%c); give it as the priority argument: daisy add %q %c", t.Priority, text[4:], t.Priority)
+	case t.Priority != 0:
+		return fmt.Errorf("Error: the description starts with a priority, (%c), which add does not take; give A, B, C, D or none as the priority argument: daisy add %q A|B|C|D|none", t.Priority, text[4:])
 	}
 	if err := preflight(c); err != nil {
 		return err
