@@ -179,3 +179,14 @@ Step 16b of the plan that clears the Deferred list or refused before its
 credential, is read by the provider its argv names, and failing that
 by `swarm.json`'s, the order its metrics row already took, now one
 function for both. Test: `TestSwarmCollectsWithTheLaunchedPersona`.
+
+**As built: `Reset` (Step R4-A of the plan implementing the 2026-11-19
+swarm roadmap).** Each adapter has `Reset(fault, at)`. `codex`'s reads
+the first `try again at <h>:<mm> <AM|PM>` in the message, `<h>` 1 to 12
+and the marker in capitals as the live journal writes them (`12:05 AM`
+is 00:05, `12:30 PM` 12:30), as that time on `at`'s day in UTC, or the
+next day's when that is not after `at`, so a fault in the very minute
+it names is read as the next day's; any other shape states none.
+`claude`'s and `grok`'s state none, `claude`'s `usage limit
+reached|<number>` among them: the number is no reset a ruling read.
+Test: `TestReset`.

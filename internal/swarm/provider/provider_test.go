@@ -4,6 +4,7 @@ import (
 	"math"
 	"reflect"
 	"testing"
+	"time"
 )
 
 // Section 9's argv for each adapter (sections 7.8 and 9): a member
@@ -186,6 +187,43 @@ func TestEstimate(t *testing.T) {
 		got, ok := Estimate(tc.model, tc.in, tc.cached, tc.out)
 		if ok != tc.ok || math.Abs(got-tc.want) > 1e-12 {
 			t.Errorf("Estimate(%s, %d, %d, %d) = %v, %v; want %v, %v", tc.model, tc.in, tc.cached, tc.out, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+// Reset is the reset a capacity fault's message states (section 9;
+// section 7.10, The fallback): codex's `try again at <h>:<mm> <AM|PM>`,
+// the live messages of 2026-11-12 and 2026-11-19, read as the first such
+// time after the fault in UTC, the container's zone, the next day's when
+// the day's is not after it; none in a message without one, nor for
+// claude and grok, whose known messages state none (grok's 402 among
+// them).
+func TestReset(t *testing.T) {
+	fault := time.Date(2026, 11, 19, 4, 37, 33, 0, time.UTC)
+	day := func(d, h, m int) time.Time { return time.Date(2026, 11, d, h, m, 0, 0, time.UTC) }
+	const limit = "You’ve hit your usage limit. Visit https://chatgpt.com/settings/usage to purchase more credits or try again at "
+	for _, tc := range []struct {
+		name, provider, msg string
+		at, want            time.Time
+		ok                  bool
+	}{
+		{"codex, that afternoon", "openai", limit + "3:53 PM.", fault, day(19, 15, 53), true},
+		{"codex, the live message of 2026-11-12", "openai", "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/settings/usage to purchase more credits or try again at 1:34 PM.",
+			time.Date(2026, 11, 12, 12, 22, 45, 0, time.UTC), time.Date(2026, 11, 12, 13, 34, 0, 0, time.UTC), true},
+		{"codex, the next morning", "openai", limit + "1:34 AM.", fault, day(20, 1, 34), true},
+		{"codex, past midnight", "openai", limit + "12:05 AM.", fault, day(20, 0, 5), true},
+		{"codex, noon", "openai", limit + "12:30 PM.", fault, day(19, 12, 30), true},
+		{"codex, the minute of the fault", "openai", limit + "4:37 AM.", fault, day(20, 4, 37), true},
+		{"codex, no time", "openai", "You've hit your usage limit.", fault, time.Time{}, false},
+		{"codex, a rate limit", "openai", "stream error: exceeded retry limit, last status: 429 Too Many Requests", fault, time.Time{}, false},
+		{"codex, no such hour", "openai", limit + "13:05 PM.", fault, time.Time{}, false},
+		{"claude", "anthropic", "Claude AI usage limit reached|1762444800", fault, time.Time{}, false},
+		{"claude, codex's words", "anthropic", limit + "3:53 PM.", fault, time.Time{}, false},
+		{"grok's 402", "xai", `Internal error: { "message": "API error (status 402 Payment Required): Grok Build usage balance exhausted", "http_status": 402 }`, fault, time.Time{}, false},
+	} {
+		got, ok := Providers[tc.provider].Adapter.Reset(tc.msg, tc.at)
+		if ok != tc.ok || !got.Equal(tc.want) {
+			t.Errorf("%s: %v, %v; want %v, %v", tc.name, got, ok, tc.want, tc.ok)
 		}
 	}
 }

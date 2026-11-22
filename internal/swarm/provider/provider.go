@@ -9,8 +9,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"maps"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Adapter is one provider's CLI.
@@ -24,6 +27,10 @@ type Adapter interface {
 	Command(model, effort, workdir, system, prompt string, readDirs []string) []string
 	// Report reads the CLI's standard output after the run.
 	Report(stdout []byte) Report
+	// Reset is the time a capacity fault's message, fault, states the
+	// model is available again, the fault having come at at; ok is false
+	// when it states none (section 9; section 7.10, The fallback).
+	Reset(fault string, at time.Time) (time.Time, bool)
 }
 
 // Report is what a run's output says: its usage when the CLI reports it,
@@ -233,7 +240,39 @@ func (claude) Report(stdout []byte) Report {
 	return rep
 }
 
+// Reset: no message claude is known to send states its reset (section
+// 9).
+func (claude) Reset(string, time.Time) (time.Time, bool) { return time.Time{}, false }
+
 type codex struct{}
+
+// tryAgain is the reset codex's usage limit names, as the live service
+// journal holds it (2026-11-12 and 2026-11-19: "… or try again at 3:53
+// PM.").
+var tryAgain = regexp.MustCompile(`try again at (1[0-2]|[1-9]):([0-5][0-9]) (AM|PM)`)
+
+// Reset reads codex's `try again at <h>:<mm> <AM|PM>` as the first such
+// time after at in UTC, the container's zone, the image setting no TZ
+// (section 9; to confirm on the next such fault): the day's, or the next
+// day's when the day's is not after at.
+func (codex) Reset(fault string, at time.Time) (time.Time, bool) {
+	m := tryAgain.FindStringSubmatch(fault)
+	if m == nil {
+		return time.Time{}, false
+	}
+	h, _ := strconv.Atoi(m[1])
+	mm, _ := strconv.Atoi(m[2])
+	h %= 12
+	if m[3] == "PM" {
+		h += 12
+	}
+	at = at.UTC()
+	t := time.Date(at.Year(), at.Month(), at.Day(), h, mm, 0, 0, time.UTC)
+	if !t.After(at) {
+		t = t.AddDate(0, 0, 1)
+	}
+	return t, true
+}
 
 // Command: codex has no system-prompt flag, so both files are named in
 // its one prompt; its --add-dir adds a writable root to its own sandbox,
@@ -300,6 +339,10 @@ func (codex) Report(stdout []byte) Report {
 }
 
 type grok struct{}
+
+// Reset: no message grok is known to send states its reset, its 402 for
+// a spent balance among them (section 9).
+func (grok) Reset(string, time.Time) (time.Time, bool) { return time.Time{}, false }
 
 // Command: grok's system-prompt flags take text, not a file (--rules
 // appends it, --system-prompt-override replaces the harness), so both

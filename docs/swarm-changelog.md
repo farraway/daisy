@@ -1223,3 +1223,9 @@ they write.
   adapter of its own `persona` line, not the role's persona as
   `swarm.json` has it at the collection. Section 7.10 (The fallback).
   Decision [170](swarm/decisions/0170-capacity.md) amended.
+- 2026-11-21, Step R4-A of the plan implementing the 2026-11-19 swarm
+  roadmap (R4; the fallback): `Reset` built per provider adapter, the
+  reset a capacity fault's message states: `codex`'s `try again at
+  <h>:<mm> <AM|PM>` as the first such time after the fault in UTC,
+  none for `claude` and `grok`. Section 9. Decision
+  [170](swarm/decisions/0170-capacity.md) amended.

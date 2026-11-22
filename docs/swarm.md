@@ -6196,8 +6196,9 @@ usage or rate limit (`rate_limit` too), a credit balance, or the status
 spending limit, a usage balance exhausted: its binary's strings); any
 other error result is the work's (its exit code decides, 7.7). The words
 are *to confirm* on a real fault, and for `grok` also that the fault
-reaches the JSON error object, not only its standard error. *R4, specified ahead of its build* (7.10,
-rule 1): the adapter gains `Reset(fault string, at time.Time)
+reaches the JSON error object, not only its standard error. *R4* (7.10,
+rule 1), *built at Step R4-A of the plan implementing the 2026-11-19
+swarm roadmap*: the adapter has `Reset(fault string, at time.Time)
 (time.Time, bool)`, the reset a capacity fault's message states:
 `codex`'s `try again at <h>:<mm> <AM|PM>` read as the first such time
 after `at` in UTC, the container's zone (*to confirm* on the next such
