@@ -211,6 +211,16 @@ func TestSummarize(t *testing.T) {
 	if _, err := Summarize([]byte("when,kind\nx,y\n"), Filter{}); err == nil {
 		t.Fatal("another header summarized")
 	}
+	// A cell metrics add would refuse is refused in a row a later one
+	// supersedes too, the row named: the check is the file's, not the
+	// latest rows'.
+	bad := strings.Replace(string(b), ",1,step,,m,,,,,,,,,100,", ",1,step,,m,,,,,,,,,12k,", 1)
+	if bad == string(b) {
+		t.Fatalf("no first row to spoil:\n%s", b)
+	}
+	if _, err := Summarize([]byte(bad), Filter{}); err == nil || !strings.Contains(err.Error(), "row 2: tokens_total must be a whole number (got: 12k)") {
+		t.Fatalf("a bad cell in a superseded row: %v", err)
+	}
 }
 
 // A filter keeps a swarm's rows (kind swarm-run, that swarm) written at

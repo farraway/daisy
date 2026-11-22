@@ -1143,3 +1143,12 @@ they write.
   reviewer's default prompts) and 11 (The table of earlier defaults).
   Decision [168](swarm/decisions/0168-a-delta-review.md), amended with
   an As built note.
+- 2026-11-21, Step C2–C3 of the plan implementing the 2026-11-19 swarm
+  roadmap: `swarm status`'s reverted line reads `(fetch time unknown)`
+  when a mirror holding `base` was read but none records a fetch, where
+  it said `(no mirror fetched)`; its document's cost sums are rounded to
+  six decimals; `swarm list` and `swarm connect` say "any positional
+  argument". Section 11 (`daisy swarm status`'s Throughput, `daisy swarm
+  list`, `daisy swarm connect`). Decision
+  [141](swarm/decisions/0141-reverts-counted-from-the-mirrors.md),
+  amended with an As built note.

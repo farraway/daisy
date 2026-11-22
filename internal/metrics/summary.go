@@ -137,6 +137,9 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 			continue
 		}
 		s.Rows++
+		if err := checkRow(rec, col); err != nil {
+			return s, fmt.Errorf("row %d: %v", i+2, err)
+		}
 		if latest[key(rec)] != i {
 			s.Superseded++
 			continue
@@ -147,9 +150,7 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 			g = &Group{Kind: Kind(k[0]), Model: k[1]}
 			groups[k] = g
 		}
-		if err := g.add(rec, col); err != nil {
-			return s, fmt.Errorf("row %d: %v", i+2, err)
-		}
+		g.add(rec, col)
 		if k[0] == string(PlanStep) {
 			name := rec[col("plan_or_swarm")]
 			p := plans[name]
@@ -180,6 +181,7 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 		s.Plans = append(s.Plans, *plans[name])
 	}
 	for _, g := range groups {
+		g.Cost, g.Estimate = RoundCost(g.Cost), RoundCost(g.Estimate)
 		s.Groups = append(s.Groups, *g)
 	}
 	slices.SortFunc(s.Groups, func(a, b Group) int {
@@ -188,13 +190,24 @@ func Summarize(file []byte, f Filter) (Summary, error) {
 	return s, nil
 }
 
-func (g *Group) add(rec []string, col func(string) int) error {
-	cell := func(name string) string { return rec[col(name)] }
+// checkRow refuses a row holding a cell metrics add would refuse: every
+// row a summary takes, superseded or not.
+func checkRow(rec []string, col func(string) int) error {
 	for _, name := range Header {
-		if why := CheckCell(name, cell(name)); why != "" {
-			return fmt.Errorf("%s %s (got: %s)", name, why, cell(name))
+		if why := CheckCell(name, rec[col(name)]); why != "" {
+			return fmt.Errorf("%s %s (got: %s)", name, why, rec[col(name)])
 		}
 	}
+	return nil
+}
+
+// RoundCost is a sum of dollars rounded to six decimals, as it goes into
+// a document: rows of 0.1 and 0.2 sum to 0.3, not 0.30000000000000004.
+func RoundCost(x float64) float64 { return math.Round(x*1e6) / 1e6 }
+
+// add counts a row checkRow has passed.
+func (g *Group) add(rec []string, col func(string) int) {
+	cell := func(name string) string { return rec[col(name)] }
 	g.Rows++
 	if n, ok := rowTokens(rec, col); ok {
 		g.Tokens += n
@@ -218,10 +231,9 @@ func (g *Group) add(rec []string, col func(string) int) error {
 		g.Lines.plus(l)
 		g.Measured++
 	}
-	return nil
 }
 
-// add counts a row Group.add has checked.
+// add counts a row checkRow has passed.
 func (p *Plan) add(rec []string, col func(string) int) {
 	p.Rows++
 	if n, ok := rowTokens(rec, col); ok {
@@ -237,7 +249,7 @@ func (p *Plan) add(rec []string, col func(string) int) {
 	}
 }
 
-// add counts a row Group.add has checked.
+// add counts a row checkRow has passed.
 func (r *Review) add(rec []string, col func(string) int) {
 	r.Rows++
 	tokens, withTokens := rowTokens(rec, col)

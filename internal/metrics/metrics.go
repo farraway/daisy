@@ -138,9 +138,10 @@ func pair(added, removed int) string { return fmt.Sprintf("+%d/-%d", added, remo
 
 // Measure is the lines git counts over rng in the repository at repo:
 // `git diff --numstat -z -M <rng> --`, renames found, each file classed
-// by the path it ends at. The range is `<a>..<b>` (or `<a>...<b>`) or
-// `<commit>^!`; a lone commit would be diffed against the working tree,
-// and a word starting with `-` would be an option, so both are refused.
+// by the path it ends at. The range is `<a>..<b>` or `<commit>^!`; a
+// lone commit would be diffed against the working tree, a word starting
+// with `-` would be an option, and `<a>...<b>` is git's symmetric
+// difference, so each is refused.
 func Measure(o ops.Ops, repo, rng string) (Lines, error) {
 	if err := CheckRange(rng); err != nil {
 		return Lines{}, err
@@ -157,7 +158,38 @@ func CheckRange(rng string) error {
 	if strings.HasPrefix(rng, "-") || !(strings.Contains(rng, "..") || strings.HasSuffix(rng, "^!")) {
 		return fmt.Errorf("a range is <a>..<b> or <commit>^! (got: %s)", rng)
 	}
+	if strings.Contains(rng, "...") {
+		return fmt.Errorf("a range is <a>..<b> or <commit>^!; <a>...<b> is git's symmetric difference (got: %s)", rng)
+	}
 	return nil
+}
+
+// ResolveRange is rng, a range CheckRange takes, with each commit it
+// names resolved to its sha in the repository at repo: `<sha>^!`,
+// `<sha>..<sha>`, an empty side of `..` being git's HEAD. As typed,
+// `HEAD^!` would name another commit once HEAD moves.
+func ResolveRange(o ops.Ops, repo, rng string) (string, error) {
+	sha := func(rev string) (string, error) {
+		if rev == "" {
+			rev = "HEAD"
+		}
+		out, stderr, err := o.Exec(repo, "git", "rev-parse", "--verify", "--end-of-options", rev+"^{commit}")
+		if err != nil {
+			return "", fmt.Errorf("git rev-parse %s in %s failed: %s", rev, repo, firstLine(stderr, err))
+		}
+		return strings.TrimSpace(string(out)), nil
+	}
+	if c, ok := strings.CutSuffix(rng, "^!"); ok {
+		s, err := sha(c)
+		return s + "^!", err
+	}
+	a, b, _ := strings.Cut(rng, "..")
+	sa, err := sha(a)
+	if err != nil {
+		return "", err
+	}
+	sb, err := sha(b)
+	return sa + ".." + sb, err
 }
 
 func firstLine(stderr []byte, err error) string {

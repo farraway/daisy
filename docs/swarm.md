@@ -7032,7 +7032,7 @@ Throughput:
   cost         $<today> today, $<all> in all (<u> runs without a cost); estimated $<e> in all at list price (<v> runs without an estimate)
   budget       $<per_day> per day, $<total> in all        (or: none)
   approved     <a> pull requests; at the round limit <b>, blocked there <c>
-  reverted     <k> of <m> merged pull requests (as of the mirrors' last fetch, <time>)        (or: (no mirror fetched))
+  reverted     <k> of <m> merged pull requests (as of the mirrors' last fetch, <time>)        (or: (fetch time unknown), (no mirror fetched))
   auto         <t+p> gates passed for routine jobs (triage <t>, plan <p>)
   stage time   <stage> <median> (<runs>), …        (or: none)
   #<n>         plan revisions <v>, blocks <k>; <name>#<m> rounds <d>, maintainer comments <c>; …
@@ -7075,7 +7075,9 @@ merged otherwise (squashed or rebased by hand on the forge), a revert
 written under another message, one on a branch other than `base` and
 one of a commit inside the pull request rather than its merge are not
 counted. `<time>` is the oldest of those mirrors' `FETCH_HEAD` times,
-RFC 3339 in UTC; `(no mirror fetched)` when no mirror holds `base`.
+RFC 3339 in UTC; `(fetch time unknown)` when none of them records a
+fetch (no `FETCH_HEAD`), and `(no mirror fetched)` when no mirror holds
+`base`.
 `daisy metrics` prints the same counts per swarm (docs/cli.md), reading
 `base` from the swarm repository's mirror, whose clone it does not
 read (decision
@@ -7404,7 +7406,7 @@ row's `root_sha` naming the root its run was collected under (decision
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm list [--json]`, anywhere: in a clone or not, in a Daisy workspace or not; any argument is usage (exit 2) |
+| Usage | `daisy swarm list [--json]`, anywhere: in a clone or not, in a Daisy workspace or not; any positional argument is usage (exit 2) |
 | Reads | the directories under `$DAISY_LOCAL/swarm/` three levels down, `<forge-host>/<owner>/<repo>`, each a `<state>` (`credentials/`, the login slots, left out); in each, `clone`, `home` and `paused`; the `swarm.json` of the recorded clone and of the clone the working folder is in (its forge fields, to name its `<state>`); no secret, no forge call, no Docker |
 | Writes | nothing, anywhere |
 | Stdout | `Swarms on this machine ($DAISY_LOCAL/swarm):`, then one line per `<state>`, in path order: `  <owner>/<repo> on <forge-host>: ` and, separated by `; `, `clone <path>` (`clone not recorded` when `<state>/clone` is absent; `clone <path> (not a clone of it now)` when the path holds no clone's top or a clone of another swarm), `home <name>` or `no home` (`<state>/home`), `not paused` or `paused since <time>[: <reason>]` (`<state>/paused`), and `here <swarm>` when the working folder is in a clone of that swarm (Finding the swarm, above); with none, `No swarm on this machine ($DAISY_LOCAL/swarm holds no swarm's state)`; with `--json`, the same facts as one JSON document (docs/cli.md, `--json` and `daisy swarm list`) |
@@ -7452,7 +7454,7 @@ collected while it read.
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm connect [--json]`, in the clone; any argument is usage (exit 2) |
+| Usage | `daisy swarm connect [--json]`, in the clone; any positional argument is usage (exit 2) |
 | Reads | what `status` reads (above: `swarm.json`, `<state>/env`, the state's files, the runs, the mirrors and the forge, the same calls and no other); what `journal` reads (above); `AUTHORITIES.md` at the clone's top (section 2), as it stands in the clone; `<state>/home`, the registry (`$DAISY_CONFIG/homes`) and that home's metrics CSV; and in the clone `git log -1 --format=%cI %h %s -- swarm.json prompts/` |
 | Writes | nothing, anywhere: the mark moves only by `journal --mark` |
 | Stdout | the briefing of `prompts/swarm-connect.md` rule 2, in its order: `Swarm: <owner>/<repo> on <forge-host>, clone <swarm>`, `status`'s `State:` line and its `Running:` line; a blank line and `Since the last connect: ` followed by `journal`'s first line, then its lines by the issue each names (`journal --issue`'s rule), `  #<n>` over each issue's in issue order and `  no issue` over the lines of no issue last, each line indented four spaces, then `journal`'s `Mark them seen: daisy swarm journal --mark <run>` when a line is shown; a blank line and `status`'s `Waiting for you:` line, then for each issue in it `  #<n>, its gate note:` and the text of the gate note that put it there (section 5, the gate note: the newest of the swarm's gate notes on it, while it carries `swarm:gated` and the note is of its gating now, the blocked gate's for a blocked issue and otherwise one at its stage with no plan posted after it), after its marker line, each line indented four spaces, or `  #<n>: no gate note of this gating on the issue`; `status`'s `Held:` line; `Runs: ` and Throughput's runs line; a blank line and `Questions the swarm answers: ` then `#<n> for the <architect|owner>` for each open issue carrying `swarm:question` (section 6, The question; the answerer as the question run's rule finds it), separated by `; `, or `none`, and for each `  #<n>, <role> run <k> at <time>:` and the newest of the swarm's questions on it, indented four spaces (`  #<n>: no question of the swarm's on the issue` for a flag set by hand); a blank line and `Authorities: <swarm>/AUTHORITIES.md, quoted verbatim; Daisy acts on none of it`, the file's bytes as they stand (a newline added when it ends without one), then `End of AUTHORITIES.md`, or with no file `Authorities: none granted (no AUTHORITIES.md in <swarm>)`; a blank line and `Metrics of the swarm's runs: <csv> (home <name>)`, the swarm's `swarm-run` rows of the metrics CSV of the home `<state>/home` names (`daisy metrics --swarm <owner>/<repo>`'s rows), `  since the last model or prompt change, <time> <short sha> <subject> (the clone's newest commit to swarm.json or prompts/):` (`  no commit to swarm.json or prompts/ in the clone` when none is) and the rows written since that commit's time, then `  in all:` and every row, each a line per model, `    <model>  <k> rows, tokens <t>, cost $<c>, estimated $<e>` (`1 row` for one; `<time>` in UTC; a sum over some of the rows `<sum> (k/n)`, over none `—`, a model left empty `(none)`; `    none` for no row); or `Metrics of the swarm's runs: none (<why>)`: `<state>/home names no Daisy home`, `<state>/home names <name>: <the registry's refusal>`, `no metrics recorded yet: <csv> does not exist`, or the read that failed. The report is written whole once every read is made; with `--json`, the same facts as one JSON document (docs/cli.md, `daisy swarm connect`) |

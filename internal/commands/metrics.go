@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -89,6 +90,10 @@ type swarmFigures struct {
 	RevertRate    *float64 `json:"revert_rate"`
 	Fetched       *string  `json:"fetched"`
 	Problem       *string  `json:"problem"`
+	// MirrorsRead is whether a mirror holding base was read, so that a
+	// nil Fetched reads `fetch time unknown` rather than `no mirror
+	// fetched`; the document's fetched is null for both.
+	MirrorsRead bool `json:"-"`
 }
 
 // metricsGroup is the rows of one kind and model (nil, the text's
@@ -170,7 +175,7 @@ func Metrics(c *Context) error {
 			fmt.Fprintln(w, "  plan\trows\ttokens\tcode added\ttokens per code line\treverted")
 			for _, p := range r.Plans {
 				fmt.Fprintf(w, "  %s\t%d\t%s\t%s\t%s\t%s\n", p.Plan, p.Rows, some(p.Tokens, "%d", p.RowsWithTokens, p.Rows),
-					some(p.CodeAdded, "+%d", p.Measured, p.Rows), some(p.TokensPerCodeLine, "%d", 1, 1), stepsReverted(p))
+					some(p.CodeAdded, "+%d", p.Measured, p.Rows), some(p.TokensPerCodeLine, "%d", p.RowsWithTokens, p.Rows), stepsReverted(p))
 			}
 			w.Flush()
 			where := "no repository (neither the working directory nor $DAISY_ROOT is in one)"
@@ -189,8 +194,11 @@ func Metrics(c *Context) error {
 					continue
 				}
 				asOf := "no mirror fetched"
-				if sw.Fetched != nil {
+				switch {
+				case sw.Fetched != nil:
 					asOf = "the mirrors' last fetch, " + *sw.Fetched
+				case sw.MirrorsRead:
+					asOf = "fetch time unknown"
 				}
 				fmt.Fprintf(w, "  %s\t%d\t%s\t%s\n", sw.Swarm, *sw.MergedPulls, ofRate(*sw.RevertedPulls, *sw.MergedPulls), asOf)
 			}
@@ -318,7 +326,7 @@ func readMetrics(c *Context) (*metricsReport, error) {
 func planReverts(c *Context, r *metricsReport, plans []metrics.Plan) error {
 	cwd, err := c.Ops.Getwd()
 	if err != nil {
-		return fmt.Errorf("Error: cannot read the working directory: %v", err)
+		return fmt.Errorf("Error: cannot read the working directory: %w", err)
 	}
 	for _, dir := range []string{cwd, c.Env.Root} {
 		out, _, err := c.Ops.Exec(dir, "git", "rev-parse", "--show-toplevel")
@@ -333,7 +341,7 @@ func planReverts(c *Context, r *metricsReport, plans []metrics.Plan) error {
 		for _, rng := range p.Ranges {
 			dir, reverted, err := check.Check(rng)
 			if err != nil {
-				return fmt.Errorf("Error: cannot read the reverts in %s: %v", dir, err)
+				return fmt.Errorf("Error: cannot read the reverts in %s: %w", dir, err)
 			}
 			if dir != "" {
 				mp.StepsFound++
@@ -377,7 +385,7 @@ func swarmReverts(c *Context, name string, since time.Time) ([]swarmFigures, err
 		if err != nil {
 			return nil, fmt.Errorf("Error: cannot read the reverts in %s's mirrors: %v", state, err)
 		}
-		sf.MergedPulls, sf.RevertedPulls = &pr.Merged, &pr.Reverted
+		sf.MergedPulls, sf.RevertedPulls, sf.MirrorsRead = &pr.Merged, &pr.Reverted, pr.Read
 		if pr.Merged > 0 {
 			rate := float64(pr.Reverted) / float64(pr.Merged)
 			sf.RevertRate = &rate
@@ -455,6 +463,12 @@ func MetricsAdd(c *Context) error {
 			return fmt.Errorf("Error: %s %s (got: %s)", f.flag, why, val(f.flag))
 		}
 	}
+	// The cached tokens are a part of the input (--tokens-cached's row).
+	if in, cached := val("--tokens-in"), val("--tokens-cached"); in != "" && cached != "" {
+		if n, k := atoiCell(in), atoiCell(cached); k > n {
+			return UsageError(fmt.Sprintf("--tokens-cached %s is more than --tokens-in %s: the cached tokens are a part of the input", cached, in))
+		}
+	}
 	when := c.Ops.Now()
 	if v, ok := c.Value("--when"); ok {
 		t, err := time.Parse(time.RFC3339, v)
@@ -491,6 +505,9 @@ func MetricsAdd(c *Context) error {
 			return fmt.Errorf("Error: %v\nNothing was recorded.", err)
 		}
 		row.Lines = &lines
+		if row.Range, err = metrics.ResolveRange(c.Ops, dir, rng); err != nil {
+			return fmt.Errorf("Error: %v\nNothing was recorded.", err)
+		}
 	}
 	if row.RootSHA == "" {
 		row.RootSHA = head(c, c.Env.Root, "root_sha", "--root-sha")
@@ -590,6 +607,9 @@ func metricsPlan(c *Context, name string) (string, error) {
 	}
 	return "", fmt.Errorf("Error: --plan %s names more than one plan:\n  %s", name, strings.Join(found, "\n  "))
 }
+
+// atoiCell reads a whole-number cell CheckCell has passed.
+func atoiCell(s string) int { n, _ := strconv.Atoi(s); return n }
 
 // planName is a plan file's name without `.plan.md` (or `.md`).
 func planName(path string) string {

@@ -152,11 +152,14 @@ type StatusThroughput struct {
 	// Reverted is the merged swarm pull requests and those a revert on
 	// base took back, read from the mirrors as their last fetch left them
 	// (ReadPullReverts); Fetched the oldest of those fetches, RFC 3339,
-	// null when no mirror holding base was read.
+	// null when no mirror holding base was read or none of those read
+	// records a fetch; MirrorsRead, for the text alone, whether one was
+	// read.
 	Reverted struct {
 		MergedPulls   int     `json:"merged_pulls"`
 		RevertedPulls int     `json:"reverted_pulls"`
 		Fetched       *string `json:"fetched"`
+		MirrorsRead   bool    `json:"-"`
 	} `json:"reverted"`
 	Auto struct {
 		Triage int `json:"triage"`
@@ -354,7 +357,7 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	if err != nil {
 		return nil, statusRead{}, fmt.Errorf("reading the reverts in the mirrors: %w", err)
 	}
-	r.Throughput.Reverted.MergedPulls, r.Throughput.Reverted.RevertedPulls = pr.Merged, pr.Reverted
+	r.Throughput.Reverted.MergedPulls, r.Throughput.Reverted.RevertedPulls, r.Throughput.Reverted.MirrorsRead = pr.Merged, pr.Reverted, pr.Read
 	if !pr.Fetched.IsZero() {
 		at := pr.Fetched.Format(time.RFC3339)
 		r.Throughput.Reverted.Fetched = &at
@@ -668,6 +671,7 @@ func throughput(o ops.Ops, state string) (StatusThroughput, error) {
 		}
 	}
 	t.Runs.Other = t.Runs.Total - t.Runs.Posted - t.Runs.Blocked - t.Runs.Questions - t.Runs.Failed - t.Runs.Faults
+	t.Cost.Today, t.Cost.All, t.Cost.Estimated = metrics.RoundCost(t.Cost.Today), metrics.RoundCost(t.Cost.All), metrics.RoundCost(t.Cost.Estimated)
 	t.StageTime = map[string]StatusTime{}
 	for _, stage := range TimedStages() {
 		if d := times[strings.TrimPrefix(stage, "swarm:")]; len(d) > 0 {

@@ -44,3 +44,15 @@ each revert with its own sha and settles the reverts newest first
 the scorecard's merges are all read through it. The merges themselves
 are read once, by `ReadMerges`, which the reverted line and the
 scorecard share.
+
+**As built: a mirror with no fetch time (Step C2–C3 of the plan
+implementing the 2026-11-19 swarm roadmap, 2026-11-21).** The line said
+`(no mirror fetched)` whenever no mirror read held a `FETCH_HEAD`,
+beside counts read from a mirror that holds `base` but records no
+fetch, and section 11 gives `(no mirror fetched)` only when no mirror
+holds `base`. Such a mirror now reads `(fetch time unknown)`, in
+`swarm status` and in `daisy metrics` (`fetch time unknown`); `fetched`
+stays `null` in either document for both. In the same step the
+documents' cost sums (`swarm status --json`'s `today`, `all` and
+`estimated`, `daisy metrics --json`'s `cost` and `estimated`) are
+rounded to six decimals, so runs of 0.1 and 0.2 read 0.3.

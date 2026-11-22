@@ -139,7 +139,7 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 		recs = append(recs, scoreRecord{r, when.UTC(), n})
 	}
 	slices.SortFunc(recs, func(a, b scoreRecord) int { return a.when.Compare(b.when) })
-	merges, fetched, err := ReadMerges(s.O, s.state(), s.Cfg.Base)
+	merges, fetched, _, err := ReadMerges(s.O, s.state(), s.Cfg.Base)
 	if err != nil {
 		return c, err
 	}

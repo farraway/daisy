@@ -717,8 +717,11 @@ func writeThroughput(out io.Writer, t reconcile.StatusThroughput) {
 	}
 	fmt.Fprintf(out, "  %-12s %d pull requests; at the round limit %d, blocked there %d\n", "approved", t.Approved.PullRequests, t.Approved.AtRoundLimit, t.Approved.BlockedThere)
 	fetched := "no mirror fetched"
-	if at := t.Reverted.Fetched; at != nil {
+	switch at := t.Reverted.Fetched; {
+	case at != nil:
 		fetched = "as of the mirrors' last fetch, " + *at
+	case t.Reverted.MirrorsRead:
+		fetched = "fetch time unknown"
 	}
 	fmt.Fprintf(out, "  %-12s %d of %d merged pull requests (%s)\n", "reverted", t.Reverted.RevertedPulls, t.Reverted.MergedPulls, fetched)
 	fmt.Fprintf(out, "  %-12s %d gates passed for routine jobs (triage %d, plan %d)\n", "auto", t.Auto.Triage+t.Auto.Plan, t.Auto.Triage, t.Auto.Plan)

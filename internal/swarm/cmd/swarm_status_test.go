@@ -490,6 +490,16 @@ func TestSwarmStatusReverts(t *testing.T) {
 	if got, _ := json.Marshal(doc.Throughput.Reverted); string(got) != `{"fetched":"2026-11-06T07:00:00Z","merged_pulls":2,"reverted_pulls":1}` {
 		t.Errorf("throughput.reverted = %s", got)
 	}
+	// The mirror read but recording no fetch: the counts stand, the time
+	// is unknown, not "no mirror fetched".
+	os.Remove(filepath.Join(mirror, "FETCH_HEAD"))
+	s.flags = nil
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	if want := "\n  reverted     1 of 2 merged pull requests (fetch time unknown)\n"; !strings.Contains(s.stdout.String(), want) {
+		t.Errorf("stdout with no FETCH_HEAD:\n%s\nwant within:\n%s", s.stdout.String(), want)
+	}
 }
 
 func (s *statusWS) runResult(name, result, out string) {

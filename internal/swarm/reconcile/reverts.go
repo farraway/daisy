@@ -21,20 +21,22 @@ import (
 // left them (docs/swarm.md section 11, status's Throughput): no fetch is
 // made, so a revert pushed since is not counted until the next pass
 // fetches. Fetched is the oldest of the read mirrors' last fetch, zero
-// when none was read.
+// when none was read or none of those read records one; Read is whether
+// a mirror holding base was read.
 type PullReverts struct {
 	Merged, Reverted int
 	Fetched          time.Time
+	Read             bool
 }
 
 // ReadPullReverts reads the swarm's PullReverts under state, the merges
 // made at or after since (all of them when it is zero), from ReadMerges.
 func ReadPullReverts(o ops.Ops, state, base string, since time.Time) (PullReverts, error) {
-	merges, fetched, err := ReadMerges(o, state, base)
+	merges, fetched, read, err := ReadMerges(o, state, base)
 	if err != nil {
 		return PullReverts{}, err
 	}
-	p := PullReverts{Fetched: fetched}
+	p := PullReverts{Fetched: fetched, Read: read}
 	for _, m := range merges {
 		if m.At.Before(since) {
 			continue
@@ -60,8 +62,9 @@ type Merge struct {
 }
 
 // ReadMerges reads the swarm's merged pull requests under state, in the
-// order of their times, and the oldest of the read mirrors' last fetch
-// (zero when none was read), from its mirrors as their last fetch left
+// order of their times, the oldest of the read mirrors' last fetch
+// (zero when none was read or none records one) and whether any mirror
+// holding base was read, from its mirrors as their last fetch left
 // them: no fetch is made. A swarm pull request's merge is a merge commit
 // on base's first-parent line in the mirror of the repository a worker
 // run pushed to (its `branch … in <name>` line), whose second parent is
@@ -70,11 +73,12 @@ type Merge struct {
 // (Gitea.Merge). It is reverted when a revert in effect on base names it
 // (metrics.Reverted). A repository with no mirror, or whose mirror holds
 // no base, has none.
-func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, error) {
+func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, bool, error) {
 	var fetched time.Time
+	read := false
 	runs, err := Runs(o.FS(), state)
 	if err != nil {
-		return nil, fetched, err
+		return nil, fetched, read, err
 	}
 	type push struct {
 		run      string
@@ -87,7 +91,7 @@ func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, error) {
 		}
 		lines, err := r.Result(o.FS())
 		if err != nil {
-			return nil, fetched, err
+			return nil, fetched, read, err
 		}
 		pushed, ok := Has(lines, "pushed")
 		repo := branchRepo(lines)
@@ -112,13 +116,14 @@ func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, error) {
 		if g.Head(m, ref) == "" {
 			continue
 		}
+		read = true
 		out, err := g.run(m, "log", "--first-parent", "--merges", "--format=%H %ct %P", ref, "--")
 		if err != nil {
-			return nil, fetched, err
+			return nil, fetched, read, err
 		}
 		named, err := metrics.Reverted(o, m, ref)
 		if err != nil {
-			return nil, fetched, err
+			return nil, fetched, read, err
 		}
 		for _, l := range strings.Split(out, "\n") {
 			f := strings.Fields(l) // the merge, its time, its parents
@@ -131,20 +136,20 @@ func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, error) {
 			}
 			at, err := strconv.ParseInt(f[1], 10, 64)
 			if err != nil {
-				return nil, fetched, fmt.Errorf("git log in %s: %q has no commit time", m, l)
+				return nil, fetched, read, fmt.Errorf("git log in %s: %q has no commit time", m, l)
 			}
 			merges = append(merges, Merge{N: p.n, Slice: p.slice, Repo: repo, SHA: f[0], At: time.Unix(at, 0).UTC(), Run: p.run, Reverted: named.Has(f[0])})
 		}
 		fi, err := o.FS().Stat(filepath.Join(m, "FETCH_HEAD"))
 		if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-			return nil, fetched, err
+			return nil, fetched, read, err
 		}
 		if err == nil && (fetched.IsZero() || fi.ModTime().Before(fetched)) {
 			fetched = fi.ModTime().UTC()
 		}
 	}
 	slices.SortStableFunc(merges, func(a, b Merge) int { return a.At.Compare(b.At) })
-	return merges, fetched, nil
+	return merges, fetched, read, nil
 }
 
 // MirroredBase is the base swarm.json names on the swarm repository's

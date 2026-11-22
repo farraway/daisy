@@ -55,7 +55,10 @@ func stepRepo(t *testing.T) (dir, base, head string) {
 // The step's claim: one `metrics add` writes the home's CSV row and the
 // plan's table row, each with the per-class counts of the range's diff
 // (code main.go +3/-1; tests main_test.go and tests/case.sh +6/-0; prose
-// README.md +3/-0 and the renamed docs/ file +1/-1).
+// README.md +3/-0 and the renamed docs/ file +1/-1). The range is stored
+// resolved to its commits' shas, as typed it would name other commits
+// once HEAD moves: `<a>..<b>` abbreviated as `<sha>..<sha>`, `HEAD^!` as
+// `<sha>^!`.
 func TestMetricsAddRecordsAStep(t *testing.T) {
 	m := newMachine(t)
 	gitIn(t, m.root, "init", "-q")
@@ -71,9 +74,9 @@ func TestMetricsAddRecordsAStep(t *testing.T) {
 	planFile := filepath.Join(m.home, "plans", planName+".plan.md")
 	before := m.read(t, filepath.Join("plans", planName+".plan.md"))
 	repo, base, head := stepRepo(t)
-	rng := base[:7] + ".." + head[:7]
+	rng := base + ".." + head
 
-	code, out, errs := runWith(o, "metrics", "add", "--step", "3", "--range", rng, "--repo", repo,
+	code, out, errs := runWith(o, "metrics", "add", "--step", "3", "--range", base[:7]+".."+head[:7], "--repo", repo,
 		"--provider", "claude", "--model", "claude-opus-5-5", "--effort", "high", "--outcome", "committed",
 		"--review-rounds", "2", "--tokens-in", "1200", "--tokens-out", "340", "--cost", "1.25",
 		"--notes", "worker model changed, \"again\"")
@@ -130,6 +133,14 @@ func TestMetricsAddRecordsAStep(t *testing.T) {
 	if code != 0 || errs != "" || !strings.Contains(out, "Metrics: "+csvFile+"\n") || !strings.Contains(out, "1 superseded") {
 		t.Fatalf("metrics = %d:\n%s\n%s", code, out, errs)
 	}
+
+	// HEAD^! is stored as the commit HEAD is at.
+	if code, _, errs := runWith(o, "metrics", "add", "--step", "4", "--root-sha", "abcdef1", "--range", "HEAD^!", "--repo", repo); code != 0 {
+		t.Fatalf("metrics add --range HEAD^! = %d: %s", code, errs)
+	}
+	if b, _ := os.ReadFile(csvFile); !strings.HasSuffix(string(b), ",3,1,6,0,4,1,0,"+head+"^!,,,,,\n") {
+		t.Fatalf("metrics.csv after --range HEAD^!:\n%s\nwant its last row's range %s^!", b, head)
+	}
 }
 
 // Every refusal is decided before the first write.
@@ -157,6 +168,8 @@ func TestMetricsAddRefusals(t *testing.T) {
 		{[]string{"--step", "1", "--root-sha", "abcdef1", "--when", "yesterday"}, "--when must be"},
 		{[]string{"--step", "1", "--root-sha", "abcdef1", "--range", head, "--repo", repo}, "a range is <a>..<b> or <commit>^!"},
 		{[]string{"--step", "1", "--root-sha", "abcdef1", "--range", "--output=x..y", "--repo", repo}, "a range is <a>..<b> or <commit>^!"},
+		{[]string{"--step", "1", "--root-sha", "abcdef1", "--range", base + "..." + head, "--repo", repo}, "<a>...<b> is git's symmetric difference"},
+		{[]string{"--step", "1", "--root-sha", "abcdef1", "--tokens-in", "10", "--tokens-cached", "11"}, "--tokens-cached 11 is more than --tokens-in 10"},
 		{[]string{"--step", "1", "--root-sha", "abcdef1", "--range", base + "..nosuch", "--repo", repo}, "git diff"},
 		{[]string{"--step", "1", "--root-sha", "abcdef1", "--plan", "nosuch"}, "names no plan"},
 		{[]string{"--step", "1", "--root-sha", "abcdef1", "--repo", repo}, "--repo without --range"},
@@ -164,6 +177,9 @@ func TestMetricsAddRefusals(t *testing.T) {
 		code, _, errs := runWith(o, append([]string{"metrics", "add"}, c.args...)...)
 		if code == 0 || !strings.Contains(errs, c.want) {
 			t.Errorf("metrics add %v = %d: %s", c.args, code, errs)
+		}
+		if strings.HasPrefix(c.want, "--tokens-cached") && code != 2 {
+			t.Errorf("metrics add %v = %d, want the usage error's 2", c.args, code)
 		}
 	}
 	sameFiles(t, "refused metrics add", before, snapshot(t, m.home, m.ws))
@@ -174,7 +190,8 @@ func TestMetricsAddRefusals(t *testing.T) {
 // tokens (it often cannot count its own), sits beside the step's and the
 // review's rows, in the CSV and in the plan's table; `daisy metrics`
 // prints each plan's tokens per code line it added, over every role's
-// rows: 1500 + 300 tokens over main.go's 3 code lines, 600.
+// rows: 1500 + 300 tokens over main.go's 3 code lines, 600, over the two
+// of the three rows that report tokens, (2/3).
 func TestMetricsTokensPerCodeLine(t *testing.T) {
 	m := newMachine(t)
 	o := m.metricsOps(m.ws)
@@ -203,7 +220,7 @@ func TestMetricsTokensPerCodeLine(t *testing.T) {
 	}
 	code, out, errs := runWith(o, "metrics")
 	want := "\n  plan                         rows  tokens      code added  tokens per code line  reverted\n" +
-		"  " + planName + "  3     1800 (2/3)  +3 (1/3)    600                   1 not found\n"
+		"  " + planName + "  3     1800 (2/3)  +3 (1/3)    600 (2/3)             1 not found\n"
 	if code != 0 || errs != "" || !strings.Contains(out, want) || !strings.Contains(out, "  plan-step  (none)  3     1800 (2/3)  1000 (1/3)") {
 		t.Fatalf("metrics = %d:\n%s\nwant within:\n%s\n%s", code, out, want, errs)
 	}
@@ -375,5 +392,34 @@ func TestMetricsSwarmReverts(t *testing.T) {
 	got, _ := json.Marshal(doc.Swarms)
 	if wantJSON := `[{"base":"trunk","fetched":"2026-11-16T08:00:00Z","merged_pulls":3,"problem":null,"revert_rate":0.3333333333333333,"reverted_pulls":1,"state":"` + state + `","swarm":"acme/swarm-app"}]`; code != 0 || string(got) != wantJSON {
 		t.Errorf("metrics --swarm --json = %d, swarms:\n%s\nwant\n%s", code, got, wantJSON)
+	}
+
+	// A mirror read that records no fetch: the counts stand, the time is
+	// unknown, not "no mirror fetched".
+	if err := os.Remove(filepath.Join(state, "git", "app", "FETCH_HEAD")); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs = runWith(o, "metrics", "--swarm", "acme/swarm-app")
+	if want := "  acme/swarm-app  3             1 of 3 (33%)  fetch time unknown\n"; code != 0 || errs != "" || !strings.Contains(out, want) {
+		t.Fatalf("metrics with no FETCH_HEAD = %d:\n%s\nwant within:\n%s\n%s", code, out, want, errs)
+	}
+}
+
+// A cost sum is rounded to six decimals before it goes into the
+// document: rows of 0.1 and 0.2 give 0.3, not 0.30000000000000004.
+func TestMetricsJSONRoundsCosts(t *testing.T) {
+	m := newMachine(t)
+	o := m.metricsOps(m.ws)
+	if code, _, errs := runWith(o, "plan", "new", "Measure things"); code != 0 {
+		t.Fatalf("plan new = %d: %s", code, errs)
+	}
+	for i, cost := range []string{"0.1", "0.2"} {
+		if code, _, errs := runWith(o, "metrics", "add", "--root-sha", "abcdef1", "--home-sha", "abcdef2", "--step", fmt.Sprint(i+1), "--cost", cost, "--cost-estimated", cost); code != 0 {
+			t.Fatalf("metrics add --cost %s = %d: %s", cost, code, errs)
+		}
+	}
+	code, out, errs := runWith(o, "metrics", "--json")
+	if code != 0 || !strings.Contains(out, `"cost": 0.3,`) || !strings.Contains(out, `"estimated": 0.3,`) {
+		t.Fatalf("metrics --json = %d:\n%s\n%s", code, out, errs)
 	}
 }
