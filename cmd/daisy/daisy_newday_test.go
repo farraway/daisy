@@ -151,6 +151,68 @@ func TestNewWeek(t *testing.T) {
 	}
 }
 
+// --force starts the day though it has started: today.md, of today's date
+// too, is archived as any start archives it, so journal.md holds two
+// blocks of that date, and the new today.md is the template's; the home
+// is committed once. Without it the day is still found started.
+func TestNewDayForce(t *testing.T) {
+	m := newMachine(t)
+	m.seed(t) // today.md is 2026-07-28 Tuesday
+	writeFile(t, filepath.Join(m.home, "journal", "journal.md"), days("2026-07-27"))
+	m.initHomeRepo(t)
+	now := time.Date(2026, 7, 28, 15, 0, 0, 0, time.Local)
+	code, out, errs := runWith(m.at(now), "new-day", "--force")
+	if code != 0 || errs != "" || !strings.HasPrefix(out, "📦 Archived yesterday to journal.md\n") || !strings.Contains(out, "✅ New day started: 2026-07-28 Tuesday\n") {
+		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	if got := m.read(t, "journal/journal.md"); got != days("2026-07-27")+"\n---\n\n"+todayBasic {
+		t.Errorf("journal.md:\n%s", got)
+	}
+	if got := m.read(t, "journal/today.md"); got != journal.Fill(m.template(t, "journal-day.md"), now, journal.Carry(strings.Split(m.read(t, "tasks/todo.txt"), "\n"))) {
+		t.Errorf("today.md:\n%s", got)
+	}
+	if m.commits(t) != "2" || m.git(t, "log", "-1", "--format=%s") != "New day: 2026-07-28 Tuesday" {
+		t.Errorf("commits %s, message %q", m.commits(t), m.git(t, "log", "-1", "--format=%s"))
+	}
+	forced := m.read(t, "journal/today.md")
+	if code, out, _ := runWith(m.at(now.Add(time.Minute)), "new-day"); code != 0 || out != "✅ Day already started: today.md is dated 2026-07-28; nothing rotated\n" {
+		t.Errorf("new-day after: exit %d out %q", code, out)
+	}
+	if code, _, errs := runWith(m.at(now.Add(time.Hour)), "new-day", "--force"); code != 0 {
+		t.Fatalf("second --force: exit %d err %q", code, errs)
+	}
+	if got := m.read(t, "journal/journal.md"); got != days("2026-07-27")+"\n---\n\n"+todayBasic+"\n---\n\n"+forced {
+		t.Errorf("journal.md after a second --force:\n%s", got)
+	}
+}
+
+// new-week --force starts a week though the week has started: completed
+// tasks go to done.txt and today.md is the week template's.
+func TestNewWeekForce(t *testing.T) {
+	m := newMachine(t)
+	m.seed(t) // today.md is 2026-07-28 Tuesday, ISO week 31
+	writeFile(t, filepath.Join(m.home, "tasks", "todo.txt"), todoForNewDay)
+	writeFile(t, filepath.Join(m.home, "tasks", "done.txt"), "")
+	m.initHomeRepo(t)
+	now := time.Date(2026, 7, 28, 15, 0, 0, 0, time.Local)
+	if code, out, _ := runWith(m.at(now), "new-week"); code != 0 || out != "✅ Week already started: today.md is dated 2026-07-28; nothing rotated\n" {
+		t.Fatalf("plain new-week: exit %d out %q", code, out)
+	}
+	code, out, errs := runWith(m.at(now.Add(time.Hour)), "new-week", "--force")
+	if code != 0 || errs != "" || !strings.Contains(out, "📦 Archived 2 completed task(s) to done.txt\n✅ New week started: 2026-07-28 Tuesday\n") {
+		t.Fatalf("exit %d out %q err %q", code, out, errs)
+	}
+	if got := m.read(t, "tasks/done.txt"); got != "x 2026-07-28 2026-07-02 Finished one\nx 2026-07-28 2026-07-03 Finished two +daisy\n" {
+		t.Errorf("done.txt:\n%s", got)
+	}
+	if got := m.read(t, "journal/today.md"); got != journal.Fill(m.template(t, "journal-week.md"), now.Add(time.Hour), journal.Carry(strings.Split(m.read(t, "tasks/todo.txt"), "\n"))) {
+		t.Errorf("today.md:\n%s", got)
+	}
+	if msg := m.git(t, "log", "-1", "--format=%s"); msg != "New week: 2026-07-28 Tuesday" {
+		t.Errorf("message %q", msg)
+	}
+}
+
 // A refusal changes nothing and commits nothing: the health check, a
 // missing template or todo.txt, and a journal rotate cannot split.
 func TestNewDayRefusals(t *testing.T) {
@@ -330,7 +392,6 @@ func TestStartSkipsAPeriodStarted(t *testing.T) {
 	}{
 		{"new-week", "✅ Week already started: today.md is dated 2026-08-03; nothing rotated\n", mon.Add(time.Hour)},
 		{"new-day", "✅ Day already started: today.md is dated 2026-08-03; nothing rotated\n", mon.Add(2 * time.Hour)},
-		{"new-week", "✅ Week already started: today.md is dated 2026-08-03; nothing rotated\n", time.Date(2026, 8, 9, 20, 0, 0, 0, time.Local)},
 	} {
 		code, out, errs := runWith(m.at(tc.at), tc.cmd)
 		if code != 0 || errs != "" || out != tc.line {
@@ -339,6 +400,22 @@ func TestStartSkipsAPeriodStarted(t *testing.T) {
 		if got := snapshot(); !maps.Equal(got, want) {
 			t.Errorf("%s on %s wrote or committed:\n%q\nwant\n%q", tc.cmd, tc.at.Format(time.DateOnly), got, want)
 		}
+	}
+
+	// new-week on a later day of the week, the week started and the day
+	// not, starts the day and says so: a day's start, nothing archived to
+	// done.txt
+	tue := time.Date(2026, 8, 4, 8, 0, 0, 0, time.Local)
+	code, out, errs := runWith(m.at(tue), "new-week")
+	if code != 0 || errs != "" || !strings.HasPrefix(out, "✅ Week already started: today.md is dated 2026-08-03; starting the day\n📦 Archived yesterday to journal.md\n") ||
+		!strings.Contains(out, "✅ New day started: 2026-08-04 Tuesday\n") || strings.Contains(out, "completed task") {
+		t.Errorf("new-week on Tuesday: exit %d out %q err %q", code, out, errs)
+	}
+	if got := m.read(t, "tasks/done.txt"); got != want["tasks/done.txt"] {
+		t.Errorf("new-week on Tuesday archived to done.txt:\n%s", got)
+	}
+	if msg := m.git(t, "log", "-1", "--format=%s"); msg != "New day: 2026-08-04 Tuesday" {
+		t.Errorf("new-week on Tuesday: message %q", msg)
 	}
 
 	// a later day of the week is a day not yet started; the week stays started
@@ -356,7 +433,7 @@ func TestStartSkipsAPeriodStarted(t *testing.T) {
 
 	// the next ISO week rotates as before
 	next := time.Date(2026, 8, 10, 8, 0, 0, 0, time.Local)
-	code, out, errs := runWith(m.at(next), "new-week")
+	code, out, errs = runWith(m.at(next), "new-week")
 	if code != 0 || errs != "" || !strings.HasPrefix(out, "📦 Archived yesterday to journal.md\n") ||
 		!strings.Contains(out, "📦 Archived 1 completed task(s) to done.txt\n✅ New week started: 2026-08-10 Monday\n") {
 		t.Errorf("new-week, next week: exit %d out %q err %q", code, out, errs)

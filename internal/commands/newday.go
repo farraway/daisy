@@ -30,11 +30,13 @@ var (
 // NewDay archives today.md into journal.md, rotates the journal, drops
 // cancelled tasks, writes a new today.md from the day template with the
 // open tasks carried over, and commits the home once. A day already
-// started is left as it is (started). With --quick it is quickStart.
+// started is left as it is (started), unless --force. With --quick it is
+// quickStart.
 func NewDay(c *Context) error { return startCommand(c, day) }
 
 // NewWeek is NewDay with the week template, and todo.txt's completed tasks
-// moved to done.txt first.
+// moved to done.txt first. A week already started whose day has not
+// starts the day.
 func NewWeek(c *Context) error { return startCommand(c, week) }
 
 func startCommand(c *Context, s start) error {
@@ -44,11 +46,19 @@ func startCommand(c *Context, s start) error {
 	if c.Flag("--quick") {
 		return quickStart(c, s)
 	}
+	if c.Flag("--force") {
+		return startDay(c, s)
+	}
 	last, ok, err := todayDate(c)
 	if err != nil {
 		return err
 	}
-	if ok && s.started(last, c.Ops.Now()) {
+	now := c.Ops.Now()
+	switch {
+	case ok && s == week && week.started(last, now) && !day.started(last, now):
+		fmt.Fprintf(c.Stdout, "✅ Week already started: today.md is dated %s; starting the day\n", last.Format(time.DateOnly))
+		return startDay(c, day)
+	case ok && s.started(last, now):
 		alreadyStarted(c, s, last)
 		return nil
 	}

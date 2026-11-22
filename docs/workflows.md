@@ -195,10 +195,14 @@ absent from todo.txt.
    the week has started (a `daisy log` quick start or an earlier start
    began it): it prints "✅ Week already started: today.md is dated
    <date>; nothing rotated" and writes and commits nothing. Carry on with
-   steps 2-4 and the post-workflow on the current week. A week begun by a
+   steps 2-4 and the post-workflow on the current week. When today.md is
+   dated earlier in the week, the week has started and the day has not:
+   it prints "✅ Week already started: today.md is dated <date>; starting
+   the day" and starts the day as `daisy new-day` does. A week begun by a
    day's start (`daisy new-day` earlier in the week) has started too: its
    completed tasks stay in todo.txt, and today.md keeps the day template,
-   until the next week's start.
+   until the next week's start. `daisy new-week --force` starts a week
+   all the same.
    Otherwise, what it does (everything new-day does, PLUS):
    a. Archives completed tasks (x prefix) from todo.txt → done.txt
       (This is the ONLY workflow that moves tasks to done.txt)

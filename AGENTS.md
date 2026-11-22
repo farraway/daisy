@@ -243,8 +243,8 @@ then replace the block below with the output of `daisy help --markdown`.
 | Workspace | `daisy files [--json\|<name>]` | Resolved real paths for every home file, or the one path <name> names (plan, today, todo, …) (read-only) |
 | Workspace | `daisy list [--json]` | Active prompts and installed skills (read-only) |
 | Workspace | `daisy help [<command>\|<skill>\|--markdown]` | This help, detail for one command or skill, or the Command Reference (read-only) |
-| Day | `daisy new-day [--quick]` | Start a new day, unless today has started (--quick: a week if one turned) |
-| Day | `daisy new-week [--quick]` | Start a new week, unless this week has started (--quick: as new-day --quick) |
+| Day | `daisy new-day [--quick] [--force]` | Start a new day, unless today has started (--quick: a week if one turned; --force: even so) |
+| Day | `daisy new-week [--quick] [--force]` | Start a new week, or the day when this week has started (--quick: as new-day --quick; --force: a week even so) |
 | Day | `daisy log <message...>` | Add a log entry to today.md, quick-starting a stale day |
 | Day | `daisy add <description> A\|B\|C\|D\|none` | Add a task to todo.txt, and to today.md when (A) or (B) |
 | Day | `daisy done <pattern>` | Mark a task complete |
