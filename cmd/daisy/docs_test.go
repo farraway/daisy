@@ -566,7 +566,8 @@ func specCitations(t *testing.T) []specCitation {
 
 // specParagraphs reads, for each numbered section of docs/swarm.md, the
 // names its paragraphs go by, its subsections' among them: each heading's
-// text (a numbered one's after its number), each bold or italic span and
+// text (a numbered one's after its number), each bold or italic span (one
+// that wraps read across its paragraph's lines) and
 // a tag in parentheses inside one (`**The owner's batch trigger (G0).**`),
 // and each table row's first cell, alone and after its header's (`Step
 // 27`, the row `| 27 |` under `| Step |`).
@@ -592,13 +593,28 @@ func specParagraphs(t *testing.T) map[string][]string {
 			names[o.n] = append(names[o.n], name)
 		}
 	}
+	var para []string // the lines of the paragraph being read
+	spans := func(text string) {
+		for _, m := range emphasis.FindAllStringSubmatch(text, -1) {
+			span := m[1] + m[2]
+			add(span)
+			for _, tm := range tag.FindAllStringSubmatch(span, -1) {
+				add(tm[1])
+			}
+		}
+	}
+	flush := func() { spans(strings.Join(para, " ")); para = nil }
 	fence, header, prev := false, "", ""
 	for _, l := range strings.Split(string(b), "\n") {
 		if strings.HasPrefix(strings.TrimLeft(l, " "), "```") {
+			flush()
 			fence = !fence
 		}
 		if fence {
 			continue
+		}
+		if strings.TrimSpace(l) == "" || strings.HasPrefix(l, "#") || strings.HasPrefix(l, "|") {
+			flush()
 		}
 		if m := numbered.FindStringSubmatch(l); m != nil {
 			for len(in) > 0 && in[len(in)-1].level >= len(m[1]) {
@@ -619,16 +635,13 @@ func specParagraphs(t *testing.T) map[string][]string {
 			}
 			add(cell)
 			add(header + " " + cell)
-		}
-		for _, m := range emphasis.FindAllStringSubmatch(l, -1) {
-			span := m[1] + m[2]
-			add(span)
-			for _, tm := range tag.FindAllStringSubmatch(span, -1) {
-				add(tm[1])
-			}
+			spans(l)
+		} else if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "#") {
+			para = append(para, l)
 		}
 		prev = l
 	}
+	flush()
 	return names
 }
 
