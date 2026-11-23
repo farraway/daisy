@@ -1425,3 +1425,10 @@ they write.
   Section 5. Decision
   [76](swarm/decisions/0076-the-gate-note-and-an-answer-without-a-commit.md),
   As built.
+- 2026-11-22, Step S7b of the plan implementing the 2026-11-19 swarm
+  roadmap: an issue flagged at a gate and then blocked, its newest gate
+  note not the blocked gate's, gets the blocked gate's note at the next
+  pass, once; before, a block at a gated stage posted none. Section 5.
+  Decision
+  [76](swarm/decisions/0076-the-gate-note-and-an-answer-without-a-commit.md),
+  As built.

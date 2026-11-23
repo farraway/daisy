@@ -37,10 +37,10 @@ func Gated(labels []string, g declare.Gates, class string) bool {
 // and every other open issue carrying the flag cleared of it, one with no
 // stage or two included, so an open issue carries the flag exactly when
 // status lists it as waiting. A note is posted when the flag is added,
-// and on an issue not blocked whose flag stayed on while it was gated
-// again (regated): one per gating event, and none for an event whose
-// relabel failed until a later pass adds the flag. Every failure is a
-// warning, and the pass goes on. It returns the open swarm issues it read,
+// and on an issue whose flag stayed on while it was gated again
+// (regated), blocked since among them: one per gating event, and none
+// for an event whose relabel failed until a later pass adds the flag.
+// Every failure is a warning, and the pass goes on. It returns the open swarm issues it read,
 // for the milestone step (nil when the read failed).
 func (s *Swarm) flags() []forge.Issue {
 	warn := func(format string, a ...any) { fmt.Fprintf(s.Err, "⚠ "+format+"\n", a...) }
@@ -89,7 +89,7 @@ func (s *Swarm) flags() []forge.Issue {
 			if err := s.gateNote(is.Number, open); err != nil {
 				warn("#%d: gate note: %v", is.Number, err)
 			}
-		case want && has && !slices.Contains(labels, forge.Blocked):
+		case want && has:
 			if full == nil {
 				read, err := s.Forge.Issue(is.Number)
 				if err != nil {
@@ -117,18 +117,26 @@ func (s *Swarm) flags() []forge.Issue {
 // gated (gateText).
 var gateHead = regexp.MustCompile(`^\*\*reconciler:\*\* gated at (\S+): `)
 
-// regated: is, flagged, not blocked and gated still at the stage its
-// labels name, was gated again since its newest gate note without the
-// flag being cleared (section 5, one note per gating event): that note
-// names another stage (a stage moved within one pass, or by hand with the
-// flag left on), or is the blocked gate's (a block lifted at a gated
-// stage, which `unblock` leaves flagged), or, at plan-0-posted, the
-// architect posted a plan after it (a revision, after a comment or the
-// round limit, T11). An issue with no gate note (its note refused, or the
-// flag set by hand) is not.
+// regated: is, flagged, was gated again since its newest gate note
+// without the flag being cleared (section 5, one note per gating event):
+// blocked, that note is not the blocked gate's (blocked while gated, Step
+// S7b of the plan implementing the 2026-11-19 swarm roadmap); not
+// blocked and gated still at the stage its labels name, that note names
+// another stage (a stage moved within one pass, or by hand with the flag
+// left on), or is the blocked gate's (a block lifted at a gated stage,
+// which `unblock` leaves flagged), or, at plan-0-posted, the architect
+// posted a plan after it (a revision, after a comment or the round limit,
+// T11). An issue with no gate note (its note refused, or the flag set by
+// hand) is not.
 func (s *Swarm) regated(is forge.Issue, labels []string) bool {
 	note := newestGateNote(is, s.SwarmLogin)
-	return note != nil && regatedSince(is, labels, *note, s.SwarmLogin)
+	if note == nil {
+		return false
+	}
+	if slices.Contains(labels, forge.Blocked) {
+		return !blockedGate(note.Body)
+	}
+	return regatedSince(is, labels, *note, s.SwarmLogin)
 }
 
 // newestGateNote is the newest of the swarm's gate notes on is, nil when

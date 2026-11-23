@@ -664,3 +664,39 @@ func TestRoundLimitReadsTheUnlinkedNote(t *testing.T) {
 		t.Errorf("labels %v, comments %q\n%s", got, a.bodies(1), a.stdout.String())
 	}
 }
+
+// The claim of Step S7b of the plan implementing the 2026-11-19 swarm
+// roadmap (section 5, one note per gating event): an issue flagged at a
+// gate and then blocked, its newest gate note not the blocked gate's,
+// gets the blocked gate's note at the next pass, once; with no gate note
+// on it (the flag set by hand) it gets none, as before.
+func TestSwarmBlockedWhileGatedGetsTheBlockedNote(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	os.WriteFile(a.state("paused"), []byte("paused 2026-11-06T14:00:00Z\n"), 0o644) // no role runs; the flag step still does
+	a.forge.CreateIssue("Planned", "Plan it.", []string{"swarm:plan-0-posted"})     // #1
+	a.forge.Comment(issue1, mark("architect", 1)+gatePlan)
+	a.forge.CreateIssue("Flagged by hand", "Plan it.", []string{"swarm:plan-0-posted", forge.Gated}) // #2
+	a.forge.Comment(a.ref(2), mark("architect", 1)+gatePlan)
+	a.pass()
+	if got := a.gateNotes(1); len(got) != 1 || !strings.Contains(got[0], "gated at plan-0-posted: the plan gate holds") {
+		t.Fatalf("#1, the plan gate: %q\n%s", got, a.stdout.String())
+	}
+	for _, n := range []int{1, 2} {
+		a.tick()
+		a.forge.Relabel(a.ref(n), "", forge.Blocked)
+		a.forge.Comment(a.ref(n), mark("reconciler", 1)+"architect run 1 failed: x (at swarm:plan-0-posted). Remove swarm:blocked to resume.")
+	}
+	a.pass()
+	got := a.gateNotes(1)
+	if len(got) != 2 || !strings.Contains(got[1], "gated at plan-0-posted: it is blocked") || !strings.Contains(got[1], "- The note that set it, at ") {
+		t.Fatalf("#1 blocked while gated: %q\n%s", got, a.stdout.String())
+	}
+	if got := a.gateNotes(2); len(got) != 0 {
+		t.Errorf("#2, flagged by hand with no gate note, then blocked: %q", got)
+	}
+	a.pass()
+	if got := a.gateNotes(1); len(got) != 2 {
+		t.Errorf("a pass with nothing new posted again: %d notes", len(got))
+	}
+}

@@ -252,8 +252,10 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 // quoting it (after a comment or the round limit, T11); an issue moved
 // to another gated stage with the flag left on (a hand relabel, or two
 // transitions within one --once pass) gets one at its new stage; a pass
-// that finds nothing new posts none; a blocked issue gets none, the note
-// that blocked it being the word.
+// that finds nothing new posts none; an issue blocked while gated gets
+// the blocked gate's (Step S7b of the plan implementing the 2026-11-19
+// swarm roadmap; until then none, the note that blocked it being the
+// word).
 func TestSwarmApplyGateNoteOnEachGating(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
@@ -287,8 +289,8 @@ func TestSwarmApplyGateNoteOnEachGating(t *testing.T) {
 	if got := a.gateNotes(2); len(got) != 2 || !strings.HasPrefix(got[1], gateNote+"**reconciler:** gated at plan-0-posted: the plan gate holds") {
 		t.Errorf("#2, moved with the flag on: %q", got)
 	}
-	if got := a.gateNotes(3); len(got) != 1 {
-		t.Errorf("#3, blocked: %d gate notes", len(got))
+	if got := a.gateNotes(3); len(got) != 2 || !strings.Contains(got[1], "gated at plan-0-posted: it is blocked") {
+		t.Errorf("#3, blocked: %q", got)
 	}
 	a.pass()
 	if strings.Contains(a.stdout.String(), "gate note") {

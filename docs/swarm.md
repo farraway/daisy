@@ -1206,19 +1206,21 @@ and sympathetic reviews of the head they approve, each under its role;
 deciding `swarm merge <n>`, `swarm approve <n>` first when the forge
 wants an approving review, or a comment. One note per gating event: the
 step posts it when it adds the flag, and a flag cleared and added again
-posts a new one; while the flag is on, it posts one only on an issue not
-blocked that was gated again since its newest gate note, that note
+posts a new one; while the flag is on, it posts one only on an issue
+that was gated again since its newest gate note: blocked, that note not
+being the blocked gate's (an issue blocked at a gated stage, its flag
+already on, gets the blocked gate's note; Step S7b of the plan
+implementing the 2026-11-19 swarm roadmap, before which it got none);
+not blocked, that note
 naming another stage (the issue moved by hand with the flag left on, or
 through two transitions within one `--once` pass), or being the blocked
 gate's (a block lifted at a gated stage with the flag left on, as `swarm
 unblock` leaves it there), or, at
 `swarm:plan-0-posted`, the architect having posted a plan after it (a
 revision, after a maintainer's comment or the round limit, T11), so the
-note quotes the plan the maintainer decides on; never otherwise (an
-issue blocked at a gated stage gets none, the reconciler's note that
-blocked it being the word, and one flagged with no gate note on it, its
-note refused or the flag set by hand, gets none while the flag stays
-on). The relabel comes first: a refused relabel posts nothing until a
+note quotes the plan the maintainer decides on; never otherwise (one
+flagged with no gate note on it, its note refused or the flag set by
+hand, gets none while the flag stays on, blocked or not). The relabel comes first: a refused relabel posts nothing until a
 later pass adds the flag, and a refused note is a warning, that event
 left without its note (but not a gating again with the flag on, whose note
 the next pass tries again while the newest gate note is still the

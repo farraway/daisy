@@ -51,3 +51,24 @@ after the link, past 120, was the alternative: it keeps the link, but a
 link longer than the limit would make the bound no bound. A link that
 opens the line is left out whole, so such a line reads `…` alone; a bare
 URL is no Markdown link and is cut as text. Test: `TestCutKeepsALinkWhole`.
+
+**As built: a block at a gated stage gets the blocked gate's note (Step
+S7b of the plan implementing the 2026-11-19 swarm roadmap, 2026-11-22).**
+"A block at a gated stage posts no note" left an issue flagged at the
+triage, plan or merge gate and then blocked with its newest gate note
+the stage's, whose `Decide:` line names the gate's verbs and not
+`unblock`, and `status`'s Waiting for you with no note of its block (its
+`CurrentGateNote` reads only the blocked gate's on a blocked issue). Now
+the flag step, finding an issue flagged and blocked whose newest gate
+note is not the blocked gate's, posts that note, once: it is a gating
+event of its own, as a block lifted at a gated stage already was. The
+blocked note mentions no one, as before, so the block is still one
+notification. An issue flagged with no gate note on it (the flag set by
+hand, or its first note refused) still gets none, blocked or not. The
+cost is one `Issue(n)` per pass for each flagged and blocked issue,
+which the step read for no such issue before. The alternative, posting
+the blocked note when the block is set (in the collection or the merge
+step), would have put a second writer of gate notes beside the flag
+step. Tests: `TestSwarmBlockedWhileGatedGetsTheBlockedNote`,
+`TestSwarmApplyGateNoteOnEachGating` (revised: its blocked issue now
+gets the note).
