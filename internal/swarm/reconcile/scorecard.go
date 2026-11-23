@@ -127,12 +127,25 @@ func (e Escapes) Count() int {
 // the swarm's records dated in it (every issue's, the batch's included,
 // merged or not), the runs, their input (tokens_in, the cache's
 // included), the worker runs and those that stopped (outcome blocked or
-// question), and the interventions.
+// question), and the interventions; and the escapes and follow-up items
+// of the slices merged in it, summed (section 7.11, The balance).
 type ScoreSummary struct {
 	Merges, Runs, Input     int
 	WorkerRuns, WorkerStops int
 	Interventions           int
+	Escapes                 EscapeTotals
+	Items, ProvedReal       int
 }
+
+// EscapeTotals is the escapes of the window's merged slices (section
+// 7.11, The balance): the slices reverted, the issues filed and the hand
+// fixes, each counted per slice it names.
+type EscapeTotals struct {
+	Reverted, Filed, ByHand int
+}
+
+// Count is how many escapes t holds.
+func (t EscapeTotals) Count() int { return t.Reverted + t.Filed + t.ByHand }
 
 // Days is the window's length in days.
 func (c Scorecard) Days() float64 { return c.End.Sub(c.Start).Hours() / 24 }
@@ -279,6 +292,13 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 		}
 		c.Slices = append(c.Slices, row)
 		c.Summary.Merges++
+		if row.Escapes.Reverted {
+			c.Summary.Escapes.Reverted++
+		}
+		c.Summary.Escapes.Filed += row.Escapes.Filed
+		c.Summary.Escapes.ByHand += row.Escapes.ByHand
+		c.Summary.Items += len(row.Items)
+		c.Summary.ProvedReal += row.ProvedReal()
 	}
 	return c, nil
 }

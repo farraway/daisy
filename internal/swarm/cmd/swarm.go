@@ -1182,10 +1182,10 @@ func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
 		if r.FromOpening {
 			from = "the issue's opening"
 		}
-		fmt.Fprintf(out, "  #%d slice %d in %s, merged %s, %s after %s: runs %s; tokens %d uncached, %d cached, %d out%s; estimated $%.2f at list price%s; review rounds %d; stops %s; interventions %s\n",
+		fmt.Fprintf(out, "  #%d slice %d in %s, merged %s, %s after %s: runs %s; tokens %d uncached, %d cached, %d out%s; estimated $%.2f at list price%s; review rounds %d; stops %s; interventions %s; escapes %s; follow-up %s\n",
 			r.N, r.Slice, r.Repo, r.At.Format(time.RFC3339), r.At.Sub(r.From).Round(time.Second), from,
 			roleCounts(r.Runs), r.Uncached, r.Cached, r.Output, without(r.NoUsage, "usage"), r.Cost, without(r.Unpriced, "an estimate"),
-			r.Rounds, keyCounts(r.Stops), keyCounts(r.Interventions))
+			r.Rounds, keyCounts(r.Stops), keyCounts(r.Interventions), escapeParts(r.Escapes), followUpItems(r))
 	}
 	var bounds []string
 	if !sc.Since.IsZero() {
@@ -1217,8 +1217,10 @@ func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
 	if d := sc.Days(); !sc.Start.IsZero() && d > 0 {
 		perDay = fmt.Sprintf("%.1f", float64(sm.Interventions)/d)
 	}
-	fmt.Fprintf(out, "Summary, %s (%s): %d slices merged; %d runs, %s per merge; input %s tokens per merge; worker stop rate %s (%d of %d worker runs); %d interventions, %s a day\n",
-		window, days, sm.Merges, sm.Runs, perMerge(sm.Runs, "%.1f"), perMerge(sm.Input, "%.0f"), stopRate, sm.WorkerStops, sm.WorkerRuns, sm.Interventions, perDay)
+	fmt.Fprintf(out, "Summary, %s (%s): %d slices merged; %d runs, %s per merge; input %s tokens per merge; worker stop rate %s (%d of %d worker runs); %d interventions, %s a day; "+
+		"escapes %d on %d merged slices (%d reverted, %d filed, %d fixed by hand); follow-up items %d, %d proved real\n",
+		window, days, sm.Merges, sm.Runs, perMerge(sm.Runs, "%.1f"), perMerge(sm.Input, "%.0f"), stopRate, sm.WorkerStops, sm.WorkerRuns, sm.Interventions, perDay,
+		sm.Escapes.Count(), sm.Merges, sm.Escapes.Reverted, sm.Escapes.Filed, sm.Escapes.ByHand, sm.Items, sm.ProvedReal)
 	fmt.Fprintf(out, "By configuration, %s:\n", window)
 	if len(sc.Configs) == 0 {
 		fmt.Fprintln(out, "  no run")
@@ -1242,6 +1244,34 @@ func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
 			g.Role, dash(g.Provider), dash(g.Model), dash(g.Effort), hash, g.Runs, g.Uncached, g.Cached, g.Output, without(g.NoUsage, "usage"),
 			g.Cost, without(g.Unpriced, "an estimate"), g.Stops, effect)
 	}
+}
+
+// escapeParts is a slice's escapes, `<e>` and, when it has any, ` (<the
+// parts it holds>)` of `reverted`, `<b> filed` and `<h> fixed by hand`.
+func escapeParts(e reconcile.Escapes) string {
+	var parts []string
+	if e.Reverted {
+		parts = append(parts, "reverted")
+	}
+	if e.Filed > 0 {
+		parts = append(parts, fmt.Sprintf("%d filed", e.Filed))
+	}
+	if e.ByHand > 0 {
+		parts = append(parts, fmt.Sprintf("%d fixed by hand", e.ByHand))
+	}
+	if len(parts) == 0 {
+		return "0"
+	}
+	return fmt.Sprintf("%d (%s)", e.Count(), strings.Join(parts, ", "))
+}
+
+// followUpItems is a slice's follow-up, `<k> items, <p> proved real`,
+// `none` when it has none.
+func followUpItems(r reconcile.SliceScore) string {
+	if r.FollowUp == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%d items, %d proved real", len(r.Items), r.ProvedReal())
 }
 
 // roleCounts is a slice's runs, `<k> (<role> <k>, …)` in the roles'

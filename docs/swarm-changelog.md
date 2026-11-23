@@ -1484,3 +1484,13 @@ they write.
   Sections 5 and 11, docs/cli.md. Decision
   [76](swarm/decisions/0076-the-gate-note-and-an-answer-without-a-commit.md),
   As built.
+- 2026-11-23, Step R6-C of the plan implementing the 2026-11-19 swarm
+  roadmap, escapes and follow-ups (rule 7 of section 7.11): each
+  slice's scorecard line ends with its escapes (its merge reverted, the
+  issues whose `Defect in:` line names its pull request, the hand
+  commits on `base` whose message does), each made up to `--until`, and
+  its follow-up's items with those a merged job's `Follow-up:` line
+  names; the summary adds their totals. The scorecard reads every
+  issue, open and closed, and the worker runs' `created pull` lines.
+  Sections 7.11 and 11, docs/cli.md. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.

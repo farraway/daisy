@@ -261,3 +261,78 @@ func TestFollowUpsProvedReal(t *testing.T) {
 		t.Errorf("until 2026-11-07T11:00:00Z, follow-ups:\n%+v\nwant:\n%+v", g, want)
 	}
 }
+
+// TestScorecardEscapesAndFollowUps: the claim of Step R6-C of the plan
+// implementing the 2026-11-19 swarm roadmap, the scorecard shows escapes
+// and follow-ups (section 11, The scorecard; section 7.11, The balance):
+// each slice's line ends `; escapes <e>`, with ` (reverted, <b> filed,
+// <h> fixed by hand)`, each part it holds, when it has one, and `;
+// follow-up <k> items, <p> proved real`, `follow-up none` with no
+// follow-up; the summary ends `; escapes <e> on <m> merged slices (<rv>
+// reverted, <b> filed, <h> fixed by hand); follow-up items <f>, <p>
+// proved real`, the totals of the window's slices.
+func TestScorecardEscapesAndFollowUps(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	home := a.metricsHome()
+	a.setNow("2026-11-06T15:00:00Z")
+	for _, title := range []string{"One", "Two", "Three"} {
+		a.forge.CreateIssue(title, strings.ToLower(title), []string{forge.ProposalAccepted})
+	}
+	r := newBalanceRepo(a, "swarm/1-1", "swarm/2-1", "swarm/3-1")
+	r.merge("swarm/1-1", "2026-11-06T18:00:00Z")
+	m2 := r.merge("swarm/2-1", "2026-11-06T19:00:00Z")
+	r.git("2026-11-07T08:00:00Z", "revert", "--no-edit", "-m", "1", m2)
+	r.merge("swarm/3-1", "2026-11-07T10:00:00Z")
+	r.git("2026-11-07T11:00:00Z", "commit", "-q", "--allow-empty", "-m", "Fix it by hand\n\nDefect in: app#12\n")
+	r.mirror()
+	for run, rs := range map[string]string{
+		"1-worker-1": "branch swarm/1-1 in app\npushed " + r.heads["swarm/1-1"] + "\ncreated pull 11\n",
+		"2-worker-1": "branch swarm/2-1 in app\npushed " + r.heads["swarm/2-1"] + "\ncreated pull 12\n",
+		"3-worker-1": "branch swarm/3-1 in app\npushed " + r.heads["swarm/3-1"] + "\ncreated pull 13\n",
+	} {
+		a.runResult(run, rs+"outcome posted\ncollected\n", "")
+	}
+	a.setNow("2026-11-06T18:05:00Z")
+	f, _ := a.forge.CreateIssue("Follow-up: acme/app#11 (#1, slice 1)", followUpBody("11", r.heads["swarm/1-1"], 1, 1,
+		"adversary run 2, round 1: [non-blocking] a.go:10: name the constant",
+		"sympathetic run 3, round 1: [non-blocking] c.go:1: the doc comment is stale"), []string{forge.FollowUp})
+	a.forge.EditIssue(3, fmt.Sprintf("three\n\nFollow-up: #%d 2\n", f))
+	a.setNow("2026-11-07T09:00:00Z")
+	a.forge.CreateIssue("Reverted", "Defect in: app#12\n", nil)
+	a.forge.CreateIssue("Filed", "Defect in: app#13\n", nil)
+	a.setNow("2026-11-08T18:00:00Z")
+
+	csv := filepath.Join(home, "metrics", "metrics.csv")
+	cost := "runs 0; tokens 0 uncached, 0 cached, 0 out; estimated $0.00 at list price; review rounds 0; stops none; interventions none"
+	one := "  #1 slice 1 in app, merged 2026-11-06T18:00:00Z, 3h0m0s after the issue's opening: " + cost + "; escapes 0; follow-up 2 items, 1 proved real\n"
+	two := "  #2 slice 1 in app, merged 2026-11-06T19:00:00Z, 4h0m0s after the issue's opening: " + cost + "; escapes 3 (reverted, 1 filed, 1 fixed by hand); follow-up none\n"
+	three := "  #3 slice 1 in app, merged 2026-11-07T10:00:00Z, 19h0m0s after the issue's opening: " + cost + "; escapes 1 (1 filed); follow-up none\n"
+	head := "Scorecard of acme/swarm-app: runs and interventions from " + csv + ", merges from the mirrors as last fetched, "
+	if err := a.scorecard(); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	want := one + two + three +
+		"Summary, every record (2.0 days): 3 slices merged; 0 runs, 0.0 per merge; input 0 tokens per merge; worker stop rate — (0 of 0 worker runs); 0 interventions, 0.0 a day; " +
+		"escapes 4 on 3 merged slices (1 reverted, 2 filed, 1 fixed by hand); " + followUpTotals(2, 1) + "\n" +
+		"By configuration, every record:\n  no run\n"
+	if got := a.stdout.String(); !strings.HasPrefix(got, head) || !strings.HasSuffix(got, want) {
+		t.Errorf("stdout:\n%s\nwant after its first line:\n%s", got, want)
+	}
+	if err := a.scorecard(Value{Flag: "--since", Value: "2026-11-06T19:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	want = two + three +
+		"Summary, since 2026-11-06T19:00:00Z (2.0 days): 2 slices merged; 0 runs, 0.0 per merge; input 0 tokens per merge; worker stop rate — (0 of 0 worker runs); 0 interventions, 0.0 a day; " +
+		"escapes 4 on 2 merged slices (1 reverted, 2 filed, 1 fixed by hand); " + followUpTotals(0, 0) + "\n" +
+		"By configuration, since 2026-11-06T19:00:00Z:\n  no run\n"
+	if got := a.stdout.String(); !strings.HasSuffix(got, want) {
+		t.Errorf("--since: stdout:\n%s\nwant after its first line:\n%s", got, want)
+	}
+}
+
+// followUpTotals is the summary's `follow-up items <f>, <p> proved
+// real`, written from its numbers: the words before them, as literal
+// text, would read as a citation of decisions <f> and <p>
+// (TestCodeCitesExistingSpecSections).
+func followUpTotals(f, p int) string { return fmt.Sprintf("follow-up items %d, %d proved real", f, p) }

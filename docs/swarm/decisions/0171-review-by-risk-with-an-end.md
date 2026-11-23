@@ -488,6 +488,34 @@ the issue's newest is not posted again, and the close is recorded in
 the run's result, so a retry makes neither twice. Test:
 `TestSwarmTriagedClosesTheFollowUp`.
 
+**As built: escapes and follow-ups, on a slice's line and in the
+summary (Step R6-C of the plan implementing the 2026-11-19 swarm
+roadmap).** A merged slice's pull request, which `Defect in:` and the
+follow-up name, is the one a worker run's `created pull <m>` line names
+on the slice's branch, the largest should several: the run records are
+what the scorecard reads already. A slice whose runs name none (a
+collection retried after `CreatePull` and before its line) has no
+escape but its revert. The alternatives were the merge commit's message,
+which is the forge's own text (Gitea's `(#<m>)`), and `Pulls(n)` for
+each merged issue, a read section 11 did not list. "Counted up to
+`--until`" holds for all three escapes: an issue opened, a hand commit
+made, and a revert in effect on `base` as it stood at `--until` (its
+newest first-parent commit not after it), so a window read later than a
+revert still reads the slice unreverted up to its end. An issue counts
+once for each pull request its `Defect in:` lines name, however often it
+names one; a line is the whole line, trimmed, so the words inside a
+sentence count nothing. The hand commits are read in each declared
+repository's mirror, and a swarm merge's message is none. A slice's
+parenthesis names only the parts it holds (`escapes 1 (1 filed)`), the
+summary's all three. A slice's follow-up is the lowest-numbered issue
+carrying the flag whose marker line is the follow-up's and whose second
+line links the pull request, as the filing finds it; an item is its
+numbered line, `<i>. <role> run <k>, round <r>: …`, read as raised by
+run `<n>-<role>-<k>`; it is proved real when a `Follow-up: #<f> <i>`
+line names it in the body of an issue with a slice merged up to
+`--until`. Tests: `TestEscapes`, `TestFollowUpsProvedReal`,
+`TestScorecardEscapesAndFollowUps`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,
@@ -502,5 +530,6 @@ Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestSwarmFollowUpNotFiledForPastMerges`,
 `TestSwarmOwnerBatchReadsFollowUps`,
 `TestSwarmTriagedClosesTheFollowUp`; `TestEscapes`,
-`TestScorecardEscapesAndFollowUps` and
-`TestScorecardEscapesByConfiguration`.
+`TestFollowUpsProvedReal`, `TestScorecardEscapesAndFollowUps`,
+`TestScorecardEscapesByConfiguration` and
+`TestScorecardBlockingByKind`.
