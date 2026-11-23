@@ -40,17 +40,26 @@ pushed by Daisy, would have changed the head with no change and put
 a commit of Daisy's own on the swarm's branch.
 
 **As built: a link kept whole by the cut (Step S7a of the plan
-implementing the 2026-11-19 swarm roadmap, 2026-11-22).** A long line
-was cut at its 119th character and `…`, so a blocked note's first line,
-which names a pull request as `[<owner>/<name>#<m>](<url>)`, could end
-mid-link, its text or its target broken on the forge. The cut now falls
-before a Markdown link that would straddle the 119th character, leaving
-the link out; a link that ends within the 119 stays, and a line with no
-link is cut as before. Characters are runes, as before. Ending the line
-after the link, past 120, was the alternative: it keeps the link, but a
-link longer than the limit would make the bound no bound. A link that
-opens the line is left out whole, so such a line reads `…` alone; a bare
-URL is no Markdown link and is cut as text. Test: `TestCutKeepsALinkWhole`.
+implementing the 2026-11-19 swarm roadmap, 2026-11-22).** A long quoted
+line was cut at its 119th character and `…`, so a Markdown link in it
+could end mid-link, its text or its target broken on the forge. The
+pull request the blocked gate names, `[<owner>/<name>#<m>](<url>)`, is
+in no quoted line: it sits in the gate note's `<why>` (section 5), which
+is not cut. A quoted line holds a link when the entry it quotes wrote
+one, as the merge step's refusal names its pull request in the first
+line the blocked gate quotes. The cut now falls before a Markdown link
+that would straddle the 119th character, leaving the link out; a link
+that ends within the 119 stays, and a line with no link is cut as
+before. Characters are runes, as before. Ending the line after the link,
+past 120, was the alternative: it keeps the link, but a link longer than
+the limit would make the bound no bound. A bare URL is no Markdown link
+and is cut as text. The cut's known limits: `mdLink` reads a link's text
+to the first `]` and its target to the first `)`, so a link whose text
+holds a `]` or whose target holds a `)` is not read whole and can still
+be cut inside; an image link the cut would straddle, `![<alt>](<src>)`,
+is cut before its `[`, leaving a stray `!` before the `…`; and a line
+that opens with a link the cut would straddle is cut to `…` alone. Test:
+`TestCutKeepsALinkWhole`.
 
 **As built: a block at a gated stage gets the blocked gate's note (Step
 S7b of the plan implementing the 2026-11-19 swarm roadmap, 2026-11-22).**

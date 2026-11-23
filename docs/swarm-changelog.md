@@ -1476,3 +1476,11 @@ they write.
   result, *to confirm* since Step SF-2, is confirmed on four live
   architect runs' output. Section 9. Decision
   [170](swarm/decisions/0170-capacity.md), As built.
+- 2026-11-22, Step SF2 of the plan implementing the 2026-11-19 swarm
+  roadmap, wording only: the blocked gate's pull request link sits in
+  its `<why>`, not in a quoted line the cut shortens, and the cut's known
+  limits are named; `unblock`'s `Blocked by #<m>` posted again is stated
+  as built, each of its two comments once however often it is run.
+  Sections 5 and 11, docs/cli.md. Decision
+  [76](swarm/decisions/0076-the-gate-note-and-an-answer-without-a-commit.md),
+  As built.
