@@ -464,6 +464,15 @@ as section 5 has it. Tests: `TestFollowUpFindings`,
 `TestSwarmFollowUpFiledAtTheMerge`, `TestSwarmFollowUpFiledOnce`,
 `TestSwarmFollowUpNotFiledForPastMerges`.
 
+**As built: the owner's batch reads the follow-ups (Step R6-B of the
+plan implementing the 2026-11-19 swarm roadmap).** The batch reads the
+open follow-ups once it is due, after its pacing, so they neither hold
+nor wake it; `# Follow-ups` reads `None.` when there are none, and the
+Task's sentence is there in every owner batch, as the section quotes
+it, rather than only with a follow-up open (the alternative, which
+would make the owner's `prompt_hash` vary with the forge). The QA's
+prompt and Task have neither. Test: `TestSwarmOwnerBatchReadsFollowUps`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

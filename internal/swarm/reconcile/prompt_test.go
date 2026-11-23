@@ -560,7 +560,7 @@ func TestRenderOwner(t *testing.T) {
 	sys, prompt = Render(b)
 	has(t, "batch system.md", sys, []string{`Propose up to 3 new jobs for acme/app, most important first, toward the first milestone`})
 	has(t, "batch prompt.md", prompt, []string{"# Briefs\n\n## docs/briefs/a.md (Status: active; mounted at /job/resources/swarm-app/docs/briefs/a.md)\n\n### A\nStatus: active\nFirst.\n\n#### M1\n",
-		"# Open swarm issues\n\nNone.\n\n# Recently closed\n\nNone.\n"}, "b.md", "notes.md", "# Issue", "# Thread")
+		"# Open swarm issues\n\nNone.\n\n# Follow-ups\n\nNone.\n\n# Recently closed\n\nNone.\n"}, "b.md", "notes.md", "# Issue", "# Thread")
 }
 
 // copyQuote is the architect's sentence when more than one repository is

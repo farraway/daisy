@@ -73,6 +73,16 @@ func (fu *FollowUps) file(f forge.Adapter, owner string, is forge.Issue, p forge
 	return nil
 }
 
+// followUpItems is a follow-up's numbered items as its body holds them,
+// the marker line and the `**reconciler:**` line left out (section 7.3).
+func followUpItems(body string) string {
+	lines := strings.SplitN(body, "\n", 3)
+	if len(lines) < 3 {
+		return ""
+	}
+	return strings.Trim(lines[2], "\n")
+}
+
 // followUpOf: body is a follow-up of pull request p, its first line the
 // follow-up's marker and its second linking p.
 func followUpOf(body, owner string, p forge.Pull) bool {

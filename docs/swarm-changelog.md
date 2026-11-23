@@ -1449,3 +1449,12 @@ they write.
   block's write, unless one is filed already. Sections 5, 6, 7.8, 7.11,
   11 and 12. Decision
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-22, Step R6-B of the plan implementing the 2026-11-19 swarm
+  roadmap, the owner's batch reads the follow-ups (rule 6 of section
+  7.11): its prompt holds `# Follow-ups` after `# Open swarm issues`,
+  each open follow-up's numbered items, and its Task text asks it to
+  propose a job of the items worth fixing on a `Follow-up:` line and to
+  write `Triaged:` for a follow-up with nothing left to propose. The
+  owner's `prompt_hash` changes. Sections 7.3, 7.4, 7.11 and 11.
+  Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
+  built.

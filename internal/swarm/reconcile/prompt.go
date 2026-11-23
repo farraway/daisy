@@ -74,13 +74,14 @@ type PullThread struct {
 
 // Batch is a batch prompt's material (section 7.3): the briefs under the
 // resources (the active ones are shown; the QA's has none), the
-// open and the recently closed swarm issues, and how many jobs the run
-// may propose.
+// open and the recently closed swarm issues, the owner's open follow-ups
+// (section 7.11, Follow-ups), and how many jobs the run may propose.
 type Batch struct {
-	Briefs  []brief.Brief
-	Open    []forge.Issue
-	Closed  []Closed
-	Propose int
+	Briefs    []brief.Brief
+	Open      []forge.Issue
+	FollowUps []forge.Issue
+	Closed    []Closed
+	Propose   int
 }
 
 // Closed is a recently closed swarm issue with its merged pull requests
@@ -991,11 +992,14 @@ func (b *Batch) sections(j *Job) []string {
 		}
 		return strings.Join(items, "\n")
 	}
-	issues := []string{"# Open swarm issues", list(open), "# Recently closed", list(closed)}
-	if j.Role == declare.QARole {
-		return issues // it reports failures, toward no brief
+	if j.Role == declare.QARole { // it reports failures, toward no brief
+		return []string{"# Open swarm issues", list(open), "# Recently closed", list(closed)}
 	}
-	return append([]string{"# Briefs", orNone(briefs)}, issues...)
+	var followUps []string
+	for _, is := range b.FollowUps {
+		followUps = append(followUps, fmt.Sprintf("## #%d: %s\n\n%s", is.Number, is.Title, followUpItems(is.Body)))
+	}
+	return []string{"# Briefs", orNone(briefs), "# Open swarm issues", list(open), "# Follow-ups", orNone(followUps), "# Recently closed", list(closed)}
 }
 
 func (b *Batch) active() []brief.Brief {

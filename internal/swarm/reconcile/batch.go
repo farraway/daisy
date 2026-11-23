@@ -79,7 +79,11 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 	if p <= 0 {
 		return nil
 	}
-	b := &Batch{Open: open, Propose: p, Briefs: briefs}
+	followUps, err := s.Forge.Issues(forge.Open, forge.FollowUp)
+	if err != nil {
+		return err
+	}
+	b := &Batch{Open: open, FollowUps: followUps, Propose: p, Briefs: briefs}
 	if b.Closed, err = s.recentlyClosed(b.active()); err != nil {
 		return err
 	}

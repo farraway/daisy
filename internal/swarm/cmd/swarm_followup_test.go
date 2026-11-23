@@ -204,3 +204,51 @@ func TestSwarmFollowUpNotFiledForPastMerges(t *testing.T) {
 		t.Errorf("filed for a past merge: %+v\n%s", fus, a.stdout.String())
 	}
 }
+
+// The owner's batch reads the open follow-ups (sections 7.3 and 7.11,
+// The owner's triage): its prompt holds, after "# Open swarm issues",
+// "# Follow-ups" with each open follow-up, oldest first, as
+// "## #<f>: <title>" and its numbered items, the marker lines and the
+// first text line left out; a closed one is not there; its Task text asks
+// it to triage them; and a follow-up holds no proposal's place, the batch
+// proposing with owner.max_open_proposals 1.
+func TestSwarmOwnerBatchReadsFollowUps(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.Owner.MaxOpenProposals = 1 })
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	first := "adversary run 2, round 1: [non-blocking] main.go:1: the version could be a constant"
+	second := "sympathetic run 3, round 2: [non-blocking] main.go:1: no doc comment"
+	for _, fu := range []struct {
+		title, body string
+		closed      bool
+	}{
+		{"Follow-up: acme/app#1 (#9, slice 1)", followUpBody("1", sha, 1, 9, "adversary run 1, round 1: [non-blocking] a.go:1: triaged already"), true},
+		{"Follow-up: acme/app#2 (#9, slice 2)", followUpBody("2", sha, 2, 9, first), false},
+		{"Follow-up: acme/app#3 (#10, slice 1)", followUpBody("3", sha, 1, 10, first, second), false},
+	} {
+		n, err := a.forge.CreateIssue(fu.title, fu.body, []string{forge.FollowUp})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fu.closed {
+			a.forge.CloseIssue(n)
+		}
+	}
+	a.release()
+	a.runner.Script(0, "owner", runner.Canned{Out: "## Drift check\nBrief: docs/briefs/a.md — M1 The drift\nClass: routine\nCheck the drift.\n", Stdout: claudeResult})
+	a.pass()
+	want := "# Open swarm issues\n\nNone.\n\n# Follow-ups\n\n" +
+		"## #2: Follow-up: acme/app#2 (#9, slice 2)\n\n1. " + first + "\n\n" +
+		"## #3: Follow-up: acme/app#3 (#10, slice 1)\n\n1. " + first + "\n2. " + second + "\n\n# Recently closed\n"
+	if prompt := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(prompt, want) || strings.Contains(prompt, "triaged already") {
+		t.Errorf("prompt.md:\n%s\nwant within:\n%s", prompt, want)
+	}
+	task := `Each issue under "# Follow-ups" holds review findings that did not block a merge. Check each item against main under /job/work;`
+	if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, task) || strings.Index(sys, task) > strings.Index(sys, `If there is nothing worth proposing, write "BLOCKED: <why>"`) {
+		t.Errorf("system.md lacks the triage sentence before the BLOCKED: one:\n%s", sys)
+	}
+	if !strings.Contains(a.stdout.String(), "owner run 1: proposed #4 Drift check\n") {
+		t.Errorf("the batch proposed nothing beside the follow-ups:\n%s", a.stdout.String())
+	}
+}
