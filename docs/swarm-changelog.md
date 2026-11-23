@@ -1413,3 +1413,9 @@ they write.
   commented` for the issue. Section 11. Decision
   [91](swarm/decisions/0091-the-maintainers-verbs-and-status.md), As
   built.
+- 2026-11-22, Step SF-5 of the plan implementing the 2026-11-19 swarm
+  roadmap: the interventions' catalogue gains `I15` (a review round limit
+  extended), `I16` (a bad verdict) and `I17` (a prompt changed), taken by
+  every `--type` and counted by the scorecard; the existing types keep
+  their numbers. Section 11. Decision
+  [155](swarm/decisions/0155-interventions-recorded.md), As built.

@@ -109,3 +109,21 @@ Tests: `TestSwarmVerbRecordsItsIntervention`, `TestSwarmIntervene`,
 `TestSwarmApplyCommandRecordsItsIntervention`,
 `TestSwarmJournalKeepsALineQueuedDuringItsPush`,
 `TestIsInterventionType`.
+
+**As built: three types more (Step SF-5 of the plan implementing the
+2026-11-19 swarm roadmap, 2026-11-22).** The maintainer's ruling, in the
+step's text: the catalogue gains `I15`, a review round limit extended
+(the issue given another fix round at T11's limit), `I16`, a bad verdict
+(a review that ended `failed: bad verdict`, released by hand) and `I17`,
+a prompt changed (a persona's prompt or a prompt part edited to correct
+how the members work). On 2026-11-22 those three were recorded as `I1`,
+`I11` and `I12`, which mean other cases. The range's constant is 17, so
+every verb that takes `--type`, `restart` and `intervene` take them, and
+a comment command with them; the existing types keep their numbers, so
+no row already written changes meaning. Nothing else reads a type: the
+scorecard counts interventions by the `cause` cell as written, so the
+new types are counted per slice and in the summary as the others are,
+and `status` counts no intervention. Not added: a type for a persona's
+model changed in `swarm.json`, done that day with no type that fits; an
+open question for the maintainer. Tests: `TestSwarmNewInterventionTypes`,
+`TestIsInterventionType`, `TestSwarmInterventionRefused`.

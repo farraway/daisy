@@ -13,9 +13,9 @@ import (
 )
 
 // lastIntervention is the highest of the intervention types (section 11,
-// The interventions' record): the maintainer's catalogue's I1 to I14, a
+// The interventions' record): the maintainer's catalogue's I1 to I17, a
 // fixed range as the stops' causes are a fixed vocabulary.
-const lastIntervention = 14
+const lastIntervention = 17
 
 // InterventionTypes is the types as a usage names them.
 func InterventionTypes() string { return "I1 to I" + strconv.Itoa(lastIntervention) }

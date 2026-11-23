@@ -145,10 +145,10 @@ Each verb in the table runs in the swarm repository's clone; one given an issue 
 `--type <type>` (right after `<n>`, or leading): when the maintainer
 steps in where the swarm should have gone on alone, the verb's writes
 are made and the intervention recorded with its type, one of the
-catalogue's `I1` to `I14` (docs/swarm.md section 11, The interventions'
+catalogue's `I1` to `I17` (docs/swarm.md section 11, The interventions'
 record, lists them), so the interventions a day are counted from the
 record. Propose the type with the verb when you ask for the
-maintainer's yes; a type outside `I1` to `I14` is refused, nothing
+maintainer's yes; a type outside `I1` to `I17` is refused, nothing
 written.
 
 A verb that refuses changes nothing; read its message to the maintainer

@@ -8803,11 +8803,13 @@ notes branch merged by hand, a check rerun, is recorded by `daisy swarm
 intervene --type <type> [--issue <n>] <note...>`, on issue `<n>` when the
 act was on one.
 
-**The types** are the catalogue's, the maintainer's (2026-11-18), fixed
-as section 7.5's causes are: `I` and a number from 1 to 14, `I1` to
-`I14`, written without a leading zero; any other word is usage (exit
-2) before anything is read. A new type is the maintainer's ruling and a
-change of Daisy.
+**The types** are the catalogue's, the maintainer's (2026-11-18; `I15`
+to `I17` ruled at Step SF-5 of the plan implementing the 2026-11-19
+swarm roadmap, 2026-11-22), fixed as section 7.5's causes are: `I` and
+a number from 1 to 17, `I1` to `I17`, written without a leading zero;
+any other word is usage (exit 2) before anything is read. A new type is
+the maintainer's ruling and a change of Daisy; a type keeps its number,
+so no record's type changes meaning.
 
 | Type | The intervention's case |
 |---|---|
@@ -8825,6 +8827,9 @@ change of Daisy.
 | `I12` | plans or questions waiting on a ruling only the maintainer can give |
 | `I13` | a blocked worker's kept commit not given to the next run |
 | `I14` | resource mounts and the checkout: stale paths, or a mount the repository's own tests read |
+| `I15` | a review round limit extended: the issue given another fix round at the limit (T11, section 5) |
+| `I16` | a bad verdict: a review that ended `failed: bad verdict` (7.7) released by hand |
+| `I17` | a prompt changed: a persona's prompt or a prompt part edited to correct how the members work |
 
 **The record** is one row in the metrics CSV of the home `<state>/home`
 names and one line in the swarm's journal. The row is of kind
@@ -8859,7 +8864,7 @@ intervene`.
 
 | Field | Value |
 |---|---|
-| Usage | `daisy swarm intervene --type <type> [--issue <n>] <note...>`, in the clone, `--type` and `--issue` leading value flags in either order, the words after them the note; `--issue <n>` the issue the act was on, a positive issue number written without a leading zero, not looked up on the forge (Step R0-7 of the plan implementing the 2026-11-19 swarm roadmap); without `--type`, a type outside `I1` to `I14`, `--issue` not an issue number or given twice, or with no note (blank words are none): usage (exit 2), before anything is read |
+| Usage | `daisy swarm intervene --type <type> [--issue <n>] <note...>`, in the clone, `--type` and `--issue` leading value flags in either order, the words after them the note; `--issue <n>` the issue the act was on, a positive issue number written without a leading zero, not looked up on the forge (Step R0-7 of the plan implementing the 2026-11-19 swarm roadmap); without `--type`, a type outside `I1` to `I17`, `--issue` not an issue number or given twice, or with no note (blank words are none): usage (exit 2), before anything is read |
 | Reads | `swarm.json`'s forge fields (to name `<state>`), `<state>/home`, the registry, the home's metrics CSV, the journal as this machine holds it; no secret, no forge call, no Docker |
 | Writes | the intervention's record (above), its row in the home's metrics CSV and its line in `<state>/journal`, on issue `<n>` with `--issue` (`<n>-intervention-<k>`, the notes and the line ending `#<n>`, the scorecard counting it on the issue's slice), else on no issue (`0-intervention-<k>`); nothing else |
 | Stdout | `Intervention <n>-intervention-<k> recorded: <type>` (`<n>` `0` without `--issue`) |

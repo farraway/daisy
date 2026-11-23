@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"daisy/internal/ops"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
@@ -91,6 +92,57 @@ func TestSwarmVerbRecordsItsIntervention(t *testing.T) {
 	a.pass()
 	if journal := gitIn(t, a.upstreams[swarmURL], "show", "main:journal/2026-11-06.md"); !strings.Contains(journal, "\n- 1500 2-intervention-1: I7; block; #2\n- 1500 2-intervention-2: I7; pause; #2\n") {
 		t.Errorf("journal:\n%s", journal)
+	}
+}
+
+// The claim of Step SF-5 of the plan implementing the 2026-11-19 swarm
+// roadmap (section 11, The interventions' record): the catalogue's three
+// new types, I15 (a round limit extended), I16 (a bad verdict) and I17 (a
+// prompt changed), are each taken by every verb that takes --type, the
+// maintainer's verbs, restart and intervene, none refusing it as usage;
+// each is recorded with its type in cause, and the scorecard counts the
+// records among the interventions as it counts the other types'.
+func TestSwarmNewInterventionTypes(t *testing.T) {
+	t.Parallel()
+	a, m, home := interventionWS(t)
+	intervene := func(c *Context, _ opener) error { return swarmIntervene(c) }
+	var u UsageError
+	for _, typ := range []string{"I15", "I16", "I17"} {
+		for _, v := range commentVerbs {
+			args := map[string][]string{"class": {"routine"}, "unblock": {"Go", "on."}, "block": {"--by", "2"}, "replan": {"Again."}, "close": {"Not", "now."}}[v.name]
+			if err := m.verb(maintainerVerb(v.name), append([]string{"1", "--type", typ}, args...)...); errors.As(err, &u) {
+				t.Errorf("%s --type %s: %v", v.name, typ, err)
+			}
+		}
+		o := &ops.Fake{NowFn: fixedClock().Now, GetwdFn: func() (string, error) { return a.cwd, nil }, GetenvFn: func(k string) string {
+			return map[string]string{"DAISY_ROOT": a.root, "DAISY_LOCAL": a.local, "DAISY_CONFIG": a.swarmWS.config}[k]
+		}}
+		c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &a.stdout, Stderr: &a.stderr, Values: []Value{{Flag: "--type", Value: typ}}}
+		if err := SwarmRestart(c); err != nil {
+			t.Errorf("restart --type %s: %v", typ, err)
+		}
+		os.Remove(a.state("restart"))
+		m.values = []Value{{Flag: "--type", Value: typ}}
+		if err := m.verb(intervene, "Extended", "the", "round", "limit."); err != nil {
+			t.Errorf("intervene --type %s: %v", typ, err)
+		}
+		m.values = nil
+	}
+	count := map[string]int{}
+	for _, r := range interventions(t, home) {
+		count[r["cause"]]++
+	}
+	for _, typ := range []string{"I15", "I16", "I17"} {
+		if count[typ] < 2 { // at least restart's and intervene's
+			t.Errorf("%s: %d records; all: %v", typ, count[typ], count)
+		}
+	}
+	total := count["I15"] + count["I16"] + count["I17"]
+	if err := a.scorecard(); err != nil {
+		t.Fatal(err)
+	}
+	if want := fmt.Sprintf("; %d interventions, ", total); len(count) != 3 || !strings.Contains(a.stdout.String(), want) {
+		t.Errorf("records by type %v; scorecard, want %q:\n%s", count, want, a.stdout.String())
 	}
 }
 
@@ -210,7 +262,7 @@ func TestSwarmInterventionRefused(t *testing.T) {
 		{maintainerVerb("unblock"), nil, []string{"2", "--type", "I0", "Go", "on."}},
 		{maintainerVerb("unblock"), nil, []string{"2", "--type", "I07", "Go", "on."}},
 		{maintainerVerb("unblock"), nil, []string{"2", "--cause", "plan", "--type"}},
-		{maintainerVerb("triage"), lead("I15"), []string{"2"}},
+		{maintainerVerb("triage"), lead("I18"), []string{"2"}},
 		{maintainerVerb("triage"), lead("I7"), []string{"2", "--type", "I7"}},
 		{maintainerVerb("pause"), lead("i7"), nil},
 		{maintainerVerb("class"), nil, []string{"2", "--type", "I6"}},
@@ -278,7 +330,7 @@ func TestSwarmApplyCommandRecordsItsIntervention(t *testing.T) {
 
 	id = a.say(issue1, "jane", "/swarm pause --type I99")
 	a.pass()
-	if got := a.answers(issue1); len(got) != 2 || got[1] != answer(id, "/swarm pause --type I99", "Refused:\n\n    Error: swarm: --type takes one of I1 to I14, not \"I99\"\n") {
+	if got := a.answers(issue1); len(got) != 2 || got[1] != answer(id, "/swarm pause --type I99", "Refused:\n\n    Error: swarm: --type takes one of I1 to I17, not \"I99\"\n") {
 		t.Errorf("answers %q", got)
 	}
 	if got := interventions(t, home); len(got) != 1 {
