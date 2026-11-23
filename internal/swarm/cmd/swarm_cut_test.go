@@ -285,7 +285,7 @@ func TestSwarmCutTextsTheMaintainerIsToldOf(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	a.inReview(bigSlices)
-	long := "VERDICT: approve\n\n" + strings.Repeat("The reviewer explains its approval at length, line after line.\n", 1100) + "[non-blocking] main.go:1 a finding past the cut.\n"
+	long := "VERDICT: approve\n[checked] claim 1: main.go says v1 on this head.\n\n" + strings.Repeat("The reviewer explains its approval at length, line after line.\n", 1100) + "[non-blocking] main.go:1 a finding past the cut.\n"
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: long})
 	a.pass() // the adversary approves

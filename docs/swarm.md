@@ -3724,9 +3724,10 @@ or trailing spaces.
 |---|---|
 | absent, or only whitespace | the failure *no output* |
 | first line begins `BLOCKED:` (the batch run: its first line after any `Met:` lines) | the member asks the maintainer: posted as the role's text, then T17 (the owner's batch run: `owner-held`, reason `blocked: ` and the rest of the line, and, in the form `waiting on #<n>, #<m>: <why>`, the named issues still open, which release it once closed: section 6, G0; the QA's: `qa-held`, the same reason, never a second line: section 6, The QA trigger) |
-| a reviewer's, first line exactly `VERDICT: approve` or `VERDICT: request-changes`, agreeing with its findings | the verdict; the whole file is the review's text, verdict line included. It agrees when a `request-changes` review has at least one line beginning `[blocking]` and an `approve` review has none |
+| a reviewer's, first line exactly `VERDICT: approve` or `VERDICT: request-changes`, agreeing with its findings, an approval accounting for the Test Plan | the verdict; the whole file is the review's text, verdict line included. It agrees when a `request-changes` review has at least one line beginning `[blocking]` and an `approve` review has none. An approval accounts for the Test Plan (built at Step R6-E of the plan implementing the 2026-11-19 swarm roadmap; decision [172](swarm/decisions/0172-an-approval-accounts-for-its-slice.md)) when, for each claim of the accepted plan's `## Test Plan` as Daisy reads it from the job's workspace (7.8, Daisy's own reads: each line matching `^[0-9]+\. ` under the heading, outside a fenced block, by the number it begins with), it holds a line beginning `[checked]` whose first word after the marker is `claim` and whose second is that number, case and a trailing `:` aside; a plan with no such line, or none, asks for none |
 | a worker's or a reviewer's, first line beginning `QUESTION:` | a question (section 6, The question): posted on the issue as the role's text, a worker's commits kept, then T28; no verdict is read and no commit is pushed |
 | a reviewer's, any other first line, or a verdict its findings contradict | the failure *bad verdict* |
+| a reviewer's approval without the `[checked]` line of a claim (R6-E) | the failure *bad verdict*, its reason `bad verdict: no [checked] line for claim <n>, <m>, …` naming each claim missing; no review is posted, and none is rerun |
 | a worker's on `swarm:review-3-changes-requested` with no commit past `start`, first line beginning `NO CHANGE:` | the worker's answer without a commit (section 6): posted on the pull request, then T12 (7.6). With a commit, or with none but a start at kept commits not yet on the branch (`unpushed`, which has those to push: 7.9, The classification), the line is text as any other to the collection (a revision, pushed and posted as any; its comment still reads as an answer under section 6, after the push it follows); on `swarm:plan-1-accepted`, or without the line, a run with no commit is the failure *no commits* |
 | an architect's on `swarm:plan-1-accepted` (section 6, The rulings), first line beginning `STANDS:` | the plan stands against the changed rulings: posted as the role's text, the label kept; no plan (the accepted plan is the architect's newest text beginning neither `BLOCKED:` nor `STANDS:`, 7.3), but the plan's new basis. On another stage the line is text as any other, but never a plan |
 | the architect's or the owner's on `swarm:question` (its `question` result line), first line beginning `QUESTION:` | the question passed on: the architect's posted, then T28 (the flag kept); the owner's posted, then the reconciler's note naming it and T30 |
@@ -4641,7 +4642,7 @@ honest word among the nine, and none for a row that is no stop.
 | timeout | work | the wall clock fires (`docker stop` sent) | `timeout <time>`, `failed: timeout after <timeout>` | T17: reconciler note, T22, `Relabel(n, "", "swarm:blocked")` | empty |
 | non-zero exit | work | any other non-zero exit status of `docker run` | `exited <code> <time>`, `failed: exit <code>` | T17 | empty |
 | no output | work | 7.5 | `failed: no output` | T17 | empty |
-| bad verdict | work | 7.5 | `failed: bad verdict` | T17 | empty |
+| bad verdict | work | 7.5 | `failed: bad verdict`; for an approval without a claim's `[checked]` line (R6-E), `failed: bad verdict: no [checked] line for claim <n>, …` | T17, the note naming the reason | empty |
 | bad slices (architect; a worker whose slice's repository no longer resolves, or whose continued pull request's repository the revised plan no longer names) | work | 7.5; 7.1 step 2, before the launch (`launch-failed <time>`) | `failed: bad slices: <slice numbers>` | T17, the note naming the slices | `plan` |
 | no commits (worker, but for the answer without a commit, 7.5, and a start at kept commits not yet on the slice's branch, which has those to push, 7.9, The classification) | work | 7.6 | `failed: no commits` | T17 | empty |
 | protected path changed (worker) | work | 7.6 | `failed: protected path changed: <paths>` | T17, the note naming the paths | `scope` |
@@ -6389,8 +6390,11 @@ reviewers' `# Output` asks for both and its approval template shows
 them, and every reviewer Task's last line reminds of them (7.4, the
 account reminder). Daisy reads no claim's slice: the Test Plan numbers
 its claims across the plan, and only the worker's report says which are
-not in this slice. Daisy cannot match a `[closed]` line to the finding
-it closes, so it asks for the line and does not check it.
+not in this slice. Daisy fails an approval that lacks the `[checked]`
+line of a claim of the Test Plan, the bad verdict of 7.5 and 7.7, its
+reason naming the claims; the run is not rerun. Daisy cannot match a
+`[closed]` line to the finding it closes, so it asks for the line and
+does not check it.
 
 **Follow-ups** (rule 6; the filing built at Step R6-B of the plan
 implementing the 2026-11-19 swarm roadmap). *When:* at step 8 of a pass, or at the merge

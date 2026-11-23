@@ -41,6 +41,25 @@ func sliceLines(plan string) []string {
 	return out
 }
 
+// Claims is the numbers of the claims of plan's Test Plan, in order, each
+// once (section 7.5; decision 172): the number each line matching
+// `^[0-9]+\. ` under its `## Test Plan` heading, outside a fenced block,
+// begins with, as Slices reads the slices under `## Steps`. A plan without
+// such lines has none.
+func Claims(plan string) []int {
+	var out []int
+	for _, line := range section(plan, "Test Plan") {
+		if line.fenced || !sliceLine.MatchString(line.text) {
+			continue
+		}
+		n, _ := strconv.Atoi(line.text[:strings.Index(line.text, ".")])
+		if !slices.Contains(out, n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 // sliceText is slices/<s>/slice.md (section 7.8): slice s's item under
 // plan's ## Steps, its numbered line and the lines under it to the next
 // slice line or the section's end, then, after a blank line, its section

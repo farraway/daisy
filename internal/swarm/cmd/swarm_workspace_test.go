@@ -423,7 +423,7 @@ func TestWorkspaceRoundFile(t *testing.T) {
 	a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
 	a.inReview(oneSlice)
 	h1 := a.pulls(1)[0].HeadSHA
-	nonBlocking := "VERDICT: approve\n\nFine.\n[non-blocking] main.go:1 could say why.\n"
+	nonBlocking := "VERDICT: approve\n[checked] claim 1: main.go says v1 on this head.\n\nFine.\n[non-blocking] main.go:1 could say why.\n"
 	a.runner.Script(1, "adversary", runner.Canned{Out: nonBlocking}, runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: requestChanges}, runner.Canned{Out: approve})
 	a.pass()

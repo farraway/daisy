@@ -146,7 +146,7 @@ const twoSlices = `## Research
 `
 
 const (
-	approve        = "VERDICT: approve\n\nFine.\n"
+	approve        = "VERDICT: approve\n[checked] claim 1: main.go says v1 on this head.\n\nFine.\n"
 	requestChanges = "VERDICT: request-changes\n\n[blocking] main.go:1 says v1; the plan wants v2.\n"
 )
 
@@ -245,7 +245,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 		t.Errorf("T8 through plan-2-in-progress:\n%s", a.stdout.String())
 	}
 
-	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: "VERDICT: approve\n\nThe v2 head reads well.\n"})
+	a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges}, runner.Canned{Out: "VERDICT: approve\n[checked] claim 1: main.go says v1 on this head.\n\nThe v2 head reads well.\n"})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	before := len(a.runner.Launches())
 	a.pass() // round 1: the adversary alone, T21 by its launch, then T10 by its request for changes

@@ -86,3 +86,19 @@ later than the first, a Task of a later round being one that says
 changes for the adversary and the sympathetic reviewer, whose
 `system.md` holds the new texts. Test:
 `TestReviewerOutputAsksForCheckedLines`.
+
+**As built: the check (Step R6-E of the plan implementing the
+2026-11-19 swarm roadmap).** The collection of an approval, once its
+verdict agrees with its findings, reads the accepted plan as the merge
+step reads it (`JobPlan`: the job's `plan.md`), its claims by `Claims`,
+and fails the run `bad verdict: no [checked] line for claim <n>, …` when
+a claim has no `[checked]` line, before anything is posted. The line is
+read as the scorecard reads a blocking line's kind: a line beginning
+with the marker, its words after it, case and a trailing colon aside, so
+`[checked] Claim 3:` counts, and a `[checked]` inside a sentence does
+not. A claim's line is not judged: one whose account is empty, or a
+claim checked twice, passes, the reviewer's words being the account.
+The reason keeps the bad verdict's words first, so the intervention that
+releases it is still `I16`, and the cause stays empty (7.5, Daisy's own
+stops). Tests: `TestSwarmApprovalWithoutCheckedLinesFails`,
+`TestSwarmApprovalWithCheckedLinesCounts`.

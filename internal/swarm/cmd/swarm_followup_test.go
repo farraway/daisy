@@ -15,8 +15,8 @@ import (
 // The reviews of the follow-up tests: each approves with a non-blocking
 // finding of its own (section 7.11, Follow-ups).
 const (
-	approveNoting   = "VERDICT: approve\n\n[non-blocking] main.go:1: the version could be a constant\n"
-	approveDocument = "VERDICT: approve\n\n[non-blocking] main.go:1: no doc comment\n"
+	approveNoting   = "VERDICT: approve\n[checked] claim 1: main.go says v1 on this head.\n\n[non-blocking] main.go:1: the version could be a constant\n"
+	approveDocument = "VERDICT: approve\n[checked] claim 1: main.go says v1 on this head.\n\n[non-blocking] main.go:1: no doc comment\n"
 )
 
 // followUpBody is the follow-up of app#m, merged at sha, slice s of #n,

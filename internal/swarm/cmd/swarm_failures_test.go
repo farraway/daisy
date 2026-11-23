@@ -261,7 +261,7 @@ func TestSwarmApplySecretFromTheSlotAtReturn(t *testing.T) {
 	a.inReview(oneSlice)
 	refreshed := "refreshed-access-token-0123456789abcdefghij"
 	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
-	a.runner.Script(1, "adversary", runner.Canned{Out: "VERDICT: approve\n\nI saw " + refreshed + "\n", Work: func(string) error {
+	a.runner.Script(1, "adversary", runner.Canned{Out: "VERDICT: approve\n[checked] claim 1: main.go says v1 on this head.\n\nI saw " + refreshed + "\n", Work: func(string) error {
 		return os.WriteFile(filepath.Join(slot, "auth.json"), []byte(`{"tokens":{"access_token":"`+refreshed+`"}}`), 0o600)
 	}})
 	a.pass()
@@ -729,4 +729,65 @@ func TestSwarmApplyFetchFailsTwice(t *testing.T) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// threeClaims is a plan of one slice whose Test Plan holds three claims,
+// one with a Probe: line under it, and a numbered line in a fenced block,
+// which is none.
+const threeClaims = "## Steps\n\n1. app: change main.go.\n\n## Test Plan\n\n1. main.go says v1.\n   Probe: main.go says v0.\n2. main.go ends in a newline.\n3. the check passes.\n\n```text\n4. not a claim\n```\n\n## Decisions\n\n5. not a claim either.\n"
+
+// R6-E's second claim (decision 172; section 7.5): an approval that lacks
+// the `[checked]` line of a claim of the plan's Test Plan is a bad verdict,
+// the run failed and the issue blocked as any bad verdict (7.7), its reason
+// naming the claims missing; no review is posted.
+func TestSwarmApprovalWithoutCheckedLinesFails(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, out, missing string }{
+		{"the verdict line alone", "VERDICT: approve\n", "1, 2, 3"},
+		{"a claim left out", "VERDICT: approve\n[checked] claim 1: main_test.go fails on v0.\n[checked] Claim 3: the check's result, passing.\n[non-blocking] main.go:1 terse.\n", "2"},
+		{"a line in the prose, not at a line's start", "VERDICT: approve\n[checked] claim 1: ran it.\n[checked] claim 3: ran it.\nAll fine; [checked] claim 2: ran it.\n", "2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.inReview(threeClaims)
+			a.runner.Script(1, "adversary", runner.Canned{Out: tc.out})
+			a.pass()
+			reason := "bad verdict: no [checked] line for claim " + tc.missing
+			r := a.result("1-adversary-1")
+			if !strings.Contains(r, "\nfailed: "+reason+"\n") || !strings.HasSuffix(r, "outcome failed\ncollected\n") {
+				t.Errorf("result:\n%s", r)
+			}
+			note := mark("reconciler", 1) + "adversary run 1 failed: " + reason + " (at swarm:review-0-ready). Remove swarm:blocked to resume.\n\ncc @jane"
+			b := a.bodies(1)
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready", "swarm:blocked", forge.Gated}) || b[len(b)-1] != note {
+				t.Errorf("T17: %v %q", got, b[len(b)-1])
+			}
+			if rs, _ := a.forge.Reviews(forge.Ref{Repo: "app", N: 1}); len(rs) != 0 {
+				t.Errorf("a review was posted: %+v", rs)
+			}
+		})
+	}
+}
+
+// R6-E's second claim (decision 172): an approval holding the `[checked]`
+// line of every claim of the Test Plan, the fenced numbered line and the
+// later section's none, is collected as before and posted, and the pair's
+// two such approvals take the issue to review-2-approved. It guards kept
+// behaviour: its probe is a check that asks for a line no claim has.
+func TestSwarmApprovalWithCheckedLinesCounts(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.inReview(threeClaims)
+	checked := "VERDICT: approve\n[checked] claim 1: main_test.go fails with main.go at v0.\n[checked] claim 2: read main.go's last byte.\n[checked] claim 3: the check's result passes.\n"
+	a.runner.Script(1, "adversary", runner.Canned{Out: checked})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: checked + "[non-blocking] main.go:1 terse.\n"})
+	a.pass() // the adversary
+	a.pass() // the sympathetic reviewer: T9
+	rs, _ := a.forge.Reviews(forge.Ref{Repo: "app", N: 1})
+	if len(rs) != 2 || !strings.Contains(rs[0].Body, "\n\n"+checked) || !strings.Contains(rs[1].Body, "\n\n"+checked) {
+		t.Errorf("reviews: %+v", rs)
+	}
+	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) {
+		t.Errorf("labels %v\n%s", got, a.result("1-adversary-1"))
+	}
 }

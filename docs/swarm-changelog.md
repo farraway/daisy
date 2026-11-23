@@ -1518,3 +1518,10 @@ they write.
   every reviewer Task's last line reminds of them. Sections 7.4 and
   7.11. Decision
   [172](swarm/decisions/0172-an-approval-accounts-for-its-slice.md).
+- 2026-11-23, Step R6-E of the plan implementing the 2026-11-19 swarm
+  roadmap, the check: an approval without the `[checked]` line of a
+  claim of the plan's Test Plan is a bad verdict, its reason naming the
+  claims missing, the run failed and the issue blocked; no review is
+  posted and none rerun. Sections 7.5, 7.7 and 7.11. Decision
+  [172](swarm/decisions/0172-an-approval-accounts-for-its-slice.md), As
+  built.

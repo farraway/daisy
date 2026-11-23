@@ -6,6 +6,7 @@ import (
 	iofs "io/fs"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -527,6 +528,15 @@ func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) err
 	if verdict == "comment" || (verdict == "request-changes") != blocking {
 		return c.fail("bad verdict")
 	}
+	if verdict == "approve" {
+		plan, _, _, err := s.outputs().JobPlan(c.is, s.SwarmLogin)
+		if err != nil {
+			return err
+		}
+		if missing := unchecked(Claims(plan), out); len(missing) > 0 {
+			return c.fail("bad verdict: no [checked] line for claim " + numbers(missing))
+		}
+	}
 	ref := forge.Ref{Repo: pull.Repo, N: pull.Number}
 	reviews, err := s.Forge.Reviews(ref)
 	if err != nil {
@@ -739,6 +749,24 @@ func roundsOf(reviews []forge.Review, answers []time.Time, swarmLogin string) []
 // blockingLines is a review text's blocking findings: its lines that
 // begin "[blocking]" (section 7.4).
 func blockingLines(text string) []string { return linesBeginning(text, "[blocking]") }
+
+// unchecked is the claims an approval holds no `[checked] claim <n>` line
+// for (section 7.5; decision 172): a line beginning `[checked]` whose
+// first word after the marker is `claim` and whose second is the claim's
+// number, case and a trailing colon aside.
+func unchecked(claims []int, review string) []int {
+	var seen []int
+	for _, l := range linesBeginning(review, "[checked]") {
+		f := strings.Fields(strings.TrimPrefix(l, "[checked]"))
+		if len(f) < 2 || !strings.EqualFold(f[0], "claim") {
+			continue
+		}
+		if n, err := strconv.Atoi(strings.TrimSuffix(f[1], ":")); err == nil {
+			seen = append(seen, n)
+		}
+	}
+	return slices.DeleteFunc(slices.Clone(claims), func(n int) bool { return slices.Contains(seen, n) })
+}
 
 // linesBeginning is text's lines that begin with one of prefixes, in
 // order, each without the spaces and `\r` at its end.
