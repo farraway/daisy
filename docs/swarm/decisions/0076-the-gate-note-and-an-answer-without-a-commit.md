@@ -38,3 +38,16 @@ rounds count the head again, so `max_rounds` bounds a loop of answers
 as it bounds a loop of pushes. The alternative, an empty commit
 pushed by Daisy, would have changed the head with no change and put
 a commit of Daisy's own on the swarm's branch.
+
+**As built: a link kept whole by the cut (Step S7a of the plan
+implementing the 2026-11-19 swarm roadmap, 2026-11-22).** A long line
+was cut at its 119th character and `…`, so a blocked note's first line,
+which names a pull request as `[<owner>/<name>#<m>](<url>)`, could end
+mid-link, its text or its target broken on the forge. The cut now falls
+before a Markdown link that would straddle the 119th character, leaving
+the link out; a link that ends within the 119 stays, and a line with no
+link is cut as before. Characters are runes, as before. Ending the line
+after the link, past 120, was the alternative: it keeps the link, but a
+link longer than the limit would make the bound no bound. A link that
+opens the line is left out whole, so such a line reads `…` alone; a bare
+URL is no Markdown link and is cut as text. Test: `TestCutKeepsALinkWhole`.

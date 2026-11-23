@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"daisy/internal/swarm/forge"
 )
@@ -310,12 +311,25 @@ func blockedGate(body string) bool {
 	return h != nil && strings.HasPrefix(rest[h[1]:], blockedWhy)
 }
 
-// cut is a line of at most 120 characters, cut with `…`.
+// mdLink is a Markdown link, `[text](target)`, on one line.
+var mdLink = regexp.MustCompile(`\[[^\]\n]*\]\([^)\n]*\)`)
+
+// cut is a line of at most 120 characters, cut with `…` after 119, or
+// before a Markdown link that would straddle the 119th, so a link is kept
+// whole or left out.
 func cut(l string) string {
-	if r := []rune(l); len(r) > 120 {
-		return string(r[:119]) + "…"
+	r := []rune(l)
+	if len(r) <= 120 {
+		return l
 	}
-	return l
+	end := 119
+	for _, m := range mdLink.FindAllStringIndex(l, -1) {
+		if from, to := utf8.RuneCountInString(l[:m[0]]), utf8.RuneCountInString(l[:m[1]]); from < end && to > end {
+			end = from
+			break
+		}
+	}
+	return string(r[:end]) + "…"
 }
 
 func indent(text, by string) string {

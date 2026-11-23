@@ -1419,3 +1419,9 @@ they write.
   every `--type` and counted by the scorecard; the existing types keep
   their numbers. Section 11. Decision
   [155](swarm/decisions/0155-interventions-recorded.md), As built.
+- 2026-11-22, Step S7a of the plan implementing the 2026-11-19 swarm
+  roadmap: a gate note's quoted line over 120 characters is cut before a
+  Markdown link the cut would split, so a link is kept whole or left out.
+  Section 5. Decision
+  [76](swarm/decisions/0076-the-gate-note-and-an-answer-without-a-commit.md),
+  As built.

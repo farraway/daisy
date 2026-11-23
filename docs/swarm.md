@@ -1158,7 +1158,9 @@ marker line `<!-- daisy-swarm role=reconciler kind=gate -->` (section
 bullets of what the maintainer examines, drawn from the issue as it is
 then, the first `- Class: <class>.` (the job's class, below), a blank
 line and `Decide: <the verbs>.`; each bullet's quoted line
-is cut at 120 characters. With `swarm:blocked` it is the blocked gate,
+is cut at 120 characters, `…` after the 119th, or before a Markdown
+link that would straddle it, so a link is kept whole or left out (Step
+S7a of the plan implementing the 2026-11-19 swarm roadmap). With `swarm:blocked` it is the blocked gate,
 at whatever stage, its `<why>` `it is blocked, and only the maintainer
 unblocks it`, followed, while the issue's current pull request is open,
 by `; its pull request is [<owner>/<name>#<m>](<url>)` (The pull
