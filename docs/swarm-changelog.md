@@ -1545,3 +1545,13 @@ they write.
   answers a finding no realistic case meets. Sections 7.4 and 7.11.
   Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
   built.
+- 2026-11-23, Step R6-F of the plan implementing the 2026-11-19 swarm
+  roadmap, a documentation-only slice's claim (the maintainer's ruling
+  A3 of 2026-11-22): the blocking sentence's claim item adds that on a
+  slice that changes only documentation a claim blocks only on a false
+  statement the slice added or changed, the reviewer judging whether the
+  slice is one; the worker's sentence on a finding that does not block
+  and the sympathetic reviewer's default say the same, the default's
+  hash appended to the table of earlier defaults, whose counts are
+  brought up to date. Sections 4, 7.11 and 11. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.

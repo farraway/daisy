@@ -578,6 +578,35 @@ reviewers' to apply (R6-E's checks, the `[checked]` lines and a
 `TestTaskTextLateFirstReviewIsBoundByTheRound` and
 `TestTaskTextWorkerAnswersAFindingThatDoesNotBlock`.
 
+**As built: a documentation-only slice's claim (Step R6-F of the plan
+implementing the 2026-11-19 swarm roadmap; the maintainer's ruling A3 of
+2026-11-22).** The ruling cites three slices that changed only
+documentation, with 12, 9 and 8 blocking findings of kind `claim`: on
+such a slice, `claim` blocks only on a false statement the slice added
+or changed. Daisy does not read whether a slice changes only
+documentation: the claim's item of the blocking sentence says how a
+claim blocks on such a slice, in every reviewer's Task, for the
+reviewer, who reads the diff, to apply. The alternative, Daisy reading
+the head's changed paths from the repository's mirror at the
+reviewer's launch (`Git.Changed`, as the worker's collection reads
+them) and adding the sentence only when every path is a `.md` file,
+would add a read and its failure to every reviewer launch for a rule
+Daisy still would not enforce, and an extension misreads both ways: a
+`README`, `.txt` or `.rst` document is not counted, and a `.md` file
+the code reads (a template, a prompt) is. The worker's sentence on a
+blocking finding that does not block names the case, and the
+sympathetic reviewer's default, whose sixth bullet let a misleading
+document block whenever the slice's claims name it, holds a slice that
+changes only documentation to the statements it added or changed; its
+hash is appended to the table of earlier defaults (section 11). The
+adversary's, which looks for "a document the change makes wrong", says
+nothing the ruling contradicts and is unchanged. Test:
+`TestTaskTextDocsSliceClaim`, with the quotes of
+`TestTaskTextBlockingSentence` and
+`TestTaskTextWorkerAnswersAFindingThatDoesNotBlock`;
+`TestDefaultPromptsAreSectionFours` and
+`TestDefaultHistoryHoldsEachCurrentDefault` with the new default.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

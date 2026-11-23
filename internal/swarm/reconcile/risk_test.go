@@ -17,7 +17,7 @@ const boundaries = "# Lib\n\n## Trust boundaries\n\nTrusted: the environment. No
 // default.
 func blockingList(s, realistic string) string {
 	return "A finding is blocking only when it is one of these four kinds:\n\n" +
-		"- claim: a claim of slice " + s + " that the head does not show, a test that survives the probe the plan names for it among them;\n" +
+		"- claim: a claim of slice " + s + " that the head does not show, a test that survives the probe the plan names for it among them; on a slice that changes only documentation, only a false statement the slice added or changed;\n" +
 		"- test: a test the plan names for slice " + s + " that is missing on this head or fails;\n" +
 		"- defect: a defect in the code the change adds or changes;\n" +
 		"- introduced: a fault this revision introduced, behaviour that worked on a head reviewed before and fails on this one.\n\n" +
@@ -235,6 +235,31 @@ func TestTaskTextRealisticForEveryKind(t *testing.T) {
 	inSpec(t, realisticFor(declaredBoundaries))
 }
 
+// On a slice that changes only documentation, a claim blocks only on a
+// false statement the slice added or changed (Step R6-F of the plan
+// implementing the 2026-11-19 swarm roadmap; section 7.11, rule 1 as
+// built; the maintainer's ruling A3 of 2026-11-22): Daisy does not read
+// which paths the head changes, so every reviewer's Task says it in the
+// claim's item of the list, for the reviewer to apply, in every round,
+// with the notes' trust boundaries or the default; the worker's sentence
+// on a finding that does not block says it too.
+func TestTaskTextDocsSliceClaim(t *testing.T) {
+	const claim = "\n- claim: a claim of slice 1 that the head does not show, a test that survives the probe the plan names for it among them; on a slice that changes only documentation, only a false statement the slice added or changed;\n- test: "
+	for name, repos := range map[string][]RepoNote{"declared": {{Name: "lib", Text: boundaries}}, "default": nil} {
+		for _, role := range []string{"adversary", "sympathetic"} {
+			one := memoryJob(t, role, "swarm:review-0-ready")
+			one.Pull.Reviews = nil
+			for round, j := range map[string]*Job{"round 1": one, "an unchanged head's round": sameHead(t, role), "a delta round": delta(t, role)} {
+				j.Repos = repos
+				sys, _ := Render(j)
+				has(t, name+", "+role+", "+round, taskOf(t, sys), []string{claim})
+			}
+		}
+	}
+	sys, _ := Render(memoryJob(t, "worker", "swarm:review-3-changes-requested"))
+	has(t, "the worker on changes requested", taskOf(t, sys), []string{"(a claim of the slice the head does not show, on a slice that changes only documentation only a false statement the slice added or changed; a test"})
+}
+
 // convergence is the convergence sentence of slice s (section 7.11, rule 5).
 func convergence(s string) string {
 	return `A blocking finding of the previous round or of your last review is closed when its own reproduction now passes on this head. ` +
@@ -300,7 +325,7 @@ func TestTaskTextLateFirstReviewIsBoundByTheRound(t *testing.T) {
 // requested says so, a paragraph of its own after the row's text; its
 // Task on a slice to build does not.
 func TestTaskTextWorkerAnswersAFindingThatDoesNotBlock(t *testing.T) {
-	const want = `A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, a test the plan names missing or failing, a defect in the changed code, a fault the revision introduced), or that no realistic user, input or repository state meets, is answered, not fixed: say why it does not block. A non-blocking finding needs no change; Daisy files it for the owner.`
+	const want = `A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, on a slice that changes only documentation only a false statement the slice added or changed; a test the plan names missing or failing; a defect in the changed code; a fault the revision introduced), or that no realistic user, input or repository state meets, is answered, not fixed: say why it does not block. A non-blocking finding needs no change; Daisy files it for the owner.`
 	sys, _ := Render(memoryJob(t, "worker", "swarm:review-3-changes-requested"))
 	task := taskOf(t, sys)
 	paragraphs(t, "changes requested", task, want)

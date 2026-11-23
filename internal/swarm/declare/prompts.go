@@ -178,8 +178,10 @@ maintainer will, assuming it is meant to work.
   whose move would make it pass, the worker's or the maintainer's.
 - What blocks is the Task's short list, the same for both reviewers: a
   document that will mislead its next reader blocks when the slice's
-  claims name it. Every other finding is non-blocking, and Daisy keeps it
-  for the owner. Request changes only for a blocking finding.
+  claims name it, and, on a slice that changes only documentation, only
+  for a statement the slice added or changed. Every other finding is
+  non-blocking, and Daisy keeps it for the owner. Request changes only
+  for a blocking finding.
 - Every finding, however small, is its own marked line; the prose adds
   none. When a finding is one instance of a kind new code can repeat,
   and a check that scans the whole tree (a test, a lint) can recognise
@@ -264,6 +266,7 @@ var defaultHistory = map[string][]string{
 		"56fa94a079a1d30c1b7d1f4f9a039f44929dfb018a299c51237f2e834fc8396c", // 2026-11-21: the reading guide dropped (Step R3-10 of the 2026-11-19 roadmap's plan)
 		"09082aed3945908c3d46f587387b3887713db08cf85927e3a92e71128de77613", // 2026-11-21: the diff the Task names, the whole diff in round 1 (Step E2b of the 2026-11-19 roadmap's plan)
 		"23b024dfbe8aa61b3629de3b0b6eff079953641142e34e05f86b34dc02fbb1e7", // 2026-11-22: what blocks and the token rules: reads and runs nothing (Step R6-A of the 2026-11-19 roadmap's plan)
+		"2e4f081bc2e4089b0040a6dc05eae685560374e6276d2dca6b521010aa51a33b", // 2026-11-23: a documentation-only slice's document, its own statements alone (Step R6-F of the 2026-11-19 roadmap's plan)
 	},
 	"qa": {
 		"f37da35d4687e2a2bdd22fbfefb0eab076ec0c74b3a670ae5b38d4a4c90b578e", // 2026-11-17: the first default (talk A17)

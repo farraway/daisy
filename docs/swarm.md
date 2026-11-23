@@ -1038,8 +1038,10 @@ maintainer will, assuming it is meant to work.
   whose move would make it pass, the worker's or the maintainer's.
 - What blocks is the Task's short list, the same for both reviewers: a
   document that will mislead its next reader blocks when the slice's
-  claims name it. Every other finding is non-blocking, and Daisy keeps it
-  for the owner. Request changes only for a blocking finding.
+  claims name it, and, on a slice that changes only documentation, only
+  for a statement the slice added or changed. Every other finding is
+  non-blocking, and Daisy keeps it for the owner. Request changes only
+  for a blocking finding.
 - Every finding, however small, is its own marked line; the prose adds
   none. When a finding is one instance of a kind new code can repeat,
   and a check that scans the whole tree (a test, a lint) can recognise
@@ -1051,7 +1053,9 @@ Since Step R6-A of the plan implementing the 2026-11-19 swarm roadmap
 (7.11, rules 1 to 5, and the token rules the maintainer ruled in on
 2026-11-22) the fourth bullet reads the tests against the plan's probes
 and leaves running them to the adversary, and the sixth points to the
-Task's list.
+Task's list; since Step R6-F of that plan (7.11, rule 1 as built, the
+maintainer's ruling A3 of 2026-11-22) the sixth holds a slice that
+changes only documentation to the statements it added or changed.
 
 ### qa
 
@@ -6258,8 +6262,12 @@ of any kind blocks only when a realistic user, input or repository state
 meets it, as the trust boundaries (rule 2) and the slice's unsupported
 setups (rule 4) define it; for tooling that builds or tests the code, a
 case the repository has today. A test that survives the probe the plan
-names for it still blocks (rule 3): the plan named that case. The
-reviewers apply the bound; Daisy checks none of it.
+names for it still blocks (rule 3): the plan named that case. On a
+slice that changes only documentation (the maintainer's ruling A3 of
+2026-11-22), a claim blocks only on a false statement the slice added or
+changed. The reviewers apply both; Daisy checks neither, and does not
+read whether a slice changes only documentation: the blocking sentence
+states the rule for the reviewer, who reads the diff.
 
 **The list, in the Task** (rules 1, 2 and 4; built at Step R6-A of the
 plan implementing the 2026-11-19 swarm roadmap). Every reviewer text
@@ -6269,7 +6277,9 @@ adds, after its row's text and before the slice sentence (7.4), the
 > A finding is blocking only when it is one of these four kinds:
 >
 > - claim: a claim of slice `<s>` that the head does not show, a test
->   that survives the probe the plan names for it among them;
+>   that survives the probe the plan names for it among them; on a slice
+>   that changes only documentation, only a false statement the slice
+>   added or changed;
 > - test: a test the plan names for slice `<s>` that is missing on this
 >   head or fails;
 > - defect: a defect in the code the change adds or changes;
@@ -6397,12 +6407,14 @@ bound it` since Step R6-F of the plan implementing the 2026-11-19 swarm
 roadmap, rule 1 as built: the narrowing keeps the realistic bound.) The worker's
 `review-3-changes-requested` text adds, a paragraph of its own after the
 row's text: `A blocking finding that is none of the kinds that block (a
-claim of the slice the head does not show, a test the plan names missing
-or failing, a defect in the changed code, a fault the revision
-introduced), or that no realistic user, input or repository state meets,
+claim of the slice the head does not show, on a slice that changes only
+documentation only a false statement the slice added or changed; a test
+the plan names missing or failing; a defect in the changed code; a fault
+the revision introduced), or that no realistic user, input or repository state meets,
 is answered, not fixed: say why it does not block. A non-blocking
 finding needs no change; Daisy files it for the owner.`, its bound on
-every kind since Step R6-F (rule 1 as built).
+every kind and its documentation-only slice since Step R6-F (rule 1 as
+built).
 
 **An approval accounts for its slice** (Step R6-E of the plan
 implementing the 2026-11-19 swarm roadmap; decision
@@ -7948,15 +7960,20 @@ staying as they are.
 distinct default the role has had since the defaults were introduced
 (b3ec5eb, Step 1 of the swarm build), oldest first and the current one
 last, from the root's history of that file, each the text `init` wrote,
-byte for byte. The owner has had six, the architect seven, the worker
-four, the adversary six, the sympathetic reviewer six, the QA
-one (talk A17); the last of the owner's, the architect's and the
-worker's, and the adversary's next-to-last, moved its paths to `/job`
-(Step R1-6 of the plan implementing the 2026-11-19 swarm roadmap), as
-the sympathetic reviewer's fourth did, its fifth dropping the reading
-guide (Step R3-10); the last of each reviewer's reads the diff the Task
-names, the whole diff in round 1 (Step E2b, decision
-[168](swarm/decisions/0168-a-delta-review.md)). A change to a
+byte for byte. The owner has had six, the architect eight, the worker
+five, the adversary seven, the sympathetic reviewer eight, the QA
+one (talk A17); the owner's sixth, the architect's seventh, the
+worker's fourth, the adversary's fifth and the sympathetic reviewer's
+fourth moved its paths to `/job` (Step R1-6 of the plan implementing
+the 2026-11-19 swarm roadmap), the sympathetic reviewer's fifth dropping
+the reading guide (Step R3-10); each reviewer's sixth reads the diff the
+Task names, the whole diff in round 1 (Step E2b, decision
+[168](swarm/decisions/0168-a-delta-review.md)); the last of the
+architect's, the worker's and the adversary's, and the sympathetic
+reviewer's seventh, take review by risk (Step R6-A, decision
+[171](swarm/decisions/0171-review-by-risk-with-an-end.md)), and the
+sympathetic reviewer's eighth holds a slice that changes only
+documentation to the statements it added or changed (Step R6-F). A change to a
 default appends its hash: `TestDefaultHistoryHoldsEachCurrentDefault`
 fails while a role's current default is not its last entry, so a prompt
 still at the old default is rewritten rather than taken for an edit. No

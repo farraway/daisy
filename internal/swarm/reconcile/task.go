@@ -119,7 +119,9 @@ const (
 // slice s but for the repository notes' trust boundaries: "realistic",
 // which bounds every kind (rule 1 as built at Step R6-F, the
 // maintainer's ruling A4), is read by them, or by the default where the
-// notes declare none (rule 2).
+// notes declare none (rule 2). Daisy does not read whether the slice
+// changes only documentation (ruling A3): the claim's item says how a
+// claim blocks then, for the reviewer to apply.
 func (j *Job) blockingSentence(s int) string {
 	realistic := `"Trust boundaries" in the repository notes and the slice's "Unsupported:" line define it`
 	if !j.trustBoundaries() {
@@ -127,7 +129,7 @@ func (j *Job) blockingSentence(s int) string {
 	}
 	return fmt.Sprintf(`A finding is blocking only when it is one of these four kinds:
 
-- claim: a claim of slice %d that the head does not show, a test that survives the probe the plan names for it among them;
+- claim: a claim of slice %d that the head does not show, a test that survives the probe the plan names for it among them; on a slice that changes only documentation, only a false statement the slice added or changed;
 - test: a test the plan names for slice %d that is missing on this head or fails;
 - defect: a defect in the code the change adds or changes;
 - introduced: a fault this revision introduced, behaviour that worked on a head reviewed before and fails on this one.
@@ -272,7 +274,7 @@ func (j *Job) task() string {
 		switch {
 		case j.Label == forge.ChangesRequested:
 			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge %s. Address each on the branch checked out in /job/work/%s (swarm/%d-%d), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`, cur.Repo, cur.Number, j.Cfg.Base, repo, j.N, s)
-			para(`A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, a test the plan names missing or failing, a defect in the changed code, a fault the revision introduced), or that no realistic user, input or repository state meets, is answered, not fixed: say why it does not block. A non-blocking finding needs no change; Daisy files it for the owner.`)
+			para(`A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, on a slice that changes only documentation only a false statement the slice added or changed; a test the plan names missing or failing; a defect in the changed code; a fault the revision introduced), or that no realistic user, input or repository state meets, is answered, not fixed: say why it does not block. A non-blocking finding needs no change; Daisy files it for the owner.`)
 		case planned:
 			plan, _ := j.PlanText()
 			add(`Implement slice %d of the accepted plan for issue #%d (it declares %d) in %s/%s, on the branch checked out in /job/work/%s (swarm/%d-%d). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.`, s, j.N, max(1, len(Slices(plan))), owner(j.Cfg), repo, repo, j.N, s)
