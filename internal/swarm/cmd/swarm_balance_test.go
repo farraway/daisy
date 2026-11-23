@@ -5,6 +5,7 @@ import (
 	"os"
 	osexec "os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -184,5 +185,79 @@ func TestEscapes(t *testing.T) {
 	// The count: a revert, each issue filed and each hand fix.
 	if n := (reconcile.Escapes{Reverted: true, Filed: 2, ByHand: 1}).Count(); n != 4 {
 		t.Errorf("Count = %d, want 4", n)
+	}
+}
+
+// TestFollowUpsProvedReal: the claim of Step R6-C of the plan
+// implementing the 2026-11-19 swarm roadmap, follow-up items proved real
+// (section 7.11, The balance): a merged slice's follow-up is the issue
+// carrying swarm:follow-up, open or closed, that the reconciler filed for
+// its pull request (one without the flag is none), its items each raised by the run it names (`<n>-<role>-<k>`);
+// an item is proved real when a `Follow-up: #<f> <i>` line names it in
+// the body of an issue with a merged slice: one whose issue is not merged,
+// a number no item has, or an issue no follow-up is, proves nothing. A
+// slice with no follow-up has none. With --until, a merge after it
+// proves nothing.
+func TestFollowUpsProvedReal(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.metricsHome()
+	a.setNow("2026-11-06T15:00:00Z")
+	a.forge.CreateIssue("One", "one", []string{forge.ProposalAccepted})
+	r := newBalanceRepo(a, "swarm/1-1", "swarm/1-2", "swarm/4-1", "swarm/5-1")
+	r.merge("swarm/1-1", "2026-11-06T18:00:00Z")
+	a.setNow("2026-11-06T18:05:00Z")
+	body := followUpBody("11", r.heads["swarm/1-1"], 1, 1,
+		"adversary run 4, round 1: [non-blocking] a.go:10: name the constant",
+		"adversary run 5, round 2: [non-blocking] b.go:4: a test for the empty input",
+		"sympathetic run 6, round 2: [non-blocking] c.go:1: the doc comment is stale")
+	a.forge.CreateIssue("Not a follow-up: no flag", body, nil)
+	f, _ := a.forge.CreateIssue("Follow-up: acme/app#11 (#1, slice 1)", body, []string{forge.FollowUp})
+	a.forge.CloseIssue(f)
+	a.setNow("2026-11-07T09:00:00Z")
+	a.forge.CreateIssue("Name the constant", fmt.Sprintf("**owner:** proposal\n\nClass: routine\nFollow-up: #%d 1, 3, 9\nFollow-up: #1 1\n", f), []string{forge.ProposalAccepted})
+	a.forge.CreateIssue("A test for the empty input", fmt.Sprintf("Follow-up: #%d 2\n", f), []string{forge.ProposalAccepted})
+	r.merge("swarm/1-2", "2026-11-07T10:00:00Z")
+	r.merge("swarm/4-1", "2026-11-07T12:00:00Z")
+	a.setNow("2026-11-07T12:05:00Z")
+	a.forge.CreateIssue("Follow-up: acme/app#13 (#4, slice 1)", followUpBody("13", r.heads["swarm/4-1"], 1, 4, "adversary run 2, round 1: [non-blocking] d.go:2: a stale name"), []string{forge.FollowUp})
+	r.mirror()
+	for run, rs := range map[string]string{
+		"1-worker-1": "branch swarm/1-1 in app\npushed " + r.heads["swarm/1-1"] + "\ncreated pull 11\n",
+		"1-worker-2": "branch swarm/1-2 in app\npushed " + r.heads["swarm/1-2"] + "\ncreated pull 14\n",
+		"4-worker-1": "branch swarm/4-1 in app\npushed " + r.heads["swarm/4-1"] + "\ncreated pull 13\n",
+		"5-worker-1": "branch swarm/5-1 in app\npushed " + r.heads["swarm/5-1"] + "\ncreated pull 15\n",
+	} {
+		a.runResult(run, rs+"outcome posted\ncollected\n", "")
+	}
+	a.setNow("2026-11-08T00:00:00Z")
+
+	type slice struct {
+		followUp int
+		items    []reconcile.FollowUpItem
+		real     int
+	}
+	got := func(sc reconcile.Scorecard) map[string]slice {
+		out := map[string]slice{}
+		for _, s := range sc.Slices {
+			out[fmt.Sprintf("app#%d", s.Pull)] = slice{s.FollowUp, s.Items, s.ProvedReal()}
+		}
+		return out
+	}
+	want := map[string]slice{
+		"app#11": {f, []reconcile.FollowUpItem{{Run: "1-adversary-4", Real: true}, {Run: "1-adversary-5"}, {Run: "1-sympathetic-6", Real: true}}, 2},
+		"app#14": {},
+		"app#13": {f + 3, []reconcile.FollowUpItem{{Run: "4-adversary-2"}}, 0},
+	}
+	if g := got(a.readScorecard()); !reflect.DeepEqual(g, want) {
+		t.Errorf("follow-ups:\n%+v\nwant:\n%+v", g, want)
+	}
+	// Until #4's merge: its proposal has no merged slice yet.
+	want = map[string]slice{
+		"app#11": {f, []reconcile.FollowUpItem{{Run: "1-adversary-4"}, {Run: "1-adversary-5"}, {Run: "1-sympathetic-6"}}, 0},
+		"app#14": {},
+	}
+	if g := got(a.readScorecard(Value{Flag: "--until", Value: "2026-11-07T11:00:00Z"})); !reflect.DeepEqual(g, want) {
+		t.Errorf("until 2026-11-07T11:00:00Z, follow-ups:\n%+v\nwant:\n%+v", g, want)
 	}
 }

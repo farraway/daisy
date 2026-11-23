@@ -80,6 +80,28 @@ type SliceScore struct {
 	Stops         map[string]int
 	Interventions map[string]int
 	Escapes       Escapes
+	FollowUp      int            // its follow-up's issue, 0 for none
+	Items         []FollowUpItem // the follow-up's items, in its order
+}
+
+// FollowUpItem is an item of a merged slice's follow-up (section 7.11,
+// Follow-ups): the run that raised it, `<n>-<role>-<k>`, and whether it
+// proved real, a `Follow-up: #<f> <i>` line naming it in the body of an
+// issue with a merged slice (The balance).
+type FollowUpItem struct {
+	Run  string
+	Real bool
+}
+
+// ProvedReal is how many of the slice's follow-up items proved real.
+func (sc SliceScore) ProvedReal() int {
+	n := 0
+	for _, it := range sc.Items {
+		if it.Real {
+			n++
+		}
+	}
+	return n
 }
 
 // Escapes is a merged slice's escapes (section 7.11, The balance), each
@@ -192,9 +214,12 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 		}
 		issues = append(issues, slices.DeleteFunc(is, func(i forge.Issue) bool { return after(i.Created) })...)
 	}
+	slices.SortFunc(issues, func(a, b forge.Issue) int { return a.Number - b.Number })
 	if err := s.escapes(rows, issues, after); err != nil {
 		return c, err
 	}
+	owner, _, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
+	followUps(rows, issues, owner)
 	configs := map[string]int{} // a configuration's index in c.Configs
 	for _, r := range recs {
 		if i, ok := sliceOfRecord(r, merges, byIssue[r.n]); ok {
@@ -320,6 +345,58 @@ func (s *Swarm) escapes(rows []SliceScore, issues []forge.Issue, after func(time
 		}
 	}
 	return nil
+}
+
+// followUpNames is a proposal's line naming the items of a follow-up its
+// job fixes (section 7.5): the follow-up's number and the items'.
+var followUpNames = regexp.MustCompile(`^Follow-up: #([0-9]+) (.+)$`)
+
+// followUpItem is an item of a follow-up as the reconciler numbers it
+// (section 7.11, Follow-ups): its number, the role and the run's number
+// that raised it.
+var followUpItem = regexp.MustCompile(`^([0-9]+)\. ([a-z]+) run ([0-9]+), round [0-9]+: `)
+
+// followUps fills each merged slice's follow-up from issues, in the order
+// of their numbers: the first carrying swarm:follow-up that the
+// reconciler filed for its pull request (followUpOf), its items each
+// proved real when a `Follow-up:` line of an issue with a merged slice
+// names it.
+func followUps(rows []SliceScore, issues []forge.Issue, owner string) {
+	merged := map[int]bool{}
+	for _, r := range rows {
+		merged[r.N] = true
+	}
+	fixed := map[[2]int]bool{} // a follow-up's number and an item's
+	for _, is := range issues {
+		if !merged[is.Number] {
+			continue
+		}
+		for _, l := range strings.Split(is.Body, "\n") {
+			if m := followUpNames.FindStringSubmatch(strings.TrimSpace(l)); m != nil {
+				for _, i := range strings.Split(m[2], ",") {
+					fixed[[2]int{atoi(m[1]), atoi(strings.TrimSpace(i))}] = true
+				}
+			}
+		}
+	}
+	for i := range rows {
+		r := &rows[i]
+		if r.Pull == 0 {
+			continue
+		}
+		for _, is := range issues {
+			if !slices.Contains(is.Labels, forge.FollowUp) || !followUpOf(is.Body, owner, forge.Pull{Repo: r.Repo, Number: r.Pull}) {
+				continue
+			}
+			r.FollowUp = is.Number
+			for _, l := range strings.Split(followUpItems(is.Body), "\n") {
+				if m := followUpItem.FindStringSubmatch(l); m != nil {
+					r.Items = append(r.Items, FollowUpItem{Run: fmt.Sprintf("%d-%s-%s", r.N, m[2], m[3]), Real: fixed[[2]int{is.Number, atoi(m[1])}]})
+				}
+			}
+			break
+		}
+	}
 }
 
 // sliceOfRecord is the index in merges of the slice r is a record of,
