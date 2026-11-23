@@ -433,7 +433,7 @@ func TestWorkspaceRoundFile(t *testing.T) {
 	a.pass()
 	want1 := "# Round 1 on " + h1 + "\n\nSlice 1, pull request app#1. The round before: none.\n\n" +
 		"## adversary, run 1: approve\n\nWhole: /job/memory/texts/1-adversary-1.md\n\n[non-blocking] main.go:1 could say why.\n\n" +
-		"## sympathetic, run 1: request-changes\n\nWhole: /job/memory/texts/1-sympathetic-1.md\n\n[blocking] main.go:1 says v1; the plan wants v2.\n"
+		"## sympathetic, run 1: request-changes\n\nWhole: /job/memory/texts/1-sympathetic-1.md\n\n[blocking] claim main.go:1 says v1; the plan wants v2.\n"
 	if got, ok := a.roundFile(1); !ok || got != want1 {
 		t.Fatalf("rounds/1.md (%v):\n%s\nwant:\n%s", ok, got, want1)
 	}
@@ -457,7 +457,7 @@ func TestWorkspaceRoundFile(t *testing.T) {
 	}
 	got, ok := a.roundFile(2)
 	head2 := "# Round 2 on " + h2 + "\n\nSlice 1, pull request app#1. The round before: 1 on " + h1 + ".\n\n" +
-		"## adversary, run 2: request-changes\n\nWhole: /job/memory/texts/1-adversary-2.md\n\n[blocking] main.go:1 says v1; the plan wants v2.\n\n" +
+		"## adversary, run 2: request-changes\n\nWhole: /job/memory/texts/1-adversary-2.md\n\n[blocking] claim main.go:1 says v1; the plan wants v2.\n\n" +
 		"## Changes since round 1\n\n```diff\ndiff --git a/main.go b/main.go\n"
 	if !ok || !strings.HasPrefix(got, head2) || !strings.HasSuffix(got, "\n@@ -1 +1 @@\n-v1\n+v2\n```\n") || strings.Contains(got, "other.txt") {
 		t.Fatalf("rounds/2.md (%v):\n%s", ok, got)

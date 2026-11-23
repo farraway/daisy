@@ -528,6 +528,9 @@ func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) err
 	if verdict == "comment" || (verdict == "request-changes") != blocking {
 		return c.fail("bad verdict")
 	}
+	if l := c.unkinded(out); l != "" {
+		return c.fail("bad verdict: a [blocking] line names no kind of the Task's list: " + l)
+	}
 	if verdict == "approve" {
 		plan, _, _, err := s.outputs().JobPlan(c.is, s.SwarmLogin)
 		if err != nil {
@@ -749,6 +752,20 @@ func roundsOf(reviews []forge.Review, answers []time.Time, swarmLogin string) []
 // blockingLines is a review text's blocking findings: its lines that
 // begin "[blocking]" (section 7.4).
 func blockingLines(text string) []string { return linesBeginning(text, "[blocking]") }
+
+// unkinded is the review's first `[blocking]` line that names no kind of
+// the blocking sentence's list (section 7.5; decision 172): its kind
+// (blockingKind) `unnamed`, or `unclosed` in a run whose result says
+// `round 1`, the list naming `unclosed` from round 2; "" for none.
+func (c *collection) unkinded(review string) string {
+	round, _ := Has(c.lines, "round")
+	for _, l := range blockingLines(review) {
+		if k := blockingKind(l); k == "unnamed" || k == "unclosed" && round == "round 1" {
+			return l
+		}
+	}
+	return ""
+}
 
 // unchecked is the claims an approval holds no `[checked] claim <n>` line
 // for (section 7.5; decision 172): a line beginning `[checked]` whose

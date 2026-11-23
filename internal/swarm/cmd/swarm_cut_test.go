@@ -20,7 +20,7 @@ var bigPlan = oneSlice + "\n## For the builder\n\n" + strings.Repeat("Write main
 
 // longReview is a reviewer's request-changes review longer than a forge
 // comment: its last blocking finding falls past the cut.
-var longReview = "VERDICT: request-changes\n\n[blocking] main.go:1 says v1; the plan wants v2.\n\n" + strings.Repeat("The reviewer explains the finding at length, line after line.\n", 1100) + "[blocking] main.go:2 the finding past the cut.\n"
+var longReview = "VERDICT: request-changes\n\n[blocking] claim main.go:1 says v1; the plan wants v2.\n\n" + strings.Repeat("The reviewer explains the finding at length, line after line.\n", 1100) + "[blocking] claim main.go:2 the finding past the cut.\n"
 
 // longReport is a worker run that commits main.go and writes a report
 // longer than a forge comment: the pull request's description is cut.
@@ -134,7 +134,7 @@ func cutTextReachesTheMemberWhole(t *testing.T, refused bool) {
 	whole("1-worker-2", "Plan", "plan.md", bigPlan)
 	whole("1-worker-2", "Rounds", "slices/1/rounds/", "")
 	whole("1-worker-2", "Report", "texts/1-worker-1.md", longReport)
-	if p := a.file("1-worker-2", "io/prompt.md"); !strings.Contains(p, "[blocking] main.go:1 says v1; the plan wants v2.\n[blocking] main.go:2 the finding past the cut.\n") {
+	if p := a.file("1-worker-2", "io/prompt.md"); !strings.Contains(p, "[blocking] claim main.go:1 says v1; the plan wants v2.\n[blocking] claim main.go:2 the finding past the cut.\n") {
 		t.Errorf("worker run 2's prompt does not list the cut review's findings whole:\n%s", p)
 	}
 	if round := readFile(t, a.state("jobs/1/slices/1/rounds/1.md")); !strings.Contains(round, "Whole: /job/memory/texts/1-sympathetic-1.md\n") {
@@ -157,7 +157,7 @@ func cutTextReachesTheMemberWhole(t *testing.T, refused bool) {
 	for _, run := range []string{"1-adversary-2", "1-sympathetic-2"} {
 		whole(run, "Plan", "plan.md", bigPlan)
 		p := a.file(run, "io/prompt.md")
-		if !strings.Contains(p, "[blocking] main.go:1 says v1; the plan wants v2.\n[blocking] main.go:2 the finding past the cut.\n") {
+		if !strings.Contains(p, "[blocking] claim main.go:1 says v1; the plan wants v2.\n[blocking] claim main.go:2 the finding past the cut.\n") {
 			t.Errorf("%s's prompt does not list the cut review's findings whole:\n%s", run, p)
 		}
 	}

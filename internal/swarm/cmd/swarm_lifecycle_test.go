@@ -147,7 +147,7 @@ const twoSlices = `## Research
 
 const (
 	approve        = "VERDICT: approve\n[checked] claim 1: main.go says v1 on this head.\n\nFine.\n"
-	requestChanges = "VERDICT: request-changes\n\n[blocking] main.go:1 says v1; the plan wants v2.\n"
+	requestChanges = "VERDICT: request-changes\n\n[blocking] claim main.go:1 says v1; the plan wants v2.\n"
 )
 
 // The lifecycle with every gate on (docs/swarm.md section 13, Step 29's

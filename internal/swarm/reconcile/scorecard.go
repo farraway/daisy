@@ -504,9 +504,8 @@ func (s *Swarm) approvers(rows []SliceScore, reviews map[slotOf]scoreRecord) err
 var BlockingKinds = []string{"claim", "test", "defect", "introduced", "unclosed", "unnamed"}
 
 // countBlocking counts, in kinds, the blocking findings of r when it is
-// a posted review: each `[blocking]` line of its run's out.md by the word
-// after the marker, case and a trailing colon aside, `unnamed` for a word
-// that is no kind (section 7.11; a run whose out.md is gone counts none).
+// a posted review: each `[blocking]` line of its run's out.md by its kind
+// (blockingKind; section 7.11; a run whose out.md is gone counts none).
 func (s *Swarm) countBlocking(r scoreRecord, kinds map[string]int) error {
 	if !isReviewer(r.Role) || r.Outcome != "posted" {
 		return nil
@@ -519,13 +518,21 @@ func (s *Swarm) countBlocking(r scoreRecord, kinds map[string]int) error {
 		return err
 	}
 	for _, l := range blockingLines(string(out)) {
-		kind := "unnamed"
-		if f := strings.Fields(strings.TrimPrefix(l, "[blocking]")); len(f) > 0 && slices.Contains(BlockingKinds[:5], strings.ToLower(strings.TrimSuffix(f[0], ":"))) {
-			kind = strings.ToLower(strings.TrimSuffix(f[0], ":"))
-		}
-		kinds[kind]++
+		kinds[blockingKind(l)]++
 	}
 	return nil
+}
+
+// blockingKind is the kind a `[blocking]` line names (section 7.11): the
+// first word after the marker, case and a trailing colon aside, when it
+// is one of BlockingKinds but `unnamed`; `unnamed` otherwise.
+func blockingKind(line string) string {
+	if f := strings.Fields(strings.TrimPrefix(line, "[blocking]")); len(f) > 0 {
+		if k := strings.ToLower(strings.TrimSuffix(f[0], ":")); slices.Contains(BlockingKinds[:5], k) {
+			return k
+		}
+	}
+	return "unnamed"
 }
 
 // runNumber is a run's number, the `<k>` of its `<n>-<role>-<k>`.

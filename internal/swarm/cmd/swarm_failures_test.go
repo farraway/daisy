@@ -791,3 +791,59 @@ func TestSwarmApprovalWithCheckedLinesCounts(t *testing.T) {
 		t.Errorf("labels %v\n%s", got, a.result("1-adversary-1"))
 	}
 }
+
+// R6-E's third claim, the maintainer's ruling A2 (decision 172; section
+// 7.5): a review whose `[blocking]` line names no kind of the blocking
+// sentence's list (its first word after the marker, case and a trailing
+// colon aside) is a bad verdict, its reason quoting the line, the run
+// failed and the issue blocked, no review posted; `unclosed` is of the
+// list from round 2 only. A review whose lines each name a kind of the
+// list is collected as before, `unclosed` among them in round 2.
+func TestSwarmBlockingLineWithoutAKindFails(t *testing.T) {
+	t.Parallel()
+	kinds := "[blocking] claim main.go:1: says v1; reproduced by cat main.go\n[blocking] Defect: main.go:2 panics; reproduced by go run .\n"
+	for _, tc := range []struct{ name, line string }{
+		{"a kind of its own", "[blocking] authored-address hostname validation main.go:42: a bare address passes; reproduced by go test ./..."},
+		{"no kind", "[blocking] main.go:1 says v1; the plan wants v2."},
+		{"unclosed in round 1", "[blocking] unclosed main.go:1: still v1; reproduced by cat main.go"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.inReview(oneSlice)
+			a.runner.Script(1, "adversary", runner.Canned{Out: "VERDICT: request-changes\n" + kinds + tc.line + "\n"})
+			a.pass()
+			reason := "bad verdict: a [blocking] line names no kind of the Task's list: " + tc.line
+			r := a.result("1-adversary-1")
+			if !strings.Contains(r, "\nfailed: "+reason+"\n") || !strings.HasSuffix(r, "outcome failed\ncollected\n") {
+				t.Errorf("result:\n%s", r)
+			}
+			note := mark("reconciler", 1) + "adversary run 1 failed: " + reason + " (at swarm:review-0-ready). Remove swarm:blocked to resume.\n\ncc @jane"
+			b := a.bodies(1)
+			if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-0-ready", "swarm:blocked", forge.Gated}) || b[len(b)-1] != note {
+				t.Errorf("T17: %v %q", got, b[len(b)-1])
+			}
+			if rs, _ := a.forge.Reviews(forge.Ref{Repo: "app", N: 1}); len(rs) != 0 {
+				t.Errorf("a review was posted: %+v", rs)
+			}
+		})
+	}
+	t.Run("kinds of the list", func(t *testing.T) {
+		a := newApplyWS(t)
+		a.inReview(oneSlice)
+		one := "VERDICT: request-changes\n" + kinds + "[blocking] TEST main_test.go:1 is missing; reproduced by go test ./...\n[blocking] introduced: main.go:3 no longer builds; reproduced by go build\n"
+		two := "VERDICT: request-changes\n[blocking] unclosed main.go:1: still v1; reproduced by cat main.go\n"
+		a.runner.Script(1, "adversary", runner.Canned{Out: one}, runner.Canned{Out: two})
+		a.pass() // round 1: the adversary requests changes
+		a.runner.Script(1, "worker", work("v2"))
+		a.pass() // the worker's revision
+		a.pass() // round 2: the adversary
+		for _, run := range []string{"1-adversary-1", "1-adversary-2"} {
+			if r := a.result(run); strings.Contains(r, "failed") || !strings.Contains(r, "\nposted review\n") {
+				t.Errorf("%s:\n%s", run, r)
+			}
+		}
+		if r := a.result("1-adversary-2"); !strings.Contains(r, "\nround 2\n") {
+			t.Errorf("the second review is not of round 2:\n%s", r)
+		}
+	})
+}

@@ -102,3 +102,16 @@ The reason keeps the bad verdict's words first, so the intervention that
 releases it is still `I16`, and the cause stays empty (7.5, Daisy's own
 stops). Tests: `TestSwarmApprovalWithoutCheckedLinesFails`,
 `TestSwarmApprovalWithCheckedLinesCounts`.
+
+**As built: the kind (Step R6-E of the plan implementing the 2026-11-19
+swarm roadmap; ruling A2).** The collection of every review, once its
+verdict agrees with its findings and before an approval's `[checked]`
+lines are read, fails the run `bad verdict: a [blocking] line names no
+kind of the Task's list: <the line>` at the first `[blocking]` line
+whose kind (`blockingKind`, the reading the scorecard's count now calls)
+is `unnamed`, or is `unclosed` in a run whose result says `round 1`.
+Only a request for changes can hold such a line, an approval with a
+`[blocking]` line being a bad verdict already. The reason quotes the
+line as the run's result holds it, on one line, so the note shows the
+maintainer what the reviewer wrote. Test:
+`TestSwarmBlockingLineWithoutAKindFails`.

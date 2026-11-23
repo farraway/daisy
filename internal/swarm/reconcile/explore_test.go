@@ -480,7 +480,7 @@ func (w *world) launch(j *Job) error {
 // outputs is what a member's run writes to out.md, by its outcome.
 var outputs = map[string]string{
 	"approve": "VERDICT: approve\n\nFine.\n",
-	"changes": "VERDICT: request-changes\n\n[blocking] main.go:1 says v1; the plan wants v2.\n",
+	"changes": "VERDICT: request-changes\n\n[blocking] claim main.go:1 says v1; the plan wants v2.\n",
 	"blocked": "BLOCKED: the plan names no test.\n",
 	"plan":    "## Steps\n\n1. app: change main.go again.\n",
 }
