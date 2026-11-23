@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"daisy/internal/metrics"
 	"daisy/internal/swarm/declare"
+	"daisy/internal/swarm/forge"
 )
 
 // The scorecard (section 11, swarm metrics --scorecard; decision 0156):
@@ -77,6 +79,26 @@ type SliceScore struct {
 	Rounds        int
 	Stops         map[string]int
 	Interventions map[string]int
+	Escapes       Escapes
+}
+
+// Escapes is a merged slice's escapes (section 7.11, The balance), each
+// made up to --until: its merge reverted; the issues of forge.repo, open
+// or closed, whose body holds a line `Defect in: <name>#<m>` for its pull
+// request (Filed); the commits on base's first-parent line in a mirror
+// that are no swarm merge and whose message holds that line (ByHand).
+type Escapes struct {
+	Reverted      bool
+	Filed, ByHand int
+}
+
+// Count is how many escapes e holds.
+func (e Escapes) Count() int {
+	n := e.Filed + e.ByHand
+	if e.Reverted {
+		n++
+	}
+	return n
 }
 
 // ScoreSummary is the window's figures: the slices merged in it, and of
@@ -139,7 +161,7 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 		recs = append(recs, scoreRecord{r, when.UTC(), n})
 	}
 	slices.SortFunc(recs, func(a, b scoreRecord) int { return a.when.Compare(b.when) })
-	merges, fetched, _, err := ReadMerges(s.O, s.state(), s.Cfg.Base)
+	merges, fetched, _, err := ReadMerges(s.O, s.state(), s.Cfg.Base, until)
 	if err != nil {
 		return c, err
 	}
@@ -160,7 +182,18 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 	}
 	rows := make([]SliceScore, len(merges))
 	for i, m := range merges {
-		rows[i] = SliceScore{Merge: m, Runs: map[string]int{}, Stops: map[string]int{}, Interventions: map[string]int{}}
+		rows[i] = SliceScore{Merge: m, Runs: map[string]int{}, Stops: map[string]int{}, Interventions: map[string]int{}, Escapes: Escapes{Reverted: m.Reverted}}
+	}
+	var issues []forge.Issue // forge.repo's, open and closed, opened up to until
+	for _, state := range []forge.State{forge.Open, forge.Closed} {
+		is, err := s.Forge.Issues(state, "")
+		if err != nil {
+			return c, fmt.Errorf("cannot read the issues: %v", err)
+		}
+		issues = append(issues, slices.DeleteFunc(is, func(i forge.Issue) bool { return after(i.Created) })...)
+	}
+	if err := s.escapes(rows, issues, after); err != nil {
+		return c, err
 	}
 	configs := map[string]int{} // a configuration's index in c.Configs
 	for _, r := range recs {
@@ -223,6 +256,70 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 		c.Summary.Merges++
 	}
 	return c, nil
+}
+
+// defectIn is a line naming a merged swarm pull request a defect is in
+// (section 7.11, The balance).
+var defectIn = regexp.MustCompile(`^Defect in: ([^\s#]+)#([0-9]+)$`)
+
+// defects is the pull requests text's `Defect in: <name>#<m>` lines
+// name, each once, as `<name>#<m>`.
+func defects(text string) map[string]bool {
+	named := map[string]bool{}
+	for _, l := range strings.Split(text, "\n") {
+		if m := defectIn.FindStringSubmatch(strings.TrimSpace(l)); m != nil {
+			named[fmt.Sprintf("%s#%d", m[1], atoi(m[2]))] = true
+		}
+	}
+	return named
+}
+
+// escapes counts each merged slice's escapes filed and fixed by hand
+// (Escapes): of issues, those whose body names its pull request on a
+// `Defect in:` line; of the commits on base's first-parent line in each
+// declared repository's mirror, not after until (after), those no swarm
+// merge whose message names it.
+func (s *Swarm) escapes(rows []SliceScore, issues []forge.Issue, after func(time.Time) bool) error {
+	named := map[string]*SliceScore{}
+	merged := map[string]bool{}
+	for i, r := range rows {
+		merged[r.SHA] = true
+		if r.Pull > 0 {
+			named[fmt.Sprintf("%s#%d", r.Repo, r.Pull)] = &rows[i]
+		}
+	}
+	for _, is := range issues {
+		for k := range defects(is.Body) {
+			if r := named[k]; r != nil {
+				r.Escapes.Filed++
+			}
+		}
+	}
+	g := Git{O: s.O, State: s.state()}
+	ref := "refs/heads/" + s.Cfg.Base
+	for _, repo := range s.Cfg.Repos {
+		m := g.Mirror(repo.Name)
+		if g.Head(m, ref) == "" {
+			continue
+		}
+		out, err := g.run(m, "log", "--first-parent", "--format=%x00%H %ct%n%B", ref, "--")
+		if err != nil {
+			return err
+		}
+		for _, entry := range strings.Split(out, "\x00")[1:] {
+			head, body, _ := strings.Cut(entry, "\n")
+			sha, at, _ := strings.Cut(head, " ")
+			if merged[sha] || after(time.Unix(int64(atoi(at)), 0)) {
+				continue
+			}
+			for k := range defects(body) {
+				if r := named[k]; r != nil {
+					r.Escapes.ByHand++
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // sliceOfRecord is the index in merges of the slice r is a record of,

@@ -32,7 +32,7 @@ type PullReverts struct {
 // ReadPullReverts reads the swarm's PullReverts under state, the merges
 // made at or after since (all of them when it is zero), from ReadMerges.
 func ReadPullReverts(o ops.Ops, state, base string, since time.Time) (PullReverts, error) {
-	merges, fetched, read, err := ReadMerges(o, state, base)
+	merges, fetched, read, err := ReadMerges(o, state, base, time.Time{})
 	if err != nil {
 		return PullReverts{}, err
 	}
@@ -52,13 +52,16 @@ func ReadPullReverts(o ops.Ops, state, base string, since time.Time) (PullRevert
 // Merge is a swarm pull request's merge as a mirror holds it: the issue
 // and slice its branch names (`swarm/<n>-<s>`), the repository, the
 // merge commit and its committer time, the worker run whose push it
-// merged, and whether a revert in effect on base takes it back.
+// merged, whether a revert in effect on base takes it back, and the pull
+// request's number, a worker run's `created pull <m>` on its branch (the
+// largest, should several runs name one; 0 for none).
 type Merge struct {
 	N, Slice  int
 	Repo, SHA string
 	At        time.Time
 	Run       string
 	Reverted  bool
+	Pull      int
 }
 
 // ReadMerges reads the swarm's merged pull requests under state, in the
@@ -71,9 +74,11 @@ type Merge struct {
 // a head that run pushed (its `pushed <sha>` line): the forge merges
 // with a merge commit at the head both reviews approved, the run's push
 // (Gitea.Merge). It is reverted when a revert in effect on base names it
-// (metrics.Reverted). A repository with no mirror, or whose mirror holds
-// no base, has none.
-func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, bool, error) {
+// (metrics.Reverted); with until not zero, a revert in effect on base as
+// it stood then, its newest first-parent commit not after until (section
+// 7.11, The balance: an escape is counted up to --until). A repository
+// with no mirror, or whose mirror holds no base, has none.
+func ReadMerges(o ops.Ops, state, base string, until time.Time) ([]Merge, time.Time, bool, error) {
 	var fetched time.Time
 	read := false
 	runs, err := Runs(o.FS(), state)
@@ -81,10 +86,11 @@ func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, bool, error)
 		return nil, fetched, read, err
 	}
 	type push struct {
-		run      string
-		n, slice int
+		run, branch string
+		n, slice    int
 	}
 	heads := map[string]map[string]push{} // a repository's pushed heads
+	pulls := map[string]int{}             // a branch's pull request, by `<name> <branch>`
 	for _, r := range runs {
 		if r.Role != "worker" {
 			continue
@@ -93,15 +99,20 @@ func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, bool, error)
 		if err != nil {
 			return nil, fetched, read, err
 		}
-		pushed, ok := Has(lines, "pushed")
 		repo := branchRepo(lines)
+		if l, ok := Has(lines, "created pull"); ok && repo != "" {
+			k := repo + " " + runBranch(lines)
+			m, _ := strconv.Atoi(strings.TrimPrefix(l, "created pull "))
+			pulls[k] = max(pulls[k], m)
+		}
+		pushed, ok := Has(lines, "pushed")
 		if !ok || repo == "" {
 			continue
 		}
 		if heads[repo] == nil {
 			heads[repo] = map[string]push{}
 		}
-		p := push{run: filepath.Base(r.Dir), n: r.N}
+		p := push{run: filepath.Base(r.Dir), branch: runBranch(lines), n: r.N}
 		if b, ok := Has(lines, "branch"); ok {
 			_, rest, _ := strings.Cut(strings.Fields(b)[1], "-") // swarm/<n>-<s>
 			p.slice, _ = strconv.Atoi(rest)
@@ -121,9 +132,17 @@ func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, bool, error)
 		if err != nil {
 			return nil, fetched, read, err
 		}
-		named, err := metrics.Reverted(o, m, ref)
-		if err != nil {
-			return nil, fetched, read, err
+		rev := ref
+		if !until.IsZero() {
+			if rev, err = g.run(m, "log", "-1", "--first-parent", "--format=%H", "--before="+until.UTC().Format(time.RFC3339), ref, "--"); err != nil {
+				return nil, fetched, read, err
+			}
+		}
+		var named metrics.Named
+		if rev != "" {
+			if named, err = metrics.Reverted(o, m, rev); err != nil {
+				return nil, fetched, read, err
+			}
 		}
 		for _, l := range strings.Split(out, "\n") {
 			f := strings.Fields(l) // the merge, its time, its parents
@@ -138,7 +157,7 @@ func ReadMerges(o ops.Ops, state, base string) ([]Merge, time.Time, bool, error)
 			if err != nil {
 				return nil, fetched, read, fmt.Errorf("git log in %s: %q has no commit time", m, l)
 			}
-			merges = append(merges, Merge{N: p.n, Slice: p.slice, Repo: repo, SHA: f[0], At: time.Unix(at, 0).UTC(), Run: p.run, Reverted: named.Has(f[0])})
+			merges = append(merges, Merge{N: p.n, Slice: p.slice, Repo: repo, SHA: f[0], At: time.Unix(at, 0).UTC(), Run: p.run, Reverted: named.Has(f[0]), Pull: pulls[repo+" "+p.branch]})
 		}
 		fi, err := o.FS().Stat(filepath.Join(m, "FETCH_HEAD"))
 		if err != nil && !errors.Is(err, iofs.ErrNotExist) {

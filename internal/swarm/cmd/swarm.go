@@ -1103,43 +1103,53 @@ func swarmReprice(c *Context, s *reconcile.Swarm, dryRun bool) error {
 // <time>]`, run read-only: a line per slice merged in the window, then
 // the summary.
 func swarmScorecard(c *Context, open opener) error {
-	c.Ops = ops.ReadOnly(c.Ops)
-	since, err := timeValue(c, "--since")
+	repo, sc, err := readScorecard(c, open)
 	if err != nil {
 		return err
 	}
+	writeScorecard(c.Stdout, repo, sc)
+	return nil
+}
+
+// readScorecard reads the scorecard of the window the flags give,
+// read-only, and the swarm's `<owner>/<repo>`.
+func readScorecard(c *Context, open opener) (string, reconcile.Scorecard, error) {
+	c.Ops = ops.ReadOnly(c.Ops)
+	since, err := timeValue(c, "--since")
+	if err != nil {
+		return "", reconcile.Scorecard{}, err
+	}
 	until, err := timeValue(c, "--until")
 	if err != nil {
-		return err
+		return "", reconcile.Scorecard{}, err
 	}
 	if !since.IsZero() && !until.IsZero() && until.Before(since) {
 		s, _ := c.Value("--since")
 		u, _ := c.Value("--until")
-		return UsageError(fmt.Sprintf("--until %s is before --since %s: the window would hold nothing", u, s))
+		return "", reconcile.Scorecard{}, UsageError(fmt.Sprintf("--until %s is before --since %s: the window would hold nothing", u, s))
 	}
 	cfg, err := forgeOnly(c)
 	if err != nil {
-		return err
+		return "", reconcile.Scorecard{}, err
 	}
 	vars, err := readSecrets(c, cfg, c.Stderr, cfg.Forge.TokenEnv)
 	if err != nil {
-		return err
+		return "", reconcile.Scorecard{}, err
 	}
 	token := vars[cfg.Forge.TokenEnv]
 	if token == "" {
-		return unsetErr(c, cfg, cfg.Forge.TokenEnv)
+		return "", reconcile.Scorecard{}, unsetErr(c, cfg, cfg.Forge.TokenEnv)
 	}
 	f, err := open(c.Ops, cfg.Forge, repoNames(cfg), token)
 	if err != nil {
-		return fmt.Errorf("Error: swarm: %v", err)
+		return "", reconcile.Scorecard{}, fmt.Errorf("Error: swarm: %v", err)
 	}
 	s := &reconcile.Swarm{O: c.Ops, Place: c.Swarm, WS: c.Swarm.Root, Root: c.Env.Root, Config: c.Env.Config, Local: c.Env.Local, Cfg: cfg, Forge: f, Out: c.Stdout, Err: c.Stderr}
 	sc, err := s.Scorecard(since, until)
 	if err != nil {
-		return fmt.Errorf("Error: swarm metrics --scorecard: %v", err)
+		return "", sc, fmt.Errorf("Error: swarm metrics --scorecard: %v", err)
 	}
-	writeScorecard(c.Stdout, cfg.Forge.Repo, sc)
-	return nil
+	return cfg.Forge.Repo, sc, nil
 }
 
 // timeValue is the RFC 3339 time a value flag gives, in UTC; zero when
