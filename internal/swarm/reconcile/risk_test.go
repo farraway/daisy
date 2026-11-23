@@ -19,11 +19,20 @@ func blockingList(s, realistic string) string {
 	return "A finding is blocking only when it is one of these four kinds:\n\n" +
 		"- claim: a claim of slice " + s + " that the head does not show, a test that survives the probe the plan names for it among them;\n" +
 		"- test: a test the plan names for slice " + s + " that is missing on this head or fails;\n" +
-		"- defect: a defect in the code the change adds or changes that a realistic user or input meets, \"realistic\" as " + realistic + ";\n" +
+		"- defect: a defect in the code the change adds or changes;\n" +
 		"- introduced: a fault this revision introduced, behaviour that worked on a head reviewed before and fails on this one.\n\n" +
+		realisticFor(realistic) + "\n\n" +
 		`Every other finding is non-blocking, however sound: hardening against what the notes trust, a fault met only in a setup the slice does not support, a probe of your own that a test survives (unless the change that survives shows the head itself is wrong), and wording. ` +
 		`Write a blocking finding's kind after its marker (from round 2, "unclosed" for an earlier one not closed) and, on the same line, the reproduction that shows it: a command, a test or the steps. ` +
 		`Request changes only for a blocking finding; Daisy files every non-blocking one for the owner when the pull request merges, so none is lost.`
+}
+
+// realisticFor is the blocking sentence's paragraph that bounds every
+// kind by what is realistic (section 7.11, rule 1 as built at Step R6-F;
+// the maintainer's ruling A4 of 2026-11-22), "realistic" as given.
+func realisticFor(realistic string) string {
+	return `A finding of any kind blocks only when a realistic user, input or repository state meets it, "realistic" as ` + realistic + `; for tooling that builds or tests the code, a case the repository has today, not one it could have. ` +
+		`A test that survives the probe the plan names for it still blocks: the plan named that case.`
 }
 
 const (
@@ -174,16 +183,68 @@ func TestTaskTextBlockingSentenceWithoutTrustBoundaries(t *testing.T) {
 	inSpec(t, defaultBoundaries)
 }
 
+// Every kind of blocking finding is bound by what is realistic (Step
+// R6-F of the plan implementing the 2026-11-19 swarm roadmap; section
+// 7.11, rule 1 as built; the maintainer's ruling A4 of 2026-11-22): the
+// blocking sentence says so for every kind, in a paragraph of its own
+// after the list, not in the defect's item alone, build and test tooling
+// read as the repository has it today, and a test that survives its named
+// probe still blocks; it does so for both reviewers in every round, with
+// the notes' trust boundaries or the default; a later round's narrowing
+// keeps the bound; and the worker answers, rather than fixes, a finding
+// no realistic case meets.
+func TestTaskTextRealisticForEveryKind(t *testing.T) {
+	const oldDefect = `- defect: a defect in the code the change adds or changes that a realistic user or input meets`
+	for name, c := range map[string]struct {
+		repos     []RepoNote
+		realistic string
+	}{
+		"declared": {[]RepoNote{{Name: "lib", Text: boundaries}}, declaredBoundaries},
+		"default":  {nil, defaultBoundaries},
+	} {
+		for _, role := range []string{"adversary", "sympathetic"} {
+			one := memoryJob(t, role, "swarm:review-0-ready")
+			one.Pull.Reviews = nil
+			rounds := map[string]*Job{"round 1": one, "an unchanged head's round": sameHead(t, role), "a delta round": delta(t, role)}
+			if role == "sympathetic" {
+				late := delta(t, role)
+				late.Pull.Reviews = late.Pull.Reviews[:1] // the adversary's, on aaa
+				rounds["a late first review"] = late
+			}
+			for round, j := range rounds {
+				j.Repos = c.repos
+				sys, _ := Render(j)
+				task := taskOf(t, sys)
+				what := name + ", " + role + ", " + round
+				paragraphs(t, what, task, realisticFor(c.realistic))
+				has(t, what, task, []string{"\n- defect: a defect in the code the change adds or changes;\n- introduced: "}, oldDefect)
+				if strings.Index(task, realisticFor(c.realistic)) < strings.Index(task, "\n- introduced: ") {
+					t.Errorf("%s: the bound comes before the list it bounds:\n%s", what, task)
+				}
+				switch round {
+				case "a delta round":
+					paragraphs(t, what, task, realisticFor(c.realistic), convergence("1"))
+				case "a late first review":
+					paragraphs(t, what, task, realisticFor(c.realistic), lateFirst("2", "1"))
+				}
+			}
+		}
+	}
+	sys, _ := Render(memoryJob(t, "worker", "swarm:review-3-changes-requested"))
+	has(t, "the worker on changes requested", taskOf(t, sys), []string{"or that no realistic user, input or repository state meets, is answered, not fixed"})
+	inSpec(t, realisticFor(declaredBoundaries))
+}
+
 // convergence is the convergence sentence of slice s (section 7.11, rule 5).
 func convergence(s string) string {
 	return `A blocking finding of the previous round or of your last review is closed when its own reproduction now passes on this head. ` +
-		`From this round, only three kinds of finding block: an earlier blocking finding not closed, a fault this revision introduced, and a claim of slice ` + s + ` that the head does not show; any other new finding, a new variant of a closed one among them, is non-blocking. ` +
+		`From this round, only three kinds of finding block, each as the paragraphs above bound it: an earlier blocking finding not closed, a fault this revision introduced, and a claim of slice ` + s + ` that the head does not show; any other new finding, a new variant of a closed one among them, is non-blocking. ` +
 		`A non-blocking finding the previous round or your last review already raised stands as written there: do not raise it again.`
 }
 
 // lateFirst is the text of a reviewer whose first review falls in round r.
 func lateFirst(r, s string) string {
-	return `This is round ` + r + ` of the pull request: a new finding blocks only when it is a claim of slice ` + s + ` that the head does not show, or a fault the latest revision introduced; any other is non-blocking.`
+	return `This is round ` + r + ` of the pull request: a new finding blocks only when it is a claim of slice ` + s + ` that the head does not show, or a fault the latest revision introduced, each as the paragraphs above bound it; any other is non-blocking.`
 }
 
 // The convergence sentence (Step R6-A of the plan implementing the
@@ -239,7 +300,7 @@ func TestTaskTextLateFirstReviewIsBoundByTheRound(t *testing.T) {
 // requested says so, a paragraph of its own after the row's text; its
 // Task on a slice to build does not.
 func TestTaskTextWorkerAnswersAFindingThatDoesNotBlock(t *testing.T) {
-	const want = `A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, a test the plan names missing or failing, a defect in the changed code a realistic user or input meets, a fault the revision introduced) is answered, not fixed: say which it is not, and why. A non-blocking finding needs no change; Daisy files it for the owner.`
+	const want = `A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, a test the plan names missing or failing, a defect in the changed code, a fault the revision introduced), or that no realistic user, input or repository state meets, is answered, not fixed: say why it does not block. A non-blocking finding needs no change; Daisy files it for the owner.`
 	sys, _ := Render(memoryJob(t, "worker", "swarm:review-3-changes-requested"))
 	task := taskOf(t, sys)
 	paragraphs(t, "changes requested", task, want)

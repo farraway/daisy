@@ -3592,8 +3592,9 @@ The **blocking sentence** (7.11, rules 1, 2 and 4; built at Step R6-A of
 the plan implementing the 2026-11-19 swarm roadmap, decision
 [171](swarm/decisions/0171-review-by-risk-with-an-end.md)) follows the
 row's text in every reviewer text, before the slice sentence, as
-paragraphs of its own (a list of the kinds of finding that block, then
-what every other finding is), which 7.11 quotes: a Task text's other
+paragraphs of its own (a list of the kinds of finding that block, the
+realistic bound on every kind, then what every other finding is), which
+7.11 quotes: a Task text's other
 sentences run on in one paragraph, where a smaller model misses one
 (decision
 [167](swarm/decisions/0167-the-system-prompt-stable-blocks-first.md) as
@@ -6249,6 +6250,17 @@ swarm's adversary reviews, is decision 171's.
    worker's container cannot run goes under "Not established:", and is
    never a reason to stop.
 
+**Rule 1, as built at Step R6-F** of the plan implementing the
+2026-11-19 swarm roadmap (the maintainer's ruling A4 of 2026-11-22;
+decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
+built): "realistic" bounds every kind, not the defect alone. A finding
+of any kind blocks only when a realistic user, input or repository state
+meets it, as the trust boundaries (rule 2) and the slice's unsupported
+setups (rule 4) define it; for tooling that builds or tests the code, a
+case the repository has today. A test that survives the probe the plan
+names for it still blocks (rule 3): the plan named that case. The
+reviewers apply the bound; Daisy checks none of it.
+
 **The list, in the Task** (rules 1, 2 and 4; built at Step R6-A of the
 plan implementing the 2026-11-19 swarm roadmap). Every reviewer text
 adds, after its row's text and before the slice sentence (7.4), the
@@ -6260,11 +6272,16 @@ adds, after its row's text and before the slice sentence (7.4), the
 >   that survives the probe the plan names for it among them;
 > - test: a test the plan names for slice `<s>` that is missing on this
 >   head or fails;
-> - defect: a defect in the code the change adds or changes that a
->   realistic user or input meets, "realistic" as "Trust boundaries" in
->   the repository notes and the slice's "Unsupported:" line define it;
+> - defect: a defect in the code the change adds or changes;
 > - introduced: a fault this revision introduced, behaviour that worked
 >   on a head reviewed before and fails on this one.
+>
+> A finding of any kind blocks only when a realistic user, input or
+> repository state meets it, "realistic" as "Trust boundaries" in the
+> repository notes and the slice's "Unsupported:" line define it; for
+> tooling that builds or tests the code, a case the repository has
+> today, not one it could have. A test that survives the probe the plan
+> names for it still blocks: the plan named that case.
 >
 > Every other finding is non-blocking, however sound: hardening against
 > what the notes trust, a fault met only in a setup the slice does not
@@ -6359,8 +6376,8 @@ on code unchanged since then is non-blocking.`, is replaced by the
 **convergence sentence**, the paragraph after the list of what blocks,
 which it narrows: `A blocking finding of the previous round or of your
 last review is closed when its own reproduction now passes on this head.
-From this round, only three kinds of finding block: an earlier blocking
-finding not closed, a fault this revision introduced, and a claim of
+From this round, only three kinds of finding block, each as the
+paragraphs above bound it: an earlier blocking finding not closed, a fault this revision introduced, and a claim of
 slice <s> that the head does not show; any other new finding, a new
 variant of a closed one among them, is non-blocking. A non-blocking
 finding the previous round or your last review already raised stands as
@@ -6374,14 +6391,18 @@ comment shows one. A reviewer whose first review falls in a later round
 reviews the whole change, and its text adds, in round r > 1, in the same
 place, `This is round <r> of the pull request: a new finding blocks only
 when it is a claim of slice <s> that the head does not show, or a fault
-the latest revision introduced; any other is non-blocking.` The worker's
+the latest revision introduced, each as the paragraphs above bound it;
+any other is non-blocking.` (Both say `each as the paragraphs above
+bound it` since Step R6-F of the plan implementing the 2026-11-19 swarm
+roadmap, rule 1 as built: the narrowing keeps the realistic bound.) The worker's
 `review-3-changes-requested` text adds, a paragraph of its own after the
 row's text: `A blocking finding that is none of the kinds that block (a
 claim of the slice the head does not show, a test the plan names missing
-or failing, a defect in the changed code a realistic user or input
-meets, a fault the revision introduced) is answered, not fixed: say
-which it is not, and why. A non-blocking finding needs no change; Daisy
-files it for the owner.`
+or failing, a defect in the changed code, a fault the revision
+introduced), or that no realistic user, input or repository state meets,
+is answered, not fixed: say why it does not block. A non-blocking
+finding needs no change; Daisy files it for the owner.`, its bound on
+every kind since Step R6-F (rule 1 as built).
 
 **An approval accounts for its slice** (Step R6-E of the plan
 implementing the 2026-11-19 swarm roadmap; decision

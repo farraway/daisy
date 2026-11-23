@@ -546,6 +546,38 @@ names another kind in its text would miscount. A review not posted
 counts none, as its findings reached no one. Test:
 `TestScorecardBlockingByKind`.
 
+**As built: realistic bounds every kind (Step R6-F of the plan
+implementing the 2026-11-19 swarm roadmap; the maintainer's ruling A4 of
+2026-11-22).** Rule 1 bound the defect alone by "realistic", and the ruling
+cites blocking findings of the other kinds on due times in year 9999,
+offsets of 60 minutes, a draft nested 60 quote levels, and test files
+and build tags the repository does not have. The ruling: every blocking
+finding, of any kind, must be met by a realistic user, input or
+repository state as the trust boundaries and the slice's `Unsupported:`
+line define it; for build and test tooling, a case the repository has
+today; a test that survives the probe its plan names still blocks. This
+refines rule 1 within its decision, which already read "realistic" by
+rule 2 and kept a probe the plan names (rule 3) blocking, so it is an
+As built note here, not a decision of its own (a new decision was the
+alternative, which would read as a change of the list). The blocking
+sentence moves the bound out of the defect's item into a paragraph of
+its own after the list, read for every kind, with the tooling case and
+the named probe's test in it: a paragraph, not a clause of each item,
+so that it is said once (decision
+[167](0167-the-system-prompt-stable-blocks-first.md)'s reason for
+paragraphs). The convergence sentence and the late first review's
+narrow the list "each as the paragraphs above bound it", so the
+narrowing does not read as a list of its own without the bound; and the
+worker's sentence on a blocking finding that does not block names one no
+realistic user, input or repository state meets, which the worker
+answers rather than fixes. Daisy checks none of it: the bound is the
+reviewers' to apply (R6-E's checks, the `[checked]` lines and a
+`[blocking]` line's kind, are as they were). Test:
+`TestTaskTextRealisticForEveryKind`, with the quotes of
+`TestTaskTextBlockingSentence`, `TestTaskTextConvergenceSentence`,
+`TestTaskTextLateFirstReviewIsBoundByTheRound` and
+`TestTaskTextWorkerAnswersAFindingThatDoesNotBlock`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

@@ -116,8 +116,10 @@ const (
 
 // blockingSentence is the list of what blocks a review (section 7.11,
 // rule 1; decision 171), the same for both reviewers in every round of
-// slice s but for the repository notes' trust boundaries: "realistic" is
-// read by them, or by the default where the notes declare none (rule 2).
+// slice s but for the repository notes' trust boundaries: "realistic",
+// which bounds every kind (rule 1 as built at Step R6-F, the
+// maintainer's ruling A4), is read by them, or by the default where the
+// notes declare none (rule 2).
 func (j *Job) blockingSentence(s int) string {
 	realistic := `"Trust boundaries" in the repository notes and the slice's "Unsupported:" line define it`
 	if !j.trustBoundaries() {
@@ -127,8 +129,10 @@ func (j *Job) blockingSentence(s int) string {
 
 - claim: a claim of slice %d that the head does not show, a test that survives the probe the plan names for it among them;
 - test: a test the plan names for slice %d that is missing on this head or fails;
-- defect: a defect in the code the change adds or changes that a realistic user or input meets, "realistic" as %s;
+- defect: a defect in the code the change adds or changes;
 - introduced: a fault this revision introduced, behaviour that worked on a head reviewed before and fails on this one.
+
+A finding of any kind blocks only when a realistic user, input or repository state meets it, "realistic" as %s; for tooling that builds or tests the code, a case the repository has today, not one it could have. A test that survives the probe the plan names for it still blocks: the plan named that case.
 
 Every other finding is non-blocking, however sound: hardening against what the notes trust, a fault met only in a setup the slice does not support, a probe of your own that a test survives (unless the change that survives shows the head itself is wrong), and wording. Write a blocking finding's kind after its marker (from round 2, "unclosed" for an earlier one not closed) and, on the same line, the reproduction that shows it: a command, a test or the steps. Request changes only for a blocking finding; Daisy files every non-blocking one for the owner when the pull request merges, so none is lost.`, s, s, realistic)
 }
@@ -268,7 +272,7 @@ func (j *Job) task() string {
 		switch {
 		case j.Label == forge.ChangesRequested:
 			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge %s. Address each on the branch checked out in /job/work/%s (swarm/%d-%d), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`, cur.Repo, cur.Number, j.Cfg.Base, repo, j.N, s)
-			para(`A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, a test the plan names missing or failing, a defect in the changed code a realistic user or input meets, a fault the revision introduced) is answered, not fixed: say which it is not, and why. A non-blocking finding needs no change; Daisy files it for the owner.`)
+			para(`A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, a test the plan names missing or failing, a defect in the changed code, a fault the revision introduced), or that no realistic user, input or repository state meets, is answered, not fixed: say why it does not block. A non-blocking finding needs no change; Daisy files it for the owner.`)
 		case planned:
 			plan, _ := j.PlanText()
 			add(`Implement slice %d of the accepted plan for issue #%d (it declares %d) in %s/%s, on the branch checked out in /job/work/%s (swarm/%d-%d). Do not change the plan's Test Plan; in the pull request's description, or in your comment when you continue an open pull request, report each Test Plan claim's status: done, not in this slice, or failing.`, s, j.N, max(1, len(Slices(plan))), owner(j.Cfg), repo, repo, j.N, s)
@@ -319,9 +323,9 @@ func (j *Job) task() string {
 		para(j.blockingSentence(s))
 		switch { // a later round narrows the list (section 7.11, rule 5)
 		case delta:
-			para(fmt.Sprintf(`A blocking finding of the previous round or of your last review is closed when its own reproduction now passes on this head. From this round, only three kinds of finding block: an earlier blocking finding not closed, a fault this revision introduced, and a claim of slice %d that the head does not show; any other new finding, a new variant of a closed one among them, is non-blocking. A non-blocking finding the previous round or your last review already raised stands as written there: do not raise it again.`, s))
+			para(fmt.Sprintf(`A blocking finding of the previous round or of your last review is closed when its own reproduction now passes on this head. From this round, only three kinds of finding block, each as the paragraphs above bound it: an earlier blocking finding not closed, a fault this revision introduced, and a claim of slice %d that the head does not show; any other new finding, a new variant of a closed one among them, is non-blocking. A non-blocking finding the previous round or your last review already raised stands as written there: do not raise it again.`, s))
 		case r > 1 && prev == "": // the reviewer's first review, in a later round
-			para(fmt.Sprintf(`This is round %d of the pull request: a new finding blocks only when it is a claim of slice %d that the head does not show, or a fault the latest revision introduced; any other is non-blocking.`, r, s))
+			para(fmt.Sprintf(`This is round %d of the pull request: a new finding blocks only when it is a claim of slice %d that the head does not show, or a fault the latest revision introduced, each as the paragraphs above bound it; any other is non-blocking.`, r, s))
 		}
 		if read := j.sliceSentence(); read != "" {
 			add("%s", read)

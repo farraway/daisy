@@ -1533,3 +1533,15 @@ they write.
   Sections 7.5, 7.7 and 7.11. Decision
   [172](swarm/decisions/0172-an-approval-accounts-for-its-slice.md), As
   built.
+- 2026-11-23, Step R6-F of the plan implementing the 2026-11-19 swarm
+  roadmap, realistic bounds every kind (the maintainer's ruling A4 of
+  2026-11-22): the blocking sentence states, in a paragraph of its own
+  after the list, that a finding of any kind blocks only when a
+  realistic user, input or repository state meets it, as the trust
+  boundaries and the slice's `Unsupported:` line define it, and, for
+  tooling that builds or tests the code, a case the repository has
+  today; a test that survives the probe the plan names for it still
+  blocks. The later rounds' narrowing keeps the bound, and the worker
+  answers a finding no realistic case meets. Sections 7.4 and 7.11.
+  Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
+  built.
