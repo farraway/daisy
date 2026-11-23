@@ -61,13 +61,14 @@ func IsCause(word string) bool {
 
 // stopCause is the word of the Cause: line under a stop's line (section
 // 7.5, The stop's cause): the stop's line the output's first that is
-// neither blank nor a Met: line (the batch's report, before it), and
+// neither blank nor a Met: or Triaged: line (the batch's report, before
+// it), and
 // beginning BLOCKED: or QUESTION:; the Cause: line the next line after
 // it that is not blank. found is false when there is no such line.
 func stopCause(out string) (word string, found bool) {
 	lines := strings.Split(out, "\n")
 	i := 0
-	for i < len(lines) && (strings.TrimSpace(lines[i]) == "" || metLine.MatchString(strings.TrimRight(lines[i], " "))) {
+	for i < len(lines) && (strings.TrimSpace(lines[i]) == "" || reportLine(strings.TrimRight(lines[i], " "))) {
 		i++
 	}
 	if i == len(lines) || !strings.HasPrefix(lines[i], "BLOCKED:") && !strings.HasPrefix(lines[i], question) {

@@ -1458,3 +1458,11 @@ they write.
   owner's `prompt_hash` changes. Sections 7.3, 7.4, 7.11 and 11.
   Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
   built.
+- 2026-11-22, Step R6-B of the plan implementing the 2026-11-19 swarm
+  roadmap, `Triaged:` closes the follow-up (rule 6 of section 7.11): the
+  owner's batch's `Triaged: #<f>: <why>` lines, read beside its `Met:`
+  lines before a proposal or a `BLOCKED:` line, each close the open
+  follow-up they name after the reconciler's note giving the reason and
+  the batch's proposals that name it; a line naming any other issue is
+  ignored with a warning. Sections 7.5, 7.6, 7.11 and 11. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.

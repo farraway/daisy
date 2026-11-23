@@ -298,7 +298,37 @@ func Recent(closed []forge.Issue, now time.Time) (recent, older []forge.Issue) {
 var (
 	proposalLine = regexp.MustCompile(`^## (.+)$`)
 	metLine      = regexp.MustCompile(`^Met: (.+)$`)
+	triagedLine  = regexp.MustCompile(`^Triaged: #([0-9]+): (.+)$`)
+	followUpLine = regexp.MustCompile(`^Follow-up: #([0-9]+)(?:[^0-9]|$)`)
 )
+
+// reportLine: l is one of the owner's report lines a batch run's out.md
+// may open with before its first proposal or its BLOCKED: line, a
+// `Met:` line or a `Triaged:` line (section 7.5).
+func reportLine(l string) bool { return metLine.MatchString(l) || triagedLine.MatchString(l) }
+
+// Triage is a batch run's `Triaged: #<f>: <why>` line (section 7.5): the
+// owner's word that follow-up f has no item left to propose.
+type Triage struct {
+	N   int
+	Why string
+}
+
+// Triaged is the Triaged: lines among the report lines a batch run's
+// out.md opens with (reportLine), in order.
+func Triaged(out string) []Triage {
+	var ts []Triage
+	for _, l := range strings.Split(strings.ReplaceAll(out, "\r\n", "\n"), "\n") {
+		l = strings.TrimRight(l, " ")
+		if m := triagedLine.FindStringSubmatch(l); m != nil {
+			n, _ := strconv.Atoi(m[1])
+			ts = append(ts, Triage{n, strings.TrimSpace(m[2])})
+		} else if l != "" && !metLine.MatchString(l) {
+			break
+		}
+	}
+	return ts
+}
 
 // noFailure begins the QA's output when every route and control it
 // drove worked (section 7.5).
@@ -308,8 +338,8 @@ const noFailure = "NO FAILURE:"
 type Proposal struct{ Title, Body string }
 
 // Proposals reads a batch run's out.md (section 7.5): the `Met:` lines
-// before the first proposal, then the first line after them when it is a
-// BLOCKED: line (isBlocked, blocked the rest of it, maybe empty), and the
+// before the first proposal (beside the `Triaged:` lines, Triaged), then
+// the first line after them when it is a BLOCKED: line (isBlocked, blocked the rest of it, maybe empty), and the
 // proposals, each a `## <title>` line (a title of 1 to 200 characters) and
 // its body up to the next, blank lines trimmed.
 func Proposals(out string) (met []string, blocked string, isBlocked bool, ps []Proposal) {
@@ -321,7 +351,7 @@ func Proposals(out string) (met []string, blocked string, isBlocked bool, ps []P
 			met = append(met, strings.TrimSpace(m[1]))
 			continue
 		}
-		if l != "" {
+		if l != "" && !triagedLine.MatchString(l) {
 			break
 		}
 	}
@@ -543,6 +573,9 @@ func (c *collection) batch() error {
 		if err != nil {
 			return err
 		}
+		if err := c.triage(string(out), nil); err != nil {
+			return err
+		}
 		return hold("blocked: "+blocked, "blocked", waits)
 	}
 	l, _ := Has(c.lines, "propose")
@@ -562,7 +595,64 @@ func (c *collection) batch() error {
 			return err
 		}
 	}
+	if !qa {
+		if err := c.triage(string(out), ps); err != nil {
+			return err
+		}
+	}
 	return c.end("posted")
+}
+
+// triage acts on the owner's Triaged: lines in out after its proposals
+// ps (section 7.6): each naming an open issue carrying swarm:follow-up
+// gets the reconciler's note, the owner's reason and the proposals of ps
+// whose body names it on a Follow-up: line, unless the issue's newest
+// comment is that note already, then is closed, the flag kept, and
+// `triaged #<f>` recorded, so a retried collection does neither again; a
+// line naming any other issue is ignored with a warning.
+func (c *collection) triage(out string, ps []Proposal) error {
+	s := c.s
+	for _, tr := range Triaged(out) {
+		done := fmt.Sprintf("triaged #%d", tr.N)
+		if slices.Contains(c.lines, done) {
+			continue
+		}
+		is, err := s.Forge.Issue(tr.N)
+		if err != nil && !errors.Is(err, forge.ErrNotFound) {
+			return err
+		}
+		if err != nil || !is.Open || !slices.Contains(is.Labels, forge.FollowUp) {
+			fmt.Fprintf(s.Err, "⚠ #%d: Triaged names no open follow-up issue; ignored\n", tr.N)
+			continue
+		}
+		var titles []string
+		for _, pr := range ps {
+			for _, l := range strings.Split(pr.Body, "\n") {
+				if m := followUpLine.FindStringSubmatch(strings.TrimSpace(l)); m != nil && m[1] == strconv.Itoa(tr.N) {
+					titles = append(titles, `"`+pr.Title+`"`)
+					break
+				}
+			}
+		}
+		proposed := "no proposal of the batch names it"
+		if len(titles) > 0 {
+			proposed = "proposed for it: " + strings.Join(titles, ", ")
+		}
+		note := marker("reconciler", c.r.K) + fmt.Sprintf("The owner triaged this follow-up in its batch run %d: %s; %s.", c.r.K, tr.Why, proposed)
+		if k := len(is.Comments); k == 0 || is.Comments[k-1].Body != note {
+			if err := s.Forge.Comment(forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: tr.N}, note); err != nil {
+				return err
+			}
+		}
+		if err := s.Forge.CloseIssue(tr.N); err != nil {
+			return err
+		}
+		if err := c.step(done); err != nil {
+			return err
+		}
+		fmt.Fprintf(s.Out, "%sfollow-up #%d closed (triaged)\n", c.head, tr.N)
+	}
+	return nil
 }
 
 // propose creates the batch run's proposal i, pr, as an issue labelled

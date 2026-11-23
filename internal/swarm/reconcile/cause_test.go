@@ -13,6 +13,7 @@ func TestStopCause(t *testing.T) {
 		{"BLOCKED: x\nCause: plan\n", "plan", true},
 		{"BLOCKED: x\r\nCause: ruling \r\n", "ruling", true},
 		{"\nMet: briefs/a.md\n\nBLOCKED: x\n\n\nCause: capacity\n", "capacity", true},
+		{"Met: briefs/a.md\nTriaged: #4: nothing left\nBLOCKED: x\nCause: scope\n", "scope", true}, // the owner's Triaged: lines, as its Met: lines (section 7.5)
 		{"QUESTION: x\nCause:\n", "", true},
 		{"QUESTION: x\nwhy\nCause: plan\n", "", false},
 		{"BLOCKED: x\n", "", false},

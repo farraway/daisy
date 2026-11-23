@@ -252,3 +252,85 @@ func TestSwarmOwnerBatchReadsFollowUps(t *testing.T) {
 		t.Errorf("the batch proposed nothing beside the follow-ups:\n%s", a.stdout.String())
 	}
 }
+
+// The owner's Triaged: line closes the follow-up it names (sections 7.5,
+// 7.6 and 7.11, The owner's triage): the reconciler's note, the owner's
+// reason and the batch's proposals that name it on a Follow-up: line, is
+// posted on it, then it is closed, the flag kept; a follow-up the batch
+// does not name stays open; a Triaged: line naming a closed follow-up,
+// an issue that is no follow-up or a number the forge does not hold is
+// ignored with a warning. Triaged: lines may come before the BLOCKED:
+// line, which still holds the batch, and their follow-ups are closed.
+func TestSwarmTriagedClosesTheFollowUp(t *testing.T) {
+	t.Parallel()
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	item := "adversary run 2, round 1: [non-blocking] main.go:1: the version could be a constant"
+	// setup files follow-ups #1 and #2 open, #3 closed, and #4, an issue
+	// with no label.
+	setup := func(t *testing.T) *applyWS {
+		a := newApplyWS(t)
+		for i, closed := range []bool{false, false, true} {
+			n, err := a.forge.CreateIssue(fmt.Sprintf("Follow-up: acme/app#%d (#9, slice 1)", i+1), followUpBody(fmt.Sprint(i+1), sha, 1, 9, item), []string{forge.FollowUp})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if closed {
+				a.forge.CloseIssue(n)
+			}
+		}
+		a.forge.CreateIssue("The maintainer's own", "Something.", nil)
+		a.release()
+		return a
+	}
+	triaged := func(t *testing.T, a *applyWS, n int, note string) {
+		t.Helper()
+		is := a.issue(n)
+		if len(is.Comments) == 0 {
+			t.Fatalf("#%d: no note; open %v\n%s\n%s", n, is.Open, a.stdout.String(), a.stderr.String())
+		}
+		last := is.Comments[len(is.Comments)-1]
+		if is.Open || !reflect.DeepEqual(is.Labels, []string{forge.FollowUp}) || last.Body != note || last.Author != "swarm-bot" ||
+			!strings.Contains(a.stdout.String(), fmt.Sprintf("owner run 1: follow-up #%d closed (triaged)\n", n)) {
+			t.Errorf("#%d: open %v, %v, %d comments, the last %q\n%s", n, is.Open, is.Labels, len(is.Comments), last.Body, a.stdout.String())
+		}
+	}
+
+	t.Run("with a proposal", func(t *testing.T) {
+		t.Parallel()
+		a := setup(t)
+		out := "Triaged: #1: each item is proposed below\nTriaged: #3: closed already\nTriaged: #4: no follow-up\nTriaged: #99: no issue\n\n" +
+			"## Name the version constant\nBrief: docs/briefs/a.md — M1 The drift\nClass: routine\nFollow-up: #1 1\nName it.\n\n" +
+			"## Another job\nBrief: docs/briefs/a.md — M1 The drift\nClass: routine\nNot a follow-up.\n"
+		a.runner.Script(0, "owner", runner.Canned{Out: out, Stdout: claudeResult})
+		a.pass()
+		if !strings.Contains(a.stdout.String(), "owner run 1: proposed #5 Name the version constant\n") {
+			t.Fatalf("not proposed:\n%s\n%s", a.stdout.String(), a.stderr.String())
+		}
+		triaged(t, a, 1, mark("reconciler", 1)+`The owner triaged this follow-up in its batch run 1: each item is proposed below; proposed for it: "Name the version constant".`)
+		if is := a.issue(2); !is.Open || len(is.Comments) != 0 {
+			t.Errorf("#2, not triaged, changed: %+v", is)
+		}
+		for _, n := range []int{3, 4, 99} {
+			if w := fmt.Sprintf("⚠ #%d: Triaged names no open follow-up issue; ignored\n", n); !strings.Contains(a.stderr.String(), w) {
+				t.Errorf("stderr lacks %q:\n%s", w, a.stderr.String())
+			}
+		}
+		if is := a.issue(4); !is.Open || len(is.Comments) != 0 {
+			t.Errorf("#4, no follow-up, changed: %+v", is)
+		}
+	})
+
+	t.Run("before BLOCKED:", func(t *testing.T) {
+		t.Parallel()
+		a := setup(t)
+		a.runner.Script(0, "owner", runner.Canned{Out: "Triaged: #2: met only where the notes trust\nBLOCKED: nothing worth proposing\nCause: scope\n", Stdout: claudeResult})
+		a.pass()
+		if !strings.Contains(a.stdout.String(), "owner run 1: blocked: nothing worth proposing; batch held") {
+			t.Fatalf("not held as blocked:\n%s", a.stdout.String())
+		}
+		triaged(t, a, 2, mark("reconciler", 1)+"The owner triaged this follow-up in its batch run 1: met only where the notes trust; no proposal of the batch names it.")
+		if is := a.issue(1); !is.Open {
+			t.Errorf("#1, not triaged, closed")
+		}
+	})
+}

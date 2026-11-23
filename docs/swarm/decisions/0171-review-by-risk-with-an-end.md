@@ -473,6 +473,21 @@ it, rather than only with a follow-up open (the alternative, which
 would make the owner's `prompt_hash` vary with the forge). The QA's
 prompt and Task have neither. Test: `TestSwarmOwnerBatchReadsFollowUps`.
 
+**As built: `Triaged:` closes the follow-up (Step R6-B of the plan
+implementing the 2026-11-19 swarm roadmap).** The `Triaged:` lines are
+read among the report lines before the first proposal or the `BLOCKED:`
+line, as the `Met:` lines are, by `Proposals`, the stop's cause and the
+collection alike; the owner's collection acts on them after its
+proposals, or before the hold a `BLOCKED:` run writes, and not for a run
+that failed (no output, a secret, nothing proposed), whose lines are not
+read. The note names the batch's proposals by title, not by number: a
+retried collection does not know the numbers of the proposals an
+earlier attempt created (naming them by number, which needs each
+creation's number recorded, was the alternative). A comment already
+the issue's newest is not posted again, and the close is recorded in
+the run's result, so a retry makes neither twice. Test:
+`TestSwarmTriagedClosesTheFollowUp`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,
