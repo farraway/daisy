@@ -112,8 +112,8 @@ func TestRenderReviewerOutputContractFirst(t *testing.T) {
 		}
 		has(t, name+"'s # Output", out, []string{"Request changes only for a blocking finding"})
 		task := bs[len(bs)-1]
-		if task.heading != "# Task" || lastLine(task.text) != reminder {
-			t.Errorf("%s: the last block %q ends %q, want # Task ending %q", name, task.heading, lastLine(task.text), reminder)
+		if task.heading != "# Task" || !strings.HasPrefix(lastLine(task.text), reminder+" ") {
+			t.Errorf("%s: the last block %q ends %q, want # Task whose last line begins %q", name, task.heading, lastLine(task.text), reminder)
 		}
 		if n := strings.Count(task.text, "VERDICT: approve"); n != 1 {
 			t.Errorf("%s: the Task states the verdict %d times, want once, in its last line:\n%s", name, n, task.text)
@@ -121,6 +121,55 @@ func TestRenderReviewerOutputContractFirst(t *testing.T) {
 	}
 	if runs["adversary, round 1"] == "" || blocksOf(runs["adversary, round 1"])[1] != blocksOf(runs["adversary, round 2"])[1] {
 		t.Errorf("the adversary's # Output differs between its rounds")
+	}
+}
+
+// R6-E's first claim (decision 172): both reviewers' # Output asks an
+// approval for a `[checked] claim <n>:` line per claim of the Test Plan
+// and, from round 2, a `[closed]` line per earlier blocking finding it
+// judges closed, its approval template showing both right after the
+// verdict line; every reviewer Task's last line reminds of the
+// `[checked]` lines, and from round 2 of the `[closed]` lines too.
+func TestReviewerOutputAsksForCheckedLines(t *testing.T) {
+	const (
+		checked = `An approval then holds a line "[checked] claim <n>: <how you checked it>" for each claim of the plan's Test Plan.`
+		closed  = `From this round it also holds a line "[closed] <the finding's file:line or kind>: <how its reproduction now passes>" for each earlier blocking finding you judge closed.`
+	)
+	for _, role := range []string{"adversary", "sympathetic"} {
+		out := Output(role)
+		_, approval, ok := strings.Cut(out, "```text\nVERDICT: approve\n")
+		if !ok {
+			t.Fatalf("%s's # Output has no approval template:\n%s", role, out)
+		}
+		lines := strings.Split(approval, "\n")
+		if len(lines) < 2 || lines[0] != "[checked] claim <n>: <how it was checked; the probe and what it showed>" ||
+			lines[1] != "[closed] <the earlier blocking finding's file:line or kind>: <how its reproduction now passes>" {
+			t.Errorf("%s's approval template does not begin with the [checked] and [closed] lines:\n%s", role, approval)
+		}
+		has(t, role+"'s # Output", out, []string{
+			"one line `[checked] claim <n>: <how it was checked; the probe and what it showed>` for each claim of the plan's Test Plan",
+			"from round 2, one line `[closed] <the earlier blocking finding's file:line or kind>: <how its reproduction now passes>` for each blocking finding of the previous round, or of your last review, that you judge closed",
+		})
+	}
+	runs := reviewerRuns(t)
+	f, _, pr, _ := planned(t)
+	f.Say(pr, "jane", "Adversary: x.go:1 is right.")
+	pulls, _ := f.Pulls(1, []string{"swarm-bot"})
+	j := job(f, 1, "adversary", "swarm:review-0-ready")
+	j.Pulls, j.Pull, j.Check = pulls, thread(f, pr), "No check result for this head."
+	runs["adversary, round 2, the maintainer's comment"], _ = Render(j)
+	for name, sys := range runs {
+		bs := blocksOf(sys)
+		task := bs[len(bs)-1].text
+		last := lastLine(task)
+		// Every Task of a round after the first says so: "This is round <r>".
+		later := regexp.MustCompile(`This is round [0-9]+`).MatchString(task)
+		if name == "adversary, round 2" && !later {
+			t.Fatalf("%s: no round sentence:\n%s", name, task)
+		}
+		if !strings.Contains(last, checked) || strings.Contains(last, closed) != later {
+			t.Errorf("%s: the Task's last line, want the [checked] reminder and, from round 2, the [closed] one:\n%s", name, last)
+		}
 	}
 }
 
@@ -232,7 +281,8 @@ func TestRenderNamesTheOutputFile(t *testing.T) {
 	const (
 		block   = "Write your output to the file `/job/io/out.md`: Daisy reads your output from it alone, never from your final message."
 		last    = `Write your output to /job/io/out.md, not in your final message.`
-		verdict = ` Begin your output with the line "VERDICT: approve" or "VERDICT: request-changes".`
+		verdict = ` Begin your output with the line "VERDICT: approve" or "VERDICT: request-changes". An approval then holds a line "[checked] claim <n>: <how you checked it>" for each claim of the plan's Test Plan.`
+		later   = verdict + ` From this round it also holds a line "[closed] <the finding's file:line or kind>: <how its reproduction now passes>" for each earlier blocking finding you judge closed.`
 		answer  = ` Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when the plan, the thread and the resources do not settle it.`
 		passed  = ` Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when only the maintainer can settle it.`
 	)
@@ -293,14 +343,18 @@ func TestRenderNamesTheOutputFile(t *testing.T) {
 	// again after the maintainer's comment and after the worker's answer.
 	for name, sys := range reviewerRuns(t) {
 		role, _, _ := strings.Cut(name, ", ")
-		check(name, role, sys, verdict)
+		reminder := verdict
+		if name == "adversary, round 2" { // the sympathetic reviewer's alone completes no round
+			reminder = later
+		}
+		check(name, role, sys, reminder)
 	}
 	screenshots := func(j *Job) { j.Artifacts = []Artifact{{}} }
 	f.Say(pr, "jane", "Adversary: x.go:1 is right.")
-	on("adversary, the maintainer's comment", run("adversary", "swarm:review-0-ready", nil), verdict)
+	on("adversary, the maintainer's comment", run("adversary", "swarm:review-0-ready", nil), later)
 	f.Comment(pr, marker("worker", 2)+"NO CHANGE: x.go:1 is right.")
-	on("adversary, an answer", run("adversary", "swarm:review-0-ready", screenshots), verdict)
-	on("sympathetic, an answer", run("sympathetic", "swarm:review-1-in-progress", screenshots), verdict)
+	on("adversary, an answer", run("adversary", "swarm:review-0-ready", screenshots), later)
+	on("sympathetic, an answer", run("sympathetic", "swarm:review-1-in-progress", screenshots), later)
 
 	if len(seen) != 6 {
 		t.Errorf("roles seen %v, want all six", seen)
@@ -367,7 +421,7 @@ func TestSpecQuotesTheOutputTexts(t *testing.T) {
 	if got, want := flat(strings.Join(quote, "\n")), flat(Output("adversary")); got != want {
 		t.Errorf("section 7.4's quote of the reviewers' # Output:\n%s\nthe code's:\n%s", got, want)
 	}
-	for _, r := range []string{outputReminder, verdictReminder, architectReminder, ownerReminder} {
+	for _, r := range []string{outputReminder, verdictReminder, checkedReminder, closedReminder, architectReminder, ownerReminder} {
 		if !strings.Contains(flat(spec), flat(r)) {
 			t.Errorf("section 7.4 does not quote %q", r)
 		}

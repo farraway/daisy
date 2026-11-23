@@ -1510,3 +1510,11 @@ they write.
   and 11, docs/cli.md. Decisions
   [156](swarm/decisions/0156-a-scorecard-per-merged-slice.md) and
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-23, Step R6-E of the plan implementing the 2026-11-19 swarm
+  roadmap, an approval accounts for its slice: the reviewers' `# Output`
+  asks an approval for a `[checked] claim <n>:` line per claim of the
+  plan's Test Plan and, from round 2, a `[closed]` line per earlier
+  blocking finding it judges closed, its approval template showing both;
+  every reviewer Task's last line reminds of them. Sections 7.4 and
+  7.11. Decision
+  [172](swarm/decisions/0172-an-approval-accounts-for-its-slice.md).

@@ -80,13 +80,13 @@ var roleOutputs = map[string]string{
 		"- `BLOCKED: <why, or your question>` as the only line, when you cannot start or drive the app.",
 }
 
-// reviewerOutput is the reviewers': the verdict line verdictOf reads, and
-// the findings whose severity review checks against it (sections 7.4 and
-// 7.5).
-const reviewerOutput = "The first line of your output is exactly `VERDICT: approve` or `VERDICT: request-changes`, alone on its line, before any heading or other text. Then the review: each finding a line beginning `[blocking]` or `[non-blocking]`, with its file and line. Request changes only for a blocking finding, of a kind the Task lists; approve otherwise. Daisy reads the verdict from the first line alone, so a review whose first line is anything else (`## Review`, a title, a blank line) fails. For example:\n\n" +
+// reviewerOutput is the reviewers': the verdict line verdictOf reads, the
+// findings whose severity review checks against it, and an approval's
+// account of what it checked (sections 7.4 and 7.5; decision 172).
+const reviewerOutput = "The first line of your output is exactly `VERDICT: approve` or `VERDICT: request-changes`, alone on its line, before any heading or other text. Then the review: each finding a line beginning `[blocking]` or `[non-blocking]`, with its file and line. Request changes only for a blocking finding, of a kind the Task lists; approve otherwise. An approval accounts for what you checked, after its verdict line: one line `[checked] claim <n>: <how it was checked; the probe and what it showed>` for each claim of the plan's Test Plan, `<n>` its number there (for a claim not in this slice, say so and how you know), and, from round 2, one line `[closed] <the earlier blocking finding's file:line or kind>: <how its reproduction now passes>` for each blocking finding of the previous round, or of your last review, that you judge closed. Daisy reads the verdict from the first line alone, so a review whose first line is anything else (`## Review`, a title, a blank line) fails. For example:\n\n" +
 	"```text\nVERDICT: request-changes\n[blocking] <kind> <file>:<line>: <what is wrong>; reproduced by <a command, a test or the steps>\n[non-blocking] <file>:<line>: <what could be better>\n```\n\n" +
 	"or, with no blocking finding:\n\n" +
-	"```text\nVERDICT: approve\n[non-blocking] <file>:<line>: <what could be better>\n```\n\n" +
+	"```text\nVERDICT: approve\n[checked] claim <n>: <how it was checked; the probe and what it showed>\n[closed] <the earlier blocking finding's file:line or kind>: <how its reproduction now passes>\n[non-blocking] <file>:<line>: <what could be better>\n```\n\n" +
 	"Two other first lines replace the verdict, each only in the case the Task names for it: `QUESTION: <one question>`, when the plan, the issue and its thread leave open something your review depends on, and `BLOCKED: <your question>`, when you cannot review without an answer from the maintainer."
 
 // Output is role's # Output block, "" for a role that has none.
@@ -103,9 +103,13 @@ func Output(role string) string {
 
 // The reminders end the last line of the Task texts whose first line is
 // required (section 7.4): the reviewers', and the architect's and the
-// owner's on a question.
+// owner's on a question. A reviewer's goes on with the lines an approval
+// holds (decision 172): checkedReminder in every round, closedReminder
+// from round 2.
 const (
 	verdictReminder   = `Begin your output with the line "VERDICT: approve" or "VERDICT: request-changes".`
+	checkedReminder   = `An approval then holds a line "[checked] claim <n>: <how you checked it>" for each claim of the plan's Test Plan.`
+	closedReminder    = `From this round it also holds a line "[closed] <the finding's file:line or kind>: <how its reproduction now passes>" for each earlier blocking finding you judge closed.`
 	architectReminder = `Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when the plan, the thread and the resources do not settle it.`
 	ownerReminder     = `Begin your output with the line "ANSWER: <your answer>", or with "QUESTION: <the question>" when only the maintainer can settle it.`
 )
@@ -292,7 +296,10 @@ func (j *Job) task() string {
 	default: // the reviewers
 		s := sliceOf(cur, j.N)
 		r, prev := j.round(cur)
-		last += " " + verdictReminder
+		last += " " + verdictReminder + " " + checkedReminder
+		if r > 1 {
+			last += " " + closedReminder
+		}
 		// The sympathetic reviewer reads its clone and runs nothing (section
 		// 7.11, The defaults).
 		clone := "a throwaway clone you may build and test in"

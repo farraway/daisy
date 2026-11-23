@@ -3479,9 +3479,16 @@ adversary's and the sympathetic reviewer's) reads:
 > other text. Then the review: each finding a line beginning
 > `[blocking]` or `[non-blocking]`, with its file and line. Request
 > changes only for a blocking finding, of a kind the Task lists; approve
-> otherwise. Daisy reads the verdict from the first line alone, so a
-> review whose first line is anything else (`## Review`, a title, a blank
-> line) fails. For example:
+> otherwise. An approval accounts for what you checked, after its verdict
+> line: one line `[checked] claim <n>: <how it was checked; the probe and
+> what it showed>` for each claim of the plan's Test Plan, `<n>` its
+> number there (for a claim not in this slice, say so and how you know),
+> and, from round 2, one line `[closed] <the earlier blocking finding's
+> file:line or kind>: <how its reproduction now passes>` for each
+> blocking finding of the previous round, or of your last review, that
+> you judge closed. Daisy reads the verdict from the first line alone, so
+> a review whose first line is anything else (`## Review`, a title, a
+> blank line) fails. For example:
 >
 > ```text
 > VERDICT: request-changes
@@ -3493,6 +3500,8 @@ adversary's and the sympathetic reviewer's) reads:
 >
 > ```text
 > VERDICT: approve
+> [checked] claim <n>: <how it was checked; the probe and what it showed>
+> [closed] <the earlier blocking finding's file:line or kind>: <how its reproduction now passes>
 > [non-blocking] <file>:<line>: <what could be better>
 > ```
 >
@@ -3533,7 +3542,16 @@ output`.
 
 The **reminder** ends that last line in each text whose first line is
 required, restating it: a reviewer's `Begin your output
-with the line "VERDICT: approve" or "VERDICT: request-changes".`, the
+with the line "VERDICT: approve" or "VERDICT: request-changes".`,
+followed by the **account reminder** (built at Step R6-E of the plan
+implementing the 2026-11-19 swarm roadmap; decision
+[172](swarm/decisions/0172-an-approval-accounts-for-its-slice.md)),
+`An approval then holds a line "[checked] claim <n>: <how you checked
+it>" for each claim of the plan's Test Plan.`, and in round r > 1 (the
+delta review, the first review in a later round and the two rounds on
+the head reviewed before alike) by `From this round it also holds a line
+"[closed] <the finding's file:line or kind>: <how its reproduction now
+passes>" for each earlier blocking finding you judge closed.`; the
 architect's on a question `Begin your output with the line "ANSWER:
 <your answer>", or with "QUESTION: <the question>" when the plan, the
 thread and the resources do not settle it.`, the owner's on a question
@@ -6355,6 +6373,24 @@ or failing, a defect in the changed code a realistic user or input
 meets, a fault the revision introduced) is answered, not fixed: say
 which it is not, and why. A non-blocking finding needs no change; Daisy
 files it for the owner.`
+
+**An approval accounts for its slice** (Step R6-E of the plan
+implementing the 2026-11-19 swarm roadmap; decision
+[172](swarm/decisions/0172-an-approval-accounts-for-its-slice.md), the
+maintainer's ruling A2 of 2026-11-22 among its reasons). An approval,
+after its verdict line, holds one line `[checked] claim <n>: <how it was
+checked; the probe and what it showed>` for each claim of the plan's
+Test Plan, `<n>` its number there, a claim outside the slice accounted
+for by saying so; from round 2, it holds one line `[closed] <the earlier
+blocking finding's file:line or kind>: <how its reproduction now
+passes>` for each blocking finding of the previous round, or of the
+reviewer's last review, that it judges closed under rule 5. The
+reviewers' `# Output` asks for both and its approval template shows
+them, and every reviewer Task's last line reminds of them (7.4, the
+account reminder). Daisy reads no claim's slice: the Test Plan numbers
+its claims across the plan, and only the worker's report says which are
+not in this slice. Daisy cannot match a `[closed]` line to the finding
+it closes, so it asks for the line and does not check it.
 
 **Follow-ups** (rule 6; the filing built at Step R6-B of the plan
 implementing the 2026-11-19 swarm roadmap). *When:* at step 8 of a pass, or at the merge
