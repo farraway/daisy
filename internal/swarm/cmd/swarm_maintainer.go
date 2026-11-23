@@ -600,17 +600,18 @@ func swarmMerge(c *Context, open opener) error {
 	if err != nil {
 		return err
 	}
-	m.listPulls()
+	m.listPulls(outputs)
 	return nil
 }
 
 // listPulls is the issue's pull requests listed in its body after the
-// verb's merge (reconcile.ListPulls), as a pass lists them, under the
-// maintainer's token, since no pass reads the issue the verb closes; a
-// failure is a warning, the merge being made.
-func (m *maintainer) listPulls() {
+// verb's merge (reconcile.ListPulls), as a pass lists them, the merged
+// one's follow-up filed first (docs/swarm.md section 7.11, Follow-ups),
+// under the maintainer's token, since no pass reads the issue the verb
+// closes; a failure is a warning, the merge being made.
+func (m *maintainer) listPulls(outputs reconcile.Outputs) {
 	owner, _, _ := strings.Cut(m.cfg.Forge.Repo, "/")
-	if err := reconcile.ListPulls(m.f, owner, m.is, reconcile.Openers(m.swarm, m.cfg.Trusted), m.swarm, m.c.Stdout); err != nil {
+	if err := reconcile.ListPulls(m.f, owner, m.is, reconcile.Openers(m.swarm, m.cfg.Trusted), m.swarm, &reconcile.FollowUps{Outputs: outputs}, m.c.Stdout); err != nil {
 		fmt.Fprintf(m.c.Stderr, "⚠ #%d: pull requests: %v\n", m.n, err)
 	}
 }

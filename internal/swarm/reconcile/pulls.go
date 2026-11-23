@@ -118,8 +118,12 @@ func pullState(p forge.Pull, reviews []forge.Review, comments []forge.Comment, s
 // yet opened is not listed. When the body would change, the issue is
 // read again right before the write, as a relabel reads the labels, and
 // its body edited, the block alone replaced, with `#<n> pull requests
-// listed` on out; a body with nothing to change is not written.
-func ListPulls(f forge.Adapter, owner string, is forge.Issue, openers []string, swarmLogin string, out io.Writer) error {
+// listed` on out; a body with nothing to change is not written. Before
+// that write, each pull request merged whose item the block read again
+// does not show merged has its follow-up filed by fu (section 7.11,
+// Follow-ups), so a filing that fails leaves the block as it was and the
+// next listing files it.
+func ListPulls(f forge.Adapter, owner string, is forge.Issue, openers []string, swarmLogin string, fu *FollowUps, out io.Writer) error {
 	pulls, err := f.Pulls(is.Number, openers)
 	if err != nil {
 		return err
@@ -154,6 +158,13 @@ func ListPulls(f forge.Adapter, owner string, is forge.Issue, openers []string, 
 	if body == now.Body {
 		return nil
 	}
+	for _, p := range pulls {
+		if p.Merged && !shownMerged(now.Body, owner, p) {
+			if err := fu.file(f, owner, now, p, openers, swarmLogin, out); err != nil {
+				return fmt.Errorf("follow-up of %s/%s#%d: %w", owner, p.Repo, p.Number, err)
+			}
+		}
+	}
 	if err := f.EditIssue(is.Number, body); err != nil {
 		return err
 	}
@@ -162,10 +173,13 @@ func ListPulls(f forge.Adapter, owner string, is forge.Issue, openers []string, 
 }
 
 // listPulls is pass step (8)'s block, and the merge step's on an issue it
-// closed: ListPulls under the swarm's token, a failure a warning, the
-// block being a view.
+// closed: ListPulls under the swarm's token, with the pass's follow-ups,
+// a failure a warning, the block being a view.
 func (s *Swarm) listPulls(is forge.Issue) {
-	if err := ListPulls(s.Forge, s.owner(), is, Openers(s.SwarmLogin, s.Cfg.Trusted), s.SwarmLogin, s.Out); err != nil {
+	if s.followUps == nil {
+		s.followUps = &FollowUps{Outputs: s.outputs()}
+	}
+	if err := ListPulls(s.Forge, s.owner(), is, Openers(s.SwarmLogin, s.Cfg.Trusted), s.SwarmLogin, s.followUps, s.Out); err != nil {
 		fmt.Fprintf(s.Err, "⚠ #%d: pull requests: %v\n", is.Number, err)
 	}
 }

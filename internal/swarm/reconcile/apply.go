@@ -59,6 +59,7 @@ type Swarm struct {
 	ci         []CIDiffer          // the repositories whose CI differs, as warnCI read them this pass
 	ciErr      error               // warnCI's read refused this pass: notify tells nothing
 	ciTold     []string            // the lines warnCI printed last
+	followUps  *FollowUps          // the pass's follow-ups, the issues carrying swarm:follow-up read once (listPulls)
 }
 
 // Openers is whose pull requests are the swarm's (section 10, Pulls):
@@ -145,7 +146,7 @@ func (s *Swarm) Pass(wait bool) error {
 			mine++
 		}
 	}
-	s.collected, s.started, s.moves, s.fetched = 0, 0, map[int]string{}, false
+	s.collected, s.started, s.moves, s.fetched, s.followUps = 0, 0, map[int]string{}, false, nil
 	errs := []error{s.collectAll(running, !wait), s.expireCapacity(), s.release()}
 	launched := 0
 	if paused := s.paused(); paused != "" {

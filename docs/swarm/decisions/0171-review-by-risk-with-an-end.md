@@ -439,6 +439,31 @@ fake's filter off; the GitHub adapter, not yet built, takes it with its
 build. Test: `TestIssuesWithoutLabel`, and the label counts of the
 `init` and `apply` tests.
 
+**As built: the follow-up's findings and its filing (Step R6-B of the
+plan implementing the 2026-11-19 swarm roadmap).** One function lists
+an issue's pull requests for the pass, the merge step and `swarm merge`
+alike (`ListPulls`), so the filing sits there, between the read of the
+body again and the block's write, for each pull request merged whose
+item the body does not show `merged`; the verb gives it the
+maintainer's adapter, the pass the swarm's. The findings are read by
+round (section 6's rounds, the reopenings without a commit among
+them), each review whole where Daisy cut it on the forge, as decision
+[149](0149-daisy-reads-a-text-it-cut-whole.md) reads every text it
+cut: a finding past the cut would otherwise be lost, which rule 6 rules
+out (the posted text alone, which section 7.11's `Reviews(m)` could be
+read as, was the alternative). The deduplication's key is the line with
+the `:<digits>` after a reference's file dropped and every space and
+case ignored. A filing that fails is the listing's failure, a warning,
+the block left unwritten, so the next listing files it; the lists of
+follow-ups are read once per pass, or per verb, and grow with each
+one filed. The follow-up's marker is read as the reconciler's, as the
+gate note's is. This answers the triage's L378 (a round-1
+non-blocking finding not repeated in the approving round reached no
+one): it reaches the owner in the follow-up, the merge gate's note left
+as section 5 has it. Tests: `TestFollowUpFindings`,
+`TestSwarmFollowUpFiledAtTheMerge`, `TestSwarmFollowUpFiledOnce`,
+`TestSwarmFollowUpNotFiledForPastMerges`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

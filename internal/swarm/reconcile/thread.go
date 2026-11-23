@@ -25,6 +25,9 @@ var markerRe = regexp.MustCompile(`^<!-- daisy-swarm role=(owner|architect|worke
 const (
 	gateMarker = "<!-- daisy-swarm role=reconciler kind=gate -->"
 	autoMarker = "<!-- daisy-swarm role=reconciler kind=auto -->"
+	// followUpMarker opens a follow-up issue's body (section 7.11,
+	// Follow-ups), which reports on no run.
+	followUpMarker = "<!-- daisy-swarm role=reconciler kind=follow-up -->"
 )
 
 // Mark is what a marker names: the role and the run's number, or for a
@@ -69,7 +72,7 @@ func Swarms(e Entry, swarmLogin string) (Mark, bool) {
 }
 
 // Marked is body's mark when its first line, without a trailing `\r`, is
-// the marker, or the gate note's, the auto note's, a continuation's, a
+// the marker, or the gate note's, the auto note's, a follow-up's, a continuation's, a
 // capacity note's or a command's answer's, whoever wrote it; a run or a comment id past a
 // 64-bit integer is no marker's (section 6).
 func Marked(body string) (Mark, bool) {
@@ -80,6 +83,8 @@ func Marked(body string) (Mark, bool) {
 		return Mark{Role: "reconciler", Kind: "gate"}, true
 	case autoMarker:
 		return Mark{Role: "reconciler", Kind: "auto"}, true
+	case followUpMarker:
+		return Mark{Role: "reconciler", Kind: "follow-up"}, true
 	case continuedMarker:
 		return Mark{Role: "reconciler", Kind: "continued"}, true
 	case capacityMarker:

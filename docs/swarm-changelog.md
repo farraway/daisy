@@ -1439,3 +1439,13 @@ they write.
   filter, in the Gitea adapter and the fake. Sections 2, 5, 10 and 11.
   Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
   built.
+- 2026-11-22, Step R6-B of the plan implementing the 2026-11-19 swarm
+  roadmap, the follow-up's filing (rule 6 of section 7.11): when an
+  issue's pull requests are listed (step 8 of a pass, the merge step,
+  `swarm merge` under the maintainer's token), each merged pull request
+  the block does not yet show merged has the non-blocking findings of
+  every round's swarm reviews, each once and read whole where Daisy cut
+  them, filed as one issue carrying `swarm:follow-up`, before the
+  block's write, unless one is filed already. Sections 5, 6, 7.8, 7.11,
+  11 and 12. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
