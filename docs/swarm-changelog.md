@@ -1406,3 +1406,10 @@ they write.
   its comment on the issue when that comment would end an open #m's hold.
   Sections 5, 6 and 11. Decision
   [74](swarm/decisions/0074-the-label-vocabulary.md), As built.
+- 2026-11-22, Step SF-4 of the plan implementing the 2026-11-19 swarm
+  roadmap: every maintainer's verb says where its comment went, `#<n>
+  commented on the issue` or `#<n> commented on pull <name>#<m>` (and
+  `comment already posted` likewise), where `unblock` printed `#<n>
+  commented` for the issue. Section 11. Decision
+  [91](swarm/decisions/0091-the-maintainers-verbs-and-status.md), As
+  built.

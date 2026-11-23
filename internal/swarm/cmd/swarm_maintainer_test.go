@@ -225,7 +225,7 @@ func TestSwarmMaintainerCloseUnblockMerged(t *testing.T) {
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-posted"})
 	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:proposal-accepted"})
 	const head = "Maintainer jane on acme/swarm-app\n"
-	m.ok(swarmClose, head+"#1 commented\n#1 closed\n#1 swarm:proposal-posted → swarm:rejected\n", "1", "Not", "this", "one.")
+	m.ok(swarmClose, head+"#1 commented on the issue\n#1 closed\n#1 swarm:proposal-posted → swarm:rejected\n", "1", "Not", "this", "one.")
 	m.ok(swarmClose, head+"#2 closed\n#2 swarm:proposal-accepted → swarm:rejected\n", "2")
 	if got := m.writes(1, 2); !reflect.DeepEqual(got, []string{"jane closed #1", "jane labeled swarm:rejected #1", "jane unlabeled swarm:proposal-posted #1", `jane comment "Not this one." #1`,
 		"jane closed #2", "jane labeled swarm:rejected #2", "jane unlabeled swarm:proposal-accepted #2"}) {
@@ -235,7 +235,7 @@ func TestSwarmMaintainerCloseUnblockMerged(t *testing.T) {
 	m = newMaintainerWS(t)
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted", forge.Blocked, forge.Gated})
 	m.forge.Comment(issue1, mark("reconciler", 1)+"worker run 1 failed: check failed (at swarm:plan-1-accepted). Remove swarm:blocked to resume.")
-	m.ok(swarmUnblock, head+"#1 commented\n#1 blocked cleared\n#1 gated cleared\n", "1", "The fixture is fixed;", "build again.")
+	m.ok(swarmUnblock, head+"#1 commented on the issue\n#1 blocked cleared\n#1 gated cleared\n", "1", "The fixture is fixed;", "build again.")
 	is, _ := m.forge.Issue(1)
 	if last := is.Comments[len(is.Comments)-1]; last.Author != "jane" || last.Body != "The fixture is fixed; build again." || !reflect.DeepEqual(is.Labels, []string{"swarm:plan-1-accepted"}) {
 		t.Errorf("unblock: %+v, %q", last, is.Labels)
@@ -249,7 +249,7 @@ func TestSwarmMaintainerCloseUnblockMerged(t *testing.T) {
 	m.edit(func(c *declare.Config) { c.Trusted = []string{"swarm-bot"} })
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:proposal-accepted", forge.Blocked})
 	m.forge.Comment(issue1, mark("reconciler", 2)+"architect run 2 is blocked (at swarm:proposal-accepted). Answer, then remove swarm:blocked to resume.")
-	m.ok(swarmUnblock, head+"#1 commented\n#1 blocked cleared\n", "1", "Use the stack.")
+	m.ok(swarmUnblock, head+"#1 commented on the issue\n#1 blocked cleared\n", "1", "Use the stack.")
 	if m.stderr.String() != "⚠ jane is not in trusted: no member reads your comment (docs/swarm.md section 6)\n" {
 		t.Errorf("stderr %q", m.stderr.String())
 	}
@@ -543,9 +543,9 @@ func TestSwarmMaintainerHolds(t *testing.T) {
 	}
 	m.ok(resumeIssue, head+"#1 paused cleared\n", "1")
 	m.ok(resumeIssue, head+"#1 not paused\n", "1")
-	m.ok(swarmBlock, head+"#2 blocking\n#1 commented\n", "1", "--by", "2")
+	m.ok(swarmBlock, head+"#2 blocking\n#1 commented on the issue\n", "1", "--by", "2")
 	m.values = []Value{{Flag: "--by", Value: "3"}}
-	m.ok(swarmBlock, head+"#3 blocking\n#1 commented\n", "1")
+	m.ok(swarmBlock, head+"#3 blocking\n#1 commented on the issue\n", "1")
 	m.values = nil
 	if got := m.writes(1, 2, 3); !reflect.DeepEqual(got, []string{"jane labeled swarm:paused #1", "jane unlabeled swarm:paused #1", `jane comment "Blocked by #2" #1`, `jane comment "Blocked by #3" #1`,
 		"jane labeled swarm:blocking #2", "jane labeled swarm:blocking #3"}) {

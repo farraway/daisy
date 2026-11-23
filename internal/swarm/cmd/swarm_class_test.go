@@ -234,11 +234,11 @@ func TestSwarmMaintainerClass(t *testing.T) {
 	m := newMaintainerWS(t)
 	m.forge.CreateIssue("Pin the corpus", mark("owner", 1)+"Brief: docs/briefs/m0.md — First\nClass: routine\nPin it.", []string{"swarm:proposal-posted"})
 	head := "Maintainer jane on acme/" + m.iss() + "\n"
-	m.ok(swarmClass, head+"#1 class-architecture\n#1 commented\n", "1", "architecture")
+	m.ok(swarmClass, head+"#1 class-architecture\n#1 commented on the issue\n", "1", "architecture")
 	if is, _ := m.forge.Issue(1); !reflect.DeepEqual(is.Labels, []string{"swarm:proposal-posted", forge.ClassArchitecture}) {
 		t.Errorf("architecture: %v", is.Labels)
 	}
-	m.ok(swarmClass, head+"#1 class-architecture cleared\n#1 commented\n", "1", "routine")
+	m.ok(swarmClass, head+"#1 class-architecture cleared\n#1 commented on the issue\n", "1", "routine")
 	m.ok(swarmClass, head+"#1 already routine\n", "1", "routine")
 	want := []string{
 		"jane labeled swarm:class-architecture #1", "jane unlabeled swarm:class-architecture #1",
@@ -251,7 +251,7 @@ func TestSwarmMaintainerClass(t *testing.T) {
 	m.as["jane-456"].CreateIssue("Fix the typo", "teh", []string{"swarm:plan-0-posted"}) // #2, jane's
 	m.ok(swarmClass, head+"#2 class-architecture\n", "2", "architecture")                // architecture by default, unflagged: the flag set
 	m.ok(swarmClass, head+"#2 already architecture\n", "2", "architecture")
-	m.ok(swarmClass, head+"#2 class-architecture cleared\n#2 commented\n", "2", "routine")
+	m.ok(swarmClass, head+"#2 class-architecture cleared\n#2 commented on the issue\n", "2", "routine")
 	if is, _ := m.forge.Issue(2); reconcile.ClassOf(is, "swarm-bot", []string{"jane", "swarm-bot"}) != reconcile.Routine {
 		t.Errorf("#2 not routine: %+v", is)
 	}

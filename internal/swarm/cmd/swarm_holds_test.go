@@ -279,10 +279,10 @@ func TestSwarmBlockHoldsBeforeOrAfterUnblock(t *testing.T) {
 	for _, n := range []int{2, 3} {
 		a.forge.Comment(a.ref(n), mark("reconciler", 1)+"architect run 1 failed: x (at swarm:proposal-accepted). Remove swarm:blocked to resume.")
 	}
-	m.ok(maintainerVerb("block"), "Maintainer jane on acme/swarm-app\n#1 blocking\n#2 commented\n", "2", "--by", "1")
-	m.ok(maintainerVerb("unblock"), "Maintainer jane on acme/swarm-app\n#2 commented\n#2 held by #1: Blocked by #1 posted again\n#2 blocked cleared\n", "2", "Go", "on.")
-	m.ok(maintainerVerb("unblock"), "Maintainer jane on acme/swarm-app\n#3 commented\n#3 blocked cleared\n", "3", "Go", "on.")
-	m.ok(maintainerVerb("block"), "Maintainer jane on acme/swarm-app\n#3 commented\n", "3", "--by", "1")
+	m.ok(maintainerVerb("block"), "Maintainer jane on acme/swarm-app\n#1 blocking\n#2 commented on the issue\n", "2", "--by", "1")
+	m.ok(maintainerVerb("unblock"), "Maintainer jane on acme/swarm-app\n#2 commented on the issue\n#2 held by #1: Blocked by #1 posted again\n#2 blocked cleared\n", "2", "Go", "on.")
+	m.ok(maintainerVerb("unblock"), "Maintainer jane on acme/swarm-app\n#3 commented on the issue\n#3 blocked cleared\n", "3", "Go", "on.")
+	m.ok(maintainerVerb("block"), "Maintainer jane on acme/swarm-app\n#3 commented on the issue\n", "3", "--by", "1")
 	for _, n := range []int{2, 3} {
 		a.runner.Script(n, "architect", runner.Canned{Out: oneSlice})
 	}

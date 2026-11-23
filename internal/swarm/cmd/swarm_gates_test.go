@@ -218,7 +218,7 @@ func TestSwarmApplyRoundLimit(t *testing.T) {
 				}
 				m := &maintainerWS{statusWS: a.statusWS, as: map[string]*forge.Fake{"jane-456": a.forge.As(forge.Account{Login: "jane"})}}
 				m.secrets(bothTokens)
-				m.ok(swarmUnblock, "Maintainer jane on acme/swarm-app\n#1 commented\n#1 blocked cleared\n", "1", "Review", "it", "again.")
+				m.ok(swarmUnblock, "Maintainer jane on acme/swarm-app\n#1 commented on the issue\n#1 blocked cleared\n", "1", "Review", "it", "again.")
 				return
 			}
 			a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})

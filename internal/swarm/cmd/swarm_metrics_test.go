@@ -1034,7 +1034,7 @@ func TestSwarmUnblockRetagsTheCause(t *testing.T) {
 	if err := m.verb(swarmUnblock, "1", "--cause", "scope", "Rename", "it."); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(m.stdout.String(), "#1 1-worker-1 cause plan → scope\n#1 commented\n#1 blocked cleared\n#1 gated cleared\n") {
+	if !strings.HasSuffix(m.stdout.String(), "#1 1-worker-1 cause plan → scope\n#1 commented on the issue\n#1 blocked cleared\n#1 gated cleared\n") {
 		t.Errorf("stdout:\n%s", m.stdout.String())
 	}
 	if b := a.bodies(1); b[len(b)-1] != "Rename it." {

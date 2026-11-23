@@ -54,7 +54,7 @@ func TestSwarmReplan(t *testing.T) {
 	a.betweenSlices(nil)
 	a.maintainer()
 	a.tick()
-	if err := a.replan("1", "re-plan", "against", "ADR", "0031"); err != nil || a.stdout.String() != "Maintainer jane on acme/swarm-app\n#1 commented\n" {
+	if err := a.replan("1", "re-plan", "against", "ADR", "0031"); err != nil || a.stdout.String() != "Maintainer jane on acme/swarm-app\n#1 commented on the issue\n" {
 		t.Fatalf("replan: %v\n%s%s", err, a.stdout.String(), a.stderr.String())
 	}
 	if got := a.replans(); !reflect.DeepEqual(got, []string{"Re-plan: re-plan against ADR 0031"}) || a.janes(issue1) != nil {
@@ -114,7 +114,7 @@ func TestSwarmReplanAfterTheClose(t *testing.T) {
 	}
 	a.forge.ClosePull(forge.Ref{Repo: pr.Repo, N: pr.Number})
 	a.tick()
-	if err := a.replan("1", "Split", "slice", "1."); err != nil || a.stdout.String() != "Maintainer jane on acme/swarm-app\n#1 commented\n#1 swarm:review-0-ready → swarm:plan-1-accepted\n" {
+	if err := a.replan("1", "Split", "slice", "1."); err != nil || a.stdout.String() != "Maintainer jane on acme/swarm-app\n#1 commented on the issue\n#1 swarm:review-0-ready → swarm:plan-1-accepted\n" {
 		t.Fatalf("replan: %v\n%s%s", err, a.stdout.String(), a.stderr.String())
 	}
 	a.runner.Script(1, "architect", runner.Canned{Out: "STANDS: slice 2 carries slice 1's work.\n", Stdout: claudeResult})
@@ -146,7 +146,7 @@ func TestSwarmApplyCommandReplan(t *testing.T) {
 	id := a.say(issue1, "jane", "/swarm replan re-plan against ADR 0031")
 	a.runner.Script(1, "architect", runner.Canned{Out: revised, Stdout: claudeResult})
 	a.pass()
-	want := answer(id, "/swarm replan re-plan against ADR 0031", "Done:\n\n    Maintainer jane on acme/swarm-app\n    #1 commented\n")
+	want := answer(id, "/swarm replan re-plan against ADR 0031", "Done:\n\n    Maintainer jane on acme/swarm-app\n    #1 commented on the issue\n")
 	if got := a.answers(issue1); !reflect.DeepEqual(got, []string{want}) {
 		t.Fatalf("answers %q\nwant %q\n%s\n%s", got, want, a.stdout.String(), a.stderr.String())
 	}
@@ -182,18 +182,18 @@ func TestSwarmReplanStages(t *testing.T) {
 	m := newMaintainerWS(t)
 	const head = "Maintainer jane on acme/swarm-app\n"
 	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{forge.ProposalAccepted}) // #1
-	m.ok(swarmReplan, head+"#1 commented\n", "1", "Use", "the", "cache.")
+	m.ok(swarmReplan, head+"#1 commented on the issue\n", "1", "Use", "the", "cache.")
 	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{forge.PlanPosted, forge.Gated}) // #2
 	m.forge.Comment(m.ref(2), mark("architect", 1)+twoSlices)
-	m.ok(swarmReplan, head+"#2 commented\n", "2")
+	m.ok(swarmReplan, head+"#2 commented on the issue\n", "2")
 	m.forge.CreateIssue("C", mark("owner", 1)+"c", []string{forge.PlanAccepted}) // #3
-	m.ok(swarmReplan, head+"#3 commented\n#3 swarm:plan-1-accepted → swarm:proposal-accepted\n", "3")
+	m.ok(swarmReplan, head+"#3 commented on the issue\n#3 swarm:plan-1-accepted → swarm:proposal-accepted\n", "3")
 	m.forge.CreateIssue("D", mark("owner", 1)+"d", []string{forge.ReviewReady}) // #4
 	m.forge.Comment(m.ref(4), mark("architect", 1)+twoSlices)
 	n, _ := m.forge.CreatePull("app", "swarm/4-1", "main", "slice", "Refs acme/swarm-app#4")
 	m.forge.Push(forge.Ref{Repo: "app", N: n}, "c1")
 	m.forge.ClosePull(forge.Ref{Repo: "app", N: n})
-	m.ok(swarmReplan, head+"#4 commented\n#4 swarm:review-0-ready → swarm:plan-1-accepted\n", "4", "Split", "slice", "1.")
+	m.ok(swarmReplan, head+"#4 commented on the issue\n#4 swarm:review-0-ready → swarm:plan-1-accepted\n", "4", "Split", "slice", "1.")
 	want := []string{
 		`jane comment "Re-plan: Use the cache." #1`,
 		`jane comment "Re-plan." #2`,

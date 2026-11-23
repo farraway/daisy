@@ -482,7 +482,7 @@ func TestSwarmUnblockStartBase(t *testing.T) {
 			var got seen
 			a.runner.Script(1, "worker", look(&got, "v1"))
 			a.pass()
-			if want := answer(id, c.line, "Done:\n\n    Maintainer jane on acme/swarm-app\n    #1 commented\n    #1 blocked cleared\n    #1 gated cleared\n"+c.recorded); !slices.Contains(a.answers(issue1), want) {
+			if want := answer(id, c.line, "Done:\n\n    Maintainer jane on acme/swarm-app\n    #1 commented on the issue\n    #1 blocked cleared\n    #1 gated cleared\n"+c.recorded); !slices.Contains(a.answers(issue1), want) {
 				t.Errorf("answers %q\nwant %q", a.answers(issue1), want)
 			}
 			if b := a.bodies(1); !slices.Contains(b, posted) {

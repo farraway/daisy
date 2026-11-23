@@ -350,9 +350,10 @@ func (m *maintainer) say(text string) error { return m.sayOn(m.at, m.is.Comments
 // sayOn posts text as the maintainer on the thread at, whose comments are
 // existing, unless its newest comment is the maintainer's with that text:
 // a verb run again after a write that followed its comment failed finds
-// the comment posted and goes on (section 11).
+// the comment posted and goes on (section 11). Either way it says which
+// thread, the issue's or the pull request's.
 func (m *maintainer) sayOn(at forge.Ref, existing []forge.Comment, text string) error {
-	on := ""
+	on := " on the issue"
 	if at != m.at {
 		on = fmt.Sprintf(" on pull %s#%d", at.Repo, at.N)
 	}

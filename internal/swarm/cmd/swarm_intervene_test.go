@@ -53,7 +53,7 @@ func TestSwarmVerbRecordsItsIntervention(t *testing.T) {
 	if err := m.verb(maintainerVerb("block"), "2", "--type", "I7", "--by", "1"); err != nil {
 		t.Fatal(err)
 	}
-	if want := "Maintainer jane on acme/swarm-app\n#1 blocking\n#2 commented\nIntervention 2-intervention-1 recorded: I7\n"; m.stdout.String() != want {
+	if want := "Maintainer jane on acme/swarm-app\n#1 blocking\n#2 commented on the issue\nIntervention 2-intervention-1 recorded: I7\n"; m.stdout.String() != want {
 		t.Errorf("stdout:\n%s\nwant:\n%s", m.stdout.String(), want)
 	}
 	if b := a.bodies(2); b[len(b)-1] != "Blocked by #1" {
@@ -259,7 +259,7 @@ func TestSwarmApplyCommandRecordsItsIntervention(t *testing.T) {
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{forge.ProposalPosted, forge.Blocked})
 	id := a.say(issue1, "jane", "/swarm unblock --type I2 Main is green again.")
 	a.pass()
-	want := answer(id, "/swarm unblock --type I2 Main is green again.", "Done:\n\n    Maintainer jane on acme/swarm-app\n    #1 commented\n    #1 blocked cleared\n    Intervention 1-intervention-1 recorded: I2\n")
+	want := answer(id, "/swarm unblock --type I2 Main is green again.", "Done:\n\n    Maintainer jane on acme/swarm-app\n    #1 commented on the issue\n    #1 blocked cleared\n    Intervention 1-intervention-1 recorded: I2\n")
 	if got := a.answers(issue1); !reflect.DeepEqual(got, []string{want}) {
 		t.Fatalf("answers %q\nwant %q\n%s", got, want, a.stdout.String())
 	}

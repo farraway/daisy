@@ -37,3 +37,20 @@ of its record and its notes per issue: the alternative, every closed
 issue read at each `status`, costs a read per closed issue for ever,
 and a count from the record alone would drop the gates passed before
 it was written.
+
+**As built: where a verb's comment landed (Step SF-4 of the plan
+implementing the 2026-11-19 swarm roadmap, 2026-11-22).** A verb's line
+for its comment named the thread only when it was a pull request's:
+`swarm unblock` printed `#<n> commented` for an issue at
+`swarm:review-0-ready`, whose comment went to the issue, and `#<n>
+commented on pull <name>#<m>` for one at
+`swarm:review-3-changes-requested`, so the maintainer could not tell from
+the first line where the comment was. Every verb's comment line now names
+its thread: `#<n> commented on the issue` or `#<n> commented on pull
+<name>#<m>`, and `#<n> comment already posted on the issue` or `… on pull
+<name>#<m>` for a re-run. The lines come from the one function every verb
+posts through, so `close`, `block`, `class`, `replan` and `merge`'s
+direction say it too, and a comment command's answer with them. The
+alternative was to name the issue in `unblock`'s line alone, the only
+verb whose comment goes to either thread; it would have kept a second
+form for the same act. Test: `TestSwarmUnblockSaysWhereItCommented`.

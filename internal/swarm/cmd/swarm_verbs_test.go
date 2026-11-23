@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -198,7 +199,7 @@ func TestSwarmMaintainerRunAgainPostsOnce(t *testing.T) {
 		t.Fatal("the refused flag removal: no error")
 	}
 	m.wrap = nil
-	m.ok(swarmUnblock, "Maintainer jane on acme/swarm-app\n#1 comment already posted\n#1 blocked cleared\n", "1", "Carry", "on.")
+	m.ok(swarmUnblock, "Maintainer jane on acme/swarm-app\n#1 comment already posted on the issue\n#1 blocked cleared\n", "1", "Carry", "on.")
 	if got := m.writes(1); !reflect.DeepEqual(got, []string{"jane unlabeled swarm:blocked #1", `jane comment "Carry on." #1`}) {
 		t.Errorf("unblock writes %q", got)
 	}
@@ -209,7 +210,7 @@ func TestSwarmMaintainerRunAgainPostsOnce(t *testing.T) {
 		t.Fatal("the refused close: no error")
 	}
 	m.wrap = nil
-	m.ok(swarmClose, "Maintainer jane on acme/swarm-app\n#2 comment already posted\n#2 closed\n#2 swarm:plan-1-accepted → swarm:rejected\n", "2", "Not", "now.")
+	m.ok(swarmClose, "Maintainer jane on acme/swarm-app\n#2 comment already posted on the issue\n#2 closed\n#2 swarm:plan-1-accepted → swarm:rejected\n", "2", "Not", "now.")
 	if is, _ := m.forge.Issue(2); len(is.Comments) != 1 {
 		t.Errorf("close posted %d comments", len(is.Comments))
 	}
@@ -236,6 +237,52 @@ func TestSwarmMaintainerMergeBackRunAgain(t *testing.T) {
 	}
 }
 
+// The claim of Step SF-4 of the plan implementing the 2026-11-19 swarm
+// roadmap (section 11): `swarm unblock` says, in every case, whether its
+// comment went to the issue or to the pull request: on the issue at a
+// review stage where the pull request is open but not its worker's
+// thread (review-0-ready) and at an issue-thread stage, on the pull
+// request at review-3-changes-requested, and, run again with the comment
+// already the thread's newest, already posted on the one or the other.
+func TestSwarmUnblockSaysWhereItCommented(t *testing.T) {
+	t.Parallel()
+	m := newMaintainerWS(t)
+	pull := func(n int) forge.Ref {
+		k, _ := m.forge.CreatePull("app", fmt.Sprintf("swarm/%d-1", n), "main", "slice", fmt.Sprintf("Refs acme/swarm-app#%d", n))
+		return forge.Ref{Repo: "app", N: k}
+	}
+	const head = "Maintainer jane on acme/swarm-app\n"
+	for _, tc := range []struct {
+		stage, want string
+		pull, again bool
+	}{
+		{"swarm:review-0-ready", "#%d commented on the issue\n", true, false},
+		{"swarm:plan-1-accepted", "#%d commented on the issue\n", false, false},
+		{"swarm:review-3-changes-requested", "#%d commented on pull app#%d\n", true, false},
+		{"swarm:plan-1-accepted", "#%d comment already posted on the issue\n", false, true},
+		{"swarm:review-3-changes-requested", "#%d comment already posted on pull app#%d\n", true, true},
+	} {
+		n, _ := m.forge.CreateIssue(tc.stage, mark("owner", 1)+"a", []string{tc.stage, forge.Blocked})
+		at := m.ref(n)
+		var pr forge.Ref
+		if tc.pull {
+			pr = pull(n)
+		}
+		if tc.again {
+			on := at
+			if tc.stage == "swarm:review-3-changes-requested" {
+				on = pr
+			}
+			m.forge.Say(on, "jane", "Go on.")
+		}
+		want := fmt.Sprintf(tc.want, n, pr.N)
+		if !strings.Contains(tc.want, "app#") {
+			want = fmt.Sprintf(tc.want, n)
+		}
+		m.ok(swarmUnblock, head+want+fmt.Sprintf("#%d blocked cleared\n", n), strconv.Itoa(n), "Go", "on.")
+	}
+}
+
 // The verbs keep swarm:gated where the new labels are gated, as the pass
 // sets it (section 5), and clear it elsewhere: `unblock` at the triage
 // gate keeps it, at plan-1-accepted clears it; `triage` of an issue still
@@ -247,8 +294,8 @@ func TestSwarmMaintainerKeepsTheFlagWhereGated(t *testing.T) {
 	m.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:plan-1-accepted", forge.Blocked, forge.Gated}) // #2
 	m.forge.CreateIssue("C", mark("owner", 1)+"c", []string{"swarm:proposal-posted", forge.Blocked, forge.Gated}) // #3
 	const head = "Maintainer jane on acme/swarm-app\n"
-	m.ok(swarmUnblock, head+"#1 commented\n#1 blocked cleared\n", "1", "go")
-	m.ok(swarmUnblock, head+"#2 commented\n#2 blocked cleared\n#2 gated cleared\n", "2", "go")
+	m.ok(swarmUnblock, head+"#1 commented on the issue\n#1 blocked cleared\n", "1", "go")
+	m.ok(swarmUnblock, head+"#2 commented on the issue\n#2 blocked cleared\n#2 gated cleared\n", "2", "go")
 	m.ok(swarmTriage, head+"#3 swarm:proposal-posted → swarm:proposal-accepted\n", "3")
 	for n, want := range map[int][]string{
 		1: {"swarm:proposal-posted", forge.Gated},
@@ -321,7 +368,7 @@ func TestSwarmMaintainerStep29Refusals(t *testing.T) {
 
 	m.forge.CreateIssue("C", mark("owner", 1)+"c", []string{"swarm:plan-1-accepted"}) // #3
 	m.edit(func(c *declare.Config) { c.Trusted = []string{"swarm-bot"} })
-	m.ok(swarmBlock, "Maintainer jane on acme/swarm-app\n#2 blocking\n#3 commented\n", "3", "--by", "2")
+	m.ok(swarmBlock, "Maintainer jane on acme/swarm-app\n#2 blocking\n#3 commented on the issue\n", "3", "--by", "2")
 	if want := "⚠ jane is not in trusted: the role rule does not read your Blocked by #2, so it holds nothing (docs/swarm.md section 6)\n"; m.stderr.String() != want {
 		t.Errorf("stderr %q", m.stderr.String())
 	}
