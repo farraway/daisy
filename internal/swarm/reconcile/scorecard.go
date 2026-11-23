@@ -1,7 +1,10 @@
 package reconcile
 
 import (
+	"errors"
 	"fmt"
+	iofs "io/fs"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -58,6 +61,16 @@ type ConfigScore struct {
 	Usage
 	Stops         int
 	Effect, Known int
+	Balance
+}
+
+// Balance is a reviewer configuration's side of the balance (section
+// 7.11, rule 7): the merged heads its runs approved, their approval
+// standing, and those slices' escapes; the follow-up items its runs
+// raised, and those proved real.
+type Balance struct {
+	Approved, Escaped  int
+	Raised, RaisedReal int
 }
 
 // SliceScore is one merged slice's row: its merge; From, when its time
@@ -82,6 +95,7 @@ type SliceScore struct {
 	Escapes       Escapes
 	FollowUp      int            // its follow-up's issue, 0 for none
 	Items         []FollowUpItem // the follow-up's items, in its order
+	Approvers     []string       // the reviewer runs whose approval of its head stood
 }
 
 // FollowUpItem is an item of a merged slice's follow-up (section 7.11,
@@ -233,10 +247,18 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 	}
 	owner, _, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
 	followUps(rows, issues, owner)
-	configs := map[string]int{} // a configuration's index in c.Configs
+	configs := map[string]int{}         // a configuration's index in c.Configs
+	ofRun := map[string]int{}           // a window's run's configuration, by its index
+	reviews := map[slotOf]scoreRecord{} // a slice's newest posted review of a role
 	for _, r := range recs {
 		if i, ok := sliceOfRecord(r, merges, byIssue[r.n]); ok {
 			rows[i].add(r)
+			if r.Kind == metrics.SwarmRun && isReviewer(r.Role) && r.Outcome == "posted" {
+				k := slotOf{i, r.Role}
+				if last, ok := reviews[k]; !ok || runNumber(last.Unit) < runNumber(r.Unit) {
+					reviews[k] = r
+				}
+			}
 		}
 		if r.when.Before(since) {
 			continue
@@ -253,12 +275,32 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 				c.Configs = append(c.Configs, ConfigScore{Role: r.Role, Provider: r.Provider, Model: r.Model, Effort: r.Effort, ConfigHash: r.ConfigHash})
 			}
 			c.Configs[i].add(r)
+			ofRun[r.Unit] = i
 			c.Summary.Runs++
 			c.Summary.Input += atoi(r.TokensIn)
 			if r.Role == "worker" {
 				c.Summary.WorkerRuns++
 				if r.Outcome == "blocked" || r.Outcome == "question" {
 					c.Summary.WorkerStops++
+				}
+			}
+		}
+	}
+	if err := s.approvers(rows, reviews); err != nil {
+		return c, err
+	}
+	for _, row := range rows {
+		for _, run := range row.Approvers {
+			if i, ok := ofRun[run]; ok {
+				c.Configs[i].Approved++
+				c.Configs[i].Escaped += row.Escapes.Count()
+			}
+		}
+		for _, it := range row.Items {
+			if i, ok := ofRun[it.Run]; ok {
+				c.Configs[i].Raised++
+				if it.Real {
+					c.Configs[i].RaisedReal++
 				}
 			}
 		}
@@ -418,6 +460,42 @@ func followUps(rows []SliceScore, issues []forge.Issue, owner string) {
 		}
 	}
 }
+
+// slotOf is a merged slice, by its index, and a reviewer role.
+type slotOf struct {
+	i    int
+	role string
+}
+
+// approvers fills each merged slice's Approvers from reviews, its newest
+// posted review of each reviewer role: the run, when its out.md approves
+// and its `start` line is the head merged (a run whose files are gone
+// approved nothing).
+func (s *Swarm) approvers(rows []SliceScore, reviews map[slotOf]scoreRecord) error {
+	fs := s.O.FS()
+	for k, r := range reviews {
+		i := k.i
+		run := Run{Dir: filepath.Join(s.state(), "runs", r.Unit), N: r.n, K: runNumber(r.Unit), Role: r.Role}
+		lines, err := run.Result(fs)
+		if err != nil {
+			return err
+		}
+		out, err := run.Output(fs)
+		if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+			return err
+		}
+		if head, _ := Has(lines, "start"); verdictOf(string(out)) == "approve" && strings.TrimPrefix(head, "start ") == rows[i].Head {
+			rows[i].Approvers = append(rows[i].Approvers, r.Unit)
+		}
+	}
+	for i := range rows {
+		slices.Sort(rows[i].Approvers)
+	}
+	return nil
+}
+
+// runNumber is a run's number, the `<k>` of its `<n>-<role>-<k>`.
+func runNumber(unit string) int { return atoi(unit[strings.LastIndex(unit, "-")+1:]) }
 
 // sliceOfRecord is the index in merges of the slice r is a record of,
 // among its issue's merges (their indexes, in time order): the first

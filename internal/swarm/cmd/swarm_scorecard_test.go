@@ -130,7 +130,7 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 		"  owner anthropic claude-opus-5-5 low, config unknown: runs 1; tokens 1000 uncached, 4000 cached, 500 out; estimated $2.00 at list price; stops 0\n" +
 		"  architect anthropic claude-fable-5-2 high, config unknown: runs 3; tokens 350 uncached, 800 cached, 115 out; estimated $0.52 at list price; stops 0\n" +
 		"  worker xai grok-4.7 low, config unknown: runs 6; tokens 2800 uncached, 3900 cached, 670 out (1 run without usage); estimated $1.12 at list price (2 runs without an estimate); stops 3\n" +
-		"  adversary openai gpt-6.2-astra high, config unknown: runs 2; tokens 500 uncached, 0 cached, 50 out (1 run without usage); estimated $0.25 at list price (1 run without an estimate); stops 0; review effect 1 (2 of 2 runs known)\n"
+		"  adversary openai gpt-6.2-astra high, config unknown: runs 2; tokens 500 uncached, 0 cached, 50 out (1 run without usage); estimated $0.25 at list price (1 run without an estimate); stops 0; review effect 1 (2 of 2 runs known); merged heads approved 0, escaped 0; follow-up items raised 0, 0 proved real\n"
 	if got := a.stdout.String(); got != want || a.stderr.Len() != 0 {
 		t.Errorf("stdout:\n%s\nwant:\n%s\nstderr:\n%s", got, want, a.stderr.String())
 	}
@@ -160,7 +160,7 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 		"  owner anthropic claude-opus-5-5 low, config unknown: runs 1; tokens 1000 uncached, 4000 cached, 500 out; estimated $2.00 at list price; stops 0\n" +
 		"  architect anthropic claude-fable-5-2 high, config unknown: runs 2; tokens 300 uncached, 800 cached, 110 out; estimated $0.51 at list price; stops 0\n" +
 		"  worker xai grok-4.7 low, config unknown: runs 4; tokens 1800 uncached, 3600 cached, 540 out (1 run without usage); estimated $1.02 at list price (2 runs without an estimate); stops 3\n" +
-		"  adversary openai gpt-6.2-astra high, config unknown: runs 2; tokens 500 uncached, 0 cached, 50 out (1 run without usage); estimated $0.25 at list price (1 run without an estimate); stops 0; review effect 1 (2 of 2 runs known)\n"
+		"  adversary openai gpt-6.2-astra high, config unknown: runs 2; tokens 500 uncached, 0 cached, 50 out (1 run without usage); estimated $0.25 at list price (1 run without an estimate); stops 0; review effect 1 (2 of 2 runs known); merged heads approved 0, escaped 0; follow-up items raised 0, 0 proved real\n"
 	if got := a.stdout.String(); got != want {
 		t.Errorf("--until: stdout:\n%s\nwant:\n%s", got, want)
 	}
@@ -263,8 +263,8 @@ func TestScorecardByConfiguration(t *testing.T) {
 	}
 	want := "By configuration, since 2026-11-06T12:00:00Z:\n" +
 		"  worker xai grok-4.7 low, config cccccccccccc: runs 1; tokens 200 uncached, 0 cached, 20 out; estimated $0.02 at list price; stops 1\n" +
-		"  adversary openai gpt-6.2-astra high, config aaaaaaaaaaaa: runs 2; tokens 700 uncached, 100 cached, 80 out; estimated $0.35 at list price; stops 0; review effect 1 (2 of 2 runs known)\n" +
-		"  adversary openai gpt-6.2-astra high, config bbbbbbbbbbbb: runs 1; tokens 400 uncached, 0 cached, 40 out; estimated $0.00 at list price (1 run without an estimate); stops 0; review effect 0 (0 of 1 runs known)\n"
+		"  adversary openai gpt-6.2-astra high, config aaaaaaaaaaaa: runs 2; tokens 700 uncached, 100 cached, 80 out; estimated $0.35 at list price; stops 0; review effect 1 (2 of 2 runs known); merged heads approved 0, escaped 0; follow-up items raised 0, 0 proved real\n" +
+		"  adversary openai gpt-6.2-astra high, config bbbbbbbbbbbb: runs 1; tokens 400 uncached, 0 cached, 40 out; estimated $0.00 at list price (1 run without an estimate); stops 0; review effect 0 (0 of 1 runs known); merged heads approved 0, escaped 0; follow-up items raised 0, 0 proved real\n"
 	if got := a.stdout.String(); !strings.HasSuffix(got, want) {
 		t.Errorf("stdout:\n%s\nwant ending:\n%s", got, want)
 	}

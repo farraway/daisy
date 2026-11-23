@@ -1238,7 +1238,8 @@ func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
 		}
 		effect := ""
 		if g.Role == "adversary" || g.Role == "sympathetic" {
-			effect = fmt.Sprintf("; review effect %d (%d of %d runs known)", g.Effect, g.Known, g.Runs)
+			effect = fmt.Sprintf("; review effect %d (%d of %d runs known); merged heads approved %d, escaped %d; follow-up items raised %d, %d proved real",
+				g.Effect, g.Known, g.Runs, g.Approved, g.Escaped, g.Raised, g.RaisedReal)
 		}
 		fmt.Fprintf(out, "  %s %s %s %s, config %s: runs %d; tokens %d uncached, %d cached, %d out%s; estimated $%.2f at list price%s; stops %d%s\n",
 			g.Role, dash(g.Provider), dash(g.Model), dash(g.Effort), hash, g.Runs, g.Uncached, g.Cached, g.Output, without(g.NoUsage, "usage"),

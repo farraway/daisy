@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"daisy/internal/metrics"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
@@ -328,6 +329,110 @@ func TestScorecardEscapesAndFollowUps(t *testing.T) {
 		"By configuration, since 2026-11-06T19:00:00Z:\n  no run\n"
 	if got := a.stdout.String(); !strings.HasSuffix(got, want) {
 		t.Errorf("--since: stdout:\n%s\nwant after its first line:\n%s", got, want)
+	}
+}
+
+// TestScorecardEscapesByConfiguration: the claim of Step R6-C of the
+// plan implementing the 2026-11-19 swarm roadmap, escapes by
+// configuration (section 11, The scorecard, By configuration; section
+// 7.11, The balance): an adversary's or a sympathetic reviewer's line
+// adds `; merged heads approved <a>, escaped <e>; follow-up items raised
+// <f>, <p> proved real`: a slice's escapes count against each reviewer
+// run whose approval of the merged head stood (its role's newest posted
+// review of the slice, approving the head merged: neither an earlier
+// approval, one of another head, a run that failed, nor a newest review
+// requesting changes on a head merged anyway), and a
+// follow-up item against the run that raised it, each by the run's
+// config_hash; a run before --since is no line's.
+func TestScorecardEscapesByConfiguration(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	home := a.metricsHome()
+	a.setNow("2026-11-06T15:00:00Z")
+	for _, title := range []string{"One", "Two", "Three"} {
+		a.forge.CreateIssue(title, strings.ToLower(title), []string{forge.ProposalAccepted})
+	}
+	r := newBalanceRepo(a, "swarm/1-1", "swarm/2-1", "swarm/3-1")
+	m1 := r.merge("swarm/1-1", "2026-11-06T18:00:00Z")
+	r.merge("swarm/2-1", "2026-11-06T19:00:00Z")
+	r.git("2026-11-07T08:00:00Z", "revert", "--no-edit", "-m", "1", m1)
+	r.merge("swarm/3-1", "2026-11-07T10:00:00Z")
+	r.mirror()
+	h1, h2 := r.heads["swarm/1-1"], r.heads["swarm/2-1"]
+	for run, rs := range map[string]string{
+		"1-worker-1": "branch swarm/1-1 in app\npushed " + h1 + "\ncreated pull 11\n",
+		"2-worker-1": "branch swarm/2-1 in app\npushed " + h2 + "\ncreated pull 12\n",
+		"3-worker-1": "branch swarm/3-1 in app\npushed " + r.heads["swarm/3-1"] + "\ncreated pull 13\n",
+	} {
+		a.runResult(run, rs+"outcome posted\ncollected\n", "")
+	}
+	review := func(run, head, outcome, verdict string) {
+		a.runResult(run, "start "+head+"\nround 1\noutcome "+outcome+"\ncollected\n", "VERDICT: "+verdict+"\n\n[non-blocking] a.go:1: a finding\n")
+	}
+	review("1-adversary-1", h1, "posted", "request-changes")
+	review("1-adversary-2", h1, "posted", "approve")
+	review("1-sympathetic-3", h1, "posted", "approve")
+	review("2-adversary-1", h2, "posted", "approve")
+	review("2-sympathetic-2", r.heads["swarm/1-1"], "posted", "approve")
+	review("2-adversary-3", h2, "failed", "request-changes")
+	review("3-adversary-1", r.heads["swarm/3-1"], "posted", "request-changes")
+	a.setNow("2026-11-06T19:05:00Z")
+	f, _ := a.forge.CreateIssue("Follow-up: acme/app#12 (#2, slice 1)", followUpBody("12", h2, 1, 2,
+		"adversary run 1, round 1: [non-blocking] a.go:10: name the constant",
+		"adversary run 1, round 1: [non-blocking] b.go:4: a test for the empty input",
+		"sympathetic run 2, round 1: [non-blocking] c.go:1: the doc comment is stale"), []string{forge.FollowUp})
+	a.forge.EditIssue(3, fmt.Sprintf("three\n\nFollow-up: #%d 1\n", f))
+	a.forge.CreateIssue("Filed", "Defect in: app#11\n", nil)
+	ha, hb, hs := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("5", 64)
+	row := func(at, run, role, outcome, hash string) string {
+		n, _, _ := strings.Cut(run, "-")
+		return at + ",swarm-run,acme/swarm-app," + run + "," + role + ",openai,gpt-6.2-astra,high,,,p," + outcome + ",1,100,10,110,,0.01,,,,,,,,,#" + n + ",0,,," + hash + "\n"
+	}
+	csvFile := filepath.Join(home, "metrics", "metrics.csv")
+	os.MkdirAll(filepath.Dir(csvFile), 0o755)
+	os.WriteFile(csvFile, []byte(strings.Join(metrics.Header, ",")+"\n"+
+		row("2026-11-06T17:00:00Z", "1-adversary-1", "adversary", "posted", ha)+
+		row("2026-11-06T17:30:00Z", "1-adversary-2", "adversary", "posted", ha)+
+		row("2026-11-06T17:40:00Z", "1-sympathetic-3", "sympathetic", "posted", hs)+
+		row("2026-11-06T18:20:00Z", "2-adversary-1", "adversary", "posted", hb)+
+		row("2026-11-06T18:30:00Z", "2-sympathetic-2", "sympathetic", "posted", hs)+
+		row("2026-11-06T18:40:00Z", "2-adversary-3", "adversary", "failed", hb)+
+		row("2026-11-07T09:00:00Z", "3-adversary-1", "adversary", "posted", ha)), 0o644)
+	a.setNow("2026-11-08T00:00:00Z")
+
+	lines := func() map[string]string {
+		out := map[string]string{}
+		_, by, _ := strings.Cut(a.stdout.String(), "\nBy configuration")
+		for _, l := range strings.Split(by, "\n")[1:] {
+			if k, rest, ok := strings.Cut(l, ": runs "); ok {
+				_, tail, _ := strings.Cut(rest, "; review effect ")
+				_, tail, _ = strings.Cut(tail, "; ")
+				out[strings.TrimSpace(k)] = tail
+			}
+		}
+		return out
+	}
+	if err := a.scorecard(); err != nil {
+		t.Fatalf("%v\n%s", err, a.stderr.String())
+	}
+	want := map[string]string{
+		"adversary openai gpt-6.2-astra high, config aaaaaaaaaaaa":   "merged heads approved 1, escaped 2; follow-up items raised 0, 0 proved real",
+		"adversary openai gpt-6.2-astra high, config bbbbbbbbbbbb":   "merged heads approved 1, escaped 0; follow-up items raised 2, 1 proved real",
+		"sympathetic openai gpt-6.2-astra high, config 555555555555": "merged heads approved 1, escaped 2; follow-up items raised 1, 0 proved real",
+	}
+	if got := lines(); !reflect.DeepEqual(got, want) {
+		t.Errorf("by configuration:\n%v\nwant:\n%v\nstdout:\n%s", got, want, a.stdout.String())
+	}
+	if err := a.scorecard(Value{Flag: "--since", Value: "2026-11-06T18:10:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	want = map[string]string{
+		"adversary openai gpt-6.2-astra high, config aaaaaaaaaaaa":   "merged heads approved 0, escaped 0; follow-up items raised 0, 0 proved real",
+		"adversary openai gpt-6.2-astra high, config bbbbbbbbbbbb":   "merged heads approved 1, escaped 0; follow-up items raised 2, 1 proved real",
+		"sympathetic openai gpt-6.2-astra high, config 555555555555": "merged heads approved 0, escaped 0; follow-up items raised 1, 0 proved real",
+	}
+	if got := lines(); !reflect.DeepEqual(got, want) {
+		t.Errorf("--since: by configuration:\n%v\nwant:\n%v\nstdout:\n%s", got, want, a.stdout.String())
 	}
 }
 

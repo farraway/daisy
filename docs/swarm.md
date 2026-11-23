@@ -6435,8 +6435,8 @@ next batch's prompt. The maintainer may close one on the forge; `swarm
 close` refuses an issue with no stage, as it does now.
 
 **The balance** (rule 7; a slice's escapes and follow-up items, on its
-line and in the summary, built at Step R6-C of the plan implementing the
-2026-11-19 swarm roadmap). An **escape** of a merged slice, its pull
+line, in the summary and by configuration, built at Step R6-C of the
+plan implementing the 2026-11-19 swarm roadmap). An **escape** of a merged slice, its pull
 request `<name>#<m>` (the one a worker run's `created pull <m>` line
 names on the slice's branch), is one of three: its merge reverted (`status`'s
 reverted line, a reapply cancelling it, decision
@@ -6463,7 +6463,9 @@ proved real; blocking findings by kind <kind> <k>, …`. By configuration,
 an adversary's or a sympathetic reviewer's line adds `; merged heads
 approved <a>, escaped <e>; follow-up items raised <f>, <p> proved real`:
 an escape counts against each reviewer run whose approval of the merged
-head stood, a follow-up item against the run that raised it. A slice's
+head stood (its role's newest posted review of the slice, approving the
+head merged), a follow-up item against the run that raised it, each run
+in the window by its configuration. A slice's
 escapes are counted whenever they were made, up to `--until`, so a later
 window reads more of them than an earlier one did, a revert read of
 `base` as it stood at `--until`. The reads are the scorecard's, with
@@ -8398,7 +8400,7 @@ Scorecard of <owner>/<repo>: runs and interventions from <csv>, merges from the 
   …        (or:   no slice merged)
 Summary, since <time> until <time> (<d> days): <m> slices merged; <r> runs, <r/m> per merge; input <i/m> tokens per merge; worker stop rate <p>% (<s> of <w> worker runs); <v> interventions, <v/d> a day; escapes <e> on <m> merged slices (<rv> reverted, <b> filed, <h> fixed by hand); follow-up items <f>, <p> proved real
 By configuration, since <time> until <time>:
-  <role> <provider> <model> <effort>, config <hash>: runs <r>; tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; stops <s>[; review effect <f> (<k> of <r> runs known)]
+  <role> <provider> <model> <effort>, config <hash>: runs <r>; tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; stops <s>[; review effect <f> (<k> of <r> runs known); merged heads approved <a>, escaped <e>; follow-up items raised <f>, <p> proved real]
   …        (or:   no run)
 ```
 
@@ -8477,7 +8479,14 @@ line counts them;
 **stops** the runs counted as a slice's stops are; and for the
 adversary and the sympathetic reviewer, **review effect** `<f>` the
 `review_effect` of the runs that record one summed, `<k>` how many do
-(an effect still unknown, 7.6, is not counted). A change to Daisy's own
+(an effect still unknown, 7.6, is not counted), and (Step R6-C of the
+plan implementing the 2026-11-19 swarm roadmap; 7.11, The balance)
+**merged heads approved** `<a>` its runs whose approval of a merged
+head stood, the newest posted review of its role on that slice
+approving the head merged (its `<run>/io/out.md`'s verdict, its
+`start` line the merge's second parent), **escaped** `<e>` those slices'
+escapes summed, and **follow-up items raised** `<f>` the items of the
+slices' follow-ups its runs raised, `<p>` of them proved real. A change to Daisy's own
 Task texts, as the delta review of Step E2 of the plan implementing the
 2026-11-19 swarm roadmap, or to a role's `# Output` (the verdict fix),
 changes no `config_hash`, which covers the persona and its parts alone: its before and after are read as two
@@ -8485,20 +8494,21 @@ windows, `--until` and `--since` the time its build was installed, each
 row's `root_sha` naming the root its run was collected under (decision
 [168](swarm/decisions/0168-a-delta-review.md)).
 
-**The balance** (7.11, rule 7; a slice's line and the summary built at
-Step R6-C of the plan implementing the 2026-11-19 swarm roadmap): the
+**The balance** (7.11, rule 7; a slice's line, the summary's escapes
+and follow-ups and By configuration's built at Step R6-C of the plan
+implementing the 2026-11-19 swarm roadmap): the
 scorecard reads the escaped-defect side beside the cost. A slice's line
 adds its escapes (its merge reverted, as the reverted line reads it;
 each issue of `forge.repo`, open or closed, whose body holds `Defect in:
 <name>#<m>` for its pull request; each commit on `base`'s first-parent
 line in a declared repository's mirror that is no swarm merge and whose
 message holds that line) and its follow-up items with those a merged
-job's `Follow-up:` line names; the summary adds their totals. *R6,
-specified ahead of its build* (7.11, rule 7): the summary adds the
-blocking findings counted by the kind each names; By configuration, an
-adversary's or a sympathetic reviewer's line adds the merged heads it
-approved and their escapes, and the follow-up items it raised and those
-proved real. It reads `Issues(<state>, "")` of `forge.repo`, open and
+job's `Follow-up:` line names; the summary adds their totals; By
+configuration, an adversary's or a sympathetic reviewer's line adds the
+merged heads it approved and their escapes, and the follow-up items it
+raised and those proved real (built at the same step). *R6, specified
+ahead of its build* (7.11, rule 7): the summary adds the blocking
+findings counted by the kind each names. It reads `Issues(<state>, "")` of `forge.repo`, open and
 closed (section 10), once, and each declared repository's mirror's
 first-parent log of `base` beside what it reads now, and writes nothing.
 `init` and `apply` ensure eighteen labels, `swarm:follow-up` among them

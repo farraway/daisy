@@ -1494,3 +1494,10 @@ they write.
   issue, open and closed, and the worker runs' `created pull` lines.
   Sections 7.11 and 11, docs/cli.md. Decision
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-23, Step R6-C of the plan implementing the 2026-11-19 swarm
+  roadmap, the balance by configuration (rule 7 of section 7.11): an
+  adversary's or a sympathetic reviewer's line in By configuration adds
+  the merged heads its runs approved, the approval standing, with those
+  slices' escapes, and the follow-up items its runs raised with those
+  proved real. Sections 7.11 and 11, docs/cli.md. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.

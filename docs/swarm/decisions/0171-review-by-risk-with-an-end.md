@@ -516,6 +516,22 @@ line names it in the body of an issue with a slice merged up to
 `--until`. Tests: `TestEscapes`, `TestFollowUpsProvedReal`,
 `TestScorecardEscapesAndFollowUps`.
 
+**As built: escapes and follow-ups by configuration (Step R6-C of the
+plan implementing the 2026-11-19 swarm roadmap).** An approval "stood"
+when it is its role's newest posted review among the slice's records
+(by run number) and approves the head merged: its `out.md`'s verdict
+`approve` and its `start` line the merge commit's second parent. So an
+approval a later review of its role on the slice overturned, a review
+of another head, a run that failed, or a newest review requesting
+changes on a head the maintainer merged anyway counts none; the
+alternative, any approving review of the merged head, would count an
+approval a later round withdrew. A run counts on its configuration's
+line only when its record is in the window, as the line's other figures
+do; its slice's escapes are counted whenever made, up to `--until`. A
+follow-up item counts against the run its item names, `<n>-<role>-<k>`.
+A reviewer run whose files are gone approved nothing. Test:
+`TestScorecardEscapesByConfiguration`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

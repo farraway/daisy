@@ -54,14 +54,15 @@ func ReadPullReverts(o ops.Ops, state, base string, since time.Time) (PullRevert
 // merge commit and its committer time, the worker run whose push it
 // merged, whether a revert in effect on base takes it back, and the pull
 // request's number, a worker run's `created pull <m>` on its branch (the
-// largest, should several runs name one; 0 for none).
+// largest, should several runs name one; 0 for none), and the head it
+// merged, its second parent.
 type Merge struct {
-	N, Slice  int
-	Repo, SHA string
-	At        time.Time
-	Run       string
-	Reverted  bool
-	Pull      int
+	N, Slice        int
+	Repo, SHA, Head string
+	At              time.Time
+	Run             string
+	Reverted        bool
+	Pull            int
 }
 
 // ReadMerges reads the swarm's merged pull requests under state, in the
@@ -157,7 +158,7 @@ func ReadMerges(o ops.Ops, state, base string, until time.Time) ([]Merge, time.T
 			if err != nil {
 				return nil, fetched, read, fmt.Errorf("git log in %s: %q has no commit time", m, l)
 			}
-			merges = append(merges, Merge{N: p.n, Slice: p.slice, Repo: repo, SHA: f[0], At: time.Unix(at, 0).UTC(), Run: p.run, Reverted: named.Has(f[0]), Pull: pulls[repo+" "+p.branch]})
+			merges = append(merges, Merge{N: p.n, Slice: p.slice, Repo: repo, SHA: f[0], At: time.Unix(at, 0).UTC(), Run: p.run, Reverted: named.Has(f[0]), Pull: pulls[repo+" "+p.branch], Head: f[3]})
 		}
 		fi, err := o.FS().Stat(filepath.Join(m, "FETCH_HEAD"))
 		if err != nil && !errors.Is(err, iofs.ErrNotExist) {
