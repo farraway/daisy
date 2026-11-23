@@ -36,8 +36,17 @@ func (f *refuseFlag) Relabel(at forge.Ref, remove, add string) error {
 // and the next CloseIssue when close is set.
 type refuseOnce struct {
 	*forge.Fake
-	remove string
-	close  bool
+	remove  string
+	close   bool
+	comment string // a comment body refused once
+}
+
+func (f *refuseOnce) Comment(at forge.Ref, body string) error {
+	if f.comment != "" && body == f.comment {
+		f.comment = ""
+		return errors.New("forge: POST /repos/acme/swarm-app/issues/1/comments: 502 Bad Gateway")
+	}
+	return f.Fake.Comment(at, body)
 }
 
 func (f *refuseOnce) Relabel(at forge.Ref, remove, add string) error {
@@ -242,8 +251,10 @@ func TestSwarmMaintainerMergeBackRunAgain(t *testing.T) {
 // comment went to the issue or to the pull request: on the issue at a
 // review stage where the pull request is open but not its worker's
 // thread (review-0-ready) and at an issue-thread stage, on the pull
-// request at review-3-changes-requested, and, run again with the comment
-// already the thread's newest, already posted on the one or the other.
+// request at review-3-changes-requested with that pull request open, on
+// the issue at it with none open (none, or closed), and, run again with
+// the comment already the thread's newest, already posted on the one or
+// the other.
 func TestSwarmUnblockSaysWhereItCommented(t *testing.T) {
 	t.Parallel()
 	m := newMaintainerWS(t)
@@ -253,20 +264,25 @@ func TestSwarmUnblockSaysWhereItCommented(t *testing.T) {
 	}
 	const head = "Maintainer jane on acme/swarm-app\n"
 	for _, tc := range []struct {
-		stage, want string
-		pull, again bool
+		stage, want        string
+		pull, again, close bool
 	}{
-		{"swarm:review-0-ready", "#%d commented on the issue\n", true, false},
-		{"swarm:plan-1-accepted", "#%d commented on the issue\n", false, false},
-		{"swarm:review-3-changes-requested", "#%d commented on pull app#%d\n", true, false},
-		{"swarm:plan-1-accepted", "#%d comment already posted on the issue\n", false, true},
-		{"swarm:review-3-changes-requested", "#%d comment already posted on pull app#%d\n", true, true},
+		{"swarm:review-0-ready", "#%d commented on the issue\n", true, false, false},
+		{"swarm:plan-1-accepted", "#%d commented on the issue\n", false, false, false},
+		{"swarm:review-3-changes-requested", "#%d commented on pull app#%d\n", true, false, false},
+		{"swarm:plan-1-accepted", "#%d comment already posted on the issue\n", false, true, false},
+		{"swarm:review-3-changes-requested", "#%d comment already posted on pull app#%d\n", true, true, false},
+		{"swarm:review-3-changes-requested", "#%d commented on the issue\n", false, false, false}, // no pull request
+		{"swarm:review-3-changes-requested", "#%d commented on the issue\n", true, false, true},   // its pull request closed
 	} {
 		n, _ := m.forge.CreateIssue(tc.stage, mark("owner", 1)+"a", []string{tc.stage, forge.Blocked})
 		at := m.ref(n)
 		var pr forge.Ref
 		if tc.pull {
 			pr = pull(n)
+		}
+		if tc.close {
+			m.forge.ClosePull(pr)
 		}
 		if tc.again {
 			on := at

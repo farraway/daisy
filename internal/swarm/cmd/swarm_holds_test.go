@@ -12,6 +12,7 @@ import (
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
+	"daisy/internal/swarm/reconcile"
 	"daisy/internal/swarm/runner"
 )
 
@@ -425,6 +426,47 @@ func TestSwarmSecondReviewerGoesHome(t *testing.T) {
 			if got := labels(a.issue(1)); !slices.Contains(got, "swarm:review-0-ready") || slices.Contains(got, "swarm:review-1-in-progress") ||
 				!strings.Contains(r, home+tc.outcome+"\ncollected\n") || len(a.runner.Launches()) != launched {
 				t.Errorf("%v\n%s\nstdout:\n%s\nstderr:\n%s", got, r, a.stdout.String(), a.stderr.String())
+			}
+		})
+	}
+}
+
+// Step SF-3's `unblock` of a held issue, run again after a write of its
+// own was refused, posts its comment once and keeps the hold (section 11:
+// a verb run again posts its comment once): after the flag's removal was
+// refused, and after the second `Blocked by #<m>` was.
+func TestSwarmUnblockRunAgainKeepsTheHold(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		wrap func(*forge.Fake) forge.Adapter
+	}{
+		{"flag removal refused", func(f *forge.Fake) forge.Adapter { return &refuseOnce{Fake: f, remove: forge.Blocked} }},
+		{"Blocked by refused again", func(f *forge.Fake) forge.Adapter { return &refuseOnce{Fake: f, comment: "Blocked by #1"} }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m := newMaintainerWS(t)
+			m.forge.CreateIssue("The blocker", "", nil)                                                      // #1
+			m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted", forge.Blocked}) // #2
+			m.forge.Comment(m.ref(2), mark("reconciler", 1)+"architect run 1 failed: x (at swarm:plan-1-accepted). Remove swarm:blocked to resume.")
+			m.ok(swarmBlock, "Maintainer jane on acme/swarm-app\n#1 blocking\n#2 commented on the issue\n", "2", "--by", "1")
+			m.wrap = tc.wrap
+			if err := m.verb(swarmUnblock, "2", "Carry", "on."); err == nil {
+				t.Fatal("the refused write: no error")
+			}
+			m.wrap = nil
+			m.verb(swarmUnblock, "2", "Carry", "on.")
+			is, _ := m.forge.Issue(2)
+			var got []string
+			for _, c := range is.Comments[1:] {
+				got = append(got, c.Body)
+			}
+			if want := []string{"Blocked by #1", "Carry on.", "Blocked by #1"}; !reflect.DeepEqual(got, want) {
+				t.Errorf("comments %q, want %q\n%s", got, want, m.stdout.String())
+			}
+			if reconcile.BlockedBy(is, "swarm-bot", []string{"jane"}) != 1 || slices.Contains(is.Labels, forge.Blocked) {
+				t.Errorf("hold lost or flag kept: %v", is.Labels)
 			}
 		})
 	}

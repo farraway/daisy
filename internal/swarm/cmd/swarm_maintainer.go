@@ -716,13 +716,31 @@ func swarmUnblock(c *Context, open opener) error {
 			return m.lift()
 		}
 	}
-	if err := m.say(text); err != nil {
-		return err
-	}
-	if err := m.rehold(is); err != nil {
+	if err := m.sayAndRehold(is, text); err != nil {
 		return err
 	}
 	return m.lift()
+}
+
+// sayAndRehold posts unblock's text on issue n, then `Blocked by #<b>`
+// again (rehold), each once however often the verb is run: the thread it
+// finds ending with the text, the hold is read as it stood before it, and
+// ending with the text and the hold again, both are posted already.
+func (m *maintainer) sayAndRehold(is forge.Issue, text string) error {
+	cs := is.Comments
+	mine := func(i int, body string) bool {
+		return i >= 0 && cs[i].Body == body && strings.EqualFold(cs[i].Author, m.login)
+	}
+	if b := reconcile.BlockedBy(is, m.swarm, m.cfg.Trusted); b != 0 && mine(len(cs)-1, fmt.Sprintf("Blocked by #%d", b)) && mine(len(cs)-2, text) {
+		return m.sayOn(m.at, cs[:len(cs)-1], text)
+	}
+	if err := m.say(text); err != nil {
+		return err
+	}
+	if mine(len(cs)-1, text) {
+		is.Comments = cs[:len(cs)-1]
+	}
+	return m.rehold(is)
 }
 
 // rehold posts `Blocked by #<b>` again on issue n after unblock's comment

@@ -86,11 +86,16 @@ it posts on the issue follows a `Blocked by #<m>` that was #n's newest
 maintainer comment with #m open, posts `Blocked by #<m>` again after it
 (`#<n> held by #<m>: Blocked by #<m> posted again`), so the hold stands
 in either order and the role that runs once #m closes reads the
-unblock's comment in its thread. A comment `unblock` posts on the pull
+unblock's comment in its thread. Run again after a write of its own was
+refused, `unblock` posts each of the two once: a thread ending with its
+comment is read as it stood before it, so a refused second `Blocked by
+#<m>` is posted at the re-run, and one ending with the comment and that
+line is left as it is. A comment `unblock` posts on the pull
 request (at `swarm:review-3-changes-requested`) is not on #n's thread
 and ends nothing. Rule 1 itself is unchanged: any other later comment of
 the maintainer's on #n still lifts the hold. The alternative was to
 change rule 1 so that no later comment ends a `Blocked by #<m>`, only
 #m's close; that would leave the maintainer no way to lift a hold early
 but to close #m or delete the comment, a change the step did not ask
-for. Test: `TestSwarmBlockHoldsBeforeOrAfterUnblock`.
+for. Tests: `TestSwarmBlockHoldsBeforeOrAfterUnblock`,
+`TestSwarmUnblockRunAgainKeepsTheHold`.
