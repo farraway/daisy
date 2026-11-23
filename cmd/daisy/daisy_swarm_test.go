@@ -203,11 +203,11 @@ func TestSwarmInitLabelsThroughGitea(t *testing.T) {
 	m := newMachine(t)
 	g := newGitea(t)
 	clone := m.swarm(t, g)
-	if len(g.labels) != 17 {
+	if len(g.labels) != 18 {
 		t.Errorf("labels %q", g.labels)
 	}
 	code, out, _ := runWith(m.swarmOps(clone, g), "swarm", "init", "--defaults")
-	if code != 0 || !strings.Contains(out, "  Unchanged swarm.json\n") || !strings.Contains(out, "✓ Token $GITEA_TOKEN: labels 17 present (0 created, 0 renamed)\n") || len(g.labels) != 17 {
+	if code != 0 || !strings.Contains(out, "  Unchanged swarm.json\n") || !strings.Contains(out, "✓ Token $GITEA_TOKEN: labels 18 present (0 created, 0 renamed)\n") || len(g.labels) != 18 {
 		t.Errorf("second run: exit %d\n%s", code, out)
 	}
 
@@ -222,7 +222,7 @@ func TestSwarmInitLabelsThroughGitea(t *testing.T) {
 			patched++
 		}
 	}
-	if code != 0 || !strings.Contains(out, "✓ Token $GITEA_TOKEN: labels 17 present (6 created, 7 renamed)\n") || patched != 7 || len(old.labels) != 17 ||
+	if code != 0 || !strings.Contains(out, "✓ Token $GITEA_TOKEN: labels 18 present (7 created, 7 renamed)\n") || patched != 7 || len(old.labels) != 18 ||
 		old.labels[4] != "swarm:review-0-ready" || !slices.Equal(old.issue1, []string{"swarm:review-0-ready"}) {
 		t.Errorf("the migration: exit %d, %d renames, labels %q, issue 1 %q\n%s%s", code, patched, old.labels, old.issue1, out, errs)
 	}
@@ -248,10 +248,10 @@ func TestSwarmInitCreatesThroughGitea(t *testing.T) {
 	code, out, errs := runWith(m.swarmOps(dir, g), "swarm", "init", "--defaults", "--api", "http://forge.example.net:3000/api/v1")
 	clone := filepath.Join(dir, "swarm-app")
 	head := "✓ Maintainer jane: acme/swarm-app created\n✓ Maintainer jane: swarm-bot may write to acme/swarm-app\n✓ Cloned acme/swarm-app into " + clone + "\n✓ Token $GITEA_TOKEN reads acme/swarm-app as swarm-bot\n✓ Wrote swarm.json\n"
-	if code != 0 || !strings.HasPrefix(out, head) || !strings.Contains(out, "\n✓ Token $GITEA_TOKEN: labels 17 present (17 created, 0 renamed)\n") {
+	if code != 0 || !strings.HasPrefix(out, head) || !strings.Contains(out, "\n✓ Token $GITEA_TOKEN: labels 18 present (18 created, 0 renamed)\n") {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
-	if g.repo["private"] != true || !slices.Equal(g.collaborators, []string{"swarm-bot write"}) || len(g.labels) != 17 {
+	if g.repo["private"] != true || !slices.Equal(g.collaborators, []string{"swarm-bot write"}) || len(g.labels) != 18 {
 		t.Errorf("forge: %v %q %d labels", g.repo, g.collaborators, len(g.labels))
 	}
 	// The swarm's login, then the maintainer's four, then the swarm's

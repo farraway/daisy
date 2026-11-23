@@ -258,7 +258,7 @@ func (f *Fake) Issues(state State, label string) ([]Issue, error) {
 	defer f.mu.Unlock()
 	var out []Issue
 	for at, it := range f.items {
-		if at.Repo == f.repo && it.pull == nil && it.open == (state == Open) && slices.Contains(it.labels, label) {
+		if at.Repo == f.repo && it.pull == nil && it.open == (state == Open) && (label == "" || slices.Contains(it.labels, label)) {
 			out = append(out, it.issue(at.N))
 		}
 	}

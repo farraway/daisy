@@ -424,14 +424,14 @@ func TestSwarmInitReadyWarnsNothing(t *testing.T) {
 }
 
 // A refused label create: exit 1 with the missing names, the files
-// written; once the owner creates them, a re-run finds all seventeen.
+// written; once the owner creates them, a re-run finds all eighteen.
 func TestSwarmInitRefusedLabels(t *testing.T) {
 	t.Parallel()
 	s := newSwarmWS(t)
 	s.forge.AddLabels("swarm:proposal-posted", "swarm:proposal-accepted")
 	s.forge.RefuseLabels()
 	err := s.run("--defaults")
-	want := "Error: forge: EnsureLabels: acme's labels missing: swarm:plan-0-posted, swarm:plan-1-accepted, swarm:plan-2-in-progress, swarm:review-0-ready, swarm:review-1-in-progress, swarm:review-2-approved, swarm:review-3-changes-requested, swarm:gated, swarm:blocked, swarm:paused, swarm:blocking, swarm:class-architecture, swarm:question, swarm:done, swarm:rejected; an owner of acme makes them once"
+	want := "Error: forge: EnsureLabels: acme's labels missing: swarm:plan-0-posted, swarm:plan-1-accepted, swarm:plan-2-in-progress, swarm:review-0-ready, swarm:review-1-in-progress, swarm:review-2-approved, swarm:review-3-changes-requested, swarm:gated, swarm:blocked, swarm:paused, swarm:blocking, swarm:class-architecture, swarm:question, swarm:follow-up, swarm:done, swarm:rejected; an owner of acme makes them once"
 	if errText(err) != want {
 		t.Errorf("got  %v\nwant %s", err, want)
 	}
@@ -443,7 +443,7 @@ func TestSwarmInitRefusedLabels(t *testing.T) {
 	}
 	s.cwd = s.ws
 	s.forge.AddLabels(forge.Labels...)
-	if err := s.run("--defaults"); err != nil || !strings.Contains(s.stdout.String(), "✓ Token $GITEA_TOKEN: labels 17 present (0 created, 0 renamed)\n") {
+	if err := s.run("--defaults"); err != nil || !strings.Contains(s.stdout.String(), "✓ Token $GITEA_TOKEN: labels 18 present (0 created, 0 renamed)\n") {
 		t.Errorf("re-run: %v\n%s", err, s.stdout.String())
 	}
 }

@@ -430,6 +430,15 @@ the owner's and the QA's batch texts, after the row's text and before
 the protected paths; nothing reads the line until Step R6-C's scorecard.
 Test: `TestTaskTextsAskForDefectIn`.
 
+**As built: the label and `Issues(state, "")` (Step R6-B of the plan
+implementing the 2026-11-19 swarm roadmap).** `swarm:follow-up` is the
+seventh flag, so no stage is read from it and an issue carrying it
+alone is no swarm issue; `init` and `apply` ensure it with the other
+seventeen. An empty label leaves Gitea's `labels` query out and the
+fake's filter off; the GitHub adapter, not yet built, takes it with its
+build. Test: `TestIssuesWithoutLabel`, and the label counts of the
+`init` and `apply` tests.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

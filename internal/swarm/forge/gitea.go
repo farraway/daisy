@@ -295,20 +295,24 @@ func (r giteaIssue) issue() Issue {
 
 // Issues is the issues of forge.repo in state carrying label, by number.
 // Gitea drops a label filter naming no existing label and then answers
-// every issue, so the label is checked on each issue as well.
+// every issue, so the label is checked on each issue as well. Label ""
+// lists every issue in state: no labels query, no filter.
 func (g *Gitea) Issues(state State, label string) ([]Issue, error) {
 	st := "open"
 	if state == Closed {
 		st = "closed"
 	}
-	path := fmt.Sprintf("%s/issues?state=%s&type=issues&labels=%s", g.repoPath(g.repo), st, url.QueryEscape(label))
+	path := fmt.Sprintf("%s/issues?state=%s&type=issues", g.repoPath(g.repo), st)
+	if label != "" {
+		path += "&labels=" + url.QueryEscape(label)
+	}
 	raw, err := list[giteaIssue](g, path)
 	if err != nil {
 		return nil, err
 	}
 	var out []Issue
 	for _, r := range raw {
-		if is := r.issue(); slices.Contains(is.Labels, label) {
+		if is := r.issue(); label == "" || slices.Contains(is.Labels, label) {
 			out = append(out, is)
 		}
 	}

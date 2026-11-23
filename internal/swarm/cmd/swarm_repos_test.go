@@ -233,7 +233,7 @@ func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 	f := forge.NewFake(fixedClock(), "acme/swarm-app", []string{"app", "lib"}, forge.Account{Login: "swarm-bot"})
 	f.AddLabels(forge.Labels[1:]...)
 	if err := a.apply(f, "--once"); err != nil || !reflect.DeepEqual(f.Labels()[len(forge.Labels)-1], "swarm:proposal-posted") ||
-		!strings.HasPrefix(a.stdout.String(), "✓ Labels: 17 present (1 created, 0 renamed)\n") {
+		!strings.HasPrefix(a.stdout.String(), "✓ Labels: 18 present (1 created, 0 renamed)\n") {
 		t.Errorf("%v %v\n%s", err, f.Labels(), a.stdout.String())
 	}
 	if err := a.apply(f, "--once"); err != nil || strings.Contains(a.stdout.String(), "Labels:") {
@@ -257,7 +257,7 @@ func TestSwarmApplyEnsuresTheLabels(t *testing.T) {
 	reviewed, _ := old.CreateIssue("r", "", []string{"swarm:reviewed"})
 	old.CloseIssue(reviewed)
 	a.release()
-	if err := a.apply(old, "--once"); err != nil || !strings.HasPrefix(a.stdout.String(), "✓ Labels: 17 present (6 created, 7 renamed)\n") {
+	if err := a.apply(old, "--once"); err != nil || !strings.HasPrefix(a.stdout.String(), "✓ Labels: 18 present (7 created, 7 renamed)\n") {
 		t.Fatalf("the migration: %v\n%s", err, a.stdout.String())
 	}
 	for _, tc := range []struct {

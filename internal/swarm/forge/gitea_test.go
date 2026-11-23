@@ -264,7 +264,7 @@ func TestGiteaEnsureLabels(t *testing.T) {
 	}{
 		{"all present: nothing made", []pair{{"GET", listLabels, "", 200, labelList(append([]string{"bug"}, all...)...)}, lastPage(listLabels)}, 0, 0, ""},
 		{"the missing created", []pair{
-			{"GET", listLabels, "", 200, labelList(all[:15]...)},
+			{"GET", listLabels, "", 200, labelList(all[:16]...)},
 			lastPage(listLabels),
 			createLabel("swarm:done", 201, createdBody),
 			createLabel("swarm:rejected", 201, createdBody),
@@ -290,7 +290,8 @@ func TestGiteaEnsureLabels(t *testing.T) {
 			createLabel("swarm:blocking", 201, createdBody),
 			createLabel("swarm:class-architecture", 201, createdBody),
 			createLabel("swarm:question", 201, createdBody),
-		}, 6, 7, ""},
+			createLabel("swarm:follow-up", 201, createdBody),
+		}, 7, 7, ""},
 		{"an old name beside its new one is left as it is", []pair{
 			{"GET", listLabels, "", 200, labelList(append([]string{"swarm:planned"}, all...)...)},
 			lastPage(listLabels),
@@ -300,18 +301,18 @@ func TestGiteaEnsureLabels(t *testing.T) {
 			lastPage(listLabels),
 			rename(1, "swarm:proposal-posted", 200, label(1, "swarm:proposal-posted")),
 			rename(2, "swarm:proposal-accepted", 403, refused),
-		}, 0, 1, "forge: EnsureLabels: acme's labels to rename (keeping their issues): swarm:ready as swarm:proposal-accepted, swarm:planning as swarm:plan-0-posted, swarm:planned as swarm:plan-1-accepted, swarm:in-review as swarm:review-0-ready, swarm:approved as swarm:review-2-approved, swarm:reviewed as swarm:review-3-changes-requested; missing: swarm:plan-2-in-progress, swarm:review-1-in-progress, swarm:paused, swarm:blocking, swarm:class-architecture, swarm:question; an owner of acme makes them once"},
+		}, 0, 1, "forge: EnsureLabels: acme's labels to rename (keeping their issues): swarm:ready as swarm:proposal-accepted, swarm:planning as swarm:plan-0-posted, swarm:planned as swarm:plan-1-accepted, swarm:in-review as swarm:review-0-ready, swarm:approved as swarm:review-2-approved, swarm:reviewed as swarm:review-3-changes-requested; missing: swarm:plan-2-in-progress, swarm:review-1-in-progress, swarm:paused, swarm:blocking, swarm:class-architecture, swarm:question, swarm:follow-up; an owner of acme makes them once"},
 		{"a refused create (403) creates nothing more and names every missing label", []pair{
 			{"GET", listLabels, "", 200, labelList(Stages...)},
 			lastPage(listLabels),
 			createLabel("swarm:gated", 403, refused),
-		}, 0, 0, "forge: EnsureLabels: acme's labels missing: swarm:gated, swarm:blocked, swarm:paused, swarm:blocking, swarm:class-architecture, swarm:question, swarm:done, swarm:rejected; an owner of acme makes them once"},
+		}, 0, 0, "forge: EnsureLabels: acme's labels missing: swarm:gated, swarm:blocked, swarm:paused, swarm:blocking, swarm:class-architecture, swarm:question, swarm:follow-up, swarm:done, swarm:rejected; an owner of acme makes them once"},
 		{"a refusal (401) after one create names the rest", []pair{
 			{"GET", listLabels, "", 200, labelList(all[:12]...)},
 			lastPage(listLabels),
 			createLabel("swarm:blocking", 201, createdBody),
 			createLabel("swarm:class-architecture", 401, `{"message":"token is required"}`),
-		}, 1, 0, "forge: EnsureLabels: acme's labels missing: swarm:class-architecture, swarm:question, swarm:done, swarm:rejected; an owner of acme makes them once"},
+		}, 1, 0, "forge: EnsureLabels: acme's labels missing: swarm:class-architecture, swarm:question, swarm:follow-up, swarm:done, swarm:rejected; an owner of acme makes them once"},
 		{"a 404 on the list: not an organization", []pair{{"GET", listLabels, "", 404, `{"errors":null,"message":"not found","url":""}`}},
 			0, 0, "forge: EnsureLabels: acme is not an organization; kind gitea needs one (section 3)"},
 		{"another failure is the forge's error", []pair{
@@ -363,6 +364,41 @@ func TestGiteaIssues(t *testing.T) {
 		t.Errorf("Issues(Closed) = %+v, %v", got, err)
 	}
 	s.done()
+}
+
+// TestIssuesWithoutLabel: Issues(state, "") lists every issue in the
+// state, the label query left out and no label filter kept, in both the
+// Gitea adapter and the Fake (section 10; 7.11, rule 7); pull requests
+// stay out.
+func TestIssuesWithoutLabel(t *testing.T) {
+	path := "/repos/acme/app/issues?state=closed&type=issues&page=1&limit=50"
+	g, s := gitea(t, nil,
+		pair{"GET", path, "", 200, `[
+		  {"number":14,"title":"Unlabelled","body":"Defect in: app#3","user":{"login":"jane"},"state":"closed","created_at":"2026-11-02T09:00:00Z","closed_at":"2026-11-03T09:00:00Z","labels":[]},
+		  {"number":9,"title":"Done","body":"","user":{"login":"swarm-bot"},"state":"closed","created_at":"2026-10-30T09:00:00Z","closed_at":"2026-10-31T09:00:00Z","labels":[{"id":20,"name":"swarm:done"}]}
+		]`},
+		lastPage(path))
+	got, err := g.Issues(Closed, "")
+	if err != nil || !reflect.DeepEqual(numbers(got), []int{9, 14}) || got[1].Body != "Defect in: app#3" {
+		t.Errorf("Gitea Issues(Closed, \"\") = %+v, %v", got, err)
+	}
+	s.done()
+
+	f := fakeForge(t)
+	a, _ := f.CreateIssue("A", "", nil)
+	b, _ := f.CreateIssue("B", "", []string{FollowUp})
+	f.CreatePull("app", "swarm/1-1", "main", "P", "Refs #1")
+	c, _ := f.CreateIssue("C", "", []string{"bug"})
+	f.CloseIssue(c)
+	if got, _ := f.Issues(Open, ""); !reflect.DeepEqual(numbers(got), []int{a, b}) {
+		t.Errorf("Fake Issues(Open, \"\") = %v, want [%d %d]", numbers(got), a, b)
+	}
+	if got, _ := f.Issues(Closed, ""); !reflect.DeepEqual(numbers(got), []int{c}) {
+		t.Errorf("Fake Issues(Closed, \"\") = %v, want [%d]", numbers(got), c)
+	}
+	if got, _ := f.Issues(Open, FollowUp); !reflect.DeepEqual(numbers(got), []int{b}) {
+		t.Errorf("Fake Issues(Open, follow-up) = %v: a label still filters", numbers(got))
+	}
 }
 
 func TestGiteaPulls(t *testing.T) {
@@ -571,7 +607,7 @@ func TestGiteaCreateIssue(t *testing.T) {
 	s.done()
 
 	g, s = gitea(t, nil, idPairs("app")...)
-	if _, err := g.CreateIssue("Z", "", []string{"swarm:nonesuch"}); errText(err) != "forge: CreateIssue: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the seventeen" {
+	if _, err := g.CreateIssue("Z", "", []string{"swarm:nonesuch"}); errText(err) != "forge: CreateIssue: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eighteen" {
 		t.Errorf("an unknown label: %v", err)
 	}
 	s.done()
@@ -633,7 +669,7 @@ func TestGiteaRelabel(t *testing.T) {
 	s.done()
 
 	g, s = gitea(t, nil, idPairs("app")...)
-	if err := g.Relabel(Ref{"app", 7}, "swarm:nonesuch", "swarm:review-2-approved"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the seventeen" {
+	if err := g.Relabel(Ref{"app", 7}, "swarm:nonesuch", "swarm:review-2-approved"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eighteen" {
 		t.Errorf("an unknown label writes nothing: %v", err)
 	}
 	s.done()

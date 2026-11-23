@@ -1432,3 +1432,10 @@ they write.
   Decision
   [76](swarm/decisions/0076-the-gate-note-and-an-answer-without-a-commit.md),
   As built.
+- 2026-11-22, Step R6-B of the plan implementing the 2026-11-19 swarm
+  roadmap, the label (rule 6 of section 7.11): `swarm:follow-up` is the
+  seventh flag and the eighteenth label, which `init` and `apply`
+  ensure; `Issues(state, "")` lists every issue in the state, no label
+  filter, in the Gitea adapter and the fake. Sections 2, 5, 10 and 11.
+  Decision [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As
+  built.

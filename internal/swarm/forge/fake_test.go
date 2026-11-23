@@ -81,7 +81,7 @@ func TestFakeRelabel(t *testing.T) {
 	if !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:plan-0-posted"}) {
 		t.Errorf("labels %v: add, remove, the others kept", is.Labels)
 	}
-	if err := f.Relabel(Ref{"app", n}, "swarm:plan-0-posted", "swarm:nonesuch"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the seventeen" {
+	if err := f.Relabel(Ref{"app", n}, "swarm:plan-0-posted", "swarm:nonesuch"); errText(err) != "forge: Relabel: no label swarm:nonesuch for acme/app; run 'daisy swarm init', which ensures the eighteen" {
 		t.Errorf("an unknown label: %v", err)
 	}
 	f.Relabel(Ref{"app", n}, "", "swarm:blocked")
@@ -103,7 +103,7 @@ func TestFakeRelabel(t *testing.T) {
 	if is, _ := f.Issue(n); !reflect.DeepEqual(is.Labels, []string{"bug", "swarm:plan-1-accepted"}) {
 		t.Errorf("remove == add, as Gitea's add then DELETE, leaves it off: %v", is.Labels)
 	}
-	if _, err := f.CreateIssue("B", "", []string{"wontfix"}); errText(err) != "forge: CreateIssue: no label wontfix for acme/app; run 'daisy swarm init', which ensures the seventeen" {
+	if _, err := f.CreateIssue("B", "", []string{"wontfix"}); errText(err) != "forge: CreateIssue: no label wontfix for acme/app; run 'daisy swarm init', which ensures the eighteen" {
 		t.Errorf("CreateIssue with an unknown label: %v", err)
 	}
 }
@@ -379,7 +379,7 @@ func TestFakeEnsureLabelsRenamesTheOldNames(t *testing.T) {
 	refused := NewFake(o, "acme/app", nil, Account{Login: "swarm-bot"})
 	refused.AddLabels(before...)
 	refused.RefuseLabels()
-	if _, _, err := refused.EnsureLabels(Labels); errText(err) != "forge: EnsureLabels: acme's labels to rename (keeping their issues): swarm:proposed as swarm:proposal-posted, swarm:ready as swarm:proposal-accepted, swarm:planning as swarm:plan-0-posted, swarm:planned as swarm:plan-1-accepted, swarm:in-review as swarm:review-0-ready, swarm:approved as swarm:review-2-approved, swarm:reviewed as swarm:review-3-changes-requested; missing: swarm:plan-2-in-progress, swarm:review-1-in-progress, swarm:paused, swarm:blocking, swarm:class-architecture, swarm:question; an owner of acme makes them once" {
+	if _, _, err := refused.EnsureLabels(Labels); errText(err) != "forge: EnsureLabels: acme's labels to rename (keeping their issues): swarm:proposed as swarm:proposal-posted, swarm:ready as swarm:proposal-accepted, swarm:planning as swarm:plan-0-posted, swarm:planned as swarm:plan-1-accepted, swarm:in-review as swarm:review-0-ready, swarm:approved as swarm:review-2-approved, swarm:reviewed as swarm:review-3-changes-requested; missing: swarm:plan-2-in-progress, swarm:review-1-in-progress, swarm:paused, swarm:blocking, swarm:class-architecture, swarm:question, swarm:follow-up; an owner of acme makes them once" {
 		t.Errorf("refused: %v", err)
 	}
 	if !reflect.DeepEqual(refused.Labels(), before) {
@@ -387,7 +387,7 @@ func TestFakeEnsureLabelsRenamesTheOldNames(t *testing.T) {
 	}
 
 	created, renamed, err := f.EnsureLabels(Labels)
-	if err != nil || created != 6 || renamed != 7 {
+	if err != nil || created != 7 || renamed != 7 {
 		t.Fatalf("EnsureLabels = %d created, %d renamed, %v", created, renamed, err)
 	}
 	for _, l := range Labels {

@@ -43,7 +43,9 @@ var Stages = []string{
 // Blocking, the issue blocks another; ClassArchitecture, the job is of
 // the architecture class, whose triage and plan gates the maintainer
 // keeps; Question, a member asked a question that the architect, then
-// the owner, answers or passes on (section 6, The question). Done and Rejected are the terminal
+// the owner, answers or passes on (section 6, The question); FollowUp,
+// the issue holds a merged pull request's non-blocking review findings,
+// the only swarm label it carries (section 7.11, Follow-ups). Done and Rejected are the terminal
 // labels, which replace the stage label when the swarm or the
 // maintainer's verbs close an issue.
 const (
@@ -56,12 +58,13 @@ const (
 
 	ClassArchitecture = "swarm:class-architecture"
 	Question          = "swarm:question"
+	FollowUp          = "swarm:follow-up"
 )
 
-// Flags are the six flags.
-var Flags = []string{Gated, Blocked, Paused, Blocking, ClassArchitecture, Question}
+// Flags are the seven flags.
+var Flags = []string{Gated, Blocked, Paused, Blocking, ClassArchitecture, Question, FollowUp}
 
-// Labels are the seventeen labels `swarm init` and `swarm apply` ensure:
+// Labels are the eighteen labels `swarm init` and `swarm apply` ensure:
 // the stages, the flags and the two terminals.
 var Labels = append(append(slices.Clone(Stages), Flags...), Done, Rejected)
 
@@ -116,6 +119,8 @@ type Adapter interface {
 	// many it created and renamed, and never deletes a label.
 	EnsureLabels(names []string) (created, renamed int, err error)
 	Login() (Account, error) // the token's own account
+	// Issues is the issues in state carrying label, sorted by number;
+	// label "" lists every issue in state (section 10).
 	Issues(state State, label string) ([]Issue, error)
 	Issue(n int) (Issue, error) // with comments, oldest first
 	CreateIssue(title, body string, labels []string) (int, error)
@@ -307,7 +312,7 @@ func New(o ops.Ops, kind, api, token, repo string, names []string) (Adapter, err
 // noLabel is CreateIssue's or Relabel's failure on a label the forge
 // does not hold for the repository name of owner.
 func noLabel(method, owner, name, label string) error {
-	return fmt.Errorf("forge: %s: no label %s for %s/%s; run 'daisy swarm init', which ensures the seventeen", method, label, owner, name)
+	return fmt.Errorf("forge: %s: no label %s for %s/%s; run 'daisy swarm init', which ensures the eighteen", method, label, owner, name)
 }
 
 // renames is each name of names absent from have whose old name (Renamed)
