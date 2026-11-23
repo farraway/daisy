@@ -532,6 +532,20 @@ follow-up item counts against the run its item names, `<n>-<role>-<k>`.
 A reviewer run whose files are gone approved nothing. Test:
 `TestScorecardEscapesByConfiguration`.
 
+**As built: blocking findings by kind (Step R6-C of the plan
+implementing the 2026-11-19 swarm roadmap).** The summary counts the
+`[blocking]` lines of the window's posted adversary and sympathetic
+reviews, read from each run's `out.md` (whole, as Daisy wrote nothing
+over it; the forge's copy may be cut), by the first word after the
+marker, case and a trailing `:` aside (`[blocking] claim:` and
+`[blocking] Test` are a claim and a test), in the blocking sentence's
+order, a word that is no kind `unnamed`, `none` for no finding. Only the
+word is read, so `[blocking] the claim fails` is `unnamed`; reading the
+kind anywhere on the line was the alternative, which a finding that
+names another kind in its text would miscount. A review not posted
+counts none, as its findings reached no one. Test:
+`TestScorecardBlockingByKind`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

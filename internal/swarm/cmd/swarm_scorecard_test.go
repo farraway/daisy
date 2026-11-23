@@ -125,7 +125,7 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 		t.Fatalf("%v\n%s", err, a.stderr.String())
 	}
 	want := head + one1 + two1 + one2 +
-		"Summary, every record (2.0 days): 3 slices merged; 12 runs, 4.0 per merge; input 4450 tokens per merge; worker stop rate 33% (2 of 6 worker runs); 3 interventions, 1.5 a day; escapes 0 on 3 merged slices (0 reverted, 0 filed, 0 fixed by hand); " + followUpTotals(0, 0) + "\n" +
+		"Summary, every record (2.0 days): 3 slices merged; 12 runs, 4.0 per merge; input 4450 tokens per merge; worker stop rate 33% (2 of 6 worker runs); 3 interventions, 1.5 a day; escapes 0 on 3 merged slices (0 reverted, 0 filed, 0 fixed by hand); " + followUpTotals(0, 0) + "; blocking findings by kind none\n" +
 		"By configuration, every record:\n" +
 		"  owner anthropic claude-opus-5-5 low, config unknown: runs 1; tokens 1000 uncached, 4000 cached, 500 out; estimated $2.00 at list price; stops 0\n" +
 		"  architect anthropic claude-fable-5-2 high, config unknown: runs 3; tokens 350 uncached, 800 cached, 115 out; estimated $0.52 at list price; stops 0\n" +
@@ -139,7 +139,7 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	want = head + two1 + one2 +
-		"Summary, since 2026-11-06T19:00:00Z (1.8 days): 2 slices merged; 2 runs, 1.0 per merge; input 375 tokens per merge; worker stop rate 0% (0 of 1 worker runs); 1 interventions, 0.6 a day; escapes 0 on 2 merged slices (0 reverted, 0 filed, 0 fixed by hand); " + followUpTotals(0, 0) + "\n" +
+		"Summary, since 2026-11-06T19:00:00Z (1.8 days): 2 slices merged; 2 runs, 1.0 per merge; input 375 tokens per merge; worker stop rate 0% (0 of 1 worker runs); 1 interventions, 0.6 a day; escapes 0 on 2 merged slices (0 reverted, 0 filed, 0 fixed by hand); " + followUpTotals(0, 0) + "; blocking findings by kind none\n" +
 		"By configuration, since 2026-11-06T19:00:00Z:\n" +
 		"  architect anthropic claude-fable-5-2 high, config unknown: runs 1; tokens 50 uncached, 0 cached, 5 out; estimated $0.01 at list price; stops 0\n" +
 		"  worker xai grok-4.7 low, config unknown: runs 1; tokens 700 uncached, 0 cached, 70 out; estimated $0.07 at list price; stops 0\n"
@@ -155,7 +155,7 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	want = head + strings.Replace(one1, "interventions I3 1, I7 1", "interventions I3 1", 1) +
-		"Summary, until 2026-11-06T18:00:00Z (0.2 days): 1 slices merged; 9 runs, 9.0 per merge; input 12000 tokens per merge; worker stop rate 50% (2 of 4 worker runs); 1 interventions, 6.0 a day; escapes 0 on 1 merged slices (0 reverted, 0 filed, 0 fixed by hand); " + followUpTotals(0, 0) + "\n" +
+		"Summary, until 2026-11-06T18:00:00Z (0.2 days): 1 slices merged; 9 runs, 9.0 per merge; input 12000 tokens per merge; worker stop rate 50% (2 of 4 worker runs); 1 interventions, 6.0 a day; escapes 0 on 1 merged slices (0 reverted, 0 filed, 0 fixed by hand); " + followUpTotals(0, 0) + "; blocking findings by kind none\n" +
 		"By configuration, until 2026-11-06T18:00:00Z:\n" +
 		"  owner anthropic claude-opus-5-5 low, config unknown: runs 1; tokens 1000 uncached, 4000 cached, 500 out; estimated $2.00 at list price; stops 0\n" +
 		"  architect anthropic claude-fable-5-2 high, config unknown: runs 2; tokens 300 uncached, 800 cached, 110 out; estimated $0.51 at list price; stops 0\n" +
@@ -168,7 +168,7 @@ func TestScorecardRowPerMergedSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	want = head + two1 + one2 +
-		"Summary, since 2026-11-06T19:00:00Z until 2026-11-30T23:00:00Z (1.8 days): 2 slices merged; 2 runs, 1.0 per merge; input 375 tokens per merge; worker stop rate 0% (0 of 1 worker runs); 1 interventions, 0.6 a day; escapes 0 on 2 merged slices (0 reverted, 0 filed, 0 fixed by hand); " + followUpTotals(0, 0) + "\n" +
+		"Summary, since 2026-11-06T19:00:00Z until 2026-11-30T23:00:00Z (1.8 days): 2 slices merged; 2 runs, 1.0 per merge; input 375 tokens per merge; worker stop rate 0% (0 of 1 worker runs); 1 interventions, 0.6 a day; escapes 0 on 2 merged slices (0 reverted, 0 filed, 0 fixed by hand); " + followUpTotals(0, 0) + "; blocking findings by kind none\n" +
 		"By configuration, since 2026-11-06T19:00:00Z until 2026-11-30T23:00:00Z:\n" +
 		"  architect anthropic claude-fable-5-2 high, config unknown: runs 1; tokens 50 uncached, 0 cached, 5 out; estimated $0.01 at list price; stops 0\n" +
 		"  worker xai grok-4.7 low, config unknown: runs 1; tokens 700 uncached, 0 cached, 70 out; estimated $0.07 at list price; stops 0\n"
@@ -221,7 +221,7 @@ func TestScorecardRefusals(t *testing.T) {
 		t.Errorf("a word for --until = %v", err)
 	}
 	if err := a.scorecard(); err != nil || a.stdout.String() != "Scorecard of acme/swarm-app: runs and interventions from "+filepath.Join(home, "metrics", "metrics.csv")+
-		", merges from no mirror fetched\n  no slice merged\nSummary, every record (no record): 0 slices merged; 0 runs, — per merge; input — tokens per merge; worker stop rate — (0 of 0 worker runs); 0 interventions, — a day; escapes 0 on 0 merged slices (0 reverted, 0 filed, 0 fixed by hand); "+followUpTotals(0, 0)+"\nBy configuration, every record:\n  no run\n" {
+		", merges from no mirror fetched\n  no slice merged\nSummary, every record (no record): 0 slices merged; 0 runs, — per merge; input — tokens per merge; worker stop rate — (0 of 0 worker runs); 0 interventions, — a day; escapes 0 on 0 merged slices (0 reverted, 0 filed, 0 fixed by hand); "+followUpTotals(0, 0)+"; blocking findings by kind none\nBy configuration, every record:\n  no run\n" {
 		t.Errorf("no record = %v\n%s", err, a.stdout.String())
 	}
 	os.Remove(a.state("home"))

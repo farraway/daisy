@@ -315,7 +315,7 @@ func TestScorecardEscapesAndFollowUps(t *testing.T) {
 	}
 	want := one + two + three +
 		"Summary, every record (2.0 days): 3 slices merged; 0 runs, 0.0 per merge; input 0 tokens per merge; worker stop rate — (0 of 0 worker runs); 0 interventions, 0.0 a day; " +
-		"escapes 4 on 3 merged slices (1 reverted, 2 filed, 1 fixed by hand); " + followUpTotals(2, 1) + "\n" +
+		"escapes 4 on 3 merged slices (1 reverted, 2 filed, 1 fixed by hand); " + followUpTotals(2, 1) + "; blocking findings by kind none\n" +
 		"By configuration, every record:\n  no run\n"
 	if got := a.stdout.String(); !strings.HasPrefix(got, head) || !strings.HasSuffix(got, want) {
 		t.Errorf("stdout:\n%s\nwant after its first line:\n%s", got, want)
@@ -325,7 +325,7 @@ func TestScorecardEscapesAndFollowUps(t *testing.T) {
 	}
 	want = two + three +
 		"Summary, since 2026-11-06T19:00:00Z (2.0 days): 2 slices merged; 0 runs, 0.0 per merge; input 0 tokens per merge; worker stop rate — (0 of 0 worker runs); 0 interventions, 0.0 a day; " +
-		"escapes 4 on 2 merged slices (1 reverted, 2 filed, 1 fixed by hand); " + followUpTotals(0, 0) + "\n" +
+		"escapes 4 on 2 merged slices (1 reverted, 2 filed, 1 fixed by hand); " + followUpTotals(0, 0) + "; blocking findings by kind none\n" +
 		"By configuration, since 2026-11-06T19:00:00Z:\n  no run\n"
 	if got := a.stdout.String(); !strings.HasSuffix(got, want) {
 		t.Errorf("--since: stdout:\n%s\nwant after its first line:\n%s", got, want)
@@ -433,6 +433,62 @@ func TestScorecardEscapesByConfiguration(t *testing.T) {
 	}
 	if got := lines(); !reflect.DeepEqual(got, want) {
 		t.Errorf("--since: by configuration:\n%v\nwant:\n%v\nstdout:\n%s", got, want, a.stdout.String())
+	}
+}
+
+// TestScorecardBlockingByKind: the claim of Step R6-C of the plan
+// implementing the 2026-11-19 swarm roadmap, blocking findings by kind
+// (section 11, The scorecard; section 7.11, The list, in the Task): the
+// summary ends `; blocking findings by kind <kind> <k>, …`, the
+// `[blocking]` lines of the window's posted reviews (a reviewer run's
+// out.md) counted by the word after the marker, case and a trailing
+// colon aside, in the blocking sentence's order (claim, test, defect,
+// introduced, unclosed), a line naming none of them `unnamed`, and `none`
+// for no blocking finding: a non-blocking line, a review not posted, a
+// run not a reviewer's and a run before --since count none.
+func TestScorecardBlockingByKind(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	home := a.metricsHome()
+	for run, out := range map[string]string{
+		"1-adversary-1":   "VERDICT: request-changes\n\n[blocking] claim a.go:3: the empty input is refused; reproduced by go test ./...\n[blocking] defect: b.go:4: a percent-encoded path escapes; reproduced by curl\n[blocking] a.go:5: no kind named\n[non-blocking] test c.go:1: a test could be added\n",
+		"1-adversary-2":   "VERDICT: request-changes\n\n[blocking] unclosed a.go:3: still refused\n[blocking] introduced d.go:1: the old flag fails\n[blocking] Test e.go:2: TestDrift is missing\n",
+		"1-sympathetic-3": "VERDICT: request-changes\n\n[blocking] claim f.go:1: not posted\n",
+		"1-worker-1":      "[blocking] claim g.go:1: a worker's line\n",
+		"2-adversary-1":   "VERDICT: request-changes\n\n[blocking] claim h.go:1: before --since\n",
+	} {
+		a.runResult(run, "outcome posted\ncollected\n", out)
+	}
+	row := func(at, run, role, outcome string) string {
+		n, _, _ := strings.Cut(run, "-")
+		return at + ",swarm-run,acme/swarm-app," + run + "," + role + ",openai,gpt-6.2-astra,high,,,p," + outcome + ",1,100,10,110,,0.01,,,,,,,,,#" + n + ",0,,,\n"
+	}
+	csvFile := filepath.Join(home, "metrics", "metrics.csv")
+	os.MkdirAll(filepath.Dir(csvFile), 0o755)
+	os.WriteFile(csvFile, []byte(strings.Join(metrics.Header, ",")+"\n"+
+		row("2026-11-06T08:00:00Z", "2-adversary-1", "adversary", "posted")+
+		row("2026-11-06T09:30:00Z", "1-worker-1", "worker", "posted")+
+		row("2026-11-06T10:00:00Z", "1-adversary-1", "adversary", "posted")+
+		row("2026-11-06T11:00:00Z", "1-adversary-2", "adversary", "posted")+
+		row("2026-11-06T11:30:00Z", "1-sympathetic-3", "sympathetic", "failed")), 0o644)
+	a.setNow("2026-11-07T00:00:00Z")
+	for _, c := range []struct{ since, want string }{
+		{"", "; blocking findings by kind claim 2, test 1, defect 1, introduced 1, unclosed 1, unnamed 1\n"},
+		{"2026-11-06T09:00:00Z", "; blocking findings by kind claim 1, test 1, defect 1, introduced 1, unclosed 1, unnamed 1\n"},
+		{"2026-11-06T12:00:00Z", "; blocking findings by kind none\n"},
+	} {
+		var values []Value
+		if c.since != "" {
+			values = append(values, Value{Flag: "--since", Value: c.since})
+		}
+		if err := a.scorecard(values...); err != nil {
+			t.Fatalf("%v\n%s", err, a.stderr.String())
+		}
+		_, summary, _ := strings.Cut(a.stdout.String(), "\nSummary, ")
+		summary, _, _ = strings.Cut(summary, "\nBy configuration")
+		if !strings.HasSuffix(summary+"\n", c.want) {
+			t.Errorf("since %q: summary %q, want it ending %q", c.since, summary, c.want)
+		}
 	}
 }
 

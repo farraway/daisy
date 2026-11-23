@@ -1218,9 +1218,9 @@ func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
 		perDay = fmt.Sprintf("%.1f", float64(sm.Interventions)/d)
 	}
 	fmt.Fprintf(out, "Summary, %s (%s): %d slices merged; %d runs, %s per merge; input %s tokens per merge; worker stop rate %s (%d of %d worker runs); %d interventions, %s a day; "+
-		"escapes %d on %d merged slices (%d reverted, %d filed, %d fixed by hand); follow-up items %d, %d proved real\n",
+		"escapes %d on %d merged slices (%d reverted, %d filed, %d fixed by hand); follow-up items %d, %d proved real; blocking findings by kind %s\n",
 		window, days, sm.Merges, sm.Runs, perMerge(sm.Runs, "%.1f"), perMerge(sm.Input, "%.0f"), stopRate, sm.WorkerStops, sm.WorkerRuns, sm.Interventions, perDay,
-		sm.Escapes.Count(), sm.Merges, sm.Escapes.Reverted, sm.Escapes.Filed, sm.Escapes.ByHand, sm.Items, sm.ProvedReal)
+		sm.Escapes.Count(), sm.Merges, sm.Escapes.Reverted, sm.Escapes.Filed, sm.Escapes.ByHand, sm.Items, sm.ProvedReal, blockingKinds(sm.Blocking))
 	fmt.Fprintf(out, "By configuration, %s:\n", window)
 	if len(sc.Configs) == 0 {
 		fmt.Fprintln(out, "  no run")
@@ -1245,6 +1245,21 @@ func writeScorecard(out io.Writer, repo string, sc reconcile.Scorecard) {
 			g.Role, dash(g.Provider), dash(g.Model), dash(g.Effort), hash, g.Runs, g.Uncached, g.Cached, g.Output, without(g.NoUsage, "usage"),
 			g.Cost, without(g.Unpriced, "an estimate"), g.Stops, effect)
 	}
+}
+
+// blockingKinds is the window's blocking findings, `<kind> <k>, …` in
+// the kinds' order, `none` for none.
+func blockingKinds(kinds map[string]int) string {
+	var parts []string
+	for _, k := range reconcile.BlockingKinds {
+		if n := kinds[k]; n > 0 {
+			parts = append(parts, fmt.Sprintf("%s %d", k, n))
+		}
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, ", ")
 }
 
 // escapeParts is a slice's escapes, `<e>` and, when it has any, ` (<the

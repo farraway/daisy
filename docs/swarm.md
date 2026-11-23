@@ -6269,7 +6269,9 @@ no trust boundaries, trusting the product's own process environment,
 configuration, filesystem and umask and the toolchain's settings, and
 nothing a user or a network peer sends`. A blocking line
 that names no kind is read as before: Daisy parses the kind for nothing
-but the scorecard's count of blocking findings by kind (rule 7), a line
+but the scorecard's count of blocking findings by kind (rule 7; built
+at Step R6-C of the plan implementing the 2026-11-19 swarm roadmap: the
+first word after the marker, case and a trailing `:` aside), a line
 without one counted `unnamed`, and never refuses a review for it.
 
 **The trust boundaries** (rule 2; built at Step R6-A of the plan
@@ -6434,9 +6436,8 @@ ignored with a warning. A follow-up the owner leaves open stays in the
 next batch's prompt. The maintainer may close one on the forge; `swarm
 close` refuses an issue with no stage, as it does now.
 
-**The balance** (rule 7; a slice's escapes and follow-up items, on its
-line, in the summary and by configuration, built at Step R6-C of the
-plan implementing the 2026-11-19 swarm roadmap). An **escape** of a merged slice, its pull
+**The balance** (rule 7; built at Step R6-C of the plan implementing
+the 2026-11-19 swarm roadmap). An **escape** of a merged slice, its pull
 request `<name>#<m>` (the one a worker run's `created pull <m>` line
 names on the slice's branch), is one of three: its merge reverted (`status`'s
 reverted line, a reapply cancelling it, decision
@@ -8257,7 +8258,7 @@ its drift, and a loop restarted prints it again at its first pass.
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm metrics --backfill \| --reprice [--dry-run] \| --scorecard [--since <time>] [--until <time>]`; none of the three actions or more than one, `--dry-run` without `--reprice`, `--since` or `--until` without `--scorecard`, or `--until` before `--since` (`--until <value> is before --since <value>: the window would hold nothing`, before anything is read), usage (exit 2) |
-| Reads | `swarm.json`'s forge fields (to name `<state>`) and its personas; `<state>/home`, the registry, `<run>/result`, `<run>/argv` and `<run>/io/system.md` (both), `<run>/stdout` (`--reprice`), a reviewer's `<run>/io/out.md` (both) and a stopped run's (`--backfill`, its cause), the home's metrics CSV; a worker's range in its mirror (`git diff --numstat`); no secret, no forge call, no Docker. `--scorecard`: `swarm.json`'s forge fields and `base`, `<state>/home`, the registry, the home's metrics CSV, each worker run's `<run>/result` (its `branch` and `pushed` lines), each such repository's mirror's `base` (`git log --first-parent --merges`, the reverts' `git log`) and its `FETCH_HEAD`'s time, as `status`'s reverted line reads them; each worker run's `created pull` line, each declared repository's mirror's first-parent log of `base` (the hand fixes, 7.11, The balance); `<state>/env` (the token) and the forge's `Issue(n)` for each issue whose first merged slice is in the window, and `Issues(<state>, "")`, open and closed (the escapes filed and the follow-ups); no Docker |
+| Reads | `swarm.json`'s forge fields (to name `<state>`) and its personas; `<state>/home`, the registry, `<run>/result`, `<run>/argv` and `<run>/io/system.md` (both), `<run>/stdout` (`--reprice`), a reviewer's `<run>/io/out.md` (both) and a stopped run's (`--backfill`, its cause), the home's metrics CSV; a worker's range in its mirror (`git diff --numstat`); no secret, no forge call, no Docker. `--scorecard`: `swarm.json`'s forge fields and `base`, `<state>/home`, the registry, the home's metrics CSV, each worker run's `<run>/result` (its `branch` and `pushed` lines), each such repository's mirror's `base` (`git log --first-parent --merges`, the reverts' `git log`) and its `FETCH_HEAD`'s time, as `status`'s reverted line reads them; each worker run's `created pull` line, each declared repository's mirror's first-parent log of `base` (the hand fixes, 7.11, The balance), each reviewer run's `<run>/result` (its `start` line) and `<run>/io/out.md` (its verdict and `[blocking]` lines); `<state>/env` (the token) and the forge's `Issue(n)` for each issue whose first merged slice is in the window, and `Issues(<state>, "")`, open and closed (the escapes filed and the follow-ups); no Docker |
 | Writes | the metrics CSV of the home `<state>/home` names (section 2): `--backfill`, a `swarm-run` row for each collected run (its `result` holding `collected`) the CSV holds no row of, in the order of their times, in one rewrite, then, in a second, a row superseding each earlier review's whose effect a backfilled review decides (below); `--reprice`, in one rewrite, a row superseding the row of each collected run the CSV holds whose output, or for a reviewer the runs' effect, or its kept `system.md`'s configuration, now reads otherwise (below), in the order of the runs' names; `--dry-run` and `--scorecard`, nothing; no journal line |
 | Stdout | `✓ Backfilled <w> rows into <file> (<c> runs collected, <h> with its row already)`, then `; <e> earlier reviews' rows superseded with their review_effect` when it superseded any; `✓ Repriced <w> rows into <file> (<c> runs collected, <h> with a row: <k> current, <u> with no usage to read)` (`<k>` the rows left as they are whose usage was read); with `--dry-run`, a line per row it would write, `  <run> <provider> <model>: tokens_in <a> → <b>, tokens_cached <a> → <b>, tokens_total <a> → <b>, cost_estimated <a> → <b>` (`—` for empty), a reviewer's ending `, review_effect <a> → <b>`, and a row whose `config_hash` changes then `, config_hash <a> → <b>`, then `Would reprice <w> rows in <file> (…); nothing written`; `--scorecard`, The scorecard (below) |
 | Stderr | `⚠ #<n> worker run <k>: lines not counted: <reason>`; `⚠ #<n> <role> run <k>: cause left empty: …` (7.6, The run's record); `⚠ #<n> <role> run <k>: no row: its result has no end line or started line to date it`; `--scorecard`, a warning of the secrets file (section 3) |
@@ -8398,7 +8399,7 @@ it) and not after `--until`, in the order of the merges:
 Scorecard of <owner>/<repo>: runs and interventions from <csv>, merges from the mirrors as last fetched, <time>        (or: no mirror fetched)
   #<n> slice <s> in <name>, merged <time>, <wall> after the issue's opening: runs <r> (<role> <k>, …); tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; review rounds <d>; stops <cause> <k>, …; interventions <type> <k>, …; escapes <e>[ (reverted, <b> filed, <h> fixed by hand)]; follow-up <k> items, <p> proved real
   …        (or:   no slice merged)
-Summary, since <time> until <time> (<d> days): <m> slices merged; <r> runs, <r/m> per merge; input <i/m> tokens per merge; worker stop rate <p>% (<s> of <w> worker runs); <v> interventions, <v/d> a day; escapes <e> on <m> merged slices (<rv> reverted, <b> filed, <h> fixed by hand); follow-up items <f>, <p> proved real
+Summary, since <time> until <time> (<d> days): <m> slices merged; <r> runs, <r/m> per merge; input <i/m> tokens per merge; worker stop rate <p>% (<s> of <w> worker runs); <v> interventions, <v/d> a day; escapes <e> on <m> merged slices (<rv> reverted, <b> filed, <h> fixed by hand); follow-up items <f>, <p> proved real; blocking findings by kind <kind> <k>, …
 By configuration, since <time> until <time>:
   <role> <provider> <model> <effort>, config <hash>: runs <r>; tokens <u> uncached, <c> cached, <o> out[ (<k> runs without usage)]; estimated $<e> at list price[ (<k> runs without an estimate)]; stops <s>[; review effect <f> (<k> of <r> runs known); merged heads approved <a>, escaped <e>; follow-up items raised <f>, <p> proved real]
   …        (or:   no run)
@@ -8455,7 +8456,14 @@ counts it), `<w>` the worker runs and `<s>` those whose `outcome` is
 `<v/d>` to one decimal, `<i/m>` whole, `<p>` whole; a rate with no
 merge or no worker run is `—`; and, of the `<m>` slices merged in it,
 their escapes and follow-up items summed (Step R6-C of the plan
-implementing the 2026-11-19 swarm roadmap), `<rv>` the slices reverted. A slice's line takes its records
+implementing the 2026-11-19 swarm roadmap), `<rv>` the slices reverted;
+and the blocking findings of the window's adversary and sympathetic
+reviewer runs whose `outcome` is `posted`, each line of the run's
+`<run>/io/out.md` beginning `[blocking]` counted by the kind its first
+word names (7.11, The list, in the Task), case and a trailing `:`
+aside, in the order claim, test, defect, introduced, unclosed, then
+`unnamed` for a word that is none of them, `none` for no finding (a run
+whose `out.md` is gone counts none). A slice's line takes its records
 whatever their dates up to `--until`, so a slice merged in the window
 counts runs made before `--since`, while the summary's counts take only
 the window's records.
@@ -8494,8 +8502,7 @@ windows, `--until` and `--since` the time its build was installed, each
 row's `root_sha` naming the root its run was collected under (decision
 [168](swarm/decisions/0168-a-delta-review.md)).
 
-**The balance** (7.11, rule 7; a slice's line, the summary's escapes
-and follow-ups and By configuration's built at Step R6-C of the plan
+**The balance** (7.11, rule 7; built at Step R6-C of the plan
 implementing the 2026-11-19 swarm roadmap): the
 scorecard reads the escaped-defect side beside the cost. A slice's line
 adds its escapes (its merge reverted, as the reverted line reads it;
@@ -8506,11 +8513,12 @@ message holds that line) and its follow-up items with those a merged
 job's `Follow-up:` line names; the summary adds their totals; By
 configuration, an adversary's or a sympathetic reviewer's line adds the
 merged heads it approved and their escapes, and the follow-up items it
-raised and those proved real (built at the same step). *R6, specified
-ahead of its build* (7.11, rule 7): the summary adds the blocking
-findings counted by the kind each names. It reads `Issues(<state>, "")` of `forge.repo`, open and
-closed (section 10), once, and each declared repository's mirror's
-first-parent log of `base` beside what it reads now, and writes nothing.
+raised and those proved real; and the summary adds the blocking
+findings counted by the kind each names. It reads `Issues(<state>, "")`
+of `forge.repo`, open and closed (section 10), once, each declared
+repository's mirror's first-parent log of `base`, and the reviewer runs'
+`<run>/result` and `<run>/io/out.md` beside what it reads now, and
+writes nothing.
 `init` and `apply` ensure eighteen labels, `swarm:follow-up` among them
 (section 5).
 

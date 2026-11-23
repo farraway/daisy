@@ -1501,3 +1501,12 @@ they write.
   slices' escapes, and the follow-up items its runs raised with those
   proved real. Sections 7.11 and 11, docs/cli.md. Decision
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-23, Step R6-C of the plan implementing the 2026-11-19 swarm
+  roadmap, blocking findings by kind (rule 7 of section 7.11): the
+  scorecard's summary ends with the window's posted reviews' blocking
+  findings counted by the kind the word after `[blocking]` names, a line
+  naming none `unnamed`. The balance is built; rule 8, the round
+  limit's `OVERRULED:`, stays specified ahead of its build. Sections 7.11
+  and 11, docs/cli.md. Decisions
+  [156](swarm/decisions/0156-a-scorecard-per-merged-slice.md) and
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.

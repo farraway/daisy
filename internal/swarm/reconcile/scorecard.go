@@ -149,6 +149,7 @@ type ScoreSummary struct {
 	Interventions           int
 	Escapes                 EscapeTotals
 	Items, ProvedReal       int
+	Blocking                map[string]int // the window's posted reviews' blocking findings, by kind
 }
 
 // EscapeTotals is the escapes of the window's merged slices (section
@@ -177,7 +178,7 @@ type scoreRecord struct {
 // s.Forge. The records and merges after until (none when it is zero)
 // are left out altogether, of the slices' rows as of the summary.
 func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
-	c := Scorecard{Since: since, Until: until, Start: since, End: s.O.Now().UTC()}
+	c := Scorecard{Since: since, Until: until, Start: since, End: s.O.Now().UTC(), Summary: ScoreSummary{Blocking: map[string]int{}}}
 	after := func(t time.Time) bool { return !until.IsZero() && t.After(until) }
 	if !until.IsZero() && until.Before(c.End) {
 		c.End = until
@@ -276,6 +277,9 @@ func (s *Swarm) Scorecard(since, until time.Time) (Scorecard, error) {
 			}
 			c.Configs[i].add(r)
 			ofRun[r.Unit] = i
+			if err := s.countBlocking(r, c.Summary.Blocking); err != nil {
+				return c, err
+			}
 			c.Summary.Runs++
 			c.Summary.Input += atoi(r.TokensIn)
 			if r.Role == "worker" {
@@ -490,6 +494,36 @@ func (s *Swarm) approvers(rows []SliceScore, reviews map[slotOf]scoreRecord) err
 	}
 	for i := range rows {
 		slices.Sort(rows[i].Approvers)
+	}
+	return nil
+}
+
+// BlockingKinds is the kinds of blocking finding, in the blocking
+// sentence's order (section 7.11, The list, in the Task), then `unnamed`
+// for a finding that names none.
+var BlockingKinds = []string{"claim", "test", "defect", "introduced", "unclosed", "unnamed"}
+
+// countBlocking counts, in kinds, the blocking findings of r when it is
+// a posted review: each `[blocking]` line of its run's out.md by the word
+// after the marker, case and a trailing colon aside, `unnamed` for a word
+// that is no kind (section 7.11; a run whose out.md is gone counts none).
+func (s *Swarm) countBlocking(r scoreRecord, kinds map[string]int) error {
+	if !isReviewer(r.Role) || r.Outcome != "posted" {
+		return nil
+	}
+	out, err := Run{Dir: filepath.Join(s.state(), "runs", r.Unit)}.Output(s.O.FS())
+	if errors.Is(err, iofs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, l := range blockingLines(string(out)) {
+		kind := "unnamed"
+		if f := strings.Fields(strings.TrimPrefix(l, "[blocking]")); len(f) > 0 && slices.Contains(BlockingKinds[:5], strings.ToLower(strings.TrimSuffix(f[0], ":"))) {
+			kind = strings.ToLower(strings.TrimSuffix(f[0], ":"))
+		}
+		kinds[kind]++
 	}
 	return nil
 }
