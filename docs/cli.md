@@ -1429,7 +1429,7 @@ each of these verbs, and `swarm restart`, also takes `--type <type>`,
 right after `<n>` (in either order with `unblock`'s `--cause` and
 `--start` and `block`'s `--by`) or leading as a value flag, and from a comment
 command right after the verb's name: the maintainer's intervention,
-`<type>` one of the catalogue's `I1` to `I17`. A type outside them,
+`<type>` one of the catalogue's `I1` to `I18`. A type outside them,
 `--type` with no type or given twice is usage (exit 2) before anything
 is read; `<state>/home` naming no usable home, or its metrics CSV not
 this Daisy's, is `Error: swarm: --type: <reason>; nothing changed`
@@ -1572,7 +1572,7 @@ recorded then by `swarm intervene`. A verb refused records nothing.
 |---|---|
 | Status | as built (Steps 6 and R0-7, `--issue`, of the plan implementing the 2026-11-19 swarm roadmap): Go (`internal/swarm/cmd/swarm_intervene.go`, `internal/swarm/reconcile/intervention.go`); the contract is [docs/swarm.md](swarm.md) section 11, The interventions' record |
 | Legacy | none |
-| Usage | `daisy swarm intervene --type <type> [--issue <n>] <note...>`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); the record of an intervention no verb makes (a hand edit of `swarm.json`, a hand-published patch), `<type>` one of `I1` to `I17`; `--issue <n>`, the issue the act was on, a positive issue number (not looked up on the forge); both leading value flags, in either order; the words after them are the note, their whitespace made single spaces; without `--type`, a type outside them, `--issue` not an issue number or given twice, or no note: usage on stderr, exit 2, before anything is read |
+| Usage | `daisy swarm intervene --type <type> [--issue <n>] <note...>`: in the swarm repository's clone (docs/swarm.md section 11, Finding the swarm); the record of an intervention no verb makes (a hand edit of `swarm.json`, a hand-published patch), `<type>` one of `I1` to `I18`; `--issue <n>`, the issue the act was on, a positive issue number (not looked up on the forge); both leading value flags, in either order; the words after them are the note, their whitespace made single spaces; without `--type`, a type outside them, `--issue` not an issue number or given twice, or no note: usage on stderr, exit 2, before anything is read |
 | Exit codes | 0 recorded; 1 no swarm found, `swarm.json` absent or unparsable or its forge fields invalid, `<state>/home` naming no usable home or its CSV not this Daisy's (`Error: swarm: --type: <reason>; nothing changed`), the metrics lock held past 30 seconds or a write failing (`Error: swarm: intervention not recorded: <reason>`); 2 usage |
 | Stdout | `Intervention <n>-intervention-<k> recorded: <type>`, `<n>` the `--issue` given, else `0` |
 | Ops | Real |

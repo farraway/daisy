@@ -127,3 +127,15 @@ and `status` counts no intervention. Not added: a type for a persona's
 model changed in `swarm.json`, done that day with no type that fits; an
 open question for the maintainer. Tests: `TestSwarmNewInterventionTypes`,
 `TestIsInterventionType`, `TestSwarmInterventionRefused`.
+
+**As built: a model changed (Step SF2 of the plan implementing the
+2026-11-19 swarm roadmap, 2026-11-22).** The maintainer's ruling of
+2026-11-22, which answers the open question above: a model change gets
+an intervention type. The catalogue gains `I18`, a model changed (a
+persona's `model` or `effort` in `swarm.json` changed to correct how
+the members work). The range's constant is 18, so every verb that takes
+`--type`, `restart`, `intervene` and a comment command take it, as they
+take `I15` to `I17`; the existing types keep their numbers, and the
+scorecard counts `I18` by the `cause` cell as it counts the others.
+Tests: `TestSwarmNewInterventionTypes`, `TestIsInterventionType`,
+`TestSwarmInterventionRefused`.

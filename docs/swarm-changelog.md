@@ -1466,3 +1466,8 @@ they write.
   the batch's proposals that name it; a line naming any other issue is
   ignored with a warning. Sections 7.5, 7.6, 7.11 and 11. Decision
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-22, Step SF2 of the plan implementing the 2026-11-19 swarm
+  roadmap: the interventions' catalogue gains `I18` (a persona's model or
+  effort changed), taken by every `--type` and counted by the scorecard
+  as `I15` to `I17` are. Section 11. Decision
+  [155](swarm/decisions/0155-interventions-recorded.md), As built.

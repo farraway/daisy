@@ -101,13 +101,15 @@ func TestSwarmVerbRecordsItsIntervention(t *testing.T) {
 // prompt changed), are each taken by every verb that takes --type, the
 // maintainer's verbs, restart and intervene, none refusing it as usage;
 // each is recorded with its type in cause, and the scorecard counts the
-// records among the interventions as it counts the other types'.
+// records among the interventions as it counts the other types'. I18 (a
+// persona's model or effort changed), Step SF2 of the same plan, is
+// claimed alike.
 func TestSwarmNewInterventionTypes(t *testing.T) {
 	t.Parallel()
 	a, m, home := interventionWS(t)
 	intervene := func(c *Context, _ opener) error { return swarmIntervene(c) }
 	var u UsageError
-	for _, typ := range []string{"I15", "I16", "I17"} {
+	for _, typ := range []string{"I15", "I16", "I17", "I18"} {
 		for _, v := range commentVerbs {
 			args := map[string][]string{"class": {"routine"}, "unblock": {"Go", "on."}, "block": {"--by", "2"}, "replan": {"Again."}, "close": {"Not", "now."}}[v.name]
 			if err := m.verb(maintainerVerb(v.name), append([]string{"1", "--type", typ}, args...)...); errors.As(err, &u) {
@@ -132,16 +134,16 @@ func TestSwarmNewInterventionTypes(t *testing.T) {
 	for _, r := range interventions(t, home) {
 		count[r["cause"]]++
 	}
-	for _, typ := range []string{"I15", "I16", "I17"} {
+	for _, typ := range []string{"I15", "I16", "I17", "I18"} {
 		if count[typ] < 2 { // at least restart's and intervene's
 			t.Errorf("%s: %d records; all: %v", typ, count[typ], count)
 		}
 	}
-	total := count["I15"] + count["I16"] + count["I17"]
+	total := count["I15"] + count["I16"] + count["I17"] + count["I18"]
 	if err := a.scorecard(); err != nil {
 		t.Fatal(err)
 	}
-	if want := fmt.Sprintf("; %d interventions, ", total); len(count) != 3 || !strings.Contains(a.stdout.String(), want) {
+	if want := fmt.Sprintf("; %d interventions, ", total); len(count) != 4 || !strings.Contains(a.stdout.String(), want) {
 		t.Errorf("records by type %v; scorecard, want %q:\n%s", count, want, a.stdout.String())
 	}
 }
@@ -262,7 +264,7 @@ func TestSwarmInterventionRefused(t *testing.T) {
 		{maintainerVerb("unblock"), nil, []string{"2", "--type", "I0", "Go", "on."}},
 		{maintainerVerb("unblock"), nil, []string{"2", "--type", "I07", "Go", "on."}},
 		{maintainerVerb("unblock"), nil, []string{"2", "--cause", "plan", "--type"}},
-		{maintainerVerb("triage"), lead("I18"), []string{"2"}},
+		{maintainerVerb("triage"), lead("I19"), []string{"2"}},
 		{maintainerVerb("triage"), lead("I7"), []string{"2", "--type", "I7"}},
 		{maintainerVerb("pause"), lead("i7"), nil},
 		{maintainerVerb("class"), nil, []string{"2", "--type", "I6"}},
@@ -330,7 +332,7 @@ func TestSwarmApplyCommandRecordsItsIntervention(t *testing.T) {
 
 	id = a.say(issue1, "jane", "/swarm pause --type I99")
 	a.pass()
-	if got := a.answers(issue1); len(got) != 2 || got[1] != answer(id, "/swarm pause --type I99", "Refused:\n\n    Error: swarm: --type takes one of I1 to I17, not \"I99\"\n") {
+	if got := a.answers(issue1); len(got) != 2 || got[1] != answer(id, "/swarm pause --type I99", "Refused:\n\n    Error: swarm: --type takes one of I1 to I18, not \"I99\"\n") {
 		t.Errorf("answers %q", got)
 	}
 	if got := interventions(t, home); len(got) != 1 {
