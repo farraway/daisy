@@ -1400,3 +1400,9 @@ they write.
   model …` (429, `model_requires_usage_credits`) is a capacity fault
   naming no reset, no longer `failed: exit 1`. Sections 7.7 and 9.
   Decision [170](swarm/decisions/0170-capacity.md), As built.
+- 2026-11-22, Step SF-3 of the plan implementing the 2026-11-19 swarm
+  roadmap: `swarm block <n> --by <m>` holds whether placed before or
+  after `swarm unblock <n>`: `unblock` posts `Blocked by #<m>` again after
+  its comment on the issue when that comment would end an open #m's hold.
+  Sections 5, 6 and 11. Decision
+  [74](swarm/decisions/0074-the-label-vocabulary.md), As built.

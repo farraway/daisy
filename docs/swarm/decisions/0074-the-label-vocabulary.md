@@ -74,3 +74,23 @@ be dead weight in every clone), and the trailer scan reports nothing
 already means the default, so none is `-`, as the list questions
 take it, and a file's empty value is offered as `-` while the role's
 provider and model are the file's.
+
+**As built: a hold placed before an unblock (Step SF-3 of the plan
+implementing the 2026-11-19 swarm roadmap, 2026-11-22).** `swarm block
+<n> --by <m>` placed before `swarm unblock <n>` did not hold: the
+unblock's comment became #n's newest maintainer comment, which ends a
+`Blocked by #<m>` as any later one does, and on the live swarm an
+architect launched 45 seconds after the unblock with its blocker still
+open. Placed after the unblock, it held. Now `unblock`, when the comment
+it posts on the issue follows a `Blocked by #<m>` that was #n's newest
+maintainer comment with #m open, posts `Blocked by #<m>` again after it
+(`#<n> held by #<m>: Blocked by #<m> posted again`), so the hold stands
+in either order and the role that runs once #m closes reads the
+unblock's comment in its thread. A comment `unblock` posts on the pull
+request (at `swarm:review-3-changes-requested`) is not on #n's thread
+and ends nothing. Rule 1 itself is unchanged: any other later comment of
+the maintainer's on #n still lifts the hold. The alternative was to
+change rule 1 so that no later comment ends a `Blocked by #<m>`, only
+#m's close; that would leave the maintainer no way to lift a hold early
+but to close #m or delete the comment, a change the step did not ask
+for. Test: `TestSwarmBlockHoldsBeforeOrAfterUnblock`.

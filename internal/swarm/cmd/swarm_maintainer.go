@@ -718,7 +718,33 @@ func swarmUnblock(c *Context, open opener) error {
 	if err := m.say(text); err != nil {
 		return err
 	}
+	if err := m.rehold(is); err != nil {
+		return err
+	}
 	return m.lift()
+}
+
+// rehold posts `Blocked by #<b>` again on issue n after unblock's comment
+// there when, as is was read before it, the maintainer's newest comment
+// held n by an open #b (section 6, rule 1): the comment would otherwise
+// end that hold, which `block` placed after the unblock keeps.
+func (m *maintainer) rehold(is forge.Issue) error {
+	b := reconcile.BlockedBy(is, m.swarm, m.cfg.Trusted)
+	if b == 0 {
+		return nil
+	}
+	held, err := reconcile.Blocker(m.f, m.n, b, m.c.Stderr)
+	if err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	if !held {
+		return nil
+	}
+	if err := m.f.Comment(m.at, fmt.Sprintf("Blocked by #%d", b)); err != nil {
+		return fmt.Errorf("Error: swarm: %v", err)
+	}
+	fmt.Fprintf(m.c.Stdout, "#%d held by #%d: Blocked by #%d posted again\n", m.n, b, b)
+	return nil
 }
 
 // causeFlag is unblock's flag naming the released stop's cause, and

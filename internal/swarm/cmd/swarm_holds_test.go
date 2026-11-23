@@ -260,6 +260,56 @@ func TestSwarmApplyHolds(t *testing.T) {
 	})
 }
 
+// The claim of Step SF-3 of the plan implementing the 2026-11-19 swarm
+// roadmap (section 6, rule 1): `swarm block <n> --by <m>` holds whether
+// placed before or after `swarm unblock <n>`: in neither order does a
+// member launch on <n> while #m is open, and once #m is closed both
+// issues' roles run, each reading the unblock's comment.
+func TestSwarmBlockHoldsBeforeOrAfterUnblock(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	m := &maintainerWS{statusWS: a.statusWS}
+	m.secrets(bothTokens)
+	m.as = map[string]*forge.Fake{"tok-123": a.forge, "jane-456": a.forge.As(forge.Account{Login: "jane"})}
+	a.forge.AddLabels("bug")
+	a.forge.CreateIssue("The blocker", "", []string{"bug"}) // #1
+	for _, title := range []string{"Blocked, then unblocked", "Unblocked, then blocked"} {
+		a.forge.CreateIssue(title, "Check the drift.", []string{forge.ProposalAccepted, forge.Blocked}) // #2, #3
+	}
+	for _, n := range []int{2, 3} {
+		a.forge.Comment(a.ref(n), mark("reconciler", 1)+"architect run 1 failed: x (at swarm:proposal-accepted). Remove swarm:blocked to resume.")
+	}
+	m.ok(maintainerVerb("block"), "Maintainer jane on acme/swarm-app\n#1 blocking\n#2 commented\n", "2", "--by", "1")
+	m.ok(maintainerVerb("unblock"), "Maintainer jane on acme/swarm-app\n#2 commented\n#2 held by #1: Blocked by #1 posted again\n#2 blocked cleared\n", "2", "Go", "on.")
+	m.ok(maintainerVerb("unblock"), "Maintainer jane on acme/swarm-app\n#3 commented\n#3 blocked cleared\n", "3", "Go", "on.")
+	m.ok(maintainerVerb("block"), "Maintainer jane on acme/swarm-app\n#3 commented\n", "3", "--by", "1")
+	for _, n := range []int{2, 3} {
+		a.runner.Script(n, "architect", runner.Canned{Out: oneSlice})
+	}
+	a.pass()
+	if got := a.runner.Launches(); len(got) != 0 {
+		t.Fatalf("launched while #1 is open: %v\n%s", got, a.stdout.String())
+	}
+	a.forge.CloseIssue(1)
+	a.pass()
+	var on []string
+	for _, l := range a.runner.Launches() {
+		on = append(on, l.Label)
+	}
+	if want := []string{"acme/swarm-app#2/architect", "acme/swarm-app#3/architect"}; !reflect.DeepEqual(on, want) {
+		t.Errorf("#1 closed: launched %q, want %q\n%s", on, want, a.stdout.String())
+	}
+	for _, n := range []int{2, 3} {
+		runs, _ := filepath.Glob(a.state(fmt.Sprintf("runs/%d-architect-*", n)))
+		if len(runs) != 1 {
+			t.Fatalf("#%d: runs %q", n, runs)
+		}
+		if prompt := a.file(filepath.Base(runs[0]), "io/prompt.md"); !strings.Contains(prompt, "Go on.") {
+			t.Errorf("#%d: the architect's prompt lacks the unblock's comment:\n%s", n, prompt)
+		}
+	}
+}
+
 func gitRun(args ...string) error {
 	if _, errb, err := ops.Real().Exec("", "git", args...); err != nil {
 		return fmt.Errorf("git %v: %v %s", args, err, errb)
