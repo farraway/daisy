@@ -3728,7 +3728,7 @@ or trailing spaces.
 | a worker's or a reviewer's, first line beginning `QUESTION:` | a question (section 6, The question): posted on the issue as the role's text, a worker's commits kept, then T28; no verdict is read and no commit is pushed |
 | a reviewer's, any other first line, or a verdict its findings contradict | the failure *bad verdict* |
 | a reviewer's approval without the `[checked]` line of a claim (R6-E) | the failure *bad verdict*, its reason `bad verdict: no [checked] line for claim <n>, <m>, …` naming each claim missing; no review is posted, and none is rerun |
-| a reviewer's, approving or requesting changes, with a `[blocking]` line that names no kind of the blocking sentence's list (R6-E; the maintainer's ruling A2 of 2026-11-22): its kind, the first word after the marker, case and a trailing `:` aside, none of `claim`, `test`, `defect`, `introduced` and, from round 2 (the run's `round <r>` line, 7.8; a run without the line read as of a later round), `unclosed` | the failure *bad verdict*, its reason `bad verdict: a [blocking] line names no kind of the Task's list: <the line>`, the first such line; no review is posted, and none is rerun |
+| a reviewer's request for changes (an approval with a `[blocking]` line being a bad verdict already, above, its reason `bad verdict` alone) with a `[blocking]` line that names no kind of the blocking sentence's list (R6-E; the maintainer's ruling A2 of 2026-11-22): its kind, the first word after the marker, case and a trailing `:` aside, none of `claim`, `test`, `defect`, `introduced` and, from round 2 (the run's `round <r>` line, 7.8; a run without the line read as of a later round), `unclosed` | the failure *bad verdict*, its reason `bad verdict: a [blocking] line names no kind of the Task's list: <the line>`, the first such line; no review is posted, and none is rerun |
 | a worker's on `swarm:review-3-changes-requested` with no commit past `start`, first line beginning `NO CHANGE:` | the worker's answer without a commit (section 6): posted on the pull request, then T12 (7.6). With a commit, or with none but a start at kept commits not yet on the branch (`unpushed`, which has those to push: 7.9, The classification), the line is text as any other to the collection (a revision, pushed and posted as any; its comment still reads as an answer under section 6, after the push it follows); on `swarm:plan-1-accepted`, or without the line, a run with no commit is the failure *no commits* |
 | an architect's on `swarm:plan-1-accepted` (section 6, The rulings), first line beginning `STANDS:` | the plan stands against the changed rulings: posted as the role's text, the label kept; no plan (the accepted plan is the architect's newest text beginning neither `BLOCKED:` nor `STANDS:`, 7.3), but the plan's new basis. On another stage the line is text as any other, but never a plan |
 | the architect's or the owner's on `swarm:question` (its `question` result line), first line beginning `QUESTION:` | the question passed on: the architect's posted, then T28 (the flag kept); the owner's posted, then the reconciler's note naming it and T30 |
@@ -5120,7 +5120,9 @@ batch prompt is unchanged.
 lines (7.5, The posting rule) reads the workspace: the plan's slices and
 their repositories (the worker's slice, the counts in the Task text and
 under `# Job`, the merge step's, `swarm merge`'s, `status`'s and
-notify's) and the plan gate's note from `plan.md`, the note naming
+notify's), the plan gate's note and, from Step R6-E of the plan
+implementing the 2026-11-19 swarm roadmap, the Test Plan's claims an
+approval accounts for (7.5) from `plan.md`, the note naming
 the builder plan read with it, `builder.md` beside it or, with the plan
 built in memory, the plan run's own (section 5); the merge gate's
 note's non-blocking findings, the architect's text a `Start: base` line

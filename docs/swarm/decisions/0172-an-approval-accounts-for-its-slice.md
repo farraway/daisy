@@ -31,10 +31,11 @@ reviewer Task's last line reminds of the `[checked]` lines, and from
 round 2 of the `[closed]` lines. Daisy fails an approval that lacks the
 `[checked]` line of a claim, on the bad verdict's path (the run fails,
 the issue is blocked, no review is posted and none rerun), its reason
-naming the claims. Every review, an approval or a request for changes,
-whose `[blocking]` line names no kind the blocking sentence lists
-(`claim`, `test`, `defect`, `introduced`, and from round 2 `unclosed`)
-fails the same way, its reason quoting the line.
+naming the claims. Every review whose `[blocking]` line names no kind
+the blocking sentence lists (`claim`, `test`, `defect`, `introduced`,
+and from round 2 `unclosed`) fails the same way, its reason quoting the
+line: a request for changes, since an approval with a `[blocking]` line
+fails as a bad verdict already.
 
 **Which claims are the slice's.** Daisy reads no slice's claims: the
 plan's `## Test Plan` numbers its claims across the plan, the blocking
