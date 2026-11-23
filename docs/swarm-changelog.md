@@ -1471,3 +1471,8 @@ they write.
   effort changed), taken by every `--type` and counted by the scorecard
   as `I15` to `I17` are. Section 11. Decision
   [155](swarm/decisions/0155-interventions-recorded.md), As built.
+- 2026-11-22, Step SF2 of the plan implementing the 2026-11-19 swarm
+  roadmap, wording only: the shape of `claude`'s out of usage credits
+  result, *to confirm* since Step SF-2, is confirmed on four live
+  architect runs' output. Section 9. Decision
+  [170](swarm/decisions/0170-capacity.md), As built.

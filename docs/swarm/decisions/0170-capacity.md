@@ -366,11 +366,14 @@ ended `failed: exit 1` and blocked their issues. `out of usage credits`
 joins the limit's words, so the result is a provider fault and a capacity
 fault: `capacity` in its record, its line in `<state>/capacity` until
 `resume` (`claude`'s `Reset` reads none), the role launched on its next
-entry, nothing paused or blocked. The shape is read from Claude Code
+entry, nothing paused or blocked. The shape was read from Claude Code
 2.1.328's binary (the message's two forms in a headless run and the
 result's schema), and the status, the code and the message from the live
-runs' report; no run's own output was read, so it stays *to confirm*.
-Reading `api_error_status` 429 or the code instead was the alternative: it
+runs' report; it was confirmed on 2026-11-22 on the standard output of
+four live architect runs, `196-architect-1` to `199-architect-1`: each
+is one JSON object with `is_error` true, `api_error_status` 429,
+`api_error` `model_requires_usage_credits` and `result` `You're out of
+usage credits. Switch to another model to continue.` Reading `api_error_status` 429 or the code instead was the alternative: it
 would catch the refusal's other texts (`<model> requires usage credits.`,
 a monthly spend limit, a team's pooled budget), but the fault's text is
 what `Capacity` reads again from the run's `fault:` line, so the code

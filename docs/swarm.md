@@ -6853,8 +6853,9 @@ spending limit, a usage balance exhausted: its binary's strings), or
 implementing the 2026-11-19 swarm roadmap: `You're out of usage credits.
 Switch to another model …`, a 429 whose status and code,
 `model_requires_usage_credits`, are fields of the result that `Report`
-does not read, a capacity fault naming no reset; its shape is Claude
-Code 2.1.328's binary's, *to confirm* on a real run's output); any
+does not read, a capacity fault naming no reset; its shape, read from
+Claude Code 2.1.328's binary, confirmed on four live runs' output on
+2026-11-22, decision 170's As built); any
 other error result is the work's (its exit code decides, 7.7). The words
 are *to confirm* on a real fault, and for `grok` also that the fault
 reaches the JSON error object, not only its standard error. *R4* (7.10,
