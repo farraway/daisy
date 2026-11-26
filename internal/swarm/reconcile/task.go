@@ -380,8 +380,16 @@ func (j *Job) task() string {
 			add(`These paths are protected: %s. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.`, p)
 		}
 	}
+	if !j.Deadline.IsZero() {
+		end += " " + fmt.Sprintf(deadlineSentence, stamp(j.Deadline), j.Cfg.Timeout)
+	}
 	return strings.Join(append(t, end, last), "\n\n")
 }
+
+// deadlineSentence ends every Task text's closing paragraph (section
+// 7.10, rule 5): the run's deadline and its timeout, and the file Daisy
+// writes at 80% of it.
+const deadlineSentence = `Your run is stopped at %s (%s after its start). If /job/io/deadline appears, 80%% of that time is used: write your output now, or, if the work cannot finish in the time left, write what you have and propose how to split it.`
 
 // commented: the issue has a counted comment (section 6).
 func (j *Job) commented() bool {

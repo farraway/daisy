@@ -353,7 +353,11 @@ func (s *Swarm) collectAll(running []runner.Running, adopt bool) error {
 				// Held to the deadline its record names, by a timer
 				// (section 7.10, rule 2): the loop adopts it.
 				if adopt {
-					s.hold(r.Dir, s.Runner.Watch(name, deadline), "", true)
+					warn := runner.Warning{}
+					if at, ok := lineTime(lines, "started"); ok && !hasWarned(lines) {
+						warn = s.warning(r, at, deadline, s.O.Now())
+					}
+					s.hold(r.Dir, s.Runner.Watch(name, deadline, warn), "", true)
 				}
 				continue
 			case isRunning(name) && detached:
@@ -401,7 +405,7 @@ func (s *Swarm) collectAll(running []runner.Running, adopt bool) error {
 			switch {
 			case isRunning(name) && detached && s.O.Now().Before(deadline):
 				if adopt {
-					s.hold(r.Dir, s.Runner.Watch(name, deadline), step, true)
+					s.hold(r.Dir, s.Runner.Watch(name, deadline, runner.Warning{}), step, true)
 				}
 				continue
 			case isRunning(name) && (detached || over(at)):

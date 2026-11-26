@@ -1610,3 +1610,11 @@ they write.
   frees and each credential's tokens. Sections 1, 3, 6 and 7.10, and
   `docs/cli.md`'s `swarm status`. Decision
   [170](swarm/decisions/0170-capacity.md), As built.
+- 2026-11-26, Step R4-C of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, the deadline, rule 5, request F37): every Task text's
+  closing paragraph names the run's deadline and `/job/io/deadline`;
+  at 80% of the run's span the process holding it writes that file and
+  records `warned <time>`; a run stopped at its deadline has the output
+  it had written posted with its T17 note, after the secret check,
+  never read as the role's text. Sections 2, 7.4, 7.7 and 7.10.
+  Decision [170](swarm/decisions/0170-capacity.md), As built.

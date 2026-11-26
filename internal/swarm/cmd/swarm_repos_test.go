@@ -280,8 +280,8 @@ type gated struct {
 	open chan struct{}
 }
 
-func (g gated) Start(s runner.Spec, d time.Duration) (runner.Container, error) {
-	c, err := g.Fake.Start(s, d)
+func (g gated) Start(s runner.Spec, d time.Duration, w runner.Warning) (runner.Container, error) {
+	c, err := g.Fake.Start(s, d, w)
 	return gatedRun{c, g.open}, err
 }
 
@@ -400,8 +400,8 @@ type held struct {
 	hold map[string]chan struct{}
 }
 
-func (h held) Start(s runner.Spec, d time.Duration) (runner.Container, error) {
-	c, err := h.Fake.Start(s, d)
+func (h held) Start(s runner.Spec, d time.Duration, w runner.Warning) (runner.Container, error) {
+	c, err := h.Fake.Start(s, d, w)
 	if ch := h.hold[s.Name]; ch != nil && err == nil {
 		return gatedRun{c, ch}, nil
 	}
@@ -488,11 +488,11 @@ type signalling struct {
 	signals chan os.Signal
 }
 
-func (r signalling) Start(s runner.Spec, d time.Duration) (runner.Container, error) {
+func (r signalling) Start(s runner.Spec, d time.Duration, w runner.Warning) (runner.Container, error) {
 	if len(r.Fake.Launches()) == 0 {
 		r.signals <- os.Interrupt
 	}
-	return r.Fake.Start(s, d)
+	return r.Fake.Start(s, d, w)
 }
 
 // A signal during a pass ends that pass's launching: nothing launches
@@ -561,9 +561,9 @@ type heldAfterASignal struct {
 	open    chan struct{}
 }
 
-func (r heldAfterASignal) Start(s runner.Spec, d time.Duration) (runner.Container, error) {
+func (r heldAfterASignal) Start(s runner.Spec, d time.Duration, w runner.Warning) (runner.Container, error) {
 	r.signals <- os.Interrupt
-	c, err := r.Fake.Start(s, d)
+	c, err := r.Fake.Start(s, d, w)
 	go func() { time.Sleep(50 * time.Millisecond); r.signals <- os.Interrupt }()
 	return gatedRun{c, r.open}, err
 }

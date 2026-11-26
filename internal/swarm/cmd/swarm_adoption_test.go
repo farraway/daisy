@@ -98,8 +98,8 @@ type stuck struct {
 	release chan struct{}
 }
 
-func (s stuck) Start(spec runner.Spec, d time.Duration) (runner.Container, error) {
-	c, err := s.Fake.Start(spec, d)
+func (s stuck) Start(spec runner.Spec, d time.Duration, w runner.Warning) (runner.Container, error) {
+	c, err := s.Fake.Start(spec, d, w)
 	if err != nil {
 		return nil, err
 	}

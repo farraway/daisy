@@ -21,7 +21,9 @@ import (
 // /job/notes: an architect's notes) and what it reads of its resources
 // (Resources, given the directory mounted at /job/resources), its exit
 // status, its standard output and error, and whether the wall clock
-// stopped it, which are the files its sh writes (section 7.10, rule 2):
+// stopped it, which are the files its sh writes (section 7.10, rule 2),
+// and whether it ran long enough to be warned (rule 5: its Wait calls the
+// warning's Write first):
 // Stdout, Stderr and, unless the wall clock stopped it, Code in
 // io/stdout, io/stderr and io/exit. A check is scripted the same way
 // under the role "check", its Stdout then Stderr its output, written with
@@ -36,6 +38,7 @@ type Canned struct {
 	Code           int
 	Stdout, Stderr string
 	TimedOut       bool
+	Warned         bool
 }
 
 // Fake is a runner that records each launch's Spec and answers it with the
@@ -87,7 +90,7 @@ func (f *Fake) Launches() []Spec {
 	return slices.Clone(f.Launched)
 }
 
-func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
+func (f *Fake) Start(s Spec, _ time.Duration, warn Warning) (Container, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.StartErr != nil {
@@ -142,7 +145,7 @@ func (f *Fake) Start(s Spec, _ time.Duration) (Container, error) {
 		f.attached = map[string]string{}
 	}
 	f.attached[s.Name] = s.Network
-	return &fakeRun{f, s.Name, c}, nil
+	return &fakeRun{f, s.Name, c, warn}, nil
 }
 
 func (f *Fake) fs() ops.FS {
@@ -196,7 +199,7 @@ func (f *Fake) Stops() []string {
 // Watch holds a running container this Fake did not start (one of
 // Others): its Wait returns once Stop is given it, or at deadline by
 // After, when it is stopped and a timeout.
-func (f *Fake) Watch(name string, deadline time.Time) Container {
+func (f *Fake) Watch(name string, deadline time.Time, _ Warning) Container {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.stops == nil {
@@ -261,9 +264,13 @@ type fakeRun struct {
 	f    *Fake
 	name string
 	c    Canned
+	warn Warning
 }
 
 func (r *fakeRun) Wait() (Exit, error) {
+	if r.c.Warned && r.warn.Write != nil {
+		r.warn.Write()
+	}
 	r.f.mu.Lock()
 	defer r.f.mu.Unlock()
 	r.f.running = slices.DeleteFunc(r.f.running, func(c Running) bool { return c.Name == r.name })

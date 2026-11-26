@@ -155,6 +155,11 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return false, err
 	}
 
+	// The run's start and deadline, which its Task text names and its
+	// record holds (section 7.10, rules 2 and 5).
+	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
+	at := s.O.Now()
+	j.Deadline = at.Add(timeout)
 	system, prompt := Render(j)
 	// A member text it shows that cannot be read from the job's
 	// workspace blocks the issue alone (section 7.8, The prompt).
@@ -371,8 +376,6 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	// whatever swarm.json says by its collection.
 	// Its deadline, started plus timeout, which whichever apply holds the
 	// run enforces (section 7.10, rule 2).
-	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
-	at := s.O.Now()
 	lines = append(append(lines, "started "+stamp(at), "deadline "+stamp(at.Add(timeout)), credential, "persona "+persona.Provider+" "+persona.Model+" "+persona.Effort), round...)
 	if err := r.Append(fs, lines...); err != nil {
 		if slot != nil {
@@ -392,7 +395,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 			return false, errors.Join(r.Append(fs, "launch-failed "+ended(), fault), s.collect(r))
 		}
 	}
-	c, err := s.Runner.Start(spec, at.Add(timeout).Sub(s.O.Now())) // to the deadline it records
+	c, err := s.Runner.Start(spec, j.Deadline.Sub(s.O.Now()), s.warning(r, at, j.Deadline, s.O.Now())) // to the deadline it records
 	// The slot's lock is held through the launch alone: the running
 	// container's daisy.credential label holds the slot after (section
 	// 7.10, rule 2; section 8).
@@ -684,7 +687,7 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 		}
 	}
 	timeout, _ := time.ParseDuration(s.Cfg.Timeout) // validated
-	c, err := s.Runner.Start(spec, timeout)
+	c, err := s.Runner.Start(spec, timeout, runner.Warning{})
 	if err != nil {
 		return r.Append(fs, "fault: "+step+": "+err.Error())
 	}
@@ -716,3 +719,24 @@ func runBranch(lines []string) string {
 	b, _, _ := strings.Cut(strings.TrimPrefix(l, "branch "), " in ")
 	return b
 }
+
+// warning is run r's warning at 80% of its span, from started to
+// deadline, its timer set from now (section 7.10, rule 5): its Write puts
+// <run>/io/deadline, `80% of your time is used (<used> of <timeout>); you
+// are stopped at <deadline>. …`, for the member to read, and records
+// `warned <time>`. It runs on the wait's goroutine, so it prints nothing.
+func (s *Swarm) warning(r Run, started, deadline, now time.Time) runner.Warning {
+	used := (deadline.Sub(started) * 4 / 5).Round(time.Second)
+	text := fmt.Sprintf("80%% of your time is used (%s of %s); you are stopped at %s. Write your output now; if the work cannot finish, write what you have and propose how to split it.\n", used, s.Cfg.Timeout, stamp(deadline))
+	return runner.Warning{After: started.Add(used).Sub(now), Write: func() {
+		fs := s.O.FS()
+		if err := fs.WriteFile(filepath.Join(r.Dir, "io", "deadline"), []byte(text), 0o644); err != nil {
+			r.Append(fs, "warning not written: "+err.Error())
+			return
+		}
+		r.Append(fs, "warned "+stamp(s.O.Now()))
+	}}
+}
+
+// hasWarned: the run's record holds its `warned` line.
+func hasWarned(lines []string) bool { _, ok := Has(lines, "warned"); return ok }

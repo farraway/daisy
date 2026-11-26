@@ -269,7 +269,7 @@ func TestDockerStartAndTheWallClock(t *testing.T) {
 	}
 	s := member()
 	s.EnvVar, s.EnvValue = "CLAUDE_CODE_OAUTH_TOKEN", "sk-secret"
-	c, err := Docker{O: o, Dir: "/ws"}.Start(s, 45*time.Minute)
+	c, err := Docker{O: o, Dir: "/ws"}.Start(s, 45*time.Minute, Warning{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func TestDockerStartAndTheWallClock(t *testing.T) {
 			}
 			return []byte("0\n"), nil, nil
 		}
-		c, _ = Docker{O: o, Dir: "/ws"}.Start(member(), time.Hour)
+		c, _ = Docker{O: o, Dir: "/ws"}.Start(member(), time.Hour, Warning{})
 		exit, err = c.Wait()
 		if err != nil || exit.TimedOut || !reflect.DeepEqual(execs, []string{"docker wait daisy-swarm.acme.app.3.architect.1"}) || stdin != "none" {
 			t.Errorf("gone %v: exit %+v, err %v, execs %q, stdin %q", gone, exit, err, execs, stdin)
@@ -317,7 +317,7 @@ func TestDockerStartRefused(t *testing.T) {
 			return p, nil
 		},
 	}
-	if _, err := (Docker{O: o, Dir: "/ws"}).Start(member(), time.Hour); err == nil || err.Error() != "docker run: exit 125: Unable to find image 'daisy-member-app:2' locally" {
+	if _, err := (Docker{O: o, Dir: "/ws"}).Start(member(), time.Hour, Warning{}); err == nil || err.Error() != "docker run: exit 125: Unable to find image 'daisy-member-app:2' locally" {
 		t.Errorf("err %v", err)
 	}
 }
@@ -343,7 +343,7 @@ func TestDockerStopFailingStillWaits(t *testing.T) {
 			return nil, []byte("Error response from daemon: No such container"), errors.New("exit status 1")
 		},
 	}
-	c, err := Docker{O: o, Dir: "/ws"}.Start(member(), time.Minute)
+	c, err := Docker{O: o, Dir: "/ws"}.Start(member(), time.Minute, Warning{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestDockerWatchStopsAtTheDeadline(t *testing.T) {
 			return nil, nil, nil
 		},
 	}
-	c := Docker{O: o, Dir: "/ws"}.Watch("daisy-swarm.acme.app.3.architect.1", now.Add(20*time.Minute))
+	c := Docker{O: o, Dir: "/ws"}.Watch("daisy-swarm.acme.app.3.architect.1", now.Add(20*time.Minute), Warning{})
 	fire <- time.Time{}
 	exit, err := c.Wait()
 	slices.Sort(execs)
@@ -548,4 +548,36 @@ func TestMountSourceWithAComma(t *testing.T) {
 		return
 	}
 	t.Fatal("no resource mount")
+}
+
+// A warning is written once at its time while the container runs, and
+// the wait goes on to the container's end (section 7.10, rule 5).
+func TestDockerWarnsBeforeTheWallClock(t *testing.T) {
+	timers := map[time.Duration]chan time.Time{36 * time.Minute: make(chan time.Time, 1), 45 * time.Minute: make(chan time.Time)}
+	waited := make(chan struct{})
+	o := &ops.Fake{
+		StartFn: func(dir, name string, in io.Reader, stdout, stderr io.Writer, args ...string) (ops.Process, error) {
+			p := &blocked{release: make(chan struct{})}
+			close(p.release)
+			return p, nil
+		},
+		AfterFn: func(d time.Duration) <-chan time.Time { return timers[d] },
+		ExecFn: func(dir, name string, args ...string) ([]byte, []byte, error) {
+			select { // the container ends once warned, or in a second without
+			case <-waited:
+			case <-time.After(time.Second):
+			}
+			return []byte("0\n"), nil, nil
+		},
+	}
+	writes := 0
+	c, err := Docker{O: o, Dir: "/ws"}.Start(member(), 45*time.Minute, Warning{After: 36 * time.Minute, Write: func() { writes++; close(waited) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	timers[36*time.Minute] <- time.Time{}
+	exit, err := c.Wait()
+	if err != nil || exit.TimedOut || writes != 1 {
+		t.Errorf("exit %+v %v, %d writes", exit, err, writes)
+	}
 }

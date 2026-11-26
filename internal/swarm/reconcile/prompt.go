@@ -27,6 +27,7 @@ type Job struct {
 	Role       string
 	Label      string // the stage the run is launched on
 	Time       time.Time
+	Deadline   time.Time     // when the run is stopped, its start plus timeout, which its Task text names (section 7.10, rule 5)
 	Persona    string        // prompts/<role>.md as read
 	RunsOn     declare.Entry // the persona or the fallback entry the run launches on (section 7.10); unset, the persona
 	Parts      []PromptPart  // the prompt parts swarm.json adds to the role's prompt, in its order (section 7.3)

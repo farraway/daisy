@@ -425,3 +425,33 @@ at its token budget until <time>` and prints a line per credential of a
 provider with `tokens`, its tokens in each window against the limits
 declared. Tests: `TestSwarmPacedByATokenBudget`,
 `TestValidateNamesTheField`.
+
+**As built: the deadline (Step R4-C of the plan implementing the
+2026-11-19 swarm roadmap).** The launch reads the clock once, before
+the Task text is written: the run's `started` and `deadline` lines and
+the deadline its text names are that time and that time plus
+`timeout`, so the three agree; reading it again for the record, after
+the clones, was the alternative, and would name a deadline earlier than
+the one enforced by the clones' time. Every Task text's closing
+paragraph ends `Your run is stopped at <deadline> (<timeout> after its
+start). If /job/io/deadline appears, …`. The warning's timer is the
+runner's, `runner.Warning` given to `Start` and `Watch`, beside the wall
+clock's in `docker wait`'s select, so no loop's own clock is read for
+it; the adopting loop arms it from its adoption unless the record holds
+`warned`, and `--once`, which holds no adopted run, warns none. At it
+the process writes `<run>/io/deadline`, `80% of your time is used
+(<used> of <timeout>); you are stopped at <deadline>. Write your output
+now; if the work cannot finish, write what you have and propose how to
+split it.`, `<used>` 80% of the run's span rounded to the second, and
+records `warned <time>`, or `warning not written: <error>` when the
+file cannot be written (the timer's goroutine prints nothing; a
+result's appends are serialized for it). A run stopped at its deadline
+is a timeout as before; its T17 note then holds, after the failure's
+sentence and before the resume sentence, `Its output when it was
+stopped:` and its `out.md` trimmed, in paragraphs of their own, cut by
+7.5's rule as the note's head, or, holding a secret the member was
+given, `Its output when it was stopped held a secret the member was
+given and is not posted.`; the text is never read as the role's. Tests:
+`TestTaskTextNamesTheDeadline`, `TestSwarmDeadlineWarnedAt80Percent`,
+`TestSwarmTimeoutPostsItsPartialOutput`,
+`TestDockerWarnsBeforeTheWallClock`.

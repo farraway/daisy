@@ -486,3 +486,87 @@ func TestSwarmPacedByATokenBudget(t *testing.T) {
 		t.Errorf("25 hours on: %+v\n%s", l, a.stdout.String())
 	}
 }
+
+// Every Task text names the run's deadline, the one its record holds,
+// and /job/io/deadline (section 7.10, rule 5), in its closing paragraph.
+func TestTaskTextNamesTheDeadline(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	a.pass()
+	r := a.result("1-architect-1")
+	started, deadline := line(r, "started "), line(r, "deadline ")
+	if started == "" || deadline == "" {
+		t.Fatalf("result:\n%s", r)
+	}
+	if s, d := mustTime(t, started), mustTime(t, deadline); d.Sub(s) != 45*time.Minute {
+		t.Errorf("deadline %s, started %s", deadline, started)
+	}
+	system, _ := os.ReadFile(a.state("runs/1-architect-1/io/system.md"))
+	want := "Your run is stopped at " + deadline + " (45m after its start). If /job/io/deadline appears, 80% of that time is used: write your output now, or, if the work cannot finish in the time left, write what you have and propose how to split it.\n\n"
+	if !strings.Contains(string(system), want) {
+		t.Errorf("system.md lacks %q:\n%s", want, system)
+	}
+}
+
+// line is the value of r's first line beginning prefix, "" for none.
+func line(r, prefix string) string {
+	for _, l := range strings.Split(r, "\n") {
+		if v, ok := strings.CutPrefix(l, prefix); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// At 80% of its timeout the process holding a run writes <run>/io/deadline
+// for the member and records `warned <time>` (section 7.10, rule 5); a
+// run that ends before it is not warned.
+func TestSwarmDeadlineWarnedAt80Percent(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+	a.forge.CreateIssue("Two", "x", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Warned: true})
+	a.runner.Script(2, "architect", runner.Canned{Out: archPlan})
+	a.pass()
+	r := a.result("1-architect-1")
+	deadline := line(r, "deadline ")
+	b, err := os.ReadFile(a.state("runs/1-architect-1/io/deadline"))
+	want := "80% of your time is used (36m0s of 45m); you are stopped at " + deadline + ". Write your output now; if the work cannot finish, write what you have and propose how to split it.\n"
+	if err != nil || string(b) != want {
+		t.Errorf("io/deadline %q %v, want %q", b, err, want)
+	}
+	if !strings.Contains(r, "\nwarned "+a.Now().Format(time.RFC3339)+"\n") || !strings.HasSuffix(r, "outcome posted\ncollected\n") {
+		t.Errorf("result:\n%s", r)
+	}
+	if fileExists(a.state("runs/2-architect-1/io/deadline")) || strings.Contains(a.result("2-architect-1"), "warned") {
+		t.Errorf("#2 warned:\n%s", a.result("2-architect-1"))
+	}
+}
+
+// A run stopped at its deadline has the output it had written posted
+// with its failure, after the secret check, never read as the role's
+// text (section 7.10, rule 5): #1's half plan ends the T17 note, no plan
+// written; #2's, holding the credential it was given, is not posted.
+func TestSwarmTimeoutPostsItsPartialOutput(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+	a.forge.CreateIssue("Two", "x", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: "## Research\n\nHalf of it.\n", TimedOut: true})
+	a.runner.Script(2, "architect", runner.Canned{Out: "## Research\n\nThe token is " + a.vars["CLAUDE_CODE_OAUTH_TOKEN"] + ".\n", TimedOut: true})
+	a.pass()
+	want := "<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: timeout after 45m (at swarm:proposal-accepted).\n\nIts output when it was stopped:\n\n## Research\n\nHalf of it.\n\nRemove swarm:blocked to resume.\n\ncc @jane"
+	if b := a.bodies(1); len(b) == 0 || b[len(b)-1] != want {
+		t.Errorf("#1's note:\n%q\nwant\n%q", b, want)
+	}
+	if fileExists(a.state("jobs/1/plan.md")) || !strings.Contains(a.result("1-architect-1"), "failed: timeout after 45m\n") {
+		t.Errorf("#1 read as a plan, or not a timeout:\n%s", a.result("1-architect-1"))
+	}
+	want = "<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\narchitect run 1 failed: timeout after 45m (at swarm:proposal-accepted). Its output when it was stopped held a secret the member was given and is not posted. Remove swarm:blocked to resume.\n\ncc @jane"
+	if b := a.bodies(2); len(b) == 0 || b[len(b)-1] != want || strings.Contains(strings.Join(b, "\n"), a.vars["CLAUDE_CODE_OAUTH_TOKEN"]) {
+		t.Errorf("#2's note:\n%q", b)
+	}
+}

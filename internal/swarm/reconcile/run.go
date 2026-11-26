@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"daisy/internal/ops"
 )
@@ -174,6 +175,8 @@ func (r Run) Result(fs ops.FS) ([]string, error) {
 
 // Append adds lines to the run's result.
 func (r Run) Append(fs ops.FS, lines ...string) error {
+	appending.Lock() // a warning's line is appended from its wait's goroutine (section 7.10, rule 5)
+	defer appending.Unlock()
 	old, err := fs.ReadFile(filepath.Join(r.Dir, "result"))
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
 		return err
@@ -186,6 +189,9 @@ func (r Run) Append(fs ops.FS, lines ...string) error {
 	}
 	return fs.WriteFile(filepath.Join(r.Dir, "result"), append(old, b.String()...), 0o644)
 }
+
+// appending serializes Append's read and write of a result.
+var appending sync.Mutex
 
 var oneLine = strings.NewReplacer("\r", `\r`, "\n", `\n`)
 

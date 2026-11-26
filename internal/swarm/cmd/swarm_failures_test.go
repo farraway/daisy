@@ -170,6 +170,9 @@ func TestSwarmApplyWorkFailures(t *testing.T) {
 			a.pass()
 			k := map[string]string{"worker": "1", "adversary": "1"}[role]
 			note := mark("reconciler", 1) + role + " run " + k + " failed: " + tc.reason + " (at " + label + "). Remove swarm:blocked to resume."
+			if strings.HasPrefix(tc.reason, "timeout after ") { // its output posted with it (section 7.10, rule 5)
+				note = strings.Replace(note, "). Remove", ").\n\nIts output when it was stopped:\n\n"+strings.TrimSpace(tc.canned.Out)+"\n\nRemove", 1)
+			}
 			if tc.kept {
 				note += " Its commits are kept in the swarm's mirror as refs/swarm-runs/1-worker-1."
 			}
@@ -708,7 +711,7 @@ func TestSwarmApplyFetchFailsTwice(t *testing.T) {
 			}
 			note := mark("reconciler", 1) + "worker run 1 failed: fetch: " + reason + " (at swarm:plan-1-accepted). Remove swarm:blocked to resume."
 			if tc.failed != "" {
-				note = mark("reconciler", 1) + "worker run 1 failed: " + tc.failed + " (at swarm:plan-1-accepted). Remove swarm:blocked to resume. Its commits could not be fetched from its clone: " + reason + "."
+				note = mark("reconciler", 1) + "worker run 1 failed: " + tc.failed + " (at swarm:plan-1-accepted).\n\nIts output when it was stopped:\n\nhalf\n\nRemove swarm:blocked to resume. Its commits could not be fetched from its clone: " + reason + "."
 			}
 			note += "\n\ncc @jane"
 			b := a.bodies(1)

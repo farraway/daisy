@@ -574,7 +574,11 @@ func (c *collection) flag(flag string, home bool) error {
 // leaves as it is, gets head and kept then notBlocked in place of resume,
 // a note that blocked nothing (blocks) and mentions no one.
 func (c *collection) note(head, resume, kept, outcome string) error {
-	tail := " " + resume + kept + c.s.mention()
+	sep := " " // a head that ends in a paragraph of its own is followed by the next
+	if strings.HasSuffix(head, "\n\n") {
+		sep = ""
+	}
+	tail := sep + resume + kept + c.s.mention()
 	if now, moved, err := c.movedAway(true); err != nil {
 		return err
 	} else if moved {
@@ -605,7 +609,35 @@ func (c *collection) fail(reason string) error {
 	if err != nil {
 		return err
 	}
-	return c.note(fmt.Sprintf("%s run %d failed: %s (at %s).", c.r.Role, c.r.K, reason, c.home()), "Remove "+forge.Blocked+" to resume.", kept, "failed")
+	head := fmt.Sprintf("%s run %d failed: %s (at %s).", c.r.Role, c.r.K, reason, c.home())
+	if strings.HasPrefix(reason, "timeout after ") {
+		stopped, err := c.stoppedOutput()
+		if err != nil {
+			return err
+		}
+		head += stopped
+	}
+	return c.note(head, "Remove "+forge.Blocked+" to resume.", kept, "failed")
+}
+
+// stoppedOutput is what a run stopped at its deadline had written to
+// out.md, as its T17 note's head ends with it (section 7.10, rule 5):
+// `Its output when it was stopped:` and the text, in paragraphs of their
+// own; a sentence in place of a text holding a secret the member was
+// given; "" for none. It is never read as the role's text.
+func (c *collection) stoppedOutput() (string, error) {
+	out, err := c.r.Output(c.s.O.FS())
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		return "", err
+	}
+	text := strings.TrimSpace(string(out))
+	switch {
+	case text == "":
+		return "", nil
+	case hit(out, c.s.secretsOf(c.r, c.lines)):
+		return " Its output when it was stopped held a secret the member was given and is not posted.", nil
+	}
+	return "\n\nIts output when it was stopped:\n\n" + text + "\n\n", nil
 }
 
 // blocked posts the member's BLOCKED: text, on the pull request for the

@@ -106,6 +106,15 @@ type Exit struct{ TimedOut bool }
 // Container is a started container; Wait returns once `docker wait` has.
 type Container interface{ Wait() (Exit, error) }
 
+// Warning is a member's warning before its wall clock (section 7.10,
+// rule 5): After its start, or for one Watch holds after the call,
+// while it still runs, its Wait calls Write once. A zero Warning warns
+// nothing.
+type Warning struct {
+	After time.Duration
+	Write func()
+}
+
 // Running is one container of `docker ps`: its name and its two labels.
 type Running struct{ Name, Swarm, Credential string }
 
@@ -159,12 +168,13 @@ func (s Services) ServiceArgs(v Service) []string {
 
 // Runner starts containers, lists the running set and stops one.
 type Runner interface {
-	// Start runs s; timeout is its wall clock, at which it is stopped.
-	Start(s Spec, timeout time.Duration) (Container, error)
+	// Start runs s; timeout is its wall clock, at which it is stopped,
+	// and warn its warning before it.
+	Start(s Spec, timeout time.Duration, warn Warning) (Container, error)
 	// Watch is a container another process started, by its name, held
 	// to deadline: its Wait returns once it is gone, or at deadline,
-	// when it is stopped (section 7.10, rule 2).
-	Watch(name string, deadline time.Time) Container
+	// when it is stopped (section 7.10, rule 2), warn given before it.
+	Watch(name string, deadline time.Time, warn Warning) Container
 	// Running is every container labelled daisy.swarm, of every swarm.
 	Running() ([]Running, error)
 	// Stop is `docker stop --time 30 <name>`: the wall clock's stop, and
@@ -190,8 +200,9 @@ var _ Runner = Docker{}
 // standard input as one line, to its end, which is once the container has
 // started: a status other than 0 is the error, docker's first line in it.
 // Its Wait has a timer of timeout: when it fires, `docker stop --time 30`
-// (section 7.2, the wall clock).
-func (d Docker) Start(s Spec, timeout time.Duration) (Container, error) {
+// (section 7.2, the wall clock); and one of warn's After, when it writes
+// the warning.
+func (d Docker) Start(s Spec, timeout time.Duration, warn Warning) (Container, error) {
 	var stdin io.Reader
 	if s.EnvVar != "" {
 		stdin = strings.NewReader(s.EnvVar + "=" + s.EnvValue + "\n")
@@ -209,13 +220,13 @@ func (d Docker) Start(s Spec, timeout time.Duration) (Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &detached{d: d, name: s.Name, timeout: timeout}, nil
+	return &detached{d: d, name: s.Name, timeout: timeout, warn: warn}, nil
 }
 
 // Watch holds the container name until deadline, as one Start started:
 // `docker wait`, and at deadline its stop.
-func (d Docker) Watch(name string, deadline time.Time) Container {
-	return &detached{d: d, name: name, timeout: deadline.Sub(d.O.Now())}
+func (d Docker) Watch(name string, deadline time.Time, warn Warning) Container {
+	return &detached{d: d, name: name, timeout: deadline.Sub(d.O.Now()), warn: warn}
 }
 
 // detached is a container started `docker run --detach`.
@@ -223,6 +234,7 @@ type detached struct {
 	d       Docker
 	name    string
 	timeout time.Duration
+	warn    Warning
 }
 
 // Wait is `docker wait` on the container, and at the wall clock its stop,
@@ -242,13 +254,23 @@ func (c *detached) Wait() (Exit, error) {
 		}
 		done <- err
 	}()
-	select {
-	case err := <-done:
-		return Exit{}, err
-	case <-c.d.O.After(c.timeout):
-		c.d.Stop(c.name)
-		<-done
-		return Exit{TimedOut: true}, nil
+	var warned <-chan time.Time
+	if c.warn.Write != nil {
+		warned = c.d.O.After(c.warn.After)
+	}
+	stop := c.d.O.After(c.timeout)
+	for {
+		select {
+		case err := <-done:
+			return Exit{}, err
+		case <-warned:
+			warned = nil
+			c.warn.Write()
+		case <-stop:
+			c.d.Stop(c.name)
+			<-done
+			return Exit{TimedOut: true}, nil
+		}
 	}
 }
 
