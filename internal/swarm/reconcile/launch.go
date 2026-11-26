@@ -363,6 +363,9 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 	lines := append(startLines, labelLines...)
 	if j.Batch != nil {
 		lines = append(lines, "propose "+strconv.Itoa(j.Batch.Propose))
+		if len(j.Batch.FollowUps) > 0 {
+			lines = append(lines, followUpsLine(j.Batch.FollowUps))
+		}
 	}
 	// The persona the run is launched with, which its record names
 	// whatever swarm.json says by its collection.

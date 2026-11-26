@@ -733,6 +733,22 @@ func TestGiteaEditIssue(t *testing.T) {
 	s.done()
 }
 
+// EditTitle replaces the issue's title alone (issueEditIssue, as
+// EditIssue's body): a 403, an account that may not edit it, is the
+// forge's error.
+func TestGiteaEditTitle(t *testing.T) {
+	g, s := gitea(t, nil, pair{"PATCH", "/repos/acme/app/issues/7", `{"title":"A stale name"}`, 201, `{"number":7,"title":"A stale name","state":"open"}`})
+	if err := g.EditTitle(7, "A stale name"); err != nil {
+		t.Error(err)
+	}
+	s.done()
+	g, s = gitea(t, nil, pair{"PATCH", "/repos/acme/app/issues/7", `{"title":"x"}`, 403, `{"message":"forbidden"}`})
+	if err := g.EditTitle(7, "x"); errText(err) != "forge: PATCH /repos/acme/app/issues/7: 403 forbidden" {
+		t.Errorf("EditTitle refused: %v", err)
+	}
+	s.done()
+}
+
 func TestGiteaCreatePull(t *testing.T) {
 	g, s := gitea(t, []string{"app", "lib"},
 		pair{"POST", "/repos/acme/lib/pulls", `{"head":"swarm/7-1","base":"main","title":"Slice 1","body":"Refs acme/app#7"}`, 201,

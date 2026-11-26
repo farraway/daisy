@@ -316,6 +316,20 @@ func (f *Fake) EditIssue(n int, body string) error {
 	return nil
 }
 
+// EditTitle replaces issue n's title, kept on its timeline as the forges
+// keep a title's change.
+func (f *Fake) EditTitle(n int, title string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	it, err := f.find(Ref{f.repo, n})
+	if err != nil {
+		return err
+	}
+	it.title = title
+	f.record(it, "retitled")
+	return nil
+}
+
 func (f *Fake) Comment(at Ref, body string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

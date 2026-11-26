@@ -304,13 +304,34 @@ var (
 	proposalLine = regexp.MustCompile(`^## (.+)$`)
 	metLine      = regexp.MustCompile(`^Met: (.+)$`)
 	triagedLine  = regexp.MustCompile(`^Triaged: #([0-9]+): (.+)$`)
+	retitledLine = regexp.MustCompile(`^Retitled: #([0-9]+):(.*)$`)
 	followUpLine = regexp.MustCompile(`^Follow-up: #([0-9]+)(?:[^0-9]|$)`)
 )
 
 // reportLine: l is one of the owner's report lines a batch run's out.md
 // may open with before its first proposal or its BLOCKED: line, a
-// `Met:` line or a `Triaged:` line (section 7.5).
-func reportLine(l string) bool { return metLine.MatchString(l) || triagedLine.MatchString(l) }
+// `Met:`, `Triaged:` or `Retitled:` line (section 7.5).
+func reportLine(l string) bool {
+	return metLine.MatchString(l) || triagedLine.MatchString(l) || retitledLine.MatchString(l)
+}
+
+// reportLines is the report lines a batch run's out.md opens with
+// (reportLine), blank lines among them left out, each without its
+// trailing spaces.
+func reportLines(out string) []string {
+	var ls []string
+	for _, l := range strings.Split(strings.ReplaceAll(out, "\r\n", "\n"), "\n") {
+		l = strings.TrimRight(l, " ")
+		if l == "" {
+			continue
+		}
+		if !reportLine(l) {
+			break
+		}
+		ls = append(ls, l)
+	}
+	return ls
+}
 
 // Triage is a batch run's `Triaged: #<f>: <why>` line (section 7.5): the
 // owner's word that follow-up f has no item left to propose.
@@ -320,19 +341,36 @@ type Triage struct {
 }
 
 // Triaged is the Triaged: lines among the report lines a batch run's
-// out.md opens with (reportLine), in order.
+// out.md opens with (reportLines), in order.
 func Triaged(out string) []Triage {
 	var ts []Triage
-	for _, l := range strings.Split(strings.ReplaceAll(out, "\r\n", "\n"), "\n") {
-		l = strings.TrimRight(l, " ")
+	for _, l := range reportLines(out) {
 		if m := triagedLine.FindStringSubmatch(l); m != nil {
 			n, _ := strconv.Atoi(m[1])
 			ts = append(ts, Triage{n, strings.TrimSpace(m[2])})
-		} else if l != "" && !metLine.MatchString(l) {
-			break
 		}
 	}
 	return ts
+}
+
+// Retitle is a batch run's `Retitled: #<f>: <title>` line (section 7.5):
+// the owner's title for follow-up f, naming its findings' cause.
+type Retitle struct {
+	N     int
+	Title string
+}
+
+// Retitled is the Retitled: lines among the report lines a batch run's
+// out.md opens with (reportLines), in order, each title trimmed.
+func Retitled(out string) []Retitle {
+	var rs []Retitle
+	for _, l := range reportLines(out) {
+		if m := retitledLine.FindStringSubmatch(l); m != nil {
+			n, _ := strconv.Atoi(m[1])
+			rs = append(rs, Retitle{n, strings.TrimSpace(m[2])})
+		}
+	}
+	return rs
 }
 
 // noFailure begins the QA's output when every route and control it
@@ -343,7 +381,7 @@ const noFailure = "NO FAILURE:"
 type Proposal struct{ Title, Body string }
 
 // Proposals reads a batch run's out.md (section 7.5): the `Met:` lines
-// before the first proposal (beside the `Triaged:` lines, Triaged), then
+// before the first proposal (beside the `Triaged:` and `Retitled:` lines, Triaged and Retitled), then
 // the first line after them when it is a BLOCKED: line (isBlocked, blocked the rest of it, maybe empty), and the
 // proposals, each a `## <title>` line (a title of 1 to 200 characters) and
 // its body up to the next, blank lines trimmed.
@@ -356,7 +394,7 @@ func Proposals(out string) (met []string, blocked string, isBlocked bool, ps []P
 			met = append(met, strings.TrimSpace(m[1]))
 			continue
 		}
-		if l != "" && !triagedLine.MatchString(l) {
+		if l != "" && !reportLine(l) {
 			break
 		}
 	}
@@ -569,6 +607,11 @@ func (c *collection) batch() error {
 		fmt.Fprintf(s.Out, "%sno failure\n", c.head)
 		return c.end("posted")
 	}
+	if !qa {
+		if reason := badRetitle(string(out), c.lines); reason != "" {
+			return failed(reason)
+		}
+	}
 	_, blocked, isBlocked, ps := Proposals(string(out))
 	if isBlocked && qa {
 		return hold("blocked: "+blocked, "blocked", nil)
@@ -576,6 +619,9 @@ func (c *collection) batch() error {
 	if isBlocked {
 		waits, err := s.stillOpen(WaitingOn(blocked))
 		if err != nil {
+			return err
+		}
+		if err := c.retitle(string(out)); err != nil {
 			return err
 		}
 		if err := c.triage(string(out), nil); err != nil {
@@ -601,11 +647,59 @@ func (c *collection) batch() error {
 		}
 	}
 	if !qa {
+		if err := c.retitle(string(out)); err != nil {
+			return err
+		}
 		if err := c.triage(string(out), ps); err != nil {
 			return err
 		}
 	}
 	return c.end("posted")
+}
+
+// followUpsLine is the owner's batch run's result line naming the
+// follow-ups under its prompt's "# Follow-ups", `follow-ups #<f> …`,
+// which its Retitled: lines may name (badRetitle).
+func followUpsLine(followUps []forge.Issue) string {
+	ns := make([]int, len(followUps))
+	for i, is := range followUps {
+		ns[i] = is.Number
+	}
+	return "follow-ups " + issueList(ns)
+}
+
+// badRetitle is the failure of the owner's batch run whose Retitled:
+// lines in out (section 7.5) are not each well formed, for a run whose
+// result lines are lines: the first naming an issue not under the run's
+// "# Follow-ups" (followUpsLine) or giving an empty title; "" when each
+// is.
+func badRetitle(out string, lines []string) string {
+	l, _ := Has(lines, "follow-ups")
+	under := strings.Fields(strings.TrimPrefix(l, "follow-ups "))
+	for _, r := range Retitled(out) {
+		if !slices.Contains(under, "#"+strconv.Itoa(r.N)) {
+			return fmt.Sprintf("bad Retitled line: #%d is not under # Follow-ups", r.N)
+		}
+		if r.Title == "" {
+			return fmt.Sprintf("bad Retitled line: #%d has an empty title", r.N)
+		}
+	}
+	return ""
+}
+
+// retitle acts on the owner's Retitled: lines in out (section 7.6), each
+// checked by badRetitle before the batch's first write: EditTitle sets
+// the follow-up's title and nothing else, with `follow-up #<f>
+// retitled` on stdout; a retried collection sets it again, which
+// changes nothing.
+func (c *collection) retitle(out string) error {
+	for _, r := range Retitled(out) {
+		if err := c.s.Forge.EditTitle(r.N, r.Title); err != nil {
+			return err
+		}
+		fmt.Fprintf(c.s.Out, "%sfollow-up #%d retitled\n", c.head, r.N)
+	}
+	return nil
 }
 
 // triage acts on the owner's Triaged: lines in out after its proposals

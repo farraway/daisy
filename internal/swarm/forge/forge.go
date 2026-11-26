@@ -127,6 +127,9 @@ type Adapter interface {
 	// EditIssue replaces issue n's body with body, and nothing else:
 	// Daisy's list of the issue's pull requests (section 5).
 	EditIssue(n int, body string) error
+	// EditTitle replaces issue n's title with title, and nothing else:
+	// the owner's retitle of a follow-up (section 7.11, Follow-ups).
+	EditTitle(n int, title string) error
 	Comment(at Ref, body string) error
 	// Relabel adds add, then removes remove; "" on either side is no
 	// change there, so one call sets or clears the flag alone.

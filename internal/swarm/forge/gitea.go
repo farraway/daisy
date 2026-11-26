@@ -566,6 +566,11 @@ func (g *Gitea) EditIssue(n int, body string) error {
 	return g.call("PATCH", fmt.Sprintf("%s/issues/%d", g.repoPath(g.repo), n), map[string]string{"body": body}, http.StatusCreated, nil)
 }
 
+// EditTitle sets issue n's title, as EditIssue sets its body.
+func (g *Gitea) EditTitle(n int, title string) error {
+	return g.call("PATCH", fmt.Sprintf("%s/issues/%d", g.repoPath(g.repo), n), map[string]string{"title": title}, http.StatusCreated, nil)
+}
+
 // CreatePull opens a pull request from head into base in the declared
 // repository repo.
 func (g *Gitea) CreatePull(repo, head, base, title, body string) (int, error) {

@@ -234,7 +234,7 @@ func TestSwarmFollowUpNotFiledForPastMerges(t *testing.T) {
 // "# Follow-ups" with each open follow-up, oldest first, as
 // "## #<f>: <title>" and its numbered items, the marker lines and the
 // first text line left out; a closed one is not there; its Task text asks
-// it to triage them; and a follow-up holds no proposal's place, the batch
+// it to triage them, and lets it retitle one it leaves open; and a follow-up holds no proposal's place, the batch
 // proposing with owner.max_open_proposals 1.
 func TestSwarmOwnerBatchReadsFollowUps(t *testing.T) {
 	t.Parallel()
@@ -271,6 +271,10 @@ func TestSwarmOwnerBatchReadsFollowUps(t *testing.T) {
 	task := `Each issue under "# Follow-ups" holds review findings that did not block a merge. Check each item against main under /job/work;`
 	if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, task) || strings.Index(sys, task) > strings.Index(sys, `If there is nothing worth proposing, write "BLOCKED: <why>"`) {
 		t.Errorf("system.md lacks the triage sentence before the BLOCKED: one:\n%s", sys)
+	}
+	retitle := `Daisy closes the issue with your reason. For a follow-up you leave open, you may write a line "Retitled: #<f>: <title>" there too, its title naming the findings' cause; Daisy sets the issue's title to it.`
+	if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, retitle) {
+		t.Errorf("system.md lacks the retitle sentence after the Triaged: one:\n%s", sys)
 	}
 	if !strings.Contains(a.stdout.String(), "owner run 1: proposed #4 Drift check\n") {
 		t.Errorf("the batch proposed nothing beside the follow-ups:\n%s", a.stdout.String())
@@ -357,4 +361,98 @@ func TestSwarmTriagedClosesTheFollowUp(t *testing.T) {
 			t.Errorf("#1, not triaged, closed")
 		}
 	})
+}
+
+// The owner's Retitled: line sets the title of the follow-up it names and
+// changes nothing else of it (sections 7.5, 7.6 and 7.11, The owner's
+// triage): among the report lines, before the proposals or before the
+// BLOCKED: line, beside the Triaged: lines. A Retitled: line naming an
+// issue not under the run's "# Follow-ups", or with an empty title, fails
+// the run: no title is changed, no proposal created and no follow-up
+// closed.
+func TestSwarmRetitledRetitlesTheFollowUp(t *testing.T) {
+	t.Parallel()
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	item := "adversary run 2, round 1: [non-blocking] main.go:1: the version could be a constant"
+	const old = "1 finding left by #9: Name the version"
+	// setup files follow-ups #1 and #2 open and #3 closed, and #4, an
+	// issue with no label; the batch's "# Follow-ups" holds #1 and #2.
+	setup := func(t *testing.T) *applyWS {
+		a := newApplyWS(t)
+		for i, closed := range []bool{false, false, true} {
+			n, err := a.forge.CreateIssue(old, followUpBody(fmt.Sprint(i+1), sha, 1, 9, item), []string{forge.FollowUp})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if closed {
+				a.forge.CloseIssue(n)
+			}
+		}
+		a.forge.CreateIssue("The maintainer's own", "Something.", nil)
+		a.release()
+		return a
+	}
+	issues := func(a *applyWS) []forge.Issue {
+		var is []forge.Issue
+		for n := 1; n <= 4; n++ {
+			is = append(is, a.issue(n))
+		}
+		return is
+	}
+	proposal := "## Name the version constant\nBrief: docs/briefs/a.md — M1 The drift\nClass: routine\nFollow-up: #1 1\nName it.\n"
+
+	t.Run("before the proposals", func(t *testing.T) {
+		t.Parallel()
+		a := setup(t)
+		before := issues(a)
+		a.runner.Script(0, "owner", runner.Canned{Out: "Retitled: #1: The version is a literal in three places\n\n" + proposal, Stdout: claudeResult})
+		a.pass()
+		if !strings.Contains(a.stdout.String(), "owner run 1: proposed #5 Name the version constant\n") ||
+			!strings.Contains(a.stdout.String(), "owner run 1: follow-up #1 retitled\n") {
+			t.Fatalf("stdout:\n%s\nstderr:\n%s", a.stdout.String(), a.stderr.String())
+		}
+		after := issues(a)
+		want := before[0]
+		want.Title = "The version is a literal in three places"
+		if !reflect.DeepEqual(after[0], want) {
+			t.Errorf("#1:\n got %+v\nwant %+v", after[0], want)
+		}
+		if !reflect.DeepEqual(after[1:], before[1:]) {
+			t.Errorf("another issue changed:\n got %+v\nwant %+v", after[1:], before[1:])
+		}
+	})
+
+	t.Run("before BLOCKED:", func(t *testing.T) {
+		t.Parallel()
+		a := setup(t)
+		a.runner.Script(0, "owner", runner.Canned{Out: "Triaged: #1: met only where the notes trust\nRetitled: #2: A stale doc comment\nBLOCKED: nothing worth proposing\n", Stdout: claudeResult})
+		a.pass()
+		if !strings.Contains(a.stdout.String(), "owner run 1: blocked: nothing worth proposing; batch held") || a.issue(1).Open || a.issue(2).Title != "A stale doc comment" {
+			t.Errorf("#1 open %v, #2 %q\n%s", a.issue(1).Open, a.issue(2).Title, a.stdout.String())
+		}
+	})
+
+	for _, tc := range []struct{ name, line, reason string }{
+		{"a closed follow-up", "Retitled: #3: Closed already", "bad Retitled line: #3 is not under # Follow-ups"},
+		{"an issue that is no follow-up", "Retitled: #4: The maintainer's", "bad Retitled line: #4 is not under # Follow-ups"},
+		{"a number the forge does not hold", "Retitled: #99: No issue", "bad Retitled line: #99 is not under # Follow-ups"},
+		{"an empty title", "Retitled: #2:   ", "bad Retitled line: #2 has an empty title"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			a := setup(t)
+			before := issues(a)
+			a.runner.Script(0, "owner", runner.Canned{Out: "Retitled: #1: The version is a literal\nTriaged: #2: fixed already\n" + tc.line + "\n\n" + proposal, Stdout: claudeResult})
+			a.pass()
+			if line := "owner run 1: " + tc.reason + "; batch held (" + a.state("owner-held") + ")\n"; !strings.Contains(a.stdout.String(), line) {
+				t.Errorf("stdout lacks %q:\n%s", line, a.stdout.String())
+			}
+			if after := issues(a); !reflect.DeepEqual(after, before) {
+				t.Errorf("an issue changed:\n got %+v\nwant %+v", after, before)
+			}
+			if _, err := a.forge.Issue(5); err == nil {
+				t.Errorf("a proposal created")
+			}
+		})
+	}
 }

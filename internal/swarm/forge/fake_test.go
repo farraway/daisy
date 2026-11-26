@@ -477,7 +477,8 @@ func TestFakeRepository(t *testing.T) {
 
 // EditIssue replaces an issue's body alone, kept on its timeline as an
 // edit by the token's account, as the forge keeps a body's history; its
-// creation time stays, and a number the Fake does not hold is its 404. A
+// creation time stays, and a number the Fake does not hold is its 404.
+// EditTitle replaces its title alone, likewise. A
 // pull request's URL is its page on the forge, in its repository.
 func TestFakeEditIssueAndPullURL(t *testing.T) {
 	f := fakeForge(t)
@@ -493,6 +494,17 @@ func TestFakeEditIssueAndPullURL(t *testing.T) {
 	}
 	if err := f.EditIssue(99, "x"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("EditIssue(99): %v", err)
+	}
+	before, _ = f.Issue(n)
+	if err := f.EditTitle(n, "B"); err != nil {
+		t.Fatal(err)
+	}
+	if is, _ := f.Issue(n); is.Title != "B" || is.Body != before.Body || !is.Created.Equal(before.Created) || is.Open != before.Open ||
+		!reflect.DeepEqual(is.Labels, before.Labels) || len(is.Comments) != 0 || !reflect.DeepEqual(f.Events(Ref{"app", n}), []Event{{"jane", "edited"}, {"swarm-bot", "retitled"}}) {
+		t.Errorf("retitled: %+v %v", is, f.Events(Ref{"app", n}))
+	}
+	if err := f.EditTitle(99, "x"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("EditTitle(99): %v", err)
 	}
 	f.CreatePull("lib", "swarm/1-1", "main", "P", "Refs acme/app#1")
 	if ps, _ := f.Pulls(1, []string{"swarm-bot"}); len(ps) != 1 || ps[0].URL != "https://forge.example.net/acme/lib/pulls/1" {

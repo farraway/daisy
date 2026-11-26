@@ -1569,3 +1569,12 @@ they write.
   `Follow-up: <owner>/<name>#<m> (#<n>, slice <s>)`; its body, label and
   deduplication are unchanged. Section 7.11 and `docs/cli.md`'s `swarm
   merge`. Decision [174](swarm/decisions/0174-the-follow-up-title.md).
+- 2026-11-25, Step FT-2 of the plan implementing the 2026-11-19 swarm
+  roadmap, the owner's retitle: a `Retitled: #<f>: <title>` line among
+  the owner's report lines sets the title of a follow-up it leaves open
+  to its findings' cause (`EditTitle`, new on the forge adapter), and
+  nothing else of it; one naming an issue not under the run's `# Follow-ups`,
+  recorded at the launch in a `follow-ups` result line, or with an empty
+  title fails the run. Sections 2, 7.4, 7.5, 7.6, 7.7, 7.11, 10 and 11,
+  and `docs/cli.md`'s `apply`. Decision
+  [174](swarm/decisions/0174-the-follow-up-title.md), As built.
