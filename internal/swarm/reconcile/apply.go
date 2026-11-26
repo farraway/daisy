@@ -43,6 +43,7 @@ type Swarm struct {
 	Out, Err io.Writer
 
 	live       map[string]*live    // run directory → its container in flight
+	mine       int                 // the swarm's containers running at the pass's start
 	started    int                 // containers this process started in this pass, members and checks
 	given      map[string][]string // run directory → the secrets its member was given
 	Stopping   func() bool         // the loop was signalled: launch nothing more (nil: never)
@@ -88,6 +89,14 @@ type live struct {
 }
 
 func (s *Swarm) stopping() bool { return s.Stopping != nil && s.Stopping() }
+
+// launchesNothing: the pass launches nothing more (section 6, rule 4):
+// every member slot is taken, by the containers running at the pass's
+// start and those it started since, a check included, or the swarm is
+// paused, a second fault in a row included, or the loop was signalled.
+func (s *Swarm) launchesNothing() bool {
+	return s.mine+s.started >= s.Cfg.MaxMembers || s.paused() != "" || s.stopping()
+}
 
 func (s *Swarm) state() string { return s.Cfg.Forge.State(s.Local) }
 func (s *Swarm) owner() string { return owner(s.Cfg) }
@@ -140,10 +149,10 @@ func (s *Swarm) Pass(wait bool) error {
 	if err != nil {
 		return err
 	}
-	mine := 0
+	s.mine = 0
 	for _, c := range running {
 		if strings.HasPrefix(c.Swarm, s.Cfg.Forge.Repo+"#") {
-			mine++
+			s.mine++
 		}
 	}
 	s.collected, s.started, s.moves, s.fetched, s.followUps = 0, 0, map[int]string{}, false, nil
@@ -154,10 +163,8 @@ func (s *Swarm) Pass(wait bool) error {
 		errs = append(errs, s.stages(running, nil))
 	} else {
 		launch := func(j *Job) error {
-			// The running set is the pass's start; a container started
-			// since, a check in step (3) included, counts too (rule 4).
-			if mine+s.started >= s.Cfg.MaxMembers || s.paused() != "" || s.stopping() {
-				return nil // a second fault in a row, or a signal, this pass launches nothing more
+			if s.launchesNothing() {
+				return nil
 			}
 			if err := s.fetch(); err != nil {
 				return err
@@ -193,7 +200,7 @@ func (s *Swarm) Pass(wait bool) error {
 	}
 	s.drift()
 	errs = append(errs, s.Journal())
-	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, mine)
+	fmt.Fprintf(s.Out, "Pass %s: launched %d, collected %d, running %d\n", s.O.Now().Format("15:04:05"), launched, s.collected, s.mine)
 	return errors.Join(errs...)
 }
 

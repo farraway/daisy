@@ -27,8 +27,12 @@ import (
 // routine jobs at proposal-accepted, which Daisy triaged, are fewer than
 // owner.max_open_proposals, and the run proposes the difference; off, the
 // open proposal-posted and proposal-accepted issues are fewer than that,
-// and it proposes the difference.
+// and it proposes the difference. A pass that launches nothing more
+// (launchesNothing) reads nothing for it.
 func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
+	if s.launchesNothing() {
+		return nil
+	}
 	fs := s.O.FS()
 	if _, err := fs.Stat(heldFile(s.state(), "owner")); err == nil {
 		return nil
@@ -105,9 +109,10 @@ func heldFile(state, role string) string { return filepath.Join(state, role+"-he
 // <state>/qa-held is absent and its trigger holds on the first
 // repository's base at the pass's commit (qaDue); it reports at
 // most owner.max_open_proposals failures, and reads the open and the
-// recently closed swarm issues so as to report none twice.
+// recently closed swarm issues so as to report none twice. A pass that
+// launches nothing more (launchesNothing) reads nothing for it.
 func (s *Swarm) qa(running []runner.Running, launch func(*Job) error) error {
-	if s.Cfg.QA == nil {
+	if s.Cfg.QA == nil || s.launchesNothing() {
 		return nil
 	}
 	fs := s.O.FS()

@@ -1555,3 +1555,11 @@ they write.
   hash appended to the table of earlier defaults, whose counts are
   brought up to date. Sections 4, 7.11 and 11. Decision
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-25, Step D7 of the plan implementing the 2026-11-19 swarm
+  roadmap, a trigger that cannot launch reads nothing: step (7)'s
+  owner's and QA's triggers make no read when the pass launches nothing
+  more (no member slot free, the swarm paused or a signal received),
+  asked through the function the launch asks; with a slot free they read
+  and launch as before. Section 11. Decision
+  [173](swarm/decisions/0173-a-trigger-that-cannot-launch-reads-nothing.md),
+  As built.

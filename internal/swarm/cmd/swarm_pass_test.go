@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"daisy/internal/swarm/declare"
@@ -348,4 +351,105 @@ func TestSwarmPassDecidesAnIssueOnce(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-1-in-progress"}) {
 		t.Errorf("labels %v\n%s", got, a.stdout.String())
 	}
+}
+
+// readLog records a pass's reads of issues and pull requests, in order.
+type readLog struct {
+	gitForge
+	mu    *sync.Mutex
+	reads *[]string
+}
+
+func (f readLog) add(r string) { f.mu.Lock(); defer f.mu.Unlock(); *f.reads = append(*f.reads, r) }
+
+func (f readLog) Issues(st forge.State, label string) ([]forge.Issue, error) {
+	f.add(fmt.Sprintf("Issues %d %s", st, label))
+	return f.gitForge.Issues(st, label)
+}
+
+func (f readLog) Issue(n int) (forge.Issue, error) {
+	f.add(fmt.Sprintf("Issue %d", n))
+	return f.gitForge.Issue(n)
+}
+
+func (f readLog) Pulls(n int, openers []string) ([]forge.Pull, error) {
+	f.add(fmt.Sprintf("Pulls %d", n))
+	return f.gitForge.Pulls(n, openers)
+}
+
+// passReads is one pass, as pass runs it, and the reads it made.
+func (a *applyWS) passReads() []string {
+	a.t.Helper()
+	var reads []string
+	a.tick()
+	if err := a.apply(readLog{a.git(), &sync.Mutex{}, &reads}, "--once"); err != nil {
+		a.t.Fatalf("%v\nstdout:\n%s\nstderr:\n%s", err, a.stdout.String(), a.stderr.String())
+	}
+	return reads
+}
+
+// A batch trigger whose launch the pass would refuse reads nothing
+// (section 11, A pass, step 7): with every member slot taken by a running
+// container, the trigger otherwise due makes the pass read what it reads
+// with the trigger held, so none of the open or closed lists, the
+// follow-ups, or a closed issue's pull requests and thread, and launches
+// nothing; with a slot free the same pass reads them and runs it.
+func TestSwarmBatchTriggerReadsNothingWithNoSlotFree(t *testing.T) {
+	t.Parallel()
+	hold := func(a *applyWS, role string) {
+		os.WriteFile(a.state(role+"-held"), []byte("held 2026-11-06T14:00:00Z: test\n"), 0o644)
+	}
+	full := func(a *applyWS) {
+		a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
+		a.forge.CreateIssue("Old", "x", []string{"swarm:proposal-accepted"})
+		n, _ := a.forge.CreateIssue("Done", "Brief: docs/briefs/a.md — M1 The drift\n", []string{"swarm:review-2-approved"})
+		a.forge.CloseIssue(n)
+		// #1 stays at its stage, its member running, and takes the slot.
+		a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.swarm-app.1.architect.9", Swarm: "acme/swarm-app#1/architect"}}
+	}
+	// check runs the held pass, then the due one with no slot free and
+	// with one free, the trigger's run being runs/0-<role>-1.
+	check := func(t *testing.T, a *applyWS, role string) {
+		a.passReads() // the first pass's own work (milestones) done
+		held := a.passReads()
+		os.Remove(a.state(role + "-held"))
+		due := a.passReads()
+		if !reflect.DeepEqual(due, held) {
+			t.Errorf("with no slot free the %s's trigger read:\n%q\nwant the held pass's:\n%q", role, due, held)
+		}
+		for _, r := range due {
+			if r == "Pulls 2" || r == "Issue 2" {
+				t.Errorf("with no slot free the pass read the closed #2: %s", r)
+			}
+		}
+		if _, err := os.Stat(a.state("runs/0-" + role + "-1")); err == nil {
+			t.Fatalf("the %s ran with no slot free", role)
+		}
+		a.edit(func(c *declare.Config) { c.MaxMembers = 2 })
+		a.publish("a slot")
+		reads := a.passReads()
+		if _, err := os.Stat(a.state("runs/0-" + role + "-1")); err != nil {
+			t.Errorf("the %s did not run with a slot free: %v\n%s", role, err, a.stdout.String())
+		}
+		if !slices.Contains(reads, "Pulls 2") || !slices.Contains(reads, "Issue 2") {
+			t.Errorf("with a slot free the %s's trigger did not read the closed #2: %q", role, reads)
+		}
+	}
+	t.Run("owner", func(t *testing.T) {
+		a := newApplyWS(t)
+		full(a)
+		a.release()
+		hold(a, "owner")
+		a.runner.Script(0, "owner", runner.Canned{Out: "## One\nA.\n"})
+		check(t, a, "owner")
+	})
+	t.Run("qa", func(t *testing.T) {
+		a := newApplyWS(t)
+		full(a)
+		a.qa(declare.QA{Merges: ptr(1)})
+		a.land("app", map[string]string{"login.go": "package app\n"}, "the login page")
+		hold(a, "qa")
+		a.runner.Script(0, "qa", runner.Canned{Out: "NO FAILURE: /login\n"})
+		check(t, a, "qa")
+	})
 }
