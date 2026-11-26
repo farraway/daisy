@@ -35,7 +35,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return false, err
 	}
 	var on bool
-	if j.RunsOn, on, err = s.runsOn(j.Role, capacity); err != nil || !on {
+	if j.RunsOn, on, err = s.runsOn(j, capacity); err != nil || !on {
 		return false, err
 	}
 	r := Run{Dir: filepath.Join(s.state(), "runs", fmt.Sprintf("%d-%s-%d", j.N, j.Role, j.K)), N: j.N, K: j.K, Role: j.Role}

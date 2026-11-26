@@ -317,9 +317,9 @@ func TestSwarmStatusJSON(t *testing.T) {
 			`{"class":"architecture","issue":6,"item":"merge"},{"class":"architecture","issue":7,"item":"blocked"}],"no_check":[],"notes":[]}`,
 		"held":    `{"blocked_by":[{"by":3,"issue":12}],"paused":[11]}`,
 		"running": `{"error":null,"members":[{"issue":0,"role":"owner"},{"issue":8,"role":"adversary"},{"issue":12,"role":"check"}]}`,
-		"personas": `{"adversary":{"effort":"high","model":"gpt-6.1-sol","provider":"openai"},"architect":{"effort":"high","model":"claude-fable-5-1","provider":"anthropic"},` +
-			`"owner":{"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},"sympathetic":{"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},` +
-			`"worker":{"effort":"medium","model":"claude-sonnet-5-5","provider":"anthropic"}}`,
+		"personas": `{"adversary":{"by_label":[],"effort":"high","model":"gpt-6.1-sol","provider":"openai"},"architect":{"by_label":[],"effort":"high","model":"claude-fable-5-1","provider":"anthropic"},` +
+			`"owner":{"by_label":[],"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},"sympathetic":{"by_label":[],"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},` +
+			`"worker":{"by_label":[],"effort":"medium","model":"claude-sonnet-5-5","provider":"anthropic"}}`,
 		"throughput": `{"approved":{"at_round_limit":0,"blocked_at_round_limit":0,"pull_requests":0},"auto":{"plan":0,"triage":0},"budget":{"per_day":10,"total":100},` +
 			`"cost":{"all":0.5,"estimated":0,"runs_without_cost":0,"runs_without_estimate":1,"today":0.5},"reverted":{"fetched":null,"merged_pulls":0,"reverted_pulls":0},"runs":{"blocked":0,"failed":0,"faults":0,"other":0,"posted":1,"questions":0,"total":1},` +
 			`"stage_time":{"swarm:proposal-accepted":{"median_seconds":600,"runs":1}}}`,

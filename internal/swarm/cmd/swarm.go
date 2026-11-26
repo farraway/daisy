@@ -517,6 +517,9 @@ func writeStatus(out io.Writer, r *statusReport) {
 			continue // the QA, undeclared
 		}
 		fmt.Fprintf(out, "  %-12s %-10s %s %s\n", role, p.Provider, p.Model, p.Effort)
+		for _, b := range p.ByLabel {
+			fmt.Fprintf(out, "    on %s: %s %s %s\n", b.Label, b.Provider, b.Model, b.Effort)
+		}
 	}
 	writeCapacity(out, r.Capacity)
 	writeThroughput(out, r.Throughput)
@@ -710,7 +713,7 @@ func runsLine(r reconcile.StatusRuns) string {
 func writeCapacity(out io.Writer, c reconcile.StatusCapacity) {
 	fmt.Fprintln(out, "Capacity:")
 	for _, r := range c.Roles {
-		line := fmt.Sprintf("  %-12s queue %d, running %d", r.Role, len(r.Queue), r.Running)
+		line := fmt.Sprintf("  %-12s queue %d, running %d", onLabel(r.Role, r.Label), len(r.Queue), r.Running)
 		if r.Why != nil {
 			line += ": " + *r.Why
 		}
@@ -730,10 +733,19 @@ func writeCapacity(out io.Writer, c reconcile.StatusCapacity) {
 		fmt.Fprintf(out, "  %s tokens %s\n", t.Credential, strings.Join(parts, ", "))
 	}
 	if b := c.Bottleneck; b != nil {
-		fmt.Fprintf(out, "  Bottleneck: %s (%s)\n", b.Role, b.Why)
+		fmt.Fprintf(out, "  Bottleneck: %s (%s)\n", onLabel(b.Role, b.Label), b.Why)
 	} else {
 		fmt.Fprintln(out, "  Bottleneck: none")
 	}
+}
+
+// onLabel is a Capacity line's name: the role, and ` on <label>` for a
+// by_label entry's line (section 7.10, The model by label).
+func onLabel(role string, label *string) string {
+	if label == nil {
+		return role
+	}
+	return role + " on " + *label
 }
 
 // writeThroughput writes section 11's Throughput block.

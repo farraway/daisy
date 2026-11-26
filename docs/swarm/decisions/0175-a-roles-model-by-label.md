@@ -41,3 +41,20 @@ checks in `checkPersona` and the credential check over `All` in
 `internal/swarm/declare/validate.go`, `Format` writing `by_label` after
 `fallback`; the wizard keeps the file's, asking nothing. Tests:
 `TestValidateByLabel`, `TestFormatByLabel`, `TestWizardKeepsByLabel`.
+
+**As built (Step R4-L, the launch and `status`).** `(*Swarm).chain` in
+`internal/swarm/reconcile/capacity.go`, the persona's `Chain` for the
+issue's labels, none for a run with no issue, which `runsOn` and
+`capacityNote` read; `launchedEntry` over `All`, so a by_label entry's
+`co_author` stamps and checks the worker's commits and the notes'.
+`status`: `StatusPersona.ByLabel` and a `Personas:` line per entry;
+`capacityOf` a line per entry after its role's, `StatusRoleCapacity.Label`
+and `StatusBottleneck.Label`, each issue and member counted on the line
+its labels choose, its why over that line's chain. Tests:
+`TestSwarmArchitectRunsTheLabelsModel` (the first carried label wins:
+an entry earlier in the list whose label the issue lacks is passed over,
+one later whose label it carries too is not reached),
+`TestSwarmByLabelFallsBackToTheRolesChain` (to the persona, then to
+the fallback, the capacity note naming the override),
+`TestSwarmWorkerCommitsCarryTheLabelsCoAuthor`,
+`TestSwarmStatusShowsByLabel`.

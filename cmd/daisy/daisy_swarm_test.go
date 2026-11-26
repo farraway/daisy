@@ -384,7 +384,7 @@ func TestSwarmStatusJSONThroughGitea(t *testing.T) {
 		"held":                {"blocked_by", "paused"},
 		"running":             {"error", "members"},
 		"personas":            {"adversary", "architect", "owner", "sympathetic", "worker"},
-		"personas.owner":      {"effort", "model", "provider"},
+		"personas.owner":      {"by_label", "effort", "model", "provider"},
 		"capacity":            {"bottleneck", "roles", "tokens", "unavailable"},
 		"throughput":          {"approved", "auto", "budget", "cost", "reverted", "runs", "stage_time"},
 		"throughput.reverted": {"fetched", "merged_pulls", "reverted_pulls"},

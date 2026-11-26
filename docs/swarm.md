@@ -256,7 +256,7 @@ Stages of a software factory the version leaves out, each by choice:
 |---|---|
 | Monitoring, fed back into the inputs | Post-merge signals (CI on `base`, incidents, user reports) are not read; the maintainer files issues from them. *R2, specified ahead of its build* (12.1, rules 3 and 4): each approved head merges only after a merge queue's check on `base` plus the head, and Daisy checks `base` after every merge, holding the repository's worker launches while it is red and giving the fix to the breaking job's worker or the owner's next proposal; CI's status on `base` is still not read |
 | A user-testing validator | No member runs the built product; behavioural verification is the maintainer's at merge. `check` is the seam: a product whose `check` drives the served product (an end-to-end test) has the validator run on every worker head in the check container, with nothing added here |
-| Model routing and provider fallback | One model per role, chosen by the maintainer; no routing by difficulty and no fallback on a provider's failure (a swarm fault pauses the swarm instead, section 7.7); *R4* (7.10, rule 1), *built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap*: a persona's `fallback` models, tried in order when a provider's fault for a limit, a quota or the credit makes a model unavailable on a credential until its stated reset, the fault pausing nothing; still no routing by difficulty |
+| Model routing and provider fallback | One model per role, chosen by the maintainer; no routing by difficulty and no fallback on a provider's failure (a swarm fault pauses the swarm instead, section 7.7); *R4* (7.10, rule 1), *built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap*: a persona's `fallback` models, tried in order when a provider's fault for a limit, a quota or the credit makes a model unavailable on a credential until its stated reset, the fault pausing nothing; *built at Step R4-L of that plan*, a persona's `by_label` models, the first whose label the issue carries heading the role's entries on that issue (7.10, The model by label), so the maintainer routes by a label such as the job class; still no routing by difficulty |
 | A spending limit | `budget`, specified to cap the whole swarm's spend per day and in all, not per role or per issue, is validated and not enforced: no pass reads the spend against it until a run needs it (section 3, The budget); *R4* (7.10, rule 4), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a credential's launches paced to the token budget per day or week its provider declares in `keys`, the money `budget` unchanged |
 | Dependency ordering between issues | The owner's "depends on" is prose, and the default owner proposes a job only once every job it depends on is closed (section 4); the maintainer sequences jobs by when they move them to `proposal-accepted` (with the triage gate off, the owner's priority order does), by `swarm block <n> --by <m>`, and by `swarm pause <n>`; *R2, specified ahead of its build* (12.1, rules 1, 2 and 5): machine-read `Depends:` and `Touches:` lines hold a job while a dependency is open and a slice's first build while it overlaps an open slice, and the owner proposes dependent work rather than holding its batch |
 | Low latency | Every stage advance waits for the next pass and the reviewers run one after the other, so a review round costs about three passes; collecting and relaunching within one pass is later work |
@@ -6064,6 +6064,31 @@ printed. A batch run's journal line is not queued yet (decision
 already separates a fallback's runs by provider and model, so what a
 weaker model costs in rounds and stops is read there.
 
+**The model by label** (decision
+[175](swarm/decisions/0175-a-roles-model-by-label.md); the maintainer's
+request and ruling of 2026-11-26). `personas.<role>.by_label` (section
+3) is an ordered list of entries, each a fallback entry's fields after
+a `label`, any label. A run on an issue takes the role's entries in the
+order above from its **chain**: the first `by_label` entry whose label
+the issue carries, as the launch reads its labels, in the persona's
+place at the head, then the persona and its `fallback`, unchanged; an
+entry that is the head (the same provider, model and effort) is not
+tried twice. With no entry chosen the chain is the persona and its
+`fallback`. A run with no issue, the owner's batch and the QA's, never
+matches. Pacing, the capacity lines and the slots apply to the chosen
+entry as to any entry; the run's `persona` line names it; the capacity
+note compares a run's entry with the head of its issue's chain, so a
+run on the chosen entry gets none and one passed over to the persona
+names the chosen entry in `in place of`; the worker's commits on it
+carry its `co_author`. `status` shows each entry under its role's
+`Personas:` line, `    on <label>: <provider> <model> <effort>`, and,
+in `Capacity:`, a line per entry after the role's, `  <role> on <label>
+queue <q>, running <r>` and its why, the role's own line then holding
+the issues and members whose labels choose no entry (The slots per
+role). *Built at Step R4-L of the plan implementing the 2026-11-19
+swarm roadmap*, this paragraph (decision
+[175](swarm/decisions/0175-a-roles-model-by-label.md), As built).
+
 **The detached run** (rule 2). Every container Daisy starts, a member's,
 a dependency step's, a check's, the merge and main checks' (12.1), runs
 `docker run --detach`, its command under the image's `sh` writing its
@@ -6156,8 +6181,14 @@ the worker stands for the architect; the owner's batch and the QA are
 no issue's, and count in no queue; each line of `<state>/capacity` as
 the file holds it; `  Bottleneck: <role> (<why>)`, the first in role
 order of those with the most issues waiting; JSON `capacity`:
-`{"roles": [{"role", "queue": [<n>, …], "running", "why"}],
-"unavailable": [<line>, …], "bottleneck": {"role", "why"} or null}`.
+`{"roles": [{"role", "label", "queue": [<n>, …], "running", "why"}],
+"unavailable": [<line>, …], "bottleneck": {"role", "label", "why"} or null}`.
+*From Step R4-L of that plan* (The model by label), a role with
+`by_label` entries has a line per entry after its own, `<role> on
+<label>`, JSON `label` the entry's label (`null` on the role's own
+line), each line's queue and running members those on the issues whose
+labels choose it, its why over its chain; the bottleneck is the line
+with the most issues waiting.
 
 **The pacing** (rule 4). `keys.<provider>.tokens`, `{"per_day":
 <tokens>, "per_week": <tokens>}`, one or both, positive integers, no
@@ -8256,7 +8287,10 @@ repository with a check follows `Running:`, and Waiting for you gains
 (section 5, Notify). *R4* (7.10, rule 3), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a `Capacity:` block follows
 `Personas:`, each role's queue and what holds it, the unavailable
 models and the token budgets, and `Bottleneck: <role> (<why>)`; JSON `capacity` (7.10, The slots per
-role).
+role). *Built at Step R4-L of that plan* (7.10, The model by label):
+each `by_label` entry under its role's `Personas:` line and its own
+`Capacity:` line, JSON `personas.<role>.by_label` and `capacity`'s
+`label`.
 
 | Field | Value |
 |---|---|

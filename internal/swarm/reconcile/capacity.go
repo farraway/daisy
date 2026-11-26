@@ -191,15 +191,15 @@ func freeSlots(e declare.Entry, count int, capacity []Unavailable) []int {
 	return out
 }
 
-// runsOn is the entry a run of role launches on (section 7.10, The
-// fallback): the first of the persona and its fallback's, in order, with
-// a credential it may take (heldBy); ok false when none has, and the role
-// waits. The running set is read once, for the first entry on slots, and
-// the runs' tokens once, for the first whose provider declares a budget.
-func (s *Swarm) runsOn(role string, capacity []Unavailable) (declare.Entry, bool, error) {
+// runsOn is the entry run j launches on (section 7.10, The fallback):
+// the first of its chain (chain), in order, with a credential it may
+// take (heldBy); ok false when none has, and the role waits. The running
+// set is read once, for the first entry on slots, and the runs' tokens
+// once, for the first whose provider declares a budget.
+func (s *Swarm) runsOn(j *Job, capacity []Unavailable) (declare.Entry, bool, error) {
 	at := credentials{cfg: s.Cfg, capacity: capacity, now: s.O.Now()}
 	readRunning, haveSpent := false, false
-	for _, e := range s.Cfg.Personas[role].Entries() {
+	for _, e := range s.chain(j) {
 		key := s.Cfg.Keys[e.Provider]
 		var err error
 		if key.Slots != nil && !readRunning {
@@ -375,13 +375,25 @@ func (b budget) reached() (until time.Time, reached bool) {
 	return until, reached
 }
 
+// chain is the entries run j tries in order (section 7.10, The model by
+// label): on an issue, the persona's Chain for the issue's labels; a run
+// with no issue (the owner's batch, the QA's) never matches a by_label
+// entry.
+func (s *Swarm) chain(j *Job) []declare.Entry {
+	var labels []string
+	if j.N != 0 && j.Batch == nil {
+		labels = j.Issue.Labels
+	}
+	return s.Cfg.Personas[j.Role].Chain(labels)
+}
+
 // launchedEntry is the entry run r was launched on, its lines being
-// lines: the entry of the role's persona or fallback with the provider,
-// model and effort it launched with (launched), for its co-author; the
-// persona's when none is (swarm.json changed since).
+// lines: the entry of the role's persona, fallback or by_label with the
+// provider, model and effort it launched with (launched), for its
+// co-author; the persona's when none is (swarm.json changed since).
 func (s *Swarm) launchedEntry(r Run, lines []string) declare.Entry {
 	prov, model, effort := s.launched(r, lines)
-	entries := s.Cfg.Personas[r.Role].Entries()
+	entries := s.Cfg.Personas[r.Role].All()
 	for _, e := range entries {
 		if e.Is(declare.Entry{Provider: prov, Model: model, Effort: effort}) {
 			return e
@@ -401,12 +413,14 @@ const capacityMarker = "<!-- daisy-swarm role=reconciler kind=capacity -->"
 // <role> runs on <provider> <model> (<effort>) in place of the persona's,
 // and, after a colon, the lines of capacity that name an entry passed
 // over, `; ` between them; back on the persona, `… again.`. A batch run
-// has no issue, and gets none.
+// has no issue, and gets none. The entries are the run's chain, so on an
+// issue whose labels choose a by_label entry that entry, at the head,
+// stands for the persona (section 7.10, The model by label).
 func (s *Swarm) capacityNote(j *Job, r Run, capacity []Unavailable) error {
 	if j.N == 0 {
 		return nil
 	}
-	entries := s.Cfg.Personas[j.Role].Entries()
+	entries := s.chain(j)
 	prev := entries[0]
 	runs, err := Runs(s.O.FS(), s.state())
 	if err != nil {

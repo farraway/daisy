@@ -411,9 +411,9 @@ Throughput:
 	if err := json.Unmarshal(s.stdout.Bytes(), &doc); err != nil {
 		t.Fatal(err)
 	}
-	want = `{"bottleneck":{"role":"architect","why":"max_members reached"},"roles":[` +
-		`{"queue":[1],"role":"owner","running":0,"why":"max_members reached"},{"queue":[2,3],"role":"architect","running":0,"why":"max_members reached"},` +
-		`{"queue":[],"role":"worker","running":3,"why":null},{"queue":[],"role":"adversary","running":0,"why":null},{"queue":[],"role":"sympathetic","running":0,"why":null}],"tokens":[],` +
+	want = `{"bottleneck":{"label":null,"role":"architect","why":"max_members reached"},"roles":[` +
+		`{"label":null,"queue":[1],"role":"owner","running":0,"why":"max_members reached"},{"label":null,"queue":[2,3],"role":"architect","running":0,"why":"max_members reached"},` +
+		`{"label":null,"queue":[],"role":"worker","running":3,"why":null},{"label":null,"queue":[],"role":"adversary","running":0,"why":null},{"label":null,"queue":[],"role":"sympathetic","running":0,"why":null}],"tokens":[],` +
 		`"unavailable":["anthropic/env claude-fable-5-1 until resume: Claude AI usage limit reached"]}`
 	var v any
 	json.Unmarshal(doc["capacity"], &v)
@@ -445,7 +445,7 @@ Throughput:
 	v = nil
 	json.Unmarshal(doc["capacity"], &v)
 	got, _ := json.Marshal(v)
-	for _, l := range []string{`"bottleneck":{"role":"architect","why":"swarm paused"}`, `{"queue":[2,3],"role":"architect","running":0,"why":"swarm paused"}`} {
+	for _, l := range []string{`"bottleneck":{"label":null,"role":"architect","why":"swarm paused"}`, `{"label":null,"queue":[2,3],"role":"architect","running":0,"why":"swarm paused"}`} {
 		if !strings.Contains(string(got), l) {
 			t.Errorf("paused json: no %s in\n%s", l, got)
 		}

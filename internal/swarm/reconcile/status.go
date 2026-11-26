@@ -114,7 +114,18 @@ type StatusMember struct {
 	Role  string `json:"role"`
 }
 
+// StatusPersona is a role's persona, and each by_label entry that takes
+// its place on an issue carrying the entry's label (section 7.10, The
+// model by label).
 type StatusPersona struct {
+	Provider string          `json:"provider"`
+	Model    string          `json:"model"`
+	Effort   string          `json:"effort"`
+	ByLabel  []StatusByLabel `json:"by_label"`
+}
+
+type StatusByLabel struct {
+	Label    string `json:"label"`
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Effort   string `json:"effort"`
@@ -145,17 +156,22 @@ type StatusTokens struct {
 
 // StatusRoleCapacity is one role's line: the issues it would launch on
 // at this pass but for section 6's rule 4, its running members, and, when
-// its queue waits, why.
+// its queue waits, why. A role with by_label entries has a line for
+// the persona, Label null, and one per entry, Label its label, each
+// with the issues and members whose labels choose it (section 7.10, The
+// model by label).
 type StatusRoleCapacity struct {
 	Role    string  `json:"role"`
+	Label   *string `json:"label"`
 	Queue   []int   `json:"queue"`
 	Running int     `json:"running"`
 	Why     *string `json:"why"`
 }
 
 type StatusBottleneck struct {
-	Role string `json:"role"`
-	Why  string `json:"why"`
+	Role  string  `json:"role"`
+	Label *string `json:"label"`
+	Why   string  `json:"why"`
 }
 
 // StatusRuns is the runs line of Throughput: the runs collected, by
@@ -373,7 +389,11 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	r.Personas = map[string]StatusPersona{}
 	for _, role := range cfg.DeclaredRoles() {
 		p := cfg.Personas[role]
-		r.Personas[role] = StatusPersona{p.Provider, p.Model, p.Effort}
+		sp := StatusPersona{p.Provider, p.Model, p.Effort, []StatusByLabel{}}
+		for _, b := range p.ByLabel {
+			sp.ByLabel = append(sp.ByLabel, StatusByLabel{b.Label, b.Provider, b.Model, b.Effort})
+		}
+		r.Personas[role] = sp
 	}
 	if r.Capacity, err = capacityOf(o.FS(), o.Now(), cfg, acct.Login, issues, r.Held, r.State.Paused != nil, r.Running, running, state); err != nil {
 		return nil, statusRead{}, err
@@ -580,9 +600,11 @@ func firstLine(b []byte) string {
 // pull requests' threads, the running set and the runs' records; it
 // waits when the swarm is paused (`swarm paused`), when every member
 // slot is taken (`max_members reached`) or when
-// no entry of its persona has a credential it may take (heldBy). The
-// bottleneck is the role with the most issues waiting, the first in
-// role order of those with as many.
+// no entry of its chain has a credential it may take (heldBy); a role
+// with by_label entries has a line for the persona and one per entry,
+// each issue on the line its labels choose. The bottleneck is the line
+// with the most issues waiting, the first in role order of those with
+// as many.
 func capacityOf(fs ops.FS, now time.Time, cfg declare.Config, login string, issues map[int]statusIssue, held StatusHeld, paused bool, members StatusRunning, running []runner.Running, state string) (StatusCapacity, error) {
 	c := StatusCapacity{Roles: []StatusRoleCapacity{}, Unavailable: []string{}, Tokens: []StatusTokens{}}
 	capacity, err := ReadCapacity(fs, state)
@@ -622,45 +644,68 @@ func capacityOf(fs ops.FS, now time.Time, cfg declare.Config, login string, issu
 			c.Tokens = append(c.Tokens, t)
 		}
 	}
-	queues := map[string][]int{}
+	// A line is a role and the by_label entry an issue's labels choose,
+	// "" for the persona (section 7.10, The model by label).
+	type line struct{ role, label string }
+	chosen := func(role string, n int) string {
+		if b, ok := cfg.Personas[role].Override(issues[n].Issue.Labels); ok && n != 0 {
+			return b.Label
+		}
+		return ""
+	}
+	queues := map[line][]int{}
 	for _, n := range slices.Sorted(maps.Keys(issues)) {
 		for _, role := range launches(fs, cfg, login, issues[n], held, running, runs, n) {
-			queues[role] = append(queues[role], n)
+			l := line{role, chosen(role, n)}
+			queues[l] = append(queues[l], n)
 		}
 	}
 	full := len(members.Members) >= cfg.MaxMembers
+	most := 0
 	for _, role := range cfg.DeclaredRoles() {
-		rc := StatusRoleCapacity{Role: role, Queue: append([]int{}, queues[role]...)}
-		for _, m := range members.Members {
-			if m.Role == role {
-				rc.Running++
-			}
+		p := cfg.Personas[role]
+		lines := []line{{role, ""}}
+		for _, b := range p.ByLabel {
+			lines = append(lines, line{role, b.Label})
 		}
-		if len(rc.Queue) > 0 {
-			why := "swarm paused"
-			if !paused {
-				why = "max_members reached"
+		for _, l := range lines {
+			rc := StatusRoleCapacity{Role: role, Queue: append([]int{}, queues[l]...)}
+			chain := p.Entries()
+			if l.label != "" {
+				rc.Label = &l.label
+				chain = p.Chain([]string{l.label})
 			}
-			if !paused && !full {
-				var whys []string
-				for _, e := range cfg.Personas[role].Entries() {
-					w := at.heldBy(e)
-					if w == "" {
-						whys = nil
-						break
+			for _, m := range members.Members {
+				if m.Role == role && chosen(role, m.Issue) == l.label {
+					rc.Running++
+				}
+			}
+			if len(rc.Queue) > 0 {
+				why := "swarm paused"
+				if !paused {
+					why = "max_members reached"
+				}
+				if !paused && !full {
+					var whys []string
+					for _, e := range chain {
+						w := at.heldBy(e)
+						if w == "" {
+							whys = nil
+							break
+						}
+						whys = append(whys, w)
 					}
-					whys = append(whys, w)
+					why = strings.Join(whys, "; ")
 				}
-				why = strings.Join(whys, "; ")
-			}
-			if why != "" {
-				rc.Why = &why
-				if c.Bottleneck == nil || len(rc.Queue) > len(queues[c.Bottleneck.Role]) {
-					c.Bottleneck = &StatusBottleneck{role, why}
+				if why != "" {
+					rc.Why = &why
+					if c.Bottleneck == nil || len(rc.Queue) > most {
+						c.Bottleneck, most = &StatusBottleneck{role, rc.Label, why}, len(rc.Queue)
+					}
 				}
 			}
+			c.Roles = append(c.Roles, rc)
 		}
-		c.Roles = append(c.Roles, rc)
 	}
 	return c, nil
 }

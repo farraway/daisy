@@ -1633,3 +1633,13 @@ they write.
   `init` writes none and keeps the file's; written on the persona's line
   after `fallback`. Section 3. Decision
   [175](swarm/decisions/0175-a-roles-model-by-label.md).
+- 2026-11-26, Step R4-L of the plan implementing the 2026-11-19 swarm
+  roadmap (a role's model by label): on a run on an issue the first
+  `by_label` entry whose label the issue carries heads the role's
+  entries, the persona and its `fallback` after it, unchanged; a run
+  with no issue never matches; the run's `persona` line, the capacity
+  note and the worker's `co_author` follow the chosen entry; `status`
+  shows each entry under `Personas:` and as its own `Capacity:` line,
+  JSON `personas.<role>.by_label` and `capacity`'s `label`. Sections 1,
+  7.10 and 11, and `docs/cli.md`'s `swarm status`. Decision
+  [175](swarm/decisions/0175-a-roles-model-by-label.md), As built.
