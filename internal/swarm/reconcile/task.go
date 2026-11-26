@@ -123,10 +123,6 @@ const (
 // changes only documentation (ruling A3): the claim's item says how a
 // claim blocks then, for the reviewer to apply.
 func (j *Job) blockingSentence(s int) string {
-	realistic := `"Trust boundaries" in the repository notes and the slice's "Unsupported:" line define it`
-	if !j.trustBoundaries() {
-		realistic = `the slice's "Unsupported:" line defines it, and, since the repository notes declare no trust boundaries, trusting the product's own process environment, configuration, filesystem and umask and the toolchain's settings, and nothing a user or a network peer sends`
-	}
 	return fmt.Sprintf(`A finding is blocking only when it is one of these four kinds:
 
 - claim: a claim of slice %d that the head does not show, a test that survives the probe the plan names for it among them; on a slice that changes only documentation, only a false statement the slice added or changed;
@@ -136,7 +132,31 @@ func (j *Job) blockingSentence(s int) string {
 
 A finding of any kind blocks only when a realistic user, input or repository state meets it, "realistic" as %s; for tooling that builds or tests the code, a case the repository has today, not one it could have. A test that survives the probe the plan names for it still blocks: the plan named that case.
 
-Every other finding is non-blocking, however sound: hardening against what the notes trust, a fault met only in a setup the slice does not support, a probe of your own that a test survives (unless the change that survives shows the head itself is wrong), and wording. Write a blocking finding's kind after its marker (from round 2, "unclosed" for an earlier one not closed) and, on the same line, the reproduction that shows it: a command, a test or the steps. Request changes only for a blocking finding; Daisy files every non-blocking one for the owner when the pull request merges, so none is lost.`, s, s, realistic)
+Every other finding is non-blocking, however sound: hardening against what the notes trust, a fault met only in a setup the slice does not support, a probe of your own that a test survives (unless the change that survives shows the head itself is wrong), and wording. Write a blocking finding's kind after its marker (from round 2, "unclosed" for an earlier one not closed) and, on the same line, the reproduction that shows it: a command, a test or the steps. Request changes only for a blocking finding; Daisy files every non-blocking one for the owner when the pull request merges, so none is lost.`, s, s, j.realistic())
+}
+
+// realistic is what "realistic" is read as (section 7.11, rules 1, 2 and
+// 4): the trust boundaries the repository notes declare, or the default
+// where they declare none, and the slice's unsupported setups.
+func (j *Job) realistic() string {
+	if !j.trustBoundaries() {
+		return `the slice's "Unsupported:" line defines it, and, since the repository notes declare no trust boundaries, trusting the product's own process environment, configuration, filesystem and umask and the toolchain's settings, and nothing a user or a network peer sends`
+	}
+	return `"Trust boundaries" in the repository notes and the slice's "Unsupported:" line define it`
+}
+
+// judgement is the architect's text at the round limit's first time on
+// pull request p (section 7.11, rule 8; option (b) of decision 171): each
+// blocking finding of its last round judged against rules 1 and 5, and
+// OVERRULED: when none qualifies.
+func (j *Job) judgement(p forge.Pull) string {
+	s := sliceOf(p, j.N)
+	return fmt.Sprintf(`This is the first time pull request %s#%d reached the review round limit: before you revise, judge each blocking finding of its last round, under "# Pull request". `+
+		`A finding qualifies only when it is one of the kinds that block (a claim of slice %d that the head does not show, a test that survives the probe the plan names for it among them, on a slice that changes only documentation only a false statement the slice added or changed; a test the plan names for slice %d missing or failing; a defect in the code the change adds or changes; a fault the revision introduced), `+
+		`a realistic user, input or repository state meets it, "realistic" as %s, `+
+		`and, from round 2, it is an earlier blocking finding not closed, a fault the revision introduced or a claim of slice %d that the head does not show. `+
+		`When none qualifies, write "%s <why, finding by finding>" as the first line of your output instead of a plan: Daisy posts it on the pull request, the sympathetic reviewer reviews the head as it would after the adversary's approval, and the findings you overrule are filed for the owner, marked "%s". When any qualifies, revise the plan as above.`,
+		p.Repo, p.Number, s, s, j.realistic(), s, overruled, outstanding)
 }
 
 // trustBoundaries is whether the notes of the repository the run works in
@@ -267,6 +287,9 @@ func (j *Job) task() string {
 		}
 		if open {
 			add(`Pull request %s#%d, slice %d, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch %s in /job/work/%s, beside %s: "git diff %s...%s" there is the change they judged. Revise the plan so that the slice can pass review: slice %d keeps its number, its repository and its branch, and the worker continues on them; what it does, how it is tested and the slices after it may change.`, cur.Repo, cur.Number, sliceOf(cur, j.N), cur.Head, cur.Repo, j.Cfg.Base, j.Cfg.Base, cur.Head, sliceOf(cur, j.N))
+			if AtTheLimitsFirst(j.Issue, cur, owner(j.Cfg), j.SwarmLogin, j.Cfg.Trusted) {
+				para(j.judgement(cur))
+			}
 		}
 	case j.Role == "worker":
 		s, repo, _ := j.WorkerSlice()

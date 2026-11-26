@@ -589,7 +589,7 @@ func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) err
 	if err := c.writeRound(pull, pulls, reviews, comments, answers); err != nil {
 		return err
 	}
-	pair := headVerdicts(reviews, pull.HeadSHA, answers, s.SwarmLogin)
+	pair := headVerdicts(reviews, pull.HeadSHA, answers, overruledAt(pullComments(comments), s.SwarmLogin), s.SwarmLogin)
 	if !pairComplete(pair) {
 		return c.end("posted")
 	}
@@ -657,6 +657,25 @@ func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) err
 // architectRevises ends the round limit's first note (T11), the one
 // reconciler note that does not block the issue.
 const architectRevises = "The architect revises the plan from the reviews."
+
+// AtTheLimitsFirst: the newest counted entry of issue is's thread is the
+// round limit's first note on pull request p (T11), which the architect
+// answers by judging p's last round (section 7.11, rule 8): its Task asks
+// for the judgement and its collection reads an OVERRULED: output.
+func AtTheLimitsFirst(is forge.Issue, p forge.Pull, owner, swarmLogin string, trusted []string) bool {
+	e, ok := NewestCounted(IssueThread(is), swarmLogin, trusted)
+	m, swarm := Swarms(e, swarmLogin)
+	t := swarmText(e.Body)
+	return ok && swarm && m.Role == "reconciler" && strings.HasPrefix(t, "Review round ") && strings.Contains(t, " on "+pullLink(owner, p)+" requested changes (was ")
+}
+
+// overruled begins the architect's output that overrules every blocking
+// finding at the round limit's first time (section 7.11, rule 8), and
+// outstanding marks those findings in the follow-up.
+const (
+	overruled   = "OVERRULED:"
+	outstanding = "outstanding at the round limit"
+)
 
 // roundLimitAgain is the words of the round limit's note each time after
 // the first, which counts no time: the reviewers have both reviewed the

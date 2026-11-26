@@ -456,3 +456,48 @@ func TestSwarmRetitledRetitlesTheFollowUp(t *testing.T) {
 		})
 	}
 }
+
+// The findings the architect overruled at the round limit are filed in
+// the follow-up, marked "outstanding at the round limit" (Step R6-D of
+// the plan implementing the 2026-11-19 swarm roadmap; section 7.11, rule
+// 8 and Follow-ups): at the merge step's merge of the head the
+// sympathetic reviewer approved after the overruling, the last round's
+// blocking finding is an item of its round and review, before the
+// review's non-blocking one; an earlier round's blocking finding, which
+// the revision answered and no one overruled, is none.
+func TestFollowUpMarksOutstanding(t *testing.T) {
+	t.Parallel()
+	const (
+		round1 = "VERDICT: request-changes\n\n[blocking] claim main.go:1 says v1; the plan wants v2.\n"
+		round2 = "VERDICT: request-changes\n\n[blocking] defect main.go:1 panics on an empty input; reproduced by go run . ''\n[non-blocking] main.go:1: the version could be a constant\n"
+	)
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) {
+		c.MaxRounds = 2
+		c.Gates.Merge = false
+		c.Budget = &declare.Budget{PerDay: 10, Total: 100}
+	})
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: round1}, runner.Canned{Out: round2})
+	a.runner.Script(1, "worker", work("v2"))
+	a.runner.Script(1, "architect", runner.Canned{Out: overruling})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approveDocument})
+	a.pass() // round 1: T10
+	a.pass() // the worker's revision: T12
+	a.pass() // round 2 at the limit: T11
+	a.pass() // the architect overrules: T33
+	a.pass() // the sympathetic reviewer approves: T9
+	a.pass() // the merge step: T15, the follow-up filed
+	p := a.pulls(1)
+	if a.issue(1).Open || !p[0].Merged {
+		t.Fatalf("not merged and closed: %v\n%s", labels(a.issue(1)), a.stdout.String())
+	}
+	fus := followUps(t, a.forge)
+	want := followUpBody("1", p[0].MergeSHA, 1, 1,
+		"adversary run 2, round 2: outstanding at the round limit: [blocking] defect main.go:1 panics on an empty input; reproduced by go run . ''",
+		"adversary run 2, round 2: [non-blocking] main.go:1: the version could be a constant",
+		"sympathetic run 1, round 2: [non-blocking] main.go:1: no doc comment")
+	if len(fus) != 1 || fus[0].Body != want || fus[0].Title != "3 findings left by #1: Drift check" {
+		t.Fatalf("the follow-up: %+v\nwant:\n%s\n%s", fus, want, a.stdout.String())
+	}
+}

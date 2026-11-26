@@ -55,7 +55,8 @@ func (fu *FollowUps) file(f forge.Adapter, owner string, is forge.Issue, p forge
 	if err != nil {
 		return err
 	}
-	findings, err := followUpFindings(is.Number, fu.Outputs, reviews, Reopenings(pullComments(comments), swarmLogin, openers), swarmLogin)
+	thread := pullComments(comments)
+	findings, err := followUpFindings(is.Number, fu.Outputs, reviews, Reopenings(thread, swarmLogin, openers), overruledAt(thread, swarmLogin), swarmLogin)
 	if err != nil || len(findings) == 0 {
 		return err
 	}
@@ -141,24 +142,46 @@ func findingKey(line string) string {
 // of every swarm review on it, every round's, the approving ones
 // included, as `<role> run <k>, round <r>: <the line>`, by round and, in
 // each, by review; a finding already listed (findingKey) is not listed
-// again, the earliest round's kept. A review Daisy cut on the forge is
-// read whole (Job.text; decision 149).
-func followUpFindings(n int, outputs Outputs, reviews []forge.Review, answers []time.Time, swarmLogin string) ([]string, error) {
+// again, the earliest round's kept. When the architect overruled the
+// blocking findings at the round limit, at over (overruledAt), each line
+// beginning `[blocking]` of the reviews of the round it judged, the
+// newest submitted at or before over, submitted by then, comes first in
+// its review, as `<role> run <k>, round <r>: outstanding at the round
+// limit: <the line>` (rule 8). A review Daisy cut on the forge is read
+// whole (Job.text; decision 149).
+func followUpFindings(n int, outputs Outputs, reviews []forge.Review, answers []time.Time, over time.Time, swarmLogin string) ([]string, error) {
 	j := &Job{N: n, Outputs: outputs}
 	var out []string
 	seen := map[string]bool{}
-	for r, rd := range roundsOf(reviews, answers, swarmLogin) {
+	add := func(m Mark, r int, mark, l string) {
+		if k := findingKey(l); !seen[k] {
+			seen[k] = true
+			out = append(out, fmt.Sprintf("%s run %d, round %d: %s%s", m.Role, m.Run, r+1, mark, l))
+		}
+	}
+	rounds := roundsOf(reviews, answers, swarmLogin)
+	judged := -1
+	for r, rd := range rounds {
+		for _, rv := range rd.reviews {
+			if !over.IsZero() && !rv.Submitted.After(over) {
+				judged = r
+			}
+		}
+	}
+	for r, rd := range rounds {
 		for _, rv := range rd.reviews {
 			m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, swarmLogin)
 			text, err := j.text(m, swarmText(rv.Body))
 			if err != nil {
 				return nil, err
 			}
-			for _, l := range linesBeginning(text, "[non-blocking]") {
-				if k := findingKey(l); !seen[k] {
-					seen[k] = true
-					out = append(out, fmt.Sprintf("%s run %d, round %d: %s", m.Role, m.Run, r+1, l))
+			if r == judged && !rv.Submitted.After(over) {
+				for _, l := range blockingLines(text) {
+					add(m, r, outstanding+": ", l)
 				}
+			}
+			for _, l := range linesBeginning(text, "[non-blocking]") {
+				add(m, r, "", l)
 			}
 		}
 	}

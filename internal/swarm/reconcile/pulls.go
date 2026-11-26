@@ -106,7 +106,7 @@ func pullState(p forge.Pull, reviews []forge.Review, comments []forge.Comment, s
 	case !p.Open:
 		return "closed"
 	}
-	if head, _ := ApprovedHead(reviews, swarmLogin); head != "" && head == p.HeadSHA {
+	if head, _ := ApprovedHead(reviews, comments, swarmLogin); head != "" && head == p.HeadSHA {
 		return "open, approved"
 	}
 	return fmt.Sprintf("open, review round %d", Rounds(reviews, Reopenings(pullComments(comments), swarmLogin, trusted), swarmLogin, time.Time{}, "")+1)

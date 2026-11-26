@@ -225,7 +225,7 @@ func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
 	if cur.Merged {
 		state = "merged already"
 	}
-	head, _ := ApprovedHead(reviews, s.SwarmLogin)
+	head, _ := ApprovedHead(reviews, comments, s.SwarmLogin)
 	subject := " " + pullLink(s.owner(), cur) + " at " + short(cmp.Or(head, cur.HeadSHA))
 	switch {
 	case cur.Merged:

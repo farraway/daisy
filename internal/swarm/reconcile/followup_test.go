@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"daisy/internal/swarm/forge"
 )
@@ -28,7 +29,7 @@ func TestFollowUpFindings(t *testing.T) {
 	f.As(forge.Account{Login: "jane"}).Review(pr, forge.Approve, "[non-blocking] d.go:1: not the swarm's\n")
 	reviews, _ := f.Reviews(pr)
 	outputs := outputsAt(t, map[string]string{"1-adversary-2": second + filler + "\n[non-blocking] z.go:9: past the cut\n"})
-	got, err := followUpFindings(at.N, outputs, reviews, nil, "swarm-bot")
+	got, err := followUpFindings(at.N, outputs, reviews, nil, time.Time{}, "swarm-bot")
 	want := []string{
 		"adversary run 1, round 1: [non-blocking] a.go:10: name the constant",
 		"adversary run 2, round 2: [non-blocking] b.go:4: a test for the empty input",

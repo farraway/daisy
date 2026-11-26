@@ -92,7 +92,11 @@ func (s *Swarm) mergeStep() error {
 			if err != nil {
 				return err
 			}
-			head, k := ApprovedHead(reviews, s.SwarmLogin)
+			comments, err := s.Forge.PullComments(ref)
+			if err != nil {
+				return err
+			}
+			head, k := ApprovedHead(reviews, comments, s.SwarmLogin)
 			msg := "no head both reviews approve"
 			if head != "" {
 				checks, err := HeadChecks(s.Forge, cur.Repo, s.Cfg.Base, head)
@@ -506,8 +510,11 @@ func AfterApproval(is forge.Issue, pulls []forge.Pull, swarmLogin string, o Outp
 
 // ApprovedHead is the commit both the newest adversary review and the
 // newest sympathetic review approve, with the run of the later one (the
-// run that completed the approving pair); "" when they do not.
-func ApprovedHead(reviews []forge.Review, swarmLogin string) (string, int) {
+// run that completed the approving pair); "" when they do not. An
+// adversary's request the architect overruled on the pull request,
+// comments being its comments, stands as its approval would (standing).
+func ApprovedHead(reviews []forge.Review, comments []forge.Comment, swarmLogin string) (string, int) {
+	over := overruledAt(pullComments(comments), swarmLogin)
 	type newest struct {
 		r forge.Review
 		k int
@@ -520,7 +527,7 @@ func ApprovedHead(reviews []forge.Review, swarmLogin string) (string, int) {
 		}
 	}
 	a, b := by["adversary"], by["sympathetic"]
-	if a.k == 0 || b.k == 0 || a.r.Commit != b.r.Commit || verdictOf(swarmText(a.r.Body)) != "approve" || verdictOf(swarmText(b.r.Body)) != "approve" {
+	if a.k == 0 || b.k == 0 || a.r.Commit != b.r.Commit || standing("adversary", verdictOf(swarmText(a.r.Body)), a.r.Submitted, over) != "approve" || verdictOf(swarmText(b.r.Body)) != "approve" {
 		return "", max(a.k, b.k)
 	}
 	if a.r.Submitted.After(b.r.Submitted) {

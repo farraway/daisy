@@ -607,6 +607,48 @@ nothing the ruling contradicts and is unchanged. Test:
 `TestDefaultPromptsAreSectionFours` and
 `TestDefaultHistoryHoldsEachCurrentDefault` with the new default.
 
+**As built: the round limit (Step R6-D of the plan implementing the
+2026-11-19 swarm roadmap; the maintainer's ruling 1 of 2026-11-22,
+option (b)).** The judgement is a paragraph of its own after the
+open-slice sentence, in the revision's text and, the fast lane reaching
+the limit, the plan's, restating rules 1 and 5 for the architect, which
+reads no blocking sentence, with the same "realistic" (one function
+gives both). "The first time" is read from the issue thread, by the Task
+and again by the collection: the newest counted entry is the round
+limit's first note on the current pull request, still open; a
+maintainer's comment after it, the limit's later note or no note asks
+for nothing, and an `OVERRULED:` then is text as any other. The
+alternative, a result line recorded at the launch as a question run's
+`question` is, would also honour an `OVERRULED:` written after the
+maintainer commented during the run, which the reading of the thread
+leaves to the maintainer. `OVERRULED:` is posted on the pull request as
+the architect's comment, not on the issue, so the issue's accepted plan
+is untouched and no plan is written; the transition is **T33**, T32
+being R2's number. The overruling is read where Daisy reads the pair: an
+adversary's request for changes submitted at or before the architect's
+newest `OVERRULED:` comment on the pull request stands as its approval
+(`standing`), in the trigger rule, the pair at a review's collection and
+`ApprovedHead`, which now takes the pull request's comments, so the
+merge step, the merge gate's note, `swarm merge` and the block's state
+read the head as approved (the merge step reads `PullComments(m)` once
+more per approved issue). Reading it in the trigger rule alone was the
+alternative, which would leave the approved head unmerged. The
+sympathetic reviewer's request for changes is "a round as any other":
+the head being the one the limit was reached on, the rounds are at the
+limit still, so it is T11's second time and the issue is blocked; T10,
+one more fix round, was the other reading. A reopening runs the pair
+again, the adversary's new review not overruled. The follow-up's item
+is `<role> run <k>, round <r>: outstanding at the round limit: <the
+line>`, the mark after the round so that the scorecard's item reads it
+as before, of the reviews of the round judged (the newest submitted at
+or before the comment) submitted by then, first in its review. The
+round limit's first note still ends "The architect revises the plan
+from the reviews.", and the architect's `# Output` block does not list
+`OVERRULED:`, the Task alone asking for it. Tests:
+`TestTaskTextArchitectJudgesAtTheLimit`,
+`TestSwarmOverruledAtTheRoundLimit`, `TestSectionFiveTable` (T33) and
+`TestFollowUpMarksOutstanding`.
+
 Tests, named for the build: `TestTaskTextBlockingSentence`,
 `TestTaskTextBlockingSentenceWithoutTrustBoundaries`,
 `TestTaskTextConvergenceSentence`,

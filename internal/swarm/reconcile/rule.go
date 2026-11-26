@@ -106,7 +106,7 @@ func Launch(t Turn, swarmLogin string, trusted []string) []string {
 		}
 		return nil
 	}
-	verdicts := headVerdicts(t.Reviews, t.Head, Reopenings(t.Thread, swarmLogin, trusted), swarmLogin)
+	verdicts := headVerdicts(t.Reviews, t.Head, Reopenings(t.Thread, swarmLogin, trusted), overruledAt(t.Thread, swarmLogin), swarmLogin)
 	var out []string
 	for _, role := range stageRoles[t.Label] {
 		if slices.ContainsFunc(t.Running, func(r string) bool { return r == role || !slices.Contains(stageRoles[t.Label], r) }) {
@@ -121,16 +121,42 @@ func Launch(t Turn, swarmLogin string, trusted []string) []string {
 }
 
 // headVerdicts is the verdict of each swarm reviewer's newest review of
-// head standing since the head's newest reopening (answers), by role.
-func headVerdicts(reviews []forge.Review, head string, answers []time.Time, swarmLogin string) map[string]string {
+// head standing since the head's newest reopening (answers), by role, an
+// adversary's request the architect overruled at over standing as its
+// approval would (standing).
+func headVerdicts(reviews []forge.Review, head string, answers []time.Time, over time.Time, swarmLogin string) map[string]string {
 	verdicts, at := map[string]string{}, map[string]time.Time{}
 	for _, rv := range reviews {
 		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, swarmLogin)
 		if ok && isReviewer(m.Role) && rv.Commit == head && standsOnHead(answers, rv.Submitted) && !rv.Submitted.Before(at[m.Role]) {
-			verdicts[m.Role], at[m.Role] = verdictOf(swarmText(rv.Body)), rv.Submitted
+			verdicts[m.Role], at[m.Role] = standing(m.Role, verdictOf(swarmText(rv.Body)), rv.Submitted, over), rv.Submitted
 		}
 	}
 	return verdicts
+}
+
+// overruledAt is when the architect overruled the blocking findings on a
+// pull request at the round limit (section 7.11, rule 8; T33): its
+// newest comment there, thread, beginning OVERRULED:; zero for none.
+func overruledAt(thread []Entry, swarmLogin string) time.Time {
+	var at time.Time
+	for _, e := range thread {
+		if m, ok := Swarms(e, swarmLogin); ok && m.Role == "architect" && strings.HasPrefix(swarmText(e.Body), overruled) && e.Created.After(at) {
+			at = e.Created
+		}
+	}
+	return at
+}
+
+// standing is a role's review verdict as it stands: an adversary's
+// request for changes submitted at or before over, the architect's
+// overruling (overruledAt), stands as its approval would (section 7.11,
+// rule 8).
+func standing(role, verdict string, submitted, over time.Time) string {
+	if role == "adversary" && verdict == "request-changes" && !over.IsZero() && !submitted.After(over) {
+		return "approve"
+	}
+	return verdict
 }
 
 // answered: an entry of the swarm's marked by role by leaves role nothing

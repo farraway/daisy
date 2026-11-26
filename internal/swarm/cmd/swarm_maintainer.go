@@ -557,7 +557,11 @@ func swarmMerge(c *Context, open opener) error {
 		if err != nil {
 			return fmt.Errorf("Error: swarm: %v", err)
 		}
-		head, _ := reconcile.ApprovedHead(reviews, m.swarm)
+		comments, err := m.f.PullComments(ref)
+		if err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		head, _ := reconcile.ApprovedHead(reviews, comments, m.swarm)
 		if head == "" {
 			return fmt.Errorf("Error: swarm: #%d: no head of pull %s#%d is approved by both the swarm's reviews; nothing merged", m.n, cur.Repo, cur.Number)
 		}

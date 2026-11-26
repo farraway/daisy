@@ -14,6 +14,7 @@ import (
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
+	"daisy/internal/swarm/reconcile"
 	"daisy/internal/swarm/runner"
 )
 
@@ -698,5 +699,102 @@ func TestSwarmBlockedWhileGatedGetsTheBlockedNote(t *testing.T) {
 	a.pass()
 	if got := a.gateNotes(1); len(got) != 2 {
 		t.Errorf("a pass with nothing new posted again: %d notes", len(got))
+	}
+}
+
+// overruling is the architect's output that overrules the round's
+// blocking findings at the round limit (section 7.11, rule 8).
+const overruling = "OVERRULED: claim main.go:1 asks for v2, which the plan does not claim; it does not qualify.\n"
+
+// The architect overrules at the round limit (Step R6-D of the plan
+// implementing the 2026-11-19 swarm roadmap; section 7.11, rule 8;
+// section 5, T33): at the limit's first time, with the plan gate on and
+// off, an architect's output beginning OVERRULED: is posted on the pull
+// request, not the issue, no plan is written, and the issue returns to
+// review-1-in-progress, where the next pass launches the sympathetic
+// reviewer on the same head, the adversary's request standing as its
+// approval would: its approval goes on as T9; its request for changes is
+// a round as any other, at the limit the second time, which blocks. An
+// output without it re-plans as before.
+func TestSwarmOverruledAtTheRoundLimit(t *testing.T) {
+	t.Parallel()
+	for _, planGate := range []bool{true, false} {
+		stage := map[bool]string{true: "swarm:plan-0-posted", false: "swarm:proposal-accepted"}[planGate]
+		atTheLimit := func(t *testing.T, architect string) *applyWS {
+			a := newApplyWS(t)
+			a.edit(func(c *declare.Config) {
+				c.MaxRounds = 1
+				c.Gates.Plan = planGate
+				if !planGate {
+					c.Budget = &declare.Budget{PerDay: 10, Total: 100}
+				}
+			})
+			a.inReview(oneSlice)
+			a.runner.Script(1, "adversary", runner.Canned{Out: requestChanges})
+			a.runner.Script(1, "architect", runner.Canned{Out: architect})
+			a.pass() // the adversary's request at the limit: T11
+			a.pass() // the architect answers the note
+			if !strings.Contains(a.result("1-architect-2"), "label "+stage+"\n") {
+				t.Fatalf("the architect did not run at %s:\n%s\n%s", stage, a.stdout.String(), a.result("1-architect-2"))
+			}
+			if sys := a.file("1-architect-2", "io/system.md"); !strings.Contains(sys, "This is the first time pull request app#1 reached the review round limit") {
+				t.Errorf("the architect's Task asks for no judgement:\n%s", sys)
+			}
+			return a
+		}
+		name := map[bool]string{true: "plan gate on", false: "plan gate off"}[planGate]
+		t.Run(name+", overruled", func(t *testing.T) {
+			t.Parallel()
+			for _, then := range []string{"approves", "requests changes"} {
+				a := atTheLimit(t, overruling)
+				head := a.pulls(1)[0].HeadSHA
+				cs, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
+				if len(cs) != 1 || cs[0].Body != mark("architect", 2)+overruling {
+					t.Fatalf("OVERRULED: not posted on app#1: %+v", cs)
+				}
+				if b := a.bodies(1); strings.HasPrefix(b[len(b)-1], mark("architect", 2)) {
+					t.Errorf("OVERRULED: posted on the issue: %q", b)
+				}
+				if got, _ := reconcile.StageOf(a.issue(1)); got != "swarm:review-1-in-progress" ||
+					!strings.Contains(a.result("1-architect-2"), "\nrelabelled "+stage+" swarm:review-1-in-progress\n") {
+					t.Fatalf("T33: %v\n%s", labels(a.issue(1)), a.result("1-architect-2"))
+				}
+				if plan, _ := os.ReadFile(a.state("jobs/1/plan.md")); string(plan) != oneSlice {
+					t.Errorf("the job's plan is now %q", plan)
+				}
+				verdict := map[string]string{"approves": approve, "requests changes": requestChanges}[then]
+				a.runner.Script(1, "sympathetic", runner.Canned{Out: verdict})
+				a.pass() // the sympathetic reviewer on the head the adversary sent back
+				if r := a.result("1-sympathetic-1"); !strings.HasPrefix(r, "start "+head+"\n") {
+					t.Fatalf("the sympathetic reviewer did not review %s:\n%s\n%s", head, r, a.stdout.String())
+				}
+				switch then {
+				case "approves":
+					if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved", forge.Gated}) {
+						t.Errorf("T9 after the overruling: %v", got)
+					}
+					// The merge gate's note names the head as approved by both.
+					if cs := a.issue(1).Comments; !strings.Contains(cs[len(cs)-1].Body, appPull("1")+" at "+head[:7]) {
+						t.Errorf("the merge gate's note names no approved head %s: %q", head[:7], cs[len(cs)-1].Body)
+					}
+				default:
+					if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || !slices.Contains(got, "swarm:review-1-in-progress") {
+						t.Errorf("the round limit's second time: %v", got)
+					}
+				}
+			}
+		})
+		t.Run(name+", a revised plan", func(t *testing.T) {
+			t.Parallel()
+			a := atTheLimit(t, oneSlice+"\nRevised.\n")
+			want := map[bool]string{true: "swarm:plan-0-posted", false: "swarm:plan-1-accepted"}[planGate]
+			cs, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
+			if got, _ := reconcile.StageOf(a.issue(1)); got != want || len(cs) != 0 {
+				t.Errorf("the revision: %v, %d comments on app#1", labels(a.issue(1)), len(cs))
+			}
+			if b := a.bodies(1); !strings.HasPrefix(b[len(b)-1], mark("architect", 2)+oneSlice+"\nRevised.") {
+				t.Errorf("the revision not on the issue: %q", b)
+			}
+		})
 	}
 }

@@ -144,6 +144,14 @@ func (s *Swarm) collect(r Run) error {
 	// An architect's text that is a plan comes with its builder plan, or
 	// none, read and checked as out.md is (section 7.8, The builder plan).
 	plan := isPlan(r.Role, text, questionRun)
+	// The architect's OVERRULED: at the round limit's first time stands
+	// the head as the adversary's approval would, and is no plan (section
+	// 7.11, rule 8; T33).
+	var over *forge.Pull
+	if cur := len(pulls) - 1; r.Role == "architect" && !questionRun && strings.HasPrefix(text, overruled) && cur >= 0 && pulls[cur].Open &&
+		AtTheLimitsFirst(c.is, pulls[cur], s.owner(), s.SwarmLogin, s.Cfg.Trusted) {
+		over, plan = &pulls[cur], false
+	}
 	var builder []byte
 	if plan {
 		if builder, err = r.Builder(s.O.FS()); err != nil && !errors.Is(err, iofs.ErrNotExist) {
@@ -177,6 +185,9 @@ func (s *Swarm) collect(r Run) error {
 			}
 		}
 	case "architect":
+		if over != nil {
+			return c.overrule(text, *over)
+		}
 		// On plan-1-accepted (the rulings changed, section 6), STANDS:
 		// confirms the plan, which stays accepted; a revised plan goes
 		// to the plan gate (T27), or with it off is accepted as written.
@@ -210,6 +221,26 @@ func (s *Swarm) collect(r Run) error {
 		return c.worker(text, pull)
 	default:
 		return c.review(text, *pull, pulls)
+	}
+	return c.end("posted")
+}
+
+// overrule is T33 (section 7.11, rule 8): the architect's OVERRULED:
+// posted on pull request p, not on the issue, then the issue relabelled
+// review-1-in-progress, where the adversary's request on p's head stands
+// as its approval would (standing) and the sympathetic reviewer reviews
+// it.
+func (c *collection) overrule(text string, p forge.Pull) error {
+	ref := forge.Ref{Repo: p.Repo, N: p.Number}
+	existing, err := c.s.Forge.PullComments(ref)
+	if err != nil {
+		return err
+	}
+	if err := c.sayLong(ref, existing, c.r.Role, c.runText(c.r.Role, text, "")); err != nil {
+		return err
+	}
+	if err := c.relabel(forge.ReviewInProgress); err != nil {
+		return err
 	}
 	return c.end("posted")
 }

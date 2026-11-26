@@ -1578,3 +1578,18 @@ they write.
   title fails the run. Sections 2, 7.4, 7.5, 7.6, 7.7, 7.11, 10 and 11,
   and `docs/cli.md`'s `apply`. Decision
   [174](swarm/decisions/0174-the-follow-up-title.md), As built.
+- 2026-11-26, Step R6-D of the plan implementing the 2026-11-19 swarm
+  roadmap, the round limit as ruled (option (b), the maintainer's
+  ruling 1 of 2026-11-22): at the limit's first time the architect's
+  Task holds the judgement, after the open-slice sentence, asking it to
+  judge the last round's blocking findings against rules 1 and 5 and
+  to write `OVERRULED: <why, finding by finding>` when none qualifies;
+  Daisy then posts it on the pull request, writes no plan and returns
+  the issue to `swarm:review-1-in-progress`, T33, new in section 5's
+  table and the explorer's, where the adversary's overruled request
+  stands as its approval would, so the sympathetic reviewer reviews the
+  head and its approval goes to the merge gate as T9's does; the
+  follow-up files the overruled findings marked `outstanding at the
+  round limit`. Sections 5, 6, 7.4, 7.5, 7.6 and 7.11, and
+  `docs/cli.md`'s `swarm merge`. Decision
+  [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.

@@ -493,3 +493,70 @@ func TestTaskTextsAskForDefectIn(t *testing.T) {
 	}
 	inSpec(t, want)
 }
+
+// judgement is the architect's text at the round limit's first time
+// (section 7.11, rule 8), for pull request pull, slice s, "realistic" as
+// given.
+func judgement(pull, s, realistic string) string {
+	return `This is the first time pull request ` + pull + ` reached the review round limit: before you revise, judge each blocking finding of its last round, under "# Pull request". ` +
+		`A finding qualifies only when it is one of the kinds that block (a claim of slice ` + s + ` that the head does not show, a test that survives the probe the plan names for it among them, on a slice that changes only documentation only a false statement the slice added or changed; a test the plan names for slice ` + s + ` missing or failing; a defect in the code the change adds or changes; a fault the revision introduced), ` +
+		`a realistic user, input or repository state meets it, "realistic" as ` + realistic + `, ` +
+		`and, from round 2, it is an earlier blocking finding not closed, a fault the revision introduced or a claim of slice ` + s + ` that the head does not show. ` +
+		`When none qualifies, write "OVERRULED: <why, finding by finding>" as the first line of your output instead of a plan: Daisy posts it on the pull request, the sympathetic reviewer reviews the head as it would after the adversary's approval, and the findings you overrule are filed for the owner, marked "outstanding at the round limit". When any qualifies, revise the plan as above.`
+}
+
+// The architect judges at the round limit (Step R6-D of the plan
+// implementing the 2026-11-19 swarm roadmap; section 7.11, rule 8; the
+// maintainer's ruling 1 of 2026-11-22, option (b) of decision 171): when
+// the newest counted entry of the issue is the round limit's first note
+// on the open pull request, the architect's Task holds the judgement, a
+// paragraph of its own after the open-slice sentence, with the plan gate
+// on (the revision) and off (the plan's text), "realistic" as the
+// repository notes declare it or by the default; with the maintainer's
+// comment after the note, the limit's later note, or no note, it does
+// not.
+func TestTaskTextArchitectJudgesAtTheLimit(t *testing.T) {
+	const first = "Review round 1 of 1 on [acme/lib#1](https://forge.example.net/acme/lib/pulls/1) requested changes (was swarm:review-1-in-progress). The architect revises the plan from the reviews."
+	const again = "Review round 1 of 1 on [acme/lib#1](https://forge.example.net/acme/lib/pulls/1) requested changes again (at swarm:review-1-in-progress). Relabel the issue swarm:review-3-changes-requested for one more fix round or swarm:plan-0-posted to re-plan, then remove swarm:blocked."
+	const openSlice = `Revise the plan so that the slice can pass review: slice 1 keeps its number, its repository and its branch, and the worker continues on them; what it does, how it is tested and the slices after it may change.`
+	at := func(t *testing.T, label string, then func(f *forge.Fake, at forge.Ref), repos ...RepoNote) string {
+		t.Helper()
+		f, at, pr, state := planned(t)
+		planWorkspace(t, state)
+		then(f, at)
+		j := jobOn(f, at, pr, "architect", label)
+		j.Outputs, j.Repos = Outputs{FS: ops.Real().FS(), State: state}, repos
+		j.Cfg.Gates.Plan = label == "swarm:plan-0-posted"
+		if err := j.readMemory(); err != nil {
+			t.Fatal(err)
+		}
+		sys, _ := Render(j)
+		return taskOf(t, sys)
+	}
+	note := func(text string) func(*forge.Fake, forge.Ref) {
+		return func(f *forge.Fake, at forge.Ref) { f.Comment(at, marker("reconciler", 1)+text) }
+	}
+	for _, label := range []string{"swarm:plan-0-posted", "swarm:proposal-accepted"} {
+		for name, c := range map[string]struct {
+			repos     []RepoNote
+			realistic string
+		}{"the default": {nil, defaultBoundaries}, "the notes' trust boundaries": {[]RepoNote{{Name: "lib", Text: boundaries}}, declaredBoundaries}} {
+			task := at(t, label, note(first), c.repos...)
+			paragraphs(t, label+", "+name, task, judgement("lib#1", "1", c.realistic))
+			if i := strings.Index(task, judgement("lib#1", "1", c.realistic)); i < strings.Index(task, openSlice) {
+				t.Errorf("%s, %s: the judgement is not after the open-slice sentence:\n%s", label, name, task)
+			}
+		}
+		for name, then := range map[string]func(*forge.Fake, forge.Ref){
+			"no note": func(*forge.Fake, forge.Ref) {},
+			"the maintainer's comment after the note": func(f *forge.Fake, at forge.Ref) {
+				note(first)(f, at)
+				f.Say(at, "jane", "Re-plan it smaller.")
+			},
+			"the limit's later note": note(again),
+		} {
+			has(t, label+", "+name, at(t, label, then), []string{openSlice}, "OVERRULED:", "round limit:")
+		}
+	}
+	inSpec(t, judgement("<name>#<m>", "<s>", "<realistic>"))
+}

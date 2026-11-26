@@ -79,6 +79,8 @@ var sectionFive = func() []transition {
 		{"T30", any, blocked, "", true},
 		{"T31", []string{p1}, pa, "", false},
 		{"T31", []string{r0, r1, r2, r3}, p1, "", false},
+		{"T33", []string{p0}, r1, "G2 on", true},
+		{"T33", []string{pa}, r1, "G2 off", true},
 	}
 }()
 
