@@ -344,6 +344,19 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		var err error
 		prov := provider.Providers[persona.Provider]
 		slots := freeSlots(persona, *key.Slots, capacity) // none a line names with the model (section 7.10)
+		// nor one at its token budget (rule 4): another slot may be free
+		if key.Tokens != nil {
+			spent, err := readSpent(fs, s.state())
+			if err != nil {
+				fs.RemoveAll(r.Dir)
+				return false, err
+			}
+			at := credentials{spent: spent, now: s.O.Now()}
+			slots = slices.DeleteFunc(slots, func(n int) bool {
+				_, reached := at.budget(key.Tokens, persona.Provider+"/"+strconv.Itoa(n)).reached()
+				return reached
+			})
+		}
 		slot, err = runner.TakeSlot(fs, s.Runner, s.slotDir(persona.Provider), persona.Provider, slots, prov.LoginHint, holder, running)
 		var refused *runner.SlotRefused
 		switch {

@@ -487,6 +487,29 @@ func TestSwarmPacedByATokenBudget(t *testing.T) {
 	}
 }
 
+// A launch takes a free slot under its budget (section 7.10, rule 4): with
+// slot 1 at its day's budget and slot 2 under it, the run is on slot 2.
+func TestSwarmPacedTakesTheSlotUnderBudget(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.withSlots(2, "architect")
+	day := 1000
+	a.edit(func(c *declare.Config) {
+		k := c.Keys["openai"]
+		k.Tokens = &declare.Tokens{PerDay: &day}
+		c.Keys["openai"] = k
+	})
+	os.MkdirAll(a.state("runs/9-worker-1"), 0o755)
+	os.WriteFile(a.state("runs/9-worker-1/result"), []byte("label swarm:plan-1-accepted\nstarted "+a.Now().Add(-time.Hour).Format(time.RFC3339)+
+		"\ncredential openai slot 1\npersona openai gpt-6.1-sol high\nexited 0 "+a.Now().Format(time.RFC3339)+"\ncost 0.1 tokens 900/200 turns 1\noutcome posted\ncollected\n"), 0o644)
+	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	a.pass()
+	if l := a.runner.Launches(); len(l) != 1 || l[0].Credential != "openai/2" {
+		t.Fatalf("launches %+v\n%s", l, a.stdout.String())
+	}
+}
+
 // Every Task text names the run's deadline, the one its record holds,
 // and /job/io/deadline (section 7.10, rule 5), in its closing paragraph.
 func TestTaskTextNamesTheDeadline(t *testing.T) {
