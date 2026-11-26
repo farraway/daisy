@@ -194,33 +194,53 @@ func freeSlots(e declare.Entry, count int, capacity []Unavailable) []int {
 // runsOn is the entry a run of role launches on (section 7.10, The
 // fallback): the first of the persona and its fallback's, in order, with
 // a credential it may take (heldBy); ok false when none has, and the role
-// waits. The running set is read once, for the first entry on slots.
+// waits. The running set is read once, for the first entry on slots, and
+// the runs' tokens once, for the first whose provider declares a budget.
 func (s *Swarm) runsOn(role string, capacity []Unavailable) (declare.Entry, bool, error) {
-	var running []runner.Running
-	read := false
+	at := credentials{cfg: s.Cfg, capacity: capacity, now: s.O.Now()}
+	readRunning, haveSpent := false, false
 	for _, e := range s.Cfg.Personas[role].Entries() {
-		if key := s.Cfg.Keys[e.Provider]; key.Slots != nil && !read {
-			var err error
-			if running, err = s.Runner.Running(); err != nil {
-				return declare.Entry{}, false, err
-			}
-			read = true
+		key := s.Cfg.Keys[e.Provider]
+		var err error
+		if key.Slots != nil && !readRunning {
+			at.running, err = s.Runner.Running()
+			readRunning = true
 		}
-		if heldBy(s.Cfg, e, capacity, running) == "" {
+		if key.Tokens != nil && !haveSpent && err == nil {
+			at.spent, err = readSpent(s.O.FS(), s.state())
+			haveSpent = true
+		}
+		if err != nil {
+			return declare.Entry{}, false, err
+		}
+		if at.heldBy(e) == "" {
 			return e, true, nil
 		}
 	}
 	return declare.Entry{}, false, nil
 }
 
+// credentials is what tells whether a launch may take a credential: the
+// lines of <state>/capacity, the running set, each credential's runs and
+// their tokens (spent), at now.
+type credentials struct {
+	cfg      declare.Config
+	capacity []Unavailable
+	running  []runner.Running
+	spent    map[string][]spent
+	now      time.Time
+}
+
 // heldBy is what keeps entry e from every credential of its provider, ""
-// when one is free (section 7.10, rules 1 and 3): an env credential a
+// when one is free (section 7.10, rules 1, 3 and 4): an env credential a
 // line of capacity names with e's model, `<provider>/env <model>
-// unavailable until <time>`; of the slots e may take, each a line names
-// with the model, likewise, and those a container of running holds, `no
-// free slot of <provider> <j>, …`; "; " between them.
-func heldBy(cfg declare.Config, e declare.Entry, capacity []Unavailable, running []runner.Running) string {
-	key := cfg.Keys[e.Provider]
+// unavailable until <time>`, or at its token budget, `<provider>/env at
+// its token budget until <time>`; of the slots e may take, each a line
+// names with the model or at its budget, likewise, and those a container
+// of running holds, `no free slot of <provider> <j>, …`; "; " between
+// them.
+func (c credentials) heldBy(e declare.Entry) string {
+	key := c.cfg.Keys[e.Provider]
 	var creds []string
 	switch {
 	case key.Env != nil:
@@ -229,16 +249,18 @@ func heldBy(cfg declare.Config, e declare.Entry, capacity []Unavailable, running
 		for _, j := range mayTake(e, *key.Slots) {
 			creds = append(creds, e.Provider+"/"+strconv.Itoa(j))
 		}
-	default:
-		return "no credential for " + e.Provider
 	}
 	var why, busy []string
 	for _, cred := range creds {
-		if i := slices.IndexFunc(capacity, func(u Unavailable) bool { return u.Credential == cred && u.Model == e.Model }); i >= 0 {
-			why = append(why, fmt.Sprintf("%s %s unavailable until %s", cred, e.Model, capacity[i].Until))
+		if i := slices.IndexFunc(c.capacity, func(u Unavailable) bool { return u.Credential == cred && u.Model == e.Model }); i >= 0 {
+			why = append(why, fmt.Sprintf("%s %s unavailable until %s", cred, e.Model, c.capacity[i].Until))
 			continue
 		}
-		if slices.ContainsFunc(running, func(c runner.Running) bool { return c.Credential == cred }) {
+		if until, reached := c.budget(key.Tokens, cred).reached(); reached {
+			why = append(why, fmt.Sprintf("%s at its token budget until %s", cred, stamp(until)))
+			continue
+		}
+		if slices.ContainsFunc(c.running, func(r runner.Running) bool { return r.Credential == cred }) {
 			busy = append(busy, strings.TrimPrefix(cred, e.Provider+"/"))
 			continue
 		}
@@ -248,6 +270,109 @@ func heldBy(cfg declare.Config, e declare.Entry, capacity []Unavailable, running
 		why = append(why, fmt.Sprintf("no free slot of %s %s", e.Provider, strings.Join(busy, ", ")))
 	}
 	return strings.Join(why, "; ")
+}
+
+// spent is a run a credential was given: when it started and the tokens
+// its cost line counts, its input (the cache's included) and its output.
+type spent struct {
+	started time.Time
+	tokens  int
+}
+
+// readSpent is each credential's runs, `<provider>/env` or
+// `<provider>/<j>` by its credential line, with their start and tokens
+// (section 7.10, rule 4); a run without a cost line, in flight or
+// reporting none, counts no token.
+func readSpent(fs ops.FS, state string) (map[string][]spent, error) {
+	runs, err := Runs(fs, state)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]spent{}
+	for _, r := range runs {
+		lines, err := r.Result(fs)
+		if err != nil {
+			return nil, err
+		}
+		l, _ := Has(lines, "credential")
+		started, ok := lineTime(lines, "started")
+		f := strings.Fields(l)
+		if !ok || len(f) != 4 {
+			continue
+		}
+		cred := f[1] + "/" + f[3]
+		if f[2] == "env" {
+			cred = f[1] + "/env"
+		}
+		sp := spent{started: started}
+		if cl, ok := Has(lines, "cost"); ok {
+			if u, ok := readCost(cl); ok {
+				in, _ := strconv.Atoi(u.in)
+				out, _ := strconv.Atoi(u.out)
+				sp.tokens = in + out
+			}
+		}
+		out[cred] = append(out[cred], sp)
+	}
+	return out, nil
+}
+
+// window is a token budget over the runs a credential took in the span
+// before now: their tokens and, when they have reached limit, the time
+// enough of them leave it to bring the rest under limit.
+type window struct {
+	span   time.Duration
+	limit  *int
+	tokens int
+	until  time.Time
+}
+
+// budget is cred's windows under tokens, the 24 hours and the 7 days
+// before now, a window without its limit counting tokens alone; none
+// without tokens.
+type budget []window
+
+func (c credentials) budget(tokens *declare.Tokens, cred string) budget {
+	if tokens == nil {
+		return nil
+	}
+	var b budget
+	for _, w := range []window{{span: 24 * time.Hour, limit: tokens.PerDay}, {span: 7 * 24 * time.Hour, limit: tokens.PerWeek}} {
+		var in []spent
+		for _, sp := range c.spent[cred] {
+			if sp.started.After(c.now.Add(-w.span)) && !sp.started.After(c.now) {
+				in = append(in, sp)
+				w.tokens += sp.tokens
+			}
+		}
+		if w.limit != nil && w.tokens >= *w.limit {
+			slices.SortFunc(in, func(a, b spent) int { return a.started.Compare(b.started) })
+			left := w.tokens
+			for _, sp := range in {
+				left -= sp.tokens
+				if left < *w.limit {
+					w.until = sp.started.Add(w.span)
+					break
+				}
+			}
+		}
+		b = append(b, w)
+	}
+	return b
+}
+
+// reached: a window of b is at its limit, and until is the latest time
+// one of them frees.
+func (b budget) reached() (until time.Time, reached bool) {
+	for _, w := range b {
+		if w.limit != nil && w.tokens >= *w.limit {
+			reached = true
+			if w.until.After(until) {
+				until = w.until
+			}
+		}
+	}
+	return until, reached
 }
 
 // launchedEntry is the entry run r was launched on, its lines being

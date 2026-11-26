@@ -719,6 +719,16 @@ func writeCapacity(out io.Writer, c reconcile.StatusCapacity) {
 	for _, u := range c.Unavailable {
 		fmt.Fprintln(out, "  "+u)
 	}
+	for _, t := range c.Tokens {
+		var parts []string
+		if t.PerDay != nil {
+			parts = append(parts, fmt.Sprintf("%d of %d per day", t.Day, *t.PerDay))
+		}
+		if t.PerWeek != nil {
+			parts = append(parts, fmt.Sprintf("%d of %d per week", t.Week, *t.PerWeek))
+		}
+		fmt.Fprintf(out, "  %s tokens %s\n", t.Credential, strings.Join(parts, ", "))
+	}
 	if b := c.Bottleneck; b != nil {
 		fmt.Fprintf(out, "  Bottleneck: %s (%s)\n", b.Role, b.Why)
 	} else {

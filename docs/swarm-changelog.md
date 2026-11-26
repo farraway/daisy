@@ -1602,3 +1602,11 @@ they write.
   `<state>/capacity` and the bottleneck, JSON `capacity`. Sections 3, 6,
   7.10, 8 and 11, and `docs/cli.md`'s `swarm status`. Decision
   [170](swarm/decisions/0170-capacity.md), As built.
+- 2026-11-26, Step R4-C of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, pacing, rule 4): `keys.<provider>.tokens`, `{"per_day",
+  "per_week"}`, paces each credential of the provider: one whose runs
+  started in the last 24 hours, or 7 days, have reached the limit is
+  passed over as an unavailable one is, and `status` names the time it
+  frees and each credential's tokens. Sections 1, 3, 6 and 7.10, and
+  `docs/cli.md`'s `swarm status`. Decision
+  [170](swarm/decisions/0170-capacity.md), As built.

@@ -126,7 +126,21 @@ type StatusPersona struct {
 type StatusCapacity struct {
 	Roles       []StatusRoleCapacity `json:"roles"`
 	Unavailable []string             `json:"unavailable"`
+	Tokens      []StatusTokens       `json:"tokens"`
 	Bottleneck  *StatusBottleneck    `json:"bottleneck"`
+}
+
+// StatusTokens is a credential's token budget (section 7.10, rule 4):
+// the tokens of its runs started in the last 24 hours and 7 days, each
+// limit its provider declares (null for one it does not), and, when one
+// is reached, the time it frees.
+type StatusTokens struct {
+	Credential string  `json:"credential"`
+	Day        int     `json:"day"`
+	PerDay     *int    `json:"per_day"`
+	Week       int     `json:"week"`
+	PerWeek    *int    `json:"per_week"`
+	Until      *string `json:"until"`
 }
 
 // StatusRoleCapacity is one role's line: the issues it would launch on
@@ -361,7 +375,7 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 		p := cfg.Personas[role]
 		r.Personas[role] = StatusPersona{p.Provider, p.Model, p.Effort}
 	}
-	if r.Capacity, err = capacityOf(o.FS(), cfg, acct.Login, issues, r.Held, r.Running, running, state); err != nil {
+	if r.Capacity, err = capacityOf(o.FS(), o.Now(), cfg, acct.Login, issues, r.Held, r.Running, running, state); err != nil {
 		return nil, statusRead{}, err
 	}
 	// The gates Daisy passed, per issue the larger of the forge's auto
@@ -568,8 +582,8 @@ func firstLine(b []byte) string {
 // no entry of its persona has a credential it may take (heldBy). The
 // bottleneck is the role with the most issues waiting, the first in
 // role order of those with as many.
-func capacityOf(fs ops.FS, cfg declare.Config, login string, issues map[int]statusIssue, held StatusHeld, members StatusRunning, running []runner.Running, state string) (StatusCapacity, error) {
-	c := StatusCapacity{Roles: []StatusRoleCapacity{}, Unavailable: []string{}}
+func capacityOf(fs ops.FS, now time.Time, cfg declare.Config, login string, issues map[int]statusIssue, held StatusHeld, members StatusRunning, running []runner.Running, state string) (StatusCapacity, error) {
+	c := StatusCapacity{Roles: []StatusRoleCapacity{}, Unavailable: []string{}, Tokens: []StatusTokens{}}
 	capacity, err := ReadCapacity(fs, state)
 	if err != nil {
 		return c, err
@@ -580,6 +594,32 @@ func capacityOf(fs ops.FS, cfg declare.Config, login string, issues map[int]stat
 	runs, err := Runs(fs, state)
 	if err != nil {
 		return c, fmt.Errorf("reading the runs: %w", err)
+	}
+	at := credentials{cfg: cfg, capacity: capacity, running: running, now: now}
+	if at.spent, err = readSpent(fs, state); err != nil {
+		return c, fmt.Errorf("reading the runs: %w", err)
+	}
+	for _, p := range slices.Sorted(maps.Keys(cfg.Keys)) {
+		key := cfg.Keys[p]
+		if key.Tokens == nil {
+			continue
+		}
+		creds := []string{p + "/env"}
+		if key.Slots != nil {
+			creds = nil
+			for j := 1; j <= *key.Slots; j++ {
+				creds = append(creds, p+"/"+strconv.Itoa(j))
+			}
+		}
+		for _, cred := range creds {
+			b := at.budget(key.Tokens, cred)
+			t := StatusTokens{Credential: cred, Day: b[0].tokens, PerDay: key.Tokens.PerDay, Week: b[1].tokens, PerWeek: key.Tokens.PerWeek}
+			if until, reached := b.reached(); reached {
+				u := stamp(until)
+				t.Until = &u
+			}
+			c.Tokens = append(c.Tokens, t)
+		}
 	}
 	queues := map[string][]int{}
 	for _, n := range slices.Sorted(maps.Keys(issues)) {
@@ -600,7 +640,7 @@ func capacityOf(fs ops.FS, cfg declare.Config, login string, issues map[int]stat
 			if !full {
 				var whys []string
 				for _, e := range cfg.Personas[role].Entries() {
-					w := heldBy(cfg, e, capacity, running)
+					w := at.heldBy(e)
 					if w == "" {
 						whys = nil
 						break

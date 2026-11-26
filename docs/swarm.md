@@ -257,7 +257,7 @@ Stages of a software factory the version leaves out, each by choice:
 | Monitoring, fed back into the inputs | Post-merge signals (CI on `base`, incidents, user reports) are not read; the maintainer files issues from them. *R2, specified ahead of its build* (12.1, rules 3 and 4): each approved head merges only after a merge queue's check on `base` plus the head, and Daisy checks `base` after every merge, holding the repository's worker launches while it is red and giving the fix to the breaking job's worker or the owner's next proposal; CI's status on `base` is still not read |
 | A user-testing validator | No member runs the built product; behavioural verification is the maintainer's at merge. `check` is the seam: a product whose `check` drives the served product (an end-to-end test) has the validator run on every worker head in the check container, with nothing added here |
 | Model routing and provider fallback | One model per role, chosen by the maintainer; no routing by difficulty and no fallback on a provider's failure (a swarm fault pauses the swarm instead, section 7.7); *R4* (7.10, rule 1), *built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap*: a persona's `fallback` models, tried in order when a provider's fault for a limit, a quota or the credit makes a model unavailable on a credential until its stated reset, the fault pausing nothing; still no routing by difficulty |
-| A spending limit | `budget`, specified to cap the whole swarm's spend per day and in all, not per role or per issue, is validated and not enforced: no pass reads the spend against it until a run needs it (section 3, The budget); *R4, specified ahead of its build* (7.10, rule 4): a credential's launches paced to the token budget per day or week its provider declares in `keys`, the money `budget` unchanged |
+| A spending limit | `budget`, specified to cap the whole swarm's spend per day and in all, not per role or per issue, is validated and not enforced: no pass reads the spend against it until a run needs it (section 3, The budget); *R4* (7.10, rule 4), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a credential's launches paced to the token budget per day or week its provider declares in `keys`, the money `budget` unchanged |
 | Dependency ordering between issues | The owner's "depends on" is prose, and the default owner proposes a job only once every job it depends on is closed (section 4); the maintainer sequences jobs by when they move them to `proposal-accepted` (with the triage gate off, the owner's priority order does), by `swarm block <n> --by <m>`, and by `swarm pause <n>`; *R2, specified ahead of its build* (12.1, rules 1, 2 and 5): machine-read `Depends:` and `Touches:` lines hold a job while a dependency is open and a slice's first build while it overlaps an open slice, and the owner proposes dependent work rather than holding its batch |
 | Low latency | Every stage advance waits for the next pass and the reviewers run one after the other, so a review round costs about three passes; collecting and relaunching within one pass is later work |
 
@@ -561,7 +561,7 @@ yet or not (Step 6 of revision 6's plan; decision [109](swarm/decisions/0109-ini
 | `gates.triage`, `gates.plan`, `gates.merge` | booleans | `true` each | G1, G2 and G3 (section 5): `true` keeps the decision the maintainer's, G1's and G2's for an architecture job only (a routine job passes them by itself, section 5); `false` hands it to the swarm |
 | `budget` | object | absent | `{"per_day": <usd>, "total": <usd>}`, both numbers greater than 0; required when any gate is `false`; optional otherwise; validated, not enforced: no pass compares the spend with it until it is built (below) |
 | `keys` | object | `{"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}, "openai": {"slots": 1}}`, and, for a provider the wizard's answers give a persona and no key names, that provider's default: `{"env": "XAI_API_KEY"}` for `xai` (section 11) | provider name → its credential, an object with exactly one of two kinds (section 8): `env`, a variable name that is one of the provider's variables (section 9), resolved on the host as a secret value (below) and passed under the same name; `slots`, an integer 1 to 16, for a provider that takes a slot (`openai`, `xai`): slots 1 to that number. A provider declares one form or the other, never both (`needs exactly one of env, slots`, below). Every provider a persona uses must have one |
-| `keys.<provider>.tokens` | object | absent (`init` writes none, and keeps the file's) | *R4, specified ahead of its build* (7.10, rule 4): optional, `{"per_day": <tokens>, "per_week": <tokens>}`, one or both, integers greater than 0, no default; each credential of the provider (its `env`, or each slot) is given to a launch only while the tokens of its runs started in the 24 hours before it are below `per_day`, when declared, and those started in the 7 days before it below `per_week`, when declared |
+| `keys.<provider>.tokens` | object | absent (`init` writes none, and keeps the file's) | *R4* (7.10, rule 4), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: optional, `{"per_day": <tokens>, "per_week": <tokens>}`, one or both, integers greater than 0, no default; each credential of the provider (its `env`, or each slot) is given to a launch only while the tokens of its runs started in the 24 hours before it are below `per_day`, when declared, and those started in the 7 days before it below `per_week`, when declared |
 | `personas` | object | the five roles as in the example | exactly the keys `owner`, `architect`, `worker`, `adversary`, `sympathetic`, and `qa` exactly when `qa` is declared (the QA's persona, which `init` never writes) |
 | `personas.<role>.provider` | string | as in the example | a provider with an adapter: `anthropic`, `openai` or `xai` |
 | `personas.<role>.model` | string | as in the example | required: every role names the model it runs (decision [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)), so neither `""` nor `-` is accepted; otherwise passed through, but for one check: no whitespace, control character or format character such as a zero-width space (it is one argv word; decision [6](swarm/decisions/0006-additions-to-swarm-json.md); the control and format characters from Step 20 of the plan that clears the Deferred list, decision [120](swarm/decisions/0120-declare-forge-and-runner-loose-ends.md)) |
@@ -645,7 +645,7 @@ failure is reported and the verb exits 1; the message is
 | a gate off without a budget | `swarm.json: budget: missing (required when a gate is false)` |
 | a budget limit not positive | `swarm.json: budget.per_day: 0 is not greater than 0` (also `budget.total`) |
 | a provider without a credential | `swarm.json: keys: no credential for provider "openai"` |
-| from R4 (7.10; the fallback's built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, the slot list's at Step R4-C, the token budget specified ahead of its build), a fallback, a slot list or a token budget refused | `swarm.json: personas.architect.fallback[0].model: empty; every role names its model` (each field as the persona's), `swarm.json: personas.architect.fallback[1]: the same as personas.architect` (`the same as personas.architect.fallback[0]` for an earlier entry's), `swarm.json: keys: no credential for provider "xai"` for an entry's provider, as for a persona's, `swarm.json: personas.adversary.slots[0]: 3 is not between 1 and 2` (also `is listed twice`, `no slot`), `swarm.json: personas.worker.slots: anthropic takes no slot`, `swarm.json: keys.openai.tokens: no budget (per_day or per_week)`, `swarm.json: keys.openai.tokens.per_day: 0 is not greater than 0` |
+| from R4 (7.10; the fallback's built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, the slot list's and the token budget's at Step R4-C), a fallback, a slot list or a token budget refused | `swarm.json: personas.architect.fallback[0].model: empty; every role names its model` (each field as the persona's), `swarm.json: personas.architect.fallback[1]: the same as personas.architect` (`the same as personas.architect.fallback[0]` for an earlier entry's), `swarm.json: keys: no credential for provider "xai"` for an entry's provider, as for a persona's, `swarm.json: personas.adversary.slots[0]: 3 is not between 1 and 2` (also `is listed twice`, `no slot`), `swarm.json: personas.worker.slots: anthropic takes no slot`, `swarm.json: keys.openai.tokens: no budget (per_day or per_week)`, `swarm.json: keys.openai.tokens.per_day: 0 is not greater than 0` |
 | a credential not of one kind (both forms declared, or neither) | `swarm.json: keys.openai: needs exactly one of env, slots` (`keys.xai: …` likewise) |
 | a credential for a provider without an adapter | `swarm.json: keys.gemini: "gemini" has no adapter` |
 | a variable the provider's CLI does not read | `swarm.json: keys.anthropic.env: "ANTHROPIC_KEY" is not one of anthropic's variables (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN)` |
@@ -1809,7 +1809,7 @@ when all of these hold:
    credential is `slots`, one of its slots is free: its lock is not
    held and no running container is labelled
    `daisy.credential=<provider>/<j>` (7.2), so a container whose `apply`
-   died keeps its slot. *R4* (7.10, rules 1, 3 and 4; rule 1's part built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, rule 3's at Step R4-C, the token budget specified ahead of its build): R has a credential
+   died keeps its slot. *R4* (7.10, rules 1, 3 and 4; rule 1's part built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, rules 3's and 4's at Step R4-C): R has a credential
    for one of its persona's entries, the persona then its `fallback`s,
    whose model `<state>/capacity` does not name on it, that the entry's
    `slots` allow and whose token budget is not reached; with none, R
@@ -5950,10 +5950,10 @@ the 2026-11-19 swarm roadmap; decision
 that plan, the fallback and the adoption first. Sections 1, 2, 3, 5, 6,
 7.2, 7.4, 7.7, 8, 9 and 11 mark where R4 changes them, each mark naming
 this section; until the build, each reads as it did before. Rule 1, the
-fallback, is built at Step R4-A of that plan, but for what rule 4 adds
-to it (its pacing) and its two journal lines (The fallback, below);
-rule 2, the adoption, at Step R4-B of that plan; rule 3, the slots per
-role, at Step R4-C of that plan; each part built says so.
+fallback, is built at Step R4-A of that plan, but for its two journal
+lines (The fallback, below); rule 2, the adoption, at Step R4-B of that
+plan; rules 3 and 4, the slots per role and the pacing, at Step R4-C of
+that plan; each part built says so.
 
 **The rulings.** The maintainer's, of 2026-11-19 (Step 1 of that plan,
 R4): ordered models per persona, across providers, a refused model or
@@ -6030,8 +6030,7 @@ The worker's commits on a fallback carry the entry's `co_author`.
 *Built at Step R4-A of the plan implementing the 2026-11-19 swarm
 roadmap*, this paragraph to here: the capacity line, the entries taken
 in order at a launch (a slot then the first free one no line names with
-the model, of the entry's slots from Step R4-C; the pacing waits for
-rule 4), the role waiting, no pause, the line's
+the model, of the entry's slots and paced from Step R4-C), the role waiting, no pause, the line's
 removal at its reset and by the bare `resume`, and a fallback's
 `co_author`; the journal line of a line's removal is not queued yet
 (decision [170](swarm/decisions/0170-capacity.md), As built). **The
@@ -6165,7 +6164,17 @@ one is (rule 1), until enough of its runs leave the window, the time
 `status` shows; the runs in flight count from their collection, so the
 budget can be overshot by them, as the money `budget` would be. Without
 `tokens` nothing is counted. The money `budget` (section 3) stays
-validated, shown and not enforced.
+validated, shown and not enforced. *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap (decision
+[170](swarm/decisions/0170-capacity.md), As built)*: each run's tokens
+read from its record, a run without a `cost` line counting none; a
+window that has reached its limit frees at the start of the run, oldest
+first, whose leaving brings the rest below it, plus the window, and the
+credential's time the later of its two windows'; an entry's why in the
+`Capacity:` block `<provider>/<credential> at its token budget until
+<time>`, and a line per credential of a provider with `tokens`, `
+<provider>/<credential> tokens <d> of <per_day> per day, <w> of
+<per_week> per week` (the limits it declares), JSON `capacity.tokens`,
+each `{"credential", "day", "per_day", "week", "per_week", "until"}`.
 
 **The deadline** (rule 5). Every Task text's closing paragraph (7.4)
 gains `Your run is stopped at <deadline> (<timeout> after its start).
@@ -8220,8 +8229,7 @@ repository with a check follows `Running:`, and Waiting for you gains
 `main red <name>` and `main unchecked <name>`, which notify tells
 (section 5, Notify). *R4* (7.10, rule 3), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a `Capacity:` block follows
 `Personas:`, each role's queue and what holds it, the unavailable
-models and the token budgets (rule 4's, specified ahead of its build),
-and `Bottleneck: <role> (<why>)`; JSON `capacity` (7.10, The slots per
+models and the token budgets, and `Bottleneck: <role> (<why>)`; JSON `capacity` (7.10, The slots per
 role).
 
 | Field | Value |

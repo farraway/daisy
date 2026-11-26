@@ -413,11 +413,76 @@ Throughput:
 	}
 	want = `{"bottleneck":{"role":"architect","why":"max_members reached"},"roles":[` +
 		`{"queue":[1],"role":"owner","running":0,"why":"max_members reached"},{"queue":[2,3],"role":"architect","running":0,"why":"max_members reached"},` +
-		`{"queue":[],"role":"worker","running":3,"why":null},{"queue":[],"role":"adversary","running":0,"why":null},{"queue":[],"role":"sympathetic","running":0,"why":null}],` +
+		`{"queue":[],"role":"worker","running":3,"why":null},{"queue":[],"role":"adversary","running":0,"why":null},{"queue":[],"role":"sympathetic","running":0,"why":null}],"tokens":[],` +
 		`"unavailable":["anthropic/env claude-fable-5-1 until resume: Claude AI usage limit reached"]}`
 	var v any
 	json.Unmarshal(doc["capacity"], &v)
 	if got, _ := json.Marshal(v); string(got) != want {
 		t.Errorf("capacity:\n%s\nwant\n%s", got, want)
+	}
+}
+
+// A credential is paced to its provider's token budget (section 7.10,
+// rule 4): openai's slot 1 has taken 1100 tokens in a run started two
+// hours ago, over per_day's 1000, and 2100 in the last 7 days with a run
+// six days old, over per_week's 2000. The architect on it alone waits,
+// status naming the budget's time, the later of the run leaving the day
+// (in 22 hours) and the older leaving the week (in 24); with a fallback
+// it launches there; 23 hours on, the day's budget free and the week's
+// not, it is still passed over; 25 hours on, it launches on the slot.
+func TestSwarmPacedByATokenBudget(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.withSlots(1, "architect")
+	day, week := 1000, 2000
+	a.edit(func(c *declare.Config) {
+		k := c.Keys["openai"]
+		k.Tokens = &declare.Tokens{PerDay: &day, PerWeek: &week}
+		c.Keys["openai"] = k
+	})
+	now := a.Now()
+	ran := func(name string, started time.Time, cost string) {
+		os.MkdirAll(a.state("runs/"+name), 0o755)
+		os.WriteFile(a.state("runs/"+name+"/result"), []byte("label swarm:plan-1-accepted\nstarted "+started.Format(time.RFC3339)+
+			"\ncredential openai slot 1\npersona openai gpt-6.1-sol high\nexited 0 "+started.Add(time.Minute).Format(time.RFC3339)+"\n"+cost+"\noutcome posted\ncollected\n"), 0o644)
+	}
+	ran("9-worker-1", now.Add(-6*24*time.Hour), "cost 0.1 tokens 900/100 turns 1")
+	ran("9-worker-2", now.Add(-2*time.Hour), "cost 0.1 tokens 800/300 turns 1 cached 500")
+	ran("9-worker-3", now.Add(-time.Hour), "launch-failed") // no cost line: nothing counted
+	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	a.pass()
+	if l := a.runner.Launches(); len(l) != 0 || fileExists(a.state("runs/1-architect-1")) {
+		t.Fatalf("launched over the budget: %+v\n%s", l, a.stdout.String())
+	}
+	until := now.Add(24 * time.Hour).Format(time.RFC3339)
+	if err := a.status(a.forge); err != nil {
+		t.Fatal(err)
+	}
+	if out := a.stdout.String(); !strings.Contains(out, "  architect    queue 1, running 0: openai/1 at its token budget until "+until+"\n") ||
+		!strings.Contains(out, "  openai/1 tokens 1100 of 1000 per day, 2100 of 2000 per week\n") {
+		t.Errorf("status:\n%s", out)
+	}
+
+	a.withFallback("architect", opusEntry)
+	a.pass()
+	if l := a.runner.Launches(); len(l) != 1 || model(l[0]) != "claude-opus-5-5" {
+		t.Fatalf("the fallback: %+v\n%s", l, a.stdout.String())
+	}
+	a.forge.CreateIssue("Two", "x", []string{"swarm:proposal-accepted"})
+	a.mu.Lock()
+	a.now = now.Add(23 * time.Hour)
+	a.mu.Unlock()
+	a.pass()
+	if l := a.runner.Launches(); len(l) != 2 || model(l[1]) != "claude-opus-5-5" {
+		t.Fatalf("23 hours on, the week's budget reached: %+v\n%s", l, a.stdout.String())
+	}
+	a.forge.CreateIssue("Three", "x", []string{"swarm:proposal-accepted"})
+	a.mu.Lock()
+	a.now = now.Add(25 * time.Hour)
+	a.mu.Unlock()
+	a.pass()
+	if l := a.runner.Launches(); len(l) != 3 || model(l[2]) != "gpt-6.1-sol" || l[2].Credential != "openai/1" {
+		t.Errorf("25 hours on: %+v\n%s", l, a.stdout.String())
 	}
 }

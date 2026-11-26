@@ -406,3 +406,22 @@ bottleneck is the first role, in section 3's order, of those with the
 most issues waiting. Tests: `TestTakeSlotForARole`,
 `TestSwarmStatusCapacity`, `TestValidateNamesTheField`,
 `TestFormatFallback`.
+
+**As built: pacing by tokens (Step R4-C of the plan implementing the
+2026-11-19 swarm roadmap).** `keys.<provider>.tokens`, `{"per_day",
+"per_week"}`, one or both, each an integer above 0 (`no budget
+(per_day or per_week)`, `<n> is not greater than 0`). A launch reads
+each run's record, its `credential` line naming the credential, its
+`started` line the time and its `cost` line's input and output the
+tokens, a run without a cost line counting none; a credential whose
+runs started in the 24 hours, or the 7 days, before the launch have
+reached that window's limit is passed over as a line of
+`<state>/capacity` makes it, the same `heldBy`, so pacing and the
+fallback are one mechanism. The time it frees, which `status` shows, is
+per window the start of the run, oldest first, whose leaving brings the
+rest below the limit, plus the window, the later of the two when both
+are reached. `status`'s `Capacity:` block names it `<provider>/<credential>
+at its token budget until <time>` and prints a line per credential of a
+provider with `tokens`, its tokens in each window against the limits
+declared. Tests: `TestSwarmPacedByATokenBudget`,
+`TestValidateNamesTheField`.

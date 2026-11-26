@@ -807,6 +807,19 @@ func checkKeys(keys map[string]Key, personas map[string]Persona, roles []string)
 				return err
 			}
 		}
+		if t := k.Tokens; t != nil {
+			if t.PerDay == nil && t.PerWeek == nil {
+				return fieldErr(at+".tokens", "no budget (per_day or per_week)")
+			}
+			for _, b := range []struct {
+				field string
+				v     *int
+			}{{"per_day", t.PerDay}, {"per_week", t.PerWeek}} {
+				if b.v != nil && *b.v <= 0 {
+					return fieldErr(at+".tokens."+b.field, "%d is not greater than 0", *b.v)
+				}
+			}
+		}
 	}
 	for _, r := range roles {
 		p, ok := personas[r]

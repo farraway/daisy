@@ -216,6 +216,12 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: keys: no credential for provider "openai"`, func(c *Config) { delete(c.Keys, "openai") }},
 		{`swarm.json: keys.openai: needs exactly one of env, slots`, func(c *Config) { c.Keys["openai"] = Key{Env: ptr("OPENAI_API_KEY"), Slots: ptr(1)} }},
 		{`swarm.json: keys.openai: needs exactly one of env, slots`, func(c *Config) { c.Keys["openai"] = Key{} }},
+		// R4 (7.10, rule 4): a token budget, one or both, each above 0.
+		{`swarm.json: keys.openai.tokens: no budget (per_day or per_week)`, func(c *Config) { c.Keys["openai"] = Key{Slots: ptr(1), Tokens: &Tokens{}} }},
+		{`swarm.json: keys.openai.tokens.per_day: 0 is not greater than 0`, func(c *Config) { c.Keys["openai"] = Key{Slots: ptr(1), Tokens: &Tokens{PerDay: ptr(0)}} }},
+		{`swarm.json: keys.anthropic.tokens.per_week: -5 is not greater than 0`, func(c *Config) {
+			c.Keys["anthropic"] = Key{Env: ptr("CLAUDE_CODE_OAUTH_TOKEN"), Tokens: &Tokens{PerDay: ptr(9), PerWeek: ptr(-5)}}
+		}},
 		{`swarm.json: keys.anthropic.env: "ANTHROPIC_KEY" is not one of anthropic's variables (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN)`, func(c *Config) { c.Keys["anthropic"] = Key{Env: ptr("ANTHROPIC_KEY")} }},
 		{`swarm.json: keys.anthropic.slots: anthropic takes no slot`, func(c *Config) { c.Keys["anthropic"] = Key{Slots: ptr(1)} }},
 		{`swarm.json: keys.openai.slots: 0 is not between 1 and 16`, func(c *Config) { c.Keys["openai"] = Key{Slots: ptr(0)} }},

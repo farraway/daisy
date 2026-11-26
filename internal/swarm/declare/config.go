@@ -235,10 +235,20 @@ type Budget struct {
 }
 
 // Key is a provider's credential: exactly one of an env variable's name
-// and a count of login slots (section 8).
+// and a count of login slots (section 8), and the token budget each
+// credential of it is paced to (section 7.10, rule 4).
 type Key struct {
-	Env   *string `json:"env,omitempty"`
-	Slots *int    `json:"slots,omitempty"`
+	Env    *string `json:"env,omitempty"`
+	Slots  *int    `json:"slots,omitempty"`
+	Tokens *Tokens `json:"tokens,omitempty"`
+}
+
+// Tokens is a credential's token budget, the tokens of its runs started
+// in the 24 hours and the 7 days before a launch (section 3,
+// keys.<provider>.tokens); one or both.
+type Tokens struct {
+	PerDay  *int `json:"per_day,omitempty"`
+	PerWeek *int `json:"per_week,omitempty"`
 }
 
 // Persona is one role's provider, model, effort and the Co-Authored-By
