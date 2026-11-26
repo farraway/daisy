@@ -242,30 +242,39 @@ type Key struct {
 }
 
 // Persona is one role's provider, model, effort and the Co-Authored-By
-// trailer value its commits carry, and the entries tried after it in
-// order when its model is unavailable (section 7.10, rule 1).
+// trailer value its commits carry, the slots of its provider it may take
+// (section 7.10, rule 3), and the entries tried after it in order when
+// its model is unavailable (rule 1).
 type Persona struct {
 	Provider string  `json:"provider"`
 	Model    string  `json:"model"`
 	Effort   string  `json:"effort"`
 	CoAuthor string  `json:"co_author"`
+	Slots    []int   `json:"slots,omitempty"`
 	Fallback []Entry `json:"fallback,omitempty"`
 }
 
 // Entry is a model a role may run on: the persona's own, or one of its
-// fallback entries, each a persona's four fields (section 3,
-// personas.<role>.fallback).
+// fallback entries, each a persona's four fields and its slots (section
+// 3, personas.<role>.fallback and personas.<role>.slots).
 type Entry struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Effort   string `json:"effort"`
 	CoAuthor string `json:"co_author"`
+	Slots    []int  `json:"slots,omitempty"`
+}
+
+// Is: e names the provider, model and effort of o, the three a run's
+// persona line records.
+func (e Entry) Is(o Entry) bool {
+	return e.Provider == o.Provider && e.Model == o.Model && e.Effort == o.Effort
 }
 
 // Entries is the persona's own entry, then its fallback's, in the order
 // a launch tries them (section 7.10, The fallback).
 func (p Persona) Entries() []Entry {
-	return append([]Entry{{p.Provider, p.Model, p.Effort, p.CoAuthor}}, p.Fallback...)
+	return append([]Entry{{p.Provider, p.Model, p.Effort, p.CoAuthor, p.Slots}}, p.Fallback...)
 }
 
 // PromptPart is a prompt_parts entry (section 3): a file in the swarm
@@ -543,6 +552,9 @@ func personaLines(personas map[string]Persona) string {
 	for i, r := range roles {
 		p := personas[r]
 		cells[i] = []string{inline(r) + ":", `"provider": ` + inline(p.Provider) + ",", `"model": ` + inline(p.Model) + ",", `"effort": ` + inline(p.Effort) + ",", `"co_author": ` + inline(p.CoAuthor)}
+		if len(p.Slots) > 0 {
+			cells[i][4] += `, "slots": ` + inline(p.Slots)
+		}
 		if len(p.Fallback) > 0 {
 			cells[i][4] += `, "fallback": ` + inline(p.Fallback)
 		}

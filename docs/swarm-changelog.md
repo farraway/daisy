@@ -1593,3 +1593,12 @@ they write.
   round limit`. Sections 5, 6, 7.4, 7.5, 7.6 and 7.11, and
   `docs/cli.md`'s `swarm merge`. Decision
   [171](swarm/decisions/0171-review-by-risk-with-an-end.md), As built.
+- 2026-11-26, Step R4-C of the plan implementing the 2026-11-19 swarm
+  roadmap (R4, slots per role, rule 3): `personas.<role>.slots`, on a
+  persona or a fallback entry, the slots of its provider it may take,
+  in their order, validated against `keys.<provider>.slots`; `status`
+  gains its `Capacity:` block after `Personas:`, each role's queue and
+  running members and what holds a waiting queue, the lines of
+  `<state>/capacity` and the bottleneck, JSON `capacity`. Sections 3, 6,
+  7.10, 8 and 11, and `docs/cli.md`'s `swarm status`. Decision
+  [170](swarm/decisions/0170-capacity.md), As built.

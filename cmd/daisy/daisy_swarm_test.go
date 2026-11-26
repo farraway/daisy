@@ -375,7 +375,7 @@ func TestSwarmStatusJSONThroughGitea(t *testing.T) {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
 	for path, want := range map[string][]string{
-		"":                    {"briefs", "corrections", "forge", "gates", "held", "personas", "repositories", "repository", "running", "stages", "state", "throughput", "waiting", "warnings"},
+		"":                    {"briefs", "capacity", "corrections", "forge", "gates", "held", "personas", "repositories", "repository", "running", "stages", "state", "throughput", "waiting", "warnings"},
 		"forge":               {"host", "kind"},
 		"state":               {"no_active_brief", "owner_held", "path", "paused", "qa_held", "restart_requested_at"},
 		"gates":               {"merge", "plan", "triage"},
@@ -385,6 +385,7 @@ func TestSwarmStatusJSONThroughGitea(t *testing.T) {
 		"running":             {"error", "members"},
 		"personas":            {"adversary", "architect", "owner", "sympathetic", "worker"},
 		"personas.owner":      {"effort", "model", "provider"},
+		"capacity":            {"bottleneck", "roles", "unavailable"},
 		"throughput":          {"approved", "auto", "budget", "cost", "reverted", "runs", "stage_time"},
 		"throughput.reverted": {"fetched", "merged_pulls", "reverted_pulls"},
 		"throughput.runs":     {"blocked", "failed", "faults", "other", "posted", "questions", "total"},

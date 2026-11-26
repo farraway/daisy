@@ -165,11 +165,25 @@ func (s *Swarm) expireCapacity() error {
 	return nil
 }
 
-// freeSlots is the slots of e's provider, of count, that no line of
-// capacity names with e's model, lowest first.
-func freeSlots(e declare.Entry, count int, capacity []Unavailable) []int {
+// mayTake is the slots of e's provider, of count, that e may take: its
+// slots, in their order, else every slot, lowest first (section 7.10,
+// rule 3).
+func mayTake(e declare.Entry, count int) []int {
+	if e.Slots != nil {
+		return e.Slots
+	}
 	var out []int
 	for j := 1; j <= count; j++ {
+		out = append(out, j)
+	}
+	return out
+}
+
+// freeSlots is the slots e may take (mayTake) that no line of capacity
+// names with e's model.
+func freeSlots(e declare.Entry, count int, capacity []Unavailable) []int {
+	var out []int
+	for _, j := range mayTake(e, count) {
 		if !unavailableOn(capacity, e.Provider+"/"+strconv.Itoa(j), e.Model) {
 			out = append(out, j)
 		}
@@ -179,39 +193,61 @@ func freeSlots(e declare.Entry, count int, capacity []Unavailable) []int {
 
 // runsOn is the entry a run of role launches on (section 7.10, The
 // fallback): the first of the persona and its fallback's, in order, with
-// a credential it may take, an env credential no line of capacity names
-// with the entry's model, or a slot of its provider no running container
-// holds and no line names with the model; ok false when none has, and
-// the role waits.
+// a credential it may take (heldBy); ok false when none has, and the role
+// waits. The running set is read once, for the first entry on slots.
 func (s *Swarm) runsOn(role string, capacity []Unavailable) (declare.Entry, bool, error) {
 	var running []runner.Running
 	read := false
 	for _, e := range s.Cfg.Personas[role].Entries() {
-		key := s.Cfg.Keys[e.Provider]
-		if key.Env != nil {
-			if !unavailableOn(capacity, e.Provider+"/env", e.Model) {
-				return e, true, nil
-			}
-			continue
-		}
-		if key.Slots == nil {
-			continue
-		}
-		if !read {
+		if key := s.Cfg.Keys[e.Provider]; key.Slots != nil && !read {
 			var err error
 			if running, err = s.Runner.Running(); err != nil {
 				return declare.Entry{}, false, err
 			}
 			read = true
 		}
-		for _, j := range freeSlots(e, *key.Slots, capacity) {
-			cred := e.Provider + "/" + strconv.Itoa(j)
-			if !slices.ContainsFunc(running, func(c runner.Running) bool { return c.Credential == cred }) {
-				return e, true, nil
-			}
+		if heldBy(s.Cfg, e, capacity, running) == "" {
+			return e, true, nil
 		}
 	}
 	return declare.Entry{}, false, nil
+}
+
+// heldBy is what keeps entry e from every credential of its provider, ""
+// when one is free (section 7.10, rules 1 and 3): an env credential a
+// line of capacity names with e's model, `<provider>/env <model>
+// unavailable until <time>`; of the slots e may take, each a line names
+// with the model, likewise, and those a container of running holds, `no
+// free slot of <provider> <j>, …`; "; " between them.
+func heldBy(cfg declare.Config, e declare.Entry, capacity []Unavailable, running []runner.Running) string {
+	key := cfg.Keys[e.Provider]
+	var creds []string
+	switch {
+	case key.Env != nil:
+		creds = []string{e.Provider + "/env"}
+	case key.Slots != nil:
+		for _, j := range mayTake(e, *key.Slots) {
+			creds = append(creds, e.Provider+"/"+strconv.Itoa(j))
+		}
+	default:
+		return "no credential for " + e.Provider
+	}
+	var why, busy []string
+	for _, cred := range creds {
+		if i := slices.IndexFunc(capacity, func(u Unavailable) bool { return u.Credential == cred && u.Model == e.Model }); i >= 0 {
+			why = append(why, fmt.Sprintf("%s %s unavailable until %s", cred, e.Model, capacity[i].Until))
+			continue
+		}
+		if slices.ContainsFunc(running, func(c runner.Running) bool { return c.Credential == cred }) {
+			busy = append(busy, strings.TrimPrefix(cred, e.Provider+"/"))
+			continue
+		}
+		return ""
+	}
+	if len(busy) > 0 {
+		why = append(why, fmt.Sprintf("no free slot of %s %s", e.Provider, strings.Join(busy, ", ")))
+	}
+	return strings.Join(why, "; ")
 }
 
 // launchedEntry is the entry run r was launched on, its lines being
@@ -222,7 +258,7 @@ func (s *Swarm) launchedEntry(r Run, lines []string) declare.Entry {
 	prov, model, effort := s.launched(r, lines)
 	entries := s.Cfg.Personas[r.Role].Entries()
 	for _, e := range entries {
-		if e.Provider == prov && e.Model == model && e.Effort == effort {
+		if e.Is(declare.Entry{Provider: prov, Model: model, Effort: effort}) {
 			return e
 		}
 	}
@@ -267,15 +303,15 @@ func (s *Swarm) capacityNote(j *Job, r Run, capacity []Unavailable) error {
 		}
 	}
 	on := j.RunsOn
-	if on.Provider == prev.Provider && on.Model == prev.Model && on.Effort == prev.Effort {
+	if on.Is(prev) {
 		return nil
 	}
 	what := func(e declare.Entry) string { return fmt.Sprintf("%s %s (%s)", e.Provider, e.Model, e.Effort) }
 	text := fmt.Sprintf("**reconciler:** the %s runs on %s again.", j.Role, what(on))
-	if p := entries[0]; on.Provider != p.Provider || on.Model != p.Model || on.Effort != p.Effort {
+	if p := entries[0]; !on.Is(p) {
 		var pairs []string
 		for _, e := range entries {
-			if e == on {
+			if e.Is(on) {
 				break
 			}
 			for _, u := range capacity {

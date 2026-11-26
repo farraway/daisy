@@ -182,18 +182,37 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: personas.worker.co_author: "m\rx <a@b>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m\rx <a@b>" }) }},
 		// R4 (7.10, rule 1): each fallback entry's field as the persona's,
 		// its provider's credential, and no entry twice.
-		{`swarm.json: personas.architect.fallback[0].provider: "gemini" has no adapter`, func(c *Config) { fallback(c, "architect", Entry{"gemini", "g-1", "high", ""}) }},
-		{`swarm.json: personas.architect.fallback[0].model: empty; every role names its model`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "", "high", ""}) }},
-		{`swarm.json: personas.architect.fallback[1].model: "a b" contains whitespace`, func(c *Config) { fallback(c, "architect", opus, Entry{"anthropic", "a b", "high", ""}) }},
-		{`swarm.json: personas.architect.fallback[0].effort: "Very High" is not one lowercase word`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "claude-opus-5-5", "Very High", ""}) }},
+		{`swarm.json: personas.architect.fallback[0].provider: "gemini" has no adapter`, func(c *Config) { fallback(c, "architect", Entry{"gemini", "g-1", "high", "", nil}) }},
+		{`swarm.json: personas.architect.fallback[0].model: empty; every role names its model`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "", "high", "", nil}) }},
+		{`swarm.json: personas.architect.fallback[1].model: "a b" contains whitespace`, func(c *Config) { fallback(c, "architect", opus, Entry{"anthropic", "a b", "high", "", nil}) }},
+		{`swarm.json: personas.architect.fallback[0].effort: "Very High" is not one lowercase word`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "claude-opus-5-5", "Very High", "", nil}) }},
 		{`swarm.json: personas.architect.fallback[0].co_author: "claude-opus-5-5" is not <name> <email>`, func(c *Config) {
-			fallback(c, "architect", Entry{"anthropic", "claude-opus-5-5", "high", "claude-opus-5-5"})
+			fallback(c, "architect", Entry{"anthropic", "claude-opus-5-5", "high", "claude-opus-5-5", nil})
 		}},
 		{`swarm.json: personas.architect.fallback[1]: the same as personas.architect`, func(c *Config) {
-			fallback(c, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "high", ""})
+			fallback(c, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "high", "", nil})
 		}},
 		{`swarm.json: personas.architect.fallback[1]: the same as personas.architect.fallback[0]`, func(c *Config) { fallback(c, "architect", opus, opus) }},
-		{`swarm.json: keys: no credential for provider "xai"`, func(c *Config) { fallback(c, "worker", Entry{"xai", "grok-4.7", "high", ""}) }},
+		{`swarm.json: keys: no credential for provider "xai"`, func(c *Config) { fallback(c, "worker", Entry{"xai", "grok-4.7", "high", "", nil}) }},
+		// R4 (7.10, rule 3): an entry's slots, those of its provider's
+		// credential, one or more, none twice.
+		{`swarm.json: personas.adversary.slots[0]: 3 is not between 1 and 2`, func(c *Config) {
+			c.Keys["openai"] = Key{Slots: ptr(2)}
+			setPersona(c, "adversary", func(p *Persona) { p.Slots = []int{3} })
+		}},
+		{`swarm.json: personas.adversary.slots[1]: 1 is listed twice`, func(c *Config) {
+			c.Keys["openai"] = Key{Slots: ptr(2)}
+			setPersona(c, "adversary", func(p *Persona) { p.Slots = []int{1, 1} })
+		}},
+		{`swarm.json: personas.adversary.slots: no slot`, func(c *Config) {
+			c.Keys["openai"] = Key{Slots: ptr(2)}
+			setPersona(c, "adversary", func(p *Persona) { p.Slots = []int{} })
+		}},
+		{`swarm.json: personas.worker.slots: anthropic takes no slot`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Slots = []int{1} }) }},
+		{`swarm.json: personas.architect.fallback[0].slots[0]: 0 is not between 1 and 2`, func(c *Config) {
+			c.Keys["openai"] = Key{Slots: ptr(2)}
+			fallback(c, "architect", Entry{"openai", "gpt-6.1-sol", "high", "", []int{0}})
+		}},
 		{`swarm.json: keys: no credential for provider "openai"`, func(c *Config) { delete(c.Keys, "openai") }},
 		{`swarm.json: keys.openai: needs exactly one of env, slots`, func(c *Config) { c.Keys["openai"] = Key{Env: ptr("OPENAI_API_KEY"), Slots: ptr(1)} }},
 		{`swarm.json: keys.openai: needs exactly one of env, slots`, func(c *Config) { c.Keys["openai"] = Key{} }},
@@ -237,7 +256,7 @@ func TestValidateNamesTheField(t *testing.T) {
 	}
 	// The same model at another effort is another entry (section 3).
 	fb := valid()
-	fallback(&fb, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "medium", ""}, Entry{"openai", "gpt-6.1-sol", "high", "gpt-6.1-sol <noreply@openai.com>"})
+	fallback(&fb, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "medium", "", nil}, Entry{"openai", "gpt-6.1-sol", "high", "gpt-6.1-sol <noreply@openai.com>", nil})
 	if err := Validate(ops.Real(), p, fb, 0); err != nil {
 		t.Errorf("a fallback: %v", err)
 	}
@@ -340,7 +359,7 @@ func TestFormatQA(t *testing.T) {
 }
 
 // opus is a fallback entry of the architect's (section 3's example).
-var opus = Entry{"anthropic", "claude-opus-5-5", "high", "claude-opus-5-5 <noreply@anthropic.com>"}
+var opus = Entry{"anthropic", "claude-opus-5-5", "high", "claude-opus-5-5 <noreply@anthropic.com>", nil}
 
 // fallback gives role's persona the fallback entries.
 func fallback(c *Config, role string, entries ...Entry) {
@@ -704,9 +723,13 @@ func TestFormatFallback(t *testing.T) {
 	if strings.Contains(before, `"fallback"`) {
 		t.Errorf("Format wrote a fallback unset:\n%s", before)
 	}
-	fallback(&c, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", ""})
+	fallback(&c, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", "", []int{1}})
+	setPersona(&c, "adversary", func(p *Persona) { p.Slots = []int{1} })
 	out := string(Format(c))
-	want := `"co_author": "claude-fable-5-1 <noreply@anthropic.com>", "fallback": [{"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}, {"provider": "openai", "model": "gpt-6.1-sol", "effort": "high", "co_author": ""}]},` + "\n"
+	want := `"co_author": "claude-fable-5-1 <noreply@anthropic.com>", "fallback": [{"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}, {"provider": "openai", "model": "gpt-6.1-sol", "effort": "high", "co_author": "", "slots": [1]}]},` + "\n"
+	if !strings.Contains(out, `<noreply@openai.com>", "slots": [1]},`) {
+		t.Errorf("Format lacks the adversary's slots:\n%s", out)
+	}
 	if !strings.Contains(out, `    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high",   `+want) {
 		t.Errorf("Format lacks %q on the architect's line:\n%s", want, out)
 	}

@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -310,5 +313,111 @@ func TestSwarmNotifiesCapacity(t *testing.T) {
 	a.pass()
 	if b, _ := os.ReadFile(a.state("notified")); strings.Contains(string(b), "capacity") || strings.Contains(string(b), "claude-fable-5-1") {
 		t.Errorf("the record keeps the line: %q", b)
+	}
+}
+
+// withSlots gives openai the slots count, each logged in, and role's
+// persona gpt-6.1-sol on openai taking only the slots listed (section 3,
+// personas.<role>.slots).
+func (a *applyWS) withSlots(count int, role string, slots ...int) {
+	a.t.Helper()
+	a.edit(func(c *declare.Config) {
+		c.Keys["openai"] = declare.Key{Slots: &count}
+		c.Personas[role] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>", Slots: slots}
+	})
+	for j := 1; j <= count; j++ {
+		slot := filepath.Join(a.local, "swarm", "credentials", "openai", strconv.Itoa(j))
+		os.MkdirAll(slot, 0o700)
+		os.WriteFile(filepath.Join(slot, "auth.json"), []byte(`{"tokens":{"access_token":"x"}}`), 0o600)
+	}
+}
+
+// A role takes only the slots its persona's slots lists (section 7.10,
+// rule 3): the architect, given slot 2 of two, launches on slot 2 with
+// slot 1 free; given slot 1 alone while another swarm's container holds
+// it, it waits, slot 2 free, nothing launched or recorded.
+func TestTakeSlotForARole(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.withSlots(2, "architect", 2)
+	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: archPlan})
+	a.pass()
+	if l := a.runner.Launches(); len(l) != 1 || l[0].Credential != "openai/2" || !strings.Contains(a.result("1-architect-1"), "\ncredential openai slot 2\n") {
+		t.Fatalf("launches %+v\n%s", l, a.stdout.String())
+	}
+
+	b := newApplyWS(t)
+	b.withSlots(2, "architect", 1)
+	b.runner.Others = []runner.Running{{Name: "daisy-other.x.2.worker.1", Swarm: "other/x#2/worker", Credential: "openai/1"}}
+	b.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
+	b.pass()
+	if l := b.runner.Launches(); len(l) != 0 || fileExists(b.state("runs/1-architect-1")) {
+		t.Errorf("launched on a slot the persona does not list: %+v\n%s", l, b.stdout.String())
+	}
+}
+
+// `status`'s Capacity: block (section 7.10, rule 3): a line per role, its
+// queue (the issues it would launch on at this pass but for section 6's
+// rule 4) and its running members, and what holds a queue that waits; a
+// line per line of <state>/capacity; and the bottleneck, the role with
+// the most issues waiting for a credential. The owner on slot 1 alone,
+// which another swarm's container holds, waits for it; the architect's
+// model is unavailable on its credential; with max_members' containers
+// running, every queue waits for it.
+func TestSwarmStatusCapacity(t *testing.T) {
+	t.Parallel()
+	s := newStatusWS(t)
+	two := 2
+	s.edit(func(c *declare.Config) {
+		c.Trusted = []string{"jane", "swarm-bot"}
+		c.Keys["openai"] = declare.Key{Slots: &two}
+		c.Personas["owner"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>", Slots: []int{1}}
+	})
+	s.forge.CreateIssue("One", "x", []string{"swarm:proposal-posted"})
+	s.forge.CreateIssue("Two", "x", []string{"swarm:proposal-accepted"})
+	s.forge.CreateIssue("Three", "x", []string{"swarm:proposal-accepted"})
+	plan := s.ref(4)
+	s.forge.CreateIssue("Four", "x", []string{"swarm:plan-0-posted"}) // the maintainer's turn: no queue
+	s.forge.Comment(plan, archMark)
+	os.MkdirAll(s.state(""), 0o755)
+	os.WriteFile(s.state("capacity"), []byte("anthropic/env claude-fable-5-1 until resume: Claude AI usage limit reached\n"), 0o644)
+	s.docker = "daisy-other-x-2-worker-1 other/x#2/worker openai/1\n"
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Replace(statusPersonas, "owner        anthropic  claude-opus-5-5", "owner        openai     gpt-6.1-sol", 1) + `Capacity:
+  owner        queue 1, running 0: no free slot of openai 1
+  architect    queue 2, running 0: anthropic/env claude-fable-5-1 unavailable until resume
+  worker       queue 0, running 0
+  adversary    queue 0, running 0
+  sympathetic  queue 0, running 0
+  anthropic/env claude-fable-5-1 until resume: Claude AI usage limit reached
+  Bottleneck: architect (anthropic/env claude-fable-5-1 unavailable until resume)
+Throughput:
+`
+	if out := s.stdout.String(); !strings.Contains(out, want) {
+		t.Errorf("stdout:\n%s\nwant:\n%s", out, want)
+	}
+
+	s.docker = "daisy-acme-app-9-worker-1 acme/swarm-app#9/worker \n" +
+		"daisy-acme-app-8-worker-1 acme/swarm-app#8/worker \n" +
+		"daisy-acme-app-7-worker-1 acme/swarm-app#7/worker \n"
+	s.flags = []string{"--json"}
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(s.stdout.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	want = `{"bottleneck":{"role":"architect","why":"max_members reached"},"roles":[` +
+		`{"queue":[1],"role":"owner","running":0,"why":"max_members reached"},{"queue":[2,3],"role":"architect","running":0,"why":"max_members reached"},` +
+		`{"queue":[],"role":"worker","running":3,"why":null},{"queue":[],"role":"adversary","running":0,"why":null},{"queue":[],"role":"sympathetic","running":0,"why":null}],` +
+		`"unavailable":["anthropic/env claude-fable-5-1 until resume: Claude AI usage limit reached"]}`
+	var v any
+	json.Unmarshal(doc["capacity"], &v)
+	if got, _ := json.Marshal(v); string(got) != want {
+		t.Errorf("capacity:\n%s\nwant\n%s", got, want)
 	}
 }

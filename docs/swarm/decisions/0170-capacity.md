@@ -158,7 +158,7 @@ the maintainer without becoming the plan.
 2026-11-19 swarm roadmap).** `personas.<role>.fallback` is read
 strictly, each entry exactly the persona's four fields; an entry's
 `slots` waits for rule 3's build and is refused until then as an
-unknown field. Validation reads the persona, then each entry in order,
+unknown field (built at Step R4-C, below). Validation reads the persona, then each entry in order,
 each field by the persona's rule, naming `fallback[<i>]`; an entry with
 the provider, model and effort of an earlier one is refused naming the
 earlier (`the same as personas.<role>` or `the same as
@@ -380,3 +380,29 @@ what `Capacity` reads again from the run's `fault:` line, so the code
 would have to be written into it, and those texts are not this step's
 claim. Tests: `TestClaudeOutOfUsageCredits`,
 `TestSwarmFallbackOnACapacityFault`, `TestSwarmApplyRecordsDaisysOwnCause`.
+
+**As built: slots per role (Step R4-C of the plan implementing the
+2026-11-19 swarm roadmap).** `personas.<role>.slots`, and a fallback
+entry's `slots`, list the slots of the provider's `slots` credential
+the entry may take, each 1 to that count, none twice, one or more; on
+a provider whose credential is `env` it is refused, `<provider> takes
+no slot`. `Format` writes it after `co_author`, an entry's inside its
+object; `init` keeps the file's. A launch takes the entry's slots in
+their order, the first free one no line of `<state>/capacity` names
+with the model, so `runner.TakeSlot` is given that list; an entry
+without `slots` takes every slot, lowest first, as before. `status`'s
+`Capacity:` block reads each role's queue as the role rule decides it
+(rules 1 to 3 of section 6) from the issues, their pull requests'
+threads, the running set and the runs' records; the re-plan between
+slices, which reads the rulings from the mirrors, is not read, the
+worker standing there for the architect, and the owner's batch and the
+QA are no issue's and count in no queue. A queue waits when this
+swarm's running containers fill `max_members` (`max_members reached`)
+or no entry has a credential it may take, each entry's why joined by
+`; `: `<provider>/<credential> <model> unavailable until <time>` per
+credential a line names with the model, and `no free slot of
+<provider> <j>, …` for the slots a running container holds. The
+bottleneck is the first role, in section 3's order, of those with the
+most issues waiting. Tests: `TestTakeSlotForARole`,
+`TestSwarmStatusCapacity`, `TestValidateNamesTheField`,
+`TestFormatFallback`.

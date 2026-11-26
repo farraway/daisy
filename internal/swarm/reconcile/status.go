@@ -32,6 +32,7 @@ type Status struct {
 	Held         StatusHeld               `json:"held"`
 	Running      StatusRunning            `json:"running"`
 	Personas     map[string]StatusPersona `json:"personas"`
+	Capacity     StatusCapacity           `json:"capacity"`
 	Throughput   StatusThroughput         `json:"throughput"`
 	Corrections  []StatusCorrections      `json:"corrections"`
 	Briefs       []StatusBrief            `json:"briefs"` // the active ones, in path order
@@ -117,6 +118,30 @@ type StatusPersona struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Effort   string `json:"effort"`
+}
+
+// StatusCapacity is section 7.10's Capacity block (rule 3): each declared
+// role's queue and what holds it, the lines of <state>/capacity, and the
+// role with the most issues waiting for a credential.
+type StatusCapacity struct {
+	Roles       []StatusRoleCapacity `json:"roles"`
+	Unavailable []string             `json:"unavailable"`
+	Bottleneck  *StatusBottleneck    `json:"bottleneck"`
+}
+
+// StatusRoleCapacity is one role's line: the issues it would launch on
+// at this pass but for section 6's rule 4, its running members, and, when
+// its queue waits, why.
+type StatusRoleCapacity struct {
+	Role    string  `json:"role"`
+	Queue   []int   `json:"queue"`
+	Running int     `json:"running"`
+	Why     *string `json:"why"`
+}
+
+type StatusBottleneck struct {
+	Role string `json:"role"`
+	Why  string `json:"why"`
 }
 
 // StatusRuns is the runs line of Throughput: the runs collected, by
@@ -329,11 +354,15 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	state := cfg.Forge.State(local)
 	r.State = readStateNotes(o.FS(), state, NoActiveBrief(briefs))
 	r.Gates = StatusGates{cfg.Gates.Triage, cfg.Gates.Plan, cfg.Gates.Merge}
-	r.Running = runningMembers(o, ws, cfg.Forge.Repo)
+	var running []runner.Running
+	r.Running, running = runningMembers(o, ws, cfg.Forge.Repo)
 	r.Personas = map[string]StatusPersona{}
 	for _, role := range cfg.DeclaredRoles() {
 		p := cfg.Personas[role]
 		r.Personas[role] = StatusPersona{p.Provider, p.Model, p.Effort}
+	}
+	if r.Capacity, err = capacityOf(o.FS(), cfg, acct.Login, issues, r.Held, r.Running, running, state); err != nil {
+		return nil, statusRead{}, err
 	}
 	// The gates Daisy passed, per issue the larger of the forge's auto
 	// notes (on the issues read) and <state>/auto's lines, so the count
@@ -419,9 +448,10 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 // statusIssue is one issue as status reads it: the issue with its
 // comments, its swarm pull requests and their correction counts.
 type statusIssue struct {
-	Issue  forge.Issue
-	Pulls  []forge.Pull
-	Counts Counts
+	Issue   forge.Issue
+	Pulls   []forge.Pull
+	Threads []PullThread // each pull request's, in Pulls' order
+	Counts  Counts
 }
 
 // readIssues reads each issue listed, its pull requests and their
@@ -452,7 +482,7 @@ func readIssues(f forge.Adapter, listed []forge.Issue, swarmLogin string, truste
 				return nil, err
 			}
 		}
-		out[l.Number] = statusIssue{is, pulls, Count(is, pulls, threads, swarmLogin, trusted)}
+		out[l.Number] = statusIssue{is, pulls, threads, Count(is, pulls, threads, swarmLogin, trusted)}
 	}
 	return out, nil
 }
@@ -530,13 +560,105 @@ func firstLine(b []byte) string {
 	return strings.TrimSpace(line)
 }
 
+// capacityOf is section 7.10's Capacity block (rule 3) as status reads
+// it: a role's queue is the open issues on which the trigger rule
+// (section 6, rules 1 to 3) launches it, read from the issues, their
+// pull requests' threads, the running set and the runs' records; it
+// waits when every member slot is taken (`max_members reached`) or when
+// no entry of its persona has a credential it may take (heldBy). The
+// bottleneck is the role with the most issues waiting, the first in
+// role order of those with as many.
+func capacityOf(fs ops.FS, cfg declare.Config, login string, issues map[int]statusIssue, held StatusHeld, members StatusRunning, running []runner.Running, state string) (StatusCapacity, error) {
+	c := StatusCapacity{Roles: []StatusRoleCapacity{}, Unavailable: []string{}}
+	capacity, err := ReadCapacity(fs, state)
+	if err != nil {
+		return c, err
+	}
+	for _, u := range capacity {
+		c.Unavailable = append(c.Unavailable, u.String())
+	}
+	runs, err := Runs(fs, state)
+	if err != nil {
+		return c, fmt.Errorf("reading the runs: %w", err)
+	}
+	queues := map[string][]int{}
+	for _, n := range slices.Sorted(maps.Keys(issues)) {
+		for _, role := range launches(fs, cfg, login, issues[n], held, running, runs, n) {
+			queues[role] = append(queues[role], n)
+		}
+	}
+	full := len(members.Members) >= cfg.MaxMembers
+	for _, role := range cfg.DeclaredRoles() {
+		rc := StatusRoleCapacity{Role: role, Queue: append([]int{}, queues[role]...)}
+		for _, m := range members.Members {
+			if m.Role == role {
+				rc.Running++
+			}
+		}
+		if len(rc.Queue) > 0 {
+			why := "max_members reached"
+			if !full {
+				var whys []string
+				for _, e := range cfg.Personas[role].Entries() {
+					w := heldBy(cfg, e, capacity, running)
+					if w == "" {
+						whys = nil
+						break
+					}
+					whys = append(whys, w)
+				}
+				why = strings.Join(whys, "; ")
+			}
+			if why != "" {
+				rc.Why = &why
+				if c.Bottleneck == nil || len(rc.Queue) > len(queues[c.Bottleneck.Role]) {
+					c.Bottleneck = &StatusBottleneck{role, why}
+				}
+			}
+		}
+		c.Roles = append(c.Roles, rc)
+	}
+	return c, nil
+}
+
+// launches is the roles the trigger rule launches on the open issue si,
+// issue n, rule 4 aside (section 6), as status reads the issue: held by
+// a label or an open blocker, at a stage on a pull request that is not
+// open, or with a run on it, none; else Launch over the thread its roles
+// read. The re-plan between slices, which reads the rulings from the
+// mirrors, is not read: the worker stands for the architect there.
+func launches(fs ops.FS, cfg declare.Config, login string, si statusIssue, held StatusHeld, running []runner.Running, runs []Run, n int) []string {
+	is := si.Issue
+	label, ok := StageOf(is)
+	if !ok || !is.Open || len(stageRoles[label]) == 0 || Held(is.Labels) != "" ||
+		slices.ContainsFunc(held.BlockedBy, func(b StatusBlock) bool { return b.Issue == n }) {
+		return nil
+	}
+	j := &Job{Cfg: cfg, SwarmLogin: login, N: n, Label: label, Issue: is, Pulls: si.Pulls}
+	cur, open := j.current()
+	if onPull(label) && !open {
+		return nil
+	}
+	if open {
+		j.Pull = &si.Threads[len(si.Threads)-1]
+	}
+	turn := Turn{Label: label, Running: busyOn(fs, cfg.Forge.Repo, running, runs, n), Thread: IssueThread(is)}
+	switch {
+	case slices.Contains(is.Labels, forge.Question):
+		turn.Answerer = Answerer(is, login)
+	case reviewing(label) || onPull(label):
+		turn.Thread, turn.Reviews, turn.Head = j.roleThread(cur), j.Pull.Reviews, cur.HeadSHA
+	}
+	return Launch(turn, login, cfg.Trusted)
+}
+
 // runningMembers is this swarm's containers as `apply` lists them
 // (runner.Docker's Running), by issue, or docker's error.
-func runningMembers(o ops.Ops, ws, repo string) StatusRunning {
+func runningMembers(o ops.Ops, ws, repo string) (StatusRunning, []runner.Running) {
 	all, err := runner.Docker{O: o, Dir: ws}.Running()
 	if err != nil {
 		msg := err.Error()
-		return StatusRunning{Members: []StatusMember{}, Error: &msg}
+		return StatusRunning{Members: []StatusMember{}, Error: &msg}, nil
 	}
 	ms := []StatusMember{}
 	for _, r := range all {
@@ -548,7 +670,7 @@ func runningMembers(o ops.Ops, ws, repo string) StatusRunning {
 		}
 	}
 	slices.SortStableFunc(ms, func(a, b StatusMember) int { return a.Issue - b.Issue })
-	return StatusRunning{Members: ms}
+	return StatusRunning{Members: ms}, all
 }
 
 // throughput reads section 11's Throughput from <state>/runs/ (but the

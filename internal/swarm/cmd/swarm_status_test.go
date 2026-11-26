@@ -122,6 +122,17 @@ const statusPersonas = `Personas:
   sympathetic  anthropic  claude-opus-5-5 high
 `
 
+// statusIdle is the Capacity block of a swarm with no queue (section
+// 7.10, rule 3).
+const statusIdle = `Capacity:
+  owner        queue 0, running 0
+  architect    queue 0, running 0
+  worker       queue 0, running 0
+  adversary    queue 0, running 0
+  sympathetic  queue 0, running 0
+  Bottleneck: none
+`
+
 // After init: zero issues per stage, the gates, the personas, nothing
 // running, no runs, no brief, so the owner's batch held (section 6).
 func TestSwarmStatusAfterInit(t *testing.T) {
@@ -143,7 +154,7 @@ Gates: triage on, plan on, merge on
   review-2-approved          0
   review-3-changes-requested 0
 Running: none
-` + statusPersonas + `Throughput:
+` + statusPersonas + statusIdle + `Throughput:
   runs         0 (0 posted, 0 blocked, 0 questions, 0 failed, 0 faults, 0 other)
   cost         $0.00 today, $0.00 in all (0 runs without a cost); estimated $0.00 in all at list price (0 runs without an estimate)
   budget       none
@@ -324,7 +335,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 	}
 	var warnings []string
 	json.Unmarshal(doc["warnings"], &warnings)
-	if len(doc) != 14 || len(warnings) != 2 || warnings[0] != "⚠ "+filepath.Join(s.ws, ".env.sh")+": the swarm reads its secrets from "+s.state("env")+", not the clone; move them there and delete it" ||
+	if len(doc) != 15 || len(warnings) != 2 || warnings[0] != "⚠ "+filepath.Join(s.ws, ".env.sh")+": the swarm reads its secrets from "+s.state("env")+", not the clone; move them there and delete it" ||
 		!strings.HasPrefix(warnings[1], "⚠ Drift: swarm.json differs from acme/swarm-app's main at ") {
 		t.Errorf("%d keys, warnings %q", len(doc), warnings)
 	}
@@ -644,7 +655,7 @@ func TestSwarmStatusStep7(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantTail := `Running: none
-` + statusPersonas + `Throughput:
+` + statusPersonas + statusIdle + `Throughput:
   runs         12 (12 posted, 0 blocked, 0 questions, 0 failed, 0 faults, 0 other)
   cost         $0.00 today, $0.00 in all (12 runs without a cost); estimated $0.00 in all at list price (12 runs without an estimate)
   budget       none

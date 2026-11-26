@@ -567,8 +567,8 @@ yet or not (Step 6 of revision 6's plan; decision [109](swarm/decisions/0109-ini
 | `personas.<role>.model` | string | as in the example | required: every role names the model it runs (decision [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)), so neither `""` nor `-` is accepted; otherwise passed through, but for one check: no whitespace, control character or format character such as a zero-width space (it is one argv word; decision [6](swarm/decisions/0006-additions-to-swarm-json.md); the control and format characters from Step 20 of the plan that clears the Deferred list, decision [120](swarm/decisions/0120-declare-forge-and-runner-loose-ends.md)) |
 | `personas.<role>.effort` | string | as in the example | passed through, but must match `^[a-z]+$` (the "bad effort" Step 27 tests); the vendor's list is not checked |
 | `personas.<role>.co_author` | string | `<model> <noreply@anthropic.com>` (anthropic), `<model> <noreply@openai.com>` (openai) or `<model> <noreply@x.ai>` (xai); with a file, its value while the role's provider and model are unchanged | required: the whole value of the `Co-Authored-By:` trailer the role's commits carry, `<name> <<email>>`, stamped verbatim by the hook Step 5 installs (decision [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)); or `""`, no trailer: the clone gets no hook and the collection reports no commit unstamped (Step 15 of the swarm build, decision [74](swarm/decisions/0074-the-label-vocabulary.md)) |
-| `personas.<role>.fallback` | array of objects | absent (`init` writes none, and keeps the file's) | *R4* (7.10, rule 1), *built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap* (an entry's `slots` specified ahead of its build): optional; models tried in order after the persona's own when it is unavailable, each `{"provider", "model", "effort", "co_author"}` and optionally `slots`, each field validated as the persona's, each provider with a credential in `keys`, no two entries (the persona among them) with the same provider, model and effort; on one line after `co_author` |
-| `personas.<role>.slots` | array of integers | absent (`init` writes none, and keeps the file's) | *R4, specified ahead of its build* (7.10, rule 3): optional, on the persona or a fallback entry whose provider takes slots; the slots of `keys.<provider>.slots` it may take, each 1 to that count, none twice, one or more; absent, every slot |
+| `personas.<role>.fallback` | array of objects | absent (`init` writes none, and keeps the file's) | *R4* (7.10, rule 1), *built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap* (an entry's `slots` at Step R4-C): optional; models tried in order after the persona's own when it is unavailable, each `{"provider", "model", "effort", "co_author"}` and optionally `slots`, each field validated as the persona's, each provider with a credential in `keys`, no two entries (the persona among them) with the same provider, model and effort; on one line after `co_author` |
+| `personas.<role>.slots` | array of integers | absent (`init` writes none, and keeps the file's) | *R4* (7.10, rule 3), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: optional, on the persona or a fallback entry whose provider's credential is `slots`; the slots of `keys.<provider>.slots` it may take, each 1 to that count, none twice, one or more, taken in the order listed; absent, every slot, lowest first; written after `co_author` on the persona's line (an entry's inside its object) |
 | (each persona) | — | — | `prompts/<role>.md` in the swarm repository's clone exists and is non-empty (`swarm prompt build` writes the QA's default once `qa` is declared, section 11) |
 | `prompt_parts` | array of objects | absent (`init` writes none, and keeps the file's) | optional; each `{"path": <path>, "roles": [<role>, …]}`, exactly these fields: a **prompt part**, a file in the swarm repository's clone (by convention `prompts/parts/<name>.md`) added to the `system.md` of every run of each role it names, after `prompts/<role>.md`, as its own section, the parts in this list's order (7.3), so the swarm's additions to a role's prompt live beside Daisy's default rather than edited into it (Step R3-13 of the plan implementing the 2026-11-19 swarm roadmap; decision [164](swarm/decisions/0164-prompt-parts-added-to-a-roles-prompt.md)); `path` relative and without `..`, the file there not empty, read as `prompts/<role>.md` is, in the clone's working tree at each launch; `roles` one or more, each one of `owner`, `architect`, `worker`, `adversary`, `sympathetic`, `qa`; written after `personas`, an entry a line |
 
@@ -645,7 +645,7 @@ failure is reported and the verb exits 1; the message is
 | a gate off without a budget | `swarm.json: budget: missing (required when a gate is false)` |
 | a budget limit not positive | `swarm.json: budget.per_day: 0 is not greater than 0` (also `budget.total`) |
 | a provider without a credential | `swarm.json: keys: no credential for provider "openai"` |
-| from R4 (7.10; the fallback's built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, the slot list and the token budget specified ahead of their build), a fallback, a slot list or a token budget refused | `swarm.json: personas.architect.fallback[0].model: empty; every role names its model` (each field as the persona's), `swarm.json: personas.architect.fallback[1]: the same as personas.architect` (`the same as personas.architect.fallback[0]` for an earlier entry's), `swarm.json: keys: no credential for provider "xai"` for an entry's provider, as for a persona's, `swarm.json: personas.adversary.slots[0]: 3 is not between 1 and 2` (also `is listed twice`, `no slot`), `swarm.json: personas.worker.slots: anthropic takes no slot`, `swarm.json: keys.openai.tokens: no budget (per_day or per_week)`, `swarm.json: keys.openai.tokens.per_day: 0 is not greater than 0` |
+| from R4 (7.10; the fallback's built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, the slot list's at Step R4-C, the token budget specified ahead of its build), a fallback, a slot list or a token budget refused | `swarm.json: personas.architect.fallback[0].model: empty; every role names its model` (each field as the persona's), `swarm.json: personas.architect.fallback[1]: the same as personas.architect` (`the same as personas.architect.fallback[0]` for an earlier entry's), `swarm.json: keys: no credential for provider "xai"` for an entry's provider, as for a persona's, `swarm.json: personas.adversary.slots[0]: 3 is not between 1 and 2` (also `is listed twice`, `no slot`), `swarm.json: personas.worker.slots: anthropic takes no slot`, `swarm.json: keys.openai.tokens: no budget (per_day or per_week)`, `swarm.json: keys.openai.tokens.per_day: 0 is not greater than 0` |
 | a credential not of one kind (both forms declared, or neither) | `swarm.json: keys.openai: needs exactly one of env, slots` (`keys.xai: …` likewise) |
 | a credential for a provider without an adapter | `swarm.json: keys.gemini: "gemini" has no adapter` |
 | a variable the provider's CLI does not read | `swarm.json: keys.anthropic.env: "ANTHROPIC_KEY" is not one of anthropic's variables (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN)` |
@@ -1809,7 +1809,7 @@ when all of these hold:
    credential is `slots`, one of its slots is free: its lock is not
    held and no running container is labelled
    `daisy.credential=<provider>/<j>` (7.2), so a container whose `apply`
-   died keeps its slot. *R4* (7.10, rules 1, 3 and 4; rule 1's part built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, the slots and the token budget specified ahead of their build): R has a credential
+   died keeps its slot. *R4* (7.10, rules 1, 3 and 4; rule 1's part built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, rule 3's at Step R4-C, the token budget specified ahead of its build): R has a credential
    for one of its persona's entries, the persona then its `fallback`s,
    whose model `<state>/capacity` does not name on it, that the entry's
    `slots` allow and whose token budget is not reached; with none, R
@@ -5950,10 +5950,10 @@ the 2026-11-19 swarm roadmap; decision
 that plan, the fallback and the adoption first. Sections 1, 2, 3, 5, 6,
 7.2, 7.4, 7.7, 8, 9 and 11 mark where R4 changes them, each mark naming
 this section; until the build, each reads as it did before. Rule 1, the
-fallback, is built at Step R4-A of that plan, but for what rules 3 and
-4 add to it (an entry's slots, its pacing, `status`'s why) and its two
-journal lines (The fallback, below); rule 2, the adoption, at Step
-R4-B of that plan; each part built says so.
+fallback, is built at Step R4-A of that plan, but for what rule 4 adds
+to it (its pacing) and its two journal lines (The fallback, below);
+rule 2, the adoption, at Step R4-B of that plan; rule 3, the slots per
+role, at Step R4-C of that plan; each part built says so.
 
 **The rulings.** The maintainer's, of 2026-11-19 (Step 1 of that plan,
 R4): ordered models per persona, across providers, a refused model or
@@ -6030,8 +6030,8 @@ The worker's commits on a fallback carry the entry's `co_author`.
 *Built at Step R4-A of the plan implementing the 2026-11-19 swarm
 roadmap*, this paragraph to here: the capacity line, the entries taken
 in order at a launch (a slot then the first free one no line names with
-the model; the slots per entry and the pacing wait for rules 3 and 4,
-and `status`'s why for rule 3), the role waiting, no pause, the line's
+the model, of the entry's slots from Step R4-C; the pacing waits for
+rule 4), the role waiting, no pause, the line's
 removal at its reset and by the bare `resume`, and a fallback's
 `co_author`; the journal line of a line's removal is not queued yet
 (decision [170](swarm/decisions/0170-capacity.md), As built). **The
@@ -6134,6 +6134,24 @@ entry's `slots`, list the slots of its provider it may take, each one
 a credential (`max_members` named when that holds them), or
 `Bottleneck: none`. A role's **queue** is the issues on which it would
 launch at this pass but for section 6's rule 4. JSON `capacity`.
+*built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap (decision [170](swarm/decisions/0170-capacity.md), As built)*:
+the slots an entry lists taken in their order, the slot taken the first
+of them free (`runner.TakeSlot` given that list); the block's role lines
+in section 3's role order, `: <why>` only when no entry of the role has
+a credential it may take, `max_members reached` when this swarm's
+running containers fill `max_members`, else each entry's why, `; `
+between them, an entry's own `<provider>/<credential> <model>
+unavailable until <time>` per slot or `env` a line names and `no free
+slot of <provider> <j>, …` for the slots a running container holds;
+`status` reads the queue from the issues, their pull requests' threads,
+the running set and the runs' records as the role rule does, but for
+the re-plan between slices (the rulings read from the mirrors), where
+the worker stands for the architect; the owner's batch and the QA are
+no issue's, and count in no queue; each line of `<state>/capacity` as
+the file holds it; `  Bottleneck: <role> (<why>)`, the first in role
+order of those with the most issues waiting; JSON `capacity`:
+`{"roles": [{"role", "queue": [<n>, …], "running", "why"}],
+"unavailable": [<line>, …], "bottleneck": {"role", "why"} or null}`.
 
 **The pacing** (rule 4). `keys.<provider>.tokens`, `{"per_day":
 <tokens>, "per_week": <tokens>}`, one or both, positive integers, no
@@ -6892,7 +6910,7 @@ that the next run reads.
    logins and those they would hand the verbs to (decision
 [131](swarm/decisions/0131-the-comment-commands.md)).
 
-*R4, specified ahead of its build* (7.10, rule 3): a slot is still one run's at a time, but a persona, or
+*R4* (7.10, rule 3), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a slot is still one run's at a time, but a persona, or
 a fallback entry, may take only the slots its `slots` lists, so the
 maintainer gives roles their own logins; a slot's lock is held through
 the launch alone, the running container's `daisy.credential` label
@@ -8200,18 +8218,19 @@ later still pays the reads. Test:
 each overlap that holds a first build, a `Queue <name>:` line per
 repository with a check follows `Running:`, and Waiting for you gains
 `main red <name>` and `main unchecked <name>`, which notify tells
-(section 5, Notify). *R4, specified ahead of its build* (7.10, rule 3): a `Capacity:` block follows
+(section 5, Notify). *R4* (7.10, rule 3), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a `Capacity:` block follows
 `Personas:`, each role's queue and what holds it, the unavailable
-models and the token budgets, and `Bottleneck: <role> (<why>)`; JSON
-`capacity`.
+models and the token budgets (rule 4's, specified ahead of its build),
+and `Bottleneck: <role> (<why>)`; JSON `capacity` (7.10, The slots per
+role).
 
 | Field | Value |
 |---|---|
 | Usage | `daisy swarm status [--json] [--waiting]` |
-| Reads | `swarm.json` in the clone (validated as `apply` validates it, the prompts included), `<state>/env` (the token), `<state>/paused`, `<state>/restart`, `<state>/owner-held`, `<state>/qa-held`, `<state>/auto`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under `resources` in the mirrors at their last fetch (their `Status:` lines and `## ` headings, section 4; `status` fetches nothing), and for Drift (below) the clone's `swarm.json` and `prompts/` against the swarm repository's mirror, and the mirror's `swarm/notes-*` branches (`for-each-ref`), and for the reverted line (Throughput, below) each worker run's mirror's base at its last fetch (`git log`) and its `FETCH_HEAD`'s time; the forge: `Login()`, `Issues(Open, label)` for each of the nine stages and `Issues(Closed, label)` for each of them and the two terminals, `Issue(m)` for each blocker an open issue's newest maintainer comment names (`Blocked by #<m>`), `Milestones()` when a brief is `active`, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
+| Reads | `swarm.json` in the clone (validated as `apply` validates it, the prompts included), `<state>/env` (the token), `<state>/paused`, `<state>/restart`, `<state>/owner-held`, `<state>/qa-held`, `<state>/auto`, `<state>/capacity`, `<state>/runs/*/result` and each batch run's `<run>/io/out.md`, the briefs under `resources` in the mirrors at their last fetch (their `Status:` lines and `## ` headings, section 4; `status` fetches nothing), and for Drift (below) the clone's `swarm.json` and `prompts/` against the swarm repository's mirror, and the mirror's `swarm/notes-*` branches (`for-each-ref`), and for the reverted line (Throughput, below) each worker run's mirror's base at its last fetch (`git log`) and its `FETCH_HEAD`'s time; the forge: `Login()`, `Issues(Open, label)` for each of the nine stages and `Issues(Closed, label)` for each of them and the two terminals, `Issue(m)` for each blocker an open issue's newest maintainer comment names (`Blocked by #<m>`), `Milestones()` when a brief is `active`, and for each open issue and each issue the batch prompt counts as recently closed (closed in the last 30 days, at most 20, 7.3) `Issue(n)`, `Pulls(n)`, and `PullComments(m)`, `Reviews(m)` and `ReviewComments(m)` for each of its pull requests: the reads `apply`'s pass makes; `docker ps` as `apply` runs it |
 | Writes | nothing, anywhere |
-| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]`, ` — restart requested at <time>` (`<state>/restart`, The restart, below) and ` — owner batch held: <reason>` when so (`<reason>` `owner-held`'s, followed by ` (released once #<n> … is closed)` or `are closed)` when the hold waits on issues, section 6, G0), and ` — owner batch held: no brief is active` when no brief under `resources` is `active` (section 6), and ` — qa held: <reason>` (`qa-held`'s, section 6, The QA trigger); `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per stage, `  %-26s %d` and the issue numbers (`  proposal-posted            2  #20 #21`); `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role (the QA's last, when `swarm.json` declares it), `  %-12s %-10s %s %s` (provider, model, effort); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief in path order (below), or `Briefs: none active`; last, nearest the prompt after a long report, `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `next slice #…`, `close #…`, `pull closed #…`, `question #…`, `blocked #…`, `notes swarm/notes-<n>-<role>-<k> …`, `no check <name> …`, `ci differs <name> …` (7.9; from Step R3-5 of the plan implementing the 2026-11-19 swarm roadmap), separated by `; `, each issue `#<n>` under `triage` and `plan` and `#<n> (<class>)` under the others (section 5's list, a `review-2-approved` issue under the one of `merge`, `next slice`, `close` and `pull closed` its current pull request calls for, below), or `nothing`; `Held: ` then `paused #…` and `#<n> blocked by #<m>` for each issue held by an open blocker, separated by `; `, or `nothing`; the report is written whole once every read is made, so a failure prints none of it; with `--waiting`, the `Waiting for you: ` line alone; with `--json`, the same facts as one JSON document, the stderr lines under its `warnings` and nothing on stderr, with `--waiting` too only `waiting` and `warnings` (docs/cli.md, `--json` and `daisy swarm status`) |
-| Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`; a drift warning on stderr changes nothing); 1 no swarm found, `swarm.json` invalid, `<state>/env` readable by others, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief, `<state>/auto`, a run's `result` or a batch run's `out.md` unreadable, or a mirror's history git cannot read for the reverted line (`Error: swarm: reading the reverts in the mirrors: …`); 2 with any positional argument |
+| Stdout | `Swarm: <owner>/<repo> on <forge-host> (<kind>), repositories <name>, …`; `State: <state>`, then ` — paused since <time>[: <reason>]`, ` — restart requested at <time>` (`<state>/restart`, The restart, below) and ` — owner batch held: <reason>` when so (`<reason>` `owner-held`'s, followed by ` (released once #<n> … is closed)` or `are closed)` when the hold waits on issues, section 6, G0), and ` — owner batch held: no brief is active` when no brief under `resources` is `active` (section 6), and ` — qa held: <reason>` (`qa-held`'s, section 6, The QA trigger); `Gates: triage <on\|off>, plan <on\|off>, merge <on\|off>`; one line per stage, `  %-26s %d` and the issue numbers (`  proposal-posted            2  #20 #21`); `Running: #<n> <role>, …` or `Running: none` or `Running: unknown (docker: <message>)`; `Personas:` and one line per role (the QA's last, when `swarm.json` declares it), `  %-12s %-10s %s %s` (provider, model, effort); `Capacity:` and its lines (7.10, The slots per role); `Throughput:` and its lines (below); `Briefs:` and one line per `active` brief in path order (below), or `Briefs: none active`; last, nearest the prompt after a long report, `Waiting for you: ` then `triage #…`, `plan #…`, `merge #…`, `next slice #…`, `close #…`, `pull closed #…`, `question #…`, `blocked #…`, `notes swarm/notes-<n>-<role>-<k> …`, `no check <name> …`, `ci differs <name> …` (7.9; from Step R3-5 of the plan implementing the 2026-11-19 swarm roadmap), separated by `; `, each issue `#<n>` under `triage` and `plan` and `#<n> (<class>)` under the others (section 5's list, a `review-2-approved` issue under the one of `merge`, `next slice`, `close` and `pull closed` its current pull request calls for, below), or `nothing`; `Held: ` then `paused #…` and `#<n> blocked by #<m>` for each issue held by an open blocker, separated by `; `, or `nothing`; the report is written whole once every read is made, so a failure prints none of it; with `--waiting`, the `Waiting for you: ` line alone; with `--json`, the same facts as one JSON document, the stderr lines under its `warnings` and nothing on stderr, with `--waiting` too only `waiting` and `warnings` (docs/cli.md, `--json` and `daisy swarm status`) |
+| Exit codes | 0 (also when Docker cannot be reached: the running set is `unknown`; a drift warning on stderr changes nothing); 1 no swarm found, `swarm.json` invalid, `<state>/env` readable by others, the token unset, a forge call failing (`Error: swarm: forge: …`), a brief, `<state>/auto`, `<state>/capacity` (or a line of it not of its form), a run's `result` or a batch run's `out.md` unreadable, or a mirror's history git cannot read for the reverted line (`Error: swarm: reading the reverts in the mirrors: …`); 2 with any positional argument |
 | Ops | ReadOnly, which since Step 4 of the swarm build lets through an `HTTP` request whose method is `GET` or `HEAD` and the `Exec` of `docker ps` for every command it wraps (decision [31](swarm/decisions/0031-status-runs-under-a-widened-readonly.md)), and from Step 4 of revision 6's plan the `Exec` of git's reading commands on a mirror (`ls-tree`, `cat-file`, `hash-object` without `-w`), which the briefs and Drift read, and from Step 8 of the plan for the inbox requests F27–F35 `for-each-ref`, which the notes' branches read; every other write, `Exec` and `Start` stays refused |
 
 **Waiting for you.** The line lists the open issues that are gated, by

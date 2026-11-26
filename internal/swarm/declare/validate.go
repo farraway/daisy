@@ -618,7 +618,7 @@ func checkPersonas(o ops.Ops, at Place, c Config, skip Skip) *Error {
 		if !ok {
 			return fieldErr("personas."+r, "missing")
 		}
-		if err := checkPersona(r, p); err != nil {
+		if err := checkPersona(r, p, c.Keys); err != nil {
 			return err
 		}
 		if skip&SkipPrompts == 0 {
@@ -663,8 +663,9 @@ func checkPromptParts(o ops.Ops, at Place, c Config, skip Skip) *Error {
 // checkPersona: the persona's fields, then each fallback entry's as the
 // persona's, no entry (the persona among them) naming the provider,
 // model and effort of an earlier one (section 3,
-// personas.<role>.fallback).
-func checkPersona(role string, p Persona) *Error {
+// personas.<role>.fallback), and each entry's slots those of its
+// provider's credential (personas.<role>.slots).
+func checkPersona(role string, p Persona, keys map[string]Key) *Error {
 	at := "personas." + role
 	entries := p.Entries()
 	for i, e := range entries {
@@ -675,14 +676,43 @@ func checkPersona(role string, p Persona) *Error {
 		if err := checkEntry(field, e); err != nil {
 			return err
 		}
+		if err := checkSlots(field+".slots", e, keys); err != nil {
+			return err
+		}
 		for j, was := range entries[:i] {
-			if was.Provider == e.Provider && was.Model == e.Model && was.Effort == e.Effort {
+			if was.Is(e) {
 				same := at
 				if j > 0 {
 					same = fmt.Sprintf("%s.fallback[%d]", at, j-1)
 				}
 				return fieldErr(field, "the same as %s", same)
 			}
+		}
+	}
+	return nil
+}
+
+// checkSlots: an entry's slots, when it lists any, name slots its
+// provider's credential counts, one or more, none twice (section 3,
+// personas.<role>.slots); a provider whose credential is env has none.
+func checkSlots(field string, e Entry, keys map[string]Key) *Error {
+	if e.Slots == nil {
+		return nil
+	}
+	key := keys[e.Provider]
+	switch {
+	case key.Slots == nil:
+		return fieldErr(field, "%s takes no slot", e.Provider)
+	case len(e.Slots) == 0:
+		return fieldErr(field, "no slot")
+	}
+	for i, j := range e.Slots {
+		at := fmt.Sprintf("%s[%d]", field, i)
+		if err := checkRange(at, j, 1, *key.Slots); err != nil {
+			return err
+		}
+		if slices.Contains(e.Slots[:i], j) {
+			return fieldErr(at, "%d is listed twice", j)
 		}
 	}
 	return nil

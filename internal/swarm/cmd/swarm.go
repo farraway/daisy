@@ -518,6 +518,7 @@ func writeStatus(out io.Writer, r *statusReport) {
 		}
 		fmt.Fprintf(out, "  %-12s %-10s %s %s\n", role, p.Provider, p.Model, p.Effort)
 	}
+	writeCapacity(out, r.Capacity)
 	writeThroughput(out, r.Throughput)
 	for _, k := range r.Corrections {
 		parts := []string{fmt.Sprintf("plan revisions %d, blocks %d", k.PlanRevisions, k.Blocks)}
@@ -702,6 +703,27 @@ func runningLine(r reconcile.StatusRunning) string {
 // runsLine is Throughput's runs line after its label.
 func runsLine(r reconcile.StatusRuns) string {
 	return fmt.Sprintf("%d (%d posted, %d blocked, %d questions, %d failed, %d faults, %d other)", r.Total, r.Posted, r.Blocked, r.Questions, r.Failed, r.Faults, r.Other)
+}
+
+// writeCapacity writes section 11's Capacity block (section 7.10, rule
+// 3).
+func writeCapacity(out io.Writer, c reconcile.StatusCapacity) {
+	fmt.Fprintln(out, "Capacity:")
+	for _, r := range c.Roles {
+		line := fmt.Sprintf("  %-12s queue %d, running %d", r.Role, len(r.Queue), r.Running)
+		if r.Why != nil {
+			line += ": " + *r.Why
+		}
+		fmt.Fprintln(out, line)
+	}
+	for _, u := range c.Unavailable {
+		fmt.Fprintln(out, "  "+u)
+	}
+	if b := c.Bottleneck; b != nil {
+		fmt.Fprintf(out, "  Bottleneck: %s (%s)\n", b.Role, b.Why)
+	} else {
+		fmt.Fprintln(out, "  Bottleneck: none")
+	}
 }
 
 // writeThroughput writes section 11's Throughput block.

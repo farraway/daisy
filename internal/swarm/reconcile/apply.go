@@ -801,13 +801,7 @@ func (s *Swarm) repoCheck(name string) []string {
 // pass's launches included; a check's as `check`), and of the runs on n
 // with an end line and no `collected`.
 func (s *Swarm) busy(running []runner.Running, runs []Run, n int) []string {
-	prefix := fmt.Sprintf("%s#%d/", s.Cfg.Forge.Repo, n)
-	var roles []string
-	for _, c := range running {
-		if role, ok := strings.CutPrefix(c.Swarm, prefix); ok {
-			roles = append(roles, role)
-		}
-	}
+	roles := busyOn(s.O.FS(), s.Cfg.Forge.Repo, running, runs, n)
 	for dir, l := range s.live {
 		if r, ok := runOf(dir); ok && r.N == n {
 			if l.step != "" {
@@ -816,11 +810,26 @@ func (s *Swarm) busy(running []runner.Running, runs []Run, n int) []string {
 			roles = append(roles, r.Role)
 		}
 	}
+	return roles
+}
+
+// busyOn is rule 2 as the records and the running set show it, which
+// status reads too: the roles of swarm repo's containers running on issue
+// n (a check's as `check`), and of the runs on n with an end line and no
+// `collected`.
+func busyOn(fs ops.FS, repo string, running []runner.Running, runs []Run, n int) []string {
+	prefix := fmt.Sprintf("%s#%d/", repo, n)
+	var roles []string
+	for _, c := range running {
+		if role, ok := strings.CutPrefix(c.Swarm, prefix); ok {
+			roles = append(roles, role)
+		}
+	}
 	for _, r := range runs {
 		if r.N != n {
 			continue
 		}
-		lines, _ := r.Result(s.O.FS())
+		lines, _ := r.Result(fs)
 		if _, done := Has(lines, "collected"); Ended(lines) != "" && !done {
 			roles = append(roles, r.Role)
 		}

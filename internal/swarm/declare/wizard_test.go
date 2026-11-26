@@ -194,7 +194,7 @@ func TestWizardKeepsFallback(t *testing.T) {
 	answers[6+1*4+1] = "claude-sonnet-5-5" // the architect's model
 	o, _ := scripted(answers...)
 	file := valid()
-	fallback(&file, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", ""})
+	fallback(&file, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", "", nil})
 	w := &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
 	c, err := w.Ask()
 	if err != nil {
