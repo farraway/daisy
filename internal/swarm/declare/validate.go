@@ -664,7 +664,9 @@ func checkPromptParts(o ops.Ops, at Place, c Config, skip Skip) *Error {
 // persona's, no entry (the persona among them) naming the provider,
 // model and effort of an earlier one (section 3,
 // personas.<role>.fallback), and each entry's slots those of its
-// provider's credential (personas.<role>.slots).
+// provider's credential (personas.<role>.slots); then each by_label
+// entry's label, not empty and no label twice, and its fields and slots
+// as a fallback entry's (personas.<role>.by_label).
 func checkPersona(role string, p Persona, keys map[string]Key) *Error {
 	at := "personas." + role
 	entries := p.Entries()
@@ -687,6 +689,21 @@ func checkPersona(role string, p Persona, keys map[string]Key) *Error {
 				}
 				return fieldErr(field, "the same as %s", same)
 			}
+		}
+	}
+	for i, b := range p.ByLabel {
+		field := fmt.Sprintf("%s.by_label[%d]", at, i)
+		if b.Label == "" {
+			return fieldErr(field+".label", "empty; every by_label entry names its label")
+		}
+		if slices.ContainsFunc(p.ByLabel[:i], func(o ByLabel) bool { return o.Label == b.Label }) {
+			return fieldErr(field+".label", "%q is listed twice", b.Label)
+		}
+		if err := checkEntry(field, b.Entry()); err != nil {
+			return err
+		}
+		if err := checkSlots(field+".slots", b.Entry(), keys); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -826,7 +843,7 @@ func checkKeys(keys map[string]Key, personas map[string]Persona, roles []string)
 		if !ok {
 			continue
 		}
-		for _, e := range p.Entries() { // the persona's provider, then each fallback entry's (section 3)
+		for _, e := range p.All() { // the persona's provider, then each fallback and by_label entry's (section 3)
 			if _, adapter := providers[e.Provider]; !adapter {
 				continue
 			}

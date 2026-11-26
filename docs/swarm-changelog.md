@@ -1625,3 +1625,11 @@ they write.
   credential is refused `<provider>'s credential is env, which has no
   slots`. Sections 3 and 7.10. Decision
   [170](swarm/decisions/0170-capacity.md), As built.
+- 2026-11-26, Step R4-L of the plan implementing the 2026-11-19 swarm
+  roadmap (a role's model by label, the maintainer's request of
+  2026-11-26): `personas.<role>.by_label`, an ordered list of entries
+  each a fallback entry's fields after a `label`, any label, none empty
+  or twice, each field and its `slots` validated as a fallback entry's;
+  `init` writes none and keeps the file's; written on the persona's line
+  after `fallback`. Section 3. Decision
+  [175](swarm/decisions/0175-a-roles-model-by-label.md).

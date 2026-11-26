@@ -1,0 +1,43 @@
+# 0175. A role's model chosen by the issue's labels
+
+From Step R4-L of the plan implementing the 2026-11-19 swarm roadmap (the maintainer's request of 2026-11-26: "override the model used for certain roles depending upon issue tags … fable for architect runs on architecture issues"). Built in `docs/swarm.md` sections 1, 3 (`personas.<role>.by_label` and its errors), 7.10 (The model by label) and 11, and `docs/cli.md` (`swarm status`). Amends decision [170](0170-capacity.md): a role's entries, which rule 1 takes in order at a launch, are headed on an issue by the entry its labels choose.
+
+**Why.** One model per role, with the fallback after it, runs every job
+of the role on the same model, so the maintainer who wants a stronger
+model for the architect on an architecture job, and the cheaper one on
+a routine job, had to change the persona by hand between jobs.
+
+**The rule.** `personas.<role>.by_label` is an ordered list of entries,
+each a fallback entry's fields after a `label`. A run on an issue
+launches on the role's entries in order (decision 170, rule 1), and the
+first `by_label` entry whose label the issue carries, as the launch reads
+it, takes the persona's place at their head; the persona and its
+`fallback` follow it unchanged, so pacing, capacity and the slots apply
+to it as to any entry. A run with no issue, the owner's batch and the
+QA's, never matches. The label is any label: the job class is already
+one (`swarm:class-architecture`). The maintainer's ruling of
+2026-11-26, in his words: keyed by any label, an ordered list, the first
+match wins; the override heads the role's own chain, its `fallback`
+after it.
+
+**Alternatives.** Keying the override by the job class alone named one
+of its uses and not the label it already is. An override with its own
+fallback list, or one that waits for its own model rather than falling
+back to the persona's chain, each made a second chain to declare and to
+read in `status`; the ruling keeps one chain per role. An entry that is
+the same as the persona or a fallback entry (by provider, model and
+effort) is valid, and the chain holds it once, at its head: refusing it
+would refuse the plain reading "on this label, start the chain here".
+
+**Left as it was.** The capacity note compares a run's entry with the
+head of its issue's chain, so an architecture job on its override gets
+no note, and one passed over to the persona gets the note as for a
+fallback. A label set on the issue after a run's launch changes the
+model of the role's next run only.
+
+**As built (Step R4-L).** `ByLabel`, `Persona.Override`, `Persona.Chain`
+and `Persona.All` in `internal/swarm/declare/config.go`, the `by_label`
+checks in `checkPersona` and the credential check over `All` in
+`internal/swarm/declare/validate.go`, `Format` writing `by_label` after
+`fallback`; the wizard keeps the file's, asking nothing. Tests:
+`TestValidateByLabel`, `TestFormatByLabel`, `TestWizardKeepsByLabel`.

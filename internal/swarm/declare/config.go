@@ -253,16 +253,32 @@ type Tokens struct {
 
 // Persona is one role's provider, model, effort and the Co-Authored-By
 // trailer value its commits carry, the slots of its provider it may take
-// (section 7.10, rule 3), and the entries tried after it in order when
-// its model is unavailable (rule 1).
+// (section 7.10, rule 3), the entries tried after it in order when
+// its model is unavailable (rule 1), and the entries that take its place
+// on an issue carrying their label (personas.<role>.by_label).
 type Persona struct {
-	Provider string  `json:"provider"`
-	Model    string  `json:"model"`
-	Effort   string  `json:"effort"`
-	CoAuthor string  `json:"co_author"`
-	Slots    []int   `json:"slots,omitempty"`
-	Fallback []Entry `json:"fallback,omitempty"`
+	Provider string    `json:"provider"`
+	Model    string    `json:"model"`
+	Effort   string    `json:"effort"`
+	CoAuthor string    `json:"co_author"`
+	Slots    []int     `json:"slots,omitempty"`
+	Fallback []Entry   `json:"fallback,omitempty"`
+	ByLabel  []ByLabel `json:"by_label,omitempty"`
 }
+
+// ByLabel is a model chosen by an issue's label (section 3,
+// personas.<role>.by_label): the label, then an entry's fields.
+type ByLabel struct {
+	Label    string `json:"label"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Effort   string `json:"effort"`
+	CoAuthor string `json:"co_author"`
+	Slots    []int  `json:"slots,omitempty"`
+}
+
+// Entry is b's entry, its label dropped.
+func (b ByLabel) Entry() Entry { return Entry{b.Provider, b.Model, b.Effort, b.CoAuthor, b.Slots} }
 
 // Entry is a model a role may run on: the persona's own, or one of its
 // fallback entries, each a persona's four fields and its slots (section
@@ -285,6 +301,41 @@ func (e Entry) Is(o Entry) bool {
 // a launch tries them (section 7.10, The fallback).
 func (p Persona) Entries() []Entry {
 	return append([]Entry{{p.Provider, p.Model, p.Effort, p.CoAuthor, p.Slots}}, p.Fallback...)
+}
+
+// Override is the by_label entry an issue carrying labels runs on, the
+// first whose label it carries; ok false when none is (a run with no
+// issue passes no label).
+func (p Persona) Override(labels []string) (ByLabel, bool) {
+	for _, b := range p.ByLabel {
+		if slices.Contains(labels, b.Label) {
+			return b, true
+		}
+	}
+	return ByLabel{}, false
+}
+
+// Chain is the entries a run on an issue carrying labels tries, in
+// order (section 7.10, The fallback): the by_label entry they choose
+// (Override) in the persona's place at the head, then the persona and
+// its fallback but an entry that Is it; Entries when none is chosen.
+func (p Persona) Chain(labels []string) []Entry {
+	b, ok := p.Override(labels)
+	if !ok {
+		return p.Entries()
+	}
+	head := b.Entry()
+	return append([]Entry{head}, slices.DeleteFunc(p.Entries(), head.Is)...)
+}
+
+// All is every entry a run of the role may have launched on: Entries,
+// then each by_label entry's.
+func (p Persona) All() []Entry {
+	all := p.Entries()
+	for _, b := range p.ByLabel {
+		all = append(all, b.Entry())
+	}
+	return all
 }
 
 // PromptPart is a prompt_parts entry (section 3): a file in the swarm
@@ -567,6 +618,9 @@ func personaLines(personas map[string]Persona) string {
 		}
 		if len(p.Fallback) > 0 {
 			cells[i][4] += `, "fallback": ` + inline(p.Fallback)
+		}
+		if len(p.ByLabel) > 0 {
+			cells[i][4] += `, "by_label": ` + inline(p.ByLabel)
 		}
 		for j, c := range cells[i] {
 			width[j] = max(width[j], len([]rune(c)))
