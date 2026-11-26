@@ -126,3 +126,34 @@ func TestWizardKeepsByLabel(t *testing.T) {
 		t.Errorf("init's file lacks %q:\n%s", want, Format(c))
 	}
 }
+
+// A persona's chain on an issue is the first by_label entry whose label
+// the issue carries, in the list's order whatever the order of the
+// issue's labels, at the head, the persona and its fallback after it
+// but an entry that is the head, held once; with no entry chosen, and for
+// a run with no issue, the persona and its fallback (section 7.10, The
+// model by label).
+func TestPersonaChain(t *testing.T) {
+	sol := Entry{"openai", "gpt-6.1-sol", "high", "", nil}
+	fable := Entry{"anthropic", "claude-fable-5-1", "high", "", nil}
+	p := Persona{Provider: "anthropic", Model: "claude-fable-5-1", Effort: "high", Fallback: []Entry{sol},
+		ByLabel: []ByLabel{{"a", "openai", "gpt-6.1-sol", "high", "", nil}, {"b", "anthropic", "claude-opus-5-5", "high", "x <y@z>", nil}, {"c", "anthropic", "claude-fable-5-1", "high", "", nil}}}
+	for _, tc := range []struct {
+		name   string
+		labels []string
+		want   []Entry
+	}{
+		{"no label", nil, []Entry{fable, sol}},
+		{"no match", []string{"d"}, []Entry{fable, sol}},
+		{"the first in the list wins", []string{"b", "a"}, []Entry{{"openai", "gpt-6.1-sol", "high", "", nil}, fable}},
+		{"an entry of its own", []string{"b"}, []Entry{{"anthropic", "claude-opus-5-5", "high", "x <y@z>", nil}, fable, sol}},
+		{"the persona's model is held once", []string{"c"}, []Entry{fable, sol}},
+	} {
+		if got := p.Chain(tc.labels); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: chain %+v\nwant %+v", tc.name, got, tc.want)
+		}
+	}
+	if got := p.Entries(); len(got) != 2 {
+		t.Errorf("Chain changed the persona's entries: %+v", got)
+	}
+}
