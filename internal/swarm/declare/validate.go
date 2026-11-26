@@ -665,8 +665,11 @@ func checkPromptParts(o ops.Ops, at Place, c Config, skip Skip) *Error {
 // model and effort of an earlier one (section 3,
 // personas.<role>.fallback), and each entry's slots those of its
 // provider's credential (personas.<role>.slots); then each by_label
-// entry's label, not empty and no label twice, and its fields and slots
-// as a fallback entry's (personas.<role>.by_label).
+// entry's label, not empty and no label twice, its fields and slots as
+// a fallback entry's, and no entry naming the provider, model and effort
+// of the persona or of an earlier by_label entry (personas.<role>.by_label;
+// the maintainer's ruling of 2026-11-26); one the same as a fallback
+// entry is valid, the chain holding it once.
 func checkPersona(role string, p Persona, keys map[string]Key) *Error {
 	at := "personas." + role
 	entries := p.Entries()
@@ -704,6 +707,14 @@ func checkPersona(role string, p Persona, keys map[string]Key) *Error {
 		}
 		if err := checkSlots(field+".slots", b.Entry(), keys); err != nil {
 			return err
+		}
+		if entries[0].Is(b.Entry()) {
+			return fieldErr(field, "the same as %s", at)
+		}
+		for j, was := range p.ByLabel[:i] {
+			if was.Entry().Is(b.Entry()) {
+				return fieldErr(field, "the same as %s.by_label[%d]", at, j)
+			}
 		}
 	}
 	return nil

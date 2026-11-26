@@ -19,9 +19,11 @@ var archOpus = ByLabel{"swarm:class-architecture", "anthropic", "claude-opus-5-5
 
 // A by_label entry's label is not empty and listed once, and its fields
 // and slots are validated as a fallback entry's, its provider with a
-// credential in keys (section 3, personas.<role>.by_label); an entry
-// the same as the persona or a fallback entry is valid, and so is one
-// keyed by any label.
+// credential in keys (section 3, personas.<role>.by_label); no entry
+// names the provider, model and effort of the persona or of an earlier
+// by_label entry (the maintainer's ruling of 2026-11-26), while one the
+// same as a fallback entry, or at another effort, is valid, and so is
+// one keyed by any label.
 func TestValidateByLabel(t *testing.T) {
 	_, clone := cloneFolder(t)
 	p := Clone(clone)
@@ -56,6 +58,14 @@ func TestValidateByLabel(t *testing.T) {
 		{`swarm.json: keys: no credential for provider "xai"`, func(c *Config) {
 			byLabel(c, "worker", ByLabel{"x", "xai", "grok-4.7", "high", "", nil})
 		}},
+		// The maintainer's ruling of 2026-11-26: no entry the same as the
+		// persona or an earlier by_label entry, as a fallback's.
+		{`swarm.json: personas.architect.by_label[0]: the same as personas.architect`, func(c *Config) {
+			byLabel(c, "architect", ByLabel{"x", "anthropic", "claude-fable-5-1", "high", "claude-opus-5-5 <noreply@anthropic.com>", nil})
+		}},
+		{`swarm.json: personas.architect.by_label[1]: the same as personas.architect.by_label[0]`, func(c *Config) {
+			byLabel(c, "architect", archOpus, ByLabel{"hard", "anthropic", "claude-opus-5-5", "high", "", nil})
+		}},
 	} {
 		c := valid()
 		c.Keys = map[string]Key{"anthropic": c.Keys["anthropic"], "openai": c.Keys["openai"]}
@@ -66,7 +76,7 @@ func TestValidateByLabel(t *testing.T) {
 	}
 	c := valid()
 	fallback(&c, "architect", opus)
-	byLabel(&c, "architect", archOpus, ByLabel{"area:docs", "anthropic", "claude-fable-5-1", "high", "", nil}, ByLabel{"hard", "openai", "gpt-6.1-sol", "high", "", []int{1}})
+	byLabel(&c, "architect", archOpus, ByLabel{"area:docs", "anthropic", "claude-fable-5-1", "medium", "", nil}, ByLabel{"hard", "openai", "gpt-6.1-sol", "high", "", []int{1}}, ByLabel{"again", "anthropic", "claude-opus-5-5", "medium", "", nil})
 	if err := Validate(ops.Real(), p, c, 0); err != nil {
 		t.Errorf("by_label: %v", err)
 	}

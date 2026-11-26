@@ -38,7 +38,7 @@ func TestSwarmArchitectRunsTheLabelsModel(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	a.forge.AddLabels("hard", "area:none")
-	a.withByLabel("architect", labelled("area:none", solEntry), labelled("swarm:class-architecture", opusEntry), labelled("hard", solEntry))
+	a.withByLabel("architect", labelled("area:none", solEntry), labelled("swarm:class-architecture", opusEntry), labelled("hard", declare.Entry{Provider: "openai", Model: "gpt-6.1-sol", Effort: "medium"}))
 	a.forge.CreateIssue("Arch", "x", []string{"swarm:proposal-accepted", "swarm:class-architecture", "hard"})
 	a.forge.CreateIssue("Routine", "x", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Stdout: claudeResult})

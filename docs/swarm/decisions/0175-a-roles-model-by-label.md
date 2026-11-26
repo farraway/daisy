@@ -24,10 +24,14 @@ after it.
 of its uses and not the label it already is. An override with its own
 fallback list, or one that waits for its own model rather than falling
 back to the persona's chain, each made a second chain to declare and to
-read in `status`; the ruling keeps one chain per role. An entry that is
-the same as the persona or a fallback entry (by provider, model and
-effort) is valid, and the chain holds it once, at its head: refusing it
-would refuse the plain reading "on this label, start the chain here".
+read in `status`; the ruling keeps one chain per role. An entry the
+same as the persona or as an earlier `by_label` entry (by provider,
+model and effort) was first accepted, the chain holding it once; the
+maintainer ruled on 2026-11-26 that it is refused, as a fallback
+duplicate is: it chooses nothing the persona or the earlier entry does
+not, and `launchedEntry`, which knows a run's entry by those three
+fields alone, could stamp the other's `co_author`. One the same as a
+`fallback` entry stays valid, the chain holding it once, at its head.
 
 **Left as it was.** The capacity note compares a run's entry with the
 head of its issue's chain, so an architecture job on its override gets
@@ -58,3 +62,11 @@ one later whose label it carries too is not reached),
 the fallback, the capacity note naming the override),
 `TestSwarmWorkerCommitsCarryTheLabelsCoAuthor`,
 `TestSwarmStatusShowsByLabel`.
+
+**As built (Step R4-L, the maintainer's ruling of 2026-11-26).**
+`checkPersona` refuses a `by_label` entry with the provider, model and
+effort of the persona, `personas.<role>.by_label[<i>]: the same as
+personas.<role>`, or of an earlier `by_label` entry, `the same as
+personas.<role>.by_label[<j>]`, after its fields and slots. Test:
+`TestValidateByLabel`'s two rows and its valid case (an entry the same
+as a fallback entry, and the same model at another effort).

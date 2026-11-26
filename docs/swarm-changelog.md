@@ -1643,3 +1643,11 @@ they write.
   JSON `personas.<role>.by_label` and `capacity`'s `label`. Sections 1,
   7.10 and 11, and `docs/cli.md`'s `swarm status`. Decision
   [175](swarm/decisions/0175-a-roles-model-by-label.md), As built.
+- 2026-11-26, Step R4-L of the plan implementing the 2026-11-19 swarm
+  roadmap, the maintainer's ruling on its open question: a `by_label`
+  entry with the provider, model and effort of the persona, or of an
+  earlier `by_label` entry, is refused, `the same as personas.<role>`
+  or `the same as personas.<role>.by_label[<j>]`, as a fallback
+  duplicate is; one the same as a `fallback` entry stays valid. Sections
+  3 and 7.10. Decision
+  [175](swarm/decisions/0175-a-roles-model-by-label.md), As built.
