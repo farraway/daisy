@@ -1563,3 +1563,9 @@ they write.
   and launch as before. Section 11. Decision
   [173](swarm/decisions/0173-a-trigger-that-cannot-launch-reads-nothing.md),
   As built.
+- 2026-11-25, Step FT-1 of the plan implementing the 2026-11-19 swarm
+  roadmap, a follow-up titled by its job: a follow-up is filed titled
+  `<k> findings left by #<n>: <the issue's title>`, where it was
+  `Follow-up: <owner>/<name>#<m> (#<n>, slice <s>)`; its body, label and
+  deduplication are unchanged. Section 7.11 and `docs/cli.md`'s `swarm
+  merge`. Decision [174](swarm/decisions/0174-the-follow-up-title.md).

@@ -6469,8 +6469,13 @@ and with the line number of its `<file>:<line>` reference dropped, is
 already listed is not listed again, the earliest round's kept; and at
 the triage, by the owner, who takes the findings of one cause as one
 (below). *Filed* when one finding or more is left: `CreateIssue(<title>,
-<body>, ["swarm:follow-up"])`, `<title>` `Follow-up: <owner>/<name>#<m>
-(#<n>, slice <s>)`, its body the marker lines
+<body>, ["swarm:follow-up"])`, `<title>` `<k> findings left by #<n>:
+<the title of issue n>`, `<k>` the number of its numbered items (`1
+finding` when it is one), with no prefix: the label marks it, and the
+maintainer reading the forge's list sees the job it came from (the
+maintainer's ruling of 2026-11-25; as built at Step FT-1 of the plan
+implementing the 2026-11-19 swarm roadmap, decision
+[174](swarm/decisions/0174-the-follow-up-title.md)); its body the marker lines
 `<!-- daisy-swarm role=reconciler kind=follow-up -->` and
 `**reconciler:** follow-up of [<owner>/<name>#<m>](<url>), merged at <short sha>, slice <s> of #<n>: the reviews' findings that did not block it.`,
 then a blank line and one numbered item per finding, `<i>. <role> run

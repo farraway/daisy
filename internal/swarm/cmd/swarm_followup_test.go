@@ -56,7 +56,8 @@ func (a *applyWS) approvedNoting(plan string) {
 
 // A merged pull request's non-blocking findings are filed as one
 // follow-up issue, the reviews' findings numbered, carrying
-// swarm:follow-up alone (section 7.11, Follow-ups): by the merge step,
+// swarm:follow-up alone, titled "<k> findings left by #<n>: <the
+// issue's title>" (section 7.11, Follow-ups): by the merge step,
 // which closes the issue (T15); by step 8 of the pass after a merge on
 // the forge, the issue left at review-2-approved; and by `swarm merge`,
 // under the maintainer's token, so the issue is the maintainer's.
@@ -74,7 +75,7 @@ func TestSwarmFollowUpFiledAtTheMerge(t *testing.T) {
 			t.Fatalf("follow-ups: %+v\n%s", fus, stdout)
 		}
 		fu := fus[0]
-		if fu.Title != "Follow-up: acme/app#1 (#1, slice 1)" || fu.Body != followUpBody("1", p[0].MergeSHA, 1, 1, items...) || fu.Author != author ||
+		if fu.Title != "2 findings left by #1: Drift check" || fu.Body != followUpBody("1", p[0].MergeSHA, 1, 1, items...) || fu.Author != author ||
 			!fu.Open || !reflect.DeepEqual(fu.Labels, []string{forge.FollowUp}) {
 			t.Errorf("the follow-up: %q by %s, open %v, %v:\n%s", fu.Title, fu.Author, fu.Open, fu.Labels, fu.Body)
 		}
@@ -127,11 +128,34 @@ func TestSwarmFollowUpFiledAtTheMerge(t *testing.T) {
 		}
 		fus := followUps(t, m.forge)
 		p, _ := m.forge.Pulls(1, []string{"swarm-bot"})
-		if len(fus) != 1 || fus[0].Body != followUpBody("1", p[0].MergeSHA, 1, 1, items...) || fus[0].Author != "jane" ||
+		if len(fus) != 1 || fus[0].Title != "2 findings left by #1: Pin the corpus" || fus[0].Body != followUpBody("1", p[0].MergeSHA, 1, 1, items...) || fus[0].Author != "jane" ||
 			!strings.Contains(m.stdout.String(), fmt.Sprintf("#1 follow-up of acme/app#1 filed as #%d\n", fus[0].Number)) {
 			t.Errorf("the verb's follow-up: %+v\n%s", fus, m.stdout.String())
 		}
 	})
+}
+
+// A follow-up of one finding is titled "1 finding left by #<n>: <the
+// issue's title>" (section 7.11, Follow-ups): the two reviews noting one
+// finding, it is listed once.
+func TestSwarmFollowUpTitleOfOneFinding(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.inReview(oneSlice)
+	a.runner.Script(1, "adversary", runner.Canned{Out: approveNoting})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approveNoting})
+	a.pass()
+	a.pass()
+	if err := a.forge.Merge(forge.Ref{Repo: "app", N: 1}, a.pulls(1)[0].HeadSHA); err != nil {
+		t.Fatal(err)
+	}
+	a.pass()
+	p, _ := a.forge.Pulls(1, []string{"swarm-bot"})
+	fus := followUps(t, a.forge)
+	if len(fus) != 1 || fus[0].Title != "1 finding left by #1: Drift check" ||
+		fus[0].Body != followUpBody("1", p[0].MergeSHA, 1, 1, "adversary run 1, round 1: [non-blocking] main.go:1: the version could be a constant") {
+		t.Errorf("the follow-up: %+v\n%s", fus, a.stdout.String())
+	}
 }
 
 // refusingEdits is the forge refusing every issue body's edit, so a
@@ -223,9 +247,9 @@ func TestSwarmOwnerBatchReadsFollowUps(t *testing.T) {
 		title, body string
 		closed      bool
 	}{
-		{"Follow-up: acme/app#1 (#9, slice 1)", followUpBody("1", sha, 1, 9, "adversary run 1, round 1: [non-blocking] a.go:1: triaged already"), true},
-		{"Follow-up: acme/app#2 (#9, slice 2)", followUpBody("2", sha, 2, 9, first), false},
-		{"Follow-up: acme/app#3 (#10, slice 1)", followUpBody("3", sha, 1, 10, first, second), false},
+		{"1 finding left by #9: Name the version", followUpBody("1", sha, 1, 9, "adversary run 1, round 1: [non-blocking] a.go:1: triaged already"), true},
+		{"1 finding left by #9: Name the version", followUpBody("2", sha, 2, 9, first), false},
+		{"2 findings left by #10: Document the drift", followUpBody("3", sha, 1, 10, first, second), false},
 	} {
 		n, err := a.forge.CreateIssue(fu.title, fu.body, []string{forge.FollowUp})
 		if err != nil {
@@ -239,8 +263,8 @@ func TestSwarmOwnerBatchReadsFollowUps(t *testing.T) {
 	a.runner.Script(0, "owner", runner.Canned{Out: "## Drift check\nBrief: docs/briefs/a.md — M1 The drift\nClass: routine\nCheck the drift.\n", Stdout: claudeResult})
 	a.pass()
 	want := "# Open swarm issues\n\nNone.\n\n# Follow-ups\n\n" +
-		"## #2: Follow-up: acme/app#2 (#9, slice 2)\n\n1. " + first + "\n\n" +
-		"## #3: Follow-up: acme/app#3 (#10, slice 1)\n\n1. " + first + "\n2. " + second + "\n\n# Recently closed\n"
+		"## #2: 1 finding left by #9: Name the version\n\n1. " + first + "\n\n" +
+		"## #3: 2 findings left by #10: Document the drift\n\n1. " + first + "\n2. " + second + "\n\n# Recently closed\n"
 	if prompt := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(prompt, want) || strings.Contains(prompt, "triaged already") {
 		t.Errorf("prompt.md:\n%s\nwant within:\n%s", prompt, want)
 	}
@@ -270,7 +294,7 @@ func TestSwarmTriagedClosesTheFollowUp(t *testing.T) {
 	setup := func(t *testing.T) *applyWS {
 		a := newApplyWS(t)
 		for i, closed := range []bool{false, false, true} {
-			n, err := a.forge.CreateIssue(fmt.Sprintf("Follow-up: acme/app#%d (#9, slice 1)", i+1), followUpBody(fmt.Sprint(i+1), sha, 1, 9, item), []string{forge.FollowUp})
+			n, err := a.forge.CreateIssue("1 finding left by #9: Name the version", followUpBody(fmt.Sprint(i+1), sha, 1, 9, item), []string{forge.FollowUp})
 			if err != nil {
 				t.Fatal(err)
 			}

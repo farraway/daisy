@@ -213,7 +213,7 @@ func TestFollowUpsProvedReal(t *testing.T) {
 		"adversary run 5, round 2: [non-blocking] b.go:4: a test for the empty input",
 		"sympathetic run 6, round 2: [non-blocking] c.go:1: the doc comment is stale")
 	a.forge.CreateIssue("Not a follow-up: no flag", body, nil)
-	f, _ := a.forge.CreateIssue("Follow-up: acme/app#11 (#1, slice 1)", body, []string{forge.FollowUp})
+	f, _ := a.forge.CreateIssue("3 findings left by #1: One", body, []string{forge.FollowUp})
 	a.forge.CloseIssue(f)
 	a.setNow("2026-11-07T09:00:00Z")
 	a.forge.CreateIssue("Name the constant", fmt.Sprintf("**owner:** proposal\n\nClass: routine\nFollow-up: #%d 1, 3, 9\nFollow-up: #1 1\n", f), []string{forge.ProposalAccepted})
@@ -221,7 +221,7 @@ func TestFollowUpsProvedReal(t *testing.T) {
 	r.merge("swarm/1-2", "2026-11-07T10:00:00Z")
 	r.merge("swarm/4-1", "2026-11-07T12:00:00Z")
 	a.setNow("2026-11-07T12:05:00Z")
-	a.forge.CreateIssue("Follow-up: acme/app#13 (#4, slice 1)", followUpBody("13", r.heads["swarm/4-1"], 1, 4, "adversary run 2, round 1: [non-blocking] d.go:2: a stale name"), []string{forge.FollowUp})
+	a.forge.CreateIssue("1 finding left by #4: Four", followUpBody("13", r.heads["swarm/4-1"], 1, 4, "adversary run 2, round 1: [non-blocking] d.go:2: a stale name"), []string{forge.FollowUp})
 	r.mirror()
 	for run, rs := range map[string]string{
 		"1-worker-1": "branch swarm/1-1 in app\npushed " + r.heads["swarm/1-1"] + "\ncreated pull 11\n",
@@ -295,7 +295,7 @@ func TestScorecardEscapesAndFollowUps(t *testing.T) {
 		a.runResult(run, rs+"outcome posted\ncollected\n", "")
 	}
 	a.setNow("2026-11-06T18:05:00Z")
-	f, _ := a.forge.CreateIssue("Follow-up: acme/app#11 (#1, slice 1)", followUpBody("11", r.heads["swarm/1-1"], 1, 1,
+	f, _ := a.forge.CreateIssue("2 findings left by #1: One", followUpBody("11", r.heads["swarm/1-1"], 1, 1,
 		"adversary run 2, round 1: [non-blocking] a.go:10: name the constant",
 		"sympathetic run 3, round 1: [non-blocking] c.go:1: the doc comment is stale"), []string{forge.FollowUp})
 	a.forge.EditIssue(3, fmt.Sprintf("three\n\nFollow-up: #%d 2\n", f))
@@ -377,7 +377,7 @@ func TestScorecardEscapesByConfiguration(t *testing.T) {
 	review("2-adversary-3", h2, "failed", "request-changes")
 	review("3-adversary-1", r.heads["swarm/3-1"], "posted", "request-changes")
 	a.setNow("2026-11-06T19:05:00Z")
-	f, _ := a.forge.CreateIssue("Follow-up: acme/app#12 (#2, slice 1)", followUpBody("12", h2, 1, 2,
+	f, _ := a.forge.CreateIssue("3 findings left by #2: Two", followUpBody("12", h2, 1, 2,
 		"adversary run 1, round 1: [non-blocking] a.go:10: name the constant",
 		"adversary run 1, round 1: [non-blocking] b.go:4: a test for the empty input",
 		"sympathetic run 2, round 1: [non-blocking] c.go:1: the doc comment is stale"), []string{forge.FollowUp})

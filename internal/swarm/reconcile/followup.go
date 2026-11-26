@@ -27,7 +27,7 @@ type FollowUps struct {
 
 // file files pull request p's follow-up, p merged on issue is: none when
 // a follow-up of p is already filed (followUpOf), or when no finding is
-// left; otherwise CreateIssue with the title, the marker lines and the
+// left; otherwise CreateIssue with the title (followUpTitle), the marker lines and the
 // numbered findings, and `#<n> follow-up of <owner>/<name>#<m> filed as
 // #<f>` on out. Reviews, PullComments and the lists are read under f.
 func (fu *FollowUps) file(f forge.Adapter, owner string, is forge.Issue, p forge.Pull, openers []string, swarmLogin string, out io.Writer) error {
@@ -64,13 +64,24 @@ func (fu *FollowUps) file(f forge.Adapter, owner string, is forge.Issue, p forge
 	for i, l := range findings {
 		body += fmt.Sprintf("\n%d. %s", i+1, l)
 	}
-	k, err := f.CreateIssue(fmt.Sprintf("Follow-up: %s/%s#%d (#%d, slice %d)", owner, p.Repo, p.Number, is.Number, s), body, []string{forge.FollowUp})
+	k, err := f.CreateIssue(followUpTitle(len(findings), is), body, []string{forge.FollowUp})
 	if err != nil {
 		return err
 	}
 	fu.filed = append(fu.filed, forge.Issue{Number: k, Body: body, Open: true, Labels: []string{forge.FollowUp}})
 	fmt.Fprintf(out, "#%d follow-up of %s/%s#%d filed as #%d\n", is.Number, owner, p.Repo, p.Number, k)
 	return nil
+}
+
+// followUpTitle is the title of a follow-up of k findings left by a pull
+// request of issue is (section 7.11, Follow-ups): `<k> findings left by
+// #<n>: <the issue's title>`, "1 finding" when k is 1.
+func followUpTitle(k int, is forge.Issue) string {
+	findings := "findings"
+	if k == 1 {
+		findings = "finding"
+	}
+	return fmt.Sprintf("%d %s left by #%d: %s", k, findings, is.Number, is.Title)
 }
 
 // followUpItems is a follow-up's numbered items as its body holds them,
