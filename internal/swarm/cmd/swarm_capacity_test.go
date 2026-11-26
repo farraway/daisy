@@ -433,6 +433,23 @@ Throughput:
 			t.Errorf("paused: no %q in\n%s", l, s.stdout.String())
 		}
 	}
+	s.stdout.Reset()
+	s.flags = []string{"--json"}
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	doc = nil
+	if err := json.Unmarshal(s.stdout.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	v = nil
+	json.Unmarshal(doc["capacity"], &v)
+	got, _ := json.Marshal(v)
+	for _, l := range []string{`"bottleneck":{"role":"architect","why":"swarm paused"}`, `{"queue":[2,3],"role":"architect","running":0,"why":"swarm paused"}`} {
+		if !strings.Contains(string(got), l) {
+			t.Errorf("paused json: no %s in\n%s", l, got)
+		}
+	}
 }
 
 // A credential is paced to its provider's token budget (section 7.10,
