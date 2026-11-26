@@ -375,7 +375,7 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 		p := cfg.Personas[role]
 		r.Personas[role] = StatusPersona{p.Provider, p.Model, p.Effort}
 	}
-	if r.Capacity, err = capacityOf(o.FS(), o.Now(), cfg, acct.Login, issues, r.Held, r.Running, running, state); err != nil {
+	if r.Capacity, err = capacityOf(o.FS(), o.Now(), cfg, acct.Login, issues, r.Held, r.State.Paused != nil, r.Running, running, state); err != nil {
 		return nil, statusRead{}, err
 	}
 	// The gates Daisy passed, per issue the larger of the forge's auto
@@ -578,11 +578,12 @@ func firstLine(b []byte) string {
 // it: a role's queue is the open issues on which the trigger rule
 // (section 6, rules 1 to 3) launches it, read from the issues, their
 // pull requests' threads, the running set and the runs' records; it
-// waits when every member slot is taken (`max_members reached`) or when
+// waits when the swarm is paused (`swarm paused`), when every member
+// slot is taken (`max_members reached`) or when
 // no entry of its persona has a credential it may take (heldBy). The
 // bottleneck is the role with the most issues waiting, the first in
 // role order of those with as many.
-func capacityOf(fs ops.FS, now time.Time, cfg declare.Config, login string, issues map[int]statusIssue, held StatusHeld, members StatusRunning, running []runner.Running, state string) (StatusCapacity, error) {
+func capacityOf(fs ops.FS, now time.Time, cfg declare.Config, login string, issues map[int]statusIssue, held StatusHeld, paused bool, members StatusRunning, running []runner.Running, state string) (StatusCapacity, error) {
 	c := StatusCapacity{Roles: []StatusRoleCapacity{}, Unavailable: []string{}, Tokens: []StatusTokens{}}
 	capacity, err := ReadCapacity(fs, state)
 	if err != nil {
@@ -636,8 +637,11 @@ func capacityOf(fs ops.FS, now time.Time, cfg declare.Config, login string, issu
 			}
 		}
 		if len(rc.Queue) > 0 {
-			why := "max_members reached"
-			if !full {
+			why := "swarm paused"
+			if !paused {
+				why = "max_members reached"
+			}
+			if !paused && !full {
 				var whys []string
 				for _, e := range cfg.Personas[role].Entries() {
 					w := at.heldBy(e)

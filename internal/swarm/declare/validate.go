@@ -702,7 +702,7 @@ func checkSlots(field string, e Entry, keys map[string]Key) *Error {
 	key := keys[e.Provider]
 	switch {
 	case key.Slots == nil:
-		return fieldErr(field, "%s takes no slot", e.Provider)
+		return fieldErr(field, "%s's credential is env, which has no slots", e.Provider)
 	case len(e.Slots) == 0:
 		return fieldErr(field, "no slot")
 	}

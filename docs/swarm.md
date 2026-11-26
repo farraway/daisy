@@ -648,7 +648,7 @@ failure is reported and the verb exits 1; the message is
 | a gate off without a budget | `swarm.json: budget: missing (required when a gate is false)` |
 | a budget limit not positive | `swarm.json: budget.per_day: 0 is not greater than 0` (also `budget.total`) |
 | a provider without a credential | `swarm.json: keys: no credential for provider "openai"` |
-| from R4 (7.10; the fallback's built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, the slot list's and the token budget's at Step R4-C), a fallback, a slot list or a token budget refused | `swarm.json: personas.architect.fallback[0].model: empty; every role names its model` (each field as the persona's), `swarm.json: personas.architect.fallback[1]: the same as personas.architect` (`the same as personas.architect.fallback[0]` for an earlier entry's), `swarm.json: keys: no credential for provider "xai"` for an entry's provider, as for a persona's, `swarm.json: personas.adversary.slots[0]: 3 is not between 1 and 2` (also `is listed twice`, `no slot`), `swarm.json: personas.worker.slots: anthropic takes no slot`, `swarm.json: keys.openai.tokens: no budget (per_day or per_week)`, `swarm.json: keys.openai.tokens.per_day: 0 is not greater than 0` |
+| from R4 (7.10; the fallback's built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap, the slot list's and the token budget's at Step R4-C), a fallback, a slot list or a token budget refused | `swarm.json: personas.architect.fallback[0].model: empty; every role names its model` (each field as the persona's), `swarm.json: personas.architect.fallback[1]: the same as personas.architect` (`the same as personas.architect.fallback[0]` for an earlier entry's), `swarm.json: keys: no credential for provider "xai"` for an entry's provider, as for a persona's, `swarm.json: personas.adversary.slots[0]: 3 is not between 1 and 2` (also `is listed twice`, `no slot`), `swarm.json: personas.worker.slots: anthropic's credential is env, which has no slots`, `swarm.json: keys.openai.tokens: no budget (per_day or per_week)`, `swarm.json: keys.openai.tokens.per_day: 0 is not greater than 0` |
 | a credential not of one kind (both forms declared, or neither) | `swarm.json: keys.openai: needs exactly one of env, slots` (`keys.xai: …` likewise) |
 | a credential for a provider without an adapter | `swarm.json: keys.gemini: "gemini" has no adapter` |
 | a variable the provider's CLI does not read | `swarm.json: keys.anthropic.env: "ANTHROPIC_KEY" is not one of anthropic's variables (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN)` |
@@ -6132,16 +6132,17 @@ entry's `slots`, list the slots of its provider it may take, each one
 <q>, running <r>` and, when its queue waits, `: <why>` (`no free slot of
 <provider> <slots>`, `<provider>/<credential> <model> unavailable until
 <time>`, `<provider>/<credential> at its token budget until <time>`,
-`max_members reached`); a line per line of `<state>/capacity`; and
+`max_members reached`, `swarm paused`); a line per line of `<state>/capacity`; and
 `Bottleneck: <role> (<why>)`, the role with the most issues waiting for
-a credential (`max_members` named when that holds them), or
+a credential (`max_members`, or the pause, named when that holds them), or
 `Bottleneck: none`. A role's **queue** is the issues on which it would
 launch at this pass but for section 6's rule 4. JSON `capacity`.
 *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap (decision [170](swarm/decisions/0170-capacity.md), As built)*:
 the slots an entry lists taken in their order, the slot taken the first
 of them free (`runner.TakeSlot` given that list); the block's role lines
 in section 3's role order, `: <why>` only when no entry of the role has
-a credential it may take, `max_members reached` when this swarm's
+a credential it may take, `swarm paused` while the swarm is paused
+(the maintainer's ruling of 2026-11-26), else `max_members reached` when this swarm's
 running containers fill `max_members`, else each entry's why, `; `
 between them, an entry's own `<provider>/<credential> <model>
 unavailable until <time>` per slot or `env` a line names and `no free

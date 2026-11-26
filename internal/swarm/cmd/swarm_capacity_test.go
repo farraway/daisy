@@ -420,6 +420,19 @@ Throughput:
 	if got, _ := json.Marshal(v); string(got) != want {
 		t.Errorf("capacity:\n%s\nwant\n%s", got, want)
 	}
+
+	// Paused, the pause holds every waiting queue (the maintainer's
+	// ruling of 2026-11-26), before max_members.
+	os.WriteFile(s.state("paused"), []byte("paused 2026-11-06T10:00:00Z\n"), 0o644)
+	s.flags = nil
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range []string{"  owner        queue 1, running 0: swarm paused\n", "  architect    queue 2, running 0: swarm paused\n", "  Bottleneck: architect (swarm paused)\n"} {
+		if !strings.Contains(s.stdout.String(), l) {
+			t.Errorf("paused: no %q in\n%s", l, s.stdout.String())
+		}
+	}
 }
 
 // A credential is paced to its provider's token budget (section 7.10,

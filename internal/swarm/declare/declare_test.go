@@ -208,7 +208,7 @@ func TestValidateNamesTheField(t *testing.T) {
 			c.Keys["openai"] = Key{Slots: ptr(2)}
 			setPersona(c, "adversary", func(p *Persona) { p.Slots = []int{} })
 		}},
-		{`swarm.json: personas.worker.slots: anthropic takes no slot`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Slots = []int{1} }) }},
+		{`swarm.json: personas.worker.slots: anthropic's credential is env, which has no slots`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Slots = []int{1} }) }},
 		{`swarm.json: personas.architect.fallback[0].slots[0]: 0 is not between 1 and 2`, func(c *Config) {
 			c.Keys["openai"] = Key{Slots: ptr(2)}
 			fallback(c, "architect", Entry{"openai", "gpt-6.1-sol", "high", "", []int{0}})

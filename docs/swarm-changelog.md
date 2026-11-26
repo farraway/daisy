@@ -1618,3 +1618,10 @@ they write.
   it had written posted with its T17 note, after the secret check,
   never read as the role's text. Sections 2, 7.4, 7.7 and 7.10.
   Decision [170](swarm/decisions/0170-capacity.md), As built.
+- 2026-11-26, Step R4-C of the plan implementing the 2026-11-19 swarm
+  roadmap, the maintainer's rulings on its open questions: a paused
+  swarm's waiting queues and bottleneck are held by `swarm paused` in
+  `status`'s `Capacity:` block; an entry's `slots` on an `env`
+  credential is refused `<provider>'s credential is env, which has no
+  slots`. Sections 3 and 7.10. Decision
+  [170](swarm/decisions/0170-capacity.md), As built.

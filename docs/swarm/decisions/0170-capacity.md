@@ -385,8 +385,7 @@ claim. Tests: `TestClaudeOutOfUsageCredits`,
 2026-11-19 swarm roadmap).** `personas.<role>.slots`, and a fallback
 entry's `slots`, list the slots of the provider's `slots` credential
 the entry may take, each 1 to that count, none twice, one or more; on
-a provider whose credential is `env` it is refused, `<provider> takes
-no slot`. `Format` writes it after `co_author`, an entry's inside its
+a provider whose credential is `env` it is refused, `<provider>'s credential is env, which has no slots`. `Format` writes it after `co_author`, an entry's inside its
 object; `init` keeps the file's. A launch takes the entry's slots in
 their order, the first free one no line of `<state>/capacity` names
 with the model, so `runner.TakeSlot` is given that list; an entry
@@ -396,7 +395,8 @@ without `slots` takes every slot, lowest first, as before. `status`'s
 threads, the running set and the runs' records; the re-plan between
 slices, which reads the rulings from the mirrors, is not read, the
 worker standing there for the architect, and the owner's batch and the
-QA are no issue's and count in no queue. A queue waits when this
+QA are no issue's and count in no queue. A queue waits when the swarm
+is paused (`swarm paused`), when this
 swarm's running containers fill `max_members` (`max_members reached`)
 or no entry has a credential it may take, each entry's why joined by
 `; `: `<provider>/<credential> <model> unavailable until <time>` per
@@ -455,3 +455,14 @@ given and is not posted.`; the text is never read as the role's. Tests:
 `TestTaskTextNamesTheDeadline`, `TestSwarmDeadlineWarnedAt80Percent`,
 `TestSwarmTimeoutPostsItsPartialOutput`,
 `TestDockerWarnsBeforeTheWallClock`.
+
+**As built: the maintainer's rulings on R4-C's open questions (2026-11-26).**
+While the swarm is paused, every waiting queue's why in `status`'s
+`Capacity:` block, and the bottleneck's, is `swarm paused`, before
+`max_members reached` and the entries' whys, as `max_members` is named
+when it holds them. A role's why keeps every entry's, as built. A
+`slots` list on an entry whose provider's credential is `env` is
+refused naming the cause, `<provider>'s credential is env, which has no
+slots`, where it was `<provider> takes no slot`, the words of
+`keys.<provider>.slots` for a provider whose adapter takes none, which
+stay. Tests: `TestSwarmStatusCapacity`, `TestValidateNamesTheField`.
