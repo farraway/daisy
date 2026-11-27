@@ -1743,3 +1743,8 @@ they write.
   merges back to the oldest commit any check recorded, and with none the
   newest merge alone. Section 12.1. Decision
   [169](swarm/decisions/0169-integration-control.md), As built.
+- 2026-11-27, Step T8a of the plan implementing the 2026-11-19 swarm
+  roadmap: `forge.Fake` saves its state to a JSON file (`Save`) and
+  loads it back (`LoadFake`, given the account and the clock). Section
+  10, `forge.Fake`. Decision
+  [177](swarm/decisions/0177-the-fake-forges-file.md).

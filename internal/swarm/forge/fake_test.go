@@ -2,6 +2,7 @@ package forge
 
 import (
 	"errors"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
@@ -579,5 +580,83 @@ func TestContextMatch(t *testing.T) {
 		if got := ContextMatch(c.pattern, c.context); got != c.want {
 			t.Errorf("ContextMatch(%q, %q) = %v", c.pattern, c.context, got)
 		}
+	}
+}
+
+// The Fake saved to a file and loaded back is the same forge: every
+// field of its state, and of an issue's and a pull request's, set by the
+// writes and helpers below and kept by the round trip (section 10,
+// `forge.Fake`, its file); the loaded Fake is under the account and on
+// the clock it is loaded with.
+func TestFakeSavesAndLoads(t *testing.T) {
+	f := fakeForge(t)
+	n, _ := f.CreateIssue("A", "body", []string{"swarm:review-2-approved"})
+	f.EditIssue(n, "edited body")
+	id, _ := f.EnsureMilestone("M1")
+	f.SetMilestone(n, id)
+	f.Comment(Ref{"app", n}, "a comment")
+	closed, _ := f.CreateIssue("B", "", nil)
+	f.CloseIssue(closed)
+	f.AddRepository()
+	f.AddCollaborator("jane")
+	f.SetSSHURL("git@forge.example.net:acme/app.git")
+	m, _ := f.CreatePull("lib", "swarm/1-1", "main", "P", "Refs acme/app#1")
+	pr := Ref{"lib", m}
+	f.Push(pr, "abc1234")
+	f.Review(pr, Approve, "fine")
+	f.SayOnLine(pr, "jane", "main.go", 1, "here")
+	f.SetStatus("lib", "abc1234", "ci", "success")
+	f.RequireChecks("lib", "main", "ci")
+	f.RequireChecks("app", "main")
+	f.Attach(pr, "home.png", []byte("png"))
+	f.Merge(pr, "abc1234")
+	q, _ := f.CreatePull("app", "swarm/1-2", "main", "Q", "Refs #1")
+	f.SetMergeable(Ref{"app", q}, MergeableNo)
+	f.RefuseMerge(Ref{"app", q})
+	f.RefuseLabels()
+	f.RefuseMilestones()
+	f.RefuseRepository()
+	f.RefuseAttachments()
+	// Every field is set, so a field the file drops cannot pass unseen.
+	unset := func(name string, vs ...reflect.Value) {
+		for i := range vs[0].NumField() {
+			field := vs[0].Type().Field(i).Name
+			if field == "mu" || field == "o" {
+				continue
+			}
+			if !slices.ContainsFunc(vs, func(v reflect.Value) bool { return !v.Field(i).IsZero() }) {
+				t.Errorf("no %s sets %s", name, field)
+			}
+		}
+	}
+	unset("state", reflect.ValueOf(f.fakeState).Elem())
+	var items, pulls []reflect.Value
+	for _, it := range f.items {
+		items = append(items, reflect.ValueOf(it).Elem())
+		if it.pull != nil {
+			pulls = append(pulls, reflect.ValueOf(it.pull).Elem())
+		}
+	}
+	unset("item", items...)
+	unset("pull request", pulls...)
+
+	path := filepath.Join(t.TempDir(), "forge.json")
+	if err := f.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	o := &ops.Fake{}
+	got, err := LoadFake(o, path, Account{Login: "jane"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.o != o || got.account != (Account{Login: "jane"}) {
+		t.Errorf("loaded on %v as %+v", got.o, got.account)
+	}
+	got.o = f.o
+	if !reflect.DeepEqual(f.fakeState, got.fakeState) {
+		t.Errorf("loaded:\n%+v\nsaved:\n%+v", got.fakeState, f.fakeState)
+	}
+	if _, err := LoadFake(o, filepath.Join(t.TempDir(), "none.json"), Account{}); err == nil {
+		t.Error("a file that is not there loads")
 	}
 }

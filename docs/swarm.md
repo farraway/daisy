@@ -7869,6 +7869,19 @@ later `Attach` the forge's `413`, `ErrNotAttached`; and `Attachments(at)`
 is the files attached to an issue or a pull request, oldest first, with
 their bytes, which a test asserts on. `Clone` copies them.
 
+**As built (Step T8a of the plan implementing the 2026-11-19 swarm
+roadmap).** `Save(path)` writes the Fake's state to a JSON file, and
+`LoadFake(o, path, account)` reads it back as the same forge, under the
+token of `account` and on the clock `o`, which the file does not hold:
+`forge.repo` and the declared repositories' names, the labels, every
+issue and pull request (as a list, each with its repository and number,
+its comments, timeline, files, reviews and line comments), the counters,
+the milestones' titles, the swarm repository held and its `ssh_url`, the
+commit statuses and the protected branches with their contexts (lists),
+and each `Refuse…` called. A field it does not name loads as the Fake's
+zero, so a test may write a small file by hand. Decision
+[177](swarm/decisions/0177-the-fake-forges-file.md).
+
 ## 11. The verbs
 
 **Finding the swarm.** Every verb runs in a clone of the swarm
