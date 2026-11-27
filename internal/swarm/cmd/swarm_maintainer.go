@@ -727,17 +727,24 @@ func swarmUnblock(c *Context, open opener) error {
 	return m.lift()
 }
 
-// sayAndRehold posts unblock's text on issue n, then `Blocked by #<b>`
-// again (rehold), each once however often the verb is run: the thread it
-// finds ending with the text, the hold is read as it stood before it, and
-// ending with the text and the hold again, both are posted already.
+// sayAndRehold posts unblock's text on issue n, then each `Blocked by
+// #<b>` again (rehold), each once however often the verb is run: the
+// thread it finds ending with the text, the holds are read as they stood
+// before it, and ending with the text and the holds again, all are
+// posted already.
 func (m *maintainer) sayAndRehold(is forge.Issue, text string) error {
 	cs := is.Comments
 	mine := func(i int, body string) bool {
 		return i >= 0 && cs[i].Body == body && strings.EqualFold(cs[i].Author, m.login)
 	}
-	if b := reconcile.BlockedBy(is, m.swarm, m.cfg.Trusted); b != 0 && mine(len(cs)-1, fmt.Sprintf("Blocked by #%d", b)) && mine(len(cs)-2, text) {
-		return m.sayOn(m.at, cs[:len(cs)-1], text)
+	if bs := reconcile.BlockedBy(is, m.swarm, m.cfg.Trusted); len(bs) > 0 && mine(len(cs)-len(bs)-1, text) {
+		reheld := true
+		for i, b := range bs {
+			reheld = reheld && mine(len(cs)-len(bs)+i, fmt.Sprintf("Blocked by #%d", b))
+		}
+		if reheld {
+			return m.sayOn(m.at, cs[:len(cs)-len(bs)], text)
+		}
 	}
 	if err := m.say(text); err != nil {
 		return err
@@ -748,26 +755,25 @@ func (m *maintainer) sayAndRehold(is forge.Issue, text string) error {
 	return m.rehold(is)
 }
 
-// rehold posts `Blocked by #<b>` again on issue n after unblock's comment
-// there when, as is was read before it, the maintainer's newest comment
-// held n by an open #b (section 6, rule 1): the comment would otherwise
-// end that hold, which `block` placed after the unblock keeps.
+// rehold posts each `Blocked by #<b>` again on issue n after unblock's
+// comment there when, as is was read before it, the maintainer's newest
+// comments held n by an open #b (section 6, rule 1; section 12.1, rule
+// 1): the comment would otherwise end those holds, which `block` placed
+// after the unblock keeps.
 func (m *maintainer) rehold(is forge.Issue) error {
-	b := reconcile.BlockedBy(is, m.swarm, m.cfg.Trusted)
-	if b == 0 {
-		return nil
+	for _, b := range reconcile.BlockedBy(is, m.swarm, m.cfg.Trusted) {
+		held, err := reconcile.Blocker(m.f, m.n, b, m.c.Stderr)
+		if err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		if !held {
+			continue
+		}
+		if err := m.f.Comment(m.at, fmt.Sprintf("Blocked by #%d", b)); err != nil {
+			return fmt.Errorf("Error: swarm: %v", err)
+		}
+		fmt.Fprintf(m.c.Stdout, "#%d held by #%d: Blocked by #%d posted again\n", m.n, b, b)
 	}
-	held, err := reconcile.Blocker(m.f, m.n, b, m.c.Stderr)
-	if err != nil {
-		return fmt.Errorf("Error: swarm: %v", err)
-	}
-	if !held {
-		return nil
-	}
-	if err := m.f.Comment(m.at, fmt.Sprintf("Blocked by #%d", b)); err != nil {
-		return fmt.Errorf("Error: swarm: %v", err)
-	}
-	fmt.Fprintf(m.c.Stdout, "#%d held by #%d: Blocked by #%d posted again\n", m.n, b, b)
 	return nil
 }
 
@@ -986,7 +992,8 @@ func swarmHold(c *Context, open opener, pause bool) error {
 
 // swarmBlock flags #m swarm:blocking, then comments `Blocked by #<m>` on
 // #n as the maintainer: the role rule launches nothing on #n while that
-// comment is its newest by a maintainer and #m is open.
+// comment is among its newest by a maintainer and #m is open (section
+// 12.1, rule 1: block run twice holds by both).
 func swarmBlock(c *Context, open opener) error {
 	if _, err := issueArg(c); err != nil {
 		return err

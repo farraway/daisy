@@ -88,6 +88,17 @@ func (s *Swarm) mergeStep() error {
 		sl := sliceOf(cur, n)
 		at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}
 		if !cur.Merged {
+			// Nothing of an issue with an open dependency is merged
+			// (section 12.1, rule 1).
+			j := &Job{SwarmLogin: s.SwarmLogin, N: n, Issue: is, Outputs: s.outputs()}
+			if err := j.readPlan(); err != nil {
+				return fmt.Errorf("#%d: %w", n, err)
+			}
+			if deps, err := OpenDependencies(s.Forge, n, j.dependencies(s.Cfg.Trusted), s.Err); err != nil {
+				return err
+			} else if len(deps) > 0 {
+				continue
+			}
 			reviews, err := s.Forge.Reviews(ref)
 			if err != nil {
 				return err

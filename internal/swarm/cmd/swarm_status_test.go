@@ -315,7 +315,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 		"waiting": `{"ci_differs":[],"issues":[{"class":"architecture","issue":1,"item":"triage"},{"class":"architecture","issue":2,"item":"triage"},` +
 			`{"class":"architecture","issue":3,"item":"plan"},{"class":"architecture","issue":4,"item":"plan"},{"class":"architecture","issue":5,"item":"plan"},` +
 			`{"class":"architecture","issue":6,"item":"merge"},{"class":"architecture","issue":7,"item":"blocked"}],"no_check":[],"notes":[]}`,
-		"held":    `{"blocked_by":[{"by":3,"issue":12}],"paused":[11]}`,
+		"held":    `{"blocked_by":[{"by":3,"issue":12}],"overlaps":[],"paused":[11]}`,
 		"running": `{"error":null,"members":[{"issue":0,"role":"owner"},{"issue":8,"role":"adversary"},{"issue":12,"role":"check"}]}`,
 		"personas": `{"adversary":{"by_label":[],"effort":"high","model":"gpt-6.1-sol","provider":"openai"},"architect":{"by_label":[],"effort":"high","model":"claude-fable-5-1","provider":"anthropic"},` +
 			`"owner":{"by_label":[],"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},"sympathetic":{"by_label":[],"effort":"high","model":"claude-opus-5-5","provider":"anthropic"},` +

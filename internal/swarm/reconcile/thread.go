@@ -108,13 +108,14 @@ func Marked(body string) (Mark, bool) {
 // trusted, and it is no gate note, auto note, capacity note or command's answer, which
 // are the maintainer's to read, no continuation, whose text its post's
 // run holds whole (section 7.5), no class statement (classComment), which
-// is Daisy's, and no command (IsCommand), which is the maintainer's to
+// is Daisy's, no declaration (`Depends:`, section 12.1, rule 1), which is
+// Daisy's too, and no command (IsCommand), which is the maintainer's to
 // Daisy: none is a member's to answer.
 func counted(e Entry, swarmLogin string, trusted []string) bool {
 	if m, swarm := Swarms(e, swarmLogin); swarm {
 		return m.Kind == ""
 	}
-	return slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, e.Author) }) && classOfText(e.Body) == "" && !IsCommand(e.Body)
+	return slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, e.Author) }) && classOfText(e.Body) == "" && !isDeclaration(e.Body) && !IsCommand(e.Body)
 }
 
 // NewestCounted is the thread's newest counted entry (counted); ok is

@@ -658,15 +658,6 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				fmt.Fprintf(s.Err, "⚠ #%d: %s but its current pull request is not open; skipped\n", n, label)
 				continue
 			}
-			if m := BlockedBy(is, s.SwarmLogin, s.Cfg.Trusted); m != 0 {
-				held, err := Blocker(s.Forge, n, m, s.Err)
-				if err != nil {
-					return err
-				}
-				if held {
-					continue // rule 1: the maintainer's `Blocked by #<m>`, #<m> open
-				}
-			}
 			marks := marksOf(IssueThread(is), s.SwarmLogin)
 			if open {
 				if j.Pull == nil {
@@ -683,6 +674,11 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 					return fmt.Errorf("#%d: %w", n, err)
 				}
 				continue
+			}
+			if deps, err := OpenDependencies(s.Forge, n, j.dependencies(s.Cfg.Trusted), s.Err); err != nil {
+				return err
+			} else if len(deps) > 0 {
+				continue // rule 1: an open dependency, declared or the maintainer's `Blocked by #<m>` (section 12.1, rule 1)
 			}
 			turn := Turn{Label: label, Running: s.busy(running, runs, n)}
 			questioned := slices.Contains(is.Labels, forge.Question)
@@ -708,7 +704,17 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				turn.Thread, turn.Reviews, turn.Head = j.roleThread(cur), j.Pull.Reviews, cur.HeadSHA
 			}
 			decided[n] = true
-			for _, role := range Launch(turn, s.SwarmLogin, s.Cfg.Trusted) {
+			roles = Launch(turn, s.SwarmLogin, s.Cfg.Trusted)
+			if label == forge.PlanAccepted && !open && slices.Contains(roles, "worker") {
+				// Rule 2 of section 12.1: a slice's first build waits
+				// while it overlaps another issue's open slice.
+				if m, err := s.touchRead().overlapping(j); err != nil {
+					return fmt.Errorf("#%d: %w", n, err)
+				} else if m != 0 {
+					continue
+				}
+			}
+			for _, role := range roles {
 				persona, parts, err := s.persona(role)
 				if err != nil {
 					return err

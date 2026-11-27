@@ -551,8 +551,8 @@ func TestSwarmMaintainerHolds(t *testing.T) {
 		"jane labeled swarm:blocking #2", "jane labeled swarm:blocking #3"}) {
 		t.Errorf("writes: %q", got)
 	}
-	if is, _ := m.forge.Issue(1); reconcile.BlockedBy(is, "swarm-bot", []string{"jane", "swarm-bot"}) != 3 {
-		t.Errorf("the newest blocking comment does not name #3: %+v", is.Comments)
+	if is, _ := m.forge.Issue(1); !slices.Equal(reconcile.BlockedBy(is, "swarm-bot", []string{"jane", "swarm-bot"}), []int{2, 3}) {
+		t.Errorf("the two blocking comments do not name #2 and #3: %+v", is.Comments)
 	}
 	if err := m.verb(pauseIssue); err != nil || m.stdout.String() != "Paused: no new member will launch ("+m.state("paused")+"); running members finish and are posted\n" {
 		t.Errorf("the bare pause: %v %q", err, m.stdout.String())

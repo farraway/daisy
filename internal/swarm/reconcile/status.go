@@ -91,11 +91,14 @@ type StatusWait struct {
 	Class string `json:"class"`
 }
 
-// StatusHeld is what the maintainer holds: the paused issues, and those
-// whose newest maintainer comment names an open blocker.
+// StatusHeld is what holds an issue but its labels: the paused issues,
+// each open dependency of an issue (section 12.1, rule 1: a declaration's
+// and the maintainer's `Blocked by #<m>` alike), and each open slice of
+// another issue that holds a slice's first build (rule 2).
 type StatusHeld struct {
 	Paused    []int         `json:"paused"`
 	BlockedBy []StatusBlock `json:"blocked_by"`
+	Overlaps  []StatusBlock `json:"overlaps"`
 }
 
 type StatusBlock struct {
@@ -321,10 +324,11 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	// What waits for the maintainer: the open issues Gated holds
 	// for, the predicate apply flags them by, by item (Waiting,
 	// which apply's notify tells by too): a blocked one under blocked, an
-	// approved one under what its pull request calls for (section 12). What the maintainer holds: the paused ones, and those
-	// whose newest maintainer comment names an open blocker.
+	// approved one under what its pull request calls for (section 12). What holds an issue but its labels: the paused ones, and
+	// each open dependency (section 12.1, rule 1).
 	waits, classes := map[string][]int{}, map[int]string{}
-	r.Held = StatusHeld{Paused: []int{}, BlockedBy: []StatusBlock{}}
+	r.Held = StatusHeld{Paused: []int{}, BlockedBy: []StatusBlock{}, Overlaps: []StatusBlock{}}
+	outputs := Outputs{FS: o.FS(), State: cfg.Forge.State(local)}
 	for _, l := range forge.Stages {
 		for _, n := range r.Stages[l] {
 			is := issues[n].Issue
@@ -334,14 +338,14 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 			if slices.Contains(is.Labels, forge.Paused) {
 				r.Held.Paused = append(r.Held.Paused, n)
 			}
-			if m := BlockedBy(is, acct.Login, cfg.Trusted); m != 0 {
-				held, err := Blocker(f, n, m, warn)
-				if err != nil {
-					return nil, statusRead{}, err
-				}
-				if held {
-					r.Held.BlockedBy = append(r.Held.BlockedBy, StatusBlock{n, m})
-				}
+			j := &Job{SwarmLogin: acct.Login, N: n, Issue: is, Outputs: outputs}
+			j.readPlan() // a workspace that cannot be read is the pass's to block; status reads no plan
+			deps, err := OpenDependencies(f, n, j.dependencies(cfg.Trusted), warn)
+			if err != nil {
+				return nil, statusRead{}, err
+			}
+			for _, m := range deps {
+				r.Held.BlockedBy = append(r.Held.BlockedBy, StatusBlock{n, m})
 			}
 			class := ClassOf(is, acct.Login, cfg.Trusted)
 			if !Gated(is.Labels, cfg.Gates, class) {
@@ -386,6 +390,11 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	r.Gates = StatusGates{cfg.Gates.Triage, cfg.Gates.Plan, cfg.Gates.Merge}
 	var running []runner.Running
 	r.Running, running = runningMembers(o, ws, cfg.Forge.Repo)
+	// A slice's first build held by another issue's open slice (section
+	// 12.1, rule 2), read from the mirrors as their last fetch left them.
+	if err := heldByOverlaps(o, cfg, acct.Login, f, Git{O: o, WS: ws, State: state}, outputs, issues, &r.Held, running); err != nil {
+		return nil, statusRead{}, err
+	}
 	r.Personas = map[string]StatusPersona{}
 	for _, role := range cfg.DeclaredRoles() {
 		p := cfg.Personas[role]
@@ -719,8 +728,9 @@ func capacityOf(fs ops.FS, now time.Time, cfg declare.Config, login string, issu
 func launches(fs ops.FS, cfg declare.Config, login string, si statusIssue, held StatusHeld, running []runner.Running, runs []Run, n int) []string {
 	is := si.Issue
 	label, ok := StageOf(is)
+	holds := func(b StatusBlock) bool { return b.Issue == n }
 	if !ok || !is.Open || len(stageRoles[label]) == 0 || Held(is.Labels) != "" ||
-		slices.ContainsFunc(held.BlockedBy, func(b StatusBlock) bool { return b.Issue == n }) {
+		slices.ContainsFunc(held.BlockedBy, holds) || slices.ContainsFunc(held.Overlaps, holds) {
 		return nil
 	}
 	j := &Job{Cfg: cfg, SwarmLogin: login, N: n, Label: label, Issue: is, Pulls: si.Pulls}
@@ -908,4 +918,38 @@ func median(ds []time.Duration) time.Duration {
 		m = (ds[len(ds)/2-1] + m) / 2
 	}
 	return m.Round(time.Second)
+}
+
+// heldByOverlaps adds to held each issue at plan-1-accepted on which the
+// trigger rule launches the worker's first build of a slice (no open pull
+// request) and whose slice overlaps another issue's open slice (section
+// 12.1, rule 2), with the first such issue.
+func heldByOverlaps(o ops.Ops, cfg declare.Config, login string, f forge.Adapter, g Git, outputs Outputs, issues map[int]statusIssue, held *StatusHeld, running []runner.Running) error {
+	runs, err := Runs(o.FS(), outputs.State)
+	if err != nil {
+		return fmt.Errorf("reading the runs: %w", err)
+	}
+	t := touchRead{f: f, git: g, out: outputs, cfg: cfg, login: login}
+	for _, n := range slices.Sorted(maps.Keys(issues)) {
+		si := issues[n]
+		if label, ok := StageOf(si.Issue); !ok || label != forge.PlanAccepted {
+			continue
+		}
+		if !slices.Contains(launches(o.FS(), cfg, login, si, *held, running, runs, n), "worker") {
+			continue
+		}
+		j := &Job{Cfg: cfg, SwarmLogin: login, N: n, Label: forge.PlanAccepted, Issue: si.Issue, Pulls: si.Pulls, Outputs: outputs}
+		if _, open := j.current(); open {
+			continue
+		}
+		j.readPlan()
+		m, err := t.overlapping(j)
+		if err != nil {
+			return fmt.Errorf("#%d: %w", n, err)
+		}
+		if m != 0 {
+			held.Overlaps = append(held.Overlaps, StatusBlock{n, m})
+		}
+	}
+	return nil
 }

@@ -579,7 +579,8 @@ func waitingLine(w reconcile.StatusWaiting) string {
 }
 
 // heldLine is the Held line: the paused issues, then each held by an
-// open blocker, or nothing.
+// open dependency, then each first build held by an overlap (section
+// 12.1), or nothing.
 func heldLine(h reconcile.StatusHeld) string {
 	var held []string
 	if len(h.Paused) > 0 {
@@ -587,6 +588,9 @@ func heldLine(h reconcile.StatusHeld) string {
 	}
 	for _, b := range h.BlockedBy {
 		held = append(held, fmt.Sprintf("#%d blocked by #%d", b.Issue, b.By))
+	}
+	for _, b := range h.Overlaps {
+		held = append(held, fmt.Sprintf("#%d overlaps #%d", b.Issue, b.By))
 	}
 	if len(held) == 0 {
 		held = []string{"nothing"}

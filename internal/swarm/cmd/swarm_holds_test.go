@@ -465,7 +465,7 @@ func TestSwarmUnblockRunAgainKeepsTheHold(t *testing.T) {
 			if want := []string{"Blocked by #1", "Carry on.", "Blocked by #1"}; !reflect.DeepEqual(got, want) {
 				t.Errorf("comments %q, want %q\n%s", got, want, m.stdout.String())
 			}
-			if reconcile.BlockedBy(is, "swarm-bot", []string{"jane"}) != 1 || slices.Contains(is.Labels, forge.Blocked) {
+			if !slices.Equal(reconcile.BlockedBy(is, "swarm-bot", []string{"jane"}), []int{1}) || slices.Contains(is.Labels, forge.Blocked) {
 				t.Errorf("hold lost or flag kept: %v", is.Labels)
 			}
 		})

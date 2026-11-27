@@ -182,29 +182,37 @@ func Held(labels []string) string {
 // blocked issue (section 11).
 var blockedByRe = regexp.MustCompile(`^Blocked by #([1-9][0-9]*)$`)
 
-// BlockedBy is the issue the newest comment on is by a login in trusted
-// other than the swarm's, a class statement and a command aside, names
-// as its blocker, `Blocked by #<m>` (section 6, rule 1); 0 when that
-// comment names none. Whether #m is open is the caller's to read.
-func BlockedBy(is forge.Issue, swarmLogin string, trusted []string) int {
-	var newest *forge.Comment
-	for i, c := range is.Comments {
-		if strings.EqualFold(c.Author, swarmLogin) || !slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, c.Author) }) || classOfText(c.Body) != "" || IsCommand(c.Body) {
+// BlockedBy is the issues that the maintainer's newest comments on is
+// name as its blockers, `Blocked by #<m>` (section 6, rule 1; section
+// 12.1, rule 1): every such comment among the comments by a login in
+// trusted other than the swarm's since the newest of them that is not
+// one, a class statement, a command and a declaration (`Depends:`) aside,
+// oldest first, each issue once; none when the newest is no `Blocked by`.
+// So `swarm block` run twice in a row holds by both, and any other
+// comment of the maintainer's lifts them all. Whether each is open is the
+// caller's to read.
+func BlockedBy(is forge.Issue, swarmLogin string, trusted []string) []int {
+	var mine []forge.Comment
+	for _, c := range is.Comments {
+		if !trustedOther(c.Author, swarmLogin, trusted) || classOfText(c.Body) != "" || IsCommand(c.Body) || isDeclaration(c.Body) {
 			continue
 		}
-		if newest == nil || !c.Created.Before(newest.Created) {
-			newest = &is.Comments[i]
+		mine = append(mine, c)
+	}
+	slices.SortStableFunc(mine, func(a, b forge.Comment) int { return a.Created.Compare(b.Created) })
+	var out []int
+	for i := len(mine) - 1; i >= 0; i-- {
+		m := blockedByRe.FindStringSubmatch(strings.TrimSpace(mine[i].Body))
+		if m == nil {
+			break
+		}
+		n, _ := strconv.Atoi(m[1])
+		if !slices.Contains(out, n) {
+			out = append(out, n)
 		}
 	}
-	if newest == nil {
-		return 0
-	}
-	m := blockedByRe.FindStringSubmatch(strings.TrimSpace(newest.Body))
-	if m == nil {
-		return 0
-	}
-	n, _ := strconv.Atoi(m[1])
-	return n
+	slices.Reverse(out)
+	return out
 }
 
 // Blocker is whether issue n's `Blocked by #<m>` holds it (section 6,

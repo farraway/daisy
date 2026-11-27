@@ -117,35 +117,42 @@ func TestCommandLines(t *testing.T) {
 	}
 }
 
-// The blocker the newest maintainer comment names (section 6, rule 1): a
-// comment `Blocked by #<m>` by a trusted login not the swarm's, newest of
-// theirs; a later maintainer comment lifts it, the swarm's and an
-// untrusted login's do not.
+// The blockers the maintainer's newest comments name (section 6, rule 1;
+// section 12.1, rule 1): each comment `Blocked by #<m>` by a trusted login
+// not the swarm's since the newest of theirs that is not one, so two in a
+// row hold by both; a later maintainer comment lifts them all, the
+// swarm's, an untrusted login's, a class statement, a command and a
+// declaration do not.
 func TestBlockedBy(t *testing.T) {
 	t0 := time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
 		name     string
 		comments []forge.Comment
-		want     int
+		want     []int
 	}{
-		{"the verb's comment", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}}, 3},
-		{"written by hand, spaced", []forge.Comment{{Author: "Jane", Body: "  Blocked by #12\n"}}, 12},
-		{"the swarm's and an untrusted login's after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "swarm-bot", Body: marker("owner", 1) + "ok"}, {Author: "mallory", Body: "go"}}, 3},
-		{"a later maintainer comment", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "#3 can wait; go on"}}, 0},
-		{"an untrusted login's", []forge.Comment{{Author: "mallory", Body: "Blocked by #3"}}, 0},
-		{"the swarm's", []forge.Comment{{Author: "swarm-bot", Body: "Blocked by #3"}}, 0},
-		{"inside a sentence", []forge.Comment{{Author: "jane", Body: "Blocked by #3 for now"}}, 0},
-		{"a class statement after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "Class: routine"}}, 3},
-		{"a command after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "/swarm approve"}}, 3},
-		{"no comment", nil, 0},
+		{"the verb's comment", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}}, []int{3}},
+		{"written by hand, spaced", []forge.Comment{{Author: "Jane", Body: "  Blocked by #12\n"}}, []int{12}},
+		{"the swarm's and an untrusted login's after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "swarm-bot", Body: marker("owner", 1) + "ok"}, {Author: "mallory", Body: "go"}}, []int{3}},
+		{"a later maintainer comment", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "#3 can wait; go on"}}, nil},
+		{"an untrusted login's", []forge.Comment{{Author: "mallory", Body: "Blocked by #3"}}, nil},
+		{"the swarm's", []forge.Comment{{Author: "swarm-bot", Body: "Blocked by #3"}}, nil},
+		{"inside a sentence", []forge.Comment{{Author: "jane", Body: "Blocked by #3 for now"}}, nil},
+		{"a class statement after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "Class: routine"}}, []int{3}},
+		{"a command after it", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "/swarm approve"}}, []int{3}},
+		{"no comment", nil, nil},
+		{"two in a row", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "Blocked by #4"}}, []int{3, 4}},
+		{"two, a declaration between", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "Depends: #7"}, {Author: "jane", Body: "Blocked by #4"}}, []int{3, 4}},
+		{"one twice", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "Blocked by #3"}}, []int{3}},
+		{"two, a comment between", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "Not yet."}, {Author: "jane", Body: "Blocked by #4"}}, []int{4}},
+		{"two, then a comment", []forge.Comment{{Author: "jane", Body: "Blocked by #3"}, {Author: "jane", Body: "Blocked by #4"}, {Author: "jane", Body: "Go."}}, nil},
 	} {
 		is := forge.Issue{Author: "jane", Body: "Blocked by #9", Created: t0}
 		for i, c := range tc.comments {
 			c.Created = t0.Add(time.Duration(i+1) * time.Hour)
 			is.Comments = append(is.Comments, c)
 		}
-		if got := BlockedBy(is, "swarm-bot", []string{"jane", "swarm-bot"}); got != tc.want {
-			t.Errorf("%s: BlockedBy = %d, want %d", tc.name, got, tc.want)
+		if got := BlockedBy(is, "swarm-bot", []string{"jane", "swarm-bot"}); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: BlockedBy = %v, want %v", tc.name, got, tc.want)
 		}
 	}
 }

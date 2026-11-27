@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -65,7 +66,10 @@ func (s *Swarm) gateText(is forge.Issue, open []forge.Issue) (text, decision str
 		decide = fmt.Sprintf("make the relabel the note names, if it names one, then `daisy swarm unblock %d <comment>`; or %s", n, verb("close"))
 	case stage == forge.ProposalPosted:
 		why = "the triage gate holds a proposal until the maintainer triages it"
-		items = s.triageItems(is, open)
+		var err error
+		if items, err = s.triageItems(is, open); err != nil {
+			return "", "", err
+		}
 		decide = verb("triage") + ", " + verb("close") + ", " + routine + ", after which Daisy passes this gate and the plan's, or a comment here, which the owner answers"
 	case stage == forge.PlanPosted:
 		why = "the plan gate holds the plan until the maintainer accepts it"
@@ -95,7 +99,7 @@ var issueRef = regexp.MustCompile(`(?:^|[^\w/#])#([1-9][0-9]*)\b`)
 // triageItems: the brief and milestone the Brief: line names, the other
 // open issues on that milestone, and the issues the proposal names with
 // where each stands.
-func (s *Swarm) triageItems(is forge.Issue, open []forge.Issue) []string {
+func (s *Swarm) triageItems(is forge.Issue, open []forge.Issue) ([]string, error) {
 	var items []string
 	openIssue := func(m int) (forge.Issue, bool) {
 		i := slices.IndexFunc(open, func(o forge.Issue) bool { return o.Number == m })
@@ -138,7 +142,57 @@ func (s *Swarm) triageItems(is forge.Issue, open []forge.Issue) []string {
 		}
 		named = append(named, fmt.Sprintf("#%d (%s)", num, where))
 	}
-	return append(items, "- Issues it names, its dependencies among them: "+listOrNone(named, ", ")+".")
+	items = append(items, "- Issues it names, its dependencies among them: "+listOrNone(named, ", ")+".")
+	decl, err := s.declarationItems(is, "", false)
+	return append(items, decl...), err
+}
+
+// declarationItems is the triage and plan gates' bullets of section
+// 12.1's declarations (What `status` shows): `- Depends:` naming each of
+// the issue's dependencies (rule 1, a declaration's and the maintainer's
+// `Blocked by` alike) with where it stands, open with its stage, closed,
+// or no issue the forge holds; and `- Touches:`, the patterns of the
+// plan's slices, each once in their order (a slice with no line of its
+// own standing on the proposal's), or of the proposal with no plan;
+// `none declared` for either with none.
+func (s *Swarm) declarationItems(is forge.Issue, plan string, planned bool) ([]string, error) {
+	j := &Job{SwarmLogin: s.SwarmLogin, N: is.Number, Issue: is, planText: plan, planned: planned}
+	var deps []string
+	for _, m := range j.dependencies(s.Cfg.Trusted).All() {
+		where := "closed"
+		d, err := s.Forge.Issue(m)
+		switch {
+		case errors.Is(err, forge.ErrNotFound):
+			where = "no issue"
+		case err != nil:
+			return nil, err
+		case d.Open:
+			where = "open"
+			if st, ok := StageOf(d); ok {
+				where += ", " + strings.TrimPrefix(st, "swarm:")
+			}
+		}
+		deps = append(deps, fmt.Sprintf("#%d (%s)", m, where))
+	}
+	var patterns []string
+	if planned {
+		for sl := 1; sl <= max(1, len(sliceLines(plan))); sl++ {
+			for _, p := range SliceTouch(is, plan, true, sl, s.SwarmLogin).Patterns {
+				if !slices.Contains(patterns, p) {
+					patterns = append(patterns, p)
+				}
+			}
+		}
+	} else {
+		patterns = ProposalTouches(is, s.SwarmLogin)
+	}
+	none := func(items []string) string {
+		if len(items) == 0 {
+			return "none declared"
+		}
+		return strings.Join(items, ", ")
+	}
+	return []string{"- Depends: " + none(deps) + ".", "- Touches: " + none(patterns) + "."}, nil
 }
 
 // itemMark is a Markdown list item's or heading's mark.
@@ -160,7 +214,10 @@ func (s *Swarm) planItems(is forge.Issue) ([]string, error) {
 	if !ok {
 		return []string{"- Plan: none; the thread holds no plan of the architect's."}, nil
 	}
-	var items []string
+	items, err := s.declarationItems(is, text, true)
+	if err != nil {
+		return nil, err
+	}
 	if lines := sliceLines(text); len(lines) == 0 {
 		items = append(items, "- Slices: 1; the plan numbers none under `## Steps`.")
 	} else {

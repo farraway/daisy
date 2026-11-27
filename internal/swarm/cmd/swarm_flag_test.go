@@ -196,10 +196,10 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 	}
 	want := map[int]string{
 		1: "**reconciler:** gated at proposal-posted: the triage gate holds a proposal until the maintainer triages it.\n\n" +
-			"- Class: architecture.\n- Brief: docs/briefs/a.md, milestone M1 The drift.\n- Open issues on the same milestone: #2 Other half.\n- Issues it names, its dependencies among them: #2 (open, proposal-posted).\n\n" +
+			"- Class: architecture.\n- Brief: docs/briefs/a.md, milestone M1 The drift.\n- Open issues on the same milestone: #2 Other half.\n- Issues it names, its dependencies among them: #2 (open, proposal-posted).\n- Depends: none declared.\n- Touches: none declared.\n\n" +
 			"Decide: `daisy swarm triage 1`, `daisy swarm close 1`, `daisy swarm class 1 routine`, after which Daisy passes this gate and the plan's, or a comment here, which the owner answers.\n\ncc @jane",
 		3: "**reconciler:** gated at plan-0-posted: the plan gate holds the plan until the maintainer accepts it.\n\n" +
-			"- Class: architecture.\n- Slices: 2.\n  1. app: change main.go to v1; the test proves it.\n  2. lib: add notes.md.\n" +
+			"- Class: architecture.\n- Depends: none declared.\n- Touches: none declared.\n- Slices: 2.\n  1. app: change main.go to v1; the test proves it.\n  2. lib: add notes.md.\n" +
 			"- Builder plan: none; each slice's worker is given its step alone.\n" +
 			"- Open questions, as the plan has them:\n  1. Should main.go say v1 or v2?\n" +
 			"- Risks:\n  - **The corpus drifts.** It moves under us.\n  - A second risk.\n\n" +

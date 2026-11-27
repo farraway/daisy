@@ -381,7 +381,7 @@ func TestSwarmStatusJSONThroughGitea(t *testing.T) {
 		"gates":               {"merge", "plan", "triage"},
 		"stages":              {"swarm:plan-0-posted", "swarm:plan-1-accepted", "swarm:plan-2-in-progress", "swarm:proposal-accepted", "swarm:proposal-posted", "swarm:review-0-ready", "swarm:review-1-in-progress", "swarm:review-2-approved", "swarm:review-3-changes-requested"},
 		"waiting":             {"ci_differs", "issues", "no_check", "notes"},
-		"held":                {"blocked_by", "paused"},
+		"held":                {"blocked_by", "overlaps", "paused"},
 		"running":             {"error", "members"},
 		"personas":            {"adversary", "architect", "owner", "sympathetic", "worker"},
 		"personas.owner":      {"by_label", "effort", "model", "provider"},
@@ -694,7 +694,7 @@ func TestSwarmConnectThroughGitea(t *testing.T) {
 		"running": {"error", "members"},
 		"journal": {"day", "issues", "mark", "marked"},
 		"waiting": {"ci_differs", "issues", "no_check", "notes"},
-		"held":    {"blocked_by", "paused"},
+		"held":    {"blocked_by", "overlaps", "paused"},
 		"runs":    {"blocked", "failed", "faults", "other", "posted", "questions", "total"},
 		"metrics": {"all", "change", "file", "home", "problem", "since_change"},
 	} {

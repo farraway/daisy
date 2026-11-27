@@ -508,16 +508,18 @@ func (s *Swarm) release() error {
 	if len(waits) == 0 {
 		return nil
 	}
+	// The hold's waits are issue 0's dependencies, read by rule 1's test
+	// (section 12.1, rule 5); one the forge does not hold keeps the hold.
+	open, missing, err := openIssues(s.Forge, waits)
+	if err != nil {
+		return err
+	}
 	for _, n := range waits {
-		is, err := s.Forge.Issue(n)
-		if errors.Is(err, forge.ErrNotFound) {
+		switch {
+		case slices.Contains(missing, n):
 			fmt.Fprintf(s.Err, "⚠ owner batch: #%d, which its hold waits on, names no issue; held (%s)\n", n, path)
 			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if is.Open {
+		case slices.Contains(open, n):
 			return nil
 		}
 	}
