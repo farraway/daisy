@@ -6032,7 +6032,7 @@ inform it and ask it to consider breaking up the work."
    deadline has the output it had written posted with its failure.
 
 **The fallback** (rule 1). `personas.<role>.fallback` (section 3) is a
-list of entries, each a persona's four fields, tried after the persona
+list of entries, each a persona's provider, model and effort, tried after the persona
 itself in order; every provider an entry names has a credential in
 `keys`. A **capacity fault** is a provider's fault whose message names a
 limit, a quota or the credit (section 9, `Capacity`; its cause

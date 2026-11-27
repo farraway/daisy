@@ -50,7 +50,10 @@ checks in `checkPersona` and the credential check over `All` in
 `internal/swarm/reconcile/capacity.go`, the persona's `Chain` for the
 issue's labels, none for a run with no issue, which `runsOn` and
 `capacityNote` read; `launchedEntry` over `All`, so a by_label entry's
-`co_author` stamps and checks the worker's commits and the notes'.
+`co_author` stamps and checks the worker's commits and the notes'
+(from Step CA, decision [176](0176-the-co-author-is-the-models.md), no
+`co_author` and `launchedCoAuthor`, derived from the run's `persona`
+line, in its place).
 `status`: `StatusPersona.ByLabel` and a `Personas:` line per entry;
 `capacityOf` a line per entry after its role's, `StatusRoleCapacity.Label`
 and `StatusBottleneck.Label`, each issue and member counted on the line
@@ -60,7 +63,7 @@ an entry earlier in the list whose label the issue lacks is passed over,
 one later whose label it carries too is not reached),
 `TestSwarmByLabelFallsBackToTheRolesChain` (to the persona, then to
 the fallback, the capacity note naming the override),
-`TestSwarmWorkerCommitsCarryTheLabelsCoAuthor`,
+`TestSwarmWorkerCommitsCarryTheLabelsCoAuthor` (`TestSwarmByLabelCommitsCarryItsModel` since Step CA),
 `TestSwarmStatusShowsByLabel`.
 
 **As built (Step R4-L, the maintainer's ruling of 2026-11-26).**
