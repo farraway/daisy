@@ -177,3 +177,5 @@ queue (rule 3) and the red main (rule 4). Tests: `TestDependencies`,
 `TestSwarmMaintainerHoldsByTwo`, `TestSwarmStatusHeldByDependencies`,
 `TestGateNoteNamesDependencies`, `TestSwarmWorkerHeldByAnOverlap`;
 `TestSwarmApplyBatchReleasedByItsIssues` unchanged.
+
+The overlap is read only for a launch that can follow (a member slot free), after the mirror's fetch, with one `Pulls(n)` for each other issue, and the dependencies' hold stands before the current pull request's thread is read, so a held job costs the forge its dependencies' `Issue(m)` alone.
