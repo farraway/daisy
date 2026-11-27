@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -341,5 +342,31 @@ func TestSwarmHeldJobReadsNoPullThread(t *testing.T) {
 	a.forge.CloseIssue(2)
 	if reads = a.passReads(); !slices.Contains(reads, "ReviewComments app#1") {
 		t.Errorf("a released job's pull request thread was not read: %q", reads)
+	}
+}
+
+// An issue the forge does not hold holds nothing, for the owner's batch
+// hold as for a dependency (section 6, The hold released by its issues;
+// section 12.1, rules 1 and 5; the maintainer's ruling of 2026-11-26 on
+// R2-A's second open question): a hold waiting on #1 and on a #9 that
+// names no issue is released once #1 is closed, the pass warning that #9
+// is not waited on.
+func TestSwarmOwnerHoldIgnoresAMissingIssue(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.forge.CreateIssue("Library", "x", nil) // #1
+	os.WriteFile(a.state("owner-held"), []byte("held 2026-11-06T14:00:00Z: blocked: waiting on #1, #9: x\n0-owner-1 waits #1 #9\n"), 0o644)
+	a.pass()
+	if !fileExists(a.state("owner-held")) {
+		t.Fatalf("released with #1 open:\n%s", a.stdout.String())
+	}
+	a.forge.CloseIssue(1)
+	a.runner.Script(0, "owner", runner.Canned{Out: "## Next\nA.\n"})
+	a.pass()
+	if fileExists(a.state("owner-held")) || !strings.Contains(a.stdout.String(), "Owner batch released: #1 #9 closed\n") {
+		t.Errorf("not released with #9 naming no issue:\n%s\nstderr:\n%s", a.stdout.String(), a.stderr.String())
+	}
+	if want := "⚠ owner batch: #9, which its hold waits on, names no issue; not waited on\n"; !strings.Contains(a.stderr.String(), want) {
+		t.Errorf("stderr lacks %q:\n%s", want, a.stderr.String())
 	}
 }

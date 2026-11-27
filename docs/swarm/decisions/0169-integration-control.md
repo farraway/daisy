@@ -160,9 +160,7 @@ a declaration is no counted entry (`counted` in `thread.go`). The pass
 reads the job's plan before rule 1's hold, so the plan's declaration
 counts; the merge step (gate off) reads the dependencies before it asks
 the forge to merge, an already merged head going on as before; the
-owner's hold reads its `waits` through `openIssues`, a named issue the
-forge does not hold still keeping the hold (section 6 as it was), where
-an issue's dependency the forge does not hold releases it. `Touches:
+owner's hold reads its `waits` through `openIssues`. `Touches:
 none` names no pattern, so it holds nothing beyond the branch files.
 `status` reads the overlaps from the mirrors as their last fetch left
 them (`git merge-base` is allowed under `ops.ReadOnly`), JSON
@@ -179,3 +177,17 @@ queue (rule 3) and the red main (rule 4). Tests: `TestDependencies`,
 `TestSwarmApplyBatchReleasedByItsIssues` unchanged.
 
 The overlap is read only for a launch that can follow (a member slot free), after the mirror's fetch, with one `Pulls(n)` for each other issue, and the dependencies' hold stands before the current pull request's thread is read, so a held job costs the forge its dependencies' `Issue(m)` alone.
+
+**As built (Step R2-A, the maintainer's rulings of 2026-11-26 on its
+open questions).** An issue the forge does not hold holds nothing, for
+an issue's `Depends:` and for the owner's batch hold alike: `release` in
+`internal/swarm/reconcile/batch.go` warns `⚠ owner batch: #<m>, which
+its hold waits on, names no issue; not waited on` and releases the hold
+once every other issue it waits on is closed (section 6 amended; status
+adds no warning). The default owner prompt (`DefaultPrompts["owner"]` in
+`internal/swarm/declare/prompts.go`, section 4) proposes a job whose
+dependencies are open, naming them on its `Depends:` line, in place of
+proposing it only once they are closed; its hash joins
+`defaultHistory`, so `swarm prompt build` brings an unedited owner
+prompt to it. Tests: `TestDefaultOwnerProposesDependentWork`,
+`TestSwarmOwnerHoldIgnoresAMissingIssue`.

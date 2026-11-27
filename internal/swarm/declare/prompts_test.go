@@ -123,3 +123,18 @@ func TestDefaultReviewersReadWhatTheTaskNames(t *testing.T) {
 		}
 	}
 }
+
+// The default owner proposes a job whose dependencies are still open,
+// naming them on its "Depends:" line, which holds the job until they are
+// closed (docs/swarm.md section 12.1, rule 5; the maintainer's ruling of
+// 2026-11-26 on R2-A's first open question): no sentence of its default
+// waits for them to close before proposing.
+func TestDefaultOwnerProposesDependentWork(t *testing.T) {
+	text := strings.Join(strings.Fields(DefaultPrompts["owner"]), " ")
+	if !strings.Contains(text, "A job that depends on open jobs may be proposed all the same, naming them on its \"Depends:\" line") {
+		t.Errorf("the owner's default does not propose dependent work:\n%s", DefaultPrompts["owner"])
+	}
+	if strings.Contains(text, "only when every job it depends on is closed") {
+		t.Errorf("the owner's default still waits for its dependencies to close:\n%s", DefaultPrompts["owner"])
+	}
+}

@@ -1668,3 +1668,11 @@ they write.
   `Safe with:`. Sections 1, 5, 6, 7.4, 11 and 12.1, and `docs/cli.md`'s
   `swarm status`. Decision
   [169](swarm/decisions/0169-integration-control.md), As built.
+- 2026-11-26, Step R2-A of the plan implementing the 2026-11-19 swarm
+  roadmap, the maintainer's rulings on its open questions: the default
+  owner prompt proposes a job whose dependencies are open, naming them on
+  its `Depends:` line, in place of waiting for them to close; an issue
+  the owner's batch hold waits on that the forge does not hold holds
+  nothing, as a dependency's does not, with the warning `not waited on`.
+  Sections 1, 4 and 6. Decision
+  [169](swarm/decisions/0169-integration-control.md), As built.

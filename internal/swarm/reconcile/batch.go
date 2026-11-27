@@ -493,7 +493,8 @@ func HoldWaits(held []byte) (k int, waits []int) {
 // removed once the forge reads every issue it waits on closed, with a
 // stdout line and the journal line `0-release-<k>`, k the batch run that
 // held it. A hold waiting on no issue (the maintainer's to release) is
-// left; an issue that names none no longer is a warning, the hold kept.
+// left; an issue that names none no longer is a warning and holds
+// nothing, as a dependency the forge does not hold (section 12.1, rule 1).
 func (s *Swarm) release() error {
 	fs := s.O.FS()
 	path := heldFile(s.state(), "owner")
@@ -509,19 +510,17 @@ func (s *Swarm) release() error {
 		return nil
 	}
 	// The hold's waits are issue 0's dependencies, read by rule 1's test
-	// (section 12.1, rule 5); one the forge does not hold keeps the hold.
+	// (section 12.1, rule 5): one the forge does not hold holds nothing,
+	// as a dependency's does not (the maintainer's ruling of 2026-11-26).
 	open, missing, err := openIssues(s.Forge, waits)
 	if err != nil {
 		return err
 	}
-	for _, n := range waits {
-		switch {
-		case slices.Contains(missing, n):
-			fmt.Fprintf(s.Err, "⚠ owner batch: #%d, which its hold waits on, names no issue; held (%s)\n", n, path)
-			return nil
-		case slices.Contains(open, n):
-			return nil
-		}
+	for _, n := range missing {
+		fmt.Fprintf(s.Err, "⚠ owner batch: #%d, which its hold waits on, names no issue; not waited on\n", n)
+	}
+	if len(open) > 0 {
+		return nil
 	}
 	if err := fs.Remove(path); err != nil {
 		return err

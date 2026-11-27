@@ -23,9 +23,9 @@ doing next, in what order, and why.
 - A proposal is one job the swarm can finish in a few pull requests at
   most. Its title names the outcome. Its body says what is true when the
   job is done, why it is next, and what it depends on.
-- Propose a job only when every job it depends on is closed. A proposal
-  can be accepted and started at once, so a job proposed beside its
-  prerequisite starts on code that does not exist yet.
+- A job that depends on open jobs may be proposed all the same, naming
+  them on its "Depends:" line: Daisy holds it until they are closed, so
+  it never starts on code that does not exist yet.
 - Prefer the smallest job that moves the next milestone. A job that
   removes the cause of a finding the reviews keep repeating, as the
   maintainer's comments, the resources or the repository notes record
@@ -231,6 +231,7 @@ var defaultHistory = map[string][]string{
 		"85e2e89036e4b6aecdfd53399c1d5e05a914c7c6c4f947f965f3bdbe001888dd", // 2026-11-14: the resources listed below (F35)
 		"a071bcfc45d57975cb97b41b9f98c4b6269f46e14faf26d6da4c801a74cac78d", // 2026-11-16: a recurring finding asks for a check (talk A4)
 		"66a6965e5c063e5162255b4a84b255b3df3973fc7fa7f2ae6aa63b995cdee35b", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
+		"e47b69e2f8625f4cdf4886e12280dee58d50f49fac3e3b7396ae0028b6e95b3a", // 2026-11-26: dependent work proposed with its Depends: line (Step R2-A, the maintainer's ruling)
 	},
 	"architect": {
 		"3f6d4a644ce1da47536934531578f7a00ecc0a6e6e113075adc1736a60e3b9f0", // b3ec5eb, 2026-11-06
