@@ -416,23 +416,53 @@ func (a *applyWS) recorded(sha string) {
 	os.WriteFile(filepath.Join(dir, "result"), []byte("main app "+sha+" tree "+tree+"\nfailed: check environment: x\ncollected\n"), 0o644)
 }
 
+// recordedMerge writes a merge check of app whose base is the commit sha:
+// a commit a check recorded, no verdict on its tree.
+func (a *applyWS) recordedMerge(sha string) {
+	a.t.Helper()
+	dir := a.state(filepath.Join("runs", "7-merge-9"))
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "result"), []byte("merge app "+sha+" into "+sha+" at "+sha+"\nfailed: check environment: x\ncollected\n"), 0o644)
+}
+
 // With no green commit known, # Main lists the merges back to the oldest
-// commit any check recorded, and with none recorded but the red commit's
-// own check, the newest merge alone (the maintainer's ruling of
-// 2026-11-27 on R2-C's open question 2).
+// commit any check recorded on base's first-parent line (a main check's
+// commit or a merge check's base, the newest of the line aside, a commit
+// off the line ignored), and with none recorded the newest merge alone
+// (the maintainer's ruling of 2026-11-27 on R2-C's open question 2).
 func TestSwarmMainListsMergesToTheOldestRecordedCommit(t *testing.T) {
 	t.Parallel()
-	for _, withRecord := range []bool{false, true} {
+	for _, c := range []struct {
+		name             string
+		main, merge, off string // which merge a main check / a merge check's base records; "off": a commit off the line
+		wantMid, wantOld bool
+	}{
+		{name: "none"},
+		{name: "main at the middle", main: "mid", wantMid: true},
+		{name: "merge base at the middle", merge: "mid", wantMid: true},
+		{name: "oldest wins over a newer record", main: "mid", merge: "old", wantMid: true, wantOld: true},
+		{name: "off the line", off: "x"},
+	} {
 		a := newApplyWS(t)
 		os.RemoveAll(a.state(filepath.Join("runs", "0-main-1"))) // no green commit known
 		a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nFirst.\n\n## M1 The drift\n\nA persona sees no drift.\n")
 		a.publish("briefs")
 		old := a.mergeBy("app", map[string]string{"a.go": "a\n"}, "the oldest merge")
 		mid := a.mergeBy("app", map[string]string{"b.go": "b\n"}, "a merge")
-		if withRecord {
-			a.recorded(mid)
-		}
 		newest := a.mergeBy("app", map[string]string{"c.go": "c\n"}, "the newest merge")
+		at := map[string]string{"old": old, "mid": mid}
+		if c.main != "" {
+			a.recorded(at[c.main])
+		}
+		if c.merge != "" {
+			a.recordedMerge(at[c.merge])
+		}
+		if c.off != "" {
+			off := strings.Repeat("ab", 20) // on no line of base
+			dir := a.state(filepath.Join("runs", "0-main-8"))
+			os.MkdirAll(dir, 0o755)
+			os.WriteFile(filepath.Join(dir, "result"), []byte("main app "+off+" tree "+off+"\nfailed: check environment: x\ncollected\n"), 0o644)
+		}
 		a.push("app", map[string]string{"other.go": "broken\n"}, "a push by hand")
 		a.runner.Script(0, "main", broken)
 		a.pass() // red, the owner's
@@ -440,8 +470,8 @@ func TestSwarmMainListsMergesToTheOldestRecordedCommit(t *testing.T) {
 		a.pass()
 		p := a.file("0-owner-1", "io/prompt.md")
 		has := func(sha string) bool { return strings.Contains(p, "\n- "+sha[:7]+" merges ") }
-		if !has(newest) || has(mid) != withRecord || has(old) {
-			t.Errorf("recorded %v: newest %v, mid %v, old %v:\n%s", withRecord, has(newest), has(mid), has(old), p)
+		if !has(newest) || has(mid) != c.wantMid || has(old) != c.wantOld {
+			t.Errorf("%s: newest %v, mid %v, old %v:\n%s", c.name, has(newest), has(mid), has(old), p)
 		}
 	}
 }
