@@ -366,16 +366,21 @@ func (s *Swarm) collectMerge(r Run, lines []string) error {
 		if err := c.step("failed: merge check: " + result); err != nil {
 			return err
 		}
-		// A failure on a base that has moved since is checked again on
-		// base as it is now before the head goes back to the worker (the
-		// maintainer's ruling of 2026-11-27): the mirror fetched, a moved
-		// base records the check stale, and the queue checks the head
-		// again, its passed or failed check on the old base being stale.
+	}
+	// A failure on a base that has moved since is checked again on base
+	// as it is now before the head goes back to the worker (the
+	// maintainer's ruling of 2026-11-27): the mirror fetched, a moved
+	// base records the check stale, and the queue checks the head again,
+	// its failed check on the old base being stale. Whichever pass
+	// recorded the failure decides it: a fetch that failed is tried again
+	// the next pass, the head not sent back on a base unread.
+	if _, stale := Has(c.lines, "stale"); !stale {
 		if err := s.git().Fetch(repo); err != nil {
 			return err
 		}
 		if now := s.mergeBase(m.name); now != "" && now != m.base {
-			fmt.Fprintf(s.Out, "%smerge check failed (%s) on %s at %s, which has moved to %s: checked again\n", c.head, result, s.Cfg.Base, short(m.base), short(now))
+			fl, _ := Has(c.lines, "failed")
+			fmt.Fprintf(s.Out, "%smerge check failed (%s) on %s at %s, which has moved to %s: checked again\n", c.head, strings.TrimPrefix(fl, "failed: merge check: "), s.Cfg.Base, short(m.base), short(now))
 			if err := c.step("stale " + now); err != nil {
 				return err
 			}

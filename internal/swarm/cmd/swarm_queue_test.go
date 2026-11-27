@@ -383,3 +383,31 @@ func TestSwarmMergeCheckFailedOnAMovedBaseCheckedAgain(t *testing.T) {
 		t.Errorf("not merged once checked again:\n%s", a.stdout.String())
 	}
 }
+
+// The mirror's fetch of a failed merge check's collection that fails
+// does not send the head back on a base unread: the pass ends with the
+// failure recorded, nothing posted, and the next pass, the mirror
+// reachable again, reads the moved main and records the check stale.
+func TestSwarmMergeCheckFailedFetchTriedAgainNotSentBack(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.approvedHead(true)
+	up := a.upstream("app")
+	a.runner.Script(1, "merge", runner.Canned{Code: 2, Stdout: "main.go:1: undefined: other\n", Work: func(string) error {
+		a.land("app", map[string]string{"other.go": "other\n"}, "another slice merged during the check")
+		return os.Rename(up, up+".gone")
+	}})
+	a.tick()
+	if err := a.apply(a.git(), "--once"); err == nil {
+		t.Fatalf("the unreachable mirror's fetch did not fail the pass:\n%s", a.stdout.String())
+	}
+	if err := os.Rename(up+".gone", up); err != nil {
+		t.Fatal(err)
+	}
+	a.pass()
+	comments, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.ReviewApproved) || len(comments) != 0 ||
+		!strings.Contains(a.result("1-merge-1"), "\nstale "+a.mainAt()+"\ncollected\n") {
+		t.Fatalf("sent back on a base unread: %v %+v\n%s\n%s", got, comments, a.result("1-merge-1"), a.stdout.String())
+	}
+}

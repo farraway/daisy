@@ -9693,7 +9693,9 @@ rebuilt workspace. Tests: `TestMergeCommit`,
 `TestSwarmQueuedHeadRecheckedWhenBaseMoves`,
 `TestSwarmMergeWaitsForAnUnreportedRequiredContext`,
 `TestSwarmMergeCheckBlocksAnUnreadableHead`. A merge check that fails on a `base` that has moved since it
-started (the mirror fetched at its collection) is not sent back: its
+started (the mirror fetched at its collection, a fetch that fails tried
+again by the next pass, `TestSwarmMergeCheckFailedFetchTriedAgainNotSentBack`)
+is not sent back: its
 result gains `stale <sha>` and the queue checks the head again on
 `base` as it is now (the maintainer's ruling of 2026-11-27); a failure
 on `base` as it is now is T32 at once, and a conflict T25 at once
