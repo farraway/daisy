@@ -1651,3 +1651,20 @@ they write.
   duplicate is; one the same as a `fallback` entry stays valid. Sections
   3 and 7.10. Decision
   [175](swarm/decisions/0175-a-roles-model-by-label.md), As built.
+- 2026-11-26, Step R2-A of the plan implementing the 2026-11-19 swarm
+  roadmap (dependencies and touches, rules 1, 2 and 5 of section 12.1):
+  an issue's newest `Depends:` declaration (the proposal's, the plan's,
+  or a maintainer's comment that is the line alone) and every `Blocked
+  by #<m>` among the maintainer's newest comments hold its launches and
+  its merge while one is open; a declaration is no counted entry; a
+  slice's first build waits while its `Touches:` patterns or branch
+  files overlap another issue's open slice, unless `Safe with:` names
+  it; the owner's hold is released through the same test; `status`'s
+  `Held:` names `#<n> blocked by #<m>` per dependency and `#<n> overlaps
+  #<m>`, JSON `held.overlaps`; the triage and plan gates' notes gain `-
+  Depends:` and `- Touches:`; the owner's batch Task text asks for both
+  lines after `Class:` and for dependent work to be proposed, the
+  architect's for the plan's `Depends:` and each slice's `Touches:` and
+  `Safe with:`. Sections 1, 5, 6, 7.4, 11 and 12.1, and `docs/cli.md`'s
+  `swarm status`. Decision
+  [169](swarm/decisions/0169-integration-control.md), As built.

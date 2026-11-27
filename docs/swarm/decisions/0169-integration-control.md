@@ -148,3 +148,32 @@ only once every job it depends on is closed") become a declaration
 Daisy reads; the worker's `BLOCKED:` with cause `prerequisite` or
 `main-red`, and the maintainer's `resume` and `block --by` for
 ordering, are the roadmap's measures of it, each to be near 0.
+
+**As built (Step R2-A, dependencies and touches; rules 1, 2 and 5).**
+`Dependencies`, `Deps`, `OpenDependencies`, `openIssues`, `SliceTouch`,
+`ProposalTouches`, `Overlap` and `(touchRead).overlapping` in
+`internal/swarm/reconcile/depends.go`; `BlockedBy` in `rule.go` returns
+every `Blocked by #<m>` among the maintainer's comments since the newest
+that is not one (a class statement, a command and a declaration aside),
+so `swarm block` run twice holds by both and `unblock` posts each again;
+a declaration is no counted entry (`counted` in `thread.go`). The pass
+reads the job's plan before rule 1's hold, so the plan's declaration
+counts; the merge step (gate off) reads the dependencies before it asks
+the forge to merge, an already merged head going on as before; the
+owner's hold reads its `waits` through `openIssues`, a named issue the
+forge does not hold still keeping the hold (section 6 as it was), where
+an issue's dependency the forge does not hold releases it. `Touches:
+none` names no pattern, so it holds nothing beyond the branch files.
+`status` reads the overlaps from the mirrors as their last fetch left
+them (`git merge-base` is allowed under `ops.ReadOnly`), JSON
+`held.overlaps` beside `held.blocked_by`. The gate notes' `- Depends:`
+names every dependency, the declaration's and the `Blocked by`'s; the
+plan gate's `- Touches:` is every slice's patterns, each once. Not built
+here: the cycle warning of rule 1 (`depends on itself through …`; a
+cycle is held, every issue in it being open, but nothing warns), the
+queue (rule 3) and the red main (rule 4). Tests: `TestDependencies`,
+`TestBlockedBy` (extended), `TestOverlap`,
+`TestTaskTextsAskForDependencies`, `TestSwarmApplyHoldsADependentJob`,
+`TestSwarmMaintainerHoldsByTwo`, `TestSwarmStatusHeldByDependencies`,
+`TestGateNoteNamesDependencies`, `TestSwarmWorkerHeldByAnOverlap`;
+`TestSwarmApplyBatchReleasedByItsIssues` unchanged.

@@ -258,7 +258,7 @@ Stages of a software factory the version leaves out, each by choice:
 | A user-testing validator | No member runs the built product; behavioural verification is the maintainer's at merge. `check` is the seam: a product whose `check` drives the served product (an end-to-end test) has the validator run on every worker head in the check container, with nothing added here |
 | Model routing and provider fallback | One model per role, chosen by the maintainer; no routing by difficulty and no fallback on a provider's failure (a swarm fault pauses the swarm instead, section 7.7); *R4* (7.10, rule 1), *built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap*: a persona's `fallback` models, tried in order when a provider's fault for a limit, a quota or the credit makes a model unavailable on a credential until its stated reset, the fault pausing nothing; *built at Step R4-L of that plan*, a persona's `by_label` models, the first whose label the issue carries heading the role's entries on that issue (7.10, The model by label), so the maintainer routes by a label such as the job class; still no routing by difficulty |
 | A spending limit | `budget`, specified to cap the whole swarm's spend per day and in all, not per role or per issue, is validated and not enforced: no pass reads the spend against it until a run needs it (section 3, The budget); *R4* (7.10, rule 4), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a credential's launches paced to the token budget per day or week its provider declares in `keys`, the money `budget` unchanged |
-| Dependency ordering between issues | The owner's "depends on" is prose, and the default owner proposes a job only once every job it depends on is closed (section 4); the maintainer sequences jobs by when they move them to `proposal-accepted` (with the triage gate off, the owner's priority order does), by `swarm block <n> --by <m>`, and by `swarm pause <n>`; *R2, specified ahead of its build* (12.1, rules 1, 2 and 5): machine-read `Depends:` and `Touches:` lines hold a job while a dependency is open and a slice's first build while it overlaps an open slice, and the owner proposes dependent work rather than holding its batch |
+| Dependency ordering between issues | The owner's "depends on" is prose, and the default owner proposes a job only once every job it depends on is closed (section 4); the maintainer sequences jobs by when they move them to `proposal-accepted` (with the triage gate off, the owner's priority order does), by `swarm block <n> --by <m>`, and by `swarm pause <n>`; *R2* (12.1, rules 1, 2 and 5), *built at Step R2-A of the plan implementing the 2026-11-19 swarm roadmap*: machine-read `Depends:` and `Touches:` lines hold a job while a dependency is open and a slice's first build while it overlaps an open slice, and the owner proposes dependent work rather than holding its batch |
 | Low latency | Every stage advance waits for the next pass and the reviewers run one after the other, so a review round costs about three passes; collecting and relaunching within one pass is later work |
 
 ## 2. Files
@@ -1203,9 +1203,15 @@ or, with the plan read in memory, its run's `runs/<run>/io/builder.md`,
 is given its step alone.`; its `## Open Questions` as
 written, and the first line of each unindented line of its `## Risks`;
 deciding `swarm accept <n>`, `swarm class <n> routine` (after which Daisy
-accepts it), or a comment the architect revises from. *R2, specified ahead of its build*
-(12.1, What `status` shows): the triage and plan gates' bullets gain
-`- Depends:` and `- Touches:`, and the merge gate's `- Merge check:`.
+accepts it), or a comment the architect revises from. *R2* (12.1,
+What `status` shows), *built at Step R2-A of the plan implementing the 2026-11-19 swarm roadmap*: the triage and plan gates' bullets gain
+`- Depends:`, each dependency with where it stands, `#<m> (open,
+<stage>)`, `#<m> (open)` for an issue at no stage, `#<m> (closed)` or
+`#<m> (no issue)`, and `- Touches:`, the proposal's patterns at the
+triage gate and, at the plan gate (where both follow `- Class:`), each
+slice's as rule 2 reads them, each pattern once in slice order, either
+`none declared` when there is none. *R2, specified ahead of its build*
+(12.1, rule 3): the merge gate's gain `- Merge check:`.
 At `swarm:review-2-approved` (the merge), its `<why>` `both reviews
 approve <pull link> at <short sha>, and the merge gate
 leaves the merge to the maintainer`, naming the current pull request,
@@ -1274,11 +1280,14 @@ the members go to other jobs first, or to make room for an urgent fix.
 The bare `swarm pause` and `swarm resume` still hold the whole swarm
 (section 11). *Blocking:* `swarm block <n> --by <m>` gives #m
 `swarm:blocking` and posts `Blocked by #<m>` on #n as the maintainer;
-while that comment is #n's newest by a maintainer (a login in `trusted`
-other than the swarm's) and #m is open, nothing launches on #n (section
-6, rule 1). #m's close lifts the hold, and so does any later comment of
-the maintainer's on #n but `swarm unblock`'s, after which the verb posts
-`Blocked by #<m>` again while #m is open, so the hold stands whether it
+while that comment is among #n's newest by a maintainer (a login in
+`trusted` other than the swarm's: every `Blocked by` since the
+maintainer's newest other comment, so `block` run twice in a row holds
+by both, section 12.1, rule 1, *built at Step R2-A of the plan implementing the 2026-11-19 swarm roadmap*) and #m is open, nothing
+launches on #n (section 6, rule 1). #m's close lifts its hold, and any
+later comment of the maintainer's on #n lifts them all but `swarm
+unblock`'s, after which the verb posts each `Blocked by #<m>` again
+while its #m is open, so the hold stands whether it
 was placed before the unblock or after it (Step SF-3 of the plan
 implementing the 2026-11-19 swarm roadmap); no rule reads `swarm:blocking` itself, which
 says on the forge which issues hold others. *Question:* set beside the
@@ -1786,19 +1795,20 @@ when all of these hold:
    only a flag or a terminal is no swarm issue); n carries neither
    `swarm:blocked` (which the maintainer's comment answering it lifts
    first, in the same pass: The maintainer's word, below) nor
-   `swarm:paused`; and n's newest comment by a login
-   in `trusted` other than the swarm's, a class statement and a command
-   comment aside, is not `Blocked by #<m>` (the
-   comment `swarm block` posts, whitespace at either end aside) naming
-   an issue `<m>` of `forge.repo` that is open (`Issue(m)`, read only
-   for such a comment; a `<m>` the forge does not hold, its `404`, holds
-   nothing, with the warning `⚠ #<n>: Blocked by #<m> names no issue;
-   not held`, in the pass and in `status`, so one mistyped number does
-   not stop every launch); *R2, specified ahead of its build* (12.1, rules 1, 2 and 4): n has no open
-   dependency (its newest `Depends:` declaration's issues, with every
-   `Blocked by #<m>` among the maintainer's newest comments, so several
-   hold at once); a worker's first build of a slice does not overlap an
-   open slice of another issue, unless marked `Safe with:`; and no
+   `swarm:paused`; and n has no open dependency (section 12.1, rule 1,
+   *built at Step R2-A of the plan implementing the 2026-11-19 swarm roadmap*): no issue `<m>` of `forge.repo` that is open
+   (`Issue(m)`) is named by n's newest `Depends:` declaration or by a
+   `Blocked by #<m>` (the comment `swarm block` posts, whitespace at
+   either end aside) among n's newest comments by a login in `trusted`
+   other than the swarm's, every such comment since the newest of
+   theirs that is not one, a class statement, a command comment and a
+   declaration aside, so several hold at once; a `<m>` the forge does
+   not hold, its `404`, holds nothing, with the warning `⚠ #<n>: Blocked
+   by #<m> names no issue; not held` (or `Depends: #<m>`), in the pass
+   and in `status`, so one mistyped number does not stop every launch;
+   a worker's first build of a slice does not overlap an open slice of
+   another issue, unless marked `Safe with:` (rule 2, built at that
+   step too); and, *R2, specified ahead of its build* (12.1, rule 4), no
    worker launches on a repository whose `base` is red, but on the
    fix's issue;
 2. no container labelled `daisy.swarm=<owner>/<repo>#<n>/…` is running,
@@ -2310,12 +2320,14 @@ held (<state>/owner-held)`), the hold kept. The release lifts no
 pause: `<state>/paused`, the maintainer's or a fault's, stays until
 `swarm resume`, and while it does the trigger stays held though
 `owner-held` is gone. A swarm fault (7.7) in a batch run writes no
-`owner-held`. *R2, specified ahead of its build* (12.1, rule 5): the owner proposes work that waits on
+`owner-held`. *R2* (12.1, rule 5), *built at Step R2-A of the plan implementing the 2026-11-19 swarm roadmap*: the owner proposes work that waits on
 open issues with a `Depends:` line, the job held until they close,
 rather than holding its batch; a hold's `waits` line is read as issue
-0's dependencies, released by the same test as an issue's; and a red
+0's dependencies, by the one test an issue's dependencies are read by
+(`openIssues`), an issue the forge does not hold keeping the hold as
+above. *R2, specified ahead of its build* (12.1, The red main): a red
 `base` releases `owner-held` once per red commit, the batch's first
-proposals being the fixes (12.1, The red main).
+proposals being the fixes.
 
 **The QA trigger** (talk A17; decision [151](swarm/decisions/0151-a-qa-run-after-merges.md)). The
 QA (section 4) runs only when `swarm.json` declares it
@@ -3625,7 +3637,7 @@ is left out (no plan, the fast lane).
 
 | Role, label | Task text (before the closing paragraph) |
 |---|---|
-| owner, batch (issue 0) | `Propose up to <p> new jobs for <owner>/<repo>, most important first, toward the first milestone of the highest-priority brief under "# Briefs" that the closed issues do not yet meet, never proposing what an open issue already covers; a brief is a goal with milestones, each with a persona, an exit criterion and what it forces, and no steps: you cut it into jobs. Start each with a line "## <title>", then a line "Brief: <path> — <milestone>" naming the brief's path as "# Briefs" gives it and the milestone's heading, then a line "Class: routine" or "Class: architecture", then the job's body. A job is routine when it is cut from that milestone, takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. When every milestone of a brief is met by closed issues, write a line "Met: <path>" before the first "## " line; write nothing else before it. If there is nothing worth proposing, write "BLOCKED: <why>" as the only line after any "Met:" lines; when what is left waits on open issues, write it "BLOCKED: waiting on #<n>, #<m>: <why>", naming each of them, and Daisy runs you again once they are all closed.` (`<p>` is the number the pacing allows, section 6), then, a paragraph of its own, the `Defect in:` sentence (7.11, rule 7; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap), then `The protected paths are <name>: <paths>; ….`, naming each repository as the architect's text does (before Step R3-3c, which protects every repository's test services file by default, only when any declared repository's `protected` was not `[]` or it declared a `dockerfile`). |
+| owner, batch (issue 0) | `Propose up to <p> new jobs for <owner>/<repo>, most important first, toward the first milestone of the highest-priority brief under "# Briefs" that the closed issues do not yet meet, never proposing what an open issue already covers; a brief is a goal with milestones, each with a persona, an exit criterion and what it forces, and no steps: you cut it into jobs. Start each with a line "## <title>", then a line "Brief: <path> — <milestone>" naming the brief's path as "# Briefs" gives it and the milestone's heading, then a line "Class: routine" or "Class: architecture", then a line "Depends: none", or "Depends: #<a>, #<b>" naming the open issues the job waits on, then a line "Touches: <pattern>, <pattern>" naming the paths you expect it to change, each written as a protected pattern is (a directory ending "/", a file name without "/" at any depth, or a path that may hold "*"), then the job's body. Daisy starts nothing of a job while an issue its Depends: line names is open, so work that waits on open issues is proposed all the same, its Depends: line naming them. A job is routine when it is cut from that milestone, takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. When every milestone of a brief is met by closed issues, write a line "Met: <path>" before the first "## " line; write nothing else before it. If there is nothing worth proposing even so, write "BLOCKED: <why>" as the only line after any "Met:" lines; when what is left waits on open issues, write it "BLOCKED: waiting on #<n>, #<m>: <why>", naming each of them, and Daisy runs you again once they are all closed.` (`<p>` is the number the pacing allows, section 6), then, a paragraph of its own, the `Defect in:` sentence (7.11, rule 7; built at Step R6-A of the plan implementing the 2026-11-19 swarm roadmap), then `The protected paths are <name>: <paths>; ….`, naming each repository as the architect's text does (before Step R3-3c, which protects every repository's test services file by default, only when any declared repository's `protected` was not `[]` or it declared a `dockerfile`). |
 | qa, batch (issue 0) | `Use <name> as its users do and report what fails. In its clone /job/work/<name>, at <base>, start the app and its browser as "# Repository notes: <name>" says, and drive each route and control of the page map those notes keep. Where the product differs from the page map because an issue under "# Recently closed" changed it on purpose, follow the product: that is no failure. Report each failure as a job for <owner>/<repo>, at most <p>, the most serious first; failures beyond these are found again at the next exploration. Never report one an open issue under "# Open swarm issues" already covers; a failure that an issue under "# Recently closed" was to fix and that still reproduces is a new job, naming that issue in its body. Start each job with a line "## <title>" naming what fails in at most 200 characters, then a line "Class: routine" or "Class: architecture", then the job's body: the route, the steps that reproduce the failure from a fresh start (the app restarted, a new browser session), what you expected, what happened, and the error text or log line it left. Every line beginning "## " starts a new job: inside a body use "### " or plain labels, and write no summary after the last job. A job is routine when its fix takes at most two slices (pull requests) and changes no public API and no protected path; it is architecture otherwise, and always when it changes a package's structure or public API. Class a failure routine only when you have found the code that causes it and its fix fits that rule; otherwise it is architecture. Daisy triages a routine job and accepts its plan by itself, so the maintainer first reads it at the merge; a job without the Class line is architecture. If the app does not start because of its own code (an error in its build or its start-up), that is a failure: report it as a job. If nothing fails, write "NO FAILURE: <the routes you drove>" as the only line. Name each route you could not drive, and why, at the end of that line ("; not driven: <route>: <why>"), or, when you report failures, in a last line of the last job's body. If you cannot start or drive the app for any other reason (the notes keep no page map or no way to start it, the image has no browser or lacks what the app needs), or you need the maintainer's answer to go on, write "BLOCKED: <why, or your question>" as the only line: Daisy then holds the QA until the maintainer resumes the swarm.` (`<name>` the first repository's, `<p>` `owner.max_open_proposals`, section 6), then, a paragraph of its own, the `Defect in:` sentence, as the owner's batch text, then `The protected paths are <name>: <paths>; ….`, as the owner's batch text names them (decision [151](swarm/decisions/0151-a-qa-run-after-merges.md)) |
 | owner, `swarm:proposal-posted` | `Answer the latest comment in the thread of issue #<n>.`; when the issue has no counted comment (section 6), `Issue #<n> has no comment yet: say whether its body is a job the swarm can do and is worth doing next, and what is unclear in it.` With the triage gate off, it adds: `Then restate the whole job as it now stands: the architect plans from your answer.` |
 | architect, `swarm:proposal-accepted` | `Write the plan for issue #<n> as a Daisy plan, under these "## " headings in this order: "## Research" (what exists: the files and seams the job touches, what connects to what, and what the change affects, each line naming a path under /job/work), "## Goal", "## Non-goals", "## Constraints", "## Steps" (the slices: a numbered list, "1. " and so on, one item per pull request in the order they are built, each beginning with the name of the repository it changes and a colon ("1. <name>: "), one of <names>, then the files it changes and the new or changed types and signatures, its claim, and the test that proves the claim, its lines after the first indented so that under "## Steps" only a slice begins a line with a number and a dot; one item when the job is one pull request; a slice that moves a pin to another slice's change comes after that slice), "## Risks", "## Test Plan" (the plan's acceptance: numbered claims, each with the check that proves it and where its test lives), "## Decisions" (each design decision the resources do not record, with its alternative), "## Deferred" and "## Open Questions". When a slice touches more than one component, add a Mermaid diagram of it (a flowchart or a sequence diagram) in a fenced "mermaid" block under that step.` With the plan gate on, it adds `The maintainer reads "## Research" first, then the plan, before any code is written.`; off, `The plan is accepted as you write it: there is no revision round.` While the issue's current pull request is open (T11 with G2 off, or a relabel to `proposal-accepted` by the maintainer), it adds the open-slice sentence of the `plan-0-posted` row |
@@ -3703,16 +3715,20 @@ comma-separated,
 and, for the architect, `<name>: <paths>` for each declared repository
 with any, joined by `; `.
 
-*R2, specified ahead of its build* (12.1, rules 1, 2, 4 and 5): the owner's Task text asks for a
-`Depends:` line (`none`, or the open issues the job waits on) and a
-`Touches:` line (the paths it expects to change, as `protected`
-patterns) after the `Class:` line of each proposal, a proposal for
-work that waits on open issues in place of a `BLOCKED: waiting on`
-hold, and, with a red `base`, one proposal per red repository first,
-with its `Fixes: <name>` line; the architect's asks for the plan's
-`Depends:` line and, in each slice's item, its `Touches:` line and any
-`Safe with:` line; a worker's whose job broke a red `base` asks it to
-make its branch's first commit the fix.
+*R2* (12.1, rules 1, 2 and 5), *built at Step R2-A of the plan implementing the 2026-11-19 swarm roadmap*: the owner's batch Task text asks for a
+`Depends:` line (`Depends: none`, or the open issues the job waits on)
+and a `Touches:` line (the paths it expects to change, as `protected`
+patterns) after the `Class:` line of each proposal, says that work
+waiting on open issues is proposed all the same with its `Depends:`
+line, and keeps `BLOCKED: waiting on` for nothing worth proposing even
+so; the architect's texts that ask for a plan or a revised plan gain a
+paragraph of their own after the probes' (`dependsSentence`) asking for
+the plan's `Depends:` line and, in each slice's item, its `Touches:`
+line and any `Safe with:` line. *R2, specified ahead of its build*
+(12.1, rule 4): with a red `base`, the owner's asks for one proposal per
+red repository first, with its `Fixes: <name>` line, and a worker's
+whose job broke a red `base` asks it to make its branch's first commit
+the fix.
 
 *R4* (7.10, rule 5), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: every Task text's closing paragraph names the run's
 deadline and `/job/io/deadline`, which Daisy writes at 80% of
@@ -8280,11 +8296,15 @@ later still pays the reads. Test:
 
 ### daisy swarm status
 
-*R2, specified ahead of its build* (12.1, What status shows): `Held:` names each open dependency and
-each overlap that holds a first build, a `Queue <name>:` line per
-repository with a check follows `Running:`, and Waiting for you gains
-`main red <name>` and `main unchecked <name>`, which notify tells
-(section 5, Notify). *R4* (7.10, rule 3), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a `Capacity:` block follows
+*R2* (12.1, What status shows), *built at Step R2-A of the plan implementing the 2026-11-19 swarm roadmap*: `Held:` names each open dependency, `#<n> blocked by
+#<m>`, and each overlap that holds a first build, `#<n> overlaps #<m>`
+(JSON `held.blocked_by` and `held.overlaps`, each `issue` and `by`), the
+overlap read from the mirrors as their last fetch left them; a held
+issue is in no role's `Capacity:` queue. *R2, specified ahead of its
+build* (12.1, rules 3 and 4): a `Queue <name>:` line per repository
+with a check follows `Running:`, and Waiting for you gains `main red
+<name>` and `main unchecked <name>`, which notify tells (section 5,
+Notify). *R4* (7.10, rule 3), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a `Capacity:` block follows
 `Personas:`, each role's queue and what holds it, the unavailable
 models and the token budgets, and `Bottleneck: <role> (<why>)`; JSON `capacity` (7.10, The slots per
 role). *Built at Step R4-L of that plan* (7.10, The model by label):
@@ -8358,8 +8378,11 @@ product's workflow, its declaration or its test services file agree
 and a fetch has brought the change. **Held** lists what the
 maintainer holds, which waits for no decision: `paused` the issues
 carrying `swarm:paused` (`swarm resume <n>` releases one), and `#<n>
-blocked by #<m>` each issue whose newest maintainer comment names a
-blocker that is open (section 6, rule 1), in stage order then by number.
+blocked by #<m>` for each open dependency of an issue, its newest
+`Depends:` declaration's or a `Blocked by #<m>` among its newest
+maintainer comments (section 6, rule 1; section 12.1, rule 1), then
+`#<n> overlaps #<m>` for each slice's first build another issue's open
+slice holds (section 12.1, rule 2), in stage order then by number.
 Each item of Waiting for you is the maintainer's to learn of without
 asking: a blocking note and a gate note mention the maintainer on the
 forge (section 5, The maintainer's mention), and with `notify`, `apply`
@@ -9596,6 +9619,19 @@ the 2026-11-19 swarm roadmap; decision
 Step 13 of that plan. Sections 1, 2, 5, 6, 7.3, 7.4, 7.7, 7.8, 7.9, 10, 11 and 12 mark
 where R2 changes them, each mark naming this section; until the build,
 each reads as it did before.
+
+*Rules 1, 2 and 5 built at Step R2-A of that plan* (with `status`'s
+`Held:` and the triage and plan gates' bullets of What `status` shows,
+and the owner's and the architect's Task texts): `Dependencies`,
+`OpenDependencies`, `BlockedBy` (every `Blocked by` among the
+maintainer's newest comments), `SliceTouch` and `Overlap` in
+`internal/swarm/reconcile/depends.go` and `rule.go`; the pass holds a
+launch on an open dependency after the job's plan is read, and a
+worker's first build on `(touchRead).overlapping`; the merge step
+merges nothing of an issue with one; the owner's hold is released
+through the same `openIssues` test. Rules 3 and 4, the queue and the red
+main, are still to be built (Steps R2-B and R2-C), with the marks that
+name them.
 
 **The rulings.** The maintainer's, of 2026-11-19 (Step 1 of that plan):
 machine-read `Depends:` and `Touches:`, several blockers per issue, the
