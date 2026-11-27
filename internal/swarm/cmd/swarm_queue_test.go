@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -243,5 +244,109 @@ func TestSwarmMergeCheckBlocksAnUnreadableHead(t *testing.T) {
 	if got := labels(a.issue(1)); !slices.Contains(got, forge.Blocked) || !slices.Contains(got, forge.ReviewApproved) || !slices.Contains(a.bodies(1), note) ||
 		a.pulls(1)[0].Merged || len(a.merges()) != 0 || !strings.Contains(a.stderr.String(), "⚠ #1: pull app#1's head "+zero[:7]+" not merged on the mirror (git merge-tree ") {
 		t.Errorf("%v %q\n%s\n%s", got, a.bodies(1), a.stdout.String(), a.stderr.String())
+	}
+}
+
+// A conflict the queue's merge finds is T25 at once (section 12.1, rule
+// 3), the merge gate on or off: the direction naming the file on the
+// pull request, the issue at review-3-changes-requested, no merge check
+// started and nothing asked of the forge.
+func TestSwarmMergeCheckConflictBackToTheWorker(t *testing.T) {
+	t.Parallel()
+	for _, gateOff := range []bool{false, true} {
+		a := newApplyWS(t)
+		head := a.approvedHead(gateOff)
+		a.land("app", map[string]string{"main.go": "other\n"}, "another slice merged")
+		a.pass()
+		comments, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
+		if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ChangesRequested}) || len(comments) == 0 || comments[len(comments)-1].Body != mark("reconciler", 1)+conflictIn(head, "`main.go`") ||
+			len(a.merges()) != 0 || a.pulls(1)[0].Merged {
+			t.Errorf("gate off %v: T25: %v %+v %d checks\n%s", gateOff, got, comments, len(a.merges()), a.stdout.String())
+		}
+	}
+}
+
+// A merge check that fails in the environment is run again once (section
+// 7.9) and, failing in the environment again, blocks the issue at
+// review-2-approved with a note naming the reason, nothing posted on the
+// pull request and no checks/ file written (T17).
+func TestSwarmMergeCheckEnvironmentBlocks(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.goApp()
+	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
+	a.runner.Script(1, "architect", runner.Canned{Out: oneSlice})
+	a.pass()
+	a.forge.SetLabel(issue1, "swarm:plan-1-accepted")
+	a.runner.Script(1, "worker", storeWork("v1"))
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass() // the worker
+	a.pass() // the adversary approves
+	a.pass() // the sympathetic reviewer: T9
+	a.runner.Script(1, "merge", runner.Canned{Code: 1, Stdout: webFailed}, runner.Canned{Code: 1, Stdout: webFailed})
+	a.pass()
+	res := a.result("1-merge-1")
+	comments, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
+	got := labels(a.issue(1))
+	if len(a.merges()) != 2 || !slices.Contains(got, forge.Blocked) || !slices.Contains(got, forge.ReviewApproved) || a.pulls(1)[0].Merged ||
+		!strings.Contains(res, "\ncheck rerun: untouched packages example.com/app/web\n") || !strings.Contains(res, "\nfailed: check environment: untouched packages example.com/app/web\ncollected\n") {
+		t.Fatalf("blocked: %v, %d checks\n%s\n%s", got, len(a.merges()), res, a.stdout.String())
+	}
+	for _, c := range comments {
+		if strings.Contains(c.Body, "merge check") {
+			t.Errorf("posted on the pull request: %q", c.Body)
+		}
+	}
+	if note := a.bodies(1); !strings.Contains(note[len(note)-1], "failed in the check environment: untouched packages example.com/app/web") {
+		t.Errorf("the issue's notes: %q", note)
+	}
+	a.noChecks()
+	a.pass()
+	if len(a.merges()) != 2 {
+		t.Errorf("a blocked issue's head checked again: %d checks", len(a.merges()))
+	}
+}
+
+// Each repository's queue is serial and a merge ends its repository's
+// merges for the pass (section 12.1, rule 3): with the gate on, the two
+// approved heads are checked one at a time, the earlier pair's first, a
+// passed head holding no other; with the gate off, both passed, the
+// merge step merges one head a pass.
+func TestSwarmMergeQueueSerialOneMergePerPass(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.MaxMembers = 4 })
+	for _, n := range []int{1, 2} {
+		a.forge.CreateIssue("Queue "+strconv.Itoa(n), "Check the queue.", []string{"swarm:proposal-accepted"})
+		a.runner.Script(n, "architect", runner.Canned{Out: oneSlice})
+		a.runner.Script(n, "worker", work("v"+strconv.Itoa(n)))
+		a.runner.Script(n, "adversary", runner.Canned{Out: approve})
+		a.runner.Script(n, "sympathetic", runner.Canned{Out: approve})
+	}
+	a.pass() // the architects
+	for _, n := range []int{1, 2} {
+		a.forge.SetLabel(a.ref(n), "swarm:plan-1-accepted")
+	}
+	a.pass() // the workers
+	a.pass() // the adversaries, approving
+	a.pass() // the sympathetic reviewers: T9
+	a.pass() // the queue's first check
+	if ms := a.merges(); len(ms) != 1 || ms[0].Label != "acme/swarm-app#1/merge" {
+		t.Fatalf("after one pass: %+v\n%s", ms, a.stdout.String())
+	}
+	a.pass() // the next: the first head passed and holds nothing
+	if ms := a.merges(); len(ms) != 2 || ms[1].Label != "acme/swarm-app#2/merge" {
+		t.Fatalf("after two passes: %+v\n%s", ms, a.stdout.String())
+	}
+	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	a.pass()
+	if !a.pulls(1)[0].Merged || a.pulls(2)[0].Merged || len(a.merges()) != 2 {
+		t.Fatalf("one merge a pass: %v %v, %d checks\n%s", a.pulls(1)[0].Merged, a.pulls(2)[0].Merged, len(a.merges()), a.stdout.String())
+	}
+	a.pass()
+	if !a.pulls(2)[0].Merged {
+		t.Errorf("the second not merged a pass later:\n%s", a.stdout.String())
 	}
 }
