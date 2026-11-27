@@ -115,6 +115,8 @@ Write the plan for issue #1 as a Daisy plan, under these "## " headings in this 
 
 ` + planLines + `
 
+` + dependsSentence + `
+
 ` + wantBuilderSentence + ` The maintainer reads "## Research" first, then the plan, before any code is written. A worker sees only its slice's repository: quote in the plan any text the worker must copy from another repository, since a plan that says to copy it from there cannot be followed. These paths are protected: app: .gitea/, AGENTS.md, compose.test.yaml; lib: compose.test.yaml. No change to them is pushed; the maintainer makes it. Leave such a change out and say so.
 
 Write your output to /job/io/out.md; that file and the builder plan in /job/io/builder.md are the only things read back, and nothing you write elsewhere outside /job survives. If you cannot do this without an answer from the maintainer, write ` + "`" + `BLOCKED: <your question>` + "`" + ` as the first line of /job/io/out.md instead. ` + wantCauseSentence + `
@@ -226,7 +228,7 @@ func TestRenderArchitectOpenSlice(t *testing.T) {
 	j.Check = CheckSection(ops.Real().FS(), runs, 1, "aaa", []string{"make", "check"}, "45m")
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`Revise your plan for issue #1 in answer to the latest comment.`,
-		"a diagram where a slice touches more than one component.\n\n" + planLines + "\n\n" + wantBuilderSentence + ` A worker sees only`,
+		"a diagram where a slice touches more than one component.\n\n" + planLines + "\n\n" + dependsSentence + "\n\n" + wantBuilderSentence + ` A worker sees only`,
 		`that file and the builder plan in /job/io/builder.md are the only things read back`,
 		`Pull request lib#1, slice 1, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its head is the branch swarm/1-1 in /job/work/lib, beside main: "git diff main...swarm/1-1" there is the change they judged. Revise the plan`})
 	has(t, "prompt.md", prompt, []string{"# Earlier pull requests\n\nNone.\n\n# Pull request lib#1: #1 slice 1: Drift check\n\nBranch swarm/1-1 into main; head aaa.\n\nDid it.\n\nRefs acme/app#1\n\n## Thread\n\n",

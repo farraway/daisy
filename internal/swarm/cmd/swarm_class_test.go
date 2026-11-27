@@ -55,7 +55,7 @@ func TestSwarmApplyRoutineJob(t *testing.T) {
 			t.Errorf("#%d: %v, want %v", n, got, want)
 		}
 	}
-	if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, `then a line "Class: routine" or "Class: architecture", then the job's body. A job is routine when it is cut from that milestone, takes at most two slices`) {
+	if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, `then a line "Class: routine" or "Class: architecture", then a line "Depends: none"`) || !strings.Contains(sys, `its Depends: line naming them. A job is routine when it is cut from that milestone, takes at most two slices`) {
 		t.Errorf("the batch's Task:\n%s", sys)
 	}
 	triage := autoNote + "**reconciler:** auto at proposal-posted: a routine job passes the triage gate by itself, to proposal-accepted."

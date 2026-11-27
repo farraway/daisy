@@ -77,7 +77,7 @@ func TestRenderArchitectRulings(t *testing.T) {
 	has(t, "system.md", sys, []string{
 		"Rulings changed since your plan for issue #1 was written or last confirmed: app:docs/adr/1.md, app:docs/adr/2.md; revise the remaining slices or confirm they stand.",
 		`Slice 1 has a pull request, under "# Earlier pull requests": keep its line as it is, with its number and repository.`,
-		`If the remaining slices stand as they are, write "STANDS: <why>" as the first line of your output instead, then for each changed ruling, why they agree with it.` + "\n\n" + planLines + "\n\n" + wantBuilderSentence + ` A revised plan goes to the maintainer as a plan does; one that stands goes on to the next slice.`,
+		`If the remaining slices stand as they are, write "STANDS: <why>" as the first line of your output instead, then for each changed ruling, why they agree with it.` + "\n\n" + planLines + "\n\n" + dependsSentence + "\n\n" + wantBuilderSentence + ` A revised plan goes to the maintainer as a plan does; one that stands goes on to the next slice.`,
 		`that file and the builder plan in /job/io/builder.md are the only things read back`,
 		`These paths are protected:`},
 		"Write the plan for issue", "Revise your plan for issue #1 in answer")

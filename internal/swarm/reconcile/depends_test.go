@@ -101,3 +101,35 @@ func TestOverlap(t *testing.T) {
 		t.Errorf("no plan: %+v", got)
 	}
 }
+
+// The Task texts ask for the declarations (section 12.1, rules 1, 2 and
+// 5): the owner's batch text for each proposal's `Depends:` and
+// `Touches:` lines after its `Class:` line, and for work that waits on
+// open issues to be proposed with them; the architect's plan texts, the
+// first plan and a revision, for the plan's `Depends:` line and each
+// slice's `Touches:` and `Safe with:` lines, a paragraph of its own after
+// the probes; the other texts for neither.
+func TestTaskTextsAskForDependencies(t *testing.T) {
+	f, at := fixture()
+	j := job(f, at.N, "owner", "")
+	j.N, j.Batch = 0, &Batch{Propose: 2}
+	sys, _ := Render(j)
+	has(t, "owner batch", taskOf(t, sys), []string{
+		`then a line "Class: routine" or "Class: architecture", then a line "Depends: none", or "Depends: #<a>, #<b>" naming the open issues the job waits on, then a line "Touches: <pattern>, <pattern>" naming the paths you expect it to change`,
+		`so work that waits on open issues is proposed all the same, its Depends: line naming them.`,
+		`If there is nothing worth proposing even so, write "BLOCKED: <why>"`,
+	})
+	for _, label := range []string{"swarm:proposal-accepted", "swarm:plan-0-posted"} {
+		f, at := fixture()
+		if label == "swarm:plan-0-posted" {
+			f.Comment(at, marker("architect", 1)+archPlan)
+		}
+		sys, _ := Render(job(f, at.N, "architect", label))
+		task := taskOf(t, sys)
+		paragraphs(t, "architect at "+label, task, probesSentence, dependsSentence)
+	}
+	for _, c := range []struct{ role, label string }{{"owner", "swarm:proposal-posted"}, {"worker", "swarm:plan-1-accepted"}, {"adversary", "swarm:review-0-ready"}} {
+		sys, _ := Render(memoryJob(t, c.role, c.label))
+		has(t, c.role, taskOf(t, sys), nil, "Depends:", "Touches:", "Safe with:")
+	}
+}

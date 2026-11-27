@@ -269,7 +269,7 @@ func TestSwarmOwnerBatchReadsFollowUps(t *testing.T) {
 		t.Errorf("prompt.md:\n%s\nwant within:\n%s", prompt, want)
 	}
 	task := `Each issue under "# Follow-ups" holds review findings that did not block a merge. Check each item against main under /job/work;`
-	if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, task) || strings.Index(sys, task) > strings.Index(sys, `If there is nothing worth proposing, write "BLOCKED: <why>"`) {
+	if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, task) || strings.Index(sys, task) > strings.Index(sys, `If there is nothing worth proposing even so, write "BLOCKED: <why>"`) {
 		t.Errorf("system.md lacks the triage sentence before the BLOCKED: one:\n%s", sys)
 	}
 	retitle := `Daisy closes the issue with your reason. For a follow-up you leave open, you may write a line "Retitled: #<f>: <title>" there too, its title naming the findings' cause; Daisy sets the issue's title to it.`
