@@ -307,8 +307,10 @@ the swarm's secrets file, `<state>/env` (docs/swarm.md section 3), does not assi
 `DAISY_FORGE`, a test seam: set, it names a file holding a fake forge,
 which every swarm verb opens in place of the forge `swarm.json`
 declares, under the token the verb reads, so that no request reaches a
-forge; `swarm.json` never names it, and unset, nothing changes
-(docs/swarm.md section 10, The fake forge's file). Nothing else: `optimize` holds no API key and reads no
+forge API; `swarm.json` never names it, and unset or empty, nothing
+changes. It is for tests alone: a run that inherits it from a shell talks
+to the file, not to its swarm's forge (docs/swarm.md section 10, The fake
+forge's file). Nothing else: `optimize` holds no API key and reads no
 model or editor setting (Step 23, D12).
 
 **Colour.** Daisy writes ANSI colour only to a stream that is a

@@ -7889,8 +7889,11 @@ environment of a run of the binary makes every swarm verb open
 `forge.OpenFile(o, <file>, token)` in place of the adapter `forge.kind`
 names, so that the acceptance suite (`tests/cases/`) drives `swarm init`,
 `swarm status` and the maintainer's verbs with no forge, and no request
-reaches one. `swarm.json` never names it; unset or empty, the verbs open
-the declared forge as before. The file is the Fake's (`Save`, above),
+reaches a forge's API (`apply`'s workers still reach their repositories
+through git, which the seam does not touch). `swarm.json` never names it; unset or empty, the verbs open
+the declared forge as before. The variable is read from the process's
+environment alone, so a run that inherits it from a shell opens the file
+in place of its swarm's forge, which is why it is for tests only. The file is the Fake's (`Save`, above),
 with `tokens`, each token the forge takes and its account
 (`AddToken(token, account)` on a Fake): each call loads the file, makes
 the call on its Fake under the account the verb's token is, and saves
