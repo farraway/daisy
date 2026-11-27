@@ -560,3 +560,24 @@ func TestFakeClone(t *testing.T) {
 		t.Errorf("the copy's writes reached the original: %v %+v %v %v %v", is.Labels, ps, checks, comments, f.Attachments(pr))
 	}
 }
+
+// A required context is a glob in which `*` stands for a `/` too, as
+// Gitea matches it (the contexts of a CI service hold one: `ci/build`).
+func TestContextMatch(t *testing.T) {
+	for _, c := range []struct {
+		pattern, context string
+		want             bool
+	}{
+		{"*", "ci/build", true},
+		{"ci/*", "ci/build/linux", true},
+		{"ci / *", "ci / test", true},
+		{"ci/build", "ci/build", true},
+		{"ci/?uild", "ci/build", true},
+		{"ci/build", "ci/lint", false},
+		{"lint", "ci/lint", false},
+	} {
+		if got := ContextMatch(c.pattern, c.context); got != c.want {
+			t.Errorf("ContextMatch(%q, %q) = %v", c.pattern, c.context, got)
+		}
+	}
+}

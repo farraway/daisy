@@ -3,7 +3,6 @@ package reconcile
 import (
 	"errors"
 	"fmt"
-	"path"
 	"slices"
 	"strings"
 
@@ -334,7 +333,7 @@ func HeadChecks(f forge.Adapter, repo, base, head string) (Checks, error) {
 		c.Unreported = true
 	}
 	for _, want := range contexts {
-		if !slices.ContainsFunc(checks, func(k forge.Check) bool { ok, _ := path.Match(want, k.Context); return ok }) {
+		if !slices.ContainsFunc(checks, func(k forge.Check) bool { return forge.ContextMatch(want, k.Context) }) {
 			c.Missing = append(c.Missing, want)
 		}
 	}

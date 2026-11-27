@@ -7,6 +7,7 @@ package forge
 import (
 	"errors"
 	"fmt"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -429,4 +430,13 @@ func refersTo(body, owner, repo, name string, n int) bool {
 		}
 	}
 	return false
+}
+
+// ContextMatch is whether a status check's context matches pattern, a
+// glob of a branch's required contexts as Gitea matches it: `*` and `?`
+// stand for a `/` too, which a context's name (`ci/build`) often holds.
+func ContextMatch(pattern, context string) bool {
+	slash := strings.NewReplacer("/", "\x00")
+	ok, _ := path.Match(slash.Replace(pattern), slash.Replace(context))
+	return ok
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
-	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -591,7 +590,7 @@ func (f *Fake) checksPass(repo string, it *item) bool {
 	}
 	checks := f.statuses[[2]string{repo, it.pull.headSHA}]
 	for _, want := range f.contexts[[2]string{repo, it.pull.base}] {
-		if !slices.ContainsFunc(checks, func(c Check) bool { ok, _ := path.Match(want, c.Context); return ok }) {
+		if !slices.ContainsFunc(checks, func(c Check) bool { return ContextMatch(want, c.Context) }) {
 			return false
 		}
 	}

@@ -214,7 +214,7 @@ merge step reads no `Status` for a head whose merge check has not
 passed. `RequiresChecks(repo, branch)` returns the required contexts
 (Gitea's `status_check_contexts`, only when `enable_status_check`),
 read once no context failed or is pending, a context matched with
-`path.Match`. A head the mirror cannot merge (git's error) is blocked
+`forge.ContextMatch` (`path.Match`, a `*` standing for a `/` too, as Gitea matches it). A head the mirror cannot merge (git's error) is blocked
 with the reconciler's note naming the pull request, the head and
 `base`, never merged unchecked. Differences from the words above:
 `swarm merge`'s refusal names `(queued)` or `(running)`, not the place
