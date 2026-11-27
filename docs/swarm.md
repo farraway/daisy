@@ -9692,7 +9692,12 @@ rebuilt workspace. Tests: `TestMergeCommit`,
 `TestSwarmMaintainerMergeWaitsForTheMergeCheck`,
 `TestSwarmQueuedHeadRecheckedWhenBaseMoves`,
 `TestSwarmMergeWaitsForAnUnreportedRequiredContext`,
-`TestSwarmMergeCheckBlocksAnUnreadableHead`.
+`TestSwarmMergeCheckBlocksAnUnreadableHead`. A merge check that fails on a `base` that has moved since it
+started (the mirror fetched at its collection) is not sent back: its
+result gains `stale <sha>` and the queue checks the head again on
+`base` as it is now (the maintainer's ruling of 2026-11-27); a failure
+on `base` as it is now is T32 at once, and a conflict T25 at once
+(`TestSwarmMergeCheckFailedOnAMovedBaseCheckedAgain`).
 
 **The rulings.** The maintainer's, of 2026-11-19 (Step 1 of that plan):
 machine-read `Depends:` and `Touches:`, several blockers per issue, the

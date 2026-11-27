@@ -350,3 +350,36 @@ func TestSwarmMergeQueueSerialOneMergePerPass(t *testing.T) {
 		t.Errorf("the second not merged a pass later:\n%s", a.stdout.String())
 	}
 }
+
+// A merge check that failed on a base that has since moved is checked
+// again on base as it is now before the head goes back to the worker
+// (section 12.1, rule 3; the maintainer's ruling of 2026-11-27 on
+// R2-B's open question): main moves while the check runs, the failure
+// is recorded stale, nothing is posted and the issue stays approved; the
+// next pass checks it again on the moved main, and once that passes it
+// merges.
+func TestSwarmMergeCheckFailedOnAMovedBaseCheckedAgain(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	head := a.approvedHead(true)
+	a.runner.Script(1, "merge", runner.Canned{Code: 2, Stdout: "main.go:1: undefined: other\n", Work: func(string) error {
+		a.land("app", map[string]string{"other.go": "other\n"}, "another slice merged during the check")
+		return nil
+	}})
+	a.pass()
+	moved := a.mainAt()
+	comments, _ := a.forge.PullComments(forge.Ref{Repo: "app", N: 1})
+	if got := labels(a.issue(1)); !slices.Contains(got, forge.ReviewApproved) || len(comments) != 0 ||
+		!strings.Contains(a.result("1-merge-1"), "\nstale "+moved+"\ncollected\n") ||
+		!strings.Contains(a.stdout.String(), "#1 merge run 1: merge check failed (exit 2) on main at ") {
+		t.Fatalf("sent back on a moved main: %v %+v\n%s\n%s", got, comments, a.result("1-merge-1"), a.stdout.String())
+	}
+	a.pass()
+	if !strings.HasPrefix(a.result("1-merge-2"), "merge app "+head+" into "+moved+" ") || !strings.Contains(a.result("1-merge-2"), "\npassed\n") {
+		t.Fatalf("not checked again on the moved main:\n%s\n%s", a.result("1-merge-2"), a.stdout.String())
+	}
+	a.pass()
+	if !a.pulls(1)[0].Merged || a.issue(1).Open {
+		t.Errorf("not merged once checked again:\n%s", a.stdout.String())
+	}
+}

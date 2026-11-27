@@ -366,6 +366,23 @@ func (s *Swarm) collectMerge(r Run, lines []string) error {
 		if err := c.step("failed: merge check: " + result); err != nil {
 			return err
 		}
+		// A failure on a base that has moved since is checked again on
+		// base as it is now before the head goes back to the worker (the
+		// maintainer's ruling of 2026-11-27): the mirror fetched, a moved
+		// base records the check stale, and the queue checks the head
+		// again, its passed or failed check on the old base being stale.
+		if err := s.git().Fetch(repo); err != nil {
+			return err
+		}
+		if now := s.mergeBase(m.name); now != "" && now != m.base {
+			fmt.Fprintf(s.Out, "%smerge check failed (%s) on %s at %s, which has moved to %s: checked again\n", c.head, result, s.Cfg.Base, short(m.base), short(now))
+			if err := c.step("stale " + now); err != nil {
+				return err
+			}
+		}
+	}
+	if _, stale := Has(c.lines, "stale"); stale {
+		return c.mergeEnd()
 	}
 	return c.mergeFailed(m, repo.Check)
 }

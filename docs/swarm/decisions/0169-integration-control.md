@@ -216,7 +216,12 @@ passed. `RequiresChecks(repo, branch)` returns the required contexts
 read once no context failed or is pending, a context matched with
 `forge.ContextMatch` (`path.Match`, a `*` standing for a `/` too, as Gitea matches it). A head the mirror cannot merge (git's error) is blocked
 with the reconciler's note naming the pull request, the head and
-`base`, never merged unchecked. Differences from the words above:
+`base`, never merged unchecked. A failed merge check whose `base` has
+moved since it started (the mirror fetched at its collection) is
+recorded `stale <sha>` and checked again on `base` as it is now, not
+sent back (the maintainer's ruling of 2026-11-27 on R2-B's open
+question, as a passed check on an old `base` is stale;
+`TestSwarmMergeCheckFailedOnAMovedBaseCheckedAgain`). Differences from the words above:
 `swarm merge`'s refusal names `(queued)` or `(running)`, not the place
 in the queue. Not built here: rule 4 (the main check, a red `base`
 holding the queue), the merge gate note's `- Merge check:`, `status`'s

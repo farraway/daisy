@@ -1713,3 +1713,10 @@ they write.
   holds the merge (`RequiresChecks` returns the contexts). Sections 2,
   5, 7.7, 10, 12 and 12.1. Decision
   [169](swarm/decisions/0169-integration-control.md), As built.
+- 2026-11-27, Step R2-B of the plan implementing the 2026-11-19 swarm
+  roadmap, the maintainer's ruling on its open question: a merge check
+  that failed on a `base` that has moved since is checked again on
+  `base` as it is now before the head goes back to the worker; a
+  failure on `base` as it is now is still T32 at once, a conflict T25.
+  Section 12.1. Decision
+  [169](swarm/decisions/0169-integration-control.md), As built.
