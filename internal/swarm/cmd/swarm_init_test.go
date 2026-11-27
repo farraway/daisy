@@ -383,3 +383,29 @@ func TestSwarmInitDropsCoAuthor(t *testing.T) {
 		t.Errorf("pushed:\n%s", got)
 	}
 }
+
+// A cancelled `init` (EOF at a question) on a file still holding co_author
+// writes nothing and says nothing of dropping it; a file holding it once
+// says "1 entry".
+func TestSwarmInitDropLineOnlyWhenWritten(t *testing.T) {
+	t.Parallel()
+	s := newSwarmWS(t)
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	s.cwd = s.ws
+	old := s.read("swarm.json")
+	one := strings.Replace(old, `"effort": "high"}`, `"effort": "high", "co_author": "x <y@z>"}`, 1)
+	if one == old {
+		t.Fatalf("no persona to hold co_author:\n%s", old)
+	}
+	s.write("swarm.json", one)
+	s.stdout.Reset()
+	if err := s.run(); err != nil || strings.Contains(s.stdout.String(), "Dropped") || s.read("swarm.json") != one {
+		t.Errorf("cancelled: %v\n%s\n%s", err, s.stdout.String(), s.stderr.String())
+	}
+	s.stdout.Reset()
+	if err := s.run("--defaults"); err != nil || !strings.Contains(s.stdout.String(), "\n✓ Dropped co_author from 1 entry: the co-author trailer is now the model's\n✓ Wrote swarm.json\n") {
+		t.Errorf("1 entry: %v\n%s\n%s", err, s.stdout.String(), s.stderr.String())
+	}
+}
