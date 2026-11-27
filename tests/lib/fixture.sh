@@ -144,6 +144,15 @@ fixture_teardown() {
     rm -rf "$FIXTURE_ROOT" "$FIXTURE_HOME_PARENT" "$FIXTURE_CONFIG" "$FIXTURE_LOCAL" "$FIXTURE_WORKSPACE" "$FIXTURE_USER_HOME"
     unset DAISY_CONFIG DAISY_LOCAL
     fixture_teardown_home_override
+    fixture_teardown_fake_forge
+}
+
+# Undoes fixture_fake_forge's exports, when a case made one.
+fixture_teardown_fake_forge() {
+    [ -n "${FIXTURE_FORGE:-}" ] || return 0
+    export PATH="$FIXTURE_PATH"
+    export GIT_CONFIG_GLOBAL=/dev/null
+    unset DAISY_FORGE GITEA_TOKEN DAISY_MAINTAINER_TOKEN FIXTURE_FORGE FIXTURE_UPSTREAMS FIXTURE_PATH
 }
 
 # Runs `daisy "$@"` (the installed entry point) inside the fixture
@@ -327,4 +336,46 @@ seed_done_basic() {
 x 2026-07-01 2026-06-01 Ship the old widget +daisy
 x 2026-07-02 2026-06-05 Unrelated finished chore +work
 EOF
+}
+
+# A fake forge for the swarm's verbs, the test seam DAISY_FORGE names
+# (docs/swarm.md section 10, The fake forge's file): FIXTURE_FORGE, the
+# file, holds acme/swarm-widget and its one declared repository, widget,
+# the swarm's token tok-swarm (swarmbot's) and the maintainer's tok-maint
+# (maintainer's), both exported as `swarm.json` and `init` read them; git
+# reaches git@forge.example.invalid:acme/<repo>.git at the local bare
+# repositories under FIXTURE_UPSTREAMS (widget's with one commit,
+# swarm-widget's empty), through a global git config of the case's,
+# which also gives the maintainer's git identity; widget's clone is FIXTURE_WORKSPACE/widget,
+# the folder `swarm init` runs in; and a `docker` first on PATH lists no
+# container, so no case reads the machine's. fixture_teardown unsets
+# what this exports.
+fixture_fake_forge() {
+    FIXTURE_UPSTREAMS="$FIXTURE_WORKSPACE/upstreams"
+    FIXTURE_FORGE="$FIXTURE_WORKSPACE/forge.json"
+    local src="$FIXTURE_WORKSPACE/widget"
+    mkdir -p "$FIXTURE_UPSTREAMS/acme" "$FIXTURE_WORKSPACE/bin"
+    git init -q --bare -b main "$FIXTURE_UPSTREAMS/acme/swarm-widget.git"
+    git init -q -b main "$src"
+    git -C "$src" -c user.name=Fixture -c user.email=fixture@example.invalid commit -q --allow-empty -m first
+    git clone -q --bare "$src" "$FIXTURE_UPSTREAMS/acme/widget.git"
+    git -C "$src" remote add origin git@forge.example.invalid:acme/widget.git
+    cat > "$FIXTURE_FORGE" <<'JSON'
+{
+  "repo": "acme/swarm-widget",
+  "names": ["widget"],
+  "ssh_url": "git@forge.example.invalid:acme/swarm-widget.git",
+  "tokens": {"tok-swarm": {"login": "swarmbot", "email": "swarm@example.invalid"}, "tok-maint": {"login": "maintainer"}}
+}
+JSON
+    printf '#!/bin/sh\nexit 0\n' > "$FIXTURE_WORKSPACE/bin/docker"
+    chmod +x "$FIXTURE_WORKSPACE/bin/docker"
+    FIXTURE_PATH="$PATH"
+    export PATH="$FIXTURE_WORKSPACE/bin:$PATH"
+    export DAISY_FORGE="$FIXTURE_FORGE" GITEA_TOKEN=tok-swarm DAISY_MAINTAINER_TOKEN=tok-maint
+    # A global config of the case's own, since the binary passes no
+    # GIT_CONFIG_COUNT pair to the git it runs (ops.childEnv).
+    printf '[user]\n\tname = Fixture Maintainer\n\temail = maintainer@example.invalid\n[url "%s/"]\n\tinsteadOf = git@forge.example.invalid:\n' \
+        "$FIXTURE_UPSTREAMS" > "$FIXTURE_WORKSPACE/gitconfig"
+    export GIT_CONFIG_GLOBAL="$FIXTURE_WORKSPACE/gitconfig"
 }

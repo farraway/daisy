@@ -7905,6 +7905,16 @@ roadmap).** `openForge` (`internal/swarm/cmd`) reads `DAISY_FORGE`
 through `Ops.Getenv`; `forge.FileForge` implements `Adapter` over the
 file. Decision [177](swarm/decisions/0177-the-fake-forges-file.md).
 
+**As built (Step T8c of the same plan).** Two acceptance cases drive the
+binary over the file: `tests/cases/93-swarm-init-fake-forge.sh` (`init
+--defaults` in a folder holding the product's clone, then again from
+the swarm repository's clone) and
+`tests/cases/94-swarm-status-fake-forge.sh` (`status` and `status
+--waiting` over an issue the file holds, and a token it does not name).
+`fixture_fake_forge` (`tests/lib/fixture.sh`) writes the file, the
+upstreams git reaches in place of the forge's URLs through a global git
+config of the case's, and a `docker` that lists no container.
+
 ## 11. The verbs
 
 **Finding the swarm.** Every verb runs in a clone of the swarm

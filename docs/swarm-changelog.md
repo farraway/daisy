@@ -1754,3 +1754,8 @@ they write.
   `tokens` giving each token's account) in place of the declared one.
   Section 10, The fake forge's file; `docs/cli.md`'s Environment read.
   Decision [177](swarm/decisions/0177-the-fake-forges-file.md).
+- 2026-11-27, Step T8c of the plan implementing the 2026-11-19 swarm
+  roadmap: the acceptance cases for `swarm init` and `swarm status`
+  over the fake forge's file, and `fixture_fake_forge`. Section 10, The
+  fake forge's file, As built. Decision
+  [177](swarm/decisions/0177-the-fake-forges-file.md).
