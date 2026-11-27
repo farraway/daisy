@@ -576,8 +576,8 @@ func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
 		if err != nil {
 			return p, err
 		}
-		if _, ok := Has(lines, "collected"); !ok {
-			continue
+		if _, ok := Has(lines, "collected"); !ok || r.Role == "merge" {
+			continue // a merge check has no member, and no row (section 12.1)
 		}
 		p.Collected++
 		held, ok := latest[s.runKey(r).Key()]

@@ -594,6 +594,7 @@ func TestSwarmMetricsReprice(t *testing.T) {
 			os.WriteFile(a.state("runs/"+run+"/stdout"), []byte(stdout), 0o644)
 		}
 	}
+	a.runResult("7-merge-1", "merge app c1 into b1 at m1\npassed\ncollected\n", "") // a merge check has no member, no row and no count (section 12.1)
 	counts := "(4 runs collected, 3 with a row: 0 current, 1 with no usage to read)"
 
 	if err := a.metricsVerb("--reprice", "--dry-run"); err != nil {
