@@ -374,16 +374,21 @@ func File(dir string) string { return filepath.Join(dir, "swarm.json") }
 // Load reads and parses dir's swarm.json (dir a Place.Root); found is
 // false when there is none, err then saying to run init.
 func Load(fs ops.FS, dir string) (c Config, found bool, err error) {
-	return load(fs, dir, false)
+	return load(fs, dir, nil)
 }
 
 // LoadDropping is Load for `swarm init`, which rewrites the file: a
-// retired field is dropped, the rest read as Load reads it.
-func LoadDropping(fs ops.FS, dir string) (c Config, found bool, err error) {
-	return load(fs, dir, true)
+// retired field is dropped, the rest read as Load reads it; dropped
+// counts the objects each retired field was dropped from, by its name.
+func LoadDropping(fs ops.FS, dir string) (c Config, dropped map[string]int, found bool, err error) {
+	dropped = map[string]int{}
+	c, found, err = load(fs, dir, dropped)
+	return c, dropped, found, err
 }
 
-func load(fs ops.FS, dir string, drop bool) (c Config, found bool, err error) {
+// load is Load, a retired field dropped and counted in drop when drop is
+// not nil.
+func load(fs ops.FS, dir string, drop map[string]int) (c Config, found bool, err error) {
 	b, err := fs.ReadFile(File(dir))
 	if errors.Is(err, iofs.ErrNotExist) {
 		return Config{}, false, &Error{"", fmt.Sprintf("not found at %s; run 'daisy swarm init'", File(dir))}
@@ -396,18 +401,33 @@ func load(fs ops.FS, dir string, drop bool) (c Config, found bool, err error) {
 }
 
 // retired is each field swarm.json held once and holds no longer, with
-// what the error naming it says. Parse refuses one; `swarm init` drops it.
-var retired = map[string]string{
-	"co_author": "no longer declared: the Co-Authored-By trailer is the launched model's; run 'daisy swarm init' to drop it, keeping the rest",
+// what the error naming it says and what `swarm init`'s line dropping it
+// says after its count. Parse refuses one; `swarm init` drops it.
+var retired = map[string]struct{ Refused, Dropped string }{
+	"co_author": {
+		Refused: "no longer declared: the Co-Authored-By trailer is the launched model's; run 'daisy swarm init' to drop it, keeping the rest",
+		Dropped: "the co-author trailer is now the model's",
+	},
+}
+
+// DroppedLine is `swarm init`'s line for retired field name dropped from n
+// objects: `✓ Dropped <name> from <n> entries: <why>` (1 entry).
+func DroppedLine(name string, n int) string {
+	entries := "entries"
+	if n == 1 {
+		entries = "entry"
+	}
+	return fmt.Sprintf("✓ Dropped %s from %d %s: %s", name, n, entries, retired[name].Dropped)
 }
 
 // Parse decodes data strictly: an unknown field, a retired field, a
 // required field absent and a value of the wrong type are each an *Error
 // naming the field.
-func Parse(data []byte) (Config, error) { return parse(data, false) }
+func Parse(data []byte) (Config, error) { return parse(data, nil) }
 
-// parse is Parse, a retired field dropped when drop is true.
-func parse(data []byte, drop bool) (Config, error) {
+// parse is Parse, a retired field dropped and counted in drop when drop
+// is not nil.
+func parse(data []byte, drop map[string]int) (Config, error) {
 	// Syntax only: a value json.Unmarshal into any cannot hold (1e400)
 	// is the field's to report, by decode, with its name.
 	var probe any
@@ -428,8 +448,8 @@ func parse(data []byte, drop bool) (Config, error) {
 // decode fills v from raw, naming path in any error. A JSON null is
 // absent for an optional (pointer) field and the wrong type for any other:
 // encoding/json would leave the zero value, a gate silently off. A
-// retired field is refused, or skipped when drop is true.
-func decode(path string, raw json.RawMessage, v reflect.Value, drop bool) error {
+// retired field is refused, or skipped and counted when drop is not nil.
+func decode(path string, raw json.RawMessage, v reflect.Value, drop map[string]int) error {
 	// A resource is its path alone, or an object (section 3).
 	if v.Type() == reflect.TypeFor[Resource]() {
 		switch bytes.TrimSpace(raw)[0] {
@@ -462,14 +482,19 @@ func decode(path string, raw json.RawMessage, v reflect.Value, drop bool) error 
 		}
 		var unknown []string
 		for k := range obj {
-			if _, gone := retired[k]; !slices.Contains(names, k) && !(gone && drop) {
-				unknown = append(unknown, k)
+			if slices.Contains(names, k) {
+				continue
 			}
+			if _, gone := retired[k]; gone && drop != nil {
+				drop[k]++
+				continue
+			}
+			unknown = append(unknown, k)
 		}
 		if len(unknown) > 0 {
 			slices.Sort(unknown)
-			if why, gone := retired[unknown[0]]; gone {
-				return fieldErr(join(path, unknown[0]), "%s", why)
+			if r, gone := retired[unknown[0]]; gone {
+				return fieldErr(join(path, unknown[0]), "%s", r.Refused)
 			}
 			return fieldErr(join(path, unknown[0]), "unknown field")
 		}

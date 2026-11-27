@@ -67,7 +67,11 @@ type Wizard struct {
 	Place    Place // where the swarm is; detection reads the clones under Place.Root (Outside), or beside it in a swarm repository's clone
 	Defaults bool
 	File     *Config
-	API      string // `init --api <url>`: question 3's default over the file's and every other
+	// Dropped is the retired fields LoadDropping dropped from File, each
+	// counted by the objects it was dropped from (init's line before it
+	// writes swarm.json).
+	Dropped map[string]int
+	API     string // `init --api <url>`: question 3's default over the file's and every other
 }
 
 // ask puts one question until take accepts the answer (or the default).

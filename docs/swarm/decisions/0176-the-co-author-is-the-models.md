@@ -26,7 +26,10 @@ fallback entry and a `by_label` entry alike; a file still holding it is
 refused naming the field, `swarm.json: personas.<role>.co_author: no
 longer declared: the Co-Authored-By trailer is the launched model's;
 run 'daisy swarm init' to drop it, keeping the rest`, and `init` reads
-such a file with the field dropped and writes it back without it. The
+such a file with the field dropped and writes it back without it,
+saying so first (`✓ Dropped co_author from <k> entries: the co-author
+trailer is now the model's`; the maintainer's ruling of 2026-11-26 on
+the step's open question). The
 wizard asks no co-author: questions 22–26 are retired, and the
 questions after them keep their numbers.
 
@@ -53,3 +56,11 @@ derived value, and `Git.Clone` writes the hook always. Tests:
 `TestSwarmByLabelCommitsCarryItsModel` (an entry the same as a
 fallback entry, R4-L's case), `TestWizardAsksInOrder` without the
 co-author question.
+
+**As built (Step CA, the maintainer's ruling on its open question).**
+`LoadDropping` returns the objects each retired field was dropped from,
+by name, which `Wizard.Dropped` carries to `writeDeclaration`; it prints
+`declare.DroppedLine` for each before `✓ Wrote swarm.json`, its reason
+the `retired` entry's. Tests: `TestSwarmInitDropsCoAuthor` (three
+entries, the line before `✓ Wrote swarm.json`), `TestParseRefusesCoAuthor`
+(one entry counted).

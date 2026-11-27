@@ -775,15 +775,15 @@ func TestParseRefusesCoAuthor(t *testing.T) {
 		if _, _, err := Load(ops.Real().FS(), dir); errText(err) != "swarm.json: "+tc.field+why {
 			t.Errorf("Load, %s: %v", tc.field, err)
 		}
-		got, found, err := LoadDropping(ops.Real().FS(), dir)
-		if !found || err != nil || !reflect.DeepEqual(got, c) {
+		got, dropped, found, err := LoadDropping(ops.Real().FS(), dir)
+		if !found || err != nil || !reflect.DeepEqual(got, c) || !reflect.DeepEqual(dropped, map[string]int{"co_author": 1}) {
 			t.Errorf("LoadDropping, %s: %v %v\n%+v", tc.field, found, err, got.Personas)
 		}
 	}
 	// Dropping is the retired field's alone: an unknown one is still refused.
 	dir := t.TempDir()
 	write(t, File(dir), strings.Replace(good, `"effort": "medium"`, `"effort": "medium", "co": 1`, 1))
-	if _, _, err := LoadDropping(ops.Real().FS(), dir); errText(err) != "swarm.json: personas.worker.co: unknown field" {
+	if _, _, _, err := LoadDropping(ops.Real().FS(), dir); errText(err) != "swarm.json: personas.worker.co: unknown field" {
 		t.Errorf("LoadDropping, an unknown field: %v", err)
 	}
 }

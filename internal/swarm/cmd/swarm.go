@@ -84,18 +84,19 @@ func openForge(o ops.Ops, f declare.Forge, names []string, token string) (forge.
 func swarmInit(c *Context, open opener) error {
 	o, p := c.Ops, c.Swarm
 	var file *declare.Config
+	var dropped map[string]int
 	if !p.Outside {
 		// A retired field (co_author) is dropped: init writes the file anew.
-		existing, found, err := declare.LoadDropping(o.FS(), p.Root)
+		existing, gone, found, err := declare.LoadDropping(o.FS(), p.Root)
 		if found && err != nil {
 			return fmt.Errorf("Error: %v", err)
 		}
 		if found {
-			file = &existing
+			file, dropped = &existing, gone
 		}
 	}
 	api, _ := c.Value("--api")
-	w := &declare.Wizard{Ops: o, In: c.Stdin, Err: c.Stderr, Place: p, Defaults: c.Flag("--defaults"), File: file, API: api}
+	w := &declare.Wizard{Ops: o, In: c.Stdin, Err: c.Stderr, Place: p, Defaults: c.Flag("--defaults"), File: file, Dropped: dropped, API: api}
 	cfg, err := w.Ask()
 	if err == nil {
 		err = declare.Validate(o, p, cfg, declare.SkipPrompts|declare.SkipAccount)
@@ -194,7 +195,9 @@ func warnDrift(c *Context, cfg declare.Config) {
 // values (its layout aside: a hand-formatted file with the same values is
 // left as it is) and each persona prompt that is absent, each named
 // relative to the swarm's root; written is what it wrote, so named.
-func writeDeclaration(c *Context, at declare.Place, cfg declare.Config) (written []string, err error) {
+// Each retired field dropped from the file (dropped) gets its line
+// before swarm.json's.
+func writeDeclaration(c *Context, at declare.Place, cfg declare.Config, dropped map[string]int) (written []string, err error) {
 	fs := c.Ops.FS()
 	if err := fs.MkdirAll(filepath.Join(at.Root, "prompts"), 0o755); err != nil {
 		return nil, fmt.Errorf("Error: cannot create %s: %v", filepath.Join(at.Root, "prompts"), err)
@@ -205,6 +208,9 @@ func writeDeclaration(c *Context, at declare.Place, cfg declare.Config) (written
 	} else {
 		if err := fs.WriteFile(declare.File(at.Root), data, 0o644); err != nil {
 			return nil, fmt.Errorf("Error: cannot write %s: %v", declare.File(at.Root), err)
+		}
+		for _, name := range slices.Sorted(maps.Keys(dropped)) {
+			fmt.Fprintln(c.Stdout, declare.DroppedLine(name, dropped[name]))
 		}
 		fmt.Fprintln(c.Stdout, "✓ Wrote swarm.json")
 		written = append(written, "swarm.json")

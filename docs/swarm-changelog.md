@@ -1692,3 +1692,9 @@ they write.
   [176](swarm/decisions/0176-the-co-author-is-the-models.md), amending
   decisions [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)
   and [175](swarm/decisions/0175-a-roles-model-by-label.md).
+- 2026-11-26, Step CA of the plan implementing the 2026-11-19 swarm
+  roadmap, the maintainer's ruling on its open question: `init`, dropping
+  the retired `co_author`, says so before `✓ Wrote swarm.json`, `✓
+  Dropped co_author from <k> entries: the co-author trailer is now the
+  model's`. Section 11's `init` stdout and `docs/cli.md`'s. Decision
+  [176](swarm/decisions/0176-the-co-author-is-the-models.md), As built.

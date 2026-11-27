@@ -376,7 +376,7 @@ func TestSwarmInitDropsCoAuthor(t *testing.T) {
 	if err := s.run("--defaults"); err != nil {
 		t.Fatalf("%v\n%s", err, s.stderr.String())
 	}
-	if s.read("swarm.json") != kept || !strings.Contains(s.stdout.String(), "✓ Wrote swarm.json\n") || strings.Contains(s.stderr.String(), "co-author") {
+	if s.read("swarm.json") != kept || !strings.Contains(s.stdout.String(), "\n✓ Dropped co_author from 3 entries: the co-author trailer is now the model's\n✓ Wrote swarm.json\n") || strings.Contains(s.stderr.String(), "co-author") {
 		t.Errorf("swarm.json:\n%s\nstdout:\n%s\nstderr:\n%s", s.read("swarm.json"), s.stdout.String(), s.stderr.String())
 	}
 	if got := gitIn(t, s.upstreams[swarmURL], "show", "main:swarm.json"); got+"\n" != kept {

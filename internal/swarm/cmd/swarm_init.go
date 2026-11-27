@@ -131,7 +131,7 @@ func initRepository(c *Context, w *declare.Wizard, cfg declare.Config, open open
 			return fmt.Errorf("Error: swarm: mirror %s: %v", r.Name, err)
 		}
 	}
-	written, err := writeDeclaration(c, p, cfg)
+	written, err := writeDeclaration(c, p, cfg, w.Dropped)
 	if err != nil {
 		return err
 	}
