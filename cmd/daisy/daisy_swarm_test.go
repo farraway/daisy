@@ -375,12 +375,12 @@ func TestSwarmStatusJSONThroughGitea(t *testing.T) {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errs)
 	}
 	for path, want := range map[string][]string{
-		"":                    {"briefs", "capacity", "corrections", "forge", "gates", "held", "personas", "repositories", "repository", "running", "stages", "state", "throughput", "waiting", "warnings"},
+		"":                    {"briefs", "capacity", "corrections", "forge", "gates", "held", "personas", "queue", "repositories", "repository", "running", "stages", "state", "throughput", "waiting", "warnings"},
 		"forge":               {"host", "kind"},
 		"state":               {"no_active_brief", "owner_held", "path", "paused", "qa_held", "restart_requested_at"},
 		"gates":               {"merge", "plan", "triage"},
 		"stages":              {"swarm:plan-0-posted", "swarm:plan-1-accepted", "swarm:plan-2-in-progress", "swarm:proposal-accepted", "swarm:proposal-posted", "swarm:review-0-ready", "swarm:review-1-in-progress", "swarm:review-2-approved", "swarm:review-3-changes-requested"},
-		"waiting":             {"ci_differs", "issues", "no_check", "notes"},
+		"waiting":             {"ci_differs", "issues", "main_red", "main_unchecked", "no_check", "notes"},
 		"held":                {"blocked_by", "overlaps", "paused"},
 		"running":             {"error", "members"},
 		"personas":            {"adversary", "architect", "owner", "sympathetic", "worker"},
@@ -448,7 +448,7 @@ func TestSwarmStatusWaitingThroughGitea(t *testing.T) {
 	}
 	code, out, errs = runWith(o, "swarm", "status", "--waiting", "--json")
 	var doc, want any
-	json.Unmarshal([]byte(`{"waiting": {"issues": [{"item": "triage", "issue": 1, "class": "architecture"}], "notes": [], "no_check": [], "ci_differs": []}, "warnings": []}`), &want)
+	json.Unmarshal([]byte(`{"waiting": {"issues": [{"item": "triage", "issue": 1, "class": "architecture"}], "notes": [], "no_check": [], "ci_differs": [], "main_red": [], "main_unchecked": []}, "warnings": []}`), &want)
 	if code != 0 || errs != "" || json.Unmarshal([]byte(out), &doc) != nil || !reflect.DeepEqual(doc, want) {
 		t.Errorf("--waiting --json: exit %d\n%s\n%s", code, out, errs)
 	}

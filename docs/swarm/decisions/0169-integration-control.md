@@ -234,3 +234,30 @@ Tests: `TestMergeCommit`, `TestSwarmMergeCheckRunsOnBasePlusHead`,
 `TestSwarmMergeWaitsForAnUnreportedRequiredContext`,
 `TestSwarmMergeCheckBlocksAnUnreadableHead`; the gate-off tests that
 merge take one pass more, for the check.
+
+**As built (Step R2-C, the red main; rule 4, with `status`'s queue
+line, Waiting for you's `main red` and `main unchecked`, notify and the
+merge gate note's `- Merge check:`).** `ReadVerdicts`, `ReadMainState`,
+`mainChecks`, `startMain`, `collectMain`, `routeFix`, `fixes`,
+`FixesLine`, `redHolds`, `redMains` and `mainStatus` in
+`internal/swarm/reconcile/main.go`. A merge check records its merge's
+tree, so the forge's merge of a passed head is green with no run; a
+tree with no verdict is checked by `0-main-<k>` when a member slot is
+free, the mirrors fetched once for the pass and no forge read. `base` is
+red when its tree failed, or, with no verdict, when the newest commit
+with one on its first-parent line failed; the queue checks a head only
+on a green `base`, or the fix's on a red one, so a `base` being checked
+holds it. The fix's issue is the breaking job's, or, that job closed or
+none, a swarm proposal with `Fixes: <name>`; the route is taken once, at
+the failed check's collection. A main check's change, for 7.9's
+classification, is what `base` changed since its newest green commit.
+The red journal line is queued at every red commit; a `base` made green
+by the merge of a head checked on a red one journals `<n>-merge-<k>:
+<name> green at <short sha>`. A running main check holds issue 0's
+batch runs until it is collected. `status`'s queue line lists the
+approved heads by issue, not in the queue's order. Section 12.1's *Rule
+4 built* paragraph gives the words. Tests:
+`TestSwarmMainGreenByTheMergeCheck`, `TestSwarmMainCheckedAfterAHandPush`,
+`TestSwarmRedMainHoldsWorkers`, `TestSwarmRedMainRoutedToTheBreakingJob`,
+`TestSwarmRedMainRoutedToTheOwner`, `TestSwarmMainGreenAgain`,
+`TestSwarmStatusQueueAndMain`.

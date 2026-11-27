@@ -31,6 +31,7 @@ type Status struct {
 	Waiting      StatusWaiting            `json:"waiting"`
 	Held         StatusHeld               `json:"held"`
 	Running      StatusRunning            `json:"running"`
+	Queue        []StatusQueue            `json:"queue"` // each repository with a check: its base and its merge queue (section 12.1)
 	Personas     map[string]StatusPersona `json:"personas"`
 	Capacity     StatusCapacity           `json:"capacity"`
 	Throughput   StatusThroughput         `json:"throughput"`
@@ -83,6 +84,27 @@ type StatusWaiting struct {
 	Notes     []string     `json:"notes"`
 	NoCheck   []string     `json:"no_check"`
 	CIDiffers []string     `json:"ci_differs"`
+	// The repositories whose base is red, and whose base a main check
+	// could not check (section 12.1, rule 4).
+	MainRed       []string `json:"main_red"`
+	MainUnchecked []string `json:"main_unchecked"`
+}
+
+// StatusQueue is a repository's Queue line (section 12.1): how its base
+// stands (green, red, checking or unchecked) at its commit, and each
+// approved head's merge check on it.
+type StatusQueue struct {
+	Repository string       `json:"repository"`
+	State      string       `json:"state"`
+	SHA        string       `json:"sha"`
+	Heads      []StatusHead `json:"heads"`
+}
+
+// StatusHead is an approved issue's current head in its repository's
+// queue: passed or running on base as it is now, else waits.
+type StatusHead struct {
+	Issue int    `json:"issue"`
+	State string `json:"state"`
 }
 
 type StatusWait struct {
@@ -386,6 +408,9 @@ func readStatus(o ops.Ops, at declare.Place, cfg declare.Config, local string, f
 	r.Waiting.CIDiffers = CIDifferNames(ci)
 
 	state := cfg.Forge.State(local)
+	if err := mainStatus(o, cfg, state, issues, r); err != nil {
+		return nil, statusRead{}, fmt.Errorf("reading the main checks: %w", err)
+	}
 	r.State = readStateNotes(o.FS(), state, NoActiveBrief(briefs))
 	r.Gates = StatusGates{cfg.Gates.Triage, cfg.Gates.Plan, cfg.Gates.Merge}
 	var running []runner.Running

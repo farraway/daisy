@@ -305,6 +305,17 @@ func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
 		fmt.Sprintf("- Slice %d of %d.", sliceOf(cur, is.Number), S),
 		fmt.Sprintf("- Review rounds: %d.", Rounds(reviews, Reopenings(pullComments(comments), s.SwarmLogin, s.Cfg.Trusted), s.SwarmLogin, time.Time{}, "")),
 	}
+	// The merge check of the approved head on base as the mirror holds
+	// it (section 12.1, What `status` shows): queued when none has started.
+	if r, ok := s.repo(cur.Repo); ok && len(r.Check) > 0 && cur.Open {
+		if base := s.mergeBase(cur.Repo); base != "" {
+			got, err := MergeChecked(s.O.FS(), s.state(), is.Number, cmp.Or(head, cur.HeadSHA), base)
+			if err != nil {
+				return "", nil, err
+			}
+			items = append(items, fmt.Sprintf("- Merge check: %s on %s at %s.", cmp.Or(got, "queued"), s.Cfg.Base, short(base)))
+		}
+	}
 	var findings []string
 	for _, role := range []string{"adversary", "sympathetic"} {
 		var last forge.Review

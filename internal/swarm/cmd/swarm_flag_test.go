@@ -206,6 +206,7 @@ func TestSwarmApplyGateNotes(t *testing.T) {
 			"Decide: `daisy swarm accept 3`, `daisy swarm class 3 routine`, after which Daisy accepts it, or a comment here, from which the architect revises the plan.\n\ncc @jane",
 		4: "**reconciler:** gated at review-2-approved: both reviews approve [acme/app#1](https://forge.example.net/acme/app/pulls/1) at c1c1c1c, and the merge gate leaves the merge to the maintainer.\n\n" +
 			"- Class: architecture.\n- Pull request acme/app#1, #4 slice 1: Merge me (open, head c1c1c1c).\n- Slice 1 of 2.\n- Review rounds: 2.\n" +
+			"- Merge check: queued on main at " + a.mainAt()[:7] + ".\n" +
 			"- Non-blocking findings in the approving reviews:\n  - adversary: [non-blocking] main.go:2 could name the version.\n  - sympathetic: [non-blocking] notes.md:1 a typo.\n\n" +
 			"Decide: `daisy swarm merge 4`, `daisy swarm approve 4` first when the forge wants an approving review, or a comment.\n\ncc @jane",
 		5: "**reconciler:** gated at plan-1-accepted: it is blocked, and only the maintainer unblocks it.\n\n" +

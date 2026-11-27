@@ -517,6 +517,17 @@ func writeStatus(out io.Writer, r *statusReport) {
 		fmt.Fprintln(out)
 	}
 	fmt.Fprintf(out, "Running: %s\n", runningLine(r.Running))
+	for _, q := range r.Queue { // section 12.1, What `status` shows
+		line := fmt.Sprintf("Queue %s: %s at %s", q.Repository, q.State, q.SHA[:min(7, len(q.SHA))])
+		var heads []string
+		for _, h := range q.Heads {
+			heads = append(heads, fmt.Sprintf("#%d %s", h.Issue, h.State))
+		}
+		if len(heads) > 0 {
+			line += "; " + strings.Join(heads, ", ")
+		}
+		fmt.Fprintln(out, line)
+	}
 	fmt.Fprintln(out, "Personas:")
 	for _, role := range declare.AllRoles {
 		p, ok := r.Personas[role]
@@ -578,6 +589,12 @@ func waitingLine(w reconcile.StatusWaiting) string {
 	}
 	if len(w.CIDiffers) > 0 {
 		waiting = append(waiting, "ci differs "+strings.Join(w.CIDiffers, " "))
+	}
+	if len(w.MainRed) > 0 {
+		waiting = append(waiting, "main red "+strings.Join(w.MainRed, " "))
+	}
+	if len(w.MainUnchecked) > 0 {
+		waiting = append(waiting, "main unchecked "+strings.Join(w.MainUnchecked, " "))
 	}
 	if len(waiting) == 0 {
 		waiting = []string{"nothing"}
@@ -1028,7 +1045,8 @@ func pauseSwarm(c *Context) error {
 
 // resumeSwarm is `daisy swarm resume` (docs/swarm.md section 11):
 // <state>/paused removed, whoever wrote it, <state>/owner-held,
-// <state>/qa-held and <state>/capacity (section 7.10).
+// <state>/qa-held, <state>/capacity (section 7.10) and
+// <state>/main-unchecked (section 12.1, The red main).
 func resumeSwarm(c *Context) error {
 	state, err := swarmStateOnly(c)
 	if err != nil {
@@ -1036,7 +1054,7 @@ func resumeSwarm(c *Context) error {
 	}
 	fs := c.Ops.FS()
 	removed := map[string]bool{}
-	for _, name := range []string{"paused", "owner-held", "qa-held", filepath.Base(reconcile.CapacityFile(state))} {
+	for _, name := range []string{"paused", "owner-held", "qa-held", filepath.Base(reconcile.CapacityFile(state)), filepath.Base(reconcile.UncheckedFile(state))} {
 		path := filepath.Join(state, name)
 		if _, err := fs.Lstat(path); err != nil {
 			continue
@@ -1057,6 +1075,9 @@ func resumeSwarm(c *Context) error {
 	}
 	if removed["capacity"] {
 		fmt.Fprintln(c.Stdout, "Capacity released: every model is tried again at the next pass")
+	}
+	if removed["main-unchecked"] {
+		fmt.Fprintln(c.Stdout, "Main checks released: each unchecked base is checked again at the next pass")
 	}
 	if len(removed) == 0 {
 		fmt.Fprintln(c.Stdout, "Not paused")

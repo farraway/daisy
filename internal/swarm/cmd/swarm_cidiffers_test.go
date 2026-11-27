@@ -338,6 +338,7 @@ func TestSwarmCIDiffersServicesFile(t *testing.T) {
 		t.Fatal("the fixture's services file is read")
 	}
 	pushUp(t, a.upstream("app"), map[string]string{".gitea/workflows/ci.yml": ciWorkflow, declare.ServicesFile: refused})
+	a.checkedGreen("app") // no main check: the comparison is the subject
 	a.fetchProduct("app")
 	a.pass()
 	want := append([]string{ciDiffers + declare.ServicesFile + ": not compared: " + err.Error()}, a.ciLines(ciWorkflow, nil)...)
@@ -354,6 +355,7 @@ func TestSwarmCIDiffersServicesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	pushUp(t, a.upstream("app"), map[string]string{declare.ServicesFile: read})
+	a.checkedGreen("app") // no main check: the comparison is the subject
 	a.fetchProduct("app")
 	a.pass()
 	want = a.ciLines(ciWorkflow, &svcs)
@@ -362,6 +364,7 @@ func TestSwarmCIDiffersServicesFile(t *testing.T) {
 	}
 
 	pushUp(t, a.upstream("app"), map[string]string{".gitea/workflows/ci.yml": ciOnPush, declare.ServicesFile: refused})
+	a.checkedGreen("app") // no main check: the comparison is the subject
 	a.fetchProduct("app")
 	a.pass()
 	if got := told(a.stderr.String()); got != nil {

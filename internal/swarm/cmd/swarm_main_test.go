@@ -286,3 +286,64 @@ func TestSwarmRedMainRoutedToTheOwner(t *testing.T) {
 		t.Errorf("workers: the fix's %d, the other's %d\n%q\n%s", a.launches("acme/swarm-app#1/worker"), a.launches("acme/swarm-app#2/worker"), a.issue(1).Body, a.stdout.String())
 	}
 }
+
+// status shows each repository's base and its queue, and what of base
+// waits for the maintainer (section 12.1, What `status` shows): the merge
+// gate's note names the approved head's merge check; a `Queue app:` line
+// follows Running, green with the head passed, then red with it waiting;
+// Waiting for you names `main red app`, which notify tells; a main check
+// failing in the environment twice leaves base unchecked, a line of
+// <state>/main-unchecked, `main unchecked app`, until the bare resume
+// removes it and the commit is checked again.
+func TestSwarmStatusQueueAndMain(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	notified := a.notifying()
+	a.approvedHead(false)
+	base := a.mainAt()
+	a.pass() // the merge check passes; the merge gate's note
+	if bodies := a.gateNotes(1); !slices.ContainsFunc(bodies, func(b string) bool { return strings.Contains(b, "\n- Merge check: queued on main at "+base[:7]+".\n") }) {
+		t.Errorf("the merge gate's note: %q", bodies)
+	}
+	status := func() string {
+		t.Helper()
+		if err := a.status(a.forge); err != nil {
+			t.Fatal(err)
+		}
+		return a.stdout.String()
+	}
+	if out := status(); !strings.Contains(out, "\nRunning: none\nQueue app: green at "+base[:7]+"; #1 passed\nPersonas:\n") {
+		t.Errorf("status, green:\n%s", out)
+	}
+	red := a.push("app", map[string]string{"other.go": "broken\n"}, "a push by hand")
+	a.runner.Script(0, "main", broken)
+	a.pass()
+	out := status()
+	if !strings.Contains(out, "\nQueue app: red at "+red[:7]+"; #1 waits\n") || !strings.Contains(out, "; main red app\n") {
+		t.Errorf("status, red:\n%s", out)
+	}
+	if got := notified(); !slices.Contains(got, "acme/swarm-app waits for you: main red app") {
+		t.Errorf("notified %q", got)
+	}
+
+	b := newApplyWS(t)
+	b.goApp()
+	sha := b.push("app", map[string]string{"store/store.go": "package store\n\n// by hand\n"}, "a push by hand")
+	b.runner.Script(0, "main", runner.Canned{Code: 1, Stdout: webFailed}, runner.Canned{Code: 1, Stdout: webFailed})
+	b.pass()
+	if u, _ := os.ReadFile(b.state("main-unchecked")); string(u) != "app "+sha+"\n" || len(b.mains()) != 2 {
+		t.Fatalf("main-unchecked %q, %d checks\n%s\n%s", u, len(b.mains()), b.result("0-main-3"), b.stdout.String())
+	}
+	if err := b.status(b.forge); err != nil || !strings.Contains(b.stdout.String(), "\nQueue app: unchecked at "+sha[:7]+"\n") || !strings.Contains(b.stdout.String(), "Waiting for you: main unchecked app\n") {
+		t.Errorf("status, unchecked: %v\n%s", err, b.stdout.String())
+	}
+	b.pass()
+	if len(b.mains()) != 2 {
+		t.Errorf("an unchecked commit checked again before resume: %d", len(b.mains()))
+	}
+	b.resume()
+	b.pass()
+	if _, err := os.Stat(b.state("main-unchecked")); err == nil || len(b.mains()) != 3 {
+		t.Errorf("resume: %v, %d checks", err, len(b.mains()))
+	}
+}

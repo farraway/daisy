@@ -314,7 +314,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 			`"swarm:review-0-ready":[8],"swarm:review-1-in-progress":[],"swarm:review-2-approved":[6],"swarm:review-3-changes-requested":[]}`,
 		"waiting": `{"ci_differs":[],"issues":[{"class":"architecture","issue":1,"item":"triage"},{"class":"architecture","issue":2,"item":"triage"},` +
 			`{"class":"architecture","issue":3,"item":"plan"},{"class":"architecture","issue":4,"item":"plan"},{"class":"architecture","issue":5,"item":"plan"},` +
-			`{"class":"architecture","issue":6,"item":"merge"},{"class":"architecture","issue":7,"item":"blocked"}],"no_check":[],"notes":[]}`,
+			`{"class":"architecture","issue":6,"item":"merge"},{"class":"architecture","issue":7,"item":"blocked"}],"main_red":[],"main_unchecked":[],"no_check":[],"notes":[]}`,
 		"held":    `{"blocked_by":[{"by":3,"issue":12}],"overlaps":[],"paused":[11]}`,
 		"running": `{"error":null,"members":[{"issue":0,"role":"owner"},{"issue":8,"role":"adversary"},{"issue":12,"role":"check"}]}`,
 		"personas": `{"adversary":{"by_label":[],"effort":"high","model":"gpt-6.1-sol","provider":"openai"},"architect":{"by_label":[],"effort":"high","model":"claude-fable-5-1","provider":"anthropic"},` +
@@ -335,7 +335,7 @@ func TestSwarmStatusJSON(t *testing.T) {
 	}
 	var warnings []string
 	json.Unmarshal(doc["warnings"], &warnings)
-	if len(doc) != 15 || len(warnings) != 2 || warnings[0] != "⚠ "+filepath.Join(s.ws, ".env.sh")+": the swarm reads its secrets from "+s.state("env")+", not the clone; move them there and delete it" ||
+	if len(doc) != 16 || len(warnings) != 2 || warnings[0] != "⚠ "+filepath.Join(s.ws, ".env.sh")+": the swarm reads its secrets from "+s.state("env")+", not the clone; move them there and delete it" ||
 		!strings.HasPrefix(warnings[1], "⚠ Drift: swarm.json differs from acme/swarm-app's main at ") {
 		t.Errorf("%d keys, warnings %q", len(doc), warnings)
 	}

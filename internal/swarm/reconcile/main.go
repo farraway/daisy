@@ -844,3 +844,87 @@ func (s *Swarm) newestFailed(name string) (Run, error) {
 	}
 	return newest, nil
 }
+
+// mainStatus is status's Queue lines and the red and unchecked
+// repositories of Waiting for you (section 12.1, What `status` shows),
+// read from the mirrors as their last fetch left them and from the runs:
+// each approved issue's current head, by issue, passed or running on
+// base as it is now, else waits; no forge read.
+func mainStatus(o ops.Ops, cfg declare.Config, state string, issues map[int]statusIssue, r *Status) error {
+	r.Queue, r.Waiting.MainRed, r.Waiting.MainUnchecked = []StatusQueue{}, []string{}, []string{}
+	v, err := ReadVerdicts(o.FS(), state)
+	if err != nil {
+		return err
+	}
+	approved := slices.Sorted(slices.Values(r.Stages[forge.ReviewApproved]))
+	for _, repo := range cfg.Repos {
+		if len(repo.Check) == 0 {
+			continue
+		}
+		st, err := ReadMainState(o, state, cfg.Base, repo.Name, v)
+		if err != nil {
+			return err
+		}
+		if st.SHA == "" {
+			continue
+		}
+		if st.Red {
+			r.Waiting.MainRed = append(r.Waiting.MainRed, repo.Name)
+		}
+		if st.Unchecked {
+			r.Waiting.MainUnchecked = append(r.Waiting.MainUnchecked, repo.Name)
+		}
+		q := StatusQueue{Repository: repo.Name, State: st.State(), SHA: st.SHA, Heads: []StatusHead{}}
+		for _, n := range approved {
+			si := issues[n]
+			if Held(si.Issue.Labels) != "" || len(si.Pulls) == 0 {
+				continue
+			}
+			cur := si.Pulls[len(si.Pulls)-1]
+			if !cur.Open || cur.Repo != repo.Name {
+				continue
+			}
+			got, err := MergeChecked(o.FS(), state, n, cur.HeadSHA, st.SHA)
+			if err != nil {
+				return err
+			}
+			if got != "passed" && got != "running" {
+				got = "waits"
+			}
+			q.Heads = append(q.Heads, StatusHead{n, got})
+		}
+		r.Queue = append(r.Queue, q)
+	}
+	return nil
+}
+
+// UncheckedFile is <state>/main-unchecked, which the bare `swarm resume`
+// removes (section 11).
+func UncheckedFile(state string) string { return uncheckedFile(state) }
+
+// mainItems is what waits for the maintainer in base's state (section
+// 5, Notify): `main red <name>`, known by its red commit, the newest a
+// main check failed on, and `main unchecked <name>`, by its commit.
+func (s *Swarm) mainItems(repo string) ([]waitItem, error) {
+	var out []waitItem
+	for _, r := range s.Cfg.Repos {
+		st, err := s.mainState(r.Name)
+		if err != nil {
+			return nil, err
+		}
+		if st.Red {
+			sha := st.SHA
+			if f, err := s.newestFailed(r.Name); err != nil {
+				return nil, err
+			} else if lines, _ := f.Result(s.O.FS()); f.Dir != "" {
+				m, _ := mainOf(lines)
+				sha = m.sha
+			}
+			out = append(out, waitItem{"main red " + r.Name + " " + sha, repo + " waits for you: main red " + r.Name})
+		}
+		if st.Unchecked {
+			out = append(out, waitItem{"main unchecked " + r.Name + " " + st.SHA, repo + " waits for you: main unchecked " + r.Name})
+		}
+	}
+	return out, nil
+}

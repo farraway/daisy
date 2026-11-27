@@ -1720,3 +1720,19 @@ they write.
   failure on `base` as it is now is still T32 at once, a conflict T25.
   Section 12.1. Decision
   [169](swarm/decisions/0169-integration-control.md), As built.
+- 2026-11-27, Step R2-C of the plan implementing the 2026-11-19 swarm
+  roadmap (the red main, rule 4 of section 12.1): a commit of `base`
+  whose tree no check has passed or failed is checked by a main check,
+  `0-main-<k>`, a merge check recording its merge's tree so the forge's
+  merge of a passed head is green with no run; while `base` is red no
+  worker launches on its repository and its queue checks no head but the
+  fix's, the queue waiting for a green `base`; the fix goes to the
+  breaking job's worker when its issue is open, else to the owner's next
+  proposal (`# Main`, `Fixes: <name>`, `owner-held` released); a main
+  check failing in the environment writes `<state>/main-unchecked`,
+  which the bare `resume` removes; red and green are journalled;
+  `status` gains the `Queue <name>:` line and `main red`/`main
+  unchecked`, which notify tells, and the merge gate note `- Merge
+  check:`. Sections 1, 2, 5, 6, 7.3, 7.4, 7.7, 7.8, 7.9, 11 and 12.1;
+  `docs/cli.md`'s status and resume. Decision
+  [169](swarm/decisions/0169-integration-control.md), As built.

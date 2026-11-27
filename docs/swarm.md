@@ -254,7 +254,7 @@ Stages of a software factory the version leaves out, each by choice:
 
 | Stage | In version 1 |
 |---|---|
-| Monitoring, fed back into the inputs | Post-merge signals (CI on `base`, incidents, user reports) are not read; the maintainer files issues from them. *R2, specified ahead of its build* (12.1, rules 3 and 4): each approved head merges only after a merge queue's check on `base` plus the head, and Daisy checks `base` after every merge, holding the repository's worker launches while it is red and giving the fix to the breaking job's worker or the owner's next proposal; CI's status on `base` is still not read |
+| Monitoring, fed back into the inputs | Post-merge signals (CI on `base`, incidents, user reports) are not read; the maintainer files issues from them. *R2* (12.1, rules 3 and 4), *built at Steps R2-B and R2-C of the plan implementing the 2026-11-19 swarm roadmap*: each approved head merges only after a merge queue's check on `base` plus the head, and Daisy checks `base` after every merge, holding the repository's worker launches while it is red and giving the fix to the breaking job's worker or the owner's next proposal; CI's status on `base` is still not read |
 | A user-testing validator | No member runs the built product; behavioural verification is the maintainer's at merge. `check` is the seam: a product whose `check` drives the served product (an end-to-end test) has the validator run on every worker head in the check container, with nothing added here |
 | Model routing and provider fallback | One model per role, chosen by the maintainer; no routing by difficulty and no fallback on a provider's failure (a swarm fault pauses the swarm instead, section 7.7); *R4* (7.10, rule 1), *built at Step R4-A of the plan implementing the 2026-11-19 swarm roadmap*: a persona's `fallback` models, tried in order when a provider's fault for a limit, a quota or the credit makes a model unavailable on a credential until its stated reset, the fault pausing nothing; *built at Step R4-L of that plan*, a persona's `by_label` models, the first whose label the issue carries heading the role's entries on that issue (7.10, The model by label), so the maintainer routes by a label such as the job class; still no routing by difficulty |
 | A spending limit | `budget`, specified to cap the whole swarm's spend per day and in all, not per role or per issue, is validated and not enforced: no pass reads the spend against it until a run needs it (section 3, The budget); *R4* (7.10, rule 4), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a credential's launches paced to the token budget per day or week its provider declares in `keys`, the money `budget` unchanged |
@@ -282,7 +282,7 @@ Stages of a software factory the version leaves out, each by choice:
 ├── connect-seen                     # the journal's line last marked seen, which `swarm journal` prints after (section 11)
 ├── paused                           # present while paused, with the reason when `apply` paused it
 ├── restart                          # present while `swarm restart` waits for the loop to re-execute itself (section 11, The restart)
-├── main-unchecked                   # R2 (12.1, specified ahead of its build): a line `<name> <sha>` per repository whose `base` commit a main check could not check (its environment failed), until swarm resume
+├── main-unchecked                   # R2 (12.1, built at Step R2-C): a line `<name> <sha>` per repository whose `base` commit a main check could not check (its environment failed), until swarm resume
 ├── capacity                         # R4 (7.10, built at Step R4-A): a line per model unavailable on a credential, until its reset or swarm resume
 ├── owner-held                       # present while the owner's batch trigger is held, with the issues it waits on (section 6)
 ├── qa-held                          # present while the QA trigger is held (section 6, The QA trigger)
@@ -306,14 +306,14 @@ Stages of a software factory the version leaves out, each by choice:
 │   ├── checks/<sha>.log             # the output of a check that failed on head <sha>
 │   ├── texts/<n>-<role>-<k>.md      # each member text posted on the job, whole
 │   └── built                        # empty: the workspace is built (a job in flight replayed, a new one before its first launch); written last
-└── runs/<n>-<role>-<k>/             # one role run, kept for audit (the owner's batch run is <n> = 0); R2 (12.1): a merge check <n>-merge-<k> (built at Step R2-B) and a main check 0-main-<k> (specified ahead of its build), no member in either
+└── runs/<n>-<role>-<k>/             # one role run, kept for audit (the owner's batch run is <n> = 0); R2 (12.1): a merge check <n>-merge-<k> (built at Step R2-B) and a main check 0-main-<k> (built at Step R2-C), no member in either
     ├── argv                         # the `docker run` argv, one argument per line (no secret in it)
     ├── io/system.md                 # the persona and the Task (mounted at /job/io)
     ├── io/prompt.md                 # the material: issue, thread, plan, pull request (section 7.3)
     ├── io/branches.md               # R1 (7.8; built): the open swarm branches and the files each changes, as the pass fetched them
     ├── io/builder.md                # R1 (7.8; built): an architect's builder plan, written beside the plan's out.md
     ├── io/out.md                    # what the member wrote
-    ├── io/main/<name>-<short sha>.log  # R2 (12.1, The red main, specified ahead of its build): the owner's batch run's copy of a red main's check output, written before the launch
+    ├── io/main/<name>-<short sha>.log  # R2 (12.1, The red main, built at Step R2-C): the owner's batch run's copy of a red main's check output, written before the launch
     ├── io/exit                      # the CLI's exit status, written by the sh it runs under once it has exited (section 7.2)
     ├── io/stdout, io/stderr         # R4 (7.10, built at Step R4-B): the CLI's streams, written by the sh it runs under, which any apply collects
     ├── io/deadline                  # R4 (7.10, built at Step R4-C): written at 80% of timeout, for the member to read
@@ -1210,8 +1210,11 @@ What `status` shows), *built at Step R2-A of the plan implementing the 2026-11-1
 `#<m> (no issue)`, and `- Touches:`, the proposal's patterns at the
 triage gate and, at the plan gate (where both follow `- Class:`), each
 slice's as rule 2 reads them, each pattern once in slice order, either
-`none declared` when there is none. *R2, specified ahead of its build*
-(12.1, rule 3): the merge gate's gain `- Merge check:`.
+`none declared` when there is none. *R2*
+(12.1, rule 3), *built at Step R2-C of the plan implementing the 2026-11-19 swarm roadmap*: the merge gate's gain `- Merge check:
+<passed|running|failed|queued> on <base> at <short sha>.`, read from the
+records on `base` as the mirror holds it (`queued` when none started),
+after `- Review rounds:`, for a repository with a check.
 At `swarm:review-2-approved` (the merge), its `<why>` `both reviews
 approve <pull link> at <short sha>, and the merge gate
 leaves the merge to the maintainer`, naming the current pull request,
@@ -1808,7 +1811,7 @@ when all of these hold:
    and in `status`, so one mistyped number does not stop every launch;
    a worker's first build of a slice does not overlap an open slice of
    another issue, unless marked `Safe with:` (rule 2, built at that
-   step too); and, *R2, specified ahead of its build* (12.1, rule 4), no
+   step too); and, *R2* (12.1, rule 4), *built at Step R2-C of the plan implementing the 2026-11-19 swarm roadmap*, no
    worker launches on a repository whose `base` is red, but on the
    fix's issue;
 2. no container labelled `daisy.swarm=<owner>/<repo>#<n>/…` is running,
@@ -2328,7 +2331,7 @@ open issues with a `Depends:` line, the job held until they close,
 rather than holding its batch; a hold's `waits` line is read as issue
 0's dependencies, by the one test an issue's dependencies are read by
 (`openIssues`), an issue the forge does not hold holding nothing in
-either. *R2, specified ahead of its build* (12.1, The red main): a red
+either. *R2* (12.1, The red main), *built at Step R2-C of the plan implementing the 2026-11-19 swarm roadmap*: a red
 `base` releases `owner-held` once per red commit, the batch's first
 proposals being the fixes.
 
@@ -3410,8 +3413,8 @@ after its title (`- #<n> [<stage>] <title>; Brief: <path> — <milestone>`,
 `<stage>` the stage without `swarm:`, never the flag, and for a closed
 issue its terminal or the stage it was closed at),
 so the owner can tell which milestones the closed issues meet; the
-bodies are read, as `Issues` returns them, and no call is added. *R2,
-specified ahead of its build* (12.1, The red main): while a repository's
+bodies are read, as `Issues` returns them, and no call is added. *R2*
+(12.1, The red main), *built at Step R2-C of the plan implementing the 2026-11-19 swarm roadmap*: while a repository's
 `base` is red and its fix is the owner's, the batch prompt gains `# Main`,
 each red repository with its breaking merges and a pointer to the
 check's output, `/job/io/main/<name>-<short sha>.log`, written before the
@@ -3729,8 +3732,7 @@ line, and keeps `BLOCKED: waiting on` for nothing worth proposing even
 so; the architect's texts that ask for a plan or a revised plan gain a
 paragraph of their own after the probes' (`dependsSentence`) asking for
 the plan's `Depends:` line and, in each slice's item, its `Touches:`
-line and any `Safe with:` line. *R2, specified ahead of its build*
-(12.1, rule 4): with a red `base`, the owner's asks for one proposal per
+line and any `Safe with:` line. *R2* (12.1, rule 4), *built at Step R2-C of the plan implementing the 2026-11-19 swarm roadmap*: with a red `base`, the owner's asks for one proposal per
 red repository first, with its `Fixes: <name>` line, and a worker's
 whose job broke a red `base` asks it to make its branch's first commit
 the fix.
@@ -4714,8 +4716,8 @@ honest word among the nine, and none for a row that is no stop.
 | check environment (worker; R3, built at Step R3-7: 7.9) | work | 7.6, step 4: the check, or the dependency step, failed in packages the change does not touch, or with an infrastructure signature and no touched package failing (for a Go head, beside a failing package it names; a dependency step's by a signature whatever the head), and failed so again on its one rerun | `check rerun: <reason>`, the rerun's lines, then `failed: check environment: <reason>`; `kept refs/swarm-runs/<n>-worker-<k>` | T17, the note naming the reason; nothing pushed, nothing posted on the pull request | `environment` |
 | merge check failed (*R2* (12.1, rule 3), *built at Step R2-B*) | work | the merge queue's check on the commit that merges the approved head into `base` fails, after 7.9's one rerun of a classified failure | `<state>/runs/<n>-merge-<k>/result`: `merge <name> <head> into <base sha> at <merge sha>`, the check's lines, `failed: merge check: <exit code, timeout or the refusal>`, `collected` | T32: the note on the pull request naming `checks/<merge sha>.log`; no block | none: no member ran, no metrics row |
 | merge check environment (*R2* (12.1, rule 3), *built at Step R2-B*) | work | as a worker's *check environment*, on the merge check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | T17 beside `swarm:review-2-approved`, the note naming the reason; nothing posted on the pull request | none: no member ran |
-| main check failed (*R2, specified ahead of its build* (12.1, rule 4)) | — | the check on a commit of `base` whose tree no check has passed fails | `<state>/runs/0-main-<k>/result`: `main <name> <sha> tree <tree>`, the check's lines, `failed: main check: <…>` | `base` red: the repository's worker launches held but the fix's; the note on the breaking job's issue when it is open, else the owner's batch released | none: no member ran |
-| main check environment (*R2, specified ahead of its build* (12.1, rule 4)) | — | as a worker's *check environment*, on the main check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | `base` unchecked: a line `<name> <sha>` in `<state>/main-unchecked`, `main unchecked <name>` in `status` and notify; no note, no block | none: no member ran |
+| main check failed (*R2* (12.1, rule 4), *built at Step R2-C*) | — | the check on a commit of `base` whose tree no check has passed fails | `<state>/runs/0-main-<k>/result`: `main <name> <sha> tree <tree>`, the check's lines, `failed: main check: <…>` | `base` red: the repository's worker launches held but the fix's; the note on the breaking job's issue when it is open, else the owner's batch released | none: no member ran |
+| main check environment (*R2* (12.1, rule 4), *built at Step R2-C*) | — | as a worker's *check environment*, on the main check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | `base` unchecked: a line `<name> <sha>` in `<state>/main-unchecked`, `main unchecked <name>` in `status` and notify; no note, no block | none: no member ran |
 | abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/exit` that is a regular file holding a number (7.2), whatever `out.md` holds: an empty or partial `out.md` of a member killed mid-run is never read; a run launched before the mark (its `argv` without the `sh -c` line) by no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`; for a worker, 7.6 steps 1 and 2 (`fetched <sha>`, and `kept refs/swarm-runs/<n>-worker-<k>` when it has commits; a fetch that fails with git's error is recorded, `fetch failed: <error>`, and is the pass's error, retried at the next pass as a worker run's is; a clone that reaches outside itself or holds no branch, or a second failed fetch in a row, keeps nothing, with `⚠ #<n> worker run <k>: abandoned; commits not kept (<reason>)` on stderr, and the run is collected); then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 | none: no stop, the role relaunched |
 | ended | — | a pass finds a run not its own with `started`, no end line, no container by the run's name and a `<run>/io/exit` that is a regular file holding a number (a run launched before the mark: a `<run>/io/out.md` that is a regular file): its member finished after the `apply` that started it died, whose `docker run` took the streams with it | `ended <time>`, with the status `exit` holds read as `docker run`'s (125–127 `fault: exit <code>`, any other non-zero `failed: exit <code>`), then the collection of 7.6 from `out.md`: no `cost` line, and a provider's fault the lost standard output reported is not seen | as the run's collection (posted, blocked, failed, stale or discarded) | as the run's collection |
 | orphan over time | — | a pass finds a container by the run's name, the run not its own, `started` more than `timeout` ago | `docker stop --time 30 <name>` sent; then abandoned as above, whatever `out.md` holds | as abandoned | as abandoned |
@@ -4823,7 +4825,7 @@ machine's, as the mirrors are: a swarm moved to another machine takes
 | `slices/<s>/slice.md` | slice s's item under the plan's `## Steps`, whole (its numbered line and the lines under it to the next slice line or the section's end, 7.5, the slices; for the one slice of a plan without slice lines, the whole `## Steps` section), then, after an empty line, its section of `builder.md`: the lines from the first heading `## Slice <s>`, alone or followed by a character that is not a digit, to the next line beginning `## `, each outside a fenced block as the slice lines are; the step alone when there is no builder plan or it has no section for s. Empty lines at either end of each part are dropped, and a `\r` before a line's end, as the plan's other reads drop it | with `plan.md`, and again whenever `builder.md` is replaced, for each slice the plan declares (none for a job with no plan, the fast lane); the directory of a slice a new plan no longer declares is left as it is | the worker (its slice), the reviewers (the current pull request's), the architect |
 | `slices/<s>/kept` | one line, `<n>-worker-<k> <sha>`: the slice's newest worker run, by its end, whose commits Daisy holds and may be built on, and the commit fetched from it; absent while no run of the slice has one | at the collection of each worker run on slice s whose fetched commit is past its `start` (7.6, step 1), whatever its outcome: pushed (the commit then the branch's), failed, blocked, a question, a fault or abandoned (its run ref kept, 7.6 step 2); never for commits that failed the secret check or changed a protected path, which no run builds on (their ref stays for the maintainer, as now): step 2 makes step 3's two checks again before it writes `kept`, so the commits of a run that ended before step 3 (blocked, a question, a fault, abandoned, or failed earlier) are checked too, and a hit leaves `kept` as it was, the run's own failure, if any, unchanged | the worker's launch, for its start (The start, below); the worker and the architect, in `# Job` |
 | `slices/<s>/rounds/<r>.md` | review round r of the slice's pull request, in the form below: its head, its reviews' findings, and the changes since the round before. `<r>` counts the slice's completed rounds from 1, in the order they completed (a round completes with the first review after which the pair is complete on it, section 6: the adversary's request for changes, or the review that gives it both roles), over the life of the slice's pull requests (a plan revision does not start it again, as it starts the Task text's `This is round <r>`, 7.4, nor does a new pull request on the slice's branch after one closed), so no file is rewritten | at the collection of the review that completes the round, on the head as it stands (section 6: the adversary's request for changes, or the sympathetic reviewer's review after the adversary approved), whose collection makes T9, T10 or T11 (section 5); the round's reviews are written to `texts/` with it and not before, so that a reviewer never finds its pair's review of the round it reviews (a review whose round never completes: the `texts/` row) | the worker (the latest), the reviewers (those before the current round; R6's later rounds review the changes since the last from here), the architect (every round) |
-| `checks/<sha>.log` | for a head `<sha>` whose check failed (it exited non-zero or timed out, its dependency step failed, or its test services file was refused, 7.6, step 4): the `# Check` line (7.3), then, after an empty line, the whole output as the step wrote it, `<run>/check.out`, `<run>/deps.out` for the dependency step's failure, or the refusal's reason | at the collection of the worker run whose check it is, after step 4 (*R2, specified ahead of its build*, 12.1, rule 3 and The red main: also at the collection of a merge check that failed, its `# Check` line naming the merge, and of a main check that failed, in the workspace of the breaking job when it is open), once the whole output has passed the secret check (a hit writes none, and is the failure 7.6 names); from R3 (7.9, built at Step R3-7), of a classified failure run again the rerun's alone, and none for a run that failed *check environment*, which no worker or reviewer sees | the worker, the reviewers and the architect, by the pointer in `# Job` |
+| `checks/<sha>.log` | for a head `<sha>` whose check failed (it exited non-zero or timed out, its dependency step failed, or its test services file was refused, 7.6, step 4): the `# Check` line (7.3), then, after an empty line, the whole output as the step wrote it, `<run>/check.out`, `<run>/deps.out` for the dependency step's failure, or the refusal's reason | at the collection of the worker run whose check it is, after step 4 (*R2*, 12.1, rule 3 and The red main, built at Steps R2-B and R2-C: also at the collection of a merge check that failed, its `# Check` line naming the merge, and of a main check that failed, in the workspace of the breaking job when it is open), once the whole output has passed the secret check (a hit writes none, and is the failure 7.6 names); from R3 (7.9, built at Step R3-7), of a classified failure run again the rerun's alone, and none for a run that failed *check environment*, which no worker or reviewer sees | the worker, the reviewers and the architect, by the pointer in `# Job` |
 | `texts/<n>-<role>-<k>.md` | each member text Daisy posts for the job, on the issue or one of its pull requests, whole, as Daisy would post it uncut: the run's `out.md` (an answer with the `ANSWER:` Daisy adds, 7.5), then what Daisy writes after it (a worker's check block) | at the collection that posts it, once its secret check has passed and before its post; a review's with its round, above, and a review whose round can no longer complete (before its pair's other review of that head was collected, the pull request's head moved, the pull request was reopened by an answer without a commit or the maintainer's comment, section 6, or it was closed or merged) at the first collection on the issue after that, whatever its role, but for a fault's or an abandoned run's, which post nothing, read from its run's `out.md` as its collection posted it, since no review can then complete its round; a job closed first keeps such a review in its run's `out.md` alone, and a collection writes none whose `out.md` is gone (its run pruned, or collected on another machine), which only a replay takes from its post (Rollout, below) | every role: a member text a prompt shows is read from here, never from its post (The prompt, below); Daisy's own reads of a text past its first lines (7.5) |
 | `built` | nothing: an empty file, whose presence says the workspace is built, its job's runs replayed (Rollout, below) | by the replay alone, last, once every file it writes is written and the issue blocked when its plan is taken cut, so that a replay interrupted is made again whole at the next pass; for a new issue, by its replay over no run before its first launch | `apply`'s pass, which replays a job without it; `swarm merge`, which refuses a job without it, or without its `plan.md`, whose plan the replay would take cut (Rollout; Daisy's own reads); `status` and the verbs that read the workspace, which build it in memory without it |
 
@@ -5969,7 +5971,7 @@ that holds, the workarounds in the swarm's notes about gridapp, a
 module, and the rule to say in a pull request that only CI runs a
 MongoDB-only test, are deleted (R3d).
 
-*R2, specified ahead of its build* (12.1, rules 3 and 4): the merge check and the main check run the
+*R2* (12.1, rules 3 and 4), *built at Steps R2-B and R2-C of the plan implementing the 2026-11-19 swarm roadmap*: the merge check and the main check run the
 repository's check in this declared environment, on the same paths, as
 the check of a worker's head runs: the clone at `/job/work/<name>` of
 the merge commit or `base`'s, the dependency step first, the test
@@ -8318,8 +8320,7 @@ later still pays the reads. Test:
 #<m>`, and each overlap that holds a first build, `#<n> overlaps #<m>`
 (JSON `held.blocked_by` and `held.overlaps`, each `issue` and `by`), the
 overlap read from the mirrors as their last fetch left them; a held
-issue is in no role's `Capacity:` queue. *R2, specified ahead of its
-build* (12.1, rules 3 and 4): a `Queue <name>:` line per repository
+issue is in no role's `Capacity:` queue. *R2* (12.1, rules 3 and 4), *built at Step R2-C of the plan implementing the 2026-11-19 swarm roadmap*: a `Queue <name>:` line per repository
 with a check follows `Running:`, and Waiting for you gains `main red
 <name>` and `main unchecked <name>`, which notify tells (section 5,
 Notify). *R4* (7.10, rule 3), *built at Step R4-C of the plan implementing the 2026-11-19 swarm roadmap*: a `Capacity:` block follows
@@ -8937,9 +8938,10 @@ none (The interventions' record, below). *R4* (7.10, rule 1), *built at Step R4-
 implementing the 2026-11-19 swarm roadmap*: the bare
 `resume` also removes `<state>/capacity`, so every model is tried
 again at the next pass, printing `Capacity released: every model is
-tried again at the next pass`. *R2, specified ahead of its build* (12.1, The red main): the bare
+tried again at the next pass`. *R2* (12.1, The red main), *built at Step R2-C of the plan implementing the 2026-11-19 swarm roadmap*: the bare
 `resume` also removes `<state>/main-unchecked`, so a main check runs again on the
-commits it names.
+commits it names, printing `Main checks released: each unchecked base is
+checked again at the next pass`.
 
 ### daisy swarm restart
 
@@ -9648,8 +9650,7 @@ launch on an open dependency after the job's plan is read, and a
 worker's first build on `(touchRead).overlapping`; the merge step
 merges nothing of an issue with one; the owner's hold is released
 through the same `openIssues` test. Rules 3 and 4, the queue and the red
-main, are still to be built (Steps R2-B and R2-C), with the marks that
-name them.
+main, are built at Steps R2-B and R2-C, below.
 
 *Rule 3 built at Step R2-B of that plan* (the merge queue, with the
 merge step's read of required contexts, L346): `MergeCommit` in
@@ -9700,6 +9701,58 @@ result gains `stale <sha>` and the queue checks the head again on
 `base` as it is now (the maintainer's ruling of 2026-11-27); a failure
 on `base` as it is now is T32 at once, and a conflict T25 at once
 (`TestSwarmMergeCheckFailedOnAMovedBaseCheckedAgain`).
+
+*Rule 4 built at Step R2-C of that plan* (the red main, with `status`'s
+`Queue <name>:` line, Waiting for you's `main red` and `main unchecked`,
+notify's items, the merge gate note's `- Merge check:` and the bare
+`resume`'s removal of `<state>/main-unchecked`): `ReadVerdicts`,
+`ReadMainState`, `mainChecks`, `startMain`, `collectMain`, `routeFix`,
+`fixes`, `FixesLine`, `redHolds`, `redMains` and `mainStatus` in
+`internal/swarm/reconcile/main.go`. As built, and where it differs from
+the words below: a merge check's result gains `tree <tree>` (its merge
+commit's tree, green once it passes) and `red` when it starts on a red
+`base`, so a merge check recorded before this step names no tree and the
+first pass after the install checks each `base` once; the main checks
+start after the merge step and before the queue, only when a check can
+start (a member slot free, the swarm not paused), the mirrors then
+fetched once for the pass, and read no forge; a worker's launch reads
+`base`'s state only in a repository with a check, and the issue of the
+breaking job only for an issue whose body carries a `Fixes:` line, once
+a pass. `base` is red when its tree failed a main check, or, its tree
+with no verdict, when the newest commit with one on its first-parent
+line failed; a tree any check passed is green, a failure on it aside. The
+queue checks a head only on a green `base`, or, `base` red, the fix's;
+a `base` being checked, or unchecked, holds it. The fix's issue is the
+breaking job's, or, that job closed or none, an issue whose body the
+swarm created marked `role=owner` with the line `Fixes: <name>` outside
+a fence. A main check's change, which 7.9's classification reads, is
+the paths `base` changes since its newest green commit (every path when
+none is green). The route is taken at the failed check's collection,
+once, its result recording `routed #<n>` or `routed owner`; the note on
+the breaking job's issue is marked `role=reconciler run=<k>`, `k` the
+main check's; the owner's release journals `0-release-<k>`, `k` its
+hold's run, else the newest batch run's. The journal's `0-main-<k>:
+<name> red at <short sha>` is queued at every failed main check (each
+red commit), its `green` line at a main check that passed on a red
+`base`; a `base` made green by the merge of a head whose merge check
+passed on a red one journals `<n>-merge-<k>: <name> green at <short
+sha>`, the merge check recording `green <sha>`. The owner's `# Main`
+follows `# Briefs`, each red repository's red commit the newest a main
+check failed on, its log `<run>/check.log` (the `# Check` line and the
+output) copied to the owner's run as `io/main/<name>-<short sha>.log`; the worker's Task text reads `<base> of
+<name> is red at <short sha> since this job's merge: its check fails
+there, its output in /job/memory/checks/<sha>.log. Make your branch's
+first commit the fix, so that the check passes on <base>, then go on with
+the slice.` A main check running holds the owner's batch and the QA
+(issue 0's rule 2) until it is collected. `status`'s Queue line lists
+each approved issue's current head by issue number, not in the queue's
+order, and reads no forge; Throughput counts no merge or main check as a
+run. Tests: `TestSwarmMainGreenByTheMergeCheck`,
+`TestSwarmMainCheckedAfterAHandPush`, `TestSwarmRedMainHoldsWorkers`,
+`TestSwarmRedMainRoutedToTheBreakingJob`,
+`TestSwarmRedMainRoutedToTheOwner`, `TestSwarmMainGreenAgain`,
+`TestSwarmStatusQueueAndMain`; the test workspace starts with `base`
+checked green, as does each slice it lands.
 
 **The rulings.** The maintainer's, of 2026-11-19 (Step 1 of that plan):
 machine-read `Depends:` and `Touches:`, several blockers per issue, the

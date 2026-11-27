@@ -191,7 +191,11 @@ func (s *Swarm) waiting() ([]waitItem, error) {
 	for _, name := range CIDifferNames(s.ci) {
 		out = append(out, waitItem{"ci differs " + name, repo + " waits for you: ci differs " + name})
 	}
-	return out, nil
+	mains, err := s.mainItems(repo) // section 12.1, rule 4
+	if err != nil {
+		return nil, err
+	}
+	return append(out, mains...), nil
 }
 
 // waitNote is the id of the reconciler's newest note on is that put it
