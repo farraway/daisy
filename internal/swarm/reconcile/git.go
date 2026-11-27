@@ -542,24 +542,69 @@ func (g Git) paths(name string, revs ...string) ([]string, error) {
 // as `git merge-tree` merges them without a work tree (section 12, the
 // merge step): clean, or the paths that conflict, each once.
 func (g Git) Conflicts(name, base, sha string) (paths []string, clean bool, err error) {
-	args := []string{"merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", "refs/heads/" + base, sha}
+	_, paths, clean, err = g.mergeTree(name, "refs/heads/"+base, sha)
+	return paths, clean, err
+}
+
+// mergeTree is `git merge-tree --write-tree` of sha into base (a rev) on
+// the repository's mirror: the merged tree when clean, else the paths
+// that conflict; err when git could not merge them (an object it cannot
+// read).
+func (g Git) mergeTree(name, base, sha string) (tree string, paths []string, clean bool, err error) {
+	args := []string{"merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", base, sha}
 	out, errb, err := g.O.Exec(g.Mirror(name), "git", args...)
 	// Exit 1 is a conflict when git wrote the merged tree's id first; an
 	// object it cannot read exits 1 as well, with nothing written.
 	var exit *exec.ExitError
 	tree, rest, _ := strings.Cut(string(out), "\x00")
+	tree = strings.TrimSpace(tree)
 	switch {
 	case err == nil:
-		return nil, true, nil
+		return tree, nil, true, nil
 	case errors.As(err, &exit) && exit.ExitCode() == 1 && objectID.MatchString(tree):
 		for _, p := range strings.Split(rest, "\x00") {
 			if p != "" {
 				paths = append(paths, p)
 			}
 		}
-		return paths, false, nil
+		return "", paths, false, nil
 	}
-	return nil, false, fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))
+	return "", nil, false, fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(errb)))
+}
+
+// UnreadableHead is a head the mirror cannot merge into base, git's
+// error and not a conflict (section 12.1, the maintainer's ruling 5 of
+// 2026-11-21: blocked with a note, never merged unchecked).
+type UnreadableHead struct{ Err error }
+
+func (e UnreadableHead) Error() string { return e.Err.Error() }
+func (e UnreadableHead) Unwrap() error { return e.Err }
+
+// MergeCommit is the merge check's commit (section 12.1, The merge
+// queue): head merged into the base commit baseSHA on the repository's
+// mirror by `git merge-tree --write-tree`, the tree committed with `git
+// commit-tree <tree> -p <base> -p <head>` under the reconciler's identity
+// at email, and ref (refs/swarm-merge/<n>-<s>) set to it. It returns the
+// merge commit, or, sha "", the paths that conflict; an UnreadableHead
+// when git cannot merge them.
+func (g Git) MergeCommit(name, baseSHA, head, ref, email string) (sha string, conflicts []string, err error) {
+	tree, paths, clean, err := g.mergeTree(name, baseSHA, head)
+	switch {
+	case err != nil:
+		return "", nil, UnreadableHead{err}
+	case !clean:
+		return "", paths, nil
+	}
+	m := g.Mirror(name)
+	sha, err = g.run(m, "-c", "user.name=reconciler (Daisy swarm)", "-c", "user.email="+email,
+		"commit-tree", tree, "-p", baseSHA, "-p", head, "-m", "Merge "+head+" into "+baseSHA+" (the swarm's merge check)")
+	if err != nil {
+		return "", nil, err
+	}
+	if _, err := g.run(m, "update-ref", ref, sha); err != nil {
+		return "", nil, err
+	}
+	return sha, nil, nil
 }
 
 var objectID = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)

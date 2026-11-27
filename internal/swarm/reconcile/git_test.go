@@ -548,6 +548,79 @@ func TestConflicts(t *testing.T) {
 	}
 }
 
+// MergeCommit (section 12.1, The merge queue): a clean head is merged
+// into the base commit on the mirror, a commit whose parents are the base
+// and the head, its tree merge-tree's, by the reconciler, at the ref
+// given; a conflicting head writes no commit and names the files; a head
+// the mirror cannot read is an UnreadableHead.
+func TestMergeCommit(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	o := ops.Real()
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		out, errb, err := o.Exec(dir, "git", append([]string{"-c", "user.name=T", "-c", "user.email=t@example.net"}, args...)...)
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write := func(dir string, files map[string]string) {
+		for name, text := range files {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		git(dir, "add", "-A")
+		git(dir, "commit", "-q", "-m", "c")
+	}
+	state := t.TempDir()
+	m := filepath.Join(state, "git", "app")
+	os.MkdirAll(m, 0o755)
+	git(m, "init", "-q", "-b", "main")
+	write(m, map[string]string{"a.go": "a\n"})
+	git(m, "checkout", "-q", "-b", "swarm/1-1")
+	write(m, map[string]string{"a.go": "slice\n"})
+	conflicting := git(m, "rev-parse", "HEAD")
+	git(m, "checkout", "-q", "-b", "swarm/2-1", "main")
+	write(m, map[string]string{"e.go": "e\n"})
+	clean := git(m, "rev-parse", "HEAD")
+	git(m, "checkout", "-q", "main")
+	write(m, map[string]string{"a.go": "base\n", "d.go": "d\n"})
+	base := git(m, "rev-parse", "HEAD")
+	g := Git{O: o, State: state}
+
+	sha, files, err := g.MergeCommit("app", base, clean, "refs/swarm-merge/2-1", "swarm@example.net")
+	if err != nil || files != nil || !objectID.MatchString(sha) {
+		t.Fatalf("clean: %q %q %v", sha, files, err)
+	}
+	if got := git(m, "rev-parse", "refs/swarm-merge/2-1"); got != sha {
+		t.Errorf("the ref: %s, not %s", got, sha)
+	}
+	if got := git(m, "log", "-1", "--format=%P|%an <%ae>|%cn <%ce>", sha); got != base+" "+clean+"|reconciler (Daisy swarm) <swarm@example.net>|reconciler (Daisy swarm) <swarm@example.net>" {
+		t.Errorf("the commit: %s", got)
+	}
+	if got := git(m, "ls-tree", "-r", "--name-only", sha); got != "a.go\nd.go\ne.go" {
+		t.Errorf("the tree: %q", got)
+	}
+	if got := git(m, "show", sha+":a.go"); got != "base" {
+		t.Errorf("a.go: %q", got)
+	}
+
+	sha, files, err = g.MergeCommit("app", base, conflicting, "refs/swarm-merge/1-1", "swarm@example.net")
+	if err != nil || sha != "" || !reflect.DeepEqual(files, []string{"a.go"}) {
+		t.Errorf("conflicting: %q %q %v", sha, files, err)
+	}
+	if _, _, err := o.Exec(m, "git", "rev-parse", "--verify", "--quiet", "refs/swarm-merge/1-1"); err == nil {
+		t.Error("a conflict wrote the ref")
+	}
+
+	var u UnreadableHead
+	if _, _, err := g.MergeCommit("app", base, strings.Repeat("0", 40), "refs/swarm-merge/3-1", "swarm@example.net"); !errors.As(err, &u) {
+		t.Errorf("unknown head: %v", err)
+	}
+}
+
 // RoundDiff on a mirror that lacks a commit (section 7.8, A round's
 // file): a previous head it does not hold is NotInMirror naming it, and
 // so is a head; a base it does not hold is an error but not NotInMirror.
