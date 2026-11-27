@@ -401,6 +401,9 @@ func (c *collection) classify(repo declare.Repo, out string) (held bool, err err
 	} else {
 		name, sha := branchRepo(c.lines), c.fetched()
 		changed, err := s.git().Changed(name, s.Cfg.Base, sha)
+		if c.r.Role == "main" {
+			changed, err = s.mainChanged(name, sha)
+		}
 		if err != nil {
 			return false, err
 		}
@@ -421,8 +424,11 @@ func (c *collection) classify(repo declare.Repo, out string) (held bool, err err
 		}
 	}
 	if _, again := Has(c.lines, rerun); again {
-		if c.r.Role == "merge" {
+		switch c.r.Role {
+		case "merge":
 			return true, c.mergeEnvironment(reason)
+		case "main":
+			return true, c.mainEnvironment(reason)
 		}
 		return true, c.fail(checkEnvironment + reason)
 	}

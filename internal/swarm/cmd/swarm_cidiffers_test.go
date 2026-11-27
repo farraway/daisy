@@ -117,7 +117,8 @@ const ciDiffers = "⚠ app: CI differs from the declared check environment: "
 // on every surface section 7.9 names, each showing CompareCI's lines and
 // writing nothing: apply prints them on stderr at the process's first
 // pass and again only when the set changes, reading app's mirror with
-// git's read commands alone; notify tells `ci differs app` once; status
+// git's read commands alone (the pass's fetch aside, the main check's,
+// section 12.1, rule 4); notify tells `ci differs app` once; status
 // lists it under Waiting for you after `no check` (waiting.ci_differs
 // with --json), as connect does; a workflow that runs on no pull request
 // tells nothing and takes the item away. The kind's first directory
@@ -132,6 +133,7 @@ func TestSwarmCIDiffersTold(t *testing.T) {
 	}
 
 	pushUp(t, a.upstream("app"), map[string]string{".gitea/workflows/ci.yml": ciWorkflow, ".github/workflows/broken.yml": "on: [\n"})
+	a.checkedGreen("app")
 	a.fetchProduct("app")
 	want := a.ciLines(ciWorkflow, nil)
 	if !slices.Equal(want, []string{
@@ -169,7 +171,9 @@ func TestSwarmCIDiffersTold(t *testing.T) {
 		t.Errorf("app's mirror not read: %q", verbs)
 	}
 	for _, v := range verbs {
-		if v != "rev-parse" && v != "ls-tree" && v != "cat-file" {
+		// The pass's fetch is the main check's, a member slot being free
+		// (section 12.1, rule 4); the comparison reads.
+		if v != "rev-parse" && v != "ls-tree" && v != "cat-file" && v != "config" && v != "fetch" {
 			t.Errorf("app's mirror: git %s during the passes (%q)", v, verbs)
 		}
 	}

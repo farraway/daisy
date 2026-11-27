@@ -69,6 +69,7 @@ func newApplyWS(t *testing.T) *applyWS {
 	})
 	a.publish("docs")
 	a.fetchMirror()
+	a.checkedGreen("app") // base checked green (section 12.1, rule 4)
 	a.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token-0123456789abcdef0123456789"
 	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
 	os.MkdirAll(slot, 0o700)

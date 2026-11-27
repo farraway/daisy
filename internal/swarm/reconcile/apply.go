@@ -42,27 +42,30 @@ type Swarm struct {
 	Command  func(n int, words []string) (out string, err error)
 	Out, Err io.Writer
 
-	live       map[string]*live    // run directory → its container in flight
-	mine       int                 // the swarm's containers running at the pass's start
-	started    int                 // containers this process started in this pass, members and checks
-	given      map[string][]string // run directory → the secrets its member was given
-	Stopping   func() bool         // the loop was signalled: launch nothing more (nil: never)
-	faulted    []string            // the runs this process collected in a fault since faultPause last looked
-	moves      map[int]string      // issue → the stage this pass moved it to after step (5) gave its pull request the label
-	collected  int                 // runs collected in this pass
-	closedRead bool                // the milestone step has read the closed issues once
-	fetched    bool                // this pass has fetched the mirrors
-	commits    map[string]string   // the pass's commits, by repository (Commits), in a swarm repository's clone
-	pinErr     map[string]error    // a reference's pin this pass's fetch did not bring, by its name
-	driftSeen  bool                // a pass has compared the configuration with the pushed head (drift)
-	drifting   []string            // the paths that drifted at the last comparison
-	unchecked  []string            // the warnings warnUnchecked printed last
-	ci         []CIDiffer          // the repositories whose CI differs, as warnCI read them this pass
-	ciErr      error               // warnCI's read refused this pass: notify tells nothing
-	ciTold     []string            // the lines warnCI printed last
-	followUps  *FollowUps          // the pass's follow-ups, the issues carrying swarm:follow-up read once (listPulls)
-	approved   []approved          // the review-2-approved issues step (5) read, for the merge queue
-	awaiting   []queued            // the heads the merge step found waiting for their merge check (gate off)
+	live       map[string]*live     // run directory → its container in flight
+	mine       int                  // the swarm's containers running at the pass's start
+	started    int                  // containers this process started in this pass, members and checks
+	given      map[string][]string  // run directory → the secrets its member was given
+	Stopping   func() bool          // the loop was signalled: launch nothing more (nil: never)
+	faulted    []string             // the runs this process collected in a fault since faultPause last looked
+	moves      map[int]string       // issue → the stage this pass moved it to after step (5) gave its pull request the label
+	collected  int                  // runs collected in this pass
+	closedRead bool                 // the milestone step has read the closed issues once
+	fetched    bool                 // this pass has fetched the mirrors
+	commits    map[string]string    // the pass's commits, by repository (Commits), in a swarm repository's clone
+	pinErr     map[string]error     // a reference's pin this pass's fetch did not bring, by its name
+	driftSeen  bool                 // a pass has compared the configuration with the pushed head (drift)
+	drifting   []string             // the paths that drifted at the last comparison
+	unchecked  []string             // the warnings warnUnchecked printed last
+	ci         []CIDiffer           // the repositories whose CI differs, as warnCI read them this pass
+	ciErr      error                // warnCI's read refused this pass: notify tells nothing
+	ciTold     []string             // the lines warnCI printed last
+	followUps  *FollowUps           // the pass's follow-ups, the issues carrying swarm:follow-up read once (listPulls)
+	approved   []approved           // the review-2-approved issues step (5) read, for the merge queue
+	awaiting   []queued             // the heads the merge step found waiting for their merge check (gate off)
+	mains      map[string]MainState // each repository's base as the pass read it (section 12.1, rule 4), nil until read
+	verdicts   Verdicts             // the checks' verdicts mains was read with
+	fixOpen    map[int]bool         // a breaking job's issue read open or closed this pass
 }
 
 // Openers is whose pull requests are the swarm's (section 10, Pulls):
@@ -158,6 +161,7 @@ func (s *Swarm) Pass(wait bool) error {
 		}
 	}
 	s.collected, s.started, s.moves, s.fetched, s.followUps, s.approved, s.awaiting = 0, 0, map[int]string{}, false, nil, nil, nil
+	s.mains, s.fixOpen = nil, map[int]bool{}
 	errs := []error{s.collectAll(running, !wait), s.expireCapacity(), s.release()}
 	launched := 0
 	if paused := s.paused(); paused != "" {
@@ -185,11 +189,17 @@ func (s *Swarm) Pass(wait bool) error {
 			if !s.Cfg.Gates.Merge && s.paused() == "" && !s.stopping() {
 				errs = append(errs, s.mergeStep(merged))
 			}
-			// The merge queue's checks, under either gate (section 12.1,
-			// rule 3), each a launch of the pass.
-			k, err := s.mergeQueue(merged)
+			// The main checks (section 12.1, rule 4), then the merge
+			// queue's (rule 3), under either gate, each a launch of the
+			// pass.
+			k, err := s.mainChecks(merged)
 			launched += k
 			errs = append(errs, err)
+			if err == nil {
+				k, err = s.mergeQueue(merged)
+				launched += k
+				errs = append(errs, err)
+			}
 			errs = append(errs, s.batch(running, launch), s.qa(running, launch))
 		}
 	}
@@ -346,7 +356,7 @@ func (s *Swarm) collectAll(running []runner.Running, adopt bool) error {
 			continue
 		}
 		now := endStamp(s.O.Now())
-		if Ended(lines) == "" && r.Role != "merge" { // a merge check has no member, its steps alone (section 12.1)
+		if Ended(lines) == "" && !noMember(r) { // a merge or main check has no member, its steps alone (section 12.1)
 			started, ok := Has(lines, "started")
 			if !ok {
 				continue
@@ -730,6 +740,19 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 					return fmt.Errorf("#%d: %w", n, err)
 				} else if m != 0 {
 					continue
+				}
+			}
+			if slices.Contains(roles, "worker") && !s.launchesNothing() {
+				// Rule 4 of section 12.1: no worker launches on a
+				// repository whose base is red, but on the fix's issue.
+				repo := cur.Repo
+				if !open {
+					_, repo, _ = j.WorkerSlice()
+				}
+				if held, err := s.redHolds(j, repo); err != nil {
+					return fmt.Errorf("#%d: %w", n, err)
+				} else if held {
+					roles = slices.DeleteFunc(roles, func(r string) bool { return r == "worker" })
 				}
 			}
 			for _, role := range roles {

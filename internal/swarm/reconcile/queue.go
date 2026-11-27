@@ -170,9 +170,22 @@ func (s *Swarm) mergeQueue(merged map[string]bool) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	open := func(name string) bool {
+	// A repository's queue checks a head only on a green base, or, base
+	// red, the fix's head (section 12.1, rule 4).
+	var fixErr error
+	open := func(is forge.Issue, name string) bool {
 		r, ok := s.repo(name)
-		return ok && len(r.Check) > 0 && !merged[name] && !busy[name]
+		if !ok || len(r.Check) == 0 || merged[name] || busy[name] || fixErr != nil {
+			return false
+		}
+		st, err := s.mainState(name)
+		if err == nil && st.Red && !st.Unchecked {
+			ok, err = s.fixes(st, is)
+		} else {
+			ok = st.Green
+		}
+		fixErr = err
+		return ok && err == nil
 	}
 	heads := s.awaiting
 	if s.Cfg.Gates.Merge {
@@ -182,9 +195,12 @@ func (s *Swarm) mergeQueue(merged map[string]bool) (int, error) {
 	}
 	by := map[string][]queued{}
 	for _, q := range heads {
-		if open(q.cur.Repo) {
+		if open(q.is, q.cur.Repo) {
 			by[q.cur.Repo] = append(by[q.cur.Repo], q)
 		}
+	}
+	if fixErr != nil {
+		return 0, fixErr
 	}
 	started := 0
 	for _, name := range slices.Sorted(maps.Keys(by)) {
@@ -207,11 +223,12 @@ func (s *Swarm) mergeQueue(merged map[string]bool) (int, error) {
 
 // queuedHeads is, with the merge gate on, the approved heads step (5)
 // read that may be checked: open, neither blocked nor paused, the current
-// pull request open in a repository open says may start a check, with no
+// pull request open in a repository where open says its head may be
+// checked (its base green, or red and the issue the fix's), with no
 // open dependency (rule 1), the head both reviews approve not checked or
 // running on base as it is now. An issue whose current head the records
 // show passed or running costs no read.
-func (s *Swarm) queuedHeads(open func(string) bool) ([]queued, error) {
+func (s *Swarm) queuedHeads(open func(forge.Issue, string) bool) ([]queued, error) {
 	fs := s.O.FS()
 	var out []queued
 	for _, a := range s.approved {
@@ -220,7 +237,7 @@ func (s *Swarm) queuedHeads(open func(string) bool) ([]queued, error) {
 			continue
 		}
 		cur := a.pulls[len(a.pulls)-1]
-		if !cur.Open || !open(cur.Repo) {
+		if !cur.Open || !open(is, cur.Repo) {
 			continue
 		}
 		// base as it is now: the mirrors fetched once a pass, as the pass
@@ -306,10 +323,23 @@ func (s *Swarm) startMerge(q queued, runs []Run) (bool, error) {
 	if err := fs.MkdirAll(r.Dir, 0o755); err != nil {
 		return false, err
 	}
-	lines := []string{mergeLine{name, q.head, base, sha}.String(), "branch " + branch + " in " + name, "fetched " + sha}
+	g := s.git()
+	tree, err := g.run(g.Mirror(name), "rev-parse", sha+"^{tree}")
+	if err != nil {
+		return false, err
+	}
+	// The merge's tree, green once the check passes, and `red` when base
+	// is red, its head the fix's (section 12.1, rule 4).
+	lines := []string{mergeLine{name, q.head, base, sha}.String(), "branch " + branch + " in " + name, "fetched " + sha, "tree " + tree}
+	if st, err := s.mainState(name); err != nil {
+		return false, err
+	} else if st.Red {
+		lines = append(lines, "red")
+	}
 	if err := r.Append(fs, lines...); err != nil {
 		return false, err
 	}
+	s.mainsChanged()
 	fmt.Fprintf(s.Out, "#%d merge check of pull %s#%d: %s merged into %s at %s\n", n, name, q.cur.Number, short(q.head), s.Cfg.Base, short(base))
 	repo, _ := s.repo(name)
 	if err := s.startStep(r, lines, nextStep(repo, lines)); err != nil {
@@ -459,33 +489,38 @@ func (c *collection) mergeEnvironment(reason string) error {
 	return c.mergeEnd()
 }
 
-// mergeEnd records the merge check `collected` and removes its clone and
-// its step's files.
+// mergeEnd records the merge check, or the main check, `collected`,
+// removes its clone and its step's files, and forgets the pass's
+// MainStates (section 12.1, rule 4).
 func (c *collection) mergeEnd() error {
 	fs := c.s.O.FS()
 	if err := c.r.Append(fs, "collected"); err != nil {
 		return err
 	}
 	c.s.collected++
+	c.s.mainsChanged()
 	return errors.Join(removeTree(fs, filepath.Join(c.r.Dir, "check")), removeTree(fs, filepath.Join(c.r.Dir, "step")))
 }
 
 // stepName is the name a run's step container goes by, in its name and
 // its label: a worker run's "deps" or "check", a merge check's "merge"
-// (section 12.1, rule 3).
+// and a main check's "main" (section 12.1, rules 3 and 4).
 func stepName(r Run, step string) string {
-	if r.Role == "merge" {
-		return "merge"
+	if noMember(r) {
+		return r.Role
 	}
 	return step
 }
 
 // stepRef is the mirror's ref a run's step clones: a worker run's
 // refs/swarm-runs/<n>-worker-<k>, a merge check's
-// refs/swarm-merge/<n>-<s>.
+// refs/swarm-merge/<n>-<s>, a main check's refs/swarm-main.
 func stepRef(r Run, lines []string) string {
-	if r.Role == "merge" {
+	switch r.Role {
+	case "merge":
 		return mergeRef(runBranch(lines))
+	case "main":
+		return mainRef
 	}
 	return runRef(r)
 }

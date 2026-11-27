@@ -16,8 +16,18 @@ import (
 )
 
 // land commits files to base (main) in the upstream of the declared
-// repository name, as the merge of another pull request moves it.
+// repository name, as the merge of another pull request moves it: its
+// tree checked green, as its merge check would have passed it (section
+// 12.1, rule 4).
 func (a *applyWS) land(name string, files map[string]string, msg string) {
+	a.t.Helper()
+	a.landUnchecked(name, files, msg)
+	a.checkedGreen(name)
+}
+
+// landUnchecked commits files to base (main) in the upstream of the
+// declared repository name, no check having passed on its tree.
+func (a *applyWS) landUnchecked(name string, files map[string]string, msg string) {
 	a.t.Helper()
 	src := a.t.TempDir()
 	if _, errb, err := ops.Real().Exec("", "git", "clone", "-q", a.upstream(name), src); err != nil {

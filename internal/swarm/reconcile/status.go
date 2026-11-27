@@ -784,8 +784,8 @@ func throughput(o ops.Ops, state string) (StatusThroughput, error) {
 		return t, err
 	}
 	for _, e := range entries {
-		if !e.IsDir() {
-			continue
+		if m := runName.FindStringSubmatch(e.Name()); !e.IsDir() || m != nil && (m[2] == "merge" || m[2] == "main") {
+			continue // a merge or main check is no member's run (section 12.1)
 		}
 		data, err := o.FS().ReadFile(filepath.Join(state, "runs", e.Name(), "result"))
 		if errors.Is(err, iofs.ErrNotExist) {

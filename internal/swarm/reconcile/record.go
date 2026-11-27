@@ -464,8 +464,8 @@ func (s *Swarm) Backfill() (Backfilled, error) {
 		if err != nil {
 			return b, err
 		}
-		if _, ok := Has(lines, "collected"); !ok || r.Role == "merge" {
-			continue // a merge check has no member, and no row (section 12.1)
+		if _, ok := Has(lines, "collected"); !ok || noMember(r) {
+			continue // a merge or main check has no member, and no row (section 12.1)
 		}
 		b.Collected++
 		if held[s.runKey(r).Key()] {
@@ -576,8 +576,8 @@ func (s *Swarm) Reprice(dryRun bool) (Repriced, error) {
 		if err != nil {
 			return p, err
 		}
-		if _, ok := Has(lines, "collected"); !ok || r.Role == "merge" {
-			continue // a merge check has no member, and no row (section 12.1)
+		if _, ok := Has(lines, "collected"); !ok || noMember(r) {
+			continue // a merge or main check has no member, and no row (section 12.1)
 		}
 		p.Collected++
 		held, ok := latest[s.runKey(r).Key()]

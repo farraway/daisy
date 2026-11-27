@@ -41,8 +41,11 @@ func (s *Swarm) collect(r Run) error {
 	if _, done := Has(lines, "collected"); done {
 		return nil
 	}
-	if r.Role == "merge" {
-		return s.collectMerge(r, lines) // no member ran (section 12.1, rule 3)
+	switch r.Role { // no member ran (section 12.1, rules 3 and 4)
+	case "merge":
+		return s.collectMerge(r, lines)
+	case "main":
+		return s.collectMain(r, lines)
 	}
 	if Ended(lines) == "" {
 		return nil

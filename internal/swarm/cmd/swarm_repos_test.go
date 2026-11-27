@@ -57,6 +57,7 @@ func TestSwarmApplyTwoRepositories(t *testing.T) {
 	a.edit(func(c *declare.Config) {
 		c.Repos[1].Image, c.Repos[1].Check, c.Repos[1].Protected = "daisy-member-lib:1", []string{"go", "test", "./..."}, []string{"go.sum"}
 	})
+	a.checkedGreen("lib")
 	plan := "## Steps\n\n1. lib: add the check.\n2. app: move the pin to slice 1's merge.\n"
 	a.planned(plan)
 	arch := a.runner.Launches()[0]

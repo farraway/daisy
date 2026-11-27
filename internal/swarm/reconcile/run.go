@@ -16,14 +16,15 @@ import (
 )
 
 // Run is one role run's directory, `<state>/runs/<n>-<role>-<k>` (section 2),
-// or a merge check's, `<n>-merge-<k>`, which no member runs (section 12.1).
+// or a merge check's, `<n>-merge-<k>`, or a main check's, `0-main-<k>`,
+// which no member runs (section 12.1).
 type Run struct {
 	Dir  string
 	N, K int
 	Role string
 }
 
-var runName = regexp.MustCompile(`^(0|[1-9][0-9]*)-(owner|architect|worker|adversary|sympathetic|qa|merge)-([1-9][0-9]*)$`)
+var runName = regexp.MustCompile(`^(0|[1-9][0-9]*)-(owner|architect|worker|adversary|sympathetic|qa|merge|main)-([1-9][0-9]*)$`)
 
 // Runs is every run directory under state, in no particular order.
 func Runs(fs ops.FS, state string) ([]Run, error) {
