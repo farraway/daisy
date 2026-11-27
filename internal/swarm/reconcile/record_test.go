@@ -75,3 +75,20 @@ func TestRunRowCostLineForms(t *testing.T) {
 		}
 	}
 }
+
+// A run's co-author is its launched model's (section 7.6, The trailer):
+// the one its persona line names, not the role's persona's; the persona's
+// only for a run with no record of its own.
+func TestLaunchedCoAuthor(t *testing.T) {
+	s := &Swarm{O: ops.Real(), Cfg: declare.Config{Personas: map[string]declare.Persona{
+		"worker": {Provider: "anthropic", Model: "claude-sonnet-5-5", Effort: "medium"},
+	}}}
+	r := Run{Role: "worker", Dir: t.TempDir()}
+	if got, want := s.launchedCoAuthor(r, nil), "claude-sonnet-5-5 <noreply@anthropic.com>"; got != want {
+		t.Errorf("no record: %q, want %q", got, want)
+	}
+	lines := []string{"persona openai gpt-6.1-sol high"}
+	if got, want := s.launchedCoAuthor(r, lines), "gpt-6.1-sol <noreply@openai.com>"; got != want {
+		t.Errorf("persona line: %q, want %q", got, want)
+	}
+}
