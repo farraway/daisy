@@ -254,7 +254,11 @@ classification, is what `base` changed since its newest green commit.
 The red journal line is queued at every red commit; a `base` made green
 by the merge of a head checked on a red one journals `<n>-merge-<k>:
 <name> green at <short sha>`. A running main check holds issue 0's
-batch runs until it is collected. `status`'s queue line lists the
+batch runs until it is collected. With no green commit known, `# Main`
+lists the merges back to the oldest commit any check recorded, and with
+none the newest merge alone (the maintainer's ruling of 2026-11-27 on
+R2-C's open question; the mirror's fetch for the main checks, once a
+pass with a slot free, accepted as built). `status`'s queue line lists the
 approved heads by issue, not in the queue's order. Section 12.1's *Rule
 4 built* paragraph gives the words. Tests:
 `TestSwarmMainGreenByTheMergeCheck`, `TestSwarmMainCheckedAfterAHandPush`,

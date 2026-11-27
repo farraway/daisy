@@ -57,16 +57,17 @@ func noMember(r Run) bool { return r.Role == "merge" || r.Role == "main" }
 // main check failed on; and the repositories whose main check is not yet
 // collected.
 type Verdicts struct {
-	Passed  map[string]Run
-	Failed  map[string]bool
-	Running map[string]bool
+	Passed   map[string]Run
+	Failed   map[string]bool
+	Running  map[string]bool
+	Recorded map[string]bool // the commits a check recorded, by `<name> <sha>`: a main check's, a merge check's base
 }
 
 // ReadVerdicts reads the Verdicts from the merge checks' and the main
 // checks' results under state; the other runs are not read. A merge check
 // recorded before its `tree` line was written names no tree.
 func ReadVerdicts(fs ops.FS, state string) (Verdicts, error) {
-	v := Verdicts{Passed: map[string]Run{}, Failed: map[string]bool{}, Running: map[string]bool{}}
+	v := Verdicts{Passed: map[string]Run{}, Failed: map[string]bool{}, Running: map[string]bool{}, Recorded: map[string]bool{}}
 	runs, err := Runs(fs, state)
 	if err != nil {
 		return v, err
@@ -83,6 +84,9 @@ func ReadVerdicts(fs ops.FS, state string) (Verdicts, error) {
 		var key string
 		if r.Role == "merge" {
 			m, ok := mergeOf(lines)
+			if ok {
+				v.Recorded[m.name+" "+m.base] = true
+			}
 			t, _ := Has(lines, "tree")
 			if !ok || t == "" {
 				continue
@@ -93,6 +97,7 @@ func ReadVerdicts(fs ops.FS, state string) (Verdicts, error) {
 			if !ok {
 				continue
 			}
+			v.Recorded[m.name+" "+m.sha] = true
 			key = m.name + " " + m.tree
 			if _, done := Has(lines, "collected"); !done {
 				v.Running[m.name] = true
@@ -129,6 +134,7 @@ type MainState struct {
 	// second parent a worker run of the swarm pushed, 0 for none.
 	Breaking []BreakingMerge
 	Job      int
+	merges   []BreakingMerge // every merge on the line, the breaking job's among them
 }
 
 // BreakingMerge is a merge commit on a red base's first-parent line
@@ -189,21 +195,38 @@ func ReadMainState(o ops.Ops, state, base, name string, v Verdicts) (MainState, 
 			break
 		}
 	}
-	return st, st.breaking(o.FS(), state, line)
+	return st, st.breaking(o.FS(), state, line, v)
 }
 
 // breaking reads, base red, its breaking merges and the breaking job from
 // line, its first-parent line after its newest green commit, and the
 // heads the worker runs under state pushed to the repository (their
 // `pushed <sha>` lines, the scorecard's reading, ReadMerges).
-func (st *MainState) breaking(fs ops.FS, state string, line []parentCommit) error {
+//
+// With no green commit known (line reaching the root), the merges are
+// listed back to the oldest commit on line any check recorded, the red
+// commit's own check aside, and with none, the newest merge alone (the
+// maintainer's ruling of 2026-11-27); the breaking job is read from the
+// whole line.
+func (st *MainState) breaking(fs ops.FS, state string, line []parentCommit, v Verdicts) error {
 	if !st.Red {
 		return nil
 	}
+	shown := len(line) // the commits whose merges are listed
+	if n := len(line); n > 0 && len(line[n-1].parents) == 0 {
+		shown = 0
+		for i, c := range line {
+			if i > 0 && v.Recorded[st.Name+" "+c.sha] {
+				shown = i + 1
+			}
+		}
+	}
 	var merges []BreakingMerge
-	for _, c := range line {
+	var listed []bool
+	for i, c := range line {
 		if len(c.parents) > 1 {
 			merges = append(merges, BreakingMerge{SHA: c.sha, Head: c.parents[1]})
+			listed = append(listed, i < shown || shown == 0 && len(merges) == 1)
 		}
 	}
 	if len(merges) > 0 {
@@ -234,7 +257,12 @@ func (st *MainState) breaking(fs ops.FS, state string, line []parentCommit) erro
 			}
 		}
 	}
-	st.Breaking = merges
+	st.merges = merges
+	for i, m := range merges {
+		if listed[i] {
+			st.Breaking = append(st.Breaking, m)
+		}
+	}
 	return nil
 }
 
@@ -688,7 +716,7 @@ func (s *Swarm) redAt(m mainLine) (MainState, error) {
 	if err != nil {
 		return st, err
 	}
-	return st, st.breaking(fs, s.state(), line)
+	return st, st.breaking(fs, s.state(), line, v)
 }
 
 // routeToJob gives the fix to the breaking job st.Job, its issue open:
@@ -704,7 +732,7 @@ func (c *collection) routeToJob(m mainLine, st MainState, log []byte) error {
 	if err != nil {
 		return err
 	}
-	b := st.Breaking[slices.IndexFunc(st.Breaking, func(b BreakingMerge) bool { return b.N == n })]
+	b := st.merges[slices.IndexFunc(st.merges, func(b BreakingMerge) bool { return b.N == n })]
 	branch := fmt.Sprintf("swarm/%d-%d", n, b.Slice)
 	link := branch
 	for _, p := range pulls {

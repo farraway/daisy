@@ -9736,7 +9736,13 @@ hold's run, else the newest batch run's. The journal's `0-main-<k>:
 red commit), its `green` line at a main check that passed on a red
 `base`; a `base` made green by the merge of a head whose merge check
 passed on a red one journals `<n>-merge-<k>: <name> green at <short
-sha>`, the merge check recording `green <sha>`. The owner's `# Main`
+sha>`, the merge check recording `green <sha>`. With no green commit
+known, `# Main` lists the merges back to the oldest commit on the
+first-parent line any check recorded (a main check's commit, a merge
+check's `base`), the red commit's own check aside, and with none the
+newest merge alone (the maintainer's ruling of 2026-11-27,
+`TestSwarmMainListsMergesToTheOldestRecordedCommit`); the breaking job
+is read from the whole line. The owner's `# Main`
 follows `# Briefs`, each red repository's red commit the newest a main
 check failed on, its log `<run>/check.log` (the `# Check` line and the
 output) copied to the owner's run as `io/main/<name>-<short sha>.log`; the worker's Task text reads `<base> of

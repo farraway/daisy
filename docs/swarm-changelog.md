@@ -1736,3 +1736,10 @@ they write.
   check:`. Sections 1, 2, 5, 6, 7.3, 7.4, 7.7, 7.8, 7.9, 11 and 12.1;
   `docs/cli.md`'s status and resume. Decision
   [169](swarm/decisions/0169-integration-control.md), As built.
+- 2026-11-27, Step R2-C of the plan implementing the 2026-11-19 swarm
+  roadmap, the maintainer's rulings on its open questions: the main
+  checks' fetch, once a pass while a member slot is free, stands as
+  built; with no green commit known, the owner's `# Main` lists the
+  merges back to the oldest commit any check recorded, and with none the
+  newest merge alone. Section 12.1. Decision
+  [169](swarm/decisions/0169-integration-control.md), As built.

@@ -388,3 +388,60 @@ func TestSwarmMainCheckHoldsTheBatch(t *testing.T) {
 		t.Errorf("the batch not launched once the main check is gone: %d\n%s", got, a.stdout.String())
 	}
 }
+
+// mergeBy merges a side branch committing files into base (main) in the
+// upstream of the declared repository name with a merge commit, as a
+// merge on the forge by hand, and returns the merge.
+func (a *applyWS) mergeBy(name string, files map[string]string, msg string) string {
+	a.t.Helper()
+	src := a.t.TempDir()
+	gitIn(a.t, "", "clone", "-q", a.upstream(name), src)
+	gitIn(a.t, src, "checkout", "-q", "-b", "side")
+	if err := commit(files, msg)(src); err != nil {
+		a.t.Fatal(err)
+	}
+	gitIn(a.t, src, "checkout", "-q", "main")
+	gitIn(a.t, src, "merge", "-q", "--no-ff", "--no-edit", "side")
+	gitIn(a.t, src, "push", "-q", "origin", "main")
+	return a.mainAt()
+}
+
+// recorded writes a main check on the commit sha of app that failed in
+// the environment: a commit a check recorded, no verdict on its tree.
+func (a *applyWS) recorded(sha string) {
+	a.t.Helper()
+	tree := gitIn(a.t, a.upstream("app"), "rev-parse", sha+"^{tree}")
+	dir := a.state(filepath.Join("runs", "0-main-9"))
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "result"), []byte("main app "+sha+" tree "+tree+"\nfailed: check environment: x\ncollected\n"), 0o644)
+}
+
+// With no green commit known, # Main lists the merges back to the oldest
+// commit any check recorded, and with none recorded but the red commit's
+// own check, the newest merge alone (the maintainer's ruling of
+// 2026-11-27 on R2-C's open question 2).
+func TestSwarmMainListsMergesToTheOldestRecordedCommit(t *testing.T) {
+	t.Parallel()
+	for _, withRecord := range []bool{false, true} {
+		a := newApplyWS(t)
+		os.RemoveAll(a.state(filepath.Join("runs", "0-main-1"))) // no green commit known
+		a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nFirst.\n\n## M1 The drift\n\nA persona sees no drift.\n")
+		a.publish("briefs")
+		old := a.mergeBy("app", map[string]string{"a.go": "a\n"}, "the oldest merge")
+		mid := a.mergeBy("app", map[string]string{"b.go": "b\n"}, "a merge")
+		if withRecord {
+			a.recorded(mid)
+		}
+		newest := a.mergeBy("app", map[string]string{"c.go": "c\n"}, "the newest merge")
+		a.push("app", map[string]string{"other.go": "broken\n"}, "a push by hand")
+		a.runner.Script(0, "main", broken)
+		a.pass() // red, the owner's
+		a.runner.Script(0, "owner", runner.Canned{Out: "BLOCKED: nothing\n"})
+		a.pass()
+		p := a.file("0-owner-1", "io/prompt.md")
+		has := func(sha string) bool { return strings.Contains(p, "\n- "+sha[:7]+" merges ") }
+		if !has(newest) || has(mid) != withRecord || has(old) {
+			t.Errorf("recorded %v: newest %v, mid %v, old %v:\n%s", withRecord, has(newest), has(mid), has(old), p)
+		}
+	}
+}
