@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	"daisy/internal/ops"
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/runner"
 )
@@ -154,7 +156,7 @@ func TestSwarmRedMainHoldsWorkers(t *testing.T) {
 	red := a.push("app", map[string]string{"other.go": "broken\n"}, "a push by hand")
 	a.runner.Script(0, "main", broken)
 	a.pass() // the main check fails
-	if res := a.result("0-main-2"); !strings.HasPrefix(res, "main app "+red+" ") || !strings.Contains(res, "\nfailed: main check: exit 2\ncollected\n") ||
+	if res := a.result("0-main-2"); !strings.HasPrefix(res, "main app "+red+" ") || !strings.Contains(res, "\nfailed: main check: exit 2\n") ||
 		!strings.Contains(a.stdout.String(), "main check of app failed (exit 2): main red at "+red[:7]+"\n") {
 		t.Fatalf("the main check:\n%s\n%s", res, a.stdout.String())
 	}
@@ -196,5 +198,91 @@ func TestSwarmMainGreenAgain(t *testing.T) {
 	journal := gitIn(t, a.upstreams[swarmURL], "show", "main:journal/2026-11-06.md") + "\n"
 	if !strings.Contains(journal, " 0-main-2: app red at "+red[:7]+"\n") || !strings.Contains(journal, " 0-main-3: app green at "+green[:7]+"\n") {
 		t.Errorf("journal:\n%s", journal)
+	}
+}
+
+// The fix is given to the worker of the job whose merge broke base when
+// that job is open (section 12.1, The red main): #1's first slice merges
+// onto a commit pushed by hand, a tree no check passed; its main check
+// fails, its log goes to #1's workspace, the reconciler's note to #1's
+// issue, and #1's next worker run, not held, is told to make its
+// branch's first commit the fix.
+func TestSwarmRedMainRoutedToTheBreakingJob(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	a.inReview(twoSlices)
+	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
+	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
+	a.pass() // the adversary approves
+	a.pass() // T9
+	a.pass() // the merge check
+	a.pass() // merged: T14
+	head := a.pulls(1)[0].HeadSHA
+	if !a.pulls(1)[0].Merged {
+		t.Fatalf("not merged:\n%s", a.stdout.String())
+	}
+	a.forge.Relabel(issue1, "", forge.Paused) // slice 2 waits while the test moves main
+	a.landUnchecked("app", map[string]string{"other.go": "other\n"}, "a push by hand")
+	red := a.forgeMerges("app", head)
+	a.runner.Script(0, "main", broken)
+	a.pass()
+	note := mark("reconciler", 2) + "main of app is red at " + red[:7] + ", after the merge of [acme/app#1](https://forge.example.net/acme/app/pulls/1) (slice 1): `make check` fails; its output is /job/memory/checks/" + red +
+		".log. This job's next worker run fixes it first.\n\ncc @jane"
+	if bodies := a.bodies(1); !slices.Contains(bodies, note) || !strings.Contains(a.result("0-main-2"), "\nrouted #1\n") {
+		t.Fatalf("no note on #1: %q\n%s\n%s", bodies, a.result("0-main-2"), a.stdout.String())
+	}
+	if log, err := os.ReadFile(a.state(filepath.Join("jobs", "1", "checks", red+".log"))); err != nil || !strings.HasPrefix(string(log), "make check on "+red+": exit 2\n\nother.go:1: syntax error") {
+		t.Errorf("the log: %q %v", log, err)
+	}
+	a.forge.Relabel(issue1, forge.Paused, "")
+	a.runner.Script(1, "worker", work("v2"))
+	a.pass()
+	if sys := a.file("1-worker-2", "io/system.md"); !strings.Contains(sys, "main of app is red at "+red[:7]+" since this job's merge: its check fails there, its output in /job/memory/checks/"+red+".log. Make your branch's first commit the fix") {
+		t.Errorf("the worker's Task:\n%s\n%s", sys, a.stdout.String())
+	}
+}
+
+// The fix is the owner's next proposal when no swarm merge broke base
+// (section 12.1, The red main): a push by hand fails its main check; the
+// owner's held batch is released, with its journal line; the batch's
+// prompt gains # Main, pointing to the check's output written to
+// io/main/, and its Task asks for a Fixes: line; the proposal that
+// carries it is the fix's, its worker launched while another issue's is
+// held.
+func TestSwarmRedMainRoutedToTheOwner(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nFirst.\n\n## M1 The drift\n\nA persona sees no drift.\n")
+	a.publish("briefs")
+	red := a.push("app", map[string]string{"other.go": "broken\n"}, "a push by hand")
+	a.runner.Script(0, "main", broken)
+	a.pass()
+	if fileExists(a.state("owner-held")) || !strings.Contains(a.stdout.String(), "Owner batch released: app red at "+red[:7]+"\n") || !strings.Contains(a.result("0-main-2"), "\nrouted owner\n") {
+		t.Fatalf("not released:\n%s", a.stdout.String())
+	}
+	a.runner.Script(0, "owner", runner.Canned{Out: "## Fix main\nBrief: docs/briefs/a.md — M1 The drift\nClass: routine\nFixes: app\nDepends: none\n\nFix other.go.\n\n## Other work\nBrief: docs/briefs/a.md — M1 The drift\nClass: routine\nDepends: none\n\nMore.\n"})
+	a.pass() // the owner's batch
+	file := "app-" + red[:7] + ".log"
+	if p := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(p, "# Main\n\n## app: main red at "+red[:7]+"\n\n`make check` fails on main at "+red+"; its output is /job/io/main/"+file+".\nNo merge since the newest green commit: a push by hand broke it.\n") {
+		t.Errorf("the batch prompt:\n%s", p)
+	}
+	if sys := a.file("0-owner-1", "io/system.md"); !strings.Contains(sys, `with a line "Fixes: <name>" naming the repository after its "Class:" line`) {
+		t.Errorf("the batch Task:\n%s", sys)
+	}
+	if log := a.file("0-owner-1", "io/main/"+file); !strings.HasPrefix(log, "make check on "+red+": exit 2\n\nother.go:1: syntax error") {
+		t.Errorf("io/main/%s: %q", file, log)
+	}
+	journal := gitIn(t, a.upstreams[swarmURL], "show", "main:journal/2026-11-06.md") + "\n"
+	if !strings.Contains(journal, " 0-release-0: owner batch released: app red at "+red[:7]+"\n") {
+		t.Errorf("journal:\n%s", journal)
+	}
+	for _, n := range []int{1, 2} {
+		a.forge.SetLabel(a.ref(n), "swarm:plan-1-accepted")
+		a.runner.Script(n, "worker", work("v"+strconv.Itoa(n)))
+	}
+	a.pass()
+	if a.launches("acme/swarm-app#1/worker") != 1 || a.launches("acme/swarm-app#2/worker") != 0 {
+		t.Errorf("workers: the fix's %d, the other's %d\n%q\n%s", a.launches("acme/swarm-app#1/worker"), a.launches("acme/swarm-app#2/worker"), a.issue(1).Body, a.stdout.String())
 	}
 }

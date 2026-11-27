@@ -38,6 +38,7 @@ type Job struct {
 	Pull  *PullThread  // the current pull request's thread, when it is open
 	Check string       // the # Check section's text for the current head
 	Batch *Batch       // a batch run's, the owner's or the QA's
+	Red   *RedMain     // a worker's whose job's merge broke its repository's red base (section 12.1, The red main)
 	Notes []Note       // the research notes in the run's copy, with `notes`
 	Repos []RepoNote   // the swarm's notes about each repository the run works in (section 4), in a swarm repository's clone
 
@@ -83,6 +84,7 @@ type Batch struct {
 	FollowUps []forge.Issue
 	Closed    []Closed
 	Propose   int
+	Main      []RedMain // the owner's: each red repository whose fix is its next proposal (section 12.1, The red main)
 }
 
 // Closed is a recently closed swarm issue with its merged pull requests
@@ -1000,7 +1002,36 @@ func (b *Batch) sections(j *Job) []string {
 	for _, is := range b.FollowUps {
 		followUps = append(followUps, fmt.Sprintf("## #%d: %s\n\n%s", is.Number, is.Title, followUpItems(is.Body)))
 	}
-	return []string{"# Briefs", orNone(briefs), "# Open swarm issues", list(open), "# Follow-ups", orNone(followUps), "# Recently closed", list(closed)}
+	out := []string{"# Briefs", orNone(briefs)}
+	if len(b.Main) > 0 {
+		out = append(out, "# Main", b.mainSection(j))
+	}
+	return append(out, "# Open swarm issues", list(open), "# Follow-ups", orNone(followUps), "# Recently closed", list(closed))
+}
+
+// mainSection is the owner's # Main (section 12.1, The red main): each
+// red repository whose fix is the owner's, the check that fails, where
+// its output is, and the breaking merges, newest first.
+func (b *Batch) mainSection(j *Job) string {
+	var parts []string
+	for _, r := range b.Main {
+		lines := []string{fmt.Sprintf("## %s: %s red at %s", r.Name, j.Cfg.Base, short(r.SHA)), "",
+			fmt.Sprintf("`%s` fails on %s at %s; its output is %s/main/%s.", declare.ShellLine(r.Check), j.Cfg.Base, r.SHA, IOMount, r.File())}
+		if len(r.Breaking) == 0 {
+			lines = append(lines, "No merge since the newest green commit: a push by hand broke it.")
+		} else {
+			lines = append(lines, "", "The merges since the newest green commit, newest first:")
+			for _, m := range r.Breaking {
+				by := "not a swarm worker's"
+				if m.N != 0 {
+					by = fmt.Sprintf("swarm/%d-%d, #%d", m.N, m.Slice, m.N)
+				}
+				lines = append(lines, fmt.Sprintf("- %s merges %s (%s)", short(m.SHA), short(m.Head), by))
+			}
+		}
+		parts = append(parts, strings.Join(lines, "\n"))
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func (b *Batch) active() []brief.Brief {

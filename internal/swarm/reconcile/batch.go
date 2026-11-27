@@ -88,6 +88,9 @@ func (s *Swarm) batch(running []runner.Running, launch func(*Job) error) error {
 		return err
 	}
 	b := &Batch{Open: open, FollowUps: followUps, Propose: p, Briefs: briefs}
+	if b.Main, err = s.redMains(); err != nil { // section 12.1, The red main
+		return err
+	}
 	if b.Closed, err = s.recentlyClosed(b.active()); err != nil {
 		return err
 	}

@@ -133,6 +133,21 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		}
 	}
 
+	// A red main's check output, for the owner's # Main (section 12.1,
+	// The red main), written before the launch.
+	if j.Batch != nil {
+		for _, m := range j.Batch.Main {
+			if err := fs.MkdirAll(filepath.Join(ioDir, "main"), 0o755); err != nil {
+				fs.RemoveAll(r.Dir)
+				return false, err
+			}
+			if err := fs.WriteFile(filepath.Join(ioDir, "main", m.File()), m.Log, 0o644); err != nil {
+				fs.RemoveAll(r.Dir)
+				return false, err
+			}
+		}
+	}
+
 	// The open branches, from the mirrors as the pass fetched them
 	// (section 7.8): the architect has no branch of its own. Written
 	// before the prompt, whose # Job counts them.

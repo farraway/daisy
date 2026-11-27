@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"daisy/internal/ops"
+	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/fence"
 	"daisy/internal/swarm/forge"
 )
@@ -479,6 +480,13 @@ func (s *Swarm) collectMain(r Run, lines []string) error {
 	if held, err := c.classify(repo, out); err != nil || held {
 		return err
 	}
+	text := checkLine(repo.Check, m.sha, result) + "\n"
+	if out != "" {
+		text += "\n" + out
+	}
+	if err := s.O.FS().WriteFile(filepath.Join(r.Dir, mainLog), []byte(text), 0o644); err != nil {
+		return err
+	}
 	if err := c.step("failed: main check: " + result); err != nil {
 		return err
 	}
@@ -494,8 +502,16 @@ func (c *collection) mainFailed(m mainLine) error {
 	if err := s.QueueJournal(filepath.Base(c.r.Dir), fmt.Sprintf("%s red at %s", m.name, short(m.sha))); err != nil {
 		return err
 	}
+	if err := c.routeFix(m); err != nil {
+		return err
+	}
 	return c.mainEnd()
 }
+
+// mainLog is a failed main check's log in its run, the `# Check` line
+// and the whole output, as checks/<sha>.log holds a check's (section
+// 7.8): the breaking job's workspace and the owner's io/main/ copy it.
+const mainLog = "check.log"
 
 // mainEnvironment is a main check whose failure is classified again on
 // its rerun (section 7.9): base left unchecked, the line `<name> <sha>`
@@ -614,5 +630,217 @@ func (s *Swarm) redHolds(j *Job, name string) (bool, error) {
 		return false, err
 	}
 	fix, err := s.fixes(st, j.Issue)
-	return !fix, err
+	if err != nil || !fix {
+		return !fix, err
+	}
+	if st.Job == j.N { // the breaking job's worker is told (section 7.4)
+		r, err := s.newestFailed(name)
+		if err != nil {
+			return false, err
+		}
+		if lines, err := r.Result(s.O.FS()); err == nil && r.Dir != "" {
+			m, _ := mainOf(lines)
+			j.Red = &RedMain{Name: name, SHA: m.sha}
+		}
+	}
+	return false, nil
+}
+
+// routeFix routes a red base's fix (section 12.1, The red main), once per
+// red commit, the run recording `routed #<n>` or `routed owner`: when the
+// breaking job's issue is open, the fix is its (routeToJob); else the
+// owner's next proposal (routeToOwner).
+func (c *collection) routeFix(m mainLine) error {
+	s, fs := c.s, c.s.O.FS()
+	if _, done := Has(c.lines, "routed"); done {
+		return nil
+	}
+	st, err := s.redAt(m)
+	if err != nil {
+		return err
+	}
+	if st.Job != 0 {
+		is, err := s.Forge.Issue(st.Job)
+		if err != nil {
+			return err
+		}
+		if is.Open {
+			log, err := fs.ReadFile(filepath.Join(c.r.Dir, mainLog))
+			if err != nil {
+				return err
+			}
+			return c.routeToJob(m, st, log)
+		}
+	}
+	return c.routeToOwner(m)
+}
+
+// redAt is the red commit of main check m as a MainState: its breaking
+// merges and its breaking job read from its first-parent line.
+func (s *Swarm) redAt(m mainLine) (MainState, error) {
+	fs := s.O.FS()
+	v, err := ReadVerdicts(fs, s.state())
+	if err != nil {
+		return MainState{}, err
+	}
+	st := MainState{Name: m.name, SHA: m.sha, Tree: m.tree, Red: true}
+	line, err := firstParents(s.git(), m.name, m.sha, v)
+	if err != nil {
+		return st, err
+	}
+	return st, st.breaking(fs, s.state(), line)
+}
+
+// routeToJob gives the fix to the breaking job st.Job, its issue open:
+// the main check's log written to its workspace as checks/<sha>.log, and
+// the reconciler's note on its issue, counted, so that the stage's role
+// answers it, with the maintainer's mention.
+func (c *collection) routeToJob(m mainLine, st MainState, log []byte) error {
+	s, n := c.s, st.Job
+	if err := s.writeWorkspace(n, filepath.Join("checks", m.sha+".log"), log); err != nil {
+		return err
+	}
+	pulls, err := s.pulls(n)
+	if err != nil {
+		return err
+	}
+	b := st.Breaking[slices.IndexFunc(st.Breaking, func(b BreakingMerge) bool { return b.N == n })]
+	branch := fmt.Sprintf("swarm/%d-%d", n, b.Slice)
+	link := branch
+	for _, p := range pulls {
+		if p.Repo == m.name && p.Head == branch {
+			link = pullLink(s.owner(), p)
+		}
+	}
+	repo, _ := s.repo(m.name)
+	text := fmt.Sprintf("%s of %s is red at %s, after the merge of %s (slice %d): `%s` fails; its output is /job/memory/checks/%s.log. This job's next worker run fixes it first.",
+		s.Cfg.Base, m.name, short(m.sha), link, b.Slice, declare.ShellLine(repo.Check), m.sha)
+	if err := s.Forge.Comment(forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}, marker("reconciler", c.r.K)+text+s.mention()); err != nil {
+		return err
+	}
+	fmt.Fprintf(s.Out, "%s%s red at %s: the fix is #%d's, whose merge broke it\n", c.head, m.name, short(m.sha), n)
+	return c.step(fmt.Sprintf("routed #%d", n))
+}
+
+// routeToOwner makes the fix the owner's next proposal: the owner's
+// batch hold, when there is one, released for the red commit, with the
+// journal line `0-release-<k>: owner batch released: <name> red at
+// <short sha>`.
+func (c *collection) routeToOwner(m mainLine) error {
+	s, fs := c.s, c.s.O.FS()
+	path := heldFile(s.state(), "owner")
+	held, err := fs.ReadFile(path)
+	switch {
+	case errors.Is(err, iofs.ErrNotExist):
+	case err != nil:
+		return err
+	default:
+		k, _ := HoldWaits(held)
+		if k == 0 { // a hold that names no run: the newest batch run's
+			runs, err := Runs(fs, s.state())
+			if err != nil {
+				return err
+			}
+			k = NextK(runs, 0, "owner", nil) - 1
+		}
+		if err := fs.Remove(path); err != nil {
+			return err
+		}
+		what := fmt.Sprintf("owner batch released: %s red at %s", m.name, short(m.sha))
+		fmt.Fprintln(s.Out, strings.ToUpper(what[:1])+what[1:])
+		if err := s.QueueJournal(fmt.Sprintf("0-release-%d", k), what); err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(s.Out, "%s%s red at %s: the fix is the owner's next proposal\n", c.head, m.name, short(m.sha))
+	return c.step("routed owner")
+}
+
+// RedMain is a red repository whose fix is the owner's (section 12.1, The
+// red main), as the owner's batch prompt's # Main shows it: the commit
+// its newest failed main check failed on, the check, the breaking merges
+// and that check's log, which the launch writes to
+// <run>/io/main/<name>-<short sha>.log.
+type RedMain struct {
+	Name, SHA string
+	Check     []string
+	Breaking  []BreakingMerge
+	Log       []byte
+}
+
+// File is the RedMain's log's name under io/main/.
+func (r RedMain) File() string { return r.Name + "-" + short(r.SHA) + ".log" }
+
+// redMains is, for the owner's batch, each repository whose base is red
+// and whose fix is the owner's: no breaking job, or its issue closed
+// (read once a pass).
+func (s *Swarm) redMains() ([]RedMain, error) {
+	var out []RedMain
+	for _, repo := range s.Cfg.Repos {
+		st, err := s.mainState(repo.Name)
+		if err != nil || !st.Red {
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if st.Job != 0 {
+			open, ok := s.fixOpen[st.Job]
+			if !ok {
+				b, err := s.Forge.Issue(st.Job)
+				if err != nil {
+					return nil, err
+				}
+				open = b.Open
+				if s.fixOpen != nil {
+					s.fixOpen[st.Job] = open
+				}
+			}
+			if open {
+				continue
+			}
+		}
+		r, err := s.newestFailed(repo.Name)
+		if err != nil {
+			return nil, err
+		}
+		if r.Dir == "" {
+			continue
+		}
+		lines, err := r.Result(s.O.FS())
+		if err != nil {
+			return nil, err
+		}
+		m, _ := mainOf(lines)
+		log, err := s.O.FS().ReadFile(filepath.Join(r.Dir, mainLog))
+		if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+			return nil, err
+		}
+		out = append(out, RedMain{Name: repo.Name, SHA: m.sha, Check: repo.Check, Breaking: st.Breaking, Log: log})
+	}
+	return out, nil
+}
+
+// newestFailed is repository name's newest main check that failed (its
+// check, not its environment); none when there is none.
+func (s *Swarm) newestFailed(name string) (Run, error) {
+	runs, err := Runs(s.O.FS(), s.state())
+	if err != nil {
+		return Run{}, err
+	}
+	var newest Run
+	for _, r := range runs {
+		if r.Role != "main" || r.K < newest.K {
+			continue
+		}
+		lines, err := r.Result(s.O.FS())
+		if err != nil {
+			return Run{}, err
+		}
+		m, ok := mainOf(lines)
+		if l, _ := Has(lines, "failed"); ok && m.name == name && strings.HasPrefix(l, "failed: main check: ") {
+			newest = r
+		}
+	}
+	return newest, nil
 }
