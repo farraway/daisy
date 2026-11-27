@@ -260,4 +260,4 @@ approved heads by issue, not in the queue's order. Section 12.1's *Rule
 `TestSwarmMainGreenByTheMergeCheck`, `TestSwarmMainCheckedAfterAHandPush`,
 `TestSwarmRedMainHoldsWorkers`, `TestSwarmRedMainRoutedToTheBreakingJob`,
 `TestSwarmRedMainRoutedToTheOwner`, `TestSwarmMainGreenAgain`,
-`TestSwarmStatusQueueAndMain`.
+`TestSwarmStatusQueueAndMain`, `TestSwarmQueueWaitsForTheMainCheck`, `TestSwarmMainCheckHoldsTheBatch`.

@@ -347,3 +347,44 @@ func TestSwarmStatusQueueAndMain(t *testing.T) {
 		t.Errorf("resume: %v, %d checks", err, len(b.mains()))
 	}
 }
+
+// The queue waits while base is being checked (section 12.1, rule 4):
+// a push by hand leaves base's tree with no verdict, so no merge check
+// starts on it in the pass that starts its main check; once that check
+// passed, base is green and the next pass starts the head's.
+func TestSwarmQueueWaitsForTheMainCheck(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.approvedHead(false)
+	a.push("app", map[string]string{"hand.go": "hand\n"}, "a push by hand")
+	a.pass() // the main check starts and passes
+	if len(a.mains()) != 1 || len(a.merges()) != 0 {
+		t.Fatalf("main checks %d, merge checks %d in the pass that checks base\n%s", len(a.mains()), len(a.merges()), a.stdout.String())
+	}
+	a.pass()
+	if len(a.merges()) != 1 {
+		t.Errorf("the queue not checking the head on the green base: %d\n%s", len(a.merges()), a.stdout.String())
+	}
+}
+
+// A running main check holds issue 0's batch runs (section 12.1, rule 4,
+// by section 6's rule 2): with the main check's container running, the
+// owner's batch is not launched, though a brief is active.
+func TestSwarmMainCheckHoldsTheBatch(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	os.Remove(a.state("owner-held"))
+	a.write("docs/briefs/a.md", "# Drift\n\nStatus: active\nFirst.\n\n## M1 The drift\n\nA persona sees no drift.\n")
+	a.publish("briefs")
+	a.runner.Script(0, "owner", runner.Canned{Out: "BLOCKED: nothing to propose\n"})
+	a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.swarm-app.0.main.1", Swarm: "acme/swarm-app#0/main"}}
+	a.pass()
+	if got := a.launches("acme/swarm-app#0/owner"); got != 0 {
+		t.Fatalf("the owner's batch launched with a main check running: %d\n%s", got, a.stdout.String())
+	}
+	a.runner.Others = nil
+	a.pass()
+	if got := a.launches("acme/swarm-app#0/owner"); got != 1 {
+		t.Errorf("the batch not launched once the main check is gone: %d\n%s", got, a.stdout.String())
+	}
+}

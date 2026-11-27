@@ -407,6 +407,10 @@ func TestSwarmStatusThroughput(t *testing.T) {
 		"10-sympathetic-2": today + "flagged swarm:blocked\noutcome posted\ncollected\n",
 		"11-worker-1":      today + "relabelled swarm:plan-2-in-progress swarm:review-0-ready\noutcome posted\ncollected\n",
 		"11-sympathetic-1": today + "relabelled swarm:review-1-in-progress swarm:review-0-ready\nflagged swarm:blocked\noutcome failed\ncollected\n",
+		// A merge check and a main check are no member's run (section 12.1):
+		// the throughput counts neither.
+		"1-merge-1": "merge app aaaa into bbbb at cccc\npassed\ncollected\n",
+		"0-main-1":  "main app bbbb tree dddd\nfailed: main check: exit 2\ncollected\n",
 	} {
 		os.MkdirAll(s.state("runs/"+name), 0o755)
 		os.WriteFile(s.state("runs/"+name+"/result"), []byte(result), 0o644)

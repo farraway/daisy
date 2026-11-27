@@ -9751,7 +9751,7 @@ run. Tests: `TestSwarmMainGreenByTheMergeCheck`,
 `TestSwarmMainCheckedAfterAHandPush`, `TestSwarmRedMainHoldsWorkers`,
 `TestSwarmRedMainRoutedToTheBreakingJob`,
 `TestSwarmRedMainRoutedToTheOwner`, `TestSwarmMainGreenAgain`,
-`TestSwarmStatusQueueAndMain`; the test workspace starts with `base`
+`TestSwarmStatusQueueAndMain`, `TestSwarmQueueWaitsForTheMainCheck`, `TestSwarmMainCheckHoldsTheBatch`; the test workspace starts with `base`
 checked green, as does each slice it lands.
 
 **The rulings.** The maintainer's, of 2026-11-19 (Step 1 of that plan):
