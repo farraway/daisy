@@ -541,7 +541,7 @@ func TestSwarmApplyOnXAI(t *testing.T) {
 	a := newApplyWS(t)
 	env := "XAI_API_KEY"
 	a.edit(func(c *declare.Config) {
-		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high"}
 		c.Keys["xai"] = declare.Key{Env: &env}
 		c.Resources = append(c.Resources, declare.Resource{Path: "SPEC.md"})
 	})
@@ -635,7 +635,7 @@ func TestSwarmApplyConfinedRoles(t *testing.T) {
 	env := "XAI_API_KEY"
 	a.edit(func(c *declare.Config) {
 		for _, role := range []string{"owner", "worker", "adversary", "sympathetic"} {
-			c.Personas[role] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+			c.Personas[role] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high"}
 		}
 		c.Keys["xai"] = declare.Key{Env: &env}
 	})
@@ -669,7 +669,7 @@ func TestSwarmApplyOnASlot(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
-		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
+		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high"}
 	})
 	slot := filepath.Join(a.local, "swarm", "credentials", "openai", "1")
 	os.WriteFile(filepath.Join(slot, "config.toml"), []byte("x"), 0o600)
@@ -705,7 +705,7 @@ func TestSwarmApplyOnAnXAISlot(t *testing.T) {
 	a := newApplyWS(t)
 	slots := 1
 	a.edit(func(c *declare.Config) {
-		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high"}
 		c.Keys["xai"] = declare.Key{Slots: &slots}
 	})
 	token := "grok-access-token-0123456789abcdefghijklmnop"
@@ -757,7 +757,7 @@ func TestSwarmApplyXAISlotRotatedDuringTheRun(t *testing.T) {
 	a := newApplyWS(t)
 	slots := 1
 	a.edit(func(c *declare.Config) {
-		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high"}
 		c.Keys["xai"] = declare.Key{Slots: &slots}
 	})
 	old, rotated := "grok-access-token-0123456789abcdefghijklmnop", "grok-access-token-rotated-0123456789abcdefgh"
@@ -787,7 +787,7 @@ func TestSwarmApplyXAISlotWithoutALogin(t *testing.T) {
 	a := newApplyWS(t)
 	slots := 1
 	a.edit(func(c *declare.Config) {
-		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high"}
 		c.Keys["xai"] = declare.Key{Slots: &slots}
 	})
 	slot := filepath.Join(a.local, "swarm", "credentials", "xai", "1")
@@ -809,7 +809,7 @@ func TestSwarmApplyXAIBothForms(t *testing.T) {
 	a := newApplyWS(t)
 	env, slots := "XAI_API_KEY", 1
 	a.edit(func(c *declare.Config) {
-		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Personas["architect"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high"}
 		c.Keys["xai"] = declare.Key{Env: &env, Slots: &slots}
 	})
 	a.vars["XAI_API_KEY"] = "xai-key-0123456789abcdef0123456789abcdef"

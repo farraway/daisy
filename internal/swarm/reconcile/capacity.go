@@ -387,19 +387,13 @@ func (s *Swarm) chain(j *Job) []declare.Entry {
 	return s.Cfg.Personas[j.Role].Chain(labels)
 }
 
-// launchedEntry is the entry run r was launched on, its lines being
-// lines: the entry of the role's persona, fallback or by_label with the
-// provider, model and effort it launched with (launched), for its
-// co-author; the persona's when none is (swarm.json changed since).
-func (s *Swarm) launchedEntry(r Run, lines []string) declare.Entry {
-	prov, model, effort := s.launched(r, lines)
-	entries := s.Cfg.Personas[r.Role].All()
-	for _, e := range entries {
-		if e.Is(declare.Entry{Provider: prov, Model: model, Effort: effort}) {
-			return e
-		}
-	}
-	return entries[0]
+// launchedCoAuthor is the co-author of run r's commits, its lines being
+// lines: the model it launched with (launched), whichever entry of the
+// role's persona, fallback or by_label named it (section 7.6, The
+// trailer).
+func (s *Swarm) launchedCoAuthor(r Run, lines []string) string {
+	prov, model, _ := s.launched(r, lines)
+	return declare.CoAuthor(prov, model)
 }
 
 // capacityMarker is the capacity note's first line (section 7.10, The

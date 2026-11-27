@@ -30,7 +30,7 @@ func TestMemberArgvMountsTheRunsFolder(t *testing.T) {
 	a.notesUp(map[string]string{})
 	env := "XAI_API_KEY"
 	a.edit(func(c *declare.Config) {
-		c.Personas["sympathetic"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high", CoAuthor: "grok-4.5 <noreply@x.ai>"}
+		c.Personas["sympathetic"] = declare.Persona{Provider: "xai", Model: "grok-4.5", Effort: "high"}
 		c.Keys["xai"] = declare.Key{Env: &env}
 	})
 	a.vars["XAI_API_KEY"] = "xai-key-0123456789abcdef0123456789abcdef"

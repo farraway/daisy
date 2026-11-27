@@ -1,7 +1,6 @@
 package declare
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -102,9 +101,10 @@ func (w *Wizard) ask(question, def string, take func(answer string) *Error) erro
 	}
 }
 
-// Ask is questions 1–32: everything but trusted and forge.commit_email,
-// which AskAccount fills once the token's account is known. The fields
-// not asked keep the file's values, else section 3's defaults.
+// Ask is questions 1–21 and 27–32 (22–26, once the co-authors, are
+// retired): everything but trusted and forge.commit_email, which
+// AskAccount fills once the token's account is known. The fields not
+// asked keep the file's values, else section 3's defaults.
 func (w *Wizard) Ask() (Config, error) {
 	c := w.unasked()
 	var origins []Origin
@@ -464,12 +464,10 @@ func (w *Wizard) apiDefault(first Origin, kind string) string {
 	return w.forgeDefault(first, kind).API
 }
 
-// personas is questions 7–26: per role, provider, model, effort and the
-// co-author. The model's default is the provider's (providerDefaults)
-// when the answer moves the role to another provider; the co-author's
-// follows the model unless the file's persona has the same provider and
-// model; `-` is none, an empty answer being the default, as the list
-// questions take it.
+// personas is questions 7–21: per role, provider, model and effort. The
+// model's default is the provider's (providerDefaults) when the answer
+// moves the role to another provider. No co-author is asked: it is the
+// model's (CoAuthor).
 func (w *Wizard) personas(c *Config) error {
 	for _, role := range Roles {
 		p, ok := c.Personas[role]
@@ -491,19 +489,6 @@ func (w *Wizard) personas(c *Config) error {
 					return fieldErr(at+".effort", "%q is not one lowercase word", a)
 				}
 				return nil
-			})
-		}
-		if err == nil {
-			def := defaultCoAuthor(p.Provider, p.Model)
-			if ok && was.Provider == p.Provider && was.Model == p.Model {
-				def = cmp.Or(was.CoAuthor, "-")
-			}
-			err = w.ask(role+" co-author (- for none)", def, func(a string) *Error {
-				if a == "-" {
-					a = ""
-				}
-				p.CoAuthor = a
-				return checkCoAuthor(at+".co_author", a)
 			})
 		}
 		if err != nil {

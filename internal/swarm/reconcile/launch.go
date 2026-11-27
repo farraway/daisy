@@ -215,7 +215,7 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		return failed("launch-failed "+ended(), "fault: clone: "+err.Error())
 	}
 	clone := func(rp declare.Repo, branch, dir string, also ...string) (string, error) {
-		return s.git().Clone(rp, branch, s.Cfg.Base, dir, j.Role, s.Cfg.Forge.CommitEmail, persona.CoAuthor, also...)
+		return s.git().Clone(rp, branch, s.Cfg.Base, dir, j.Role, s.Cfg.Forge.CommitEmail, declare.CoAuthor(persona.Provider, persona.Model), also...)
 	}
 	if clonesEvery(j.Role) {
 		// The architect revising with the issue's pull request open sees

@@ -54,8 +54,8 @@ type Report struct {
 }
 
 // Provider is a provider with an adapter: its CLI, the variables an env
-// credential may name, the login slot it takes, and the address of its
-// default co-author.
+// credential may name, the login slot it takes, and the no-reply address
+// of the co-author of its models' commits (declare.CoAuthor).
 type Provider struct {
 	Adapter Adapter
 	Env     []string

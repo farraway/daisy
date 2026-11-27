@@ -483,11 +483,11 @@ question 33 (`--defaults` answers none, and writes only `<swarm-login>`):
   "gates": {"triage": true, "plan": true, "merge": true},
   "keys": {"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}, "openai": {"slots": 1}},
   "personas": {
-    "owner":       {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high",   "co_author": "claude-opus-5-5 <noreply@anthropic.com>"},
-    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high",   "co_author": "claude-fable-5-1 <noreply@anthropic.com>"},
-    "worker":      {"provider": "anthropic", "model": "claude-sonnet-5-5", "effort": "medium", "co_author": "claude-sonnet-5-5 <noreply@anthropic.com>"},
-    "adversary":   {"provider": "openai",    "model": "gpt-6.1-sol",       "effort": "high",   "co_author": "gpt-6.1-sol <noreply@openai.com>"},
-    "sympathetic": {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high",   "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}
+    "owner":       {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high"},
+    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high"},
+    "worker":      {"provider": "anthropic", "model": "claude-sonnet-5-5", "effort": "medium"},
+    "adversary":   {"provider": "openai",    "model": "gpt-6.1-sol",       "effort": "high"},
+    "sympathetic": {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high"}
   }
 }
 ```
@@ -9310,11 +9310,11 @@ example in it:
   "gates": {"triage": true, "plan": true, "merge": true},
   "keys": {"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}, "openai": {"slots": 1}},
   "personas": {
-    "owner":       {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high",   "co_author": "claude-opus-5-5 <noreply@anthropic.com>"},
-    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high",   "co_author": "claude-fable-5-1 <noreply@anthropic.com>"},
-    "worker":      {"provider": "anthropic", "model": "claude-sonnet-5-5", "effort": "medium", "co_author": "claude-sonnet-5-5 <noreply@anthropic.com>"},
-    "adversary":   {"provider": "openai",    "model": "gpt-6.1-sol",       "effort": "high",   "co_author": "gpt-6.1-sol <noreply@openai.com>"},
-    "sympathetic": {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high",   "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}
+    "owner":       {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high"},
+    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high"},
+    "worker":      {"provider": "anthropic", "model": "claude-sonnet-5-5", "effort": "medium"},
+    "adversary":   {"provider": "openai",    "model": "gpt-6.1-sol",       "effort": "high"},
+    "sympathetic": {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high"}
   }
 }
 ```

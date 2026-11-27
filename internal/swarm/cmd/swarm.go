@@ -85,7 +85,8 @@ func swarmInit(c *Context, open opener) error {
 	o, p := c.Ops, c.Swarm
 	var file *declare.Config
 	if !p.Outside {
-		existing, found, err := declare.Load(o.FS(), p.Root)
+		// A retired field (co_author) is dropped: init writes the file anew.
+		existing, found, err := declare.LoadDropping(o.FS(), p.Root)
 		if found && err != nil {
 			return fmt.Errorf("Error: %v", err)
 		}

@@ -160,7 +160,7 @@ func TestSwarmApplyPricesCachedInputApart(t *testing.T) {
 	a := newApplyWS(t)
 	home := a.metricsHome()
 	a.edit(func(c *declare.Config) {
-		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "medium", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
+		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "medium"}
 	})
 	a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", runner.Canned{Out: archPlan, Stdout: `{"type":"thread.started","thread_id":"t"}

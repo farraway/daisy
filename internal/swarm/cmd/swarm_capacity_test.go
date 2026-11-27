@@ -33,7 +33,7 @@ func TestSwarmCollectsWithTheLaunchedPersona(t *testing.T) {
 		a.tick()
 		if waits == 1 {
 			a.edit(func(c *declare.Config) {
-				c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
+				c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high"}
 			})
 			c := make(chan time.Time, 1)
 			c <- time.Time{}
@@ -71,8 +71,8 @@ func (a *applyWS) withFallback(role string, entries ...declare.Entry) {
 }
 
 var (
-	opusEntry = declare.Entry{Provider: "anthropic", Model: "claude-opus-5-5", Effort: "high", CoAuthor: "claude-opus-5-5 <noreply@anthropic.com>"}
-	solEntry  = declare.Entry{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
+	opusEntry = declare.Entry{Provider: "anthropic", Model: "claude-opus-5-5", Effort: "high"}
+	solEntry  = declare.Entry{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high"}
 	// claudeQuota is claude's result for a spent quota, a capacity fault
 	// stating no reset (section 9).
 	claudeQuota = runner.Canned{Code: 1, Stdout: `{"type":"result","is_error":true,"result":"Claude AI usage limit reached"}`}
@@ -144,6 +144,23 @@ func TestSwarmFallbackOnACapacityFault(t *testing.T) {
 	}
 }
 
+// The worker on its fallback entry commits with that entry's model's
+// co-author, not the persona's, and collection checks its commits
+// against it (section 7.6, The trailer; 7.10, The fallback).
+func TestSwarmFallbackCommitsCarryItsModel(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.withFallback("worker", solEntry)
+	a.planned(oneSlice)
+	a.runner.Script(1, "worker", claudeQuota, hookedAndNot)
+	a.pass()
+	a.pass()
+	if r := a.result("1-worker-2"); !strings.Contains(r, "\npersona openai gpt-6.1-sol high\n") {
+		t.Fatalf("run 2 not on the fallback:\n%s", r)
+	}
+	a.carriesTheModel("1-worker-2", "gpt-6.1-sol <noreply@openai.com>")
+}
+
 // A capacity fault's line holds until the reset its message states
 // (section 7.10, The fallback): codex's "try again at 3:53 PM", read in
 // UTC, leaves the role with no other entry waiting, nothing launched or
@@ -153,7 +170,7 @@ func TestSwarmCapacityUntilTheReset(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
-		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
+		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high"}
 	})
 	a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"})
 	a.runner.Script(1, "architect", codexLimit, runner.Canned{Out: archPlan})
@@ -323,7 +340,7 @@ func (a *applyWS) withSlots(count int, role string, slots ...int) {
 	a.t.Helper()
 	a.edit(func(c *declare.Config) {
 		c.Keys["openai"] = declare.Key{Slots: &count}
-		c.Personas[role] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>", Slots: slots}
+		c.Personas[role] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", Slots: slots}
 	})
 	for j := 1; j <= count; j++ {
 		slot := filepath.Join(a.local, "swarm", "credentials", "openai", strconv.Itoa(j))
@@ -372,7 +389,7 @@ func TestSwarmStatusCapacity(t *testing.T) {
 	s.edit(func(c *declare.Config) {
 		c.Trusted = []string{"jane", "swarm-bot"}
 		c.Keys["openai"] = declare.Key{Slots: &two}
-		c.Personas["owner"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>", Slots: []int{1}}
+		c.Personas["owner"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", Slots: []int{1}}
 	})
 	s.forge.CreateIssue("One", "x", []string{"swarm:proposal-posted"})
 	s.forge.CreateIssue("Two", "x", []string{"swarm:proposal-accepted"})

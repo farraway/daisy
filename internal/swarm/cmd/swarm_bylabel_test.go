@@ -25,7 +25,7 @@ func (a *applyWS) withByLabel(role string, entries ...declare.ByLabel) {
 
 // labelled is e chosen by label.
 func labelled(label string, e declare.Entry) declare.ByLabel {
-	return declare.ByLabel{Label: label, Provider: e.Provider, Model: e.Model, Effort: e.Effort, CoAuthor: e.CoAuthor, Slots: e.Slots}
+	return declare.ByLabel{Label: label, Provider: e.Provider, Model: e.Model, Effort: e.Effort, Slots: e.Slots}
 }
 
 // The architect on an issue carrying swarm:class-architecture runs on
@@ -161,23 +161,47 @@ func TestSwarmStatusShowsByLabel(t *testing.T) {
 	}
 }
 
-// The worker on its by_label entry commits with the entry's co_author,
-// which its collection checks the commits against: none reported
-// unstamped (section 7.10, The model by label).
-func TestSwarmWorkerCommitsCarryTheLabelsCoAuthor(t *testing.T) {
+// The worker on its by_label entry commits with its model's co-author,
+// the one collection checks the commits against: the hooked commit is
+// stamped `claude-opus-5-5 <noreply@anthropic.com>`, the unhooked one
+// reported as lacking it. The entry is the same as a fallback entry,
+// whose co-author, derived from the same model, is the same (section
+// 7.6, The trailer; R4-L's case of one entry stamping another's).
+func TestSwarmByLabelCommitsCarryItsModel(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
+	a.withFallback("worker", opusEntry)
 	a.withByLabel("worker", labelled("swarm:class-architecture", opusEntry))
 	a.planned(oneSlice)
 	if err := a.forge.Relabel(issue1, "", "swarm:class-architecture"); err != nil {
 		t.Fatal(err)
 	}
-	a.runner.Script(1, "worker", work("v1"))
+	a.runner.Script(1, "worker", hookedAndNot)
 	a.pass()
-	msg, _, _ := ops.Real().Exec(a.upstream("app"), "git", "log", "-1", "--format=%B", "swarm/1-1")
-	r := a.result("1-worker-1")
-	if !strings.Contains(string(msg), "Co-Authored-By: claude-opus-5-5 <noreply@anthropic.com>") || !strings.Contains(r, "\npersona anthropic claude-opus-5-5 high\n") ||
-		strings.Contains(r, "unstamped") || strings.Contains(a.stderr.String(), "Co-Authored-By") {
-		t.Errorf("the pushed commit:\n%s\nstderr %q\n%s", msg, a.stderr.String(), r)
+	a.carriesTheModel("1-worker-1", "claude-opus-5-5 <noreply@anthropic.com>")
+}
+
+// hookedAndNot is a worker's run making two commits, the first through
+// the clone's commit-msg hook, the second around it (--no-verify).
+var hookedAndNot = runner.Canned{Out: "v2\n\nNot established: none\n", Work: checkout(func(w string) error {
+	if err := commit(map[string]string{"main.go": "v1\n"}, "Hooked")(w); err != nil {
+		return err
+	}
+	return commit(map[string]string{"main.go": "v2\n"}, "Unhooked", "--no-verify")(w)
+})}
+
+// carriesTheModel: run's hooked commit, the branch head's parent, carries
+// co, and its unhooked one, the head, is reported lacking co (section
+// 7.6, The trailer).
+func (a *applyWS) carriesTheModel(run, co string) {
+	a.t.Helper()
+	r := a.result(run)
+	hooked, _, _ := ops.Real().Exec(a.upstream("app"), "git", "log", "-1", "--format=%B", "swarm/1-1~1")
+	head, _, _ := ops.Real().Exec(a.upstream("app"), "git", "rev-parse", "swarm/1-1")
+	sha := strings.TrimSpace(string(head))
+	if strings.TrimSpace(string(hooked)) != "Hooked\n\nCo-Authored-By: "+co || len(sha) < 7 ||
+		!strings.Contains(a.stderr.String(), "commit "+sha[:7]+" has no Co-Authored-By: "+co+"\n") ||
+		strings.Count(r, "\nunstamped ") != 1 || !strings.Contains(r, "\nunstamped "+sha+"\n") {
+		a.t.Errorf("the hooked commit:\n%s\nstderr %q\n%s", hooked, a.stderr.String(), r)
 	}
 }

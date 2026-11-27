@@ -402,7 +402,7 @@ func TestSwarmInitReadyWarnsNothing(t *testing.T) {
 	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token"
 	editUp(t, s.upstreams["git@forge.example.net:acme/app.git"], "main", map[string]string{"AGENTS.md": "# App\n"})
 	editUp(t, s.upstreams["git@forge.example.net:acme/lib.git"], "main", map[string]string{"CLAUDE.md": "# Lib\n"})
-	s.answers = make([]string, 33)
+	s.answers = make([]string, 28) // questions 1–21 and 27–32 (22–26 retired)
 	s.answers = append(s.answers, "jane", "", "")
 	if err := s.run(); err != nil {
 		t.Fatal(err)
@@ -411,7 +411,7 @@ func TestSwarmInitReadyWarnsNothing(t *testing.T) {
 	f := s.read("swarm.json")
 	f = strings.Replace(f, `"check": []`, `"check": ["make", "check"]`, 2)
 	s.write("swarm.json", f)
-	s.answers = make([]string, 36)
+	s.answers = make([]string, 31)
 	if err := s.run(); err != nil {
 		t.Fatal(err)
 	}
@@ -537,7 +537,7 @@ func TestSwarmInitWritesNothingBeforeTheForgeAnswers(t *testing.T) {
 func TestSwarmInitMaintainerQuestion(t *testing.T) {
 	t.Parallel()
 	s := newSwarmWS(t)
-	s.answers = append(make([]string, 33), "swarm-bot", "jane", "", "yes")
+	s.answers = append(make([]string, 28), "swarm-bot", "jane", "", "yes") // 22–26 retired
 	if err := s.run(); err != nil {
 		t.Fatal(err)
 	}
@@ -549,7 +549,7 @@ func TestSwarmInitMaintainerQuestion(t *testing.T) {
 	}
 
 	s = newSwarmWS(t)
-	s.answers = make([]string, 33) // EOF at question 33
+	s.answers = make([]string, 28) // EOF at question 33 (22–26 retired)
 	if err := s.run(); err != nil || !strings.HasSuffix(s.stderr.String(), "Cancelled — no answer on stdin (EOF); nothing written.\n") {
 		t.Errorf("EOF: %v %q", err, s.stderr.String())
 	}

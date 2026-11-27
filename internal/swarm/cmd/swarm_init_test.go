@@ -337,3 +337,49 @@ func TestSwarmInitForgeAPI(t *testing.T) {
 		t.Errorf("the flag's: %v %q\n%s\n%s", err, s.opened, s.stdout.String(), s.stderr.String())
 	}
 }
+
+// `init` on a swarm.json still holding co_author, on a persona, a
+// fallback entry and a by_label entry, drops it, keeping the rest, and
+// writes and commits the file every verb reads again; it asks no
+// co-author question (section 3, personas.<role>; section 11, init).
+func TestSwarmInitDropsCoAuthor(t *testing.T) {
+	t.Parallel()
+	s := newSwarmWS(t)
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	s.cwd = s.ws
+	c, _, err := declare.Load(ops.Real().FS(), s.ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.MaxMembers = 4
+	arch := c.Personas["architect"]
+	arch.Fallback = []declare.Entry{{Provider: "anthropic", Model: "claude-opus-5-5", Effort: "high"}}
+	arch.ByLabel = []declare.ByLabel{{Label: "hard", Provider: "openai", Model: "gpt-6.1-sol", Effort: "high"}}
+	c.Personas["architect"] = arch
+	kept := string(declare.Format(c))
+	old := kept
+	for _, r := range []struct{ from, to string }{
+		{`"model": "claude-opus-5-5",   "effort": "high"}`, `"model": "claude-opus-5-5",   "effort": "high", "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}`},
+		{`"effort": "high"}], "by_label"`, `"effort": "high", "co_author": "Someone <someone@example.net>"}], "by_label"`},
+		{`"model": "gpt-6.1-sol", "effort": "high"}]}`, `"model": "gpt-6.1-sol", "effort": "high", "co_author": ""}]}`},
+	} {
+		if old = strings.Replace(old, r.from, r.to, 1); !strings.Contains(old, r.to) {
+			t.Fatalf("%q not in swarm.json:\n%s", r.from, kept)
+		}
+	}
+	s.write("swarm.json", old)
+	if _, _, err := declare.Load(ops.Real().FS(), s.ws); !strings.Contains(errText(err), ".co_author: no longer declared") {
+		t.Fatalf("the old file read: %v", err)
+	}
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	if s.read("swarm.json") != kept || !strings.Contains(s.stdout.String(), "✓ Wrote swarm.json\n") || strings.Contains(s.stderr.String(), "co-author") {
+		t.Errorf("swarm.json:\n%s\nstdout:\n%s\nstderr:\n%s", s.read("swarm.json"), s.stdout.String(), s.stderr.String())
+	}
+	if got := gitIn(t, s.upstreams[swarmURL], "show", "main:swarm.json"); got+"\n" != kept {
+		t.Errorf("pushed:\n%s", got)
+	}
+}

@@ -15,7 +15,7 @@ func byLabel(c *Config, role string, entries ...ByLabel) {
 }
 
 // archOpus is the architect's model on an architecture job.
-var archOpus = ByLabel{"swarm:class-architecture", "anthropic", "claude-opus-5-5", "high", "claude-opus-5-5 <noreply@anthropic.com>", nil}
+var archOpus = ByLabel{"swarm:class-architecture", "anthropic", "claude-opus-5-5", "high", nil}
 
 // A by_label entry's label is not empty and listed once, and its fields
 // and slots are validated as a fallback entry's, its provider with a
@@ -32,39 +32,36 @@ func TestValidateByLabel(t *testing.T) {
 		edit func(c *Config)
 	}{
 		{`swarm.json: personas.architect.by_label[0].label: empty; every by_label entry names its label`, func(c *Config) {
-			byLabel(c, "architect", ByLabel{"", "anthropic", "claude-opus-5-5", "high", "", nil})
+			byLabel(c, "architect", ByLabel{"", "anthropic", "claude-opus-5-5", "high", nil})
 		}},
 		{`swarm.json: personas.architect.by_label[1].label: "swarm:class-architecture" is listed twice`, func(c *Config) {
-			byLabel(c, "architect", archOpus, ByLabel{"swarm:class-architecture", "openai", "gpt-6.1-sol", "high", "", nil})
+			byLabel(c, "architect", archOpus, ByLabel{"swarm:class-architecture", "openai", "gpt-6.1-sol", "high", nil})
 		}},
 		{`swarm.json: personas.architect.by_label[0].provider: "gemini" has no adapter`, func(c *Config) {
-			byLabel(c, "architect", ByLabel{"x", "gemini", "g-1", "high", "", nil})
+			byLabel(c, "architect", ByLabel{"x", "gemini", "g-1", "high", nil})
 		}},
 		{`swarm.json: personas.architect.by_label[0].model: empty; every role names its model`, func(c *Config) {
-			byLabel(c, "architect", ByLabel{"x", "anthropic", "", "high", "", nil})
+			byLabel(c, "architect", ByLabel{"x", "anthropic", "", "high", nil})
 		}},
 		{`swarm.json: personas.architect.by_label[1].effort: "Very High" is not one lowercase word`, func(c *Config) {
-			byLabel(c, "architect", archOpus, ByLabel{"y", "anthropic", "claude-opus-5-5", "Very High", "", nil})
-		}},
-		{`swarm.json: personas.architect.by_label[0].co_author: "claude-opus-5-5" is not <name> <email>`, func(c *Config) {
-			byLabel(c, "architect", ByLabel{"x", "anthropic", "claude-opus-5-5", "high", "claude-opus-5-5", nil})
+			byLabel(c, "architect", archOpus, ByLabel{"y", "anthropic", "claude-opus-5-5", "Very High", nil})
 		}},
 		{`swarm.json: personas.worker.by_label[0].slots: anthropic's credential is env, which has no slots`, func(c *Config) {
-			byLabel(c, "worker", ByLabel{"x", "anthropic", "claude-opus-5-5", "high", "", []int{1}})
+			byLabel(c, "worker", ByLabel{"x", "anthropic", "claude-opus-5-5", "high", []int{1}})
 		}},
 		{`swarm.json: personas.worker.by_label[0].slots[0]: 2 is not between 1 and 1`, func(c *Config) {
-			byLabel(c, "worker", ByLabel{"x", "openai", "gpt-6.1-sol", "high", "", []int{2}})
+			byLabel(c, "worker", ByLabel{"x", "openai", "gpt-6.1-sol", "high", []int{2}})
 		}},
 		{`swarm.json: keys: no credential for provider "xai"`, func(c *Config) {
-			byLabel(c, "worker", ByLabel{"x", "xai", "grok-4.7", "high", "", nil})
+			byLabel(c, "worker", ByLabel{"x", "xai", "grok-4.7", "high", nil})
 		}},
 		// The maintainer's ruling of 2026-11-26: no entry the same as the
 		// persona or an earlier by_label entry, as a fallback's.
 		{`swarm.json: personas.architect.by_label[0]: the same as personas.architect`, func(c *Config) {
-			byLabel(c, "architect", ByLabel{"x", "anthropic", "claude-fable-5-1", "high", "claude-opus-5-5 <noreply@anthropic.com>", nil})
+			byLabel(c, "architect", ByLabel{"x", "anthropic", "claude-fable-5-1", "high", nil})
 		}},
 		{`swarm.json: personas.architect.by_label[1]: the same as personas.architect.by_label[0]`, func(c *Config) {
-			byLabel(c, "architect", archOpus, ByLabel{"hard", "anthropic", "claude-opus-5-5", "high", "", nil})
+			byLabel(c, "architect", archOpus, ByLabel{"hard", "anthropic", "claude-opus-5-5", "high", nil})
 		}},
 	} {
 		c := valid()
@@ -76,7 +73,7 @@ func TestValidateByLabel(t *testing.T) {
 	}
 	c := valid()
 	fallback(&c, "architect", opus)
-	byLabel(&c, "architect", archOpus, ByLabel{"area:docs", "anthropic", "claude-fable-5-1", "medium", "", nil}, ByLabel{"hard", "openai", "gpt-6.1-sol", "high", "", []int{1}}, ByLabel{"again", "anthropic", "claude-opus-5-5", "medium", "", nil})
+	byLabel(&c, "architect", archOpus, ByLabel{"area:docs", "anthropic", "claude-fable-5-1", "medium", nil}, ByLabel{"hard", "openai", "gpt-6.1-sol", "high", []int{1}}, ByLabel{"again", "anthropic", "claude-opus-5-5", "medium", nil})
 	if err := Validate(ops.Real(), p, c, 0); err != nil {
 		t.Errorf("by_label: %v", err)
 	}
@@ -93,10 +90,10 @@ func TestFormatByLabel(t *testing.T) {
 		t.Errorf("Format wrote a by_label unset:\n%s", before)
 	}
 	fallback(&c, "architect", opus)
-	byLabel(&c, "architect", archOpus, ByLabel{"hard", "openai", "gpt-6.1-sol", "high", "", []int{1}})
+	byLabel(&c, "architect", archOpus, ByLabel{"hard", "openai", "gpt-6.1-sol", "high", []int{1}})
 	out := string(Format(c))
-	want := `"fallback": [{"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}], "by_label": [{"label": "swarm:class-architecture", "provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}, {"label": "hard", "provider": "openai", "model": "gpt-6.1-sol", "effort": "high", "co_author": "", "slots": [1]}]},` + "\n"
-	if !strings.Contains(out, `    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high",   `) || !strings.Contains(out, want) {
+	want := `"fallback": [{"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high"}], "by_label": [{"label": "swarm:class-architecture", "provider": "anthropic", "model": "claude-opus-5-5", "effort": "high"}, {"label": "hard", "provider": "openai", "model": "gpt-6.1-sol", "effort": "high", "slots": [1]}]},` + "\n"
+	if !strings.Contains(out, `    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high", `) || !strings.Contains(out, want) {
 		t.Errorf("Format lacks %q on the architect's line:\n%s", want, out)
 	}
 	if strings.Count(out, "\n") != strings.Count(before, "\n") {
@@ -117,7 +114,7 @@ func TestFormatByLabel(t *testing.T) {
 func TestWizardKeepsByLabel(t *testing.T) {
 	_, clone := cloneFolder(t)
 	answers := make([]string, 40)
-	answers[6+1*4+1] = "claude-sonnet-5-5" // the architect's model
+	answers[6+1*3+1] = "claude-sonnet-5-5" // the architect's model
 	o, _ := scripted(answers...)
 	file := valid()
 	byLabel(&file, "architect", archOpus)
@@ -144,10 +141,10 @@ func TestWizardKeepsByLabel(t *testing.T) {
 // a run with no issue, the persona and its fallback (section 7.10, The
 // model by label).
 func TestPersonaChain(t *testing.T) {
-	sol := Entry{"openai", "gpt-6.1-sol", "high", "", nil}
-	fable := Entry{"anthropic", "claude-fable-5-1", "high", "", nil}
+	sol := Entry{"openai", "gpt-6.1-sol", "high", nil}
+	fable := Entry{"anthropic", "claude-fable-5-1", "high", nil}
 	p := Persona{Provider: "anthropic", Model: "claude-fable-5-1", Effort: "high", Fallback: []Entry{sol},
-		ByLabel: []ByLabel{{"a", "openai", "gpt-6.1-sol", "high", "", nil}, {"b", "anthropic", "claude-opus-5-5", "high", "x <y@z>", nil}, {"c", "anthropic", "claude-fable-5-1", "high", "", nil}}}
+		ByLabel: []ByLabel{{"a", "openai", "gpt-6.1-sol", "high", nil}, {"b", "anthropic", "claude-opus-5-5", "high", nil}, {"c", "anthropic", "claude-fable-5-1", "high", nil}}}
 	for _, tc := range []struct {
 		name   string
 		labels []string
@@ -155,8 +152,8 @@ func TestPersonaChain(t *testing.T) {
 	}{
 		{"no label", nil, []Entry{fable, sol}},
 		{"no match", []string{"d"}, []Entry{fable, sol}},
-		{"the first in the list wins", []string{"b", "a"}, []Entry{{"openai", "gpt-6.1-sol", "high", "", nil}, fable}},
-		{"an entry of its own", []string{"b"}, []Entry{{"anthropic", "claude-opus-5-5", "high", "x <y@z>", nil}, fable, sol}},
+		{"the first in the list wins", []string{"b", "a"}, []Entry{{"openai", "gpt-6.1-sol", "high", nil}, fable}},
+		{"an entry of its own", []string{"b"}, []Entry{{"anthropic", "claude-opus-5-5", "high", nil}, fable, sol}},
 		{"the persona's model is held once", []string{"c"}, []Entry{fable, sol}},
 	} {
 		if got := p.Chain(tc.labels); !reflect.DeepEqual(got, tc.want) {

@@ -251,8 +251,8 @@ type Tokens struct {
 	PerWeek *int `json:"per_week,omitempty"`
 }
 
-// Persona is one role's provider, model, effort and the Co-Authored-By
-// trailer value its commits carry, the slots of its provider it may take
+// Persona is one role's provider, model and effort, the slots of its
+// provider it may take
 // (section 7.10, rule 3), the entries tried after it in order when
 // its model is unavailable (rule 1), and the entries that take its place
 // on an issue carrying their label (personas.<role>.by_label).
@@ -260,7 +260,6 @@ type Persona struct {
 	Provider string    `json:"provider"`
 	Model    string    `json:"model"`
 	Effort   string    `json:"effort"`
-	CoAuthor string    `json:"co_author"`
 	Slots    []int     `json:"slots,omitempty"`
 	Fallback []Entry   `json:"fallback,omitempty"`
 	ByLabel  []ByLabel `json:"by_label,omitempty"`
@@ -273,22 +272,29 @@ type ByLabel struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Effort   string `json:"effort"`
-	CoAuthor string `json:"co_author"`
 	Slots    []int  `json:"slots,omitempty"`
 }
 
 // Entry is b's entry, its label dropped.
-func (b ByLabel) Entry() Entry { return Entry{b.Provider, b.Model, b.Effort, b.CoAuthor, b.Slots} }
+func (b ByLabel) Entry() Entry { return Entry{b.Provider, b.Model, b.Effort, b.Slots} }
 
 // Entry is a model a role may run on: the persona's own, or one of its
-// fallback entries, each a persona's four fields and its slots (section
+// fallback entries, each a persona's three fields and its slots (section
 // 3, personas.<role>.fallback and personas.<role>.slots).
 type Entry struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Effort   string `json:"effort"`
-	CoAuthor string `json:"co_author"`
 	Slots    []int  `json:"slots,omitempty"`
+}
+
+// CoAuthor is the Co-Authored-By trailer value of the commits a run on
+// provider's model makes (section 7.6, The trailer): the model and the
+// provider's no-reply address, `<model> <noreply@anthropic.com>`,
+// `<model> <noreply@openai.com>` or `<model> <noreply@x.ai>`. It is
+// derived, never declared: every commit names the model that made it.
+func CoAuthor(provider, model string) string {
+	return model + " <" + providers[provider].Email + ">"
 }
 
 // Is: e names the provider, model and effort of o, the three a run's
@@ -300,7 +306,7 @@ func (e Entry) Is(o Entry) bool {
 // Entries is the persona's own entry, then its fallback's, in the order
 // a launch tries them (section 7.10, The fallback).
 func (p Persona) Entries() []Entry {
-	return append([]Entry{{p.Provider, p.Model, p.Effort, p.CoAuthor, p.Slots}}, p.Fallback...)
+	return append([]Entry{{p.Provider, p.Model, p.Effort, p.Slots}}, p.Fallback...)
 }
 
 // Override is the by_label entry an issue carrying labels runs on, the
@@ -368,6 +374,16 @@ func File(dir string) string { return filepath.Join(dir, "swarm.json") }
 // Load reads and parses dir's swarm.json (dir a Place.Root); found is
 // false when there is none, err then saying to run init.
 func Load(fs ops.FS, dir string) (c Config, found bool, err error) {
+	return load(fs, dir, false)
+}
+
+// LoadDropping is Load for `swarm init`, which rewrites the file: a
+// retired field is dropped, the rest read as Load reads it.
+func LoadDropping(fs ops.FS, dir string) (c Config, found bool, err error) {
+	return load(fs, dir, true)
+}
+
+func load(fs ops.FS, dir string, drop bool) (c Config, found bool, err error) {
 	b, err := fs.ReadFile(File(dir))
 	if errors.Is(err, iofs.ErrNotExist) {
 		return Config{}, false, &Error{"", fmt.Sprintf("not found at %s; run 'daisy swarm init'", File(dir))}
@@ -375,13 +391,23 @@ func Load(fs ops.FS, dir string) (c Config, found bool, err error) {
 	if err != nil {
 		return Config{}, true, &Error{"", err.Error()}
 	}
-	c, err = Parse(b)
+	c, err = parse(b, drop)
 	return c, true, err
 }
 
-// Parse decodes data strictly: an unknown field, a required field absent
-// and a value of the wrong type are each an *Error naming the field.
-func Parse(data []byte) (Config, error) {
+// retired is each field swarm.json held once and holds no longer, with
+// what the error naming it says. Parse refuses one; `swarm init` drops it.
+var retired = map[string]string{
+	"co_author": "no longer declared: the Co-Authored-By trailer is the launched model's; run 'daisy swarm init' to drop it, keeping the rest",
+}
+
+// Parse decodes data strictly: an unknown field, a retired field, a
+// required field absent and a value of the wrong type are each an *Error
+// naming the field.
+func Parse(data []byte) (Config, error) { return parse(data, false) }
+
+// parse is Parse, a retired field dropped when drop is true.
+func parse(data []byte, drop bool) (Config, error) {
 	// Syntax only: a value json.Unmarshal into any cannot hold (1e400)
 	// is the field's to report, by decode, with its name.
 	var probe any
@@ -393,7 +419,7 @@ func Parse(data []byte) (Config, error) {
 		return Config{}, &Error{"", strings.TrimPrefix(err.Error(), "json: ")}
 	}
 	var c Config
-	if err := decode("", data, reflect.ValueOf(&c).Elem()); err != nil {
+	if err := decode("", data, reflect.ValueOf(&c).Elem(), drop); err != nil {
 		return Config{}, err
 	}
 	return c, nil
@@ -401,13 +427,14 @@ func Parse(data []byte) (Config, error) {
 
 // decode fills v from raw, naming path in any error. A JSON null is
 // absent for an optional (pointer) field and the wrong type for any other:
-// encoding/json would leave the zero value, a gate silently off.
-func decode(path string, raw json.RawMessage, v reflect.Value) error {
+// encoding/json would leave the zero value, a gate silently off. A
+// retired field is refused, or skipped when drop is true.
+func decode(path string, raw json.RawMessage, v reflect.Value, drop bool) error {
 	// A resource is its path alone, or an object (section 3).
 	if v.Type() == reflect.TypeFor[Resource]() {
 		switch bytes.TrimSpace(raw)[0] {
 		case '"':
-			return decode(path, raw, v.FieldByName("Path"))
+			return decode(path, raw, v.FieldByName("Path"), drop)
 		case '{':
 		default:
 			return fieldErr(path, "not a string or an object")
@@ -422,7 +449,7 @@ func decode(path string, raw json.RawMessage, v reflect.Value) error {
 			return nil
 		}
 		v.Set(reflect.New(v.Type().Elem()))
-		return decode(path, raw, v.Elem())
+		return decode(path, raw, v.Elem(), drop)
 	case reflect.Struct:
 		var obj map[string]json.RawMessage
 		if json.Unmarshal(raw, &obj) != nil || obj == nil {
@@ -435,12 +462,15 @@ func decode(path string, raw json.RawMessage, v reflect.Value) error {
 		}
 		var unknown []string
 		for k := range obj {
-			if !slices.Contains(names, k) {
+			if _, gone := retired[k]; !slices.Contains(names, k) && !(gone && drop) {
 				unknown = append(unknown, k)
 			}
 		}
 		if len(unknown) > 0 {
 			slices.Sort(unknown)
+			if why, gone := retired[unknown[0]]; gone {
+				return fieldErr(join(path, unknown[0]), "%s", why)
+			}
 			return fieldErr(join(path, unknown[0]), "unknown field")
 		}
 		for i := range t.NumField() {
@@ -452,7 +482,7 @@ func decode(path string, raw json.RawMessage, v reflect.Value) error {
 				}
 				return fieldErr(join(path, names[i]), "missing")
 			}
-			if err := decode(join(path, names[i]), r, v.Field(i)); err != nil {
+			if err := decode(join(path, names[i]), r, v.Field(i), drop); err != nil {
 				return err
 			}
 		}
@@ -464,7 +494,7 @@ func decode(path string, raw json.RawMessage, v reflect.Value) error {
 		}
 		s := reflect.MakeSlice(v.Type(), len(items), len(items))
 		for i, r := range items {
-			if err := decode(fmt.Sprintf("%s[%d]", path, i), r, s.Index(i)); err != nil {
+			if err := decode(fmt.Sprintf("%s[%d]", path, i), r, s.Index(i), drop); err != nil {
 				return err
 			}
 		}
@@ -483,7 +513,7 @@ func decode(path string, raw json.RawMessage, v reflect.Value) error {
 		slices.Sort(keys)
 		for _, k := range keys {
 			e := reflect.New(v.Type().Elem()).Elem()
-			if err := decode(join(path, k), obj[k], e); err != nil {
+			if err := decode(join(path, k), obj[k], e, drop); err != nil {
 				return err
 			}
 			m.SetMapIndex(reflect.ValueOf(k), e)
@@ -527,7 +557,7 @@ func join(path, name string) string {
 // Format is c as `swarm init` writes it (section 3): two-space indented,
 // fields in section 3's order, `forge`, `repos` and `personas` expanded
 // with each repository and each persona on one line (the personas'
-// fields aligned, a fallback after co_author on the persona's line), the
+// fields aligned, a fallback after effort on the persona's line), the
 // other objects and arrays on one line each, and a trailing newline.
 func Format(c Config) []byte {
 	var b strings.Builder
@@ -609,18 +639,18 @@ func personaLines(personas map[string]Persona) string {
 		}
 	}
 	cells := make([][]string, len(roles))
-	width := make([]int, 5)
+	width := make([]int, 4)
 	for i, r := range roles {
 		p := personas[r]
-		cells[i] = []string{inline(r) + ":", `"provider": ` + inline(p.Provider) + ",", `"model": ` + inline(p.Model) + ",", `"effort": ` + inline(p.Effort) + ",", `"co_author": ` + inline(p.CoAuthor)}
+		cells[i] = []string{inline(r) + ":", `"provider": ` + inline(p.Provider) + ",", `"model": ` + inline(p.Model) + ",", `"effort": ` + inline(p.Effort)}
 		if len(p.Slots) > 0 {
-			cells[i][4] += `, "slots": ` + inline(p.Slots)
+			cells[i][3] += `, "slots": ` + inline(p.Slots)
 		}
 		if len(p.Fallback) > 0 {
-			cells[i][4] += `, "fallback": ` + inline(p.Fallback)
+			cells[i][3] += `, "fallback": ` + inline(p.Fallback)
 		}
 		if len(p.ByLabel) > 0 {
-			cells[i][4] += `, "by_label": ` + inline(p.ByLabel)
+			cells[i][3] += `, "by_label": ` + inline(p.ByLabel)
 		}
 		for j, c := range cells[i] {
 			width[j] = max(width[j], len([]rune(c)))

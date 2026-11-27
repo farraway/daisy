@@ -236,26 +236,6 @@ func TestSwarmApplyReportsAnUnstampedCommit(t *testing.T) {
 	}
 }
 
-// An empty co_author (section 3) is no trailer: swarm.json validates, the
-// worker's commit is pushed without a Co-Authored-By line, and nothing is
-// reported unstamped.
-func TestSwarmApplyEmptyCoAuthor(t *testing.T) {
-	t.Parallel()
-	a := newApplyWS(t)
-	a.edit(func(c *declare.Config) {
-		w := c.Personas["worker"]
-		w.CoAuthor = ""
-		c.Personas["worker"] = w
-	})
-	a.planned(oneSlice)
-	a.runner.Script(1, "worker", work("v1"))
-	a.pass()
-	msg, _, _ := ops.Real().Exec(a.upstream("app"), "git", "log", "-1", "--format=%B", "swarm/1-1")
-	if strings.TrimSpace(string(msg)) != "v1" || strings.Contains(a.result("1-worker-1"), "unstamped") || strings.Contains(a.stderr.String(), "Co-Authored-By") {
-		t.Errorf("the pushed commit:\n%s\nstderr %q\n%s", msg, a.stderr.String(), a.result("1-worker-1"))
-	}
-}
-
 // A secret read from the slot when docker run returned (a refresh during
 // the run) is refused in a reviewer's out.md: nothing posted.
 func TestSwarmApplySecretFromTheSlotAtReturn(t *testing.T) {
@@ -347,7 +327,7 @@ func TestSwarmFaultPauseOrder(t *testing.T) {
 	noLogin := func(a *applyWS) {
 		os.Remove(filepath.Join(a.local, "swarm", "credentials", "openai", "1", "auth.json"))
 		a.edit(func(c *declare.Config) {
-			c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
+			c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high"}
 		})
 		a.forge.CreateIssue("One", "x", []string{"swarm:proposal-accepted"}) // #1: its architect's slot has no login, a fault
 	}
@@ -393,7 +373,7 @@ func TestSwarmApplyFaultsInOnePass(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
 	a.edit(func(c *declare.Config) {
-		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high", CoAuthor: "gpt-6.1-sol <noreply@openai.com>"}
+		c.Personas["architect"] = declare.Persona{Provider: "openai", Model: "gpt-6.1-sol", Effort: "high"}
 	})
 	os.Remove(filepath.Join(a.local, "swarm", "credentials", "openai", "1", "auth.json"))
 	for _, title := range []string{"One", "Two"} {

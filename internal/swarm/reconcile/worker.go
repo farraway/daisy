@@ -17,7 +17,7 @@ import (
 // fetch is a worker run's step 1 (section 7.6): its branch fetched from
 // its clone into the mirror as the run's ref, then each new commit
 // without the role's trailer reported (The trailer): on stderr and as
-// `unstamped <sha>`, never a failure; an empty co_author asks for none.
+// `unstamped <sha>`, never a failure.
 // A fetch that fails is recorded (`fetch failed: <error>`) and is the
 // pass's error, retried at the next pass; the second in a row is a
 // failure of the work (section 7.7), `failed: fetch: <error>`, so the
@@ -96,8 +96,8 @@ func (c *collection) fetchRef() error {
 	if err := c.step("fetched " + sha); err != nil {
 		return err
 	}
-	coAuthor := c.s.launchedEntry(c.r, c.lines).CoAuthor // a fallback's own (section 7.10)
-	if !c.commits() || coAuthor == "" {
+	coAuthor := c.s.launchedCoAuthor(c.r, c.lines) // the launched model's (section 7.6, The trailer)
+	if !c.commits() {
 		return nil
 	}
 	bad, err := c.s.git().Unstamped(branchRepo(c.lines), c.s.Cfg.Base, sha, coAuthor)

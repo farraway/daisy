@@ -80,8 +80,7 @@ func TestWizardAsksInOrder(t *testing.T) {
 	}
 	for _, r := range Roles {
 		p := examplePersonas[r]
-		want = append(want, r+" provider (anthropic, openai, xai) ["+p.Provider+"]: ", r+" model ["+p.Model+"]: ", r+" effort ["+p.Effort+"]: ",
-			r+" co-author (- for none) ["+defaultCoAuthor(p.Provider, p.Model)+"]: ")
+		want = append(want, r+" provider (anthropic, openai, xai) ["+p.Provider+"]: ", r+" model ["+p.Model+"]: ", r+" effort ["+p.Effort+"]: ")
 	}
 	want = append(want, "app image [daisy-member:1]: ", "lib image [daisy-member:1]: ", "Max members [3]: ", "Max rounds [5]: ",
 		"Timeout [45m]: ", "Interval [5m]: ", "Resources (comma-separated: paths in the swarm repository, or <name>:<path> in a declared one; - for none) [briefs/, docs/]: ",
@@ -98,7 +97,7 @@ func TestWizardHonoursEachOverride(t *testing.T) {
 	dir, _ := cloneFolder(t)
 	answers := []string{"acme/lib, acme/app", "gitea", "https://forge.example.net:3000/api/v1", "acme/swarm-x", "SWARM_TOKEN", "trunk"}
 	for _, r := range Roles {
-		answers = append(answers, "openai", r+"-model", "low", r+" Bot <"+r+"@example.net>")
+		answers = append(answers, "openai", r+"-model", "low")
 	}
 	answers = append(answers, "lib-image:2", "app-image:3", "4", "6", "1h", "2m", "-", "jane, joe", "commits@example.net")
 	o, _ := scripted(answers...)
@@ -123,19 +122,19 @@ func TestWizardHonoursEachOverride(t *testing.T) {
 		t.Errorf("trusted %q", c.Trusted)
 	}
 	for _, r := range Roles {
-		if !reflect.DeepEqual(c.Personas[r], Persona{Provider: "openai", Model: r + "-model", Effort: "low", CoAuthor: r + " Bot <" + r + "@example.net>"}) {
+		if !reflect.DeepEqual(c.Personas[r], Persona{Provider: "openai", Model: r + "-model", Effort: "low"}) {
 			t.Errorf("%s: %+v", r, c.Personas[r])
 		}
 	}
 }
 
 // A role moved to another provider takes that provider's model as the
-// default, and the co-author follows it; a provider no key names gets its
+// default; a provider no key names gets its
 // default credential, the file's keys left as they were (section 11).
 func TestWizardMovesARoleToXAI(t *testing.T) {
 	_, clone := cloneFolder(t)
 	answers := make([]string, 40)
-	answers[6+4*4] = "xai" // the sympathetic's provider
+	answers[6+4*3] = "xai" // the sympathetic's provider
 	o, asked := scripted(answers...)
 	file := valid()
 	w := &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
@@ -146,11 +145,11 @@ func TestWizardMovesARoleToXAI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := (*asked)[6+4*4 : 6+5*4]; !reflect.DeepEqual(got, []string{"sympathetic provider (anthropic, openai, xai) [anthropic]: ",
-		"sympathetic model [grok-4.7]: ", "sympathetic effort [high]: ", "sympathetic co-author (- for none) [grok-4.7 <noreply@x.ai>]: "}) {
+	if got := (*asked)[6+4*3 : 6+5*3]; !reflect.DeepEqual(got, []string{"sympathetic provider (anthropic, openai, xai) [anthropic]: ",
+		"sympathetic model [grok-4.7]: ", "sympathetic effort [high]: "}) {
 		t.Errorf("asked %q", got)
 	}
-	if !reflect.DeepEqual(c.Personas["sympathetic"], Persona{Provider: "xai", Model: "grok-4.7", Effort: "high", CoAuthor: "grok-4.7 <noreply@x.ai>"}) {
+	if !reflect.DeepEqual(c.Personas["sympathetic"], Persona{Provider: "xai", Model: "grok-4.7", Effort: "high"}) {
 		t.Errorf("sympathetic %+v", c.Personas["sympathetic"])
 	}
 	if k := c.Keys["xai"]; k.Env == nil || *k.Env != "XAI_API_KEY" || k.Slots != nil || len(c.Keys) != 3 {
@@ -170,7 +169,7 @@ func TestWizardMovesARoleToXAI(t *testing.T) {
 func TestWizardKeepsTheFilesXAIForm(t *testing.T) {
 	_, clone := cloneFolder(t)
 	answers := make([]string, 40)
-	answers[6+4*4] = "xai"
+	answers[6+4*3] = "xai"
 	o, _ := scripted(answers...)
 	file := valid()
 	slots, env := 2, "OPENAI_API_KEY"
@@ -191,10 +190,10 @@ func TestWizardKeepsTheFilesXAIForm(t *testing.T) {
 func TestWizardKeepsFallback(t *testing.T) {
 	_, clone := cloneFolder(t)
 	answers := make([]string, 40)
-	answers[6+1*4+1] = "claude-sonnet-5-5" // the architect's model
+	answers[6+1*3+1] = "claude-sonnet-5-5" // the architect's model
 	o, _ := scripted(answers...)
 	file := valid()
-	fallback(&file, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", "", nil})
+	fallback(&file, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", nil})
 	w := &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
 	c, err := w.Ask()
 	if err != nil {
@@ -295,8 +294,8 @@ func TestProviderDefaults(t *testing.T) {
 func TestWizardAsksARefusedAnswerAgain(t *testing.T) {
 	dir, _ := cloneFolder(t)
 	answers := []string{"notthere", "", "", "", "", "", ""}
-	answers = append(answers, "", "-", "", "", "")   // owner: provider, model "-" refused, model, effort, co-author
-	answers = append(answers, make([]string, 16)...) // the other four roles
+	answers = append(answers, "", "-", "", "")       // owner: provider, model "-" refused, model, effort
+	answers = append(answers, make([]string, 12)...) // the other four roles
 	answers = append(answers, "", "", "x")           // the two images, then max members "x" refused
 	o, asked := scripted(answers...)
 	var errb bytes.Buffer
@@ -324,9 +323,6 @@ func TestWizardAccountQuestions(t *testing.T) {
 	file := valid()
 	file.Trusted = []string{"jane", "Swarm-Bot"}
 	file.Forge.CommitEmail = "commits@example.net"
-	worker := file.Personas["worker"]
-	worker.CoAuthor = "Pair <pair@example.net>"
-	file.Personas["worker"] = worker
 
 	o, asked := scripted("swarm-bot, joe", "", "")
 	var errb bytes.Buffer
@@ -345,46 +341,6 @@ func TestWizardAccountQuestions(t *testing.T) {
 		t.Errorf("trusted %q email %q", c.Trusted, c.Forge.CommitEmail)
 	}
 
-	// The co-author's default: the file's while the model is the file's,
-	// the new model's once it changes.
-	answers := make([]string, 6)
-	answers = append(answers, "", "", "", "", "", "", "", "") // owner, architect
-	answers = append(answers, "", "", "")                     // worker: provider, model, effort
-	o, asked = scripted(answers...)
-	w = &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
-	w.Ask()
-	if got := (*asked)[len(*asked)-1]; got != "worker co-author (- for none) [Pair <pair@example.net>]: " {
-		t.Errorf("unchanged model: %q", got)
-	}
-	answers[len(answers)-2] = "claude-opus-6"
-	o, asked = scripted(answers...)
-	w = &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
-	w.Ask()
-	if got := (*asked)[len(*asked)-1]; got != "worker co-author (- for none) [claude-opus-6 <noreply@anthropic.com>]: " {
-		t.Errorf("changed model: %q", got)
-	}
-
-	// `-` is no co-author, ""; the file's "" is offered as `-` while the
-	// model is the file's, and --defaults keeps it.
-	answers[len(answers)-2] = ""
-	o, asked = scripted(append(answers, "-")...)
-	w = &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
-	got, _ := w.Ask()
-	if got.Personas["worker"].CoAuthor != "" {
-		t.Errorf("- is not none: %q", got.Personas["worker"].CoAuthor)
-	}
-	worker.CoAuthor = ""
-	file.Personas["worker"] = worker
-	o, asked = scripted(answers...)
-	w = &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file}
-	w.Ask()
-	if got := (*asked)[len(*asked)-1]; got != "worker co-author (- for none) [-]: " {
-		t.Errorf("the file's none: %q", got)
-	}
-	w = &Wizard{Ops: o, Err: io.Discard, Place: Clone(clone), File: &file, Defaults: true}
-	if got, err := w.Ask(); err != nil || got.Personas["worker"].CoAuthor != "" {
-		t.Errorf("--defaults with the file's none: %q, %v", got.Personas["worker"].CoAuthor, err)
-	}
 }
 
 // Question 35, the notes in the swarm repository's notes/: the file's

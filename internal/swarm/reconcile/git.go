@@ -719,8 +719,8 @@ func defaultProtected(r declare.Repo) []string {
 // before any container sees it (section 7.1, step 3): a local base branch,
 // and a local branch for each of also (the revising architect's pull
 // request head) from the mirror's, which the clone fetched; no remote, the role's identity `<role> (Daisy swarm) <commit_email>`, a
-// commit-msg hook stamping `Co-Authored-By: <co_author>` on every commit
-// (none for an empty co_author: no trailer); no mount point is in it
+// commit-msg hook stamping `Co-Authored-By: <coAuthor>` on every commit,
+// coAuthor the launched model's (declare.CoAuthor); no mount point is in it
 // (section 7.8, The run's folder). It returns the head commit.
 func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor string, also ...string) (string, error) {
 	if _, err := g.run("", "clone", "--no-local", "--quiet", "--branch", branch, g.Mirror(r.Name), dir); err != nil {
@@ -745,17 +745,15 @@ func (g Git) Clone(r declare.Repo, branch, base, dir, role, email, coAuthor stri
 	if err := forgetHost(fs, dir); err != nil {
 		return "", err
 	}
-	if coAuthor != "" {
-		hooks := filepath.Join(dir, ".git", "hooks")
-		if err := fs.MkdirAll(hooks, 0o755); err != nil {
-			return "", err
-		}
-		if err := fs.WriteFile(filepath.Join(hooks, "commit-msg"), []byte(CommitMsgHook(coAuthor)), 0o755); err != nil {
-			return "", err
-		}
-		if err := fs.Chmod(filepath.Join(hooks, "commit-msg"), 0o755); err != nil {
-			return "", err
-		}
+	hooks := filepath.Join(dir, ".git", "hooks")
+	if err := fs.MkdirAll(hooks, 0o755); err != nil {
+		return "", err
+	}
+	if err := fs.WriteFile(filepath.Join(hooks, "commit-msg"), []byte(CommitMsgHook(coAuthor)), 0o755); err != nil {
+		return "", err
+	}
+	if err := fs.Chmod(filepath.Join(hooks, "commit-msg"), 0o755); err != nil {
+		return "", err
 	}
 	return g.run(dir, "rev-parse", "HEAD")
 }

@@ -20,14 +20,8 @@ import (
 
 // providers is the adapter table (section 9): the variables an env
 // credential may name, whether a slots credential is accepted, and the
-// address of the default co-author.
+// address of the co-author (CoAuthor).
 var providers = provider.Providers
-
-// defaultCoAuthor is a persona's default trailer value: its model and its
-// provider's no-reply address.
-func defaultCoAuthor(provider, model string) string {
-	return model + " <" + providers[provider].Email + ">"
-}
 
 // Skip names checks Validate leaves out, for `swarm init`, which writes
 // what they check.
@@ -756,7 +750,7 @@ func checkEntry(at string, e Entry) *Error {
 	if !effortShape.MatchString(e.Effort) {
 		return fieldErr(at+".effort", "%q is not one lowercase word", e.Effort)
 	}
-	return checkCoAuthor(at+".co_author", e.CoAuthor)
+	return nil
 }
 
 func checkProvider(field, v string) *Error {
@@ -789,22 +783,6 @@ func isAddress(v string) bool {
 	local, domain, ok := strings.Cut(v, "@")
 	return ok && local != "" && domain != "" && !strings.Contains(domain, "@") &&
 		!strings.ContainsFunc(v, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) || r == '<' || r == '>' })
-}
-
-// checkCoAuthor: `<name> <<email>>`, the name without control characters,
-// angle brackets or whitespace at either end, the email an address; or ""
-// for none, the role's commits carrying no Co-Authored-By trailer.
-func checkCoAuthor(field, v string) *Error {
-	if v == "" {
-		return nil
-	}
-	name, rest, ok := strings.Cut(v, " <")
-	email, closed := strings.CutSuffix(rest, ">")
-	if !ok || !closed || name == "" || strings.TrimFunc(name, unicode.IsSpace) != name || !isAddress(email) ||
-		strings.ContainsFunc(name, func(r rune) bool { return unicode.IsControl(r) || r == '<' || r == '>' }) {
-		return fieldErr(field, "%q is not <name> <email>", v)
-	}
-	return nil
 }
 
 // checkKeys runs before checkPersonas (section 3's order), so a persona

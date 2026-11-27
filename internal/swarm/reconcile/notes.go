@@ -700,10 +700,7 @@ func (c *collection) notes() error {
 		subject = fmt.Sprintf("owner run %d: research notes", c.r.K)
 	}
 	mark, _, _ := strings.Cut(marker(c.r.Role, c.r.K), "\n")
-	msg := subject + "\n\n" + mark
-	if co := c.s.launchedEntry(c.r, c.lines).CoAuthor; co != "" {
-		msg += "\n\nCo-Authored-By: " + co
-	}
+	msg := subject + "\n\n" + mark + "\n\nCo-Authored-By: " + c.s.launchedCoAuthor(c.r, c.lines)
 	line, err := w.Publish(filepath.Join(c.r.Dir, "notes"), strings.TrimPrefix(base, "notes-base "), fmt.Sprintf("%s%d-%s-%d", notesBranch, c.r.N, c.r.Role, c.r.K),
 		msg, c.r.Role+" (Daisy swarm)", c.s.Cfg.Forge.CommitEmail, c.s.secretsOf(c.r, c.lines))
 	if err != nil {

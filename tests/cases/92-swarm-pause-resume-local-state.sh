@@ -25,11 +25,11 @@ cat > "$clone/swarm.json" <<'EOF'
   "gates": {"triage": true, "plan": true, "merge": true},
   "keys": {"anthropic": {"env": "CLAUDE_CODE_OAUTH_TOKEN"}},
   "personas": {
-    "owner": {"provider": "anthropic", "model": "model-a", "effort": "high", "co_author": "model-a <noreply@example.invalid>"},
-    "architect": {"provider": "anthropic", "model": "model-a", "effort": "high", "co_author": "model-a <noreply@example.invalid>"},
-    "worker": {"provider": "anthropic", "model": "model-a", "effort": "medium", "co_author": "model-a <noreply@example.invalid>"},
-    "adversary": {"provider": "anthropic", "model": "model-a", "effort": "high", "co_author": "model-a <noreply@example.invalid>"},
-    "sympathetic": {"provider": "anthropic", "model": "model-a", "effort": "high", "co_author": "model-a <noreply@example.invalid>"}
+    "owner": {"provider": "anthropic", "model": "model-a", "effort": "high"},
+    "architect": {"provider": "anthropic", "model": "model-a", "effort": "high"},
+    "worker": {"provider": "anthropic", "model": "model-a", "effort": "medium"},
+    "adversary": {"provider": "anthropic", "model": "model-a", "effort": "high"},
+    "sympathetic": {"provider": "anthropic", "model": "model-a", "effort": "high"}
   }
 }
 EOF

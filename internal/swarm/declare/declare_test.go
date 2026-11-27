@@ -2,6 +2,7 @@ package declare
 
 import (
 	"bytes"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -49,11 +50,7 @@ func gitRepo(t *testing.T, dir, url string) {
 // valid is a declaration the clone of cloneFolder validates.
 func valid() Config {
 	envVar, slots, ssh := "CLAUDE_CODE_OAUTH_TOKEN", 1, "ssh -i /keys/app"
-	personas := map[string]Persona{}
-	for r, p := range examplePersonas {
-		p.CoAuthor = defaultCoAuthor(p.Provider, p.Model)
-		personas[r] = p
-	}
+	personas := maps.Clone(examplePersonas)
 	return Config{
 		Forge: Forge{Kind: "gitea", API: "https://forge.example.net/api/v1", Repo: "acme/swarm-app", TokenEnv: "GITEA_TOKEN", CommitEmail: "swarm@example.net"},
 		Repos: []Repo{
@@ -175,25 +172,17 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: personas.worker.model: "a\x7fb" contains a control or format character`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Model = "a\x7fb" }) }},
 		{`swarm.json: personas.worker.model: "a\u200bb" contains a control or format character`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Model = "a\u200bb" }) }},
 		{`swarm.json: personas.worker.effort: "Very High" is not one lowercase word`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Effort = "Very High" }) }},
-		{`swarm.json: personas.worker.co_author: "claude-sonnet-5-5" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "claude-sonnet-5-5" }) }},
-		{`swarm.json: personas.worker.co_author: " " is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = " " }) }},
-		{`swarm.json: personas.worker.co_author: "m <a b@x.y>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m <a b@x.y>" }) }},
-		{`swarm.json: personas.worker.co_author: "m  <a@b>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m  <a@b>" }) }},
-		{`swarm.json: personas.worker.co_author: "m\rx <a@b>" is not <name> <email>`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.CoAuthor = "m\rx <a@b>" }) }},
 		// R4 (7.10, rule 1): each fallback entry's field as the persona's,
 		// its provider's credential, and no entry twice.
-		{`swarm.json: personas.architect.fallback[0].provider: "gemini" has no adapter`, func(c *Config) { fallback(c, "architect", Entry{"gemini", "g-1", "high", "", nil}) }},
-		{`swarm.json: personas.architect.fallback[0].model: empty; every role names its model`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "", "high", "", nil}) }},
-		{`swarm.json: personas.architect.fallback[1].model: "a b" contains whitespace`, func(c *Config) { fallback(c, "architect", opus, Entry{"anthropic", "a b", "high", "", nil}) }},
-		{`swarm.json: personas.architect.fallback[0].effort: "Very High" is not one lowercase word`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "claude-opus-5-5", "Very High", "", nil}) }},
-		{`swarm.json: personas.architect.fallback[0].co_author: "claude-opus-5-5" is not <name> <email>`, func(c *Config) {
-			fallback(c, "architect", Entry{"anthropic", "claude-opus-5-5", "high", "claude-opus-5-5", nil})
-		}},
+		{`swarm.json: personas.architect.fallback[0].provider: "gemini" has no adapter`, func(c *Config) { fallback(c, "architect", Entry{"gemini", "g-1", "high", nil}) }},
+		{`swarm.json: personas.architect.fallback[0].model: empty; every role names its model`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "", "high", nil}) }},
+		{`swarm.json: personas.architect.fallback[1].model: "a b" contains whitespace`, func(c *Config) { fallback(c, "architect", opus, Entry{"anthropic", "a b", "high", nil}) }},
+		{`swarm.json: personas.architect.fallback[0].effort: "Very High" is not one lowercase word`, func(c *Config) { fallback(c, "architect", Entry{"anthropic", "claude-opus-5-5", "Very High", nil}) }},
 		{`swarm.json: personas.architect.fallback[1]: the same as personas.architect`, func(c *Config) {
-			fallback(c, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "high", "", nil})
+			fallback(c, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "high", nil})
 		}},
 		{`swarm.json: personas.architect.fallback[1]: the same as personas.architect.fallback[0]`, func(c *Config) { fallback(c, "architect", opus, opus) }},
-		{`swarm.json: keys: no credential for provider "xai"`, func(c *Config) { fallback(c, "worker", Entry{"xai", "grok-4.7", "high", "", nil}) }},
+		{`swarm.json: keys: no credential for provider "xai"`, func(c *Config) { fallback(c, "worker", Entry{"xai", "grok-4.7", "high", nil}) }},
 		// R4 (7.10, rule 3): an entry's slots, those of its provider's
 		// credential, one or more, none twice.
 		{`swarm.json: personas.adversary.slots[0]: 3 is not between 1 and 2`, func(c *Config) {
@@ -211,7 +200,7 @@ func TestValidateNamesTheField(t *testing.T) {
 		{`swarm.json: personas.worker.slots: anthropic's credential is env, which has no slots`, func(c *Config) { setPersona(c, "worker", func(p *Persona) { p.Slots = []int{1} }) }},
 		{`swarm.json: personas.architect.fallback[0].slots[0]: 0 is not between 1 and 2`, func(c *Config) {
 			c.Keys["openai"] = Key{Slots: ptr(2)}
-			fallback(c, "architect", Entry{"openai", "gpt-6.1-sol", "high", "", []int{0}})
+			fallback(c, "architect", Entry{"openai", "gpt-6.1-sol", "high", []int{0}})
 		}},
 		{`swarm.json: keys: no credential for provider "openai"`, func(c *Config) { delete(c.Keys, "openai") }},
 		{`swarm.json: keys.openai: needs exactly one of env, slots`, func(c *Config) { c.Keys["openai"] = Key{Env: ptr("OPENAI_API_KEY"), Slots: ptr(1)} }},
@@ -247,7 +236,7 @@ func TestValidateNamesTheField(t *testing.T) {
 	}
 	for _, k := range []Key{{Slots: ptr(2)}, {Env: ptr("XAI_API_KEY")}} { // xai takes either form (section 8)
 		x := valid()
-		setPersona(&x, "sympathetic", func(p *Persona) { p.Provider, p.Model, p.CoAuthor = "xai", "grok-4.5", "grok-4.5 <noreply@x.ai>" })
+		setPersona(&x, "sympathetic", func(p *Persona) { p.Provider, p.Model = "xai", "grok-4.5" })
 		x.Keys["xai"] = k
 		if err := Validate(ops.Real(), p, x, 0); err != nil {
 			t.Errorf("xai %+v: %v", k, err)
@@ -262,14 +251,9 @@ func TestValidateNamesTheField(t *testing.T) {
 	}
 	// The same model at another effort is another entry (section 3).
 	fb := valid()
-	fallback(&fb, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "medium", "", nil}, Entry{"openai", "gpt-6.1-sol", "high", "gpt-6.1-sol <noreply@openai.com>", nil})
+	fallback(&fb, "architect", opus, Entry{"anthropic", "claude-fable-5-1", "medium", nil}, Entry{"openai", "gpt-6.1-sol", "high", nil})
 	if err := Validate(ops.Real(), p, fb, 0); err != nil {
 		t.Errorf("a fallback: %v", err)
-	}
-	none := valid()
-	setPersona(&none, "worker", func(p *Persona) { p.CoAuthor = "" })
-	if err := Validate(ops.Real(), p, none, 0); err != nil {
-		t.Errorf(`co_author "", no trailer: %v`, err)
 	}
 	os.Remove(PromptFile(clone, "architect"))
 	write(t, PromptFile(clone, "worker"), "")
@@ -316,7 +300,7 @@ func TestValidateTheQA(t *testing.T) {
 		}},
 		{`swarm.json: keys: no credential for provider "xai"`, func(c *Config) {
 			declareQA(c, QA{Merges: ptr(10)})
-			setPersona(c, QARole, func(p *Persona) { p.Provider, p.Model, p.CoAuthor = "xai", "grok-4.5", "" })
+			setPersona(c, QARole, func(p *Persona) { p.Provider, p.Model = "xai", "grok-4.5" })
 		}},
 	} {
 		c := valid()
@@ -353,7 +337,7 @@ func TestFormatQA(t *testing.T) {
 	out := string(Format(c))
 	for _, want := range []string{
 		`  "owner": {"max_open_proposals": 5},` + "\n" + `  "qa": {"merges": 10, "tag": "v*"},` + "\n" + `  "resources": `,
-		`    "qa":          {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high",   "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}` + "\n  }\n}\n",
+		`    "qa":          {"provider": "anthropic", "model": "claude-opus-5-5",   "effort": "high"}` + "\n  }\n}\n",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("Format lacks %q:\n%s", want, out)
@@ -365,7 +349,7 @@ func TestFormatQA(t *testing.T) {
 }
 
 // opus is a fallback entry of the architect's (section 3's example).
-var opus = Entry{"anthropic", "claude-opus-5-5", "high", "claude-opus-5-5 <noreply@anthropic.com>", nil}
+var opus = Entry{"anthropic", "claude-opus-5-5", "high", nil}
 
 // fallback gives role's persona the fallback entries.
 func fallback(c *Config, role string, entries ...Entry) {
@@ -390,7 +374,7 @@ func TestParseNamesTheField(t *testing.T) {
 	for _, tc := range []struct{ from, to, want string }{
 		{`"max_members": 3`, `"max_members": "3"`, "swarm.json: max_members: cannot unmarshal string into Go value of type int"},
 		{`"base": "main",`, `"base": "main", "colour": "red",`, "swarm.json: colour: unknown field"},
-		{`"effort": "medium",`, `"effort": "medium", "temperature": 1,`, "swarm.json: personas.worker.temperature: unknown field"},
+		{`"effort": "medium"}`, `"effort": "medium", "temperature": 1}`, "swarm.json: personas.worker.temperature: unknown field"},
 		{`"check": ["make", "check"]`, `"check": "make check"`, "swarm.json: repos[0].check: not an array"},
 		{`"protected": []}`, `"protected": [1]}`, "swarm.json: repos[1].protected[0]: cannot unmarshal number into Go value of type string"},
 		{`"owner": {"max_open_proposals": 5},`, `"owner": {},`, "swarm.json: owner.max_open_proposals: missing"},
@@ -425,9 +409,9 @@ func TestParseNamesTheField(t *testing.T) {
 	if _, err := Parse([]byte(src)); errText(err) != "swarm.json: forge.commit_email: missing" {
 		t.Errorf("commit_email absent: %v", err)
 	}
-	src = strings.Replace(good, `"co_author": "claude-sonnet-5-5 <noreply@anthropic.com>"`, `"co": 1`, 1)
-	if _, err := Parse([]byte(src)); errText(err) != "swarm.json: personas.worker.co: unknown field" {
-		t.Errorf("co_author renamed: %v", err)
+	src = strings.Replace(good, `"effort": "medium"`, `"eff": 1`, 1)
+	if _, err := Parse([]byte(src)); errText(err) != "swarm.json: personas.worker.eff: unknown field" {
+		t.Errorf("effort renamed: %v", err)
 	}
 	if _, err := Parse([]byte(`{"forge": }`)); errText(err) != "swarm.json: invalid character '}' looking for beginning of value at byte 11" {
 		t.Errorf("syntax: %v", err)
@@ -449,11 +433,7 @@ func TestFormatIsSectionThreesExample(t *testing.T) {
 		t.Fatal(err)
 	}
 	envVar, slots := "CLAUDE_CODE_OAUTH_TOKEN", 1
-	personas := map[string]Persona{}
-	for r, p := range examplePersonas {
-		p.CoAuthor = defaultCoAuthor(p.Provider, p.Model)
-		personas[r] = p
-	}
+	personas := maps.Clone(examplePersonas)
 	c := Config{
 		Forge: Forge{Kind: "gitea", API: "https://<forge-host>/api/v1", Repo: "<owner>/<repo>", TokenEnv: "GITEA_TOKEN", CommitEmail: "<swarm-email>"},
 		Repos: []Repo{{Name: "<name>", Repo: "<owner>/<name>", Image: defaultImage, Protected: defaultProtected}},
@@ -720,7 +700,7 @@ func TestForgeHostAndState(t *testing.T) {
 	}
 }
 
-// A persona's fallback is written on its line after co_author, each
+// A persona's fallback is written on its line after effort, each
 // entry's fields in the persona's order, and read back; with none the
 // line is as before (section 3, personas.<role>.fallback).
 func TestFormatFallback(t *testing.T) {
@@ -729,14 +709,14 @@ func TestFormatFallback(t *testing.T) {
 	if strings.Contains(before, `"fallback"`) {
 		t.Errorf("Format wrote a fallback unset:\n%s", before)
 	}
-	fallback(&c, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", "", []int{1}})
+	fallback(&c, "architect", opus, Entry{"openai", "gpt-6.1-sol", "high", []int{1}})
 	setPersona(&c, "adversary", func(p *Persona) { p.Slots = []int{1} })
 	out := string(Format(c))
-	want := `"co_author": "claude-fable-5-1 <noreply@anthropic.com>", "fallback": [{"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}, {"provider": "openai", "model": "gpt-6.1-sol", "effort": "high", "co_author": "", "slots": [1]}]},` + "\n"
-	if !strings.Contains(out, `<noreply@openai.com>", "slots": [1]},`) {
+	want := `"effort": "high", "fallback": [{"provider": "anthropic", "model": "claude-opus-5-5", "effort": "high"}, {"provider": "openai", "model": "gpt-6.1-sol", "effort": "high", "slots": [1]}]},` + "\n"
+	if !strings.Contains(out, `"model": "gpt-6.1-sol",       "effort": "high", "slots": [1]},`) {
 		t.Errorf("Format lacks the adversary's slots:\n%s", out)
 	}
-	if !strings.Contains(out, `    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  "effort": "high",   `+want) {
+	if !strings.Contains(out, `    "architect":   {"provider": "anthropic", "model": "claude-fable-5-1",  `+want) {
 		t.Errorf("Format lacks %q on the architect's line:\n%s", want, out)
 	}
 	if strings.Count(out, "\n") != strings.Count(before, "\n") {
@@ -748,5 +728,62 @@ func TestFormatFallback(t *testing.T) {
 	}
 	if again := string(Format(back)); again != out {
 		t.Errorf("written again:\n%s", again)
+	}
+}
+
+// The co-author is derived from the provider and the model alone, each
+// provider's no-reply address after the model (section 7.6, The trailer).
+func TestCoAuthorFromTheModel(t *testing.T) {
+	for _, tc := range []struct{ provider, model, want string }{
+		{"anthropic", "claude-opus-5-5", "claude-opus-5-5 <noreply@anthropic.com>"},
+		{"openai", "gpt-6.1-sol", "gpt-6.1-sol <noreply@openai.com>"},
+		{"xai", "grok-4.7", "grok-4.7 <noreply@x.ai>"},
+	} {
+		if got := CoAuthor(tc.provider, tc.model); got != tc.want {
+			t.Errorf("%s %s: %q, want %q", tc.provider, tc.model, got, tc.want)
+		}
+	}
+	if len(providers) != 3 {
+		t.Errorf("%d providers: a new one needs its row here", len(providers))
+	}
+}
+
+// A file still holding co_author, on a persona, a fallback entry or a
+// by_label entry, is refused naming the field and what to do; LoadDropping,
+// init's read, drops it and keeps the rest (section 3).
+func TestParseRefusesCoAuthor(t *testing.T) {
+	c := valid()
+	fallback(&c, "architect", opus)
+	byLabel(&c, "worker", archOpus)
+	good := string(Format(c))
+	const why = ": no longer declared: the Co-Authored-By trailer is the launched model's; run 'daisy swarm init' to drop it, keeping the rest"
+	for _, tc := range []struct{ field, old, new string }{
+		{"personas.owner.co_author", `"effort": "high"}`, `"effort": "high", "co_author": "claude-opus-5-5 <noreply@anthropic.com>"}`},
+		{"personas.worker.co_author", `"effort": "medium", `, `"effort": "medium", "co_author": "", `},
+		{"personas.architect.fallback[0].co_author", `"effort": "high"}]`, `"effort": "high", "co_author": "x <y@z>"}]`},
+		{"personas.worker.by_label[0].co_author", `"label": "swarm:class-architecture", "provider": "anthropic", "model": "claude-opus-5-5", "effort": "high"`, `"label": "swarm:class-architecture", "provider": "anthropic", "model": "claude-opus-5-5", "effort": "high", "co_author": "-"`},
+	} {
+		src := strings.Replace(good, tc.old, tc.new, 1)
+		if src == good {
+			t.Fatalf("%s: %q not in the file:\n%s", tc.field, tc.old, good)
+		}
+		if _, err := Parse([]byte(src)); errText(err) != "swarm.json: "+tc.field+why {
+			t.Errorf("%s: %v", tc.field, err)
+		}
+		dir := t.TempDir()
+		write(t, File(dir), src)
+		if _, _, err := Load(ops.Real().FS(), dir); errText(err) != "swarm.json: "+tc.field+why {
+			t.Errorf("Load, %s: %v", tc.field, err)
+		}
+		got, found, err := LoadDropping(ops.Real().FS(), dir)
+		if !found || err != nil || !reflect.DeepEqual(got, c) {
+			t.Errorf("LoadDropping, %s: %v %v\n%+v", tc.field, found, err, got.Personas)
+		}
+	}
+	// Dropping is the retired field's alone: an unknown one is still refused.
+	dir := t.TempDir()
+	write(t, File(dir), strings.Replace(good, `"effort": "medium"`, `"effort": "medium", "co": 1`, 1))
+	if _, _, err := LoadDropping(ops.Real().FS(), dir); errText(err) != "swarm.json: personas.worker.co: unknown field" {
+		t.Errorf("LoadDropping, an unknown field: %v", err)
 	}
 }
