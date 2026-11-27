@@ -322,7 +322,7 @@ func TestSwarmApplyLifecycle(t *testing.T) {
 			on1++
 		}
 	}
-	if on1 != 8 { // the architect, two workers with their checks, two adversary runs and one sympathetic
+	if on1 != 9 { // the architect, two workers with their checks, two adversary runs, one sympathetic and the merge queue's check (section 12.1, rule 3)
 		t.Errorf("approved launched: %d launches on #1", on1)
 	}
 

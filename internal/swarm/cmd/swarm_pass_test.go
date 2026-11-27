@@ -193,6 +193,7 @@ func TestSwarmPausedPassMergesNothing(t *testing.T) {
 		t.Errorf("a paused pass merged: %+v %v\n%s", ps[0], labels(a.issue(1)), a.stdout.String())
 	}
 	a.resume()
+	a.pass() // the merge queue's check, not run while paused (section 12.1)
 	a.pass()
 	if ps := a.pulls(1); !ps[0].Merged {
 		t.Errorf("not merged after resume:\n%s", a.stdout.String())
@@ -309,6 +310,7 @@ func TestSwarmMergeStepRelabelReadsTheLabelsAgain(t *testing.T) {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the adversary approves
 	a.pass() // the sympathetic reviewer, once the adversary approved: T9
+	a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 1})
 	a.tick()
 	a.apply(&relabelOnMerge{gitForge: a.git()}, "--once")

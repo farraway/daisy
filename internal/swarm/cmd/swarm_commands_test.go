@@ -236,6 +236,7 @@ func TestSwarmApplyCommandOnThePullAndPause(t *testing.T) {
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{forge.ReviewApproved, forge.Gated}) {
 		t.Fatalf("not approved: %v", got)
 	}
+	a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 	pull := forge.Ref{Repo: "app", N: 1}
 	id := a.say(pull, "jane", "/swarm merge")
 	a.pass()

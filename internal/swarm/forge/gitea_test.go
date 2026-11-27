@@ -922,9 +922,9 @@ func TestGiteaStatus(t *testing.T) {
 	}
 }
 
-// RequiresChecks reads the base branch's enable_status_check, which
-// repoGetBranch answers any reader of the repository with; a 404 is the
-// forge's error.
+// RequiresChecks reads the base branch's enable_status_check and, when
+// it is on, its status_check_contexts, which repoGetBranch answers any
+// reader of the repository with; a 404 is the forge's error.
 func TestGiteaRequiresChecks(t *testing.T) {
 	const path = "/repos/acme/lib/branches/main"
 	branch := func(protected, checks bool) string {
@@ -935,17 +935,18 @@ func TestGiteaRequiresChecks(t *testing.T) {
 		name, resp, err string
 		status          int
 		want            bool
+		contexts        []string
 	}{
-		{"required", branch(true, true), "", 200, true},
-		{"protected without checks", branch(true, false), "", 200, false},
-		{"unprotected", branch(false, false), "", 200, false},
-		{"no such branch", `{"message":"branch not found"}`, "forge: GET /repos/acme/lib/branches/main: 404 branch not found", 404, false},
+		{"required", branch(true, true), "", 200, true, []string{"ci / *"}},
+		{"protected without checks", branch(true, false), "", 200, false, nil},
+		{"unprotected", branch(false, false), "", 200, false, nil},
+		{"no such branch", `{"message":"branch not found"}`, "forge: GET /repos/acme/lib/branches/main: 404 branch not found", 404, false, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g, s := gitea(t, []string{"app", "lib"}, pair{"GET", path, "", tc.status, tc.resp})
-			got, err := g.RequiresChecks("lib", "main")
-			if got != tc.want || errText(err) != tc.err {
-				t.Errorf("RequiresChecks = %v, %v", got, err)
+			got, contexts, err := g.RequiresChecks("lib", "main")
+			if got != tc.want || !reflect.DeepEqual(contexts, tc.contexts) || errText(err) != tc.err {
+				t.Errorf("RequiresChecks = %v, %q, %v", got, contexts, err)
 			}
 			s.done()
 		})

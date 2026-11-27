@@ -306,7 +306,7 @@ Stages of a software factory the version leaves out, each by choice:
 │   ├── checks/<sha>.log             # the output of a check that failed on head <sha>
 │   ├── texts/<n>-<role>-<k>.md      # each member text posted on the job, whole
 │   └── built                        # empty: the workspace is built (a job in flight replayed, a new one before its first launch); written last
-└── runs/<n>-<role>-<k>/             # one role run, kept for audit (the owner's batch run is <n> = 0); R2 (12.1, specified ahead of its build): a merge check <n>-merge-<k> and a main check 0-main-<k>, no member in either
+└── runs/<n>-<role>-<k>/             # one role run, kept for audit (the owner's batch run is <n> = 0); R2 (12.1): a merge check <n>-merge-<k> (built at Step R2-B) and a main check 0-main-<k> (specified ahead of its build), no member in either
     ├── argv                         # the `docker run` argv, one argument per line (no secret in it)
     ├── io/system.md                 # the persona and the Task (mounted at /job/io)
     ├── io/prompt.md                 # the material: issue, thread, plan, pull request (section 7.3)
@@ -1622,7 +1622,7 @@ nothing: their trigger is the maintainer's decision.
 | T31 | `swarm:plan-1-accepted` with no plan, or a review stage whose current pull request is not open | `swarm:proposal-accepted` with no plan, `swarm:plan-1-accepted` with one | — | the maintainer asks the architect to re-plan the job (section 11, daisy swarm replan): at `swarm:plan-1-accepted` with a plan, and at `swarm:proposal-accepted` and `swarm:plan-0-posted`, the stage is kept and the request alone runs the architect (section 6, The re-plan; then T27, T5 or T6 as the architect's run goes) | the maintainer: `swarm replan <n> [direction...]`: `Comment(n, "Re-plan: <direction>")` (`Re-plan.` with none), then `Relabel(n, <stage>, <to>)`; or on the forge |
 | T33 | the architect's stage after T11, `swarm:plan-0-posted` (G2 on) or `swarm:proposal-accepted` (G2 off) | `swarm:review-1-in-progress` | — (the source follows G2) | the round limit's first time (T11): the architect's run answering the round limit's first note, while that note is the issue's newest counted entry and the pull request it names is open (7.11, The round limit), succeeds and its output begins `OVERRULED:`, its judgement that no blocking finding of the last round qualifies under 7.11's rules 1 and 5. The adversary's request for changes on the head then stands as its approval would: the trigger rule launches the sympathetic reviewer on the head (section 6), whose approval completes the pair as T9's does and whose request for changes is a round as any other, at the limit T11's second time; the merge files the overruled findings in the follow-up, marked `outstanding at the round limit` (7.11, Follow-ups). An output that does not begin `OVERRULED:` is T11's revision, as before | Daisy: `Comment(m, <the architect's text>)` on the pull request, nothing posted on the issue and no plan written, then `Relabel(n, "swarm:plan-0-posted", "swarm:review-1-in-progress")` or `Relabel(n, "swarm:proposal-accepted", "swarm:review-1-in-progress")` by G2 |
 
-*R2, specified ahead of its build* (12.1, rule 3): one transition is added, **T32**, `swarm:review-2-approved` to `swarm:review-3-changes-requested`, its row joining this table, and the explorer's, when it is built: the merge check of the approved head, the repository's check on the commit that merges it into `base` as it is now, fails, after 7.9's one rerun of a classified failure; Daisy's merge queue, under either gate, posts `Comment(m, <reconciler note naming the log>)` and relabels the issue; the worker merges `base`, fixes what fails, and the pair reviews the new head as any revision (T12, then T9 or T10); no block, each round counted towards the round limit (T11). A conflict the queue's merge finds is T25, sent back before the check, whichever the merge gate. A merge check that fails in the environment after its rerun is T17 from `swarm:review-2-approved`, which T17's row does not list as a from-stage until the build: the issue blocked, the stage kept, the note naming the reason, nothing posted on the pull request.
+*R2* (12.1, rule 3), *built at Step R2-B of the plan implementing the 2026-11-19 swarm roadmap*: one transition is added, **T32**, `swarm:review-2-approved` to `swarm:review-3-changes-requested`, its row joining this table, and the explorer's, when it is built: the merge check of the approved head, the repository's check on the commit that merges it into `base` as it is now, fails, after 7.9's one rerun of a classified failure; Daisy's merge queue, under either gate, posts `Comment(m, <reconciler note naming the log>)` and relabels the issue; the worker merges `base`, fixes what fails, and the pair reviews the new head as any revision (T12, then T9 or T10); no block, each round counted towards the round limit (T11). A conflict the queue's merge finds is T25, sent back before the check, whichever the merge gate. A merge check that fails in the environment after its rerun is T17 from `swarm:review-2-approved`, which T17's row does not list as a from-stage until the build: the issue blocked, the stage kept, the note naming the reason, nothing posted on the pull request.
 
 *R6* (7.11, rule 8; *built at Step R6-D of the plan implementing the 2026-11-19 swarm roadmap*): one transition is added, **T33**, its row in this table and in the explorer's: the architect's `OVERRULED:` at the round limit's first time returns the issue from the stage T11 gave it to `swarm:review-1-in-progress`, the head standing as the adversary's approval would; T11's moves are unchanged, its architect judging the last round before it revises (7.11, The round limit). T32's number is R2's, not yet built. A swarm pull request the forge reports merged, which T13, T14, T15 and a merge on the forge all lead to, has its non-blocking review findings filed as a follow-up issue as the issue's pull requests are listed (The pull requests on the issue, below), before the block's write that shows it merged, by `swarm merge`, under the maintainer's token, where the verb merged it (7.11, rule 6, Follow-ups; built at Step R6-B of the plan implementing the 2026-11-19 swarm roadmap).
 
@@ -4712,8 +4712,8 @@ honest word among the nine, and none for a row that is no stop.
 | the clone reaches outside itself (worker) | work | 7.6 | `failed: the clone reaches outside itself: <what>` | T17 | empty |
 | fetch failed (worker) | work | 7.6, step 1: the run's second failed fetch in a row from its clone, whatever the run's end (a fault too); the first is the pass's error, retried | `fetch failed: <error>` for each, then `failed: fetch: <error>` (the second's), unless the run failed already | T17, the note naming the error; a run that failed already names its own failure, then `Its commits could not be fetched from its clone: <error>.` | `environment` |
 | check environment (worker; R3, built at Step R3-7: 7.9) | work | 7.6, step 4: the check, or the dependency step, failed in packages the change does not touch, or with an infrastructure signature and no touched package failing (for a Go head, beside a failing package it names; a dependency step's by a signature whatever the head), and failed so again on its one rerun | `check rerun: <reason>`, the rerun's lines, then `failed: check environment: <reason>`; `kept refs/swarm-runs/<n>-worker-<k>` | T17, the note naming the reason; nothing pushed, nothing posted on the pull request | `environment` |
-| merge check failed (*R2, specified ahead of its build* (12.1, rule 3)) | work | the merge queue's check on the commit that merges the approved head into `base` fails, after 7.9's one rerun of a classified failure | `<state>/runs/<n>-merge-<k>/result`: `merge <name> <head> into <base sha> at <merge sha>`, the check's lines, `failed: merge check: <exit code, timeout or the refusal>`, `collected` | T32: the note on the pull request naming `checks/<merge sha>.log`; no block | none: no member ran, no metrics row |
-| merge check environment (*R2, specified ahead of its build* (12.1, rule 3)) | work | as a worker's *check environment*, on the merge check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | T17 beside `swarm:review-2-approved`, the note naming the reason; nothing posted on the pull request | none: no member ran |
+| merge check failed (*R2* (12.1, rule 3), *built at Step R2-B*) | work | the merge queue's check on the commit that merges the approved head into `base` fails, after 7.9's one rerun of a classified failure | `<state>/runs/<n>-merge-<k>/result`: `merge <name> <head> into <base sha> at <merge sha>`, the check's lines, `failed: merge check: <exit code, timeout or the refusal>`, `collected` | T32: the note on the pull request naming `checks/<merge sha>.log`; no block | none: no member ran, no metrics row |
+| merge check environment (*R2* (12.1, rule 3), *built at Step R2-B*) | work | as a worker's *check environment*, on the merge check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | T17 beside `swarm:review-2-approved`, the note naming the reason; nothing posted on the pull request | none: no member ran |
 | main check failed (*R2, specified ahead of its build* (12.1, rule 4)) | — | the check on a commit of `base` whose tree no check has passed fails | `<state>/runs/0-main-<k>/result`: `main <name> <sha> tree <tree>`, the check's lines, `failed: main check: <…>` | `base` red: the repository's worker launches held but the fix's; the note on the breaking job's issue when it is open, else the owner's batch released | none: no member ran |
 | main check environment (*R2, specified ahead of its build* (12.1, rule 4)) | — | as a worker's *check environment*, on the main check | `check rerun: <reason>`, the rerun's lines, `failed: check environment: <reason>` | `base` unchecked: a line `<name> <sha>` in `<state>/main-unchecked`, `main unchecked <name>` in `status` and notify; no note, no block | none: no member ran |
 | abandoned | — | a pass finds a run not its own with `started`, no end line, no container by the run's name (the `apply` that started it died) and no `<run>/io/exit` that is a regular file holding a number (7.2), whatever `out.md` holds: an empty or partial `out.md` of a member killed mid-run is never read; a run launched before the mark (its `argv` without the `sh -c` line) by no `<run>/io/out.md` that is a regular file (7.5) | `abandoned <time>`; for a worker, 7.6 steps 1 and 2 (`fetched <sha>`, and `kept refs/swarm-runs/<n>-worker-<k>` when it has commits; a fetch that fails with git's error is recorded, `fetch failed: <error>`, and is the pass's error, retried at the next pass as a worker run's is; a clone that reaches outside itself or holds no branch, or a second failed fetch in a row, keeps nothing, with `⚠ #<n> worker run <k>: abandoned; commits not kept (<reason>)` on stderr, and the run is collected); then T22's `relabelled <in-progress> <home>`, `outcome abandoned`, `collected` (a T22 refused leaves the run uncollected, retried at the next pass) | T22 only; the role rule relaunches at run k+1 | none: no stop, the role relaunched |
@@ -7272,7 +7272,7 @@ type Adapter interface {
     Approve(pr Ref, head string) error                 // the maintainer's formal approval at head; no fallback
     Merge(pr Ref, head string) error                   // ErrNotMergeable when the forge refuses
     Status(repo, sha string) ([]Check, error)          // each context's latest status on commit sha in the declared repository repo; none when no check has reported
-    RequiresChecks(repo, branch string) (bool, error)  // branch's protection in the declared repository repo requires status checks before a merge
+    RequiresChecks(repo, branch string) (required bool, contexts []string, err error)  // branch's protection in the declared repository repo requires status checks before a merge, and the contexts (globs) it requires (Step R2-B)
     Milestones() ([]Milestone, error)                  // forge.repo's, open and closed, with the forge's counts
     EnsureMilestone(title string) (id int64, err error) // forge.repo's milestone titled title, created when none is
     SetMilestone(n int, id int64) error                // issue n into the milestone id
@@ -7496,7 +7496,10 @@ checks have not started from one in a repository that has none. *R2, specified a
 the required contexts too, `RequiresChecks(repo, branch) (required bool,
 contexts []string, err error)`, Gitea's `status_check_contexts`, and is
 read for every head the merge step or `swarm merge` is about to merge,
-not only when no check has reported; GitHub's is not mapped, as now.
+not only when no check has reported; GitHub's is not mapped, as now
+(*built at Step R2-B of the plan implementing the 2026-11-19 swarm
+roadmap*: read once no context has failed or is pending; Gitea's
+contexts only when `enable_status_check` is on).
 **`Pull.Mergeable`** is the forge's own reading: Gitea's `mergeable` is a
 boolean computed by its pull request checker, `false` while the checker
 recomputes a pull request after a push to its base as well as when the
@@ -9443,7 +9446,7 @@ the current Daisy's.
   gate holds both job classes (section 5, The job class): for a routine
   job, whose triage and plan Daisy passed, it is the maintainer's first
   reading, and its gate note names the class.
-- *R2, specified ahead of its build* (12.1, rule 3): with either gate, an approved head merges only
+- *R2* (12.1, rule 3), *built at Step R2-B of the plan implementing the 2026-11-19 swarm roadmap*: with either gate, an approved head merges only
   after the merge queue's check on `base` plus the head has passed on
   `base` as it is now; a conflict the queue's merge finds is T25 at once,
   and a failed merge check is T32 (12.1, The merge queue).
@@ -9543,8 +9546,8 @@ the current Daisy's.
   version without the field among them) reads as none: the merge is
   tried, and a refusal is T16 as before. Any other state (`success`,
   Gitea's `warning` or `skipped`) is the forge's to merge or refuse:
-  only then does a refusal follow T16 or T25 as below. *R2, specified ahead of its build* (12.1,
-  folding in the merge step's read of required contexts): `RequiresChecks`
+  only then does a refusal follow T16 or T25 as below. *R2* (12.1,
+  folding in the merge step's read of required contexts), *built at Step R2-B*: `RequiresChecks`
   also returns `<base>`'s required contexts (Gitea's
   `status_check_contexts`, each a glob), and a required context that has
   not reported on the head holds the merge as a pending one does (a failed context is T26
@@ -9647,6 +9650,49 @@ merges nothing of an issue with one; the owner's hold is released
 through the same `openIssues` test. Rules 3 and 4, the queue and the red
 main, are still to be built (Steps R2-B and R2-C), with the marks that
 name them.
+
+*Rule 3 built at Step R2-B of that plan* (the merge queue, with the
+merge step's read of required contexts, L346): `MergeCommit` in
+`internal/swarm/reconcile/git.go` writes the merge commit at
+`refs/swarm-merge/<n>-<s>`; `mergeQueue`, `queuedHeads`, `startMerge`,
+`collectMerge` and `MergeChecked` in `queue.go` start, collect and read
+the merge checks, run `<n>-merge-<k>`; the merge step and `swarm merge`
+refuse a head of a repository with a check that has no passed merge
+check on `base` as the mirror holds it. As built, and where it differs
+from the words below: the queue reads the forge only when a check can
+start (a member slot free, the swarm not paused), and an approved issue
+whose current head the records show checked (passed) or running on
+`base` as it is now costs no read; with the merge gate off it reads
+nothing the merge step has not read, the merge step reading no
+`Status` for a head whose merge check has not passed and printing `#<n>
+merge of pull <name>#<m> waits: its merge check on <base> at <short
+sha> has not passed (queued|running); the next pass tries again`;
+`swarm merge`'s refusal says `(queued)` or `(running)`, without the
+place in the queue. A head the mirror cannot merge into `base` (git's
+error, not a conflict) is blocked with the reconciler's note, `The merge
+check of pull request <pull link> cannot run: the mirror of <name>
+cannot merge its approved head <short sha> into <base> at <short sha>
+(at swarm:review-2-approved), so it is not merged unchecked …`, and the
+warning `⚠ #<n>: pull <name>#<m>'s head <short sha> not merged on the
+mirror (<git's error>); blocked` (the maintainer's ruling 5 of
+2026-11-21); the merge step's own read of a head the mirror cannot read
+(section 12) is left to a repository with no check. A failed check's
+log is `checks/<merge sha>.log`, its `# Check` line `<check> on <merge
+sha>: <result> (<head> merged into <base> at <base sha>)`; a merge
+check's result ends `passed` or `failed: merge check: <result>` (or
+`failed: check environment: <reason>`), then `collected`, and has no
+`outcome` line and no metrics row. Not built here: the main check and
+the red main (rule 4, Step R2-C, so the queue does not yet wait for a
+green `base`), the merge gate note's `- Merge check:` bullet, `status`'s
+`Queue <name>:` line, and the replay of a merge check's log into a
+rebuilt workspace. Tests: `TestMergeCommit`,
+`TestSwarmMergeCheckRunsOnBasePlusHead`,
+`TestSwarmMergeQueueMergesOnlyACheckedHead`,
+`TestSwarmMergeCheckFailedBackToTheWorker`,
+`TestSwarmMaintainerMergeWaitsForTheMergeCheck`,
+`TestSwarmQueuedHeadRecheckedWhenBaseMoves`,
+`TestSwarmMergeWaitsForAnUnreportedRequiredContext`,
+`TestSwarmMergeCheckBlocksAnUnreadableHead`.
 
 **The rulings.** The maintainer's, of 2026-11-19 (Step 1 of that plan):
 machine-read `Depends:` and `Touches:`, several blockers per issue, the

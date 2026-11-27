@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -49,8 +50,9 @@ type fakeState struct {
 	repository  *HeldRepository // forge.repo on the forge, nil while it holds none
 	sshURL      string          // forge.repo's ssh_url
 	refuseRepo  bool
-	statuses    map[[2]string][]Check // by {repository, commit}: each context's latest, in the order first reported
-	requires    map[[2]string]bool    // by {repository, branch}: its protection requires checks
+	statuses    map[[2]string][]Check  // by {repository, commit}: each context's latest, in the order first reported
+	requires    map[[2]string]bool     // by {repository, branch}: its protection requires checks
+	contexts    map[[2]string][]string // by {repository, branch}: the contexts its protection requires
 }
 
 // HeldRepository is forge.repo as the Fake holds it: private, the account
@@ -127,7 +129,7 @@ func (f *Fake) Clone(o ops.Ops) *Fake {
 	c := fakeState{o: o, owner: f.owner, repo: f.repo, names: slices.Clone(f.names), labels: slices.Clone(f.labels), refuse: f.refuse, refuseFiles: f.refuseFiles,
 		items: make(map[Ref]*item, len(f.items)), next: maps.Clone(f.next), reviewID: f.reviewID, commentID: f.commentID,
 		milestones: slices.Clone(f.milestones), refuseMs: f.refuseMs, sshURL: f.sshURL, refuseRepo: f.refuseRepo,
-		statuses: make(map[[2]string][]Check, len(f.statuses)), requires: maps.Clone(f.requires)}
+		statuses: make(map[[2]string][]Check, len(f.statuses)), requires: maps.Clone(f.requires), contexts: maps.Clone(f.contexts)}
 	for at, it := range f.items {
 		cp := *it
 		cp.labels, cp.comments, cp.events, cp.files = slices.Clone(it.labels), slices.Clone(it.comments), slices.Clone(it.events), slices.Clone(it.files)
@@ -548,16 +550,18 @@ func (f *Fake) SetStatus(repo, sha, context, state string) {
 }
 
 // RequireChecks protects branch of the declared repository repo with
-// required status checks, as its administrator does on the forge: Merge
-// then refuses a pull request into it whose head has a check not
-// success, or none.
-func (f *Fake) RequireChecks(repo, branch string) {
+// required status checks, as its administrator does on the forge, the
+// contexts named (globs) required by name: Merge then refuses a pull
+// request into it whose head has a check not success, or none, or no
+// success for a context named.
+func (f *Fake) RequireChecks(repo, branch string, contexts ...string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.requires == nil {
-		f.requires = map[[2]string]bool{}
+		f.requires, f.contexts = map[[2]string]bool{}, map[[2]string][]string{}
 	}
 	f.requires[[2]string{repo, branch}] = true
+	f.contexts[[2]string{repo, branch}] = contexts
 }
 
 func (f *Fake) Status(repo, sha string) ([]Check, error) {
@@ -568,13 +572,14 @@ func (f *Fake) Status(repo, sha string) ([]Check, error) {
 
 // RequiresChecks: a repository not declared is not found, as Gitea's
 // 404 for a repository it does not hold.
-func (f *Fake) RequiresChecks(repo, branch string) (bool, error) {
+func (f *Fake) RequiresChecks(repo, branch string) (bool, []string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if !slices.Contains(f.names, repo) {
-		return false, notFound(fmt.Sprintf("forge: GET /repos/%s/%s/branches/%s: 404 Not Found", f.owner, repo, branch))
+		return false, nil, notFound(fmt.Sprintf("forge: GET /repos/%s/%s/branches/%s: 404 Not Found", f.owner, repo, branch))
 	}
-	return f.requires[[2]string{repo, branch}], nil
+	key := [2]string{repo, branch}
+	return f.requires[key], slices.Clone(f.contexts[key]), nil
 }
 
 // checksPass: the checks on pull request it's head let its merge
@@ -585,6 +590,11 @@ func (f *Fake) checksPass(repo string, it *item) bool {
 		return true
 	}
 	checks := f.statuses[[2]string{repo, it.pull.headSHA}]
+	for _, want := range f.contexts[[2]string{repo, it.pull.base}] {
+		if !slices.ContainsFunc(checks, func(c Check) bool { ok, _ := path.Match(want, c.Context); return ok }) {
+			return false
+		}
+	}
 	return len(checks) > 0 && !slices.ContainsFunc(checks, func(c Check) bool { return c.State != "success" })
 }
 

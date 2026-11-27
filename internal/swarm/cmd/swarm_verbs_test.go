@@ -409,7 +409,13 @@ func TestSwarmFlagClearedOnEveryTransition(t *testing.T) {
 	}
 
 	a := newApplyWS(t)
-	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	// app without a check: no merge check of the head "c1", which no
+	// mirror holds (section 12.1, rule 3).
+	a.edit(func(c *declare.Config) {
+		c.Gates.Merge = false
+		c.Budget = &declare.Budget{PerDay: 10, Total: 100}
+		c.Repos[0].Check = nil
+	})
 	a.forge.CreateIssue("B", mark("owner", 1)+"b", []string{"swarm:review-2-approved", forge.Gated})
 	a.forge.Comment(issue1, mark("architect", 1)+oneSlice)
 	n, _ := a.forge.CreatePull("app", "swarm/1-1", "main", "slice", "Refs acme/swarm-app#1")

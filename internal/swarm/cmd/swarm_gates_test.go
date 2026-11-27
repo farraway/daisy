@@ -426,6 +426,7 @@ func TestSwarmApplyGatesOff(t *testing.T) {
 		}
 		a.pass() // the adversary, approving
 		a.pass() // the sympathetic reviewer, once the adversary approved: T9
+		a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 		a.pass() // the merge step
 		want := map[int]string{1: "#1 merged pull app#1 (slice 1 of 2)\n#1 swarm:review-2-approved → swarm:plan-1-accepted\n", 2: "#1 merged pull app#2 (slice 2 of 2)\n#1 closed (last slice merged)\n#1 swarm:review-2-approved → swarm:done\n"}[s]
 		if !strings.Contains(a.stdout.String(), want) {
@@ -478,6 +479,7 @@ func TestSwarmApplyMergeRefused(t *testing.T) {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the adversary, approving
 	a.pass() // the sympathetic reviewer, once the adversary approved: T9
+	a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 	a.forge.RefuseMerge(forge.Ref{Repo: "app", N: 1})
 	a.pass()
 	head := a.pulls(1)[0].HeadSHA
@@ -525,6 +527,7 @@ func TestSwarmApplyMergeRefusedNoteIsTheSwarms(t *testing.T) {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the adversary, approving
 	a.pass() // the sympathetic reviewer, once the adversary approved: T9
+	a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 	head := a.pulls(1)[0].HeadSHA
 	note := mark("reconciler", 1) + "merge of pull request [acme/app#1](https://forge.example.net/acme/app/pulls/1) at " + head[:7] + " refused: 405 not allowed to merge (at swarm:review-2-approved). Resolve it, then remove swarm:blocked.\n\ncc @jane"
 	a.forge.Say(issue1, "mallory", note)

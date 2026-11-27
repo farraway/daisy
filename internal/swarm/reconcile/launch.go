@@ -655,7 +655,7 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	if err := fs.MkdirAll(stepDir, 0o755); err != nil {
 		return err
 	}
-	if err := s.git().CheckClone(repo.Name, dir, runRef(r), sha); err != nil {
+	if err := s.git().CheckClone(repo.Name, dir, stepRef(r, lines), sha); err != nil {
 		return err
 	}
 	var ts declare.TestServices
@@ -672,7 +672,7 @@ func (s *Swarm) startStep(r Run, lines []string, step string) error {
 	}
 	o, rp, _ := strings.Cut(s.Cfg.Forge.Repo, "/")
 	clone := WorkMount + "/" + repo.Name
-	spec := runner.Spec{Name: s.containerName(r.N, step, r.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, r.N, step), User: s.User, Network: "none",
+	spec := runner.Spec{Name: s.containerName(r.N, stepName(r, step), r.K), Label: fmt.Sprintf("%s/%s#%d/%s", o, rp, r.N, stepName(r, step)), User: s.User, Network: "none",
 		Env: repo.EnvLines(), Mounts: []runner.Mount{{Src: dir, Dst: clone}}, Workdir: clone, Image: repo.Image, Argv: stepMarked(repo.Check)}
 	if d := repo.Deps; d != nil {
 		cache := s.depsCache(repo.Name)

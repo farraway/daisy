@@ -740,17 +740,23 @@ func (g *Gitea) Status(repo, sha string) ([]Check, error) {
 	return checks, nil
 }
 
-// RequiresChecks reads the branch, whose enable_status_check the
-// Swagger documents on the branch any reader may read, rather than the
-// branch protection, whose route takes the repository's administration.
-func (g *Gitea) RequiresChecks(repo, branch string) (bool, error) {
+// RequiresChecks reads the branch, whose enable_status_check and
+// status_check_contexts the Swagger documents on the branch any reader
+// may read, rather than the branch protection, whose route takes the
+// repository's administration; the contexts only when checks are
+// required.
+func (g *Gitea) RequiresChecks(repo, branch string) (bool, []string, error) {
 	var out struct {
-		EnableStatusCheck bool `json:"enable_status_check"`
+		EnableStatusCheck   bool     `json:"enable_status_check"`
+		StatusCheckContexts []string `json:"status_check_contexts"`
 	}
 	if err := g.call("GET", g.repoPath(repo)+"/branches/"+url.PathEscape(branch), nil, http.StatusOK, &out); err != nil {
-		return false, err
+		return false, nil, err
 	}
-	return out.EnableStatusCheck, nil
+	if !out.EnableStatusCheck {
+		return false, nil, nil
+	}
+	return true, out.StatusCheckContexts, nil
 }
 
 type giteaMilestone struct {

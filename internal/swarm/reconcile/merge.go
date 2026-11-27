@@ -3,6 +3,7 @@ package reconcile
 import (
 	"errors"
 	"fmt"
+	"path"
 	"slices"
 	"strings"
 
@@ -42,12 +43,11 @@ func (s *Swarm) warnUnchecked() {
 // forge recomputing, waits for the next pass. A refused merge of one
 // whose mergeability is unknown, or read after this step merged into its
 // repository, waits too; of any other, T16, which blocks it.
-func (s *Swarm) mergeStep() error {
+func (s *Swarm) mergeStep(merged map[string]bool) error {
 	issues, err := s.Forge.Issues(forge.Open, forge.ReviewApproved)
 	if err != nil {
 		return err
 	}
-	merged := map[string]bool{}   // the repositories whose base this step moved
 	mirrored := map[string]bool{} // the mirrors this step fetched
 	for _, listed := range issues {
 		n := listed.Number
@@ -87,6 +87,11 @@ func (s *Swarm) mergeStep() error {
 		}
 		sl := sliceOf(cur, n)
 		at := forge.Ref{Repo: repoName(s.Cfg.Forge.Repo), N: n}
+		repo, _ := s.repo(cur.Repo)
+		queue := len(repo.Check) > 0 // the merge queue's (section 12.1, rule 3)
+		if !cur.Merged && queue && merged[cur.Repo] {
+			continue // a merge ends its repository's merges for the pass: the others' checks are stale
+		}
 		if !cur.Merged {
 			// Nothing of an issue with an open dependency is merged
 			// (section 12.1, rule 1).
@@ -109,6 +114,26 @@ func (s *Swarm) mergeStep() error {
 			}
 			head, k := ApprovedHead(reviews, comments, s.SwarmLogin)
 			msg := "no head both reviews approve"
+			if head != "" && queue {
+				// No head is merged without a passed merge check on base
+				// as the pass fetched it (section 12.1, rule 3).
+				if err := s.fetch(); err != nil {
+					return err
+				}
+				base := s.mergeBase(cur.Repo)
+				st, err := MergeChecked(s.O.FS(), s.state(), n, head, base)
+				if err != nil {
+					return err
+				}
+				if st != "passed" {
+					if st != "running" {
+						s.awaiting = append(s.awaiting, queued{is, cur, head, k, pairCompleted(reviews, head, s.SwarmLogin)})
+						st = "queued"
+					}
+					fmt.Fprintf(s.Out, "#%d merge of pull %s#%d waits: its merge check on %s at %s has not passed (%s); the next pass tries again\n", n, cur.Repo, cur.Number, s.Cfg.Base, short(base), st)
+					continue
+				}
+			}
 			if head != "" {
 				checks, err := HeadChecks(s.Forge, cur.Repo, s.Cfg.Base, head)
 				if err != nil {
@@ -246,15 +271,19 @@ func (s *Swarm) backToWorker(is forge.Issue, p forge.Pull, head string, k int, f
 // Checks is what the checks on an approved head say of its merge
 // (section 12): Failed, those that failed or errored; Pending, those
 // still running; Unreported, none has reported while the base requires
-// checks. With none failed, none pending and not unreported, the merge
-// is the forge's to make or refuse.
+// checks; Missing, the contexts the base requires that have not reported
+// (section 12, The checks, folding in L346). With none failed, none pending, not unreported
+// and none missing, the merge is the forge's to make or refuse.
 type Checks struct {
 	Failed, Pending []forge.Check
 	Unreported      bool
+	Missing         []string
 }
 
 // Wait: the merge waits for the checks, none having failed.
-func (c Checks) Wait() bool { return len(c.Failed) == 0 && (len(c.Pending) > 0 || c.Unreported) }
+func (c Checks) Wait() bool {
+	return len(c.Failed) == 0 && (len(c.Pending) > 0 || c.Unreported || len(c.Missing) > 0)
+}
 
 // Why is what the merge of head into base waits for (Wait).
 func (c Checks) Why(head, base string) string {
@@ -265,12 +294,21 @@ func (c Checks) Why(head, base string) string {
 		}
 		return fmt.Sprintf("its checks on %s are pending: %s", short(head), quoted(names))
 	}
-	return fmt.Sprintf("no check has reported on %s, and %s requires them", short(head), base)
+	if c.Unreported {
+		return fmt.Sprintf("no check has reported on %s, and %s requires them", short(head), base)
+	}
+	if len(c.Missing) == 1 {
+		return fmt.Sprintf("%s has not reported on %s, and %s requires it", quoted(c.Missing), short(head), base)
+	}
+	return fmt.Sprintf("%s have not reported on %s, and %s requires them", quoted(c.Missing), short(head), base)
 }
 
 // HeadChecks reads the checks on head in the declared repository repo
-// and, when none has reported, whether base requires them: a forge that
-// reports no requirement, or a base without one, merges as before.
+// and, when none has failed or is pending, whether base requires checks
+// and which contexts (section 12, The checks, folding in L346): none reported
+// while base requires them, or a required context with no check
+// reported that it matches (a glob, as Gitea matches it), waits; a forge
+// that reports no requirement, or a base without one, merges as before.
 func HeadChecks(f forge.Adapter, repo, base, head string) (Checks, error) {
 	checks, err := f.Status(repo, head)
 	if err != nil {
@@ -285,10 +323,22 @@ func HeadChecks(f forge.Adapter, repo, base, head string) (Checks, error) {
 			c.Pending = append(c.Pending, k)
 		}
 	}
-	if len(checks) == 0 {
-		c.Unreported, err = f.RequiresChecks(repo, base)
+	if len(c.Failed) > 0 || len(c.Pending) > 0 {
+		return c, nil
 	}
-	return c, err
+	required, contexts, err := f.RequiresChecks(repo, base)
+	if err != nil || !required {
+		return c, err
+	}
+	if len(checks) == 0 && len(contexts) == 0 {
+		c.Unreported = true
+	}
+	for _, want := range contexts {
+		if !slices.ContainsFunc(checks, func(k forge.Check) bool { ok, _ := path.Match(want, k.Context); return ok }) {
+			c.Missing = append(c.Missing, want)
+		}
+	}
+	return c, nil
 }
 
 // ChecksFailed is the comment that sends an approved pull request p of

@@ -1698,3 +1698,18 @@ they write.
   Dropped co_author from <k> entries: the co-author trailer is now the
   model's`. Section 11's `init` stdout and `docs/cli.md`'s. Decision
   [176](swarm/decisions/0176-the-co-author-is-the-models.md), As built.
+- 2026-11-26, Step R2-B of the plan implementing the 2026-11-19 swarm
+  roadmap (the merge queue, rule 3 of section 12.1, with L346 and the
+  maintainer's ruling 5 of 2026-11-21): each repository's approved heads
+  are checked one at a time, in the order their pairs completed, on the
+  commit that merges the head into `base` (`refs/swarm-merge/<n>-<s>`,
+  the run `<n>-merge-<k>`); the merge step and `swarm merge` merge no
+  head without a passed merge check on `base` as it is now, a merge
+  ending its repository's merges for the pass; a conflict the queue's
+  merge finds is T25 at once, a failed check T32 with its log at
+  `checks/<merge sha>.log`, a check failing in the environment again on
+  its rerun a block; a head the mirror cannot read is blocked with a
+  note, never merged unchecked; a required context that has not reported
+  holds the merge (`RequiresChecks` returns the contexts). Sections 2,
+  5, 7.7, 10, 12 and 12.1. Decision
+  [169](swarm/decisions/0169-integration-control.md), As built.

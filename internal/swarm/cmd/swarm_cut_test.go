@@ -255,6 +255,7 @@ func TestSwarmCutPlanIsReadWhole(t *testing.T) {
 			a.runner.Script(1, "worker", work("v2"))
 			a.pass() // the adversary approves
 			a.pass() // the sympathetic reviewer, once the adversary approved: T9
+			a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 			a.pass() // the merge step
 			if is := a.issue(1); !is.Open || !strings.Contains(a.stdout.String(), "#1 merged pull app#1 (slice 1 of 2)\n") || strings.Contains(a.stdout.String(), "closed") {
 				t.Fatalf("the merge step closed the job after slice 1: open %v, %v\n%s", is.Open, labels(is), a.stdout.String())

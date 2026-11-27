@@ -129,6 +129,7 @@ func TestSwarmApplyNotMergeableBackToTheWorker(t *testing.T) {
 		t.Errorf("the adversary's second round:\n%s", sys)
 	}
 	a.pass() // the sympathetic reviewer, once the adversary approved: T9
+	a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 	a.pass() // the merge step: T15
 	ps := a.pulls(1)
 	if is := a.issue(1); is.Open || !ps[0].Merged || ps[0].HeadSHA != head || !strings.Contains(a.stdout.String(), "#1 merged pull app#1 (slice 1 of 1)\n#1 closed (last slice merged)\n") {
@@ -211,6 +212,7 @@ func TestSwarmMergeStepUnsettled(t *testing.T) {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the adversary, approving
 	a.pass() // the sympathetic reviewer, once the adversary approved: T9
+	a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 	a.forge.SetMergeable(forge.Ref{Repo: "app", N: 1}, forge.MergeableUnknown)
 	a.pass()
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved"}) || len(a.bodies(1)) != 1 ||
@@ -224,12 +226,15 @@ func TestSwarmMergeStepUnsettled(t *testing.T) {
 	}
 
 	// Two approved issues: #2's pull request is read after the step merged
-	// #1's into the same repository.
+	// #1's into the same repository, which declares no check (with one,
+	// a merge ends the repository's merges for the pass, section 12.1,
+	// rule 3).
 	a = newApplyWS(t)
 	a.edit(func(c *declare.Config) {
 		c.Gates.Merge = false
 		c.Budget = &declare.Budget{PerDay: 10, Total: 100}
 		c.MaxMembers = 4 // both pairs in one pass
+		c.Repos[0].Check = nil
 	})
 	for _, n := range []int{1, 2} {
 		a.forge.CreateIssue("Drift check "+strconv.Itoa(n), "Check the drift.", []string{"swarm:proposal-accepted"})
@@ -275,6 +280,7 @@ func TestSwarmMergeStepRecomputing(t *testing.T) {
 	pr := forge.Ref{Repo: "app", N: 1}
 	a.land("app", map[string]string{"other.go": "other\n"}, "another slice merged, touching no file of the slice")
 	a.forge.SetMergeable(pr, forge.MergeableNo)
+	a.pass() // the merge queue's check on the moved main, passed (section 12.1, rule 3)
 	a.pass()
 	comments, _ := a.forge.PullComments(pr)
 	if got := labels(a.issue(1)); !reflect.DeepEqual(got, []string{"swarm:review-2-approved"}) || len(comments) != 0 || len(a.bodies(1)) != 1 ||
@@ -338,12 +344,17 @@ func (u unknownHead) Reviews(pr forge.Ref) ([]forge.Review, error) {
 	return rs, err
 }
 
-// An approved head the mirror cannot read: the merge step warns and the
+// An approved head the mirror cannot read, in a repository with no check
+// (so no merge check, section 12.1, rule 3): the merge step warns and the
 // forge's report stands, T25 with the direction naming no file.
 func TestSwarmMergeStepMirrorCannotTell(t *testing.T) {
 	t.Parallel()
 	a := newApplyWS(t)
-	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
+	a.edit(func(c *declare.Config) {
+		c.Gates.Merge = false
+		c.Budget = &declare.Budget{PerDay: 10, Total: 100}
+		c.Repos[0].Check = nil
+	})
 	a.inReview(oneSlice)
 	a.runner.Script(1, "adversary", runner.Canned{Out: approve})
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})

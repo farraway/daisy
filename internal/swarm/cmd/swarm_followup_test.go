@@ -92,6 +92,7 @@ func TestSwarmFollowUpFiledAtTheMerge(t *testing.T) {
 		if fus := followUps(t, a.forge); len(fus) != 0 {
 			t.Fatalf("filed before the merge: %+v", fus)
 		}
+		a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 		a.pass() // T15: merged and closed, its pull requests listed
 		if a.issue(1).Open || !strings.Contains(a.issue(1).Body, appPull("1")+" merged") {
 			t.Fatalf("not merged and closed:\n%s", a.stdout.String())
@@ -487,6 +488,7 @@ func TestFollowUpMarksOutstanding(t *testing.T) {
 	a.pass() // round 2 at the limit: T11
 	a.pass() // the architect overrules: T33
 	a.pass() // the sympathetic reviewer approves: T9
+	a.pass() // the merge queue's check, passed (section 12.1, rule 3)
 	a.pass() // the merge step: T15, the follow-up filed
 	p := a.pulls(1)
 	if a.issue(1).Open || !p[0].Merged {

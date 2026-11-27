@@ -207,6 +207,7 @@ func TestSwarmApplyHolds(t *testing.T) {
 			t.Fatalf("a paused issue merged: %v", labels(a.issue(1)))
 		}
 		a.forge.Relabel(issue1, forge.Paused, "")
+		a.pass() // the merge queue's check, not run on a paused issue (section 12.1, rule 3)
 		a.pass()
 		if ps := a.pulls(1); !ps[0].Merged || a.issue(1).Open {
 			t.Errorf("not merged once resumed:\n%s", a.stdout.String())

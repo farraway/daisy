@@ -61,6 +61,8 @@ type Swarm struct {
 	ciErr      error               // warnCI's read refused this pass: notify tells nothing
 	ciTold     []string            // the lines warnCI printed last
 	followUps  *FollowUps          // the pass's follow-ups, the issues carrying swarm:follow-up read once (listPulls)
+	approved   []approved          // the review-2-approved issues step (5) read, for the merge queue
+	awaiting   []queued            // the heads the merge step found waiting for their merge check (gate off)
 }
 
 // Openers is whose pull requests are the swarm's (section 10, Pulls):
@@ -155,7 +157,7 @@ func (s *Swarm) Pass(wait bool) error {
 			s.mine++
 		}
 	}
-	s.collected, s.started, s.moves, s.fetched, s.followUps = 0, 0, map[int]string{}, false, nil
+	s.collected, s.started, s.moves, s.fetched, s.followUps, s.approved, s.awaiting = 0, 0, map[int]string{}, false, nil, nil, nil
 	errs := []error{s.collectAll(running, !wait), s.expireCapacity(), s.release()}
 	launched := 0
 	if paused := s.paused(); paused != "" {
@@ -179,9 +181,15 @@ func (s *Swarm) Pass(wait bool) error {
 		if err := s.stages(running, launch); err != nil {
 			errs = append(errs, err)
 		} else {
+			merged := map[string]bool{} // the repositories whose base the merge step moved
 			if !s.Cfg.Gates.Merge && s.paused() == "" && !s.stopping() {
-				errs = append(errs, s.mergeStep())
+				errs = append(errs, s.mergeStep(merged))
 			}
+			// The merge queue's checks, under either gate (section 12.1,
+			// rule 3), each a launch of the pass.
+			k, err := s.mergeQueue(merged)
+			launched += k
+			errs = append(errs, err)
 			errs = append(errs, s.batch(running, launch), s.qa(running, launch))
 		}
 	}
@@ -322,7 +330,7 @@ func (s *Swarm) collectAll(running []runner.Running, adopt bool) error {
 				// 7.10, rule 2; request F36), else left to its wait.
 				name, status := s.containerName(r.N, r.Role, r.K), r.exitStatus
 				if l.step != "" {
-					name, status = s.containerName(r.N, l.step, r.K), r.stepStatus
+					name, status = s.containerName(r.N, stepName(r, l.step), r.K), r.stepStatus
 				}
 				if _, ok := status(fs); !ok || isRunning(name) {
 					continue
@@ -338,7 +346,7 @@ func (s *Swarm) collectAll(running []runner.Running, adopt bool) error {
 			continue
 		}
 		now := endStamp(s.O.Now())
-		if Ended(lines) == "" {
+		if Ended(lines) == "" && r.Role != "merge" { // a merge check has no member, its steps alone (section 12.1)
 			started, ok := Has(lines, "started")
 			if !ok {
 				continue
@@ -400,7 +408,7 @@ func (s *Swarm) collectAll(running []runner.Running, adopt bool) error {
 			}
 		}
 		if step, at := pending(lines); step != "" {
-			name := s.containerName(r.N, step, r.K)
+			name := s.containerName(r.N, stepName(r, step), r.K)
 			deadline, detached := stepDeadline(lines, step)
 			switch {
 			case isRunning(name) && detached && s.O.Now().Before(deadline):
@@ -646,6 +654,9 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				}
 				is = j.Issue
 			}
+			if label == forge.ReviewApproved {
+				s.approved = append(s.approved, approved{is, pulls}) // the merge queue's, read once (section 12.1, rule 3)
+			}
 			roles := stageRoles[label]
 			if len(roles) == 0 || launch == nil || decided[n] {
 				continue
@@ -822,7 +833,7 @@ func (s *Swarm) busy(running []runner.Running, runs []Run, n int) []string {
 	for dir, l := range s.live {
 		if r, ok := runOf(dir); ok && r.N == n {
 			if l.step != "" {
-				r.Role = l.step
+				r.Role = stepName(r, l.step)
 			}
 			roles = append(roles, r.Role)
 		}

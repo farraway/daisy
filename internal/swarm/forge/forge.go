@@ -161,8 +161,10 @@ type Adapter interface {
 	// check has reported on it.
 	Status(repo, sha string) ([]Check, error)
 	// RequiresChecks: the protection of branch in the declared repository
-	// repo requires status checks to pass before a merge.
-	RequiresChecks(repo, branch string) (bool, error)
+	// repo requires status checks to pass before a merge, and the
+	// contexts it requires, each a glob (Gitea's status_check_contexts;
+	// none named, any check reported counts).
+	RequiresChecks(repo, branch string) (required bool, contexts []string, err error)
 	// Milestones is forge.repo's milestones, open and closed, each with
 	// the issues the forge counts in it.
 	Milestones() ([]Milestone, error)

@@ -106,9 +106,15 @@ func TestSwarmPullsBlock(t *testing.T) {
 	launches := len(a.runner.Launches())
 	a.pass()
 	a.pass()
+	on2 := 0 // #1's approved head has its merge check (section 12.1, rule 3)
+	for _, l := range a.runner.Launches()[launches:] {
+		if strings.HasPrefix(l.Label, "acme/swarm-app#2/") {
+			on2++
+		}
+	}
 	if body := a.issue(2).Body; body != mark("owner", 2)+pullsBlock("slice 1 "+appPull("3")+" open, review round 1")+"Do more." || a.edits(2) != 1 ||
-		len(a.runner.Launches()) != launches || a.edits(1) != 4 {
-		t.Errorf("#2 listed and idle: %d launches, %d and %d edits:\n%s", len(a.runner.Launches())-launches, a.edits(1), a.edits(2), body)
+		on2 != 0 || a.edits(1) != 4 {
+		t.Errorf("#2 listed and idle: %d launches, %d and %d edits:\n%s", on2, a.edits(1), a.edits(2), body)
 	}
 
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })

@@ -38,7 +38,13 @@ func (s *Swarm) collect(r Run) error {
 	if err != nil {
 		return err
 	}
-	if _, done := Has(lines, "collected"); done || Ended(lines) == "" {
+	if _, done := Has(lines, "collected"); done {
+		return nil
+	}
+	if r.Role == "merge" {
+		return s.collectMerge(r, lines) // no member ran (section 12.1, rule 3)
+	}
+	if Ended(lines) == "" {
 		return nil
 	}
 	if step, _ := pending(lines); step != "" {

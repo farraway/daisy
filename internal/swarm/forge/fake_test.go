@@ -202,17 +202,17 @@ func TestFakeChecks(t *testing.T) {
 	if got, err := f.Status("app", "c1"); err != nil || len(got) != 0 {
 		t.Errorf("Status with no check reported = %+v, %v", got, err)
 	}
-	if on, err := f.RequiresChecks("app", "main"); err != nil || on {
+	if on, _, err := f.RequiresChecks("app", "main"); err != nil || on {
 		t.Errorf("RequiresChecks unprotected = %v, %v", on, err)
 	}
-	if _, err := f.RequiresChecks("other", "main"); !errors.Is(err, ErrNotFound) {
+	if _, _, err := f.RequiresChecks("other", "main"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("RequiresChecks of an undeclared repository: %v", err)
 	}
 	f.RequireChecks("app", "main")
-	if on, err := f.RequiresChecks("app", "main"); err != nil || !on {
-		t.Errorf("RequiresChecks protected = %v, %v", on, err)
+	if on, contexts, err := f.RequiresChecks("app", "main"); err != nil || !on || contexts != nil {
+		t.Errorf("RequiresChecks protected = %v, %q, %v", on, contexts, err)
 	}
-	if on, _ := f.RequiresChecks("lib", "main"); on {
+	if on, _, _ := f.RequiresChecks("lib", "main"); on {
 		t.Error("RequiresChecks reads another repository's protection")
 	}
 	refused := "forge: not mergeable: 405 Not all required status checks successful"

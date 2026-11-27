@@ -12,7 +12,8 @@ import (
 )
 
 // approvedGateOff takes issue 1 through the pair's approval of its one
-// slice with the merge gate off, and returns the approved head.
+// slice with the merge gate off and its merge check's pass (section
+// 12.1, rule 3), and returns the approved head.
 func (a *applyWS) approvedGateOff() string {
 	a.t.Helper()
 	a.edit(func(c *declare.Config) { c.Gates.Merge = false; c.Budget = &declare.Budget{PerDay: 10, Total: 100} })
@@ -21,6 +22,7 @@ func (a *applyWS) approvedGateOff() string {
 	a.runner.Script(1, "sympathetic", runner.Canned{Out: approve})
 	a.pass() // the adversary approves
 	a.pass() // the sympathetic reviewer, once the adversary approved: T9
+	a.pass() // the merge queue's check of the approved head on main, passed
 	return a.pulls(1)[0].HeadSHA
 }
 

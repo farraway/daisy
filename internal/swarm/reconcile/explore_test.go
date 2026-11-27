@@ -419,7 +419,7 @@ func (w *world) pass() {
 	} else if err := s.stages(running, w.launch); err != nil {
 		errs = append(errs, err)
 	} else if !s.Cfg.Gates.Merge {
-		errs = append(errs, s.mergeStep())
+		errs = append(errs, s.mergeStep(map[string]bool{}))
 	}
 	s.flags()
 	s.copyMoved()

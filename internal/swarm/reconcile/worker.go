@@ -421,6 +421,9 @@ func (c *collection) classify(repo declare.Repo, out string) (held bool, err err
 		}
 	}
 	if _, again := Has(c.lines, rerun); again {
+		if c.r.Role == "merge" {
+			return true, c.mergeEnvironment(reason)
+		}
 		return true, c.fail(checkEnvironment + reason)
 	}
 	if err := c.step(rerun + ": " + reason); err != nil {

@@ -191,3 +191,41 @@ proposing it only once they are closed; its hash joins
 `defaultHistory`, so `swarm prompt build` brings an unedited owner
 prompt to it. Tests: `TestDefaultOwnerProposesDependentWork`,
 `TestSwarmOwnerHoldIgnoresAMissingIssue`.
+
+**As built (Step R2-B, the merge queue; rule 3, with L346 and the
+maintainer's ruling 5 of 2026-11-21).** `MergeCommit` in
+`internal/swarm/reconcile/git.go` (`git merge-tree --write-tree` on the
+base commit, `git commit-tree <tree> -p <base> -p <head>` as `reconciler
+(Daisy swarm)` at the commit email, `refs/swarm-merge/<n>-<s>`);
+`mergeQueue`, `queuedHeads`, `startMerge`, `collectMerge`,
+`mergeFailed` (T32), `mergeEnvironment` and `MergeChecked` in
+`queue.go`, the run `<n>-merge-<k>` its steps alone, its container
+`<…>.<n>.merge.<k>` labelled `#<n>/merge`, the check cloned from the
+merge ref (`stepRef`, `stepName`). The merge step and `swarm merge`
+merge no head of a repository with a check without a passed merge check
+on `base` as the mirror holds it (the merge step fetching it first, the
+verb reading the last fetch); a merge ends its repository's merges for
+the pass. The queue reads the forge only when a check can start, and
+not for a head its records show passed or running on `base` now: with
+the gate off its heads are the merge step's (no read of its own), with
+it on the review-2-approved issues step (5) read, then, for a head not
+so recorded, its dependencies, `Reviews(m)` and `PullComments(m)`. The
+merge step reads no `Status` for a head whose merge check has not
+passed. `RequiresChecks(repo, branch)` returns the required contexts
+(Gitea's `status_check_contexts`, only when `enable_status_check`),
+read once no context failed or is pending, a context matched with
+`path.Match`. A head the mirror cannot merge (git's error) is blocked
+with the reconciler's note naming the pull request, the head and
+`base`, never merged unchecked. Differences from the words above:
+`swarm merge`'s refusal names `(queued)` or `(running)`, not the place
+in the queue. Not built here: rule 4 (the main check, a red `base`
+holding the queue), the merge gate note's `- Merge check:`, `status`'s
+queue line, the replay of a merge check's log into a rebuilt workspace.
+Tests: `TestMergeCommit`, `TestSwarmMergeCheckRunsOnBasePlusHead`,
+`TestSwarmMergeQueueMergesOnlyACheckedHead`,
+`TestSwarmMergeCheckFailedBackToTheWorker`,
+`TestSwarmMaintainerMergeWaitsForTheMergeCheck`,
+`TestSwarmQueuedHeadRecheckedWhenBaseMoves`,
+`TestSwarmMergeWaitsForAnUnreportedRequiredContext`,
+`TestSwarmMergeCheckBlocksAnUnreadableHead`; the gate-off tests that
+merge take one pass more, for the check.

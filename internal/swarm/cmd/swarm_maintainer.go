@@ -565,6 +565,9 @@ func swarmMerge(c *Context, open opener) error {
 		if head == "" {
 			return fmt.Errorf("Error: swarm: #%d: no head of pull %s#%d is approved by both the swarm's reviews; nothing merged", m.n, cur.Repo, cur.Number)
 		}
+		if err := m.mergeChecked(cur, head, outputs.State); err != nil {
+			return err
+		}
 		checks, err := reconcile.HeadChecks(m.f, cur.Repo, m.cfg.Base, head)
 		if err != nil {
 			return fmt.Errorf("Error: swarm: %v", err)
@@ -606,6 +609,28 @@ func swarmMerge(c *Context, open opener) error {
 	}
 	m.listPulls(outputs)
 	return nil
+}
+
+// mergeChecked refuses, nothing changed, a head of a repository with a
+// check that has no passed merge check on base as its mirror's last
+// fetch left it (docs/swarm.md section 12.1, rule 3): the maintainer's
+// merge is a person's act, made again once the queue has checked it.
+func (m *maintainer) mergeChecked(cur forge.Pull, head, state string) error {
+	if i := slices.IndexFunc(m.cfg.Repos, func(r declare.Repo) bool { return r.Name == cur.Repo }); i < 0 || len(m.cfg.Repos[i].Check) == 0 {
+		return nil
+	}
+	g := reconcile.Git{O: m.c.Ops, State: state}
+	base := g.Head(g.Mirror(cur.Repo), "refs/heads/"+m.cfg.Base)
+	st, err := reconcile.MergeChecked(m.c.Ops.FS(), state, m.n, head, base)
+	switch {
+	case err != nil:
+		return fmt.Errorf("Error: swarm: %v", err)
+	case st == "passed":
+		return nil
+	case st != "running":
+		st = "queued"
+	}
+	return fmt.Errorf("Error: swarm: #%d: merge of pull %s#%d waits: its merge check on %s at %s has not passed (%s); run merge again when it has; nothing changed", m.n, cur.Repo, cur.Number, m.cfg.Base, short(base), st)
 }
 
 // listPulls is the issue's pull requests listed in its body after the

@@ -45,7 +45,7 @@ func (g Git) TestServices(rp declare.Repo, commit string) (ts declare.TestServic
 // worker, a reviewer, or the check), on the network named as the step's
 // container; a check's network is internal.
 func (s *Swarm) services(r Run, step string, ts declare.TestServices) runner.Services {
-	sv := runner.Services{Network: s.containerName(r.N, step, r.K), Internal: step == "check"}
+	sv := runner.Services{Network: s.containerName(r.N, stepName(r, step), r.K), Internal: step == "check"}
 	for _, t := range ts.Services {
 		sv.List = append(sv.List, runner.Service(t))
 	}
@@ -91,7 +91,7 @@ func (s *Swarm) servicesDown(r Run, lines []string) ([]string, error) {
 		if up <= down {
 			continue
 		}
-		if err := s.Runner.Down(s.containerName(r.N, step, r.K)); err != nil {
+		if err := s.Runner.Down(s.containerName(r.N, stepName(r, step), r.K)); err != nil {
 			return lines, err
 		}
 		line := "services " + step + " down"
