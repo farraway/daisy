@@ -658,17 +658,8 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				fmt.Fprintf(s.Err, "⚠ #%d: %s but its current pull request is not open; skipped\n", n, label)
 				continue
 			}
-			marks := marksOf(IssueThread(is), s.SwarmLogin)
-			if open {
-				if j.Pull == nil {
-					if j.Pull, err = s.pullThread(cur); err != nil {
-						return err
-					}
-				}
-				j.Check = CheckSection(fs, runs, n, cur.HeadSHA, s.repoCheck(cur.Repo), s.Cfg.Timeout)
-				j.Artifacts = Artifacts(fs, runs, n, cur.HeadSHA)
-				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
-			}
+			// The plan and rule 1's hold before the pull request's thread is
+			// read: a held issue costs the forge no read but its dependencies.
 			if err := j.readPlan(); err != nil {
 				if _, err = s.blockUnusable(is, err); err != nil {
 					return fmt.Errorf("#%d: %w", n, err)
@@ -679,6 +670,17 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 				return err
 			} else if len(deps) > 0 {
 				continue // rule 1: an open dependency, declared or the maintainer's `Blocked by #<m>` (section 12.1, rule 1)
+			}
+			marks := marksOf(IssueThread(is), s.SwarmLogin)
+			if open {
+				if j.Pull == nil {
+					if j.Pull, err = s.pullThread(cur); err != nil {
+						return err
+					}
+				}
+				j.Check = CheckSection(fs, runs, n, cur.HeadSHA, s.repoCheck(cur.Repo), s.Cfg.Timeout)
+				j.Artifacts = Artifacts(fs, runs, n, cur.HeadSHA)
+				marks = append(marks, marksOf(j.pullEntries(cur), s.SwarmLogin)...)
 			}
 			turn := Turn{Label: label, Running: s.busy(running, runs, n)}
 			questioned := slices.Contains(is.Labels, forge.Question)
@@ -705,9 +707,14 @@ func (s *Swarm) stages(running []runner.Running, launch func(*Job) error) error 
 			}
 			decided[n] = true
 			roles = Launch(turn, s.SwarmLogin, s.Cfg.Trusted)
-			if label == forge.PlanAccepted && !open && slices.Contains(roles, "worker") {
+			if label == forge.PlanAccepted && !open && slices.Contains(roles, "worker") && !s.launchesNothing() {
 				// Rule 2 of section 12.1: a slice's first build waits
-				// while it overlaps another issue's open slice.
+				// while it overlaps another issue's open slice (read
+				// from the mirror as the launch would fetch it, and not
+				// at all when no launch can follow).
+				if err := s.fetch(); err != nil {
+					return err
+				}
 				if m, err := s.touchRead().overlapping(j); err != nil {
 					return fmt.Errorf("#%d: %w", n, err)
 				} else if m != 0 {

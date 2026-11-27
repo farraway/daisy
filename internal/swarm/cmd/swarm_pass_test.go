@@ -377,6 +377,11 @@ func (f readLog) Pulls(n int, openers []string) ([]forge.Pull, error) {
 	return f.gitForge.Pulls(n, openers)
 }
 
+func (f readLog) ReviewComments(r forge.Ref) ([]forge.ReviewComment, error) {
+	f.add(fmt.Sprintf("ReviewComments %s#%d", r.Repo, r.N))
+	return f.gitForge.ReviewComments(r)
+}
+
 // passReads is one pass, as pass runs it, and the reads it made.
 func (a *applyWS) passReads() []string {
 	a.t.Helper()

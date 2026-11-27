@@ -85,6 +85,20 @@ func TestSwarmApplyHoldsADependentJob(t *testing.T) {
 			t.Errorf("%d launches\nstderr:\n%s", n, a.stderr.String())
 		}
 	})
+	t.Run("a cycle", func(t *testing.T) {
+		// Two issues that depend on each other, both open: both held,
+		// and the pass ends.
+		a := newApplyWS(t)
+		a.forge.CreateIssue("One", proposal("Depends: #2"), []string{"swarm:proposal-accepted"}) // #1
+		a.forge.CreateIssue("Two", proposal("Depends: #1"), []string{"swarm:proposal-accepted"}) // #2
+		a.runner.Script(1, "architect", runner.Canned{Out: oneSlice})
+		a.runner.Script(2, "architect", runner.Canned{Out: oneSlice})
+		a.pass()
+		a.pass()
+		if n := len(a.runner.Launches()); n != 0 {
+			t.Errorf("a cycle launched %d runs\n%s", n, a.stdout.String())
+		}
+	})
 	t.Run("the merge step", func(t *testing.T) {
 		a := newApplyWS(t)
 		head := a.approvedGateOff()
@@ -265,6 +279,23 @@ func TestSwarmWorkerHeldByAnOverlap(t *testing.T) {
 			t.Errorf("#1 merged: workers %q\n%s", got, a.stdout.String())
 		}
 	})
+	t.Run("reads nothing with no slot free", func(t *testing.T) {
+		// The overlap is read for a launch that can follow: with every
+		// member slot taken, the held pass reads #1's issue once less.
+		a := newApplyWS(t)
+		planned(a, slice("main.go"), slice("*.go"))
+		a.pass() // #1's worker builds; #2 is held, its pull request open
+		a.passReads()
+		free := a.passReads()
+		a.edit(func(c *declare.Config) { c.MaxMembers = 1 })
+		a.runner.Others = []runner.Running{{Name: "daisy-swarm.acme.swarm-app.9.architect.9", Swarm: "acme/swarm-app#9/architect"}}
+		a.publish("full")
+		full := a.passReads()
+		count := func(reads []string) int { return strings.Count(strings.Join(reads, "\n")+"\n", "Issue 1\n") }
+		if count(full) >= count(free) {
+			t.Errorf("with no slot free the pass read #1 %d times, with one free %d:\n%q\n%q", count(full), count(free), full, free)
+		}
+	})
 	t.Run("by the open branch's files", func(t *testing.T) {
 		// #1 declares nothing: its branch's main.go holds #2's main.go.
 		a := newApplyWS(t)
@@ -289,5 +320,26 @@ func TestSwarmWorkerHeldByAnOverlap(t *testing.T) {
 				t.Errorf("workers %q\n%s", got, a.stdout.String())
 			}
 		})
+	}
+}
+
+// A job held by an open dependency costs the forge no read of its pull
+// request's thread (section 12.1, rule 1): the hold stands before the
+// thread is read, and once the dependency is closed the thread is read.
+func TestSwarmHeldJobReadsNoPullThread(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.inReview(oneSlice) // #1, review-0-ready, its pull request open
+	a.forge.AddLabels("bug")
+	a.forge.CreateIssue("The library", "", []string{"bug"}) // #2
+	a.forge.Say(issue1, "jane", "Depends: #2")
+	a.passReads()
+	reads := a.passReads()
+	if slices.Contains(reads, "ReviewComments app#1") {
+		t.Errorf("a held job's pull request thread was read: %q", reads)
+	}
+	a.forge.CloseIssue(2)
+	if reads = a.passReads(); !slices.Contains(reads, "ReviewComments app#1") {
+		t.Errorf("a released job's pull request thread was not read: %q", reads)
 	}
 }

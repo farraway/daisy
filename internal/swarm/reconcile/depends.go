@@ -302,6 +302,22 @@ type touchRead struct {
 	out   Outputs
 	cfg   declare.Config
 	login string
+	// branches, when set, keeps each repository's open branches for the
+	// reads of one status report, the mirrors not changing under it.
+	branches map[string][]OpenBranch
+}
+
+// openBranches is repository repo's open branches (OpenBranches), read
+// once for a reader that keeps them.
+func (t touchRead) openBranches(repo string) ([]OpenBranch, error) {
+	if b, ok := t.branches[repo]; ok {
+		return b, nil
+	}
+	b, err := t.git.OpenBranches(repo, t.cfg.Base, "")
+	if err == nil && t.branches != nil {
+		t.branches[repo] = b
+	}
+	return b, err
 }
 
 // openSlice is another issue's open slice in a repository: slice s of
@@ -327,7 +343,7 @@ func (t touchRead) overlapping(j *Job) (int, error) {
 	}
 	plan, planned := j.PlanText()
 	mine := SliceTouch(j.Issue, plan, planned, s, t.login)
-	branches, err := t.git.OpenBranches(repo, t.cfg.Base, "")
+	branches, err := t.openBranches(repo)
 	if err != nil {
 		return 0, err
 	}
@@ -343,6 +359,7 @@ func (t touchRead) overlapping(j *Job) (int, error) {
 		}
 		return nil
 	}
+	pullsOf := map[int][]forge.Pull{}
 	for _, b := range branches {
 		if b.N == j.N {
 			if b.S == s {
@@ -350,9 +367,12 @@ func (t touchRead) overlapping(j *Job) (int, error) {
 			}
 			continue
 		}
-		pulls, err := t.f.Pulls(b.N, Openers(t.login, t.cfg.Trusted))
-		if err != nil {
-			return 0, err
+		pulls, seen := pullsOf[b.N]
+		if !seen { // one read an issue, whatever its branches
+			if pulls, err = t.f.Pulls(b.N, Openers(t.login, t.cfg.Trusted)); err != nil {
+				return 0, err
+			}
+			pullsOf[b.N] = pulls
 		}
 		if slices.ContainsFunc(pulls, func(p forge.Pull) bool { return p.Open && p.Repo == repo && p.Head == b.Branch }) {
 			add(openSlice{b.N, b.S, b.Files})

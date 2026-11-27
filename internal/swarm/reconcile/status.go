@@ -929,7 +929,7 @@ func heldByOverlaps(o ops.Ops, cfg declare.Config, login string, f forge.Adapter
 	if err != nil {
 		return fmt.Errorf("reading the runs: %w", err)
 	}
-	t := touchRead{f: f, git: g, out: outputs, cfg: cfg, login: login}
+	t := touchRead{f: f, git: g, out: outputs, cfg: cfg, login: login, branches: map[string][]OpenBranch{}}
 	for _, n := range slices.Sorted(maps.Keys(issues)) {
 		si := issues[n]
 		if label, ok := StageOf(si.Issue); !ok || label != forge.PlanAccepted {
