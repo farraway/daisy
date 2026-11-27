@@ -1676,3 +1676,19 @@ they write.
   nothing, as a dependency's does not, with the warning `not waited on`.
   Sections 1, 4 and 6. Decision
   [169](swarm/decisions/0169-integration-control.md), As built.
+- 2026-11-26, Step CA of the plan implementing the 2026-11-19 swarm
+  roadmap (the maintainer's ruling "Co-author should always match the
+  model"): `co_author` leaves swarm.json, on the persona, a fallback
+  entry and a `by_label` entry alike; a run's `Co-Authored-By:` value is
+  derived from the provider and the model it launched with, `<model>
+  <noreply@anthropic.com>`, `<noreply@openai.com>` or `<noreply@x.ai>`,
+  stamped by the hook on every role's clone, with no `""` and no way to
+  turn it off; a file still holding `co_author` is refused naming the
+  field, and `init` drops it, keeping the rest; the wizard's co-author
+  questions (22–26) are retired, the others keeping their numbers; the
+  collection's unstamped check and the notes' commit derive it from the
+  run's `persona` line. Sections 3, 7.1, 7.6, 7.10, 9 and 11, and
+  `docs/cli.md`'s `swarm init`. Decision
+  [176](swarm/decisions/0176-the-co-author-is-the-models.md), amending
+  decisions [52](swarm/decisions/0052-every-role-names-its-model-the-commits-author-and-co-author.md)
+  and [175](swarm/decisions/0175-a-roles-model-by-label.md).

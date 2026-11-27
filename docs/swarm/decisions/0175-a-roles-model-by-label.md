@@ -70,3 +70,5 @@ personas.<role>`, or of an earlier `by_label` entry, `the same as
 personas.<role>.by_label[<j>]`, after its fields and slots. Test:
 `TestValidateByLabel`'s two rows and its valid case (an entry the same
 as a fallback entry, and the same model at another effort).
+
+**Amended by decision [176](0176-the-co-author-is-the-models.md)** (Step CA of the plan implementing the 2026-11-19 swarm roadmap): a `by_label` entry, as a fallback entry and the persona, carries no `co_author`; its commits' co-author is derived from its provider and model, so an entry the same as a fallback entry stamps the same trailer, and `launchedEntry` is replaced by `launchedCoAuthor`.

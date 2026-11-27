@@ -13,3 +13,5 @@ the swarm's commit address, defaulting to the account's email.
 Alternatives: the model in the author name (no co-author shown by the
 forge), the maintainer's identity, a fixed `daisy-swarm.invalid`
 address (no link to the swarm's account on the forge).
+
+**Amended by decision [176](0176-the-co-author-is-the-models.md)** (Step CA of the plan implementing the 2026-11-19 swarm roadmap): the co-author is no longer declared; every commit's `Co-Authored-By:` value is derived from the provider and the model its run launched with, `<model> <noreply@anthropic.com>`, `<noreply@openai.com>` or `<noreply@x.ai>`, on every role's clone, with no way to turn it off; a swarm.json still holding `co_author` is refused, and `init` drops it (`docs/swarm.md` sections 3 and 7.6).

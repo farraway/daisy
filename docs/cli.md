@@ -413,8 +413,8 @@ only the committing commands take it (`daisy help <command>` says `It
 commits`); any other refuses it as an unknown flag. It exists because an
 agent's environment assignment (`DAISY_CO_AUTHOR=… daisy log …`) does not
 match a permission rule for the bare `daisy` command, where the flag
-does. The swarm's commits read neither: a member's carry its persona's
-`co_author` (docs/swarm.md) *(Step 10 of the plan for the inbox requests
+does. The swarm's commits read neither: a member's carry its model's
+co-author (docs/swarm.md section 7.6, The trailer) *(Step 10 of the plan for the inbox requests
 F27–F35; the flag, Step 7 of the plan remediating the 2026-11-15 design
 review, P19)*.
 
@@ -1026,16 +1026,20 @@ answered the file's kind, else `$GITEA_API_URL` or
 `$GITHUB_API_URL` by kind when set and not empty, else detected from the
 origin for that kind); 4 the swarm repository, which holds the issues; 5 the token variable
 (the file's while the kind is the file's, else by kind); 6 the base
-branch; 7–26 per role (owner, architect, worker, adversary, sympathetic)
+branch; 7–21 per role (owner, architect, worker, adversary, sympathetic)
 its provider (`anthropic`, `openai` or `xai`; a role moved to another
 provider takes that provider's model as its default, and a provider no
 `keys` entry names gets its default credential: `openai` a login slot,
 `xai` its API key; `keys` itself is not asked, and a file's form, an
 API key or a login slot for either, is kept: docs/swarm.md sections 8
 and 11), model (every role names
-one: no `-`), effort and co-author (the `Co-Authored-By:` value,
-`<model> <noreply@anthropic.com>`, `<noreply@openai.com>` or
-`<noreply@x.ai>` by default, `-` for none: no trailer); 27 each repository's image; 28 max
+one: no `-`) and effort; 22–26 none, the co-author questions retired
+(Step CA of the plan implementing the 2026-11-19 swarm roadmap: a run's
+`Co-Authored-By:` value is its model's, `<model> <noreply@anthropic.com>`,
+`<noreply@openai.com>` or `<noreply@x.ai>`, never asked or declared;
+a `swarm.json` still holding `co_author` is refused by every verb but
+`init`, which drops it and writes the rest back; docs/swarm.md sections
+3 and 7.6); 27 each repository's image; 28 max
 members; 29 max rounds (5 since docs/swarm.md revision 5, built at
 Step 4 of the swarm build); 30 the timeout; 31
 the interval; 32 the resources (paths in the swarm repository, or
