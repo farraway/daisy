@@ -733,3 +733,52 @@ func TestSwarmConnectThroughGitea(t *testing.T) {
 		t.Errorf("usage: exit %d %q %q", code, out, errs)
 	}
 }
+
+// DAISY_FORGE names a file holding a fake forge, the test seam the
+// acceptance suite reaches the forge's verbs through (section 10, The
+// fake forge's file): `swarm status` reads it under the swarm's token,
+// `swarm triage` writes it under the maintainer's, the file holding the
+// write after the run, and no request reaches a forge.
+func TestSwarmVerbsOpenTheFileForge(t *testing.T) {
+	m := newMachine(t)
+	g := newGitea(t)
+	clone := m.swarm(t, g)
+	file := filepath.Join(t.TempDir(), "forge.json")
+	writeFile(t, file, `{"repo": "acme/swarm-app", "names": ["app"], "labels": ["swarm:proposal-posted", "swarm:proposal-accepted"],
+  "items": [{"repo": "swarm-app", "n": 1, "title": "A job", "author": "swarm-bot", "open": true, "labels": ["swarm:proposal-posted"]}],
+  "next": {"swarm-app": 1},
+  "tokens": {"tok-123": {"login": "swarm-bot"}, "jane-456": {"login": "jane"}}}
+`)
+	m.vars["DAISY_FORGE"] = file
+	o := m.swarmOps(clone, nil)
+	o.HTTPFn = func() ops.Doer { return refusing{} }
+	o.ExecFn = func(dir, name string, args ...string) ([]byte, []byte, error) {
+		if name == "docker" {
+			return nil, nil, nil
+		}
+		return ops.Real().Exec(dir, name, args...)
+	}
+	code, out, errs := runWith(o, "swarm", "status")
+	if code != 0 || errs != "" || !strings.HasPrefix(out, "Swarm: acme/swarm-app on forge.example.net (gitea), repositories app\n") || !strings.Contains(out, "\n  proposal-posted            1  #1\n") {
+		t.Fatalf("status: exit %d\n%s\n%s", code, out, errs)
+	}
+	code, out, errs = runWith(o, "swarm", "triage", "1")
+	if code != 0 || errs != "" || out != "Maintainer jane on acme/swarm-app\n#1 swarm:proposal-posted → swarm:proposal-accepted\n" {
+		t.Fatalf("triage: exit %d\n%s\n%s", code, out, errs)
+	}
+	var saved struct {
+		Items []struct {
+			Labels []string
+			Events []struct{ Actor, What string }
+		}
+	}
+	data, _ := os.ReadFile(file)
+	if err := json.Unmarshal(data, &saved); err != nil || len(saved.Items) != 1 || !slices.Equal(saved.Items[0].Labels, []string{"swarm:proposal-accepted"}) ||
+		len(saved.Items[0].Events) != 2 || saved.Items[0].Events[0].Actor != "jane" {
+		t.Errorf("the file after triage: %v\n%s", err, data)
+	}
+	writeFile(t, file, strings.Replace(string(data), `"jane-456"`, `"other-789"`, 1))
+	if code, _, errs := runWith(o, "swarm", "triage", "1"); code != 1 || !strings.Contains(errs, "401") {
+		t.Errorf("a token the file does not name: exit %d %q", code, errs)
+	}
+}

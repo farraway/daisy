@@ -52,6 +52,7 @@ type fakeState struct {
 	statuses    map[[2]string][]Check  // by {repository, commit}: each context's latest, in the order first reported
 	requires    map[[2]string]bool     // by {repository, branch}: its protection requires checks
 	contexts    map[[2]string][]string // by {repository, branch}: the contexts its protection requires
+	tokens      map[string]Account     // each token the forge takes and its account (AddToken), for OpenFile
 }
 
 // HeldRepository is forge.repo as the Fake holds it: private, the account
@@ -128,7 +129,7 @@ func (f *Fake) Clone(o ops.Ops) *Fake {
 	c := fakeState{o: o, owner: f.owner, repo: f.repo, names: slices.Clone(f.names), labels: slices.Clone(f.labels), refuse: f.refuse, refuseFiles: f.refuseFiles,
 		items: make(map[Ref]*item, len(f.items)), next: maps.Clone(f.next), reviewID: f.reviewID, commentID: f.commentID,
 		milestones: slices.Clone(f.milestones), refuseMs: f.refuseMs, sshURL: f.sshURL, refuseRepo: f.refuseRepo,
-		statuses: make(map[[2]string][]Check, len(f.statuses)), requires: maps.Clone(f.requires), contexts: maps.Clone(f.contexts)}
+		statuses: make(map[[2]string][]Check, len(f.statuses)), requires: maps.Clone(f.requires), contexts: maps.Clone(f.contexts), tokens: maps.Clone(f.tokens)}
 	for at, it := range f.items {
 		cp := *it
 		cp.labels, cp.comments, cp.events, cp.files = slices.Clone(it.labels), slices.Clone(it.comments), slices.Clone(it.events), slices.Clone(it.files)
@@ -148,6 +149,17 @@ func (f *Fake) Clone(o ops.Ops) *Fake {
 		c.statuses[k] = slices.Clone(v)
 	}
 	return &Fake{&c, f.account}
+}
+
+// AddToken makes the forge take token as account's, as OpenFile opens it
+// under a token.
+func (f *Fake) AddToken(token string, account Account) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.tokens == nil {
+		f.tokens = map[string]Account{}
+	}
+	f.tokens[token] = account
 }
 
 // Events is the timeline of the issue or pull request at, oldest first.

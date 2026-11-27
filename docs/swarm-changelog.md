@@ -1748,3 +1748,9 @@ they write.
   loads it back (`LoadFake`, given the account and the clock). Section
   10, `forge.Fake`. Decision
   [177](swarm/decisions/0177-the-fake-forges-file.md).
+- 2026-11-27, Step T8b of the plan implementing the 2026-11-19 swarm
+  roadmap: `DAISY_FORGE=<file>`, a test seam, makes every swarm verb
+  open the fake forge the file holds (`forge.OpenFile`, the file's
+  `tokens` giving each token's account) in place of the declared one.
+  Section 10, The fake forge's file; `docs/cli.md`'s Environment read.
+  Decision [177](swarm/decisions/0177-the-fake-forges-file.md).

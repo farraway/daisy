@@ -617,6 +617,7 @@ func TestFakeSavesAndLoads(t *testing.T) {
 	f.RefuseMilestones()
 	f.RefuseRepository()
 	f.RefuseAttachments()
+	f.AddToken("tok-123", Account{Login: "swarm-bot"})
 	// Every field is set, so a field the file drops cannot pass unseen.
 	unset := func(name string, vs ...reflect.Value) {
 		for i := range vs[0].NumField() {

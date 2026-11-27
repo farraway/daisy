@@ -303,7 +303,12 @@ init`, `apply`, `status`; the maintainer's verbs only to compare it), each
 used `keys` `env` (`apply`) and `DAISY_MAINTAINER_TOKEN` (the maintainer's
 verbs, `apply` only to run a comment command through them, and `swarm
 init` for its writes on the swarm repository), each when
-the swarm's secrets file, `<state>/env` (docs/swarm.md section 3), does not assign it. Nothing else: `optimize` holds no API key and reads no
+the swarm's secrets file, `<state>/env` (docs/swarm.md section 3), does not assign it; and
+`DAISY_FORGE`, a test seam: set, it names a file holding a fake forge,
+which every swarm verb opens in place of the forge `swarm.json`
+declares, under the token the verb reads, so that no request reaches a
+forge; `swarm.json` never names it, and unset, nothing changes
+(docs/swarm.md section 10, The fake forge's file). Nothing else: `optimize` holds no API key and reads no
 model or editor setting (Step 23, D12).
 
 **Colour.** Daisy writes ANSI colour only to a stream that is a

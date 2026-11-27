@@ -7882,6 +7882,29 @@ and each `Refuse…` called. A field it does not name loads as the Fake's
 zero, so a test may write a small file by hand. Decision
 [177](swarm/decisions/0177-the-fake-forges-file.md).
 
+### The fake forge's file
+
+A test seam, never a forge a swarm runs on: `DAISY_FORGE=<file>` in the
+environment of a run of the binary makes every swarm verb open
+`forge.OpenFile(o, <file>, token)` in place of the adapter `forge.kind`
+names, so that the acceptance suite (`tests/cases/`) drives `swarm init`,
+`swarm status` and the maintainer's verbs with no forge, and no request
+reaches one. `swarm.json` never names it; unset or empty, the verbs open
+the declared forge as before. The file is the Fake's (`Save`, above),
+with `tokens`, each token the forge takes and its account
+(`AddToken(token, account)` on a Fake): each call loads the file, makes
+the call on its Fake under the account the verb's token is, and saves
+the file after a write, so the swarm's token and the maintainer's, and
+one run and the next, see one forge. A token the file does not name is
+the forge's `401` at every call. The file names the forge's
+`forge.repo` and declared repositories itself; `swarm.json`'s are not
+compared with them.
+
+**As built (Step T8b of the plan implementing the 2026-11-19 swarm
+roadmap).** `openForge` (`internal/swarm/cmd`) reads `DAISY_FORGE`
+through `Ops.Getenv`; `forge.FileForge` implements `Adapter` over the
+file. Decision [177](swarm/decisions/0177-the-fake-forges-file.md).
+
 ## 11. The verbs
 
 **Finding the swarm.** Every verb runs in a clone of the swarm

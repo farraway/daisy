@@ -15,19 +15,20 @@ import (
 // one by hand. The account and the clock are not the forge's: LoadFake is
 // given them.
 type fakeFile struct {
-	Repo        string           `json:"repo"` // forge.repo, `<owner>/<repo>`
-	Names       []string         `json:"names"`
-	Labels      []string         `json:"labels"`
-	Items       []fileItem       `json:"items"`
-	Next        map[string]int   `json:"next"`
-	ReviewID    int64            `json:"review_id"`
-	CommentID   int64            `json:"comment_id"`
-	Milestones  []string         `json:"milestones"`
-	Repository  *HeldRepository  `json:"repository"`
-	SSHURL      string           `json:"ssh_url"`
-	Statuses    []fileStatus     `json:"statuses"`
-	Protections []fileProtection `json:"protections"`
-	Refuse      fileRefusals     `json:"refuse"`
+	Repo        string             `json:"repo"` // forge.repo, `<owner>/<repo>`
+	Names       []string           `json:"names"`
+	Labels      []string           `json:"labels"`
+	Items       []fileItem         `json:"items"`
+	Next        map[string]int     `json:"next"`
+	ReviewID    int64              `json:"review_id"`
+	CommentID   int64              `json:"comment_id"`
+	Milestones  []string           `json:"milestones"`
+	Repository  *HeldRepository    `json:"repository"`
+	SSHURL      string             `json:"ssh_url"`
+	Statuses    []fileStatus       `json:"statuses"`
+	Protections []fileProtection   `json:"protections"`
+	Refuse      fileRefusals       `json:"refuse"`
+	Tokens      map[string]Account `json:"tokens"` // each token the forge takes, and its account
 }
 
 // fileRefusals is each Refuse… helper called.
@@ -113,7 +114,7 @@ func LoadFake(o ops.Ops, path string, account Account) (*Fake, error) {
 // file is the state as fakeFile holds it; the caller holds f.mu.
 func (f *Fake) file() fakeFile {
 	file := fakeFile{Repo: f.owner + "/" + f.repo, Names: f.names, Labels: f.labels, Next: f.next, ReviewID: f.reviewID, CommentID: f.commentID,
-		Repository: f.repository, SSHURL: f.sshURL, Refuse: fileRefusals{f.refuse, f.refuseFiles, f.refuseMs, f.refuseRepo}}
+		Repository: f.repository, SSHURL: f.sshURL, Refuse: fileRefusals{f.refuse, f.refuseFiles, f.refuseMs, f.refuseRepo}, Tokens: f.tokens}
 	for _, m := range f.milestones {
 		file.Milestones = append(file.Milestones, m.title)
 	}
@@ -146,6 +147,7 @@ func (f *Fake) file() fakeFile {
 func (f *Fake) load(file fakeFile) {
 	f.labels, f.reviewID, f.commentID, f.repository, f.sshURL = file.Labels, file.ReviewID, file.CommentID, file.Repository, file.SSHURL
 	f.refuse, f.refuseFiles, f.refuseMs, f.refuseRepo = file.Refuse.Labels, file.Refuse.Attachments, file.Refuse.Milestones, file.Refuse.Repository
+	f.tokens = file.Tokens
 	if file.Next != nil {
 		f.next = file.Next
 	}
