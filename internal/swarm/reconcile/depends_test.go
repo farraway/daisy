@@ -1,6 +1,8 @@
 package reconcile
 
 import (
+	"errors"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -131,5 +133,35 @@ func TestTaskTextsAskForDependencies(t *testing.T) {
 	for _, c := range []struct{ role, label string }{{"owner", "swarm:proposal-posted"}, {"worker", "swarm:plan-1-accepted"}, {"adversary", "swarm:review-0-ready"}} {
 		sys, _ := Render(memoryJob(t, c.role, c.label))
 		has(t, c.role, taskOf(t, sys), nil, "Depends:", "Touches:", "Safe with:")
+	}
+}
+
+// failingForge answers Issue by number: #1 is not held (404), #2 is open,
+// #3 is closed, any other fails with a server error.
+type failingForge struct{ forge.Adapter }
+
+func (failingForge) Issue(n int) (forge.Issue, error) {
+	switch n {
+	case 1:
+		return forge.Issue{}, fmt.Errorf("forge: GET issue %d: 404: %w", n, forge.ErrNotFound)
+	case 2:
+		return forge.Issue{Number: n, Open: true}, nil
+	case 3:
+		return forge.Issue{Number: n}, nil
+	}
+	return forge.Issue{}, errors.New("forge: GET issue: 500 server error")
+}
+
+// openIssues sorts the forge's answers (section 12.1, rules 1 and 5): a
+// 404 names an issue the forge does not hold, which holds nothing; any
+// other failure is the pass's error, the hold kept, never read as a
+// missing issue.
+func TestOpenIssues(t *testing.T) {
+	open, missing, err := openIssues(failingForge{}, []int{1, 2, 3})
+	if err != nil || !slices.Equal(open, []int{2}) || !slices.Equal(missing, []int{1}) {
+		t.Errorf("openIssues(1, 2, 3) = open %v, missing %v, %v; want [2], [1], nil", open, missing, err)
+	}
+	if open, missing, err = openIssues(failingForge{}, []int{2, 4}); err == nil {
+		t.Errorf("a server error was not the pass's error: open %v, missing %v", open, missing)
 	}
 }
