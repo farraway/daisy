@@ -35,8 +35,8 @@ const gridappDraft = `services:
   redis:
     image: redis:7
 x-daisy-env:
-  GRIDAPP_TEST_MONGO_URI: mongodb://mongo:27017
-  GRIDAPP_TEST_REDIS_URI: redis://redis:6379
+  APP_TEST_MONGO_URI: mongodb://mongo:27017
+  APP_TEST_REDIS_URI: redis://redis:6379
 `
 
 // The subset Daisy runs (section 3, repos[].services): the request's file
@@ -53,7 +53,7 @@ func TestParseServices(t *testing.T) {
 			{Name: "mongo", Image: "mongo:7", Tmpfs: []string{"/data/db"}, Ulimits: []string{"nofile=64000:64000"}},
 			{Name: "redis", Image: "redis:7"},
 		},
-		Env: gridappWant.Env,
+		Env: []string{"APP_TEST_MONGO_URI=mongodb://mongo:27017", "APP_TEST_REDIS_URI=redis://redis:6379"},
 	}
 	got, err = ParseServices([]byte(gridappDraft))
 	if err != nil || !reflect.DeepEqual(got, draft) {

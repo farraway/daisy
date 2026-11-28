@@ -1841,3 +1841,9 @@ they write.
   `failed: <word> off its stage`, the issue blocked, where the text was
   posted as the role's own. Sections 5 (T17), 7.5 and 7.7. Decision
   [185](swarm/decisions/0185-a-word-off-its-stage-fails.md).
+- 2026-11-27, Step F7 of the plan implementing the 2026-11-19 swarm
+  roadmap (Open Question 39), wording only: the worked example's product
+  is the placeholder `app`, its test variables `APP_TEST_MONGO_URI` and
+  `APP_TEST_REDIS_URI` and its product base `daisy-member-app:1`, where
+  a live product was named. Sections 3, 7.6, 7.9 and 13. Wording; no
+  decision.

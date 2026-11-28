@@ -18,8 +18,8 @@ const ciReferenceJob = `
       redis:
         image: redis:7
     env:                                     # repos[].env and x-daisy-env
-      GRIDAPP_TEST_MONGO_URI: mongodb://mongo:27017
-      GRIDAPP_TEST_REDIS_URI: redis://redis:6379
+      APP_TEST_MONGO_URI: mongodb://mongo:27017
+      APP_TEST_REDIS_URI: redis://redis:6379
     steps:
       - uses: actions/checkout@v4
       - name: build the declared image
@@ -28,7 +28,7 @@ const ciReferenceJob = `
         run: |
           tag=daisy-ci-<name>:${{ github.run_id }}-${{ github.run_attempt }}
           printf 'FROM %s\nCOPY --chown=<uid>:<gid> . /job/work/<name>\n' "$tag" | docker build -t "$tag-src" -f - .
-          docker run --rm --user <uid>:<gid> --network container:"$HOSTNAME" --env GRIDAPP_TEST_MONGO_URI --env GRIDAPP_TEST_REDIS_URI --workdir /job/work/<name> "$tag-src" make check test test-integration
+          docker run --rm --user <uid>:<gid> --network container:"$HOSTNAME" --env APP_TEST_MONGO_URI --env APP_TEST_REDIS_URI --workdir /job/work/<name> "$tag-src" make check test test-integration
       - name: remove the tags
         if: always()
         run: docker image rm daisy-ci-<name>:${{ github.run_id }}-${{ github.run_attempt }} daisy-ci-<name>:${{ github.run_id }}-${{ github.run_attempt }}-src || true
@@ -82,7 +82,7 @@ func swap(t *testing.T, s, old, new string) string {
 
 const (
 	ciBuild = "-f <dockerfile> ."
-	ciRun   = `docker run --rm --user <uid>:<gid> --network container:"$HOSTNAME" --env GRIDAPP_TEST_MONGO_URI --env GRIDAPP_TEST_REDIS_URI --workdir /job/work/<name> "$tag-src" make check test test-integration`
+	ciRun   = `docker run --rm --user <uid>:<gid> --network container:"$HOSTNAME" --env APP_TEST_MONGO_URI --env APP_TEST_REDIS_URI --workdir /job/work/<name> "$tag-src" make check test test-integration`
 	ciLast  = "      - name: remove the tags\n"
 )
 
@@ -96,8 +96,8 @@ var ciNoImageJob = []string{
 	"the check runs make test-integration, which no workflow step runs in the declared image",
 	"service mongo is in the test services file and in no workflow job",
 	"service redis is in the test services file and in no workflow job",
-	"variable GRIDAPP_TEST_MONGO_URI is set by no job that runs the check's targets",
-	"variable GRIDAPP_TEST_REDIS_URI is set by no job that runs the check's targets",
+	"variable APP_TEST_MONGO_URI is set by no job that runs the check's targets",
+	"variable APP_TEST_REDIS_URI is set by no job that runs the check's targets",
 }
 
 // Section 7.9's job in reference form, as written there, beside its draft
@@ -146,39 +146,39 @@ func TestCompareCIMutations(t *testing.T) {
 		{"--network another", ciRepo(), func(t *testing.T) string { return swap(t, ref, `--network container:"$HOSTNAME"`, "--network host") },
 			[]string{ciPath + ", job check: the check's container is not on the job's network, so it reaches none of its services"}},
 		{"--network=container:", ciRepo(), func(t *testing.T) string { return swap(t, ref, `--network container:`, "--network=container:") }, nil},
-		{"a missing --env", ciRepo(), func(t *testing.T) string { return swap(t, ref, " --env GRIDAPP_TEST_REDIS_URI", "") },
-			[]string{"variable GRIDAPP_TEST_REDIS_URI is set by no job that runs the check's targets"}},
+		{"a missing --env", ciRepo(), func(t *testing.T) string { return swap(t, ref, " --env APP_TEST_REDIS_URI", "") },
+			[]string{"variable APP_TEST_REDIS_URI is set by no job that runs the check's targets"}},
 		{"--env passed through, the job's env lacking it", ciRepo(), func(t *testing.T) string {
-			return swap(t, ref, "      GRIDAPP_TEST_REDIS_URI: redis://redis:6379\n", "")
-		}, []string{"variable GRIDAPP_TEST_REDIS_URI is set by no job that runs the check's targets"}},
+			return swap(t, ref, "      APP_TEST_REDIS_URI: redis://redis:6379\n", "")
+		}, []string{"variable APP_TEST_REDIS_URI is set by no job that runs the check's targets"}},
 		{"no dockerfile", repo(func(r *Repo) { r.Dockerfile = nil }), func(*testing.T) string { return ref }, []string{
 			"no dockerfile is declared, so CI does not build the check's image",
 			"the check runs make check, which no workflow step runs",
 			"the check runs make test, which no workflow step runs",
 			"the check runs make test-integration, which no workflow step runs",
-			"variable GRIDAPP_TEST_MONGO_URI is set by no job that runs the check's targets",
-			"variable GRIDAPP_TEST_REDIS_URI is set by no job that runs the check's targets",
+			"variable APP_TEST_MONGO_URI is set by no job that runs the check's targets",
+			"variable APP_TEST_REDIS_URI is set by no job that runs the check's targets",
 		}},
 		{"a value given otherwise", ciRepo(), func(t *testing.T) string {
-			return swap(t, ref, "--env GRIDAPP_TEST_REDIS_URI ", "--env GRIDAPP_TEST_REDIS_URI=redis://localhost:6379 ")
-		}, []string{"variable GRIDAPP_TEST_REDIS_URI is redis://redis:6379 in the declaration, redis://localhost:6379 in " + ciPath + ", job check"}},
+			return swap(t, ref, "--env APP_TEST_REDIS_URI ", "--env APP_TEST_REDIS_URI=redis://localhost:6379 ")
+		}, []string{"variable APP_TEST_REDIS_URI is redis://redis:6379 in the declaration, redis://localhost:6379 in " + ciPath + ", job check"}},
 		{"the job's env otherwise", ciRepo(), func(t *testing.T) string {
-			return swap(t, ref, "GRIDAPP_TEST_REDIS_URI: redis://redis:6379", "GRIDAPP_TEST_REDIS_URI: redis://redis:6380")
-		}, []string{"variable GRIDAPP_TEST_REDIS_URI is redis://redis:6379 in the declaration, redis://redis:6380 in " + ciPath + ", job check"}},
+			return swap(t, ref, "APP_TEST_REDIS_URI: redis://redis:6379", "APP_TEST_REDIS_URI: redis://redis:6380")
+		}, []string{"variable APP_TEST_REDIS_URI is redis://redis:6379 in the declaration, redis://redis:6380 in " + ciPath + ", job check"}},
 		{"the step's env over the job's", ciRepo(), func(t *testing.T) string {
-			j := swap(t, ref, "GRIDAPP_TEST_REDIS_URI: redis://redis:6379", "GRIDAPP_TEST_REDIS_URI: redis://redis:6380")
-			return swap(t, j, "      - name: run the check in it\n", "      - name: run the check in it\n        env:\n          GRIDAPP_TEST_REDIS_URI: redis://redis:6379\n")
+			j := swap(t, ref, "APP_TEST_REDIS_URI: redis://redis:6379", "APP_TEST_REDIS_URI: redis://redis:6380")
+			return swap(t, j, "      - name: run the check in it\n", "      - name: run the check in it\n        env:\n          APP_TEST_REDIS_URI: redis://redis:6379\n")
 		}, nil},
 		{"-e, --env= and -e<VAR>=<value>", ciRepo(), func(t *testing.T) string {
-			return swap(t, ref, "--env GRIDAPP_TEST_MONGO_URI --env GRIDAPP_TEST_REDIS_URI", "-e GRIDAPP_TEST_MONGO_URI=mongodb://mongo:27017 --env=GRIDAPP_TEST_REDIS_URI")
+			return swap(t, ref, "--env APP_TEST_MONGO_URI --env APP_TEST_REDIS_URI", "-e APP_TEST_MONGO_URI=mongodb://mongo:27017 --env=APP_TEST_REDIS_URI")
 		}, nil},
 		{"the last --env given", ciRepo(), func(t *testing.T) string {
-			return swap(t, ref, "--env GRIDAPP_TEST_REDIS_URI ", "--env GRIDAPP_TEST_REDIS_URI -eGRIDAPP_TEST_REDIS_URI=redis://other ")
-		}, []string{"variable GRIDAPP_TEST_REDIS_URI is redis://redis:6379 in the declaration, redis://other in " + ciPath + ", job check"}},
+			return swap(t, ref, "--env APP_TEST_REDIS_URI ", "--env APP_TEST_REDIS_URI -eAPP_TEST_REDIS_URI=redis://other ")
+		}, []string{"variable APP_TEST_REDIS_URI is redis://redis:6379 in the declaration, redis://other in " + ciPath + ", job check"}},
 		{"--env-file is not read", ciRepo(), func(t *testing.T) string {
-			return swap(t, ref, "--env GRIDAPP_TEST_REDIS_URI ", "--env-file GRIDAPP_TEST_REDIS_URI ")
-		}, []string{"variable GRIDAPP_TEST_REDIS_URI is set by no job that runs the check's targets"}},
-		{"a variable of env", repo(func(r *Repo) { r.Env = map[string]string{"APP_MODE": "test", "GRIDAPP_TEST_REDIS_URI": "ignored"} }),
+			return swap(t, ref, "--env APP_TEST_REDIS_URI ", "--env-file APP_TEST_REDIS_URI ")
+		}, []string{"variable APP_TEST_REDIS_URI is set by no job that runs the check's targets"}},
+		{"a variable of env", repo(func(r *Repo) { r.Env = map[string]string{"APP_MODE": "test", "APP_TEST_REDIS_URI": "ignored"} }),
 			func(*testing.T) string { return ref },
 			[]string{"variable APP_MODE is set by no job that runs the check's targets"}},
 		{"a service's image", ciRepo(), func(t *testing.T) string { return swap(t, ref, "image: redis:7", "image: redis:6") },
@@ -212,12 +212,12 @@ func TestCompareCIMutations(t *testing.T) {
 	}
 	// The workflow's env, under the job's: the job's given; without the
 	// job's, the workflow's.
-	wenv := "on: pull_request\nenv:\n  GRIDAPP_TEST_REDIS_URI: redis://redis:6380\njobs:"
+	wenv := "on: pull_request\nenv:\n  APP_TEST_REDIS_URI: redis://redis:6380\njobs:"
 	if got := CompareCI("gitea", ciRepo(), ciDraft(t), []Workflow{{Path: ciPath, Data: []byte(wenv + ref)}}); got != nil {
 		t.Errorf("the workflow's env under the job's: got %q, want none", got)
 	}
-	noJobs := swap(t, ref, "      GRIDAPP_TEST_REDIS_URI: redis://redis:6379\n", "")
-	want := ciLines_("variable GRIDAPP_TEST_REDIS_URI is redis://redis:6379 in the declaration, redis://redis:6380 in " + ciPath + ", job check")
+	noJobs := swap(t, ref, "      APP_TEST_REDIS_URI: redis://redis:6379\n", "")
+	want := ciLines_("variable APP_TEST_REDIS_URI is redis://redis:6379 in the declaration, redis://redis:6380 in " + ciPath + ", job check")
 	if got := CompareCI("gitea", ciRepo(), ciDraft(t), []Workflow{{Path: ciPath, Data: []byte(wenv + noJobs)}}); !slices.Equal(got, want) {
 		t.Errorf("the workflow's env: got %q, want %q", got, want)
 	}
@@ -250,14 +250,14 @@ func TestCompareCICommands(t *testing.T) {
 		{"a quoted && is a word", build, "        run: echo \"docker build -f <dockerfile> . && x\"\n", ciNoImageJob},
 		{"sh -c is a command's words, not read", build, "        run: sh -c \"docker build -f <dockerfile> .\"\n", ciNoImageJob},
 		{"short flags together", "--rm --user <uid>:<gid>", "--rm -itu <uid>:<gid>", nil},
-		{"a line ending \\ joined to the next", ciRun, "docker run --rm \\\n            --user <uid>:<gid> --network container:\"$HOSTNAME\" \\\n            --env GRIDAPP_TEST_MONGO_URI --env GRIDAPP_TEST_REDIS_URI \\\n            --workdir /job/work/<name> \"$tag-src\" \\\n            make check test test-integration", nil},
-		{"docker container run, quoted words", ciRun, `docker container run --rm "--network" 'container:'"$HOSTNAME" --env GRIDAPP_TEST_MONGO_URI --env GRIDAPP_TEST_REDIS_URI "$tag-src" 'make' "check" test test-integration`, nil},
+		{"a line ending \\ joined to the next", ciRun, "docker run --rm \\\n            --user <uid>:<gid> --network container:\"$HOSTNAME\" \\\n            --env APP_TEST_MONGO_URI --env APP_TEST_REDIS_URI \\\n            --workdir /job/work/<name> \"$tag-src\" \\\n            make check test test-integration", nil},
+		{"docker container run, quoted words", ciRun, `docker container run --rm "--network" 'container:'"$HOSTNAME" --env APP_TEST_MONGO_URI --env APP_TEST_REDIS_URI "$tag-src" 'make' "check" test test-integration`, nil},
 		{"a target in quotes after make's own options", ciRun, ciRun + ` -C sub -j4 V=1 "$X" 'lint'`, []string{ciPath + ", job check runs make lint, which the check does not"}},
 		{"-C's argument is no target", ciRun, ciRun + " -C build", nil},
 		{"a comment", ciRun, ciRun + " # make build", nil},
-		{"make in an option's value is not the command", ciRun, `docker run --rm --name make --network container:"$HOSTNAME" --env GRIDAPP_TEST_MONGO_URI --env GRIDAPP_TEST_REDIS_URI "$tag-src" make check test test-integration`, nil},
-		{"--env after the image is the command's", ciRun, `docker run --rm --network container:"$HOSTNAME" --env GRIDAPP_TEST_MONGO_URI "$tag-src" env --env GRIDAPP_TEST_REDIS_URI make check test test-integration`,
-			[]string{"variable GRIDAPP_TEST_REDIS_URI is set by no job that runs the check's targets"}},
+		{"make in an option's value is not the command", ciRun, `docker run --rm --name make --network container:"$HOSTNAME" --env APP_TEST_MONGO_URI --env APP_TEST_REDIS_URI "$tag-src" make check test test-integration`, nil},
+		{"--env after the image is the command's", ciRun, `docker run --rm --network container:"$HOSTNAME" --env APP_TEST_MONGO_URI "$tag-src" env --env APP_TEST_REDIS_URI make check test test-integration`,
+			[]string{"variable APP_TEST_REDIS_URI is set by no job that runs the check's targets"}},
 		{"cut at |", ciRun, "cat x | " + ciRun + " | tee log", nil},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -387,8 +387,8 @@ func TestCompareCICheckNotMake(t *testing.T) {
 	r.Check = []string{"sh", "-c", "go test ./..."}
 	want := ciLines_(
 		"no workflow step runs sh -c 'go test ./...'",
-		"variable GRIDAPP_TEST_MONGO_URI is set by no job that runs the check's targets",
-		"variable GRIDAPP_TEST_REDIS_URI is set by no job that runs the check's targets",
+		"variable APP_TEST_MONGO_URI is set by no job that runs the check's targets",
+		"variable APP_TEST_REDIS_URI is set by no job that runs the check's targets",
 	)
 	if got := CompareCI("gitea", r, ciDraft(t), ciWorkflow(job)); !slices.Equal(got, want) {
 		t.Errorf("not run: got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
