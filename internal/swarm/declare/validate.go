@@ -180,6 +180,16 @@ func checkClone(o ops.Ops, p Place, f Forge) *Error {
 	return nil
 }
 
+// CheckClone is checkClone as an error: `swarm prompt build`, which
+// reads the forge fields alone (ValidateForge), checks the clone it pushes
+// from with it (section 11, prompt build).
+func CheckClone(o ops.Ops, p Place, f Forge) error {
+	if err := checkClone(o, p, f); err != nil {
+		return err
+	}
+	return nil
+}
+
 // IsCloneOf: dir is the top of a clone whose origin is forge.repo on the
 // forge's host, the clone init adopts (section 11, init).
 func IsCloneOf(o ops.Ops, dir string, f Forge) bool {

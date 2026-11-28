@@ -1448,14 +1448,23 @@ func promptBuild(c *Context) error {
 	if err == nil {
 		err = declare.ValidateForge(cfg.Forge)
 	}
+	if err == nil {
+		err = declare.CheckClone(o, at, cfg.Forge)
+	}
 	if err != nil {
 		return fmt.Errorf("Error: %v", err)
 	}
-	out, errb, err := o.Exec(c.Env.Root, "git", "rev-parse", "--short=7", "HEAD")
+	// The defaults are the binary's, so the commit it was built from names
+	// them, " (modified)" kept as `daisy version` prints it.
+	build, err := env.Commit(o)
 	if err != nil {
-		return fmt.Errorf("Error: swarm: cannot read the commit of the Daisy root %s: %s", c.Env.Root, gitErr(err, errb))
+		return err
 	}
-	rootSHA := strings.TrimSpace(string(out))
+	rev, modified, _ := strings.Cut(build, " ")
+	built := rev[:min(7, len(rev))]
+	if modified != "" {
+		built += " " + modified
+	}
 
 	var actions []promptAction
 	var roles []string // the roles whose prompt is written
@@ -1521,7 +1530,7 @@ func promptBuild(c *Context) error {
 		}
 	}
 
-	message := "swarm: prompts rebuilt from the root at " + rootSHA + " (" + strings.Join(roles, ", ") + ")"
+	message := "swarm: prompts rebuilt from the root at " + built + " (" + strings.Join(roles, ", ") + ")"
 	switch {
 	case dry && len(roles) > 0:
 		fmt.Fprintf(c.Stdout, "  Dry run: nothing written; would commit %q and push it\n", message)

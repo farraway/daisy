@@ -12,6 +12,7 @@ import (
 	"daisy/internal/feedback"
 	"daisy/internal/ops"
 	"daisy/internal/prompt"
+	"daisy/internal/verb"
 )
 
 // Optimize prints the briefing the agent proposes from: each target with
@@ -382,7 +383,7 @@ func OptimizeApply(c *Context) error {
 	}
 
 	message := fmt.Sprintf("Optimize %s (%s)", t.Label, ch.mode)
-	hash, committed, err := repo.Commit(c.Ops, message, coAuthor(c))
+	hash, committed, err := repo.Commit(c.Ops, message, verb.CoAuthor(c))
 	if err != nil {
 		return fmt.Errorf("%v\nThe files are written but NOT committed; run: daisy commit \"%s\"", err, message)
 	}

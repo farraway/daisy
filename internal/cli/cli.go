@@ -80,7 +80,7 @@ func parse(c *verb.Context, cmd Command, rest []string) error {
 	}
 	c.Flags, c.Values, c.Args, c.EmptyWords = flags, values, positional, empty
 	for _, v := range values {
-		if v.Flag == commands.CoAuthorFlag && !commands.IsCoAuthor(v.Value) {
+		if v.Flag == verb.CoAuthorFlag && !verb.IsCoAuthor(v.Value) {
 			return fmt.Errorf("%s %q is not one line 'Name <email>'", v.Flag, v.Value)
 		}
 	}
@@ -331,7 +331,7 @@ func usageError(stderr io.Writer, cmd Command, msg string) int {
 func writeUsage(w io.Writer, cmd Command) {
 	fmt.Fprintf(w, "Usage: daisy %s\n\n%s\n\nExample: daisy %s\n", cmd.Usage, cmd.description(), cmd.Example)
 	if cmd.Commits {
-		fmt.Fprintf(w, "\nIt commits: %s \"Name <email>\", leading its arguments, ends the commit with that Co-Authored-By trailer; without the flag, DAISY_CO_AUTHOR's.\n", commands.CoAuthorFlag)
+		fmt.Fprintf(w, "\nIt commits: %s \"Name <email>\", leading its arguments, ends the commit with that Co-Authored-By trailer; without the flag, DAISY_CO_AUTHOR's.\n", verb.CoAuthorFlag)
 	}
 }
 

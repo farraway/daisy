@@ -208,7 +208,7 @@ func createHome(c *Context, m env.Env, name, template, path, gitName, gitEmail s
 			}
 		}
 	}
-	if _, committed, err := (gitx.Repo{Dir: real}).Commit(c.Ops, "New home: "+name, coAuthor(c)); err != nil {
+	if _, committed, err := (gitx.Repo{Dir: real}).Commit(c.Ops, "New home: "+name, verb.CoAuthor(c)); err != nil {
 		return "", fmt.Errorf("Error: the first commit in %s failed: %v", real, strings.TrimPrefix(err.Error(), "Error: "))
 	} else if !committed {
 		return "", fmt.Errorf("Error: the template left nothing to commit in %s", real)

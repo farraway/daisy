@@ -1771,3 +1771,12 @@ they write.
   where it named "each slice's acceptance claims", which the Task text
   puts in the plan-wide `## Test Plan`; its sha256 appended to the table
   of earlier defaults. Sections 4 and 11. Wording; no decision.
+- 2026-11-27, Step S2 of the plan implementing the 2026-11-19 swarm
+  roadmap (L328, L375): `swarm prompt build`'s commit names the commit
+  the binary was built from, ` (modified)` kept as `daisy version`
+  prints it, not `$DAISY_ROOT`'s `HEAD`, and its clone's origin is
+  checked before any write; `swarm init` and `swarm prompt build` take
+  `--co-author` (else `DAISY_CO_AUTHOR`) and end their commit with that
+  trailer. Section 11's `init` and `prompt build`; `docs/cli.md`'s
+  Commits. Decision
+  [178](swarm/decisions/0178-the-maintainers-swarm-commits.md).

@@ -110,6 +110,8 @@ as rule 3 says, or as a push the maintainer asks for (rule 4).
    is `Claude <model> <noreply@anthropic.com>`; `daisy log` refuses
    another shape, and a flag after the message is refused, exit 2):
    `daisy log --co-author "<your line>" "swarm: merged lib#5, closed #10"`.
+   `daisy swarm prompt build`, which commits too, takes the same flag
+   before its own: `daisy swarm prompt build --co-author "<your line>"`.
    Outside a Daisy workspace `daisy log` refuses
    (`Not in a Daisy workspace`): say so once and go on.
 

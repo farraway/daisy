@@ -11,6 +11,7 @@ import (
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/reconcile"
+	"daisy/internal/verb"
 )
 
 // initMessage is the message of init's one commit in the swarm
@@ -258,7 +259,11 @@ func commitPaths(c *Context, at declare.Place, repo, branch, message string, wri
 			return fail(err)
 		}
 	}
-	if _, err := run(append([]string{"commit", "--quiet", "-m", message, "--"}, written...)...); err != nil {
+	commit := []string{"commit", "--quiet", "-m", message}
+	if co := verb.CoAuthor(c); co != "" {
+		commit = append(commit, "--trailer", "Co-Authored-By: "+co)
+	}
+	if _, err := run(append(append(commit, "--"), written...)...); err != nil {
 		return fail(err)
 	}
 	sha, err := run("rev-parse", "--short=7", "HEAD")

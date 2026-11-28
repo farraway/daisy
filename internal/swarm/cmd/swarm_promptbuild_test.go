@@ -3,11 +3,14 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"runtime/debug"
+	"strconv"
 	"strings"
 	"testing"
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
+	"daisy/internal/verb"
 )
 
 // ownerAtB3ec5eb is the owner's first default, as
@@ -33,13 +36,27 @@ doing next, in what order, and why.
 - You do not plan the implementation; the architect does.
 `
 
-// promptBuild is `swarm prompt build` with flags, found from s.cwd, its
-// root s.root.
-func (s *swarmWS) promptBuild(flags ...string) error {
+// promptBuild is `swarm prompt build` with args, its flags and
+// --co-author's value, found from s.cwd, its root s.root, the binary
+// built from buildRev (modified when s.modified).
+func (s *swarmWS) promptBuild(args ...string) error {
 	s.stdout.Reset()
 	s.stderr.Reset()
-	o := &ops.Fake{GetenvFn: func(k string) string { return s.vars[k] }, ExecFn: s.exec}
-	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr, Flags: flags}
+	var flags []string
+	var values []Value
+	for i := 0; i < len(args); i++ {
+		if args[i] == verb.CoAuthorFlag && i+1 < len(args) {
+			values = append(values, Value{Flag: args[i], Value: args[i+1]})
+			i++
+			continue
+		}
+		flags = append(flags, args[i])
+	}
+	build := func() (*debug.BuildInfo, bool) {
+		return &debug.BuildInfo{Settings: []debug.BuildSetting{{Key: "vcs.revision", Value: buildRev}, {Key: "vcs.modified", Value: strconv.FormatBool(s.modified)}}}, true
+	}
+	o := &ops.Fake{GetenvFn: func(k string) string { return s.vars[k] }, ExecFn: s.exec, BuildInfoFn: build}
+	c := &Context{Ops: o, Stdin: strings.NewReader(""), Stdout: &s.stdout, Stderr: &s.stderr, Flags: flags, Values: values}
 	return s.at(c, false, promptBuild)
 }
 
@@ -64,7 +81,11 @@ func TestSwarmPromptBuild(t *testing.T) {
 	git(t, s.root, "init", "-q")
 	git(t, s.root, "add", "-A")
 	git(t, s.root, "commit", "-q", "-m", "the root")
-	root := gitIn(t, s.root, "rev-parse", "--short=7", "HEAD")
+	// The message names the binary's build, not the root's HEAD.
+	root := buildRev[:7]
+	if gitIn(t, s.root, "rev-parse", "--short=7", "HEAD") == root {
+		t.Fatal("the root's HEAD is the build's")
+	}
 
 	edited := declare.DefaultPrompts["worker"] + "- Be brief.\n"
 	s.write("prompts/owner.md", ownerAtB3ec5eb)
@@ -123,15 +144,19 @@ func TestSwarmPromptBuild(t *testing.T) {
 		t.Errorf("dry run:\n%s\nwant:\n%s", s.stdout.String(), want)
 	}
 
-	// --force: the edited prompt rewritten, committed and pushed.
-	if err := s.promptBuild("--force"); err != nil {
+	// --force: the edited prompt rewritten, committed and pushed, from a
+	// build of a tree with changes, its message saying so as `daisy
+	// version` does, its co-author's trailer ending it.
+	s.modified = true
+	if err := s.promptBuild("--co-author", "Claude <noreply@example.net>", "--force"); err != nil {
 		t.Errorf("--force: %v", err)
 	}
+	s.modified = false
 	if !strings.Contains(s.stdout.String(), "✓ Rebuilt prompts/worker.md (edited, overwritten by --force), its diff from the default:\n"+diff) ||
 		s.read("prompts/worker.md") != declare.DefaultPrompts["worker"] {
 		t.Errorf("--force:\n%s\nworker.md:\n%s", s.stdout.String(), s.read("prompts/worker.md"))
 	}
-	if got := gitIn(t, up, "log", "-1", "--format=%s", "main"); got != "swarm: prompts rebuilt from the root at "+root+" (worker)" {
+	if got := gitIn(t, up, "log", "-1", "--format=%s|%(trailers:key=Co-Authored-By,valueonly)", "main"); got != "swarm: prompts rebuilt from the root at "+root+" (modified) (worker)|Claude <noreply@example.net>" {
 		t.Errorf("pushed: %s", got)
 	}
 
@@ -146,6 +171,18 @@ func TestSwarmPromptBuild(t *testing.T) {
 	}
 	if want += "  Nothing to commit\n"; s.stdout.String() != want || gitIn(t, up, "rev-parse", "main") != head {
 		t.Errorf("current:\n%s", s.stdout.String())
+	}
+
+	// A clone whose origin is another repository's: refused before any
+	// write, the earlier default kept, nothing committed or pushed.
+	s.write("prompts/owner.md", ownerAtB3ec5eb)
+	git(t, s.ws, "remote", "set-url", "origin", "git@forge.example.net:acme/other.git")
+	err = s.promptBuild()
+	if want := `Error: swarm.json: forge.repo: the clone's origin is "git@forge.example.net:acme/other.git", not acme/swarm-app on forge.example.net`; err == nil || err.Error() != want {
+		t.Errorf("another repository's clone: %v", err)
+	}
+	if s.stdout.String() != "" || s.read("prompts/owner.md") != ownerAtB3ec5eb || gitIn(t, up, "rev-parse", "main") != head || gitIn(t, s.ws, "rev-parse", "HEAD") != head {
+		t.Errorf("another repository's clone written:\n%s", s.stdout.String())
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	"daisy/internal/swarm/declare"
 	"daisy/internal/swarm/forge"
 	"daisy/internal/swarm/reconcile"
+	"daisy/internal/verb"
 )
 
 // swarmWS is a swarm of the product app and its library lib, of the
@@ -48,7 +49,12 @@ type swarmWS struct {
 	loginFails        bool
 	maintainer        forge.Account // the account jane-456 is, jane's when zero
 	repoReadFails     bool          // the maintainer's read of the swarm repository refused
+	modified          bool          // the binary's build is of a tree with changes (vcs.modified)
 }
+
+// buildRev is the commit the binary swarmWS's verbs run as was built
+// from, its vcs.revision: no commit of any test's root.
+const buildRev = "b1d0c0ffee5eed0b1d0c0ffee5eed0b1d0c0ffe"
 
 func newSwarmWS(t *testing.T) *swarmWS {
 	t.Helper()
@@ -255,7 +261,7 @@ func (s *swarmWS) run(args ...string) error {
 	var flags []string
 	var values []Value
 	for i := 0; i < len(args); i++ {
-		if args[i] == "--api" && i+1 < len(args) {
+		if (args[i] == "--api" || args[i] == verb.CoAuthorFlag) && i+1 < len(args) {
 			values = append(values, Value{Flag: args[i], Value: args[i+1]})
 			i++
 			continue

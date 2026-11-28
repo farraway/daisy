@@ -1,6 +1,7 @@
 # The swarm verbs that need no forge, run through the binary in a scratch
-# swarm repository's clone (swarm.json and .git at its top, no origin, so
-# nothing can reach a network): `swarm pause` writes <state>/paused under
+# swarm repository's clone (swarm.json and .git at its top, its origin
+# forge.repo's on a host no network reaches, which no verb here fetches
+# from or pushes to): `swarm pause` writes <state>/paused under
 # $DAISY_LOCAL/swarm/<forge-host>/<owner>/<repo>, a second pause says
 # since when, `swarm list --json` reports the swarm paused and here,
 # `swarm resume` removes the file and list reports it unpaused;
@@ -10,6 +11,7 @@
 clone="$FIXTURE_WORKSPACE/swarm-widget"
 mkdir -p "$clone"
 git -C "$clone" init -q
+git -C "$clone" remote add origin git@forge.example.invalid:acme/swarm-widget.git
 cat > "$clone/swarm.json" <<'EOF'
 {
   "forge": {"kind": "gitea", "api": "https://forge.example.invalid/api/v1", "repo": "acme/swarm-widget", "token_env": "GITEA_TOKEN", "commit_email": "swarm@example.invalid"},

@@ -32,7 +32,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	if _, err := os.Stat(s.ws); err == nil {
 		t.Fatal("a clone before init")
 	}
-	if err := s.run("--defaults"); err != nil {
+	if err := s.run("--defaults", "--co-author", "Claude <noreply@example.net>"); err != nil {
 		t.Fatalf("%v\n%s", err, s.stderr.String())
 	}
 	up := s.upstreams[swarmURL]
@@ -69,7 +69,7 @@ func TestSwarmInitCreatesTheSwarmRepository(t *testing.T) {
 	if got := gitIn(t, s.ws, "config", "remote.origin.url"); got != swarmURL {
 		t.Errorf("the clone's origin: %s", got)
 	}
-	if got := gitIn(t, up, "log", "--format=%an <%ae> %s", "main"); got != "Jane <jane@example.net> swarm: written by init" {
+	if got := gitIn(t, up, "log", "--format=%an <%ae> %s|%(trailers:key=Co-Authored-By,valueonly)", "main"); got != "Jane <jane@example.net> swarm: written by init|Claude <noreply@example.net>" {
 		t.Errorf("pushed: %s", got)
 	}
 	files := "swarm.json"

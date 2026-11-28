@@ -302,7 +302,7 @@ func repointEdits(fsys ops.FS, home, name string) ([]edit, error) {
 
 // commitPlan commits the home once and prints what `daisy commit` prints.
 func commitPlan(c *Context, repo gitx.Repo, message string) error {
-	hash, committed, err := repo.Commit(c.Ops, message, coAuthor(c))
+	hash, committed, err := repo.Commit(c.Ops, message, verb.CoAuthor(c))
 	if err != nil {
 		return fmt.Errorf("%v\nThe plan files are written but NOT committed; run: daisy commit \"%s\"", err, message)
 	}

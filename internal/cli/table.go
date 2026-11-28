@@ -93,8 +93,8 @@ var table = []Command{
 	{Group: "Prompts and skills", Name: "optimize apply", Usage: "optimize apply --workflow <n> (--rules|--rewrite) <file> [--yes]", Help: "Apply a proposal: diff, approve, archive, commit", Example: "optimize apply --workflow plan --rules proposal.md", Workspace: true, Flags: []string{"--yes"}, Values: []string{"--workflow", "-w", "--rules", "--rewrite"}, Commits: true, Run: commands.OptimizeApply},
 	{Group: "Prompts and skills", Name: "eval", Usage: "eval [--record] [<case> [<result>]]", Help: "List, display, or record an eval case result", Example: "eval --record new-day pass", Workspace: true, Flags: []string{"--record"}, Max: 3, Run: commands.Eval, Health: commands.EvalHealth},
 
-	{Group: "Swarm", Name: "swarm init", Usage: "swarm init [--defaults] [--api <url>]", Help: "Declare the swarm: swarm.json, prompts, labels", Example: "swarm init --defaults", Flags: []string{"--defaults"}, Values: []string{"--api"}, Run: swarmcmd.SwarmInit},
-	{Group: "Swarm", Name: "swarm prompt build", Usage: "swarm prompt build [--force] [--dry-run]", Help: "Reseed prompts/ from this Daisy's defaults; an edited prompt is kept", Example: "swarm prompt build --dry-run", Flags: []string{"--force", "--dry-run"}, Run: swarmcmd.SwarmPromptBuild},
+	{Group: "Swarm", Name: "swarm init", Usage: "swarm init [--defaults] [--api <url>]", Help: "Declare the swarm: swarm.json, prompts, labels", Example: "swarm init --defaults", Flags: []string{"--defaults"}, Values: []string{"--api"}, Commits: true, Run: swarmcmd.SwarmInit},
+	{Group: "Swarm", Name: "swarm prompt build", Usage: "swarm prompt build [--force] [--dry-run]", Help: "Reseed prompts/ from this Daisy's defaults; an edited prompt is kept", Example: "swarm prompt build --dry-run", Flags: []string{"--force", "--dry-run"}, Commits: true, Run: swarmcmd.SwarmPromptBuild},
 	{Group: "Swarm", Name: "swarm apply", Usage: "swarm apply [--once]", Help: "Reconcile the forge: launch members, post their output, move labels", Example: "swarm apply --once", Flags: []string{"--once"}, Run: swarmcmd.SwarmApply},
 	{Group: "Swarm", Name: "swarm metrics", Usage: "swarm metrics --backfill | --reprice [--dry-run] | --scorecard [--since <time>] [--until <time>]", Help: "Write each collected run's missing metrics row (--backfill), supersede a row its output now reads otherwise (--reprice), or print a scorecard row per merged slice (--scorecard)", Example: "swarm metrics --scorecard --since 2026-11-12T00:00:00Z", Flags: []string{"--backfill", "--reprice", "--dry-run", "--scorecard"}, Values: []string{"--since", "--until"}, Run: swarmcmd.SwarmMetrics},
 	{Group: "Swarm", Name: "swarm status", Usage: "swarm status [--json] [--waiting]", Help: "Stages, gates, running members, what waits for you (--waiting: that alone)", Example: "swarm status --waiting", ReadOnly: true, Flags: []string{verb.JSONFlag, swarmcmd.WaitingFlag}, Run: swarmcmd.SwarmStatus},
@@ -171,7 +171,7 @@ func (c Command) description() string {
 // commits.
 func (c Command) values() []string {
 	if c.Commits {
-		return append(slices.Clone(c.Values), commands.CoAuthorFlag)
+		return append(slices.Clone(c.Values), verb.CoAuthorFlag)
 	}
 	return c.Values
 }

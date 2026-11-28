@@ -7,15 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"daisy/internal/cli"
-	"daisy/internal/commands"
 	"daisy/internal/env"
 	"daisy/internal/ops"
+	"daisy/internal/verb"
 )
 
 const todayBasic = `### 2026-07-28 Tuesday
@@ -327,6 +328,26 @@ func TestEveryCommittingCommandCarriesTheTrailer(t *testing.T) {
 			m := newMachine(t)
 			return run{o: m.planOps(m.ws), stdin: "Jane Doe\njane@example.net\n", repo: filepath.Join(m.config, "fresh")}
 		}, []string{"fresh", "<repo>"}},
+		"swarm init": {func(t *testing.T) run {
+			m := newMachine(t)
+			g := newGitea(t)
+			g.accounts["token jane-456"] = "jane"
+			dir, _ := m.swarmFolder(t)
+			return run{o: m.swarmOps(dir, g), repo: filepath.Join(dir, "swarm-app")}
+		}, []string{"--defaults"}},
+		"swarm prompt build": {func(t *testing.T) run {
+			m := newMachine(t)
+			g := newGitea(t)
+			clone := m.swarm(t, g)
+			m.gitIn(t, clone, "rm", "-q", "prompts/sympathetic.md")
+			m.gitIn(t, clone, "commit", "-q", "-m", "no sympathetic prompt")
+			m.gitIn(t, clone, "push", "-q", "origin", "HEAD:main")
+			o := m.swarmOps(clone, g)
+			o.BuildInfoFn = func() (*debug.BuildInfo, bool) {
+				return &debug.BuildInfo{Settings: []debug.BuildSetting{{Key: "vcs.revision", Value: "0123456789abcdef0123456789abcdef01234567"}}}, true
+			}
+			return run{o: o, repo: clone}
+		}, nil},
 		"optimize apply": {func(t *testing.T) run {
 			l := newLoop(t)
 			return run{o: l.ops(), repo: l.home}
@@ -340,7 +361,7 @@ func TestEveryCommittingCommandCarriesTheTrailer(t *testing.T) {
 			continue
 		}
 		name := strings.TrimSpace(row[1])
-		if flags, _, _ := cli.Flags(name); !slices.Contains(flags, commands.CoAuthorFlag) {
+		if flags, _, _ := cli.Flags(name); !slices.Contains(flags, verb.CoAuthorFlag) {
 			continue
 		}
 		seen[name] = true
@@ -351,7 +372,7 @@ func TestEveryCommittingCommandCarriesTheTrailer(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			r := tc.setup(t)
-			args := append(strings.Fields(name), commands.CoAuthorFlag, who)
+			args := append(strings.Fields(name), verb.CoAuthorFlag, who)
 			for _, a := range tc.args {
 				switch a {
 				case "<repo>":

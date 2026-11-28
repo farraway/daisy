@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"regexp"
 
 	"daisy/internal/gitx"
 	"daisy/internal/health"
@@ -40,34 +39,8 @@ func commitHome(c *Context, message string) (hash string, committed bool, err er
 	if err != nil {
 		return "", false, err
 	}
-	return repo.Commit(c.Ops, message, coAuthor(c))
+	return repo.Commit(c.Ops, message, verb.CoAuthor(c))
 }
-
-// CoAuthorFlag is the value flag every command that commits takes.
-const CoAuthorFlag = "--co-author"
-
-// coAuthor is the Co-Authored-By trailer every commit Daisy makes ends
-// with: the command's --co-author, which an agent running Daisy gives
-// its model's line, `Name <email>` (the cli refuses another shape), or
-// else DAISY_CO_AUTHOR; with neither, none (a person at the keyboard).
-// An environment value of another shape is warned about and left out,
-// and the commit goes on.
-func coAuthor(c *Context) string {
-	if v, ok := c.Value(CoAuthorFlag); ok {
-		return v
-	}
-	v := c.Ops.Getenv("DAISY_CO_AUTHOR")
-	if v == "" || IsCoAuthor(v) {
-		return v
-	}
-	fmt.Fprintf(c.Stderr, "⚠ DAISY_CO_AUTHOR %q is not one line 'Name <email>': committing without Co-Authored-By\n", v)
-	return ""
-}
-
-// IsCoAuthor is whether v is one line `Name <email>`.
-func IsCoAuthor(v string) bool { return coAuthorLine.MatchString(v) }
-
-var coAuthorLine = regexp.MustCompile(`^[^<>\s][^<>\r\n]* <[^<>\s]+@[^<>\s]+>$`)
 
 // homeRepo is where the home commits; a command that writes before it
 // commits checks it first.

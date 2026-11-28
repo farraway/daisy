@@ -233,7 +233,8 @@ func TestHelpForACommand(t *testing.T) {
 	// A command of three words, and the noun phrase before its verb, as the
 	// dispatcher matches them: the longest name, else the commands under
 	// the longest phrase.
-	build := "Usage: daisy swarm prompt build [--force] [--dry-run]\n\nReseed prompts/ from this Daisy's defaults; an edited prompt is kept\n\nExample: daisy swarm prompt build --dry-run\n"
+	build := "Usage: daisy swarm prompt build [--force] [--dry-run]\n\nReseed prompts/ from this Daisy's defaults; an edited prompt is kept\n\nExample: daisy swarm prompt build --dry-run\n\n" +
+		"It commits: --co-author \"Name <email>\", leading its arguments, ends the commit with that Co-Authored-By trailer; without the flag, DAISY_CO_AUTHOR's.\n"
 	for _, args := range [][]string{{"help", "swarm", "prompt", "build"}, {"help", "swarm", "prompt"}, {"swarm", "prompt", "--help"}, {"swarm", "prompt", "build", "-h"}} {
 		code, out, errs := m.run(t, m.ws, args...)
 		if code != 0 || errs != "" || out != build {
