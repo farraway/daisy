@@ -856,7 +856,8 @@ func TestSwarmMetricsRepriceReviewEffect(t *testing.T) {
 // The owner's batch reads the line under its BLOCKED:, after any Met:
 // lines; a run that did not stop records none, though its text holds
 // the lines (an architect's QUESTION: on a stage that reads no question
-// is its plan). Every Task text asks for the line.
+// is the failure off its stage, whose cause is empty: Step S12). Every
+// Task text asks for the line.
 func TestSwarmApplyRecordsTheStopsCause(t *testing.T) {
 	t.Parallel()
 	warning := `⚠ #1 worker run 1: cause left empty: "whim" is not one of plan, prerequisite, main-red, environment, forge-fact, kept-work, ruling, scope, capacity` + "\n"
@@ -899,14 +900,14 @@ func TestSwarmApplyRecordsTheStopsCause(t *testing.T) {
 			}
 		})
 	}
-	t.Run("a QUESTION: line no stage reads as a stop", func(t *testing.T) {
+	t.Run("a QUESTION: line off its stage is no member's stop", func(t *testing.T) {
 		a := newApplyWS(t)
 		home := a.metricsHome()
 		a.forge.CreateIssue("Drift check", "Check the drift.", []string{"swarm:proposal-accepted"})
 		a.runner.Script(1, "architect", runner.Canned{Out: "QUESTION: is this a plan?\nCause: plan\n\n" + oneSlice})
 		a.pass()
 		got := rows(t, home)
-		if len(got) != 1 || got[0]["outcome"] != "posted" || got[0]["cause"] != "" {
+		if len(got) != 1 || got[0]["outcome"] != "failed" || got[0]["cause"] != "" {
 			t.Errorf("rows %v", got)
 		}
 	})

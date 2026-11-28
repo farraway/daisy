@@ -1834,3 +1834,10 @@ they write.
   to `swarm.json` or `prompts/` (`--json`'s `root_change`). Section 11's
   connect; `prompts/swarm-connect.md` rule 2; `docs/cli.md`'s. Decision
   [184](swarm/decisions/0184-the-connects-metrics-cut-at-a-newer-root.md).
+- 2026-11-27, Step S12 of the plan implementing the 2026-11-19 swarm
+  roadmap (L358, the maintainer's question 8 and Open Question 1): an
+  architect's `STANDS:` off `swarm:plan-1-accepted`, or an architect's
+  or owner's `QUESTION:` outside a question run, fails the run, T17
+  `failed: <word> off its stage`, the issue blocked, where the text was
+  posted as the role's own. Sections 5 (T17), 7.5 and 7.7. Decision
+  [185](swarm/decisions/0185-a-word-off-its-stage-fails.md).

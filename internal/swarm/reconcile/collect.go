@@ -149,6 +149,9 @@ func (s *Swarm) collect(r Run) error {
 	text := string(out)
 	first, _, _ := strings.Cut(text, "\n")
 	_, questionRun := Has(lines, "question")
+	if word := offStage(r.Role, first, c.label, questionRun); word != "" {
+		return c.fail(word + " off its stage")
+	}
 	kind := textKind(r.Role, text, questionRun)
 	// An architect's text that is a plan comes with its builder plan, or
 	// none, read and checked as out.md is (section 7.8, The builder plan).
@@ -279,6 +282,23 @@ func textKind(role, text string, questionRun bool) int {
 		return textAnswer
 	}
 	return textOwn
+}
+
+// offStage is the word role's output opens with, first its first line,
+// when the stage it ran on (label, a question run or not) does not offer
+// it (section 7.5): the architect's STANDS: but on plan-1-accepted, and
+// the architect's or the owner's QUESTION: but on a question run; "" for
+// any other output.
+func offStage(role, first, label string, questionRun bool) string {
+	first = strings.TrimRight(first, "\r ")
+	switch {
+	case questionRun:
+	case (role == "architect" || role == "owner") && strings.HasPrefix(first, question):
+		return question
+	case role == "architect" && strings.HasPrefix(first, stands) && label != forge.PlanAccepted:
+		return stands
+	}
+	return ""
 }
 
 // isPlan: role's text, on a question run or not, is an architect's plan,

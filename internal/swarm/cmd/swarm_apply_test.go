@@ -438,6 +438,41 @@ func TestSwarmApplyArchitectFailures(t *testing.T) {
 	}
 }
 
+// A word a run's output opens with, read off the stage that offers it
+// (section 7.5), is the failure *off its stage* (7.7, T17): the
+// architect's STANDS: anywhere but plan-1-accepted, and the architect's
+// or the owner's QUESTION: outside a question run. Nothing is posted but
+// the note, the issue is blocked at its stage, and no plan is written.
+func TestSwarmApplyWordOffItsStageFails(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, label, role, out, word string
+	}{
+		{"the architect's STANDS: before a plan", forge.ProposalAccepted, "architect", "STANDS: the issue is clear.\n", "STANDS:"},
+		{"the architect's QUESTION: off a question run", forge.ProposalAccepted, "architect", "QUESTION: which repository?\n", "QUESTION:"},
+		{"the owner's QUESTION: off a question run", forge.ProposalPosted, "owner", "QUESTION: is this worth doing?\n", "QUESTION:"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newApplyWS(t)
+			a.forge.CreateIssue("Drift check", "Check the drift.", []string{tc.label})
+			a.runner.Script(1, tc.role, runner.Canned{Out: tc.out})
+			if err := a.apply(a.forge, "--once"); err != nil {
+				t.Fatal(err)
+			}
+			note := fmt.Sprintf("<!-- daisy-swarm role=reconciler run=1 -->\n**reconciler:**\n\n%s run 1 failed: %s off its stage (at %s). Remove swarm:blocked to resume.\n\ncc @jane", tc.role, tc.word, tc.label)
+			if is, bodies := a.issue(1), a.bodies(1); !reflect.DeepEqual(labels(is), []string{tc.label, forge.Blocked, forge.Gated}) || !reflect.DeepEqual(bodies, []string{note}) {
+				t.Errorf("labels %q, comments %q", is.Labels, bodies)
+			}
+			if r := a.result("1-" + tc.role + "-1"); !strings.Contains(r, "\nfailed: "+tc.word+" off its stage\n") || !strings.HasSuffix(r, "outcome failed\ncollected\n") {
+				t.Errorf("result:\n%s", r)
+			}
+			if _, err := os.Stat(a.state("workspaces/1/plan.md")); err == nil {
+				t.Error("a plan written")
+			}
+		})
+	}
+}
+
 // The start: --once only, a slot without its login, the lock held, a
 // prompt with an empty heading field refused as a fault.
 func TestSwarmApplyStart(t *testing.T) {
