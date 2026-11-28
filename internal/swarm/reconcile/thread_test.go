@@ -33,7 +33,7 @@ func TestSwarmsReadsTheMarkerAndTheAuthor(t *testing.T) {
 		{"text before the marker", "swarm-bot", "x <!-- daisy-swarm role=owner run=1 -->", Mark{}, false},
 		{"the marker on the second line", "swarm-bot", "hello\n<!-- daisy-swarm role=owner run=1 -->", Mark{}, false},
 	} {
-		got, ok := Swarms(Entry{tc.author, tc.body, time.Time{}}, "swarm-bot")
+		got, ok := Swarms(Entry{tc.author, tc.body, time.Time{}, true}, "swarm-bot")
 		if got != tc.want || ok != tc.ok {
 			t.Errorf("%s: Swarms = %+v, %v", tc.name, got, ok)
 		}
@@ -57,16 +57,16 @@ func TestNewestCounted(t *testing.T) {
 		t.Errorf("newest = %+v: the untrusted entries are passed over", e)
 	}
 	// The same time: the thread's order decides.
-	tie := []Entry{{"jane", "a", t0}, {"swarm-bot", "<!-- daisy-swarm role=architect run=1 -->", t0}}
+	tie := []Entry{{"jane", "a", t0, true}, {"swarm-bot", "<!-- daisy-swarm role=architect run=1 -->", t0, true}}
 	if e, _ := NewestCounted(tie, "swarm-bot", nil); e.Author != "swarm-bot" {
 		t.Errorf("tie: %+v", e)
 	}
-	if _, ok := NewestCounted([]Entry{{"mallory", "x", t0}}, "swarm-bot", trusted); ok {
+	if _, ok := NewestCounted([]Entry{{"mallory", "x", t0, true}}, "swarm-bot", trusted); ok {
 		t.Error("nothing counted, yet an entry")
 	}
 	// A gate note is never counted (section 6), though its author is the
 	// swarm's and trusted; the same first line by a maintainer is counted.
-	gate := []Entry{{"swarm-bot", marker("owner", 1) + "a job", t0}, {"swarm-bot", gateMarker + "\n**reconciler:** gated", t0.Add(time.Hour)}}
+	gate := []Entry{{"swarm-bot", marker("owner", 1) + "a job", t0, true}, {"swarm-bot", gateMarker + "\n**reconciler:** gated", t0.Add(time.Hour), true}}
 	if e, _ := NewestCounted(gate, "swarm-bot", trusted); e.Body != gate[0].Body {
 		t.Errorf("the gate note counted: %+v", e)
 	}
@@ -76,7 +76,7 @@ func TestNewestCounted(t *testing.T) {
 	}
 	// Nor is an auto note, nor a maintainer's class statement, which is
 	// Daisy's to read; a comment that only mentions a class is counted.
-	quiet := []Entry{{"swarm-bot", marker("owner", 1) + "a job", t0}, {"swarm-bot", autoMarker + "\n**reconciler:** auto at proposal-posted: x", t0.Add(time.Hour)}, {"jane", " Class: routine\n", t0.Add(2 * time.Hour)}}
+	quiet := []Entry{{"swarm-bot", marker("owner", 1) + "a job", t0, true}, {"swarm-bot", autoMarker + "\n**reconciler:** auto at proposal-posted: x", t0.Add(time.Hour), true}, {"jane", " Class: routine\n", t0.Add(2 * time.Hour), true}}
 	if e, _ := NewestCounted(quiet, "swarm-bot", trusted); e.Body != quiet[0].Body {
 		t.Errorf("an auto note or a class statement counted: %+v", e)
 	}
@@ -86,9 +86,37 @@ func TestNewestCounted(t *testing.T) {
 	}
 	// Nor a maintainer's command, whatever else it says, nor its answer
 	// (section 6, The comment commands).
-	commands := []Entry{{"swarm-bot", marker("owner", 1) + "a job", t0}, {"jane", "Fine.\n/swarm triage", t0.Add(time.Hour)}, {"swarm-bot", "<!-- daisy-swarm role=reconciler kind=command of=7 -->\n**reconciler:**\n\n> /swarm triage\n\nDone:", t0.Add(2 * time.Hour)}}
+	commands := []Entry{{"swarm-bot", marker("owner", 1) + "a job", t0, true}, {"jane", "Fine.\n/swarm triage", t0.Add(time.Hour), true}, {"swarm-bot", "<!-- daisy-swarm role=reconciler kind=command of=7 -->\n**reconciler:**\n\n> /swarm triage\n\nDone:", t0.Add(2 * time.Hour), true}}
 	if e, _ := NewestCounted(commands, "swarm-bot", trusted); e.Body != commands[0].Body {
 		t.Errorf("a command or its answer counted: %+v", e)
+	}
+	// A review, a line comment or a body holding a command line is
+	// counted: commands are read from comments alone (section 6, The
+	// comment commands), so no command runs from these.
+	for _, e := range []Entry{
+		reviewEntry(forge.Review{Author: "jane", Body: "Fix it first.\n/swarm merge", Submitted: t0.Add(3 * time.Hour)}),
+		lineEntry(forge.ReviewComment{Author: "jane", Body: "/swarm approve", Created: t0.Add(3 * time.Hour)}),
+		bodyEntry(forge.Issue{Author: "jane", Body: "A job.\n/swarm triage", Created: t0.Add(3 * time.Hour)}),
+	} {
+		if got, _ := NewestCounted(append(slices.Clone(commands), e), "swarm-bot", trusted); got.Body != e.Body {
+			t.Errorf("%q not counted: %+v", e.Body, got)
+		}
+	}
+}
+
+// The maintainer's entries on a pull request leave out a command
+// comment, which is the maintainer's word to Daisy, and keep a review
+// and a line comment holding a command line, from which none is read.
+func TestCountLeavesCommandsOut(t *testing.T) {
+	t0 := time.Date(2026, 11, 6, 9, 0, 0, 0, time.UTC)
+	threads := []PullThread{{
+		Comments: []forge.Comment{{Author: "jane", Body: "/swarm approve", Created: t0}, {Author: "jane", Body: "Looks close.", Created: t0}},
+		Reviews:  []forge.Review{{Author: "jane", Body: "Fix it.\n/swarm merge", Submitted: t0}},
+		Lines:    []forge.ReviewComment{{Author: "jane", Body: "/swarm merge", Created: t0}},
+	}}
+	c := Count(forge.Issue{}, []forge.Pull{{Repo: "app", Number: 1}}, threads, "swarm-bot", []string{"jane", "swarm-bot"})
+	if len(c.Pulls) != 1 || c.Pulls[0].Maintainer != 3 {
+		t.Errorf("counts %+v: want 3 maintainer entries", c.Pulls)
 	}
 }
 

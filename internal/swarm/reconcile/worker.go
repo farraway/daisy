@@ -561,7 +561,7 @@ func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) err
 	answers := Reopenings(pullComments(comments), s.SwarmLogin, s.Cfg.Trusted)
 	posted := false
 	for _, rv := range reviews {
-		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
+		m, ok := Swarms(reviewEntry(rv), s.SwarmLogin)
 		posted = posted || ok && m.Role == c.r.Role && m.Run == c.r.K
 	}
 	l := c.runText(c.r.Role, out, "")
@@ -628,7 +628,7 @@ func (c *collection) review(out string, pull forge.Pull, pulls []forge.Pull) err
 	own := []string{marker("reconciler", c.r.K) + first, marker("reconciler", c.r.K) + second}
 	again := false
 	for _, cm := range c.is.Comments {
-		m, ok := Swarms(Entry{cm.Author, cm.Body, cm.Created}, s.SwarmLogin)
+		m, ok := Swarms(commentEntry(cm), s.SwarmLogin)
 		t := swarmText(cm.Body)
 		again = again || ok && m.Role == "reconciler" && strings.HasPrefix(t, "Review round ") &&
 			(strings.Contains(t, " on "+on+" requested changes") || strings.Contains(t, " on "+unlinked+" requested changes")) && !c.ownNote(cm, own[0]) && !c.ownNote(cm, own[1])
@@ -712,7 +712,7 @@ func pairComplete(verdicts map[string]string) bool {
 func Rounds(reviews []forge.Review, answers []time.Time, swarmLogin string, since time.Time, except string) int {
 	by := map[roundKey]map[string]string{}
 	for _, r := range reviews {
-		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
+		m, ok := Swarms(reviewEntry(r), swarmLogin)
 		key := keyOf(r, answers)
 		if !ok || !isReviewer(m.Role) || !since.IsZero() && !r.Submitted.After(since) || r.Commit == except && key.answers == len(answers) {
 			continue
@@ -764,7 +764,7 @@ func roundsOf(reviews []forge.Review, answers []time.Time, swarmLogin string) []
 	slices.SortStableFunc(sorted, func(a, b forge.Review) int { return a.Submitted.Compare(b.Submitted) })
 	var out []round
 	for _, r := range sorted {
-		if m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin); !ok || m.Role != "adversary" && m.Role != "sympathetic" {
+		if m, ok := Swarms(reviewEntry(r), swarmLogin); !ok || m.Role != "adversary" && m.Role != "sympathetic" {
 			continue
 		}
 		k := keyOf(r, answers)

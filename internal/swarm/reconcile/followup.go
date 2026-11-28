@@ -170,7 +170,7 @@ func followUpFindings(n int, outputs Outputs, reviews []forge.Review, answers []
 	}
 	for r, rd := range rounds {
 		for _, rv := range rd.reviews {
-			m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, swarmLogin)
+			m, _ := Swarms(reviewEntry(rv), swarmLogin)
 			text, err := j.text(m, swarmText(rv.Body))
 			if err != nil {
 				return nil, err

@@ -303,8 +303,8 @@ func (s *Swarm) recentlyClosed(active []brief.Brief) ([]Closed, error) {
 			return nil, err
 		}
 		for _, cm := range full.Comments {
-			e := Entry{cm.Author, cm.Body, cm.Created}
-			if _, swarm := Swarms(e, s.SwarmLogin); !swarm && slices.ContainsFunc(s.Cfg.Trusted, func(l string) bool { return strings.EqualFold(l, cm.Author) }) {
+			e := commentEntry(cm)
+			if _, swarm := Swarms(e, s.SwarmLogin); !swarm && !IsCommand(cm.Body) && slices.ContainsFunc(s.Cfg.Trusted, func(l string) bool { return strings.EqualFold(l, cm.Author) }) {
 				c.Last = cm.Body
 			}
 		}

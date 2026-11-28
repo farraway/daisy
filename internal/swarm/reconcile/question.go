@@ -53,7 +53,7 @@ func newestQuestion(is forge.Issue, swarmLogin string) (Entry, bool) {
 	var newest Entry
 	found := false
 	for _, c := range is.Comments {
-		e := Entry{c.Author, c.Body, c.Created}
+		e := commentEntry(c)
 		if _, ok := Swarms(e, swarmLogin); ok && strings.HasPrefix(swarmText(c.Body), question) && (!found || !c.Created.Before(newest.Created)) {
 			newest, found = e, true
 		}
@@ -81,7 +81,7 @@ func (j *Job) questions() string {
 	var out []string
 	asked := false
 	for _, c := range j.Issue.Comments {
-		e := Entry{c.Author, c.Body, c.Created}
+		e := commentEntry(c)
 		m, swarm := Swarms(e, j.SwarmLogin)
 		text := swarmText(c.Body)
 		qa := swarm && m.Kind == "" && (strings.HasPrefix(text, question) || strings.HasPrefix(text, answer))

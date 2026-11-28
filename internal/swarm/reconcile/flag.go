@@ -144,7 +144,7 @@ func (s *Swarm) regated(is forge.Issue, labels []string) bool {
 func newestGateNote(is forge.Issue, swarmLogin string) *forge.Comment {
 	var note *forge.Comment
 	for i, c := range is.Comments {
-		if m, ok := Swarms(Entry{c.Author, c.Body, c.Created}, swarmLogin); ok && m.Kind == "gate" && (note == nil || !c.Created.Before(note.Created)) {
+		if m, ok := Swarms(commentEntry(c), swarmLogin); ok && m.Kind == "gate" && (note == nil || !c.Created.Before(note.Created)) {
 			note = &is.Comments[i]
 		}
 	}

@@ -98,7 +98,7 @@ func (s *Swarm) replan(j *Job) ([]string, error) {
 // noted once (a cut note keeps its last sentence, section 7.5).
 func (s *Swarm) rulingsNoted(is forge.Issue, basis Entry) *forge.Comment {
 	for i, c := range is.Comments {
-		m, ok := Swarms(Entry{c.Author, c.Body, c.Created}, s.SwarmLogin)
+		m, ok := Swarms(commentEntry(c), s.SwarmLogin)
 		if ok && m.Role == "reconciler" && c.Created.After(basis.Created) && strings.HasPrefix(swarmText(c.Body), rulingsHead) && strings.HasSuffix(swarmText(c.Body), rulingsTail) {
 			return &is.Comments[i]
 		}

@@ -447,7 +447,7 @@ func quoted(paths []string) string {
 func SentBack(comments []forge.Comment, owner string, p forge.Pull, head, swarmLogin string, trusted []string) bool {
 	for _, c := range comments[:max(lastWord(comments, swarmLogin), 0)] {
 		text, ok := c.Body, false
-		if _, swarm := Swarms(Entry{c.Author, c.Body, c.Created}, swarmLogin); swarm {
+		if _, swarm := Swarms(commentEntry(c), swarmLogin); swarm {
 			text, ok = swarmText(c.Body), true
 		} else {
 			ok = slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, c.Author) })
@@ -581,7 +581,7 @@ func ApprovedHead(reviews []forge.Review, comments []forge.Comment, swarmLogin s
 	}
 	by := map[string]newest{}
 	for _, r := range reviews {
-		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
+		m, ok := Swarms(reviewEntry(r), swarmLogin)
 		if ok && (m.Role == "adversary" || m.Role == "sympathetic") && !r.Submitted.Before(by[m.Role].r.Submitted) {
 			by[m.Role] = newest{r, m.Run}
 		}

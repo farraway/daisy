@@ -446,10 +446,15 @@ func TestSwarmBatchReadsTheTerminals(t *testing.T) {
 		n, _ := a.forge.CreateIssue("Closed "+l, "", []string{l})
 		a.forge.CloseIssue(n)
 	}
+	// #2's last word is the maintainer's comment before her command,
+	// which is her word to Daisy, not the issue's (section 7.3).
+	a.forge.Say(a.ref(2), "jane", "Not this one.")
+	a.forge.Say(a.ref(2), "jane", "/swarm close")
 	a.release()
 	a.runner.Script(0, "owner", runner.Canned{Out: "## Next\nNext.\n"})
 	a.pass()
-	if p := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(p, "- #2 [rejected] Closed swarm:rejected: closed ") || !strings.Contains(p, "- #1 [done] Closed swarm:done: closed ") {
+	if p := a.file("0-owner-1", "io/prompt.md"); !strings.Contains(p, "- #2 [rejected] Closed swarm:rejected: closed ") || !strings.Contains(p, "- #1 [done] Closed swarm:done: closed ") ||
+		!strings.Contains(p, "  > Not this one.") || strings.Contains(p, "/swarm close") {
 		t.Errorf("batch prompt:\n%s", p)
 	}
 }

@@ -41,18 +41,33 @@ type Mark struct {
 	Of   int64
 }
 
-// Entry is one entry of a thread: its author's login, its text and when it
-// was created or submitted.
+// Entry is one entry of a thread: its author's login, its text, when it
+// was created or submitted, and whether it is a comment, an issue's or a
+// pull request's, the one kind of entry a command is read from (section
+// 6, The comment commands): a body, a review or a line comment is none.
 type Entry struct {
 	Author, Body string
 	Created      time.Time
+	Comment      bool
 }
+
+// commentEntry is comment c as an entry.
+func commentEntry(c forge.Comment) Entry { return Entry{c.Author, c.Body, c.Created, true} }
+
+// reviewEntry is review r as an entry.
+func reviewEntry(r forge.Review) Entry { return Entry{r.Author, r.Body, r.Submitted, false} }
+
+// lineEntry is line comment l as an entry.
+func lineEntry(l forge.ReviewComment) Entry { return Entry{l.Author, l.Body, l.Created, false} }
+
+// pullEntry is pull request p's body as an entry.
+func pullEntry(p forge.Pull) Entry { return Entry{p.Author, p.Body, p.Created, false} }
 
 // IssueThread is the issue body, then its comments, oldest first.
 func IssueThread(is forge.Issue) []Entry {
 	t := []Entry{bodyEntry(is)}
 	for _, c := range is.Comments {
-		t = append(t, Entry{c.Author, c.Body, c.Created})
+		t = append(t, commentEntry(c))
 	}
 	return t
 }
@@ -60,7 +75,9 @@ func IssueThread(is forge.Issue) []Entry {
 // bodyEntry is the issue body as an entry of its thread, as every reader
 // reads it: without the pulls block (withoutPulls), which no rule reads,
 // so it reads as its opener wrote it.
-func bodyEntry(is forge.Issue) Entry { return Entry{is.Author, withoutPulls(is.Body), is.Created} }
+func bodyEntry(is forge.Issue) Entry {
+	return Entry{is.Author, withoutPulls(is.Body), is.Created, false}
+}
 
 // Swarms is e's mark when e is the swarm's: its first line, without a
 // trailing `\r`, is the marker, and its author is the swarm's login.
@@ -109,13 +126,15 @@ func Marked(body string) (Mark, bool) {
 // are the maintainer's to read, no continuation, whose text its post's
 // run holds whole (section 7.5), no class statement (classComment), which
 // is Daisy's, no declaration (`Depends:`, section 12.1, rule 1), which is
-// Daisy's too, and no command (IsCommand), which is the maintainer's to
-// Daisy: none is a member's to answer.
+// Daisy's too, and no comment that is a command (IsCommand), which is
+// the maintainer's to Daisy: none is a member's to answer. A body, a
+// review or a line comment holding a command line is counted, since no
+// command is read from it.
 func counted(e Entry, swarmLogin string, trusted []string) bool {
 	if m, swarm := Swarms(e, swarmLogin); swarm {
 		return m.Kind == ""
 	}
-	return slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, e.Author) }) && classOfText(e.Body) == "" && !isDeclaration(e.Body) && !IsCommand(e.Body)
+	return slices.ContainsFunc(trusted, func(l string) bool { return strings.EqualFold(l, e.Author) }) && classOfText(e.Body) == "" && !isDeclaration(e.Body) && !(e.Comment && IsCommand(e.Body))
 }
 
 // NewestCounted is the thread's newest counted entry (counted); ok is
@@ -185,7 +204,7 @@ func standsOnHead(reopened []time.Time, t time.Time) bool {
 func pullComments(cs []forge.Comment) []Entry {
 	out := make([]Entry, len(cs))
 	for i, c := range cs {
-		out[i] = Entry{c.Author, c.Body, c.Created}
+		out[i] = commentEntry(c)
 	}
 	return out
 }

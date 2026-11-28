@@ -127,7 +127,7 @@ func Launch(t Turn, swarmLogin string, trusted []string) []string {
 func headVerdicts(reviews []forge.Review, head string, answers []time.Time, over time.Time, swarmLogin string) map[string]string {
 	verdicts, at := map[string]string{}, map[string]time.Time{}
 	for _, rv := range reviews {
-		m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, swarmLogin)
+		m, ok := Swarms(reviewEntry(rv), swarmLogin)
 		if ok && isReviewer(m.Role) && rv.Commit == head && standsOnHead(answers, rv.Submitted) && !rv.Submitted.Before(at[m.Role]) {
 			verdicts[m.Role], at[m.Role] = standing(m.Role, verdictOf(swarmText(rv.Body)), rv.Submitted, over), rv.Submitted
 		}

@@ -206,7 +206,7 @@ func waitNote(is forge.Issue, item, swarmLogin string) int64 {
 	var id int64
 	var at time.Time
 	for _, c := range is.Comments {
-		m, ok := Swarms(Entry{c.Author, c.Body, c.Created}, swarmLogin)
+		m, ok := Swarms(commentEntry(c), swarmLogin)
 		if !ok || c.Created.Before(at) {
 			continue
 		}

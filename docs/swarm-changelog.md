@@ -1820,3 +1820,10 @@ they write.
   check from `deps started` when the dependency step ran before it.
   Section 11's Throughput. Decision
   [182](swarm/decisions/0182-the-check-time-counts-the-dependency-step.md).
+- 2026-11-27, Step S10 of the plan implementing the 2026-11-19 swarm
+  roadmap (L365): only a comment holding a command line is left out of
+  the count; a body, a review or a line comment holding one is counted.
+  The batch prompt's closed issue quotes no command, and `status`'s
+  maintainer comments leave command comments out. Sections 6, 7.3 and
+  11's Throughput. Decision
+  [183](swarm/decisions/0183-a-command-is-a-comments.md).

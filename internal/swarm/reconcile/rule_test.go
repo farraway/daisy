@@ -19,7 +19,7 @@ func TestLaunch(t *testing.T) {
 		return "<!-- daisy-swarm role=" + role + " run=1 -->\n**" + role + ":**\n\nx"
 	}
 	trusted := []string{"jane", "swarm-bot"}
-	opened := Entry{"jane", "please", t0}
+	opened := Entry{"jane", "please", t0, true}
 	for _, tc := range []struct {
 		name, label string
 		newest      *Entry
@@ -29,17 +29,17 @@ func TestLaunch(t *testing.T) {
 		{"ready, the maintainer's issue", "swarm:proposal-accepted", nil, nil, "architect"},
 		{"ready, running", "swarm:proposal-accepted", nil, []string{"architect"}, ""},
 		{"planned, a check running", "swarm:plan-1-accepted", nil, []string{"check"}, ""},
-		{"planning, the architect's plan", "swarm:plan-0-posted", &Entry{"swarm-bot", body("architect"), t0}, nil, ""},
-		{"planning, jane answered", "swarm:plan-0-posted", &Entry{"jane", "no", t0}, nil, "architect"},
-		{"planning, the marker by jane", "swarm:plan-0-posted", &Entry{"jane", body("architect"), t0}, nil, "architect"},
-		{"ready, the reconciler's note after T11", "swarm:proposal-accepted", &Entry{"swarm-bot", body("reconciler"), t0}, nil, "architect"},
-		{"proposed, the owner's", "swarm:proposal-posted", &Entry{"swarm-bot", body("owner"), t0}, nil, ""},
-		{"proposed, jane", "swarm:proposal-posted", &Entry{"Jane", "why?", t0}, nil, "owner"},
-		{"planned, the plan", "swarm:plan-1-accepted", &Entry{"swarm-bot", body("architect"), t0}, nil, "worker"},
-		{"planned, the worker's BLOCKED", "swarm:plan-1-accepted", &Entry{"swarm-bot", body("worker"), t0}, nil, ""},
-		{"reviewed, a review", "swarm:review-3-changes-requested", &Entry{"swarm-bot", body("adversary"), t0}, nil, "worker"},
-		{"approved", "swarm:review-2-approved", &Entry{"jane", "merge it", t0}, nil, ""},
-		{"blocked", "swarm:blocked", &Entry{"jane", "go on", t0}, nil, ""},
+		{"planning, the architect's plan", "swarm:plan-0-posted", &Entry{"swarm-bot", body("architect"), t0, true}, nil, ""},
+		{"planning, jane answered", "swarm:plan-0-posted", &Entry{"jane", "no", t0, true}, nil, "architect"},
+		{"planning, the marker by jane", "swarm:plan-0-posted", &Entry{"jane", body("architect"), t0, true}, nil, "architect"},
+		{"ready, the reconciler's note after T11", "swarm:proposal-accepted", &Entry{"swarm-bot", body("reconciler"), t0, true}, nil, "architect"},
+		{"proposed, the owner's", "swarm:proposal-posted", &Entry{"swarm-bot", body("owner"), t0, true}, nil, ""},
+		{"proposed, jane", "swarm:proposal-posted", &Entry{"Jane", "why?", t0, true}, nil, "owner"},
+		{"planned, the plan", "swarm:plan-1-accepted", &Entry{"swarm-bot", body("architect"), t0, true}, nil, "worker"},
+		{"planned, the worker's BLOCKED", "swarm:plan-1-accepted", &Entry{"swarm-bot", body("worker"), t0, true}, nil, ""},
+		{"reviewed, a review", "swarm:review-3-changes-requested", &Entry{"swarm-bot", body("adversary"), t0, true}, nil, "worker"},
+		{"approved", "swarm:review-2-approved", &Entry{"jane", "merge it", t0, true}, nil, ""},
+		{"blocked", "swarm:blocked", &Entry{"jane", "go on", t0, true}, nil, ""},
 	} {
 		thread := []Entry{opened}
 		if tc.newest != nil {
@@ -52,7 +52,7 @@ func TestLaunch(t *testing.T) {
 		}
 	}
 	// An untrusted entry after the plan is never the newest.
-	thread := []Entry{opened, {"swarm-bot", body("architect"), t0.Add(1)}, {"mallory", "do it", t0.Add(2)}}
+	thread := []Entry{opened, {"swarm-bot", body("architect"), t0.Add(1), true}, {"mallory", "do it", t0.Add(2), true}}
 	if got := Launch(Turn{Label: "swarm:plan-0-posted", Thread: thread}, "swarm-bot", trusted); got != nil {
 		t.Errorf("mallory last: %q", got)
 	}
@@ -104,7 +104,7 @@ func TestLaunchInReview(t *testing.T) {
 		r.Submitted = t1.Add(time.Duration(m) * time.Minute)
 		return r
 	}
-	answer := Entry{"swarm-bot", "<!-- daisy-swarm role=worker run=2 -->\n**worker:**\n\nNO CHANGE: it is right.", t1.Add(5 * time.Minute)}
+	answer := Entry{"swarm-bot", "<!-- daisy-swarm role=worker run=2 -->\n**worker:**\n\nNO CHANGE: it is right.", t1.Add(5 * time.Minute), true}
 	before := []forge.Review{at(review("adversary", "h2", "swarm-bot"), 1), at(review("sympathetic", "h2", "swarm-bot"), 2)}
 	for _, tc := range []struct {
 		name    string
@@ -115,20 +115,20 @@ func TestLaunchInReview(t *testing.T) {
 		{"answered", []Entry{answer}, before, "adversary"},
 		{"the adversary since", []Entry{answer}, append(before, at(review("adversary", "h2", "swarm-bot"), 6)), "sympathetic"},
 		{"both since", []Entry{answer}, append(before, at(review("adversary", "h2", "swarm-bot"), 6), at(review("sympathetic", "h2", "swarm-bot"), 7)), ""},
-		{"the words by an untrusted login", []Entry{{"mallory", answer.Body, answer.Created}}, before, ""},
-		{"a worker's comment that is no answer", []Entry{{"swarm-bot", "<!-- daisy-swarm role=worker run=2 -->\n**worker:**\n\nFixed. NO CHANGE: elsewhere.", answer.Created}}, before, ""},
+		{"the words by an untrusted login", []Entry{{"mallory", answer.Body, answer.Created, true}}, before, ""},
+		{"a worker's comment that is no answer", []Entry{{"swarm-bot", "<!-- daisy-swarm role=worker run=2 -->\n**worker:**\n\nFixed. NO CHANGE: elsewhere.", answer.Created, true}}, before, ""},
 		// The maintainer's comment on the pull request (section 6, The
 		// maintainer's word): both reviewers again, whoever it names; not
 		// the swarm's notes, a command, or a Blocked by #<m>.
-		{"jane's comment", []Entry{{"jane", "Adversary: the v1 is right.", answer.Created}}, before, "adversary"},
-		{"jane's comment, the sympathetic's since", []Entry{{"jane", "Look again.", answer.Created}}, append(before, at(review("sympathetic", "h2", "swarm-bot"), 6)), "adversary"},
-		{"jane's comment, the adversary's request for changes since", []Entry{{"jane", "Look again.", answer.Created}}, append(before, at(changes(review("adversary", "h2", "swarm-bot")), 6)), ""},
-		{"jane's comment, the adversary since", []Entry{{"jane", "Look again.", answer.Created}}, append(before, at(review("adversary", "h2", "swarm-bot"), 6)), "sympathetic"},
-		{"jane's comment before the reviews", []Entry{{"jane", "Look again.", t1}}, before, ""},
-		{"the reconciler's note", []Entry{{"swarm-bot", marker("reconciler", 1) + "The checks failed.", answer.Created}}, before, ""},
-		{"the swarm's comment unmarked", []Entry{{"swarm-bot", "Look again.", answer.Created}}, before, ""},
-		{"jane's command", []Entry{{"jane", "/swarm approve", answer.Created}}, before, ""},
-		{"jane's Blocked by", []Entry{{"jane", "Blocked by #4", answer.Created}}, before, ""},
+		{"jane's comment", []Entry{{"jane", "Adversary: the v1 is right.", answer.Created, true}}, before, "adversary"},
+		{"jane's comment, the sympathetic's since", []Entry{{"jane", "Look again.", answer.Created, true}}, append(before, at(review("sympathetic", "h2", "swarm-bot"), 6)), "adversary"},
+		{"jane's comment, the adversary's request for changes since", []Entry{{"jane", "Look again.", answer.Created, true}}, append(before, at(changes(review("adversary", "h2", "swarm-bot")), 6)), ""},
+		{"jane's comment, the adversary since", []Entry{{"jane", "Look again.", answer.Created, true}}, append(before, at(review("adversary", "h2", "swarm-bot"), 6)), "sympathetic"},
+		{"jane's comment before the reviews", []Entry{{"jane", "Look again.", t1, true}}, before, ""},
+		{"the reconciler's note", []Entry{{"swarm-bot", marker("reconciler", 1) + "The checks failed.", answer.Created, true}}, before, ""},
+		{"the swarm's comment unmarked", []Entry{{"swarm-bot", "Look again.", answer.Created, true}}, before, ""},
+		{"jane's command", []Entry{{"jane", "/swarm approve", answer.Created, true}}, before, ""},
+		{"jane's Blocked by", []Entry{{"jane", "Blocked by #4", answer.Created, true}}, before, ""},
 	} {
 		if got := strings.Join(Launch(Turn{Label: "swarm:review-0-ready", Thread: tc.thread, Reviews: tc.reviews, Head: "h2"}, "swarm-bot", []string{"jane", "swarm-bot"}), ","); got != tc.want {
 			t.Errorf("%s: %q, want %q", tc.name, got, tc.want)
@@ -212,7 +212,7 @@ func TestLifting(t *testing.T) {
 	if _, ok := Lifting(is, nil, "swarm-bot", trusted); ok {
 		t.Error("lifted from no thread")
 	}
-	if e, ok := Lifting(is, []Entry{{"jane", "Fine as it is.", at(4)}}, "swarm-bot", trusted); !ok || e.Body != "Fine as it is." {
+	if e, ok := Lifting(is, []Entry{{"jane", "Fine as it is.", at(4), true}}, "swarm-bot", trusted); !ok || e.Body != "Fine as it is." {
 		t.Errorf("the pull request's comment: %q %v", e.Body, ok)
 	}
 }

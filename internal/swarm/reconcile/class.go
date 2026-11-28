@@ -192,7 +192,7 @@ func AutoRecorded(fs ops.FS, state string) (map[int][2]int, error) {
 // gate for a routine job: the auto notes on it, by the stage each names.
 func AutoPasses(is forge.Issue, swarmLogin string) (triage, plan int) {
 	for _, c := range is.Comments {
-		m, ok := Swarms(Entry{c.Author, c.Body, c.Created}, swarmLogin)
+		m, ok := Swarms(commentEntry(c), swarmLogin)
 		if !ok || m.Kind != "auto" {
 			continue
 		}

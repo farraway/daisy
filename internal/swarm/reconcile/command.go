@@ -88,7 +88,7 @@ func (s *Swarm) commands(is forge.Issue, pulls []forge.Pull) (ran bool, err erro
 	var todo []command
 	for i, t := range threads {
 		for _, c := range comments[i] {
-			if m, ok := Swarms(Entry{c.Author, c.Body, c.Created}, s.SwarmLogin); ok {
+			if m, ok := Swarms(commentEntry(c), s.SwarmLogin); ok {
 				if m.Kind == "command" {
 					answered[m.Of] = true
 				}

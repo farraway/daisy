@@ -418,7 +418,7 @@ const deadlineSentence = `Your run is stopped at %s (%s after its start). If /jo
 // commented: the issue has a counted comment (section 6).
 func (j *Job) commented() bool {
 	for _, c := range j.Issue.Comments {
-		if counted(Entry{c.Author, c.Body, c.Created}, j.SwarmLogin, j.Cfg.Trusted) {
+		if counted(commentEntry(c), j.SwarmLogin, j.Cfg.Trusted) {
 			return true
 		}
 	}
@@ -471,7 +471,7 @@ func (j *Job) previousFindings() string {
 func (j *Job) answeredSince(head string) bool {
 	var at time.Time
 	for _, r := range j.Pull.Reviews {
-		if m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, j.SwarmLogin); ok && m.Role == j.Role && r.Commit == head && r.Submitted.After(at) {
+		if m, ok := Swarms(reviewEntry(r), j.SwarmLogin); ok && m.Role == j.Role && r.Commit == head && r.Submitted.After(at) {
 			at = r.Submitted
 		}
 	}
@@ -495,7 +495,7 @@ func (j *Job) round(p forge.Pull) (int, string) {
 	answers := Reopenings(pullComments(j.Pull.Comments), j.SwarmLogin, j.Cfg.Trusted)
 	prev, prevAt := "", time.Time{}
 	for _, r := range j.Pull.Reviews {
-		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, j.SwarmLogin)
+		m, ok := Swarms(reviewEntry(r), j.SwarmLogin)
 		standing := r.Commit == p.HeadSHA && standsOnHead(answers, r.Submitted)
 		if ok && m.Role == j.Role && !standing && (since.IsZero() || r.Submitted.After(since)) && !r.Submitted.Before(prevAt) {
 			prev, prevAt = r.Commit, r.Submitted

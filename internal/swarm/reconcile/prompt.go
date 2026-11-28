@@ -308,7 +308,7 @@ func (j *Job) newestArchitect(keep func(text string) bool) (Entry, Mark, bool) {
 	var m Mark
 	found := false
 	for _, c := range j.Issue.Comments {
-		ce := Entry{c.Author, c.Body, c.Created}
+		ce := commentEntry(c)
 		text := swarmText(c.Body)
 		if mk, ok := Swarms(ce, j.SwarmLogin); ok && mk.Role == "architect" && onThePlan(text) && keep(text) {
 			if !found || !c.Created.Before(e.Created) {
@@ -554,7 +554,7 @@ func (j *Job) thread() string {
 	newest := map[string]Entry{}
 	runs := map[string]int{}
 	for _, c := range j.Issue.Comments {
-		e := Entry{c.Author, c.Body, c.Created}
+		e := commentEntry(c)
 		if m, ok := Swarms(e, j.SwarmLogin); ok && m.Kind == "" && !e.Created.Before(newest[m.Role].Created) {
 			newest[m.Role], runs[m.Role] = e, m.Run
 		}
@@ -562,7 +562,7 @@ func (j *Job) thread() string {
 	plan, _, planned := j.Plan()
 	var out []string
 	for _, c := range j.Issue.Comments {
-		e := Entry{c.Author, c.Body, c.Created}
+		e := commentEntry(c)
 		m, ok := Swarms(e, j.SwarmLogin)
 		switch {
 		case ok && m.Kind != "":
@@ -689,7 +689,7 @@ func (j *Job) direction() string {
 	}
 	var out []string
 	for _, c := range j.Issue.Comments {
-		e := Entry{c.Author, c.Body, c.Created}
+		e := commentEntry(c)
 		if _, swarm := Swarms(e, j.SwarmLogin); swarm || !j.trusted(c.Author) || (hasPlan && !c.Created.After(basis.Created)) {
 			continue
 		}
@@ -764,18 +764,18 @@ func (j *Job) roleThread(p forge.Pull) []Entry {
 }
 
 func (j *Job) pullEntries(p forge.Pull) []Entry {
-	out := []Entry{{p.Author, p.Body, p.Created}}
+	out := []Entry{pullEntry(p)}
 	if j.Pull == nil {
 		return out
 	}
 	for _, c := range j.Pull.Comments {
-		out = append(out, Entry{c.Author, c.Body, c.Created})
+		out = append(out, commentEntry(c))
 	}
 	for _, r := range j.Pull.Reviews {
-		out = append(out, Entry{r.Author, r.Body, r.Submitted})
+		out = append(out, reviewEntry(r))
 	}
 	for _, l := range j.Pull.Lines {
-		out = append(out, Entry{l.Author, l.Body, l.Created})
+		out = append(out, lineEntry(l))
 	}
 	return out
 }
@@ -842,7 +842,7 @@ func (j *Job) roundLines(rounds []round, modes []int, answers []time.Time) []str
 		b := 0
 		for _, r := range rd.reviews {
 			text := r.Body
-			if m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, j.SwarmLogin); ok {
+			if m, ok := Swarms(reviewEntry(r), j.SwarmLogin); ok {
 				text = j.shownText(m, swarmText(r.Body))
 			}
 			b += len(blockingLines(text))
@@ -893,12 +893,12 @@ func (j *Job) pullRequest(p forge.Pull) string {
 			return swarm && (e.Created.Before(report) || m.Kind != "" || m.Role == "worker" && j.Role != "architect")
 		}
 		for _, c := range j.Pull.Comments {
-			if e := (Entry{c.Author, c.Body, c.Created}); !omitted(e) {
+			if e := (commentEntry(c)); !omitted(e) {
 				items = append(items, item{c.Created, j.entry(3, e, "")})
 			}
 		}
 		for _, r := range j.Pull.Reviews {
-			e := Entry{r.Author, r.Body, r.Submitted}
+			e := reviewEntry(r)
 			m, swarm := Swarms(e, j.SwarmLogin)
 			verdict := stateName(r.State)
 			if swarm {
@@ -920,7 +920,7 @@ func (j *Job) pullRequest(p forge.Pull) string {
 			}
 		}
 		for _, l := range j.Pull.Lines {
-			if e := (Entry{l.Author, l.Body, l.Created}); !omitted(e) {
+			if e := (lineEntry(l)); !omitted(e) {
 				items = append(items, item{l.Created, j.entry(3, e, fmt.Sprintf(", on %s:%d at %s", l.Path, l.Line, l.Commit))})
 			}
 		}
@@ -935,7 +935,7 @@ func (j *Job) pullRequest(p forge.Pull) string {
 	// the job's workspace (# Job's Report); a trusted login's as written;
 	// anyone else's omitted.
 	body := p.Body
-	if m, ok := Swarms(Entry{p.Author, p.Body, p.Created}, j.SwarmLogin); ok && j.Role != "architect" {
+	if m, ok := Swarms(pullEntry(p), j.SwarmLogin); ok && j.Role != "architect" {
 		body = ""
 	} else if ok {
 		body = j.shownText(m, swarmText(p.Body))
@@ -956,7 +956,7 @@ func (j *Job) pullRequest(p forge.Pull) string {
 // report, an answer without a commit, a BLOCKED:); ok is false, the time
 // zero, when there is none.
 func (j *Job) newestReport(p forge.Pull) (at time.Time, m Mark, ok bool) {
-	entries := []Entry{{p.Author, p.Body, p.Created}}
+	entries := []Entry{pullEntry(p)}
 	if j.Pull != nil {
 		entries = append(entries, pullComments(j.Pull.Comments)...)
 	}

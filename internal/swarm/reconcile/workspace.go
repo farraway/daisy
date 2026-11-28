@@ -181,7 +181,7 @@ func (s *Swarm) writeReviews(n int, p forge.Pull, reviews []forge.Review, answer
 			continue // its round may still complete
 		}
 		for _, rv := range rd.reviews {
-			e := Entry{rv.Author, rv.Body, rv.Submitted}
+			e := reviewEntry(rv)
 			m, _ := Swarms(e, s.SwarmLogin)
 			run := outputRun(n, m)
 			text, ok, err := s.outputs().Text(run)
@@ -250,7 +250,7 @@ func (c *collection) writeCheck(head, line, out string) error {
 func (rd round) completed(swarmLogin string) (time.Time, bool) {
 	verdicts := map[string]string{}
 	for _, rv := range rd.reviews {
-		m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, swarmLogin)
+		m, _ := Swarms(reviewEntry(rv), swarmLogin)
 		if verdicts[m.Role] != "request-changes" {
 			verdicts[m.Role] = verdictOf(swarmText(rv.Body))
 		}
@@ -302,7 +302,7 @@ func (c *collection) writeRound(p forge.Pull, pulls []forge.Pull, reviews []forg
 	slices.SortStableFunc(all, func(a, b done) int { return a.at.Compare(b.at) })
 	r := slices.IndexFunc(all, func(d done) bool {
 		return d.pull == p.Number && slices.ContainsFunc(d.reviews, func(rv forge.Review) bool {
-			m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
+			m, _ := Swarms(reviewEntry(rv), s.SwarmLogin)
 			return m.Role == c.r.Role && m.Run == c.r.K
 		})
 	}) + 1
@@ -319,7 +319,7 @@ func (c *collection) writeRound(p forge.Pull, pulls []forge.Pull, reviews []forg
 	}
 	reviewsOf := slices.Clone(cur.reviews)
 	adversary := func(rv forge.Review) bool {
-		m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
+		m, _ := Swarms(reviewEntry(rv), s.SwarmLogin)
 		return m.Role == "adversary"
 	}
 	slices.SortStableFunc(reviewsOf, func(x, y forge.Review) int { // the adversary's first
@@ -332,7 +332,7 @@ func (c *collection) writeRound(p forge.Pull, pulls []forge.Pull, reviews []forg
 		return 0
 	})
 	for _, rv := range reviewsOf {
-		m, _ := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
+		m, _ := Swarms(reviewEntry(rv), s.SwarmLogin)
 		run := outputRun(c.r.N, m)
 		text, ok, err := s.outputs().Text(run)
 		if err != nil {

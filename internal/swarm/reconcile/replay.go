@@ -55,7 +55,7 @@ type post struct {
 func issuePosts(is forge.Issue) []post {
 	out := make([]post, len(is.Comments))
 	for i, c := range is.Comments {
-		out[i] = post{Entry: Entry{c.Author, c.Body, c.Created}}
+		out[i] = post{Entry: commentEntry(c)}
 	}
 	return out
 }
@@ -298,12 +298,12 @@ func (s *Swarm) replay(is forge.Issue, pulls []forge.Pull) (blocked bool, err er
 			return false, err
 		}
 		threads[i] = thread{reviews, comments, Reopenings(pullComments(comments), s.SwarmLogin, s.Cfg.Trusted)}
-		posts = append(posts, post{Entry: Entry{p.Author, p.Body, p.Created}, desc: true})
+		posts = append(posts, post{Entry: pullEntry(p), desc: true})
 		for _, c := range comments {
-			posts = append(posts, post{Entry: Entry{c.Author, c.Body, c.Created}})
+			posts = append(posts, post{Entry: commentEntry(c)})
 		}
 		for _, r := range reviews {
-			posts = append(posts, post{Entry: Entry{r.Author, r.Body, r.Submitted}, review: true})
+			posts = append(posts, post{Entry: reviewEntry(r), review: true})
 		}
 	}
 	runs, err := o.jobRuns(n, s.SwarmLogin, posts)
@@ -342,7 +342,7 @@ func (s *Swarm) replay(is forge.Issue, pulls []forge.Pull) (blocked bool, err er
 		if (jr.Role == "adversary" || jr.Role == "sympathetic") && jr.outcome() == "posted" {
 			for i, p := range pulls {
 				if slices.ContainsFunc(threads[i].reviews, func(rv forge.Review) bool {
-					m, ok := Swarms(Entry{rv.Author, rv.Body, rv.Submitted}, s.SwarmLogin)
+					m, ok := Swarms(reviewEntry(rv), s.SwarmLogin)
 					return ok && m.Role == jr.Role && m.Run == jr.K
 				}) {
 					if err := col.writeRound(p, pulls, threads[i].reviews, threads[i].comments, threads[i].answers); err != nil {

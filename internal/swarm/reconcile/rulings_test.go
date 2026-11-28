@@ -13,10 +13,10 @@ import (
 // the newest; anything running holds it; Replan changes no other stage.
 func TestLaunchReplan(t *testing.T) {
 	trusted := []string{"jane", "swarm-bot"}
-	plan := Entry{"swarm-bot", marker("architect", 1) + "## Steps\n\n1. app: x\n", t0.Add(1)}
-	note := Entry{"swarm-bot", marker("reconciler", 1) + "Rulings changed since the plan (architect run 1): `app:docs/adr/1.md`. " + rulingsTail, t0.Add(2)}
-	stood := Entry{"swarm-bot", marker("architect", 2) + "STANDS: none applies.", t0.Add(3)}
-	opened := Entry{"jane", "please", t0}
+	plan := Entry{"swarm-bot", marker("architect", 1) + "## Steps\n\n1. app: x\n", t0.Add(1), true}
+	note := Entry{"swarm-bot", marker("reconciler", 1) + "Rulings changed since the plan (architect run 1): `app:docs/adr/1.md`. " + rulingsTail, t0.Add(2), true}
+	stood := Entry{"swarm-bot", marker("architect", 2) + "STANDS: none applies.", t0.Add(3), true}
+	opened := Entry{"jane", "please", t0, true}
 	for _, tc := range []struct {
 		name    string
 		label   string
@@ -27,7 +27,7 @@ func TestLaunchReplan(t *testing.T) {
 		{"the note", forge.PlanAccepted, []Entry{opened, plan, note}, nil, "architect"},
 		{"the note, a run in flight", forge.PlanAccepted, []Entry{opened, plan, note}, []string{"worker"}, ""},
 		{"the architect's word", forge.PlanAccepted, []Entry{opened, plan, note, stood}, nil, ""},
-		{"jane after it", forge.PlanAccepted, []Entry{opened, plan, note, stood, {"jane", "and?", t0.Add(4)}}, nil, "architect"},
+		{"jane after it", forge.PlanAccepted, []Entry{opened, plan, note, stood, {"jane", "and?", t0.Add(4), true}}, nil, "architect"},
 		{"another stage", forge.ChangesRequested, []Entry{opened, plan, note}, nil, "worker"},
 	} {
 		got := strings.Join(Launch(Turn{Label: tc.label, Thread: tc.thread, Running: tc.running, Replan: true}, "swarm-bot", trusted), ",")

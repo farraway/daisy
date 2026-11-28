@@ -23,7 +23,7 @@ type PullCounts struct {
 	Repo       string
 	Number     int
 	Rounds     int // Rounds over all its reviews
-	Maintainer int // comments, reviews and line comments by a trusted login not the swarm's
+	Maintainer int // comments but commands (IsCommand), reviews and line comments by a trusted login not the swarm's
 }
 
 // Revisions is the plans after the first.
@@ -34,7 +34,7 @@ func (c Counts) Revisions() int { return max(0, c.Plans-1) }
 func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin string, trusted []string) Counts {
 	var c Counts
 	for _, cm := range is.Comments {
-		m, ok := Swarms(Entry{cm.Author, cm.Body, cm.Created}, swarmLogin)
+		m, ok := Swarms(commentEntry(cm), swarmLogin)
 		switch {
 		case !ok:
 		case m.Role == "architect" && onThePlan(swarmText(cm.Body)) && !strings.HasPrefix(swarmText(cm.Body), stands):
@@ -50,7 +50,7 @@ func Count(is forge.Issue, pulls []forge.Pull, threads []PullThread, swarmLogin 
 		t := threads[i]
 		pc := PullCounts{Repo: p.Repo, Number: p.Number, Rounds: Rounds(t.Reviews, Reopenings(pullComments(t.Comments), swarmLogin, trusted), swarmLogin, time.Time{}, "")}
 		for _, cm := range t.Comments {
-			if maintainer(cm.Author) {
+			if maintainer(cm.Author) && !IsCommand(cm.Body) {
 				pc.Maintainer++
 			}
 		}

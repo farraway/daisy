@@ -54,7 +54,7 @@ func TestDependencies(t *testing.T) {
 		}
 	}
 	// A declaration wakes no role, as a class statement does not.
-	if counted(Entry{"jane", "Depends: #3", t0}, "swarm-bot", []string{"jane"}) {
+	if counted(Entry{"jane", "Depends: #3", t0, true}, "swarm-bot", []string{"jane"}) {
 		t.Error("a declaration is counted")
 	}
 }

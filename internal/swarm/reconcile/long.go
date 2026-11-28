@@ -152,7 +152,7 @@ func (l long) postedAs(mark, body string) bool {
 // continuations passed by; -1 when it has none.
 func lastWord(comments []forge.Comment, swarmLogin string) int {
 	for i := len(comments) - 1; i >= 0; i-- {
-		if m, ok := Swarms(Entry{comments[i].Author, comments[i].Body, comments[i].Created}, swarmLogin); !ok || m.Kind != "continued" {
+		if m, ok := Swarms(commentEntry(comments[i]), swarmLogin); !ok || m.Kind != "continued" {
 			return i
 		}
 	}

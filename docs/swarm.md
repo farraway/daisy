@@ -1777,7 +1777,11 @@ maintainer's word to Daisy, none a member's to answer, so none is ever
 commands, below). Any other entry that is not counted
 appears in a prompt as its login and time with its content omitted, and
 is never "the newest entry" either. The maintainer's comments are counted through `trusted`, which
-holds the maintainer's logins and the swarm's.
+holds the maintainer's logins and the swarm's. A body, a review or a
+line comment holding a command line is no command comment, since
+commands are read from comments alone (The comment commands), and is
+counted as any entry is (Step S10 of the plan implementing the 2026-11-19 swarm roadmap, decision [183](swarm/decisions/0183-a-command-is-a-comments.md); before it, every entry holding a
+command line was left uncounted).
 
 `<k>`, a run's number, counts per issue and role: one more than the
 largest among `<state>/runs/<n>-<role>-*` and the markers `role=<role>` in
@@ -3413,6 +3417,10 @@ the owner's has:
 
   > <the issue's newest counted comment that is not the swarm's, if any>
 ```
+
+The comment quoted under a closed issue is its newest by a login in
+`trusted` that is neither the swarm's nor a command comment (section 6,
+The comment commands; Step S10 of the plan implementing the 2026-11-19 swarm roadmap, where a command could be quoted).
 
 `# Briefs` holds every brief under `resources` whose `Status:` is
 `active` (section 4), in path order, read on the host from the mirrors
@@ -8602,7 +8610,8 @@ the architect, a note on an issue the maintainer moved during the
 run, which blocked nothing, and the note that rulings changed since the
 plan, section 6); and per swarm pull request, by slice, `rounds` its
 review rounds as section 6 counts them, over all its reviews, and
-`maintainer comments` its comments, reviews and line comments by a
+`maintainer comments` its comments but its command comments (section
+6, The comment commands; Step S10 of the plan implementing the 2026-11-19 swarm roadmap), reviews and line comments by a
 login in `trusted` that is not the swarm's.
 
 **Briefs.** Each `active` brief's line is its path, then, separated by

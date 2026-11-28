@@ -136,7 +136,7 @@ func (s *Swarm) mergeChecking(runs []Run) (map[string]bool, error) {
 func pairCompleted(reviews []forge.Review, head, swarmLogin string) time.Time {
 	var at time.Time
 	for _, r := range reviews {
-		m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, swarmLogin)
+		m, ok := Swarms(reviewEntry(r), swarmLogin)
 		if ok && (m.Role == "adversary" || m.Role == "sympathetic") && r.Commit == head && r.Submitted.After(at) {
 			at = r.Submitted
 		}

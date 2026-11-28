@@ -336,7 +336,7 @@ func TestRenderNamesTheOutputFile(t *testing.T) {
 	on("architect, a question", run("architect", "swarm:plan-1-accepted", ask), answer)
 	on("architect, a revision", run("architect", "swarm:plan-0-posted", nil), "")
 	on("architect, the rulings", run("architect", "swarm:plan-1-accepted", func(j *Job) { j.Rulings = []string{"app:docs/r.md"} }), "")
-	on("architect, a re-plan", run("architect", "swarm:plan-1-accepted", func(j *Job) { j.Replan = &Entry{"jane", "Re-plan", t0} }), "")
+	on("architect, a re-plan", run("architect", "swarm:plan-1-accepted", func(j *Job) { j.Replan = &Entry{"jane", "Re-plan", t0, true} }), "")
 	on("worker, a slice", run("worker", "swarm:plan-1-accepted", nil), "")
 	on("worker, changes requested", run("worker", forge.ChangesRequested, nil), "")
 	// The reviewers: round 1 and a delta round, then a head reviewed

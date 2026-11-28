@@ -321,7 +321,7 @@ func (s *Swarm) mergeItems(is forge.Issue) (string, []string, error) {
 		var last forge.Review
 		var mark Mark
 		for _, r := range reviews {
-			if m, ok := Swarms(Entry{r.Author, r.Body, r.Submitted}, s.SwarmLogin); ok && m.Role == role && r.Commit == head && !r.Submitted.Before(last.Submitted) {
+			if m, ok := Swarms(reviewEntry(r), s.SwarmLogin); ok && m.Role == role && r.Commit == head && !r.Submitted.Before(last.Submitted) {
 				last, mark = r, m
 			}
 		}

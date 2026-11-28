@@ -362,7 +362,7 @@ func (c *collection) sayLong(at forge.Ref, existing []forge.Comment, role string
 	}
 	body := marker(role, c.r.K) + text
 	if !slices.ContainsFunc(existing, func(e forge.Comment) bool {
-		m, ok := Swarms(Entry{e.Author, e.Body, e.Created}, c.s.SwarmLogin)
+		m, ok := Swarms(commentEntry(e), c.s.SwarmLogin)
 		return ok && m.Role == role && m.Run == c.r.K && (role != "reconciler" || c.ownNote(e, body))
 	}) {
 		if err := c.s.Forge.Comment(at, body); err != nil {
