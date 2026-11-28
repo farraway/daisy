@@ -308,7 +308,8 @@ the swarm's secrets file, `<state>/env` (docs/swarm.md section 3), does not assi
 which every swarm verb opens in place of the forge `swarm.json`
 declares, under the token the verb reads, so that no request reaches a
 forge API; `swarm.json` never names it, and unset or empty, nothing
-changes. It is for tests alone: a run that inherits it from a shell talks
+changes. A file whose forge is not `swarm.json`'s `forge.repo` and
+`repos` is refused, exit 1, naming both. It is for tests alone: a run that inherits it from a shell talks
 to the file, not to its swarm's forge (docs/swarm.md section 10, The fake
 forge's file). Nothing else: `optimize` holds no API key and reads no
 model or editor setting (Step 23, D12).

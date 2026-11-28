@@ -23,6 +23,14 @@ token it reads, the file's `tokens` mapping each token to its account,
 loading the file at each call and saving it after a write. `swarm.json`
 never names it, and unset, nothing changes.
 
+From the maintainer's ruling of 2026-11-27 on Step T8b's open question
+("refuse a mismatch"): the file must hold the forge `swarm.json`
+declares, its `forge.repo` and its `repos` in their order. A file that
+does not is refused when a verb opens it, the error naming the file's
+forge and the declared one; a file that does works as before. Not
+comparing them, as T8b built it, was the alternative: a case whose file
+named another forge ran against it silently.
+
 **Alternatives.** Go's gob encoding would round-trip the state with
 less code, but no case could write or read it with a shell's tools.
 Saving the state as it is in memory, maps with struct keys, does not

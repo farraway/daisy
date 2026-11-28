@@ -2,6 +2,8 @@ package forge
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
 	"daisy/internal/ops"
 )
@@ -19,8 +21,21 @@ type FileForge struct {
 
 var _ Adapter = FileForge{}
 
-// OpenFile is the forge the file path holds, under token.
-func OpenFile(o ops.Ops, path, token string) FileForge { return FileForge{o, path, token} }
+// OpenFile is the forge the file path holds, under token, once the file
+// holds the forge declared: the issues repository repo and the declared
+// repositories names, in order; a file of another forge is refused,
+// naming both.
+func OpenFile(o ops.Ops, path, token, repo string, names []string) (FileForge, error) {
+	fake, err := LoadFake(o, path, Account{})
+	if err != nil {
+		return FileForge{}, err
+	}
+	if held := fake.owner + "/" + fake.repo; held != repo || !slices.Equal(fake.names, names) {
+		return FileForge{}, fmt.Errorf("forge: the fake forge's file %s holds %s with repositories %s; swarm.json declares %s with repositories %s",
+			path, held, strings.Join(fake.names, ", "), repo, strings.Join(names, ", "))
+	}
+	return FileForge{o, path, token}, nil
+}
 
 // do loads the file, calls fn on its forge under the token's account,
 // and saves the file after a write.

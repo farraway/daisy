@@ -7886,7 +7886,7 @@ zero, so a test may write a small file by hand. Decision
 
 A test seam, never a forge a swarm runs on: `DAISY_FORGE=<file>` in the
 environment of a run of the binary makes every swarm verb open
-`forge.OpenFile(o, <file>, token)` in place of the adapter `forge.kind`
+`forge.OpenFile(o, <file>, token, repo, names)` in place of the adapter `forge.kind`
 names, so that the acceptance suite (`tests/cases/`) drives `swarm init`,
 `swarm status` and the maintainer's verbs with no forge, and no request
 reaches a forge's API (`apply`'s workers still reach their repositories
@@ -7900,13 +7900,22 @@ the call on its Fake under the account the verb's token is, and saves
 the file after a write, so the swarm's token and the maintainer's, and
 one run and the next, see one forge. A token the file does not name is
 the forge's `401` at every call. The file names the forge's
-`forge.repo` and declared repositories itself; `swarm.json`'s are not
-compared with them.
+`forge.repo` and declared repositories itself, and must name
+`swarm.json`'s, the repositories in their order: a file that does not
+is refused before any call, naming both, `Error: swarm: forge: the fake
+forge's file <file> holds <owner>/<repo> with repositories <name>, …;
+swarm.json declares <owner>/<repo> with repositories <name>, …` (exit 1);
+a file that does runs as above.
 
 **As built (Step T8b of the plan implementing the 2026-11-19 swarm
 roadmap).** `openForge` (`internal/swarm/cmd`) reads `DAISY_FORGE`
 through `Ops.Getenv`; `forge.FileForge` implements `Adapter` over the
 file. Decision [177](swarm/decisions/0177-the-fake-forges-file.md).
+
+**As built (the maintainer's ruling of 2026-11-27 on Step T8b's open
+question).** `OpenFile` loads the file once to compare its forge with
+the declared one, and refuses a mismatch; before, the file's forge was
+not compared with `swarm.json`'s.
 
 **As built (Step T8c of the same plan).** Two acceptance cases drive the
 binary over the file: `tests/cases/93-swarm-init-fake-forge.sh` (`init

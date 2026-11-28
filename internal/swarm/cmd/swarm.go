@@ -80,13 +80,14 @@ type opener func(o ops.Ops, f declare.Forge, names []string, token string) (forg
 // ForgeFileEnv names a file holding a fake forge (forge.OpenFile), the
 // test seam through which a run of the binary reaches the forge's verbs
 // with no forge: set, it is the forge every verb opens, in place of the
-// one swarm.json declares, which never names it (section 10, The fake
+// one swarm.json declares, which never names it, once the file holds the
+// forge.repo and repositories swarm.json declares (section 10, The fake
 // forge's file).
 const ForgeFileEnv = "DAISY_FORGE"
 
 func openForge(o ops.Ops, f declare.Forge, names []string, token string) (forge.Adapter, error) {
 	if file := o.Getenv(ForgeFileEnv); file != "" {
-		return forge.OpenFile(o, file, token), nil
+		return forge.OpenFile(o, file, token, f.Repo, names)
 	}
 	return forge.New(o, f.Kind, f.API, token, f.Repo, names)
 }

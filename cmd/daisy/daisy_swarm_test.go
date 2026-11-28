@@ -781,4 +781,17 @@ func TestSwarmVerbsOpenTheFileForge(t *testing.T) {
 	if code, _, errs := runWith(o, "swarm", "triage", "1"); code != 1 || !strings.Contains(errs, "401") {
 		t.Errorf("a token the file does not name: exit %d %q", code, errs)
 	}
+
+	// A file whose forge is not the one swarm.json declares is refused,
+	// naming both, before any call (the maintainer's ruling, 2026-11-27).
+	for _, c := range []struct{ from, to, holds string }{
+		{`"repo": "acme/swarm-app"`, `"repo": "acme/swarm-other"`, "acme/swarm-other with repositories app"},
+		{`"names": [`, `"names": ["lib",`, "acme/swarm-app with repositories lib, app"},
+	} {
+		writeFile(t, file, strings.Replace(string(data), c.from, c.to, 1))
+		code, out, errs := runWith(o, "swarm", "status")
+		if want := "Error: swarm: forge: the fake forge's file " + file + " holds " + c.holds + "; swarm.json declares acme/swarm-app with repositories app\n"; code != 1 || out != "" || errs != want {
+			t.Errorf("a file of another forge: exit %d %q, want %q", code, errs, want)
+		}
+	}
 }

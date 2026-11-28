@@ -1759,3 +1759,9 @@ they write.
   over the fake forge's file, and `fixture_fake_forge`. Section 10, The
   fake forge's file, As built. Decision
   [177](swarm/decisions/0177-the-fake-forges-file.md).
+- 2026-11-27, Step T8b of the plan implementing the 2026-11-19 swarm
+  roadmap, the maintainer's ruling on its open question: a fake forge's
+  file whose `forge.repo` or declared repositories are not `swarm.json`'s
+  is refused, naming both. Section 10, The fake forge's file;
+  `docs/cli.md`'s Environment read. Decision
+  [177](swarm/decisions/0177-the-fake-forges-file.md), As built.
