@@ -279,6 +279,16 @@ Running: #0 owner, #8 adversary, #12 check
 			t.Errorf("gates off: no %q in\n%s", line, s.stdout.String())
 		}
 	}
+
+	// A worker run's check time counts its dependency step: from deps
+	// started to check exited (section 11, Throughput).
+	s.runResult("7-worker-1", ran("planned", "10:00:00", "9m", "deps started 2026-11-06T10:01:00Z\ndeps exited 0 2026-11-06T10:05:00Z\n"+checked("10:05:00", "2m")+"outcome posted\ncollected\n"), "")
+	if err := s.status(s.forge); err != nil {
+		t.Fatal(err)
+	}
+	if out := s.stdout.String(); !strings.Contains(out, ", check 6m0s (1)\n") {
+		t.Errorf("the check's time from deps started:\n%s", out)
+	}
 }
 
 // `swarm status --json` carries the report's facts as one JSON document,

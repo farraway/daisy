@@ -124,8 +124,8 @@ func readSwarmList(c *Context) (*swarmListReport, error) {
 		rel, _ := filepath.Rel(r.Dir, st)
 		host, repo, _ := strings.Cut(filepath.ToSlash(rel), "/")
 		s := swarmListed{Repository: repo, Host: host, Clone: recordedClone(fs, st, c.Env.Local)}
-		if b, err := fs.ReadFile(filepath.Join(st, "home")); err == nil && firstLine(b) != "" {
-			home := firstLine(b)
+		if b, err := fs.ReadFile(filepath.Join(st, "home")); err == nil && reconcile.FirstLine(b) != "" {
+			home := reconcile.FirstLine(b)
 			s.Home = &home
 		}
 		if b, err := fs.ReadFile(filepath.Join(st, "paused")); err == nil {
@@ -185,7 +185,7 @@ func cloneState(fs ops.FS, root, local string) string {
 // the path is a clone of the swarm now; nil when none is recorded.
 func recordedClone(fs ops.FS, state, local string) *swarmClone {
 	b, err := fs.ReadFile(filepath.Join(state, "clone"))
-	path := firstLine(b)
+	path := reconcile.FirstLine(b)
 	if err != nil || path == "" {
 		return nil
 	}
@@ -360,7 +360,7 @@ func readJournal(c *Context, issue int) (*journalReport, error) {
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
 		return nil, fmt.Errorf("Error: swarm journal: %v", err)
 	}
-	mark, at, _ := strings.Cut(firstLine(b), " ")
+	mark, at, _ := strings.Cut(reconcile.FirstLine(b), " ")
 	var shown []reconcile.JournalLine
 	if i := journalIndex(lines, mark); i >= 0 {
 		r.Marked = &journalMark{mark, at}
@@ -597,7 +597,7 @@ func readConnectMetrics(c *Context, state, repo string) connectMetrics {
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
 		return none("%v", err)
 	}
-	name := firstLine(b)
+	name := reconcile.FirstLine(b)
 	if name == "" {
 		return none("%s names no Daisy home", homeFile)
 	}

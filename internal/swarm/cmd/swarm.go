@@ -725,11 +725,6 @@ func stateNotes(s reconcile.StatusState) string {
 	return notes
 }
 
-func firstLine(b []byte) string {
-	line, _, _ := strings.Cut(string(b), "\n")
-	return strings.TrimSpace(line)
-}
-
 // runningLine is the Running line's value: `#<n> <role>` by issue, none,
 // or unknown with docker's message.
 func runningLine(r reconcile.StatusRunning) string {
@@ -1045,7 +1040,7 @@ func pauseSwarm(c *Context) error {
 	fs := c.Ops.FS()
 	path := filepath.Join(state, "paused")
 	if b, err := fs.ReadFile(path); err == nil {
-		fmt.Fprintf(c.Stdout, "Already paused since %s\n", strings.TrimPrefix(firstLine(b), "paused "))
+		fmt.Fprintf(c.Stdout, "Already paused since %s\n", strings.TrimPrefix(reconcile.FirstLine(b), "paused "))
 		return nil
 	}
 	if err := fs.MkdirAll(state, 0o755); err != nil {

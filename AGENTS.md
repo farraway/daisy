@@ -64,9 +64,9 @@ dependency it avoids.
 | `internal/swarm/reconcile` | the trigger rule, the prompt files, host-side git, `apply`'s pass and `status`'s report |
 | `internal/swarm/brief` | the briefs: `Status:` lines and milestone headings |
 
-**Dependency rule:** `cli → {commands, swarm/cmd} → {domain packages} →
-ops`, `internal/verb` among the domain packages and neither command
-package importing the other; nothing above `ops` calls `os`, `os/exec`
+**Dependency rule:** `cli → {commands, swarm/cmd} → verb → {domain
+packages} → ops`, `internal/verb` a layer of its own, which no domain
+package imports, and neither command package importing the other; nothing above `ops` calls `os`, `os/exec`
 or `time.Now` itself: no package but `ops` imports `os`
 (`internal/testenv`, which pins a test's environment, and
 `cmd/daisy/main.go`, which hands the process's streams to `cli.Run`,

@@ -22,16 +22,19 @@ var clock = map[string]bool{
 
 // layer is a package's place in the dependency rule (AGENTS.md, Layout
 // and the dependency rule): an import goes to a lower layer, and between
-// domain packages (layer 1, internal/verb among them) either way; the two
-// command packages, internal/commands and the swarm's internal/swarm/cmd,
-// share layer 2 and import neither the other.
+// domain packages (layer 1) either way; internal/verb, the frame the
+// commands run in, sits between them and the two command packages,
+// internal/commands and the swarm's internal/swarm/cmd, which share
+// layer 3 and import neither the other.
 func layer(pkg string) int {
 	switch pkg {
 	case "cmd/daisy":
-		return 4
+		return 5
 	case "internal/cli":
-		return 3
+		return 4
 	case "internal/commands", "internal/swarm/cmd":
+		return 3
+	case "internal/verb":
 		return 2
 	case "internal/ops":
 		return 0
@@ -41,7 +44,7 @@ func layer(pkg string) int {
 
 // TestDependencyRule holds AGENTS.md's dependency rule over every non-test
 // Go file under cmd/ and internal/: imports run cli → {commands,
-// swarm/cmd} → {domain packages} → ops, and nothing above ops imports os
+// swarm/cmd} → verb → {domain packages} → ops, and nothing above ops imports os
 // (or os/signal, os/user), names any of os/exec but its ExitError type, or
 // reads or waits on the clock through the time package. internal/testenv sets the environment of
 // a test process, and cmd/daisy/main.go hands the process's streams to
@@ -64,6 +67,30 @@ func TestDependencyRule(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+	}
+	// The arrows themselves, on files the tree does not hold: a domain
+	// package importing internal/verb, or internal/verb a command
+	// package, fails; a command package importing it, and it a domain
+	// package, holds.
+	for _, tc := range []struct {
+		path, imp string
+		fails     bool
+	}{
+		{"internal/swarm/reconcile/x.go", "daisy/internal/verb", true},
+		{"internal/journal/x.go", "daisy/internal/verb", true},
+		{"internal/verb/x.go", "daisy/internal/commands", true},
+		{"internal/verb/x.go", "daisy/internal/swarm/cmd", true},
+		{"internal/swarm/cmd/x.go", "daisy/internal/verb", false},
+		{"internal/commands/x.go", "daisy/internal/verb", false},
+		{"internal/verb/x.go", "daisy/internal/swarm/declare", false},
+	} {
+		f, err := parser.ParseFile(fset, tc.path, "package x\n\nimport _ \""+tc.imp+"\"\n", parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := ruleViolations(fset, tc.path, f); len(got) > 0 != tc.fails {
+			t.Errorf("%s importing %s: %q", tc.path, tc.imp, got)
 		}
 	}
 }
@@ -101,7 +128,7 @@ func ruleViolations(fset *token.FileSet, path string, f *ast.File) []string {
 				continue
 			}
 			if a, b := layer(pkg), layer(to); b > a || b == a && a != 1 {
-				fail(spec, "%s imports %s: imports run cli → {commands, swarm/cmd} → {domain packages} → ops", pkg, to)
+				fail(spec, "%s imports %s: imports run cli → {commands, swarm/cmd} → verb → {domain packages} → ops", pkg, to)
 			}
 		}
 	}

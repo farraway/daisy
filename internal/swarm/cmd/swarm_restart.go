@@ -29,7 +29,7 @@ func restartSwarm(c *Context) error {
 	fs := c.Ops.FS()
 	path := reconcile.RestartFile(state)
 	if b, err := fs.ReadFile(path); err == nil {
-		fmt.Fprintf(c.Stdout, "Restart already requested at %s\n", strings.TrimPrefix(firstLine(b), "restart "))
+		fmt.Fprintf(c.Stdout, "Restart already requested at %s\n", strings.TrimPrefix(reconcile.FirstLine(b), "restart "))
 		return nil
 	}
 	if err := fs.MkdirAll(state, 0o755); err != nil {
@@ -121,7 +121,7 @@ func (r *restarter) restart(c *Context, s *reconcile.Swarm) bool {
 	requested := err == nil
 	if requested {
 		b, _ := fs.ReadFile(flag)
-		at := "daisy swarm restart at " + strings.TrimPrefix(firstLine(b), "restart ")
+		at := "daisy swarm restart at " + strings.TrimPrefix(reconcile.FirstLine(b), "restart ")
 		why, said = append(why, at), append(said, at)
 	}
 	built, err := r.newBuild(fs)

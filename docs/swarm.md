@@ -8578,7 +8578,11 @@ of a run from its `started` line to its end line, `exited` or `timeout`
 (a run `launch-failed` or `abandoned` did not run), by the stage its
 `label` line names, under its current name (`batch` for the owner's
 batch run, which has none),
-and `check` the median from `check started` to `check exited`; the
+and `check` the median from `check started` to `check exited`, from
+`deps started` when the dependency step ran before that check (7.6,
+step 4; a rerun of the check alone counted from its own `check
+started`; Step S9 of the plan implementing the 2026-11-19 swarm
+roadmap, decision [182](swarm/decisions/0182-the-check-time-counts-the-dependency-step.md)); the
 median of an even count is the mean of the middle two, to the second;
 each with the number of runs it is taken over, in section 5's order
 after `batch`, `check` last, a stage without a timed run left out. The

@@ -1815,3 +1815,8 @@ they write.
   `gates.merge` false. Section 11's maintainer's verbs, `replan` and
   `init`; `docs/cli.md`'s. Decision
   [181](swarm/decisions/0181-the-maintainers-verbs-close-their-gaps.md).
+- 2026-11-27, Step S9 of the plan implementing the 2026-11-19 swarm
+  roadmap (L348): `swarm status`'s `stage time` counts a worker run's
+  check from `deps started` when the dependency step ran before it.
+  Section 11's Throughput. Decision
+  [182](swarm/decisions/0182-the-check-time-counts-the-dependency-step.md).

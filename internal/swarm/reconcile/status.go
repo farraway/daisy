@@ -592,7 +592,7 @@ func readStateNotes(fs ops.FS, state string, noBrief bool) StatusState {
 		s.Paused = PausedSince(b)
 	}
 	if b, err := fs.ReadFile(RestartFile(state)); err == nil {
-		at := strings.TrimPrefix(firstLine(b), "restart ")
+		at := strings.TrimPrefix(FirstLine(b), "restart ")
 		s.RestartRequestedAt = &at
 	}
 	if b, err := fs.ReadFile(heldFile(state, "owner")); err == nil {
@@ -609,9 +609,9 @@ func readStateNotes(fs ops.FS, state string, noBrief bool) StatusState {
 // readHold is a <role>-held file's first line, `held <time>: <reason>`
 // (section 2), its issues none.
 func readHold(b []byte) *StatusHold {
-	since, reason, found := strings.Cut(strings.TrimPrefix(firstLine(b), "held "), ": ")
+	since, reason, found := strings.Cut(strings.TrimPrefix(FirstLine(b), "held "), ": ")
 	if !found {
-		since, reason = "", firstLine(b)
+		since, reason = "", FirstLine(b)
 	}
 	return &StatusHold{since, reason, []int{}}
 }
@@ -619,11 +619,12 @@ func readHold(b []byte) *StatusHold {
 // PausedSince is <state>/paused's note: since when, and why ("" when it
 // gives no reason).
 func PausedSince(b []byte) *StatusSince {
-	since, reason, _ := strings.Cut(strings.TrimPrefix(firstLine(b), "paused "), ": ")
+	since, reason, _ := strings.Cut(strings.TrimPrefix(FirstLine(b), "paused "), ": ")
 	return &StatusSince{since, reason}
 }
 
-func firstLine(b []byte) string {
+// FirstLine is b's first line, without the whitespace at its ends.
+func FirstLine(b []byte) string {
 	line, _, _ := strings.Cut(string(b), "\n")
 	return strings.TrimSpace(line)
 }
@@ -821,7 +822,7 @@ func throughput(o ops.Ops, state string) (StatusThroughput, error) {
 		}
 		t.Runs.Total++
 		var outcome string
-		var started, ended, checkStarted, checkEnded time.Time
+		var started, ended, depsStarted, checkStarted, checkEnded time.Time
 		stage := "batch"
 		cost, costed := 0.0, false
 		var model, costLine string
@@ -841,8 +842,16 @@ func throughput(o ops.Ops, state string) (StatusThroughput, error) {
 				started = at(1)
 			case len(f) == 3 && f[0] == "exited", len(f) == 2 && f[0] == "timeout":
 				ended = at(len(f) - 1)
+			case len(f) == 3 && f[0] == "deps" && f[1] == "started":
+				depsStarted = at(2)
 			case len(f) == 3 && f[0] == "check" && f[1] == "started":
-				checkStarted = at(2)
+				// The check's time counts the dependency step before it
+				// (section 7.6, step 4); a rerun of the check alone, its
+				// own.
+				checkStarted, depsStarted = depsStarted, time.Time{}
+				if checkStarted.IsZero() {
+					checkStarted = at(2)
+				}
 			case len(f) == 4 && f[0] == "check" && f[1] == "exited":
 				checkEnded = at(3)
 			case len(f) >= 2 && f[0] == "cost":
