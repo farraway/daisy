@@ -248,6 +248,9 @@ func (j *Job) task() string {
 		if !j.Cfg.Gates.Triage {
 			add(`Then restate the whole job as it now stands: the architect plans from your answer.`)
 		}
+		if p := j.protected(); p != "" {
+			add(`The protected paths are %s.`, p)
+		}
 	case j.Role == "architect" && j.Label == forge.PlanAccepted:
 		why := `for each changed ruling, why they agree with it`
 		if len(j.Rulings) > 0 {
@@ -308,7 +311,7 @@ func (j *Job) task() string {
 		_, _, planned := j.Plan()
 		switch {
 		case j.Label == forge.ChangesRequested:
-			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge %s. Address each on the branch checked out in /job/work/%s (swarm/%d-%d), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`, cur.Repo, cur.Number, j.Cfg.Base, repo, j.N, s)
+			add(`The newest entries of pull request %s#%d's thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge %s, or, when checks failed on it, Daisy's note naming them. Address each on the branch checked out in /job/work/%s (swarm/%d-%d), or say why you did not, and write what you changed, point by point. If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`, cur.Repo, cur.Number, j.Cfg.Base, repo, j.N, s)
 			para(`A blocking finding that is none of the kinds that block (a claim of the slice the head does not show, on a slice that changes only documentation only a false statement the slice added or changed; a test the plan names missing or failing; a defect in the changed code; a fault the revision introduced), or that no realistic user, input or repository state meets, is answered, not fixed: say why it does not block. A non-blocking finding needs no change; Daisy files it for the owner.`)
 		case planned:
 			plan, _ := j.PlanText()

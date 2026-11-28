@@ -1780,3 +1780,10 @@ they write.
   trailer. Section 11's `init` and `prompt build`; `docs/cli.md`'s
   Commits. Decision
   [178](swarm/decisions/0178-the-maintainers-swarm-commits.md).
+- 2026-11-27, Step S3 of the plan implementing the 2026-11-19 swarm
+  roadmap (L347, L349): the worker's Task text at
+  `swarm:review-3-changes-requested` names, among the entries to answer,
+  Daisy's note naming the checks that failed on the approved head (T26);
+  the owner's at `swarm:proposal-posted` names the protected paths, the
+  list its default prompt says the Task names. Section 7.4. Wording; no
+  decision.

@@ -367,7 +367,7 @@ func TestRenderAdversaryNoChange(t *testing.T) {
 	w := job(f, at.N, "worker", "swarm:review-3-changes-requested")
 	w.Pulls, w.Pull = pulls, thread(f, pr)
 	sys, _ = Render(w)
-	has(t, "worker system.md", sys, []string{`The newest entries of pull request lib#1's thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge main.`,
+	has(t, "worker system.md", sys, []string{`The newest entries of pull request lib#1's thread need an answer: the blocking findings of its latest reviews, the maintainer's comments and, when the forge found the approved head not mergeable, Daisy's direction to merge main, or, when checks failed on it, Daisy's note naming them.`,
 		`If none needs a change to the code, make no commit and write "NO CHANGE: <why>" as the first line of your output, then your answer point by point: the reviewers judge it against the unchanged head.`})
 }
 
@@ -550,6 +550,9 @@ func TestRenderOwner(t *testing.T) {
 	sys, prompt := Render(j)
 	has(t, "system.md", sys, []string{`Issue #1 has no comment yet: say whether its body is a job the swarm can do and is worth doing next, and what is unclear in it. Then restate the whole job as it now stands: the architect plans from your answer.`})
 	has(t, "prompt.md", prompt, []string{"Opened by swarm-bot at "})
+	// The protected list the default owner prompt says the Task names
+	// (section 4): each repository's, as the batch's text names them.
+	has(t, "system.md", sys, []string{`the architect plans from your answer. The protected paths are app: .gitea/, AGENTS.md, compose.test.yaml; lib: compose.test.yaml.`})
 
 	var briefs []brief.Brief
 	for _, name := range []string{"docs/briefs/a.md", "docs/briefs/b.md"} {
@@ -680,6 +683,20 @@ func TestRenderWorkerMergesBase(t *testing.T) {
 			has(t, fmt.Sprintf("%s, merge gate %v", name, gate), sys, []string{mergeBase})
 		}
 	}
+}
+
+// The worker answering a pull request sent back because checks failed
+// on its approved head (T26): its Task text names Daisy's note among the
+// entries to answer (section 7.4), as it names the direction to merge.
+func TestRenderWorkerChecksFailed(t *testing.T) {
+	f, at, pr, _ := planned(t)
+	p, _ := f.Pulls(1, []string{"swarm-bot"})
+	f.Comment(pr, marker("reconciler", 1)+ChecksFailed("acme", at.N, p[0], "aaa", []forge.Check{{Context: "ci/test", State: "failure"}}))
+	j := job(f, at.N, "worker", "swarm:review-3-changes-requested")
+	j.Pulls, j.Pull = p, thread(f, pr)
+	sys, prompt := Render(j)
+	has(t, "system.md", sys, []string{`Daisy's direction to merge main, or, when checks failed on it, Daisy's note naming them. Address each on the branch`})
+	has(t, "prompt.md", prompt, []string{"The checks on pull request [acme/lib#1]"})
 }
 
 // The worker's first slice of a plan: no pin sentence; lib, protecting nothing of its own, protects its test services file (Step R3-3c).
