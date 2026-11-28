@@ -57,6 +57,7 @@ type Swarm struct {
 	driftSeen  bool                 // a pass has compared the configuration with the pushed head (drift)
 	drifting   []string             // the paths that drifted at the last comparison
 	unchecked  []string             // the warnings warnUnchecked printed last
+	qaLost     string               // the explored commit base no longer holds, warned of (explored)
 	ci         []CIDiffer           // the repositories whose CI differs, as warnCI read them this pass
 	ciErr      error                // warnCI's read refused this pass: notify tells nothing
 	ciTold     []string             // the lines warnCI printed last

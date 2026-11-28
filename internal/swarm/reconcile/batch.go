@@ -166,6 +166,11 @@ func (s *Swarm) qaDue(runs []Run) (bool, error) {
 		return false, err
 	}
 	e, g := s.Cfg.QA, s.git()
+	if from != "" {
+		if from, err = s.explored(g, product, head, from); err != nil {
+			return false, err
+		}
+	}
 	if e.Merges != nil {
 		n, err := g.Merges(product, head, from)
 		if err != nil || n >= *e.Merges {
@@ -177,6 +182,27 @@ func (s *Swarm) qaDue(runs []Run) (bool, error) {
 		return len(tags) > 0, err
 	}
 	return false, nil
+}
+
+// explored is from, the commit the last exploration explored, while
+// product's head holds it; else "", counting from the branch's start,
+// warned of once a process (s.qaLost) when a force-push took from off
+// the branch (section 6, The QA trigger).
+func (s *Swarm) explored(g Git, product, head, from string) (string, error) {
+	held := false
+	if _, err := g.run(g.Mirror(product), "cat-file", "-e", from+"^{commit}"); err == nil {
+		if held, err = g.IsAncestor(product, from, head); err != nil {
+			return "", err
+		}
+	}
+	if held {
+		return from, nil
+	}
+	if s.qaLost != from {
+		fmt.Fprintf(s.Err, "⚠ qa: %s's %s no longer holds %s, the commit the last exploration explored (it was force-pushed): its merges are counted from the branch's start\n", product, s.Cfg.Base, short(from))
+		s.qaLost = from
+	}
+	return "", nil
 }
 
 // LastQA is the commit of the first repository, product, that the

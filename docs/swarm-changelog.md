@@ -1787,3 +1787,12 @@ they write.
   the owner's at `swarm:proposal-posted` names the protected paths, the
   list its default prompt says the Task names. Section 7.4. Wording; no
   decision.
+- 2026-11-27, Step S4 of the plan implementing the 2026-11-19 swarm
+  roadmap (L384): the QA trigger counts from the branch's start when the
+  first repository's base no longer holds the explored commit (a
+  force-push), warned of once a process, where `rev-list` failed the pass
+  while the mirror lacked the commit; the QA's Task text asks with each
+  failure for a browser test that reproduces it, in the framework the
+  repository notes name or else Playwright. Sections 6, 7.4 and 11's
+  `apply` stderr; `docs/cli.md`'s. Decision
+  [179](swarm/decisions/0179-the-qa-after-a-force-push.md).

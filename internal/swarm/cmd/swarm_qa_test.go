@@ -83,6 +83,7 @@ func TestSwarmQAAfterMerges(t *testing.T) {
 		"# Persona\n\n## QA\n",
 		`# Task` + "\n\n" + `Use app as its users do and report what fails. In its clone /job/work/app, at main, start the app and its browser as "# Repository notes: app" says, and drive each route and control of the page map those notes keep.`,
 		`Report each failure as a job for acme/swarm-app, at most 5, the most serious first;`,
+		`what you expected, what happened, and the error text or log line it left, then a browser test that reproduces the failure from a fresh start, failing now and passing once it is fixed: in the browser test framework the repository notes name, or else a Playwright test, in a fenced block, for the fix's slice to add to the repository's tests.`,
 		"# Repository notes: app\n\n## app\n\n### Page map\n\n- /login: the sign-in form;",
 	} {
 		if !strings.Contains(sys, want) {
@@ -140,6 +141,36 @@ func TestSwarmQAAfterMerges(t *testing.T) {
 	}
 	if _, err := os.Stat(a.state("qa-held")); err == nil {
 		t.Error("a run with no failure held the QA")
+	}
+
+	// main force-pushed to a history without the explored commit, which
+	// the mirror then no longer holds: warned of, the pass going on, the
+	// merges counted from the branch's start, so one commit runs nothing
+	// and a second runs the QA.
+	explored := gitIn(t, a.upstream("app"), "rev-parse", "main")
+	src := t.TempDir()
+	for _, args := range [][]string{{"init", "-q", "-b", "main", src}, {"-C", src, "-c", "user.name=T", "-c", "user.email=t@example.net", "commit", "-q", "--allow-empty", "-m", "rewritten"},
+		{"-C", src, "push", "-q", "-f", a.upstream("app"), "main"}} {
+		if _, errb, err := ops.Real().Exec("", "git", args...); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, errb)
+		}
+	}
+	a.checkedGreen("app")
+	a.fetchProduct("app")
+	gitIn(t, a.state("git/app"), "gc", "-q", "--prune=now")
+	if _, _, err := ops.Real().Exec(a.state("git/app"), "git", "cat-file", "-e", explored+"^{commit}"); err == nil {
+		t.Fatal("the mirror still holds the explored commit")
+	}
+	warning := "⚠ qa: app's main no longer holds " + explored[:7] + ", the commit the last exploration explored (it was force-pushed): its merges are counted from the branch's start\n"
+	a.runner.Script(0, "qa", runner.Canned{Out: "NO FAILURE: /login, /boards\n"})
+	a.pass()
+	if n := len(a.qaRuns()); n != 2 || strings.Count(a.stderr.String(), warning) != 1 {
+		t.Fatalf("after the force-push: %d launches\n%s", n, a.stderr.String())
+	}
+	a.land("app", map[string]string{"again.go": "package app\n"}, "again")
+	a.pass()
+	if n := len(a.qaRuns()); n != 3 {
+		t.Fatalf("after two commits on the rewritten main: %d launches\n%s%s", n, a.stdout.String(), a.stderr.String())
 	}
 }
 
