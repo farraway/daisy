@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"daisy/internal/commands"
+	"daisy/internal/metrics"
 	"daisy/internal/ops"
 	"daisy/internal/swarm/runner"
 	"daisy/internal/verb"
@@ -383,6 +384,47 @@ func TestSwarmConnect(t *testing.T) {
 	after := snapshot(t, a.state(""), a.ws, home)
 	if !maps.Equal(before, after) {
 		t.Error("the briefing changed a file")
+	}
+
+	// A run on a newer Daisy root, after the clone's newest commit to
+	// swarm.json or prompts/: the metrics are cut at that run, the first
+	// on the root its row names (a Daisy update changes the Task texts or
+	// praxis), whatever the clone holds.
+	csvFile := filepath.Join(home, "metrics", "metrics.csv")
+	csv, _ := os.ReadFile(csvFile)
+	newer, err := metrics.AppendCSV(csv, metrics.Row{When: "2026-11-06T15:04:00Z", Kind: metrics.SwarmRun, Source: "acme/swarm-app", Unit: "2-worker-1",
+		Role: "worker", Provider: "anthropic", Model: "claude-sonnet-5-5", Effort: "medium", RootSHA: "f00dfeed00000000000000000000000000000000", Outcome: "posted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(csvFile, newer, 0o644)
+	a.flags = nil
+	if err := a.readOnly(swarmConnect, a.forge); err != nil {
+		t.Fatal(err)
+	}
+	if out := a.stdout.String(); !strings.Contains(out, "\n  since the last model or prompt change, 2026-11-06T15:04:00Z root f00dfee (the first run on that Daisy root, after the clone's newest commit to swarm.json or prompts/):\n"+
+		"    claude-sonnet-5-5  1 row, tokens —, cost —, estimated —\n  in all:\n") {
+		t.Errorf("a newer root:\n%s", out)
+	}
+	a.flags = []string{verb.JSONFlag}
+	if err := a.readOnly(swarmConnect, a.forge); err != nil {
+		t.Fatal(err)
+	}
+	var cut struct {
+		Metrics struct {
+			Change     *struct{ At string }
+			RootChange *struct {
+				At      string
+				RootSHA string `json:"root_sha"`
+			} `json:"root_change"`
+			SinceChange []struct{ Rows int } `json:"since_change"`
+		}
+	}
+	if err := json.Unmarshal(a.stdout.Bytes(), &cut); err != nil {
+		t.Fatal(err)
+	}
+	if m := cut.Metrics; m.Change == nil || m.RootChange == nil || m.RootChange.At != "2026-11-06T15:04:00Z" || m.RootChange.RootSHA != "f00dfeed00000000000000000000000000000000" || len(m.SinceChange) != 1 {
+		t.Errorf("a newer root, --json: %+v", m)
 	}
 
 	// No AUTHORITIES.md: nothing granted. No home: no metrics, and why.

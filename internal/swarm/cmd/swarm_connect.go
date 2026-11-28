@@ -485,13 +485,16 @@ type connectAuthorities struct {
 }
 
 // connectMetrics is the swarm's runs in the metrics CSV of the home
-// <state>/home names, by model: since the clone's newest commit to
-// swarm.json or prompts/ (Change, nil when none is) and in all; Problem
-// says why there are none (no home, no CSV, a read that failed).
+// <state>/home names, by model: since the later of the clone's newest
+// commit to swarm.json or prompts/ (Change, nil when none is) and the
+// first run on the Daisy root the newest run names, when an earlier run
+// names another (RootChange, else nil), and in all; Problem says why
+// there are none (no home, no CSV, a read that failed).
 type connectMetrics struct {
 	Home        *string        `json:"home"`
 	File        *string        `json:"file"`
 	Change      *connectChange `json:"change"`
+	RootChange  *connectRoot   `json:"root_change"`
 	SinceChange []connectModel `json:"since_change"`
 	All         []connectModel `json:"all"`
 	Problem     *string        `json:"problem"`
@@ -501,6 +504,13 @@ type connectChange struct {
 	At      string `json:"at"`
 	Commit  string `json:"commit"`
 	Subject string `json:"subject"`
+}
+
+// connectRoot is the first run on the Daisy root the newest run names:
+// its row's time and root_sha.
+type connectRoot struct {
+	At      string `json:"at"`
+	RootSHA string `json:"root_sha"`
 }
 
 // connectModel is the swarm's runs of one model (nil when the rows leave
@@ -584,7 +594,8 @@ func byIssue(j *journalReport) connectJournal {
 
 // readConnectMetrics reads the metrics of the swarm's runs, repo's, from
 // the CSV of the home <state>/home names, and the change they are counted
-// since: the clone's newest commit to swarm.json or prompts/.
+// since: the clone's newest commit to swarm.json or prompts/, or the
+// first run on a newer Daisy root (rootChange), whichever is later.
 func readConnectMetrics(c *Context, state, repo string) connectMetrics {
 	m := connectMetrics{SinceChange: []connectModel{}, All: []connectModel{}}
 	none := func(format string, a ...any) connectMetrics {
@@ -634,7 +645,14 @@ func readConnectMetrics(c *Context, state, repo string) connectMetrics {
 		return none("cannot read %s: %v", file, err)
 	}
 	m.All = connectModels(all)
-	if m.Change != nil {
+	latest, err := metrics.Latest(csv)
+	if err != nil {
+		return none("cannot read %s: %v", file, err)
+	}
+	if at, sha, ok := rootChange(latest, repo); ok && at.After(since) {
+		since, m.RootChange = at, &connectRoot{at.UTC().Format(time.RFC3339), sha}
+	}
+	if !since.IsZero() {
 		s, err := metrics.Summarize(csv, metrics.Filter{Swarm: repo, Since: since})
 		if err != nil {
 			return none("cannot read %s: %v", file, err)
@@ -642,6 +660,30 @@ func readConnectMetrics(c *Context, state, repo string) connectMetrics {
 		m.SinceChange = connectModels(s)
 	}
 	return m
+}
+
+// rootChange is the time and root_sha of the first of repo's runs, by
+// their rows' times (each key's latest row), on the root the newest names,
+// when an earlier run names another; ok is false when none does. A row
+// whose time does not parse is left out, as Summarize refuses it.
+func rootChange(latest map[string]metrics.Row, repo string) (at time.Time, sha string, ok bool) {
+	type run struct {
+		at  time.Time
+		sha string
+	}
+	var runs []run
+	for _, r := range latest {
+		if t, err := time.Parse(time.RFC3339, r.When); err == nil && r.Kind == metrics.SwarmRun && r.Source == repo {
+			runs = append(runs, run{t, r.RootSHA})
+		}
+	}
+	slices.SortStableFunc(runs, func(a, b run) int { return a.at.Compare(b.at) })
+	for i := len(runs) - 1; i > 0; i-- {
+		if runs[i-1].sha != runs[i].sha {
+			return runs[i].at, runs[i].sha, true
+		}
+	}
+	return time.Time{}, "", false
 }
 
 // connectModels is a summary's groups, every one of kind swarm-run under
@@ -737,10 +779,17 @@ func writeConnect(out io.Writer, r *connectReport) {
 		return
 	}
 	fmt.Fprintf(out, "\nMetrics of the swarm's runs: %s (home %s)\n", *m.File, *m.Home)
-	if c := m.Change; c != nil {
+	switch c, root := m.Change, m.RootChange; {
+	case root != nil && c != nil:
+		fmt.Fprintf(out, "  since the last model or prompt change, %s root %s (the first run on that Daisy root, after the clone's newest commit to swarm.json or prompts/):\n", root.At, short(root.RootSHA))
+		writeModels(out, m.SinceChange)
+	case root != nil:
+		fmt.Fprintf(out, "  since the last model or prompt change, %s root %s (the first run on that Daisy root; no commit to swarm.json or prompts/ in the clone):\n", root.At, short(root.RootSHA))
+		writeModels(out, m.SinceChange)
+	case c != nil:
 		fmt.Fprintf(out, "  since the last model or prompt change, %s %s %s (the clone's newest commit to swarm.json or prompts/):\n", c.At, c.Commit, c.Subject)
 		writeModels(out, m.SinceChange)
-	} else {
+	default:
 		fmt.Fprintln(out, "  no commit to swarm.json or prompts/ in the clone")
 	}
 	fmt.Fprintln(out, "  in all:")

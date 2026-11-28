@@ -1827,3 +1827,10 @@ they write.
   maintainer comments leave command comments out. Sections 6, 7.3 and
   11's Throughput. Decision
   [183](swarm/decisions/0183-a-command-is-a-comments.md).
+- 2026-11-27, Step S11 of the plan implementing the 2026-11-19 swarm
+  roadmap (L476): `swarm connect`'s metrics since the last model or
+  prompt change are cut at the first run on a newer Daisy root, its
+  rows' `root_sha`, when that is later than the clone's newest commit
+  to `swarm.json` or `prompts/` (`--json`'s `root_change`). Section 11's
+  connect; `prompts/swarm-connect.md` rule 2; `docs/cli.md`'s. Decision
+  [184](swarm/decisions/0184-the-connects-metrics-cut-at-a-newer-root.md).

@@ -696,7 +696,7 @@ func TestSwarmConnectThroughGitea(t *testing.T) {
 		"waiting": {"ci_differs", "issues", "no_check", "notes"},
 		"held":    {"blocked_by", "overlaps", "paused"},
 		"runs":    {"blocked", "failed", "faults", "other", "posted", "questions", "total"},
-		"metrics": {"all", "change", "file", "home", "problem", "since_change"},
+		"metrics": {"all", "change", "file", "home", "problem", "root_change", "since_change"},
 	} {
 		var v any = doc
 		for _, k := range strings.Split(path, ".") {
@@ -715,7 +715,7 @@ func TestSwarmConnectThroughGitea(t *testing.T) {
 			{"issue": null, "lines": [{"day": "2026-11-06", "run": "0-owner-2", "line": "- 1500 0-owner-2: posted; batch"}]}]},
 		"waiting": {"issues": [{"item": "triage", "issue": 1, "class": "architecture", "gate_note": null}], "notes": [], "no_check": [], "ci_differs": []},
 		"questions": [], "authorities": null,
-		"metrics": {"home": null, "file": null, "change": null, "since_change": [], "all": [], "problem": "`+filepath.Join(state, "home")+` names no Daisy home"}}`), &want)
+		"metrics": {"home": null, "file": null, "change": null, "root_change": null, "since_change": [], "all": [], "problem": "`+filepath.Join(state, "home")+` names no Daisy home"}}`), &want)
 	for k, v := range want.(map[string]any) {
 		if !reflect.DeepEqual(doc[k], v) {
 			got, _ := json.Marshal(doc[k])
