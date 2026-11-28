@@ -220,15 +220,20 @@ func (s *Swarm) persona(role string) (string, []PromptPart, error) {
 }
 
 // skillBody is a SKILL.md without its frontmatter, the lines from a first
-// line "---" through the next "---" line, and the blank lines after it;
-// the text as it is when it has none.
+// line "---" through the next "---" line, or a "---" ending the text, and
+// the blank lines after it, its line ends read as LF whether written so
+// or as CRLF; the text as it is when it has none.
 func skillBody(text string) string {
-	rest, ok := strings.CutPrefix(text, "---\n")
+	lf := strings.ReplaceAll(text, "\r\n", "\n")
+	rest, ok := strings.CutPrefix(lf, "---\n")
 	if !ok {
 		return text
 	}
 	if _, body, ok := strings.Cut(rest, "\n---\n"); ok {
 		return strings.TrimLeft(body, "\n")
+	}
+	if strings.HasSuffix(rest, "\n---") {
+		return ""
 	}
 	return text
 }
@@ -354,6 +359,11 @@ func (j *Job) names() []string {
 		out = append(out, r.Name)
 	}
 	return out
+}
+
+// declared: name is one of the declared repositories (repos).
+func (j *Job) declared(name string) bool {
+	return slices.ContainsFunc(j.Cfg.Repos, func(r declare.Repo) bool { return r.Name == name })
 }
 
 func (j *Job) repo(name string) declare.Repo {

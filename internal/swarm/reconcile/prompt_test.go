@@ -921,3 +921,21 @@ func TestRenderCutReviewFindingsWhole(t *testing.T) {
 	has(t, "prompt.md", prompt, []string{"- round on c1: 1 blocking, revised in c2\n",
 		", on c2: request-changes\n\n[blocking] a.go:2 finding A2\n\n"}, "z.go")
 }
+
+// skillBody cuts a skill's frontmatter (section 7.3): written with LF or
+// CRLF, closed by a `---` line or by `---` ending the text; a text with
+// none is kept whole.
+func TestSkillBody(t *testing.T) {
+	for _, c := range []struct{ name, text, want string }{
+		{"LF", "---\nname: testing\n---\n\nA test.\n", "A test.\n"},
+		{"CRLF", "---\r\nname: testing\r\n---\r\n\r\nA test.\r\n", "A test.\n"},
+		{"closed at the end", "---\nname: testing\n---", ""},
+		{"closed at the end, CRLF", "---\r\nname: testing\r\n---", ""},
+		{"none", "# Testing\n\nA test.\n", "# Testing\n\nA test.\n"},
+		{"never closed", "---\nname: testing\n", "---\nname: testing\n"},
+	} {
+		if got := skillBody(c.text); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}

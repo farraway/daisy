@@ -236,6 +236,9 @@ func (s *Swarm) launch(j *Job, running []runner.Running) (bool, error) {
 		// The architect revising with the issue's pull request open sees
 		// its head, a branch of that repository's clone (section 7.1).
 		cur, open := j.current()
+		if j.Role == "architect" && open && !j.declared(cur.Repo) {
+			fmt.Fprintf(s.Err, "⚠ #%d architect run %d: pull %s#%d's repository is not in repos; its head is not cloned\n", j.N, j.K, cur.Repo, cur.Number)
+		}
 		for _, rp := range s.Cfg.Repos {
 			var also []string
 			if j.Role == "architect" && open && cur.Repo == rp.Name {

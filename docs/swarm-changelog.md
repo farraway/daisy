@@ -1796,3 +1796,13 @@ they write.
   repository notes name or else Playwright. Sections 6, 7.4 and 11's
   `apply` stderr; `docs/cli.md`'s. Decision
   [179](swarm/decisions/0179-the-qa-after-a-force-push.md).
+- 2026-11-27, Step S5 of the plan implementing the 2026-11-19 swarm
+  roadmap (L325, L326, L343): a revising architect whose open pull
+  request's repository is no longer declared is launched with a warning
+  that its head is not cloned, the open-slice sentence saying the head
+  is not in `/job/work`; the testing skill's frontmatter is cut from a
+  CRLF file and from one whose closing `---` ends the file; a re-plan
+  request counts when it follows the architect's word in the thread,
+  one in the same second included. Sections 6, 7.3, 7.4 and 11's
+  `apply` stderr; `docs/cli.md`'s. Decision
+  [180](swarm/decisions/0180-three-reconcile-edges.md).

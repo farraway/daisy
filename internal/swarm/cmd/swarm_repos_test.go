@@ -187,6 +187,34 @@ func TestSwarmApplyContinuedPullRepositoryRemoved(t *testing.T) {
 	}
 }
 
+// An architect revising while its issue's pull request is open, the
+// pull request's repository removed from repos since (section 7.1): the
+// launch goes on, warning that the head is not cloned, and the
+// open-slice sentence says the head is not in /job/work.
+func TestSwarmApplyArchitectOpenSliceRepoGone(t *testing.T) {
+	t.Parallel()
+	a := newApplyWS(t)
+	a.inReview("## Steps\n\n1. lib: change main.go.\n")
+	if ps := a.pulls(1); len(ps) != 1 || ps[0].Repo != "lib" {
+		t.Fatalf("pulls %+v", ps)
+	}
+	a.forge.SetLabel(issue1, "swarm:plan-0-posted")
+	a.say(issue1, "jane", "Rethink slice 1.")
+	a.edit(func(c *declare.Config) { c.Repos = c.Repos[:1] })
+	a.runner.Script(1, "architect", runner.Canned{Out: "## Steps\n\n1. app: change main.go.\n"})
+	a.pass()
+	if !strings.Contains(a.stderr.String(), "⚠ #1 architect run 2: pull lib#1's repository is not in repos; its head is not cloned\n") {
+		t.Errorf("stderr:\n%s", a.stderr.String())
+	}
+	sys := a.file("1-architect-2", "io/system.md")
+	if want := `Pull request lib#1, slice 1, is open: it reached the review limit, or the maintainer returned the issue to you, and its reviews under "# Pull request" are the input. Its repository, lib, is no longer declared, so its head, the branch swarm/1-1, is not in /job/work: "# Pull request" is what you have of the change they judged.`; !strings.Contains(sys, want) {
+		t.Errorf("system.md lacks %q:\n%s", want, sys)
+	}
+	if r := a.result("1-architect-2"); !strings.Contains(r, "start app ") || strings.Contains(r, "start lib ") {
+		t.Errorf("the run:\n%s", r)
+	}
+}
+
 // pause and resume (section 11): pause mid-lifecycle stops launches and
 // merges while collection goes on; resume continues; both report what
 // they found.

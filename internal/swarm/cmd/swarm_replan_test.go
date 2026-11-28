@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"daisy/internal/ops"
 	"daisy/internal/swarm/declare"
@@ -50,13 +51,39 @@ func (a *applyWS) replans() []string {
 // STANDS: keeps the plan, and the pass after runs the worker on slice 2.
 func TestSwarmReplan(t *testing.T) {
 	t.Parallel()
+	for _, sameSecond := range []bool{false, true} {
+		t.Run(map[bool]string{false: "a later request", true: "a request in the architect's second"}[sameSecond], func(t *testing.T) {
+			testSwarmReplan(t, sameSecond)
+		})
+	}
+}
+
+// testSwarmReplan is TestSwarmReplan's run; with sameSecond the request
+// is posted at the time of the architect's newest word on the plan, after
+// it in the thread, and is read as after it all the same.
+func testSwarmReplan(t *testing.T, sameSecond bool) {
 	a := newApplyWS(t)
 	a.betweenSlices(nil)
 	a.maintainer()
 	a.tick()
+	later := a.Now()
+	if sameSecond {
+		var basis time.Time
+		for _, c := range a.issue(1).Comments {
+			if strings.HasPrefix(c.Body, mark("architect", 1)) {
+				basis = c.Created
+			}
+		}
+		a.mu.Lock()
+		a.now = basis
+		a.mu.Unlock()
+	}
 	if err := a.replan("1", "re-plan", "against", "ADR", "0031"); err != nil || a.stdout.String() != "Maintainer jane on acme/swarm-app\n#1 commented on the issue\n" {
 		t.Fatalf("replan: %v\n%s%s", err, a.stdout.String(), a.stderr.String())
 	}
+	a.mu.Lock()
+	a.now = later
+	a.mu.Unlock()
 	if got := a.replans(); !reflect.DeepEqual(got, []string{"Re-plan: re-plan against ADR 0031"}) || a.janes(issue1) != nil {
 		t.Fatalf("comments %q, jane's label changes %q", got, a.janes(issue1))
 	}

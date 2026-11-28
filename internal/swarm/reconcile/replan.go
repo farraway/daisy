@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"slices"
 	"strings"
 
 	"daisy/internal/swarm/forge"
@@ -29,16 +30,19 @@ func isReplan(text string) bool {
 	return strings.TrimRight(t, " \t\r\n") == "Re-plan." || strings.HasPrefix(t, "Re-plan:")
 }
 
-// asked is the maintainer's newest re-plan request on j's issue posted
-// after the basis (the architect's newest word on the accepted plan);
+// asked is the maintainer's newest re-plan request on j's issue after
+// the basis (the architect's newest word on the accepted plan) in the
+// thread's order, which a request posted in the basis's second keeps;
 // ok is false when there is none, or no plan.
 func (j *Job) asked() (e Entry, ok bool) {
 	basis, _, planned := j.basis()
 	if !planned {
 		return Entry{}, false
 	}
-	for _, c := range IssueThread(j.Issue) {
-		if c.Created.After(basis.Created) && maintainerWord(c, j.SwarmLogin, j.Cfg.Trusted) && isReplan(c.Body) && (!ok || !c.Created.Before(e.Created)) {
+	thread := IssueThread(j.Issue)
+	after := thread[slices.Index(thread, basis)+1:]
+	for _, c := range after {
+		if maintainerWord(c, j.SwarmLogin, j.Cfg.Trusted) && isReplan(c.Body) {
 			e, ok = c, true
 		}
 	}
