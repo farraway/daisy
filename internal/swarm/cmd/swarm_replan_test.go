@@ -267,7 +267,7 @@ func TestSwarmReplanRefused(t *testing.T) {
 		{[]string{"4", "go"}, "Error: swarm: #4: pull request acme/app#2 (https://forge.example.net/acme/app/pulls/2) is open (swarm:plan-1-accepted); close or merge it first, then replan; nothing changed"},
 		{[]string{"5"}, "Error: swarm: #5 waits for the answer to a member's question (swarm:question); replan once it is answered; nothing changed"},
 		{[]string{"6"}, "Error: swarm: #6: architect run 2 is not yet collected; replan once it is; nothing changed"},
-		{[]string{"4", "Then:\n/swarm accept"}, "Error: swarm: the direction holds a command line (/swarm accept), which would make the comment a command that no member reads; nothing posted"},
+		{[]string{"4", "Then:\n/swarm accept"}, "Error: swarm: the comment holds a command line (/swarm accept), which would make it a command that no member reads; nothing posted"},
 	} {
 		if err := m.verb(swarmReplan, tc.args...); errText(err) != tc.err {
 			t.Errorf("%q: %v\nwant %s", tc.args, err, tc.err)

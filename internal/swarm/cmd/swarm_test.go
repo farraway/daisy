@@ -369,6 +369,42 @@ func TestSwarmInitDefaults(t *testing.T) {
 	}
 }
 
+// With gates.merge false, init's readiness warnings name each repository
+// the merge step would merge with no check run (declare's Unchecked), as
+// apply warns of it, after that repository's empty check (section 11,
+// init); a repository with a check, or the merge gate on, has none.
+func TestSwarmInitWarnsOfAnUncheckedMerge(t *testing.T) {
+	t.Parallel()
+	s := newSwarmWS(t)
+	s.vars["CLAUDE_CODE_OAUTH_TOKEN"] = "oauth-token"
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	if strings.Contains(s.stderr.String(), "gates.merge") {
+		t.Errorf("the merge gate on:\n%s", s.stderr.String())
+	}
+	s.cwd = s.ws
+	f := s.read("swarm.json")
+	for _, r := range [][2]string{{`"merge": true},`, `"merge": false}, "budget": {"per_day": 10, "total": 100},`}, {`"check": []`, `"check": ["make", "check"]`}} {
+		if !strings.Contains(f, r[0]) {
+			t.Fatalf("swarm.json holds no %s:\n%s", r[0], f)
+		}
+		f = strings.Replace(f, r[0], r[1], 1)
+	}
+	s.write("swarm.json", f)
+	if err := s.run("--defaults"); err != nil {
+		t.Fatalf("%v\n%s", err, s.stderr.String())
+	}
+	want := "⚠ Readiness: app has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n" +
+		"⚠ Readiness: lib has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n" +
+		"⚠ Readiness: lib: check is empty; no member's work is executed (set it in swarm.json)\n" +
+		"⚠ Readiness: swarm.json: repos[1] (lib) has no check and gates.merge is false: no check of Daisy's runs on its pull requests before the merge step merges them\n" +
+		"⚠ Readiness: trusted holds no maintainer login; no comment of yours reaches a member\n"
+	if got := s.stderr.String(); got != want {
+		t.Errorf("stderr:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 // A kept prompt apply would refuse, empty or a link to nothing, is
 // warned of: init keeps what is there, and says what to do (section 11,
 // init).

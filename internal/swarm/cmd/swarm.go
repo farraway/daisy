@@ -307,12 +307,16 @@ func readiness(c *Context, g reconcile.Git, cfg declare.Config, swarmLogin strin
 	if err != nil {
 		fmt.Fprintf(c.Stderr, "⚠ Readiness: %v\n", err)
 	}
-	for _, r := range cfg.Repos {
+	unchecked := cfg.Unchecked()
+	for i, r := range cfg.Repos {
 		if !g.HasFile(r.Name, cfg.Base, "AGENTS.md") && !g.HasFile(r.Name, cfg.Base, "CLAUDE.md") {
 			fmt.Fprintf(c.Stderr, "⚠ Readiness: %s has no AGENTS.md or CLAUDE.md; members start without the product's instructions\n", r.Name)
 		}
 		if len(r.Check) == 0 {
 			fmt.Fprintf(c.Stderr, "⚠ Readiness: %s: check is empty; no member's work is executed (set it in swarm.json)\n", r.Name)
+		}
+		if slices.Contains(unchecked, i) {
+			fmt.Fprintln(c.Stderr, "⚠ Readiness: "+cfg.UncheckedWarning(i))
 		}
 		if i := slices.IndexFunc(ci, func(d reconcile.CIDiffer) bool { return d.Name == r.Name }); i >= 0 {
 			for _, l := range ci[i].Lines {

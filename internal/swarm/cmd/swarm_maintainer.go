@@ -297,7 +297,8 @@ func (m *maintainer) current() (pulls []forge.Pull, cur forge.Pull, ok bool, err
 
 // comment is the words after <n> as one comment, "" when they are blank;
 // one that opens with the swarm's marker is refused, since none of the
-// maintainer's entries carries it (section 6).
+// maintainer's entries carries it, and so is one holding a command line,
+// which would make it a command that no member reads (section 6).
 func comment(c *Context) (string, error) {
 	text := strings.Join(c.Args[1:], " ")
 	if strings.TrimSpace(text) == "" {
@@ -305,6 +306,11 @@ func comment(c *Context) (string, error) {
 	}
 	if _, marked := reconcile.Marked(text); marked {
 		return "", fmt.Errorf("Error: swarm: the comment opens with the swarm's marker, which only the swarm's entries carry; nothing posted")
+	}
+	if reconcile.IsCommand(text) {
+		lines := strings.Split(text, "\n")
+		line := lines[slices.IndexFunc(lines, reconcile.IsCommand)]
+		return "", fmt.Errorf("Error: swarm: the comment holds a command line (%s), which would make it a command that no member reads; nothing posted", strings.TrimSpace(line))
 	}
 	return text, nil
 }
@@ -475,13 +481,25 @@ func swarmClose(c *Context, open opener) error {
 	if err != nil {
 		return err
 	}
+	pulls, _, _, err := m.current()
+	if err != nil {
+		return err
+	}
 	if text != "" {
 		if err := m.say(text); err != nil {
 			return err
 		}
 	}
 	stage, _ := reconcile.StageOf(is)
-	return m.close(stage, forge.Rejected, "")
+	if err := m.close(stage, forge.Rejected, ""); err != nil {
+		return err
+	}
+	for _, p := range pulls {
+		if p.Open {
+			fmt.Fprintf(c.Stdout, "#%d pull %s#%d left open (%s): close it on the forge\n", m.n, p.Repo, p.Number, p.URL)
+		}
+	}
+	return nil
 }
 
 func swarmApprove(c *Context, open opener) error {
@@ -913,11 +931,6 @@ func swarmReplan(c *Context, open opener) error {
 		return err
 	}
 	text := reconcile.ReplanText(direction)
-	if reconcile.IsCommand(text) {
-		lines := strings.Split(text, "\n")
-		line := lines[slices.IndexFunc(lines, reconcile.IsCommand)]
-		return fmt.Errorf("Error: swarm: the direction holds a command line (%s), which would make the comment a command that no member reads; nothing posted", strings.TrimSpace(line))
-	}
 	m, err := asMaintainer(c, open)
 	if err != nil {
 		return err

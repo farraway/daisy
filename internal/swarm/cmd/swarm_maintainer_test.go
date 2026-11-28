@@ -216,6 +216,48 @@ func TestSwarmMaintainerCurrentPullOpeners(t *testing.T) {
 	}
 }
 
+// close names each of the issue's pull requests it leaves open, after
+// the close's lines, so the maintainer closes them: the open one of the
+// swarm's, never one closed or merged, nor one opened by an untrusted
+// login (section 11, close).
+func TestSwarmCloseNamesItsOpenPulls(t *testing.T) {
+	t.Parallel()
+	m := newMaintainerWS(t)
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:review-1-in-progress"})
+	first, _ := m.forge.CreatePull("app", "swarm/1-1", "main", "slice", "Refs acme/swarm-app#1")
+	m.forge.ClosePull(forge.Ref{Repo: "app", N: first})
+	m.forge.CreatePull("lib", "swarm/1-2", "main", "slice", "Refs acme/swarm-app#1")
+	m.forge.As(forge.Account{Login: "mallory"}).CreatePull("app", "swarm/1-3", "main", "slice", "Refs acme/swarm-app#1")
+	m.ok(swarmClose, "Maintainer jane on acme/swarm-app\n#1 closed\n#1 swarm:review-1-in-progress → swarm:rejected\n"+
+		"#1 pull lib#1 left open (https://forge.example.net/acme/lib/pulls/1): close it on the forge\n", "1")
+}
+
+// A verb's own comment holding a command line (`/swarm …` on a line of
+// its own) is refused, naming the line, nothing posted: the comment
+// would be a command that no member reads (section 11).
+func TestSwarmVerbCommentWithACommandLineRefused(t *testing.T) {
+	t.Parallel()
+	m := newMaintainerWS(t)
+	m.forge.CreateIssue("A", mark("owner", 1)+"a", []string{"swarm:plan-1-accepted", forge.Blocked})
+	const refused = "Error: swarm: the comment holds a command line (/swarm merge), which would make it a command that no member reads; nothing posted"
+	for _, tc := range []struct {
+		name string
+		run  func(*Context, opener) error
+		args []string
+	}{
+		{"close", swarmClose, []string{"1", "Done.\n  /swarm merge  "}},
+		{"unblock", swarmUnblock, []string{"1", "Fixed.\n/swarm merge"}},
+		{"replan", swarmReplan, []string{"1", "Then:\n/swarm merge"}},
+	} {
+		if err := m.verb(tc.run, tc.args...); errText(err) != refused {
+			t.Errorf("%s: %v\nwant %s", tc.name, err, refused)
+		}
+	}
+	if got := m.writes(1); len(got) != 0 {
+		t.Errorf("writes %q", got)
+	}
+}
+
 // close, with a comment and without; unblock clearing swarm:blocked (and
 // the gated flag with it) from the stage the block kept, its comment
 // first; a merge already made on the forge goes straight to the relabel.

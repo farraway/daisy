@@ -253,8 +253,9 @@ func checkRepos(c Config) *Error {
 // Unchecked is each declared repository, by its index in repos, whose
 // pull requests the merge step merges with no check of Daisy's run on
 // them: with gates.merge false, each whose check is empty (section 12).
-// Validate refuses neither: apply warns of each (UncheckedWarning), and
-// status lists each under Waiting for you, which notify tells.
+// Validate refuses neither: apply warns of each (UncheckedWarning), as
+// init's readiness warnings do, and status lists each under Waiting for
+// you, which notify tells.
 func (c Config) Unchecked() []int {
 	if c.Gates.Merge {
 		return nil
@@ -268,8 +269,8 @@ func (c Config) Unchecked() []int {
 	return out
 }
 
-// UncheckedWarning is apply's warning of repos[i], an index Unchecked
-// returns (section 3).
+// UncheckedWarning is apply's and init's warning of repos[i], an index
+// Unchecked returns (section 3).
 func (c Config) UncheckedWarning(i int) string {
 	return fmt.Sprintf("swarm.json: repos[%d] (%s) has no check and gates.merge is false: no check of Daisy's runs on its pull requests before the merge step merges them", i, c.Repos[i].Name)
 }

@@ -1806,3 +1806,12 @@ they write.
   one in the same second included. Sections 6, 7.3, 7.4 and 11's
   `apply` stderr; `docs/cli.md`'s. Decision
   [180](swarm/decisions/0180-three-reconcile-edges.md).
+- 2026-11-27, Step S8 of the plan implementing the 2026-11-19 swarm
+  roadmap (L356, L363, L380): `swarm close` names each of the issue's
+  pull requests it leaves open; every maintainer's verb refuses a
+  comment holding a command line, the check `replan` alone made, its
+  message now naming the comment; `swarm init`'s readiness warnings
+  carry `apply`'s warning of a repository with no check under
+  `gates.merge` false. Section 11's maintainer's verbs, `replan` and
+  `init`; `docs/cli.md`'s. Decision
+  [181](swarm/decisions/0181-the-maintainers-verbs-close-their-gaps.md).
