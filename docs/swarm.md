@@ -904,8 +904,9 @@ follow without asking, and that a reviewer can check line by line.
   not hold the slice's review.
 - State a performance claim as a scaling or a ratio the check shows on
   any machine, never as a time measured on one.
-- A slice's documents change with its code. Name, in each slice's
-  acceptance claims, the documents the slice changes.
+- A slice's documents change with its code. Name the documents the
+  slice changes in its item under "## Steps" and in the Test Plan
+  claims it meets.
 - Keep to the job as the thread states it. If the job is unclear or too
   large, say so and propose how to cut it.
 - If the job builds on work that is not on the base branch yet and that
@@ -922,6 +923,11 @@ follow without asking, and that a reviewer can check line by line.
 Since Step R6-A of the plan implementing the 2026-11-19 swarm roadmap
 (7.11, rules 3 and 4) the third bullet names each test's probe and the
 fourth the slice's unsupported setups.
+Since Step S1 of that plan the documentation bullet names the
+documents in the slice's item under `## Steps` and in the Test Plan
+claims it meets, where it named "each slice's acceptance claims": the
+architect's Task text puts the claims in the plan-wide `## Test Plan`
+(7.4).
 
 ### worker
 
@@ -8223,7 +8229,7 @@ staying as they are.
 distinct default the role has had since the defaults were introduced
 (b3ec5eb, Step 1 of the swarm build), oldest first and the current one
 last, from the root's history of that file, each the text `init` wrote,
-byte for byte. The owner has had six, the architect eight, the worker
+byte for byte. The owner has had six, the architect nine, the worker
 five, the adversary seven, the sympathetic reviewer eight, the QA
 one (talk A17); the owner's sixth, the architect's seventh, the
 worker's fourth, the adversary's fifth and the sympathetic reviewer's
@@ -8231,12 +8237,14 @@ fourth moved its paths to `/job` (Step R1-6 of the plan implementing
 the 2026-11-19 swarm roadmap), the sympathetic reviewer's fifth dropping
 the reading guide (Step R3-10); each reviewer's sixth reads the diff the
 Task names, the whole diff in round 1 (Step E2b, decision
-[168](swarm/decisions/0168-a-delta-review.md)); the last of the
-architect's, the worker's and the adversary's, and the sympathetic
+[168](swarm/decisions/0168-a-delta-review.md)); the architect's eighth,
+the last of the worker's and the adversary's, and the sympathetic
 reviewer's seventh, take review by risk (Step R6-A, decision
-[171](swarm/decisions/0171-review-by-risk-with-an-end.md)), and the
+[171](swarm/decisions/0171-review-by-risk-with-an-end.md)), the
 sympathetic reviewer's eighth holds a slice that changes only
-documentation to the statements it added or changed (Step R6-F). A change to a
+documentation to the statements it added or changed (Step R6-F), and the
+architect's ninth names a slice's documents in its item under `## Steps`
+and its Test Plan claims (Step S1). A change to a
 default appends its hash: `TestDefaultHistoryHoldsEachCurrentDefault`
 fails while a role's current default is not its last entry, so a prompt
 still at the old default is rewritten rather than taken for an edit. No

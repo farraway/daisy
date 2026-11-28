@@ -1765,3 +1765,9 @@ they write.
   is refused, naming both. Section 10, The fake forge's file;
   `docs/cli.md`'s Environment read. Decision
   [177](swarm/decisions/0177-the-fake-forges-file.md), As built.
+- 2026-11-27, Step S1 of the plan implementing the 2026-11-19 swarm
+  roadmap (L297): the default architect prompt names a slice's documents
+  in its item under `## Steps` and in the Test Plan claims it meets,
+  where it named "each slice's acceptance claims", which the Task text
+  puts in the plan-wide `## Test Plan`; its sha256 appended to the table
+  of earlier defaults. Sections 4 and 11. Wording; no decision.

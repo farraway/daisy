@@ -68,8 +68,9 @@ follow without asking, and that a reviewer can check line by line.
   not hold the slice's review.
 - State a performance claim as a scaling or a ratio the check shows on
   any machine, never as a time measured on one.
-- A slice's documents change with its code. Name, in each slice's
-  acceptance claims, the documents the slice changes.
+- A slice's documents change with its code. Name the documents the
+  slice changes in its item under "## Steps" and in the Test Plan
+  claims it meets.
 - Keep to the job as the thread states it. If the job is unclear or too
   large, say so and propose how to cut it.
 - If the job builds on work that is not on the base branch yet and that
@@ -221,17 +222,19 @@ latest changes, and report what fails.
 // To change a default: edit DefaultPrompts, then append the new text's
 // sha256 to its role's list here, keeping every earlier one (the failure
 // of TestDefaultHistoryHoldsEachCurrentDefault prints it), with the
-// commit's short sha and date in a comment once it is committed. Never
+// commit's short sha and date in a comment once it is committed. A
+// default that returns to an earlier text moves that hash to the end,
+// since the list holds each hash once and the current one last. Never
 // add the hash of a prompt a maintainer edited.
 var defaultHistory = map[string][]string{
 	"owner": {
 		"e8c358ba3565f1a8396ee9a55c4abe4c19aa8d7c7a6756c4bd9b9e82a2487f59", // b3ec5eb, 2026-11-06: the first defaults
 		"715365faca2fe7f5e7b24f52d809a45c82288083314e90f471ad09e8d9ce9b02", // 4a0434d, 2026-11-09: the resources in the clone's .resources
 		"ceff2a26224657a4c339a5242b3ef783f0cdc54e547d89cd5be69b6c8bfd6e37", // c48cba7, 2026-11-14: the general rules (F34)
-		"85e2e89036e4b6aecdfd53399c1d5e05a914c7c6c4f947f965f3bdbe001888dd", // 2026-11-14: the resources listed below (F35)
-		"a071bcfc45d57975cb97b41b9f98c4b6269f46e14faf26d6da4c801a74cac78d", // 2026-11-16: a recurring finding asks for a check (talk A4)
-		"66a6965e5c063e5162255b4a84b255b3df3973fc7fa7f2ae6aa63b995cdee35b", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
-		"e47b69e2f8625f4cdf4886e12280dee58d50f49fac3e3b7396ae0028b6e95b3a", // 2026-11-26: dependent work proposed with its Depends: line (Step R2-A, the maintainer's ruling)
+		"85e2e89036e4b6aecdfd53399c1d5e05a914c7c6c4f947f965f3bdbe001888dd", // 8d0521f, 2026-11-14: the resources listed below (F35)
+		"a071bcfc45d57975cb97b41b9f98c4b6269f46e14faf26d6da4c801a74cac78d", // cf96516, 2026-11-16: a recurring finding asks for a check (talk A4)
+		"66a6965e5c063e5162255b4a84b255b3df3973fc7fa7f2ae6aa63b995cdee35b", // 26ffd42, 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
+		"e47b69e2f8625f4cdf4886e12280dee58d50f49fac3e3b7396ae0028b6e95b3a", // a14fec2, 2026-11-26: dependent work proposed with its Depends: line (Step R2-A, the maintainer's ruling)
 	},
 	"architect": {
 		"3f6d4a644ce1da47536934531578f7a00ecc0a6e6e113075adc1736a60e3b9f0", // b3ec5eb, 2026-11-06
@@ -239,38 +242,39 @@ var defaultHistory = map[string][]string{
 		"8f2faf7093aca163ebba82d11ba3d99d37a9b8305cf5abe4f3b9712906ddb527", // b1021ce, 2026-11-09: "The worker sees only…"
 		"953f62285c2977d9711100b821600f087f68476a88feaf04492396b92bc777b6", // 5c92652, 2026-11-11: documentation duty
 		"ebdf076502d2b9b96f15ffe6a601fdc054b90260c96d08790ee39516dbec1588", // c48cba7, 2026-11-14: the general rules (F34)
-		"c78f97600dfa3fa7ed2bdaea0dd472513d83fb388542fa27ff0038e1b25d4942", // 2026-11-14: the resources listed below (F35)
-		"4a82acb0369227d4e8cb393ea1af6a3fe085f2171b6167ee7dcf80b6ce827ec9", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
-		"4bf96ae7c1aa24e48839b951cb6af7c47b2cc8247542d4cd42afee07fcf40ae8", // 2026-11-22: each test's probe and the slice's unsupported setups (Step R6-A of the 2026-11-19 roadmap's plan)
+		"c78f97600dfa3fa7ed2bdaea0dd472513d83fb388542fa27ff0038e1b25d4942", // 8d0521f, 2026-11-14: the resources listed below (F35)
+		"4a82acb0369227d4e8cb393ea1af6a3fe085f2171b6167ee7dcf80b6ce827ec9", // 26ffd42, 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
+		"4bf96ae7c1aa24e48839b951cb6af7c47b2cc8247542d4cd42afee07fcf40ae8", // 180e219, 2026-11-22: each test's probe and the slice's unsupported setups (Step R6-A of the 2026-11-19 roadmap's plan)
+		"1b36e05aa153e86c2e8992be1cc636343a93538415f3a930678efdab1e356cf5", // 2026-11-27: the documents named in the slice's item under Steps and its Test Plan claims (Step S1 of the 2026-11-19 roadmap's plan)
 	},
 	"worker": {
 		"700b6715ccb0d80009c5ac98764abcbed48a3602a97c840ad54d5a574eb14a48", // b3ec5eb, 2026-11-06
 		"09aeb6dc8634518cb36fbceb07e6c5cd862b9a235ab85f7dfdc1f8b99f3edbdf", // 5c92652, 2026-11-11: documentation duty
 		"107913ee8c86c91bed4c572ad32c090c906c3d46838bbcbe49287021028fb662", // c48cba7, 2026-11-14: the general rules (F34)
-		"f1cae2d37ff1a66d347f4dc45cdb289a173614ce78275ba29c1be22f2481c880", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
-		"b5ca42ba98710e23595bf6495dff318d337e01a55d562dc9ce79bd6f878cdb28", // 2026-11-22: the plan's probes and Daisy's gates (Step R6-A of the 2026-11-19 roadmap's plan)
+		"f1cae2d37ff1a66d347f4dc45cdb289a173614ce78275ba29c1be22f2481c880", // 26ffd42, 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
+		"b5ca42ba98710e23595bf6495dff318d337e01a55d562dc9ce79bd6f878cdb28", // 180e219, 2026-11-22: the plan's probes and Daisy's gates (Step R6-A of the 2026-11-19 roadmap's plan)
 	},
 	"adversary": {
 		"835a912a688db206558744955c182e26bc3461bfed0e9afb156920a8208f8098", // b3ec5eb, 2026-11-06
 		"c0157222a793d4415c41853dd819341e90d79e82c3122c09f1b57399b9166f0f", // 5c92652, 2026-11-11: documentation duty
 		"215abc3cc8b5ca50f5c26ae9c9d1bec48e5bf34c898cd81c5a858910ccc080ac", // c48cba7, 2026-11-14: the general rules (F34)
-		"2c659eccf0aa568e8bed74d78427ddf37143dc32f17d683815f8a7c4eaad551c", // 2026-11-16: a recurring finding asks for a check (talk A4)
-		"daeb04becc5361da98536c3cb12483aff67e9ff491019997d91b4ec435edb00d", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
-		"80a07b2accd1f8e97b90edb3591784a349b538724f01dd33b9051e28cc727611", // 2026-11-21: the diff the Task names, the whole diff in round 1 (Step E2b of the 2026-11-19 roadmap's plan)
-		"5bf575cb4612f329ba77f3ee5ee9ffdbce628f52357d3333eaf3d523460c9d56", // 2026-11-22: what blocks, the probes the plan names and the token rules (Step R6-A of the 2026-11-19 roadmap's plan)
+		"2c659eccf0aa568e8bed74d78427ddf37143dc32f17d683815f8a7c4eaad551c", // cf96516, 2026-11-16: a recurring finding asks for a check (talk A4)
+		"daeb04becc5361da98536c3cb12483aff67e9ff491019997d91b4ec435edb00d", // 26ffd42, 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
+		"80a07b2accd1f8e97b90edb3591784a349b538724f01dd33b9051e28cc727611", // 1c3cf74, 2026-11-21: the diff the Task names, the whole diff in round 1 (Step E2b of the 2026-11-19 roadmap's plan)
+		"5bf575cb4612f329ba77f3ee5ee9ffdbce628f52357d3333eaf3d523460c9d56", // 180e219, 2026-11-22: what blocks, the probes the plan names and the token rules (Step R6-A of the 2026-11-19 roadmap's plan)
 	},
 	"sympathetic": {
 		"80e9469ddf6025963f7145f607e1304a32d7e378334a697f510dc8d28f70d414", // b3ec5eb, 2026-11-06
 		"23d5445953076859f08a92b96338b00ed4835d040bc8bd5606c0679833059b3b", // c48cba7, 2026-11-14: the general rules (F34)
-		"039c8c79375bd83d6a49ba5d5b58f0e8c7aa062c6b993d57d807597fd61ee90c", // 2026-11-16: a recurring finding asks for a check (talk A4)
-		"6b085c063aa026995258438fdb5d5b2e471e1413247625bb07daa67007c54175", // 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
-		"56fa94a079a1d30c1b7d1f4f9a039f44929dfb018a299c51237f2e834fc8396c", // 2026-11-21: the reading guide dropped (Step R3-10 of the 2026-11-19 roadmap's plan)
-		"09082aed3945908c3d46f587387b3887713db08cf85927e3a92e71128de77613", // 2026-11-21: the diff the Task names, the whole diff in round 1 (Step E2b of the 2026-11-19 roadmap's plan)
-		"23b024dfbe8aa61b3629de3b0b6eff079953641142e34e05f86b34dc02fbb1e7", // 2026-11-22: what blocks and the token rules: reads and runs nothing (Step R6-A of the 2026-11-19 roadmap's plan)
-		"2e4f081bc2e4089b0040a6dc05eae685560374e6276d2dca6b521010aa51a33b", // 2026-11-23: a documentation-only slice's document, its own statements alone (Step R6-F of the 2026-11-19 roadmap's plan)
+		"039c8c79375bd83d6a49ba5d5b58f0e8c7aa062c6b993d57d807597fd61ee90c", // cf96516, 2026-11-16: a recurring finding asks for a check (talk A4)
+		"6b085c063aa026995258438fdb5d5b2e471e1413247625bb07daa67007c54175", // 26ffd42, 2026-11-20: the run's folder, /job (Step R1-6 of the 2026-11-19 roadmap's plan)
+		"56fa94a079a1d30c1b7d1f4f9a039f44929dfb018a299c51237f2e834fc8396c", // 050e855, 2026-11-21: the reading guide dropped (Step R3-10 of the 2026-11-19 roadmap's plan)
+		"09082aed3945908c3d46f587387b3887713db08cf85927e3a92e71128de77613", // 1c3cf74, 2026-11-21: the diff the Task names, the whole diff in round 1 (Step E2b of the 2026-11-19 roadmap's plan)
+		"23b024dfbe8aa61b3629de3b0b6eff079953641142e34e05f86b34dc02fbb1e7", // 180e219, 2026-11-22: what blocks and the token rules: reads and runs nothing (Step R6-A of the 2026-11-19 roadmap's plan)
+		"2e4f081bc2e4089b0040a6dc05eae685560374e6276d2dca6b521010aa51a33b", // 8fd86ac, 2026-11-23: a documentation-only slice's document, its own statements alone (Step R6-F of the 2026-11-19 roadmap's plan)
 	},
 	"qa": {
-		"f37da35d4687e2a2bdd22fbfefb0eab076ec0c74b3a670ae5b38d4a4c90b578e", // 2026-11-17: the first default (talk A17)
+		"f37da35d4687e2a2bdd22fbfefb0eab076ec0c74b3a670ae5b38d4a4c90b578e", // f981806, 2026-11-17: the first default (talk A17)
 	},
 }
 
